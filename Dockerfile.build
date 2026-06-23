@@ -1,0 +1,45 @@
+# ORG-2 build/run environment — Ubuntu 22.04 (Tauri v2 needs webkit2gtk-4.1)
+# 本机是 Ubuntu 20.04 (只有 webkit 4.0)，用容器隔离编译，不污染本机。
+# 用本地已有的 22.04 镜像 + 国内源直连(daemon 代理失效，apt 走代理不稳)
+FROM nvcr.io/nvidia/base/ubuntu:22.04_20240212
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Asia/Shanghai
+
+# 换阿里云 apt 源(直连，避开代理)
+RUN sed -i 's@http://archive.ubuntu.com/ubuntu@http://mirrors.aliyun.com/ubuntu@g; s@http://security.ubuntu.com/ubuntu@http://mirrors.aliyun.com/ubuntu@g' /etc/apt/sources.list || true
+
+# Tauri v2 Linux 系统依赖 + 构建工具 + Xvfb(无头 GUI 截图)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl wget file build-essential pkg-config ca-certificates git \
+    libwebkit2gtk-4.1-dev \
+    libgtk-3-dev \
+    libsoup-3.0-dev \
+    libjavascriptcoregtk-4.1-dev \
+    librsvg2-dev \
+    libssl-dev \
+    libayatana-appindicator3-dev \
+    patchelf \
+    xvfb x11-utils xauth \
+    libgl1-mesa-dri libgl1-mesa-glx \
+    fonts-noto-cjk \
+    && rm -rf /var/lib/apt/lists/*
+
+# Node 22 (阿里云 nodesource 镜像或直接 nodesource via 代理)
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+RUN npm config set registry https://registry.npmmirror.com \
+    && npm install -g pnpm@9.15.4 \
+    && pnpm config set registry https://registry.npmmirror.com
+
+# Rust (rustup, 国内 RsProxy 镜像)
+ENV RUSTUP_DIST_SERVER=https://rsproxy.cn
+ENV RUSTUP_UPDATE_ROOT=https://rsproxy.cn/rustup
+RUN curl --proto '=https' --tlsv1.2 -sSf https://rsproxy.cn/rustup-init.sh | sh -s -- -y --default-toolchain stable
+ENV PATH="/root/.cargo/bin:${PATH}"
+# cargo 国内镜像
+RUN mkdir -p /root/.cargo && printf '[source.crates-io]\nreplace-with = "rsproxy-sparse"\n[source.rsproxy-sparse]\nregistry = "sparse+https://rsproxy.cn/index/"\n[registries.rsproxy]\nindex = "sparse+https://rsproxy.cn/index/"\n[net]\ngit-fetch-with-cli = true\n' > /root/.cargo/config.toml
+
+WORKDIR /work
+CMD ["bash"]

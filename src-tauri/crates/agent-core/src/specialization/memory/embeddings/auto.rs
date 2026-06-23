@@ -146,8 +146,23 @@ impl AutoEmbeddingProvider {
         }
     }
 
+    /// Local embedding provider — Simon's setup: qwen3-embedding-4b served at
+    /// `http://localhost:9876/v1` (OpenAI-compatible, 1024-dim, no API key).
+    /// Overridable via env `ORGII_LOCAL_EMBED_URL` / `ORGII_LOCAL_EMBED_MODEL`.
     fn resolve_local(_custom_path: Option<&str>) -> Result<Box<dyn EmbeddingProvider>, String> {
-        Err("Local embedding provider is not available.".to_string())
+        let base_url = std::env::var("ORGII_LOCAL_EMBED_URL")
+            .unwrap_or_else(|_| "http://localhost:9876/v1".to_string());
+        let model = std::env::var("ORGII_LOCAL_EMBED_MODEL")
+            .unwrap_or_else(|_| "qwen3-embedding-4b".to_string());
+        info!(
+            "[memory-embeddings] Using LOCAL qwen3 embedding provider ({} / {})",
+            base_url, model
+        );
+        Ok(Box::new(OpenAIEmbeddingProvider::new(
+            "not-needed".to_string(),
+            Some(model),
+            Some(base_url),
+        )))
     }
 
     /// Look up a credential for a specific agent type.
