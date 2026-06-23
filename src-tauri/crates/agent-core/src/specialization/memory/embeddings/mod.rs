@@ -8,6 +8,8 @@
 mod auto;
 mod azure;
 mod openai;
+#[allow(dead_code)]
+mod rerank;
 
 // `AutoEmbeddingProvider` is the only provider type external callers reach
 // for — they construct it via `AutoEmbeddingProvider::resolve(...)`. The
