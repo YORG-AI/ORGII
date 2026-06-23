@@ -136,3 +136,5 @@ BitFun/
 archive/
 **/.build/
 orgii-*.png
+.tmp-memory_v3.json
+.migrate.log
