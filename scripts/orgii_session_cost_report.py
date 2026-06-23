@@ -53,7 +53,7 @@ def match_pricing(model):
     if "gemini" in m:                     return PRICING["google/gemini-3.1-pro-preview"]
     if "glm" in m:                        return PRICING["z-ai/glm-5.2"]
     if "deepseek" in m:                   return PRICING["deepseek/deepseek-chat"]
-    return {"input": 3.0, "output": 15.0, "cache_read": 0.3, "cache_write": 3.75}  # 默认 sonnet
+    return None  # 未知模型：不静默估价（gpt-5.5 review 修正）
 
 
 def calc_cost(u, p):
@@ -155,8 +155,13 @@ def main():
 
     total_cost = 0.0
     out_rows = []
+    unpriced = []
     for model, u in sorted(usage.items(), key=lambda x: -x[1]["count"]):
-        c = calc_cost(u, match_pricing(model))
+        p = match_pricing(model)
+        if p is None:
+            unpriced.append((short_model(model), u))
+            continue
+        c = calc_cost(u, p)
         total_cost += c
         out_rows.append((short_model(model), u, c))
 
@@ -173,7 +178,12 @@ def main():
         print(f"    {u['count']} 次调用 | in {fmt_tok(u['input'])} / out {fmt_tok(u['output'])}{cache}")
         print(f"    ≈ ${c:.4f}")
         print()
-    print(f"  💰 总计: ${total_cost:.4f}")
+    if unpriced:
+        print("  ⚠️  以下模型无定价（未计入总价，需补 PRICING 表）：")
+        for name, u in unpriced:
+            print(f"    [UNPRICED] {name}: {u['count']} 次 | in {fmt_tok(u['input'])} / out {fmt_tok(u['output'])}")
+        print()
+    print(f"  💰 总计(已定价部分): ${total_cost:.4f}")
 
 
 if __name__ == "__main__":

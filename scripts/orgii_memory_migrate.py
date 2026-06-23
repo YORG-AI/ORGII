@@ -99,20 +99,65 @@ def backup_db():
     return bak
 
 
-def rollback():
-    conn = sqlite3.connect(str(ORGII_DB))
+MANIFEST_DIR = Path("/home/hy/clawd/logs/orgii-migrations")
+
+
+def _connect_rw():
+    conn = sqlite3.connect(str(ORGII_DB), timeout=30)
+    conn.execute("PRAGMA busy_timeout=30000")  # 并发防御：org2 同时写时等待而非立即失败
+    return conn
+
+
+def rollback(migration_id=None):
+    """按 migration_id（批次）精确撤销。不传则撤销最近一批。
+
+    用 manifest 记录的本批 learning ids 删除，绝不误删将来同 source 的新记录。
+    """
+    MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
+    manifests = sorted(MANIFEST_DIR.glob("migration-*.json"))
+    if not manifests:
+        print("⚠️  无迁移 manifest，无法精确 rollback。")
+        print("   （若要强制按 source 全删，用 --force-source-rollback）")
+        return
+    if migration_id:
+        target = MANIFEST_DIR / f"migration-{migration_id}.json"
+        if not target.exists():
+            print(f"❌ 找不到 migration_id={migration_id} 的 manifest")
+            return
+    else:
+        target = manifests[-1]  # 最近一批
+    manifest = json.loads(target.read_text())
+    ids = manifest.get("inserted_ids", [])
+    if not ids:
+        print(f"⚠️  manifest {target.name} 无 inserted_ids")
+        return
+    conn = _connect_rw()
+    ph = ",".join("?" * len(ids))
+    n = conn.execute(f"SELECT COUNT(*) FROM learnings WHERE id IN ({ph})", ids).fetchone()[0]
+    conn.execute(f"DELETE FROM learnings WHERE id IN ({ph})", ids)
+    conn.commit()
+    conn.close()
+    target.rename(target.with_suffix(".json.rolledback"))
+    print(f"↩️  已撤销 migration={manifest.get('migration_id')} 共 {n}/{len(ids)} 条（按 manifest 精确删除）")
+
+
+def force_source_rollback():
+    """兜底：按 source 全删（危险，会删将来同 source 记录）。"""
+    conn = _connect_rw()
     n = conn.execute("SELECT COUNT(*) FROM learnings WHERE source = ?", (SOURCE_TAG,)).fetchone()[0]
     conn.execute("DELETE FROM learnings WHERE source = ?", (SOURCE_TAG,))
     conn.commit()
     conn.close()
-    print(f"↩️  已撤销 {n} 条 source={SOURCE_TAG} 的迁移记录")
+    print(f"↩️  [FORCE] 已按 source 撤销 {n} 条 {SOURCE_TAG}（含所有批次）")
 
 
 def migrate(records, dry_run):
-    conn = sqlite3.connect(str(ORGII_DB))
+    conn = _connect_rw()
     if not conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='learnings'").fetchone():
         raise SystemExit("ORG-2 learnings table 不存在；先启动 org2 一次")
 
+    migration_id = datetime.now().strftime("%Y%m%dT%H%M%S")
+    inserted_ids = []
     inserted = skipped = errors = 0
     start = time.time()
     for i, row in enumerate(records, 1):
@@ -149,6 +194,7 @@ def migrate(records, dry_run):
              f"openclaw:{row.get('scope') or 'memory'}", created, now_iso()),
         )
         inserted += 1
+        inserted_ids.append(lid)
         if inserted % 50 == 0:
             conn.commit()
             print(f"  ... {inserted} inserted ({i}/{len(records)})")
@@ -156,7 +202,20 @@ def migrate(records, dry_run):
         conn.commit()
     conn.close()
     dur = time.time() - start
-    print(f"\n✅ 完成: inserted={inserted} skipped={skipped} errors={errors} · {dur:.1f}s")
+    # 写 manifest（rollback 用，按本批 ids 精确撤销）
+    if not dry_run and inserted_ids:
+        MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
+        manifest = {
+            "migration_id": migration_id,
+            "source": SOURCE_TAG,
+            "ts": now_iso(),
+            "inserted": inserted,
+            "inserted_ids": inserted_ids,
+        }
+        mf = MANIFEST_DIR / f"migration-{migration_id}.json"
+        mf.write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
+        print(f"📄 manifest → {mf}")
+    print(f"\n✅ 完成: migration_id={migration_id} inserted={inserted} skipped={skipped} errors={errors} · {dur:.1f}s")
 
 
 def main():
@@ -164,15 +223,21 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--include-reset", action="store_true")
-    ap.add_argument("--rollback", action="store_true")
+    ap.add_argument("--rollback", action="store_true", help="按 manifest 撤销最近一批")
+    ap.add_argument("--migration-id", help="指定撤销的批次 id")
+    ap.add_argument("--force-source-rollback", action="store_true",
+                    help="危险：按 source 全删（含所有批次）")
     ap.add_argument("--no-backup", action="store_true")
     args = ap.parse_args()
 
-    if args.rollback:
-        rollback()
+    if args.force_source_rollback:
+        force_source_rollback()
+        return
+    if args.rollback or args.migration_id:
+        rollback(args.migration_id)
         return
 
-    memory = json.loads(MEMORY_V3.read_text())
+    memory = json.loads(MEMORY_V3.read_text(encoding="utf-8"))
     records = pick_records(memory, args.include_reset)
     if args.limit:
         records = records[: args.limit]
