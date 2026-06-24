@@ -2,7 +2,7 @@
 
 use serde_json::Value;
 use std::collections::HashSet;
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::bus::InboundMessage;
 use crate::integrations::channels::config::AccessPolicy;
@@ -139,6 +139,13 @@ pub(super) fn parse_feishu_event(
                 if !config.allow_from.is_empty()
                     && !config.allow_from.iter().any(|a| a == sender_id)
                 {
+                    // 这次 debug 最大的坑：allowlist 用错 open_id（per-app 不同）会静默吞消息。
+                    // 加日志：拒绝时打印 sender open_id，方便对照 allow_from 配置。
+                    debug!(
+                        "[feishu] DM rejected by allowlist: sender open_id={} not in allow_from (size={})",
+                        sender_id,
+                        config.allow_from.len()
+                    );
                     return None;
                 }
             }

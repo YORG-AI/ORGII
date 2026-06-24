@@ -110,6 +110,16 @@ pub(super) async fn feishu_ws_loop(
         let (ping_tx, mut ping_rx) = mpsc::channel::<Vec<u8>>(4);
 
         let ping_handle = tokio::spawn(async move {
+            // 飞书 ws/v2：连上后立即发首个 ping 建立活跃心跳（对齐官方 SDK 行为）。
+            // 原实现先 sleep(120s) 再 ping，飞书可能视连接为未就绪/不活跃而不推送事件。
+            {
+                let frame = PbFrame::new_ping(service_id);
+                let encoded = frame.encode();
+                if ping_tx.send(encoded).await.is_err() {
+                    return;
+                }
+                debug!("[{}] initial ping sent", ping_channel);
+            }
             loop {
                 tokio::time::sleep(ping_interval).await;
                 if !ping_running.load(Ordering::Relaxed) {
@@ -146,6 +156,7 @@ pub(super) async fn feishu_ws_loop(
 
                             let frame_type = frame.method;
                             let msg_type = frame.header("type").unwrap_or("").to_string();
+                            debug!("[{}] WS frame: method={} type={} headers={}", channel_name, frame_type, msg_type, frame.headers.len());
 
                             match (frame_type, msg_type.as_str()) {
                                 (FRAME_TYPE_CONTROL, MSG_TYPE_PONG) => {
@@ -252,7 +263,18 @@ pub(super) async fn feishu_ws_loop(
                             *last_error.write().await = Some("WebSocket stream ended".into());
                             connection_alive = false;
                         }
-                        _ => {}
+                        Some(Ok(other)) => {
+                            // 诊断：捕获未处理的 WsMessage 类型（Text/Ping/Pong/Frame）。
+                            // 飞书 ws/v2 正常只发 Binary(protobuf)；若出现其他类型说明协议变化。
+                            let kind = match &other {
+                                WsMessage::Text(t) => format!("Text({} chars)", t.len()),
+                                WsMessage::Ping(p) => format!("Ping({} bytes)", p.len()),
+                                WsMessage::Pong(p) => format!("Pong({} bytes)", p.len()),
+                                WsMessage::Frame(_) => "Frame".to_string(),
+                                _ => "Other".to_string(),
+                            };
+                            debug!("[{}] WS recv unhandled message type: {}", channel_name, kind);
+                        }
                     }
                 }
             }
