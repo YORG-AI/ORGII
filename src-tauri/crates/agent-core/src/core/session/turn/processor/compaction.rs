@@ -282,6 +282,7 @@ impl UnifiedMessageProcessor {
                         total_tokens: 0,
                         prompt_tokens: 0,
                         completion_tokens: 0,
+                        context_tokens: 0,
                         tool_calls_count: 0,
                         truncated: false,
                         turn_summary: None,

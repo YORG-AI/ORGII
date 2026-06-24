@@ -78,7 +78,10 @@ fn default_keep_ratio() -> f32 {
     0.4
 }
 fn default_summary_max_tokens() -> u32 {
-    4096
+    // grill-me 式结构化压缩 schema 比散文摘要长得多（任务树/决策账本/否定路线/
+    // 用户纠正原话保真）。OpenClaw 侧目标 ≤12k tokens，这里给到 12000 上限，
+    // 避免结构化摘要在决策账本/下一步章节处被截断。
+    12_000
 }
 fn default_min_messages() -> usize {
     8

@@ -805,7 +805,7 @@ impl Tool for AgentTool {
 
         // 6. Build system prompt (base soul + context + learnings + scratchpad)
         let full_system_prompt = self
-            .build_full_system_prompt(&agent, &agent_id, &delegation_config)
+            .build_full_system_prompt(&agent, &agent_id, &delegation_config, prompt)
             .await?;
 
         // 7. Build initial messages (resume / fork / fresh)

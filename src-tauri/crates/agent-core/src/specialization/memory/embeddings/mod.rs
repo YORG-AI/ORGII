@@ -8,7 +8,6 @@
 mod auto;
 mod azure;
 mod openai;
-#[allow(dead_code)]
 mod rerank;
 
 // `AutoEmbeddingProvider` is the only provider type external callers reach
@@ -16,6 +15,9 @@ mod rerank;
 // concrete `Azure` / `OpenAI` providers are only instantiated inside
 // `auto.rs`, so they stay behind their submodule path.
 pub use auto::AutoEmbeddingProvider;
+// `LocalReranker` is the added cross-encoder rerank stage (Simon's setup).
+// Reached from `learnings::ranking::search_similar_reranked`.
+pub use rerank::LocalReranker;
 
 use async_trait::async_trait;
 

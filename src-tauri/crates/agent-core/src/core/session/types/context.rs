@@ -230,6 +230,13 @@ pub struct ProcessingResult {
     pub prompt_tokens: i64,
     /// Completion tokens generated.
     pub completion_tokens: i64,
+    /// Context window tokens used by the final provider request.
+    ///
+    /// This is distinct from `prompt_tokens` (which may be accumulated across
+    /// multiple LLM calls in one turn). Channel status bars use it as the
+    /// current context fill level.
+    #[serde(default)]
+    pub context_tokens: i64,
     /// Number of tool calls made.
     pub tool_calls_count: u32,
     /// Whether the response was truncated.

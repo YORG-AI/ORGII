@@ -318,7 +318,94 @@ pub fn inject_learnings_into_prompt(agent_scope: &str, query_embedding: Option<&
     format_learnings_for_prompt(&ranked)
 }
 
-/// Fire-and-forget `touch_recall` for a batch of IDs. Uses the ambient
+/// Async, query-aware variant of [`inject_learnings_into_prompt`].
+///
+/// Where the sync entry point only has a `query_embedding` (or nothing) and
+/// must run inside the synchronous system-prompt builder, this variant runs
+/// in async call sites that *do* have the raw task text — notably the
+/// orchestration `agent` tool, where the worker's `prompt` argument is the
+/// task. Having the raw query text unlocks the cross-encoder reranker
+/// (`search_similar_reranked`), which cosine alone can't use.
+///
+/// Pipeline:
+/// 1. Embed `query_text` via the workspace `AutoEmbeddingProvider`
+///    (provider/model from `IntegrationsConfig.embedding`).
+/// 2. Cosine coarse-recall + cross-encoder rerank (`search_similar_reranked`).
+/// 3. Fall back to salience ranking when embedding is unavailable or the
+///    semantic pass yields < 2 hits — identical degradation contract to the
+///    sync path, so callers never lose learnings injection.
+pub async fn inject_learnings_into_prompt_reranked(agent_scope: &str, query_text: &str) -> String {
+    use crate::specialization::memory::embeddings::{AutoEmbeddingProvider, EmbeddingProvider};
+
+    const MIN_SEMANTIC_SIMILARITY: f32 = 0.30;
+    const SEMANTIC_TOP_K: usize = 12;
+
+    // Empty / whitespace task → no meaningful query; fall straight back to
+    // salience ranking (no point embedding an empty string).
+    let trimmed = query_text.trim();
+    if trimmed.is_empty() {
+        return inject_learnings_into_prompt(agent_scope, None);
+    }
+
+    // Resolve the workspace embedding provider (same config the memory-search
+    // tools and consolidation use).
+    let embed_cfg = crate::state::integrations_store::integrations_store()
+        .snapshot()
+        .embedding;
+    let provider = AutoEmbeddingProvider::new(embed_cfg.provider, embed_cfg.model);
+
+    let (query_embedding, query_model) = match provider.embed(trimmed).await {
+        Ok(res) => (res.vector, Some(res.model)),
+        Err(err) => {
+            warn!(
+                "[learnings] query embed failed ({err}); falling back to salience ranking"
+            );
+            return inject_learnings_into_prompt(agent_scope, None);
+        }
+    };
+
+    // Stage 1 (sync, DB): cosine coarse-recall. The `rusqlite::Connection`
+    // is `!Sync` and MUST NOT be held across the rerank `.await`, so we do
+    // all DB work inside this block and let `conn` drop before awaiting.
+    let coarse = {
+        let Ok(conn) = crate::foundation::db_bridge::get_connection() else {
+            return String::new();
+        };
+        match super::ranking::search_similar(
+            &conn,
+            agent_scope,
+            &query_embedding,
+            query_model.as_deref(),
+            SEMANTIC_TOP_K.saturating_mul(super::ranking::RERANK_RECALL_MULT),
+            MIN_SEMANTIC_SIMILARITY,
+        ) {
+            Ok(pairs) => pairs,
+            Err(err) => {
+                warn!("[learnings] cosine recall failed: {err}; salience fallback");
+                return inject_learnings_into_prompt(agent_scope, None);
+            }
+        }
+    };
+
+    // Stage 2 (async, DB-free): cross-encoder rerank over the recalled pool.
+    let ranked_pairs = super::ranking::rerank_candidates(trimmed, coarse, SEMANTIC_TOP_K).await;
+
+    let ranked: Vec<Learning> = if ranked_pairs.len() >= 2 {
+        ranked_pairs.into_iter().map(|(l, _)| l).collect()
+    } else {
+        // Too few semantic hits — salience fallback (re-opens its own conn).
+        return inject_learnings_into_prompt(agent_scope, None);
+    };
+
+    if ranked.is_empty() {
+        return String::new();
+    }
+
+    let ids: Vec<String> = ranked.iter().map(|l| l.id.clone()).collect();
+    schedule_touch_recall(ids);
+
+    format_learnings_for_prompt(&ranked)
+}
 /// tokio runtime when one is available; otherwise falls back to a detached
 /// OS thread. Either way the caller returns immediately — the prompt
 /// builder never waits on a DB write.

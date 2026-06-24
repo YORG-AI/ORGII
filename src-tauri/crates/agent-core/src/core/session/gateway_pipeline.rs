@@ -201,7 +201,14 @@ pub async fn process_gateway_message(
 
     match result {
         Ok(processing_result) => {
-            let content = &processing_result.content;
+            let content = crate::session::status_bar::append_status_bar_for_channel(
+                &msg.channel,
+                processing_result.content.clone(),
+                &session,
+                processing_result.total_tokens,
+                processing_result.context_tokens,
+            )
+            .await;
             let out_preview: String = crate::utils::safe_truncate_chars_to_string(&content, 80);
             info!(
                 "[agent-loop] Response for {}:{}: {}...",
@@ -210,7 +217,7 @@ pub async fn process_gateway_message(
             Ok(Some(OutboundMessage::new(
                 &msg.channel,
                 &msg.chat_id,
-                content,
+                &content,
             )))
         }
         Err(err) => {

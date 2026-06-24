@@ -723,6 +723,7 @@ impl UnifiedMessageProcessor {
             total_tokens: result.total_tokens,
             prompt_tokens: result.prompt_tokens,
             completion_tokens: result.completion_tokens,
+            context_tokens: result.context_tokens,
             tool_calls_count,
             truncated: false,
             turn_summary: None,

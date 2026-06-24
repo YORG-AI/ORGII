@@ -36,6 +36,7 @@ pub mod recovery;
 // each carry their own `#[doc(hidden)]`.
 pub mod prompt;
 pub(crate) mod scheduler;
+pub(crate) mod status_bar;
 pub mod session_id;
 pub(crate) mod title;
 pub mod turn;
