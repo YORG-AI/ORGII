@@ -148,6 +148,10 @@ pub struct SessionAggregateRecord {
     /// Source-impact touched file paths.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub touched_files: Option<Vec<String>>,
+    /// Channel origin for OS Agent sessions (e.g. "feishu", "telegram", "discord").
+    /// `None` for non-channel sessions (CLI, SDE, local GUI OS Agent).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub channel: Option<String>,
 }
 
 /// Session category enum.

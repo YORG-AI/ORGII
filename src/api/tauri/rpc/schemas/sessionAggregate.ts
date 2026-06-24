@@ -180,6 +180,8 @@ export const SessionAggregateRecordSchema = z.object({
   linesAdded: z.number().int().optional(),
   linesRemoved: z.number().int().optional(),
   touchedFiles: z.array(z.string()).optional(),
+  // Channel origin for OS Agent sessions (e.g. "feishu", "telegram").
+  channel: z.string().optional(),
 });
 
 export const CategoryStatsSchema = z

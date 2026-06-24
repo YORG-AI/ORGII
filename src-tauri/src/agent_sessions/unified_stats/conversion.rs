@@ -142,6 +142,7 @@ pub fn cli_session_to_aggregate_record(
         lines_added: None,
         lines_removed: None,
         touched_files: None,
+        channel: None,
     }
 }
 
@@ -213,6 +214,7 @@ pub fn sde_session_to_aggregate_record(
         lines_added,
         lines_removed,
         touched_files,
+        channel: None,
     }
 }
 
@@ -277,5 +279,6 @@ pub fn os_session_to_aggregate_record(
         lines_added,
         lines_removed,
         touched_files,
+        channel: session.channel,
     }
 }

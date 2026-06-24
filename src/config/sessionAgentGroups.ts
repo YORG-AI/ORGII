@@ -60,3 +60,11 @@ export const SESSION_GROUP_LABELS: Record<SessionGroupKey, string> = {
   cursor_ide: "Cursor History",
   ...IMPORTED_HISTORY_LABELS,
 };
+
+/** Display labels for channel-originated sessions (keyed by channel name from backend). */
+export const CHANNEL_LABELS: Record<string, string> = {
+  feishu: "Feishu / Lark",
+  telegram: "Telegram",
+  discord: "Discord",
+  email: "Email",
+};
