@@ -135,6 +135,123 @@ pub(super) async fn send_feishu_message(
 
 // ── Media Upload/Download ───────────────────────────────────────────────
 
+/// Download an image from Feishu by image_key. Returns raw bytes.
+pub(super) async fn download_image(
+    auth: &FeishuAuth,
+    image_key: &str,
+) -> Result<Vec<u8>, ChannelError> {
+    let token = auth.get_token().await?;
+    let url = format!("{}/im/v1/images/{}", auth.api_base(), image_key);
+
+    let res = auth
+        .client()
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", token))
+        .send()
+        .await
+        .map_err(|err| ChannelError::Other(format!("Download image failed: {}", err)))?;
+
+    if !res.status().is_success() {
+        return Err(ChannelError::Other(format!(
+            "Download image HTTP {}: {}",
+            res.status(),
+            image_key
+        )));
+    }
+
+    res.bytes()
+        .await
+        .map(|b| b.to_vec())
+        .map_err(|err| ChannelError::Other(format!("Read image bytes failed: {}", err)))
+}
+
+/// Download a file from Feishu by file_key. Returns raw bytes.
+pub(super) async fn download_file(
+    auth: &FeishuAuth,
+    file_key: &str,
+) -> Result<Vec<u8>, ChannelError> {
+    let token = auth.get_token().await?;
+    let url = format!("{}/im/v1/files/{}", auth.api_base(), file_key);
+
+    let res = auth
+        .client()
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", token))
+        .send()
+        .await
+        .map_err(|err| ChannelError::Other(format!("Download file failed: {}", err)))?;
+
+    if !res.status().is_success() {
+        return Err(ChannelError::Other(format!(
+            "Download file HTTP {}: {}",
+            res.status(),
+            file_key
+        )));
+    }
+
+    res.bytes()
+        .await
+        .map(|b| b.to_vec())
+        .map_err(|err| ChannelError::Other(format!("Read file bytes failed: {}", err)))
+}
+
+/// Resolve `feishu:image:{key}` / `feishu:file:{key}` media references in an
+/// InboundMessage to local file paths by downloading from Feishu API and
+/// persisting to `~/.orgii/session-images/`.
+pub(super) async fn resolve_feishu_media(
+    auth: &FeishuAuth,
+    media: &mut Vec<String>,
+) {
+    let images_dir = app_paths::session_images_dir();
+    let _ = std::fs::create_dir_all(&images_dir);
+
+    for entry in media.iter_mut() {
+        if let Some(image_key) = entry.strip_prefix("feishu:image:") {
+            let image_key = image_key.to_string();
+            match download_image(auth, &image_key).await {
+                Ok(bytes) => {
+                    let hash = sha256_hex(&bytes);
+                    let filename = format!("{}.png", &hash[..16]);
+                    let path = images_dir.join(&filename);
+                    if !path.exists() {
+                        if let Err(err) = std::fs::write(&path, &bytes) {
+                            warn!("[feishu] Failed to persist image {}: {}", image_key, err);
+                            continue;
+                        }
+                    }
+                    *entry = path.to_string_lossy().to_string();
+                }
+                Err(err) => {
+                    warn!("[feishu] Failed to download image {}: {}", image_key, err);
+                }
+            }
+        } else if let Some(file_key) = entry.strip_prefix("feishu:file:") {
+            let file_key = file_key.to_string();
+            match download_file(auth, &file_key).await {
+                Ok(bytes) => {
+                    let hash = sha256_hex(&bytes);
+                    let filename = format!("{}.bin", &hash[..16]);
+                    let path = images_dir.join(&filename);
+                    if !path.exists() {
+                        if let Err(err) = std::fs::write(&path, &bytes) {
+                            warn!("[feishu] Failed to persist file {}: {}", file_key, err);
+                            continue;
+                        }
+                    }
+                    *entry = path.to_string_lossy().to_string();
+                }
+                Err(err) => {
+                    warn!("[feishu] Failed to download file {}: {}", file_key, err);
+                }
+            }
+        }
+    }
+}
+
+fn sha256_hex(data: &[u8]) -> String {
+    crate::foundation::persistence::images::sha256_hex(data)
+}
+
 /// Upload an image to Feishu and return the image_key.
 pub(super) async fn upload_image(
     auth: &FeishuAuth,
