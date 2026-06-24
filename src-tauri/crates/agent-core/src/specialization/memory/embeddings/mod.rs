@@ -8,7 +8,6 @@
 mod auto;
 mod azure;
 mod openai;
-#[allow(dead_code)]
 mod rerank;
 pub use rerank::LocalReranker;
 

@@ -28,7 +28,6 @@ pub(crate) fn truncate_for_summary(text: &str, max_chars: usize) -> String {
 // Summarization Prompt
 // ============================================
 
-
 pub(crate) const SUMMARIZATION_SYSTEM_PROMPT: &str = r#"你是会话压缩器（grill-me 式脉络梳理）。你的唯一任务是读取上面的完整对话历史，输出一份结构化压缩摘要——不是流水账，而是把任务树、决策树、尝试过但被否定/废弃的路线、当前仍有效路线全部梳理清楚。
 
 ## 硬性保真要求（违反即视为压缩失败）
@@ -50,13 +49,11 @@ pub(crate) const SUMMARIZATION_SYSTEM_PROMPT: &str = r#"你是会话压缩器（
 - **当前有效规则（Active Rules）** 与 **已废弃/禁止规则（Rejected Rules）**：若某条算法规则反复过，写清最终有效版本。
 - **用户纠正与踩坑**
 - **下一轮开始时必须主动同步的进度分支树**
-
 ## 格式
 
 用 Markdown 结构化输出。中文。不要 preamble、不要思考过程、不要客套。
 优先保留具体信息（精确路径、错误原文、配置值）而非泛泛描述。
 目标长度尽量 ≤12k tokens，但宁可完整也不要截断。"#;
-
 
 // ============================================
 // Message Formatting
@@ -270,9 +267,7 @@ pub(crate) async fn summarize_messages(
                 "properties": {
                     "summary": {
                         "type": "string",
-
                         "description": "grill-me 式结构化压缩摘要（Markdown，中文）：全局硬约束 / 当前主线任务树 / 关键决策账本 / 当前有效规则 / 已废弃规则 / 用户纠正与踩坑 / 下一轮必须主动同步的进度分支树。保留所有路径/IP/端口/命令/配置/错误原文/数值/用户纠正原话。"
-
                     }
                 },
                 "required": ["summary"]
