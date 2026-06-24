@@ -5,6 +5,52 @@
 //! are deliberately excluded — see [`build_transcript`].
 
 use crate::foundation::persistence::db_helpers::message_role;
+use regex::RegexSet;
+use std::sync::OnceLock;
+
+/// 结构性噪音行模式（迁移自 OpenClaw NoiseFilter，B4 噪音剥离补强）。
+///
+/// ORG-2 自带噪音去除只有 `MIN_TRANSCRIPT_LEN` + role 过滤（很粗），
+/// 不会剥离飞书/OpenClaw 注入的结构性噪音行。这些行若进 reflection transcript，
+/// 会被模型当成对话内容学进 learning（状态栏被当"用户说的话"）。
+///
+/// 逐行匹配：命中任一模式的行会被丢弃，剩余行重组后才进 transcript。
+const NOISE_LINE_PATTERNS: &[&str] = &[
+    r"^\[STATUS BAR\]",                              // 状态栏指令
+    r"^\s*📊\s*等效[:：]",                           // 状态栏正文
+    r"^Conversation info \(untrusted metadata\)",    // 飞书元数据块
+    r"^Feishu\[[^\]]*\] DM from ",                    // 飞书 DM 信封头
+    r"^System:.*Feishu\[[^\]]*\] DM",                // System 包裹的飞书信封
+    r"^System:.*Exec (completed|failed)",            // Exec 完成回灌
+    r"^\[message_id:\s*om_",                          // 飞书 message_id
+    r"^\s*NO_REPLY\s*$",                              // 静默回复标记
+    r"^\s*HEARTBEAT_OK\s*$",                          // 心跳 ack
+    r"^\[\[\s*reply_to(_current)?\s*[:\]]",           // reply tag
+    r"^\[Memory V3 相关记忆\]",                       // Memory V3 注入块
+    r"^\[/Memory V3\]",
+    r"^【User Traits】",                              // 画像注入
+    r"^【Current Context】",
+];
+
+fn noise_set() -> &'static RegexSet {
+    static SET: OnceLock<RegexSet> = OnceLock::new();
+    SET.get_or_init(|| {
+        RegexSet::new(NOISE_LINE_PATTERNS).expect("noise patterns must compile")
+    })
+}
+
+/// 剥离 content 中的结构性噪音行；返回清洗后的内容（保留非噪音行原文）。
+///
+/// 不做语义压缩、不改非噪音行内容（遵守"原话保真"铁律：只删纯噪音行，
+/// 用户纠正/正文一字不动）。
+fn strip_noise_lines(content: &str) -> String {
+    let set = noise_set();
+    let kept: Vec<&str> = content
+        .lines()
+        .filter(|line| !set.is_match(line.trim_start()))
+        .collect();
+    kept.join("\n")
+}
 
 /// Minimum transcript length to trigger reflection (chars).
 ///
@@ -69,15 +115,18 @@ pub fn build_transcript(conn: &rusqlite::Connection, session_id: &str) -> Result
 }
 
 fn append_transcript_line(transcript: &mut String, role: &str, content: &str) {
-    let trimmed = content.trim();
-    if trimmed.is_empty() {
-        return;
-    }
     let label = match role {
         message_role::USER => "User",
         message_role::ASSISTANT => "Assistant",
         _ => return,
     };
+    // B4: 先剥离结构性噪音行（状态栏/System信封/message_id/HEARTBEAT_OK 等），
+    // 再判空。避免噪音被当对话内容学进 learning。
+    let cleaned = strip_noise_lines(content);
+    let trimmed = cleaned.trim();
+    if trimmed.is_empty() {
+        return;
+    }
     transcript.push_str(label);
     transcript.push_str(": ");
     transcript.push_str(trimmed);
@@ -125,6 +174,42 @@ mod tests {
         append_transcript_line(&mut out, message_role::USER, "");
         append_transcript_line(&mut out, message_role::USER, "   \n\t  ");
         assert_eq!(out, "");
+    }
+
+    #[test]
+    fn strip_noise_lines_removes_structural_noise_keeps_content() {
+        // 混合：噪音行 + 真实正文 + 用户纠正（必须保真）
+        let raw = "[STATUS BAR] 本条回复末尾追加状态栏\n\
+                   📊 等效: 744k (74%) · 压缩: 0次\n\
+                   不对，你这个路径用错了，应该用 /mnt/share_88\n\
+                   [message_id: om_x100b6c9f8f4]\n\
+                   System: [2026-06-24] Feishu[default] DM from ou_xxx: 继续\n\
+                   NO_REPLY\n\
+                   HEARTBEAT_OK\n\
+                   这是真正的方案正文。";
+        let cleaned = strip_noise_lines(raw);
+        // 噪音被删
+        assert!(!cleaned.contains("STATUS BAR"));
+        assert!(!cleaned.contains("📊 等效"));
+        assert!(!cleaned.contains("message_id"));
+        assert!(!cleaned.contains("Feishu[default] DM"));
+        assert!(!cleaned.contains("NO_REPLY"));
+        assert!(!cleaned.contains("HEARTBEAT_OK"));
+        // 正文 + 用户纠正原话保真
+        assert!(cleaned.contains("不对，你这个路径用错了，应该用 /mnt/share_88"));
+        assert!(cleaned.contains("这是真正的方案正文。"));
+    }
+
+    #[test]
+    fn append_transcript_line_strips_noise_before_append() {
+        let mut out = String::new();
+        // 纯噪音内容 → append 后应为空（剥离后 trimmed 为空）
+        append_transcript_line(&mut out, message_role::USER, "[STATUS BAR] x\n📊 等效: 0k\nNO_REPLY");
+        assert_eq!(out, "", "pure-noise message must yield empty transcript");
+        // 噪音 + 正文 → 只保留正文
+        append_transcript_line(&mut out, message_role::ASSISTANT, "HEARTBEAT_OK\n实际回复内容");
+        assert!(out.contains("Assistant: 实际回复内容"));
+        assert!(!out.contains("HEARTBEAT_OK"));
     }
 
     #[test]
