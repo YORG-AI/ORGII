@@ -36,6 +36,7 @@ import {
 } from "../blocks";
 import NavigationMenu from "../components/NavigationMenu";
 import type { NavigationMenuItem } from "../components/NavigationMenu/config";
+import { SidebarQuotaMonitorButton } from "../connectors/SidebarQuotaMonitorButton";
 import { SidebarRamMonitorButton } from "../connectors/SidebarRamMonitorButton";
 import { SidebarSearchShortcutTooltip } from "../connectors/WorkstationSidebarConnector/sidebarTabs";
 
@@ -134,7 +135,12 @@ const SettingsSidebar: React.FC = () => {
       <div className="shrink-0 px-3">{settingsReturnItem}</div>
       <SettingsRootBody />
       <SidebarBottomBar
-        rightActions={<SidebarRamMonitorButton />}
+        rightActions={
+          <>
+            <SidebarQuotaMonitorButton />
+            <SidebarRamMonitorButton />
+          </>
+        }
         hideSettings
       />
     </SidebarBase>

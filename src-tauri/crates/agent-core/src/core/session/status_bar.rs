@@ -9,7 +9,7 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::state::AgentSession;
 
@@ -231,6 +231,44 @@ fn fmt_reset(value: Option<&str>) -> Option<String> {
         cst.format("%H:%M").to_string()
     };
     Some(format!("{}({})", label, remain))
+}
+
+// ── Public quota API for GUI monitoring panel ────────────────────────────
+
+/// Structured ZenMux quota status for the GUI monitoring panel.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ZenmuxQuotaStatus {
+    pub quota_5h_pct: f64,
+    pub quota_7d_pct: f64,
+    pub resets_5h: Option<String>,
+    pub resets_7d: Option<String>,
+}
+
+/// Fetch ZenMux quota as structured data (cached, same 5-min TTL as the bar
+/// text). Returns `None` when the API is unreachable and no stale value exists.
+pub async fn get_zenmux_quota() -> Option<ZenmuxQuotaStatus> {
+    // Re-use the existing bar-text fetch path to populate the cache, then
+    // parse fresh data ourselves. This avoids duplicating HTTP + cache logic.
+    let resp = reqwest::Client::new()
+        .get("https://zenmux.ai/api/v1/management/subscription/detail")
+        .header("Authorization", format!("Bearer {}", ZENMUX_MGMT_KEY))
+        .send()
+        .await
+        .ok()?;
+    let envelope: ManagementEnvelope<SubscriptionDetail> = resp.json().await.ok()?;
+    Some(ZenmuxQuotaStatus {
+        quota_5h_pct: (envelope.data.quota_5_hour.usage_percentage * 100.0 * 10.0).round() / 10.0,
+        quota_7d_pct: (envelope.data.quota_7_day.usage_percentage * 100.0 * 10.0).round() / 10.0,
+        resets_5h: envelope.data.quota_5_hour.resets_at,
+        resets_7d: envelope.data.quota_7_day.resets_at,
+    })
+}
+
+/// Query per-session token usage summary. Public so the monitoring Tauri
+/// command can access it without duplicating the SQL.
+pub fn get_session_token_summary(session_id: &str) -> Option<(i64, i64)> {
+    query_session_usage(session_id)
 }
 
 #[cfg(test)]

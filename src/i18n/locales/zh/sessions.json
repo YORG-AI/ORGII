@@ -2568,5 +2568,12 @@
     "summarize": "让 Agent 总结",
     "waiting": "等待内容中…",
     "empty": "无内容"
+  },
+  "quotaMonitor": {
+    "title": "ZenMux 配额",
+    "quota5h": "5小时配额",
+    "quota7d": "7天配额",
+    "loading": "加载中...",
+    "unavailable": "配额数据不可用"
   }
 }

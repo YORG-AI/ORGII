@@ -46,6 +46,7 @@ export const procedures = {
   tools: p.tools,
   mcp: p.mcp,
   flow: p.flow,
+  quota: p.quota,
 } as const;
 
 // ============================================================================
