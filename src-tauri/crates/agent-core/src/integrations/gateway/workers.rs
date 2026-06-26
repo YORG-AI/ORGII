@@ -4,6 +4,7 @@
 //! entry point stays focused on wiring rather than per-task logic.
 
 use std::sync::atomic::{AtomicBool, Ordering};
+use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{error, info, warn};
@@ -162,20 +163,45 @@ async fn handle_ready_message(
         })
     });
 
+    let mut remove_processing_on_handler_done = true;
+
     match handler.handle_message(msg.clone()).await {
-        Ok(Some(response)) => {
+        Ok(Some(mut response)) => {
+            if !message_id.is_empty() {
+                response.metadata.insert(
+                    "processing_reaction_chat_id".to_string(),
+                    Value::String(msg.chat_id.clone()),
+                );
+                response.metadata.insert(
+                    "processing_reaction_message_id".to_string(),
+                    Value::String(message_id.clone()),
+                );
+                remove_processing_on_handler_done = false;
+            }
             let bus_lock = bus.lock().await;
             bus_lock.publish_outbound(response);
         }
         Ok(None) => {}
         Err(err_msg) => {
             error!("[gateway] Error processing message: {}", err_msg);
-            let bus_lock = bus.lock().await;
-            bus_lock.publish_outbound(OutboundMessage::new(
+            let mut response = OutboundMessage::new(
                 &msg.channel,
                 &msg.chat_id,
                 &format!("Sorry, I encountered an error: {}", err_msg),
-            ));
+            );
+            if !message_id.is_empty() {
+                response.metadata.insert(
+                    "processing_reaction_chat_id".to_string(),
+                    Value::String(msg.chat_id.clone()),
+                );
+                response.metadata.insert(
+                    "processing_reaction_message_id".to_string(),
+                    Value::String(message_id.clone()),
+                );
+                remove_processing_on_handler_done = false;
+            }
+            let bus_lock = bus.lock().await;
+            bus_lock.publish_outbound(response);
         }
     }
 
@@ -183,7 +209,7 @@ async fn handle_ready_message(
         task.abort();
     }
 
-    if !message_id.is_empty() {
+    if remove_processing_on_handler_done && !message_id.is_empty() {
         let cm_lock = channel_manager.lock().await;
         if let Some(ref mgr) = *cm_lock {
             mgr.notify_processing_end(&msg.channel, &msg.chat_id, &message_id)
@@ -234,6 +260,20 @@ pub(super) async fn spawn_outbound_dispatcher(
                         crate::utils::safe_truncate_chars_to_string(&outbound_msg.content, 60)
                     );
 
+                    let processing_reaction = outbound_msg
+                        .metadata
+                        .get("processing_reaction_message_id")
+                        .and_then(|v| v.as_str())
+                        .map(|message_id| {
+                            let chat_id = outbound_msg
+                                .metadata
+                                .get("processing_reaction_chat_id")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or(&outbound_msg.chat_id)
+                                .to_string();
+                            (chat_id, message_id.to_string())
+                        });
+
                     let cm_lock = channel_manager.lock().await;
                     if let Some(ref manager) = *cm_lock {
                         if let Err(err) = manager.send_to_with_delivery(&outbound_msg).await {
@@ -241,6 +281,11 @@ pub(super) async fn spawn_outbound_dispatcher(
                                 "[gateway] Failed to deliver to channel {}: {}",
                                 outbound_msg.channel, err
                             );
+                        }
+                        if let Some((chat_id, message_id)) = processing_reaction {
+                            manager
+                                .notify_processing_end(&outbound_msg.channel, &chat_id, &message_id)
+                                .await;
                         }
                     }
                     drop(cm_lock);
