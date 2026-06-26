@@ -215,6 +215,7 @@ pub fn imported_history_to_aggregate_record(
         lines_added: Some(row.lines_added),
         lines_removed: Some(row.lines_removed),
         touched_files: Some(row.touched_files),
+        channel: None,
     }
 }
 
@@ -269,6 +270,7 @@ pub fn cursor_ide_history_to_aggregate_record(
         lines_added: Some(row.lines_added),
         lines_removed: Some(row.lines_removed),
         touched_files: Some(row.touched_files),
+        channel: None,
     }
 }
 
