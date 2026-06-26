@@ -367,7 +367,41 @@ fn image_message_extracts_media_key() {
     let msg = parse_feishu_event(&payload, "test", &config, &mut dedup, &mut dedup_order).unwrap();
     assert_eq!(msg.content, "[image]");
     assert_eq!(msg.media.len(), 1);
-    assert_eq!(msg.media[0], "feishu:image:img-v2-abc");
+    assert_eq!(msg.media[0], "feishu:image:msg_img_1:img-v2-abc");
+}
+
+#[test]
+fn post_message_extracts_embedded_image_keys() {
+    let config = default_config();
+    let mut dedup = HashSet::new();
+    let mut dedup_order = Vec::new();
+    let payload = json!({
+        "header": { "event_type": "im.message.receive_v1" },
+        "event": {
+            "message": {
+                "message_id": "msg_post_1",
+                "chat_id": "chat_1",
+                "chat_type": "p2p",
+                "message_type": "post",
+                "content": json!({
+                    "zh_cn": {
+                        "content": [[
+                            {"tag": "text", "text": "看图"},
+                            {"tag": "img", "image_key": "img-post-abc"}
+                        ]]
+                    }
+                }).to_string(),
+            },
+            "sender": {
+                "sender_type": "user",
+                "sender_id": { "open_id": "user_1" },
+            }
+        }
+    });
+    let msg = parse_feishu_event(&payload, "test", &config, &mut dedup, &mut dedup_order).unwrap();
+    assert_eq!(msg.content.trim(), "看图[image]");
+    assert_eq!(msg.media.len(), 1);
+    assert_eq!(msg.media[0], "feishu:image:msg_post_1:img-post-abc");
 }
 
 #[test]

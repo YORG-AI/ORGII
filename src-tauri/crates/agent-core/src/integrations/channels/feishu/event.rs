@@ -78,6 +78,7 @@ pub(super) fn parse_feishu_event(
         .get("message_type")
         .and_then(|m| m.as_str())
         .unwrap_or("text");
+    tracing::info!("[feishu:debug] message_type={:?} raw_content_preview", message_type);
     let sender_id = sender
         .get("sender_id")
         .and_then(|s| s.get("open_id"))
@@ -180,12 +181,26 @@ pub(super) fn parse_feishu_event(
 
     // Store image/file keys in media vec
     if message_type == "image" {
+        tracing::info!("[feishu:debug] image msg raw_content={}", raw_content);
         if let Some(key) = parse_content_json(raw_content).and_then(|v| {
             v.get("image_key")
                 .and_then(|k| k.as_str())
                 .map(|s| s.to_string())
         }) {
-            inbound.media.push(format!("feishu:image:{}", key));
+            tracing::info!("[feishu:debug] extracted image_key, media push");
+            inbound.media.push(format!("feishu:image:{}:{}", message_id, key));
+        } else {
+            tracing::warn!("[feishu:debug] FAILED to extract image_key from raw_content");
+        }
+    } else if message_type == "post" {
+        // Rich-text (post) messages can embed images as `img` elements
+        // carrying an `image_key`. Collect them so they get downloaded too.
+        if let Some(parsed) = parse_content_json(raw_content) {
+            let mut keys = Vec::new();
+            collect_post_image_keys(&parsed, &mut keys);
+            for key in keys {
+                inbound.media.push(format!("feishu:image:{}:{}", message_id, key));
+            }
         }
     } else if message_type == "file" {
         if let Some(key) = parse_content_json(raw_content).and_then(|v| {
@@ -240,6 +255,34 @@ fn extract_text_content(raw_content: &str, message_type: &str) -> String {
 fn parse_content_json(raw: &str) -> Option<Value> {
     serde_json::from_str(raw).ok()
 }
+
+/// Walk a Feishu "post" content tree and collect all embedded `img` element
+/// `image_key`s (locale roots zh_cn/en_us/ja_jp, then paragraphs of elements).
+fn collect_post_image_keys(parsed: &Value, out: &mut Vec<String>) {
+    let content_root = parsed
+        .get("zh_cn")
+        .or_else(|| parsed.get("en_us"))
+        .or_else(|| parsed.get("ja_jp"))
+        .unwrap_or(parsed);
+
+    if let Some(paragraphs) = content_root.get("content").and_then(|c| c.as_array()) {
+        for paragraph in paragraphs {
+            if let Some(elements) = paragraph.as_array() {
+                for element in elements {
+                    let tag = element.get("tag").and_then(|t| t.as_str()).unwrap_or("");
+                    if tag == "img" {
+                        if let Some(key) =
+                            element.get("image_key").and_then(|k| k.as_str())
+                        {
+                            out.push(key.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 
 /// Flatten Feishu "post" rich text to plain text.
 fn flatten_post_content(parsed: &Value) -> String {

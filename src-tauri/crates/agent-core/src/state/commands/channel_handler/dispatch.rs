@@ -10,6 +10,7 @@ use tracing::{info, warn};
 
 use crate::bus::{InboundMessage, OutboundMessage};
 use crate::definitions::{os_agent, OS_AGENT_ID};
+use crate::definitions::prefix_lookup::SDE_SESSION_PREFIX;
 use crate::gateway::{parse_command, InboundMessageHandler, InboundProcessorDeps, SessionKey};
 use crate::interaction::permission::AgentPermissionManager;
 use crate::interaction::question::QuestionManager;
@@ -83,6 +84,16 @@ impl InboundMessageHandler for GatewayInboundHandler {
                      caller must set it before publishing to REINJECT_CHANNEL"
                     .to_string());
             };
+            // Re-injected messages (e.g. after media download) target an
+            // already-derived OS session id. The original buffering path may
+            // have minted a fresh -v{n} id without registering it yet, so the
+            // subsequent `init_channel_session` lookup would fail with
+            // "channel session '…' not registered". Mirror Branch 3 and ensure
+            // OS sessions are registered before dispatch. (SDE sessions manage
+            // their own lifecycle and are skipped.)
+            if !target_session_id.starts_with(SDE_SESSION_PREFIX) {
+                ensure_os_session_registered(&state, &target_session_id).await;
+            }
             return dispatch_to_session(
                 &state,
                 account_id.as_deref(),
@@ -272,8 +283,6 @@ async fn dispatch_to_session(
     _question_manager: &Arc<QuestionManager>,
     _permission_manager: &Arc<AgentPermissionManager>,
 ) -> Result<Option<OutboundMessage>, String> {
-    use crate::definitions::prefix_lookup::SDE_SESSION_PREFIX;
-
     let (gw_account, gw_model) = resolve_gateway_model_and_account(state).await;
     let effective_account = account_id.or(gw_account.as_deref());
 

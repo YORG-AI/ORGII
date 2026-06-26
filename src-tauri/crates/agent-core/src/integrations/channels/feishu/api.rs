@@ -135,6 +135,20 @@ pub(super) async fn send_feishu_message(
 
 // ── Media Upload/Download ───────────────────────────────────────────────
 
+fn image_ext_from_bytes(bytes: &[u8]) -> &'static str {
+    if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        "jpg"
+    } else if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        "png"
+    } else if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") {
+        "webp"
+    } else if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
+        "gif"
+    } else {
+        "bin"
+    }
+}
+
 /// Download an image from Feishu by image_key. Returns raw bytes.
 pub(super) async fn download_image(
     auth: &FeishuAuth,
@@ -163,6 +177,45 @@ pub(super) async fn download_image(
         .await
         .map(|b| b.to_vec())
         .map_err(|err| ChannelError::Other(format!("Read image bytes failed: {}", err)))
+}
+
+/// Download an image resource from a specific Feishu message. Rich-text/post
+/// image elements are message resources, and `/im/v1/images/{image_key}` can
+/// reject them with 400.
+pub(super) async fn download_message_image(
+    auth: &FeishuAuth,
+    message_id: &str,
+    image_key: &str,
+) -> Result<Vec<u8>, ChannelError> {
+    let token = auth.get_token().await?;
+    let url = format!(
+        "{}/im/v1/messages/{}/resources/{}?type=image",
+        auth.api_base(),
+        message_id,
+        image_key
+    );
+
+    let res = auth
+        .client()
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", token))
+        .send()
+        .await
+        .map_err(|err| ChannelError::Other(format!("Download message image failed: {}", err)))?;
+
+    if !res.status().is_success() {
+        return Err(ChannelError::Other(format!(
+            "Download message image HTTP {}: message_id={}, image_key={}",
+            res.status(),
+            message_id,
+            image_key
+        )));
+    }
+
+    res.bytes()
+        .await
+        .map(|b| b.to_vec())
+        .map_err(|err| ChannelError::Other(format!("Read message image bytes failed: {}", err)))
 }
 
 /// Download a file from Feishu by file_key. Returns raw bytes.
@@ -204,25 +257,32 @@ pub(super) async fn resolve_feishu_media(
 ) {
     let images_dir = app_paths::session_images_dir();
     let _ = std::fs::create_dir_all(&images_dir);
+    tracing::info!("[feishu:debug] resolve_feishu_media entered, media_count={}, dir={}", media.len(), images_dir.display());
 
     for entry in media.iter_mut() {
-        if let Some(image_key) = entry.strip_prefix("feishu:image:") {
-            let image_key = image_key.to_string();
-            match download_image(auth, &image_key).await {
+        if let Some(image_ref) = entry.strip_prefix("feishu:image:") {
+            let image_ref = image_ref.to_string();
+            let download_result = if let Some((message_id, image_key)) = image_ref.split_once(':') {
+                download_message_image(auth, message_id, image_key).await
+            } else {
+                download_image(auth, &image_ref).await
+            };
+            match download_result {
                 Ok(bytes) => {
                     let hash = sha256_hex(&bytes);
-                    let filename = format!("{}.png", &hash[..16]);
+                    let ext = image_ext_from_bytes(&bytes);
+                    let filename = format!("{}.{}", &hash[..16], ext);
                     let path = images_dir.join(&filename);
                     if !path.exists() {
                         if let Err(err) = std::fs::write(&path, &bytes) {
-                            warn!("[feishu] Failed to persist image {}: {}", image_key, err);
+                            warn!("[feishu] Failed to persist image {}: {}", image_ref, err);
                             continue;
                         }
                     }
                     *entry = path.to_string_lossy().to_string();
                 }
                 Err(err) => {
-                    warn!("[feishu] Failed to download image {}: {}", image_key, err);
+                    warn!("[feishu] Failed to download image {}: {}", image_ref, err);
                 }
             }
         } else if let Some(file_key) = entry.strip_prefix("feishu:file:") {

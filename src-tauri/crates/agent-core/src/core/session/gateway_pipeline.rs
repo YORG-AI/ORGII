@@ -7,6 +7,7 @@ use std::sync::Arc;
 use tracing::{info, warn};
 
 use crate::bus::{InboundMessage, OutboundMessage};
+use crate::foundation::persistence::images::load_image_as_data_url;
 
 use crate::session::persistence as unified_persistence;
 use crate::session::IdeContext;
@@ -109,15 +110,35 @@ pub async fn process_gateway_message(
         }
     }
 
+    let images = if msg.media.is_empty() {
+        None
+    } else {
+        let data_urls: Vec<String> = msg
+            .media
+            .iter()
+            .filter_map(|m| {
+                if m.starts_with("data:") {
+                    Some(m.clone())
+                } else {
+                    load_image_as_data_url(m).or_else(|| {
+                        warn!("[agent-loop] media is not loadable as image data URL: {}", m);
+                        None
+                    })
+                }
+            })
+            .collect();
+        if data_urls.is_empty() {
+            None
+        } else {
+            Some(data_urls)
+        }
+    };
+
     let input = super::turn::TurnInput {
         content: msg.content.clone(),
         display_text: None,
         agent_mode: None,
-        images: if msg.media.is_empty() {
-            None
-        } else {
-            Some(msg.media.clone())
-        },
+        images,
         ide_context: ide_context.cloned(),
         is_resume: false,
         channel: Some(msg.channel.clone()),

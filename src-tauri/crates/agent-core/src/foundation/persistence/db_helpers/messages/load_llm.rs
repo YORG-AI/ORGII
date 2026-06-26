@@ -301,7 +301,30 @@ fn reconstruct(messages: &[AgentMessageRow]) -> Vec<serde_json::Value> {
         result.append(tool_results);
     };
 
-    for msg in messages {
+    // Avoid resending every historical image on every turn: base64 image
+    // payloads are large and can exceed gateway/body limits quickly. Preserve
+    // multimodal content for the most recent image-bearing user message, and
+    // render older image messages as text-only history.
+    let last_image_msg_index = messages
+        .iter()
+        .enumerate()
+        .rev()
+        .find_map(|(idx, msg)| {
+            if msg.role == message_role::USER
+                && msg
+                    .images
+                    .as_deref()
+                    .and_then(|s| serde_json::from_str::<Vec<String>>(s).ok())
+                    .map(|refs| !refs.is_empty())
+                    .unwrap_or(false)
+            {
+                Some(idx)
+            } else {
+                None
+            }
+        });
+
+    for (msg_idx, msg) in messages.iter().enumerate() {
         match msg.role.as_str() {
             message_role::SYSTEM => {
                 flush_pending(
@@ -321,9 +344,10 @@ fn reconstruct(messages: &[AgentMessageRow]) -> Vec<serde_json::Value> {
                     &mut pending_tool_results,
                 );
 
-                if let Some(images_json) = &msg.images {
-                    if let Ok(image_refs) = serde_json::from_str::<Vec<String>>(images_json) {
-                        if !image_refs.is_empty() {
+                if last_image_msg_index == Some(msg_idx) {
+                    if let Some(images_json) = &msg.images {
+                        if let Ok(image_refs) = serde_json::from_str::<Vec<String>>(images_json) {
+                            if !image_refs.is_empty() {
                             result.push(serde_json::json!({
                                 "role": message_role::USER,
                                 "content": build_multimodal_content(&msg.content, &image_refs),
@@ -331,6 +355,7 @@ fn reconstruct(messages: &[AgentMessageRow]) -> Vec<serde_json::Value> {
                             continue;
                         }
                     }
+                }
                 }
                 result.push(serde_json::json!({
                     "role": message_role::USER,

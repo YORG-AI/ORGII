@@ -125,18 +125,32 @@ async fn handle_ready_message(
             .and_then(|mgr| mgr.typing_refresh_interval_for(&msg.channel))
     };
 
+    let message_id = msg
+        .metadata
+        .get("message_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    if !message_id.is_empty() {
+        let cm_lock = channel_manager.lock().await;
+        if let Some(ref mgr) = *cm_lock {
+            mgr.notify_processing_start(&msg.channel, &msg.chat_id, &message_id)
+                .await;
+        }
+    }
+
     let typing_task: Option<tokio::task::JoinHandle<()>> = typing_interval.map(|interval| {
         let cm = channel_manager.clone();
         let channel_name = msg.channel.clone();
         let chat_id = msg.chat_id.clone();
-        let message_id = msg
-            .metadata
-            .get("message_id")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
+        let message_id = message_id.clone();
         tokio::spawn(async move {
             loop {
+                tokio::time::sleep(interval).await;
+                if message_id.is_empty() {
+                    continue;
+                }
                 {
                     let cm_lock = cm.lock().await;
                     if let Some(ref mgr) = *cm_lock {
@@ -144,7 +158,6 @@ async fn handle_ready_message(
                             .await;
                     }
                 }
-                tokio::time::sleep(interval).await;
             }
         })
     });
@@ -170,15 +183,12 @@ async fn handle_ready_message(
         task.abort();
     }
 
-    let message_id = msg
-        .metadata
-        .get("message_id")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let cm_lock = channel_manager.lock().await;
-    if let Some(ref mgr) = *cm_lock {
-        mgr.notify_processing_end(&msg.channel, &msg.chat_id, message_id)
-            .await;
+    if !message_id.is_empty() {
+        let cm_lock = channel_manager.lock().await;
+        if let Some(ref mgr) = *cm_lock {
+            mgr.notify_processing_end(&msg.channel, &msg.chat_id, &message_id)
+                .await;
+        }
     }
 }
 

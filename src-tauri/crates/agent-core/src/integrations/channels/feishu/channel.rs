@@ -266,7 +266,7 @@ impl Channel for FeishuChannel {
         _chat_id: &str,
         message_id: &str,
     ) -> Result<(), ChannelError> {
-        api::add_reaction(&self.auth, message_id, "PROCESSING").await
+        api::add_reaction(&self.auth, message_id, "Typing").await
     }
 
     async fn on_processing_end(
@@ -274,7 +274,7 @@ impl Channel for FeishuChannel {
         _chat_id: &str,
         message_id: &str,
     ) -> Result<(), ChannelError> {
-        api::remove_reaction(&self.auth, message_id, "PROCESSING").await
+        api::remove_reaction(&self.auth, message_id, "Typing").await
     }
 
     async fn update_message(&self, message_id: &str, content: &str) -> Result<(), ChannelError> {
