@@ -209,6 +209,12 @@ impl InboundMessageHandler for GatewayInboundHandler {
             "source_chat_id".to_string(),
             serde_json::Value::String(msg.chat_id.clone()),
         );
+        if let Some(message_id) = msg.metadata.get("message_id").and_then(|v| v.as_str()) {
+            inbound.metadata.insert(
+                "source_message_id".to_string(),
+                serde_json::Value::String(message_id.to_string()),
+            );
+        }
         inbound.media = msg.media.clone();
 
         let sender = {
