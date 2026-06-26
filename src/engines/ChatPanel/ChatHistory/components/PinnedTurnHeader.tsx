@@ -26,6 +26,7 @@ interface PinnedTurnHeaderProps {
   collapseTailWhenIdle: boolean;
   hideCollapseBar?: boolean;
   hideUserMessage: boolean;
+  defaultTurnCollapsed: boolean;
   turnCollapseInteractionAtRef: React.MutableRefObject<number>;
   onEditSubmit: GroupHeaderRendererProps["onEditSubmit"];
   onRestoreCheckpoint: GroupHeaderRendererProps["onRestoreCheckpoint"];
@@ -77,6 +78,7 @@ function samePinnedTurnHeaderProps(
     previous.collapseTailWhenIdle === next.collapseTailWhenIdle &&
     previous.hideCollapseBar === next.hideCollapseBar &&
     previous.hideUserMessage === next.hideUserMessage &&
+    previous.defaultTurnCollapsed === next.defaultTurnCollapsed &&
     previous.turnCollapseInteractionAtRef ===
       next.turnCollapseInteractionAtRef &&
     previous.onEditSubmit === next.onEditSubmit &&
@@ -98,6 +100,7 @@ const PinnedTurnHeaderComponent: React.FC<PinnedTurnHeaderProps> = ({
   collapseTailWhenIdle,
   hideCollapseBar = false,
   hideUserMessage,
+  defaultTurnCollapsed,
   turnCollapseInteractionAtRef,
   onEditSubmit,
   onRestoreCheckpoint,
@@ -171,7 +174,7 @@ const PinnedTurnHeaderComponent: React.FC<PinnedTurnHeaderProps> = ({
             endMs={meta?.endMs ?? null}
             showTimeRange={false}
             labelVariant={collapseLabelVariant}
-            defaultCollapsed
+            defaultCollapsed={defaultTurnCollapsed}
             turnCollapseInteractionAtRef={turnCollapseInteractionAtRef}
             onExpand={
               canExpandUnloadedTurn ? handleExpandUnloadedTurn : undefined

@@ -21,6 +21,7 @@ import { useActionSystemOptional } from "@src/ActionSystem";
 import type { GitErrorType } from "@src/api/http/git/streaming";
 import { useGitStatus } from "@src/contexts/git";
 import { GitOperationsService } from "@src/services/git/GitOperationsService";
+import type { GitPullStrategy } from "@src/store/ui/editorSettingsAtom";
 
 // ============================================
 // Types
@@ -35,6 +36,8 @@ export interface GitOperationResult {
 export interface UseGitOperationsOptions {
   repoId?: string;
   repoPath?: string;
+  useActionSystem?: boolean;
+  showErrorDialogs?: boolean;
   /** Callback after successful operation */
   onSuccess?: () => void;
   /** Callback after any operation completes */
@@ -52,7 +55,10 @@ export interface GitOperationsLoadingState {
 export interface UseGitOperationsReturn {
   // Operations - all go through dispatch for unified behavior
   push: (opts?: { force?: boolean }) => Promise<GitOperationResult>;
-  pull: () => Promise<GitOperationResult>;
+  pull: (opts?: {
+    strategy?: GitPullStrategy;
+    showErrorDialogs?: boolean;
+  }) => Promise<GitOperationResult>;
   fetch: (opts?: {
     remote?: string;
     prune?: boolean;
@@ -65,6 +71,19 @@ export interface UseGitOperationsReturn {
   isAnyLoading: boolean;
 }
 
+function normalizeGitOperationResult(
+  success: boolean,
+  message: string | undefined,
+  data: unknown
+): GitOperationResult {
+  const maybeData = data as { errorType?: GitErrorType } | undefined;
+  return {
+    success,
+    errorType: success ? "none" : (maybeData?.errorType ?? "unknown"),
+    message,
+  };
+}
+
 // ============================================
 // Hook Implementation
 // ============================================
@@ -72,11 +91,18 @@ export interface UseGitOperationsReturn {
 export function useGitOperations(
   options: UseGitOperationsOptions = {}
 ): UseGitOperationsReturn {
-  const { repoId, repoPath, onSuccess, onComplete } = options;
+  const {
+    repoId,
+    repoPath,
+    useActionSystem = true,
+    showErrorDialogs = true,
+    onSuccess,
+    onComplete,
+  } = options;
 
   // Get dispatch for GUI actions - preferred path for unified logging
   const actionSystem = useActionSystemOptional();
-  const dispatch = actionSystem?.dispatch;
+  const dispatch = useActionSystem ? actionSystem?.dispatch : undefined;
 
   // Set repo context for GitOperationsService fallback
   // This ensures operations work even when outside ActionSystemProvider
@@ -133,15 +159,15 @@ export function useGitOperations(
             { force: opts.force },
             "user"
           );
-          result = {
-            success: dispatchResult.success,
-            errorType: dispatchResult.success ? "none" : "unknown",
-            message: dispatchResult.message,
-          };
+          result = normalizeGitOperationResult(
+            dispatchResult.success,
+            dispatchResult.message,
+            dispatchResult.data
+          );
         } else {
-          // Fallback: Use WithDialog variant so errors show a Tauri dialog
-          result = await GitOperationsService.pushWithDialog({
+          result = await GitOperationsService.push({
             force: opts.force,
+            showErrorDialog: showErrorDialogs,
           });
         }
 
@@ -158,44 +184,71 @@ export function useGitOperations(
         setLoading("push", false);
       }
     },
-    [dispatch, deferredRefresh, onSuccess, onComplete, setLoading]
+    [
+      dispatch,
+      deferredRefresh,
+      showErrorDialogs,
+      onSuccess,
+      onComplete,
+      setLoading,
+    ]
   );
 
   // ========================================
   // Pull Operation - via dispatch or direct service
   // ========================================
-  const pull = useCallback(async (): Promise<GitOperationResult> => {
-    setLoading("pull", true);
+  const pull = useCallback(
+    async (
+      opts: { strategy?: GitPullStrategy; showErrorDialogs?: boolean } = {}
+    ): Promise<GitOperationResult> => {
+      setLoading("pull", true);
 
-    try {
-      let result: GitOperationResult;
+      try {
+        let result: GitOperationResult;
+        const shouldShowErrorDialogs =
+          opts.showErrorDialogs ?? showErrorDialogs;
 
-      if (dispatch) {
-        // Use dispatch - goes through ActionSystem for unified logging
-        const dispatchResult = await dispatch("git.pull", {}, "user");
-        result = {
-          success: dispatchResult.success,
-          errorType: dispatchResult.success ? "none" : "unknown",
-          message: dispatchResult.message,
-        };
-      } else {
-        // Fallback: Use WithDialog variant so errors show a Tauri dialog
-        result = await GitOperationsService.pullWithDialog();
+        if (dispatch && !opts.strategy) {
+          // Use dispatch - goes through ActionSystem for unified logging
+          const dispatchResult = await dispatch("git.pull", {}, "user");
+          result = normalizeGitOperationResult(
+            dispatchResult.success,
+            dispatchResult.message,
+            dispatchResult.data
+          );
+        } else if (shouldShowErrorDialogs) {
+          result = await GitOperationsService.pullWithDialog({
+            strategy: opts.strategy,
+          });
+        } else {
+          result = await GitOperationsService.pull({
+            strategy: opts.strategy,
+            showErrorDialog: false,
+          });
+        }
+
+        deferredRefresh();
+
+        // Callbacks
+        if (result.success) {
+          onSuccess?.();
+        }
+        onComplete?.();
+
+        return result;
+      } finally {
+        setLoading("pull", false);
       }
-
-      deferredRefresh();
-
-      // Callbacks
-      if (result.success) {
-        onSuccess?.();
-      }
-      onComplete?.();
-
-      return result;
-    } finally {
-      setLoading("pull", false);
-    }
-  }, [dispatch, deferredRefresh, onSuccess, onComplete, setLoading]);
+    },
+    [
+      dispatch,
+      deferredRefresh,
+      showErrorDialogs,
+      onSuccess,
+      onComplete,
+      setLoading,
+    ]
+  );
 
   // ========================================
   // Fetch Operation - via dispatch or direct service
@@ -212,16 +265,21 @@ export function useGitOperations(
         if (dispatch) {
           // Use dispatch - goes through ActionSystem for unified logging
           const dispatchResult = await dispatch("git.fetch", {}, "user");
-          result = {
-            success: dispatchResult.success,
-            errorType: dispatchResult.success ? "none" : "unknown",
-            message: dispatchResult.message,
-          };
-        } else {
-          // Fallback: Use WithDialog variant so errors show a Tauri dialog
+          result = normalizeGitOperationResult(
+            dispatchResult.success,
+            dispatchResult.message,
+            dispatchResult.data
+          );
+        } else if (showErrorDialogs) {
           result = await GitOperationsService.fetchWithDialog({
             remote: opts.remote,
             prune: opts.prune,
+          });
+        } else {
+          result = await GitOperationsService.fetch({
+            remote: opts.remote,
+            prune: opts.prune,
+            showErrorDialog: showErrorDialogs,
           });
         }
 
@@ -238,7 +296,14 @@ export function useGitOperations(
         setLoading("fetch", false);
       }
     },
-    [dispatch, deferredRefresh, onSuccess, onComplete, setLoading]
+    [
+      dispatch,
+      deferredRefresh,
+      showErrorDialogs,
+      onSuccess,
+      onComplete,
+      setLoading,
+    ]
   );
 
   // ========================================
@@ -253,15 +318,15 @@ export function useGitOperations(
       if (dispatch) {
         // Use dispatch - goes through ActionSystem for unified logging
         const dispatchResult = await dispatch("git.publish", {}, "user");
-        result = {
-          success: dispatchResult.success,
-          errorType: dispatchResult.success ? "none" : "unknown",
-          message: dispatchResult.message,
-        };
+        result = normalizeGitOperationResult(
+          dispatchResult.success,
+          dispatchResult.message,
+          dispatchResult.data
+        );
       } else {
-        // Fallback: publish doesn't have a WithDialog variant, use push with set_upstream
-        result = await GitOperationsService.pushWithDialog({
+        result = await GitOperationsService.push({
           setUpstream: true,
+          showErrorDialog: showErrorDialogs,
         });
       }
 
@@ -277,7 +342,14 @@ export function useGitOperations(
     } finally {
       setLoading("publish", false);
     }
-  }, [dispatch, deferredRefresh, onSuccess, onComplete, setLoading]);
+  }, [
+    dispatch,
+    deferredRefresh,
+    showErrorDialogs,
+    onSuccess,
+    onComplete,
+    setLoading,
+  ]);
 
   // ========================================
   // Sync Operation - via dispatch or direct service
@@ -291,14 +363,17 @@ export function useGitOperations(
       if (dispatch) {
         // Use dispatch - goes through ActionSystem for unified logging
         const dispatchResult = await dispatch("git.sync", {}, "user");
-        result = {
-          success: dispatchResult.success,
-          errorType: dispatchResult.success ? "none" : "unknown",
-          message: dispatchResult.message,
-        };
-      } else {
-        // Fallback: Use WithDialog variant so errors show a Tauri dialog
+        result = normalizeGitOperationResult(
+          dispatchResult.success,
+          dispatchResult.message,
+          dispatchResult.data
+        );
+      } else if (showErrorDialogs) {
         result = await GitOperationsService.syncWithDialog();
+      } else {
+        result = await GitOperationsService.sync({
+          showErrorDialog: showErrorDialogs,
+        });
       }
 
       deferredRefresh();
@@ -313,7 +388,14 @@ export function useGitOperations(
     } finally {
       setLoading("sync", false);
     }
-  }, [dispatch, deferredRefresh, onSuccess, onComplete, setLoading]);
+  }, [
+    dispatch,
+    deferredRefresh,
+    showErrorDialogs,
+    onSuccess,
+    onComplete,
+    setLoading,
+  ]);
 
   // ========================================
   // Computed values

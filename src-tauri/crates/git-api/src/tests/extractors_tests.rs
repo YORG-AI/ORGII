@@ -1,5 +1,5 @@
 use crate::error::GitApiError;
-use crate::extractors::{validate_file_path, validate_path};
+use crate::extractors::{has_windows_users_prefix, validate_file_path, validate_path};
 
 #[test]
 fn test_path_traversal_detection() {
@@ -36,6 +36,14 @@ fn test_unix_disallowed_paths() {
     assert!(validate_path("/root/.ssh/id_rsa").is_err());
 }
 
+#[test]
+fn test_windows_users_prefix_handles_non_ascii_without_panic() {
+    assert!(!has_windows_users_prefix(r"C:\绳子\Users\TestUser\project"));
+    assert!(has_windows_users_prefix(r"C:\Users\测试用户\project"));
+    assert!(has_windows_users_prefix(r"D:\Users\TestUser\project"));
+    assert!(!has_windows_users_prefix(r"C:\Windows\System32\config"));
+}
+
 #[cfg(windows)]
 #[test]
 fn test_windows_allowed_paths() {
@@ -53,6 +61,19 @@ fn test_windows_allowed_paths() {
 fn test_windows_disallowed_paths() {
     assert!(validate_path(r"C:\Windows\System32\config").is_err());
     assert!(validate_path(r"C:\Program Files\secret").is_err());
+}
+
+#[cfg(windows)]
+#[test]
+fn test_windows_path_with_non_ascii_prefix_does_not_panic() {
+    assert!(validate_path(r"C:\绳子\Users\TestUser\project").is_err());
+}
+
+#[cfg(windows)]
+#[test]
+fn test_windows_allowed_user_path_with_non_ascii_characters() {
+    let result = validate_path(r"C:\Users\测试用户\project");
+    assert!(result.is_ok() || matches!(result, Err(GitApiError::InvalidPath { .. })));
 }
 
 #[test]

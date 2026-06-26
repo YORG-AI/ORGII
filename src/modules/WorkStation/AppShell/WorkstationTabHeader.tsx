@@ -24,6 +24,7 @@ import React, { memo } from "react";
 import { activeStatusBarAppAtom } from "@src/store/ui/workStationLayout/statusBarAtoms";
 import { activeWorkstationTabHeaderAtom } from "@src/store/workstation";
 import { activeWorkStationTabAtom } from "@src/store/workstation/tabs";
+import { isWindows } from "@src/util/platform/tauri";
 
 import {
   NoDragRegion,
@@ -38,14 +39,14 @@ const WorkstationTabHeader: React.FC = memo(() => {
   const headerSlots = useAtomValue(activeWorkstationTabHeaderAtom);
   const activeApp = useAtomValue(activeStatusBarAppAtom);
   const activeTab = useAtomValue(activeWorkStationTabAtom);
+  const windowsHost = isWindows();
   const isSourceControlTab =
     activeApp === "code" && activeTab?.type === "source-control";
 
   return (
     <div
       className="flex h-10 shrink-0 items-center gap-2 border-b border-border-2 pl-1.5 pr-2"
-      data-tauri-drag-region
-      style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+      data-tauri-drag-region={windowsHost ? undefined : true}
     >
       <NoDragRegion className="flex shrink-0 items-center gap-px">
         <WorkStationSidebarToggleButton

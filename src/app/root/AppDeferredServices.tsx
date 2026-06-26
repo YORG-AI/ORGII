@@ -26,6 +26,7 @@ import { useGitAutoFetch } from "@src/hooks/git";
 import { createLogger } from "@src/hooks/logger";
 import {
   useUserPresenceSync,
+  useUserProfileSync,
   useWindowFocusTracking,
 } from "@src/hooks/platform";
 import { useProcessReconciliation } from "@src/hooks/terminal";
@@ -48,6 +49,11 @@ const DeferredWindowFocusTracking: React.FC = () => {
 
 const DeferredUserPresenceSync: React.FC = () => {
   useUserPresenceSync();
+  return null;
+};
+
+const DeferredUserProfileSync: React.FC = () => {
+  useUserProfileSync();
   return null;
 };
 
@@ -97,6 +103,7 @@ export const AppDeferredServices: React.FC<{ ready: boolean }> = ({
       <GlobalDragDrop />
       <DeferredWindowFocusTracking />
       <DeferredUserPresenceSync />
+      <DeferredUserProfileSync />
       <DeferredGitAutoFetch />
       <DeferredProcessReconciliation />
       <DeferredTerminalPersistence />

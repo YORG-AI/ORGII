@@ -141,6 +141,8 @@ pub fn get_available_api_providers() -> Vec<AvailableApiProvider> {
                 api_key_env_var: config.api_key_env_var,
                 supports_base_url: config.supports_base_url,
                 default_base_url: config.default_base_url,
+                supported_protocols: config.supported_protocols,
+                default_protocol: config.default_protocol,
                 compatible_cli_agents,
                 supports_rust_agents: entry.supports_rust_agents,
             }

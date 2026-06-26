@@ -566,10 +566,12 @@ fn parse_version(raw: &str) -> Option<String> {
                 return Some(candidate.to_string());
             }
         }
-        if trimmed.len() <= 80 {
-            return Some(trimmed.to_string());
+        let mut chars = trimmed.chars();
+        let truncated: String = chars.by_ref().take(80).collect();
+        if chars.next().is_some() {
+            return Some(truncated);
         }
-        return Some(trimmed[..80].to_string());
+        return Some(trimmed.to_string());
     }
     None
 }

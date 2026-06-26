@@ -4,7 +4,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
-import { projectApi } from "@src/api/http/project";
+import { type WorkItemData, projectApi } from "@src/api/http/project";
 import Button from "@src/components/Button";
 import Checkbox from "@src/components/Checkbox";
 import DropdownSearch from "@src/components/Dropdown/DropdownSearch";
@@ -43,6 +43,39 @@ interface ExistingWorkItemOption {
   projectName?: string;
   projectSlug?: string;
   title: string;
+}
+
+type ExistingWorkItemSource =
+  | {
+      item: WorkItemData;
+      orgId: string;
+      projectId: string;
+      projectName: string;
+      projectSlug: string;
+    }
+  | {
+      item: WorkItemData;
+      projectSlug: undefined;
+    };
+
+function toExistingWorkItemOption(
+  source: ExistingWorkItemSource
+): ExistingWorkItemOption {
+  const projectMeta =
+    "orgId" in source
+      ? {
+          orgId: source.orgId,
+          projectId: source.projectId,
+          projectName: source.projectName,
+        }
+      : {};
+
+  return {
+    shortId: source.item.frontmatter.short_id || source.item.frontmatter.id,
+    ...projectMeta,
+    projectSlug: source.projectSlug,
+    title: source.item.frontmatter.title,
+  };
 }
 
 export interface WorkItemAttachmentControlProps {
@@ -121,18 +154,7 @@ const WorkItemAttachmentControl: React.FC<WorkItemAttachmentControlProps> = ({
         ...standaloneItems.map((item) => ({ item, projectSlug: undefined })),
         ...projectItemGroups.flat(),
       ];
-      setWorkItems(
-        allItems.map(
-          ({ item, orgId, projectId, projectName, projectSlug }) => ({
-            shortId: item.frontmatter.short_id || item.frontmatter.id,
-            orgId,
-            projectId,
-            projectName,
-            projectSlug,
-            title: item.frontmatter.title,
-          })
-        )
-      );
+      setWorkItems(allItems.map(toExistingWorkItemOption));
     } catch (err) {
       logger.error("Failed to load work items for linking", err);
       Message.error(err instanceof Error ? err.message : String(err));

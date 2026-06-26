@@ -126,7 +126,14 @@ async function fetchModelsForAccount(
           "auth_expired"
         );
       }
-      return getGeminiOAuthModels(token);
+      // Subscription (Code Assist) accounts must resolve models via the
+      // cloudcode-pa quota endpoint, which needs the project id. It's stored
+      // in env_vars when the account was captured. Older accounts without it
+      // fall back to the generativelanguage endpoint server-side.
+      const projectId =
+        fullKey.env_vars?.GOOGLE_CLOUD_PROJECT ??
+        fullKey.env_vars?.GOOGLE_CLOUD_PROJECT_ID;
+      return getGeminiOAuthModels(token, projectId);
     }
   }
 

@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 
 import Message from "@src/components/Message";
 import { createLogger } from "@src/hooks/logger";
+import { consumeInternalFileTreeDragData } from "@src/shared/dnd/dragSideChannel";
 
 import type { DragDropBehavior, DroppedFolder } from "../types";
 import {
@@ -182,7 +183,7 @@ export function useBrowserDragDrop(options: UseBrowserDragDropOptions): void {
 
       // Internal file tree drag (via global variable — Tauri WebView often
       // strips custom MIME types at the window capture level).
-      const internalFileData = window.__internalFileTreeDragData;
+      const internalFileData = consumeInternalFileTreeDragData();
 
       if (internalFileData) {
         log("drop:internal-file-tree", {
@@ -191,7 +192,6 @@ export function useBrowserDragDrop(options: UseBrowserDragDropOptions): void {
         });
         e.preventDefault();
         e.stopPropagation();
-        window.__internalFileTreeDragData = undefined;
 
         if (insideChatDropTarget) {
           let parsed: Record<string, unknown> | undefined;

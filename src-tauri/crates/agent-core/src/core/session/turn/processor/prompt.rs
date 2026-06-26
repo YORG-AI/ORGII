@@ -36,7 +36,8 @@ impl UnifiedMessageProcessor {
         let user_profile = self
             .ide_context
             .as_ref()
-            .and_then(|ctx| ctx.user_profile.clone());
+            .and_then(|ctx| ctx.user_profile.clone())
+            .or_else(crate::interaction::profile_state::global_profile);
 
         let prompt_config = SystemPromptConfig {
             model: self.runtime.model.clone(),

@@ -738,10 +738,41 @@
       },
       "tabs": {
         "work": "工作",
-        "explore": "探索"
+        "explore": "探索",
+        "heatmap": "Heat map"
+      },
+      "heatmap": {
+        "loading": "正在加载活动 Heat map…",
+        "empty": "还没有会话活动。",
+        "sessions": "会话",
+        "tokens": "Tokens",
+        "cost": "成本"
       },
       "exploreRepos": {
         "title": "探索 Repos"
+      },
+      "hints": {
+        "skill": {
+          "before": "Use",
+          "after": "to link a skill or tool"
+        },
+        "ask": {
+          "before": "Use",
+          "after": "to ask questions about the codebase"
+        },
+        "plan": {
+          "before": "Use",
+          "after": "to plan before building"
+        },
+        "switch": {
+          "before": "Use",
+          "after": "to switch sections"
+        },
+        "previous": "Previous hint",
+        "next": "Next hint"
+      },
+      "manageIssues": {
+        "title": "管理 Issues"
       }
     },
     "defaultTitle": "Session",
@@ -923,6 +954,18 @@
       "showLess": "收起",
       "showMore_one": "显示其余 {{count}} 个",
       "showMore_other": "显示其余 {{count}} 个"
+    },
+    "manageIssues": {
+      "title": "管理 Issues",
+      "myWork": "我的工作",
+      "allRepositories": "所有 Repos",
+      "newIssue": "新建 Issue",
+      "tabs": {
+        "all": "全部",
+        "active": "活跃",
+        "reviewRequests": "Review 请求",
+        "done": "已完成"
+      }
     }
   },
   "chatStatus": {
@@ -2282,6 +2325,7 @@
         "index": "索引",
         "reindex": "重新索引",
         "cancel": "取消",
+        "stop": "停止",
         "clear": "清除",
         "refresh": "刷新"
       },

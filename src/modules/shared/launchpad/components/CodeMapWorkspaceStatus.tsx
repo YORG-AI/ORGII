@@ -1,4 +1,4 @@
-import { RefreshCw, Trash2, XCircle } from "lucide-react";
+import { RefreshCw, Square, Trash2 } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -13,6 +13,7 @@ import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import StatusDot from "@src/components/StatusDot";
 import { useCodeMapWorkspaceStatus } from "@src/hooks/codeMap";
+import { useRefreshSpin } from "@src/hooks/ui";
 import {
   CollapsibleSection,
   DETAIL_PANEL_TOKENS,
@@ -126,6 +127,7 @@ export const CodeMapWorkspaceStatusPanel: React.FC<
     actionLoading,
     error,
     isIndexing,
+    isStopping,
     refresh,
     startIndex,
     cancelIndex,
@@ -143,10 +145,12 @@ export const CodeMapWorkspaceStatusPanel: React.FC<
   const phaseLabel = phase ? t(CODE_MAP_PHASE_LABEL_KEY[phase]) : null;
   const canClear =
     Boolean(status) && statusKind !== CODE_MAP_STATUS.NOT_INDEXED;
-  const indexLabel =
-    statusKind === CODE_MAP_STATUS.READY || statusKind === CODE_MAP_STATUS.STALE
-      ? t("controlTower.codeMap.actions.reindex")
-      : t("controlTower.codeMap.actions.index");
+  const isReindexAction =
+    statusKind === CODE_MAP_STATUS.READY ||
+    statusKind === CODE_MAP_STATUS.STALE;
+  const indexLabel = isReindexAction
+    ? t("controlTower.codeMap.actions.reindex")
+    : t("controlTower.codeMap.actions.index");
 
   const stats = useMemo(
     () => [
@@ -193,11 +197,8 @@ export const CodeMapWorkspaceStatusPanel: React.FC<
   );
 
   const handleIndex = useCallback(() => {
-    void startIndex(
-      statusKind === CODE_MAP_STATUS.READY ||
-        statusKind === CODE_MAP_STATUS.STALE
-    );
-  }, [startIndex, statusKind]);
+    void startIndex(isReindexAction);
+  }, [isReindexAction, startIndex]);
 
   const handleCancel = useCallback(() => {
     void cancelIndex();
@@ -210,6 +211,12 @@ export const CodeMapWorkspaceStatusPanel: React.FC<
   const handleRefresh = useCallback(() => {
     void refresh();
   }, [refresh]);
+
+  const refreshLabel = t("controlTower.codeMap.actions.refresh");
+  const clearLabel = t("controlTower.codeMap.actions.clear");
+  const stopLabel = t("controlTower.codeMap.actions.stop");
+  const { spinClass: refreshSpinClass, handleClick: handleRefreshClick } =
+    useRefreshSpin(handleRefresh, loading, `code-map:${workspacePath}:refresh`);
 
   if (!workspacePath) return null;
 
@@ -239,16 +246,16 @@ export const CodeMapWorkspaceStatusPanel: React.FC<
                   variant="warning"
                   size="small"
                   shape="round"
-                  icon={<XCircle size={14} />}
-                  loading={actionLoading}
-                  disabled={actionLoading}
+                  icon={<Square size={13} />}
+                  loading={isStopping}
+                  disabled={isStopping}
                   onClick={handleCancel}
                 >
-                  {t("controlTower.codeMap.actions.cancel")}
+                  {stopLabel}
                 </Button>
               ) : (
                 <Button
-                  variant="primary"
+                  variant="secondary"
                   size="small"
                   shape="round"
                   loading={actionLoading}
@@ -262,24 +269,25 @@ export const CodeMapWorkspaceStatusPanel: React.FC<
                 variant="secondary"
                 size="small"
                 shape="round"
-                icon={<RefreshCw size={14} />}
-                loading={loading}
+                icon={<RefreshCw size={14} className={refreshSpinClass} />}
+                iconOnly
                 disabled={loading || actionLoading}
-                onClick={handleRefresh}
-              >
-                {t("controlTower.codeMap.actions.refresh")}
-              </Button>
+                onClick={handleRefreshClick}
+                title={refreshLabel}
+                aria-label={refreshLabel}
+              />
               <Button
                 variant="danger"
                 appearance="outline"
                 size="small"
                 shape="round"
                 icon={<Trash2 size={14} />}
+                iconOnly
                 disabled={!canClear || loading || actionLoading || isIndexing}
                 onClick={handleClear}
-              >
-                {t("controlTower.codeMap.actions.clear")}
-              </Button>
+                title={clearLabel}
+                aria-label={clearLabel}
+              />
             </div>
           </div>
 

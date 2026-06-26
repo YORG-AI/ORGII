@@ -39,7 +39,7 @@ import { useSelectorKernel } from "../core";
 import type { BranchPaletteMode, UseBranchPaletteOptions } from "./types";
 import { useBranchFetch } from "./useBranchFetch";
 import { useBranchItems } from "./useBranchItems";
-import { useWorktreeMap } from "./useWorktreeMap";
+import { refreshWorktreeMap, useWorktreeMap } from "./useWorktreeMap";
 
 const log = createLogger("useBranchPalette");
 const REFRESH_SPIN_MIN_MS = 900;
@@ -55,6 +55,7 @@ export function useBranchPalette(options: UseBranchPaletteOptions) {
     onSelect,
     onCreateBranch,
     onDeleteBranch,
+    onRemoveWorktree,
     onCheckoutDetached,
     onClose,
     onGoBackToParent,
@@ -196,34 +197,57 @@ export function useBranchPalette(options: UseBranchPaletteOptions) {
   const handleDeleteBranch = useCallback(
     async (branchName: string) => {
       if (!onDeleteBranch) return;
-      await onDeleteBranch(branchName);
+      const result = await onDeleteBranch(branchName, { skipRefresh: true });
+      if (result?.success === false) return;
       setSelectedBranchNames((prev) => {
         if (!prev.has(branchName)) return prev;
         const next = new Set(prev);
         next.delete(branchName);
         return next;
       });
+      await refreshBranches();
     },
-    [onDeleteBranch]
+    [onDeleteBranch, refreshBranches]
+  );
+
+  const handleRemoveWorktree = useCallback(
+    async (worktreePath: string) => {
+      if (!onRemoveWorktree) return;
+      const result = await onRemoveWorktree(worktreePath, {
+        skipRefresh: true,
+      });
+      if (result?.success === false) return;
+      await refreshWorktreeMap(repoId, repoPathProp);
+      await refreshBranches();
+    },
+    [onRemoveWorktree, refreshBranches, repoId, repoPathProp]
   );
 
   const renderBranchRemoveAction = useCallback(
-    (branch: { name: string }) =>
+    (branch: { name: string; worktreePath?: string }) =>
       createElement(
         "button",
         {
           type: "button",
           onClick: (event: MouseEvent<HTMLButtonElement>) => {
             event.stopPropagation();
+            if (branch.worktreePath) {
+              void handleRemoveWorktree(branch.worktreePath);
+              return;
+            }
             void handleDeleteBranch(branch.name);
           },
           className:
             "flex items-center justify-center rounded-md p-1 text-text-2 transition-colors hover:bg-fill-3 hover:text-text-1",
-          title: t("actions.delete", "Delete"),
+          title: branch.worktreePath
+            ? t("selectors.branch.actions.removeWorktree", {
+                defaultValue: "Remove Worktree",
+              })
+            : t("actions.delete", "Delete"),
         },
         createElement(Trash2, { size: 14 })
       ),
-    [handleDeleteBranch, t]
+    [handleDeleteBranch, handleRemoveWorktree, t]
   );
 
   // ============ ITEMS (needs to be before useSelector) ============
@@ -237,6 +261,7 @@ export function useBranchPalette(options: UseBranchPaletteOptions) {
     onSelect,
     onCreateBranch,
     onDeleteBranch,
+    onRemoveWorktree,
     onCheckoutDetached,
     onClose,
     setActiveMode,
@@ -244,6 +269,7 @@ export function useBranchPalette(options: UseBranchPaletteOptions) {
     focusInput: focusInputBridge,
     selectedBranchNames,
     toggleBranchSelection,
+    removeWorktree: handleRemoveWorktree,
     renderBranchRemoveAction,
   });
 
@@ -252,11 +278,44 @@ export function useBranchPalette(options: UseBranchPaletteOptions) {
   const handleDeleteSelectedBranches = useCallback(async () => {
     if (!onDeleteBranch || selectedBranchNames.size === 0) return;
     const branchNames = Array.from(selectedBranchNames);
-    await Promise.all(
-      branchNames.map((branchName) => onDeleteBranch(branchName))
-    );
-    setSelectedBranchNames(new Set());
-  }, [onDeleteBranch, selectedBranchNames]);
+    const failedBranchNames: string[] = [];
+
+    for (const branchName of branchNames) {
+      const result = await onDeleteBranch(branchName, {
+        silent: true,
+        skipRefresh: true,
+      });
+      if (result?.success === false) {
+        failedBranchNames.push(branchName);
+      }
+    }
+
+    const deletedCount = branchNames.length - failedBranchNames.length;
+    const summaryParts = [
+      deletedCount > 0
+        ? t("selectors.branch.messages.deletedCount", {
+            count: deletedCount,
+            defaultValue: "Deleted {{count}} branch",
+          })
+        : null,
+      failedBranchNames.length > 0
+        ? t("selectors.branch.messages.failedDeleteList", {
+            branches: failedBranchNames.join(", "),
+            defaultValue: "Failed to delete: {{branches}}",
+          })
+        : null,
+    ].filter(Boolean);
+
+    if (summaryParts.length > 0) {
+      const kind = failedBranchNames.length > 0 ? "error" : "info";
+      const { showGitActionDialogSafely } =
+        await import("@src/util/dialogs/gitActionDialog");
+      showGitActionDialogSafely(summaryParts.join("\n"), kind);
+    }
+
+    setSelectedBranchNames(new Set(failedBranchNames));
+    await refreshBranches();
+  }, [onDeleteBranch, refreshBranches, selectedBranchNames, t]);
 
   const pinnedActionItems = useMemo((): SpotlightItem[] => {
     const actions: SpotlightItem[] = [];

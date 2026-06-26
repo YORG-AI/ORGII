@@ -6,14 +6,7 @@
  */
 import { useAtomValue } from "jotai";
 import { GitPullRequest, Loader2, TriangleAlert } from "lucide-react";
-import React, {
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { OpenPRItem } from "@src/api/tauri/github";
@@ -21,16 +14,15 @@ import Tooltip from "@src/components/Tooltip";
 import { TreeRowBase, type TreeRowNode } from "@src/components/TreeRow";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
 import {
-  ReferenceDragGhost,
-  type ReferenceDragState,
-} from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/components/ReferenceDragGhost";
-import {
   type SectionStatus,
   SectionStatusRow,
 } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/components/SectionStatusRow";
 import { TreeSectionHeader } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/components/TreeSectionHeader";
 import type { TabDragPillPayload } from "@src/modules/WorkStation/shared/TabBar/tabDragTypes";
 import { TYPOGRAPHY } from "@src/modules/WorkStation/shared/tokens";
+import { ReferenceDragGhost } from "@src/shared/dnd/ReferenceDragGhost";
+import { setPrDragStash } from "@src/shared/dnd/dragSideChannel";
+import { useReferencePillDrag } from "@src/shared/dnd/useReferencePillDrag";
 import { getPrStatusLabelKey } from "@src/shared/pr/prStatus";
 import {
   workstationAllOpenPrsAtom,
@@ -49,8 +41,6 @@ export interface PullRequestContentProps {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-const DRAG_THRESHOLD_PX = 6;
 
 function parsePrUrl(
   prUrl: string | undefined
@@ -76,13 +66,6 @@ const PrRow: React.FC<PrRowProps> = memo(
     const { t } = useTranslation("common");
     const statusKey = pr.draft ? "draft" : pr.state;
     const statusVariant = getPrStatusVariant(statusKey);
-    const pointerDragRef = useRef<{
-      active: boolean;
-      startX: number;
-      startY: number;
-      thresholdMet: boolean;
-    } | null>(null);
-    const [dragState, setDragState] = useState<ReferenceDragState | null>(null);
 
     const buildPrPayload = useCallback(
       () => ({
@@ -108,7 +91,7 @@ const PrRow: React.FC<PrRowProps> = memo(
     }, [buildPrPayload]);
 
     const stashPrDrag = useCallback(() => {
-      window.__orgiiLastPrDrag = { ...buildPrPayload(), timestamp: Date.now() };
+      setPrDragStash(buildPrPayload());
     }, [buildPrPayload]);
 
     const node: TreeRowNode = useMemo(
@@ -126,87 +109,11 @@ const PrRow: React.FC<PrRowProps> = memo(
       [pr.number, pr.title, pr.url, statusVariant.dotClass]
     );
 
-    const handlePointerDown = useCallback(
-      (event: React.PointerEvent<HTMLDivElement>) => {
-        if (event.button !== 0) return;
-        stashPrDrag();
-        pointerDragRef.current = {
-          active: true,
-          startX: event.clientX,
-          startY: event.clientY,
-          thresholdMet: false,
-        };
-
-        const onPointerMove = (moveEvent: PointerEvent) => {
-          const state = pointerDragRef.current;
-          if (!state?.active) return;
-
-          if (!state.thresholdMet) {
-            const dx = moveEvent.clientX - state.startX;
-            const dy = moveEvent.clientY - state.startY;
-            if (Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD_PX) return;
-
-            state.thresholdMet = true;
-            const pill = buildPrPillPayload();
-            window.__internalWorkstationTabDrag = true;
-            window.__internalWorkstationTabDragData = JSON.stringify(pill);
-            document.dispatchEvent(
-              new CustomEvent("tab-drag-start", {
-                detail: { tabId: `pr-${pr.number}`, pill },
-              })
-            );
-            setDragState({
-              isDragging: true,
-              dragX: moveEvent.clientX,
-              dragY: moveEvent.clientY,
-              dragLabel: pill.name ?? pill.path,
-            });
-          } else {
-            setDragState((prev) =>
-              prev
-                ? {
-                    ...prev,
-                    dragX: moveEvent.clientX,
-                    dragY: moveEvent.clientY,
-                  }
-                : null
-            );
-          }
-        };
-
-        const onPointerUp = (upEvent: PointerEvent) => {
-          window.removeEventListener("pointermove", onPointerMove);
-          window.removeEventListener("pointerup", onPointerUp);
-          window.removeEventListener("pointercancel", onPointerUp);
-
-          const state = pointerDragRef.current;
-          pointerDragRef.current = null;
-          setDragState(null);
-          window.__internalWorkstationTabDrag = false;
-          window.__internalWorkstationTabDragData = undefined;
-
-          if (state?.thresholdMet) {
-            document.dispatchEvent(
-              new CustomEvent("tab-drag-end", {
-                detail: {
-                  tabId: `pr-${pr.number}`,
-                  pill: buildPrPillPayload(),
-                  pointerX: upEvent.clientX,
-                  pointerY: upEvent.clientY,
-                },
-              })
-            );
-          }
-        };
-
-        window.addEventListener("pointermove", onPointerMove, {
-          passive: true,
-        });
-        window.addEventListener("pointerup", onPointerUp);
-        window.addEventListener("pointercancel", onPointerUp);
-      },
-      [buildPrPillPayload, pr.number, stashPrDrag]
-    );
+    const { dragHandlers, dragState } = useReferencePillDrag<HTMLDivElement>({
+      tabId: `pr-${pr.number}`,
+      getPayload: buildPrPillPayload,
+      onPointerDown: stashPrDrag,
+    });
 
     const tooltipContent = (
       <div className="flex flex-col gap-1 py-0.5">
@@ -254,7 +161,7 @@ const PrRow: React.FC<PrRowProps> = memo(
             onClick={() => onClick(pr)}
             showIndentGuides={false}
             onMouseDown={stashPrDrag}
-            onPointerDown={handlePointerDown}
+            {...dragHandlers}
             className={
               isCurrentBranch
                 ? "border-l-2 border-primary-5 !pl-[calc(theme(spacing.3)+2px+theme(spacing.4))]"

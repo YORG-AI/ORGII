@@ -127,6 +127,8 @@
     "uiScale": "UI 크기",
     "timezoneAuto": "자동 (브라우저)",
     "timezoneSearchPlaceholder": "가까운 도시 검색",
+    "sendOnEnter": "Enter로 메시지 보내기",
+    "sendOnEnterDesc": "활성화하면 Enter로 보내고 Shift+Enter로 줄바꿈합니다. 비활성화하면 Ctrl/Cmd+Enter로 보냅니다.",
     "language": "언어",
     "languageSearchPlaceholder": "언어 검색...",
     "languageNames": {
@@ -975,7 +977,9 @@
     "typingSpeed": "타이핑 속도",
     "typingSpeedDesc": "문자당 밀리초 (1ms = 가장 빠름, 50ms = 가장 느림)",
     "decryptEffect": "Decrypt 효과",
-    "decryptEffectDesc": "Agent 메시지에 Decrypt 애니메이션 활성화"
+    "decryptEffectDesc": "Agent 메시지에 Decrypt 애니메이션 활성화",
+    "sendOnEnter": "Enter로 메시지 보내기",
+    "sendOnEnterDesc": "활성화하면 Enter로 보내고 Shift+Enter로 줄바꿈합니다. 비활성화하면 Ctrl/Cmd+Enter로 보냅니다."
   },
   "languageServers": {
     "languageServersDesc": "자동 완성, 진단 및 코드 인텔리전스를 위한 LSP 서버 관리",

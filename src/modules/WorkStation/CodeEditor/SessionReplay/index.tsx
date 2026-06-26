@@ -430,6 +430,27 @@ const SessionReplayIDEComponent: React.FC<SimulatorIDEProps> = ({
     [tabKindByEventId, handleReplayTabClick]
   );
 
+  const onReplayTabDoubleClick = useCallback(
+    (clickedEventId: string) => {
+      const op = allFileOperations.find(
+        (candidate) =>
+          candidate.eventId === clickedEventId ||
+          candidate.relatedEventIds?.includes(clickedEventId)
+      );
+      if (!op?.filePath) return;
+
+      document.dispatchEvent(
+        new CustomEvent("file-pill-click", {
+          detail: {
+            filePath: op.filePath,
+            fileName: op.fileName,
+          },
+        })
+      );
+    },
+    [allFileOperations]
+  );
+
   const isCurrentEventLoading = sessionEvent?.displayStatus === "running";
 
   const mainContent = (
@@ -457,6 +478,7 @@ const SessionReplayIDEComponent: React.FC<SimulatorIDEProps> = ({
         tabs={replayTabs}
         activeEventId={replayActiveEventId}
         onTabClick={onReplayTabClick}
+        onTabDoubleClick={onReplayTabDoubleClick}
       >
         <div className="flex min-h-0 flex-1">
           <WorkStationShell

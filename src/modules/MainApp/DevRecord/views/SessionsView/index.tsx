@@ -281,7 +281,7 @@ const UsageHistory: React.FC<UsageHistoryProps> = ({
         </span>,
         <span
           key="round"
-          className="flex items-center gap-2 whitespace-nowrap text-text-2"
+          className="flex flex-wrap items-center gap-2 whitespace-nowrap text-text-2"
         >
           <span>
             {t("market:usageHistory.roundDetail", { index: roundIdx + 1 })}:
@@ -294,6 +294,20 @@ const UsageHistory: React.FC<UsageHistoryProps> = ({
             <LogOut size={12} className="text-text-2" />
             {record.outputTokens.toLocaleString()}
           </span>
+          {record.cacheWriteTokens > 0 && (
+            <span className="tabular-nums text-text-2">
+              {t("market:usageHistory.cacheWriteTokens", {
+                count: record.cacheWriteTokens,
+              })}
+            </span>
+          )}
+          {record.cacheReadTokens > 0 && (
+            <span className="tabular-nums text-text-2">
+              {t("market:usageHistory.cacheReadTokens", {
+                count: record.cacheReadTokens,
+              })}
+            </span>
+          )}
         </span>,
         <span key="agent" />,
         <span
@@ -379,16 +393,21 @@ const UsageHistory: React.FC<UsageHistoryProps> = ({
         key: "source",
         label: t("market:usageHistory.colSource"),
         width: SETTINGS_TABLE_COL.hug,
-        renderCell: (item) =>
-          item.source === USAGE_SOURCE.POOLING ? (
-            <span className="whitespace-nowrap font-medium tabular-nums text-primary-6">
-              ${item.cost.toFixed(2)}
-            </span>
-          ) : (
-            <span className={`${SETTINGS_TABLE_CELL.value} whitespace-nowrap`}>
-              {t("common:filters.myKeys")}
-            </span>
-          ),
+        renderCell: (item) => (
+          <span
+            className={`whitespace-nowrap tabular-nums ${
+              item.cost > 0
+                ? "font-medium text-primary-6"
+                : SETTINGS_TABLE_CELL.value
+            }`}
+          >
+            {item.cost > 0
+              ? `$${item.cost.toFixed(4)}`
+              : item.source === USAGE_SOURCE.POOLING
+                ? "$0.00"
+                : t("common:filters.myKeys")}
+          </span>
+        ),
       },
       {
         key: "tokens",
@@ -522,6 +541,7 @@ const UsageHistory: React.FC<UsageHistoryProps> = ({
                     getRowKey={(item) => item.id}
                     headerHeight="tall"
                     pageSize={50}
+                    maxHeight="min(420px, calc(100vh - 280px))"
                     emptyTitle={t("market:usageHistory.noTransactions")}
                     expandable={{ expandedRowRender: renderExpandedRow }}
                   />

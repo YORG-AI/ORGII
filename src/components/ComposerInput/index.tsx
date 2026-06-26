@@ -25,6 +25,7 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { hasReferenceDragData } from "@src/shared/dnd/referenceDragData";
 import { installedSkillsAtom } from "@src/store/skills/installedSkillsAtom";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 
@@ -508,17 +509,9 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
         }
       };
       const handleDragOverEvent = (event: DragEvent) => {
-        const hasReferenceType =
-          event.dataTransfer?.types.includes(
-            "application/x-orgii-pr-reference"
-          ) ||
-          event.dataTransfer?.types.includes(
-            "application/x-orgii-issue-reference"
-          ) ||
-          // WKWebView (Tauri/macOS) may strip custom MIME types from the
-          // types list during dragover. Fall back to the window-level stash.
-          !!window.__orgiiLastPrDrag ||
-          !!window.__orgiiLastIssueDrag;
+        const hasReferenceType = hasReferenceDragData(
+          event.dataTransfer ? Array.from(event.dataTransfer.types) : undefined
+        );
         if (hasReferenceType) {
           event.preventDefault();
           if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";

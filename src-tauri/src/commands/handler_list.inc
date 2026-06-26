@@ -310,6 +310,7 @@ orgtrack::orgtrack_get_extraction_memory_gate,
 orgtrack::orgtrack_get_session_edit_artifacts,
 orgtrack::orgtrack_get_session_diff_chunks,
 orgtrack::orgtrack_get_session_final_diffs,
+orgtrack::orgtrack_get_diff_replay_preview,
 orgtrack::orgtrack_get_session_commit_links,
 // Debug-only: WDIO Submissions-tab commit-link seeding (Err outside debug builds)
 orgtrack::debug_seed_commit_link,
@@ -958,6 +959,9 @@ orgtrack::history_commands::external_history_auto_import_recent_paths,
 orgtrack::history_commands::windsurf_history_chunks,
 orgtrack::history_commands::windsurf_history_list_sessions,
 orgtrack::history_commands::windsurf_recent_paths,
+orgtrack::history_commands::workbuddy_history_chunks,
+orgtrack::history_commands::workbuddy_history_list_sessions,
+orgtrack::history_commands::workbuddy_recent_paths,
 // Cursor IDE control — drive a running Cursor.app via CDP `Input.*`
 // so users can submit prompts (start + follow-up) without leaving ORGII.
 // See `crates/cursor-bridge-app/src/lib.rs` and
@@ -1087,7 +1091,9 @@ agent_sessions::unified_stats::commands::session_aggregate_list,
 agent_sessions::unified_stats::commands::session_check_health,
 agent_sessions::unified_stats::commands::session_get_aggregate_stats,
 agent_sessions::unified_stats::commands::session_get_history,
+agent_sessions::unified_stats::commands::session_heatmap,
 agent_sessions::unified_stats::commands::session_usage_list,
+agent_sessions::unified_stats::commands::session_usage_summary,
 agent_sessions::unified_stats::commands::quota_get_zenmux_status,
 agent_sessions::unified_stats::commands::session_get_context_status,
 agent_sessions::unified_stats::patch::session_patch,
@@ -1137,6 +1143,8 @@ agent_core::state::commands::debug_seed_pending_plan,
 // User presence — global snapshot for runtime enforcement (auto-resolve
 // deadlines, goal loop). Pushed by the FE on every mode switch.
 agent_core::state::commands::set_user_presence,
+// User profile — global snapshot for backend-only/background prompt builds.
+agent_core::state::commands::set_user_profile,
 // Secret capture commands (out-of-band, plaintext never reaches LLM).
 // Backs the `manage_secrets` tool + `SecretCaptureModal` round-trip.
 agent_core::state::commands::agent_secret_capture_submit,

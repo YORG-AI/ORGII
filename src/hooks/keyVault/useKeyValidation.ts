@@ -24,6 +24,7 @@ import type { EnvVar, QuotaSnapshot } from "@src/api/types/keyVault";
 import {
   LOCAL_MODEL_PROVIDER,
   type ModelType,
+  type ProviderProtocol,
   type QuotaInfo,
   type ValidateKeyResponse,
 } from "@src/api/types/keys";
@@ -67,6 +68,7 @@ export interface UseKeyValidationOptions {
   cursorSessionToken?: string;
   /** Base URL for proxy services (OpenRouter, custom API endpoints, ...) */
   baseUrl?: string;
+  protocol?: ProviderProtocol;
   /**
    * Input mode. Only `"direct"` is supported; values other than `"direct"`
    * log a warning and are treated as `"direct"`.
@@ -98,6 +100,7 @@ async function validateKeyDirect(request: {
   api_key: string;
   session_token?: string;
   base_url?: string;
+  protocol?: ProviderProtocol;
   test_model?: string;
 }): Promise<ValidateKeyResponse> {
   try {
@@ -106,7 +109,8 @@ async function validateKeyDirect(request: {
       request.api_key,
       request.base_url,
       request.session_token,
-      request.test_model
+      request.test_model,
+      request.protocol
     );
 
     let quotaInfo: QuotaInfo | undefined;
@@ -162,6 +166,7 @@ export function useKeyValidation(
     rawKeyInput,
     cursorSessionToken,
     baseUrl,
+    protocol,
     inputMode = "direct",
     testModel,
     onValidationSuccess,
@@ -229,6 +234,7 @@ export function useKeyValidation(
             agent_type: agentType,
             api_key: cleanRawKeyInput,
             base_url: cleanBaseUrl,
+            protocol,
             session_token:
               agentType === CLI_AGENT.CURSOR || agentType === CLI_AGENT.CODEX
                 ? cleanCursorSessionToken
@@ -328,6 +334,7 @@ export function useKeyValidation(
       agentType,
       cursorSessionToken,
       baseUrl,
+      protocol,
       inputMode,
       testModel,
       onValidationSuccess,

@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 
 import Input from "@src/components/Input";
 import { PanelFooter } from "@src/modules/shared/layouts/blocks";
+import { joinPathForDisplay } from "@src/util/file/pathUtils";
 
 import { ICONS } from "../../config";
 import {
@@ -138,7 +139,7 @@ const CreateWorkspaceFolderForm: React.FC<CreateWorkspaceFolderFormProps> = ({
             workspacePath && workspaceName ? (
               <span className="truncate text-[14px] text-text-1">
                 {t("selectors.repo.forms.createAt", {
-                  path: `${workspacePath}/${workspaceName}`,
+                  path: joinPathForDisplay(workspacePath, workspaceName),
                 })}
               </span>
             ) : undefined

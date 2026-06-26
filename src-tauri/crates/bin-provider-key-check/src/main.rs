@@ -34,6 +34,8 @@ struct CheckEntry {
     session_token_env: Option<String>,
     #[serde(default)]
     test_model: Option<String>,
+    #[serde(default)]
+    protocol: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -111,6 +113,7 @@ async fn run() -> Result<(), String> {
             base_url,
             session_token,
             entry.test_model.clone(),
+            entry.protocol.clone(),
         )
         .await
         {

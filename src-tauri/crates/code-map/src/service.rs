@@ -27,6 +27,23 @@ static ACTIVE_INDEXES: Lazy<Mutex<HashMap<String, Arc<AtomicBool>>>> =
 static PROGRESS: Lazy<Mutex<HashMap<String, CodeMapIndexProgress>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
+struct ActiveIndexGuard {
+    key: String,
+}
+
+impl ActiveIndexGuard {
+    fn new(key: String) -> Self {
+        Self { key }
+    }
+}
+
+impl Drop for ActiveIndexGuard {
+    fn drop(&mut self) {
+        ACTIVE_INDEXES.lock().remove(&self.key);
+        PROGRESS.lock().remove(&self.key);
+    }
+}
+
 pub struct CodeMapService;
 
 impl CodeMapService {
@@ -46,13 +63,20 @@ pub async fn get_status(workspace_path: PathBuf) -> Result<CodeMapStatus> {
     let canonical = canonical_workspace(&workspace_path)?;
     let key = canonical.to_string_lossy().to_string();
     let progress = PROGRESS.lock().get(&key).cloned();
+    let has_active_index = ACTIVE_INDEXES.lock().contains_key(&key);
     tokio::task::spawn_blocking(move || {
         let mut db = CodeMapDb::open(&canonical)?;
         refresh_staleness(&mut db, &canonical)?;
         let mut status = db.status()?;
-        if let Some(progress) = progress {
+        if let Some(progress) = progress.filter(|_| has_active_index) {
             status.status = CodeMapStatusKind::Indexing;
             status.progress = Some(progress);
+        } else if matches!(status.status, CodeMapStatusKind::Indexing) {
+            db.set_status(
+                CodeMapStatusKind::Failed,
+                Some("Indexing stopped before completion"),
+            )?;
+            status = db.status()?;
         }
         Ok(status)
     })
@@ -98,6 +122,7 @@ pub async fn start_index(
         }
         active.insert(key.clone(), cancellation.clone());
     }
+    let _active_index_guard = ActiveIndexGuard::new(key.clone());
 
     set_progress(
         &key,
@@ -145,8 +170,6 @@ pub async fn start_index(
 
             let scan = scan_freshness(&canonical, &stored, requires_full_rebuild);
             if !force && scan.is_fresh() && db.status()?.files > 0 {
-                ACTIVE_INDEXES.lock().remove(&key);
-                PROGRESS.lock().remove(&key);
                 let status = db.status()?;
                 emit_status_changed(app.as_ref(), &status);
                 return Ok(status);
@@ -184,7 +207,44 @@ pub async fn start_index(
 
             match indexed {
                 Ok(result) => {
-                    db.apply_index_changes(result.extracted_files, &result.deleted_files)?;
+                    let added_files = result.added_files;
+                    let modified_files = result.modified_files;
+                    let deleted_files_count = result.deleted_files.len() as u32;
+                    if cancellation.load(Ordering::Relaxed) {
+                        return set_cancelled_status(
+                            &db,
+                            &key,
+                            app.as_ref(),
+                            added_files,
+                            modified_files,
+                            deleted_files_count,
+                        );
+                    }
+                    if let Err(err) = db.apply_index_changes_with_cancellation(
+                        result.extracted_files,
+                        &result.deleted_files,
+                        Some(&cancellation),
+                    ) {
+                        if matches!(err, CodeMapError::Cancelled(_)) {
+                            return set_cancelled_status(
+                                &db,
+                                &key,
+                                app.as_ref(),
+                                added_files,
+                                modified_files,
+                                deleted_files_count,
+                            );
+                        }
+                        return set_failed_status(
+                            &db,
+                            &key,
+                            app.as_ref(),
+                            err,
+                            added_files,
+                            modified_files,
+                            deleted_files_count,
+                        );
+                    }
                     let status = db.status()?;
                     set_progress(
                         &key,
@@ -194,9 +254,9 @@ pub async fn start_index(
                             files_processed: status.files,
                             files_total: status.files,
                             current_file: None,
-                            added_files: result.added_files,
-                            modified_files: result.modified_files,
-                            deleted_files: result.deleted_files.len() as u32,
+                            added_files,
+                            modified_files,
+                            deleted_files: deleted_files_count,
                             error: None,
                         },
                         app.as_ref(),
@@ -205,66 +265,37 @@ pub async fn start_index(
                     Ok(status)
                 }
                 Err(CodeMapError::Cancelled(_)) => {
-                    db.set_status(CodeMapStatusKind::Cancelled, None)?;
-                    let status = db.status()?;
-                    set_progress(
-                        &key,
-                        CodeMapIndexProgress {
-                            workspace_path: key.clone(),
-                            phase: CodeMapIndexPhase::Cancelled,
-                            files_processed: 0,
-                            files_total: 0,
-                            current_file: None,
-                            added_files: 0,
-                            modified_files: 0,
-                            deleted_files: 0,
-                            error: None,
-                        },
-                        app.as_ref(),
-                    );
-                    emit_status_changed(app.as_ref(), &status);
-                    Ok(status)
+                    set_cancelled_status(&db, &key, app.as_ref(), 0, 0, 0)
                 }
-                Err(err) => {
-                    db.set_status(CodeMapStatusKind::Failed, Some(&err.to_string()))?;
-                    let status = db.status()?;
-                    set_progress(
-                        &key,
-                        CodeMapIndexProgress {
-                            workspace_path: key.clone(),
-                            phase: CodeMapIndexPhase::Failed,
-                            files_processed: 0,
-                            files_total: 0,
-                            current_file: None,
-                            added_files: 0,
-                            modified_files: 0,
-                            deleted_files: 0,
-                            error: Some(err.to_string()),
-                        },
-                        app.as_ref(),
-                    );
-                    emit_status_changed(app.as_ref(), &status);
-                    Ok(status)
-                }
+                Err(err) => set_failed_status(&db, &key, app.as_ref(), err, 0, 0, 0),
             }
         }
     })
     .await
     .map_err(|err| CodeMapError::Join(err.to_string()))?;
 
-    ACTIVE_INDEXES.lock().remove(&key);
-    PROGRESS.lock().remove(&key);
     result
 }
 
 pub async fn cancel_index(workspace_path: PathBuf) -> Result<bool> {
     let canonical = canonical_workspace(&workspace_path)?;
     let key = canonical.to_string_lossy().to_string();
-    let Some(flag) = ACTIVE_INDEXES.lock().get(&key).cloned() else {
-        return Ok(false);
-    };
-    flag.store(true, Ordering::Relaxed);
-    Ok(true)
+    if let Some(flag) = ACTIVE_INDEXES.lock().get(&key).cloned() {
+        flag.store(true, Ordering::Relaxed);
+        return Ok(true);
+    }
+    PROGRESS.lock().remove(&key);
+    tokio::task::spawn_blocking(move || {
+        let db = CodeMapDb::open(&canonical)?;
+        let status = db.status()?;
+        if matches!(status.status, CodeMapStatusKind::Indexing) {
+            db.set_status(CodeMapStatusKind::Cancelled, None)?;
+            return Ok(true);
+        }
+        Ok(false)
+    })
+    .await
+    .map_err(|err| CodeMapError::Join(err.to_string()))?
 }
 
 pub async fn clear_index(workspace_path: PathBuf) -> Result<CodeMapStatus> {
@@ -499,6 +530,66 @@ fn source_window(
         end_line: end,
         text,
     })
+}
+
+fn set_cancelled_status(
+    db: &CodeMapDb,
+    key: &str,
+    app: Option<&AppHandle>,
+    added_files: u32,
+    modified_files: u32,
+    deleted_files: u32,
+) -> Result<CodeMapStatus> {
+    db.set_status(CodeMapStatusKind::Cancelled, None)?;
+    let status = db.status()?;
+    set_progress(
+        key,
+        CodeMapIndexProgress {
+            workspace_path: key.to_string(),
+            phase: CodeMapIndexPhase::Cancelled,
+            files_processed: 0,
+            files_total: 0,
+            current_file: None,
+            added_files,
+            modified_files,
+            deleted_files,
+            error: None,
+        },
+        app,
+    );
+    emit_status_changed(app, &status);
+    Ok(status)
+}
+
+fn set_failed_status(
+    db: &CodeMapDb,
+    key: &str,
+    app: Option<&AppHandle>,
+    err: CodeMapError,
+    added_files: u32,
+    modified_files: u32,
+    deleted_files: u32,
+) -> Result<CodeMapStatus> {
+    let error = err.to_string();
+    db.set_status(CodeMapStatusKind::Failed, Some(&error))?;
+    let status = db.status()?;
+    set_progress(
+        key,
+        CodeMapIndexProgress {
+            workspace_path: key.to_string(),
+            phase: CodeMapIndexPhase::Failed,
+            files_processed: 0,
+            files_total: 0,
+            current_file: None,
+            added_files,
+            modified_files,
+            deleted_files,
+            error: Some(error),
+        },
+        app,
+    );
+    emit_status_changed(app, &status);
+    Ok(status)
 }
 
 fn set_progress(key: &str, progress: CodeMapIndexProgress, app: Option<&AppHandle>) {

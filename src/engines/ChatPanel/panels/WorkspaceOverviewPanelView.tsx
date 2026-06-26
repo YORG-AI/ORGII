@@ -195,10 +195,10 @@ const WorkspaceOverviewPanelView: React.FC<WorkspaceOverviewPanelViewProps> =
 
     const descriptionContent = (
       <section
-        className={`${DETAIL_PANEL_TOKENS.contentWidth} flex flex-col`}
+        className={`${DETAIL_PANEL_TOKENS.contentWidth} flex min-h-0 flex-1 flex-col`}
         data-testid="chat-panel-workspace-overview-section"
       >
-        <div className="mb-4 flex items-center justify-start">
+        <div className="mb-4 flex shrink-0 items-center justify-start">
           <TabPill
             tabs={tabs}
             activeTab={resolvedActiveTab}
@@ -208,10 +208,12 @@ const WorkspaceOverviewPanelView: React.FC<WorkspaceOverviewPanelViewProps> =
             size="large"
           />
         </div>
-        {overviewBody}
-        {detailsBody}
-        {recentSessionBody}
-        {agentBlameBody}
+        <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
+          {overviewBody}
+          {detailsBody}
+          {recentSessionBody}
+          {agentBlameBody}
+        </div>
       </section>
     );
 
@@ -225,7 +227,6 @@ const WorkspaceOverviewPanelView: React.FC<WorkspaceOverviewPanelViewProps> =
             descriptionContent={descriptionContent}
             descriptionClassName="px-4 pt-2"
             descriptionFlexible
-            scrollable
           />
           {actionFooter}
         </DetailPanelContainer>

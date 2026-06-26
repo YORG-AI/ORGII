@@ -8,6 +8,36 @@ import type { BranchItem, SpotlightItem } from "../../types";
 
 export type BranchPaletteMode = "checkout" | "add" | "add-from" | "remove";
 
+export interface DeleteBranchOptions {
+  silent?: boolean;
+  skipRefresh?: boolean;
+}
+
+export interface DeleteBranchResult {
+  success: boolean;
+  message?: string;
+}
+
+export interface RemoveWorktreeOptions {
+  silent?: boolean;
+  skipRefresh?: boolean;
+}
+
+export interface RemoveWorktreeResult {
+  success: boolean;
+  message?: string;
+}
+
+export type DeleteBranchHandler = (
+  branchName: string,
+  options?: DeleteBranchOptions
+) => DeleteBranchResult | void | Promise<DeleteBranchResult | void>;
+
+export type RemoveWorktreeHandler = (
+  worktreePath: string,
+  options?: RemoveWorktreeOptions
+) => RemoveWorktreeResult | void | Promise<RemoveWorktreeResult | void>;
+
 export interface BranchPaletteProps extends BasePaletteProps {
   /** Callback when a branch is selected (checkout) */
   onSelect: (branchName: string, branch: BranchItem) => void | Promise<void>;
@@ -25,7 +55,9 @@ export interface BranchPaletteProps extends BasePaletteProps {
     startPoint?: string
   ) => void | Promise<void>;
   /** Callback to delete a branch */
-  onDeleteBranch?: (branchName: string) => void | Promise<void>;
+  onDeleteBranch?: DeleteBranchHandler;
+  /** Callback to remove a git worktree by path */
+  onRemoveWorktree?: RemoveWorktreeHandler;
   /** Callback to checkout detached HEAD (current commit) */
   onCheckoutDetached?: () => void;
 
@@ -60,7 +92,8 @@ export interface UseBranchPaletteOptions {
     branchName: string,
     startPoint?: string
   ) => void | Promise<void>;
-  onDeleteBranch?: (branchName: string) => void | Promise<void>;
+  onDeleteBranch?: DeleteBranchHandler;
+  onRemoveWorktree?: RemoveWorktreeHandler;
   onCheckoutDetached?: () => void;
   onClose: () => void;
   onGoBackToParent?: () => void;
@@ -95,7 +128,8 @@ export interface UseBranchItemsOptions {
     branchName: string,
     startPoint?: string
   ) => void | Promise<void>;
-  onDeleteBranch?: (branchName: string) => void | Promise<void>;
+  onDeleteBranch?: DeleteBranchHandler;
+  onRemoveWorktree?: RemoveWorktreeHandler;
   onCheckoutDetached?: () => void;
   onClose: () => void;
   setActiveMode: (mode: BranchPaletteMode) => void;
@@ -103,6 +137,7 @@ export interface UseBranchItemsOptions {
   focusInput: () => void;
   selectedBranchNames: Set<string>;
   toggleBranchSelection: (branchName: string) => void;
+  removeWorktree: (worktreePath: string) => void | Promise<void>;
   renderBranchRemoveAction?: (branch: BranchItem) => React.ReactNode;
   pinnedActionItems?: SpotlightItem[];
 }

@@ -80,6 +80,8 @@ function sameGroupHeaderProps(
     previous.suppressRoundGap === next.suppressRoundGap &&
     previous.collapseTailWhenIdle === next.collapseTailWhenIdle &&
     previous.hideUserMessage === next.hideUserMessage &&
+    previous.defaultTurnCollapsed === next.defaultTurnCollapsed &&
+    previous.renderPart === next.renderPart &&
     previous.turnCollapseInteractionAtRef ===
       next.turnCollapseInteractionAtRef &&
     previous.onEditSubmit === next.onEditSubmit &&
@@ -88,6 +90,8 @@ function sameGroupHeaderProps(
     sameMeta(previousMeta, nextMeta)
   );
 }
+
+export type GroupHeaderRenderPart = "all" | "user" | "collapse";
 
 export interface GroupHeaderRendererProps {
   groupIndex: number;
@@ -114,6 +118,9 @@ export interface GroupHeaderRendererProps {
    * the pagination row.
    */
   hideUserMessage?: boolean;
+  /** Default collapse state for eligible turns when no explicit override exists. */
+  defaultTurnCollapsed?: boolean;
+  renderPart?: GroupHeaderRenderPart;
   turnCollapseInteractionAtRef: React.MutableRefObject<number>;
   onEditSubmit?: (
     header: OptimizedChatItem,
@@ -124,7 +131,7 @@ export interface GroupHeaderRendererProps {
 }
 
 /**
- * Renders the sticky user-message group header row for ChatHistory.
+ * Renders the user-message group header row for ChatHistory.
  *
  * Wrapped in `memo` so it doesn't re-render every time the chat panel
  * tree re-mounts during scroll / event ticks. The header is one of N
@@ -144,6 +151,8 @@ export const GroupHeaderRenderer: React.FC<GroupHeaderRendererProps> = memo(
     suppressRoundGap = false,
     collapseTailWhenIdle = false,
     hideUserMessage = false,
+    defaultTurnCollapsed = false,
+    renderPart = "all",
     turnCollapseInteractionAtRef,
     onEditSubmit,
     onRestoreCheckpoint,
@@ -205,23 +214,22 @@ export const GroupHeaderRenderer: React.FC<GroupHeaderRendererProps> = memo(
       }
     );
 
-    const headerPaddingBottomClass = showCollapseBar && turnId ? "" : "pb-2";
+    const showUserPart = renderPart !== "collapse" && !hideUserMessage;
+    const showCollapsePart = renderPart !== "user" && showCollapseBar && turnId;
+    if (!showUserPart && !showCollapsePart) return null;
+
+    const headerPaddingBottomClass = showCollapsePart ? "" : "pb-2";
     const roundGap =
-      groupIndex > 0 && !suppressRoundGap ? CHAT_FOOTER_SPACER.ROUND_GAP_PX : 0;
+      renderPart !== "collapse" && groupIndex > 0 && !suppressRoundGap
+        ? CHAT_FOOTER_SPACER.ROUND_GAP_PX
+        : 0;
 
     return (
       <div
         className={`${CHAT_ITEM_PADDING_X} ${DETAIL_PANEL_TOKENS.contentWidth} bg-chat-pane ${headerPaddingBottomClass}`.trim()}
         style={roundGap > 0 ? { marginTop: roundGap } : undefined}
       >
-        {/*
-          User message and any pinned bars sit directly on the chat
-          surface — the user message owns its own bordered card, the
-          pinned strip flows underneath. No outer tinted wrapper: it
-          added a second translucent layer once page transparency
-          landed, which read as visual noise.
-        */}
-        {!hideUserMessage && (
+        {showUserPart && (
           <div
             className={
               showPinnedBars
@@ -242,7 +250,7 @@ export const GroupHeaderRenderer: React.FC<GroupHeaderRendererProps> = memo(
             {showPinnedBars && <ChatPinnedBars />}
           </div>
         )}
-        {showCollapseBar && turnId && (
+        {showCollapsePart && (
           <TurnCollapsePinBar
             turnId={turnId}
             durationMs={meta?.durationMs ?? 0}
@@ -250,7 +258,7 @@ export const GroupHeaderRenderer: React.FC<GroupHeaderRendererProps> = memo(
             endMs={meta?.endMs ?? null}
             showTimeRange={!hideCollapseTimeRange}
             labelVariant={collapseLabelVariant}
-            defaultCollapsed
+            defaultCollapsed={defaultTurnCollapsed}
             turnCollapseInteractionAtRef={turnCollapseInteractionAtRef}
             onExpand={
               canExpandUnloadedTurn ? handleExpandUnloadedTurn : undefined

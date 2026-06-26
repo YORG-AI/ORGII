@@ -84,6 +84,7 @@ describe("terminal atoms", () => {
         name: "Custom Terminal",
         shell: "/bin/fish",
         profileId: "fish-profile",
+        cwd: "/repo/project",
       });
 
       const sessions = store.get(terminalSessionsAtom);
@@ -92,6 +93,7 @@ describe("terminal atoms", () => {
       expect(newSession?.name).toBe("Custom Terminal");
       expect(newSession?.shell).toBe("/bin/fish");
       expect(newSession?.profileId).toBe("fish-profile");
+      expect(newSession?.cwd).toBe("/repo/project");
     });
   });
 

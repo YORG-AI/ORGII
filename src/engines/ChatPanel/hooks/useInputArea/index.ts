@@ -28,30 +28,45 @@ import useWorkspaceChat from "@src/engines/ChatPanel/hooks/useWorkspaceChat";
 import { useRepositoryInfo } from "@src/engines/SessionCore";
 import { sortedEventsAtom } from "@src/engines/SessionCore/core/atoms/events";
 import { sessionHasComposerStopBlockingWork } from "@src/engines/SessionCore/core/runningEventGate";
+import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import { isPlanDisplayEvent } from "@src/engines/SessionCore/derived/planDisplayEvents";
 import { useSessionId } from "@src/engines/SessionCore/hooks/session";
 import { createLogger } from "@src/hooks/logger";
 import {
   useSessionDraftField,
   useSessionReplyField,
 } from "@src/hooks/session/useSessionPatch";
+import { getPlanDocViewModel } from "@src/modules/WorkStation/Chat/Communication/MessageViewer/planDocViewModel";
 import {
   isPendingCancelAtom,
   isSessionActiveAtom,
   sessionRuntimeStatusAtom,
 } from "@src/store/session/cliSessionStatusAtom";
+import { pendingPlanApprovalsAtom } from "@src/store/session/planApprovalAtom";
 import { sessionByIdAtom } from "@src/store/session/sessionAtom/atoms";
 import { wpReadOnlyAtom } from "@src/store/ui/chatPanelAtom";
 import { workspaceFoldersAtom } from "@src/store/ui/workspaceFoldersAtom";
 import { activeWorkspaceRootPathAtom } from "@src/store/workspace";
+import { getCompactPathLabel } from "@src/util/file/pathUtils";
+import { formatRepoPathForDisplay } from "@src/util/file/repoPathDisplay";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 
+import {
+  buildCompactFilesReloadKey,
+  countChatRounds,
+} from "../../InputArea/components/compactFileChangesHelpers";
+import { useCompactFileData } from "../../InputArea/components/useCompactFileData";
 import {
   readImageDraft,
   writeImageDraft,
 } from "../../InputArea/utils/imageDraftCache";
 import { applyParsedContent } from "../../InputArea/utils/pillContentParser";
 import { resolveDraftRestoreAction } from "./draftRestore";
-import type { UseInputAreaOptions, UseInputAreaReturn } from "./types";
+import type {
+  CustomMentionOption,
+  UseInputAreaOptions,
+  UseInputAreaReturn,
+} from "./types";
 import { useAtMention } from "./useAtMention";
 import { useCiteCode } from "./useCiteCode";
 import { useDragDrop } from "./useDragDrop";
@@ -91,6 +106,55 @@ function getDraftRestoreSkipReason(draftText: string): string | null {
   }
 
   return null;
+}
+
+function getPlanMentionPath(event: SessionEvent): string | null {
+  const planPath = getPlanDocViewModel(event).planPath;
+  return planPath && planPath.trim() ? planPath : null;
+}
+
+function buildPlanMentionOptions(
+  events: ReadonlyArray<SessionEvent>,
+  pendingPlan: { planPath: string; planTitle: string } | null | undefined
+): CustomMentionOption[] {
+  const options: CustomMentionOption[] = [];
+  const seenPaths = new Set<string>();
+
+  if (pendingPlan?.planPath) {
+    seenPaths.add(pendingPlan.planPath);
+    options.push({
+      id: `plan-file:${pendingPlan.planPath}`,
+      label: pendingPlan.planTitle || getCompactPathLabel(pendingPlan.planPath),
+      description: pendingPlan.planPath,
+      groupLabel: "Plan",
+      selectType: "files",
+      selectValue: pendingPlan.planPath,
+      selectDisplayName: getCompactPathLabel(pendingPlan.planPath),
+    });
+  }
+
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (!isPlanDisplayEvent(event)) continue;
+    const planPath = getPlanMentionPath(event);
+    if (!planPath || seenPaths.has(planPath)) continue;
+
+    seenPaths.add(planPath);
+    const title = getPlanDocViewModel(event).title;
+    options.push({
+      id: `plan-file:${planPath}`,
+      label: title || getCompactPathLabel(planPath),
+      description: planPath,
+      groupLabel: "Plan",
+      selectType: "files",
+      selectValue: planPath,
+      selectDisplayName: getCompactPathLabel(planPath),
+    });
+
+    if (options.length >= 4) break;
+  }
+
+  return options;
 }
 
 export function useInputArea(
@@ -140,6 +204,7 @@ export function useInputArea(
   const rawIsSessionActive = useAtomValue(isSessionActiveAtom);
   const rawIsPendingCancel = useAtomValue(isPendingCancelAtom);
   const runtimeStatus = useAtomValue(sessionRuntimeStatusAtom);
+  const pendingPlanApprovals = useAtomValue(pendingPlanApprovalsAtom);
   const isSessionless = sessionScope === "none";
   const isSessionActive = isSessionless ? false : rawIsSessionActive;
   const isPendingCancel = isSessionless ? false : rawIsPendingCancel;
@@ -205,6 +270,16 @@ export function useInputArea(
   const isWpGeneWorking =
     (isSessionActive || hasComposerStopBlockingWork) && !isPendingCancel;
 
+  const sessionFileReloadKey = buildCompactFilesReloadKey(
+    activeSessionId ?? null,
+    countChatRounds(sessionEvents),
+    isWpGeneWorking
+  );
+  const { allFiles: sessionFiles } = useCompactFileData({
+    sessionId: activeSessionId ?? null,
+    reloadKey: sessionFileReloadKey,
+  });
+
   // Session-scoped repo path. When a session is active prefer its persisted
   // `repo_path` (the value that drove `workspace_root` at session start) over
   // the global repo selection atom. This keeps every input-area consumer —
@@ -218,6 +293,41 @@ export function useInputArea(
   const currentRepoPath = activeSessionId
     ? (activeSession?.repoPath ?? workspaceRepoPath)
     : workspaceRepoPath;
+  const pendingPlan = activeSessionId
+    ? pendingPlanApprovals.get(activeSessionId)?.current
+    : null;
+  const sessionFileMentionOptions = useMemo<ReadonlyArray<CustomMentionOption>>(
+    () =>
+      sessionFiles.slice(0, 12).map((file) => {
+        const displayPath = formatRepoPathForDisplay({
+          path: file.path,
+          repoPath: currentRepoPath,
+        }).displayPath;
+        const label = getCompactPathLabel(displayPath || file.path);
+        return {
+          id: `session-file:${file.path}`,
+          label,
+          description: `${file.status === "D" ? "Deleted" : "Modified"} · ${displayPath || file.path}`,
+          groupLabel: "Diff",
+          selectType: "files",
+          selectValue: file.path,
+          selectDisplayName: file.fileName,
+        };
+      }),
+    [currentRepoPath, sessionFiles]
+  );
+  const planMentionOptions = useMemo<ReadonlyArray<CustomMentionOption>>(
+    () => buildPlanMentionOptions(sessionEvents, pendingPlan),
+    [pendingPlan, sessionEvents]
+  );
+  const mergedCustomMentionOptions = useMemo(
+    () => [
+      ...sessionFileMentionOptions,
+      ...planMentionOptions,
+      ...(customMentionOptions ?? []),
+    ],
+    [customMentionOptions, planMentionOptions, sessionFileMentionOptions]
+  );
   const skillWorkspacePaths = useMemo(() => {
     const roots = new Set<string>();
     for (const folder of workspaceFolders) {
@@ -533,7 +643,7 @@ export function useInputArea(
     setAtSearchQuery: state.setAtSearchQuery,
     handleAtSelect: atMention.handleAtSelect,
     handleCustomMentionSelect: atMention.handleCustomMentionSelect,
-    customMentionOptions: customMentionOptions ?? [],
+    customMentionOptions: mergedCustomMentionOptions,
 
     // Slash command
     showSlashMenu: state.showSlashMenu,

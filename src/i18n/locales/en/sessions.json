@@ -744,10 +744,41 @@
       },
       "tabs": {
         "work": "Work",
-        "explore": "Explore"
+        "explore": "Explore",
+        "heatmap": "Heat map"
+      },
+      "heatmap": {
+        "loading": "Loading activity heat map…",
+        "empty": "No session activity yet.",
+        "sessions": "Sessions",
+        "tokens": "Tokens",
+        "cost": "Cost"
       },
       "exploreRepos": {
         "title": "Explore repos"
+      },
+      "hints": {
+        "skill": {
+          "before": "Use",
+          "after": "to link a skill or tool"
+        },
+        "ask": {
+          "before": "Use",
+          "after": "to ask questions about the codebase"
+        },
+        "plan": {
+          "before": "Use",
+          "after": "to plan before building"
+        },
+        "switch": {
+          "before": "Use",
+          "after": "to switch sections"
+        },
+        "previous": "Previous hint",
+        "next": "Next hint"
+      },
+      "manageIssues": {
+        "title": "Manage issues"
       }
     },
     "defaultTitle": "Chat",
@@ -928,6 +959,18 @@
         "exportFailed": "Failed to export Session JSON",
         "importReadFailed": "Failed to read the JSON file.",
         "importFailed": "Failed to import Session JSON."
+      }
+    },
+    "manageIssues": {
+      "title": "Manage issues",
+      "myWork": "My work",
+      "allRepositories": "All repositories",
+      "newIssue": "New issue",
+      "tabs": {
+        "all": "All",
+        "active": "Active",
+        "reviewRequests": "Review requests",
+        "done": "Done"
       }
     }
   },
@@ -2287,6 +2330,7 @@
         "index": "Index",
         "reindex": "Re-index",
         "cancel": "Cancel",
+        "stop": "Stop",
         "clear": "Clear",
         "refresh": "Refresh"
       },

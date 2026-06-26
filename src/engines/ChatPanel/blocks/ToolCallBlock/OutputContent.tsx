@@ -15,6 +15,7 @@ import {
 import React from "react";
 
 import FileTypeIcon from "@src/components/FileTypeIcon";
+import { getDirectory, getFileName } from "@src/util/file/pathUtils";
 import { formatRepoPathForDisplay } from "@src/util/file/repoPathDisplay";
 
 import {
@@ -251,9 +252,11 @@ const SearchFilesOutput: React.FC<{ files: string[]; repoPath?: string }> = ({
     renderItem={(filePath) => {
       const display = formatRepoPathForDisplay({ path: filePath, repoPath });
       const displayPath = display.displayPath || filePath;
-      const parts = displayPath.split("/");
-      const fileName = parts.pop() || displayPath;
-      const dir = parts.length > 0 ? parts.join("/") + "/" : "";
+      const fileName = getFileName(displayPath);
+      const dirPath = getDirectory(displayPath);
+      const dir = dirPath
+        ? `${dirPath}${displayPath.includes("\\") ? "\\" : "/"}`
+        : "";
 
       return (
         <ComposerStackListRow

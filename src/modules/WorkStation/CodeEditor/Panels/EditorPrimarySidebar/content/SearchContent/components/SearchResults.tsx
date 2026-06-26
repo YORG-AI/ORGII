@@ -156,6 +156,10 @@ const FileHeader: React.FC<FileHeaderProps> = React.memo(
       [node.path, node.fileName, node.name, isExpanded]
     );
 
+    const matchCount = node.result?.matches.length ?? 0;
+    const countBadgeVariant =
+      matchCount === 0 ? COUNT_BADGE.muted : COUNT_BADGE.primary;
+
     return (
       <TreeRowBase
         node={treeNode}
@@ -165,11 +169,9 @@ const FileHeader: React.FC<FileHeaderProps> = React.memo(
         dataPath={node.relativePath}
       >
         <div
-          className={`${COUNT_BADGE.base} ${getCountBadgeSizeClass(
-            node.result?.matches.length ?? 0
-          )} ${COUNT_BADGE.primary}`}
+          className={`${COUNT_BADGE.base} ${getCountBadgeSizeClass(matchCount)} ${countBadgeVariant}`}
         >
-          {node.result?.matches.length ?? 0}
+          {matchCount}
         </div>
       </TreeRowBase>
     );
@@ -433,6 +435,9 @@ const SearchResultsInner = forwardRef<SearchResultsHandle, SearchResultsProps>(
       (stickyNode: StickyScrollNode<SearchNode>, onClick: () => void) => {
         const { node, depth } = stickyNode;
         const isExpanded = node.expanded ?? false;
+        const matchCount = node.result?.matches.length ?? 0;
+        const countBadgeVariant =
+          matchCount === 0 ? COUNT_BADGE.muted : COUNT_BADGE.primary;
 
         return (
           <div
@@ -466,11 +471,9 @@ const SearchResultsInner = forwardRef<SearchResultsHandle, SearchResultsProps>(
             </span>
 
             <div
-              className={`${COUNT_BADGE.base} ${getCountBadgeSizeClass(
-                node.result?.matches.length ?? 0
-              )} ${COUNT_BADGE.primary}`}
+              className={`${COUNT_BADGE.base} ${getCountBadgeSizeClass(matchCount)} ${countBadgeVariant}`}
             >
-              {node.result?.matches.length ?? 0}
+              {matchCount}
             </div>
           </div>
         );

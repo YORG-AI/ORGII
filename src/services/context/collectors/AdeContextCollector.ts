@@ -87,7 +87,7 @@ function normalizeRepoPath(value: string | undefined | null): string | null {
   return value.replace(/\/+$/, "");
 }
 
-function buildUserProfileWire(
+export function buildUserProfileWire(
   settings: Record<string, unknown>
 ): UserProfileWire | undefined {
   const profile: UserProfileWire = {};

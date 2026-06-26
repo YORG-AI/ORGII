@@ -47,7 +47,7 @@ export interface ChatSearchBarHandle {
 // ============================================
 
 export const ChatSearchBar = forwardRef<
-  ChatSearchBarHandle,
+  ChatSearchBarHandle | null,
   ChatSearchBarProps
 >(function ChatSearchBar({ search, onClose, isVisible }, ref) {
   const { t } = useTranslation("sessions");

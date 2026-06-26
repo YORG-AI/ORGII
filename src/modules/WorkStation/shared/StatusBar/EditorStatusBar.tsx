@@ -1,17 +1,13 @@
 import { useAtomValue } from "jotai";
 import {
-  ArrowDown,
   ArrowRightLeft,
-  ArrowUp,
   Braces,
   Check,
-  CloudUpload,
   Code,
   FolderTree,
   GitBranch,
   GitCommit,
   Loader2,
-  RefreshCw,
   Unplug,
   X,
 } from "lucide-react";
@@ -42,6 +38,7 @@ import {
 } from "@src/store/workstation/codeEditor/search/indexingProgressAtom";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
+import GitSyncStatusMenu from "./GitSyncStatusMenu";
 import {
   BaseStatusBar,
   StatusBarButton,
@@ -96,7 +93,12 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = memo(
       isPublishing,
       canSyncDisplayedRepo,
       syncSpinClass,
+      syncStatusLabel,
       handleSyncClick,
+      handleFetchClick,
+      handlePullClick,
+      handleRebaseClick,
+      handlePushClick,
       checkoutLoading,
     } = useEditorStatusBarGit({ repoName, repoPath, branchName });
 
@@ -228,54 +230,22 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = memo(
           )}
 
           {showGitControls && branchName && (
-            <StatusBarButton
-              onClick={handleSyncClick}
-              disabled={isSyncBusy || !canSyncDisplayedRepo}
-              title={
-                needsPublish
-                  ? t("workstation.publishBranchToOrigin", {
-                      branch: branchName,
-                    })
-                  : behindCount > 0 || aheadCount > 0
-                    ? t("workstation.syncWithRemote", {
-                        behind: behindCount,
-                        ahead: aheadCount,
-                      })
-                    : t("workstation.refreshGitStatus")
-              }
-              className="gap-2"
-            >
-              {needsPublish && !isPublishing ? (
-                <CloudUpload size={13} className="text-text-1" />
-              ) : (
-                <RefreshCw
-                  size={13}
-                  className={`text-text-1 ${syncSpinClass ?? ""}`}
-                />
-              )}
-              {needsPublish && !isPublishing && (
-                <span className="font-medium text-text-1">
-                  {t("git.actions.publish")}
-                </span>
-              )}
-              {isPublishing && (
-                <span className="font-medium text-text-1">
-                  {t("workstation.publishingBranch")}
-                </span>
-              )}
-              {!needsPublish && (behindCount > 0 || aheadCount > 0) && (
-                <>
-                  <span className="flex items-center font-medium text-text-1">
-                    {behindCount}
-                    <ArrowDown size={13} />
-                  </span>
-                  <span className="flex items-center font-medium text-text-1">
-                    {aheadCount}
-                    <ArrowUp size={13} />
-                  </span>
-                </>
-              )}
-            </StatusBarButton>
+            <GitSyncStatusMenu
+              branchName={branchName}
+              aheadCount={aheadCount}
+              behindCount={behindCount}
+              needsPublish={needsPublish}
+              isSyncBusy={isSyncBusy}
+              isPublishing={isPublishing}
+              canSyncDisplayedRepo={canSyncDisplayedRepo}
+              syncSpinClass={syncSpinClass}
+              syncStatusLabel={syncStatusLabel}
+              onSync={handleSyncClick}
+              onFetch={handleFetchClick}
+              onPull={handlePullClick}
+              onRebase={handleRebaseClick}
+              onPush={handlePushClick}
+            />
           )}
 
           {sessionRepoHint && (
@@ -359,7 +329,12 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = memo(
         onRepoClick,
         onBranchClick,
         handleSyncClick,
+        handleFetchClick,
+        handlePullClick,
+        handleRebaseClick,
+        handlePushClick,
         syncSpinClass,
+        syncStatusLabel,
         showIndexingIndicator,
         isIndexingActive,
         indexingProgress.status,

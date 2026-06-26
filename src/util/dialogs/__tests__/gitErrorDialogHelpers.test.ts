@@ -96,6 +96,17 @@ describe("buildGitErrorInfo — error type inference (errorType: 'unknown')", ()
     expect(info.errorType).toBe("uncommitted_changes");
   });
 
+  it("infers uncommitted_changes for pull rebase with unstaged changes", () => {
+    const info = buildGitErrorInfo(
+      makeOptions({
+        operation: "pull",
+        commandOutput:
+          "error: cannot pull with rebase: You have unstaged changes.\nerror: Please commit or stash them.",
+      })
+    );
+    expect(info.errorType).toBe("uncommitted_changes");
+  });
+
   it("infers merge_conflicts for pull with 'automatic merge failed'", () => {
     const info = buildGitErrorInfo(
       makeOptions({

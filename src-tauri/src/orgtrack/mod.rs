@@ -8,7 +8,7 @@ pub mod paths;
 pub mod types;
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -18,11 +18,13 @@ use orgtrack_core::canonical::{
     SessionDiffChunkRecord, SessionEditArtifactRecord, SessionFinalDiffRecord, SessionRecord,
     SOURCE_ORGII_RUST_AGENTS,
 };
+use orgtrack_core::edit_extraction::final_diff_from_chunks;
 use orgtrack_core::policy::{source_tier_policy, SourceTierPolicy};
 use orgtrack_core::privacy::ORGTRACK_SCHEMA_VERSION;
 use orgtrack_core::projectors::stats::{session_summaries, CoreSessionSummary};
 use orgtrack_core::repo_sync::paths::record_id;
 use orgtrack_core::store::{sqlite::SqliteRecordStore, RecordStore};
+use serde::Serialize;
 use types::OrgtrackTier;
 
 const ORGTRACK_CALL_LOG_WINDOW: Duration = Duration::from_secs(30);
@@ -317,7 +319,161 @@ pub async fn orgtrack_get_session_final_diffs(
     tokio::task::spawn_blocking(move || {
         let conn = get_connection().map_err(|err| err.to_string())?;
         let store = SqliteRecordStore::new(&conn);
-        store.list_final_diffs(source.as_deref(), session_id.as_deref())
+        let final_diffs = store.list_final_diffs(source.as_deref(), session_id.as_deref())?;
+        let final_diffs = if let Some(session_id) = session_id.as_deref() {
+            let chunks = store.list_diff_chunks(source.as_deref(), Some(session_id))?;
+            repair_collapsed_final_diffs(final_diffs, &chunks)
+        } else {
+            final_diffs
+        };
+        Ok(final_diffs
+            .into_iter()
+            .filter(|diff| !is_temporary_diff_path(&diff.file_path))
+            .collect())
+    })
+    .await
+    .map_err(|err| err.to_string())?
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OrgtrackDiffReplayPreview {
+    pub final_diffs: Vec<SessionFinalDiffRecord>,
+    pub submission_commits: Vec<OrgtrackSubmissionCommit>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OrgtrackSubmissionCommit {
+    pub sha: String,
+    #[serde(rename = "short_sha")]
+    pub short_sha: String,
+    pub summary: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub author: Option<serde_json::Value>,
+    #[serde(rename = "repoId", skip_serializing_if = "Option::is_none")]
+    pub repo_id: Option<String>,
+    #[serde(rename = "repoPath", skip_serializing_if = "Option::is_none")]
+    pub repo_path: Option<String>,
+    pub origin: String,
+}
+
+fn commit_link_to_submission_commit(
+    link: CommitLinkRecord,
+    repo_id: &Option<String>,
+    repo_path: &Option<String>,
+) -> OrgtrackSubmissionCommit {
+    let short_sha = link.commit_sha.chars().take(7).collect::<String>();
+    OrgtrackSubmissionCommit {
+        sha: link.commit_sha,
+        short_sha: short_sha.clone(),
+        summary: short_sha,
+        author: None,
+        repo_id: repo_id.clone(),
+        repo_path: repo_path.clone(),
+        origin: "created".to_string(),
+    }
+}
+
+fn is_temporary_diff_path(file_path: &str) -> bool {
+    let path = Path::new(file_path);
+    path.starts_with("/tmp")
+        || path
+            .components()
+            .any(|component| component.as_os_str() == "scratchpad")
+}
+
+fn repair_collapsed_final_diffs(
+    final_diffs: Vec<SessionFinalDiffRecord>,
+    chunks: &[SessionDiffChunkRecord],
+) -> Vec<SessionFinalDiffRecord> {
+    let mut chunk_stats_by_file: HashMap<&str, (usize, i32, i32)> = HashMap::new();
+    let mut chunks_by_file: HashMap<&str, Vec<SessionDiffChunkRecord>> = HashMap::new();
+    for chunk in chunks {
+        let stats = chunk_stats_by_file
+            .entry(chunk.file_path.as_str())
+            .or_insert((0, 0, 0));
+        stats.0 += 1;
+        stats.1 += chunk.lines_added;
+        stats.2 += chunk.lines_removed;
+        chunks_by_file
+            .entry(chunk.file_path.as_str())
+            .or_default()
+            .push(chunk.clone());
+    }
+
+    final_diffs
+        .into_iter()
+        .map(|diff| {
+            let Some((chunk_count, chunk_lines_added, chunk_lines_removed)) =
+                chunk_stats_by_file.get(diff.file_path.as_str())
+            else {
+                return diff;
+            };
+            let is_collapsed = *chunk_count > 1
+                && (diff.lines_added + diff.lines_removed)
+                    < (*chunk_lines_added + *chunk_lines_removed)
+                && (diff.lines_added < *chunk_lines_added
+                    || diff.lines_removed < *chunk_lines_removed);
+            if !is_collapsed {
+                return diff;
+            }
+            chunks_by_file
+                .get(diff.file_path.as_str())
+                .and_then(|file_chunks| {
+                    final_diff_from_chunks(
+                        &diff.source,
+                        &diff.session_id,
+                        &diff.file_path,
+                        file_chunks,
+                    )
+                })
+                .unwrap_or(diff)
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub async fn orgtrack_get_diff_replay_preview(
+    source: Option<String>,
+    session_id: Option<String>,
+    repo_id: Option<String>,
+    repo_path: Option<String>,
+) -> Result<OrgtrackDiffReplayPreview, String> {
+    record_orgtrack_command_call("orgtrack_get_diff_replay_preview");
+    tokio::task::spawn_blocking(move || {
+        let conn = get_connection().map_err(|err| err.to_string())?;
+        let store = SqliteRecordStore::new(&conn);
+        let mut final_diffs = store.list_final_diffs(source.as_deref(), session_id.as_deref())?;
+        if let Some(session_id) = session_id.as_deref() {
+            let chunks = store.list_diff_chunks(source.as_deref(), Some(session_id))?;
+            final_diffs = repair_collapsed_final_diffs(final_diffs, &chunks);
+        }
+        let final_diffs = final_diffs
+            .into_iter()
+            .filter(|diff| !is_temporary_diff_path(&diff.file_path))
+            .collect();
+        let commit_links = store.list_commit_links()?;
+        let commit_links = match session_id {
+            Some(session_id) => commit_links
+                .into_iter()
+                .filter(|link| {
+                    link.session_ids
+                        .iter()
+                        .any(|linked_id| linked_id == &session_id)
+                })
+                .collect(),
+            None => commit_links,
+        };
+        let submission_commits = commit_links
+            .into_iter()
+            .map(|link| commit_link_to_submission_commit(link, &repo_id, &repo_path))
+            .collect();
+
+        Ok(OrgtrackDiffReplayPreview {
+            final_diffs,
+            submission_commits,
+        })
     })
     .await
     .map_err(|err| err.to_string())?
@@ -488,6 +644,25 @@ pub async fn orgtrack_get_checkpoint_file_states(
     })
     .await
     .map_err(|err| err.to_string())?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_temporary_diff_path;
+
+    #[test]
+    fn hides_tmp_and_scratchpad_diff_paths() {
+        assert!(is_temporary_diff_path("/tmp/stale_probe.txt"));
+        assert!(is_temporary_diff_path(
+            "/private/var/folders/sj/orgii-501/project/sdeagent-id/scratchpad/stale_probe.txt"
+        ));
+        assert!(!is_temporary_diff_path(
+            "/Users/vinceorz/Projects/ORG2/src/main.ts"
+        ));
+        assert!(!is_temporary_diff_path(
+            "/Users/vinceorz/Downloads/notes.txt"
+        ));
+    }
 }
 
 fn validate_tier(

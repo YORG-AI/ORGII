@@ -399,6 +399,7 @@ const CliSessionsPanel: React.FC<CliSessionsPanelProps> = memo(
               getRowKey={(row) => row.id}
               headerHeight="tall"
               pageSize={50}
+              maxHeight="min(420px, calc(100vh - 280px))"
               className="table-layout-fixed"
             />
           ) : (

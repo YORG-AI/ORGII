@@ -106,6 +106,7 @@ import { useAgentOrgRunView } from "./InputArea/components/useAgentOrgRunView";
 import { useComposerSections } from "./InputArea/hooks/useComposerSections";
 import { useGitDiffActions } from "./InputArea/hooks/useGitDiffActions";
 import { useQueueEditMode } from "./InputArea/hooks/useQueueEditMode";
+import { useBrowserAddToConversationAction } from "./hooks/useBrowserAddToConversationAction";
 import { useFollowAgent } from "./hooks/useFollowAgent";
 
 const logger = createLogger("ChatView");
@@ -217,7 +218,6 @@ const ChatView: React.FC<ChatViewProps> = memo(
     const setActiveSessionId = useSetAtom(activeSessionIdAtom);
     const store = useStore();
     const rootRef = useRef<HTMLDivElement>(null);
-    const floatingComposerRef = useRef<HTMLDivElement>(null);
     const inputBoxRef = useRef<HTMLDivElement>(null);
     const [pinnedHeaderHost, setPinnedHeaderHost] =
       useState<HTMLDivElement | null>(null);
@@ -315,12 +315,49 @@ const ChatView: React.FC<ChatViewProps> = memo(
     const showInteractArea = useShowInteractArea();
     const showExternalHistoryForkComposer =
       isCodexAppSession(sessionId) || isClaudeCodeHistorySession(sessionId);
-    const historyBottomInset =
-      showInteractArea && !isReadOnlySurface
-        ? CHAT_FLOATING_COMPOSER_FALLBACK_INSET_PX
-        : showExternalHistoryForkComposer
-          ? CHAT_FLOATING_COMPOSER_FALLBACK_INSET_PX
-          : 0;
+    const showFloatingComposer =
+      (showInteractArea && !isReadOnlySurface) ||
+      showExternalHistoryForkComposer;
+    const [floatingComposerNode, setFloatingComposerNode] =
+      useState<HTMLDivElement | null>(null);
+    const [floatingComposerHeight, setFloatingComposerHeight] = useState(
+      CHAT_FLOATING_COMPOSER_FALLBACK_INSET_PX
+    );
+    const setMeasuredFloatingComposerRef = useCallback(
+      (node: HTMLDivElement | null) => {
+        setFloatingComposerNode(node);
+      },
+      []
+    );
+
+    useEffect(() => {
+      if (!showFloatingComposer || !floatingComposerNode) return;
+
+      const updateHeight = () => {
+        const nextHeight = Math.ceil(
+          floatingComposerNode.getBoundingClientRect().height
+        );
+        setFloatingComposerHeight(
+          nextHeight > 0 ? nextHeight : CHAT_FLOATING_COMPOSER_FALLBACK_INSET_PX
+        );
+      };
+
+      updateHeight();
+      const observer = new ResizeObserver(updateHeight);
+      observer.observe(floatingComposerNode);
+      window.addEventListener("resize", updateHeight);
+      return () => {
+        observer.disconnect();
+        window.removeEventListener("resize", updateHeight);
+      };
+    }, [floatingComposerNode, showFloatingComposer]);
+
+    const historyBottomInset = showFloatingComposer
+      ? Math.max(
+          CHAT_FLOATING_COMPOSER_FALLBACK_INSET_PX,
+          floatingComposerHeight
+        )
+      : 0;
     const {
       showFollowAgent,
       followAgentLabel,
@@ -344,6 +381,7 @@ const ChatView: React.FC<ChatViewProps> = memo(
         handleFollowAgent,
       ]
     );
+    const browserAddToConversationNav = useBrowserAddToConversationAction();
     const stationMode = useAtomValue(stationModeAtom);
     const chatPanelMaximized = useAtomValue(chatPanelMaximizedAtom);
     const agentMessageClampEligible =
@@ -667,7 +705,6 @@ const ChatView: React.FC<ChatViewProps> = memo(
             className="flex flex-shrink-0 flex-col"
             data-chat-pinned-header-portal-host
           />
-          {/* Chat history takes full height; input overlaps from below. */}
           <div className="min-h-0 min-w-0 max-w-full flex-1 overflow-hidden">
             <ChatHistoryOverrideContext.Provider
               value={groupChatViewActive ? groupChatMergedEvents : undefined}
@@ -722,6 +759,7 @@ const ChatView: React.FC<ChatViewProps> = memo(
                     onAgentOrgRunViewRefresh={refreshAgentOrgRunView}
                     onScrollNavChange={handleScrollNavChange}
                     followAgentNav={followAgentNav}
+                    browserAddToConversationNav={browserAddToConversationNav}
                     onRegisterSearchOpen={onRegisterSearchOpen}
                     displayMode={displayMode}
                     turnPaginationEnabled={turnPaginationEnabled}
@@ -736,7 +774,10 @@ const ChatView: React.FC<ChatViewProps> = memo(
             </ChatHistoryOverrideContext.Provider>
           </div>
           {showExternalHistoryForkComposer && (
-            <div className="absolute bottom-0 left-0 right-0 z-50 flex w-full flex-shrink-0 flex-col items-center px-2 pb-2 pt-1">
+            <div
+              ref={setMeasuredFloatingComposerRef}
+              className="absolute bottom-0 left-0 right-0 z-50 flex w-full flex-shrink-0 flex-col items-center px-2 pb-2 pt-1"
+            >
               <div className="pointer-events-none absolute inset-x-0 bottom-0 top-[-28px] bg-gradient-to-t from-chat-pane via-chat-pane/90 to-transparent" />
               <div
                 className={`${DETAIL_PANEL_TOKENS.contentMaxWidth} relative z-10 w-full`}
@@ -756,7 +797,7 @@ const ChatView: React.FC<ChatViewProps> = memo(
           )}
           {showInteractArea && !isReadOnlySurface && (
             <ChatFloatingComposer
-              composerRef={floatingComposerRef}
+              composerRef={setMeasuredFloatingComposerRef}
               inputBoxRef={inputBoxRef}
               chatPanelPosition={position}
               sessionId={sessionId}

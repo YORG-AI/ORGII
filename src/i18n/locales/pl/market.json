@@ -420,6 +420,8 @@
     "roundDetail": "Runda {{index}}",
     "inputTokens": "Wejście",
     "outputTokens": "Wyjście",
+    "cacheWriteTokens": "Cache write {{count}}",
+    "cacheReadTokens": "Cache read {{count}}",
     "noRoundData": "Brak danych dla poszczególnych rund",
     "colDate": "Data",
     "colAgent": "Agent",

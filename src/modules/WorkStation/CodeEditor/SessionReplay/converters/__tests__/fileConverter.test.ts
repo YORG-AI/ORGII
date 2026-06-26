@@ -86,6 +86,55 @@ describe("convertToFileOperation", () => {
     expect(op?.isCurrent).toBe(true);
   });
 
+  it("builds a loading write operation from streamed create-file args", () => {
+    const event = minimalSessionEvent({
+      id: "create-running",
+      functionName: "create_file",
+      uiCanonical: "edit_file",
+      args: {
+        file_path: "src/new.ts",
+        streamContent: "export const created = true;",
+        content: "export const created = true;",
+      },
+      result: {},
+      displayStatus: "running",
+      filePath: "src/new.ts",
+      isDelta: true,
+    });
+
+    const op = convertToFileOperation(event, true);
+
+    expect(op).not.toBeNull();
+    expect(op?.type).toBe("write");
+    expect(op?.filePath).toBe("src/new.ts");
+    expect(op?.newContent).toBe("export const created = true;");
+    expect(op?.isLoading).toBe(true);
+  });
+
+  it("builds a loading write operation from streamed edit args", () => {
+    const event = minimalSessionEvent({
+      id: "edit-running",
+      functionName: "edit_file",
+      args: {
+        file_path: "src/app.ts",
+        streamContent: "const live = true;",
+        new_string: "const live = true;",
+      },
+      result: { status: "running" },
+      displayStatus: "running",
+      filePath: "src/app.ts",
+      isDelta: true,
+    });
+
+    const op = convertToFileOperation(event, true);
+
+    expect(op).not.toBeNull();
+    expect(op?.type).toBe("write");
+    expect(op?.filePath).toBe("src/app.ts");
+    expect(op?.newContent).toBe("const live = true;");
+    expect(op?.isLoading).toBe(true);
+  });
+
   it("preserves hunk line numbers from Rust edit diffs", () => {
     const event = minimalSessionEvent({
       id: "edit-1",

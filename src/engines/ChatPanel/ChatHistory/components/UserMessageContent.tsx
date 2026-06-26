@@ -24,6 +24,7 @@ import React, { memo, useCallback, useMemo } from "react";
 
 import { ChatImageThumbnailRow } from "@src/components/ChatImageThumbnail";
 import BasePill from "@src/components/ComposerInput/BasePill";
+import { truncateVisiblePillLabel } from "@src/components/ComposerInput/utils";
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import {
   PILL_LINE_HEIGHT,
@@ -270,7 +271,8 @@ function sessionIdFromPillPath(path: string): string {
 const SessionPillLabel: React.FC<{ path: string; fallback: string }> = memo(
   ({ path, fallback }) => {
     const session = useAtomValue(sessionByIdAtom(sessionIdFromPillPath(path)));
-    return <span>{session?.name?.trim() || fallback}</span>;
+    const label = session?.name?.trim() || fallback;
+    return <span>{truncateVisiblePillLabel(label)}</span>;
   }
 );
 SessionPillLabel.displayName = "SessionPillLabel";
@@ -361,6 +363,11 @@ const InlinePill: React.FC<{ segment: PillSegment }> = memo(({ segment }) => {
     [isClickable]
   );
 
+  const visibleDisplayName = useMemo(
+    () => truncateVisiblePillLabel(segment.displayName),
+    [segment.displayName]
+  );
+
   return (
     <BasePill
       variant="editor"
@@ -381,11 +388,12 @@ const InlinePill: React.FC<{ segment: PillSegment }> = memo(({ segment }) => {
       }}
       onClick={isClickable ? handleClick : undefined}
       onMouseDown={handleMouseDown}
+      title={segment.displayName}
     >
       {segment.pillType === "session" ? (
         <SessionPillLabel path={segment.path} fallback={segment.displayName} />
       ) : (
-        <span>{segment.displayName}</span>
+        <span>{visibleDisplayName}</span>
       )}
     </BasePill>
   );

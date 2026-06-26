@@ -1,5 +1,7 @@
 import { type RefObject, useEffect, useState } from "react";
 
+import { isWorkstationTabDragActive } from "@src/shared/dnd/dragSideChannel";
+
 /**
  * Tracks whether a WorkStation tab is being dragged over a given drop-target
  * element using pointer events (dnd-kit does not fire HTML5 drag events).
@@ -35,7 +37,7 @@ export function useTabDragHover(
     };
 
     const handlePointerMove = (e: PointerEvent) => {
-      if (!window.__internalWorkstationTabDrag) return;
+      if (!isWorkstationTabDragActive()) return;
 
       const { clientX, clientY } = e;
       if (rafId === null) {

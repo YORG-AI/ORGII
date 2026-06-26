@@ -56,6 +56,8 @@ export interface TerminalViewProps {
   onSelectionChange?: (selection: TerminalSelectionInfo | null) => void;
   /** Callback when terminal receives output */
   onOutput?: () => void;
+  /** Callback when the user sends input into the PTY. */
+  onUserInput?: () => void;
   /** Repository path for terminal working directory */
   repoPath?: string;
   /** Current working directory used to resolve relative file links */

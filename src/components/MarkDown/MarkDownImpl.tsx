@@ -13,17 +13,24 @@
  * react-markdown + react-syntax-highlighter into the initial bundle.
  */
 import { useAtomValue } from "jotai";
+import { ArrowUpRight, Check, Clipboard } from "lucide-react";
 import React, { memo, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import ReactMarkdown, { type Components } from "react-markdown";
 import { Prism as SyntaxHighlighterPrism } from "react-syntax-highlighter";
 import remarkGfm from "remark-gfm";
 
+import Button from "@src/components/Button";
 import { isThemeCssPathDark } from "@src/config/appearance/globalThemes";
 import { getLanguageFromPath } from "@src/config/languageMap";
 import CanvasInlineCard from "@src/engines/ChatPanel/blocks/CanvasInlineCard";
 import ChatCodeBlock from "@src/engines/ChatPanel/blocks/CodeBlock";
 import { codeMirrorPrismTheme } from "@src/features/CodeMirror/themes";
+import { useCopyCheck } from "@src/hooks/ui";
 import { themesAtom } from "@src/store";
+import { activeWorkspaceRootAtom } from "@src/store/workspace";
+import { copyText } from "@src/util/data/clipboard";
+import { openFileInWorkStation } from "@src/util/ui/openFileInWorkStation";
 
 import MermaidBlock from "./MermaidBlock";
 import "./index.scss";
@@ -204,28 +211,120 @@ function splitIntoStableMarkdownBlocks(content: string): string[] {
 interface CodeBlockProps {
   children: string;
   language: string;
+  startLine?: string;
+  openFilePath?: string;
 }
 
 const CodeBlock = memo<CodeBlockProps>(
-  ({ children, language }) => (
-    <div className="code-block-wrapper" style={CODE_WRAPPER_STYLE}>
-      <SyntaxHighlighter
-        customStyle={CODE_CUSTOM_STYLE}
-        style={codeMirrorPrismTheme}
-        language={language}
-        PreTag="div"
-        showLineNumbers={false}
-        wrapLongLines
-        wrapLines={true}
-      >
-        {children}
-      </SyntaxHighlighter>
-    </div>
-  ),
+  ({ children, language, startLine, openFilePath }) => {
+    const onCopyContent = useCallback(async () => {
+      await copyText(children);
+    }, [children]);
+    const { copied, handleCopy } = useCopyCheck(onCopyContent);
+    const { t } = useTranslation("common");
+
+    const handleOpenFile = useCallback(() => {
+      if (!openFilePath) return;
+      const line = startLine ? Number.parseInt(startLine, 10) : undefined;
+      openFileInWorkStation(openFilePath, {
+        line: Number.isFinite(line) ? line : undefined,
+      });
+    }, [openFilePath, startLine]);
+
+    const copyLabel = copied ? t("status.copied") : t("actions.copy");
+    const openLabel = t("actions.open");
+
+    return (
+      <div className="code-block-wrapper" style={CODE_WRAPPER_STYLE}>
+        {openFilePath && (
+          <Button
+            variant="tertiary"
+            appearance="ghost"
+            size="mini"
+            iconOnly
+            icon={<ArrowUpRight size={12} strokeWidth={1.75} />}
+            title={openLabel}
+            aria-label={openLabel}
+            className="code-block-open-button text-text-4 hover:text-text-2"
+            onClick={handleOpenFile}
+          />
+        )}
+        <Button
+          variant="tertiary"
+          appearance="ghost"
+          size="mini"
+          iconOnly
+          icon={
+            copied ? (
+              <Check size={12} strokeWidth={1.75} />
+            ) : (
+              <Clipboard size={12} strokeWidth={1.75} />
+            )
+          }
+          title={copyLabel}
+          aria-label={copyLabel}
+          className="code-block-copy-button text-text-4 hover:text-text-2"
+          onClick={handleCopy}
+        />
+        <SyntaxHighlighter
+          customStyle={CODE_CUSTOM_STYLE}
+          style={codeMirrorPrismTheme}
+          language={language}
+          PreTag="div"
+          showLineNumbers={false}
+          wrapLongLines
+          wrapLines={true}
+        >
+          {children}
+        </SyntaxHighlighter>
+      </div>
+    );
+  },
   (prev, next) =>
-    prev.children === next.children && prev.language === next.language
+    prev.children === next.children &&
+    prev.language === next.language &&
+    prev.startLine === next.startLine &&
+    prev.openFilePath === next.openFilePath
 );
 CodeBlock.displayName = "CodeBlock";
+
+function normalizePathForRepoCheck(path: string): string {
+  return path
+    .replace(/^file:\/\//, "")
+    .replace(/\\/g, "/")
+    .replace(/\/+$/, "");
+}
+
+function isAbsolutePath(path: string): boolean {
+  return /^(?:file:\/\/)?\//.test(path) || /^[A-Za-z]:[\\/]/.test(path);
+}
+
+function isPathInCurrentRepo(
+  filePath: string | undefined,
+  repoRoot: string
+): boolean {
+  if (!filePath || !repoRoot) return false;
+  const normalizedFilePath = normalizePathForRepoCheck(filePath);
+  if (!isAbsolutePath(normalizedFilePath)) return true;
+  const normalizedRepoRoot = normalizePathForRepoCheck(repoRoot);
+  return (
+    normalizedFilePath === normalizedRepoRoot ||
+    normalizedFilePath.startsWith(`${normalizedRepoRoot}/`)
+  );
+}
+
+function resolveCurrentRepoFilePath(
+  filePath: string | undefined,
+  repoRoot: string
+): string | undefined {
+  if (!isPathInCurrentRepo(filePath, repoRoot) || !filePath) return undefined;
+  const normalizedFilePath = normalizePathForRepoCheck(filePath);
+  if (isAbsolutePath(normalizedFilePath)) return normalizedFilePath;
+  return `${normalizePathForRepoCheck(repoRoot)}/${normalizedFilePath.replace(
+    /^\.\//,
+    ""
+  )}`;
+}
 
 // ============================================
 // Markdown render primitives
@@ -289,6 +388,8 @@ const MarkdownComponent: React.FC<MarkdownProps> = ({
   skipPreprocess = false,
 }) => {
   const themes = useAtomValue(themesAtom);
+  const activeWorkspaceRoot = useAtomValue(activeWorkspaceRootAtom);
+  const activeWorkspaceRootPath = activeWorkspaceRoot?.path ?? "";
 
   const handleLinkClick = useCallback(
     (event: React.MouseEvent<HTMLAnchorElement>, href: string) => {
@@ -384,12 +485,16 @@ const MarkdownComponent: React.FC<MarkdownProps> = ({
 
           // Use ChatCodeBlock if enabled
           if (useChatCodeBlock) {
+            const openFilePath = resolveCurrentRepoFilePath(
+              fenceMeta.filePath,
+              activeWorkspaceRootPath
+            );
             return (
               <div className="chat-markdown-fenced-block">
                 <ChatCodeBlock
                   code={codeContent}
                   language={language}
-                  filePath={fenceMeta.filePath}
+                  filePath={openFilePath ?? fenceMeta.filePath}
                   title={fenceMeta.title}
                   subtitle={lineSubtitle}
                   maxHeight={300}
@@ -402,12 +507,25 @@ const MarkdownComponent: React.FC<MarkdownProps> = ({
                       language.toLowerCase()
                     )
                   }
+                  showOpenButton={Boolean(openFilePath)}
                 />
               </div>
             );
           }
 
-          return <CodeBlock language={language}>{codeContent}</CodeBlock>;
+          const openFilePath = resolveCurrentRepoFilePath(
+            fenceMeta.filePath,
+            activeWorkspaceRootPath
+          );
+          return (
+            <CodeBlock
+              language={language}
+              startLine={fenceMeta.startLine}
+              openFilePath={openFilePath}
+            >
+              {codeContent}
+            </CodeBlock>
+          );
         }
         return <pre {...props}>{children}</pre>;
       },
@@ -489,6 +607,7 @@ const MarkdownComponent: React.FC<MarkdownProps> = ({
           <a
             {...props}
             href={url}
+            title={undefined}
             onClick={(event) => handleLinkClick(event, url)}
           >
             {children}
@@ -523,6 +642,7 @@ const MarkdownComponent: React.FC<MarkdownProps> = ({
     codeBlockContainerWidth,
     enableFileNavigation,
     handleLinkClick,
+    activeWorkspaceRootPath,
   ]);
 
   // Memoize plugins array to prevent recreation

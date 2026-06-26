@@ -455,6 +455,7 @@ export function useContextMenu(
       searchResults,
       secondLayerActiveIndex,
       activeIndex,
+      hasExternalQuery,
       menuItemsCount,
       customMentionStartIndex,
       menuStartIndex,

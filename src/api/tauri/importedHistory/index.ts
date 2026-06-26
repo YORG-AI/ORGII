@@ -27,12 +27,21 @@ import type {
   WindsurfHistorySessionPage,
   WindsurfHistorySessionRow,
 } from "../windsurfHistory";
+import {
+  workBuddyHistoryChunks,
+  workBuddyHistoryListSessions,
+} from "../workbuddyHistory";
+import type {
+  WorkBuddyHistorySessionPage,
+  WorkBuddyHistorySessionRow,
+} from "../workbuddyHistory";
 
 export type ImportedHistorySourceId =
   | "codex_app"
   | "claude_code"
   | "opencode"
-  | "windsurf";
+  | "windsurf"
+  | "workbuddy";
 
 export type ImportedHistoryListCategory =
   `external_history:${ImportedHistorySourceId}`;
@@ -85,6 +94,7 @@ function asImportedPage(
     | ClaudeCodeHistorySessionPage
     | OpenCodeHistorySessionPage
     | WindsurfHistorySessionPage
+    | WorkBuddyHistorySessionPage
 ): ImportedHistorySessionPage {
   return page;
 }
@@ -142,6 +152,19 @@ export const IMPORTED_HISTORY_SOURCES: readonly ImportedHistorySource[] = [
     },
     loadChunks: windsurfHistoryChunks,
   },
+  {
+    sourceId: "workbuddy",
+    listCategory: "external_history:workbuddy",
+    dispatchCategory: "external_history",
+    prefix: "workbuddyapp-",
+    iconId: "workbuddy",
+    displayName: "WorkBuddy",
+    groupLabel: "WorkBuddy",
+    async listSessions(args) {
+      return asImportedPage(await workBuddyHistoryListSessions(args));
+    },
+    loadChunks: workBuddyHistoryChunks,
+  },
 ];
 
 export function getImportedHistorySourceBySessionId(
@@ -181,4 +204,5 @@ export type {
   ClaudeCodeHistorySessionRow,
   OpenCodeHistorySessionRow,
   WindsurfHistorySessionRow,
+  WorkBuddyHistorySessionRow,
 };

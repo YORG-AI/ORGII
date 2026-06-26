@@ -75,6 +75,7 @@ describe("getOpenedTabMentionOptions", () => {
         id: "workstation-tab:browser:session-1",
         label: "Example",
         description: "https://example.com/docs",
+        groupLabel: "Open tabs",
         selectType: "browser",
         selectValue: "session-1",
         selectDisplayName: "Example",

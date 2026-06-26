@@ -15,6 +15,7 @@ export interface PartialToolArgs {
   filePath?: string;
   streamContent?: string;
   streamTitle?: string;
+  action?: string;
   command?: string;
   query?: string;
   pattern?: string;
@@ -41,6 +42,7 @@ const PARSED_TO_TOOL_ARG_MAPPING: ReadonlyArray<{
   // the full tool_call to finalize. Any other tool that happens to stream
   // a `title` field gets the same free benefit.
   { parsedKey: "streamTitle", toolKey: "title" },
+  { parsedKey: "action", toolKey: "action" },
   { parsedKey: "command", toolKey: "command" },
   { parsedKey: "query", toolKey: "query" },
   { parsedKey: "pattern", toolKey: "pattern" },
@@ -65,17 +67,33 @@ export function buildToolArgsFromParsed(
       toolArgs[toolKey] = value;
     }
   }
+
+  if (parsed.streamContent !== undefined) {
+    const action = parsed.action;
+    if (action === "apply_patch") {
+      toolArgs.patch_text = parsed.streamContent;
+    } else if (action !== "edit") {
+      toolArgs.content = parsed.streamContent;
+    }
+  }
+
   return toolArgs;
 }
 
 const CONTENT_KEY_REGEXES: ReadonlyArray<{ key: string; regex: RegExp }> = [
   { key: "new_content", regex: /"new_content"\s*:\s*"/ },
+  { key: "newContent", regex: /"newContent"\s*:\s*"/ },
   { key: "new_str", regex: /"new_str"\s*:\s*"/ },
   { key: "new_string", regex: /"new_string"\s*:\s*"/ },
+  { key: "newString", regex: /"newString"\s*:\s*"/ },
+  { key: "patch_text", regex: /"patch_text"\s*:\s*"/ },
+  { key: "patchText", regex: /"patchText"\s*:\s*"/ },
   { key: "content", regex: /"content"\s*:\s*"/ },
 ];
-const FILE_PATH_REGEX = /"file_path"\s*:\s*"((?:[^"\\]|\\.)*)"/;
+const FILE_PATH_REGEX =
+  /"(?:file_path|filePath|path|target_file|targetFile)"\s*:\s*"((?:[^"\\]|\\.)*)"/;
 const TITLE_REGEX = /"title"\s*:\s*"((?:[^"\\]|\\.)*)"/;
+const ACTION_REGEX = /"action"\s*:\s*"((?:[^"\\]|\\.)*)"/;
 const COMMAND_REGEX = /"command"\s*:\s*"((?:[^"\\]|\\.)*)"/;
 const QUERY_REGEX =
   /"(?:query|search_term|search_query)"\s*:\s*"((?:[^"\\]|\\.)*)"/;
@@ -98,6 +116,9 @@ export function parsePartialToolArgs(argsJson: string): PartialToolArgs {
 
   const titleMatch = argsJson.match(TITLE_REGEX);
   const streamTitle = titleMatch?.[1]?.replace(/\\\\/g, "\\");
+
+  const actionMatch = argsJson.match(ACTION_REGEX);
+  const action = actionMatch?.[1]?.replace(/\\\\/g, "\\");
 
   const commandMatch = argsJson.match(COMMAND_REGEX);
   const command = commandMatch?.[1]?.replace(/\\\\/g, "\\");
@@ -148,6 +169,7 @@ export function parsePartialToolArgs(argsJson: string): PartialToolArgs {
     filePath,
     streamContent,
     streamTitle,
+    action,
     command,
     query,
     pattern,

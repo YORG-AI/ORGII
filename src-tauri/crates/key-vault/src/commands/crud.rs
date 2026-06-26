@@ -4,7 +4,8 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use regex::Regex;
 
 use crate::key_store::{
-    AuthMethod, DefaultVariant, HealthStatus, ModelKey, ModelType, ModelVariant, KEY_SERVICE,
+    AuthMethod, DefaultVariant, HealthStatus, ModelKey, ModelType, ModelVariant, ProviderProtocol,
+    KEY_SERVICE,
 };
 
 const CURSOR_NATIVE_FALLBACK_MODELS: &[&str] = &["composer-2"];
@@ -55,6 +56,7 @@ pub struct KeyInfo {
     pub api_key_preview: Option<String>,
     pub session_token_preview: Option<String>,
     pub base_url: Option<String>,
+    pub protocol: Option<String>,
     pub env_vars: Vec<String>,
     pub env_vars_masked: HashMap<String, String>,
     pub available_models: Vec<String>,
@@ -266,6 +268,7 @@ impl From<ModelKey> for KeyInfo {
             api_key_preview: entry.mask_api_key(),
             session_token_preview: entry.mask_session_token(),
             base_url: entry.base_url.clone(),
+            protocol: entry.protocol.map(|protocol| protocol.as_str().to_string()),
             env_vars: entry.env_vars.keys().cloned().collect(),
             env_vars_masked,
             available_models: entry.available_models.clone(),
@@ -345,6 +348,7 @@ pub struct SaveKeyRequest {
     pub api_key: Option<String>,
     pub session_token: Option<String>,
     pub base_url: Option<String>,
+    pub protocol: Option<String>,
     pub env_vars: Option<HashMap<String, String>>,
     pub available_models: Option<Vec<String>>,
     pub enabled_models: Option<Vec<String>>,
@@ -368,6 +372,7 @@ pub struct FullKeyResponse {
     pub api_key: Option<String>,
     pub session_token: Option<String>,
     pub base_url: Option<String>,
+    pub protocol: Option<String>,
     pub env_vars: HashMap<String, String>,
     pub available_models: Vec<String>,
     pub model_aliases: Vec<ModelAliasInfo>,
@@ -385,6 +390,7 @@ impl From<ModelKey> for FullKeyResponse {
             api_key: entry.api_key,
             session_token: entry.session_token,
             base_url: entry.base_url,
+            protocol: entry.protocol.map(|protocol| protocol.as_str().to_string()),
             env_vars: entry.env_vars,
             available_models: entry.available_models,
             model_aliases: entry
@@ -527,6 +533,13 @@ pub async fn save_key(request: SaveKeyRequest) -> Result<KeyInfo, String> {
         }
         if let Some(url) = request.base_url {
             entry.base_url = Some(url);
+        }
+        if let Some(protocol) = request.protocol {
+            entry.protocol = match protocol.as_str() {
+                "openai" => Some(ProviderProtocol::OpenAi),
+                "anthropic" => Some(ProviderProtocol::Anthropic),
+                _ => return Err(format!("Unknown provider protocol: {}", protocol)),
+            };
         }
         if let Some(env) = request.env_vars {
             received_oauth_material =

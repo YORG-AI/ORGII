@@ -204,9 +204,23 @@ impl Tool for SuggestModeSwitchTool {
 
         match choice {
             ModeSwitchChoice::Switch(mode) => {
+                // The `SWITCH_ACCEPTED_PREFIX` is the only load-bearing part for
+                // the CURRENT (Build) turn: `single.rs` matches the prefix and
+                // ends the turn immediately with an empty continuation, so this
+                // turn's LLM never reads the prose below.
+                //
+                // The prose IS read by the NEXT turn — the frontend resumes the
+                // session in the new mode (content="", is_resume=true), and that
+                // resume turn's LLM sees this tool_result at the tail of history.
+                // It must therefore instruct the agent to CARRY ON with the
+                // original request under the new mode, not to stop. A prior
+                // "Stop now." wording stranded the resume turn: the agent read it
+                // and halted after merely acknowledging the switch (GH #168).
                 Ok(format!(
-                    "{}{}. The mode change will take effect on the next message. Stop now.",
-                    SWITCH_ACCEPTED_PREFIX, mode
+                    "{}{}. You are now in {} mode. Continue with the user's \
+                     original request under the new mode now — do not stop to \
+                     ask for confirmation.",
+                    SWITCH_ACCEPTED_PREFIX, mode, mode
                 ))
             }
             ModeSwitchChoice::Skip => {

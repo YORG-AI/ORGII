@@ -316,6 +316,28 @@ jobs:
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256
 
+      # ── Regenerate updater signatures after code signing ─────────
+      - name: Regenerate updater signatures
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          BUNDLE_DIR="src-tauri/target/x86_64-pc-windows-msvc/release/bundle"
+          MSI=$(find "$BUNDLE_DIR/msi" -name "*.msi" ! -name "*.zip" | head -1)
+          NSIS=$(find "$BUNDLE_DIR/nsis" -name "*.exe" ! -name "*.zip" | head -1)
+
+          for artifact in "$MSI" "$NSIS"; do
+            if [ ! -f "$artifact" ]; then
+              echo "Missing Windows updater artifact: $artifact" >&2
+              exit 1
+            fi
+          done
+
+          rm -f "$MSI.sig" "$NSIS.sig"
+          pnpm tauri signer sign "$MSI"
+          pnpm tauri signer sign "$NSIS"
+
       # ── Gather artifacts ─────────────────────────────────────────
       - name: Gather release artifacts
         id: artifacts
@@ -324,11 +346,16 @@ jobs:
           BUNDLE_DIR="src-tauri/target/x86_64-pc-windows-msvc/release/bundle"
 
           MSI=$(find "$BUNDLE_DIR/msi" -name "*.msi" ! -name "*.zip" | head -1)
-          MSI_ZIP=$(find "$BUNDLE_DIR/msi" -name "*.msi.zip" | head -1)
-          MSI_SIG=$(find "$BUNDLE_DIR/msi" -name "*.msi.zip.sig" | head -1)
+          MSI_SIG=$(find "$BUNDLE_DIR/msi" -name "*.msi.sig" | head -1)
           NSIS=$(find "$BUNDLE_DIR/nsis" -name "*.exe" ! -name "*.zip" | head -1)
-          NSIS_ZIP=$(find "$BUNDLE_DIR/nsis" -name "*.nsis.zip" | head -1)
-          NSIS_SIG=$(find "$BUNDLE_DIR/nsis" -name "*.nsis.zip.sig" | head -1)
+          NSIS_SIG=$(find "$BUNDLE_DIR/nsis" -name "*.exe.sig" | head -1)
+
+          for artifact in "$MSI" "$MSI_SIG" "$NSIS" "$NSIS_SIG"; do
+            if [ ! -f "$artifact" ]; then
+              echo "Missing Windows release artifact: $artifact" >&2
+              exit 1
+            fi
+          done
 
           LATEST_MSI="ORG2-latest-windows-x64.msi"
           LATEST_NSIS="ORG2-latest-windows-x64-setup.exe"
@@ -336,30 +363,54 @@ jobs:
           cp "$NSIS" "$LATEST_NSIS"
 
           echo "msi=$MSI"                 >> "$GITHUB_OUTPUT"
-          echo "msi_zip=$MSI_ZIP"         >> "$GITHUB_OUTPUT"
           echo "msi_sig=$MSI_SIG"         >> "$GITHUB_OUTPUT"
           echo "nsis=$NSIS"               >> "$GITHUB_OUTPUT"
-          echo "nsis_zip=$NSIS_ZIP"       >> "$GITHUB_OUTPUT"
           echo "nsis_sig=$NSIS_SIG"       >> "$GITHUB_OUTPUT"
           echo "latest_msi=$LATEST_MSI"   >> "$GITHUB_OUTPUT"
           echo "latest_nsis=$LATEST_NSIS" >> "$GITHUB_OUTPUT"
 
           echo "=== Windows artifacts ==="
-          echo "MSI:  $MSI"
-          echo "NSIS: $NSIS"
+          echo "MSI:      $MSI"
+          echo "MSI sig:  $MSI_SIG"
+          echo "NSIS:     $NSIS"
+          echo "NSIS sig: $NSIS_SIG"
+
+      # ── Merge Windows updater entry into latest.json ─────────────
+      - name: Generate latest.json for Windows updater
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release download "$TAG" --pattern latest.json --output latest.json
+
+          SIGNATURE=$(cat "${{ steps.artifacts.outputs.nsis_sig }}")
+          NSIS_NAME=$(basename "${{ steps.artifacts.outputs.nsis }}")
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/${NSIS_NAME}"
+
+          jq \
+            --arg signature "$SIGNATURE" \
+            --arg url "$DOWNLOAD_URL" \
+            '.platforms["windows-x86_64"] = { signature: $signature, url: $url }' \
+            latest.json > latest-with-windows.json
+
+          mv latest-with-windows.json latest.json
+
+          echo "=== latest.json with Windows updater ==="
+          cat latest.json
 
       # ── Upload to existing GitHub Release ───────────────────────
       - name: Upload Windows artifacts to release
         uses: softprops/action-gh-release@v3
         with:
           draft: false
+          overwrite_files: true
           prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') || contains(github.ref_name, '-nightly') }}
           files: |
             ${{ steps.artifacts.outputs.msi }}
             ${{ steps.artifacts.outputs.latest_msi }}
-            ${{ steps.artifacts.outputs.msi_zip }}
             ${{ steps.artifacts.outputs.msi_sig }}
             ${{ steps.artifacts.outputs.nsis }}
             ${{ steps.artifacts.outputs.latest_nsis }}
-            ${{ steps.artifacts.outputs.nsis_zip }}
             ${{ steps.artifacts.outputs.nsis_sig }}
+            latest.json

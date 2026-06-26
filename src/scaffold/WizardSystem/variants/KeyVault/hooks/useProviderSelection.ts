@@ -88,6 +88,7 @@ export function useProviderSelection({
       quota_info: undefined,
       extracted_api_key: undefined,
       extracted_base_url: undefined,
+      protocol: undefined,
       setup_method: undefined,
     });
   }, [onChange]);
@@ -96,6 +97,9 @@ export function useProviderSelection({
     (agentValue: string) => {
       if (data.agent_type !== agentValue) {
         const typedAgent = agentValue as CliAgentType;
+        const selectedVariant = selectedProvider?.variants.find(
+          (variant) => variant.modelType === agentValue
+        );
         onChange({
           agent_type: typedAgent,
           raw_key_input: "",
@@ -108,6 +112,7 @@ export function useProviderSelection({
           quota_info: undefined,
           extracted_api_key: undefined,
           extracted_base_url: undefined,
+          protocol: selectedVariant?.defaultProtocol,
           setup_method:
             typedAgent === CLI_AGENT.CURSOR
               ? "guided"
@@ -120,7 +125,7 @@ export function useProviderSelection({
         });
       }
     },
-    [data.agent_type, onChange]
+    [data.agent_type, onChange, selectedProvider]
   );
 
   const handleProviderSelect = useCallback(

@@ -106,6 +106,17 @@ export function parseGitError(error: unknown): {
       return { type: "network_error", message: error.message };
     }
 
+    if (
+      message.includes("would be overwritten") ||
+      message.includes("your local changes") ||
+      message.includes("unstaged changes") ||
+      message.includes("please commit or stash them") ||
+      message.includes("please commit your changes or stash them") ||
+      message.includes("untracked working tree files would be overwritten")
+    ) {
+      return { type: "uncommitted_changes", message: error.message };
+    }
+
     if (message.includes("conflict") || message.includes("merge")) {
       return { type: "merge_conflicts", message: error.message };
     }

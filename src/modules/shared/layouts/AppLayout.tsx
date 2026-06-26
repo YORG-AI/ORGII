@@ -22,6 +22,7 @@ import React, { memo, useCallback, useEffect, useMemo } from "react";
 
 import { ActionSystemProvider } from "@src/ActionSystem";
 import { sendAdeActionResult } from "@src/api/tauri/agent";
+import { WindowsTopBar } from "@src/components/WindowChrome";
 import { ChatProvider } from "@src/contexts/workspace/ChatContext";
 import { DataProvider } from "@src/contexts/workspace/DataContext";
 import ChatPanel from "@src/engines/ChatPanel";
@@ -44,6 +45,7 @@ import {
 import { sidebarCollapsedAtom } from "@src/store/ui/sidebarAtom";
 import type { ChatPanelPosition } from "@src/store/ui/workStationLayout/chatPositionAtoms";
 import { activeWorkspaceRootPathAtom } from "@src/store/workspace";
+import { isWindows } from "@src/util/platform/tauri";
 
 import { FocusedChatWorkstationRail } from "./FocusedChatWorkstationRail";
 import { GlobalModals } from "./GlobalModals";
@@ -424,21 +426,26 @@ const AppLayoutComponent: React.FC<AppLayoutProps> = ({
     </DataProvider>
   );
 
+  const windowsHost = isWindows();
+
   return (
-    <div className="relative z-10 flex h-full min-w-0 flex-1">
-      <HoverSidebar.Trigger />
-      {sidebar}
+    <div className="relative z-10 flex h-full min-w-0 flex-1 flex-col bg-bg-2">
+      {windowsHost && <WindowsTopBar />}
+      <div className="flex min-h-0 min-w-0 flex-1">
+        <HoverSidebar.Trigger />
+        {sidebar}
 
-      {floatingSidebar && (
-        <HoverSidebar.Container>{floatingSidebar}</HoverSidebar.Container>
-      )}
+        {floatingSidebar && (
+          <HoverSidebar.Container>{floatingSidebar}</HoverSidebar.Container>
+        )}
 
-      <div className="flex h-full min-w-0 flex-1 flex-col">
-        <MainContentArea className="relative min-h-0 flex-1">
-          {contentArea}
-        </MainContentArea>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <MainContentArea className="relative min-h-0 flex-1">
+            {contentArea}
+          </MainContentArea>
 
-        <GlobalModals />
+          <GlobalModals />
+        </div>
       </div>
     </div>
   );

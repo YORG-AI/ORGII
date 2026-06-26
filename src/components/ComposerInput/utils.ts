@@ -58,6 +58,19 @@ export function sanitizePillDisplayLabel(name: string): string {
   return name.trim().replace(/[[\]]/g, "").replace(/\s+/g, "-");
 }
 
+const VISIBLE_PILL_LABEL_MAX_CHARS = 10;
+
+export function truncateVisiblePillLabel(label: string): string {
+  if (label.length <= VISIBLE_PILL_LABEL_MAX_CHARS) return label;
+
+  const compoundExtensionMatch = label.match(/\.index\.[^.]+$/i);
+  const lastDotIndex = label.lastIndexOf(".");
+  const extension =
+    compoundExtensionMatch?.[0] ??
+    (lastDotIndex > 0 ? label.slice(lastDotIndex) : "");
+  return `${label.slice(0, VISIBLE_PILL_LABEL_MAX_CHARS)}...${extension}`;
+}
+
 /**
  * Serialize a single pill to the agent-consumable text format. This is the
  * exact contract that `getTextWithPills()` exposes — every pill becomes

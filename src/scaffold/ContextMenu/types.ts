@@ -46,6 +46,7 @@ export interface ContextMenuCustomMentionOption {
   id: string;
   label: string;
   description?: string;
+  groupLabel?: string;
   selectType?: MenuItemId;
   selectValue?: string;
   selectDisplayName?: string;

@@ -28,6 +28,7 @@ import {
 } from "@src/engines/SessionCore/ingestion/agentMessageAdapters";
 import type { PersistedMessage } from "@src/engines/SessionCore/ingestion/agentMessageAdapters";
 import { createLogger } from "@src/hooks/logger";
+import type { ContextUsageSnapshot } from "@src/store/session/cliSessionStatusAtom";
 import { invokeTauri } from "@src/util/platform/tauri/init";
 import { retryInvokeTauri } from "@src/util/platform/tauri/retryInvoke";
 
@@ -89,6 +90,30 @@ const logger = createLogger("RustAgentAdapter");
 interface TokenUsageRecord {
   inputTokens: number;
   contextTokens: number;
+  contextUsageJson?: string | null;
+}
+
+function parseContextUsageSnapshot(
+  raw: string | null | undefined
+): ContextUsageSnapshot | undefined {
+  if (!raw) return undefined;
+  try {
+    return JSON.parse(raw) as ContextUsageSnapshot;
+  } catch {
+    return undefined;
+  }
+}
+
+export function getLatestContextUsageSnapshot(
+  records: readonly { contextUsageJson?: string | null }[]
+): ContextUsageSnapshot | undefined {
+  for (let index = records.length - 1; index >= 0; index -= 1) {
+    const contextUsage = parseContextUsageSnapshot(
+      records[index]?.contextUsageJson
+    );
+    if (contextUsage) return contextUsage;
+  }
+  return undefined;
 }
 
 function toTokenUsageInfo(usage: AgentTokenUsage): AgentTokenUsageInfo {
@@ -211,6 +236,8 @@ export function createRustAgentAdapter(
           const fill =
             last.contextTokens > 0 ? last.contextTokens : last.inputTokens;
           if (fill > 0) result.contextTokens = fill;
+          const contextUsage = getLatestContextUsageSnapshot(records);
+          if (contextUsage) result.contextUsage = contextUsage;
         }
       } catch (err) {
         logger.warn(`[${category}] postLoad token fetch failed:`, err);
@@ -255,7 +282,6 @@ export function createRustAgentAdapter(
       // surface a "failed" status so the user sees the desync instead of a
       // session that hangs in "running" forever.
       let _consecutiveDispatchFailures = 0;
-      let _lastTurnFailed = false;
       const DISPATCH_FAILURE_THRESHOLD = 3;
 
       const ctx = createEventHandlerContext(sessionId, features, {
@@ -266,6 +292,9 @@ export function createRustAgentAdapter(
         },
         onContextUsage: (contextUsage) => {
           callbacks.onContextUsage?.(contextUsage);
+        },
+        onTokenUpdate: (tokens) => {
+          callbacks.onTokenUpdate?.(tokens);
         },
         onStatusChange: (
           status: string,
@@ -417,7 +446,6 @@ export function createRustAgentAdapter(
           if (_turnCompleted && !isTrailing && !isTerminal) {
             _turnCompleted = false;
             _runningSignaled = false;
-            _lastTurnFailed = false;
           }
 
           // Signal "running" on the first substantive event of each turn.
@@ -456,14 +484,6 @@ export function createRustAgentAdapter(
               if (isTerminal) {
                 _runningSignaled = false;
                 _turnCompleted = true;
-                _lastTurnFailed =
-                  event.type === "agent:error" ||
-                  event.type === "agent:stream_error_exhausted" ||
-                  event.type === "agent:session_evicted" ||
-                  event.turnStatus === "failed" ||
-                  event.sessionStatus === "failed" ||
-                  event.sessionStatus === "error" ||
-                  event.isStreamError === true;
               }
             })
             .catch((err) => {
@@ -479,14 +499,6 @@ export function createRustAgentAdapter(
                 // below will have already surfaced any prior desync.
                 _runningSignaled = false;
                 _turnCompleted = true;
-                _lastTurnFailed =
-                  event.type === "agent:error" ||
-                  event.type === "agent:stream_error_exhausted" ||
-                  event.type === "agent:session_evicted" ||
-                  event.turnStatus === "failed" ||
-                  event.sessionStatus === "failed" ||
-                  event.sessionStatus === "error" ||
-                  event.isStreamError === true;
                 _consecutiveDispatchFailures = 0;
                 return;
               }
@@ -522,7 +534,6 @@ export function createRustAgentAdapter(
           _streaming = false;
           _runningSignaled = false;
           _turnCompleted = false;
-          _lastTurnFailed = false;
           _consecutiveDispatchFailures = 0;
           eventStoreProxy.setStreaming(false, sessionId);
         },

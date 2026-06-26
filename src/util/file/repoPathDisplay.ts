@@ -1,3 +1,5 @@
+import { isWindows } from "@src/util/platform/tauri";
+
 import { getFileName } from "./pathUtils";
 
 export interface RepoPathDisplayInput {
@@ -28,6 +30,19 @@ const WINDOWS_ABSOLUTE_RE = /^[A-Za-z]:\//;
 
 export function normalizeDisplayPath(path: string | undefined): string {
   return (path ?? "").trim().replace(/\\/g, "/").replace(/\/+/g, "/");
+}
+
+export function getPlatformPathSeparator(): "/" | "\\" {
+  return isWindows() ? "\\" : "/";
+}
+
+export function formatPathForPlatformDisplay(
+  path: string | undefined,
+  separator: "/" | "\\" = getPlatformPathSeparator()
+): string {
+  if (!path) return "";
+  if (separator === "/") return path;
+  return path.replace(/\//g, "\\");
 }
 
 function nestedArgs(value: unknown): Record<string, unknown> | undefined {
@@ -141,6 +156,9 @@ export function formatRepoPathForDisplay(
   const rootLabel =
     input.rootLabel ||
     (normalizedRoot ? defaultRootLabel(normalizedRoot) : undefined);
+  const separator = getPlatformPathSeparator();
+  const toPlatformDisplay = (path: string) =>
+    formatPathForPlatformDisplay(path, separator);
 
   if (!normalizedPath) {
     return {
@@ -156,15 +174,16 @@ export function formatRepoPathForDisplay(
     const displayPath = rootLabel
       ? `${rootLabel}/${normalizedPath}`
       : normalizedPath;
+    const title = normalizedRoot
+      ? `${normalizedRoot}/${normalizedPath}`
+      : normalizedPath;
     return {
       normalizedPath,
       normalizedRoot,
       rootLabel,
       relativePath: normalizedPath,
-      displayPath,
-      title: normalizedRoot
-        ? `${normalizedRoot}/${normalizedPath}`
-        : normalizedPath,
+      displayPath: toPlatformDisplay(displayPath),
+      title,
     };
   }
 
@@ -182,8 +201,8 @@ export function formatRepoPathForDisplay(
       normalizedRoot,
       rootLabel,
       relativePath,
-      displayPath,
-      title: normalizedPath,
+      displayPath: toPlatformDisplay(displayPath),
+      title: toPlatformDisplay(normalizedPath),
     };
   }
 
@@ -192,8 +211,8 @@ export function formatRepoPathForDisplay(
     normalizedPath,
     normalizedRoot,
     rootLabel,
-    displayPath,
-    title: normalizedPath,
+    displayPath: toPlatformDisplay(displayPath),
+    title: toPlatformDisplay(normalizedPath),
   };
 }
 

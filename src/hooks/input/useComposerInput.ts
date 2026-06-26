@@ -39,7 +39,6 @@ import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 /**
  * Detect if a path is likely a folder based on:
  * - Ends with /
- * - Has no file extension
  * - Common folder names
  */
 function isLikelyFolder(path: string): boolean {
@@ -50,9 +49,6 @@ function isLikelyFolder(path: string): boolean {
 
   // Get the last segment
   const fileName = path.split("/").pop() || path;
-
-  // No extension usually means folder
-  if (!fileName.includes(".")) return true;
 
   // Common folder names
   const folderNames = [

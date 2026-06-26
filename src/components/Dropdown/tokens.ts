@@ -270,7 +270,6 @@ export const DROPDOWN_CLASSES = {
     DROPDOWN_ITEM.selectedTextClass,
     "hover:bg-surface-hover",
     "hover:!text-primary-6",
-    "font-medium",
   ].join(" "),
 
   /** Item disabled state */
@@ -362,9 +361,7 @@ export const DROPDOWN_CLASSES = {
   ].join(" "),
 
   /** Separator between menu groups. */
-  menuSeparator: ["my-1", "border-t", "border-solid", "border-border-2"].join(
-    " "
-  ),
+  menuSeparator: ["border-t", "border-solid", "border-border-2"].join(" "),
 
   /** Inset separator between dropdown list groups. */
   menuSeparatorInset: [

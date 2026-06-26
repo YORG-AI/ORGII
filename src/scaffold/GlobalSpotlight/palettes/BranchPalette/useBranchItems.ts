@@ -16,6 +16,7 @@ import type { UseBranchItemsOptions } from "./types";
 // Get icons from centralized config
 const ICONS = {
   branch: getIcon(BRANCH_PALETTE_CONFIG, "branch")!,
+  worktree: getIcon(BRANCH_PALETTE_CONFIG, "worktree")!,
   create: getIcon(BRANCH_PALETTE_CONFIG, "create")!,
   createFrom: getIcon(BRANCH_PALETTE_CONFIG, "createFrom")!,
   delete: getIcon(BRANCH_PALETTE_CONFIG, "delete")!,
@@ -43,6 +44,7 @@ export function useBranchItems(
     focusInput,
     selectedBranchNames,
     toggleBranchSelection,
+    removeWorktree,
     renderBranchRemoveAction,
   } = options;
 
@@ -71,7 +73,7 @@ export function useBranchItems(
         id: branch.name,
         label: branch.name,
         desc: undefined,
-        icon: ICONS.branch,
+        icon: branch.worktreePath ? ICONS.worktree : ICONS.branch,
         type: "branch" as const,
         data: {
           ...branch,
@@ -109,9 +111,64 @@ export function useBranchItems(
     // --- Branch list based on mode ---
 
     if (activeMode === "remove") {
-      const deletableBranches = filteredBranches.filter(
-        (branch) => !branch.isCurrent
+      const removableWorktrees = filteredBranches.filter(
+        (branch) => !branch.isCurrent && branch.worktreePath
       );
+      const deletableBranches = filteredBranches.filter(
+        (branch) => !branch.isCurrent && !branch.worktreePath
+      );
+
+      if (removableWorktrees.length > 0) {
+        result.push({
+          id: "__header_remove_worktrees__",
+          label: t("selectors.branch.labels.worktrees"),
+          desc: "",
+          icon: "",
+          type: "option" as const,
+          data: { isHeader: true },
+          action: () => {},
+        });
+
+        removableWorktrees.forEach((branch) => {
+          result.push({
+            id: `remove_worktree_${branch.name}`,
+            label: branch.name,
+            desc: t("selectors.branch.labels.checkedOutInWorktree", {
+              path: branch.worktreePath,
+              defaultValue: "Checked out in worktree: {{path}}",
+            }),
+            icon: ICONS.worktree,
+            type: "branch" as const,
+            data: {
+              ...branch,
+              isSelector: true,
+              rightLabel: t("selectors.branch.actions.removeWorktree", {
+                defaultValue: "Remove Worktree",
+              }),
+              rightContent: renderBranchRemoveAction?.(branch),
+            },
+            action: () => {
+              const worktreePath = branch.worktreePath;
+              if (worktreePath) {
+                void removeWorktree(worktreePath);
+              }
+            },
+          });
+        });
+      }
+
+      if (deletableBranches.length > 0) {
+        result.push({
+          id: "__header_delete_branches__",
+          label: t("selectors.branch.labels.otherBranches"),
+          desc: "",
+          icon: "",
+          type: "option" as const,
+          data: { isHeader: true },
+          action: () => {},
+        });
+      }
+
       deletableBranches.forEach((branch) => {
         const lastCommit = branch.lastCommitDate
           ? formatRelativeTime(branch.lastCommitDate, "short")
@@ -175,7 +232,7 @@ export function useBranchItems(
           id: `__ref_${branch.name}__`,
           label: branch.name,
           desc: undefined,
-          icon: ICONS.branch,
+          icon: branch.worktreePath ? ICONS.worktree : ICONS.branch,
           type: "option" as const,
           data: {
             ...branch,
@@ -264,6 +321,7 @@ export function useBranchItems(
     focusInput,
     selectedBranchNames,
     toggleBranchSelection,
+    removeWorktree,
     renderBranchRemoveAction,
     labels,
     t,

@@ -164,7 +164,7 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
               {isRunning && (
                 <Button
                   htmlType="button"
-                  variant="tertiary"
+                  variant="secondary"
                   size="mini"
                   iconOnly
                   disabled={isTogglingPause}

@@ -15,6 +15,11 @@
  */
 import { capPillText, storePillText } from "@src/config/pillTokens";
 import { createLogger } from "@src/hooks/logger";
+import {
+  type ReferenceDragPillData,
+  clearReferenceDragData,
+  getReferenceDragPillData,
+} from "@src/shared/dnd/referenceDragData";
 import type { InstalledSkill } from "@src/types/extensions";
 import { extractSkillNameFromPath } from "@src/util/skills/skillPath";
 
@@ -36,82 +41,22 @@ export interface DropHandlerContext {
   insertPill: (attrs: ComposerPillAttrs) => void;
 }
 
-/** Max age (ms) for the window-level PR/issue drag fallback payload. */
-const REFERENCE_DRAG_MAX_AGE = 30_000;
-
-type PrReferencePayload = {
-  prNumber: number;
-  prTitle: string;
-  prUrl: string;
-  prStatus: string;
-  sourceBranch?: string;
-  targetBranch?: string;
-  additions?: number;
-  deletions?: number;
-};
-
-type IssueReferencePayload = {
-  issueNumber: number;
-  issueTitle: string;
-  issueUrl: string;
-  issueState: string;
-  labels?: string[];
-  assignees?: string[];
-  comments?: number;
-};
-
 function insertReferencePill(
   ctx: DropHandlerContext,
-  options: {
-    pillPath: string;
-    displayName: string;
-    iconType: "pr" | "issue";
-    payload: PrReferencePayload | IssueReferencePayload;
-  }
+  reference: ReferenceDragPillData
 ): void {
-  storePillText(options.pillPath, capPillText(JSON.stringify(options.payload)));
+  storePillText(
+    reference.pillPath,
+    capPillText(JSON.stringify(reference.payload))
+  );
   ctx.insertPill({
-    filePath: options.pillPath,
-    fileName: options.displayName,
+    filePath: reference.pillPath,
+    fileName: reference.displayName,
     isFolder: false,
-    iconType: options.iconType,
+    iconType: reference.iconType,
     lineStart: null,
     lineEnd: null,
   });
-}
-
-function getPlainTextReferenceDragData(
-  event: DragEvent,
-  type: "pr" | "issue"
-): string {
-  const text = event.dataTransfer?.getData("text/plain");
-  const prefix = `orgii-reference:${type}:`;
-  return text?.startsWith(prefix) ? text.slice(prefix.length) : "";
-}
-
-function getReferenceDragData(event: DragEvent, type: "pr" | "issue"): string {
-  const mimeType =
-    type === "pr"
-      ? "application/x-orgii-pr-reference"
-      : "application/x-orgii-issue-reference";
-  const data =
-    event.dataTransfer?.getData(mimeType) ||
-    getPlainTextReferenceDragData(event, type);
-  if (data) return data;
-
-  if (type === "pr") {
-    const stash = window.__orgiiLastPrDrag;
-    if (stash && Date.now() - stash.timestamp < REFERENCE_DRAG_MAX_AGE) {
-      return JSON.stringify(stash);
-    }
-    return "";
-  }
-
-  const stash = window.__orgiiLastIssueDrag;
-  if (stash && Date.now() - stash.timestamp < REFERENCE_DRAG_MAX_AGE) {
-    return JSON.stringify(stash);
-  }
-  return "";
 }
 
 /**
@@ -125,53 +70,17 @@ function getReferenceDragData(event: DragEvent, type: "pr" | "issue"): string {
  */
 export function createDropHandler(ctx: DropHandlerContext) {
   return (event: DragEvent): boolean => {
-    const prRefData = getReferenceDragData(event, "pr");
-    if (prRefData) {
-      window.__orgiiLastPrDrag = undefined;
-      try {
-        const prRef = JSON.parse(prRefData) as PrReferencePayload;
-        if (!prRef.prNumber || !prRef.prTitle) {
-          logger.warn("PR drag payload missing prNumber or prTitle:", prRef);
-          return false;
-        }
-        event.preventDefault();
-        insertReferencePill(ctx, {
-          pillPath: `pr://${prRef.prNumber}`,
-          displayName: `#${prRef.prNumber} ${prRef.prTitle}`,
-          iconType: "pr",
-          payload: prRef,
-        });
-        return true;
-      } catch (parseError) {
-        logger.warn("Failed to parse PR reference drop:", parseError);
-        return false;
-      }
-    }
-
-    const issueRefData = getReferenceDragData(event, "issue");
-    if (!issueRefData) return false;
-    window.__orgiiLastIssueDrag = undefined;
+    const reference = event.dataTransfer
+      ? getReferenceDragPillData(event.dataTransfer)
+      : null;
+    if (!reference) return false;
 
     try {
-      const issueRef = JSON.parse(issueRefData) as IssueReferencePayload;
-      if (!issueRef.issueNumber || !issueRef.issueTitle) {
-        logger.warn(
-          "Issue drag payload missing issueNumber or issueTitle:",
-          issueRef
-        );
-        return false;
-      }
       event.preventDefault();
-      insertReferencePill(ctx, {
-        pillPath: `issue://${issueRef.issueNumber}`,
-        displayName: `#${issueRef.issueNumber} ${issueRef.issueTitle}`,
-        iconType: "issue",
-        payload: issueRef,
-      });
+      insertReferencePill(ctx, reference);
       return true;
-    } catch (parseError) {
-      logger.warn("Failed to parse issue reference drop:", parseError);
-      return false;
+    } finally {
+      clearReferenceDragData(reference.type);
     }
   };
 }

@@ -127,6 +127,8 @@
     "uiScale": "UI scale",
     "timezoneAuto": "Auto (Browser)",
     "timezoneSearchPlaceholder": "Search closest cities",
+    "sendOnEnter": "Send messages with Enter",
+    "sendOnEnterDesc": "When enabled, Enter sends and Shift+Enter inserts a new line. When disabled, Ctrl/Cmd+Enter sends.",
     "language": "Language",
     "languageSearchPlaceholder": "Search languages...",
     "languageNames": {
@@ -975,7 +977,9 @@
     "typingSpeed": "Typing Speed",
     "typingSpeedDesc": "Milliseconds per character (1ms = fastest, 50ms = slowest)",
     "decryptEffect": "Decrypt Effect",
-    "decryptEffectDesc": "Enable decrypt animation for Agent messages"
+    "decryptEffectDesc": "Enable decrypt animation for Agent messages",
+    "sendOnEnter": "Send messages with Enter",
+    "sendOnEnterDesc": "When enabled, Enter sends and Shift+Enter inserts a new line. When disabled, Ctrl/Cmd+Enter sends."
   },
   "languageServers": {
     "languageServersDesc": "Manage LSP servers for autocomplete, diagnostics, and code intelligence",

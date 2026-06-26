@@ -1109,7 +1109,8 @@
     "selectRepoFromHome": "Please select a repo from the home page",
     "cloneRepoAgain": "Please clone the repo again from the home page",
     "unsavedChangesTitle": "Unsaved Changes",
-    "prkPlaceholder": "PRJ"
+    "prkPlaceholder": "PRJ",
+    "gitSyncMenuTitle": "Git sync actions"
   },
   "git": {
     "loading": "Git durumu yükleniyor...",
@@ -1353,7 +1354,13 @@
         "deleteBranch": "Branch sil",
         "refresh": "Branch yenile",
         "checkoutDetachedSuccess": "Mevcut commit'te detached HEAD durumunda",
-        "checkoutDetachedFailed": "detached HEAD checkout başarısız"
+        "checkoutDetachedFailed": "detached HEAD checkout başarısız",
+        "removeWorktree": "Worktree kaldır"
+      },
+      "messages": {
+        "deletedCount_one": "{{count}} branch silindi",
+        "deletedCount_other": "{{count}} branch silindi",
+        "failedDeleteList": "Silinemedi: {{branches}}"
       },
       "labels": {
         "otherBranches": "Diğer Branch'ler",
@@ -1361,7 +1368,9 @@
         "recent": "Son",
         "currentCommit": "Geçerli commit",
         "basedOn": "Temel alınan",
-        "worktrees": "Worktrees"
+        "worktrees": "Worktrees",
+        "worktreeInUse": "Kullanımda",
+        "checkedOutInWorktree": "Worktree içinde checkout edilmiş: {{path}}"
       },
       "placeholders": {
         "checkout": "branch",

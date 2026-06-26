@@ -149,6 +149,7 @@ const ReadFileGroup: React.FC<ReadFileGroupProps> = ({ events }) => {
               defaultCollapsed
               showLineCount={false}
               eventId={event.id}
+              showCopyButton={false}
             />
           );
         }

@@ -1,8 +1,188 @@
 {
   "source": "https://openrouter.ai/api/v1/models",
-  "fetchedAt": "2026-05-22T14:48:35.882282+00:00",
-  "modelCount": 358,
+  "fetchedAt": "2026-06-25T14:04:19.619Z",
+  "modelCount": 339,
   "models": [
+    {
+      "id": "sakana/fugu-ultra",
+      "name": "Sakana: Fugu Ultra",
+      "contextLength": 1000000,
+      "maxTokens": 128000,
+      "supportsTools": true,
+      "supportsReasoning": true,
+      "supportsIncludeReasoning": true,
+      "created": 1782276303
+    },
+    {
+      "id": "google/gemini-3.1-flash-image",
+      "name": "Google: Nano Banana 2 (Gemini 3.1 Flash Image)",
+      "contextLength": 131072,
+      "maxTokens": 32768,
+      "supportsTools": false,
+      "supportsReasoning": true,
+      "supportsIncludeReasoning": true,
+      "created": 1781754065
+    },
+    {
+      "id": "google/gemini-3-pro-image",
+      "name": "Google: Nano Banana Pro (Gemini 3 Pro Image)",
+      "contextLength": 65536,
+      "maxTokens": 32768,
+      "supportsTools": true,
+      "supportsReasoning": true,
+      "supportsIncludeReasoning": true,
+      "created": 1781754054
+    },
+    {
+      "id": "cohere/north-mini-code:free",
+      "name": "Cohere: North Mini Code (free)",
+      "contextLength": 256000,
+      "maxTokens": 64000,
+      "supportsTools": true,
+      "supportsReasoning": true,
+      "supportsIncludeReasoning": true,
+      "created": 1781723748
+    },
+    {
+      "id": "z-ai/glm-5.2",
+      "name": "Z.ai: GLM 5.2",
+      "contextLength": 1048576,
+      "maxTokens": 128000,
+      "supportsTools": true,
+      "supportsReasoning": true,
+      "supportsIncludeReasoning": true,
+      "created": 1781631930
+    },
+    {
+      "id": "openrouter/fusion",
+      "name": "OpenRouter: Fusion",
+      "contextLength": 1000000,
+      "maxTokens": null,
+      "supportsTools": false,
+      "supportsReasoning": false,
+      "supportsIncludeReasoning": false,
+      "created": 1781371647
+    },
+    {
+      "id": "moonshotai/kimi-k2.7-code",
+      "name": "MoonshotAI: Kimi K2.7 Code",
+      "contextLength": 262144,
+      "maxTokens": 16384,
+      "supportsTools": true,
+      "supportsReasoning": true,
+      "supportsIncludeReasoning": true,
+      "created": 1781266361
+    },
+    {
+      "id": "~anthropic/claude-fable-latest",
+      "name": "Anthropic: Claude Fable Latest",
+      "contextLength": 1000000,
+      "maxTokens": 128000,
+      "supportsTools": true,
+      "supportsReasoning": true,
+      "supportsIncludeReasoning": true,
+      "created": 1781029944
+    },
+    {
+      "id": "anthropic/claude-fable-5",
+      "name": "Anthropic: Claude Fable 5",
+      "contextLength": 1000000,
+      "maxTokens": 128000,
+      "supportsTools": true,
+      "supportsReasoning": true,
+      "supportsIncludeReasoning": true,
+      "created": 1781007515
+    },
+    {
+      "id": "nex-agi/nex-n2-pro",
+      "name": "Nex AGI: Nex-N2-Pro",
+      "contextLength": 262144,
+      "maxTokens": 262144,
+      "supportsTools": false,
+      "supportsReasoning": true,
+      "supportsIncludeReasoning": true,
+      "created": 1780937140
+    },
+    {
+      "id": "nvidia/nemotron-3.5-content-safety:free",
+      "name": "NVIDIA: Nemotron 3.5 Content Safety (free)",
+      "contextLength": 128000,
+      "maxTokens": 8192,
+      "supportsTools": false,
+      "supportsReasoning": true,
+      "supportsIncludeReasoning": true,
+      "created": 1780581864
+    },
+    {
+      "id": "nvidia/nemotron-3-ultra-550b-a55b",
+      "name": "NVIDIA: Nemotron 3 Ultra",
+      "contextLength": 1000000,
+      "maxTokens": 16384,
+      "supportsTools": true,
+      "supportsReasoning": true,
+      "supportsIncludeReasoning": true,
+      "created": 1780551208
+    },
+    {
+      "id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "name": "NVIDIA: Nemotron 3 Ultra (free)",
+      "contextLength": 1000000,
+      "maxTokens": 65536,
+      "supportsTools": true,
+      "supportsReasoning": true,
+      "supportsIncludeReasoning": true,
+      "created": 1780551208
+    },
+    {
+      "id": "qwen/qwen3.7-plus",
+      "name": "Qwen: Qwen3.7 Plus",
+      "contextLength": 1000000,
+      "maxTokens": 65536,
+      "supportsTools": true,
+      "supportsReasoning": true,
+      "supportsIncludeReasoning": true,
+      "created": 1780491783
+    },
+    {
+      "id": "minimax/minimax-m3",
+      "name": "MiniMax: MiniMax M3",
+      "contextLength": 1048576,
+      "maxTokens": 512000,
+      "supportsTools": true,
+      "supportsReasoning": true,
+      "supportsIncludeReasoning": true,
+      "created": 1780245374
+    },
+    {
+      "id": "stepfun/step-3.7-flash",
+      "name": "StepFun: Step 3.7 Flash",
+      "contextLength": 256000,
+      "maxTokens": 256000,
+      "supportsTools": true,
+      "supportsReasoning": true,
+      "supportsIncludeReasoning": true,
+      "created": 1779985069
+    },
+    {
+      "id": "anthropic/claude-opus-4.8-fast",
+      "name": "Anthropic: Claude Opus 4.8 (Fast)",
+      "contextLength": 1000000,
+      "maxTokens": 128000,
+      "supportsTools": true,
+      "supportsReasoning": true,
+      "supportsIncludeReasoning": true,
+      "created": 1779913703
+    },
+    {
+      "id": "anthropic/claude-opus-4.8",
+      "name": "Anthropic: Claude Opus 4.8",
+      "contextLength": 1000000,
+      "maxTokens": 128000,
+      "supportsTools": true,
+      "supportsReasoning": true,
+      "supportsIncludeReasoning": true,
+      "created": 1779905091
+    },
     {
       "id": "qwen/qwen3.7-max",
       "name": "Qwen: Qwen3.7 Max",
@@ -74,16 +254,6 @@
       "created": 1778168828
     },
     {
-      "id": "baidu/cobuddy:free",
-      "name": "Baidu Qianfan: CoBuddy (free)",
-      "contextLength": 131072,
-      "maxTokens": 65536,
-      "supportsTools": true,
-      "supportsReasoning": true,
-      "supportsIncludeReasoning": true,
-      "created": 1778035480
-    },
-    {
       "id": "openai/gpt-chat-latest",
       "name": "OpenAI: GPT Chat Latest",
       "contextLength": 400000,
@@ -144,20 +314,40 @@
       "created": 1777393095
     },
     {
-      "id": "poolside/laguna-xs.2:free",
-      "name": "Poolside: Laguna XS.2 (free)",
-      "contextLength": 131072,
-      "maxTokens": 8192,
+      "id": "poolside/laguna-xs.2",
+      "name": "Poolside: Laguna XS.2",
+      "contextLength": 262144,
+      "maxTokens": 32768,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
       "created": 1777389604
     },
     {
+      "id": "poolside/laguna-xs.2:free",
+      "name": "Poolside: Laguna XS.2 (free)",
+      "contextLength": 262144,
+      "maxTokens": 32768,
+      "supportsTools": true,
+      "supportsReasoning": true,
+      "supportsIncludeReasoning": true,
+      "created": 1777389604
+    },
+    {
+      "id": "poolside/laguna-m.1",
+      "name": "Poolside: Laguna M.1",
+      "contextLength": 262144,
+      "maxTokens": 32768,
+      "supportsTools": true,
+      "supportsReasoning": true,
+      "supportsIncludeReasoning": true,
+      "created": 1777388504
+    },
+    {
       "id": "poolside/laguna-m.1:free",
       "name": "Poolside: Laguna M.1 (free)",
-      "contextLength": 131072,
-      "maxTokens": 8192,
+      "contextLength": 262144,
+      "maxTokens": 32768,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -197,7 +387,7 @@
       "id": "~moonshotai/kimi-latest",
       "name": "MoonshotAI Kimi Latest",
       "contextLength": 262144,
-      "maxTokens": 262142,
+      "maxTokens": 256000,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -257,7 +447,7 @@
       "id": "qwen/qwen3.6-35b-a3b",
       "name": "Qwen: Qwen3.6 35B A3B",
       "contextLength": 262144,
-      "maxTokens": 262140,
+      "maxTokens": 262144,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -277,7 +467,7 @@
       "id": "qwen/qwen3.6-27b",
       "name": "Qwen: Qwen3.6 27B",
       "contextLength": 262144,
-      "maxTokens": 262144,
+      "maxTokens": 262140,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -314,20 +504,10 @@
       "created": 1777000679
     },
     {
-      "id": "deepseek/deepseek-v4-flash:free",
-      "name": "DeepSeek: DeepSeek V4 Flash (free)",
-      "contextLength": 1048576,
-      "maxTokens": 384000,
-      "supportsTools": true,
-      "supportsReasoning": true,
-      "supportsIncludeReasoning": true,
-      "created": 1777000666
-    },
-    {
       "id": "deepseek/deepseek-v4-flash",
       "name": "DeepSeek: DeepSeek V4 Flash",
       "contextLength": 1048576,
-      "maxTokens": null,
+      "maxTokens": 384000,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -347,7 +527,7 @@
       "id": "tencent/hy3-preview",
       "name": "Tencent: Hy3 preview",
       "contextLength": 262144,
-      "maxTokens": 262144,
+      "maxTokens": null,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -357,7 +537,7 @@
       "id": "xiaomi/mimo-v2.5-pro",
       "name": "Xiaomi: MiMo-V2.5-Pro",
       "contextLength": 1048576,
-      "maxTokens": 16384,
+      "maxTokens": 131072,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -367,7 +547,7 @@
       "id": "xiaomi/mimo-v2.5",
       "name": "Xiaomi: MiMo-V2.5",
       "contextLength": 1048576,
-      "maxTokens": 131072,
+      "maxTokens": null,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -414,20 +594,10 @@
       "created": 1776747900
     },
     {
-      "id": "baidu/qianfan-ocr-fast",
-      "name": "Baidu: Qianfan-OCR-Fast",
-      "contextLength": 65536,
-      "maxTokens": 28672,
-      "supportsTools": false,
-      "supportsReasoning": true,
-      "supportsIncludeReasoning": true,
-      "created": 1776707472
-    },
-    {
       "id": "moonshotai/kimi-k2.6",
       "name": "MoonshotAI: Kimi K2.6",
       "contextLength": 262144,
-      "maxTokens": 262142,
+      "maxTokens": 256000,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -457,21 +627,11 @@
       "id": "z-ai/glm-5.1",
       "name": "Z.ai: GLM 5.1",
       "contextLength": 202752,
-      "maxTokens": null,
+      "maxTokens": 128000,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
       "created": 1775578025
-    },
-    {
-      "id": "google/gemma-4-26b-a4b-it:free",
-      "name": "Google: Gemma 4 26B A4B  (free)",
-      "contextLength": 262144,
-      "maxTokens": 32768,
-      "supportsTools": true,
-      "supportsReasoning": true,
-      "supportsIncludeReasoning": true,
-      "created": 1775227989
     },
     {
       "id": "google/gemma-4-26b-a4b-it",
@@ -484,20 +644,30 @@
       "created": 1775227989
     },
     {
-      "id": "google/gemma-4-31b-it:free",
-      "name": "Google: Gemma 4 31B (free)",
+      "id": "google/gemma-4-26b-a4b-it:free",
+      "name": "Google: Gemma 4 26B A4B  (free)",
       "contextLength": 262144,
       "maxTokens": 32768,
+      "supportsTools": true,
+      "supportsReasoning": true,
+      "supportsIncludeReasoning": true,
+      "created": 1775227989
+    },
+    {
+      "id": "google/gemma-4-31b-it",
+      "name": "Google: Gemma 4 31B",
+      "contextLength": 262144,
+      "maxTokens": 262144,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
       "created": 1775148486
     },
     {
-      "id": "google/gemma-4-31b-it",
-      "name": "Google: Gemma 4 31B",
+      "id": "google/gemma-4-31b-it:free",
+      "name": "Google: Gemma 4 31B (free)",
       "contextLength": 262144,
-      "maxTokens": 16384,
+      "maxTokens": 8192,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -524,20 +694,10 @@
       "created": 1775061458
     },
     {
-      "id": "arcee-ai/trinity-large-thinking:free",
-      "name": "Arcee AI: Trinity Large Thinking (free)",
-      "contextLength": 262144,
-      "maxTokens": 80000,
-      "supportsTools": true,
-      "supportsReasoning": true,
-      "supportsIncludeReasoning": true,
-      "created": 1775058318
-    },
-    {
       "id": "arcee-ai/trinity-large-thinking",
       "name": "Arcee AI: Trinity Large Thinking",
       "contextLength": 262144,
-      "maxTokens": 262144,
+      "maxTokens": 80000,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -604,30 +764,10 @@
       "created": 1774026965
     },
     {
-      "id": "xiaomi/mimo-v2-omni",
-      "name": "Xiaomi: MiMo-V2-Omni",
-      "contextLength": 262144,
-      "maxTokens": 65536,
-      "supportsTools": true,
-      "supportsReasoning": true,
-      "supportsIncludeReasoning": true,
-      "created": 1773863703
-    },
-    {
-      "id": "xiaomi/mimo-v2-pro",
-      "name": "Xiaomi: MiMo-V2-Pro",
-      "contextLength": 1048576,
-      "maxTokens": 131072,
-      "supportsTools": true,
-      "supportsReasoning": true,
-      "supportsIncludeReasoning": true,
-      "created": 1773863643
-    },
-    {
       "id": "minimax/minimax-m2.7",
       "name": "MiniMax: MiniMax M2.7",
       "contextLength": 204800,
-      "maxTokens": 131072,
+      "maxTokens": 196608,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -666,7 +806,7 @@
     {
       "id": "z-ai/glm-5-turbo",
       "name": "Z.ai: GLM 5 Turbo",
-      "contextLength": 202752,
+      "contextLength": 262144,
       "maxTokens": 131072,
       "supportsTools": true,
       "supportsReasoning": true,
@@ -674,20 +814,20 @@
       "created": 1773583573
     },
     {
-      "id": "nvidia/nemotron-3-super-120b-a12b:free",
-      "name": "NVIDIA: Nemotron 3 Super (free)",
+      "id": "nvidia/nemotron-3-super-120b-a12b",
+      "name": "NVIDIA: Nemotron 3 Super",
       "contextLength": 1000000,
-      "maxTokens": 262144,
+      "maxTokens": null,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
       "created": 1773245239
     },
     {
-      "id": "nvidia/nemotron-3-super-120b-a12b",
-      "name": "NVIDIA: Nemotron 3 Super",
+      "id": "nvidia/nemotron-3-super-120b-a12b:free",
+      "name": "NVIDIA: Nemotron 3 Super (free)",
       "contextLength": 1000000,
-      "maxTokens": null,
+      "maxTokens": 262144,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -707,7 +847,7 @@
       "id": "qwen/qwen3.5-9b",
       "name": "Qwen: Qwen3.5-9B",
       "contextLength": 262144,
-      "maxTokens": 81920,
+      "maxTokens": 262144,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -777,7 +917,7 @@
       "id": "google/gemini-3.1-flash-image-preview",
       "name": "Google: Nano Banana 2 (Gemini 3.1 Flash Image Preview)",
       "contextLength": 131072,
-      "maxTokens": 65536,
+      "maxTokens": 32768,
       "supportsTools": false,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -787,7 +927,7 @@
       "id": "qwen/qwen3.5-35b-a3b",
       "name": "Qwen: Qwen3.5-35B-A3B",
       "contextLength": 262144,
-      "maxTokens": null,
+      "maxTokens": 81920,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -896,28 +1036,18 @@
     {
       "id": "qwen/qwen3.5-397b-a17b",
       "name": "Qwen: Qwen3.5 397B A17B",
-      "contextLength": 262144,
-      "maxTokens": 65536,
+      "contextLength": 256000,
+      "maxTokens": 64000,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
       "created": 1771223018
     },
     {
-      "id": "minimax/minimax-m2.5:free",
-      "name": "MiniMax: MiniMax M2.5 (free)",
-      "contextLength": 204800,
-      "maxTokens": 8192,
-      "supportsTools": true,
-      "supportsReasoning": true,
-      "supportsIncludeReasoning": true,
-      "created": 1770908502
-    },
-    {
       "id": "minimax/minimax-m2.5",
       "name": "MiniMax: MiniMax M2.5",
       "contextLength": 204800,
-      "maxTokens": 196608,
+      "maxTokens": 128000,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -927,7 +1057,7 @@
       "id": "z-ai/glm-5",
       "name": "Z.ai: GLM 5",
       "contextLength": 202752,
-      "maxTokens": null,
+      "maxTokens": 128000,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -957,7 +1087,7 @@
       "id": "qwen/qwen3-coder-next",
       "name": "Qwen: Qwen3 Coder Next",
       "contextLength": 262144,
-      "maxTokens": 262144,
+      "maxTokens": 64000,
       "supportsTools": true,
       "supportsReasoning": false,
       "supportsIncludeReasoning": false,
@@ -987,7 +1117,7 @@
       "id": "moonshotai/kimi-k2.5",
       "name": "MoonshotAI: Kimi K2.5",
       "contextLength": 262144,
-      "maxTokens": 262144,
+      "maxTokens": 256000,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -1028,7 +1158,7 @@
       "name": "LiquidAI: LFM2.5-1.2B-Thinking (free)",
       "contextLength": 32768,
       "maxTokens": null,
-      "supportsTools": false,
+      "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
       "created": 1768927527
@@ -1116,8 +1246,8 @@
     {
       "id": "z-ai/glm-4.7",
       "name": "Z.ai: GLM 4.7",
-      "contextLength": 202752,
-      "maxTokens": 131072,
+      "contextLength": 200000,
+      "maxTokens": 128000,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -1127,31 +1257,11 @@
       "id": "google/gemini-3-flash-preview",
       "name": "Google: Gemini 3 Flash Preview",
       "contextLength": 1048576,
-      "maxTokens": 65536,
+      "maxTokens": 65535,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
       "created": 1765987078
-    },
-    {
-      "id": "xiaomi/mimo-v2-flash",
-      "name": "Xiaomi: MiMo-V2-Flash",
-      "contextLength": 262144,
-      "maxTokens": 65536,
-      "supportsTools": true,
-      "supportsReasoning": true,
-      "supportsIncludeReasoning": true,
-      "created": 1765731308
-    },
-    {
-      "id": "nvidia/nemotron-3-nano-30b-a3b:free",
-      "name": "NVIDIA: Nemotron 3 Nano 30B A3B (free)",
-      "contextLength": 256000,
-      "maxTokens": null,
-      "supportsTools": true,
-      "supportsReasoning": true,
-      "supportsIncludeReasoning": true,
-      "created": 1765731275
     },
     {
       "id": "nvidia/nemotron-3-nano-30b-a3b",
@@ -1164,10 +1274,20 @@
       "created": 1765731275
     },
     {
+      "id": "nvidia/nemotron-3-nano-30b-a3b:free",
+      "name": "NVIDIA: Nemotron 3 Nano 30B A3B (free)",
+      "contextLength": 256000,
+      "maxTokens": null,
+      "supportsTools": true,
+      "supportsReasoning": true,
+      "supportsIncludeReasoning": true,
+      "created": 1765731275
+    },
+    {
       "id": "openai/gpt-5.2-chat",
       "name": "OpenAI: GPT-5.2 Chat",
       "contextLength": 128000,
-      "maxTokens": 32000,
+      "maxTokens": 16384,
       "supportsTools": true,
       "supportsReasoning": false,
       "supportsIncludeReasoning": false,
@@ -1217,31 +1337,11 @@
       "id": "z-ai/glm-4.6v",
       "name": "Z.ai: GLM 4.6V",
       "contextLength": 131072,
-      "maxTokens": 24000,
+      "maxTokens": 32768,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
       "created": 1765207462
-    },
-    {
-      "id": "nex-agi/deepseek-v3.1-nex-n1",
-      "name": "Nex AGI: DeepSeek V3.1 Nex N1",
-      "contextLength": 131072,
-      "maxTokens": 163840,
-      "supportsTools": true,
-      "supportsReasoning": false,
-      "supportsIncludeReasoning": false,
-      "created": 1765204393
-    },
-    {
-      "id": "essentialai/rnj-1-instruct",
-      "name": "EssentialAI: Rnj 1 Instruct",
-      "contextLength": 32768,
-      "maxTokens": null,
-      "supportsTools": true,
-      "supportsReasoning": false,
-      "supportsIncludeReasoning": false,
-      "created": 1765094847
     },
     {
       "id": "openrouter/bodybuilder",
@@ -1324,34 +1424,14 @@
       "created": 1764601720
     },
     {
-      "id": "deepseek/deepseek-v3.2-speciale",
-      "name": "DeepSeek: DeepSeek V3.2 Speciale",
-      "contextLength": 163840,
-      "maxTokens": 163840,
-      "supportsTools": false,
-      "supportsReasoning": true,
-      "supportsIncludeReasoning": true,
-      "created": 1764594837
-    },
-    {
       "id": "deepseek/deepseek-v3.2",
       "name": "DeepSeek: DeepSeek V3.2",
       "contextLength": 131072,
-      "maxTokens": 65536,
+      "maxTokens": 64000,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
       "created": 1764594642
-    },
-    {
-      "id": "prime-intellect/intellect-3",
-      "name": "Prime Intellect: INTELLECT-3",
-      "contextLength": 131072,
-      "maxTokens": 131072,
-      "supportsTools": true,
-      "supportsReasoning": true,
-      "supportsIncludeReasoning": true,
-      "created": 1764212534
     },
     {
       "id": "anthropic/claude-opus-4.5",
@@ -1407,7 +1487,7 @@
       "id": "openai/gpt-5.1-chat",
       "name": "OpenAI: GPT-5.1 Chat",
       "contextLength": 128000,
-      "maxTokens": 16384,
+      "maxTokens": 32000,
       "supportsTools": true,
       "supportsReasoning": false,
       "supportsIncludeReasoning": false,
@@ -1427,7 +1507,7 @@
       "id": "openai/gpt-5.1-codex-mini",
       "name": "OpenAI: GPT-5.1-Codex-Mini",
       "contextLength": 400000,
-      "maxTokens": 128000,
+      "maxTokens": 100000,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -1614,16 +1694,6 @@
       "created": 1760101395
     },
     {
-      "id": "baidu/ernie-4.5-21b-a3b-thinking",
-      "name": "Baidu: ERNIE 4.5 21B A3B Thinking",
-      "contextLength": 131072,
-      "maxTokens": 65536,
-      "supportsTools": false,
-      "supportsReasoning": true,
-      "supportsIncludeReasoning": true,
-      "created": 1760048887
-    },
-    {
       "id": "google/gemini-2.5-flash-image",
       "name": "Google: Nano Banana (Gemini 2.5 Flash Image)",
       "contextLength": 32768,
@@ -1776,22 +1846,12 @@
     {
       "id": "deepseek/deepseek-v3.1-terminus",
       "name": "DeepSeek: DeepSeek V3.1 Terminus",
-      "contextLength": 163840,
-      "maxTokens": 32768,
+      "contextLength": 131072,
+      "maxTokens": 32000,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
       "created": 1758548275
-    },
-    {
-      "id": "alibaba/tongyi-deepresearch-30b-a3b",
-      "name": "Tongyi DeepResearch 30B A3B",
-      "contextLength": 131072,
-      "maxTokens": 131072,
-      "supportsTools": true,
-      "supportsReasoning": true,
-      "supportsIncludeReasoning": true,
-      "created": 1758210804
     },
     {
       "id": "qwen/qwen3-coder-flash",
@@ -1814,16 +1874,6 @@
       "created": 1757612284
     },
     {
-      "id": "qwen/qwen3-next-80b-a3b-instruct:free",
-      "name": "Qwen: Qwen3 Next 80B A3B Instruct (free)",
-      "contextLength": 262144,
-      "maxTokens": null,
-      "supportsTools": true,
-      "supportsReasoning": false,
-      "supportsIncludeReasoning": false,
-      "created": 1757612213
-    },
-    {
       "id": "qwen/qwen3-next-80b-a3b-instruct",
       "name": "Qwen: Qwen3 Next 80B A3B Instruct",
       "contextLength": 262144,
@@ -1834,14 +1884,14 @@
       "created": 1757612213
     },
     {
-      "id": "qwen/qwen-plus-2025-07-28:thinking",
-      "name": "Qwen: Qwen Plus 0728 (thinking)",
-      "contextLength": 1000000,
-      "maxTokens": 32768,
+      "id": "qwen/qwen3-next-80b-a3b-instruct:free",
+      "name": "Qwen: Qwen3 Next 80B A3B Instruct (free)",
+      "contextLength": 262144,
+      "maxTokens": null,
       "supportsTools": true,
-      "supportsReasoning": true,
-      "supportsIncludeReasoning": true,
-      "created": 1757347599
+      "supportsReasoning": false,
+      "supportsIncludeReasoning": false,
+      "created": 1757612213
     },
     {
       "id": "qwen/qwen-plus-2025-07-28",
@@ -1854,20 +1904,20 @@
       "created": 1757347599
     },
     {
+      "id": "qwen/qwen-plus-2025-07-28:thinking",
+      "name": "Qwen: Qwen Plus 0728 (thinking)",
+      "contextLength": 1000000,
+      "maxTokens": 32768,
+      "supportsTools": true,
+      "supportsReasoning": true,
+      "supportsIncludeReasoning": true,
+      "created": 1757347599
+    },
+    {
       "id": "nvidia/nemotron-nano-9b-v2:free",
       "name": "NVIDIA: Nemotron Nano 9B V2 (free)",
       "contextLength": 128000,
       "maxTokens": null,
-      "supportsTools": true,
-      "supportsReasoning": true,
-      "supportsIncludeReasoning": true,
-      "created": 1757106807
-    },
-    {
-      "id": "nvidia/nemotron-nano-9b-v2",
-      "name": "NVIDIA: Nemotron Nano 9B V2",
-      "contextLength": 131072,
-      "maxTokens": 16384,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -1924,16 +1974,6 @@
       "created": 1755779628
     },
     {
-      "id": "openai/gpt-4o-audio-preview",
-      "name": "OpenAI: GPT-4o Audio",
-      "contextLength": 128000,
-      "maxTokens": 16384,
-      "supportsTools": true,
-      "supportsReasoning": false,
-      "supportsIncludeReasoning": false,
-      "created": 1755233061
-    },
-    {
       "id": "mistralai/mistral-medium-3.1",
       "name": "Mistral: Mistral Medium 3.1",
       "contextLength": 131072,
@@ -1942,26 +1982,6 @@
       "supportsReasoning": false,
       "supportsIncludeReasoning": false,
       "created": 1755095639
-    },
-    {
-      "id": "baidu/ernie-4.5-21b-a3b",
-      "name": "Baidu: ERNIE 4.5 21B A3B",
-      "contextLength": 131072,
-      "maxTokens": 8000,
-      "supportsTools": true,
-      "supportsReasoning": false,
-      "supportsIncludeReasoning": false,
-      "created": 1755034167
-    },
-    {
-      "id": "baidu/ernie-4.5-vl-28b-a3b",
-      "name": "Baidu: ERNIE 4.5 VL 28B A3B",
-      "contextLength": 131072,
-      "maxTokens": 8000,
-      "supportsTools": true,
-      "supportsReasoning": true,
-      "supportsIncludeReasoning": true,
-      "created": 1755032836
     },
     {
       "id": "z-ai/glm-4.5v",
@@ -2024,16 +2044,6 @@
       "created": 1754587402
     },
     {
-      "id": "openai/gpt-oss-120b:free",
-      "name": "OpenAI: gpt-oss-120b (free)",
-      "contextLength": 131072,
-      "maxTokens": 131072,
-      "supportsTools": true,
-      "supportsReasoning": true,
-      "supportsIncludeReasoning": true,
-      "created": 1754414231
-    },
-    {
       "id": "openai/gpt-oss-120b",
       "name": "OpenAI: gpt-oss-120b",
       "contextLength": 131072,
@@ -2044,20 +2054,30 @@
       "created": 1754414231
     },
     {
-      "id": "openai/gpt-oss-20b:free",
-      "name": "OpenAI: gpt-oss-20b (free)",
+      "id": "openai/gpt-oss-120b:free",
+      "name": "OpenAI: gpt-oss-120b (free)",
       "contextLength": 131072,
-      "maxTokens": 8192,
+      "maxTokens": 131072,
+      "supportsTools": true,
+      "supportsReasoning": true,
+      "supportsIncludeReasoning": true,
+      "created": 1754414231
+    },
+    {
+      "id": "openai/gpt-oss-20b",
+      "name": "OpenAI: gpt-oss-20b",
+      "contextLength": 131072,
+      "maxTokens": null,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
       "created": 1754414229
     },
     {
-      "id": "openai/gpt-oss-20b",
-      "name": "OpenAI: gpt-oss-20b",
+      "id": "openai/gpt-oss-20b:free",
+      "name": "OpenAI: gpt-oss-20b (free)",
       "contextLength": 131072,
-      "maxTokens": 131072,
+      "maxTokens": 32768,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -2096,8 +2116,8 @@
     {
       "id": "qwen/qwen3-30b-a3b-instruct-2507",
       "name": "Qwen: Qwen3 30B A3B Instruct 2507",
-      "contextLength": 262144,
-      "maxTokens": 262144,
+      "contextLength": 131072,
+      "maxTokens": 32000,
       "supportsTools": true,
       "supportsReasoning": false,
       "supportsIncludeReasoning": false,
@@ -2114,16 +2134,6 @@
       "created": 1753471347
     },
     {
-      "id": "z-ai/glm-4.5-air:free",
-      "name": "Z.ai: GLM 4.5 Air (free)",
-      "contextLength": 131072,
-      "maxTokens": 96000,
-      "supportsTools": true,
-      "supportsReasoning": true,
-      "supportsIncludeReasoning": true,
-      "created": 1753471258
-    },
-    {
       "id": "z-ai/glm-4.5-air",
       "name": "Z.ai: GLM 4.5 Air",
       "contextLength": 131072,
@@ -2137,37 +2147,27 @@
       "id": "qwen/qwen3-235b-a22b-thinking-2507",
       "name": "Qwen: Qwen3 235B A22B Thinking 2507",
       "contextLength": 262144,
-      "maxTokens": null,
+      "maxTokens": 262144,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
       "created": 1753449557
     },
     {
-      "id": "z-ai/glm-4-32b",
-      "name": "Z.ai: GLM 4 32B ",
-      "contextLength": 128000,
-      "maxTokens": null,
-      "supportsTools": true,
-      "supportsReasoning": false,
-      "supportsIncludeReasoning": false,
-      "created": 1753376617
-    },
-    {
-      "id": "qwen/qwen3-coder:free",
-      "name": "Qwen: Qwen3 Coder 480B A35B (free)",
+      "id": "qwen/qwen3-coder",
+      "name": "Qwen: Qwen3 Coder 480B A35B",
       "contextLength": 1048576,
-      "maxTokens": 262000,
+      "maxTokens": 65536,
       "supportsTools": true,
       "supportsReasoning": false,
       "supportsIncludeReasoning": false,
       "created": 1753230546
     },
     {
-      "id": "qwen/qwen3-coder",
-      "name": "Qwen: Qwen3 Coder 480B A35B",
+      "id": "qwen/qwen3-coder:free",
+      "name": "Qwen: Qwen3 Coder 480B A35B (free)",
       "contextLength": 1048576,
-      "maxTokens": 65536,
+      "maxTokens": 262000,
       "supportsTools": true,
       "supportsReasoning": false,
       "supportsIncludeReasoning": false,
@@ -2224,26 +2224,6 @@
       "created": 1752263252
     },
     {
-      "id": "mistralai/devstral-medium",
-      "name": "Mistral: Devstral Medium",
-      "contextLength": 131072,
-      "maxTokens": null,
-      "supportsTools": true,
-      "supportsReasoning": false,
-      "supportsIncludeReasoning": false,
-      "created": 1752161321
-    },
-    {
-      "id": "mistralai/devstral-small",
-      "name": "Mistral: Devstral Small 1.1",
-      "contextLength": 131072,
-      "maxTokens": null,
-      "supportsTools": true,
-      "supportsReasoning": false,
-      "supportsIncludeReasoning": false,
-      "created": 1752160751
-    },
-    {
       "id": "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
       "name": "Venice: Uncensored (free)",
       "contextLength": 32768,
@@ -2292,16 +2272,6 @@
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
       "created": 1751300903
-    },
-    {
-      "id": "baidu/ernie-4.5-300b-a47b",
-      "name": "Baidu: ERNIE 4.5 300B A47B ",
-      "contextLength": 131072,
-      "maxTokens": 12000,
-      "supportsTools": false,
-      "supportsReasoning": false,
-      "supportsIncludeReasoning": false,
-      "created": 1751300139
     },
     {
       "id": "mistralai/mistral-small-3.2-24b-instruct",
@@ -2367,7 +2337,7 @@
       "id": "deepseek/deepseek-r1-0528",
       "name": "DeepSeek: R1 0528",
       "contextLength": 163840,
-      "maxTokens": 32768,
+      "maxTokens": 32000,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -2424,26 +2394,6 @@
       "created": 1746578513
     },
     {
-      "id": "arcee-ai/spotlight",
-      "name": "Arcee AI: Spotlight",
-      "contextLength": 131072,
-      "maxTokens": 65537,
-      "supportsTools": false,
-      "supportsReasoning": false,
-      "supportsIncludeReasoning": false,
-      "created": 1746481552
-    },
-    {
-      "id": "arcee-ai/maestro-reasoning",
-      "name": "Arcee AI: Maestro Reasoning",
-      "contextLength": 131072,
-      "maxTokens": 32000,
-      "supportsTools": false,
-      "supportsReasoning": false,
-      "supportsIncludeReasoning": false,
-      "created": 1746481269
-    },
-    {
       "id": "arcee-ai/virtuoso-large",
       "name": "Arcee AI: Virtuoso Large",
       "contextLength": 131072,
@@ -2477,7 +2427,7 @@
       "id": "qwen/qwen3-30b-a3b",
       "name": "Qwen: Qwen3 30B A3B",
       "contextLength": 131072,
-      "maxTokens": 20000,
+      "maxTokens": 16384,
       "supportsTools": true,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -2584,21 +2534,11 @@
       "created": 1744651369
     },
     {
-      "id": "alfredpros/codellama-7b-instruct-solidity",
-      "name": "AlfredPros: CodeLLaMa 7B Instruct Solidity",
-      "contextLength": 4096,
-      "maxTokens": 4096,
-      "supportsTools": false,
-      "supportsReasoning": false,
-      "supportsIncludeReasoning": false,
-      "created": 1744641874
-    },
-    {
       "id": "meta-llama/llama-4-maverick",
       "name": "Meta: Llama 4 Maverick",
       "contextLength": 1048576,
       "maxTokens": 16384,
-      "supportsTools": false,
+      "supportsTools": true,
       "supportsReasoning": false,
       "supportsIncludeReasoning": false,
       "created": 1743881822
@@ -2754,16 +2694,6 @@
       "created": 1741311246
     },
     {
-      "id": "google/gemini-2.0-flash-lite-001",
-      "name": "Google: Gemini 2.0 Flash Lite",
-      "contextLength": 1048576,
-      "maxTokens": 8192,
-      "supportsTools": true,
-      "supportsReasoning": false,
-      "supportsIncludeReasoning": false,
-      "created": 1740506212
-    },
-    {
       "id": "mistralai/mistral-saba",
       "name": "Mistral: Saba",
       "contextLength": 32768,
@@ -2774,16 +2704,6 @@
       "created": 1739803239
     },
     {
-      "id": "meta-llama/llama-guard-3-8b",
-      "name": "Llama Guard 3 8B",
-      "contextLength": 131072,
-      "maxTokens": 131072,
-      "supportsTools": false,
-      "supportsReasoning": false,
-      "supportsIncludeReasoning": false,
-      "created": 1739401318
-    },
-    {
       "id": "openai/o3-mini-high",
       "name": "OpenAI: o3 Mini High",
       "contextLength": 200000,
@@ -2792,16 +2712,6 @@
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
       "created": 1739372611
-    },
-    {
-      "id": "google/gemini-2.0-flash-001",
-      "name": "Google: Gemini 2.0 Flash",
-      "contextLength": 1000000,
-      "maxTokens": 8192,
-      "supportsTools": true,
-      "supportsReasoning": false,
-      "supportsIncludeReasoning": false,
-      "created": 1738769413
     },
     {
       "id": "aion-labs/aion-1.0",
@@ -2837,7 +2747,7 @@
       "id": "qwen/qwen2.5-vl-72b-instruct",
       "name": "Qwen: Qwen2.5 VL 72B Instruct",
       "contextLength": 131072,
-      "maxTokens": null,
+      "maxTokens": 128000,
       "supportsTools": false,
       "supportsReasoning": false,
       "supportsIncludeReasoning": false,
@@ -2874,16 +2784,6 @@
       "created": 1738255409
     },
     {
-      "id": "deepseek/deepseek-r1-distill-qwen-32b",
-      "name": "DeepSeek: R1 Distill Qwen 32B",
-      "contextLength": 128000,
-      "maxTokens": 32768,
-      "supportsTools": false,
-      "supportsReasoning": true,
-      "supportsIncludeReasoning": true,
-      "created": 1738194830
-    },
-    {
       "id": "perplexity/sonar",
       "name": "Perplexity: Sonar",
       "contextLength": 127072,
@@ -2896,8 +2796,8 @@
     {
       "id": "deepseek/deepseek-r1-distill-llama-70b",
       "name": "DeepSeek: R1 Distill Llama 70B",
-      "contextLength": 131072,
-      "maxTokens": 16384,
+      "contextLength": 128000,
+      "maxTokens": 8192,
       "supportsTools": false,
       "supportsReasoning": true,
       "supportsIncludeReasoning": true,
@@ -2946,8 +2846,8 @@
     {
       "id": "deepseek/deepseek-chat",
       "name": "DeepSeek: DeepSeek V3",
-      "contextLength": 163840,
-      "maxTokens": 16384,
+      "contextLength": 131072,
+      "maxTokens": 16000,
       "supportsTools": true,
       "supportsReasoning": false,
       "supportsIncludeReasoning": false,
@@ -2984,20 +2884,20 @@
       "created": 1734158152
     },
     {
-      "id": "meta-llama/llama-3.3-70b-instruct:free",
-      "name": "Meta: Llama 3.3 70B Instruct (free)",
+      "id": "meta-llama/llama-3.3-70b-instruct",
+      "name": "Meta: Llama 3.3 70B Instruct",
       "contextLength": 131072,
-      "maxTokens": null,
+      "maxTokens": 16384,
       "supportsTools": true,
       "supportsReasoning": false,
       "supportsIncludeReasoning": false,
       "created": 1733506137
     },
     {
-      "id": "meta-llama/llama-3.3-70b-instruct",
-      "name": "Meta: Llama 3.3 70B Instruct",
+      "id": "meta-llama/llama-3.3-70b-instruct:free",
+      "name": "Meta: Llama 3.3 70B Instruct (free)",
       "contextLength": 131072,
-      "maxTokens": 16384,
+      "maxTokens": null,
       "supportsTools": true,
       "supportsReasoning": false,
       "supportsIncludeReasoning": false,
@@ -3044,16 +2944,6 @@
       "created": 1732127594
     },
     {
-      "id": "mistralai/mistral-large-2411",
-      "name": "Mistral Large 2411",
-      "contextLength": 131072,
-      "maxTokens": null,
-      "supportsTools": true,
-      "supportsReasoning": false,
-      "supportsIncludeReasoning": false,
-      "created": 1731978685
-    },
-    {
       "id": "mistralai/mistral-large-2407",
       "name": "Mistral Large 2407",
       "contextLength": 131072,
@@ -3062,16 +2952,6 @@
       "supportsReasoning": false,
       "supportsIncludeReasoning": false,
       "created": 1731978415
-    },
-    {
-      "id": "mistralai/pixtral-large-2411",
-      "name": "Mistral: Pixtral Large 2411",
-      "contextLength": 131072,
-      "maxTokens": null,
-      "supportsTools": true,
-      "supportsReasoning": false,
-      "supportsIncludeReasoning": false,
-      "created": 1731977388
     },
     {
       "id": "qwen/qwen-2.5-coder-32b-instruct",
@@ -3094,16 +2974,6 @@
       "created": 1731103448
     },
     {
-      "id": "anthropic/claude-3.5-haiku",
-      "name": "Anthropic: Claude 3.5 Haiku",
-      "contextLength": 200000,
-      "maxTokens": 8192,
-      "supportsTools": true,
-      "supportsReasoning": false,
-      "supportsIncludeReasoning": false,
-      "created": 1730678400
-    },
-    {
       "id": "anthracite-org/magnum-v4-72b",
       "name": "Magnum v4 72B",
       "contextLength": 32768,
@@ -3124,8 +2994,8 @@
       "created": 1729036800
     },
     {
-      "id": "inflection/inflection-3-productivity",
-      "name": "Inflection: Inflection 3 Productivity",
+      "id": "inflection/inflection-3-pi",
+      "name": "Inflection: Inflection 3 Pi",
       "contextLength": 8000,
       "maxTokens": 1024,
       "supportsTools": false,
@@ -3134,8 +3004,8 @@
       "created": 1728604800
     },
     {
-      "id": "inflection/inflection-3-pi",
-      "name": "Inflection: Inflection 3 Pi",
+      "id": "inflection/inflection-3-productivity",
+      "name": "Inflection: Inflection 3 Productivity",
       "contextLength": 8000,
       "maxTokens": 1024,
       "supportsTools": false,
@@ -3147,8 +3017,8 @@
       "id": "thedrummer/rocinante-12b",
       "name": "TheDrummer: Rocinante 12B",
       "contextLength": 32768,
-      "maxTokens": 32768,
-      "supportsTools": true,
+      "maxTokens": null,
+      "supportsTools": false,
       "supportsReasoning": false,
       "supportsIncludeReasoning": false,
       "created": 1727654400
@@ -3174,20 +3044,20 @@
       "created": 1727222400
     },
     {
-      "id": "meta-llama/llama-3.2-3b-instruct:free",
-      "name": "Meta: Llama 3.2 3B Instruct (free)",
+      "id": "meta-llama/llama-3.2-3b-instruct",
+      "name": "Meta: Llama 3.2 3B Instruct",
       "contextLength": 131072,
-      "maxTokens": null,
+      "maxTokens": 80000,
       "supportsTools": false,
       "supportsReasoning": false,
       "supportsIncludeReasoning": false,
       "created": 1727222400
     },
     {
-      "id": "meta-llama/llama-3.2-3b-instruct",
-      "name": "Meta: Llama 3.2 3B Instruct",
+      "id": "meta-llama/llama-3.2-3b-instruct:free",
+      "name": "Meta: Llama 3.2 3B Instruct (free)",
       "contextLength": 131072,
-      "maxTokens": 80000,
+      "maxTokens": null,
       "supportsTools": false,
       "supportsReasoning": false,
       "supportsIncludeReasoning": false,
@@ -3244,20 +3114,20 @@
       "created": 1723939200
     },
     {
-      "id": "nousresearch/hermes-3-llama-3.1-405b:free",
-      "name": "Nous: Hermes 3 405B Instruct (free)",
+      "id": "nousresearch/hermes-3-llama-3.1-405b",
+      "name": "Nous: Hermes 3 405B Instruct",
       "contextLength": 131072,
-      "maxTokens": null,
+      "maxTokens": 16384,
       "supportsTools": false,
       "supportsReasoning": false,
       "supportsIncludeReasoning": false,
       "created": 1723766400
     },
     {
-      "id": "nousresearch/hermes-3-llama-3.1-405b",
-      "name": "Nous: Hermes 3 405B Instruct",
+      "id": "nousresearch/hermes-3-llama-3.1-405b:free",
+      "name": "Nous: Hermes 3 405B Instruct (free)",
       "contextLength": 131072,
-      "maxTokens": 16384,
+      "maxTokens": null,
       "supportsTools": false,
       "supportsReasoning": false,
       "supportsIncludeReasoning": false,
@@ -3314,8 +3184,8 @@
       "created": 1721347200
     },
     {
-      "id": "openai/gpt-4o-mini-2024-07-18",
-      "name": "OpenAI: GPT-4o-mini (2024-07-18)",
+      "id": "openai/gpt-4o-mini",
+      "name": "OpenAI: GPT-4o-mini",
       "contextLength": 128000,
       "maxTokens": 16384,
       "supportsTools": true,
@@ -3324,8 +3194,8 @@
       "created": 1721260800
     },
     {
-      "id": "openai/gpt-4o-mini",
-      "name": "OpenAI: GPT-4o-mini",
+      "id": "openai/gpt-4o-mini-2024-07-18",
+      "name": "OpenAI: GPT-4o-mini (2024-07-18)",
       "contextLength": 128000,
       "maxTokens": 16384,
       "supportsTools": true,
@@ -3342,26 +3212,6 @@
       "supportsReasoning": false,
       "supportsIncludeReasoning": false,
       "created": 1720828800
-    },
-    {
-      "id": "sao10k/l3-euryale-70b",
-      "name": "Sao10k: Llama 3 Euryale 70B v2.1",
-      "contextLength": 8192,
-      "maxTokens": 8192,
-      "supportsTools": true,
-      "supportsReasoning": false,
-      "supportsIncludeReasoning": false,
-      "created": 1718668800
-    },
-    {
-      "id": "nousresearch/hermes-2-pro-llama-3-8b",
-      "name": "NousResearch: Hermes 2 Pro - Llama-3 8B",
-      "contextLength": 8192,
-      "maxTokens": 8192,
-      "supportsTools": false,
-      "supportsReasoning": false,
-      "supportsIncludeReasoning": false,
-      "created": 1716768000
     },
     {
       "id": "openai/gpt-4o",
@@ -3384,20 +3234,10 @@
       "created": 1715558400
     },
     {
-      "id": "meta-llama/llama-3-70b-instruct",
-      "name": "Meta: Llama 3 70B Instruct",
-      "contextLength": 8192,
-      "maxTokens": 8000,
-      "supportsTools": false,
-      "supportsReasoning": false,
-      "supportsIncludeReasoning": false,
-      "created": 1713398400
-    },
-    {
       "id": "meta-llama/llama-3-8b-instruct",
       "name": "Meta: Llama 3 8B Instruct",
       "contextLength": 8192,
-      "maxTokens": 8192,
+      "maxTokens": null,
       "supportsTools": false,
       "supportsReasoning": false,
       "supportsIncludeReasoning": false,
@@ -3484,26 +3324,6 @@
       "created": 1699401600
     },
     {
-      "id": "openai/gpt-4-1106-preview",
-      "name": "OpenAI: GPT-4 Turbo (older v1106)",
-      "contextLength": 128000,
-      "maxTokens": 4096,
-      "supportsTools": true,
-      "supportsReasoning": false,
-      "supportsIncludeReasoning": false,
-      "created": 1699228800
-    },
-    {
-      "id": "mistralai/mistral-7b-instruct-v0.1",
-      "name": "Mistral: Mistral 7B Instruct v0.1",
-      "contextLength": 4096,
-      "maxTokens": 2824,
-      "supportsTools": false,
-      "supportsReasoning": false,
-      "supportsIncludeReasoning": false,
-      "created": 1695859200
-    },
-    {
       "id": "openai/gpt-3.5-turbo-instruct",
       "name": "OpenAI: GPT-3.5 Turbo Instruct",
       "contextLength": 4095,
@@ -3552,16 +3372,6 @@
       "supportsReasoning": false,
       "supportsIncludeReasoning": false,
       "created": 1688256000
-    },
-    {
-      "id": "openai/gpt-4-0314",
-      "name": "OpenAI: GPT-4 (older v0314)",
-      "contextLength": 8191,
-      "maxTokens": 4096,
-      "supportsTools": true,
-      "supportsReasoning": false,
-      "supportsIncludeReasoning": false,
-      "created": 1685232000
     },
     {
       "id": "openai/gpt-3.5-turbo",

@@ -826,17 +826,20 @@ fn run_tar_extract(archive: &Path, dest_dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(unix)]
 fn set_executable(path: &Path) -> Result<(), String> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let meta =
-            fs::metadata(path).map_err(|err| format!("metadata {}: {err}", path.display()))?;
-        let mut permissions = meta.permissions();
-        permissions.set_mode(permissions.mode() | 0o755);
-        fs::set_permissions(path, permissions)
-            .map_err(|err| format!("chmod {}: {err}", path.display()))?;
-    }
+    use std::os::unix::fs::PermissionsExt;
+
+    let meta = fs::metadata(path).map_err(|err| format!("metadata {}: {err}", path.display()))?;
+    let mut permissions = meta.permissions();
+    permissions.set_mode(permissions.mode() | 0o755);
+    fs::set_permissions(path, permissions)
+        .map_err(|err| format!("chmod {}: {err}", path.display()))?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn set_executable(_path: &Path) -> Result<(), String> {
     Ok(())
 }
 

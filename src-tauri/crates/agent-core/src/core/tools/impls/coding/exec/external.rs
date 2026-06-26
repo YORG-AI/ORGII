@@ -32,10 +32,12 @@ pub fn launch(command: &str, working_dir: &Path) -> Result<ExternalTerminalLaunc
     launch_for_platform(command, working_dir)
 }
 
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn shell_single_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
 }
 
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn command_with_cd(command: &str, working_dir: &Path) -> String {
     format!(
         "cd {} && {}",
@@ -240,6 +242,7 @@ pub fn format_launch_result(command: &str, launch: &ExternalTerminalLaunch) -> S
 mod tests {
     use super::*;
 
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     #[test]
     fn shell_single_quote_escapes_single_quotes() {
         assert_eq!(shell_single_quote("a'b"), "'a'\\''b'");

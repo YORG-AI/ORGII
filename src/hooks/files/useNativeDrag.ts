@@ -20,6 +20,10 @@ import {
 } from "react";
 
 import { createLogger } from "@src/hooks/logger";
+import {
+  clearInternalFileTreeDrag,
+  setInternalFileTreeDrag,
+} from "@src/shared/dnd/dragSideChannel";
 
 const log = createLogger("NativeDrag");
 
@@ -98,10 +102,7 @@ export function useNativeDrag(rowRef: RefObject<HTMLDivElement | null>) {
 
         const dragItem = state.item;
 
-        // Set global flags so useTauriDragDrop recognises this as internal
-        const globalWindow = window as unknown as Record<string, unknown>;
-        globalWindow.__internalFileTreeDrag = true;
-        globalWindow.__internalFileTreeDragData = JSON.stringify({
+        setInternalFileTreeDrag({
           path: dragItem.path,
           name: dragItem.name,
           type: dragItem.type,
@@ -121,14 +122,14 @@ export function useNativeDrag(rowRef: RefObject<HTMLDivElement | null>) {
               // Drag completed (dropped or cancelled) — clean up
               rowRef.current?.classList.remove("is-dragging");
               setTimeout(() => {
-                globalWindow.__internalFileTreeDrag = false;
+                clearInternalFileTreeDrag();
               }, 0);
             }
           );
         } catch (error) {
           log.error("[NativeDrag] startDrag failed:", error);
           rowRef.current?.classList.remove("is-dragging");
-          globalWindow.__internalFileTreeDrag = false;
+          clearInternalFileTreeDrag();
         }
       };
 

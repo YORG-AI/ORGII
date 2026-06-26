@@ -8,12 +8,28 @@ use crate::agent_sessions::cli::persistence as cli_session_persistence;
 use agent_core::coordination::agent_org_runs::{AgentOrgRunRecord, AgentOrgRunStore};
 use agent_core::definitions::orgs::OrgDefinition;
 use agent_core::session::persistence::{self as session_persistence, session_type};
+use chrono::DateTime;
 use core_types::key_source::KeySource;
+use database::db::get_connection;
+use orgtrack_core::sources::claude_code::history as claude_code_history;
+use orgtrack_core::sources::codex::app as codex_app_history;
+use orgtrack_core::sources::cursor_ide::history as cursor_ide_history;
+use orgtrack_core::sources::cursor_ide::history::CursorIdeSessionPage;
+use orgtrack_core::sources::imported_history::cache as imported_history_cache;
+use orgtrack_core::sources::imported_history::metadata::{
+    SOURCE_CLAUDE_CODE, SOURCE_CODEX_APP, SOURCE_CURSOR_IDE, SOURCE_OPENCODE, SOURCE_WINDSURF,
+    SOURCE_WORKBUDDY,
+};
+use orgtrack_core::sources::imported_history::ImportedHistorySessionPage;
+use orgtrack_core::sources::opencode::history as opencode_history;
+use orgtrack_core::sources::windsurf::history as windsurf_history;
+use orgtrack_core::sources::workbuddy as workbuddy_history;
 
 const AGENT_ORG_ICON_ID: &str = "network";
 
 use super::conversion::{
-    cli_session_to_aggregate_record, os_session_to_aggregate_record,
+    cli_session_to_aggregate_record, cursor_ide_history_to_aggregate_record,
+    imported_history_to_aggregate_record, os_session_to_aggregate_record,
     sde_session_to_aggregate_record, AgentMetadataResolver,
 };
 use super::display::matches_text_query;
@@ -22,6 +38,199 @@ use super::types::{
     CategoryStats, KeySourceStats, SessionAggregateRecord, SessionCategory, SessionFilter,
     SessionListResponse, SessionStats,
 };
+
+const IMPORTED_HISTORY_PAGE_SIZE: usize = 500;
+
+enum ExternalHistoryPage {
+    Imported(ImportedHistorySessionPage),
+    CursorIde(CursorIdeSessionPage),
+}
+
+struct ExternalHistorySourceLoader {
+    source: &'static str,
+    load_page: fn(&mut rusqlite::Connection, usize, usize) -> Result<ExternalHistoryPage, String>,
+}
+
+fn load_claude_code_external_history_page(
+    conn: &mut rusqlite::Connection,
+    limit: usize,
+    offset: usize,
+) -> Result<ExternalHistoryPage, String> {
+    claude_code_history::list_claude_code_history_sessions_paginated(conn, limit, offset)
+        .map(ExternalHistoryPage::Imported)
+}
+
+fn load_codex_app_external_history_page(
+    conn: &mut rusqlite::Connection,
+    limit: usize,
+    offset: usize,
+) -> Result<ExternalHistoryPage, String> {
+    codex_app_history::list_codex_app_sessions_paginated(conn, limit, offset)
+        .map(ExternalHistoryPage::Imported)
+}
+
+fn load_cursor_ide_external_history_page(
+    conn: &mut rusqlite::Connection,
+    limit: usize,
+    offset: usize,
+) -> Result<ExternalHistoryPage, String> {
+    cursor_ide_history::list_cursor_ide_sessions_paginated(conn, limit, offset)
+        .map(ExternalHistoryPage::CursorIde)
+}
+
+fn load_opencode_external_history_page(
+    conn: &mut rusqlite::Connection,
+    limit: usize,
+    offset: usize,
+) -> Result<ExternalHistoryPage, String> {
+    opencode_history::list_opencode_history_sessions_paginated(conn, limit, offset)
+        .map(ExternalHistoryPage::Imported)
+}
+
+fn load_windsurf_external_history_page(
+    conn: &mut rusqlite::Connection,
+    limit: usize,
+    offset: usize,
+) -> Result<ExternalHistoryPage, String> {
+    windsurf_history::list_windsurf_history_sessions_paginated(conn, limit, offset)
+        .map(ExternalHistoryPage::Imported)
+}
+
+fn load_workbuddy_external_history_page(
+    conn: &mut rusqlite::Connection,
+    limit: usize,
+    offset: usize,
+) -> Result<ExternalHistoryPage, String> {
+    workbuddy_history::list_workbuddy_history_sessions_paginated(conn, limit, offset)
+        .map(ExternalHistoryPage::Imported)
+}
+
+const EXTERNAL_HISTORY_SOURCE_LOADERS: &[ExternalHistorySourceLoader] = &[
+    ExternalHistorySourceLoader {
+        source: SOURCE_CLAUDE_CODE,
+        load_page: load_claude_code_external_history_page,
+    },
+    ExternalHistorySourceLoader {
+        source: SOURCE_CODEX_APP,
+        load_page: load_codex_app_external_history_page,
+    },
+    ExternalHistorySourceLoader {
+        source: SOURCE_CURSOR_IDE,
+        load_page: load_cursor_ide_external_history_page,
+    },
+    ExternalHistorySourceLoader {
+        source: SOURCE_OPENCODE,
+        load_page: load_opencode_external_history_page,
+    },
+    ExternalHistorySourceLoader {
+        source: SOURCE_WINDSURF,
+        load_page: load_windsurf_external_history_page,
+    },
+    ExternalHistorySourceLoader {
+        source: SOURCE_WORKBUDDY,
+        load_page: load_workbuddy_external_history_page,
+    },
+];
+
+fn append_external_history_page(
+    records: &mut Vec<SessionAggregateRecord>,
+    source: &str,
+    page: ExternalHistoryPage,
+) -> usize {
+    match page {
+        ExternalHistoryPage::Imported(page) => {
+            let page_len = page.sessions.len();
+            records.extend(
+                page.sessions
+                    .into_iter()
+                    .map(|row| imported_history_to_aggregate_record(row, source)),
+            );
+            page_len
+        }
+        ExternalHistoryPage::CursorIde(page) => {
+            let page_len = page.sessions.len();
+            records.extend(
+                page.sessions
+                    .into_iter()
+                    .map(|row| cursor_ide_history_to_aggregate_record(row, source)),
+            );
+            page_len
+        }
+    }
+}
+
+fn load_external_history_source(
+    conn: &mut rusqlite::Connection,
+    records: &mut Vec<SessionAggregateRecord>,
+    loader: &ExternalHistorySourceLoader,
+) -> Result<(), String> {
+    let mut offset = 0;
+    loop {
+        let page = (loader.load_page)(conn, IMPORTED_HISTORY_PAGE_SIZE, offset)?;
+        let page_has_more = match &page {
+            ExternalHistoryPage::Imported(page) => page.has_more,
+            ExternalHistoryPage::CursorIde(page) => page.has_more,
+        };
+        let page_len = append_external_history_page(records, loader.source, page);
+        if !page_has_more || page_len == 0 {
+            break;
+        }
+        offset = offset.saturating_add(page_len);
+    }
+    Ok(())
+}
+
+fn cached_external_history_rows_in_range(
+    source: &'static str,
+    start_ms: i64,
+    end_ms: i64,
+) -> Result<Vec<SessionAggregateRecord>, String> {
+    let conn =
+        get_connection().map_err(|err| format!("Failed to open orgtrack cache DB: {err}"))?;
+    let rows = imported_history_cache::query_cached_sessions_in_range_from_conn(
+        &conn, source, start_ms, end_ms,
+    )?;
+    Ok(rows
+        .into_iter()
+        .map(|row| imported_history_to_aggregate_record(row.to_row(), source))
+        .collect())
+}
+
+pub fn cached_external_history_sessions_in_range(
+    start_ms: i64,
+    end_ms: i64,
+) -> Result<Vec<SessionAggregateRecord>, String> {
+    let handles = EXTERNAL_HISTORY_SOURCE_LOADERS
+        .iter()
+        .map(|loader| {
+            let source = loader.source;
+            std::thread::spawn(move || {
+                cached_external_history_rows_in_range(source, start_ms, end_ms)
+            })
+        })
+        .collect::<Vec<_>>();
+
+    let mut records = Vec::new();
+    for handle in handles {
+        let mut source_records = handle
+            .join()
+            .map_err(|_| "External history cache worker panicked".to_string())??;
+        records.append(&mut source_records);
+    }
+    Ok(records)
+}
+
+fn load_imported_history_sessions() -> Result<Vec<SessionAggregateRecord>, String> {
+    let mut conn =
+        get_connection().map_err(|err| format!("Failed to open orgtrack cache DB: {err}"))?;
+    let mut records = Vec::new();
+
+    for loader in EXTERNAL_HISTORY_SOURCE_LOADERS {
+        load_external_history_source(&mut conn, &mut records, loader)?;
+    }
+
+    Ok(records)
+}
 
 // ============================================================================
 // Core Aggregation
@@ -48,6 +257,18 @@ pub fn list_all_sessions(filter: Option<&SessionFilter>) -> Result<SessionListRe
         all_sessions.reserve(cli_sessions.len());
         for session in cli_sessions {
             all_sessions.push(cli_session_to_aggregate_record(session));
+        }
+
+        let include_external_history = filter
+            .and_then(|filter| filter.include_external_history)
+            .unwrap_or(true);
+        if include_external_history {
+            match load_imported_history_sessions() {
+                Ok(imported_sessions) => all_sessions.extend(imported_sessions),
+                Err(err) => {
+                    tracing::warn!(error = %err, "unified_stats: failed to load orgtrack imported history sessions")
+                }
+            }
         }
     }
 
@@ -98,8 +319,13 @@ pub fn list_all_sessions(filter: Option<&SessionFilter>) -> Result<SessionListRe
             all_sessions.push(os_session_to_aggregate_record(session, resolver));
         }
     }
-    if let Err(err) = super::orgtrack_adapter::upsert_aggregate_sessions(&all_sessions) {
-        tracing::warn!(error = %err, "unified_stats: failed to upsert orgtrack core sessions");
+    let skip_orgtrack_upsert = filter
+        .map(|filter| filter.skip_orgtrack_upsert)
+        .unwrap_or(false);
+    if !skip_orgtrack_upsert {
+        if let Err(err) = super::orgtrack_adapter::upsert_aggregate_sessions(&all_sessions) {
+            tracing::warn!(error = %err, "unified_stats: failed to upsert orgtrack core sessions");
+        }
     }
 
     // Apply filters
@@ -128,6 +354,12 @@ pub fn list_all_sessions(filter: Option<&SessionFilter>) -> Result<SessionListRe
 // Filtering
 // ============================================================================
 
+fn parse_epoch_millis(timestamp: &str) -> Option<i64> {
+    DateTime::parse_from_rfc3339(timestamp)
+        .ok()
+        .map(|parsed| parsed.timestamp_millis())
+}
+
 fn apply_filters(
     sessions: &mut Vec<SessionAggregateRecord>,
     filter: &SessionFilter,
@@ -151,6 +383,22 @@ fn apply_filters(
         let ks = KeySource::parse(key_source)
             .ok_or_else(|| format!("Unknown key_source filter: {key_source:?}"))?;
         sessions.retain(|session| session.key_source == ks);
+    }
+
+    if let Some(created_after_ms) = filter.created_after_ms {
+        sessions.retain(|session| {
+            parse_epoch_millis(&session.created_at)
+                .map(|created_at_ms| created_at_ms >= created_after_ms)
+                .unwrap_or(false)
+        });
+    }
+
+    if let Some(created_before_ms) = filter.created_before_ms {
+        sessions.retain(|session| {
+            parse_epoch_millis(&session.created_at)
+                .map(|created_at_ms| created_at_ms <= created_before_ms)
+                .unwrap_or(false)
+        });
     }
 
     if let Some(ref repo_path) = filter.repo_path {

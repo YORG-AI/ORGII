@@ -85,7 +85,8 @@ export function useMessageDispatch(options: UseMessageDispatchOptions) {
       modelSelectionOverride?: LastModelSelection,
       displayText?: string,
       clientMessageId?: string,
-      turnIntentId?: string
+      turnIntentId?: string,
+      reservedDispatchGeneration?: number
     ): Promise<void> => {
       // Read directly from the store at call time to avoid stale-closure
       // race: if the user changes the mode pill and immediately sends a
@@ -112,7 +113,8 @@ export function useMessageDispatch(options: UseMessageDispatchOptions) {
       // Synchronous turn reserve: every dispatch funnels through here, so the
       // FSM observes the session as busy before the first await. A concurrent
       // submit therefore queues instead of double-dispatching.
-      const dispatchGeneration = beginTurnDispatch(sessionId);
+      const dispatchGeneration =
+        reservedDispatchGeneration ?? beginTurnDispatch(sessionId);
 
       beginOptimisticTurn(sessionId);
 

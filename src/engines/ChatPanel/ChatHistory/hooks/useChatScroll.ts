@@ -8,9 +8,8 @@
  *   is at (or near) the content bottom
  *
  * The chat footer renders a fixed spacer after the content. Scroll-to-bottom
- * paths manually scroll the root to the content bottom
- * (`scrollHeight - footerSpacerHeight`) so the footer spacer stays below
- * the fold instead of becoming the visual bottom target.
+ * paths use the browser's physical scroll bottom (`scrollHeight - clientHeight`)
+ * so the footer spacer remains visible below the latest event.
  */
 import {
   type Dispatch,
@@ -158,6 +157,52 @@ export function useChatScroll({
 
     scrollElementToBottom("smooth");
   }, [scrollElementToBottom]);
+
+  useEffect(() => {
+    const scrollRoot =
+      staticScrollerRef?.current ?? virtuosoScrollerRef.current;
+    if (!scrollRoot) return;
+
+    let frameId = 0;
+    let secondFrameId = 0;
+    const followIfPinnedToTail = () => {
+      cancelAnimationFrame(frameId);
+      cancelAnimationFrame(secondFrameId);
+      frameId = requestAnimationFrame(() => {
+        if (pinLastGroupRef.current) return;
+        if (
+          !alwaysFollowTail &&
+          performance.now() - effectiveManualScrollAtRef.current <
+            MANUAL_SCROLL_AUTO_FOLLOW_SUPPRESS_MS
+        ) {
+          return;
+        }
+        if (!alwaysFollowTail && !atBottomRef.current) return;
+        scrollElementToBottom();
+        secondFrameId = requestAnimationFrame(() => scrollElementToBottom());
+      });
+    };
+
+    const resizeObserver = new ResizeObserver(followIfPinnedToTail);
+    resizeObserver.observe(scrollRoot);
+    if (scrollRoot.firstElementChild) {
+      resizeObserver.observe(scrollRoot.firstElementChild);
+    }
+
+    return () => {
+      cancelAnimationFrame(frameId);
+      cancelAnimationFrame(secondFrameId);
+      resizeObserver.disconnect();
+    };
+  }, [
+    activeSessionId,
+    alwaysFollowTail,
+    effectiveManualScrollAtRef,
+    pinLastGroupRef,
+    scrollElementToBottom,
+    staticScrollerRef,
+    virtuosoScrollerRef,
+  ]);
 
   // Auto-scroll when new messages arrive if user was at content bottom.
   // Stands down while the latest group is pinned to top — the pin is the

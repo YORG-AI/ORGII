@@ -1,4 +1,23 @@
 {
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "ORG2",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 450,
+        "minHeight": 300,
+        "resizable": true,
+        "maximized": true,
+        "fullscreen": false,
+        "decorations": false,
+        "hiddenTitle": true,
+        "backgroundColor": "#0d0d0d",
+        "transparent": false
+      }
+    ]
+  },
   "bundle": {
     "resources": {
       "resources/drag-icons/": "resources/drag-icons/"

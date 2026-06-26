@@ -51,6 +51,7 @@ import {
   chatPanelCreateTargetAtom,
   chatPanelExploreAgentSearchEnabledAtom,
   chatPanelExploreOpenAtom,
+  chatPanelManageIssuesOpenAtom,
   chatPanelMaximizedAtom,
   chatPanelNavigateAtom,
   chatPanelSelectedCollabOrgAtom,
@@ -164,6 +165,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       chatPanelWorkspaceDashboardOpenAtom
     );
     const exploreOpen = useAtomValue(chatPanelExploreOpenAtom);
+    const manageIssuesOpen = useAtomValue(chatPanelManageIssuesOpenAtom);
     const createProjectContext = useAtomValue(
       chatPanelCreateProjectContextAtom
     );
@@ -424,6 +426,20 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       setWorkstationActiveSessionId,
     ]);
 
+    const handleStartPageManageIssues = useCallback(() => {
+      setStartPageOpen(false);
+      navigateChatPanel({ kind: CHAT_PANEL_SURFACE_KIND.MANAGE_ISSUES });
+      dispatchClearSession();
+      setWorkstationActiveSessionId(null);
+      setActiveSessionId(null);
+    }, [
+      dispatchClearSession,
+      navigateChatPanel,
+      setActiveSessionId,
+      setStartPageOpen,
+      setWorkstationActiveSessionId,
+    ]);
+
     const handleStartPageAddApiKey = useCallback(() => {
       const accountsPath = `${buildIntegrationsPath({ category: "models" })}?modelsTab=my-accounts`;
       navigate(buildWizardPath(accountsPath, WIZARD_IDS.KEY_ADD));
@@ -508,6 +524,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       createTarget,
       currentSessionId: currentSessionId ?? null,
       exploreOpen,
+      manageIssuesOpen,
       isChatFocus,
       panelTitle,
       collabOrgHeaderTitle: collabOrgHeader?.title,
@@ -611,6 +628,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         handleRegionNoticeChange={handleRegionNoticeChange}
         handleStartPageAddApiKey={handleStartPageAddApiKey}
         handleStartPageExploreRepos={handleStartPageExploreRepos}
+        handleStartPageManageIssues={handleStartPageManageIssues}
         handleStartPageNewSession={handleNewSession}
         handleStartPageNewWorkItem={handleStartPageNewWorkItem}
         handleStartPageSetupRepo={handleStartPageSetupRepo}
@@ -628,6 +646,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     const publishSurfaceHeader =
       contentState.showBenchmarkSessionGroupContent ||
       contentState.showExploreContent ||
+      contentState.showManageIssuesContent ||
       contentState.showWorkspaceDashboardContent ||
       contentState.showCollabOrgContent ||
       contentState.showWorkspaceOverviewContent;
@@ -741,6 +760,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
           contentState.showEmptyChatFocusRestoreButton
         }
         showExploreContent={contentState.showExploreContent}
+        showManageIssuesContent={contentState.showManageIssuesContent}
         showPanelContent={contentState.showPanelContent}
         showProjectContent={contentState.showProjectContent}
         showProjectOrgContent={contentState.showProjectOrgContent}

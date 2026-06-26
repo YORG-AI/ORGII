@@ -66,8 +66,7 @@ fn sidecar_status(sidecar: OptionalSidecar, bin_dir: &Path, os: &str, arch: &str
         OptionalSidecar::AgentBrowser => agent_browser_target(os, arch)
             .ok()
             .map(|(_, dest_name)| bin_dir.join(dest_name)),
-        OptionalSidecar::Peekaboo => peekaboo_supported(os)
-            .then(|| bin_dir.join("peekaboo")),
+        OptionalSidecar::Peekaboo => peekaboo_supported(os).then(|| bin_dir.join("peekaboo")),
     };
 
     let installed_path = candidate
@@ -295,17 +294,21 @@ fn find_file_named(dir: &Path, name: &str) -> Option<PathBuf> {
     None
 }
 
+#[cfg(unix)]
 fn set_executable(path: &Path) -> Result<(), String> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let meta =
-            std::fs::metadata(path).map_err(|err| format!("metadata {}: {err}", path.display()))?;
-        let mut perms = meta.permissions();
-        perms.set_mode(perms.mode() | 0o755);
-        std::fs::set_permissions(path, perms)
-            .map_err(|err| format!("chmod {}: {err}", path.display()))?;
-    }
+    use std::os::unix::fs::PermissionsExt;
+
+    let meta =
+        std::fs::metadata(path).map_err(|err| format!("metadata {}: {err}", path.display()))?;
+    let mut perms = meta.permissions();
+    perms.set_mode(perms.mode() | 0o755);
+    std::fs::set_permissions(path, perms)
+        .map_err(|err| format!("chmod {}: {err}", path.display()))?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn set_executable(_path: &Path) -> Result<(), String> {
     Ok(())
 }
 

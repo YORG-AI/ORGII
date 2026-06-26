@@ -7,7 +7,10 @@
 import { useEffect, useState } from "react";
 
 import { rpc } from "@src/api/tauri/rpc";
-import type { ProviderConfig } from "@src/api/tauri/rpc/schemas/validation";
+import type {
+  ProviderConfig,
+  ProviderProtocol,
+} from "@src/api/tauri/rpc/schemas/validation";
 import type { ModelType } from "@src/api/types/keys";
 
 // ============================================
@@ -43,6 +46,8 @@ export interface ProviderEnvConfig {
   supportsBaseUrl: boolean;
   /** Default base URL for API calls */
   defaultBaseUrl: string | null;
+  supportedProtocols: ProviderProtocol[];
+  defaultProtocol: ProviderProtocol;
 }
 
 // ============================================
@@ -106,6 +111,8 @@ export function useProviderConfig(modelType: ModelType | undefined): {
         baseUrlEnvVar: null,
         supportsBaseUrl: false,
         defaultBaseUrl: null,
+        supportedProtocols: ["openai"],
+        defaultProtocol: "openai",
       },
       loading: false,
       error: null,
@@ -118,6 +125,8 @@ export function useProviderConfig(modelType: ModelType | undefined): {
       baseUrlEnvVar: rustConfig.base_url_env_var,
       supportsBaseUrl: rustConfig.supports_base_url,
       defaultBaseUrl: rustConfig.default_base_url,
+      supportedProtocols: rustConfig.supported_protocols,
+      defaultProtocol: rustConfig.default_protocol,
     },
     loading: false,
     error: null,

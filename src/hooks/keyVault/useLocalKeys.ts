@@ -161,7 +161,8 @@ export function useLocalKeys(
           fullKey.api_key,
           fullKey.base_url ?? undefined,
           fullKey.session_token ?? undefined,
-          testModel
+          testModel,
+          fullKey.protocol ?? undefined
         );
 
         await updateKeyHealth(
@@ -211,6 +212,7 @@ export function useLocalKeys(
             name: request.name ?? next[idx].name,
             description: request.description ?? next[idx].description,
             base_url: request.base_url ?? next[idx].base_url,
+            protocol: request.protocol ?? next[idx].protocol,
             available_models:
               request.available_models ?? next[idx].available_models,
             enabled_models: request.enabled_models ?? next[idx].enabled_models,
@@ -342,7 +344,8 @@ export function useLocalKeys(
             fullKey.api_key,
             fullKey.base_url ?? undefined,
             undefined,
-            testModel
+            testModel,
+            fullKey.protocol ?? undefined
           );
 
           const modelsToSave =

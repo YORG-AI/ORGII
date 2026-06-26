@@ -25,6 +25,65 @@ import type {
 // Stream Callback Types
 // ============================================
 
+function inferGitErrorTypeFromText(
+  operationName: GitOperationType,
+  errorText: string
+): GitErrorType {
+  const normalizedText = errorText.toLowerCase();
+
+  if (
+    operationName === "push" &&
+    (normalizedText.includes("non-fast-forward") ||
+      normalizedText.includes("fetch first") ||
+      normalizedText.includes("updates were rejected") ||
+      normalizedText.includes("failed to push some refs"))
+  ) {
+    return "non_fast_forward";
+  }
+
+  if (
+    operationName === "pull" &&
+    (normalizedText.includes("would be overwritten") ||
+      normalizedText.includes("your local changes") ||
+      normalizedText.includes("uncommitted changes") ||
+      normalizedText.includes("unstaged changes") ||
+      normalizedText.includes("please commit or stash them") ||
+      normalizedText.includes("please commit your changes or stash them"))
+  ) {
+    return "uncommitted_changes";
+  }
+
+  if (
+    operationName === "pull" &&
+    (normalizedText.includes("conflict") ||
+      normalizedText.includes("automatic merge failed"))
+  ) {
+    return "merge_conflicts";
+  }
+
+  if (
+    normalizedText.includes("authentication") ||
+    normalizedText.includes("permission denied") ||
+    normalizedText.includes("could not read username") ||
+    normalizedText.includes("bad credentials")
+  ) {
+    return "authentication_failed";
+  }
+
+  return "unknown";
+}
+
+function resolveGitErrorType(
+  operationName: GitOperationType,
+  explicitErrorType: GitErrorType | undefined,
+  errorText: string
+): GitErrorType {
+  if (explicitErrorType && explicitErrorType !== "unknown") {
+    return explicitErrorType;
+  }
+  return inferGitErrorTypeFromText(operationName, errorText);
+}
+
 export interface StreamCallbacks {
   onOutput: (line: string) => void;
   onComplete: (success: boolean, errorType?: GitErrorType) => void;
@@ -88,6 +147,11 @@ export function createGitOperationHandler<TParams>(
         getGitChannel,
         cleanupRef,
       } = context;
+      const paramsWithDialogOption = params as TParams & {
+        showErrorDialog?: boolean;
+      };
+      const showErrorDialog = paramsWithDialogOption.showErrorDialog !== false;
+      delete paramsWithDialogOption.showErrorDialog;
 
       const channel = getGitChannel();
       const command = formatCommand(params);
@@ -166,26 +230,33 @@ export function createGitOperationHandler<TParams>(
 
             // Defer native dialog to next tick — showing NSAlert from within
             // a WebKit event callback can deadlock the main-thread render mutex
+            const captured = outputLines.join("\n");
+            const resolvedErrorType = success
+              ? "none"
+              : resolveGitErrorType(
+                  operationName,
+                  errorType,
+                  `${operationLabel} operation failed\n${captured}`
+                );
             if (
+              showErrorDialog &&
               !success &&
-              errorType &&
-              errorType !== "none" &&
-              errorType !== "authentication_failed"
+              resolvedErrorType !== "none" &&
+              resolvedErrorType !== "authentication_failed"
             ) {
-              const captured = outputLines.join("\n");
               setTimeout(() => {
                 showGitErrorAndHandle({
                   operation: operationName,
                   repoId,
                   repoPath,
-                  errorType: errorType,
+                  errorType: resolvedErrorType,
                   errorMessage: `${operationLabel} operation failed`,
                   commandOutput: captured,
                 });
               }, 0);
             }
 
-            resolve({ success, errorType: errorType || "none" });
+            resolve({ success, errorType: resolvedErrorType });
           },
           onError: (error, errorType) => {
             flushPendingOutputSync();
@@ -199,18 +270,25 @@ export function createGitOperationHandler<TParams>(
             cleanupRef.current = null;
 
             const captured = outputLines.join("\n");
-            setTimeout(() => {
-              showGitErrorAndHandle({
-                operation: operationName,
-                repoId,
-                repoPath,
-                errorType: errorType || "unknown",
-                errorMessage: error,
-                commandOutput: captured,
-              });
-            }, 0);
+            const resolvedErrorType = resolveGitErrorType(
+              operationName,
+              errorType,
+              `${error}\n${captured}`
+            );
+            if (showErrorDialog) {
+              setTimeout(() => {
+                showGitErrorAndHandle({
+                  operation: operationName,
+                  repoId,
+                  repoPath,
+                  errorType: resolvedErrorType,
+                  errorMessage: error,
+                  commandOutput: captured,
+                });
+              }, 0);
+            }
 
-            resolve({ success: false, errorType: errorType || "unknown" });
+            resolve({ success: false, errorType: resolvedErrorType });
           },
         }
       ).then((cleanup) => {

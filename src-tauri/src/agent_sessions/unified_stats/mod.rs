@@ -16,6 +16,7 @@
 //! - `history`    — History-page–specific record shape and metrics
 //! - `commands`   — Tauri command handlers
 
+pub mod accounting;
 pub mod aggregation;
 pub mod commands;
 pub mod conversion;

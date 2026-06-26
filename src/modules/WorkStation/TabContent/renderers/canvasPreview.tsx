@@ -110,7 +110,7 @@ const CanvasPreviewTabRenderer: React.FC<UnifiedTabContentProps> = memo(
         </div>
 
         {/* content */}
-        <div className="relative flex-1 overflow-hidden">
+        <div className="relative flex-1 overflow-auto">
           {payload.mode === "url" && payload.url ? (
             <iframe
               src={payload.url}

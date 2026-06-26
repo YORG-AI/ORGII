@@ -48,10 +48,13 @@ export function getFileTypeFromName(fileName: string): FileType {
     return "eslint";
   if (baseName.startsWith(".prettierrc") || baseName === "prettier.config.js")
     return "prettier";
+  if (baseName === ".npmrc") return "npm";
+  if (baseName === ".svgrrc") return "svgr";
   if (baseName.startsWith(".stylelintrc") || baseName === "stylelint.config.js")
     return "stylelint";
   if (baseName.startsWith("babel.config") || baseName === ".babelrc")
     return "babel";
+  if (baseName.endsWith("rc") || baseName.includes("rc.")) return "rc";
   if (baseName.startsWith("webpack.config")) return "webpack";
   if (baseName.startsWith("vite.config")) return "vite";
   if (baseName.startsWith("vitest.config")) return "vitest";

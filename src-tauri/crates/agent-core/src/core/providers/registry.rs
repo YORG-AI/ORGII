@@ -51,6 +51,8 @@ pub struct ProviderSpec {
     pub skip_prefixes: &'static [&'static str],
     /// Default API base URL.
     pub default_api_base: Option<&'static str>,
+    /// Default Anthropic-compatible API base URL when this provider exposes one.
+    pub default_anthropic_api_base: Option<&'static str>,
     /// Whether this is a local server (e.g., vLLM).
     pub is_local: bool,
     /// Environment variable name used by account-less preflight checks when
@@ -68,6 +70,7 @@ pub static PROVIDERS: &[ProviderSpec] = &[
         litellm_prefix: Some("openrouter/"),
         skip_prefixes: &["openrouter/"],
         default_api_base: Some("https://openrouter.ai/api/v1"),
+        default_anthropic_api_base: None,
         is_local: false,
         env_key: Some("OPENROUTER_API_KEY"),
     },
@@ -78,6 +81,7 @@ pub static PROVIDERS: &[ProviderSpec] = &[
         litellm_prefix: None,
         skip_prefixes: &["zenmux/"],
         default_api_base: Some("https://zenmux.ai/api/v1"),
+        default_anthropic_api_base: Some("https://zenmux.ai/api/anthropic"),
         is_local: false,
         env_key: Some("ZENMUX_API_KEY"),
     },
@@ -89,6 +93,7 @@ pub static PROVIDERS: &[ProviderSpec] = &[
         litellm_prefix: None,
         skip_prefixes: &["anthropic/"],
         default_api_base: Some("https://api.anthropic.com/v1"),
+        default_anthropic_api_base: Some("https://api.anthropic.com/v1"),
         is_local: false,
         env_key: Some("ANTHROPIC_API_KEY"),
     },
@@ -99,6 +104,7 @@ pub static PROVIDERS: &[ProviderSpec] = &[
         litellm_prefix: None,
         skip_prefixes: &["openai/"],
         default_api_base: Some("https://api.openai.com/v1"),
+        default_anthropic_api_base: None,
         is_local: false,
         env_key: Some("OPENAI_API_KEY"),
     },
@@ -109,6 +115,7 @@ pub static PROVIDERS: &[ProviderSpec] = &[
         litellm_prefix: None,
         skip_prefixes: &["deepseek/"],
         default_api_base: Some("https://api.deepseek.com"),
+        default_anthropic_api_base: None,
         is_local: false,
         env_key: Some("DEEPSEEK_API_KEY"),
     },
@@ -119,6 +126,7 @@ pub static PROVIDERS: &[ProviderSpec] = &[
         litellm_prefix: None, // Google's OpenAI-compat API expects bare model names (e.g. "gemini-2.0-flash")
         skip_prefixes: &["gemini/"], // Strip LiteLLM prefix from frontend model names
         default_api_base: Some("https://generativelanguage.googleapis.com/v1beta/openai"),
+        default_anthropic_api_base: None,
         is_local: false,
         env_key: Some("GEMINI_API_KEY"),
     },
@@ -129,6 +137,7 @@ pub static PROVIDERS: &[ProviderSpec] = &[
         litellm_prefix: Some("groq/"),
         skip_prefixes: &["groq/"],
         default_api_base: Some("https://api.groq.com/openai/v1"),
+        default_anthropic_api_base: None,
         is_local: false,
         env_key: Some("GROQ_API_KEY"),
     },
@@ -139,6 +148,7 @@ pub static PROVIDERS: &[ProviderSpec] = &[
         litellm_prefix: None,
         skip_prefixes: &["xai/", "grok/"],
         default_api_base: Some("https://api.x.ai/v1"),
+        default_anthropic_api_base: None,
         is_local: false,
         env_key: Some("XAI_API_KEY"),
     },
@@ -149,6 +159,7 @@ pub static PROVIDERS: &[ProviderSpec] = &[
         litellm_prefix: None,
         skip_prefixes: &[],
         default_api_base: Some("https://open.bigmodel.cn/api/paas/v4"),
+        default_anthropic_api_base: None,
         is_local: false,
         env_key: Some("ZHIPU_API_KEY"),
     },
@@ -159,6 +170,7 @@ pub static PROVIDERS: &[ProviderSpec] = &[
         litellm_prefix: None, // DashScope OpenAI-compat API expects bare model names (e.g. "qwen3-max")
         skip_prefixes: &["dashscope/"], // Strip LiteLLM prefix from frontend model names
         default_api_base: Some("https://dashscope.aliyuncs.com/compatible-mode/v1"),
+        default_anthropic_api_base: None,
         is_local: false,
         env_key: Some("DASHSCOPE_API_KEY"),
     },
@@ -169,6 +181,7 @@ pub static PROVIDERS: &[ProviderSpec] = &[
         litellm_prefix: None,
         skip_prefixes: &[],
         default_api_base: Some("https://api.minimax.io/v1"),
+        default_anthropic_api_base: None,
         is_local: false,
         env_key: Some("MINIMAX_API_KEY"),
     },
@@ -179,6 +192,7 @@ pub static PROVIDERS: &[ProviderSpec] = &[
         litellm_prefix: None,
         skip_prefixes: &[],
         default_api_base: Some("https://api.moonshot.cn/v1"),
+        default_anthropic_api_base: None,
         is_local: false,
         env_key: Some("MOONSHOT_API_KEY"),
     },
@@ -189,6 +203,7 @@ pub static PROVIDERS: &[ProviderSpec] = &[
         litellm_prefix: Some("azure/"),
         skip_prefixes: &["azure/"],
         default_api_base: None,
+        default_anthropic_api_base: None,
         is_local: false,
         env_key: Some("AZURE_OPENAI_API_KEY"),
     },
@@ -199,6 +214,7 @@ pub static PROVIDERS: &[ProviderSpec] = &[
         litellm_prefix: None,
         skip_prefixes: &[],
         default_api_base: None, // User must set their own
+        default_anthropic_api_base: None,
         is_local: true,
         env_key: None,
     },

@@ -9,7 +9,10 @@ import React, { useCallback } from "react";
 
 import type { OptimizedChatItem } from "../chatItemPipeline/types";
 import { GroupHeaderRenderer } from "../renderers";
-import type { GroupHeaderRendererProps } from "../renderers/GroupHeaderRenderer";
+import type {
+  GroupHeaderRenderPart,
+  GroupHeaderRendererProps,
+} from "../renderers/GroupHeaderRenderer";
 import type { ChatGroupMeta } from "./useChatGroups";
 
 interface UseGroupHeaderRendererOptions {
@@ -23,6 +26,7 @@ interface UseGroupHeaderRendererOptions {
   turnPaginationEnabled: boolean;
   collapseTailWhenIdle: boolean;
   hideUserMessage: boolean;
+  defaultTurnCollapsed: boolean;
   turnCollapseInteractionAtRef: React.MutableRefObject<number>;
   onEditSubmit: GroupHeaderRendererProps["onEditSubmit"];
   onRestoreCheckpoint: GroupHeaderRendererProps["onRestoreCheckpoint"];
@@ -39,12 +43,13 @@ export function useGroupHeaderRenderer({
   turnPaginationEnabled,
   collapseTailWhenIdle,
   hideUserMessage,
+  defaultTurnCollapsed,
   turnCollapseInteractionAtRef,
   onEditSubmit,
   onRestoreCheckpoint,
 }: UseGroupHeaderRendererOptions) {
   return useCallback(
-    (groupIndex: number) => {
+    (groupIndex: number, renderPart: GroupHeaderRenderPart = "all") => {
       const header = displayGroupHeaders[groupIndex];
       const meta = displayGroupMeta[groupIndex];
       const headerKey =
@@ -67,6 +72,8 @@ export function useGroupHeaderRenderer({
           hideCollapseTimeRange={turnPaginationEnabled}
           collapseTailWhenIdle={collapseTailWhenIdle}
           hideUserMessage={hideUserMessage}
+          defaultTurnCollapsed={defaultTurnCollapsed}
+          renderPart={renderPart}
           turnCollapseInteractionAtRef={turnCollapseInteractionAtRef}
           onEditSubmit={onEditSubmit}
           onRestoreCheckpoint={onRestoreCheckpoint}
@@ -84,6 +91,7 @@ export function useGroupHeaderRenderer({
       turnPaginationEnabled,
       collapseTailWhenIdle,
       hideUserMessage,
+      defaultTurnCollapsed,
       turnCollapseInteractionAtRef,
       onEditSubmit,
       onRestoreCheckpoint,

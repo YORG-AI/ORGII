@@ -127,6 +127,8 @@
     "uiScale": "界面縮放",
     "timezoneAuto": "自動（瀏覽器）",
     "timezoneSearchPlaceholder": "搜索附近城市",
+    "sendOnEnter": "Enter 發送消息",
+    "sendOnEnterDesc": "啟用後 Enter 發送，Shift+Enter 換行；關閉後 Ctrl/Cmd+Enter 發送。",
     "language": "語言",
     "languageSearchPlaceholder": "搜索語言...",
     "languageNames": {
@@ -975,7 +977,9 @@
     "typingSpeed": "打字速度",
     "typingSpeedDesc": "每個字符的毫秒數（1ms = 最快，50ms = 最慢）",
     "decryptEffect": "解密效果",
-    "decryptEffectDesc": "爲 Agent 消息啓用解密動畫效果"
+    "decryptEffectDesc": "爲 Agent 消息啓用解密動畫效果",
+    "sendOnEnter": "Enter 發送消息",
+    "sendOnEnterDesc": "啟用後 Enter 發送，Shift+Enter 換行；關閉後 Ctrl/Cmd+Enter 發送。"
   },
   "languageServers": {
     "languageServersDesc": "管理用於自動補全、診斷和代碼智能的 LSP 服務器",

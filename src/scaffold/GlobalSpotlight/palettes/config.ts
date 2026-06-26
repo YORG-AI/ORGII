@@ -16,6 +16,7 @@ import {
   GitBranch,
   GitBranchMinus,
   GitBranchPlus,
+  GitFork,
   Grip,
   Link2Off,
   Plus,
@@ -283,6 +284,7 @@ export const BRANCH_PALETTE_CONFIG: SelectorConfig = {
   // Icons used by branch selector items
   icons: {
     branch: GitBranch,
+    worktree: GitFork,
     create: Plus,
     createFrom: GitBranchPlus,
     delete: GitBranchMinus,

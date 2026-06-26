@@ -160,6 +160,8 @@ export const DefaultVariantInfoSchema = z.object({
   model: z.string(),
 });
 
+export const ProviderProtocolSchema = z.enum(["openai", "anthropic"]);
+
 export const KeyInfoSchema = z.object({
   id: z.string(),
   name: z.string().nullable(),
@@ -171,6 +173,7 @@ export const KeyInfoSchema = z.object({
   api_key_preview: z.string().nullable(),
   session_token_preview: z.string().nullable(),
   base_url: z.string().nullable(),
+  protocol: ProviderProtocolSchema.nullable().optional(),
   env_vars: z.array(z.string()),
   env_vars_masked: z.record(z.string(), z.string()),
   available_models: z.array(z.string()),
@@ -209,6 +212,7 @@ export const FullKeyResponseSchema = z.object({
   api_key: z.string().nullable(),
   session_token: z.string().nullable(),
   base_url: z.string().nullable(),
+  protocol: ProviderProtocolSchema.nullable().optional(),
   env_vars: z.record(z.string(), z.string()),
   available_models: z.array(z.string()),
   model_aliases: z.array(ModelAliasInfoSchema).optional(),
@@ -225,6 +229,7 @@ export const SaveKeyRequestSchema = z.object({
   api_key: z.string().optional(),
   session_token: z.string().optional(),
   base_url: z.string().optional(),
+  protocol: ProviderProtocolSchema.optional(),
   env_vars: z.record(z.string(), z.string()).optional(),
   available_models: z.array(z.string()).optional(),
   enabled_models: z.array(z.string()).optional(),
@@ -333,6 +338,8 @@ export const AvailableApiProviderSchema = z.object({
   apiKeyEnvVar: z.string(),
   supportsBaseUrl: z.boolean(),
   defaultBaseUrl: z.string().optional(),
+  supportedProtocols: z.array(ProviderProtocolSchema),
+  defaultProtocol: ProviderProtocolSchema,
   // Agent compatibility:
   /** CLI agents that can use this API provider (e.g., ["codex"] for openai_api) */
   compatibleCliAgents: z.array(z.string()),
@@ -346,6 +353,8 @@ export const ProviderConfigSchema = z.object({
   base_url_env_var: z.string().nullable(),
   supports_base_url: z.boolean(),
   default_base_url: z.string().nullable(),
+  supported_protocols: z.array(ProviderProtocolSchema),
+  default_protocol: ProviderProtocolSchema,
 });
 
 // ============================================================================
@@ -358,6 +367,7 @@ export const ValidateKeyInput = z.object({
   baseUrl: z.string().nullable().optional(),
   sessionToken: z.string().nullable().optional(),
   testModel: z.string().nullable().optional(),
+  protocol: ProviderProtocolSchema.nullable().optional(),
 });
 
 export const TestModelAvailabilityInput = z.object({
@@ -451,6 +461,7 @@ export const CodexOauthListModelsInput = z.object({
 
 export const GeminiOauthListModelsInput = z.object({
   accessToken: z.string(),
+  projectId: z.string().nullable().optional(),
 });
 
 export const RefreshOauthTokenInput = z.object({
@@ -572,6 +583,7 @@ export type PriceTier = z.infer<typeof PriceTierSchema>;
 export type UsageItem = z.infer<typeof UsageItemSchema>;
 export type QuotaInfo = z.infer<typeof QuotaInfoSchema>;
 export type ValidationResult = z.infer<typeof ValidationResultSchema>;
+export type ProviderProtocol = z.infer<typeof ProviderProtocolSchema>;
 export type KeyInfo = z.infer<typeof KeyInfoSchema>;
 export type FullKeyResponse = z.infer<typeof FullKeyResponseSchema>;
 export type SaveKeyRequest = z.infer<typeof SaveKeyRequestSchema>;

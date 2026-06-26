@@ -211,29 +211,35 @@ export const isTauriDesktop = () => {
   return true;
 };
 
-// Cache user agent once -- platform never changes at runtime
+// Cache platform signals once -- platform never changes at runtime
 const userAgent =
   typeof navigator !== "undefined" ? navigator.userAgent.toLowerCase() : "";
+const processPlatform =
+  typeof process !== "undefined" ? process.platform : undefined;
 
 /**
  * Check if running on macOS
  * @returns {boolean} Whether the app is running on macOS
  */
 export const isMacOS = (): boolean =>
-  userAgent.includes("macintosh") || userAgent.includes("mac os");
+  processPlatform === "darwin" ||
+  userAgent.includes("macintosh") ||
+  userAgent.includes("mac os");
 
 /**
  * Check if running on Windows
  * @returns {boolean} Whether the app is running on Windows
  */
-export const isWindows = (): boolean => userAgent.includes("windows");
+export const isWindows = (): boolean =>
+  processPlatform === "win32" || userAgent.includes("windows");
 
 /**
  * Check if running on Linux
  * @returns {boolean} Whether the app is running on Linux
  */
 export const isLinux = (): boolean =>
-  userAgent.includes("linux") && !userAgent.includes("android");
+  processPlatform === "linux" ||
+  (userAgent.includes("linux") && !userAgent.includes("android"));
 
 /**
  * Get Tauri version information

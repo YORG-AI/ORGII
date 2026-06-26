@@ -276,11 +276,9 @@ pub(super) async fn execute_parallel_group(
         };
         let is_error = rich.is_none() || is_error_text(&raw_text);
 
-        if FILE_READ_TOOLS.contains(&call.name.as_str()) && !is_error {
-            for path in extract_file_paths(&call.name, &exec_result.effective_args) {
-                file_tracker.record_read(&path);
-            }
-        }
+        // Single entry point keeps read/write bookkeeping identical to the
+        // sequential path in `single.rs` (no drift).
+        file_tracker.record_tool_file_effects(&call.name, &exec_result.effective_args, is_error);
 
         let budget = tools.get(&call.name).map(|t| t.output_budget());
         let mut truncated = truncate_output(&raw_text, budget);

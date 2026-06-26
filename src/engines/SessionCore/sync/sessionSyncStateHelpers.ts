@@ -51,6 +51,7 @@ export interface SessionLoadStateActions {
   setEvents: (update: SetStateAction<SessionEvent[]>) => void;
   setWpReadOnly: (value: boolean) => void;
   setSessionContextTokens: (value: number) => void;
+  setSessionContextUsage: (value: ContextUsageSnapshot | null) => void;
   setSessionRuntimeStatus: (value: CliSessionStatus) => void;
   setSessionRuntimeError: (value: string | null) => void;
 }
@@ -111,6 +112,7 @@ export function applyPostLoadResult(
   actions: Pick<
     SessionLoadStateActions,
     | "setSessionContextTokens"
+    | "setSessionContextUsage"
     | "setSessionRuntimeStatus"
     | "setSessionRuntimeError"
   >
@@ -118,6 +120,9 @@ export function applyPostLoadResult(
   if (!postResult) return;
   if (postResult.contextTokens !== undefined) {
     actions.setSessionContextTokens(postResult.contextTokens);
+  }
+  if (postResult.contextUsage !== undefined) {
+    actions.setSessionContextUsage(postResult.contextUsage);
   }
   if (postResult.runStatus !== undefined) {
     actions.setSessionRuntimeStatus(toCliSessionStatus(postResult.runStatus));

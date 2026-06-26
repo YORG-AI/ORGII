@@ -342,6 +342,7 @@ const CustomAgentToolsSection: React.FC<CustomAgentToolsSectionProps> = ({
               rowDataTestId={(row) => `agent-orgs-tool-row-${row.name}`}
               headerHeight="tall"
               pageSize={50}
+              maxHeight="min(420px, calc(100vh - 280px))"
               className="table-expanded-no-hover"
               expandable={{
                 expandedRowRender: renderExpandedToolCard,

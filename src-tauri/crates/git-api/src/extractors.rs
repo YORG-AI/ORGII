@@ -23,6 +23,12 @@ fn strip_extended_length_prefix(path_str: &str) -> &str {
     path_str.strip_prefix(r"\\?\").unwrap_or(path_str)
 }
 
+#[cfg(windows)]
+pub(crate) fn has_windows_users_prefix(path_str: &str) -> bool {
+    let bytes = path_str.as_bytes();
+    bytes.len() >= 9 && bytes[0].is_ascii_alphabetic() && bytes.get(1..9) == Some(br":\Users\")
+}
+
 /// Check whether `path` falls under a user-accessible directory.
 ///
 /// Platform rules:
@@ -59,8 +65,7 @@ fn is_path_allowed(path: &StdPath) -> bool {
     #[cfg(windows)]
     {
         // Allow <drive>:\Users (e.g. C:\Users, D:\Users)
-        let bytes = clean.as_bytes();
-        if bytes.len() >= 9 && bytes[0].is_ascii_alphabetic() && &clean[1..9] == r":\Users\" {
+        if has_windows_users_prefix(clean) {
             return true;
         }
     }

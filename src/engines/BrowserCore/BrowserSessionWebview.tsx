@@ -66,14 +66,15 @@ const BrowserSessionWebview: React.FC<BrowserSessionWebviewProps> = ({
 
   const webviewConfig = useMemo(() => {
     const hasNavigableUrl = !isBlankBrowserUrl(session.url);
+    const shouldActivateWebview = hasNavigableUrl && isActive && isTabActive;
 
     return {
       containerRef,
       url: session.url,
-      // Keep webview alive whenever it has a navigable URL, even when the
-      // owning React subtree is temporarily hidden.
-      isActive: hasNavigableUrl,
-      isVisible: isActive && hasNavigableUrl && isTabActive,
+      // Defers native creation for restored/background tabs so old URLs do not
+      // replay as live browser pages when the shared Browser host remounts.
+      isActive: shouldActivateWebview,
+      isVisible: shouldActivateWebview,
       // Use exact label (no UUID) so we can predict it for console log polling
       labelPrefix: `browser-session-${session.id}`,
       useExactLabel: true,

@@ -8,7 +8,6 @@ import { getGitRemotes } from "@src/api/http/git/remotes";
 import { listOpenPRsLocal } from "@src/api/tauri/github";
 import { Message } from "@src/components/Message";
 import { buildIntegrationsPath } from "@src/config/mainAppPaths/integrations";
-import { createLogger } from "@src/hooks/logger";
 import {
   createPullRequest,
   parseGithubRepoFullName,
@@ -31,8 +30,6 @@ import {
   setStoredWorkstationPr,
   shouldAutoCreateWorkstationPr,
 } from "./workstationPrHelpers";
-
-const logger = createLogger("useWorkstationPr");
 
 export interface UseWorkstationPrOptions {
   repoPath: string;

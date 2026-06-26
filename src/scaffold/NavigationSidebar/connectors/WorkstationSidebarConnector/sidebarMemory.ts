@@ -3,6 +3,13 @@ import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/compone
 
 import type { WorkstationSidebarKey } from "./types";
 
+const WORKSTATION_SIDEBAR_MEMORY_LABEL: Record<WorkstationSidebarKey, string> =
+  {
+    folders: "Folders sidebar",
+    projects: "Projects sidebar",
+    workstation: "Session sidebar",
+  };
+
 interface UseWorkstationSidebarMemoryParams {
   activeSessionId: string;
   activeSidebarKey: WorkstationSidebarKey;
@@ -28,14 +35,7 @@ export function useWorkstationSidebarMemory({
 }: UseWorkstationSidebarMemoryParams): void {
   useSidebarMemoryEntry({
     kind: SIDEBAR_MEMORY_KIND.SESSION,
-    label:
-      activeSidebarKey === "projects"
-        ? "Projects sidebar"
-        : activeSidebarKey === "folders"
-          ? "Folders sidebar"
-          : activeSidebarKey === "colleagues"
-            ? "Colleagues sidebar"
-            : "Session sidebar",
+    label: WORKSTATION_SIDEBAR_MEMORY_LABEL[activeSidebarKey],
     items: pinnedMenuItems.length + sidebarMenuItems.length,
     sections: allSectionIds.length,
     tabs: tabCount,

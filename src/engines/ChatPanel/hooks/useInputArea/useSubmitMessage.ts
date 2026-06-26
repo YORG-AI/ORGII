@@ -23,6 +23,7 @@ import Message from "@src/components/Message";
 import { extractQuestionBatch } from "@src/engines/ChatPanel/InputArea/AskQuestionCard/extractQuestionBatch";
 import { chatEventsAtom } from "@src/engines/SessionCore";
 import { createLogger } from "@src/hooks/logger";
+import { sessionByIdAtom } from "@src/store/session";
 import type { ChatImageAttachment } from "@src/store/ui/chatImageAtom";
 import { wpReadOnlyAtom } from "@src/store/ui/chatPanelAtom";
 
@@ -96,6 +97,12 @@ export interface UseSubmitMessageOptions {
 // ============================================================================
 // Hook
 // ============================================================================
+
+function lastSerializedPillLabel(rawLabel: string): string {
+  const trimmed = rawLabel.trim();
+  const lastSpaceIdx = trimmed.search(/\s[^\s]*$/);
+  return lastSpaceIdx >= 0 ? trimmed.slice(lastSpaceIdx + 1).trim() : trimmed;
+}
 
 export function useSubmitMessage({
   refs,
@@ -196,7 +203,7 @@ export function useSubmitMessage({
       // ── Session pill ID injection ─────────────────────────────────────────
       // Session pills carry only the session ID (no transcript). Extract them
       // from the serialized display text and append lightweight references.
-      const sessionPillPattern = /([^[\s]+)\s*\[session:([^\]]+)\]/g;
+      const sessionPillPattern = /([^\n[]+?)\s*\[session:([^\]]+)\]/g;
       const sessionRefs: string[] = [];
       let sessionMatch: RegExpExecArray | null;
       while (
@@ -204,7 +211,15 @@ export function useSubmitMessage({
           hasSkillPills ? skillExpanded : displayText
         )) !== null
       ) {
-        sessionRefs.push(`[Session Reference: ${sessionMatch[2]}]`);
+        const referencedSessionId = sessionMatch[2];
+        const referencedSession = store.get(
+          sessionByIdAtom(referencedSessionId)
+        );
+        const fallbackLabel = lastSerializedPillLabel(sessionMatch[1]);
+        const label = referencedSession?.name?.trim() || fallbackLabel;
+        sessionRefs.push(
+          `[Session Reference: ${label} (${referencedSessionId})]`
+        );
       }
 
       // ── Terminal/PR pill text collection ─────────────────────────────────

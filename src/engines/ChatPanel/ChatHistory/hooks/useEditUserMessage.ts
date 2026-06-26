@@ -20,7 +20,7 @@ import {
   truncateAfterMessage,
 } from "@src/api/tauri/agent";
 import Message from "@src/components/Message";
-import { useMessageDispatch } from "@src/engines/ChatPanel/hooks/useWorkspaceChat/useMessageDispatch";
+import { useUserIntentSubmit } from "@src/engines/ChatPanel/hooks/useWorkspaceChat/useUserIntentSubmit";
 import { editTruncationTimestampAtom } from "@src/engines/SessionCore";
 import {
   beginOptimisticTurn,
@@ -70,7 +70,7 @@ export function useEditUserMessage(): (
     () => store.get(activeSessionIdAtom) ?? store.get(sessionIdAtom),
     [store]
   );
-  const { addUserMessage, dispatchMessageBySessionType } = useMessageDispatch({
+  const submitUserIntent = useUserIntentSubmit({
     getSessionId: resolveCurrentSessionId,
   });
   const { t } = useTranslation("sessions");
@@ -210,14 +210,12 @@ export function useEditUserMessage(): (
 
         const resendImages =
           imageDataUrls && imageDataUrls.length > 0 ? imageDataUrls : undefined;
-        await addUserMessage(newText, resendImages);
-        if (initiatedSessionId) {
-          await dispatchMessageBySessionType(
-            initiatedSessionId,
-            newText,
-            resendImages
-          );
-        }
+        await submitUserIntent({
+          sessionId: initiatedSessionId,
+          displayContent: newText,
+          imageDataUrls: resendImages,
+          source: "dispatch",
+        });
       } catch (err) {
         log.error("[useEditUserMessage] edit truncate/resubmit failed:", err);
         if (initiatedSessionId) failOptimisticTurn(initiatedSessionId);
@@ -237,8 +235,7 @@ export function useEditUserMessage(): (
       setPendingPlanApprovals,
       clearTodosForSession,
       resolveCurrentSessionId,
-      addUserMessage,
-      dispatchMessageBySessionType,
+      submitUserIntent,
       t,
       store,
     ]

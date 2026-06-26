@@ -22,4 +22,8 @@ interface Window {
   __internalWorkstationTabDrag?: boolean;
   /** JSON-serialised { path, name, type } payload for the active tab drag */
   __internalWorkstationTabDragData?: string;
+  /** Last PR reference drag payload fallback for WebViews that strip custom MIME data */
+  __orgiiLastPrDrag?: { timestamp: number; [key: string]: unknown };
+  /** Last issue reference drag payload fallback for WebViews that strip custom MIME data */
+  __orgiiLastIssueDrag?: { timestamp: number; [key: string]: unknown };
 }

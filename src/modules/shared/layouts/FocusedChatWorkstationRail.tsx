@@ -15,6 +15,7 @@ import { useNavigate } from "react-router-dom";
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import { IconButton } from "@src/components/IconButton";
 import { ROUTES } from "@src/config/routes";
+import { getTerminalDisplayTitle } from "@src/engines/TerminalCore/types";
 import { useCloseTabWithGuard } from "@src/hooks/workStation/tabs/useCloseTabWithGuard";
 import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
@@ -28,6 +29,12 @@ import {
 } from "@src/store/ui/workStationAtom";
 import { activeWorkspaceRootAtom } from "@src/store/workspace";
 import { type DockFilter, dockFilterAtom } from "@src/store/workstation";
+import {
+  initializedTerminalIdsAtom,
+  setActiveTerminalAtom,
+  terminalSessionsAtom,
+} from "@src/store/workstation/codeEditor/terminal";
+import { codeEditorTerminalTargetAtom } from "@src/store/workstation/codeEditor/terminalTargetAtom";
 import { tabToHost } from "@src/store/workstation/tabHost";
 import {
   focusTabAtom,
@@ -101,8 +108,12 @@ export function FocusedChatWorkstationRail() {
 
   const activeWorkspaceRoot = useAtomValue(activeWorkspaceRootAtom);
   const tabEntries = useAtomValue(tabRegistryAtom);
+  const terminalSessions = useAtomValue(terminalSessionsAtom);
+  const initializedTerminalIds = useAtomValue(initializedTerminalIdsAtom);
   const closeTab = useCloseTabWithGuard();
   const setFocusedTab = useSetAtom(focusTabAtom);
+  const setActiveTerminal = useSetAtom(setActiveTerminalAtom);
+  const setTerminalTarget = useSetAtom(codeEditorTerminalTargetAtom);
   const setStationMode = useSetAtom(stationModeAtom);
   const setChatPanelMaximized = useSetAtom(chatPanelMaximizedAtom);
   const setDockFilter = useSetAtom(dockFilterAtom);
@@ -143,26 +154,57 @@ export function FocusedChatWorkstationRail() {
     [openWorkstationHost, setFocusedTab]
   );
 
-  const openTabItems = useMemo<FocusedChatRailItem[]>(
-    () =>
-      openTabs.slice(0, 6).map(({ tab }) => ({
-        key: tab.id,
-        label: tab.title,
-        icon:
-          tab.type === "terminal"
-            ? Terminal
-            : tab.type === "browser-session"
-              ? Globe
-              : File,
-        fileName: getRailTabFileName(tab),
-        onClick: () => openWorkstationTab(tab),
-        onClose:
-          tab.closable === false
-            ? undefined
-            : () => void closeTab({ tabId: tab.id }),
-      })),
-    [closeTab, openTabs, openWorkstationTab]
+  const openTerminalSession = useCallback(
+    (sessionId: string) => {
+      setActiveTerminal(sessionId);
+      setTerminalTarget({ kind: "pty", ptySessionId: sessionId });
+      setFocusedTab({ tabId: "terminal:main" });
+      openWorkstationHost("code");
+    },
+    [openWorkstationHost, setActiveTerminal, setFocusedTab, setTerminalTarget]
   );
+
+  const openTabItems = useMemo<FocusedChatRailItem[]>(() => {
+    const terminalItems = terminalSessions
+      .filter(
+        (session) =>
+          !session.readOnly &&
+          initializedTerminalIds.has(session.id) &&
+          (!session.isDefaultSession || session.hasUserInput === true)
+      )
+      .map((session) => ({
+        key: `terminal-session:${session.id}`,
+        label: getTerminalDisplayTitle(session),
+        icon: Terminal,
+        onClick: () => openTerminalSession(session.id),
+      }));
+
+    const tabItems = openTabs.slice(0, 6).map(({ tab }) => ({
+      key: tab.id,
+      label: tab.title,
+      icon:
+        tab.type === "terminal"
+          ? Terminal
+          : tab.type === "browser-session"
+            ? Globe
+            : File,
+      fileName: getRailTabFileName(tab),
+      onClick: () => openWorkstationTab(tab),
+      onClose:
+        tab.closable === false
+          ? undefined
+          : () => void closeTab({ tabId: tab.id }),
+    }));
+
+    return [...tabItems, ...terminalItems];
+  }, [
+    closeTab,
+    initializedTerminalIds,
+    openTabs,
+    openTerminalSession,
+    openWorkstationTab,
+    terminalSessions,
+  ]);
 
   const handlePrimarySidebarClick = useCallback(
     (tab: PrimarySidebarTabKey) => {
@@ -242,17 +284,17 @@ export function FocusedChatWorkstationRail() {
   ];
 
   return (
-    <div className="pointer-events-none absolute right-3 top-12 z-20 hidden xl:flex">
+    <div className="pointer-events-none absolute right-1 top-12 z-20 hidden xl:flex">
       <div
         className={`pointer-events-auto flex bg-bg-2/90 transition-all ${
           collapsed
-            ? "flex-col items-center rounded-2xl border-2 border-border-1 p-1.5"
-            : "w-64 flex-col rounded-2xl border-2 border-border-1 p-1.5"
+            ? "flex-col items-center rounded-xl border-[1px] border-border-1 p-1"
+            : "w-64 flex-col rounded-xl border-[1px] border-border-1 p-1"
         }`}
       >
         <button
           type="button"
-          className="text-text-tertiary hover:text-text-primary mb-1 flex h-7 w-7 items-center justify-center rounded-lg transition hover:bg-fill-2"
+          className="text-text-tertiary hover:text-text-primary mb-1 flex h-7 w-7 items-center justify-center self-end rounded-lg transition hover:bg-fill-2"
           onClick={() =>
             setCollapsed((value) => {
               const nextValue = !value;

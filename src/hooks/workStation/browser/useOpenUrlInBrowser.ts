@@ -17,6 +17,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import Message from "@src/components/Message";
 import { ROUTES } from "@src/config/routes";
 import { useBrowserContext } from "@src/contexts/workstation";
+import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import {
   comparableBrowserUrl,
@@ -29,6 +30,7 @@ export function useOpenUrlInBrowser(): void {
   const location = useLocation();
   const stationMode = useAtomValue(stationModeAtom);
   const setStationMode = useSetAtom(stationModeAtom);
+  const setChatPanelMaximized = useSetAtom(chatPanelMaximizedAtom);
   const { sessions, handleAddSession, handleSessionClick } =
     useBrowserContext();
 
@@ -46,6 +48,11 @@ export function useOpenUrlInBrowser(): void {
   useEffect(() => {
     setStationModeRef.current = setStationMode;
   }, [setStationMode]);
+
+  const setChatPanelMaximizedRef = useRef(setChatPanelMaximized);
+  useEffect(() => {
+    setChatPanelMaximizedRef.current = setChatPanelMaximized;
+  }, [setChatPanelMaximized]);
 
   const pathnameRef = useRef(location.pathname);
   useEffect(() => {
@@ -88,6 +95,7 @@ export function useOpenUrlInBrowser(): void {
         pathnameRef.current === ROUTES.workStation.browser.path;
 
       if (shouldNavigate) {
+        setChatPanelMaximizedRef.current(false);
         setStationModeRef.current("my-station");
         navigateRef.current(ROUTES.workStation.browser.path);
         return;
@@ -108,6 +116,7 @@ export function useOpenUrlInBrowser(): void {
           label: tRef.current("browser.goToBrowser"),
           closeOnClick: true,
           onClick: () => {
+            setChatPanelMaximizedRef.current(false);
             setStationModeRef.current("my-station");
             navigateRef.current(ROUTES.workStation.browser.path);
           },

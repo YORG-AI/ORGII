@@ -49,6 +49,14 @@ pub async fn set_user_presence(presence: crate::session::UserPresence) -> Result
     Ok(())
 }
 
+/// Push the user's current profile into the process-wide snapshot so
+/// backend-only/background turns can render the same User Profile section.
+#[tauri::command]
+pub async fn set_user_profile(profile: Option<crate::session::UserProfile>) -> Result<(), String> {
+    crate::interaction::profile_state::set_global_profile(profile);
+    Ok(())
+}
+
 /// Reject a question from the agent.
 #[tauri::command]
 pub async fn agent_question_reject(

@@ -35,6 +35,7 @@ export interface PendingPlanApproval {
   planId?: string;
   planRevisionId?: string;
   originToolCallId?: string;
+  autoApproveAt?: number | null;
 }
 
 export interface SessionPlanApprovalState {

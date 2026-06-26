@@ -229,6 +229,7 @@ export function useWizard(options: UseWizardOptions): UseWizardReturn {
       api_key: apiKeyForRequest,
       session_token: sessionTokenForRequest,
       base_url: cleanInput(data.extracted_base_url),
+      protocol: data.protocol,
       env_vars: Object.keys(envVarRecord).length > 0 ? envVarRecord : undefined,
       available_models:
         allAvailableModels.length > 0 ? allAvailableModels : allowedModels,

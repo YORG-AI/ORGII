@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..", "..");
-const appBinary = resolve(repoRoot, "src-tauri/target/debug/orgii");
+const appBinary = resolve(repoRoot, "src-tauri/target/debug/org2");
 
 // Load tests/e2e/.env so specs can read OPENAI_API_KEY etc. via process.env.
 // Quiet failure is fine — the .env is optional; without it, tests fall back to
@@ -278,7 +278,7 @@ ensureBenchmarkDockerFixtureRepo();
 const WDIO_PRE_FLIGHT_PORTS = [webDriverPort, frontendPort, ideServerPort];
 const WDIO_PRE_FLIGHT_PROCESS_PATTERNS = [
   "tauri-wd",
-  "src-tauri/target/debug/orgii",
+  "src-tauri/target/debug/org2",
 ];
 let frontendServerProcess = null;
 let tauriWebDriverProcess = null;
@@ -592,7 +592,7 @@ function buildWebDriverApp() {
         "--manifest-path",
         resolve(repoRoot, "src-tauri/Cargo.toml"),
         "-p",
-        "orgii",
+        "org2",
         "--features",
         "webdriver",
       ],

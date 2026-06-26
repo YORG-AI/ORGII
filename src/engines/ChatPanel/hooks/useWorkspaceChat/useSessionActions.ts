@@ -96,12 +96,19 @@ export function shouldRestoreStoppedUserMessage(options: {
 }): boolean {
   if (!options.message) return false;
 
-  const userEventIndex = options.events.findLastIndex(
-    (event) =>
+  const { message } = options;
+  let userEventIndex = -1;
+  for (let index = options.events.length - 1; index >= 0; index -= 1) {
+    const event = options.events[index];
+    if (
       event.sessionId === options.sessionId &&
       event.source === "user" &&
-      event.displayText === options.message?.displayContent
-  );
+      event.displayText === message.displayContent
+    ) {
+      userEventIndex = index;
+      break;
+    }
+  }
   if (userEventIndex === -1) return true;
 
   return !options.events
@@ -185,27 +192,29 @@ export function useSessionActions(options: UseSessionActionsOptions) {
       pendingImages: pendingSyntheticEvent?.result?.images,
     });
 
+    const restorableMessage = currentUserMessage;
     if (
+      restorableMessage &&
       shouldRestoreStoppedUserMessage({
         events: store.get(eventsAtom),
         sessionId,
-        message: currentUserMessage,
+        message: restorableMessage,
       })
     ) {
       setRestoreToInput({
         sessionId,
-        displayContent: currentUserMessage.displayContent,
-        imageDataUrls: currentUserMessage.imageDataUrls,
+        displayContent: restorableMessage.displayContent,
+        imageDataUrls: restorableMessage.imageDataUrls,
       });
       markRestoredStopDraft({
         sessionId,
-        displayContent: currentUserMessage.displayContent,
-        imageDataUrls: currentUserMessage.imageDataUrls,
+        displayContent: restorableMessage.displayContent,
+        imageDataUrls: restorableMessage.imageDataUrls,
       });
       suppressRestoredStopSubmit({
         sessionId,
-        displayContent: currentUserMessage.displayContent,
-        imageDataUrls: currentUserMessage.imageDataUrls,
+        displayContent: restorableMessage.displayContent,
+        imageDataUrls: restorableMessage.imageDataUrls,
       });
     }
 

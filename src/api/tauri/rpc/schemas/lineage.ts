@@ -320,6 +320,33 @@ export const OrgtrackCommitLinkSchema = z.object({
   linkedAt: z.string(),
 });
 
+export const OrgtrackSubmissionCommitPersonSchema = z.object({
+  name: z.string(),
+  email: z.string(),
+  date: z.string(),
+});
+
+export const OrgtrackSubmissionCommitSchema = z.object({
+  sha: z.string(),
+  short_sha: z.string(),
+  summary: z.string(),
+  author: OrgtrackSubmissionCommitPersonSchema.nullable().optional(),
+  repoId: z.string().optional(),
+  repoPath: z.string().optional(),
+  origin: z.enum(["created", "mentioned"]),
+});
+
+export const OrgtrackDiffReplayPreviewInput =
+  OrgtrackSessionArtifactQueryInput.extend({
+    repoId: z.string().optional(),
+    repoPath: z.string().optional(),
+  });
+
+export const OrgtrackDiffReplayPreviewSchema = z.object({
+  finalDiffs: z.array(OrgtrackSessionFinalDiffSchema),
+  submissionCommits: z.array(OrgtrackSubmissionCommitSchema),
+});
+
 export const OrgtrackSessionCheckpointSchema = z.object({
   schemaVersion: z.number().int(),
   checkpointId: z.string(),
@@ -501,6 +528,9 @@ export type OrgtrackSessionFinalDiff = z.output<
   typeof OrgtrackSessionFinalDiffSchema
 >;
 export type OrgtrackCommitLink = z.output<typeof OrgtrackCommitLinkSchema>;
+export type OrgtrackDiffReplayPreview = z.output<
+  typeof OrgtrackDiffReplayPreviewSchema
+>;
 export type OrgtrackSessionCheckpoint = z.output<
   typeof OrgtrackSessionCheckpointSchema
 >;

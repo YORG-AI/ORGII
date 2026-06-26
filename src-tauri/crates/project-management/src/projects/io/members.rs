@@ -258,8 +258,9 @@ fn shortlog_from_repo(repo_path: &Path) -> Result<Vec<GitContributor>, String> {
 ///   `last_commit_date` ordering takes effect immediately.
 ///
 /// Returns counts of added / updated rows and the new total.
-pub fn sync_members_from_git(project_id: &str) -> Result<SyncMembersResult, String> {
-    let project = read_project(project_id)?;
+pub fn sync_members_from_git(project_slug: &str) -> Result<SyncMembersResult, String> {
+    let project = read_project(project_slug)?;
+    let project_id = project.meta.id.clone();
 
     let mut contributors: Vec<GitContributor> = Vec::new();
     let mut latest_dates: HashMap<String, String> = HashMap::new();
@@ -285,7 +286,7 @@ pub fn sync_members_from_git(project_id: &str) -> Result<SyncMembersResult, Stri
         }
     }
 
-    let existing = read_members(project_id)?;
+    let existing = read_members(&project_id)?;
     let mut by_email: HashMap<String, MemberEntry> = HashMap::new();
     let mut by_id: HashMap<String, MemberEntry> = HashMap::new();
     for member in &existing.members {
@@ -357,7 +358,7 @@ pub fn sync_members_from_git(project_id: &str) -> Result<SyncMembersResult, Stri
     });
 
     let total = merged.len() as u32;
-    write_members(project_id, &MembersFile { members: merged })?;
+    write_members(&project_id, &MembersFile { members: merged })?;
 
     Ok(SyncMembersResult {
         added,
@@ -400,6 +401,22 @@ mod tests {
     fn read_members_for_unknown_project_is_empty() {
         let _sandbox = test_env::sandbox();
         let members = read_members("nope").expect("read");
+        assert!(members.members.is_empty());
+    }
+
+    #[test]
+    fn sync_members_from_git_uses_project_id_for_member_rows() {
+        let _sandbox = test_env::sandbox();
+        let mut meta = fixture_project("project-alpha", "Alpha");
+        meta.linked_repos = vec![];
+        write_project("alpha", &meta, "", true).expect("create");
+
+        let result = sync_members_from_git("alpha").expect("sync");
+        assert_eq!(result.total, 0);
+        assert_eq!(result.added, 0);
+        assert_eq!(result.updated, 0);
+
+        let members = read_members("project-alpha").expect("read by project id");
         assert!(members.members.is_empty());
     }
 

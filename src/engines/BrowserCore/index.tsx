@@ -13,8 +13,15 @@
  * - Native webview rendering
  */
 import { useAtomValue } from "jotai";
-import { CloudOff, Globe, HatGlasses, Monitor, RefreshCw } from "lucide-react";
-import React, { useEffect, useMemo, useRef } from "react";
+import {
+  CloudOff,
+  ExternalLink,
+  Globe,
+  HatGlasses,
+  Monitor,
+  RefreshCw,
+} from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
@@ -23,6 +30,7 @@ import { createLogger } from "@src/hooks/logger";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { webviewBlockedAtom } from "@src/store/ui/overlayAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
+import { openExternalLink } from "@src/util/platform/ipcRenderer";
 
 import BrowserSessionWebview from "./BrowserSessionWebview";
 import type { UseBrowserStateReturn } from "./hooks/useBrowserState";
@@ -33,10 +41,29 @@ const log = createLogger("BrowserCore");
 
 const ABOUT_BLANK_URL = "about:blank";
 const SHOW_WEBVIEW_FRAME_ANCHOR = false;
+const EMBEDDED_BROWSER_WARNING_DELAY_MS = 3000;
+const EMBEDDED_BROWSER_SENSITIVE_HOSTS = new Set([
+  "github.com",
+  "www.github.com",
+  "accounts.google.com",
+  "google.com",
+  "www.google.com",
+]);
 
 function isBlankBrowserUrl(url?: string): boolean {
   const normalizedUrl = url?.trim().toLowerCase();
   return !normalizedUrl || normalizedUrl.startsWith(ABOUT_BLANK_URL);
+}
+
+function shouldShowEmbeddedBrowserFallback(url?: string): boolean {
+  if (!url || isBlankBrowserUrl(url)) return false;
+
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return EMBEDDED_BROWSER_SENSITIVE_HOSTS.has(hostname);
+  } catch {
+    return false;
+  }
 }
 
 // ============================================
@@ -154,6 +181,10 @@ export const BrowserCore: React.FC<BrowserCoreProps> = ({
   const isLoadingRaw = currentSession?.isLoading || false;
   const isIncognito = currentSession?.incognito || false;
   const displayError = currentSession?.error || null;
+  const currentUrl = currentSession?.url;
+  const [embeddedFallbackUrl, setEmbeddedFallbackUrl] = React.useState<
+    string | null
+  >(null);
   const hasSessionWithUrl = sessions.some(
     (session) => !isBlankBrowserUrl(session.url)
   );
@@ -171,6 +202,31 @@ export const BrowserCore: React.FC<BrowserCoreProps> = ({
     const timer = setTimeout(() => setIsLoading(true), 500);
     return () => clearTimeout(timer);
   }, [isLoadingRaw]);
+
+  useEffect(() => {
+    if (
+      !isWebviewAvailable ||
+      !isTabReallyActive ||
+      displayError ||
+      !shouldShowEmbeddedBrowserFallback(currentUrl)
+    ) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setEmbeddedFallbackUrl(currentUrl ?? null);
+    }, EMBEDDED_BROWSER_WARNING_DELAY_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [currentUrl, displayError, isTabReallyActive, isWebviewAvailable]);
+
+  const showEmbeddedBrowserFallback =
+    Boolean(currentUrl) && embeddedFallbackUrl === currentUrl;
+
+  const handleOpenExternal = useCallback(() => {
+    if (!currentUrl) return;
+    void openExternalLink(currentUrl);
+  }, [currentUrl]);
 
   return (
     <div
@@ -287,6 +343,68 @@ export const BrowserCore: React.FC<BrowserCoreProps> = ({
             currentSession?.url && (
               <div className="browser-loading-overlay">
                 <Placeholder variant="loading" />
+              </div>
+            )}
+
+          {/* Embedded browser fallback */}
+          {isWebviewAvailable &&
+            isTabReallyActive &&
+            showEmbeddedBrowserFallback &&
+            currentUrl &&
+            !displayError && (
+              <div className="browser-native-info browser-embedded-fallback">
+                <div className="browser-native-placeholder">
+                  <CloudOff
+                    size={64}
+                    strokeWidth={1.5}
+                    className="text-text-3 opacity-60"
+                  />
+                  <h3 className="mt-4">
+                    {t("workstation.browserCore.embeddedFallbackTitle")}
+                  </h3>
+                  <p>{t("workstation.browserCore.embeddedFallbackBody")}</p>
+                  <div className="allow-select browser-current-url">
+                    <span className="label">
+                      {t("workstation.browserCore.currentUrl")}
+                    </span>
+                    <span className="url">{currentUrl}</span>
+                  </div>
+                  <div className="mt-6 flex justify-center gap-2">
+                    <Button
+                      variant="primary"
+                      size="small"
+                      icon={<ExternalLink size={14} strokeWidth={1.75} />}
+                      htmlType="button"
+                      onClick={handleOpenExternal}
+                    >
+                      {t("previews.openInBrowser")}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="small"
+                      htmlType="button"
+                      onClick={() => setEmbeddedFallbackUrl(null)}
+                    >
+                      {t("actions.dismiss")}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="small"
+                      icon={<RefreshCw size={14} strokeWidth={1.75} />}
+                      htmlType="button"
+                      onClick={() => {
+                        if (!currentSession) return;
+                        setEmbeddedFallbackUrl(null);
+                        updateSession(currentSession.id, {
+                          isLoading: true,
+                          error: null,
+                        });
+                      }}
+                    >
+                      {t("actions.reload")}
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
 

@@ -21,6 +21,7 @@ interface RegisterTerminalEventHandlersParams {
   workingDirectoryRef: MutableRefObject<string | undefined>;
   onOpenFileLinkRef: MutableRefObject<TerminalViewProps["onOpenFileLink"]>;
   onOutput?: TerminalViewProps["onOutput"];
+  onUserInput?: TerminalViewProps["onUserInput"];
   onSelectionChange?: TerminalViewProps["onSelectionChange"];
   onTitleChange?: TerminalViewProps["onTitleChange"];
 }
@@ -48,9 +49,10 @@ function registerInputHandler({
   terminal,
   sessionIdRef,
   onOutput,
+  onUserInput,
 }: Pick<
   RegisterTerminalEventHandlersParams,
-  "terminal" | "sessionIdRef" | "onOutput"
+  "terminal" | "sessionIdRef" | "onOutput" | "onUserInput"
 >) {
   let pendingInput = "";
   let inputBatchScheduled = false;
@@ -72,6 +74,7 @@ function registerInputHandler({
   return terminal.onData((data) => {
     if (isTauriReady() && sessionIdRef.current) {
       onOutput?.();
+      onUserInput?.();
       pendingInput += data;
       if (!inputBatchScheduled) {
         inputBatchScheduled = true;
@@ -211,6 +214,7 @@ export function registerTerminalEventHandlers({
   workingDirectoryRef,
   onOpenFileLinkRef,
   onOutput,
+  onUserInput,
   onSelectionChange,
   onTitleChange,
 }: RegisterTerminalEventHandlersParams) {
@@ -218,6 +222,7 @@ export function registerTerminalEventHandlers({
     terminal,
     sessionIdRef,
     onOutput,
+    onUserInput,
   });
   const fileLinkProvider: IDisposable | null = registerFileLinkProvider({
     terminal,

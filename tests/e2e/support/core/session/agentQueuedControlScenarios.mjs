@@ -945,6 +945,19 @@ function repoExplorationPromptForConfig(config, waitSeconds = 20) {
   ].join(" ");
 }
 
+// Issue #110 pin: forces the agent to block the turn inside a REAL foreground
+// shell command (not the generic LLM "wait N seconds" prompt, which a provider
+// can satisfy with internal latency). Only a genuinely-running foreground shell
+// reproduces the swallowed-force-send path, because force-send must physically
+// kill that process for the cancelled terminal to land and release the queue.
+function blockingShellPromptForConfig(config, sleepSeconds = 45) {
+  return [
+    `Run a single blocking foreground shell command for ${config.label}:`,
+    `execute exactly \`sleep ${sleepSeconds}\` in the terminal and wait for it to finish.`,
+    "Do not run it in the background. After it completes, reply with a short confirmation.",
+  ].join(" ");
+}
+
 async function runFreshStopRollbackScenario(config) {
   const firstPrompt = longRunningPromptForConfig(config);
 
@@ -1996,6 +2009,97 @@ async function runForceSendScenario(config) {
   );
 }
 
+// Issue #110 regression: Force Send swallowed while a foreground terminal
+// command is running. Unlike runForceSendScenario (which uses a generic LLM
+// "wait ~20s" prompt that a provider can satisfy with internal latency), this
+// scenario forces the agent to block the turn inside a REAL `sleep 45`
+// foreground shell command. Before the fix, force-send left that process alive,
+// so the cancelled terminal never landed promptly: the FSM stopping dead-man
+// (~10s) fired, the FE dispatched the marker message, but the backend scheduler
+// worker stayed blocked on turn #1 until `sleep 45` finished — the marker reply
+// only arrived ~45s later (the "swallowed" symptom). With the table-driven
+// boundary effects (force-send => shellKill:"foreground"), the foreground shell
+// is killed, `exec` returns, the turn loop observes cancel_flag, and the marker
+// turn lands well before the 45s command would have completed.
+//
+// Gated to configs that own a real `exec`/shell foreground tool (rust-agent).
+// Configs whose harness cannot run a blocking foreground shell are skipped by
+// the spec via config.supportsForegroundShell.
+async function runForceSendWhileShellRunningScenario(config) {
+  const SLEEP_SECONDS = 45;
+  const marker = `QUEUE_FORCE_SEND_SHELL_${config.label.replace(/[^a-zA-Z0-9]/g, "_")}_${Date.now()}`;
+  const firstPrompt = blockingShellPromptForConfig(config, SLEEP_SECONDS);
+  const followupPrompt = `Stop whatever is currently running and reply with exactly this marker and nothing else: ${marker}`;
+
+  await configureScenario(config);
+  const inputSelector = await waitForChatInput();
+  await typeAndClickSend(inputSelector, firstPrompt);
+  await waitForChatLaunched(firstPrompt);
+  await waitForWorkingTurn(config.label);
+
+  // Wait until a foreground shell tool call is actually rendered as running for
+  // this session — otherwise we'd race the force-send against tool dispatch and
+  // could pass without ever exercising the blocking-shell path.
+  await browser.waitUntil(
+    async () => {
+      const state = await inspectChatState(`${config.label}-force-send-shell`);
+      return (state.rawEvents ?? []).some(
+        (event) =>
+          event &&
+          event.actionType === "tool_call" &&
+          event.displayStatus === "running" &&
+          /shell|exec|terminal|run_shell/i.test(
+            `${event.functionName ?? ""} ${event.uiCanonical ?? ""}`
+          )
+      );
+    },
+    {
+      timeout: 30_000,
+      interval: 500,
+      timeoutMsg: `${config.label} never rendered a running foreground shell tool call for the blocking command; state=${JSON.stringify(summarizeChatState(await invokeE2E("inspectChatState")))}`,
+    }
+  );
+
+  const chatInputSelector = await waitForChatInput();
+  await typeAndClickSend(chatInputSelector, followupPrompt);
+  await waitForQueuedOrForceSentFollowup(marker);
+
+  const forceSendAtMs = Date.now();
+  await clickSendNowForQueuedMarker(marker);
+
+  // The core #110 assertion: the marker reply must arrive well before the 45s
+  // blocking command would have finished on its own. We give a generous margin
+  // (interrupt + provider terminal + redispatch + reply round-trip) but cap it
+  // far below SLEEP_SECONDS so a regression that waits for the command to drain
+  // naturally fails loudly instead of passing slowly.
+  const MAX_MARKER_LATENCY_MS = 30_000;
+  await waitForMarkerReply(marker, config.label);
+  const markerLatencyMs = Date.now() - forceSendAtMs;
+  if (markerLatencyMs >= SLEEP_SECONDS * 1_000) {
+    throw new Error(
+      `${config.label} Force Send was swallowed (regression #110): marker reply took ${markerLatencyMs}ms, i.e. the turn waited for the ${SLEEP_SECONDS}s foreground command to finish instead of force-send killing it.`
+    );
+  }
+  if (markerLatencyMs >= MAX_MARKER_LATENCY_MS) {
+    throw new Error(
+      `${config.label} Force Send marker reply was slow (${markerLatencyMs}ms >= ${MAX_MARKER_LATENCY_MS}ms): the foreground shell may not have been killed promptly on force-send.`
+    );
+  }
+  await waitForIdleSendButton(config.label);
+
+  const active = unwrap(
+    await invokeE2E("getActiveSessionId"),
+    "getActiveSessionId"
+  );
+  if (!active.sessionId) {
+    throw new Error(`${config.label} produced no active session id`);
+  }
+  expect(active.sessionId).toMatch(config.sessionIdPattern);
+  console.log(
+    `[queued-followup] ${config.label} force-send-while-shell session=${active.sessionId} marker=${marker} latencyMs=${markerLatencyMs}`
+  );
+}
+
 export {
   assertStationSurfacesConsistent,
   hasAuthoritativeRunningTurn,
@@ -2004,6 +2108,7 @@ export {
   runBurstQueueSendNowOrderingScenario,
   runChaosControlFlowScenario,
   runForceSendScenario,
+  runForceSendWhileShellRunningScenario,
   runFreshStopImageRestoreScenario,
   runFreshStopRollbackScenario,
   runQueueAutodispatchesAfterNaturalCompletionScenario,

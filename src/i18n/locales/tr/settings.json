@@ -127,6 +127,8 @@
     "uiScale": "Arayüz ölçeği",
     "timezoneAuto": "Otomatik (Tarayıcı)",
     "timezoneSearchPlaceholder": "En yakın şehirleri ara",
+    "sendOnEnter": "Mesajları Enter ile gönder",
+    "sendOnEnterDesc": "Etkinleştirildiğinde Enter gönderir ve Shift+Enter yeni satır ekler. Devre dışıysa Ctrl/Cmd+Enter gönderir.",
     "language": "Dil",
     "languageSearchPlaceholder": "Dillerde ara...",
     "languageNames": {
@@ -975,7 +977,9 @@
     "typingSpeed": "Yazma Hızı",
     "typingSpeedDesc": "Karakter başına milisaniye (1ms = en hızlı, 50ms = en yavaş)",
     "decryptEffect": "Decrypt Efekti",
-    "decryptEffectDesc": "Agent mesajları için Decrypt animasyonunu etkinleştir"
+    "decryptEffectDesc": "Agent mesajları için Decrypt animasyonunu etkinleştir",
+    "sendOnEnter": "Mesajları Enter ile gönder",
+    "sendOnEnterDesc": "Etkinleştirildiğinde Enter gönderir ve Shift+Enter yeni satır ekler. Devre dışıysa Ctrl/Cmd+Enter gönderir."
   },
   "languageServers": {
     "languageServersDesc": "Otomatik tamamlama, tanılama ve kod zekası için LSP sunucularını yönet",

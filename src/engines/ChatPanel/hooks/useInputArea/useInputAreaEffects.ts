@@ -24,13 +24,9 @@ import {
   type ChatImageAttachment,
   chatImageAttachmentsAtom,
 } from "@src/store/ui/chatImageAtom";
-import {
-  clearDroppedFilesAtom,
-  droppedFilesAtom,
-} from "@src/store/ui/dragDropAtom";
 import { prewarmFileIndex } from "@src/util/platform/tauri/fileSearch";
 
-import { isImageName } from "./imageExtensions";
+import { useDroppedFilesConsumer } from "./useDroppedFilesConsumer";
 import { useImageAttachment } from "./useImageAttachment";
 
 const MENU_OUTSIDE_CLICK_GRACE_MS = 120;
@@ -76,15 +72,19 @@ export function useInputAreaEffects(options: UseInputAreaEffectsOptions): void {
     onRestoreInputContent,
   } = options;
 
-  // Drag & drop file handling
-  const droppedFiles = useAtomValue(droppedFilesAtom);
-  const clearDroppedFiles = useSetAtom(clearDroppedFilesAtom);
-
   // Image attachments — unified entry point for paste / upload / drag-drop
   // images. `handleImagePath` reads bytes from a filesystem path and routes
   // them through the same optimize pipeline as `handleImagePaste`.
   const { handleImagePaste, handleImagePath } =
     useImageAttachment(dropTargetId);
+
+  useDroppedFilesConsumer({
+    composerInputRef,
+    dropTargetId,
+    hasContentRef,
+    handleImagePaste,
+    handleImagePath,
+  });
 
   // Restore-to-input signal set by the cancel-restore path after a
   // user-initiated cancel. We push the message back into the editor so
@@ -313,96 +313,4 @@ export function useInputAreaEffects(options: UseInputAreaEffectsOptions): void {
 
   // Consume pending "add-to-agent" requests — shared with SessionCreator.
   useAddToAgentInsertion(composerInputRef);
-
-  // Process Dropped Files from GlobalDragDrop.
-  //
-  // Two branches, both leading to the same surface the user sees:
-  //   - Images → `handleImagePath` → optimize → `chatImageAttachmentsAtom`
-  //     → `ImageAttachmentPreview` thumbnail.  This keeps drag on parity with
-  //     paste/upload (everything routes through one atom, one optimize step).
-  //   - Other files (incl. folders) → `insertFilePill` into ComposerInput.
-  useEffect(() => {
-    if (droppedFiles.length === 0) return;
-
-    const filesForThisTarget = droppedFiles.filter(
-      (file) => !file.dropTargetId || file.dropTargetId === dropTargetId
-    );
-    if (filesForThisTarget.length === 0) return;
-
-    // Track retry timers for cleanup if ComposerInput isn't mounted yet.
-    const retryTimers: ReturnType<typeof setTimeout>[] = [];
-    let cancelled = false;
-
-    // Folders can never be images, even if they happen to match an extension.
-    const imageFiles = filesForThisTarget.filter(
-      (file) =>
-        file.type !== "folder" &&
-        (file.browserFile?.type.startsWith("image/") || isImageName(file.name))
-    );
-    const otherFiles = filesForThisTarget.filter(
-      (file) => file.type === "folder" || !imageFiles.includes(file)
-    );
-
-    const browserImageFiles = imageFiles
-      .map((file) => file.browserFile)
-      .filter((file): file is File => Boolean(file));
-    const pathImageFiles = imageFiles.filter((file) => !file.browserFile);
-
-    const imagePromises: Promise<void>[] = [];
-
-    if (browserImageFiles.length > 0) {
-      imagePromises.push(handleImagePaste(browserImageFiles));
-    }
-
-    if (pathImageFiles.length > 0) {
-      imagePromises.push(
-        ...pathImageFiles.map((file) => handleImagePath(file.path, file.name))
-      );
-    }
-
-    if (otherFiles.length > 0) {
-      const insertPills = () => {
-        if (cancelled) return;
-
-        if (composerInputRef.current) {
-          otherFiles.forEach((file) => {
-            const isFolder = file.type === "folder";
-            composerInputRef.current?.insertFilePill(
-              file.path,
-              isFolder,
-              isFolder ? "folder" : "file"
-            );
-          });
-          hasContentRef.current = true;
-          Message.success(
-            i18n.t("toasts.addedFilesAsContext", { count: otherFiles.length })
-          );
-        } else {
-          const timer = setTimeout(insertPills, 100);
-          retryTimers.push(timer);
-        }
-      };
-
-      insertPills();
-    }
-
-    // Clear the atom only after all async image reads finish so a second drop
-    // batch arriving while the first is still in-flight does not race.
-    void Promise.all(imagePromises).then(() => {
-      if (!cancelled) clearDroppedFiles();
-    });
-
-    return () => {
-      cancelled = true;
-      retryTimers.forEach((timer) => clearTimeout(timer));
-    };
-  }, [
-    droppedFiles,
-    dropTargetId,
-    clearDroppedFiles,
-    composerInputRef,
-    hasContentRef,
-    handleImagePath,
-    handleImagePaste,
-  ]);
 }

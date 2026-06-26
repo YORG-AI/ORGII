@@ -189,6 +189,21 @@ const CreatePlanCard: React.FC<CreatePlanCardProps> = memo(
     const ready =
       surfaceState?.readyForReview ??
       (idMatch && !isStreaming && effectiveApprovalStatus === "pending");
+    const autoApproveAt = idMatch
+      ? (state.current?.autoApproveAt ?? null)
+      : null;
+    const [nowMs, setNowMs] = useState<number>(() => Date.now());
+
+    useEffect(() => {
+      if (!autoApproveAt || submitting) return;
+      const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+      return () => window.clearInterval(timer);
+    }, [autoApproveAt, submitting]);
+
+    const autoApproveRemaining =
+      autoApproveAt && !submitting && ready
+        ? Math.max(0, Math.ceil((autoApproveAt - nowMs) / 1000))
+        : null;
     const sessionIsWorking =
       sessionId === activeSessionId &&
       (runtimeStatus === "running" || runtimeStatus === "installing");
@@ -384,6 +399,13 @@ const CreatePlanCard: React.FC<CreatePlanCardProps> = memo(
         >
           {ownsActions && (
             <>
+              {autoApproveRemaining !== null && ready && !isEditing && (
+                <span className="chat-block-xs tabular-nums text-text-3">
+                  {t("chat.autoExecuteCountdown", {
+                    seconds: autoApproveRemaining,
+                  })}
+                </span>
+              )}
               {ready && !isEditing && (
                 <Button
                   variant="tertiary"

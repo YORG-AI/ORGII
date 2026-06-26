@@ -8,7 +8,6 @@
  *
  * Repo-agnostic: all state is owned by the caller (`useSourceControlSidebarModule`).
  */
-import { useAtomValue } from "jotai";
 import { Ellipsis, RefreshCw } from "lucide-react";
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -21,7 +20,6 @@ import Select from "@src/components/Select";
 import { useRefreshSpin } from "@src/hooks/ui";
 import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared/WorkstationToolbarTooltip";
 import { HEADER_ICON_SIZE } from "@src/modules/WorkStation/shared/tokens";
-import { workstationPrAtom } from "@src/store/workstation/codeEditor/workstationPrAtom";
 
 export type SourceControlFilterMode =
   | "uncommitted"
@@ -89,9 +87,6 @@ const SourceControlFilterHeader: React.FC<SourceControlFilterHeaderProps> =
       counts,
     }) => {
       const { t } = useTranslation("sessions");
-      const { prUrl, readyToCreate } = useAtomValue(workstationPrAtom);
-      const showPrOption =
-        Boolean(prUrl) || readyToCreate || mode === "pr" || mode === "issues";
 
       const getModeCount = useCallback(
         (modeId: SourceControlFilterMode) => {
@@ -140,30 +135,26 @@ const SourceControlFilterHeader: React.FC<SourceControlFilterHeaderProps> =
             ),
             triggerLabel: t("common:labels.gitHistory"),
           },
-          ...(showPrOption
-            ? [
-                {
-                  value: "pr",
-                  label: (
-                    <span className="whitespace-nowrap">
-                      {t("common:labels.pullRequest", "Pull request")}
-                    </span>
-                  ),
-                  triggerLabel: t("common:labels.pullRequest", "Pull request"),
-                },
-                {
-                  value: "issues",
-                  label: (
-                    <span className="whitespace-nowrap">
-                      {t("common:labels.issues", "Issues")}
-                    </span>
-                  ),
-                  triggerLabel: t("common:labels.issues", "Issues"),
-                },
-              ]
-            : []),
+          {
+            value: "pr",
+            label: (
+              <span className="whitespace-nowrap">
+                {t("common:labels.pullRequest", "Pull request")}
+              </span>
+            ),
+            triggerLabel: t("common:labels.pullRequest", "Pull request"),
+          },
+          {
+            value: "issues",
+            label: (
+              <span className="whitespace-nowrap">
+                {t("common:labels.issues", "Issues")}
+              </span>
+            ),
+            triggerLabel: t("common:labels.issues", "Issues"),
+          },
         ];
-      }, [getCountLabel, getModeCount, showPrOption, t]);
+      }, [getCountLabel, getModeCount, t]);
 
       const [moreMenuVisible, setMoreMenuVisible] = useState(false);
 

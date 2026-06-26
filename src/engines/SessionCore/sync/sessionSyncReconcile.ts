@@ -15,17 +15,25 @@ import {
 } from "./sessionSyncUtils";
 import type { SessionAdapter } from "./types";
 
+type PostLoadStateActions = Pick<
+  SessionLoadStateActions,
+  | "setSessionContextTokens"
+  | "setSessionContextUsage"
+  | "setSessionRuntimeStatus"
+  | "setSessionRuntimeError"
+>;
+
+type ReconcileStateActions = Pick<
+  SessionLoadStateActions,
+  "dispatchLoadSession"
+> &
+  PostLoadStateActions;
+
 export function reconcileInFlightHistory(
   sessionId: string,
   adapter: SessionAdapter,
   refs: Pick<SessionSyncRefs, "liveSessionIdRef">,
-  actions: Pick<
-    SessionLoadStateActions,
-    | "dispatchLoadSession"
-    | "setSessionContextTokens"
-    | "setSessionRuntimeStatus"
-    | "setSessionRuntimeError"
-  >
+  actions: ReconcileStateActions
 ): void {
   const reconcile = async () => {
     const reconcileController = new AbortController();
@@ -61,6 +69,9 @@ export function reconcileInFlightHistory(
       if (postResult?.contextTokens !== undefined) {
         actions.setSessionContextTokens(postResult.contextTokens);
       }
+      if (postResult?.contextUsage !== undefined) {
+        actions.setSessionContextUsage(postResult.contextUsage);
+      }
       if (postResult?.runStatus !== undefined) {
         actions.setSessionRuntimeStatus(
           toCliSessionStatus(postResult.runStatus)
@@ -80,12 +91,7 @@ export function reconcileInFlightHistory(
 export function applySwitchPostLoadResult(
   sessionId: string,
   postResult: Parameters<typeof applyPostLoadResult>[1],
-  actions: Pick<
-    SessionLoadStateActions,
-    | "setSessionContextTokens"
-    | "setSessionRuntimeStatus"
-    | "setSessionRuntimeError"
-  >
+  actions: PostLoadStateActions
 ): void {
   applyPostLoadResult(sessionId, postResult, actions);
 }

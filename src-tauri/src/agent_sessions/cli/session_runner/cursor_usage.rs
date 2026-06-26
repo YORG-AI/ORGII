@@ -89,6 +89,7 @@ pub(super) async fn fetch_cursor_usage_for_session(
         summary.cache_write_tokens as i64,
         summary.total_tokens as i64,
         0,
+        None,
     ) {
         tracing::warn!(
             "[CursorUsage] Failed to insert per-round token usage for session {}: {}",

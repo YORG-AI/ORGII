@@ -713,10 +713,41 @@
       },
       "tabs": {
         "work": "作業",
-        "explore": "探索"
+        "explore": "探索",
+        "heatmap": "Heat map"
+      },
+      "heatmap": {
+        "loading": "アクティビティ Heat map を読み込み中…",
+        "empty": "まだセッションアクティビティはありません。",
+        "sessions": "セッション",
+        "tokens": "Tokens",
+        "cost": "コスト"
       },
       "exploreRepos": {
         "title": "Repo を探索"
+      },
+      "hints": {
+        "skill": {
+          "before": "Use",
+          "after": "to link a skill or tool"
+        },
+        "ask": {
+          "before": "Use",
+          "after": "to ask questions about the codebase"
+        },
+        "plan": {
+          "before": "Use",
+          "after": "to plan before building"
+        },
+        "switch": {
+          "before": "Use",
+          "after": "to switch sections"
+        },
+        "previous": "Previous hint",
+        "next": "Next hint"
+      },
+      "manageIssues": {
+        "title": "Issues を管理"
       }
     },
     "defaultTitle": "チャット",
@@ -894,6 +925,18 @@
       "showLess": "表示を減らす",
       "showMore_one": "他 {{count}} 件を表示",
       "showMore_other": "他 {{count}} 件を表示"
+    },
+    "manageIssues": {
+      "title": "Issues を管理",
+      "myWork": "自分の作業",
+      "allRepositories": "すべての Repos",
+      "newIssue": "新しい Issue",
+      "tabs": {
+        "all": "すべて",
+        "active": "アクティブ",
+        "reviewRequests": "Review リクエスト",
+        "done": "完了"
+      }
     }
   },
   "chatStatus": {
@@ -2251,6 +2294,7 @@
         "index": "インデックス",
         "reindex": "再インデックス",
         "cancel": "キャンセル",
+        "stop": "停止",
         "clear": "クリア",
         "refresh": "更新"
       },

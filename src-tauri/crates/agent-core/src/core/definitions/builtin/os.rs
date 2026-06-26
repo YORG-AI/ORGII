@@ -105,10 +105,16 @@ pub fn os_agent() -> AgentDefinition {
         // create a ghost UI knob (user can "remove" them but cannot disable
         // them in reality). Keep this list to genuine user-configurable
         // specialists only.
-        sub_agents: Some(vec![SubAgentRef {
-            agent_id: super::SDE_AGENT_ID.into(),
-            isolation: None,
-        }]),
+        sub_agents: Some(vec![
+            SubAgentRef {
+                agent_id: super::SDE_AGENT_ID.into(),
+                isolation: None,
+            },
+            SubAgentRef {
+                agent_id: super::DS_AGENT_ID.into(),
+                isolation: None,
+            },
+        ]),
         load_workspace_resources: None,
         load_workspace_rules: None,
         skills_config: None,

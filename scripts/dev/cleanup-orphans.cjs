@@ -15,11 +15,13 @@ const quiet = process.argv.includes("--quiet");
 
 function runWindowsCleanup() {
   const patterns = [
-  { label: "build watchers", match: "build.js --watch" },
-  { label: "esbuild services", match: "esbuild --service" },
-  { label: "ORG2 Dev", match: "ORG2 Dev" },
-  { label: "orphaned cargo run", match: "cargo run" },
-];
+    { label: "webpack dev server", match: "scripts/dev/webpack-server.js" },
+    { label: "webpack dev server", match: "scripts\\dev\\webpack-server.js" },
+    { label: "build watchers", match: "build.js --watch" },
+    { label: "esbuild services", match: "esbuild --service" },
+    { label: "ORG2 Dev", match: "ORG2 Dev" },
+    { label: "orphaned cargo run", match: "cargo run" },
+  ];
 
   const killed = [];
 

@@ -47,17 +47,20 @@ export interface UseGitOutputIntegrationReturn {
     branch?: string;
     set_upstream?: boolean;
     force?: boolean;
+    showErrorDialog?: boolean;
   }) => Promise<GitOperationResult>;
   /** Pull with output streaming - resolves with result including error type */
   pullWithOutput: (params: {
     remote?: string;
     branch?: string;
     strategy?: string;
+    showErrorDialog?: boolean;
   }) => Promise<GitOperationResult>;
   /** Fetch with output streaming - resolves with result including error type */
   fetchWithOutput: (params: {
     remote?: string;
     prune?: boolean;
+    showErrorDialog?: boolean;
   }) => Promise<GitOperationResult>;
   /** Commit with output streaming - resolves with cleanup function when complete */
   commitWithOutput: (params: {

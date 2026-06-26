@@ -70,6 +70,13 @@ function isEditableElement(
   );
 }
 
+function getEditableTarget(
+  target: EventTarget | null | undefined
+): EditableElement | null {
+  const normalizedTarget = target ?? null;
+  return isEditableElement(normalizedTarget) ? normalizedTarget : null;
+}
+
 /**
  * Returns a stable keydown handler that implements ⌘A / Ctrl+A
  * "select all text in the focused control" for Tauri webviews.
@@ -92,12 +99,21 @@ export function handleSelectAllEvent(event: SelectAllEventLike): void {
   if (event.shiftKey || event.altKey) return;
   if (event.key.toLowerCase() !== "a") return;
 
-  const target = event.target;
-  if (!isEditableElement(target)) return;
+  const target =
+    getEditableTarget(event.target) ??
+    getEditableTarget(
+      typeof document === "undefined" ? null : document.activeElement
+    );
+  if (!target) return;
+
+  try {
+    target.select();
+  } catch {
+    return;
+  }
 
   event.preventDefault();
   event.stopPropagation();
-  target.select();
 }
 
 /**
@@ -122,11 +138,10 @@ export function installGlobalTauriSelectAllShortcut(): void {
     (event) => {
       handleSelectAllEvent(event);
     },
-    // Bubble phase so React's root listener (which runs component-level
-    // `onKeyDown` handlers) gets first crack at the event. If a component
-    // already handled ⌘A and called `preventDefault`, our fallback bails
-    // via the `defaultPrevented` check.
-    false
+    // Capture phase so this fallback can run before parent capture shortcuts.
+    // It only claims Ctrl/Cmd+A for native text controls, so editors such as
+    // CodeMirror and xterm keep their own selection behavior.
+    true
   );
 }
 

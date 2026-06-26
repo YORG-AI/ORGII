@@ -136,7 +136,7 @@ impl GeminiNativeClient {
         tracing::info!(
             "[gemini_native] request streaming={} model={} project_id_present={} session_id={} contents={} tools={} tool_names={:?} system_bytes={} contents_bytes={} tools_bytes={} body_bytes={}",
             streaming,
-            self.default_model,
+            telemetry.model,
             !self.project_id.trim().is_empty(),
             telemetry.session_id,
             telemetry.contents_count,
@@ -151,7 +151,7 @@ impl GeminiNativeClient {
         eprintln!(
             "[gemini_native] request streaming={} model={} project_id_present={} session_id={} contents={} tools={} tool_names={:?} system_bytes={} contents_bytes={} tools_bytes={} body_bytes={}",
             streaming,
-            self.default_model,
+            telemetry.model,
             !self.project_id.trim().is_empty(),
             telemetry.session_id,
             telemetry.contents_count,

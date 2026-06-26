@@ -17,6 +17,7 @@
 import type { CancelReason } from "@src/api/tauri/agent/session";
 import { createLogger } from "@src/hooks/logger";
 import type { WorkspaceSnapshot } from "@src/services/context/workspaceSnapshot";
+import type { ContextUsageSnapshot } from "@src/store/session/cliSessionStatusAtom";
 import {
   isAgentSession,
   isCliSession,
@@ -56,6 +57,8 @@ export interface RawSessionEvent {
 export interface PostLoadResult {
   /** Context token fill level (sets sessionContextTokensAtom). */
   contextTokens?: number;
+  /** Full context usage snapshot (sets sessionContextUsageAtom). */
+  contextUsage?: ContextUsageSnapshot;
   /** Session engine run status (sets sessionRuntimeStatusAtom). */
   runStatus?: string;
   /** Session error message (sets sessionRuntimeErrorAtom). */

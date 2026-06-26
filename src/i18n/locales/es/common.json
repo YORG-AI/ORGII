@@ -1108,7 +1108,8 @@
     "selectRepoFromHome": "Please select a repo from the home page",
     "cloneRepoAgain": "Please clone the repo again from the home page",
     "unsavedChangesTitle": "Unsaved Changes",
-    "prkPlaceholder": "PRJ"
+    "prkPlaceholder": "PRJ",
+    "gitSyncMenuTitle": "Acciones de sincronización Git"
   },
   "git": {
     "loading": "Cargando estado de Git...",
@@ -1352,7 +1353,13 @@
         "deleteBranch": "Eliminar rama",
         "refresh": "Actualizar rama",
         "checkoutDetachedSuccess": "En estado detached HEAD en el commit actual",
-        "checkoutDetachedFailed": "Error al hacer checkout detached HEAD"
+        "checkoutDetachedFailed": "Error al hacer checkout detached HEAD",
+        "removeWorktree": "Eliminar Worktree"
+      },
+      "messages": {
+        "deletedCount_one": "{{count}} rama eliminada",
+        "deletedCount_other": "{{count}} ramas eliminadas",
+        "failedDeleteList": "No se pudo eliminar: {{branches}}"
       },
       "labels": {
         "otherBranches": "Otras ramas",
@@ -1360,7 +1367,9 @@
         "recent": "Recientes",
         "currentCommit": "Commit actual",
         "basedOn": "Basado en",
-        "worktrees": "Worktrees"
+        "worktrees": "Worktrees",
+        "worktreeInUse": "En uso",
+        "checkedOutInWorktree": "Checkout en Worktree: {{path}}"
       },
       "placeholders": {
         "checkout": "rama",

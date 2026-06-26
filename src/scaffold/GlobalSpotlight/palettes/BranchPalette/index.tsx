@@ -30,6 +30,7 @@ export const BranchPalette: React.FC<BranchPaletteProps> = ({
   currentBranchName,
   onCreateBranch,
   onDeleteBranch,
+  onRemoveWorktree,
   onCheckoutDetached,
   githubConnectionId,
   githubRepoFullName,
@@ -61,6 +62,7 @@ export const BranchPalette: React.FC<BranchPaletteProps> = ({
     onSelect,
     onCreateBranch,
     onDeleteBranch,
+    onRemoveWorktree,
     onCheckoutDetached,
     onClose,
     onGoBackToParent,
@@ -106,7 +108,7 @@ export const BranchPalette: React.FC<BranchPaletteProps> = ({
         onItemSelect={kernel.handleItemClick}
         onItemHover={kernel.setSelectedIndex}
         searchQuery={kernel.searchQuery}
-        layout="list"
+        layout="twoColumn"
       />
     ) : undefined;
 

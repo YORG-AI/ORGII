@@ -107,6 +107,13 @@ export const lineage = {
     .output(z.array(schemas.lineage.OrgtrackSessionFinalDiffSchema))
     .build(),
 
+  orgtrackGetDiffReplayPreview: defineProcedure(
+    "orgtrack_get_diff_replay_preview"
+  )
+    .input(schemas.lineage.OrgtrackDiffReplayPreviewInput)
+    .output(schemas.lineage.OrgtrackDiffReplayPreviewSchema)
+    .build(),
+
   orgtrackGetSessionCommitLinks: defineProcedure(
     "orgtrack_get_session_commit_links"
   )

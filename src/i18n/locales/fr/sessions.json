@@ -713,10 +713,41 @@
       },
       "tabs": {
         "work": "Travail",
-        "explore": "Explorer"
+        "explore": "Explorer",
+        "heatmap": "Heat map"
+      },
+      "heatmap": {
+        "loading": "Chargement de la Heat map d’activité…",
+        "empty": "Aucune activité de session pour le moment.",
+        "sessions": "Sessions",
+        "tokens": "Tokens",
+        "cost": "Coût"
       },
       "exploreRepos": {
         "title": "Explorer les Repos"
+      },
+      "hints": {
+        "skill": {
+          "before": "Use",
+          "after": "to link a skill or tool"
+        },
+        "ask": {
+          "before": "Use",
+          "after": "to ask questions about the codebase"
+        },
+        "plan": {
+          "before": "Use",
+          "after": "to plan before building"
+        },
+        "switch": {
+          "before": "Use",
+          "after": "to switch sections"
+        },
+        "previous": "Previous hint",
+        "next": "Next hint"
+      },
+      "manageIssues": {
+        "title": "Gérer les issues"
       }
     },
     "defaultTitle": "Chat",
@@ -894,6 +925,18 @@
       "showLess": "Afficher moins",
       "showMore_one": "Afficher {{count}} de plus",
       "showMore_other": "Afficher {{count}} de plus"
+    },
+    "manageIssues": {
+      "title": "Gérer les issues",
+      "myWork": "Mon travail",
+      "allRepositories": "Tous les repos",
+      "newIssue": "Nouvelle issue",
+      "tabs": {
+        "all": "Tous",
+        "active": "Actifs",
+        "reviewRequests": "Demandes de review",
+        "done": "Terminé"
+      }
     }
   },
   "chatStatus": {
@@ -2251,6 +2294,7 @@
         "index": "Indexer",
         "reindex": "Ré-indexer",
         "cancel": "Annuler",
+        "stop": "Arrêter",
         "clear": "Effacer",
         "refresh": "Actualiser"
       },

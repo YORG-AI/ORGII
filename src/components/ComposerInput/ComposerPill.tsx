@@ -41,6 +41,7 @@ import { PILL_SIZE, readPillText } from "@src/config/pillTokens";
 
 import BasePill from "./BasePill";
 import type { ComposerPillAttrs, PillIconType } from "./types";
+import { truncateVisiblePillLabel } from "./utils";
 
 const PREVIEW_SHOW_DELAY = 300;
 const PREVIEW_HIDE_DELAY = 150;
@@ -50,7 +51,7 @@ const ICON_PROPS = { size: PILL_SIZE.iconSize, strokeWidth: 1.75 } as const;
 function isLikelyFolder(path: string, name: string): boolean {
   if (!path && !name) return false;
   if (path?.endsWith("/")) return true;
-  if (name && !name.includes(".")) return true;
+  const lower = (name || path?.split("/").pop() || "").toLowerCase();
   const folderNames = new Set([
     "node_modules",
     "src",
@@ -76,7 +77,6 @@ function isLikelyFolder(path: string, name: string): boolean {
     ".vscode",
     ".idea",
   ]);
-  const lower = (name || path?.split("/").pop() || "").toLowerCase();
   return folderNames.has(lower);
 }
 
@@ -116,6 +116,11 @@ const ComposerPill: React.FC<ComposerPillProps> = ({
     if (lineStart != null) return `(${lineStart})`;
     return null;
   }, [lineStart, lineEnd]);
+
+  const visibleFileName = useMemo(
+    () => truncateVisiblePillLabel(fileName),
+    [fileName]
+  );
 
   const isFolder = useMemo(() => {
     if (iconType && iconType !== "folder") return false;
@@ -321,8 +326,9 @@ const ComposerPill: React.FC<ComposerPillProps> = ({
       onMouseDown={handlePillMouseDown}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      title={fileName}
     >
-      <span>{fileName}</span>
+      <span>{visibleFileName}</span>
       {lineRangeDisplay && (
         <span style={{ color: "var(--color-text-3)", fontSize: "12px" }}>
           {lineRangeDisplay}

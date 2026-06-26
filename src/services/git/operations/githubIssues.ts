@@ -43,7 +43,12 @@ function resolveRepoName(remoteUrl: string): string | null {
 
 export async function fetchIssues(
   remoteUrl: string,
-  opts?: { state?: "open" | "closed" | "all"; labels?: string; page?: number }
+  opts?: {
+    state?: "open" | "closed" | "all";
+    labels?: string;
+    page?: number;
+    perPage?: number;
+  }
 ): Promise<IssueResult<GitHubIssueListResponse>> {
   try {
     const repoFullName = resolveRepoName(remoteUrl);

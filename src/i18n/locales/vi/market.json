@@ -420,6 +420,8 @@
     "roundDetail": "Round {{index}}",
     "inputTokens": "Input",
     "outputTokens": "Output",
+    "cacheWriteTokens": "Cache write {{count}}",
+    "cacheReadTokens": "Cache read {{count}}",
     "noRoundData": "Không có dữ liệu theo round",
     "colDate": "Ngày",
     "colAgent": "Agent",

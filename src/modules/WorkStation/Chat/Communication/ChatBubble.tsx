@@ -23,6 +23,7 @@ import {
   CHAT_BUBBLE_WIDTH_TOKENS,
   ChatBubbleAvatar,
   ChatBubbleBody,
+  ChatBubbleCopyButton,
   ChatBubbleHeader,
   ChatBubbleLayout,
 } from "@src/components/ChatBubble";
@@ -460,8 +461,9 @@ const UserBubbleContent: React.FC<{
     return (
       <div className="flex flex-col items-start gap-1.5 text-left">
         <div
-          className={`${CHAT_BUBBLE_WIDTH_TOKENS.userBody} rounded-lg bg-primary-1 p-3`}
+          className={`${CHAT_BUBBLE_WIDTH_TOKENS.userBody} group/replay-msg relative rounded-lg bg-primary-1 p-3 pr-10`}
         >
+          <ChatBubbleCopyButton content={content} />
           <div className="flex items-center gap-2">
             <ClipboardCheck size={14} className="text-primary-6" />
             <span className="text-[13px] font-medium text-text-1">
@@ -490,8 +492,9 @@ const UserBubbleContent: React.FC<{
     <div className="flex flex-col items-start gap-1.5 text-left">
       {showBubble && (
         <div
-          className={`${CHAT_BUBBLE_WIDTH_TOKENS.userBody} rounded-lg bg-primary-1 p-3`}
+          className={`${CHAT_BUBBLE_WIDTH_TOKENS.userBody} group/replay-msg relative rounded-lg bg-primary-1 p-3 ${hasContent ? "pr-10" : ""}`}
         >
+          <ChatBubbleCopyButton content={strippedContent} />
           {hasImages && images && (
             <div className={imageRowNeedsGap ? "mb-2" : ""}>
               <ChatImageThumbnailRow images={images} />
@@ -764,10 +767,11 @@ export const ChatBubble: React.FC<{
           <UserBubbleContent content={rawContent} images={userImages} />
         ) : (
           <div
-            className={`${CHAT_BUBBLE_WIDTH_TOKENS.body} rounded-lg p-3 text-left text-text-1 ${
+            className={`${CHAT_BUBBLE_WIDTH_TOKENS.body} group/replay-msg relative rounded-lg p-3 pr-10 text-left text-text-1 ${
               isLatest ? "bg-fill-2" : "bg-fill-1"
             }`}
           >
+            <ChatBubbleCopyButton content={rawContent} />
             <div className={`min-w-0 ${SESSION_UI_TOKENS.TEXT.BODY_BASE}`}>
               <ReplayMarkdown content={message.content} />
               <MessageReferenceCards

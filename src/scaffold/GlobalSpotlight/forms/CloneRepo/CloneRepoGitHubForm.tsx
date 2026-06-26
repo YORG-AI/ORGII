@@ -22,6 +22,7 @@ import Input from "@src/components/Input";
 import Radio from "@src/components/Radio";
 import { buildIntegrationsPath } from "@src/config/mainAppPaths";
 import { PanelFooter, Placeholder } from "@src/modules/shared/layouts/blocks";
+import { joinPathForDisplay } from "@src/util/file/pathUtils";
 
 import { ICONS } from "../../config";
 import {
@@ -213,8 +214,11 @@ const CloneGitHubForm: React.FC<CloneGitHubFormProps> = ({
               <div className="mt-2 text-[12px] text-text-2">
                 {t("cloneForm.repoWillBeClonedTo")}{" "}
                 <span className="font-medium text-text-1">
-                  {localPath}/
-                  {repositories.find((repo) => repo.id === selectedRepo)?.name}
+                  {joinPathForDisplay(
+                    localPath,
+                    repositories.find((repo) => repo.id === selectedRepo)
+                      ?.name ?? ""
+                  )}
                 </span>
               </div>
             )}

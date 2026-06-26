@@ -15,8 +15,16 @@ for (const entry of ALL_SHORTCUTS) {
   shortcutMap.set(entry.id, entry);
 }
 
+interface ShortcutDisplayOptions {
+  chatSendOnEnter?: boolean;
+}
+
 /** Get platform-appropriate display string for a shortcut by ID. */
-export function getShortcutKeys(id: string): string {
+export function getShortcutKeys(
+  id: string,
+  options?: ShortcutDisplayOptions
+): string {
+  if (id === "chat_send" && options?.chatSendOnEnter) return "Enter";
   const entry = shortcutMap.get(id);
   if (!entry) return "";
   return IS_MAC ? entry.macKeys : entry.winKeys;

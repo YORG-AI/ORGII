@@ -40,7 +40,7 @@ pub(super) fn parameters() -> Value {
             },
             "slug": {
                 "type": "string",
-                "description": "Project identifier — accepts slug, display name, or project ID (e.g. 'my-project', 'My Project', or 'project-my-project'). Use 'list' to discover available projects."
+                "description": "Project identifier — accepts slug, display name, or project ID (e.g. 'my-project', 'My Project', or 'project-my-project'). Required for project-specific actions. Optional for list_members/list_contributors; omit it to list or sync across all projects. Use 'list' to discover available projects."
             },
             "name": {
                 "type": "string",

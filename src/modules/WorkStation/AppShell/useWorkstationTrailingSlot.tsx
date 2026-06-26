@@ -39,7 +39,6 @@ import { workstationProjectTabBarAtom } from "@src/store/workstation";
 import type { UseWorkstationTabListReturn } from "./useWorkstationTabList";
 
 const BROWSER_PLUS_MENU_ITEMS: readonly TabBarPlusMenuItem[] = [
-  "searchFile",
   "newBrowserTab",
   "newPrivateBrowserTab",
 ];

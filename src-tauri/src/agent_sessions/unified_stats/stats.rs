@@ -3,6 +3,7 @@
 //! Provides functions to compute aggregate statistics across sessions,
 //! including token counts and cost estimation.
 
+use super::accounting::session_usage_summaries;
 use super::status::{is_active_status, is_completed_status, is_failed_status};
 use super::types::{AggregateStats, SessionAggregateRecord};
 
@@ -12,13 +13,38 @@ use super::types::{AggregateStats, SessionAggregateRecord};
 
 /// Compute aggregate statistics for a set of sessions.
 pub fn compute_aggregate_stats(sessions: &[SessionAggregateRecord]) -> AggregateStats {
+    compute_aggregate_stats_from_usage(sessions, None)
+}
+
+/// Compute aggregate statistics using prompt-cache-aware token accounting.
+pub fn compute_aggregate_stats_with_accounting(
+    sessions: &[SessionAggregateRecord],
+) -> Result<AggregateStats, String> {
+    let usage = session_usage_summaries(sessions)?;
+    Ok(compute_aggregate_stats_from_usage(sessions, Some(&usage)))
+}
+
+fn compute_aggregate_stats_from_usage(
+    sessions: &[SessionAggregateRecord],
+    usage: Option<&std::collections::BTreeMap<String, super::accounting::SessionUsageSummary>>,
+) -> AggregateStats {
+    let mut total_cost_usd = 0.0;
+    let mut total_tokens_input: i64 = 0;
+    let mut total_tokens_output: i64 = 0;
     let mut total_tokens: i64 = 0;
     let mut ongoing_count = 0;
     let mut completed_count = 0;
     let mut failed_count = 0;
 
     for session in sessions {
-        total_tokens += session.total_tokens;
+        if let Some(summary) = usage.and_then(|usage| usage.get(&session.session_id)) {
+            total_tokens_input += summary.input_tokens;
+            total_tokens_output += summary.output_tokens;
+            total_tokens += summary.total_tokens;
+            total_cost_usd += summary.cost_usd;
+        } else {
+            total_tokens += session.total_tokens;
+        }
 
         if is_active_status(&session.status) {
             ongoing_count += 1;
@@ -29,14 +55,10 @@ pub fn compute_aggregate_stats(sessions: &[SessionAggregateRecord]) -> Aggregate
         }
     }
 
-    // Rough cost estimation: $0.003 per 1K tokens (average across models)
-    // This is a placeholder - real billing comes from the hosted service
-    let total_cost_usd = (total_tokens as f64 / 1000.0) * 0.003;
-
     AggregateStats {
         total_cost_usd,
-        total_tokens_input: 0, // Would need per-session breakdown
-        total_tokens_output: 0,
+        total_tokens_input,
+        total_tokens_output,
         total_tokens,
         ongoing_count,
         completed_count,

@@ -2,9 +2,9 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import React, { useCallback } from "react";
 
 import { useImmediateCursorReset } from "@src/hooks/ui/useImmediateCursorReset";
+import { ReferenceDragGhost } from "@src/shared/dnd/ReferenceDragGhost";
 
 import type { NavigationMenuItem } from "../config";
-import { NavItemDragGhost } from "./NavItemDragGhost";
 import { NavigationMenuRowAccessorySlot } from "./RowAccessorySlot";
 import { NavigationMenuRowActionButton } from "./RowActionButton";
 import type {
@@ -94,7 +94,7 @@ export const NavigationMenuParentRow = React.forwardRef<
           : undefined
       }
     >
-      {dragState && <NavItemDragGhost dragState={dragState} />}
+      {dragState && <ReferenceDragGhost dragState={dragState} />}
       <div
         data-testid={item.dataTestId}
         className={`group flex ${rowHeightClass} items-center justify-between rounded-lg transition-colors duration-150 ${
@@ -254,7 +254,7 @@ export const NavigationMenuLeafRow = React.forwardRef<
         onMenuItemContextMenu?.(event, item.key, item)
       }
     >
-      {dragState && <NavItemDragGhost dragState={dragState} />}
+      {dragState && <ReferenceDragGhost dragState={dragState} />}
       <div
         data-testid={item.dataTestId}
         className={`group flex ${rowHeightClass} items-center justify-between overflow-hidden rounded-lg transition-colors duration-150 ${

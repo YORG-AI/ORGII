@@ -7,7 +7,7 @@
 import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { OrgtrackFileTimelineEntry } from "@src/api/tauri/lineage";
+import type { OrgtrackFileTimeline } from "@src/api/tauri/lineage";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { useFileHistory } from "@src/hooks/git/useFileHistory";
 import { useOrgtrackFileTimeline } from "@src/hooks/git/useOrgtrackFileTimeline";
@@ -21,6 +21,8 @@ import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 import { TIMELINE_CONSTANTS, TIMELINE_ICONS } from "./config";
 import type { TimelineCommitInfo, TimelineContentProps } from "./types";
+
+type OrgtrackFileTimelineEntry = OrgtrackFileTimeline["entries"][number];
 
 interface TimelineEntryProps {
   commitSha: string;

@@ -1,12 +1,15 @@
 <div align="center">
   <h1>ORG-2</h1>
-  <p><strong>Open-source Cursor-style agent IDE<br />— but built for reviewability, traceability, and control, not just faster coding.</strong></p>
+  <p><strong>Open-source Cursor-style agent IDE<br />— but built for reviewability, traceability, and creative freedom, not just faster coding.</strong></p>
   <p>
     <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/yorgai/ORG2?style=flat-square" /></a>
     <a href="https://github.com/yorgai/ORG2/releases/latest"><img alt="Downloads" src="https://img.shields.io/github/downloads/yorgai/ORG2/total?style=flat-square&label=downloads" /></a>
     <a href="https://github.com/yorgai/ORG2/commits/develop"><img alt="Last commit" src="https://img.shields.io/github/last-commit/yorgai/ORG2?style=flat-square&label=last%20commit" /></a>
     <a href="https://github.com/yorgai/ORG2/graphs/commit-activity"><img alt="Commit activity" src="https://img.shields.io/github/commit-activity/m/yorgai/ORG2?style=flat-square&label=commit%20activity" /></a>
     <a href="https://discord.gg/tvWgAqhCzs"><img alt="Discord" src="https://img.shields.io/badge/Discord-join%20chat-5865F2?style=flat-square&logo=discord&logoColor=white" /></a>
+  </p>
+  <p>
+    <a href="https://trendshift.io/repositories/56464?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-56464" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/56464/daily?language=TypeScript" alt="yorgai%2FORG2 | Trendshift" width="250" height="55" /></a>
   </p>
 </div>
 
@@ -52,7 +55,7 @@ ORG-II explores a different model: agents as persistent, observable colleagues i
 
 ## Download
 
-Current build version: v1.1.2 (2026-06-23)
+Current build version: v1.1.3 (2026-06-25)
 
 Download the latest ORGII desktop app with one click:
 
@@ -90,7 +93,8 @@ If a sidecar is missing, the Rust build creates a small placeholder resource so 
 
 Have questions, feedback, or want to follow along as ORG-2 evolves? Join us on Discord:
 
-👉 **[discord.gg/tvWgAqhCzs](https://discord.gg/tvWgAqhCzs)**
+👉 **Discord: [discord.gg/tvWgAqhCzs](https://discord.gg/tvWgAqhCzs)**
+👉 **WeChat: [https://github.com/yorgai/ORG2/issues/128]**
 
 - **#how-to-use-org2** and **#faq** — get up and running
 - **#announcement** — release news and updates

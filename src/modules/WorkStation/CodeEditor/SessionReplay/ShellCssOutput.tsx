@@ -4,7 +4,7 @@
  * Command and output render as plain terminal text without syntax highlighting.
  */
 import type { CSSProperties } from "react";
-import React, { memo, useMemo } from "react";
+import React, { memo, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { TerminalCommand } from "@src/components/TerminalDisplay";
@@ -43,11 +43,27 @@ const SimulatorShellCssOutputComponent: React.FC<
     typography,
   } = useTerminalSurfaceStyle();
 
+  const scrollRef = useRef<HTMLDivElement>(null);
   const isStreaming = isLoading && !!streamOutput;
   const displayOutput = isStreaming ? streamOutput : output;
   const plainOutput = stripAnsiCodes(displayOutput ?? "");
   const displayCommand =
     command.trim() || t("simulator.replay.ide.shell.noCommand");
+
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+
+    const frameId = requestAnimationFrame(() => {
+      element.scrollTop = element.scrollHeight;
+      const parentScroller = element.closest<HTMLElement>(
+        ".code-viewer-scroll-container"
+      );
+      parentScroller?.scrollTo({ top: parentScroller.scrollHeight });
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [plainOutput, isLoading, exitCode]);
 
   const surfaceTypographyVars = useMemo((): CSSProperties => {
     const letterSpacing = typography.letterSpacing;
@@ -69,6 +85,7 @@ const SimulatorShellCssOutputComponent: React.FC<
 
   return (
     <div
+      ref={scrollRef}
       className="simulator-shell-surface min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pb-[100px] pt-2"
       style={surfaceTypographyVars}
     >
@@ -79,6 +96,7 @@ const SimulatorShellCssOutputComponent: React.FC<
             prefix="$"
             highlighted={false}
             style={{
+              color: foreground,
               padding: 0,
               margin: 0,
             }}

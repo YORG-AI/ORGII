@@ -5,7 +5,10 @@ import { gitApi } from "@src/api/http/git";
 import { getGitHubGitCredentialForRemote } from "@src/api/tauri/github";
 import { showGitErrorAndHandle } from "@src/hooks/git/useGitErrorDialog";
 import { createLogger } from "@src/hooks/logger";
-import { gitPullStrategyAtom } from "@src/store/ui/editorSettingsAtom";
+import {
+  type GitPullStrategy,
+  gitPullStrategyAtom,
+} from "@src/store/ui/editorSettingsAtom";
 import {
   type GitAuthenticationDialogResult,
   showGitAuthenticationDialog,
@@ -36,6 +39,7 @@ export async function push(
     setUpstream?: boolean;
     remote?: string;
     branch?: string;
+    showErrorDialog?: boolean;
   } = {}
 ): Promise<GitOperationResult> {
   const integration = getOutputIntegration();
@@ -46,6 +50,7 @@ export async function push(
       branch: params.branch,
       force: params.force,
       set_upstream: params.setUpstream,
+      showErrorDialog: params.showErrorDialog,
     });
     if (!result.success && result.errorType === "authentication_failed") {
       return (await retryPushWithAuth(params)) ?? result;
@@ -97,7 +102,7 @@ export async function push(
 /**
  * Read the user's preferred pull strategy from settings
  */
-function getUserPullStrategy(): string {
+function getUserPullStrategy(): GitPullStrategy {
   const strategy = getStore().get(gitPullStrategyAtom);
   return strategy ?? "merge";
 }
@@ -106,7 +111,7 @@ function getUserPullStrategy(): string {
  * Build the terminal pull command with strategy flags.
  * Always pass explicit flag so Git knows how to reconcile when branches diverge.
  */
-function buildPullCommand(strategy: string): string {
+function buildPullCommand(strategy: GitPullStrategy): string {
   switch (strategy) {
     case "rebase":
       return "git pull --rebase";
@@ -254,7 +259,7 @@ async function attemptPullWithAuth(
   params: {
     remote?: string;
     branch?: string;
-    strategy: string;
+    strategy: GitPullStrategy;
   },
   auth: GitAuthenticationDialogResult
 ): Promise<GitOperationResult> {
@@ -286,7 +291,7 @@ async function attemptPullWithAuth(
 async function retryPullWithAuth(params: {
   remote?: string;
   branch?: string;
-  strategy: string;
+  strategy: GitPullStrategy;
 }): Promise<GitOperationResult | null> {
   const githubAuth = await readGitHubConnectionCredential(params.remote);
   if (githubAuth) {
@@ -366,9 +371,11 @@ export async function pull(
   params: {
     remote?: string;
     branch?: string;
+    strategy?: GitPullStrategy;
+    showErrorDialog?: boolean;
   } = {}
 ): Promise<GitOperationResult> {
-  const strategy = getUserPullStrategy();
+  const strategy = params.strategy ?? getUserPullStrategy();
   const integration = getOutputIntegration();
 
   if (integration) {
@@ -425,6 +432,7 @@ export async function fetch(
   params: {
     remote?: string;
     prune?: boolean;
+    showErrorDialog?: boolean;
   } = {}
 ): Promise<GitOperationResult> {
   const integration = getOutputIntegration();
@@ -488,16 +496,24 @@ export async function publish(): Promise<GitOperationResult> {
  * Without the preflight fetch, `git status` may report 0 behind while
  * the remote actually has new commits, causing a push rejection.
  */
-export async function sync(): Promise<GitOperationResult> {
-  const fetchResult = await fetch();
+export async function sync(
+  params: { showErrorDialog?: boolean } = {}
+): Promise<GitOperationResult> {
+  const fetchResult = await fetch({
+    showErrorDialog: params.showErrorDialog,
+  });
   if (!fetchResult.success) {
     return fetchResult;
   }
-  const pullResult = await pull();
+  const pullResult = await pull({
+    showErrorDialog: params.showErrorDialog,
+  });
   if (!pullResult.success) {
     return pullResult;
   }
-  return push();
+  return push({
+    showErrorDialog: params.showErrorDialog,
+  });
 }
 
 // ============================================
@@ -544,7 +560,7 @@ export async function pushWithDialog(
  * Pull from remote with error dialog on failure
  */
 export async function pullWithDialog(
-  params: { remote?: string; branch?: string } = {}
+  params: { remote?: string; branch?: string; strategy?: GitPullStrategy } = {}
 ): Promise<GitOperationResult> {
   const integration = getOutputIntegration();
   const repoContext = getRepoContext();

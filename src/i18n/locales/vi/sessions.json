@@ -713,10 +713,41 @@
       },
       "tabs": {
         "work": "Làm việc",
-        "explore": "Khám phá"
+        "explore": "Khám phá",
+        "heatmap": "Heat map"
+      },
+      "heatmap": {
+        "loading": "Đang tải Heat map hoạt động…",
+        "empty": "Chưa có hoạt động phiên.",
+        "sessions": "Phiên",
+        "tokens": "Tokens",
+        "cost": "Chi phí"
       },
       "exploreRepos": {
         "title": "Khám phá Repos"
+      },
+      "hints": {
+        "skill": {
+          "before": "Use",
+          "after": "to link a skill or tool"
+        },
+        "ask": {
+          "before": "Use",
+          "after": "to ask questions about the codebase"
+        },
+        "plan": {
+          "before": "Use",
+          "after": "to plan before building"
+        },
+        "switch": {
+          "before": "Use",
+          "after": "to switch sections"
+        },
+        "previous": "Previous hint",
+        "next": "Next hint"
+      },
+      "manageIssues": {
+        "title": "Quản lý issues"
       }
     },
     "defaultTitle": "Chat",
@@ -894,6 +925,18 @@
       "showLess": "Thu gọn",
       "showMore_one": "Hiển thị thêm {{count}}",
       "showMore_other": "Hiển thị thêm {{count}}"
+    },
+    "manageIssues": {
+      "title": "Quản lý issues",
+      "myWork": "Việc của tôi",
+      "allRepositories": "Tất cả repos",
+      "newIssue": "Issue mới",
+      "tabs": {
+        "all": "Tất cả",
+        "active": "Đang hoạt động",
+        "reviewRequests": "Yêu cầu review",
+        "done": "Xong"
+      }
     }
   },
   "chatStatus": {
@@ -2251,6 +2294,7 @@
         "index": "Lập chỉ mục",
         "reindex": "Lập chỉ mục lại",
         "cancel": "Hủy",
+        "stop": "Dừng",
         "clear": "Xóa",
         "refresh": "Làm mới"
       },

@@ -9,6 +9,16 @@ import type { ComposerInputRef } from "@src/components/ComposerInput";
 import Message from "@src/components/Message";
 import { capPillText, storePillText } from "@src/config/pillTokens";
 import i18n from "@src/i18n";
+import {
+  consumeInternalFileTreeDragData,
+  isInternalFileTreeDragActive,
+} from "@src/shared/dnd/dragSideChannel";
+import {
+  type ReferenceDragPillData,
+  clearReferenceDragData,
+  getReferenceDragPillData,
+  hasReferenceDragData,
+} from "@src/shared/dnd/referenceDragData";
 
 import type { DragDropHandlers } from "./types";
 
@@ -34,111 +44,32 @@ interface UseDragDropOptions {
   composerInputRef: RefObject<ComposerInputRef | null>;
 }
 
-type PrReferencePayload = {
-  prNumber: number;
-  prTitle: string;
-  prUrl: string;
-  prStatus: string;
-  sourceBranch?: string;
-  targetBranch?: string;
-  additions?: number;
-  deletions?: number;
-};
-
-type IssueReferencePayload = {
-  issueNumber: number;
-  issueTitle: string;
-  issueUrl: string;
-  issueState: string;
-  labels?: string[];
-  assignees?: string[];
-  comments?: number;
-};
-
-function getPlainTextReferenceDragData(
-  dataTransfer: DataTransfer,
-  type: "pr" | "issue"
-): string {
-  const text = dataTransfer.getData("text/plain");
-  const prefix = `orgii-reference:${type}:`;
-  return text.startsWith(prefix) ? text.slice(prefix.length) : "";
-}
-
-function getDragReferenceData(
-  dataTransfer: DataTransfer,
-  type: "pr" | "issue"
-): string {
-  const mimeType =
-    type === "pr"
-      ? "application/x-orgii-pr-reference"
-      : "application/x-orgii-issue-reference";
-  const data =
-    dataTransfer.getData(mimeType) ||
-    getPlainTextReferenceDragData(dataTransfer, type);
-  if (data) return data;
-
-  if (type === "pr") {
-    const stash = window.__orgiiLastPrDrag;
-    return stash && Date.now() - stash.timestamp < 30_000
-      ? JSON.stringify(stash)
-      : "";
-  }
-
-  const stash = window.__orgiiLastIssueDrag;
-  return stash && Date.now() - stash.timestamp < 30_000
-    ? JSON.stringify(stash)
-    : "";
-}
-
-function insertPrReferencePill(
+function insertReferencePill(
   composerInputRef: RefObject<ComposerInputRef | null>,
-  payload: PrReferencePayload
+  reference: ReferenceDragPillData
 ): void {
   if (!composerInputRef.current) return;
-  const pillPath = `pr://${payload.prNumber}`;
-  const displayName = `#${payload.prNumber} ${payload.prTitle}`;
-  storePillText(pillPath, capPillText(JSON.stringify(payload)));
-  composerInputRef.current.insertFilePill(pillPath, false, "pr", displayName);
-  Message.success(i18n.t("toasts.addedAsContext", { name: displayName }));
-}
-
-function insertIssueReferencePill(
-  composerInputRef: RefObject<ComposerInputRef | null>,
-  payload: IssueReferencePayload
-): void {
-  if (!composerInputRef.current) return;
-  const pillPath = `issue://${payload.issueNumber}`;
-  const displayName = `#${payload.issueNumber} ${payload.issueTitle}`;
-  storePillText(pillPath, capPillText(JSON.stringify(payload)));
-  composerInputRef.current.insertFilePill(
-    pillPath,
-    false,
-    "issue",
-    displayName
+  storePillText(
+    reference.pillPath,
+    capPillText(JSON.stringify(reference.payload))
   );
-  Message.success(i18n.t("toasts.addedAsContext", { name: displayName }));
+  composerInputRef.current.insertFilePill(
+    reference.pillPath,
+    false,
+    reference.iconType,
+    reference.displayName
+  );
+  Message.success(
+    i18n.t("toasts.addedAsContext", { name: reference.displayName })
+  );
 }
 
 export function useDragDrop(options: UseDragDropOptions): DragDropHandlers {
   const { composerInputRef } = options;
 
   const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
-    const dragWindow = window as unknown as {
-      __internalFileTreeDrag?: boolean;
-      __orgiiLastPrDrag?: { timestamp: number };
-      __orgiiLastIssueDrag?: { timestamp: number };
-    };
-    const now = Date.now();
-    const isInternalFileDrag = dragWindow.__internalFileTreeDrag === true;
-    const isReferenceDrag =
-      Boolean(
-        dragWindow.__orgiiLastPrDrag &&
-        now - dragWindow.__orgiiLastPrDrag.timestamp < 30_000
-      ) ||
-      Boolean(
-        dragWindow.__orgiiLastIssueDrag &&
-        now - dragWindow.__orgiiLastIssueDrag.timestamp < 30_000
-      );
+    const isInternalFileDrag = isInternalFileTreeDragActive();
+    const isReferenceDrag = hasReferenceDragData();
 
     // Only handle internal file/reference drags - let others bubble to GlobalDragDrop
     if (!isInternalFileDrag && !isReferenceDrag) {
@@ -160,22 +91,8 @@ export function useDragDrop(options: UseDragDropOptions): DragDropHandlers {
   }, []);
 
   const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
-    const dragWindow = window as unknown as {
-      __internalFileTreeDrag?: boolean;
-      __orgiiLastPrDrag?: { timestamp: number };
-      __orgiiLastIssueDrag?: { timestamp: number };
-    };
-    const now = Date.now();
-    const isInternalFileDrag = dragWindow.__internalFileTreeDrag === true;
-    const isReferenceDrag =
-      Boolean(
-        dragWindow.__orgiiLastPrDrag &&
-        now - dragWindow.__orgiiLastPrDrag.timestamp < 30_000
-      ) ||
-      Boolean(
-        dragWindow.__orgiiLastIssueDrag &&
-        now - dragWindow.__orgiiLastIssueDrag.timestamp < 30_000
-      );
+    const isInternalFileDrag = isInternalFileTreeDragActive();
+    const isReferenceDrag = hasReferenceDragData();
 
     if (!isInternalFileDrag && !isReferenceDrag) {
       return;
@@ -189,10 +106,14 @@ export function useDragDrop(options: UseDragDropOptions): DragDropHandlers {
   const handleDrop = useCallback(
     (e: DragEvent<HTMLDivElement>) => {
       const types = Array.from(e.dataTransfer.types);
-      const isInternalFileDrag = types.includes("application/x-file-reference");
-      const prReferenceData = getDragReferenceData(e.dataTransfer, "pr");
-      const issueReferenceData = getDragReferenceData(e.dataTransfer, "issue");
-      const isReferenceDrag = Boolean(prReferenceData || issueReferenceData);
+      const internalFileTreeData = isInternalFileTreeDragActive()
+        ? consumeInternalFileTreeDragData()
+        : "";
+      const isInternalFileDrag =
+        Boolean(internalFileTreeData) ||
+        types.includes("application/x-file-reference");
+      const referenceDragData = getReferenceDragPillData(e.dataTransfer);
+      const isReferenceDrag = Boolean(referenceDragData);
 
       // Only handle internal file/reference drags - let others bubble to GlobalDragDrop
       if (!isInternalFileDrag && !isReferenceDrag) {
@@ -210,74 +131,19 @@ export function useDragDrop(options: UseDragDropOptions): DragDropHandlers {
       }
       removeDragOverStyle(e.currentTarget);
 
-      if (prReferenceData || issueReferenceData) {
-        const type = prReferenceData ? "pr" : "issue";
-        const rawData = prReferenceData || issueReferenceData;
+      if (referenceDragData) {
         try {
-          const rawPayload = JSON.parse(rawData) as Record<string, unknown>;
-          if (type === "pr") {
-            const payload: PrReferencePayload = {
-              prNumber: Number(rawPayload.prNumber),
-              prTitle: String(rawPayload.prTitle ?? ""),
-              prUrl: String(rawPayload.prUrl ?? ""),
-              prStatus: String(rawPayload.prStatus ?? ""),
-              sourceBranch:
-                typeof rawPayload.sourceBranch === "string"
-                  ? rawPayload.sourceBranch
-                  : undefined,
-              targetBranch:
-                typeof rawPayload.targetBranch === "string"
-                  ? rawPayload.targetBranch
-                  : undefined,
-              additions:
-                typeof rawPayload.additions === "number"
-                  ? rawPayload.additions
-                  : undefined,
-              deletions:
-                typeof rawPayload.deletions === "number"
-                  ? rawPayload.deletions
-                  : undefined,
-            };
-            if (payload.prNumber && payload.prTitle) {
-              insertPrReferencePill(composerInputRef, payload);
-            }
-          } else {
-            const payload: IssueReferencePayload = {
-              issueNumber: Number(rawPayload.issueNumber),
-              issueTitle: String(rawPayload.issueTitle ?? ""),
-              issueUrl: String(rawPayload.issueUrl ?? ""),
-              issueState: String(rawPayload.issueState ?? ""),
-              labels: Array.isArray(rawPayload.labels)
-                ? rawPayload.labels.map(String)
-                : undefined,
-              assignees: Array.isArray(rawPayload.assignees)
-                ? rawPayload.assignees.map(String)
-                : undefined,
-              comments:
-                typeof rawPayload.comments === "number"
-                  ? rawPayload.comments
-                  : undefined,
-            };
-            if (payload.issueNumber && payload.issueTitle) {
-              insertIssueReferencePill(composerInputRef, payload);
-            }
-          }
-        } catch {
-          // Malformed drag payload: ignore.
+          insertReferencePill(composerInputRef, referenceDragData);
         } finally {
-          if (type === "pr") {
-            window.__orgiiLastPrDrag = undefined;
-          } else {
-            window.__orgiiLastIssueDrag = undefined;
-          }
+          clearReferenceDragData(referenceDragData.type);
         }
         return;
       }
 
       // Get file reference data
-      const fileReferenceData = e.dataTransfer.getData(
-        "application/x-file-reference"
-      );
+      const fileReferenceData =
+        internalFileTreeData ||
+        e.dataTransfer.getData("application/x-file-reference");
 
       if (!fileReferenceData) {
         return;

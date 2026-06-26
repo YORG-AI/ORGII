@@ -83,6 +83,15 @@ export function makeToolCallEvent(
   const initialStatus: EventDisplayStatus = isInteractiveTool(resolvedToolName)
     ? "awaiting_user"
     : "running";
+  const filePath =
+    typeof args.file_path === "string"
+      ? args.file_path
+      : typeof args.path === "string"
+        ? args.path
+        : typeof args.target_file === "string"
+          ? args.target_file
+          : undefined;
+
   return {
     id,
     chunk_id: id,
@@ -102,6 +111,7 @@ export function makeToolCallEvent(
     displayVariant: "tool_call",
     activityStatus: "agent",
     callId: toolCallId,
+    filePath,
     isDelta: streaming,
   };
 }

@@ -245,6 +245,8 @@ const TextSelectionDropdown: React.FC<TextSelectionDropdownProps> = ({
   onClose,
   onAskAgent,
   onAddToContext,
+  onAddFile,
+  onAddLines,
   lineRange,
   className = "",
 }) => {
@@ -338,14 +340,22 @@ const TextSelectionDropdown: React.FC<TextSelectionDropdownProps> = ({
         setShowSessionSelector(true);
         setSessionActiveIndex(0);
       } else if (action === "add-file") {
-        onAddToContext?.(selectedText, null);
+        if (onAddFile) {
+          onAddFile();
+        } else {
+          onAddToContext?.(selectedText, null);
+        }
         onClose();
       } else if (action === "add-lines") {
-        onAskAgent?.(selectedText);
+        if (onAddLines) {
+          onAddLines();
+        } else {
+          onAskAgent?.(selectedText);
+        }
         onClose();
       }
     },
-    [selectedText, onAskAgent, onAddToContext, onClose]
+    [selectedText, onAskAgent, onAddToContext, onAddFile, onAddLines, onClose]
   );
 
   // Handle session selection

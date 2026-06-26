@@ -132,6 +132,8 @@ const UNCOMMITTED_CHANGES_PATTERNS = [
   "would be overwritten",
   "your local changes",
   "uncommitted changes",
+  "unstaged changes",
+  "please commit or stash them",
   "please commit your changes or stash them",
 ] as const;
 

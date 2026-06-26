@@ -4,7 +4,10 @@
  * Listing / pricing / pool / publish-flow types are not part of the OSS
  * KeyVault wizard.
  */
-import type { SaveKeyRequest } from "@src/api/tauri/rpc/schemas/validation";
+import type {
+  ProviderProtocol,
+  SaveKeyRequest,
+} from "@src/api/tauri/rpc/schemas/validation";
 import type { ModelType } from "@src/api/types/keys";
 
 // ============================================
@@ -70,6 +73,7 @@ export interface WizardData {
   default_variants: Array<{ base_model: string; model: string }>;
   /** Authentication method: "api_key" (default) or "oauth" */
   auth_method?: "api_key" | "oauth";
+  protocol?: ProviderProtocol;
   // Extracted values from LLM extraction (Auto-Extract mode)
   extracted_api_key?: string;
   extracted_base_url?: string;

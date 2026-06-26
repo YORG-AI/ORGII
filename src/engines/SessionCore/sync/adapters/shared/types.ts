@@ -332,6 +332,7 @@ export interface PlanReadyForApprovalEvent {
   planId?: string;
   planRevisionId?: string;
   originToolCallId?: string;
+  autoApproveAt?: number | null;
 }
 
 /**

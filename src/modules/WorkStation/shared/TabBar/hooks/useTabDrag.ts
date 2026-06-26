@@ -13,6 +13,11 @@ import type {
 } from "@dnd-kit/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  clearWorkstationTabDrag,
+  setWorkstationTabDrag,
+} from "@src/shared/dnd/dragSideChannel";
+
 import { TAB_BAR_HEIGHT } from "../config";
 import type { TabDragEventDetail, TabDragPillPayload } from "../tabDragTypes";
 import type { WorkStationTab } from "../types";
@@ -186,8 +191,7 @@ export function useTabDrag({
           : undefined;
 
       if (pill) {
-        window.__internalWorkstationTabDrag = true;
-        window.__internalWorkstationTabDragData = JSON.stringify(pill);
+        setWorkstationTabDrag(pill);
       }
 
       document.dispatchEvent(
@@ -375,8 +379,7 @@ export function useTabDrag({
   }, []);
 
   const clearTabDragGlobals = useCallback(() => {
-    window.__internalWorkstationTabDrag = false;
-    window.__internalWorkstationTabDragData = undefined;
+    clearWorkstationTabDrag();
   }, []);
 
   const handleDragEnd = useCallback(

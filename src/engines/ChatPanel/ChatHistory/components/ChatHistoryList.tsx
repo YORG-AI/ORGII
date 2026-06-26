@@ -10,6 +10,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import React, {
   memo,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -23,8 +24,17 @@ import type { OptimizedChatItem } from "../chatItemPipeline/types";
 import { CHAT_FOOTER_SPACER } from "../config/chatFooterSpacer";
 import { getUnloadedTurnMeta } from "../hooks/useChatGroups";
 import { GroupItemRenderer } from "../renderers";
+import type { GroupHeaderRenderPart } from "../renderers/GroupHeaderRenderer";
 
 const STATIC_RENDER_ITEM_LIMIT = 24;
+const AT_BOTTOM_EPSILON_PX = 4;
+
+function isScrolledToPhysicalBottom(element: HTMLElement): boolean {
+  return (
+    element.scrollHeight - element.scrollTop - element.clientHeight <=
+    AT_BOTTOM_EPSILON_PX
+  );
+}
 
 function sameNumberArray(
   left: readonly number[],
@@ -257,6 +267,10 @@ function sameChatHistoryListProps(
       previous.onAtBottomStateChange === next.onAtBottomStateChange,
     ],
     ["onRangeChanged", previous.onRangeChanged === next.onRangeChanged],
+    [
+      "onActiveGroupIndexChange",
+      previous.onActiveGroupIndexChange === next.onActiveGroupIndexChange,
+    ],
     ["onEndReached", previous.onEndReached === next.onEndReached],
     ["onRegenerate", previous.onRegenerate === next.onRegenerate],
     ["onSubmit", previous.onSubmit === next.onSubmit],
@@ -312,9 +326,13 @@ interface ChatHistoryListProps {
    * Same rationale as `getIsWpGeneWorking`.
    */
   getIsExploring: () => boolean;
-  renderGroupHeader: (groupIndex: number) => React.ReactNode;
+  renderGroupHeader: (
+    groupIndex: number,
+    renderPart?: GroupHeaderRenderPart
+  ) => React.ReactNode;
   onAtBottomStateChange: (atBottom: boolean) => void;
   onRangeChanged: (range: { startIndex: number; endIndex: number }) => void;
+  onActiveGroupIndexChange?: (groupIndex: number, pinned: boolean) => void;
   onEndReached: () => void;
   onRegenerate?: (groupIndex: number) => void;
   onSubmit: (eventId: string, answers: Record<string, string>) => void;
@@ -371,6 +389,7 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
     renderGroupHeader: renderGroupHeaderProp,
     onAtBottomStateChange,
     onRangeChanged,
+    onActiveGroupIndexChange,
     onEndReached,
     onRegenerate,
     onSubmit,
@@ -396,9 +415,9 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
     const previousChatItemsRef = useRef<(OptimizedChatItem | undefined)[]>([]);
 
     // When the planning indicator is active, inject it as a virtual item
-    // in the last group so it renders under the latest turn's sticky
-    // header — not as the global Virtuoso Footer which visually attaches
-    // to the previous turn when the latest group has 0 body items.
+    // in the last group so it renders under the latest turn's header —
+    // not as the global Virtuoso Footer which visually attaches to the
+    // previous turn when the latest group has 0 body items.
     const hasPlanningItem =
       planningIndicatorCount > 0 && groupCounts.length > 0;
     const effectiveGroupCounts = useMemo(() => {
@@ -425,6 +444,7 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
       }
       return indexes;
     }, [virtualGroups]);
+    // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual exposes imperative helpers that cannot be memoized safely.
     const virtualizer = useVirtualizer({
       count: virtualGroups.length,
       getScrollElement: () => virtualScrollerRef.current,
@@ -432,11 +452,53 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
       overscan: 4,
       getItemKey: (index) => {
         const group = virtualGroups[index];
-        const firstItem = group ? flatItems[group.startFlatIndex] : undefined;
-        return firstItem?.chunk_id ?? `chat-group-${index}`;
+        if (!group) return `chat-group-${index}:0`;
+        const itemKeys = flatItems
+          .slice(group.startFlatIndex, group.startFlatIndex + group.itemCount)
+          .map((item) => item.chunk_id)
+          .join("|");
+        return `${index}:${group.itemCount}:${itemKeys}`;
       },
     });
     const virtualItems = virtualizer.getVirtualItems();
+    const rowResizeObserverRef = useRef<ResizeObserver | null>(null);
+    const measuredRowHeightsRef = useRef(new WeakMap<Element, number>());
+    const observedRowsRef = useRef(new Set<Element>());
+    const measureVirtualRow = useCallback(
+      (node: HTMLDivElement | null) => {
+        if (!node) return;
+        if (!rowResizeObserverRef.current) {
+          rowResizeObserverRef.current = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+              const target = entry.target;
+              const nextHeight =
+                entry.borderBoxSize[0]?.blockSize ??
+                target.getBoundingClientRect().height;
+              if (measuredRowHeightsRef.current.get(target) === nextHeight) {
+                continue;
+              }
+              measuredRowHeightsRef.current.set(target, nextHeight);
+              virtualizer.measureElement(target as HTMLElement);
+            }
+          });
+        }
+        virtualizer.measureElement(node);
+        if (!observedRowsRef.current.has(node)) {
+          observedRowsRef.current.add(node);
+          rowResizeObserverRef.current.observe(node);
+        }
+      },
+      [virtualizer]
+    );
+
+    useEffect(() => {
+      const observedRows = observedRowsRef.current;
+      return () => {
+        rowResizeObserverRef.current?.disconnect();
+        rowResizeObserverRef.current = null;
+        observedRows.clear();
+      };
+    }, [virtualListDataKey]);
 
     useEffect(() => {
       if (virtualItems.length === 0) return;
@@ -505,15 +567,21 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
         const groupStartFlatIndex = effectiveGroupCounts
           .slice(0, groupIndex)
           .reduce((sum, count) => sum + count, 0);
+        const firstItem = flatItems[groupStartFlatIndex];
+        const groupKey =
+          firstItem?.event?.id ??
+          firstItem?.chunk_id ??
+          `static-group-${groupIndex}`;
         return {
           groupIndex,
+          groupKey,
           itemIndexes: Array.from(
             { length: groupItemCount },
             (_, itemOffset) => groupStartFlatIndex + itemOffset
           ),
         };
       });
-    }, [useStaticRendering, effectiveGroupCounts]);
+    }, [useStaticRendering, effectiveGroupCounts, flatItems]);
 
     const renderGroupItem = React.useCallback(
       (flatIndex: number, groupIndex: number) => {
@@ -562,20 +630,52 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
       ]
     );
 
+    const reportActiveGroupIndex = useCallback(
+      (scrollRoot: HTMLDivElement) => {
+        if (!onActiveGroupIndexChange) return;
+        const rootTop = scrollRoot.getBoundingClientRect().top;
+        let activeGroupIndex = 0;
+        let activeTop = Number.NEGATIVE_INFINITY;
+        for (const groupElement of scrollRoot.querySelectorAll<HTMLElement>(
+          "[data-chat-group-index]"
+        )) {
+          const groupIndex = Number(groupElement.dataset.chatGroupIndex);
+          if (!Number.isFinite(groupIndex)) continue;
+          const top = groupElement.getBoundingClientRect().top - rootTop;
+          if (top <= 0 && top >= activeTop) {
+            activeTop = top;
+            activeGroupIndex = groupIndex;
+          }
+        }
+        onActiveGroupIndexChange(activeGroupIndex, activeTop < 0);
+      },
+      [onActiveGroupIndexChange]
+    );
+
     if (useStaticRendering) {
       return (
         <div
           ref={staticScrollerRef}
           className="h-full overflow-y-auto overscroll-contain scrollbar-hide"
+          onScroll={(event) => {
+            const element = event.currentTarget;
+            onAtBottomStateChange(isScrolledToPhysicalBottom(element));
+            reportActiveGroupIndex(element);
+          }}
         >
           <div
             className={`mx-auto min-h-full w-full ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
           >
-            {staticGroups.map(({ groupIndex, itemIndexes }) => (
-              <div key={`static-group-${groupIndex}`} className="relative">
-                <div className="sticky top-0 z-[60]">
-                  {renderGroupHeaderProp(groupIndex)}
+            {staticGroups.map(({ groupIndex, groupKey, itemIndexes }) => (
+              <div
+                key={groupKey}
+                className="relative"
+                data-chat-group-index={groupIndex}
+              >
+                <div className="relative z-[30]">
+                  {renderGroupHeaderProp(groupIndex, "user")}
                 </div>
+                {renderGroupHeaderProp(groupIndex, "collapse")}
                 {itemIndexes.map((itemFlatIndex) => {
                   if (itemFlatIndex >= flatItems.length) {
                     return (
@@ -623,16 +723,15 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
 
     return (
       <div
-        key={virtualListDataKey}
         ref={(node) => {
           virtualScrollerRef.current = node;
         }}
         className="h-full w-full overflow-y-auto overscroll-contain scrollbar-hide"
         onScroll={(event) => {
-          const el = event.currentTarget;
-          const isAtBottom =
-            el.scrollHeight - el.scrollTop - el.clientHeight <= 80;
+          const element = event.currentTarget;
+          const isAtBottom = isScrolledToPhysicalBottom(element);
           onAtBottomStateChange(isAtBottom);
+          reportActiveGroupIndex(element);
           if (isAtBottom) onEndReached();
         }}
       >
@@ -646,16 +745,18 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
             return (
               <div
                 key={virtualItem.key}
-                ref={virtualizer.measureElement}
+                ref={measureVirtualRow}
                 data-index={virtualItem.index}
+                data-chat-group-index={group.groupIndex}
                 className="absolute left-0 top-0 w-full"
                 style={{
                   transform: `translateY(${virtualItem.start}px)`,
                 }}
               >
-                <div className="sticky top-0 z-[60]">
-                  {renderGroupHeaderProp(group.groupIndex)}
+                <div className="relative z-[30]">
+                  {renderGroupHeaderProp(group.groupIndex, "user")}
                 </div>
+                {renderGroupHeaderProp(group.groupIndex, "collapse")}
                 {Array.from({ length: group.itemCount }, (_, itemOffset) => {
                   const flatIndex = group.startFlatIndex + itemOffset;
                   return (

@@ -32,6 +32,7 @@ function createCtx(): EventHandlerContext {
     execOutputBufferRef: ref(""),
     onAgentCompleteRef: ref(undefined),
     onContextUsageRef: ref(undefined),
+    onTokenUpdateRef: ref(undefined),
     onStatusChangeRef: ref(vi.fn()),
     onQuestionRequestRef: ref(undefined),
     setStreaming: vi.fn(),
@@ -119,6 +120,28 @@ describe("Rust Agent session handlers", () => {
     );
 
     expect(onContextUsage).toHaveBeenCalledWith(contextUsage);
+  });
+
+  it("updates context token totals without replacing an existing breakdown snapshot", () => {
+    const onContextUsage = vi.fn();
+    const onTokenUpdate = vi.fn();
+    const ctx = {
+      ...createCtx(),
+      onContextUsageRef: ref(onContextUsage),
+      onTokenUpdateRef: ref(onTokenUpdate),
+    };
+
+    handleContextUsage(
+      {
+        type: "agent:context_usage",
+        sessionId: "session-1",
+        contextTokens: 80,
+      },
+      ctx
+    );
+
+    expect(onTokenUpdate).toHaveBeenCalledWith(80);
+    expect(onContextUsage).not.toHaveBeenCalled();
   });
 
   it("passes contextUsage from agent:complete to completion callbacks", () => {

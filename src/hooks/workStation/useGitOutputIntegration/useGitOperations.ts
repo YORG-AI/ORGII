@@ -30,17 +30,20 @@ interface PushParams {
   branch?: string;
   set_upstream?: boolean;
   force?: boolean;
+  showErrorDialog?: boolean;
 }
 
 interface PullParams {
   remote?: string;
   branch?: string;
   strategy?: string;
+  showErrorDialog?: boolean;
 }
 
 interface FetchParams {
   remote?: string;
   prune?: boolean;
+  showErrorDialog?: boolean;
 }
 
 const handlePush = createGitOperationHandler<PushParams>({

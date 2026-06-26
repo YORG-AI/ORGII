@@ -19,8 +19,8 @@
  * Surfaces:
  *   - **All Tabs** mode renders the full palette with file search, regular
  *     browser tab, private browser tab, work items, and projects.
- *   - **Browser** mode renders a Browser-focused palette with file search,
- *     `newBrowserTab`, and `newPrivateBrowserTab`.
+ *   - **Browser** mode renders a Browser-focused palette with `newBrowserTab`
+ *     and `newPrivateBrowserTab` only.
  *   - Other modes (Code / Data / Project) do **not** show a `+` at all.
  *
  * Keyboard: ⌘T (`new_tab`) opens whichever instance of this menu is
@@ -50,6 +50,7 @@ import {
 } from "@src/components/Dropdown/tokens";
 import KeyBadge from "@src/components/KeyBadge";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
+import { focusBrowserUrlBar } from "@src/modules/WorkStation/Browser/Panels/BrowserMainPane/components/WebUrlBar";
 import { TabBarTrailingIconButton } from "@src/modules/WorkStation/shared/TabBar/components/TabBarTrailingIconButton";
 import { openEditorSpotlight } from "@src/scaffold/GlobalSpotlight/openSpotlight";
 import { CODE_EDITOR_TOUR_TARGETS } from "@src/scaffold/Tutorials/codeEditorTourConfig";
@@ -133,11 +134,13 @@ const TabBarPlusMenuComponent: React.FC<TabBarPlusMenuProps> = ({
 
   const handleNewBrowserTab = useCallback(() => {
     requestNewBrowserSession({});
+    focusBrowserUrlBar();
     close();
   }, [close, requestNewBrowserSession]);
 
   const handleNewPrivateBrowserTab = useCallback(() => {
     requestNewBrowserSession({ isPrivate: true });
+    focusBrowserUrlBar();
     close();
   }, [close, requestNewBrowserSession]);
 

@@ -713,10 +713,41 @@
       },
       "tabs": {
         "work": "Çalışma",
-        "explore": "Keşfet"
+        "explore": "Keşfet",
+        "heatmap": "Heat map"
+      },
+      "heatmap": {
+        "loading": "Etkinlik Heat map yükleniyor…",
+        "empty": "Henüz oturum etkinliği yok.",
+        "sessions": "Oturumlar",
+        "tokens": "Tokens",
+        "cost": "Maliyet"
       },
       "exploreRepos": {
         "title": "Repos keşfet"
+      },
+      "hints": {
+        "skill": {
+          "before": "Use",
+          "after": "to link a skill or tool"
+        },
+        "ask": {
+          "before": "Use",
+          "after": "to ask questions about the codebase"
+        },
+        "plan": {
+          "before": "Use",
+          "after": "to plan before building"
+        },
+        "switch": {
+          "before": "Use",
+          "after": "to switch sections"
+        },
+        "previous": "Previous hint",
+        "next": "Next hint"
+      },
+      "manageIssues": {
+        "title": "Issues yönet"
       }
     },
     "defaultTitle": "Sohbet",
@@ -894,6 +925,18 @@
       "showLess": "Daha az göster",
       "showMore_one": "{{count}} tane daha göster",
       "showMore_other": "{{count}} tane daha göster"
+    },
+    "manageIssues": {
+      "title": "Issues yönet",
+      "myWork": "Çalışmalarım",
+      "allRepositories": "Tüm repos",
+      "newIssue": "Yeni issue",
+      "tabs": {
+        "all": "Tümü",
+        "active": "Aktif",
+        "reviewRequests": "Review istekleri",
+        "done": "Bitti"
+      }
     }
   },
   "chatStatus": {
@@ -2252,6 +2295,7 @@
         "index": "İndeksle",
         "reindex": "Yeniden indeksle",
         "cancel": "İptal",
+        "stop": "Durdur",
         "clear": "Temizle",
         "refresh": "Yenile"
       },

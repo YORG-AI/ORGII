@@ -39,6 +39,10 @@ export interface KeyboardShortcutTooltipContentProps {
   className?: string;
 }
 
+const IS_MAC =
+  typeof navigator !== "undefined" &&
+  /\bMacintosh\b|\bMac OS X\b/.test(navigator.userAgent);
+
 type ModifierType = "cmd" | "shift" | "option" | "ctrl";
 type SpecialKeyType =
   | "arrowUp"
@@ -178,7 +182,7 @@ function ModifierKey({
     case "option":
       return <Option {...iconProps} />;
     case "ctrl":
-      return <ChevronUp {...iconProps} />;
+      return IS_MAC ? <ChevronUp {...iconProps} /> : <span>Ctrl</span>;
   }
 }
 
@@ -262,8 +266,10 @@ export const KeyboardShortcut = memo<KeyboardShortcutProps>(
     return (
       <div className={`flex items-center gap-0.5 ${className}`}>
         {tokens.map((token, index) => {
+          const isTextCtrl =
+            token.type === "modifier" && token.modifier === "ctrl" && !IS_MAC;
           const isSquareGlyph =
-            token.type === "modifier" ||
+            (token.type === "modifier" && !isTextCtrl) ||
             (token.type === "special" &&
               token.special !== "esc" &&
               token.special !== "tab") ||

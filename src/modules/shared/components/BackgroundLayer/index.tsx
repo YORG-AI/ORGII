@@ -18,6 +18,7 @@ import {
   addToBackgroundCache,
   backgroundImageCache,
 } from "@src/util/core/init/backgroundInit";
+import { isWindows } from "@src/util/platform/tauri";
 
 import { AnimationComponents } from "./animations";
 
@@ -82,6 +83,16 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
 
   // Get animation component if animation is selected
   const AnimationComponent = animation ? AnimationComponents[animation] : null;
+
+  if (isWindows()) {
+    return (
+      <div
+        data-background-layer="true"
+        className="absolute left-0 top-0 z-0 bg-bg-2"
+        style={{ width: "100vw", height: "100vh" }}
+      />
+    );
+  }
 
   // Glass mode: render a 30% bg-2 tint behind the native glass effect
   if (glass != null) {

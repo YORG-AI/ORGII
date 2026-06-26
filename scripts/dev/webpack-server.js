@@ -88,10 +88,12 @@ try {
 // Suppress webpack-dev-server built-in progress (we provide our own)
 // ============================================
 if (config.devServer) {
-  config.devServer.client = {
-    ...(config.devServer.client || {}),
-    progress: false,
-  };
+  if (config.devServer.client !== false) {
+    config.devServer.client = {
+      ...(config.devServer.client || {}),
+      progress: false,
+    };
+  }
 }
 
 // ============================================
@@ -169,9 +171,49 @@ try {
 // ============================================
 // Configure Dev Server Options
 // ============================================
+function shouldLogDevRequest(url = "") {
+  if (process.env.ORGII_DEV_STARTUP_DEBUG !== "true") {
+    return false;
+  }
+
+  return (
+    url === "/" ||
+    url.startsWith("/main.js") ||
+    url.startsWith("/index.html") ||
+    url.startsWith("/ws") ||
+    url.includes(".hot-update.") ||
+    url.includes("webpack")
+  );
+}
+
 const devServerOptions = {
   ...config.devServer,
   open: false, // Don't auto-open browser
+  setupMiddlewares: (middlewares, devServer) => {
+    middlewares.unshift({
+      name: "orgii-dev-request-diagnostics",
+      middleware: (req, res, next) => {
+        if (shouldLogDevRequest(req.url)) {
+          const startedAt = Date.now();
+          res.on("finish", () => {
+            const ua = String(req.headers["user-agent"] || "")
+              .replace(/\s+/g, " ")
+              .slice(0, 120);
+            process.stdout.write(
+              `[WDS_REQUEST] ${req.method} ${req.url} -> ${res.statusCode} ${Date.now() - startedAt}ms ua="${ua}"\n`
+            );
+          });
+        }
+        next();
+      },
+    });
+
+    if (typeof config.devServer?.setupMiddlewares === "function") {
+      return config.devServer.setupMiddlewares(middlewares, devServer);
+    }
+
+    return middlewares;
+  },
 };
 
 // ============================================

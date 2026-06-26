@@ -83,6 +83,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
       sessionKey,
       onSelectionChange,
       onOutput,
+      onUserInput,
       repoPath,
       workingDirectory,
       onOpenFileLink,
@@ -258,6 +259,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
         workingDirectoryRef,
         onOpenFileLinkRef,
         onOutput,
+        onUserInput,
         onSelectionChange,
         onTitleChange,
       });

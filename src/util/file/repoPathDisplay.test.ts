@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  formatPathForPlatformDisplay,
   formatRepoPathForDisplay,
   formatToolTargetPath,
   pickToolArgString,
@@ -13,14 +14,14 @@ describe("formatRepoPathForDisplay", () => {
         path: "/tmp/workspace-a/app/src/index.ts",
         repoPath: "/tmp/workspace-a/app",
       }).displayPath
-    ).toBe("workspace-a/app/src/index.ts");
+    ).toBe(formatPathForPlatformDisplay("workspace-a/app/src/index.ts"));
 
     expect(
       formatRepoPathForDisplay({
         path: "/tmp/workspace-b/app/src/index.ts",
         repoPath: "/tmp/workspace-b/app",
       }).displayPath
-    ).toBe("workspace-b/app/src/index.ts");
+    ).toBe(formatPathForPlatformDisplay("workspace-b/app/src/index.ts"));
   });
 
   it("keeps relative paths root-qualified when repo context exists", () => {
@@ -29,7 +30,9 @@ describe("formatRepoPathForDisplay", () => {
       repoPath: "/tmp/workspace-a/app",
     });
 
-    expect(display.displayPath).toBe("workspace-a/app/src/index.ts");
+    expect(display.displayPath).toBe(
+      formatPathForPlatformDisplay("workspace-a/app/src/index.ts")
+    );
     expect(display.title).toBe("/tmp/workspace-a/app/src/index.ts");
   });
 
@@ -39,16 +42,21 @@ describe("formatRepoPathForDisplay", () => {
       repoPath: "/tmp/repo",
     });
 
-    expect(display.displayPath).toBe("/tmp/repo-other/src/index.ts");
+    expect(display.displayPath).toBe(
+      formatPathForPlatformDisplay("/tmp/repo-other/src/index.ts")
+    );
   });
 
-  it("normalizes Windows separators for display", () => {
+  it("uses platform separators for Windows display", () => {
     const display = formatRepoPathForDisplay({
       path: "C:\\work\\repo\\src\\index.ts",
       repoPath: "C:\\work\\repo",
     });
 
-    expect(display.displayPath).toBe("work/repo/src/index.ts");
+    expect(display.displayPath).toBe(
+      formatPathForPlatformDisplay("work/repo/src/index.ts")
+    );
+    expect(display.normalizedPath).toBe("C:/work/repo/src/index.ts");
   });
 
   it("extracts nested tool arguments consistently", () => {
@@ -71,7 +79,7 @@ describe("formatRepoPathForDisplay", () => {
         repoPath: "/tmp/workspace-a/app",
         pathKeys: ["path"],
       })
-    ).toBe("workspace-b/app");
+    ).toBe(formatPathForPlatformDisplay("workspace-b/app"));
   });
 
   it("falls back to current repo when tool args omit a target", () => {
@@ -81,6 +89,6 @@ describe("formatRepoPathForDisplay", () => {
         repoPath: "/tmp/workspace-a/app",
         pathKeys: ["path"],
       })
-    ).toBe("workspace-a/app");
+    ).toBe(formatPathForPlatformDisplay("workspace-a/app"));
   });
 });

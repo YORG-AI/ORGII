@@ -19,6 +19,7 @@ import {
 } from "@src/store/session";
 import {
   CHAT_PANEL_SURFACE_KIND,
+  chatPanelMaximizedAtom,
   chatPanelNavigateAtom,
 } from "@src/store/ui/chatPanelAtom";
 
@@ -64,6 +65,7 @@ export function useSessionView(): UseSessionViewReturn {
 
   const jumpToSession = useSetAtom(jumpToSessionAtom);
   const navigateChatPanel = useSetAtom(chatPanelNavigateAtom);
+  const setChatPanelMaximized = useSetAtom(chatPanelMaximizedAtom);
   const closeSessionAction = useSetAtom(closeSessionAtom);
   const updateMetadataAction = useSetAtom(updateSessionMetadataAtom);
 
@@ -71,18 +73,20 @@ export function useSessionView(): UseSessionViewReturn {
     (sessionId: string, sessionName?: string, repoPath?: string): void => {
       // Single atom write — `jumpToSessionAtom` accepts the rich
       // payload form so we don't double-flush sessionViewAtom.
+      setChatPanelMaximized(false);
       navigateChatPanel({ kind: CHAT_PANEL_SURFACE_KIND.SESSION });
       jumpToSession({ sessionId, sessionName, repoPath });
       navigate(ROUTES.workStation.base.path);
     },
-    [jumpToSession, navigate, navigateChatPanel]
+    [jumpToSession, navigate, navigateChatPanel, setChatPanelMaximized]
   );
 
   const closeSession = useCallback((): void => {
+    setChatPanelMaximized(false);
     navigateChatPanel({ kind: CHAT_PANEL_SURFACE_KIND.SESSION });
     closeSessionAction();
     navigate(ROUTES.workStation.base.path);
-  }, [closeSessionAction, navigate, navigateChatPanel]);
+  }, [closeSessionAction, navigate, navigateChatPanel, setChatPanelMaximized]);
 
   const updateMetadata = useCallback(
     (updates: { sessionName?: string; repoPath?: string }): void => {

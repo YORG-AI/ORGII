@@ -416,6 +416,11 @@ select,
   user-select: text !important;
   -webkit-touch-callout: default;
 }
+
+[data-browser-url-bar-input]::selection {
+  background: color-mix(in srgb, var(--color-primary-6) 82%, black) !important;
+  color: white !important;
+}
 html {
   overscroll-behavior-x: none;
   background: var(--color-bg-2);
@@ -425,6 +430,16 @@ body {
   border-radius: var(--border-radius-window);
   overflow: hidden;
   background: var(--color-bg-2);
+}
+
+html[data-host-desktop="windows"],
+html[data-host-desktop="windows"] body,
+html[data-host-desktop="windows"] #root {
+  background: var(--color-bg-2);
+}
+
+html[data-host-desktop="windows"] .sidebar-base {
+  background: var(--sidebar-bg);
 }
 
 // Ensure popup layers are not clipped by body's overflow: hidden

@@ -7,13 +7,14 @@
  * Structure:
  * - Right: ReplayTabBar (Messages / Kanban / Interactions / Preview) + stacked event viewer
  */
-import { useAtomValue } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import React, {
   Suspense,
   lazy,
   memo,
   useCallback,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
@@ -34,11 +35,16 @@ import { AppType } from "@src/engines/Simulator/types/appTypes";
 import { matchesCanvasEvent } from "@src/modules/WorkStation/Canvas/config";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
+  TextSelectionDropdown,
+  useTextSelectionDropdown,
+} from "@src/scaffold/ContextMenu/exports";
+import {
   chatCodeFontSizeAtom,
   chatFontSizeAtom,
   chatLineHeightAtom,
 } from "@src/store/config/configAtom";
 import { canvasPreviewAtom } from "@src/store/session/canvasPreviewAtom";
+import { addToAgentAtom } from "@src/store/ui/addToAgentAtom";
 import { simulatorEffectiveDockAppAtom } from "@src/store/ui/simulatorAtom";
 import type { BackendEvent } from "@src/types/session/steps";
 import { openFileInWorkStation } from "@src/util/ui/openFileInWorkStation";
@@ -87,6 +93,8 @@ const SimulatorMessagesComponent: React.FC<SimulatorMessagesProps> = ({
 }) => {
   const { t } = useTranslation("sessions");
   const effectiveDockApp = useAtomValue(simulatorEffectiveDockAppAtom);
+  const setAddToAgent = useSetAtom(addToAgentAtom);
+  const selectionContainerRef = useRef<HTMLDivElement>(null);
   const chatFontSize = useAtomValue(chatFontSizeAtom);
   const chatCodeFontSize = useAtomValue(chatCodeFontSizeAtom);
   const chatLineHeight = useAtomValue(chatLineHeightAtom);
@@ -236,6 +244,32 @@ const SimulatorMessagesComponent: React.FC<SimulatorMessagesProps> = ({
   }, [t, effectiveViewMode]);
 
   const headerFilePath = headerBreadcrumbLabel;
+  const sessionEvent = currentEvent as SessionEvent | undefined;
+  const currentFunctionName = sessionEvent?.functionName ?? "";
+  const isCanvasEvent = matchesCanvasEvent(currentFunctionName);
+
+  const handleSelectedTextAddToChat = useCallback(
+    (text: string, _sessionId: string | null) => {
+      setAddToAgent({
+        type: "terminal",
+        text,
+        displayName: headerBreadcrumbLabel,
+      });
+    },
+    [headerBreadcrumbLabel, setAddToAgent]
+  );
+
+  const {
+    visible: selectionDropdownVisible,
+    position: selectionDropdownPosition,
+    selectedText,
+    hideDropdown: hideSelectionDropdown,
+  } = useTextSelectionDropdown({
+    source: "terminal",
+    containerRef: selectionContainerRef,
+    onAddToContext: handleSelectedTextAddToChat,
+    enabled: mode === "simulation" && !isCanvasEvent,
+  });
 
   const handleMessageClick = useCallback(
     (messageId: string) => {
@@ -296,9 +330,7 @@ const SimulatorMessagesComponent: React.FC<SimulatorMessagesProps> = ({
   const noopSelectItem = useCallback((_itemId: string) => {}, []);
 
   // Handle canvas events (early return AFTER all hooks)
-  const sessionEvent = currentEvent as SessionEvent | undefined;
-  const currentFunctionName = sessionEvent?.functionName ?? "";
-  if (matchesCanvasEvent(currentFunctionName)) {
+  if (isCanvasEvent) {
     return (
       <EventWrapper
         event={currentEvent as unknown as BackendEvent}
@@ -331,6 +363,7 @@ const SimulatorMessagesComponent: React.FC<SimulatorMessagesProps> = ({
   const mainContent = (
     <InSimulatorReplayContext.Provider value={true}>
       <div
+        ref={selectionContainerRef}
         className="flex h-full w-full flex-col overflow-hidden"
         style={
           {
@@ -410,6 +443,14 @@ const SimulatorMessagesComponent: React.FC<SimulatorMessagesProps> = ({
             appClassName="session-replay-messages"
           />
         </div>
+        <TextSelectionDropdown
+          visible={selectionDropdownVisible}
+          position={selectionDropdownPosition}
+          selectedText={selectedText}
+          source="terminal"
+          onClose={hideSelectionDropdown}
+          onAddToContext={handleSelectedTextAddToChat}
+        />
       </SimulatorReplayChrome>
     </EventWrapper>
   );

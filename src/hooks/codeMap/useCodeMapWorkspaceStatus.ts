@@ -31,6 +31,7 @@ interface UseCodeMapWorkspaceStatusResult {
   actionLoading: boolean;
   error: string | null;
   isIndexing: boolean;
+  isStopping: boolean;
   refresh: () => Promise<void>;
   startIndex: (force?: boolean) => Promise<void>;
   cancelIndex: () => Promise<void>;
@@ -83,6 +84,7 @@ export function useCodeMapWorkspaceStatus({
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stopRequested, setStopRequested] = useState(false);
 
   const canLoad = enabled && Boolean(workspacePath);
 
@@ -93,6 +95,9 @@ export function useCodeMapWorkspaceStatus({
     try {
       const nextStatus = await getCodeMapStatus(workspacePath);
       setStatus(nextStatus);
+      if (nextStatus.status !== CODE_MAP_STATUS.INDEXING) {
+        setStopRequested(false);
+      }
     } catch (refreshError) {
       setError(errorToMessage(refreshError));
     } finally {
@@ -108,6 +113,9 @@ export function useCodeMapWorkspaceStatus({
       try {
         const nextStatus = await action();
         setStatus(nextStatus);
+        if (nextStatus.status !== CODE_MAP_STATUS.INDEXING) {
+          setStopRequested(false);
+        }
       } catch (actionError) {
         setError(errorToMessage(actionError));
       } finally {
@@ -128,6 +136,7 @@ export function useCodeMapWorkspaceStatus({
   const handleCancelIndex = useCallback(async () => {
     if (!canLoad || !workspacePath) return;
     setActionLoading(true);
+    setStopRequested(true);
     setError(null);
     try {
       await cancelCodeMapIndex(workspacePath);
@@ -150,6 +159,7 @@ export function useCodeMapWorkspaceStatus({
       setLoading(false);
       setActionLoading(false);
       setError(null);
+      setStopRequested(false);
       return;
     }
     void refresh();
@@ -164,6 +174,9 @@ export function useCodeMapWorkspaceStatus({
         if (cancelled) return;
         if (isSameWorkspace(event.payload.workspacePath, workspacePath)) {
           setStatus(event.payload);
+          if (event.payload.status !== CODE_MAP_STATUS.INDEXING) {
+            setStopRequested(false);
+          }
         }
       }
     );
@@ -194,6 +207,7 @@ export function useCodeMapWorkspaceStatus({
     actionLoading,
     error,
     isIndexing,
+    isStopping: stopRequested && isIndexing,
     refresh,
     startIndex: handleStartIndex,
     cancelIndex: handleCancelIndex,

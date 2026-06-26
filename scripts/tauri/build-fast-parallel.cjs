@@ -49,6 +49,93 @@ function prefix(tag, color) {
   };
 }
 
+function createBinPath(name) {
+  const localPath = path.join(
+    rootDir,
+    "node_modules",
+    ".bin",
+    process.platform === "win32" ? `${name}.cmd` : name
+  );
+  return fs.existsSync(localPath) ? localPath : name;
+}
+
+function createNodePackageCliCommand(packageName, binName, fallbackBinName) {
+  if (process.platform !== "win32") {
+    return {
+      command: createBinPath(fallbackBinName ?? binName),
+      argsPrefix: [],
+    };
+  }
+
+  const packageJsonPath = require.resolve(`${packageName}/package.json`, {
+    paths: [rootDir, __dirname],
+  });
+  const packageJson = require(packageJsonPath);
+  const bin =
+    typeof packageJson.bin === "string"
+      ? packageJson.bin
+      : packageJson.bin?.[binName];
+  if (!bin) {
+    throw new Error(`${packageName} does not expose a ${binName} CLI binary`);
+  }
+
+  return {
+    command: process.execPath,
+    argsPrefix: [path.resolve(path.dirname(packageJsonPath), bin)],
+  };
+}
+
+function createPnpmCliCommand() {
+  if (process.platform !== "win32") {
+    return { command: createBinPath("pnpm"), argsPrefix: [] };
+  }
+
+  try {
+    return createNodePackageCliCommand("pnpm", "pnpm");
+  } catch (_error) {
+  }
+
+  const candidates = [
+    process.env.PNPM_HOME && path.join(process.env.PNPM_HOME, "pnpm.cjs"),
+    process.env.APPDATA &&
+      path.join(
+        process.env.APPDATA,
+        "npm",
+        "node_modules",
+        "pnpm",
+        "bin",
+        "pnpm.cjs"
+      ),
+    process.env.LOCALAPPDATA &&
+      path.join(
+        process.env.LOCALAPPDATA,
+        "pnpm",
+        "global",
+        "5",
+        "node_modules",
+        "pnpm",
+        "bin",
+        "pnpm.cjs"
+      ),
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return { command: process.execPath, argsPrefix: [candidate] };
+    }
+  }
+
+  return { command: createBinPath("pnpm"), argsPrefix: [] };
+}
+
+function createPnpmExecCommand(binaryName, args) {
+  const pnpmCli = createPnpmCliCommand();
+  return {
+    cmd: pnpmCli.command,
+    args: [...pnpmCli.argsPrefix, "exec", binaryName, ...args],
+  };
+}
+
 function runParallel(commands) {
   return new Promise((resolve) => {
     const results = new Array(commands.length).fill(null);
@@ -103,7 +190,7 @@ function resolveOutputAppPath(outputPath) {
 }
 
 function copyBuiltApp(outputPath) {
-  if (!outputPath) return;
+  if (!outputPath || process.platform !== "darwin") return;
 
   const targetDir = resolveCargoTargetDir();
   const builtAppPath = path.join(targetDir, "dev-build", "bundle", "macos", "ORG2.app");
@@ -154,10 +241,10 @@ async function main() {
   // Point cargo at the src-tauri workspace root
   cargoArgs.push("--manifest-path", path.join(rootDir, "src-tauri", "Cargo.toml"));
 
+  const webpackCommand = createPnpmExecCommand("webpack", ["--mode", "production"]);
   const [webpackCode, cargoCode] = await runParallel([
     {
-      cmd: path.join(rootDir, "node_modules/.bin/webpack"),
-      args: ["--mode", "production"],
+      ...webpackCommand,
       // FAST_PROD=true: use esbuild for transpilation + minification
       // instead of SWC+Terser, saving ~30-40s on the webpack phase.
       opts: { env: { ...env, FAST_PROD: "true" } },
@@ -204,19 +291,20 @@ async function main() {
     },
   });
 
+  const bundleTarget = process.platform === "darwin" ? "app" : "nsis";
   const tauriArgs = ["build"];
   if (featureString.length > 0) {
     tauriArgs.push("--features", featureString);
   }
   tauriArgs.push(
-    "--bundles", "app",
+    "--bundles", bundleTarget,
     "--config", configOverride,
     "--",
     "--profile", "dev-build"
   );
 
-  const tauriBin = path.join(rootDir, "node_modules/.bin/tauri");
-  const result = spawnSync(tauriBin, tauriArgs, {
+  const tauriCommand = createPnpmExecCommand("tauri", tauriArgs);
+  const result = spawnSync(tauriCommand.cmd, tauriCommand.args, {
     stdio: "inherit",
     cwd: rootDir,
     env,

@@ -1,9 +1,12 @@
 /**
  * useProcessReconciliation
  *
- * Runs once at startup to reseed in-memory process state from Rust's
- * authoritative process tables. Fixes the "blank after hot reload" problem
- * for both agent shell processes and Code Editor PTY sessions.
+ * Reseeds in-memory process state from Rust's authoritative process tables.
+ * Runs on mount, then periodically and on window focus/visibility so a single
+ * dropped live event (e.g. a missed `agent:subagent_job_changed` terminal
+ * frame) self-heals within one interval instead of pinning a ghost "running"
+ * row until the next app restart. Also fixes the "blank after hot reload"
+ * problem for both agent shell processes and Code Editor PTY sessions.
  *
  * Agent shells:
  *   Calls `agent_list_running_shell_jobs` → seeds `shellProcessMapAtom`
@@ -118,6 +121,7 @@ export function useProcessReconciliation(): void {
     let cancelled = false;
 
     async function reconcile() {
+      if (cancelled) return;
       // --- Agent shell processes ---
       try {
         const runningJobs = await invokeTauri<RunningShellJob[]>(
@@ -221,11 +225,35 @@ export function useProcessReconciliation(): void {
       }
     }
 
+    // Run immediately on mount, then keep reconciling. The job registry in
+    // Rust is the authoritative source of truth for which subagents/shells are
+    // still alive; the live event stream (`agent:subagent_job_changed`) is only
+    // a fast path. A single dropped terminal event would otherwise leave a
+    // ghost "running" row pinned until the next app restart. Periodic + focus
+    // reconciliation makes that self-heal within one interval.
     reconcile();
+
+    const RECONCILE_INTERVAL_MS = 15_000;
+    const intervalId = setInterval(reconcile, RECONCILE_INTERVAL_MS);
+
+    // Re-reconcile when the window regains focus / becomes visible so a
+    // returning user sees an accurate process list without waiting a full
+    // interval.
+    const onFocus = () => {
+      reconcile();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") reconcile();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       cancelled = true;
+      clearInterval(intervalId);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, []); // One-shot startup reconciliation: deps intentionally empty.
-  // Live values are accessed via refs updated on every render above.
+  }, []); // Reconciliation loop set up once; live values accessed via refs
+  // updated on every render above. Interval + focus listeners drive re-runs.
 }

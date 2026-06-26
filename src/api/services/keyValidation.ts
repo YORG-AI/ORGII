@@ -24,6 +24,7 @@ import type {
   HealthStatus,
   KeyInfo,
   ModelType,
+  ProviderProtocol,
   QuotaInfo,
   SaveKeyRequest,
   ValidationResult,
@@ -44,6 +45,7 @@ export type {
   GeminiOauthStartResponse,
   HealthStatus,
   KeyInfo,
+  ProviderProtocol,
   QuotaInfo,
   SaveKeyRequest,
   UsageItem,
@@ -72,7 +74,8 @@ export async function validateKey(
   apiKey: string,
   baseUrl?: string,
   sessionToken?: string,
-  testModel?: string
+  testModel?: string,
+  protocol?: ProviderProtocol
 ): Promise<ValidationResult> {
   return rpc.validation.validateKey({
     agentType,
@@ -80,6 +83,7 @@ export async function validateKey(
     baseUrl: cleanOptionalString(baseUrl),
     sessionToken: cleanOptionalString(sessionToken),
     testModel: cleanOptionalString(testModel),
+    protocol: protocol ?? null,
   });
 }
 
@@ -157,9 +161,10 @@ export async function getCodexOAuthModels(
 }
 
 export async function getGeminiOAuthModels(
-  accessToken: string
+  accessToken: string,
+  projectId?: string | null
 ): Promise<string[]> {
-  return rpc.validation.geminiOauthListModels({ accessToken });
+  return rpc.validation.geminiOauthListModels({ accessToken, projectId });
 }
 
 /**

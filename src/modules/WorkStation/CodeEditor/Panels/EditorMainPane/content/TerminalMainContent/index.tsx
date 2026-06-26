@@ -65,11 +65,11 @@ const TerminalMainContent: React.FC<TerminalMainContentProps> = ({
       name?: string;
       profileId?: string;
     }) => {
-      const sessionId = terminalState.addSession(options);
+      const sessionId = terminalState.addSession({ ...options, cwd: repoPath });
       terminalState.setActiveSession(sessionId);
       setTerminalTarget({ kind: "pty", ptySessionId: sessionId });
     },
-    [terminalState, setTerminalTarget]
+    [terminalState, repoPath, setTerminalTarget]
   );
 
   const handleKillTerminal = useCallback(() => {

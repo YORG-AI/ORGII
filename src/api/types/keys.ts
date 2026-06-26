@@ -26,6 +26,7 @@ export type {
   ModelType,
   AuthMethod,
   NativeHarnessType,
+  ProviderProtocol,
   AutoDetectResult,
   AvailableAgent,
   DetectedKey,

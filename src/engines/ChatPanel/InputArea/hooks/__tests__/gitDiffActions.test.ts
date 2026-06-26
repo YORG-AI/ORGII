@@ -17,10 +17,7 @@ function createDeps(
     isSessionActive: false,
     guard: { current: false },
     prompt: GIT_DIFF_COMMIT_PROMPT,
-    mintTurnIntentId: vi.fn(() => "turn-1"),
-    addUserMessage: vi.fn(async () => {}),
-    dispatchMessage: vi.fn(async () => {}),
-    setRunning: vi.fn(),
+    submitPrompt: vi.fn(async () => {}),
     onError: vi.fn(),
     ...overrides,
   };
@@ -62,16 +59,9 @@ describe("runAgentGitAction", () => {
     const dispatched = await runAgentGitAction(deps);
 
     expect(dispatched).toBe(true);
-    expect(deps.setRunning).toHaveBeenCalledWith("session-1");
-    expect(deps.addUserMessage).toHaveBeenCalledWith(
-      GIT_DIFF_COMMIT_PROMPT,
-      undefined,
-      "turn-1"
-    );
-    expect(deps.dispatchMessage).toHaveBeenCalledWith(
+    expect(deps.submitPrompt).toHaveBeenCalledWith(
       "session-1",
-      GIT_DIFF_COMMIT_PROMPT,
-      "turn-1"
+      GIT_DIFF_COMMIT_PROMPT
     );
     expect(deps.guard.current).toBe(false);
     expect(deps.onError).not.toHaveBeenCalled();
@@ -82,10 +72,9 @@ describe("runAgentGitAction", () => {
 
     await runAgentGitAction(deps);
 
-    expect(deps.addUserMessage).toHaveBeenCalledWith(
-      GIT_DIFF_COMMIT_PUSH_PROMPT,
-      undefined,
-      "turn-1"
+    expect(deps.submitPrompt).toHaveBeenCalledWith(
+      "session-1",
+      GIT_DIFF_COMMIT_PUSH_PROMPT
     );
   });
 
@@ -94,10 +83,9 @@ describe("runAgentGitAction", () => {
 
     await runAgentGitAction(deps);
 
-    expect(deps.dispatchMessage).toHaveBeenCalledWith(
+    expect(deps.submitPrompt).toHaveBeenCalledWith(
       "session-1",
-      GIT_DIFF_PUSH_PROMPT,
-      "turn-1"
+      GIT_DIFF_PUSH_PROMPT
     );
   });
 
@@ -107,8 +95,7 @@ describe("runAgentGitAction", () => {
     const dispatched = await runAgentGitAction(deps);
 
     expect(dispatched).toBe(false);
-    expect(deps.setRunning).not.toHaveBeenCalled();
-    expect(deps.addUserMessage).not.toHaveBeenCalled();
+    expect(deps.submitPrompt).not.toHaveBeenCalled();
   });
 
   it("skips when the session is busy", async () => {
@@ -117,19 +104,19 @@ describe("runAgentGitAction", () => {
     const dispatched = await runAgentGitAction(deps);
 
     expect(dispatched).toBe(false);
-    expect(deps.addUserMessage).not.toHaveBeenCalled();
+    expect(deps.submitPrompt).not.toHaveBeenCalled();
   });
 
   it("skips re-entrant calls while one is pending", async () => {
     const guard = { current: false };
     let releaseFirst: () => void = () => {};
-    const addUserMessage = vi.fn(
+    const submitPrompt = vi.fn(
       () =>
         new Promise<void>((resolve) => {
           releaseFirst = resolve;
         })
     );
-    const deps = createDeps({ guard, addUserMessage });
+    const deps = createDeps({ guard, submitPrompt });
 
     const first = runAgentGitAction(deps);
     // Guard is held while the first action awaits.
@@ -137,7 +124,7 @@ describe("runAgentGitAction", () => {
 
     const second = await runAgentGitAction(deps);
     expect(second).toBe(false);
-    expect(addUserMessage).toHaveBeenCalledTimes(1);
+    expect(submitPrompt).toHaveBeenCalledTimes(1);
 
     releaseFirst();
     await first;
@@ -147,7 +134,7 @@ describe("runAgentGitAction", () => {
   it("reports errors and releases the guard", async () => {
     const error = new Error("dispatch failed");
     const deps = createDeps({
-      dispatchMessage: vi.fn(async () => {
+      submitPrompt: vi.fn(async () => {
         throw error;
       }),
     });

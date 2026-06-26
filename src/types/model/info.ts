@@ -132,13 +132,14 @@ const MODEL_INFO_ENTRIES: Array<{ pattern: string; info: ModelInfo }> = [
     },
   },
   {
-    pattern: "claude-4-5-haiku",
+    pattern: "claude-haiku-4-5",
     info: {
       provider: "Anthropic",
       providerKey: "anthropic",
       contextWindow: 200,
-      maxOutput: 8,
+      maxOutput: 64,
       vision: true,
+      reasoning: true,
       strengthKeys: ["speed", "costEffective", "highVolume"],
       pricingTier: "budget",
     },
@@ -234,6 +235,32 @@ const MODEL_INFO_ENTRIES: Array<{ pattern: string; info: ModelInfo }> = [
 
   // ─── OpenAI (GPT & o-series) ──────────────────────────────
   {
+    pattern: "gpt-5.5",
+    info: {
+      provider: "OpenAI",
+      providerKey: "openai",
+      contextWindow: 1050,
+      maxOutput: 128,
+      vision: true,
+      reasoning: true,
+      strengthKeys: ["longContext", "reasoning", "coding"],
+      pricingTier: "premium",
+    },
+  },
+  {
+    pattern: "gpt-5",
+    info: {
+      provider: "OpenAI",
+      providerKey: "openai",
+      contextWindow: 1000,
+      maxOutput: 128,
+      vision: true,
+      reasoning: true,
+      strengthKeys: ["longContext", "reasoning", "coding"],
+      pricingTier: "premium",
+    },
+  },
+  {
     pattern: "gpt-4.1",
     info: {
       provider: "OpenAI",
@@ -317,6 +344,19 @@ const MODEL_INFO_ENTRIES: Array<{ pattern: string; info: ModelInfo }> = [
       reasoning: true,
       strengthKeys: ["reasoning", "stem", "costEffective"],
       pricingTier: "budget",
+    },
+  },
+  {
+    pattern: "o4",
+    info: {
+      provider: "OpenAI",
+      providerKey: "openai",
+      contextWindow: 200,
+      maxOutput: 100,
+      vision: false,
+      reasoning: true,
+      strengthKeys: ["reasoning", "stem"],
+      pricingTier: "moderate",
     },
   },
   {
@@ -447,6 +487,19 @@ const MODEL_INFO_ENTRIES: Array<{ pattern: string; info: ModelInfo }> = [
 
   // ─── DeepSeek ─────────────────────────────────────────────
   {
+    pattern: "deepseek-v4",
+    info: {
+      provider: "DeepSeek",
+      providerKey: "deepseek",
+      contextWindow: 1000,
+      maxOutput: 384,
+      vision: false,
+      reasoning: true,
+      strengthKeys: ["longContext", "reasoning", "costEffective"],
+      pricingTier: "budget",
+    },
+  },
+  {
     pattern: "deepseek-r1",
     info: {
       provider: "DeepSeek",
@@ -476,10 +529,23 @@ const MODEL_INFO_ENTRIES: Array<{ pattern: string; info: ModelInfo }> = [
     info: {
       provider: "DeepSeek",
       providerKey: "deepseek",
-      contextWindow: 128,
-      maxOutput: 8,
+      contextWindow: 1000,
+      maxOutput: 384,
       vision: false,
-      strengthKeys: ["coding", "costEffective", "highVolume"],
+      strengthKeys: ["coding", "costEffective", "longContext"],
+      pricingTier: "budget",
+    },
+  },
+  {
+    pattern: "deepseek-reasoner",
+    info: {
+      provider: "DeepSeek",
+      providerKey: "deepseek",
+      contextWindow: 1000,
+      maxOutput: 384,
+      vision: false,
+      reasoning: true,
+      strengthKeys: ["reasoning", "costEffective", "longContext"],
       pricingTier: "budget",
     },
   },
@@ -498,13 +564,35 @@ const MODEL_INFO_ENTRIES: Array<{ pattern: string; info: ModelInfo }> = [
 
   // ─── Meta (Llama) ─────────────────────────────────────────
   {
+    pattern: "llama-4-scout",
+    info: {
+      provider: "Meta",
+      providerKey: "meta",
+      contextWindow: 10000,
+      vision: true,
+      strengthKeys: ["openWeight", "multimodal", "longContext"],
+      pricingTier: "free",
+    },
+  },
+  {
+    pattern: "llama-4-maverick",
+    info: {
+      provider: "Meta",
+      providerKey: "meta",
+      contextWindow: 1000,
+      vision: true,
+      strengthKeys: ["openWeight", "multimodal", "longContext"],
+      pricingTier: "free",
+    },
+  },
+  {
     pattern: "llama-4",
     info: {
       provider: "Meta",
       providerKey: "meta",
-      contextWindow: 128,
+      contextWindow: 1000,
       vision: true,
-      strengthKeys: ["openWeight", "multimodal", "costEffective"],
+      strengthKeys: ["openWeight", "multimodal", "longContext"],
       pricingTier: "free",
     },
   },
@@ -534,18 +622,66 @@ const MODEL_INFO_ENTRIES: Array<{ pattern: string; info: ModelInfo }> = [
 
   // ─── xAI (Grok) ──────────────────────────────────────────
   {
+    pattern: "grok-build",
+    info: {
+      provider: "xAI",
+      providerKey: "xai",
+      contextWindow: 256,
+      vision: false,
+      reasoning: true,
+      strengthKeys: ["coding", "agentic", "speed"],
+      pricingTier: "moderate",
+    },
+  },
+  {
+    pattern: "grok-4.3",
+    info: {
+      provider: "xAI",
+      providerKey: "xai",
+      contextWindow: 1000,
+      vision: true,
+      reasoning: true,
+      strengthKeys: ["coding", "balanced", "reasoning"],
+      pricingTier: "premium",
+    },
+  },
+  {
+    pattern: "grok-4",
+    info: {
+      provider: "xAI",
+      providerKey: "xai",
+      contextWindow: 256,
+      vision: true,
+      reasoning: true,
+      strengthKeys: ["coding", "balanced", "reasoning"],
+      pricingTier: "premium",
+    },
+  },
+  {
     pattern: "grok",
     info: {
       provider: "xAI",
       providerKey: "xai",
       contextWindow: 128,
       vision: true,
+      reasoning: true,
       strengthKeys: ["coding", "balanced"],
       pricingTier: "moderate",
     },
   },
 
   // ─── Mistral ──────────────────────────────────────────────
+  {
+    pattern: "codestral",
+    info: {
+      provider: "Mistral AI",
+      providerKey: "mistral",
+      contextWindow: 256,
+      vision: false,
+      strengthKeys: ["coding", "longContext"],
+      pricingTier: "budget",
+    },
+  },
   {
     pattern: "mistral",
     info: {
@@ -560,6 +696,30 @@ const MODEL_INFO_ENTRIES: Array<{ pattern: string; info: ModelInfo }> = [
 
   // ─── Qwen (Alibaba) ──────────────────────────────────────
   {
+    pattern: "qwen3-coder",
+    info: {
+      provider: "Alibaba",
+      providerKey: "alibaba",
+      contextWindow: 256,
+      vision: false,
+      reasoning: true,
+      strengthKeys: ["coding", "longContext", "agentic"],
+      pricingTier: "budget",
+    },
+  },
+  {
+    pattern: "qwen3",
+    info: {
+      provider: "Alibaba",
+      providerKey: "alibaba",
+      contextWindow: 128,
+      vision: true,
+      reasoning: true,
+      strengthKeys: ["multilingual", "reasoning", "costEffective"],
+      pricingTier: "budget",
+    },
+  },
+  {
     pattern: "qwen",
     info: {
       provider: "Alibaba",
@@ -567,6 +727,55 @@ const MODEL_INFO_ENTRIES: Array<{ pattern: string; info: ModelInfo }> = [
       contextWindow: 128,
       vision: true,
       strengthKeys: ["multilingual", "costEffective"],
+      pricingTier: "budget",
+    },
+  },
+
+  // ─── Z.AI (GLM) ───────────────────────────────────────────
+  {
+    pattern: "glm-5",
+    info: {
+      provider: "Z.AI",
+      providerKey: "zai",
+      contextWindow: 200,
+      vision: false,
+      reasoning: true,
+      strengthKeys: ["coding", "reasoning", "agentic"],
+      pricingTier: "budget",
+    },
+  },
+  {
+    pattern: "glm-4.6",
+    info: {
+      provider: "Z.AI",
+      providerKey: "zai",
+      contextWindow: 200,
+      vision: false,
+      reasoning: true,
+      strengthKeys: ["coding", "reasoning", "agentic"],
+      pricingTier: "budget",
+    },
+  },
+  {
+    pattern: "glm-4.5",
+    info: {
+      provider: "Z.AI",
+      providerKey: "zai",
+      contextWindow: 128,
+      vision: false,
+      reasoning: true,
+      strengthKeys: ["coding", "reasoning", "agentic"],
+      pricingTier: "budget",
+    },
+  },
+  {
+    pattern: "glm",
+    info: {
+      provider: "Z.AI",
+      providerKey: "zai",
+      contextWindow: 128,
+      vision: false,
+      strengthKeys: ["coding", "costEffective"],
       pricingTier: "budget",
     },
   },

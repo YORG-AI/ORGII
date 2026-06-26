@@ -223,6 +223,8 @@ pub fn init_session_tables(conn: &Connection) -> SqliteResult<()> {
             cache_read_tokens  INTEGER NOT NULL DEFAULT 0,
             cache_write_tokens INTEGER NOT NULL DEFAULT 0,
             total_tokens       INTEGER NOT NULL DEFAULT 0,
+            context_tokens     INTEGER NOT NULL DEFAULT 0,
+            context_usage_json TEXT,
             created_at         TEXT NOT NULL
         )",
         [],
@@ -236,6 +238,12 @@ pub fn init_session_tables(conn: &Connection) -> SqliteResult<()> {
     // Migration: add context_tokens column (last LLM call's prompt tokens = context fill level)
     conn.execute(
         "ALTER TABLE session_token_usage ADD COLUMN context_tokens INTEGER NOT NULL DEFAULT 0",
+        [],
+    )
+    .ok();
+
+    conn.execute(
+        "ALTER TABLE session_token_usage ADD COLUMN context_usage_json TEXT",
         [],
     )
     .ok();

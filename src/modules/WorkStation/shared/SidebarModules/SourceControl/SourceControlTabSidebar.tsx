@@ -86,12 +86,4 @@ registerTabSidebar("source-control", {
   }),
 });
 
-// Keep the Source Control sidebar (Issues view) visible when a
-// github-issue-detail tab is active in the main pane, so the sidebar does not
-// switch back to the default file-explorer sidebar on row click.
-registerTabSidebar("github-issue-detail", {
-  component: SourceControlTabSidebar,
-  keepAlive: true,
-});
-
 export { SourceControlTabSidebar };

@@ -1,6 +1,6 @@
 import React, { forwardRef } from "react";
 
-interface NoDragRegionProps {
+interface NoDragRegionProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
   className?: string;
 }
@@ -8,8 +8,14 @@ interface NoDragRegionProps {
 const NO_DRAG_STYLE = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
 
 export const NoDragRegion = forwardRef<HTMLDivElement, NoDragRegionProps>(
-  ({ children, className }, ref) => (
-    <div ref={ref} className={className} style={NO_DRAG_STYLE}>
+  ({ children, className, style, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={className}
+      {...props}
+      data-tauri-drag-region="false"
+      style={{ ...style, ...NO_DRAG_STYLE }}
+    >
       {children}
     </div>
   )

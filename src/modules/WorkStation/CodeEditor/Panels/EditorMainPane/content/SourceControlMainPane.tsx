@@ -9,11 +9,17 @@
  * than the transient active tab, so the data stays correct while hidden.
  */
 import { useAtomValue } from "jotai";
-import React, { Suspense, memo } from "react";
+import React, { Suspense, memo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 
+import { IssueDetailPanel } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/IssuesContent/IssueDetailPanel";
 import type { QuickAction } from "@src/modules/WorkStation/shared";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { sourceControlSessionFilterAtom } from "@src/store/workstation/codeEditor/sourceControlSessionFilterAtom";
+import {
+  workstationIssueCallbackAtom,
+  workstationSelectedIssueAtom,
+} from "@src/store/workstation/codeEditor/workstationIssueAtom";
 import type { GitFile } from "@src/types/git/types";
 
 import {
@@ -58,8 +64,32 @@ const SourceControlMainPane: React.FC<SourceControlMainPaneProps> = ({
   onFileSelect,
   onGitDiffUnsavedChange,
 }) => {
+  const { t } = useTranslation();
   const sourceControlSessionFilter = useAtomValue(
     sourceControlSessionFilterAtom
+  );
+  const selectedIssueState = useAtomValue(workstationSelectedIssueAtom);
+  const issueCallbacks = useAtomValue(workstationIssueCallbackAtom);
+
+  const handleCloseIssue = useCallback(() => {
+    if (selectedIssueState.issue && issueCallbacks.closeIssue) {
+      void issueCallbacks.closeIssue(selectedIssueState.issue.number);
+    }
+  }, [selectedIssueState.issue, issueCallbacks]);
+
+  const handleReopenIssue = useCallback(() => {
+    if (selectedIssueState.issue && issueCallbacks.reopenIssue) {
+      void issueCallbacks.reopenIssue(selectedIssueState.issue.number);
+    }
+  }, [selectedIssueState.issue, issueCallbacks]);
+
+  const handleAddIssueComment = useCallback(
+    async (body: string) => {
+      if (selectedIssueState.issue && issueCallbacks.addComment) {
+        await issueCallbacks.addComment(selectedIssueState.issue.number, body);
+      }
+    },
+    [selectedIssueState.issue, issueCallbacks]
   );
 
   const { mode, staged, focusPath, historySelection, allFiles, focusGitFile } =
@@ -71,6 +101,34 @@ const SourceControlMainPane: React.FC<SourceControlMainPaneProps> = ({
       sourceControlSessionFilter,
       repoPath,
     });
+
+  if (sourceControlFilterMode === "issues") {
+    if (!selectedIssueState.issue) {
+      return (
+        <Placeholder
+          variant="empty"
+          placement="detail-panel"
+          title={t("previews.noIssueSelected")}
+          subtitle={t("previews.selectIssueHint")}
+          fillParentHeight
+        />
+      );
+    }
+
+    return (
+      <IssueDetailPanel
+        issue={selectedIssueState.issue}
+        comments={selectedIssueState.comments}
+        commentsLoading={selectedIssueState.commentsLoading}
+        submittingComment={selectedIssueState.submittingComment}
+        showHeader={false}
+        onClose={() => undefined}
+        onCloseIssue={handleCloseIssue}
+        onReopenIssue={handleReopenIssue}
+        onAddComment={handleAddIssueComment}
+      />
+    );
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">

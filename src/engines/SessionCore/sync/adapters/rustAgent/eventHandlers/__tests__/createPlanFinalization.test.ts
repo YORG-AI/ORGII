@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import type {
+  AgentWSEvent,
+  PlanReadyForApprovalEvent,
+} from "@src/engines/SessionCore/sync/adapters/shared/types";
 
 import {
   handlePlanApprovalArchived,
@@ -123,6 +127,7 @@ function createCtx(
     execOutputBufferRef: ref(""),
     onAgentCompleteRef: ref(undefined),
     onContextUsageRef: ref(undefined),
+    onTokenUpdateRef: ref(undefined),
     onStatusChangeRef: ref(undefined),
     onQuestionRequestRef: ref(undefined),
     setStreaming: vi.fn(),
@@ -166,21 +171,27 @@ describe("create_plan streaming finalization", () => {
       setStreaming: streamingSpy,
     });
 
-    handlePlanReadyForApproval(
-      {
-        type: "agent:plan_ready_for_approval",
-        sessionId: "session-1",
-        planPath: "/tmp/plan.md",
-        planTitle: "Plan",
-        planContent: "body",
-        toolCallId: "call_plan_1",
-        planEventSource: "create_plan",
-      },
-      "session-1",
-      ctx
-    );
+    const event: AgentWSEvent &
+      Pick<PlanReadyForApprovalEvent, "autoApproveAt"> = {
+      type: "agent:plan_ready_for_approval",
+      sessionId: "session-1",
+      planPath: "/tmp/plan.md",
+      planTitle: "Plan",
+      planContent: "body",
+      toolCallId: "call_plan_1",
+      planEventSource: "create_plan",
+      autoApproveAt: 123_456,
+    };
+
+    handlePlanReadyForApproval(event, "session-1", ctx);
 
     expect(setSpy).toHaveBeenCalledTimes(1);
+    const [, updatePendingPlan] = setSpy.mock.calls[0];
+    const nextPendingPlanMap = updatePendingPlan(new Map());
+    expect(nextPendingPlanMap.get("session-1")?.current).toMatchObject({
+      planTitle: "Plan",
+      autoApproveAt: 123_456,
+    });
     expect(streamingSpy).toHaveBeenCalledWith(false);
     expect(statusSpy).toHaveBeenCalledWith("completed");
   });

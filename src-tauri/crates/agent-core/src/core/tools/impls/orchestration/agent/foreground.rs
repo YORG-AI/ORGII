@@ -84,6 +84,12 @@ impl AgentTool {
             Arc::clone(&fg_cancel_flag),
         );
 
+        // Armed for the whole run. If the turn loop panics and unwinds past the
+        // result `match` below, the guard's Drop emits a terminal Failed so the
+        // registry/UI never get stuck on a ghost "running" row. Disarmed once
+        // the real verdict is written.
+        let mut finalize_guard = super::helpers::FinalizeGuard::new(subagent_session_id.clone());
+
         // 1. Execute turn
         let turn_result = turn_executor::execute_turn(
             &mut messages,
@@ -195,6 +201,10 @@ impl AgentTool {
                 )
             }
         };
+
+        // Authoritative status (Completed/Failed) has been written above.
+        // Disarm so the guard's Drop does not overwrite it with Failed.
+        finalize_guard.disarm();
 
         let result_preview: String = match &response {
             Ok(resp) => crate::utils::safe_truncate_chars_to_string(&resp, 2000),

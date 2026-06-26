@@ -378,6 +378,7 @@ export interface GitHubIssueListResponse {
   issues: GitHubIssue[];
   total_count: number;
   has_more: boolean;
+  next_page: number | null;
 }
 
 // ============================================
@@ -386,13 +387,19 @@ export interface GitHubIssueListResponse {
 
 export async function listIssuesLocal(
   repoFullName: string,
-  opts?: { state?: "open" | "closed" | "all"; labels?: string; page?: number }
+  opts?: {
+    state?: "open" | "closed" | "all";
+    labels?: string;
+    page?: number;
+    perPage?: number;
+  }
 ): Promise<GitHubIssueListResponse> {
   return invokeWithAuth<GitHubIssueListResponse>("github_list_issues", {
     repoFullName,
     state: opts?.state ?? "open",
     labels: opts?.labels ?? null,
     page: opts?.page ?? 1,
+    perPage: opts?.perPage ?? null,
   });
 }
 

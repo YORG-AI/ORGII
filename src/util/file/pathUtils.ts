@@ -111,6 +111,30 @@ export function getFileName(filePath: string): string {
   return parts[parts.length - 1] || filePath;
 }
 
+export function getPathSegments(filePath: string): string[] {
+  return filePath.replace(/\\/g, "/").split("/").filter(Boolean);
+}
+
+export function getCompactPathLabel(filePath: string, maxSegments = 3): string {
+  const segments = getPathSegments(filePath);
+  const separator = filePath.includes("\\") ? "\\" : "/";
+  return segments.slice(-maxSegments).join(separator) || filePath;
+}
+
+export function joinPathForDisplay(
+  parentPath: string,
+  childName: string
+): string {
+  const trimmedParent = parentPath.trim();
+  const trimmedChild = childName.trim();
+  const separator = trimmedParent.includes("\\") ? "\\" : "/";
+  if (!trimmedParent) return trimmedChild;
+  if (!trimmedChild) return trimmedParent;
+  return trimmedParent.endsWith("/") || trimmedParent.endsWith("\\")
+    ? `${trimmedParent}${trimmedChild}`
+    : `${trimmedParent}${separator}${trimmedChild}`;
+}
+
 export function normalizeDiffFilePath(filePath: string): string {
   let normalized = filePath.trim().replace(/\\/g, "/");
   if (normalized.startsWith('"') && normalized.endsWith('"')) {

@@ -13,7 +13,7 @@ import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import {
   SIMULATOR_EVENT_FILTER_VALUES,
   type SimulatorEventFilterValue,
-} from "@src/engines/SessionCore";
+} from "@src/engines/SessionCore/derived/simulatorEventFilters";
 import { useDropdownEngine } from "@src/hooks/dropdown/useDropdownEngine";
 import { simulatorEventFiltersAtom } from "@src/store/ui/simulatorAtom";
 
@@ -35,10 +35,12 @@ const FILTER_LABEL_FALLBACKS: Record<SimulatorEventFilterValue, string> = {
 
 interface EventFilterDropdownProps {
   variant?: "default" | "primary";
+  iconOnly?: boolean;
 }
 
 export const EventFilterDropdown: React.FC<EventFilterDropdownProps> = ({
   variant = "default",
+  iconOnly = false,
 }) => {
   const { t } = useTranslation("sessions");
   const [selectedFilters, setSelectedFilters] = useAtom(
@@ -128,12 +130,16 @@ export const EventFilterDropdown: React.FC<EventFilterDropdownProps> = ({
         aria-haspopup="listbox"
         aria-label={t("simulator.replay.filters.tooltip", "Filter events")}
         title={triggerLabel}
-        className={`pointer-events-auto flex h-5 max-w-[132px] shrink-0 transform-gpu items-center justify-center gap-1 rounded-full px-1.5 ${triggerToneClass}`}
+        className={`pointer-events-auto flex h-5 shrink-0 transform-gpu items-center justify-center rounded-full ${
+          iconOnly ? "w-5 px-0" : "max-w-[132px] gap-1 px-1.5"
+        } ${triggerToneClass}`}
       >
         <ListFilter size={12} strokeWidth={2} className="shrink-0" />
-        <span className="truncate text-[11px] font-medium leading-none">
-          {triggerLabel}
-        </span>
+        {!iconOnly && (
+          <span className="truncate text-[11px] font-medium leading-none">
+            {triggerLabel}
+          </span>
+        )}
       </button>
       {isOpen &&
         isPositioned &&
@@ -156,11 +162,11 @@ export const EventFilterDropdown: React.FC<EventFilterDropdownProps> = ({
                 onKeyDown={(event) =>
                   handleOptionKeyDown(event, handleSelectAll)
                 }
-                className={`${DROPDOWN_CLASSES.item} ${
+                className={`${DROPDOWN_CLASSES.menuControlItem} ${
                   isAllEvents
                     ? DROPDOWN_CLASSES.itemSelected
                     : DROPDOWN_CLASSES.itemHover
-                } w-full justify-start gap-2 !text-text-1 hover:!text-text-1`}
+                } !justify-start !text-text-1 hover:!text-text-1`}
               >
                 <Checkbox
                   checked={isAllEvents}
@@ -189,11 +195,11 @@ export const EventFilterDropdown: React.FC<EventFilterDropdownProps> = ({
                         handleToggleFilter(filter)
                       )
                     }
-                    className={`${DROPDOWN_CLASSES.item} ${
+                    className={`${DROPDOWN_CLASSES.menuControlItem} ${
                       selected
                         ? DROPDOWN_CLASSES.itemSelected
                         : DROPDOWN_CLASSES.itemHover
-                    } w-full justify-start gap-2 !text-text-1 hover:!text-text-1`}
+                    } !justify-start !text-text-1 hover:!text-text-1`}
                   >
                     <Checkbox
                       checked={selected}

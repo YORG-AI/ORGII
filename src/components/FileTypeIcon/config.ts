@@ -112,6 +112,7 @@ import PurescriptIcon from "@src/assets/fileTypeIcons/purescript.svg";
 import PythonIcon from "@src/assets/fileTypeIcons/python.svg";
 import RIcon from "@src/assets/fileTypeIcons/r.svg";
 import RacketIcon from "@src/assets/fileTypeIcons/racket.svg";
+import RcIcon from "@src/assets/fileTypeIcons/rc.svg";
 import ReactIcon from "@src/assets/fileTypeIcons/react.svg";
 import ReactTsIcon from "@src/assets/fileTypeIcons/react_ts.svg";
 import ReadmeIcon from "@src/assets/fileTypeIcons/readme.svg";
@@ -129,6 +130,7 @@ import StylelintIcon from "@src/assets/fileTypeIcons/stylelint.svg";
 import StylusIcon from "@src/assets/fileTypeIcons/stylus.svg";
 import SvelteIcon from "@src/assets/fileTypeIcons/svelte.svg";
 import SvgIcon from "@src/assets/fileTypeIcons/svg.svg";
+import SvgrIcon from "@src/assets/fileTypeIcons/svgr.svg";
 import SwaggerIcon from "@src/assets/fileTypeIcons/swagger.svg";
 import SwiftIcon from "@src/assets/fileTypeIcons/swift.svg";
 import TailwindIcon from "@src/assets/fileTypeIcons/tailwindcss.svg";
@@ -219,6 +221,7 @@ export const ICON_MAP: Record<
   test: TestJsIcon,
   "test-ts": TestTsIcon,
   config: ConfigIcon,
+  rc: RcIcon,
   docker: DockerIcon,
   git: GitIcon,
   lua: LuaIcon,
@@ -273,6 +276,7 @@ export const ICON_MAP: Record<
   prisma: PrismaIcon,
   tailwind: TailwindIcon,
   svg: SvgIcon,
+  svgr: SvgrIcon,
   image: ImageIcon,
   video: VideoIcon,
   audio: AudioIcon,

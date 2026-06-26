@@ -80,6 +80,8 @@ export interface NavigationSidebarProps {
   isLoading?: boolean;
   /** Enable compact 32px navigation rows for dense sidebars. */
   compactRows?: boolean;
+  /** Paint an opaque sidebar surface instead of honoring sidebar transparency. */
+  solidSurface?: boolean;
   /** Enable collapse/expand on section headers (separator-based groups) */
   collapsibleSections?: boolean;
   /**
@@ -178,6 +180,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
     preListContent,
     isLoading = false,
     compactRows = false,
+    solidSurface = false,
     collapsibleSections = false,
     collapsedSectionIds,
     onCollapsedSectionsChange,
@@ -333,6 +336,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
         addTooltipContent={addTooltipContent}
         beforeAddNewActions={beforeAddNewActions}
         headerActions={headerActions}
+        solidSurface={solidSurface}
       >
         {preListContent}
 

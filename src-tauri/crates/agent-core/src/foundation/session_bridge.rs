@@ -157,6 +157,7 @@ pub struct TokenUsageRow<'a> {
     pub cache_write_tokens: i64,
     pub total_tokens: i64,
     pub context_tokens: i64,
+    pub context_usage_json: Option<String>,
 }
 
 pub type RecordTokenUsageFn = fn(TokenUsageRow<'_>) -> rusqlite::Result<i64>;

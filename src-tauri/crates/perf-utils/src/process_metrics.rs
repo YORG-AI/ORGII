@@ -527,16 +527,8 @@ pub fn get_child_processes_memory() -> Vec<ChildProcessInfo> {
     guard.update_process_timestamp();
 
     let process_ids: Vec<Pid> = guard.system.processes().keys().copied().collect();
-    let first_webkit_start_time = {
-        #[cfg(target_os = "macos")]
-        {
-            first_macos_webkit_xpc_start_time_after(our_pid, &guard.system)
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            None::<u64>
-        }
-    };
+    #[cfg(target_os = "macos")]
+    let first_webkit_start_time = first_macos_webkit_xpc_start_time_after(our_pid, &guard.system);
     let mut descendant_cache = HashSet::new();
     let mut children: Vec<ChildProcessInfo> = vec![];
 

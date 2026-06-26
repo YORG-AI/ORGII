@@ -1149,8 +1149,19 @@ mod tests {
                 pinned INTEGER NOT NULL DEFAULT 0
             );
             CREATE TABLE IF NOT EXISTS session_token_usage (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 session_id TEXT NOT NULL,
-                total_tokens INTEGER NOT NULL DEFAULT 0
+                session_type TEXT NOT NULL DEFAULT 'sde',
+                model TEXT,
+                account_id TEXT,
+                input_tokens INTEGER NOT NULL DEFAULT 0,
+                output_tokens INTEGER NOT NULL DEFAULT 0,
+                cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+                cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+                total_tokens INTEGER NOT NULL DEFAULT 0,
+                context_tokens INTEGER NOT NULL DEFAULT 0,
+                context_usage_json TEXT,
+                created_at TEXT NOT NULL DEFAULT ''
             );
             "#,
         )

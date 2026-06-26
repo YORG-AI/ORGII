@@ -14,7 +14,7 @@ import { useTranslation } from "react-i18next";
 
 import { rpc } from "@src/api/tauri/rpc";
 import {
-  CLI_AGENT,
+  // CLI_AGENT,
   type CliAgentType,
   CliAgentTypeSchema,
 } from "@src/api/tauri/rpc/schemas/validation";
@@ -344,23 +344,23 @@ export const DispatchCategoryPalette: React.FC<
   // safe and avoids the `text-text-2`-dimmed brand-icon adapter.
   const externalIdeOptions = useMemo((): AgentOption[] => {
     return [
-      {
-        id: "external-ide:cursor",
-        name: t("creator.cursorIde.label"),
-        desc: "",
-        iconId: "cursor",
-        category: "cursor_ide" as DispatchCategory,
-        // Reuse CLI_AGENT target kind: like CLI agents, Cursor IDE is
-        // an external thing we drive (vs. a Rust agent or org that
-        // runs inside ORGII). Avoids polluting SessionTargetKind.
-        targetKind: SESSION_TARGET_KIND.CLI_AGENT,
-        cliAgentType: CLI_AGENT.CURSOR,
-        isBuiltIn: true,
-        isCli: false,
-        isOrg: false,
-      },
+      // {
+      //   id: "external-ide:cursor",
+      //   name: t("creator.cursorIde.label"),
+      //   desc: "",
+      //   iconId: "cursor",
+      //   category: "cursor_ide" as DispatchCategory,
+      //   // Reuse CLI_AGENT target kind: like CLI agents, Cursor IDE is
+      //   // an external thing we drive (vs. a Rust agent or org that
+      //   // runs inside ORGII). Avoids polluting SessionTargetKind.
+      //   targetKind: SESSION_TARGET_KIND.CLI_AGENT,
+      //   cliAgentType: CLI_AGENT.CURSOR,
+      //   isBuiltIn: true,
+      //   isCli: false,
+      //   isOrg: false,
+      // },
     ];
-  }, [t]);
+  }, []);
 
   const allOptions = useMemo(
     () => [

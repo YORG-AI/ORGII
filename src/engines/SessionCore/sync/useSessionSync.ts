@@ -140,6 +140,7 @@ export function useSessionSync(
       setEvents,
       setWpReadOnly,
       setSessionContextTokens,
+      setSessionContextUsage,
       setSessionRuntimeStatus,
       setSessionRuntimeError,
     }),
@@ -150,6 +151,7 @@ export function useSessionSync(
       setEvents,
       setWpReadOnly,
       setSessionContextTokens,
+      setSessionContextUsage,
       setSessionRuntimeStatus,
       setSessionRuntimeError,
     ]

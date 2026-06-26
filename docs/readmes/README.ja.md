@@ -1,6 +1,6 @@
 <div align="center">
   <h1>ORG-2</h1>
-  <p><strong>Cursor スタイルの open-source Agent IDE — ただ速くコードを書くためだけでなく、レビューしやすさ、トレーサビリティ、制御のために作られています。</strong></p>
+  <p><strong>Cursor スタイルの open-source Agent IDE — ただ速くコードを書くためだけでなく、レビューしやすさ、トレーサビリティ、創造の自由のために作られています。</strong></p>
   <p>Rust と Tauri で構築され、local-first 実行を前提とし、ディスク上のサイズは 100MB 未満です。Agent trajectory の livestream と replay に対応しています。追跡しやすく、レビューしやすい構成です。</p>
   <p>
     <a href="../../LICENSE"><img alt="License" src="https://img.shields.io/github/license/yorgai/ORG2?style=flat-square" /></a>

@@ -100,6 +100,8 @@ pub struct AvailableApiProvider {
     pub supports_base_url: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_base_url: Option<String>,
+    pub supported_protocols: Vec<String>,
+    pub default_protocol: String,
     // Agent compatibility:
     /// CLI agents that can use this API provider (e.g., ["codex"] for openai_api)
     pub compatible_cli_agents: Vec<String>,

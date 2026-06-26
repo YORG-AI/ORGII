@@ -1,6 +1,6 @@
 <div align="center">
   <h1>ORG-2</h1>
-  <p><strong>开源的 Cursor 风格 Agent IDE——但它为可审查性、可追踪性和控制而构建，而不只是为了更快写代码。</strong></p>
+  <p><strong>开源的 Cursor 风格 Agent IDE——但它为可审查性、可追踪性和创作自由而构建，而不只是为了更快写代码。</strong></p>
   <p>基于 Rust 和 Tauri 构建，面向 local-first 执行，磁盘占用低于 100MB。支持 Agent 轨迹直播和回放，易于跟踪和审查。</p>
   <p>
     <a href="../../LICENSE"><img alt="License" src="https://img.shields.io/github/license/yorgai/ORG2?style=flat-square" /></a>

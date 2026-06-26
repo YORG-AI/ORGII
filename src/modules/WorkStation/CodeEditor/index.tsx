@@ -255,8 +255,11 @@ export const CodeEditor: React.FC<CodeEditorProps> = memo(
       // Tab changes don't affect which files are displayed
     }, []);
 
-    const isAgentConfigTab = activeTab?.type === "agent-config";
-    const sidebarVisible = !isAgentConfigTab && !panels.primarySidebarCollapsed;
+    const activeTabHasNoSidebar =
+      activeTab?.type === "agent-config" ||
+      activeTab?.type === "github-issue-detail";
+    const sidebarVisible =
+      !activeTabHasNoSidebar && !panels.primarySidebarCollapsed;
     const repoDisplayName = repoName || repoPath.split("/").pop() || "Repo";
 
     // Primary sidebar config using unified pattern.

@@ -715,10 +715,41 @@
       },
       "tabs": {
         "work": "Работа",
-        "explore": "Обзор"
+        "explore": "Обзор",
+        "heatmap": "Heat map"
+      },
+      "heatmap": {
+        "loading": "Загрузка Heat map активности…",
+        "empty": "Активности сессий пока нет.",
+        "sessions": "Сессии",
+        "tokens": "Tokens",
+        "cost": "Стоимость"
       },
       "exploreRepos": {
         "title": "Обзор Repos"
+      },
+      "hints": {
+        "skill": {
+          "before": "Use",
+          "after": "to link a skill or tool"
+        },
+        "ask": {
+          "before": "Use",
+          "after": "to ask questions about the codebase"
+        },
+        "plan": {
+          "before": "Use",
+          "after": "to plan before building"
+        },
+        "switch": {
+          "before": "Use",
+          "after": "to switch sections"
+        },
+        "previous": "Previous hint",
+        "next": "Next hint"
+      },
+      "manageIssues": {
+        "title": "Управлять issues"
       }
     },
     "defaultTitle": "Чат",
@@ -902,6 +933,18 @@
       "showMore_few": "Показать ещё {{count}}",
       "showMore_many": "Показать ещё {{count}}",
       "showMore_other": "Показать ещё {{count}}"
+    },
+    "manageIssues": {
+      "title": "Управлять issues",
+      "myWork": "Моя работа",
+      "allRepositories": "Все repos",
+      "newIssue": "Новая issue",
+      "tabs": {
+        "all": "Все",
+        "active": "Активные",
+        "reviewRequests": "Запросы review",
+        "done": "Готово"
+      }
     }
   },
   "chatStatus": {
@@ -2265,6 +2308,7 @@
         "index": "Индексировать",
         "reindex": "Переиндексировать",
         "cancel": "Отмена",
+        "stop": "Остановить",
         "clear": "Очистить",
         "refresh": "Обновить"
       },

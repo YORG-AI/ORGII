@@ -25,6 +25,7 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUpRight,
+  CircleDot,
   ExternalLink,
   ListChevronsDownUp,
 } from "lucide-react";
@@ -62,6 +63,7 @@ import {
   SOURCE_CONTROL_ALL_SESSIONS_FILTER,
   sourceControlSessionFilterAtom,
 } from "@src/store/workstation/codeEditor/sourceControlSessionFilterAtom";
+import { workstationSelectedIssueAtom } from "@src/store/workstation/codeEditor/workstationIssueAtom";
 import {
   type SourceControlHistorySelection,
   createGitCommitDetailTab,
@@ -247,6 +249,7 @@ const EditorContent: React.FC<EditorContentProps> = memo(
     const sourceControlSessionFilter = useAtomValue(
       sourceControlSessionFilterAtom
     );
+    const selectedIssueState = useAtomValue(workstationSelectedIssueAtom);
     const setSourceControlSessionFilter = useSetAtom(
       sourceControlSessionFilterAtom
     );
@@ -621,16 +624,23 @@ const EditorContent: React.FC<EditorContentProps> = memo(
 
     const sourceControlHeaderContent = useMemo(() => {
       if (activeTab?.type !== "source-control") return null;
+      const hasFocusPath = Boolean(activeTab.data.focusPath);
       const mode =
         activeTab.data.mode === "all-changes" ? "all-changes" : "focus";
       const historySelection = activeTab.data.historySelection as
         | SourceControlHistorySelection
         | null
         | undefined;
-      const hasFocusPath = Boolean(activeTab.data.focusPath);
       const isIssuesMode = sourceControlFilterMode === "issues";
       const showModePill =
         showSourceControlModePill && !isIssuesMode && !historySelection;
+      const sourceControlModeTabs = [
+        { key: "focus", label: t("sourceControl.pill.focus") },
+        {
+          key: "all-changes",
+          label: t("sourceControl.pill.allChanges"),
+        },
+      ];
       const showCollapseAll =
         showModePill && mode === "all-changes" && !historySelection;
       const showReviewNavigation =
@@ -639,9 +649,29 @@ const EditorContent: React.FC<EditorContentProps> = memo(
         !historySelection &&
         hasFocusPath &&
         gitReviewNavigation.total > 0;
+      const selectedIssue = selectedIssueState.issue;
+      const showIssueHeader = isIssuesMode && selectedIssue;
       return (
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
           {sourceControlHeaderTrailingSlot}
+          {showIssueHeader && (
+            <div className="flex min-w-0 flex-1 items-center gap-2 pl-1">
+              <span
+                className={`shrink-0 ${selectedIssue.state === "open" ? "text-success-6" : "text-text-3"}`}
+              >
+                <CircleDot size={HEADER_ICON_SIZE.sm} strokeWidth={2} />
+              </span>
+              <span className="shrink-0 font-mono text-[11px] text-text-3">
+                #{selectedIssue.number}
+              </span>
+              <span
+                className="min-w-0 flex-1 truncate text-[13px] font-medium text-text-1"
+                title={selectedIssue.title}
+              >
+                {selectedIssue.title}
+              </span>
+            </div>
+          )}
           {showModePill && (
             <>
               <span
@@ -650,13 +680,7 @@ const EditorContent: React.FC<EditorContentProps> = memo(
               />
               <TabPill
                 activeTab={mode}
-                tabs={[
-                  { key: "focus", label: t("sourceControl.pill.focus") },
-                  {
-                    key: "all-changes",
-                    label: t("sourceControl.pill.allChanges"),
-                  },
-                ]}
+                tabs={sourceControlModeTabs}
                 onChange={(key) =>
                   handleSourceControlModeChange(key as "focus" | "all-changes")
                 }
@@ -681,6 +705,18 @@ const EditorContent: React.FC<EditorContentProps> = memo(
           )}
 
           <span className="ml-auto flex h-7 flex-shrink-0 items-center gap-px">
+            {showIssueHeader && (
+              <a
+                href={selectedIssue.html_url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex h-7 w-7 items-center justify-center rounded text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1"
+                title={t("common:actions.openOnGitHub", "Open on GitHub")}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <ExternalLink size={HEADER_ICON_SIZE.sm} />
+              </a>
+            )}
             {historySelection?.type === "pr" && (
               <a
                 href={historySelection.prUrl}
@@ -789,6 +825,7 @@ const EditorContent: React.FC<EditorContentProps> = memo(
       handleSourceControlCollapseAll,
       handleSourceControlModeChange,
       handleSourceControlSessionFilterChange,
+      selectedIssueState,
       showSourceControlModePill,
       sourceControlFilterMode,
       sourceControlHeaderTrailingSlot,

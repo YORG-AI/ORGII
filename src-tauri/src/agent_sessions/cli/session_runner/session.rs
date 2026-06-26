@@ -1494,6 +1494,7 @@ pub async fn run_session(
                         usage.cache_write_tokens as i64,
                         usage.total_tokens as i64,
                         0,
+                        None,
                     ) {
                         tracing::warn!(
                             "[CodeSession] Failed to insert per-round token usage: {}",

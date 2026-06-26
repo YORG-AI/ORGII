@@ -758,6 +758,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
         onMenuItemContextMenu={resolvedMenuItemContextMenu}
         renderMenuItemWrapper={resolvedRenderMenuItemWrapper}
         compactRows
+        solidSurface
         onAddNew={handleOpenSpotlight}
         addIcon={Search}
         addLabel={tCommon("actions.search")}

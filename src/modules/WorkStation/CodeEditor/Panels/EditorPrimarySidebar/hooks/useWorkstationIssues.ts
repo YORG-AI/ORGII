@@ -45,6 +45,7 @@ import {
 export type { IssueFilterState };
 
 const logger = createLogger("WorkstationIssues");
+const ISSUE_PAGE_SIZE = 50;
 
 export interface UpdateIssueFields {
   title?: string;
@@ -58,6 +59,17 @@ export interface UseWorkstationIssuesOptions {
   repoId?: string;
   branchName?: string;
   remoteUrl?: string;
+}
+
+function mergeUniqueIssues(
+  existingIssues: GitHubIssue[],
+  incomingIssues: GitHubIssue[]
+): GitHubIssue[] {
+  const seenIssueNumbers = new Set(existingIssues.map((issue) => issue.number));
+  return [
+    ...existingIssues,
+    ...incomingIssues.filter((issue) => !seenIssueNumbers.has(issue.number)),
+  ];
 }
 
 export function useWorkstationIssues({
@@ -192,6 +204,20 @@ export function useWorkstationIssues({
   const [closedIssues, setClosedIssues] = useState<GitHubIssue[]>(
     cached?.closedIssues ?? []
   );
+  const [openHasMore, setOpenHasMore] = useState(
+    (cached?.openIssues.length ?? 0) >= ISSUE_PAGE_SIZE
+  );
+  const [closedHasMore, setClosedHasMore] = useState(
+    (cached?.closedIssues.length ?? 0) >= ISSUE_PAGE_SIZE
+  );
+  const [openNextPage, setOpenNextPage] = useState<number | null>(
+    (cached?.openIssues.length ?? 0) >= ISSUE_PAGE_SIZE ? 2 : null
+  );
+  const [closedNextPage, setClosedNextPage] = useState<number | null>(
+    (cached?.closedIssues.length ?? 0) >= ISSUE_PAGE_SIZE ? 2 : null
+  );
+  const [openLoadingMore, setOpenLoadingMore] = useState(false);
+  const [closedLoadingMore, setClosedLoadingMore] = useState(false);
   const [openError, setOpenError] = useState<string | null>(null);
   const [closedError, setClosedError] = useState<string | null>(null);
 
@@ -217,7 +243,11 @@ export function useWorkstationIssues({
     if (!resolvedRemoteUrl || !hasGitHubAuth) return;
     setOpenLoadState("loading");
     setOpenError(null);
-    const result = await fetchIssues(resolvedRemoteUrl, { state: "open" });
+    const result = await fetchIssues(resolvedRemoteUrl, {
+      state: "open",
+      page: 1,
+      perPage: ISSUE_PAGE_SIZE,
+    });
     if (!mountedRef.current) return;
     if (result.error) {
       handleFetchError(result.error, setOpenError, setOpenLoadState);
@@ -225,6 +255,8 @@ export function useWorkstationIssues({
     }
     const issues = result.data!.issues;
     setOpenIssues(issues);
+    setOpenHasMore(result.data!.has_more);
+    setOpenNextPage(result.data!.next_page);
     setOpenLoadState("ready");
     updateCachedOpenIssues(repoKey, issues);
   }, [resolvedRemoteUrl, hasGitHubAuth, handleFetchError, repoKey]);
@@ -233,7 +265,11 @@ export function useWorkstationIssues({
     if (!resolvedRemoteUrl || !hasGitHubAuth) return;
     setClosedLoadState("loading");
     setClosedError(null);
-    const result = await fetchIssues(resolvedRemoteUrl, { state: "closed" });
+    const result = await fetchIssues(resolvedRemoteUrl, {
+      state: "closed",
+      page: 1,
+      perPage: ISSUE_PAGE_SIZE,
+    });
     if (!mountedRef.current) return;
     if (result.error) {
       handleFetchError(result.error, setClosedError, setClosedLoadState);
@@ -241,9 +277,80 @@ export function useWorkstationIssues({
     }
     const issues = result.data!.issues;
     setClosedIssues(issues);
+    setClosedHasMore(result.data!.has_more);
+    setClosedNextPage(result.data!.next_page);
     setClosedLoadState("ready");
     updateCachedClosedIssues(repoKey, issues);
   }, [resolvedRemoteUrl, hasGitHubAuth, handleFetchError, repoKey]);
+
+  const loadMoreOpen = useCallback(async () => {
+    if (!resolvedRemoteUrl || !hasGitHubAuth || !openHasMore || !openNextPage)
+      return;
+    setOpenLoadingMore(true);
+    setOpenError(null);
+    const result = await fetchIssues(resolvedRemoteUrl, {
+      state: "open",
+      page: openNextPage,
+      perPage: ISSUE_PAGE_SIZE,
+    });
+    if (!mountedRef.current) return;
+    setOpenLoadingMore(false);
+    if (result.error) {
+      handleFetchError(result.error, setOpenError, setOpenLoadState);
+      return;
+    }
+    setOpenIssues((current) => {
+      const issues = mergeUniqueIssues(current, result.data!.issues);
+      updateCachedOpenIssues(repoKey, issues);
+      return issues;
+    });
+    setOpenHasMore(result.data!.has_more);
+    setOpenNextPage(result.data!.next_page);
+  }, [
+    resolvedRemoteUrl,
+    hasGitHubAuth,
+    openHasMore,
+    openNextPage,
+    handleFetchError,
+    repoKey,
+  ]);
+
+  const loadMoreClosed = useCallback(async () => {
+    if (
+      !resolvedRemoteUrl ||
+      !hasGitHubAuth ||
+      !closedHasMore ||
+      !closedNextPage
+    )
+      return;
+    setClosedLoadingMore(true);
+    setClosedError(null);
+    const result = await fetchIssues(resolvedRemoteUrl, {
+      state: "closed",
+      page: closedNextPage,
+      perPage: ISSUE_PAGE_SIZE,
+    });
+    if (!mountedRef.current) return;
+    setClosedLoadingMore(false);
+    if (result.error) {
+      handleFetchError(result.error, setClosedError, setClosedLoadState);
+      return;
+    }
+    setClosedIssues((current) => {
+      const issues = mergeUniqueIssues(current, result.data!.issues);
+      updateCachedClosedIssues(repoKey, issues);
+      return issues;
+    });
+    setClosedHasMore(result.data!.has_more);
+    setClosedNextPage(result.data!.next_page);
+  }, [
+    resolvedRemoteUrl,
+    hasGitHubAuth,
+    closedHasMore,
+    closedNextPage,
+    handleFetchError,
+    repoKey,
+  ]);
 
   // Fetch open issues on mount / auth ready.
   // Skip the network hit when the cache is still fresh (< 5 min) — the UI
@@ -532,6 +639,12 @@ export function useWorkstationIssues({
     openError,
     closedError,
     fetchClosed,
+    openHasMore,
+    closedHasMore,
+    openLoadingMore,
+    closedLoadingMore,
+    loadMoreOpen,
+    loadMoreClosed,
     // Legacy combined — kept for atom sync / mutation callbacks
     issues: useMemo(
       () => applySearch([...openIssues, ...closedIssues]),

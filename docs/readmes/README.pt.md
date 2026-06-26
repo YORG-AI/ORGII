@@ -1,6 +1,6 @@
 <div align="center">
   <h1>ORG-2</h1>
-  <p><strong>IDE agentic open-source no estilo Cursor — mas construído para revisabilidade, rastreabilidade e controle, não apenas para programar mais rápido.</strong></p>
+  <p><strong>IDE agentic open-source no estilo Cursor — mas construído para revisabilidade, rastreabilidade e liberdade criativa, não apenas para programar mais rápido.</strong></p>
   <p>Criado com Rust e Tauri para execução local-first com menos de 100 MB em disco. Suporta livestream e replay de trajetórias de Agents. Fácil de acompanhar e revisar.</p>
   <p>
     <a href="../../LICENSE"><img alt="License" src="https://img.shields.io/github/license/yorgai/ORG2?style=flat-square" /></a>

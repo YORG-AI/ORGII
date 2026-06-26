@@ -267,7 +267,6 @@ export default function ModelWikiTableSection() {
         key: "context",
         label: t("modelWiki.columnContext"),
         width: "120px",
-        align: "right",
         sorter: (rowA, rowB) => rowA.contextLength - rowB.contextLength,
         renderCell: (entry) => (
           <span className="tabular-nums text-text-1">
@@ -279,7 +278,6 @@ export default function ModelWikiTableSection() {
         key: "maxTokens",
         label: t("modelWiki.columnMaxTokens"),
         width: "120px",
-        align: "right",
         sorter: (rowA, rowB) => (rowA.maxTokens ?? -1) - (rowB.maxTokens ?? -1),
         renderCell: (entry) => (
           <span className="tabular-nums text-text-1">

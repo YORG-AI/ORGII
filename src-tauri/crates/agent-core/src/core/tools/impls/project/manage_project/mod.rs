@@ -22,7 +22,7 @@ use async_trait::async_trait;
 use serde_json::Value;
 
 use crate::tools::names as tool_names;
-use crate::tools::traits::{required_string, Tool, ToolError};
+use crate::tools::traits::{optional_string, required_string, Tool, ToolError};
 
 /// Project management tool.
 pub struct ProjectTool {
@@ -144,14 +144,22 @@ impl Tool for ProjectTool {
             }
 
             // ── Member actions ──
-            "list_members" => {
-                let slug = Self::resolve_slug(&params)?;
-                members::list_members(&slug)
-            }
-            "list_contributors" => {
-                let slug = Self::resolve_slug(&params)?;
-                members::list_contributors(&slug)
-            }
+            "list_members" => match optional_string(&params, "slug") {
+                Some(raw) if !raw.trim().is_empty() => {
+                    let slug = crate::tool_infra::resolve_slug(&raw)
+                        .map_err(ToolError::ExecutionFailed)?;
+                    members::list_members(Some(&slug))
+                }
+                _ => members::list_members(None),
+            },
+            "list_contributors" => match optional_string(&params, "slug") {
+                Some(raw) if !raw.trim().is_empty() => {
+                    let slug = crate::tool_infra::resolve_slug(&raw)
+                        .map_err(ToolError::ExecutionFailed)?;
+                    members::list_contributors(Some(&slug))
+                }
+                _ => members::list_contributors(None),
+            },
 
             _ => Err(ToolError::InvalidParams(format!(
                 "Unknown project action: '{}'. Valid: list, read, create, update, delete, \

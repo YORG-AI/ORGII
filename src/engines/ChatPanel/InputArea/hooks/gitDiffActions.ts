@@ -97,18 +97,7 @@ export interface RunAgentGitActionDeps {
   /** Re-entrancy guard shared across invocations (a React ref in the hook). */
   guard: MutableGuard;
   prompt: string;
-  mintTurnIntentId: () => string;
-  addUserMessage: (
-    content: string,
-    imageDataUrls: string[] | undefined,
-    turnIntentId: string
-  ) => Promise<void>;
-  dispatchMessage: (
-    sessionId: string,
-    prompt: string,
-    turnIntentId: string
-  ) => Promise<void>;
-  setRunning: (sessionId: string) => void;
+  submitPrompt: (sessionId: string, prompt: string) => Promise<void>;
   onError?: (err: unknown) => void;
 }
 
@@ -125,11 +114,8 @@ export async function runAgentGitAction(
   if (!sessionId || isSessionActive || guard.current) return false;
 
   guard.current = true;
-  deps.setRunning(sessionId);
   try {
-    const turnIntentId = deps.mintTurnIntentId();
-    await deps.addUserMessage(prompt, undefined, turnIntentId);
-    await deps.dispatchMessage(sessionId, prompt, turnIntentId);
+    await deps.submitPrompt(sessionId, prompt);
     return true;
   } catch (err) {
     deps.onError?.(err);

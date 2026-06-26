@@ -19,6 +19,15 @@ function selectActiveTextControl(): boolean {
   return false;
 }
 
+function isTerminalShortcutTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    (target.closest(".terminal-core") !== null ||
+      target.closest(".xterm") !== null ||
+      target.closest(".xterm-terminal-container") !== null)
+  );
+}
+
 function handleSelectAllShortcut() {
   const terminalEl = document.querySelector(".terminal-core");
   if (
@@ -243,7 +252,12 @@ export function useGlobalKeydownShortcuts(
         !event.altKey
       ) {
         const target = event.target;
-        if (isEditableElementExtended(target)) return;
+        if (
+          isEditableElementExtended(target) &&
+          !isTerminalShortcutTarget(target)
+        ) {
+          return;
+        }
 
         if (event.code === "KeyG") {
           event.preventDefault();

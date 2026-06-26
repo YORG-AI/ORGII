@@ -1,6 +1,33 @@
 import type { OrgtrackSessionFinalDiff } from "@src/api/tauri/lineage";
+import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 
 import { FILE_OPERATION_TYPE, type FileOperationEntry } from "./types";
+
+const ORGTRACK_FINAL_DIFF_EVENT_NAME = "orgtrack_final_diff";
+
+function makeFinalDiffEvent(finalDiff: OrgtrackSessionFinalDiff): SessionEvent {
+  const eventId = finalDiff.finalEventId ?? finalDiff.recordId;
+  return {
+    id: eventId,
+    chunk_id: null,
+    sessionId: finalDiff.sessionId,
+    createdAt: finalDiff.computedAt,
+    functionName: ORGTRACK_FINAL_DIFF_EVENT_NAME,
+    uiCanonical: ORGTRACK_FINAL_DIFF_EVENT_NAME,
+    actionType: "tool_call",
+    args: { path: finalDiff.filePath },
+    result: {
+      oldContent: finalDiff.oldContent ?? undefined,
+      newContent: finalDiff.newContent ?? undefined,
+      diff: finalDiff.diff ?? undefined,
+    },
+    source: "assistant",
+    displayText: finalDiff.filePath,
+    displayStatus: "completed",
+    displayVariant: "tool_call",
+    activityStatus: "processed",
+  };
+}
 
 export function finalDiffToFileOperation(
   finalDiff: OrgtrackSessionFinalDiff,
@@ -13,14 +40,12 @@ export function finalDiffToFileOperation(
     fileName,
     directory: filePathParts.slice(0, -1).join("/") || "/",
     type: FILE_OPERATION_TYPE.WRITE,
-    timestamp: new Date(finalDiff.computedAt),
-    status: "completed",
-    event: {},
+    event: makeFinalDiffEvent(finalDiff),
     eventId: finalDiff.finalEventId ?? finalDiff.recordId,
     language: "text",
-    oldContent: finalDiff.oldContent,
-    newContent: finalDiff.newContent,
-    diff: finalDiff.diff,
+    oldContent: finalDiff.oldContent ?? undefined,
+    newContent: finalDiff.newContent ?? undefined,
+    diff: finalDiff.diff ?? undefined,
     linesAdded: finalDiff.linesAdded,
     linesRemoved: finalDiff.linesRemoved,
     isCurrent,

@@ -296,10 +296,15 @@ export const TerminalCore: React.FC<TerminalCoreProps> = ({
                 }}
                 sessionKey={session.id}
                 onSelectionChange={handleSelectionChange}
-                repoPath={repoPath}
+                repoPath={session.cwd || repoPath}
                 workingDirectory={session.liveCwd || session.cwd}
                 onOpenFileLink={onOpenFileLink}
                 shellOverride={session.shell}
+                onUserInput={() => {
+                  if (!session.hasUserInput) {
+                    updateSessionInfo(session.id, { hasUserInput: true });
+                  }
+                }}
                 onTitleChange={(title) => {
                   updateSessionInfo(session.id, {
                     sequenceTitle: title,

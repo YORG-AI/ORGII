@@ -6,15 +6,11 @@
 import type { MutableRefObject } from "react";
 
 import { reorderActiveRef } from "@src/engines/ChatPanel/InputArea/components/QueuedMessages";
+import {
+  isInternalFileTreeDragActive,
+  isWorkstationTabDragActive,
+} from "@src/shared/dnd/dragSideChannel";
 import { getNativeFrameScale } from "@src/util/platform/tauri/nativeFrame";
-
-/** Global window type for internal drag tracking */
-export interface GlobalDragWindow {
-  __internalFileTreeDrag?: boolean;
-  __internalFileTreeDragData?: string;
-  __internalWorkstationTabDrag?: boolean;
-  __internalWorkstationTabDragData?: string;
-}
 
 /**
  * Check if a drag event is internal (from our app) vs external (from OS/IDE)
@@ -39,13 +35,13 @@ export function isInternalDrag(
 
   // Check global flag for internal file tree drags (reliable in Tauri WebView
   // where custom MIME types may not appear in dataTransfer.types)
-  if (window.__internalFileTreeDrag) {
+  if (isInternalFileTreeDragActive()) {
     return true;
   }
 
   // WorkStation tab drags use dnd-kit pointer events (no DataTransfer), so
   // we detect them via a global flag set in useTabDrag.
-  if (window.__internalWorkstationTabDrag) {
+  if (isWorkstationTabDragActive()) {
     return true;
   }
 
@@ -265,12 +261,12 @@ export function createPreventDefaults(
     // dataTransfer.types at the window capture level. Without this guard,
     // the text/uri-list fallback below calls stopImmediatePropagation(),
     // preventing handleDrop on document from ever firing.
-    const isInternalFileTreeDrag = window.__internalFileTreeDrag;
+    const isInternalFileTreeDrag = isInternalFileTreeDragActive();
 
     // WorkStation tab drags use dnd-kit (no DataTransfer); prevent default
     // so the browser doesn't try to navigate, but let them through so
     // the InputArea container-level drop handler can process them.
-    const isWorkstationTabDrag = window.__internalWorkstationTabDrag;
+    const isWorkstationTabDrag = isWorkstationTabDragActive();
 
     if (
       isInternalFileTreeDrag ||

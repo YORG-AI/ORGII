@@ -146,6 +146,8 @@ export interface SidebarBaseProps {
   showCollapseButton?: boolean;
   /** Wrap in the themed sidebar surface */
   wrapInSurface?: boolean;
+  /** Paint an opaque themed surface instead of honoring sidebar transparency. */
+  solidSurface?: boolean;
   /** Force sidebar to be visible even when collapsed (used for hover sidebar) */
   forceVisible?: boolean;
   /** Custom theme */

@@ -25,6 +25,7 @@ import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { FaviconIcon } from "@src/components/FaviconIcon";
+import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
 import {
   type WorkstationTabHeaderHost,
   usePublishWorkstationTabHeader,
@@ -90,6 +91,23 @@ export interface WebUrlBarProps {
 /** After pointer leaves the URL toolbar, blur the input if still focused (inline webview does not take focus from the address field). */
 const AUTO_BLUR_MS_AFTER_LEAVE = 2000;
 const BROWSER_URL_BAR_FOCUS_EVENT = "browser-url-bar-focus";
+const NO_DRAG_STYLE = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
+const TEXT_DRAG_THRESHOLD_PX = 4;
+
+interface UrlInputPointerState {
+  startX: number;
+  startY: number;
+  moved: boolean;
+  wasFocused: boolean;
+}
+
+export function focusBrowserUrlBar(): void {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      window.dispatchEvent(new Event(BROWSER_URL_BAR_FOCUS_EVENT));
+    });
+  });
+}
 
 // ============================================
 // Component
@@ -120,10 +138,13 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
   }) => {
     const { t } = useTranslation();
     const [inputValue, setInputValue] = useState(url);
-    const [isFocused, setIsFocused] = useState(false);
     const lastUrlRef = useRef(url);
     const inputRef = useRef<HTMLInputElement>(null);
     const autoBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const isFocusedRef = useRef(false);
+    const pointerStateRef = useRef<UrlInputPointerState | null>(null);
+    const pointerFocusRef = useRef(false);
+    const tauriSelectAll = useTauriSelectAllShortcut();
 
     const clearAutoBlurTimer = useCallback(() => {
       if (autoBlurTimerRef.current !== null) {
@@ -142,7 +163,6 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
 
     const focusAndSelectInput = useCallback(() => {
       clearAutoBlurTimer();
-      setIsFocused(true);
       const input = inputRef.current;
       if (!input) return;
       input.focus();
@@ -167,27 +187,75 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
     useEffect(() => {
       if (url !== lastUrlRef.current) {
         lastUrlRef.current = url;
-        if (!isFocused) {
+        if (!isFocusedRef.current) {
           // Defer setState to avoid cascading renders within effect
           queueMicrotask(() => {
             setInputValue(url);
           });
         }
       }
-    }, [url, isFocused]);
+    }, [url]);
 
-    // Handle focus - select all text for easy replacement
+    // Handle focus - select all text for keyboard/programmatic focus. Pointer
+    // focus is handled on mouseup so drag-select can keep the native selection.
     const handleFocus = useCallback(() => {
       clearAutoBlurTimer();
-      setIsFocused(true);
+      isFocusedRef.current = true;
+      if (pointerFocusRef.current) return;
       selectInputText();
     }, [clearAutoBlurTimer, selectInputText]);
 
     // Handle blur - keep user's changes
     const handleBlur = useCallback(() => {
       clearAutoBlurTimer();
-      setIsFocused(false);
+      isFocusedRef.current = false;
+      pointerFocusRef.current = false;
+      pointerStateRef.current = null;
     }, [clearAutoBlurTimer]);
+
+    const handleInputMouseDown = useCallback(
+      (event: React.MouseEvent<HTMLInputElement>) => {
+        event.stopPropagation();
+        event.nativeEvent.stopImmediatePropagation();
+        clearAutoBlurTimer();
+        pointerFocusRef.current = true;
+        pointerStateRef.current = {
+          startX: event.clientX,
+          startY: event.clientY,
+          moved: false,
+          wasFocused: document.activeElement === event.currentTarget,
+        };
+      },
+      [clearAutoBlurTimer]
+    );
+
+    const handleInputMouseMove = useCallback(
+      (event: React.MouseEvent<HTMLInputElement>) => {
+        const pointerState = pointerStateRef.current;
+        if (!pointerState || pointerState.moved) return;
+
+        const deltaX = Math.abs(event.clientX - pointerState.startX);
+        const deltaY = Math.abs(event.clientY - pointerState.startY);
+        if (
+          deltaX > TEXT_DRAG_THRESHOLD_PX ||
+          deltaY > TEXT_DRAG_THRESHOLD_PX
+        ) {
+          pointerState.moved = true;
+        }
+      },
+      []
+    );
+
+    const handleInputMouseUp = useCallback(() => {
+      const pointerState = pointerStateRef.current;
+      pointerStateRef.current = null;
+      pointerFocusRef.current = false;
+
+      if (!pointerState) return;
+      if (!pointerState.wasFocused && !pointerState.moved) {
+        selectInputText();
+      }
+    }, [selectInputText]);
 
     const scheduleBlurAfterLeaveToolbar = useCallback(() => {
       clearAutoBlurTimer();
@@ -201,9 +269,9 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
     }, [clearAutoBlurTimer]);
 
     const handleToolbarMouseLeave = useCallback(() => {
-      if (!isFocused) return;
+      if (!isFocusedRef.current) return;
       scheduleBlurAfterLeaveToolbar();
-    }, [isFocused, scheduleBlurAfterLeaveToolbar]);
+    }, [scheduleBlurAfterLeaveToolbar]);
 
     const handleToolbarMouseEnter = useCallback(() => {
       clearAutoBlurTimer();
@@ -230,19 +298,9 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
           inputRef.current?.blur();
         }
 
-        // Cmd/Ctrl+A: select all text in the URL bar. Tauri's webview eats
-        // ⌘A at the native level (see `useTauriSelectAllShortcut`), so a
-        // plain `target.select()` is required. The URL bar additionally
-        // needs to clear the auto-blur timer and force the focused state so
-        // the selection sticks, so it owns this handler instead of using
-        // the shared hook.
-        if (
-          (event.metaKey || event.ctrlKey) &&
-          event.key.toLowerCase() === "a"
-        ) {
-          event.preventDefault();
-          event.stopPropagation();
-          focusAndSelectInput();
+        tauriSelectAll(event);
+        if (event.defaultPrevented) {
+          clearAutoBlurTimer();
           return;
         }
 
@@ -252,12 +310,11 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
           event.stopPropagation();
         }
       },
-      [focusAndSelectInput, handleNavigate, url]
+      [clearAutoBlurTimer, handleNavigate, tauriSelectAll, url]
     );
 
-    const inputContainerClass = isFocused
-      ? "relative flex h-7 min-w-0 flex-1 cursor-text items-center rounded-lg border border-primary-6 bg-fill-2 shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_15%,transparent)] transition-[border-color,box-shadow,background-color] duration-150"
-      : "relative flex h-7 min-w-0 flex-1 cursor-text items-center rounded-lg border border-transparent bg-transparent transition-[border-color,box-shadow,background-color] duration-150 hover:border-border-3 hover:bg-fill-2";
+    const inputContainerClass =
+      "relative flex h-7 min-w-0 flex-1 cursor-text items-center rounded-lg border border-transparent bg-transparent transition-[border-color,box-shadow,background-color] duration-150 hover:border-border-3 hover:bg-fill-2 focus-within:border-primary-6 focus-within:bg-fill-2 focus-within:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_15%,transparent)]";
     const reloadControlLabel = isLoading
       ? t("common:actions.stop")
       : t("common:actions.reload");
@@ -265,6 +322,9 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
     const headerContent = (
       <div
         className="flex h-full min-w-0 flex-1 items-center gap-1.5"
+        data-tauri-drag-region="false"
+        style={NO_DRAG_STYLE}
+        onMouseUp={handleInputMouseUp}
         onMouseLeave={handleToolbarMouseLeave}
         onMouseEnter={handleToolbarMouseEnter}
       >
@@ -316,32 +376,17 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
         {/* URL Input Container */}
         <div
           className={inputContainerClass}
+          data-tauri-drag-region="false"
+          style={NO_DRAG_STYLE}
           onClick={() => {
-            if (!isFocused) {
+            if (!isFocusedRef.current) {
               inputRef.current?.focus();
             }
           }}
         >
-          {/* Centered display when not focused and empty */}
-          {!isFocused && !inputValue && (
-            <div className="absolute inset-0 flex items-center justify-center gap-2 px-3">
-              {isLoading ? (
-                <Loader2
-                  size={14}
-                  className="shrink-0 animate-spin text-text-3"
-                />
-              ) : (
-                <Search size={14} className="shrink-0 text-text-3" />
-              )}
-              <span className="text-[14px] text-text-3">
-                {t("placeholders.enterUrlOrSearch")}
-              </span>
-            </div>
-          )}
-
-          {/* Centered display when not focused with content */}
-          {!isFocused && inputValue && (
-            <div className="absolute inset-0 flex items-center justify-center gap-2 px-3">
+          {/* Icon on left */}
+          <div className="pointer-events-none absolute left-3 flex items-center">
+            {inputValue ? (
               <FaviconIcon
                 url={inputValue}
                 isIncognito={false}
@@ -349,38 +394,36 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
                 size={16}
                 fallbackColor="text-text-3"
               />
-              <span className="max-w-[400px] truncate text-[14px] text-text-1">
-                {inputValue}
-              </span>
-            </div>
-          )}
-
-          {/* Icon on left when focused */}
-          {isFocused && (
-            <div className="absolute left-3 flex items-center">
-              <FaviconIcon
-                url={inputValue}
-                isIncognito={false}
-                isLoading={isLoading}
-                size={16}
-                fallbackColor="text-text-3"
+            ) : isLoading ? (
+              <Loader2
+                size={14}
+                className="shrink-0 animate-spin text-text-3"
               />
-            </div>
-          )}
+            ) : (
+              <Search size={14} className="shrink-0 text-text-3" />
+            )}
+          </div>
 
-          {/* Input - always rendered but visually hidden when not focused */}
+          {/* Input - keep real text selectable in both focused and unfocused states. */}
           <input
             ref={inputRef}
             type="text"
             value={inputValue}
+            aria-label="Browser URL"
+            data-browser-url-bar-input
+            data-testid="browser-url-bar-input"
+            data-tauri-drag-region="false"
+            draggable={false}
             onChange={(event) => setInputValue(event.target.value)}
             onFocus={handleFocus}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
+            onMouseDown={handleInputMouseDown}
+            onMouseMove={handleInputMouseMove}
+            onMouseUp={handleInputMouseUp}
             placeholder={t("placeholders.enterUrlOrSearch")}
-            className={`h-7 min-w-0 flex-1 border-none bg-transparent text-[14px] text-text-1 outline-none placeholder:text-text-3 ${
-              isFocused ? "pl-9 pr-3" : "opacity-0"
-            }`}
+            className="relative z-10 h-7 min-w-0 flex-1 select-text border-none bg-transparent pl-9 pr-3 text-[14px] text-text-1 outline-none placeholder:text-text-3"
+            style={NO_DRAG_STYLE}
             autoComplete="off"
             autoCorrect="off"
             autoCapitalize="off"

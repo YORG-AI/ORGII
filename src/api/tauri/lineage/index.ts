@@ -12,6 +12,7 @@ import type {
   OrgtrackAnalysisBackfillStats,
   OrgtrackCheckpointFileState,
   OrgtrackCommitLink,
+  OrgtrackDiffReplayPreview,
   OrgtrackExportResult,
   OrgtrackExtractionMemoryGate,
   OrgtrackFileSessionLookup,
@@ -33,6 +34,7 @@ export type {
   FunctionEntry,
   OrgtrackAnalysisBackfillStats,
   OrgtrackCheckpointFileState,
+  OrgtrackDiffReplayPreview,
   OrgtrackExportResult,
   OrgtrackExtractionMemoryGate,
   OrgtrackCommitLink,
@@ -176,6 +178,15 @@ export async function getOrgtrackSessionFinalDiffs(input: {
   sessionId?: string;
 }): Promise<OrgtrackSessionFinalDiff[]> {
   return rpc.lineage.orgtrackGetSessionFinalDiffs(input);
+}
+
+export async function getOrgtrackDiffReplayPreview(input: {
+  source?: string;
+  sessionId?: string;
+  repoId?: string;
+  repoPath?: string;
+}): Promise<OrgtrackDiffReplayPreview> {
+  return rpc.lineage.orgtrackGetDiffReplayPreview(input);
 }
 
 export async function getOrgtrackSessionCommitLinks(

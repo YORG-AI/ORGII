@@ -211,20 +211,19 @@ impl Tool for QuestionTool {
             .ask(&session_id, &request_id, questions, tool_call_id.as_deref())
             .await;
 
-        // Cancel-aware wait (Stop button) with a 5-minute backstop timeout.
-        // The `AutoTimeoutPolicy` slot is intentionally left empty — future
-        // work can plug in per-user auto-skip behavior without touching the
-        // tool itself.
+        // Cancel-aware wait (Stop button) with NO tool-side timeout.
+        //
+        // The authoritative auto-resolve deadline lives entirely in
+        // `QuestionManager::spawn_auto_resolve_watcher` (driven by the
+        // presence policy): Online → wait indefinitely; Away/Invisible →
+        // resolve after the policy window and deliver `AutoSkipped` over
+        // this same `receiver`. A tool-side timeout here would be a second,
+        // conflicting deadline that preempts the watcher and reports a hard
+        // `Timeout` error instead of the graceful auto-skip. So we pass
+        // `None` and rely solely on the receiver (answer / auto-skip) and
+        // the cancel flag (Stop).
         let cancel_flag = self.context.manager.cancel_flag();
-        let outcome = await_with_cancel(
-            receiver,
-            cancel_flag,
-            Some(crate::interaction::finalize::AutoTimeoutPolicy {
-                timeout: std::time::Duration::from_secs(300),
-                on_expire: Box::new(|| crate::interaction::finalize::AutoTimeoutAction::Report),
-            }),
-        )
-        .await;
+        let outcome = await_with_cancel(receiver, cancel_flag, None).await;
 
         let resolution = match outcome {
             InteractionOutcome::Responded(r) | InteractionOutcome::AutoResponded(r) => r,
@@ -238,12 +237,17 @@ impl Tool for QuestionTool {
                 ));
             }
             InteractionOutcome::TimedOut => {
+                // With `policy: None` this is effectively unreachable (the
+                // backstop sleep is one year). It can only fire if the
+                // manager's auto-resolve watcher failed to arm. Treat it as a
+                // graceful auto-skip — tell the LLM to proceed on its own best
+                // judgment — rather than a hard error that aborts the turn.
                 self.context
                     .manager
                     .cancel_pending(&request_id, FinalizedStatus::TimedOut)
                     .await;
-                return Err(ToolError::Timeout(
-                    "User did not respond within 5 minutes".into(),
+                return Ok(crate::interaction::question::auto_skip_content_for_llm(
+                    "timeout",
                 ));
             }
             InteractionOutcome::Dropped => {

@@ -349,6 +349,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
             getRowKey={(row) => formatModelNameFull(row.model)}
             headerHeight="tall"
             pageSize={50}
+            maxHeight="min(420px, calc(100vh - 280px))"
           />
         ) : (
           <div className="rounded-lg bg-fill-2 py-6">

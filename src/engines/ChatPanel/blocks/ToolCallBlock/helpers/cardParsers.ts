@@ -2,7 +2,7 @@
  * Rich card parsers — derive structured card data from tool args + results
  * for file, website, work-item, and project tool calls.
  */
-import { isBrowserTool } from "@src/engines/SessionCore/rendering/registry/toolCategories";
+import { normalizeHttpUrlCandidate } from "@src/util/url/validation";
 
 import type {
   AgentMessageCardData,
@@ -45,7 +45,7 @@ export function parseFileCardResult(
 }
 
 export function parseWebsiteCardResult(
-  toolName: string,
+  _toolName: string,
   args: Record<string, unknown>,
   result: Record<string, unknown>
 ): WebsiteCardData | null {
@@ -55,6 +55,8 @@ export function parseWebsiteCardResult(
     (typeof result.url === "string" ? result.url : null);
 
   if (!rawUrl) return null;
+  const normalizedUrl = normalizeHttpUrlCandidate(rawUrl);
+  if (!normalizedUrl) return null;
 
   const content =
     (typeof result.content === "string" ? result.content : null) ??
@@ -81,18 +83,9 @@ export function parseWebsiteCardResult(
   const screenshotId =
     typeof result.screenshot_id === "string" ? result.screenshot_id : undefined;
 
-  let favicon: string | undefined;
-  try {
-    const origin = new URL(rawUrl).origin;
-    favicon = `${origin}/favicon.ico`;
-  } catch {
-    // URL parse failure — leave favicon undefined
-  }
+  const favicon = `${new URL(normalizedUrl).origin}/favicon.ico`;
 
-  const isBrowser = isBrowserTool(toolName);
-  if (!isBrowser && toolName !== "web_fetch" && !rawUrl) return null;
-
-  return { url: rawUrl, title, description, screenshotId, favicon };
+  return { url: normalizedUrl, title, description, screenshotId, favicon };
 }
 
 const WORK_ITEM_STATUS_MAP: Record<string, WorkItemStatus> = {

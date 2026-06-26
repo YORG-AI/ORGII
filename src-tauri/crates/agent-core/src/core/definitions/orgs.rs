@@ -447,16 +447,36 @@ fn apply_overrides_to_members(
 
 // ── Built-in default templates ──
 
-const DEFAULT_TEMPLATE_TEAM_ID: &str = "default:sde-feature-team";
+const DEFAULT_SDE_TEMPLATE_TEAM_ID: &str = "default:sde-feature-team";
+const DEFAULT_DS_TEMPLATE_TEAM_ID: &str = "default:ds-analysis-team";
 const BUILTIN_SDE_AGENT_ID: &str = "builtin:sde";
+const BUILTIN_DS_AGENT_ID: &str = "builtin:ds";
 
 fn ensure_default_template_team(orgs: &mut Vec<OrgDefinition>) -> bool {
-    let default_template = default_template_team();
-    if let Some(existing) = orgs
-        .iter_mut()
-        .find(|org| org.id == DEFAULT_TEMPLATE_TEAM_ID)
-    {
-        if default_template_team_is_current(existing) {
+    let mut changed = ensure_default_org(
+        orgs,
+        DEFAULT_SDE_TEMPLATE_TEAM_ID,
+        default_sde_template_team,
+        default_sde_template_team_is_current,
+    );
+    changed |= ensure_default_org(
+        orgs,
+        DEFAULT_DS_TEMPLATE_TEAM_ID,
+        default_ds_template_team,
+        default_ds_template_team_is_current,
+    );
+    changed
+}
+
+fn ensure_default_org(
+    orgs: &mut Vec<OrgDefinition>,
+    org_id: &str,
+    build: fn() -> OrgDefinition,
+    is_current: fn(&OrgDefinition) -> bool,
+) -> bool {
+    let default_template = build();
+    if let Some(existing) = orgs.iter_mut().find(|org| org.id == org_id) {
+        if is_current(existing) {
             return false;
         }
         *existing = default_template;
@@ -467,7 +487,7 @@ fn ensure_default_template_team(orgs: &mut Vec<OrgDefinition>) -> bool {
     true
 }
 
-fn default_template_team_is_current(org: &OrgDefinition) -> bool {
+fn default_sde_template_team_is_current(org: &OrgDefinition) -> bool {
     const DEFAULT_MEMBER_IDS: [&str; 4] = [
         "sde-planner",
         "sde-implementer",
@@ -486,9 +506,9 @@ fn default_template_team_is_current(org: &OrgDefinition) -> bool {
         })
 }
 
-fn default_template_team() -> OrgDefinition {
+fn default_sde_template_team() -> OrgDefinition {
     OrgDefinition {
-        id: DEFAULT_TEMPLATE_TEAM_ID.to_string(),
+        id: DEFAULT_SDE_TEMPLATE_TEAM_ID.to_string(),
         name: "Default Agent Org".to_string(),
         role: "Coordinator".to_string(),
         agent_id: BUILTIN_SDE_AGENT_ID.to_string(),
@@ -527,6 +547,62 @@ fn default_template_team() -> OrgDefinition {
                 name: "Tester".to_string(),
                 role: "Runs verification and reports failures".to_string(),
                 agent_id: BUILTIN_SDE_AGENT_ID.to_string(),
+                runtime_config: None,
+                children: Vec::new(),
+            },
+        ],
+    }
+}
+
+fn default_ds_template_team_is_current(org: &OrgDefinition) -> bool {
+    const DEFAULT_MEMBER_IDS: [&str; 3] = ["ds-analyst", "ds-engineer", "ds-visualizer"];
+
+    org.agent_id == BUILTIN_DS_AGENT_ID
+        && org.children.len() == DEFAULT_MEMBER_IDS.len()
+        && DEFAULT_MEMBER_IDS.iter().all(|member_id| {
+            org.children.iter().any(|member| {
+                member.id == *member_id
+                    && member.agent_id == BUILTIN_DS_AGENT_ID
+                    && member.children.is_empty()
+            })
+        })
+}
+
+fn default_ds_template_team() -> OrgDefinition {
+    OrgDefinition {
+        id: DEFAULT_DS_TEMPLATE_TEAM_ID.to_string(),
+        name: "Data Science Agent Org".to_string(),
+        role: "Analytics Coordinator".to_string(),
+        agent_id: BUILTIN_DS_AGENT_ID.to_string(),
+        description: Some(
+            "Built-in Agent Org for SQL analysis, metrics review, data validation, and reporting."
+                .to_string(),
+        ),
+        hierarchy_mode: HierarchyMode::Soft,
+        children: vec![
+            OrgMember {
+                id: "ds-analyst".to_string(),
+                name: "Analyst".to_string(),
+                role: "Explores datasets, defines metrics, and answers analytical questions"
+                    .to_string(),
+                agent_id: BUILTIN_DS_AGENT_ID.to_string(),
+                runtime_config: None,
+                children: Vec::new(),
+            },
+            OrgMember {
+                id: "ds-engineer".to_string(),
+                name: "Data Engineer".to_string(),
+                role: "Checks data quality, joins, schemas, and reproducibility".to_string(),
+                agent_id: BUILTIN_DS_AGENT_ID.to_string(),
+                runtime_config: None,
+                children: Vec::new(),
+            },
+            OrgMember {
+                id: "ds-visualizer".to_string(),
+                name: "Visualizer".to_string(),
+                role: "Turns findings into concise tables, charts, and decision-ready summaries"
+                    .to_string(),
+                agent_id: BUILTIN_DS_AGENT_ID.to_string(),
                 runtime_config: None,
                 children: Vec::new(),
             },
@@ -599,15 +675,22 @@ mod tests {
         let _sandbox = test_helpers::test_env::sandbox();
 
         let store = AgentOrgsStore::new();
-        let org = store
-            .get(DEFAULT_TEMPLATE_TEAM_ID)
-            .expect("default Agent Org should be available");
-        assert_eq!(org.name, "Default Agent Org");
+        let sde_org = store
+            .get(DEFAULT_SDE_TEMPLATE_TEAM_ID)
+            .expect("default SDE Agent Org should be available");
+        let ds_org = store
+            .get(DEFAULT_DS_TEMPLATE_TEAM_ID)
+            .expect("default DS Agent Org should be available");
+        assert_eq!(sde_org.name, "Default Agent Org");
+        assert_eq!(ds_org.name, "Data Science Agent Org");
 
         let persisted = load_from_disk(&storage_path());
         assert!(persisted
             .iter()
-            .any(|org| org.id == DEFAULT_TEMPLATE_TEAM_ID));
+            .any(|org| org.id == DEFAULT_SDE_TEMPLATE_TEAM_ID));
+        assert!(persisted
+            .iter()
+            .any(|org| org.id == DEFAULT_DS_TEMPLATE_TEAM_ID));
     }
 
     #[test]
@@ -618,13 +701,17 @@ mod tests {
 
         let store = AgentOrgsStore::new();
         assert!(store.get("custom-org").is_ok());
-        assert!(store.get(DEFAULT_TEMPLATE_TEAM_ID).is_ok());
+        assert!(store.get(DEFAULT_SDE_TEMPLATE_TEAM_ID).is_ok());
+        assert!(store.get(DEFAULT_DS_TEMPLATE_TEAM_ID).is_ok());
 
         let persisted = load_from_disk(&path);
         assert!(persisted.iter().any(|org| org.id == "custom-org"));
         assert!(persisted
             .iter()
-            .any(|org| org.id == DEFAULT_TEMPLATE_TEAM_ID));
+            .any(|org| org.id == DEFAULT_SDE_TEMPLATE_TEAM_ID));
+        assert!(persisted
+            .iter()
+            .any(|org| org.id == DEFAULT_DS_TEMPLATE_TEAM_ID));
     }
 
     #[test]
@@ -632,15 +719,15 @@ mod tests {
         let _sandbox = test_helpers::test_env::sandbox();
         let path = storage_path();
         let mut stale_default = custom_org();
-        stale_default.id = DEFAULT_TEMPLATE_TEAM_ID.to_string();
+        stale_default.id = DEFAULT_SDE_TEMPLATE_TEAM_ID.to_string();
         stale_default.name = "Stale Empty Default Org".to_string();
         save_to_disk(&path, &[stale_default]).expect("seed stale default org");
 
         let store = AgentOrgsStore::new();
         let org = store
-            .get(DEFAULT_TEMPLATE_TEAM_ID)
+            .get(DEFAULT_SDE_TEMPLATE_TEAM_ID)
             .expect("default org should remain available");
         assert_eq!(org.name, "Default Agent Org");
-        assert!(default_template_team_is_current(&org));
+        assert!(default_sde_template_team_is_current(&org));
     }
 }

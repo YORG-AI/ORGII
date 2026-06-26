@@ -4,7 +4,7 @@ import {
   collapseRelativePathSegments,
   extractMessageReferences,
   resolveOpenPath,
-} from "../MessageReferenceCards";
+} from "../MessageReferenceCards.helpers";
 
 vi.mock("@tauri-apps/api/path", () => ({
   homeDir: vi.fn(async () => "/Users/tester"),
@@ -135,6 +135,18 @@ staged file lint stats
     });
   });
 
+  it("does not extract template placeholder hosts as URL cards", () => {
+    const references = extractMessageReferences(
+      "The server logs http://localhost:1998 and http://${host}/"
+    );
+
+    expect(references).toHaveLength(1);
+    expect(references[0]).toMatchObject({
+      kind: "web_url",
+      value: "http://localhost:1998/",
+    });
+  });
+
   it("does not extract local filesystem paths as reference cards", () => {
     const references = extractMessageReferences(
       "Open /Users/me/project/src and ~/Documents/file.txt"
@@ -219,12 +231,31 @@ staged file lint stats
     expect(references.find((item) => item.kind === "session")).toBeUndefined();
   });
 
-  it("dedupes repeated session ids into one card", () => {
+  it("keeps serialized session pill labels instead of falling back to ids", () => {
     const id = "sdeagent-ee970f47-dfcb-4a78-97e5-fc56e3451821";
-    const references = extractMessageReferences(`first ${id}, again ${id}`);
+    const references = extractMessageReferences(
+      `please review 审计-policy-啊permission-那些... [session:${id}]`
+    );
+
+    expect(references).toHaveLength(1);
+    expect(references[0]).toMatchObject({
+      kind: "session",
+      value: id,
+      sessionId: id,
+      title: "审计-policy-啊permission-那些...",
+      subtitle: id,
+    });
+  });
+
+  it("dedupes serialized session pill ids against bare session ids", () => {
+    const id = "sdeagent-ee970f47-dfcb-4a78-97e5-fc56e3451821";
+    const references = extractMessageReferences(
+      `session-title [session:${id}] then bare ${id}`
+    );
 
     expect(references.filter((item) => item.kind === "session")).toHaveLength(
       1
     );
+    expect(references[0]?.title).toBe("session-title");
   });
 });

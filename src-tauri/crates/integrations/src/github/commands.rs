@@ -683,6 +683,7 @@ pub struct GitHubIssueListResponse {
     pub issues: Vec<GitHubIssue>,
     pub total_count: u64,
     pub has_more: bool,
+    pub next_page: Option<u32>,
 }
 
 fn parse_issue_user(v: &Value) -> IssueUser {
@@ -741,8 +742,8 @@ fn parse_issue_comment(v: &Value) -> GitHubIssueComment {
 /// the results, so a single raw page may contain few (or zero) real issues in
 /// PR-heavy repos; we keep paging until enough issues accumulate or this cap.
 const ISSUES_MAX_RAW_PAGES: u32 = 10;
-/// Raw items requested per API page (GitHub max).
-const ISSUES_RAW_PER_PAGE: u32 = 100;
+/// Maximum raw items requested per API page (GitHub max).
+const ISSUES_MAX_RAW_PER_PAGE: u32 = 100;
 
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
@@ -756,17 +757,20 @@ pub async fn github_list_issues(
 ) -> Result<GitHubIssueListResponse, String> {
     log::info!("[GitHub][Cmd] list_issues repo={repo_full_name} state={state:?}");
     let client = make_client()?;
-    // `per_page` is the number of *issues* the caller wants, not raw items.
-    let wanted = per_page.unwrap_or(100) as usize;
+    // `per_page` is the number of *issues* the caller wants. The GitHub
+    // endpoint returns PRs too, so we may scan several raw pages to collect it.
+    let wanted = per_page.unwrap_or(100).clamp(1, ISSUES_MAX_RAW_PER_PAGE) as usize;
+    let raw_per_page = wanted as u32;
     let start_raw_page = page.unwrap_or(1);
     let state_str = state.as_deref().unwrap_or("open");
 
     let mut issues: Vec<GitHubIssue> = Vec::new();
     let mut has_more = false;
+    let mut next_page: Option<u32> = None;
 
     for raw_page in start_raw_page..start_raw_page + ISSUES_MAX_RAW_PAGES {
         let mut url = format!(
-            "/repos/{repo_full_name}/issues?state={state_str}&per_page={ISSUES_RAW_PER_PAGE}&page={raw_page}"
+            "/repos/{repo_full_name}/issues?state={state_str}&per_page={raw_per_page}&page={raw_page}"
         );
         if let Some(l) = &labels {
             url.push_str(&format!("&labels={l}"));
@@ -785,16 +789,17 @@ pub async fn github_list_issues(
                 .map(parse_issue),
         );
 
-        let page_exhausted = raw_count < ISSUES_RAW_PER_PAGE as usize;
+        let page_exhausted = raw_count < raw_per_page as usize;
         if page_exhausted {
             has_more = false;
-            break;
-        }
-        if issues.len() >= wanted {
-            has_more = true;
+            next_page = None;
             break;
         }
         has_more = true;
+        next_page = Some(raw_page + 1);
+        if issues.len() >= wanted {
+            break;
+        }
     }
 
     log::info!(
@@ -805,6 +810,7 @@ pub async fn github_list_issues(
         total_count: issues.len() as u64,
         issues,
         has_more,
+        next_page,
     })
 }
 

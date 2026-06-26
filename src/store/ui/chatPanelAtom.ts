@@ -366,6 +366,9 @@ export const chatPanelExploreAgentSearchEnabledAtom = atom<boolean>(false);
 chatPanelExploreAgentSearchEnabledAtom.debugLabel =
   "chatPanelExploreAgentSearchEnabledAtom";
 
+export const chatPanelManageIssuesOpenAtom = atom<boolean>(false);
+chatPanelManageIssuesOpenAtom.debugLabel = "chatPanelManageIssuesOpenAtom";
+
 /**
  * Selected tab on the chat-panel workspace overview surface
  * (`WorkspaceOverviewPanelView`). The overview/details/recent-session/agent-blame split is
@@ -404,6 +407,7 @@ export const CHAT_PANEL_SURFACE_KIND = {
   WORK_ITEM: "workItem",
   WORKSPACE_DASHBOARD: "workspaceDashboard",
   WORKSPACE_EXPLORE: "workspaceExplore",
+  MANAGE_ISSUES: "manageIssues",
   WORKSPACE_OVERVIEW: "workspaceOverview",
   COLLAB_ORG: "collabOrg",
 } as const;
@@ -431,6 +435,7 @@ export type ChatPanelSurfaceState =
     }
   | { kind: typeof CHAT_PANEL_SURFACE_KIND.WORKSPACE_DASHBOARD }
   | { kind: typeof CHAT_PANEL_SURFACE_KIND.WORKSPACE_EXPLORE }
+  | { kind: typeof CHAT_PANEL_SURFACE_KIND.MANAGE_ISSUES }
   | {
       kind: typeof CHAT_PANEL_SURFACE_KIND.WORKSPACE_OVERVIEW;
       workspace: ChatPanelSelectedWorkspace;
@@ -467,6 +472,7 @@ export type ChatPanelNavigateCommand =
     }
   | { kind: typeof CHAT_PANEL_SURFACE_KIND.WORKSPACE_DASHBOARD }
   | { kind: typeof CHAT_PANEL_SURFACE_KIND.WORKSPACE_EXPLORE }
+  | { kind: typeof CHAT_PANEL_SURFACE_KIND.MANAGE_ISSUES }
   | {
       kind: typeof CHAT_PANEL_SURFACE_KIND.WORKSPACE_OVERVIEW;
       workspace: ChatPanelSelectedWorkspace;
@@ -490,6 +496,7 @@ function resetChatPanelSurfaceState(set: SetAtom): void {
   set(chatPanelSelectedCollabOrgAtom, null);
   set(chatPanelWorkspaceDashboardOpenAtom, false);
   set(chatPanelExploreOpenAtom, false);
+  set(chatPanelManageIssuesOpenAtom, false);
   set(chatPanelCreateProjectContextAtom, null);
   set(chatPanelCreateTargetAtom, DEFAULT_CHAT_PANEL_CREATE_TARGET);
   set(chatPanelWorkspaceOverviewTabAtom, WORKSPACE_OVERVIEW_TAB.OVERVIEW);
@@ -552,6 +559,10 @@ export const chatPanelNavigateAtom = atom(
         set(chatPanelContentModeAtom, CHAT_PANEL_CONTENT_MODE.NON_SESSION);
         set(chatPanelExploreOpenAtom, true);
         return;
+      case CHAT_PANEL_SURFACE_KIND.MANAGE_ISSUES:
+        set(chatPanelContentModeAtom, CHAT_PANEL_CONTENT_MODE.NON_SESSION);
+        set(chatPanelManageIssuesOpenAtom, true);
+        return;
       case CHAT_PANEL_SURFACE_KIND.WORKSPACE_OVERVIEW:
         set(chatPanelContentModeAtom, CHAT_PANEL_CONTENT_MODE.NON_SESSION);
         set(chatPanelSelectedWorkspaceAtom, command.workspace);
@@ -602,6 +613,10 @@ export const activeChatPanelSurfaceAtom = atom<ChatPanelSurfaceState>((get) => {
 
   if (get(chatPanelExploreOpenAtom)) {
     return { kind: CHAT_PANEL_SURFACE_KIND.WORKSPACE_EXPLORE };
+  }
+
+  if (get(chatPanelManageIssuesOpenAtom)) {
+    return { kind: CHAT_PANEL_SURFACE_KIND.MANAGE_ISSUES };
   }
 
   const selectedWorkspace = get(chatPanelSelectedWorkspaceAtom);

@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import { PanelFooter } from "@src/modules/shared/layouts/blocks";
+import { joinPathForDisplay } from "@src/util/file/pathUtils";
 
 import { ICONS } from "../../config";
 import {
@@ -128,7 +129,7 @@ const CloneUrlForm: React.FC<CloneUrlFormProps> = ({
               <div className="mt-2 text-[12px] text-text-2">
                 {t("cloneForm.repoWillBeClonedTo")}{" "}
                 <span className="font-medium text-text-1">
-                  {localPath}/{repoName}
+                  {joinPathForDisplay(localPath, repoName)}
                 </span>
               </div>
             )}

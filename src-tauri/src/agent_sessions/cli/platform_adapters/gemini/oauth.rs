@@ -23,16 +23,6 @@ const GEMINI_SESSION_DOMAINS: &[&str] = &[
     "gstatic.com",
     "cloudcode-pa.googleapis.com",
 ];
-const GEMINI_OAUTH_KNOWN_MODELS: &[&str] = &[
-    "gemini-3-pro-preview",
-    "gemini-3-flash-preview",
-    "gemini-2.5-pro",
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-];
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GeminiOauthStartResponse {
@@ -182,7 +172,25 @@ pub async fn exchange_gemini_oauth_code(
     code_verifier: String,
     redirect_uri: String,
 ) -> Result<GeminiOauthExchangeResponse, String> {
-    exchange_gemini_oauth_code_inner(code, state, expected_state, code_verifier, redirect_uri).await
+    tracing::info!(
+        code_len = code.len(),
+        state_matches = (state == expected_state),
+        redirect_uri = %redirect_uri,
+        "[gemini-oauth] exchange_gemini_oauth_code invoked"
+    );
+    let result =
+        exchange_gemini_oauth_code_inner(code, state, expected_state, code_verifier, redirect_uri)
+            .await;
+    match &result {
+        Ok(resp) => tracing::info!(
+            models = resp.available_models.len(),
+            "[gemini-oauth] exchange_gemini_oauth_code succeeded"
+        ),
+        Err(err) => {
+            tracing::warn!(error = %err, "[gemini-oauth] exchange_gemini_oauth_code failed")
+        }
+    }
+    result
 }
 async fn exchange_gemini_oauth_code_inner(
     code: String,
@@ -217,6 +225,12 @@ async fn exchange_gemini_oauth_code_inner(
             .to_string()
     })?;
     let project_id = load_code_assist_project(&parsed.access_token).await?;
+    let available_models =
+        key_vault::gemini_oauth_list_models(parsed.access_token.clone(), Some(project_id.clone()))
+            .await?;
+    if available_models.is_empty() {
+        return Err("Gemini OAuth model discovery returned no models".to_string());
+    }
     let expires_in = parsed.expires_in;
     let expires_at = Utc::now()
         + chrono::Duration::seconds(expires_in.unwrap_or(3600).try_into().unwrap_or(3600));
@@ -229,10 +243,7 @@ async fn exchange_gemini_oauth_code_inner(
         scope: parsed.scope,
         project_id,
         expires_at: expires_at.to_rfc3339_opts(SecondsFormat::Secs, true),
-        available_models: GEMINI_OAUTH_KNOWN_MODELS
-            .iter()
-            .map(|model| (*model).to_string())
-            .collect(),
+        available_models,
     })
 }
 
@@ -498,6 +509,16 @@ async fn load_code_assist_project(access_token: &str) -> Result<String, String> 
         .cloudaicompanion_project
         .clone()
         .filter(|project| !project.trim().is_empty());
+
+    // Mirror the official gemini-cli `setupUser` logic: if loadCodeAssist
+    // already returned a project for this account (because it was onboarded
+    // previously), use it directly — regardless of whether the tier is marked
+    // as requiring a user-defined project. Only fall back to onboarding /
+    // GOOGLE_CLOUD_PROJECT when the server returned no project.
+    if let Some(project) = load_project.clone() {
+        return Ok(project);
+    }
+
     let tier = select_onboard_tier(&load_response);
 
     if tier.user_defined_cloudaicompanion_project && explicit_project.is_none() {

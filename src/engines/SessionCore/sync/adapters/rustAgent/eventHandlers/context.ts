@@ -38,6 +38,7 @@ export function createEventHandlerContext(
     execOutputBufferRef: ref(""),
     onAgentCompleteRef: ref(callbacks.onAgentComplete),
     onContextUsageRef: ref(callbacks.onContextUsage),
+    onTokenUpdateRef: ref(callbacks.onTokenUpdate),
     onStatusChangeRef: ref(callbacks.onStatusChange),
     onQuestionRequestRef: ref(callbacks.onQuestionRequest),
     setStreaming: callbacks.setStreaming,

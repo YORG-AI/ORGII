@@ -227,6 +227,22 @@ pub enum AuthMethod {
     Oauth,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderProtocol {
+    OpenAi,
+    Anthropic,
+}
+
+impl ProviderProtocol {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ProviderProtocol::OpenAi => "openai",
+            ProviderProtocol::Anthropic => "anthropic",
+        }
+    }
+}
+
 /// Health status of the credential
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -272,6 +288,8 @@ pub struct ModelKey {
     pub session_token: Option<String>,
     #[serde(default)]
     pub base_url: Option<String>,
+    #[serde(default)]
+    pub protocol: Option<ProviderProtocol>,
     #[serde(default)]
     pub env_vars: HashMap<String, String>,
     #[serde(default)]
@@ -374,6 +392,7 @@ impl ModelKey {
             api_key: None,
             session_token: None,
             base_url: None,
+            protocol: None,
             env_vars: HashMap::new(),
             auth_method: AuthMethod::ApiKey,
             available_models: Vec::new(),

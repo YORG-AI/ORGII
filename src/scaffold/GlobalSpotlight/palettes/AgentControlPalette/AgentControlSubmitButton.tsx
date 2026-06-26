@@ -1,3 +1,4 @@
+import { useAtomValue } from "jotai";
 import { ArrowUp } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
@@ -6,6 +7,7 @@ import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut
 import Tooltip from "@src/components/Tooltip";
 import { INPUT_AREA_BUTTONS } from "@src/config/inputAreaTokens";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
+import { chatAppearanceAtom } from "@src/store/config/configAtom";
 
 export interface AgentControlSubmitButtonProps {
   disabled: boolean;
@@ -16,6 +18,7 @@ export const AgentControlSubmitButton: React.FC<
   AgentControlSubmitButtonProps
 > = ({ disabled, onSubmit }) => {
   const { t } = useTranslation("common");
+  const { sendOnEnter } = useAtomValue(chatAppearanceAtom);
 
   const button = (
     <button
@@ -41,7 +44,9 @@ export const AgentControlSubmitButton: React.FC<
       content={
         <KeyboardShortcutTooltipContent
           label={t("adeManager.submit")}
-          shortcut={getShortcutKeys("chat_send")}
+          shortcut={getShortcutKeys("chat_send", {
+            chatSendOnEnter: sendOnEnter,
+          })}
         />
       }
       position="top-end"

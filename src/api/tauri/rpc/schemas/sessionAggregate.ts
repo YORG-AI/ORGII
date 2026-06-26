@@ -47,6 +47,7 @@ export const SessionFilterInput = z.object({
   textQuery: z.string().optional(),
   sortBy: z.string().optional(),
   sortOrder: z.enum(["asc", "desc"]).optional(),
+  includeExternalHistory: z.boolean().optional(),
   activeOnly: z.boolean().optional(),
 });
 
@@ -57,6 +58,29 @@ export const SessionAggregateListInput = z.object({
 export const SessionGetAggregateStatsInput = z.object({
   sessionIds: z.array(z.string()).optional(),
   keySource: z.string().optional(),
+});
+
+export const SessionUsageSummaryInput = z.object({
+  sessionId: z.string().min(1),
+});
+
+export const SessionHeatmapMetricSchema = z.enum([
+  "sessions",
+  "tokens",
+  "cost",
+]);
+
+export const SessionHeatmapInput = z.object({
+  filter: z
+    .object({
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+      metric: SessionHeatmapMetricSchema.optional(),
+      category: z.string().optional(),
+      keySource: z.string().optional(),
+      timezoneOffsetMinutes: z.number().int().optional(),
+    })
+    .optional(),
 });
 
 /**
@@ -224,10 +248,57 @@ export const AggregateStatsSchema = z.object({
   failedCount: z.number().int(),
 });
 
+export const SessionUsageSummarySchema = z.object({
+  inputTokens: z.number().int(),
+  outputTokens: z.number().int(),
+  cacheReadTokens: z.number().int(),
+  cacheWriteTokens: z.number().int(),
+  totalTokens: z.number().int(),
+  contextTokens: z.number().int(),
+  costUsd: z.number(),
+});
+
+export const SessionHeatmapCellSchema = z.object({
+  day: z.number().int(),
+  date: z.string(),
+  label: z.string(),
+  hour: z.number().int(),
+  count: z.number().int(),
+  tokens: z.number().int(),
+  cost: z.number(),
+  sessions: z.array(
+    z.object({
+      sessionId: z.string(),
+      name: z.string(),
+      userInput: z.string().optional(),
+      cliAgentType: CliAgentTypeSchema.optional(),
+      agentIconId: z.string().optional(),
+    })
+  ),
+});
+
+export const SessionHeatmapResponseSchema = z.object({
+  cells: z.array(SessionHeatmapCellSchema),
+  maxCount: z.number().int(),
+  maxTokens: z.number().int(),
+  maxCost: z.number(),
+  totalSessions: z.number().int(),
+  totalTokens: z.number().int(),
+  totalCost: z.number(),
+});
+
 export type SessionFilter = z.input<typeof SessionFilterInput>;
 export type SessionAggregateRecord = z.output<
   typeof SessionAggregateRecordSchema
 >;
 export type SessionListResponse = z.output<typeof SessionListResponseSchema>;
 export type AggregateStats = z.output<typeof AggregateStatsSchema>;
+export type SessionUsageSummary = z.output<typeof SessionUsageSummarySchema>;
+export type SessionHeatmapMetric = z.output<typeof SessionHeatmapMetricSchema>;
+export type SessionHeatmapFilter = z.input<
+  typeof SessionHeatmapInput
+>["filter"];
+export type SessionHeatmapResponse = z.output<
+  typeof SessionHeatmapResponseSchema
+>;
 export type SessionPatchPayload = z.input<typeof SessionPatchInput>;

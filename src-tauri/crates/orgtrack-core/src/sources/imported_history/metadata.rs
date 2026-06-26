@@ -13,6 +13,7 @@ pub const SOURCE_CODEX_APP: &str = "codex_app";
 pub const SOURCE_CURSOR_IDE: &str = "cursor_ide";
 pub const SOURCE_OPENCODE: &str = "opencode";
 pub const SOURCE_WINDSURF: &str = "windsurf";
+pub const SOURCE_WORKBUDDY: &str = "workbuddy";
 
 #[derive(Debug, Clone)]
 pub struct ImportedHistoryCacheInput {

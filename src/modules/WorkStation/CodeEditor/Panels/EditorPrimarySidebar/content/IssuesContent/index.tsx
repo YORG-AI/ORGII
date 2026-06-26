@@ -7,8 +7,16 @@
  * - Refresh and filter controls in the regular section header actions
  * - The outer CollapsibleSection header ("ISSUES") is provided by the sidebar module
  */
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useSetAtom } from "jotai";
-import React, { memo, useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
@@ -26,6 +34,12 @@ import { workstationIssueCallbackAtom } from "@src/store/workstation/codeEditor/
 import { useWorkstationIssues } from "../../hooks/useWorkstationIssues";
 import { IssueRow } from "./IssueRow";
 import { NewIssueForm } from "./NewIssueForm";
+
+type IssueVirtualRow =
+  | { kind: "header"; section: "open" | "closed" }
+  | { kind: "status"; section: "open" | "closed"; status: SectionStatus }
+  | { kind: "issue"; issue: GitHubIssue }
+  | { kind: "loadMore"; section: "open" | "closed" };
 
 export interface IssuesContentProps {
   repoPath: string;
@@ -66,6 +80,12 @@ const IssuesContent: React.FC<IssuesContentProps> = memo(
       openError,
       closedError,
       fetchClosed,
+      openHasMore,
+      closedHasMore,
+      openLoadingMore,
+      closedLoadingMore,
+      loadMoreOpen,
+      loadMoreClosed,
       remoteUrlLoading,
       needsReAuth,
       error,
@@ -175,6 +195,101 @@ const IssuesContent: React.FC<IssuesContentProps> = memo(
       [selectIssue]
     );
 
+    const failedToLoad = t("git.issues.failedToLoad", "Failed to load");
+    const loadingLabel = t("actions.loading", "Loading…");
+    const noIssuesLabel = t("labels.noIssues", "No issues");
+
+    const openStatus = useMemo<SectionStatus | null>(() => {
+      if (isOpenLoading) return { kind: "loading", message: loadingLabel };
+      if (openLoadState === "error") {
+        return { kind: "error", message: openError ?? failedToLoad };
+      }
+      if (openIssues.length === 0)
+        return { kind: "empty", message: noIssuesLabel };
+      return null;
+    }, [
+      failedToLoad,
+      isOpenLoading,
+      loadingLabel,
+      noIssuesLabel,
+      openError,
+      openIssues.length,
+      openLoadState,
+    ]);
+
+    const closedStatus = useMemo<SectionStatus | null>(() => {
+      if (closedLoadState === "loading") {
+        return { kind: "loading", message: loadingLabel };
+      }
+      if (closedLoadState === "error") {
+        return { kind: "error", message: closedError ?? failedToLoad };
+      }
+      if (closedLoadState === "ready" && closedIssues.length === 0) {
+        return { kind: "empty", message: noIssuesLabel };
+      }
+      return null;
+    }, [
+      closedError,
+      closedIssues.length,
+      closedLoadState,
+      failedToLoad,
+      loadingLabel,
+      noIssuesLabel,
+    ]);
+
+    const virtualRows = useMemo<IssueVirtualRow[]>(() => {
+      const rows: IssueVirtualRow[] = [{ kind: "header", section: "open" }];
+      if (!openCollapsed) {
+        if (openStatus) {
+          rows.push({ kind: "status", section: "open", status: openStatus });
+        } else {
+          rows.push(
+            ...openIssues.map((issue) => ({ kind: "issue" as const, issue }))
+          );
+          if (openHasMore) rows.push({ kind: "loadMore", section: "open" });
+        }
+      }
+
+      rows.push({ kind: "header", section: "closed" });
+      if (!closedCollapsed) {
+        if (closedStatus) {
+          rows.push({
+            kind: "status",
+            section: "closed",
+            status: closedStatus,
+          });
+        } else {
+          rows.push(
+            ...closedIssues.map((issue) => ({ kind: "issue" as const, issue }))
+          );
+          if (closedHasMore) rows.push({ kind: "loadMore", section: "closed" });
+        }
+      }
+      return rows;
+    }, [
+      closedCollapsed,
+      closedHasMore,
+      closedIssues,
+      closedStatus,
+      openCollapsed,
+      openHasMore,
+      openIssues,
+      openStatus,
+    ]);
+
+    // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual exposes imperative helpers that cannot be memoized safely.
+    const issueListVirtualizer = useVirtualizer({
+      count: virtualRows.length,
+      getScrollElement: () => listRef.current,
+      estimateSize: (index) =>
+        virtualRows[index]?.kind === "loadMore" ||
+        virtualRows[index]?.kind === "status"
+          ? 36
+          : 24,
+      overscan: 10,
+    });
+    const virtualItems = issueListVirtualizer.getVirtualItems();
+
     // ── Render ────────────────────────────────────────────────────────────────
 
     let listContent: React.ReactNode;
@@ -211,68 +326,81 @@ const IssuesContent: React.FC<IssuesContentProps> = memo(
         />
       );
     } else {
-      const failedToLoad = t("git.issues.failedToLoad", "Failed to load");
-      const loadingLabel = t("actions.loading", "Loading…");
-      const noIssuesLabel = t("labels.noIssues", "No issues");
-
-      const openStatus: SectionStatus | null = isOpenLoading
-        ? { kind: "loading", message: loadingLabel }
-        : openLoadState === "error"
-          ? { kind: "error", message: openError ?? failedToLoad }
-          : openIssues.length === 0
-            ? { kind: "empty", message: noIssuesLabel }
-            : null;
-
-      const closedStatus: SectionStatus | null =
-        closedLoadState === "loading"
-          ? { kind: "loading", message: loadingLabel }
-          : closedLoadState === "error"
-            ? { kind: "error", message: closedError ?? failedToLoad }
-            : closedLoadState === "ready" && closedIssues.length === 0
-              ? { kind: "empty", message: noIssuesLabel }
-              : null;
-
-      const renderIssueRow = (issue: GitHubIssue) => (
-        <IssueRow
-          key={issue.number}
-          issue={issue}
-          depth={1}
-          isSelected={false}
-          onClick={() => handleOpenIssue(issue)}
-        />
-      );
+      const renderVirtualRow = (row: IssueVirtualRow): React.ReactNode => {
+        switch (row.kind) {
+          case "header":
+            return row.section === "open" ? (
+              <TreeSectionHeader
+                id="open-issues"
+                title="Open"
+                collapsed={openCollapsed}
+                count={openIssues.length}
+                onToggle={() => setOpenCollapsed((prev) => !prev)}
+              />
+            ) : (
+              <TreeSectionHeader
+                id="closed-issues"
+                title="Closed"
+                collapsed={closedCollapsed}
+                count={closedLoadState === "ready" ? closedIssues.length : null}
+                onToggle={handleToggleClosed}
+              />
+            );
+          case "status":
+            return <SectionStatusRow status={row.status} />;
+          case "issue":
+            return (
+              <IssueRow
+                issue={row.issue}
+                depth={1}
+                isSelected={false}
+                onClick={() => handleOpenIssue(row.issue)}
+              />
+            );
+          case "loadMore": {
+            const isOpenSection = row.section === "open";
+            const isLoading = isOpenSection
+              ? openLoadingMore
+              : closedLoadingMore;
+            return (
+              <div className="flex justify-center py-1.5">
+                <button
+                  type="button"
+                  className="rounded-md px-2 py-1 text-[11px] font-medium text-text-2 transition-colors hover:bg-fill-1 disabled:cursor-default disabled:opacity-60"
+                  disabled={isLoading}
+                  onClick={isOpenSection ? loadMoreOpen : loadMoreClosed}
+                >
+                  {isLoading
+                    ? t("actions.loading", "Loading…")
+                    : t("actions.loadMore", "Load more")}
+                </button>
+              </div>
+            );
+          }
+        }
+      };
 
       listContent = (
-        <div ref={listRef} className="flex flex-1 flex-col overflow-y-auto">
-          {/* Open section */}
-          <TreeSectionHeader
-            id="open-issues"
-            title="Open"
-            collapsed={openCollapsed}
-            count={openIssues.length}
-            onToggle={() => setOpenCollapsed((prev) => !prev)}
-          />
-          {!openCollapsed &&
-            (openStatus ? (
-              <SectionStatusRow status={openStatus} />
-            ) : (
-              openIssues.map(renderIssueRow)
-            ))}
-
-          {/* Closed section — lazy loaded on first expand */}
-          <TreeSectionHeader
-            id="closed-issues"
-            title="Closed"
-            collapsed={closedCollapsed}
-            count={closedLoadState === "ready" ? closedIssues.length : null}
-            onToggle={handleToggleClosed}
-          />
-          {!closedCollapsed &&
-            (closedStatus ? (
-              <SectionStatusRow status={closedStatus} />
-            ) : (
-              closedIssues.map(renderIssueRow)
-            ))}
+        <div ref={listRef} className="flex flex-1 overflow-y-auto">
+          <div
+            className="relative w-full"
+            style={{ height: issueListVirtualizer.getTotalSize() }}
+          >
+            {virtualItems.map((virtualItem) => {
+              const row = virtualRows[virtualItem.index];
+              return (
+                <div
+                  key={virtualItem.key}
+                  ref={issueListVirtualizer.measureElement}
+                  data-index={virtualItem.index}
+                  className="absolute left-0 top-0 w-full"
+                  style={{ transform: `translateY(${virtualItem.start}px)` }}
+                >
+                  {renderVirtualRow(row)}
+                </div>
+              );
+            })}
+          </div>
         </div>
       );
     }

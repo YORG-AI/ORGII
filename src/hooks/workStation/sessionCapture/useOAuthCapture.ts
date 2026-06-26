@@ -65,11 +65,11 @@ export interface OAuthCaptureConfig<TResponse> {
     redirectUri: string | undefined;
   }) => Promise<TResponse>;
   /**
-   * When `true` the webview is closed *before* the code exchange starts
-   * (Gemini behaviour). When `false` it is closed after a successful exchange.
-   * Defaults to `false`.
+   * When `true` the webview is closed if the code exchange *fails* (Gemini
+   * behaviour). On success the webview is always closed regardless of this
+   * flag. Defaults to `false`.
    */
-  closeBeforeExchange?: boolean;
+  closeWebviewOnExchangeError?: boolean;
   /**
    * When `true` `isSigningIn` is set to `true` at the start of the exchange
    * (Gemini behaviour). Defaults to `false`.
@@ -258,6 +258,11 @@ export function useOAuthCapture<TResponse>(
       setCodeVerifier(start.codeVerifier);
       setRedirectUri(start.redirectUri);
       await openWebview(start.authUrl);
+      // The webview is now showing the provider's login page. Clear the
+      // signing-in flag so the loading overlay stops covering it — otherwise
+      // the user can never see or interact with the login page. The real code
+      // exchange phase re-sets this flag via `setSigningInBeforeExchange`.
+      setIsSigningIn(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setIsSigningIn(false);
@@ -307,7 +312,6 @@ export function useOAuthCapture<TResponse>(
     (async () => {
       try {
         if (config.setSigningInBeforeExchange) setIsSigningIn(true);
-        if (config.closeBeforeExchange) void closeWebview();
 
         const response = await config.exchangeCode({
           code: callbackCode,
@@ -325,11 +329,12 @@ export function useOAuthCapture<TResponse>(
         setError(null);
         onTokenCapturedRef.current?.(response);
 
-        if (!config.closeBeforeExchange) await closeWebview();
+        await closeWebview();
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : String(err));
         setIsSigningIn(false);
+        if (config.closeWebviewOnExchangeError) void closeWebview();
       }
     })();
 

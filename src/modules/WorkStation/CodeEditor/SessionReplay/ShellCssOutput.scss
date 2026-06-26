@@ -24,11 +24,17 @@
     line-height: var(--simulator-shell-line-height) !important;
   }
 
-  .terminal-command__prefix {
-    font-family: inherit !important;
-    font-size: inherit !important;
-    letter-spacing: inherit !important;
-    line-height: inherit !important;
+  .terminal-command__prefix,
+  .terminal-command__text,
+  .terminal-command__text * {
+    font-family: var(--simulator-shell-font-family) !important;
+    font-size: var(--simulator-shell-font-size) !important;
+    letter-spacing: var(--simulator-shell-letter-spacing) !important;
+    line-height: var(--simulator-shell-line-height) !important;
+  }
+
+  .terminal-command__text {
+    color: inherit !important;
   }
 
   .simulator-shell-plain-pre,

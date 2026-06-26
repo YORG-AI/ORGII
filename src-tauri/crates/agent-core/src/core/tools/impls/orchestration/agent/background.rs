@@ -116,6 +116,12 @@ impl AgentTool {
         let registry_handle = bg_session_id.clone();
         let turn_cancel_flag = Arc::clone(&job_cancel_flag);
         let join_handle = tokio::spawn(async move {
+            // Armed for the whole task body. If the turn loop panics and
+            // unwinds past the result `match` below, the guard's Drop emits a
+            // terminal Failed so the registry/UI never get stuck on a ghost
+            // "running" row. Disarmed once the real verdict is written.
+            let mut finalize_guard = super::helpers::FinalizeGuard::new(bg_session_id.clone());
+
             let turn_result = turn_executor::execute_turn(
                 &mut messages,
                 bg_provider.as_ref(),
@@ -248,6 +254,10 @@ impl AgentTool {
                     }
                 }
             }
+
+            // Authoritative status (Completed/Failed) has been written above.
+            // Disarm so the guard's Drop does not overwrite it with Failed.
+            finalize_guard.disarm();
 
             // Clean up worktree isolation after the task completes.
             // Runs before the grace-period sleep so `await_output` callers

@@ -9,7 +9,9 @@ import {
   markTurnTerminal,
 } from "@src/engines/SessionCore/control/turnLifecycle";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
+import { getLatestContextUsageSnapshot } from "@src/engines/SessionCore/sync/adapters/createRustAgentAdapter";
 import {
+  applyPostLoadResult,
   createSessionEventHandlerCallbacks,
   resetSessionSwitchState,
 } from "@src/engines/SessionCore/sync/sessionSyncStateHelpers";
@@ -193,6 +195,14 @@ describe("resetSessionSwitchState optimistic-running preservation", () => {
     expect(actions.setSessionRuntimeStatus).toHaveBeenCalledWith("idle");
   });
 
+  it("clears restored context usage on session switch", () => {
+    const actions = createSwitchActions();
+    resetSessionSwitchState(actions, "session-plain");
+    expect(actions.setSessionContextTokens).toHaveBeenCalledWith(0);
+    expect(actions.setSessionContextUsage).toHaveBeenCalledWith(null);
+    expect(actions.setSessionContextBreakdown).toHaveBeenCalledWith(null);
+  });
+
   it("preserves running for a session just optimistically started", () => {
     // beginOptimisticTurn records the session-scoped "recently started" marker
     // that resetSessionSwitchState consults.
@@ -212,5 +222,69 @@ describe("resetSessionSwitchState optimistic-running preservation", () => {
     resetSessionSwitchState(actions, "session-other");
     expect(actions.setSessionRuntimeStatus).toHaveBeenCalledWith("idle");
     clearRecentOptimisticTurn("session-launched");
+  });
+});
+
+describe("applyPostLoadResult", () => {
+  it("restores context usage snapshot from post-load metadata", () => {
+    const contextUsage = {
+      usedTokens: 1200,
+      maxTokens: 8000,
+      percentUsed: 15,
+      updatedAt: "2026-06-25T00:00:00.000Z",
+      sections: [
+        {
+          category: "conversation" as const,
+          label: "Conversation",
+          estimatedTokens: 1200,
+          percent: 100,
+          items: [],
+        },
+      ],
+      warnings: [],
+    };
+    const actions = {
+      setSessionContextTokens: vi.fn(),
+      setSessionContextUsage: vi.fn(),
+      setSessionRuntimeStatus: vi.fn(),
+      setSessionRuntimeError: vi.fn(),
+    };
+
+    applyPostLoadResult(
+      "session-1",
+      { contextTokens: 1200, contextUsage },
+      actions
+    );
+
+    expect(actions.setSessionContextTokens).toHaveBeenCalledWith(1200);
+    expect(actions.setSessionContextUsage).toHaveBeenCalledWith(contextUsage);
+  });
+});
+
+describe("getLatestContextUsageSnapshot", () => {
+  it("uses the latest persisted breakdown even when the newest token row has only totals", () => {
+    const contextUsage = {
+      usedTokens: 1200,
+      maxTokens: 8000,
+      percentUsed: 15,
+      updatedAt: "2026-06-25T00:00:00.000Z",
+      sections: [
+        {
+          category: "conversation" as const,
+          label: "Conversation",
+          estimatedTokens: 1200,
+          percent: 100,
+          items: [],
+        },
+      ],
+      warnings: [],
+    };
+
+    expect(
+      getLatestContextUsageSnapshot([
+        { contextUsageJson: JSON.stringify(contextUsage) },
+        { contextUsageJson: null },
+      ])
+    ).toEqual(contextUsage);
   });
 });

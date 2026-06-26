@@ -27,6 +27,9 @@ const CollabOrgPanelView = React.lazy(
 const ProjectOrgPanelView = React.lazy(
   () => import("./panels/ProjectOrgPanelView")
 );
+const ManageIssuesPanelView = React.lazy(
+  () => import("./panels/ManageIssuesPanelView")
+);
 const ProjectPanelView = React.lazy(() => import("./panels/ProjectPanelView"));
 const WorkItemPanelView = React.lazy(
   () => import("./panels/WorkItemPanelView")
@@ -59,6 +62,7 @@ interface ChatPanelContentProps {
   showCollabOrgContent: boolean;
   showEmptyChatFocusRestoreButton: boolean;
   showExploreContent: boolean;
+  showManageIssuesContent: boolean;
   showPanelContent: boolean;
   showProjectContent: boolean;
   showProjectOrgContent: boolean;
@@ -86,6 +90,7 @@ export function ChatPanelContent({
   showCollabOrgContent,
   showEmptyChatFocusRestoreButton,
   showExploreContent,
+  showManageIssuesContent,
   showPanelContent,
   showProjectContent,
   showProjectOrgContent,
@@ -126,6 +131,10 @@ export function ChatPanelContent({
       ) : showExploreContent ? (
         <Suspense fallback={null}>
           <WorkspaceExplorePanelView />
+        </Suspense>
+      ) : showManageIssuesContent ? (
+        <Suspense fallback={null}>
+          <ManageIssuesPanelView />
         </Suspense>
       ) : showCollabOrgContent && selectedCollabOrg ? (
         <Suspense fallback={null}>

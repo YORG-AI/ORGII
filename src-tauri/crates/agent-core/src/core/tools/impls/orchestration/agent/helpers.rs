@@ -21,7 +21,55 @@ use crate::definitions::builtin::{
     is_builtin_agent, BUILTIN_PREFIX, EXPLORE_AGENT_ID, GENERAL_AGENT_ID,
 };
 use crate::definitions::AgentDefinition;
+use crate::tools::impls::coding::exec::registry as job_registry;
 use crate::tools::traits::ToolError;
+
+/// RAII guard that guarantees a terminal job event is emitted for a subagent
+/// worker on EVERY exit path — including a panic inside the turn loop that
+/// unwinds past the explicit `mark_exited` calls.
+///
+/// Both the background and foreground paths register a job and then run
+/// `execute_turn`, writing the authoritative `Completed`/`Failed` status in a
+/// result `match` afterwards. If the turn loop panics and unwinds, that match
+/// never runs, the registry row stays `Running` forever, and the UI pin bar
+/// shows a ghost "running" subagent until app restart.
+///
+/// Arm the guard right after registering the job; call [`FinalizeGuard::disarm`]
+/// once the real verdict is written. `mark_exited` is idempotent and
+/// `Killed`-sticky, so a late guard fire after a cooperative kill is also safe.
+pub(super) struct FinalizeGuard {
+    handle: String,
+    armed: bool,
+}
+
+impl FinalizeGuard {
+    pub(super) fn new(handle: String) -> Self {
+        Self {
+            handle,
+            armed: true,
+        }
+    }
+
+    /// Mark the authoritative status as already written; the guard becomes a
+    /// no-op on drop.
+    pub(super) fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for FinalizeGuard {
+    fn drop(&mut self) {
+        if self.armed {
+            tracing::warn!(
+                "[agent] subagent worker '{}' exited without writing a terminal \
+                 status (likely a panic in the turn loop); emitting Failed so the \
+                 job registry and UI release the row",
+                self.handle
+            );
+            job_registry::mark_exited(&self.handle, job_registry::JobStatus::Failed);
+        }
+    }
+}
 
 /// Wire-format vocabulary for the `subagent_type` field on
 /// `subagent:*` Tauri events and the parent `agent` tool_call stamp.

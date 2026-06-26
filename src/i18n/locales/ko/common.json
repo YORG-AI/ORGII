@@ -1109,7 +1109,8 @@
     "selectRepoFromHome": "Please select a repo from the home page",
     "cloneRepoAgain": "Please clone the repo again from the home page",
     "unsavedChangesTitle": "Unsaved Changes",
-    "prkPlaceholder": "PRJ"
+    "prkPlaceholder": "PRJ",
+    "gitSyncMenuTitle": "Git sync actions"
   },
   "git": {
     "loading": "Git 상태 로딩 중...",
@@ -1353,7 +1354,13 @@
         "deleteBranch": "브랜치 삭제",
         "refresh": "브랜치 새로 고침",
         "checkoutDetachedSuccess": "현재 커밋에서 detached HEAD 상태입니다",
-        "checkoutDetachedFailed": "detached HEAD 체크아웃 실패"
+        "checkoutDetachedFailed": "detached HEAD 체크아웃 실패",
+        "removeWorktree": "Worktree 제거"
+      },
+      "messages": {
+        "deletedCount_one": "브랜치 {{count}}개 삭제됨",
+        "deletedCount_other": "브랜치 {{count}}개 삭제됨",
+        "failedDeleteList": "삭제 실패: {{branches}}"
       },
       "labels": {
         "otherBranches": "다른 브랜치",
@@ -1361,7 +1368,9 @@
         "recent": "Recent",
         "currentCommit": "현재 커밋",
         "basedOn": "기준",
-        "worktrees": "Worktrees"
+        "worktrees": "Worktrees",
+        "worktreeInUse": "사용 중",
+        "checkedOutInWorktree": "Worktree에서 체크아웃됨: {{path}}"
       },
       "placeholders": {
         "checkout": "브랜치",

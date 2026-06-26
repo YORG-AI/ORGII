@@ -127,6 +127,8 @@
     "uiScale": "Масштаб интерфейса",
     "timezoneAuto": "Авто (браузер)",
     "timezoneSearchPlaceholder": "Поиск ближайших городов",
+    "sendOnEnter": "Отправлять сообщения клавишей Enter",
+    "sendOnEnterDesc": "Если включено, Enter отправляет, а Shift+Enter вставляет новую строку. Если выключено, отправка выполняется Ctrl/Cmd+Enter.",
     "language": "Язык",
     "languageSearchPlaceholder": "Поиск языков...",
     "languageNames": {
@@ -975,7 +977,9 @@
     "typingSpeed": "Скорость набора",
     "typingSpeedDesc": "Миллисекунд на символ (1мс = быстрее, 50мс = медленнее)",
     "decryptEffect": "Эффект Decrypt",
-    "decryptEffectDesc": "Включить Decrypt анимацию для сообщений Agent"
+    "decryptEffectDesc": "Включить Decrypt анимацию для сообщений Agent",
+    "sendOnEnter": "Отправлять сообщения клавишей Enter",
+    "sendOnEnterDesc": "Если включено, Enter отправляет, а Shift+Enter вставляет новую строку. Если выключено, отправка выполняется Ctrl/Cmd+Enter."
   },
   "languageServers": {
     "languageServersDesc": "Управление LSP серверами для автодополнения, диагностики и интеллекта кода",

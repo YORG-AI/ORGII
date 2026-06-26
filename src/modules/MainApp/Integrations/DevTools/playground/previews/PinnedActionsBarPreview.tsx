@@ -42,6 +42,7 @@ function PinnedActionsBarPreviewInner() {
     triggerSlashContext: NOOP,
     consumeSlashQuery: NOOP,
     placeCaretAtPoint: NOOP_BOOL,
+    isInlineMenuActive: NOOP_BOOL,
     insertPrPill: NOOP,
   });
 

@@ -89,10 +89,10 @@ export function deriveSourceControlMainProps({
   sourceControlSessionFilter,
   repoPath,
 }: DeriveSourceControlMainPropsInput): SourceControlMainDerivedProps {
+  const focusPath = tabData.focusPath ?? null;
   const mode: SourceControlPillMode =
     tabData.mode === "all-changes" ? "all-changes" : "focus";
   const staged = Boolean(tabData.staged);
-  const focusPath = tabData.focusPath ?? null;
   const historySelection = tabData.historySelection ?? null;
 
   const gitStatusFiles = Array.from(gitFilesByPath.values());

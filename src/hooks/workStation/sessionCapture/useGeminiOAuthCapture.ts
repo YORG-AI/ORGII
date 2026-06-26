@@ -62,7 +62,7 @@ const GEMINI_OAUTH_CONFIG: OAuthCaptureConfig<GeminiOauthExchangeResponse> = {
       codeVerifier,
       redirectUri!
     ),
-  closeBeforeExchange: true,
+  closeWebviewOnExchangeError: true,
   setSigningInBeforeExchange: true,
 };
 

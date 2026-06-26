@@ -26,6 +26,7 @@ import {
   renameTerminalSessionAtom,
   setActiveTerminalAtom,
   terminalSessionsAtom,
+  updateTerminalSessionInfoAtom,
 } from "@src/store/workstation/codeEditor/terminal";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 import { invokeTauri, isTauriReady } from "@src/util/platform/tauri/init";
@@ -67,6 +68,10 @@ async function writeToPty(command: string, sessionId: string): Promise<void> {
   }
 
   const ptySessionId = toBackendPtySessionId(sessionId);
+  getStore().set(updateTerminalSessionInfoAtom, {
+    sessionId,
+    info: { hasUserInput: true },
+  });
 
   // Write command
   await invokeTauri("write_pty", {

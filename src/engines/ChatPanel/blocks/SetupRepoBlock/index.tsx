@@ -118,7 +118,7 @@ const SetupRepoBlock: React.FC<SetupRepoBlockProps> = memo(
     })();
 
     return (
-      <div className={getEventBlockContainerClasses(true)}>
+      <div className={getEventBlockContainerClasses(false)}>
         <EventBlockHeader
           isCollapsed={isCollapsed}
           onClick={hasContent ? handleHeaderClick : undefined}

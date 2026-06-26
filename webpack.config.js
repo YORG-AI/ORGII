@@ -30,6 +30,11 @@ module.exports = (env, argv) => {
     !isProduction && (isLightDev || process.env.FAST_DEV === "true");
   const useDevSourceMaps =
     !isProduction && !isLightDev && process.env.DEV_SOURCEMAPS !== "false";
+  const retryMainScriptLoad =
+    !isProduction &&
+    (process.env.ORGII_RETRY_MAIN_SCRIPT_LOAD === "true" ||
+      (process.env.ORGII_RETRY_MAIN_SCRIPT_LOAD !== "false" &&
+        process.platform === "linux"));
 
   // FAST_PROD=true: use esbuild for transpilation + minification in production.
   // Saves ~30-40s vs the SWC+Terser path. Trades some dead-code elimination
@@ -460,6 +465,11 @@ module.exports = (env, argv) => {
         template: "./public/index.html",
         chunks: ["main"],
         filename: "index.html",
+        // Linux WebKitGTK can internally fail a static <script src="/main.js">
+        // load even after the dev server is ready; a failed script is not
+        // retried, so Linux dev uses the retrying external loader below.
+        inject: retryMainScriptLoad ? false : "body",
+        retryMainScriptLoad,
       }),
       // NOTE: HotModuleReplacementPlugin is automatically added by webpack-dev-server when hot: true
       // ReactRefreshWebpackPlugin works with SWC's refresh: true option to enable
@@ -496,8 +506,10 @@ module.exports = (env, argv) => {
     devServer: {
       port: devServerPort,
       hot: !isLightDev,
-      // Light dev uses full page reloads to avoid HMR runtime overhead.
-      liveReload: isLightDev,
+      // Light dev avoids the webpack-dev-server browser client entirely.
+      // WebKitGTK can trip internal loader errors around the injected
+      // liveReload websocket path, and Tauri dev does not need it here.
+      liveReload: !isLightDev,
       historyApiFallback: true,
       // Disable static file watching to prevent full page reloads during HMR.
       // Default behavior watches public/ directory, which can race with HMR
@@ -506,16 +518,18 @@ module.exports = (env, argv) => {
         directory: path.resolve(__dirname, "public"),
         watch: false,
       },
-      client: {
-        overlay: false,
-        // Reconnect settings for better HMR recovery
-        reconnect: 5,
-        webSocketURL: {
-          hostname: "localhost",
-          pathname: "/ws",
-          port: devServerPort,
-        },
-      },
+      client: isLightDev
+        ? false
+        : {
+            overlay: false,
+            // Reconnect settings for better HMR recovery
+            reconnect: 5,
+            webSocketURL: {
+              hostname: "localhost",
+              pathname: "/ws",
+              port: devServerPort,
+            },
+          },
       open: false,
       headers: {
         "Cross-Origin-Embedder-Policy": "credentialless",

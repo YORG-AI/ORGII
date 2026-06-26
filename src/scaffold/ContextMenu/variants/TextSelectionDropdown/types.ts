@@ -26,6 +26,8 @@ export interface TextSelectionDropdownProps {
   onAskAgent?: (text: string) => void;
   /** Callback when "Add to Session Context" is selected with a session */
   onAddToContext?: (text: string, sessionId: string | null) => void;
+  onAddFile?: () => void;
+  onAddLines?: () => void;
   /** Line numbers for editor selections (optional) */
   lineRange?: { fromLine: number; toLine: number };
   /** Custom class name */

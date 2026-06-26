@@ -285,6 +285,17 @@ pub struct SessionFilter {
     /// Sort order: "asc" or "desc" (default: "desc")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sort_order: Option<String>,
+    /// Include imported external history rows when loading CLI-category sessions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_external_history: Option<bool>,
+    /// Only include sessions created at or after this epoch millisecond.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_after_ms: Option<i64>,
+    /// Only include sessions created at or before this epoch millisecond.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_before_ms: Option<i64>,
+    #[serde(skip)]
+    pub skip_orgtrack_upsert: bool,
     /// Only return active (ongoing) sessions
     #[serde(skip_serializing_if = "Option::is_none")]
     pub active_only: Option<bool>,

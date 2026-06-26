@@ -2,7 +2,7 @@
  * useChatGroups Hook
  *
  * Splits the flat optimizedChatHistory into groups for the chat list.
- * Each user message starts a new group and becomes its sticky header.
+ * Each user message starts a new group and becomes its group header.
  * Programmatic interrupts such as Force Send can produce adjacent user
  * messages without an intervening assistant event; they are still distinct
  * turns and must not collapse into one round.
@@ -213,6 +213,8 @@ export interface UseChatGroupsOptions {
   /** Disable the structural "Agent worked for …" turn collapse entirely. */
   disableTurnCollapse?: boolean;
   allTurnsCollapsed?: boolean;
+  /** Default collapse state for eligible turns when no override/bulk command applies. */
+  defaultTurnCollapsed?: boolean;
   /**
    * Optional predicate for which items open a new turn group. Defaults
    * to `source === "user"` with display text. Group chat passes a
@@ -234,6 +236,7 @@ export function useChatGroups(
     forceCollapseAllTurns = false,
     disableTurnCollapse = false,
     allTurnsCollapsed,
+    defaultTurnCollapsed = false,
     isTurnHeaderItem,
     isTurnBoundaryItem,
   } = options;
@@ -337,9 +340,8 @@ export function useChatGroups(
         });
       const override =
         turnId && collapseOverrides ? collapseOverrides.get(turnId) : undefined;
-      // Collapse default = true for eligible turns; the override (when set)
-      // wins. The TurnCollapsePinBar uses the same defaulting on its side.
-      const isCollapsed = eligible && (override ?? allTurnsCollapsed ?? true);
+      const isCollapsed =
+        eligible && (override ?? allTurnsCollapsed ?? defaultTurnCollapsed);
 
       if (!isCollapsed) {
         const keepStructuralPlaceholder = meta.unloadedTurn !== null;
@@ -538,6 +540,7 @@ export function useChatGroups(
     forceCollapseAllTurns,
     disableTurnCollapse,
     allTurnsCollapsed,
+    defaultTurnCollapsed,
     isTurnBoundaryItem,
     isTurnHeaderItem,
   ]);

@@ -27,6 +27,7 @@
 mod ade_manager;
 mod ai_research;
 mod base;
+mod ds;
 mod memory_consolidator;
 mod memory_extractor;
 mod os;
@@ -38,6 +39,7 @@ mod work_item_manager;
 pub use ade_manager::*;
 pub use ai_research::*;
 pub use base::*;
+pub use ds::*;
 pub use memory_consolidator::*;
 pub use memory_extractor::*;
 pub use os::*;
@@ -111,6 +113,7 @@ pub fn get_builtin_agents() -> Vec<AgentDefinition> {
         ade_manager(),
         base_agent(),
         sde_agent(),
+        ds_agent(),
         os_agent(),
         ai_research_agent(),
         wingman_agent(),
@@ -136,7 +139,7 @@ mod tests {
     #[test]
     fn test_builtin_agents_count() {
         let agents = get_builtin_agents();
-        assert_eq!(agents.len(), 11); // ADE Manager, base, os, sde, ai-research, wingman, work-item-manager + 2 subagents + 2 memory subagents
+        assert_eq!(agents.len(), 12); // ADE Manager, base, os, sde, ds, ai-research, wingman, work-item-manager + 2 subagents + 2 memory subagents
     }
 
     #[test]
@@ -145,6 +148,7 @@ mod tests {
         assert!(is_builtin_agent(BASE_AGENT_ID));
         assert!(is_builtin_agent(OS_AGENT_ID));
         assert!(is_builtin_agent(SDE_AGENT_ID));
+        assert!(is_builtin_agent(DS_AGENT_ID));
         assert!(is_builtin_agent(AI_RESEARCH_AGENT_ID));
         assert!(is_builtin_agent(WINGMAN_AGENT_ID));
         assert!(is_builtin_agent(WORK_ITEM_MANAGER_AGENT_ID));

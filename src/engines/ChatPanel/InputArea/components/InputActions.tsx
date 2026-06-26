@@ -15,6 +15,7 @@
  *   5. Terminal + can resume  → Retry (orange, CLI sessions only)
  *   6. Otherwise              → Submit (arrow up, inactive color, noop)
  */
+import { useAtomValue } from "jotai";
 import { ArrowUp, RotateCcw, Square } from "lucide-react";
 import React, { memo, useRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -24,6 +25,7 @@ import Message from "@src/components/Message";
 import Tooltip from "@src/components/Tooltip";
 import { INPUT_AREA_BUTTONS } from "@src/config/inputAreaTokens";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
+import { chatAppearanceAtom } from "@src/store/config/configAtom";
 
 interface InputActionsProps {
   isInputEmpty: boolean;
@@ -66,6 +68,7 @@ const InputActions: React.FC<InputActionsProps> = memo(
     submitDisabled = false,
   }) => {
     const { t } = useTranslation();
+    const { sendOnEnter } = useAtomValue(chatAppearanceAtom);
     const suppressSubmitClickUntilRef = useRef(0);
 
     // Non-empty input ALWAYS wins over the working indicator: the user can
@@ -211,7 +214,9 @@ const InputActions: React.FC<InputActionsProps> = memo(
     const tooltipContent = isSendLike ? (
       <KeyboardShortcutTooltipContent
         label={sendTooltipLabel}
-        shortcut={getShortcutKeys("chat_send")}
+        shortcut={getShortcutKeys("chat_send", {
+          chatSendOnEnter: sendOnEnter,
+        })}
       />
     ) : (
       title

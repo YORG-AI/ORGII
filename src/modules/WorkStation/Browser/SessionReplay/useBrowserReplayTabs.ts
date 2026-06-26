@@ -7,7 +7,13 @@
  */
 import { useSetAtom } from "jotai";
 import { Compass, Search } from "lucide-react";
-import { createElement, useCallback, useMemo, useState } from "react";
+import {
+  createElement,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import type { TimestampedReplayTab } from "@src/modules/WorkStation/shared";
@@ -130,6 +136,38 @@ export function useBrowserReplayTabs({
     browserEntries,
     internalBrowserEntries,
   ]);
+
+  const latestSessionBrowserTabId = useMemo(() => {
+    const latestInternalEntry =
+      activeInternalEntry ?? internalBrowserEntries.at(-1);
+    const latestEntry = activeEntry ?? browserEntries.at(-1);
+
+    if (!latestInternalEntry && !latestEntry) return null;
+    if (latestInternalEntry && latestEntry) {
+      return new Date(latestInternalEntry.timestamp) >
+        new Date(latestEntry.timestamp)
+        ? AGENT_BROWSER_TAB_ID
+        : (TAB_ID_BY_ENTRY_CATEGORY.get(categorizeBrowserEntry(latestEntry)) ??
+            null);
+    }
+    if (latestInternalEntry) return AGENT_BROWSER_TAB_ID;
+    if (!latestEntry) return null;
+    return (
+      TAB_ID_BY_ENTRY_CATEGORY.get(categorizeBrowserEntry(latestEntry)) ?? null
+    );
+  }, [
+    activeEntry,
+    activeInternalEntry,
+    browserEntries,
+    internalBrowserEntries,
+  ]);
+
+  const preferredBrowserTabId =
+    latestSessionBrowserTabId ?? MY_TABS_BROWSER_TAB_ID;
+
+  useEffect(() => {
+    setManualBrowserTabId(preferredBrowserTabId);
+  }, [preferredBrowserTabId]);
 
   const activeBrowserTabId = eventBrowserTab?.id ?? manualBrowserTabId;
 

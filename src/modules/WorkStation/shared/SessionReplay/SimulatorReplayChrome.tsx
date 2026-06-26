@@ -10,6 +10,7 @@ export interface SimulatorReplayChromeProps {
   tabs: ReplayTab[];
   activeEventId: string | null;
   onTabClick: (eventId: string) => void;
+  onTabDoubleClick?: (eventId: string) => void;
   children: React.ReactNode;
   leadingSlot?: React.ReactNode;
   trailingSlot?: React.ReactNode;
@@ -24,6 +25,7 @@ const SimulatorReplayChromeComponent: React.FC<SimulatorReplayChromeProps> = ({
   tabs,
   activeEventId,
   onTabClick,
+  onTabDoubleClick,
   children,
   leadingSlot,
   trailingSlot,
@@ -41,6 +43,7 @@ const SimulatorReplayChromeComponent: React.FC<SimulatorReplayChromeProps> = ({
         tabs={tabs}
         activeEventId={activeEventId}
         onTabClick={onTabClick}
+        onTabDoubleClick={onTabDoubleClick}
         leadingSlot={leadingSlot ?? <SimulatorTabBarLeading />}
         trailingSlot={trailingSlot}
         surfaceClassName={tabBarSurfaceClassName}

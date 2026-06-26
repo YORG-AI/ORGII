@@ -7,7 +7,6 @@ export {
   isDropInsideChatDropTarget,
   getChatDropTargetId,
   createPreventDefaults,
-  type GlobalDragWindow,
 } from "./dragDetection";
 export {
   extractFilePath,

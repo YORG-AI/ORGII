@@ -21,8 +21,44 @@ import { useContextMenu } from "@src/hooks/workStation/panels/useContextMenu";
 import { SearchResultsPanel, SecondLayerPanel } from "./MenuSections";
 import { MenuItemRow } from "./ResultItems";
 import { MENU_ITEMS, STYLE_CONFIG } from "./config";
-import type { ContextMenuProps } from "./types";
+import type { ContextMenuCustomMentionOption, ContextMenuProps } from "./types";
 import { useMenuEffects } from "./useMenuEffects";
+
+interface CustomMentionGroup {
+  label: string | null;
+  options: ContextMenuCustomMentionOption[];
+  startIndex: number;
+}
+
+function groupCustomMentionOptions(
+  options: ReadonlyArray<ContextMenuCustomMentionOption>
+): CustomMentionGroup[] {
+  const groups: CustomMentionGroup[] = [];
+  for (const option of options) {
+    const label = option.groupLabel ?? null;
+    const lastGroup = groups[groups.length - 1];
+    if (!lastGroup || lastGroup.label !== label) {
+      groups.push({ label, options: [option], startIndex: groups.length });
+    } else {
+      lastGroup.options.push(option);
+    }
+  }
+
+  let startIndex = 0;
+  for (const group of groups) {
+    group.startIndex = startIndex;
+    startIndex += group.options.length;
+  }
+  return groups;
+}
+
+const CustomMentionGroupLabel: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => (
+  <div className="px-1.5 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-text-3">
+    {children}
+  </div>
+);
 
 const ContextMenu: React.FC<ContextMenuProps> = ({
   visible,
@@ -54,9 +90,18 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
     return customMentionOptions.filter((option) => {
       const label = option.label.toLowerCase();
       const description = option.description?.toLowerCase() ?? "";
-      return label.includes(query) || description.includes(query);
+      const groupLabel = option.groupLabel?.toLowerCase() ?? "";
+      return (
+        label.includes(query) ||
+        description.includes(query) ||
+        groupLabel.includes(query)
+      );
     });
   }, [customMentionOptions, externalSearchQuery]);
+  const customMentionGroups = useMemo(
+    () => groupCustomMentionOptions(filteredCustomMentionOptions),
+    [filteredCustomMentionOptions]
+  );
 
   const handleCustomMentionIndexSelect = useCallback(
     (optionIndex: number) => {
@@ -172,19 +217,33 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
       {showInlineSearch && filteredCustomMentionOptions.length > 0 && (
         <div className={DROPDOWN_CLASSES.panel} style={menuWidthStyle}>
           <div className={DROPDOWN_CLASSES.itemsColumnPadded}>
-            {filteredCustomMentionOptions.map((option, optionIndex) => (
-              <MenuItemRow
-                key={option.id}
-                icon={AtSign}
-                label={option.label}
-                description={option.description}
-                isActive={keyboardNavigated && activeIndex === optionIndex}
-                dataTestId="agent-org-mention-option"
-                dataMentionId={option.id}
-                onClick={() => onCustomMentionSelect?.(option)}
-                onMouseEnter={() => handleMainItemHover(optionIndex)}
-                onMouseLeave={resetActiveIndex}
-              />
+            {customMentionGroups.map((group) => (
+              <React.Fragment
+                key={`${group.label ?? "ungrouped"}:${group.startIndex}`}
+              >
+                {group.label && (
+                  <CustomMentionGroupLabel>
+                    {group.label}
+                  </CustomMentionGroupLabel>
+                )}
+                {group.options.map((option, optionIndex) => {
+                  const itemIndex = group.startIndex + optionIndex;
+                  return (
+                    <MenuItemRow
+                      key={option.id}
+                      icon={AtSign}
+                      label={option.label}
+                      description={option.description}
+                      isActive={keyboardNavigated && activeIndex === itemIndex}
+                      dataTestId="agent-org-mention-option"
+                      dataMentionId={option.id}
+                      onClick={() => onCustomMentionSelect?.(option)}
+                      onMouseEnter={() => handleMainItemHover(itemIndex)}
+                      onMouseLeave={resetActiveIndex}
+                    />
+                  );
+                })}
+              </React.Fragment>
             ))}
           </div>
         </div>
@@ -232,23 +291,37 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
           {filteredCustomMentionOptions.length > 0 && (
             <>
               <div className={DROPDOWN_CLASSES.itemsColumnPadded}>
-                {filteredCustomMentionOptions.map((option, optionIndex) => {
-                  const itemIndex = recentCount + optionIndex;
-                  return (
-                    <MenuItemRow
-                      key={option.id}
-                      icon={AtSign}
-                      label={option.label}
-                      description={option.description}
-                      isActive={keyboardNavigated && activeIndex === itemIndex}
-                      dataTestId="agent-org-mention-option"
-                      dataMentionId={option.id}
-                      onClick={() => onCustomMentionSelect?.(option)}
-                      onMouseEnter={() => handleMainItemHover(itemIndex)}
-                      onMouseLeave={resetActiveIndex}
-                    />
-                  );
-                })}
+                {customMentionGroups.map((group) => (
+                  <React.Fragment
+                    key={`${group.label ?? "ungrouped"}:${group.startIndex}`}
+                  >
+                    {group.label && (
+                      <CustomMentionGroupLabel>
+                        {group.label}
+                      </CustomMentionGroupLabel>
+                    )}
+                    {group.options.map((option, optionIndex) => {
+                      const itemIndex =
+                        recentCount + group.startIndex + optionIndex;
+                      return (
+                        <MenuItemRow
+                          key={option.id}
+                          icon={AtSign}
+                          label={option.label}
+                          description={option.description}
+                          isActive={
+                            keyboardNavigated && activeIndex === itemIndex
+                          }
+                          dataTestId="agent-org-mention-option"
+                          dataMentionId={option.id}
+                          onClick={() => onCustomMentionSelect?.(option)}
+                          onMouseEnter={() => handleMainItemHover(itemIndex)}
+                          onMouseLeave={resetActiveIndex}
+                        />
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
               </div>
               <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
             </>

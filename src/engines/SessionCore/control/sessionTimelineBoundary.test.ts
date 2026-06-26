@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CANCEL_REASON } from "@src/api/tauri/agent";
 
 import {
+  BOUNDARY_EFFECTS,
+  type TimelineBoundaryReason,
   beginStopBoundary,
   cancelTurnForTimelineBoundary,
   isTimelineInterruptInFlight,
@@ -170,6 +172,108 @@ describe("sessionTimelineBoundary", () => {
       pid: 123,
       sessionId: "session-1",
     });
+  });
+
+  it("kills the running foreground shell for force-send boundaries (#110)", async () => {
+    interruptSpy.mockResolvedValue(undefined);
+    storeGetSpy.mockReturnValue(
+      new Map([
+        [
+          "session-1",
+          new Map([
+            [
+              777,
+              {
+                pid: 777,
+                sessionId: "session-1",
+                command: "sleep 45",
+                status: "running",
+                startedAt: Date.now(),
+              },
+            ],
+          ]),
+        ],
+      ])
+    );
+
+    await cancelTurnForTimelineBoundary("session-1", "force-send");
+    await Promise.resolve();
+
+    expect(killAgentShellProcessSpy).toHaveBeenCalledWith({
+      pid: 777,
+      sessionId: "session-1",
+    });
+  });
+
+  it("spares background shells on force-send boundaries (#110)", async () => {
+    interruptSpy.mockResolvedValue(undefined);
+    storeGetSpy.mockReturnValue(
+      new Map([
+        [
+          "session-1",
+          new Map([
+            [
+              888,
+              {
+                pid: 888,
+                sessionId: "session-1",
+                command: "npm run dev",
+                status: "background",
+                startedAt: Date.now(),
+              },
+            ],
+          ]),
+        ],
+      ])
+    );
+
+    await cancelTurnForTimelineBoundary("session-1", "force-send");
+    await Promise.resolve();
+
+    expect(killAgentShellProcessSpy).not.toHaveBeenCalled();
+  });
+
+  it("kills no shell processes for rewind boundaries", async () => {
+    storeGetSpy.mockImplementation((atom: { debugLabel?: string }) => {
+      if (atom.debugLabel === "isSessionActive") return true;
+      if (atom.debugLabel === "sessionRuntimeStatus") return "running";
+      if (atom.debugLabel === "session/sortedEvents") return [];
+      return new Map([
+        [
+          "session-1",
+          new Map([
+            [
+              999,
+              {
+                pid: 999,
+                sessionId: "session-1",
+                command: "sleep 45",
+                status: "running",
+                startedAt: Date.now(),
+              },
+            ],
+          ]),
+        ],
+      ]);
+    });
+    interruptSpy.mockResolvedValue(undefined);
+
+    await cancelTurnForTimelineBoundary("session-1", "rewind");
+    await Promise.resolve();
+
+    expect(killAgentShellProcessSpy).not.toHaveBeenCalled();
+  });
+
+  it("declares a boundary effect for every TimelineBoundaryReason", () => {
+    // Table-completeness guard: every boundary reason must have an explicit
+    // policy. `Record<TimelineBoundaryReason, …>` enforces this at the type
+    // level; this asserts it at runtime so a future reason cannot ship without
+    // declaring its shell-kill / FSM behavior (the #110 latent-discipline gap).
+    const reasons: TimelineBoundaryReason[] = ["stop", "force-send", "rewind"];
+    for (const reason of reasons) {
+      expect(BOUNDARY_EFFECTS[reason]).toBeDefined();
+    }
+    expect(Object.keys(BOUNDARY_EFFECTS).sort()).toEqual([...reasons].sort());
   });
 
   it("closes local running events for Stop boundaries", async () => {

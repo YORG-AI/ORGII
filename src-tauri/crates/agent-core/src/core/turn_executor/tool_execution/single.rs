@@ -245,16 +245,11 @@ pub(super) async fn execute_single_tool(
             let is_error = rich.is_none() || is_error_text(&raw_result);
             result_is_error = is_error;
 
-            if FILE_READ_TOOLS.contains(&tool_call.name.as_str()) && !is_error {
-                for path in extract_file_paths(&tool_call.name, &effective_args) {
-                    file_tracker.record_read(&path);
-                }
-            }
+            // Single entry point keeps read/write bookkeeping identical to the
+            // concurrent path in `parallel.rs` (no drift).
+            file_tracker.record_tool_file_effects(&tool_call.name, &effective_args, is_error);
             if is_file_write_tool(&tool_call.name) && !is_error {
                 let changed_paths = extract_file_paths(&tool_call.name, &effective_args);
-                for path in &changed_paths {
-                    file_tracker.record_write(path);
-                }
                 if !changed_paths.is_empty() {
                     handler.on_file_change(session_id, &tool_call.name, &changed_paths);
                 }

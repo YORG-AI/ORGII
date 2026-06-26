@@ -61,6 +61,7 @@ export interface EventHandlerContext {
   onContextUsageRef: MutableRefObject<
     ((contextUsage: AgentContextUsageSnapshot) => void) | undefined
   >;
+  onTokenUpdateRef: MutableRefObject<((tokens: number) => void) | undefined>;
   onStatusChangeRef: MutableRefObject<
     | ((
         status: string,
@@ -92,6 +93,7 @@ export interface EventHandlerContext {
 export interface EventHandlerCallbacksInternal {
   onAgentComplete?: (tokenUsage?: AgentTokenUsage) => void;
   onContextUsage?: (contextUsage: AgentContextUsageSnapshot) => void;
+  onTokenUpdate?: (tokens: number) => void;
   onStatusChange?: (status: string, errorMessage?: string) => void;
   onPermissionRequest?: (event: PermissionRequestEvent) => void;
   onQuestionRequest?: (event: QuestionRequestEvent) => void;

@@ -5,9 +5,13 @@
 
 use crate::agent_sessions::health::check_session_health;
 
+use super::accounting::{
+    query_session_heatmap, session_usage_summary as build_session_usage_summary,
+    SessionHeatmapFilter, SessionHeatmapResponse, SessionUsageSummary,
+};
 use super::aggregation::list_all_sessions;
 use super::history::build_history_response;
-use super::stats::compute_aggregate_stats;
+use super::stats::compute_aggregate_stats_with_accounting;
 use super::types::{
     AggregateStats, SessionAggregateRecord, SessionFilter, SessionHealthStatus,
     SessionHistoryResponse, SessionListResponse, UsageFilter, UsageRecord,
@@ -89,7 +93,7 @@ pub async fn session_get_aggregate_stats(
             response.sessions
         };
 
-        Ok(compute_aggregate_stats(&sessions))
+        compute_aggregate_stats_with_accounting(&sessions)
     })
     .await
     .map_err(|err| format!("Task join error: {}", err))?
@@ -162,4 +166,22 @@ pub async fn session_get_context_status(
     })
     .await
     .map_err(|err| format!("Task join error: {}", err))?
+}
+
+/// Get a prompt-cache-aware token and cost summary for one session.
+#[tauri::command]
+pub async fn session_usage_summary(session_id: String) -> Result<SessionUsageSummary, String> {
+    tokio::task::spawn_blocking(move || build_session_usage_summary(&session_id))
+        .await
+        .map_err(|err| format!("Task join error: {}", err))?
+}
+
+/// Get activity heatmap data from the shared unified stats/orgtrack pipeline.
+#[tauri::command]
+pub async fn session_heatmap(
+    filter: Option<SessionHeatmapFilter>,
+) -> Result<SessionHeatmapResponse, String> {
+    tokio::task::spawn_blocking(move || query_session_heatmap(filter.as_ref()))
+        .await
+        .map_err(|err| format!("Task join error: {}", err))?
 }

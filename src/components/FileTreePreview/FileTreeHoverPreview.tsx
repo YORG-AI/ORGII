@@ -33,7 +33,10 @@ const FileTreeHoverPreview: React.FC<FileTreeHoverPreviewProps> = ({
   display = "inline-flex",
   as = "span",
 }) => {
-  const anchorRef = useRef<HTMLSpanElement | null>(null);
+  const anchorRef = useRef<HTMLElement | null>(null);
+  const setAnchorRef = useCallback((node: HTMLElement | null) => {
+    anchorRef.current = node;
+  }, []);
   const showTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showPreview, setShowPreview] = useState(false);
@@ -91,19 +94,24 @@ const FileTreeHoverPreview: React.FC<FileTreeHoverPreviewProps> = ({
     };
   }, [clearHideTimeout, clearShowTimeout]);
 
-  const Anchor = as;
+  const anchorProps = {
+    className: `min-w-0 items-center ${className}`.trim(),
+    style: { display },
+    onMouseEnter: handleMouseEnter,
+    onMouseLeave: handleMouseLeave,
+  };
 
   return (
     <>
-      <Anchor
-        ref={anchorRef}
-        className={`min-w-0 items-center ${className}`.trim()}
-        style={{ display }}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-      >
-        {children}
-      </Anchor>
+      {as === "span" ? (
+        <span ref={setAnchorRef} {...anchorProps}>
+          {children}
+        </span>
+      ) : (
+        <div ref={setAnchorRef} {...anchorProps}>
+          {children}
+        </div>
+      )}
       {showPreview &&
         createPortal(
           <div

@@ -17,7 +17,7 @@ export const GIT_SETTINGS_REGISTRY = {
   },
   "git.autoFetch": {
     schema: z.boolean(),
-    default: false,
+    default: true,
     description: "Automatically fetch from remote in the background",
     category: "git",
   },

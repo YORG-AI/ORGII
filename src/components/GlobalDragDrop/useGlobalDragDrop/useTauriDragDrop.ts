@@ -24,6 +24,7 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useEffect } from "react";
 
 import { createLogger } from "@src/hooks/logger";
+import { clearInternalFileTreeDrag } from "@src/shared/dnd/dragSideChannel";
 
 import type { DragDropBehavior, DroppedFolder } from "../types";
 import {
@@ -131,8 +132,7 @@ export function useTauriDragDrop(options: UseTauriDragDropOptions): void {
           // Clear the global flags that signal an internal file-tree drag
           // initiated via `startDrag()`.  We're handling the drop here; the
           // browser-level listener must not also fire against the same paths.
-          window.__internalFileTreeDragData = undefined;
-          window.__internalFileTreeDrag = false;
+          clearInternalFileTreeDrag();
 
           // Repository drop (Start page folder → "add as repo" modal).
           // Only fires outside the chat panel and when the payload is a

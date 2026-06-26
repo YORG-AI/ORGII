@@ -54,6 +54,7 @@ export interface KeyVaultAccount {
   apiKeyPreview?: string;
   sessionTokenPreview?: string;
   baseUrl?: string | null;
+  protocol?: "openai" | "anthropic" | null;
 
   // Validation results
   /** Full list of models from validation (for UI display) */

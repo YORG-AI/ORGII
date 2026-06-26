@@ -26,6 +26,7 @@ fn record_token_usage_adapter(row: session_bridge::TokenUsageRow<'_>) -> rusqlit
         row.cache_write_tokens,
         row.total_tokens,
         row.context_tokens,
+        row.context_usage_json.as_deref(),
     )
 }
 

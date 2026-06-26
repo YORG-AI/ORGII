@@ -42,6 +42,7 @@ import {
   type ChatHistoryDisplayMode,
   type ChatPanelCreateTarget,
 } from "@src/store/ui/chatPanelAtom";
+import { isWindows } from "@src/util/platform/tauri";
 
 import {
   CHAT_PANEL_HEADER_DRAG_STYLE,
@@ -181,6 +182,7 @@ export function ChatPanelHeader({
   visibleRegionNotice,
 }: ChatPanelHeaderProps): React.ReactNode {
   const publishedHeaderSlots = useAtomValue(chatPanelHeaderSlotsAtom);
+  const windowsHost = isWindows();
   if (!showHeader) return null;
 
   const showStaticCollabCreateTitle =
@@ -452,13 +454,15 @@ export function ChatPanelHeader({
     <div
       className={`workspace-header header-tab-group relative flex flex-shrink-0 items-center gap-1.5 ${isCompactLayout ? "h-11 min-h-11 pl-2 pr-[7px] pt-2" : "h-9 min-h-9 px-2"}`}
       data-testid="chat-panel-header"
-      data-tauri-drag-region
+      data-tauri-drag-region={windowsHost ? undefined : true}
       style={
         {
           paddingLeft: shouldOffsetHeaderForCollapsedSidebar
             ? COLLAPSED_SIDEBAR_CHROME_OFFSET
             : undefined,
-          ...CHAT_PANEL_HEADER_DRAG_STYLE,
+          ...(windowsHost
+            ? CHAT_PANEL_HEADER_NO_DRAG_STYLE
+            : CHAT_PANEL_HEADER_DRAG_STYLE),
         } as React.CSSProperties
       }
     >

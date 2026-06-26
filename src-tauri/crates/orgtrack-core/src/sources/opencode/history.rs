@@ -196,22 +196,25 @@ fn list_all_opencode_session_meta_from_conn(
         .map_err(|err| format!("Failed to prepare OpenCode session query: {err}"))?;
     let rows = stmt
         .query_map([], |row| {
+            let input_tokens = row.get::<_, Option<i64>>(4)?.unwrap_or_default()
+                + row.get::<_, Option<i64>>(7)?.unwrap_or_default()
+                + row.get::<_, Option<i64>>(8)?.unwrap_or_default();
+            let output_tokens = row.get::<_, Option<i64>>(5)?.unwrap_or_default()
+                + row.get::<_, Option<i64>>(6)?.unwrap_or_default();
             Ok(OpenCodeSessionMeta {
-                source_session_id: row.get(0)?,
+                source_session_id: row.get::<_, Option<String>>(0)?.unwrap_or_default(),
                 source_path: String::new(),
                 source_record_key: String::new(),
                 source_mtime_ms: 0,
                 source_size_bytes: 0,
                 source_fingerprint: String::new(),
-                title: row.get(1)?,
-                directory: row.get(2)?,
+                title: row.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                directory: row.get::<_, Option<String>>(2)?.unwrap_or_default(),
                 model: row.get(3)?,
-                input_tokens: row.get::<_, i64>(4)?
-                    + row.get::<_, i64>(7)?
-                    + row.get::<_, i64>(8)?,
-                output_tokens: row.get::<_, i64>(5)? + row.get::<_, i64>(6)?,
-                time_created: row.get(9)?,
-                time_updated: row.get(10)?,
+                input_tokens,
+                output_tokens,
+                time_created: row.get::<_, Option<i64>>(9)?.unwrap_or_default(),
+                time_updated: row.get::<_, Option<i64>>(10)?.unwrap_or_default(),
             })
         })
         .map_err(|err| format!("Failed to query OpenCode sessions: {err}"))?;
@@ -312,21 +315,23 @@ fn load_ordered_parts(
         .map_err(|err| format!("Failed to prepare OpenCode part query: {err}"))?;
     let rows = stmt
         .query_map([source_session_id], |row| {
-            let raw_data: String = row.get(3)?;
             Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(0)?.unwrap_or_default(),
+                row.get::<_, Option<String>>(1)?.unwrap_or_default(),
                 row.get::<_, Option<String>>(2)?.unwrap_or_default(),
-                raw_data,
-                row.get::<_, i64>(4)?,
+                row.get::<_, Option<String>>(3)?,
+                row.get::<_, Option<i64>>(4)?.unwrap_or_default(),
             ))
         })
         .map_err(|err| format!("Failed to query OpenCode parts: {err}"))?;
 
     let mut parts = Vec::new();
     for row in rows {
-        let (part_id, message_id, role, raw_data, time_created) =
-            row.map_err(|err| format!("Failed to read OpenCode part row: {err}"))?;
+        let (part_id, message_id, role, Some(raw_data), time_created) =
+            row.map_err(|err| format!("Failed to read OpenCode part row: {err}"))?
+        else {
+            continue;
+        };
         let Ok(part) = serde_json::from_str::<OpenCodePart>(&raw_data) else {
             continue;
         };

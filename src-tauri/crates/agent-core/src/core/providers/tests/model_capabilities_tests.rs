@@ -42,6 +42,13 @@ fn shorthand_sonnet_4_normalizes() {
     assert_eq!(caps.context_window, 200_000);
 }
 
+#[test]
+fn claude_haiku_4_5_is_optional() {
+    let caps = resolve("claude-haiku-4-5-20251001", None);
+    assert_eq!(caps.thinking, ThinkingSupport::Optional);
+    assert_eq!(caps.context_window, 200_000);
+}
+
 // ── Sonnet 4.6 variant (1M) ──
 
 #[test]
@@ -58,6 +65,10 @@ fn gpt5_is_always_on() {
     let caps = resolve("gpt-5-2025-06-01", None);
     assert_eq!(caps.thinking, ThinkingSupport::AlwaysOn);
     assert_eq!(caps.context_window, 1_000_000);
+
+    let gpt55 = resolve("gpt-5.5", None);
+    assert_eq!(gpt55.thinking, ThinkingSupport::AlwaysOn);
+    assert_eq!(gpt55.context_window, 1_050_000);
 }
 
 #[test]
@@ -87,15 +98,75 @@ fn deepseek_v3_no_thinking() {
     assert_eq!(caps.thinking, ThinkingSupport::No);
 }
 
+#[test]
+fn deepseek_current_aliases_use_1m() {
+    assert_eq!(resolve("deepseek-v4-flash", None).context_window, 1_000_000);
+    assert_eq!(resolve("deepseek-chat", None).context_window, 1_000_000);
+    assert_eq!(resolve("deepseek-reasoner", None).context_window, 1_000_000);
+}
+
+#[test]
+fn deepseek_legacy_fallback_uses_128k() {
+    assert_eq!(resolve("deepseek-coder", None).context_window, 128_000);
+}
+
+// ── Alibaba / Z.AI / xAI / Mistral / Meta ──
+
+#[test]
+fn qwen3_coder_uses_256k() {
+    let caps = resolve("qwen3-coder-plus", None);
+    assert_eq!(caps.context_window, 256_000);
+    assert_eq!(caps.thinking, ThinkingSupport::Optional);
+}
+
+#[test]
+fn qwen_fallback_uses_128k_not_legacy_32k() {
+    let caps = resolve("qwen2.5-72b-instruct", None);
+    assert_eq!(caps.context_window, 128_000);
+}
+
+#[test]
+fn glm_modern_windows() {
+    assert_eq!(resolve("glm-4.6", None).context_window, 200_000);
+    assert_eq!(resolve("glm-4.5", None).context_window, 128_000);
+    assert_eq!(resolve("glm-4-air", None).context_window, 128_000);
+}
+
+#[test]
+fn grok_and_mistral_windows() {
+    assert_eq!(resolve("grok-build-0.1", None).context_window, 256_000);
+    assert_eq!(resolve("grok-4.3", None).context_window, 1_000_000);
+    assert_eq!(resolve("grok-4", None).context_window, 256_000);
+    assert_eq!(resolve("codestral-latest", None).context_window, 256_000);
+    assert_eq!(
+        resolve("mistral-large-latest", None).context_window,
+        128_000
+    );
+}
+
+#[test]
+fn llama_windows_follow_model_card() {
+    assert_eq!(resolve("llama-4-scout", None).context_window, 10_000_000);
+    assert_eq!(resolve("llama-4-maverick", None).context_window, 1_000_000);
+    assert_eq!(resolve("llama-4", None).context_window, 1_000_000);
+    assert_eq!(resolve("llama-3-70b", None).context_window, 128_000);
+    assert_eq!(
+        resolve("llama-3.2-90b-vision", None).context_window,
+        128_000
+    );
+}
+
 // ── Unknown model ──
 
 #[test]
 fn unknown_model_conservative_defaults() {
     let caps = resolve("totally-unknown-model-xyz", None);
     assert_eq!(caps, ModelCapabilities::unknown());
-    assert_eq!(caps.context_window, 128_000);
+    assert_eq!(caps.context_window, 200_000);
     assert_eq!(caps.thinking, ThinkingSupport::Optional);
     assert!(caps.omit_temperature_with_thinking);
+
+    assert_eq!(resolve("o5.5-high", None).context_window, 200_000);
 }
 
 // ── Case insensitivity ──

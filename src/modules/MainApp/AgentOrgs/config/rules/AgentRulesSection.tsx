@@ -135,6 +135,7 @@ const AgentRulesSection: React.FC<AgentRulesSectionProps> = ({
       getRowKey={(row) => `${row.source}:${row.name}`}
       headerHeight="tall"
       pageSize={50}
+      maxHeight="min(420px, calc(100vh - 280px))"
       searchBar={{
         searchValue: searchQuery,
         onSearchChange: setSearchQuery,

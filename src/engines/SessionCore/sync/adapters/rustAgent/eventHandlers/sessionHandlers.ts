@@ -36,19 +36,13 @@ export function handleContextUsage(
   event: AgentWSEvent,
   ctx: EventHandlerContext
 ): void {
-  if (typeof event.contextTokens === "number" && event.contextTokens > 0) {
-    ctx.onContextUsageRef.current?.(
-      event.contextUsage ?? {
-        usedTokens: event.contextTokens,
-        maxTokens: null,
-        percentUsed: null,
-        updatedAt: new Date().toISOString(),
-        sections: [],
-        warnings: [],
-      }
-    );
-  } else if (event.contextUsage) {
+  if (event.contextUsage) {
     ctx.onContextUsageRef.current?.(event.contextUsage);
+  } else if (
+    typeof event.contextTokens === "number" &&
+    event.contextTokens > 0
+  ) {
+    ctx.onTokenUpdateRef.current?.(event.contextTokens);
   }
 }
 

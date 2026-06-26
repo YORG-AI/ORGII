@@ -197,6 +197,7 @@ const CursorSessionsPanel: React.FC<CursorSessionsPanelProps> = memo(
               getRowKey={(session) => session.id}
               headerHeight="tall"
               pageSize={50}
+              maxHeight="min(420px, calc(100vh - 280px))"
             />
           ) : (
             <div className="py-6">

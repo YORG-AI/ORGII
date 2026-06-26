@@ -1108,6 +1108,9 @@
       "simulatorBrowserNotice": "此浏览器仅用于会话回放。持久浏览请使用主应用中的浏览器（工具 → 浏览器）。",
       "tlsDevNote": "说明：部分 HTTPS 网站（如 GitHub）在开发模式下可能因证书校验出现 TLS 错误。请尝试 HTTP 或 example.com 等简单 HTTPS 站点。",
       "siteUnreachableTitle": "无法访问此网站",
+      "embeddedFallbackTitle": "此网站可能无法在内嵌浏览器中显示",
+      "embeddedFallbackBody": "部分网站会拦截或无法渲染在应用内 WebView 中。如果页面一直空白，请用系统浏览器打开。",
+      "currentUrl": "当前 URL",
       "errorTls": "与此站点的连接不安全。HTTPS 站点在开发模式下常会出现此情况。",
       "errorTimeout": "连接超时，服务器响应时间过长。",
       "errorDns": "无法解析服务器 DNS。请检查网址是否拼写正确。",
@@ -1122,7 +1125,8 @@
     "selectRepoFromHome": "请从首页选择一个仓库",
     "cloneRepoAgain": "请从首页重新克隆仓库",
     "unsavedChangesTitle": "未保存的更改",
-    "prkPlaceholder": "PRJ"
+    "prkPlaceholder": "PRJ",
+    "gitSyncMenuTitle": "Git 同步操作"
   },
   "git": {
     "loading": "正在加载 Git 状态...",
@@ -1367,7 +1371,13 @@
         "deleteBranch": "删除分支",
         "refresh": "刷新分支",
         "checkoutDetachedSuccess": "已切换到 detached HEAD 状态（当前提交）",
-        "checkoutDetachedFailed": "切换到 detached HEAD 失败"
+        "checkoutDetachedFailed": "切换到 detached HEAD 失败",
+        "removeWorktree": "移除 Worktree"
+      },
+      "messages": {
+        "deletedCount_one": "已删除 {{count}} 个分支",
+        "deletedCount_other": "已删除 {{count}} 个分支",
+        "failedDeleteList": "删除失败：{{branches}}"
       },
       "labels": {
         "otherBranches": "其他分支",
@@ -1375,7 +1385,9 @@
         "recent": "最近",
         "currentCommit": "当前提交",
         "basedOn": "基于",
-        "worktrees": "Worktrees"
+        "worktrees": "Worktrees",
+        "worktreeInUse": "使用中",
+        "checkedOutInWorktree": "已在 Worktree 中检出：{{path}}"
       },
       "placeholders": {
         "checkout": "分支",

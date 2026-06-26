@@ -181,25 +181,13 @@ impl ManageFileHistoryTool {
             ToolError::ExecutionFailed("No redo snapshot found. Perform a rewind first.".into())
         })?;
 
-        // Read the redo snapshot's `created_at` from its on-disk manifest, then
-        // call `rewind_to_message` with that timestamp. This restores every file
-        // the redo snapshot captured (= the state before the last rewind).
-        // `rewind_to_message` will in turn capture a fresh redo snapshot so the
-        // operation remains reversible.
+        // Restore the redo snapshot directly. A redo snapshot captures the
+        // current on-disk state immediately before rewind, so restoring that
+        // manifest re-applies the changes the rewind just undid.
         let sid2 = session_id.clone();
         let snap_id = snapshot_id.clone();
-        let created_at = tokio::task::spawn_blocking(move || {
-            crate::tools::file_history::get_snapshot_created_at(&sid2, &snap_id)
-        })
-        .await
-        .map_err(|err| ToolError::ExecutionFailed(format!("Join error: {}", err)))?
-        .map_err(|err| {
-            ToolError::ExecutionFailed(format!("Failed to read redo snapshot: {}", err))
-        })?;
-
-        let sid3 = session_id.clone();
         let stats = tokio::task::spawn_blocking(move || {
-            crate::tools::file_history::rewind_to_message(&sid3, &created_at)
+            crate::tools::file_history::restore_snapshot(&sid2, &snap_id)
         })
         .await
         .map_err(|err| ToolError::ExecutionFailed(format!("Join error: {}", err)))?

@@ -14,7 +14,7 @@
 //!    has marked it as a reasoning model.
 //! 2. **Built-in family table** ([`FAMILY_RULES`]): declarative, one row
 //!    per model family. The ONLY place family substring patterns live.
-//! 3. **Conservative defaults**: unknown models get a 128K window and
+//! 3. **Conservative defaults**: unknown models get a 200K window and
 //!    `ThinkingSupport::Optional` — "works, maybe suboptimally" instead
 //!    of "fails loudly when the guess is wrong".
 //!
@@ -103,11 +103,11 @@ pub struct ModelCapabilities {
 
 impl ModelCapabilities {
     /// Conservative profile for models nothing knows about: assume
-    /// thinking-capable (never breaks a non-thinking model) and a 128K
-    /// window (smallest mainstream size).
+    /// thinking-capable (never breaks a non-thinking model) and a 200K
+    /// window (common modern reasoning-model size).
     pub const fn unknown() -> Self {
         Self {
-            context_window: 128_000,
+            context_window: 200_000,
             thinking: ThinkingSupport::Optional,
             omit_temperature_with_thinking: true,
         }
@@ -179,6 +179,11 @@ const FAMILY_RULES: &[FamilyRule] = &[
         thinking: ThinkingSupport::Optional,
     },
     FamilyRule {
+        pattern: "claude-haiku-4-5",
+        context_window: 200_000,
+        thinking: ThinkingSupport::Optional,
+    },
+    FamilyRule {
         pattern: "claude-haiku-4",
         context_window: 200_000,
         thinking: ThinkingSupport::Optional,
@@ -220,6 +225,11 @@ const FAMILY_RULES: &[FamilyRule] = &[
     },
     // ── OpenAI ──
     FamilyRule {
+        pattern: "gpt-5.5",
+        context_window: 1_050_000,
+        thinking: ThinkingSupport::AlwaysOn,
+    },
+    FamilyRule {
         pattern: "gpt-5",
         context_window: 1_000_000,
         thinking: ThinkingSupport::AlwaysOn,
@@ -259,6 +269,11 @@ const FAMILY_RULES: &[FamilyRule] = &[
         context_window: 128_000,
         thinking: ThinkingSupport::No,
     },
+    FamilyRule {
+        pattern: "gpt",
+        context_window: 128_000,
+        thinking: ThinkingSupport::No,
+    },
     // ── Google ──
     FamilyRule {
         pattern: "gemini-2",
@@ -277,6 +292,11 @@ const FAMILY_RULES: &[FamilyRule] = &[
     },
     // ── DeepSeek ──
     FamilyRule {
+        pattern: "deepseek-v4",
+        context_window: 1_000_000,
+        thinking: ThinkingSupport::Optional,
+    },
+    FamilyRule {
         pattern: "deepseek-r1",
         context_window: 128_000,
         thinking: ThinkingSupport::AlwaysOn,
@@ -293,15 +313,45 @@ const FAMILY_RULES: &[FamilyRule] = &[
     },
     FamilyRule {
         pattern: "deepseek-chat",
-        context_window: 64_000,
+        context_window: 1_000_000,
         thinking: ThinkingSupport::No,
     },
     FamilyRule {
+        pattern: "deepseek-reasoner",
+        context_window: 1_000_000,
+        thinking: ThinkingSupport::Optional,
+    },
+    FamilyRule {
         pattern: "deepseek",
-        context_window: 64_000,
+        context_window: 128_000,
         thinking: ThinkingSupport::No,
     },
     // ── Alibaba / Moonshot / Zhipu ──
+    FamilyRule {
+        pattern: "qwen3-coder",
+        context_window: 256_000,
+        thinking: ThinkingSupport::Optional,
+    },
+    FamilyRule {
+        pattern: "qwen3-coder-next",
+        context_window: 256_000,
+        thinking: ThinkingSupport::Optional,
+    },
+    FamilyRule {
+        pattern: "qwen3",
+        context_window: 128_000,
+        thinking: ThinkingSupport::Optional,
+    },
+    FamilyRule {
+        pattern: "qwen2.5-coder",
+        context_window: 128_000,
+        thinking: ThinkingSupport::No,
+    },
+    FamilyRule {
+        pattern: "qwen2.5",
+        context_window: 128_000,
+        thinking: ThinkingSupport::No,
+    },
     FamilyRule {
         pattern: "qwen-max",
         context_window: 128_000,
@@ -319,7 +369,7 @@ const FAMILY_RULES: &[FamilyRule] = &[
     },
     FamilyRule {
         pattern: "qwen",
-        context_window: 32_000,
+        context_window: 128_000,
         thinking: ThinkingSupport::No,
     },
     FamilyRule {
@@ -348,23 +398,53 @@ const FAMILY_RULES: &[FamilyRule] = &[
         thinking: ThinkingSupport::No,
     },
     FamilyRule {
+        pattern: "glm-5",
+        context_window: 200_000,
+        thinking: ThinkingSupport::Optional,
+    },
+    FamilyRule {
+        pattern: "glm-4.6",
+        context_window: 200_000,
+        thinking: ThinkingSupport::Optional,
+    },
+    FamilyRule {
+        pattern: "glm-4.5",
+        context_window: 128_000,
+        thinking: ThinkingSupport::Optional,
+    },
+    FamilyRule {
         pattern: "glm-4",
         context_window: 128_000,
         thinking: ThinkingSupport::No,
     },
     FamilyRule {
         pattern: "glm",
-        context_window: 32_000,
+        context_window: 128_000,
         thinking: ThinkingSupport::No,
     },
-    // ── Meta / Mistral ──
+    // ── Meta / xAI / Mistral ──
+    FamilyRule {
+        pattern: "llama-4-scout",
+        context_window: 10_000_000,
+        thinking: ThinkingSupport::No,
+    },
+    FamilyRule {
+        pattern: "llama-4-maverick",
+        context_window: 1_000_000,
+        thinking: ThinkingSupport::No,
+    },
     FamilyRule {
         pattern: "llama-4",
-        context_window: 128_000,
+        context_window: 1_000_000,
         thinking: ThinkingSupport::No,
     },
     FamilyRule {
         pattern: "llama-3.3",
+        context_window: 128_000,
+        thinking: ThinkingSupport::No,
+    },
+    FamilyRule {
+        pattern: "llama-3.2",
         context_window: 128_000,
         thinking: ThinkingSupport::No,
     },
@@ -375,12 +455,62 @@ const FAMILY_RULES: &[FamilyRule] = &[
     },
     FamilyRule {
         pattern: "llama-3",
-        context_window: 8_000,
+        context_window: 128_000,
         thinking: ThinkingSupport::No,
     },
     FamilyRule {
         pattern: "llama",
-        context_window: 8_000,
+        context_window: 128_000,
+        thinking: ThinkingSupport::No,
+    },
+    FamilyRule {
+        pattern: "grok-build",
+        context_window: 256_000,
+        thinking: ThinkingSupport::Optional,
+    },
+    FamilyRule {
+        pattern: "grok-4.3",
+        context_window: 1_000_000,
+        thinking: ThinkingSupport::Optional,
+    },
+    FamilyRule {
+        pattern: "grok-4",
+        context_window: 256_000,
+        thinking: ThinkingSupport::Optional,
+    },
+    FamilyRule {
+        pattern: "grok-3",
+        context_window: 128_000,
+        thinking: ThinkingSupport::Optional,
+    },
+    FamilyRule {
+        pattern: "grok",
+        context_window: 128_000,
+        thinking: ThinkingSupport::Optional,
+    },
+    FamilyRule {
+        pattern: "codestral",
+        context_window: 256_000,
+        thinking: ThinkingSupport::No,
+    },
+    FamilyRule {
+        pattern: "mistral-large",
+        context_window: 128_000,
+        thinking: ThinkingSupport::No,
+    },
+    FamilyRule {
+        pattern: "mistral-medium",
+        context_window: 128_000,
+        thinking: ThinkingSupport::No,
+    },
+    FamilyRule {
+        pattern: "mistral-small",
+        context_window: 128_000,
+        thinking: ThinkingSupport::No,
+    },
+    FamilyRule {
+        pattern: "mistral",
+        context_window: 128_000,
         thinking: ThinkingSupport::No,
     },
     FamilyRule {

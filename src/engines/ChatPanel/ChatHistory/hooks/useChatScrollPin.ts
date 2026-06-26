@@ -11,8 +11,6 @@ export interface UseChatScrollPinOptions {
   activeId: string | null;
   groupCounts: number[];
   totalFlatItems: number;
-  footerSpacerHeight: number;
-  bottomInset: number;
   sessionLoadStatus: string;
   virtuosoScrollerRef: RefObject<HTMLElement | null>;
   atBottom: boolean;
@@ -38,8 +36,6 @@ export interface UseChatScrollPinReturn {
   programmaticScrollAtRef: MutableRefObject<number>;
 }
 
-const MANUAL_SCROLL_REPIN_SUPPRESS_MS = 450;
-
 /**
  * Manages three scroll-pin behaviours for ChatHistory:
  *
@@ -57,8 +53,6 @@ export function useChatScrollPin({
   activeId,
   groupCounts,
   totalFlatItems: _totalFlatItems,
-  footerSpacerHeight,
-  bottomInset,
   sessionLoadStatus: _sessionLoadStatus,
   virtuosoScrollerRef,
   atBottom: _atBottom,
@@ -75,17 +69,6 @@ export function useChatScrollPin({
   const effectiveManualScrollAtRef =
     manualScrollAtRef ?? fallbackManualScrollAtRef;
 
-  const getManualScrollAt = useCallback(
-    () => effectiveManualScrollAtRef.current,
-    [effectiveManualScrollAtRef]
-  );
-
-  const shouldSuppressManualScrollRepin = useCallback(() => {
-    return (
-      performance.now() - getManualScrollAt() < MANUAL_SCROLL_REPIN_SUPPRESS_MS
-    );
-  }, [getManualScrollAt]);
-
   // Keep a ref to onPinToTopChange so Effect 3's listener doesn't need
   // it in the dependency array (avoids re-registering the scroll listener
   // every time the callback identity changes).
@@ -98,19 +81,30 @@ export function useChatScrollPin({
     const scrollRoot =
       virtuosoScrollerRef.current ?? staticScrollerRef?.current;
     if (scrollRoot) {
-      const contentBottom = Math.max(
-        0,
-        scrollRoot.scrollHeight - footerSpacerHeight
-      );
       scrollRoot.scrollTo({
-        top: Math.max(
-          0,
-          contentBottom - scrollRoot.clientHeight + Math.max(1, bottomInset)
-        ),
+        top: Math.max(0, scrollRoot.scrollHeight - scrollRoot.clientHeight),
         behavior: "auto",
       });
     }
-  }, [bottomInset, footerSpacerHeight, staticScrollerRef, virtuosoScrollerRef]);
+  }, [staticScrollerRef, virtuosoScrollerRef]);
+
+  const scheduleFollowToEnd = useCallback(() => {
+    effectiveManualScrollAtRef.current = 0;
+    programmaticScrollAtRef.current = performance.now();
+    let secondFrameId = 0;
+    const firstFrameId = requestAnimationFrame(() => {
+      programmaticScrollAtRef.current = performance.now();
+      scrollToEnd();
+      secondFrameId = requestAnimationFrame(() => {
+        programmaticScrollAtRef.current = performance.now();
+        scrollToEnd();
+      });
+    });
+    return () => {
+      cancelAnimationFrame(firstFrameId);
+      cancelAnimationFrame(secondFrameId);
+    };
+  }, [effectiveManualScrollAtRef, scrollToEnd]);
 
   // Effect 1: always scroll to end on session switch.
   // New-event tail following is owned by useChatScroll;
@@ -129,16 +123,12 @@ export function useChatScrollPin({
       programmaticScrollAtRef.current = 0;
       pinLastGroupRef.current = false;
       onPinToTopChange?.(false);
-      const rafId = requestAnimationFrame(() => {
-        programmaticScrollAtRef.current = performance.now();
-        scrollToEnd();
-      });
-      return () => cancelAnimationFrame(rafId);
+      return scheduleFollowToEnd();
     }
   }, [
     activeId,
     optimizedChatHistoryLength,
-    scrollToEnd,
+    scheduleFollowToEnd,
     onPinToTopChange,
     pinLastGroupRef,
   ]);
@@ -155,17 +145,12 @@ export function useChatScrollPin({
 
     pinLastGroupRef.current = false;
     onPinToTopChange?.(false);
-    requestAnimationFrame(() => {
-      if (shouldSuppressManualScrollRepin()) return;
-      programmaticScrollAtRef.current = performance.now();
-      scrollToEnd();
-    });
+    return scheduleFollowToEnd();
   }, [
     groupCounts.length,
     onPinToTopChange,
     pinLastGroupRef,
-    scrollToEnd,
-    shouldSuppressManualScrollRepin,
+    scheduleFollowToEnd,
   ]);
 
   // Effect 3: break pin intent on user-initiated scroll.

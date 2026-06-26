@@ -696,6 +696,7 @@
 // Fixed layout — forces columns to respect assigned widths
 // so fill columns truncate instead of expanding the table.
 .table-layout-fixed .table {
+  width: 100%;
   table-layout: fixed;
 }
 

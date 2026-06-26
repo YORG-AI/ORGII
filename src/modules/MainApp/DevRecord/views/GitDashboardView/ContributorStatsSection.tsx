@@ -138,6 +138,7 @@ export function ContributorStatsSection({
         getRowKey={(row) => row.name}
         headerHeight="tall"
         pageSize={50}
+        maxHeight="min(420px, calc(100vh - 280px))"
         className="[&_.table]:table-fixed"
       />
     </CollapsibleSection>

@@ -56,6 +56,7 @@ import {
 import { NAV_BUTTON_PROPS } from "@src/modules/MainApp/Settings/config";
 import { checkForUpdatesManually } from "@src/scaffold/AppUpdater";
 import { type TimezoneOption, timezoneAtom } from "@src/store";
+import { chatAppearancePersistAtom } from "@src/store/config/configAtom";
 import { devModeEnabledAtom } from "@src/store/platform/devModeAtom";
 import { preventSleepWhileRunningAtom } from "@src/store/platform/preventSleepAtom";
 import { voiceInputEnabledAtom } from "@src/store/platform/voiceInputAtom";
@@ -107,6 +108,9 @@ const GeneralSection: React.FC<GeneralSectionProps> = ({
 const GeneralTabBody: React.FC = () => {
   const { t, i18n } = useTranslation("settings");
   const [timezone, setTimezone] = useAtom(timezoneAtom);
+  const [chatAppearance, updateChatAppearance] = useAtom(
+    chatAppearancePersistAtom
+  );
   const [languagePreference, setLanguagePreference] = useAtom(languageAtom);
   const [settingsFilePath, setSettingsFilePath] = useState(
     "~/.orgii/settings.jsonc"
@@ -296,6 +300,19 @@ const GeneralTabBody: React.FC = () => {
         </SectionRow>
         <SectionRow label={t("common:common.timezone")}>
           <Select {...timezoneSelectProps} />
+        </SectionRow>
+      </SectionContainer>
+      <SectionContainer>
+        <SectionRow
+          label={t("general.sendOnEnter")}
+          description={t("general.sendOnEnterDesc")}
+        >
+          <Switch
+            checked={chatAppearance.sendOnEnter}
+            onChange={(checked) => {
+              updateChatAppearance({ sendOnEnter: checked });
+            }}
+          />
         </SectionRow>
       </SectionContainer>
       <SectionContainer>

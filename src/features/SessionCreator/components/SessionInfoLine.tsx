@@ -24,7 +24,7 @@ import React, {
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
-import { gitApi } from "@src/api/http/git";
+import { gitApi, removeGitWorktree } from "@src/api/http/git";
 import { CheckoutConflictDialog } from "@src/components/GitDialogs/CheckoutConflictDialog";
 import PillGroup, { type PillGroupVariant } from "@src/components/PillGroup";
 import RunningLocationDropdownPanel from "@src/components/RunningLocationDropdownPanel";
@@ -294,6 +294,77 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
     [handleBranchSelect, repoId, repoPath]
   );
 
+  const handleDeleteBranch = useCallback(
+    async (
+      branch: string,
+      options?: { silent?: boolean; skipRefresh?: boolean }
+    ) => {
+      if (!repoId || !repoPath) {
+        const message = "No repo selected";
+        if (!options?.silent) {
+          showGitActionDialogSafely(message, "error");
+        }
+        return { success: false, message };
+      }
+
+      const success = await gitApi.gitDeleteBranch({
+        repo_id: repoId,
+        repo_path: repoPath,
+        branch_name: branch,
+      });
+
+      if (!success) {
+        const message = `Failed to delete branch "${branch}"`;
+        if (!options?.silent) {
+          showGitActionDialogSafely(message, "error");
+        }
+        return { success: false, message };
+      }
+
+      if (!options?.silent) {
+        showGitActionDialogSafely(`Branch "${branch}" deleted`, "info");
+      }
+      return { success: true };
+    },
+    [repoId, repoPath]
+  );
+
+  const handleRemoveWorktree = useCallback(
+    async (
+      worktreePath: string,
+      options?: { silent?: boolean; skipRefresh?: boolean }
+    ) => {
+      if (!repoId || !repoPath) {
+        const message = "No repo selected";
+        if (!options?.silent) {
+          showGitActionDialogSafely(message, "error");
+        }
+        return { success: false, message };
+      }
+
+      try {
+        await removeGitWorktree({
+          repo_id: repoId,
+          repo_path: repoPath,
+          worktree_path: worktreePath,
+          force: true,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!options?.silent) {
+          showGitActionDialogSafely(message, "error");
+        }
+        return { success: false, message };
+      }
+
+      if (!options?.silent) {
+        showGitActionDialogSafely(`Worktree "${worktreePath}" removed`, "info");
+      }
+      return { success: true };
+    },
+    [repoId, repoPath]
+  );
+
   const handleBranchClose = useCallback(() => {
     setIsBranchSelectorOpen(false);
   }, []);
@@ -502,7 +573,10 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
             repoPath={repoPath}
             currentBranchName={branchName}
             onCreateBranch={handleCreateBranch}
+            onDeleteBranch={handleDeleteBranch}
+            onRemoveWorktree={handleRemoveWorktree}
             variant="create-session"
+            showRemoveMode
             hideActionClose
           />
         ))}

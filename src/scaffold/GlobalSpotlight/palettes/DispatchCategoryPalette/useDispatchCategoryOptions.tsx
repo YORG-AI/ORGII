@@ -12,7 +12,7 @@ import { useTranslation } from "react-i18next";
 
 import { rpc } from "@src/api/tauri/rpc";
 import {
-  CLI_AGENT,
+  // CLI_AGENT,
   type CliAgentType,
   CliAgentTypeSchema,
 } from "@src/api/tauri/rpc/schemas/validation";
@@ -298,20 +298,20 @@ export function useDispatchCategoryOptions(
 
   const externalIdeOptions = useMemo((): AgentOption[] => {
     return [
-      {
-        id: "external-ide:cursor",
-        name: t("creator.cursorIde.label"),
-        desc: "",
-        iconId: "cursor",
-        category: "cursor_ide" as DispatchCategory,
-        targetKind: SESSION_TARGET_KIND.CLI_AGENT,
-        cliAgentType: CLI_AGENT.CURSOR,
-        isBuiltIn: true,
-        isCli: false,
-        isOrg: false,
-      },
+      // {
+      //   id: "external-ide:cursor",
+      //   name: t("creator.cursorIde.label"),
+      //   desc: "",
+      //   iconId: "cursor",
+      //   category: "cursor_ide" as DispatchCategory,
+      //   targetKind: SESSION_TARGET_KIND.CLI_AGENT,
+      //   cliAgentType: CLI_AGENT.CURSOR,
+      //   isBuiltIn: true,
+      //   isCli: false,
+      //   isOrg: false,
+      // },
     ];
-  }, [t]);
+  }, []);
 
   const allOptions = useMemo(
     () => [

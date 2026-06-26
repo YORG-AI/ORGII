@@ -434,7 +434,7 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
       className="flex min-h-0 flex-1 flex-col"
       data-testid="chat-panel-project-section"
     >
-      <div className="mb-4 flex items-center justify-start">
+      <div className="mb-4 flex shrink-0 items-center justify-start">
         <TabPill
           tabs={panelTabItems}
           activeTab={activePanelTab}
@@ -444,7 +444,7 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
           size="large"
         />
       </div>
-      <div className="min-h-0 flex-1 overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
         {activePanelTab === "overview" ? overviewContent : workItemsContent}
       </div>
     </section>
@@ -460,7 +460,6 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
           propertiesContent={inlineProperties}
           descriptionContent={descriptionContent}
           descriptionFlexible
-          scrollable
         />
         {activePanelTab === "workItems" ? (
           <MultiSelectBar

@@ -318,6 +318,7 @@ const AgentMcpSection: React.FC<AgentMcpSectionProps> = ({
       rowDataTestId={(row) => `agent-orgs-mcp-server-row-${row.name}`}
       headerHeight={embedded ? "compact" : "tall"}
       pageSize={50}
+      maxHeight={embedded ? undefined : "min(420px, calc(100vh - 280px))"}
       searchBar={{
         searchValue: searchQuery,
         onSearchChange: setSearchQuery,

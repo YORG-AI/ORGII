@@ -59,6 +59,19 @@ function writeCache(repoId: string, map: Map<string, string>): void {
   notifySubscribers();
 }
 
+export function invalidateWorktreeMap(repoId: string): void {
+  worktreeCache.delete(repoId);
+  notifySubscribers();
+}
+
+export function refreshWorktreeMap(
+  repoId: string,
+  repoPath: string | undefined
+): Promise<Map<string, string>> {
+  invalidateWorktreeMap(repoId);
+  return fetchWorktreeMap(repoId, repoPath);
+}
+
 async function fetchWorktreeMap(
   repoId: string,
   repoPath: string | undefined

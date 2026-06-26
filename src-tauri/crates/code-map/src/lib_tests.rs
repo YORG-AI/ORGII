@@ -89,7 +89,8 @@ fn db_stores_searches_and_migrates_metadata() {
     let extracted = extract_file(dir.path(), &source_path).unwrap();
 
     let mut db = CodeMapDb::open(dir.path()).unwrap();
-    db.apply_index_changes(vec![extracted], &[]).unwrap();
+    db.apply_index_changes_with_cancellation(vec![extracted], &[], None)
+        .unwrap();
     CodeMapDb::open(dir.path()).unwrap();
 
     let status = db.status().unwrap();
@@ -99,6 +100,51 @@ fn db_stores_searches_and_migrates_metadata() {
         .search_nodes("Server", 10, None, None, None)
         .unwrap()
         .is_empty());
+}
+
+#[test]
+fn db_stores_cross_file_edges_after_all_nodes_exist() {
+    let dir = tempdir().unwrap();
+    let importer_path = dir.path().join("a_importer.ts");
+    let target_path = dir.path().join("z_target.ts");
+    fs::write(
+        &importer_path,
+        "import './z_target';\nexport function importer() { return 1; }\n",
+    )
+    .unwrap();
+    fs::write(&target_path, "export function target() { return 1; }\n").unwrap();
+
+    let mut extracted_files = vec![
+        extract_file(dir.path(), &importer_path).unwrap(),
+        extract_file(dir.path(), &target_path).unwrap(),
+    ];
+    crate::resolver::resolve_files(&mut extracted_files);
+
+    let mut db = CodeMapDb::open(dir.path()).unwrap();
+    db.apply_index_changes_with_cancellation(extracted_files, &[], None)
+        .unwrap();
+
+    let status = db.status().unwrap();
+    assert_eq!(status.status, CodeMapStatusKind::Ready);
+    assert_eq!(status.files, 2);
+    assert!(status.relationships > 0);
+}
+
+#[test]
+fn db_storage_respects_cancellation_before_commit() {
+    let dir = tempdir().unwrap();
+    let source_path = dir.path().join("main.go");
+    fs::write(&source_path, "package main\nfunc main() {}\n").unwrap();
+    let extracted = extract_file(dir.path(), &source_path).unwrap();
+    let cancellation = std::sync::atomic::AtomicBool::new(true);
+
+    let mut db = CodeMapDb::open(dir.path()).unwrap();
+    let err = db
+        .apply_index_changes_with_cancellation(vec![extracted], &[], Some(&cancellation))
+        .unwrap_err();
+
+    assert!(matches!(err, crate::CodeMapError::Cancelled(_)));
+    assert_eq!(db.status().unwrap().files, 0);
 }
 
 #[test]
@@ -195,6 +241,91 @@ async fn stale_detection_tracks_modified_files() {
     let status = crate::get_status(dir.path().to_path_buf()).await.unwrap();
     assert_eq!(status.status, CodeMapStatusKind::Stale);
     assert_eq!(status.stale_files, 1);
+}
+
+#[tokio::test]
+async fn service_reindexes_modified_workspace() {
+    let dir = tempdir().unwrap();
+    let source_path = dir.path().join("lib.py");
+    fs::write(&source_path, "def alpha():\n    return 1\n").unwrap();
+    crate::start_index(None, dir.path().to_path_buf(), true)
+        .await
+        .unwrap();
+
+    fs::write(&source_path, "def beta():\n    return 2\n").unwrap();
+    let stale_status = crate::get_status(dir.path().to_path_buf()).await.unwrap();
+    assert_eq!(stale_status.status, CodeMapStatusKind::Stale);
+
+    let reindexed_status = crate::start_index(None, dir.path().to_path_buf(), false)
+        .await
+        .unwrap();
+    assert_eq!(reindexed_status.status, CodeMapStatusKind::Ready);
+    assert_eq!(reindexed_status.stale_files, 0);
+
+    let search = crate::CodeMapService::query(
+        CodeMapAction::Search,
+        request(dir.path(), Some("beta"), None),
+    )
+    .await
+    .unwrap();
+    assert!(search.contains("beta"));
+}
+
+#[tokio::test]
+async fn service_allows_forced_reindex_after_existing_index() {
+    let dir = tempdir().unwrap();
+    let source_path = dir.path().join("lib.ts");
+    fs::write(&source_path, "export function alpha() { return 1; }\n").unwrap();
+    crate::start_index(None, dir.path().to_path_buf(), true)
+        .await
+        .unwrap();
+
+    let reindexed_status = crate::start_index(None, dir.path().to_path_buf(), true)
+        .await
+        .unwrap();
+    assert_eq!(reindexed_status.status, CodeMapStatusKind::Ready);
+    assert_eq!(reindexed_status.stale_files, 0);
+    assert!(reindexed_status.symbols > 0);
+}
+
+#[tokio::test]
+async fn status_recovers_orphaned_indexing_state() {
+    let dir = tempdir().unwrap();
+    let source_path = dir.path().join("lib.ts");
+    fs::write(&source_path, "export function alpha() { return 1; }\n").unwrap();
+    crate::start_index(None, dir.path().to_path_buf(), true)
+        .await
+        .unwrap();
+    CodeMapDb::open(dir.path())
+        .unwrap()
+        .mark_indexing_for_test()
+        .unwrap();
+
+    let status = crate::get_status(dir.path().to_path_buf()).await.unwrap();
+    assert_eq!(status.status, CodeMapStatusKind::Failed);
+    assert!(status
+        .error
+        .as_deref()
+        .is_some_and(|error| error.contains("stopped before completion")));
+}
+
+#[tokio::test]
+async fn cancel_recovers_orphaned_indexing_state() {
+    let dir = tempdir().unwrap();
+    let source_path = dir.path().join("lib.ts");
+    fs::write(&source_path, "export function alpha() { return 1; }\n").unwrap();
+    crate::start_index(None, dir.path().to_path_buf(), true)
+        .await
+        .unwrap();
+    CodeMapDb::open(dir.path())
+        .unwrap()
+        .mark_indexing_for_test()
+        .unwrap();
+
+    let cancelled = crate::cancel_index(dir.path().to_path_buf()).await.unwrap();
+    assert!(cancelled);
+    let status = crate::get_status(dir.path().to_path_buf()).await.unwrap();
+    assert_eq!(status.status, CodeMapStatusKind::Cancelled);
 }
 
 fn request(

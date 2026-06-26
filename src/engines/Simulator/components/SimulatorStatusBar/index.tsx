@@ -138,7 +138,7 @@ export const SimulatorStatusBar: React.FC<SimulatorStatusBarProps> = memo(
               <span className="inline-flex h-5 shrink-0 items-center pl-1.5 text-[11px] font-medium leading-none text-white">
                 {t("simulator.replay.followingAgent")}
               </span>
-              <EventFilterDropdown variant="primary" />
+              <EventFilterDropdown variant="primary" iconOnly />
               <div className="ml-1 h-4 w-px shrink-0 bg-white/25" />
               <Tooltip
                 content={
@@ -217,7 +217,7 @@ export const SimulatorStatusBar: React.FC<SimulatorStatusBarProps> = memo(
                 (Prev/Play/Next/Speed/Switch). The 1px divider then
                 separates the "configure replay" cluster from the
                 "commit: enter follow mode" action on the right. */}
-              <EventFilterDropdown />
+              <EventFilterDropdown iconOnly />
               <FollowModeDropdown />
               <div className="ml-1 h-4 w-px shrink-0 bg-border-2" />
               <button

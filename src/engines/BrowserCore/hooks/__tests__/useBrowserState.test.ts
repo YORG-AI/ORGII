@@ -183,6 +183,57 @@ describe("addSession defaults", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// browser webview activation
+// ─────────────────────────────────────────────────────────────────────────────
+
+function shouldActivateBrowserWebview(options: {
+  url: string;
+  isActive: boolean;
+  isTabActive: boolean;
+}): boolean {
+  const normalizedUrl = options.url.trim().toLowerCase();
+  const hasNavigableUrl =
+    normalizedUrl.length > 0 && !normalizedUrl.startsWith("about:blank");
+  return hasNavigableUrl && options.isActive && options.isTabActive;
+}
+
+describe("browser webview activation", () => {
+  it("does not create native webviews for restored background URL tabs", () => {
+    expect(
+      shouldActivateBrowserWebview({
+        url: "https://example.com",
+        isActive: false,
+        isTabActive: true,
+      })
+    ).toBe(false);
+    expect(
+      shouldActivateBrowserWebview({
+        url: "https://example.com",
+        isActive: true,
+        isTabActive: false,
+      })
+    ).toBe(false);
+  });
+
+  it("creates native webviews only for the visible active URL tab", () => {
+    expect(
+      shouldActivateBrowserWebview({
+        url: "https://example.com",
+        isActive: true,
+        isTabActive: true,
+      })
+    ).toBe(true);
+    expect(
+      shouldActivateBrowserWebview({
+        url: "about:blank",
+        isActive: true,
+        isTabActive: true,
+      })
+    ).toBe(false);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // updateSession pure merge
 // ─────────────────────────────────────────────────────────────────────────────
 

@@ -127,6 +127,8 @@
     "uiScale": "Escala de la interfaz",
     "timezoneAuto": "Auto (navegador)",
     "timezoneSearchPlaceholder": "Buscar ciudades cercanas",
+    "sendOnEnter": "Enviar mensajes con Enter",
+    "sendOnEnterDesc": "Si está activado, Enter envía y Shift+Enter inserta una nueva línea. Si está desactivado, Ctrl/Cmd+Enter envía.",
     "language": "Idioma",
     "languageSearchPlaceholder": "Buscar idiomas...",
     "languageNames": {
@@ -975,7 +977,9 @@
     "typingSpeed": "Velocidad de escritura",
     "typingSpeedDesc": "Milisegundos por carácter (1ms = más rápido, 50ms = más lento)",
     "decryptEffect": "Efecto Decrypt",
-    "decryptEffectDesc": "Activar animación Decrypt para mensajes del Agent"
+    "decryptEffectDesc": "Activar animación Decrypt para mensajes del Agent",
+    "sendOnEnter": "Enviar mensajes con Enter",
+    "sendOnEnterDesc": "Si está activado, Enter envía y Shift+Enter inserta una nueva línea. Si está desactivado, Ctrl/Cmd+Enter envía."
   },
   "languageServers": {
     "languageServersDesc": "Gestionar servidores LSP para autocompletado, diagnósticos e inteligencia de código",

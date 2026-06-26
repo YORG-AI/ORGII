@@ -43,6 +43,11 @@ export const SectionHeader: React.FC<SectionHeaderProps> = memo(
   }) => {
     const isWarning = variant === "warning";
     const useWarningText = isWarning && !warningCountOnly;
+    const countBadgeVariant = isWarning
+      ? COUNT_BADGE.danger
+      : count === 0
+        ? COUNT_BADGE.muted
+        : COUNT_BADGE.primary;
 
     return (
       <div
@@ -84,9 +89,7 @@ export const SectionHeader: React.FC<SectionHeaderProps> = memo(
           )}
           {/* Count badge */}
           <span
-            className={`${COUNT_BADGE.base} ${getCountBadgeSizeClass(count)} ${
-              isWarning ? COUNT_BADGE.danger : COUNT_BADGE.primary
-            }`}
+            className={`${COUNT_BADGE.base} ${getCountBadgeSizeClass(count)} ${countBadgeVariant}`}
           >
             {count}
           </span>

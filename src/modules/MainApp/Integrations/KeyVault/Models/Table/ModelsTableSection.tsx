@@ -234,6 +234,7 @@ export default function ModelsTableSection({
                 <span className="inline-flex min-w-0 items-center gap-1.5">
                   <span
                     className={`${SETTINGS_TABLE_CELL.primary} truncate font-medium`}
+                    title={group.label}
                   >
                     {group.label}
                   </span>
@@ -265,7 +266,7 @@ export default function ModelsTableSection({
       {
         key: "status",
         label: <span className="sr-only">{t("common:labels.status")}</span>,
-        width: SETTINGS_TABLE_COL.hug,
+        width: INTEGRATIONS_MODELS_TABLE_COL_WIDTH.status,
         align: "right",
         sorter: (rowA, rowB) =>
           Number(groupSomeEnabled(rowB)) - Number(groupSomeEnabled(rowA)),
@@ -335,7 +336,7 @@ export default function ModelsTableSection({
       expandable={expandable}
       onRowClick={setSingleExpandedGroup}
       headerHeight="tall"
-      className="table-expanded-no-hover table-settings-expanded-compact"
+      className="table-expanded-no-hover table-settings-expanded-compact table-layout-fixed"
       searchBar={{
         searchValue: modelsSearchQuery,
         onSearchChange: setModelsSearchQuery,

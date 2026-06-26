@@ -25,6 +25,49 @@ import { streamingDeltaContentAtom } from "../core/atoms";
 
 export type TimelineBoundaryReason = "stop" | "force-send" | "rewind";
 
+/**
+ * Which OS shell processes a boundary terminates.
+ *  - "none":       leave all shells running (rewind: the timeline is being
+ *                  rewritten, not stopped).
+ *  - "foreground": kill running foreground shells, keep background workers
+ *                  (force-send: interrupt the current work but let long-running
+ *                  background processes / dev servers survive the follow-up).
+ *  - "all":        kill foreground + background (stop: user wants everything
+ *                  this session spawned to halt).
+ */
+type ShellKillScope = "none" | "foreground" | "all";
+
+interface TimelineBoundaryEffect {
+  /** Drive the FSM to "stopping" (interrupt) vs "idle" (rewind rewrite). */
+  forcesIdle: boolean;
+  /** Explicit user Stop — parks the queue and sets the cancel atoms. */
+  isUserStop: boolean;
+  /** Which OS shell processes to terminate at this boundary. */
+  shellKill: ShellKillScope;
+}
+
+/**
+ * Single source of truth for every boundary's side-effects. Mirrors the
+ * backend's `CancelReason::boundary_effect()` struct: a new
+ * `TimelineBoundaryReason` cannot compile without declaring its policy here,
+ * so it can never silently inherit the wrong shell-kill / FSM behavior. That
+ * latent-discipline gap (an inline `if (isUserStop)` that only Stop satisfied)
+ * is exactly what let force-send leave a blocking foreground shell alive and
+ * swallow the follow-up message (issue #110).
+ */
+export const BOUNDARY_EFFECTS: Record<
+  TimelineBoundaryReason,
+  TimelineBoundaryEffect
+> = {
+  stop: { forcesIdle: false, isUserStop: true, shellKill: "all" },
+  "force-send": {
+    forcesIdle: false,
+    isUserStop: false,
+    shellKill: "foreground",
+  },
+  rewind: { forcesIdle: true, isUserStop: false, shellKill: "none" },
+};
+
 const log = createLogger("sessionTimelineBoundary");
 
 const interruptInFlightByBoundary = new Set<string>();
@@ -54,9 +97,11 @@ export function clearLiveStreamingForSession(sessionId: string): void {
   });
 }
 
-async function killActiveShellProcessesForStop(
-  sessionId: string
+async function killShellProcessesForBoundary(
+  sessionId: string,
+  scope: ShellKillScope
 ): Promise<void> {
+  if (scope === "none") return;
   const processes = getInstrumentedStore()
     .get(shellProcessMapAtom)
     .get(sessionId);
@@ -64,9 +109,10 @@ async function killActiveShellProcessesForStop(
 
   await Promise.allSettled(
     [...processes.values()]
-      .filter(
-        (process) =>
-          process.status === "running" || process.status === "background"
+      .filter((process) =>
+        scope === "all"
+          ? process.status === "running" || process.status === "background"
+          : process.status === "running"
       )
       .map((process) => killAgentShellProcess({ pid: process.pid, sessionId }))
   );
@@ -112,22 +158,22 @@ export function beginTimelineBoundary(
   reason: TimelineBoundaryReason
 ): void {
   const store = getInstrumentedStore();
-  const isUserStop = reason === "stop";
+  const effect = BOUNDARY_EFFECTS[reason];
 
   // Drive the turn-lifecycle FSM first so any submit/dispatch racing this
   // boundary already observes the new phase.
-  // - stop / force-send: the turn stays blocked ("stopping") until the
-  //   provider confirms the cancel with a terminal (bounded by the FSM's
-  //   stopping dead-man).
-  // - rewind: the timeline is being rewritten — force idle immediately and
-  //   invalidate any in-flight terminal of the overridden turn.
-  if (reason === "rewind") {
+  // - stop / force-send (forcesIdle:false): the turn stays blocked
+  //   ("stopping") until the provider confirms the cancel with a terminal
+  //   (bounded by the FSM's stopping dead-man).
+  // - rewind (forcesIdle:true): the timeline is being rewritten — force idle
+  //   immediately and invalidate any in-flight terminal of the overridden turn.
+  if (effect.forcesIdle) {
     forceTurnIdle(sessionId);
   } else {
     beginTurnStopping(sessionId);
   }
 
-  if (isUserStop) {
+  if (effect.isUserStop) {
     store.set(userInitiatedCancelAtom, true);
     store.set(isPendingCancelAtom, true);
     // Stop parks every queued follow-up of this session: the natural drain
@@ -139,14 +185,20 @@ export function beginTimelineBoundary(
   }
 
   clearLiveStreamingForSession(sessionId);
-  if (isUserStop) {
-    void killActiveShellProcessesForStop(sessionId).catch((error) => {
+  // Shell-kill scope is declared per-boundary in BOUNDARY_EFFECTS:
+  //   stop="all", force-send="foreground", rewind="none". Killing the
+  //   blocking foreground shell on force-send is the #110 fix — it lets the
+  //   provider deliver the cancelled terminal promptly so the FSM flips idle
+  //   and the queued Send-Now message dispatches, instead of stalling until
+  //   the command finishes on its own.
+  void killShellProcessesForBoundary(sessionId, effect.shellKill).catch(
+    (error) => {
       log.warn(
-        "[sessionTimelineBoundary] failed to kill active shell processes",
+        "[sessionTimelineBoundary] failed to kill shell processes",
         error
       );
-    });
-  }
+    }
+  );
   // All boundary causes close the interrupted turn's running events. For
   // force-send this is what clears stale `displayStatus:"running"` rows that
   // would otherwise keep `anyRunning` true in usePlanningIndicator and

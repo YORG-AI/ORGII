@@ -10,12 +10,23 @@
  *   [Webpack] building (43%) 4/5 entries           (or "idle")
  */
 
-const { spawn, execSync } = require("child_process");
+const { spawn, execFileSync, execSync } = require("child_process");
+const fs = require("fs");
 const path = require("path");
 const { tauriFeatureList } = require("../tauri/features.cjs");
 const {
   applyDefaultDiagnosticsEndpoint,
 } = require("../tauri/diagnostics-endpoint.cjs");
+const {
+  createDevUrl,
+  createFrontendScriptName,
+  createTauriArgs,
+  formatElapsedMs,
+  formatStartupMetricsTsv,
+  isBenignWebKitGtkInternalErrorLine,
+  isInitialWebpackReadyLine,
+  waitForDevServerAsset,
+} = require("./tauri-dev-processes.cjs");
 const readline = require("readline");
 
 const rootDir = path.join(__dirname, "..", "..");
@@ -37,6 +48,17 @@ const LAST_COUNT = {
 let statusBarActive = false;
 let appLaunchPrinted = false;
 let serviceReadyPrinted = false;
+let devStartupStartedAt = Date.now();
+let startupMetrics = createStartupMetrics();
+
+function createStartupMetrics() {
+  return {
+    startedAtIso: new Date().toISOString(),
+    pid: process.pid,
+    lightDev: process.env.ORGII_LIGHT_DEV === "true",
+    milestones: {},
+  };
+}
 
 const STYLE = {
   reset: "\x1b[0m",
@@ -128,6 +150,30 @@ function printLog(line) {
   writeStatusBar();
 }
 
+function recordStartupMetric(key) {
+  if (key) {
+    startupMetrics.milestones[key] = Date.now() - devStartupStartedAt;
+  }
+}
+
+function appendStartupMetrics() {
+  try {
+    fs.appendFileSync(
+      "/tmp/orgii-tauri-dev-startup.tsv",
+      `${formatStartupMetricsTsv(startupMetrics)}\n`
+    );
+  } catch (_error) {
+    // Metrics are best-effort diagnostics.
+  }
+}
+
+function printStartupMilestone(label, key) {
+  recordStartupMetric(key);
+  printLog(
+    `[DevStartup +${formatElapsedMs(Date.now() - devStartupStartedAt)}] ${label}`
+  );
+}
+
 function setRustStatus(text) {
   STATUS.rust = text;
   writeStatusBar();
@@ -158,6 +204,8 @@ function shouldSuppressLine(clean) {
     clean.includes(
       "tauri_plugin_updater::updater: update endpoint did not respond with a successful status code"
     ) ||
+    (process.env.ORGII_LIGHT_DEV === "true" &&
+      isBenignWebKitGtkInternalErrorLine(clean)) ||
     clean.startsWith("📚 Git API:") ||
     clean.startsWith("🔍 Search API:") ||
     clean.startsWith("📄 File API:") ||
@@ -192,6 +240,7 @@ function routeLine(line) {
   if (clean.startsWith("Running `/") && clean.endsWith("/org2`")) {
     if (!appLaunchPrinted) {
       appLaunchPrinted = true;
+      printStartupMilestone("Tauri app binary launched", "appLaunched");
       printLog("🖥️  Tauri app launched");
     }
     setRustStatus("app running");
@@ -201,6 +250,8 @@ function routeLine(line) {
   if (clean.startsWith("🚀 Unified IDE server starting on")) {
     if (!serviceReadyPrinted) {
       serviceReadyPrinted = true;
+      printStartupMilestone("backend HTTP server ready", "backendReady");
+      appendStartupMetrics();
       printLog(clean);
     }
     return;
@@ -261,6 +312,7 @@ function routeLine(line) {
       const timeMatch = clean.match(/in\s+([\d.]+s)/);
       const time = timeMatch ? timeMatch[1] : "";
       const parts = [LAST_COUNT.rust, time].filter(Boolean);
+      recordStartupMetric("rustDone");
       setRustStatus(
         `\x1b[32mFinished\x1b[0m${parts.length ? " " + parts.join(" | ") : ""}`
       );
@@ -287,7 +339,7 @@ function routeLine(line) {
 function cleanupOrphanedProcesses() {
   try {
     const cleanupScript = path.join(__dirname, "cleanup-orphans.cjs");
-    execSync(`${process.execPath} "${cleanupScript}" --quiet`, {
+    execFileSync(process.execPath, [cleanupScript, "--quiet"], {
       stdio: "inherit",
       cwd: rootDir,
     });
@@ -299,6 +351,17 @@ function cleanupOrphanedProcesses() {
 // ─── Start Tauri dev ──────────────────────────────────────────────────────────
 
 function killDescendants(pid) {
+  if (process.platform === "win32") {
+    try {
+      execFileSync("taskkill", ["/PID", String(pid), "/T", "/F"], {
+        stdio: "ignore",
+      });
+    } catch (_err) {
+      // already dead
+    }
+    return;
+  }
+
   try {
     // Recursively find and kill all descendant processes
     const children = execSync(`pgrep -P ${pid} 2>/dev/null`, {
@@ -334,95 +397,298 @@ function cleanChildEnv() {
   return applyDefaultDiagnosticsEndpoint(env);
 }
 
-function startTauriDev(features) {
-  const args = ["dev"];
-  if (features.length > 0) {
-    args.push("--features", features.join(","));
-  }
-  if (process.env.ORGII_LIGHT_DEV === "true") {
-    args.push(
-      "--config",
-      JSON.stringify({
-        build: {
-          beforeDevCommand: "pnpm run dev:frontend:light",
-        },
-      })
-    );
-  }
-
+function createBinPath(name) {
   const isWindows = process.platform === "win32";
-  const tauriBin = path.join(
+  const localPath = path.join(
     rootDir,
     "node_modules",
     ".bin",
-    isWindows ? "tauri.cmd" : "tauri"
+    isWindows ? `${name}.cmd` : name
   );
-  const tauriProcess = spawn(tauriBin, args, {
-    stdio: ["inherit", "pipe", "pipe"],
-    cwd: rootDir,
-    env: cleanChildEnv(),
-    ...(isWindows ? { shell: true } : {}),
+  return fs.existsSync(localPath) ? localPath : name;
+}
+
+function createNodePackageCliCommand(packageName, binName, fallbackBinName) {
+  if (process.platform !== "win32") {
+    return {
+      command: createBinPath(fallbackBinName ?? binName),
+      argsPrefix: [],
+    };
+  }
+
+  const packageJsonPath = require.resolve(`${packageName}/package.json`, {
+    paths: [rootDir, __dirname],
   });
+  const packageJson = require(packageJsonPath);
+  const bin =
+    typeof packageJson.bin === "string"
+      ? packageJson.bin
+      : packageJson.bin?.[binName];
+  if (!bin) {
+    throw new Error(`${packageName} does not expose a ${binName} CLI binary`);
+  }
+
+  return {
+    command: process.execPath,
+    argsPrefix: [path.resolve(path.dirname(packageJsonPath), bin)],
+  };
+}
+
+function createPackageCliCommand(packageName, binName) {
+  return createNodePackageCliCommand(packageName, binName);
+}
+
+function createPnpmCliCommand() {
+  if (process.platform !== "win32") {
+    return { command: createBinPath("pnpm"), argsPrefix: [] };
+  }
+
+  try {
+    return createNodePackageCliCommand("pnpm", "pnpm");
+  } catch (_error) {
+    // pnpm is commonly installed globally via Corepack/npm and is not listed as
+    // a project dependency. Avoid pnpm.cmd + shell:true by locating pnpm.cjs.
+  }
+
+  const candidates = [
+    process.env.PNPM_HOME && path.join(process.env.PNPM_HOME, "pnpm.cjs"),
+    process.env.APPDATA &&
+      path.join(
+        process.env.APPDATA,
+        "npm",
+        "node_modules",
+        "pnpm",
+        "bin",
+        "pnpm.cjs"
+      ),
+    process.env.LOCALAPPDATA &&
+      path.join(
+        process.env.LOCALAPPDATA,
+        "pnpm",
+        "global",
+        "5",
+        "node_modules",
+        "pnpm",
+        "bin",
+        "pnpm.cjs"
+      ),
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return { command: process.execPath, argsPrefix: [candidate] };
+    }
+  }
+
+  return { command: createBinPath("pnpm"), argsPrefix: [] };
+}
+
+function pipeProcessLines(childProcess, onLine) {
+  function handleStream(stream) {
+    const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+    rl.on("line", onLine);
+  }
+
+  handleStream(childProcess.stdout);
+  handleStream(childProcess.stderr);
+}
+
+function startFrontendDev() {
+  const scriptName = createFrontendScriptName({
+    lightDev: process.env.ORGII_LIGHT_DEV === "true",
+  });
+  const pnpmCli = createPnpmCliCommand();
+
+  setWebpackStatus("starting dev server...");
+  printStartupMilestone("starting webpack dev server", "webpackStart");
+
+  const frontendProcess = spawn(
+    pnpmCli.command,
+    [...pnpmCli.argsPrefix, "run", scriptName],
+    {
+      stdio: ["inherit", "pipe", "pipe"],
+      cwd: rootDir,
+      env: cleanChildEnv(),
+    }
+  );
+
+  const ready = new Promise((resolve, reject) => {
+    let settled = false;
+    let probingAsset = false;
+
+    pipeProcessLines(frontendProcess, (line) => {
+      routeLine(line);
+      if (!settled && !probingAsset && isInitialWebpackReadyLine(line)) {
+        probingAsset = true;
+        printStartupMilestone("webpack initial compile done", "webpackDone");
+        setWebpackStatus("verifying /main.js...");
+        waitForDevServerAsset(`${createDevUrl()}/main.js`)
+          .then(() => {
+            if (!settled) {
+              settled = true;
+              setWebpackStatus("\x1b[32mHTTP ready\x1b[0m /main.js");
+              printStartupMilestone("main.js HTTP ready", "mainJsReady");
+              resolve();
+            }
+          })
+          .catch((error) => {
+            if (!settled) {
+              settled = true;
+              reject(error);
+            }
+          });
+      }
+    });
+
+    frontendProcess.on("exit", (code) => {
+      if (!settled) {
+        settled = true;
+        reject(
+          new Error(
+            `Frontend dev server exited before initial compile (${code})`
+          )
+        );
+      }
+    });
+
+    frontendProcess.on("error", (error) => {
+      if (!settled) {
+        settled = true;
+        reject(error);
+      }
+    });
+  });
+
+  return { process: frontendProcess, ready };
+}
+
+function startTauriDev(features) {
+  const args = createTauriArgs({
+    features,
+    devUrl: createDevUrl(),
+  });
+  const tauriCli = createPackageCliCommand("@tauri-apps/cli", "tauri");
+  recordStartupMetric("rustStart");
+  printStartupMilestone("starting Tauri dev process", "tauriStart");
+  const tauriProcess = spawn(
+    tauriCli.command,
+    [...tauriCli.argsPrefix, ...args],
+    {
+      stdio: ["inherit", "pipe", "pipe"],
+      cwd: rootDir,
+      env: cleanChildEnv(),
+    }
+  );
 
   // Initialize status bar once the process starts
   writeStatusBar();
 
-  function handleStream(stream) {
-    const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
-    rl.on("line", routeLine);
+  pipeProcessLines(tauriProcess, routeLine);
+
+  return tauriProcess;
+}
+
+function shutdownProcesses(processes, signal) {
+  console.log(`\n🛑 Shutting down (${signal})...`);
+  for (const childProcess of processes) {
+    if (childProcess?.pid) {
+      killDescendants(childProcess.pid);
+    }
   }
-
-  handleStream(tauriProcess.stdout);
-  handleStream(tauriProcess.stderr);
-
-  tauriProcess.on("exit", (code) => {
-    if (isTTY && statusBarActive) {
-      process.stdout.write("\x1b[3A\x1b[0J");
-    }
-    process.exit(code || 0);
-  });
-
-  tauriProcess.on("error", (error) => {
-    console.error("❌ Failed to start Tauri:", error.message);
-    process.exit(1);
-  });
-
-  let shuttingDown = false;
-  function shutdown(signal) {
-    if (shuttingDown) return;
-    shuttingDown = true;
-    console.log(`\n🛑 Shutting down (${signal})...`);
-    if (tauriProcess.pid) {
-      killDescendants(tauriProcess.pid);
-    }
-    // Force exit after 3s in case children don't terminate
-    setTimeout(() => {
-      if (tauriProcess.pid) {
+  setTimeout(() => {
+    for (const childProcess of processes) {
+      if (childProcess?.pid) {
         try {
-          process.kill(tauriProcess.pid, "SIGKILL");
+          process.kill(childProcess.pid, "SIGKILL");
         } catch (_err) {
           /* already dead */
         }
       }
-      process.exit(1);
-    }, 3000).unref();
+    }
+    process.exit(1);
+  }, 3000).unref();
+}
+
+async function startDev(features) {
+  devStartupStartedAt = Date.now();
+  startupMetrics = createStartupMetrics();
+
+  // Initialize status bar before the frontend process starts emitting progress.
+  writeStatusBar();
+
+  const managedProcesses = [];
+  let shuttingDown = false;
+
+  function shutdown(signal) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    shutdownProcesses(managedProcesses, signal);
   }
 
   process.on("SIGINT", () => shutdown("SIGINT"));
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 
-  return tauriProcess;
+  const frontend = startFrontendDev();
+  managedProcesses.push(frontend.process);
+
+  frontend.ready
+    .then(() => {
+      if (shuttingDown) return;
+
+      printStartupMilestone("frontend ready; opening WebView");
+      const tauriProcess = startTauriDev(features);
+      managedProcesses.push(tauriProcess);
+
+      frontend.process.on("exit", (code) => {
+        if (!shuttingDown) {
+          shuttingDown = true;
+          console.error(`❌ Frontend dev server exited (${code})`);
+          shutdownProcesses([tauriProcess], "frontend exited");
+        }
+      });
+
+      tauriProcess.on("error", (error) => {
+        if (!shuttingDown) {
+          shuttingDown = true;
+          console.error("❌ Failed to start Tauri:", error.message);
+          shutdownProcesses([frontend.process], "tauri failed");
+        }
+      });
+
+      tauriProcess.on("exit", (code) => {
+        if (isTTY && statusBarActive) {
+          process.stdout.write("\x1b[3A\x1b[0J");
+        }
+        if (!shuttingDown) {
+          shuttingDown = true;
+          if (frontend.process.pid) {
+            killDescendants(frontend.process.pid);
+          }
+          process.exit(code || 0);
+        }
+      });
+    })
+    .catch((error) => {
+      if (!shuttingDown) {
+        shuttingDown = true;
+        console.error("❌ Dev startup failed:", error.message);
+        shutdownProcesses(managedProcesses, "startup failed");
+      }
+    });
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-function main() {
+async function main() {
   const features = tauriFeatureList();
 
   printBanner(features);
 
   cleanupOrphanedProcesses();
-  startTauriDev(features);
+  await startDev(features);
 }
 
-main();
+main().catch((error) => {
+  console.error("❌ Failed to start dev mode:", error.message);
+  process.exit(1);
+});

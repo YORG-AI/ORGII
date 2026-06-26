@@ -92,6 +92,14 @@ const GenericSetup: FC<AgentSetupProps> = ({
   // Base URL mode: official (use provider default) or custom (user enters URL)
   const [baseUrlMode, setBaseUrlMode] = useState<BaseUrlMode>("official");
   const [baseUrlWarningDismissed, setBaseUrlWarningDismissed] = useState(false);
+  const supportsProtocolSelection =
+    (envConfig?.supportedProtocols.length ?? 0) > 1;
+  const selectedProtocol =
+    data.protocol ?? envConfig?.defaultProtocol ?? "openai";
+  const officialBaseUrl =
+    selectedProtocol === "anthropic" && data.agent_type === "zenmux_api"
+      ? "https://zenmux.ai/api/anthropic"
+      : envConfig?.defaultBaseUrl;
 
   // Sync official URL to data when in official mode (for validation)
   useEffect(() => {
@@ -99,12 +107,19 @@ const GenericSetup: FC<AgentSetupProps> = ({
       setupMethod === "enter_key" &&
       envConfig?.supportsBaseUrl &&
       baseUrlMode === "official" &&
-      envConfig?.defaultBaseUrl &&
-      data.extracted_base_url !== envConfig.defaultBaseUrl
+      officialBaseUrl &&
+      data.extracted_base_url !== officialBaseUrl
     ) {
-      onChange({ extracted_base_url: envConfig.defaultBaseUrl });
+      onChange({ extracted_base_url: officialBaseUrl });
     }
-  }, [setupMethod, envConfig, baseUrlMode, data.extracted_base_url, onChange]);
+  }, [
+    setupMethod,
+    envConfig,
+    baseUrlMode,
+    officialBaseUrl,
+    data.extracted_base_url,
+    onChange,
+  ]);
 
   // Handle successful extraction - called by parent after extraction succeeds
   const handleExtractionSuccess = useCallback(
@@ -112,14 +127,14 @@ const GenericSetup: FC<AgentSetupProps> = ({
       setSetupMethod("enter_key");
       if (
         envConfig?.supportsBaseUrl &&
-        envConfig?.defaultBaseUrl &&
+        officialBaseUrl &&
         _baseUrl &&
-        _baseUrl !== envConfig.defaultBaseUrl
+        _baseUrl !== officialBaseUrl
       ) {
         setBaseUrlMode("custom");
       }
     },
-    [envConfig]
+    [envConfig, officialBaseUrl]
   );
 
   const handleSetupMethodChange = (method: SetupMethod) => {
@@ -141,9 +156,9 @@ const GenericSetup: FC<AgentSetupProps> = ({
       onInputModeChange?.("direct");
       if (
         envConfig?.supportsBaseUrl &&
-        envConfig?.defaultBaseUrl &&
+        officialBaseUrl &&
         data.extracted_base_url &&
-        data.extracted_base_url !== envConfig.defaultBaseUrl
+        data.extracted_base_url !== officialBaseUrl
       ) {
         setBaseUrlMode("custom");
       }
@@ -242,6 +257,42 @@ const GenericSetup: FC<AgentSetupProps> = ({
             />
           </SectionRow>
 
+          {supportsProtocolSelection && (
+            <SectionRow
+              label="API protocol"
+              description="Choose the wire protocol for the built-in Rust agent."
+              layout="vertical"
+            >
+              <Select
+                value={selectedProtocol}
+                onChange={(val) => {
+                  const protocol = val as typeof selectedProtocol;
+                  const nextOfficialBaseUrl =
+                    protocol === "anthropic" && data.agent_type === "zenmux_api"
+                      ? "https://zenmux.ai/api/anthropic"
+                      : envConfig.defaultBaseUrl;
+                  onChange({
+                    protocol,
+                    extracted_base_url:
+                      baseUrlMode === "official"
+                        ? nextOfficialBaseUrl || undefined
+                        : data.extracted_base_url,
+                    validated: false,
+                    available_models: [],
+                    enabled_models: [],
+                  });
+                }}
+                options={envConfig.supportedProtocols.map((protocol) => ({
+                  value: protocol,
+                  label: protocol === "anthropic" ? "Anthropic" : "OpenAI",
+                }))}
+                size="default"
+                dropdownWidthMode="min-match"
+                className="w-fit"
+              />
+            </SectionRow>
+          )}
+
           {envConfig.supportsBaseUrl && (
             <SectionRow
               label={t("keyVault.baseUrlLabel")}
@@ -257,8 +308,7 @@ const GenericSetup: FC<AgentSetupProps> = ({
                     if (mode === "official") {
                       setBaseUrlWarningDismissed(false);
                       onChange({
-                        extracted_base_url:
-                          envConfig.defaultBaseUrl || undefined,
+                        extracted_base_url: officialBaseUrl || undefined,
                       });
                     }
                   }}
@@ -279,7 +329,7 @@ const GenericSetup: FC<AgentSetupProps> = ({
                 <Input
                   value={
                     baseUrlMode === "official"
-                      ? envConfig.defaultBaseUrl || ""
+                      ? officialBaseUrl || ""
                       : data.extracted_base_url || ""
                   }
                   onChange={(value) =>

@@ -42,6 +42,7 @@ export function useApiSetupValidation({
           : undefined)
       : resolvedCursorSessionToken,
     baseUrl: data.extracted_base_url,
+    protocol: data.protocol,
     inputMode: inputMode,
     onValidationSuccess: ({ models, envVars, extractedConfig: config }) => {
       const effectiveModels = (() => {

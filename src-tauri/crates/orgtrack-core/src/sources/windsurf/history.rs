@@ -193,12 +193,16 @@ fn list_windsurf_composer_meta_from_conn(
         .prepare("SELECT value FROM cursorDiskKV WHERE key LIKE 'composerData:%'")
         .map_err(|err| format!("Failed to prepare Windsurf composer query: {err}"))?;
     let rows = stmt
-        .query_map([], |row| row.get::<_, String>(0))
+        .query_map([], |row| row.get::<_, Option<String>>(0))
         .map_err(|err| format!("Failed to query Windsurf composers: {err}"))?;
 
     let mut metas = Vec::new();
     for row in rows {
-        let value = row.map_err(|err| format!("Failed to read Windsurf composer row: {err}"))?;
+        let Some(value) =
+            row.map_err(|err| format!("Failed to read Windsurf composer row: {err}"))?
+        else {
+            continue;
+        };
         let Ok(composer) = serde_json::from_str::<RawComposerData>(&value) else {
             continue;
         };
@@ -320,15 +324,18 @@ fn load_windsurf_history_from_conn(
 
 fn load_composer(conn: &Connection, composer_id: &str) -> Result<RawComposerData, String> {
     let key = format!("composerData:{composer_id}");
-    let json_str: String = conn
+    let Some(json_str) = conn
         .query_row(
             "SELECT value FROM cursorDiskKV WHERE key = ?1",
             [&key],
-            |row| row.get(0),
+            |row| row.get::<_, Option<String>>(0),
         )
         .optional()
         .map_err(|err| format!("Failed to read Windsurf composer {composer_id}: {err}"))?
-        .unwrap_or_default();
+        .flatten()
+    else {
+        return Ok(RawComposerData::default());
+    };
     if json_str.is_empty() {
         return Ok(RawComposerData::default());
     }
@@ -368,13 +375,16 @@ fn load_bubbles_by_id(
             .map_err(|err| format!("Failed to prepare Windsurf bubble query: {err}"))?;
         let rows = stmt
             .query_map(params_from_iter(keys), |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
             })
             .map_err(|err| format!("Failed to read Windsurf bubbles: {err}"))?;
 
         for row in rows {
-            let (key, value) =
-                row.map_err(|err| format!("Failed to read Windsurf bubble row: {err}"))?;
+            let (key, Some(value)) =
+                row.map_err(|err| format!("Failed to read Windsurf bubble row: {err}"))?
+            else {
+                continue;
+            };
             values_by_key.insert(key, value);
         }
     }
@@ -593,10 +603,11 @@ fn load_content_blob(conn: &Connection, content_id: &str) -> Option<String> {
     conn.query_row(
         "SELECT value FROM cursorDiskKV WHERE key = ?1",
         [content_id],
-        |row| row.get::<_, String>(0),
+        |row| row.get::<_, Option<String>>(0),
     )
     .optional()
     .ok()
+    .flatten()
     .flatten()
 }
 

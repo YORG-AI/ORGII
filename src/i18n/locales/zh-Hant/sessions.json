@@ -717,10 +717,41 @@
       },
       "tabs": {
         "work": "工作",
-        "explore": "探索"
+        "explore": "探索",
+        "heatmap": "Heat map"
+      },
+      "heatmap": {
+        "loading": "正在載入活動 Heat map…",
+        "empty": "尚無會話活動。",
+        "sessions": "會話",
+        "tokens": "Tokens",
+        "cost": "成本"
       },
       "exploreRepos": {
         "title": "探索 Repos"
+      },
+      "hints": {
+        "skill": {
+          "before": "Use",
+          "after": "to link a skill or tool"
+        },
+        "ask": {
+          "before": "Use",
+          "after": "to ask questions about the codebase"
+        },
+        "plan": {
+          "before": "Use",
+          "after": "to plan before building"
+        },
+        "switch": {
+          "before": "Use",
+          "after": "to switch sections"
+        },
+        "previous": "Previous hint",
+        "next": "Next hint"
+      },
+      "manageIssues": {
+        "title": "管理 Issues"
       }
     },
     "defaultTitle": "Session",
@@ -898,6 +929,18 @@
       "showLess": "收合",
       "showMore_one": "顯示其餘 {{count}} 個",
       "showMore_other": "顯示其餘 {{count}} 個"
+    },
+    "manageIssues": {
+      "title": "管理 Issues",
+      "myWork": "我的工作",
+      "allRepositories": "所有 Repos",
+      "newIssue": "新增 Issue",
+      "tabs": {
+        "all": "全部",
+        "active": "活躍",
+        "reviewRequests": "Review 請求",
+        "done": "已完成"
+      }
     }
   },
   "chatStatus": {
@@ -2255,6 +2298,7 @@
         "index": "索引",
         "reindex": "重新索引",
         "cancel": "取消",
+        "stop": "停止",
         "clear": "清除",
         "refresh": "重新整理"
       },

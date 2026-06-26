@@ -37,15 +37,24 @@ const ApiKeyProviderSetup: React.FC<AgentSetupProps> = ({
     data.agent_type
   );
 
+  const supportsProtocolSelection =
+    (envConfig?.supportedProtocols.length ?? 0) > 1;
+  const selectedProtocol =
+    data.protocol ?? envConfig?.defaultProtocol ?? "openai";
+  const officialBaseUrl =
+    selectedProtocol === "anthropic" && data.agent_type === "zenmux_api"
+      ? "https://zenmux.ai/api/anthropic"
+      : envConfig?.defaultBaseUrl;
+
   // Determine if user's current URL differs from the official default
   const hasCustomBaseUrl = useMemo(() => {
     return Boolean(
       envConfig?.supportsBaseUrl &&
-      envConfig?.defaultBaseUrl &&
+      officialBaseUrl &&
       data.extracted_base_url &&
-      data.extracted_base_url !== envConfig.defaultBaseUrl
+      data.extracted_base_url !== officialBaseUrl
     );
-  }, [envConfig, data.extracted_base_url]);
+  }, [envConfig, officialBaseUrl, data.extracted_base_url]);
 
   // Track user's explicit mode choice. Defaults to "custom" if data has a non-default URL.
   const [baseUrlModeOverride, setBaseUrlModeOverride] =
@@ -68,22 +77,28 @@ const ApiKeyProviderSetup: React.FC<AgentSetupProps> = ({
     const needsSync =
       envConfig?.supportsBaseUrl &&
       baseUrlMode === "official" &&
-      envConfig?.defaultBaseUrl &&
-      data.extracted_base_url !== envConfig.defaultBaseUrl;
+      officialBaseUrl &&
+      data.extracted_base_url !== officialBaseUrl;
 
     // Only sync if mode changed to official (not on every render)
     const modeChangedToOfficial =
       lastSyncedRef.current.mode !== "official" && baseUrlMode === "official";
 
-    if (needsSync && modeChangedToOfficial && envConfig.defaultBaseUrl) {
-      onChange({ extracted_base_url: envConfig.defaultBaseUrl });
+    if (needsSync && modeChangedToOfficial && officialBaseUrl) {
+      onChange({ extracted_base_url: officialBaseUrl });
     }
 
     lastSyncedRef.current = {
       mode: baseUrlMode,
       url: data.extracted_base_url,
     };
-  }, [envConfig, baseUrlMode, data.extracted_base_url, onChange]);
+  }, [
+    envConfig,
+    officialBaseUrl,
+    baseUrlMode,
+    data.extracted_base_url,
+    onChange,
+  ]);
 
   if (configLoading || !envConfig) {
     return null;
@@ -107,6 +122,42 @@ const ApiKeyProviderSetup: React.FC<AgentSetupProps> = ({
           />
         </SectionRow>
 
+        {supportsProtocolSelection && (
+          <SectionRow
+            label="API protocol"
+            description="Choose the wire protocol for the built-in Rust agent."
+            layout="vertical"
+          >
+            <Select
+              value={selectedProtocol}
+              onChange={(val) => {
+                const protocol = val as typeof selectedProtocol;
+                const nextOfficialBaseUrl =
+                  protocol === "anthropic" && data.agent_type === "zenmux_api"
+                    ? "https://zenmux.ai/api/anthropic"
+                    : envConfig.defaultBaseUrl;
+                onChange({
+                  protocol,
+                  extracted_base_url:
+                    baseUrlMode === "official"
+                      ? nextOfficialBaseUrl || undefined
+                      : data.extracted_base_url,
+                  validated: false,
+                  available_models: [],
+                  enabled_models: [],
+                });
+              }}
+              options={envConfig.supportedProtocols.map((protocol) => ({
+                value: protocol,
+                label: protocol === "anthropic" ? "Anthropic" : "OpenAI",
+              }))}
+              size="default"
+              dropdownWidthMode="min-match"
+              className="w-fit"
+            />
+          </SectionRow>
+        )}
+
         {envConfig.supportsBaseUrl && (
           <SectionRow
             label={t("keyVault.baseUrlLabel")}
@@ -122,7 +173,7 @@ const ApiKeyProviderSetup: React.FC<AgentSetupProps> = ({
                   if (mode === "official") {
                     setBaseUrlWarningDismissed(false);
                     onChange({
-                      extracted_base_url: envConfig.defaultBaseUrl || undefined,
+                      extracted_base_url: officialBaseUrl || undefined,
                     });
                   }
                 }}
@@ -137,7 +188,7 @@ const ApiKeyProviderSetup: React.FC<AgentSetupProps> = ({
               <Input
                 value={
                   baseUrlMode === "official"
-                    ? envConfig.defaultBaseUrl || ""
+                    ? officialBaseUrl || ""
                     : data.extracted_base_url || ""
                 }
                 onChange={(value: string) =>

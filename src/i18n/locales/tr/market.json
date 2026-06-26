@@ -420,6 +420,8 @@
     "roundDetail": "Round {{index}}",
     "inputTokens": "Input",
     "outputTokens": "Output",
+    "cacheWriteTokens": "Cache write {{count}}",
+    "cacheReadTokens": "Cache read {{count}}",
     "noRoundData": "Round bazlı veri yok",
     "colDate": "Tarih",
     "colAgent": "Agent",

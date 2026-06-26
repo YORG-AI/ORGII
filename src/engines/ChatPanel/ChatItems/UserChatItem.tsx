@@ -19,6 +19,7 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import { ChatBubbleCopyButton } from "@src/components/ChatBubble";
 import ExpandOverlay from "@src/components/ExpandOverlay";
 import { INPUT_AREA } from "@src/config/inputAreaTokens";
 import { readPillText } from "@src/config/pillTokens";
@@ -364,11 +365,11 @@ const UserChatItem = ({
         data-testid="chat-message-user-editable"
         onClick={isEditableDisplay ? handleEditClick : undefined}
       >
-        {/* Edit + Restore buttons — visible on hover */}
-        {isEditableDisplay && (
+        {fullContent && (
           <div className="absolute right-2 top-2 z-10 opacity-0 transition-opacity group-hover:opacity-100">
             <div className="flex items-center gap-1 rounded-lg border border-fill-2 bg-fill-2 p-0.5">
-              {onRestoreCheckpoint && (
+              <ChatBubbleCopyButton content={fullContent} placement="toolbar" />
+              {isEditableDisplay && onRestoreCheckpoint && (
                 <button
                   type="button"
                   data-testid="chat-message-restore-checkpoint"
@@ -382,17 +383,19 @@ const UserChatItem = ({
                   <Undo2 size={14} strokeWidth={1.75} />
                 </button>
               )}
-              <button
-                type="button"
-                data-testid="chat-message-user-edit-button"
-                className="flex cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0.5 text-text-3 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleEditClick();
-                }}
-              >
-                <PencilLine size={14} strokeWidth={1.75} />
-              </button>
+              {isEditableDisplay && (
+                <button
+                  type="button"
+                  data-testid="chat-message-user-edit-button"
+                  className="flex cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0.5 text-text-3 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEditClick();
+                  }}
+                >
+                  <PencilLine size={14} strokeWidth={1.75} />
+                </button>
+              )}
             </div>
           </div>
         )}

@@ -22,6 +22,12 @@ import ContextMenuPortal from "@src/engines/ChatPanel/InputArea/components/Conte
 import SlashCommandPortal from "@src/engines/ChatPanel/InputArea/components/SlashCommandPortal";
 import { type VoiceInputError, useVoiceInput } from "@src/hooks/voice";
 import i18n from "@src/i18n";
+import {
+  clearReferenceDragData,
+  getReferenceDragPillData,
+  hasReferenceDragData,
+} from "@src/shared/dnd/referenceDragData";
+import { chatAppearanceAtom } from "@src/store/config/configAtom";
 import { voiceInputEnabledAtom } from "@src/store/platform/voiceInputAtom";
 import type { RepoKind } from "@src/store/repo/types";
 import type { ChatImageAttachment } from "@src/store/ui/chatImageAtom";
@@ -294,28 +300,16 @@ const EditorArea: React.FC<EditorAreaProps> = ({
   // updates immediately.
 
   const voiceFeatureEnabled = useAtomValue(voiceInputEnabledAtom);
+  const { sendOnEnter } = useAtomValue(chatAppearanceAtom);
 
   const isTabDragOver = useTabDragDrop(editorContainerRef, composerInputRef);
   const [isReferenceDragOver, setIsReferenceDragOver] = useState(false);
   const isDragOver = isTabDragOver || isReferenceDragOver;
 
-  const hasReferenceDrag = useCallback((types?: readonly string[]) => {
-    const now = Date.now();
-    return (
-      Boolean(
-        window.__orgiiLastPrDrag &&
-        now - window.__orgiiLastPrDrag.timestamp < 30_000
-      ) ||
-      Boolean(
-        window.__orgiiLastIssueDrag &&
-        now - window.__orgiiLastIssueDrag.timestamp < 30_000
-      ) ||
-      Boolean(
-        types?.includes("application/x-orgii-pr-reference") ||
-        types?.includes("application/x-orgii-issue-reference")
-      )
-    );
-  }, []);
+  const hasReferenceDrag = useCallback(
+    (types?: readonly string[]) => hasReferenceDragData(types),
+    []
+  );
 
   const handleReferenceDragOver = useCallback(
     (event: React.DragEvent<HTMLElement>) => {
@@ -347,60 +341,29 @@ const EditorArea: React.FC<EditorAreaProps> = ({
 
   const handleReferenceDrop = useCallback(
     (event: React.DragEvent<HTMLElement>) => {
-      const plainText = event.dataTransfer.getData("text/plain");
-      const prTextPrefix = "orgii-reference:pr:";
-      const issueTextPrefix = "orgii-reference:issue:";
-      const prData =
-        event.dataTransfer.getData("application/x-orgii-pr-reference") ||
-        (plainText.startsWith(prTextPrefix)
-          ? plainText.slice(prTextPrefix.length)
-          : "") ||
-        (window.__orgiiLastPrDrag &&
-        Date.now() - window.__orgiiLastPrDrag.timestamp < 30_000
-          ? JSON.stringify(window.__orgiiLastPrDrag)
-          : "");
-      const issueData =
-        event.dataTransfer.getData("application/x-orgii-issue-reference") ||
-        (plainText.startsWith(issueTextPrefix)
-          ? plainText.slice(issueTextPrefix.length)
-          : "") ||
-        (window.__orgiiLastIssueDrag &&
-        Date.now() - window.__orgiiLastIssueDrag.timestamp < 30_000
-          ? JSON.stringify(window.__orgiiLastIssueDrag)
-          : "");
-      const rawData = prData || issueData;
-      if (!rawData) return;
+      const reference = getReferenceDragPillData(event.dataTransfer);
+      if (!reference) return;
 
       event.preventDefault();
       event.stopPropagation();
       setIsReferenceDragOver(false);
 
       try {
-        const payload = JSON.parse(rawData) as Record<string, unknown>;
-        const isPr = Boolean(prData);
-        const number = Number(isPr ? payload.prNumber : payload.issueNumber);
-        const rawTitle = isPr ? payload.prTitle : payload.issueTitle;
-        const title = typeof rawTitle === "string" ? rawTitle.trim() : "";
-        if (!number || !title) return;
-
-        const pillPath = `${isPr ? "pr" : "issue"}://${number}`;
-        const displayName = `#${number} ${title}`;
-        storePillText(pillPath, capPillText(JSON.stringify(payload)));
-        composerInputRef.current?.insertFilePill(
-          pillPath,
-          false,
-          isPr ? "pr" : "issue",
-          displayName
+        storePillText(
+          reference.pillPath,
+          capPillText(JSON.stringify(reference.payload))
         );
-        Message.success(i18n.t("toasts.addedAsContext", { name: displayName }));
-      } catch {
-        // Malformed drag payload: ignore.
+        composerInputRef.current?.insertFilePill(
+          reference.pillPath,
+          false,
+          reference.iconType,
+          reference.displayName
+        );
+        Message.success(
+          i18n.t("toasts.addedAsContext", { name: reference.displayName })
+        );
       } finally {
-        if (prData) {
-          window.__orgiiLastPrDrag = undefined;
-        } else {
-          window.__orgiiLastIssueDrag = undefined;
-        }
+        clearReferenceDragData(reference.type);
       }
     },
     [composerInputRef]
@@ -616,7 +579,7 @@ const EditorArea: React.FC<EditorAreaProps> = ({
           onAtMention={handleAtMention}
           onAtMentionClose={onAtMentionClose}
           onSubmit={onSubmit}
-          requireCmdEnter={true}
+          requireCmdEnter={!sendOnEnter}
           autoFocus={autoFocus}
           className="session-editor flex-1 cursor-text overflow-y-auto rounded-md text-[14px] text-text-1"
           minHeight={editorMinHeight ?? (isChatPanelFullScreen ? 60 : 100)}
@@ -710,7 +673,6 @@ const EditorArea: React.FC<EditorAreaProps> = ({
             dropdownDirection={resolvedDropdownDirection}
             repoPath={repoPath}
             toolbarItemGap={false}
-            bottomPaddingClassName="pb-1"
             showContextInfo={false}
             pills={
               <ControlButtons

@@ -1,11 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, RefreshCw } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import StatusDot from "@src/components/StatusDot";
 import { createLogger } from "@src/hooks/logger";
+import { useRefreshSpin } from "@src/hooks/ui";
 import { useLanguageServers } from "@src/modules/MainApp/Integrations/hooks/lsp/useLanguageServers";
 import { useLintTools } from "@src/modules/MainApp/Integrations/hooks/lsp/useLintTools";
 import {
@@ -310,6 +311,9 @@ export const WorkspaceToolsReadiness: React.FC<
     refreshLintTools();
     setWorkspaceLintRefreshTick((current) => current + 1);
   }, [refreshLintTools, refreshServers]);
+  const refreshLabel = t("controlTower.workspaceTools.refresh");
+  const { spinClass: refreshSpinClass, handleClick: handleRefreshClick } =
+    useRefreshSpin(handleRefresh, loading, `workspace-tools:${workspacePath}`);
 
   if (!workspacePath) return null;
 
@@ -350,12 +354,13 @@ export const WorkspaceToolsReadiness: React.FC<
               variant="secondary"
               size="small"
               shape="round"
-              loading={loading}
+              icon={<RefreshCw size={14} className={refreshSpinClass} />}
+              iconOnly
               disabled={loading}
-              onClick={handleRefresh}
-            >
-              {t("controlTower.workspaceTools.refresh")}
-            </Button>
+              onClick={handleRefreshClick}
+              title={refreshLabel}
+              aria-label={refreshLabel}
+            />
           </div>
 
           <div className="grid gap-2 lg:grid-cols-2">

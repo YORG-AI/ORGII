@@ -56,7 +56,7 @@ interface GroupChatPendingMessageView {
 }
 
 interface ChatFloatingComposerProps {
-  composerRef: React.RefObject<HTMLDivElement | null>;
+  composerRef: React.Ref<HTMLDivElement>;
   inputBoxRef?: React.Ref<HTMLDivElement>;
   chatPanelPosition: "left" | "right";
   sessionId: string;
@@ -186,7 +186,10 @@ const ChatFloatingComposer: React.FC<ChatFloatingComposerProps> = memo(
 
     const hasLocalInlineSection =
       hasAnyInlineSection || fileChangeStats.count > 0;
-    const showTopRowPills = hasLocalInlineSection || scrollNav?.showFollowAgent;
+    const showTopRowPills =
+      hasLocalInlineSection ||
+      scrollNav?.showFollowAgent ||
+      scrollNav?.showAddToConversation;
     const trailingScrollButton = scrollNav?.showScrollToBottom ? (
       <Button
         variant="secondary"

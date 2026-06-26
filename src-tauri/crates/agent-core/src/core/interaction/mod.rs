@@ -31,6 +31,7 @@ pub mod permission_rules;
 pub mod plan_approval;
 pub mod presence_policy;
 pub mod presence_state;
+pub mod profile_state;
 pub mod question;
 pub mod secret_broker;
 

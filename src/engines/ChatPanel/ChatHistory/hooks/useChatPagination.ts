@@ -47,8 +47,8 @@ export interface UseChatPaginationReturn {
 const MAX_AUTO_LOAD_ATTEMPTS = 10;
 
 /** Debounce interval for setVisibleRange state updates.
- *  Prevents scroll → re-render → scroll feedback loops that cause
- *  sticky-header "kissing" bounce when two group headers are adjacent. */
+ *  Prevents scroll → re-render → scroll feedback loops while adjacent
+ *  group headers are near the viewport top. */
 const RANGE_DEBOUNCE_MS = 150;
 
 export function useChatPagination({

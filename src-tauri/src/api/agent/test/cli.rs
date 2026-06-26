@@ -19,7 +19,7 @@ use key_vault::key_store::ModelType;
 
 const DEFAULT_TIMEOUT_SECS: u64 = 240;
 const POLL_INTERVAL_MS: u64 = 500;
-const DEFAULT_GEMINI_E2E_MODEL: &str = "gemini-3-flash-preview";
+const DEFAULT_GEMINI_E2E_MODEL: &str = "gemini-2.5-flash";
 
 fn e2e_gemini_model_from_env() -> String {
     std::env::var("E2E_GEMINI_MODEL_CHAIN")

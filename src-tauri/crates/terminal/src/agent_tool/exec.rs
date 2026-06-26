@@ -102,8 +102,12 @@ pub async fn exec_in_pty(
         "[exec_in_pty] phase={} marker={} cmd={}",
         phase,
         marker_id,
-        if command.len() > 80 {
-            &command[..80]
+        if command.chars().count() > 80 {
+            command
+                .char_indices()
+                .nth(80)
+                .map(|(index, _)| &command[..index])
+                .unwrap_or(command)
         } else {
             command
         }

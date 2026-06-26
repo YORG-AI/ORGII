@@ -53,4 +53,4 @@ The following behaviour is covered by higher-level integration / E2E tests and i
 - Provider-specific wrappers (`useGeminiOAuthCapture`, `useCodexOAuthCapture`, `useClaudeCodeOAuthCapture`) forwarding the correct extra response fields (`projectId`, `idToken`, etc.)
 - E2E mock mode setting auth URL without opening a real webview
 - Cancellation guard (`cancelled` flag) when the effect re-runs before the exchange resolves
-- `closeBeforeExchange` / `setSigningInBeforeExchange` timing flags
+- `closeWebviewOnExchangeError` / `setSigningInBeforeExchange` timing flags

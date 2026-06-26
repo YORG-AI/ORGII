@@ -45,7 +45,7 @@ use crate::model_context::session_memory::{
 };
 use crate::providers::traits::{LLMProvider, SideQueryExecution};
 use crate::tools::policy::ResolvedToolPolicy;
-use crate::turn_executor::TurnResult;
+use crate::turn_executor::{ContextUsageSnapshot, TurnResult};
 
 use crate::state::{AgentSession, SessionRuntime};
 
@@ -316,6 +316,29 @@ impl UnifiedMessageProcessor {
             return;
         }
 
+        let context_usage_json = result
+            .context_usage_snapshot
+            .clone()
+            .or_else(|| {
+                (result.context_tokens > 0).then(|| {
+                    let context_window = crate::core::providers::model_capabilities::resolve(
+                        &self.runtime.model,
+                        None,
+                    )
+                    .context_window as i64;
+                    ContextUsageSnapshot::from_payload(
+                        &result.messages,
+                        &[],
+                        result.context_tokens,
+                        result.cache_read_tokens,
+                        result.cache_write_tokens,
+                        Some(context_window),
+                    )
+                })
+            })
+            .as_ref()
+            .and_then(|snapshot| serde_json::to_string(snapshot).ok());
+
         tokio::task::block_in_place(|| {
             use crate::foundation::session_bridge::{record_token_usage, TokenUsageRow};
             if let Err(err) = record_token_usage(TokenUsageRow {
@@ -332,6 +355,7 @@ impl UnifiedMessageProcessor {
                 cache_write_tokens: result.cache_write_tokens,
                 total_tokens: result.total_tokens,
                 context_tokens: result.context_tokens,
+                context_usage_json,
             }) {
                 warn!("[unified_processor] Failed to record token usage: {}", err);
             }

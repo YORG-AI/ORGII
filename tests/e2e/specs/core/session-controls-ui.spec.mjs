@@ -19,6 +19,7 @@ import {
   runBurstQueueSendNowOrderingScenario,
   runChaosControlFlowScenario,
   runForceSendScenario,
+  runForceSendWhileShellRunningScenario,
   runFreshStopImageRestoreScenario,
   runFreshStopRollbackScenario,
   runIntermediateStreamingScenario,
@@ -153,6 +154,7 @@ const CONTROL_SCENARIO_NAMES = [
   "stop-double-click-no-resubmit",
   "stop-bg-subagent-next-message",
   "force-send",
+  "force-send-while-shell-running",
   "rewind",
   "restore-checkpoint",
   "plan-build-direct",
@@ -169,6 +171,9 @@ const RUST_AGENT_EXEC_MODE_SCENARIOS = new Set([
   "fresh-stop",
   "fresh-stop-image",
   "stop-bg-subagent-next-message",
+  // #110 needs a real `exec` foreground shell, which only the rust-agent
+  // harness owns — gate it to rust-agent configs.
+  "force-send-while-shell-running",
   "queue-edit-image-upload",
   "plan-build-direct",
   "plan-update",
@@ -342,6 +347,15 @@ describe("ORGII force-send queued follow-up behavior", function () {
   it("force-sends coherent follow-ups through Rust and CLI agents", async function () {
     this.timeout(1_200_000);
     await runScenario("force-send", runForceSendScenario, this);
+  });
+
+  it("force-sends a follow-up that lands promptly while a foreground shell command is still running (#110)", async function () {
+    this.timeout(1_200_000);
+    await runScenario(
+      "force-send-while-shell-running",
+      runForceSendWhileShellRunningScenario,
+      this
+    );
   });
 
   it("rewinds agent file edits through the rendered Undo All control across Rust and CLI agents", async function () {

@@ -98,6 +98,7 @@ struct GeminiFunctionDeclaration {
 impl CodeAssistEnvelope {
     pub(super) fn telemetry(&self) -> CodeAssistRequestTelemetry {
         CodeAssistRequestTelemetry {
+            model: self.model.clone(),
             session_id: self.request.session_id.clone(),
             contents_count: self.request.contents.len(),
             tool_declarations_count: self
@@ -146,6 +147,7 @@ impl CodeAssistEnvelope {
 }
 
 pub(super) struct CodeAssistRequestTelemetry {
+    pub(super) model: String,
     pub(super) session_id: String,
     pub(super) contents_count: usize,
     pub(super) tool_declarations_count: usize,

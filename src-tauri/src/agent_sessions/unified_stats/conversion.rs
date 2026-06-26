@@ -5,8 +5,15 @@
 
 use std::collections::HashSet;
 
+use crate::agent_sessions::cli::parsers::types::CliAgentType;
 use crate::agent_sessions::cli::persistence as cli_session_persistence;
 use agent_core::session::persistence as session_persistence;
+use core_types::key_source::KeySource;
+use orgtrack_core::sources::cursor_ide::history::CursorIdeSessionRow;
+use orgtrack_core::sources::imported_history::metadata::{
+    SOURCE_CLAUDE_CODE, SOURCE_CODEX_APP, SOURCE_CURSOR_IDE, SOURCE_OPENCODE,
+};
+use orgtrack_core::sources::imported_history::ImportedHistorySessionRow;
 
 use super::display::generate_display_label;
 use super::status::is_active_status;
@@ -143,6 +150,125 @@ pub fn cli_session_to_aggregate_record(
         lines_removed: None,
         touched_files: None,
         channel: None,
+    }
+}
+
+fn imported_history_cli_agent_type(source_label: &str) -> Option<String> {
+    match source_label {
+        SOURCE_CLAUDE_CODE => Some(CliAgentType::ClaudeCode.as_str().to_string()),
+        SOURCE_CODEX_APP => Some(CliAgentType::Codex.as_str().to_string()),
+        SOURCE_CURSOR_IDE => Some(CliAgentType::CursorCli.as_str().to_string()),
+        SOURCE_OPENCODE => Some(CliAgentType::OpenCode.as_str().to_string()),
+        _ => None,
+    }
+}
+
+pub fn imported_history_to_aggregate_record(
+    row: ImportedHistorySessionRow,
+    source_label: &str,
+) -> SessionAggregateRecord {
+    let display_label = generate_display_label(&row.name, None);
+    let cli_agent_type = imported_history_cli_agent_type(source_label);
+    SessionAggregateRecord {
+        session_id: row.session_id,
+        name: row.name,
+        status: row.status,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        category: SessionCategory::Cli,
+        user_input: None,
+        repo_path: row.repo_path,
+        repo_name: row.repo_name,
+        branch: row.branch,
+        model: row.model,
+        account_id: None,
+        cli_agent_type,
+        key_source: KeySource::OwnKey,
+        tier: None,
+        pid: None,
+        total_tokens: row.total_tokens,
+        worktree_path: None,
+        worktree_branch: None,
+        base_branch: None,
+        merge_status: None,
+        background: row.background,
+        org_id: None,
+        project_id: None,
+        project_name: None,
+        project_slug: None,
+        work_item_id: None,
+        agent_role: None,
+        is_active: row.is_active,
+        display_label,
+        parent_session_id: None,
+        org_member_id: None,
+        agent_org_id: None,
+        agent_org_name: None,
+        agent_definition_id: None,
+        agent_icon_id: None,
+        agent_display_name: Some(source_label.to_string()),
+        agent_exec_mode: None,
+        draft_text: None,
+        reply_target_event_id: None,
+        pinned: false,
+        files_changed: Some(row.files_changed),
+        lines_added: Some(row.lines_added),
+        lines_removed: Some(row.lines_removed),
+        touched_files: Some(row.touched_files),
+    }
+}
+
+pub fn cursor_ide_history_to_aggregate_record(
+    row: CursorIdeSessionRow,
+    source_label: &str,
+) -> SessionAggregateRecord {
+    let display_label = generate_display_label(&row.name, None);
+    SessionAggregateRecord {
+        session_id: row.session_id,
+        name: row.name,
+        status: row.status,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        category: SessionCategory::Cli,
+        user_input: None,
+        repo_path: row.repo_path,
+        repo_name: row.repo_name,
+        branch: row.branch,
+        model: row.model,
+        account_id: None,
+        cli_agent_type: imported_history_cli_agent_type(source_label),
+        key_source: KeySource::OwnKey,
+        tier: None,
+        pid: None,
+        total_tokens: row.total_tokens,
+        worktree_path: None,
+        worktree_branch: None,
+        base_branch: None,
+        merge_status: None,
+        background: row.background,
+        org_id: None,
+        project_id: None,
+        project_name: None,
+        project_slug: None,
+        work_item_id: None,
+        agent_role: None,
+        is_active: row.is_active,
+        display_label,
+        parent_session_id: None,
+        org_member_id: None,
+        agent_org_id: None,
+        agent_org_name: None,
+        agent_definition_id: None,
+        agent_icon_id: None,
+        agent_display_name: Some(source_label.to_string()),
+        agent_exec_mode: None,
+        draft_text: None,
+        reply_target_event_id: None,
+        pinned: false,
+        files_changed: Some(row.files_changed),
+        lines_added: Some(row.lines_added),
+        lines_removed: Some(row.lines_removed),
+        touched_files: Some(row.touched_files),
     }
 }
 

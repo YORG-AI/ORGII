@@ -5,6 +5,7 @@
  * Uses the same INPUT_AREA_BUTTONS tokens as InputActions
  * so both submit buttons are visually identical.
  */
+import { useAtomValue } from "jotai";
 import { ArrowUp, Loader2 } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
@@ -13,6 +14,7 @@ import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut
 import Tooltip from "@src/components/Tooltip";
 import { INPUT_AREA_BUTTONS } from "@src/config/inputAreaTokens";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
+import { chatAppearanceAtom } from "@src/store/config/configAtom";
 
 // ============================================
 // Type Definitions
@@ -53,6 +55,7 @@ const LaunchButton: React.FC<LaunchButtonProps> = ({
   label,
 }) => {
   const { t } = useTranslation();
+  const { sendOnEnter } = useAtomValue(chatAppearanceAtom);
   const isActive = loading || !disabled;
   const stateClass = isActive
     ? INPUT_AREA_BUTTONS.iconButtonActive
@@ -105,7 +108,9 @@ const LaunchButton: React.FC<LaunchButtonProps> = ({
       content={
         <KeyboardShortcutTooltipContent
           label={label ?? t("common:actions.send")}
-          shortcut={getShortcutKeys("chat_send")}
+          shortcut={getShortcutKeys("chat_send", {
+            chatSendOnEnter: sendOnEnter,
+          })}
         />
       }
       position="top-end"

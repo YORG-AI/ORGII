@@ -21,6 +21,37 @@ import { useLayoutEffect, useRef } from "react";
 import { resetChunkReloadCount } from "@src/util/core/init/chunkReload";
 import { signalFirstPaintComplete } from "@src/util/core/init/deferredInit";
 
+function getStartupElapsedMs(): number | null {
+  const start = (
+    window as unknown as { __ORGII_STARTUP_TIMING_START__?: unknown }
+  ).__ORGII_STARTUP_TIMING_START__;
+  if (typeof start !== "number") {
+    return null;
+  }
+  return Math.round(performance.now() - start);
+}
+
+function isLocalDevOrigin(): boolean {
+  return (
+    window.location.protocol === "http:" &&
+    /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)
+  );
+}
+
+function emitFirstPaintMetric(): void {
+  if (!isLocalDevOrigin()) {
+    return;
+  }
+
+  void import("@tauri-apps/api/event")
+    .then(({ emit }) =>
+      emit("orgii-startup-first-paint", {
+        elapsedMs: getStartupElapsedMs(),
+      })
+    )
+    .catch(() => undefined);
+}
+
 export function useFirstPaintSignal(): void {
   const hasSignaledFirstPaint = useRef(false);
 
@@ -35,6 +66,7 @@ export function useFirstPaintSignal(): void {
 
         hasSignaledFirstPaint.current = true;
         signalFirstPaintComplete();
+        emitFirstPaintMetric();
 
         // The app committed its first paint — cancel the pre-bundle splash
         // watchdog (index.html) and clear the chunk-reload retry budget so a

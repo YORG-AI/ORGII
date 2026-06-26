@@ -8,7 +8,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 
-import { gitApi } from "@src/api/http/git";
+import { gitApi, removeGitWorktree } from "@src/api/http/git";
 import { ROUTES } from "@src/config/routes";
 import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
 import { showGitActionDialogSafely } from "@src/util/dialogs/gitActionDialog";
@@ -29,6 +29,12 @@ import {
   WorkspacePalette,
 } from "./palettes";
 import type { BranchPaletteMode } from "./palettes/BranchPalette";
+import type {
+  DeleteBranchOptions,
+  DeleteBranchResult,
+  RemoveWorktreeOptions,
+  RemoveWorktreeResult,
+} from "./palettes/BranchPalette/types";
 import type { EditorPaletteMode } from "./palettes/EditorPalette/types";
 import { useSelectorKernel } from "./palettes/core";
 import { PaletteBody, SpotlightShell } from "./shell";
@@ -209,10 +215,16 @@ const GlobalSpotlightInner: React.FC<
   );
 
   const handleDeleteBranch = useCallback(
-    async (branchName: string) => {
+    async (
+      branchName: string,
+      options?: DeleteBranchOptions
+    ): Promise<DeleteBranchResult> => {
       if (!selectedRepoId || !currentRepo) {
-        showGitActionDialogSafely("No repo selected", "error");
-        return;
+        const message = "No repo selected";
+        if (!options?.silent) {
+          showGitActionDialogSafely(message, "error");
+        }
+        return { success: false, message };
       }
 
       const success = await gitApi.gitDeleteBranch({
@@ -222,15 +234,59 @@ const GlobalSpotlightInner: React.FC<
       });
 
       if (!success) {
-        showGitActionDialogSafely(
-          `Failed to delete branch "${branchName}"`,
-          "error"
-        );
-        return;
+        const message = `Failed to delete branch "${branchName}"`;
+        if (!options?.silent) {
+          showGitActionDialogSafely(message, "error");
+        }
+        return { success: false, message };
       }
 
-      showGitActionDialogSafely(`Branch "${branchName}" deleted`, "info");
-      await refreshBranches();
+      if (!options?.silent) {
+        showGitActionDialogSafely(`Branch "${branchName}" deleted`, "info");
+      }
+      if (!options?.skipRefresh) {
+        await refreshBranches();
+      }
+      return { success: true };
+    },
+    [currentRepo, refreshBranches, selectedRepoId]
+  );
+
+  const handleRemoveWorktree = useCallback(
+    async (
+      worktreePath: string,
+      options?: RemoveWorktreeOptions
+    ): Promise<RemoveWorktreeResult> => {
+      if (!selectedRepoId || !currentRepo) {
+        const message = "No repo selected";
+        if (!options?.silent) {
+          showGitActionDialogSafely(message, "error");
+        }
+        return { success: false, message };
+      }
+
+      try {
+        await removeGitWorktree({
+          repo_id: selectedRepoId,
+          repo_path: currentRepo.path,
+          worktree_path: worktreePath,
+          force: true,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!options?.silent) {
+          showGitActionDialogSafely(message, "error");
+        }
+        return { success: false, message };
+      }
+
+      if (!options?.silent) {
+        showGitActionDialogSafely(`Worktree "${worktreePath}" removed`, "info");
+      }
+      if (!options?.skipRefresh) {
+        await refreshBranches();
+      }
+      return { success: true };
     },
     [currentRepo, refreshBranches, selectedRepoId]
   );
@@ -495,6 +551,7 @@ const GlobalSpotlightInner: React.FC<
       onSelect={handleBranchPickerSelect}
       onCreateBranch={handleCreateBranch}
       onDeleteBranch={handleDeleteBranch}
+      onRemoveWorktree={handleRemoveWorktree}
       onCheckoutDetached={handleCheckoutDetached}
       repoId={effectiveCurrentRepoId ?? ""}
       currentBranchName={selectedBranchName}

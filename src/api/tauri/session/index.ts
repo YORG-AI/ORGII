@@ -8,7 +8,10 @@ import type {
   AggregateStats,
   SessionAggregateRecord,
   SessionFilter,
+  SessionHeatmapFilter,
+  SessionHeatmapResponse,
   SessionListResponse,
+  SessionUsageSummary,
 } from "@src/api/tauri/rpc/schemas/sessionAggregate";
 import { normalizeAgentExecMode } from "@src/config/sessionCreatorConfig";
 import type { Session } from "@src/store/session/sessionAtom/types";
@@ -29,7 +32,10 @@ export type {
   AggregateStats,
   SessionAggregateRecord,
   SessionFilter,
+  SessionHeatmapFilter,
+  SessionHeatmapResponse,
   SessionListResponse,
+  SessionUsageSummary,
 };
 
 // ============================================================================
@@ -61,6 +67,22 @@ export async function sessionGetAggregateStats(
     sessionIds,
     keySource,
   }) as Promise<AggregateStats>;
+}
+
+export async function sessionUsageSummary(
+  sessionId: string
+): Promise<SessionUsageSummary> {
+  return rpc.sessionAggregate.usageSummary({
+    sessionId,
+  }) as Promise<SessionUsageSummary>;
+}
+
+export async function sessionHeatmap(
+  filter?: SessionHeatmapFilter
+): Promise<SessionHeatmapResponse> {
+  return rpc.sessionAggregate.heatmap({
+    filter,
+  }) as Promise<SessionHeatmapResponse>;
 }
 
 // ============================================================================

@@ -254,11 +254,11 @@ mod tests_extended {
 
     #[test]
     fn get_builtin_agents_count_matches_registry() {
-        // ADE Manager, base, os, sde, ai-research, wingman,
+        // ADE Manager, base, os, sde, ds, ai-research, wingman,
         // work-item-manager, explore, general, memory-extractor,
         // memory-consolidator  (gui-control merged into ADE Manager)
         let agents = get_builtin_agents();
-        assert_eq!(agents.len(), 11);
+        assert_eq!(agents.len(), 12);
     }
 
     // =========================================================================

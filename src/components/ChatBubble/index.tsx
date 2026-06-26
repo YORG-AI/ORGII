@@ -9,7 +9,12 @@
  * - ChatBubbleHeader: sender name + timestamp + optional extras
  * - ChatBubbleBody: rounded card with variant-based background
  */
-import React from "react";
+import { Copy } from "lucide-react";
+import React, { memo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
+
+import IconButton from "@src/components/IconButton";
+import Message from "@src/components/Message";
 
 export const CHAT_BUBBLE_WIDTH_TOKENS = {
   row: "flex gap-3 mx-auto w-full max-w-[900px] min-w-0 overflow-hidden",
@@ -101,6 +106,68 @@ export const ChatBubbleBody: React.FC<ChatBubbleBodyProps> = ({
     <div className="min-w-0 text-[13px] leading-relaxed">{children}</div>
   </div>
 );
+
+interface ChatBubbleCopyButtonProps {
+  content: string;
+  className?: string;
+  hoverGroupClass?: string;
+  placement?: "bubble-corner" | "message-corner" | "toolbar";
+}
+
+const ChatBubbleCopyButtonComponent: React.FC<ChatBubbleCopyButtonProps> = ({
+  content,
+  className = "",
+  hoverGroupClass = "group-hover/replay-msg:opacity-100",
+  placement = "bubble-corner",
+}) => {
+  const { t } = useTranslation("common");
+  const handleCopy = useCallback(
+    async (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      await navigator.clipboard.writeText(content);
+      Message.success(t("status.copied"));
+    },
+    [content, t]
+  );
+
+  if (!content.trim()) return null;
+
+  if (placement === "toolbar") {
+    return (
+      <button
+        type="button"
+        title={t("actions.copy")}
+        aria-label={t("actions.copy")}
+        className={`flex cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0.5 text-text-3 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30 ${className}`}
+        onClick={handleCopy}
+      >
+        <Copy size={14} strokeWidth={1.75} />
+      </button>
+    );
+  }
+
+  const cornerClass =
+    placement === "message-corner"
+      ? "absolute right-0 top-0 z-10"
+      : "absolute right-2 top-2 z-10";
+
+  return (
+    <IconButton
+      type="button"
+      title={t("actions.copy")}
+      aria-label={t("actions.copy")}
+      size="sm"
+      variant="default"
+      className={`${cornerClass} bg-chat-pane opacity-0 transition-opacity focus-visible:ring-2 focus-visible:ring-primary-6/30 ${hoverGroupClass} ${className}`}
+      onClick={handleCopy}
+    >
+      <Copy size={14} strokeWidth={1.75} />
+    </IconButton>
+  );
+};
+
+export const ChatBubbleCopyButton = memo(ChatBubbleCopyButtonComponent);
+ChatBubbleCopyButton.displayName = "ChatBubbleCopyButton";
 
 // ============================================
 // Layout — full bubble row (avatar + content column)

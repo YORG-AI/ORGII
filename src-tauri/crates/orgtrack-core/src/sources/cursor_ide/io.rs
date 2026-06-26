@@ -99,13 +99,16 @@ pub(super) fn load_complete_bubble_order(
         .map_err(|err| format!("Failed to prepare Cursor bubble range query: {}", err))?;
     let rows = stmt
         .query_map([prefix.as_str(), upper_bound.as_str()], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
         })
         .map_err(|err| format!("Failed to read Cursor bubble range: {}", err))?;
 
     for row in rows {
-        let (key, value) =
-            row.map_err(|err| format!("Failed to read Cursor bubble row: {}", err))?;
+        let (key, Some(value)) =
+            row.map_err(|err| format!("Failed to read Cursor bubble row: {}", err))?
+        else {
+            continue;
+        };
         let bubble_id_from_key = key.rsplit(':').next().unwrap_or_default().to_string();
         if bubble_id_from_key.is_empty() || bubble_id_from_key == "undefined" {
             continue;
@@ -160,7 +163,7 @@ pub(super) fn load_composer_for_order(
     composer_id: &str,
 ) -> Result<RawComposerForOrder, String> {
     let key = format!("composerData:{}", composer_id);
-    let json_str: String = match conn.query_row(
+    let json_str: Option<String> = match conn.query_row(
         "SELECT value FROM cursorDiskKV WHERE key = ?1",
         [&key],
         |row| row.get(0),
@@ -168,6 +171,9 @@ pub(super) fn load_composer_for_order(
         Ok(val) => val,
         Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(RawComposerForOrder::default()),
         Err(err) => return Err(format!("Failed to read composer {}: {}", composer_id, err)),
+    };
+    let Some(json_str) = json_str else {
+        return Ok(RawComposerForOrder::default());
     };
 
     serde_json::from_str(&json_str)
@@ -209,12 +215,16 @@ pub(super) fn load_bubbles_by_id(
             .map_err(|err| format!("Failed to prepare bubble query: {}", err))?;
         let rows = stmt
             .query_map(params_from_iter(keys), |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
             })
             .map_err(|err| format!("Failed to read bubbles: {}", err))?;
 
         for row in rows {
-            let (key, value) = row.map_err(|err| format!("Failed to read bubble row: {}", err))?;
+            let (key, Some(value)) =
+                row.map_err(|err| format!("Failed to read bubble row: {}", err))?
+            else {
+                continue;
+            };
             values_by_key.insert(key, value);
         }
     }
@@ -251,9 +261,10 @@ pub(super) fn load_content_blob(conn: &Connection, content_id: &str) -> Option<S
     conn.query_row(
         "SELECT value FROM cursorDiskKV WHERE key = ?1",
         [content_id],
-        |row| row.get::<_, String>(0),
+        |row| row.get::<_, Option<String>>(0),
     )
     .ok()
+    .flatten()
 }
 
 #[cfg(test)]

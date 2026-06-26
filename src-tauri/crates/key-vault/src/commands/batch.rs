@@ -89,6 +89,7 @@ pub async fn validate_keys_from_file() -> Result<Vec<KeyValidationSummary>, Stri
                 cred.base_url.clone(),
                 cred.session_token.clone(),
                 None, // No test_model for batch validation
+                None,
             )
             .await
             {

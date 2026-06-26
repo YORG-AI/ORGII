@@ -20,15 +20,13 @@ import {
   EventBlockHeaderIcon,
   EventBlockHeaderTitle,
 } from "@src/engines/ChatPanel/blocks/primitives";
-import { useMessageDispatch } from "@src/engines/ChatPanel/hooks/useWorkspaceChat/useMessageDispatch";
-import { beginOptimisticTurn } from "@src/engines/SessionCore/control/optimisticTurnStatus";
+import { useUserIntentSubmit } from "@src/engines/ChatPanel/hooks/useWorkspaceChat/useUserIntentSubmit";
 import { eventsAtom } from "@src/engines/SessionCore/core/atoms";
 import {
   type RawEventInput,
   useNormalizedEventProps,
 } from "@src/engines/SessionCore/rendering/props";
 import { useLifecycleLabels } from "@src/engines/SessionCore/rendering/registry";
-import { mintTurnIntentId } from "@src/engines/SessionCore/sync/adapters/shared/eventFactories";
 import { createLogger } from "@src/hooks/logger";
 import { isSessionActiveAtom } from "@src/store/session/cliSessionStatusAtom";
 import { activeSessionIdAtom } from "@src/store/session/viewAtom";
@@ -160,7 +158,7 @@ const ChatVariant: React.FC<{
   const isSessionActive = useAtomValue(isSessionActiveAtom);
   const events = useAtomValue(eventsAtom);
 
-  const { addUserMessage, dispatchMessageBySessionType } = useMessageDispatch({
+  const submitUserIntent = useUserIntentSubmit({
     getSessionId: () => sessionId,
   });
 
@@ -215,24 +213,13 @@ const ChatVariant: React.FC<{
       pendingRef.current = true;
       setSelectedIdx(idx);
 
-      beginOptimisticTurn(sessionId, "interactive-event");
-
       void (async () => {
         try {
-          // Mint one canonical user-intent id and use it for both the
-          // optimistic synthetic event and the wire dispatch so the turn
-          // indexer can collapse the two rows under a single round.
-          const turnIntentId = mintTurnIntentId();
-          await addUserMessage(step.command, undefined, turnIntentId);
-          await dispatchMessageBySessionType(
+          await submitUserIntent({
             sessionId,
-            step.command,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            turnIntentId
-          );
+            displayContent: step.command,
+            source: "interactive-event",
+          });
         } catch (err) {
           log.error("[NextStepEvent] send failed:", err);
           setSelectedIdx(null);
@@ -241,14 +228,7 @@ const ChatVariant: React.FC<{
         }
       })();
     },
-    [
-      canInteract,
-      isPreviewMode,
-      steps,
-      sessionId,
-      addUserMessage,
-      dispatchMessageBySessionType,
-    ]
+    [canInteract, isPreviewMode, steps, sessionId, submitUserIntent]
   );
 
   if (isLoading) {

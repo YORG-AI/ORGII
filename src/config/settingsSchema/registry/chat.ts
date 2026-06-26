@@ -39,4 +39,10 @@ export const CHAT_SETTINGS_REGISTRY = {
     description: "Enable decrypt text animation effect for agent responses",
     category: "chat",
   },
+  "chat.sendOnEnter": {
+    schema: z.boolean(),
+    default: false,
+    description: "Send chat messages with Enter instead of Ctrl/Cmd+Enter",
+    category: "chat",
+  },
 } as const satisfies Record<string, SettingDefinition>;

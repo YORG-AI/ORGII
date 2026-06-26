@@ -172,6 +172,30 @@ mod tests {
     }
 
     #[test]
+    fn restore_redo_snapshot_reapplies_rewound_changes() {
+        with_sandbox(|sandbox| {
+            let project = sandbox.join("proj");
+            fs::create_dir_all(&project).unwrap();
+            let file = project.join("a.txt");
+            fs::write(&file, b"v1").unwrap();
+
+            let sid = "sess-redo";
+            let snap = make_snapshot(sid).unwrap();
+            track_edit(sid, &snap, &file).unwrap();
+
+            fs::write(&file, b"v2").unwrap();
+            let redo_snapshot_id = make_tool_snapshot(sid, std::slice::from_ref(&file)).unwrap();
+
+            restore_snapshot(sid, &snap).unwrap();
+            assert_eq!(fs::read(&file).unwrap(), b"v1");
+
+            let redo_stats = restore_snapshot(sid, &redo_snapshot_id).unwrap();
+            assert_eq!(redo_stats.restored, 1);
+            assert_eq!(fs::read(&file).unwrap(), b"v2");
+        });
+    }
+
+    #[test]
     fn track_edit_is_idempotent_first_capture_wins() {
         with_sandbox(|sandbox| {
             let project = sandbox.join("proj");

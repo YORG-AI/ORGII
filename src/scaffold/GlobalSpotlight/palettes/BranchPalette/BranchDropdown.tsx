@@ -9,7 +9,7 @@
  * Chosen by `general.modelPickerStyle === "dropdown"`. Falls through to
  * `BranchPalette` (Spotlight) otherwise.
  */
-import { Check, GitBranch, Search } from "lucide-react";
+import { Check, GitBranch, GitFork, Search } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -65,6 +65,8 @@ const BranchRow: React.FC<BranchRowProps> = ({
       <span className="flex h-5 w-5 shrink-0 items-center justify-center">
         {isCurrent ? (
           <Check size={DROPDOWN_ITEM.iconSize} className="text-primary-6" />
+        ) : branch.worktreePath ? (
+          <GitFork size={DROPDOWN_ITEM.iconSize} className="text-text-2" />
         ) : (
           <GitBranch size={DROPDOWN_ITEM.iconSize} className="text-text-2" />
         )}

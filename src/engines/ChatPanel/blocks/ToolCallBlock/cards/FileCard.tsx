@@ -3,6 +3,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import FileTypeIcon from "@src/components/FileTypeIcon";
+import { formatPathForPlatformDisplay } from "@src/util/file/repoPathDisplay";
 import { openFileInEditor } from "@src/util/ui/openFileInEditor";
 
 import type { FileCardData } from "../types";
@@ -21,6 +22,8 @@ interface FileCardProps {
 const FileCard: React.FC<FileCardProps> = ({ card }) => {
   const { t } = useTranslation("sessions");
 
+  const displayPath = formatPathForPlatformDisplay(card.path);
+
   function handleOpen() {
     openFileInEditor(card.path);
   }
@@ -37,7 +40,7 @@ const FileCard: React.FC<FileCardProps> = ({ card }) => {
         </div>
         <div className="mt-0.5 flex items-center gap-1.5 text-text-4">
           <span className="chat-block-content truncate text-xs">
-            {card.path}
+            {displayPath}
           </span>
           {card.sizeBytes !== undefined && (
             <>

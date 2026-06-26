@@ -127,6 +127,8 @@
     "uiScale": "UIスケール",
     "timezoneAuto": "自動（ブラウザ）",
     "timezoneSearchPlaceholder": "近くの都市を検索",
+    "sendOnEnter": "Enter でメッセージを送信",
+    "sendOnEnterDesc": "有効にすると Enter で送信し、Shift+Enter で改行します。無効の場合は Ctrl/Cmd+Enter で送信します。",
     "language": "言語",
     "languageSearchPlaceholder": "言語を検索...",
     "languageNames": {
@@ -975,7 +977,9 @@
     "typingSpeed": "タイピング速度",
     "typingSpeedDesc": "1文字あたりのミリ秒（1ms = 最速、50ms = 最遅）",
     "decryptEffect": "Decrypt エフェクト",
-    "decryptEffectDesc": "Agent メッセージに Decrypt アニメーションを有効にする"
+    "decryptEffectDesc": "Agent メッセージに Decrypt アニメーションを有効にする",
+    "sendOnEnter": "Enter でメッセージを送信",
+    "sendOnEnterDesc": "有効にすると Enter で送信し、Shift+Enter で改行します。無効の場合は Ctrl/Cmd+Enter で送信します。"
   },
   "languageServers": {
     "languageServersDesc": "オートコンプリート、診断、コードインテリジェンスのためのLSPサーバーを管理",

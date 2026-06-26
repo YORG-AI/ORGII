@@ -29,6 +29,9 @@ export const TreeSectionHeader: React.FC<TreeSectionHeaderProps> = ({
     expanded: !collapsed,
   };
 
+  const countBadgeVariant =
+    count === 0 ? COUNT_BADGE.muted : COUNT_BADGE.primary;
+
   return (
     <TreeRowBase
       node={node}
@@ -39,7 +42,7 @@ export const TreeSectionHeader: React.FC<TreeSectionHeaderProps> = ({
     >
       {count != null && (
         <span
-          className={`${COUNT_BADGE.base} ${getCountBadgeSizeClass(count)} ${COUNT_BADGE.primary}`}
+          className={`${COUNT_BADGE.base} ${getCountBadgeSizeClass(count)} ${countBadgeVariant}`}
         >
           {count}
         </span>

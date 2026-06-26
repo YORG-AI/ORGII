@@ -212,10 +212,11 @@ pub(super) fn composer_source_updated_at(
             .query_row(
                 "SELECT value FROM cursorDiskKV WHERE key = ?1",
                 [key],
-                |row| row.get(0),
+                |row| row.get::<_, Option<String>>(0),
             )
             .optional()
-            .map_err(|err| format!("Failed to read Cursor latest bubble timestamp: {}", err))?;
+            .map_err(|err| format!("Failed to read Cursor latest bubble timestamp: {}", err))?
+            .flatten();
         if let Some(value) = bubble_json {
             if let Ok(raw) = serde_json::from_str::<RawBubble>(&value) {
                 let bubble_updated_at = parse_iso_to_epoch_ms(&raw.created_at);

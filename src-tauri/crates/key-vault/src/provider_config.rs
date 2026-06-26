@@ -18,6 +18,47 @@ pub struct ProviderConfig {
     pub supports_base_url: bool,
     /// Default base URL for API calls (used when user doesn't provide one)
     pub default_base_url: Option<String>,
+    pub supported_protocols: Vec<String>,
+    pub default_protocol: String,
+}
+
+impl ProviderConfig {
+    fn new(
+        api_key_env_var: &str,
+        base_url_env_var: Option<&str>,
+        supports_base_url: bool,
+        default_base_url: Option<&str>,
+    ) -> Self {
+        Self::with_protocols(
+            api_key_env_var,
+            base_url_env_var,
+            supports_base_url,
+            default_base_url,
+            &["openai"],
+            "openai",
+        )
+    }
+
+    fn with_protocols(
+        api_key_env_var: &str,
+        base_url_env_var: Option<&str>,
+        supports_base_url: bool,
+        default_base_url: Option<&str>,
+        supported_protocols: &[&str],
+        default_protocol: &str,
+    ) -> Self {
+        Self {
+            api_key_env_var: api_key_env_var.to_string(),
+            base_url_env_var: base_url_env_var.map(str::to_string),
+            supports_base_url,
+            default_base_url: default_base_url.map(str::to_string),
+            supported_protocols: supported_protocols
+                .iter()
+                .map(|value| value.to_string())
+                .collect(),
+            default_protocol: default_protocol.to_string(),
+        }
+    }
 }
 
 /// Get provider configuration for a given model type.
@@ -26,163 +67,125 @@ pub struct ProviderConfig {
 /// This is the single source of truth - frontend should NOT duplicate these values.
 pub fn get_provider_config(model_type: &str) -> ProviderConfig {
     match model_type.to_lowercase().as_str() {
-        // === CLI Agents ===
-        "cursor_cli" => ProviderConfig {
-            api_key_env_var: "CURSOR_API_KEY".to_string(),
-            base_url_env_var: None,
-            supports_base_url: false,
-            default_base_url: None,
-        },
-        "claude_code" => ProviderConfig {
-            api_key_env_var: "ANTHROPIC_API_KEY".to_string(),
-            base_url_env_var: None,
-            supports_base_url: false,
-            default_base_url: None,
-        },
-        "codex" => ProviderConfig {
-            api_key_env_var: "OPENAI_API_KEY".to_string(),
-            base_url_env_var: None,
-            supports_base_url: false,
-            default_base_url: None,
-        },
-        "gemini_cli" => ProviderConfig {
-            api_key_env_var: "GEMINI_API_KEY".to_string(),
-            base_url_env_var: None,
-            supports_base_url: false,
-            default_base_url: None,
-        },
-        "copilot" => ProviderConfig {
-            api_key_env_var: "GITHUB_TOKEN".to_string(),
-            base_url_env_var: None,
-            supports_base_url: false,
-            default_base_url: None,
-        },
-        "kiro" => ProviderConfig {
-            api_key_env_var: "KIRO_SESSION_TOKEN".to_string(),
-            base_url_env_var: None,
-            supports_base_url: false,
-            default_base_url: None,
-        },
-        "kimi_cli" => ProviderConfig {
-            api_key_env_var: "MOONSHOT_API_KEY".to_string(),
-            base_url_env_var: Some("MOONSHOT_BASE_URL".to_string()),
-            supports_base_url: true,
-            default_base_url: Some("https://api.moonshot.cn/v1".to_string()),
-        },
-        "opencode" => ProviderConfig {
-            api_key_env_var: "OPENCODE_API_KEY".to_string(),
-            base_url_env_var: None,
-            supports_base_url: false,
-            default_base_url: None,
-        },
-
-        // === Direct API Key Providers ===
-        "anthropic_api" => ProviderConfig {
-            api_key_env_var: "ANTHROPIC_API_KEY".to_string(),
-            base_url_env_var: None,
-            supports_base_url: true,
-            default_base_url: Some("https://api.anthropic.com/v1".to_string()),
-        },
-        "openai_api" => ProviderConfig {
-            api_key_env_var: "OPENAI_API_KEY".to_string(),
-            base_url_env_var: None,
-            supports_base_url: true,
-            default_base_url: Some("https://api.openai.com/v1".to_string()),
-        },
-        "deepseek_api" => ProviderConfig {
-            api_key_env_var: "DEEPSEEK_API_KEY".to_string(),
-            base_url_env_var: None,
-            supports_base_url: true,
-            default_base_url: Some("https://api.deepseek.com".to_string()),
-        },
-        "gemini_api" => ProviderConfig {
-            api_key_env_var: "GEMINI_API_KEY".to_string(),
-            base_url_env_var: None,
-            supports_base_url: true,
-            default_base_url: Some("https://generativelanguage.googleapis.com/v1beta".to_string()),
-        },
-        "groq_api" => ProviderConfig {
-            api_key_env_var: "GROQ_API_KEY".to_string(),
-            base_url_env_var: None,
-            supports_base_url: true,
-            default_base_url: Some("https://api.groq.com/openai/v1".to_string()),
-        },
-        "xai_api" => ProviderConfig {
-            api_key_env_var: "XAI_API_KEY".to_string(),
-            base_url_env_var: None,
-            supports_base_url: true,
-            default_base_url: Some("https://api.x.ai/v1".to_string()),
-        },
-        "zhipu_api" => ProviderConfig {
-            api_key_env_var: "ZHIPU_API_KEY".to_string(),
-            base_url_env_var: None,
-            supports_base_url: true,
-            default_base_url: Some("https://open.bigmodel.cn/api/paas/v4".to_string()),
-        },
-        "dashscope_api" => ProviderConfig {
-            api_key_env_var: "DASHSCOPE_API_KEY".to_string(),
-            base_url_env_var: None,
-            supports_base_url: true,
-            default_base_url: Some("https://dashscope.aliyuncs.com/compatible-mode/v1".to_string()),
-        },
-        "moonshot_api" => ProviderConfig {
-            api_key_env_var: "MOONSHOT_API_KEY".to_string(),
-            base_url_env_var: None,
-            supports_base_url: true,
-            default_base_url: Some("https://api.moonshot.cn/v1".to_string()),
-        },
-        "openrouter_api" => ProviderConfig {
-            api_key_env_var: "OPENROUTER_API_KEY".to_string(),
-            base_url_env_var: None,
-            supports_base_url: true,
-            default_base_url: Some("https://openrouter.ai/api/v1".to_string()),
-        },
-        "zenmux_api" => ProviderConfig {
-            api_key_env_var: "ZENMUX_API_KEY".to_string(),
-            base_url_env_var: None,
-            supports_base_url: true,
-            default_base_url: Some("https://zenmux.ai/api/v1".to_string()),
-        },
-        "minimax_api" => ProviderConfig {
-            api_key_env_var: "MINIMAX_API_KEY".to_string(),
-            base_url_env_var: None,
-            supports_base_url: true,
-            default_base_url: Some("https://api.minimax.io/v1".to_string()),
-        },
-        "vllm_api" => ProviderConfig {
-            api_key_env_var: "VLLM_API_KEY".to_string(),
-            base_url_env_var: None,
-            supports_base_url: true,
-            default_base_url: Some("http://localhost:8000/v1".to_string()),
-        },
-        "azure_openai_api" => ProviderConfig {
-            api_key_env_var: "AZURE_OPENAI_API_KEY".to_string(),
-            base_url_env_var: Some("AZURE_OPENAI_ENDPOINT".to_string()),
-            supports_base_url: true,
-            // No default - user must provide their Azure resource endpoint
-            default_base_url: None,
-        },
-        "azure_anthropic_api" => ProviderConfig {
-            api_key_env_var: "AZURE_ANTHROPIC_API_KEY".to_string(),
-            base_url_env_var: Some("AZURE_ANTHROPIC_ENDPOINT".to_string()),
-            supports_base_url: true,
-            // No default - user must provide their Azure resource endpoint
-            default_base_url: None,
-        },
-        "orgii_orchestrator" => ProviderConfig {
-            api_key_env_var: "ORGII_API_KEY".to_string(),
-            base_url_env_var: None,
-            supports_base_url: true,
-            default_base_url: Some("https://api.orgii.ai/v1".to_string()),
-        },
-
-        // Unknown provider - return generic defaults
-        _ => ProviderConfig {
-            api_key_env_var: "API_KEY".to_string(),
-            base_url_env_var: None,
-            supports_base_url: false,
-            default_base_url: None,
-        },
+        "cursor_cli" => ProviderConfig::new("CURSOR_API_KEY", None, false, None),
+        "claude_code" => ProviderConfig::with_protocols(
+            "ANTHROPIC_API_KEY",
+            None,
+            false,
+            None,
+            &["anthropic"],
+            "anthropic",
+        ),
+        "codex" => ProviderConfig::new("OPENAI_API_KEY", None, false, None),
+        "gemini_cli" => ProviderConfig::new("GEMINI_API_KEY", None, false, None),
+        "copilot" => ProviderConfig::new("GITHUB_TOKEN", None, false, None),
+        "kiro" => ProviderConfig::new("KIRO_SESSION_TOKEN", None, false, None),
+        "kimi_cli" => ProviderConfig::new(
+            "MOONSHOT_API_KEY",
+            Some("MOONSHOT_BASE_URL"),
+            true,
+            Some("https://api.moonshot.cn/v1"),
+        ),
+        "opencode" => ProviderConfig::new("OPENCODE_API_KEY", None, false, None),
+        "anthropic_api" => ProviderConfig::with_protocols(
+            "ANTHROPIC_API_KEY",
+            None,
+            true,
+            Some("https://api.anthropic.com/v1"),
+            &["anthropic"],
+            "anthropic",
+        ),
+        "openai_api" => ProviderConfig::new(
+            "OPENAI_API_KEY",
+            None,
+            true,
+            Some("https://api.openai.com/v1"),
+        ),
+        "deepseek_api" => ProviderConfig::new(
+            "DEEPSEEK_API_KEY",
+            None,
+            true,
+            Some("https://api.deepseek.com"),
+        ),
+        "gemini_api" => ProviderConfig::new(
+            "GEMINI_API_KEY",
+            None,
+            true,
+            Some("https://generativelanguage.googleapis.com/v1beta"),
+        ),
+        "groq_api" => ProviderConfig::new(
+            "GROQ_API_KEY",
+            None,
+            true,
+            Some("https://api.groq.com/openai/v1"),
+        ),
+        "xai_api" => ProviderConfig::new("XAI_API_KEY", None, true, Some("https://api.x.ai/v1")),
+        "zhipu_api" => ProviderConfig::with_protocols(
+            "ZHIPU_API_KEY",
+            None,
+            true,
+            Some("https://open.bigmodel.cn/api/paas/v4"),
+            &["openai", "anthropic"],
+            "openai",
+        ),
+        "dashscope_api" => ProviderConfig::new(
+            "DASHSCOPE_API_KEY",
+            None,
+            true,
+            Some("https://dashscope.aliyuncs.com/compatible-mode/v1"),
+        ),
+        "moonshot_api" => ProviderConfig::new(
+            "MOONSHOT_API_KEY",
+            None,
+            true,
+            Some("https://api.moonshot.cn/v1"),
+        ),
+        "openrouter_api" => ProviderConfig::new(
+            "OPENROUTER_API_KEY",
+            None,
+            true,
+            Some("https://openrouter.ai/api/v1"),
+        ),
+        "zenmux_api" => ProviderConfig::with_protocols(
+            "ZENMUX_API_KEY",
+            None,
+            true,
+            Some("https://zenmux.ai/api/v1"),
+            &["openai", "anthropic"],
+            "openai",
+        ),
+        "minimax_api" => ProviderConfig::new(
+            "MINIMAX_API_KEY",
+            None,
+            true,
+            Some("https://api.minimax.io/v1"),
+        ),
+        "vllm_api" => ProviderConfig::with_protocols(
+            "VLLM_API_KEY",
+            None,
+            true,
+            Some("http://localhost:8000/v1"),
+            &["openai", "anthropic"],
+            "openai",
+        ),
+        "azure_openai_api" => ProviderConfig::new(
+            "AZURE_OPENAI_API_KEY",
+            Some("AZURE_OPENAI_ENDPOINT"),
+            true,
+            None,
+        ),
+        "azure_anthropic_api" => ProviderConfig::with_protocols(
+            "AZURE_ANTHROPIC_API_KEY",
+            Some("AZURE_ANTHROPIC_ENDPOINT"),
+            true,
+            None,
+            &["anthropic"],
+            "anthropic",
+        ),
+        "orgii_orchestrator" => {
+            ProviderConfig::new("ORGII_API_KEY", None, true, Some("https://api.orgii.ai/v1"))
+        }
+        _ => ProviderConfig::new("API_KEY", None, false, None),
     }
 }
 
@@ -267,6 +270,8 @@ mod tests {
             config.default_base_url,
             Some("https://zenmux.ai/api/v1".to_string())
         );
+        assert_eq!(config.supported_protocols, vec!["openai", "anthropic"]);
+        assert_eq!(config.default_protocol, "openai");
     }
 
     #[test]

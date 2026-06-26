@@ -420,6 +420,8 @@
     "roundDetail": "Round {{index}}",
     "inputTokens": "输入",
     "outputTokens": "输出",
+    "cacheWriteTokens": "Cache write {{count}}",
+    "cacheReadTokens": "Cache read {{count}}",
     "noRoundData": "无 Round 级别数据",
     "colDate": "日期",
     "colAgent": "Agent",

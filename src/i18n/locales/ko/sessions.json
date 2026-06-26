@@ -713,10 +713,41 @@
       },
       "tabs": {
         "work": "작업",
-        "explore": "탐색"
+        "explore": "탐색",
+        "heatmap": "Heat map"
+      },
+      "heatmap": {
+        "loading": "활동 Heat map 로드 중…",
+        "empty": "아직 세션 활동이 없습니다.",
+        "sessions": "세션",
+        "tokens": "Tokens",
+        "cost": "비용"
       },
       "exploreRepos": {
         "title": "Repos 탐색"
+      },
+      "hints": {
+        "skill": {
+          "before": "Use",
+          "after": "to link a skill or tool"
+        },
+        "ask": {
+          "before": "Use",
+          "after": "to ask questions about the codebase"
+        },
+        "plan": {
+          "before": "Use",
+          "after": "to plan before building"
+        },
+        "switch": {
+          "before": "Use",
+          "after": "to switch sections"
+        },
+        "previous": "Previous hint",
+        "next": "Next hint"
+      },
+      "manageIssues": {
+        "title": "Issues 관리"
       }
     },
     "defaultTitle": "채팅",
@@ -894,6 +925,18 @@
       "showLess": "간략히 보기",
       "showMore_one": "{{count}}개 더 보기",
       "showMore_other": "{{count}}개 더 보기"
+    },
+    "manageIssues": {
+      "title": "Issues 관리",
+      "myWork": "내 작업",
+      "allRepositories": "모든 Repos",
+      "newIssue": "새 Issue",
+      "tabs": {
+        "all": "전체",
+        "active": "활성",
+        "reviewRequests": "Review 요청",
+        "done": "완료"
+      }
     }
   },
   "chatStatus": {
@@ -2252,6 +2295,7 @@
         "index": "인덱스",
         "reindex": "다시 인덱스",
         "cancel": "취소",
+        "stop": "중지",
         "clear": "지우기",
         "refresh": "새로고침"
       },

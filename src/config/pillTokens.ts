@@ -96,25 +96,6 @@ declare global {
       text: string;
       timestamp: number;
     };
-    __orgiiLastPrDrag?: {
-      prNumber: number;
-      prTitle: string;
-      prUrl: string;
-      prStatus: string;
-      sourceBranch?: string;
-      targetBranch?: string;
-      timestamp: number;
-    };
-    __orgiiLastIssueDrag?: {
-      issueNumber: number;
-      issueTitle: string;
-      issueUrl: string;
-      issueState: string;
-      labels?: string[];
-      assignees?: string[];
-      comments?: number;
-      timestamp: number;
-    };
   }
 }
 

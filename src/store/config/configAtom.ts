@@ -82,6 +82,8 @@ export interface ChatAppearanceSettings {
   typingSpeed: number;
   /** Enable decrypt text animation effect */
   decryptEffectEnabled: boolean;
+  /** Send messages with Enter instead of Ctrl/Cmd+Enter */
+  sendOnEnter: boolean;
 }
 
 export const DEFAULT_CHAT_APPEARANCE: ChatAppearanceSettings = {
@@ -91,6 +93,7 @@ export const DEFAULT_CHAT_APPEARANCE: ChatAppearanceSettings = {
   typingEffectEnabled: true,
   typingSpeed: 5,
   decryptEffectEnabled: false,
+  sendOnEnter: false,
 };
 
 /** Chat appearance derived from central settings */
@@ -110,6 +113,8 @@ export const chatAppearanceAtom = atom<ChatAppearanceSettings>((get) => {
     decryptEffectEnabled:
       settings["chat.decryptEffectEnabled"] ??
       DEFAULT_CHAT_APPEARANCE.decryptEffectEnabled,
+    sendOnEnter:
+      settings["chat.sendOnEnter"] ?? DEFAULT_CHAT_APPEARANCE.sendOnEnter,
   };
 });
 chatAppearanceAtom.debugLabel = "chatAppearanceAtom";
@@ -127,6 +132,7 @@ export const chatAppearancePersistAtom = atom(
       "chat.typingEffectEnabled": merged.typingEffectEnabled,
       "chat.typingSpeed": merged.typingSpeed,
       "chat.decryptEffectEnabled": merged.decryptEffectEnabled,
+      "chat.sendOnEnter": merged.sendOnEnter,
     });
   }
 );

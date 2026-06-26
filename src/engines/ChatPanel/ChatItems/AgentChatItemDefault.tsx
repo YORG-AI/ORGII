@@ -2,6 +2,7 @@ import Button from "@/src/components/Button";
 import { useAtomValue } from "jotai";
 import React, { useEffect, useState } from "react";
 
+import { ChatBubbleCopyButton } from "@src/components/ChatBubble";
 import Markdown from "@src/components/MarkDown";
 import { isThemeCssPathDark } from "@src/config/appearance/globalThemes";
 import { themesAtom } from "@src/store";
@@ -52,9 +53,16 @@ const AgentChatItemDefault: React.FC<AgentChatItemProps> = ({
         {isShow && (
           <>
             <div
-              className="chat-text flex flex-col items-start gap-3 self-stretch text-text-1"
+              className="chat-text relative flex flex-col items-start gap-3 self-stretch text-text-1"
               data-testid="chat-message-assistant"
             >
+              {!isStreaming && children && (
+                <ChatBubbleCopyButton
+                  content={children}
+                  hoverGroupClass="group-hover/agent-msg:opacity-100"
+                  placement="message-corner"
+                />
+              )}
               <div className="resultBgc allow-select w-full overflow-visible break-words font-normal">
                 {isStreaming ? (
                   children?.length > 0 ? (

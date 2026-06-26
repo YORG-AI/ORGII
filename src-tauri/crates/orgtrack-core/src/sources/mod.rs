@@ -46,3 +46,4 @@ pub mod opencode;
 pub mod orgii_cli;
 pub mod orgii_rust_agents;
 pub mod windsurf;
+pub mod workbuddy;

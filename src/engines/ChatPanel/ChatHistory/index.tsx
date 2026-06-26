@@ -153,7 +153,15 @@ export interface FollowAgentNavState {
   onFollowAgent: () => void;
 }
 
-export interface ScrollNavState extends FollowAgentNavState {
+export interface BrowserAddToConversationNavState {
+  showAddToConversation: boolean;
+  addToConversationLabel: string;
+  addToConversationTooltipLabel: string;
+  onAddToConversation: () => void;
+}
+
+export interface ScrollNavState
+  extends FollowAgentNavState, BrowserAddToConversationNavState {
   showScrollToBottom: boolean;
   onScrollToBottom: () => void;
 }
@@ -165,6 +173,14 @@ const EMPTY_FOLLOW_AGENT_NAV: FollowAgentNavState = {
   followAgentShortcut: "",
   onFollowAgent: () => undefined,
 };
+
+const EMPTY_BROWSER_ADD_TO_CONVERSATION_NAV: BrowserAddToConversationNavState =
+  {
+    showAddToConversation: false,
+    addToConversationLabel: "",
+    addToConversationTooltipLabel: "",
+    onAddToConversation: () => undefined,
+  };
 
 interface ChatHistoryProps {
   /** Opaque background class for sticky headers. Must match the container surface. */
@@ -183,6 +199,7 @@ interface ChatHistoryProps {
   /** Called whenever scroll-nav visibility state changes. Used by ChatView to render buttons in the pill row. */
   onScrollNavChange?: (state: ScrollNavState) => void;
   followAgentNav?: FollowAgentNavState;
+  browserAddToConversationNav?: BrowserAddToConversationNavState;
   onRegisterSearchOpen?: (handler: (() => void) | null) => void;
   displayMode?: ChatHistoryDisplayMode;
   turnPaginationEnabled?: boolean;
@@ -269,6 +286,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
   onAgentOrgRunViewRefresh,
   onScrollNavChange,
   followAgentNav = EMPTY_FOLLOW_AGENT_NAV,
+  browserAddToConversationNav = EMPTY_BROWSER_ADD_TO_CONVERSATION_NAV,
   onRegisterSearchOpen,
   displayMode = "full",
   turnPaginationEnabled = true,
@@ -332,6 +350,12 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     followAgentShortcut,
     onFollowAgent,
   } = followAgentNav;
+  const {
+    showAddToConversation,
+    addToConversationLabel,
+    addToConversationTooltipLabel,
+    onAddToConversation,
+  } = browserAddToConversationNav;
 
   const { hasPinnedContent: hasPinnedContentRaw } = usePinnedContent();
   // Subagent panes opt out of in-history pinned bars; they surface the same
@@ -422,6 +446,8 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     );
   }, []);
 
+  const defaultTurnCollapsed = forceCollapseAllTurns;
+
   // --- Grouping for virtualized chat rows ---
   //
   // `useChatGroups` applies the shared "Agent worked for …" collapse
@@ -443,6 +469,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     isAgentWorking,
     collapseTailWhenIdle,
     forceCollapseAllTurns,
+    defaultTurnCollapsed,
     allTurnsCollapsed:
       collapseAllCommand.epoch > 0 && collapseAllCommand.collapsed
         ? true
@@ -546,10 +573,20 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
   });
   const planningIndicatorEnabled =
     !turnPaginationEnabled || currentPageIndex >= pageCount - 1;
+  const collapseStateKey = useMemo(() => {
+    const overrideKey = Array.from(turnCollapseOverrides.entries())
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([turnId, collapsed]) => `${turnId}:${collapsed ? 1 : 0}`)
+      .join("|");
+    return `${collapseAllCommand.epoch}:${collapseAllCommand.collapsed ? 1 : 0}:${overrideKey}`;
+  }, [collapseAllCommand, turnCollapseOverrides]);
   const virtualListGroupShapeKey = displayGroupCounts.join(",");
+  const virtualListItemShapeKey = displayFlatItems
+    .map((item) => item.chunk_id)
+    .join(",");
   const virtualListDataKey = `${activeId ?? "no-session"}:${
     turnPaginationEnabled ? `page-${currentPageIndex}` : "all"
-  }:${virtualListGroupShapeKey}`;
+  }:${virtualListGroupShapeKey}:${virtualListItemShapeKey}:${collapseStateKey}`;
 
   // --- Empty-state grace period ---
   const optimizedLen = chatHistory.length;
@@ -583,6 +620,25 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
   }, [onRegisterSearchOpen, handleOpenSearch]);
 
   const visibleRangeEndRef = useRef(0);
+  const [activePinnedGroupIndex, setActivePinnedGroupIndex] = useState(0);
+  const [activeGroupPinned, setActiveGroupPinned] = useState(false);
+  const handleActiveGroupIndexChange = useCallback(
+    (groupIndex: number, pinned: boolean) => {
+      setActivePinnedGroupIndex((previousIndex) =>
+        previousIndex === groupIndex ? previousIndex : groupIndex
+      );
+      setActiveGroupPinned((previousPinned) =>
+        previousPinned === pinned ? previousPinned : pinned
+      );
+    },
+    []
+  );
+  useEffect(() => {
+    setActivePinnedGroupIndex((previousIndex) =>
+      Math.min(previousIndex, Math.max(0, displayGroupCounts.length - 1))
+    );
+    setActiveGroupPinned(false);
+  }, [activeId, currentPageIndex, displayGroupCounts.length]);
 
   // Shared scroll intent refs — owned here, passed into scroll hooks so
   // they coordinate without re-renders.
@@ -637,19 +693,14 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
           root.scrollHeight,
           root.clientHeight,
           footerSpacerHeight,
-          bottomInset,
         ].join(":");
         if (measurementKey === lastMeasurementKey) return;
         lastMeasurementKey = measurementKey;
 
-        const contentBottom = Math.max(
-          0,
-          root.scrollHeight - footerSpacerHeight
-        );
-        const visibleBottom =
-          root.scrollTop + root.clientHeight - Math.max(0, bottomInset);
+        const distanceToPhysicalBottom =
+          root.scrollHeight - root.scrollTop - root.clientHeight;
         const nextVisible =
-          contentBottom - visibleBottom <= SCROLL_NAV_SHOW_THRESHOLD_PX;
+          distanceToPhysicalBottom <= SCROLL_NAV_SHOW_THRESHOLD_PX;
         setIsBottomSentinelVisible((previousVisible) =>
           previousVisible === nextVisible ? previousVisible : nextVisible
         );
@@ -674,7 +725,6 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     };
   }, [
     activeId,
-    bottomInset,
     displayTotalFlatItems,
     footerSpacerHeight,
     staticScrollerRef,
@@ -725,8 +775,6 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     activeId,
     groupCounts: displayGroupCounts,
     totalFlatItems: displayTotalFlatItems,
-    footerSpacerHeight,
-    bottomInset,
     sessionLoadStatus,
     virtuosoScrollerRef,
     atBottom,
@@ -752,6 +800,10 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
       followAgentTooltipLabel,
       followAgentShortcut,
       onFollowAgent,
+      showAddToConversation,
+      addToConversationLabel,
+      addToConversationTooltipLabel,
+      onAddToConversation,
     });
   }, [
     showScrollToBottom,
@@ -761,6 +813,10 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     followAgentTooltipLabel,
     followAgentShortcut,
     onFollowAgent,
+    showAddToConversation,
+    addToConversationLabel,
+    addToConversationTooltipLabel,
+    onAddToConversation,
     onScrollNavChange,
   ]);
 
@@ -879,6 +935,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     turnPaginationEnabled,
     collapseTailWhenIdle,
     hideUserMessage: hideGroupUserMessage,
+    defaultTurnCollapsed,
     turnCollapseInteractionAtRef,
     onEditSubmit: mutationActionsDisabled ? undefined : handleEditUserMessage,
     onRestoreCheckpoint: mutationActionsDisabled
@@ -886,8 +943,22 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
       : handleHeaderRestoreCheckpoint,
   });
 
+  const activePinnedDisplayGroupIndex =
+    activePinnedGroupIndex < displayGroupHeaders.length
+      ? activePinnedGroupIndex
+      : 0;
+  const activePinnedHeader = displayGroupHeaders[activePinnedDisplayGroupIndex];
+  const activePinnedMeta = displayGroupMeta[activePinnedDisplayGroupIndex];
+  const activePinnedSourceGroupIndex =
+    displaySourceGroupIndices[activePinnedDisplayGroupIndex];
+  const hasPinnedHeaderContent =
+    displayTotalFlatItems > 0 ||
+    (turnPaginationEnabled && Boolean(activePinnedHeader));
   const showPinnedTurnHeader =
-    turnPaginationEnabled && !turnPageListOpen && !agentOrgOverviewOpen;
+    hasPinnedHeaderContent &&
+    !turnPageListOpen &&
+    !agentOrgOverviewOpen &&
+    (turnPaginationEnabled || activeGroupPinned);
   const showTurnContextRow =
     turnPaginationEnabled ||
     Boolean(agentOrgCurrentMemberName) ||
@@ -922,14 +993,15 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
       onGroupChatViewToggle={onGroupChatViewToggle}
       showPinnedTurnHeader={showPinnedTurnHeader}
       sessionId={activeId}
-      sourceGroupIndex={displaySourceGroupIndices[0]}
+      sourceGroupIndex={activePinnedSourceGroupIndex}
       sourceGroupCount={groupCounts.length}
-      header={displayGroupHeaders[0]}
-      meta={displayGroupMeta[0]}
+      header={activePinnedHeader}
+      meta={activePinnedMeta}
       hasPinnedContent={hasPinnedContent}
       collapseLabelVariant={groupChat?.enabled ? "agents" : "agent"}
       collapseTailWhenIdle={collapseTailWhenIdle}
       hideUserMessage={hideGroupUserMessage}
+      defaultTurnCollapsed={defaultTurnCollapsed}
       turnCollapseInteractionAtRef={turnCollapseInteractionAtRef}
       onEditSubmit={
         mutationActionsDisabled ? undefined : handlePinnedEditSubmit
@@ -1081,6 +1153,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
                       }
                       onAtBottomStateChange={handleAtBottomStateChange}
                       onRangeChanged={handleRangeChanged}
+                      onActiveGroupIndexChange={handleActiveGroupIndexChange}
                       onEndReached={handleTurnPageEndReached}
                       onRegenerate={
                         mutationActionsDisabled

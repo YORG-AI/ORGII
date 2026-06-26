@@ -4,7 +4,7 @@ use crate::harness;
 
 const GEMINI_ACCOUNT_ENV: &str = "SOYD_E2E_GEMINI_ACCOUNT_ID";
 const GEMINI_MODEL_ENV: &str = "SOYD_E2E_GEMINI_MODEL";
-const DEFAULT_GEMINI_CLI_MODEL: &str = "gemini-3-flash-preview";
+const DEFAULT_GEMINI_CLI_MODEL: &str = "gemini-2.5-flash";
 
 fn gemini_e2e_client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()

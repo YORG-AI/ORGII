@@ -108,6 +108,17 @@ export const ChatPanelAppearanceTab: React.FC = () => {
             }}
           />
         </SectionRow>
+        <SectionRow
+          label={t("agentSessions.sendOnEnter")}
+          description={t("agentSessions.sendOnEnterDesc")}
+        >
+          <Switch
+            checked={chatAppearance.sendOnEnter}
+            onChange={(checked) => {
+              updateChatAppearance({ sendOnEnter: checked });
+            }}
+          />
+        </SectionRow>
       </SectionContainer>
     </>
   );

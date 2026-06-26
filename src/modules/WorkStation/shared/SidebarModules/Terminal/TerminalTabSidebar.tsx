@@ -2,6 +2,7 @@ import { useTerminalState } from "@/src/engines/TerminalCore/hooks/useTerminalSt
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback } from "react";
 
+import { selectedRepoPathAtom } from "@src/store/repo";
 // Deep import; the @src/store/workstation/codeEditor barrel re-exports
 // sourceControlFilterModeAtom which transitively pulls SidebarModules back
 // here, creating a circular dependency.
@@ -16,6 +17,7 @@ import TerminalSidebarContent from "./TerminalSidebarContent";
 const TerminalTabSidebar: TabSidebarComponent = () => {
   const terminalState = useTerminalState();
   const terminalTarget = useAtomValue(codeEditorTerminalTargetAtom);
+  const selectedRepoPath = useAtomValue(selectedRepoPathAtom);
   const setTerminalTarget = useSetAtom(codeEditorTerminalTargetAtom);
   const activeTerminalTarget =
     terminalTarget?.kind === "agent"
@@ -46,11 +48,14 @@ const TerminalTabSidebar: TabSidebarComponent = () => {
       name?: string;
       profileId?: string;
     }) => {
-      const sessionId = terminalState.addSession(options);
+      const sessionId = terminalState.addSession({
+        ...options,
+        cwd: selectedRepoPath || undefined,
+      });
       terminalState.setActiveSession(sessionId);
       setTerminalTarget({ kind: "pty", ptySessionId: sessionId });
     },
-    [terminalState, setTerminalTarget]
+    [terminalState, selectedRepoPath, setTerminalTarget]
   );
 
   const handleClosePtySession = useCallback(

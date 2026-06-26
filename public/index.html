@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ORG2</title>
     <!-- Preflight: same radii as src/config/windowChromeRadius.ts (splash before bundle loads) -->
-    <script>
+    <script nonce="orgii-codemirror-style">
       (function () {
         var styleNonce = "orgii-codemirror-style";
         var originalCreateElement = document.createElement.bind(document);
@@ -18,7 +18,7 @@
         };
       })();
     </script>
-    <script>
+    <script nonce="orgii-codemirror-style">
       // Hide splash immediately for secondary windows (/windows/*).
       // These are lightweight Tauri panels — no loading screen needed.
       if (window.location.pathname.indexOf("/windows/") === 0) {
@@ -29,20 +29,26 @@
         // Also hide before DOMContentLoaded in case it fires too late
         document.documentElement.dataset.noSplash = "1";
         var storedTheme = localStorage.getItem("theme") || "github-light";
-        var isDarkTheme = /dark|abyss|tomorrowNightBlue|orgii_dark/.test(storedTheme);
-        document.documentElement.dataset.preflightTheme = isDarkTheme ? "dark" : "light";
+        var isDarkTheme = /dark|abyss|tomorrowNightBlue|orgii_dark/.test(
+          storedTheme
+        );
+        document.documentElement.dataset.preflightTheme = isDarkTheme
+          ? "dark"
+          : "light";
       }
     </script>
-    <script>
+    <script nonce="orgii-codemirror-style">
       (function () {
         var ua = (navigator.userAgent || "").toLowerCase();
         var html = document.documentElement;
         var winVal, pageVal;
         if (ua.indexOf("windows") !== -1) {
-          winVal = "8px"; pageVal = "8px";
+          winVal = "8px";
+          pageVal = "8px";
           html.dataset.hostDesktop = "windows";
         } else if (ua.indexOf("linux") !== -1 && ua.indexOf("android") === -1) {
-          winVal = "12px"; pageVal = "12px";
+          winVal = "12px";
+          pageVal = "12px";
           html.dataset.hostDesktop = "linux";
         } else {
           html.dataset.hostDesktop = "macos";
@@ -53,7 +59,7 @@
         }
       })();
     </script>
-    <script>
+    <script nonce="orgii-codemirror-style">
       // ---------------------------------------------------------------------
       // Splash hard-timeout watchdog (runs before the JS bundle).
       //
@@ -68,31 +74,150 @@
       // the app is alive. Whichever happens first wins.
       // ---------------------------------------------------------------------
       (function () {
+        function isLocalDevOrigin() {
+          return (
+            window.location.protocol === "http:" &&
+            /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)
+          );
+        }
+
+        var isLocalDev = isLocalDevOrigin();
+        window.__ORGII_STARTUP_TIMING_START__ = performance.now();
+        if (isLocalDev) {
+          window.__ORGII_STARTUP_TIMINGS__ = [];
+        }
+
+        function markStartup(label, details) {
+          if (!isLocalDev) return;
+          var elapsedMs = Math.round(
+            performance.now() - window.__ORGII_STARTUP_TIMING_START__
+          );
+          var entry = { elapsedMs: elapsedMs, label: label, details: details };
+          window.__ORGII_STARTUP_TIMINGS__.push(entry);
+          console.info(
+            "[Startup +" + elapsedMs + "ms] " + label,
+            details || ""
+          );
+          var splashText = document.getElementById("splash-text");
+          if (splashText) {
+            splashText.textContent =
+              "Initializing - " + label + " (+" + elapsedMs + "ms)";
+          }
+        }
+
+        markStartup("index.html startup watchdog installed");
+        window.__ORGII_STARTUP_MARK__ = markStartup;
+
+        var diagnosticProbeTimerId = null;
+        if (isLocalDev) {
+          window.addEventListener(
+            "error",
+            function (event) {
+              var target = event.target;
+              if (
+                target instanceof HTMLScriptElement ||
+                target instanceof HTMLLinkElement
+              ) {
+                markStartup("startup resource load error", {
+                  tag: target.tagName,
+                  url: target.src || target.href || "",
+                });
+              }
+            },
+            true
+          );
+
+          diagnosticProbeTimerId = setTimeout(function () {
+            markStartup("startup script tags", {
+              scripts: Array.prototype.slice
+                .call(document.scripts || [])
+                .map(function (script) {
+                  return script.src || "inline";
+                }),
+            });
+
+            fetch("/main.js", { cache: "no-store" })
+              .then(function (response) {
+                markStartup("main.js fetch probe", {
+                  ok: response.ok,
+                  status: response.status,
+                });
+              })
+              .catch(function (error) {
+                markStartup("main.js fetch probe failed", {
+                  message:
+                    error && error.message ? error.message : String(error),
+                });
+              });
+          }, 5000);
+        }
+
         // Secondary windows (/windows/*) never show the splash.
         if (window.location.pathname.indexOf("/windows/") === 0) {
           window.__ORGII_SPLASH_DONE__ = function () {};
           return;
         }
 
-        // Default 20s. An E2E/test harness may shorten this by setting
+        // Default 20s for packaged/static startup. Local dev server startup can
+        // be substantially slower on Linux WebKitGTK/software rendering even
+        // after webpack has completed its first compile, so allow more time
+        // before showing the manual reload panel.
+        var DEFAULT_WATCHDOG_MS = isLocalDevOrigin() ? 60000 : 20000;
+
+        // An E2E/test harness may shorten this by setting
         // window.__ORGII_WATCHDOG_MS_OVERRIDE__ before the bundle runs; the
         // override only ever shortens the wait and never ships in normal use.
         var WATCHDOG_MS =
           typeof window.__ORGII_WATCHDOG_MS_OVERRIDE__ === "number"
             ? window.__ORGII_WATCHDOG_MS_OVERRIDE__
-            : 20000;
+            : DEFAULT_WATCHDOG_MS;
         var settled = false;
 
         function showStartupError(force) {
+          markStartup("splash watchdog fired", {
+            force: !!force,
+            watchdogMs: WATCHDOG_MS,
+            href: window.location.href,
+          });
           if (settled && !force) return;
           var splash = document.getElementById("splash");
           if (!splash || splash.style.display === "none") return;
+          var recentTimings = "";
+          if (isLocalDev && Array.isArray(window.__ORGII_STARTUP_TIMINGS__)) {
+            recentTimings = window.__ORGII_STARTUP_TIMINGS__
+              .slice(-8)
+              .map(function (entry) {
+                var details = entry.details
+                  ? " " +
+                    JSON.stringify(entry.details)
+                      .replace(/[<>&]/g, "")
+                      .slice(0, 160)
+                  : "";
+                return (
+                  '<div style="display:flex;justify-content:space-between;gap:16px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:#9ca3af">' +
+                  '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' +
+                  String(entry.label).replace(/[<>&]/g, "") +
+                  details +
+                  "</span>" +
+                  "<span>+" +
+                  String(entry.elapsedMs).replace(/[<>&]/g, "") +
+                  "ms</span>" +
+                  "</div>"
+                );
+              })
+              .join("");
+          }
           // Replace splash content in place with an actionable panel.
           splash.innerHTML =
-            '<div style="display:flex;flex-direction:column;align-items:center;gap:20px;max-width:420px;text-align:center;padding:32px;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif">' +
+            "<div style=\"display:flex;flex-direction:column;align-items:center;gap:20px;max-width:420px;text-align:center;padding:32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif\">" +
             '<div style="font-size:44px">⏳</div>' +
             '<div style="color:#fff;font-size:17px;font-weight:600">Startup is taking too long</div>' +
             '<div style="color:#9ca3af;font-size:13px;line-height:1.6">The app could not finish loading. This is usually a one-off — try reloading. If it keeps happening, quit and reopen, or check the logs at <span style="color:#d1d5db">~/.orgii/logs/</span>.</div>' +
+            (recentTimings
+              ? '<div style="width:100%;display:flex;flex-direction:column;gap:6px;border:1px solid #1f2937;border-radius:8px;padding:10px;background:#111827;text-align:left">' +
+                recentTimings +
+                "</div>"
+              : "") +
             '<div style="display:flex;gap:12px;margin-top:4px">' +
             '<button id="orgii-splash-reload" style="background:#3b82f6;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer">Reload</button>' +
             '<button id="orgii-splash-clear" style="background:transparent;color:#9ca3af;border:1px solid #374151;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer">Clear data &amp; reload</button>' +
@@ -124,6 +249,9 @@
         // the reload circuit-breaker when it takes over the splash itself.
         window.__ORGII_SPLASH_DONE__ = function () {
           settled = true;
+          if (diagnosticProbeTimerId !== null) {
+            clearTimeout(diagnosticProbeTimerId);
+          }
           clearTimeout(timerId);
         };
 
@@ -161,7 +289,9 @@
         user-select: text !important;
         -webkit-user-select: text !important;
       }
-      html, body, #root {
+      html,
+      body,
+      #root {
         height: 100%;
         background: #0d0d0d;
         border-radius: var(--border-radius-window);
@@ -216,7 +346,9 @@
         right: 0;
         text-align: center;
         color: #ffffff;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
         font-size: 13px;
         font-weight: 400;
         letter-spacing: 0.5px;
@@ -227,9 +359,17 @@
         text-align: left;
       }
       @keyframes dots {
-        0%, 20% { content: "."; }
-        40% { content: ".."; }
-        60%, 100% { content: "..."; }
+        0%,
+        20% {
+          content: ".";
+        }
+        40% {
+          content: "..";
+        }
+        60%,
+        100% {
+          content: "...";
+        }
       }
       #splash-text .dots::after {
         content: ".";
@@ -249,11 +389,91 @@
       >
         <rect x="98" y="98" width="828" height="828" rx="414" fill="black" />
         <circle cx="512" cy="512" r="330" fill="#171717" fill-opacity="0.55" />
-        <path d="M677.545 271.5C680.015 271.5 681.959 272.117 683.282 273.44C684.605 274.764 685.223 276.708 685.223 279.178C685.223 282.322 683.704 285.183 680.78 287.756C677.865 290.321 673.526 292.627 667.802 294.688L667.794 294.69C662.196 296.594 658.023 299.829 655.242 304.39C652.456 308.959 651.043 314.899 651.043 322.244V701.639C651.043 709.099 652.456 715.155 655.245 719.84C658.027 724.514 662.2 727.86 667.794 729.876L668.851 730.244C674.054 732.097 678.038 734.165 680.771 736.461C683.696 738.917 685.223 741.667 685.223 744.705C685.223 747.175 684.605 749.119 683.282 750.442C681.959 751.766 680.015 752.383 677.545 752.383H561.676C559.314 752.383 557.452 751.762 556.187 750.434C554.926 749.11 554.34 747.169 554.34 744.705C554.34 741.667 555.867 738.917 558.791 736.461C561.707 734.012 566.045 731.822 571.769 729.876C577.364 727.86 581.537 724.541 584.318 719.923C587.106 715.295 588.52 709.325 588.52 701.98V322.244C588.52 314.899 587.107 308.959 584.32 304.39C581.539 299.829 577.366 296.594 571.769 294.69L571.761 294.688C566.036 292.627 561.697 290.321 558.782 287.756C555.858 285.183 554.34 282.322 554.34 279.178C554.34 276.708 554.957 274.764 556.28 273.44C557.603 272.117 559.548 271.5 562.018 271.5H677.545Z" fill="white" stroke="#040303" />
-        <path d="M461.705 271.5C464.175 271.5 466.119 272.117 467.442 273.44C468.766 274.764 469.383 276.708 469.383 279.178C469.383 282.322 467.864 285.183 464.94 287.756C462.025 290.321 457.687 292.627 451.962 294.688L451.954 294.69C446.357 296.594 442.183 299.829 439.402 304.39C436.616 308.959 435.203 314.899 435.203 322.244V701.639C435.203 709.099 436.616 715.155 439.405 719.84C442.188 724.514 446.36 727.86 451.954 729.876L453.011 730.244C458.214 732.097 462.198 734.165 464.932 736.461C467.856 738.917 469.383 741.667 469.383 744.705C469.383 747.175 468.766 749.119 467.442 750.442C466.119 751.766 464.175 752.383 461.705 752.383H345.836C343.474 752.383 341.612 751.762 340.347 750.434C339.086 749.11 338.5 747.169 338.5 744.705C338.5 741.667 340.027 738.917 342.951 736.461C345.867 734.012 350.205 731.822 355.929 729.876C361.524 727.86 365.697 724.541 368.479 719.923C371.266 715.295 372.68 709.325 372.68 701.98V322.244C372.68 314.899 371.267 308.959 368.48 304.39C365.699 299.829 361.526 296.594 355.929 294.69L355.921 294.688C350.196 292.627 345.858 290.321 342.942 287.756C340.019 285.183 338.5 282.322 338.5 279.178C338.5 276.708 339.117 274.764 340.44 273.44C341.764 272.117 343.708 271.5 346.178 271.5H461.705Z" fill="white" stroke="#040303" />
+        <path
+          d="M677.545 271.5C680.015 271.5 681.959 272.117 683.282 273.44C684.605 274.764 685.223 276.708 685.223 279.178C685.223 282.322 683.704 285.183 680.78 287.756C677.865 290.321 673.526 292.627 667.802 294.688L667.794 294.69C662.196 296.594 658.023 299.829 655.242 304.39C652.456 308.959 651.043 314.899 651.043 322.244V701.639C651.043 709.099 652.456 715.155 655.245 719.84C658.027 724.514 662.2 727.86 667.794 729.876L668.851 730.244C674.054 732.097 678.038 734.165 680.771 736.461C683.696 738.917 685.223 741.667 685.223 744.705C685.223 747.175 684.605 749.119 683.282 750.442C681.959 751.766 680.015 752.383 677.545 752.383H561.676C559.314 752.383 557.452 751.762 556.187 750.434C554.926 749.11 554.34 747.169 554.34 744.705C554.34 741.667 555.867 738.917 558.791 736.461C561.707 734.012 566.045 731.822 571.769 729.876C577.364 727.86 581.537 724.541 584.318 719.923C587.106 715.295 588.52 709.325 588.52 701.98V322.244C588.52 314.899 587.107 308.959 584.32 304.39C581.539 299.829 577.366 296.594 571.769 294.69L571.761 294.688C566.036 292.627 561.697 290.321 558.782 287.756C555.858 285.183 554.34 282.322 554.34 279.178C554.34 276.708 554.957 274.764 556.28 273.44C557.603 272.117 559.548 271.5 562.018 271.5H677.545Z"
+          fill="white"
+          stroke="#040303"
+        />
+        <path
+          d="M461.705 271.5C464.175 271.5 466.119 272.117 467.442 273.44C468.766 274.764 469.383 276.708 469.383 279.178C469.383 282.322 467.864 285.183 464.94 287.756C462.025 290.321 457.687 292.627 451.962 294.688L451.954 294.69C446.357 296.594 442.183 299.829 439.402 304.39C436.616 308.959 435.203 314.899 435.203 322.244V701.639C435.203 709.099 436.616 715.155 439.405 719.84C442.188 724.514 446.36 727.86 451.954 729.876L453.011 730.244C458.214 732.097 462.198 734.165 464.932 736.461C467.856 738.917 469.383 741.667 469.383 744.705C469.383 747.175 468.766 749.119 467.442 750.442C466.119 751.766 464.175 752.383 461.705 752.383H345.836C343.474 752.383 341.612 751.762 340.347 750.434C339.086 749.11 338.5 747.169 338.5 744.705C338.5 741.667 340.027 738.917 342.951 736.461C345.867 734.012 350.205 731.822 355.929 729.876C361.524 727.86 365.697 724.541 368.479 719.923C371.266 715.295 372.68 709.325 372.68 701.98V322.244C372.68 314.899 371.267 308.959 368.48 304.39C365.699 299.829 361.526 296.594 355.929 294.69L355.921 294.688C350.196 292.627 345.858 290.321 342.942 287.756C340.019 285.183 338.5 282.322 338.5 279.178C338.5 276.708 339.117 274.764 340.44 273.44C341.764 272.117 343.708 271.5 346.178 271.5H461.705Z"
+          fill="white"
+          stroke="#040303"
+        />
       </svg>
       <div id="splash-text">Initializing<span class="dots"></span></div>
     </div>
     <div id="root"></div>
+    <script nonce="orgii-codemirror-style">
+      (function () {
+        var retryMainScriptLoad =
+          "<%= htmlWebpackPlugin.options.retryMainScriptLoad ? 'true' : 'false' %>" ===
+          "true";
+
+        if (!retryMainScriptLoad) {
+          return;
+        }
+
+        if (
+          window.location.protocol !== "http:" ||
+          !/^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)
+        ) {
+          return;
+        }
+
+        var maxAttempts = 30;
+        var attempt = 0;
+        var retryDelayMs = 250;
+        var markStartup =
+          window.__ORGII_STARTUP_MARK__ ||
+          function (label, details) {
+            console.info("[Startup] " + label, details || "");
+          };
+
+        function loadMainScript() {
+          attempt += 1;
+          markStartup("main.js loader attempt", { attempt: attempt });
+
+          var script = document.createElement("script");
+          script.src = "/main.js?orgii_startup_attempt=" + attempt;
+          script.async = false;
+          script.onload = function () {
+            markStartup("main.js loader loaded", {
+              attempt: attempt,
+              mode: "external-retry",
+            });
+          };
+          script.onerror = function () {
+            markStartup("main.js loader failed", { attempt: attempt });
+            script.remove();
+            fetch("/main.js", { cache: "no-store" })
+              .then(function (response) {
+                markStartup("main.js fetch after script failure", {
+                  attempt: attempt,
+                  ok: response.ok,
+                  status: response.status,
+                });
+              })
+              .catch(function (error) {
+                markStartup("main.js fetch after script failure failed", {
+                  attempt: attempt,
+                  message:
+                    error && error.message ? error.message : String(error),
+                });
+              });
+            if (attempt >= maxAttempts) {
+              if (typeof window.__ORGII_SHOW_STARTUP_ERROR__ === "function") {
+                window.__ORGII_SHOW_STARTUP_ERROR__(true);
+              }
+              return;
+            }
+            setTimeout(loadMainScript, retryDelayMs);
+            retryDelayMs = Math.min(retryDelayMs * 1.5, 2000);
+          };
+          document.body.appendChild(script);
+        }
+
+        loadMainScript();
+      })();
+    </script>
   </body>
 </html>

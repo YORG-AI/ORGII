@@ -10,21 +10,17 @@
  *
  * The agent-prompt sequence mirrors PinnedActionsBar's "Commit & Push" pill.
  */
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import { useCallback, useMemo, useRef } from "react";
 
-import { useMessageDispatch } from "@src/engines/ChatPanel/hooks/useWorkspaceChat/useMessageDispatch";
-import { mintTurnIntentId } from "@src/engines/SessionCore/sync/adapters/shared/eventFactories";
+import { useUserIntentSubmit } from "@src/engines/ChatPanel/hooks/useWorkspaceChat/useUserIntentSubmit";
 import { createLogger } from "@src/hooks/logger";
 import { WorkStationViewService } from "@src/services/workStation";
 import {
   currentGitStatusAtom,
   workspaceGitStatusMapAtom,
 } from "@src/store/git";
-import {
-  isSessionActiveAtom,
-  setSessionRuntimeStatusAtom,
-} from "@src/store/session/cliSessionStatusAtom";
+import { isSessionActiveAtom } from "@src/store/session/cliSessionStatusAtom";
 import { workspaceFoldersAtom } from "@src/store/ui/workspaceFoldersAtom";
 
 import {
@@ -63,8 +59,7 @@ export function useGitDiffActions({
   const currentGitStatus = useAtomValue(currentGitStatusAtom);
   const workspaceFolders = useAtomValue(workspaceFoldersAtom);
   const workspaceGitStatusMap = useAtomValue(workspaceGitStatusMapAtom);
-  const setSessionRuntimeStatus = useSetAtom(setSessionRuntimeStatusAtom);
-  const { addUserMessage, dispatchMessageBySessionType } = useMessageDispatch({
+  const submitUserIntent = useUserIntentSubmit({
     getSessionId: () => sessionId ?? null,
   });
   const pendingRef = useRef(false);
@@ -76,34 +71,16 @@ export function useGitDiffActions({
         isSessionActive,
         guard: pendingRef,
         prompt,
-        mintTurnIntentId,
-        addUserMessage,
-        dispatchMessage: (sid, p, turnIntentId) =>
-          dispatchMessageBySessionType(
-            sid,
-            p,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            turnIntentId
-          ).then(() => undefined),
-        setRunning: (sid) =>
-          setSessionRuntimeStatus({
+        submitPrompt: (sid, p) =>
+          submitUserIntent({
             sessionId: sid,
-            status: "running",
+            displayContent: p,
             source: "interactive-event",
           }),
         onError: (err) => log.error("agent git action failed:", err),
       });
     },
-    [
-      sessionId,
-      isSessionActive,
-      addUserMessage,
-      dispatchMessageBySessionType,
-      setSessionRuntimeStatus,
-    ]
+    [sessionId, isSessionActive, submitUserIntent]
   );
 
   const onCommit = useCallback(

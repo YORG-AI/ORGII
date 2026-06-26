@@ -17,7 +17,7 @@ use crate::session::workspace::SessionWorkspace;
 use core_types::providers::{
     NativeHarnessType, CODEX_REFRESH_TOKEN_ENV_KEY, KIMI_CODE_URL_FRAGMENT,
 };
-use key_vault::key_store::{ModelKey, ModelType};
+use key_vault::key_store::{ModelKey, ModelType, ProviderProtocol};
 use key_vault::AuthMethod;
 
 /// Create the appropriate LLM provider based on model name and credentials.
@@ -327,6 +327,8 @@ fn spec_for_credential(cred: &ModelKey) -> Option<&'static ProviderSpec> {
 struct ResolvedProviderKey {
     account_id: String,
     token: String,
+    protocol: ProviderProtocol,
+    api_base: Option<String>,
     custom_base_url: Option<String>,
     is_codex_oauth: bool,
     is_gemini_oauth: bool,
@@ -382,10 +384,7 @@ fn build_provider_from_resolved(
 
     let config = ProviderConfig {
         api_key: resolved.token.clone(),
-        api_base: resolved
-            .custom_base_url
-            .clone()
-            .or_else(|| spec.default_api_base.map(|s| s.to_string())),
+        api_base: resolved.api_base.clone(),
         extra_headers: resolved.extra_headers.clone(),
         is_azure: resolved.is_azure_proxy,
     };
@@ -438,10 +437,12 @@ fn build_provider_from_resolved(
         .as_deref()
         .is_some_and(|url| url.contains(KIMI_CODE_URL_FRAGMENT));
 
-    if spec.name == provider_id::ANTHROPIC || is_kimi_code_endpoint {
+    if resolved.protocol == ProviderProtocol::Anthropic || is_kimi_code_endpoint {
         tracing::info!(
-            "[provider] Using AnthropicClient (native Messages API) for model={}",
-            model
+            "[provider] Using AnthropicClient (native Messages API) for model={}, provider={}, protocol={}",
+            model,
+            spec.name,
+            resolved.protocol.as_str()
         );
         return Box::new(AnthropicClient::new_with_auth_mode_and_refresh(
             config,
@@ -471,6 +472,41 @@ fn build_provider_from_resolved(
     // This includes: DeepSeek, Groq, Gemini, Azure, OpenRouter, vLLM,
     // and older OpenAI-compatible providers.
     Box::new(OpenAICompatClient::new(config, spec, model.to_string()))
+}
+
+fn resolve_protocol(spec: &ProviderSpec, cred: &ModelKey) -> ProviderProtocol {
+    cred.protocol.unwrap_or_else(|| {
+        if spec.name == provider_id::ANTHROPIC || cred.model_type == ModelType::AzureAnthropicApi {
+            ProviderProtocol::Anthropic
+        } else {
+            ProviderProtocol::OpenAi
+        }
+    })
+}
+
+fn resolve_provider_endpoint(
+    spec: &ProviderSpec,
+    custom_base_url: Option<&String>,
+    protocol: ProviderProtocol,
+) -> Result<Option<String>, ProviderError> {
+    if let Some(base_url) = custom_base_url {
+        return Ok(Some(base_url.clone()));
+    }
+
+    match protocol {
+        ProviderProtocol::OpenAi => Ok(spec.default_api_base.map(str::to_string)),
+        ProviderProtocol::Anthropic => spec
+            .default_anthropic_api_base
+            .or_else(|| (spec.name == provider_id::ANTHROPIC).then_some("https://api.anthropic.com/v1"))
+            .map(str::to_string)
+            .map(Some)
+            .ok_or_else(|| {
+                ProviderError::AuthError(format!(
+                    "Provider '{}' has no default Anthropic endpoint. Set a custom base_url for protocol=anthropic.",
+                    spec.name
+                ))
+            }),
+    }
 }
 
 /// Resolve credentials for a provider.
@@ -621,21 +657,27 @@ fn resolve_credentials(
     } else {
         AnthropicAuthMode::ApiKey
     };
+    let protocol = resolve_protocol(spec, &cred);
+    let api_base = resolve_provider_endpoint(spec, cred.base_url.as_ref(), protocol)?;
 
     tracing::info!(
-        "[provider] Using credential '{}' (type={}, auth={:?}, provider={}, codex_oauth={}, claude_oauth={}, azure_proxy={})",
+        "[provider] Using credential '{}' (type={}, auth={:?}, provider={}, protocol={}, codex_oauth={}, claude_oauth={}, azure_proxy={}, api_base={:?})",
         acct_id,
         agent_type,
         cred.auth_method,
         provider_name,
+        protocol.as_str(),
         is_codex_oauth,
         is_claude_oauth,
         is_azure_proxy,
+        &api_base,
     );
 
     Ok(ResolvedProviderKey {
         account_id: acct_id.to_string(),
         token,
+        protocol,
+        api_base,
         custom_base_url: cred.base_url.clone(),
         is_codex_oauth,
         is_gemini_oauth,
@@ -715,25 +757,31 @@ pub fn check_credentials_available(
     // scanning each credential's available_models list. This handles custom
     // proxy models like "claude-high" that live in an openai_api credential
     // but contain provider keywords that would route to the wrong provider.
-    let (spec, api_key, cred_base_url) = match guess_spec_by_model(model).and_then(|spec| {
-        find_api_key_for_provider(spec, &creds).map(|(key, base)| (spec, key, base))
+    let (spec, api_key, api_base, protocol) = match guess_spec_by_model(model).and_then(|spec| {
+        find_api_key_for_provider(spec, &creds)
+            .map(|(key, base, protocol)| (spec, key, base, protocol))
     }) {
         Ok(result) => result,
-        Err(primary_err) => find_credential_by_available_model(model, &creds).ok_or(primary_err)?,
+        Err(primary_err) => {
+            find_credential_by_available_model(model, &creds)?.ok_or(primary_err)?
+        }
     };
 
     let config = ProviderConfig {
         api_key,
-        api_base: cred_base_url.or_else(|| spec.default_api_base.map(|s| s.to_string())),
+        api_base,
         extra_headers: std::collections::HashMap::new(),
         is_azure: false,
     };
 
     let provider_name = format!("{}/{}", spec.name, model);
-    let raw: Box<dyn LLMProvider> = if spec.name == provider_id::ANTHROPIC {
-        Box::new(AnthropicClient::new(config, spec, model.to_string()))
-    } else {
-        Box::new(OpenAICompatClient::new(config, spec, model.to_string()))
+    let raw: Box<dyn LLMProvider> = match protocol {
+        ProviderProtocol::Anthropic => {
+            Box::new(AnthropicClient::new(config, spec, model.to_string()))
+        }
+        ProviderProtocol::OpenAi => {
+            Box::new(OpenAICompatClient::new(config, spec, model.to_string()))
+        }
     };
 
     let defaults = ReliabilityConfig::default();
@@ -758,7 +806,7 @@ pub fn check_credentials_available(
 fn find_api_key_for_provider(
     spec: &ProviderSpec,
     creds: &[ModelKey],
-) -> Result<(String, Option<String>), ProviderError> {
+) -> Result<(String, Option<String>, ProviderProtocol), ProviderError> {
     let api_key_type = match spec.name {
         provider_id::ANTHROPIC => Some(ModelType::AnthropicApi),
         provider_id::OPENAI => Some(ModelType::OpenaiApi),
@@ -787,7 +835,10 @@ fn find_api_key_for_provider(
                             cred.model_type.as_str(),
                             spec.display_name
                         );
-                        return Ok((key.clone(), cred.base_url.clone()));
+                        let protocol = resolve_protocol(spec, cred);
+                        let api_base =
+                            resolve_provider_endpoint(spec, cred.base_url.as_ref(), protocol)?;
+                        return Ok((key.clone(), api_base, protocol));
                     }
                 }
             }
@@ -798,7 +849,10 @@ fn find_api_key_for_provider(
         for cred in creds {
             if let Some(val) = cred.env_vars.get(env_key) {
                 if !val.is_empty() {
-                    return Ok((val.clone(), cred.base_url.clone()));
+                    let protocol = resolve_protocol(spec, cred);
+                    let api_base =
+                        resolve_provider_endpoint(spec, cred.base_url.as_ref(), protocol)?;
+                    return Ok((val.clone(), api_base, protocol));
                 }
             }
         }
@@ -807,7 +861,13 @@ fn find_api_key_for_provider(
     if let Some(env_key) = spec.env_key {
         if let Ok(val) = std::env::var(env_key) {
             if !val.is_empty() {
-                return Ok((val, None));
+                let protocol = if spec.name == provider_id::ANTHROPIC {
+                    ProviderProtocol::Anthropic
+                } else {
+                    ProviderProtocol::OpenAi
+                };
+                let api_base = resolve_provider_endpoint(spec, None, protocol)?;
+                return Ok((val, api_base, protocol));
             }
         }
     }
@@ -822,7 +882,15 @@ fn find_api_key_for_provider(
 fn find_credential_by_available_model(
     model: &str,
     creds: &[ModelKey],
-) -> Option<(&'static ProviderSpec, String, Option<String>)> {
+) -> Result<
+    Option<(
+        &'static ProviderSpec,
+        String,
+        Option<String>,
+        ProviderProtocol,
+    )>,
+    ProviderError,
+> {
     let model_lower = model.to_lowercase();
     for cred in creds {
         if !cred.enabled {
@@ -846,7 +914,9 @@ fn find_credential_by_available_model(
             .filter(|key_value| !key_value.is_empty());
         let Some(key) = api_key else { continue };
 
-        let spec = spec_for_model_type(&cred.model_type)?;
+        let Some(spec) = spec_for_model_type(&cred.model_type) else {
+            continue;
+        };
 
         tracing::info!(
             "[provider] Matched model '{}' via available_models in credential '{}' (provider={})",
@@ -854,9 +924,11 @@ fn find_credential_by_available_model(
             cred.name.as_deref().unwrap_or(&cred.id),
             spec.display_name
         );
-        return Some((spec, key.to_string(), cred.base_url.clone()));
+        let protocol = resolve_protocol(spec, cred);
+        let api_base = resolve_provider_endpoint(spec, cred.base_url.as_ref(), protocol)?;
+        return Ok(Some((spec, key.to_string(), api_base, protocol)));
     }
-    None
+    Ok(None)
 }
 
 #[cfg(test)]
@@ -991,6 +1063,66 @@ mod tests {
         key.session_token = Some("session-token".to_string());
         key.available_models.push("custom-model".to_string());
 
-        assert!(find_credential_by_available_model("custom-model", &[key]).is_none());
+        assert!(find_credential_by_available_model("custom-model", &[key])
+            .expect("scan should not error")
+            .is_none());
+    }
+
+    #[test]
+    fn zenmux_defaults_to_openai_protocol_endpoint() {
+        let spec = registry::find_by_name(provider_id::ZENMUX).expect("ZenMux provider registered");
+        let key = ModelKey::new(ModelType::ZenmuxApi);
+
+        let protocol = resolve_protocol(spec, &key);
+        let api_base = resolve_provider_endpoint(spec, key.base_url.as_ref(), protocol)
+            .expect("ZenMux OpenAI endpoint should resolve");
+
+        assert_eq!(protocol, ProviderProtocol::OpenAi);
+        assert_eq!(api_base.as_deref(), Some("https://zenmux.ai/api/v1"));
+    }
+
+    #[test]
+    fn zenmux_anthropic_protocol_uses_anthropic_endpoint() {
+        let spec = registry::find_by_name(provider_id::ZENMUX).expect("ZenMux provider registered");
+        let mut key = ModelKey::new(ModelType::ZenmuxApi);
+        key.protocol = Some(ProviderProtocol::Anthropic);
+
+        let protocol = resolve_protocol(spec, &key);
+        let api_base = resolve_provider_endpoint(spec, key.base_url.as_ref(), protocol)
+            .expect("ZenMux Anthropic endpoint should resolve");
+
+        assert_eq!(protocol, ProviderProtocol::Anthropic);
+        assert_eq!(api_base.as_deref(), Some("https://zenmux.ai/api/anthropic"));
+    }
+
+    #[test]
+    fn custom_anthropic_base_url_takes_precedence() {
+        let spec = registry::find_by_name(provider_id::ZHIPU).expect("Zhipu provider registered");
+        let mut key = ModelKey::new(ModelType::ZhipuApi);
+        key.protocol = Some(ProviderProtocol::Anthropic);
+        key.base_url = Some("https://proxy.example.com/anthropic".to_string());
+
+        let protocol = resolve_protocol(spec, &key);
+        let api_base = resolve_provider_endpoint(spec, key.base_url.as_ref(), protocol)
+            .expect("custom Anthropic endpoint should resolve");
+
+        assert_eq!(protocol, ProviderProtocol::Anthropic);
+        assert_eq!(
+            api_base.as_deref(),
+            Some("https://proxy.example.com/anthropic")
+        );
+    }
+
+    #[test]
+    fn anthropic_protocol_without_endpoint_or_custom_base_errors() {
+        let spec = registry::find_by_name(provider_id::ZHIPU).expect("Zhipu provider registered");
+        let mut key = ModelKey::new(ModelType::ZhipuApi);
+        key.protocol = Some(ProviderProtocol::Anthropic);
+
+        let protocol = resolve_protocol(spec, &key);
+        let err = resolve_provider_endpoint(spec, key.base_url.as_ref(), protocol)
+            .expect_err("Zhipu Anthropic endpoint requires custom base URL");
+
+        assert!(err.to_string().contains("no default Anthropic endpoint"));
     }
 }

@@ -15,7 +15,7 @@ const BASE_STYLES = `
   *,*::before,*::after{box-sizing:border-box;}
   html,body{margin:0;padding:0;background:#141420;color:#e2e2e8;
     font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-    font-size:14px;line-height:1.6;min-height:100%;overflow-x:hidden;}
+    font-size:14px;line-height:1.6;min-height:100%;overflow-x:auto;}
   a{color:#7c9ef7;text-decoration:none;}
   a:hover{text-decoration:underline;}
   pre,code{font-family:monospace;

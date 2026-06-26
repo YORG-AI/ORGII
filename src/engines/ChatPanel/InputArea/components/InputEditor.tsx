@@ -4,9 +4,11 @@
  * ComposerInput-based input area with drag-drop support and keyboard handling.
  * Uses ComposerInput for proper cursor/selection handling around file pills.
  */
+import { useAtomValue } from "jotai";
 import React, { memo, useCallback, useRef } from "react";
 
 import ComposerInput, { ComposerInputRef } from "@src/components/ComposerInput";
+import { chatAppearanceAtom } from "@src/store/config/configAtom";
 
 // ============================================
 // Type Definitions
@@ -14,7 +16,7 @@ import ComposerInput, { ComposerInputRef } from "@src/components/ComposerInput";
 
 export interface InputEditorProps {
   /** Ref to the Composer input */
-  composerInputRef: React.RefObject<ComposerInputRef | null>;
+  composerInputRef: React.Ref<ComposerInputRef>;
   /** Whether context menu is visible */
   showContextMenu: boolean;
   /** Keyboard handler ref from context menu */
@@ -101,6 +103,7 @@ const InputEditor: React.FC<InputEditorProps> = memo(
     onBeforeNewline,
   }) => {
     const wrapperRef = useRef<HTMLDivElement>(null);
+    const { sendOnEnter } = useAtomValue(chatAppearanceAtom);
 
     // ============================================
     // Keyboard Handler for Dropdown
@@ -173,7 +176,7 @@ const InputEditor: React.FC<InputEditorProps> = memo(
           onAtMention={onAtMention}
           onAtMentionClose={onAtMentionClose}
           onSubmit={onSubmit}
-          requireCmdEnter={true}
+          requireCmdEnter={!sendOnEnter}
           autoFocus={false}
           className={
             compact

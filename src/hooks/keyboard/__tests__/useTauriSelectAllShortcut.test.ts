@@ -172,4 +172,41 @@ describe("handleSelectAllEvent — guard conditions", () => {
     handleSelectAllEvent(event as never);
     expect(event.preventDefault).not.toHaveBeenCalled();
   });
+
+  it("falls back to document.activeElement when the key event target is not editable", () => {
+    const activeElement = makeInputTarget();
+    const savedDocument = globalThis.document;
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: { activeElement },
+    });
+
+    try {
+      const event = makeEvent({ metaKey: true, key: "a", target: {} });
+      handleSelectAllEvent(event as never);
+
+      expect(activeElement.select).toHaveBeenCalledTimes(1);
+      expect(event.preventDefault).toHaveBeenCalledTimes(1);
+      expect(event.stopPropagation).toHaveBeenCalledTimes(1);
+    } finally {
+      Object.defineProperty(globalThis, "document", {
+        configurable: true,
+        value: savedDocument,
+      });
+    }
+  });
+
+  it("does not prevent default when the focused input cannot be selected", () => {
+    const target = makeInputTarget();
+    target.select.mockImplementation(() => {
+      throw new Error("selection unsupported");
+    });
+
+    const event = makeEvent({ metaKey: true, key: "a", target });
+    handleSelectAllEvent(event as never);
+
+    expect(target.select).toHaveBeenCalledTimes(1);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(event.stopPropagation).not.toHaveBeenCalled();
+  });
 });

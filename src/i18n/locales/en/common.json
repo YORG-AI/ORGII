@@ -1119,6 +1119,9 @@
       "simulatorBrowserNotice": "This browser is for session replay only. For persistent browsing, use the Browser in Main App (Tools → Browser).",
       "tlsDevNote": "Note: Some HTTPS sites (like GitHub) may show TLS errors in development mode due to certificate validation. Try HTTP sites or simple HTTPS sites like example.com.",
       "siteUnreachableTitle": "This site can't be reached",
+      "embeddedFallbackTitle": "This site may not work in the embedded browser",
+      "embeddedFallbackBody": "Some sites block or fail to render inside app WebViews. Open it in your system browser if the page stays blank.",
+      "currentUrl": "Current URL",
       "errorTls": "The connection to this site is not secure. This often happens with HTTPS sites in development mode.",
       "errorTimeout": "The connection timed out. The server took too long to respond.",
       "errorDns": "The server's DNS address could not be found. Check the URL for typos.",
@@ -1133,7 +1136,8 @@
     "selectRepoFromHome": "Please select a repo from the home page",
     "cloneRepoAgain": "Please clone the repo again from the home page",
     "unsavedChangesTitle": "Unsaved Changes",
-    "prkPlaceholder": "PRJ"
+    "prkPlaceholder": "PRJ",
+    "gitSyncMenuTitle": "Git sync actions"
   },
   "git": {
     "loading": "Loading git status...",
@@ -1423,7 +1427,13 @@
         "deleteBranch": "Delete branch",
         "refresh": "Refresh branch",
         "checkoutDetachedSuccess": "Now in detached HEAD state at current commit",
-        "checkoutDetachedFailed": "Failed to checkout detached HEAD"
+        "checkoutDetachedFailed": "Failed to checkout detached HEAD",
+        "removeWorktree": "Remove Worktree"
+      },
+      "messages": {
+        "deletedCount_one": "Deleted {{count}} branch",
+        "deletedCount_other": "Deleted {{count}} branches",
+        "failedDeleteList": "Failed to delete: {{branches}}"
       },
       "labels": {
         "otherBranches": "Other Branches",
@@ -1431,7 +1441,9 @@
         "recent": "Recent",
         "currentCommit": "Current commit",
         "basedOn": "Based on",
-        "worktrees": "Worktrees"
+        "worktrees": "Worktrees",
+        "worktreeInUse": "In use",
+        "checkedOutInWorktree": "Checked out in worktree: {{path}}"
       },
       "placeholders": {
         "checkout": "branch",

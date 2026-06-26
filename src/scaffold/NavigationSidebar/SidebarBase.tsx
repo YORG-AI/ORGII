@@ -51,8 +51,10 @@ import type { SidebarBaseProps } from "./types";
 
 const log = createLogger("SidebarBase");
 
+const HOST_DESKTOP_KIND = resolveHostDesktop();
+const IS_WINDOWS_HOST = HOST_DESKTOP_KIND === HOST_DESKTOP.WINDOWS;
 const PLATFORM_SIDEBAR_RADIUS =
-  resolveHostDesktop() === HOST_DESKTOP.MACOS ? SIDEBAR_STYLE.borderRadius : 8;
+  HOST_DESKTOP_KIND === HOST_DESKTOP.MACOS ? SIDEBAR_STYLE.borderRadius : 8;
 
 const IDLE_SIDEBAR_RESIZE_HANDLE_CLASS_NAME =
   "h-full [&>div:first-child]:origin-right [&>div:first-child]:scale-x-50 [&>div:first-child]:transition-transform hover:[&>div:first-child]:scale-x-100";
@@ -72,6 +74,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
     includeTrafficLightSpace = true,
     showCollapseButton = true,
     wrapInSurface = true,
+    solidSurface = false,
     forceVisible: forceVisibleProp = false,
     theme,
     onCollapse,
@@ -229,22 +232,33 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
       if (!includeTrafficLightSpace) return null;
 
       // In fullscreen mode, traffic lights are hidden, so no padding needed
-      const trafficLightPadding = isFullscreen
-        ? 0
-        : SIDEBAR_STYLE.trafficLightsPadding;
+      const trafficLightPadding =
+        IS_WINDOWS_HOST || isFullscreen
+          ? 0
+          : SIDEBAR_STYLE.trafficLightsPadding;
+      const alignmentClassName = IS_WINDOWS_HOST
+        ? "justify-between pl-5 pr-2"
+        : "justify-end pr-2";
 
       return (
         <div
-          className="flex flex-nowrap items-center justify-end gap-1 pr-2"
+          className={`flex flex-nowrap items-center gap-1 ${alignmentClassName}`}
           data-tauri-drag-region
           style={
             {
               height: `${SIDEBAR_STYLE.topBarHeight}px`,
-              paddingLeft: `${trafficLightPadding}px`,
-              WebkitAppRegion: "drag",
+              paddingLeft: IS_WINDOWS_HOST
+                ? undefined
+                : `${trafficLightPadding}px`,
+              WebkitAppRegion: IS_WINDOWS_HOST ? "no-drag" : "drag",
             } as React.CSSProperties
           }
         >
+          {IS_WINDOWS_HOST ? (
+            <span className="select-none text-[13px] font-semibold tracking-wide text-text-2">
+              ORG2
+            </span>
+          ) : null}
           <div
             className={`flex items-center gap-1 ${sidebarTopChromeClassName}`}
           >
@@ -432,7 +446,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
     const sidebarBoxShadow =
       isCompactLayout && !shouldForceVisible ? "none" : "var(--sidebar-shadow)";
     const sidebarBackdropFilter =
-      shouldForceVisible || isCompactLayout
+      IS_WINDOWS_HOST || shouldForceVisible || isCompactLayout
         ? "none"
         : "var(--sidebar-backdrop)";
     const floatingSurfaceOverride: React.CSSProperties = shouldForceVisible
@@ -452,7 +466,9 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
           boxShadow: sidebarBoxShadow,
           backdropFilter: sidebarBackdropFilter,
           WebkitBackdropFilter: sidebarBackdropFilter,
-          ...(shouldForceVisible ? {} : sidebarOpacityStyle),
+          ...(IS_WINDOWS_HOST || shouldForceVisible || solidSurface
+            ? {}
+            : sidebarOpacityStyle),
           ...floatingSurfaceOverride,
         };
 
@@ -480,11 +496,14 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
       borderBottomWidth: 0,
       borderRightWidth: 1,
     } as const;
+    const sidebarOuterPaddingClass = isCompactLayout
+      ? ""
+      : IS_WINDOWS_HOST
+        ? "pb-2 pl-2"
+        : "pb-2 pl-2 pt-2";
     const wrappedContent = wrapInSurface ? (
       <div
-        className={`sidebar-base flex h-full w-full flex-col ${
-          isCompactLayout ? "" : "pb-2 pl-2 pt-2"
-        } ${innerClassName}`}
+        className={`sidebar-base flex h-full w-full flex-col ${sidebarOuterPaddingClass} ${innerClassName}`}
       >
         <div
           className={`flex flex-1 flex-col overflow-hidden ${

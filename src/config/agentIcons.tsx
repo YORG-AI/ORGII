@@ -22,6 +22,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   Bot,
   Brain,
+  ChartColumn,
   ClipboardList,
   Code,
   DraftingCompass,
@@ -39,6 +40,7 @@ import React, { forwardRef } from "react";
 
 import {
   ClaudeCodeIcon,
+  CodeBuddyIcon,
   CodexIcon,
   CopilotIcon,
   CursorIcon,
@@ -83,6 +85,7 @@ const GeminiBrandIcon = brandIcon(GeminiIcon, "GeminiBrandIcon");
 const KiroBrandIcon = brandIcon(KiroIcon, "KiroBrandIcon");
 const KimiBrandIcon = brandIcon(KimiIcon, "KimiBrandIcon");
 const OpenCodeBrandIcon = brandIcon(OpenCodeIcon, "OpenCodeBrandIcon");
+const WorkBuddyBrandIcon = brandIcon(CodeBuddyIcon, "WorkBuddyBrandIcon");
 
 const ICON_MAP: Record<string, LucideIcon> = {
   omega: Omega,
@@ -90,6 +93,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   monitor: Monitor,
   network: Network,
   brain: Brain,
+  "chart-column": ChartColumn,
   "clipboard-list": ClipboardList,
   "drafting-compass": DraftingCompass,
   users: Users,
@@ -107,6 +111,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   kiro: KiroBrandIcon,
   kimi: KimiBrandIcon,
   opencode: OpenCodeBrandIcon,
+  workbuddy: WorkBuddyBrandIcon,
 };
 
 const DEFAULT_ICON: LucideIcon = Bot;

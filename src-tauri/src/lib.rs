@@ -40,7 +40,7 @@
 //! They are grouped by area in that file (e.g. browser, search, agents).
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-use tauri::Manager;
+use tauri::{Listener, Manager};
 
 #[cfg(unix)]
 fn write_panic_report_to_stderr(report: &str) {
@@ -52,6 +52,10 @@ fn write_panic_report_to_stderr(report: &str) {
 #[cfg(not(unix))]
 fn write_panic_report_to_stderr(report: &str) {
     let _ = std::io::Write::write_all(&mut std::io::stderr().lock(), report.as_bytes());
+}
+
+fn dev_startup_debug_enabled() -> bool {
+    std::env::var("ORGII_DEV_STARTUP_DEBUG").as_deref() == Ok("true")
 }
 
 // ============================================
@@ -284,13 +288,13 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_drag::init())
-        .on_window_event(|window, event| {
+        .on_window_event(|_window, _event| {
             #[cfg(target_os = "macos")]
-            match event {
+            match _event {
                 tauri::WindowEvent::ScaleFactorChanged { .. }
                 | tauri::WindowEvent::ThemeChanged(_)
                 | tauri::WindowEvent::Focused(true) => {
-                    if let Some(webview_window) = window.app_handle().get_webview_window(window.label()) {
+                    if let Some(webview_window) = _window.app_handle().get_webview_window(_window.label()) {
                         app_window::set_traffic_light_position(
                             &webview_window,
                             app_window::TRAFFIC_LIGHT_X,
@@ -324,6 +328,12 @@ pub fn run() {
             {
                 use tauri::Manager;
                 if let Some(main_window) = app.handle().get_webview_window("main") {
+                    #[cfg(not(target_os = "macos"))]
+                    {
+                        let _ = main_window.show();
+                        let _ = main_window.set_focus();
+                    }
+
                     #[cfg(target_os = "macos")]
                     {
                         app_window::apply_window_background_color(&main_window);
@@ -774,22 +784,53 @@ pub fn run() {
                 }
             }
 
+            if dev_startup_debug_enabled() {
+                app.listen("orgii-startup-first-paint", |event| {
+                    println!("[TauriStartup] frontend first paint ready {}", event.payload());
+                    tracing::info!(payload = event.payload(), "[TauriStartup] frontend first paint ready");
+                });
+            }
+
             // tauri_plugin_log removed — tracing_subscriber handles file logging.
             Ok(())
         })
-        // macOS: hide the main window on close (red traffic light) instead of destroying it.
-        // This keeps the process alive so the dock icon can reopen it.
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+        // Release keeps the historical behavior: closing the main window hides it so
+        // tray/dock entry points can reopen it. Debug Linux/Windows exits normally
+        // so dev runs do not leave hidden app processes behind.
+        .on_window_event(|_window, _event| {
+            if let tauri::WindowEvent::CloseRequested { api: _api, .. } = _event {
                 // Only hide the "main" window — let auxiliary windows close normally
-                if window.label() == "main" {
-                    api.prevent_close();
-                    let _ = window.hide();
+                if _window.label() == "main" {
+                    #[cfg(any(target_os = "macos", not(debug_assertions)))]
+                    {
+                        _api.prevent_close();
+                        let _ = _window.hide();
+                    }
                 }
             }
         })
         .on_page_load(|webview, payload| {
             use tauri::webview::PageLoadEvent;
+            if webview.label() == "main" {
+                let event_label = match payload.event() {
+                    PageLoadEvent::Started => "started",
+                    PageLoadEvent::Finished => "finished",
+                };
+                if dev_startup_debug_enabled() {
+                    println!(
+                        "[TauriPageLoad] label={} event={} url={}",
+                        webview.label(),
+                        event_label,
+                        payload.url()
+                    );
+                    tracing::info!(
+                        label = webview.label(),
+                        event = event_label,
+                        url = %payload.url(),
+                        "[TauriPageLoad]"
+                    );
+                }
+            }
             if webview.label() == "main" && matches!(payload.event(), PageLoadEvent::Started) {
                 let app = webview.app_handle().clone();
                 match browser::inline::close_all_inline_webviews(app) {
@@ -829,13 +870,21 @@ pub fn run() {
                         }
                     }
                 }
-                // Keep the process alive when all windows are hidden (red traffic light hides, not destroys).
-                // Without this, Tauri exits the run loop when no visible windows remain.
+                // Release keeps the process alive when all windows are hidden.
+                // Debug Linux/Windows exits normally when the last window closes.
                 // code.is_none() means it's an automatic exit (last window closed), not an explicit exit(0).
-                tauri::RunEvent::ExitRequested { api, code, .. } => {
+                tauri::RunEvent::ExitRequested {
+                    api: _api, code, ..
+                } => {
+                    #[cfg(any(target_os = "macos", not(debug_assertions)))]
                     if code.is_none() {
-                        api.prevent_exit();
-                    } else {
+                        _api.prevent_exit();
+                        return;
+                    }
+
+                    if code.is_some()
+                        || cfg!(all(debug_assertions, not(target_os = "macos")))
+                    {
                         // Explicit exit — mark active orchestrator workflows as interrupted
                         agent_core::coordination::work_item_recovery::mark_all_interrupted_sync();
                         // Release computer-use lock if held

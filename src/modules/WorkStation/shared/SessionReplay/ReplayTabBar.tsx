@@ -87,6 +87,7 @@ export interface ReplayTabBarProps {
   tabs: ReplayTab[];
   activeEventId: string | null;
   onTabClick: (eventId: string) => void;
+  onTabDoubleClick?: (eventId: string) => void;
   /**
    * Optional chrome rendered flush-left before the tab strip — mirrors My
    * Station's TabBar `leadingSlot`. In the simulator this is where the
@@ -139,9 +140,15 @@ interface TabItemProps {
   tab: ReplayTab;
   isActive: boolean;
   onClick: () => void;
+  onDoubleClick?: () => void;
 }
 
-const TabItem: React.FC<TabItemProps> = ({ tab, isActive, onClick }) => {
+const TabItem: React.FC<TabItemProps> = ({
+  tab,
+  isActive,
+  onClick,
+  onDoubleClick,
+}) => {
   const icon = tab.icon ?? defaultIconForKind(tab.kind, tab.label, isActive);
   // File-type icons are full-colour SVG assets — don't override their fill/stroke.
   // Lucide icons and custom ReactNode icons should still be tinted by the active state.
@@ -157,6 +164,7 @@ const TabItem: React.FC<TabItemProps> = ({ tab, isActive, onClick }) => {
       role="tab"
       aria-selected={isActive}
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
       title={tab.title}
       data-event-id={tab.eventId}
       data-testid={`replay-tab-${tab.kind}`}
@@ -182,6 +190,7 @@ const ReplayTabBarComponent: React.FC<ReplayTabBarProps> = ({
   tabs,
   activeEventId,
   onTabClick,
+  onTabDoubleClick,
   leadingSlot,
   trailingSlot,
   surfaceClassName = SURFACE_TOKENS.surface,
@@ -255,6 +264,11 @@ const ReplayTabBarComponent: React.FC<ReplayTabBarProps> = ({
                     tab={tab}
                     isActive={tab.eventId === activeEventId}
                     onClick={() => onTabClick(tab.eventId)}
+                    onDoubleClick={
+                      onTabDoubleClick
+                        ? () => onTabDoubleClick(tab.eventId)
+                        : undefined
+                    }
                   />
                   {next && (
                     <span

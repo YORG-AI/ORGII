@@ -117,6 +117,11 @@ const SectionHeaderRow: React.FC<SectionHeaderRowProps> = memo(
   }) => {
     const isWarning = node.variant === "warning";
     const sectionCount = node.count ?? 0;
+    const countBadgeVariant = isWarning
+      ? COUNT_BADGE.danger
+      : sectionCount === 0
+        ? COUNT_BADGE.muted
+        : COUNT_BADGE.primary;
     const paddingLeft = depth * TREE_INDENT_PX + TREE_PADDING_X;
 
     const handleToggle = useCallback(() => {
@@ -224,9 +229,7 @@ const SectionHeaderRow: React.FC<SectionHeaderRowProps> = memo(
 
         {/* Count badge */}
         <span
-          className={`${COUNT_BADGE.base} ${getCountBadgeSizeClass(sectionCount)} ${
-            isWarning ? COUNT_BADGE.danger : COUNT_BADGE.primary
-          }`}
+          className={`${COUNT_BADGE.base} ${getCountBadgeSizeClass(sectionCount)} ${countBadgeVariant}`}
         >
           {sectionCount}
         </span>

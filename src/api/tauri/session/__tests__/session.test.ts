@@ -29,7 +29,6 @@ function makeAggregateRecord(
     totalTokens: 1500,
     background: false,
     isActive: true,
-    tags: [],
     pinned: false,
     ...overrides,
   };

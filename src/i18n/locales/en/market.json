@@ -420,6 +420,8 @@
     "roundDetail": "Round {{index}}",
     "inputTokens": "Input",
     "outputTokens": "Output",
+    "cacheWriteTokens": "Cache write {{count}}",
+    "cacheReadTokens": "Cache read {{count}}",
     "noRoundData": "No per-round data available",
     "colDate": "Date",
     "colAgent": "Agent",

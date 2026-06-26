@@ -150,11 +150,9 @@ fn operation_name_empty() {
 fn system_git_resolution_uses_system_git() {
     let system_git = std::path::PathBuf::from("/usr/local/bin/git");
 
-    let resolved = resolve_git_executable_from_candidates(
-        Some(system_git.clone()),
-        vec![system_git.clone()],
-    )
-    .unwrap();
+    let resolved =
+        resolve_git_executable_from_candidates(Some(system_git.clone()), vec![system_git.clone()])
+            .unwrap();
 
     assert_eq!(resolved.path, system_git);
 }

@@ -35,9 +35,9 @@ import { modelPickerStyleAtom } from "@src/store/ui/chatPanelAtom";
 import { getRustAgentType } from "@src/util/session/sessionDispatch";
 
 interface BenchmarkRunBuilderProps {
-  bodySlot: React.ReactNode;
+  bodySlot?: React.ReactNode;
   className: string;
-  footerSlot: React.ReactNode;
+  footerSlot?: React.ReactNode;
 }
 
 export function BenchmarkRunBuilder({

@@ -93,26 +93,6 @@ async function markModeSwitchEventResolved(
   );
 }
 
-/**
- * Patterns that indicate the user's message was itself a mode-switch command
- * rather than a real task. Re-sending these into the new mode would trigger
- * another suggest_mode_switch call and create an infinite loop.
- */
-const MODE_SWITCH_COMMAND_PATTERNS = [
-  /switch\s*(to\s*)?(plan|build|debug|ask|review)\s*mode?/i,
-  /enter\s*(plan|build|debug|ask|review)\s*mode?/i,
-  /go\s+to\s*(plan|build|debug|ask|review)\s*mode?/i,
-  /use\s*(plan|build|debug|ask|review)\s*mode?/i,
-  /切换.*mode/i,
-  /切.*plan/i,
-  /进入.*mode/i,
-  /切.*模式/i,
-];
-
-function isModeSwitchCommand(text: string): boolean {
-  return MODE_SWITCH_COMMAND_PATTERNS.some((re) => re.test(text));
-}
-
 function getLastUserText(sessionId: string): string {
   // Prefer the per-session snapshot cache so we always read the correct
   // session's events even when the global eventsAtom hasn't settled yet
@@ -149,9 +129,12 @@ async function switchCursorIdeMode(
   await cursorBridgeSetMode({ agentId: composerId, modeId: targetMode });
 
   const lastUserText = getLastUserText(sessionId);
-  // Bug-fix: same guard as switchAgentMode — skip resend when the user's
-  // last message was itself a mode-switch command to avoid an infinite loop.
-  if (!lastUserText || isModeSwitchCommand(lastUserText)) return;
+  // Only skip the resend when there is no prior user message to anchor on.
+  // A loop is impossible by construction: every read-only mode (Plan, Ask,
+  // Debug, Review) denies `suggest_mode_switch` via `read_only_deny_base`,
+  // so the tool is absent from the LLM's toolset after the switch and cannot
+  // re-trigger another mode-switch.
+  if (!lastUserText) return;
 
   // No beginOptimisticTurn here: Cursor IDE sessions have no turn lifecycle
   // (the CDP stream emits no terminal event), so an optimistic `running`
@@ -195,17 +178,25 @@ async function switchAgentMode(
   await respondModeSwitch(sessionId, "switch", targetMode);
 
   const lastUserText = getLastUserText(sessionId);
-  // Do not resend if there is no prior user message, or if the last user
-  // message was itself a mode-switch command. Resending a request to switch
-  // into Plan mode would trigger another suggest_mode_switch call and
-  // create an infinite switching loop.
-  if (!lastUserText || isModeSwitchCommand(lastUserText)) return;
+  // Only skip the resume when there is no prior user message to anchor the
+  // re-run on. We deliberately do NOT inspect the message text: a user's real
+  // task can legitimately open with switch-style wording (e.g. "切模式检查…
+  // 写个修复 plan 给我"), and dropping the resume in that case strands the turn
+  // — the round flips to Plan but the agent never continues (the reported bug).
+  // An infinite switch loop is impossible by construction: every read-only mode
+  // (Plan, Ask, Debug, Review) denies `suggest_mode_switch` via
+  // `read_only_deny_base`, so the tool is absent from the LLM's toolset after
+  // the switch and cannot re-trigger another mode-switch.
+  if (!lastUserText) return;
 
-  // Use the session row's model/account for the resend if it has one
-  // (an actual in-session selection beats the creator-default), and
-  // fall back to the localStorage-backed default only when the row
-  // has no model yet (very first turn, before any model picker
-  // interaction).
+  // Re-run the SAME request under the new mode WITHOUT persisting a new
+  // visible user message. The frontend groups chat history into rounds by
+  // user-message boundary (`useChatGroups`), so re-sending `lastUserText`
+  // here would open a brand-new round and duplicate the user bubble (GH #91).
+  // Instead we use Resume semantics: `content=""` + `isResume=true` makes the
+  // backend skip the `save_user_msg` write (see `should_save_user_msg` in
+  // `turn/processor/mod.rs`) and anchor the turn on the still-present last
+  // user row — so the new-mode run stays inside the original round.
   const sessionForSend = store.get(sessionByIdAtom(sessionId));
   const fallback = store.get(creatorDefaultModelSelectionAtom);
   const lastModelSelection = sessionForSend?.model
@@ -221,14 +212,15 @@ async function switchAgentMode(
     : fallback;
   const { model, accountId } = resolveModelForMessage(lastModelSelection);
 
-  // Mode-switch resends bypass useMessageDispatch, so set the optimistic
+  // Mode-switch re-runs bypass useMessageDispatch, so set the optimistic
   // running status here (P3).
   beginOptimisticTurn(sessionId);
 
   try {
     await SessionService.sendMessage({
       sessionId,
-      content: lastUserText,
+      content: "",
+      isResume: true,
       model,
       accountId,
       mode: targetMode,

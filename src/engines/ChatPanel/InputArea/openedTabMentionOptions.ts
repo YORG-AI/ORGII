@@ -2,6 +2,8 @@ import { hasNonEmptyTerminalBuffer } from "@src/components/TerminalInteractive/b
 import type { CustomMentionOption } from "@src/engines/ChatPanel/hooks/useInputArea/types";
 import type { MenuItemId } from "@src/scaffold/ContextMenu/config";
 import type { WorkStationTab } from "@src/store/workstation/tabs";
+import { getCompactPathLabel } from "@src/util/file/pathUtils";
+import { formatRepoPathForDisplay } from "@src/util/file/repoPathDisplay";
 
 const getStringData = (
   tab: WorkStationTab,
@@ -27,6 +29,7 @@ export const getOpenedTabMentionOption = (
     id: `workstation-tab:${tab.id}`,
     label: tab.title,
     description,
+    groupLabel: "Open tabs",
     selectType,
     selectValue,
     selectDisplayName,
@@ -35,7 +38,16 @@ export const getOpenedTabMentionOption = (
   if (tab.type === "file" || tab.type === "git-diff") {
     const filePath = getStringData(tab, "filePath");
     if (!filePath) return null;
-    return baseOption("files", filePath, filePath);
+    const displayPath = formatRepoPathForDisplay({
+      path: filePath,
+      repoPath: getStringData(tab, "repoPath"),
+    }).displayPath;
+    return baseOption(
+      "files",
+      filePath,
+      displayPath || filePath,
+      getCompactPathLabel(displayPath || filePath)
+    );
   }
 
   if (tab.type === "directory") {

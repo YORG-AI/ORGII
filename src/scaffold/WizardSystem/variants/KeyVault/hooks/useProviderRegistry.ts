@@ -11,6 +11,7 @@ import { rpc } from "@src/api/tauri/rpc";
 import type {
   AvailableAgent,
   AvailableApiProvider,
+  ProviderProtocol,
 } from "@src/api/tauri/rpc/schemas/validation";
 import { agentRegistryAtom } from "@src/store/session/agentRegistryAtom";
 
@@ -107,6 +108,8 @@ export interface UnifiedProviderVariant {
   supportsBaseUrl: boolean;
   /** Default base URL (if any) */
   defaultBaseUrl?: string;
+  supportedProtocols: ProviderProtocol[];
+  defaultProtocol: ProviderProtocol;
 }
 
 export interface UnifiedProvider {
@@ -177,6 +180,8 @@ function buildUnifiedProviders(
             apiKeyEnvVar: api.apiKeyEnvVar,
             supportsBaseUrl: api.supportsBaseUrl,
             defaultBaseUrl: api.defaultBaseUrl,
+            supportedProtocols: api.supportedProtocols,
+            defaultProtocol: api.defaultProtocol,
           },
           {
             modelType: cli.name,
@@ -185,6 +190,8 @@ function buildUnifiedProviders(
             apiKeyEnvVar: cli.envConfig?.apiKeyEnvVar ?? "",
             supportsBaseUrl: cli.envConfig?.supportsBaseUrl ?? false,
             defaultBaseUrl: undefined,
+            supportedProtocols: ["openai"],
+            defaultProtocol: "openai",
           },
         ];
 
@@ -220,6 +227,8 @@ function buildUnifiedProviders(
           apiKeyEnvVar: api.apiKeyEnvVar,
           supportsBaseUrl: api.supportsBaseUrl,
           defaultBaseUrl: api.defaultBaseUrl,
+          supportedProtocols: api.supportedProtocols,
+          defaultProtocol: api.defaultProtocol,
         },
       ],
       popular: api.popular,
@@ -244,6 +253,8 @@ function buildUnifiedProviders(
           mode: "cli",
           apiKeyEnvVar: cli.envConfig?.apiKeyEnvVar ?? "",
           supportsBaseUrl: cli.envConfig?.supportsBaseUrl ?? false,
+          supportedProtocols: ["openai"],
+          defaultProtocol: "openai",
         },
       ],
       popular: cli.popular,

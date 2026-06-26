@@ -40,7 +40,7 @@ export function buildBranchSpotlightItem(
     id: `${idPrefix}${branch.name}`,
     label: branch.name,
     desc,
-    icon: ICONS.branch,
+    icon: branch.worktreePath ? ICONS.worktree : ICONS.branch,
     type: "branch" as const,
     statusType: branch.isCurrent ? ("ongoing" as const) : undefined,
     data: { ...branch },

@@ -14,7 +14,9 @@ import React, {
   useState,
 } from "react";
 
+import type { CliAgentType } from "@src/api/types/keys";
 import { CHART_TOOLTIP } from "@src/components/Chart";
+import { resolveSessionRowIcon } from "@src/util/session/sessionSidebarRow";
 
 import { getHeatmapColor } from "../views/CodingProfileView/config";
 
@@ -22,11 +24,20 @@ import { getHeatmapColor } from "../views/CodingProfileView/config";
 // Types
 // ============================================
 
+export interface HeatmapGridCellSession {
+  sessionId: string;
+  name: string;
+  userInput?: string;
+  cliAgentType?: CliAgentType;
+  agentIconId?: string;
+}
+
 export interface HeatmapGridCell {
   xIndex: number;
   yIndex: number;
   count: number;
   label: string;
+  sessions?: HeatmapGridCellSession[];
 }
 
 export interface HeatmapGridLabel {
@@ -164,7 +175,7 @@ const HeatmapGrid: React.FC<HeatmapGridProps> = memo(
       <div ref={containerRef} className="relative w-full">
         <svg
           width={svgWidth}
-          height={svgHeight + 24}
+          height={svgHeight + 52}
           className="block"
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
@@ -195,18 +206,25 @@ const HeatmapGrid: React.FC<HeatmapGridProps> = memo(
             </text>
           ))}
 
-          {cells.map((cell) => (
-            <rect
-              key={`${cell.xIndex}-${cell.yIndex}`}
-              x={yLabelWidth + cell.xIndex * cellStep}
-              y={HEADER_HEIGHT + cell.yIndex * cellStep}
-              width={cellSize}
-              height={cellSize}
-              rx={CELL_RADIUS}
-              ry={CELL_RADIUS}
-              fill={getHeatmapColor(cell.count, maxCount)}
-            />
-          ))}
+          {cells.map((cell) => {
+            const isHovered =
+              hoveredCell?.xIndex === cell.xIndex &&
+              hoveredCell?.yIndex === cell.yIndex;
+            return (
+              <rect
+                key={`${cell.xIndex}-${cell.yIndex}`}
+                x={yLabelWidth + cell.xIndex * cellStep}
+                y={HEADER_HEIGHT + cell.yIndex * cellStep}
+                width={cellSize}
+                height={cellSize}
+                rx={CELL_RADIUS}
+                ry={CELL_RADIUS}
+                fill={getHeatmapColor(cell.count, maxCount)}
+                stroke={isHovered ? "var(--color-border-3)" : "transparent"}
+                strokeWidth={isHovered ? 3 : 0}
+              />
+            );
+          })}
         </svg>
 
         {hoveredCell && (
@@ -214,7 +232,11 @@ const HeatmapGrid: React.FC<HeatmapGridProps> = memo(
             className="pointer-events-none absolute z-10"
             style={{
               left: yLabelWidth + hoveredCell.xIndex * cellStep + cellSize / 2,
-              top: HEADER_HEIGHT + hoveredCell.yIndex * cellStep - 28,
+              top:
+                HEADER_HEIGHT +
+                hoveredCell.yIndex * cellStep +
+                cellSize +
+                CELL_GAP,
               transform: "translateX(-50%)",
               ...CHART_TOOLTIP.content,
             }}
@@ -227,20 +249,52 @@ const HeatmapGrid: React.FC<HeatmapGridProps> = memo(
                 marginBottom: 4,
               }}
             >
-              {hoveredCell.label}
-            </p>
-            <p
-              style={{
-                ...CHART_TOOLTIP.item,
-                fontSize: 11,
-                lineHeight: "20px",
-              }}
-            >
-              <span style={{ color: "var(--color-text-1)" }}>
-                {hoveredCell.count}
-              </span>{" "}
+              {hoveredCell.label} · {hoveredCell.count.toLocaleString()}{" "}
               {hoveredCell.count === 1 ? unit : pluralUnit}
             </p>
+            {hoveredCell.sessions?.length ? (
+              <div className="flex max-w-[220px] flex-col gap-1">
+                {hoveredCell.sessions.slice(0, 5).map((session) => {
+                  const SessionIcon = resolveSessionRowIcon({
+                    session_id: session.sessionId,
+                    user_input: session.userInput,
+                    cliAgentType: session.cliAgentType,
+                    agentIconId: session.agentIconId,
+                  });
+                  return (
+                    <div
+                      key={session.sessionId}
+                      className="flex min-w-0 items-center gap-1.5 text-[11px] leading-5 text-text-1"
+                    >
+                      <SessionIcon
+                        size={12}
+                        strokeWidth={1.75}
+                        className="shrink-0 text-text-2"
+                      />
+                      <span className="truncate">{session.name}</span>
+                    </div>
+                  );
+                })}
+                {hoveredCell.sessions.length > 5 && (
+                  <div className="text-[11px] leading-5 text-text-2">
+                    +{hoveredCell.sessions.length - 5}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p
+                style={{
+                  ...CHART_TOOLTIP.item,
+                  fontSize: 11,
+                  lineHeight: "20px",
+                }}
+              >
+                <span style={{ color: "var(--color-text-1)" }}>
+                  {hoveredCell.count}
+                </span>{" "}
+                {hoveredCell.count === 1 ? unit : pluralUnit}
+              </p>
+            )}
           </div>
         )}
 

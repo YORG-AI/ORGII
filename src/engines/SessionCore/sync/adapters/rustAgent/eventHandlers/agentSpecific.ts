@@ -203,6 +203,8 @@ function makePlanApprovalEvent(options: {
   };
 }
 
+type PlanReadyPayload = Pick<PlanReadyForApprovalEvent, "autoApproveAt">;
+
 export function handlePlanReadyForApproval(
   event: AgentWSEvent,
   eventSessionId: string | undefined,
@@ -214,6 +216,7 @@ export function handlePlanReadyForApproval(
   const store = ctx.getDefaultStore();
   if (!store) return;
 
+  const planReadyPayload = event as AgentWSEvent & PlanReadyPayload;
   const detail: PlanReadyForApprovalEvent = {
     sessionId: eventSessionId,
     planPath,
@@ -223,6 +226,10 @@ export function handlePlanReadyForApproval(
     planId: event.planId,
     planRevisionId: event.planRevisionId,
     originToolCallId: event.originToolCallId,
+    autoApproveAt:
+      typeof planReadyPayload.autoApproveAt === "number"
+        ? planReadyPayload.autoApproveAt
+        : null,
   };
 
   store.set(pendingPlanApprovalsAtom, (prev) =>

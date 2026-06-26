@@ -290,6 +290,8 @@ export const COUNT_BADGE = {
   sizeMulti: "min-w-[18px] px-1.5",
   /** Primary variant (source control, search) */
   primary: "bg-primary-5 text-white",
+  /** Muted variant for zero-count section badges */
+  muted: "bg-fill-2 text-text-3",
   /** Warning variant (merge conflicts) */
   warning: "bg-warning-5 text-white",
   /** Danger variant (merge conflicts, destructive counts) */

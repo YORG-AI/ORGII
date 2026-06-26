@@ -43,7 +43,7 @@ export function SettingsTablePagination({
   const currentPage = pageIndex + 1;
 
   return (
-    <div className={`grid w-full grid-cols-3 items-center ${className}`}>
+    <div className={`grid w-full grid-cols-3 items-center py-1 ${className}`}>
       <span className="text-sm font-medium text-text-1">
         {t("pagination.totalItems", { count: total })}
       </span>

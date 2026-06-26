@@ -24,7 +24,7 @@ import {
 } from "@src/store/workstation/browser/tabs";
 
 import { useWebviewScreenshot } from "../../../../hooks/useWebviewScreenshot";
-import WebUrlBar from "../../components/WebUrlBar";
+import WebUrlBar, { focusBrowserUrlBar } from "../../components/WebUrlBar";
 
 const ABOUT_BLANK_URL = "about:blank";
 
@@ -180,6 +180,7 @@ export const WebViewport: React.FC<WebViewportProps> = memo(
 
     const handleNewBrowserTab = useCallback(() => {
       browserState.addSession();
+      focusBrowserUrlBar();
     }, [browserState]);
 
     // Check if can go back/forward based on history

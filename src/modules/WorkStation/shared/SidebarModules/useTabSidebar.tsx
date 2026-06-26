@@ -197,9 +197,8 @@ export const SidebarSlot: React.FC<SidebarSlotProps> = memo(
       repoPath,
     ]);
 
-    const activeWarmTab = activeKeepAlive
-      ? warmTabsByType[activeTab.type]
-      : undefined;
+    const activeWarmTab =
+      activeTab && activeKeepAlive ? warmTabsByType[activeTab.type] : undefined;
     const shouldRenderDirectActiveSidebar =
       activeTab && context && activeSidebarRenderable && !activeWarmTab;
 

@@ -127,6 +127,8 @@
     "uiScale": "Tỷ lệ giao diện",
     "timezoneAuto": "Tự động (Trình duyệt)",
     "timezoneSearchPlaceholder": "Tìm kiếm thành phố gần nhất",
+    "sendOnEnter": "Gửi tin nhắn bằng Enter",
+    "sendOnEnterDesc": "Khi bật, Enter gửi và Shift+Enter chèn dòng mới. Khi tắt, Ctrl/Cmd+Enter gửi.",
     "language": "Ngôn ngữ",
     "languageSearchPlaceholder": "Tìm kiếm ngôn ngữ...",
     "languageNames": {
@@ -975,7 +977,9 @@
     "typingSpeed": "Tốc độ gõ",
     "typingSpeedDesc": "Mili giây mỗi ký tự (1ms = nhanh nhất, 50ms = chậm nhất)",
     "decryptEffect": "Hiệu ứng Decrypt",
-    "decryptEffectDesc": "Bật hiệu ứng Decrypt cho tin nhắn Agent"
+    "decryptEffectDesc": "Bật hiệu ứng Decrypt cho tin nhắn Agent",
+    "sendOnEnter": "Gửi tin nhắn bằng Enter",
+    "sendOnEnterDesc": "Khi bật, Enter gửi và Shift+Enter chèn dòng mới. Khi tắt, Ctrl/Cmd+Enter gửi."
   },
   "languageServers": {
     "languageServersDesc": "Quản lý máy chủ LSP cho tự động hoàn thành, chẩn đoán và trí tuệ mã",

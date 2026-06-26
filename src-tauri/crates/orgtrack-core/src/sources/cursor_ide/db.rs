@@ -288,14 +288,17 @@ fn discover_cursor_composers(
         .map_err(|err| format!("Failed to query Cursor composer metadata: {err}"))?;
     let rows = stmt
         .query_map([], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
         })
         .map_err(|err| format!("Failed to read Cursor composer metadata: {err}"))?;
 
     let mut composers = Vec::new();
     for row in rows {
-        let (key, value) =
-            row.map_err(|err| format!("Failed to read Cursor composer metadata row: {err}"))?;
+        let (key, Some(value)) =
+            row.map_err(|err| format!("Failed to read Cursor composer metadata row: {err}"))?
+        else {
+            continue;
+        };
         let Some(source_session_id) = key.strip_prefix(COMPOSER_KEY_PREFIX) else {
             continue;
         };
