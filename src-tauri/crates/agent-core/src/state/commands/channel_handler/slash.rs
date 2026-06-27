@@ -244,8 +244,7 @@ async fn search_session_context(query: &str) -> String {
             let mut lines = vec![format!("**Session Memory hits for:** `{}`", query)];
             for hit in hits {
                 let preview = crate::utils::safe_truncate_chars_to_string(
-                    &hit.content.replace('
-', " "),
+                    &hit.content.replace('\n', " "),
                     220,
                 );
                 lines.push(format!(
