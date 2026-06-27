@@ -129,6 +129,38 @@ pub(super) async fn spawn_session_memory_extraction(input: SessionMemoryExtracti
                         warn!("[sm_extraction] Failed to persist SM state: {}", err);
                     }
                 });
+
+                let embed_cfg = crate::state::integrations_store::integrations_store()
+                    .snapshot()
+                    .embedding;
+                let embedder = crate::memory::embeddings::AutoEmbeddingProvider::new(
+                    embed_cfg.provider,
+                    embed_cfg.model,
+                );
+                match crate::memory::embeddings::EmbeddingProvider::embed(&embedder, &content).await {
+                    Ok(embedding) => {
+                        let sid = sm_session_id.clone();
+                        let content = content.clone();
+                        let model = embedding.model.clone();
+                        let vector = embedding.vector;
+                        tokio::task::block_in_place(|| {
+                            if let Err(err) = unified_persistence::save_session_memory_index(
+                                &sid,
+                                &content,
+                                &vector,
+                                Some(&model),
+                            ) {
+                                warn!("[sm_extraction] Failed to persist SM embedding index: {}", err);
+                            }
+                        });
+                    }
+                    Err(err) => {
+                        warn!(
+                            "[sm_extraction] Session-memory embedding failed for {}: {}",
+                            sm_session_id, err
+                        );
+                    }
+                }
             }
             result
         };

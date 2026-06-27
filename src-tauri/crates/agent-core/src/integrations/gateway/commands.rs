@@ -37,6 +37,8 @@ pub enum GatewayCommand {
     SessionSwitch(String),
     /// Create a fresh versioned session and bind this chat to it immediately.
     SessionNew,
+    /// Semantic search across indexed Session Memory summaries.
+    SessionSearch(String),
     /// Bind the current chat/session to a Project or Work Item context.
     SessionBind { target: String, value: String },
     /// Emit the current binding + running-session summary back to the channel.
@@ -205,6 +207,10 @@ mod tests {
         );
         assert_eq!(parse("/session list"), Some(GatewayCommand::SessionList));
         assert_eq!(parse("/session new"), Some(GatewayCommand::SessionNew));
+        assert_eq!(
+            parse("/session search feishu image bug"),
+            Some(GatewayCommand::SessionSearch("feishu image bug".into()))
+        );
         assert_eq!(
             parse("/session switch osagent-feishu-x"),
             Some(GatewayCommand::SessionSwitch("osagent-feishu-x".into()))

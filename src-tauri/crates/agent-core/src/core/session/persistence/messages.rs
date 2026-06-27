@@ -529,6 +529,99 @@ pub struct PersistedSessionMemoryState {
     pub last_msg_idx: Option<usize>,
 }
 
+
+// ============================================
+// Session Memory Semantic Index
+// ============================================
+
+#[derive(Debug, Clone)]
+pub struct SessionMemoryIndexRow {
+    pub session_id: String,
+    pub content: String,
+    pub embedding: Vec<f32>,
+    pub embedding_model: Option<String>,
+    pub updated_at: String,
+}
+
+pub fn ensure_session_memory_index_schema(conn: &rusqlite::Connection) -> SqliteResult<()> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS session_memory_index (
+            session_id       TEXT PRIMARY KEY,
+            content          TEXT NOT NULL,
+            embedding        BLOB,
+            embedding_model  TEXT,
+            updated_at       TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_session_memory_index_updated
+            ON session_memory_index(updated_at);",
+    )?;
+    Ok(())
+}
+
+pub fn save_session_memory_index(
+    session_id: &str,
+    content: &str,
+    embedding: &[f32],
+    embedding_model: Option<&str>,
+) -> SqliteResult<()> {
+    let embedding_bytes: Vec<u8> = embedding.iter().flat_map(|v| v.to_le_bytes()).collect();
+    let embedding_blob: Option<&[u8]> = if embedding_bytes.is_empty() {
+        None
+    } else {
+        Some(&embedding_bytes)
+    };
+    with_sessions_writer(|| -> SqliteResult<()> {
+        let conn = get_connection()?;
+        ensure_session_memory_index_schema(&conn)?;
+        conn.execute(
+            "INSERT INTO session_memory_index
+                (session_id, content, embedding, embedding_model, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(session_id) DO UPDATE SET
+                content = excluded.content,
+                embedding = excluded.embedding,
+                embedding_model = excluded.embedding_model,
+                updated_at = excluded.updated_at",
+            rusqlite::params![
+                session_id,
+                content,
+                embedding_blob,
+                embedding_model,
+                chrono::Utc::now().to_rfc3339(),
+            ],
+        )?;
+        Ok(())
+    })
+}
+
+pub fn load_session_memory_index_rows() -> SqliteResult<Vec<SessionMemoryIndexRow>> {
+    let conn = get_connection()?;
+    ensure_session_memory_index_schema(&conn)?;
+    let mut stmt = conn.prepare(
+        "SELECT session_id, content, embedding, embedding_model, updated_at
+         FROM session_memory_index
+         ORDER BY updated_at DESC",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        let embedding_blob: Option<Vec<u8>> = row.get(2)?;
+        let embedding = embedding_blob
+            .map(|blob| {
+                blob.chunks_exact(4)
+                    .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+                    .collect()
+            })
+            .unwrap_or_default();
+        Ok(SessionMemoryIndexRow {
+            session_id: row.get(0)?,
+            content: row.get(1)?,
+            embedding,
+            embedding_model: row.get(3)?,
+            updated_at: row.get(4)?,
+        })
+    })?;
+    rows.collect()
+}
+
 // ============================================
 // Cancel-Interrupt Marker
 // ============================================

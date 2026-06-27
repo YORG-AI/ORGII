@@ -29,6 +29,7 @@ pub(super) async fn handle_command(
         GatewayCommand::SessionList => build_session_list(state).await,
         GatewayCommand::SessionSwitch(target) => switch_session(state, session_key, &target).await,
         GatewayCommand::SessionNew => create_and_switch_session(state, msg, session_key).await,
+        GatewayCommand::SessionSearch(query) => search_session_context(&query).await,
         GatewayCommand::SessionBind { target, value } => {
             bind_active_context(state, session_key, &target, &value).await
         }
@@ -233,6 +234,34 @@ async fn create_and_switch_session(
     )
 }
 
+async fn search_session_context(query: &str) -> String {
+    match crate::session::session_memory_search::search_session_memories(query, 5).await {
+        Ok(hits) if hits.is_empty() => format!(
+            "No indexed session-memory hits for `{}`. Session Memory indexes are created after SM extraction runs.",
+            query
+        ),
+        Ok(hits) => {
+            let mut lines = vec![format!("**Session Memory hits for:** `{}`", query)];
+            for hit in hits {
+                let preview = crate::utils::safe_truncate_chars_to_string(
+                    &hit.content.replace('
+', " "),
+                    220,
+                );
+                lines.push(format!(
+                    "• `{}` score={:.3} updated={}
+  {}",
+                    hit.session_id, hit.score, hit.updated_at, preview
+                ));
+            }
+            lines.push("Use `/session switch <session_id>` to bind this chat to one of these sessions.".to_string());
+            lines.join("
+")
+        }
+        Err(err) => format!("Session-memory search failed: {}", err),
+    }
+}
+
 async fn bind_active_context(
     state: &AgentAppState,
     session_key: &SessionKey,
@@ -394,6 +423,7 @@ fn build_help_text() -> String {
         "`/session list` — list recent ORG2 sessions (aliases: `/session ls`, `/ctx ls`).",
         "`/session switch <session_id>` — bind this Feishu chat to an existing session and show recent context (alias: `/session use <session_id>`).",
         "`/session new` — create and bind a fresh session immediately.",
+        "`/session search <query>` — semantic search across indexed Session Memory summaries (embedding + rerank).",
         "",
         "**Active project / Work Item context**",
         "`/session bind project <slug>` — set active project context for this channel session.",
