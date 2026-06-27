@@ -87,6 +87,29 @@ pub trait AcpAgentAdapter: Send {
     fn handle_custom_notification(&mut self, _method: &str, _params: &Value) -> Vec<ActivityChunk> {
         vec![]
     }
+
+    fn map_tool_result_chunk(
+        &self,
+        _session_id: &str,
+        _cursor_name: &str,
+        _result_text: &str,
+        _is_error: bool,
+    ) -> Option<ActivityChunk> {
+        None
+    }
+
+    fn should_emit_tool_start(&self, _cursor_name: &str) -> bool {
+        true
+    }
+
+    fn should_emit_tool_result(
+        &self,
+        _cursor_name: &str,
+        _result_text: &str,
+        _is_error: bool,
+    ) -> bool {
+        true
+    }
 }
 
 // ============================================
@@ -670,23 +693,27 @@ impl<A: AcpAgentAdapter> AcpNotificationParser<A> {
             _ => raw_input.clone(),
         };
 
-        let mut chunk = ActivityChunk::new(&self.session_id, "tool_call", &cursor_name);
-        chunk.args = args;
-        chunk.result = serde_json::json!({ "call_id": tool_call_id, "status": "running" });
-
         let effective_path = if file_path.is_empty() && !title.is_empty() {
             title
         } else {
             file_path
         };
         self.pending_tools.insert(
-            tool_call_id,
+            tool_call_id.clone(),
             PendingToolCall {
-                cursor_name,
+                cursor_name: cursor_name.clone(),
                 file_path: effective_path,
                 raw_input,
             },
         );
+
+        if !self.adapter.should_emit_tool_start(&cursor_name) {
+            return vec![];
+        }
+
+        let mut chunk = ActivityChunk::new(&self.session_id, "tool_call", &cursor_name);
+        chunk.args = args;
+        chunk.result = serde_json::json!({ "call_id": tool_call_id, "status": "running" });
         vec![chunk]
     }
 
@@ -723,6 +750,24 @@ impl<A: AcpAgentAdapter> AcpNotificationParser<A> {
         }
         if let Some(obj) = result.as_object_mut() {
             obj.insert("call_id".to_string(), Value::String(tool_call_id));
+        }
+
+        if is_terminal {
+            if let Some(chunk) = self.adapter.map_tool_result_chunk(
+                &self.session_id,
+                &cursor_name,
+                &result_text,
+                is_error,
+            ) {
+                return vec![chunk];
+            }
+        }
+
+        if !self
+            .adapter
+            .should_emit_tool_result(&cursor_name, &result_text, is_error)
+        {
+            return vec![];
         }
 
         let mut chunk = ActivityChunk::new(&self.session_id, "tool_call", &cursor_name);

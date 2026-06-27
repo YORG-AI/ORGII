@@ -97,6 +97,25 @@ describe("session sync state callbacks", () => {
     expect(eventStoreProxy.unpinSession).toHaveBeenCalledWith("session-1");
   });
 
+  it("does not clear live assistant content on thinking deltas", () => {
+    const actions = createActions();
+    actions.streamingMap.set("session-1", "partial answer");
+    const callbacks = createSessionEventHandlerCallbacks(
+      "session-1",
+      actions,
+      vi.fn()
+    );
+
+    callbacks.onStreamingDelta?.({
+      isStreaming: true,
+      isThinking: true,
+      content: "reasoning token",
+    });
+
+    expect(actions.streamingMap.get("session-1")).toBe("partial answer");
+    expect(actions.setStreamingDeltaContent).not.toHaveBeenCalled();
+  });
+
   it("marks terminal status changes as FSM turn terminals", () => {
     const actions = createActions();
     const callbacks = createSessionEventHandlerCallbacks(

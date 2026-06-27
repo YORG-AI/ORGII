@@ -122,7 +122,7 @@ Source: `core/turn_executor/`, broken down as:
 | File / dir                 | Role                                                           |
 | -------------------------- | -------------------------------------------------------------- |
 | `mod.rs`                   | `execute_turn` entry point + the loop body                     |
-| `streaming_executor.rs`    | Wires the provider event-stream into the loop                  |
+| `stream_normalizer.rs`     | Normalizes provider stream events for live UI updates          |
 | `tool_execution/`          | Tool-call dispatch + parallel batch handling                   |
 | `tool_result_storage.rs`   | Persists tool results into the session DB                      |
 | `screenshot.rs`            | Vision-block injection (parent screenshots, OS Agent context)  |

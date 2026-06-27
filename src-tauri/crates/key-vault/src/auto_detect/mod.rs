@@ -12,6 +12,7 @@ mod cursor;
 mod gemini;
 pub(crate) mod helpers;
 mod kiro;
+mod opencode;
 
 use serde::{Deserialize, Serialize};
 
@@ -83,6 +84,7 @@ pub async fn auto_detect_key(agent_type: &str) -> AutoDetectResult {
         ModelType::GeminiCli => gemini::detect_gemini_keys().await,
         ModelType::Copilot => copilot::detect_copilot_keys().await,
         ModelType::Kiro => kiro::detect_kiro_keys().await,
+        ModelType::OpenCode => opencode::detect_opencode_keys().await,
         // API key providers don't have auto-detect (keys are entered manually)
         _ => vec![],
     };

@@ -27,7 +27,7 @@ import { deriveToolAction } from "@src/util/ui/rendering/toolAction";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
-const VALID_MODES = new Set<string>(["html", "url", "a2ui"]);
+const VALID_MODES = new Set<string>(["html", "url", "a2ui", "react"]);
 
 function isCanvasMode(value: unknown): value is CanvasInlineMode {
   return typeof value === "string" && VALID_MODES.has(value);
@@ -69,7 +69,8 @@ export const CanvasInlineAdapter: React.FC<UniversalEventProps> = (props) => {
   // the blank "No content" fallback.
   const hasContent =
     (mode === "url" && Boolean(url)) ||
-    ((mode === "html" || mode === "a2ui") && Boolean(content));
+    ((mode === "html" || mode === "a2ui" || mode === "react") &&
+      Boolean(content));
 
   if (isFailed) {
     const errorText =

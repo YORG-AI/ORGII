@@ -20,6 +20,7 @@ pub mod provider_id {
     // Aggregators
     pub const OPENROUTER: &str = "openrouter";
     pub const ZENMUX: &str = "zenmux";
+    pub const OPENCODE: &str = "opencode";
 
     // Standard providers
     pub const ANTHROPIC: &str = "anthropic";
@@ -84,6 +85,17 @@ pub static PROVIDERS: &[ProviderSpec] = &[
         default_anthropic_api_base: Some("https://zenmux.ai/api/anthropic"),
         is_local: false,
         env_key: Some("ZENMUX_API_KEY"),
+    },
+    ProviderSpec {
+        name: provider_id::OPENCODE,
+        display_name: "OpenCode",
+        keywords: &[],
+        litellm_prefix: None,
+        skip_prefixes: &[],
+        default_api_base: Some("https://opencode.ai/zen/go/v1"),
+        default_anthropic_api_base: None,
+        is_local: false,
+        env_key: Some("OPENCODE_API_KEY"),
     },
     // ===== Standard Providers =====
     ProviderSpec {

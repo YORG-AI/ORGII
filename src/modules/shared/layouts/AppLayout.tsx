@@ -26,7 +26,11 @@ import { WindowsTopBar } from "@src/components/WindowChrome";
 import { ChatProvider } from "@src/contexts/workspace/ChatContext";
 import { DataProvider } from "@src/contexts/workspace/DataContext";
 import ChatPanel from "@src/engines/ChatPanel";
-import { MAX_WIDTH as CHAT_MAX_WIDTH } from "@src/engines/ChatPanel/config";
+import {
+  CHAT_WIDTH_CSS_VAR,
+  clampChatWidth,
+} from "@src/engines/ChatPanel/config";
+import { useViewportWidth } from "@src/engines/ChatPanel/hooks/useViewportWidth";
 import type { SessionLaunchSuccessInfo } from "@src/engines/SessionCore/hooks/session/useSessionCreator/useSessionLaunch/types";
 import { pendingSessionProposal } from "@src/engines/SessionCore/hooks/useAgentADEActions";
 import SessionSyncProvider from "@src/engines/SessionCore/sync/SessionSyncProvider";
@@ -175,16 +179,15 @@ const AppLayoutComponent: React.FC<AppLayoutProps> = ({
   children,
 }) => {
   const rawChatWidth = useAtomValue(chatWidthAtom);
+  const viewportWidth = useViewportWidth();
   // Settings-in-slot must always have a usable width even if the user
   // previously dragged the chat to zero. Fall back to the configured
   // default so opening Settings never produces a collapsed slot.
   const isSettingsSlot = chatPanelMode === "settings";
   const effectiveRawWidth =
     rawChatWidth > 0 ? rawChatWidth : isSettingsSlot ? DEFAULT_CHAT_WIDTH : 0;
-  const chatWidth =
-    effectiveRawWidth > 0
-      ? Math.min(effectiveRawWidth, CHAT_MAX_WIDTH)
-      : effectiveRawWidth;
+  const chatWidth = clampChatWidth(effectiveRawWidth, viewportWidth);
+  const chatWidthStyleValue = chatWidth > 0 ? `var(${CHAT_WIDTH_CSS_VAR})` : 0;
   const sidebarCollapsed = useAtomValue(sidebarCollapsedAtom);
   const isChatOnLeft = chatPosition === "left";
   const isCompact = chatLayout === "compact";
@@ -233,22 +236,15 @@ const AppLayoutComponent: React.FC<AppLayoutProps> = ({
             paddingTop: paddingValue,
             paddingLeft:
               isChatOnLeft && isSlotVisible && !chatPanelMaximized
-                ? paddingValue + chatWidth + 4
+                ? `calc(${paddingValue}px + var(${CHAT_WIDTH_CSS_VAR}) + 4px)`
                 : paddingValue,
             paddingBottom: paddingValue,
             paddingRight:
               !isChatOnLeft && isSlotVisible && !chatPanelMaximized
-                ? paddingValue + chatWidth + 4
+                ? `calc(${paddingValue}px + var(${CHAT_WIDTH_CSS_VAR}) + 4px)`
                 : paddingValue,
           },
-    [
-      paddingValue,
-      isSlotVisible,
-      chatWidth,
-      isFull,
-      chatPanelMaximized,
-      isChatOnLeft,
-    ]
+    [paddingValue, isSlotVisible, isFull, chatPanelMaximized, isChatOnLeft]
   );
 
   // Inset mode: absolute overlay, hidden via opacity/transform when not visible.
@@ -262,7 +258,7 @@ const AppLayoutComponent: React.FC<AppLayoutProps> = ({
       right: chatPanelMaximized || !isChatOnLeft ? paddingValue : undefined,
       bottom: paddingValue,
       display: "flex",
-      width: chatPanelMaximized ? undefined : chatWidth || 0,
+      width: chatPanelMaximized ? undefined : chatWidthStyleValue,
       overflow: "visible" as const,
       opacity: isSlotVisible ? 1 : 0,
       pointerEvents: isSlotVisible ? ("auto" as const) : ("none" as const),
@@ -270,7 +266,13 @@ const AppLayoutComponent: React.FC<AppLayoutProps> = ({
         ? "translateX(0)"
         : `translateX(${isChatOnLeft ? "-120%" : "120%"})`,
     }),
-    [paddingValue, chatWidth, isSlotVisible, chatPanelMaximized, isChatOnLeft]
+    [
+      paddingValue,
+      chatWidthStyleValue,
+      isSlotVisible,
+      chatPanelMaximized,
+      isChatOnLeft,
+    ]
   );
 
   // Slot content: either the live chat panel or the in-slot Settings surface.
@@ -322,7 +324,9 @@ const AppLayoutComponent: React.FC<AppLayoutProps> = ({
                         : "relative z-10 flex flex-shrink-0"
                     }
                     style={
-                      chatPanelMaximized ? undefined : { width: chatWidth }
+                      chatPanelMaximized
+                        ? undefined
+                        : { width: chatWidthStyleValue }
                     }
                     data-fullmode-chat-wrapper
                     data-tour-target={
@@ -363,7 +367,9 @@ const AppLayoutComponent: React.FC<AppLayoutProps> = ({
                         : "relative z-10 flex flex-shrink-0"
                     }
                     style={
-                      chatPanelMaximized ? undefined : { width: chatWidth }
+                      chatPanelMaximized
+                        ? undefined
+                        : { width: chatWidthStyleValue }
                     }
                     data-fullmode-chat-wrapper
                     data-tour-target={

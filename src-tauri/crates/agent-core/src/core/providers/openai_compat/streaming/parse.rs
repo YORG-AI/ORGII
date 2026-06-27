@@ -59,6 +59,72 @@ pub(super) enum ParsedToolArgs {
     },
 }
 
+fn parse_with_quoted_absolute_paths(args_str: &str) -> Option<Value> {
+    let mut repaired = String::with_capacity(args_str.len() + 8);
+    let mut chars = args_str.char_indices().peekable();
+    let mut in_string = false;
+    let mut escaped = false;
+
+    while let Some((idx, ch)) = chars.next() {
+        repaired.push(ch);
+
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if ch == '\\' {
+            escaped = true;
+            continue;
+        }
+        if ch == '"' {
+            in_string = !in_string;
+            continue;
+        }
+        if in_string || ch != ':' {
+            continue;
+        }
+
+        while let Some((_, ws)) = chars.peek().copied() {
+            if !ws.is_whitespace() {
+                break;
+            }
+            repaired.push(ws);
+            chars.next();
+        }
+
+        let Some((value_start, '/')) = chars.peek().copied() else {
+            continue;
+        };
+
+        let mut value_end = value_start;
+        while let Some((next_idx, next_ch)) = chars.peek().copied() {
+            if matches!(next_ch, ',' | '}' | ']') {
+                break;
+            }
+            value_end = next_idx + next_ch.len_utf8();
+            chars.next();
+        }
+
+        let raw_value = &args_str[value_start..value_end];
+        let trimmed = raw_value.trim_end();
+        if trimmed.is_empty() {
+            return None;
+        }
+        let quoted = serde_json::to_string(trimmed).ok()?;
+        repaired.push_str(&quoted);
+        repaired.push_str(&raw_value[trimmed.len()..]);
+
+        if value_end <= idx {
+            return None;
+        }
+    }
+
+    if repaired == args_str {
+        return None;
+    }
+    serde_json::from_str::<Value>(&repaired).ok()
+}
+
 /// Parse the accumulated `function.arguments` string for a streamed
 /// tool call. On failure, classifies the error so that callers (and
 /// log scrapers) can tell apart the four root-cause families we have
@@ -95,6 +161,9 @@ pub(super) fn parse_streamed_tool_args(args_str: &str) -> ParsedToolArgs {
     match serde_json::from_str::<Value>(args_str) {
         Ok(v) => ParsedToolArgs::Ok(v),
         Err(parse_err) => {
+            if let Some(repaired) = parse_with_quoted_absolute_paths(args_str) {
+                return ParsedToolArgs::Ok(repaired);
+            }
             let cause = super::error_classify::classify_invalid_args(args_str);
             ParsedToolArgs::Failed { cause, parse_err }
         }

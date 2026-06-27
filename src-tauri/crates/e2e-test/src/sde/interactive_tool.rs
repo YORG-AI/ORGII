@@ -27,10 +27,10 @@ pub async fn plan_approval_lifecycle_keeps_revision_timestamp(cfg: &Config) -> b
         Ok(result) => result,
     };
 
-    let first_event = result
+    let archived_event = result
         .plan_events
         .iter()
-        .find(|event| event.plan_revision_id == "call_first");
+        .find(|event| event.plan_revision_id == "call_first" && event.status == "archived");
     let second_event = result
         .plan_events
         .iter()
@@ -44,16 +44,14 @@ pub async fn plan_approval_lifecycle_keeps_revision_timestamp(cfg: &Config) -> b
             .map(|timestamp| timestamp.to_rfc3339())
             .unwrap_or_default();
 
-    let old_plan_archived = first_event
-        .map(|event| event.status.as_str() == "archived")
-        .unwrap_or(false);
+    let old_plan_archived = archived_event.is_some();
     let new_plan_pending = second_event
         .map(|event| event.status.as_str() == "pending")
         .unwrap_or(false);
-    let archived_uses_original_time = first_event
+    let archived_uses_original_time = archived_event
         .map(|event| event.created_at == first_iso)
         .unwrap_or(false);
-    let archived_not_restamped_to_update_time = first_event
+    let archived_not_restamped_to_update_time = archived_event
         .map(|event| event.created_at != second_iso)
         .unwrap_or(false);
 

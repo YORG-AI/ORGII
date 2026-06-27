@@ -104,7 +104,7 @@ export function useAdvancedConfig(): UseAdvancedConfigResult {
     const selectedSourceModelType = lastModelSelection.selectedSourceModelType;
     const nativeHarnessType =
       dispatchCategory === "rust_agent" &&
-      (selectedAccount?.canUseNativeHarness ||
+      (selectedAccount?.nativeHarnessType ||
         selectedSourceModelType === CLI_AGENT.CURSOR)
         ? (selectedAccount?.nativeHarnessType ?? NATIVE_HARNESS_TYPE.CURSOR)
         : undefined;

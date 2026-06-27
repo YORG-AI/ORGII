@@ -293,12 +293,15 @@ const js = {
     const card = document.querySelector('[data-testid="mode-switch-card"]');
     const confirm = document.querySelector('[data-testid="mode-switch-confirm"]');
     const skip = document.querySelector('[data-testid="mode-switch-skip"]');
+    const autoSkip = card ? card.querySelector('[data-testid="mode-switch-auto-skip-countdown"]') : null;
     return {
       card: !!card,
       targetMode: card ? card.getAttribute('data-target-mode') : null,
       confirm: !!confirm,
       confirmDisabled: confirm ? confirm.disabled : null,
       skip: !!skip,
+      autoSkipText: autoSkip ? (autoSkip.textContent || '').trim() : '',
+      autoSkipRemaining: autoSkip ? Number(autoSkip.getAttribute('data-auto-skip-remaining')) : null,
       text: card ? (card.textContent || '') : '',
       bodyText: (document.body.innerText || '').slice(0, 4000),
     };
@@ -460,7 +463,9 @@ function isControlScenarioExplicitlyRequested(scenarioName) {
 }
 
 async function ensureAuthBypass() {
-  await ensureBrowserAuthBypass(process.env.E2E_BASE_URL ?? "http://127.0.0.1:13847");
+  await ensureBrowserAuthBypass(
+    process.env.E2E_BASE_URL ?? "http://127.0.0.1:13847"
+  );
 }
 
 async function waitForApp() {
@@ -895,7 +900,8 @@ async function waitForSessionCreatorReady(label, repoPath) {
 }
 
 async function readCurrentModeFromMenu(label) {
-  const skillsToolsButtonSelector = '[data-testid="composer-skills-tools-button"]';
+  const skillsToolsButtonSelector =
+    '[data-testid="composer-skills-tools-button"]';
   // The slash menu renders mode entries as flat ModeRow items (the Mode
   // flyout trigger was removed in ddcbdbdd); the current mode row carries
   // a lucide Check icon via DropdownSelectedCheck.
@@ -926,7 +932,9 @@ async function waitForModePill(label, expectedText) {
       const text = await execJS(js.modePillText);
       if (typeof text === "string" && text.includes(expectedText)) return true;
       const menuMode = await readCurrentModeFromMenu(label);
-      return menuMode.ok && String(menuMode.triggerText ?? "").includes(expectedText);
+      return (
+        menuMode.ok && String(menuMode.triggerText ?? "").includes(expectedText)
+      );
     },
     {
       timeout: 15_000,
@@ -971,11 +979,16 @@ async function waitForModeSwitchCard(label, expectedReason) {
       );
       const reasonMatches =
         !expectedReason || String(ui.text || "").includes(expectedReason);
+      const countdownMatches =
+        Number.isFinite(ui.autoSkipRemaining) &&
+        ui.autoSkipRemaining >= 0 &&
+        ui.autoSkipRemaining <= 300;
       return (
         ui.card &&
         ui.confirm &&
         ui.targetMode === "plan" &&
         reasonMatches &&
+        countdownMatches &&
         hasSuggestEvent &&
         !ui.bodyText.includes(
           "Cursor native 'SwitchMode' is not accepted by ORGII"
@@ -1090,7 +1103,9 @@ function normalizeEventText(text) {
 
 async function assertNoDuplicateThinkingEvents(label) {
   const state = await inspectChatState(`${label}-thinking-dedup`);
-  const eventById = new Map((state.chatEvents ?? []).map((event) => [event.id, event]));
+  const eventById = new Map(
+    (state.chatEvents ?? []).map((event) => [event.id, event])
+  );
   const visibleEvents = (state.pipelineItems ?? [])
     .map((item) => (item.eventId ? eventById.get(item.eventId) : null))
     .filter(Boolean);
@@ -1418,7 +1433,9 @@ async function assertPlanRevisionReplaced(label, oldRevisionId, newRevisionId) {
     (card) => card.revisionId === oldRevisionId && card.status === "archived"
   );
   const oldLifecycleEvent = (state.rawEvents ?? []).some((event) => {
-    const resultStatus = String(event.resultStatus ?? event.result?.status ?? "");
+    const resultStatus = String(
+      event.resultStatus ?? event.result?.status ?? ""
+    );
     return (
       event.planRevisionId === oldRevisionId &&
       ["archived", "approved", "cancelled"].includes(resultStatus)

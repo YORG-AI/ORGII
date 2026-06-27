@@ -714,10 +714,10 @@
       "tabs": {
         "work": "Trabajo",
         "explore": "Explorar",
-        "heatmap": "Heat map"
+        "heatmap": "Tendencias"
       },
       "heatmap": {
-        "loading": "Cargando Heat map de actividad…",
+        "loading": "Cargando tendencias de actividad…",
         "empty": "Aún no hay actividad de sesiones.",
         "sessions": "Sesiones",
         "tokens": "Tokens",
@@ -932,10 +932,10 @@
       "allRepositories": "Todos los repos",
       "newIssue": "Nueva issue",
       "tabs": {
-        "all": "Todo",
-        "active": "Activas",
-        "reviewRequests": "Solicitudes de review",
-        "done": "Listo"
+        "recent": "Recientes",
+        "assigned": "Asignadas",
+        "byMe": "Por mí",
+        "mentioned": "Mencionadas"
       }
     }
   },

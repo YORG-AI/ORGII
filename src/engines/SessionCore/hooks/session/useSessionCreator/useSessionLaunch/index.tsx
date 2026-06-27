@@ -359,6 +359,7 @@ export function useSessionLaunch(
           agentExecMode,
           effectiveSource,
           isBackgroundLaunch,
+          launchCliAgentType: launchParams.platform,
           launchOrgContext: resolvedWorkItemContext ?? undefined,
           result,
         })

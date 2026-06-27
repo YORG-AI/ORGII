@@ -16,10 +16,11 @@ use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, info, warn};
 
+use super::auth::FeishuAuth;
 use super::channel::{self, WsClientConfig};
 use super::codec::*;
 use super::event::{self, FeishuEventConfig};
-use super::{api, auth::FeishuAuth};
+use super::api;
 use crate::bus::InboundMessage;
 
 /// Cap for exponential backoff: 15 minutes.
@@ -276,10 +277,10 @@ pub(super) async fn feishu_ws_loop(
                                                 &mut dedup_set,
                                                 &mut dedup_order,
                                             ) {
-                                                // Download feishu:image / feishu:file refs to local paths
-                                                if !inbound.media.is_empty() {
-                                                    api::resolve_feishu_media(&auth, &mut inbound.media).await;
-                                                }
+                                                // Download feishu:image / feishu:file refs to local paths.
+                                                // Official media resolution is kept; the fork's WS stability
+                                                // improvements only change connection/reassembly behavior.
+                                                api::resolve_feishu_media(&auth, &mut inbound.media).await;
                                                 info!("[{}] Sending inbound to bus: session_key={}", channel_name, inbound.session_key());
                                                 if let Err(err) = inbound_tx.send(inbound).await {
                                                     error!("[{}] Failed to send inbound: {}", channel_name, err);

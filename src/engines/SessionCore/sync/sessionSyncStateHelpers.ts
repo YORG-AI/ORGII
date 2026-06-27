@@ -145,9 +145,11 @@ export function updateStreamingDeltaContent(
   info: StreamingDeltaInfo,
   setStreamingDeltaContent: SessionEventHandlerStateActions["setStreamingDeltaContent"]
 ): void {
+  if (info.isThinking) return;
+
   setStreamingDeltaContent((prev) => {
     const next = new Map(prev);
-    if (info.isStreaming && !info.isThinking) {
+    if (info.isStreaming) {
       next.set(sessionId, info.content);
     } else {
       next.delete(sessionId);

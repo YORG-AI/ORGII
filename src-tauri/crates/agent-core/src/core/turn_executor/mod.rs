@@ -13,7 +13,6 @@ pub mod provider_request_capture;
 mod screenshot;
 mod stream_error_recovery;
 pub(crate) mod stream_normalizer;
-pub(crate) mod streaming_executor;
 pub(crate) mod tool_execution;
 pub(crate) mod tool_result_storage;
 mod types;
@@ -35,10 +34,6 @@ pub use types::{
     TurnIterationHook, TurnResult,
 };
 
-// Used by the streaming pre-execution shortcut in `execute_turn` below,
-// not part of the module's public surface.
-use helpers::add_tool_result_rich_with_timestamp;
-
 // `MAX_TOOL_OUTPUT_CHARS` is consumed by `helpers::*` and a couple of test
 // modules via `use crate::core::turn_executor::MAX_TOOL_OUTPUT_CHARS`.
 // `set_test_backoff_override_ms` is consumed by the retry-tests module the
@@ -55,15 +50,12 @@ use std::sync::Arc;
 use serde_json::Value;
 use tracing::{info, warn};
 
-use crate::core::tools::traits::ToolExecuteResult;
 use crate::providers::traits::{finish_reason as finish, LLMProvider, StreamDelta};
 use crate::specialization::policies::activation::SessionScopedContextActivator;
-use crate::tools::names as tool_names;
 use crate::tools::policy::ResolvedToolPolicy;
 use crate::tools::registry::ToolRegistry;
 
 use stream_normalizer::{NormalizedStreamEvent, TurnStreamNormalizer};
-use streaming_executor::{execute_prevalidated, StreamingToolAccumulator};
 
 use crate::model_context::microcompact;
 
@@ -210,11 +202,6 @@ pub async fn execute_turn(
             session_id
         );
 
-        // Streaming tool accumulator: pre-parses read-only tool calls during streaming
-        let streaming_acc = Arc::new(std::sync::Mutex::new(StreamingToolAccumulator::new(
-            tools, policy,
-        )));
-        let streaming_acc_for_cb = streaming_acc.clone();
         let stream_normalizer = Arc::new(std::sync::Mutex::new(TurnStreamNormalizer::new()));
         let stream_normalizer_for_cb = stream_normalizer.clone();
 
@@ -269,9 +256,6 @@ pub async fn execute_turn(
                                     tc_delta.name.as_deref(),
                                     tc_delta.arguments_delta.as_deref(),
                                 );
-                                if let Ok(mut acc) = streaming_acc_for_cb.lock() {
-                                    acc.on_tool_call_delta(&tc_delta);
-                                }
                             }
                             NormalizedStreamEvent::UnknownFrame {
                                 provider,
@@ -514,127 +498,25 @@ pub async fn execute_turn(
                 &config.model,
             );
 
-            // Execute pre-validated read-only tools from streaming accumulator
-            let (ready_ids, ready_calls) = {
-                let mut acc = streaming_acc.lock().unwrap();
-                let ids = acc.ready_ids().to_vec();
-                let calls = acc.take_ready_tool_calls();
-                (ids, calls)
-            };
-            let pre_results = execute_prevalidated(
-                ready_calls,
+            let (_count, outcome) = execute_tool_calls(
+                messages,
+                &response.tool_calls,
                 tools,
+                policy,
                 session_id,
+                handler,
+                permission_provider,
+                cancel_flag,
+                &mut file_tracker,
+                &mut consecutive_errors,
+                workspace_path,
+                policy_context_activator,
                 config.max_tool_use_concurrency,
             )
             .await;
 
-            // Inject pre-computed results for tools that completed during streaming
-            if !pre_results.is_empty() {
-                info!(
-                    "[agent-core] {} tool(s) completed during streaming, skipping re-execution",
-                    pre_results.len()
-                );
-                for sr in &pre_results {
-                    let (mut output, rich, is_err): (String, Option<&ToolExecuteResult>, bool) =
-                        match &sr.result {
-                            Ok(content) => (
-                                content.text.clone(),
-                                Some(content),
-                                tool_execution::is_error_text(&content.text),
-                            ),
-                            Err(err) => (format!("Error: {}", err), None, true),
-                        };
-                    // Apply the same per-tool output budget as the normal
-                    // execution path (`tool_execution/single.rs`). Without
-                    // this, the streaming pre-execution shortcut injects
-                    // unbounded tool output straight into the context —
-                    // a multi-MB read_file result here once blew up a
-                    // subagent's context beyond recovery.
-                    let budget = tools.get(&sr.tool_name).map(|t| t.output_budget());
-                    output = helpers::truncate_output(&output, budget);
-                    if sr.tool_name == tool_names::READ_FILE && !is_err {
-                        if let Some(path) = sr.args.get("path").and_then(|value| value.as_str()) {
-                            if let Some(extra) = policy_context_activator.and_then(|activator| {
-                                activator.augment_for_read_paths(&[path.to_string()])
-                            }) {
-                                output.push_str(&extra);
-                            }
-                        }
-                    }
-                    handler.on_tool_call(
-                        session_id,
-                        &sr.tool_call_id,
-                        &sr.tool_name,
-                        &sr.tool_name,
-                        &sr.args,
-                    );
-                    handler.on_tool_result(
-                        session_id,
-                        &sr.tool_call_id,
-                        &sr.tool_name,
-                        &sr.tool_name,
-                        &output,
-                    );
-                    match rich {
-                        Some(rich_result) if rich_result.has_structured_payload() => {
-                            // Preserve MCP structured payload through the
-                            // streaming pre-execution shortcut.
-                            add_tool_result_rich_with_timestamp(
-                                messages,
-                                &sr.tool_call_id,
-                                &sr.tool_name,
-                                &output,
-                                rich_result,
-                                is_err,
-                            );
-                        }
-                        _ => {
-                            add_tool_result(
-                                messages,
-                                &sr.tool_call_id,
-                                &sr.tool_name,
-                                &output,
-                                is_err,
-                            );
-                        }
-                    }
-                }
-            }
-
-            // Filter out already-executed tool calls before passing to normal execution
-            let remaining_tool_calls: Vec<_> = response
-                .tool_calls
-                .iter()
-                .filter(|tc| !ready_ids.contains(&tc.id))
-                .cloned()
-                .collect();
-
-            let outcome = if remaining_tool_calls.is_empty() {
-                tool_execution::ToolBatchOutcome::Continue
-            } else {
-                let (_count, outcome) = execute_tool_calls(
-                    messages,
-                    &remaining_tool_calls,
-                    tools,
-                    policy,
-                    session_id,
-                    handler,
-                    permission_provider,
-                    cancel_flag,
-                    &mut file_tracker,
-                    &mut consecutive_errors,
-                    workspace_path,
-                    policy_context_activator,
-                    config.max_tool_use_concurrency,
-                )
-                .await;
-                outcome
-            };
-
             // Backfill dummy results for any tool calls that don't have a
-            // result yet (e.g. after EarlyExit with interleaved pre-validated
-            // and remaining tool calls).
+            // result yet after EarlyExit.
             let existing_ids: std::collections::HashSet<String> = messages
                 .iter()
                 .filter_map(|m| {

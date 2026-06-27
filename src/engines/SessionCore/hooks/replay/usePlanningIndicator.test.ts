@@ -48,13 +48,13 @@ describe("shouldShowPlanningIndicator", () => {
     ).toBe(true);
   });
 
-  it("hides while a visible running row is painted", () => {
+  it("shows while a running tool row is idle long enough", () => {
     expect(
       shouldShowPlanningIndicator({
         ...baseInput,
         anyRunning: true,
       })
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("shows during the parent gap when a background subagent is still running", () => {
@@ -69,7 +69,7 @@ describe("shouldShowPlanningIndicator", () => {
     ).toBe(true);
   });
 
-  it("does not show on a live subagent if a visible running row is already painted", () => {
+  it("shows on a live subagent after a running row becomes idle", () => {
     expect(
       shouldShowPlanningIndicator({
         ...baseInput,
@@ -77,6 +77,6 @@ describe("shouldShowPlanningIndicator", () => {
         hasLiveSubagent: true,
         anyRunning: true,
       })
-    ).toBe(false);
+    ).toBe(true);
   });
 });

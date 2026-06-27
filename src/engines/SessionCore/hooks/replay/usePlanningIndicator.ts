@@ -4,7 +4,6 @@
  * Shows a single "Planning next step..." line in the chat panel when:
  * 1. Any session type is actively working (code / cloud / OS agent)
  * 2. No store mutations for IDLE_THRESHOLD_MS (1 second)
- * 3. No event currently has displayStatus === "running"
  *
  * The indicator stays visible until new events arrive or the session ends.
  *
@@ -29,6 +28,8 @@
  * Rust pushes StreamingSnapshot which has no `events` field, causing eventsAtom
  * to return []. Both snapshot types now carry `hasRunningEvent` (computed
  * against ALL events, including non-chat-visible ones like thinking deltas).
+ * Running events are used only to keep the watchdog from force-completing a
+ * legitimate long tool call; they do not suppress the idle footer.
  *
  * Uses snapshot `version` as the activity token — it bumps on every store
  * mutation (upsert, append, merge), including streaming deltas for thinking
@@ -110,7 +111,6 @@ export function shouldShowPlanningIndicator({
   isSessionActive,
   isPendingCancel,
   hasAwaitingUserInteraction,
-  anyRunning,
   coldStartVisible,
   idleAfterVersion,
   version,
@@ -127,7 +127,6 @@ export function shouldShowPlanningIndicator({
     isSessionActive &&
     !isPendingCancel &&
     !hasAwaitingUserInteraction &&
-    !anyRunning &&
     (coldStartVisible || idleAfterVersion === version)
   );
 }
@@ -289,7 +288,7 @@ export function usePlanningIndicator(
     };
   }, [isSessionActive, version, activationVersion]);
 
-  // Visible when: session active, no running event, not pending cancel, AND either
+  // Visible when: session active, not pending cancel, AND either
   //   (a) cold-start — version hasn't bumped since activation yet, OR
   //   (b) warm — IDLE_THRESHOLD_MS elapsed since last mutation.
   //
@@ -358,7 +357,8 @@ export function usePlanningIndicator(
   // `agent:subagent_job_changed` terminal event is the real completion
   // signal, not a 60s wall clock.
   useEffect(() => {
-    if (scoped || !visible || !sessionId || hasLiveSubagent) return;
+    if (scoped || !visible || !sessionId || hasLiveSubagent || anyRunning)
+      return;
     const timerId = window.setTimeout(() => {
       log.warn(
         `[usePlanningIndicator] watchdog: planning indicator stuck for ${PLANNING_WATCHDOG_MS}ms — ` +
@@ -374,7 +374,14 @@ export function usePlanningIndicator(
     return () => {
       window.clearTimeout(timerId);
     };
-  }, [scoped, visible, sessionId, hasLiveSubagent, setSessionRuntimeStatus]);
+  }, [
+    scoped,
+    visible,
+    sessionId,
+    hasLiveSubagent,
+    anyRunning,
+    setSessionRuntimeStatus,
+  ]);
 
   // Re-roll the variant index on every hidden → visible transition.
   // Using a large random integer and letting the consumer mod by the

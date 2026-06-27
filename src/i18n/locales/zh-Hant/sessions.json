@@ -718,10 +718,10 @@
       "tabs": {
         "work": "工作",
         "explore": "探索",
-        "heatmap": "Heat map"
+        "heatmap": "趨勢"
       },
       "heatmap": {
-        "loading": "正在載入活動 Heat map…",
+        "loading": "正在載入活動趨勢…",
         "empty": "尚無會話活動。",
         "sessions": "會話",
         "tokens": "Tokens",
@@ -936,10 +936,10 @@
       "allRepositories": "所有 Repos",
       "newIssue": "新增 Issue",
       "tabs": {
-        "all": "全部",
-        "active": "活躍",
-        "reviewRequests": "Review 請求",
-        "done": "已完成"
+        "recent": "最近",
+        "assigned": "指派給我",
+        "byMe": "由我建立",
+        "mentioned": "提及我"
       }
     }
   },

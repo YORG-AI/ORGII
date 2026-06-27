@@ -50,6 +50,8 @@ export interface SessionCreateParams {
   listingModelType?: string;
   /** Marketplace price tier (hosted_key sessions) */
   tier?: string;
+  /** Source session when this run is forked from imported or compacted history. */
+  parentSessionId?: string;
 }
 
 export interface SessionMergeParams {

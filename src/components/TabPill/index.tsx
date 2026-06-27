@@ -291,7 +291,9 @@ const TabPill: React.FC<TabPillProps> = ({
                 ? "h-full text-[11px]"
                 : size === "large"
                   ? "h-full text-[16px]"
-                  : "h-full text-[13px]",
+                  : size === "chatPanel"
+                    ? "h-full text-[13px]"
+                    : "h-full text-[13px]",
             "border-0 bg-transparent outline-none",
             isActive
               ? "font-semibold text-text-1"
@@ -338,7 +340,9 @@ const TabPill: React.FC<TabPillProps> = ({
               ? "text-[11px]"
               : size === "large"
                 ? "text-[16px]"
-                : "text-xs",
+                : size === "chatPanel"
+                  ? "text-[13px]"
+                  : "text-xs",
           iconOnly
             ? size === "mini"
               ? "h-6 px-1 py-[2px]"
@@ -346,14 +350,18 @@ const TabPill: React.FC<TabPillProps> = ({
                 ? "h-[24px] w-[28px] p-0 [&_svg]:h-[14px] [&_svg]:w-[14px]"
                 : size === "large"
                   ? "h-9 px-2 py-1"
-                  : "h-[28px] px-1.5 py-[3px]"
+                  : size === "chatPanel"
+                    ? "h-7 px-1.5 py-[3px]"
+                    : "h-[28px] px-1.5 py-[3px]"
             : size === "mini"
               ? "h-6 px-2 py-[2px]"
               : size === "small"
                 ? "h-7 px-2 py-[2px]"
                 : size === "large"
                   ? "h-9 px-4 py-1"
-                  : "h-[28px] px-3 py-[3px]",
+                  : size === "chatPanel"
+                    ? "h-7 px-3 py-[3px]"
+                    : "h-[28px] px-3 py-[3px]",
           "border-0 outline-none",
           isFill
             ? isActive
@@ -439,7 +447,12 @@ const TabPill: React.FC<TabPillProps> = ({
         !isSimple && !wrap && "overflow-hidden",
         isPill && !wrap && "rounded-[100px]",
         isPill && !usePillWrapGrid && "gap-px",
-        isSimple && (size === "large" ? "h-full gap-4" : "h-full gap-2"),
+        isSimple &&
+          (size === "large"
+            ? "h-full gap-4"
+            : size === "chatPanel"
+              ? "h-full gap-3"
+              : "h-full gap-2"),
         wrap &&
           !usePillWrapGrid &&
           "flex-wrap content-start justify-start gap-1",

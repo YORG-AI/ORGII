@@ -714,10 +714,10 @@
       "tabs": {
         "work": "作業",
         "explore": "探索",
-        "heatmap": "Heat map"
+        "heatmap": "トレンド"
       },
       "heatmap": {
-        "loading": "アクティビティ Heat map を読み込み中…",
+        "loading": "アクティビティトレンドを読み込み中…",
         "empty": "まだセッションアクティビティはありません。",
         "sessions": "セッション",
         "tokens": "Tokens",
@@ -932,10 +932,10 @@
       "allRepositories": "すべての Repos",
       "newIssue": "新しい Issue",
       "tabs": {
-        "all": "すべて",
-        "active": "アクティブ",
-        "reviewRequests": "Review リクエスト",
-        "done": "完了"
+        "recent": "最近",
+        "assigned": "自分に割り当て",
+        "byMe": "自分が作成",
+        "mentioned": "メンション"
       }
     }
   },

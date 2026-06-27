@@ -29,6 +29,7 @@ interface PendingModeSwitch {
   eventId: string;
   targetMode: string;
   reason: string;
+  createdAt?: string;
 }
 
 function useModeSwitchPending(): PendingModeSwitch | null {
@@ -52,6 +53,7 @@ function useModeSwitchPending(): PendingModeSwitch | null {
         (event.args.reason as string | undefined) ??
         (event.args.explanation as string | undefined) ??
         "",
+      createdAt: event.createdAt,
     };
   }
   return null;
@@ -106,8 +108,10 @@ export function ModeSwitchInputCard({
       data-tool-call-name="suggest_mode_switch"
     >
       <ModeSwitchCardBody
+        key={pending.eventId}
         targetMode={pending.targetMode}
         reason={pending.reason}
+        createdAt={pending.createdAt}
         onSwitch={handleSwitch}
         onSkip={handleSkip}
         collapsed={collapsed}

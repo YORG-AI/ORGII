@@ -1,4 +1,11 @@
-import { CheckCircle2, CircleDot, ExternalLink, Loader } from "lucide-react";
+import {
+  Check,
+  CheckCircle2,
+  CircleDot,
+  Clipboard,
+  ExternalLink,
+  Loader,
+} from "lucide-react";
 import React, { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -13,10 +20,12 @@ import {
   HEADER_ICON_SIZE,
   TYPOGRAPHY,
 } from "@src/config/workstation/tokens";
+import { useCopyCheck } from "@src/hooks/ui";
 import {
   formatTimeAgo,
   getLabelColorStyle,
 } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/hooks/workstationIssueHelpers";
+import { copyText } from "@src/util/data/clipboard";
 
 interface IssueDetailPanelProps {
   issue: GitHubIssue;
@@ -96,19 +105,55 @@ function ConnectedTimelineItem({
   );
 }
 
+function TimelineCopyButton({ body }: { body: string }): React.ReactNode {
+  const { t } = useTranslation("common");
+  const onCopyContent = useCallback(async () => {
+    await copyText(body);
+  }, [body]);
+  const { copied, handleCopy } = useCopyCheck(onCopyContent);
+
+  if (!body.trim()) return null;
+
+  return (
+    <Button
+      variant="tertiary"
+      appearance="ghost"
+      size="mini"
+      iconOnly
+      icon={
+        copied ? (
+          <Check size={12} strokeWidth={1.75} />
+        ) : (
+          <Clipboard size={12} strokeWidth={1.75} />
+        )
+      }
+      title={copied ? t("status.copied") : t("actions.copy")}
+      aria-label={copied ? t("status.copied") : t("actions.copy")}
+      className="shrink-0 text-text-3 hover:bg-fill-2 hover:text-text-1"
+      onClick={(event) => {
+        event.stopPropagation();
+        handleCopy();
+      }}
+    />
+  );
+}
+
 function TimelineCard({
   header,
+  copyBody,
   children,
 }: {
   header: React.ReactNode;
+  copyBody?: string;
   children: React.ReactNode;
 }): React.ReactNode {
   return (
     <span className="bg-surface-1 flex min-w-0 flex-1 flex-col rounded-xl border border-border-1 shadow-sm">
       <span className="flex min-w-0 items-center justify-between gap-3 border-b border-border-1 px-3 py-2">
         {header}
+        {copyBody ? <TimelineCopyButton body={copyBody} /> : null}
       </span>
-      <span className="min-w-0 px-3 py-3">{children}</span>
+      <span className="min-w-0 select-text px-3 py-3">{children}</span>
     </span>
   );
 }
@@ -129,7 +174,7 @@ const IssueMarkdown = memo(function IssueMarkdown({
   }
 
   return (
-    <div className="chat-block-content max-w-[860px] text-[12px] leading-5 text-text-2 [&_.chat-markdown-body]:text-[12px] [&_.chat-markdown-body]:leading-5">
+    <div className="chat-block-content max-w-[860px] select-text text-[12px] leading-5 text-text-2 [&_.chat-markdown-body]:select-text [&_.chat-markdown-body]:text-[12px] [&_.chat-markdown-body]:leading-5">
       <Markdown
         textContent={normalizeGitHubMarkdownBody(body)}
         skipPreprocess
@@ -242,6 +287,7 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
                 isLast={comments.length === 0 && !commentsLoading}
               >
                 <TimelineCard
+                  copyBody={issue.body ?? ""}
                   header={
                     <span className="flex min-w-0 items-center gap-2">
                       <Avatar size={18} src={issue.user.avatar_url} />
@@ -277,6 +323,7 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
                     isLast={index === comments.length - 1}
                   >
                     <TimelineCard
+                      copyBody={comment.body}
                       header={
                         <span className="flex min-w-0 items-center gap-2">
                           <Avatar size={18} src={comment.user.avatar_url} />

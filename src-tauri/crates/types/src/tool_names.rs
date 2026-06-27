@@ -146,7 +146,7 @@ pub const TOOL_SEARCH: &str = "tool_search";
 // ── UI Output ───────────────────────────────────────────────────────
 /// Renders interactive HTML, URL embeds, or A2UI JSONL streams directly
 /// inside the chat panel as a sandboxed inline canvas card. Supported by
-/// both OS Agent and SDE Agent. Mode values: "html" | "url" | "a2ui".
+/// both OS Agent and SDE Agent. Mode values: "html" | "url" | "a2ui" | "react".
 pub const RENDER_INLINE_CANVAS: &str = "render_inline_canvas";
 
 // ── Plan Mode ───────────────────────────────────────────────────────

@@ -9,6 +9,9 @@ pub const OS_SESSION_PREFIX: &str = "osagent-";
 /// SDE Agent (software-development-engineer) sessions.
 pub const SDE_SESSION_PREFIX: &str = "sdeagent-";
 
+/// DS Agent (data scientist) sessions.
+pub const DS_SESSION_PREFIX: &str = "dsagent-";
+
 /// CLI agent sessions (Cursor, Claude Code, Codex, …).
 pub const CLI_SESSION_PREFIX: &str = "cliagent-";
 

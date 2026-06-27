@@ -132,6 +132,8 @@ const handleMouseMove = (e) => {
 const handleMouseDown = (e) => {
   if (!inspectEnabled) return;
 
+  suppressInspectEvent(e);
+
   const el = document.elementFromPoint(e.clientX, e.clientY);
   if (!el || isOverlayElement(el) || isUndraggable(el)) return;
 
@@ -151,6 +153,8 @@ const handleMouseDown = (e) => {
 const handleMouseUp = (e) => {
   if (!inspectEnabled) return;
 
+  suppressInspectEvent(e);
+
   if (isDragging && draggedElement) {
     // Complete the drag - move element
     const dropInfo = getDropPosition(e.clientX, e.clientY);
@@ -168,10 +172,7 @@ const handleMouseUp = (e) => {
 
 // Click handler (prevent default during inspect mode)
 const handleClick = (e) => {
-  if (!inspectEnabled) return;
-
-  e.preventDefault();
-  e.stopPropagation();
+  suppressInspectEvent(e);
 };
 
 // Keyboard handler (Escape to cancel)
@@ -179,6 +180,8 @@ const handleKeyDown = (e) => {
   if (!inspectEnabled) return;
 
   if (e.key === "Escape") {
+    suppressInspectEvent(e);
+
     // If dragging, cancel the drag instead of disabling inspect mode
     if (isDragging || draggedElement) {
       isDragging = false;
@@ -188,6 +191,8 @@ const handleKeyDown = (e) => {
       return;
     }
     window.__ORGII_DISABLE_INSPECT_MODE__();
+  } else if (e.key === "Enter" || e.key === " ") {
+    suppressInspectEvent(e);
   }
 };
 

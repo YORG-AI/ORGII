@@ -259,11 +259,14 @@ export function useWizard(options: UseWizardOptions): UseWizardReturn {
           : undefined,
       default_variants:
         data.default_variants.length > 0 ? data.default_variants : undefined,
-      quota_info: data.quota_info as SaveKeyRequest["quota_info"],
       auth_method: isOAuth ? "oauth" : data.auth_method || "api_key",
       has_local_key: true,
       is_listed: false,
     };
+
+    if (data.quota_info) {
+      request.quota_info = data.quota_info as SaveKeyRequest["quota_info"];
+    }
 
     onSubmit(request);
   }, [data, existingAccountNames, getDefaultNameBase, onSubmit]);

@@ -714,10 +714,10 @@
       "tabs": {
         "work": "Çalışma",
         "explore": "Keşfet",
-        "heatmap": "Heat map"
+        "heatmap": "Trendler"
       },
       "heatmap": {
-        "loading": "Etkinlik Heat map yükleniyor…",
+        "loading": "Etkinlik trendleri yükleniyor…",
         "empty": "Henüz oturum etkinliği yok.",
         "sessions": "Oturumlar",
         "tokens": "Tokens",
@@ -932,10 +932,10 @@
       "allRepositories": "Tüm repos",
       "newIssue": "Yeni issue",
       "tabs": {
-        "all": "Tümü",
-        "active": "Aktif",
-        "reviewRequests": "Review istekleri",
-        "done": "Bitti"
+        "recent": "Son",
+        "assigned": "Atananlar",
+        "byMe": "Benim tarafımdan",
+        "mentioned": "Bahsedilenler"
       }
     }
   },

@@ -3,8 +3,8 @@ import { atomWithStorage } from "jotai/utils";
 import { z } from "zod/v4";
 
 import {
-  MAX_WIDTH as CHAT_MAX_WIDTH,
-  MIN_WIDTH as CHAT_MIN_WIDTH,
+  clampChatWidth,
+  clampVisibleChatWidth,
 } from "@src/engines/ChatPanel/config";
 import {
   settingsAtom,
@@ -36,11 +36,11 @@ const CHAT_WIDTH_SAVE_DELAY = 300; // ms
 
 // CSS variable name for direct DOM updates
 const CHAT_WIDTH_CSS_VAR = "--orgii-chat-width";
-// Clamp persisted widths to [MIN_WIDTH, MAX_WIDTH]; preserve the 0
+// Clamp persisted widths to the current responsive range; preserve the 0
 // sentinel which means "chat panel hidden".
 const ChatWidthSchema = z.number().transform((value) => {
   if (value <= 0) return 0;
-  return Math.min(Math.max(value, CHAT_MIN_WIDTH), CHAT_MAX_WIDTH);
+  return clampVisibleChatWidth(value);
 });
 const StationChatVisibilitySchema = z.object({
   "my-station": z.boolean(),
@@ -51,8 +51,9 @@ export type StationChatVisibility = z.infer<typeof StationChatVisibilitySchema>;
 export type ChatStationMode = keyof StationChatVisibility;
 
 // Load initial value from localStorage (only once at startup).
-// Clamp to MAX_WIDTH so values persisted from wider viewports don't overflow,
-// and immediately write the clamped value back so the next reload is clean.
+// Clamp to the responsive width range so values persisted from wider viewports
+// don't overflow, and immediately write the clamped value back so the next
+// reload is clean.
 const getInitialChatWidth = (): number => {
   if (typeof window === "undefined") return DEFAULT_CHAT_WIDTH;
   try {
@@ -94,8 +95,7 @@ chatWidthBaseAtom.debugLabel = "chatWidthBaseAtom";
 export const chatWidthAtom = atom(
   (get) => get(chatWidthBaseAtom),
   (_get, set, newWidth: number) => {
-    const clampedWidth =
-      newWidth > 0 ? Math.min(newWidth, CHAT_MAX_WIDTH) : newWidth;
+    const clampedWidth = clampChatWidth(newWidth);
 
     set(chatWidthBaseAtom, clampedWidth);
 

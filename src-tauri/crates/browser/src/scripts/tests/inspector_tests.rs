@@ -32,3 +32,18 @@ fn element_inspector_script_includes_all_js_chunks() {
     assert!(script.contains("__ORGII_UNDO__"));
     assert!(script.contains("__ORGII_RESIZE_ELEMENT__"));
 }
+
+#[test]
+fn element_inspector_script_suppresses_page_actions_in_inspect_mode() {
+    let script = ELEMENT_INSPECTOR_SCRIPT;
+    assert!(script.contains("const INSPECT_EVENT_OPTIONS = { capture: true, passive: false }"));
+    assert!(script.contains("const suppressInspectEvent = (e) =>"));
+    assert!(script.contains("stopImmediatePropagation"));
+    assert!(script.contains("addInspectListener(\"mousedown\", handleMouseDown);"));
+    assert!(script.contains("addInspectListener(\"mouseup\", handleMouseUp);"));
+    assert!(script.contains("addInspectListener(\"click\", handleClick);"));
+    assert!(script.contains("\"auxclick\""));
+    assert!(script.contains("\"contextmenu\""));
+    assert!(script.contains("\"submit\""));
+    assert!(script.contains("e.key === \"Enter\" || e.key === \" \""));
+}

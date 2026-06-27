@@ -50,7 +50,7 @@ export const CollabOrgPanelView: React.FC<CollabOrgPanelViewProps> = ({
           activeTab={model.activeTab}
           onChange={(tab) => model.setActiveTab(tab as CollabOrgTab)}
           variant="simple"
-          size="large"
+          size="chatPanel"
           fillWidth={false}
         />
         {model.selectedMember ? (

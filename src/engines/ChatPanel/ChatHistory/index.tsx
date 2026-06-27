@@ -1125,9 +1125,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
               ref={scrollAreaRef}
               className="absolute inset-0 overflow-hidden"
             >
-              <div
-                className={`mx-auto h-full w-full ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
-              >
+              <div className="h-full w-full">
                 {optimizedChatHistory.length > 0 ? (
                   <>
                     <PlanningIndicatorBridge

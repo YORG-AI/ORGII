@@ -175,7 +175,12 @@ export async function handleToolResult(
   }
 }
 
-const CANVAS_INLINE_MODES = new Set<CanvasInlineMode>(["html", "url", "a2ui"]);
+const CANVAS_INLINE_MODES = new Set<CanvasInlineMode>([
+  "html",
+  "url",
+  "a2ui",
+  "react",
+]);
 
 function isCanvasInlineMode(value: unknown): value is CanvasInlineMode {
   return (

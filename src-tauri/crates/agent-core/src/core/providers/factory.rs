@@ -301,12 +301,12 @@ fn spec_for_model_type(model_type: &ModelType) -> Option<&'static ProviderSpec> 
         ModelType::ZenmuxApi => provider_id::ZENMUX,
         ModelType::VllmApi => provider_id::VLLM,
         ModelType::AzureOpenaiApi => provider_id::AZURE_OPENAI,
+        ModelType::OpenCode => provider_id::OPENCODE,
         ModelType::CursorCli
         | ModelType::ClaudeCode
         | ModelType::Copilot
         | ModelType::Kiro
         | ModelType::KimiCli
-        | ModelType::OpenCode
         | ModelType::OrgiiOrchestrator => return None,
     };
     registry::find_by_name(provider_name)
@@ -939,6 +939,7 @@ mod tests {
     const ALL_PROVIDER_IDS: &[&str] = &[
         provider_id::OPENROUTER,
         provider_id::ZENMUX,
+        provider_id::OPENCODE,
         provider_id::ANTHROPIC,
         provider_id::OPENAI,
         provider_id::DEEPSEEK,
@@ -978,6 +979,7 @@ mod tests {
             provider_id::MOONSHOT,
             provider_id::OPENROUTER,
             provider_id::ZENMUX,
+            provider_id::OPENCODE,
             provider_id::VLLM,
             provider_id::AZURE_OPENAI,
         ];
@@ -995,6 +997,12 @@ mod tests {
         assert!(spec_for_model_type(&ModelType::ClaudeCode).is_none());
         assert!(spec_for_model_type(&ModelType::KimiCli).is_none());
         assert!(spec_for_model_type(&ModelType::Codex).is_some());
+        assert_eq!(
+            spec_for_model_type(&ModelType::OpenCode)
+                .expect("OpenCode Go can power Rust-native sessions")
+                .name,
+            provider_id::OPENCODE
+        );
         assert_eq!(
             spec_for_model_type(&ModelType::GeminiCli)
                 .expect("Gemini CLI can power Rust-native sessions")

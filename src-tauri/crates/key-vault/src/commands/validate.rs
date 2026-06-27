@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::types::ValidationResult;
+
 use crate::providers::anthropic::AnthropicValidator;
 use crate::providers::azure_openai::AzureOpenAIValidator;
 use crate::providers::codex::CodexValidator;
@@ -8,7 +10,6 @@ use crate::providers::cursor::CursorValidator;
 use crate::providers::google::GoogleValidator;
 use crate::providers::kiro::KiroValidator;
 use crate::providers::openai::OpenAIValidator;
-use crate::types::ValidationResult;
 
 #[derive(Debug, Serialize)]
 pub struct TestModelResult {
@@ -31,6 +32,17 @@ struct ClaudeCodeOauthModelInfo {
 pub struct CodexOauthListModelsRequest {
     pub access_token: String,
     pub id_token: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenCodeModelsResponse {
+    #[serde(default)]
+    data: Vec<OpenCodeModelInfo>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenCodeModelInfo {
+    id: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -65,6 +77,8 @@ use crate::provider_config::get_provider_config;
 const CLAUDE_CODE_OAUTH_MODELS_URL: &str = "https://api.anthropic.com/v1/models";
 const CLAUDE_CODE_OAUTH_BETA: &str = "oauth-2025-04-20";
 const CLAUDE_CODE_OAUTH_USER_AGENT: &str = "claude-cli/2.1.78 (orgii, cli)";
+const OPENCODE_ZEN_BASE_URL: &str = "https://opencode.ai/zen/v1";
+const OPENCODE_GO_BASE_URL: &str = "https://opencode.ai/zen/go/v1";
 
 const GEMINI_OAUTH_MODELS_URL: &str = "https://generativelanguage.googleapis.com/v1beta/models";
 
@@ -89,6 +103,49 @@ fn default_anthropic_base_url_for_provider(agent_type: &str) -> Option<String> {
         "zenmux_api" => Some("https://zenmux.ai/api/anthropic".to_string()),
         _ => None,
     }
+}
+
+/// Validate an OpenCode Zen/Go key by listing models without issuing a completion request.
+pub async fn validate_opencode_key(api_key: &str, base_url: Option<&str>) -> ValidationResult {
+    if api_key.is_empty() {
+        return ValidationResult::failure("No API key provided");
+    }
+
+    let result = fetch_opencode_models(api_key, base_url.unwrap_or(OPENCODE_GO_BASE_URL)).await;
+    match result {
+        Ok(models) => ValidationResult::success("API key valid").with_models(models),
+        Err(err) if err == "Invalid API key" || base_url.is_some() => {
+            ValidationResult::failure(&err)
+        }
+        Err(_) => match fetch_opencode_models(api_key, OPENCODE_ZEN_BASE_URL).await {
+            Ok(models) => ValidationResult::success("API key valid").with_models(models),
+            Err(err) => ValidationResult::failure(&err),
+        },
+    }
+}
+
+async fn fetch_opencode_models(api_key: &str, base_url: &str) -> Result<Vec<String>, String> {
+    let endpoint = format!("{}/models", base_url.trim_end_matches('/'));
+    let response = reqwest::Client::new()
+        .get(endpoint)
+        .header("Authorization", format!("Bearer {api_key}"))
+        .timeout(std::time::Duration::from_secs(15))
+        .send()
+        .await
+        .map_err(|err| format!("Request failed: {err}"))?;
+
+    if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+        return Err("Invalid API key".to_string());
+    }
+    if !response.status().is_success() {
+        return Err(format!("HTTP {}", response.status().as_u16()));
+    }
+
+    let models: OpenCodeModelsResponse = response
+        .json()
+        .await
+        .map_err(|err| format!("Failed to parse response: {err}"))?;
+    Ok(models.data.into_iter().map(|model| model.id).collect())
 }
 
 /// Validate a key for a given agent type (shared by Tauri and headless tools).
@@ -150,6 +207,8 @@ pub async fn run_validate_key(
             Ok(validator.validate(&api_key).await)
         }
 
+        "opencode" | "opencode_cli" => Ok(validate_opencode_key(&api_key, base_url.as_deref()).await),
+
         // Direct API key providers (matching _api suffix variants from frontend)
         "openai_api" => {
             let validator = OpenAIValidator::new();
@@ -210,7 +269,7 @@ pub async fn run_validate_key(
         }
 
         _ => Err(format!(
-            "Unknown agent type: {}. Supported: copilot, cursor_cli, openai, anthropic, google, gemini_cli, codex, claude_code, kiro, openai_api, anthropic_api, gemini_api, deepseek_api, groq_api, xai_api, zhipu_api, dashscope_api, moonshot_api, minimax_api, openrouter_api, vllm_api, azure_openai_api, azure_anthropic_api",
+            "Unknown agent type: {}. Supported: copilot, cursor_cli, openai, anthropic, google, gemini_cli, codex, claude_code, kiro, opencode, openai_api, anthropic_api, gemini_api, deepseek_api, groq_api, xai_api, zhipu_api, dashscope_api, moonshot_api, minimax_api, openrouter_api, zenmux_api, vllm_api, azure_openai_api, azure_anthropic_api",
             agent_type
         )),
     }
@@ -322,6 +381,15 @@ pub fn validate_token_format(agent_type: String, token: String) -> Result<(bool,
             let validator = KiroValidator::new();
             Ok(validator.validate_format(&token))
         }
+        "opencode" | "opencode_cli" => {
+            if token.is_empty() {
+                Ok((false, "API key is required".to_string()))
+            } else if token.len() < 8 {
+                Ok((false, "API key is too short".to_string()))
+            } else {
+                Ok((true, "Format OK".to_string()))
+            }
+        }
 
         // Direct API key providers (_api suffix variants)
         "openai_api" => {
@@ -392,6 +460,8 @@ pub async fn fetch_key_quota(
         | "codex"
         | "gemini_cli"
         | "kiro"
+        | "opencode"
+        | "opencode_cli"
         | "openai_api"
         | "anthropic_api"
         | "gemini_api"
@@ -927,6 +997,7 @@ mod tests {
             "google",
             "gemini_cli",
             "kiro",
+            "opencode",
         ] {
             let _ = ok_format(agent, "some-token-1234567890");
         }

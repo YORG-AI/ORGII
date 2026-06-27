@@ -739,10 +739,10 @@
       "tabs": {
         "work": "工作",
         "explore": "探索",
-        "heatmap": "Heat map"
+        "heatmap": "趋势"
       },
       "heatmap": {
-        "loading": "正在加载活动 Heat map…",
+        "loading": "正在加载活动趋势…",
         "empty": "还没有会话活动。",
         "sessions": "会话",
         "tokens": "Tokens",
@@ -961,10 +961,10 @@
       "allRepositories": "所有 Repos",
       "newIssue": "新建 Issue",
       "tabs": {
-        "all": "全部",
-        "active": "活跃",
-        "reviewRequests": "Review 请求",
-        "done": "已完成"
+        "recent": "最近",
+        "assigned": "分配给我",
+        "byMe": "由我创建",
+        "mentioned": "提及我"
       }
     }
   },

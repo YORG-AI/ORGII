@@ -2,7 +2,8 @@
  * HTML document builders for CanvasInlineCard iframe content.
  *
  * All documents are injected via `srcDoc` into sandboxed iframes
- * (sandbox="allow-scripts") — no allow-same-origin, no network access.
+ * (sandbox="allow-scripts") — no allow-same-origin. React mode is fully inline
+ * and does not import external runtime scripts.
  *
  * CSP note: tauri.conf.json's `style-src` carries a nonce token, which per
  * CSP3 invalidates the `'unsafe-inline'` keyword sitting next to it. Every
@@ -51,6 +52,10 @@ function isFullHtmlDocument(html: string): boolean {
   return head.startsWith("<!doctype html") || head.startsWith("<html");
 }
 
+function escapeScriptContent(value: string): string {
+  return value.replace(/<\/script/gi, "<\\/script");
+}
+
 /** Wrap arbitrary HTML in the sandbox template. */
 export function buildHtmlDocument(html: string): string {
   if (isFullHtmlDocument(html)) {
@@ -65,4 +70,71 @@ export function buildHtmlDocument(html: string): string {
 <style nonce="${IFRAME_STYLE_NONCE}">${BASE_STYLES}</style>
 <script nonce="${IFRAME_STYLE_NONCE}">${EVAL_BRIDGE_SCRIPT}</script>
 </head><body style="padding:16px">${html}</body></html>`;
+}
+
+export function buildReactDocument(source: string): string {
+  const escapedSource = escapeScriptContent(source);
+  return `<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style nonce="${IFRAME_STYLE_NONCE}">${BASE_STYLES}
+body{padding:16px;background:#0f1018;color:#f3f4f8;}
+#root{min-height:100vh;}
+#error{display:none;margin:12px 0;padding:12px;border:1px solid #ef4444;border-radius:8px;background:rgba(239,68,68,.1);color:#fecaca;white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;}
+</style>
+</head><body><div id="root"></div><pre id="error"></pre>
+<script nonce="${IFRAME_STYLE_NONCE}">
+const source = ${JSON.stringify(escapedSource)};
+const errorEl = document.getElementById('error');
+function showError(error){
+  errorEl.style.display='block';
+  errorEl.textContent = error && error.stack ? error.stack : String(error);
+}
+function createElement(type, props, ...children){
+  return { type, props: props || {}, children: children.flat() };
+}
+function appendValue(parent, value){
+  if (value === null || value === undefined || value === false || value === true) return;
+  if (Array.isArray(value)) {
+    value.forEach((child)=>appendValue(parent, child));
+    return;
+  }
+  if (typeof value === 'string' || typeof value === 'number') {
+    parent.appendChild(document.createTextNode(String(value)));
+    return;
+  }
+  if (typeof value.type === 'function') {
+    appendValue(parent, value.type({ ...value.props, children: value.children }));
+    return;
+  }
+  if (typeof value.type !== 'string') throw new Error('React canvas can only render DOM elements and function components.');
+  const node = document.createElement(value.type);
+  Object.entries(value.props || {}).forEach(([key, propValue])=>{
+    if (key === 'children' || propValue === null || propValue === undefined || propValue === false) return;
+    if (key === 'className') node.setAttribute('class', String(propValue));
+    else if (key === 'style' && typeof propValue === 'object') Object.assign(node.style, propValue);
+    else if (key.startsWith('on') && typeof propValue === 'function') node.addEventListener(key.slice(2).toLowerCase(), propValue);
+    else node.setAttribute(key, String(propValue));
+  });
+  value.children.forEach((child)=>appendValue(node, child));
+  parent.appendChild(node);
+}
+window.addEventListener('error',event=>showError(event.error||event.message));
+window.addEventListener('unhandledrejection',event=>showError(event.reason));
+try {
+  const normalized = source
+    .replace(/export\\s+default\\s+function\\s+App\\s*\\(/, 'function App(')
+    .replace(/export\\s+default\\s+App\\s*;?/, '')
+    .replace(/export\\s+default\\s+/, 'const App = ');
+  const React = { createElement };
+  const module = { exports: {} };
+  const exports = module.exports;
+  const factory = new Function('React','module','exports', normalized + '\\n;return module.exports.default || module.exports.App || exports.default || exports.App || (typeof App !== "undefined" ? App : undefined);');
+  const App = factory(React, module, exports);
+  if (typeof App !== 'function') throw new Error('React canvas expected content to define or export an App component. JSX is not transformed in this MVP; use React.createElement or precompiled JavaScript. Hooks and ReactDOM APIs are not available in the sandbox.');
+  appendValue(document.getElementById('root'), React.createElement(App));
+} catch (error) {
+  showError(error);
+}
+</script></body></html>`;
 }

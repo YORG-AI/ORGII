@@ -9,8 +9,8 @@ use std::sync::Arc;
 use tracing::{info, warn};
 
 use crate::bus::{InboundMessage, OutboundMessage};
-use crate::definitions::prefix_lookup::SDE_SESSION_PREFIX;
 use crate::definitions::{os_agent, OS_AGENT_ID};
+use crate::definitions::prefix_lookup::SDE_SESSION_PREFIX;
 use crate::gateway::{parse_command, InboundMessageHandler, InboundProcessorDeps, SessionKey};
 use crate::interaction::permission::AgentPermissionManager;
 use crate::interaction::question::QuestionManager;

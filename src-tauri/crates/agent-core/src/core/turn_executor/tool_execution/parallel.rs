@@ -34,7 +34,7 @@ pub(super) enum ParallelResult {
 /// Execute a group of read-only tool calls concurrently.
 ///
 /// Pre-execution hooks and post-execution processing happen sequentially,
-/// but the actual `tool.execute(, &crate::tools::call_context::CallContext::default())` calls run in parallel via `join_all`.
+/// but the actual tool calls run in parallel via `join_all`.
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn execute_parallel_group(
     messages: &mut Vec<Value>,

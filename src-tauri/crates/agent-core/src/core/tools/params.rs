@@ -405,12 +405,14 @@ mod tests {
     /// `$ref: "#/definitions/Nested"`. Mirrors `StepProposal` in
     /// `suggest_next_steps`. With `inline_subschemas = true` it must be
     /// expanded in place with no `$ref` anywhere.
+    #[allow(dead_code)]
     #[derive(Debug, Deserialize, JsonSchema)]
     struct Nested {
         title: String,
         command: String,
     }
 
+    #[allow(dead_code)]
     #[derive(Debug, Deserialize, JsonSchema)]
     struct NestingParams {
         items: Vec<Nested>,

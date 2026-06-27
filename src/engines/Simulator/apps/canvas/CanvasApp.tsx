@@ -31,7 +31,10 @@ import IconButton from "@src/components/IconButton";
 import TabPill from "@src/components/TabPill";
 import { SIMULATOR_PRIMARY_SIDEBAR } from "@src/config/simulatorPrimarySidebar";
 import A2UIRenderer from "@src/engines/ChatPanel/blocks/CanvasInlineCard/A2UIRenderer";
-import { buildHtmlDocument } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/canvasBuilder";
+import {
+  buildHtmlDocument,
+  buildReactDocument,
+} from "@src/engines/ChatPanel/blocks/CanvasInlineCard/canvasBuilder";
 import type { CanvasInlineMode } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/types";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { usePublishWorkstationTabHeader } from "@src/hooks/workStation";
@@ -89,6 +92,8 @@ function getDefaultTitle(
   if (payload.title) return payload.title;
   if (payload.mode === "url") return t("canvasCard.titleUrl", "Web Page");
   if (payload.mode === "a2ui") return t("canvasCard.titleA2ui", "Agent UI");
+  if (payload.mode === "react")
+    return t("canvasCard.titleReact", "React Preview");
   return t("canvasCard.titleHtml", "Agent Preview");
 }
 
@@ -410,6 +415,12 @@ const CanvasIframe: React.FC<CanvasIframeProps> = ({
     return undefined;
   }, [payload.mode, payload.content]);
 
+  const reactSrcDoc = useMemo(() => {
+    if (payload.mode === "react" && payload.content)
+      return buildReactDocument(payload.content);
+    return undefined;
+  }, [payload.mode, payload.content]);
+
   if (payload.mode === "url" && payload.url) {
     return (
       <iframe
@@ -424,6 +435,18 @@ const CanvasIframe: React.FC<CanvasIframeProps> = ({
 
   if (payload.mode === "a2ui" && a2uiLines.length > 0) {
     return <A2UIRenderer lines={a2uiLines} className="h-full" />;
+  }
+
+  if (reactSrcDoc) {
+    return (
+      <iframe
+        key={`react-${reloadKey}`}
+        srcDoc={reactSrcDoc}
+        className="h-full w-full border-0"
+        sandbox="allow-scripts"
+        title={title}
+      />
+    );
   }
 
   if (htmlSrcDoc) {

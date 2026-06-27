@@ -1,7 +1,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
-import { BookOpen, CheckCircle2, ChevronDown, CircleDot } from "lucide-react";
+import { CheckCircle2, ChevronDown, CircleDot } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -12,13 +12,11 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import { getGitRemotes } from "@src/api/http/git/remotes";
+import { getGitHubGitCredentialForRemote } from "@src/api/tauri/github";
 import type { GitHubIssue } from "@src/api/tauri/github";
 import Dropdown from "@src/components/Dropdown";
 import DropdownSelectedCheck from "@src/components/Dropdown/DropdownSelectedCheck";
-import {
-  DROPDOWN_CLASSES,
-  DROPDOWN_ITEM,
-} from "@src/components/Dropdown/tokens";
+import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import TabPill from "@src/components/TabPill";
 import type { TabPillItem } from "@src/components/TabPill";
 import {
@@ -43,20 +41,21 @@ import {
   fetchIssueComments,
   fetchIssues,
 } from "@src/services/git/operations/githubIssues";
-import { REPO_KIND, reposAtom } from "@src/store/repo";
+import { REPO_KIND, reposAtom, selectedRepoPathAtom } from "@src/store/repo";
 import type { Repo } from "@src/store/repo/types";
 import { workstationSelectedIssueAtom } from "@src/store/workstation/codeEditor/workstationIssueAtom";
 import { createGitHubIssueDetailTab } from "@src/store/workstation/tabs";
 
 const ISSUE_TAB = {
-  ALL: "all",
-  ACTIVE: "active",
-  REVIEW_REQUESTS: "reviewRequests",
-  DONE: "done",
+  RECENT: "recent",
+  ASSIGNED: "assigned",
+  BY_ME: "byMe",
+  MENTIONED: "mentioned",
 } as const;
 
 const ISSUE_REPO_FILTER = {
   ALL: "all",
+  CURRENT_WORKSTATION: "currentWorkstation",
 } as const;
 
 const ISSUE_PAGE_SIZE = 50;
@@ -64,14 +63,20 @@ const ISSUE_PAGE_SIZE = 50;
 type IssueTab = (typeof ISSUE_TAB)[keyof typeof ISSUE_TAB];
 type IssueRepoFilter = string;
 
+const ISSUE_TABS = Object.values(ISSUE_TAB) as IssueTab[];
+
+function isIssueTab(value: string): value is IssueTab {
+  return ISSUE_TABS.includes(value as IssueTab);
+}
+
 const manageIssuesActiveTabAtom = atomWithStorage<IssueTab>(
   "orgii:chatPanelManageIssues:activeTab",
-  ISSUE_TAB.ALL
+  ISSUE_TAB.RECENT
 );
 
 const manageIssuesSelectedRepoAtom = atomWithStorage<IssueRepoFilter>(
-  "orgii:chatPanelManageIssues:selectedRepo",
-  ISSUE_REPO_FILTER.ALL
+  "orgii:chatPanelManageIssues:selectedRepo:v2",
+  ISSUE_REPO_FILTER.CURRENT_WORKSTATION
 );
 
 type IssueState = GitHubIssue["state"];
@@ -85,6 +90,7 @@ interface ManagedIssueItem {
   repo: string;
   repoPath: string;
   remoteUrl: string;
+  viewerLogin: string | null;
   rawIssue: GitHubIssue;
   author: string;
   timeAgo: string;
@@ -105,6 +111,7 @@ interface GitHubRepoSource {
   label: string;
   remoteUrl: string;
   repoFullName: string;
+  viewerLogin: string | null;
 }
 
 interface RepoIssueState {
@@ -203,6 +210,7 @@ function mapIssueToManagedIssue(
     repo: source.repoFullName,
     repoPath: source.repoPath,
     remoteUrl: source.remoteUrl,
+    viewerLogin: source.viewerLogin,
     rawIssue: issue,
     author: issue.user.login,
     timeAgo: formatIssueTimeAgo(issue.updated_at),
@@ -217,14 +225,23 @@ function issueMatchesTab(
   issue: ManagedIssueItem,
   activeTab: IssueTab
 ): boolean {
+  const viewerLogin = issue.viewerLogin?.toLowerCase();
   switch (activeTab) {
-    case ISSUE_TAB.ACTIVE:
-      return issue.state === "open";
-    case ISSUE_TAB.REVIEW_REQUESTS:
-      return issue.comments > 0;
-    case ISSUE_TAB.DONE:
-      return issue.state === "closed";
-    case ISSUE_TAB.ALL:
+    case ISSUE_TAB.ASSIGNED:
+      return viewerLogin
+        ? issue.rawIssue.assignees.some(
+            (assignee) => assignee.login.toLowerCase() === viewerLogin
+          )
+        : false;
+    case ISSUE_TAB.BY_ME:
+      return viewerLogin ? issue.author.toLowerCase() === viewerLogin : false;
+    case ISSUE_TAB.MENTIONED:
+      return viewerLogin
+        ? new RegExp(`(^|\\s)@${viewerLogin}(?=\\b)`, "i").test(
+            issue.rawIssue.body ?? ""
+          )
+        : false;
+    case ISSUE_TAB.RECENT:
       return true;
   }
 }
@@ -236,16 +253,8 @@ function issueMatchesRepo(
   return repoFilter === ISSUE_REPO_FILTER.ALL || issue.repo === repoFilter;
 }
 
-function getIssuePageStatesForTab(activeTab: IssueTab): IssuePageState[] {
-  switch (activeTab) {
-    case ISSUE_TAB.ACTIVE:
-      return ["open"];
-    case ISSUE_TAB.DONE:
-      return ["closed"];
-    case ISSUE_TAB.ALL:
-    case ISSUE_TAB.REVIEW_REQUESTS:
-      return ["open", "closed"];
-  }
+function getIssuePageStatesForTab(_activeTab: IssueTab): IssuePageState[] {
+  return ["open", "closed"];
 }
 
 function getCachedRepoIssues(source: GitHubRepoSource): RepoIssueState {
@@ -293,6 +302,7 @@ async function resolveGitHubRepoSource(
   if (!remoteUrl) return null;
   const repoFullName = parseGithubRepoFullName(remoteUrl);
   if (!repoFullName) return null;
+  const credential = await getGitHubGitCredentialForRemote(remoteUrl);
 
   return {
     repoId: repo.id,
@@ -300,6 +310,7 @@ async function resolveGitHubRepoSource(
     label: repo.name,
     remoteUrl,
     repoFullName,
+    viewerLogin: credential?.username ?? null,
   };
 }
 
@@ -383,10 +394,7 @@ function RepoFilterPill({
               closeMenu();
             }}
           >
-            <span className="flex min-w-0 flex-1 items-center gap-2">
-              <BookOpen size={DROPDOWN_ITEM.iconSize} className="text-text-3" />
-              <span className="truncate">{option.label}</span>
-            </span>
+            <span className="min-w-0 flex-1 truncate">{option.label}</span>
             {isSelected ? <DropdownSelectedCheck /> : null}
           </button>
         );
@@ -428,11 +436,11 @@ function ManagedIssueRow({
   return (
     <button
       type="button"
-      className="focus-visible:ring-accent-5/50 group w-full rounded-xl px-3 py-3 text-left transition-colors hover:bg-fill-1/60 focus-visible:outline-none focus-visible:ring-2"
+      className="focus-visible:ring-accent-5/50 group w-full rounded-xl px-3 py-2 text-left transition-colors hover:bg-fill-1/60 focus-visible:outline-none focus-visible:ring-2"
       onClick={() => onOpenIssue(issue)}
       aria-label={`Open issue #${issue.id}: ${issue.title}`}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-2.5">
         <span className={`mt-0.5 shrink-0 ${stateClassName}`}>
           <IssueStateIcon state={issue.state} />
         </span>
@@ -449,7 +457,7 @@ function ManagedIssueRow({
               ))}
             </div>
           ) : null}
-          <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-text-3">
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-text-3">
             <span>{issue.repo}</span>
             <span>·</span>
             <span>{issue.author}</span>
@@ -465,7 +473,11 @@ function ManagedIssueRow({
 const ManageIssuesPanelView: React.FC = () => {
   const { t } = useTranslation(["sessions", "common"]);
   const repos = useAtomValue(reposAtom);
+  const selectedRepoPath = useAtomValue(selectedRepoPathAtom);
   const [activeTab, setActiveTab] = useAtom(manageIssuesActiveTabAtom);
+  const effectiveActiveTab = isIssueTab(activeTab)
+    ? activeTab
+    : ISSUE_TAB.RECENT;
   const [selectedRepo, setSelectedRepo] = useAtom(manageIssuesSelectedRepoAtom);
   const setSelectedIssue = useSetAtom(workstationSelectedIssueAtom);
   const { openTab } = useWorkStationTabs();
@@ -485,13 +497,16 @@ const ManageIssuesPanelView: React.FC = () => {
 
   const tabs = useMemo<TabPillItem[]>(
     () => [
-      { key: ISSUE_TAB.ALL, label: t("chat.manageIssues.tabs.all") },
-      { key: ISSUE_TAB.ACTIVE, label: t("chat.manageIssues.tabs.active") },
+      { key: ISSUE_TAB.RECENT, label: t("chat.manageIssues.tabs.recent") },
       {
-        key: ISSUE_TAB.REVIEW_REQUESTS,
-        label: t("chat.manageIssues.tabs.reviewRequests"),
+        key: ISSUE_TAB.ASSIGNED,
+        label: t("chat.manageIssues.tabs.assigned"),
       },
-      { key: ISSUE_TAB.DONE, label: t("chat.manageIssues.tabs.done") },
+      { key: ISSUE_TAB.BY_ME, label: t("chat.manageIssues.tabs.byMe") },
+      {
+        key: ISSUE_TAB.MENTIONED,
+        label: t("chat.manageIssues.tabs.mentioned"),
+      },
     ],
     [t]
   );
@@ -551,11 +566,21 @@ const ManageIssuesPanelView: React.FC = () => {
     };
   }, [gitRepos, refreshNonce]);
 
+  const selectedWorkstationRepoSource = useMemo(
+    () =>
+      repoSources.find((source) => source.repoPath === selectedRepoPath) ??
+      null,
+    [repoSources, selectedRepoPath]
+  );
+
   const effectiveSelectedRepo =
-    selectedRepo === ISSUE_REPO_FILTER.ALL ||
-    repoSources.some((source) => source.repoFullName === selectedRepo)
-      ? selectedRepo
-      : ISSUE_REPO_FILTER.ALL;
+    selectedRepo === ISSUE_REPO_FILTER.CURRENT_WORKSTATION
+      ? (selectedWorkstationRepoSource?.repoFullName ?? ISSUE_REPO_FILTER.ALL)
+      : selectedRepo === ISSUE_REPO_FILTER.ALL ||
+          repoSources.some((source) => source.repoFullName === selectedRepo)
+        ? selectedRepo
+        : (selectedWorkstationRepoSource?.repoFullName ??
+          ISSUE_REPO_FILTER.ALL);
 
   const repoOptions = useMemo<RepoFilterOption[]>(
     () => [
@@ -589,15 +614,15 @@ const ManageIssuesPanelView: React.FC = () => {
     () =>
       issues.filter(
         (issue) =>
-          issueMatchesTab(issue, activeTab) &&
+          issueMatchesTab(issue, effectiveActiveTab) &&
           issueMatchesRepo(issue, effectiveSelectedRepo)
       ),
-    [activeTab, effectiveSelectedRepo, issues]
+    [effectiveActiveTab, effectiveSelectedRepo, issues]
   );
 
   const pageStates = useMemo(
-    () => getIssuePageStatesForTab(activeTab),
-    [activeTab]
+    () => getIssuePageStatesForTab(effectiveActiveTab),
+    [effectiveActiveTab]
   );
   const paginatedSources = useMemo(
     () =>
@@ -625,7 +650,7 @@ const ManageIssuesPanelView: React.FC = () => {
   const issueVirtualizer = useVirtualizer({
     count: filteredIssues.length,
     getScrollElement: () => listScrollRef.current,
-    estimateSize: () => 88,
+    estimateSize: () => 76,
     overscan: 8,
   });
   const virtualIssues = issueVirtualizer.getVirtualItems();
@@ -748,7 +773,12 @@ const ManageIssuesPanelView: React.FC = () => {
         submittingComment: false,
       });
       openTab(
-        createGitHubIssueDetailTab(issue.id, issue.title, issue.repoPath)
+        createGitHubIssueDetailTab(
+          issue.id,
+          issue.title,
+          issue.repoPath,
+          issue.remoteUrl
+        )
       );
 
       void (async () => {
@@ -830,6 +860,7 @@ const ManageIssuesPanelView: React.FC = () => {
             </button>
           </div>
         ) : null}
+        <div className="h-12 shrink-0" aria-hidden />
       </>
     );
   })();
@@ -842,11 +873,13 @@ const ManageIssuesPanelView: React.FC = () => {
       <div className="mb-4 flex shrink-0 items-center justify-start">
         <TabPill
           tabs={tabs}
-          activeTab={activeTab}
-          onChange={(key) => setActiveTab(key as IssueTab)}
+          activeTab={effectiveActiveTab}
+          onChange={(key) => {
+            if (isIssueTab(key)) setActiveTab(key);
+          }}
           variant="simple"
           fillWidth={false}
-          size="large"
+          size="chatPanel"
         />
       </div>
       <div

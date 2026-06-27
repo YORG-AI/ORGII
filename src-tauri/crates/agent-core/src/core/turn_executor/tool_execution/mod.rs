@@ -12,21 +12,14 @@
 //! | `single`        | Sequential execution of a single tool call                 |
 //! | `diff_feedback` | Post-write diff summaries for `edit_file` / `apply_patch`  |
 //!
-//! ## Boundary with `streaming_executor`
+//! Tool calls are executed only after the provider stream completes. Streaming
+//! deltas may update the UI while arguments arrive, but every completed call
+//! enters `execute_tool_calls` so permission checks, hooks, file tracking,
+//! persistence, metadata, and error accounting stay in one chokepoint.
 //!
-//! The sibling `streaming_executor` module owns the *opportunistic* path:
-//! while the LLM is still streaming, it accumulates tool-call deltas into
-//! complete `ToolCallRequest`s and (for read-only tools allowed by policy)
-//! eagerly executes them via its own `execute_prevalidated`. That shortcut
-//! deliberately bypasses the rich pre-flight here (permissions, file-time
-//! guards, before/after hooks, persistence, diff feedback) — it only fires
-//! when those checks would all pass anyway, so its result can be emitted
-//! straight into the message vec. Anything that doesn't qualify falls
-//! through into this module's `execute_tool_calls` post-stream.
-//!
-//! Both paths construct a typed [`CallContext`](crate::tools::traits::CallContext)
+//! The execution path constructs a typed [`CallContext`](crate::tools::traits::CallContext)
 //! per call, so adding a new framework metadata field is a struct-field
-//! change in `call_context.rs` plus population at the dispatch sites.
+//! change in `call_context.rs` plus population at the dispatch site.
 
 mod diff_feedback;
 mod parallel;

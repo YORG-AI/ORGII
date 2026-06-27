@@ -20,6 +20,22 @@ const ORGII_PRIMARY_6 = "#1D8FFD";
 const ORGII_PRIMARY_6_RGBA_10 = "rgba(29, 143, 253, 0.1)";
 const ORGII_PRIMARY_6_SHADOW = "rgba(29, 143, 253, 0.35)";
 
+// Inspect mode owns page interaction while active. Use non-passive capture
+// listeners so links, SPA routers, buttons, forms, and drag handlers cannot
+// navigate or mutate the page before the inspector selects the target.
+const INSPECT_EVENT_OPTIONS = { capture: true, passive: false };
+
+const suppressInspectEvent = (e) => {
+  if (!inspectEnabled) return false;
+
+  e.preventDefault();
+  e.stopPropagation();
+  if (typeof e.stopImmediatePropagation === "function") {
+    e.stopImmediatePropagation();
+  }
+  return true;
+};
+
 // Create overlay elements
 const highlightOverlay = document.createElement("div");
 highlightOverlay.id = "__orgii_highlight_overlay__";

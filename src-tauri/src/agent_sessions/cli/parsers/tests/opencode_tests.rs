@@ -477,6 +477,123 @@ fn parse_update_unhandled_session_update_produces_no_chunk() {
 }
 
 #[test]
+fn parse_update_completed_think_task_result_maps_to_assistant_message() {
+    let mut parser = make_parser();
+
+    let start = session_update(
+        "tool_call",
+        json!({
+            "toolCallId": "tc-think-task",
+            "kind": "think",
+            "title": "",
+            "rawInput": {}
+        }),
+    );
+    let start_chunks = parser.parse_update(&start);
+    assert!(start_chunks.is_empty());
+
+    let update = session_update(
+        "tool_call_update",
+        json!({
+            "toolCallId": "tc-think-task",
+            "status": "completed",
+            "content": "<task id=\"ses_123\" state=\"completed\">\n<task_result>\nFinal answer from subagent.\n</task_result>\n</task>"
+        }),
+    );
+    let chunks = parser.parse_update(&update);
+
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(chunks[0].action_type, "assistant");
+    assert_eq!(chunks[0].function, "message");
+    assert_eq!(chunks[0].result["content"], "Final answer from subagent.");
+    assert_eq!(chunks[0].result["role"], "assistant");
+}
+
+#[test]
+fn parse_update_failed_think_task_result_stays_tool_call() {
+    let mut parser = make_parser();
+
+    parser.parse_update(&session_update(
+        "tool_call",
+        json!({
+            "toolCallId": "tc-think-failed",
+            "kind": "think",
+            "title": "",
+            "rawInput": {}
+        }),
+    ));
+
+    let chunks = parser.parse_update(&session_update(
+        "tool_call_update",
+        json!({
+            "toolCallId": "tc-think-failed",
+            "status": "failed",
+            "content": "<task_result>not a successful answer</task_result>"
+        }),
+    ));
+
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(chunks[0].action_type, "tool_call");
+    assert_eq!(chunks[0].function, "think");
+    assert!(chunks[0].result.get("error").is_some());
+}
+
+#[test]
+fn parse_update_plain_think_result_stays_tool_call() {
+    let mut parser = make_parser();
+
+    parser.parse_update(&session_update(
+        "tool_call",
+        json!({
+            "toolCallId": "tc-think-plain",
+            "kind": "think",
+            "title": "",
+            "rawInput": {}
+        }),
+    ));
+
+    let chunks = parser.parse_update(&session_update(
+        "tool_call_update",
+        json!({
+            "toolCallId": "tc-think-plain",
+            "status": "completed",
+            "content": "ordinary reasoning note"
+        }),
+    ));
+
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(chunks[0].action_type, "tool_call");
+    assert_eq!(chunks[0].function, "think");
+    assert_eq!(chunks[0].result["content"], "ordinary reasoning note");
+}
+
+#[test]
+fn parse_update_successful_empty_think_result_is_suppressed() {
+    let mut parser = make_parser();
+
+    parser.parse_update(&session_update(
+        "tool_call",
+        json!({
+            "toolCallId": "tc-think-empty",
+            "kind": "think",
+            "title": "",
+            "rawInput": {}
+        }),
+    ));
+
+    let chunks = parser.parse_update(&session_update(
+        "tool_call_update",
+        json!({
+            "toolCallId": "tc-think-empty",
+            "status": "completed",
+            "content": ""
+        }),
+    ));
+
+    assert!(chunks.is_empty());
+}
+
+#[test]
 fn parse_update_agent_thought_chunk_plain_text() {
     let mut parser = make_parser();
     let update = session_update(

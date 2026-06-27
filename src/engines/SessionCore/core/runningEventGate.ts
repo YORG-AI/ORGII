@@ -66,8 +66,9 @@ export function isLiveRuntimeResourceEvent(event: SessionEvent): boolean {
  * deliberately excluded: a pinned background process is not a reason to
  * hide "the agent is thinking".
  *
- * Within the current turn the gate keeps its meaning: a genuinely running
- * row paints its own shimmer, so the footer stays hidden.
+ * Within the current turn this only answers whether a live row exists; the
+ * planning footer may still show after the row has been idle long enough, but
+ * the watchdog must not force-complete the session while this returns true.
  *
  * `await_output` is exempt: it polls/blocks waiting for OTHER jobs (shell
  * processes, subagents) and renders as a subtle TitleOnlyBlock whose

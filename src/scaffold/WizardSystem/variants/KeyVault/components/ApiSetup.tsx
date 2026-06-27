@@ -145,6 +145,8 @@ const ApiSetup: React.FC<ApiSetupProps> = ({
   const hasPinnedSection = showCopilotPinned || showCursorPinned;
   const hideFooter = (isClaudeCode || isCodex) && hook.browserOpen;
 
+  const effectiveKeyValidated = hook.keyValidated || data.validated;
+
   const showValidationResults =
     !(hook.isCursor && hook.useGuidedSetup) &&
     !hook.isCopilot &&
@@ -155,7 +157,7 @@ const ApiSetup: React.FC<ApiSetupProps> = ({
   const showModelSections =
     !hook.browserOpen &&
     !!data.agent_type &&
-    (hook.keyValidated ||
+    (effectiveKeyValidated ||
       (hook.isCursor && data.validated) ||
       (hook.isOAuthAgent && data.validated) ||
       isLocalModelProvider);
@@ -361,7 +363,7 @@ const ApiSetup: React.FC<ApiSetupProps> = ({
               agentCategory={hook.agentCategory}
               isComplex={isComplex}
               setupMethod={data.setup_method}
-              keyValidated={hook.keyValidated}
+              keyValidated={effectiveKeyValidated}
               validatingKey={hook.validatingKey}
               validationError={hook.validationError}
               fetchedModels={hook.fetchedModels}
@@ -398,7 +400,7 @@ const ApiSetup: React.FC<ApiSetupProps> = ({
 
           {!!data.agent_type && showValidationResults && (
             <ValidationResults
-              keyValidated={hook.keyValidated}
+              keyValidated={effectiveKeyValidated}
               validationError={hook.validationError}
               agentCategory={hook.agentCategory}
               isApiProvider={hook.isApiProvider}
@@ -455,7 +457,7 @@ const ApiSetup: React.FC<ApiSetupProps> = ({
         <CopilotPinnedSection
           data={data}
           onChange={onChange}
-          keyValidated={hook.keyValidated}
+          keyValidated={effectiveKeyValidated}
           validatingKey={hook.validatingKey}
           validationError={hook.validationError}
           validateKey={hook.validateKey}

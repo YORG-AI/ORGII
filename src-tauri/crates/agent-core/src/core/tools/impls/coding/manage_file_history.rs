@@ -40,6 +40,32 @@ impl ManageFileHistoryTool {
     }
 }
 
+fn review_session_ids(session_id: &str) -> Vec<String> {
+    let mut session_ids = vec![session_id.to_string()];
+    match crate::session::persistence::get_child_sessions(session_id) {
+        Ok(children) => session_ids.extend(children.into_iter().map(|child| child.session_id)),
+        Err(err) => tracing::warn!(
+            "[manage_file_history] failed to load child sessions for {}: {}",
+            session_id,
+            err
+        ),
+    }
+    session_ids
+}
+
+fn invalidate_cli_resume_state_best_effort(session_id: &str, mutation_reason: &'static str) {
+    if let Err(err) =
+        crate::foundation::session_bridge::clear_cli_resume_state(session_id, mutation_reason)
+    {
+        tracing::warn!(
+            "[manage_file_history] failed to clear CLI resume state for {} after {}: {}",
+            session_id,
+            mutation_reason,
+            err
+        );
+    }
+}
+
 #[async_trait]
 impl Tool for ManageFileHistoryTool {
     fn name(&self) -> &str {
@@ -105,7 +131,22 @@ impl ManageFileHistoryTool {
     async fn exec_list(&self) -> Result<String, ToolError> {
         let session_id = self.get_session_id().await?;
         let snapshots = tokio::task::spawn_blocking(move || {
-            crate::persistence::session_snapshots::get_snapshots(&session_id)
+            let mut snapshots = Vec::new();
+            for review_session_id in review_session_ids(&session_id) {
+                for (tool_call_id, snapshot_id, created_at) in
+                    crate::persistence::session_snapshots::get_snapshots(&review_session_id)?
+                {
+                    snapshots.push((
+                        review_session_id.clone(),
+                        tool_call_id,
+                        snapshot_id,
+                        created_at,
+                    ));
+                }
+            }
+            snapshots
+                .sort_by(|left, right| left.3.cmp(&right.3).then_with(|| left.0.cmp(&right.0)));
+            Ok::<_, rusqlite::Error>(snapshots)
         })
         .await
         .map_err(|err| ToolError::ExecutionFailed(format!("Join error: {}", err)))?
@@ -116,15 +157,15 @@ impl ManageFileHistoryTool {
         }
 
         let mut lines = vec!["Snapshots (oldest first):".to_string()];
-        for (tool_call_id, _snapshot_id, created_at) in &snapshots {
+        for (session_id, tool_call_id, _snapshot_id, created_at) in &snapshots {
             let kind = if tool_call_id.starts_with(REDO_TOOL_CALL_PREFIX) {
                 " [redo]"
             } else {
                 ""
             };
             lines.push(format!(
-                "  • tool_call_id={} created_at={}{}",
-                tool_call_id, created_at, kind
+                "  • session_id={} tool_call_id={} created_at={}{}",
+                session_id, tool_call_id, created_at, kind
             ));
         }
         lines.push(String::new());
@@ -139,17 +180,50 @@ impl ManageFileHistoryTool {
     async fn exec_rewind(&self, params: &Value) -> Result<String, ToolError> {
         let session_id = self.get_session_id().await?;
         let created_at = required_string(params, "created_at")?;
-        let sid = session_id.clone();
         let ca = created_at.clone();
 
-        let stats = tokio::task::spawn_blocking(move || {
-            crate::tools::file_history::rewind_to_message(&sid, &ca)
-        })
-        .await
-        .map_err(|err| ToolError::ExecutionFailed(format!("Join error: {}", err)))?
-        .map_err(|err| ToolError::ExecutionFailed(format!("Rewind failed: {}", err)))?;
+        let (restored, deleted, skipped, failed, redo_count) =
+            tokio::task::spawn_blocking(move || {
+                let mut restored = 0usize;
+                let mut deleted = 0usize;
+                let mut skipped = 0usize;
+                let mut failed = 0usize;
+                let mut redo_count = 0usize;
+                let mut errors = Vec::new();
 
-        let redo_note = if stats.redo_snapshot_id.is_some() {
+                for review_session_id in review_session_ids(&session_id) {
+                    match crate::tools::file_history::rewind_to_message(&review_session_id, &ca) {
+                        Ok(stats) => {
+                            restored += stats.restored;
+                            deleted += stats.deleted;
+                            skipped += stats.skipped_unchanged;
+                            failed += stats.failed;
+                            if stats.redo_snapshot_id.is_some() {
+                                redo_count += 1;
+                            }
+                            invalidate_cli_resume_state_best_effort(
+                                &review_session_id,
+                                crate::foundation::session_bridge::CLI_HISTORY_MUTATION_FILE_REWIND,
+                            );
+                        }
+                        Err(err) => {
+                            failed += 1;
+                            errors.push(format!("{review_session_id}: {err}"));
+                        }
+                    }
+                }
+
+                if errors.is_empty() {
+                    Ok((restored, deleted, skipped, failed, redo_count))
+                } else {
+                    Err(errors.join("; "))
+                }
+            })
+            .await
+            .map_err(|err| ToolError::ExecutionFailed(format!("Join error: {}", err)))?
+            .map_err(|err| ToolError::ExecutionFailed(format!("Rewind failed: {}", err)))?;
+
+        let redo_note = if redo_count > 0 {
             " A redo snapshot was captured — call `redo` to re-apply."
         } else {
             ""
@@ -158,36 +232,60 @@ impl ManageFileHistoryTool {
         Ok(format!(
             "Rewind complete. Restored {} file(s), deleted {} file(s), \
              skipped {} unchanged, {} failed.{}",
-            stats.restored, stats.deleted, stats.skipped_unchanged, stats.failed, redo_note
+            restored, deleted, skipped, failed, redo_note
         ))
     }
 
     async fn exec_redo(&self) -> Result<String, ToolError> {
         let session_id = self.get_session_id().await?;
-        let sid = session_id.clone();
 
-        // Find the most recent redo snapshot for this session.
-        let redo_snapshot_id = tokio::task::spawn_blocking(move || {
-            crate::persistence::session_snapshots::get_latest_snapshot_by_tool_call_prefix(
-                &sid,
-                REDO_TOOL_CALL_PREFIX,
-            )
-        })
-        .await
-        .map_err(|err| ToolError::ExecutionFailed(format!("Join error: {}", err)))?
-        .map_err(|err| ToolError::ExecutionFailed(format!("DB error: {}", err)))?;
+        let (restored, deleted, skipped, failed) = tokio::task::spawn_blocking(move || {
+            let mut restored = 0usize;
+            let mut deleted = 0usize;
+            let mut skipped = 0usize;
+            let mut failed = 0usize;
+            let mut restored_any = false;
+            let mut errors = Vec::new();
 
-        let snapshot_id = redo_snapshot_id.ok_or_else(|| {
-            ToolError::ExecutionFailed("No redo snapshot found. Perform a rewind first.".into())
-        })?;
+            for review_session_id in review_session_ids(&session_id) {
+                let redo_snapshot_id =
+                    crate::persistence::session_snapshots::get_latest_snapshot_by_tool_call_prefix(
+                        &review_session_id,
+                        REDO_TOOL_CALL_PREFIX,
+                    )
+                    .map_err(|err| format!("{review_session_id}: DB error: {err}"))?;
 
-        // Restore the redo snapshot directly. A redo snapshot captures the
-        // current on-disk state immediately before rewind, so restoring that
-        // manifest re-applies the changes the rewind just undid.
-        let sid2 = session_id.clone();
-        let snap_id = snapshot_id.clone();
-        let stats = tokio::task::spawn_blocking(move || {
-            crate::tools::file_history::restore_snapshot(&sid2, &snap_id)
+                let Some(snapshot_id) = redo_snapshot_id else {
+                    continue;
+                };
+
+                match crate::tools::file_history::restore_snapshot(&review_session_id, &snapshot_id) {
+                    Ok(stats) => {
+                        restored_any = true;
+                        restored += stats.restored;
+                        deleted += stats.deleted;
+                        skipped += stats.skipped_unchanged;
+                        failed += stats.failed;
+                        invalidate_cli_resume_state_best_effort(
+                            &review_session_id,
+                            crate::foundation::session_bridge::CLI_HISTORY_MUTATION_SNAPSHOT_RESTORE,
+                        );
+                    }
+                    Err(err) => {
+                        failed += 1;
+                        errors.push(format!("{review_session_id}: {err}"));
+                    }
+                }
+            }
+
+            if !restored_any {
+                return Err("No redo snapshot found. Perform a rewind first.".to_string());
+            }
+            if errors.is_empty() {
+                Ok((restored, deleted, skipped, failed))
+            } else {
+                Err(errors.join("; "))
+            }
         })
         .await
         .map_err(|err| ToolError::ExecutionFailed(format!("Join error: {}", err)))?
@@ -196,7 +294,7 @@ impl ManageFileHistoryTool {
         Ok(format!(
             "Redo complete. Restored {} file(s), deleted {} file(s), \
              skipped {} unchanged, {} failed.",
-            stats.restored, stats.deleted, stats.skipped_unchanged, stats.failed
+            restored, deleted, skipped, failed
         ))
     }
 }

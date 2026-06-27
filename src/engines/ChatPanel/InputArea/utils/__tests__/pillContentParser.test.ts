@@ -176,6 +176,25 @@ describe("parsePillTextToSnapshot", () => {
     ]);
   });
 
+  it("preserves serialized session pill labels when restoring drafts", () => {
+    const snapshot = parsePillTextToSnapshot(
+      "审计-policy-啊permission-那些... [session:sdeagent-ee970f47-dfcb-4a78-97e5-fc56e3451821]"
+    );
+    expect(snapshot.parts).toEqual([
+      {
+        kind: "pill",
+        attrs: {
+          filePath: "sdeagent-ee970f47-dfcb-4a78-97e5-fc56e3451821",
+          fileName: "审计-policy-啊permission-那些...",
+          isFolder: false,
+          iconType: "session",
+          lineStart: null,
+          lineEnd: null,
+        },
+      },
+    ]);
+  });
+
   it("round-trips a paste pill (paste://… filePath, paste iconType)", () => {
     const snapshot = parsePillTextToSnapshot(
       "look pasted.json [paste:paste://1234-abc]"

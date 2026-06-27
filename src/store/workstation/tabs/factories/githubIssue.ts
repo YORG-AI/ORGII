@@ -11,6 +11,7 @@ export interface GitHubIssueDetailTabData {
   issueNumber: number;
   issueTitle: string;
   repoPath: string;
+  remoteUrl?: string;
 }
 
 export const githubIssueDetailTabFactory =
@@ -28,7 +29,13 @@ export const githubIssueDetailTabFactory =
 export function createGitHubIssueDetailTab(
   issueNumber: number,
   issueTitle: string,
-  repoPath: string
+  repoPath: string,
+  remoteUrl?: string
 ): WorkStationTab {
-  return githubIssueDetailTabFactory({ issueNumber, issueTitle, repoPath });
+  return githubIssueDetailTabFactory({
+    issueNumber,
+    issueTitle,
+    repoPath,
+    remoteUrl,
+  });
 }

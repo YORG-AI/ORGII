@@ -191,7 +191,6 @@ impl Channel for FeishuChannel {
         let api_base = self.auth.api_base().to_string();
         let http_client = self.auth.client().clone();
         let auth = self.auth.clone();
-
         let handle = tokio::spawn(async move {
             ws::feishu_ws_loop(
                 ws_url,

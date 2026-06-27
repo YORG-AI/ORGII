@@ -217,6 +217,22 @@ mod tests {
     }
 
     #[test]
+    fn repairs_unquoted_absolute_path_value() {
+        let args = r#"{"pattern":"platform::Simulate|simulator","paths": /Users/shibosheng/Desktop/code/atomcode_src}"#;
+        match parse_streamed_tool_args(args) {
+            ParsedToolArgs::Ok(value) => {
+                assert_eq!(
+                    value.get("paths").and_then(|v| v.as_str()),
+                    Some("/Users/shibosheng/Desktop/code/atomcode_src")
+                );
+            }
+            ParsedToolArgs::Failed { cause, parse_err } => {
+                panic!("expected repaired JSON, got cause={cause} err={parse_err}")
+            }
+        }
+    }
+
+    #[test]
     fn classifies_double_encoded_string() {
         // Provider wrapped the actual object as a JSON string literal:
         //   "\"{\\\"path\\\":\\\"a.md\\\"}\""

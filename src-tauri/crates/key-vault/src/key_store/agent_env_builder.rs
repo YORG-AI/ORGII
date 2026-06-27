@@ -300,8 +300,12 @@ impl KeyService {
                 }
             }
             ModelType::OpenCode => {
-                // OpenCode manages provider credentials through its own config file.
-                // No env var injection needed — keys are configured via `opencode` CLI directly.
+                if let Some(ref key) = entry.api_key {
+                    env.insert("OPENCODE_API_KEY".to_string(), key.clone());
+                }
+                if let Some(ref url) = entry.base_url {
+                    env.insert("OPENCODE_BASE_URL".to_string(), url.clone());
+                }
             }
             // API key providers: store api_key under the provider's env var name
             ModelType::AnthropicApi

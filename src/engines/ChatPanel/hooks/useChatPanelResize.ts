@@ -3,8 +3,8 @@
  *
  * Ultra-optimized resize logic using RAF (requestAnimationFrame).
  * - Only updates once per frame
- * - Only changes panel width, NOT CSS variable during drag
- * - CSS variable only updates on mouseup
+ * - Updates one live width channel during drag: CHAT_WIDTH_CSS_VAR
+ * - Persists the CSS variable width to atom/storage only on mouseup
  * - Ignores clicks without actual drag to prevent accidental resize
  *
  * INVARIANT: drag minimizes, never closes. The handle clamps to MIN_WIDTH
@@ -30,22 +30,15 @@ import { DEFAULT_CHAT_WIDTH, chatWidthAtom } from "@src/store/ui/chatPanelAtom";
 
 import {
   CHAT_WIDTH_CSS_VAR,
-  LEFT_PANEL_WIDTH,
-  MAX_WIDTH,
-  MIN_CENTER_WIDTH,
   MIN_WIDTH,
   RAPID_CLICK_THRESHOLD_MS,
+  clampChatWidth,
+  getChatMaxWidth,
 } from "../config";
-
-// Clamp a width value to [0, MAX_WIDTH] (0 is the valid "hidden" sentinel).
-const clampChatWidth = (value: number): number =>
-  value > 0 ? Math.min(value, MAX_WIDTH) : value;
 
 export interface UseChatPanelResizeOptions {
   /** Whether using external width control */
   useExternalWidth?: boolean;
-  /** Whether in embedded mode */
-  embedded?: boolean;
   /** Panel position: left or right */
   position?: "left" | "right";
 }
@@ -59,7 +52,7 @@ export interface UseChatPanelResizeResult {
   handleMouseDown: (event: ReactMouseEvent) => void;
 }
 
-// Helper to get current width from CSS variable, clamped to MAX_WIDTH.
+// Helper to get current width from CSS variable, clamped to the responsive max.
 const getChatWidthFromCSS = (): number => {
   if (typeof document === "undefined") return DEFAULT_CHAT_WIDTH;
   const cssValue =
@@ -77,11 +70,7 @@ const getChatWidthFromCSS = (): number => {
 export function useChatPanelResize(
   options: UseChatPanelResizeOptions = {}
 ): UseChatPanelResizeResult {
-  const {
-    useExternalWidth = false,
-    embedded = false,
-    position = "right",
-  } = options;
+  const { useExternalWidth = false, position = "right" } = options;
   const isLeftPosition = position === "left";
 
   // OPTIMIZED: Only use setter, don't subscribe to value changes
@@ -126,32 +115,24 @@ export function useChatPanelResize(
       pendingWidthRef.current = currentWidth;
       hasDraggedRef.current = false;
 
-      // Cache element references at drag start for better performance.
-      // Use data-attribute queries instead of brittle parentElement traversal
-      // so the lookup is resilient to DOM depth differences across layouts.
-      const cachedMainContent = !embedded
-        ? (document.querySelector("[data-main-content]") as HTMLElement | null)
-        : null;
+      const applyLiveWidth = (width: number) => {
+        document.documentElement.style.setProperty(
+          CHAT_WIDTH_CSS_VAR,
+          `${width}px`
+        );
+      };
 
-      // Inset overlay wrapper: the direct parent of the ChatPanel root that
-      // sits inside [data-main-content]. We find it by walking up from panelRef
-      // until we hit [data-main-content]'s direct child.
-      let cachedInsetOverlay: HTMLElement | null = null;
-      if (!embedded && panelRef.current && cachedMainContent) {
-        let node: HTMLElement | null = panelRef.current;
-        while (node && node.parentElement !== cachedMainContent) {
-          node = node.parentElement;
-        }
-        cachedInsetOverlay = node;
-      }
+      const commitPendingWidth = () => {
+        const rawFinal = pendingWidthRef.current;
+        const finalWidth = clampChatWidth(
+          Number.isFinite(rawFinal) && rawFinal >= MIN_WIDTH
+            ? rawFinal
+            : MIN_WIDTH
+        );
 
-      // For embedded (full) mode, find the chat wrapper by data attribute.
-      let cachedChatWrapper: HTMLElement | null = null;
-      if (embedded && panelRef.current) {
-        cachedChatWrapper = panelRef.current.closest(
-          "[data-fullmode-chat-wrapper]"
-        ) as HTMLElement | null;
-      }
+        applyLiveWidth(finalWidth);
+        setChatWidth(finalWidth);
+      };
 
       const handleMouseMove = (moveEvent: globalThis.MouseEvent) => {
         // Only start "dragging" mode after first actual movement
@@ -164,16 +145,7 @@ export function useChatPanelResize(
           document.body.style.userSelect = "none";
         }
 
-        // Calculate dynamic max width based on available space. Guard
-        // against undersized viewports where `availableWidth - MIN_CENTER_WIDTH`
-        // would fall below MIN_WIDTH and make the `Math.min` below try to
-        // shrink the panel past its minimum — we always want a valid
-        // non-collapsing range.
-        const availableWidth = window.innerWidth - LEFT_PANEL_WIDTH - 20;
-        const dynamicMaxWidth = Math.max(
-          MIN_WIDTH,
-          Math.min(MAX_WIDTH, availableWidth - MIN_CENTER_WIDTH)
-        );
+        const dynamicMaxWidth = getChatMaxWidth();
 
         // Calculate new width with constraints. Minimum is enforced as the
         // LAST step so nothing (negative delta, NaN, subzero dynamicMax, …)
@@ -193,26 +165,7 @@ export function useChatPanelResize(
 
         // Schedule DOM update for next frame
         rafRef.current = requestAnimationFrame(() => {
-          if (panelRef.current) {
-            panelRef.current.style.width = `${newWidth}px`;
-          }
-
-          if (embedded) {
-            if (cachedChatWrapper) {
-              cachedChatWrapper.style.width = `${newWidth}px`;
-            }
-          } else {
-            if (cachedInsetOverlay) {
-              cachedInsetOverlay.style.width = `${newWidth}px`;
-            }
-
-            if (cachedMainContent) {
-              const paddingProp = isLeftPosition
-                ? "paddingLeft"
-                : "paddingRight";
-              cachedMainContent.style[paddingProp] = `${newWidth + 12}px`;
-            }
-          }
+          applyLiveWidth(newWidth);
         });
       };
 
@@ -229,54 +182,7 @@ export function useChatPanelResize(
           document.body.style.cursor = "";
           document.body.style.userSelect = "";
 
-          // Final clamp on commit: the drag handle can only minimize the
-          // panel, never close it. If pendingWidthRef somehow holds a
-          // sub-minimum value (NaN, stale from a previous drag, etc.) we
-          // coerce it up to MIN_WIDTH here so the persisted width never
-          // collapses the panel.
-          const rawFinal = pendingWidthRef.current;
-          const finalWidth = clampChatWidth(
-            Number.isFinite(rawFinal) && rawFinal >= MIN_WIDTH
-              ? rawFinal
-              : MIN_WIDTH
-          );
-
-          if (embedded) {
-            if (panelRef.current) {
-              panelRef.current.style.width = "";
-            }
-            if (cachedChatWrapper) {
-              cachedChatWrapper.style.width = "";
-            }
-
-            document.documentElement.style.setProperty(
-              CHAT_WIDTH_CSS_VAR,
-              `${finalWidth}px`
-            );
-            setChatWidth(finalWidth);
-          } else {
-            if (panelRef.current) {
-              panelRef.current.style.width = "";
-            }
-            if (cachedInsetOverlay) {
-              cachedInsetOverlay.style.width = "";
-            }
-
-            if (cachedMainContent) {
-              if (isLeftPosition) {
-                cachedMainContent.style.paddingLeft = "";
-              } else {
-                cachedMainContent.style.paddingRight = "";
-              }
-            }
-
-            document.documentElement.style.setProperty(
-              CHAT_WIDTH_CSS_VAR,
-              `${finalWidth}px`
-            );
-            setChatWidth(finalWidth);
-          }
-
+          commitPendingWidth();
           setIsDragging(false);
           hasDraggedRef.current = false;
         }
@@ -289,21 +195,8 @@ export function useChatPanelResize(
         document.removeEventListener("mouseup", handleMouseUp);
         document.body.style.cursor = "";
         document.body.style.userSelect = "";
-        if (panelRef.current) {
-          panelRef.current.style.width = "";
-        }
-        if (cachedInsetOverlay) {
-          cachedInsetOverlay.style.width = "";
-        }
-        if (cachedChatWrapper) {
-          cachedChatWrapper.style.width = "";
-        }
-        if (cachedMainContent) {
-          if (isLeftPosition) {
-            cachedMainContent.style.paddingLeft = "";
-          } else {
-            cachedMainContent.style.paddingRight = "";
-          }
+        if (hasDraggedRef.current) {
+          commitPendingWidth();
         }
         hasDraggedRef.current = false;
         setIsDragging(false);
@@ -312,7 +205,7 @@ export function useChatPanelResize(
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
     },
-    [embedded, isLeftPosition, setChatWidth, useExternalWidth]
+    [isLeftPosition, setChatWidth, useExternalWidth]
   );
 
   // Cleanup drag listeners on unmount

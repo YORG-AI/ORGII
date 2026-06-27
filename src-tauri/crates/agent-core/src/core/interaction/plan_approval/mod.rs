@@ -28,7 +28,7 @@
 //! `clear_silently`) performs its DB write inside the same `pending` mutex
 //! guard that gates the in-memory mutation, so memory and DB cannot split.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{info, warn};
@@ -336,10 +336,8 @@ impl PlanApprovalManager {
                     .map(PendingPlanApproval::from_row)
             }
         };
-        if let Some(prev) = prev {
-            let sid = prev.session_id.clone();
-            persist_blocking(move || PlanApprovalStore::delete_by_session(&sid)).await;
-            self.push_plan_approval_event(&prev, "archive", PlanApprovalCardStatus::Archived);
+        if let Some(prev) = prev.as_ref() {
+            self.push_plan_approval_event(prev, "archive", PlanApprovalCardStatus::Archived);
             // Backend-authoritative finalize of the superseded revision's
             // awaiting_user events (same contract as `resolve_pending`).
             if let Some(handle) = self.app_handle.lock().ok().and_then(|guard| guard.clone()) {
@@ -374,8 +372,8 @@ impl PlanApprovalManager {
             plan_content: plan_content.to_string(),
             created_at_ms,
         };
+        let previous_session_id = prev.map(|prev| prev.session_id);
         let row = snapshot.to_row();
-        persist_blocking(move || PlanApprovalStore::upsert(&row)).await;
 
         *guard = Some(snapshot.clone());
         drop(guard);
@@ -410,6 +408,10 @@ impl PlanApprovalManager {
             snapshot.plan_revision_id.clone(),
             created_at_ms,
         );
+
+        tokio::spawn(async move {
+            persist_ready_row(previous_session_id, row).await;
+        });
 
         info!(
             "[plan_approval] Plan ready (session={}, path={})",
@@ -838,6 +840,174 @@ pub async fn gc_orphaned_pending_plans() {
     }
 }
 
+async fn persist_ready_row(previous_session_id: Option<String>, row: PendingPlanRow) {
+    if let Some(sid) = previous_session_id {
+        persist_blocking(move || PlanApprovalStore::delete_by_session(&sid)).await;
+    }
+    persist_blocking(move || PlanApprovalStore::upsert(&row)).await;
+}
+
+/// Startup repair for half-committed `create_plan` calls.
+///
+/// Covers the failure window where `create_plan` wrote the plan file and the
+/// tool-call event, but the process was stopped before `mark_ready` inserted a
+/// pending row and before the tool_result was persisted.
+pub async fn repair_orphaned_create_plan_submissions() {
+    let repaired =
+        match tokio::task::spawn_blocking(repair_orphaned_create_plan_submissions_sync).await {
+            Ok(Ok(count)) => count,
+            Ok(Err(err)) => {
+                warn!("[plan_approval] orphan create_plan repair failed: {err}");
+                return;
+            }
+            Err(err) => {
+                warn!("[plan_approval] orphan create_plan repair join error: {err}");
+                return;
+            }
+        };
+
+    if repaired > 0 {
+        info!("[plan_approval] Repaired {repaired} orphaned create_plan submission(s)");
+    }
+}
+
+#[derive(Debug)]
+struct OrphanCreatePlanSubmission {
+    session_id: String,
+    tool_call_id: String,
+    title: String,
+    content: String,
+    workspace_path: Option<String>,
+    created_at_ms: i64,
+    pending_created_at_ms: Option<i64>,
+}
+
+fn repair_orphaned_create_plan_submissions_sync(
+) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
+    let conn = database::db::get_connection()?;
+    let mut stmt = conn.prepare(
+        "SELECT e.session_id,
+                e.id,
+                e.args_json,
+                e.created_at,
+                s.workspace_path,
+                p.created_at
+         FROM events e
+         JOIN session_turns t
+           ON t.session_id = e.session_id
+          AND t.status = 'pending'
+          AND e.history_sequence >= t.start_sequence
+          AND (t.end_sequence IS NULL OR e.history_sequence <= t.end_sequence)
+         LEFT JOIN agent_sessions s ON s.session_id = e.session_id
+         LEFT JOIN pending_plan_approvals p ON p.session_id = e.session_id
+         WHERE e.function_name = 'create_plan'
+           AND e.event_type = 'tool_call'
+           AND (p.session_id IS NULL OR e.created_at > datetime(p.created_at / 1000, 'unixepoch'))
+           AND NOT EXISTS (
+               SELECT 1 FROM events r
+                WHERE r.session_id = e.session_id
+                  AND r.event_type = 'tool_result'
+                  AND json_extract(r.meta_json, '$.callId') = json_extract(e.meta_json, '$.callId')
+           )
+         ORDER BY e.session_id ASC, e.history_sequence DESC",
+    )?;
+
+    let rows = stmt
+        .query_map([], |row| {
+            let event_id: String = row.get(1)?;
+            let args_json: String = row.get(2)?;
+            let args: serde_json::Value = serde_json::from_str(&args_json).unwrap_or_default();
+            let title = args
+                .get("title")
+                .and_then(|value| value.as_str())
+                .unwrap_or("Plan")
+                .to_string();
+            let content = args
+                .get("content")
+                .or_else(|| args.get("streamContent"))
+                .and_then(|value| value.as_str())
+                .unwrap_or_default()
+                .to_string();
+            Ok(OrphanCreatePlanSubmission {
+                session_id: row.get(0)?,
+                tool_call_id: event_id
+                    .strip_prefix("tool-call-")
+                    .unwrap_or(&event_id)
+                    .to_string(),
+                title,
+                content,
+                workspace_path: row.get(4)?,
+                created_at_ms: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(3)?)
+                    .map(|dt| dt.timestamp_millis())
+                    .unwrap_or_else(|_| chrono::Utc::now().timestamp_millis()),
+                pending_created_at_ms: row.get(5)?,
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+
+    let mut repaired = 0usize;
+    let mut seen_sessions = std::collections::HashSet::new();
+    for row in rows {
+        if !seen_sessions.insert(row.session_id.clone()) {
+            continue;
+        }
+        if row.content.is_empty()
+            || row
+                .pending_created_at_ms
+                .is_some_and(|created| row.created_at_ms <= created)
+        {
+            continue;
+        }
+        let Some(plan_path) = find_existing_plan_path(&row) else {
+            continue;
+        };
+        let plan_path = plan_path.to_string_lossy().into_owned();
+        let plan_id = plan_id_for(&row.session_id, &plan_path);
+        let plan_revision_id = revision_id_for(Some(&row.tool_call_id), &plan_id);
+        let pending = PendingPlanRow {
+            session_id: row.session_id,
+            tool_call_id: Some(plan_revision_id.clone()),
+            plan_id,
+            plan_revision_id,
+            origin_tool_call_id: Some(row.tool_call_id),
+            plan_path,
+            plan_title: row.title,
+            plan_content: row.content,
+            created_at_ms: row.created_at_ms,
+        };
+        PlanApprovalStore::upsert(&pending)?;
+        repaired += 1;
+    }
+
+    Ok(repaired)
+}
+
+fn find_existing_plan_path(row: &OrphanCreatePlanSubmission) -> Option<PathBuf> {
+    let workspace = row.workspace_path.as_deref().map(Path::new)?;
+    let dir = workspace.join(".orgii").join("plans");
+    let slug = crate::session::plan_mode::slugify_plan_title(&row.title);
+    let prefix = format!("{slug}_");
+    let mut candidates = std::fs::read_dir(dir)
+        .ok()?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with(&prefix) && name.ends_with(".plan.md"))
+        })
+        .collect::<Vec<_>>();
+    candidates.sort_by_key(|path| {
+        std::fs::metadata(path)
+            .and_then(|metadata| metadata.modified())
+            .ok()
+    });
+    candidates
+        .into_iter()
+        .rev()
+        .find(|path| std::fs::read_to_string(path).is_ok_and(|content| content == row.content))
+}
+
 /// List every live pending plan's revision id. Used by the startup repair
 /// scan to distinguish legitimately-awaiting `create_plan` events from
 /// historical strands whose row is gone.
@@ -870,6 +1040,19 @@ mod tests {
     // they all serialize on `lock_and_prepare()` — no exceptions. The lock
     // guard also clears the `pending_plan_approvals` table so each test
     // starts from a clean slate.
+
+    async fn wait_for_pending_row(session_id: &str) {
+        for _ in 0..20 {
+            if PlanApprovalStore::load_by_session(session_id)
+                .unwrap()
+                .is_some()
+            {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        panic!("pending plan row was not persisted for {session_id}");
+    }
 
     #[tokio::test]
     async fn mark_ready_then_take_returns_snapshot() {
@@ -981,6 +1164,7 @@ mod tests {
                 Some("call_9"),
             )
             .await;
+            wait_for_pending_row(session_id).await;
             assert!(mgr.is_pending().await);
         }
 
@@ -1004,6 +1188,7 @@ mod tests {
         let mgr = PlanApprovalManager::new();
         mgr.mark_ready(session_id, plan_path.to_str().unwrap(), "T", "body", None)
             .await;
+        wait_for_pending_row(session_id).await;
         let _ = mgr.take_pending().await;
 
         let fresh = PlanApprovalManager::new();
@@ -1021,6 +1206,7 @@ mod tests {
         let mgr = PlanApprovalManager::new();
         mgr.mark_ready(session_id, plan_path.to_str().unwrap(), "T", "body", None)
             .await;
+        wait_for_pending_row(session_id).await;
         mgr.clear_silently().await;
         assert!(!mgr.is_pending().await, "memory slot must be dropped");
 
@@ -1044,6 +1230,7 @@ mod tests {
         let mgr = PlanApprovalManager::new();
         mgr.mark_ready(session_id, plan_path.to_str().unwrap(), "T", "body", None)
             .await;
+        wait_for_pending_row(session_id).await;
 
         std::fs::remove_file(&plan_path).unwrap();
 
@@ -1075,6 +1262,7 @@ mod tests {
             Some("call_x"),
         )
         .await;
+        wait_for_pending_row(session_id).await;
 
         let snap = super::load_snapshot_for_session(session_id)
             .await
@@ -1095,6 +1283,7 @@ mod tests {
         let mgr = PlanApprovalManager::new();
         mgr.mark_ready(session_id, plan_path.to_str().unwrap(), "T", "body", None)
             .await;
+        wait_for_pending_row(session_id).await;
         std::fs::remove_file(&plan_path).unwrap();
 
         assert!(super::load_snapshot_for_session(session_id)
@@ -1111,7 +1300,97 @@ mod tests {
             .is_none());
     }
 
+    fn seed_orphan_create_plan_event(
+        session_id: &str,
+        call_id: &str,
+        title: &str,
+        content: &str,
+        workspace_path: &Path,
+        sequence: i64,
+        created_at: &str,
+    ) {
+        let conn = database::db::get_connection().expect("test sqlite connection");
+        conn.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS events (
+                id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                function_name TEXT,
+                thread_id TEXT,
+                args_json TEXT NOT NULL DEFAULT '{}',
+                result_json TEXT NOT NULL DEFAULT '{}',
+                content TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                meta_json TEXT,
+                history_sequence INTEGER,
+                UNIQUE(id, session_id)
+            );
+            CREATE TABLE IF NOT EXISTS session_turns (
+                session_id TEXT NOT NULL,
+                turn_id TEXT NOT NULL,
+                start_sequence INTEGER NOT NULL,
+                end_sequence INTEGER,
+                next_turn_id TEXT,
+                started_at TEXT NOT NULL,
+                ended_at TEXT,
+                duration_ms INTEGER,
+                user_event_ids_json TEXT NOT NULL DEFAULT '[]',
+                user_preview TEXT NOT NULL DEFAULT '',
+                event_count INTEGER NOT NULL DEFAULT 0,
+                body_event_count INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL,
+                interrupted INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL,
+                modified_files_json TEXT NOT NULL DEFAULT '[]',
+                PRIMARY KEY (session_id, turn_id)
+            );
+            "#,
+        )
+        .expect("session event schema");
+        let args_json = serde_json::json!({
+            "title": title,
+            "content": content,
+        })
+        .to_string();
+        let meta_json = serde_json::json!({
+            "callId": call_id,
+        })
+        .to_string();
+
+        conn.execute(
+            "INSERT OR REPLACE INTO events
+             (id, session_id, event_type, function_name, args_json, result_json,
+              content, created_at, meta_json, history_sequence)
+             VALUES (?1, ?2, 'tool_call', 'create_plan', ?3, '{}', '', ?4, ?5, ?6)",
+            rusqlite::params![
+                format!("tool-call-{call_id}"),
+                session_id,
+                args_json,
+                created_at,
+                meta_json,
+                sequence,
+            ],
+        )
+        .expect("seed create_plan event");
+
+        conn.execute(
+            "INSERT OR REPLACE INTO session_turns
+             (session_id, turn_id, start_sequence, end_sequence, started_at, status, updated_at,
+              user_preview, event_count, body_event_count)
+             VALUES (?1, ?2, ?3, NULL, ?4, 'pending', ?4, '', 1, 1)",
+            rusqlite::params![session_id, format!("turn-{call_id}"), sequence, created_at,],
+        )
+        .expect("seed pending turn");
+
+        seed_session_row_with_workspace(session_id, "plan", workspace_path);
+    }
+
     fn seed_session_row(session_id: &str, exec_mode: &str) {
+        seed_session_row_with_workspace(session_id, exec_mode, &temp_home());
+    }
+
+    fn seed_session_row_with_workspace(session_id: &str, exec_mode: &str, workspace_path: &Path) {
         use crate::session::persistence::{upsert_session, UnifiedSessionRecord};
         let conn = database::db::get_connection().expect("test sqlite connection");
         conn.execute_batch(
@@ -1174,6 +1453,7 @@ mod tests {
             name: format!("{session_id} session"),
             status: "idle".to_string(),
             agent_exec_mode: Some(exec_mode.to_string()),
+            workspace_path: Some(workspace_path.to_string_lossy().into_owned()),
             created_at: now.clone(),
             updated_at: now,
             ..Default::default()
@@ -1181,6 +1461,65 @@ mod tests {
         .expect("seed session row");
         crate::session::persistence::update_agent_exec_mode(session_id, exec_mode)
             .expect("seed exec mode");
+    }
+
+    #[tokio::test]
+    async fn repair_orphaned_create_plan_keeps_latest_submission_per_session() {
+        let _lock = lock_and_prepare();
+        let session_id = "s_repair_latest";
+        let workspace = temp_home().join("repair-latest-workspace");
+        let plans_dir = workspace.join(".orgii").join("plans");
+        std::fs::create_dir_all(&plans_dir).unwrap();
+
+        let old_content = "old orphan body";
+        let new_content = "new orphan body";
+        let old_plan_path = plans_dir.join("old-plan_aaaaaaaa.plan.md");
+        let new_plan_path = plans_dir.join("new-plan_bbbbbbbb.plan.md");
+        std::fs::write(&old_plan_path, old_content).unwrap();
+        std::fs::write(&new_plan_path, new_content).unwrap();
+
+        PlanApprovalStore::upsert(&PendingPlanRow {
+            session_id: session_id.to_string(),
+            tool_call_id: Some("call_old".to_string()),
+            plan_id: "plan-old".to_string(),
+            plan_revision_id: "call_old".to_string(),
+            origin_tool_call_id: Some("call_old".to_string()),
+            plan_path: old_plan_path.to_string_lossy().into_owned(),
+            plan_title: "Old Plan".to_string(),
+            plan_content: old_content.to_string(),
+            created_at_ms: 1_700_000_000_000,
+        })
+        .unwrap();
+
+        seed_orphan_create_plan_event(
+            session_id,
+            "call_old",
+            "Old Plan",
+            old_content,
+            &workspace,
+            10,
+            "2023-11-14T22:13:20+00:00",
+        );
+        seed_orphan_create_plan_event(
+            session_id,
+            "call_new",
+            "New Plan",
+            new_content,
+            &workspace,
+            20,
+            "2023-11-14T22:14:20+00:00",
+        );
+
+        assert_eq!(repair_orphaned_create_plan_submissions_sync().unwrap(), 1);
+
+        let loaded = PlanApprovalStore::load_by_session(session_id)
+            .unwrap()
+            .expect("pending row");
+        assert_eq!(loaded.tool_call_id.as_deref(), Some("call_new"));
+        assert_eq!(loaded.origin_tool_call_id.as_deref(), Some("call_new"));
+        assert_eq!(loaded.plan_title, "New Plan");
+        assert_eq!(loaded.plan_content, new_content);
+        assert_eq!(loaded.plan_path, new_plan_path.to_string_lossy());
     }
 
     #[tokio::test]
@@ -1193,6 +1532,7 @@ mod tests {
         let mgr = PlanApprovalManager::new();
         mgr.mark_ready(session_id, plan_path.to_str().unwrap(), "T", "body", None)
             .await;
+        wait_for_pending_row(session_id).await;
 
         let snap = resolve_pending(session_id, PlanResolution::Orphaned, None)
             .await
@@ -1251,6 +1591,7 @@ mod tests {
         let mgr = PlanApprovalManager::new();
         mgr.mark_ready(session_id, plan_path.to_str().unwrap(), "T", "body", None)
             .await;
+        wait_for_pending_row(session_id).await;
 
         // Pending plans are session-level state decoupled from the exec
         // mode: a session that switched to Build keeps its Build card.
@@ -1277,6 +1618,7 @@ mod tests {
         let mgr = PlanApprovalManager::new();
         mgr.mark_ready(session_id, plan_path.to_str().unwrap(), "T", "body", None)
             .await;
+        wait_for_pending_row(session_id).await;
 
         let fresh = PlanApprovalManager::new();
         fresh.rehydrate_from_db(session_id).await.unwrap();
@@ -1296,6 +1638,7 @@ mod tests {
         PlanApprovalManager::new()
             .mark_ready("s_gc_live", live_path.to_str().unwrap(), "T", "body", None)
             .await;
+        wait_for_pending_row("s_gc_live").await;
 
         // Orphan A: file deleted.
         let gone_path = temp_home().join("gc_gone.plan.md");
@@ -1304,6 +1647,7 @@ mod tests {
         PlanApprovalManager::new()
             .mark_ready("s_gc_gone", gone_path.to_str().unwrap(), "T", "body", None)
             .await;
+        wait_for_pending_row("s_gc_gone").await;
         std::fs::remove_file(&gone_path).unwrap();
 
         // NOT an orphan: session left plan mode but still exists — the
@@ -1320,6 +1664,7 @@ mod tests {
                 None,
             )
             .await;
+        wait_for_pending_row("s_gc_left_mode").await;
 
         // Orphan C: session row does not exist at all.
         let no_session_path = temp_home().join("gc_no_session.plan.md");
@@ -1333,6 +1678,7 @@ mod tests {
                 None,
             )
             .await;
+        wait_for_pending_row("s_gc_no_session").await;
 
         gc_orphaned_pending_plans().await;
 

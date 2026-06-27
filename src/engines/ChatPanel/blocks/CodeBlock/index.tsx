@@ -369,7 +369,7 @@ const ChatCodeBlock: React.FC<ChatCodeBlockProps> = memo(
                         ? t("common:status.copied")
                         : t("common:actions.copy")
                     }
-                    className={`shrink-0 text-text-4 hover:text-text-2 ${
+                    className={`shrink-0 text-text-3 hover:bg-fill-2 hover:text-text-1 ${
                       shouldShowOpenButton ? "" : "ml-auto"
                     }`}
                     onClick={handleCopyContent}

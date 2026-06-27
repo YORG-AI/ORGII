@@ -20,6 +20,7 @@ use super::types::{ConsoleLogEntry, ElementInfo, NetworkLogEntry};
 /// # Platform Support
 ///
 /// - **macOS**: Uses WKWebView's `evaluateJavaScript` via Objective-C runtime
+/// - **Windows**: Uses WebView2's `ExecuteScript` completion callback
 /// - **Other platforms**: Returns the default value (not yet implemented)
 #[cfg(target_os = "macos")]
 pub async fn eval_js_with_result(webview: &tauri::Webview, script: &str, default: &str) -> String {
@@ -101,13 +102,97 @@ pub async fn eval_js_with_result(webview: &tauri::Webview, script: &str, default
         .unwrap_or_else(|_| default.to_string())
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(any(target_os = "windows", test))]
+fn normalize_webview2_eval_result(raw: &str, default: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return default.to_string();
+    }
+
+    match serde_json::from_str::<serde_json::Value>(trimmed) {
+        Ok(serde_json::Value::String(value)) => value,
+        Ok(value) => value.to_string(),
+        Err(_) => trimmed.to_string(),
+    }
+}
+
+#[cfg(target_os = "windows")]
+pub async fn eval_js_with_result(webview: &tauri::Webview, script: &str, default: &str) -> String {
+    use std::sync::mpsc;
+    use std::time::Duration;
+    use webview2_com::ExecuteScriptCompletedHandler;
+    use windows::core::HSTRING;
+
+    let (tx, rx) = mpsc::channel::<String>();
+    let default_owned = default.to_string();
+    let script_owned = script.to_string();
+
+    let result = webview.with_webview(move |wv| {
+        let controller = wv.controller();
+        let core_webview = match unsafe { controller.CoreWebView2() } {
+            Ok(webview) => webview,
+            Err(err) => {
+                let _ = tx.send(default_owned.clone());
+                tracing::warn!(
+                    error = %err,
+                    "browser::logging: failed to get WebView2 core webview"
+                );
+                return;
+            }
+        };
+
+        let js = HSTRING::from(script_owned);
+        let tx_callback = tx.clone();
+        let default_for_callback = default_owned.clone();
+        let handler = ExecuteScriptCompletedHandler::create(Box::new(move |_error_code, raw| {
+            let value = if raw.trim().is_empty() {
+                default_for_callback.clone()
+            } else {
+                raw
+            };
+            let _ = tx_callback.send(value);
+            Ok(())
+        }));
+
+        let execute_result = unsafe { core_webview.ExecuteScript(&js, &handler) };
+        if let Err(err) = execute_result {
+            let _ = tx.send(default_owned);
+            tracing::warn!(
+                error = %err,
+                "browser::logging: WebView2 ExecuteScript failed"
+            );
+        }
+    });
+
+    if let Err(err) = result {
+        tracing::warn!(
+            error = %err,
+            "browser::logging: failed to dispatch WebView2 JavaScript evaluation"
+        );
+        return default.to_string();
+    }
+
+    let raw = match rx.recv_timeout(Duration::from_secs(2)) {
+        Ok(value) => value,
+        Err(err) => {
+            tracing::warn!(
+                error = %err,
+                "browser::logging: WebView2 JavaScript evaluation timed out"
+            );
+            return default.to_string();
+        }
+    };
+
+    normalize_webview2_eval_result(&raw, default)
+}
+
+#[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
 pub async fn eval_js_with_result(
     _webview: &tauri::Webview,
     _script: &str,
     default: &str,
 ) -> String {
-    // For non-macOS, we can't easily get eval results
+    // For other platforms, we can't easily get eval results
     // Return default for now - this needs platform-specific implementation
     default.to_string()
 }
@@ -744,5 +829,47 @@ pub async fn get_element_path(
             println!("[ElementPath] Failed to parse: {}", e);
             Ok(None)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_webview2_eval_result;
+
+    #[test]
+    fn normalize_webview2_eval_result_keeps_json_literals() {
+        assert_eq!(normalize_webview2_eval_result("true", "fallback"), "true");
+        assert_eq!(normalize_webview2_eval_result("false", "fallback"), "false");
+        assert_eq!(normalize_webview2_eval_result("null", "fallback"), "null");
+        assert_eq!(normalize_webview2_eval_result("[]", "fallback"), "[]");
+    }
+
+    #[test]
+    fn normalize_webview2_eval_result_unwraps_json_strings() {
+        assert_eq!(
+            normalize_webview2_eval_result("\"hello\"", "fallback"),
+            "hello"
+        );
+        assert_eq!(
+            normalize_webview2_eval_result("\"{\\\"tagName\\\":\\\"img\\\"}\"", "fallback"),
+            "{\"tagName\":\"img\"}"
+        );
+    }
+
+    #[test]
+    fn normalize_webview2_eval_result_uses_default_for_empty_raw_result() {
+        assert_eq!(normalize_webview2_eval_result("", "fallback"), "fallback");
+        assert_eq!(
+            normalize_webview2_eval_result("   ", "fallback"),
+            "fallback"
+        );
+    }
+
+    #[test]
+    fn normalize_webview2_eval_result_preserves_unparseable_values() {
+        assert_eq!(
+            normalize_webview2_eval_result("not valid json", "fallback"),
+            "not valid json"
+        );
     }
 }

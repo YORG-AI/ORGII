@@ -162,6 +162,7 @@ export const SessionService = {
       agentRole: params.agentRole || undefined,
       worktreePath: params.repoPath || undefined,
       keySource: params.keySource || undefined,
+      parentSessionId: params.parentSessionId || undefined,
       ideContext: adeContext,
       ...(params.projectSlug ? { projectSlug: params.projectSlug } : {}),
       ...(isCli

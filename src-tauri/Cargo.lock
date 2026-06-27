@@ -924,7 +924,9 @@ dependencies = [
  "tracing",
  "url",
  "uuid",
+ "webview2-com",
  "window-vibrancy",
+ "windows 0.61.3",
 ]
 
 [[package]]

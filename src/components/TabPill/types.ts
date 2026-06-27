@@ -24,7 +24,7 @@ export interface TabPillProps {
   iconOnly?: boolean;
   fillWidth?: boolean;
   wrap?: boolean;
-  size?: "mini" | "small" | "default" | "large";
+  size?: "mini" | "small" | "default" | "large" | "chatPanel";
   /**
    * - `default` / `muted` / `layout` — opaque pill backgrounds tuned for sidebars and filter chips.
    * - `ghost` — transparent inactive, `surface-hover` on hover, `fill-2 + primary-6` on active.

@@ -4,7 +4,7 @@
  * Session lifecycle, persistence, interaction, and message processing.
  */
 import { rpc } from "@src/api/tauri/rpc";
-import type { NativeHarnessType } from "@src/api/types/keys";
+import type { CliAgentType, NativeHarnessType } from "@src/api/types/keys";
 import type { OrgMemberLaunchOverride } from "@src/modules/MainApp/AgentOrgs/types";
 import type { WorkspaceSnapshot } from "@src/services/context/workspaceSnapshot";
 import type { SessionStatus } from "@src/types/session/session";
@@ -380,7 +380,7 @@ export interface SessionLaunchParams {
   accountId?: string;
   model?: string;
   nativeHarnessType?: NativeHarnessType;
-  platform?: string;
+  platform?: CliAgentType;
   branch?: string;
   hostedToken?: string;
   tier?: string;
@@ -426,7 +426,7 @@ export interface SessionLaunchResult {
   branch?: string | null;
   background: boolean;
   model?: string | null;
-  cliAgentType?: string | null;
+  cliAgentType?: CliAgentType | null;
   accountId?: string | null;
   agentOrgId?: string | null;
   agentOrgRunId?: string | null;

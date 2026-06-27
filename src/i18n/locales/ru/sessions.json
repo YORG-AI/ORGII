@@ -716,10 +716,10 @@
       "tabs": {
         "work": "Работа",
         "explore": "Обзор",
-        "heatmap": "Heat map"
+        "heatmap": "Тренды"
       },
       "heatmap": {
-        "loading": "Загрузка Heat map активности…",
+        "loading": "Загрузка трендов активности…",
         "empty": "Активности сессий пока нет.",
         "sessions": "Сессии",
         "tokens": "Tokens",
@@ -940,10 +940,10 @@
       "allRepositories": "Все repos",
       "newIssue": "Новая issue",
       "tabs": {
-        "all": "Все",
-        "active": "Активные",
-        "reviewRequests": "Запросы review",
-        "done": "Готово"
+        "recent": "Недавние",
+        "assigned": "Назначены мне",
+        "byMe": "Созданы мной",
+        "mentioned": "Упоминания"
       }
     }
   },

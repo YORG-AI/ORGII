@@ -5,13 +5,14 @@
  *   html  — static HTML from the agent, sandboxed iframe (security isolation)
  *   url   — external URL, sandboxed iframe with allow-same-origin
  *   a2ui  — incremental JSONL stream rendered as native React components
+ *   react — React App component rendered in an iframe sandbox with runtime errors
  *
  * For a2ui mode the previous iframe + postMessage approach has been replaced
  * with A2UIRenderer, which receives the parsed lines directly as props and
  * re-renders incrementally without any full reload.
  *
  * Security:
- *   - html iframes: sandbox="allow-scripts" only (no allow-same-origin)
+ *   - html/react iframes: sandbox="allow-scripts" only (no allow-same-origin)
  *   - url iframes: allow-same-origin so cross-origin assets load correctly
  *   - a2ui: DOMPurify sanitizes type="html" elements in A2UIRenderer
  */
@@ -23,7 +24,7 @@ import IconButton from "@src/components/IconButton";
 
 import A2UIRenderer, { type A2UIRendererHandle } from "./A2UIRenderer";
 import { CanvasErrorBoundary } from "./CanvasErrorBoundary";
-import { buildHtmlDocument } from "./canvasBuilder";
+import { buildHtmlDocument, buildReactDocument } from "./canvasBuilder";
 import type { CanvasInlineCardProps } from "./types";
 import { useJumpToSimulatorCanvas } from "./useJumpToSimulatorCanvas";
 
@@ -154,6 +155,11 @@ const CanvasInlineCard: React.FC<CanvasInlineCardProps> = ({
     return undefined;
   }, [mode, content]);
 
+  const reactSrcDoc = useMemo(() => {
+    if (mode === "react" && content) return buildReactDocument(content);
+    return undefined;
+  }, [mode, content]);
+
   const simulatorPayload = useMemo(
     () => ({ mode, content, url, title, streaming: isStreaming }),
     [mode, content, url, title, isStreaming]
@@ -169,7 +175,9 @@ const CanvasInlineCard: React.FC<CanvasInlineCardProps> = ({
       ? t("canvasCard.titleUrl")
       : mode === "a2ui"
         ? t("canvasCard.titleA2ui")
-        : t("canvasCard.titleHtml"));
+        : mode === "react"
+          ? t("canvasCard.titleReact", "React Preview")
+          : t("canvasCard.titleHtml"));
 
   // ── render content area ───────────────────────────────────────────────────
 
@@ -193,6 +201,15 @@ const CanvasInlineCard: React.FC<CanvasInlineCardProps> = ({
     contentArea = (
       <iframe
         srcDoc={htmlSrcDoc}
+        className="h-full w-full border-0"
+        sandbox="allow-scripts"
+        title={cardTitle}
+      />
+    );
+  } else if (mode === "react" && reactSrcDoc) {
+    contentArea = (
+      <iframe
+        srcDoc={reactSrcDoc}
         className="h-full w-full border-0"
         sandbox="allow-scripts"
         title={cardTitle}

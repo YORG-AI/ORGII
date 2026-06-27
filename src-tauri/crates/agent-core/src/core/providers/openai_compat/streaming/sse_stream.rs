@@ -32,6 +32,22 @@ use crate::providers::wire_sanitize::{
 };
 use crate::utils::http_retry::extract_retry_after_secs;
 
+fn finish_reason_after_incomplete_tool_calls(
+    finish_reason: String,
+    tool_call_count: usize,
+    incomplete_tool_call_count: usize,
+) -> (String, Option<StreamErrorKind>) {
+    if finish_reason == finish::TOOL_CALLS && tool_call_count == 0 && incomplete_tool_call_count > 0
+    {
+        (
+            finish::STREAM_ERROR.to_string(),
+            Some(StreamErrorKind::ProviderError),
+        )
+    } else {
+        (finish_reason, None)
+    }
+}
+
 // Mirrors the `LLMProvider::chat_streaming` trait signature (8 args). The
 // trait method itself triggers the same warning at the call site; allow
 // here so the free function shape stays 1:1 with the trait.
@@ -523,14 +539,16 @@ pub(super) async fn run_chat_streaming(
         });
     }
 
-    // Assemble final tool calls — discard incomplete entries from stream interruption
+    // Assemble final tool calls — treat incomplete entries as stream errors.
     let mut tool_calls: Vec<ToolCallRequest> = Vec::new();
+    let mut incomplete_tool_call_count = 0usize;
     let mut indices: Vec<usize> = tool_call_accumulators.keys().cloned().collect();
     indices.sort();
     for index in indices {
         if let Some((id, name, args_str, thought_signature)) = tool_call_accumulators.remove(&index)
         {
             if id.is_empty() || name.is_empty() {
+                incomplete_tool_call_count += 1;
                 warn!(
                     "Discarding incomplete tool call at index {} (missing id/name)",
                     index
@@ -574,6 +592,23 @@ pub(super) async fn run_chat_streaming(
         );
     }
 
+    let (resolved_finish_reason, malformed_tool_stream_kind) =
+        finish_reason_after_incomplete_tool_calls(
+            finish_reason.clone(),
+            tool_calls.len(),
+            incomplete_tool_call_count,
+        );
+    if let Some(kind) = malformed_tool_stream_kind {
+        warn!(
+            provider = this.provider_spec.name,
+            model = resolved_model,
+            incomplete_tool_call_count,
+            "OpenAI-compatible stream ended with only incomplete tool call(s)"
+        );
+        finish_reason = resolved_finish_reason;
+        stream_error_kind = Some(kind);
+    }
+
     // Send final delta with finish reason
     on_delta(StreamDelta {
         content: None,
@@ -612,4 +647,100 @@ pub(super) async fn run_chat_streaming(
         stream_error_kind,
         retry_after_ms: stream_retry_after_ms,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::providers::registry::{find_by_name, provider_id};
+    use crate::providers::traits::{LLMProvider, ProviderConfig};
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[test]
+    fn malformed_only_tool_call_finish_becomes_stream_error() {
+        let (finish_reason, kind) =
+            finish_reason_after_incomplete_tool_calls(finish::TOOL_CALLS.to_string(), 0, 2);
+
+        assert_eq!(finish_reason, finish::STREAM_ERROR);
+        assert_eq!(kind, Some(StreamErrorKind::ProviderError));
+    }
+
+    #[test]
+    fn parsed_tool_calls_keep_tool_call_finish() {
+        let (finish_reason, kind) =
+            finish_reason_after_incomplete_tool_calls(finish::TOOL_CALLS.to_string(), 1, 1);
+
+        assert_eq!(finish_reason, finish::TOOL_CALLS);
+        assert_eq!(kind, None);
+    }
+
+    #[test]
+    fn non_tool_finish_ignores_incomplete_tool_count() {
+        let (finish_reason, kind) =
+            finish_reason_after_incomplete_tool_calls(finish::STOP.to_string(), 0, 1);
+
+        assert_eq!(finish_reason, finish::STOP);
+        assert_eq!(kind, None);
+    }
+
+    #[tokio::test]
+    async fn stream_with_only_incomplete_tool_calls_returns_stream_error_response() {
+        crate::test_support::install_crypto_provider_for_tests();
+
+        let server = MockServer::start().await;
+        let body = concat!(
+            "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"{\\\"path\\\":\\\"src/main.rs\\\"}\"}}]},\"finish_reason\":null}]}\n\n",
+            "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"tool_calls\"}]}\n\n",
+            "data: [DONE]\n\n"
+        );
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-type", "text/event-stream")
+                    .set_body_string(body),
+            )
+            .mount(&server)
+            .await;
+
+        let spec = find_by_name(provider_id::OPENCODE).expect("opencode provider registered");
+        let client = OpenAICompatClient::new(
+            ProviderConfig {
+                api_key: "test-key".to_string(),
+                api_base: Some(server.uri()),
+                extra_headers: HashMap::new(),
+                is_azure: false,
+            },
+            spec,
+            "test-model".to_string(),
+        );
+
+        let response = client
+            .chat_streaming(
+                &[serde_json::json!({"role": "user", "content": "read the file"})],
+                Some(&[serde_json::json!({
+                    "type": "function",
+                    "function": {
+                        "name": "read_file",
+                        "parameters": {"type": "object", "properties": {}}
+                    }
+                })]),
+                "test-model",
+                1024,
+                0.0,
+                &|_| {},
+                None,
+            )
+            .await
+            .expect("stream should parse into a response");
+
+        assert_eq!(response.finish_reason, finish::STREAM_ERROR);
+        assert_eq!(
+            response.stream_error_kind,
+            Some(StreamErrorKind::ProviderError)
+        );
+        assert!(response.tool_calls.is_empty());
+        assert_eq!(response.content, None);
+    }
 }

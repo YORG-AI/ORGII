@@ -31,15 +31,13 @@ type SessionRowIconInput =
  *
  * Resolution priority (most specific → most generic):
  *
- *  1. **`agentIconId`** — explicit per-session brand assignment. Wins
- *     unconditionally because the launcher knew the answer at create
- *     time. Used by Rust agent definitions (built-in + custom), where the
- *     definition carries an `iconId`.
- *  2. **`cliAgentType`** → brand icon via `getIconProvider`. Covers all
+ *  1. **`cliAgentType`** → brand icon via `getIconProvider`. Covers all
  *     CLI sessions (Cursor CLI, Claude Code, Codex, Gemini, Copilot,
- *     Kiro, Kimi, OpenCode, Qwen) without depending on the launcher to
- *     have stamped `agentIconId`. Also catches legacy sessions written
- *     before brand stamping existed at the create-time path.
+ *     Kiro, Kimi, OpenCode, Qwen) and prevents stale `agentIconId` values
+ *     from overriding the CLI provider identity.
+ *  2. **`agentIconId`** — explicit per-session brand assignment. Used by
+ *     Rust agent definitions (built-in + custom), where the definition
+ *     carries an `iconId`.
  *  3. **Prefix-based** fallback (`resolveSessionIconId`) — last resort
  *     for sessions where neither of the above applies. Maps prefix →
  *     generic Lucide slug (e.g. `cursoride-` → `cursor`, `osagent-` →
@@ -56,11 +54,11 @@ export function resolveSessionRowIcon(input: SessionRowIconInput): LucideIcon {
     if (input.user_input?.startsWith("Benchmark run coordinator")) {
       return FlaskConical;
     }
-    if (input.agentIconId) {
-      return resolveAgentIcon(input.agentIconId);
-    }
     if (input.cliAgentType) {
       return resolveAgentIcon(getIconProvider(input.cliAgentType));
+    }
+    if (input.agentIconId) {
+      return resolveAgentIcon(input.agentIconId);
     }
   }
 

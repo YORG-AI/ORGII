@@ -714,10 +714,10 @@
       "tabs": {
         "work": "작업",
         "explore": "탐색",
-        "heatmap": "Heat map"
+        "heatmap": "추세"
       },
       "heatmap": {
-        "loading": "활동 Heat map 로드 중…",
+        "loading": "활동 추세 로드 중…",
         "empty": "아직 세션 활동이 없습니다.",
         "sessions": "세션",
         "tokens": "Tokens",
@@ -932,10 +932,10 @@
       "allRepositories": "모든 Repos",
       "newIssue": "새 Issue",
       "tabs": {
-        "all": "전체",
-        "active": "활성",
-        "reviewRequests": "Review 요청",
-        "done": "완료"
+        "recent": "최근",
+        "assigned": "내게 할당됨",
+        "byMe": "내가 작성",
+        "mentioned": "멘션됨"
       }
     }
   },

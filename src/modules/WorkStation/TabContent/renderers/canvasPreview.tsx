@@ -11,7 +11,10 @@ import React, { memo, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import A2UIRenderer from "@src/engines/ChatPanel/blocks/CanvasInlineCard/A2UIRenderer";
-import { buildHtmlDocument } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/canvasBuilder";
+import {
+  buildHtmlDocument,
+  buildReactDocument,
+} from "@src/engines/ChatPanel/blocks/CanvasInlineCard/canvasBuilder";
 import { EditorTabService } from "@src/services/workStation";
 import { canvasPreviewAtom } from "@src/store/session/canvasPreviewAtom";
 import { getCanvasPreviewTabId } from "@src/store/workstation/tabs/factories/canvasPreview";
@@ -36,6 +39,9 @@ const CanvasPreviewTabRenderer: React.FC<UnifiedTabContentProps> = memo(
       if (!payload) return undefined;
       if (payload.mode === "html" && payload.content) {
         return buildHtmlDocument(payload.content);
+      }
+      if (payload.mode === "react" && payload.content) {
+        return buildReactDocument(payload.content);
       }
       return undefined;
     }, [payload]);

@@ -74,9 +74,13 @@ export function parsePillTextToSnapshot(text: string): ComposerSnapshot {
       const lastSpaceIdx = rawDisplayName.search(/\s[^\s]*$/);
       let precedingText: string;
       let fileName: string;
+      const pillType = match[2] as PillType;
       if (lastSpaceIdx >= 0) {
         precedingText = rawDisplayName.slice(0, lastSpaceIdx + 1);
         fileName = rawDisplayName.slice(lastSpaceIdx + 1).trim();
+      } else if (pillType === "session") {
+        precedingText = "";
+        fileName = rawDisplayName.trim();
       } else {
         precedingText = rawDisplayName;
         fileName = match[3].split("/").pop()?.split("::")[0] || match[3];
@@ -89,7 +93,6 @@ export function parsePillTextToSnapshot(text: string): ComposerSnapshot {
         parts.push({ kind: "text", text: precedingText });
       }
 
-      const pillType = match[2] as PillType;
       const filePath = match[3];
 
       const attrs: ComposerPillAttrs = {

@@ -69,5 +69,13 @@ objc2-foundation = { workspace = true }
 objc2-app-kit = { workspace = true }
 block2 = { workspace = true }
 
+# Windows-specific WebView2 bindings for retrieving JavaScript evaluation
+# results from inline webviews. Tauri exposes the WebView2 controller, but
+# the browser crate must depend on the COM bindings directly to call
+# `ExecuteScript` with a completion handler.
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.38.2"
+windows = "0.61"
+
 [dev-dependencies]
 tempfile = "3.13"
