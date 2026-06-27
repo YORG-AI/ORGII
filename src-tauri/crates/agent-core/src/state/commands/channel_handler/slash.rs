@@ -196,8 +196,10 @@ async fn build_session_list(state: &AgentAppState, session_key: &SessionKey) -> 
 切换：`/session switch <session_id>`；新建：`/session new`；搜索：`/session search <关键词>`"
             .to_string(),
     );
-    lines.join("
-")
+    lines.join(
+        "
+",
+    )
 }
 
 fn human_session_title(s: &crate::session::persistence::UnifiedSessionRecord) -> String {
@@ -248,8 +250,7 @@ fn recent_session_one_line(session_id: &str) -> String {
             .into_iter()
             .rev()
             .find_map(|row| {
-                let text = row.content.replace('
-', " ");
+                let text = row.content.replace('\n', " ");
                 let text = text.trim();
                 if text.is_empty() {
                     None
