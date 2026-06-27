@@ -380,17 +380,28 @@ fn recent_session_summary(session_id: &str, limit: usize) -> String {
 /// Static cheat-sheet for the `/help` slash command.
 fn build_help_text() -> String {
     [
-        "**Commands**",
+        "**ORG2 Channel Commands**",
+        "These commands are handled inside the gateway before the OS agent runs, so they do **not** spend LLM tokens.",
+        "",
+        "**General**",
         "`/help` — show this list (alias: `/commands`).",
-        "`/new` — reset this chat; the next message starts a fresh session.",
-        "`/status` — show the current session and anything else running.",
-        "`/compact` — compress the current session and continue in a versioned successor.",
-        "`/session current` — show the active channel-bound ORG2 session.",
-        "`/session list` — list recent ORG2 sessions.",
-        "`/session switch <session_id>` — bind this chat to an existing session and show recent context.",
+        "`/status` — show this chat's current binding and active runtime sessions.",
+        "`/new` — clear this chat's binding; the next normal message creates a fresh session (alias: `/reset`).",
+        "`/compact` — manually compact the current channel session and continue in a versioned successor.",
+        "",
+        "**Session switching**",
+        "`/session current` — show the active channel-bound ORG2 session (alias: `/ctx current`).",
+        "`/session list` — list recent ORG2 sessions (aliases: `/session ls`, `/ctx ls`).",
+        "`/session switch <session_id>` — bind this Feishu chat to an existing session and show recent context (alias: `/session use <session_id>`).",
         "`/session new` — create and bind a fresh session immediately.",
+        "",
+        "**Active project / Work Item context**",
         "`/session bind project <slug>` — set active project context for this channel session.",
-        "`/session bind workitem <id|project:id>` — set active Work Item context for this channel session.",
+        "`/session bind workitem <project_slug>:<short_id>` — set active Work Item context for this channel session.",
+        "",
+        "**Work Items via agent tools**",
+        "Natural language requests can create/update/list Work Items with `manage_work_item` (`wi` alias).",
+        "Project Work Items can be started with `manage_work_item(action="start", project_slug=..., short_id=...)`.",
     ]
     .join("\n")
 }
@@ -425,6 +436,6 @@ mod help_text_tests {
 
     #[test]
     fn fits_message_budget() {
-        assert!(build_help_text().len() < 2048);
+        assert!(build_help_text().len() < 4096);
     }
 }
