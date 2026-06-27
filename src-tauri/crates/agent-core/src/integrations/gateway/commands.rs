@@ -110,6 +110,14 @@ fn parse_session_command(rest: &str) -> Option<GatewayCommand> {
                 None
             }
         }
+        "search" | "find" => {
+            let query = parts.collect::<Vec<_>>().join(" ");
+            if query.trim().is_empty() {
+                None
+            } else {
+                Some(GatewayCommand::SessionSearch(query))
+            }
+        }
         "switch" | "use" => {
             let sid = parts.next()?;
             if parts.next().is_none() {
