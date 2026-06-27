@@ -98,7 +98,10 @@ pub async fn append_status_bar_for_channel(
     .await
     .unwrap_or((0, total_tokens));
 
-    let zenmux = get_zenmux_bar_text().await.unwrap_or_else(|| "ZenMux: (unavailable)".into());
+    let zenmux = get_zenmux_bar_text()
+        .await
+        .unwrap_or_else(|| "ZenMux: (unavailable)".into());
+    let session_label = session_context_label(&session.id);
     let bar = build_status_bar(
         cumulative_total,
         context_tokens,
@@ -106,6 +109,7 @@ pub async fn append_status_bar_for_channel(
         msg_num,
         &zenmux,
         &model,
+        session_label.as_deref(),
     );
     format!("{}\n\n{}", content.trim_end(), bar)
 }
@@ -117,6 +121,7 @@ fn build_status_bar(
     msg_num: i64,
     zenmux: &str,
     model: &str,
+    session_label: Option<&str>,
 ) -> String {
     let equiv_k = (total_tokens.max(0) + 999) / 1000;
     // Match the OpenClaw current extension threshold: 1,000k weighted tokens.
@@ -131,6 +136,9 @@ fn build_status_bar(
         format!("Context: {}k/{}k ({}%)", ctx_k, ctx_total_k, ctx_pct),
         format!("ZenMux {}", zenmux),
     ];
+    if let Some(label) = session_label.filter(|s| !s.trim().is_empty()) {
+        parts.push(format!("📌 {}", label));
+    }
     if msg_num > 0 {
         parts.push(format!("msg#{}", msg_num));
     }
@@ -139,6 +147,35 @@ fn build_status_bar(
         parts.push(format!("🤖 {}", short));
     }
     parts.join(" · ")
+}
+
+fn session_context_label(session_id: &str) -> Option<String> {
+    let row = crate::session::persistence::get_session(session_id)
+        .ok()
+        .flatten()?;
+    let mut pieces = Vec::new();
+    if let Some(project) = row.project_slug.filter(|s| !s.trim().is_empty()) {
+        pieces.push(format!("项目:{}", project));
+    } else if let Some(project) = row.project_name.filter(|s| !s.trim().is_empty()) {
+        pieces.push(format!("项目:{}", project));
+    }
+    if let Some(item) = row.work_item_id.filter(|s| !s.trim().is_empty()) {
+        pieces.push(format!("任务:{}", item));
+    }
+    if pieces.is_empty() {
+        let name = row.name.trim();
+        if !name.is_empty() && name != session_id {
+            pieces.push(format!(
+                "会话:{}",
+                crate::utils::safe_truncate_chars_to_string(name, 24)
+            ));
+        }
+    }
+    if pieces.is_empty() {
+        None
+    } else {
+        Some(pieces.join("/"))
+    }
 }
 
 fn shorten_model(model: &str) -> String {
@@ -182,7 +219,10 @@ async fn get_zenmux_bar_text() -> Option<String> {
             }
             Some(text)
         }
-        None => zenmux_cache().lock().ok().and_then(|guard| guard.text.clone()),
+        None => zenmux_cache()
+            .lock()
+            .ok()
+            .and_then(|guard| guard.text.clone()),
     }
 }
 
@@ -277,10 +317,19 @@ mod tests {
 
     #[test]
     fn status_bar_has_expected_shape() {
-        let bar = build_status_bar(12_345, 67_890, 200_000, 7, "5h:1.0% / 7d:2.0%", "anthropic/claude-sonnet-4.6:anthropic");
+        let bar = build_status_bar(
+            12_345,
+            67_890,
+            200_000,
+            7,
+            "5h:1.0% / 7d:2.0%",
+            "anthropic/claude-sonnet-4.6:anthropic",
+            Some("项目:org2"),
+        );
         assert!(bar.contains("📊 等效: 13k (1%)"));
         assert!(bar.contains("Context: 68k/200k (34%)"));
         assert!(bar.contains("ZenMux 5h:1.0% / 7d:2.0%"));
+        assert!(bar.contains("📌 项目:org2"));
         assert!(bar.contains("msg#7"));
         assert!(bar.contains("🤖 sonnet-4.6"));
     }

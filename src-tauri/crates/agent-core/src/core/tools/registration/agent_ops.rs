@@ -100,7 +100,12 @@ pub fn register(registry: &mut ToolRegistry, deps: &ToolDeps, disabled: &HashSet
     );
     register_if_enabled(
         registry,
-        Box::new(WorkItemTool::new(deps.session_id.clone())),
+        Box::new(WorkItemTool::with_launch_context(
+            deps.session_id.clone(),
+            deps.app_handle.clone(),
+            deps.session_account_id.clone(),
+            deps.agent_model.clone(),
+        )),
         disabled,
     );
 

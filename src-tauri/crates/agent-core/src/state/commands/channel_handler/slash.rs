@@ -3,6 +3,7 @@
 
 use crate::bus::{InboundMessage, OutboundMessage};
 use crate::gateway::{GatewayCommand, SessionKey};
+use crate::session::session_id::{next_version_for, os_session_id_base, with_version};
 use crate::state::AgentAppState;
 use tracing::info;
 
@@ -23,6 +24,13 @@ pub(super) async fn handle_command(
             state.gateway_bindings.clear(session_key).await;
             info!("[gateway] Cleared binding for {}", session_key.as_str());
             "Conversation reset. The next message starts a fresh session.".to_string()
+        }
+        GatewayCommand::SessionCurrent => build_session_current(state, session_key).await,
+        GatewayCommand::SessionList => build_session_list(state).await,
+        GatewayCommand::SessionSwitch(target) => switch_session(state, session_key, &target).await,
+        GatewayCommand::SessionNew => create_and_switch_session(state, msg, session_key).await,
+        GatewayCommand::SessionBind { target, value } => {
+            bind_active_context(state, session_key, &target, &value).await
         }
         GatewayCommand::Status => {
             let binding = state.gateway_bindings.get(session_key).await;
@@ -50,8 +58,6 @@ pub(super) async fn handle_command(
                 run_manual_compact, ManualCompactResult, MIN_HISTORY_FOR_MANUAL_COMPACT,
             };
 
-            // Resolve the bound session for this chat. If the chat has no
-            // binding there's no session to compact yet.
             let target_sid = match state.gateway_bindings.get(session_key).await {
                 Some(b) => b.target_session_id,
                 None => {
@@ -118,28 +124,260 @@ pub(super) async fn handle_command(
         let bus = state.bus.lock().await;
         bus.publish_outbound(reply.clone());
     }
-    // E2E observability: slash replies previously lived only on the
-    // outbound bus, which has no buffered subscribers in the dev
-    // harness — so `outbound-snapshot` could not verify the reply
-    // text. Mirror the `prepend_reset_notice` pattern and keep a
-    // copy in the debug buffer.
     #[cfg(debug_assertions)]
     push_debug_outbound(state, &reply).await;
     Ok(None)
 }
 
+async fn build_session_current(state: &AgentAppState, session_key: &SessionKey) -> String {
+    match state.gateway_bindings.get(session_key).await {
+        Some(binding) => {
+            let meta = session_meta_line(&binding.target_session_id);
+            format!(
+                "**Current channel session**\n• Binding: `{}` → `{}`\n{}",
+                session_key.as_str(),
+                binding.target_session_id,
+                meta
+            )
+        }
+        None => "**Current channel session**\n• No active session yet (send a message or use `/session new`).".to_string(),
+    }
+}
+
+async fn build_session_list(_state: &AgentAppState) -> String {
+    let sessions = tokio::task::spawn_blocking(|| {
+        let filter = crate::session::SessionListFilter {
+            limit: Some(12),
+            ..Default::default()
+        };
+        crate::session::persistence::list_sessions(&filter).map_err(|err| err.to_string())
+    })
+    .await
+    .map_err(|err| err.to_string())
+    .and_then(|x| x);
+
+    let Ok(sessions) = sessions else {
+        return "Could not list sessions.".to_string();
+    };
+    if sessions.is_empty() {
+        return "No sessions found.".to_string();
+    }
+    let mut lines = vec!["**Recent sessions**".to_string()];
+    for s in sessions {
+        let title = session_display_name(&s);
+        lines.push(format!(
+            "• `{}` — {}{}",
+            s.session_id,
+            title,
+            session_project_suffix(s.project_slug.as_deref(), s.work_item_id.as_deref())
+        ));
+    }
+    lines.push("Use `/session switch <session_id>` to bind this Feishu chat.".to_string());
+    lines.join("\n")
+}
+
+async fn switch_session(state: &AgentAppState, session_key: &SessionKey, target: &str) -> String {
+    let sid = target.trim().to_string();
+    let exists = tokio::task::spawn_blocking({
+        let sid = sid.clone();
+        move || crate::session::persistence::get_session(&sid).map_err(|err| err.to_string())
+    })
+    .await
+    .map_err(|err| err.to_string())
+    .and_then(|x| x);
+
+    match exists {
+        Ok(Some(record)) => {
+            state
+                .gateway_bindings
+                .set_with_activity(session_key.clone(), sid.clone(), record.updated_at.clone())
+                .await;
+            format!(
+                "Switched this chat to `{}`.\n{}\n\n{}",
+                sid,
+                session_meta_line(&sid),
+                recent_session_summary(&sid, 6)
+            )
+        }
+        Ok(None) => format!("Session not found: `{}`", sid),
+        Err(err) => format!("Could not switch session: {}", err),
+    }
+}
+
+async fn create_and_switch_session(
+    state: &AgentAppState,
+    msg: &InboundMessage,
+    session_key: &SessionKey,
+) -> String {
+    let base = os_session_id_base(&msg.channel, &msg.chat_id);
+    let sid = tokio::task::spawn_blocking(move || {
+        next_version_for(&base)
+            .map(|n| with_version(&base, n))
+            .map_err(|err| err.to_string())
+    })
+    .await
+    .map_err(|err| err.to_string())
+    .and_then(|x| x);
+
+    let Ok(sid) = sid else {
+        return "Could not create a fresh channel session.".to_string();
+    };
+    super::dispatch::ensure_os_session_registered(state, &sid).await;
+    state
+        .gateway_bindings
+        .set(session_key.clone(), sid.clone())
+        .await;
+    format!(
+        "Created and switched to fresh channel session `{}`.\nRecent context is empty; continue with the new topic.",
+        sid
+    )
+}
+
+async fn bind_active_context(
+    state: &AgentAppState,
+    session_key: &SessionKey,
+    target: &str,
+    value: &str,
+) -> String {
+    let Some(binding) = state.gateway_bindings.get(session_key).await else {
+        return "No active session yet. Send a message or use `/session new` first.".to_string();
+    };
+    let session_id = binding.target_session_id;
+    match target {
+        "project" => match update_session_project(&session_id, value).await {
+            Ok(()) => format!("Bound current session `{}` to project `{}`.", session_id, value),
+            Err(err) => format!("Could not bind project: {}", err),
+        },
+        "workitem" | "work_item" | "item" => match bind_session_work_item(&session_id, value).await {
+            Ok((project_slug, short_id)) => format!(
+                "Bound current session `{}` to work item `{}` in project `{}`.",
+                session_id, short_id, project_slug
+            ),
+            Err(err) => format!("Could not bind work item: {}", err),
+        },
+        _ => "Unknown bind target. Use `/session bind project <slug>` or `/session bind workitem <id>`.".to_string(),
+    }
+}
+
+async fn update_session_project(session_id: &str, project_slug: &str) -> Result<(), String> {
+    let sid = session_id.to_string();
+    let slug = project_slug.to_string();
+    tokio::task::spawn_blocking(move || {
+        let project = project_management::projects::io::read_project(&slug)?;
+        let ok = crate::session::persistence::update_work_item_link(
+            &sid,
+            &project.meta.org_id,
+            Some(&project.meta.id),
+            Some(&project.meta.name),
+            &slug,
+            "",
+            Some("orchestrator"),
+        )
+        .map_err(|err| err.to_string())?;
+        if ok {
+            Ok(())
+        } else {
+            Err(format!("Session not found: {sid}"))
+        }
+    })
+    .await
+    .map_err(|err| err.to_string())?
+}
+
+async fn bind_session_work_item(session_id: &str, value: &str) -> Result<(String, String), String> {
+    let sid = session_id.to_string();
+    let raw = value.to_string();
+    tokio::task::spawn_blocking(move || {
+        let (project_slug, short_id) = resolve_work_item_ref(&raw)?;
+        let project = project_management::projects::io::read_project(&project_slug)?;
+        project_management::projects::io::read_work_item(&project_slug, &short_id)?;
+        let ok = crate::session::persistence::update_work_item_link(
+            &sid,
+            &project.meta.org_id,
+            Some(&project.meta.id),
+            Some(&project.meta.name),
+            &project_slug,
+            &short_id,
+            Some("orchestrator"),
+        )
+        .map_err(|err| err.to_string())?;
+        if !ok {
+            return Err(format!("Session not found: {sid}"));
+        }
+        Ok((project_slug, short_id))
+    })
+    .await
+    .map_err(|err| err.to_string())?
+}
+
+fn resolve_work_item_ref(raw: &str) -> Result<(String, String), String> {
+    if let Some((project_slug, short_id)) = raw.split_once(':') {
+        return Ok((project_slug.to_string(), short_id.to_string()));
+    }
+    Err(format!(
+        "Work item binding currently requires <project_slug>:<short_id> (got `{raw}`)"
+    ))
+}
+
+fn session_meta_line(session_id: &str) -> String {
+    match crate::session::persistence::get_session(session_id) {
+        Ok(Some(s)) => format!(
+            "• Name: {}{}",
+            session_display_name(&s),
+            session_project_suffix(s.project_slug.as_deref(), s.work_item_id.as_deref())
+        ),
+        _ => "• Metadata unavailable.".to_string(),
+    }
+}
+
+fn session_display_name(s: &crate::session::persistence::UnifiedSessionRecord) -> String {
+    if !s.name.trim().is_empty() {
+        s.name.clone()
+    } else {
+        s.session_id.clone()
+    }
+}
+
+fn session_project_suffix(project_slug: Option<&str>, work_item_id: Option<&str>) -> String {
+    match (project_slug, work_item_id) {
+        (Some(p), Some(w)) if !p.is_empty() && !w.is_empty() => {
+            format!(" · project `{}` · item `{}`", p, w)
+        }
+        (Some(p), _) if !p.is_empty() => format!(" · project `{}`", p),
+        _ => String::new(),
+    }
+}
+
+fn recent_session_summary(session_id: &str, limit: usize) -> String {
+    match crate::session::persistence::load_messages(session_id) {
+        Ok(rows) => {
+            let mut lines =
+                vec!["Recent context (deterministic last-message summary):".to_string()];
+            let selected: Vec<_> = rows.into_iter().rev().take(limit).collect();
+            if selected.is_empty() {
+                return "Recent context: (empty)".to_string();
+            }
+            for row in selected.into_iter().rev() {
+                let role = row.role;
+                let text = crate::utils::safe_truncate_chars_to_string(
+                    &row.content.replace('\n', " "),
+                    160,
+                );
+                if !text.trim().is_empty() {
+                    lines.push(format!("- {}: {}", role, text));
+                }
+            }
+            if lines.len() == 1 {
+                "Recent context: (no text messages)".to_string()
+            } else {
+                lines.join("\n")
+            }
+        }
+        Err(err) => format!("Recent context unavailable: {}", err),
+    }
+}
+
 /// Static cheat-sheet for the `/help` slash command.
-///
-/// Hermes parallel: `gateway/run.py:_handle_help_command` →
-/// `hermes_cli.commands.gateway_help_lines()`. Hermes builds the list
-/// dynamically from a `COMMAND_REGISTRY`; we keep the cheat-sheet
-/// hand-maintained in MVP because the surface is small (six commands)
-/// and the source of truth is the `GatewayCommand` enum next door —
-/// the unit test below pins the alignment.
-///
-/// Keep the body short: Telegram's per-message budget is ~4096 chars
-/// and we don't want the LLM to be tempted to repeat this list back to
-/// the user.
 fn build_help_text() -> String {
     [
         "**Commands**",
@@ -147,6 +385,12 @@ fn build_help_text() -> String {
         "`/new` — reset this chat; the next message starts a fresh session.",
         "`/status` — show the current session and anything else running.",
         "`/compact` — compress the current session and continue in a versioned successor.",
+        "`/session current` — show the active channel-bound ORG2 session.",
+        "`/session list` — list recent ORG2 sessions.",
+        "`/session switch <session_id>` — bind this chat to an existing session and show recent context.",
+        "`/session new` — create and bind a fresh session immediately.",
+        "`/session bind project <slug>` — set active project context for this channel session.",
+        "`/session bind workitem <id|project:id>` — set active Work Item context for this channel session.",
     ]
     .join("\n")
 }
@@ -158,22 +402,21 @@ mod help_text_tests {
     #[test]
     fn lists_every_supported_slash_command() {
         let text = build_help_text();
-        for cmd in ["/help", "/new", "/status", "/compact"] {
+        for cmd in [
+            "/help",
+            "/new",
+            "/status",
+            "/compact",
+            "/session current",
+            "/session switch",
+        ] {
             assert!(text.contains(cmd), "help cheat-sheet missing {cmd}: {text}");
         }
     }
 
-    /// `/switch` and `/agent` were removed after dogfooding surfaced
-    /// that end-users never use them (they'd have to copy/paste an
-    /// opaque `sdeagent-...` session id). The `/help` cheat-sheet must
-    /// not advertise them to avoid discovery + confusion.
     #[test]
-    fn does_not_advertise_removed_commands() {
+    fn does_not_advertise_removed_agent_command() {
         let text = build_help_text();
-        assert!(
-            !text.contains("/switch"),
-            "help still mentions /switch: {text}"
-        );
         assert!(
             !text.contains("/agent"),
             "help still mentions /agent: {text}"
@@ -181,9 +424,7 @@ mod help_text_tests {
     }
 
     #[test]
-    fn fits_telegram_message_budget() {
-        // Hermes caps at 4096 (Telegram limit). 1KB is plenty of head-room
-        // for a static list and forces us to revisit if we balloon.
-        assert!(build_help_text().len() < 1024);
+    fn fits_message_budget() {
+        assert!(build_help_text().len() < 2048);
     }
 }
