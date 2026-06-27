@@ -158,10 +158,10 @@ async fn build_session_list(state: &AgentAppState, session_key: &SessionKey) -> 
     .and_then(|x| x);
 
     let Ok(sessions) = sessions else {
-        return "Could not list sessions.".to_string();
+        return "无法读取会话列表。".to_string();
     };
     if sessions.is_empty() {
-        return "No sessions found.".to_string();
+        return "还没有可切换的 ORG2 会话。".to_string();
     }
 
     let current = state
@@ -169,37 +169,30 @@ async fn build_session_list(state: &AgentAppState, session_key: &SessionKey) -> 
         .get(session_key)
         .await
         .map(|b| b.target_session_id);
-    let mut lines = vec!["**Recent sessions**".to_string()];
+    let mut blocks = vec!["**可切换会话**".to_string()];
     for (idx, s) in sessions.into_iter().enumerate() {
-        let marker = if current.as_deref() == Some(s.session_id.as_str()) {
-            "✅ 当前 "
+        let current_badge = if current.as_deref() == Some(s.session_id.as_str()) {
+            " · ✅ 当前"
         } else {
             ""
         };
-        lines.push(format!(
-            "{}. {}**{}**{}
-   `{}`
-   {} · 更新 {}
-   {}",
+        let recent = recent_session_preview(&s.session_id);
+        blocks.push(format!(
+            "**#{:02} · {}{}**\n{}\n`{}`\n{}\n{}",
             idx + 1,
-            marker,
             human_session_title(&s),
-            session_project_suffix(s.project_slug.as_deref(), s.work_item_id.as_deref()),
-            s.session_id,
+            current_badge,
             human_session_context(&s),
-            human_time_hint(&s.updated_at),
-            recent_session_one_line(&s.session_id),
+            s.session_id,
+            human_session_relation(&s, &recent),
+            recent,
         ));
     }
-    lines.push(
-        "
-切换：`/session switch <session_id>`；新建：`/session new`；搜索：`/session search <关键词>`"
+    blocks.push(
+        "**操作**\n切换：`/session switch <session_id>`\n新建：`/session new`\n搜索：`/session search <关键词>`"
             .to_string(),
     );
-    lines.join(
-        "
-",
-    )
+    blocks.join("\n\n")
 }
 
 fn human_session_title(s: &crate::session::persistence::UnifiedSessionRecord) -> String {
@@ -210,28 +203,54 @@ fn human_session_title(s: &crate::session::persistence::UnifiedSessionRecord) ->
         return format!("项目 {}", project);
     }
     let name = s.name.trim();
-    if !name.is_empty() && name != s.session_id {
+    if !name.is_empty() && name != s.session_id && !name.starts_with("Channel:") {
         return crate::utils::safe_truncate_chars_to_string(name, 48);
     }
+    if let Some(title) = recent_user_title(&s.session_id) {
+        return title;
+    }
     if let Some(channel) = s.channel.as_deref().filter(|x| !x.trim().is_empty()) {
-        return format!("{} 会话", channel);
+        return format!("{} 讨论", compact_channel_name(channel));
     }
     "未命名会话".to_string()
+}
+
+fn compact_channel_name(channel: &str) -> String {
+    channel.split(':').next().unwrap_or(channel).to_string()
 }
 
 fn human_session_context(s: &crate::session::persistence::UnifiedSessionRecord) -> String {
     let mut parts = Vec::new();
     if let Some(channel) = s.channel.as_deref().filter(|x| !x.trim().is_empty()) {
-        parts.push(format!("Channel {}", channel));
+        parts.push(format!("来源：{}", compact_channel_name(channel)));
     }
     if let Some(workspace) = s.workspace_path.as_deref().filter(|x| !x.trim().is_empty()) {
         parts.push(format!(
-            "Workspace {}",
-            crate::utils::safe_truncate_chars_to_string(workspace, 40)
+            "工作区：{}",
+            crate::utils::safe_truncate_chars_to_string(workspace, 36)
         ));
     }
+    parts.push(format!("更新：{}", human_time_hint(&s.updated_at)));
+    parts.join(" · ")
+}
+
+fn human_session_relation(
+    s: &crate::session::persistence::UnifiedSessionRecord,
+    recent: &str,
+) -> String {
+    let mut parts = Vec::new();
+    if let Some(project) = s.project_slug.as_deref().filter(|x| !x.trim().is_empty()) {
+        parts.push(format!("项目 `{}`", project));
+    }
+    if let Some(item) = s.work_item_id.as_deref().filter(|x| !x.trim().is_empty()) {
+        parts.push(format!("任务 `{}`", item));
+    }
     if parts.is_empty() {
-        parts.push(format!("Type {}", s.session_type));
+        if recent.contains("WI-") || recent.contains("任务") {
+            parts.push("可能关联任务（未绑定）".to_string());
+        } else {
+            parts.push("未绑定项目/任务".to_string());
+        }
     }
     parts.join(" · ")
 }
@@ -244,7 +263,20 @@ fn human_time_hint(ts: &str) -> String {
         .unwrap_or_else(|| ts.to_string())
 }
 
-fn recent_session_one_line(session_id: &str) -> String {
+fn recent_user_title(session_id: &str) -> Option<String> {
+    crate::session::persistence::load_messages(session_id)
+        .ok()?
+        .into_iter()
+        .rev()
+        .find(|row| row.role == "user" && !row.content.trim().is_empty())
+        .map(|row| {
+            let text = row.content.replace('\n', " ");
+            crate::utils::safe_truncate_chars_to_string(text.trim(), 32)
+        })
+        .filter(|s| !s.trim().is_empty())
+}
+
+fn recent_session_preview(session_id: &str) -> String {
     match crate::session::persistence::load_messages(session_id) {
         Ok(rows) => rows
             .into_iter()
@@ -256,14 +288,23 @@ fn recent_session_one_line(session_id: &str) -> String {
                     None
                 } else {
                     Some(format!(
-                        "最近：{}: {}",
-                        row.role,
-                        crate::utils::safe_truncate_chars_to_string(text, 96)
+                        "最近：{}：{}",
+                        role_label(&row.role),
+                        crate::utils::safe_truncate_chars_to_string(text, 88)
                     ))
                 }
             })
-            .unwrap_or_else(|| "最近：(无文本消息)".to_string()),
-        Err(_) => "最近：(不可用)".to_string(),
+            .unwrap_or_else(|| "最近：暂无文本消息".to_string()),
+        Err(_) => "最近：不可用".to_string(),
+    }
+}
+
+fn role_label(role: &str) -> &str {
+    match role {
+        "user" => "用户",
+        "assistant" => "助手",
+        "system" => "系统",
+        other => other,
     }
 }
 
