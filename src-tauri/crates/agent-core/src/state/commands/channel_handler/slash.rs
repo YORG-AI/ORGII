@@ -401,7 +401,7 @@ fn build_help_text() -> String {
         "",
         "**Work Items via agent tools**",
         "Natural language requests can create/update/list Work Items with `manage_work_item` (`wi` alias).",
-        "Project Work Items can be started with `manage_work_item(action="start", project_slug=..., short_id=...)`.",
+        "Project Work Items can be started with `manage_work_item(action=\"start\", project_slug=..., short_id=...)`.",
     ]
     .join("\n")
 }
