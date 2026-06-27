@@ -26,7 +26,7 @@ pub(super) async fn handle_command(
             "Conversation reset. The next message starts a fresh session.".to_string()
         }
         GatewayCommand::SessionCurrent => build_session_current(state, session_key).await,
-        GatewayCommand::SessionList => build_session_list(state).await,
+        GatewayCommand::SessionList => build_session_list(state, session_key).await,
         GatewayCommand::SessionSwitch(target) => switch_session(state, session_key, &target).await,
         GatewayCommand::SessionNew => create_and_switch_session(state, msg, session_key).await,
         GatewayCommand::SessionSearch(query) => search_session_context(&query).await,
@@ -145,7 +145,7 @@ async fn build_session_current(state: &AgentAppState, session_key: &SessionKey) 
     }
 }
 
-async fn build_session_list(_state: &AgentAppState) -> String {
+async fn build_session_list(state: &AgentAppState, session_key: &SessionKey) -> String {
     let sessions = tokio::task::spawn_blocking(|| {
         let filter = crate::session::SessionListFilter {
             limit: Some(12),
@@ -163,18 +163,107 @@ async fn build_session_list(_state: &AgentAppState) -> String {
     if sessions.is_empty() {
         return "No sessions found.".to_string();
     }
+
+    let current = state
+        .gateway_bindings
+        .get(session_key)
+        .await
+        .map(|b| b.target_session_id);
     let mut lines = vec!["**Recent sessions**".to_string()];
-    for s in sessions {
-        let title = session_display_name(&s);
+    for (idx, s) in sessions.into_iter().enumerate() {
+        let marker = if current.as_deref() == Some(s.session_id.as_str()) {
+            "✅ 当前 "
+        } else {
+            ""
+        };
         lines.push(format!(
-            "• `{}` — {}{}",
+            "{}. {}**{}**{}
+   `{}`
+   {} · 更新 {}
+   {}",
+            idx + 1,
+            marker,
+            human_session_title(&s),
+            session_project_suffix(s.project_slug.as_deref(), s.work_item_id.as_deref()),
             s.session_id,
-            title,
-            session_project_suffix(s.project_slug.as_deref(), s.work_item_id.as_deref())
+            human_session_context(&s),
+            human_time_hint(&s.updated_at),
+            recent_session_one_line(&s.session_id),
         ));
     }
-    lines.push("Use `/session switch <session_id>` to bind this Feishu chat.".to_string());
-    lines.join("\n")
+    lines.push(
+        "
+切换：`/session switch <session_id>`；新建：`/session new`；搜索：`/session search <关键词>`"
+            .to_string(),
+    );
+    lines.join("
+")
+}
+
+fn human_session_title(s: &crate::session::persistence::UnifiedSessionRecord) -> String {
+    if let Some(item) = s.work_item_id.as_deref().filter(|x| !x.trim().is_empty()) {
+        return format!("任务 {}", item);
+    }
+    if let Some(project) = s.project_slug.as_deref().filter(|x| !x.trim().is_empty()) {
+        return format!("项目 {}", project);
+    }
+    let name = s.name.trim();
+    if !name.is_empty() && name != s.session_id {
+        return crate::utils::safe_truncate_chars_to_string(name, 48);
+    }
+    if let Some(channel) = s.channel.as_deref().filter(|x| !x.trim().is_empty()) {
+        return format!("{} 会话", channel);
+    }
+    "未命名会话".to_string()
+}
+
+fn human_session_context(s: &crate::session::persistence::UnifiedSessionRecord) -> String {
+    let mut parts = Vec::new();
+    if let Some(channel) = s.channel.as_deref().filter(|x| !x.trim().is_empty()) {
+        parts.push(format!("Channel {}", channel));
+    }
+    if let Some(workspace) = s.workspace_path.as_deref().filter(|x| !x.trim().is_empty()) {
+        parts.push(format!(
+            "Workspace {}",
+            crate::utils::safe_truncate_chars_to_string(workspace, 40)
+        ));
+    }
+    if parts.is_empty() {
+        parts.push(format!("Type {}", s.session_type));
+    }
+    parts.join(" · ")
+}
+
+fn human_time_hint(ts: &str) -> String {
+    ts.split('T')
+        .nth(1)
+        .and_then(|tail| tail.get(0..5))
+        .map(|hhmm| hhmm.to_string())
+        .unwrap_or_else(|| ts.to_string())
+}
+
+fn recent_session_one_line(session_id: &str) -> String {
+    match crate::session::persistence::load_messages(session_id) {
+        Ok(rows) => rows
+            .into_iter()
+            .rev()
+            .find_map(|row| {
+                let text = row.content.replace('
+', " ");
+                let text = text.trim();
+                if text.is_empty() {
+                    None
+                } else {
+                    Some(format!(
+                        "最近：{}: {}",
+                        row.role,
+                        crate::utils::safe_truncate_chars_to_string(text, 96)
+                    ))
+                }
+            })
+            .unwrap_or_else(|| "最近：(无文本消息)".to_string()),
+        Err(_) => "最近：(不可用)".to_string(),
+    }
 }
 
 async fn switch_session(state: &AgentAppState, session_key: &SessionKey, target: &str) -> String {
