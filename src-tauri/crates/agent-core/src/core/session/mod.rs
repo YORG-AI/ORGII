@@ -37,6 +37,7 @@ pub mod recovery;
 pub mod prompt;
 pub(crate) mod scheduler;
 pub mod session_id;
+pub mod session_memory_search;
 pub(crate) mod title;
 pub mod turn;
 mod types;
