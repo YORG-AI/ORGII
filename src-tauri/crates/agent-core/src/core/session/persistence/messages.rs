@@ -5,6 +5,9 @@ use rusqlite::{params, Result as SqliteResult};
 use uuid::Uuid;
 
 use crate::persistence::db_helpers as shared;
+use crate::session::context_import::{
+    CacheLayoutStats, ContextSnapshotMeta, ContextSourceKind, SessionEmbeddingState,
+};
 use database::db::{get_connection, with_sessions_writer};
 
 /// Table-name prefix for the unified-session DB schema.
@@ -622,6 +625,258 @@ pub fn load_session_memory_index_rows() -> SqliteResult<Vec<SessionMemoryIndexRo
     rows.collect()
 }
 
+
+
+pub fn latest_message_sequence(session_id: &str) -> SqliteResult<i64> {
+    let conn = get_connection()?;
+    conn.query_row(
+        "SELECT COALESCE(MAX(sequence), 0) FROM agent_messages WHERE session_id = ?1",
+        params![session_id],
+        |row| row.get(0),
+    )
+}
+
+// ============================================
+// Context Snapshot / Import / Cache Layout Metadata
+// ============================================
+
+fn context_kind_from_str(value: &str) -> ContextSourceKind {
+    match value {
+        "session" => ContextSourceKind::Session,
+        "work_item" => ContextSourceKind::WorkItem,
+        "file" => ContextSourceKind::File,
+        "memory" => ContextSourceKind::Memory,
+        "imported_context" => ContextSourceKind::ImportedContext,
+        "global_preference" => ContextSourceKind::GlobalPreference,
+        _ => ContextSourceKind::ImportedContext,
+    }
+}
+
+pub fn ensure_context_metadata_schema(conn: &rusqlite::Connection) -> SqliteResult<()> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS context_snapshots (
+            snapshot_id        TEXT PRIMARY KEY,
+            target_session_id  TEXT NOT NULL,
+            source_kind        TEXT NOT NULL,
+            source_id          TEXT NOT NULL,
+            namespace          TEXT NOT NULL,
+            title              TEXT,
+            token_estimate     INTEGER NOT NULL DEFAULT 0,
+            pinned             INTEGER NOT NULL DEFAULT 0,
+            created_at         TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_context_snapshots_target
+            ON context_snapshots(target_session_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_context_snapshots_namespace
+            ON context_snapshots(namespace);
+
+        CREATE TABLE IF NOT EXISTS turn_cache_layout_stats (
+            session_id              TEXT NOT NULL,
+            turn_id                 TEXT NOT NULL,
+            stable_prefix_tokens    INTEGER NOT NULL DEFAULT 0,
+            volatile_context_tokens INTEGER NOT NULL DEFAULT 0,
+            imported_context_count  INTEGER NOT NULL DEFAULT 0,
+            cache_read_tokens       INTEGER NOT NULL DEFAULT 0,
+            cache_write_tokens      INTEGER NOT NULL DEFAULT 0,
+            created_at              TEXT NOT NULL,
+            PRIMARY KEY(session_id, turn_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_turn_cache_layout_stats_session
+            ON turn_cache_layout_stats(session_id, created_at);
+
+        CREATE TABLE IF NOT EXISTS session_embedding_state (
+            namespace              TEXT PRIMARY KEY,
+            session_id             TEXT NOT NULL,
+            work_item_id           TEXT,
+            last_embedded_sequence INTEGER NOT NULL DEFAULT 0,
+            embedding_model        TEXT,
+            updated_at             TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_session_embedding_state_session
+            ON session_embedding_state(session_id);
+        CREATE INDEX IF NOT EXISTS idx_session_embedding_state_work_item
+            ON session_embedding_state(work_item_id);",
+    )?;
+    Ok(())
+}
+
+pub fn save_context_snapshot(meta: &ContextSnapshotMeta) -> SqliteResult<()> {
+    with_sessions_writer(|| -> SqliteResult<()> {
+        let conn = get_connection()?;
+        ensure_context_metadata_schema(&conn)?;
+        conn.execute(
+            "INSERT INTO context_snapshots
+                (snapshot_id, target_session_id, source_kind, source_id, namespace,
+                 title, token_estimate, pinned, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+             ON CONFLICT(snapshot_id) DO UPDATE SET
+                target_session_id = excluded.target_session_id,
+                source_kind = excluded.source_kind,
+                source_id = excluded.source_id,
+                namespace = excluded.namespace,
+                title = excluded.title,
+                token_estimate = excluded.token_estimate,
+                pinned = excluded.pinned,
+                created_at = excluded.created_at",
+            params![
+                meta.snapshot_id,
+                meta.target_session_id,
+                meta.source_kind.as_str(),
+                meta.source_id,
+                meta.namespace,
+                meta.title,
+                meta.token_estimate,
+                if meta.pinned { 1 } else { 0 },
+                meta.created_at,
+            ],
+        )?;
+        Ok(())
+    })
+}
+
+pub fn load_context_snapshots(target_session_id: &str) -> SqliteResult<Vec<ContextSnapshotMeta>> {
+    let conn = get_connection()?;
+    ensure_context_metadata_schema(&conn)?;
+    let mut stmt = conn.prepare(
+        "SELECT snapshot_id, target_session_id, source_kind, source_id, namespace,
+                title, token_estimate, pinned, created_at
+         FROM context_snapshots
+         WHERE target_session_id = ?1
+         ORDER BY pinned DESC, created_at DESC",
+    )?;
+    let rows = stmt.query_map(params![target_session_id], |row| {
+        let source_kind: String = row.get(2)?;
+        let pinned: i64 = row.get(7)?;
+        Ok(ContextSnapshotMeta {
+            snapshot_id: row.get(0)?,
+            target_session_id: row.get(1)?,
+            source_kind: context_kind_from_str(&source_kind),
+            source_id: row.get(3)?,
+            namespace: row.get(4)?,
+            title: row.get(5)?,
+            token_estimate: row.get(6)?,
+            pinned: pinned != 0,
+            created_at: row.get(8)?,
+        })
+    })?;
+    rows.collect()
+}
+
+pub fn save_turn_cache_layout_stats(
+    session_id: &str,
+    turn_id: &str,
+    stats: &CacheLayoutStats,
+) -> SqliteResult<()> {
+    with_sessions_writer(|| -> SqliteResult<()> {
+        let conn = get_connection()?;
+        ensure_context_metadata_schema(&conn)?;
+        conn.execute(
+            "INSERT INTO turn_cache_layout_stats
+                (session_id, turn_id, stable_prefix_tokens, volatile_context_tokens,
+                 imported_context_count, cache_read_tokens, cache_write_tokens, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+             ON CONFLICT(session_id, turn_id) DO UPDATE SET
+                stable_prefix_tokens = excluded.stable_prefix_tokens,
+                volatile_context_tokens = excluded.volatile_context_tokens,
+                imported_context_count = excluded.imported_context_count,
+                cache_read_tokens = excluded.cache_read_tokens,
+                cache_write_tokens = excluded.cache_write_tokens,
+                created_at = excluded.created_at",
+            params![
+                session_id,
+                turn_id,
+                stats.stable_prefix_tokens,
+                stats.volatile_context_tokens,
+                stats.imported_context_count,
+                stats.cache_read_tokens,
+                stats.cache_write_tokens,
+                Utc::now().to_rfc3339(),
+            ],
+        )?;
+        Ok(())
+    })
+}
+
+pub fn load_turn_cache_layout_stats(
+    session_id: &str,
+    turn_id: &str,
+) -> SqliteResult<Option<CacheLayoutStats>> {
+    let conn = get_connection()?;
+    ensure_context_metadata_schema(&conn)?;
+    let mut stmt = conn.prepare(
+        "SELECT stable_prefix_tokens, volatile_context_tokens, imported_context_count,
+                cache_read_tokens, cache_write_tokens
+         FROM turn_cache_layout_stats
+         WHERE session_id = ?1 AND turn_id = ?2",
+    )?;
+    let mut rows = stmt.query(params![session_id, turn_id])?;
+    if let Some(row) = rows.next()? {
+        Ok(Some(CacheLayoutStats::new(
+            row.get(0)?,
+            row.get(1)?,
+            row.get(2)?,
+            row.get(3)?,
+            row.get(4)?,
+        )))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn save_session_embedding_state(state: &SessionEmbeddingState) -> SqliteResult<()> {
+    with_sessions_writer(|| -> SqliteResult<()> {
+        let conn = get_connection()?;
+        ensure_context_metadata_schema(&conn)?;
+        conn.execute(
+            "INSERT INTO session_embedding_state
+                (namespace, session_id, work_item_id, last_embedded_sequence,
+                 embedding_model, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+             ON CONFLICT(namespace) DO UPDATE SET
+                session_id = excluded.session_id,
+                work_item_id = excluded.work_item_id,
+                last_embedded_sequence = excluded.last_embedded_sequence,
+                embedding_model = excluded.embedding_model,
+                updated_at = excluded.updated_at",
+            params![
+                state.namespace,
+                state.session_id,
+                state.work_item_id,
+                state.last_embedded_sequence,
+                state.embedding_model,
+                state.updated_at,
+            ],
+        )?;
+        Ok(())
+    })
+}
+
+pub fn load_session_embedding_state(
+    namespace: &str,
+) -> SqliteResult<Option<SessionEmbeddingState>> {
+    let conn = get_connection()?;
+    ensure_context_metadata_schema(&conn)?;
+    let mut stmt = conn.prepare(
+        "SELECT namespace, session_id, work_item_id, last_embedded_sequence,
+                embedding_model, updated_at
+         FROM session_embedding_state
+         WHERE namespace = ?1",
+    )?;
+    let mut rows = stmt.query(params![namespace])?;
+    if let Some(row) = rows.next()? {
+        Ok(Some(SessionEmbeddingState {
+            namespace: row.get(0)?,
+            session_id: row.get(1)?,
+            work_item_id: row.get(2)?,
+            last_embedded_sequence: row.get(3)?,
+            embedding_model: row.get(4)?,
+            updated_at: row.get(5)?,
+        }))
+    } else {
+        Ok(None)
+    }
+}
+
 // ============================================
 // Cancel-Interrupt Marker
 // ============================================
@@ -743,6 +998,59 @@ mod tests {
     use super::*;
     use database::db::get_connection;
     use test_helpers::test_env;
+
+
+    #[test]
+    fn context_metadata_roundtrips() {
+        let _sandbox = test_env::sandbox();
+        let snap = ContextSnapshotMeta::new(
+            "target-session",
+            ContextSourceKind::Session,
+            "source-session",
+            Some("Imported source".into()),
+            123,
+            true,
+        );
+        save_context_snapshot(&snap).expect("save context snapshot");
+        let rows = load_context_snapshots("target-session").expect("load snapshots");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].snapshot_id, snap.snapshot_id);
+        assert_eq!(rows[0].namespace, "session:source-session");
+        assert_eq!(rows[0].token_estimate, 123);
+        assert!(rows[0].pinned);
+    }
+
+    #[test]
+    fn cache_layout_stats_roundtrip() {
+        let _sandbox = test_env::sandbox();
+        let stats = CacheLayoutStats::new(1000, 250, 3, 800, 200);
+        save_turn_cache_layout_stats("session-cache", "turn-1", &stats)
+            .expect("save cache layout stats");
+        let loaded = load_turn_cache_layout_stats("session-cache", "turn-1")
+            .expect("load cache layout stats")
+            .expect("stats exists");
+        assert_eq!(loaded, stats);
+        assert_eq!(loaded.provider_cache_hit_rate(), Some(0.8));
+    }
+
+    #[test]
+    fn session_embedding_state_roundtrips_by_namespace() {
+        let _sandbox = test_env::sandbox();
+        let state = SessionEmbeddingState::for_session(
+            "session-embed",
+            Some("WI-42".into()),
+            77,
+            Some("dashscope-qwen".into()),
+        );
+        save_session_embedding_state(&state).expect("save embedding state");
+        let loaded = load_session_embedding_state(&state.namespace)
+            .expect("load embedding state")
+            .expect("state exists");
+        assert_eq!(loaded.namespace, "session:session-embed");
+        assert_eq!(loaded.session_id, "session-embed");
+        assert_eq!(loaded.work_item_id.as_deref(), Some("WI-42"));
+        assert_eq!(loaded.last_embedded_sequence, 77);
+    }
 
     fn seed_session_for_message_tests(session_id: &str) {
         let conn = get_connection().expect("get_connection in seed_session_for_message_tests");

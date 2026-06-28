@@ -237,6 +237,21 @@ pub struct ProcessingResult {
     /// current context fill level.
     #[serde(default)]
     pub context_tokens: i64,
+    /// Stable-prefix token estimate persisted for cache/layout debugging.
+    #[serde(default)]
+    pub stable_prefix_tokens: i64,
+    /// Volatile-context token estimate persisted for cache/layout debugging.
+    #[serde(default)]
+    pub volatile_context_tokens: i64,
+    /// Number of explicit imported context snapshots included in the turn.
+    #[serde(default)]
+    pub imported_context_count: i64,
+    /// Provider-reported prompt cache read tokens for this turn.
+    #[serde(default)]
+    pub cache_read_tokens: i64,
+    /// Provider-reported prompt cache write tokens for this turn.
+    #[serde(default)]
+    pub cache_write_tokens: i64,
     /// Number of tool calls made.
     pub tool_calls_count: u32,
     /// Whether the response was truncated.

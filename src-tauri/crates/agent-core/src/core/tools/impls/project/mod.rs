@@ -7,5 +7,6 @@
 //!
 //! [`tool_categories::PROJECT`]: crate::tools::categories::PROJECT
 
+pub mod import_context;
 pub mod manage_project;
 pub mod manage_work_item;

@@ -13,6 +13,7 @@
 //! `crate::memory::reflection`, not here.
 
 pub mod compaction;
+pub mod context_import;
 pub mod exec_modes;
 pub(crate) mod file_registry;
 pub mod gateway_pipeline;
