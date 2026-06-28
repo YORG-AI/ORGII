@@ -39,6 +39,8 @@ import {
 export interface UseChatPanelResizeOptions {
   /** Whether using external width control */
   useExternalWidth?: boolean;
+  /** Embedded panels are layout-owned and should not persist global chat width. */
+  embedded?: boolean;
   /** Panel position: left or right */
   position?: "left" | "right";
 }
@@ -70,7 +72,7 @@ const getChatWidthFromCSS = (): number => {
 export function useChatPanelResize(
   options: UseChatPanelResizeOptions = {}
 ): UseChatPanelResizeResult {
-  const { useExternalWidth = false, position = "right" } = options;
+  const { useExternalWidth = false, embedded = false, position = "right" } = options;
   const isLeftPosition = position === "left";
 
   // OPTIMIZED: Only use setter, don't subscribe to value changes
@@ -91,7 +93,7 @@ export function useChatPanelResize(
    */
   const handleMouseDown = useCallback(
     (event: ReactMouseEvent) => {
-      if (useExternalWidth) return;
+      if (useExternalWidth || embedded) return;
 
       event.preventDefault();
       event.stopPropagation();

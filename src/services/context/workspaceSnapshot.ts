@@ -49,6 +49,7 @@ export type ChatPanelSurfaceKind =
   | "workspaceDashboard"
   | "workspaceExplore"
   | "workspaceOverview"
+  | "manageIssues"
   | "newCollabOrg"
   | "collabOrg";
 

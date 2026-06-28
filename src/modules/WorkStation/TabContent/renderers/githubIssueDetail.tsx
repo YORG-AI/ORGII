@@ -45,7 +45,7 @@ const GitHubIssueDetailTabRenderer: React.FC<UnifiedTabContentProps> = memo(
     const callbacks = useAtomValue(workstationIssueCallbackAtom);
     const setSelectedState = useSetAtom(workstationSelectedIssueAtom);
     const { closeTab } = useWorkStationTabs();
-    const tabData = tab.data as GitHubIssueDetailTabData;
+    const tabData = tab.data as unknown as GitHubIssueDetailTabData;
 
     const handleClose = useCallback(() => {
       closeTab(tab.id);
