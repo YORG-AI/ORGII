@@ -341,10 +341,33 @@ impl UnifiedMessageProcessor {
             .and_then(|snapshot| serde_json::to_string(snapshot).ok());
 
         tokio::task::block_in_place(|| {
+            let stable_prefix_tokens = result
+                .context_usage_snapshot
+                .as_ref()
+                .map(|snapshot| {
+                    snapshot
+                        .sections
+                        .iter()
+                        .filter(|section| {
+                            matches!(
+                                section.category,
+                                crate::turn_executor::context_accounting::ContextUsageCategory::StablePrompt
+                                    | crate::turn_executor::context_accounting::ContextUsageCategory::Rules
+                                    | crate::turn_executor::context_accounting::ContextUsageCategory::Skills
+                            )
+                        })
+                        .map(|section| section.estimated_tokens)
+                        .sum::<i64>()
+                })
+                .unwrap_or(result.context_tokens);
+            let imported_context_count =
+                unified_persistence::load_context_snapshots(session_id)
+                    .map(|snapshots| snapshots.len() as i64)
+                    .unwrap_or(0);
             let cache_layout_stats = CacheLayoutStats::new(
-                result.context_tokens,
-                result.prompt_tokens.saturating_sub(result.context_tokens),
-                0,
+                stable_prefix_tokens,
+                result.context_tokens.saturating_sub(stable_prefix_tokens),
+                imported_context_count,
                 result.cache_read_tokens,
                 result.cache_write_tokens,
             );

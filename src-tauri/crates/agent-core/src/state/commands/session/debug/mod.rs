@@ -13,6 +13,7 @@
 //! - `prompt`      — assembled system prompt + per-section trace
 //! - `org_runtime` — Agent Org context, org-only tool registration
 
+pub mod context_cache;
 pub mod general;
 pub mod model;
 pub mod org_runtime;
@@ -22,6 +23,7 @@ pub mod skills;
 pub mod subagent;
 pub mod tools;
 
+pub use context_cache::*;
 pub use general::*;
 pub use model::*;
 pub use org_runtime::*;

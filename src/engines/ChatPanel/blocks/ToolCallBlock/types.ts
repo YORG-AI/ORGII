@@ -189,6 +189,11 @@ export interface AgentMessageDeliveryRow {
   inboxId?: number;
 }
 
+export interface ContextImportDebugStat {
+  label: string;
+  value: string;
+}
+
 export interface ContextImportCardData {
   snapshotId?: string;
   sourceKind: string;
@@ -197,6 +202,8 @@ export interface ContextImportCardData {
   title?: string;
   tokenEstimate?: number;
   pinned?: boolean;
+  sourceChips?: string[];
+  debugStats?: ContextImportDebugStat[];
 }
 
 export interface AgentMessageCardData {

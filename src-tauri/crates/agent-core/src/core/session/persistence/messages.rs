@@ -823,6 +823,37 @@ pub fn load_turn_cache_layout_stats(
     }
 }
 
+
+pub fn load_latest_turn_cache_layout_stats(
+    session_id: &str,
+) -> SqliteResult<Option<(String, CacheLayoutStats)>> {
+    let conn = get_connection()?;
+    ensure_context_metadata_schema(&conn)?;
+    let mut stmt = conn.prepare(
+        "SELECT turn_id, stable_prefix_tokens, volatile_context_tokens, imported_context_count,
+                cache_read_tokens, cache_write_tokens
+         FROM turn_cache_layout_stats
+         WHERE session_id = ?1
+         ORDER BY created_at DESC
+         LIMIT 1",
+    )?;
+    let mut rows = stmt.query(params![session_id])?;
+    if let Some(row) = rows.next()? {
+        Ok(Some((
+            row.get(0)?,
+            CacheLayoutStats::new(
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                row.get(5)?,
+            ),
+        )))
+    } else {
+        Ok(None)
+    }
+}
+
 pub fn save_session_embedding_state(state: &SessionEmbeddingState) -> SqliteResult<()> {
     with_sessions_writer(|| -> SqliteResult<()> {
         let conn = get_connection()?;

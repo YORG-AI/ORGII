@@ -681,6 +681,7 @@ agent_core::state::commands::tools::agent_check_keys,
 // (cheap; just rebuilds a `PromptCtx` and walks the registry once);
 // the frontend gates exposure behind `debug_assertions || WEBDRIVER=1`.
 agent_core::state::commands::session::debug::prompt::prompt_dump,
+agent_core::state::commands::session::debug::context_cache::debug_session_context_cache_snapshot,
 // Structured introspection of the live runtime `SecurityPolicy` for an
 // active session. Used by `audit-security-*.spec.mjs` to prove the
 // L4→L5 hop: whatever sits in `AgentDefinition.agent_policy` is what

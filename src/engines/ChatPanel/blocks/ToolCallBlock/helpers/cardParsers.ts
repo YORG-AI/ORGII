@@ -200,7 +200,8 @@ export function parseContextImportCardResult(
     (typeof result.title === "string" ? result.title : null) ??
     (typeof args.title === "string" ? args.title : null) ??
     undefined;
-  const rawTokenEstimate = result.token_estimate ?? result.tokenEstimate ?? args.token_estimate;
+  const rawTokenEstimate =
+    result.token_estimate ?? result.tokenEstimate ?? args.token_estimate;
   const tokenEstimate =
     typeof rawTokenEstimate === "number" && Number.isFinite(rawTokenEstimate)
       ? Math.max(0, Math.floor(rawTokenEstimate))
@@ -212,6 +213,33 @@ export function parseContextImportCardResult(
         ? args.pinned
         : undefined;
 
+  const sourceChips = [
+    namespace,
+    sourceKind.replace(/_/g, " "),
+    pinned ? "pinned" : null,
+  ].filter((chip): chip is string => Boolean(chip));
+
+  const rawStablePrefixTokens =
+    result.stable_prefix_tokens ?? result.stablePrefixTokens;
+  const rawVolatileContextTokens =
+    result.volatile_context_tokens ?? result.volatileContextTokens;
+  const rawImportedContextCount =
+    result.imported_context_count ?? result.importedContextCount;
+  const rawCacheReadTokens = result.cache_read_tokens ?? result.cacheReadTokens;
+  const rawCacheWriteTokens =
+    result.cache_write_tokens ?? result.cacheWriteTokens;
+  const numberStat = (label: string, value: unknown) =>
+    typeof value === "number" && Number.isFinite(value)
+      ? { label, value: String(Math.max(0, Math.floor(value))) }
+      : null;
+  const debugStats = [
+    numberStat("stable prefix", rawStablePrefixTokens),
+    numberStat("volatile", rawVolatileContextTokens),
+    numberStat("imports", rawImportedContextCount),
+    numberStat("cache read", rawCacheReadTokens),
+    numberStat("cache write", rawCacheWriteTokens),
+  ].filter((stat): stat is { label: string; value: string } => Boolean(stat));
+
   return {
     snapshotId,
     sourceKind,
@@ -220,6 +248,8 @@ export function parseContextImportCardResult(
     title,
     tokenEstimate,
     pinned,
+    sourceChips,
+    debugStats: debugStats.length > 0 ? debugStats : undefined,
   };
 }
 

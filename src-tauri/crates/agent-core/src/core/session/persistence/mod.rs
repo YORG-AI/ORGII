@@ -35,7 +35,7 @@ pub use crud::{
 pub use messages::{
     anchor_at_or_after_created_at, append_compact_boundary, clear_messages,
     clear_session_memory_state, compact_cutoff_sequence, ensure_context_metadata_schema,
-    latest_message_sequence, load_context_snapshots, load_llm_history, load_messages, load_session_embedding_state,
+    latest_message_sequence, load_context_snapshots, load_latest_turn_cache_layout_stats, load_llm_history, load_messages, load_session_embedding_state,
     load_session_memory_index_rows, load_session_memory_state, load_turn_cache_layout_stats,
     mark_turn_cancelled, message_anchor, message_created_at, save_assistant_msg,
     save_compact_summary_msg, save_context_snapshot, save_session_embedding_state,
