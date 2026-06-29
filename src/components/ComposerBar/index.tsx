@@ -35,6 +35,8 @@ export interface ComposerBarProps {
   pills?: React.ReactNode;
   /** Repo path forwarded to ContextInfoButton */
   repoPath?: string;
+  /** Session id forwarded to ContextInfoButton diagnostics. */
+  sessionId?: string;
   /** Submit / launch button on the far right */
   submitButton?: React.ReactNode;
   /**
@@ -78,6 +80,7 @@ const ComposerBar: React.FC<ComposerBarProps> = memo(
     leftTools,
     pills,
     repoPath,
+    sessionId,
     submitButton,
     toolbarItemGap = true,
     bottomPaddingClassName = "",
@@ -130,7 +133,9 @@ const ComposerBar: React.FC<ComposerBarProps> = memo(
           {pills}
         </div>
         <div className={rowClass}>
-          {showContextInfo && <ContextInfoButton repoPath={repoPath} />}
+          {showContextInfo && (
+            <ContextInfoButton repoPath={repoPath} sessionId={sessionId} />
+          )}
           {submitButton}
         </div>
       </div>
@@ -181,7 +186,12 @@ const ComposerBar: React.FC<ComposerBarProps> = memo(
           style={{ gridArea: "right" }}
         >
           {showContextInfo && (
-            <ContextInfoButton repoPath={repoPath} variant="corner" compact />
+            <ContextInfoButton
+              repoPath={repoPath}
+              sessionId={sessionId}
+              variant="corner"
+              compact
+            />
           )}
           {submitButton}
         </div>

@@ -55,6 +55,7 @@ interface SharedComposerBarProps {
   onInterrupt: () => Promise<void>;
   onResume: () => Promise<void>;
   isCursorIde: boolean;
+  sessionId?: string;
 }
 
 interface EditComposerBarProps extends SharedComposerBarProps {
@@ -140,6 +141,7 @@ export const EditComposerBar: React.FC<EditComposerBarProps> = ({
   onInterrupt,
   onResume,
   isCursorIde,
+  sessionId,
 }) => {
   const { t } = useTranslation("sessions");
 
@@ -151,6 +153,7 @@ export const EditComposerBar: React.FC<EditComposerBarProps> = ({
       dropdownDirection="down"
       toolbarItemGap={false}
       showContextInfo={!isCursorIde}
+      sessionId={sessionId}
       editorSlot={
         <InputEditor
           composerInputRef={composerInputRef}
@@ -325,6 +328,7 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
   placeholder,
   currentInputEmpty,
   stopSuppressedForEmptyInput,
+  sessionId,
   isWpGeneWorking,
   isPendingCancel,
   isSessionTerminal,
@@ -353,6 +357,7 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
           dropdownDirection="up"
           toolbarItemGap={false}
           repoPath={currentRepoPath}
+          sessionId={sessionId}
           inlineLayout={isCursorCompactRow}
           showContextInfo={!isCursorIde}
           editorSlot={
