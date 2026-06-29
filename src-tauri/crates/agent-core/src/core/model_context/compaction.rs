@@ -43,7 +43,9 @@ pub struct CompactionConfig {
     #[serde(default = "default_keep_ratio")]
     pub keep_ratio: f32,
 
-    /// Model to use for summarization. If empty, uses the agent's main model.
+    /// Legacy summarization model override. Ignored by runtime compaction: summaries
+    /// must use the same resolved model/route as the foreground turn. Kept only
+    /// for config/backward-compatible deserialization.
     #[serde(default)]
     pub model: Option<String>,
 
@@ -345,7 +347,13 @@ impl ContextCompactor {
             Self::estimate_messages_tokens(recent),
         );
 
-        let summary_model = config.model.as_deref().unwrap_or(model);
+        // Route-consistency invariant: compaction is part of the same logical
+        // turn as the foreground request, so it must use the exact resolved
+        // model/route that the runtime provider was built for. Do not honor
+        // `config.model` here; silently switching summarization to a cheaper
+        // model/provider breaks cost attribution, prompt-cache behavior, and
+        // route debugging.
+        let summary_model = model;
 
         let mut messages_to_summarize: Vec<Value> = older.to_vec();
         let mut ptl_retries = 0;

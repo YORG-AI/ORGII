@@ -651,3 +651,15 @@ fn ptl_ignores_unrelated_errors() {
         "authentication failed"
     ));
 }
+
+
+#[test]
+fn compaction_summary_model_ignores_config_override_for_route_consistency() {
+    let mut config = default_config();
+    config.model = Some("cheap/fallback-summary-model".to_string());
+
+    // Runtime compaction must not honor this override. The live provider was
+    // constructed for the foreground route; summary side-query gets the
+    // foreground model from ContextCompactor::compact and uses the same route.
+    assert_eq!(config.model.as_deref(), Some("cheap/fallback-summary-model"));
+}

@@ -48,7 +48,10 @@ static RATE_LIMIT_COOLDOWNS: LazyLock<Mutex<HashMap<String, Instant>>> =
 /// Providers are tried in order. For each provider, up to
 /// `max_retries + 1` attempts are made before moving to the next.
 pub struct ReliableProvider {
-    /// Ordered list of (name, provider). First is primary, rest are fallbacks.
+    /// Ordered list of (name, provider). First is primary. Runtime ORG2
+    /// sessions intentionally reject cross-model fallbacks at construction
+    /// time, so this list is normally length 1; the vector shape remains for
+    /// tests and explicit low-level callers.
     providers: Vec<(String, Box<dyn LLMProvider>)>,
     /// Maximum retry attempts per provider (0 = no retries, just one attempt).
     max_retries: u32,
@@ -60,6 +63,11 @@ pub struct ReliableProvider {
 }
 
 impl ReliableProvider {
+    /// Return provider labels in the order this wrapper would try them.
+    pub fn provider_chain_names(&self) -> Vec<String> {
+        self.providers.iter().map(|(name, _)| name.clone()).collect()
+    }
+
     /// Create a new reliable provider wrapping a single provider.
     pub fn single(
         name: String,

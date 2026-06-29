@@ -333,3 +333,15 @@ async fn auth_error_skips_retries() {
     assert!(result.is_err());
     assert!(matches!(result.unwrap_err(), ProviderError::AuthError(_)));
 }
+
+
+#[test]
+fn provider_chain_names_reports_single_runtime_route() {
+    let reliable = ReliableProvider::single(
+        "zenmux/gpt-5.5".into(),
+        Box::new(FailNProvider::new(0, |_| ProviderError::Other("".into()))),
+        3,
+        MIN_BASE_BACKOFF_MS,
+    );
+    assert_eq!(reliable.provider_chain_names(), vec!["zenmux/gpt-5.5"]);
+}
