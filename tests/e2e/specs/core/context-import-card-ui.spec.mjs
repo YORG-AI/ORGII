@@ -145,6 +145,7 @@ function makeContextImportEvents(sessionId) {
         imported_context_count: 1,
         cache_read_tokens: 900,
         cache_write_tokens: 100,
+        snippet: "Hydrated snippet: cache context source decision.",
         namespace: "session:source-session-cache-context",
         snapshot_id: snapshotId,
         observation: `Imported context snapshot ${snapshotId} from session:source-session-cache-context into namespace session:source-session-cache-context`,

@@ -1,8 +1,8 @@
 //! Explicit context import tool.
 //!
-//! This records source metadata only. Actual retrieval/snippet hydration is
-//! intentionally a later step so cross-session context remains explicit and
-//! auditable rather than silently injected.
+//! This records source metadata plus an optional explicit snippet. Hydration is
+//! always opt-in: imported context appears in the prompt only after the agent
+//! records a source via this tool.
 
 use async_trait::async_trait;
 use serde_json::Value;
@@ -82,6 +82,10 @@ impl Tool for ImportContextTool {
                 "pinned": {
                     "type": "boolean",
                     "description": "Whether this import should be pinned in context selection."
+                },
+                "snippet": {
+                    "type": "string",
+                    "description": "Optional explicit source excerpt to hydrate into the next prompt. Keep it short and relevant."
                 }
             },
             "required": ["source_kind", "source_id"]
@@ -98,13 +102,15 @@ impl Tool for ImportContextTool {
         let title = optional_string(&params, "title");
         let token_estimate = optional_int(&params, "token_estimate").unwrap_or(0) as i64;
         let pinned = optional_bool(&params, "pinned").unwrap_or(false);
-        let meta = ContextSnapshotMeta::new(
+        let snippet = optional_string(&params, "snippet");
+        let meta = ContextSnapshotMeta::new_with_snippet(
             self.session_id.clone(),
             source_kind,
             source_id,
             title,
             token_estimate,
             pinned,
+            snippet,
         );
         let snapshot_id = meta.snapshot_id.clone();
         let namespace = meta.namespace.clone();
@@ -141,7 +147,8 @@ mod tests {
                     "source_id": "source-session",
                     "title": "Source Session",
                     "token_estimate": 321,
-                    "pinned": true
+                    "pinned": true,
+                    "snippet": "Important prior decision: keep imports explicit."
                 }),
                 &CallContext::new("call-import-context", "target-session"),
             )
@@ -154,5 +161,6 @@ mod tests {
         assert_eq!(snapshots[0].namespace, "session:source-session");
         assert_eq!(snapshots[0].token_estimate, 321);
         assert!(snapshots[0].pinned);
+        assert_eq!(snapshots[0].snippet.as_deref(), Some("Important prior decision: keep imports explicit."));
     }
 }

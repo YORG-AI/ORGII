@@ -663,6 +663,7 @@ pub fn ensure_context_metadata_schema(conn: &rusqlite::Connection) -> SqliteResu
             title              TEXT,
             token_estimate     INTEGER NOT NULL DEFAULT 0,
             pinned             INTEGER NOT NULL DEFAULT 0,
+            snippet            TEXT,
             created_at         TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_context_snapshots_target
@@ -697,6 +698,12 @@ pub fn ensure_context_metadata_schema(conn: &rusqlite::Connection) -> SqliteResu
         CREATE INDEX IF NOT EXISTS idx_session_embedding_state_work_item
             ON session_embedding_state(work_item_id);",
     )?;
+    if let Err(err) = conn.execute("ALTER TABLE context_snapshots ADD COLUMN snippet TEXT", []) {
+        let msg = err.to_string();
+        if !msg.contains("duplicate column name") {
+            return Err(err);
+        }
+    }
     Ok(())
 }
 
@@ -707,8 +714,8 @@ pub fn save_context_snapshot(meta: &ContextSnapshotMeta) -> SqliteResult<()> {
         conn.execute(
             "INSERT INTO context_snapshots
                 (snapshot_id, target_session_id, source_kind, source_id, namespace,
-                 title, token_estimate, pinned, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                 title, token_estimate, pinned, snippet, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
              ON CONFLICT(snapshot_id) DO UPDATE SET
                 target_session_id = excluded.target_session_id,
                 source_kind = excluded.source_kind,
@@ -717,6 +724,7 @@ pub fn save_context_snapshot(meta: &ContextSnapshotMeta) -> SqliteResult<()> {
                 title = excluded.title,
                 token_estimate = excluded.token_estimate,
                 pinned = excluded.pinned,
+                snippet = excluded.snippet,
                 created_at = excluded.created_at",
             params![
                 meta.snapshot_id,
@@ -727,6 +735,7 @@ pub fn save_context_snapshot(meta: &ContextSnapshotMeta) -> SqliteResult<()> {
                 meta.title,
                 meta.token_estimate,
                 if meta.pinned { 1 } else { 0 },
+                meta.snippet,
                 meta.created_at,
             ],
         )?;
@@ -739,7 +748,7 @@ pub fn load_context_snapshots(target_session_id: &str) -> SqliteResult<Vec<Conte
     ensure_context_metadata_schema(&conn)?;
     let mut stmt = conn.prepare(
         "SELECT snapshot_id, target_session_id, source_kind, source_id, namespace,
-                title, token_estimate, pinned, created_at
+                title, token_estimate, pinned, snippet, created_at
          FROM context_snapshots
          WHERE target_session_id = ?1
          ORDER BY pinned DESC, created_at DESC",
@@ -756,7 +765,8 @@ pub fn load_context_snapshots(target_session_id: &str) -> SqliteResult<Vec<Conte
             title: row.get(5)?,
             token_estimate: row.get(6)?,
             pinned: pinned != 0,
-            created_at: row.get(8)?,
+            snippet: row.get(8)?,
+            created_at: row.get(9)?,
         })
     })?;
     rows.collect()

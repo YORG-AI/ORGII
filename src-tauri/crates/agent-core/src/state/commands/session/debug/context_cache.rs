@@ -20,6 +20,7 @@ pub struct ContextSnapshotWire {
     pub title: Option<String>,
     pub token_estimate: i64,
     pub pinned: bool,
+    pub snippet: Option<String>,
     pub created_at: String,
 }
 
@@ -34,6 +35,7 @@ impl From<ContextSnapshotMeta> for ContextSnapshotWire {
             title: value.title,
             token_estimate: value.token_estimate,
             pinned: value.pinned,
+            snippet: value.snippet,
             created_at: value.created_at,
         }
     }

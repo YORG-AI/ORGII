@@ -76,6 +76,7 @@ pub struct ContextSnapshotMeta {
     pub title: Option<String>,
     pub token_estimate: i64,
     pub pinned: bool,
+    pub snippet: Option<String>,
     pub created_at: String,
 }
 
@@ -88,6 +89,26 @@ impl ContextSnapshotMeta {
         token_estimate: i64,
         pinned: bool,
     ) -> Self {
+        Self::new_with_snippet(
+            target_session_id,
+            source_kind,
+            source_id,
+            title,
+            token_estimate,
+            pinned,
+            None,
+        )
+    }
+
+    pub fn new_with_snippet(
+        target_session_id: impl Into<String>,
+        source_kind: ContextSourceKind,
+        source_id: impl Into<String>,
+        title: Option<String>,
+        token_estimate: i64,
+        pinned: bool,
+        snippet: Option<String>,
+    ) -> Self {
         let source_id = source_id.into();
         let namespace = ContextNamespace::new(source_kind.clone(), source_id.clone()).storage_key();
         Self {
@@ -99,6 +120,9 @@ impl ContextSnapshotMeta {
             title,
             token_estimate: token_estimate.max(0),
             pinned,
+            snippet: snippet
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty()),
             created_at: chrono::Utc::now().to_rfc3339(),
         }
     }
@@ -196,6 +220,21 @@ mod tests {
         assert_eq!(snap.namespace, "session:source");
         assert_eq!(snap.token_estimate, 0);
         assert!(snap.pinned);
+        assert!(snap.snippet.is_none());
+    }
+
+    #[test]
+    fn snapshot_keeps_non_empty_snippet() {
+        let snap = ContextSnapshotMeta::new_with_snippet(
+            "target",
+            ContextSourceKind::Memory,
+            "memory-key",
+            None,
+            10,
+            false,
+            Some("  useful context  ".into()),
+        );
+        assert_eq!(snap.snippet.as_deref(), Some("useful context"));
     }
 
     #[test]

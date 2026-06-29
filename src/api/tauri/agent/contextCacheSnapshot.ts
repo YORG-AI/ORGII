@@ -9,6 +9,7 @@ export interface ContextSnapshotWire {
   title?: string | null;
   tokenEstimate: number;
   pinned: boolean;
+  snippet?: string | null;
   createdAt: string;
 }
 
