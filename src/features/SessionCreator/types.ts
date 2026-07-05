@@ -82,6 +82,8 @@ export interface AdvancedConfig {
    * Serialized as the `platform` key in the Rust `cli_agent_create` command.
    */
   cliAgentType?: CliAgentType;
+  /** Per-session CLI launch argument override. Empty string explicitly clears defaults. */
+  launchArgs?: string;
   /** Price tier for hosted_key sessions (e.g., "standard", "premium", "vip", "basic") */
   tier?: string;
   /** Hosted listing display name (when keySource is hosted) */

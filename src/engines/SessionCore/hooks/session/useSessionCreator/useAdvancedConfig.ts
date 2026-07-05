@@ -8,6 +8,7 @@ import {
   NATIVE_HARNESS_TYPE,
 } from "@src/api/tauri/rpc/schemas/validation";
 import { KEY_SOURCE, isHostedKey } from "@src/api/tauri/session";
+import { getCliAgentDefaultLaunchArgs } from "@src/features/SessionCreator/cliAgentLaunchConfig";
 import type { AdvancedConfig } from "@src/features/SessionCreator/types";
 import { type KeyVaultAccount, useKeyVault } from "@src/hooks/keyVault";
 import { useValidatedLastPair } from "@src/hooks/models/useValidatedLastPair";
@@ -25,6 +26,16 @@ type AgentOrgMemberDraftConfig = Pick<
   AdvancedConfig,
   "agentOrgMemberOverrides" | "applyAgentOrgMemberOverridesForFuture"
 >;
+
+type CliLaunchArgsDraftBySurface = {
+  gui: Partial<Record<CliAgentType, string>>;
+  tui: Partial<Record<CliAgentType, string>>;
+};
+
+export const cliLaunchArgsBySurfaceAtom = atom<CliLaunchArgsDraftBySurface>({
+  gui: {},
+  tui: {},
+});
 
 export const agentOrgMemberDraftConfigByOrgAtom = atom<
   Record<string, AgentOrgMemberDraftConfig>
@@ -68,14 +79,24 @@ export function useAdvancedConfig(): UseAdvancedConfigResult {
 
   const lastModelSelection = useValidatedLastPair();
   const memberDraftConfig = useAtomValue(agentOrgMemberDraftConfigAtom);
+  const cliLaunchArgsBySurface = useAtomValue(cliLaunchArgsBySurfaceAtom);
+  const setCliLaunchArgsBySurface = useSetAtom(cliLaunchArgsBySurfaceAtom);
   const setMemberDraftConfig = useSetAtom(agentOrgMemberDraftConfigAtom);
   const setLastModelSelection = useSetAtom(creatorDefaultModelSelectionAtom);
 
   const advancedConfig = useMemo<AdvancedConfig>(() => {
+    const effectiveCliAgentType =
+      lastModelSelection?.cliAgentType ?? atomCliAgentType ?? undefined;
+    const launchArgs = effectiveCliAgentType
+      ? (cliLaunchArgsBySurface.gui[effectiveCliAgentType] ??
+        getCliAgentDefaultLaunchArgs(effectiveCliAgentType, "gui"))
+      : undefined;
+
     if (!lastModelSelection) {
       return atomCliAgentType
         ? {
             cliAgentType: atomCliAgentType as CliAgentType,
+            launchArgs,
             ...memberDraftConfig,
           }
         : { ...memberDraftConfig };
@@ -84,8 +105,8 @@ export function useAdvancedConfig(): UseAdvancedConfigResult {
     if (isHostedKey(lastModelSelection.keySource)) {
       return {
         keySource: KEY_SOURCE.HOSTED,
-        cliAgentType:
-          lastModelSelection.cliAgentType ?? atomCliAgentType ?? undefined,
+        cliAgentType: effectiveCliAgentType,
+        launchArgs,
         tier: lastModelSelection.tier,
         listingModel: lastModelSelection.listingModel,
         listingModelDisplay: lastModelSelection.listingModelDisplay,
@@ -111,7 +132,8 @@ export function useAdvancedConfig(): UseAdvancedConfigResult {
 
     return {
       keySource: KEY_SOURCE.OWN,
-      cliAgentType: atomCliAgentType ?? undefined,
+      cliAgentType: effectiveCliAgentType,
+      launchArgs,
       provider: lastModelSelection.provider,
       model: lastModelSelection.model,
       nativeHarnessType,
@@ -127,6 +149,7 @@ export function useAdvancedConfig(): UseAdvancedConfigResult {
     dispatchCategory,
     getAccount,
     memberDraftConfig,
+    cliLaunchArgsBySurface,
   ]);
 
   const setAdvancedConfig = useCallback(
@@ -142,10 +165,24 @@ export function useAdvancedConfig(): UseAdvancedConfigResult {
         applyAgentOrgMemberOverridesForFuture:
           resolved.applyAgentOrgMemberOverridesForFuture,
       });
+      if (resolved.cliAgentType && "launchArgs" in resolved) {
+        setCliLaunchArgsBySurface((current) => ({
+          ...current,
+          gui: {
+            ...current.gui,
+            [resolved.cliAgentType!]: resolved.launchArgs,
+          },
+        }));
+      }
       const pair = extractModelPair(resolved);
       setLastModelSelection(pair);
     },
-    [advancedConfig, setLastModelSelection, setMemberDraftConfig]
+    [
+      advancedConfig,
+      setLastModelSelection,
+      setMemberDraftConfig,
+      setCliLaunchArgsBySurface,
+    ]
   );
 
   return { advancedConfig, setAdvancedConfig, setLastModelSelection };

@@ -51,6 +51,69 @@ pub(super) fn resolve_cli_agent_command(agent: &ModelType) -> String {
     resolve_cli_binary_command(binary_id)
 }
 
+fn parse_launch_args(value: &str) -> Vec<String> {
+    let mut args = Vec::new();
+    let mut current = String::new();
+    let mut chars = value.chars().peekable();
+    let mut quote: Option<char> = None;
+    let mut escaped = false;
+
+    while let Some(ch) = chars.next() {
+        if escaped {
+            current.push(ch);
+            escaped = false;
+            continue;
+        }
+
+        if ch == '\\' {
+            escaped = true;
+            continue;
+        }
+
+        if let Some(quote_char) = quote {
+            if ch == quote_char {
+                quote = None;
+            } else {
+                current.push(ch);
+            }
+            continue;
+        }
+
+        match ch {
+            '\'' | '"' => quote = Some(ch),
+            ch if ch.is_whitespace() => {
+                if !current.is_empty() {
+                    args.push(std::mem::take(&mut current));
+                }
+                while chars.peek().is_some_and(|next| next.is_whitespace()) {
+                    chars.next();
+                }
+            }
+            _ => current.push(ch),
+        }
+    }
+
+    if escaped {
+        current.push('\\');
+    }
+    if !current.is_empty() {
+        args.push(current);
+    }
+
+    args
+}
+
+fn resolved_launch_args(launch_args: Option<&str>, defaults: &[&str]) -> Vec<String> {
+    match launch_args {
+        Some(value) => parse_launch_args(value),
+        None => defaults.iter().map(|arg| (*arg).to_string()).collect(),
+    }
+}
+
+fn push_launch_args(cmd: &mut Vec<String>, launch_args: Option<&str>, defaults: &[&str]) {
+    cmd.extend(resolved_launch_args(launch_args, defaults));
+}
+
 /// Build the CLI command for a given CLI agent type.
 ///
 /// Matches the market worker's `_build_agent_command()`.
@@ -71,6 +134,7 @@ pub(super) fn build_command(
     mode: Option<&str>,
     repo_path: Option<&str>,
     additional_dirs: &[String],
+    launch_args: Option<&str>,
 ) -> Vec<String> {
     // Only claude_code and codex accept `--add-dir`. For every other CLI
     // agent, extra workspace roots cannot be expressed on the command
@@ -88,8 +152,7 @@ pub(super) fn build_command(
             cmd.push("--output-format".into());
             cmd.push("stream-json".into());
             cmd.push("--stream-partial-output".into());
-            cmd.push("--force".into());
-            cmd.push("--approve-mcps".into());
+            push_launch_args(&mut cmd, launch_args, &["--force", "--approve-mcps"]);
             if let Some(key) = api_key {
                 cmd.push("--api-key".into());
                 cmd.push(key.into());
@@ -130,7 +193,7 @@ pub(super) fn build_command(
             cmd.push("--output-format".into());
             cmd.push("stream-json".into());
             cmd.push("--verbose".into());
-            cmd.push("--dangerously-skip-permissions".into());
+            push_launch_args(&mut cmd, launch_args, &["--dangerously-skip-permissions"]);
             if let Some(rid) = resume_id {
                 cmd.push("--resume".into());
                 cmd.push(rid.into());
@@ -159,6 +222,7 @@ pub(super) fn build_command(
             cmd.push("--skip-git-repo-check".into());
             cmd.push("--sandbox".into());
             cmd.push("workspace-write".into());
+            push_launch_args(&mut cmd, launch_args, &[]);
             if let Some(ws) = repo_path {
                 cmd.push("--cd".into());
                 cmd.push(ws.into());
@@ -186,7 +250,7 @@ pub(super) fn build_command(
             let mut cmd = vec![resolve_cli_agent_command(agent)];
             cmd.push("--output-format".into());
             cmd.push("stream-json".into());
-            cmd.push("--yolo".into());
+            push_launch_args(&mut cmd, launch_args, &["--yolo"]);
             if let Some(rid) = resume_id {
                 cmd.push("--resume".into());
                 cmd.push(rid.into());
@@ -199,14 +263,21 @@ pub(super) fn build_command(
             cmd.push(task.into());
             cmd
         }
-        ModelType::Kiro => vec![resolve_cli_agent_command(agent), "acp".into()],
+        ModelType::Kiro => {
+            let mut cmd = vec![resolve_cli_agent_command(agent), "acp".into()];
+            push_launch_args(&mut cmd, launch_args, &[]);
+            cmd
+        }
         ModelType::Copilot => {
             // Copilot exposes ACP over stdio only (no `--stdio`/`--port` flag).
             // `--allow-all-tools` + `--no-ask-user` keep the agent autonomous so
             // it never blocks on a permission or ask_user prompt.
             let mut cmd = vec![resolve_cli_agent_command(agent), "--acp".into()];
-            cmd.push("--allow-all-tools".to_string());
-            cmd.push("--no-ask-user".to_string());
+            push_launch_args(
+                &mut cmd,
+                launch_args,
+                &["--allow-all-tools", "--no-ask-user"],
+            );
             if let Some(rid) = resume_id {
                 cmd.push("--resume".into());
                 cmd.push(rid.into());
@@ -219,7 +290,11 @@ pub(super) fn build_command(
             }
             cmd
         }
-        ModelType::OpenCode => vec![resolve_cli_agent_command(agent), "acp".into()],
+        ModelType::OpenCode => {
+            let mut cmd = vec![resolve_cli_agent_command(agent), "acp".into()];
+            push_launch_args(&mut cmd, launch_args, &[]);
+            cmd
+        }
         // Extended CLI agents: pass the task as a positional argument.
         // These agents use TUI-style invocation; ORGII surfaces their raw PTY
         // output rather than parsing structured JSON events.
@@ -249,6 +324,7 @@ pub(super) fn build_command(
         | ModelType::Omp
         | ModelType::Pi => {
             let mut cmd = vec![resolve_cli_agent_command(agent)];
+            push_launch_args(&mut cmd, launch_args, &[]);
             if !task.is_empty() {
                 cmd.push(task.into());
             }

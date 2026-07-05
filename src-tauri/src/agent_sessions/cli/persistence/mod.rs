@@ -36,6 +36,7 @@ mod resume_state_tests {
                 isolate: None,
                 background: Some(false),
                 key_source: Some("own_key".to_string()),
+                launch_args: None,
                 additional_directories: None,
                 parent_session_id: None,
                 org_member_id: None,

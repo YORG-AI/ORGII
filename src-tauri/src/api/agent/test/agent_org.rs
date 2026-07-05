@@ -288,6 +288,7 @@ pub async fn test_agent_org_launch_coordinator(
         native_harness_type,
         platform: None,
         branch: None,
+        launch_args: None,
         hosted_token: None,
         tier: None,
         name: name_hint,

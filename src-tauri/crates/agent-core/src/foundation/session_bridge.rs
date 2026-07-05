@@ -47,6 +47,7 @@ pub struct CliLaunchParams {
     pub account_id: Option<String>,
     pub repo_path: Option<String>,
     pub branch: Option<String>,
+    pub launch_args: Option<String>,
     pub hosted_token: Option<String>,
     pub isolate: bool,
     pub background: bool,

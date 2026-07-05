@@ -225,6 +225,7 @@ pub(super) async fn materialize_org_member_sessions(
                 account_id: member_runtime_account_id(member_config, &account_id),
                 repo_path: Some(workspace_path.clone()).filter(|path| !path.is_empty()),
                 branch: None,
+                launch_args: None,
                 hosted_token: None,
                 isolate: false,
                 background: true,

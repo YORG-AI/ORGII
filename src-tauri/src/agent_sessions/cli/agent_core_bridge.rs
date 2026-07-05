@@ -34,6 +34,7 @@ fn run(
             account_id: params.account_id,
             repo_path: params.repo_path,
             branch: params.branch,
+            launch_args: params.launch_args,
             proxy_token: None,
             proxy_url: None,
             hosted_token: params.hosted_token,

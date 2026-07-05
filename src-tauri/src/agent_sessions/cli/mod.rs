@@ -57,6 +57,7 @@ pub fn init_cli_agent_tables(conn: &Connection) -> SqliteResult<()> {
             project_slug TEXT,
             work_item_id TEXT,
             agent_role TEXT,
+            launch_args TEXT,
             created_at     TEXT NOT NULL,
             updated_at     TEXT NOT NULL
         );
@@ -229,6 +230,11 @@ pub fn init_cli_agent_tables(conn: &Connection) -> SqliteResult<()> {
     // ignored for CLI agents that don't accept the flag.
     conn.execute(
         "ALTER TABLE code_sessions ADD COLUMN additional_directories TEXT",
+        [],
+    )
+    .ok();
+    conn.execute(
+        "ALTER TABLE code_sessions ADD COLUMN launch_args TEXT",
         [],
     )
     .ok();

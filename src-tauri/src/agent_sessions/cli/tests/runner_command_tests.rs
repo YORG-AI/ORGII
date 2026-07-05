@@ -1,6 +1,32 @@
-use super::command::{build_command, map_claude_model};
+use super::command::{build_command as build_command_with_launch_args, map_claude_model};
 use key_vault::key_store::ModelType;
 use std::path::Path;
+
+#[allow(clippy::too_many_arguments)]
+fn build_command(
+    agent: &ModelType,
+    model: Option<&str>,
+    task: &str,
+    resume_id: Option<&str>,
+    api_key: Option<&str>,
+    endpoint: Option<&str>,
+    mode: Option<&str>,
+    repo_path: Option<&str>,
+    additional_dirs: &[String],
+) -> Vec<String> {
+    build_command_with_launch_args(
+        agent,
+        model,
+        task,
+        resume_id,
+        api_key,
+        endpoint,
+        mode,
+        repo_path,
+        additional_dirs,
+        None,
+    )
+}
 
 fn command_name(command: &str) -> &str {
     Path::new(command)
@@ -270,7 +296,84 @@ fn build_opencode_basic() {
         &[],
     );
     assert_eq!(command_name(&cmd[0]), "opencode");
+    assert_eq!(cmd, vec![cmd[0].clone(), "acp".to_string()]);
+}
+
+#[test]
+fn build_opencode_empty_launch_args_keeps_acp_command() {
+    let cmd = build_command_with_launch_args(
+        &ModelType::OpenCode,
+        None,
+        "task",
+        None,
+        None,
+        None,
+        None,
+        None,
+        &[],
+        Some(""),
+    );
+    assert_eq!(command_name(&cmd[0]), "opencode");
+    assert_eq!(cmd, vec![cmd[0].clone(), "acp".to_string()]);
+}
+
+#[test]
+fn build_opencode_custom_launch_args_append_after_acp() {
+    let cmd = build_command_with_launch_args(
+        &ModelType::OpenCode,
+        None,
+        "task",
+        None,
+        None,
+        None,
+        None,
+        None,
+        &[],
+        Some("--config \"custom profile.toml\""),
+    );
+    assert_eq!(command_name(&cmd[0]), "opencode");
     assert_eq!(cmd[1], "acp");
+    assert_eq!(cmd[2], "--config");
+    assert_eq!(cmd[3], "custom profile.toml");
+}
+
+#[test]
+fn build_claude_custom_launch_args_replace_default_permission_arg() {
+    let cmd = build_command_with_launch_args(
+        &ModelType::ClaudeCode,
+        None,
+        "task",
+        None,
+        None,
+        None,
+        None,
+        None,
+        &[],
+        Some("--permission-mode manual"),
+    );
+    assert!(!cmd.contains(&"--dangerously-skip-permissions".to_string()));
+    assert!(cmd.contains(&"--permission-mode".to_string()));
+    assert!(cmd.contains(&"manual".to_string()));
+}
+
+#[test]
+fn build_cursor_empty_launch_args_removes_default_permission_args() {
+    let cmd = build_command_with_launch_args(
+        &ModelType::CursorCli,
+        None,
+        "task",
+        None,
+        None,
+        None,
+        None,
+        None,
+        &[],
+        Some(""),
+    );
+    assert!(!cmd.contains(&"--force".to_string()));
+    assert!(!cmd.contains(&"--approve-mcps".to_string()));
+    assert!(cmd.contains(&"--output-format".to_string()));
+    assert!(cmd.contains(&"-p".to_string()));
 }
 
 // ============================================

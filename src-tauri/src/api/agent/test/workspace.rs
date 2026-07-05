@@ -281,6 +281,7 @@ pub async fn test_session_launch_seed_only(
         native_harness_type: native_harness_type.clone(),
         platform: None,
         branch: None,
+        launch_args: None,
         hosted_token: None,
         tier: None,
         name: name_hint,

@@ -204,6 +204,9 @@ export function buildSessionLaunchPayload(
     accountId: resolvedKeys.accountId,
     model: resolvedKeys.model,
     platform: resolvedKeys.cliAgentType,
+    launchArgs: resolvedKeys.cliAgentType
+      ? advancedConfig.launchArgs
+      : undefined,
     branch: sessionBranch,
     hostedToken: resolvedKeys.hostedToken,
     tier: resolvedKeys.tier,

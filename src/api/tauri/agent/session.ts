@@ -382,6 +382,7 @@ export interface SessionLaunchParams {
   model?: string;
   nativeHarnessType?: NativeHarnessType;
   platform?: CliAgentType;
+  launchArgs?: string;
   branch?: string;
   hostedToken?: string;
   tier?: string;

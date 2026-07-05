@@ -27,11 +27,20 @@ import type {
   ChatPanelCliTerminalLaunchOptions,
   ChatPanelRegionNotice,
 } from "@src/engines/ChatPanel/types";
-import { useSessionCreator } from "@src/engines/SessionCore/hooks/session/useSessionCreator";
+import {
+  cliLaunchArgsBySurfaceAtom,
+  useSessionCreator,
+} from "@src/engines/SessionCore/hooks/session/useSessionCreator";
 import type {
   SessionLaunchSuccessInfo,
   SessionLaunchWorkItemContext,
 } from "@src/engines/SessionCore/hooks/session/useSessionCreator/useSessionLaunch/types";
+import {
+  type CliLaunchArgsValidationResult,
+  appendCliArgsToCommand,
+  getCliAgentCommandLabel,
+  getCliAgentDefaultLaunchArgs,
+} from "@src/features/SessionCreator/cliAgentLaunchConfig";
 import type { SessionCreatorLaunchMode } from "@src/features/SessionCreator/types";
 import {
   SYSTEM_HOME_SOURCE_ID,
@@ -87,6 +96,7 @@ import { draftHasContentAtom } from "@src/store/ui/draftAtom";
 import { getBigThreeRegionModelTypeForSession } from "@src/util/session/regionAlertModel";
 import { getRustAgentType } from "@src/util/session/sessionDispatch";
 
+import { CliLaunchArgumentsControl } from "../../components";
 import {
   CliLaunchModeSwitch,
   EditorArea,
@@ -178,6 +188,8 @@ const SessionCreatorChatPanelSingle: React.FC<
   const cliAgentType = useAtomValue(cliAgentTypeAtom);
   const cliLaunchMode = useAtomValue(cliLaunchModeAtom);
   const setCliLaunchMode = useSetAtom(cliLaunchModeAtom);
+  const cliLaunchArgsBySurface = useAtomValue(cliLaunchArgsBySurfaceAtom);
+  const setCliLaunchArgsBySurface = useSetAtom(cliLaunchArgsBySurfaceAtom);
 
   const selectedCliAgent = useMemo(
     () =>
@@ -312,8 +324,23 @@ const SessionCreatorChatPanelSingle: React.FC<
   const isCliMode = dispatchCategory === "cli_agent";
   const isCursorIdeMode = dispatchCategory === "cursor_ide";
   const isCliTuiMode = isCliMode && !cliComposerEnabled;
+  const cliLaunchSurface = isCliTuiMode ? "tui" : "gui";
+  const tuiLaunchArgsValue = cliAgentType
+    ? (cliLaunchArgsBySurface.tui[cliAgentType] ??
+      getCliAgentDefaultLaunchArgs(cliAgentType, "tui"))
+    : "";
+  const tuiCommandLabel = getCliAgentCommandLabel(
+    isCliAgentType(cliAgentType) ? cliAgentType : undefined,
+    "tui",
+    selectedCliAgent?.command
+  );
 
   const [isCategorySelectorOpen, setIsCategorySelectorOpen] = useState(false);
+  const [launchArgsValidation, setLaunchArgsValidation] =
+    useState<CliLaunchArgsValidationResult>({
+      valid: true,
+      validated: false,
+    });
   const openCategoryPickerSignal = useAtomValue(openCategoryPickerSignalAtom);
   const prevOpenCategoryPickerSignalRef = useRef(openCategoryPickerSignal);
   useEffect(() => {
@@ -373,6 +400,20 @@ const SessionCreatorChatPanelSingle: React.FC<
       setAdvancedConfig(config);
     },
     [setAdvancedConfig]
+  );
+
+  const handleTuiLaunchArgsChange = useCallback(
+    (value: string) => {
+      if (!cliAgentType) return;
+      setCliLaunchArgsBySurface((current) => ({
+        ...current,
+        tui: {
+          ...current.tui,
+          [cliAgentType]: value,
+        },
+      }));
+    },
+    [cliAgentType, setCliLaunchArgsBySurface]
   );
 
   useEffect(() => {
@@ -466,9 +507,13 @@ const SessionCreatorChatPanelSingle: React.FC<
     ) {
       const command = selectedCliAgent.command.trim();
       if (command.length > 0) {
+        const launchCommand = appendCliArgsToCommand(
+          command,
+          tuiLaunchArgsValue
+        );
         onOpenCliTerminal({
           cliAgentType,
-          command,
+          command: launchCommand,
           title: selectedCliAgent.displayName,
           cwd: effectiveSource?.repoPath,
           expectedProcess: deriveExpectedProcess(command),
@@ -486,6 +531,7 @@ const SessionCreatorChatPanelSingle: React.FC<
     onOpenCliTerminal,
     originalHandleLaunch,
     selectedCliAgent,
+    tuiLaunchArgsValue,
   ]);
 
   const handleCliLaunchModeChange = useCallback(
@@ -814,7 +860,7 @@ const SessionCreatorChatPanelSingle: React.FC<
         onImagePaste={handleImagePaste}
         attachedImages={attachedImages}
         onRemoveImage={removeImage}
-        launchDisabled={!canLaunch}
+        launchDisabled={!canLaunch || !launchArgsValidation.valid}
         requestModelOpen={requestModelOpen}
         onModelOpenHandled={() => setRequestModelOpen(false)}
         shellClassName="session-creator-chat-panel-fullscreen-input-shell"
@@ -881,7 +927,9 @@ const SessionCreatorChatPanelSingle: React.FC<
                   <button
                     type="button"
                     onClick={handleLaunch}
-                    disabled={!canLaunch || isLoading}
+                    disabled={
+                      !canLaunch || isLoading || !launchArgsValidation.valid
+                    }
                     className="flex w-full items-center justify-center rounded-full bg-primary-6 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-primary-7 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {t("creator.start")}
@@ -964,6 +1012,20 @@ const SessionCreatorChatPanelSingle: React.FC<
                 <>
                   {browserElementRowContent}
                   {leadingActionSlot}
+                  {isCliMode && (
+                    <CliLaunchArgumentsControl
+                      advancedConfig={advancedConfig}
+                      onAdvancedConfigChange={handleAdvancedConfigChange}
+                      surface={cliLaunchSurface}
+                      value={isCliTuiMode ? tuiLaunchArgsValue : undefined}
+                      commandLabel={isCliTuiMode ? tuiCommandLabel : undefined}
+                      onValueChange={
+                        isCliTuiMode ? handleTuiLaunchArgsChange : undefined
+                      }
+                      onValidationChange={setLaunchArgsValidation}
+                      className="min-w-[260px] max-w-[420px]"
+                    />
+                  )}
                   {cliLaunchModeSwitch}
                   {cliLaunchModeSwitch && (
                     <div

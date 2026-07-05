@@ -166,7 +166,10 @@ export const SessionService = {
       ideContext: adeContext,
       ...(params.projectSlug ? { projectSlug: params.projectSlug } : {}),
       ...(isCli
-        ? { platform: params.cliAgentType }
+        ? {
+            platform: params.cliAgentType,
+            launchArgs: params.launchArgs,
+          }
         : params.keySource === "hosted_key"
           ? {
               tier: params.tier || undefined,

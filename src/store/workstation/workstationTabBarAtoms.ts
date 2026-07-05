@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { activeStatusBarAppAtom } from "@src/store/ui/workStationLayout/statusBarAtoms";
 
+import { dockFilterAtom } from "./dockFilter";
 import type { WorkstationTabHost } from "./tabHost";
 import type { TabFocusRequest } from "./tabRegistry";
 
@@ -67,6 +68,9 @@ export const requestNewBrowserSessionAtom = atom(
       url: payload.url,
       isPrivate: payload.isPrivate,
     });
+    set(stationModeAtom, "my-station");
+    set(dockFilterAtom, "browser");
+    set(activeStatusBarAppAtom, "browser");
   }
 );
 requestNewBrowserSessionAtom.debugLabel = "requestNewBrowserSessionAtom";

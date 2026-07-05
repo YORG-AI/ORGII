@@ -42,6 +42,8 @@ export interface SessionCreateParams {
    * Serialised as `platform` in the Rust `cli_agent_create` wire format.
    */
   cliAgentType?: string;
+  /** Per-session CLI launch argument override. Empty string explicitly clears defaults. */
+  launchArgs?: string;
   /** "own_key" | "hosted_key" — billing source for the session */
   keySource?: string;
   /** Marketplace listing model ID (hosted_key sessions) */

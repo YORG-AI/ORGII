@@ -47,6 +47,7 @@ pub struct SessionLaunchParams {
     /// CLI agent type (wire name: `platform`)
     pub platform: Option<String>,
     pub branch: Option<String>,
+    pub launch_args: Option<String>,
 
     // Market-specific
     pub hosted_token: Option<String>,
@@ -334,6 +335,7 @@ async fn launch_cli_agent(
         account_id: params.account_id,
         repo_path: params.workspace_path,
         branch: params.branch,
+        launch_args: params.launch_args,
         hosted_token: params.hosted_token,
         isolate: params.isolate,
         background: params.background,

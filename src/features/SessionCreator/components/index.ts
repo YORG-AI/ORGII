@@ -4,6 +4,7 @@
  * Exports all SessionCreator sub-components
  */
 
+export { default as CliLaunchArgumentsControl } from "./CliLaunchArgumentsControl";
 export { default as CliLaunchModeSwitch } from "./CliLaunchModeSwitch";
 export { default as ControlButtons } from "./ControlButtons";
 export { default as EditorArea } from "./EditorArea";

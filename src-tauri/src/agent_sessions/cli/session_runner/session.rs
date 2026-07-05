@@ -405,6 +405,7 @@ pub async fn run_session(
         mode,
         repo_path,
         additional_dirs,
+        session.launch_args.as_deref(),
     );
 
     if matches!(agent, ModelType::Codex) && session.key_source == KeySource::HostedKey {

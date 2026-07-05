@@ -55,6 +55,8 @@ pub struct CodeSession {
     pub reply_target_event_id: Option<String>,
     /// Whether this session is pinned to the top of the sidebar.
     pub pinned: bool,
+    /// Extra CLI launch arguments captured at session creation time.
+    pub launch_args: Option<String>,
     /// Extra workspace folders granted at launch time (multi-root IDE
     /// workspaces). `None` or empty for single-repo launches. Stored as
     /// a JSON array of absolute paths; for `claude_code` and `codex`,
@@ -111,6 +113,9 @@ pub struct CreateCodeSessionParams {
     /// Key source: "own_key" (BYOK) or "hosted_key" (market proxy).
     /// Defaults to "own_key" if not provided.
     pub key_source: Option<String>,
+    /// Extra CLI launch arguments for this session. `None` keeps the CLI's
+    /// built-in ORGII defaults; `Some("")` explicitly clears default args.
+    pub launch_args: Option<String>,
     /// Extra workspace folders granted at launch time (multi-root IDE
     /// workspaces). Empty / omitted for single-repo launches; for
     /// `claude_code` / `codex` each entry is forwarded as `--add-dir`.
