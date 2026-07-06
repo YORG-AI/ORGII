@@ -8,6 +8,8 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import { Search } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -44,10 +46,19 @@ import {
   isSessionExcludedFromPersonal,
   sessionOrgTagsAtom,
 } from "@src/features/TeamCollaboration/sessionOrgTagsAtom";
+import type { WorkspaceRecord } from "@src/api/tauri/workspace";
+import { ROUTES } from "@src/config/routes";
+import LinkSessionToWorkItemModal from "@src/engines/ChatPanel/panels/LinkSessionToWorkItemModal";
+import { useCollaborationMetadataSync } from "@src/features/TeamCollaboration/useCollaborationMetadataSync";
+import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
+import { useKeyVault } from "@src/hooks/keyVault";
 import { createLogger } from "@src/hooks/logger";
 import { useAppNavigation } from "@src/hooks/navigation/useAppNavigation";
 import { useProjectDataChanged } from "@src/hooks/project";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
+import { useAgentOrgs } from "@src/modules/MainApp/AgentOrgs/hooks/useAgentOrgs";
+import { useLaunchpadAgentCatalog } from "@src/modules/shared/launchpad/hooks";
+import { openWorkspaceSpotlight } from "@src/scaffold/GlobalSpotlight/openSpotlight";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import { benchmarkAgentBatchStatusAtom } from "@src/store/benchmark";
 import {
@@ -62,6 +73,12 @@ import {
   openSessionInNewChatTabAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { repoMapAtom } from "@src/store/repo";
+  closeAndDestroyChatPanelTabAtom,
+  openSessionInNewChatTabAtom,
+} from "@src/store/chatPanel/chatPanelTabsAtom";
+import { collabOrgsAtom } from "@src/store/collaboration/collabOrgsAtom";
+import type { Repo } from "@src/store/repo";
+import { repoMapAtom, reposAtom } from "@src/store/repo";
 import {
   DEFAULT_SESSION_ORG_ID,
   activeSessionCreatorDraftIdAtom,
@@ -97,6 +114,24 @@ import {
   WORK_MANAGEMENT_SECTION,
   type WorkManagementSection,
   workManagementProjectsViewAtom,
+  chatPanelExploreOpenAtom,
+  chatPanelNavigateAtom,
+  chatPanelSelectedProjectAtom,
+  chatPanelSelectedWorkItemAtom,
+  chatPanelSelectedWorkspaceAtom,
+  chatPanelWorkspaceDashboardOpenAtom,
+} from "@src/store/ui/chatPanelAtom";
+import { type StationMode, stationModeAtom } from "@src/store/ui/simulatorAtom";
+import { spotlightOpenAtom } from "@src/store/ui/uiAtom";
+import {
+  activeWorkspaceIdAtom,
+  activeWorkspaceNameAtom,
+  savedWorkspacesAtom,
+  setWorkspaceFoldersAtom,
+} from "@src/store/workspace";
+import {
+  opsControlFocusedTabAtom,
+  opsControlPeekHostAtom,
 } from "@src/store/workstation";
 import {
   getChatPanelTabIdFromTuiSessionId,
@@ -119,6 +154,10 @@ import {
   getDraftIdFromMenuItemId,
   isWorkManagementMenuItemId,
 } from "../sidebarConnectorUtils";
+import { SidebarBottomBar } from "../../blocks";
+import NavigationSidebar from "../../variants/NavigationSidebar";
+import SidebarOrgSelector from "../SidebarOrgSelector";
+import { COLLAB_ADD_ORG_MENU_ITEM_ID } from "../sidebarConnectorUtils";
 import {
   sidebarGroupByAtom,
   sidebarIncludeExternalAtom,
@@ -128,6 +167,9 @@ import { useProjectsWorkItemMenuItems } from "../useProjectsWorkItemMenuItems";
 import { useRenameSessionModal } from "../useRenameSessionModal";
 import { useSessionMenuItems } from "../useSessionMenuItems";
 import { buildSessionOrgFilterIds } from "../useSessionMenuItems/orgFilter";
+import { useProjectsWorkItemMenuItems } from "../useProjectsWorkItemMenuItems";
+import { useRenameSessionModal } from "../useRenameSessionModal";
+import { useSessionMenuItems } from "../useSessionMenuItems";
 import { useWorkstationSidebarContextMenu } from "../useWorkstationSidebarContextMenu";
 import { useWorkstationSidebarHandlers } from "../useWorkstationSidebarHandlers";
 import {
@@ -139,6 +181,13 @@ import {
 } from "../workstationSidebarData";
 import { useSidebarBottomRightActions } from "./bottomActions";
 import { useCloudSessionsSection } from "./cloudSessionsSection";
+import {
+  FOLDERS_MY_AGENTS_COLLAPSE_SECTION_ID,
+  FOLDERS_MY_AGENT_ORGS_COLLAPSE_SECTION_ID,
+  FOLDERS_REPO_ITEM_PREFIX,
+  FOLDERS_WORKSPACE_ITEM_PREFIX,
+  buildWorkspaceRepoNameResolver,
+} from "./foldersSidebarMenuItems";
 import {
   useRenderProjectsMenuItemWrapper,
   useRenderSessionMenuItemWrapper,
@@ -169,6 +218,25 @@ import {
   buildWorkItemsSidebarMenuItems,
   resolveWorkItemsSidebarMenuItemId,
 } from "./workItemsSidebarMenuItems";
+  useFoldersSidebarMenuItems,
+  usePinnedMenuItems,
+  useSessionSidebarMenuItems,
+} from "./sidebarMenuCollections";
+import { useSidebarSessionRefreshEffects } from "./sidebarSessionRefresh";
+import {
+  HomeHeaderAction,
+  SidebarSearchShortcutTooltip,
+  isWorkstationSidebarKey,
+  useWorkstationSidebarTabs,
+} from "./sidebarTabs";
+import type { WorkstationSidebarKey } from "./types";
+import {
+  openRepoTarget,
+  openWorkspaceTarget,
+  useFoldersMenuItemClick,
+} from "./useFoldersMenuItemClick";
+import { useFoldersSidebarContextMenu } from "./useFoldersSidebarContextMenu";
+import { useProjectsMenuItemClick } from "./useProjectsMenuItemClick";
 
 const logger = createLogger("WorkstationSidebar");
 
@@ -192,6 +260,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
   const setSidebarCollapsed = useSetAtom(sidebarCollapsedAtom);
   // Managed ORG2 Cloud orgs (the only team backend).
   const cloudOrgs = useAtomValue(org2CloudOrgsAtom);
+  const collabOrgs = useAtomValue(collabOrgsAtom);
   const visitedSessions = useAtomValue(visitedSessionsAtom);
   const sessionCreatorDrafts = useAtomValue(sessionCreatorDraftListAtom);
   const activeSessionCreatorDraftId = useAtomValue(
@@ -206,6 +275,13 @@ export const WorkstationSidebarConnector: React.FC = () => {
   const chatPanelCreateTarget = useAtomValue(chatPanelCreateTargetAtom);
   const chatPanelSelectedWorkItem = useAtomValue(chatPanelSelectedWorkItemAtom);
   const chatPanelSelectedProject = useAtomValue(chatPanelSelectedProjectAtom);
+  const chatPanelSelectedWorkspace = useAtomValue(
+    chatPanelSelectedWorkspaceAtom
+  );
+  const chatPanelWorkspaceDashboardOpen = useAtomValue(
+    chatPanelWorkspaceDashboardOpenAtom
+  );
+  const chatPanelExploreOpen = useAtomValue(chatPanelExploreOpenAtom);
   const setChatPanelCreateTarget = useSetAtom(chatPanelCreateTargetAtom);
   const navigateChatPanel = useSetAtom(chatPanelNavigateAtom);
   const setStationChatVisible = useSetAtom(activeStationChatVisibleAtom);
@@ -226,6 +302,10 @@ export const WorkstationSidebarConnector: React.FC = () => {
   );
   const activateChatPanelTab = useSetAtom(activateChatPanelTabAtom);
   const openStartPageTab = useSetAtom(openOrFocusChatPanelStartPageTabAtom);
+  const setOpsControlPeekHost = useSetAtom(opsControlPeekHostAtom);
+  const setOpsControlFocusedTab = useSetAtom(opsControlFocusedTabAtom);
+  const openSessionInNewChatTab = useSetAtom(openSessionInNewChatTabAtom);
+  const activateChatPanelTab = useSetAtom(activateChatPanelTabAtom);
   const closeAndDestroyChatPanelTab = useSetAtom(
     closeAndDestroyChatPanelTabAtom
   );
@@ -254,6 +334,31 @@ export const WorkstationSidebarConnector: React.FC = () => {
     Record<WorkstationSidebarKey, string>
   >({ workstation: "", projects: "" });
   const handleSidebarLayerChange = useCallback((key: WorkstationSidebarKey) => {
+  const { goToStartPage, goToNewSession, navigateTo } = useAppNavigation();
+  const [activeSidebarKey, setActiveSidebarKey] =
+    useState<WorkstationSidebarKey>("workstation");
+  const [activeSessionMoreMenuId, setActiveSessionMoreMenuId] = useState("");
+  const [activeFolderMoreMenuId, setActiveFolderMoreMenuId] = useState("");
+  const [linkWorkItemSessionId, setLinkWorkItemSessionId] = useState<
+    string | null
+  >(null);
+  const [projectsSelectedMenuItemId, setProjectsSelectedMenuItemId] =
+    useState("");
+  const [selectedOrgId, setSelectedOrgId] = useState(DEFAULT_SESSION_ORG_ID);
+  const [projectOrgs, setProjectOrgs] = useState<ProjectOrg[]>([]);
+  const [sidebarSearchQueries, setSidebarSearchQueries] = useState<
+    Record<WorkstationSidebarKey, string>
+  >({ folders: "", workstation: "", projects: "" });
+  const [, setFoldersDashboardSelected] = useState(false);
+  const [, setFoldersExploreSelected] = useState(false);
+  const tabs = useWorkstationSidebarTabs(t);
+
+  const handleTabChange = useCallback((key: string) => {
+    if (!isWorkstationSidebarKey(key)) return;
+    if (key !== "folders") {
+      setFoldersDashboardSelected(false);
+      setFoldersExploreSelected(false);
+    }
     setActiveSidebarKey(key);
   }, []);
 
@@ -295,6 +400,13 @@ export const WorkstationSidebarConnector: React.FC = () => {
       }
     },
     [activeSidebarSearchKey]
+        [activeSidebarKey]: value,
+      }));
+      if (activeSidebarKey === "workstation") {
+        void loadSidebarSessions();
+      }
+    },
+    [activeSidebarKey]
   );
 
   useSidebarSessionRefreshEffects();
@@ -306,6 +418,23 @@ export const WorkstationSidebarConnector: React.FC = () => {
   );
   const repoMap = useAtomValue(repoMapAtom);
   const repoPathToName = useMemo(() => buildRepoPathToName(repoMap), [repoMap]);
+  const repos = useAtomValue(reposAtom);
+  const [savedWorkspaces, setSavedWorkspaces] = useAtom(savedWorkspacesAtom);
+  const activeWorkspaceId = useAtomValue(activeWorkspaceIdAtom);
+  const dispatchSetWorkspaceFolders = useSetAtom(setWorkspaceFoldersAtom);
+  const setActiveWorkspaceName = useSetAtom(activeWorkspaceNameAtom);
+  const { localAccounts } = useKeyVault({ autoLoad: true });
+  const { installedCliAgents, builtInRustAgents, customRustAgents } =
+    useLaunchpadAgentCatalog();
+  const { orgs: agentOrgs } = useAgentOrgs();
+  const { selectRepo, forceRefreshRepos } = useRepoSelection({
+    autoLoad: false,
+  });
+  const repoPathToName = useMemo(() => buildRepoPathToName(repoMap), [repoMap]);
+  const resolveWorkspaceRepoName = useMemo(
+    () => buildWorkspaceRepoNameResolver(repos),
+    [repos]
+  );
 
   const [groupByMode, setGroupByMode] = useAtom(sidebarGroupByAtom);
   const [includeExternal, setIncludeExternal] = useAtom(
@@ -358,6 +487,17 @@ export const WorkstationSidebarConnector: React.FC = () => {
     }
     return ids;
   }, [activeSessionSidebarRevealRequest]);
+  const [foldersCollapsedSectionIds, setFoldersCollapsedSectionIds] = useState<
+    Set<string>
+  >(
+    () =>
+      new Set([
+        FOLDERS_MY_AGENTS_COLLAPSE_SECTION_ID,
+        FOLDERS_MY_AGENT_ORGS_COLLAPSE_SECTION_ID,
+      ])
+  );
+  const [projectsCollapsedSectionIds, setProjectsCollapsedSectionIds] =
+    useState<Set<string>>(() => new Set());
 
   const untitledSession = t("sidebar.defaults.untitledSession");
   const newSessionLabel = t("labels.newSession");
@@ -403,6 +543,36 @@ export const WorkstationSidebarConnector: React.FC = () => {
       ),
     [cloudOrgs, projectOrgs, tProjects]
   );
+  const importGithubIssuesLabel = tProjects("githubIssuesImport.menuLabel");
+  const addOrgLabel = t("collaboration.addOrg");
+  const homeLabel = t("sidebar.tabs.build");
+  const searchPlaceholder =
+    activeSidebarKey === "projects"
+      ? t("sidebar.search.projects")
+      : activeSidebarKey === "folders"
+        ? t("sidebar.search.folders")
+        : t("sidebar.search.sessions");
+  const noSearchResultsTitle = t("sidebar.empty.noSearchResults");
+  const orgSelectorOptions = useMemo(() => {
+    const options = [
+      {
+        value: DEFAULT_SESSION_ORG_ID,
+        label: tProjects("orgs.personalOrg"),
+      },
+    ];
+    const seenOrgIds = new Set([DEFAULT_SESSION_ORG_ID]);
+    for (const org of projectOrgs) {
+      if (seenOrgIds.has(org.id)) continue;
+      seenOrgIds.add(org.id);
+      options.push({ value: org.id, label: org.name });
+    }
+    for (const org of collabOrgs) {
+      if (seenOrgIds.has(org.id)) continue;
+      seenOrgIds.add(org.id);
+      options.push({ value: org.id, label: org.name });
+    }
+    return options;
+  }, [collabOrgs, projectOrgs, tProjects]);
 
   const activeOrgId = useMemo(
     () =>
@@ -572,12 +742,26 @@ export const WorkstationSidebarConnector: React.FC = () => {
     expandedSubagentParentIds,
     revealedSessionIds,
   });
+
+  const { menuItems, sessionMap, isLoadMoreId, getLoadMoreGroupId } =
+    useSessionMenuItems({
+      sortedSessions,
+      visitedSessions,
+      repoPathToName,
+      groupByMode,
+      untitledSession,
+      searchQuery: sidebarSearchQueries.workstation,
+      selectedOrgId: activeOrgId,
+      includeExternal,
+      groupVisibleCounts,
+    });
   const {
     menuItems: projectsWorkItemMenuItems,
     projectMap: projectsProjectMap,
     workItemMap: projectsWorkItemMap,
     linearWorkItemMap: projectsLinearWorkItemMap,
     localOrgMap: projectsLocalOrgMap,
+    cloudOrgMap: projectsCloudOrgMap,
     linearOrgMap: projectsLinearOrgMap,
     loading: projectsWorkItemsLoading,
     getLoadMoreGroupId: getProjectsLoadMoreGroupId,
@@ -594,6 +778,16 @@ export const WorkstationSidebarConnector: React.FC = () => {
   });
 
   const rename = useRenameSessionModal();
+    enabled: activeSidebarKey === "projects",
+    groupVisibleCounts: projectsGroupVisibleCounts,
+    searchQuery: sidebarSearchQueries.projects,
+    selectedOrgId: activeOrgId,
+  });
+
+  useCollaborationMetadataSync();
+
+  const rename = useRenameSessionModal();
+  const activeSessionId = useAtomValue(workstationActiveSessionIdAtom) ?? "";
   const activeChatPanelTab = useAtomValue(activeChatPanelTabAtom);
   const benchmarkBatchStatus = useAtomValue(benchmarkAgentBatchStatusAtom);
   const activeChatPanelTuiSessionId =
@@ -626,6 +820,12 @@ export const WorkstationSidebarConnector: React.FC = () => {
     kanbanLabel: tSessions("simulator.tabs.kanban"),
     newSessionLabel,
     workItemDestinations: workItemsSidebarMenuItems,
+  const { pinnedMenuItems } = usePinnedMenuItems({
+    activeSidebarKey,
+    createProjectLabel,
+    createWorkItemLabel,
+    importGithubIssuesLabel,
+    newSessionLabel,
     t,
   });
   const sessionSidebarMenuItems = useSessionSidebarMenuItems({
@@ -724,6 +924,131 @@ export const WorkstationSidebarConnector: React.FC = () => {
 
   const projectsSidebarMenuItems = projectsWorkItemMenuItems;
   const { selectedMenuItemId: baseSelectedMenuItemId } =
+  const org2TreeItems = useMemo(() => buildOrg2TreeItems(sessions), [sessions]);
+  const clearActiveWorkspace = useCallback(() => {
+    dispatchSetWorkspaceFolders([], null);
+    setActiveWorkspaceName(null);
+  }, [dispatchSetWorkspaceFolders, setActiveWorkspaceName]);
+
+  const resetOpsControlStateForProjectsContent = useCallback(() => {
+    const stationMode: StationMode = "my-station";
+    setStationMode(stationMode);
+    setStationChatVisible(stationMode, true);
+    setOpsControlPeekHost(null);
+    setOpsControlFocusedTab(null);
+  }, [
+    setOpsControlFocusedTab,
+    setOpsControlPeekHost,
+    setStationChatVisible,
+    setStationMode,
+  ]);
+
+  const handleAddWorkspaceFolder = useCallback(() => {
+    openWorkspaceSpotlight("add");
+  }, []);
+  const handleCreateMultiRepoWorkspace = useCallback(() => {
+    openWorkspaceSpotlight("create");
+  }, []);
+
+  const handleOpenWorkspace = useCallback(
+    (workspace: WorkspaceRecord) => {
+      openWorkspaceTarget({
+        dispatchSetWorkspaceFolders,
+        resetOpsControlStateForProjectsContent,
+        resolveWorkspaceRepoName,
+        setActiveWorkspaceName,
+        workspace,
+      });
+      navigate(ROUTES.workStation.code.path);
+    },
+    [
+      dispatchSetWorkspaceFolders,
+      navigate,
+      resetOpsControlStateForProjectsContent,
+      resolveWorkspaceRepoName,
+      setActiveWorkspaceName,
+    ]
+  );
+
+  const handleOpenRepo = useCallback(
+    (repo: Repo) => {
+      openRepoTarget({
+        dispatchSetWorkspaceFolders,
+        resetOpsControlStateForProjectsContent,
+        selectRepo,
+        setActiveWorkspaceName,
+        repoId: repo.id,
+      });
+      navigate(ROUTES.workStation.code.path);
+    },
+    [
+      dispatchSetWorkspaceFolders,
+      navigate,
+      resetOpsControlStateForProjectsContent,
+      selectRepo,
+      setActiveWorkspaceName,
+    ]
+  );
+
+  const { openWorkspaceMenu, openRepoMenu } = useFoldersSidebarContextMenu({
+    activeWorkspaceId,
+    clearActiveWorkspace,
+    forceRefreshRepos,
+    onOpenWorkspace: handleOpenWorkspace,
+    onOpenRepo: handleOpenRepo,
+    setSavedWorkspaces,
+    tCommon,
+  });
+
+  const handleMoreActionsForWorkspace = useCallback(
+    (
+      _event: React.MouseEvent<HTMLButtonElement>,
+      workspace: WorkspaceRecord
+    ) => {
+      const itemId = `${FOLDERS_WORKSPACE_ITEM_PREFIX}${workspace.workspaceId}`;
+      setActiveFolderMoreMenuId(itemId);
+      void openWorkspaceMenu(workspace).finally(() => {
+        setActiveFolderMoreMenuId((current) =>
+          current === itemId ? "" : current
+        );
+      });
+    },
+    [openWorkspaceMenu]
+  );
+  const handleMoreActionsForRepo = useCallback(
+    (_event: React.MouseEvent<HTMLButtonElement>, repo: Repo) => {
+      const itemId = `${FOLDERS_REPO_ITEM_PREFIX}${repo.id}`;
+      setActiveFolderMoreMenuId(itemId);
+      void openRepoMenu(repo).finally(() => {
+        setActiveFolderMoreMenuId((current) =>
+          current === itemId ? "" : current
+        );
+      });
+    },
+    [openRepoMenu]
+  );
+
+  const foldersSidebarMenuItems = useFoldersSidebarMenuItems({
+    savedWorkspaces,
+    repos,
+    localAccounts,
+    installedCliAgents,
+    builtInRustAgents,
+    customRustAgents,
+    agentOrgs,
+    t,
+    tCommon,
+    onAddWorkspaceFolder: handleAddWorkspaceFolder,
+    onCreateMultiRepoWorkspace: handleCreateMultiRepoWorkspace,
+    onOpenWorkspace: handleOpenWorkspace,
+    onOpenRepo: handleOpenRepo,
+    onMoreActionsForWorkspace: handleMoreActionsForWorkspace,
+    onMoreActionsForRepo: handleMoreActionsForRepo,
+    activeMoreMenuId: activeFolderMoreMenuId,
+  });
+  const projectsSidebarMenuItems = projectsWorkItemMenuItems;
+
+  const { selectedMenuItemId, sessionSelectedMenuItemId } =
     resolveSelectedMenuItemIds({
       activeSessionCreatorDraftId,
       activeSessionId: highlightedSessionId,
@@ -760,6 +1085,32 @@ export const WorkstationSidebarConnector: React.FC = () => {
     resetWorkManagementStateForProjectsContent();
     if (location.pathname !== targetRoute) navigate(targetRoute);
   }, [location.pathname, navigate, resetWorkManagementStateForProjectsContent]);
+      chatPanelSelectedWorkspace,
+      chatPanelWorkspaceDashboardOpen,
+      chatPanelExploreOpen,
+      opsControlRoutePath: ROUTES.workStation.opsControl.path,
+      pathname: location.pathname,
+      projectsSelectedMenuItemId,
+      sessionCreatorDrafts,
+    });
+  const resolvedCollapsedSectionIds =
+    activeSidebarKey === "projects"
+      ? projectsCollapsedSectionIds
+      : activeSidebarKey === "folders"
+        ? foldersCollapsedSectionIds
+        : collapsedSectionIds;
+  const resolvedSetCollapsedSectionIds =
+    activeSidebarKey === "projects"
+      ? setProjectsCollapsedSectionIds
+      : activeSidebarKey === "folders"
+        ? setFoldersCollapsedSectionIds
+        : setCollapsedSectionIds;
+
+  const activateMyStationRouteForProjectsContent = useCallback(() => {
+    const targetRoute = ROUTES.workStation.code.path;
+    resetOpsControlStateForProjectsContent();
+    if (location.pathname !== targetRoute) navigate(targetRoute);
+  }, [location.pathname, navigate, resetOpsControlStateForProjectsContent]);
 
   const activateMyStationRouteForProjectTabContent = useCallback(() => {
     const stationMode: StationMode = "my-station";
@@ -772,6 +1123,17 @@ export const WorkstationSidebarConnector: React.FC = () => {
   const openNewChatTab = useCallback(() => {
     openStartPageTab({ title: t("routes.launchpad") });
   }, [openStartPageTab, t]);
+    setOpsControlPeekHost(null);
+    setOpsControlFocusedTab(null);
+    if (location.pathname !== targetRoute) navigate(targetRoute);
+  }, [
+    location.pathname,
+    navigate,
+    setOpsControlFocusedTab,
+    setOpsControlPeekHost,
+    setStationChatVisible,
+    setStationMode,
+  ]);
 
   const { handleGoToNewSession } = useSessionEntryActions({
     goToNewSession,
@@ -787,6 +1149,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     handleTogglePin,
   } = useWorkstationSidebarHandlers({
     activeSessionId,
+    selectedMenuItemId: sessionSelectedMenuItemId,
     sessionMap,
     isLoadMoreId,
     getLoadMoreGroupId,
@@ -806,6 +1169,10 @@ export const WorkstationSidebarConnector: React.FC = () => {
     (sessionId: string) => {
       activateMyStationRouteForProjectTabContent();
       navigateChatPanel({ kind: CHAT_PANEL_SURFACE_KIND.SESSION });
+    onCloseChatPanelTab: closeAndDestroyChatPanelTab,
+  });
+  const handleOpenInNewTab = useCallback(
+    (sessionId: string) => {
       if (isChatPanelTuiSessionId(sessionId)) {
         const tabId = getChatPanelTabIdFromTuiSessionId(sessionId);
         if (tabId) activateChatPanelTab(tabId);
@@ -842,6 +1209,11 @@ export const WorkstationSidebarConnector: React.FC = () => {
   const moveToOrg = useMoveToOrgDialog();
   const cloudSyncLevel = useCloudSyncLevelDialog();
   const cloudShare = useCloudSessionShareDialog();
+      openSessionInNewChatTab(sessionId);
+    },
+    [activateChatPanelTab, openSessionInNewChatTab]
+  );
+
   const handleMenuItemContextMenu = useWorkstationSidebarContextMenu({
     sessionMap,
     rename,
@@ -860,6 +1232,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     handleOpenCloudShare: cloudShare.openCloudShare,
     cloudShareLabel: t("cloud.share.menuItem"),
     handleCloudRemoteItemRemove,
+    onLinkToWorkItem: setLinkWorkItemSessionId,
     tCommon,
   });
 
@@ -874,6 +1247,9 @@ export const WorkstationSidebarConnector: React.FC = () => {
     sessionMap,
     setActiveSessionMoreMenuId,
     subagentParentIds,
+    pinLabel: pinFolderLabel,
+    sessionMap,
+    setActiveSessionMoreMenuId,
     tCommon,
     unpinLabel: unpinFolderLabel,
   });
@@ -894,6 +1270,30 @@ export const WorkstationSidebarConnector: React.FC = () => {
     activeSidebarKey === "projects" || workItemsContentVisible
       ? projectsSidebarMenuItems
       : decoratedSessionSidebarMenuItems;
+    () => decorateSessionRowActions(sessionSidebarMenuItems),
+    [decorateSessionRowActions, sessionSidebarMenuItems]
+  );
+  const decoratedOrg2TreeItems = useMemo(
+    () => decorateSessionRowActions(org2TreeItems),
+    [decorateSessionRowActions, org2TreeItems]
+  );
+  const sidebarMenuItems =
+    activeSidebarKey === "projects"
+      ? projectsSidebarMenuItems
+      : activeSidebarKey === "folders"
+        ? foldersSidebarMenuItems
+        : decoratedSessionSidebarMenuItems;
+
+  const handleFoldersMenuItemClick = useFoldersMenuItemClick({
+    navigate,
+    repos,
+    resetOpsControlStateForProjectsContent,
+    savedWorkspaces,
+    navigateChatPanel,
+    setFoldersDashboardSelected,
+    setFoldersExploreSelected,
+    setProjectsSelectedMenuItemId,
+  });
   const handleProjectsMenuItemClick = useProjectsMenuItemClick({
     activateMyStationRouteForProjectTabContent,
     activateMyStationRouteForProjectsContent,
@@ -902,12 +1302,14 @@ export const WorkstationSidebarConnector: React.FC = () => {
     navigateChatPanel,
     openProjectsLinearOrg,
     openProjectsLinearWorkItem: openProjectsLinearWorkItem,
+    projectsCloudOrgMap,
     projectsLinearOrgMap,
     projectsLinearWorkItemMap,
     projectsLocalOrgMap,
     projectsProjectMap,
     projectsWorkItemMap,
     resetWorkManagementStateForProjectsContent,
+    resetOpsControlStateForProjectsContent,
     setProjectsGroupVisibleCounts,
     setProjectsSelectedMenuItemId,
     toChatPanelProject,
@@ -990,6 +1392,12 @@ export const WorkstationSidebarConnector: React.FC = () => {
     },
     [cloudRemoteRowMap, cloudRemoteViewerMap, renderSessionMenuItemWrapper, t]
   );
+    resetOpsControlStateForProjectsContent();
+    setProjectsSelectedMenuItemId(COLLAB_ADD_ORG_MENU_ITEM_ID);
+    navigateChatPanel({ kind: CHAT_PANEL_SURFACE_KIND.NEW_COLLAB_ORG });
+  }, [navigateChatPanel, resetOpsControlStateForProjectsContent]);
+  const renderSessionMenuItemWrapper =
+    useRenderSessionMenuItemWrapper(sessionMap);
   const renderProjectsMenuItemWrapper = useRenderProjectsMenuItemWrapper({
     projectsLinearWorkItemMap,
     projectsWorkItemMap,
@@ -1023,6 +1431,8 @@ export const WorkstationSidebarConnector: React.FC = () => {
         handleWorkManagementMenuItemClick(key, item);
         return;
       }
+  const handleSessionMenuItemClick = useCallback(
+    (key: string, item: NavigationMenuItem) => {
       if (isChatTerminalSidebarItem(item.id)) {
         activateChatPanelTab(getChatTerminalTabId(item.id));
         return;
@@ -1080,6 +1490,9 @@ export const WorkstationSidebarConnector: React.FC = () => {
         onClick={handleBackToSessionSidebar}
       />
     </div>
+      handleMenuItemClick(key, item);
+    },
+    [activateChatPanelTab, handleMenuItemClick]
   );
 
   const resolvedMenuItemClick =
@@ -1095,6 +1508,47 @@ export const WorkstationSidebarConnector: React.FC = () => {
     activeSidebarKey === "projects" || workItemsContentVisible
       ? renderProjectsMenuItemWrapper
       : renderWorkstationMenuItemWrapper;
+      : activeSidebarKey === "folders"
+        ? handleFoldersMenuItemClick
+        : handleSessionMenuItemClick;
+
+  const handleFoldersMenuItemContextMenu = useCallback(
+    (event: React.MouseEvent, _key: string, item: NavigationMenuItem) => {
+      if (item.id.startsWith(FOLDERS_WORKSPACE_ITEM_PREFIX)) {
+        const workspaceId = item.id.slice(FOLDERS_WORKSPACE_ITEM_PREFIX.length);
+        const workspace = savedWorkspaces.find(
+          (candidate) => candidate.workspaceId === workspaceId
+        );
+        if (!workspace) return;
+        event.preventDefault();
+        event.stopPropagation();
+        void openWorkspaceMenu(workspace);
+        return;
+      }
+      if (item.id.startsWith(FOLDERS_REPO_ITEM_PREFIX)) {
+        const repoId = item.id.slice(FOLDERS_REPO_ITEM_PREFIX.length);
+        const repo = repos.find((candidate) => candidate.id === repoId);
+        if (!repo) return;
+        event.preventDefault();
+        event.stopPropagation();
+        void openRepoMenu(repo);
+      }
+    },
+    [openRepoMenu, openWorkspaceMenu, repos, savedWorkspaces]
+  );
+
+  const resolvedMenuItemContextMenu =
+    activeSidebarKey === "workstation"
+      ? handleMenuItemContextMenu
+      : activeSidebarKey === "folders"
+        ? handleFoldersMenuItemContextMenu
+        : undefined;
+  const resolvedRenderMenuItemWrapper =
+    activeSidebarKey === "projects"
+      ? renderProjectsMenuItemWrapper
+      : activeSidebarKey === "folders"
+        ? undefined
+        : renderSessionMenuItemWrapper;
   const allSectionIds = useMemo(
     () => getAllSectionIds(sidebarMenuItems),
     [sidebarMenuItems]
@@ -1119,6 +1573,23 @@ export const WorkstationSidebarConnector: React.FC = () => {
     groupByMode,
     includeExternal,
     handleCollapseAll,
+    void loadSidebarSessions({ forceRefresh: true });
+  }, []);
+  const handleCollapseAllActiveSections = useCallback(() => {
+    resolvedSetCollapsedSectionIds(new Set(allSectionIds));
+  }, [allSectionIds, resolvedSetCollapsedSectionIds]);
+  const isLoading =
+    activeSidebarKey === "workstation"
+      ? sessionsLoading && sessions.length === 0
+      : activeSidebarKey === "projects"
+        ? projectsWorkItemsLoading && projectsSidebarMenuItems.length === 0
+        : false;
+  const sidebarBottomRightActions = useSidebarBottomRightActions({
+    activeSidebarKey,
+    groupByMode,
+    includeExternal,
+    handleCollapseAll,
+    handleCollapseAllActiveSections,
     handleMarkAllRead,
     handleRefreshSessions,
     setGroupByMode,
@@ -1130,6 +1601,9 @@ export const WorkstationSidebarConnector: React.FC = () => {
       ? selectedCloudMenuItemId
       : selectedMenuItemId;
 
+    t,
+  });
+
   useWorkstationSidebarMemory({
     activeSessionId,
     activeSidebarKey,
@@ -1140,6 +1614,9 @@ export const WorkstationSidebarConnector: React.FC = () => {
     selectedMenuItemId: resolvedSelectedMenuItemId,
     sidebarMenuItems,
     tabCount: 0,
+    selectedMenuItemId,
+    sidebarMenuItems,
+    tabCount: tabs.length,
   });
 
   return (
@@ -1160,6 +1637,19 @@ export const WorkstationSidebarConnector: React.FC = () => {
         onMenuItemContextMenu={resolvedMenuItemContextMenu}
         renderMenuItemWrapper={resolvedRenderMenuItemWrapper}
         preListContent={sidebarLayerHeader}
+        items={tabs}
+        activeKey={activeSidebarKey}
+        onChange={handleTabChange}
+        menuItems={
+          activeSidebarKey === "workstation"
+            ? [...decoratedOrg2TreeItems, ...sidebarMenuItems]
+            : sidebarMenuItems
+        }
+        pinnedMenuItems={pinnedMenuItems}
+        selectedKey={selectedMenuItemId}
+        onMenuItemClick={resolvedMenuItemClick}
+        onMenuItemContextMenu={resolvedMenuItemContextMenu}
+        renderMenuItemWrapper={resolvedRenderMenuItemWrapper}
         compactRows
         onAddNew={handleOpenSpotlight}
         addIcon={Search}
@@ -1175,6 +1665,19 @@ export const WorkstationSidebarConnector: React.FC = () => {
             activeSidebarSearchKey === "workstation"
               ? ""
               : sidebarSearchQueries[activeSidebarSearchKey],
+        beforeAddNewActions={
+          <HomeHeaderAction
+            label={homeLabel}
+            tooltipLabel={t("sidebar.actions.openHome")}
+            onClick={goToStartPage}
+          />
+        }
+        search={{
+          value: sidebarSearchQueries[activeSidebarKey],
+          filterValue:
+            activeSidebarKey === "workstation"
+              ? ""
+              : sidebarSearchQueries[activeSidebarKey],
           onChange: handleSidebarSearchChange,
           placeholder: searchPlaceholder,
           noResultsTitle: noSearchResultsTitle,
@@ -1197,6 +1700,19 @@ export const WorkstationSidebarConnector: React.FC = () => {
             settingsAction={<SidebarSettingsMenuButton />}
           />
         }
+        preListContent={
+          <SidebarOrgSelector
+            value={activeOrgId}
+            options={orgSelectorOptions}
+            addOrgLabel={addOrgLabel}
+            onChange={setSelectedOrgId}
+            onAddOrg={handleAddOrgFromSelector}
+          />
+        }
+        listTopPadding
+        bottomContent={
+          <SidebarBottomBar rightActions={sidebarBottomRightActions} />
+        }
         isLoading={isLoading}
         collapsibleSections
         collapsedSectionIds={resolvedCollapsedSectionIds}
@@ -1211,6 +1727,12 @@ export const WorkstationSidebarConnector: React.FC = () => {
               }
             : undefined
         }
+      />
+      <LinkSessionToWorkItemModal
+        open={Boolean(linkWorkItemSessionId)}
+        sessionId={linkWorkItemSessionId}
+        onClose={() => setLinkWorkItemSessionId(null)}
+        onLinked={() => void loadSidebarSessions({ forceRefresh: true })}
       />
       <RenameModal
         visible={rename.visible}
@@ -1309,6 +1831,8 @@ export function buildOrg2TreeItems(
     const workItemBucket = projectBucket.get(workItemKey) ?? [];
     workItemBucket.push({
       id: `org2-tree-session-${session.session_id}`,
+      // 复用普通 session 列表的 id，点击、hover 行动作、右键菜单都走同一套逻辑。
+      id: session.session_id,
       key: `org2-tree-session-${session.session_id}`,
       label: session.name || session.user_input || session.session_id,
       shortcut: "session",

@@ -42,6 +42,7 @@ interface UseWorkstationSidebarContextMenuParams {
   cloudShareLabel: string;
   /** Teammate cloud rows have no local Session; remove means local hide. */
   handleCloudRemoteItemRemove?: (item: NavigationMenuItem) => boolean;
+  onLinkToWorkItem?: (sessionId: string) => void;
   tCommon: (key: string, defaultValue?: string) => string;
 }
 
@@ -63,6 +64,7 @@ export function useWorkstationSidebarContextMenu({
   handleOpenCloudShare,
   cloudShareLabel,
   handleCloudRemoteItemRemove,
+  onLinkToWorkItem,
   tCommon,
 }: UseWorkstationSidebarContextMenuParams): (
   event: MouseEvent,
@@ -96,6 +98,7 @@ export function useWorkstationSidebarContextMenu({
         await menu.popup();
         return;
       }
+      if (!sessionMap.has(item.id)) return;
 
       const isCursorIde = isCursorIdeSession(item.id);
       const session = sessionMap.get(item.id);
@@ -144,6 +147,13 @@ export function useWorkstationSidebarContextMenu({
           text: tCommon("sessions:chat.exportAsMarkdown", "Export as Markdown"),
           action: () => handleExportMarkdown(item.id),
         });
+        const linkWorkItem = await MenuItem.new({
+          text: tCommon(
+            "sessions:chat.linkToWorkItem",
+            "Link to project / Work Item"
+          ),
+          action: () => onLinkToWorkItem?.(item.id),
+        });
         const deleteItem = await MenuItem.new({
           text: tCommon("actions.delete"),
           action: () => handleDeleteSession(item.id),
@@ -183,6 +193,13 @@ export function useWorkstationSidebarContextMenu({
           );
         }
         primaryItems.push(pinItem);
+        const primaryItems = [
+          openInNewTabItem,
+          renameItem,
+          exportItem,
+          pinItem,
+          linkWorkItem,
+        ];
         const menu = await TauriMenu.new({
           items: [...primaryItems, menuSeparator, deleteItem],
         });
@@ -210,6 +227,7 @@ export function useWorkstationSidebarContextMenu({
       isCloudShareEligible,
       cloudShareLabel,
       handleCloudRemoteItemRemove,
+      onLinkToWorkItem,
     ]
   );
 }
