@@ -637,6 +637,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     () => [...cloudMenuItems, ...sessionSidebarMenuItems],
     [cloudMenuItems, sessionSidebarMenuItems]
   );
+  const org2TreeItems = useMemo(() => buildOrg2TreeItems(sessions), [sessions]);
   useEffect(() => {
     if (!sessionSidebarRevealRequest) return;
 
@@ -1147,7 +1148,11 @@ export const WorkstationSidebarConnector: React.FC = () => {
         items={[]}
         activeKey={activeSidebarKey}
         onChange={() => undefined}
-        menuItems={sidebarMenuItems}
+        menuItems={
+          activeSidebarKey === "workstation"
+            ? [...org2TreeItems, ...sidebarMenuItems]
+            : sidebarMenuItems
+        }
         pinnedMenuItems={pinnedMenuItems}
         selectedKey={resolvedSelectedMenuItemId}
         onMenuItemClick={resolvedMenuItemClick}
@@ -1246,3 +1251,48 @@ export const WorkstationSidebarConnector: React.FC = () => {
     </>
   );
 };
+
+function buildOrg2TreeItems(
+  sessions: readonly import("@src/store/session").Session[]
+): NavigationMenuItem[] {
+  const projects = new Map<string, NavigationMenuItem[]>();
+  const loose: NavigationMenuItem[] = [];
+  for (const session of sessions) {
+    const sessionItem: NavigationMenuItem = {
+      id: `org2-tree-session-${session.session_id}`,
+      key: `org2-tree-session-${session.session_id}`,
+      label: session.name || session.user_input || session.session_id,
+      shortcut: "session",
+    };
+    const projectKey = session.projectSlug || session.projectId || "未关联";
+    const workItemKey = session.workItemId || "未关联任务";
+    const bucket = projects.get(projectKey) ?? [];
+    bucket.push({
+      id: `org2-tree-wi-${projectKey}-${workItemKey}`,
+      key: `org2-tree-wi-${projectKey}-${workItemKey}`,
+      label: workItemKey,
+      shortcut: "task",
+      children: [sessionItem],
+    });
+    projects.set(projectKey, bucket);
+    if (projectKey === "未关联") loose.push(sessionItem);
+  }
+  return [
+    {
+      id: "org2-tree-workspace",
+      key: "org2-tree-workspace",
+      label: "Workspace 层级树",
+      shortcut: "workspace",
+      // # ORG2 四层树：workspace → project → task/work-item → session，数据直接来自现有 session 关联字段。
+      children: Array.from(projects.entries()).map(
+        ([projectName, workItems]) => ({
+          id: `org2-tree-project-${projectName}`,
+          key: `org2-tree-project-${projectName}`,
+          label: projectName,
+          shortcut: projectName === "未关联" ? "未关联" : "project",
+          children: projectName === "未关联" ? loose : workItems,
+        })
+      ),
+    },
+  ];
+}
