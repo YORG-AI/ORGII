@@ -42,13 +42,19 @@ export function useDecorateSessionRowActions({
 }: UseSessionRowActionsParams): (
   items: readonly NavigationMenuItem[]
 ) => NavigationMenuItem[] {
-  return useCallback(
-    (items: readonly NavigationMenuItem[]): NavigationMenuItem[] =>
-      items.map((item) => {
+  const decorateSessionItems = useCallback(
+    (items: readonly NavigationMenuItem[]): NavigationMenuItem[] => {
+      const decorateItem = (item: NavigationMenuItem): NavigationMenuItem => {
+        const decoratedChildren = item.children
+          ? item.children.map(decorateItem)
+          : undefined;
+        const baseItem = decoratedChildren
+          ? { ...item, children: decoratedChildren }
+          : item;
         const draftId = getDraftIdFromMenuItemId(item.id);
         if (draftId) {
           return {
-            ...item,
+            ...baseItem,
             showMoreActions: true,
             rowActions: [
               {
@@ -61,7 +67,7 @@ export function useDecorateSessionRowActions({
         }
 
         const session = sessionMap.get(item.id);
-        if (!session) return item;
+        if (!session) return baseItem;
         const rowActions: NavigationMenuRowAction[] = [];
         if (!isChatPanelTuiSessionId(item.id)) {
           rowActions.push({
@@ -90,11 +96,16 @@ export function useDecorateSessionRowActions({
           });
         }
         return {
-          ...item,
+          ...baseItem,
+          // # ORG2 树 session 藏在 children 里；递归装饰后必须显式打开 action slot，
+          // # NavigationMenuRow 才会在 hover 时把时间切成置顶/更多按钮。
           showMoreActions: true,
           rowActions,
         };
-      }),
+      };
+
+      return items.map(decorateItem);
+    },
     [
       activeSessionMoreMenuId,
       deleteSessionCreatorDraft,
@@ -107,4 +118,6 @@ export function useDecorateSessionRowActions({
       unpinLabel,
     ]
   );
+
+  return decorateSessionItems;
 }
