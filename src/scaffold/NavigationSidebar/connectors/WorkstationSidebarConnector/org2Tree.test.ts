@@ -1,6 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 
 import { buildOrg2TreeItems } from "./index";
+import { buildSessionRowActions } from "./sessionRowActions";
 
 describe("buildOrg2TreeItems", () => {
   it("按 workspace→project→task→session 归组，未关联项进入灰色未关联分组", () => {
@@ -33,5 +36,31 @@ describe("buildOrg2TreeItems", () => {
     );
     expect(unlinked?.children?.[0]?.label).toBe("未关联任务");
     expect(unlinked?.children?.[0]?.children?.[0]?.label).toBe("S3");
+  });
+
+  it("树内 session 行复用普通 session 行动作：时间 + 置顶/标记 + 更多操作", () => {
+    const [workspace] = buildOrg2TreeItems([
+      { session_id: "s1", name: "S1", updated_at: "2026-07-06T10:00:00Z" },
+    ] as never);
+    const sessionItem = workspace.children?.[0]?.children?.[0]
+      ?.children?.[0] as NavigationMenuItem | undefined;
+    expect(sessionItem?.shortcut).toBeTruthy();
+
+    const rowActions = buildSessionRowActions({
+      activeSessionMoreMenuId: "",
+      handleMenuItemContextMenu: vi.fn(async () => undefined),
+      handleTogglePin: vi.fn(),
+      item: sessionItem!,
+      session: { session_id: "s1", pinned: false } as never,
+      setActiveSessionMoreMenuId: vi.fn() as never,
+      tCommon: (_key, defaultValue) => defaultValue ?? "More actions",
+      pinLabel: "Pin",
+      unpinLabel: "Unpin",
+    });
+
+    expect(rowActions.map((action) => action.label)).toEqual([
+      "Pin",
+      "More actions",
+    ]);
   });
 });
