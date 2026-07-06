@@ -8,6 +8,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { type ProjectOrg, projectApi } from "@src/api/http/project";
 import type { WorkspaceRecord } from "@src/api/tauri/workspace";
 import { ROUTES } from "@src/config/routes";
+import LinkSessionToWorkItemModal from "@src/engines/ChatPanel/panels/LinkSessionToWorkItemModal";
 import { useCollaborationMetadataSync } from "@src/features/TeamCollaboration/useCollaborationMetadataSync";
 import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
 import { useKeyVault } from "@src/hooks/keyVault";
@@ -184,6 +185,9 @@ export const WorkstationSidebarConnector: React.FC = () => {
     useState<WorkstationSidebarKey>("workstation");
   const [activeSessionMoreMenuId, setActiveSessionMoreMenuId] = useState("");
   const [activeFolderMoreMenuId, setActiveFolderMoreMenuId] = useState("");
+  const [linkWorkItemSessionId, setLinkWorkItemSessionId] = useState<
+    string | null
+  >(null);
   const [projectsSelectedMenuItemId, setProjectsSelectedMenuItemId] =
     useState("");
   const [selectedOrgId, setSelectedOrgId] = useState(DEFAULT_SESSION_ORG_ID);
@@ -629,6 +633,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     handleExportMarkdown,
     handleOpenInNewTab,
     handleTogglePin,
+    onLinkToWorkItem: setLinkWorkItemSessionId,
     tCommon,
   });
 
@@ -646,6 +651,10 @@ export const WorkstationSidebarConnector: React.FC = () => {
   const decoratedSessionSidebarMenuItems = useMemo(
     () => decorateSessionRowActions(sessionSidebarMenuItems),
     [decorateSessionRowActions, sessionSidebarMenuItems]
+  );
+  const decoratedOrg2TreeItems = useMemo(
+    () => decorateSessionRowActions(org2TreeItems),
+    [decorateSessionRowActions, org2TreeItems]
   );
   const sidebarMenuItems =
     activeSidebarKey === "projects"
@@ -809,7 +818,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
         onChange={handleTabChange}
         menuItems={
           activeSidebarKey === "workstation"
-            ? [...org2TreeItems, ...sidebarMenuItems]
+            ? [...decoratedOrg2TreeItems, ...sidebarMenuItems]
             : sidebarMenuItems
         }
         pinnedMenuItems={pinnedMenuItems}
@@ -860,6 +869,12 @@ export const WorkstationSidebarConnector: React.FC = () => {
         collapsibleSections
         collapsedSectionIds={resolvedCollapsedSectionIds}
         onCollapsedSectionsChange={resolvedSetCollapsedSectionIds}
+      />
+      <LinkSessionToWorkItemModal
+        open={Boolean(linkWorkItemSessionId)}
+        sessionId={linkWorkItemSessionId}
+        onClose={() => setLinkWorkItemSessionId(null)}
+        onLinked={() => void loadSidebarSessions({ forceRefresh: true })}
       />
       <RenameModal
         visible={rename.visible}
@@ -930,7 +945,8 @@ export function buildOrg2TreeItems(
       projects.get(projectKey) ?? new Map<string, NavigationMenuItem[]>();
     const workItemBucket = projectBucket.get(workItemKey) ?? [];
     workItemBucket.push({
-      id: `org2-tree-session-${session.session_id}`,
+      // 复用普通 session 列表的 id，点击、hover 行动作、右键菜单都走同一套逻辑。
+      id: session.session_id,
       key: `org2-tree-session-${session.session_id}`,
       label: session.name || session.user_input || session.session_id,
       shortcut: "session",

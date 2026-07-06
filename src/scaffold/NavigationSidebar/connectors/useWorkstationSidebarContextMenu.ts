@@ -27,6 +27,7 @@ interface UseWorkstationSidebarContextMenuParams {
   handleExportMarkdown: (sessionId: string) => Promise<void>;
   handleOpenInNewTab: (sessionId: string) => void;
   handleTogglePin: (sessionId: string) => Promise<void>;
+  onLinkToWorkItem?: (sessionId: string) => void;
   tCommon: (key: string, defaultValue?: string) => string;
 }
 
@@ -38,6 +39,7 @@ export function useWorkstationSidebarContextMenu({
   handleExportMarkdown,
   handleOpenInNewTab,
   handleTogglePin,
+  onLinkToWorkItem,
   tCommon,
 }: UseWorkstationSidebarContextMenuParams): (
   event: MouseEvent,
@@ -107,6 +109,13 @@ export function useWorkstationSidebarContextMenu({
           text: tCommon("sessions:chat.exportAsMarkdown", "Export as Markdown"),
           action: () => handleExportMarkdown(item.id),
         });
+        const linkWorkItem = await MenuItem.new({
+          text: tCommon(
+            "sessions:chat.linkToWorkItem",
+            "Link to project / Work Item"
+          ),
+          action: () => onLinkToWorkItem?.(item.id),
+        });
         const deleteItem = await MenuItem.new({
           text: tCommon("actions.delete"),
           action: () => handleDeleteSession(item.id),
@@ -119,6 +128,7 @@ export function useWorkstationSidebarContextMenu({
           renameItem,
           exportItem,
           pinItem,
+          linkWorkItem,
         ];
         const menu = await TauriMenu.new({
           items: [...primaryItems, menuSeparator, deleteItem],
@@ -137,6 +147,7 @@ export function useWorkstationSidebarContextMenu({
       handleExportMarkdown,
       handleOpenInNewTab,
       handleTogglePin,
+      onLinkToWorkItem,
     ]
   );
 }
