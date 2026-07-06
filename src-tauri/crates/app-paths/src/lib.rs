@@ -866,6 +866,35 @@ pub fn opencode_cli_profile_dir(account_id: &str) -> PathBuf {
     opencode_cli_profile_root().join(sanitize_path_segment(account_id))
 }
 
+/// CLI config manager profile root: `~/.orgii/cli-config-profiles/`.
+///
+/// Holds ORGII-managed backups and generated config profiles for external CLI
+/// agents whose real user config may be switched between Default and
+/// ORGII-managed modes.
+pub fn cli_config_profiles_root() -> PathBuf {
+    orgii_root().join("cli-config-profiles")
+}
+
+/// CLI config manager profile dir for one agent.
+pub fn cli_config_profile_agent_dir(agent_name: &str) -> PathBuf {
+    cli_config_profiles_root().join(sanitize_path_segment(agent_name))
+}
+
+/// Default/original CLI config backup dir for one agent.
+pub fn cli_config_profile_default_dir(agent_name: &str) -> PathBuf {
+    cli_config_profile_agent_dir(agent_name).join("default")
+}
+
+/// ORGII-generated CLI config profile dir for one agent.
+pub fn cli_config_profile_orgii_dir(agent_name: &str) -> PathBuf {
+    cli_config_profile_agent_dir(agent_name).join("orgii")
+}
+
+/// CLI config manager manifest path for one agent.
+pub fn cli_config_profile_manifest(agent_name: &str) -> PathBuf {
+    cli_config_profile_agent_dir(agent_name).join("manifest.json")
+}
+
 /// Oversized tool result spill root: `~/.orgii/tool-results/`.
 pub fn tool_results_root() -> PathBuf {
     orgii_root().join("tool-results")

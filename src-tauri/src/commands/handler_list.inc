@@ -792,6 +792,11 @@ agent_cli::codex::commands::codex_config_write_partial,
 agent_cli::codex::commands::codex_config_get_path,
 agent_cli::codex::commands::codex_config_read_raw,
 agent_cli::codex::commands::codex_config_write_raw,
+// CLI config manager (Default <-> ORGII Managed)
+agent_cli::managed_config::cli_config_get_status,
+agent_cli::managed_config::cli_config_enable_orgii_managed,
+agent_cli::managed_config::cli_config_set_selection,
+agent_cli::managed_config::cli_config_restore_default,
 // Claude Code config (~/.claude/settings.json)
 agent_cli::claude_code::commands::claude_code_config_read,
 agent_cli::claude_code::commands::claude_code_config_write_partial,

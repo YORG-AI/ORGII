@@ -37,6 +37,7 @@ import { openExternalLink } from "@src/util/platform/ipcRenderer";
 import type { AvailableCliAgent } from "../types";
 import AgentDetailHeader from "./AgentDetailHeader";
 import ClaudeCodeConfigSection from "./ClaudeCodeConfigSection";
+import CliManagedConfigSection from "./CliManagedConfigSection";
 import CliRawConfigFileEditor from "./CliRawConfigFileEditor";
 import CodexConfigSection from "./CodexConfigSection";
 import CursorCliConfigSection from "./CursorCliConfigSection";
@@ -427,6 +428,14 @@ const CliAgentDetailView: React.FC<CliAgentDetailViewProps> = ({
                     />
                   </SectionRow>
                 </SectionContainer>
+
+                {agent.name === CLI_AGENT.CODEX && (
+                  <CliManagedConfigSection
+                    agent={agent}
+                    credentials={credentials}
+                    onOpenCredentials={openCredentialInIntegrations}
+                  />
+                )}
 
                 <SectionContainer title={t("agentOrgs.cliAgentDetail.keys")}>
                   {agent.hasSubscriptionPlan ? (

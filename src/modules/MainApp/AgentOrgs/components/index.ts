@@ -4,6 +4,7 @@ export { BuiltInAgentDetailView } from "./BuiltInAgentDetailViews";
 export { default as ClaudeCodeConfigSection } from "./ClaudeCodeConfigSection";
 export { default as ClaudeCodeJsonEditor } from "./ClaudeCodeJsonEditor";
 export { default as CliAgentDetailView } from "./CliAgentDetailView";
+export { default as CliManagedConfigSection } from "./CliManagedConfigSection";
 export { default as CodexConfigSection } from "./CodexConfigSection";
 export { default as CodexTomlEditor } from "./CodexTomlEditor";
 export { default as CommandCard } from "./CommandCard";

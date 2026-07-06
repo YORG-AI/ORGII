@@ -18,3 +18,4 @@ pub mod claude_code;
 pub mod codex;
 pub mod cursor;
 pub mod generic_config;
+pub mod managed_config;

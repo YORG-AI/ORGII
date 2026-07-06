@@ -114,6 +114,66 @@ export const CliLaunchProfileViewSchema = z.object({
 export type CliPermissionMode = z.infer<typeof CliPermissionModeSchema>;
 export type CliLaunchProfileView = z.infer<typeof CliLaunchProfileViewSchema>;
 
+export const CliConfigModeSchema = z.enum(["default", "orgii_managed"]);
+
+export const CliConfigManagedStatusInput = z.object({
+  agentName: z.string(),
+});
+
+export const CliConfigEnableOrgiiManagedInput = z.object({
+  agentName: z.string(),
+  keyId: z.string().nullable().optional(),
+  provider: z.string().nullable().optional(),
+  model: z.string().nullable().optional(),
+  proxyUrl: z.string().nullable().optional(),
+  force: z.boolean(),
+});
+
+export const CliConfigSetSelectionInput = z.object({
+  agentName: z.string(),
+  keyId: z.string().nullable().optional(),
+  provider: z.string().nullable().optional(),
+  model: z.string().nullable().optional(),
+});
+
+export const CliConfigRestoreDefaultInput = z.object({
+  agentName: z.string(),
+  force: z.boolean(),
+});
+
+export const CliConfigTargetFileStatusSchema = z.object({
+  id: z.string(),
+  targetPath: z.string(),
+  defaultBackupPath: z.string(),
+  managedProfilePath: z.string(),
+  targetExists: z.boolean(),
+  hasDefaultBackup: z.boolean(),
+  defaultWasMissing: z.boolean(),
+  originalHash: z.string().nullable().optional(),
+  lastAppliedHash: z.string().nullable().optional(),
+  currentHash: z.string().nullable().optional(),
+  conflict: z.boolean(),
+});
+
+export const CliConfigManagedStatusSchema = z.object({
+  agentName: z.string(),
+  supported: z.boolean(),
+  mode: CliConfigModeSchema,
+  hasDefaultBackup: z.boolean(),
+  conflict: z.boolean(),
+  selectedKeyId: z.string().nullable().optional(),
+  selectedProvider: z.string().nullable().optional(),
+  selectedModel: z.string().nullable().optional(),
+  proxyUrl: z.string().nullable().optional(),
+  targetFiles: z.array(CliConfigTargetFileStatusSchema),
+  message: z.string().nullable().optional(),
+});
+
+export type CliConfigMode = z.infer<typeof CliConfigModeSchema>;
+export type CliConfigManagedStatus = z.infer<
+  typeof CliConfigManagedStatusSchema
+>;
+
 export const SkillsListInput = z.object({
   workspacePath: z.string().optional(),
   agentId: z.string().optional(),
