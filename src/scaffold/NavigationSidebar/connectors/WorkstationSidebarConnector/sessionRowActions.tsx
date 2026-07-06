@@ -22,6 +22,61 @@ type TCommon = (key: string, defaultValue?: string) => string;
 
 const SUBAGENT_SESSION_ID_SEGMENT = ":subagent:";
 
+interface BuildSessionRowActionsParams {
+  activeSessionMoreMenuId: string;
+  handleMenuItemContextMenu: (
+    event: React.MouseEvent<HTMLButtonElement>,
+    key: string,
+    item: NavigationMenuItem
+  ) => Promise<void>;
+  handleTogglePin: (sessionId: string) => Promise<void> | void;
+  item: NavigationMenuItem;
+  session: Session;
+  setActiveSessionMoreMenuId: React.Dispatch<React.SetStateAction<string>>;
+  tCommon: TCommon;
+  pinLabel: string;
+  unpinLabel: string;
+}
+
+export function buildSessionRowActions({
+  activeSessionMoreMenuId,
+  handleMenuItemContextMenu,
+  handleTogglePin,
+  item,
+  session,
+  setActiveSessionMoreMenuId,
+  tCommon,
+  pinLabel,
+  unpinLabel,
+}: BuildSessionRowActionsParams): NavigationMenuRowAction[] {
+  const rowActions: NavigationMenuRowAction[] = [];
+  if (!isChatPanelTuiSessionId(item.id)) {
+    rowActions.push({
+      icon: session.pinned ? PinOff : Pin,
+      label: session.pinned ? unpinLabel : pinLabel,
+      onClick: () => {
+        void handleTogglePin(item.id);
+      },
+    });
+  }
+  if (!isCursorIdeSession(item.id)) {
+    rowActions.push({
+      icon: MoreHorizontal,
+      label: tCommon("actions.more", "More actions"),
+      active: activeSessionMoreMenuId === item.id,
+      onClick: (event) => {
+        setActiveSessionMoreMenuId(item.id);
+        void handleMenuItemContextMenu(event, item.key, item).finally(() => {
+          setActiveSessionMoreMenuId((currentId) =>
+            currentId === item.id ? "" : currentId
+          );
+        });
+      },
+    });
+  }
+  return rowActions;
+}
+
 interface UseSessionRowActionsParams {
   activeSessionMoreMenuId: string;
   deleteSessionCreatorDraft: (draftId: string) => void;
@@ -127,6 +182,7 @@ export function useDecorateSessionRowActions({
             },
           });
         }
+
         return {
           ...baseItem,
           // # ORG2 树 session 藏在 children 里；递归装饰后必须显式打开 action slot，

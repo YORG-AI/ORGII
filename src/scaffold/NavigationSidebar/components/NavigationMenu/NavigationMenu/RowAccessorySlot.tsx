@@ -61,7 +61,7 @@ export function NavigationMenuRowAccessorySlot({
       )}
       {(hoverContent || actionContent) && (
         <span
-          className={`pointer-events-none col-start-1 row-start-1 inline-flex max-w-0 items-center justify-end gap-1.5 overflow-hidden whitespace-nowrap opacity-0 transition-[max-width,opacity] duration-150 ${revealedHoverClasses}`}
+          className={`pointer-events-none col-start-1 row-start-1 inline-flex min-w-max max-w-0 items-center justify-end gap-1.5 overflow-hidden whitespace-nowrap opacity-0 transition-[max-width,opacity] duration-150 ${revealedHoverClasses}`}
         >
           {hoverContent && (
             <span className="inline-flex max-w-[4rem] items-center justify-end overflow-hidden">
