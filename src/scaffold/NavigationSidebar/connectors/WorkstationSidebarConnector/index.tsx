@@ -874,30 +874,70 @@ export const WorkstationSidebarConnector: React.FC = () => {
   );
 };
 
-function buildOrg2TreeItems(
+export type Org2TreeLevel =
+  | "workspace"
+  | "project"
+  | "task"
+  | "session"
+  | "unlinked";
+
+const ORG2_TREE_LEVEL_BADGES: Record<
+  Org2TreeLevel,
+  { label: string; className: string }
+> = {
+  workspace: {
+    label: "W",
+    className: "border-violet-400/60 bg-violet-500/20 text-violet-200",
+  },
+  project: {
+    label: "P",
+    className: "border-sky-400/60 bg-sky-500/20 text-sky-200",
+  },
+  task: {
+    label: "T",
+    className: "border-amber-400/60 bg-amber-500/20 text-amber-100",
+  },
+  session: {
+    label: "S",
+    className: "border-emerald-400/60 bg-emerald-500/20 text-emerald-100",
+  },
+  unlinked: {
+    label: "–",
+    className: "border-zinc-500/70 bg-zinc-500/20 text-zinc-300",
+  },
+};
+
+function createOrg2TreeBadge(level: Org2TreeLevel): React.ReactNode {
+  const badge = ORG2_TREE_LEVEL_BADGES[level];
+  return (
+    <span
+      className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border text-[9px] font-semibold leading-none ${badge.className}`}
+      title={`层级：${badge.label}`}
+    >
+      {badge.label}
+    </span>
+  );
+}
+
+export function buildOrg2TreeItems(
   sessions: readonly import("@src/store/session").Session[]
 ): NavigationMenuItem[] {
-  const projects = new Map<string, NavigationMenuItem[]>();
-  const loose: NavigationMenuItem[] = [];
+  const projects = new Map<string, Map<string, NavigationMenuItem[]>>();
   for (const session of sessions) {
-    const sessionItem: NavigationMenuItem = {
+    const projectKey = session.projectSlug || session.projectId || "未关联";
+    const workItemKey = session.workItemId || "未关联任务";
+    const projectBucket =
+      projects.get(projectKey) ?? new Map<string, NavigationMenuItem[]>();
+    const workItemBucket = projectBucket.get(workItemKey) ?? [];
+    workItemBucket.push({
       id: `org2-tree-session-${session.session_id}`,
       key: `org2-tree-session-${session.session_id}`,
       label: session.name || session.user_input || session.session_id,
       shortcut: "session",
-    };
-    const projectKey = session.projectSlug || session.projectId || "未关联";
-    const workItemKey = session.workItemId || "未关联任务";
-    const bucket = projects.get(projectKey) ?? [];
-    bucket.push({
-      id: `org2-tree-wi-${projectKey}-${workItemKey}`,
-      key: `org2-tree-wi-${projectKey}-${workItemKey}`,
-      label: workItemKey,
-      shortcut: "task",
-      children: [sessionItem],
+      iconElement: createOrg2TreeBadge("session"),
     });
-    projects.set(projectKey, bucket);
-    if (projectKey === "未关联") loose.push(sessionItem);
+    projectBucket.set(workItemKey, workItemBucket);
+    projects.set(projectKey, projectBucket);
   }
   return [
     {
@@ -905,15 +945,36 @@ function buildOrg2TreeItems(
       key: "org2-tree-workspace",
       label: "Workspace 层级树",
       shortcut: "workspace",
-      // # ORG2 四层树：workspace → project → task/work-item → session，数据直接来自现有 session 关联字段。
+      iconElement: createOrg2TreeBadge("workspace"),
+      // # ORG2 四层树：workspace → project → task/work-item → session，未关联数据保留灰色层级入口。
       children: Array.from(projects.entries()).map(
-        ([projectName, workItems]) => ({
-          id: `org2-tree-project-${projectName}`,
-          key: `org2-tree-project-${projectName}`,
-          label: projectName,
-          shortcut: projectName === "未关联" ? "未关联" : "project",
-          children: projectName === "未关联" ? loose : workItems,
-        })
+        ([projectName, workItems]) => {
+          const isUnlinkedProject = projectName === "未关联";
+          return {
+            id: `org2-tree-project-${projectName}`,
+            key: `org2-tree-project-${projectName}`,
+            label: projectName,
+            shortcut: isUnlinkedProject ? "未关联" : "project",
+            iconElement: createOrg2TreeBadge(
+              isUnlinkedProject ? "unlinked" : "project"
+            ),
+            children: Array.from(workItems.entries()).map(
+              ([workItemName, sessionItems]) => {
+                const isUnlinkedTask = workItemName === "未关联任务";
+                return {
+                  id: `org2-tree-wi-${projectName}-${workItemName}`,
+                  key: `org2-tree-wi-${projectName}-${workItemName}`,
+                  label: workItemName,
+                  shortcut: "task",
+                  iconElement: createOrg2TreeBadge(
+                    isUnlinkedTask ? "unlinked" : "task"
+                  ),
+                  children: sessionItems,
+                };
+              }
+            ),
+          };
+        }
       ),
     },
   ];
