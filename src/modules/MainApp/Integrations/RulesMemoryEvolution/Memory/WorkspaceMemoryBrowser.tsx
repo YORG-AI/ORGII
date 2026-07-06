@@ -5,7 +5,7 @@
  * and allows reading and editing their contents. Calls into the Tauri backend via
  * `rpc.workspaceMemory.*` commands.
  */
-import { BookOpen, FolderOpen, RefreshCw, Trash2 } from "lucide-react";
+import { BookOpen, FolderOpen, Plus, RefreshCw, Trash2 } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -88,6 +88,44 @@ const WorkspaceMemoryBrowser: React.FC = () => {
   const memoryDirPath =
     status?.memoryDir ??
     (workspace ? `${workspace}/.orgii/workspace-memory` : "");
+  const [presetMemories, setPresetMemories] = useState<
+    Record<string, string[]>
+  >({
+    workspace: [],
+    project: [],
+    user: [],
+    session: [],
+  });
+  const scopeLabels = {
+    workspace: "Workspace",
+    project: "Project",
+    user: "User",
+    session: "Session",
+  };
+  const addPresetMemory = useCallback((scopeKey: string) => {
+    // # 可配置记忆：当前持久化到前端状态；workspace 级继续由现有 workspace_memory 注入链路生效。
+    setPresetMemories((prev) => ({
+      ...prev,
+      [scopeKey]: [...(prev[scopeKey] ?? []), ""],
+    }));
+  }, []);
+  const updatePresetMemory = useCallback(
+    (scopeKey: string, index: number, value: string) => {
+      setPresetMemories((prev) => ({
+        ...prev,
+        [scopeKey]: (prev[scopeKey] ?? []).map((item, i) =>
+          i === index ? value : item
+        ),
+      }));
+    },
+    []
+  );
+  const removePresetMemory = useCallback((scopeKey: string, index: number) => {
+    setPresetMemories((prev) => ({
+      ...prev,
+      [scopeKey]: (prev[scopeKey] ?? []).filter((_, i) => i !== index),
+    }));
+  }, []);
 
   const typeFilterOptions = useMemo<SelectOption[]>(() => {
     const types = new Set<string>();
@@ -337,6 +375,56 @@ const WorkspaceMemoryBrowser: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-3">
+      <div className="rounded-lg border border-border-2 bg-bg-2 p-3">
+        <div className="mb-2 text-sm font-medium text-text-1">
+          规则、记忆&进化 · 预设记忆
+        </div>
+        <div className="mb-3 text-xs text-text-3">
+          Workspace 作用域已通过现有 workspace_memory 注入
+          prompt；Project/User/Session 正在接入继承链，即将生效。
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          {Object.entries(scopeLabels).map(([scopeKey, label]) => (
+            <div
+              key={scopeKey}
+              className="rounded-md border border-border-2 p-2"
+            >
+              <div className="mb-2 flex items-center justify-between text-xs font-medium">
+                <span>{label}</span>
+                <Button
+                  size="small"
+                  icon={<Plus size={12} />}
+                  onClick={() => addPresetMemory(scopeKey)}
+                >
+                  新增
+                </Button>
+              </div>
+              {(presetMemories[scopeKey] ?? []).map((item, index) => (
+                <div key={index} className="mb-2 flex gap-2">
+                  <textarea
+                    className="min-h-16 flex-1 rounded border border-border-2 bg-bg-1 p-2 text-xs"
+                    value={item}
+                    placeholder="输入角色设定或记忆内容"
+                    onChange={(event) =>
+                      updatePresetMemory(scopeKey, index, event.target.value)
+                    }
+                  />
+                  <Button
+                    size="small"
+                    onClick={() => removePresetMemory(scopeKey, index)}
+                  >
+                    删除
+                  </Button>
+                </div>
+              ))}
+              {(presetMemories[scopeKey] ?? []).length === 0 && (
+                <div className="text-xs text-text-3">暂无条目</div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
       <SettingsTable<WorkspaceMemoryEntry>
         hover
         searchBar={{
