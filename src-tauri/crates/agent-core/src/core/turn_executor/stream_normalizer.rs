@@ -43,7 +43,10 @@ impl TurnStreamNormalizer {
     }
 
     pub(crate) fn ingest_delta(&mut self, delta: StreamDelta) -> Vec<NormalizedStreamEvent> {
-        let mut events = Vec::new();
+        // Most deltas carry exactly one field (content OR reasoning OR tool_call_delta).
+        // Pre-allocating capacity=1 avoids the reallocation on the first push in the
+        // common case and keeps the fast path to a single small heap alloc.
+        let mut events = Vec::with_capacity(1);
         if let Some(text) = delta.content {
             events.extend(self.ingest_event(ProviderStreamEvent::MessageDelta { text }));
         }
@@ -68,7 +71,9 @@ impl TurnStreamNormalizer {
         &mut self,
         event: ProviderStreamEvent,
     ) -> Vec<NormalizedStreamEvent> {
-        let mut events = Vec::new();
+        // Capacity=2 covers the flush+event pair emitted when a tool delta
+        // follows message/thinking content; single-event paths never reallocate.
+        let mut events = Vec::with_capacity(2);
         match event {
             ProviderStreamEvent::MessageDelta { text } => {
                 if !text.is_empty() {

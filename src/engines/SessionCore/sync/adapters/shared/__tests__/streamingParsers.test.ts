@@ -88,6 +88,45 @@ describe("parsePartialToolArgs", () => {
       streamContent: "*** Begin Patch\n*** Add File: src/a.ts\n+export",
     });
   });
+
+  it("returns undefined for all fields when args string is empty (fast path)", () => {
+    const parsed = parsePartialToolArgs("");
+    expect(parsed.filePath).toBeUndefined();
+    expect(parsed.streamTitle).toBeUndefined();
+    expect(parsed.action).toBeUndefined();
+    expect(parsed.command).toBeUndefined();
+    expect(parsed.query).toBeUndefined();
+    expect(parsed.pattern).toBeUndefined();
+    expect(parsed.url).toBeUndefined();
+    expect(parsed.description).toBeUndefined();
+    expect(parsed.targetDirectory).toBeUndefined();
+    expect(parsed.targetMode).toBeUndefined();
+    expect(parsed.reason).toBeUndefined();
+    expect(parsed.streamContent).toBeUndefined();
+  });
+
+  it("skips field regex when field name is absent (fast path per field)", () => {
+    const parsed = parsePartialToolArgs('{"command":"ls"}');
+    expect(parsed.command).toBe("ls");
+    expect(parsed.filePath).toBeUndefined();
+    expect(parsed.action).toBeUndefined();
+    expect(parsed.query).toBeUndefined();
+    expect(parsed.streamContent).toBeUndefined();
+  });
+
+  it("extracts field when field name is present but value is partial", () => {
+    const parsed = parsePartialToolArgs('{"file_path":"src/fo');
+    expect(parsed.filePath).toBe("src/fo");
+  });
+
+  it("skips content-key regex loop when no content key is present in args", () => {
+    const parsed = parsePartialToolArgs(
+      '{"file_path":"src/app.ts","action":"read"'
+    );
+    expect(parsed.filePath).toBe("src/app.ts");
+    expect(parsed.action).toBe("read");
+    expect(parsed.streamContent).toBeUndefined();
+  });
 });
 
 describe("extractThinkContent", () => {

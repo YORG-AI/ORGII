@@ -27,6 +27,7 @@ export function shellProcessStatusFromArgs(args: unknown): string | undefined {
     return (args as { shellProcessStatus?: string }).shellProcessStatus;
   }
   if (typeof args !== "string") return undefined;
+  if (!args.includes("shellProcessStatus")) return undefined;
   try {
     const parsed = JSON.parse(args) as { shellProcessStatus?: string };
     return parsed.shellProcessStatus;
@@ -177,10 +178,11 @@ export function isTurnBlockingRuntimeEvent(event: SessionEvent): boolean {
 export function isComposerStopBlockingEvent(event: SessionEvent): boolean {
   if (!isTurnBlockingRuntimeEvent(event)) return false;
 
-  const shellProcessStatus = shellProcessStatusFromArgs(event.args);
-  if (shellProcessStatus) {
-    return TURN_BLOCKING_SHELL_PROCESS_STATUSES.has(shellProcessStatus);
-  }
+  // isTurnBlockingRuntimeEvent already validated the shell process status; if
+  // shellProcessStatus is present the event is a turn-blocking shell — it is
+  // always stop-blocking. Only fall through to the tool_call check for events
+  // whose blocking status comes from displayStatus / result.status instead.
+  if (shellProcessStatusFromArgs(event.args)) return true;
 
   return (
     event.actionType === "tool_call" || event.displayVariant === "tool_call"

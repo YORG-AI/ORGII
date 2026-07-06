@@ -191,12 +191,22 @@ export const chatEventsAtom = atom((get) => {
       liveContent
     );
 
-    const argsChanged = !allArgsStable(next, _prevChatEvents);
-    const planContentChanged = !allPlanContentStable(next, _prevChatEvents);
+    // Short-circuit the O(n) args/plan scans when the event count changed —
+    // a length mismatch already forces a new reference regardless of args.
+    const sameLength = next.length === _prevChatEvents.length;
+    const argsChanged = sameLength && !allArgsStable(next, _prevChatEvents);
+    const planContentChanged =
+      sameLength && !allPlanContentStable(next, _prevChatEvents);
+
+    const tailUnchanged =
+      next[next.length - 1]?.id ===
+      _prevChatEvents[_prevChatEvents.length - 1]?.id;
 
     if (
-      next.length === _prevChatEvents.length &&
-      next.every((evt, i) => evt.id === _prevChatEvents[i].id) &&
+      sameLength &&
+      (tailUnchanged
+        ? next.every((evt, i) => evt.id === _prevChatEvents[i].id)
+        : false) &&
       (streaming
         ? lastEventStableIgnoreDisplayText(next, _prevChatEvents)
         : lastEventStable(next, _prevChatEvents)) &&

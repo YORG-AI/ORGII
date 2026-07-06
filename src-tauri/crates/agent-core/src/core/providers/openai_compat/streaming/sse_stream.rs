@@ -318,11 +318,22 @@ pub(super) async fn run_chat_streaming(
             }
         };
 
+        // Avoid creating a fresh String for every chunk append.
+        // `String::from_utf8_lossy` returns a `Cow<str>`; `push_str` on it
+        // only allocates when the bytes contain invalid UTF-8 sequences.
         buffer.push_str(&String::from_utf8_lossy(&chunk));
 
-        while let Some(line_end) = buffer.find('\n') {
-            let line = buffer[..line_end].trim().to_string();
-            buffer = buffer[line_end + 1..].to_string();
+        // Process all complete `\n`-terminated lines without re-allocating
+        // the buffer each iteration. We consume from the front via a byte
+        // offset (`consumed`) and drain once at the end of the chunk loop,
+        // replacing the previous pattern of two `.to_string()` calls per line.
+        let mut consumed = 0usize;
+        while let Some(rel_end) = buffer[consumed..].find('\n') {
+            let line_end = consumed + rel_end;
+            let raw_line = &buffer[consumed..line_end];
+            consumed = line_end + 1;
+
+            let line = raw_line.trim();
 
             if line.is_empty() || line.starts_with(':') {
                 continue;
@@ -522,6 +533,10 @@ pub(super) async fn run_chat_streaming(
                 final_usage.insert("completion_tokens".to_string(), usage.completion_tokens);
                 final_usage.insert("total_tokens".to_string(), usage.total_tokens);
             }
+        }
+        // Drop the consumed prefix in one allocation rather than one per line.
+        if consumed > 0 {
+            buffer.drain(..consumed);
         }
         if stream_done {
             break;

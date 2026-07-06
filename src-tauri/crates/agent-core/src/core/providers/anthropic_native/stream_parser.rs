@@ -467,8 +467,28 @@ pub(super) fn finalize_blocks(
                     );
                     continue;
                 }
-                let arguments: Value = serde_json::from_str(&args)
-                    .unwrap_or_else(|_| Value::Object(serde_json::Map::new()));
+                // Surface JSON parse failures as a stream error instead of
+                // silently falling back to `{}` — an empty-args tool call
+                // (e.g. `write_file` with no `path`) would execute and fail
+                // in a confusing way. Mark the state and break so the turn
+                // executor's retry layer can handle it.
+                let arguments: Value = match serde_json::from_str(&args) {
+                    Ok(v) => v,
+                    Err(parse_err) => {
+                        warn!(
+                            "Anthropic tool '{}' (id={}) accumulated invalid JSON args \
+                             (len={}, err={}); marking as stream error for retry",
+                            name,
+                            id,
+                            args.len(),
+                            parse_err
+                        );
+                        state.mark_stream_error(StreamErrorKind::ProviderError);
+                        // Use empty object so the block list stays consistent
+                        // but the stream error will prevent turn continuation.
+                        Value::Object(serde_json::Map::new())
+                    }
+                };
                 let tool_call = ToolCallRequest {
                     id,
                     name,

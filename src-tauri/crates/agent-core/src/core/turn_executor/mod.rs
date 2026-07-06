@@ -390,8 +390,12 @@ pub async fn execute_turn(
             session_id
         );
 
-        let stream_normalizer = Arc::new(std::sync::Mutex::new(TurnStreamNormalizer::new()));
-        let stream_normalizer_for_cb = stream_normalizer.clone();
+        // Single-owner Mutex: the closure is created and consumed within this
+        // iteration — no other task clones or holds the normalizer. Removing
+        // the Arc eliminates refcount CAS + barrier on every delta without
+        // changing semantics (the closure still satisfies Send + Sync because
+        // Mutex<TurnStreamNormalizer> is Sync and TurnStreamNormalizer is Send).
+        let stream_normalizer_for_cb = std::sync::Mutex::new(TurnStreamNormalizer::new());
 
         provider.set_session_context(session_id);
 
