@@ -172,6 +172,17 @@ pub(super) struct Usage {
     pub completion_tokens: i64,
     #[serde(default)]
     pub total_tokens: i64,
+    /// OpenAI prompt caching: `prompt_tokens_details.cached_tokens` reports
+    /// how many prompt tokens were served from the provider prompt cache.
+    #[serde(default)]
+    pub prompt_tokens_details: Option<PromptTokensDetails>,
+}
+
+/// `usage.prompt_tokens_details` from OpenAI-compatible responses.
+#[derive(Debug, Deserialize)]
+pub(super) struct PromptTokensDetails {
+    #[serde(default)]
+    pub cached_tokens: i64,
 }
 
 /// Error response from the API.
