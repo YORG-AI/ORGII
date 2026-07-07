@@ -173,6 +173,7 @@ async fn handle_model_command(
     .await
     {
         Ok(Ok(true)) => {
+            // Model switch must drop the old runtime; next turn rebuilds from persistence.
             state.invalidate_session(&binding.target_session_id).await;
             let note = format!("Model switched to {}", model);
             let sid_for_note = binding.target_session_id.clone();
@@ -183,7 +184,10 @@ async fn handle_model_command(
             .await;
             note
         }
-        Ok(Ok(false)) => format!("Model switch failed: session {} does not exist", binding.target_session_id),
+        Ok(Ok(false)) => format!(
+            "Model switch failed: session {} does not exist",
+            binding.target_session_id
+        ),
         Ok(Err(err)) => format!("Model switch failed: {}", err),
         Err(err) => format!("Model switch failed: {}", err),
     }
@@ -197,31 +201,17 @@ fn resolve_model_target(
     let mut candidates: Vec<String> = Vec::new();
     if let Some(account_id) = account_id {
         if let Some(key) = key_vault::key_store::KEY_SERVICE.get_key_by_id(account_id) {
+            // Prefer real callable ids from the active KeyVault account.
             candidates.extend(key.enabled_models.iter().cloned());
             candidates.extend(key.available_models.iter().cloned());
             candidates.extend(key.model_aliases.iter().map(|alias| alias.alias.clone()));
         }
     }
-    candidates.extend(
-        [
-            "openai/gpt-5.5:openai",
-            "gpt-5.5",
-            "claude-sonnet-4-6",
-            "claude-opus-4-6",
-            "claude-fable-5",
-        ]
-        .into_iter()
-        .map(str::to_string),
-    );
+    candidates.extend(DEFAULT_MODEL_TARGETS.iter().copied().map(str::to_string));
     candidates.sort();
     candidates.dedup();
-    let aliases: &[(&str, &[&str])] = &[
-        ("openai/gpt-5.5:openai", &["gpt-5.5", "gpt5.5", "gpt55"]),
-        ("claude-fable-5", &["fable"]),
-        ("claude-sonnet-4-6", &["sonnet"]),
-        ("claude-opus-4-6", &["opus"]),
-    ];
-    for (target, names) in aliases {
+
+    for (target, names) in MODEL_INPUT_ALIASES {
         if names.iter().any(|name| normalize_model_key(name) == needle) {
             return Some((
                 best_candidate_for_alias(&candidates, target).unwrap_or_else(|| (*target).to_string()),
@@ -237,18 +227,57 @@ fn resolve_model_target(
         .map(|model| (model, account_id.map(str::to_string)))
 }
 
+const DEFAULT_MODEL_TARGETS: &[&str] = &[
+    "openai/gpt-5.5:openai",
+    "anthropic/claude-fable-5:anthropic",
+    "anthropic/claude-sonnet-4-6:anthropic",
+    "anthropic/claude-opus-4-6:anthropic",
+];
+
+const MODEL_INPUT_ALIASES: &[(&str, &[&str])] = &[
+    ("openai/gpt-5.5:openai", &["gpt-5.5", "gpt5.5", "gpt55"]),
+    ("anthropic/claude-fable-5:anthropic", &["fable"]),
+    ("anthropic/claude-sonnet-4-6:anthropic", &["sonnet"]),
+    ("anthropic/claude-opus-4-6:anthropic", &["opus"]),
+];
+
 fn best_candidate_for_alias(candidates: &[String], canonical_target: &str) -> Option<String> {
     let target_norm = normalize_model_key(canonical_target);
-    candidates
+    let target_base_norm = normalize_model_key(strip_model_route(canonical_target));
+    let mut matches: Vec<&String> = candidates
         .iter()
-        .find(|m| normalize_model_key(m) == target_norm)
-        .or_else(|| {
-            candidates.iter().find(|m| {
-                let norm = normalize_model_key(m);
-                norm.contains(&target_norm) || target_norm.contains(&norm)
-            })
+        .filter(|m| {
+            let norm = normalize_model_key(m);
+            norm == target_norm
+                || norm == target_base_norm
+                || norm.ends_with(&target_base_norm)
+                || norm.contains(&target_base_norm)
         })
-        .cloned()
+        .collect();
+    // Prefer full provider/route ids; avoid writing bare aliases like `claude-fable-5`.
+    matches.sort_by_key(|m| candidate_rank(m, canonical_target));
+    matches.first().map(|m| (*m).clone())
+}
+
+fn candidate_rank(model: &str, canonical_target: &str) -> (u8, usize) {
+    let norm = normalize_model_key(model);
+    let canonical_norm = normalize_model_key(canonical_target);
+    let has_route = model.contains('/') || model.contains(':');
+    (
+        if norm == canonical_norm {
+            0
+        } else if has_route {
+            1
+        } else {
+            2
+        },
+        model.len(),
+    )
+}
+
+fn strip_model_route(model: &str) -> &str {
+    let without_route = model.split(':').next().unwrap_or(model);
+    without_route.rsplit('/').next().unwrap_or(without_route)
 }
 
 fn normalize_model_key(value: &str) -> String {
@@ -257,6 +286,8 @@ fn normalize_model_key(value: &str) -> String {
         .chars()
         .filter(|c| c.is_ascii_alphanumeric())
         .collect()
+}
+
 async fn build_session_current(state: &AgentAppState, session_key: &SessionKey) -> String {
     match state.gateway_bindings.get(session_key).await {
         Some(binding) => {

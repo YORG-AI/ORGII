@@ -66,22 +66,29 @@ pub async fn append_status_bar_for_channel(
         return content;
     }
 
-    let model = session
-        .runtime
-        .read()
-        .await
+    let runtime = session.runtime.read().await;
+    let model = runtime
         .as_ref()
         .map(|rt| rt.model.clone())
         .unwrap_or_default();
-
-    let context_total = session
-        .runtime
-        .read()
-        .await
+    let account_id = runtime.as_ref().and_then(|rt| rt.account_id.clone());
+    let explicit_context_window = runtime.as_ref().and_then(|rt| {
+        rt.resolved
+            .context_window_configured
+            .then_some(rt.resolved.context_window)
+    });
+    let context_total = runtime
         .as_ref()
-        .map(|rt| rt.resolved.context_window as i64)
+        .map(|_| {
+            crate::providers::model_capabilities::resolve_effective_context_window(
+                &model,
+                account_id.as_deref(),
+                explicit_context_window,
+            ) as i64
+        })
         .unwrap_or(200_000)
         .max(1);
+    drop(runtime);
 
     // Per-session cumulative usage from `session_token_usage`: msg# is the
     // round count, and the equivalent-token figure sums total_tokens across
@@ -332,5 +339,24 @@ mod tests {
         assert!(bar.contains("📌 项目:org2"));
         assert!(bar.contains("msg#7"));
         assert!(bar.contains("🤖 sonnet-4.6"));
+    }
+
+    #[test]
+    fn status_bar_can_render_large_model_context() {
+        let context_total = crate::providers::model_capabilities::resolve_effective_context_window(
+            "anthropic/claude-fable-5:anthropic",
+            None,
+            None,
+        ) as i64;
+        let bar = build_status_bar(
+            1_000,
+            128_000,
+            context_total,
+            1,
+            "5h:1.0% / 7d:2.0%",
+            "anthropic/claude-fable-5:anthropic",
+            None,
+        );
+        assert!(bar.contains("Context: 128k/1000k (13%)"), "{bar}");
     }
 }
