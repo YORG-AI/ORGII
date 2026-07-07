@@ -192,14 +192,7 @@ export function useWorkstationSidebarContextMenu({
             })
           );
         }
-        primaryItems.push(pinItem);
-        const primaryItems = [
-          openInNewTabItem,
-          renameItem,
-          exportItem,
-          pinItem,
-          linkWorkItem,
-        ];
+        primaryItems.push(pinItem, linkWorkItem);
         const menu = await TauriMenu.new({
           items: [...primaryItems, menuSeparator, deleteItem],
         });
