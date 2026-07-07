@@ -707,7 +707,7 @@ fn persist_runtime_edit_artifacts(
     let session = runtime_artifact_session_record(session_id)?;
     store.upsert_session(&session)?;
 
-    let mut chunks_by_file: HashMap<String, Vec<SessionDiffChunkRecord>> = HashMap::new();
+    let mut touched_files: HashSet<String> = HashSet::new();
     for (sequence_index, event) in events {
         let Some(ExtractedData::Edit(edit)) = event.extracted.as_ref() else {
             continue;
@@ -731,21 +731,54 @@ fn persist_runtime_edit_artifacts(
             store.upsert_edit_artifact(artifact)?;
         }
         for chunk in artifacts.chunks {
-            chunks_by_file
-                .entry(chunk.file_path.clone())
-                .or_default()
-                .push(chunk.clone());
+            touched_files.insert(chunk.file_path.clone());
             store.upsert_diff_chunk(&chunk)?;
         }
     }
 
+    recompute_session_final_diffs(&store, &session.session_id, &touched_files)
+}
+
+/// Recompute and persist the final diff for every `touched_files` entry from
+/// the COMPLETE set of diff chunks recorded for the session so far.
+///
+/// The final-diff record uses a stable per-file record_id
+/// (`record_id(["final_diff", source, session_id, file_path])`), so
+/// `upsert_final_diff` overwrites the file's prior record every time. The
+/// previous runtime path computed the final diff from only the current push
+/// batch's chunks, which meant each round overwrote the accumulated diff with
+/// just the latest round's stats. The stored line count then followed the
+/// latest turn instead of the whole session — it decreased whenever a later
+/// turn touched fewer lines and stopped growing once a file dropped out of the
+/// active batch (issue #192: "越跑越少 / 不增加了 / 跟着轮次变动更新").
+///
+/// Reading every chunk back for the touched files and recomputing over the
+/// full set mirrors the analysis-backfill path, so the runtime and backfill
+/// final diffs converge on the same cumulative value.
+fn recompute_session_final_diffs<S: RecordStore>(
+    store: &S,
+    session_id: &str,
+    touched_files: &HashSet<String>,
+) -> Result<(), String> {
+    if touched_files.is_empty() {
+        return Ok(());
+    }
+
+    let all_chunks = store.list_diff_chunks(Some(SOURCE_ORGII_RUST_AGENTS), Some(session_id))?;
+    let mut chunks_by_file: HashMap<String, Vec<SessionDiffChunkRecord>> = HashMap::new();
+    for chunk in all_chunks {
+        if touched_files.contains(&chunk.file_path) {
+            chunks_by_file
+                .entry(chunk.file_path.clone())
+                .or_default()
+                .push(chunk);
+        }
+    }
+
     for (file_path, chunks) in chunks_by_file {
-        if let Some(final_diff) = final_diff_from_chunks(
-            SOURCE_ORGII_RUST_AGENTS,
-            &session.session_id,
-            &file_path,
-            &chunks,
-        ) {
+        if let Some(final_diff) =
+            final_diff_from_chunks(SOURCE_ORGII_RUST_AGENTS, session_id, &file_path, &chunks)
+        {
             store.upsert_final_diff(&final_diff)?;
         }
     }
@@ -986,6 +1019,141 @@ mod runtime_artifact_tests {
     use core_types::extracted::ExtractedEditData;
     use orgtrack_core::edit_extraction::artifacts_from_extracted_edit;
     use orgtrack_core::repo_sync::paths::record_id;
+    use rusqlite::Connection;
+
+    /// Build a fragment edit (carries a unified diff + per-edit line counts)
+    /// so `final_diff_from_chunks` takes the hunk-merge path and sums the
+    /// authoritative per-chunk counters.
+    fn fragment_edit(
+        file_path: &str,
+        old_start: usize,
+        added: usize,
+        removed: usize,
+    ) -> ExtractedEditData {
+        let mut body = String::new();
+        for i in 0..removed {
+            body.push_str(&format!("-old{i}\n"));
+        }
+        for i in 0..added {
+            body.push_str(&format!("+new{i}\n"));
+        }
+        let diff = format!("@@ -{old_start},{removed} +{old_start},{added} @@\n{body}");
+        ExtractedEditData {
+            file_path: file_path.to_string(),
+            file_name: file_path.rsplit('/').next().unwrap_or(file_path).to_string(),
+            language: "rust".to_string(),
+            content: None,
+            line_count: None,
+            old_content: None,
+            new_content: None,
+            diff: Some(diff),
+            old_start_line: Some(old_start),
+            new_start_line: Some(old_start),
+            lines_added: Some(added),
+            lines_removed: Some(removed),
+            is_deleted: false,
+            apply_patch_segments: Vec::new(),
+        }
+    }
+
+    /// Simulate one runtime push batch: upsert the batch's chunks, then
+    /// recompute the session's final diffs from the full accumulated chunk
+    /// set (the behaviour under test).
+    fn ingest_batch(
+        store: &SqliteRecordStore,
+        session_id: &str,
+        edits: &[(i64, ExtractedEditData)],
+    ) {
+        let mut touched = HashSet::new();
+        for (sequence_index, edit) in edits {
+            let context = EditArtifactContext {
+                source: SOURCE_ORGII_RUST_AGENTS.to_string(),
+                source_session_id: Some(session_id.to_string()),
+                session_id: session_id.to_string(),
+                source_event_id: Some(format!("event-{sequence_index}")),
+                turn_id: None,
+                sequence_index: *sequence_index,
+                timestamp: None,
+                workspace_path: None,
+                metadata: AgentMetadata::default(),
+            };
+            let artifacts = artifacts_from_extracted_edit(&context, edit);
+            for chunk in artifacts.chunks {
+                touched.insert(chunk.file_path.clone());
+                store.upsert_diff_chunk(&chunk).unwrap();
+            }
+        }
+        recompute_session_final_diffs(store, session_id, &touched).unwrap();
+    }
+
+    fn final_diff_lines(store: &SqliteRecordStore, session_id: &str, file_path: &str) -> (i32, i32) {
+        let diffs = store
+            .list_final_diffs(Some(SOURCE_ORGII_RUST_AGENTS), Some(session_id))
+            .unwrap();
+        let diff = diffs
+            .iter()
+            .find(|diff| diff.file_path == file_path)
+            .expect("final diff for file");
+        (diff.lines_added, diff.lines_removed)
+    }
+
+    #[test]
+    fn final_diff_accumulates_across_runtime_batches() {
+        let conn = Connection::open_in_memory().unwrap();
+        SqliteRecordStore::init_tables(&conn).unwrap();
+        let store = SqliteRecordStore::new(&conn);
+        let session_id = "sdeagent-cumulative";
+        let file_path = "src/pm.py";
+
+        // Round 1 edits a large hunk near the top of the file.
+        ingest_batch(&store, session_id, &[(0, fragment_edit(file_path, 1, 100, 4))]);
+        assert_eq!(final_diff_lines(&store, session_id, file_path), (100, 4));
+
+        // Round 2 edits a small, non-overlapping hunk further down. The stored
+        // final diff must reflect BOTH rounds (104 added), not just round 2 —
+        // the pre-fix runtime path recomputed from the current batch alone and
+        // would have collapsed the count to 4, i.e. it "越跑越少".
+        ingest_batch(&store, session_id, &[(1, fragment_edit(file_path, 400, 4, 1))]);
+        assert_eq!(final_diff_lines(&store, session_id, file_path), (104, 5));
+
+        // Round 3 makes an even smaller edit; the count must keep growing.
+        ingest_batch(&store, session_id, &[(2, fragment_edit(file_path, 800, 2, 0))]);
+        assert_eq!(final_diff_lines(&store, session_id, file_path), (106, 5));
+    }
+
+    #[test]
+    fn recompute_is_noop_without_touched_files() {
+        let conn = Connection::open_in_memory().unwrap();
+        SqliteRecordStore::init_tables(&conn).unwrap();
+        let store = SqliteRecordStore::new(&conn);
+        recompute_session_final_diffs(&store, "empty-session", &HashSet::new()).unwrap();
+        assert!(store
+            .list_final_diffs(Some(SOURCE_ORGII_RUST_AGENTS), Some("empty-session"))
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn final_diff_tracks_multiple_files_independently() {
+        let conn = Connection::open_in_memory().unwrap();
+        SqliteRecordStore::init_tables(&conn).unwrap();
+        let store = SqliteRecordStore::new(&conn);
+        let session_id = "sdeagent-multifile";
+
+        ingest_batch(
+            &store,
+            session_id,
+            &[
+                (0, fragment_edit("a.rs", 1, 10, 0)),
+                (1, fragment_edit("b.rs", 1, 5, 2)),
+            ],
+        );
+        // A later batch only touches a.rs; b.rs must keep its accumulated stats.
+        ingest_batch(&store, session_id, &[(2, fragment_edit("a.rs", 100, 3, 0))]);
+
+        assert_eq!(final_diff_lines(&store, session_id, "a.rs"), (13, 0));
+        assert_eq!(final_diff_lines(&store, session_id, "b.rs"), (5, 2));
+    }
 
     #[test]
     fn runtime_projection_uses_backfill_record_id_shape() {
