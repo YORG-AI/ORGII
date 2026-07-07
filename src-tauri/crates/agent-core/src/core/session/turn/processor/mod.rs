@@ -367,6 +367,7 @@ impl UnifiedMessageProcessor {
                                 crate::turn_executor::context_accounting::ContextUsageCategory::StablePrompt
                                     | crate::turn_executor::context_accounting::ContextUsageCategory::Rules
                                     | crate::turn_executor::context_accounting::ContextUsageCategory::Skills
+                                    | crate::turn_executor::context_accounting::ContextUsageCategory::Memory
                             )
                         })
                         .map(|section| section.estimated_tokens)

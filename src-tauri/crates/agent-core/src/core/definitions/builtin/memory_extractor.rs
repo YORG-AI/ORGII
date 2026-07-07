@@ -66,7 +66,7 @@ pub fn memory_extractor() -> AgentDefinition {
         load_workspace_rules: None,
         skills_config: None,
         selected_account_id: None,
-        selected_model_id: None,
+        selected_model_id: Some("openai/gpt-5.4-nano:openai".to_string()),
 
         icon_id: Some("brain".to_string()),
 

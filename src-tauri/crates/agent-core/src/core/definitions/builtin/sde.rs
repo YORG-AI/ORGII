@@ -112,6 +112,10 @@ pub fn sde_agent() -> AgentDefinition {
         load_workspace_rules: None,
         skills_config: None,
         selected_account_id: None,
+        // SDE is the coding-implementation subagent: quality-sensitive work,
+        // so it inherits the parent session model (selected_model_id: None).
+        // Cost control belongs to read-heavy helpers (Explore/memory
+        // extraction), not here.
         selected_model_id: None,
 
         icon_id: Some("code".to_string()),
