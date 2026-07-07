@@ -249,6 +249,14 @@ impl OpenAICompatClient {
                     api_usage.completion_tokens,
                 );
                 usage.insert(usage_key::TOTAL_TOKENS.to_string(), api_usage.total_tokens);
+                if let Some(ref details) = api_usage.prompt_tokens_details {
+                    if details.cached_tokens > 0 {
+                        usage.insert(
+                            usage_key::CACHE_READ_TOKENS.to_string(),
+                            details.cached_tokens,
+                        );
+                    }
+                }
             }
         }
 

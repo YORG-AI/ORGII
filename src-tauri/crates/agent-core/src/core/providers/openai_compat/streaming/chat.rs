@@ -178,6 +178,11 @@ pub(super) async fn run_chat(
         usage.insert("prompt_tokens".to_string(), api_usage.prompt_tokens);
         usage.insert("completion_tokens".to_string(), api_usage.completion_tokens);
         usage.insert("total_tokens".to_string(), api_usage.total_tokens);
+        if let Some(ref details) = api_usage.prompt_tokens_details {
+            if details.cached_tokens > 0 {
+                usage.insert("cache_read_tokens".to_string(), details.cached_tokens);
+            }
+        }
     }
 
     let tool_calls = choice

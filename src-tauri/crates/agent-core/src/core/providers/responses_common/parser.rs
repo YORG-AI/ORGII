@@ -132,6 +132,14 @@ pub fn parse_response(resp: ResponsesResponse) -> Result<LLMResponse, ProviderEr
         if let Some(total) = u.total_tokens {
             usage.insert(usage_key::TOTAL_TOKENS.to_string(), total);
         }
+        if let Some(ref details) = u.input_tokens_details {
+            if details.cached_tokens > 0 {
+                usage.insert(
+                    usage_key::CACHE_READ_TOKENS.to_string(),
+                    details.cached_tokens,
+                );
+            }
+        }
     }
 
     Ok(LLMResponse {
@@ -164,6 +172,7 @@ mod tests {
             })],
             usage: Some(ResponsesUsage {
                 input_tokens: Some(10),
+                input_tokens_details: None,
                 output_tokens: Some(5),
                 total_tokens: Some(15),
             }),
