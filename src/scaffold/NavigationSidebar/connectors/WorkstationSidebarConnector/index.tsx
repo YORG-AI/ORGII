@@ -927,7 +927,7 @@ function createOrg2TreeBadge(level: Org2TreeLevel): React.ReactNode {
   return (
     <span
       className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border text-[9px] font-semibold leading-none ${badge.className}`}
-      title={`层级：${badge.label}`}
+      title={`Level: ${badge.label}`}
     >
       {badge.label}
     </span>
@@ -939,8 +939,8 @@ export function buildOrg2TreeItems(
 ): NavigationMenuItem[] {
   const projects = new Map<string, Map<string, NavigationMenuItem[]>>();
   for (const session of sessions) {
-    const projectKey = session.projectSlug || session.projectId || "未关联";
-    const workItemKey = session.workItemId || "未关联任务";
+    const projectKey = session.projectSlug || session.projectId || "Unlinked";
+    const workItemKey = session.workItemId || "Unlinked task";
     const projectBucket =
       projects.get(projectKey) ?? new Map<string, NavigationMenuItem[]>();
     const workItemBucket = projectBucket.get(workItemKey) ?? [];
@@ -959,24 +959,24 @@ export function buildOrg2TreeItems(
     {
       id: "org2-tree-workspace",
       key: "org2-tree-workspace",
-      label: "Workspace 层级树",
+      label: "Workspace hierarchy",
       shortcut: "workspace",
       iconElement: createOrg2TreeBadge("workspace"),
-      // # ORG2 四层树：workspace → project → task/work-item → session，未关联数据保留灰色层级入口。
+      // # ORG2 hierarchy tree: workspace → project → task/work-item → session. Unlinked data stays under a muted fallback group.
       children: Array.from(projects.entries()).map(
         ([projectName, workItems]) => {
-          const isUnlinkedProject = projectName === "未关联";
+          const isUnlinkedProject = projectName === "Unlinked";
           return {
             id: `org2-tree-project-${projectName}`,
             key: `org2-tree-project-${projectName}`,
             label: projectName,
-            shortcut: isUnlinkedProject ? "未关联" : "project",
+            shortcut: isUnlinkedProject ? "Unlinked" : "project",
             iconElement: createOrg2TreeBadge(
               isUnlinkedProject ? "unlinked" : "project"
             ),
             children: Array.from(workItems.entries()).map(
               ([workItemName, sessionItems]) => {
-                const isUnlinkedTask = workItemName === "未关联任务";
+                const isUnlinkedTask = workItemName === "Unlinked task";
                 return {
                   id: `org2-tree-wi-${projectName}-${workItemName}`,
                   key: `org2-tree-wi-${projectName}-${workItemName}`,

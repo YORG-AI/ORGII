@@ -6,7 +6,7 @@ import { buildOrg2TreeItems } from "./index";
 import { buildSessionRowActions } from "./sessionRowActions";
 
 describe("buildOrg2TreeItems", () => {
-  it("按 workspace→project→task→session 归组，未关联项进入灰色未关联分组", () => {
+  it("按 workspace→project→task→session 归组，Unlinked项进入灰色Unlinked分组", () => {
     const tree = buildOrg2TreeItems([
       {
         session_id: "s1",
@@ -23,7 +23,7 @@ describe("buildOrg2TreeItems", () => {
       { session_id: "s3", name: "S3" },
     ] as never);
     const workspace = tree[0];
-    expect(workspace.label).toBe("Workspace 层级树");
+    expect(workspace.label).toBe("Workspace hierarchy");
     const project = workspace.children?.find((item) => item.label === "proj-a");
     expect(project?.children?.map((item) => item.label)).toEqual([
       "T-1",
@@ -32,9 +32,9 @@ describe("buildOrg2TreeItems", () => {
     expect(project?.children?.[0]?.children?.[0]?.label).toBe("S1");
     expect(project?.children?.[0]?.children?.[0]?.id).toBe("s1");
     const unlinked = workspace.children?.find(
-      (item) => item.label === "未关联"
+      (item) => item.label === "Unlinked"
     );
-    expect(unlinked?.children?.[0]?.label).toBe("未关联任务");
+    expect(unlinked?.children?.[0]?.label).toBe("Unlinked task");
     expect(unlinked?.children?.[0]?.children?.[0]?.label).toBe("S3");
   });
 
