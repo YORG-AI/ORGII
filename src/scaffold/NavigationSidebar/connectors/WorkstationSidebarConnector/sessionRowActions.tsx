@@ -136,8 +136,7 @@ export function useDecorateSessionRowActions({
         });
         return {
           ...baseItem,
-          // # ORG2 树 session 藏在 children 里；递归装饰后必须显式打开 action slot，
-          // # NavigationMenuRow 才会在 hover 时把时间切成置顶/更多按钮。
+          // # ORG2 tree sessions can be nested under child rows; recursive decoration must explicitly enable the action slot so NavigationMenuRow swaps the timestamp for pin/more actions on hover.
           showMoreActions: true,
           rowActions,
         };
