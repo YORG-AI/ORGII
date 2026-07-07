@@ -8,6 +8,10 @@ import { useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import {
+  applyClearCanvasOnSessionSwitch,
+  applyDismissCanvasAtNewTurn,
+} from "@src/engines/ChatPanel/blocks/CanvasInlineCard/canvasPreviewAtomUpdaters";
+import {
   clearSessionLoadErrorAtom,
   eventsAtom,
   failSessionLoadAtom,
@@ -91,12 +95,21 @@ export function useSessionSync(
   const setStreamingDeltaContent = useSetAtom(streamingDeltaContentAtom);
   const setPendingPlanApprovals = useSetAtom(pendingPlanApprovalsAtom);
   const setCanvasPreview = useSetAtom(canvasPreviewAtom);
+  const clearCanvasPreviewOnSessionSwitch = useCallback(
+    (leavingSessionId: string | null, enteringSessionId: string) => {
+      setCanvasPreview((prev) =>
+        applyClearCanvasOnSessionSwitch(
+          prev,
+          leavingSessionId,
+          enteringSessionId
+        )
+      );
+    },
+    [setCanvasPreview]
+  );
   const dismissCanvasAtNewTurn = useCallback(
     (sid: string) => {
-      setCanvasPreview((prev) => {
-        if (!prev || prev.sessionId !== sid || prev.cardDismissed) return prev;
-        return { ...prev, cardDismissed: true };
-      });
+      setCanvasPreview((prev) => applyDismissCanvasAtNewTurn(prev, sid));
     },
     [setCanvasPreview]
   );
@@ -129,6 +142,7 @@ export function useSessionSync(
       setSessionRuntimeError,
       setPendingCancel,
       setStreamRetryStatus,
+      clearCanvasPreviewOnSessionSwitch,
     }),
     [
       clearSessionLoadError,
@@ -140,6 +154,7 @@ export function useSessionSync(
       setSessionRuntimeError,
       setPendingCancel,
       setStreamRetryStatus,
+      clearCanvasPreviewOnSessionSwitch,
     ]
   );
 

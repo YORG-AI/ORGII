@@ -5,7 +5,7 @@
  * canvas payload in a full-height WorkStation view. Closing the card closes
  * the tab and restores the Canvas pill in PinnedActionsBar.
  */
-import { useAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import { ExternalLink, Layout, X } from "lucide-react";
 import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
@@ -16,6 +16,8 @@ import {
   buildHtmlDocument,
   buildReactDocument,
 } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/canvasBuilder";
+import { deriveCanvasTabPayload } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/canvasPreviewAtomUpdaters";
+import { useCanvasForTurn } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/useCanvasForTurn";
 import { EditorTabService } from "@src/services/workStation";
 import { canvasPreviewAtom } from "@src/store/session/canvasPreviewAtom";
 import { getCanvasPreviewTabId } from "@src/store/workstation/tabs/factories/canvasPreview";
@@ -35,15 +37,14 @@ const CanvasPreviewTabRenderer: React.FC<UnifiedTabContentProps> = memo(
   ({ tab }) => {
     const { t } = useTranslation();
     const sessionId = String(tab.data.sessionId ?? "");
-    const [entry, setEntry] = useAtom(canvasPreviewAtom);
-
-    const payload =
-      entry && entry.sessionId === sessionId ? entry.payload : null;
+    const entry = useAtomValue(canvasPreviewAtom);
+    const { dismiss } = useCanvasForTurn(sessionId);
+    const payload = deriveCanvasTabPayload(entry, sessionId);
 
     const handleDismiss = useCallback(() => {
-      setEntry(null);
+      dismiss();
       EditorTabService.closeTab(getCanvasPreviewTabId(sessionId));
-    }, [sessionId, setEntry]);
+    }, [dismiss, sessionId]);
 
     const handleOpenExternal = useCallback(() => {
       if (!payload) return;

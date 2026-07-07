@@ -242,6 +242,7 @@ describe("resetSessionSwitchState optimistic-running preservation", () => {
       setSessionRuntimeError: vi.fn(),
       setPendingCancel: vi.fn(),
       setStreamRetryStatus: vi.fn(),
+      clearCanvasPreviewOnSessionSwitch: vi.fn(),
     };
   }
 
@@ -284,6 +285,30 @@ describe("resetSessionSwitchState optimistic-running preservation", () => {
     resetSessionSwitchState(actions, "session-other");
     expect(actions.setSessionRuntimeStatus).toHaveBeenCalledWith("idle");
     clearRecentOptimisticTurn("session-launched");
+  });
+
+  it("clears canvas preview when switching between sessions", () => {
+    const actions = createSwitchActions();
+    resetSessionSwitchState(actions, "session-b", "session-a");
+    expect(actions.clearCanvasPreviewOnSessionSwitch).toHaveBeenCalledWith(
+      "session-a",
+      "session-b"
+    );
+  });
+
+  it("still invokes canvas clear on first session load (no-op when atom empty)", () => {
+    const actions = createSwitchActions();
+    resetSessionSwitchState(actions, "session-a", null);
+    expect(actions.clearCanvasPreviewOnSessionSwitch).toHaveBeenCalledWith(
+      null,
+      "session-a"
+    );
+  });
+
+  it("does not invoke canvas clear when sessionId is omitted", () => {
+    const actions = createSwitchActions();
+    resetSessionSwitchState(actions);
+    expect(actions.clearCanvasPreviewOnSessionSwitch).not.toHaveBeenCalled();
   });
 });
 

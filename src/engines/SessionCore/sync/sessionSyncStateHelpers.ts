@@ -43,6 +43,11 @@ export interface SessionSwitchStateActions {
   setSessionRuntimeError: (value: string | null) => void;
   setPendingCancel: (value: boolean) => void;
   setStreamRetryStatus: (value: StreamRetryStatus | null) => void;
+  /** Drop canvas preview when leaving a session (see applyClearCanvasOnSessionSwitch). */
+  clearCanvasPreviewOnSessionSwitch: (
+    leavingSessionId: string | null,
+    enteringSessionId: string
+  ) => void;
 }
 
 export interface SessionLoadStateActions {
@@ -86,7 +91,8 @@ const RUNNING_HANDLER_STATUSES = new Set<string>([
 ]);
 export function resetSessionSwitchState(
   actions: SessionSwitchStateActions,
-  sessionId?: string
+  sessionId?: string,
+  leavingSessionId?: string | null
 ): void {
   actions.setWpReadOnly(false);
   actions.clearSessionLoadError();
@@ -107,6 +113,12 @@ export function resetSessionSwitchState(
   actions.setSessionContextTokens(0);
   actions.setSessionContextUsage(null);
   actions.setSessionContextBreakdown(null);
+  if (sessionId) {
+    actions.clearCanvasPreviewOnSessionSwitch(
+      leavingSessionId ?? null,
+      sessionId
+    );
+  }
 }
 
 export function applyPostLoadResult(

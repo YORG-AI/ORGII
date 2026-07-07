@@ -58,7 +58,6 @@ import {
   sessionByIdAtom,
 } from "@src/store/session";
 import type { Session } from "@src/store/session";
-import { canvasPreviewAtom } from "@src/store/session/canvasPreviewAtom";
 import {
   isSessionActiveAtom,
   sessionRuntimeStatusAtom,
@@ -114,6 +113,7 @@ import { useAgentOrgRunView } from "./InputArea/components/useAgentOrgRunView";
 import { useComposerSections } from "./InputArea/hooks/useComposerSections";
 import { useGitDiffActions } from "./InputArea/hooks/useGitDiffActions";
 import { useQueueEditMode } from "./InputArea/hooks/useQueueEditMode";
+import { useCanvasPreviewForSession } from "./blocks/CanvasInlineCard/useCanvasPreviewForSession";
 import { useJumpToSimulatorCanvas } from "./blocks/CanvasInlineCard/useJumpToSimulatorCanvas";
 import { useBrowserAddToConversationAction } from "./hooks/useBrowserAddToConversationAction";
 import { useFollowAgent } from "./hooks/useFollowAgent";
@@ -422,38 +422,21 @@ const ChatView: React.FC<ChatViewProps> = memo(
     const streamRetry =
       streamRetryStatus?.sessionId === sessionId ? streamRetryStatus : null;
     const snapshot = useAtomValue(derivedSnapshotAtom);
-    const canvasPreview = useAtomValue(canvasPreviewAtom);
-    const latestCanvasPreview = snapshot?.latestCanvasPreview ?? null;
-    const latestCanvasPayload = useMemo(
-      () =>
-        canvasPreview?.sessionId === sessionId
-          ? canvasPreview.payload
-          : latestCanvasPreview
-            ? {
-                mode: latestCanvasPreview.mode,
-                url: latestCanvasPreview.url,
-                title: latestCanvasPreview.title,
-                streaming: latestCanvasPreview.streaming,
-                eventId: latestCanvasPreview.eventId,
-              }
-            : null,
-      [canvasPreview, latestCanvasPreview, sessionId]
-    );
+    const { payload: latestCanvasPayload, openedInSimulator } =
+      useCanvasPreviewForSession(sessionId);
     const openLatestCanvas = useJumpToSimulatorCanvas(
       sessionId,
       latestCanvasPayload
     );
     const canvasPreviewPill = useMemo(
       () =>
-        latestCanvasPayload &&
-        !canvasPreview?.openedInSimulator &&
-        openLatestCanvas
+        latestCanvasPayload && !openedInSimulator && openLatestCanvas
           ? {
               label: "Canvas",
               onOpen: openLatestCanvas,
             }
           : null,
-      [canvasPreview?.openedInSimulator, latestCanvasPayload, openLatestCanvas]
+      [openedInSimulator, latestCanvasPayload, openLatestCanvas]
     );
     const currentPlanApproval = useAtomValue(pendingPlanApprovalsAtom).get(
       sessionId

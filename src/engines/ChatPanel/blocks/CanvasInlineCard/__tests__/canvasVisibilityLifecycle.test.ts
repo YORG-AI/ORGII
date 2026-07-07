@@ -11,6 +11,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { CanvasPreviewEntry } from "@src/store/session/canvasPreviewAtom";
 
+import {
+  applyDismissCanvasAtNewTurn,
+  deriveCanvasPayloadForSession,
+} from "../canvasPreviewAtomUpdaters";
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function makeEntry(
@@ -29,30 +34,13 @@ function makeEntry(
 
 /**
  * Pure implementation of useCanvasPreviewForSession's payload derivation.
- * Mirrors the hook's logic without React dependencies.
  */
-function deriveCanvasPayload(
-  entry: CanvasPreviewEntry | null,
-  sessionId: string | null | undefined
-) {
-  if (!entry) return null;
-  if (!sessionId) return null;
-  if (entry.sessionId !== sessionId) return null;
-  if (entry.cardDismissed) return null;
-  return entry.payload;
-}
+const deriveCanvasPayload = deriveCanvasPayloadForSession;
 
 /**
  * Pure implementation of the dismissCanvasAtNewTurn updater.
- * Mirrors the useSetAtom updater in useSessionSync.
  */
-function dismissCanvasForSession(
-  prev: CanvasPreviewEntry | null,
-  sessionId: string
-): CanvasPreviewEntry | null {
-  if (!prev || prev.sessionId !== sessionId || prev.cardDismissed) return prev;
-  return { ...prev, cardDismissed: true };
-}
+const dismissCanvasForSession = applyDismissCanvasAtNewTurn;
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 

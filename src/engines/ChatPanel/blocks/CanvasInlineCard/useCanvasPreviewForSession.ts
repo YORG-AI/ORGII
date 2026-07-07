@@ -5,16 +5,13 @@
  * existing interface so callers (ChatVariant, PinnedActionsBar) can migrate
  * gradually without a forced simultaneous change.
  */
-import type { CanvasInlinePayload } from "./types";
+import type { CanvasForTurnState } from "./useCanvasForTurn";
 import { useCanvasForTurn } from "./useCanvasForTurn";
+
+export type CanvasPreviewForSessionState = CanvasForTurnState;
 
 export function useCanvasPreviewForSession(
   sessionId: string | null | undefined
-): {
-  payload: CanvasInlinePayload | null;
-  dismiss: () => void;
-  clearCanvas: () => void;
-} {
-  const { payload, dismiss, clearCanvas } = useCanvasForTurn(sessionId);
-  return { payload, dismiss, clearCanvas };
+): CanvasPreviewForSessionState {
+  return useCanvasForTurn(sessionId);
 }
