@@ -722,6 +722,12 @@
     "searchKeysOrValues": "Search keys or values...",
     "replyToQuestion": "Reply to question",
     "workspaceIsWorking": "Workspace is working!",
+    "sessionInstalling": "Starting agent…",
+    "sessionFailed": {
+      "title": "Session failed",
+      "retryHint": "Press Retry to resume this session.",
+      "continueHint": "Send a new message to continue."
+    },
     "pleaseSelectOption": "Please select an option",
     "pleaseTypeAnswer": "Please type your answer",
     "describeItYourself": "Describe it yourself",
@@ -880,7 +886,6 @@
     "answerSubmittedSuccess": "Answer submitted successfully",
     "responseSentSuccess": "Response sent successfully",
     "failedToSubmitAnswer": "Failed to submit answer",
-    "failedToSendMessage": "Failed to send message",
     "unknownError": "Unknown error occurred",
     "failedToSubmitAnswerWithMsg": "Failed to submit answer: {{msg}}",
     "noAnswerProvided": "No answer provided",
@@ -2279,6 +2284,7 @@
     "failedToContinue": "Failed to continue session",
     "failedToResume": "Failed to resume session",
     "failedToInterrupt": "Failed to interrupt session",
+    "queuedMessageSessionEnded": "Session has ended — queued message was kept on hold. Use Send Now to dispatch it explicitly.",
     "failedToStop": "Failed to stop agent",
     "failedToCheckChanges": "Could not check file changes. Proceeding with revert.",
     "insufficientBalance": "Insufficient balance for the hosted ORGII service. Top up at orgii.ai/wallet."
@@ -2464,7 +2470,8 @@
     "pausedBanner": {
       "title": "New work is paused",
       "body": "Pause stops active replies, send a message or press Resume to continue",
-      "resume": "Resume"
+      "resume": "Resume",
+      "resumeFailed": "Could not resume Agent Team run. Try again."
     },
     "toolUseSummary": {
       "note": "{{sender}} performed {{summary}}",

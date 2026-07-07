@@ -10,6 +10,7 @@
 import { type Atom, atom } from "jotai";
 
 import type { CliSessionStatus } from "@src/types/session/session";
+import { isSessionEngineActiveStatus } from "@src/util/session/sessionRuntimeExecuting";
 
 // Single source of truth: @src/types/session/session
 export type { CliSessionStatus } from "@src/types/session/session";
@@ -128,6 +129,15 @@ export interface StreamRetryStatus {
   /** Epoch ms at which we received the event; used by the UI to animate the countdown. */
   startedAt: number;
 }
+
+export function resolveStreamRetryForSession(
+  status: StreamRetryStatus | null | undefined,
+  sessionId: string | null | undefined
+): StreamRetryStatus | null {
+  if (!status || !sessionId) return null;
+  return status.sessionId === sessionId ? status : null;
+}
+
 export const streamRetryStatusAtom = atom<StreamRetryStatus | null>(null);
 streamRetryStatusAtom.debugLabel = "streamRetryStatus";
 
@@ -287,13 +297,7 @@ sessionRolledBackAtom.debugLabel = "sessionRolledBack";
 
 /** Whether the session engine is actively running or blocked on user input/funds. */
 export const isSessionEngineActiveAtom = atom<boolean>((get) => {
-  const status = get(sessionRuntimeStatusAtom);
-  return (
-    status === "running" ||
-    status === "installing" ||
-    status === "waiting_for_user" ||
-    status === "waiting_for_funds"
-  );
+  return isSessionEngineActiveStatus(get(sessionRuntimeStatusAtom));
 });
 isSessionEngineActiveAtom.debugLabel = "isSessionEngineActive";
 

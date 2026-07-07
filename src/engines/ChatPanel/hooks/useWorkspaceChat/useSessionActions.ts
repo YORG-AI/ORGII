@@ -33,6 +33,7 @@ import {
   sessionRuntimeStatusAtom,
   setSessionRuntimeStatusAtom,
 } from "@src/store/session/cliSessionStatusAtom";
+import { isSessionEngineActiveStatus } from "@src/util/session/sessionRuntimeExecuting";
 
 import {
   markRestoredStopDraft,
@@ -221,12 +222,7 @@ export function useSessionActions(options: UseSessionActionsOptions) {
     void (async () => {
       window.setTimeout(() => {
         const latestStatus = store.get(sessionRuntimeStatusAtom);
-        const runtimeStartedAnotherTurn =
-          latestStatus === "running" ||
-          latestStatus === "installing" ||
-          latestStatus === "waiting_for_user" ||
-          latestStatus === "waiting_for_funds";
-        if (runtimeStartedAnotherTurn) return;
+        if (isSessionEngineActiveStatus(latestStatus)) return;
         setPendingCancel(false);
         setSessionRuntimeStatus({
           sessionId,

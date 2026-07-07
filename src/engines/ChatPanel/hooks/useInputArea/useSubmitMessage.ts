@@ -26,6 +26,7 @@ import { createLogger } from "@src/hooks/logger";
 import { sessionByIdAtom } from "@src/store/session";
 import type { ChatImageAttachment } from "@src/store/ui/chatImageAtom";
 import { wpReadOnlyAtom } from "@src/store/ui/chatPanelAtom";
+import { formatDispatchFailureMessage } from "@src/util/session/dispatchFailureMessage";
 
 import { clearImageDraft } from "../../InputArea/utils/imageDraftCache";
 import { resolveMcpSlashCommand } from "./mcpSlashCommand";
@@ -415,8 +416,12 @@ export function useSubmitMessage({
           }
 
           const reason = err instanceof Error ? err.message : String(err);
-          const baseMsg = t("chat.failedToSendMessage");
-          Message.error(reason ? `${baseMsg}: ${reason}` : baseMsg);
+          Message.error(
+            formatDispatchFailureMessage(
+              t("errors.failedToSendMessage"),
+              reason
+            )
+          );
         }
       } finally {
         submitInFlightKeyRef.current = null;

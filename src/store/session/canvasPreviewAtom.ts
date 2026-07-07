@@ -6,7 +6,7 @@
  *   to MessageViewer as `canvasPayload` and rendered inline at the end of
  *   the message stream.
  * - In the main Chat panel (ChatView), it is rendered via
- *   `useCanvasPreviewForSession` directly above the InputArea.
+ *   `useCanvasForTurn` directly above the InputArea.
  *
  * Cleared when the user closes the card or the session resets.
  */

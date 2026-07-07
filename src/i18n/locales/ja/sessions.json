@@ -839,7 +839,6 @@
     "answerSubmittedSuccess": "回答を正常に送信しました",
     "responseSentSuccess": "応答を正常に送信しました",
     "failedToSubmitAnswer": "回答の送信に失敗しました",
-    "failedToSendMessage": "メッセージの送信に失敗しました",
     "unknownError": "不明なエラーが発生しました",
     "failedToSubmitAnswerWithMsg": "回答の送信に失敗しました：{{msg}}",
     "noAnswerProvided": "回答が提供されていません",

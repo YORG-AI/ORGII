@@ -843,7 +843,6 @@
     "answerSubmittedSuccess": "回答提交成功",
     "responseSentSuccess": "響應發送成功",
     "failedToSubmitAnswer": "提交回答失敗",
-    "failedToSendMessage": "發送消息失敗",
     "unknownError": "發生未知錯誤",
     "failedToSubmitAnswerWithMsg": "提交回答失敗：{{msg}}",
     "noAnswerProvided": "未提供回答",

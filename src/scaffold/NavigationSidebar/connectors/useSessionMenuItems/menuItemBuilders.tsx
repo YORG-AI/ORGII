@@ -1,31 +1,21 @@
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import type { Session } from "@src/store/session";
-import { isTerminalStatus } from "@src/types/session/session";
-import { isSessionInProgress } from "@src/util/session/sessionInProgress";
 import { getSessionSearchText } from "@src/util/session/sessionSearch";
 import {
   getSessionListDisplayName,
   resolveSessionRowIcon,
 } from "@src/util/session/sessionSidebarRow";
+import {
+  resolveSessionSidebarStatusTone,
+  shouldShowSessionSidebarBreathingIndicator,
+  shouldShowSessionSidebarTrailingDot,
+} from "@src/util/session/sessionSidebarStatusTone";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 import { renderBreathingStatusDot, renderStatusDot } from "./statusIndicators";
 
 export function separator(id: string, title = ""): NavigationMenuItem {
   return { id: `separator-${id}`, key: `separator-${id}`, label: title };
-}
-
-export function isSessionPendingAsking(session: Session): boolean {
-  return session.status === "waiting_for_user";
-}
-
-export function isSessionCompletedUnread(
-  session: Session,
-  visitedSessions: ReadonlySet<string>
-): boolean {
-  if (!isTerminalStatus(session.status)) return false;
-  if (session.mergeStatus === "pending") return false;
-  return !visitedSessions.has(session.session_id);
 }
 
 export function isBenchmarkSessionRow(session: Session): boolean {
@@ -43,17 +33,21 @@ export function buildSessionMenuItem({
   untitledSession,
   visitedSessions,
 }: BuildSessionMenuItemParams): NavigationMenuItem {
-  const inProgress = isSessionInProgress(session.status, session);
   const displayName = getSessionListDisplayName(session, untitledSession);
   const timestampSrc =
     session.updated_at || session.updated_time || session.created_at;
-  const pendingAsking = isSessionPendingAsking(session);
-  const unread = isSessionCompletedUnread(session, visitedSessions);
-  const statusDotTone = pendingAsking
-    ? "asking"
-    : unread
-      ? "unread"
-      : "default";
+  const statusDotTone = resolveSessionSidebarStatusTone({
+    status: session.status,
+    mergeStatus: session.mergeStatus,
+    visited: visitedSessions.has(session.session_id),
+  });
+  const showBreathingIndicator = shouldShowSessionSidebarBreathingIndicator(
+    session.status
+  );
+  const showTrailingDot = shouldShowSessionSidebarTrailingDot({
+    status: session.status,
+    tone: statusDotTone,
+  });
 
   return {
     id: session.session_id,
@@ -62,13 +56,12 @@ export function buildSessionMenuItem({
     searchText: getSessionSearchText(session, untitledSession),
     dataTestId: `sidebar-session-item-${session.session_id}`,
     icon: resolveSessionRowIcon(session),
-    workingIndicator:
-      inProgress && !pendingAsking ? renderBreathingStatusDot() : undefined,
-    trailingElement: pendingAsking
+    workingIndicator: showBreathingIndicator
+      ? renderBreathingStatusDot()
+      : undefined,
+    trailingElement: showTrailingDot
       ? renderStatusDot(statusDotTone)
-      : inProgress
-        ? undefined
-        : renderStatusDot(statusDotTone),
+      : undefined,
     shortcut: formatRelativeTime(timestampSrc, "nano"),
     dragPayload: {
       path: `session://${session.session_id}`,

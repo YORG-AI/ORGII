@@ -716,6 +716,12 @@
     "searchKeysOrValues": "搜索 keys 或 values...",
     "replyToQuestion": "回复问题",
     "workspaceIsWorking": "工作区正在运行！",
+    "sessionInstalling": "正在启动 Agent…",
+    "sessionFailed": {
+      "title": "会话失败",
+      "retryHint": "点击重试按钮继续此会话。",
+      "continueHint": "发送新消息以继续。"
+    },
     "pleaseSelectOption": "请选择一个选项",
     "pleaseTypeAnswer": "请输入您的回答",
     "describeItYourself": "自行描述",
@@ -864,7 +870,6 @@
     "answerSubmittedSuccess": "回答提交成功",
     "responseSentSuccess": "响应发送成功",
     "failedToSubmitAnswer": "提交回答失败",
-    "failedToSendMessage": "发送消息失败",
     "unknownError": "发生未知错误",
     "failedToSubmitAnswerWithMsg": "提交回答失败：{{msg}}",
     "noAnswerProvided": "未提供回答",
@@ -2262,6 +2267,7 @@
     "failedToContinue": "继续 Session 失败",
     "failedToResume": "恢复 Session 失败",
     "failedToInterrupt": "中断 Session 失败",
+    "queuedMessageSessionEnded": "会话已结束，排队消息已保留。请使用「立即发送」显式派发。",
     "failedToStop": "停止 Agent 失败",
     "failedToCheckChanges": "无法检查文件变更，将自动还原。",
     "insufficientBalance": "ORGII 托管服务余额不足，请前往 orgii.ai/wallet 充值。"
@@ -2469,7 +2475,8 @@
     "pausedBanner": {
       "title": "新的工作已暂停",
       "body": "暂停会停止当前回复，发送消息或点击恢复即可继续",
-      "resume": "恢复"
+      "resume": "恢复",
+      "resumeFailed": "无法恢复 Agent Team 运行，请重试。"
     },
     "toolUseSummary": {
       "note": "{{sender}} 进行了 {{summary}}",

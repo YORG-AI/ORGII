@@ -19,6 +19,7 @@ import type {
   StreamRetryStatus,
 } from "@src/store/session/cliSessionStatusAtom";
 import type { CliSessionStatus } from "@src/types/session/session";
+import { isSessionRuntimeExecuting } from "@src/util/session/sessionRuntimeExecuting";
 
 import { toCliSessionStatus } from "./sessionSyncUtils";
 import type {
@@ -223,7 +224,7 @@ export function createSessionEventHandlerCallbacks(
         eventStoreProxy.unpinSession(sessionId);
         updateSessionStatus(sessionId, status as SessionStatus);
       }
-      if (status === "running") {
+      if (isSessionRuntimeExecuting(status)) {
         markTurnRunning(sessionId);
         actions.setSessionRuntimeError(null);
         eventStoreProxy.pinSession(sessionId);

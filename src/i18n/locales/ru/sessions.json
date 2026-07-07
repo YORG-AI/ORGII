@@ -841,7 +841,6 @@
     "answerSubmittedSuccess": "Ответ успешно отправлен",
     "responseSentSuccess": "Ответ успешно отправлен",
     "failedToSubmitAnswer": "Не удалось отправить ответ",
-    "failedToSendMessage": "Не удалось отправить сообщение",
     "unknownError": "Произошла неизвестная ошибка",
     "failedToSubmitAnswerWithMsg": "Не удалось отправить ответ: {{msg}}",
     "noAnswerProvided": "Ответ не предоставлен",

@@ -24,6 +24,7 @@
 import type { Atom } from "jotai";
 import { useStore } from "jotai";
 import { useCallback, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   enterAgentOrgSessionIntervention,
@@ -39,6 +40,7 @@ import { cancelTurnForTimelineBoundary } from "@src/engines/SessionCore/control/
 import {
   beginTurnDispatch,
   confirmTurnRunning,
+  forceTurnIdle,
   getTurnPhase,
   markTurnTerminal,
   turnLifecycleSignalAtom,
@@ -66,6 +68,7 @@ import {
   queueFlushRequestAtom,
 } from "@src/store/ui/messageQueueAtom";
 import { invokeTauri } from "@src/util/platform/tauri/init";
+import { formatDispatchFailureMessage } from "@src/util/session/dispatchFailureMessage";
 import { resolveModelForMessage } from "@src/util/session/resolveModelForMessage";
 import { selectionFromSession } from "@src/util/session/selectionFromSession";
 import {
@@ -73,6 +76,9 @@ import {
   isCliSession,
   isCursorIdeSession,
 } from "@src/util/session/sessionDispatch";
+import { isSessionEngineActiveStatus } from "@src/util/session/sessionRuntimeExecuting";
+
+import { releaseForceSendInterruptSlot } from "./queueDispatchFeedback";
 
 const log = createLogger("useQueueDispatch");
 
@@ -90,18 +96,6 @@ function queuedMessageAgeMs(message: QueuedMessage): number {
   if (!Number.isFinite(createdAtMs)) return MIN_QUEUE_VISIBLE_MS;
   return Date.now() - createdAtMs;
 }
-
-/**
- * Backend statuses that mean "a turn is genuinely still executing".
- * `waiting_for_user` / `waiting_for_funds` keep the turn open too — a natural
- * follow-up must not be injected while an interactive tool blocks the turn.
- */
-const BACKEND_ACTIVE_STATUSES = new Set([
-  "running",
-  "installing",
-  "waiting_for_user",
-  "waiting_for_funds",
-]);
 
 /**
  * Failure-class terminal statuses: the session is dead and the backend will
@@ -134,7 +128,7 @@ export function classifyBackendSessionStatus(
   status: string | undefined | null
 ): BackendDispatchVerdict {
   if (!status) return "ready";
-  if (BACKEND_ACTIVE_STATUSES.has(status)) return "busy";
+  if (isSessionEngineActiveStatus(status)) return "busy";
   if (BACKEND_DEAD_STATUSES.has(status)) return "dead";
   return "ready";
 }
@@ -176,6 +170,7 @@ async function getBackendDispatchVerdict(
 
 export function useQueueDispatch(): void {
   const store = useStore();
+  const { t } = useTranslation("sessions");
 
   // ── Dispatch lock ─────────────────────────────────────────────────────────
   // One dispatch at a time, globally. The in-flight id additionally guards
@@ -316,13 +311,16 @@ export function useQueueDispatch(): void {
           onDone();
           const detail = err instanceof Error ? err.message : String(err);
           Message.error({
-            content: `Failed to send message: ${detail}`,
+            content: formatDispatchFailureMessage(
+              t("errors.failedToSendMessage"),
+              detail
+            ),
             duration: 5000,
           });
         }
       })();
     },
-    [rememberSentQueueId, store]
+    [rememberSentQueueId, store, t]
   );
 
   const tryDispatchNext = useCallback(() => {
@@ -368,10 +366,25 @@ export function useQueueDispatch(): void {
         interruptRequestedByMessageIdRef.current.add(explicitMsg.id);
         void cancelTurnForTimelineBoundary(
           explicitMsg.sessionId,
-          "force-send"
-        ).catch((error) => {
-          log.warn("[useQueueDispatch] force-send interrupt failed:", error);
-        });
+          "force-send",
+          {
+            onError: (msg) => {
+              releaseForceSendInterruptSlot(
+                explicitMsg.id,
+                interruptRequestedByMessageIdRef.current
+              );
+              forceTurnIdle(explicitMsg.sessionId);
+              log.warn("[useQueueDispatch] force-send interrupt failed:", msg);
+              Message.error({
+                content: formatDispatchFailureMessage(
+                  t("errors.failedToInterrupt"),
+                  msg
+                ),
+                duration: 5000,
+              });
+            },
+          }
+        );
       }
       // stopping (or interrupt already requested): wait for the terminal.
       return;
@@ -427,7 +440,7 @@ export function useQueueDispatch(): void {
             )
           );
           Message.warning({
-            content: `Session has ended — queued message was kept on hold. Use Send Now to dispatch it explicitly.`,
+            content: t("errors.queuedMessageSessionEnded"),
             duration: 6000,
           });
           tryDispatchNextRef.current();
@@ -450,7 +463,7 @@ export function useQueueDispatch(): void {
       });
       return;
     }
-  }, [dispatchMessage, store]);
+  }, [dispatchMessage, store, t]);
 
   useEffect(() => {
     tryDispatchNextRef.current = tryDispatchNext;

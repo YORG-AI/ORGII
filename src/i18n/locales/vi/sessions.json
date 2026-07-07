@@ -839,7 +839,6 @@
     "answerSubmittedSuccess": "Gửi câu trả lời thành công",
     "responseSentSuccess": "Gửi phản hồi thành công",
     "failedToSubmitAnswer": "Không thể gửi câu trả lời",
-    "failedToSendMessage": "Không thể gửi tin nhắn",
     "unknownError": "Đã xảy ra lỗi không xác định",
     "failedToSubmitAnswerWithMsg": "Không thể gửi câu trả lời: {{msg}}",
     "noAnswerProvided": "Không có câu trả lời",

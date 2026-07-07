@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 
 import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/csp";
+import type { SessionSidebarStatusTone } from "@src/util/session/sessionSidebarStatusTone";
 
-export type StatusDotTone = "default" | "unread" | "asking";
+export type StatusDotTone = SessionSidebarStatusTone;
 
 export function renderBreathingStatusDot(): ReactNode {
   return (
@@ -26,11 +27,13 @@ export function renderStatusDot(tone: StatusDotTone = "default"): ReactNode {
       ? "Unread"
       : tone === "asking"
         ? "Pending question"
-        : undefined;
+        : tone === "failed"
+          ? "Failed"
+          : undefined;
   const colorClass =
     tone === "unread"
       ? "bg-success-6"
-      : tone === "asking"
+      : tone === "asking" || tone === "failed"
         ? "bg-warning-6"
         : "bg-fill-4";
 

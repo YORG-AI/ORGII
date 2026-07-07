@@ -5,10 +5,8 @@ import { useTranslation } from "react-i18next";
 import type { AgentOrgMemberIntervention } from "@src/api/tauri/agent";
 import Button from "@src/components/Button";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
-import {
-  ChatRetryBanner,
-  toChatRetryKind,
-} from "@src/engines/ChatPanel/components/ChatStatusBanners";
+import ComposerSessionHudBanners from "@src/engines/ChatPanel/components/ComposerSessionHudBanners";
+import type { StreamRetryStatus } from "@src/store/session/cliSessionStatusAtom";
 import type { PendingPlanApproval } from "@src/store/session/planApprovalAtom";
 
 import type { ScrollNavState } from "./ChatHistory";
@@ -34,12 +32,6 @@ import type {
   CustomMentionOption,
   SubmitOverrideInput,
 } from "./hooks/useInputArea/types";
-
-interface StreamRetryInfo {
-  kind: string;
-  attempt: number;
-  maxAttempts: number;
-}
 
 interface AgentOrgInterventionView {
   intervention: AgentOrgMemberIntervention | null;
@@ -100,7 +92,7 @@ interface ChatFloatingComposerProps {
   inlineSections: InlineSection[];
   hasModeSwitch: boolean;
   agentOrgIntervention: AgentOrgInterventionView | null;
-  streamRetry: StreamRetryInfo | null;
+  streamRetry: StreamRetryStatus | null;
   groupChatPausedBottomContent: React.ReactNode;
   onSubmitOverride: (input: SubmitOverrideInput) => Promise<boolean>;
   customMentionOptions: ReadonlyArray<CustomMentionOption>;
@@ -328,6 +320,10 @@ const ChatFloatingComposer: React.FC<ChatFloatingComposerProps> = memo(
             topRowTrailingContent={trailingScrollButton}
             statusBanners={
               <>
+                <ComposerSessionHudBanners
+                  sessionId={inputAreaSessionId}
+                  streamRetry={streamRetry}
+                />
                 {hasModeSwitch && !modeSwitchCollapsed && (
                   <ModeSwitchInputCard
                     key={`mode-switch-status-${sessionId}`}
@@ -342,13 +338,6 @@ const ChatFloatingComposer: React.FC<ChatFloatingComposerProps> = memo(
                     error={agentOrgIntervention.error}
                     returning={agentOrgIntervention.returning}
                     onReturnToWork={agentOrgIntervention.onReturnToWork}
-                  />
-                )}
-                {streamRetry && (
-                  <ChatRetryBanner
-                    kind={toChatRetryKind(streamRetry.kind)}
-                    attempt={streamRetry.attempt}
-                    maxAttempts={streamRetry.maxAttempts}
                   />
                 )}
                 {groupChatPausedBottomContent}

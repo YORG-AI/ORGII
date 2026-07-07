@@ -1,8 +1,10 @@
-import { Play } from "lucide-react";
+import { Loader2, Play } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+
+import { resolveSessionFailedBannerDescription } from "./sessionStatusBannerHelpers";
 
 export const CHAT_RETRY_KIND = {
   RECONNECTING: "reconnecting",
@@ -156,6 +158,83 @@ interface GroupChatPausedBannerProps {
   onResume: () => void;
   testId?: string;
   resumeButtonTestId?: string;
+}
+
+interface SessionFailedBannerProps {
+  error?: string | null;
+  canRetry?: boolean;
+  testId?: string;
+}
+
+export function SessionFailedBanner({
+  error,
+  canRetry = true,
+  testId = "session-failed-banner",
+}: SessionFailedBannerProps) {
+  const { t } = useTranslation("sessions");
+
+  return (
+    <ChatStatusSegmentedBar
+      testId={testId}
+      segments={[
+        {
+          key: "failed",
+          className: "flex-1 text-warning-6",
+          content: (
+            <ChatStatusTwoLineContent
+              title={t("chat.sessionFailed.title", {
+                defaultValue: "Session failed",
+              })}
+              description={resolveSessionFailedBannerDescription(
+                error,
+                canRetry
+                  ? t("chat.sessionFailed.retryHint", {
+                      defaultValue: "Press Retry to resume this session.",
+                    })
+                  : t("chat.sessionFailed.continueHint", {
+                      defaultValue: "Send a new message to continue.",
+                    })
+              )}
+            />
+          ),
+        },
+      ]}
+    />
+  );
+}
+
+interface SessionInstallingBannerProps {
+  testId?: string;
+}
+
+export function SessionInstallingBanner({
+  testId = "session-installing-banner",
+}: SessionInstallingBannerProps) {
+  const { t } = useTranslation("sessions");
+
+  return (
+    <ChatStatusSegmentedBar
+      testId={testId}
+      segments={[
+        {
+          key: "installing",
+          className: "text-primary-6",
+          content: (
+            <span className="inline-flex min-w-0 items-center gap-1.5 truncate">
+              <Loader2
+                size={12}
+                strokeWidth={2}
+                className="shrink-0 animate-spin"
+              />
+              {t("chat.sessionInstalling", {
+                defaultValue: "Starting agent…",
+              })}
+            </span>
+          ),
+        },
+      ]}
+    />
+  );
 }
 
 export function GroupChatPausedBanner({

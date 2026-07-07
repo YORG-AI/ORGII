@@ -839,7 +839,6 @@
     "answerSubmittedSuccess": "Yanıt başarıyla gönderildi",
     "responseSentSuccess": "Yanıt başarıyla gönderildi",
     "failedToSubmitAnswer": "Yanıt gönderilemedi",
-    "failedToSendMessage": "Mesaj gönderilemedi",
     "unknownError": "Bilinmeyen bir hata oluştu",
     "failedToSubmitAnswerWithMsg": "Yanıt gönderilemedi: {{msg}}",
     "noAnswerProvided": "Yanıt verilmedi",

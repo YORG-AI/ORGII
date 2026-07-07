@@ -24,6 +24,7 @@ import { useCallback, useEffect, useId, useMemo, useRef } from "react";
 
 import { useChatContext } from "@src/contexts/workspace/ChatContext";
 import { useDataContext } from "@src/contexts/workspace/DataContext";
+import { shouldShowSessionFailedBanner } from "@src/engines/ChatPanel/components/sessionStatusBannerHelpers";
 import useWorkspaceChat from "@src/engines/ChatPanel/hooks/useWorkspaceChat";
 import { useRepositoryInfo } from "@src/engines/SessionCore";
 import { sortedEventsAtom } from "@src/engines/SessionCore/core/atoms/events";
@@ -213,7 +214,8 @@ export function useInputArea(
   const sessionEvents = useAtomValue(sortedEventsAtom);
   // Retry is only meaningful for `failed` runs. A user-initiated cancel should
   // never surface the orange retry button — the user stopped on purpose.
-  const isSessionTerminal = !isSessionless && runtimeStatus === "failed";
+  const isSessionTerminal =
+    !isSessionless && shouldShowSessionFailedBanner(runtimeStatus);
 
   // ============================================
   // Sub-hooks

@@ -40,6 +40,7 @@ import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { useShowInteractArea } from "@src/contexts/workspace/ChatContext";
 import { AgentMessageClampProvider } from "@src/engines/ChatPanel/blocks";
 import { GroupChatPausedBanner } from "@src/engines/ChatPanel/components/ChatStatusBanners";
+import ComposerSessionHudBanners from "@src/engines/ChatPanel/components/ComposerSessionHudBanners";
 import { forkCodexAppHistoryIntoOrgiiSession } from "@src/engines/ChatPanel/externalHistoryFork";
 import { useAgentOrgGroupChatController } from "@src/engines/ChatPanel/hooks/useAgentOrgGroupChatController";
 import { AgentOrgGroupChatLiveSessions } from "@src/engines/ChatPanel/hooks/useAgentOrgGroupChatLiveSessions";
@@ -60,6 +61,7 @@ import {
 import type { Session } from "@src/store/session";
 import {
   isSessionActiveAtom,
+  resolveStreamRetryForSession,
   sessionRuntimeStatusAtom,
   streamRetryStatusAtom,
 } from "@src/store/session/cliSessionStatusAtom";
@@ -89,6 +91,7 @@ import {
   isCursorIdeSession,
   isExternalHistorySession,
 } from "@src/util/session/sessionDispatch";
+import { isSessionRuntimeExecuting } from "@src/util/session/sessionRuntimeExecuting";
 
 import ChatFloatingComposer from "./ChatFloatingComposer";
 import ChatHistory, { type ScrollNavState } from "./ChatHistory";
@@ -113,7 +116,7 @@ import { useAgentOrgRunView } from "./InputArea/components/useAgentOrgRunView";
 import { useComposerSections } from "./InputArea/hooks/useComposerSections";
 import { useGitDiffActions } from "./InputArea/hooks/useGitDiffActions";
 import { useQueueEditMode } from "./InputArea/hooks/useQueueEditMode";
-import { useCanvasPreviewForSession } from "./blocks/CanvasInlineCard/useCanvasPreviewForSession";
+import { useCanvasForTurn } from "./blocks/CanvasInlineCard/useCanvasForTurn";
 import { useJumpToSimulatorCanvas } from "./blocks/CanvasInlineCard/useJumpToSimulatorCanvas";
 import { useBrowserAddToConversationAction } from "./hooks/useBrowserAddToConversationAction";
 import { useFollowAgent } from "./hooks/useFollowAgent";
@@ -312,8 +315,7 @@ const ChatView: React.FC<ChatViewProps> = memo(
     // sync on a live status so opening a finished session in ChatView
     // doesn't fire a guaranteed `not found` snapshot pull.
     const runtimeStatus = useAtomValue(sessionRuntimeStatusAtom);
-    const isLiveStatus =
-      runtimeStatus === "running" || runtimeStatus === "installing";
+    const isLiveStatus = isSessionRuntimeExecuting(runtimeStatus);
 
     useSessionWorkspaceSync({
       sessionId,
@@ -419,11 +421,13 @@ const ChatView: React.FC<ChatViewProps> = memo(
       stationMode === STATION_MODE.AGENT_STATION && !chatPanelMaximized;
 
     const streamRetryStatus = useAtomValue(streamRetryStatusAtom);
-    const streamRetry =
-      streamRetryStatus?.sessionId === sessionId ? streamRetryStatus : null;
+    const streamRetry = resolveStreamRetryForSession(
+      streamRetryStatus,
+      sessionId
+    );
     const snapshot = useAtomValue(derivedSnapshotAtom);
     const { payload: latestCanvasPayload, openedInSimulator } =
-      useCanvasPreviewForSession(sessionId);
+      useCanvasForTurn(sessionId);
     const openLatestCanvas = useJumpToSimulatorCanvas(
       sessionId,
       latestCanvasPayload
@@ -853,8 +857,15 @@ const ChatView: React.FC<ChatViewProps> = memo(
                   <InputArea
                     omitChatHeader
                     chatPanelPosition={position}
+                    sessionId={sessionId}
                     sessionScope="none"
                     onSubmitOverride={handleExternalHistoryForkSubmit}
+                    statusBanners={
+                      <ComposerSessionHudBanners
+                        sessionId={sessionId}
+                        streamRetry={streamRetry}
+                      />
+                    }
                     bottomAnchored
                   />
                 </ChatSessionContext.Provider>

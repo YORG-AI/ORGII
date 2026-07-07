@@ -60,6 +60,7 @@ import {
   hasLiveSubagentJobs,
   subagentJobMapAtom,
 } from "@src/store/session/subagentJobAtom";
+import { isSessionEngineActiveStatus } from "@src/util/session/sessionRuntimeExecuting";
 
 const log = createLogger("usePlanningIndicator");
 
@@ -110,11 +111,7 @@ export function shouldShowPlanningIndicator({
   hasRunningAwaitWaitFor,
 }: PlanningIndicatorVisibilityInput): boolean {
   const runtimeCanShowPlanning =
-    runtimeStatus === "running" ||
-    runtimeStatus === "installing" ||
-    runtimeStatus === "waiting_for_user" ||
-    runtimeStatus === "waiting_for_funds" ||
-    hasLiveSubagent;
+    isSessionEngineActiveStatus(runtimeStatus) || hasLiveSubagent;
   return (
     runtimeCanShowPlanning &&
     isSessionActive &&

@@ -839,7 +839,6 @@
     "answerSubmittedSuccess": "Respuesta enviada correctamente",
     "responseSentSuccess": "Respuesta enviada correctamente",
     "failedToSubmitAnswer": "Error al enviar respuesta",
-    "failedToSendMessage": "Error al enviar mensaje",
     "unknownError": "Ocurrió un error desconocido",
     "failedToSubmitAnswerWithMsg": "Error al enviar respuesta: {{msg}}",
     "noAnswerProvided": "No se proporcionó respuesta",

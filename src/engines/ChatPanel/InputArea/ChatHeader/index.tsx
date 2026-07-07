@@ -5,13 +5,15 @@ import { useTranslation } from "react-i18next";
 
 import { wingmanStop } from "@src/api/tauri/agent";
 import { useChatContext } from "@src/contexts/workspace/ChatContext";
+import ComposerSessionHudBanners from "@src/engines/ChatPanel/components/ComposerSessionHudBanners";
 import { useStepState } from "@src/engines/SessionCore";
 import { useSessionId } from "@src/engines/SessionCore/hooks/session";
 import { createLogger } from "@src/hooks/logger";
 import { useWingmanStatus } from "@src/hooks/wingman/useWingmanStatus";
-import { streamRetryStatusAtom } from "@src/store/session/cliSessionStatusAtom";
-
-import StreamingHud from "./StreamingHud";
+import {
+  resolveStreamRetryForSession,
+  streamRetryStatusAtom,
+} from "@src/store/session/cliSessionStatusAtom";
 
 const log = createLogger("ChatHeader");
 
@@ -22,8 +24,10 @@ const ChatHeader = () => {
 
   const streamRetryStatus = useAtomValue(streamRetryStatusAtom);
   const { sessionId } = useSessionId();
-  const streamRetry =
-    streamRetryStatus?.sessionId === sessionId ? streamRetryStatus : null;
+  const streamRetry = resolveStreamRetryForSession(
+    streamRetryStatus,
+    sessionId
+  );
   const { activeSessionId: wingmanSessionId } = useWingmanStatus();
   const isWingmanActive = !!sessionId && wingmanSessionId === sessionId;
 
@@ -52,9 +56,11 @@ const ChatHeader = () => {
         </div>
       )}
 
-      {/* Live streaming telemetry — suppressed while a retry is in flight,
-          since a stalled stream produces no meaningful throughput. */}
-      {!streamRetry && <StreamingHud sessionId={sessionId} />}
+      {/* Session activity / failure / installing / stream-retry feedback */}
+      <ComposerSessionHudBanners
+        sessionId={sessionId ?? ""}
+        streamRetry={streamRetry}
+      />
 
       {isStepWaiting && (
         <div className="bottom-[54px] mx-auto flex w-full items-center justify-between">

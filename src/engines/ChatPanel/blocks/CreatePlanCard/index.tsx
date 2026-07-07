@@ -46,6 +46,7 @@ import { sessionByIdAtom } from "@src/store/session/sessionAtom";
 import { activeSessionIdAtom } from "@src/store/session/viewAtom";
 import { activeWorkspaceRootPathAtom } from "@src/store/workspace";
 import { resolveModelForMessage } from "@src/util/session/resolveModelForMessage";
+import { isSessionRuntimeExecuting } from "@src/util/session/sessionRuntimeExecuting";
 
 import ToolUsageBadge from "../ToolCallBlock/ToolUsageBadge";
 import {
@@ -209,8 +210,7 @@ const CreatePlanCard: React.FC<CreatePlanCardProps> = memo(
         ? Math.max(0, Math.ceil((autoApproveAt - nowMs) / 1000))
         : null;
     const sessionIsWorking =
-      sessionId === activeSessionId &&
-      (runtimeStatus === "running" || runtimeStatus === "installing");
+      sessionId === activeSessionId && isSessionRuntimeExecuting(runtimeStatus);
     const actionsDisabled = submitting || sessionIsWorking;
     const interactive =
       surfaceState?.actionable !== undefined

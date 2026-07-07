@@ -839,7 +839,6 @@
     "answerSubmittedSuccess": "답변이 성공적으로 제출되었습니다",
     "responseSentSuccess": "응답이 성공적으로 전송되었습니다",
     "failedToSubmitAnswer": "답변 제출에 실패했습니다",
-    "failedToSendMessage": "메시지 전송에 실패했습니다",
     "unknownError": "알 수 없는 오류가 발생했습니다",
     "failedToSubmitAnswerWithMsg": "답변 제출에 실패했습니다: {{msg}}",
     "noAnswerProvided": "답변이 제공되지 않았습니다",

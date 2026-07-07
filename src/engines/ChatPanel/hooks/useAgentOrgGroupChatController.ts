@@ -1,5 +1,6 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   AGENT_ORG_RUN_STATUS,
@@ -10,6 +11,7 @@ import {
   resumeAgentOrgRun,
   sendAgentOrgGroupChatMessage,
 } from "@src/api/tauri/agent";
+import Message from "@src/components/Message";
 import { useGroupChatMergedEvents } from "@src/engines/ChatPanel/ChatHistory/GroupChatView/useGroupChatMergedEvents";
 import type {
   CustomMentionOption,
@@ -164,6 +166,7 @@ export function useAgentOrgGroupChatController({
   currentAgentOrgMember,
   refreshAgentOrgRunView,
 }: UseAgentOrgGroupChatControllerOptions) {
+  const { t } = useTranslation("sessions");
   const setActiveSessionId = useSetAtom(activeSessionIdAtom);
   const groupChatViewSessionId = useAtomValue(groupChatViewSessionIdAtom);
   const setGroupChatViewSessionId = useSetAtom(groupChatViewSessionIdAtom);
@@ -303,10 +306,15 @@ export function useAgentOrgGroupChatController({
       await refreshAgentOrgRunView();
     } catch (err: unknown) {
       logger.error("Failed to resume Agent Team run from group chat:", err);
+      Message.error(
+        t("groupChat.pausedBanner.resumeFailed", {
+          defaultValue: "Could not resume Agent Team run. Try again.",
+        })
+      );
     } finally {
       setIsResumingGroupChat(false);
     }
-  }, [isResumingGroupChat, refreshAgentOrgRunView, sessionId]);
+  }, [isResumingGroupChat, refreshAgentOrgRunView, sessionId, t]);
 
   const handleGroupChatSubmitOverride = useCallback(
     async (input: SubmitOverrideInput): Promise<boolean> => {

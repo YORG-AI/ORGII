@@ -17,6 +17,7 @@ const markStoppedSpy = vi.hoisted(() => vi.fn());
 const getEventsSpy = vi.hoisted(() => vi.fn());
 const patchByIdsSpy = vi.hoisted(() => vi.fn());
 const killAgentShellProcessSpy = vi.hoisted(() => vi.fn());
+const isTurnActiveSpy = vi.hoisted(() => vi.fn());
 
 vi.mock("@src/util/core/state/instrumentedStore", () => ({
   getInstrumentedStore: () => ({ get: storeGetSpy, set: storeSetSpy }),
@@ -47,10 +48,19 @@ vi.mock(
   })
 );
 
+vi.mock("./turnLifecycle", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./turnLifecycle")>();
+  return {
+    ...actual,
+    isTurnActive: isTurnActiveSpy,
+  };
+});
+
 describe("sessionTimelineBoundary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     storeGetSpy.mockReturnValue(new Map());
+    isTurnActiveSpy.mockReturnValue(false);
     getEventsSpy.mockResolvedValue([]);
     patchByIdsSpy.mockResolvedValue(undefined);
     killAgentShellProcessSpy.mockResolvedValue("killed");
@@ -235,9 +245,7 @@ describe("sessionTimelineBoundary", () => {
 
   it("kills no shell processes for rewind boundaries", async () => {
     storeGetSpy.mockImplementation((atom: { debugLabel?: string }) => {
-      if (atom.debugLabel === "isSessionActive") return true;
-      if (atom.debugLabel === "sessionRuntimeStatus") return "running";
-      if (atom.debugLabel === "session/sortedEvents") return [];
+      if (atom.debugLabel === "subagentJobMap") return new Map();
       return new Map([
         [
           "session-1",
@@ -299,10 +307,9 @@ describe("sessionTimelineBoundary", () => {
   });
 
   it("skips backend interrupt for idle rewind boundaries", async () => {
+    isTurnActiveSpy.mockReturnValue(false);
     storeGetSpy.mockImplementation((atom: { debugLabel?: string }) => {
-      if (atom.debugLabel === "isSessionActive") return false;
-      if (atom.debugLabel === "sessionRuntimeStatus") return "idle";
-      if (atom.debugLabel === "session/sortedEvents") return [];
+      if (atom.debugLabel === "subagentJobMap") return new Map();
       return new Map();
     });
 
@@ -312,10 +319,9 @@ describe("sessionTimelineBoundary", () => {
   });
 
   it("interrupts backend for active rewind boundaries", async () => {
+    isTurnActiveSpy.mockReturnValue(true);
     storeGetSpy.mockImplementation((atom: { debugLabel?: string }) => {
-      if (atom.debugLabel === "isSessionActive") return true;
-      if (atom.debugLabel === "sessionRuntimeStatus") return "running";
-      if (atom.debugLabel === "session/sortedEvents") return [];
+      if (atom.debugLabel === "subagentJobMap") return new Map();
       return new Map();
     });
     interruptSpy.mockResolvedValue(undefined);
@@ -327,6 +333,19 @@ describe("sessionTimelineBoundary", () => {
       reason: CANCEL_REASON.USER_STOP,
       onError: undefined,
     });
+  });
+
+  it("skips rewind interrupt for background sessions while another session is active", async () => {
+    isTurnActiveSpy.mockReturnValue(false);
+    storeGetSpy.mockImplementation((atom: { debugLabel?: string }) => {
+      if (atom.debugLabel === "subagentJobMap") return new Map();
+      return new Map();
+    });
+
+    await cancelTurnForTimelineBoundary("background-session", "rewind");
+
+    expect(isTurnActiveSpy).toHaveBeenCalledWith("background-session");
+    expect(interruptSpy).not.toHaveBeenCalled();
   });
 
   it("keeps force-send and Stop boundaries independently deduplicated", async () => {

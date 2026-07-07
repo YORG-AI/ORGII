@@ -847,7 +847,6 @@
     "answerSubmittedSuccess": "Odpowiedź wysłana pomyślnie",
     "responseSentSuccess": "Odpowiedź wysłana pomyślnie",
     "failedToSubmitAnswer": "Nie udało się wysłać odpowiedzi",
-    "failedToSendMessage": "Nie udało się wysłać wiadomości",
     "unknownError": "Wystąpił nieznany błąd",
     "failedToSubmitAnswerWithMsg": "Nie udało się wysłać odpowiedzi: {{msg}}",
     "noAnswerProvided": "Nie podano odpowiedzi",

@@ -12,10 +12,6 @@ import { useTranslation } from "react-i18next";
 import { useFilteredItems } from "@src/hooks/search";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
 import {
-  isSessionCompletedUnread,
-  isSessionPendingAsking,
-} from "@src/scaffold/NavigationSidebar/connectors/useSessionMenuItems/menuItemBuilders";
-import {
   renderBreathingStatusDot,
   renderStatusDot,
 } from "@src/scaffold/NavigationSidebar/connectors/useSessionMenuItems/statusIndicators";
@@ -26,12 +22,15 @@ import {
   visitedSessionsAtom,
 } from "@src/store/session";
 import type { Session } from "@src/store/session";
-import { isSessionInProgress } from "@src/util/session/sessionInProgress";
 import { getSessionSearchText } from "@src/util/session/sessionSearch";
 import {
   getSessionListDisplayName,
   resolveSessionRowIcon,
 } from "@src/util/session/sessionSidebarRow";
+import {
+  resolveSessionSidebarStatusTone,
+  shouldShowSessionSidebarBreathingIndicator,
+} from "@src/util/session/sessionSidebarStatusTone";
 
 import type { BasePaletteProps } from "../../shared";
 import { PaletteBody, SpotlightShell } from "../../shell";
@@ -108,14 +107,13 @@ export const AgentSessionSearchPalette: React.FC<
           session,
           fallbackSessionLabel
         );
-        const inProgress = isSessionInProgress(session.status, session);
-        const pendingAsking = isSessionPendingAsking(session);
-        const unread = isSessionCompletedUnread(session, visitedSessions);
-        const statusDotTone = pendingAsking
-          ? "asking"
-          : unread
-            ? "unread"
-            : "default";
+        const statusDotTone = resolveSessionSidebarStatusTone({
+          status: session.status,
+          mergeStatus: session.mergeStatus,
+          visited: visitedSessions.has(session.session_id),
+        });
+        const showBreathingIndicator =
+          shouldShowSessionSidebarBreathingIndicator(session.status);
 
         return {
           id: session.session_id,
@@ -123,10 +121,9 @@ export const AgentSessionSearchPalette: React.FC<
           icon: resolveSessionRowIcon(session),
           type: "option" as const,
           data: {
-            statusContent:
-              inProgress && !pendingAsking
-                ? renderBreathingStatusDot()
-                : renderStatusDot(statusDotTone),
+            statusContent: showBreathingIndicator
+              ? renderBreathingStatusDot()
+              : renderStatusDot(statusDotTone),
             iconTone: "text1",
           },
           action: () => handleOpenSession(session),

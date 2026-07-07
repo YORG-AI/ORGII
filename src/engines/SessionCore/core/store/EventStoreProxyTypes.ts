@@ -1,16 +1,7 @@
-import type { CanvasInlineMode } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/types";
 import type {
   SessionEvent,
   SimulatorEventPreview,
 } from "@src/engines/SessionCore/core/types";
-
-export interface LatestCanvasPreview {
-  eventId: string;
-  mode: CanvasInlineMode;
-  url?: string;
-  title?: string;
-  streaming?: boolean;
-}
 
 export interface SimulatorPreviewSnapshotFields {
   sortedSimulatorEventIds?: string[];
@@ -33,7 +24,6 @@ export interface DerivedSnapshot extends SimulatorPreviewSnapshotFields {
   eventIndex: Record<string, number>;
   chatEventCount: number;
   hasRunningEvent: boolean;
-  latestCanvasPreview?: LatestCanvasPreview;
 }
 
 export interface StreamingSnapshot extends SimulatorPreviewSnapshotFields {
@@ -45,7 +35,6 @@ export interface StreamingSnapshot extends SimulatorPreviewSnapshotFields {
   lastEvent: SessionEvent | null;
   streaming: boolean;
   hasRunningEvent: boolean;
-  latestCanvasPreview?: LatestCanvasPreview;
 }
 
 export interface SnapshotDelta extends SimulatorPreviewSnapshotFields {
@@ -61,7 +50,6 @@ export interface SnapshotDelta extends SimulatorPreviewSnapshotFields {
   lastEventId: string | null;
   chatEventCount: number;
   hasRunningEvent: boolean;
-  latestCanvasPreview?: LatestCanvasPreview;
   snapshotDelta: true;
 }
 

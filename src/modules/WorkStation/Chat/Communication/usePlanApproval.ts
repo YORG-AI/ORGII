@@ -29,6 +29,7 @@ import { sessionMapAtom } from "@src/store/session/sessionAtom";
 import { activeSessionIdAtom } from "@src/store/session/viewAtom";
 import { activeWorkspaceRootPathAtom } from "@src/store/workspace";
 import { resolveModelForMessage } from "@src/util/session/resolveModelForMessage";
+import { isSessionRuntimeExecuting } from "@src/util/session/sessionRuntimeExecuting";
 
 import type { MessageEntry } from "./types";
 
@@ -239,7 +240,7 @@ export function usePlanApproval({
     : null;
   const sessionIsWorking =
     planSessionId === activeSessionId &&
-    (runtimeStatus === "running" || runtimeStatus === "installing");
+    isSessionRuntimeExecuting(runtimeStatus);
   const buildDisabled = !isPlanPending || submitting || sessionIsWorking;
 
   const handleEditToggle = useCallback(() => {
