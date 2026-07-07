@@ -80,9 +80,9 @@ pub fn fast_model_hint(parent_model: &str) -> String {
         || lower.contains("haiku")
         || lower.contains("opus")
     {
-        "anthropic/claude-haiku-4.5".to_string()
+        "anthropic/claude-haiku-4.5:anthropic".to_string()
     } else if lower.contains("gpt") || lower.contains("openai") {
-        "openai/gpt-5.4-mini".to_string()
+        "openai/gpt-5.4-mini:openai".to_string()
     } else if lower.contains("gemini") {
         "gemini/gemini-3.1-flash".to_string()
     } else if lower.contains("deepseek") {
