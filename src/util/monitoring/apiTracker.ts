@@ -19,9 +19,8 @@ interface TauriInternals {
   invoke?: (cmd: string, args?: unknown) => Promise<unknown>;
 }
 
-type TauriInternalsHost = {
-  __TAURI_INTERNALS__?: TauriInternals;
-};
+type TauriInternalsWithInvoke = NonNullable<Window["__TAURI_INTERNALS__"]> &
+  TauriInternals;
 
 export type InteractionType =
   | "auto"
@@ -373,7 +372,7 @@ type TimerPatchRecord = {
 
 function setWindowTimerFunction(
   name: TimerFunctionName,
-  value: Window[TimerFunctionName]
+  value: unknown
 ): TimerPatchRecord | undefined {
   const ownDescriptor = Object.getOwnPropertyDescriptor(window, name);
   try {
@@ -403,8 +402,12 @@ function restoreWindowTimerFunction(record: TimerPatchRecord): void {
 function installTimerTracking(): (() => void) | undefined {
   if (timerTrackingPatched || typeof window === "undefined") return undefined;
 
-  const originalSetInterval = window.setInterval.bind(window);
-  const originalSetTimeout = window.setTimeout.bind(window);
+  const originalSetInterval = window.setInterval.bind(
+    window
+  ) as Window["setInterval"];
+  const originalSetTimeout = window.setTimeout.bind(
+    window
+  ) as Window["setTimeout"];
   const originalRequestAnimationFrame =
     window.requestAnimationFrame.bind(window);
 
@@ -428,10 +431,10 @@ function installTimerTracking(): (() => void) | undefined {
     };
   };
 
-  const patchedSetInterval = <TArgs extends unknown[]>(
+  const patchedSetInterval = ((
     handler: TimerHandler,
     timeout?: number,
-    ...args: TArgs
+    ...args: unknown[]
   ): number => {
     const timerId = `interval-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
     const source = captureTimerSource();
@@ -441,12 +444,12 @@ function installTimerTracking(): (() => void) | undefined {
       timeout,
       ...args
     );
-  };
+  }) as Window["setInterval"];
 
-  const patchedSetTimeout = <TArgs extends unknown[]>(
+  const patchedSetTimeout = ((
     handler: TimerHandler,
     timeout?: number,
-    ...args: TArgs
+    ...args: unknown[]
   ): number => {
     const timerId = `timeout-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
     const source = captureTimerSource();
@@ -456,7 +459,7 @@ function installTimerTracking(): (() => void) | undefined {
       timeout,
       ...args
     );
-  };
+  }) as Window["setTimeout"];
 
   const patchedRequestAnimationFrame: typeof window.requestAnimationFrame = (
     callback
@@ -513,7 +516,9 @@ function installDirectTauriInvokeTracking(): (() => void) | undefined {
   if (directTauriInvokePatched || typeof window === "undefined")
     return undefined;
 
-  const tauriInternals = (window as TauriInternalsHost).__TAURI_INTERNALS__;
+  const tauriInternals = window.__TAURI_INTERNALS__ as
+    | TauriInternalsWithInvoke
+    | undefined;
   const originalInvoke = tauriInternals?.invoke;
   if (!tauriInternals || !originalInvoke) return undefined;
 
