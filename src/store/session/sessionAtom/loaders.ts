@@ -240,7 +240,7 @@ interface FetchPageResult {
 }
 
 async function fetchAggregatePage(
-  wireCategory: "cli" | "agent",
+  wireCategory: "cli" | "agent" | "agent,os",
   offset: number,
   pageSize: number
 ): Promise<FetchPageResult> {
@@ -299,7 +299,11 @@ async function loadCategoryPage(
     case "cli_agent":
       return fetchAggregatePage("cli", offset, pageSize);
     case "rust_agent":
-      return fetchAggregatePage("agent", offset, pageSize);
+      // Rust-native sessions include both SDE/custom agent rows (category=agent)
+      // and channel/desktop OS rows (category=os, e.g. osagent-feishu-*).
+      // The sidebar groups them under one Rust Agent bucket, so fetch both;
+      // otherwise Feishu channel sessions exist in DB but never appear/open.
+      return fetchAggregatePage("agent,os", offset, pageSize);
   }
 }
 
