@@ -1,9 +1,9 @@
 # Cargo build configuration
 
 # ── FFmpeg / OpenSSL environment ──────────────────────────────────────────────
-# Keep machine-local Homebrew paths out of the committed Cargo config.
-# Linux/CI builds must use system pkg-config defaults; macOS developers can set
-# OPENSSL_DIR or PKG_CONFIG_PATH in their personal shell/~/.cargo config.
+# Do not set machine-local Homebrew paths globally. Linux/CI builds must use
+# system pkg-config defaults; macOS developers can set OPENSSL_DIR or
+# PKG_CONFIG_PATH in their personal shell/~/.cargo config when needed.
 
 # ── Build performance ─────────────────────────────────────────────────────────
 # Cap parallel rustc processes to limit memory usage (~4-5 GB each).
