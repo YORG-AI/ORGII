@@ -8,7 +8,15 @@ import type { SessionCreatorDraft } from "@src/store/session";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-/** Poll interval for Cursor IDE session list refresh. */
+/** Poll intervals for sidebar session list refresh. */
+export const CURSOR_IDE_ACTIVE_REFRESH_INTERVAL_MS = 60_000;
+export const CURSOR_IDE_IDLE_REFRESH_INTERVAL_MS = 5 * 60_000;
+
+// ORG2 channel sessions can be created from external surfaces (Feishu, etc.)
+// without any frontend action. Refresh the full sidebar list while focused so
+// `/newsession ...` appears in ORG2 without a manual page reload.
+export const SIDEBAR_SESSION_ACTIVE_REFRESH_INTERVAL_MS = 15_000;
+export const SIDEBAR_SESSION_IDLE_REFRESH_INTERVAL_MS = 60_000;
 
 export const NEW_SESSION_MENU_ITEM_ID = "new-session";
 export const PROJECTS_NEW_PROJECT_MENU_ITEM_ID = "projects-new-project";
