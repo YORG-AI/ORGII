@@ -20,17 +20,22 @@ if [[ "${ORGII_SKIP_DOCKER_BUILD:-0}" != "1" ]]; then
   docker build -f Dockerfile.build -t "$IMAGE" .
 fi
 
+INSTALL_CMD="pnpm install --no-frozen-lockfile"
+if [[ "${ORGII_SKIP_PNPM_INSTALL:-0}" == "1" ]]; then
+  INSTALL_CMD="test -d node_modules"
+fi
+
 docker run --rm \
   -e CI=1 \
   -e NO_AT_BRIDGE=1 \
   -v "$ROOT:/work" \
   -w /work \
   "$IMAGE" \
-  bash -lc '
+  bash -lc "
     set -euo pipefail
-    pnpm install --no-frozen-lockfile
+    ${INSTALL_CMD}
     pnpm exec tsc --noEmit
     cd src-tauri
     cargo test -p agent_core channel_handler::slash --lib
     cargo check -p agent_core
-  '
+  "
