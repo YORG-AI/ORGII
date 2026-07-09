@@ -245,6 +245,16 @@ export async function initPtyConnection({
     const terminal = terminalRef.current;
     if (!terminal) return;
 
+    // Tear down any listener left over from a previous init before registering
+    // new ones. Without this, a re-init (e.g. the xterm instance is recreated
+    // because an initPTY dependency such as shellOverride changed) stacks a
+    // second `pty-output` listener on top of the first, so every PTY chunk is
+    // written to xterm twice — the whole session renders duplicated line-by-line.
+    unlistenOutputRef.current?.();
+    unlistenOutputRef.current = null;
+    unlistenExitRef.current?.();
+    unlistenExitRef.current = null;
+
     const utf8Decoder = new TextDecoder("utf-8", { fatal: false });
     let ackPendingBytes = 0;
     let ackScheduled = false;
@@ -285,6 +295,14 @@ export async function initPtyConnection({
         }
       }
     );
+    // The `await` above yields to the event loop; the terminal may have been
+    // disposed/recreated in the meantime (React effect cleanup nulls the ref).
+    // Binding a listener to a stale terminal would leak it and double output on
+    // the live instance, so drop it immediately if we lost the race.
+    if (terminalRef.current !== terminal) {
+      unlistenOutput();
+      return;
+    }
     unlistenOutputRef.current = unlistenOutput;
 
     const unlistenExit = await listenTauri(`pty-exit-${sessionId}`, () => {
@@ -294,6 +312,12 @@ export async function initPtyConnection({
       }
       terminal.writeln("\r\n\x1b[33m[Session ended]\x1b[0m");
     });
+    if (terminalRef.current !== terminal) {
+      unlistenOutput();
+      unlistenExit();
+      unlistenOutputRef.current = null;
+      return;
+    }
     unlistenExitRef.current = unlistenExit;
 
     await reconnectOrCreatePty({

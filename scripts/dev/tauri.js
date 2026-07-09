@@ -117,7 +117,13 @@ function printBanner(features) {
 function writeStatusBar() {
   if (!isTTY) return;
 
-  const cols = process.stdout.columns || 80;
+  // Keep every status-bar line strictly narrower than the terminal width.
+  // A line that exactly fills `cols` triggers the terminal's autowrap/
+  // "pending wrap" behavior, so the following "\n" can consume a second
+  // physical row. The redraw only moves the cursor up 3 rows, so any extra
+  // wrapped row is never erased and accumulates on each repaint (duplicated
+  // separators + status block).
+  const cols = Math.max(1, (process.stdout.columns || 80) - 1);
   const separator = "─".repeat(cols);
   const rustLine = `\x1b[2m[Rust]   \x1b[0m ${STATUS.rust}`.slice(0, cols);
   const webpackLine = `\x1b[2m[Webpack]\x1b[0m ${STATUS.webpack}`.slice(

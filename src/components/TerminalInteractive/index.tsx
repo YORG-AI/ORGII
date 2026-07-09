@@ -266,6 +266,14 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
       return () => {
         cleanupContainerVisibilityInit();
         cleanupTerminalHandlers();
+        // Tear down PTY listeners together with the terminal they write to.
+        // If this effect re-runs (e.g. an initPTY dependency changed), the old
+        // xterm is disposed here; leaving its listeners alive would stack a
+        // second listener on the recreated terminal and duplicate all output.
+        cleanupPtyListeners({
+          unlistenOutputRef,
+          unlistenExitRef,
+        });
 
         if (webglAddonRef.current) {
           webglAddonRef.current.dispose();
@@ -281,15 +289,6 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
       // existing terminal lifetime semantics documented at the top of this file.
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [fitTerminal, initPTY]);
-
-    useEffect(() => {
-      return () => {
-        cleanupPtyListeners({
-          unlistenOutputRef,
-          unlistenExitRef,
-        });
-      };
-    }, []);
 
     useTerminalResizeListeners({
       containerRef,
