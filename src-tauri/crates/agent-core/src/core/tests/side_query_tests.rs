@@ -8,7 +8,7 @@ use crate::core::side_query::{
     extract_tool_choice_override, side_query, SideQueryConfig, StructuredOutput,
     TOOL_CHOICE_OVERRIDE_KEY,
 };
-use crate::providers::traits::{LLMProvider, LLMResponse, ProviderError, ToolCallRequest};
+use crate::providers::traits::{finish_reason, LLMProvider, LLMResponse, ProviderError, ToolCallRequest};
 
 // ── Mock infrastructure ──
 
@@ -16,6 +16,7 @@ struct MockProvider {
     response_content: String,
     reasoning_content: Option<String>,
     tool_calls: Vec<ToolCallRequest>,
+    finish_reason: String,
     usage: HashMap<String, i64>,
     observed_messages: Mutex<Vec<Value>>,
     observed_tools_were_none: Mutex<bool>,
@@ -32,6 +33,7 @@ impl MockProvider {
             response_content: content.to_string(),
             reasoning_content: None,
             tool_calls: vec![],
+            finish_reason: finish_reason::STOP.to_string(),
             usage,
             observed_messages: Mutex::new(Vec::new()),
             observed_tools_were_none: Mutex::new(false),
@@ -45,6 +47,7 @@ impl MockProvider {
             response_content: String::new(),
             reasoning_content: None,
             tool_calls: vec![],
+            finish_reason: finish_reason::STOP.to_string(),
             usage: HashMap::new(),
             observed_messages: Mutex::new(Vec::new()),
             observed_tools_were_none: Mutex::new(false),
@@ -58,6 +61,7 @@ impl MockProvider {
             response_content: String::new(),
             reasoning_content: Some(reasoning.to_string()),
             tool_calls: vec![],
+            finish_reason: finish_reason::STOP.to_string(),
             usage: {
                 let mut u = HashMap::new();
                 u.insert("prompt_tokens".to_string(), 200);
@@ -81,6 +85,7 @@ impl MockProvider {
                 arguments,
                 thought_signature: None,
             }],
+            finish_reason: finish_reason::STOP.to_string(),
             usage: {
                 let mut u = HashMap::new();
                 u.insert("prompt_tokens".to_string(), 200);
@@ -92,6 +97,13 @@ impl MockProvider {
             observed_tools: Mutex::new(None),
             call_count: Mutex::new(0),
         }
+    }
+
+
+    fn with_tool_call_finish(tool_name: &str, arguments: Value, finish: &str) -> Self {
+        let mut provider = Self::with_tool_call(tool_name, arguments);
+        provider.finish_reason = finish.to_string();
+        provider
     }
 }
 
@@ -117,7 +129,7 @@ impl LLMProvider for MockProvider {
                 Some(self.response_content.clone())
             },
             tool_calls: self.tool_calls.clone(),
-            finish_reason: crate::providers::finish_reason::STOP.to_string(),
+            finish_reason: self.finish_reason.clone(),
             usage: self.usage.clone(),
             reasoning_content: self.reasoning_content.clone(),
             blocks: Vec::new(),
@@ -285,6 +297,34 @@ async fn structured_output_extracts_from_tool_call() {
     assert!(result.structured.is_some());
     let structured = result.structured.unwrap();
     assert_eq!(structured["summary"], "Files were changed, tests passed");
+}
+
+#[tokio::test]
+async fn structured_output_length_finish_is_rejected_even_when_parseable() {
+    let provider = MockProvider::with_tool_call_finish(
+        "emit_summary",
+        json!({"summary": "partial but parseable"}),
+        finish_reason::LENGTH,
+    );
+    let messages = vec![json!({"role": "user", "content": "Summarize"})];
+    let config = SideQueryConfig {
+        structured: Some(StructuredOutput {
+            tool_name: "emit_summary".to_string(),
+            schema: json!({
+                "type": "object",
+                "properties": { "summary": { "type": "string" } },
+                "required": ["summary"]
+            }),
+        }),
+        ..SideQueryConfig::default()
+    };
+
+    let err = side_query(&provider, &messages, &config, "test-model")
+        .await
+        .expect_err("length-truncated structured output must not be accepted");
+
+    assert!(err.contains("incomplete output"), "unexpected error: {err}");
+    assert_eq!(*provider.call_count.lock().unwrap(), 2, "should retry once before hard fail");
 }
 
 #[tokio::test]
