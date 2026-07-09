@@ -66,12 +66,18 @@ impl LLMProvider for CodexNativeClient {
         let (converted_tools, tool_choice) =
             crate::providers::responses_common::convert_tools_with_choice(tools);
 
+        // Strip the ORG2-encoded reasoning/speed variant suffix. The Codex
+        // ChatGPT backend only accepts base model ids and rejects suffixed
+        // aliases (e.g. `gpt-5.5-high-fast`) with HTTP 400.
+        let (base_model, reasoning) = Self::resolve_model_and_reasoning(model);
+
         let request_body = ResponsesRequest {
-            model: model.to_string(),
+            model: base_model,
             input,
             instructions: Self::required_instructions(instructions),
             tools: converted_tools,
             tool_choice,
+            reasoning,
             store: false,
             stream: true,
         };

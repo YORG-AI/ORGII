@@ -92,6 +92,34 @@ impl CodexNativeClient {
             .unwrap_or_else(|| "You are Codex, a coding agent running in ORGII.".to_string())
     }
 
+    /// Resolve an ORG2 variant-suffixed model id into the base model id the
+    /// Codex backend accepts plus the optional `reasoning` request field.
+    ///
+    /// The Codex ChatGPT backend rejects suffixed aliases (e.g.
+    /// `gpt-5.5-high-fast`) with HTTP 400: `The 'gpt-5.5-high-fast' model is
+    /// not supported when using Codex with a ChatGPT account.`. The suffix
+    /// must be stripped and the reasoning level forwarded through
+    /// `reasoning.effort` instead, mirroring the public Responses API path.
+    /// The `-fast` speed flag has no wire representation on this backend and
+    /// is dropped.
+    pub(super) fn resolve_model_and_reasoning(model: &str) -> (String, Option<Value>) {
+        use crate::providers::thinking_mode::{
+            openai_effort, parse_model_variant, resolve_thinking_mode, ThinkingMode,
+        };
+
+        let parsed = parse_model_variant(model);
+        let mode = resolve_thinking_mode(
+            &parsed.base_model,
+            crate::providers::registry::provider_id::OPENAI,
+        );
+        let reasoning = if mode == ThinkingMode::OpenAiEffort {
+            openai_effort(parsed.level).map(|effort| serde_json::json!({ "effort": effort }))
+        } else {
+            None
+        };
+        (parsed.base_model, reasoning)
+    }
+
     /// Build HTTP request with required Codex native backend headers.
     pub(super) fn build_request(
         &self,
@@ -167,5 +195,49 @@ impl CodexNativeClient {
         auth_state.access_token = access_token;
         auth_state.extra_headers = extra_headers;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn strips_reasoning_and_speed_suffix_to_base_model() {
+        let (model, reasoning) = CodexNativeClient::resolve_model_and_reasoning("gpt-5.5-high-fast");
+        assert_eq!(model, "gpt-5.5");
+        assert_eq!(reasoning.expect("reasoning present")["effort"], "high");
+    }
+
+    #[test]
+    fn maps_low_and_medium_reasoning_levels() {
+        let (_, low) = CodexNativeClient::resolve_model_and_reasoning("gpt-5.5-low");
+        assert_eq!(low.expect("reasoning present")["effort"], "low");
+
+        let (_, medium) = CodexNativeClient::resolve_model_and_reasoning("gpt-5.5-medium");
+        assert_eq!(medium.expect("reasoning present")["effort"], "medium");
+    }
+
+    #[test]
+    fn base_model_without_suffix_omits_reasoning() {
+        let (model, reasoning) = CodexNativeClient::resolve_model_and_reasoning("gpt-5.5");
+        assert_eq!(model, "gpt-5.5");
+        assert!(reasoning.is_none());
+    }
+
+    #[test]
+    fn codex_base_model_preserves_native_suffix() {
+        // `codex` is a provider-native suffix, not an ORG2 variant token, so it
+        // must not be stripped.
+        let (model, reasoning) = CodexNativeClient::resolve_model_and_reasoning("gpt-5.3-codex");
+        assert_eq!(model, "gpt-5.3-codex");
+        assert!(reasoning.is_none());
+    }
+
+    #[test]
+    fn fast_only_suffix_strips_without_reasoning() {
+        let (model, reasoning) = CodexNativeClient::resolve_model_and_reasoning("gpt-5.5-fast");
+        assert_eq!(model, "gpt-5.5");
+        assert!(reasoning.is_none());
     }
 }

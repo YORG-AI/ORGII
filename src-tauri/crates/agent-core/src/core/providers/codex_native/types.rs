@@ -54,6 +54,11 @@ pub(super) struct ResponsesRequest {
     pub tools: Option<Vec<Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_choice: Option<Value>,
+    /// Reasoning-effort control (`{ "effort": "low"|"medium"|"high" }`).
+    /// Only set for reasoning models; omitted otherwise since the backend
+    /// rejects `reasoning` on non-reasoning models with HTTP 400.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning: Option<Value>,
     pub store: bool,
     pub stream: bool,
 }
