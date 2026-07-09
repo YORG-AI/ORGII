@@ -14,11 +14,12 @@ import {
 } from "@src/services/git/operations/createPullRequest";
 import { gitAutoCreatePrAtom } from "@src/store/ui/editorSettingsAtom";
 import {
-  workstationAllOpenPrsAtom,
-  workstationOpenPrsErrorAtom,
-  workstationOpenPrsLoadStateAtom,
-  workstationPrAtom,
-  workstationPrCallbackAtom,
+  workstationAllOpenPrsAtomFamily,
+  workstationOpenPrsErrorAtomFamily,
+  workstationOpenPrsLoadStateAtomFamily,
+  workstationPrAtomFamily,
+  workstationPrCallbackAtomFamily,
+  workstationRepoScopeKey,
 } from "@src/store/workstation/codeEditor/workstationPrAtom";
 
 import { getCachedPrs, isPrCacheStale, setCachedPrs } from "./githubListCache";
@@ -48,21 +49,29 @@ type BranchPrState = {
 export function useWorkstationPr(options: UseWorkstationPrOptions) {
   const {
     repoPath,
-    repoId = "default",
+    repoId,
     branchName,
     hasUpstream,
     uncommittedCount,
     commitMessage,
   } = options;
+  const apiRepoId = repoId ?? "default";
 
   const { t } = useTranslation();
   const navigate = useNavigate();
   const autoCreatePr = useAtomValue(gitAutoCreatePrAtom);
-  const setWorkstationPrAtom = useSetAtom(workstationPrAtom);
-  const setWorkstationPrCallbackAtom = useSetAtom(workstationPrCallbackAtom);
-  const setAllOpenPrs = useSetAtom(workstationAllOpenPrsAtom);
-  const setOpenPrsLoadState = useSetAtom(workstationOpenPrsLoadStateAtom);
-  const setOpenPrsError = useSetAtom(workstationOpenPrsErrorAtom);
+  const scopeKey = workstationRepoScopeKey(repoId, repoPath);
+  const setWorkstationPrAtom = useSetAtom(workstationPrAtomFamily(scopeKey));
+  const setWorkstationPrCallbackAtom = useSetAtom(
+    workstationPrCallbackAtomFamily(scopeKey)
+  );
+  const setAllOpenPrs = useSetAtom(workstationAllOpenPrsAtomFamily(scopeKey));
+  const setOpenPrsLoadState = useSetAtom(
+    workstationOpenPrsLoadStateAtomFamily(scopeKey)
+  );
+  const setOpenPrsError = useSetAtom(
+    workstationOpenPrsErrorAtomFamily(scopeKey)
+  );
   const branchKey = branchName ?? "";
 
   const [remotePrByBranch, setRemotePrByBranch] = useState<
@@ -97,7 +106,7 @@ export function useWorkstationPr(options: UseWorkstationPrOptions) {
     if (!repoPath) return;
 
     fetchRustApi<{ name: string }>(
-      `${gitRepoUrl(repoId)}/default-branch?${new URLSearchParams({ path: repoPath }).toString()}`
+      `${gitRepoUrl(apiRepoId)}/default-branch?${new URLSearchParams({ path: repoPath }).toString()}`
     )
       .then((resp) => {
         if (!cancelled && resp.data?.name) {
@@ -113,7 +122,7 @@ export function useWorkstationPr(options: UseWorkstationPrOptions) {
     return () => {
       cancelled = true;
     };
-  }, [repoPath, repoId]);
+  }, [repoPath, apiRepoId]);
 
   useEffect(() => {
     autoTriggeredRef.current = false;
@@ -139,7 +148,7 @@ export function useWorkstationPr(options: UseWorkstationPrOptions) {
     void (async () => {
       try {
         const remotesData = await getGitRemotes({
-          repo_id: repoId,
+          repo_id: apiRepoId,
           repo_path: repoPath,
         });
         const originRemote = remotesData?.remotes?.find(
@@ -186,7 +195,7 @@ export function useWorkstationPr(options: UseWorkstationPrOptions) {
     })();
   }, [
     repoPath,
-    repoId,
+    apiRepoId,
     branchName,
     setAllOpenPrs,
     setOpenPrsLoadState,
@@ -224,7 +233,7 @@ export function useWorkstationPr(options: UseWorkstationPrOptions) {
       repoPath,
       branch: branchName,
       title,
-      repoId,
+      repoId: apiRepoId,
       pushBeforeCreate: true,
     });
 
@@ -266,7 +275,7 @@ export function useWorkstationPr(options: UseWorkstationPrOptions) {
 
     setCreatingByBranch((current) => ({ ...current, [branchName]: false }));
     return { url: result.url };
-  }, [isCreating, branchName, repoPath, commitMessage, repoId, t, navigate]);
+  }, [isCreating, branchName, repoPath, commitMessage, apiRepoId, t, navigate]);
 
   const prIsActive = !!prUrl && prStatus !== "closed" && prStatus !== "merged";
   const readyToCreate = eligible && !prIsActive;

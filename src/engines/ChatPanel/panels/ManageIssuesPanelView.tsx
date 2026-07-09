@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useStore } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 import { CheckCircle2, ChevronDown, CircleDot } from "lucide-react";
 import React, {
@@ -43,7 +43,8 @@ import {
 } from "@src/services/git/operations/githubIssues";
 import { REPO_KIND, reposAtom, selectedRepoPathAtom } from "@src/store/repo";
 import type { Repo } from "@src/store/repo/types";
-import { workstationSelectedIssueAtom } from "@src/store/workstation/codeEditor/workstationIssueAtom";
+import { workstationSelectedIssueAtomFamily } from "@src/store/workstation/codeEditor/workstationIssueAtom";
+import { workstationRepoScopeKey } from "@src/store/workstation/codeEditor/workstationPrAtom";
 import { createGitHubIssueDetailTab } from "@src/store/workstation/tabs";
 
 const ISSUE_TAB = {
@@ -479,7 +480,7 @@ const ManageIssuesPanelView: React.FC = () => {
     ? activeTab
     : ISSUE_TAB.RECENT;
   const [selectedRepo, setSelectedRepo] = useAtom(manageIssuesSelectedRepoAtom);
-  const setSelectedIssue = useSetAtom(workstationSelectedIssueAtom);
+  const store = useStore();
   const { openTab } = useWorkStationTabs();
   const [repoSources, setRepoSources] = useState<GitHubRepoSource[]>([]);
   const [repoIssueMap, setRepoIssueMap] = useState<
@@ -764,7 +765,10 @@ const ManageIssuesPanelView: React.FC = () => {
 
   const handleOpenIssue = useCallback(
     (issue: ManagedIssueItem) => {
-      setSelectedIssue({
+      const selectedIssueAtom = workstationSelectedIssueAtomFamily(
+        workstationRepoScopeKey(undefined, issue.repoPath)
+      );
+      store.set(selectedIssueAtom, {
         issue: issue.rawIssue,
         comments: [],
         loading: false,
@@ -786,7 +790,7 @@ const ManageIssuesPanelView: React.FC = () => {
           remoteUrl: issue.remoteUrl,
           issueNumber: issue.id,
         });
-        setSelectedIssue((current) => {
+        store.set(selectedIssueAtom, (current) => {
           if (current.issue?.html_url !== issue.rawIssue.html_url)
             return current;
           return {
@@ -798,7 +802,7 @@ const ManageIssuesPanelView: React.FC = () => {
         });
       })();
     },
-    [openTab, setSelectedIssue]
+    [openTab, store]
   );
 
   const listContent = (() => {

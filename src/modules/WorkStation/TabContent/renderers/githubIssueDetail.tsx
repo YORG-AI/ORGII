@@ -22,9 +22,10 @@ import {
   reopenIssue,
 } from "@src/services/git/operations/githubIssues";
 import {
-  workstationIssueCallbackAtom,
-  workstationSelectedIssueAtom,
+  workstationIssueCallbackAtomFamily,
+  workstationSelectedIssueAtomFamily,
 } from "@src/store/workstation/codeEditor/workstationIssueAtom";
+import { workstationRepoScopeKey } from "@src/store/workstation/codeEditor/workstationPrAtom";
 import type { GitHubIssueDetailTabData } from "@src/store/workstation/tabs";
 
 import type { UnifiedTabContentProps } from "../types";
@@ -41,11 +42,18 @@ function HeaderIssueStateIcon({
 const GitHubIssueDetailTabRenderer: React.FC<UnifiedTabContentProps> = memo(
   ({ tab }) => {
     const { t } = useTranslation();
-    const selectedState = useAtomValue(workstationSelectedIssueAtom);
-    const callbacks = useAtomValue(workstationIssueCallbackAtom);
-    const setSelectedState = useSetAtom(workstationSelectedIssueAtom);
     const { closeTab } = useWorkStationTabs();
     const tabData = tab.data as unknown as GitHubIssueDetailTabData;
+    const scopeKey = workstationRepoScopeKey(undefined, tabData.repoPath);
+    const selectedState = useAtomValue(
+      workstationSelectedIssueAtomFamily(scopeKey)
+    );
+    const callbacks = useAtomValue(
+      workstationIssueCallbackAtomFamily(scopeKey)
+    );
+    const setSelectedState = useSetAtom(
+      workstationSelectedIssueAtomFamily(scopeKey)
+    );
 
     const handleClose = useCallback(() => {
       closeTab(tab.id);

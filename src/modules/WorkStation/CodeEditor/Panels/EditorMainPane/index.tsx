@@ -63,7 +63,8 @@ import {
   SOURCE_CONTROL_ALL_SESSIONS_FILTER,
   sourceControlSessionFilterAtom,
 } from "@src/store/workstation/codeEditor/sourceControlSessionFilterAtom";
-import { workstationSelectedIssueAtom } from "@src/store/workstation/codeEditor/workstationIssueAtom";
+import { workstationSelectedIssueAtomFamily } from "@src/store/workstation/codeEditor/workstationIssueAtom";
+import { workstationRepoScopeKey } from "@src/store/workstation/codeEditor/workstationPrAtom";
 import {
   type SourceControlHistorySelection,
   createGitCommitDetailTab,
@@ -250,7 +251,10 @@ const EditorContent: React.FC<EditorContentProps> = memo(
     const sourceControlSessionFilter = useAtomValue(
       sourceControlSessionFilterAtom
     );
-    const selectedIssueState = useAtomValue(workstationSelectedIssueAtom);
+    const scopeKey = workstationRepoScopeKey(repoId, repoPath);
+    const selectedIssueState = useAtomValue(
+      workstationSelectedIssueAtomFamily(scopeKey)
+    );
     const setSourceControlSessionFilter = useSetAtom(
       sourceControlSessionFilterAtom
     );

@@ -29,11 +29,12 @@ import type {
   GitHubIssueUser,
 } from "@src/services/git/operations/githubIssues";
 import {
-  workstationIssueCallbackAtom,
-  workstationIssueListAtom,
-  workstationSelectedIssueAtom,
+  workstationIssueCallbackAtomFamily,
+  workstationIssueListAtomFamily,
+  workstationSelectedIssueAtomFamily,
 } from "@src/store/workstation/codeEditor/workstationIssueAtom";
 import type { IssueFilterState } from "@src/store/workstation/codeEditor/workstationIssueAtom";
+import { workstationRepoScopeKey } from "@src/store/workstation/codeEditor/workstationPrAtom";
 
 import {
   getCachedIssues,
@@ -74,14 +75,22 @@ function mergeUniqueIssues(
 
 export function useWorkstationIssues({
   repoPath,
-  repoId = "default",
+  repoId,
   remoteUrl: remoteUrlProp,
 }: UseWorkstationIssuesOptions) {
-  const setListState = useSetAtom(workstationIssueListAtom);
-  const setSelectedState = useSetAtom(workstationSelectedIssueAtom);
-  const setCallbackAtom = useSetAtom(workstationIssueCallbackAtom);
+  const apiRepoId = repoId ?? "default";
+  const scopeKey = workstationRepoScopeKey(repoId, repoPath);
+  const setListState = useSetAtom(workstationIssueListAtomFamily(scopeKey));
+  const setSelectedState = useSetAtom(
+    workstationSelectedIssueAtomFamily(scopeKey)
+  );
+  const setCallbackAtom = useSetAtom(
+    workstationIssueCallbackAtomFamily(scopeKey)
+  );
 
-  const selectedState = useAtomValue(workstationSelectedIssueAtom);
+  const selectedState = useAtomValue(
+    workstationSelectedIssueAtomFamily(scopeKey)
+  );
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -127,10 +136,10 @@ export function useWorkstationIssues({
         return;
       }
 
-      logger.debug("fetching remotes", { repoPath, repoId });
+      logger.debug("fetching remotes", { repoPath, repoId: apiRepoId });
       try {
         const remotesData = await getGitRemotes({
-          repo_id: repoId,
+          repo_id: apiRepoId,
           repo_path: repoPath,
         });
         logger.debug("getGitRemotes result", remotesData);
@@ -151,7 +160,7 @@ export function useWorkstationIssues({
     return () => {
       cancelled = true;
     };
-  }, [repoPath, repoId, remoteUrlProp]);
+  }, [repoPath, apiRepoId, remoteUrlProp]);
 
   // Optimistically true when the remote resolves to a GitHub URL.
   // A valid GitHub URL means credentials should be available via

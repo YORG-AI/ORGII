@@ -24,9 +24,10 @@ import { gitAutoCreatePrAtom } from "@src/store/ui/editorSettingsAtom";
 import { gitReviewNavigationAtom } from "@src/store/workstation/codeEditor/gitReviewNavigationAtom";
 import { gitOutputIntegrationAtom } from "@src/store/workstation/codeEditor/outputIntegration";
 import {
-  workstationPrAtom,
-  workstationPrCallbackAtom,
-  workstationPrCommitMessageAtom,
+  workstationPrAtomFamily,
+  workstationPrCallbackAtomFamily,
+  workstationPrCommitMessageAtomFamily,
+  workstationRepoScopeKey,
 } from "@src/store/workstation/codeEditor/workstationPrAtom";
 
 import { useStashState } from "../useStashState";
@@ -69,6 +70,7 @@ export function useSourceControlState(
   // Get git output integration for streaming
   const gitOutputIntegration = useAtomValue(gitOutputIntegrationAtom);
   const setGitReviewNavigation = useSetAtom(gitReviewNavigationAtom);
+  const scopeKey = workstationRepoScopeKey(selectedRepoId, repoPath);
 
   const { currentGitStatus: gitStatus } = useGitStatus();
 
@@ -271,11 +273,11 @@ export function useSourceControlState(
     prUrl,
     isCreating: prCreating,
     readyToCreate: prReadyToCreate,
-  } = useAtomValue(workstationPrAtom);
-  const { createPr } = useAtomValue(workstationPrCallbackAtom);
+  } = useAtomValue(workstationPrAtomFamily(scopeKey));
+  const { createPr } = useAtomValue(workstationPrCallbackAtomFamily(scopeKey));
   const autoCreatePr = useAtomValue(gitAutoCreatePrAtom);
   const setWorkstationPrCommitMessage = useSetAtom(
-    workstationPrCommitMessageAtom
+    workstationPrCommitMessageAtomFamily(scopeKey)
   );
 
   // Publish the commit summary so the single PR mount can build PR titles from

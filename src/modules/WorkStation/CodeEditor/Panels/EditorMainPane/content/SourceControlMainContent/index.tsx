@@ -19,9 +19,10 @@ import {
 } from "@src/modules/WorkStation/shared";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
-  workstationIssueCallbackAtom,
-  workstationSelectedIssueAtom,
+  workstationIssueCallbackAtomFamily,
+  workstationSelectedIssueAtomFamily,
 } from "@src/store/workstation/codeEditor/workstationIssueAtom";
+import { workstationRepoScopeKey } from "@src/store/workstation/codeEditor/workstationPrAtom";
 import type { SourceControlHistorySelection } from "@src/store/workstation/tabs";
 import type { GitFile } from "@src/types/git/types";
 
@@ -79,8 +80,13 @@ const SourceControlMainContent: React.FC<SourceControlMainContentProps> = ({
   emptyFocusActions,
 }) => {
   const { t } = useTranslation();
-  const selectedIssueState = useAtomValue(workstationSelectedIssueAtom);
-  const issueCallbacks = useAtomValue(workstationIssueCallbackAtom);
+  const scopeKey = workstationRepoScopeKey(repoId, repoPath);
+  const selectedIssueState = useAtomValue(
+    workstationSelectedIssueAtomFamily(scopeKey)
+  );
+  const issueCallbacks = useAtomValue(
+    workstationIssueCallbackAtomFamily(scopeKey)
+  );
 
   const handleCloseIssue = useCallback(() => {
     if (selectedIssueState.issue && issueCallbacks.closeIssue) {

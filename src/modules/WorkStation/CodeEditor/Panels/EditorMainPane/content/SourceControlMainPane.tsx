@@ -17,9 +17,10 @@ import type { QuickAction } from "@src/modules/WorkStation/shared";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { sourceControlSessionFilterAtom } from "@src/store/workstation/codeEditor/sourceControlSessionFilterAtom";
 import {
-  workstationIssueCallbackAtom,
-  workstationSelectedIssueAtom,
+  workstationIssueCallbackAtomFamily,
+  workstationSelectedIssueAtomFamily,
 } from "@src/store/workstation/codeEditor/workstationIssueAtom";
+import { workstationRepoScopeKey } from "@src/store/workstation/codeEditor/workstationPrAtom";
 import type { GitFile } from "@src/types/git/types";
 
 import {
@@ -68,8 +69,13 @@ const SourceControlMainPane: React.FC<SourceControlMainPaneProps> = ({
   const sourceControlSessionFilter = useAtomValue(
     sourceControlSessionFilterAtom
   );
-  const selectedIssueState = useAtomValue(workstationSelectedIssueAtom);
-  const issueCallbacks = useAtomValue(workstationIssueCallbackAtom);
+  const scopeKey = workstationRepoScopeKey(repoId, repoPath);
+  const selectedIssueState = useAtomValue(
+    workstationSelectedIssueAtomFamily(scopeKey)
+  );
+  const issueCallbacks = useAtomValue(
+    workstationIssueCallbackAtomFamily(scopeKey)
+  );
 
   const handleCloseIssue = useCallback(() => {
     if (selectedIssueState.issue && issueCallbacks.closeIssue) {

@@ -14,7 +14,10 @@ import {
   sourceControlFilterModeHandlerAtom,
   sourceControlFocusTargetAtom,
 } from "@src/store/workstation/codeEditor";
-import { workstationPrCommitMessageAtom } from "@src/store/workstation/codeEditor/workstationPrAtom";
+import {
+  workstationPrCommitMessageAtomFamily,
+  workstationRepoScopeKey,
+} from "@src/store/workstation/codeEditor/workstationPrAtom";
 import type {
   PanelState,
   SourceControlHistorySelection,
@@ -125,8 +128,9 @@ export function useSourceControlSetup({
     repoPath,
     autoLoad: true,
   });
+  const scopeKey = workstationRepoScopeKey(repoId, repoPath);
   const workstationPrCommitMessage = useAtomValue(
-    workstationPrCommitMessageAtom
+    workstationPrCommitMessageAtomFamily(scopeKey)
   );
   useWorkstationPr({
     repoPath,

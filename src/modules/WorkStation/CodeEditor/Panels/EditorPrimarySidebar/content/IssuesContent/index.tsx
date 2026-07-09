@@ -29,7 +29,8 @@ import {
 } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/components/SectionStatusRow";
 import { TreeSectionHeader } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/components/TreeSectionHeader";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
-import { workstationIssueCallbackAtom } from "@src/store/workstation/codeEditor/workstationIssueAtom";
+import { workstationIssueCallbackAtomFamily } from "@src/store/workstation/codeEditor/workstationIssueAtom";
+import { workstationRepoScopeKey } from "@src/store/workstation/codeEditor/workstationPrAtom";
 
 import { useWorkstationIssues } from "../../hooks/useWorkstationIssues";
 import { IssueRow } from "./IssueRow";
@@ -70,7 +71,10 @@ const IssuesContent: React.FC<IssuesContentProps> = memo(
   }) => {
     const { t } = useTranslation("common");
     const navigate = useNavigate();
-    const setCallbackAtom = useSetAtom(workstationIssueCallbackAtom);
+    const scopeKey = workstationRepoScopeKey(repoId, repoPath);
+    const setCallbackAtom = useSetAtom(
+      workstationIssueCallbackAtomFamily(scopeKey)
+    );
 
     const {
       openIssues,
