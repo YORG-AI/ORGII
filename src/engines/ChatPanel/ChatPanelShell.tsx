@@ -2,7 +2,7 @@ import React from "react";
 
 import { MIN_WIDTH as CHAT_MIN_WIDTH } from "@src/engines/ChatPanel/config";
 import { VerticalResizeHandle } from "@src/scaffold/Resize";
-import { GUIDE_TARGETS } from "@src/scaffold/Tutorials";
+import { GUIDE_TARGETS } from "@src/scaffold/Tutorials/guideTargets";
 import type { ChatPanelTab } from "@src/store/chatPanel/chatPanelTabsAtom";
 
 import { ChatPanelTerminalContent } from "./ChatPanelTerminalContent";

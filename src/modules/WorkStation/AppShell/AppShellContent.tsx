@@ -6,11 +6,16 @@ import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { CODE_EDITOR_TOUR_TARGETS } from "@src/scaffold/Tutorials/codeEditorTourConfig";
 import { activeWorkStationTabAtom } from "@src/store/workstation/tabs";
 
-import ProjectManagerCore from "../../ProjectManager/ProjectManagerCore";
 import CodeEditor from "../CodeEditor";
 import { LspInstallPrompt } from "../CodeEditor/LspInstallPrompt";
 import { WORK_STATION_PLACEHOLDER_PAGE_BG_CLASS } from "../shared/tokens";
 
+const ProjectManagerCore = React.lazy(
+  () =>
+    import(
+      /* webpackChunkName: "project-manager" */ "../../ProjectManager/ProjectManagerCore"
+    )
+);
 const Browser = React.lazy(() => import("../Browser"));
 const DatabaseManager = React.lazy(() => import("../DatabaseManager"));
 const OpsControl = React.lazy(() => import("@src/modules/MainApp/OpsControl"));
@@ -207,7 +212,9 @@ export function AppShellContent({
             className="h-full w-full"
             style={{ display: projectContentVisible ? "block" : "none" }}
           >
-            <ProjectManagerCore repoPath={repoPath} repoName={repoName} />
+            <Suspense fallback={<AppShellLoadingPlaceholder />}>
+              <ProjectManagerCore repoPath={repoPath} repoName={repoName} />
+            </Suspense>
           </div>
         )}
       </div>

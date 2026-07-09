@@ -12,7 +12,7 @@ import {
   useDockFilterUrlSync,
   useWorkStationPanels,
 } from "@src/hooks/workStation";
-import { GUIDE_TARGETS } from "@src/scaffold/Tutorials";
+import { GUIDE_TARGETS } from "@src/scaffold/Tutorials/guideTargets";
 import { workstationActiveSessionIdAtom } from "@src/store/session";
 import {
   CHAT_PANEL_SURFACE_KIND,

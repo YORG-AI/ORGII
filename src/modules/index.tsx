@@ -35,20 +35,14 @@ import { useBackgroundImage } from "@src/hooks/theme/useBackgroundImage";
 import { useOpenUrlInBrowser } from "@src/hooks/workStation/browser/useOpenUrlInBrowser";
 import { useUrlPreviewEvents } from "@src/hooks/workStation/tabs";
 import { useNarrowChatFocus } from "@src/hooks/workStation/useNarrowChatFocus";
-import WorkStationPage from "@src/modules/WorkStation";
 import { useGlobalBrowserWebviewLayering } from "@src/modules/WorkStation/Browser/hooks";
-import { SharedBrowserApp } from "@src/modules/WorkStation/Browser/shared";
+import { CODE_EDITOR_TOUR_EVENT } from "@src/scaffold/Tutorials/codeEditorTourConfig";
 import {
-  CODE_EDITOR_TOUR_EVENT,
-  CodeEditorTour,
   GENERAL_LAYOUT_TOUR_EVENT,
   GENERAL_LAYOUT_TOUR_TARGETS,
-  GUIDE_TARGETS,
-  GeneralLayoutTour,
-  GuideHighlightOverlay,
-  TUTORIALS_OPEN_EVENT,
-  TutorialsModal,
-} from "@src/scaffold/Tutorials";
+} from "@src/scaffold/Tutorials/generalLayoutTourConfig";
+import { GUIDE_TARGETS } from "@src/scaffold/Tutorials/guideTargets";
+import { TUTORIALS_OPEN_EVENT } from "@src/scaffold/Tutorials/tutorialRegistry";
 import { resolvedBackgroundConfigAtom } from "@src/store";
 import { useSyncStatusBridge } from "@src/store/sync";
 import {
@@ -90,6 +84,45 @@ import {
 } from "./shared/layouts/viewContainerTokens";
 import { useWorkStationPipelineBridge } from "./useWorkStationPipelineBridge";
 
+const WorkStationPage = React.lazy(
+  () => import(/* webpackChunkName: "workstation" */ "@src/modules/WorkStation")
+);
+
+const SharedBrowserApp = React.lazy(
+  () =>
+    import(
+      /* webpackChunkName: "browser-shared" */ "@src/modules/WorkStation/Browser/shared/SharedBrowserApp"
+    )
+);
+
+const GuideHighlightOverlay = React.lazy(
+  () =>
+    import(
+      /* webpackChunkName: "tutorials" */ "@src/scaffold/Tutorials/GuideHighlightOverlay"
+    )
+);
+
+const TutorialsModal = React.lazy(
+  () =>
+    import(
+      /* webpackChunkName: "tutorials" */ "@src/scaffold/Tutorials/TutorialsModal"
+    )
+);
+
+const GeneralLayoutTour = React.lazy(
+  () =>
+    import(
+      /* webpackChunkName: "tutorials" */ "@src/scaffold/Tutorials/GeneralLayoutTour"
+    )
+);
+
+const CodeEditorTour = React.lazy(
+  () =>
+    import(
+      /* webpackChunkName: "tutorials" */ "@src/scaffold/Tutorials/CodeEditorTour"
+    )
+);
+
 /**
  * Main Orgii Component
  *
@@ -111,6 +144,10 @@ const BrowserEventBridge: React.FC = () => {
   useOpenUrlInBrowser();
   return null;
 };
+
+const WorkStationLoadingFallback: React.FC = () => (
+  <div className="h-full w-full bg-workstation-bg" />
+);
 
 const AppShell = () => {
   const location = useLocation();
@@ -417,7 +454,9 @@ const AppShell = () => {
     <TerminalProvider>
       <BrowserProvider>
         <BrowserEventBridge />
-        <SharedBrowserApp />
+        <React.Suspense fallback={null}>
+          <SharedBrowserApp />
+        </React.Suspense>
         <div
           className="relative flex h-full"
           data-guide-target={GUIDE_TARGETS.APP_ROOT}
@@ -466,14 +505,16 @@ const AppShell = () => {
                       : undefined
                   }
                 >
-                  <WorkStationPage
-                    isActive={isWorkStationViewActive}
-                    chatPanelFocused={effectiveChatFocus}
-                    isFullMode={
-                      globalLayoutMethod === "full" ||
-                      globalLayoutMethod === "compact"
-                    }
-                  />
+                  <React.Suspense fallback={<WorkStationLoadingFallback />}>
+                    <WorkStationPage
+                      isActive={isWorkStationViewActive}
+                      chatPanelFocused={effectiveChatFocus}
+                      isFullMode={
+                        globalLayoutMethod === "full" ||
+                        globalLayoutMethod === "compact"
+                      }
+                    />
+                  </React.Suspense>
                 </div>
               )}
 
@@ -488,21 +529,23 @@ const AppShell = () => {
               </div>
             </div>
           </AppLayout>
-          <GuideHighlightOverlay />
-          <TutorialsModal
-            open={tutorialsModalOpen}
-            onClose={() => setTutorialsModalOpen(false)}
-          />
-          <GeneralLayoutTour
-            key={`general-layout-tour-${generalLayoutTourRunId}`}
-            open={generalLayoutTourOpen}
-            onClose={() => setGeneralLayoutTourOpen(false)}
-          />
-          <CodeEditorTour
-            key={`code-editor-tour-${codeEditorTourRunId}`}
-            open={codeEditorTourOpen}
-            onClose={() => setCodeEditorTourOpen(false)}
-          />
+          <React.Suspense fallback={null}>
+            <GuideHighlightOverlay />
+            <TutorialsModal
+              open={tutorialsModalOpen}
+              onClose={() => setTutorialsModalOpen(false)}
+            />
+            <GeneralLayoutTour
+              key={`general-layout-tour-${generalLayoutTourRunId}`}
+              open={generalLayoutTourOpen}
+              onClose={() => setGeneralLayoutTourOpen(false)}
+            />
+            <CodeEditorTour
+              key={`code-editor-tour-${codeEditorTourRunId}`}
+              open={codeEditorTourOpen}
+              onClose={() => setCodeEditorTourOpen(false)}
+            />
+          </React.Suspense>
         </div>
       </BrowserProvider>
     </TerminalProvider>

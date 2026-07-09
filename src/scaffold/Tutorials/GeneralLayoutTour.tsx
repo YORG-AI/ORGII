@@ -22,19 +22,12 @@ import { type DockFilter, dockFilterAtom } from "@src/store/workstation";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
-export const GENERAL_LAYOUT_TOUR_EVENT = "orgii:start-general-layout-tour";
+import { GENERAL_LAYOUT_TOUR_TARGETS } from "./generalLayoutTourConfig";
 
-export const GENERAL_LAYOUT_TOUR_TARGETS = {
-  sessionSidebar: "session-layout-session-sidebar",
-  chatPanel: "session-layout-chat-panel",
-  workstation: "session-layout-workstation",
-  stationModePill: "session-layout-station-mode-pill",
-  dock: "session-layout-dock",
-  dockAllTabs: "session-layout-dock-all-tabs",
-  dockCodeEditor: "session-layout-dock-code-editor",
-  dockBrowser: "session-layout-dock-browser",
-  dockProjects: "session-layout-dock-projects",
-} as const;
+export {
+  GENERAL_LAYOUT_TOUR_EVENT,
+  GENERAL_LAYOUT_TOUR_TARGETS,
+} from "./generalLayoutTourConfig";
 
 type GeneralLayoutTourTarget =
   (typeof GENERAL_LAYOUT_TOUR_TARGETS)[keyof typeof GENERAL_LAYOUT_TOUR_TARGETS];

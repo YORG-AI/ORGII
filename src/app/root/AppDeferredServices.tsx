@@ -17,81 +17,141 @@
  * - APICallPanelProvider      — DevTools API call inspector
  * - SecretCaptureModal        — out-of-band secret capture overlay
  */
-import React, { useEffect } from "react";
+import React from "react";
 
-import GlobalDragDrop from "@src/components/GlobalDragDrop";
-import { AutoIndexingProvider } from "@src/components/System";
-import { hydrateFromPersistence } from "@src/components/TerminalInteractive/bufferCache";
-import { useGitAutoFetch } from "@src/hooks/git";
 import { createLogger } from "@src/hooks/logger";
-import {
-  useUserPresenceSync,
-  useUserProfileSync,
-  useWindowFocusTracking,
-} from "@src/hooks/platform";
-import { useProcessReconciliation } from "@src/hooks/terminal";
-import { APICallPanelProvider } from "@src/modules/shared/DevTools/APICallPanel";
-import { AppUpdater } from "@src/scaffold/AppUpdater";
-import SecretCaptureModal from "@src/scaffold/SecretCaptureModal";
-import {
-  flushPendingWrites,
-  loadPersistedBuffers,
-  startAutoSave,
-  stopAutoSave,
-} from "@src/services/terminal";
 
 const log = createLogger("TerminalPersistence");
 
-const DeferredWindowFocusTracking: React.FC = () => {
-  useWindowFocusTracking();
-  return null;
-};
+const GlobalDragDrop = React.lazy(
+  () =>
+    import(
+      /* webpackChunkName: "deferred-services" */ "@src/components/GlobalDragDrop"
+    )
+);
 
-const DeferredUserPresenceSync: React.FC = () => {
-  useUserPresenceSync();
-  return null;
-};
+const AutoIndexingProvider = React.lazy(
+  () =>
+    import(
+      /* webpackChunkName: "deferred-services" */ "@src/components/System/AutoIndexingProvider"
+    )
+);
 
-const DeferredUserProfileSync: React.FC = () => {
-  useUserProfileSync();
-  return null;
-};
+const AppUpdater = React.lazy(() =>
+  import(
+    /* webpackChunkName: "deferred-services" */ "@src/scaffold/AppUpdater"
+  ).then((module) => ({ default: module.AppUpdater }))
+);
 
-const DeferredGitAutoFetch: React.FC = () => {
-  useGitAutoFetch();
-  return null;
-};
+const APICallPanelProvider = React.lazy(() =>
+  import(
+    /* webpackChunkName: "deferred-services" */ "@src/modules/shared/DevTools/APICallPanel"
+  ).then((module) => ({ default: module.APICallPanelProvider }))
+);
 
-const DeferredProcessReconciliation: React.FC = () => {
-  useProcessReconciliation();
-  return null;
-};
+const SecretCaptureModal = React.lazy(
+  () =>
+    import(
+      /* webpackChunkName: "deferred-services" */ "@src/scaffold/SecretCaptureModal"
+    )
+);
 
-const DeferredTerminalPersistence: React.FC = () => {
-  useEffect(() => {
-    // Hydrate the in-memory buffer cache from disk on startup so terminals
-    // can restore their scrollback across app restarts.
-    loadPersistedBuffers()
-      .then((buffers) => hydrateFromPersistence(buffers))
-      .catch((error) => {
-        log.warn("[TerminalPersistence] Failed to load buffers:", error);
-      });
+const DeferredWindowFocusTracking = React.lazy(() =>
+  import(
+    /* webpackChunkName: "deferred-services" */ "@src/hooks/platform/useWindowFocusTracking"
+  ).then((module) => ({
+    default: function DeferredWindowFocusTracking() {
+      module.useWindowFocusTracking();
+      return null;
+    },
+  }))
+);
 
-    startAutoSave();
+const DeferredUserPresenceSync = React.lazy(() =>
+  import(
+    /* webpackChunkName: "deferred-services" */ "@src/hooks/platform/useUserPresenceSync"
+  ).then((module) => ({
+    default: function DeferredUserPresenceSync() {
+      module.useUserPresenceSync();
+      return null;
+    },
+  }))
+);
 
-    const handleBeforeUnload = () => {
-      void flushPendingWrites();
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
+const DeferredUserProfileSync = React.lazy(() =>
+  import(
+    /* webpackChunkName: "deferred-services" */ "@src/hooks/platform/useUserProfileSync"
+  ).then((module) => ({
+    default: function DeferredUserProfileSync() {
+      module.useUserProfileSync();
+      return null;
+    },
+  }))
+);
 
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      stopAutoSave();
-    };
-  }, []);
+const DeferredGitAutoFetch = React.lazy(() =>
+  import(
+    /* webpackChunkName: "deferred-services" */ "@src/hooks/git/useGitAutoFetch"
+  ).then((module) => ({
+    default: function DeferredGitAutoFetch() {
+      module.useGitAutoFetch();
+      return null;
+    },
+  }))
+);
 
-  return null;
-};
+const DeferredProcessReconciliation = React.lazy(() =>
+  import(
+    /* webpackChunkName: "deferred-services" */ "@src/hooks/terminal/useProcessReconciliation"
+  ).then((module) => ({
+    default: function DeferredProcessReconciliation() {
+      module.useProcessReconciliation();
+      return null;
+    },
+  }))
+);
+
+const DeferredTerminalPersistence = React.lazy(() =>
+  Promise.all([
+    import(
+      /* webpackChunkName: "deferred-services" */ "@src/components/TerminalInteractive/bufferCache"
+    ),
+    import(
+      /* webpackChunkName: "deferred-services" */ "@src/services/terminal/bufferPersistence"
+    ),
+  ]).then(([bufferCache, terminalPersistence]) => ({
+    default: function DeferredTerminalPersistence() {
+      React.useEffect(() => {
+        // Hydrate the in-memory buffer cache from disk on startup so
+        // terminals can restore their scrollback across app restarts.
+        terminalPersistence
+          .loadPersistedBuffers()
+          .then((buffers) => bufferCache.hydrateFromPersistence(buffers))
+          .catch((error) => {
+            log.warn("[TerminalPersistence] Failed to load buffers:", error);
+          });
+
+        terminalPersistence.startAutoSave();
+
+        const handleBeforeUnload = () => {
+          void terminalPersistence.flushPendingWrites();
+        };
+        window.addEventListener("beforeunload", handleBeforeUnload);
+
+        return () => {
+          window.removeEventListener("beforeunload", handleBeforeUnload);
+          terminalPersistence.stopAutoSave();
+        };
+      }, []);
+
+      return null;
+    },
+  }))
+);
+
+const DeferredServiceBoundary: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => <React.Suspense fallback={null}>{children}</React.Suspense>;
 
 export const AppDeferredServices: React.FC<{ ready: boolean }> = ({
   ready,
@@ -100,17 +160,39 @@ export const AppDeferredServices: React.FC<{ ready: boolean }> = ({
 
   return (
     <>
-      <GlobalDragDrop />
-      <DeferredWindowFocusTracking />
-      <DeferredUserPresenceSync />
-      <DeferredUserProfileSync />
-      <DeferredGitAutoFetch />
-      <DeferredProcessReconciliation />
-      <DeferredTerminalPersistence />
-      <AutoIndexingProvider />
-      <AppUpdater />
-      <APICallPanelProvider />
-      <SecretCaptureModal />
+      <DeferredServiceBoundary>
+        <GlobalDragDrop />
+      </DeferredServiceBoundary>
+      <DeferredServiceBoundary>
+        <DeferredWindowFocusTracking />
+      </DeferredServiceBoundary>
+      <DeferredServiceBoundary>
+        <DeferredUserPresenceSync />
+      </DeferredServiceBoundary>
+      <DeferredServiceBoundary>
+        <DeferredUserProfileSync />
+      </DeferredServiceBoundary>
+      <DeferredServiceBoundary>
+        <DeferredGitAutoFetch />
+      </DeferredServiceBoundary>
+      <DeferredServiceBoundary>
+        <DeferredProcessReconciliation />
+      </DeferredServiceBoundary>
+      <DeferredServiceBoundary>
+        <DeferredTerminalPersistence />
+      </DeferredServiceBoundary>
+      <DeferredServiceBoundary>
+        <AutoIndexingProvider />
+      </DeferredServiceBoundary>
+      <DeferredServiceBoundary>
+        <AppUpdater />
+      </DeferredServiceBoundary>
+      <DeferredServiceBoundary>
+        <APICallPanelProvider />
+      </DeferredServiceBoundary>
+      <DeferredServiceBoundary>
+        <SecretCaptureModal />
+      </DeferredServiceBoundary>
     </>
   );
 };
