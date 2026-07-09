@@ -250,16 +250,25 @@ export function createPasteHandler(ctx: PasteHandlerContext) {
     ) {
       const terminalRef = { ...terminalCopy };
       window.__orgiiLastTerminalCopy = undefined;
-      const lineCount = terminalRef.lineCount;
-      const hasRange = lineCount > 1;
       const pillPath = `terminal://${terminalRef.sessionId}/${Date.now()}`;
+      const hasRealPositions =
+        terminalRef.lineStart != null && terminalRef.lineEnd != null;
+      const lineCount = terminalRef.lineCount;
       ctx.insertPill({
         filePath: pillPath,
         fileName: terminalRef.sessionName,
         isFolder: false,
         iconType: "terminal",
-        lineStart: hasRange ? 1 : null,
-        lineEnd: hasRange ? lineCount : null,
+        lineStart: hasRealPositions
+          ? terminalRef.lineStart!
+          : lineCount > 1
+            ? 1
+            : null,
+        lineEnd: hasRealPositions
+          ? terminalRef.lineEnd!
+          : lineCount > 1
+            ? lineCount
+            : null,
       });
       storePillText(pillPath, capPillText(terminalRef.text));
       event.preventDefault();

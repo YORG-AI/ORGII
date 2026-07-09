@@ -308,6 +308,8 @@ fn message_row(
         created_at: Utc::now().to_rfc3339(),
         images,
         compact_from_sequence: None,
+        compact_tokens_before: None,
+        compact_tokens_after: None,
     }
 }
 
@@ -404,8 +406,17 @@ pub fn append_compact_boundary(
     session_id: &str,
     summary: &str,
     from_sequence: i64,
-) -> SqliteResult<String> {
-    shared::save_compact_boundary_msg(SESSION_TABLE_PREFIX, session_id, summary, from_sequence)
+    tokens_before: Option<i64>,
+    tokens_after: Option<i64>,
+) -> SqliteResult<(String, String)> {
+    shared::save_compact_boundary_msg(
+        SESSION_TABLE_PREFIX,
+        session_id,
+        summary,
+        from_sequence,
+        tokens_before,
+        tokens_after,
+    )
 }
 
 /// Clear all messages for a session.
@@ -668,7 +679,9 @@ mod tests {
                 sequence INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 images TEXT,
-                compact_from_sequence INTEGER
+                compact_from_sequence INTEGER,
+                compact_tokens_before INTEGER,
+                compact_tokens_after INTEGER
              );",
         )
         .expect("create session/message tables");
@@ -702,9 +715,26 @@ mod tests {
             session_id,
             "[Conversation summary — 2 earlier messages compacted]\n\nsummary",
             anchor.sequence,
+            Some(10_402),
+            Some(1_042),
         )
         .expect("append boundary");
         clear_session_memory_state(session_id).expect("clear stale sm");
+
+        // Token metadata round-trips on the boundary row (display-only
+        // columns; ordinary rows stay NULL).
+        let raw_rows = load_messages(session_id).expect("load raw rows");
+        let boundary_row = raw_rows
+            .iter()
+            .find(|row| row.compact_from_sequence.is_some())
+            .expect("boundary row present");
+        assert_eq!(boundary_row.compact_tokens_before, Some(10_402));
+        assert_eq!(boundary_row.compact_tokens_after, Some(1_042));
+        assert!(raw_rows
+            .iter()
+            .filter(|row| row.compact_from_sequence.is_none())
+            .all(|row| row.compact_tokens_before.is_none()
+                && row.compact_tokens_after.is_none()));
 
         let history = load_llm_history(session_id).expect("load compacted history");
         assert_eq!(history.len(), 3);
@@ -755,7 +785,7 @@ mod tests {
             .expect("resolve cutoff")
             .expect("cutoff row exists")
             .sequence;
-        append_compact_boundary(session_id, "summary", cutoff).expect("append boundary");
+        append_compact_boundary(session_id, "summary", cutoff, None, None).expect("append boundary");
 
         // User edits/resends the *old* (pre-compaction) message.
         let anchor = message_anchor(session_id, &old_user_id)
@@ -788,14 +818,14 @@ mod tests {
             .expect("anchor u2")
             .expect("u2 exists")
             .sequence;
-        append_compact_boundary(session_id, "first summary", first_cutoff).expect("first boundary");
+        append_compact_boundary(session_id, "first summary", first_cutoff, None, None).expect("first boundary");
 
         let u3 = save_user_msg(session_id, "u3", None).expect("save u3");
         let second_cutoff = message_anchor(session_id, &u3)
             .expect("anchor u3")
             .expect("u3 exists")
             .sequence;
-        append_compact_boundary(session_id, "second summary", second_cutoff)
+        append_compact_boundary(session_id, "second summary", second_cutoff, None, None)
             .expect("second boundary");
 
         let history = load_llm_history(session_id).expect("load history");

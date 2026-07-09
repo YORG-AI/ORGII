@@ -467,16 +467,18 @@ fn parse_claude_code_oauth_profile_response(
         organization_name: organization
             .as_ref()
             .and_then(|organization| normalize_metadata_field(organization.name.clone())),
-        organization_type: organization
-            .as_ref()
-            .and_then(|organization| normalize_metadata_field(organization.organization_type.clone())),
+        organization_type: organization.as_ref().and_then(|organization| {
+            normalize_metadata_field(organization.organization_type.clone())
+        }),
         rate_limit_tier: organization
             .and_then(|organization| normalize_metadata_field(organization.rate_limit_tier)),
     })
 }
 
 fn normalize_metadata_field(value: Option<String>) -> Option<String> {
-    value.map(|field| field.trim().to_string()).filter(|field| !field.is_empty())
+    value
+        .map(|field| field.trim().to_string())
+        .filter(|field| !field.is_empty())
 }
 
 #[cfg(test)]

@@ -19,6 +19,7 @@ use super::data::{
     cli_uninstall_methods, infer_install_method, CliConfigPathKind,
 };
 use super::{AvailableAgent, AvailableApiProvider, CliConfigFile};
+use super::data::supported_setup_methods_for_agent;
 
 const AVAILABLE_AGENTS_CACHE_TTL: Duration = Duration::from_secs(60);
 const PROTOCOL_ANTHROPIC_MESSAGES: &str = "Anthropic Messages";
@@ -254,6 +255,13 @@ pub async fn get_available_agents() -> Result<Vec<AvailableAgent>, String> {
             env_config: cli_env_config(entry.name),
             is_complex_setup: entry.is_complex_setup,
             default_setup_method: entry.default_setup_method.map(String::from),
+            supported_setup_methods: supported_setup_methods_for_agent(
+                entry.name,
+                entry.is_complex_setup,
+            )
+            .iter()
+            .map(|method| (*method).to_string())
+            .collect(),
             popular: entry.popular,
             icon_provider: entry.icon_provider.to_string(),
             paired_api_provider: entry.paired_api_provider.map(String::from),

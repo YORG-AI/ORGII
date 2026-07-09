@@ -103,10 +103,11 @@ export const COMPONENT_LOADERS: ComponentLoaderMap = {
   // ── Stream events ──
   // Custom render paths — NOT tool calls, have no `chat_block` in Rust.
   // Each carries behaviour the chat-block pipeline cannot express:
-  //   `agent_message` — itemIndex-aware typewriter + markdown streaming
-  //   `thinking`      — reasoning-trace with custom collapse
-  //   `user`          — user-authored chat bubble
-  //   `turn_summary`  — stitches multiple child events into one card
+  //   `agent_message`     — itemIndex-aware typewriter + markdown streaming
+  //   `thinking`          — reasoning-trace with custom collapse
+  //   `user`              — user-authored chat bubble
+  //   `turn_summary`      — stitches multiple child events into one card
+  //   `context_compacted` — collapsed compact-boundary summary marker
   agent_message: () =>
     import("@src/engines/ChatPanel/events/stream/agent-message").then(
       (mod) => ({
@@ -129,6 +130,12 @@ export const COMPONENT_LOADERS: ComponentLoaderMap = {
     import("@src/engines/ChatPanel/events/stream/rate-limit-hint").then(
       (mod) => ({
         default: mod.RateLimitHintEvent as React.ComponentType<unknown>,
+      })
+    ),
+  context_compacted: () =>
+    import("@src/engines/ChatPanel/events/stream/context-compacted").then(
+      (mod) => ({
+        default: mod.ContextCompactedEvent as React.ComponentType<unknown>,
       })
     ),
 
@@ -324,6 +331,12 @@ export const CONTEXT_CONFIG: Record<string, ContextConfig> = {
 
   // Rate limit hint
   rate_limit_hint: {
+    chat: { requiresItemIndex: false, showStatusLine: false },
+    simulator: { supportsSplitView: false, supportsFullscreen: false },
+  },
+
+  // Compact boundary (context compacted marker)
+  context_compacted: {
     chat: { requiresItemIndex: false, showStatusLine: false },
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },

@@ -592,11 +592,7 @@ mod tests {
                 short_intent,
                 "x".repeat(12_000) // simulate large SKILL.md body
             );
-            on_user_message(
-                "s_display",
-                &expanded_content,
-                Some(short_intent),
-            );
+            on_user_message("s_display", &expanded_content, Some(short_intent));
             let state = load_state("s_display").expect("state");
             // Goal text must reflect the user's intent, not the expanded body.
             assert_eq!(state.goal_text, short_intent);

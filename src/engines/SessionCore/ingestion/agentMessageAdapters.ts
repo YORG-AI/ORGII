@@ -52,6 +52,14 @@ export interface PersistedMessage {
   sequence: number;
   createdAt: string;
   images: string | null;
+  /**
+   * Set on compact-boundary rows: sequence number the preserved tail starts
+   * at. Serialized by Rust's `AgentMessageRow` (serde camelCase); non-null
+   * marks the row as a compaction summary rather than a normal message.
+   */
+  compactFromSequence?: number | null;
+  compactTokensBefore?: number | null;
+  compactTokensAfter?: number | null;
 }
 
 // ============================================
@@ -110,6 +118,130 @@ export function buildResult(msg: AgentMessageBase): Record<string, unknown> {
   }
 }
 
+// ============================================
+// Compact boundary parsing
+// ============================================
+
+/**
+ * Continuation instruction the Rust compactor appends to every compaction
+ * summary. Mirrors `COMPACT_CONTINUATION_SUFFIX` in
+ * `src-tauri/crates/agent-core/src/core/model_context/compaction.rs` — keep
+ * the literals in sync. Stripped from the summary before display: it is
+ * model-facing steering, not user-facing content.
+ */
+export const COMPACT_CONTINUATION_SUFFIX =
+  "This session is being continued from an earlier conversation that exceeded the context window; the older messages were compacted into the summary above. Resume the work directly from this state — do not acknowledge this summary, do not re-describe it to the user, and do not ask questions it already answers. Continue with the last task you were working on, following the user's most recent instructions.";
+
+/**
+ * Header prefixes written by the Rust compactors (LLM compact and Session
+ * Memory compact). Mirror `LLM_COMPACT_BOUNDARY_PREFIX` /
+ * `SM_COMPACT_BOUNDARY_PREFIX` in
+ * `src-tauri/crates/agent-core/src/core/model_context/session_memory/compact.rs`
+ * (prefix match stops before the dash so both the em-dash and the legacy
+ * hyphen "compacted without summary" marker are covered).
+ */
+const COMPACT_BOUNDARY_PREFIXES = [
+  "[Conversation summary ",
+  "[Session Memory ",
+] as const;
+
+export interface ParsedCompactBoundary {
+  /** Header line, e.g. `[Conversation summary — 12 earlier messages compacted]`. */
+  header: string | null;
+  /** Summary body with the header line and continuation suffix stripped. */
+  body: string;
+  /** `N` parsed from the header, when present. */
+  compactedCount: number | null;
+}
+
+/** True when a persisted row's content carries a compact-boundary header. */
+export function isCompactBoundaryContent(content: string): boolean {
+  return COMPACT_BOUNDARY_PREFIXES.some((prefix) => content.startsWith(prefix));
+}
+
+/**
+ * Split a persisted compact-boundary row into header line and summary body,
+ * stripping the model-facing continuation instructions.
+ */
+export function parseCompactBoundaryContent(
+  content: string
+): ParsedCompactBoundary {
+  let text = content;
+  const suffixIndex = text.indexOf(COMPACT_CONTINUATION_SUFFIX);
+  if (suffixIndex !== -1) {
+    text = text.slice(0, suffixIndex).trimEnd();
+  }
+
+  let header: string | null = null;
+  let body = text.trim();
+  if (isCompactBoundaryContent(text)) {
+    const newlineIndex = text.indexOf("\n");
+    if (newlineIndex === -1) {
+      header = text.trim();
+      body = "";
+    } else {
+      header = text.slice(0, newlineIndex).trim();
+      body = text.slice(newlineIndex + 1).trim();
+    }
+  }
+
+  const countMatch = header?.match(/(\d+)\s+earlier messages compacted\]/);
+  const compactedCount = countMatch ? Number(countMatch[1]) : null;
+
+  return { header, body, compactedCount };
+}
+
+/**
+ * Convert a compact-boundary row into a SessionEvent routed to the dedicated
+ * `context_compacted` renderer.
+ *
+ * Mirrors `makeRateLimitHintEvent` (shared/eventFactories.ts): neutral
+ * `actionType`/`source` keep the row out of the assistant-prose heuristics in
+ * ActivityRouter/willEventRenderContent, and `displayVariant` stays a
+ * wire-safe value — SessionEvents round-trip through Rust
+ * (`es_merge_tool_results`, event store), whose `EventDisplayVariant` serde
+ * enum rejects unknown variants. Component routing happens via `uiCanonical`.
+ */
+export function compactBoundaryToSessionEvent(
+  msg: PersistedMessage,
+  sessionId: string
+): SessionEvent {
+  const { header, body, compactedCount } = parseCompactBoundaryContent(
+    msg.content
+  );
+  const functionName = "context_compacted";
+  return {
+    id: msg.id,
+    chunk_id: msg.id,
+    sessionId,
+    createdAt: msg.createdAt,
+    functionName,
+    uiCanonical: normalizeFunctionName(functionName),
+    actionType: "system",
+    args: {},
+    result: {
+      observation: body,
+      ...(header !== null ? { header } : {}),
+      ...(compactedCount !== null ? { compactedCount } : {}),
+      ...(msg.compactTokensBefore != null && msg.compactTokensAfter != null
+        ? {
+            tokensBefore: msg.compactTokensBefore,
+            tokensAfter: msg.compactTokensAfter,
+          }
+        : {}),
+    },
+    source: "system",
+    // Fall back to the header line when the summary body is empty (legacy
+    // "compacted without summary" markers) so willEventRenderContent still
+    // lets the collapsed marker through.
+    displayText: body || (header ?? ""),
+    displayStatus: "completed",
+    displayVariant: "message",
+    activityStatus: "agent",
+    isDelta: false,
+  };
+}
+
 /**
  * Convert persisted DB messages to SessionEvents.
  *
@@ -122,6 +254,17 @@ export function persistedMessageToSessionEvent(
     transformDisplayText?: (content: string, source: string) => string;
   }
 ): SessionEvent {
+  // Compact-boundary rows get a dedicated collapsed renderer instead of
+  // rendering the raw summary + continuation instructions as assistant
+  // prose. `compactFromSequence` is authoritative; the content-prefix check
+  // covers rows persisted before the column existed.
+  if (
+    msg.compactFromSequence != null ||
+    (msg.role === "system" && isCompactBoundaryContent(msg.content))
+  ) {
+    return compactBoundaryToSessionEvent(msg, sessionId);
+  }
+
   const actionType =
     msg.role === "tool_call"
       ? "tool_call"

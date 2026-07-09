@@ -9,10 +9,10 @@
  * 40px header inside the main pane directly above the diff editor.
  */
 import { useAtomValue } from "jotai";
-import React, { Suspense, memo, useCallback } from "react";
-import { useTranslation } from "react-i18next";
+import React, { Suspense, memo, useCallback, useMemo } from "react";
 
 import { IssueDetailPanel } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/IssuesContent/IssueDetailPanel";
+import { PrDetailPanel } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/PullRequestContent/detail/PrDetailPanel";
 import {
   NoTabsPlaceholder,
   type QuickAction,
@@ -22,6 +22,7 @@ import {
   workstationIssueCallbackAtom,
   workstationSelectedIssueAtom,
 } from "@src/store/workstation/codeEditor/workstationIssueAtom";
+import type { PrIdentity } from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
 import type { SourceControlHistorySelection } from "@src/store/workstation/tabs";
 import type { GitFile } from "@src/types/git/types";
 
@@ -78,7 +79,6 @@ const SourceControlMainContent: React.FC<SourceControlMainContentProps> = ({
   collapseAllSignal,
   emptyFocusActions,
 }) => {
-  const { t } = useTranslation();
   const selectedIssueState = useAtomValue(workstationSelectedIssueAtom);
   const issueCallbacks = useAtomValue(workstationIssueCallbackAtom);
 
@@ -103,6 +103,35 @@ const SourceControlMainContent: React.FC<SourceControlMainContentProps> = ({
     [selectedIssueState.issue, issueCallbacks]
   );
 
+  // `historySelection` keeps a stable reference across renders (it comes from
+  // the persisted tab payload), so memoizing on it directly gives a stable
+  // `prIdentity` — which keeps `useWorkstationPrDetail` from re-fetching.
+  const prSelection = historySelection?.type === "pr" ? historySelection : null;
+  const prIdentity = useMemo<PrIdentity | null>(
+    () =>
+      prSelection
+        ? {
+            number: prSelection.prNumber,
+            title: prSelection.prTitle,
+            url: prSelection.prUrl,
+            status: prSelection.prStatus,
+            headBranch: prSelection.headBranch,
+          }
+        : null,
+    [prSelection]
+  );
+
+  if (prIdentity) {
+    return (
+      <PrDetailPanel
+        identity={prIdentity}
+        repoPath={repoPath ?? ""}
+        repoId={repoId}
+        onFileSelect={onFileSelect}
+      />
+    );
+  }
+
   if (historySelection?.type === "issue") {
     if (!selectedIssueState.issue) {
       return <NoTabsPlaceholder icon="editor" actions={emptyFocusActions} />;
@@ -122,71 +151,45 @@ const SourceControlMainContent: React.FC<SourceControlMainContentProps> = ({
     );
   }
 
-  if (historySelection) {
-    const isPr = historySelection.type === "pr";
-    const commitSha = isPr
-      ? historySelection.selectedCommitSha
-      : historySelection.commitSha;
+  // Commit / stash selections render the single-commit diff. (PR and issue
+  // selections are handled by their dedicated panels above; the issue return
+  // already narrowed `"issue"` out of the type here.)
+  if (historySelection && historySelection.type !== "pr") {
+    const resolvedRepoId = repoId ?? repoPath;
+    const repoReady = Boolean(repoPath && resolvedRepoId);
 
-    if (isPr && !commitSha) {
-      return (
-        <Placeholder
-          variant="empty"
-          placement="detail-panel"
-          title={historySelection.prTitle}
-          subtitle={t(
-            "placeholders.selectPrCommitToViewDiff",
-            "Select a pull request commit from the header to view its diff."
-          )}
-          fillParentHeight
-        />
-      );
-    }
-
-    if (!isPr || commitSha) {
-      const resolvedRepoId = repoId ?? repoPath;
-      const repoReady = Boolean(repoPath && resolvedRepoId);
-      const shortSha = isPr
-        ? (historySelection.selectedShortSha ?? commitSha?.slice(0, 7) ?? "")
-        : historySelection.shortSha;
-      const commitMessage = isPr
-        ? (historySelection.selectedCommitMessage ?? "")
-        : historySelection.commitMessage;
-
-      return (
-        <div className="flex h-full min-h-0 flex-col overflow-hidden">
-          <Suspense
-            fallback={
-              <Placeholder
-                variant="loading"
-                placement="detail-panel"
-                fillParentHeight
-              />
-            }
-          >
-            <GitCommitDetailContent
-              commitSha={commitSha ?? ""}
-              shortSha={shortSha}
-              commitMessage={commitMessage}
-              repoPath={repoPath ?? ""}
-              repoId={resolvedRepoId ?? ""}
-              isRepoReady={repoReady}
-              onFileSelect={onFileSelect}
-              headerVariant={
-                !isPr && historySelection.type === "stash" ? "stash" : "commit"
-              }
-              headerRootLabel={
-                !isPr && historySelection.type === "stash"
-                  ? historySelection.stashRef
-                  : undefined
-              }
-              publishHeaderToWorkstation={false}
-              prNumber={isPr ? historySelection.prNumber : undefined}
+    return (
+      <div className="flex h-full min-h-0 flex-col overflow-hidden">
+        <Suspense
+          fallback={
+            <Placeholder
+              variant="loading"
+              placement="detail-panel"
+              fillParentHeight
             />
-          </Suspense>
-        </div>
-      );
-    }
+          }
+        >
+          <GitCommitDetailContent
+            commitSha={historySelection.commitSha}
+            shortSha={historySelection.shortSha}
+            commitMessage={historySelection.commitMessage}
+            repoPath={repoPath ?? ""}
+            repoId={resolvedRepoId ?? ""}
+            isRepoReady={repoReady}
+            onFileSelect={onFileSelect}
+            headerVariant={
+              historySelection.type === "stash" ? "stash" : "commit"
+            }
+            headerRootLabel={
+              historySelection.type === "stash"
+                ? historySelection.stashRef
+                : undefined
+            }
+            publishHeaderToWorkstation={false}
+          />
+        </Suspense>
+      </div>
+    );
   }
 
   return (

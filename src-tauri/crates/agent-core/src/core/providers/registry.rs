@@ -21,6 +21,8 @@ pub mod provider_id {
     pub const OPENROUTER: &str = "openrouter";
     pub const ZENMUX: &str = "zenmux";
     pub const OPENCODE: &str = "opencode";
+    pub const AIHUBMIX: &str = "aihubmix";
+    pub const CHERRYIN: &str = "cherryin";
 
     // Standard providers
     pub const ANTHROPIC: &str = "anthropic";
@@ -34,8 +36,13 @@ pub mod provider_id {
     pub const MINIMAX: &str = "minimax";
     pub const LONGCAT: &str = "longcat";
     pub const MOONSHOT: &str = "moonshot";
+    pub const SILICONFLOW: &str = "siliconflow";
+    pub const MODELSCOPE: &str = "modelscope";
+    pub const BEDROCK: &str = "bedrock";
     pub const AZURE_OPENAI: &str = "azure_openai";
     pub const VLLM: &str = "vllm";
+    /// Fully user-defined endpoint; carries no defaults of its own.
+    pub const CUSTOM: &str = "custom";
 }
 
 /// Metadata for an LLM provider.
@@ -93,10 +100,32 @@ pub static PROVIDERS: &[ProviderSpec] = &[
         keywords: &[],
         litellm_prefix: None,
         skip_prefixes: &[],
-        default_api_base: Some("https://opencode.ai/zen/go/v1"),
+        default_api_base: Some("https://opencode.ai/zen/v1"),
         default_anthropic_api_base: None,
         is_local: false,
         env_key: Some("OPENCODE_API_KEY"),
+    },
+    ProviderSpec {
+        name: provider_id::AIHUBMIX,
+        display_name: "AiHubMix",
+        keywords: &[],
+        litellm_prefix: None,
+        skip_prefixes: &["aihubmix/"],
+        default_api_base: Some("https://aihubmix.com/v1"),
+        default_anthropic_api_base: Some("https://aihubmix.com"),
+        is_local: false,
+        env_key: Some("AIHUBMIX_API_KEY"),
+    },
+    ProviderSpec {
+        name: provider_id::CHERRYIN,
+        display_name: "CherryIN",
+        keywords: &[],
+        litellm_prefix: None,
+        skip_prefixes: &["cherryin/"],
+        default_api_base: Some("https://open.cherryin.net/v1"),
+        default_anthropic_api_base: Some("https://open.cherryin.net"),
+        is_local: false,
+        env_key: Some("CHERRYIN_API_KEY"),
     },
     // ===== Standard Providers =====
     ProviderSpec {
@@ -171,8 +200,8 @@ pub static PROVIDERS: &[ProviderSpec] = &[
         keywords: &["glm"],
         litellm_prefix: None,
         skip_prefixes: &[],
-        default_api_base: Some("https://open.bigmodel.cn/api/paas/v4"),
-        default_anthropic_api_base: None,
+        default_api_base: Some("https://api.z.ai/api/paas/v4"),
+        default_anthropic_api_base: Some("https://api.z.ai/api/anthropic"),
         is_local: false,
         env_key: Some("ZHIPU_API_KEY"),
     },
@@ -182,7 +211,7 @@ pub static PROVIDERS: &[ProviderSpec] = &[
         keywords: &["qwen"],
         litellm_prefix: None, // DashScope OpenAI-compat API expects bare model names (e.g. "qwen3-max")
         skip_prefixes: &["dashscope/"], // Strip LiteLLM prefix from frontend model names
-        default_api_base: Some("https://dashscope.aliyuncs.com/compatible-mode/v1"),
+        default_api_base: Some("https://dashscope-intl.aliyuncs.com/compatible-mode/v1"),
         default_anthropic_api_base: None,
         is_local: false,
         env_key: Some("DASHSCOPE_API_KEY"),
@@ -194,7 +223,7 @@ pub static PROVIDERS: &[ProviderSpec] = &[
         litellm_prefix: None,
         skip_prefixes: &[],
         default_api_base: Some("https://api.minimax.io/v1"),
-        default_anthropic_api_base: None,
+        default_anthropic_api_base: Some("https://api.minimax.io/anthropic"),
         is_local: false,
         env_key: Some("MINIMAX_API_KEY"),
     },
@@ -215,10 +244,55 @@ pub static PROVIDERS: &[ProviderSpec] = &[
         keywords: &["kimi", "moonshot"],
         litellm_prefix: None,
         skip_prefixes: &[],
-        default_api_base: Some("https://api.moonshot.cn/v1"),
-        default_anthropic_api_base: None,
+        default_api_base: Some("https://api.moonshot.ai/v1"),
+        default_anthropic_api_base: Some("https://api.moonshot.ai/anthropic"),
         is_local: false,
         env_key: Some("MOONSHOT_API_KEY"),
+    },
+    ProviderSpec {
+        name: provider_id::SILICONFLOW,
+        display_name: "SiliconFlow",
+        keywords: &[],
+        litellm_prefix: None,
+        skip_prefixes: &["siliconflow/"],
+        default_api_base: Some("https://api.siliconflow.com/v1"),
+        default_anthropic_api_base: Some("https://api.siliconflow.com"),
+        is_local: false,
+        env_key: Some("SILICONFLOW_API_KEY"),
+    },
+    ProviderSpec {
+        name: provider_id::MODELSCOPE,
+        display_name: "ModelScope",
+        keywords: &[],
+        litellm_prefix: None,
+        skip_prefixes: &["modelscope/"],
+        default_api_base: Some("https://api-inference.modelscope.cn/v1"),
+        default_anthropic_api_base: Some("https://api-inference.modelscope.cn"),
+        is_local: false,
+        env_key: Some("MODELSCOPE_API_KEY"),
+    },
+    ProviderSpec {
+        name: provider_id::BEDROCK,
+        display_name: "AWS Bedrock",
+        keywords: &[],
+        litellm_prefix: None,
+        skip_prefixes: &["bedrock/"],
+        // Region-specific: an account's stored base URL overrides these.
+        default_api_base: Some("https://bedrock-mantle.us-east-1.api.aws/openai/v1"),
+        default_anthropic_api_base: Some("https://bedrock-mantle.us-east-1.api.aws/anthropic"),
+        is_local: false,
+        env_key: Some("AWS_BEARER_TOKEN_BEDROCK"),
+    },
+    ProviderSpec {
+        name: provider_id::CUSTOM,
+        display_name: "Custom",
+        keywords: &[],
+        litellm_prefix: None,
+        skip_prefixes: &[],
+        default_api_base: None, // User must set their own
+        default_anthropic_api_base: None,
+        is_local: false,
+        env_key: None,
     },
     ProviderSpec {
         name: provider_id::AZURE_OPENAI,

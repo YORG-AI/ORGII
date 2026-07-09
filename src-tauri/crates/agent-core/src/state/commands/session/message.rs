@@ -174,11 +174,7 @@ pub(crate) async fn send_message_impl(
         TurnIntentBridgeSource::UserSubmit | TurnIntentBridgeSource::ForceSend
     ) && !is_resume
     {
-        crate::session::goal_loop::on_user_message(
-            &session_id,
-            &content,
-            display_text.as_deref(),
-        );
+        crate::session::goal_loop::on_user_message(&session_id, &content, display_text.as_deref());
     }
 
     let effective_model = identity.model;
@@ -275,11 +271,15 @@ pub(crate) async fn send_message_impl(
     // interrupt via their own boundary semantics), resumes, queue-sourced
     // continuations, image messages, and empty content. The Stop boundary
     // clears the buffer, matching queued-message discard semantics.
+    // `is_turn_processing`, not `is_processing`: only a running turn drains
+    // the steering queue. A maintenance job (manual compaction) occupies the
+    // worker without a turn loop, so a message diverted here during one would
+    // wait forever.
     if matches!(source, TurnIntentBridgeSource::UserSubmit)
         && !is_resume
         && !content.trim().is_empty()
         && images.as_ref().map(|v| v.is_empty()).unwrap_or(true)
-        && session_handle.scheduler.is_processing()
+        && session_handle.scheduler.is_turn_processing()
     {
         crate::foundation::session_bridge::upsert_turn_intent(
             &session_id,
@@ -300,7 +300,7 @@ pub(crate) async fn send_message_impl(
         // Race closure: the turn may have ended between the is_processing
         // check and the push. If it's idle now, reclaim the injection (when
         // still unconsumed) and fall through to a normal enqueue.
-        let reclaimed = if !session_handle.scheduler.is_processing() {
+        let reclaimed = if !session_handle.scheduler.is_turn_processing() {
             let mut steering = session_handle.steering_queue.lock().await;
             let before = steering.len();
             steering.retain(|inj| inj.turn_intent_id != effective_turn_intent_id);
@@ -515,6 +515,7 @@ pub(crate) async fn send_message_impl(
 
     // ── 6. Enqueue and return immediately ────────────────────────────────
     let msg = crate::session::ScheduledMessage {
+        kind: crate::session::ScheduledKind::Turn,
         message_id: uuid::Uuid::new_v4().to_string(),
         generation: 0,
         client_message_id,

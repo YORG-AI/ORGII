@@ -62,7 +62,7 @@ pub(crate) fn cli_env_config(name: &str) -> Option<AgentEnvConfig> {
             Some("MOONSHOT_BASE_URL"),
             true,
             "codeAccounts.apiKeyPlaceholder.kimi_cli",
-            Some("https://api.moonshot.cn/v1"),
+            Some("https://api.moonshot.ai/v1"),
         )),
         "aider" => Some(cfg(
             "OPENAI_API_KEY",

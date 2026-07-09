@@ -25,6 +25,9 @@ const WORKSTATION_SINGLE_HOST_MODES: AppModeType[] = [
   "project",
 ];
 
+// Stable element reference so memoized TabBar sees the same leadingSlot each render.
+const LEADING_SLOT = <WorkStationTabBarLeading />;
+
 export interface WorkstationTabBarProps {
   appMode: AppModeType;
 }
@@ -66,7 +69,7 @@ const WorkstationTabBar: React.FC<WorkstationTabBarProps> = memo(
         onCloseOtherTabs={handleCloseOther}
         onCloseSavedTabs={handleCloseSaved}
         repoPath={activeWorkspaceRootPath}
-        leadingSlot={<WorkStationTabBarLeading />}
+        leadingSlot={LEADING_SLOT}
         trailingSlot={trailingSlot}
         onNewTabShortcutId={
           appMode === "browser" ? "browser_new_tab" : undefined

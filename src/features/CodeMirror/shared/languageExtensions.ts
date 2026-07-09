@@ -13,6 +13,9 @@ import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
 import { python } from "@codemirror/lang-python";
 import { rust } from "@codemirror/lang-rust";
+import { StreamLanguage } from "@codemirror/language";
+import { dart as dartMode } from "@codemirror/legacy-modes/mode/clike";
+import { go as goMode } from "@codemirror/legacy-modes/mode/go";
 import { Extension } from "@codemirror/state";
 
 import { createLogger } from "@src/hooks/logger";
@@ -47,6 +50,7 @@ export const EXT_TO_LANG_MAP: Record<string, string> = {
   json: "json",
   md: "markdown",
   markdown: "markdown",
+  dart: "dart",
 };
 
 // ============================================
@@ -147,6 +151,12 @@ export function getLanguageExtension(
       break;
     case "markdown":
       ext = markdown();
+      break;
+    case "dart":
+      ext = StreamLanguage.define(dartMode);
+      break;
+    case "go":
+      ext = StreamLanguage.define(goMode);
       break;
     default:
       return null;
@@ -259,6 +269,17 @@ export async function loadLanguageExtension(
       case "markdown": {
         const { markdown: mdLang } = await import("@codemirror/lang-markdown");
         ext = mdLang();
+        break;
+      }
+      case "dart": {
+        const { dart: dartMode } =
+          await import("@codemirror/legacy-modes/mode/clike");
+        ext = StreamLanguage.define(dartMode);
+        break;
+      }
+      case "go": {
+        const { go: goMode } = await import("@codemirror/legacy-modes/mode/go");
+        ext = StreamLanguage.define(goMode);
         break;
       }
     }

@@ -80,12 +80,12 @@ export interface QuotaSnapshot {
   /** Which quota type determined the percentage */
   quota_source?: string;
 
-  // Plan breakdown (Cursor-specific)
+  // Auto/Composer + API breakdown (Cursor-specific legacy flat fields)
   auto_percent_used?: number;
   api_percent_used?: number;
   total_percent_used?: number;
 
-  // On-demand quota (Cursor-specific)
+  // API quota (Cursor-specific legacy on-demand fields)
   on_demand_enabled?: boolean;
   on_demand_used?: number;
   on_demand_limit?: number;

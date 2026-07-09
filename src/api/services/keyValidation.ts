@@ -137,6 +137,11 @@ export async function fetchKeyQuota(
   });
 }
 
+/** Refresh quota for a stored key without exposing secrets to the frontend. */
+export async function refreshKeyQuota(keyId: string): Promise<KeyInfo | null> {
+  return rpc.validation.refreshKeyQuota({ keyId });
+}
+
 /**
  * Get available models for Cursor CLI via local CLI command.
  * Used when listing on market to get real model list instead of defaults.

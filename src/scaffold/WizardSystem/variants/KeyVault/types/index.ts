@@ -92,6 +92,15 @@ export interface WizardData {
     plan_type?: string;
     limit_type?: string;
     quota_source?: string;
+    usage_items?: Array<{
+      usage_type: string;
+      enabled: boolean;
+      used: number | null;
+      limit: number | null;
+      remaining: number | null;
+      remaining_percentage: number;
+      reset_time?: string | null;
+    }>;
     // Plan breakdown (Cursor-specific)
     auto_percent_used?: number;
     api_percent_used?: number;

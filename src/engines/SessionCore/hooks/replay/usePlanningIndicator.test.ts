@@ -81,9 +81,9 @@ describe("shouldShowPlanningIndicator", () => {
     ).toBe(true);
   });
 
-  it("hides while a running await_output wait_for shows its own countdown", () => {
-    // The wait_for block renders a live "Waiting {countdown} for …" title, so
-    // the planning footer would be a redundant second waiting indicator.
+  it("hides while a running await_output shows its own loading title", () => {
+    // Any await_output (wait_for or monitor) renders a live shimmer title, so
+    // the planning footer would be a redundant second activity indicator.
     expect(
       shouldShowPlanningIndicator({
         ...baseInput,
@@ -92,7 +92,7 @@ describe("shouldShowPlanningIndicator", () => {
     ).toBe(false);
   });
 
-  it("still hides the footer during a wait_for even if a subagent is live", () => {
+  it("still hides the footer during await_output even if a subagent is live", () => {
     expect(
       shouldShowPlanningIndicator({
         ...baseInput,

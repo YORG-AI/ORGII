@@ -5,6 +5,7 @@ import {
   Clipboard,
   FolderOutput,
   GalleryThumbnails,
+  LayoutGrid,
   Link2,
   ListChevronsDownUp,
   ListChevronsUpDown,
@@ -202,6 +203,12 @@ export function ChatPanelHeader({
   const publishedHeaderSlots = useAtomValue(chatPanelHeaderSlotsAtom);
   const windowsHost = isWindows();
   if (!showHeader) return null;
+
+  const nestedBackAction = publishedHeaderSlots?.backAction ?? null;
+  const nestedBackLabel = publishedHeaderSlots?.backLabel ?? t("actions.back");
+  const headerBackLabel = nestedBackAction
+    ? nestedBackLabel
+    : t("chat.startPage.back");
 
   const showStaticCollabCreateTitle =
     showNonSessionContent &&
@@ -544,7 +551,7 @@ export function ChatPanelHeader({
         <Tooltip
           content={
             <KeyboardShortcutTooltipContent
-              label={t("chat.startPage.back")}
+              label={headerBackLabel}
               noShortcut
             />
           }
@@ -558,14 +565,21 @@ export function ChatPanelHeader({
               variant="tertiary"
               size="small"
               iconOnly
-              onClick={handleOpenStartPage}
-              aria-label={t("chat.startPage.back")}
+              onClick={nestedBackAction ?? handleOpenStartPage}
+              aria-label={headerBackLabel}
               data-testid="chat-panel-start-page-back-button"
               icon={
-                <ChevronLeft
-                  size={CHAT_PANEL_HEADER_PROMINENT_ICON_SIZE}
-                  strokeWidth={2}
-                />
+                nestedBackAction ? (
+                  <ChevronLeft
+                    size={CHAT_PANEL_HEADER_PROMINENT_ICON_SIZE}
+                    strokeWidth={2}
+                  />
+                ) : (
+                  <LayoutGrid
+                    size={CHAT_PANEL_HEADER_PROMINENT_ICON_SIZE}
+                    strokeWidth={2}
+                  />
+                )
               }
             />
           </span>

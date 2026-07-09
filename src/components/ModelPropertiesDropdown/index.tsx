@@ -30,13 +30,10 @@ import {
   DROPDOWN_ITEM,
   DROPDOWN_PANEL,
 } from "@src/components/Dropdown/exports";
-import Slider from "@src/components/Slider";
+import { EffortSlider } from "@src/components/ModelPropertiesDropdown/EffortSlider";
 import Switch from "@src/components/Switch";
 import { useDropdownEngine } from "@src/hooks/dropdown";
-import {
-  type ModelReasoningLevel,
-  formatReasoningLevel,
-} from "@src/util/modelVariants";
+import { type ModelReasoningLevel } from "@src/util/modelVariants";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 import {
   type VariantEditOptions,
@@ -83,6 +80,8 @@ export interface ModelPropertiesDropdownProps {
    * without Apply (use that signal to clear any optimistic preview).
    */
   onDraftChange?: (modelId: string | undefined) => void;
+  /** Fires whenever the dropdown opens or closes. */
+  onOpenChange?: (open: boolean) => void;
   /**
    * Optional disabled flag. When `true`, the trigger should also visibly
    * convey the disabled state (callers control that styling).
@@ -113,6 +112,7 @@ export const ModelPropertiesDropdown: React.FC<
   value,
   onApply,
   onDraftChange,
+  onOpenChange,
   disabled = false,
   centerInContainer = false,
   sidePanelInContainer = false,
@@ -367,6 +367,10 @@ export const ModelPropertiesDropdown: React.FC<
     }
   }, [isOpen, onDraftChange, value]);
 
+  useEffect(() => {
+    onOpenChange?.(isOpen);
+  }, [isOpen, onOpenChange]);
+
   // Thinking row is shown only when the family contains BOTH a
   // thinking and a non-thinking variant — i.e. the toggle is
   // meaningful. Fast row is shown only when a fast variant is
@@ -521,91 +525,6 @@ export const ModelPropertiesDropdown: React.FC<
 };
 
 // ============ INTERNAL ============
-
-interface EffortSliderProps {
-  levels: readonly ModelReasoningLevel[];
-  value: ModelReasoningLevel | undefined;
-  onChange: (level: ModelReasoningLevel) => void;
-}
-
-const EffortSlider: React.FC<EffortSliderProps> = ({
-  levels,
-  value,
-  onChange,
-}) => {
-  const { t } = useTranslation();
-  const selectedIndex = levels.findIndex((level) => level === value);
-  const safeSelectedIndex = selectedIndex === -1 ? 0 : selectedIndex;
-  const maxIndex = Math.max(0, levels.length - 1);
-  const selectedLevel = levels[safeSelectedIndex];
-
-  const handleChange = (nextValue: number | [number, number]) => {
-    if (Array.isArray(nextValue)) return;
-    const nextLevel = levels[nextValue];
-    if (nextLevel) {
-      onChange(nextLevel);
-    }
-  };
-
-  return (
-    <div className="px-1.5 py-2.5">
-      <div className="mb-2">
-        <div className="text-[11px] font-semibold uppercase tracking-wide text-text-3">
-          {t("selectors.modelProperties.effort", {
-            defaultValue: "Effort",
-          })}
-        </div>
-        <div className="pt-3 text-[13px] font-medium text-primary-6">
-          {selectedLevel ? formatReasoningLevel(selectedLevel) : "—"}
-        </div>
-      </div>
-      <div className="pb-1 pt-2">
-        <div className="relative">
-          <Slider
-            value={safeSelectedIndex}
-            min={0}
-            max={maxIndex}
-            step={1}
-            showTooltip={false}
-            noPadding
-            handleBordered
-            onChange={handleChange}
-          />
-          <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 items-center justify-between">
-            {levels.map((level, index) => {
-              const isSelected = index === safeSelectedIndex;
-              const isPassed = index < safeSelectedIndex;
-              const dotColor = isSelected
-                ? "bg-primary-6"
-                : isPassed
-                  ? "bg-primary-5"
-                  : "bg-text-4";
-              return (
-                <span
-                  key={level}
-                  className={`h-1.5 w-1.5 rounded-full transition-colors ${dotColor}`}
-                  aria-hidden="true"
-                />
-              );
-            })}
-          </div>
-        </div>
-        <div className="mt-4 flex w-full items-center justify-between text-[13px] text-text-2">
-          <span>
-            {t("selectors.modelProperties.faster", {
-              defaultValue: "Faster",
-            })}
-          </span>
-          <span>
-            {t("selectors.modelProperties.smarter", {
-              defaultValue: "Smarter",
-            })}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 interface SwitchRowProps {
   icon?: React.ReactNode;

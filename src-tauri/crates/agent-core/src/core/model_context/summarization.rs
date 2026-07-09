@@ -167,6 +167,10 @@ pub(crate) fn format_tool_calls(msg: &Value) -> String {
 /// Oversized messages (>50% of context window) are excluded from
 /// summarization and noted separately to avoid exceeding the
 /// summarization model's context window.
+///
+/// `custom_instructions` (manual compaction only) is appended to the
+/// summarization prompt as an additional-focus section; the required
+/// section structure still applies.
 pub(crate) async fn summarize_messages(
     messages: &[Value],
     state: &super::compaction::CompactionState,
@@ -174,6 +178,7 @@ pub(crate) async fn summarize_messages(
     model: &str,
     config: &super::compaction::CompactionConfig,
     budget_tokens: usize,
+    custom_instructions: Option<&str>,
 ) -> Result<String, String> {
     let budget = budget_tokens;
     let mut summarizable: Vec<&Value> = Vec::new();
@@ -224,6 +229,18 @@ pub(crate) async fn summarize_messages(
         ));
     }
 
+    if let Some(instructions) = custom_instructions
+        .map(str::trim)
+        .filter(|instructions| !instructions.is_empty())
+    {
+        prompt.push_str(&format!(
+            "\n\n## Additional Instructions\n\nThe user provided extra focus instructions for this \
+             summary. Honor them on top of the required section structure — they refine emphasis, \
+             they do not replace any section:\n{}",
+            instructions
+        ));
+    }
+
     let user_message = vec![serde_json::json!({
         "role": "user",
         "content": formatted,
@@ -247,10 +264,29 @@ pub(crate) async fn summarize_messages(
                 "required": ["summary"]
             }),
         }),
+        // One-shot request over a prefix that is never sent again — writing
+        // it to the provider prompt cache is pure cost.
+        skip_cache_write: true,
         ..Default::default()
     };
 
     let result = side_query::side_query(provider, &user_message, &sq_config, model).await?;
+
+    // A response cut off at the output cap is a mid-sentence summary;
+    // persisting it would durably hide the compacted messages behind an
+    // incomplete replacement. Treat as failure so the caller can fall back /
+    // surface it.
+    //
+    // NOTE: this message must NOT contain any keyword matched by
+    // `ContextCompactor::is_prompt_too_long_error` (e.g. "max_tokens",
+    // "token limit"), or `try_compact` would misroute this OUTPUT-side
+    // failure into the input-shrinking PTL retry loop.
+    if result.finish_reason == crate::providers::finish_reason::LENGTH {
+        return Err(format!(
+            "summary output hit the summarizer cap ({}) — refusing incomplete summary",
+            config.summary_max_tokens
+        ));
+    }
 
     // Extract from structured output (forced tool call) if available,
     // fall back to text content for providers that don't support tool_choice.
@@ -263,6 +299,13 @@ pub(crate) async fn summarize_messages(
     } else {
         result.content
     };
+
+    // An empty summary must never replace real history: the compacted view
+    // would render `[Conversation summary — N messages compacted]` followed
+    // by nothing, silently destroying context.
+    if summary.trim().is_empty() {
+        return Err("summarizer returned an empty summary".to_string());
+    }
 
     if !oversized_notes.is_empty() {
         summary.push_str("\n\n");

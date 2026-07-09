@@ -671,7 +671,9 @@
       "empty": "Действия не найдены.",
       "unpinAll": "Открепить все",
       "insert": "Вставить"
-    }
+    },
+    "compactArgHint": "<необязательный фокус резюме>",
+    "compactCommandDescription": "Обобщить старый контекст, чтобы освободить место. Необязательно: /compact <фокус резюме>"
   },
   "listPanel": {
     "showingOf": "Показано {{filtered}} из {{total}}",
@@ -730,6 +732,22 @@
         "sessions": "Сессии",
         "tokens": "Tokens",
         "cost": "Стоимость"
+      },
+      "quota": {
+        "empty": "Данных о квоте пока нет. Обновите использование в Key Vault.",
+        "refresh": "Обновить",
+        "justNow": "только что",
+        "minutesAgo": "{{count}} мин назад",
+        "hoursAgo": "{{count}}ч назад",
+        "metrics": {
+          "fiveHour": "5h",
+          "sevenDay": "7d",
+          "auto": "Auto",
+          "api": "API",
+          "session": "Session",
+          "weekly": "Weekly",
+          "monthly": "Monthly"
+        }
       },
       "exploreRepos": {
         "title": "Обзор Repos"
@@ -959,7 +977,30 @@
         "mentioned": "Упоминания"
       }
     },
-    "readOnly": "Только чтение"
+    "readOnly": "Только чтение",
+    "panels": {
+      "manageIssues": {
+        "searchPlaceholder": "GitHub search, e.g. is:issue is:open label:bug",
+        "createIssueTrigger": "Issue",
+        "newIssueTitle": "New GitHub Issue",
+        "issueTitlePlaceholder": "Issue title",
+        "issueBodyPlaceholder": "Description",
+        "createIssue": "Create issue",
+        "creatingIssue": "Creating…",
+        "addToChat": "Add",
+        "repositoryLabel": "Repository",
+        "createIssueFailed": "Failed to create issue",
+        "sourceIssues": "Issues",
+        "sourcePrs": "PRs",
+        "stateOpen": "Open",
+        "stateClosed": "Closed",
+        "stateAll": "All states",
+        "assignedToMe": "Assigned to me",
+        "createdByMe": "Created by me",
+        "filters": "Filters",
+        "openInGitHub": "Open in GitHub"
+      }
+    }
   },
   "chatStatus": {
     "approved": "Одобрено",
@@ -1855,7 +1896,8 @@
       "models": "Модели",
       "skills": "Skills",
       "workspaceSkills": "Workspace Skills",
-      "userSkills": "User Skills"
+      "userSkills": "User Skills",
+      "commands": "Команды"
     },
     "diffMenu": {
       "gitActions": "Действия GIT",
@@ -2265,7 +2307,8 @@
       "Всё ещё обдумываем, занимает больше времени, чем обычно...",
       "Работаем над этим, занимает больше времени, чем обычно...",
       "Решаем, что делать дальше, занимает больше времени, чем обычно..."
-    ]
+    ],
+    "compacting": "Сжатие контекста..."
   },
   "revertConfirm": {
     "title": "Несохранённые изменения файлов",

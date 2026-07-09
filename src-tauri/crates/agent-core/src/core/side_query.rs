@@ -40,6 +40,10 @@ pub struct SideQueryConfig {
     pub structured: Option<StructuredOutput>,
     /// KeyVault account ID for capability resolution + behavioral writeback.
     pub account_id: Option<String>,
+    /// Suppress prompt-cache write breakpoints for this call. Set for
+    /// one-shot requests whose prefix is never sent again (compaction
+    /// summarization) — see [`ChatOptions::skip_cache_write`].
+    pub skip_cache_write: bool,
 }
 
 /// Forced tool call for structured output.
@@ -59,6 +63,7 @@ impl Default for SideQueryConfig {
             system_prompt: None,
             structured: None,
             account_id: None,
+            skip_cache_write: false,
         }
     }
 }
@@ -76,6 +81,11 @@ pub struct SideQueryResult {
     /// Structured output extracted from a forced tool call. `None` when
     /// `SideQueryConfig::structured` was not set.
     pub structured: Option<Value>,
+    /// Provider-reported finish reason (see [`finish_reason`] constants).
+    /// Callers that persist the output durably (e.g. compaction summaries)
+    /// must reject `finish_reason::LENGTH` — it means the output was cut
+    /// off at `max_tokens`.
+    pub finish_reason: String,
 }
 
 #[derive(Debug)]
@@ -221,14 +231,19 @@ pub async fn side_query_typed(
         expecting_structured,
     );
 
+    let chat_options = crate::providers::traits::ChatOptions {
+        skip_cache_write: config.skip_cache_write,
+    };
+
     // First attempt
     let response = provider
-        .chat(
+        .chat_with_options(
             &messages,
             tools_ref,
             model,
             config.max_tokens,
             config.temperature,
+            chat_options,
         )
         .await;
 
@@ -267,12 +282,13 @@ pub async fn side_query_typed(
     let retry_tools_ref: Option<&[Value]> = retry_tools.as_deref();
 
     let retry_response = provider
-        .chat(
+        .chat_with_options(
             &messages,
             retry_tools_ref,
             model,
             retry_max_tokens,
             config.temperature,
+            chat_options,
         )
         .await
         .map_err(SideQueryError::Provider)?;
@@ -348,6 +364,7 @@ fn build_structured_result(response: &LLMResponse, structured: Value) -> SideQue
         prompt_tokens,
         completion_tokens,
         structured: Some(structured),
+        finish_reason: response.finish_reason.clone(),
     }
 }
 
@@ -364,6 +381,7 @@ fn build_text_result(response: &LLMResponse, content: String) -> SideQueryResult
         prompt_tokens,
         completion_tokens,
         structured: None,
+        finish_reason: response.finish_reason.clone(),
     }
 }
 

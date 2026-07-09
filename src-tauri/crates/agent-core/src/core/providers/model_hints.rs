@@ -53,11 +53,11 @@ pub fn fast_model_hint(parent_model: &str) -> String {
         || lower.contains("haiku")
         || lower.contains("opus")
     {
-        "anthropic/claude-3-5-haiku-20241022".to_string()
-    } else if lower.contains("gpt-4") || lower.contains("openai") {
-        "openai/gpt-4o-mini".to_string()
+        "anthropic/claude-haiku-4.5".to_string()
+    } else if lower.contains("gpt") || lower.contains("openai") {
+        "openai/gpt-5.4-mini".to_string()
     } else if lower.contains("gemini") {
-        "gemini/gemini-2.0-flash".to_string()
+        "gemini/gemini-3.1-flash".to_string()
     } else if lower.contains("deepseek") {
         "deepseek/deepseek-chat".to_string()
     } else {

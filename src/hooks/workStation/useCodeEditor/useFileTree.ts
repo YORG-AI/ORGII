@@ -258,6 +258,7 @@ export function useFileTree(
 
     const unsubscribe = websocket.on("repo:status_updated", (data) => {
       if (!mounted) return;
+      if (document.hidden) return;
 
       const payload = data as {
         repo_id?: string;

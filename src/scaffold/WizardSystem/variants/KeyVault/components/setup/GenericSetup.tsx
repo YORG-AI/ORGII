@@ -2,8 +2,8 @@
  * GenericSetup Component
  *
  * Setup UI for generic API key agents (Claude Code, Codex, Gemini CLI, etc.)
- * Uses a flat "Setup Method" selector with three options:
- *   Autodetect | Enter Key | Extract Config
+ * Uses a flat "Setup Method" selector. Available methods come from the Rust
+ * agent registry (`supportedSetupMethods` on `AvailableAgent`).
  *
  * Supports:
  * - Autodetect: Find API key from local config files
@@ -14,7 +14,8 @@
  *
  * Uses SectionContainer + SectionRow + SECTION_GAP_CLASSES.
  */
-import { Keyboard, Locate, ScanSearch } from "lucide-react";
+import { useAtomValue } from "jotai";
+import { ClipboardCopy, Keyboard, ScanSearch } from "lucide-react";
 import type { FC } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -33,12 +34,26 @@ import {
   SelectionGrid,
   type SelectionGridOption,
 } from "@src/scaffold/WizardSystem/primitives";
+import { agentRegistryAtom } from "@src/store/session/agentRegistryAtom";
 
 import { useProviderConfig } from "../../config";
-import { getOfficialBaseUrlForProtocol } from "./providerProtocolUrls";
+import {
+  GENERIC_SETUP_METHOD,
+  type GenericSetupMethod,
+  resolveActiveSetupMethod,
+  resolveGenericSetupMethods,
+} from "../../config/genericSetupMethods";
+import {
+  getOfficialBaseUrl,
+  hasEndpointChoice,
+  resolveSelectedEndpoint,
+} from "../../config/providerEndpoints";
+import { ApiProtocolSectionRow } from "./ApiProtocolSectionRow";
+import { CustomBaseUrlInfoIcon } from "./CustomBaseUrlInfoIcon";
+import { ProviderEndpointSectionRow } from "./ProviderEndpointSectionRow";
 import type { AgentSetupProps } from "./types";
 
-type SetupMethod = "autodetect" | "enter_key" | "extract";
+type SetupMethod = GenericSetupMethod;
 type BaseUrlMode = "official" | "custom";
 
 const GenericSetup: FC<AgentSetupProps> = ({
@@ -58,19 +73,51 @@ const GenericSetup: FC<AgentSetupProps> = ({
   onClearExtractError,
 }) => {
   const { t } = useTranslation("integrations");
+  const { agents } = useAtomValue(agentRegistryAtom);
 
-  const genericSetupOptions = useMemo<SelectionGridOption<SetupMethod>[]>(
-    () => [
-      {
-        key: "autodetect",
+  const allowedSetupMethods = useMemo(
+    () =>
+      resolveGenericSetupMethods(
+        agents.find((agent) => agent.name === data.agent_type)
+          ?.supportedSetupMethods
+      ),
+    [agents, data.agent_type]
+  );
+
+  const [setupMethod, setSetupMethod] = useState<SetupMethod>(
+    GENERIC_SETUP_METHOD.AUTODETECT
+  );
+  const activeSetupMethod = resolveActiveSetupMethod(
+    setupMethod,
+    allowedSetupMethods
+  );
+
+  const genericSetupOptions = useMemo<
+    SelectionGridOption<SetupMethod>[]
+  >(() => {
+    const optionByMethod: Record<
+      SetupMethod,
+      SelectionGridOption<SetupMethod>
+    > = {
+      [GENERIC_SETUP_METHOD.AUTODETECT]: {
+        key: GENERIC_SETUP_METHOD.AUTODETECT,
         label: t("keyVault.autodetect"),
         icon: ScanSearch,
       },
-      { key: "enter_key", label: t("keyVault.enterKey"), icon: Keyboard },
-      { key: "extract", label: t("keyVault.extractConfig"), icon: Locate },
-    ],
-    [t]
-  );
+      [GENERIC_SETUP_METHOD.ENTER_KEY]: {
+        key: GENERIC_SETUP_METHOD.ENTER_KEY,
+        label: t("keyVault.enterKey"),
+        icon: Keyboard,
+      },
+      [GENERIC_SETUP_METHOD.EXTRACT]: {
+        key: GENERIC_SETUP_METHOD.EXTRACT,
+        label: t("keyVault.extractConfig"),
+        icon: ClipboardCopy,
+      },
+    };
+
+    return allowedSetupMethods.map((method) => optionByMethod[method]);
+  }, [allowedSetupMethods, t]);
 
   // Get agent-specific env config from Rust
   const { config: envConfig, loading: configLoading } = useProviderConfig(
@@ -85,28 +132,48 @@ const GenericSetup: FC<AgentSetupProps> = ({
     !isOAuthConfigured && data.validated && !!data.raw_key_input;
 
   // Single flat setup method — no nested selection
-  const [setupMethod, setSetupMethod] = useState<SetupMethod>("autodetect");
-
   // Raw text input for extraction (separate from the actual key input)
   const [rawExtractInput, setRawExtractInput] = useState("");
 
   // Base URL mode: official (use provider default) or custom (user enters URL)
   const [baseUrlMode, setBaseUrlMode] = useState<BaseUrlMode>("official");
-  const [baseUrlWarningDismissed, setBaseUrlWarningDismissed] = useState(false);
   const supportsProtocolSelection =
     (envConfig?.supportedProtocols.length ?? 0) > 1;
   const selectedProtocol =
     data.protocol ?? envConfig?.defaultProtocol ?? "openai";
-  const officialBaseUrl = getOfficialBaseUrlForProtocol(
-    data.agent_type,
+
+  const endpoints = useMemo(
+    () => envConfig?.endpoints ?? [],
+    [envConfig?.endpoints]
+  );
+  const offersEndpointChoice = hasEndpointChoice(endpoints);
+  const selectedEndpoint = resolveSelectedEndpoint(
+    endpoints,
+    data.extracted_base_url
+  );
+  const officialBaseUrl = getOfficialBaseUrl(
+    selectedEndpoint,
     selectedProtocol,
     envConfig?.defaultBaseUrl
   );
 
   // Sync official URL to data when in official mode (for validation)
   useEffect(() => {
+    // A provider with a choice of endpoints has no meaningful "unset" base URL:
+    // validation has to know which host the key belongs to. Seed the default.
+    if (offersEndpointChoice && !data.extracted_base_url && officialBaseUrl) {
+      onChange({
+        extracted_base_url: officialBaseUrl,
+        validated: false,
+        available_models: [],
+        model_context_lengths: {},
+        enabled_models: [],
+      });
+      return;
+    }
+
     if (
-      setupMethod === "enter_key" &&
+      activeSetupMethod === GENERIC_SETUP_METHOD.ENTER_KEY &&
       envConfig?.supportsBaseUrl &&
       baseUrlMode === "official" &&
       officialBaseUrl &&
@@ -115,7 +182,8 @@ const GenericSetup: FC<AgentSetupProps> = ({
       onChange({ extracted_base_url: officialBaseUrl });
     }
   }, [
-    setupMethod,
+    activeSetupMethod,
+    offersEndpointChoice,
     envConfig,
     baseUrlMode,
     officialBaseUrl,
@@ -126,7 +194,7 @@ const GenericSetup: FC<AgentSetupProps> = ({
   // Handle successful extraction - called by parent after extraction succeeds
   const handleExtractionSuccess = useCallback(
     (_baseUrl?: string) => {
-      setSetupMethod("enter_key");
+      setSetupMethod(GENERIC_SETUP_METHOD.ENTER_KEY);
       if (
         envConfig?.supportsBaseUrl &&
         officialBaseUrl &&
@@ -140,7 +208,7 @@ const GenericSetup: FC<AgentSetupProps> = ({
   );
 
   const handleSetupMethodChange = (method: SetupMethod) => {
-    if (method === setupMethod) return;
+    if (method === activeSetupMethod) return;
     setSetupMethod(method);
 
     // Each tab starts with a clean slate — clear stale validation from the previous tab
@@ -155,7 +223,7 @@ const GenericSetup: FC<AgentSetupProps> = ({
       model_aliases: [],
     });
 
-    if (method === "enter_key") {
+    if (method === GENERIC_SETUP_METHOD.ENTER_KEY) {
       onInputModeChange?.("direct");
       if (
         envConfig?.supportsBaseUrl &&
@@ -165,7 +233,7 @@ const GenericSetup: FC<AgentSetupProps> = ({
       ) {
         setBaseUrlMode("custom");
       }
-    } else if (method === "extract") {
+    } else if (method === GENERIC_SETUP_METHOD.EXTRACT) {
       onInputModeChange?.("natural");
     }
   };
@@ -185,17 +253,28 @@ const GenericSetup: FC<AgentSetupProps> = ({
         >
           <SelectionGrid
             options={genericSetupOptions}
-            selected={setupMethod}
+            selected={activeSetupMethod}
             cardVariant="subtle"
             onSelect={(key) => handleSetupMethodChange(key)}
           />
         </SectionRow>
       </SectionContainer>
 
+      {offersEndpointChoice && (
+        <SectionContainer>
+          <ProviderEndpointSectionRow
+            endpoints={endpoints}
+            selectedEndpointId={selectedEndpoint?.id}
+            protocol={selectedProtocol}
+            onChange={onChange}
+          />
+        </SectionContainer>
+      )}
+
       {/* ======================== */}
       {/* Autodetect Section       */}
       {/* ======================== */}
-      {setupMethod === "autodetect" && (
+      {activeSetupMethod === GENERIC_SETUP_METHOD.AUTODETECT && (
         <>
           <SectionContainer>
             <SectionRow
@@ -243,7 +322,7 @@ const GenericSetup: FC<AgentSetupProps> = ({
       {/* ======================== */}
       {/* Enter Key Section        */}
       {/* ======================== */}
-      {setupMethod === "enter_key" && (
+      {activeSetupMethod === GENERIC_SETUP_METHOD.ENTER_KEY && (
         <SectionContainer>
           <SectionRow
             label={t("keyVault.apiKeyLabel")}
@@ -261,46 +340,25 @@ const GenericSetup: FC<AgentSetupProps> = ({
           </SectionRow>
 
           {supportsProtocolSelection && (
-            <SectionRow
-              label="API protocol"
-              description="Choose the wire protocol for the built-in Rust agent."
-              layout="vertical"
-            >
-              <Select
-                value={selectedProtocol}
-                onChange={(val) => {
-                  const protocol = val as typeof selectedProtocol;
-                  const nextOfficialBaseUrl = getOfficialBaseUrlForProtocol(
-                    data.agent_type,
-                    protocol,
-                    envConfig.defaultBaseUrl
-                  );
-                  onChange({
-                    protocol,
-                    extracted_base_url:
-                      baseUrlMode === "official"
-                        ? nextOfficialBaseUrl || undefined
-                        : data.extracted_base_url,
-                    validated: false,
-                    available_models: [],
-                    model_context_lengths: {},
-                    enabled_models: [],
-                  });
-                }}
-                options={envConfig.supportedProtocols.map((protocol) => ({
-                  value: protocol,
-                  label: protocol === "anthropic" ? "Anthropic" : "OpenAI",
-                }))}
-                size="default"
-                dropdownWidthMode="min-match"
-                className="w-fit"
-              />
-            </SectionRow>
+            <ApiProtocolSectionRow
+              selectedEndpoint={selectedEndpoint}
+              selectedProtocol={selectedProtocol}
+              supportedProtocols={envConfig.supportedProtocols}
+              defaultBaseUrl={envConfig.defaultBaseUrl}
+              baseUrlMode={baseUrlMode}
+              extractedBaseUrl={data.extracted_base_url}
+              onChange={onChange}
+            />
           )}
 
           {envConfig.supportsBaseUrl && (
             <SectionRow
-              label={t("keyVault.baseUrlLabel")}
+              label={
+                <span className="inline-flex items-center gap-1">
+                  {t("keyVault.baseUrlLabel")}
+                  {baseUrlMode === "custom" ? <CustomBaseUrlInfoIcon /> : null}
+                </span>
+              }
               description={t("keyVault.baseUrlDesc")}
               layout="vertical"
             >
@@ -311,7 +369,6 @@ const GenericSetup: FC<AgentSetupProps> = ({
                     const mode = val as BaseUrlMode;
                     setBaseUrlMode(mode);
                     if (mode === "official") {
-                      setBaseUrlWarningDismissed(false);
                       onChange({
                         extracted_base_url: officialBaseUrl || undefined,
                       });
@@ -348,19 +405,6 @@ const GenericSetup: FC<AgentSetupProps> = ({
             </SectionRow>
           )}
 
-          {envConfig.supportsBaseUrl &&
-            baseUrlMode === "custom" &&
-            !baseUrlWarningDismissed && (
-              <InlineAlert
-                type="warning"
-                title={t("keyVault.customBaseUrlRiskTitle")}
-                className="mt-2"
-                onClose={() => setBaseUrlWarningDismissed(true)}
-              >
-                {t("keyVault.customBaseUrlRiskWarning")}
-              </InlineAlert>
-            )}
-
           <SectionRow label="" showHeader={false}>
             <Button
               variant={keyValidated ? "success" : "primary"}
@@ -381,7 +425,7 @@ const GenericSetup: FC<AgentSetupProps> = ({
       {/* ======================== */}
       {/* Extract Config Section   */}
       {/* ======================== */}
-      {setupMethod === "extract" && (
+      {activeSetupMethod === GENERIC_SETUP_METHOD.EXTRACT && (
         <>
           <SectionContainer>
             <SectionRow

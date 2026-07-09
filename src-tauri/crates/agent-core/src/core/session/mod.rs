@@ -51,7 +51,7 @@ pub mod workspace;
 // deeper `session::overrides::*`, `session::persistence::*`, and
 // `session::workspace::*` paths, so we deliberately do NOT flatten those.
 pub use project_init::init_workspace_session;
-pub use scheduler::{DialogScheduler, ScheduledMessage};
+pub use scheduler::{DialogScheduler, ScheduledKind, ScheduledMessage};
 pub use turn::{process_message, TurnInput};
 pub use types::{
     presence_mode_ids, AgentExecMode, DialogTurn, DialogTurnState, IdeContext, PresenceStance,

@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 
 import type { LinearTeamSummary } from "@src/api/http/integrations";
 import Button from "@src/components/Button";
+import Select from "@src/components/Select";
+import Textarea from "@src/components/Textarea";
 
 import type { ProjectDraft } from "./types";
 
@@ -39,28 +41,26 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
         placeholder={t("linearProjects.forms.projectName")}
         className="h-9 w-full rounded-lg border border-border-1 bg-bg-1 px-3 text-sm outline-none focus:border-primary-5"
       />
-      <textarea
+      <Textarea
         value={draft.description}
-        onChange={(event) =>
-          onDraftChange({ ...draft, description: event.target.value })
-        }
+        onChange={(value) => onDraftChange({ ...draft, description: value })}
         placeholder={t("linearProjects.forms.description")}
-        className="min-h-[96px] w-full resize-y rounded-lg border border-border-1 bg-bg-1 px-3 py-2 text-sm outline-none focus:border-primary-5"
+        autoSize={{ minRows: 4 }}
+        className="w-full"
       />
       {!hideTeamSelect && (
-        <select
+        <Select
           value={draft.teamId}
-          onChange={(event) =>
-            onDraftChange({ ...draft, teamId: event.target.value })
+          options={teams.map((team) => ({
+            value: team.id,
+            label: `${team.name} (${team.key})`,
+          }))}
+          onChange={(value) =>
+            onDraftChange({ ...draft, teamId: value as string })
           }
-          className="h-9 w-full rounded-lg border border-border-1 bg-bg-1 px-3 text-sm outline-none focus:border-primary-5"
-        >
-          {teams.map((team) => (
-            <option key={team.id} value={team.id}>
-              {team.name} ({team.key})
-            </option>
-          ))}
-        </select>
+          className="w-full"
+          dropdownWidthMode="match"
+        />
       )}
       <div className="flex justify-end gap-2">
         <Button

@@ -20,11 +20,19 @@
  * } = useInputArea();
  */
 import { useAtomValue } from "jotai";
-import { useCallback, useEffect, useId, useMemo, useRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { useChatContext } from "@src/contexts/workspace/ChatContext";
 import { useDataContext } from "@src/contexts/workspace/DataContext";
 import { shouldShowSessionFailedBanner } from "@src/engines/ChatPanel/components/sessionStatusBannerHelpers";
+import { parseCompactSlashCommand } from "@src/engines/ChatPanel/hooks/useManualCompact";
 import useWorkspaceChat from "@src/engines/ChatPanel/hooks/useWorkspaceChat";
 import { useRepositoryInfo } from "@src/engines/SessionCore";
 import { sortedEventsAtom } from "@src/engines/SessionCore/core/atoms/events";
@@ -483,12 +491,23 @@ export function useInputArea(
     state.setIsInputFocused(false);
   }, [state]);
 
+  const [compactHintVisible, setCompactHintVisible] = useState(false);
+
   const handleContentChange = useCallback(
     (text: string) => {
       const draftText =
         refs.composerInputRef.current?.getTextWithPills() ?? text;
       const cleanedText = draftText.trim();
       refs.setHasContent(cleanedText.length > 0);
+
+      // Argument ghost hint for `/compact`: visible while the draft is a
+      // compact command with no focus text yet (pill or typed form).
+      {
+        const compactDraft = parseCompactSlashCommand(cleanedText);
+        setCompactHintVisible(
+          compactDraft !== null && !compactDraft.instructions
+        );
+      }
 
       // Pass to workspace chat handler
       handleSessInputChange(draftText);
@@ -652,6 +671,7 @@ export function useInputArea(
     setIsInputFocused: state.setIsInputFocused,
     handleInputBlur,
     handleContentChange,
+    compactHintVisible,
     handleAtMention: atMention.handleAtMention,
     handleAtMentionClose: atMention.handleAtMentionClose,
     isInputEmpty,

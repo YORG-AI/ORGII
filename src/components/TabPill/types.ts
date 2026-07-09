@@ -32,5 +32,7 @@ export interface TabPillProps {
    *   visually matches the SettingsTable filter selects.
    */
   colorScheme?: "default" | "muted" | "layout" | "ghost";
+  /** Button-like grouped switch style with an outlined container and fill-2 active pill. */
+  buttonStyle?: boolean;
   onDropdownRef?: (close: () => void) => void;
 }

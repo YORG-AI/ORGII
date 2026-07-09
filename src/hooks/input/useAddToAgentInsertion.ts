@@ -54,11 +54,22 @@ export function useAddToAgentInsertion(
         });
       } else if (stableRequest.type === "terminal") {
         const capped = capPillText(stableRequest.text);
-        const lineCount = capped.split("\n").length;
         const pillPath = `terminal://selection/${Date.now()}`;
-        const label =
-          stableRequest.displayName ??
-          (lineCount > 1 ? `Terminal (1-${lineCount})` : "Terminal");
+        let label: string;
+        if (stableRequest.displayName) {
+          label = stableRequest.displayName;
+        } else if (
+          stableRequest.lineStart !== undefined &&
+          stableRequest.lineEnd !== undefined
+        ) {
+          label =
+            stableRequest.lineStart === stableRequest.lineEnd
+              ? `Terminal (${stableRequest.lineStart})`
+              : `Terminal (${stableRequest.lineStart}-${stableRequest.lineEnd})`;
+        } else {
+          const lineCount = capped.trimEnd().split("\n").length;
+          label = lineCount > 1 ? `Terminal (1-${lineCount})` : "Terminal";
+        }
         storePillText(pillPath, capped);
         editor.insertFilePill(pillPath, false, "terminal", label);
       } else if (stableRequest.type === "dom-element") {
@@ -81,6 +92,16 @@ export function useAddToAgentInsertion(
           "dom-component",
           stableRequest.fileName
         );
+      } else if (stableRequest.type === "issue") {
+        const pillPath = `issue://${stableRequest.issueNumber}`;
+        const label = `#${stableRequest.issueNumber} ${stableRequest.issueTitle}`;
+        storePillText(pillPath, capPillText(JSON.stringify(stableRequest)));
+        editor.insertFilePill(pillPath, false, "issue", label);
+      } else if (stableRequest.type === "pr") {
+        const pillPath = `pr://${stableRequest.prNumber}`;
+        const label = `PR #${stableRequest.prNumber} ${stableRequest.prTitle}`;
+        storePillText(pillPath, capPillText(JSON.stringify(stableRequest)));
+        editor.insertFilePill(pillPath, false, "pr", label);
       } else {
         editor.insertFilePill(stableRequest.filePath, false, "file");
       }

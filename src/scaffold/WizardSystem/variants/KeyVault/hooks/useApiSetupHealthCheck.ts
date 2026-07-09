@@ -4,6 +4,7 @@ import { autoDetectKey } from "@src/api/services/keyValidation";
 import { createLogger } from "@src/hooks/logger";
 
 import type { WizardData } from "../types";
+import { normalizeDetectedQuotaInfo } from "./keyHelpers";
 
 const log = createLogger("ApiSetup");
 
@@ -38,7 +39,9 @@ export function useApiSetupHealthCheck({
           if (result.success) {
             const keys = result.keys || [];
             const selectedCred = keys.length > 0 ? keys[0] : null;
-            const quotaInfo = selectedCred?.quota_info;
+            const quotaInfo = normalizeDetectedQuotaInfo(
+              selectedCred?.quota_info
+            );
             if (quotaInfo) {
               onChange({ quota_info: quotaInfo });
             }

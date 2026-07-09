@@ -156,7 +156,10 @@ const ActivityLoadingFallback: React.FC = () => (
  * `rate_limit_hint`) as an assistant message instead of routing to the
  * registered card component.
  */
-const DEDICATED_NON_MESSAGE_CANONICALS = new Set(["rate_limit_hint"]);
+const DEDICATED_NON_MESSAGE_CANONICALS = new Set([
+  "rate_limit_hint",
+  "context_compacted",
+]);
 
 function readLlmUsage(event: SessionEvent): LlmUsageMetadata | undefined {
   if (event.llmUsage) return event.llmUsage;

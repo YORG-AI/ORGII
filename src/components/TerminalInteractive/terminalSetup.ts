@@ -16,6 +16,7 @@ import type { TerminalThemeName } from "@src/store/ui/uiAtom";
 import { shouldLoadTerminalWebgl } from "./terminalRendererPolicy";
 import type { TerminalViewProps } from "./types";
 import { getXTermTheme } from "./utils";
+import { acquireWebglSlot, releaseWebglSlot } from "./webglContextManager";
 
 const log = createLogger("Terminal");
 
@@ -107,12 +108,20 @@ export function loadTerminalWebgl(
     return;
   }
 
+  if (!acquireWebglSlot()) {
+    log.warn(
+      "[Terminal] WebGL context budget exhausted, using canvas renderer"
+    );
+    return;
+  }
+
   try {
     const webglAddon = new WebglAddon();
     webglAddon.onContextLoss(() => {
       log.warn("[Terminal] WebGL context lost, falling back to canvas");
       webglAddon.dispose();
       webglAddonRef.current = null;
+      releaseWebglSlot();
     });
     terminal.loadAddon(webglAddon);
     webglAddonRef.current = webglAddon;
@@ -121,6 +130,7 @@ export function loadTerminalWebgl(
       "[Terminal] WebGL addon failed to load, using canvas renderer:",
       error
     );
+    releaseWebglSlot();
   }
 }
 
@@ -142,12 +152,12 @@ export function initializeWhenContainerVisible({
     initialized = true;
     resizeObserver?.disconnect();
     resizeObserver = null;
-    loadWebGL();
+
     fitTerminal();
+    loadWebGL();
+
     setIsReady(true);
     initPty(terminal.cols, terminal.rows);
-    setTimeout(fitTerminal, 150);
-    setTimeout(fitTerminal, 300);
   };
 
   const tryInit = () => {

@@ -59,6 +59,7 @@ interface MyAccountsTableSectionProps {
     deleteType?: "local" | "cloud"
   ) => void;
   onRefreshAccounts?: () => Promise<void>;
+  onRefreshAccountUsage?: (accountId: string) => Promise<void>;
   onRevalidateAccount?: (accountId: string) => Promise<void>;
   refreshingAccountId?: string | null;
   onToggleAccount: (account: KeyVaultAccount, enabled: boolean) => void;
@@ -82,7 +83,8 @@ interface MyAccountsTableSectionProps {
   onEditAccountSave?: (
     accountId: string,
     name: string,
-    description: string
+    description: string,
+    baseUrl?: string
   ) => Promise<void>;
   t: (key: string, options?: Record<string, unknown>) => string;
 }
@@ -113,6 +115,7 @@ export default function MyAccountsTableSection({
   onEditAccount,
   onDisconnectAccount,
   onRefreshAccounts,
+  onRefreshAccountUsage,
   onRevalidateAccount,
   refreshingAccountId,
   onToggleAccount,
@@ -246,7 +249,7 @@ export default function MyAccountsTableSection({
       {
         key: "enabled",
         label: <span className="sr-only">{t("common:labels.status")}</span>,
-        width: 128,
+        width: "128px",
         align: "right",
         sorter: (rowA, rowB) =>
           Number(isAccountEnabled(rowA)) - Number(isAccountEnabled(rowB)),
@@ -324,7 +327,11 @@ export default function MyAccountsTableSection({
         onToggleModel={onToggleModel}
         onUpdateAccountEnabledModels={onUpdateAccountEnabledModels}
         onUpdateAccountDefaultVariant={onUpdateAccountDefaultVariant}
-        onRefresh={onRefreshAccounts}
+        onRefresh={
+          onRefreshAccountUsage
+            ? () => onRefreshAccountUsage(account.id)
+            : onRefreshAccounts
+        }
         onRevalidateAccount={onRevalidateAccount}
         refreshing={refreshingAccountId === account.id}
         onEditSave={onEditAccountSave}
@@ -339,6 +346,7 @@ export default function MyAccountsTableSection({
       handleEditCancel,
       isAccountEnabled,
       onEditAccountSave,
+      onRefreshAccountUsage,
       onRefreshAccounts,
       onRevalidateAccount,
       onToggleAccount,

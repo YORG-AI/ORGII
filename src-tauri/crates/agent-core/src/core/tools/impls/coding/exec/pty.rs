@@ -9,6 +9,9 @@ use tauri::AppHandle;
 use tokio::sync::broadcast;
 use tracing::info;
 
+type TapSender = broadcast::Sender<Arc<[u8]>>;
+type TapReceiver = broadcast::Receiver<Arc<[u8]>>;
+
 use crate::tools::traits::ToolError;
 use ::terminal::pty_commands::pty::PtySession;
 
@@ -45,7 +48,7 @@ pub async fn ensure_pty_initialized(
     pty_session_id: &str,
     agent_session_id: &str,
     working_dir: &Path,
-) -> Result<broadcast::Sender<String>, String> {
+) -> Result<TapSender, String> {
     {
         let mut sessions = pty.sessions.lock().await;
         if let Some(session) = sessions.get(pty_session_id) {
@@ -118,7 +121,7 @@ pub async fn execute_via_pty(
         .map_err(|err| ToolError::ExecutionFailed(format!("PTY init failed: {}", err)))?;
 
     if wait_secs.is_none() {
-        let mut output_rx = output_tap.subscribe();
+        let mut output_rx: TapReceiver = output_tap.subscribe();
         let timeout = Duration::from_secs(timeout_secs);
 
         match crate::tool_infra::terminal::exec_in_pty(
@@ -150,7 +153,7 @@ pub async fn execute_via_pty(
     } else {
         let effective_wait = wait_secs.unwrap_or(timeout_secs);
 
-        let mut partial_rx = output_tap.subscribe();
+        let mut partial_rx: TapReceiver = output_tap.subscribe();
 
         let output_tap_clone = output_tap.clone();
         let sessions = pty.sessions.clone();
@@ -160,7 +163,7 @@ pub async fn execute_via_pty(
         let full_timeout = Duration::from_secs(timeout_secs);
 
         let exec_handle = tokio::spawn(async move {
-            let mut rx = output_tap_clone.subscribe();
+            let mut rx: TapReceiver = output_tap_clone.subscribe();
             crate::tool_infra::terminal::exec_in_pty(
                 &cmd,
                 wd.as_ref(),
@@ -218,7 +221,9 @@ pub async fn execute_via_pty(
             match tokio::time::timeout(remaining.min(Duration::from_millis(500)), partial_rx.recv())
                 .await
             {
-                Ok(Ok(chunk)) => partial_output.push_str(&chunk),
+                Ok(Ok(chunk)) => {
+                    partial_output.push_str(&String::from_utf8_lossy(&chunk));
+                }
                 Ok(Err(broadcast::error::RecvError::Lagged(_))) => {
                     partial_output.push_str("[...some output lost...]\n");
                 }

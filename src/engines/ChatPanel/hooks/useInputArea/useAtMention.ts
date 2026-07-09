@@ -119,7 +119,7 @@ export function useAtMention(options: UseAtMentionOptions): AtMentionHandlers {
           const buffer = getTerminalBuffer(ptySessionId);
           if (buffer) {
             const capped = capPillText(buffer);
-            const lineCount = capped.split("\n").length;
+            const lineCount = capped.trimEnd().split("\n").length;
             const pillPath = `terminal://${value}/${Date.now()}`;
             const pillDisplayName =
               lineCount > 1

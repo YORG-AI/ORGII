@@ -194,7 +194,7 @@ function extractApplyPatchData(
     linesAdded: parsed.linesAdded,
     linesRemoved: parsed.linesRemoved,
     applyPatchSegments:
-      applyPatchSegments.length > 1 ? applyPatchSegments : undefined,
+      applyPatchSegments.length > 0 ? applyPatchSegments : undefined,
   };
 }
 
@@ -403,13 +403,18 @@ function convertPatchToUnifiedDiffSync(patchText: string): SyncPatchResult {
   const filePaths: string[] = [];
   let currentFile = "";
   let isAddFile = false;
+  let isDeleteFile = false;
   let sectionLines: string[] = [];
   let totalAdded = 0;
   let totalRemoved = 0;
 
   const flushSection = () => {
-    if (!currentFile || sectionLines.length === 0) return;
-    if (isAddFile) {
+    if (!currentFile || (sectionLines.length === 0 && !isDeleteFile)) return;
+    if (isDeleteFile) {
+      diffLines.push(`--- ${currentFile}`);
+      diffLines.push("+++ /dev/null");
+      diffLines.push(`@@ -1,${sectionLines.length} +0,0 @@`);
+    } else if (isAddFile) {
       diffLines.push("--- /dev/null");
       diffLines.push(`+++ ${currentFile}`);
       diffLines.push(`@@ -0,0 +1,${sectionLines.length} @@`);
@@ -436,14 +441,18 @@ function convertPatchToUnifiedDiffSync(patchText: string): SyncPatchResult {
 
   for (const line of lines) {
     const addMatch = line.match(/^\*\*\*\s+Add\s+File:\s+(.+)/);
-    const modifyMatch = line.match(/^\*\*\*\s+Modify\s+File:\s+(.+)/);
+    const modifyMatch = line.match(
+      /^\*\*\*\s+(?:Modify|Update)\s+File:\s+(.+)/
+    );
     const deleteMatch = line.match(/^\*\*\*\s+Delete\s+File:\s+(.+)/);
+    const moveMatch = line.match(/^\*\*\*\s+Move\s+to:\s+(.+)/);
 
     if (addMatch) {
       flushSection();
       currentFile = addMatch[1].trim();
       filePaths.push(currentFile);
       isAddFile = true;
+      isDeleteFile = false;
       continue;
     }
     if (modifyMatch) {
@@ -451,22 +460,32 @@ function convertPatchToUnifiedDiffSync(patchText: string): SyncPatchResult {
       currentFile = modifyMatch[1].trim();
       filePaths.push(currentFile);
       isAddFile = false;
+      isDeleteFile = false;
       continue;
     }
     if (deleteMatch) {
       flushSection();
-      const deletedFile = deleteMatch[1].trim();
-      filePaths.push(deletedFile);
-      diffLines.push(`--- ${deletedFile}`);
-      diffLines.push("+++ /dev/null");
-      diffLines.push("@@ -1,0 +0,0 @@ deleted");
-      currentFile = "";
+      currentFile = deleteMatch[1].trim();
+      filePaths.push(currentFile);
+      isAddFile = false;
+      isDeleteFile = true;
+      continue;
+    }
+    if (moveMatch) {
+      const movedFile = moveMatch[1].trim();
+      if (movedFile) {
+        currentFile = movedFile;
+        filePaths[filePaths.length - 1] = movedFile;
+      }
       continue;
     }
     if (
       line.startsWith("*** Begin Patch") ||
       line.startsWith("*** End Patch")
     ) {
+      continue;
+    }
+    if (line.startsWith("@@")) {
       continue;
     }
     if (currentFile) {

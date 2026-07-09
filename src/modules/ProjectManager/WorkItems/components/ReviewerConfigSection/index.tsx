@@ -6,6 +6,8 @@ import type {
   ReviewConfig,
   ReviewerRefType,
 } from "@src/api/http/project";
+import Input from "@src/components/Input";
+import Select from "@src/components/Select";
 import { builtInAgentsAtom } from "@src/modules/MainApp/AgentOrgs/store/builtInAgentsAtom";
 import type { AgentDefinition } from "@src/modules/MainApp/AgentOrgs/types";
 
@@ -43,9 +45,9 @@ const ReviewerConfigSection: React.FC<ReviewerConfigSectionProps> = ({
   };
 
   const handleReviewerTypeChange = (
-    event: React.ChangeEvent<HTMLSelectElement>
+    value: string | number | (string | number)[]
   ) => {
-    const newType = event.target.value as ReviewerRefType;
+    const newType = value as ReviewerRefType;
     onUpdateConfig({
       review_config: {
         ...reviewConfig,
@@ -54,21 +56,20 @@ const ReviewerConfigSection: React.FC<ReviewerConfigSectionProps> = ({
     });
   };
 
-  const handleAgentSelect = (event: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleAgentSelect = (value: string | number | (string | number)[]) => {
+    const id = (value as string) || undefined;
     onUpdateConfig({
       review_config: {
         ...reviewConfig,
-        reviewer: { type: "agent", id: event.target.value || undefined },
+        reviewer: { type: "agent", id },
       },
     });
   };
 
-  const handleMaxRoundsChange = (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const value = Math.max(1, Math.min(10, Number(event.target.value) || 1));
+  const handleMaxRoundsChange = (value: string) => {
+    const rounds = Math.max(1, Math.min(10, Number(value) || 1));
     onUpdateConfig({
-      review_config: { ...reviewConfig, max_rounds: value },
+      review_config: { ...reviewConfig, max_rounds: rounds },
     });
   };
 
@@ -89,46 +90,49 @@ const ReviewerConfigSection: React.FC<ReviewerConfigSectionProps> = ({
         <span className="text-[11px] text-text-3">
           {t("workItems.agentSettings.reviewerType")}
         </span>
-        <select
+        <Select
           value={reviewConfig.reviewer.type}
+          options={REVIEWER_TYPE_OPTIONS.map((type) => ({
+            value: type,
+            label: t(REVIEWER_TYPE_LABEL_KEYS[type]),
+          }))}
           onChange={handleReviewerTypeChange}
-          className="rounded border border-border-2 bg-bg-2 px-2 py-0.5 text-[11px] text-text-1"
-        >
-          {REVIEWER_TYPE_OPTIONS.map((type) => (
-            <option key={type} value={type}>
-              {t(REVIEWER_TYPE_LABEL_KEYS[type])}
-            </option>
-          ))}
-        </select>
+          size="mini"
+          dropdownWidthMode="match"
+        />
       </div>
       {reviewConfig.reviewer.type === "agent" && allAgents.length > 0 && (
         <div className="flex items-center justify-between gap-2">
           <span className="text-[11px] text-text-3">Agent</span>
-          <select
+          <Select
             value={reviewConfig.reviewer.id ?? ""}
+            options={[
+              { value: "", label: "—" },
+              ...allAgents.map((agent) => ({
+                value: agent.id,
+                label: agent.name,
+              })),
+            ]}
             onChange={handleAgentSelect}
-            className="max-w-[140px] truncate rounded border border-border-2 bg-bg-2 px-2 py-0.5 text-[11px] text-text-1"
-          >
-            <option value="">—</option>
-            {allAgents.map((agent) => (
-              <option key={agent.id} value={agent.id}>
-                {agent.name}
-              </option>
-            ))}
-          </select>
+            size="mini"
+            className="max-w-[140px]"
+            dropdownWidthMode="match"
+          />
         </div>
       )}
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] text-text-3">
           {t("workItems.agentSettings.maxReviewRounds")}
         </span>
-        <input
+        <Input
           type="number"
           min={1}
           max={10}
-          value={reviewConfig.max_rounds}
+          value={String(reviewConfig.max_rounds)}
           onChange={handleMaxRoundsChange}
-          className="w-14 rounded border border-border-2 bg-bg-2 px-2 py-0.5 text-center text-[11px] text-text-1"
+          size="mini"
+          className="w-14"
+          inputClassName="text-center"
         />
       </div>
     </div>

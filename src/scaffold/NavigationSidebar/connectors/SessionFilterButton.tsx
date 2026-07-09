@@ -10,13 +10,14 @@ import React, { type FC, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
-import DropdownSelectedCheck from "@src/components/Dropdown/DropdownSelectedCheck";
+import DropdownItem from "@src/components/Dropdown/DropdownItem";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
   DROPDOWN_PANEL,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
+import IconButton from "@src/components/IconButton";
 import { useDropdownEngine } from "@src/hooks/dropdown";
 import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
 
@@ -129,12 +130,10 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
           disabled={isOpen}
         >
           <div ref={triggerRef} className="inline-flex">
-            <button
-              type="button"
+            <IconButton
               aria-label={t("sidebar.groupBy.title")}
-              className={`flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none p-0 transition-colors duration-150 ${
-                isOpen ? "bg-bg-1" : "bg-transparent hover:bg-fill-2"
-              }`}
+              size="lg"
+              variant={isOpen ? "active" : "default"}
               onClick={toggle}
               onMouseEnter={(event) =>
                 triggerIconAnimation(event.currentTarget)
@@ -147,7 +146,7 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                 strokeWidth={2}
                 className={isOpen ? "text-primary-6" : "text-text-2"}
               />
-            </button>
+            </IconButton>
           </div>
         </WorkstationToolbarTooltip>
 
@@ -169,110 +168,91 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                 </div>
                 {groupByModes.map((mode) => {
                   const active = mode === groupByMode;
-                  const itemClasses = active
-                    ? `${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemSelected}`
-                    : `${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover}`;
                   return (
-                    <button
+                    <DropdownItem
                       key={mode}
-                      type="button"
-                      className={`${itemClasses} w-full justify-between text-left`}
+                      selected={active}
                       onClick={() => handleSelect(mode)}
                     >
-                      <span>
-                        {getGroupByLabel?.(mode) ??
-                          t(`sidebar.groupBy.${mode}`)}
-                      </span>
-                      {active && <DropdownSelectedCheck />}
-                    </button>
+                      {getGroupByLabel?.(mode) ?? t(`sidebar.groupBy.${mode}`)}
+                    </DropdownItem>
                   );
                 })}
                 <div className={DROPDOWN_CLASSES.menuSeparator} />
-                <button
-                  type="button"
-                  className={`${DROPDOWN_CLASSES.item} ${includeExternal ? DROPDOWN_CLASSES.itemSelected : DROPDOWN_CLASSES.itemHover} w-full justify-between text-left`}
+                <DropdownItem
+                  selected={includeExternal}
                   onClick={handleToggleIncludeExternal}
                 >
-                  <span>{t("sidebar.filters.includeExternal")}</span>
-                  {includeExternal && <DropdownSelectedCheck />}
-                </button>
+                  {t("sidebar.filters.includeExternal")}
+                </DropdownItem>
                 {hasExtraActions && (
                   <>
                     <div className={DROPDOWN_CLASSES.menuSeparator} />
                     {onRefreshSessions && (
-                      <button
-                        type="button"
-                        className={DROPDOWN_CLASSES.menuActionItem}
+                      <DropdownItem
+                        icon={
+                          <RefreshCw
+                            size={DROPDOWN_ITEM.iconSize}
+                            strokeWidth={2}
+                          />
+                        }
                         onClick={handleRefreshSessions}
                       >
-                        <RefreshCw
-                          size={DROPDOWN_ITEM.iconSize}
-                          strokeWidth={2}
-                          className="shrink-0 text-text-2"
-                        />
-                        <span>{tCommon("actions.refresh")}</span>
-                      </button>
+                        {tCommon("actions.refresh")}
+                      </DropdownItem>
                     )}
                     {onExportSessionJson && (
-                      <button
-                        type="button"
-                        className={`${DROPDOWN_CLASSES.menuActionItem} ${canExportSessionJson ? "" : DROPDOWN_CLASSES.itemDisabled}`}
-                        onClick={handleExportSessionJson}
+                      <DropdownItem
+                        icon={
+                          <FolderOutput
+                            size={DROPDOWN_ITEM.iconSize}
+                            strokeWidth={2}
+                          />
+                        }
                         disabled={!canExportSessionJson}
+                        onClick={handleExportSessionJson}
                       >
-                        <FolderOutput
-                          size={DROPDOWN_ITEM.iconSize}
-                          strokeWidth={2}
-                          className="shrink-0 text-text-2"
-                        />
-                        <span>
-                          {tCommon("sessions:chat.importExport.exportAction")}
-                        </span>
-                      </button>
+                        {tCommon("sessions:chat.importExport.exportAction")}
+                      </DropdownItem>
                     )}
                     {onImportSessionJson && (
-                      <button
-                        type="button"
-                        className={DROPDOWN_CLASSES.menuActionItem}
+                      <DropdownItem
+                        icon={
+                          <FolderInput
+                            size={DROPDOWN_ITEM.iconSize}
+                            strokeWidth={2}
+                          />
+                        }
                         onClick={handleImportSessionJson}
                       >
-                        <FolderInput
-                          size={DROPDOWN_ITEM.iconSize}
-                          strokeWidth={2}
-                          className="shrink-0 text-text-2"
-                        />
-                        <span>
-                          {tCommon("sessions:chat.importExport.importAction")}
-                        </span>
-                      </button>
+                        {tCommon("sessions:chat.importExport.importAction")}
+                      </DropdownItem>
                     )}
                     {onCollapseAll && (
-                      <button
-                        type="button"
-                        className={DROPDOWN_CLASSES.menuActionItem}
+                      <DropdownItem
+                        icon={
+                          <ListChevronsDownUp
+                            size={DROPDOWN_ITEM.iconSize}
+                            strokeWidth={2}
+                          />
+                        }
                         onClick={handleCollapseAll}
                       >
-                        <ListChevronsDownUp
-                          size={DROPDOWN_ITEM.iconSize}
-                          strokeWidth={2}
-                          className="shrink-0 text-text-2"
-                        />
-                        <span>{t("sidebar.actions.collapseAll")}</span>
-                      </button>
+                        {t("sidebar.actions.collapseAll")}
+                      </DropdownItem>
                     )}
                     {onMarkAllRead && (
-                      <button
-                        type="button"
-                        className={DROPDOWN_CLASSES.menuActionItem}
+                      <DropdownItem
+                        icon={
+                          <CheckCheck
+                            size={DROPDOWN_ITEM.iconSize}
+                            strokeWidth={2}
+                          />
+                        }
                         onClick={handleMarkAllRead}
                       >
-                        <CheckCheck
-                          size={DROPDOWN_ITEM.iconSize}
-                          strokeWidth={2}
-                          className="shrink-0 text-text-2"
-                        />
-                        <span>{t("sidebar.actions.markAllRead")}</span>
-                      </button>
+                        {t("sidebar.actions.markAllRead")}
+                      </DropdownItem>
                     )}
                   </>
                 )}

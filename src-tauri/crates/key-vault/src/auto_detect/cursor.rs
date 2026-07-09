@@ -39,7 +39,11 @@ pub(super) async fn detect_cursor_keys() -> Vec<DetectedKey> {
                         remaining: quota.remaining,
                         reset_time: quota.reset_time.clone(),
                         plan_type: quota.plan_type.clone(),
+                        quota_source: quota.quota_source.clone(),
                         is_unlimited: Some(quota.is_unlimited),
+                        usage_items: quota.usage_items.clone(),
+                        auto_message: quota.auto_message.clone(),
+                        named_message: quota.named_message.clone(),
                     });
                 }
                 Err(msg) => {

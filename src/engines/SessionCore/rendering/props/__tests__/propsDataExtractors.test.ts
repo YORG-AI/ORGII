@@ -772,6 +772,33 @@ describe("extractEditData", () => {
       expect(data.linesRemoved).toBe(1);
     });
 
+    it("parses Codex Update File patches into unified diff", () => {
+      const patchText = [
+        "*** Begin Patch",
+        "*** Update File: src/existing.ts",
+        "@@",
+        "-const old = true;",
+        "+const updated = true;",
+        " const unchanged = 42;",
+        "*** End Patch",
+      ].join("\n");
+      const props = makeUniversalProps({
+        args: { patch_text: patchText },
+      });
+      const data = extractEditData(props);
+      expect(data.filePath).toBe("src/existing.ts");
+      expect(data.fileName).toBe("existing.ts");
+      expect(data.diff).toContain("--- src/existing.ts");
+      expect(data.diff).toContain("+++ src/existing.ts");
+      expect(data.diff).toContain("-const old = true;");
+      expect(data.diff).toContain("+const updated = true;");
+      expect(data.diff).not.toContain("\n@@\n@@");
+      expect(data.linesAdded).toBe(1);
+      expect(data.linesRemoved).toBe(1);
+      expect(data.applyPatchSegments).toHaveLength(1);
+      expect(data.applyPatchSegments?.[0]?.filePath).toBe("src/existing.ts");
+    });
+
     it("multi-file patch sync path produces combined diff with per-file segments", () => {
       const patchText = [
         "*** Begin Patch",

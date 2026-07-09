@@ -650,6 +650,8 @@ pub async fn test_session_seed_compacted_history(
                 &sid,
                 &format!("[Conversation summary — 2 earlier messages compacted]\n\n{summary}"),
                 anchor.sequence,
+                None,
+                None,
             )
             .map_err(|err| err.to_string())?;
             agent_core::session::persistence::clear_session_memory_state(&sid)

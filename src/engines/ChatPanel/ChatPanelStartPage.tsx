@@ -21,6 +21,12 @@ import HeatmapGrid, {
 } from "@src/modules/MainApp/DevRecord/components/HeatmapGrid";
 import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
 
+import {
+  START_PAGE_HEATMAP_CONTAINER_CLASS,
+  START_PAGE_TREND_SURFACE_CLASS,
+  StartPageQuotaGrid,
+} from "./StartPageQuotaGrid";
+
 const logger = createLogger("ChatPanelStartPage");
 
 const START_PAGE_TAB = {
@@ -161,24 +167,28 @@ function StartPageHeatmap({
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-border-1 bg-chat-container/70 p-4 text-[13px] text-text-2">
-        {t("chat.startPage.heatmap.loading")}
+      <div className={`${START_PAGE_TREND_SURFACE_CLASS} p-3`}>
+        <p className="text-[13px] text-text-2">
+          {t("chat.startPage.heatmap.loading")}
+        </p>
       </div>
     );
   }
 
   if (!data || data.totalSessions === 0) {
     return (
-      <div className="rounded-2xl border border-border-1 bg-chat-container/70 p-4 text-[13px] text-text-2">
-        {t("chat.startPage.heatmap.empty")}
+      <div className={`${START_PAGE_TREND_SURFACE_CLASS} p-3`}>
+        <p className="text-[13px] text-text-2">
+          {t("chat.startPage.heatmap.empty")}
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="rounded-2xl border border-border-1 bg-chat-container/70 p-3 shadow-sm">
-      <div className="mb-3 grid grid-cols-3 gap-2 text-center">
-        <div className="rounded-xl bg-fill-2 px-2 py-2">
+    <div className={START_PAGE_HEATMAP_CONTAINER_CLASS}>
+      <div className="mb-2 grid grid-cols-3 gap-2 text-center">
+        <div className="rounded-lg bg-fill-2 px-2 py-2">
           <div className="text-[11px] text-text-2">
             {t("chat.startPage.heatmap.sessions")}
           </div>
@@ -186,7 +196,7 @@ function StartPageHeatmap({
             {formatCompactNumber(data.totalSessions)}
           </div>
         </div>
-        <div className="rounded-xl bg-fill-2 px-2 py-2">
+        <div className="rounded-lg bg-fill-2 px-2 py-2">
           <div className="text-[11px] text-text-2">
             {t("chat.startPage.heatmap.tokens")}
           </div>
@@ -194,7 +204,7 @@ function StartPageHeatmap({
             {formatCompactNumber(data.totalTokens)}
           </div>
         </div>
-        <div className="rounded-xl bg-fill-2 px-2 py-2">
+        <div className="rounded-lg bg-fill-2 px-2 py-2">
           <div className="text-[11px] text-text-2">
             {t("chat.startPage.heatmap.cost")}
           </div>
@@ -212,6 +222,7 @@ function StartPageHeatmap({
         maxCount={Math.max(1, data.maxCount)}
         unit="session"
         yLabelWidth={28}
+        showLegend={false}
       />
     </div>
   );
@@ -414,7 +425,10 @@ export function ChatPanelStartPage({
           />
         </div>
         {activeTab === START_PAGE_TAB.HEATMAP ? (
-          <StartPageHeatmap t={t} />
+          <div className="flex flex-col gap-3">
+            <StartPageHeatmap t={t} />
+            <StartPageQuotaGrid isWide={isChatPanelMaximized} />
+          </div>
         ) : (
           <div className="flex flex-col gap-2.5">
             {actions.map((action) => (
@@ -422,7 +436,9 @@ export function ChatPanelStartPage({
             ))}
           </div>
         )}
-        <StartPageHintLine t={t} />
+        {activeTab !== START_PAGE_TAB.HEATMAP ? (
+          <StartPageHintLine t={t} />
+        ) : null}
       </div>
     </div>
   );

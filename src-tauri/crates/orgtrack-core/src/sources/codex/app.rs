@@ -27,7 +27,7 @@ use crate::sources::imported_history::{
 
 const CODEX_APP_SESSION_PREFIX: &str = "codexapp-";
 const CODEX_PROVIDER_SLUG: &str = "codex";
-const CODEX_APP_METADATA_PARSER_VERSION: i64 = 2;
+const CODEX_APP_METADATA_PARSER_VERSION: i64 = 3;
 
 pub type CodexAppSessionRow = ImportedHistorySessionRow;
 pub type CodexAppSessionPage = ImportedHistorySessionPage;
@@ -482,13 +482,7 @@ fn load_codex_app_from_path(session_id: &str, path: &Path) -> Result<Vec<Activit
                             .get("output")
                             .and_then(Value::as_str)
                             .unwrap_or_default();
-                        chunks.push(imported_history::tool_call_chunk(
-                            session_id,
-                            CODEX_PROVIDER_SLUG,
-                            sequence,
-                            &call,
-                            output,
-                        ));
+                        chunks.push(codex_tool_call_chunk(session_id, sequence, &call, output));
                         sequence += 1;
                     }
                 }
@@ -498,17 +492,38 @@ fn load_codex_app_from_path(session_id: &str, path: &Path) -> Result<Vec<Activit
     }
 
     for call in pending_tool_calls.into_values() {
-        chunks.push(imported_history::tool_call_chunk(
-            session_id,
-            CODEX_PROVIDER_SLUG,
-            sequence,
-            &call,
-            "",
-        ));
+        chunks.push(codex_tool_call_chunk(session_id, sequence, &call, ""));
         sequence += 1;
     }
 
     Ok(chunks)
+}
+
+fn codex_tool_call_chunk(
+    session_id: &str,
+    sequence: usize,
+    call: &ImportedToolCall,
+    output: &str,
+) -> ActivityChunk {
+    let mut chunk =
+        imported_history::tool_call_chunk(session_id, CODEX_PROVIDER_SLUG, sequence, call, output);
+    if call.canonical_name == imported_history::FUNCTION_CODE_SEARCH {
+        if let Some(result) = chunk.result.as_object_mut() {
+            result.insert("content".to_string(), Value::String(output.to_string()));
+            let matches = parse_rg_output_matches(output)
+                .into_iter()
+                .map(|(file, line, content)| {
+                    json!({
+                        "file": file,
+                        "line": line,
+                        "content": content,
+                    })
+                })
+                .collect::<Vec<_>>();
+            result.insert("matches".to_string(), Value::Array(matches));
+        }
+    }
+    chunk
 }
 
 fn pending_tool_call_from_payload(payload: &Value, created_at: &str) -> Option<ImportedToolCall> {
@@ -555,14 +570,48 @@ fn pending_custom_tool_call_from_payload(
 }
 
 fn normalize_codex_tool_call(raw_name: &str, args: Value) -> (String, Value) {
-    match raw_name {
-        "shell" => (
-            imported_history::FUNCTION_RUN_COMMAND_LINE.to_string(),
-            normalize_shell_args(args),
+    let key = normalize_tool_name_key(raw_name);
+    match key.as_str() {
+        "shell" | "shell_command" | "bash" | "terminal" | "terminal_command" | "run_shell"
+        | "run_command" | "execute" | "exec" => {
+            let shell_args = normalize_shell_args(args);
+            if let Some(read_args) = read_file_args_from_shell_args(&shell_args) {
+                (imported_history::FUNCTION_READ_FILE.to_string(), read_args)
+            } else if let Some(search_args) = rg_search_args_from_shell_args(&shell_args) {
+                (
+                    imported_history::FUNCTION_CODE_SEARCH.to_string(),
+                    search_args,
+                )
+            } else {
+                (
+                    imported_history::FUNCTION_RUN_COMMAND_LINE.to_string(),
+                    shell_args,
+                )
+            }
+        }
+        "rg" | "ripgrep" | "grep" | "search" | "code_search" | "search_code"
+        | "search_codebase" => (
+            imported_history::FUNCTION_CODE_SEARCH.to_string(),
+            normalize_search_args(args),
         ),
+        "cat" | "sed" | "head" | "tail" => {
+            let shell_args = normalize_shell_args(args);
+            if let Some(read_args) = read_file_args_from_shell_args(&shell_args) {
+                (imported_history::FUNCTION_READ_FILE.to_string(), read_args)
+            } else {
+                (
+                    imported_history::FUNCTION_RUN_COMMAND_LINE.to_string(),
+                    shell_args,
+                )
+            }
+        }
         "apply_patch" => (
             imported_history::FUNCTION_EDIT_FILE.to_string(),
             normalize_apply_patch_args(args),
+        ),
+        "edit" | "edit_file" | "write" | "write_file" | "create_file" => (
+            imported_history::FUNCTION_EDIT_FILE.to_string(),
+            normalize_edit_args(raw_name, args),
         ),
         _ => (raw_name.to_string(), args),
     }
@@ -573,10 +622,21 @@ fn normalize_shell_args(args: Value) -> Value {
         .get("command")
         .and_then(Value::as_str)
         .or_else(|| args.get("cmd").and_then(Value::as_str))
-        .unwrap_or_default();
+        .or_else(|| args.get("input").and_then(Value::as_str))
+        .unwrap_or_default()
+        .to_string();
+    let cwd = args
+        .get("cwd")
+        .and_then(Value::as_str)
+        .or_else(|| args.get("workdir").and_then(Value::as_str))
+        .unwrap_or_default()
+        .to_string();
     json!({
-        "command": command,
+        "command": command.clone(),
         "cmd": command,
+        "cwd": cwd.clone(),
+        "workdir": cwd,
+        "payload": args,
     })
 }
 
@@ -584,12 +644,497 @@ fn normalize_apply_patch_args(args: Value) -> Value {
     let patch = args
         .get("patch")
         .and_then(Value::as_str)
+        .or_else(|| args.get("patch_text").and_then(Value::as_str))
         .or_else(|| args.get("input").and_then(Value::as_str))
-        .unwrap_or_default();
+        .unwrap_or_default()
+        .to_string();
+    let file_path = first_apply_patch_file_path(&patch).unwrap_or_default();
     json!({
         "action": "apply_patch",
-        "patch": patch,
+        "patch": patch.clone(),
+        "patch_text": patch,
+        "file_path": file_path.clone(),
+        "target_file": file_path,
+        "payload": args,
     })
+}
+
+fn normalize_edit_args(raw_name: &str, args: Value) -> Value {
+    if args
+        .get("patch")
+        .and_then(Value::as_str)
+        .or_else(|| args.get("patch_text").and_then(Value::as_str))
+        .is_some()
+    {
+        return normalize_apply_patch_args(args);
+    }
+
+    let file_path = args
+        .get("file_path")
+        .and_then(Value::as_str)
+        .or_else(|| args.get("path").and_then(Value::as_str))
+        .or_else(|| args.get("target_file").and_then(Value::as_str))
+        .unwrap_or_default()
+        .to_string();
+    let old_content = args
+        .get("old_content")
+        .and_then(Value::as_str)
+        .or_else(|| args.get("old_str").and_then(Value::as_str))
+        .or_else(|| args.get("old_string").and_then(Value::as_str))
+        .unwrap_or_default()
+        .to_string();
+    let new_content = args
+        .get("new_content")
+        .and_then(Value::as_str)
+        .or_else(|| args.get("new_str").and_then(Value::as_str))
+        .or_else(|| args.get("new_string").and_then(Value::as_str))
+        .or_else(|| args.get("content").and_then(Value::as_str))
+        .unwrap_or_default()
+        .to_string();
+
+    json!({
+        "action": raw_name,
+        "file_path": file_path.clone(),
+        "target_file": file_path,
+        "old_content": old_content.clone(),
+        "new_content": new_content.clone(),
+        "content": new_content,
+        "payload": args,
+    })
+}
+
+fn normalize_search_args(args: Value) -> Value {
+    let query = args
+        .get("query")
+        .and_then(Value::as_str)
+        .or_else(|| args.get("pattern").and_then(Value::as_str))
+        .or_else(|| args.get("search_query").and_then(Value::as_str))
+        .or_else(|| args.get("regex").and_then(Value::as_str))
+        .or_else(|| args.get("input").and_then(Value::as_str))
+        .unwrap_or_default()
+        .to_string();
+    json!({
+        "action": "grep",
+        "query": query.clone(),
+        "pattern": query,
+        "payload": args,
+    })
+}
+
+fn read_file_args_from_shell_args(shell_args: &Value) -> Option<Value> {
+    let command = shell_args.get("command").and_then(Value::as_str)?.trim();
+    if command.is_empty() {
+        return None;
+    }
+
+    let tokens = shell_tokens(command);
+    let read_args = read_file_args_from_tokens(&tokens)?;
+    let cwd = shell_args
+        .get("cwd")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+
+    Some(json!({
+        "path": read_args.path.clone(),
+        "file_path": read_args.path.clone(),
+        "target_file": read_args.path,
+        "offset": read_args.offset,
+        "limit": read_args.limit,
+        "command": command,
+        "cwd": cwd,
+        "payload": shell_args.clone(),
+    }))
+}
+
+struct ShellReadArgs {
+    path: String,
+    offset: Option<i64>,
+    limit: Option<i64>,
+}
+
+fn read_file_args_from_tokens(tokens: &[String]) -> Option<ShellReadArgs> {
+    if tokens.is_empty() || tokens.iter().any(|token| is_shell_separator(token)) {
+        return None;
+    }
+
+    let executable = tokens[0].rsplit('/').next().unwrap_or(tokens[0].as_str());
+    match executable {
+        "cat" => read_file_args_from_cat(&tokens[1..]),
+        "sed" => read_file_args_from_sed(&tokens[1..]),
+        "head" => read_file_args_from_head_tail(&tokens[1..], true),
+        "tail" => read_file_args_from_head_tail(&tokens[1..], false),
+        _ => None,
+    }
+}
+
+fn read_file_args_from_cat(tokens: &[String]) -> Option<ShellReadArgs> {
+    let paths = shell_path_args(
+        tokens,
+        &["-n", "-b", "-s", "-v", "-e", "-t", "-A", "--number"],
+    )?;
+    let path = single_shell_path_arg(&paths)?;
+    Some(ShellReadArgs {
+        path,
+        offset: None,
+        limit: None,
+    })
+}
+
+fn read_file_args_from_sed(tokens: &[String]) -> Option<ShellReadArgs> {
+    let mut index = 0usize;
+    let mut has_quiet = false;
+    let mut range_expr: Option<&str> = None;
+    let mut paths: Vec<String> = Vec::new();
+
+    while index < tokens.len() {
+        let token = tokens[index].as_str();
+        match token {
+            "-n" | "--quiet" | "--silent" => {
+                has_quiet = true;
+                index += 1;
+            }
+            "-e" | "--expression" => {
+                range_expr = tokens.get(index + 1).map(String::as_str);
+                index += 2;
+            }
+            "--" => {
+                paths.extend(tokens[(index + 1)..].iter().cloned());
+                break;
+            }
+            _ if token.starts_with('-') => return None,
+            _ if range_expr.is_none() => {
+                range_expr = Some(token);
+                index += 1;
+            }
+            _ => {
+                paths.push(token.to_string());
+                index += 1;
+            }
+        }
+    }
+
+    if !has_quiet {
+        return None;
+    }
+    let (offset, limit) = sed_range_to_offset_limit(range_expr?)?;
+    let path = single_shell_path_arg(&paths)?;
+    Some(ShellReadArgs {
+        path,
+        offset,
+        limit,
+    })
+}
+
+fn read_file_args_from_head_tail(tokens: &[String], is_head: bool) -> Option<ShellReadArgs> {
+    let mut index = 0usize;
+    let mut line_count: Option<i64> = None;
+    let mut paths = Vec::new();
+
+    while index < tokens.len() {
+        let token = tokens[index].as_str();
+        match token {
+            "-n" | "--lines" => {
+                line_count = tokens
+                    .get(index + 1)
+                    .and_then(|value| value.trim_start_matches('+').parse::<i64>().ok());
+                index += 2;
+            }
+            "--" => {
+                paths.extend(tokens[(index + 1)..].iter().cloned());
+                break;
+            }
+            _ if token.starts_with("-n") && token.len() > 2 => {
+                line_count = token[2..].trim_start_matches('+').parse::<i64>().ok();
+                index += 1;
+            }
+            _ if token.starts_with("--lines=") => {
+                line_count = token
+                    .trim_start_matches("--lines=")
+                    .trim_start_matches('+')
+                    .parse::<i64>()
+                    .ok();
+                index += 1;
+            }
+            _ if token.starts_with('-') => return None,
+            _ => {
+                paths.push(token.to_string());
+                index += 1;
+            }
+        }
+    }
+
+    let path = single_shell_path_arg(&paths)?;
+    Some(ShellReadArgs {
+        path,
+        offset: if is_head { Some(0) } else { None },
+        limit: line_count,
+    })
+}
+
+fn shell_path_args(tokens: &[String], flag_allowlist: &[&str]) -> Option<Vec<String>> {
+    let mut paths = Vec::new();
+    let mut index = 0usize;
+    while index < tokens.len() {
+        let token = tokens[index].as_str();
+        if token == "--" {
+            paths.extend(tokens[(index + 1)..].iter().cloned());
+            break;
+        }
+        if token.starts_with('-') {
+            if flag_allowlist.contains(&token) {
+                index += 1;
+                continue;
+            }
+            return None;
+        }
+        paths.push(token.to_string());
+        index += 1;
+    }
+    Some(paths)
+}
+
+fn single_shell_path_arg(paths: &[String]) -> Option<String> {
+    if paths.len() != 1 {
+        return None;
+    }
+    let path = paths[0].trim();
+    if path.is_empty() || path == "-" {
+        return None;
+    }
+    Some(path.to_string())
+}
+
+fn sed_range_to_offset_limit(expr: &str) -> Option<(Option<i64>, Option<i64>)> {
+    let expr = expr.trim().trim_end_matches(';');
+    if !expr.ends_with('p') || expr.contains('/') || expr.contains('s') {
+        return None;
+    }
+    let range = expr.trim_end_matches('p').trim();
+    if let Some((start_raw, end_raw)) = range.split_once(',') {
+        let start = start_raw.trim().parse::<i64>().ok()?;
+        let end = end_raw.trim().parse::<i64>().ok()?;
+        if start < 1 || end < start {
+            return None;
+        }
+        return Some((Some(start - 1), Some(end - start + 1)));
+    }
+    let line = range.parse::<i64>().ok()?;
+    if line < 1 {
+        return None;
+    }
+    Some((Some(line - 1), Some(1)))
+}
+
+fn normalize_tool_name_key(raw_name: &str) -> String {
+    raw_name
+        .trim()
+        .strip_prefix("mcp_orgii_")
+        .unwrap_or_else(|| raw_name.trim())
+        .chars()
+        .map(|ch| match ch {
+            '-' | ' ' | '.' => '_',
+            _ => ch.to_ascii_lowercase(),
+        })
+        .collect()
+}
+
+fn rg_search_args_from_shell_args(shell_args: &Value) -> Option<Value> {
+    let command = shell_args.get("command").and_then(Value::as_str)?.trim();
+    if command.is_empty() {
+        return None;
+    }
+
+    let tokens = shell_tokens(command);
+    let rg_index = tokens.iter().enumerate().find_map(|(index, token)| {
+        if !is_rg_executable(token) {
+            return None;
+        }
+        if index == 0
+            || tokens
+                .get(index.saturating_sub(1))
+                .is_some_and(|prev| is_shell_separator(prev))
+        {
+            Some(index)
+        } else {
+            None
+        }
+    })?;
+
+    let query =
+        rg_pattern_from_tokens(&tokens[(rg_index + 1)..]).unwrap_or_else(|| command.to_string());
+    let cwd = shell_args
+        .get("cwd")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+
+    Some(json!({
+        "action": "grep",
+        "query": query.clone(),
+        "pattern": query,
+        "command": command,
+        "cwd": cwd,
+        "payload": shell_args.clone(),
+    }))
+}
+
+fn shell_tokens(command: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut quote: Option<char> = None;
+    let mut chars = command.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if let Some(active_quote) = quote {
+            if ch == active_quote {
+                quote = None;
+            } else if ch == '\\' && active_quote == '"' {
+                if let Some(next) = chars.next() {
+                    current.push(next);
+                }
+            } else {
+                current.push(ch);
+            }
+            continue;
+        }
+
+        match ch {
+            '\'' | '"' => quote = Some(ch),
+            '&' if chars.peek() == Some(&'&') => {
+                chars.next();
+                push_shell_token(&mut tokens, &mut current);
+                tokens.push("&&".to_string());
+            }
+            '|' if chars.peek() == Some(&'|') => {
+                chars.next();
+                push_shell_token(&mut tokens, &mut current);
+                tokens.push("||".to_string());
+            }
+            ';' | '|' => {
+                push_shell_token(&mut tokens, &mut current);
+                tokens.push(ch.to_string());
+            }
+            ch if ch.is_whitespace() => push_shell_token(&mut tokens, &mut current),
+            '\\' => {
+                if let Some(next) = chars.next() {
+                    current.push(next);
+                }
+            }
+            _ => current.push(ch),
+        }
+    }
+
+    push_shell_token(&mut tokens, &mut current);
+    tokens
+}
+
+fn push_shell_token(tokens: &mut Vec<String>, current: &mut String) {
+    if current.is_empty() {
+        return;
+    }
+    tokens.push(std::mem::take(current));
+}
+
+fn is_shell_separator(token: &str) -> bool {
+    matches!(token, "&&" | "||" | ";" | "|")
+}
+
+fn is_rg_executable(token: &str) -> bool {
+    let executable = token.rsplit('/').next().unwrap_or(token);
+    matches!(executable, "rg" | "ripgrep" | "grep")
+}
+
+fn rg_pattern_from_tokens(tokens: &[String]) -> Option<String> {
+    let mut index = 0usize;
+    while index < tokens.len() {
+        let token = tokens[index].as_str();
+        if is_shell_separator(token) {
+            return None;
+        }
+        if token == "--" {
+            return tokens.get(index + 1).cloned();
+        }
+        if token == "-e" || token == "--regexp" {
+            return tokens.get(index + 1).cloned();
+        }
+        if let Some(rest) = token.strip_prefix("-e") {
+            if !rest.is_empty() {
+                return Some(rest.to_string());
+            }
+        }
+        if rg_flag_consumes_next(token) {
+            index += 2;
+            continue;
+        }
+        if token.starts_with('-') {
+            index += 1;
+            continue;
+        }
+        return Some(token.to_string());
+    }
+    None
+}
+
+fn rg_flag_consumes_next(token: &str) -> bool {
+    matches!(
+        token,
+        "-g" | "--glob"
+            | "-t"
+            | "--type"
+            | "-T"
+            | "--type-not"
+            | "-C"
+            | "--context"
+            | "-A"
+            | "--after-context"
+            | "-B"
+            | "--before-context"
+            | "-m"
+            | "--max-count"
+            | "--sort"
+            | "--sort-files"
+    )
+}
+
+fn first_apply_patch_file_path(patch: &str) -> Option<String> {
+    for line in patch.lines() {
+        for prefix in [
+            "*** Add File:",
+            "*** Update File:",
+            "*** Modify File:",
+            "*** Delete File:",
+        ] {
+            if let Some(path) = line.strip_prefix(prefix) {
+                let path = path.trim();
+                if !path.is_empty() {
+                    return Some(path.to_string());
+                }
+            }
+        }
+        if let Some(path) = patch_file_path_from_line(line) {
+            if path != "/dev/null" {
+                return Some(path);
+            }
+        }
+    }
+    None
+}
+
+fn parse_rg_output_matches(output: &str) -> Vec<(String, i64, String)> {
+    output
+        .lines()
+        .filter_map(|line| {
+            let mut parts = line.splitn(3, ':');
+            let file = parts.next()?.trim();
+            let line_number = parts.next()?.parse::<i64>().ok()?;
+            let content = parts.next().unwrap_or_default();
+            if file.is_empty() {
+                return None;
+            }
+            Some((file.to_string(), line_number, content.to_string()))
+        })
+        .collect()
 }
 
 fn user_message_from_payload(payload: &Value) -> Option<String> {

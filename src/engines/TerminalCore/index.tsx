@@ -50,6 +50,8 @@ interface SelectionState {
   visible: boolean;
   text: string;
   position: { x: number; y: number };
+  lineStart?: number;
+  lineEnd?: number;
 }
 
 export interface TerminalCoreProps {
@@ -191,6 +193,8 @@ export const TerminalCore: React.FC<TerminalCoreProps> = ({
         sessionId: activeSessionId,
         sessionName,
         lineCount,
+        lineStart: selection.lineStart,
+        lineEnd: selection.lineEnd,
         text: selectedText,
         timestamp: Date.now(),
       };
@@ -200,7 +204,13 @@ export const TerminalCore: React.FC<TerminalCoreProps> = ({
     return () => {
       document.removeEventListener("copy", handleTerminalCopy, true);
     };
-  }, [sessions, activeSessionId, selection.text]);
+  }, [
+    sessions,
+    activeSessionId,
+    selection.text,
+    selection.lineStart,
+    selection.lineEnd,
+  ]);
 
   const handleFindNext = useCallback(
     (
@@ -240,33 +250,62 @@ export const TerminalCore: React.FC<TerminalCoreProps> = ({
 
   const handleSelectionChange = useCallback(
     (
-      selectionInfo: { text: string; position: { x: number; y: number } } | null
+      selectionInfo: {
+        text: string;
+        position: { x: number; y: number };
+        lineStart?: number;
+        lineEnd?: number;
+      } | null
     ) => {
       if (selectionInfo && selectionInfo.text.length > 0) {
         setSelection({
           visible: true,
           text: selectionInfo.text,
           position: selectionInfo.position,
+          lineStart: selectionInfo.lineStart,
+          lineEnd: selectionInfo.lineEnd,
         });
       } else {
-        setSelection((prev) => ({ ...prev, visible: false }));
+        setSelection((prev) => ({
+          ...prev,
+          visible: false,
+          lineStart: undefined,
+          lineEnd: undefined,
+        }));
       }
     },
     []
   );
 
   const handleCloseDropdown = useCallback(() => {
-    setSelection((prev) => ({ ...prev, visible: false }));
+    setSelection((prev) => ({
+      ...prev,
+      visible: false,
+      lineStart: undefined,
+      lineEnd: undefined,
+    }));
   }, []);
 
   const handleAddToChat = useCallback(
     (_text: string, _sessionId: string | null) => {
       if (!selection.text.trim()) return;
       setStationChatVisible("my-station", true);
-      setAddToAgent({ type: "terminal", text: selection.text });
+      setAddToAgent({
+        type: "terminal",
+        text: selection.text,
+        lineStart: selection.lineStart,
+        lineEnd: selection.lineEnd,
+      });
       Message.success(t("terminal.sentToAgent"));
     },
-    [selection.text, setStationChatVisible, setAddToAgent, t]
+    [
+      selection.text,
+      selection.lineStart,
+      selection.lineEnd,
+      setStationChatVisible,
+      setAddToAgent,
+      t,
+    ]
   );
 
   const bgColor = backgroundColor || "var(--cm-editor-background)";

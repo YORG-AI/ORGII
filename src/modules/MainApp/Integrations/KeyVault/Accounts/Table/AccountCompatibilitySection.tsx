@@ -109,7 +109,7 @@ export const AccountCompatibilitySection: React.FC<
         <InfoRow label={t("keyVault.info.supportCliAgents")}>
           {providerInfo.compatibleCliAgents.length > 0 ? (
             <div
-              className="flex items-center gap-1.5"
+              className="flex flex-wrap items-center justify-end gap-1.5"
               data-supported={supportsCliAgents}
               data-testid="key-vault-cli-agent-compatibility"
             >
@@ -137,7 +137,7 @@ export const AccountCompatibilitySection: React.FC<
         <InfoRow label={t("keyVault.info.supportCliAgents")}>
           {supportsCliAgents ? (
             <div
-              className="flex items-center gap-1.5"
+              className="flex flex-wrap items-center justify-end gap-1.5"
               data-supported={supportsCliAgents}
               data-testid="key-vault-cli-agent-compatibility"
             >

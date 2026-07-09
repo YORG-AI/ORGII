@@ -5,19 +5,6 @@ import { CLI_AGENT } from "@src/api/tauri/rpc/schemas/validation";
 
 import type { ApiProviderType, CliAgentType } from "./types";
 
-// AI Coding Agents (legacy PNG exports - kept for backward compatibility)
-export { default as claudeIcon } from "./claude.png";
-export { default as cursorIcon } from "./cursor.png";
-export { default as copilotIcon } from "./copilot.png";
-export { default as geminiIcon } from "./gemini.png";
-export { default as openaiIcon } from "./openai.png";
-export { default as kiroIcon } from "./kiro.png";
-// Additional Providers (legacy PNG exports)
-export { default as antigravityIcon } from "./antigravity.png";
-export { default as iflowIcon } from "./iflow.png";
-export { default as qwenIcon } from "./qwen.png";
-export { default as vertexIcon } from "./vertex.png";
-
 // Re-export model types from types to maintain API
 export type { CliAgentType, ApiProviderType, ModelType } from "./types";
 export { ORGII_ORCHESTRATOR } from "./types";

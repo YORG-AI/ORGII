@@ -479,38 +479,42 @@ export const McpTable: React.FC<McpTableProps> = ({
       </div>
       <div className="flex items-center gap-2">
         {onBulkReconnect && (
-          <button
+          <Button
+            size="small"
+            variant="tertiary"
+            icon={<RefreshCw size={12} />}
             onClick={handleBulkReconnect}
-            className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-[12px] text-text-2 transition-colors hover:bg-fill-2 hover:text-text-1"
           >
-            <RefreshCw size={12} />
             {t("mcp.bulkRestart")}
-          </button>
+          </Button>
         )}
         {onBulkSetDisabled && (
           <>
-            <button
+            <Button
+              size="small"
+              variant="tertiary"
+              icon={<Power size={12} />}
               onClick={handleBulkEnable}
-              className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-[12px] text-text-2 transition-colors hover:bg-fill-2 hover:text-text-1"
             >
-              <Power size={12} />
               {t("mcp.bulkEnable")}
-            </button>
-            <button
+            </Button>
+            <Button
+              size="small"
+              variant="tertiary"
+              icon={<Power size={12} />}
               onClick={handleBulkDisable}
-              className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-[12px] text-text-2 transition-colors hover:bg-fill-2 hover:text-text-1"
             >
-              <Power size={12} />
               {t("mcp.bulkDisable")}
-            </button>
+            </Button>
           </>
         )}
-        <button
+        <Button
+          size="small"
+          variant="tertiary"
           onClick={() => setCheckedNames(new Set())}
-          className="rounded px-2 py-1 text-[12px] text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1"
         >
           {t("common:actions.clear")}
-        </button>
+        </Button>
       </div>
     </div>
   );

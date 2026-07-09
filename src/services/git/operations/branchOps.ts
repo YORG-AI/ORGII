@@ -20,9 +20,13 @@ import {
 // ============================================
 
 /**
- * Checkout a branch
+ * Raw, unguarded checkout — does NOT surface the `CheckoutConflictDialog` on
+ * a dirty working tree.
+ *
+ * @internal Do NOT call from UI code. Use `checkoutWithDialog` instead, which
+ * routes through `runGuardedCheckout` and shows the conflict resolution dialog.
  */
-export async function checkout(
+export async function checkoutRaw(
   branch: string,
   create?: boolean
 ): Promise<GitOperationResult> {
@@ -260,7 +264,7 @@ export async function checkoutWithDialog(
 
   if (!repoContext) {
     // No repo context → fall back to the terminal-based checkout (no dialog).
-    return checkout(branch, create);
+    return checkoutRaw(branch, create);
   }
 
   const result = await runGuardedCheckout({

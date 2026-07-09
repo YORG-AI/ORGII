@@ -68,6 +68,7 @@ export function useIntegrationsCategoryTableProps(
       accountsLoading: accountsHook.loading,
       onSelectAccount: handleAccountSelect,
       onRefreshAccounts: accountsHook.refresh,
+      onRefreshAccountUsage: accountsHook.handleRefreshAccountUsage,
       onEditAccountSave: accountsHook.handleEditAccountSave,
       onDisconnectAccount: accountsHook.handleDisconnect,
       onRevalidateAccount: accountsHook.handleRefreshAccount,

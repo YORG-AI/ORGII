@@ -163,4 +163,10 @@ export interface SlashItem {
 export const SLASH_ACTIONS = {
   SUMMARIZE: "Summarize",
   SETUP_REPO: "Setup Repo",
+  /**
+   * Lowercase on purpose: the generic slash-select handler inserts
+   * `/${name} ` into the composer, and the submit-time interceptor
+   * (`parseCompactSlashCommand`) matches the `/compact` token.
+   */
+  COMPACT: "compact",
 } as const;

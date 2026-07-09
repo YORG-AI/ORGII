@@ -693,7 +693,9 @@
       "empty": "未找到操作。",
       "unpinAll": "全部取消固定",
       "insert": "插入"
-    }
+    },
+    "compactArgHint": "<可选:本次总结的重点>",
+    "compactCommandDescription": "总结较早的上下文以释放空间。可选:/compact <本次总结的重点>"
   },
   "listPanel": {
     "showingOf": "显示 {{filtered}} / {{total}}",
@@ -759,6 +761,22 @@
         "sessions": "会话",
         "tokens": "Tokens",
         "cost": "成本"
+      },
+      "quota": {
+        "empty": "暂无配额数据。请在 Key Vault 中刷新用量。",
+        "refresh": "刷新",
+        "justNow": "刚刚",
+        "minutesAgo": "{{count}}分钟前",
+        "hoursAgo": "{{count}}小时前",
+        "metrics": {
+          "fiveHour": "5h",
+          "sevenDay": "7d",
+          "auto": "Auto",
+          "api": "API",
+          "session": "Session",
+          "weekly": "Weekly",
+          "monthly": "Monthly"
+        }
       },
       "exploreRepos": {
         "title": "探索 Repos"
@@ -982,7 +1000,30 @@
         "mentioned": "提及我"
       }
     },
-    "readOnly": "只读"
+    "readOnly": "只读",
+    "panels": {
+      "manageIssues": {
+        "searchPlaceholder": "GitHub search, e.g. is:issue is:open label:bug",
+        "createIssueTrigger": "Issue",
+        "newIssueTitle": "New GitHub Issue",
+        "issueTitlePlaceholder": "Issue title",
+        "issueBodyPlaceholder": "Description",
+        "createIssue": "Create issue",
+        "creatingIssue": "Creating…",
+        "addToChat": "Add",
+        "repositoryLabel": "Repository",
+        "createIssueFailed": "Failed to create issue",
+        "sourceIssues": "Issues",
+        "sourcePrs": "PRs",
+        "stateOpen": "Open",
+        "stateClosed": "Closed",
+        "stateAll": "All states",
+        "assignedToMe": "Assigned to me",
+        "createdByMe": "Created by me",
+        "filters": "Filters",
+        "openInGitHub": "Open in GitHub"
+      }
+    }
   },
   "chatStatus": {
     "approved": "已批准",
@@ -1870,6 +1911,7 @@
     "slashMenu": {
       "image": "图片",
       "uploadImage": "上传图片",
+      "commands": "命令",
       "mode": "模式",
       "models": "模型",
       "skills": "Skills",
@@ -2285,7 +2327,8 @@
       "仍在思考，比平时更久...",
       "正在处理，比平时更久...",
       "正在琢磨下一步，比平时更久..."
-    ]
+    ],
+    "compacting": "正在压缩上下文…"
   },
   "revertConfirm": {
     "title": "文件有未保存的变更",

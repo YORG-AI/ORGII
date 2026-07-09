@@ -271,6 +271,8 @@ interface NormalComposerContentProps extends SharedComposerBarProps {
   onBlur: () => void;
   onSubmit: (capturedText?: string) => void;
   placeholder?: string;
+  /** Inline ghost hint after the last content node (see ComposerInput) */
+  trailingHint?: string | null;
   currentInputEmpty: boolean;
   stopSuppressedForEmptyInput: boolean;
   isWpGeneWorking: boolean;
@@ -327,6 +329,7 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
   isCursorCompactRow,
   suppressToolbarHover,
   placeholder,
+  trailingHint,
   currentInputEmpty,
   stopSuppressedForEmptyInput,
   isWpGeneWorking,
@@ -386,6 +389,7 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
               onDragLeave={onDragLeave}
               onDrop={onDrop}
               placeholder={placeholder || t("input.defaultPlaceholder")}
+              trailingHint={trailingHint}
               onImagePaste={onImagePaste}
               compact={isCursorCompactRow}
             />

@@ -7,6 +7,15 @@ use crate::types::{QuotaInfo, UsageItem};
 use super::CursorValidator;
 
 pub(crate) const CURSOR_USAGE_API_URL: &str = "https://api2.cursor.sh";
+const CURSOR_AUTO_COMPOSER_USAGE_TYPE: &str = "cursor_auto_composer";
+const CURSOR_API_USAGE_TYPE: &str = "cursor_api";
+
+fn cursor_remaining_percentage(detail: &UsageDetail, fallback: f64) -> f64 {
+    detail
+        .total_percent_used
+        .map(|percent_used| (100.0 - percent_used).clamp(0.0, 100.0))
+        .unwrap_or(fallback)
+}
 
 /// Cursor usage summary API response
 #[derive(Debug, Deserialize)]
@@ -24,7 +33,6 @@ pub(crate) struct UsageSummaryResponse {
 #[serde(rename_all = "camelCase")]
 pub(super) struct IndividualUsage {
     plan: Option<UsageDetail>,
-    on_demand: Option<UsageDetail>,
     overall: Option<UsageDetail>,
 }
 
@@ -45,6 +53,8 @@ pub(super) struct UsageDetail {
     remaining: Option<i64>,
     breakdown: Option<UsageBreakdown>,
     total_percent_used: Option<f64>,
+    auto_percent_used: Option<f64>,
+    api_percent_used: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -153,77 +163,62 @@ impl CursorValidator {
         // Parse individualUsage
         let individual = data.individual_usage.unwrap_or(IndividualUsage {
             plan: None,
-            on_demand: None,
             overall: None,
         });
 
-        let mut plan_remaining: i64 = 0;
-        let mut plan_total: i64 = 0;
-        let mut on_demand_remaining: i64 = 0;
-        let mut on_demand_limit: Option<i64> = None;
-        let mut on_demand_is_unlimited = false;
+        let mut total_remaining_pct: Option<f64> = None;
 
         // Plan usage
         if let Some(ref plan_data) = individual.plan {
             if plan_data.enabled {
                 // Get total from breakdown (includes bonus), fallback to limit
-                plan_total = plan_data
+                let plan_total = plan_data
                     .breakdown
                     .as_ref()
-                    .and_then(|b| b.total)
+                    .and_then(|breakdown| breakdown.total)
                     .or(plan_data.limit)
                     .unwrap_or(0);
 
-                plan_remaining = plan_data.remaining.unwrap_or(0).min(plan_total);
+                let plan_remaining = plan_data.remaining.unwrap_or(0).min(plan_total);
 
-                let plan_remaining_pct = if plan_total > 0 {
-                    ((plan_remaining as f64 / plan_total as f64) * 100.0).clamp(0.0, 100.0)
-                } else {
-                    100.0
-                };
+                let fallback_total_remaining_pct = cursor_remaining_percentage(
+                    plan_data,
+                    if plan_total > 0 {
+                        ((plan_remaining as f64 / plan_total as f64) * 100.0).clamp(0.0, 100.0)
+                    } else {
+                        100.0
+                    },
+                );
+                total_remaining_pct = Some(fallback_total_remaining_pct);
+                let auto_remaining_pct = plan_data
+                    .auto_percent_used
+                    .map(|percent_used| (100.0 - percent_used).clamp(0.0, 100.0))
+                    .unwrap_or(fallback_total_remaining_pct);
+                let api_remaining_pct = plan_data
+                    .api_percent_used
+                    .map(|percent_used| (100.0 - percent_used).clamp(0.0, 100.0));
 
                 usage_items.push(UsageItem {
-                    usage_type: "plan".to_string(),
+                    usage_type: CURSOR_AUTO_COMPOSER_USAGE_TYPE.to_string(),
                     enabled: true,
                     used: plan_data.used,
                     limit: Some(plan_total),
                     remaining: Some(plan_remaining),
-                    remaining_percentage: plan_remaining_pct,
+                    remaining_percentage: auto_remaining_pct,
+                    reset_time: None,
                 });
-            }
-        }
 
-        // On-demand usage
-        if let Some(ref on_demand_data) = individual.on_demand {
-            if on_demand_data.enabled {
-                let used = on_demand_data.used.unwrap_or(0);
-                on_demand_limit = on_demand_data.limit;
-                on_demand_is_unlimited = on_demand_limit.is_none();
-
-                let (remaining, remaining_pct) = if let Some(limit) = on_demand_limit {
-                    if limit > 0 {
-                        let rem = (limit - used).max(0);
-                        on_demand_remaining = rem;
-                        (
-                            Some(rem),
-                            ((rem as f64 / limit as f64) * 100.0).clamp(0.0, 100.0),
-                        )
-                    } else {
-                        (Some(0), 100.0)
-                    }
-                } else {
-                    // Unlimited
-                    (None, 100.0)
-                };
-
-                usage_items.push(UsageItem {
-                    usage_type: "on_demand".to_string(),
-                    enabled: true,
-                    used: Some(used),
-                    limit: on_demand_limit,
-                    remaining,
-                    remaining_percentage: remaining_pct,
-                });
+                if let Some(remaining_percentage) = api_remaining_pct {
+                    usage_items.push(UsageItem {
+                        usage_type: CURSOR_API_USAGE_TYPE.to_string(),
+                        enabled: true,
+                        used: None,
+                        limit: None,
+                        remaining: None,
+                        remaining_percentage,
+                        reset_time: None,
+                    });
+                }
             }
         }
 
@@ -233,19 +228,23 @@ impl CursorValidator {
                 let used = overall_data.used.unwrap_or(0);
                 let limit = overall_data.limit.unwrap_or(0);
                 let remaining = overall_data.remaining.unwrap_or(0).min(limit);
-                let remaining_pct = if limit > 0 {
-                    ((remaining as f64 / limit as f64) * 100.0).clamp(0.0, 100.0)
-                } else {
-                    100.0
-                };
+                let remaining_pct = cursor_remaining_percentage(
+                    overall_data,
+                    if limit > 0 {
+                        ((remaining as f64 / limit as f64) * 100.0).clamp(0.0, 100.0)
+                    } else {
+                        100.0
+                    },
+                );
 
                 usage_items.push(UsageItem {
-                    usage_type: "individual_overall".to_string(),
+                    usage_type: CURSOR_AUTO_COMPOSER_USAGE_TYPE.to_string(),
                     enabled: true,
                     used: Some(used),
                     limit: Some(limit),
                     remaining: Some(remaining),
                     remaining_percentage: remaining_pct,
+                    reset_time: None,
                 });
             }
         }
@@ -257,19 +256,23 @@ impl CursorValidator {
                     let used = pooled.used.unwrap_or(0);
                     let limit = pooled.limit.unwrap_or(0);
                     let remaining = pooled.remaining.unwrap_or(0).min(limit);
-                    let remaining_pct = if limit > 0 {
-                        ((remaining as f64 / limit as f64) * 100.0).clamp(0.0, 100.0)
-                    } else {
-                        100.0
-                    };
+                    let remaining_pct = cursor_remaining_percentage(
+                        &pooled,
+                        if limit > 0 {
+                            ((remaining as f64 / limit as f64) * 100.0).clamp(0.0, 100.0)
+                        } else {
+                            100.0
+                        },
+                    );
 
                     usage_items.push(UsageItem {
-                        usage_type: "team_pooled".to_string(),
+                        usage_type: CURSOR_AUTO_COMPOSER_USAGE_TYPE.to_string(),
                         enabled: true,
                         used: Some(used),
                         limit: Some(limit),
                         remaining: Some(remaining),
                         remaining_percentage: remaining_pct,
+                        reset_time: None,
                     });
                 }
             }
@@ -278,31 +281,24 @@ impl CursorValidator {
         // If unlimited and no usage items, create synthetic item
         if is_unlimited && usage_items.is_empty() {
             usage_items.push(UsageItem {
-                usage_type: "plan".to_string(),
+                usage_type: CURSOR_AUTO_COMPOSER_USAGE_TYPE.to_string(),
                 enabled: true,
                 used: Some(0),
                 limit: Some(0),
                 remaining: Some(0),
                 remaining_percentage: 100.0,
+                reset_time: None,
             });
         }
 
         // Calculate overall remaining percentage
-        let remaining_pct = if on_demand_is_unlimited {
-            100.0
-        } else if on_demand_limit.is_some() {
-            let total_remaining = on_demand_remaining + plan_remaining;
-            let total_capacity = plan_total + on_demand_limit.unwrap_or(0);
-            if total_capacity > 0 {
-                ((total_remaining as f64 / total_capacity as f64) * 100.0).clamp(0.0, 100.0)
+        let remaining_pct = total_remaining_pct.unwrap_or_else(|| {
+            if !usage_items.is_empty() {
+                usage_items[0].remaining_percentage
             } else {
                 0.0
             }
-        } else if !usage_items.is_empty() {
-            usage_items[0].remaining_percentage
-        } else {
-            0.0
-        };
+        });
 
         QuotaInfo {
             remaining_percentage: remaining_pct,

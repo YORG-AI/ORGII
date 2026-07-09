@@ -10,10 +10,43 @@ import {
 } from "@src/util/platform/tauri/init";
 
 import { deleteTerminalBuffer, getTerminalBuffer } from "./bufferCache";
+import {
+  notifyUserInput,
+  registerPane,
+  scheduleWrite,
+  setPaneForeground,
+  unregisterPane,
+} from "./terminalOutputScheduler";
 import type { TerminalViewProps } from "./types";
 import { writeBrowserModeMessage } from "./utils";
 
 const log = createLogger("TerminalView");
+
+/**
+ * Estimate UTF-8 byte length of a string without a TextEncoder allocation.
+ *
+ * Terminal output is overwhelmingly ASCII (shell prompts, command output,
+ * ANSI sequences). The rare non-ASCII cases (emoji, CJK) over-estimate by
+ * at most 3 bytes per character, which is acceptable — byte_count is used
+ * as a backpressure hint, not an exact invariant.
+ *
+ * Implementation: charCode > 0x7F catches all non-ASCII BMP code points; a
+ * surrogate pair (charCode > 0x7FF in both high+low halves) is counted as
+ * +3 each which approximates the 4-byte UTF-8 encoding of the astral plane.
+ */
+function estimateByteLength(s: string): number {
+  let len = s.length; // start with 1 byte per char (ASCII baseline)
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c > 0x7f) {
+      // Non-ASCII: add extra bytes beyond the already-counted baseline byte.
+      // U+0080–U+07FF → 2-byte UTF-8 (+1)
+      // U+0800–U+FFFF → 3-byte UTF-8 (+2)
+      len += c > 0x7ff ? 2 : 1;
+    }
+  }
+  return len;
+}
 
 interface PtyOutputPayload {
   bytes?: number[];
@@ -26,6 +59,7 @@ interface InitPtyConnectionParams {
   cols: number;
   rows: number;
   sessionKey: string;
+  isForeground: boolean;
   terminalRef: MutableRefObject<Terminal | null>;
   sessionIdRef: MutableRefObject<string | null>;
   unlistenOutputRef: MutableRefObject<(() => void) | null>;
@@ -40,6 +74,14 @@ interface InitPtyConnectionParams {
   onSessionInfoReady?: TerminalViewProps["onSessionInfoReady"];
   setIsBrowserMode: (value: boolean) => void;
   setIsConnecting: (value: boolean) => void;
+}
+
+/**
+ * Notify the output scheduler that the user typed into the given session.
+ * Must be called from the terminal's onData handler to enable interactive bypass.
+ */
+export function notifyPtyUserInput(sessionId: string): void {
+  notifyUserInput(sessionId);
 }
 
 function resolvePtyLaunchOptions({
@@ -212,6 +254,7 @@ export async function initPtyConnection({
   cols,
   rows,
   sessionKey,
+  isForeground,
   terminalRef,
   sessionIdRef,
   unlistenOutputRef,
@@ -246,18 +289,15 @@ export async function initPtyConnection({
     if (!terminal) return;
 
     const utf8Decoder = new TextDecoder("utf-8", { fatal: false });
-    let ackPendingBytes = 0;
-    let ackScheduled = false;
-    const flushAck = () => {
-      if (ackPendingBytes > 0 && isTauriReady()) {
-        invokeTauri("ack_pty_data", {
-          sessionId,
-          byteCount: ackPendingBytes,
-        }).catch(() => undefined);
-        ackPendingBytes = 0;
-      }
-      ackScheduled = false;
-    };
+
+    // Stable write callback — captured once per session so the hot IPC
+    // handler never allocates a new closure per event.
+    const terminalWrite = (d: string | Uint8Array) => terminal.write(d);
+
+    // Register this pane with the output scheduler. ACK is handled by the
+    // scheduler after it drains chunks — we no longer call ack directly here.
+    registerPane(sessionId, terminalWrite);
+    setPaneForeground(sessionId, isForeground);
 
     const unlistenOutput = await listenTauri<PtyOutputPayload>(
       `pty-output-${sessionId}`,
@@ -269,19 +309,17 @@ export async function initPtyConnection({
             stream: true,
           });
           if (decoded) {
-            terminal.write(decoded);
+            const resolvedByteCount = byteCount ?? bytes.length;
+            scheduleWrite(sessionId, decoded, resolvedByteCount, terminalWrite);
           }
-          ackPendingBytes += byteCount ?? bytes.length;
         } else if (data) {
-          terminal.write(data);
-          ackPendingBytes += new TextEncoder().encode(data).length;
-        } else {
-          return;
-        }
-
-        if (!ackScheduled) {
-          ackScheduled = true;
-          requestAnimationFrame(flushAck);
+          // Backward-compat branch (no byte_count from backend): estimate byte
+          // length without a TextEncoder allocation. ASCII is 1 byte/char;
+          // non-ASCII (rare in terminal hot path) inflates slightly — the
+          // scheduler treats byte_count as a flow-control hint, not an exact
+          // invariant, so a cheap over-estimate is correct.
+          const encodedLen = estimateByteLength(data);
+          scheduleWrite(sessionId, data, encodedLen, terminalWrite);
         }
       }
     );
@@ -293,6 +331,7 @@ export async function initPtyConnection({
         terminal.write(trailingOutput);
       }
       terminal.writeln("\r\n\x1b[33m[Session ended]\x1b[0m");
+      unregisterPane(sessionId);
     });
     unlistenExitRef.current = unlistenExit;
 

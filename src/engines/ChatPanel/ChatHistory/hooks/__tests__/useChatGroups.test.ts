@@ -97,6 +97,21 @@ function errorItem(message: string): OptimizedChatItem {
   );
 }
 
+/** Shape stamped by persistedMessageToSessionEvent for a compact-boundary row. */
+function boundaryItem(summary: string): OptimizedChatItem {
+  return item(
+    makeEvent({
+      functionName: "context_compacted",
+      uiCanonical: "context_compacted",
+      actionType: "system",
+      source: "system",
+      displayText: summary,
+      displayVariant: "message",
+      result: { observation: summary, compactedCount: 6 },
+    })
+  );
+}
+
 function flatTexts(items: OptimizedChatItem[]): string[] {
   return items.map((entry) => entry.event?.displayText ?? "");
 }
@@ -108,12 +123,13 @@ describe("useChatGroups collapse — terminal error survival", () => {
       toolItem(),
       toolItem(),
       errorItem("rate limit exceeded"),
-      // Second turn makes turn 1 a non-tail group → collapsed by default.
+      // Second turn makes turn 1 a non-tail, collapse-eligible group;
+      // `allTurnsCollapsed` folds it (the collapse-all / pin-bar state).
       userItem("second turn"),
       assistantItem("second reply"),
     ];
 
-    const result = useChatGroups(history, { collapseOverrides: new Map() });
+    const result = useChatGroups(history, { allTurnsCollapsed: true });
 
     const texts = flatTexts(result.flatItems);
     expect(texts).toContain("Error: rate limit exceeded");
@@ -133,7 +149,7 @@ describe("useChatGroups collapse — terminal error survival", () => {
       assistantItem("second reply"),
     ];
 
-    const result = useChatGroups(history, { collapseOverrides: new Map() });
+    const result = useChatGroups(history, { allTurnsCollapsed: true });
 
     const texts = flatTexts(result.flatItems);
     expect(texts).toContain("found the bug");
@@ -150,7 +166,7 @@ describe("useChatGroups collapse — terminal error survival", () => {
       assistantItem("second reply"),
     ];
 
-    const result = useChatGroups(history, { collapseOverrides: new Map() });
+    const result = useChatGroups(history, { allTurnsCollapsed: true });
 
     const texts = flatTexts(result.flatItems);
     // The turn recovered: the pre-reply error stays collapsed away.
@@ -168,7 +184,7 @@ describe("useChatGroups collapse — terminal error survival", () => {
       assistantItem("second reply"),
     ];
 
-    const result = useChatGroups(history, { collapseOverrides: new Map() });
+    const result = useChatGroups(history, { allTurnsCollapsed: true });
 
     expect(result.groupCounts[0]).toBe(1);
     expect(flatTexts(result.flatItems)).toContain("all done");
@@ -183,12 +199,55 @@ describe("useChatGroups collapse — terminal error survival", () => {
       assistantItem("second reply"), // orig 4 (flat 1)
     ];
 
-    const result = useChatGroups(history, { collapseOverrides: new Map() });
+    const result = useChatGroups(history, { allTurnsCollapsed: true });
 
     expect(result.flatItems[0]?.event?.displayText).toBe("Error: quota gone");
     expect(result.originalToFlatIndex.get(1)).toBe(0);
     expect(result.originalToFlatIndex.get(2)).toBe(0);
     expect(result.totalFlatItems).toBe(2);
+  });
+
+  it("keeps the compact-boundary marker visible when a collapsed turn folds", () => {
+    // A context-compaction boundary is appended as the trailing system row
+    // of the round it followed. Collapsing that round must not drop it.
+    const history = [
+      userItem("first turn"),
+      assistantItem("read the file"),
+      toolItem(),
+      assistantItem("final reply"),
+      boundaryItem("earlier conversation summary"),
+      userItem("second turn"),
+      assistantItem("second reply"),
+    ];
+
+    // `allTurnsCollapsed` force-collapses every eligible (multi-item, non-tail)
+    // turn, exactly the state a user reaches via collapse-all or the pin-bar.
+    const result = useChatGroups(history, { allTurnsCollapsed: true });
+
+    const texts = flatTexts(result.flatItems);
+    // The final assistant reply and the boundary both survive the collapse.
+    expect(texts).toContain("final reply");
+    expect(texts).toContain("earlier conversation summary");
+    // Intermediate narration/tool calls are still folded away.
+    expect(texts.filter((text) => text === "run_shell")).toHaveLength(0);
+    expect(result.groupCounts[0]).toBe(2);
+  });
+
+  it("keeps a boundary-only collapsed turn (no completed reply) visible", () => {
+    const history = [
+      userItem("first turn"),
+      toolItem(),
+      boundaryItem("summary without a trailing reply"),
+      userItem("second turn"),
+      assistantItem("second reply"),
+    ];
+
+    const result = useChatGroups(history, { allTurnsCollapsed: true });
+
+    const texts = flatTexts(result.flatItems);
+    expect(texts).toContain("summary without a trailing reply");
+    expect(texts.filter((text) => text === "run_shell")).toHaveLength(0);
+    expect(result.flatItems.some((entry) => entry.structuralOnly)).toBe(false);
   });
 
   it("keeps errors visible in expanded (non-collapsed) turns untouched", () => {

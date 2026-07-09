@@ -17,6 +17,7 @@ mod opencode;
 use serde::{Deserialize, Serialize};
 
 use crate::key_store::ModelType;
+use crate::types::UsageItem;
 
 // ============================================
 // Types
@@ -48,7 +49,11 @@ pub struct QuotaInfo {
     pub remaining: Option<i64>,
     pub reset_time: Option<String>,
     pub plan_type: Option<String>,
+    pub quota_source: Option<String>,
     pub is_unlimited: Option<bool>,
+    pub usage_items: Vec<UsageItem>,
+    pub auto_message: Option<String>,
+    pub named_message: Option<String>,
 }
 
 /// Result of auto-detection

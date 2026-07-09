@@ -13,6 +13,9 @@ import { REPO_KIND, type RepoKind } from "@src/store/repo/types";
 
 import { LOCATION_ICONS } from "./locationConfig";
 
+/** Max pill label width for repo/branch segments in the session info row. */
+const SESSION_INFO_LABEL_MAX_WIDTH = 180;
+
 interface SessionInfoDisplayParams {
   isMultiRoot: boolean;
   workspaceName?: string;
@@ -106,6 +109,7 @@ export function buildSessionInfoSegments({
         />
       ),
       label: sourceDisplayName,
+      maxLabelWidth: SESSION_INFO_LABEL_MAX_WIDTH,
       active: isRepoSelectorOpen,
       danger: !hasSource,
       tooltip: disabled ? undefined : (
@@ -127,7 +131,7 @@ export function buildSessionInfoSegments({
       id: "branch",
       icon: <GitBranch size={14} strokeWidth={1.75} className="text-text-1" />,
       label: branchLoading ? t("status.loading") : branchName || "",
-      maxLabelWidth: 180,
+      maxLabelWidth: SESSION_INFO_LABEL_MAX_WIDTH,
       active: isBranchSelectorOpen,
       tooltip: disabled ? undefined : (
         <KeyboardShortcutTooltipContent

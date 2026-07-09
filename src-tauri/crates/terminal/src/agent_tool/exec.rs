@@ -41,7 +41,7 @@ pub async fn exec_in_pty(
     working_dir: Option<&PathBuf>,
     session_id: &str,
     sessions: Arc<AsyncMutex<HashMap<String, PtySession>>>,
-    output_rx: &mut broadcast::Receiver<String>,
+    output_rx: &mut broadcast::Receiver<Arc<[u8]>>,
     timeout: Duration,
 ) -> Result<(String, i32), String> {
     let marker_id = format!(
@@ -145,7 +145,7 @@ pub async fn exec_in_pty(
             Ok(Ok(chunk)) => {
                 chunks_received += 1;
                 last_output_time = tokio::time::Instant::now();
-                collected_output.push_str(&chunk);
+                collected_output.push_str(&String::from_utf8_lossy(&chunk));
 
                 if let Some(exit_info) = extract_done_marker(&collected_output, &done_marker) {
                     phase = ExecPhase::Completed;

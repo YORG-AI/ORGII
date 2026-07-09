@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 
 import { getFullKey } from "@src/api/services/keyValidation";
 import { CLI_AGENT } from "@src/api/tauri/rpc/schemas/validation";
-import type { UsageItem } from "@src/api/types/keys";
 import { isApiKeyProvider } from "@src/assets/providers";
 import Message from "@src/components/Message";
 import {
@@ -13,6 +12,13 @@ import {
 } from "@src/components/QuotaBar";
 import StatusDot from "@src/components/StatusDot";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
+import {
+  formatQuotaResetHint,
+  getGroupedUsageItemsForDisplay,
+  getQuotaUsageLabel as getSharedQuotaUsageLabel,
+  resolveAccountUsageItems,
+  resolveQuotaPlanLabel,
+} from "@src/hooks/keyVault/accountQuotaDisplay";
 import { useCopyCheck } from "@src/hooks/ui";
 import { copyText } from "@src/util/data/clipboard";
 
@@ -38,24 +44,6 @@ function shouldShowAccountQuota(account: KeyVaultAccount): boolean {
   );
 }
 
-const CURSOR_PLAN_USAGE_TYPES = new Set<string>([
-  "plan",
-  "individual_overall",
-  "team_pooled",
-]);
-
-function getUsagePercentUsed(item: UsageItem): number | null {
-  if (item.limit == null || item.limit <= 0 || item.used == null) return null;
-  return Math.min(100, Math.max(0, (item.used / item.limit) * 100));
-}
-
-function formatUsageValue(item: UsageItem): string {
-  if (item.limit == null || item.limit <= 0) {
-    return item.used != null ? String(item.used) : "—";
-  }
-  return `${item.used ?? 0}/${item.limit}`;
-}
-
 function hasTotalPercentUsed(
   quotaInfo: KeyVaultAccount["quotaInfo"]
 ): quotaInfo is NonNullable<KeyVaultAccount["quotaInfo"]> & {
@@ -68,15 +56,8 @@ function hasTotalPercentUsed(
   );
 }
 
-function hasUsageItems(
-  quotaInfo: KeyVaultAccount["quotaInfo"]
-): quotaInfo is NonNullable<KeyVaultAccount["quotaInfo"]> & {
-  usage_items: UsageItem[];
-} {
-  return (
-    Boolean(quotaInfo) &&
-    Array.isArray((quotaInfo as { usage_items?: unknown }).usage_items)
-  );
+function resolvePlanLabel(account: KeyVaultAccount): string | null {
+  return resolveQuotaPlanLabel(account);
 }
 
 export const AccountInlineStatusSection: React.FC<
@@ -127,10 +108,7 @@ export const AccountInlineStatusSection: React.FC<
     if (!showQuota || !account.quotaInfo) return null;
 
     const quotaInfo = account.quotaInfo;
-    const planLabel = quotaInfo.plan_type
-      ? quotaInfo.plan_type.charAt(0).toUpperCase() +
-        quotaInfo.plan_type.slice(1)
-      : null;
+    const planLabel = resolvePlanLabel(account);
     const remainingPercent = hasTotalPercentUsed(quotaInfo)
       ? 100 - quotaInfo.total_percent_used
       : (quotaInfo.remaining_percentage ?? 0);
@@ -142,30 +120,24 @@ export const AccountInlineStatusSection: React.FC<
       textColorClass: getQuotaTextColorClass(remainingPercent),
       isUnlimited: quotaInfo.is_unlimited === true,
     };
-  }, [account.quotaInfo, showQuota]);
+  }, [account, showQuota]);
 
-  const cursorQuotaItems = useMemo(() => {
-    if (
-      !showQuota ||
-      account.modelType !== CLI_AGENT.CURSOR ||
-      !hasUsageItems(account.quotaInfo)
-    ) {
+  const quotaUsageItems = useMemo(() => {
+    if (!showQuota || !account.quotaInfo) {
       return [];
     }
 
-    const items = account.quotaInfo.usage_items.filter(
-      (item: UsageItem) => item.enabled
+    return getGroupedUsageItemsForDisplay(
+      account,
+      resolveAccountUsageItems(account)
     );
-    const planItem = items.find((item: UsageItem) =>
-      CURSOR_PLAN_USAGE_TYPES.has(item.usage_type)
-    );
-    const apiItem = items.find(
-      (item: UsageItem) => item.usage_type === "on_demand"
-    );
-    return [planItem, apiItem].filter((item): item is UsageItem =>
-      Boolean(item)
-    );
-  }, [account.modelType, account.quotaInfo, showQuota]);
+  }, [account, showQuota]);
+
+  const resolveQuotaUsageLabel = useCallback(
+    (usageType: string): string =>
+      getSharedQuotaUsageLabel(account.modelType, usageType, t),
+    [account.modelType, t]
+  );
 
   const copyApiKey = useCallback(async () => {
     const cred = await getFullKey(account.modelType, account.id);
@@ -226,20 +198,26 @@ export const AccountInlineStatusSection: React.FC<
             label={t("keyVault.quota.plan")}
             value={quotaSummary.planLabel ?? "—"}
           />
-          {cursorQuotaItems.length > 0 ? (
-            cursorQuotaItems.map((item) => {
-              const percentUsed = getUsagePercentUsed(item);
+          {quotaUsageItems.length > 0 ? (
+            quotaUsageItems.map((item) => {
               const remainingPercent = item.remaining_percentage;
               const barBgClass = getQuotaBgColorClass(remainingPercent);
               const textColorClass = getQuotaTextColorClass(remainingPercent);
+              const resetHint = formatQuotaResetHint(
+                item.usage_type,
+                remainingPercent,
+                item.reset_time,
+                t
+              );
+              const usageLabel = resolveQuotaUsageLabel(item.usage_type);
 
               return (
                 <InfoRow
                   key={item.usage_type}
                   label={
-                    item.usage_type === "on_demand"
-                      ? t("keyVault.quota.cursorApiUsage")
-                      : t("keyVault.quota.cursorIncludedRequests")
+                    resetHint
+                      ? `${usageLabel} (${resetHint.compact})`
+                      : usageLabel
                   }
                 >
                   <div className="flex min-w-0 items-center gap-2">
@@ -250,9 +228,9 @@ export const AccountInlineStatusSection: React.FC<
                       />
                     </div>
                     <span className={`shrink-0 text-[12px] ${textColorClass}`}>
-                      {percentUsed == null
-                        ? formatUsageValue(item)
-                        : `${Math.round(percentUsed)}% used`}
+                      {t("keyVault.quota.percentLeft", {
+                        percent: Math.round(remainingPercent),
+                      })}
                     </span>
                   </div>
                 </InfoRow>
@@ -278,7 +256,9 @@ export const AccountInlineStatusSection: React.FC<
                 >
                   {quotaSummary.isUnlimited
                     ? "∞"
-                    : `${Math.round(quotaSummary.remainingPercent)}% left`}
+                    : t("keyVault.quota.percentLeft", {
+                        percent: Math.round(quotaSummary.remainingPercent),
+                      })}
                 </span>
               </div>
             </InfoRow>
@@ -359,6 +339,17 @@ export const AccountInlineStatusSection: React.FC<
                 value={organizationLabel}
               />
             ) : null}
+          </InlineCardColumnStack>
+        }
+        right={
+          <InlineCardColumnStack>
+            {accountUsageRows}
+            {account.baseUrl ? (
+              <InfoRow
+                label={t("keyVault.info.baseUrl")}
+                value={account.baseUrl}
+              />
+            ) : null}
             {showSessionToken ? (
               <InfoRow label={t("keyVault.info.cursorSessionAccess")}>
                 <StatusDot
@@ -367,12 +358,6 @@ export const AccountInlineStatusSection: React.FC<
                   label={t("keyVault.info.cursorSessionReady")}
                 />
               </InfoRow>
-            ) : null}
-            {account.baseUrl ? (
-              <InfoRow
-                label={t("keyVault.info.baseUrl")}
-                value={account.baseUrl}
-              />
             ) : null}
             {showCursorApiStatus ? (
               <InfoRow label={t("keyVault.info.cursorApiKeyAccess")}>
@@ -405,13 +390,10 @@ export const AccountInlineStatusSection: React.FC<
             ) : null}
           </InlineCardColumnStack>
         }
-        right={
-          <InlineCardColumnStack>
-            <AccountCompatibilitySection account={account} />
-            {accountUsageRows}
-          </InlineCardColumnStack>
-        }
       />
+      <div className="border-t border-border-2 pt-2">
+        <AccountCompatibilitySection account={account} />
+      </div>
       {account.description ? (
         <div className="flex min-w-0 flex-col gap-1 border-t border-border-2 pt-2">
           <span className="text-[12px] font-semibold text-text-1">

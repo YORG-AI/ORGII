@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import { CLI_AGENT } from "@src/api/types/keys";
 import InlineAlert from "@src/components/InlineAlert";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
 
@@ -43,6 +44,29 @@ function getAccountModelToggleKey(accountId: string, model: string): string {
   return `${accountId}|${model}`;
 }
 
+const ACCOUNT_AUTH_METHOD = {
+  OAUTH: "oauth",
+} as const;
+
+function supportsQuotaRefresh(account: KeyVaultAccount): boolean {
+  switch (account.modelType) {
+    case CLI_AGENT.CURSOR:
+      return account.hasSessionToken;
+    case CLI_AGENT.COPILOT:
+      return account.hasApiKey;
+    case CLI_AGENT.CLAUDE_CODE:
+    case CLI_AGENT.CODEX:
+      return (
+        account.authMethod === ACCOUNT_AUTH_METHOD.OAUTH &&
+        account.hasSessionToken
+      );
+    case CLI_AGENT.OPENCODE:
+      return account.hasKey;
+    default:
+      return false;
+  }
+}
+
 interface AccountInlineExpandedCardProps {
   account: KeyVaultAccount;
   activeTab: AccountInlineTab;
@@ -71,7 +95,8 @@ interface AccountInlineExpandedCardProps {
   onEditSave?: (
     accountId: string,
     name: string,
-    description: string
+    description: string,
+    baseUrl?: string
   ) => Promise<void>;
   /** When true, the Edit tab is shown and auto-activated. Driven by the
    *  parent table — set by clicking the row's pencil button, cleared when
@@ -160,10 +185,18 @@ const AccountInlineExpandedCard: React.FC<AccountInlineExpandedCardProps> = ({
     }
   }, [account.id, onRevalidateAccount, t]);
 
+  const handleRefreshUsage = useCallback(async () => {
+    if (!onRefresh) return;
+    await onRefresh();
+  }, [onRefresh]);
+
+  const showQuotaRefresh = onRefresh && supportsQuotaRefresh(account);
+  const showModelRefresh = Boolean(onRevalidateAccount);
+
   const handleEditFormSave = useCallback(
-    async (nextName: string, nextDescription: string) => {
+    async (nextName: string, nextDescription: string, endpoint?: string) => {
       if (!onEditSave) return;
-      await onEditSave(account.id, nextName, nextDescription);
+      await onEditSave(account.id, nextName, nextDescription, endpoint);
       onEditCancel?.();
     },
     [account.id, onEditCancel, onEditSave]
@@ -386,6 +419,16 @@ const AccountInlineExpandedCard: React.FC<AccountInlineExpandedCardProps> = ({
         <AccountInlineEditFooter
           state={editState}
           onCancel={handleEditCancel}
+        />
+      ) : effectiveActiveTab === ACCOUNT_INLINE_TAB.STATUS &&
+        (showQuotaRefresh || showModelRefresh) ? (
+        <AccountInlineActionsBar
+          account={account}
+          refreshLabel={t("keyVault.quota.refreshUsage")}
+          onRefresh={showQuotaRefresh ? handleRefreshUsage : undefined}
+          refreshing={refreshing}
+          onRefreshModels={showModelRefresh ? handleRefreshModels : undefined}
+          refreshingModels={refreshing}
         />
       ) : onRevalidateAccount && showModels ? (
         <AccountInlineActionsBar

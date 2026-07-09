@@ -396,3 +396,76 @@ async fn auth_error_skips_retries() {
     assert!(result.is_err());
     assert!(matches!(result.unwrap_err(), ProviderError::AuthError(_)));
 }
+
+// --- chat_with_options forwarding ---
+
+/// Stub that records the `ChatOptions` it receives via `chat_with_options`.
+struct OptionRecordingProvider {
+    skip_cache_write_seen: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+#[async_trait]
+impl LLMProvider for OptionRecordingProvider {
+    async fn chat(
+        &self,
+        _messages: &[Value],
+        _tools: Option<&[Value]>,
+        _model: &str,
+        _max_tokens: u32,
+        _temperature: f32,
+    ) -> Result<LLMResponse, ProviderError> {
+        Ok(LLMResponse::text("ok"))
+    }
+
+    async fn chat_with_options(
+        &self,
+        messages: &[Value],
+        tools: Option<&[Value]>,
+        model: &str,
+        max_tokens: u32,
+        temperature: f32,
+        options: ChatOptions,
+    ) -> Result<LLMResponse, ProviderError> {
+        self.skip_cache_write_seen
+            .store(options.skip_cache_write, Ordering::SeqCst);
+        self.chat(messages, tools, model, max_tokens, temperature)
+            .await
+    }
+
+    fn default_model(&self) -> &str {
+        "test"
+    }
+
+    fn provider_name(&self) -> &str {
+        "test"
+    }
+}
+
+/// Without the `chat_with_options` override, the trait's default method
+/// would route through `ReliableProvider::chat` and silently drop the
+/// options before they reach the inner provider.
+#[tokio::test]
+async fn chat_with_options_forwards_options_to_inner_provider() {
+    let skip_seen = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let stub = OptionRecordingProvider {
+        skip_cache_write_seen: skip_seen.clone(),
+    };
+    let reliable = ReliableProvider::single("test".into(), Box::new(stub), 1, MIN_BASE_BACKOFF_MS);
+    let result = reliable
+        .chat_with_options(
+            &[],
+            None,
+            "model",
+            100,
+            0.0,
+            ChatOptions {
+                skip_cache_write: true,
+            },
+        )
+        .await;
+    assert!(result.is_ok());
+    assert!(
+        skip_seen.load(Ordering::SeqCst),
+        "skip_cache_write must reach the inner provider through the retry loop"
+    );
+}

@@ -61,11 +61,13 @@ interface AccountsTableProps {
   onSelect: (id: string | null, mode?: DetailMode) => void;
   onAdd: () => void;
   onRefresh?: () => Promise<void>;
+  onRefreshAccountUsage?: (accountId: string) => Promise<void>;
   onEditAccount?: (accountId: string) => void;
   onEditAccountSave?: (
     accountId: string,
     name: string,
-    description: string
+    description: string,
+    baseUrl?: string
   ) => Promise<void>;
   onDisconnectAccount?: (
     accountId: string,
@@ -103,6 +105,7 @@ export const AccountsTable: React.FC<AccountsTableProps> = ({
   onSelect,
   onAdd,
   onRefresh,
+  onRefreshAccountUsage,
   onEditAccount,
   onEditAccountSave,
   onDisconnectAccount,
@@ -567,6 +570,7 @@ export const AccountsTable: React.FC<AccountsTableProps> = ({
                 onEditAccount={onEditAccount}
                 onDisconnectAccount={onDisconnectAccount}
                 onRefreshAccounts={onRefresh}
+                onRefreshAccountUsage={onRefreshAccountUsage}
                 onRevalidateAccount={onRevalidateAccount}
                 refreshingAccountId={refreshingAccountId}
                 onToggleAccount={handleToggleAccount}

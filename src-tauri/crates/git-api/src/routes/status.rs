@@ -2,6 +2,10 @@
 //!
 //! Repository status, ahead/behind, default branch, local commits
 
+use std::collections::HashMap;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
 use axum::{
     extract::{Path, Query},
     routing::get,
@@ -13,6 +17,58 @@ use crate::error::{GitApiError, GitApiResult};
 use crate::extractors::{lookup_repo_path, validate_path, RepoQuery};
 use crate::types::*;
 use git::watch::git_status::refresh_git_status_sync;
+
+/// Cache TTL for git status responses. Avoids redundant subprocess spawns when
+/// the frontend polls rapidly while the tab is visible.
+const STATUS_CACHE_TTL: Duration = Duration::from_secs(2);
+
+struct StatusCacheEntry {
+    cached_at: Instant,
+    response: GitStatusResponse,
+}
+
+/// `(repo_path_string, head_sha)` → cached status response.
+/// Keyed on HEAD SHA so a commit or branch switch always yields a fresh result.
+static STATUS_CACHE: std::sync::OnceLock<Mutex<HashMap<(String, String), StatusCacheEntry>>> =
+    std::sync::OnceLock::new();
+
+fn status_cache() -> &'static Mutex<HashMap<(String, String), StatusCacheEntry>> {
+    STATUS_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Read `.git/HEAD` and resolve it to the commit SHA without spawning any
+/// process. Returns `None` if the repo layout is unexpected.
+fn read_head_sha_cheap(git_dir: &std::path::Path) -> Option<String> {
+    let head_contents = std::fs::read_to_string(git_dir.join("HEAD")).ok()?;
+    let head_contents = head_contents.trim();
+
+    if let Some(ref_path) = head_contents.strip_prefix("ref: ") {
+        // Packed-refs fallback: try loose ref first, then packed-refs
+        let loose = git_dir.join(ref_path);
+        if let Ok(sha) = std::fs::read_to_string(&loose) {
+            return Some(sha.trim().to_string());
+        }
+        // Try packed-refs
+        let packed = std::fs::read_to_string(git_dir.join("packed-refs")).ok()?;
+        for line in packed.lines() {
+            if line.starts_with('#') {
+                continue;
+            }
+            let mut parts = line.splitn(2, ' ');
+            if let (Some(sha), Some(name)) = (parts.next(), parts.next()) {
+                if name == ref_path {
+                    return Some(sha.to_string());
+                }
+            }
+        }
+        None
+    } else if head_contents.len() == 40 || head_contents.len() == 64 {
+        // Detached HEAD — the content IS the SHA
+        Some(head_contents.to_string())
+    } else {
+        None
+    }
+}
 
 pub fn routes() -> Router {
     Router::new()
@@ -85,7 +141,8 @@ pub async fn get_status(
     // (HTTP 200, `exists: false`) so the UI can render it cleanly instead of
     // entering an infinite error-retry loop. Real git failures (corrupt repo,
     // permission errors) still propagate through the error path below.
-    if !repo_path.join(".git").exists() {
+    let git_dir = repo_path.join(".git");
+    if !git_dir.exists() {
         return Ok(Json(GitStatusResponse {
             status: 0,
             data: GitStatus {
@@ -107,6 +164,20 @@ pub async fn get_status(
                 do_conflicted_files_exist: false,
             },
         }));
+    }
+
+    // Cache lookup: read HEAD SHA cheaply (no subprocess) and skip the full
+    // git-status computation if nothing has changed within the TTL window.
+    let repo_path_str = repo_path.to_string_lossy().to_string();
+    if let Some(head_sha) = read_head_sha_cheap(&git_dir) {
+        let cache_key = (repo_path_str.clone(), head_sha);
+        if let Ok(cache) = status_cache().lock() {
+            if let Some(entry) = cache.get(&cache_key) {
+                if entry.cached_at.elapsed() < STATUS_CACHE_TTL {
+                    return Ok(Json(entry.response.clone()));
+                }
+            }
+        }
     }
 
     let rust_status = refresh_git_status_sync(&repo_path).map_err(GitApiError::from_git_error)?;
@@ -133,7 +204,6 @@ pub async fn get_status(
     let current_upstream_branch = git::watch::git_status::get_upstream_branch(&repo_path);
 
     // Check for merge/rebase/cherry-pick state
-    let git_dir = repo_path.join(".git");
     let merge_head_found = git_dir.join("MERGE_HEAD").exists();
     let squash_msg_found = git_dir.join("SQUASH_MSG").exists();
     let rebase_in_progress =
@@ -164,10 +234,26 @@ pub async fn get_status(
         do_conflicted_files_exist: has_conflicted_files,
     };
 
-    Ok(Json(GitStatusResponse {
+    let response = GitStatusResponse {
         status: 0,
         data: status,
-    }))
+    };
+
+    // Populate the cache so rapid back-to-back polls within the TTL window are free.
+    if let Some(head_sha) = read_head_sha_cheap(&git_dir) {
+        let cache_key = (repo_path_str, head_sha);
+        if let Ok(mut cache) = status_cache().lock() {
+            cache.insert(
+                cache_key,
+                StatusCacheEntry {
+                    cached_at: Instant::now(),
+                    response: response.clone(),
+                },
+            );
+        }
+    }
+
+    Ok(Json(response))
 }
 
 /// Get ahead/behind counts

@@ -1,8 +1,7 @@
 import {
-  Check,
   CheckCircle2,
+  ChevronLeft,
   CircleDot,
-  Clipboard,
   ExternalLink,
   Loader,
 } from "lucide-react";
@@ -12,7 +11,6 @@ import { useTranslation } from "react-i18next";
 import type { GitHubIssue, GitHubIssueComment } from "@src/api/tauri/github";
 import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
-import Markdown from "@src/components/MarkDown";
 import Tag from "@src/components/Tag";
 import Textarea from "@src/components/Textarea";
 import {
@@ -20,12 +18,16 @@ import {
   HEADER_ICON_SIZE,
   TYPOGRAPHY,
 } from "@src/config/workstation/tokens";
-import { useCopyCheck } from "@src/hooks/ui";
 import {
   formatTimeAgo,
   getLabelColorStyle,
 } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/hooks/workstationIssueHelpers";
-import { copyText } from "@src/util/data/clipboard";
+
+import {
+  ConnectedTimelineItem,
+  GithubMarkdown,
+  TimelineCard,
+} from "../shared/githubTimeline";
 
 interface IssueDetailPanelProps {
   issue: GitHubIssue;
@@ -33,38 +35,84 @@ interface IssueDetailPanelProps {
   commentsLoading: boolean;
   submittingComment: boolean;
   showHeader?: boolean;
+  showBackTitleHeader?: boolean;
+  backLabel?: string;
+  contentPadding?: "default" | "none";
   onClose: () => void;
   onCloseIssue: () => void;
   onReopenIssue: () => void;
   onAddComment: (body: string) => Promise<void>;
 }
 
-const GITHUB_IMAGE_TAG_RE = /<img\b([^>]*)\/?>/gi;
-const IMAGE_ATTR_RE = /([\w:-]+)\s*=\s*(["'])(.*?)\2/g;
-
-function sanitizeMarkdownImageAlt(value: string): string {
-  return value.split("[").join("").split("]").join("");
-}
-
-function normalizeGitHubMarkdownBody(body: string): string {
-  return body.replace(GITHUB_IMAGE_TAG_RE, (match, rawAttrs: string) => {
-    const attrs = new Map<string, string>();
-    for (const attrMatch of rawAttrs.matchAll(IMAGE_ATTR_RE)) {
-      attrs.set(attrMatch[1].toLowerCase(), attrMatch[3]);
-    }
-
-    const src = attrs.get("src");
-    if (!src) return match;
-
-    const alt = attrs.get("alt") ?? "image";
-    const safeAlt = sanitizeMarkdownImageAlt(alt);
-    return `![${safeAlt}](${src})`;
-  });
-}
-
-function IssueStateIcon({ isOpen }: { isOpen: boolean }): React.ReactNode {
+export function IssueStateIcon({
+  isOpen,
+}: {
+  isOpen: boolean;
+}): React.ReactNode {
   if (isOpen) return <CircleDot size={14} strokeWidth={1.8} />;
   return <CheckCircle2 size={14} strokeWidth={1.8} />;
+}
+
+export function getIssueStateClassName(issue: GitHubIssue): string {
+  return issue.state === "open" ? "text-success-6" : "text-purple-6";
+}
+
+export function getIssueDetailTitle(issue: GitHubIssue): string {
+  return `#${issue.number} ${issue.title}`;
+}
+
+export function IssueDetailHeaderContent({
+  issue,
+  fallbackTitle,
+}: {
+  issue: GitHubIssue | null;
+  fallbackTitle?: string;
+}): React.ReactNode {
+  if (!issue) {
+    return fallbackTitle ? (
+      <span className="min-w-0 select-text truncate text-[13px] font-medium text-text-1">
+        {fallbackTitle}
+      </span>
+    ) : null;
+  }
+
+  return (
+    <span className="flex min-w-0 flex-1 items-center gap-2">
+      <span className={`shrink-0 ${getIssueStateClassName(issue)}`}>
+        <IssueStateIcon isOpen={issue.state === "open"} />
+      </span>
+      <span className="shrink-0 select-text text-[11px] text-text-3">
+        #{issue.number}
+      </span>
+      <span
+        className="min-w-0 flex-1 select-text truncate text-[13px] font-medium text-text-1"
+        title={issue.title}
+      >
+        {issue.title}
+      </span>
+    </span>
+  );
+}
+
+export function IssueDetailExternalLinkButton({
+  issue,
+  title = "Open on GitHub",
+}: {
+  issue: GitHubIssue;
+  title?: string;
+}): React.ReactNode {
+  return (
+    <Button
+      href={issue.html_url}
+      target="_blank"
+      rel="noopener noreferrer"
+      variant="tertiary"
+      size="small"
+      iconOnly
+      icon={<ExternalLink size={HEADER_ICON_SIZE.sm} strokeWidth={2} />}
+      title={title}
+    />
+  );
 }
 
 function IssueLabelTag({
@@ -85,104 +133,6 @@ function IssueLabelTag({
   );
 }
 
-function ConnectedTimelineItem({
-  children,
-  isLast,
-}: {
-  children: React.ReactNode;
-  isLast?: boolean;
-}): React.ReactNode {
-  return (
-    <span className="flex min-w-0 flex-col">
-      {children}
-      {!isLast ? (
-        <span
-          className="-mt-px ml-5 h-3 border-l border-border-1"
-          aria-hidden
-        />
-      ) : null}
-    </span>
-  );
-}
-
-function TimelineCopyButton({ body }: { body: string }): React.ReactNode {
-  const { t } = useTranslation("common");
-  const onCopyContent = useCallback(async () => {
-    await copyText(body);
-  }, [body]);
-  const { copied, handleCopy } = useCopyCheck(onCopyContent);
-
-  if (!body.trim()) return null;
-
-  return (
-    <Button
-      variant="tertiary"
-      appearance="ghost"
-      size="mini"
-      iconOnly
-      icon={
-        copied ? (
-          <Check size={12} strokeWidth={1.75} />
-        ) : (
-          <Clipboard size={12} strokeWidth={1.75} />
-        )
-      }
-      title={copied ? t("status.copied") : t("actions.copy")}
-      aria-label={copied ? t("status.copied") : t("actions.copy")}
-      className="shrink-0 text-text-3 hover:bg-fill-2 hover:text-text-1"
-      onClick={(event) => {
-        event.stopPropagation();
-        handleCopy();
-      }}
-    />
-  );
-}
-
-function TimelineCard({
-  header,
-  copyBody,
-  children,
-}: {
-  header: React.ReactNode;
-  copyBody?: string;
-  children: React.ReactNode;
-}): React.ReactNode {
-  return (
-    <span className="bg-surface-1 flex min-w-0 flex-1 flex-col rounded-xl border border-border-1 shadow-sm">
-      <span className="flex min-w-0 items-center justify-between gap-3 border-b border-border-1 px-3 py-2">
-        {header}
-        {copyBody ? <TimelineCopyButton body={copyBody} /> : null}
-      </span>
-      <span className="min-w-0 select-text px-3 py-3">{children}</span>
-    </span>
-  );
-}
-
-const IssueMarkdown = memo(function IssueMarkdown({
-  body,
-  emptyText,
-}: {
-  body: string;
-  emptyText?: string;
-}) {
-  if (!body.trim()) {
-    return (
-      <div className="text-[12px] italic leading-5 text-text-3">
-        {emptyText}
-      </div>
-    );
-  }
-
-  return (
-    <div className="chat-block-content max-w-[860px] select-text text-[12px] leading-5 text-text-2 [&_.chat-markdown-body]:select-text [&_.chat-markdown-body]:text-[12px] [&_.chat-markdown-body]:leading-5">
-      <Markdown
-        textContent={normalizeGitHubMarkdownBody(body)}
-        skipPreprocess
-      />
-    </div>
-  );
-});
-
 export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
   ({
     issue,
@@ -190,7 +140,10 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
     commentsLoading,
     submittingComment,
     showHeader = true,
-    onClose: _onClose,
+    showBackTitleHeader = false,
+    backLabel,
+    contentPadding = "default",
+    onClose,
     onCloseIssue,
     onReopenIssue,
     onAddComment,
@@ -198,9 +151,10 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
     const { t } = useTranslation("common");
     const [commentBody, setCommentBody] = useState("");
     const isOpen = issue.state === "open";
-    const stateClassName = isOpen ? "text-success-6" : "text-purple-6";
     const stateLabel = isOpen ? "Open" : "Closed";
     const timelineItemCount = 1 + comments.length;
+    const horizontalPaddingClass =
+      contentPadding === "default" ? "px-4" : "px-0";
 
     const handleCommentSubmit = useCallback(async () => {
       const body = commentBody.trim();
@@ -210,39 +164,36 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
     }, [commentBody, submittingComment, onAddComment]);
 
     return (
-      <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="flex h-full min-h-0 select-text flex-col overflow-hidden">
         {showHeader && (
           <div className={HEADER_CLASSES.pageHeader}>
-            <span className={`shrink-0 ${stateClassName}`}>
-              <IssueStateIcon isOpen={isOpen} />
-            </span>
-
-            <span className="shrink-0 text-[11px] text-text-3">
-              #{issue.number}
-            </span>
-
-            <span
-              className={`min-w-0 flex-1 truncate ${TYPOGRAPHY.sectionTitle} text-text-1`}
-              title={issue.title}
-            >
-              {issue.title}
-            </span>
-
-            <Button
-              href={issue.html_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              variant="tertiary"
-              size="small"
-              iconOnly
-              icon={<ExternalLink size={HEADER_ICON_SIZE.sm} strokeWidth={2} />}
-              title="Open on GitHub"
-            />
+            <IssueDetailHeaderContent issue={issue} />
+            <IssueDetailExternalLinkButton issue={issue} />
           </div>
         )}
 
+        {showBackTitleHeader ? (
+          <div className={`shrink-0 ${horizontalPaddingClass}`}>
+            <div className="mx-auto flex w-full max-w-[920px] items-center gap-2 border-b border-border-1 py-2">
+              <Button
+                htmlType="button"
+                variant="tertiary"
+                appearance="ghost"
+                size="mini"
+                icon={<ChevronLeft size={14} strokeWidth={2} />}
+                onClick={onClose}
+              >
+                {backLabel ?? t("actions.back")}
+              </Button>
+              <IssueDetailHeaderContent issue={issue} />
+            </div>
+          </div>
+        ) : null}
+
         <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
-          <div className="mx-auto flex w-full max-w-[920px] flex-col px-4 py-4">
+          <div
+            className={`mx-auto flex w-full max-w-[920px] flex-col ${horizontalPaddingClass} py-4`}
+          >
             <div className="mb-4 flex min-w-0 flex-col gap-2 border-b border-border-1 pb-4">
               <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[12px] text-text-3">
                 <span
@@ -300,7 +251,7 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
                     </span>
                   }
                 >
-                  <IssueMarkdown
+                  <GithubMarkdown
                     body={issue.body ?? ""}
                     emptyText="No description provided."
                   />
@@ -336,7 +287,7 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
                         </span>
                       }
                     >
-                      <IssueMarkdown body={comment.body} />
+                      <GithubMarkdown body={comment.body} />
                     </TimelineCard>
                   </ConnectedTimelineItem>
                 ))
@@ -345,7 +296,9 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
           </div>
         </div>
 
-        <div className="bg-surface-1 flex-shrink-0 border-t border-border-1 px-4 py-3">
+        <div
+          className={`bg-surface-1 flex-shrink-0 border-t border-border-1 ${horizontalPaddingClass} py-3`}
+        >
           <div className="mx-auto flex w-full max-w-[920px] flex-col gap-2">
             <Textarea
               value={commentBody}

@@ -6,7 +6,7 @@
  *
  * Handles all quota variants:
  * - Standard: single bar with remaining %
- * - Cursor: included requests + on-demand budget + provider messages
+ * - Cursor: Auto/Composer quota + API quota + provider messages
  * - Premium items (e.g., Copilot Business premium requests)
  * - Simple: unlimited / credit-based text only
  *
@@ -88,7 +88,6 @@ const QuotaDisplay: React.FC<QuotaDisplayProps> = ({
           used={quotaInfo.used}
           limit={quotaInfo.limit}
           isUnlimited={quotaInfo.is_unlimited}
-          showUsedPercent={variant === "full"}
           className={hasOnDemand ? "mb-3" : undefined}
         />
       )}
@@ -103,7 +102,6 @@ const QuotaDisplay: React.FC<QuotaDisplayProps> = ({
           limit={quotaInfo.on_demand_limit}
           formatValue={(cents) => `$${(cents / 100).toFixed(2)}`}
           isUnlimited={false}
-          showUsedPercent={variant === "full"}
         />
       )}
 

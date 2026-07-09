@@ -24,6 +24,7 @@ import type { AgentOrgRunMemberView } from "@src/api/tauri/agent";
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
+import { manualCompactInFlightSessionAtom } from "@src/engines/ChatPanel/hooks/useManualCompact";
 import { streamingDeltaContentAtom } from "@src/engines/SessionCore/core/atoms";
 import { sessionIdAtom } from "@src/engines/SessionCore/core/atoms/metadata";
 import { usePlanningIndicator } from "@src/engines/SessionCore/hooks";
@@ -123,12 +124,24 @@ const PlanningIndicatorBridge: React.FC<PlanningIndicatorBridgeProps> = ({
     ? streamingDeltaMap.get(scopedSessionId)
     : undefined;
   const isAgentTyping = liveDelta?.kind === "message";
-  const planningFooterMode = isAgentTyping ? "agentTyping" : "planning";
-  const visibleCount = planningIndicatorEnabled
-    ? isAgentTyping
-      ? 1
-      : count
-    : 0;
+  // Manual compaction rewrites the durable transcript off-turn, so the
+  // running-turn atoms stay quiet; surface it through the same footer with
+  // its own label instead of leaving the chat silent while it works.
+  const compactingSessionId = useAtomValue(manualCompactInFlightSessionAtom);
+  const isCompacting =
+    scopedSessionId !== null && compactingSessionId === scopedSessionId;
+  const planningFooterMode = isCompacting
+    ? "compacting"
+    : isAgentTyping
+      ? "agentTyping"
+      : "planning";
+  const visibleCount = isCompacting
+    ? 1
+    : planningIndicatorEnabled
+      ? isAgentTyping
+        ? 1
+        : count
+      : 0;
 
   // Notify the orchestrator whenever the count flips so useChatFooterSpacer
   // can schedule a re-measurement.
@@ -157,6 +170,15 @@ const TAIL_TURN_COLLAPSE_IDLE_MS = 60_000;
 const EMPTY_ORG_MEMBERS: AgentOrgRunMemberView[] = [];
 const BOTTOM_OVERLAY_FADE_PX = 32;
 const SCROLL_NAV_SHOW_THRESHOLD_PX = 48;
+
+// Static GPU-layer hints for the virtualized body wrapper — never depends on
+// state, so keep it as a module-level const to avoid a fresh object each render.
+const VIRTUALIZED_BODY_STYLE: React.CSSProperties = {
+  backfaceVisibility: "hidden",
+  contain: "layout paint",
+  transform: "translateZ(0)",
+  willChange: "transform",
+};
 
 export interface FollowAgentNavState {
   showFollowAgent: boolean;
@@ -1070,6 +1092,19 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
   // Render
   // ============================================
 
+  const chatHistoryContainerStyle = useMemo<React.CSSProperties>(
+    () =>
+      ({
+        minHeight: 0,
+        fontSize: `${chatFontSize}px`,
+        lineHeight: chatLineHeight ?? 1.6,
+        "--chat-font-size": `${chatFontSize}px`,
+        "--chat-code-font-size": `${chatCodeFontSize ?? 13}px`,
+        "--chat-line-height": chatLineHeight ?? 1.6,
+      }) as React.CSSProperties,
+    [chatFontSize, chatCodeFontSize, chatLineHeight]
+  );
+
   return (
     <ChatHistoryDisplayModeProvider value={displayMode}>
       <div
@@ -1080,16 +1115,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
         data-flat-count={displayTotalFlatItems}
         data-group-counts={displayGroupCounts.join(",")}
         ref={chatContainerRef as React.RefObject<HTMLDivElement>}
-        style={
-          {
-            minHeight: 0,
-            fontSize: `${chatFontSize}px`,
-            lineHeight: chatLineHeight ?? 1.6,
-            "--chat-font-size": `${chatFontSize}px`,
-            "--chat-code-font-size": `${chatCodeFontSize ?? 13}px`,
-            "--chat-line-height": chatLineHeight ?? 1.6,
-          } as React.CSSProperties
-        }
+        style={chatHistoryContainerStyle}
       >
         <div
           className={`flex items-center justify-between ${DETAIL_PANEL_TOKENS.contentWidth}`}
@@ -1128,12 +1154,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
 
           <div
             className="relative min-h-0 flex-1"
-            style={{
-              backfaceVisibility: "hidden",
-              contain: "layout paint",
-              transform: "translateZ(0)",
-              willChange: "transform",
-            }}
+            style={VIRTUALIZED_BODY_STYLE}
             data-chat-virtualized-body-layer
           >
             {turnPageListOpen && turnPaginationReady && (

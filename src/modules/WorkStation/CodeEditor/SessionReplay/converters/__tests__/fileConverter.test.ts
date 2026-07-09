@@ -160,6 +160,45 @@ describe("convertToFileOperation", () => {
     expect(op?.newContent).toBe("context\nnew");
   });
 
+  it("builds a write operation from imported Codex apply_patch Update File args", () => {
+    const patchText = [
+      "*** Begin Patch",
+      "*** Update File: src/app.ts",
+      "@@",
+      "-const oldValue = true;",
+      "+const newValue = true;",
+      " export const kept = 1;",
+      "*** End Patch",
+    ].join("\n");
+    const event = minimalSessionEvent({
+      id: "patch-1",
+      functionName: "edit_file_by_replace",
+      args: {
+        patch_text: patchText,
+        file_path: "src/app.ts",
+        target_file: "src/app.ts",
+      },
+      result: { content: "Success. Updated src/app.ts" },
+      filePath: "src/app.ts",
+    });
+
+    const op = convertToFileOperation(event, true);
+
+    expect(op).not.toBeNull();
+    expect(op?.type).toBe("write");
+    expect(op?.filePath).toBe("src/app.ts");
+    expect(op?.fileName).toBe("app.ts");
+    expect(op?.diff).toContain("--- src/app.ts");
+    expect(op?.oldContent).toBe(
+      "const oldValue = true;\nexport const kept = 1;"
+    );
+    expect(op?.newContent).toBe(
+      "const newValue = true;\nexport const kept = 1;"
+    );
+    expect(op?.linesAdded).toBe(1);
+    expect(op?.linesRemoved).toBe(1);
+  });
+
   it("returns null when file path cannot be resolved", () => {
     const event = minimalSessionEvent({
       functionName: "read_file",

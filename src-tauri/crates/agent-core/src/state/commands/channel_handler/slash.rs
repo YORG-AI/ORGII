@@ -1,4 +1,4 @@
-//! Slash command handling (`/help`, `/new`, `/status`, `/compact`) for
+//! Slash command handling (`/help`, `/new`, `/status`, `/model`, `/compact`) for
 //! channel-bound chats.
 
 use crate::bus::{InboundMessage, OutboundMessage};
@@ -23,6 +23,9 @@ pub(super) async fn handle_command(
             state.gateway_bindings.clear(session_key).await;
             info!("[gateway] Cleared binding for {}", session_key.as_str());
             "Conversation reset. The next message starts a fresh session.".to_string()
+        }
+        GatewayCommand::Model(requested) => {
+            handle_model_command(state, msg, session_key, requested.as_deref()).await
         }
         GatewayCommand::Status => {
             let binding = state.gateway_bindings.get(session_key).await;
@@ -128,6 +131,131 @@ pub(super) async fn handle_command(
     Ok(None)
 }
 
+
+async fn handle_model_command(
+    state: &AgentAppState,
+    _msg: &InboundMessage,
+    session_key: &SessionKey,
+    requested: Option<&str>,
+) -> String {
+    let Some(binding) = state.gateway_bindings.get(session_key).await else {
+        return "No session is bound to this chat yet. Send a message first, then use `/model <model>`."
+            .to_string();
+    };
+    let Some(requested) = requested.map(str::trim).filter(|s| !s.is_empty()) else {
+        return format!(
+            "Usage: `/model <model>`. Common aliases: gpt-5.5, gpt5.5, fable, sonnet, opus. Current session: `{}`",
+            binding.target_session_id
+        );
+    };
+    let account_id = state
+        .current_account_id
+        .lock()
+        .await
+        .clone()
+        .or_else(|| state.integrations.snapshot().channels.gateway.account_id.clone());
+    let Some((model, account_id)) = resolve_model_target(requested, account_id.as_deref()) else {
+        return format!("Model `{}` was not found in the configured model list.", requested);
+    };
+    let sid = binding.target_session_id.clone();
+    let model_for_db = model.clone();
+    let account_for_db = account_id.clone();
+    match tokio::task::spawn_blocking(move || {
+        crate::session::persistence::update_model_and_account(
+            &sid,
+            model_for_db.as_str(),
+            account_for_db.as_deref(),
+        )
+    })
+    .await
+    {
+        Ok(Ok(true)) => {
+            state.invalidate_session(&binding.target_session_id).await;
+            let note = format!("Model switched to {}", model);
+            let sid_for_note = binding.target_session_id.clone();
+            let note_for_db = note.clone();
+            let _ = tokio::task::spawn_blocking(move || {
+                crate::session::persistence::save_compact_summary_msg(&sid_for_note, &note_for_db)
+            })
+            .await;
+            note
+        }
+        Ok(Ok(false)) => format!("Model switch failed: session {} does not exist", binding.target_session_id),
+        Ok(Err(err)) => format!("Model switch failed: {}", err),
+        Err(err) => format!("Model switch failed: {}", err),
+    }
+}
+
+fn resolve_model_target(
+    requested: &str,
+    account_id: Option<&str>,
+) -> Option<(String, Option<String>)> {
+    let needle = normalize_model_key(requested);
+    let mut candidates: Vec<String> = Vec::new();
+    if let Some(account_id) = account_id {
+        if let Some(key) = key_vault::key_store::KEY_SERVICE.get_key_by_id(account_id) {
+            candidates.extend(key.enabled_models.iter().cloned());
+            candidates.extend(key.available_models.iter().cloned());
+            candidates.extend(key.model_aliases.iter().map(|alias| alias.alias.clone()));
+        }
+    }
+    candidates.extend(
+        [
+            "openai/gpt-5.5:openai",
+            "gpt-5.5",
+            "claude-sonnet-4-6",
+            "claude-opus-4-6",
+            "claude-fable-5",
+        ]
+        .into_iter()
+        .map(str::to_string),
+    );
+    candidates.sort();
+    candidates.dedup();
+    let aliases: &[(&str, &[&str])] = &[
+        ("openai/gpt-5.5:openai", &["gpt-5.5", "gpt5.5", "gpt55"]),
+        ("claude-fable-5", &["fable"]),
+        ("claude-sonnet-4-6", &["sonnet"]),
+        ("claude-opus-4-6", &["opus"]),
+    ];
+    for (target, names) in aliases {
+        if names.iter().any(|name| normalize_model_key(name) == needle) {
+            return Some((
+                best_candidate_for_alias(&candidates, target).unwrap_or_else(|| (*target).to_string()),
+                account_id.map(str::to_string),
+            ));
+        }
+    }
+    candidates
+        .iter()
+        .find(|m| normalize_model_key(m) == needle)
+        .or_else(|| candidates.iter().find(|m| normalize_model_key(m).contains(&needle)))
+        .cloned()
+        .map(|model| (model, account_id.map(str::to_string)))
+}
+
+fn best_candidate_for_alias(candidates: &[String], canonical_target: &str) -> Option<String> {
+    let target_norm = normalize_model_key(canonical_target);
+    candidates
+        .iter()
+        .find(|m| normalize_model_key(m) == target_norm)
+        .or_else(|| {
+            candidates.iter().find(|m| {
+                let norm = normalize_model_key(m);
+                norm.contains(&target_norm) || target_norm.contains(&norm)
+            })
+        })
+        .cloned()
+}
+
+fn normalize_model_key(value: &str) -> String {
+    value
+        .to_ascii_lowercase()
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect()
+}
+
 /// Static cheat-sheet for the `/help` slash command.
 ///
 /// Hermes parallel: `gateway/run.py:_handle_help_command` →
@@ -146,6 +274,7 @@ fn build_help_text() -> String {
         "`/help` — show this list (alias: `/commands`).",
         "`/new` — reset this chat; the next message starts a fresh session.",
         "`/status` — show the current session and anything else running.",
+        "`/model <model>` — switch the bound channel session model.",
         "`/compact` — compress the current session and continue in a versioned successor.",
     ]
     .join("\n")
@@ -153,12 +282,12 @@ fn build_help_text() -> String {
 
 #[cfg(test)]
 mod help_text_tests {
-    use super::build_help_text;
+    use super::{best_candidate_for_alias, build_help_text, normalize_model_key};
 
     #[test]
     fn lists_every_supported_slash_command() {
         let text = build_help_text();
-        for cmd in ["/help", "/new", "/status", "/compact"] {
+        for cmd in ["/help", "/new", "/status", "/model", "/compact"] {
             assert!(text.contains(cmd), "help cheat-sheet missing {cmd}: {text}");
         }
     }
@@ -178,6 +307,28 @@ mod help_text_tests {
             !text.contains("/agent"),
             "help still mentions /agent: {text}"
         );
+    }
+
+    #[test]
+    fn resolves_model_alias_to_best_configured_candidate() {
+        let candidates = vec![
+            "openai/gpt-5.5:openai".to_string(),
+            "anthropic/claude-fable-5:anthropic".to_string(),
+        ];
+        assert_eq!(
+            best_candidate_for_alias(&candidates, "openai/gpt-5.5:openai"),
+            Some("openai/gpt-5.5:openai".to_string())
+        );
+        assert_eq!(
+            best_candidate_for_alias(&candidates, "claude-fable-5"),
+            Some("anthropic/claude-fable-5:anthropic".to_string())
+        );
+    }
+
+    #[test]
+    fn normalize_model_key_ignores_provider_punctuation() {
+        assert_eq!(normalize_model_key("openai/gpt-5.5:openai"), "openaigpt55openai");
+        assert_eq!(normalize_model_key("GPT-5.5"), "gpt55");
     }
 
     #[test]

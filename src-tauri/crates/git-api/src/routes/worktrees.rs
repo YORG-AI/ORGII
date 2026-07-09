@@ -2,7 +2,10 @@
 //!
 //! Lists git worktrees registered for a repository.
 
+use std::collections::HashMap;
 use std::path::{Path as FsPath, PathBuf};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use axum::{
     extract::{Path, Query},
@@ -17,6 +20,23 @@ use crate::types::{
     RemoveWorktreeRequest, WorktreeDiffSummary, WorktreeEntry, WorktreeListResponse,
     WorktreeRemoveResponse,
 };
+
+/// Cache TTL for worktree diff summaries. Recomputation is skipped if the
+/// HEAD SHA hasn't changed and the entry is younger than this duration.
+const DIFF_CACHE_TTL: Duration = Duration::from_secs(5);
+
+struct DiffCacheEntry {
+    cached_at: Instant,
+    summary: Option<WorktreeDiffSummary>,
+}
+
+/// `(worktree_path, head_sha)` → cached diff summary.
+static DIFF_CACHE: std::sync::OnceLock<Mutex<HashMap<(String, String), DiffCacheEntry>>> =
+    std::sync::OnceLock::new();
+
+fn diff_cache() -> &'static Mutex<HashMap<(String, String), DiffCacheEntry>> {
+    DIFF_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
 
 pub fn routes() -> Router {
     Router::new()
@@ -56,7 +76,7 @@ pub async fn get_worktrees(
         .into_iter()
         .map(|entry| {
             let diff_summary = if include_diff_summary {
-                summarize_worktree_diff(&repo_path, &entry.path, &entry.branch)
+                summarize_worktree_diff(&repo_path, &entry.path, &entry.head_sha)
             } else {
                 None
             };
@@ -119,40 +139,64 @@ pub async fn remove_worktree(
 fn summarize_worktree_diff(
     _main_repo_path: &FsPath,
     worktree_path: &str,
-    _worktree_branch: &str,
+    head_sha: &str,
 ) -> Option<WorktreeDiffSummary> {
-    let worktree_path = PathBuf::from(worktree_path);
-    let uncommitted =
-        crate::commands::diff::get_diff_numstat_combined(&worktree_path, "HEAD").ok()?;
+    let cache_key = (worktree_path.to_string(), head_sha.to_string());
 
-    let uncommitted_files = uncommitted.files_changed;
-    let uncommitted_additions = uncommitted.total_insertions;
-    let uncommitted_deletions = uncommitted.total_deletions;
-
-    if is_pathological_worktree_checkout(
-        uncommitted_files,
-        uncommitted_additions,
-        uncommitted_deletions,
-    ) {
-        return None;
+    // Return cached result when HEAD SHA hasn't changed and entry is fresh.
+    if let Ok(cache) = diff_cache().lock() {
+        if let Some(entry) = cache.get(&cache_key) {
+            if entry.cached_at.elapsed() < DIFF_CACHE_TTL {
+                return entry.summary.clone();
+            }
+        }
     }
 
-    if uncommitted_files == 0 && uncommitted_additions == 0 && uncommitted_deletions == 0 {
-        return None;
+    let path = PathBuf::from(worktree_path);
+    let uncommitted = crate::commands::diff::get_diff_numstat_combined(&path, "HEAD").ok();
+
+    let summary = uncommitted.and_then(|uncommitted| {
+        let uncommitted_files = uncommitted.files_changed;
+        let uncommitted_additions = uncommitted.total_insertions;
+        let uncommitted_deletions = uncommitted.total_deletions;
+
+        if is_pathological_worktree_checkout(
+            uncommitted_files,
+            uncommitted_additions,
+            uncommitted_deletions,
+        ) {
+            return None;
+        }
+
+        if uncommitted_files == 0 && uncommitted_additions == 0 && uncommitted_deletions == 0 {
+            return None;
+        }
+
+        Some(WorktreeDiffSummary {
+            total_files: uncommitted_files,
+            total_additions: uncommitted_additions,
+            total_deletions: uncommitted_deletions,
+            committed_files: 0,
+            committed_additions: 0,
+            committed_deletions: 0,
+            uncommitted_files,
+            uncommitted_additions,
+            uncommitted_deletions,
+            base_ref: None,
+        })
+    });
+
+    if let Ok(mut cache) = diff_cache().lock() {
+        cache.insert(
+            cache_key,
+            DiffCacheEntry {
+                cached_at: Instant::now(),
+                summary: summary.clone(),
+            },
+        );
     }
 
-    Some(WorktreeDiffSummary {
-        total_files: uncommitted_files,
-        total_additions: uncommitted_additions,
-        total_deletions: uncommitted_deletions,
-        committed_files: 0,
-        committed_additions: 0,
-        committed_deletions: 0,
-        uncommitted_files,
-        uncommitted_additions,
-        uncommitted_deletions,
-        base_ref: None,
-    })
+    summary
 }
 
 /// Detect stale/broken worktrees where the checkout deleted most tracked files on disk.

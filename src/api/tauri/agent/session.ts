@@ -14,6 +14,7 @@ import type {
   AgentStatusInfo,
   FileResolution,
   FileResolutionValue,
+  ManualCompactResult,
   ModeSwitchChoice,
   PendingQuestion,
   PermissionResponseValue,
@@ -35,6 +36,16 @@ export async function getSessionInfo(
   sessionId: string
 ): Promise<SessionInfo | null> {
   return rpc.agentSession.getSessionInfo({ sessionId });
+}
+
+export async function manualCompactSession(
+  sessionId: string,
+  instructions?: string
+): Promise<ManualCompactResult> {
+  return rpc.agentSession.manualCompact({
+    sessionId,
+    ...(instructions ? { instructions } : {}),
+  });
 }
 
 /** Cancel the active turn for a session using an explicit control-flow reason. */

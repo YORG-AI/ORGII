@@ -120,9 +120,11 @@ export interface MenuProps {
 // MenuItem Props
 export interface MenuItemProps {
   /**
-   * Unique key
+   * Business identity for selection/onSelect callbacks. Distinct from React's
+   * reserved `key` prop, which is only used for reconciliation and is not
+   * forwarded to component props.
    */
-  key: string;
+  itemKey?: string;
 
   /**
    * Disabled state
@@ -153,9 +155,11 @@ export interface MenuItemProps {
 // SubMenu Props
 export interface SubMenuProps {
   /**
-   * Unique key
+   * Business identity for open/close state. Distinct from React's reserved
+   * `key` prop, which is only used for reconciliation and is not forwarded to
+   * component props.
    */
-  key: string;
+  itemKey?: string;
 
   /**
    * Submenu title
@@ -185,8 +189,7 @@ export interface SubMenuProps {
 
 // MenuItem Component
 const MenuItem: React.FC<MenuItemProps> = ({
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  key: itemKey,
+  itemKey,
   disabled = false,
   onClick,
   className = "",
@@ -194,11 +197,11 @@ const MenuItem: React.FC<MenuItemProps> = ({
   children,
 }) => {
   const { selectedKeys, onSelect } = useMenuContext();
-  const isSelected = selectedKeys.includes(itemKey);
+  const isSelected = itemKey !== undefined && selectedKeys.includes(itemKey);
 
   const handleClick = () => {
     if (disabled) return;
-    onSelect(itemKey);
+    if (itemKey !== undefined) onSelect(itemKey);
     onClick?.();
   };
 
@@ -228,8 +231,7 @@ const MenuItem: React.FC<MenuItemProps> = ({
 
 // SubMenu Component
 const SubMenu: React.FC<SubMenuProps> = ({
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  key: subMenuKey,
+  itemKey: subMenuKey,
   title,
   disabled = false,
   className = "",
@@ -237,11 +239,11 @@ const SubMenu: React.FC<SubMenuProps> = ({
   children,
 }) => {
   const { openKeys, onOpenChange } = useMenuContext();
-  const isOpen = openKeys.includes(subMenuKey);
+  const isOpen = subMenuKey !== undefined && openKeys.includes(subMenuKey);
 
   const handleToggle = () => {
     if (disabled) return;
-    onOpenChange(subMenuKey);
+    if (subMenuKey !== undefined) onOpenChange(subMenuKey);
   };
 
   const subMenuClasses = [

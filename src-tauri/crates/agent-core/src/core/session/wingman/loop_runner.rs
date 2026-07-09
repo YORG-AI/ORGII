@@ -227,6 +227,9 @@ impl WingmanLoop {
         });
 
         let msg = ScheduledMessage {
+            // A wingman observation runs the full turn pipeline and emits
+            // turn terminals, so it is a turn to the scheduler and the UI.
+            kind: crate::session::ScheduledKind::Turn,
             message_id: uuid::Uuid::new_v4().to_string(),
             generation: 0,
             client_message_id: None,

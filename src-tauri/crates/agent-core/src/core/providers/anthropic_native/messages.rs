@@ -32,7 +32,15 @@ use crate::core::turn_executor::helpers::TOOL_RESULT_IS_ERROR_KEY as IS_ERROR_ME
 /// - `role: "assistant"` with `tool_calls` → content blocks with `type: "tool_use"`
 /// - `role: "tool"` → `role: "user"` with content block `type: "tool_result"`
 /// - Consecutive same-role messages are merged (Anthropic requires alternating roles)
-pub(super) fn extract_system(messages: &[Value]) -> (Option<Value>, Vec<Value>) {
+///
+/// When `skip_cache_write` is true, NO `cache_control` breakpoints are
+/// stamped — neither on the system blocks (BP1) nor on the history tail
+/// (BP3). Used for one-shot side queries (e.g. compaction summarization)
+/// whose prefix is never sent again, so a cache write is pure cost.
+pub(super) fn extract_system(
+    messages: &[Value],
+    skip_cache_write: bool,
+) -> (Option<Value>, Vec<Value>) {
     let mut system_parts: Vec<RenderedSystemBlock> = Vec::new();
     let mut converted: Vec<Value> = Vec::new();
 
@@ -253,7 +261,7 @@ pub(super) fn extract_system(messages: &[Value]) -> (Option<Value>, Vec<Value>) 
         }
     }
 
-    let system = render_system_blocks(&system_parts);
+    let system = render_system_blocks(&system_parts, skip_cache_write);
 
     // Final wire-hygiene pass (each rule maps to a real API 400 class):
     // 1. A message whose content ends with a thinking block and nothing
@@ -272,7 +280,9 @@ pub(super) fn extract_system(messages: &[Value]) -> (Option<Value>, Vec<Value>) 
     // Volatile blocks (the per-turn context reminder appended after the
     // history) are skipped: stamping them would move the breakpoint onto
     // content that changes every turn and defeat the cache.
-    stamp_trailing_cache_control(&mut converted);
+    if !skip_cache_write {
+        stamp_trailing_cache_control(&mut converted);
+    }
     strip_cache_scope_markers(&mut converted);
 
     (system, converted)
@@ -288,7 +298,10 @@ fn parse_cache_scope(raw: &str) -> Option<RenderedSystemBlockScope> {
     }
 }
 
-fn render_system_blocks(system_parts: &[RenderedSystemBlock]) -> Option<Value> {
+fn render_system_blocks(
+    system_parts: &[RenderedSystemBlock],
+    skip_cache_write: bool,
+) -> Option<Value> {
     let non_empty_parts: Vec<&RenderedSystemBlock> = system_parts
         .iter()
         .filter(|part| !part.text.trim().is_empty())
@@ -297,9 +310,15 @@ fn render_system_blocks(system_parts: &[RenderedSystemBlock]) -> Option<Value> {
         return None;
     }
 
-    let last_cacheable_index = non_empty_parts
-        .iter()
-        .rposition(|part| part.cache_scope.is_cacheable());
+    // BP1 (system end) is suppressed for one-shot requests: caching a
+    // prefix that is never re-read only pays the cache-write premium.
+    let last_cacheable_index = if skip_cache_write {
+        None
+    } else {
+        non_empty_parts
+            .iter()
+            .rposition(|part| part.cache_scope.is_cacheable())
+    };
     let mut blocks: Vec<Value> = Vec::with_capacity(non_empty_parts.len());
     for (index, part) in non_empty_parts.iter().enumerate() {
         let mut block = serde_json::json!({

@@ -7,6 +7,9 @@ use crate::key_store::{
     AuthMethod, DefaultVariant, HealthStatus, ModelKey, ModelType, ModelVariant, ProviderProtocol,
     KEY_SERVICE,
 };
+// Re-exported here so consumers keep the established
+// `key_vault::commands::` path (matching `model_supports_output_config_effort`).
+pub use crate::key_store::{is_claude_official_oauth_token, is_official_anthropic_endpoint};
 
 const CURSOR_NATIVE_FALLBACK_MODELS: &[&str] = &["composer-2"];
 
@@ -223,7 +226,7 @@ fn enrich_cursor_native_models(info: &mut KeyInfo) -> Result<(), String> {
     Ok(())
 }
 
-fn key_info_from_entry(entry: ModelKey) -> Result<KeyInfo, String> {
+pub(super) fn key_info_from_entry(entry: ModelKey) -> Result<KeyInfo, String> {
     let mut info = KeyInfo::from(entry);
     enrich_cursor_native_models(&mut info)?;
     Ok(info)
@@ -247,15 +250,32 @@ fn is_cursor_web_session_token(token: &str) -> bool {
     value.get("type").and_then(|value| value.as_str()) == Some("web")
 }
 
-/// Whether the account talks to an official Anthropic endpoint. A configured
-/// `base_url` means the traffic goes through a third-party relay/mirror whose
-/// gateway may reject `output_config`/effort — those accounts must behave
-/// exactly as before this feature.
-fn is_official_anthropic_endpoint(base_url: Option<&str>) -> bool {
-    match base_url.map(str::trim) {
-        None | Some("") => true,
-        Some(url) => url.starts_with("https://api.anthropic.com"),
+/// Drop stale relay routing from a ClaudeCode row that carries official
+/// Anthropic OAuth material.
+///
+/// Re-detecting Claude Code OAuth on top of an account row that was earlier
+/// configured for a third-party relay leaves the relay's `base_url` (and a
+/// possible `protocol: openai`) on the row, because `save_key` only
+/// overwrites fields present in the request. The Rust agent then sends the
+/// `sk-ant-oat…` bearer token to the relay, which 401s (issue #276). Official
+/// OAuth tokens have exactly one valid endpoint, so the relay routing state
+/// is unambiguously stale. Relay ClaudeCode accounts (non-`sk-ant-oat`
+/// tokens) are left untouched.
+fn normalize_claude_official_oauth_routing(entry: &mut ModelKey) {
+    if entry.model_type != ModelType::ClaudeCode
+        || entry.auth_method != AuthMethod::Oauth
+        || !entry
+            .session_token
+            .as_deref()
+            .is_some_and(is_claude_official_oauth_token)
+    {
+        return;
     }
+
+    if !is_official_anthropic_endpoint(entry.base_url.as_deref()) {
+        entry.base_url = None;
+    }
+    entry.protocol = None;
 }
 
 fn account_uses_anthropic_native_messages(entry: &ModelKey) -> bool {
@@ -927,6 +947,8 @@ pub async fn save_key(request: SaveKeyRequest) -> Result<KeyInfo, String> {
             entry.api_key = None;
         }
 
+        normalize_claude_official_oauth_routing(&mut entry);
+
         if entry.auth_method == AuthMethod::Oauth && received_oauth_material {
             entry.oauth_refresh_failure_count = 0;
             entry.last_oauth_refresh_failed_at = None;
@@ -1067,4 +1089,122 @@ pub async fn clipboard_write_text(text: String) -> Result<(), String> {
     })
     .await
     .map_err(|err| format!("Task join error: {}", err))?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn official_anthropic_endpoint_accepts_empty_and_official_urls() {
+        assert!(is_official_anthropic_endpoint(None));
+        assert!(is_official_anthropic_endpoint(Some("")));
+        assert!(is_official_anthropic_endpoint(Some("  ")));
+        assert!(is_official_anthropic_endpoint(Some(
+            "https://api.anthropic.com"
+        )));
+        assert!(is_official_anthropic_endpoint(Some(
+            "https://api.anthropic.com/v1"
+        )));
+        assert!(is_official_anthropic_endpoint(Some(
+            "https://api.anthropic.com:443/v1"
+        )));
+        assert!(!is_official_anthropic_endpoint(Some(
+            "https://relay.example.com/v1"
+        )));
+        assert!(!is_official_anthropic_endpoint(Some(
+            "http://api.anthropic.com"
+        )));
+        // Lookalike hosts must not pass the boundary check.
+        assert!(!is_official_anthropic_endpoint(Some(
+            "https://api.anthropic.com.evil.example/v1"
+        )));
+        assert!(!is_official_anthropic_endpoint(Some(
+            "https://api.anthropic.community"
+        )));
+        assert!(!is_official_anthropic_endpoint(Some(
+            "https://api.anthropic.com@evil.example/"
+        )));
+        assert!(!is_official_anthropic_endpoint(Some(
+            "https://api.anthropic.com:pass@evil.example/"
+        )));
+    }
+
+    #[test]
+    fn official_claude_oauth_token_requires_oat_prefix() {
+        assert!(is_claude_official_oauth_token("sk-ant-oat01-abc"));
+        assert!(is_claude_official_oauth_token("  sk-ant-oat01-abc  "));
+        assert!(!is_claude_official_oauth_token("sk-ant-api03-abc"));
+        assert!(!is_claude_official_oauth_token("sk-relay-key"));
+        assert!(!is_claude_official_oauth_token(""));
+    }
+
+    fn claude_oauth_entry(token: &str) -> ModelKey {
+        let mut entry = ModelKey::new(ModelType::ClaudeCode);
+        entry.auth_method = AuthMethod::Oauth;
+        entry.session_token = Some(token.to_string());
+        entry
+    }
+
+    #[test]
+    fn official_oauth_save_drops_stale_relay_routing() {
+        let mut entry = claude_oauth_entry("sk-ant-oat01-abc");
+        entry.base_url = Some("https://relay.example.com/v1".to_string());
+        entry.protocol = Some(ProviderProtocol::OpenAi);
+
+        normalize_claude_official_oauth_routing(&mut entry);
+
+        assert_eq!(entry.base_url, None);
+        assert_eq!(entry.protocol, None);
+    }
+
+    #[test]
+    fn official_oauth_save_keeps_explicit_official_base_url() {
+        let mut entry = claude_oauth_entry("sk-ant-oat01-abc");
+        entry.base_url = Some("https://api.anthropic.com/v1".to_string());
+
+        normalize_claude_official_oauth_routing(&mut entry);
+
+        assert_eq!(
+            entry.base_url.as_deref(),
+            Some("https://api.anthropic.com/v1")
+        );
+    }
+
+    #[test]
+    fn relay_claude_oauth_save_keeps_relay_routing_untouched() {
+        let mut entry = claude_oauth_entry("sk-relay-issued-token");
+        entry.base_url = Some("https://relay.example.com/v1".to_string());
+        entry.protocol = Some(ProviderProtocol::OpenAi);
+
+        normalize_claude_official_oauth_routing(&mut entry);
+
+        assert_eq!(
+            entry.base_url.as_deref(),
+            Some("https://relay.example.com/v1")
+        );
+        assert_eq!(entry.protocol, Some(ProviderProtocol::OpenAi));
+    }
+
+    #[test]
+    fn non_claude_and_api_key_rows_are_never_normalized() {
+        let mut api_key_entry = ModelKey::new(ModelType::ClaudeCode);
+        api_key_entry.api_key = Some("sk-ant-oat01-misfiled".to_string());
+        api_key_entry.base_url = Some("https://relay.example.com/v1".to_string());
+        normalize_claude_official_oauth_routing(&mut api_key_entry);
+        assert_eq!(
+            api_key_entry.base_url.as_deref(),
+            Some("https://relay.example.com/v1")
+        );
+
+        let mut anthropic_entry = ModelKey::new(ModelType::AnthropicApi);
+        anthropic_entry.auth_method = AuthMethod::Oauth;
+        anthropic_entry.session_token = Some("sk-ant-oat01-abc".to_string());
+        anthropic_entry.base_url = Some("https://relay.example.com/v1".to_string());
+        normalize_claude_official_oauth_routing(&mut anthropic_entry);
+        assert_eq!(
+            anthropic_entry.base_url.as_deref(),
+            Some("https://relay.example.com/v1")
+        );
+    }
 }

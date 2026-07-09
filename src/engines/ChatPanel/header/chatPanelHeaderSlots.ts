@@ -5,6 +5,10 @@ export interface ChatPanelHeaderSlots {
   leading?: ReactNode;
   content?: ReactNode;
   trailing?: ReactNode;
+  tabTitle?: string;
+  tabIcon?: ReactNode;
+  backAction?: (() => void) | null;
+  backLabel?: string;
 }
 
 export type ChatPanelHeaderContribution =
@@ -21,7 +25,11 @@ function isChatPanelHeaderSlots(
     !Array.isArray(contribution) &&
     ("leading" in contribution ||
       "content" in contribution ||
-      "trailing" in contribution)
+      "trailing" in contribution ||
+      "tabTitle" in contribution ||
+      "tabIcon" in contribution ||
+      "backAction" in contribution ||
+      "backLabel" in contribution)
   );
 }
 

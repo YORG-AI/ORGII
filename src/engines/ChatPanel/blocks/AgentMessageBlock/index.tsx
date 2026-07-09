@@ -134,7 +134,9 @@ const AgentMessageBlock: React.FC<AgentMessageBlockProps> = ({
   // while streaming so the footer chrome does not trail the growing text.
   const showLocateArrow = Boolean(eventId) && !isStreaming;
   return (
-    <div className="group/agent-message w-full min-w-0 overflow-hidden px-2 py-0.5">
+    <div
+      className={`group/agent-message w-full min-w-0 px-2 py-0.5 ${isExpanded ? "overflow-visible" : "overflow-hidden"}`}
+    >
       <div
         ref={viewportRef}
         className="group/expand relative scrollbar-hide"

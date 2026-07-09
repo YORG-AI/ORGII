@@ -45,12 +45,12 @@ use std::{
     collections::HashMap,
     io::{BufReader, Read, Write},
     sync::{
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicU32, AtomicUsize, Ordering},
         Arc, Mutex,
     },
 };
 use tauri::{async_runtime::Mutex as AsyncMutex, AppHandle, State};
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, Notify};
 
 use super::shells::ShellKind;
 
@@ -124,12 +124,19 @@ pub struct PtySession {
     pub cwd: Option<String>,
     /// User-assigned display name (e.g., "Dev Server")
     pub name: Option<String>,
-    /// Optional broadcast channel for tapping decoded PTY output (used by OS agent).
+    /// Optional broadcast channel for tapping raw PTY output bytes (used by OS agent).
     /// When present, the reader task sends output here in addition to byte-stream Tauri events.
-    pub output_tap: Option<broadcast::Sender<String>>,
+    /// Callers decode UTF-8 lazily only when they need text.
+    pub output_tap: Option<broadcast::Sender<Arc<[u8]>>>,
     /// Bytes emitted to the frontend but not yet acknowledged.
     /// Used for backpressure: reader pauses when this exceeds HIGH_WATERMARK.
     pub unacked_bytes: Arc<AtomicUsize>,
+    /// Notifier woken by ack_pty_data so the reader task can resume immediately
+    /// without busy-sleeping. Replaces the fixed BACKPRESSURE_SLEEP_MS polling loop.
+    pub ack_notify: Arc<Notify>,
+    /// Latest render time reported by the frontend ACK (milliseconds, rounded).
+    /// The reader uses this to emit smaller PTY chunks when the renderer is slow.
+    pub frontend_render_ms: Arc<AtomicU32>,
     /// UTC timestamp when the PTY session was created.
     pub created_at: DateTime<Utc>,
     /// UTC timestamp of the latest PTY output chunk observed by the reader task.
@@ -584,13 +591,16 @@ fn get_process_cwd(pid: u32) -> Result<Option<String>, String> {
 
 /// Acknowledge that the frontend has processed `byte_count` bytes of PTY output.
 ///
-/// The reader loop tracks unacknowledged bytes and pauses when the buffer
-/// exceeds HIGH_WATERMARK (100 KB). The frontend calls this after writing
-/// data to xterm.js so the reader can resume.
+/// The `queue_depth` and `render_ms` telemetry fields are optional and come
+/// from the frontend scheduler. When present they allow the reader task to
+/// wake immediately (via `Notify`) instead of sleeping on a fixed poll interval,
+/// and let the reader adjust its emit cadence based on renderer load.
 #[tauri::command]
 pub async fn ack_pty_data(
     session_id: String,
     byte_count: usize,
+    queue_depth: Option<usize>,
+    render_ms: Option<u32>,
     state: State<'_, PtyState>,
 ) -> Result<(), String> {
     let sessions = state.inner().sessions.lock().await;
@@ -598,6 +608,18 @@ pub async fn ack_pty_data(
         let prev = session.unacked_bytes.load(Ordering::Relaxed);
         let new_val = prev.saturating_sub(byte_count);
         session.unacked_bytes.store(new_val, Ordering::Relaxed);
+
+        // Update render telemetry so the reader can adapt emit rate.
+        if let Some(rms) = render_ms {
+            session.frontend_render_ms.store(rms, Ordering::Relaxed);
+        }
+
+        // Only notify if we might have crossed the LOW_WATERMARK — avoids
+        // spurious wakeups when the reader is not currently suspended.
+        let _ = queue_depth; // captured for future use (e.g. adaptive send window)
+        if new_val < crate::agent_tool::LOW_WATERMARK {
+            session.ack_notify.notify_one();
+        }
     }
     Ok(())
 }

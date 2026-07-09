@@ -108,6 +108,72 @@ pub fn is_compact_boundary_message(msg: &Value) -> bool {
         || content.starts_with(LLM_COMPACT_BOUNDARY_PREFIX)
 }
 
+/// A persisted compact-boundary row's content, split for display.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedCompactBoundary {
+    /// Header line, e.g. `[Conversation summary — 12 earlier messages compacted]`.
+    pub header: Option<String>,
+    /// Summary body with the header line and continuation suffix stripped.
+    pub body: String,
+    /// `N` parsed from the header, when present.
+    pub compacted_count: Option<u64>,
+}
+
+/// Split a persisted compact-boundary row's content into header line and
+/// summary body, stripping the model-facing continuation instructions.
+///
+/// Single Rust source of truth for boundary display parsing; the TS twin
+/// lives in `agentMessageAdapters.ts` (`parseCompactBoundaryContent`).
+pub fn parse_compact_boundary_content(content: &str) -> ParsedCompactBoundary {
+    let mut text = content;
+    if let Some(idx) = text.find(crate::model_context::compaction::COMPACT_CONTINUATION_SUFFIX) {
+        text = text[..idx].trim_end();
+    }
+
+    let is_boundary_head = text.starts_with(SM_COMPACT_BOUNDARY_PREFIX)
+        || text.starts_with(LLM_COMPACT_BOUNDARY_PREFIX)
+        // Legacy ASCII-hyphen marker: "[Conversation summary - earlier
+        // messages compacted without summary]".
+        || text.starts_with("[Conversation summary ")
+        || text.starts_with("[Session Memory ");
+
+    let (header, body) = if is_boundary_head {
+        match text.find('\n') {
+            Some(newline) => (
+                Some(text[..newline].trim().to_string()),
+                text[newline + 1..].trim().to_string(),
+            ),
+            None => (Some(text.trim().to_string()), String::new()),
+        }
+    } else {
+        (None, text.trim().to_string())
+    };
+
+    let compacted_count = header.as_deref().and_then(parse_compacted_count);
+
+    ParsedCompactBoundary {
+        header,
+        body,
+        compacted_count,
+    }
+}
+
+/// Extract `N` from `… N earlier messages compacted]`.
+fn parse_compacted_count(header: &str) -> Option<u64> {
+    let marker = " earlier messages compacted]";
+    let end = header.find(marker)?;
+    let digits_end = &header[..end];
+    let digits_start = digits_end
+        .rfind(|ch: char| !ch.is_ascii_digit())
+        .map(|idx| idx + 1)
+        .unwrap_or(0);
+    let digits = &digits_end[digits_start..];
+    if digits.is_empty() {
+        return None;
+    }
+    digits.parse().ok()
+}
+
 fn compact_boundary_text(msg: &Value) -> Option<&str> {
     let content = msg.get("content")?;
     if let Some(text) = content.as_str() {

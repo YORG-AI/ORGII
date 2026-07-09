@@ -29,10 +29,21 @@ import type { TooltipProps } from "@src/components/Tooltip";
 
 const HOVER_LEAVE_DELAY_MS = 200;
 
+export interface PillGroupSegmentButtonProps {
+  active: boolean;
+  segmentClassName?: string;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+  onFocus: () => void;
+  onBlur: () => void;
+  onClick?: (event: React.MouseEvent) => void;
+  onMouseDown?: React.MouseEventHandler<HTMLButtonElement>;
+}
+
 export interface PillGroupSegment {
   /** Stable id used as React key and to derive aria attributes */
   id: string;
-  /** Leading icon (rendered at rest and on hover) */
+  /** Leading icon (rendered at rest and on hover). Pass null for text-only segments. */
   icon: React.ReactNode;
   /** Visible label */
   label: string;
@@ -50,6 +61,8 @@ export interface PillGroupSegment {
    * the default dark bubble.
    */
   tooltipFramed?: boolean;
+  /** Widen framed-panel tooltips for long breadcrumb content. */
+  tooltipFramedWide?: boolean;
   /** Tooltip placement relative to the segment. Defaults to `top`. */
   tooltipPosition?: TooltipProps["position"];
   /** ARIA label for the underlying button */
@@ -82,9 +95,131 @@ export interface PillGroupSegment {
    * visible so users can click it).
    */
   forceVisible?: boolean;
+  /**
+   * Optional custom trigger renderer. When set, PillGroup delegates button
+   * rendering to this callback instead of the default {@link SelectorPill}.
+   * Used by model+effort pills where the effort segment wraps
+   * {@link ModelPropertiesDropdown} around the trigger.
+   */
+  renderButton?: (props: PillGroupSegmentButtonProps) => React.ReactNode;
 }
 
 export type PillGroupVariant = "default" | "ghost";
+
+interface PillGroupSegmentRowProps {
+  segment: PillGroupSegment;
+  index: number;
+  visibleMap: boolean[];
+  segments: PillGroupSegment[];
+  hoveredIndex: number | null;
+  segmentClassName?: string;
+  variant: PillGroupVariant;
+  onEnter: (index: number) => void;
+  onLeave: (index: number) => void;
+}
+
+const PillGroupSegmentRow: React.FC<PillGroupSegmentRowProps> = ({
+  segment,
+  index,
+  visibleMap,
+  segments,
+  hoveredIndex,
+  segmentClassName,
+  variant,
+  onEnter,
+  onLeave,
+}) => {
+  const isVisible = visibleMap[index];
+  if (!isVisible) return null;
+
+  const isHovered = hoveredIndex === index;
+  const isActive = !!segment.active;
+  const isPillStyled = isHovered || isActive;
+
+  let previousVisibleIndex = -1;
+  for (let i = index - 1; i >= 0; i--) {
+    if (visibleMap[i]) {
+      previousVisibleIndex = i;
+      break;
+    }
+  }
+  const previous =
+    previousVisibleIndex >= 0 ? segments[previousVisibleIndex] : undefined;
+  const previousIsPilled =
+    !!previous && (hoveredIndex === previousVisibleIndex || !!previous.active);
+  const showLeadingDivider =
+    previousVisibleIndex >= 0 && !isPillStyled && !previousIsPilled;
+
+  const handleMouseDown:
+    | React.MouseEventHandler<HTMLButtonElement>
+    | undefined =
+    segment.activateOnMouseDown && segment.onClick
+      ? (event) => {
+          if (event.button !== 0) return;
+          event.preventDefault();
+          segment.onClick?.(event);
+        }
+      : undefined;
+
+  const buttonProps: PillGroupSegmentButtonProps = {
+    active: isActive,
+    segmentClassName: segmentClassName ?? "",
+    onMouseEnter: () => onEnter(index),
+    onMouseLeave: () => onLeave(index),
+    onFocus: () => onEnter(index),
+    onBlur: () => onLeave(index),
+    onClick: segment.onClick,
+    onMouseDown: handleMouseDown,
+  };
+
+  /* eslint-disable react-hooks/refs -- forward segment.buttonRef without reading .current; custom renderButton owns its refs */
+  const button = segment.renderButton ? (
+    segment.renderButton(buttonProps)
+  ) : (
+    <SelectorPill
+      ref={segment.buttonRef}
+      icon={segment.icon}
+      label={segment.label}
+      title={segment.title}
+      active={isActive}
+      danger={segment.danger}
+      disabled={segment.disabled}
+      variant={variant}
+      tooltip={segment.tooltip}
+      tooltipFramed={segment.tooltipFramed}
+      tooltipFramedWide={segment.tooltipFramedWide}
+      tooltipPosition={segment.tooltipPosition ?? undefined}
+      ariaLabel={segment.ariaLabel}
+      dataTestId={segment.dataTestId}
+      className={segmentClassName ?? ""}
+      labelStyle={
+        segment.maxLabelWidth ? { maxWidth: segment.maxLabelWidth } : undefined
+      }
+      onClick={segment.onClick}
+      onMouseDown={handleMouseDown}
+      onMouseEnter={buttonProps.onMouseEnter}
+      onMouseLeave={buttonProps.onMouseLeave}
+      onFocus={buttonProps.onFocus}
+      onBlur={buttonProps.onBlur}
+      size="sm"
+    />
+  );
+  /* eslint-enable react-hooks/refs */
+
+  return (
+    <>
+      {previousVisibleIndex >= 0 && (
+        <span
+          aria-hidden
+          className={`inline-flex h-3 w-px shrink-0 bg-border-2 transition-opacity duration-150 ${
+            showLeadingDivider ? "opacity-100" : "opacity-0"
+          }`}
+        />
+      )}
+      {button}
+    </>
+  );
+};
 
 export interface PillGroupProps {
   segments: PillGroupSegment[];
@@ -160,88 +295,20 @@ const PillGroup: React.FC<PillGroupProps> = memo(
         onMouseEnter={handleGroupEnter}
         onMouseLeave={handleGroupLeave}
       >
-        {segments.map((segment, index) => {
-          const isVisible = visibleMap[index];
-          if (!isVisible) return null;
-
-          const isHovered = hoveredIndex === index;
-          const isActive = !!segment.active;
-          const isPillStyled = isHovered || isActive;
-
-          // Find the nearest previous *visible* sibling for divider rendering.
-          let previousVisibleIndex = -1;
-          for (let i = index - 1; i >= 0; i--) {
-            if (visibleMap[i]) {
-              previousVisibleIndex = i;
-              break;
-            }
-          }
-          const previous =
-            previousVisibleIndex >= 0
-              ? segments[previousVisibleIndex]
-              : undefined;
-          const previousIsPilled =
-            !!previous &&
-            (hoveredIndex === previousVisibleIndex || !!previous.active);
-          const showLeadingDivider =
-            previousVisibleIndex >= 0 && !isPillStyled && !previousIsPilled;
-
-          const handleMouseDown:
-            | React.MouseEventHandler<HTMLButtonElement>
-            | undefined =
-            segment.activateOnMouseDown && segment.onClick
-              ? (event) => {
-                  if (event.button !== 0) return;
-                  event.preventDefault();
-                  segment.onClick?.(event);
-                }
-              : undefined;
-
-          const button = (
-            <SelectorPill
-              ref={segment.buttonRef}
-              icon={segment.icon}
-              label={segment.label}
-              title={segment.title}
-              active={isActive}
-              danger={segment.danger}
-              disabled={segment.disabled}
-              variant={variant}
-              tooltip={segment.tooltip}
-              tooltipFramed={segment.tooltipFramed}
-              tooltipPosition={segment.tooltipPosition ?? undefined}
-              ariaLabel={segment.ariaLabel}
-              dataTestId={segment.dataTestId}
-              className={segmentClassName ?? ""}
-              labelStyle={
-                segment.maxLabelWidth
-                  ? { maxWidth: segment.maxLabelWidth }
-                  : undefined
-              }
-              onClick={segment.onClick}
-              onMouseDown={handleMouseDown}
-              onMouseEnter={() => handleEnter(index)}
-              onMouseLeave={() => handleLeave(index)}
-              onFocus={() => handleEnter(index)}
-              onBlur={() => handleLeave(index)}
-              size="sm"
-            />
-          );
-
-          return (
-            <React.Fragment key={segment.id}>
-              {previousVisibleIndex >= 0 && (
-                <span
-                  aria-hidden
-                  className={`inline-flex h-3 w-px shrink-0 bg-border-2 transition-opacity duration-150 ${
-                    showLeadingDivider ? "opacity-100" : "opacity-0"
-                  }`}
-                />
-              )}
-              {button}
-            </React.Fragment>
-          );
-        })}
+        {segments.map((segment, index) => (
+          <PillGroupSegmentRow
+            key={segment.id}
+            segment={segment}
+            index={index}
+            visibleMap={visibleMap}
+            segments={segments}
+            hoveredIndex={hoveredIndex}
+            segmentClassName={segmentClassName}
+            variant={variant}
+            onEnter={handleEnter}
+            onLeave={handleLeave}
+          />
+        ))}
       </div>
     );
   }

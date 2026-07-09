@@ -33,6 +33,8 @@
     "noContent": "Brak treści",
     "noIssueSelected": "Nie wybrano zgłoszenia",
     "selectIssueHint": "Wybierz zgłoszenie w panelu Issues na pasku bocznym.",
+    "noPrSelected": "Nie wybrano Pull request",
+    "selectPrHint": "Wybierz Pull request w panelu Pull request na pasku bocznym.",
     "reload": "Odśwież",
     "urlPreviewRequiresTauri": "Podgląd URL wymaga Tauri",
     "openInExternalBrowser": "Otwórz w zewnętrznej przeglądarce",
@@ -1223,6 +1225,7 @@
     "modelProperties": {
       "options": "Opcje",
       "effort": "Wysiłek",
+      "default": "Domyślnie",
       "faster": "Szybciej",
       "smarter": "Mądrzej"
     },
@@ -1959,7 +1962,24 @@
     "warningHint": "Kontekst się zapełnia. Wkrótce rozpocznij nową sesję, aby uzyskać lepsze wyniki.",
     "dangerHint": "Kontekst jest prawie pełny. Rozpocznij nową sesję, aby uniknąć utraty szczegółów.",
     "autoCompactNote": "Kontekst zostanie wkrótce podsumowany",
-    "startNewSession": "Rozpocznij nową sesję"
+    "startNewSession": "Rozpocznij nową sesję",
+    "compactBoundaryTitle": "Kontekst skompaktowany",
+    "compactBoundarySubtitle_one": "{{count}} wcześniejsza wiadomość podsumowana",
+    "compactBoundarySubtitle_few": "{{count}} wcześniejsze wiadomości podsumowane",
+    "compactBoundarySubtitle_many": "{{count}} wcześniejszych wiadomości podsumowanych",
+    "compactBoundarySubtitle_other": "{{count}} wcześniejszych wiadomości podsumowanych",
+    "compactBoundaryTokens": "{{before}} → {{after}} tokenów",
+    "manualCompactAction": "Kompaktuj",
+    "manualCompactRunning": "Kompaktowanie",
+    "manualCompactInProgress": "Kompaktowanie kontekstu — poczekaj na zakończenie przed wysłaniem",
+    "manualCompactSuccess": "Skompaktowano: {{messagesBefore}} → {{messagesAfter}} wiadomości, {{tokensBefore}} → {{tokensAfter}} tokenów",
+    "manualCompactTooShort": "Treść jest krótka; kompaktowanie niepotrzebne",
+    "manualCompactAlreadyCompact": "Brak nowej treści do skompaktowania",
+    "manualCompactBusy": "Sesja jest uruchomiona. Skompaktuj po jej zakończeniu",
+    "manualCompactNoRuntime": "Wyślij wiadomość przed kompaktowaniem",
+    "manualCompactFailed": "Kompaktowanie nie powiodło się: {{message}}",
+    "manualCompactChannelAttached": "Ta sesja jest zarządzana przez kanał — użyj tam /compact",
+    "manualCompactInstructionsPlaceholder": "Opcjonalnie: na czym skupić podsumowanie"
   },
   "relativeDate": {
     "today": "Dzisiaj",

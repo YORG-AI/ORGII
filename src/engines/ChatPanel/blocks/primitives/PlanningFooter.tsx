@@ -23,7 +23,7 @@ import { EventBlockHeaderIcon } from "./EventBlockHeaderIcon";
 import { EventBlockHeaderTitle } from "./EventBlockHeaderTextSlots";
 import { CHAT_ITEM_GAP, CHAT_ITEM_PADDING_X } from "./config";
 
-export type PlanningFooterMode = "planning" | "agentTyping";
+export type PlanningFooterMode = "planning" | "agentTyping" | "compacting";
 
 interface PlanningFooterProps {
   count: number;
@@ -58,9 +58,11 @@ const PlanningFooter: React.FC<PlanningFooterProps> = ({
     returnObjects: true,
   }) as unknown;
   const label =
-    mode === "agentTyping"
-      ? t("planning.agentTyping", "Agent is typing...")
-      : pickVariant(variants, variantIndex, "Planning next step...");
+    mode === "compacting"
+      ? t("planning.compacting", "Compacting context...")
+      : mode === "agentTyping"
+        ? t("planning.agentTyping", "Agent is typing...")
+        : pickVariant(variants, variantIndex, "Planning next step...");
 
   return (
     <div

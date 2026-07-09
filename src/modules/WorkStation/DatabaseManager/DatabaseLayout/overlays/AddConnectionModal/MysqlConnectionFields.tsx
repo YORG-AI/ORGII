@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ADD_CONNECTION_TEXT_INPUT_CLASS } from "./formInputClass";
+import { AddConnectionFormField } from "./AddConnectionFormField";
 
 export interface MysqlConnectionFieldsProps {
   mysqlHost: string;
@@ -33,68 +33,45 @@ export const MysqlConnectionFields = memo(function MysqlConnectionFields({
   return (
     <>
       <div className="mb-4 grid grid-cols-3 gap-2">
-        <div className="col-span-2">
-          <label className="mb-1 block text-xs font-medium text-text-2">
-            {t("database.host")}
-          </label>
-          <input
-            type="text"
-            value={mysqlHost}
-            onChange={(event) => onMysqlHostChange(event.target.value)}
-            placeholder="localhost"
-            className={ADD_CONNECTION_TEXT_INPUT_CLASS}
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-text-2">
-            {t("database.port")}
-          </label>
-          <input
-            type="text"
-            value={mysqlPort}
-            onChange={(event) => onMysqlPortChange(event.target.value)}
-            placeholder="3306"
-            className={ADD_CONNECTION_TEXT_INPUT_CLASS}
-          />
-        </div>
-      </div>
-      <div className="mb-4">
-        <label className="mb-1 block text-xs font-medium text-text-2">
-          {t("database.database")}
-        </label>
-        <input
-          type="text"
-          value={mysqlDatabase}
-          onChange={(event) => onMysqlDatabaseChange(event.target.value)}
-          placeholder="mydb"
-          className={ADD_CONNECTION_TEXT_INPUT_CLASS}
+        <AddConnectionFormField
+          className="col-span-2"
+          label={t("database.host")}
+          value={mysqlHost}
+          onChange={onMysqlHostChange}
+          placeholder="localhost"
+        />
+        <AddConnectionFormField
+          label={t("database.port")}
+          value={mysqlPort}
+          onChange={onMysqlPortChange}
+          placeholder="3306"
         />
       </div>
+      <AddConnectionFormField
+        className="mb-4"
+        label={t("database.database")}
+        value={mysqlDatabase}
+        onChange={onMysqlDatabaseChange}
+        placeholder="mydb"
+      />
       <div className="mb-4 grid grid-cols-2 gap-2">
-        <div>
-          <label className="mb-1 block text-xs font-medium text-text-2">
-            {t("database.user")}
-          </label>
-          <input
-            type="text"
-            value={mysqlUser}
-            onChange={(event) => onMysqlUserChange(event.target.value)}
-            placeholder="root"
-            className={ADD_CONNECTION_TEXT_INPUT_CLASS}
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-text-2">
-            {t("database.password")}{" "}
-            <span className="font-normal text-text-4">({t("optional")})</span>
-          </label>
-          <input
-            type="password"
-            value={mysqlPassword}
-            onChange={(event) => onMysqlPasswordChange(event.target.value)}
-            className={ADD_CONNECTION_TEXT_INPUT_CLASS}
-          />
-        </div>
+        <AddConnectionFormField
+          label={t("database.user")}
+          value={mysqlUser}
+          onChange={onMysqlUserChange}
+          placeholder="root"
+        />
+        <AddConnectionFormField
+          label={
+            <>
+              {t("database.password")}{" "}
+              <span className="font-normal text-text-4">({t("optional")})</span>
+            </>
+          }
+          type="password"
+          value={mysqlPassword}
+          onChange={onMysqlPasswordChange}
+        />
       </div>
     </>
   );

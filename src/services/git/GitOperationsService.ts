@@ -59,7 +59,11 @@ export const GitOperationsService = {
   amend: commitOps.amend,
 
   // --- Branch ops ---
-  checkout: branchOps.checkout,
+  /**
+   * @internal Raw, unguarded checkout. Do NOT call from UI code.
+   * Use `checkoutWithDialog` instead.
+   */
+  checkoutRaw: branchOps.checkoutRaw,
   stash: branchOps.stash,
   stashPop: branchOps.stashPop,
   stashApply: branchOps.stashApply,

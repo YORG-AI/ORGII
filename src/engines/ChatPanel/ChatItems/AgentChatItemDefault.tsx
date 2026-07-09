@@ -1,6 +1,6 @@
 import Button from "@/src/components/Button";
 import { useAtomValue } from "jotai";
-import React, { useEffect, useState } from "react";
+import React, { memo, useEffect, useState } from "react";
 
 import { ChatBubbleCopyButton } from "@src/components/ChatBubble";
 import Markdown from "@src/components/MarkDown";
@@ -127,4 +127,4 @@ const AgentChatItemDefault: React.FC<AgentChatItemProps> = ({
   );
 };
 
-export default AgentChatItemDefault;
+export default memo(AgentChatItemDefault);

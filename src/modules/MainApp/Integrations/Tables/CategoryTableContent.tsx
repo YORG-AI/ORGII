@@ -42,6 +42,7 @@ export interface CategoryTableContentProps {
   accountsLoading: boolean;
   onSelectAccount: (id: string | null, mode?: DetailMode) => void;
   onRefreshAccounts?: () => Promise<void>;
+  onRefreshAccountUsage?: (accountId: string) => Promise<void>;
   onEditAccount?: (accountId: string) => void;
   onEditAccountSave?: (
     accountId: string,
@@ -177,6 +178,7 @@ export const CategoryTableContent: React.FC<CategoryTableContentProps> = (
           onSelect={props.onSelectAccount}
           onAdd={() => onAddAction("add-model")}
           onRefresh={props.onRefreshAccounts}
+          onRefreshAccountUsage={props.onRefreshAccountUsage}
           onEditAccount={props.onEditAccount}
           onEditAccountSave={props.onEditAccountSave}
           onDisconnectAccount={props.onDisconnectAccount}

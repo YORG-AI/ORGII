@@ -33,6 +33,8 @@
     "noContent": "Нет содержимого",
     "noIssueSelected": "Issue не выбран",
     "selectIssueHint": "Выберите issue на панели Issues в боковой панели.",
+    "noPrSelected": "Pull request не выбран",
+    "selectPrHint": "Выберите Pull request на панели Pull request в боковой панели.",
     "reload": "Перезагрузить",
     "urlPreviewRequiresTauri": "Для предпросмотра URL требуется Tauri",
     "openInExternalBrowser": "Откройте во внешнем браузере",
@@ -1231,6 +1233,7 @@
     "modelProperties": {
       "options": "Параметры",
       "effort": "Усилие",
+      "default": "По умолчанию",
       "faster": "Быстрее",
       "smarter": "Умнее"
     },
@@ -1959,7 +1962,24 @@
     "warningHint": "Контекст заполняется. Скоро начните новую сессию для лучших результатов.",
     "dangerHint": "Контекст почти заполнен. Начните новую сессию, чтобы не потерять детали.",
     "autoCompactNote": "Контекст скоро будет резюмирован",
-    "startNewSession": "Начать новую сессию"
+    "startNewSession": "Начать новую сессию",
+    "compactBoundaryTitle": "Контекст сжат",
+    "compactBoundarySubtitle_one": "{{count}} предыдущее сообщение обобщено",
+    "compactBoundarySubtitle_few": "{{count}} предыдущих сообщения обобщены",
+    "compactBoundarySubtitle_many": "{{count}} предыдущих сообщений обобщено",
+    "compactBoundarySubtitle_other": "{{count}} предыдущих сообщений обобщено",
+    "compactBoundaryTokens": "{{before}} → {{after}} токенов",
+    "manualCompactAction": "Сжать",
+    "manualCompactRunning": "Сжатие",
+    "manualCompactInProgress": "Идёт сжатие контекста — дождитесь завершения перед отправкой",
+    "manualCompactSuccess": "Сжато: {{messagesBefore}} → {{messagesAfter}} сообщений, {{tokensBefore}} → {{tokensAfter}} токенов",
+    "manualCompactTooShort": "Содержимое короткое; сжатие не требуется",
+    "manualCompactAlreadyCompact": "Нет нового содержимого для сжатия",
+    "manualCompactBusy": "Сессия выполняется. Сожмите после завершения",
+    "manualCompactNoRuntime": "Отправьте сообщение перед сжатием",
+    "manualCompactFailed": "Сжатие не удалось: {{message}}",
+    "manualCompactChannelAttached": "Эта сессия управляется каналом — используйте /compact там",
+    "manualCompactInstructionsPlaceholder": "Необязательно: на чём сфокусировать резюме"
   },
   "relativeDate": {
     "today": "Сегодня",

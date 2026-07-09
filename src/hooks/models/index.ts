@@ -3,6 +3,8 @@ export {
   buildAccountLookup,
   useModelAccountLookup,
 } from "./useModelAccountLookup";
+export { resolveModelDisplaySelection } from "./resolveModelDisplaySelection";
+export { useModelEffortSegment } from "./useModelEffortSegment";
 export {
   getCliCompatibleAccounts,
   getCliCompatibleProviderTypes,

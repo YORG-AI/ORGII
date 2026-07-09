@@ -476,7 +476,9 @@ mod tests {
                 sequence     INTEGER NOT NULL DEFAULT 0,
                 created_at   TEXT NOT NULL,
                 images       TEXT,
-                compact_from_sequence INTEGER
+                compact_from_sequence INTEGER,
+                compact_tokens_before INTEGER,
+                compact_tokens_after INTEGER
              );"
         ))
         .expect("create message table");
@@ -585,6 +587,8 @@ mod tests {
             created_at: "2024-01-01T00:00:00Z".to_string(),
             images: None,
             compact_from_sequence: None,
+            compact_tokens_before: None,
+            compact_tokens_after: None,
         }
     }
 
@@ -603,6 +607,8 @@ mod tests {
             created_at: "2024-01-01T00:00:00Z".to_string(),
             images: None,
             compact_from_sequence: None,
+            compact_tokens_before: None,
+            compact_tokens_after: None,
         }
     }
 
@@ -621,6 +627,8 @@ mod tests {
             created_at: "2024-01-01T00:00:00Z".to_string(),
             images: None,
             compact_from_sequence: None,
+            compact_tokens_before: None,
+            compact_tokens_after: None,
         }
     }
 
@@ -639,6 +647,8 @@ mod tests {
             created_at: "2024-01-01T00:00:00Z".to_string(),
             images: None,
             compact_from_sequence: None,
+            compact_tokens_before: None,
+            compact_tokens_after: None,
         }
     }
 
@@ -657,6 +667,8 @@ mod tests {
             created_at: "2024-01-01T00:00:00Z".to_string(),
             images: None,
             compact_from_sequence: None,
+            compact_tokens_before: None,
+            compact_tokens_after: None,
         }
     }
 

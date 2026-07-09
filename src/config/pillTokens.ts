@@ -93,6 +93,10 @@ declare global {
       sessionId: string;
       sessionName: string;
       lineCount: number;
+      /** 1-based buffer row where the selection starts (from xterm getSelectionPosition) */
+      lineStart?: number;
+      /** 1-based buffer row where the selection ends (from xterm getSelectionPosition) */
+      lineEnd?: number;
       text: string;
       timestamp: number;
     };

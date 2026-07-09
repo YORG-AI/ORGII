@@ -5,3 +5,4 @@
 
 pub mod fork;
 pub mod manual;
+pub(crate) mod persist;

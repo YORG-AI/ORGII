@@ -149,26 +149,28 @@ export async function invokeTauri<T = unknown>(
   }
 
   const tracker = getTracker();
-  const tracking = tracker?.isApiTrackingEnabled() ?? false;
+  const activeTracker = tracker?.isApiTrackingEnabled() ? tracker : null;
   let requestId = "";
 
-  if (tracking && tracker) {
+  if (activeTracker) {
     requestId = `tauri-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-    tracker.trackTauriInvoke(cmd, args, requestId);
+    activeTracker.trackTauriInvoke(cmd, args, requestId);
   }
 
   try {
     const invokeOperation = () => tauriState.invoke!(cmd, args) as Promise<T>;
-    const result = tracking
-      ? await tracker.withDirectTauriInvokeTrackingSuppressed(invokeOperation)
+    const result = activeTracker
+      ? await activeTracker.withDirectTauriInvokeTrackingSuppressed(
+          invokeOperation
+        )
       : await invokeOperation();
-    if (tracking && tracker) {
-      tracker.trackTauriInvokeResult(requestId, result);
+    if (activeTracker) {
+      activeTracker.trackTauriInvokeResult(requestId, result);
     }
     return result;
   } catch (error) {
-    if (tracking && tracker) {
-      tracker.trackTauriInvokeResult(requestId, undefined, error);
+    if (activeTracker) {
+      activeTracker.trackTauriInvokeResult(requestId, undefined, error);
     }
     throw error;
   }

@@ -2,7 +2,7 @@
  * VirtualizedSessionList - High-performance virtualized list for sessions
  * Uses react-virtuoso for rendering only visible items
  */
-import React from "react";
+import React, { memo, useCallback, useMemo } from "react";
 import { Virtuoso } from "react-virtuoso";
 
 export interface SessionListItem {
@@ -22,6 +22,47 @@ interface VirtualizedSessionListProps {
   className?: string;
 }
 
+// Memoized row — only re-renders when its own session, className, or click
+// handler identity change. When the parent's `sessions` array reference shifts
+// but the individual item reference is stable, this row stays untouched.
+interface SessionRowProps {
+  session: SessionListItem;
+  className: string;
+  onClick: (session: SessionListItem) => void;
+}
+
+const SessionRow: React.FC<SessionRowProps> = memo(
+  ({ session, className, onClick }) => {
+    const formattedTime = useMemo(
+      () => new Date(session.updatedAt).toLocaleString(),
+      [session.updatedAt]
+    );
+    const handleClick = useCallback(() => {
+      onClick(session);
+    }, [onClick, session]);
+
+    return (
+      <div className={`session-list-item ${className}`} onClick={handleClick}>
+        <div className="session-item-content">
+          <div className="session-item-header">
+            <span className="session-item-name">{session.name}</span>
+            {session.status && (
+              <span className={`session-item-status status-${session.status}`}>
+                {session.status}
+              </span>
+            )}
+          </div>
+          {session.repoName && (
+            <div className="session-item-project">{session.repoName}</div>
+          )}
+          <div className="session-item-time">{formattedTime}</div>
+        </div>
+      </div>
+    );
+  }
+);
+SessionRow.displayName = "SessionRow";
+
 export const VirtualizedSessionList: React.FC<VirtualizedSessionListProps> = ({
   sessions,
   onSessionClick,
@@ -30,43 +71,24 @@ export const VirtualizedSessionList: React.FC<VirtualizedSessionListProps> = ({
   emptyMessage = "No sessions found",
   className = "",
 }) => {
-  // Item renderer for react-virtuoso
-  const itemContent = React.useCallback(
-    (index: number) => {
-      const session = sessions[index];
-
-      return (
-        <div
-          className={`session-list-item ${className}`}
-          onClick={() => onSessionClick(session)}
-        >
-          <div className="session-item-content">
-            <div className="session-item-header">
-              <span className="session-item-name">{session.name}</span>
-              {session.status && (
-                <span
-                  className={`session-item-status status-${session.status}`}
-                >
-                  {session.status}
-                </span>
-              )}
-            </div>
-            {session.repoName && (
-              <div className="session-item-project">{session.repoName}</div>
-            )}
-            <div className="session-item-time">
-              {new Date(session.updatedAt).toLocaleString()}
-            </div>
-          </div>
-        </div>
-      );
-    },
-    [sessions, className, onSessionClick]
+  // Use Virtuoso's `(index, session)` signature so we don't need to close over
+  // the `sessions` array — this keeps itemContent stable across data updates.
+  const itemContent = useCallback(
+    (_index: number, session: SessionListItem) => (
+      <SessionRow
+        session={session}
+        className={className}
+        onClick={onSessionClick}
+      />
+    ),
+    [className, onSessionClick]
   );
+
+  const style = useMemo(() => ({ height }), [height]);
 
   if (sessions.length === 0) {
     return (
-      <div className="session-list-empty" style={{ height }}>
+      <div className="session-list-empty" style={style}>
         {emptyMessage}
       </div>
     );
@@ -74,7 +96,7 @@ export const VirtualizedSessionList: React.FC<VirtualizedSessionListProps> = ({
 
   return (
     <Virtuoso
-      style={{ height }}
+      style={style}
       data={sessions}
       itemContent={itemContent}
       className={className}

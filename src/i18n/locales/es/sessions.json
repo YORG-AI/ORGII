@@ -669,7 +669,9 @@
       "empty": "No se encontraron acciones.",
       "unpinAll": "Desfijar todo",
       "insert": "Insertar"
-    }
+    },
+    "compactArgHint": "<enfoque opcional para el resumen>",
+    "compactCommandDescription": "Resume el contexto anterior para liberar espacio. Opcional: /compact <enfoque del resumen>"
   },
   "listPanel": {
     "showingOf": "Mostrando {{filtered}} de {{total}}",
@@ -728,6 +730,22 @@
         "sessions": "Sesiones",
         "tokens": "Tokens",
         "cost": "Costo"
+      },
+      "quota": {
+        "empty": "Aún no hay datos de cuota. Actualiza el uso desde Key Vault.",
+        "refresh": "Actualizar",
+        "justNow": "ahora mismo",
+        "minutesAgo": "hace {{count}} min",
+        "hoursAgo": "hace {{count}}h",
+        "metrics": {
+          "fiveHour": "5h",
+          "sevenDay": "7d",
+          "auto": "Auto",
+          "api": "API",
+          "session": "Session",
+          "weekly": "Semanal",
+          "monthly": "Mensual"
+        }
       },
       "exploreRepos": {
         "title": "Explorar Repos"
@@ -951,7 +969,30 @@
         "mentioned": "Mencionadas"
       }
     },
-    "readOnly": "Solo lectura"
+    "readOnly": "Solo lectura",
+    "panels": {
+      "manageIssues": {
+        "searchPlaceholder": "GitHub search, e.g. is:issue is:open label:bug",
+        "createIssueTrigger": "Issue",
+        "newIssueTitle": "New GitHub Issue",
+        "issueTitlePlaceholder": "Issue title",
+        "issueBodyPlaceholder": "Description",
+        "createIssue": "Create issue",
+        "creatingIssue": "Creating…",
+        "addToChat": "Add",
+        "repositoryLabel": "Repository",
+        "createIssueFailed": "Failed to create issue",
+        "sourceIssues": "Issues",
+        "sourcePrs": "PRs",
+        "stateOpen": "Open",
+        "stateClosed": "Closed",
+        "stateAll": "All states",
+        "assignedToMe": "Assigned to me",
+        "createdByMe": "Created by me",
+        "filters": "Filters",
+        "openInGitHub": "Open in GitHub"
+      }
+    }
   },
   "chatStatus": {
     "approved": "Aprobado",
@@ -1842,7 +1883,8 @@
       "models": "Modelos",
       "skills": "Skills",
       "workspaceSkills": "Workspace Skills",
-      "userSkills": "User Skills"
+      "userSkills": "User Skills",
+      "commands": "Comandos"
     },
     "diffMenu": {
       "gitActions": "Acciones GIT",
@@ -2251,7 +2293,8 @@
       "Aún pensándolo, tardando más de lo habitual...",
       "Trabajando en ello, tardando más de lo habitual...",
       "Decidiendo el siguiente paso, tardando más de lo habitual..."
-    ]
+    ],
+    "compacting": "Compactando contexto..."
   },
   "revertConfirm": {
     "title": "Cambios de archivo no guardados",

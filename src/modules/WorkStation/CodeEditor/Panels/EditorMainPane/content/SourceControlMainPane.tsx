@@ -130,6 +130,21 @@ const SourceControlMainPane: React.FC<SourceControlMainPaneProps> = ({
     );
   }
 
+  if (
+    sourceControlFilterMode === "pr" &&
+    (!historySelection || historySelection.type !== "pr")
+  ) {
+    return (
+      <Placeholder
+        variant="empty"
+        placement="detail-panel"
+        title={t("previews.noPrSelected")}
+        subtitle={t("previews.selectPrHint")}
+        fillParentHeight
+      />
+    );
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <Suspense fallback={<LazyFallback />}>

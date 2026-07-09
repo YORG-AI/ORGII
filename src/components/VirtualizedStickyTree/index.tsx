@@ -298,6 +298,17 @@ function VirtualizedStickyTreeInner<TNode extends TreeNodeBase>(
 
   const hasNodes = flattenedNodes.length > 0;
 
+  // Stable Virtuoso callbacks so its internal itemContent memo keeps working
+  // when parent renders happen but the flattened list is unchanged.
+  const handleItemContent = useCallback(
+    (index: number) => renderItem(flattenedNodes[index], index),
+    [renderItem, flattenedNodes]
+  );
+  const handleComputeItemKey = useCallback(
+    (index: number) => flattenedNodes[index].node.path,
+    [flattenedNodes]
+  );
+
   return (
     <div
       ref={containerRef}
@@ -329,8 +340,8 @@ function VirtualizedStickyTreeInner<TNode extends TreeNodeBase>(
           <Virtuoso
             ref={virtuosoRef}
             totalCount={flattenedNodes.length}
-            itemContent={(index) => renderItem(flattenedNodes[index], index)}
-            computeItemKey={(index) => flattenedNodes[index].node.path}
+            itemContent={handleItemContent}
+            computeItemKey={handleComputeItemKey}
             overscan={overscan}
             increaseViewportBy={increaseViewportBy}
             className="h-full scrollbar-hide"

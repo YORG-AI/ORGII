@@ -396,6 +396,10 @@ export function createRustAgentAdapter(
       //   turn (backgrounded/exited especially can fire long after agent:complete).
       // - agent:exec_output — streaming output from background processes; can arrive
       //   after agent:complete when a backgrounded command is still running.
+      // - agent:context_usage — context-ring bookkeeping (token counts after a
+      //   turn or a manual compaction). The manual-compact pipeline broadcasts
+      //   it with no turn running at all; treating it as a turn signal leaves
+      //   the composer stuck on Stop with no terminal event ever coming.
       // - agent:computer_use_entered / agent:computer_use_exited — desktop/Wingman
       //   CU-lock lifecycle. `exited` is broadcast by the processor immediately
       //   after `agent:complete` (see processor.rs §9a½), so if it were treated
@@ -413,6 +417,7 @@ export function createRustAgentAdapter(
         "agent:shell_process_backgrounded",
         "agent:shell_process_exited",
         "agent:exec_output",
+        "agent:context_usage",
         "agent:computer_use_entered",
         "agent:computer_use_exited",
       ]);

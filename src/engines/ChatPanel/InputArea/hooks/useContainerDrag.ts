@@ -18,6 +18,7 @@ import { hasReferenceDragData } from "@src/shared/dnd/referenceDragData";
 import { useTabDragEndToPill } from "@src/shared/dnd/useTabDragEndToPill";
 
 import { reorderActiveRef } from "../components/QueuedMessages";
+import { isInternalDropType } from "./containerDropHelpers";
 import { useTabDragHover } from "./useTabDragHover";
 
 /**
@@ -157,16 +158,24 @@ export function useContainerDrag({
         return;
       }
 
+      // Always prevent the browser default drop behavior when a file lands
+      // on the composer container. OS file drops are handled by GlobalDragDrop
+      // at the document capture level; stopping propagation here ensures the
+      // event does not reach the inner InputEditor or contenteditable host
+      // where the browser would otherwise insert the file name as raw text,
+      // which caused empty conversation rounds (issue #250).
+      e.preventDefault();
+      e.stopPropagation();
+
       // Can check dataTransfer.types during drop event
       const types = Array.from(e.dataTransfer.types);
       if (
-        isInternalFileTreeDragActive() ||
-        types.includes("application/x-file-reference") ||
-        hasReferenceDragData(types)
+        isInternalDropType(
+          types,
+          isInternalFileTreeDragActive(),
+          hasReferenceDragData(types)
+        )
       ) {
-        // Prevent default and stop propagation before handling
-        e.preventDefault();
-        e.stopPropagation();
         handleDrop(e);
       }
     },

@@ -33,6 +33,8 @@
     "noContent": "콘텐츠 없음",
     "noIssueSelected": "선택된 이슈 없음",
     "selectIssueHint": "사이드바의 Issues 패널에서 이슈를 선택하세요.",
+    "noPrSelected": "선택된 Pull request 없음",
+    "selectPrHint": "사이드바의 Pull request 패널에서 Pull request를 선택하세요.",
     "reload": "새로 고침",
     "urlPreviewRequiresTauri": "URL 미리보기에는 Tauri가 필요합니다",
     "openInExternalBrowser": "대신 외부 브라우저에서 여세요",
@@ -1232,6 +1234,7 @@
     "modelProperties": {
       "options": "옵션",
       "effort": "Effort",
+      "default": "기본",
       "faster": "더 빠르게",
       "smarter": "더 똑똑하게"
     },
@@ -1963,7 +1966,21 @@
     "warningHint": "컨텍스트가 채워지고 있습니다. 더 나은 결과를 위해 곧 새 세션을 시작하세요.",
     "dangerHint": "컨텍스트가 거의 가득 찼습니다. 세부 정보 손실을 피하려면 새 세션을 시작하세요.",
     "autoCompactNote": "컨텍스트가 곧 요약됩니다",
-    "startNewSession": "새 세션 시작"
+    "startNewSession": "새 세션 시작",
+    "compactBoundaryTitle": "컨텍스트 압축됨",
+    "compactBoundarySubtitle_other": "이전 메시지 {{count}}개 요약됨",
+    "compactBoundaryTokens": "{{before}} → {{after}} 토큰",
+    "manualCompactAction": "압축",
+    "manualCompactRunning": "압축 중",
+    "manualCompactInProgress": "컨텍스트 압축 중 — 완료될 때까지 기다린 후 전송하세요",
+    "manualCompactSuccess": "압축 완료: {{messagesBefore}} → {{messagesAfter}} 메시지, {{tokensBefore}} → {{tokensAfter}} 토큰",
+    "manualCompactTooShort": "내용이 짧아 압축이 필요 없습니다",
+    "manualCompactAlreadyCompact": "새로 압축할 내용이 없습니다",
+    "manualCompactBusy": "세션이 실행 중입니다. 완료 후 압축하세요",
+    "manualCompactNoRuntime": "압축하기 전에 메시지를 보내세요",
+    "manualCompactFailed": "압축 실패: {{message}}",
+    "manualCompactChannelAttached": "이 세션은 채널에서 관리됩니다 — 그곳에서 /compact를 사용하세요",
+    "manualCompactInstructionsPlaceholder": "선택: 요약 시 집중할 내용"
   },
   "relativeDate": {
     "today": "오늘",

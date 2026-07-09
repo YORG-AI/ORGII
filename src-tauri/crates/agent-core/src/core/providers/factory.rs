@@ -285,6 +285,38 @@ fn resolve_spec_for_account(
     })
 }
 
+/// Inverse of [`spec_for_model_type`] for the API-key providers.
+///
+/// Returns `None` for specs backed by a CLI agent's credentials rather than a
+/// stored API key. A provider added to [`provider_id`] but forgotten here would
+/// silently fail to find its key, so both directions are covered by tests.
+fn api_key_model_type_for_spec(spec: &ProviderSpec) -> Option<ModelType> {
+    match spec.name {
+        provider_id::ANTHROPIC => Some(ModelType::AnthropicApi),
+        provider_id::OPENAI => Some(ModelType::OpenaiApi),
+        provider_id::DEEPSEEK => Some(ModelType::DeepseekApi),
+        provider_id::GEMINI => Some(ModelType::GeminiApi),
+        provider_id::GROQ => Some(ModelType::GroqApi),
+        provider_id::XAI => Some(ModelType::XaiApi),
+        provider_id::ZHIPU => Some(ModelType::ZhipuApi),
+        provider_id::DASHSCOPE => Some(ModelType::DashscopeApi),
+        provider_id::MINIMAX => Some(ModelType::MinimaxApi),
+        provider_id::LONGCAT => Some(ModelType::LongcatApi),
+        provider_id::MOONSHOT => Some(ModelType::MoonshotApi),
+        provider_id::SILICONFLOW => Some(ModelType::SiliconflowApi),
+        provider_id::MODELSCOPE => Some(ModelType::ModelscopeApi),
+        provider_id::AIHUBMIX => Some(ModelType::AihubmixApi),
+        provider_id::CHERRYIN => Some(ModelType::CherryinApi),
+        provider_id::BEDROCK => Some(ModelType::BedrockApi),
+        provider_id::CUSTOM => Some(ModelType::CustomApi),
+        provider_id::OPENROUTER => Some(ModelType::OpenrouterApi),
+        provider_id::ZENMUX => Some(ModelType::ZenmuxApi),
+        provider_id::VLLM => Some(ModelType::VllmApi),
+        provider_id::AZURE_OPENAI => Some(ModelType::AzureOpenaiApi),
+        _ => None,
+    }
+}
+
 fn spec_for_model_type(model_type: &ModelType) -> Option<&'static ProviderSpec> {
     let provider_name = match model_type {
         ModelType::AnthropicApi | ModelType::AzureAnthropicApi => provider_id::ANTHROPIC,
@@ -298,6 +330,12 @@ fn spec_for_model_type(model_type: &ModelType) -> Option<&'static ProviderSpec> 
         ModelType::DashscopeApi => provider_id::DASHSCOPE,
         ModelType::MinimaxApi => provider_id::MINIMAX,
         ModelType::LongcatApi => provider_id::LONGCAT,
+        ModelType::SiliconflowApi => provider_id::SILICONFLOW,
+        ModelType::ModelscopeApi => provider_id::MODELSCOPE,
+        ModelType::AihubmixApi => provider_id::AIHUBMIX,
+        ModelType::CherryinApi => provider_id::CHERRYIN,
+        ModelType::BedrockApi => provider_id::BEDROCK,
+        ModelType::CustomApi => provider_id::CUSTOM,
         ModelType::OpenrouterApi => provider_id::OPENROUTER,
         ModelType::ZenmuxApi => provider_id::ZENMUX,
         ModelType::VllmApi => provider_id::VLLM,
@@ -506,6 +544,46 @@ fn resolve_protocol(spec: &ProviderSpec, cred: &ModelKey) -> ProviderProtocol {
     })
 }
 
+/// Routing (custom base URL + protocol) for a resolved credential.
+///
+/// Official Claude OAuth access tokens (`sk-ant-oat…`) authenticate only at
+/// the official Anthropic endpoint, so stale relay routing on the row — a
+/// `base_url` or `protocol: openai` left behind by an earlier third-party
+/// configuration of the same account — must not steer the request. Honoring
+/// it would ship the OAuth bearer token plus the Claude Code beta headers to
+/// a relay that rejects them with 401 (issue #276), or route the token
+/// through the Chat Completions client. Relay ClaudeCode credentials
+/// (non-`sk-ant-oat` session tokens) keep their stored routing untouched.
+/// Endpoint officialness is decided by key-vault's
+/// `is_official_anthropic_endpoint` so both crates stay in lockstep.
+fn resolve_credential_routing(
+    spec: &'static ProviderSpec,
+    cred: &ModelKey,
+) -> (Option<String>, ProviderProtocol) {
+    let official_claude_oauth = is_claude_oauth_key(cred)
+        && cred
+            .session_token
+            .as_deref()
+            .is_some_and(key_vault::commands::is_claude_official_oauth_token);
+    if !official_claude_oauth {
+        return (cred.base_url.clone(), resolve_protocol(spec, cred));
+    }
+
+    let custom_base_url = cred
+        .base_url
+        .clone()
+        .filter(|url| key_vault::commands::is_official_anthropic_endpoint(Some(url)));
+    if custom_base_url.is_none() && cred.base_url.is_some() {
+        tracing::warn!(
+            "[provider] Claude OAuth account '{}' carries non-official base_url {:?}; \
+             official OAuth tokens only authenticate at api.anthropic.com — ignoring it",
+            cred.id,
+            cred.base_url
+        );
+    }
+    (custom_base_url, ProviderProtocol::Anthropic)
+}
+
 fn resolve_provider_endpoint(
     spec: &ProviderSpec,
     custom_base_url: Option<&String>,
@@ -679,8 +757,8 @@ fn resolve_credentials(
     } else {
         AnthropicAuthMode::ApiKey
     };
-    let protocol = resolve_protocol(spec, &cred);
-    let api_base = resolve_provider_endpoint(spec, cred.base_url.as_ref(), protocol)?;
+    let (custom_base_url, protocol) = resolve_credential_routing(spec, &cred);
+    let api_base = resolve_provider_endpoint(spec, custom_base_url.as_ref(), protocol)?;
 
     tracing::info!(
         "[provider] Using credential '{}' (type={}, auth={:?}, provider={}, protocol={}, codex_oauth={}, claude_oauth={}, azure_proxy={}, api_base={:?})",
@@ -700,7 +778,7 @@ fn resolve_credentials(
         token,
         protocol,
         api_base,
-        custom_base_url: cred.base_url.clone(),
+        custom_base_url,
         is_codex_oauth,
         is_gemini_oauth,
         gemini_project_id: gemini_project_id(&cred),
@@ -829,24 +907,7 @@ fn find_api_key_for_provider(
     spec: &ProviderSpec,
     creds: &[ModelKey],
 ) -> Result<(String, Option<String>, ProviderProtocol), ProviderError> {
-    let api_key_type = match spec.name {
-        provider_id::ANTHROPIC => Some(ModelType::AnthropicApi),
-        provider_id::OPENAI => Some(ModelType::OpenaiApi),
-        provider_id::DEEPSEEK => Some(ModelType::DeepseekApi),
-        provider_id::GEMINI => Some(ModelType::GeminiApi),
-        provider_id::GROQ => Some(ModelType::GroqApi),
-        provider_id::XAI => Some(ModelType::XaiApi),
-        provider_id::ZHIPU => Some(ModelType::ZhipuApi),
-        provider_id::DASHSCOPE => Some(ModelType::DashscopeApi),
-        provider_id::MINIMAX => Some(ModelType::MinimaxApi),
-        provider_id::LONGCAT => Some(ModelType::LongcatApi),
-        provider_id::MOONSHOT => Some(ModelType::MoonshotApi),
-        provider_id::OPENROUTER => Some(ModelType::OpenrouterApi),
-        provider_id::ZENMUX => Some(ModelType::ZenmuxApi),
-        provider_id::VLLM => Some(ModelType::VllmApi),
-        provider_id::AZURE_OPENAI => Some(ModelType::AzureOpenaiApi),
-        _ => None,
-    };
+    let api_key_type = api_key_model_type_for_spec(spec);
 
     if let Some(ref target_type) = api_key_type {
         for cred in creds {
@@ -1144,16 +1205,176 @@ mod tests {
         );
     }
 
+    /// The Custom provider ships no defaults on purpose — selecting the
+    /// Anthropic protocol without a base URL is a user error, not a lookup miss.
     #[test]
     fn anthropic_protocol_without_endpoint_or_custom_base_errors() {
+        let spec =
+            registry::find_by_name(provider_id::CUSTOM).expect("Custom provider registered");
+        let mut key = ModelKey::new(ModelType::CustomApi);
+        key.protocol = Some(ProviderProtocol::Anthropic);
+
+        let protocol = resolve_protocol(spec, &key);
+        let err = resolve_provider_endpoint(spec, key.base_url.as_ref(), protocol)
+            .expect_err("Custom Anthropic endpoint requires custom base URL");
+
+        assert!(err.to_string().contains("no default Anthropic endpoint"));
+    }
+
+    /// Zhipu's China endpoint is the registry default; the wizard writes the
+    /// Z.ai host into the account's `base_url` when the user picks Global.
+    #[test]
+    fn zhipu_anthropic_protocol_defaults_to_china_endpoint() {
         let spec = registry::find_by_name(provider_id::ZHIPU).expect("Zhipu provider registered");
         let mut key = ModelKey::new(ModelType::ZhipuApi);
         key.protocol = Some(ProviderProtocol::Anthropic);
 
         let protocol = resolve_protocol(spec, &key);
-        let err = resolve_provider_endpoint(spec, key.base_url.as_ref(), protocol)
-            .expect_err("Zhipu Anthropic endpoint requires custom base URL");
+        let api_base = resolve_provider_endpoint(spec, key.base_url.as_ref(), protocol)
+            .expect("Zhipu Anthropic endpoint should resolve");
 
-        assert!(err.to_string().contains("no default Anthropic endpoint"));
+        assert_eq!(protocol, ProviderProtocol::Anthropic);
+        assert_eq!(api_base.as_deref(), Some("https://api.z.ai/api/anthropic"));
+    }
+
+    /// Picking the Global endpoint in the wizard stores `api.z.ai` on the
+    /// account, and account base URLs win over registry defaults.
+    #[test]
+    fn zhipu_global_endpoint_overrides_registry_default() {
+        let spec = registry::find_by_name(provider_id::ZHIPU).expect("Zhipu provider registered");
+        let mut key = ModelKey::new(ModelType::ZhipuApi);
+        key.protocol = Some(ProviderProtocol::Anthropic);
+        key.base_url = Some("https://api.z.ai/api/anthropic".to_string());
+
+        let protocol = resolve_protocol(spec, &key);
+        let api_base = resolve_provider_endpoint(spec, key.base_url.as_ref(), protocol)
+            .expect("Zhipu global Anthropic endpoint should resolve");
+
+        assert_eq!(api_base.as_deref(), Some("https://api.z.ai/api/anthropic"));
+    }
+
+    #[test]
+    fn every_key_vault_model_type_maps_to_a_registered_provider_spec() {
+        for model_type in [
+            ModelType::SiliconflowApi,
+            ModelType::ModelscopeApi,
+            ModelType::AihubmixApi,
+            ModelType::CherryinApi,
+            ModelType::BedrockApi,
+            ModelType::CustomApi,
+        ] {
+            let spec = spec_for_model_type(&model_type).unwrap_or_else(|| {
+                panic!("{model_type:?} has no ProviderSpec in the agent-core registry")
+            });
+            assert_eq!(
+                api_key_model_type_for_spec(spec),
+                Some(model_type.clone()),
+                "{model_type:?} must round-trip through the spec mapping"
+            );
+        }
+    }
+
+    fn claude_oauth_key_with_token(token: &str) -> ModelKey {
+        let mut key = ModelKey::new(ModelType::ClaudeCode);
+        key.auth_method = AuthMethod::Oauth;
+        key.session_token = Some(token.to_string());
+        key
+    }
+
+    #[test]
+    fn official_claude_oauth_ignores_stale_relay_routing() {
+        let spec =
+            registry::find_by_name(provider_id::ANTHROPIC).expect("Anthropic provider registered");
+        let mut key = claude_oauth_key_with_token("sk-ant-oat01-abc");
+        key.base_url = Some("https://relay.example.com/v1".to_string());
+        key.protocol = Some(ProviderProtocol::OpenAi);
+
+        let (custom_base_url, protocol) = resolve_credential_routing(spec, &key);
+        let api_base = resolve_provider_endpoint(spec, custom_base_url.as_ref(), protocol)
+            .expect("official endpoint should resolve");
+
+        assert_eq!(custom_base_url, None);
+        assert_eq!(protocol, ProviderProtocol::Anthropic);
+        assert_eq!(api_base.as_deref(), Some("https://api.anthropic.com/v1"));
+    }
+
+    #[test]
+    fn official_claude_oauth_keeps_explicit_official_base_url() {
+        let spec =
+            registry::find_by_name(provider_id::ANTHROPIC).expect("Anthropic provider registered");
+        let mut key = claude_oauth_key_with_token("sk-ant-oat01-abc");
+        key.base_url = Some("https://api.anthropic.com/v1".to_string());
+
+        let (custom_base_url, protocol) = resolve_credential_routing(spec, &key);
+
+        assert_eq!(
+            custom_base_url.as_deref(),
+            Some("https://api.anthropic.com/v1")
+        );
+        assert_eq!(protocol, ProviderProtocol::Anthropic);
+    }
+
+    #[test]
+    fn relay_claude_oauth_keeps_stored_routing_untouched() {
+        let spec =
+            registry::find_by_name(provider_id::ANTHROPIC).expect("Anthropic provider registered");
+        let mut key = claude_oauth_key_with_token("sk-relay-issued-token");
+        key.base_url = Some("https://relay.example.com/v1".to_string());
+        key.protocol = Some(ProviderProtocol::OpenAi);
+
+        let (custom_base_url, protocol) = resolve_credential_routing(spec, &key);
+
+        assert_eq!(
+            custom_base_url.as_deref(),
+            Some("https://relay.example.com/v1")
+        );
+        assert_eq!(protocol, ProviderProtocol::OpenAi);
+    }
+
+    #[test]
+    fn api_key_credential_routing_is_passthrough() {
+        let spec = registry::find_by_name(provider_id::ZHIPU).expect("Zhipu provider registered");
+        let mut key = ModelKey::new(ModelType::ZhipuApi);
+        key.api_key = Some("sk-zhipu".to_string());
+        key.protocol = Some(ProviderProtocol::Anthropic);
+        key.base_url = Some("https://proxy.example.com/anthropic".to_string());
+
+        let (custom_base_url, protocol) = resolve_credential_routing(spec, &key);
+
+        assert_eq!(
+            custom_base_url.as_deref(),
+            Some("https://proxy.example.com/anthropic")
+        );
+        assert_eq!(protocol, ProviderProtocol::Anthropic);
+    }
+
+    /// Lockstep guard: agent-core's official-endpoint decision must be exactly
+    /// key-vault's `is_official_anthropic_endpoint` (same discipline as
+    /// `effort_capability_stays_in_lockstep_with_key_vault`).
+    #[test]
+    fn official_endpoint_gate_stays_in_lockstep_with_key_vault() {
+        for (base_url, expected_official) in [
+            (None, true),
+            (Some("https://api.anthropic.com/v1"), true),
+            (Some("https://relay.example.com/v1"), false),
+        ] {
+            assert_eq!(
+                key_vault::commands::is_official_anthropic_endpoint(base_url),
+                expected_official,
+                "key-vault official-endpoint verdict changed for {base_url:?}; \
+                 resolve_credential_routing relies on it"
+            );
+
+            let spec = registry::find_by_name(provider_id::ANTHROPIC)
+                .expect("Anthropic provider registered");
+            let mut key = claude_oauth_key_with_token("sk-ant-oat01-abc");
+            key.base_url = base_url.map(str::to_string);
+            let (custom_base_url, _) = resolve_credential_routing(spec, &key);
+            assert_eq!(
+                custom_base_url.is_some(),
+                expected_official && base_url.is_some(),
+                "routing must drop exactly the non-official base_urls for {base_url:?}"
+            );
+        }
     }
 }

@@ -32,18 +32,17 @@ interface ChatBubbleAvatarProps {
   className?: string;
 }
 
-export const ChatBubbleAvatar: React.FC<ChatBubbleAvatarProps> = ({
-  icon,
-  bgColor,
-  className = "h-8 w-8",
-}) => (
-  <div
-    className={`flex shrink-0 items-center justify-center rounded-full ${className}`}
-    style={bgColor ? { backgroundColor: bgColor } : undefined}
-  >
-    {icon}
-  </div>
+export const ChatBubbleAvatar: React.FC<ChatBubbleAvatarProps> = memo(
+  ({ icon, bgColor, className = "h-8 w-8" }) => (
+    <div
+      className={`flex shrink-0 items-center justify-center rounded-full ${className}`}
+      style={bgColor ? { backgroundColor: bgColor } : undefined}
+    >
+      {icon}
+    </div>
+  )
 );
+ChatBubbleAvatar.displayName = "ChatBubbleAvatar";
 
 // ============================================
 // Header — sender name + timestamp + extras
@@ -56,25 +55,23 @@ interface ChatBubbleHeaderProps {
   align?: "left" | "right";
 }
 
-export const ChatBubbleHeader: React.FC<ChatBubbleHeaderProps> = ({
-  senderName,
-  timestamp,
-  extra,
-  align = "left",
-}) => (
-  // For right-aligned bubbles we reverse the row so the sender name
-  // ends up adjacent to the avatar (which sits on the right via
-  // `flex-row-reverse` on the layout). Reading order becomes
-  // `[extra] timestamp · senderName | avatar`, matching every modern
-  // chat UI (iMessage, Feishu, Slack DM threads).
-  <div
-    className={`mb-1 flex items-center gap-2 ${align === "right" ? "flex-row-reverse justify-start" : ""}`}
-  >
-    <span className="text-[13px] font-medium text-text-1">{senderName}</span>
-    <span className="text-[11px] text-text-3">{timestamp}</span>
-    {extra}
-  </div>
+export const ChatBubbleHeader: React.FC<ChatBubbleHeaderProps> = memo(
+  ({ senderName, timestamp, extra, align = "left" }) => (
+    // For right-aligned bubbles we reverse the row so the sender name
+    // ends up adjacent to the avatar (which sits on the right via
+    // `flex-row-reverse` on the layout). Reading order becomes
+    // `[extra] timestamp · senderName | avatar`, matching every modern
+    // chat UI (iMessage, Feishu, Slack DM threads).
+    <div
+      className={`mb-1 flex items-center gap-2 ${align === "right" ? "flex-row-reverse justify-start" : ""}`}
+    >
+      <span className="text-[13px] font-medium text-text-1">{senderName}</span>
+      <span className="text-[11px] text-text-3">{timestamp}</span>
+      {extra}
+    </div>
+  )
 );
+ChatBubbleHeader.displayName = "ChatBubbleHeader";
 
 // ============================================
 // Body — rounded card with background
@@ -94,17 +91,16 @@ interface ChatBubbleBodyProps {
   children: React.ReactNode;
 }
 
-export const ChatBubbleBody: React.FC<ChatBubbleBodyProps> = ({
-  variant,
-  className = "",
-  children,
-}) => (
-  <div
-    className={`${CHAT_BUBBLE_WIDTH_TOKENS.body} text-left ${BODY_VARIANTS[variant]} ${className}`}
-  >
-    <div className="min-w-0 text-[13px] leading-relaxed">{children}</div>
-  </div>
+export const ChatBubbleBody: React.FC<ChatBubbleBodyProps> = memo(
+  ({ variant, className = "", children }) => (
+    <div
+      className={`${CHAT_BUBBLE_WIDTH_TOKENS.body} text-left ${BODY_VARIANTS[variant]} ${className}`}
+    >
+      <div className="min-w-0 text-[13px] leading-relaxed">{children}</div>
+    </div>
+  )
 );
+ChatBubbleBody.displayName = "ChatBubbleBody";
 
 interface ChatBubbleCopyButtonProps {
   content: string;
@@ -189,25 +185,28 @@ interface ChatBubbleLayoutProps {
  * as cramped on full-width chat surfaces — the cap belongs at the call
  * site, not the primitive.
  */
-export const ChatBubbleLayout: React.FC<ChatBubbleLayoutProps> = ({
-  avatar,
-  align = "left",
-  onClick,
-  interactive = Boolean(onClick),
-  className = "flex gap-3",
-  dataAttr,
-  children,
-}) => (
-  <div
-    className={`${className} ${align === "right" ? "flex-row-reverse" : ""} ${interactive ? "cursor-pointer transition-opacity hover:opacity-80" : ""}`}
-    onClick={onClick}
-    {...dataAttr}
-  >
-    {avatar}
+export const ChatBubbleLayout: React.FC<ChatBubbleLayoutProps> = memo(
+  ({
+    avatar,
+    align = "left",
+    onClick,
+    interactive = Boolean(onClick),
+    className = "flex gap-3",
+    dataAttr,
+    children,
+  }) => (
     <div
-      className={`${CHAT_BUBBLE_WIDTH_TOKENS.content} flex-1 ${align === "right" ? "text-right" : ""}`}
+      className={`${className} ${align === "right" ? "flex-row-reverse" : ""} ${interactive ? "cursor-pointer transition-opacity hover:opacity-80" : ""}`}
+      onClick={onClick}
+      {...dataAttr}
     >
-      {children}
+      {avatar}
+      <div
+        className={`${CHAT_BUBBLE_WIDTH_TOKENS.content} flex-1 ${align === "right" ? "text-right" : ""}`}
+      >
+        {children}
+      </div>
     </div>
-  </div>
+  )
 );
+ChatBubbleLayout.displayName = "ChatBubbleLayout";

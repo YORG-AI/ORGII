@@ -12,6 +12,7 @@ interface AccountInlineActionsBarProps {
   account: KeyVaultAccount;
   refreshing?: boolean;
   refreshingModels?: boolean;
+  refreshLabel?: string;
   onRefresh?: () => void | Promise<void>;
   onRefreshModels?: () => void | Promise<void>;
   onEdit?: () => void;
@@ -24,6 +25,7 @@ export const AccountInlineActionsBar: React.FC<
   account,
   refreshing = false,
   refreshingModels = false,
+  refreshLabel,
   onRefresh,
   onRefreshModels,
   onEdit,
@@ -40,6 +42,7 @@ export const AccountInlineActionsBar: React.FC<
     useRefreshSpin(onRefreshModels ?? (() => {}), refreshingModels);
 
   const showEdit = !account.listingId && account.hasLocalKey && onEdit;
+  const resolvedRefreshLabel = refreshLabel ?? tCommon("actions.refresh");
 
   return (
     <InlineCardFooter>
@@ -50,9 +53,9 @@ export const AccountInlineActionsBar: React.FC<
           onClick={handleRefreshClick}
           disabled={refreshing}
           icon={<RefreshCw size={14} className={spinClass} />}
-          title={tCommon("actions.refresh")}
+          title={resolvedRefreshLabel}
         >
-          {tCommon("actions.refresh")}
+          {resolvedRefreshLabel}
         </Button>
       ) : null}
       {onRefreshModels ? (

@@ -54,6 +54,7 @@ export interface HeatmapGridProps {
   maxCount: number;
   unit: string;
   yLabelWidth?: number;
+  showLegend?: boolean;
 }
 
 // ============================================
@@ -83,6 +84,7 @@ const HeatmapGrid: React.FC<HeatmapGridProps> = memo(
     maxCount,
     unit,
     yLabelWidth = DEFAULT_Y_LABEL_WIDTH,
+    showLegend = true,
   }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [containerWidth, setContainerWidth] = useState(0);
@@ -134,6 +136,7 @@ const HeatmapGrid: React.FC<HeatmapGridProps> = memo(
 
     const svgWidth = yLabelWidth + xCount * cellStep;
     const svgHeight = HEADER_HEIGHT + yCount * cellStep;
+    const bottomReserve = showLegend ? 52 : 0;
 
     const handleMouseMove = useCallback(
       (event: React.MouseEvent<SVGSVGElement>) => {
@@ -175,7 +178,7 @@ const HeatmapGrid: React.FC<HeatmapGridProps> = memo(
       <div ref={containerRef} className="relative w-full">
         <svg
           width={svgWidth}
-          height={svgHeight + 52}
+          height={svgHeight + bottomReserve}
           className="block"
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
@@ -298,21 +301,23 @@ const HeatmapGrid: React.FC<HeatmapGridProps> = memo(
           </div>
         )}
 
-        <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-text-2">
-          <span>Less</span>
-          {LEGEND_LEVELS.map((level, idx) => (
-            <svg key={idx} width={cellSize} height={cellSize}>
-              <rect
-                width={cellSize}
-                height={cellSize}
-                rx={CELL_RADIUS}
-                ry={CELL_RADIUS}
-                fill={getHeatmapColor(level * maxCount, maxCount)}
-              />
-            </svg>
-          ))}
-          <span>More</span>
-        </div>
+        {showLegend ? (
+          <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-text-2">
+            <span>Less</span>
+            {LEGEND_LEVELS.map((level, idx) => (
+              <svg key={idx} width={cellSize} height={cellSize}>
+                <rect
+                  width={cellSize}
+                  height={cellSize}
+                  rx={CELL_RADIUS}
+                  ry={CELL_RADIUS}
+                  fill={getHeatmapColor(level * maxCount, maxCount)}
+                />
+              </svg>
+            ))}
+            <span>More</span>
+          </div>
+        ) : null}
       </div>
     );
   }

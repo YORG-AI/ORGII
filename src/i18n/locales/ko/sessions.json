@@ -669,7 +669,9 @@
       "empty": "작업을 찾을 수 없습니다.",
       "unpinAll": "모두 고정 해제",
       "insert": "삽입"
-    }
+    },
+    "compactArgHint": "<선택: 요약의 초점>",
+    "compactCommandDescription": "이전 컨텍스트를 요약해 공간을 확보합니다. 선택: /compact <요약의 초점>"
   },
   "listPanel": {
     "showingOf": "{{total}}개 중 {{filtered}}개 표시",
@@ -728,6 +730,22 @@
         "sessions": "세션",
         "tokens": "Tokens",
         "cost": "비용"
+      },
+      "quota": {
+        "empty": "Quota 데이터가 아직 없습니다. Key Vault에서 사용량을 새로고침하세요.",
+        "refresh": "새로고침",
+        "justNow": "방금",
+        "minutesAgo": "{{count}}분 전",
+        "hoursAgo": "{{count}}시간 전",
+        "metrics": {
+          "fiveHour": "5h",
+          "sevenDay": "7d",
+          "auto": "Auto",
+          "api": "API",
+          "session": "Session",
+          "weekly": "Weekly",
+          "monthly": "Monthly"
+        }
       },
       "exploreRepos": {
         "title": "Repos 탐색"
@@ -951,7 +969,30 @@
         "mentioned": "멘션됨"
       }
     },
-    "readOnly": "읽기 전용"
+    "readOnly": "읽기 전용",
+    "panels": {
+      "manageIssues": {
+        "searchPlaceholder": "GitHub search, e.g. is:issue is:open label:bug",
+        "createIssueTrigger": "Issue",
+        "newIssueTitle": "New GitHub Issue",
+        "issueTitlePlaceholder": "Issue title",
+        "issueBodyPlaceholder": "Description",
+        "createIssue": "Create issue",
+        "creatingIssue": "Creating…",
+        "addToChat": "Add",
+        "repositoryLabel": "Repository",
+        "createIssueFailed": "Failed to create issue",
+        "sourceIssues": "Issues",
+        "sourcePrs": "PRs",
+        "stateOpen": "Open",
+        "stateClosed": "Closed",
+        "stateAll": "All states",
+        "assignedToMe": "Assigned to me",
+        "createdByMe": "Created by me",
+        "filters": "Filters",
+        "openInGitHub": "Open in GitHub"
+      }
+    }
   },
   "chatStatus": {
     "approved": "승인됨",
@@ -1842,7 +1883,8 @@
       "models": "모델",
       "skills": "Skills",
       "workspaceSkills": "Workspace Skills",
-      "userSkills": "User Skills"
+      "userSkills": "User Skills",
+      "commands": "명령어"
     },
     "diffMenu": {
       "gitActions": "GIT 작업",
@@ -2252,7 +2294,8 @@
       "여전히 생각 중, 평소보다 오래 걸리고 있습니다...",
       "작업 중, 평소보다 오래 걸리고 있습니다...",
       "다음에 무엇을 할지 고민 중, 평소보다 오래 걸리고 있습니다..."
-    ]
+    ],
+    "compacting": "컨텍스트 압축 중..."
   },
   "revertConfirm": {
     "title": "저장되지 않은 파일 변경사항",

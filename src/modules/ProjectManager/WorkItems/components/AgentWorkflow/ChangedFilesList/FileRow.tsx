@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { memo, useCallback } from "react";
 
 import type { FileChange, FileChangeStatus } from "@src/api/http/project";
 import Button from "@src/components/Button";
@@ -71,4 +71,4 @@ const FileRow: React.FC<FileRowProps> = ({ file, commentCounts, onClick }) => {
   );
 };
 
-export default FileRow;
+export default memo(FileRow);

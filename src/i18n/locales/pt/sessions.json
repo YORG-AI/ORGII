@@ -675,7 +675,9 @@
       "empty": "Nenhuma ação encontrada.",
       "unpinAll": "Desafixar tudo",
       "insert": "Inserir"
-    }
+    },
+    "compactArgHint": "<foco opcional do resumo>",
+    "compactCommandDescription": "Resume o contexto antigo para liberar espaço. Opcional: /compact <foco do resumo>"
   },
   "listPanel": {
     "showingOf": "Mostrando {{filtered}} de {{total}}",
@@ -734,6 +736,22 @@
         "sessions": "Sessões",
         "tokens": "Tokens",
         "cost": "Custo"
+      },
+      "quota": {
+        "empty": "Ainda não há dados de quota. Atualize o uso no Key Vault.",
+        "refresh": "Atualizar",
+        "justNow": "agora mesmo",
+        "minutesAgo": "há {{count}}min",
+        "hoursAgo": "há {{count}}h",
+        "metrics": {
+          "fiveHour": "5h",
+          "sevenDay": "7d",
+          "auto": "Auto",
+          "api": "API",
+          "session": "Session",
+          "weekly": "Semanal",
+          "monthly": "Mensal"
+        }
       },
       "exploreRepos": {
         "title": "Explorar Repos"
@@ -957,7 +975,30 @@
         "mentioned": "Mencionadas"
       }
     },
-    "readOnly": "Somente leitura"
+    "readOnly": "Somente leitura",
+    "panels": {
+      "manageIssues": {
+        "searchPlaceholder": "GitHub search, e.g. is:issue is:open label:bug",
+        "createIssueTrigger": "Issue",
+        "newIssueTitle": "New GitHub Issue",
+        "issueTitlePlaceholder": "Issue title",
+        "issueBodyPlaceholder": "Description",
+        "createIssue": "Create issue",
+        "creatingIssue": "Creating…",
+        "addToChat": "Add",
+        "repositoryLabel": "Repository",
+        "createIssueFailed": "Failed to create issue",
+        "sourceIssues": "Issues",
+        "sourcePrs": "PRs",
+        "stateOpen": "Open",
+        "stateClosed": "Closed",
+        "stateAll": "All states",
+        "assignedToMe": "Assigned to me",
+        "createdByMe": "Created by me",
+        "filters": "Filters",
+        "openInGitHub": "Open in GitHub"
+      }
+    }
   },
   "chatStatus": {
     "approved": "Aprovado",
@@ -997,7 +1038,8 @@
       "Ainda pensando, demorando mais que o habitual...",
       "Trabalhando nisso, demorando mais que o habitual...",
       "Refletindo, demorando mais que o habitual..."
-    ]
+    ],
+    "compacting": "Compactando contexto..."
   },
   "tools": {
     "noResultsFound": "Nenhum resultado encontrado",
@@ -1863,7 +1905,8 @@
       "models": "Modelos",
       "skills": "Skills",
       "workspaceSkills": "Workspace Skills",
-      "userSkills": "User Skills"
+      "userSkills": "User Skills",
+      "commands": "Comandos"
     },
     "diffMenu": {
       "gitActions": "Ações GIT",

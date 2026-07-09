@@ -3,7 +3,7 @@
  *
  * Provides files/documents state management across Files page and FilesExtraSidebar
  */
-import React, { createContext, useContext } from "react";
+import React, { createContext, useContext, useMemo } from "react";
 
 import {
   Document,
@@ -52,20 +52,35 @@ export const FilesProvider: React.FC<{ children: React.ReactNode }> = ({
   // ✨ Sync to global tabs state
   useSyncDocumentFiles(documents, currentDocument?.id || null);
 
-  const value: FilesContextValue = {
-    documents,
-    currentDocument,
-    isLoading,
-    isSaving,
-    filterValue,
-    setFilterValue,
-    createDocument,
-    loadDocument,
-    saveDocument,
-    autoSave,
-    deleteDocument,
-    renameDocument,
-  };
+  const value = useMemo<FilesContextValue>(
+    () => ({
+      documents,
+      currentDocument,
+      isLoading,
+      isSaving,
+      filterValue,
+      setFilterValue,
+      createDocument,
+      loadDocument,
+      saveDocument,
+      autoSave,
+      deleteDocument,
+      renameDocument,
+    }),
+    [
+      documents,
+      currentDocument,
+      isLoading,
+      isSaving,
+      filterValue,
+      createDocument,
+      loadDocument,
+      saveDocument,
+      autoSave,
+      deleteDocument,
+      renameDocument,
+    ]
+  );
 
   return (
     <FilesContext.Provider value={value}>{children}</FilesContext.Provider>

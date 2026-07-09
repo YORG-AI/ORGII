@@ -58,8 +58,33 @@ pub type ExecuteFn = Box<
     dyn FnOnce() -> futures::future::BoxFuture<'static, Result<String, String>> + Send + 'static,
 >;
 
+/// What kind of work a queued job represents.
+///
+/// The worker serializes both kinds identically — the distinction exists
+/// because a *turn* is the only thing the rest of the system may treat as
+/// "the agent is answering the user":
+///
+/// - the frontend flips the session to `running` on an active
+///   `agent:queue_status` and only flips back on a terminal
+///   (`agent:complete` / `agent:error`), which maintenance jobs never emit;
+/// - `agent_send_message` diverts a mid-turn message into the running turn's
+///   `steering_queue`, which only a turn loop ever drains.
+///
+/// A maintenance job that advertised itself as a turn would therefore strand
+/// the session in `running` and swallow the next user message.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScheduledKind {
+    /// A user-facing agent turn: broadcasts running status, drains steering.
+    Turn,
+    /// Internal work that must not overlap a turn (e.g. manual compaction).
+    /// Occupies the worker but is invisible to turn-lifecycle consumers.
+    Maintenance,
+}
+
 /// A single message waiting to be processed by the scheduler worker.
 pub struct ScheduledMessage {
+    /// Whether this job is a user-facing turn or internal maintenance.
+    pub kind: ScheduledKind,
     /// Stable ID for this queued item (different from `turn_id`, which is
     /// assigned only when the message actually starts executing).
     pub message_id: String,
@@ -81,7 +106,7 @@ pub struct ScheduledMessage {
     pub execute: ExecuteFn,
 }
 
-fn panic_payload_to_string(payload: &(dyn Any + Send)) -> String {
+pub(crate) fn panic_payload_to_string(payload: &(dyn Any + Send)) -> String {
     if let Some(message) = payload.downcast_ref::<String>() {
         return message.clone();
     }
@@ -95,6 +120,7 @@ impl std::fmt::Debug for ScheduledMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ScheduledMessage")
             .field("message_id", &self.message_id)
+            .field("kind", &self.kind)
             .field("content_len", &self.content.len())
             .finish()
     }
@@ -111,7 +137,10 @@ pub struct QueueStatus {
     pub session_id: String,
     /// Number of messages waiting (not including the one currently running).
     pub pending_count: usize,
-    /// Whether a message is currently being processed.
+    /// Whether a **turn** is currently being processed. Deliberately not
+    /// "the worker is busy": the frontend turns this into the session's
+    /// `running` status and only clears it on a turn terminal event, so a
+    /// maintenance job must never set it.
     pub is_processing: bool,
 }
 
@@ -161,8 +190,10 @@ pub struct DialogScheduler {
     /// Monotonic queue generation. Incrementing this invalidates messages
     /// enqueued under older generations without needing to recreate the worker.
     generation: Arc<AtomicU64>,
-    /// Whether the worker is currently executing a message.
+    /// Whether the worker is currently executing a message of any kind.
     processing: Arc<std::sync::atomic::AtomicBool>,
+    /// Whether the job the worker is currently executing is a [`ScheduledKind::Turn`].
+    processing_turn: Arc<std::sync::atomic::AtomicBool>,
     client_message_ids: Arc<TokioMutex<HashSet<String>>>,
 }
 
@@ -181,6 +212,7 @@ impl DialogScheduler {
             pending: Arc::new(AtomicUsize::new(0)),
             generation: Arc::new(AtomicU64::new(0)),
             processing: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            processing_turn: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             client_message_ids: Arc::new(TokioMutex::new(HashSet::new())),
         }
     }
@@ -200,6 +232,7 @@ impl DialogScheduler {
             pending: Arc::clone(&self.pending),
             generation: Arc::clone(&self.generation),
             processing: Arc::clone(&self.processing),
+            processing_turn: Arc::clone(&self.processing_turn),
             client_message_ids: Arc::clone(&self.client_message_ids),
         };
         tokio::spawn(worker.run());
@@ -295,9 +328,18 @@ impl DialogScheduler {
         self.broadcast_queue_status();
     }
 
-    /// Whether a message is currently being executed.
+    /// Whether the worker is currently executing a job of any kind.
+    ///
+    /// This is "the worker is busy" — it includes maintenance jobs. Callers
+    /// asking "is the agent answering the user right now?" want
+    /// [`Self::is_turn_processing`] instead.
     pub fn is_processing(&self) -> bool {
         self.processing.load(Ordering::Relaxed)
+    }
+
+    /// Whether the worker is currently executing a user-facing turn.
+    pub fn is_turn_processing(&self) -> bool {
+        self.processing_turn.load(Ordering::Relaxed)
     }
 
     /// Snapshot of the current queue state.
@@ -305,7 +347,7 @@ impl DialogScheduler {
         QueueStatus {
             session_id: self.session_id.clone(),
             pending_count: self.pending_count(),
-            is_processing: self.is_processing(),
+            is_processing: self.is_turn_processing(),
         }
     }
 
@@ -327,6 +369,7 @@ struct WorkerTask {
     pending: Arc<AtomicUsize>,
     generation: Arc<AtomicU64>,
     processing: Arc<std::sync::atomic::AtomicBool>,
+    processing_turn: Arc<std::sync::atomic::AtomicBool>,
     client_message_ids: Arc<TokioMutex<HashSet<String>>>,
 }
 
@@ -367,11 +410,13 @@ impl WorkerTask {
                     count.checked_sub(1)
                 });
 
+            let is_turn = msg.kind == ScheduledKind::Turn;
             self.processing.store(true, Ordering::Relaxed);
+            self.processing_turn.store(is_turn, Ordering::Relaxed);
 
             info!(
-                "[scheduler] Processing message {} for session {}",
-                msg.message_id, self.session_id
+                "[scheduler] Processing {:?} {} for session {}",
+                msg.kind, msg.message_id, self.session_id
             );
 
             // Lifecycle: queued → running.
@@ -381,16 +426,22 @@ impl WorkerTask {
                 crate::foundation::session_bridge::TurnIntentBridgeStatus::Running,
             );
 
-            // Broadcast "now processing" status
-            broadcast_event(
-                "agent:queue_status",
-                serde_json::json!({
-                    "sessionId": self.session_id,
-                    "pendingCount": self.pending.load(Ordering::Relaxed),
-                    "isProcessing": true,
-                    "currentMessageId": msg.message_id,
-                }),
-            );
+            // Broadcast "now processing" status. Turn-only: the frontend
+            // reads an active queue status as "a turn started" and clears it
+            // only on a turn terminal event, which maintenance jobs never
+            // emit — advertising one here would strand the session in
+            // `running` and swallow every later user message.
+            if is_turn {
+                broadcast_event(
+                    "agent:queue_status",
+                    serde_json::json!({
+                        "sessionId": self.session_id,
+                        "pendingCount": self.pending.load(Ordering::Relaxed),
+                        "isProcessing": true,
+                        "currentMessageId": msg.message_id,
+                    }),
+                );
+            }
 
             let client_message_id = msg.client_message_id.clone();
             let turn_intent_id = msg.turn_intent_id.clone();
@@ -440,12 +491,17 @@ impl WorkerTask {
                         &turn_intent_id,
                         crate::foundation::session_bridge::TurnIntentBridgeStatus::Failed,
                     );
-                    let error_code = classify_streaming_error_message(err);
-                    let streaming_error = StreamingError::new(err.clone(), error_code)
-                        .with_details(serde_json::json!({
-                            "messageId": msg.message_id
-                        }));
-                    broadcast_agent_error_structured(&self.session_id, &streaming_error);
+                    // Turn-only: an `agent:error` renders as a chat bubble.
+                    // Maintenance jobs report failures through their own
+                    // channel (e.g. the manual-compact command's reply).
+                    if is_turn {
+                        let error_code = classify_streaming_error_message(err);
+                        let streaming_error = StreamingError::new(err.clone(), error_code)
+                            .with_details(serde_json::json!({
+                                "messageId": msg.message_id
+                            }));
+                        broadcast_agent_error_structured(&self.session_id, &streaming_error);
+                    }
                 }
             }
 
@@ -455,6 +511,7 @@ impl WorkerTask {
                     .await
                     .remove(client_message_id);
             }
+            self.processing_turn.store(false, Ordering::Relaxed);
             self.processing.store(false, Ordering::Relaxed);
             self.broadcast_idle_status();
         }
@@ -488,6 +545,7 @@ mod tests {
 
         scheduler
             .enqueue(ScheduledMessage {
+                kind: ScheduledKind::Turn,
                 message_id: "running-before-rewind".to_string(),
                 generation: 0,
                 client_message_id: None,
@@ -506,6 +564,7 @@ mod tests {
         let stale_executed_for_closure = Arc::clone(&stale_executed);
         scheduler
             .enqueue(ScheduledMessage {
+                kind: ScheduledKind::Turn,
                 message_id: "queued-before-rewind".to_string(),
                 generation: 0,
                 client_message_id: None,
@@ -537,6 +596,7 @@ mod tests {
 
         let first = scheduler
             .enqueue(ScheduledMessage {
+                kind: ScheduledKind::Turn,
                 message_id: "first".to_string(),
                 generation: 0,
                 client_message_id: Some("client-1".to_string()),
@@ -554,6 +614,7 @@ mod tests {
 
         let second = scheduler
             .enqueue(ScheduledMessage {
+                kind: ScheduledKind::Turn,
                 message_id: "second".to_string(),
                 generation: 0,
                 client_message_id: Some("client-1".to_string()),
@@ -571,6 +632,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn maintenance_job_never_reports_a_running_turn() {
+        let scheduler = DialogScheduler::new("session-maintenance", 8);
+        let observed_turn_processing = Arc::new(AtomicUsize::new(0));
+        let observed_worker_busy = Arc::new(AtomicUsize::new(0));
+        let release = Arc::new(tokio::sync::Notify::new());
+
+        let released = Arc::clone(&release);
+        let turn_flag = Arc::clone(&observed_turn_processing);
+        let busy_flag = Arc::clone(&observed_worker_busy);
+        let probe = Arc::new(scheduler);
+        let probe_for_job = Arc::clone(&probe);
+
+        probe
+            .enqueue(ScheduledMessage {
+                kind: ScheduledKind::Maintenance,
+                message_id: "compact".to_string(),
+                generation: 0,
+                client_message_id: None,
+                turn_intent_id: String::new(),
+                content: "[manual compact]".to_string(),
+                execute: Box::new(move || {
+                    Box::pin(async move {
+                        // Sampled from inside the job: the worker is busy, but
+                        // no turn is running — otherwise `agent_send_message`
+                        // would divert into a steering queue nobody drains and
+                        // the frontend would strand the session in `running`.
+                        if probe_for_job.is_turn_processing() {
+                            turn_flag.fetch_add(1, Ordering::SeqCst);
+                        }
+                        if probe_for_job.is_processing() {
+                            busy_flag.fetch_add(1, Ordering::SeqCst);
+                        }
+                        released.notified().await;
+                        Ok(String::new())
+                    })
+                }),
+            })
+            .await
+            .expect("enqueue succeeds");
+
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        release.notify_one();
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        assert_eq!(observed_turn_processing.load(Ordering::SeqCst), 0);
+        assert_eq!(observed_worker_busy.load(Ordering::SeqCst), 1);
+        assert!(!probe.is_processing());
+        assert!(!probe.is_turn_processing());
+    }
+
+    #[tokio::test]
     async fn message_after_invalidation_runs() {
         let scheduler = DialogScheduler::new("session-b", 8);
         let executed = Arc::new(AtomicUsize::new(0));
@@ -580,6 +692,7 @@ mod tests {
         let executed_for_closure = Arc::clone(&executed);
         scheduler
             .enqueue(ScheduledMessage {
+                kind: ScheduledKind::Turn,
                 message_id: "queued-after-rewind".to_string(),
                 generation: 0,
                 client_message_id: None,

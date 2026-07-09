@@ -12,11 +12,21 @@
  *   MAX_PRS     — 100 per repo
  *   TTL         — 5 minutes
  */
-import type { GitHubIssue, OpenPRItem } from "@src/api/tauri/github";
+import type {
+  GitHubChecksSummary,
+  GitHubIssue,
+  GitHubIssueComment,
+  GitHubPrReview,
+  GitHubReviewComment,
+  OpenPRItem,
+  PrFile,
+} from "@src/api/tauri/github";
 
 const MAX_REPOS = 2;
 const MAX_ISSUES_PER_SECTION = 200;
 const MAX_PRS = 100;
+/** Distinct PR detail snapshots retained (LRU across all repos). */
+const MAX_PR_DETAILS = 20;
 const TTL_MS = 5 * 60 * 1000;
 
 export interface CachedIssues {
@@ -30,6 +40,21 @@ export interface CachedPrs {
   cachedAt: number;
 }
 
+/** Full PR-detail snapshot for the tabbed detail view (Conversation/Commits/
+ * Checks/Changes). Keyed by `${repoFullName}#${prNumber}`. */
+export interface CachedPrDetail {
+  detail: Record<string, unknown> | null;
+  headSha: string | null;
+  baseRef: string | null;
+  conversation: GitHubIssueComment[];
+  reviews: GitHubPrReview[];
+  reviewComments: GitHubReviewComment[];
+  commits: Record<string, unknown>[];
+  files: PrFile[];
+  checks: GitHubChecksSummary | null;
+  cachedAt: number;
+}
+
 // JS Maps iterate in insertion order, so delete+reinsert = LRU promotion.
 function lruGet<T>(cache: Map<string, T>, key: string): T | null {
   const entry = cache.get(key);
@@ -40,10 +65,15 @@ function lruGet<T>(cache: Map<string, T>, key: string): T | null {
   return entry;
 }
 
-function lruSet<T>(cache: Map<string, T>, key: string, value: T): void {
+function lruSet<T>(
+  cache: Map<string, T>,
+  key: string,
+  value: T,
+  maxSize: number = MAX_REPOS
+): void {
   if (cache.has(key)) {
     cache.delete(key); // remove before reinserting to update order
-  } else if (cache.size >= MAX_REPOS) {
+  } else if (cache.size >= maxSize) {
     // Evict least-recently-used (first key in insertion order)
     cache.delete(cache.keys().next().value as string);
   }
@@ -52,6 +82,52 @@ function lruSet<T>(cache: Map<string, T>, key: string, value: T): void {
 
 const issueCache = new Map<string, CachedIssues>();
 const prCache = new Map<string, CachedPrs>();
+
+// ── Disk persistence (survive app restart) ──────────────────────────────────
+//
+// The list caches (issues + PRs) are persisted to the webview's localStorage so
+// a cold start paints the last-seen lists instantly, then revalidates. The
+// revalidation is cheap because the Rust client sends `If-None-Match` and gets
+// a `304 Not Modified` back when nothing changed. Only the bounded list caches
+// are persisted (not the heavier per-PR detail cache).
+
+const STORAGE_KEY_ISSUES = "orgii.ghcache.issues.v1";
+const STORAGE_KEY_PRS = "orgii.ghcache.prs.v1";
+
+function safeLocalStorage(): Storage | null {
+  try {
+    return typeof localStorage !== "undefined" ? localStorage : null;
+  } catch {
+    return null;
+  }
+}
+
+function hydrate<T>(storageKey: string, cache: Map<string, T>): void {
+  const store = safeLocalStorage();
+  if (!store) return;
+  try {
+    const raw = store.getItem(storageKey);
+    if (!raw) return;
+    const entries = JSON.parse(raw) as [string, T][];
+    if (!Array.isArray(entries)) return;
+    for (const [key, value] of entries) cache.set(key, value);
+  } catch {
+    // Corrupt/legacy payload — ignore and start fresh.
+  }
+}
+
+function persist<T>(storageKey: string, cache: Map<string, T>): void {
+  const store = safeLocalStorage();
+  if (!store) return;
+  try {
+    store.setItem(storageKey, JSON.stringify(Array.from(cache.entries())));
+  } catch {
+    // Quota exceeded or serialization failure — the in-memory cache still works.
+  }
+}
+
+hydrate(STORAGE_KEY_ISSUES, issueCache);
+hydrate(STORAGE_KEY_PRS, prCache);
 
 // ── Issues ────────────────────────────────────────────────────────────────────
 
@@ -75,6 +151,7 @@ export function updateCachedOpenIssues(
     closedIssues: existing?.closedIssues ?? [],
     cachedAt: Date.now(),
   });
+  persist(STORAGE_KEY_ISSUES, issueCache);
 }
 
 export function updateCachedClosedIssues(
@@ -87,6 +164,7 @@ export function updateCachedClosedIssues(
     closedIssues: closedIssues.slice(0, MAX_ISSUES_PER_SECTION),
     cachedAt: Date.now(),
   });
+  persist(STORAGE_KEY_ISSUES, issueCache);
 }
 
 // ── Pull Requests ─────────────────────────────────────────────────────────────
@@ -106,4 +184,36 @@ export function setCachedPrs(repoKey: string, prs: OpenPRItem[]) {
     prs: prs.slice(0, MAX_PRS),
     cachedAt: Date.now(),
   });
+  persist(STORAGE_KEY_PRS, prCache);
+}
+
+// ── Pull Request detail ─────────────────────────────────────────────────────
+
+const prDetailCache = new Map<string, CachedPrDetail>();
+
+/** Cache key for a PR detail snapshot. */
+export function prDetailKey(repoFullName: string, prNumber: number): string {
+  return `${repoFullName}#${prNumber}`;
+}
+
+export function getCachedPrDetail(key: string): CachedPrDetail | null {
+  return lruGet(prDetailCache, key);
+}
+
+export function isPrDetailStale(key: string): boolean {
+  const entry = prDetailCache.get(key);
+  if (!entry) return true;
+  return Date.now() - entry.cachedAt > TTL_MS;
+}
+
+export function setCachedPrDetail(
+  key: string,
+  detail: Omit<CachedPrDetail, "cachedAt">
+) {
+  lruSet(
+    prDetailCache,
+    key,
+    { ...detail, cachedAt: Date.now() },
+    MAX_PR_DETAILS
+  );
 }

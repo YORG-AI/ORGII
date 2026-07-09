@@ -103,6 +103,44 @@ describe("session replay diff sections", () => {
     expect(sections).toEqual([]);
   });
 
+  it("renders imported Codex apply_patch Update File events", () => {
+    const patchText = [
+      "*** Begin Patch",
+      "*** Update File: src/app.ts",
+      "@@",
+      "-const oldValue = true;",
+      "+const newValue = true;",
+      " export const kept = 1;",
+      "*** End Patch",
+    ].join("\n");
+
+    const sections = buildSessionReplayDiffSectionItems({
+      entryId: "patch-1",
+      filePath: "src/app.ts",
+      fileName: "app.ts",
+      event: minimalSessionEvent({
+        id: "patch-1",
+        functionName: "edit_file_by_replace",
+        args: {
+          patch_text: patchText,
+          file_path: "src/app.ts",
+          target_file: "src/app.ts",
+        },
+        result: { content: "Success. Updated src/app.ts" },
+        filePath: "src/app.ts",
+      }),
+    });
+
+    expect(sections).toHaveLength(1);
+    expect(sections[0].file.path).toBe("src/app.ts");
+    expect(sections[0].file.oldContent).toBe(
+      "const oldValue = true;\nexport const kept = 1;"
+    );
+    expect(sections[0].file.newContent).toBe(
+      "const newValue = true;\nexport const kept = 1;"
+    );
+  });
+
   it("keeps distant hunks in one unified content pair", () => {
     const sections = buildSessionReplayDiffSectionItems(
       diffEntry(

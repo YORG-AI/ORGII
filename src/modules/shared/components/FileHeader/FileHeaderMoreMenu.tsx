@@ -27,6 +27,7 @@ import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import Dropdown from "@src/components/Dropdown";
+import DropdownItem from "@src/components/Dropdown/DropdownItem";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_WIDTHS,
@@ -42,30 +43,6 @@ import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { TabBarTrailingIconButton } from "@src/modules/WorkStation/shared/TabBar/components/TabBarTrailingIconButton";
 import { getFileManagerRevealLabelKey } from "@src/util/platform/fileManagerLabels";
-
-interface MenuItemContentProps {
-  icon?: React.ReactNode;
-  label: React.ReactNode;
-  shortcut?: string;
-}
-
-function MenuItemContent({ icon, label, shortcut }: MenuItemContentProps) {
-  return (
-    <>
-      <span className="flex min-w-0 flex-1 items-center gap-2">
-        {icon}
-        <span className="truncate">{label}</span>
-      </span>
-      {shortcut && (
-        <KeyboardShortcut
-          shortcut={shortcut}
-          variant={KEYBOARD_SHORTCUT_VARIANT.dropdown}
-          className="ml-6 shrink-0"
-        />
-      )}
-    </>
-  );
-}
 
 export interface FileHeaderMoreMenuProps {
   // Visibility flags
@@ -224,113 +201,92 @@ export const FileHeaderMoreMenu: React.FC<FileHeaderMoreMenuProps> = ({
         <div
           className={`${DROPDOWN_CLASSES.menuPanelBase} ${DROPDOWN_WIDTHS.wideMenuClass}`}
         >
-          <button
-            type="button"
-            onClick={onSaveClick}
+          <DropdownItem
+            icon={<Save size={HEADER_ICON_SIZE.sm} />}
             disabled={saveDisabled}
-            className={`${DROPDOWN_CLASSES.menuActionItem} ${
-              saveDisabled ? DROPDOWN_CLASSES.itemDisabled : ""
-            }`}
+            suffix={
+              saveShortcut ? (
+                <KeyboardShortcut
+                  shortcut={saveShortcut}
+                  variant={KEYBOARD_SHORTCUT_VARIANT.dropdown}
+                />
+              ) : undefined
+            }
+            onClick={onSaveClick}
           >
-            <MenuItemContent
-              icon={<Save size={HEADER_ICON_SIZE.sm} />}
-              label={t("common:actions.save")}
-              shortcut={saveShortcut}
-            />
-          </button>
+            {t("common:actions.save")}
+          </DropdownItem>
 
-          <button
-            type="button"
-            onClick={onDiscardClick}
+          <DropdownItem
+            icon={<Undo2 size={HEADER_ICON_SIZE.sm} />}
             disabled={discardDisabled}
-            className={`${DROPDOWN_CLASSES.menuActionItem} ${
-              discardDisabled ? DROPDOWN_CLASSES.itemDisabled : ""
-            }`}
+            onClick={onDiscardClick}
           >
-            <MenuItemContent
-              icon={<Undo2 size={HEADER_ICON_SIZE.sm} />}
-              label={t("common:workstation.discardChanges")}
-            />
-          </button>
+            {t("common:workstation.discardChanges")}
+          </DropdownItem>
 
           <div className={DROPDOWN_CLASSES.menuSeparator} />
 
-          <button
-            type="button"
-            onClick={onSearchClick}
+          <DropdownItem
+            icon={<Search size={HEADER_ICON_SIZE.sm} />}
             disabled={searchDisabled}
-            className={`${DROPDOWN_CLASSES.menuActionItem} ${
-              searchDisabled ? DROPDOWN_CLASSES.itemDisabled : ""
-            }`}
-          >
-            <MenuItemContent
-              icon={<Search size={HEADER_ICON_SIZE.sm} />}
-              label={t("actions.search")}
-              shortcut={searchShortcut}
-            />
-          </button>
-
-          <button
-            type="button"
-            onClick={onGoToLineClick}
-            disabled={goToLineDisabled}
-            className={`${DROPDOWN_CLASSES.menuActionItem} ${
-              goToLineDisabled ? DROPDOWN_CLASSES.itemDisabled : ""
-            }`}
-          >
-            <MenuItemContent
-              icon={<Hash size={HEADER_ICON_SIZE.sm} />}
-              label={t("selectors.editorSpotlight.modes.goToLine.label")}
-              shortcut={goToLineShortcut}
-            />
-          </button>
-
-          <button
-            type="button"
-            onClick={onCopyRelativePathClick}
-            disabled={copyRelativePathDisabled}
-            className={`${DROPDOWN_CLASSES.menuActionItem} ${
-              copyRelativePathDisabled ? DROPDOWN_CLASSES.itemDisabled : ""
-            }`}
-          >
-            <MenuItemContent
-              icon={<Copy size={HEADER_ICON_SIZE.sm} />}
-              label={t("common:actions.copyRelativePath")}
-            />
-          </button>
-
-          <button
-            type="button"
-            onClick={onRevealInFileManagerClick}
-            disabled={revealInFileManagerDisabled}
-            className={`${DROPDOWN_CLASSES.menuActionItem} ${
-              revealInFileManagerDisabled ? DROPDOWN_CLASSES.itemDisabled : ""
-            }`}
-          >
-            <MenuItemContent
-              icon={<FolderOpen size={HEADER_ICON_SIZE.sm} />}
-              label={t(revealInFileManagerLabelKey)}
-            />
-          </button>
-
-          <button
-            type="button"
-            onClick={onReloadClick}
-            disabled={reloadDisabled}
-            className={`${DROPDOWN_CLASSES.menuActionItem} ${
-              reloadDisabled ? DROPDOWN_CLASSES.itemDisabled : ""
-            }`}
-          >
-            <MenuItemContent
-              icon={
-                <RefreshCw
-                  size={HEADER_ICON_SIZE.sm}
-                  className={reloadSpinClass}
+            suffix={
+              searchShortcut ? (
+                <KeyboardShortcut
+                  shortcut={searchShortcut}
+                  variant={KEYBOARD_SHORTCUT_VARIANT.dropdown}
                 />
-              }
-              label={t("common:actions.refresh")}
-            />
-          </button>
+              ) : undefined
+            }
+            onClick={onSearchClick}
+          >
+            {t("actions.search")}
+          </DropdownItem>
+
+          <DropdownItem
+            icon={<Hash size={HEADER_ICON_SIZE.sm} />}
+            disabled={goToLineDisabled}
+            suffix={
+              goToLineShortcut ? (
+                <KeyboardShortcut
+                  shortcut={goToLineShortcut}
+                  variant={KEYBOARD_SHORTCUT_VARIANT.dropdown}
+                />
+              ) : undefined
+            }
+            onClick={onGoToLineClick}
+          >
+            {t("selectors.editorSpotlight.modes.goToLine.label")}
+          </DropdownItem>
+
+          <DropdownItem
+            icon={<Copy size={HEADER_ICON_SIZE.sm} />}
+            disabled={copyRelativePathDisabled}
+            onClick={onCopyRelativePathClick}
+          >
+            {t("common:actions.copyRelativePath")}
+          </DropdownItem>
+
+          <DropdownItem
+            icon={<FolderOpen size={HEADER_ICON_SIZE.sm} />}
+            disabled={revealInFileManagerDisabled}
+            onClick={onRevealInFileManagerClick}
+          >
+            {t(revealInFileManagerLabelKey)}
+          </DropdownItem>
+
+          <DropdownItem
+            icon={
+              <RefreshCw
+                size={HEADER_ICON_SIZE.sm}
+                className={reloadSpinClass}
+              />
+            }
+            disabled={reloadDisabled}
+            onClick={onReloadClick}
+          >
+            {t("common:actions.refresh")}
+          </DropdownItem>
 
           <div className={DROPDOWN_CLASSES.menuSeparator} />
 
@@ -371,19 +327,13 @@ export const FileHeaderMoreMenu: React.FC<FileHeaderMoreMenuProps> = ({
 
           <div className={DROPDOWN_CLASSES.menuSeparator} />
 
-          <button
-            type="button"
-            onClick={onMoreSettingsClick}
+          <DropdownItem
+            icon={<Settings size={HEADER_ICON_SIZE.sm} />}
             disabled={!showMoreSettingsAction}
-            className={`${DROPDOWN_CLASSES.menuActionItem} ${
-              showMoreSettingsAction ? "" : DROPDOWN_CLASSES.itemDisabled
-            }`}
+            onClick={onMoreSettingsClick}
           >
-            <MenuItemContent
-              icon={<Settings size={HEADER_ICON_SIZE.sm} />}
-              label={t("common:actions.moreSettings")}
-            />
-          </button>
+            {t("common:actions.moreSettings")}
+          </DropdownItem>
         </div>
       }
       position="bottom-end"

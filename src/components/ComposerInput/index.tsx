@@ -98,6 +98,7 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
   function ComposerInput(props, ref) {
     const {
       placeholder = "Type your message...",
+      trailingHint = null,
       initialContent = "",
       onContentChange,
       onAtMention,
@@ -502,6 +503,12 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
         }
       };
       const handleDropEvent = (event: DragEvent) => {
+        // Always prevent browser default drop behavior on the contenteditable
+        // host. OS file drops are handled by GlobalDragDrop → droppedFilesAtom
+        // → useDroppedFilesConsumer which inserts a pill; letting the browser
+        // also insert the file name/path as raw text would corrupt the editor
+        // and, in certain timing windows, produce an empty conversation round.
+        event.preventDefault();
         ops.markHistoryBoundary();
         if (handleDrop(event)) {
           ops.commitHistoryBoundary();
@@ -827,10 +834,13 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
             ref={hostRef}
             className={`composer-input-content ${isDark ? "dark" : "light"} ${
               hostIsEmpty ? "is-empty" : ""
-            }`}
+            } ${trailingHint && !hostIsEmpty ? "has-trailing-hint" : ""}`}
             contentEditable={editable}
             suppressContentEditableWarning
             data-placeholder={placeholder}
+            data-trailing-hint={
+              trailingHint && !hostIsEmpty ? trailingHint : undefined
+            }
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck={false}

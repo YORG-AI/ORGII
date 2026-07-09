@@ -29,6 +29,8 @@
 pub enum GatewayCommand {
     /// Drop the binding for the current chat. Next message re-routes.
     NewSession,
+    /// Switch the bound channel session model without dispatching to the agent.
+    Model(Option<String>),
     /// Emit the current binding + running-session summary back to the channel.
     Status,
     /// Manually compact the bound session's transcript and fork to a
@@ -66,6 +68,7 @@ pub fn parse(content: &str) -> Option<GatewayCommand> {
     match head.as_str() {
         "/new" | "/reset" => bare_command(rest, GatewayCommand::NewSession),
         "/status" => bare_command(rest, GatewayCommand::Status),
+        "/model" => Some(GatewayCommand::Model((!rest.is_empty()).then(|| rest.to_string()))),
         "/compact" => bare_command(rest, GatewayCommand::Compact),
         "/help" | "/commands" => bare_command(rest, GatewayCommand::Help),
         _ => None,
@@ -106,6 +109,19 @@ mod tests {
     fn parses_compact() {
         assert_eq!(parse("/compact"), Some(GatewayCommand::Compact));
         assert_eq!(parse("  /COMPACT  "), Some(GatewayCommand::Compact));
+    }
+
+    #[test]
+    fn parses_model_command() {
+        assert_eq!(parse("/model"), Some(GatewayCommand::Model(None)));
+        assert_eq!(
+            parse("/model gpt-5.5"),
+            Some(GatewayCommand::Model(Some("gpt-5.5".to_string())))
+        );
+        assert_eq!(
+            parse("  /MODEL fable  "),
+            Some(GatewayCommand::Model(Some("fable".to_string())))
+        );
     }
 
     /// Prose that mentions `/compact` must not fire the command.

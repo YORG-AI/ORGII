@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ADD_CONNECTION_TEXT_INPUT_CLASS } from "./formInputClass";
+import { AddConnectionFormField } from "./AddConnectionFormField";
 
 export interface TursoConnectionFieldsProps {
   tursoUrl: string;
@@ -20,34 +20,27 @@ export const TursoConnectionFields = memo(function TursoConnectionFields({
 
   return (
     <>
-      <div className="mb-4">
-        <label className="mb-1 block text-xs font-medium text-text-2">
-          {t("database.databaseUrl")}
-        </label>
-        <input
-          type="text"
-          value={tursoUrl}
-          onChange={(event) => onTursoUrlChange(event.target.value)}
-          placeholder="libsql://my-db-username.turso.io"
-          className={ADD_CONNECTION_TEXT_INPUT_CLASS}
-        />
-      </div>
-      <div className="mb-4">
-        <label className="mb-1 block text-xs font-medium text-text-2">
-          {t("database.authToken")}{" "}
-          <span className="font-normal text-text-4">({t("optional")})</span>
-        </label>
-        <input
-          type="password"
-          value={tursoToken}
-          onChange={(event) => onTursoTokenChange(event.target.value)}
-          placeholder="eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9..."
-          className={ADD_CONNECTION_TEXT_INPUT_CLASS}
-        />
-        <p className="mt-1 text-[10px] text-text-4">
-          {t("database.tursoTokenHint")}
-        </p>
-      </div>
+      <AddConnectionFormField
+        className="mb-4"
+        label={t("database.databaseUrl")}
+        value={tursoUrl}
+        onChange={onTursoUrlChange}
+        placeholder="libsql://my-db-username.turso.io"
+      />
+      <AddConnectionFormField
+        className="mb-4"
+        label={
+          <>
+            {t("database.authToken")}{" "}
+            <span className="font-normal text-text-4">({t("optional")})</span>
+          </>
+        }
+        type="password"
+        value={tursoToken}
+        onChange={onTursoTokenChange}
+        placeholder="eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9..."
+        hint={t("database.tursoTokenHint")}
+      />
     </>
   );
 });

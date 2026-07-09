@@ -91,8 +91,8 @@ export const EDITOR_MENU_ITEMS: DropdownMenuItem[] = [
 // ============================================
 
 export const STYLE_CONFIG = {
-  dropdownWidth: "280px",
-  secondLayerWidth: "280px",
+  dropdownWidth: "180px",
+  secondLayerWidth: "240px",
   maxHeight: "240px",
   itemHeight: "36px",
   zIndex: 99999,

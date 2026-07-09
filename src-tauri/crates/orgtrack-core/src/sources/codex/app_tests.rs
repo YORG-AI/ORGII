@@ -77,6 +77,183 @@ fn parses_codex_jsonl_into_replay_chunks() {
 }
 
 #[test]
+fn codex_shell_command_renders_as_terminal_when_not_search() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-history-shell-command-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-shell-command.jsonl");
+    let content = r#"{"timestamp":"2026-02-11T06:16:07.000Z","type":"response_item","payload":{"type":"function_call","name":"shell_command","arguments":"{\"command\":\"git status --short\",\"workdir\":\"/tmp/project\"}","call_id":"call_terminal"}}
+{"timestamp":"2026-02-11T06:16:08.000Z","type":"response_item","payload":{"type":"function_call_output","call_id":"call_terminal","output":" M src/lib.rs"}}
+"#;
+    std::fs::write(&path, content).expect("write fixture");
+
+    let chunks = load_codex_app_from_path("codexapp-shell-command", &path).expect("parse");
+
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(
+        chunks[0].function,
+        imported_history::FUNCTION_RUN_COMMAND_LINE
+    );
+    assert_eq!(
+        chunks[0].args.get("command").and_then(Value::as_str),
+        Some("git status --short")
+    );
+    assert_eq!(
+        chunks[0].args.get("cwd").and_then(Value::as_str),
+        Some("/tmp/project")
+    );
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn codex_rg_shell_command_renders_as_code_search() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-history-rg-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-rg.jsonl");
+    let content = r#"{"timestamp":"2026-02-11T06:16:07.000Z","type":"response_item","payload":{"type":"function_call","name":"shell_command","arguments":"{\"command\":\"rg -n \\\"Shell Command\\\" src\"}","call_id":"call_rg"}}
+{"timestamp":"2026-02-11T06:16:08.000Z","type":"response_item","payload":{"type":"function_call_output","call_id":"call_rg","output":"src/a.rs:10:Shell Command\nsrc/b.rs:20:Shell Command"}}
+"#;
+    std::fs::write(&path, content).expect("write fixture");
+
+    let chunks = load_codex_app_from_path("codexapp-rg", &path).expect("parse");
+
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(chunks[0].function, imported_history::FUNCTION_CODE_SEARCH);
+    assert_eq!(
+        chunks[0].args.get("query").and_then(Value::as_str),
+        Some("Shell Command")
+    );
+    assert_eq!(
+        chunks[0].result.get("content").and_then(Value::as_str),
+        Some("src/a.rs:10:Shell Command\nsrc/b.rs:20:Shell Command")
+    );
+    assert_eq!(
+        chunks[0]
+            .result
+            .get("matches")
+            .and_then(Value::as_array)
+            .map(Vec::len),
+        Some(2)
+    );
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn codex_sed_shell_command_renders_as_read_file() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-history-sed-read-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-sed-read.jsonl");
+    let content = r#"{"timestamp":"2026-02-11T06:16:07.000Z","type":"response_item","payload":{"type":"function_call","name":"shell_command","arguments":"{\"command\":\"sed -n '11,30p' src/app.ts\",\"workdir\":\"/tmp/project\"}","call_id":"call_sed"}}
+{"timestamp":"2026-02-11T06:16:08.000Z","type":"response_item","payload":{"type":"function_call_output","call_id":"call_sed","output":"export const value = 1;"}}
+"#;
+    std::fs::write(&path, content).expect("write fixture");
+
+    let chunks = load_codex_app_from_path("codexapp-sed-read", &path).expect("parse");
+
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(chunks[0].function, imported_history::FUNCTION_READ_FILE);
+    assert_eq!(
+        chunks[0].args.get("path").and_then(Value::as_str),
+        Some("src/app.ts")
+    );
+    assert_eq!(
+        chunks[0].args.get("offset").and_then(Value::as_i64),
+        Some(10)
+    );
+    assert_eq!(
+        chunks[0].args.get("limit").and_then(Value::as_i64),
+        Some(20)
+    );
+    assert_eq!(
+        chunks[0].result.get("output").and_then(Value::as_str),
+        Some("export const value = 1;")
+    );
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn codex_sed_transform_shell_command_stays_terminal() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-history-sed-terminal-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-sed-terminal.jsonl");
+    let content = r#"{"timestamp":"2026-02-11T06:16:07.000Z","type":"response_item","payload":{"type":"function_call","name":"shell_command","arguments":"{\"command\":\"sed 's/old/new/' src/app.ts\",\"workdir\":\"/tmp/project\"}","call_id":"call_sed_transform"}}
+{"timestamp":"2026-02-11T06:16:08.000Z","type":"response_item","payload":{"type":"function_call_output","call_id":"call_sed_transform","output":"new text"}}
+"#;
+    std::fs::write(&path, content).expect("write fixture");
+
+    let chunks = load_codex_app_from_path("codexapp-sed-terminal", &path).expect("parse");
+
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(
+        chunks[0].function,
+        imported_history::FUNCTION_RUN_COMMAND_LINE
+    );
+    assert_eq!(
+        chunks[0].args.get("command").and_then(Value::as_str),
+        Some("sed 's/old/new/' src/app.ts")
+    );
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn codex_apply_patch_exposes_patch_text_and_file_path() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-history-apply-patch-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-apply-patch.jsonl");
+    let patch = "*** Begin Patch\n*** Update File: src/app.rs\n@@\n-old\n+new\n*** End Patch";
+    let arguments = serde_json::json!({ "patch": patch }).to_string();
+    let content = format!(
+        r#"{{"timestamp":"2026-02-11T06:16:07.000Z","type":"response_item","payload":{{"type":"function_call","name":"apply_patch","arguments":{},"call_id":"call_patch"}}}}
+{{"timestamp":"2026-02-11T06:16:08.000Z","type":"response_item","payload":{{"type":"function_call_output","call_id":"call_patch","output":"Done"}}}}
+"#,
+        serde_json::to_string(&arguments).expect("encode args string")
+    );
+    std::fs::write(&path, content).expect("write fixture");
+
+    let chunks = load_codex_app_from_path("codexapp-apply-patch", &path).expect("parse");
+
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(chunks[0].function, imported_history::FUNCTION_EDIT_FILE);
+    assert_eq!(
+        chunks[0].args.get("action").and_then(Value::as_str),
+        Some("apply_patch")
+    );
+    assert_eq!(
+        chunks[0].args.get("file_path").and_then(Value::as_str),
+        Some("src/app.rs")
+    );
+    assert_eq!(
+        chunks[0].args.get("patch_text").and_then(Value::as_str),
+        Some(patch)
+    );
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
 fn parses_codex_session_metadata() {
     let temp_dir = std::env::temp_dir().join(format!(
         "orgii-codex-history-meta-test-{}",

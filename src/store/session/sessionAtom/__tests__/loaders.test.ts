@@ -83,6 +83,9 @@ describe("replaceExternalHistorySourceFirstPage", () => {
     iconId: "codex",
     displayName: "Codex",
     groupLabel: "Codex App",
+    listable: true,
+    replayable: true,
+    supportsWindowedReplay: false,
     loadChunks: async () => [],
   } as const;
 

@@ -10,13 +10,12 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { formatAgentType } from "@src/assets/providers";
-import DatePicker from "@src/components/DatePicker";
 import ModelIcon from "@src/components/ModelIcon";
 import { HEADER_CLASSES } from "@src/config/workstation/tokens";
 import { DETAIL_PANEL_TOKENS } from "@src/modules/shared/layouts/blocks";
 
+import DateRangePills from "../../components/DateRangePills";
 import {
-  DATE_RANGE_OPTIONS,
   DEFAULT_RANGE,
   type ProfileDateRange,
 } from "../CodingProfileView/config";
@@ -43,11 +42,6 @@ interface UsageHistoryFilterSidebarProps {
   customEndDate?: string;
   onCustomDatesChange?: (startDate: string, endDate: string) => void;
 }
-
-const RANGE_PILL_BASE =
-  "flex items-center justify-center rounded-md px-2 py-1.5 text-[12px] font-medium transition-colors cursor-pointer";
-const RANGE_PILL_ACTIVE = `${RANGE_PILL_BASE} bg-fill-2 text-text-1`;
-const RANGE_PILL_INACTIVE = `${RANGE_PILL_BASE} text-text-3 hover:bg-fill-2 hover:text-text-2`;
 
 const SECTION_CLASS = "mb-4";
 const SECTION_TITLE_CLASS = "mb-2 px-1 text-[12px] font-medium text-text-2";
@@ -112,60 +106,13 @@ const UsageHistoryFilterSidebar: React.FC<UsageHistoryFilterSidebarProps> = ({
             <div className={SECTION_TITLE_CLASS}>
               {t("common:filters.dateRange")}
             </div>
-            <div className="grid grid-cols-3 gap-1">
-              {DATE_RANGE_OPTIONS.filter((opt) => opt.key !== "custom").map(
-                (opt) => (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    className={
-                      filters.dateRange === opt.key
-                        ? RANGE_PILL_ACTIVE
-                        : RANGE_PILL_INACTIVE
-                    }
-                    onClick={() =>
-                      onDateRangeChange(opt.key as ProfileDateRange)
-                    }
-                  >
-                    {opt.label}
-                  </button>
-                )
-              )}
-              <button
-                type="button"
-                className={
-                  filters.dateRange === "custom"
-                    ? RANGE_PILL_ACTIVE
-                    : RANGE_PILL_INACTIVE
-                }
-                onClick={() => onDateRangeChange("custom")}
-              >
-                {t("common:filters.custom")}
-              </button>
-            </div>
-
-            {filters.dateRange === "custom" && onCustomDatesChange && (
-              <div className="mt-2">
-                <DatePicker.RangePicker
-                  value={[
-                    customStartDate ? new Date(customStartDate) : null,
-                    customEndDate ? new Date(customEndDate) : null,
-                  ]}
-                  onChange={(dates) => {
-                    if (dates) {
-                      const start = dates[0]
-                        ? dates[0].toISOString().slice(0, 10)
-                        : "";
-                      const end = dates[1]
-                        ? dates[1].toISOString().slice(0, 10)
-                        : "";
-                      onCustomDatesChange(start, end);
-                    }
-                  }}
-                  size="small"
-                />
-              </div>
-            )}
+            <DateRangePills
+              value={filters.dateRange as ProfileDateRange}
+              onChange={onDateRangeChange}
+              customStartDate={customStartDate}
+              customEndDate={customEndDate}
+              onCustomDatesChange={onCustomDatesChange}
+            />
           </div>
         )}
 

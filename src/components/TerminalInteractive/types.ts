@@ -5,6 +5,10 @@
 export interface TerminalSelectionInfo {
   text: string;
   position: { x: number; y: number };
+  /** 1-based buffer row where the selection starts (from xterm getSelectionPosition) */
+  lineStart?: number;
+  /** 1-based buffer row where the selection ends (from xterm getSelectionPosition) */
+  lineEnd?: number;
 }
 
 /** Methods exposed via ref for terminal search */
@@ -52,6 +56,8 @@ export interface TerminalFileLinkTarget {
 
 export interface TerminalViewProps {
   sessionKey: string;
+  /** Whether this terminal is the active visible pane. */
+  isForeground?: boolean;
   /** Callback when text is selected in the terminal */
   onSelectionChange?: (selection: TerminalSelectionInfo | null) => void;
   /** Callback when terminal receives output */

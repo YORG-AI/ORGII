@@ -524,7 +524,7 @@ export const DispatchCategoryPalette: React.FC<
 
   const items = useMemo((): SpotlightItem[] => {
     if (isSearching) {
-      return filteredOptions.map(optionToItem);
+      return filteredOptions.map((option) => optionToItem(option));
     }
 
     const result: SpotlightItem[] = [];

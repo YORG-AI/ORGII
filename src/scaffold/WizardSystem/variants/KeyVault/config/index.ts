@@ -30,6 +30,21 @@ export {
   type UseProviderRegistryResult,
 } from "../hooks/useProviderRegistry";
 
+export {
+  GENERIC_SETUP_METHOD,
+  GENERIC_SETUP_METHODS_DEFAULT,
+  resolveActiveSetupMethod,
+  resolveGenericSetupMethods,
+  type GenericSetupMethod,
+} from "./genericSetupMethods";
+
+export {
+  findEndpointByBaseUrl,
+  getOfficialBaseUrl,
+  hasEndpointChoice,
+  resolveSelectedEndpoint,
+} from "./providerEndpoints";
+
 // ============================================
 // Default Wizard Data
 // ============================================

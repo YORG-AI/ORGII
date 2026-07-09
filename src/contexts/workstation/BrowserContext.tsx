@@ -13,6 +13,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -385,17 +386,29 @@ export const BrowserProvider: React.FC<{ children: React.ReactNode }> = ({
     saveToStorage(sessions, activeSessionId);
   }, [sessions, activeSessionId]);
 
-  const value: BrowserContextValue = {
-    sessions,
-    activeSessionId,
-    filterValue,
-    setFilterValue,
-    handleSessionClick,
-    handleAddSession,
-    handleCloseSession,
-    updateSession,
-    forceSave,
-  };
+  const value = useMemo<BrowserContextValue>(
+    () => ({
+      sessions,
+      activeSessionId,
+      filterValue,
+      setFilterValue,
+      handleSessionClick,
+      handleAddSession,
+      handleCloseSession,
+      updateSession,
+      forceSave,
+    }),
+    [
+      sessions,
+      activeSessionId,
+      filterValue,
+      handleSessionClick,
+      handleAddSession,
+      handleCloseSession,
+      updateSession,
+      forceSave,
+    ]
+  );
 
   return (
     <BrowserContext.Provider value={value}>{children}</BrowserContext.Provider>

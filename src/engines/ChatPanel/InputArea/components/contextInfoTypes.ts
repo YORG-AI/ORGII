@@ -17,7 +17,7 @@ export const RING_TONE_STROKE: Record<RingTone, string> = {
  *
  * The comfort zone is deliberately wide. ORGII auto-compacts older context
  * around the budget's ~80% mark, so the window never actually overflows in
- * normal use — a calm blue ring for the vast majority of a session is the
+ * normal use - a calm blue ring for the vast majority of a session is the
  * honest signal. Yellow only appears as we approach that auto-compaction
  * point (a "ORGII will tidy up" hint, not "about to fail"), and red is
  * reserved for a genuine, rare overflow past 100%.
@@ -42,7 +42,7 @@ export interface PanelPosition {
   right: number;
 }
 
-// Ring geometry constants — used by both ProgressRing and useContextPanel.
+// Ring geometry constants - used by both ProgressRing and useContextPanel.
 export const RING_SIZE = 14;
 export const RING_STROKE = 1.75;
 export const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;

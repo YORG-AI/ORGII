@@ -11,7 +11,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
-import InlineAlert from "@src/components/InlineAlert";
 import Input from "@src/components/Input";
 import Select from "@src/components/Select";
 import {
@@ -21,7 +20,14 @@ import {
 } from "@src/modules/shared/layouts/SectionLayout";
 
 import { useProviderConfig } from "../../config";
-import { getOfficialBaseUrlForProtocol } from "./providerProtocolUrls";
+import {
+  getOfficialBaseUrl,
+  hasEndpointChoice,
+  resolveSelectedEndpoint,
+} from "../../config/providerEndpoints";
+import { ApiProtocolSectionRow } from "./ApiProtocolSectionRow";
+import { CustomBaseUrlInfoIcon } from "./CustomBaseUrlInfoIcon";
+import { ProviderEndpointSectionRow } from "./ProviderEndpointSectionRow";
 import type { AgentSetupProps } from "./types";
 
 type BaseUrlMode = "official" | "custom";
@@ -42,8 +48,18 @@ const ApiKeyProviderSetup: React.FC<AgentSetupProps> = ({
     (envConfig?.supportedProtocols.length ?? 0) > 1;
   const selectedProtocol =
     data.protocol ?? envConfig?.defaultProtocol ?? "openai";
-  const officialBaseUrl = getOfficialBaseUrlForProtocol(
-    data.agent_type,
+
+  const endpoints = useMemo(
+    () => envConfig?.endpoints ?? [],
+    [envConfig?.endpoints]
+  );
+  const offersEndpointChoice = hasEndpointChoice(endpoints);
+  const selectedEndpoint = resolveSelectedEndpoint(
+    endpoints,
+    data.extracted_base_url
+  );
+  const officialBaseUrl = getOfficialBaseUrl(
+    selectedEndpoint,
     selectedProtocol,
     envConfig?.defaultBaseUrl
   );
@@ -65,8 +81,6 @@ const ApiKeyProviderSetup: React.FC<AgentSetupProps> = ({
     baseUrlModeOverride ?? (hasCustomBaseUrl ? "custom" : "official");
   const setBaseUrlMode = (mode: BaseUrlMode) => setBaseUrlModeOverride(mode);
 
-  const [baseUrlWarningDismissed, setBaseUrlWarningDismissed] = useState(false);
-
   // Track last synced values to avoid duplicate onChange calls
   const lastSyncedRef = useRef<{ mode: BaseUrlMode; url: string | undefined }>({
     mode: baseUrlMode,
@@ -76,6 +90,14 @@ const ApiKeyProviderSetup: React.FC<AgentSetupProps> = ({
   // Sync official URL to data when in official mode (for validation)
   // This is intentional: when mode changes to "official", we need to update parent state
   useEffect(() => {
+    // A provider with a choice of endpoints has no meaningful "unset" base URL:
+    // validation has to know which host the key belongs to. Seed the default.
+    if (offersEndpointChoice && !data.extracted_base_url && officialBaseUrl) {
+      onChange({ extracted_base_url: officialBaseUrl });
+      lastSyncedRef.current = { mode: baseUrlMode, url: officialBaseUrl };
+      return;
+    }
+
     const needsSync =
       envConfig?.supportsBaseUrl &&
       baseUrlMode === "official" &&
@@ -96,6 +118,7 @@ const ApiKeyProviderSetup: React.FC<AgentSetupProps> = ({
     };
   }, [
     envConfig,
+    offersEndpointChoice,
     officialBaseUrl,
     baseUrlMode,
     data.extracted_base_url,
@@ -124,47 +147,33 @@ const ApiKeyProviderSetup: React.FC<AgentSetupProps> = ({
           />
         </SectionRow>
 
+        <ProviderEndpointSectionRow
+          endpoints={endpoints}
+          selectedEndpointId={selectedEndpoint?.id}
+          protocol={selectedProtocol}
+          onChange={onChange}
+        />
+
         {supportsProtocolSelection && (
-          <SectionRow
-            label="API protocol"
-            description="Choose the wire protocol for the built-in Rust agent."
-            layout="vertical"
-          >
-            <Select
-              value={selectedProtocol}
-              onChange={(val) => {
-                const protocol = val as typeof selectedProtocol;
-                const nextOfficialBaseUrl = getOfficialBaseUrlForProtocol(
-                  data.agent_type,
-                  protocol,
-                  envConfig.defaultBaseUrl
-                );
-                onChange({
-                  protocol,
-                  extracted_base_url:
-                    baseUrlMode === "official"
-                      ? nextOfficialBaseUrl || undefined
-                      : data.extracted_base_url,
-                  validated: false,
-                  available_models: [],
-                  model_context_lengths: {},
-                  enabled_models: [],
-                });
-              }}
-              options={envConfig.supportedProtocols.map((protocol) => ({
-                value: protocol,
-                label: protocol === "anthropic" ? "Anthropic" : "OpenAI",
-              }))}
-              size="default"
-              dropdownWidthMode="min-match"
-              className="w-fit"
-            />
-          </SectionRow>
+          <ApiProtocolSectionRow
+            selectedEndpoint={selectedEndpoint}
+            selectedProtocol={selectedProtocol}
+            supportedProtocols={envConfig.supportedProtocols}
+            defaultBaseUrl={envConfig.defaultBaseUrl}
+            baseUrlMode={baseUrlMode}
+            extractedBaseUrl={data.extracted_base_url}
+            onChange={onChange}
+          />
         )}
 
         {envConfig.supportsBaseUrl && (
           <SectionRow
-            label={t("keyVault.baseUrlLabel")}
+            label={
+              <span className="inline-flex items-center gap-1">
+                {t("keyVault.baseUrlLabel")}
+                {baseUrlMode === "custom" ? <CustomBaseUrlInfoIcon /> : null}
+              </span>
+            }
             description={t("keyVault.baseUrlDesc")}
             layout="vertical"
           >
@@ -175,7 +184,6 @@ const ApiKeyProviderSetup: React.FC<AgentSetupProps> = ({
                   const mode = val as BaseUrlMode;
                   setBaseUrlMode(mode);
                   if (mode === "official") {
-                    setBaseUrlWarningDismissed(false);
                     onChange({
                       extracted_base_url: officialBaseUrl || undefined,
                     });
@@ -206,18 +214,6 @@ const ApiKeyProviderSetup: React.FC<AgentSetupProps> = ({
           </SectionRow>
         )}
       </SectionContainer>
-
-      {envConfig.supportsBaseUrl &&
-        baseUrlMode === "custom" &&
-        !baseUrlWarningDismissed && (
-          <InlineAlert
-            type="warning"
-            title={t("keyVault.customBaseUrlRiskTitle")}
-            onClose={() => setBaseUrlWarningDismissed(true)}
-          >
-            {t("keyVault.customBaseUrlRiskWarning")}
-          </InlineAlert>
-        )}
 
       <SectionContainer>
         <SectionRow

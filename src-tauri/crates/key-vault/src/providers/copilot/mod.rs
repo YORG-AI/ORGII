@@ -235,6 +235,7 @@ impl CopilotValidator {
                         limit: Some(entitlement),
                         remaining: Some(remaining),
                         remaining_percentage: pct,
+                        reset_time: None,
                     });
                 }
             }
@@ -255,6 +256,7 @@ impl CopilotValidator {
                         limit: Some(entitlement),
                         remaining: Some(remaining),
                         remaining_percentage: pct,
+                        reset_time: None,
                     });
                 }
             }
@@ -275,6 +277,7 @@ impl CopilotValidator {
                         limit: Some(entitlement),
                         remaining: Some(remaining),
                         remaining_percentage: pct,
+                        reset_time: None,
                     });
                 }
             }
@@ -298,6 +301,7 @@ impl CopilotValidator {
                 limit: Some(50),
                 remaining: Some(50),
                 remaining_percentage: 100.0,
+                reset_time: None,
             });
             usage_items.push(UsageItem {
                 usage_type: "completions".to_string(),
@@ -306,6 +310,7 @@ impl CopilotValidator {
                 limit: Some(2000),
                 remaining: Some(2000),
                 remaining_percentage: 100.0,
+                reset_time: None,
             });
             100.0
         } else {

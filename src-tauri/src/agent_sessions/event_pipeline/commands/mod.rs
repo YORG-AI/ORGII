@@ -58,6 +58,9 @@ pub(crate) fn prepare_loaded_events(
     event_conversion::backfill_tool_inputs_from_messages(session_id, &mut events);
     event_conversion::backfill_subagent_links(session_id, &mut events);
     backfill_provider_subagent_prompts(&mut events);
+    // Compaction boundaries live only in `agent_messages` (never in the
+    // event cache) — merge them in so the chat shows the compacted marker.
+    event_conversion::merge_compact_boundary_events(session_id, &mut events);
     events
 }
 

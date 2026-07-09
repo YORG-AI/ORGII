@@ -6,6 +6,7 @@ import {
   hasRunningAwaitWaitForInLatestTurn,
   isLiveRuntimeResourceEvent,
   sessionHasComposerStopBlockingWork,
+  shellProcessStatusFromArgs,
 } from "../runningEventGate";
 import type { SessionEvent } from "../types";
 
@@ -42,6 +43,43 @@ function hiddenStatusEvent(): SessionEvent {
     result: { status: "running" },
   } as unknown as SessionEvent;
 }
+
+describe("shellProcessStatusFromArgs", () => {
+  it("returns undefined for falsy args", () => {
+    expect(shellProcessStatusFromArgs(undefined)).toBeUndefined();
+    expect(shellProcessStatusFromArgs(null)).toBeUndefined();
+    expect(shellProcessStatusFromArgs("")).toBeUndefined();
+  });
+
+  it("extracts shellProcessStatus from object args", () => {
+    expect(shellProcessStatusFromArgs({ shellProcessStatus: "running" })).toBe(
+      "running"
+    );
+  });
+
+  it("returns undefined without parsing when field name is absent from string args (fast bail)", () => {
+    expect(
+      shellProcessStatusFromArgs('{"command":"ls","exitCode":0}')
+    ).toBeUndefined();
+  });
+
+  it("parses string args and returns status when shellProcessStatus field is present", () => {
+    expect(
+      shellProcessStatusFromArgs('{"shellProcessStatus":"running","pid":42}')
+    ).toBe("running");
+  });
+
+  it("returns undefined for malformed JSON string that contains the field name", () => {
+    expect(
+      shellProcessStatusFromArgs('{"shellProcessStatus": broken json')
+    ).toBeUndefined();
+  });
+
+  it("returns undefined for non-string non-object args", () => {
+    expect(shellProcessStatusFromArgs(42)).toBeUndefined();
+    expect(shellProcessStatusFromArgs(true)).toBeUndefined();
+  });
+});
 
 describe("runningEventGate", () => {
   it("classifies background shell as live resource only", () => {
@@ -221,13 +259,13 @@ describe("classifyLatestTurnActivity (single source of truth)", () => {
     ).toBe("liveSilent");
   });
 
-  it("liveSilent for a non-blocking monitor await (no countdown of its own)", () => {
+  it("selfIndicating for a running monitor await (renders its own shimmer UI)", () => {
     expect(
       classifyLatestTurnActivity([
         userEvent("u1"),
         awaitOutputEvent("running", "monitor"),
       ])
-    ).toBe("liveSilent");
+    ).toBe("selfIndicating");
   });
 
   it("a running wait_for dominates a sibling silent resource", () => {

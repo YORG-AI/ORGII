@@ -2,7 +2,61 @@
 
 use crate::types::*;
 use git2::Repository;
+use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
+/// Cache TTL for combined numstat results. Prevents redundant libgit2 diff
+/// walks when the sidebar re-renders rapidly without any working-tree change.
+const NUMSTAT_CACHE_TTL: Duration = Duration::from_millis(500);
+
+struct NumstatCacheEntry {
+    cached_at: Instant,
+    result: CombinedDiffNumstatResult,
+}
+
+/// `(repo_path_string, from_ref_string, head_sha)` → cached result.
+static NUMSTAT_CACHE: std::sync::OnceLock<
+    Mutex<HashMap<(String, String, String), NumstatCacheEntry>>,
+> = std::sync::OnceLock::new();
+
+fn numstat_cache() -> &'static Mutex<HashMap<(String, String, String), NumstatCacheEntry>> {
+    NUMSTAT_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Read the HEAD SHA from `.git/HEAD` without spawning a subprocess.
+/// Returns `None` if the layout is unexpected (bare repo, worktree link file, etc.).
+fn read_head_sha_for_numstat(repo_path: &Path) -> Option<String> {
+    let git_dir = repo_path.join(".git");
+    let head = std::fs::read_to_string(git_dir.join("HEAD")).ok()?;
+    let head = head.trim();
+    if let Some(ref_path) = head.strip_prefix("ref: ") {
+        // Try loose ref first
+        let loose = git_dir.join(ref_path);
+        if let Ok(sha) = std::fs::read_to_string(&loose) {
+            return Some(sha.trim().to_string());
+        }
+        // Fall back to packed-refs
+        let packed = std::fs::read_to_string(git_dir.join("packed-refs")).ok()?;
+        for line in packed.lines() {
+            if line.starts_with('#') {
+                continue;
+            }
+            let mut parts = line.splitn(2, ' ');
+            if let (Some(sha), Some(name)) = (parts.next(), parts.next()) {
+                if name == ref_path {
+                    return Some(sha.to_string());
+                }
+            }
+        }
+        None
+    } else if head.len() == 40 || head.len() == 64 {
+        Some(head.to_string())
+    } else {
+        None
+    }
+}
 
 /// Get per-file insertions/deletions without loading full diff content.
 /// Much cheaper than batch file diffs for displaying change counts in the sidebar.
@@ -130,7 +184,21 @@ pub fn get_diff_numstat_combined(
     repo_path: &Path,
     from_ref: &str,
 ) -> Result<CombinedDiffNumstatResult, String> {
-    use std::collections::HashMap;
+    // Cache lookup: skip the libgit2 diff walk if HEAD hasn't changed and the
+    // entry is fresh enough. The 500ms TTL is short enough that staged/unstaged
+    // changes appearing from a git operation still propagate promptly.
+    let repo_path_str = repo_path.to_string_lossy().to_string();
+    let head_sha_opt = read_head_sha_for_numstat(repo_path);
+    if let Some(ref head_sha) = head_sha_opt {
+        let cache_key = (repo_path_str.clone(), from_ref.to_string(), head_sha.clone());
+        if let Ok(cache) = numstat_cache().lock() {
+            if let Some(entry) = cache.get(&cache_key) {
+                if entry.cached_at.elapsed() < NUMSTAT_CACHE_TTL {
+                    return Ok(entry.result.clone());
+                }
+            }
+        }
+    }
 
     // Get unstaged changes (working directory vs HEAD)
     let unstaged = get_diff_numstat(repo_path, from_ref, None, false)?;
@@ -167,10 +235,26 @@ pub fn get_diff_numstat_combined(
     let total_deletions: u32 = files.iter().map(|f| f.deletions).sum();
     let files_changed = files.len() as u32;
 
-    Ok(CombinedDiffNumstatResult {
+    let result = CombinedDiffNumstatResult {
         files,
         total_insertions,
         total_deletions,
         files_changed,
-    })
+    };
+
+    // Populate cache so repeated calls within the TTL window are served instantly.
+    if let Some(head_sha) = head_sha_opt {
+        let cache_key = (repo_path_str, from_ref.to_string(), head_sha);
+        if let Ok(mut cache) = numstat_cache().lock() {
+            cache.insert(
+                cache_key,
+                NumstatCacheEntry {
+                    cached_at: Instant::now(),
+                    result: result.clone(),
+                },
+            );
+        }
+    }
+
+    Ok(result)
 }

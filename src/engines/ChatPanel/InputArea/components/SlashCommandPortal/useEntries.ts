@@ -65,6 +65,13 @@ export function useEntries({
               fuzzyMatch(query, mode.id)
           )
         : [];
+      const matchedActionItems = items.filter(
+        (entry) =>
+          entry.category === "action" &&
+          (!query ||
+            fuzzyMatch(query, entry.name) ||
+            fuzzyMatch(query, entry.description ?? ""))
+      );
       const matchedWorkspaceSkillItems = items.filter(
         (entry) =>
           entry.category === "skill" &&
@@ -95,6 +102,18 @@ export function useEntries({
         });
         for (const mode of matchedModes) {
           result.push({ kind: "mode", mode, flatIndex: idx++ });
+        }
+      }
+
+      if (matchedActionItems.length > 0) {
+        if (result.length > 0) result.push({ kind: "divider" });
+        result.push({
+          kind: "header",
+          label: "Commands",
+          translationKey: "creator.slashMenu.commands",
+        });
+        for (const item of matchedActionItems) {
+          result.push({ kind: "item", item, flatIndex: idx++ });
         }
       }
 

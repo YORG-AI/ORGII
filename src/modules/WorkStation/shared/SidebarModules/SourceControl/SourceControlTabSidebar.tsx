@@ -49,6 +49,20 @@ const SourceControlTabSidebar: TabSidebarComponent = ({
     context.surface?.sourceControl
   );
   const { currentBranch } = useRepoSelection({ autoLoad: false });
+
+  // When this sidebar runs inside CodeEditor, `useSourceControlSetup` already
+  // owns the single `useGitWorktrees` mount and forwards its result via
+  // `context.surface.sourceControl`. Passing the host-provided array (even `[]`)
+  // ensures the `enabled` guard inside `useSourceControlTabConfig` stays false,
+  // preventing a duplicate fetch. Fall back to `undefined` only when this
+  // component is rendered outside CodeEditor (standalone/test usage).
+  const hostWorktrees = context.surface?.sourceControl
+    ? (sourceControlContext?.worktrees ?? [])
+    : undefined;
+  const hostHasWorktrees = context.surface?.sourceControl
+    ? (sourceControlContext?.hasWorktrees ?? false)
+    : undefined;
+
   const { tab } = useSourceControlSidebarModule({
     repoPath: context.repoPath,
     repoId: context.repoId,
@@ -60,8 +74,8 @@ const SourceControlTabSidebar: TabSidebarComponent = ({
     filterMode: sourceControlContext?.filterMode,
     navigateWithoutSelecting:
       sourceControlContext?.navigateWithoutSelecting ?? false,
-    worktrees: sourceControlContext?.worktrees,
-    hasWorktrees: sourceControlContext?.hasWorktrees,
+    worktrees: hostWorktrees,
+    hasWorktrees: hostHasWorktrees,
     worktreesLoading: sourceControlContext?.worktreesLoading,
     refreshWorktrees: sourceControlContext?.refreshWorktrees,
   });

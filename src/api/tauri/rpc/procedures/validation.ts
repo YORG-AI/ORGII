@@ -19,6 +19,11 @@ export const validation = {
     .output(schemas.validation.QuotaInfoSchema)
     .build(),
 
+  refreshKeyQuota: defineProcedure("refresh_key_quota")
+    .input(schemas.validation.RefreshKeyQuotaInput)
+    .output(schemas.validation.KeyInfoSchema.nullable())
+    .build(),
+
   listKeys: defineProcedure("list_keys")
     .output(z.array(schemas.validation.KeyInfoSchema))
     .build(),

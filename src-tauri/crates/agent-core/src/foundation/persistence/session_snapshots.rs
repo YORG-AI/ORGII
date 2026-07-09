@@ -95,7 +95,12 @@ pub fn ensure_tables_with(conn: &Connection) -> SqliteResult<()> {
             -- value marks this row as a compaction summary whose visible
             -- tail starts at that sequence. Rows are never rewritten or
             -- deleted by compaction (immutable transcript invariant).
-            compact_from_sequence INTEGER
+            compact_from_sequence INTEGER,
+            -- Boundary display metadata: estimated context tokens before /
+            -- after the compaction. NULL on ordinary rows and on boundaries
+            -- persisted before these columns existed.
+            compact_tokens_before INTEGER,
+            compact_tokens_after INTEGER
         );
         CREATE INDEX IF NOT EXISTS idx_am_session
             ON agent_messages(session_id, sequence);
@@ -135,6 +140,14 @@ pub fn ensure_tables_with(conn: &Connection) -> SqliteResult<()> {
     try_migrate(
         conn,
         "ALTER TABLE agent_messages ADD COLUMN compact_from_sequence INTEGER",
+    );
+    try_migrate(
+        conn,
+        "ALTER TABLE agent_messages ADD COLUMN compact_tokens_before INTEGER",
+    );
+    try_migrate(
+        conn,
+        "ALTER TABLE agent_messages ADD COLUMN compact_tokens_after INTEGER",
     );
     try_migrate(
         conn,

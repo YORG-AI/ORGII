@@ -91,6 +91,12 @@ export const ApiProviderTypeSchema = z.union([
   z.literal("zenmux_api"),
   z.literal("minimax_api"),
   z.literal("longcat_api"),
+  z.literal("siliconflow_api"),
+  z.literal("modelscope_api"),
+  z.literal("aihubmix_api"),
+  z.literal("cherryin_api"),
+  z.literal("bedrock_api"),
+  z.literal("custom_api"),
   z.literal("vllm_api"),
   z.literal("azure_openai_api"),
   z.literal("azure_anthropic_api"),
@@ -157,6 +163,7 @@ export const UsageItemSchema = z.object({
   limit: z.number().nullable(),
   remaining: z.number().nullable(),
   remaining_percentage: z.number(),
+  reset_time: z.string().nullable().optional(),
 });
 
 export const QuotaInfoSchema = z.object({
@@ -302,28 +309,32 @@ export const SaveKeyRequestSchema = z.object({
 // ============================================================================
 
 export const DetectedQuotaInfoSchema = z.object({
-  remaining_percentage: z.number().optional(),
-  used: z.number().optional(),
-  limit: z.number().optional(),
-  remaining: z.number().optional(),
-  reset_time: z.string().optional(),
-  plan_type: z.string().optional(),
-  is_unlimited: z.boolean().optional(),
+  remaining_percentage: z.number().nullable().optional(),
+  used: z.number().nullable().optional(),
+  limit: z.number().nullable().optional(),
+  remaining: z.number().nullable().optional(),
+  reset_time: z.string().nullable().optional(),
+  plan_type: z.string().nullable().optional(),
+  quota_source: z.string().nullable().optional(),
+  is_unlimited: z.boolean().nullable().optional(),
+  usage_items: z.array(UsageItemSchema).optional(),
+  auto_message: z.string().nullable().optional(),
+  named_message: z.string().nullable().optional(),
 });
 
 export const DetectedKeySchema = z.object({
   id: z.string(),
   name: z.string(),
   auth_method: AuthMethodSchema,
-  api_key: z.string().optional(),
-  session_token: z.string().optional(),
-  base_url: z.string().optional(),
-  env_vars: z.record(z.string(), z.string()).optional(),
-  account_metadata: z.record(z.string(), z.string()).optional(),
-  available_models: z.array(z.string()).optional(),
-  quota_info: DetectedQuotaInfoSchema.optional(),
-  validated: z.boolean().optional(),
-  validation_message: z.string().optional(),
+  api_key: z.string().nullable().optional(),
+  session_token: z.string().nullable().optional(),
+  base_url: z.string().nullable().optional(),
+  env_vars: z.record(z.string(), z.string()).nullable().optional(),
+  account_metadata: z.record(z.string(), z.string()).nullable().optional(),
+  available_models: z.array(z.string()).nullable().optional(),
+  quota_info: DetectedQuotaInfoSchema.nullable().optional(),
+  validated: z.boolean().nullable().optional(),
+  validation_message: z.string().nullable().optional(),
 });
 
 export const AutoDetectResultSchema = z.object({
@@ -391,6 +402,7 @@ export const AvailableAgentSchema = z.object({
   envConfig: AgentEnvConfigSchema.optional(),
   isComplexSetup: z.boolean(),
   defaultSetupMethod: z.string().optional(),
+  supportedSetupMethods: z.array(z.string()),
   popular: z.boolean(),
   /** Icon provider key for ModelIcon lookup (e.g., "cursor", "claude_code") */
   iconProvider: z.string(),
@@ -434,6 +446,20 @@ export const AvailableApiProviderSchema = z.object({
   supportsRustAgents: z.boolean(),
 });
 
+/**
+ * Matches `ProviderEndpoint` in `src-tauri/.../provider_config.rs`.
+ *
+ * A selectable endpoint — a regional split (Zhipu's China vs Global hosts), a
+ * product tier (OpenCode Zen vs Go), or an AWS region. `anthropic_base_url` is
+ * null when the endpoint has no dedicated Anthropic-protocol host.
+ */
+export const ProviderEndpointSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  base_url: z.string(),
+  anthropic_base_url: z.string().nullable(),
+});
+
 /** Matches `ProviderConfig` in `src-tauri/.../provider_config.rs`. */
 export const ProviderConfigSchema = z.object({
   api_key_env_var: z.string(),
@@ -442,6 +468,8 @@ export const ProviderConfigSchema = z.object({
   default_base_url: z.string().nullable(),
   supported_protocols: z.array(ProviderProtocolSchema),
   default_protocol: ProviderProtocolSchema,
+  /** Empty when the provider has a single implicit endpoint. */
+  endpoints: z.array(ProviderEndpointSchema),
 });
 
 // ============================================================================
@@ -472,6 +500,10 @@ export const TestModelResultSchema = z.object({
 export const FetchKeyQuotaInput = z.object({
   agentType: ModelTypeSchema,
   apiKey: z.string(),
+});
+
+export const RefreshKeyQuotaInput = z.object({
+  keyId: z.string(),
 });
 
 export const GetKeyInput = z.object({
@@ -815,6 +847,7 @@ export type ModelVariantInfo = z.infer<typeof ModelVariantInfoSchema>;
 export type DefaultVariantInfo = z.infer<typeof DefaultVariantInfoSchema>;
 export type DetectedQuotaInfo = z.infer<typeof DetectedQuotaInfoSchema>;
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
+export type ProviderEndpoint = z.infer<typeof ProviderEndpointSchema>;
 export type PromptPolishRequest = z.infer<typeof PromptPolishRequestSchema>;
 export type PromptPolishResponse = z.infer<typeof PromptPolishResponseSchema>;
 export type SessionStepExplainRequest = z.infer<

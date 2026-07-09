@@ -4,8 +4,10 @@
  * Fetches CLI agents and API providers from Rust backend (single source of truth).
  * Combines them into a unified provider grid for KeyVault wizard.
  */
+import type { TFunction } from "i18next";
 import { useSetAtom } from "jotai";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { rpc } from "@src/api/tauri/rpc";
 import type {
@@ -56,6 +58,15 @@ const LOCAL_PROVIDER_KEYS = {
   CUSTOM: "local_custom",
 } as const;
 
+/**
+ * The cloud counterpart of the local "Custom" tile: it has no brand, so it
+ * borrows that tile's cog glyph and label, and sorts after the named brands.
+ */
+const CUSTOM_GATEWAY_PROVIDER_KEY = "custom_api";
+
+/** Both Custom tiles — cloud gateway and local endpoint — share one label. */
+const CUSTOM_PROVIDER_LABEL_KEY = "wizard.providerCustom";
+
 const LOCAL_RUNTIME_LABELS: Record<LocalRuntimePreset, string> = {
   ollama: "Ollama",
   lm_studio: "LM Studio",
@@ -67,6 +78,8 @@ const LOCAL_RUNTIME_LABELS: Record<LocalRuntimePreset, string> = {
 const LOCAL_PROVIDER_DEFINITIONS: Array<{
   key: string;
   label: string;
+  /** i18n key for brand-less names. Brand names are left untranslated. */
+  labelKey?: string;
   runtime: LocalRuntimePreset;
   iconProvider: string;
   iconElement?: "cog";
@@ -103,6 +116,7 @@ const LOCAL_PROVIDER_DEFINITIONS: Array<{
   {
     key: LOCAL_PROVIDER_KEYS.CUSTOM,
     label: LOCAL_RUNTIME_LABELS.custom,
+    labelKey: CUSTOM_PROVIDER_LABEL_KEY,
     runtime: "custom",
     iconProvider: "vllm",
     iconElement: "cog",
@@ -151,6 +165,12 @@ const PRIMARY_PROVIDER_KEYS = new Set([
   "longcat_api",
   "dashscope_api",
   "zhipu_api",
+  "siliconflow_api",
+  "modelscope_api",
+  "aihubmix_api",
+  "cherryin_api",
+  "bedrock_api",
+  "custom_api",
   "azure_openai_api",
   "azure_anthropic_api",
 ]);
@@ -258,9 +278,23 @@ export interface UseProviderRegistryResult {
   reload: () => Promise<void>;
 }
 
+/**
+ * Display name for an API provider.
+ *
+ * Brand names come from the Rust registry untranslated; the brand-less Custom
+ * tile is named in the user's language, exactly like its local counterpart.
+ */
+function apiProviderLabel(api: AvailableApiProvider, t: TFunction): string {
+  if (api.name === CUSTOM_GATEWAY_PROVIDER_KEY) {
+    return t(CUSTOM_PROVIDER_LABEL_KEY, LOCAL_RUNTIME_LABELS.custom);
+  }
+  return api.displayName;
+}
+
 function buildUnifiedProviders(
   agents: AvailableAgent[],
-  apiProviders: AvailableApiProvider[]
+  apiProviders: AvailableApiProvider[],
+  t: TFunction
 ): UnifiedProvider[] {
   const providers: UnifiedProvider[] = [];
   const usedAgents = new Set<string>();
@@ -302,7 +336,7 @@ function buildUnifiedProviders(
         providers.push({
           key: api.name.replace(/_api$/, ""),
           group: CLOUD_PROVIDER_GROUP,
-          label: api.displayName,
+          label: apiProviderLabel(api, t),
           iconProvider: api.iconProvider,
           brandColor: api.brandColor,
           variants,
@@ -321,8 +355,9 @@ function buildUnifiedProviders(
     providers.push({
       key: api.name,
       group: CLOUD_PROVIDER_GROUP,
-      label: api.displayName,
+      label: apiProviderLabel(api, t),
       iconProvider: api.iconProvider,
+      iconElement: api.name === CUSTOM_GATEWAY_PROVIDER_KEY ? "cog" : undefined,
       brandColor: api.brandColor,
       variants: [
         {
@@ -372,10 +407,13 @@ function buildUnifiedProviders(
     });
   }
 
-  return expandLocalProviders(providers).sort(sortProvidersByGroup);
+  return expandLocalProviders(providers, t).sort(sortProvidersByGroup);
 }
 
-function expandLocalProviders(providers: UnifiedProvider[]): UnifiedProvider[] {
+function expandLocalProviders(
+  providers: UnifiedProvider[],
+  t: TFunction
+): UnifiedProvider[] {
   const localProvider = providers.find((provider) =>
     provider.variants.some(
       (variant) => variant.modelType === LOCAL_MODEL_PROVIDER
@@ -395,27 +433,35 @@ function expandLocalProviders(providers: UnifiedProvider[]): UnifiedProvider[] {
   );
   if (!localVariant) return cloudProviders;
 
-  const virtualLocalProviders = LOCAL_PROVIDER_DEFINITIONS.map(
-    (definition) => ({
+  const virtualLocalProviders = LOCAL_PROVIDER_DEFINITIONS.map((definition) => {
+    const label = definition.labelKey
+      ? t(definition.labelKey, definition.label)
+      : definition.label;
+    return {
       key: definition.key,
       group: LOCAL_PROVIDER_GROUP,
-      label: definition.label,
+      label,
       iconProvider: definition.iconProvider,
       iconElement: definition.iconElement,
       brandColor: localProvider.brandColor,
       variants: [
         {
           ...localVariant,
-          label: definition.label,
+          label,
         },
       ],
       popular: true,
       description: definition.description,
       docsUrl: localProvider.docsUrl,
-    })
-  );
+    };
+  });
 
   return [...cloudProviders, ...virtualLocalProviders];
+}
+
+/** The Custom tile is the escape hatch, so it trails the named cloud brands. */
+function cloudProviderRank(provider: UnifiedProvider): number {
+  return provider.key === CUSTOM_GATEWAY_PROVIDER_KEY ? 1 : 0;
 }
 
 function sortProvidersByGroup(
@@ -434,8 +480,8 @@ function sortProvidersByGroup(
     );
     return indexA - indexB;
   }
-  if (providerA.popular !== providerB.popular)
-    return providerA.popular ? -1 : 1;
+  const rankDelta = cloudProviderRank(providerA) - cloudProviderRank(providerB);
+  if (rankDelta !== 0) return rankDelta;
   return providerA.label.localeCompare(providerB.label);
 }
 
@@ -467,6 +513,7 @@ export function useProviderRegistry(
   options: UseProviderRegistryOptions = {}
 ): UseProviderRegistryResult {
   const { primaryOnly = false } = options;
+  const { t } = useTranslation("integrations");
   const [data, setData] = useState<RegistryCache | null>(registryCache);
   const [loading, setLoading] = useState(!registryCache);
   const [error, setError] = useState<string | null>(null);
@@ -517,9 +564,9 @@ export function useProviderRegistry(
 
   const unifiedProviders = useMemo(() => {
     if (!data) return [];
-    const all = buildUnifiedProviders(data.agents, data.apiProviders);
+    const all = buildUnifiedProviders(data.agents, data.apiProviders, t);
     return primaryOnly ? filterPrimaryProviders(all) : all;
-  }, [data, primaryOnly]);
+  }, [data, primaryOnly, t]);
 
   const modelTypeToProviderKey = useMemo(
     () => buildModelTypeToProviderKey(unifiedProviders),

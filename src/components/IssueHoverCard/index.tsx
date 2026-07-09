@@ -15,6 +15,8 @@ import HoverCardBase, {
   type HoverCardPosition,
   HoverCardRow,
 } from "@src/components/SessionHoverCard/HoverCardBase";
+import { HoverCardUrlRow } from "@src/components/SessionHoverCard/HoverCardUrlRow";
+import { formatHoverCardTimeAgo } from "@src/components/SessionHoverCard/hoverCardTime";
 import Tag from "@src/components/Tag";
 import { TYPOGRAPHY } from "@src/config/workstation/tokens";
 import { getLabelColorStyle } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/hooks/workstationIssueHelpers";
@@ -32,24 +34,6 @@ interface IssueHoverCardContentProps {
 }
 
 type TranslationFn = ReturnType<typeof useTranslation>["t"];
-
-function formatLocalizedTimeAgo(dateString: string, language: string): string {
-  const timestamp = new Date(dateString).getTime();
-  if (Number.isNaN(timestamp)) return "";
-
-  const diffMs = timestamp - Date.now();
-  const diffDay = Math.round(diffMs / (24 * 60 * 60 * 1000));
-  const diffMonth = Math.round(diffDay / 30);
-  const diffYear = Math.round(diffDay / 365);
-  const formatter = new Intl.RelativeTimeFormat(language, {
-    numeric: "auto",
-    style: "narrow",
-  });
-
-  if (Math.abs(diffDay) < 30) return formatter.format(diffDay, "day");
-  if (Math.abs(diffMonth) < 12) return formatter.format(diffMonth, "month");
-  return formatter.format(diffYear, "year");
-}
 
 function formatIssueState(state: string, t: TranslationFn): string {
   return t(`git.issues.status.${state}`, state);
@@ -84,12 +68,14 @@ const IssueHoverCardContent: React.FC<IssueHoverCardContentProps> = memo(
           </div>
         </HoverCardRow>
 
+        {issue.html_url && <HoverCardUrlRow url={issue.html_url} />}
+
         <HoverCardRow icon={<User size={13} strokeWidth={1.75} />}>
           <div className="truncate text-text-2">
             <span>{issue.user.login}</span>
             <span className="mx-1 text-text-4">·</span>
             <span className="text-text-3">
-              {formatLocalizedTimeAgo(issue.created_at, i18n.language)}
+              {formatHoverCardTimeAgo(issue.created_at, i18n.language)}
             </span>
           </div>
         </HoverCardRow>
@@ -107,7 +93,7 @@ const IssueHoverCardContent: React.FC<IssueHoverCardContentProps> = memo(
               <>
                 <span className="mx-1 text-text-4">·</span>
                 <span>
-                  {formatLocalizedTimeAgo(issue.updated_at, i18n.language)}
+                  {formatHoverCardTimeAgo(issue.updated_at, i18n.language)}
                 </span>
               </>
             )}

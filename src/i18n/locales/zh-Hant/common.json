@@ -33,6 +33,8 @@
     "noContent": "暫無內容",
     "noIssueSelected": "未選擇 Issue",
     "selectIssueHint": "請從側邊欄的 Issues 面板中選擇一個 Issue。",
+    "noPrSelected": "未選擇 Pull request",
+    "selectPrHint": "請從側邊欄的 Pull request 面板中選擇一個 Pull request。",
     "reload": "重新載入",
     "urlPreviewRequiresTauri": "URL 預覽需要 Tauri",
     "openInExternalBrowser": "請改用外部瀏覽器開啟",
@@ -1244,6 +1246,7 @@
     "modelProperties": {
       "options": "選項",
       "effort": "Effort",
+      "default": "預設",
       "faster": "更快",
       "smarter": "更智能"
     },
@@ -1977,7 +1980,21 @@
     "warningHint": "上下文即將填滿。建議盡快開始新會話以獲得更好的結果。",
     "dangerHint": "上下文幾乎已滿。請開始新會話，避免遺失細節。",
     "autoCompactNote": "即將自動摘要上下文",
-    "startNewSession": "開始新會話"
+    "compactBoundaryTitle": "上下文已壓縮",
+    "compactBoundarySubtitle": "已總結 {{count}} 則較早的訊息",
+    "compactBoundaryTokens": "{{before}} → {{after}} tokens",
+    "startNewSession": "開始新會話",
+    "manualCompactAction": "手動壓縮",
+    "manualCompactRunning": "壓縮中",
+    "manualCompactInProgress": "正在壓縮上下文，完成後再傳送",
+    "manualCompactSuccess": "已壓縮：{{messagesBefore}} → {{messagesAfter}} 則訊息，{{tokensBefore}} → {{tokensAfter}} tokens",
+    "manualCompactTooShort": "內容較少，無需壓縮",
+    "manualCompactAlreadyCompact": "暫無新的可壓縮內容",
+    "manualCompactBusy": "目前會話執行中，結束後再壓縮",
+    "manualCompactNoRuntime": "請先傳送一則訊息後再壓縮",
+    "manualCompactFailed": "壓縮失敗：{{message}}",
+    "manualCompactChannelAttached": "此會話由頻道託管，請在頻道內使用 /compact",
+    "manualCompactInstructionsPlaceholder": "可選：本次壓縮的總結重點"
   },
   "relativeDate": {
     "today": "今天",

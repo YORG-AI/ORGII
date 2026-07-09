@@ -33,6 +33,8 @@
     "noContent": "İçerik yok",
     "noIssueSelected": "Seçili sorun yok",
     "selectIssueHint": "Kenar çubuğundaki Issues panelinden bir sorun seçin.",
+    "noPrSelected": "Seçili Pull request yok",
+    "selectPrHint": "Kenar çubuğundaki Pull request panelinden bir Pull request seçin.",
     "reload": "Yeniden yükle",
     "urlPreviewRequiresTauri": "URL önizlemesi Tauri gerektirir",
     "openInExternalBrowser": "Bunun yerine harici tarayıcıda açın",
@@ -1232,6 +1234,7 @@
     "modelProperties": {
       "options": "Seçenekler",
       "effort": "Çaba",
+      "default": "Varsayılan",
       "faster": "Daha hızlı",
       "smarter": "Daha akıllı"
     },
@@ -1964,7 +1967,22 @@
     "warningHint": "Bağlam doluyor. En iyi sonuçlar için yakında yeni bir oturum başlatın.",
     "dangerHint": "Bağlam neredeyse dolu. Ayrıntı kaybetmemek için yeni bir oturum başlatın.",
     "autoCompactNote": "Bağlam yakında özetlenecek",
-    "startNewSession": "Yeni oturum başlat"
+    "startNewSession": "Yeni oturum başlat",
+    "compactBoundaryTitle": "Bağlam sıkıştırıldı",
+    "compactBoundarySubtitle_one": "{{count}} önceki mesaj özetlendi",
+    "compactBoundarySubtitle_other": "{{count}} önceki mesaj özetlendi",
+    "compactBoundaryTokens": "{{before}} → {{after}} token",
+    "manualCompactAction": "Sıkıştır",
+    "manualCompactRunning": "Sıkıştırılıyor",
+    "manualCompactInProgress": "Bağlam sıkıştırılıyor — göndermeden önce bitmesini bekleyin",
+    "manualCompactSuccess": "Sıkıştırıldı: {{messagesBefore}} → {{messagesAfter}} mesaj, {{tokensBefore}} → {{tokensAfter}} token",
+    "manualCompactTooShort": "İçerik kısa; sıkıştırma gerekmiyor",
+    "manualCompactAlreadyCompact": "Sıkıştırılacak yeni içerik yok",
+    "manualCompactBusy": "Oturum çalışıyor. Bittikten sonra sıkıştırın",
+    "manualCompactNoRuntime": "Sıkıştırmadan önce bir mesaj gönderin",
+    "manualCompactFailed": "Sıkıştırma başarısız: {{message}}",
+    "manualCompactChannelAttached": "Bu oturum bir kanal tarafından yönetiliyor — /compact'i orada kullanın",
+    "manualCompactInstructionsPlaceholder": "İsteğe bağlı: özet neye odaklansın"
   },
   "relativeDate": {
     "today": "Bugün",

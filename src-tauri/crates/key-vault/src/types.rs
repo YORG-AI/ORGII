@@ -6,10 +6,10 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-/// Single usage type (plan, on_demand, chat, completions, premium, etc.)
+/// Single usage type (cursor_auto_composer, cursor_api, chat, completions, premium, etc.)
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UsageItem {
-    /// Type of usage: "plan", "on_demand", "chat", "completions", "premium", etc.
+    /// Type of usage: "cursor_auto_composer", "cursor_api", "chat", "completions", "premium", etc.
     pub usage_type: String,
     /// Whether this usage type is enabled
     pub enabled: bool,
@@ -21,6 +21,9 @@ pub struct UsageItem {
     pub remaining: Option<i64>,
     /// Remaining percentage (0-100, -1 = unknown)
     pub remaining_percentage: f64,
+    /// Reset time for this specific usage window (ISO 8601 string)
+    #[serde(default)]
+    pub reset_time: Option<String>,
 }
 
 impl UsageItem {
@@ -32,6 +35,7 @@ impl UsageItem {
             limit: None,
             remaining: None,
             remaining_percentage: -1.0,
+            reset_time: None,
         }
     }
 }
@@ -59,7 +63,7 @@ pub struct QuotaInfo {
     pub is_unlimited: bool,
     /// Which quota type determined the percentage
     pub quota_source: Option<String>,
-    /// All usage items (plan, on_demand, chat, completions, etc.)
+    /// All usage items (cursor_auto_composer, cursor_api, chat, completions, etc.)
     pub usage_items: Vec<UsageItem>,
     /// Auto-generated message from API
     pub auto_message: Option<String>,

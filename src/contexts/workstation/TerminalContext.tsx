@@ -244,16 +244,27 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({
     [activeSessionId, sessions, defaultLabelBase]
   );
 
-  const value: TerminalContextValue = {
-    sessions,
-    activeSessionId,
-    filterValue,
-    initializedSessions,
-    setFilterValue,
-    handleSessionClick,
-    handleAddSession,
-    handleCloseSession,
-  };
+  const value = useMemo<TerminalContextValue>(
+    () => ({
+      sessions,
+      activeSessionId,
+      filterValue,
+      initializedSessions,
+      setFilterValue,
+      handleSessionClick,
+      handleAddSession,
+      handleCloseSession,
+    }),
+    [
+      sessions,
+      activeSessionId,
+      filterValue,
+      initializedSessions,
+      handleSessionClick,
+      handleAddSession,
+      handleCloseSession,
+    ]
+  );
 
   return (
     <TerminalContext.Provider value={value}>

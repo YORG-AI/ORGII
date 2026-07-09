@@ -1,5 +1,13 @@
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import React, { memo, useCallback, useState } from "react";
+import {
+  Gauge,
+  LayoutDashboard,
+  ListTodo,
+  Search,
+  UsersRound,
+  Workflow,
+} from "lucide-react";
+import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
@@ -399,12 +407,69 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     );
 
     const publishSurfaceHeader =
+      startPageOpen ||
       contentState.showBenchmarkSessionGroupContent ||
       contentState.showExploreContent ||
       contentState.showManageIssuesContent ||
       contentState.showWorkspaceDashboardContent ||
       contentState.showCollabOrgContent ||
       contentState.showWorkspaceOverviewContent;
+
+    const surfaceTabChrome = useMemo(() => {
+      if (startPageOpen) {
+        return {
+          title: t("navigation:launchpad.dashboard"),
+          icon: <LayoutDashboard size={16} strokeWidth={1.75} />,
+        };
+      }
+      if (contentState.showManageIssuesContent) {
+        return {
+          title: t("chat.manageIssues.title"),
+          icon: <ListTodo size={16} strokeWidth={1.75} />,
+        };
+      }
+      if (contentState.showExploreContent) {
+        return {
+          title: t("navigation:explore.title", { defaultValue: "Explore" }),
+          icon: <Search size={16} strokeWidth={1.75} />,
+        };
+      }
+      if (contentState.showWorkspaceDashboardContent) {
+        return {
+          title: t("navigation:launchpad.dashboard"),
+          icon: <LayoutDashboard size={16} strokeWidth={1.75} />,
+        };
+      }
+      if (contentState.showCollabOrgContent) {
+        return {
+          title: contentState.headerTitle,
+          icon: <UsersRound size={16} strokeWidth={1.75} />,
+        };
+      }
+      if (contentState.showWorkspaceOverviewContent) {
+        return {
+          title: contentState.headerTitle,
+          icon: <Workflow size={16} strokeWidth={1.75} />,
+        };
+      }
+      if (contentState.showBenchmarkSessionGroupContent) {
+        return {
+          title: contentState.headerTitle,
+          icon: <Gauge size={16} strokeWidth={1.75} />,
+        };
+      }
+      return null;
+    }, [
+      contentState.headerTitle,
+      contentState.showBenchmarkSessionGroupContent,
+      contentState.showCollabOrgContent,
+      contentState.showExploreContent,
+      contentState.showManageIssuesContent,
+      contentState.showWorkspaceDashboardContent,
+      contentState.showWorkspaceOverviewContent,
+      startPageOpen,
+      t,
+    ]);
 
     const tabStrip = (
       <ChatPanelTabBar
@@ -443,6 +508,8 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
           enabled={publishSurfaceHeader}
           title={contentState.headerTitle}
           titleContent={contentState.headerTitleContent}
+          tabTitle={surfaceTabChrome?.title}
+          tabIcon={surfaceTabChrome?.icon}
           showAgentSwitch={contentState.showExploreContent}
           agentSwitchLabel={t("navigation:labels.agent", {
             defaultValue: "Agent",

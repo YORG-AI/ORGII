@@ -360,7 +360,7 @@ mod tests {
         session_event_to_cached_event,
     };
     use crate::agent_sessions::event_pipeline::commands::event_conversion::{
-        dedup_by_call_id, is_ts_placeholder_id,
+        compact_boundary_row_to_event, dedup_by_call_id, is_ts_placeholder_id, CompactBoundaryRow,
     };
     use crate::agent_sessions::event_pipeline::ingestion::prompt_backfill;
     use crate::agent_sessions::event_pipeline::types::{
@@ -1023,5 +1023,45 @@ mod tests {
             Some("NEW prompt"),
             "winner's prompt must not be overwritten by the loser"
         );
+    }
+
+    #[test]
+    fn compact_boundary_row_maps_to_context_compacted_event() {
+        let content = "[Conversation summary \u{2014} 6 earlier messages compacted]\n\nsummary body";
+        let event = compact_boundary_row_to_event(
+            "session-x",
+            CompactBoundaryRow {
+                id: "row-1".to_string(),
+                content: content.to_string(),
+                created_at: "2026-07-08T20:51:37Z".to_string(),
+                tokens_before: Some(10402),
+                tokens_after: Some(1042),
+            },
+        );
+
+        assert_eq!(event.function_name, "context_compacted");
+        assert_eq!(event.ui_canonical, "context_compacted");
+        assert_eq!(event.action_type, "system");
+        assert_eq!(event.source, EventSource::System);
+        assert_eq!(event.display_variant, EventDisplayVariant::Message);
+        assert_eq!(event.display_status, EventDisplayStatus::Completed);
+        assert_eq!(
+            event.result.get("observation").and_then(|v| v.as_str()),
+            Some("summary body")
+        );
+        assert_eq!(
+            event.result.get("compactedCount").and_then(|v| v.as_u64()),
+            Some(6)
+        );
+        assert_eq!(
+            event.result.get("tokensBefore").and_then(|v| v.as_i64()),
+            Some(10402)
+        );
+        assert_eq!(
+            event.result.get("tokensAfter").and_then(|v| v.as_i64()),
+            Some(1042)
+        );
+        // Must never be mistaken for a synthetic persistence artifact.
+        assert!(!is_synthetic_persistence_artifact(&event));
     }
 }

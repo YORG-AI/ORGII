@@ -33,6 +33,8 @@
     "noContent": "Sem conteúdo",
     "noIssueSelected": "Nenhum issue selecionado",
     "selectIssueHint": "Selecione um issue no painel Issues da barra lateral.",
+    "noPrSelected": "Nenhum Pull request selecionado",
+    "selectPrHint": "Selecione um Pull request no painel Pull request da barra lateral.",
     "reload": "Recarregar",
     "urlPreviewRequiresTauri": "A visualização de URL requer Tauri",
     "openInExternalBrowser": "Abra em um navegador externo",
@@ -1223,6 +1225,7 @@
     "modelProperties": {
       "options": "Opções",
       "effort": "Esforço",
+      "default": "Padrão",
       "faster": "Mais rápido",
       "smarter": "Mais inteligente"
     },
@@ -1959,7 +1962,22 @@
     "warningHint": "O contexto está ficando cheio. Inicie uma nova sessão em breve para melhores resultados.",
     "dangerHint": "O contexto está quase cheio. Inicie uma nova sessão para evitar perder detalhes.",
     "autoCompactNote": "O contexto será resumido em breve",
-    "startNewSession": "Iniciar nova sessão"
+    "startNewSession": "Iniciar nova sessão",
+    "compactBoundaryTitle": "Contexto compactado",
+    "compactBoundarySubtitle_one": "{{count}} mensagem anterior resumida",
+    "compactBoundarySubtitle_other": "{{count}} mensagens anteriores resumidas",
+    "compactBoundaryTokens": "{{before}} → {{after}} tokens",
+    "manualCompactAction": "Compactar",
+    "manualCompactRunning": "Compactando",
+    "manualCompactInProgress": "Compactando contexto — aguarde terminar antes de enviar",
+    "manualCompactSuccess": "Compactado: {{messagesBefore}} → {{messagesAfter}} mensagens, {{tokensBefore}} → {{tokensAfter}} tokens",
+    "manualCompactTooShort": "Conteúdo curto; não é preciso compactar",
+    "manualCompactAlreadyCompact": "Nenhum conteúdo novo para compactar",
+    "manualCompactBusy": "A sessão está em execução. Compacte quando terminar",
+    "manualCompactNoRuntime": "Envie uma mensagem antes de compactar",
+    "manualCompactFailed": "Falha ao compactar: {{message}}",
+    "manualCompactChannelAttached": "Esta sessão é gerida por um canal — use /compact lá",
+    "manualCompactInstructionsPlaceholder": "Opcional: em que focar ao resumir"
   },
   "relativeDate": {
     "today": "Hoje",

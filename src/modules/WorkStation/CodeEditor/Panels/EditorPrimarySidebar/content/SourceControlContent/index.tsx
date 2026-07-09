@@ -10,7 +10,13 @@
  * - Multi-select support
  */
 import { Filter as FilterIcon } from "lucide-react";
-import React, { memo, useCallback, useMemo, useState } from "react";
+import React, {
+  memo,
+  useCallback,
+  useDeferredValue,
+  useMemo,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import Input from "@src/components/Input";
@@ -138,6 +144,10 @@ export const SourceControlContent: React.FC<SourceControlContentProps> = memo(
     const showUnstagedSection =
       sectionFilter === "uncommitted" || sectionFilter === "unstaged";
 
+    // Defer the filtered file list so keystrokes in the filter input stay
+    // responsive; the virtualized tree recomputes at a lower priority.
+    const deferredFilteredFiles = useDeferredValue(filteredFiles);
+
     // File tree handling (for directory collapse state)
     const {
       stagedFiles,
@@ -146,7 +156,7 @@ export const SourceControlContent: React.FC<SourceControlContentProps> = memo(
       collapsedDirs,
       handleToggleDirectory,
     } = useFileTreeHandling({
-      filteredFiles,
+      filteredFiles: deferredFilteredFiles,
       conflictFiles,
       viewMode,
       mergeCollapsed,

@@ -28,6 +28,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import IconButton from "@src/components/IconButton";
 import InlineAlert from "@src/components/InlineAlert";
 import Input from "@src/components/Input";
 import Select from "@src/components/Select";
@@ -239,12 +240,15 @@ const KiroSessionSetup: React.FC<KiroSessionSetupProps> = ({
               </div>
             </div>
           </div>
-          <button
+          <Button
+            variant="tertiary"
+            appearance="ghost"
+            size="small"
             onClick={handleReset}
-            className="mt-3 text-[12px] text-primary-6 hover:underline"
+            className="mt-3 text-[12px]"
           >
             {t("keyVault.kiroLoginDifferentAccount")}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -258,12 +262,15 @@ const KiroSessionSetup: React.FC<KiroSessionSetupProps> = ({
                 {t("keyVault.kiroAuthFailed")}
               </div>
               <div className="mt-1 text-[12px] text-text-3">{error}</div>
-              <button
+              <Button
+                variant="tertiary"
+                appearance="ghost"
+                size="small"
                 onClick={handleReset}
-                className="mt-2 text-[12px] text-primary-6 hover:underline"
+                className="mt-2 text-[12px]"
               >
                 {t("keyVault.kiroTryAgain")}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -277,20 +284,22 @@ const KiroSessionSetup: React.FC<KiroSessionSetupProps> = ({
             <div className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-text-1">
               {currentUrl || verificationUrl || "Loading..."}
             </div>
-            <button
+            <IconButton
               onClick={() => verificationUrl && openWebview(verificationUrl)}
-              className="flex items-center gap-1 rounded px-2 py-1 text-[11px] text-text-3 transition-colors hover:bg-bg-2"
               title={t("common:actions.refresh")}
+              size="sm"
+              variant="default"
             >
-              <RefreshCw size={12} className="text-text-3" />
-            </button>
-            <button
+              <RefreshCw size={12} />
+            </IconButton>
+            <IconButton
               onClick={handleCloseBrowser}
-              className="flex items-center rounded px-2 py-1 text-[11px] text-text-3 transition-colors hover:bg-bg-2"
               title={t("keyVault.kiroCloseBrowser")}
+              size="sm"
+              variant="default"
             >
-              <X size={14} className="text-text-3" />
-            </button>
+              <X size={14} />
+            </IconButton>
           </div>
 
           {/* Device Code Display - While waiting for webview */}
@@ -303,13 +312,14 @@ const KiroSessionSetup: React.FC<KiroSessionSetupProps> = ({
                 <code className="rounded-lg bg-bg-1 px-3 py-1.5 text-[18px] font-bold tracking-wider text-primary-6">
                   {deviceCode}
                 </code>
-                <button
+                <IconButton
                   onClick={handleCopyCode}
-                  className="rounded p-1.5 hover:bg-bg-2"
                   title={t("keyVault.kiroCopyCode")}
+                  size="sm"
+                  variant="default"
                 >
-                  <Copy size={14} className="text-text-3" />
-                </button>
+                  <Copy size={14} />
+                </IconButton>
               </div>
             </div>
           )}

@@ -11,10 +11,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   deleteKey as deleteKeyRpc,
-  fetchKeyQuota,
   getFullKey,
   getKey,
   listKeys,
+  refreshKeyQuota,
   saveKey as saveKeyRpc,
   updateKeyHealth,
   validateKey as validateKeyRpc,
@@ -24,7 +24,6 @@ import type {
   ModelType,
   SaveKeyRequest,
 } from "@src/api/services/keyValidation";
-import { CLI_AGENT } from "@src/api/tauri/rpc/schemas/validation";
 import { createLogger } from "@src/hooks/logger";
 import { replaceModelAliasesFromKeys } from "@src/hooks/models/modelAliasRegistry";
 
@@ -316,27 +315,29 @@ export function useLocalKeys(
       pendingValidations.current.add(validationKey);
 
       try {
+        if (keyId) {
+          const refreshed = await refreshKeyQuota(keyId);
+          if (!refreshed) {
+            return false;
+          }
+
+          const updated = (await getKey(agentType, keyId)) ?? refreshed;
+          updateSharedAllKeys((prev) => {
+            const idx = prev.findIndex((key) => key.id === updated.id);
+            if (idx >= 0) {
+              const next = [...prev];
+              next[idx] = updated;
+              return next;
+            }
+            return [...prev, updated];
+          });
+          return true;
+        }
+
         const fullKey = await getFullKey(agentType, keyId);
         if (!fullKey) return false;
 
-        let tokenForQuota: string | undefined;
-        if (agentType === CLI_AGENT.CURSOR) {
-          tokenForQuota = fullKey.session_token ?? undefined;
-        } else if (agentType === CLI_AGENT.COPILOT) {
-          tokenForQuota = fullKey.api_key ?? undefined;
-        }
-
-        if (tokenForQuota) {
-          const quota = await fetchKeyQuota(agentType, tokenForQuota);
-          await updateKeyHealth(
-            fullKey.id,
-            "valid",
-            undefined,
-            undefined,
-            undefined,
-            quota
-          );
-        } else if (fullKey.api_key) {
+        if (fullKey.api_key) {
           const testModel =
             fullKey.model_aliases && fullKey.model_aliases.length > 0
               ? fullKey.model_aliases[0].alias
@@ -385,7 +386,7 @@ export function useLocalKeys(
         return true;
       } catch (err) {
         log.error(`[Refresh] Error:`, err);
-        return false;
+        throw err;
       } finally {
         pendingValidations.current.delete(validationKey);
       }

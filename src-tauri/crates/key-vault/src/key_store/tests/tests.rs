@@ -630,6 +630,58 @@ fn test_claude_code_oauth_env_uses_auth_token_without_exporting_refresh_token() 
 }
 
 #[test]
+fn test_claude_code_official_oauth_env_drops_stale_relay_base_url() {
+    let temp_dir = tempdir().unwrap();
+    let service = KeyService::new(Some(temp_dir.path().to_path_buf()));
+
+    // A row persisted before save_key normalized routing: official OAuth
+    // token + relay base_url left behind by an earlier relay configuration
+    // (issue #276). The env export must not send the OAuth token there.
+    let mut claude_key = ModelKey::new(ModelType::ClaudeCode);
+    claude_key.auth_method = AuthMethod::Oauth;
+    claude_key.session_token = Some("sk-ant-oat01-abc".to_string());
+    claude_key.base_url = Some("https://relay.example.com/v1".to_string());
+    claude_key.env_vars.insert(
+        "ANTHROPIC_BASE_URL".to_string(),
+        "https://relay.example.com/v1".to_string(),
+    );
+    let key_id = claude_key.id.clone();
+    service.save_key(claude_key).unwrap();
+
+    let env = service.get_env_for_agent(&ModelType::ClaudeCode, Some(&key_id));
+    assert_eq!(
+        env.get("ANTHROPIC_AUTH_TOKEN").map(|v| v.as_str()),
+        Some("sk-ant-oat01-abc"),
+    );
+    assert!(!env.contains_key("ANTHROPIC_BASE_URL"));
+}
+
+#[test]
+fn test_claude_code_relay_oauth_env_keeps_relay_base_url() {
+    let temp_dir = tempdir().unwrap();
+    let service = KeyService::new(Some(temp_dir.path().to_path_buf()));
+
+    // Relay-issued token (not sk-ant-oat): the relay base_url is the
+    // account's real endpoint and must keep flowing to the CLI unchanged.
+    let mut claude_key = ModelKey::new(ModelType::ClaudeCode);
+    claude_key.auth_method = AuthMethod::Oauth;
+    claude_key.session_token = Some("sk-relay-issued-token".to_string());
+    claude_key.base_url = Some("https://relay.example.com/v1".to_string());
+    let key_id = claude_key.id.clone();
+    service.save_key(claude_key).unwrap();
+
+    let env = service.get_env_for_agent(&ModelType::ClaudeCode, Some(&key_id));
+    assert_eq!(
+        env.get("ANTHROPIC_AUTH_TOKEN").map(|v| v.as_str()),
+        Some("sk-relay-issued-token"),
+    );
+    assert_eq!(
+        env.get("ANTHROPIC_BASE_URL").map(|v| v.as_str()),
+        Some("https://relay.example.com/v1"),
+    );
+}
+
+#[test]
 fn test_gemini_oauth_env_exports_access_refresh_expiry_and_project() {
     let temp_dir = tempdir().unwrap();
     let service = KeyService::new(Some(temp_dir.path().to_path_buf()));

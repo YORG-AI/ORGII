@@ -38,6 +38,7 @@ const TabPill: React.FC<TabPillProps> = ({
   wrap = false,
   size = "default",
   colorScheme = "default",
+  buttonStyle = false,
   onDropdownRef,
 }) => {
   const isMulti = activeTabs !== undefined;
@@ -55,7 +56,7 @@ const TabPill: React.FC<TabPillProps> = ({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const sliderRef = useRef<HTMLSpanElement>(null);
-  const hasSlider = variant === "pill" && !wrap && !isMulti;
+  const hasSlider = variant === "pill" && !wrap && !isMulti && !buttonStyle;
 
   const handleTabClick = useCallback(
     (tab: TabPillItem) => {
@@ -333,7 +334,7 @@ const TabPill: React.FC<TabPillProps> = ({
             : "cursor-pointer",
           "whitespace-nowrap",
           !fillWidth && "shrink-0",
-          "rounded-[100px]",
+          buttonStyle ? "rounded-lg" : "rounded-[100px]",
           size === "mini"
             ? "text-[12px]"
             : size === "small"
@@ -363,49 +364,53 @@ const TabPill: React.FC<TabPillProps> = ({
                     ? "h-7 px-3 py-[3px]"
                     : "h-[28px] px-3 py-[3px]",
           "border-0 outline-none",
-          isFill
-            ? isActive
-              ? size === "large"
-                ? "bg-fill-1 font-semibold text-text-1"
-                : "bg-fill-1 font-semibold text-primary-6"
-              : isDropdownOpen
-                ? "bg-fill-1 text-text-1"
-                : isMulti
-                  ? "bg-fill-1 text-text-2"
-                  : "bg-transparent text-text-1 hover:bg-surface-hover"
-            : colorScheme === "layout"
+          buttonStyle
+            ? isActive || isDropdownOpen
+              ? "bg-fill-2 font-medium text-primary-6 hover:bg-fill-3 hover:text-primary-5"
+              : "bg-bg-2 font-medium text-text-1 hover:bg-fill-1"
+            : isFill
               ? isActive
                 ? size === "large"
-                  ? "bg-fill-2 font-semibold text-text-1"
-                  : "bg-fill-2 font-semibold text-primary-6"
+                  ? "bg-fill-1 font-semibold text-text-1"
+                  : "bg-fill-1 font-semibold text-primary-6"
                 : isDropdownOpen
                   ? "bg-fill-1 text-text-1"
                   : isMulti
-                    ? "bg-transparent text-text-2 hover:bg-fill-1"
-                    : "bg-transparent text-text-1 hover:bg-fill-1"
-              : colorScheme === "muted"
-                ? isActive || isDropdownOpen
+                    ? "bg-fill-1 text-text-2"
+                    : "bg-transparent text-text-1 hover:bg-surface-hover"
+              : colorScheme === "layout"
+                ? isActive
                   ? size === "large"
                     ? "bg-fill-2 font-semibold text-text-1"
                     : "bg-fill-2 font-semibold text-primary-6"
-                  : "bg-fill-1 text-text-1"
-                : colorScheme === "ghost"
+                  : isDropdownOpen
+                    ? "bg-fill-1 text-text-1"
+                    : isMulti
+                      ? "bg-transparent text-text-2 hover:bg-fill-1"
+                      : "bg-transparent text-text-1 hover:bg-fill-1"
+                : colorScheme === "muted"
                   ? isActive || isDropdownOpen
                     ? size === "large"
-                      ? "bg-fill-1 font-semibold text-text-1"
-                      : "bg-fill-1 font-semibold text-primary-6"
-                    : isMulti
-                      ? "bg-transparent text-text-2 hover:bg-surface-hover"
-                      : "bg-transparent text-text-1 hover:bg-surface-hover"
-                  : isActive
-                    ? size === "large"
-                      ? "bg-primary-1 font-semibold text-text-1"
-                      : "bg-primary-1 font-semibold text-primary-6"
-                    : isDropdownOpen
-                      ? "bg-fill-2 text-text-1"
+                      ? "bg-fill-2 font-semibold text-text-1"
+                      : "bg-fill-2 font-semibold text-primary-6"
+                    : "bg-fill-1 text-text-1"
+                  : colorScheme === "ghost"
+                    ? isActive || isDropdownOpen
+                      ? size === "large"
+                        ? "bg-fill-1 font-semibold text-text-1"
+                        : "bg-fill-1 font-semibold text-primary-6"
                       : isMulti
-                        ? "bg-fill-3 text-text-2"
-                        : "bg-transparent text-text-1 hover:bg-surface-hover",
+                        ? "bg-transparent text-text-2 hover:bg-surface-hover"
+                        : "bg-transparent text-text-1 hover:bg-surface-hover"
+                    : isActive
+                      ? size === "large"
+                        ? "bg-primary-1 font-semibold text-text-1"
+                        : "bg-primary-1 font-semibold text-primary-6"
+                      : isDropdownOpen
+                        ? "bg-fill-2 text-text-1"
+                        : isMulti
+                          ? "bg-fill-3 text-text-2"
+                          : "bg-transparent text-text-1 hover:bg-surface-hover",
           tab.disabled && "cursor-not-allowed opacity-50",
           fillWidth &&
             (usePillWrapGrid
@@ -444,9 +449,11 @@ const TabPill: React.FC<TabPillProps> = ({
           : fillWidth
             ? "flex"
             : "inline-flex",
-        !isSimple && !wrap && "overflow-hidden",
-        isPill && !wrap && "rounded-[100px]",
-        isPill && !usePillWrapGrid && "gap-px",
+        !buttonStyle && !isSimple && !wrap && "overflow-hidden",
+        buttonStyle
+          ? "shrink-0 items-center gap-0.5 rounded-lg border border-border-2 bg-bg-2 p-0.5"
+          : isPill && !wrap && "rounded-[100px]",
+        isPill && !usePillWrapGrid && !buttonStyle && "gap-px",
         isSimple &&
           (size === "large"
             ? "h-full gap-4"

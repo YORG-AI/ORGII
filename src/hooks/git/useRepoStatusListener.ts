@@ -41,6 +41,7 @@ export function useRepoStatusListener(
 
     const unsubscribe = ws.on("repo:status_updated", (data: unknown) => {
       if (cancelled) return;
+      if (document.hidden) return;
       const payload = data as { repo_id?: string };
       if (payload.repo_id === repoId) onUpdate();
     });

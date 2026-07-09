@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
+import { getFullKey, validateKey } from "@src/api/services/keyValidation";
 import type { SaveKeyRequest as RpcSaveKeyRequest } from "@src/api/tauri/rpc/schemas/validation";
 import type { ModelType, SaveKeyRequest } from "@src/api/types/keys";
 import Message from "@src/components/Message";
@@ -33,8 +34,16 @@ const log = createLogger("KeyVaultPage");
 export function useKeyVaultPage() {
   const { t } = useTranslation("integrations");
   const navigate = useNavigate();
-  const { accounts, loading, error, refresh, getAccount, saveKey, deleteKey } =
-    useKeyVault();
+  const {
+    accounts,
+    loading,
+    error,
+    refresh,
+    refreshAccount,
+    getAccount,
+    saveKey,
+    deleteKey,
+  } = useKeyVault();
   const clearStaleSelection = useSetAtom(clearStaleAccountIdAtom);
 
   // State
@@ -129,10 +138,41 @@ export function useKeyVaultPage() {
     [getAccount, refresh, t]
   );
 
+  const handleRefreshAccountUsage = useCallback(
+    async (accountId: string) => {
+      setRefreshingAccountId(accountId);
+      setRefreshLoading(true);
+      try {
+        const account = getAccount(accountId);
+        if (!account) return;
+        const name = account.name || "Account";
+
+        const refreshed = await refreshAccount(accountId, true);
+        if (!refreshed) {
+          throw new Error("Usage refresh failed");
+        }
+        await refresh();
+        Message.success(t("keyVault.toasts.refreshed", { name }), 5000);
+      } catch (err) {
+        const name = getAccount(accountId)?.name || "Account";
+        const detail = err instanceof Error ? err.message : String(err);
+        Message.error(
+          t("keyVault.toasts.refreshError", { name, error: detail }),
+          5000
+        );
+        log.error("[RefreshUsage] Error:", err);
+      } finally {
+        setRefreshingAccountId(null);
+        setRefreshLoading(false);
+      }
+    },
+    [getAccount, refresh, refreshAccount, t]
+  );
+
   const handleRefresh = useCallback(async () => {
     if (!selectedAccountId) return;
-    await handleRefreshAccount(selectedAccountId);
-  }, [handleRefreshAccount, selectedAccountId]);
+    await handleRefreshAccountUsage(selectedAccountId);
+  }, [handleRefreshAccountUsage, selectedAccountId]);
 
   // Second arg (deleteType) is ignored — OSS only deletes local keys.
   const handleDisconnect = useCallback(
@@ -176,16 +216,53 @@ export function useKeyVaultPage() {
   );
 
   const handleEditAccountSave = useCallback(
-    async (accountId: string, name: string, description: string) => {
+    async (
+      accountId: string,
+      name: string,
+      description: string,
+      baseUrl?: string
+    ) => {
       const account = getAccount(accountId);
       if (!account) return;
       try {
-        await saveKey({
+        const request: SaveKeyRequest = {
           id: account.id,
           agent_type: account.modelType,
           name,
           description,
-        });
+        };
+
+        if (baseUrl && baseUrl !== account.baseUrl) {
+          const fullKey = await getFullKey(account.modelType, account.id);
+          if (!fullKey?.api_key) {
+            throw new Error("Account has no API key.");
+          }
+          const validation = await validateKey(
+            account.modelType,
+            fullKey.api_key,
+            baseUrl,
+            undefined,
+            undefined,
+            account.protocol ?? undefined
+          );
+          if (!validation.valid) {
+            throw new Error(
+              validation.message || "Endpoint validation failed."
+            );
+          }
+          request.base_url = baseUrl;
+          request.available_models = validation.models_available;
+          request.enabled_models = validation.models_available.slice(0, 1);
+          request.default_variants = [];
+          request.model_variants = validation.models_available.map((model) => ({
+            model,
+            base_model: model,
+            fast: false,
+            context_window: validation.model_context_lengths?.[model],
+          }));
+        }
+
+        await saveKey(request);
         await refresh();
       } catch (err) {
         Message.error(
@@ -221,6 +298,7 @@ export function useKeyVaultPage() {
     handleAgentTypeFilter: setAgentTypeFilter,
     handleRefresh,
     handleRefreshAccount,
+    handleRefreshAccountUsage,
     refreshingAccountId,
     handleDisconnect,
     handleAddAccount: () => {

@@ -155,7 +155,7 @@ fn test_parse_usage_response_basic_plan() {
     assert!(!quota.is_unlimited);
     assert_eq!(quota.usage_items.len(), 1);
     let plan_item = &quota.usage_items[0];
-    assert_eq!(plan_item.usage_type, "plan");
+    assert_eq!(plan_item.usage_type, "cursor_auto_composer");
     assert_eq!(plan_item.remaining, Some(350));
     assert_eq!(plan_item.limit, Some(500));
     assert_eq!(plan_item.used, Some(150));
@@ -178,7 +178,9 @@ fn test_parse_usage_response_on_demand() {
                 "used": 150,
                 "limit": 500,
                 "remaining": 350,
-                "breakdown": { "total": 500 }
+                "breakdown": { "total": 500 },
+                "autoPercentUsed": 12.0,
+                "apiPercentUsed": 99.0
             },
             "onDemand": {
                 "enabled": true,
@@ -198,23 +200,22 @@ fn test_parse_usage_response_on_demand() {
     let plan_item = quota
         .usage_items
         .iter()
-        .find(|item| item.usage_type == "plan")
+        .find(|item| item.usage_type == "cursor_auto_composer")
         .expect("plan item");
     assert_eq!(plan_item.remaining, Some(350));
-    assert!((plan_item.remaining_percentage - 70.0).abs() < f64::EPSILON);
+    assert!((plan_item.remaining_percentage - 88.0).abs() < f64::EPSILON);
 
     let on_demand_item = quota
         .usage_items
         .iter()
-        .find(|item| item.usage_type == "on_demand")
-        .expect("on_demand item");
-    assert_eq!(on_demand_item.used, Some(20));
-    assert_eq!(on_demand_item.limit, Some(100));
-    assert_eq!(on_demand_item.remaining, Some(80));
-    assert!((on_demand_item.remaining_percentage - 80.0).abs() < f64::EPSILON);
+        .find(|item| item.usage_type == "cursor_api")
+        .expect("api item");
+    assert_eq!(on_demand_item.used, None);
+    assert_eq!(on_demand_item.limit, None);
+    assert_eq!(on_demand_item.remaining, None);
+    assert!((on_demand_item.remaining_percentage - 1.0).abs() < f64::EPSILON);
 
-    let expected_overall = (430.0_f64 / 600.0_f64) * 100.0;
-    assert!((quota.remaining_percentage - expected_overall).abs() < 1e-9);
+    assert!((quota.remaining_percentage - 70.0).abs() < f64::EPSILON);
 }
 
 #[test]
@@ -236,7 +237,7 @@ fn test_parse_usage_response_unlimited() {
     assert!(quota.is_unlimited);
     assert_eq!(quota.usage_items.len(), 1);
     let item = &quota.usage_items[0];
-    assert_eq!(item.usage_type, "plan");
+    assert_eq!(item.usage_type, "cursor_auto_composer");
     assert_eq!(item.remaining_percentage, 100.0);
     assert!((quota.remaining_percentage - 100.0).abs() < f64::EPSILON);
 }
@@ -267,7 +268,7 @@ fn test_parse_usage_response_team_pooled() {
     assert!(!quota.is_unlimited);
     assert_eq!(quota.usage_items.len(), 1);
     let item = &quota.usage_items[0];
-    assert_eq!(item.usage_type, "team_pooled");
+    assert_eq!(item.usage_type, "cursor_auto_composer");
     assert_eq!(item.used, Some(10));
     assert_eq!(item.limit, Some(200));
     assert_eq!(item.remaining, Some(190));
@@ -323,7 +324,7 @@ fn parse_usage_response_plan_only() {
 
     assert_eq!(quota.usage_items.len(), 1);
     let plan_item = &quota.usage_items[0];
-    assert_eq!(plan_item.usage_type, "plan");
+    assert_eq!(plan_item.usage_type, "cursor_auto_composer");
     assert_eq!(plan_item.remaining, Some(750));
     assert_eq!(plan_item.limit, Some(1000));
     assert!((plan_item.remaining_percentage - 75.0).abs() < 0.01);
@@ -331,7 +332,7 @@ fn parse_usage_response_plan_only() {
 }
 
 #[test]
-fn parse_usage_response_on_demand_unlimited() {
+fn parse_usage_response_api_percent_from_plan() {
     use serde_json::json;
 
     install_crypto_provider_for_tests();
@@ -340,9 +341,13 @@ fn parse_usage_response_on_demand_unlimited() {
         "membershipType": "Business",
         "isUnlimited": false,
         "individualUsage": {
-            "onDemand": {
+            "plan": {
                 "enabled": true,
-                "used": 50
+                "used": 150,
+                "limit": 500,
+                "remaining": 350,
+                "breakdown": { "total": 500 },
+                "apiPercentUsed": 99.5
             }
         }
     }))
@@ -350,17 +355,20 @@ fn parse_usage_response_on_demand_unlimited() {
 
     let quota = validator.parse_usage_response(data);
 
-    assert_eq!(quota.usage_items.len(), 1);
-    let item = &quota.usage_items[0];
-    assert_eq!(item.usage_type, "on_demand");
+    assert_eq!(quota.usage_items.len(), 2);
+    let item = quota
+        .usage_items
+        .iter()
+        .find(|item| item.usage_type == "cursor_api")
+        .expect("api item");
+    assert_eq!(item.used, None);
     assert_eq!(item.limit, None);
     assert_eq!(item.remaining, None);
-    assert!((item.remaining_percentage - 100.0).abs() < 0.01);
-    assert!((quota.remaining_percentage - 100.0).abs() < 0.01);
+    assert!((item.remaining_percentage - 0.5).abs() < 0.01);
 }
 
 #[test]
-fn parse_usage_response_on_demand_overage() {
+fn parse_usage_response_api_percent_clamped() {
     use serde_json::json;
 
     install_crypto_provider_for_tests();
@@ -369,10 +377,13 @@ fn parse_usage_response_on_demand_overage() {
         "membershipType": "Business",
         "isUnlimited": false,
         "individualUsage": {
-            "onDemand": {
+            "plan": {
                 "enabled": true,
                 "used": 150,
-                "limit": 100
+                "limit": 500,
+                "remaining": 350,
+                "breakdown": { "total": 500 },
+                "apiPercentUsed": 150.0
             }
         }
     }))
@@ -380,12 +391,11 @@ fn parse_usage_response_on_demand_overage() {
 
     let quota = validator.parse_usage_response(data);
 
-    assert_eq!(quota.usage_items.len(), 1);
-    let item = &quota.usage_items[0];
-    assert_eq!(item.usage_type, "on_demand");
-    assert_eq!(item.limit, Some(100));
-    // Critical: clamped to 0, not negative.
-    assert_eq!(item.remaining, Some(0));
+    let item = quota
+        .usage_items
+        .iter()
+        .find(|item| item.usage_type == "cursor_api")
+        .expect("api item");
     assert!((item.remaining_percentage - 0.0).abs() < 0.01);
 }
 
@@ -413,7 +423,7 @@ fn parse_usage_response_team_pooled() {
 
     assert_eq!(quota.usage_items.len(), 1);
     let item = &quota.usage_items[0];
-    assert_eq!(item.usage_type, "team_pooled");
+    assert_eq!(item.usage_type, "cursor_auto_composer");
     assert_eq!(item.limit, Some(2000));
     assert_eq!(item.remaining, Some(1500));
     assert!((item.remaining_percentage - 75.0).abs() < 0.01);
@@ -436,12 +446,12 @@ fn parse_usage_response_unlimited_with_no_buckets() {
     assert!(quota.is_unlimited);
     assert_eq!(quota.usage_items.len(), 1);
     let item = &quota.usage_items[0];
-    assert_eq!(item.usage_type, "plan");
+    assert_eq!(item.usage_type, "cursor_auto_composer");
     assert!((item.remaining_percentage - 100.0).abs() < 0.01);
 }
 
 #[test]
-fn parse_usage_response_combined_plan_and_on_demand() {
+fn parse_usage_response_combined_plan_percent_fields() {
     use serde_json::json;
 
     install_crypto_provider_for_tests();
@@ -455,7 +465,10 @@ fn parse_usage_response_combined_plan_and_on_demand() {
                 "used": 300,
                 "limit": 1000,
                 "remaining": 700,
-                "breakdown": { "total": 1000 }
+                "breakdown": { "total": 1000 },
+                "totalPercentUsed": 12.0,
+                "autoPercentUsed": 12.0,
+                "apiPercentUsed": 99.0
             },
             "onDemand": {
                 "enabled": true,
@@ -470,10 +483,15 @@ fn parse_usage_response_combined_plan_and_on_demand() {
     let quota = validator.parse_usage_response(data);
 
     assert_eq!(quota.usage_items.len(), 2);
-    // ((700 + 400) / (1000 + 500)) * 100 ≈ 73.33
-    let expected = (1100.0_f64 / 1500.0_f64) * 100.0;
-    assert!((quota.remaining_percentage - expected).abs() < 0.01);
-    assert!((quota.remaining_percentage - 73.33).abs() < 0.01);
+    assert_eq!(quota.usage_items[0].usage_type, "cursor_auto_composer");
+    assert_eq!(quota.usage_items[0].used, Some(300));
+    assert_eq!(quota.usage_items[0].remaining, Some(700));
+    assert!((quota.usage_items[0].remaining_percentage - 88.0).abs() < 0.01);
+    assert_eq!(quota.usage_items[1].usage_type, "cursor_api");
+    assert_eq!(quota.usage_items[1].used, None);
+    assert_eq!(quota.usage_items[1].remaining, None);
+    assert!((quota.usage_items[1].remaining_percentage - 1.0).abs() < 0.01);
+    assert!((quota.remaining_percentage - 88.0).abs() < 0.01);
 }
 
 #[test]
@@ -500,7 +518,7 @@ fn parse_usage_response_individual_overall() {
 
     assert_eq!(quota.usage_items.len(), 1);
     let item = &quota.usage_items[0];
-    assert_eq!(item.usage_type, "individual_overall");
+    assert_eq!(item.usage_type, "cursor_auto_composer");
     assert_eq!(item.limit, Some(5000));
     assert_eq!(item.remaining, Some(4000));
     assert!((item.remaining_percentage - 80.0).abs() < 0.01);

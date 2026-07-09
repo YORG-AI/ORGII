@@ -47,6 +47,12 @@ export interface ComposerPillAttrs {
 export interface ComposerInputProps {
   /** Placeholder text shown while the editor is empty */
   placeholder?: string;
+  /**
+   * Ghost text rendered inline after the last content node (e.g.
+   * "<optional focus for the summary>" behind a /compact pill). Purely
+   * decorative — not part of the document, never serialized.
+   */
+  trailingHint?: string | null;
   /** Initial plain text content */
   initialContent?: string;
   /** Fires after every editable change (post-sanitization) */
