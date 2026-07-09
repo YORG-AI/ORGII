@@ -25,6 +25,7 @@
  * disabled (nothing to mark in FE state).
  */
 import { atom } from "jotai";
+import { atomFamily } from "jotai-family";
 
 export interface PendingPlanApproval {
   sessionId: string;
@@ -46,6 +47,17 @@ export interface SessionPlanApprovalState {
 export type PlanApprovalStateMap = Map<string, SessionPlanApprovalState>;
 
 export const pendingPlanApprovalsAtom = atom<PlanApprovalStateMap>(new Map());
+
+export const pendingPlanApprovalForSessionAtomFamily = atomFamily(
+  (sessionId: string) => {
+    const scopedAtom = atom<PendingPlanApproval | null>((get) => {
+      if (!sessionId) return null;
+      return get(pendingPlanApprovalsAtom).get(sessionId)?.current ?? null;
+    });
+    scopedAtom.debugLabel = `pendingPlanApproval(${sessionId})`;
+    return scopedAtom;
+  }
+);
 
 function emptyState(): SessionPlanApprovalState {
   return { current: null };

@@ -17,6 +17,7 @@ import {
   isPlanDisplayEvent,
   planAliasesContain,
 } from "@src/engines/SessionCore/derived/planDisplayEvents";
+import { usePendingPlanApproval } from "@src/hooks/session/usePendingPlanApproval";
 import { FileService } from "@src/services/file";
 import { sessionRuntimeStatusAtom } from "@src/store/session/cliSessionStatusAtom";
 import { creatorDefaultModelSelectionAtom } from "@src/store/session/creatorDefaultModelAtom";
@@ -128,7 +129,7 @@ export function usePlanApproval({
 }: UsePlanApprovalOptions): PlanApprovalState {
   const { t } = useTranslation("sessions");
   const activeSessionId = useAtomValue(activeSessionIdAtom);
-  const approvalMap = useAtomValue(pendingPlanApprovalsAtom);
+  const activeSessionPendingPlan = usePendingPlanApproval(activeSessionId);
   const setPendingPlanApprovals = useSetAtom(pendingPlanApprovalsAtom);
   const sessionMap = useAtomValue(sessionMapAtom);
   const runtimeStatus = useAtomValue(sessionRuntimeStatusAtom);
@@ -146,10 +147,7 @@ export function usePlanApproval({
     null
   ) as React.RefObject<HTMLButtonElement>;
 
-  const activeSessionApprovalState = activeSessionId
-    ? approvalMap.get(activeSessionId)
-    : undefined;
-  const currentPendingPlan = activeSessionApprovalState?.current;
+  const currentPendingPlan = activeSessionPendingPlan;
   const planViewState = useMemo(
     () =>
       derivePlanApprovalViewState({
@@ -205,14 +203,12 @@ export function usePlanApproval({
     ? getPlanEventAliases(activePlanMessage!.event)
     : [];
 
-  const approvalState = planSessionId
-    ? approvalMap.get(planSessionId)
-    : undefined;
+  const planSessionPendingPlan = usePendingPlanApproval(planSessionId);
 
   const planRawContent = isPlanDoc
     ? resolvePlanMarkdownContent(
         activePlanMessage!.event,
-        approvalState?.current
+        planSessionPendingPlan
       )
     : "";
   const planPath =
@@ -220,7 +216,7 @@ export function usePlanApproval({
     asStringArg(planResult?.["planPath"]) ||
     null;
 
-  const planApprovalAliases = getPendingPlanAliases(approvalState?.current);
+  const planApprovalAliases = getPendingPlanAliases(planSessionPendingPlan);
   const matchesCurrentPendingPlan = planIdentity.some((identity) =>
     planAliasesContain(planApprovalAliases, identity)
   );

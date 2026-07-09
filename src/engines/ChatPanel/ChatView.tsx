@@ -51,6 +51,7 @@ import { useTodoSync } from "@src/engines/SessionCore/hooks/session/useTodoSync"
 import { AppType } from "@src/engines/Simulator/types/appTypes";
 import { useFileReviewSync } from "@src/hooks/fileReview";
 import { createLogger } from "@src/hooks/logger";
+import { usePendingPlanApproval } from "@src/hooks/session/usePendingPlanApproval";
 import { useSessionWorkspaceSync } from "@src/hooks/session/useSessionWorkspaceSync";
 import {
   activeSessionIdAtom,
@@ -64,7 +65,6 @@ import {
   sessionRuntimeStatusAtom,
   streamRetryStatusAtom,
 } from "@src/store/session/cliSessionStatusAtom";
-import { pendingPlanApprovalsAtom } from "@src/store/session/planApprovalAtom";
 import type { ChatHistoryDisplayMode } from "@src/store/ui/chatPanelAtom";
 import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
 import {
@@ -455,9 +455,7 @@ const ChatView: React.FC<ChatViewProps> = memo(
           : null,
       [canvasPreview?.openedInSimulator, latestCanvasPayload, openLatestCanvas]
     );
-    const currentPlanApproval = useAtomValue(pendingPlanApprovalsAtom).get(
-      sessionId
-    )?.current;
+    const currentPlanApproval = usePendingPlanApproval(sessionId);
     const chatEvents = snapshot?.chatEvents ?? EMPTY_CHAT_EVENTS;
     const isAgentWorking = useAtomValue(isSessionActiveAtom);
 
