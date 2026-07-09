@@ -45,6 +45,33 @@ pub fn normalize_claude_shorthand(model: &str) -> String {
     model.to_string()
 }
 
+/// Cheapest usable sibling of `parent_model` for last-resort summarization
+/// fallback (compaction). Stays within the same provider family so the
+/// session's runtime provider can still route the request.
+///
+/// Unlike `fast_model_hint` (quality-balanced fast sibling), this picks the
+/// minimum-cost tier: when the primary model fails to summarize, a cheap
+/// cold re-read is still far better than dropping history via truncation.
+pub fn nano_model_hint(parent_model: &str) -> String {
+    let lower = parent_model.to_lowercase();
+    if lower.contains("claude")
+        || lower.contains("anthropic")
+        || lower.contains("sonnet")
+        || lower.contains("haiku")
+        || lower.contains("opus")
+    {
+        "anthropic/claude-haiku-4.5:anthropic".to_string()
+    } else if lower.contains("gpt") || lower.contains("openai") {
+        "openai/gpt-5.4-nano:openai".to_string()
+    } else if lower.contains("gemini") {
+        "gemini/gemini-3.1-flash".to_string()
+    } else if lower.contains("deepseek") {
+        "deepseek/deepseek-chat".to_string()
+    } else {
+        parent_model.to_string()
+    }
+}
+
 pub fn fast_model_hint(parent_model: &str) -> String {
     let lower = parent_model.to_lowercase();
     if lower.contains("claude")

@@ -44,6 +44,12 @@ pub struct SideQueryConfig {
     /// one-shot requests whose prefix is never sent again (compaction
     /// summarization) — see [`ChatOptions::skip_cache_write`].
     pub skip_cache_write: bool,
+    /// Use the provider's streaming path (`chat_streaming` with a no-op
+    /// delta sink). Large prompts (e.g. compaction summarization over a
+    /// near-full context window) can exceed non-streaming read timeouts on
+    /// gateways/proxies; streaming keeps bytes flowing so the connection
+    /// stays alive. Defaults to `false` (existing behavior).
+    pub stream: bool,
 }
 
 /// Forced tool call for structured output.
@@ -64,6 +70,7 @@ impl Default for SideQueryConfig {
             structured: None,
             account_id: None,
             skip_cache_write: false,
+            stream: false,
         }
     }
 }
@@ -243,16 +250,17 @@ pub async fn side_query_typed(
     };
 
     // First attempt
-    let response = provider
-        .chat_with_options(
-            &messages,
-            tools_ref,
-            model,
-            config.max_tokens,
-            config.temperature,
-            chat_options,
-        )
-        .await;
+    let response = side_query_chat(
+        provider,
+        &messages,
+        tools_ref,
+        model,
+        config.max_tokens,
+        config.temperature,
+        config.stream,
+        chat_options,
+    )
+    .await;
 
     let result = match response {
         Ok(resp) if is_output_truncated(&resp) => {
@@ -295,17 +303,18 @@ pub async fn side_query_typed(
     });
     let retry_tools_ref: Option<&[Value]> = retry_tools.as_deref();
 
-    let retry_response = provider
-        .chat_with_options(
-            &messages,
-            retry_tools_ref,
-            model,
-            retry_max_tokens,
-            config.temperature,
-            chat_options,
-        )
-        .await
-        .map_err(SideQueryError::Provider)?;
+    let retry_response = side_query_chat(
+        provider,
+        &messages,
+        retry_tools_ref,
+        model,
+        retry_max_tokens,
+        config.temperature,
+        config.stream,
+        chat_options,
+    )
+    .await
+    .map_err(SideQueryError::Provider)?;
 
     if is_output_truncated(&retry_response) {
         return Err(SideQueryError::IncompleteOutput {
@@ -335,6 +344,33 @@ pub async fn side_query_typed(
 
 fn is_output_truncated(response: &LLMResponse) -> bool {
     response.finish_reason == finish_reason::LENGTH
+}
+
+/// Issue the underlying chat call, honoring the `stream` flag.
+///
+/// Streaming uses a no-op delta sink: we only need the final assembled
+/// `LLMResponse`, but keeping the HTTP stream flowing avoids gateway
+/// read-timeouts on very large side-query prompts (compaction summaries).
+#[allow(clippy::too_many_arguments)]
+async fn side_query_chat(
+    provider: &dyn LLMProvider,
+    messages: &[Value],
+    tools: Option<&[Value]>,
+    model: &str,
+    max_tokens: u32,
+    temperature: f32,
+    stream: bool,
+    chat_options: crate::providers::traits::ChatOptions,
+) -> Result<LLMResponse, ProviderError> {
+    if stream {
+        provider
+            .chat_streaming(messages, tools, model, max_tokens, temperature, &|_| {}, None)
+            .await
+    } else {
+        provider
+            .chat_with_options(messages, tools, model, max_tokens, temperature, chat_options)
+            .await
+    }
 }
 
 /// Attempt to extract a result from a response. Returns `None` to signal

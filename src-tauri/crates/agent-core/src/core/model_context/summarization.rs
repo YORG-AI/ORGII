@@ -259,6 +259,9 @@ pub(crate) async fn summarize_messages(
         model: None,
         max_tokens: config.summary_max_tokens,
         temperature: 0.0,
+        // Compaction prompts approach the full context window; stream the
+        // response so gateway/proxy read timeouts don't kill the call.
+        stream: true,
         system_prompt: Some(prompt),
         structured: Some(StructuredOutput {
             tool_name: "emit_summary".to_string(),
