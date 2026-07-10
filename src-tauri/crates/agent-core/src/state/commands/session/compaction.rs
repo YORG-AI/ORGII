@@ -172,12 +172,10 @@ pub async fn agent_session_manual_compact(
         ));
     };
 
-    if session.scheduler.is_processing() || session.scheduler.pending_count() > 0 {
-        return Ok(ManualCompactCommandResult::status(
-            ManualCompactStatus::Busy,
-        ));
-    }
-
+    // Always enqueue maintenance, even while a turn is running. The scheduler
+    // serializes it behind the active turn; rejecting here as Busy made both
+    // UI entry points silently do nothing exactly when users most need to
+    // compact a long-running session.
     let (result_tx, result_rx) = oneshot::channel();
     let exec_session = Arc::clone(&session);
     let exec_session_id = session_id.clone();

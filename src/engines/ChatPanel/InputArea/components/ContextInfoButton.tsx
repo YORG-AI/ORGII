@@ -22,7 +22,6 @@ import {
   useManualCompact,
 } from "@src/engines/ChatPanel/hooks/useManualCompact";
 import { useSessionId } from "@src/engines/SessionCore/hooks/session";
-import { isSessionActiveAtom } from "@src/store/session/cliSessionStatusAtom";
 
 import ContextBreakdownBar from "./ContextBreakdownBar";
 import ContextCategoryRow from "./ContextCategoryRow";
@@ -157,10 +156,6 @@ const ContextInfoButton: React.FC<ContextInfoButtonProps> = memo(
     // Shared in-flight state: covers compactions started from this popover
     // AND from the `/compact` slash command.
     const manualCompacting = compactingSessionId !== null;
-    // Same "session is working" signal the composer/git actions use, so the
-    // Compact button greys out predictively instead of bouncing off a busy
-    // toast from the backend.
-    const isSessionActive = useAtomValue(isSessionActiveAtom);
 
     const ringTone = ringToneForPercentage(percentage);
     const displayPct = percentage > 100 ? 100 : percentage;
@@ -250,7 +245,7 @@ const ContextInfoButton: React.FC<ContextInfoButtonProps> = memo(
     );
     const handleMouseLeave = useCallback(() => setHoveredKey(null), []);
     const runManualCompact = useCallback(async () => {
-      if (manualCompacting || isSessionActive) return;
+      if (manualCompacting) return;
       const compacted = await runSharedManualCompact(
         sessionId,
         compactInstructions
@@ -260,7 +255,6 @@ const ContextInfoButton: React.FC<ContextInfoButtonProps> = memo(
       if (compacted) setCompactInstructions("");
     }, [
       manualCompacting,
-      isSessionActive,
       sessionId,
       compactInstructions,
       runSharedManualCompact,
@@ -280,7 +274,7 @@ const ContextInfoButton: React.FC<ContextInfoButtonProps> = memo(
       [runManualCompact]
     );
 
-    const compactDisabled = manualCompacting || isSessionActive;
+    const compactDisabled = manualCompacting;
 
     return (
       <>

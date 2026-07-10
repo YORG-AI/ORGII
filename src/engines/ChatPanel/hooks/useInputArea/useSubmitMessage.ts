@@ -129,8 +129,6 @@ export function useSubmitMessage({
 
   return useCallback(
     async (options: SubmitMessageOptions = {}) => {
-      if (submitDisabled) return;
-
       if (wpReadOnly) {
         Message.warning(t("chat.noActiveSession"));
         return;
@@ -180,6 +178,12 @@ export function useSubmitMessage({
           return;
         }
       }
+
+      // A running session blocks ordinary sends, but not `/compact`: manual
+      // compaction is a maintenance job queued behind the active turn by the
+      // backend scheduler. Parse the command first so selecting its pill never
+      // becomes a silent no-op while the session is working.
+      if (submitDisabled) return;
 
       // ── Question intercept ────────────────────────────────────────────────
       // When the agent asked a question and the user typed a reply in the main
