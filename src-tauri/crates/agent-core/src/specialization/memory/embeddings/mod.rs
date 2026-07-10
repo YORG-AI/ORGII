@@ -10,6 +10,7 @@ mod azure;
 mod openai;
 #[allow(dead_code)]
 mod rerank;
+pub use rerank::LocalReranker;
 
 // `AutoEmbeddingProvider` is the only provider type external callers reach
 // for — they construct it via `AutoEmbeddingProvider::resolve(...)`. The
