@@ -4,13 +4,22 @@
  * Command palette with reducer-based state management.
  * Modularized for better maintainability.
  */
+import { useAtomValue, useSetAtom } from "jotai";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 
 import { gitApi, removeGitWorktree } from "@src/api/http/git";
+import type { GitWorktreeEntry } from "@src/api/http/git";
 import { ROUTES } from "@src/config/routes";
+import { slugFragment } from "@src/features/SessionCreator/components/worktreeSmartInput";
 import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
+import { currentBranchAtom } from "@src/store/repo";
+import type { WorktreeLaunchSource } from "@src/store/session/worktreeLaunchSourceAtom";
+import {
+  activeWorktreeAtom,
+  setActiveWorktreeAtom,
+} from "@src/store/workspace";
 import { showGitActionDialogSafely } from "@src/util/dialogs/gitActionDialog";
 
 import { SPOTLIGHT_FOOTER_ACTIVE_CHIP } from "./components";
@@ -27,6 +36,7 @@ import {
   EditorPalette,
   SessionCreatorPalette,
   WorkspacePalette,
+  WorktreePalette,
 } from "./palettes";
 import type { BranchPaletteMode } from "./palettes/BranchPalette";
 import type {
@@ -35,6 +45,7 @@ import type {
   RemoveWorktreeOptions,
   RemoveWorktreeResult,
 } from "./palettes/BranchPalette/types";
+import { refreshWorktreeMap } from "./palettes/BranchPalette/useWorktreeMap";
 import type { EditorPaletteMode } from "./palettes/EditorPalette/types";
 import { useSelectorKernel } from "./palettes/core";
 import { PaletteBody, SpotlightShell } from "./shell";
@@ -52,6 +63,24 @@ function getEditorPaletteMode(query: string): EditorPaletteMode {
   if (query.startsWith(">")) return "command";
   if (query.startsWith("@")) return "symbol";
   return "file";
+}
+
+function getWorktreeCreateName(source: WorktreeLaunchSource): string {
+  if (source.kind === "name") {
+    return slugFragment(source.title ?? source.label.replace(/^Name:\s*/i, ""));
+  }
+  if (source.sourceRef?.startsWith("issue:")) {
+    return `issue-${source.sourceRef.slice("issue:".length)}`;
+  }
+  if (source.sourceRef?.startsWith("pr:")) {
+    return `pr-${source.sourceRef.slice("pr:".length)}`;
+  }
+  const ref = source.baseBranch ?? source.title ?? source.label;
+  return `${slugFragment(ref.replace(/^Branch:\s*/i, ""))}-worktree`;
+}
+
+function getWorktreeBaseRef(source: WorktreeLaunchSource): string | undefined {
+  return source.resolvedBaseRef ?? source.baseBranch;
 }
 
 // ============================================
@@ -78,6 +107,10 @@ const GlobalSpotlightInner: React.FC<
   const [embeddedBranchMode, setEmbeddedBranchMode] =
     useState<BranchPaletteMode>("checkout");
   const [branchPickerOpen, setBranchPickerOpen] = useState(false);
+  const [worktreePickerOpen, setWorktreePickerOpen] = useState(false);
+  const activeWorktree = useAtomValue(activeWorktreeAtom);
+  const setActiveWorktree = useSetAtom(setActiveWorktreeAtom);
+  const setCurrentBranch = useSetAtom(currentBranchAtom);
   const [agentSessionSearchOpen, setAgentSessionSearchOpen] = useState(false);
   const [agentControlOpen, setAgentControlOpen] = useState(false);
   const [sessionCreatorOpen, setSessionCreatorOpen] = useState(false);
@@ -102,6 +135,10 @@ const GlobalSpotlightInner: React.FC<
 
   const handleOpenBranchPicker = useCallback(() => {
     setBranchPickerOpen(true);
+  }, []);
+
+  const handleOpenWorktreePicker = useCallback(() => {
+    setWorktreePickerOpen(true);
   }, []);
 
   const handleOpenAgentSessionSearch = useCallback(() => {
@@ -140,6 +177,11 @@ const GlobalSpotlightInner: React.FC<
     restoreLastActivatedItem();
   }, [restoreLastActivatedItem]);
 
+  const handleCloseWorktreePicker = useCallback(() => {
+    setWorktreePickerOpen(false);
+    restoreLastActivatedItem();
+  }, [restoreLastActivatedItem]);
+
   const handleCloseAgentSessionSearch = useCallback(() => {
     setAgentSessionSearchOpen(false);
     restoreLastActivatedItem();
@@ -167,6 +209,53 @@ const GlobalSpotlightInner: React.FC<
       closeModal();
     },
     [closeModal, selectRepo]
+  );
+
+  const handleWorktreePickerSelect = useCallback(
+    (worktree: GitWorktreeEntry) => {
+      if (!selectedRepoId) return;
+      setActiveWorktree({
+        repoId: selectedRepoId,
+        path: worktree.path,
+        branch: worktree.branch,
+        isMain: worktree.is_main,
+      });
+      setCurrentBranch(worktree.branch);
+      setWorktreePickerOpen(false);
+      closeModal();
+    },
+    [closeModal, selectedRepoId, setActiveWorktree, setCurrentBranch]
+  );
+
+  const handleWorktreePickerCreate = useCallback(
+    async (source: WorktreeLaunchSource) => {
+      if (!selectedRepoId || !currentRepoPath) {
+        showGitActionDialogSafely("No repo selected", "error");
+        return;
+      }
+
+      const name = getWorktreeCreateName(source);
+      const basePath = currentRepoPath.replace(/[/\\]+$/, "");
+      const worktreePath = `${basePath}/.orgii/worktrees/${name}`;
+      try {
+        const created = await gitApi.createGitWorktree({
+          repo_id: selectedRepoId,
+          repo_path: currentRepoPath,
+          worktree_path: worktreePath,
+          branch: name,
+          base_ref: getWorktreeBaseRef(source),
+        });
+        await refreshWorktreeMap(selectedRepoId, currentRepoPath);
+        handleWorktreePickerSelect(created);
+        showGitActionDialogSafely(`Worktree "${name}" created`, "info");
+      } catch (error) {
+        showGitActionDialogSafely(
+          error instanceof Error ? error.message : String(error),
+          "error"
+        );
+      }
+    },
+    [currentRepoPath, handleWorktreePickerSelect, selectedRepoId]
   );
 
   const handleBranchPickerSelect = useCallback(
@@ -328,6 +417,7 @@ const GlobalSpotlightInner: React.FC<
       if (cancelled) return;
       setWorkspacePickerMode(null);
       setBranchPickerOpen(false);
+      setWorktreePickerOpen(false);
       setAgentSessionSearchOpen(false);
       setAgentControlOpen(false);
       setSessionCreatorOpen(false);
@@ -363,6 +453,7 @@ const GlobalSpotlightInner: React.FC<
       isOpen &&
       !workspacePickerMode &&
       !branchPickerOpen &&
+      !worktreePickerOpen &&
       !agentSessionSearchOpen &&
       !agentControlOpen &&
       !sessionCreatorOpen,
@@ -370,6 +461,7 @@ const GlobalSpotlightInner: React.FC<
     closeModal,
     onOpenWorkspaceLayer: handleOpenWorkspacePicker,
     onOpenBranchLayer: handleOpenBranchPicker,
+    onOpenWorktreeLayer: handleOpenWorktreePicker,
     onOpenEditorLayer: handleOpenEditorPalette,
     onOpenAgentSessionSearchLayer: handleOpenAgentSessionSearch,
     onOpenAgentControlLayer: handleOpenAgentControl,
@@ -420,6 +512,7 @@ const GlobalSpotlightInner: React.FC<
     isOpen:
       isOpen &&
       !branchPickerOpen &&
+      !worktreePickerOpen &&
       !agentSessionSearchOpen &&
       !agentControlOpen &&
       !sessionCreatorOpen &&
@@ -444,6 +537,7 @@ const GlobalSpotlightInner: React.FC<
     if (
       workspacePickerMode ||
       branchPickerOpen ||
+      worktreePickerOpen ||
       agentSessionSearchOpen ||
       agentControlOpen ||
       sessionCreatorOpen ||
@@ -473,6 +567,7 @@ const GlobalSpotlightInner: React.FC<
     spotlight.items,
     workspacePickerMode,
     branchPickerOpen,
+    worktreePickerOpen,
     agentSessionSearchOpen,
     agentControlOpen,
     sessionCreatorOpen,
@@ -514,6 +609,7 @@ const GlobalSpotlightInner: React.FC<
   const hasActiveAction =
     !!workspacePickerMode ||
     branchPickerOpen ||
+    worktreePickerOpen ||
     agentSessionSearchOpen ||
     agentControlOpen ||
     sessionCreatorOpen ||
@@ -528,6 +624,7 @@ const GlobalSpotlightInner: React.FC<
         : null;
   const activeActionChip =
     workspacePickerMode === "switch" ||
+    worktreePickerOpen ||
     (branchPickerOpen && embeddedBranchMode === "checkout")
       ? SPOTLIGHT_FOOTER_ACTIVE_CHIP.switchSection
       : undefined;
@@ -555,9 +652,22 @@ const GlobalSpotlightInner: React.FC<
       onRemoveWorktree={handleRemoveWorktree}
       onCheckoutDetached={handleCheckoutDetached}
       repoId={effectiveCurrentRepoId ?? ""}
+      repoPath={activeWorktree?.path ?? currentRepoPath}
       currentBranchName={selectedBranchName}
       asBody
       onModeChange={setEmbeddedBranchMode}
+    />
+  ) : worktreePickerOpen ? (
+    <WorktreePalette
+      isOpen={isOpen}
+      onClose={closeModal}
+      onGoBackToParent={handleCloseWorktreePicker}
+      onSelect={handleWorktreePickerSelect}
+      onCreate={handleWorktreePickerCreate}
+      repoId={effectiveCurrentRepoId ?? ""}
+      repoPath={currentRepoPath}
+      activePath={activeWorktree?.path ?? currentRepoPath}
+      asBody
     />
   ) : agentSessionSearchOpen ? (
     <AgentSessionSearchPalette

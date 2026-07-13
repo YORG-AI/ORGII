@@ -59,7 +59,7 @@ import {
   prNumberFromSourceRef,
 } from "./worktreeSourceResolve";
 
-interface WorktreeSourceModalProps {
+export interface WorktreeSourceModalProps {
   open: boolean;
   repoId?: string;
   repoName?: string;

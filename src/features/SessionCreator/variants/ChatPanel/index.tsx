@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { GitWorktreeEntry } from "@src/api/http/git";
 import type { ModelType } from "@src/api/tauri/rpc/schemas/validation";
 import type { CliAgentType } from "@src/api/types/keys";
 import Button from "@src/components/Button";
@@ -306,6 +307,7 @@ const SessionCreatorChatPanelSingle: React.FC<
 
   const runningLocation = useAtomValue(runningLocationAtom);
   const setRunningLocation = useSetAtom(runningLocationAtom);
+  const selectedWorktreePath = useAtomValue(selectedWorktreePathAtom);
   const setSelectedWorktreePath = useSetAtom(selectedWorktreePathAtom);
   const worktreeLaunchSource = useAtomValue(worktreeLaunchSourceAtom);
   const setWorktreeLaunchSource = useSetAtom(worktreeLaunchSourceAtom);
@@ -319,6 +321,23 @@ const SessionCreatorChatPanelSingle: React.FC<
       setRunningLocation(location);
     },
     [setRunningLocation, setSelectedWorktreePath, setWorktreeLaunchSource]
+  );
+
+  const handleExistingWorktreeSelect = useCallback(
+    (worktree: GitWorktreeEntry) => {
+      setWorktreeLaunchSource(null);
+      setSelectedWorktreePath(worktree.is_main ? null : worktree.path);
+      setRunningLocation(worktree.is_main ? "local" : "worktree");
+      if (worktree.branch) {
+        handleBranchChange(worktree.branch);
+      }
+    },
+    [
+      handleBranchChange,
+      setRunningLocation,
+      setSelectedWorktreePath,
+      setWorktreeLaunchSource,
+    ]
   );
 
   const handleWorktreeSourceSelect = useCallback(
@@ -377,8 +396,8 @@ const SessionCreatorChatPanelSingle: React.FC<
     setScreenPickerMonitors,
     handleShareScreenClick,
     handleScreenPicked,
-    handleRepoChange,
-    handleRepoSelectForSession,
+    handleRepoChange: handleRepoChangeBase,
+    handleRepoSelectForSession: handleRepoSelectForSessionBase,
     requestModelOpen,
     setRequestModelOpen,
     handleCategorySelect,
@@ -390,6 +409,37 @@ const SessionCreatorChatPanelSingle: React.FC<
     selectRepo,
     forceRefreshRepos,
   });
+
+  const resetWorktreeSelectionForRepoChange = useCallback(
+    (repoId: string) => {
+      if (repoId === effectiveSource?.repoId) return;
+      setSelectedWorktreePath(null);
+      setWorktreeLaunchSource(null);
+      setRunningLocation("local");
+    },
+    [
+      effectiveSource?.repoId,
+      setRunningLocation,
+      setSelectedWorktreePath,
+      setWorktreeLaunchSource,
+    ]
+  );
+
+  const handleRepoChange = useCallback(
+    (...args: Parameters<typeof handleRepoChangeBase>) => {
+      resetWorktreeSelectionForRepoChange(args[0]);
+      handleRepoChangeBase(...args);
+    },
+    [handleRepoChangeBase, resetWorktreeSelectionForRepoChange]
+  );
+
+  const handleRepoSelectForSession = useCallback(
+    (...args: Parameters<typeof handleRepoSelectForSessionBase>) => {
+      resetWorktreeSelectionForRepoChange(args[0]);
+      handleRepoSelectForSessionBase(...args);
+    },
+    [handleRepoSelectForSessionBase, resetWorktreeSelectionForRepoChange]
+  );
 
   const handleAgentPickerSelect = useCallback(
     (selection: AgentSelection) => {
@@ -749,10 +799,16 @@ const SessionCreatorChatPanelSingle: React.FC<
       branchLoading={branchLoading && !effectiveBranchName}
       onBranchChange={handleBranchChange}
       worktreeLocation={isDisplayedSystemPath ? undefined : runningLocation}
+      selectedWorktreePath={selectedWorktreePath}
       worktreeSourceLabel={
-        runningLocation === "worktree" ? worktreeLaunchSource?.label : undefined
+        runningLocation === "worktree"
+          ? selectedWorktreePath
+            ? t("common:sourceControl.scope.worktrees")
+            : worktreeLaunchSource?.label
+          : undefined
       }
       onWorktreeLocationChange={handleWorktreeLocationChange}
+      onExistingWorktreeSelect={handleExistingWorktreeSelect}
       onWorktreeSourceSelect={handleWorktreeSourceSelect}
       fullWidth
       pillVariant={headerLayout === "compact" ? "ghost" : undefined}

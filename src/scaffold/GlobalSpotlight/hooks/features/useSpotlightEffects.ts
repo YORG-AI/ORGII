@@ -31,6 +31,7 @@ export interface UseSpotlightEffectsOptions {
   closeModal: () => void;
   onOpenWorkspaceLayer?: (mode: "switch" | "open" | "add" | "create") => void;
   onOpenBranchLayer?: () => void;
+  onOpenWorktreeLayer?: () => void;
   onOpenEditorLayer?: (
     query: string,
     mode?: SpotlightInitialEditorMode
@@ -49,6 +50,7 @@ export function useSpotlightEffects(options: UseSpotlightEffectsOptions): void {
     isOpen,
     dispatch,
     onOpenBranchLayer,
+    onOpenWorktreeLayer,
     onOpenEditorLayer,
     onOpenWorkspaceLayer,
     onOpenAgentSessionSearchLayer,
@@ -102,6 +104,8 @@ export function useSpotlightEffects(options: UseSpotlightEffectsOptions): void {
       onOpenWorkspaceLayer?.(initialQuery.layer.mode);
     } else if (initialQuery.layer?.kind === "branch") {
       onOpenBranchLayer?.();
+    } else if (initialQuery.layer?.kind === "worktree") {
+      onOpenWorktreeLayer?.();
     } else if (initialQuery.layer?.kind === "editor") {
       onOpenEditorLayer?.(initialQuery.query, initialQuery.layer.mode);
     } else if (initialQuery.layer?.kind === "agentSessionSearch") {
@@ -124,6 +128,7 @@ export function useSpotlightEffects(options: UseSpotlightEffectsOptions): void {
     onOpenAgentControlLayer,
     onOpenAgentSessionSearchLayer,
     onOpenBranchLayer,
+    onOpenWorktreeLayer,
     onOpenEditorLayer,
     onOpenWorkspaceLayer,
     onOpenSessionCreatorLayer,

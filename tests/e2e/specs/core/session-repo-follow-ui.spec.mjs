@@ -17,7 +17,6 @@
  *    the repo indicator, and no "Switch to" hint appears (the hint only
  *    exists for registered repos, which now auto-follow instead).
  */
-
 import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -35,6 +34,8 @@ const RUN_ID = Date.now();
 const FIXTURE_ROOT = join(homedir(), `.orgii-e2e-repofollow-${RUN_ID}`);
 const REPO_X_PATH = join(FIXTURE_ROOT, "repo-x");
 const REPO_Y_PATH = join(FIXTURE_ROOT, "repo-y");
+const LINKED_WORKTREE_PATH = join(FIXTURE_ROOT, "repo-x-linked-worktree");
+const LINKED_WORKTREE_BRANCH = `e2e-linked-${RUN_ID}`;
 const UNREGISTERED_PATH = join(FIXTURE_ROOT, "unregistered");
 
 const REPO_X_NAME = `E2E Follow Repo X ${RUN_ID}`;
@@ -67,6 +68,24 @@ function createGitFixture(repoPath, readmeTitle) {
       "commit",
       "-m",
       "Initial repo-follow fixture",
+    ],
+    { stdio: "ignore" }
+  );
+}
+
+function createLinkedWorktree() {
+  rmSync(LINKED_WORKTREE_PATH, { force: true, recursive: true });
+  execFileSync(
+    "git",
+    [
+      "-C",
+      REPO_X_PATH,
+      "worktree",
+      "add",
+      "-b",
+      LINKED_WORKTREE_BRANCH,
+      LINKED_WORKTREE_PATH,
+      "main",
     ],
     { stdio: "ignore" }
   );
@@ -164,6 +183,49 @@ async function statusBarRepoLabel() {
   `);
 }
 
+async function clickRendered(selector, label) {
+  const element = await $(selector);
+  await element.waitForDisplayed({
+    timeout: RENDER_TIMEOUT_MS,
+    timeoutMsg: `${label} never rendered`,
+  });
+  await element.click();
+}
+
+async function spotlightSnapshot() {
+  return execJS(`
+    const rows = Array.from(document.querySelectorAll('[data-spotlight-item-id]'));
+    return {
+      input: document.querySelector('[data-spotlight-input="true"]')?.getAttribute('placeholder') ?? null,
+      rows: rows.map((row) => ({
+        id: row.getAttribute('data-spotlight-item-id'),
+        text: (row.textContent || '').trim(),
+        current: row.classList.contains('is-current-selection'),
+      })),
+      bodySample: (document.body.innerText || '').slice(0, 1400),
+    };
+  `);
+}
+
+async function waitForSpotlightItem(itemId, label) {
+  try {
+    await browser.waitUntil(
+      async () =>
+        execJS(
+          `return !!document.querySelector('[data-spotlight-item-id="${itemId}"]');`
+        ),
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        timeoutMsg: `${label} did not render in Spotlight`,
+      }
+    );
+  } catch (error) {
+    throw new Error(
+      `${error.message}: ${JSON.stringify(await spotlightSnapshot())}`
+    );
+  }
+}
+
 async function statusBarSnapshot() {
   return execJS(`
     const repoEl = document.querySelector('[data-testid="status-bar-repo-name"]');
@@ -248,6 +310,7 @@ async function clickSidebarSessionRow(sessionId) {
 describe("My Station follows the active session's repo", () => {
   before(async () => {
     createGitFixture(REPO_X_PATH, "E2E repo-follow repo X");
+    createLinkedWorktree();
     createGitFixture(REPO_Y_PATH, "E2E repo-follow repo Y");
     await waitForApp();
 
@@ -369,7 +432,138 @@ describe("My Station follows the active session's repo", () => {
   });
 
   after(() => {
+    try {
+      execFileSync(
+        "git",
+        [
+          "-C",
+          REPO_X_PATH,
+          "worktree",
+          "remove",
+          "--force",
+          LINKED_WORKTREE_PATH,
+        ],
+        { stdio: "ignore" }
+      );
+    } catch {
+      // The fixture root cleanup below is authoritative.
+    }
     rmSync(FIXTURE_ROOT, { force: true, recursive: true });
+  });
+
+  it("opens the Worktree picker from the rendered status bar and switches the active worktree", async () => {
+    // Return to repo X so its linked worktree is the active selector context.
+    await clickSidebarSessionRow(SESSION_A);
+    await waitForStatusBarRepo(REPO_X_NAME, "before opening Worktree picker");
+
+    // Exercise the production status-bar click -> openWorktreeSpotlight ->
+    // GlobalSpotlight WorktreePalette path. The fixture helper only seeded the
+    // durable repo/worktree precondition; it does not open or select the UI.
+    await clickRendered(
+      '[data-testid="status-bar-worktree"]',
+      "status bar Worktree button"
+    );
+
+    const linkedItemId = `worktree:${LINKED_WORKTREE_PATH}`;
+    const mainItemId = `worktree:${REPO_X_PATH}`;
+    await waitForSpotlightItem(mainItemId, "main worktree row");
+    await waitForSpotlightItem(linkedItemId, "linked worktree row");
+    await waitForSpotlightItem("worktree:new", "New Worktree action");
+
+    const initial = await spotlightSnapshot();
+    const linkedRow = initial.rows.find((row) => row.id === linkedItemId);
+    if (
+      !linkedRow ||
+      !linkedRow.text.includes("repo-x-linked-worktree") ||
+      !linkedRow.text.includes(LINKED_WORKTREE_BRANCH)
+    ) {
+      throw new Error(
+        `linked Worktree row did not show path and branch: ${JSON.stringify(initial)}`
+      );
+    }
+
+    await clickRendered(
+      `[data-spotlight-item-id="${linkedItemId}"]`,
+      "linked Worktree row"
+    );
+    await browser.waitUntil(
+      async () => {
+        const snapshot = await execJS(`
+          const worktree = document.querySelector('[data-testid="status-bar-worktree"]');
+          const branch = document.querySelector('[data-testid="status-bar-branch"]');
+          return {
+            worktree: worktree ? (worktree.textContent || '').trim() : null,
+            branch: branch ? (branch.textContent || '').trim() : null,
+            spotlightOpen: !!document.querySelector('[data-spotlight-input="true"]'),
+          };
+        `);
+        return (
+          snapshot.worktree?.includes("repo-x-linked-worktree") &&
+          snapshot.branch?.includes(LINKED_WORKTREE_BRANCH) &&
+          snapshot.spotlightOpen === false
+        );
+      },
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        timeoutMsg:
+          "rendered status bar did not update after selecting the linked Worktree",
+      }
+    );
+
+    // Reopen through the real rendered button to prove the new current row and
+    // the New Worktree action remain available after a production selection.
+    await clickRendered(
+      '[data-testid="status-bar-worktree"]',
+      "updated status bar Worktree button"
+    );
+    await waitForSpotlightItem(linkedItemId, "selected linked worktree row");
+    const selected = await spotlightSnapshot();
+    const selectedRow = selected.rows.find((row) => row.id === linkedItemId);
+    if (!selectedRow?.current) {
+      throw new Error(
+        `selected Worktree row was not marked current: ${JSON.stringify(selected)}`
+      );
+    }
+
+    await clickRendered(
+      '[data-spotlight-item-id="worktree:new"]',
+      "New Worktree action"
+    );
+    await browser.waitUntil(
+      async () =>
+        execJS(
+          `return !!document.getElementById('worktree-source-smart-input');`
+        ),
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        timeoutMsg:
+          "New Worktree action did not open the rendered worktree source modal",
+      }
+    );
+
+    await browser.keys(["Escape"]);
+    await browser.waitUntil(
+      async () =>
+        execJS(
+          `return !document.getElementById('worktree-source-smart-input');`
+        ),
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        timeoutMsg: "Escape did not close the rendered worktree source modal",
+      }
+    );
+
+    await browser.keys(["Escape"]);
+    await browser.waitUntil(
+      async () =>
+        execJS(
+          `return !document.querySelector('[data-spotlight-input="true"]');`
+        ),
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        timeoutMsg: "Escape did not close the Worktree Spotlight",
+      }
+    );
   });
 
   it("switching to session B (repo Y) makes My Station show repo Y", async () => {

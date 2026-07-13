@@ -41,6 +41,10 @@ export function createBranchSpotlightRequest(): SpotlightInitialQuery {
   return { query: "", layer: { kind: "branch" } };
 }
 
+export function createWorktreeSpotlightRequest(): SpotlightInitialQuery {
+  return { query: "", layer: { kind: "worktree" } };
+}
+
 export function createAgentSessionSearchSpotlightRequest(): SpotlightInitialQuery {
   return { query: "", layer: { kind: "agentSessionSearch" } };
 }

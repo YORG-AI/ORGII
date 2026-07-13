@@ -52,6 +52,7 @@ export function useBranchPalette(options: UseBranchPaletteOptions) {
     repoId,
     repoPathProp,
     currentBranchName,
+    groupWorktreeBranches = true,
     onSelect,
     onCreateBranch,
     onDeleteBranch,
@@ -115,7 +116,7 @@ export function useBranchPalette(options: UseBranchPaletteOptions) {
 
   // ============ FETCH WORKTREES (local repos only) ============
   const worktreeMap = useWorktreeMap({
-    enabled: isOpen,
+    enabled: isOpen && groupWorktreeBranches,
     repoId,
     repoPath: repoPathProp,
     isLocalRepo: !isGitHubRepo,

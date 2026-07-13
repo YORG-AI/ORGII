@@ -88,6 +88,7 @@ export interface BranchDropdownProps {
   currentBranchName?: string;
   githubConnectionId?: string;
   githubRepoFullName?: string;
+  groupWorktreeBranches?: boolean;
   /** Element the dropdown is anchored to. */
   anchorRef: React.RefObject<HTMLElement | null>;
 }
@@ -101,6 +102,7 @@ export const BranchDropdown: React.FC<BranchDropdownProps> = ({
   currentBranchName,
   githubConnectionId,
   githubRepoFullName,
+  groupWorktreeBranches = true,
   anchorRef,
 }) => {
   const { t } = useTranslation();
@@ -126,7 +128,7 @@ export const BranchDropdown: React.FC<BranchDropdownProps> = ({
   });
 
   const worktreeMap = useWorktreeMap({
-    enabled: isOpen,
+    enabled: isOpen && groupWorktreeBranches,
     repoId,
     repoPath,
     isLocalRepo: !isGitHubRepo,

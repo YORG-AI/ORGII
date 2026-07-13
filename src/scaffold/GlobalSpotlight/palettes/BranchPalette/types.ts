@@ -3,6 +3,8 @@
  */
 import type React from "react";
 
+import type { WorktreeLaunchSource } from "@src/store/session/worktreeLaunchSourceAtom";
+
 import type { BasePaletteProps } from "../../shared";
 import type { BranchItem, SpotlightItem } from "../../types";
 
@@ -38,6 +40,17 @@ export type RemoveWorktreeHandler = (
   options?: RemoveWorktreeOptions
 ) => RemoveWorktreeResult | void | Promise<RemoveWorktreeResult | void>;
 
+export interface WorktreePaletteProps extends BasePaletteProps {
+  repoId: string;
+  repoPath?: string;
+  activePath?: string;
+  onSelect: (
+    worktree: import("@src/api/http/git").GitWorktreeEntry
+  ) => void | Promise<void>;
+  onCreate?: (source: WorktreeLaunchSource) => void | Promise<void>;
+  asBody?: boolean;
+}
+
 export interface BranchPaletteProps extends BasePaletteProps {
   /**
    * Callback when a branch is selected (checkout).
@@ -55,6 +68,8 @@ export interface BranchPaletteProps extends BasePaletteProps {
   repoName?: string;
   /** Currently selected branch name */
   currentBranchName?: string;
+  /** Group branches checked out by worktrees into a dedicated section. */
+  groupWorktreeBranches?: boolean;
   /** Callback to create a new branch */
   onCreateBranch?: (
     branchName: string,
@@ -93,6 +108,7 @@ export interface UseBranchPaletteOptions {
   repoId: string;
   repoPathProp?: string;
   currentBranchName?: string;
+  groupWorktreeBranches?: boolean;
   onSelect: (
     branchName: string,
     branch: BranchItem

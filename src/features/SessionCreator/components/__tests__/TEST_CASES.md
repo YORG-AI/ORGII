@@ -1,5 +1,18 @@
 # Test Cases: WorktreeSourceModal + worktree launch wiring
 
+## Existing worktree switching (issue #332)
+
+| #   | Steps                                                          | Expected Result                                                                                                                                         |
+| --- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| W1  | Open a repo with no linked worktrees                           | Session info renders Workspace → Worktree → Branch; Worktree displays `Main`, and its picker contains the main checkout                                 |
+| W2  | Open a repo with linked worktrees                              | Session info renders Workspace → Worktree → Branch; the worktree picker lists the main checkout and every linked worktree                               |
+| W3  | Inspect a linked worktree row                                  | Row shows its directory name/path identity and checked-out branch                                                                                       |
+| W4  | Select a linked worktree                                       | `selectedWorktreePath` stores its absolute path, running location becomes `worktree`, and the branch pill updates to that worktree's checked-out branch |
+| W5  | Open the branch picker after W4                                | Branch fetch/create/delete/checkout calls use the selected worktree path; sibling worktrees are no longer mixed into the branch list                    |
+| W6  | Select the main checkout                                       | `selectedWorktreePath` clears, running location returns to `local`, and branch operations use the workspace repo path                                   |
+| W7  | Choose New Worktree from the running-location picker           | The PR #349 WorktreeSourceModal flow remains unchanged and clears any existing worktree path                                                            |
+| W8  | Select a different Workspace while a linked worktree is active | Existing/new worktree state clears and running location returns to `local`; no path from the previous repository leaks into branch or launch operations |
+
 Covers the worktree-source picker (`WorktreeSourceModal.tsx`) and the
 launch-payload wiring that turns the picked source into backend worktree
 fields (`getWorktreeFields` in `useSessionLaunch/launchPayload.ts`).

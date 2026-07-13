@@ -257,6 +257,7 @@ export type SpotlightInitialLayer =
   | { kind: "default" }
   | { kind: "workspace"; mode: "switch" | "open" | "add" | "create" }
   | { kind: "branch" }
+  | { kind: "worktree" }
   | { kind: "editor"; mode?: SpotlightInitialEditorMode }
   | { kind: "agentSessionSearch" }
   | { kind: "agentControl" }

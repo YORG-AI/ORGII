@@ -27,6 +27,7 @@ export interface EditorStatusBarProps {
   lspStatus?: LspStatus;
   onRepoClick?: () => void;
   onBranchClick?: () => void;
+  onWorktreeClick?: () => void;
   className?: string;
 }
 

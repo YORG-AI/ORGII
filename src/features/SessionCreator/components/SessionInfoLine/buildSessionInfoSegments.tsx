@@ -1,5 +1,12 @@
 import type { TFunction } from "i18next";
-import { Code, Folder, FolderTree, GitBranch, Home } from "lucide-react";
+import {
+  Code,
+  Folder,
+  FolderTree,
+  GitBranch,
+  GitFork,
+  Home,
+} from "lucide-react";
 import React from "react";
 
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
@@ -67,6 +74,9 @@ export function getSessionInfoDisplayState({
 
 interface BuildSessionInfoSegmentsParams extends SessionInfoDisplayState {
   isRepoSelectorOpen: boolean;
+  showWorktreeRow: boolean;
+  worktreeName?: string;
+  isWorktreeSelectorOpen: boolean;
   isBranchSelectorOpen: boolean;
   branchLoading?: boolean;
   branchName?: string;
@@ -77,6 +87,7 @@ interface BuildSessionInfoSegmentsParams extends SessionInfoDisplayState {
   disabled: boolean;
   t: TFunction;
   handleRepoTriggerClick: () => void;
+  handleWorktreeTriggerClick: () => void;
   handleBranchTriggerClick: () => void;
   handleLocationTriggerClick: () => void;
 }
@@ -87,6 +98,10 @@ export function buildSessionInfoSegments({
   sourceDisplayName,
   isRepoSelectorOpen,
   handleRepoTriggerClick,
+  showWorktreeRow,
+  worktreeName,
+  isWorktreeSelectorOpen,
+  handleWorktreeTriggerClick,
   showBranchRow,
   branchLoading,
   branchName,
@@ -127,6 +142,24 @@ export function buildSessionInfoSegments({
       onClick: handleRepoTriggerClick,
     },
   ];
+
+  if (showWorktreeRow) {
+    segments.push({
+      id: "worktree",
+      icon: <GitFork size={14} strokeWidth={1.75} className="text-text-1" />,
+      label: worktreeName || t("sourceControl.scope.main"),
+      maxLabelWidth: SESSION_INFO_LABEL_MAX_WIDTH,
+      active: isWorktreeSelectorOpen,
+      tooltip: disabled
+        ? undefined
+        : t("selectors.sessionInfo.switchWorktree", "Switch worktree"),
+      tooltipFramed: true,
+      tooltipPosition: "bottom",
+      ariaLabel: t("selectors.sessionInfo.worktreeAria", "Select worktree"),
+      disabled,
+      onClick: handleWorktreeTriggerClick,
+    });
+  }
 
   if (showBranchRow) {
     segments.push({

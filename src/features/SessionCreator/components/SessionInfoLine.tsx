@@ -24,7 +24,11 @@ import React, {
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
-import { gitApi, removeGitWorktree } from "@src/api/http/git";
+import {
+  type GitWorktreeEntry,
+  gitApi,
+  removeGitWorktree,
+} from "@src/api/http/git";
 import { CheckoutBlockedDialog } from "@src/components/GitDialogs/CheckoutBlockedDialog";
 import { CheckoutConflictDialog } from "@src/components/GitDialogs/CheckoutConflictDialog";
 import PillGroup, { type PillGroupVariant } from "@src/components/PillGroup";
@@ -56,11 +60,19 @@ import { workspaceNameAtom } from "@src/store/workspace/derived";
 import { showGitActionDialogSafely } from "@src/util/dialogs/gitActionDialog";
 
 import {
+  WorktreeDropdown,
+  useRepoWorktrees,
+} from "./SessionInfoLine/WorktreeDropdown";
+import {
   buildSessionInfoSegments,
   getSessionInfoDisplayState,
 } from "./SessionInfoLine/buildSessionInfoSegments";
 import { type LocationRow } from "./SessionInfoLine/locationConfig";
 import { useSystemPathRepoItems } from "./SessionInfoLine/useSystemPathRepoItems";
+import {
+  getWorktreeName,
+  normalizeWorktreePath,
+} from "./SessionInfoLine/worktreeSwitcher";
 import WorktreeSourceModal from "./WorktreeSourceModal";
 
 // ============================================
@@ -124,8 +136,10 @@ export interface SessionInfoLineProps {
    * (This Mac / New Worktree / Cloud) — modelled after Cursor's context bar.
    */
   worktreeLocation?: RunningLocation;
+  selectedWorktreePath?: string | null;
   worktreeSourceLabel?: string;
   onWorktreeLocationChange?: (location: RunningLocation) => void;
+  onExistingWorktreeSelect?: (worktree: GitWorktreeEntry) => void;
   onWorktreeSourceSelect?: (source: WorktreeLaunchSource) => void;
 }
 
@@ -264,8 +278,10 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
   pillVariant = "default",
   fullWidth: _fullWidth = false,
   worktreeLocation,
+  selectedWorktreePath,
   worktreeSourceLabel,
   onWorktreeLocationChange,
+  onExistingWorktreeSelect,
   onWorktreeSourceSelect,
   disabled = false,
   hideBranch = false,
@@ -277,6 +293,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
   // ============================================
 
   const [isRepoSelectorOpen, setIsRepoSelectorOpen] = useState(false);
+  const [isWorktreeSelectorOpen, setIsWorktreeSelectorOpen] = useState(false);
   const [isBranchSelectorOpen, setIsBranchSelectorOpen] = useState(false);
   const [isWorktreeSourceModalOpen, setIsWorktreeSourceModalOpen] =
     useState(false);
@@ -330,6 +347,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
   // ============================================
 
   const repoTriggerRef = useRef<HTMLButtonElement>(null);
+  const worktreeTriggerRef = useRef<HTMLButtonElement>(null);
   const branchTriggerRef = useRef<HTMLButtonElement>(null);
   const modelPickerStyle = useAtomValue(modelPickerStyleAtom);
   const useDropdownPicker = modelPickerStyle === "dropdown";
@@ -341,6 +359,11 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
   const handleRepoTriggerClick = useCallback(() => {
     if (disabled) return;
     setIsRepoSelectorOpen((isOpen) => !isOpen);
+  }, [disabled]);
+
+  const handleWorktreeTriggerClick = useCallback(() => {
+    if (disabled) return;
+    setIsWorktreeSelectorOpen((isOpen) => !isOpen);
   }, [disabled]);
 
   const handleBranchTriggerClick = useCallback(() => {
@@ -365,10 +388,11 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
   );
 
   const systemPathSourceItems = useSystemPathRepoItems(includeSystemPaths, t);
+  const branchRepoPath = selectedWorktreePath ?? repoPath ?? "";
 
   const handleBranchSelect = useCallback(
     async (branch: string) => {
-      if (!repoId || !repoPath || repoKind === REPO_KIND.FOLDER) {
+      if (!repoId || !branchRepoPath || repoKind === REPO_KIND.FOLDER) {
         onBranchChange?.(branch);
         setIsBranchSelectorOpen(false);
         return true;
@@ -376,7 +400,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
 
       const result = await runGuardedCheckout({
         repoId,
-        repoPath,
+        repoPath: branchRepoPath,
         ref: branch,
         onConflict: (name) => CheckoutConflictDialog.open({ branchName: name }),
         onBlocked: ({ branch: name, errorType, message }) =>
@@ -404,7 +428,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
       }
       return false;
     },
-    [onBranchChange, repoId, repoKind, repoPath]
+    [branchRepoPath, onBranchChange, repoId, repoKind]
   );
 
   const handleBranchPaletteSelect = useCallback(
@@ -416,10 +440,10 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
 
   const handleCreateBranch = useCallback(
     async (branch: string, startPoint?: string) => {
-      if (!repoId || !repoPath) return;
+      if (!repoId || !branchRepoPath) return;
       const result = await gitApi.gitCreateBranch({
         repo_id: repoId,
-        repo_path: repoPath,
+        repo_path: branchRepoPath,
         name: branch,
         start_point: startPoint ?? null,
         checkout: false,
@@ -433,7 +457,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
       }
       await handleBranchSelect(branch);
     },
-    [handleBranchSelect, repoId, repoPath]
+    [branchRepoPath, handleBranchSelect, repoId]
   );
 
   const handleDeleteBranch = useCallback(
@@ -441,7 +465,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
       branch: string,
       options?: { silent?: boolean; skipRefresh?: boolean }
     ) => {
-      if (!repoId || !repoPath) {
+      if (!repoId || !branchRepoPath) {
         const message = "No repo selected";
         if (!options?.silent) {
           showGitActionDialogSafely(message, "error");
@@ -451,7 +475,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
 
       const result = await gitApi.gitDeleteBranch({
         repo_id: repoId,
-        repo_path: repoPath,
+        repo_path: branchRepoPath,
         branch_name: branch,
       });
 
@@ -468,7 +492,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
       }
       return { success: true };
     },
-    [repoId, repoPath]
+    [branchRepoPath, repoId]
   );
 
   const handleRemoveWorktree = useCallback(
@@ -578,6 +602,32 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
     ]
   );
 
+  const worktrees = useRepoWorktrees({
+    repoId,
+    repoPath,
+    enabled: showBranchRow,
+  });
+  const activeWorktreePath = selectedWorktreePath ?? repoPath ?? "";
+  const activeWorktree = worktrees.find(
+    (worktree) =>
+      normalizeWorktreePath(worktree.path) ===
+      normalizeWorktreePath(activeWorktreePath)
+  );
+  const showWorktreeRow = showBranchRow;
+  const worktreeName = activeWorktree?.is_main
+    ? t("sourceControl.scope.main")
+    : activeWorktree
+      ? getWorktreeName(activeWorktree)
+      : undefined;
+
+  const handleExistingWorktreeSelect = useCallback(
+    (worktree: GitWorktreeEntry) => {
+      onExistingWorktreeSelect?.(worktree);
+      setIsWorktreeSelectorOpen(false);
+    },
+    [onExistingWorktreeSelect]
+  );
+
   const handleLocationTriggerClick = useCallback(() => {
     if (disabled) return;
     toggleLocation();
@@ -608,6 +658,10 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
     sourceDisplayName,
     isRepoSelectorOpen,
     handleRepoTriggerClick,
+    showWorktreeRow,
+    worktreeName,
+    isWorktreeSelectorOpen,
+    handleWorktreeTriggerClick,
     showBranchRow,
     branchLoading,
     branchName,
@@ -626,6 +680,8 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
   // flag passing locally-created refs through a plain function.
   const segments = baseSegments.map((segment) => {
     if (segment.id === "repo") return { ...segment, buttonRef: repoTriggerRef };
+    if (segment.id === "worktree")
+      return { ...segment, buttonRef: worktreeTriggerRef };
     if (segment.id === "branch")
       return { ...segment, buttonRef: branchTriggerRef };
     return segment;
@@ -661,6 +717,17 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
         />
       )}
 
+      {showWorktreeRow && (
+        <WorktreeDropdown
+          isOpen={isWorktreeSelectorOpen}
+          onClose={() => setIsWorktreeSelectorOpen(false)}
+          onSelect={handleExistingWorktreeSelect}
+          worktrees={worktrees}
+          selectedPath={activeWorktreePath}
+          anchorRef={worktreeTriggerRef}
+        />
+      )}
+
       {/* Branch Selector */}
       {showBranchRow &&
         repoId &&
@@ -670,8 +737,9 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
             onClose={handleBranchClose}
             onSelect={handleBranchSelect}
             repoId={repoId}
-            repoPath={repoPath}
+            repoPath={branchRepoPath}
             currentBranchName={branchName}
+            groupWorktreeBranches={false}
             anchorRef={branchTriggerRef}
           />
         ) : (
@@ -680,8 +748,9 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
             onClose={handleBranchClose}
             onSelect={handleBranchPaletteSelect}
             repoId={repoId}
-            repoPath={repoPath}
+            repoPath={branchRepoPath}
             currentBranchName={branchName}
+            groupWorktreeBranches={false}
             onCreateBranch={handleCreateBranch}
             onDeleteBranch={handleDeleteBranch}
             onRemoveWorktree={handleRemoveWorktree}

@@ -93,6 +93,7 @@ export const StatusBarRenderer: React.FC<StatusBarRendererProps> = memo(
         lspStatus={state.lspStatus}
         onRepoClick={callbacks.onRepoClick}
         onBranchClick={callbacks.onBranchClick}
+        onWorktreeClick={callbacks.onWorktreeClick}
         className={className}
       />
     );

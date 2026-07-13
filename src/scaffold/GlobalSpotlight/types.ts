@@ -84,6 +84,8 @@ export interface BranchItem {
    * (GitHub remote repos).
    */
   worktreePath?: string;
+  /** Whether this entry represents the repository's main working tree. */
+  worktreeIsMain?: boolean;
 }
 
 // ============ SPOTLIGHT ITEM ============
