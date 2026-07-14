@@ -16,7 +16,10 @@ import {
   streamingDeltaContentAtom,
 } from "@src/engines/SessionCore";
 import { createLogger } from "@src/hooks/logger";
-import { canvasPreviewAtom } from "@src/store/session/canvasPreviewAtom";
+import {
+  canvasPreviewAtom,
+  dismissCanvasForSession,
+} from "@src/store/session/canvasPreviewAtom";
 import {
   type CliSessionStatus,
   isPendingCancelAtom,
@@ -94,8 +97,7 @@ export function useSessionSync(
   const dismissCanvasAtNewTurn = useCallback(
     (sid: string) => {
       setCanvasPreview((prev) => {
-        if (!prev || prev.sessionId !== sid || prev.cardDismissed) return prev;
-        return { ...prev, cardDismissed: true };
+        return dismissCanvasForSession(prev, sid);
       });
     },
     [setCanvasPreview]

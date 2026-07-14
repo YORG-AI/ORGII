@@ -9,7 +9,11 @@
  */
 import { describe, expect, it, vi } from "vitest";
 
-import type { CanvasPreviewEntry } from "@src/store/session/canvasPreviewAtom";
+import {
+  type CanvasPreviewEntry,
+  deriveCanvasForSessionSnapshot,
+  dismissCanvasForSession,
+} from "@src/store/session/canvasPreviewAtom";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -27,37 +31,17 @@ function makeEntry(
   };
 }
 
-/**
- * Pure implementation of useCanvasPreviewForSession's payload derivation.
- * Mirrors the hook's logic without React dependencies.
- */
 function deriveCanvasPayload(
   entry: CanvasPreviewEntry | null,
   sessionId: string | null | undefined
 ) {
-  if (!entry) return null;
-  if (!sessionId) return null;
-  if (entry.sessionId !== sessionId) return null;
-  if (entry.cardDismissed) return null;
-  return entry.payload;
-}
-
-/**
- * Pure implementation of the dismissCanvasAtNewTurn updater.
- * Mirrors the useSetAtom updater in useSessionSync.
- */
-function dismissCanvasForSession(
-  prev: CanvasPreviewEntry | null,
-  sessionId: string
-): CanvasPreviewEntry | null {
-  if (!prev || prev.sessionId !== sessionId || prev.cardDismissed) return prev;
-  return { ...prev, cardDismissed: true };
+  return deriveCanvasForSessionSnapshot(entry, sessionId).payload;
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe("canvas visibility lifecycle", () => {
-  describe("deriveCanvasPayload (mirrors useCanvasPreviewForSession logic)", () => {
+  describe("deriveCanvasPayload", () => {
     it("returns payload for matching session with no dismissal", () => {
       const entry = makeEntry();
       expect(deriveCanvasPayload(entry, "session-1")).toEqual(entry.payload);
@@ -93,7 +77,7 @@ describe("canvas visibility lifecycle", () => {
     });
   });
 
-  describe("dismissCanvasForSession (mirrors dismissCanvasAtNewTurn updater)", () => {
+  describe("dismissCanvasForSession", () => {
     it("sets cardDismissed: true for the matching session", () => {
       const entry = makeEntry({ sessionId: "session-1" });
       const result = dismissCanvasForSession(entry, "session-1");

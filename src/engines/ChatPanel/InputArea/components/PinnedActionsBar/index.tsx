@@ -18,9 +18,9 @@ import Button from "@src/components/Button";
 import type { ComposerInputRef } from "@src/components/ComposerInput";
 import { FileTreeHoverPreview } from "@src/components/FileTreePreview/exports";
 import UserActionButton from "@src/engines/ChatPanel/InputArea/components/UserActionButton";
+import { useCanvasForTurn } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/useCanvasForTurn";
 import { useSlashItemsCache } from "@src/engines/ChatPanel/hooks/useInputArea/useSlashItemsCache";
 import { EditorTabService } from "@src/services/workStation/EditorTabService";
-import { canvasPreviewAtom } from "@src/store/session/canvasPreviewAtom";
 import {
   type PinnedAction,
   pinnedActionsAtom,
@@ -66,7 +66,7 @@ const ActionPill: React.FC<ActionPillProps> = memo(
         shape="round"
         title={action.name}
         onClick={(event) => onClick(action, event)}
-        className="max-w-[180px] shrink-0 select-none"
+        className="max-w-180 shrink-0 select-none"
       >
         {action.name}
       </Button>
@@ -129,14 +129,11 @@ const PinnedActionsBar: React.FC<PinnedActionsBarProps> = memo(
 
     // ── Canvas pill ───────────────────────────────────────────────────────────
 
-    const [canvasEntry, setCanvasEntry] = useAtom(canvasPreviewAtom);
+    const { snapshot: canvasForTurn, clearCanvas } =
+      useCanvasForTurn(sessionId);
     const mainPaneTabs = useAtomValue(mainPaneTabsAtom);
 
-    const showCanvasPill = Boolean(
-      sessionId &&
-      canvasEntry?.sessionId === sessionId &&
-      canvasEntry.cardDismissed
-    );
+    const showCanvasPill = canvasForTurn.isDismissed;
 
     const isCanvasTabOpen = Boolean(
       sessionId &&
@@ -150,8 +147,8 @@ const PinnedActionsBar: React.FC<PinnedActionsBarProps> = memo(
     }, [sessionId]);
 
     const handleClearCanvas = useCallback(() => {
-      setCanvasEntry(null);
-    }, [setCanvasEntry]);
+      clearCanvas();
+    }, [clearCanvas]);
 
     // ── Built-in "Setup Repo" action ──────────────────────────────────────────
 

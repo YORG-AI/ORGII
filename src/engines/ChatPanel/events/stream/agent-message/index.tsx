@@ -19,7 +19,7 @@ import { getEventIcon } from "@src/config/toolIcons";
 import AgentChatItemDefault from "@src/engines/ChatPanel/ChatItems/AgentChatItemDefault";
 import { AgentMessageBlock } from "@src/engines/ChatPanel/blocks";
 import CanvasInlineCard from "@src/engines/ChatPanel/blocks/CanvasInlineCard";
-import { useCanvasPreviewForSession } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/useCanvasPreviewForSession";
+import { useCanvasForTurn } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/useCanvasForTurn";
 import MessageReferenceCards from "@src/engines/ChatPanel/blocks/MessageReferenceCards";
 import LlmUsageBadge from "@src/engines/ChatPanel/blocks/ToolCallBlock/LlmUsageBadge";
 import {
@@ -177,9 +177,10 @@ const ChatVariant: React.FC<ChatVariantProps> = ({
   // Reading the global atom unconditionally caused re-shows: any time a new
   // round started and openInSimulatorCanvas cleared cardDismissed, every
   // historical ChatVariant instance would briefly re-render the old canvas.
-  const { payload: streamingCanvasPayload } = useCanvasPreviewForSession(
+  const { snapshot: streamingCanvas } = useCanvasForTurn(
     isStreaming ? sessionId : null
   );
+  const streamingCanvasPayload = streamingCanvas.payload;
   const canvasPayload = isStreaming ? streamingCanvasPayload : null;
 
   if (!content && !thinkingContent && !isStreaming && !canvasPayload)
