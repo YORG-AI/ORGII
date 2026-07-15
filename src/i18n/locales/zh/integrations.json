@@ -1992,6 +1992,18 @@
       "coordinator": "协调者",
       "coordinatorDesc": "负责本次组织运行的 coordinator 会话的主导 Agent",
       "coordinatorPlaceholder": "选择 coordinator Agent",
+      "coordinatorRole": "Coordinator 角色",
+      "coordinatorRoleDesc": "显示给 Coordinator 和其他成员的简短能力标签",
+      "coordinatorRolePlaceholder": "例如：工程交付负责人",
+      "instructions": {
+        "title": "运行指令",
+        "coordinatorLabel": "Coordinator 指令",
+        "coordinatorDescription": "可编辑的团队编排、监控、修复和收尾规则。每次新 Run 启动时都会保存进运行快照",
+        "coordinatorPlaceholder": "Coordinator 应该怎样带领这个团队？",
+        "memberLabel": "{{name}} 指令",
+        "memberDescription": "只在该成员执行 Turn 时生效的可编辑行为指引",
+        "memberPlaceholder": "这个成员应该负责什么、优先什么、避免什么？"
+      },
       "tabs": {
         "edit": "编辑",
         "previewDiagram": "预览图"

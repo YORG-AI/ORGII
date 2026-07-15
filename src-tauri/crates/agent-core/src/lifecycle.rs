@@ -845,6 +845,7 @@ mod tests {
             role: "coordinator".to_string(),
             agent_id: "builtin:coord".to_string(),
             description: None,
+            instructions: None,
             hierarchy_mode: HierarchyMode::Soft,
             plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
             children: vec![
@@ -853,6 +854,7 @@ mod tests {
                     name: "Worker".to_string(),
                     role: "builder".to_string(),
                     agent_id: member_agent_id.to_string(),
+                    instructions: None,
                     runtime_config: None,
                     children: Vec::new(),
                 },
@@ -861,6 +863,7 @@ mod tests {
                     name: "Peer".to_string(),
                     role: "builder".to_string(),
                     agent_id: "builtin:sde".to_string(),
+                    instructions: None,
                     runtime_config: None,
                     children: Vec::new(),
                 },

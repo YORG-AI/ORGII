@@ -72,6 +72,12 @@ const AgentTeamWizard: React.FC<AgentTeamWizardProps> = ({
   const [coordinatorAgentId, setCoordinatorAgentId] = useState<string>(
     initialOrg?.agentId ?? ""
   );
+  const [coordinatorRole, setCoordinatorRole] = useState(
+    initialOrg?.role ?? "Coordinator"
+  );
+  const [coordinatorInstructions, setCoordinatorInstructions] = useState(
+    initialOrg?.instructions ?? ""
+  );
   const [hierarchyMode, setHierarchyMode] = useState<HierarchyMode>(
     initialOrg?.hierarchyMode ?? DEFAULT_HIERARCHY_MODE
   );
@@ -102,9 +108,10 @@ const AgentTeamWizard: React.FC<AgentTeamWizardProps> = ({
     () => ({
       id: initialOrg?.id ?? "preview-root",
       name: orgName.trim() || "Org",
-      role: "org",
+      role: coordinatorRole.trim() || "Coordinator",
       agentId: coordinatorAgentId,
       description: orgDescription.trim() || undefined,
+      instructions: coordinatorInstructions.trim() || undefined,
       hierarchyMode,
       planApprovalPolicy,
       children: buildOrgTreeFromMembers(members),
@@ -113,6 +120,8 @@ const AgentTeamWizard: React.FC<AgentTeamWizardProps> = ({
       orgName,
       orgDescription,
       coordinatorAgentId,
+      coordinatorRole,
+      coordinatorInstructions,
       hierarchyMode,
       planApprovalPolicy,
       members,
@@ -122,13 +131,16 @@ const AgentTeamWizard: React.FC<AgentTeamWizardProps> = ({
 
   const handleSave = useCallback(() => {
     const trimmedDescription = orgDescription.trim();
+    const trimmedInstructions = coordinatorInstructions.trim();
     const root: OrgMember = {
       id: initialOrg?.id ?? crypto.randomUUID(),
       name: orgName.trim(),
-      role: "org",
+      role: coordinatorRole.trim() || "Coordinator",
       agentId: coordinatorAgentId,
       description:
         trimmedDescription.length > 0 ? trimmedDescription : undefined,
+      instructions:
+        trimmedInstructions.length > 0 ? trimmedInstructions : undefined,
       hierarchyMode,
       planApprovalPolicy,
       children: buildOrgTreeFromMembers(members),
@@ -138,6 +150,8 @@ const AgentTeamWizard: React.FC<AgentTeamWizardProps> = ({
     orgName,
     orgDescription,
     coordinatorAgentId,
+    coordinatorRole,
+    coordinatorInstructions,
     hierarchyMode,
     planApprovalPolicy,
     members,
@@ -229,6 +243,10 @@ const AgentTeamWizard: React.FC<AgentTeamWizardProps> = ({
                 onOrgDescriptionChange={setOrgDescription}
                 coordinatorAgentId={coordinatorAgentId}
                 onCoordinatorAgentIdChange={setCoordinatorAgentId}
+                coordinatorRole={coordinatorRole}
+                onCoordinatorRoleChange={setCoordinatorRole}
+                coordinatorInstructions={coordinatorInstructions}
+                onCoordinatorInstructionsChange={setCoordinatorInstructions}
                 hierarchyMode={hierarchyMode}
                 onHierarchyModeChange={setHierarchyMode}
                 planApprovalPolicy={planApprovalPolicy}

@@ -849,6 +849,7 @@ mod tests {
             role: "lead".into(),
             agent_id: "coord-agent".into(),
             description: None,
+            instructions: None,
             hierarchy_mode: HierarchyMode::Soft,
             plan_approval_policy: policy,
             children: vec![
@@ -857,6 +858,7 @@ mod tests {
                     name: "Planner".into(),
                     role: "plan".into(),
                     agent_id: "planner-agent".into(),
+                    instructions: None,
                     runtime_config: None,
                     children: Vec::new(),
                 },
@@ -865,6 +867,7 @@ mod tests {
                     name: "Builder".into(),
                     role: "build".into(),
                     agent_id: "builder-agent".into(),
+                    instructions: None,
                     runtime_config: None,
                     children: Vec::new(),
                 },
@@ -890,12 +893,14 @@ mod tests {
             coordinator_agent_id: "coord-agent".into(),
             coordinator_name: "Coordinator".into(),
             coordinator_role: "lead".into(),
+            coordinator_instructions: None,
             members: vec![
                 AgentOrgContextMember {
                     member_id: "planner".into(),
                     name: "Planner".into(),
                     role: "plan".into(),
                     agent_id: "planner-agent".into(),
+                    instructions: None,
                     parent_member_id: None,
                 },
                 AgentOrgContextMember {
@@ -903,6 +908,7 @@ mod tests {
                     name: "Builder".into(),
                     role: "build".into(),
                     agent_id: "builder-agent".into(),
+                    instructions: None,
                     parent_member_id: None,
                 },
             ],

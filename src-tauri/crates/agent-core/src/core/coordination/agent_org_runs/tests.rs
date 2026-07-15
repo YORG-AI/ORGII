@@ -37,6 +37,7 @@ fn sample_org() -> OrgDefinition {
         role: "lead".to_string(),
         agent_id: "agent-coord".to_string(),
         description: None,
+        instructions: Some("coordinate from the saved snapshot".to_string()),
         hierarchy_mode: Default::default(),
         plan_approval_policy: PlanApprovalPolicy::Coordinator,
         children: vec![OrgMember {
@@ -44,6 +45,7 @@ fn sample_org() -> OrgDefinition {
             name: "Worker One".to_string(),
             role: "ic".to_string(),
             agent_id: "agent-w1".to_string(),
+            instructions: Some("work from the saved member snapshot".to_string()),
             runtime_config: None,
             children: Vec::new(),
         }],
@@ -221,8 +223,10 @@ fn context_for_run_uses_launch_snapshot_after_live_org_changes() {
         let mut orgs = store.orgs.lock().expect("org store lock");
         orgs[0].name = "Edited Live Org".to_string();
         orgs[0].role = "edited lead".to_string();
+        orgs[0].instructions = Some("edited live coordinator instructions".to_string());
         orgs[0].children[0].id = "member-edited".to_string();
         orgs[0].children[0].agent_id = "agent-edited".to_string();
+        orgs[0].children[0].instructions = Some("edited live worker instructions".to_string());
     }
 
     let ctx = AgentOrgRunStore::context_for_run(&run.id, &store)
@@ -230,9 +234,17 @@ fn context_for_run_uses_launch_snapshot_after_live_org_changes() {
         .expect("context resolved");
     assert_eq!(ctx.org_name, "WalkTest Org");
     assert_eq!(ctx.coordinator_role, "lead");
+    assert_eq!(
+        ctx.coordinator_instructions.as_deref(),
+        Some("coordinate from the saved snapshot")
+    );
     assert_eq!(ctx.members.len(), 1);
     assert_eq!(ctx.members[0].member_id, "member-w1");
     assert_eq!(ctx.members[0].agent_id, "agent-w1");
+    assert_eq!(
+        ctx.members[0].instructions.as_deref(),
+        Some("work from the saved member snapshot")
+    );
 }
 
 #[test]
@@ -850,12 +862,14 @@ fn routing_ctx(mode: HierarchyMode) -> AgentOrgRunContext {
         coordinator_agent_id: "agent-coord".into(),
         coordinator_name: "RoutingOrg".into(),
         coordinator_role: "lead".into(),
+        coordinator_instructions: None,
         members: vec![
             AgentOrgContextMember {
                 member_id: "member-a".into(),
                 name: "lead-a".into(),
                 role: "lead".into(),
                 agent_id: "agent-a".into(),
+                instructions: None,
                 parent_member_id: None,
             },
             AgentOrgContextMember {
@@ -863,6 +877,7 @@ fn routing_ctx(mode: HierarchyMode) -> AgentOrgRunContext {
                 name: "ic-a".into(),
                 role: "ic".into(),
                 agent_id: "agent-a-ic".into(),
+                instructions: None,
                 parent_member_id: Some("member-a".into()),
             },
             AgentOrgContextMember {
@@ -870,6 +885,7 @@ fn routing_ctx(mode: HierarchyMode) -> AgentOrgRunContext {
                 name: "lead-b".into(),
                 role: "lead".into(),
                 agent_id: "agent-b".into(),
+                instructions: None,
                 parent_member_id: None,
             },
             AgentOrgContextMember {
@@ -877,6 +893,7 @@ fn routing_ctx(mode: HierarchyMode) -> AgentOrgRunContext {
                 name: "ic-b".into(),
                 role: "ic".into(),
                 agent_id: "agent-b-ic".into(),
+                instructions: None,
                 parent_member_id: Some("member-b".into()),
             },
         ],
@@ -884,6 +901,17 @@ fn routing_ctx(mode: HierarchyMode) -> AgentOrgRunContext {
         plan_approval_policy: PlanApprovalPolicy::Coordinator,
         root_session_id: None,
     }
+}
+
+#[test]
+fn operational_run_context_wire_omits_prompt_only_instructions() {
+    let mut context = routing_ctx(HierarchyMode::Soft);
+    context.coordinator_instructions = Some("private coordinator guidance".to_string());
+    context.members[0].instructions = Some("private member guidance".to_string());
+
+    let wire = serde_json::to_value(context).expect("serialize run context");
+    assert!(wire.get("coordinatorInstructions").is_none());
+    assert!(wire.pointer("/members/0/instructions").is_none());
 }
 
 #[test]

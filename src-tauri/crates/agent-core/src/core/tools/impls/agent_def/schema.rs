@@ -33,6 +33,7 @@ pub(super) fn parameters_schema() -> Value {
         "name": { "type": "string", "description": "Agent or org name (required for create / create_org)" },
         "role": { "type": "string", "description": "Org leader role (for create_org / update_org)" },
         "description": { "type": "string", "description": "Agent or org description" },
+        "instructions": { "type": "string", "description": "Coordinator operating instructions (for create_org / update_org)" },
         "soul_content": { "type": "string", "description": "System prompt / soul content" },
         "temperature": { "type": "number", "description": "LLM temperature (0.0-1.0)" },
         "max_tokens": { "type": "integer", "description": "Max output tokens per response" },
@@ -86,7 +87,13 @@ pub(super) fn parameters_schema() -> Value {
             "type": "array",
             "items": {
                 "type": "object",
-                "properties": { "name": { "type": "string" }, "role": { "type": "string" }, "agent_id": { "type": "string" }, "children": { "type": "array", "items": { "type": "object" } } },
+                "properties": {
+                    "name": { "type": "string" },
+                    "role": { "type": "string" },
+                    "agent_id": { "type": "string" },
+                    "instructions": { "type": "string", "description": "Operating instructions used only for this member" },
+                    "children": { "type": "array", "items": { "type": "object" } }
+                },
                 "required": ["name"]
             },
             "description": "Org team members"

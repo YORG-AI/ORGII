@@ -62,6 +62,10 @@ export interface AgentTeamFormSectionsProps {
   onOrgDescriptionChange: (value: string) => void;
   coordinatorAgentId: string;
   onCoordinatorAgentIdChange: (value: string) => void;
+  coordinatorRole: string;
+  onCoordinatorRoleChange: (value: string) => void;
+  coordinatorInstructions: string;
+  onCoordinatorInstructionsChange: (value: string) => void;
   hierarchyMode: HierarchyMode;
   onHierarchyModeChange: (mode: HierarchyMode) => void;
   planApprovalPolicy: PlanApprovalPolicy;
@@ -107,6 +111,10 @@ const AgentTeamFormSections: React.FC<AgentTeamFormSectionsProps> = ({
   onOrgDescriptionChange,
   coordinatorAgentId,
   onCoordinatorAgentIdChange,
+  coordinatorRole,
+  onCoordinatorRoleChange,
+  coordinatorInstructions,
+  onCoordinatorInstructionsChange,
   hierarchyMode,
   onHierarchyModeChange,
   planApprovalPolicy,
@@ -160,6 +168,17 @@ const AgentTeamFormSections: React.FC<AgentTeamFormSectionsProps> = ({
       onMembersTabChange(key as "edit" | "preview");
     },
     [onMembersTabChange]
+  );
+
+  const handleMemberInstructionsChange = useCallback(
+    (memberId: string, instructions: string) => {
+      onMembersChange(
+        members.map((member) =>
+          member.id === memberId ? { ...member, instructions } : member
+        )
+      );
+    },
+    [members, onMembersChange]
   );
 
   const membersTabPill = useMemo(
@@ -246,6 +265,19 @@ const AgentTeamFormSections: React.FC<AgentTeamFormSectionsProps> = ({
             style={SECTION_CONTROL_STYLE}
             showSearch
             dataTestId="agent-orgs-org-coordinator-select"
+          />
+        </SectionRow>
+        <SectionRow
+          label={t("agentOrgs.orgWizard.coordinatorRole")}
+          description={t("agentOrgs.orgWizard.coordinatorRoleDesc")}
+        >
+          <Input
+            value={coordinatorRole}
+            onChange={onCoordinatorRoleChange}
+            placeholder={t("agentOrgs.orgWizard.coordinatorRolePlaceholder")}
+            size="default"
+            style={SECTION_CONTROL_STYLE}
+            data-testid="agent-orgs-coordinator-role-input"
           />
         </SectionRow>
         <SectionRow
@@ -340,6 +372,54 @@ const AgentTeamFormSections: React.FC<AgentTeamFormSectionsProps> = ({
             )}
           </SectionRow>
         )}
+      </SectionContainer>
+
+      <SectionContainer title={t("agentOrgs.orgWizard.instructions.title")}>
+        <SectionRow
+          label={t("agentOrgs.orgWizard.instructions.coordinatorLabel")}
+          description={t(
+            "agentOrgs.orgWizard.instructions.coordinatorDescription"
+          )}
+          layout="vertical"
+        >
+          <Textarea
+            value={coordinatorInstructions}
+            onChange={onCoordinatorInstructionsChange}
+            placeholder={t(
+              "agentOrgs.orgWizard.instructions.coordinatorPlaceholder"
+            )}
+            size="default"
+            rows={4}
+            autoSize={{ minRows: 4, maxRows: 10 }}
+            data-testid="agent-orgs-coordinator-instructions-input"
+          />
+        </SectionRow>
+        {members.map((member) => (
+          <SectionRow
+            key={member.id}
+            label={t("agentOrgs.orgWizard.instructions.memberLabel", {
+              name: member.name.trim() || t("common:placeholders.untitled"),
+            })}
+            description={t(
+              "agentOrgs.orgWizard.instructions.memberDescription"
+            )}
+            layout="vertical"
+          >
+            <Textarea
+              value={member.instructions ?? ""}
+              onChange={(value) =>
+                handleMemberInstructionsChange(member.id, value)
+              }
+              placeholder={t(
+                "agentOrgs.orgWizard.instructions.memberPlaceholder"
+              )}
+              size="default"
+              rows={3}
+              autoSize={{ minRows: 3, maxRows: 8 }}
+              data-testid={`agent-orgs-member-${member.id}-instructions-input`}
+            />
+          </SectionRow>
+        ))}
       </SectionContainer>
 
       {hierarchyMode === "strict" ? (

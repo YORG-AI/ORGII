@@ -308,6 +308,12 @@ export interface OrgMember {
   agentId: string;
   runtimeConfig?: OrgMemberRuntimeConfig;
   /**
+   * Participant-specific operating instructions. On the root node these are
+   * the Coordinator instructions; on descendants they apply only to that
+   * member. The launch snapshot freezes them for the lifetime of a run.
+   */
+  instructions?: string;
+  /**
    * Free-form description of the organization (root) or member. Persisted by
    * the Rust `OrgDefinition.description` field for root nodes. Optional —
    * existing orgs without a description load as `undefined` and round-trip

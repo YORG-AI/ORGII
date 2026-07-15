@@ -102,6 +102,7 @@ mod tests {
             coordinator_agent_id: "coord".into(),
             coordinator_name: "Org 1".into(),
             coordinator_role: "team".into(),
+            coordinator_instructions: None,
             members: vec![],
             hierarchy_mode: Default::default(),
             plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
@@ -121,6 +122,7 @@ mod tests {
                 agent_id: member_agent_id.into(),
                 name: member_name.into(),
                 role: "engineer".into(),
+                instructions: None,
                 parent_member_id: None,
             });
         ctx
@@ -222,6 +224,7 @@ mod tests {
                 agent_id: shared_agent_id.into(),
                 name: "Alice".into(),
                 role: "planner".into(),
+                instructions: None,
                 parent_member_id: None,
             },
             crate::coordination::agent_org_runs::AgentOrgContextMember {
@@ -229,6 +232,7 @@ mod tests {
                 agent_id: shared_agent_id.into(),
                 name: "Bob".into(),
                 role: "implementer".into(),
+                instructions: None,
                 parent_member_id: None,
             },
         ];
@@ -1334,6 +1338,7 @@ mod tests {
                 role: "coordinator".to_string(),
                 agent_id: "coord".to_string(),
                 description: None,
+                instructions: None,
                 hierarchy_mode: Default::default(),
                 plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
                 children: vec![
@@ -1342,6 +1347,7 @@ mod tests {
                         name: "Stale Worker".to_string(),
                         role: "worker".to_string(),
                         agent_id: "stale-worker".to_string(),
+                        instructions: None,
                         runtime_config: None,
                         children: Vec::new(),
                     },
@@ -1350,6 +1356,7 @@ mod tests {
                         name: "Fresh Worker".to_string(),
                         role: "worker".to_string(),
                         agent_id: "fresh-worker".to_string(),
+                        instructions: None,
                         runtime_config: None,
                         children: Vec::new(),
                     },
@@ -1414,6 +1421,7 @@ mod tests {
                 agent_id: "fresh-worker".to_string(),
                 name: "Fresh Worker".to_string(),
                 role: "worker".to_string(),
+                instructions: None,
                 parent_member_id: None,
             });
         ctx.root_session_id = Some(root_session_id.clone());
@@ -1545,6 +1553,7 @@ mod tests {
                 name: "Bob".into(),
                 role: "engineer".into(),
                 agent_id: "bob-agent".into(),
+                instructions: None,
                 parent_member_id: None,
             });
 

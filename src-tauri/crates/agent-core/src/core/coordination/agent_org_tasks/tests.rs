@@ -247,6 +247,7 @@ fn store_rejects_owner_and_eligibility_outside_launch_roster() {
             role: "coordinator".to_string(),
             agent_id: "coord".to_string(),
             description: None,
+            instructions: None,
             hierarchy_mode: HierarchyMode::Soft,
             plan_approval_policy: PlanApprovalPolicy::Coordinator,
             children: vec![OrgMember {
@@ -254,6 +255,7 @@ fn store_rejects_owner_and_eligibility_outside_launch_roster() {
                 name: "A".to_string(),
                 role: "worker".to_string(),
                 agent_id: "agent-a".to_string(),
+                instructions: None,
                 runtime_config: None,
                 children: Vec::new(),
             }],

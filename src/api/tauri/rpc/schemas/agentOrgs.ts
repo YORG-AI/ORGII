@@ -56,6 +56,7 @@ export type OrgMember = {
   role: string;
   agentId: string;
   runtimeConfig?: OrgMemberRuntimeConfig;
+  instructions?: string;
   description?: string;
   hierarchyMode?: z.output<typeof HierarchyModeSchema>;
   planApprovalPolicy?: z.output<typeof PlanApprovalPolicySchema>;
@@ -69,6 +70,7 @@ export const OrgMemberSchema: z.ZodType<OrgMember> = z.lazy(() =>
     role: z.string(),
     agentId: z.string(),
     runtimeConfig: OrgMemberRuntimeConfigSchema.optional(),
+    instructions: z.string().optional(),
     description: z.string().optional(),
     hierarchyMode: HierarchyModeSchema.optional(),
     planApprovalPolicy: PlanApprovalPolicySchema.optional(),

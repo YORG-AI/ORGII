@@ -45,6 +45,7 @@ pub(super) fn get_org(store: &AgentOrgsStore, params: &Value) -> Result<String, 
 pub(super) fn create_org(store: &AgentOrgsStore, params: &Value) -> Result<String, ToolError> {
     let name = required_string(params, "name")?;
     let description = optional_string(params, "description");
+    let instructions = optional_string(params, "instructions");
     let role = optional_string(params, "role").unwrap_or_else(|| "leader".to_string());
     let leader_agent_id = optional_string(params, "agent_id").unwrap_or_default();
     let children = parse_org_members(params);
@@ -72,6 +73,7 @@ pub(super) fn create_org(store: &AgentOrgsStore, params: &Value) -> Result<Strin
         role,
         agent_id: leader_agent_id,
         description,
+        instructions,
         hierarchy_mode: Default::default(),
         plan_approval_policy: Default::default(),
         children,
@@ -100,6 +102,9 @@ pub(super) fn update_org(store: &AgentOrgsStore, params: &Value) -> Result<Strin
     }
     if let Some(desc) = optional_string(params, "description") {
         org.description = Some(desc);
+    }
+    if let Some(instructions) = optional_string(params, "instructions") {
+        org.instructions = Some(instructions);
     }
     if let Some(role) = optional_string(params, "role") {
         org.role = role;

@@ -74,12 +74,14 @@ fn org_context() -> Arc<AgentOrgRunContext> {
         coordinator_agent_id: "coord-1".into(),
         coordinator_name: "Coordinator".into(),
         coordinator_role: "lead engineer".into(),
+        coordinator_instructions: None,
         members: vec![
             AgentOrgContextMember {
                 member_id: "m-alice".into(),
                 name: "Alice".into(),
                 role: "engineer".into(),
                 agent_id: "alice-1".into(),
+                instructions: None,
                 parent_member_id: None,
             },
             AgentOrgContextMember {
@@ -87,6 +89,7 @@ fn org_context() -> Arc<AgentOrgRunContext> {
                 name: "Bob".into(),
                 role: "engineer".into(),
                 agent_id: "bob-1".into(),
+                instructions: None,
                 parent_member_id: None,
             },
         ],
@@ -124,12 +127,14 @@ fn hierarchical_org_context(hierarchy_mode: HierarchyMode) -> Arc<AgentOrgRunCon
         coordinator_agent_id: "coord-hierarchy".into(),
         coordinator_name: "Coordinator".into(),
         coordinator_role: "coordinator".into(),
+        coordinator_instructions: None,
         members: vec![
             AgentOrgContextMember {
                 member_id: "manager".into(),
                 name: "Manager".into(),
                 role: "team lead".into(),
                 agent_id: "manager-agent".into(),
+                instructions: None,
                 parent_member_id: None,
             },
             AgentOrgContextMember {
@@ -137,6 +142,7 @@ fn hierarchical_org_context(hierarchy_mode: HierarchyMode) -> Arc<AgentOrgRunCon
                 name: "Direct Report".into(),
                 role: "implementer".into(),
                 agent_id: "report-agent".into(),
+                instructions: None,
                 parent_member_id: Some("manager".into()),
             },
             AgentOrgContextMember {
@@ -144,6 +150,7 @@ fn hierarchical_org_context(hierarchy_mode: HierarchyMode) -> Arc<AgentOrgRunCon
                 name: "Peer".into(),
                 role: "reviewer".into(),
                 agent_id: "peer-agent".into(),
+                instructions: None,
                 parent_member_id: None,
             },
         ],
@@ -199,11 +206,13 @@ fn shared_sde_ctx(caller_member_id: Option<&str>) -> Arc<TaskToolsContext> {
             coordinator_agent_id: "builtin:sde".into(),
             coordinator_name: "Coordinator".into(),
             coordinator_role: "Coordinator".into(),
+            coordinator_instructions: None,
             members: vec![AgentOrgContextMember {
                 member_id: "sde-planner".into(),
                 name: "Planner".into(),
                 role: "Plans".into(),
                 agent_id: "builtin:sde".into(),
+                instructions: None,
                 parent_member_id: None,
             }],
             hierarchy_mode: Default::default(),

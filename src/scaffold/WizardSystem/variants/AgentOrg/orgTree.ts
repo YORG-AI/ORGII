@@ -52,6 +52,7 @@ export function buildOrgTreeFromMembers(members: TeamMember[]): OrgMember[] {
       role: member.role,
       agentId: member.agentId,
       runtimeConfig: member.runtimeConfig,
+      instructions: member.instructions?.trim() || undefined,
       children: [],
     });
   }
@@ -85,6 +86,7 @@ export function flattenOrgToMembers(
         role: node.role,
         agentId: node.agentId,
         runtimeConfig: node.runtimeConfig,
+        instructions: node.instructions,
         parentId,
       });
       result.push(...flattenOrgToMembers(node.children, node.id));

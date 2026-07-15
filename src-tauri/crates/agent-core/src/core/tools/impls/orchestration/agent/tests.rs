@@ -471,6 +471,7 @@ fn ctx_with_members(coordinator_id: &str, member_ids: &[&str]) -> AgentOrgRunCon
         coordinator_agent_id: coordinator_id.to_string(),
         coordinator_name: "Lead".to_string(),
         coordinator_role: "lead".to_string(),
+        coordinator_instructions: None,
         members: member_ids
             .iter()
             .map(|id| AgentOrgContextMember {
@@ -478,6 +479,7 @@ fn ctx_with_members(coordinator_id: &str, member_ids: &[&str]) -> AgentOrgRunCon
                 name: (*id).to_string(),
                 role: "worker".to_string(),
                 agent_id: (*id).to_string(),
+                instructions: None,
                 parent_member_id: None,
             })
             .collect(),

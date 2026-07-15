@@ -47,11 +47,13 @@ fn prompt_test_agent_org_context() -> AgentOrgRunContext {
         coordinator_agent_id: "agent-coord".to_string(),
         coordinator_name: "Coordinator".to_string(),
         coordinator_role: "lead".to_string(),
+        coordinator_instructions: None,
         members: vec![AgentOrgContextMember {
             member_id: "member-worker".to_string(),
             name: "Worker".to_string(),
             role: "implementer".to_string(),
             agent_id: "agent-worker".to_string(),
+            instructions: None,
             parent_member_id: None,
         }],
         hierarchy_mode: HierarchyMode::Flat,
@@ -80,6 +82,58 @@ fn agent_org_prompt_uses_only_runtime_member_id_for_identity() {
         !section.contains("using agent `builtin:sde`"),
         "prompt must not expose agent_id as identity/routing guidance: {section}"
     );
+    assert!(
+        section.contains("member_id `member-worker` — Worker; default specialization: implementer"),
+        "member prompt must state the member's human-readable role: {section}"
+    );
+    assert!(
+        section.contains("`member-worker` — Worker; role: implementer"),
+        "roster must expose names and roles so the coordinator can assign by capability: {section}"
+    );
+}
+
+#[test]
+fn agent_org_prompt_injects_only_the_current_participants_configured_instructions() {
+    let mut context = prompt_test_agent_org_context();
+    context.coordinator_instructions = Some(
+        "Choose the smallest sufficient workflow and revise the graph when evidence changes."
+            .to_string(),
+    );
+    context.members[0].instructions = Some(
+        "Treat the exact assigned task as source of truth; report adjacent work instead of starting it."
+            .to_string(),
+    );
+    let coordinator =
+        build_agent_org_context_section(&context, "agent-coord", Some(COORDINATOR_MEMBER_ID));
+    let worker = build_agent_org_context_section(&context, "agent-worker", Some("member-worker"));
+
+    assert!(
+        coordinator.contains("member_id `coordinator` — Coordinator; default specialization: lead")
+            && coordinator.contains("### Your configured team instructions")
+            && coordinator.contains("do not expand your task authority")
+            && coordinator.contains("Choose the smallest sufficient workflow")
+            && !coordinator.contains("Treat the exact assigned task as source of truth"),
+        "coordinator must receive only the instructions saved for the coordinator: {coordinator}"
+    );
+    assert!(
+        worker.contains("### Your configured team instructions")
+            && worker.contains("Treat the exact assigned task as source of truth")
+            && !worker.contains("Choose the smallest sufficient workflow"),
+        "worker must receive only the instructions saved for that member: {worker}"
+    );
+    assert!(
+        worker.contains("Skills are selected from the actual assigned task")
+            && worker.contains("do not invoke GitHub issue-fix"),
+        "global prompt must retain the generic skill-routing invariant: {worker}"
+    );
+}
+
+#[test]
+fn agent_org_prompt_omits_empty_configured_instructions() {
+    let context = prompt_test_agent_org_context();
+    let worker = build_agent_org_context_section(&context, "agent-worker", Some("member-worker"));
+
+    assert!(!worker.contains("### Your configured team instructions"));
 }
 
 #[test]

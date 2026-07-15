@@ -159,6 +159,7 @@ pub async fn test_agent_org_seed(Json(body): Json<serde_json::Value>) -> Json<se
             name: member_name,
             role,
             agent_id,
+            instructions: None,
             runtime_config: None,
             children: Vec::new(),
         });
@@ -170,6 +171,7 @@ pub async fn test_agent_org_seed(Json(body): Json<serde_json::Value>) -> Json<se
         role: "coordinator".to_string(),
         agent_id: coordinator_agent_id.clone(),
         description: Some("E2E test org seeded via /test/agent-org/seed".to_string()),
+        instructions: None,
         hierarchy_mode: Default::default(),
         plan_approval_policy: Default::default(),
         children,
@@ -948,6 +950,7 @@ pub async fn test_agent_org_drain_inbox(
             name,
             role,
             agent_id,
+            instructions: None,
             parent_member_id: None,
         });
     }
@@ -960,6 +963,7 @@ pub async fn test_agent_org_drain_inbox(
         coordinator_agent_id,
         coordinator_name,
         coordinator_role,
+        coordinator_instructions: None,
         members,
         hierarchy_mode: Default::default(),
         plan_approval_policy: Default::default(),
@@ -1096,6 +1100,7 @@ fn parse_direct_org_context(
             name,
             role,
             agent_id,
+            instructions: None,
             parent_member_id: None,
         });
     }
@@ -1109,6 +1114,7 @@ fn parse_direct_org_context(
             coordinator_agent_id,
             coordinator_name,
             coordinator_role,
+            coordinator_instructions: None,
             members,
             hierarchy_mode: Default::default(),
             plan_approval_policy: Default::default(),
@@ -1635,6 +1641,7 @@ pub async fn test_agent_org_seed_stale_worker_run(
                     name: member_id,
                     role: "worker".to_string(),
                     agent_id: agent_definition_id,
+                    instructions: None,
                     runtime_config: None,
                     children: Vec::new(),
                 })
@@ -1646,6 +1653,7 @@ pub async fn test_agent_org_seed_stale_worker_run(
             role: "coordinator".to_string(),
             agent_id: coordinator_agent_id.clone(),
             description: None,
+            instructions: None,
             hierarchy_mode: Default::default(),
             plan_approval_policy: Default::default(),
             children: org_snapshot_children,
@@ -1951,6 +1959,7 @@ pub async fn test_agent_org_check_member_spawn_gate(
                         .unwrap_or("worker")
                         .to_string(),
                     agent_id,
+                    instructions: None,
                     parent_member_id: None,
                 });
             }
@@ -1962,6 +1971,7 @@ pub async fn test_agent_org_check_member_spawn_gate(
                 coordinator_agent_id,
                 coordinator_name: pluck_str("coordinator_name"),
                 coordinator_role: pluck_str("coordinator_role"),
+                coordinator_instructions: None,
                 members,
                 hierarchy_mode: Default::default(),
                 plan_approval_policy: Default::default(),
@@ -2192,6 +2202,7 @@ pub async fn test_agent_org_post_member_idle(
             name,
             role,
             agent_id,
+            instructions: None,
             parent_member_id: None,
         });
     }
@@ -2204,6 +2215,7 @@ pub async fn test_agent_org_post_member_idle(
         coordinator_agent_id: coordinator_agent_id.clone(),
         coordinator_name,
         coordinator_role,
+        coordinator_instructions: None,
         members,
         hierarchy_mode: Default::default(),
         plan_approval_policy: Default::default(),
@@ -2570,6 +2582,7 @@ pub async fn test_agent_org_seed_cli_member_run(
             role: "coordinator".to_string(),
             agent_id: coordinator_agent_id.clone(),
             description: None,
+            instructions: None,
             hierarchy_mode: Default::default(),
             plan_approval_policy: Default::default(),
             children: vec![OrgMember {
@@ -2577,6 +2590,7 @@ pub async fn test_agent_org_seed_cli_member_run(
                 name: member_id.clone(),
                 role: "worker".to_string(),
                 agent_id: format!("cli:{cli_agent_type}"),
+                instructions: None,
                 runtime_config: None,
                 children: Vec::new(),
             }],

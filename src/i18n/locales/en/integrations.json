@@ -1993,6 +1993,18 @@
       "coordinator": "Coordinator",
       "coordinatorDesc": "Lead agent that owns the coordinator session for this team run",
       "coordinatorPlaceholder": "Select coordinator agent",
+      "coordinatorRole": "Coordinator role",
+      "coordinatorRoleDesc": "Short capability label shown to the Coordinator and other team members",
+      "coordinatorRolePlaceholder": "e.g. Engineering delivery lead",
+      "instructions": {
+        "title": "Operating instructions",
+        "coordinatorLabel": "Coordinator instructions",
+        "coordinatorDescription": "Editable guidance for how the Coordinator designs, monitors, repairs, and completes work. Saved into each new run snapshot",
+        "coordinatorPlaceholder": "How should the Coordinator run this team?",
+        "memberLabel": "{{name}} instructions",
+        "memberDescription": "Editable guidance used only when this member runs a turn",
+        "memberPlaceholder": "What should this member own, prioritize, and avoid?"
+      },
       "tabs": {
         "edit": "Edit",
         "previewDiagram": "Preview Diagram"

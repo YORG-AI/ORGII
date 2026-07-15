@@ -110,6 +110,10 @@ pub struct AgentOrgContextMember {
     pub name: String,
     pub role: String,
     pub agent_id: String,
+    /// Participant-specific operating instructions captured from the org
+    /// definition at launch time.
+    #[serde(skip_serializing)]
+    pub instructions: Option<String>,
     /// `id` of the member this one reports to in `OrgDefinition.children`.
     /// `None` means the member sits directly under the coordinator.
     /// Used by the LLM system prompt to render reports-to relationships
@@ -157,6 +161,10 @@ pub struct AgentOrgRunContext {
     /// Role label of the coordinator (e.g. "lead engineer"). Mirror of
     /// `OrgDefinition.role`. Informational only — not used for routing.
     pub coordinator_role: String,
+    /// Coordinator-specific operating instructions captured in the immutable
+    /// launch snapshot.
+    #[serde(skip_serializing)]
+    pub coordinator_instructions: Option<String>,
     /// Worker roster. Does **not** include the coordinator — addressing
     /// logic explicitly considers `{coordinator} ∪ members` as the
     /// eligible recipient set.

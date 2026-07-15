@@ -80,6 +80,12 @@ pub fn format_org_detail(org: &OrgDefinition) -> String {
     if let Some(ref desc) = org.description {
         out.push_str(&format!("- **Description:** {}\n", desc));
     }
+    if let Some(ref instructions) = org.instructions {
+        out.push_str(&format!(
+            "\n## Coordinator instructions\n\n{}\n",
+            instructions
+        ));
+    }
     out.push_str(&format!("- **Total members:** {}\n", org.member_count()));
     if !org.children.is_empty() {
         out.push_str("\n## Team members\n\n");
@@ -95,6 +101,9 @@ pub fn format_member_tree(members: &[OrgMember], out: &mut String, depth: usize)
             "{}- **{}** (role: {}, agent: `{}`)\n",
             indent, member.name, member.role, member.agent_id
         ));
+        if let Some(instructions) = member.instructions.as_deref() {
+            out.push_str(&format!("{}  - Instructions: {}\n", indent, instructions));
+        }
         if !member.children.is_empty() {
             format_member_tree(&member.children, out, depth + 1);
         }

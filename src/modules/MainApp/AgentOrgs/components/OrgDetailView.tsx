@@ -79,6 +79,12 @@ const OrgDetailView: React.FC<OrgDetailViewProps> = ({
   const [coordinatorAgentId, setCoordinatorAgentId] = useState(
     selectedOrg.agentId
   );
+  const [coordinatorRole, setCoordinatorRole] = useState(
+    selectedOrg.role || "Coordinator"
+  );
+  const [coordinatorInstructions, setCoordinatorInstructions] = useState(
+    selectedOrg.instructions ?? ""
+  );
   const [hierarchyMode, setHierarchyMode] = useState<HierarchyMode>(
     selectedOrg.hierarchyMode ?? DEFAULT_HIERARCHY_MODE
   );
@@ -101,6 +107,8 @@ const OrgDetailView: React.FC<OrgDetailViewProps> = ({
     setOrgName(selectedOrg.name);
     setOrgDescription(selectedOrg.description ?? "");
     setCoordinatorAgentId(selectedOrg.agentId);
+    setCoordinatorRole(selectedOrg.role || "Coordinator");
+    setCoordinatorInstructions(selectedOrg.instructions ?? "");
     setHierarchyMode(selectedOrg.hierarchyMode ?? DEFAULT_HIERARCHY_MODE);
     setPlanApprovalPolicy(
       selectedOrg.planApprovalPolicy ?? DEFAULT_PLAN_APPROVAL_POLICY
@@ -124,9 +132,10 @@ const OrgDetailView: React.FC<OrgDetailViewProps> = ({
     () => ({
       id: selectedOrg.id,
       name: orgName.trim() || selectedOrg.name,
-      role: "org",
+      role: coordinatorRole.trim() || "Coordinator",
       agentId: coordinatorAgentId,
       description: orgDescription.trim() || undefined,
+      instructions: coordinatorInstructions.trim() || undefined,
       hierarchyMode,
       planApprovalPolicy,
       children: buildOrgTreeFromMembers(members),
@@ -136,6 +145,8 @@ const OrgDetailView: React.FC<OrgDetailViewProps> = ({
       orgName,
       orgDescription,
       coordinatorAgentId,
+      coordinatorRole,
+      coordinatorInstructions,
       hierarchyMode,
       planApprovalPolicy,
       members,
@@ -143,6 +154,7 @@ const OrgDetailView: React.FC<OrgDetailViewProps> = ({
   );
 
   const persistedDescription = selectedOrg.description ?? "";
+  const persistedInstructions = selectedOrg.instructions ?? "";
   const persistedHierarchyMode =
     selectedOrg.hierarchyMode ?? DEFAULT_HIERARCHY_MODE;
   const persistedPlanApprovalPolicy =
@@ -151,6 +163,8 @@ const OrgDetailView: React.FC<OrgDetailViewProps> = ({
     orgName !== selectedOrg.name ||
     orgDescription !== persistedDescription ||
     coordinatorAgentId !== selectedOrg.agentId ||
+    coordinatorRole !== (selectedOrg.role || "Coordinator") ||
+    coordinatorInstructions !== persistedInstructions ||
     hierarchyMode !== persistedHierarchyMode ||
     planApprovalPolicy !== persistedPlanApprovalPolicy ||
     draftMembersJson !== persistedMembersJson;
@@ -161,6 +175,8 @@ const OrgDetailView: React.FC<OrgDetailViewProps> = ({
     setOrgName(selectedOrg.name);
     setOrgDescription(selectedOrg.description ?? "");
     setCoordinatorAgentId(selectedOrg.agentId);
+    setCoordinatorRole(selectedOrg.role || "Coordinator");
+    setCoordinatorInstructions(selectedOrg.instructions ?? "");
     setHierarchyMode(selectedOrg.hierarchyMode ?? DEFAULT_HIERARCHY_MODE);
     setPlanApprovalPolicy(
       selectedOrg.planApprovalPolicy ?? DEFAULT_PLAN_APPROVAL_POLICY
@@ -173,18 +189,29 @@ const OrgDetailView: React.FC<OrgDetailViewProps> = ({
     setSaving(true);
     try {
       const trimmedDescription = orgDescription.trim();
+      const trimmedInstructions = coordinatorInstructions.trim();
       const next: OrgMember = {
         id: selectedOrg.id,
         name: orgName.trim(),
-        role: "org",
+        role: coordinatorRole.trim() || "Coordinator",
         agentId: coordinatorAgentId,
         description:
           trimmedDescription.length > 0 ? trimmedDescription : undefined,
+        instructions:
+          trimmedInstructions.length > 0 ? trimmedInstructions : undefined,
         hierarchyMode,
         planApprovalPolicy,
         children: buildOrgTreeFromMembers(members),
       };
       await onOrgSave(next);
+      // Keep the local edit buffer aligned with the normalized payload. The
+      // selected org keeps the same id after save, so the id-change reset
+      // effect intentionally does not run for this case.
+      setOrgName(next.name);
+      setOrgDescription(next.description ?? "");
+      setCoordinatorRole(next.role);
+      setCoordinatorInstructions(next.instructions ?? "");
+      setMembers(flattenOrgToMembers(next.children));
     } finally {
       setSaving(false);
     }
@@ -195,6 +222,8 @@ const OrgDetailView: React.FC<OrgDetailViewProps> = ({
     orgName,
     orgDescription,
     coordinatorAgentId,
+    coordinatorRole,
+    coordinatorInstructions,
     hierarchyMode,
     planApprovalPolicy,
     members,
@@ -245,6 +274,10 @@ const OrgDetailView: React.FC<OrgDetailViewProps> = ({
               onOrgDescriptionChange={setOrgDescription}
               coordinatorAgentId={coordinatorAgentId}
               onCoordinatorAgentIdChange={setCoordinatorAgentId}
+              coordinatorRole={coordinatorRole}
+              onCoordinatorRoleChange={setCoordinatorRole}
+              coordinatorInstructions={coordinatorInstructions}
+              onCoordinatorInstructionsChange={setCoordinatorInstructions}
               hierarchyMode={hierarchyMode}
               onHierarchyModeChange={setHierarchyMode}
               planApprovalPolicy={planApprovalPolicy}

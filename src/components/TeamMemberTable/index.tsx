@@ -28,6 +28,7 @@ export interface TeamMember {
   role: string;
   agentId: string;
   runtimeConfig?: OrgMemberRuntimeConfig;
+  instructions?: string;
   parentId?: string;
 }
 
@@ -237,6 +238,7 @@ const TeamMemberTable: React.FC<TeamMemberTableProps> = ({
       name: "",
       role: "",
       agentId: agentOptions[0]?.value?.toString() ?? "",
+      instructions: undefined,
       parentId: undefined,
     };
     onChange([...members, newMember]);

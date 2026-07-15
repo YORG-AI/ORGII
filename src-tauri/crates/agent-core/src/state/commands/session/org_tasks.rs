@@ -1187,12 +1187,14 @@ mod tests {
             coordinator_agent_id: "builtin:sde".to_string(),
             coordinator_name: "Coordinator".to_string(),
             coordinator_role: "Lead".to_string(),
+            coordinator_instructions: None,
             members: vec![
                 AgentOrgContextMember {
                     member_id: "member-planner".to_string(),
                     name: "Planner".to_string(),
                     role: "Plan work".to_string(),
                     agent_id: "builtin:sde".to_string(),
+                    instructions: None,
                     parent_member_id: None,
                 },
                 AgentOrgContextMember {
@@ -1200,6 +1202,7 @@ mod tests {
                     name: "Builder".to_string(),
                     role: "Build work".to_string(),
                     agent_id: "builtin:sde".to_string(),
+                    instructions: None,
                     parent_member_id: Some("member-planner".to_string()),
                 },
             ],

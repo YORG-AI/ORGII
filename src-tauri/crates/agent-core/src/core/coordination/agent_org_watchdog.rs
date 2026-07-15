@@ -1098,6 +1098,7 @@ mod tests {
             role: "coordinator".to_string(),
             agent_id: "builtin:coord".to_string(),
             description: None,
+            instructions: None,
             hierarchy_mode: HierarchyMode::Soft,
             plan_approval_policy: PlanApprovalPolicy::Coordinator,
             children: member_ids
@@ -1107,6 +1108,7 @@ mod tests {
                     name: (*member_id).to_string(),
                     role: "builder".to_string(),
                     agent_id: "builtin:sde".to_string(),
+                    instructions: None,
                     runtime_config: None,
                     children: Vec::new(),
                 })

@@ -162,6 +162,7 @@ pub(super) fn context_from_run_and_org(
         coordinator_agent_id: run.coordinator_agent_id.clone(),
         coordinator_name: DEFAULT_COORDINATOR_DISPLAY_NAME.to_string(),
         coordinator_role: org.role.clone(),
+        coordinator_instructions: org.instructions.clone(),
         members: flatten_members(&org.children, None),
         hierarchy_mode: org.hierarchy_mode,
         plan_approval_policy: org.plan_approval_policy,
@@ -187,6 +188,7 @@ pub(super) fn flatten_members(
             name: member.name.clone(),
             role: member.role.clone(),
             agent_id: member.agent_id.clone(),
+            instructions: member.instructions.clone(),
             parent_member_id: parent_id.map(|id| id.to_string()),
         });
         flattened.extend(flatten_members(&member.children, Some(&member.id)));

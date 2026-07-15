@@ -366,6 +366,7 @@ mod tests {
             coordinator_agent_id: "coord".into(),
             coordinator_name: "Coordinator".into(),
             coordinator_role: "lead".into(),
+            coordinator_instructions: None,
             members: members
                 .into_iter()
                 .enumerate()
@@ -374,6 +375,7 @@ mod tests {
                     name: name.into(),
                     role: "engineer".into(),
                     agent_id: agent_id.into(),
+                    instructions: None,
                     parent_member_id: None,
                 })
                 .collect(),

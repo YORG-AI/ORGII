@@ -42,6 +42,10 @@ fn parse_single_member(val: &Value) -> Option<OrgMember> {
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
+    let instructions = val
+        .get("instructions")
+        .and_then(|value| value.as_str())
+        .map(str::to_string);
     let children = val
         .get("children")
         .and_then(|v| v.as_array())
@@ -52,6 +56,7 @@ fn parse_single_member(val: &Value) -> Option<OrgMember> {
         name,
         role,
         agent_id,
+        instructions,
         runtime_config: None,
         children,
     })

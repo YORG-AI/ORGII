@@ -591,12 +591,23 @@ pub fn build_agent_org_context_section(
 ) -> String {
     use crate::definitions::orgs::{HierarchyMode, PlanApprovalPolicy};
     let identity_line = match current_member_id {
-        Some(member_id) if context.participant_by_member_id(member_id).is_some() => format!(
-            "- **Your identity in this org:** member_id `{member_id}`."
+        Some(COORDINATOR_MEMBER_ID) => format!(
+            "- **Your identity in this org:** member_id `{COORDINATOR_MEMBER_ID}` — {}; default specialization: {}.",
+            context.coordinator_name, context.coordinator_role
         ),
-        Some(member_id) => format!(
-            "- **Your identity in this org:** unknown member_id `{member_id}`. You are not a canonical Agent Org participant."
-        ),
+        Some(member_id) => match context
+            .members
+            .iter()
+            .find(|member| member.member_id == member_id)
+        {
+            Some(member) => format!(
+                "- **Your identity in this org:** member_id `{member_id}` — {}; default specialization: {}.",
+                member.name, member.role
+            ),
+            None => format!(
+                "- **Your identity in this org:** unknown member_id `{member_id}`. You are not a canonical Agent Org participant."
+            ),
+        },
         None => "- **Your identity in this org:** delegate/shadow worker. You are not a canonical Agent Org participant and you do not have an org member_id.".to_string(),
     };
     let task_authority_line = match current_member_id {
@@ -617,6 +628,15 @@ pub fn build_agent_org_context_section(
             }
         }
         _ => "- **Your task authority:** none — non-roster sessions cannot mutate the Agent Org task board.".to_string(),
+    };
+    let configured_instructions = match current_member_id {
+        Some(COORDINATOR_MEMBER_ID) => context.coordinator_instructions.as_deref(),
+        Some(member_id) => context
+            .members
+            .iter()
+            .find(|member| member.member_id == member_id)
+            .and_then(|member| member.instructions.as_deref()),
+        None => None,
     };
     let mut lines = vec![
         "## Agent Org Run".to_string(),
@@ -645,7 +665,10 @@ pub fn build_agent_org_context_section(
         for member in &context.members {
             match context.hierarchy_mode {
                 HierarchyMode::Flat => {
-                    lines.push(format!("  - `{}`", member.member_id));
+                    lines.push(format!(
+                        "  - `{}` — {}; role: {}",
+                        member.member_id, member.name, member.role
+                    ));
                 }
                 HierarchyMode::Soft | HierarchyMode::Strict => {
                     let parent_member_id = member
@@ -653,8 +676,8 @@ pub fn build_agent_org_context_section(
                         .as_deref()
                         .unwrap_or(COORDINATOR_MEMBER_ID);
                     lines.push(format!(
-                        "  - `{}` / reports_to `{}`",
-                        member.member_id, parent_member_id
+                        "  - `{}` — {}; role: {}; reports_to `{}`",
+                        member.member_id, member.name, member.role, parent_member_id
                     ));
                 }
             }
@@ -665,6 +688,20 @@ pub fn build_agent_org_context_section(
     lines.push("## Team task board".to_string());
     lines.push(String::new());
     lines.push(task_authority_line);
+    if let Some(instructions) = configured_instructions
+        .map(str::trim)
+        .filter(|instructions| !instructions.is_empty())
+    {
+        lines.push(String::new());
+        lines.push("### Your configured team instructions".to_string());
+        lines.push(String::new());
+        lines.push(
+            "These instructions customize how you work inside this team. They do not expand your task authority or override the durable workflow, routing, pause, or finality rules in this system prompt."
+                .to_string(),
+        );
+        lines.push(String::new());
+        lines.push(instructions.to_string());
+    }
     lines.push(String::new());
     lines.push(
         "Do NOT use the generic `agent` tool to delegate work to roster members in this Agent Org. Roster members are already materialized as persistent sessions for this run. Use `task_create` and `task_update` only within the task authority stated above. Communication reachability and task authority are separate: being allowed to message a peer never grants permission to assign, reassign, edit, or delete that peer's work. Use `task_list` / `task_get` to inspect current state before an authorized change."
@@ -717,7 +754,7 @@ pub fn build_agent_org_context_section(
     );
     lines.push(String::new());
     lines.push(
-        "Choose skills and tools from the user's actual request. For non-code work such as summaries, research, or writing, do not invoke GitHub issue-fix, repository, or code-audit workflows merely because those tools are available."
+        "Skills are selected from the actual assigned task, not permanently by job title. Follow the workspace's agent instructions and invoke a skill only when its trigger matches that task. For non-code work such as summaries, research, or writing, do not invoke GitHub issue-fix, repository, or code-audit workflows merely because those tools are available or the member has an engineering role."
             .to_string(),
     );
     lines.push(String::new());
