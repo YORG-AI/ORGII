@@ -66,6 +66,7 @@ fn tool_name_constants_are_stable_wire_strings() {
 
     // ── Agent Org Tasks ──
     assert_eq!(TASK_CREATE, "task_create");
+    assert_eq!(TASK_GRAPH_CREATE, "task_graph_create");
     assert_eq!(TASK_UPDATE, "task_update");
     assert_eq!(TASK_LIST, "task_list");
     assert_eq!(TASK_GET, "task_get");

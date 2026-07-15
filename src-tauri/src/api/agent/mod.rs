@@ -715,10 +715,6 @@ pub fn create_routes() -> Router {
             post(test::agent_org::test_agent_org_seed_cli_member_run),
         )
         .route(
-            "/test/agent-org/stale-workers/release-tasks",
-            post(test::agent_org::test_agent_org_release_stale_worker_tasks),
-        )
-        .route(
             "/test/agent-org/find-worker-session",
             post(test::agent_org::test_agent_org_find_worker_session),
         )

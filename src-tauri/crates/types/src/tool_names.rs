@@ -109,6 +109,9 @@ pub const ORG_SEND_MESSAGE: &str = "org_send_message";
 /// Create a new task on the org-run-scoped task board. Only available
 /// inside an Agent Org run.
 pub const TASK_CREATE: &str = "task_create";
+/// Atomically create a dependency graph using local node keys. Only
+/// available to the coordinator inside an Agent Org run.
+pub const TASK_GRAPH_CREATE: &str = "task_graph_create";
 /// Update a task on the board (subject, owner, status, blocks, …).
 /// Setting `owner` triggers a `TaskAssigned` inbox row for the new
 /// owner; setting `status="deleted"` removes the task. Only available

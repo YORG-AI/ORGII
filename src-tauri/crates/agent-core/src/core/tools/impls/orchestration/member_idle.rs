@@ -77,6 +77,7 @@ impl MemberIdleHook for InboxStoreMemberIdleHook {
         current_mode: Option<crate::session::AgentExecMode>,
         summary: Option<String>,
         failure_reason: Option<String>,
+        unfinished_task_ids: Vec<String>,
     ) {
         let message = AgentMessage::MemberIdle {
             member_id: member_id.to_string(),
@@ -85,6 +86,7 @@ impl MemberIdleHook for InboxStoreMemberIdleHook {
             current_mode,
             summary,
             failure_reason,
+            unfinished_task_ids,
         };
         if let Err(err) = message.validate() {
             warn!(
@@ -197,6 +199,7 @@ mod tests {
             Some(crate::session::AgentExecMode::Plan),
             None,
             None,
+            Vec::new(),
         );
 
         let inbox = AgentInboxStore::list_unread_for_member(
@@ -234,6 +237,7 @@ mod tests {
             Some(crate::session::AgentExecMode::Build),
             None,
             None,
+            Vec::new(),
         );
 
         assert_eq!(

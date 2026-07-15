@@ -323,6 +323,7 @@ pub(super) async fn send_initial_turn(
             false,
             None,
             None,
+            None,
             source,
         )
         .await?;
@@ -358,6 +359,7 @@ pub(super) async fn send_initial_turn(
         ide_context,
         false,
         false,
+        None,
         None,
         None,
         crate::foundation::session_bridge::TurnIntentBridgeSource::AgentOrg,

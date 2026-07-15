@@ -20,6 +20,22 @@ pub(super) static TOOLS: &[ToolEntry] = &[
         ..DEFAULT_TOOL_ENTRY
     },
     ToolEntry {
+        name: tool_names::TASK_GRAPH_CREATE,
+        description: "Create an atomic Agent Org task graph.",
+        description_detail: "Validates and creates a complete dependency graph in one transaction, using local node keys that resolve to durable task ids.",
+        category: tool_categories::ORCHESTRATION,
+        icon_id: "git-branch",
+        simulator_app: AppChannels,
+        app_subtool: SubTodo,
+        chat_block: CbOrgTask,
+        hidden: true,
+        label_running: "tools.taskCreateRunning",
+        label_done: "tools.taskCreateDone",
+        label_failed: "tools.taskCreateFailed",
+        required_capability: CapOrch,
+        ..DEFAULT_TOOL_ENTRY
+    },
+    ToolEntry {
         name: tool_names::TASK_UPDATE,
         description: "Update a task on the Agent Org task board.",
         description_detail: "Updates a shared Agent Org task-board item, including status, owner, active form, dependency edges, and deletion semantics.",

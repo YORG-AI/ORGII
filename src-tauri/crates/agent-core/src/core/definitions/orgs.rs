@@ -68,6 +68,11 @@ pub fn is_cli_agent_org_reference(agent_id: &str) -> bool {
 ///   (always reachable as escape hatch). Sibling-to-sibling sends are
 ///   rejected with a structured error suggesting escalation.
 ///
+/// Task authority is intentionally stricter than message reachability:
+/// the coordinator may manage all tasks; a member may manage itself and its
+/// direct reports in `Soft`/`Strict`; a `Flat` member may manage only itself.
+/// Therefore Soft peer discussion never implies Soft peer delegation.
+///
 /// Default is `Soft` for both new orgs and orgs migrated from the
 /// previous schema (no `hierarchy_mode` field on disk) — this is the
 /// closest match to the prior runtime behaviour, where the LLM saw the
@@ -79,6 +84,29 @@ pub enum HierarchyMode {
     #[default]
     Soft,
     Strict,
+}
+
+/// Who reviews an Agent Org member's submitted planning task.
+///
+/// The value is snapshotted into each run through `OrgDefinition`, so editing
+/// a team never changes the policy of work that is already in progress.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum PlanApprovalPolicy {
+    #[default]
+    Coordinator,
+    User,
+    Automatic,
+}
+
+impl PlanApprovalPolicy {
+    pub fn as_wire(self) -> &'static str {
+        match self {
+            Self::Coordinator => "coordinator",
+            Self::User => "user",
+            Self::Automatic => "automatic",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -141,6 +169,9 @@ pub struct OrgDefinition {
     /// How `children` is interpreted at runtime. See `HierarchyMode` doc.
     #[serde(default)]
     pub hierarchy_mode: HierarchyMode,
+    /// Who approves plans submitted by members during an Agent Org run.
+    #[serde(default)]
+    pub plan_approval_policy: PlanApprovalPolicy,
     #[serde(default)]
     pub children: Vec<OrgMember>,
 }
@@ -238,27 +269,50 @@ impl AgentOrgsStore {
     /// reference. Write-time enforcement so dangling references fail at
     /// save instead of at launch.
     fn validate_agent_references(org: &OrgDefinition) -> Result<(), String> {
-        fn check(agent_id: &str, where_: &str, missing: &mut Vec<String>) {
+        fn check(
+            agent_id: &str,
+            where_: &str,
+            missing: &mut Vec<String>,
+            unsupported_cli: &mut Vec<String>,
+        ) {
             let id = agent_id.trim();
             if id.is_empty() {
                 return;
             }
             if parse_cli_agent_org_reference(id).is_some() {
+                unsupported_cli.push(format!("{} ({})", id, where_));
                 return;
             }
             if super::definitions_store().get(id).is_none() {
                 missing.push(format!("{} ({})", id, where_));
             }
         }
-        fn walk(members: &[OrgMember], missing: &mut Vec<String>) {
+        fn walk(
+            members: &[OrgMember],
+            missing: &mut Vec<String>,
+            unsupported_cli: &mut Vec<String>,
+        ) {
             for member in members {
-                check(&member.agent_id, &member.name, missing);
-                walk(&member.children, missing);
+                let location = format!("member_id={} name={}", member.id, member.name);
+                check(&member.agent_id, &location, missing, unsupported_cli);
+                walk(&member.children, missing, unsupported_cli);
             }
         }
         let mut missing = Vec::new();
-        check(&org.agent_id, "coordinator", &mut missing);
-        walk(&org.children, &mut missing);
+        let mut unsupported_cli = Vec::new();
+        check(
+            &org.agent_id,
+            "coordinator",
+            &mut missing,
+            &mut unsupported_cli,
+        );
+        walk(&org.children, &mut missing, &mut unsupported_cli);
+        if !unsupported_cli.is_empty() {
+            return Err(format!(
+                "CLI Agent Org participants are not supported yet because they cannot drain the Agent Org inbox or use task tools: {}",
+                unsupported_cli.join(", ")
+            ));
+        }
         if missing.is_empty() {
             Ok(())
         } else {
@@ -517,6 +571,7 @@ fn default_sde_template_team() -> OrgDefinition {
                 .to_string(),
         ),
         hierarchy_mode: HierarchyMode::Soft,
+        plan_approval_policy: PlanApprovalPolicy::Coordinator,
         children: vec![
             OrgMember {
                 id: "sde-planner".to_string(),
@@ -579,6 +634,7 @@ fn default_ds_template_team() -> OrgDefinition {
                 .to_string(),
         ),
         hierarchy_mode: HierarchyMode::Soft,
+        plan_approval_policy: PlanApprovalPolicy::Coordinator,
         children: vec![
             OrgMember {
                 id: "ds-analyst".to_string(),
@@ -666,6 +722,7 @@ mod tests {
             agent_id: "builtin:sde".to_string(),
             description: None,
             hierarchy_mode: HierarchyMode::Soft,
+            plan_approval_policy: PlanApprovalPolicy::Coordinator,
             children: Vec::new(),
         }
     }
@@ -729,5 +786,24 @@ mod tests {
             .expect("default org should remain available");
         assert_eq!(org.name, "Default Agent Org");
         assert!(default_sde_template_team_is_current(&org));
+    }
+
+    #[test]
+    fn validation_rejects_cli_member_with_member_id_and_transport() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let mut org = custom_org();
+        org.children.push(OrgMember {
+            id: "cli-worker".to_string(),
+            name: "Legacy CLI Worker".to_string(),
+            role: "worker".to_string(),
+            agent_id: "cli:claude_code".to_string(),
+            runtime_config: None,
+            children: Vec::new(),
+        });
+
+        let error = AgentOrgsStore::validate_agent_references(&org)
+            .expect_err("CLI Agent Org members must be rejected at save time");
+        assert!(error.contains("member_id=cli-worker"), "{error}");
+        assert!(error.contains("cli:claude_code"), "{error}");
     }
 }

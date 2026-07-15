@@ -164,6 +164,7 @@ pub(super) fn context_from_run_and_org(
         coordinator_role: org.role.clone(),
         members: flatten_members(&org.children, None),
         hierarchy_mode: org.hierarchy_mode,
+        plan_approval_policy: org.plan_approval_policy,
         root_session_id: run.root_session_id.clone(),
     }
 }

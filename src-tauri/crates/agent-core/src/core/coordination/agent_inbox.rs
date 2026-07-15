@@ -95,14 +95,12 @@ impl Default for RequestId {
 ///   * `Plain` — free-form text (the common case).
 ///   * `Shutdown{Request,Response}` — graceful coordinator-driven worker
 ///     termination.
-///   * `PlanApproval{Request,Response}` — when an org member enters plan
-///     mode and calls `create_plan`, the plan is routed to the
-///     coordinator's inbox as a `PlanApprovalRequest` instead of lighting
-///     up the user's Build button on the member's UI. The coordinator
-///     then sends back a `PlanApprovalResponse` (approve / reject), and
-///     the member's inbox-drain wires the response into the same
-///     "exit plan mode + start a Build turn" path that the user-driven
-///     `agent_plan_approval_response` Tauri command uses.
+///   * `PlanApproval{Request,Response}` — a planning task assignment starts
+///     the member in Plan mode automatically. `create_plan` persists a
+///     task-bound approval; coordinator rejection is delivered as a
+///     `PlanApprovalResponse` so the member can revise. Approval itself
+///     completes the planning task and unlocks dependent work, without a
+///     fake Build turn for the Planner.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum AgentMessage {
@@ -134,6 +132,9 @@ pub enum AgentMessage {
     /// is the human-friendly label used by `create_plan`.
     PlanApprovalRequest {
         request_id: RequestId,
+        approval_id: String,
+        plan_revision_id: String,
+        source_task_id: String,
         plan_title: String,
         plan_path: String,
         plan_content: String,
@@ -141,13 +142,10 @@ pub enum AgentMessage {
 
     /// Coordinator → member: "I reviewed your plan."
     ///
-    /// `accepted = true` exits plan mode on the member side and stages
-    /// the next turn mode. `accepted = false` keeps the member in plan
-    /// mode so it can revise and re-submit. When omitted, `next_mode`
-    /// defaults to `Build` for approvals and `Plan` for rejections.
-    /// Only `Build`, `Ask`, and `Plan` are accepted for Agent
-    /// Org remote mode control while Review/Debug/Wingman remain outside
-    /// the coordinator scheduling contract.
+    /// New rows are used for rejection/revision: `accepted = false` keeps
+    /// the member in Plan mode. Deserializing accepted responses remains
+    /// supported for historical inbox rows created before task-bound
+    /// approvals; their `next_mode` defaults to Build.
     PlanApprovalResponse {
         request_id: RequestId,
         accepted: bool,
@@ -212,21 +210,25 @@ pub enum AgentMessage {
         /// Required iff `Failed`; rejected otherwise. Validated by
         /// [`AgentMessage::validate`].
         failure_reason: Option<String>,
+        /// Build tasks that still remain `in_progress` even though this
+        /// member has reached an idle turn boundary. Kept separate from
+        /// `reason`: session availability and task finality are independent.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        unfinished_task_ids: Vec<String>,
     },
 
     /// System → owner: "you have been assigned task `<task_id>`."
     ///
-    /// Emitted whenever a task's `owner` field is set or changed —
-    /// either by an explicit `task_update` from a peer, or implicitly
-    /// when the autonomous-claim path calls `claimTask`.
+    /// Emitted whenever an authorized task mutation explicitly sets or
+    /// changes a task's `owner` field.
     ///
     /// This row is enqueued by the `task_create`/`task_update` LLM
-    /// tools and by the autonomous-claim path. It is *not* LLM-callable
+    /// tools and assignment recovery. It is *not* LLM-callable
     /// via `org_send_message` — fabricating an assignment would let
     /// any member redirect the coordinator's task graph. The producer
     /// stamps `sender_agent_id` with whoever caused the assignment (the
     /// assigning member's `agent_id`, or [`SYSTEM_SENDER_ID`] for
-    /// autonomous self-claims).
+    /// scheduler redelivery of an existing explicit assignment).
     ///
     /// `subject` / `description` are denormalized snapshots of the
     /// assigned [`agent_org_tasks::Task`](super::agent_org_tasks::Task)
@@ -240,17 +242,34 @@ pub enum AgentMessage {
         subject: String,
         description: String,
         assigned_by: String,
+        /// Task-scoped execution mode chosen by the coordinator. Historical
+        /// rows without this field retain Build semantics.
+        #[serde(default = "default_task_execution_mode")]
+        execution_mode: crate::coordination::agent_org_tasks::TaskExecutionMode,
+        /// Durable outputs of every completed blocker, copied into the
+        /// assignment so the recipient never needs another session's chat.
+        #[serde(default)]
+        dependency_outputs: Vec<TaskDependencyOutput>,
     },
 
-    /// Coordinator → member: switch your `AgentExecMode` for the next
-    /// turn (e.g. flip from `Build` to `Plan` so the member drafts a
-    /// plan, or back to `Build` after a plan is approved).
+    /// System → coordinator: an owner persisted a completed task and its
+    /// durable output. Unlike `MemberIdle`, this is a task fact, not a session
+    /// liveness hint, so the coordinator can immediately refresh the board.
+    TaskCompleted {
+        task_id: String,
+        subject: String,
+        completed_by_member_id: String,
+        output_summary: Option<String>,
+        remaining_open_task_count: usize,
+    },
+
+    /// Historical coordinator → member execution-mode request.
     ///
-    /// The surface is the inter-agent enum: the coordinator LLM picks
-    /// a mode and the member's drain applies it before the next turn
-    /// starts. There is no response variant: the side effect is a
-    /// runtime mutation, and the next `MemberIdle` carries the mode
-    /// the member actually ended the turn in (the LLM can read that to
+    /// New Agent Org task assignments carry `execution_mode` directly and
+    /// `org_send_message` no longer exposes this variant to the LLM. It stays
+    /// deserializable so inbox rows created by older builds remain readable.
+    /// The member's drain applies it before the next turn starts, and the next
+    /// `MemberIdle` carries the mode the member actually ended the turn in (the LLM can read that to
     /// confirm the switch took).
     ///
     /// `reason` is an optional human blurb the recipient can echo into
@@ -262,6 +281,21 @@ pub enum AgentMessage {
         mode: AgentExecMode,
         reason: Option<String>,
     },
+}
+
+fn default_task_execution_mode() -> crate::coordination::agent_org_tasks::TaskExecutionMode {
+    crate::coordination::agent_org_tasks::TaskExecutionMode::Build
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct TaskDependencyOutput {
+    pub task_id: String,
+    pub subject: String,
+    pub summary: String,
+    pub content: Option<String>,
+    pub artifact_ids: Vec<String>,
+    pub produced_by_member_id: String,
 }
 
 /// Why a member was terminated. Stable wire string so coordinator-side
@@ -308,6 +342,7 @@ impl AgentMessage {
             Self::MemberTerminated { .. } => "member_terminated",
             Self::MemberIdle { .. } => "member_idle",
             Self::TaskAssigned { .. } => "task_assigned",
+            Self::TaskCompleted { .. } => "task_completed",
             Self::ExecModeSetRequest { .. } => "exec_mode_set_request",
         }
     }
@@ -323,7 +358,8 @@ impl AgentMessage {
             Self::Plain { .. }
             | Self::MemberTerminated { .. }
             | Self::MemberIdle { .. }
-            | Self::TaskAssigned { .. } => None,
+            | Self::TaskAssigned { .. }
+            | Self::TaskCompleted { .. } => None,
         }
     }
 
@@ -348,6 +384,7 @@ impl AgentMessage {
             | Self::MemberTerminated { .. }
             | Self::MemberIdle { .. }
             | Self::TaskAssigned { .. }
+            | Self::TaskCompleted { .. }
             | Self::ExecModeSetRequest { .. } => true,
         }
     }
@@ -377,6 +414,9 @@ impl AgentMessage {
             }
             Self::PlanApprovalRequest {
                 request_id,
+                approval_id,
+                plan_revision_id,
+                source_task_id,
                 plan_title,
                 plan_path,
                 plan_content,
@@ -387,11 +427,26 @@ impl AgentMessage {
                 if plan_title.trim().is_empty() {
                     return Err("PlanApprovalRequest.plan_title must not be empty".into());
                 }
+                if approval_id.trim().is_empty()
+                    || plan_revision_id.trim().is_empty()
+                    || source_task_id.trim().is_empty()
+                {
+                    return Err(
+                        "PlanApprovalRequest requires approval_id, plan_revision_id, and source_task_id"
+                            .into(),
+                    );
+                }
                 if plan_path.trim().is_empty() {
                     return Err("PlanApprovalRequest.plan_path must not be empty".into());
                 }
                 if plan_content.trim().is_empty() {
                     return Err("PlanApprovalRequest.plan_content must not be empty".into());
+                }
+                if plan_content.chars().count() > 20_000 {
+                    return Err(
+                        "PlanApprovalRequest.plan_content must be ≤ 20000 chars; use plan_path for the full plan"
+                            .into(),
+                    );
                 }
             }
             Self::PlanApprovalResponse {
@@ -429,6 +484,7 @@ impl AgentMessage {
                 reason,
                 summary,
                 failure_reason,
+                unfinished_task_ids,
                 ..
             } => {
                 if member_id.trim().is_empty() {
@@ -441,6 +497,16 @@ impl AgentMessage {
                     if s.len() > 500 {
                         return Err("MemberIdle.summary must be ≤ 500 chars".into());
                     }
+                }
+                if unfinished_task_ids.len() > 32
+                    || unfinished_task_ids
+                        .iter()
+                        .any(|task_id| task_id.trim().is_empty() || task_id.len() > 200)
+                {
+                    return Err(
+                        "MemberIdle.unfinished_task_ids must contain at most 32 non-empty task ids of ≤ 200 chars"
+                            .into(),
+                    );
                 }
                 match reason {
                     MemberIdleReason::Failed => {
@@ -466,6 +532,8 @@ impl AgentMessage {
                 subject,
                 assigned_by,
                 description,
+                dependency_outputs,
+                ..
             } => {
                 if task_id.trim().is_empty() {
                     return Err("TaskAssigned.task_id must not be empty".into());
@@ -481,6 +549,61 @@ impl AgentMessage {
                 }
                 if description.len() > 4000 {
                     return Err("TaskAssigned.description must be ≤ 4000 chars".into());
+                }
+                for output in dependency_outputs {
+                    if output.task_id.trim().is_empty()
+                        || output.subject.trim().is_empty()
+                        || output.summary.trim().is_empty()
+                        || output.produced_by_member_id.trim().is_empty()
+                    {
+                        return Err(
+                            "TaskAssigned.dependency_outputs entries require task_id, subject, summary, and produced_by_member_id"
+                                .into(),
+                        );
+                    }
+                    if output
+                        .content
+                        .as_ref()
+                        .is_some_and(|content| content.chars().count() > 20_000)
+                    {
+                        return Err(
+                            "TaskAssigned.dependency_outputs content must be ≤ 20000 chars".into(),
+                        );
+                    }
+                }
+                let total_inline_chars: usize = dependency_outputs
+                    .iter()
+                    .filter_map(|output| output.content.as_ref())
+                    .map(|content| content.chars().count())
+                    .sum();
+                if total_inline_chars > 50_000 {
+                    return Err(
+                        "TaskAssigned.dependency_outputs total inline content must be ≤ 50000 chars; use artifacts for larger handoffs"
+                            .into(),
+                    );
+                }
+            }
+            Self::TaskCompleted {
+                task_id,
+                subject,
+                completed_by_member_id,
+                output_summary,
+                ..
+            } => {
+                if task_id.trim().is_empty() {
+                    return Err("TaskCompleted.task_id must not be empty".into());
+                }
+                if subject.trim().is_empty() {
+                    return Err("TaskCompleted.subject must not be empty".into());
+                }
+                if completed_by_member_id.trim().is_empty() {
+                    return Err("TaskCompleted.completed_by_member_id must not be empty".into());
+                }
+                if output_summary
+                    .as_ref()
+                    .is_some_and(|summary| summary.chars().count() > 1_000)
+                {
+                    return Err("TaskCompleted.output_summary must be ≤ 1000 chars".into());
                 }
             }
             Self::ExecModeSetRequest {
@@ -592,6 +715,21 @@ impl AgentInboxStore {
     /// more concrete `AgentId`s before calling this — the store does not
     /// fan out by itself. The router owns that resolution.
     pub fn insert(params: InsertInboxParams) -> Result<AgentInboxRecord, String> {
+        with_sessions_writer(|| -> Result<AgentInboxRecord, String> {
+            let conn = get_connection().map_err(|err| err.to_string())?;
+            Self::insert_in_tx(&conn, params)
+        })
+    }
+
+    /// Insert an inbox row using an existing writer transaction.
+    ///
+    /// This keeps state transitions such as "plan changes requested" and
+    /// their durable feedback delivery atomic: a caller cannot commit the
+    /// state change while losing the message that explains it.
+    pub(crate) fn insert_in_tx(
+        conn: &Connection,
+        params: InsertInboxParams,
+    ) -> Result<AgentInboxRecord, String> {
         params.message.validate()?;
 
         let kind = params.message.kind_tag().to_string();
@@ -600,10 +738,8 @@ impl AgentInboxStore {
             .map_err(|err| format!("serialize AgentMessage failed: {err}"))?;
         let now = chrono::Utc::now().to_rfc3339();
 
-        let id = with_sessions_writer(|| -> Result<i64, String> {
-            let conn = get_connection().map_err(|err| err.to_string())?;
-            conn.execute(
-                "INSERT INTO agent_inbox (
+        conn.execute(
+            "INSERT INTO agent_inbox (
                     recipient_agent_id,
                     recipient_member_id,
                     sender_agent_id,
@@ -615,21 +751,20 @@ impl AgentInboxStore {
                     created_at,
                     read_at
                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, NULL)",
-                params![
-                    &params.recipient_agent_id,
-                    params.recipient_member_id.as_deref(),
-                    &params.sender_agent_id,
-                    params.sender_member_id.as_deref(),
-                    params.org_run_id.as_deref(),
-                    &kind,
-                    &payload_json,
-                    request_id.as_deref(),
-                    &now,
-                ],
-            )
-            .map_err(|err| err.to_string())?;
-            Ok(conn.last_insert_rowid())
-        })?;
+            params![
+                &params.recipient_agent_id,
+                params.recipient_member_id.as_deref(),
+                &params.sender_agent_id,
+                params.sender_member_id.as_deref(),
+                params.org_run_id.as_deref(),
+                &kind,
+                &payload_json,
+                request_id.as_deref(),
+                &now,
+            ],
+        )
+        .map_err(|err| err.to_string())?;
+        let id = conn.last_insert_rowid();
         Ok(AgentInboxRecord {
             id,
             recipient_agent_id: params.recipient_agent_id,
@@ -700,6 +835,27 @@ fn row_to_record(row: &rusqlite::Row<'_>) -> SqliteResult<AgentInboxRecord> {
 }
 
 impl AgentInboxStore {
+    /// `EXISTS`-style unread probe. Periodic scanners (watchdog) only
+    /// need the boolean; loading and decoding full rows for it is
+    /// wasted work.
+    pub fn has_unread_for_member(
+        recipient_member_id: &str,
+        org_run_id: &str,
+    ) -> Result<bool, String> {
+        let conn = get_connection().map_err(|err| err.to_string())?;
+        conn.query_row(
+            "SELECT EXISTS(
+                 SELECT 1 FROM agent_inbox
+                 WHERE recipient_member_id = ?1
+                   AND org_run_id = ?2
+                   AND read_at IS NULL
+             )",
+            params![recipient_member_id, org_run_id],
+            |row| row.get::<_, bool>(0),
+        )
+        .map_err(|err| err.to_string())
+    }
+
     pub fn list_unread_for_member(
         recipient_member_id: &str,
         org_run_id: &str,
@@ -823,6 +979,9 @@ mod tests {
     fn plan_approval_request_validates_required_fields() {
         let ok = AgentMessage::PlanApprovalRequest {
             request_id: RequestId("req-1".into()),
+            approval_id: "approval-1".into(),
+            plan_revision_id: "revision-1".into(),
+            source_task_id: "task-plan".into(),
             plan_title: "Refactor auth".into(),
             plan_path: "/tmp/auth.plan.md".into(),
             plan_content: "# steps".into(),
@@ -833,6 +992,9 @@ mod tests {
 
         let bad_title = AgentMessage::PlanApprovalRequest {
             request_id: RequestId("req-2".into()),
+            approval_id: "approval-2".into(),
+            plan_revision_id: "revision-2".into(),
+            source_task_id: "task-plan".into(),
             plan_title: "  ".into(),
             plan_path: "/tmp/x".into(),
             plan_content: "body".into(),
@@ -841,6 +1003,9 @@ mod tests {
 
         let bad_path = AgentMessage::PlanApprovalRequest {
             request_id: RequestId("req-3".into()),
+            approval_id: "approval-3".into(),
+            plan_revision_id: "revision-3".into(),
+            source_task_id: "task-plan".into(),
             plan_title: "t".into(),
             plan_path: "".into(),
             plan_content: "body".into(),
@@ -849,6 +1014,9 @@ mod tests {
 
         let bad_content = AgentMessage::PlanApprovalRequest {
             request_id: RequestId("req-4".into()),
+            approval_id: "approval-4".into(),
+            plan_revision_id: "revision-4".into(),
+            source_task_id: "task-plan".into(),
             plan_title: "t".into(),
             plan_path: "/tmp/x".into(),
             plan_content: "   ".into(),
@@ -908,6 +1076,25 @@ mod tests {
         let parsed: AgentMessage = serde_json::from_str(&json).unwrap();
         assert_eq!(msg, parsed);
         assert!(json.contains("\"kind\":\"plain\""));
+    }
+
+    #[test]
+    fn member_idle_unfinished_tasks_are_backward_compatible_and_omit_empty_wire_data() {
+        let message = AgentMessage::MemberIdle {
+            member_id: "member-worker".into(),
+            member_name: "Worker".into(),
+            reason: MemberIdleReason::Available,
+            current_mode: Some(AgentExecMode::Build),
+            summary: None,
+            failure_reason: None,
+            unfinished_task_ids: Vec::new(),
+        };
+        let serialized = serde_json::to_string(&message).expect("serialize MemberIdle");
+        assert!(!serialized.contains("unfinished_task_ids"));
+
+        let legacy = r#"{"kind":"member_idle","member_id":"member-worker","member_name":"Worker","reason":"available","current_mode":"build","summary":null,"failure_reason":null}"#;
+        let decoded: AgentMessage = serde_json::from_str(legacy).expect("decode legacy MemberIdle");
+        assert_eq!(decoded, message);
     }
 
     #[test]
@@ -1008,6 +1195,9 @@ mod tests {
             },
             AgentMessage::PlanApprovalRequest {
                 request_id: RequestId::new(),
+                approval_id: "approval-1".into(),
+                plan_revision_id: "revision-1".into(),
+                source_task_id: "task-plan".into(),
                 plan_title: "title".into(),
                 plan_path: "/tmp/x.plan.md".into(),
                 plan_content: "body".into(),
@@ -1030,12 +1220,22 @@ mod tests {
                 current_mode: Some(AgentExecMode::Plan),
                 summary: Some("DM'd coord with progress".into()),
                 failure_reason: None,
+                unfinished_task_ids: Vec::new(),
             },
             AgentMessage::TaskAssigned {
                 task_id: "task-1".into(),
                 subject: "subject".into(),
                 description: "d".into(),
                 assigned_by: "Coord".into(),
+                dependency_outputs: Vec::new(),
+                execution_mode: crate::coordination::agent_org_tasks::TaskExecutionMode::Build,
+            },
+            AgentMessage::TaskCompleted {
+                task_id: "task-1".into(),
+                subject: "subject".into(),
+                completed_by_member_id: "alice".into(),
+                output_summary: Some("done".into()),
+                remaining_open_task_count: 0,
             },
             AgentMessage::ExecModeSetRequest {
                 request_id: RequestId::new(),
@@ -1233,6 +1433,8 @@ mod tests {
             subject: "Refactor auth".into(),
             description: "Move bcrypt cost to env".into(),
             assigned_by: "Coordinator".into(),
+            dependency_outputs: Vec::new(),
+            execution_mode: crate::coordination::agent_org_tasks::TaskExecutionMode::Build,
         };
         assert!(ok.validate().is_ok());
         assert_eq!(ok.kind_tag(), "task_assigned");
@@ -1247,6 +1449,8 @@ mod tests {
             subject: "s".into(),
             description: "d".into(),
             assigned_by: "by".into(),
+            dependency_outputs: Vec::new(),
+            execution_mode: crate::coordination::agent_org_tasks::TaskExecutionMode::Build,
         };
         assert!(bad_id.validate().is_err());
 
@@ -1255,6 +1459,8 @@ mod tests {
             subject: "".into(),
             description: "d".into(),
             assigned_by: "by".into(),
+            dependency_outputs: Vec::new(),
+            execution_mode: crate::coordination::agent_org_tasks::TaskExecutionMode::Build,
         };
         assert!(bad_subject.validate().is_err());
 
@@ -1263,6 +1469,8 @@ mod tests {
             subject: "s".into(),
             description: "d".into(),
             assigned_by: "".into(),
+            dependency_outputs: Vec::new(),
+            execution_mode: crate::coordination::agent_org_tasks::TaskExecutionMode::Build,
         };
         assert!(bad_assigned_by.validate().is_err());
     }
@@ -1274,6 +1482,8 @@ mod tests {
             subject: "x".repeat(201),
             description: "d".into(),
             assigned_by: "by".into(),
+            dependency_outputs: Vec::new(),
+            execution_mode: crate::coordination::agent_org_tasks::TaskExecutionMode::Build,
         };
         assert!(bad_subject.validate().is_err());
 
@@ -1282,6 +1492,8 @@ mod tests {
             subject: "s".into(),
             description: "x".repeat(4001),
             assigned_by: "by".into(),
+            dependency_outputs: Vec::new(),
+            execution_mode: crate::coordination::agent_org_tasks::TaskExecutionMode::Build,
         };
         assert!(bad_description.validate().is_err());
     }
@@ -1293,12 +1505,30 @@ mod tests {
             subject: "Pagination on /search".into(),
             description: "Add cursor-based paging".into(),
             assigned_by: "Alice".into(),
+            dependency_outputs: Vec::new(),
+            execution_mode: crate::coordination::agent_org_tasks::TaskExecutionMode::Plan,
         };
         let json = serde_json::to_string(&msg).unwrap();
         let parsed: AgentMessage = serde_json::from_str(&json).unwrap();
         assert_eq!(msg, parsed);
         // Tag must be the wire-stable snake_case discriminator.
         assert!(json.contains("\"kind\":\"task_assigned\""));
+    }
+
+    #[test]
+    fn task_completed_round_trips_and_validates() {
+        let msg = AgentMessage::TaskCompleted {
+            task_id: "task-42".into(),
+            subject: "Review draft".into(),
+            completed_by_member_id: "reviewer".into(),
+            output_summary: Some("Approved with two corrections".into()),
+            remaining_open_task_count: 0,
+        };
+        assert!(msg.validate().is_ok());
+        assert_eq!(msg.kind_tag(), "task_completed");
+        let json = serde_json::to_string(&msg).unwrap();
+        let parsed: AgentMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(msg, parsed);
     }
 
     /// `ExecModeSetRequest` is the coordinator's mode-flip channel.

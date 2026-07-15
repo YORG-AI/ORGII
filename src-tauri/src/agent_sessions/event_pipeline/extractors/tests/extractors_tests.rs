@@ -2,7 +2,9 @@ use crate::agent_sessions::cli::parsers::alias_map::get_ui_canonical;
 use crate::agent_sessions::event_pipeline::extractors::extractors::{
     detect_language, extract_batch, extract_event_data, strip_line_number_prefixes_pub,
 };
-use crate::agent_sessions::event_pipeline::extractors::ExtractedData;
+use crate::agent_sessions::event_pipeline::extractors::{
+    types::OrgTaskOperationOutcome, ExtractedData,
+};
 use crate::agent_sessions::event_pipeline::types::{
     ActivityStatus, EventDisplayStatus, EventDisplayVariant, EventSource, SessionEvent,
 };
@@ -477,6 +479,7 @@ fn test_extract_org_task_create() {
     match data {
         ExtractedData::OrgTask(org_task) => {
             assert_eq!(org_task.action, "create");
+            assert_eq!(org_task.outcome, OrgTaskOperationOutcome::Succeeded);
             assert_eq!(org_task.total, Some(1));
             assert_eq!(org_task.owner_changed, Some(true));
             assert_eq!(org_task.task_assigned_dispatched, Some(true));
@@ -493,7 +496,7 @@ fn test_extract_org_task_create() {
 
 #[test]
 fn test_extract_org_task_create_from_args_without_result() {
-    let event = make_event(
+    let mut event = make_event(
         "task_create",
         EventDisplayVariant::ToolCall,
         serde_json::json!({
@@ -505,16 +508,150 @@ fn test_extract_org_task_create_from_args_without_result() {
         }),
         serde_json::json!(null),
     );
+    event.display_status = EventDisplayStatus::Running;
 
     let data = extract_event_data(&event).unwrap();
     match data {
         ExtractedData::OrgTask(org_task) => {
             assert_eq!(org_task.action, "create");
+            assert_eq!(org_task.outcome, OrgTaskOperationOutcome::Pending);
             let task = org_task.task.expect("expected args-backed task payload");
             assert_eq!(task.id, "task-args");
             assert_eq!(task.subject.as_deref(), Some("Render running task"));
             assert_eq!(task.owner.as_deref(), Some("member-args"));
             assert_eq!(task.status.as_deref(), Some("pending"));
+        }
+        _ => panic!("Expected OrgTask variant"),
+    }
+}
+
+#[test]
+fn test_extract_org_task_rejected_create_keeps_attempt_for_history() {
+    let event = make_event(
+        "task_create",
+        EventDisplayVariant::ToolCall,
+        serde_json::json!({
+            "subject": "Verify final output",
+            "owner_member_id": "sde-tester",
+            "status": "pending"
+        }),
+        serde_json::json!({
+            "created": false,
+            "requires_dependency_confirmation": true,
+            "guidance": "Add the omitted reviewer dependency."
+        }),
+    );
+
+    let data = extract_event_data(&event).unwrap();
+    match data {
+        ExtractedData::OrgTask(org_task) => {
+            assert_eq!(org_task.outcome, OrgTaskOperationOutcome::Rejected);
+            assert_eq!(
+                org_task.guidance.as_deref(),
+                Some("Add the omitted reviewer dependency.")
+            );
+            let task = org_task
+                .task
+                .expect("attempted task should render in history");
+            assert_eq!(task.subject.as_deref(), Some("Verify final output"));
+            assert_eq!(task.owner.as_deref(), Some("sde-tester"));
+        }
+        _ => panic!("Expected OrgTask variant"),
+    }
+}
+
+#[test]
+fn test_extract_org_task_structured_non_mutations_are_rejected() {
+    let rejected_results = [
+        serde_json::json!({ "rejected": true, "rejection_code": "lifecycle_owner_only" }),
+        serde_json::json!({ "authorization_denied": true }),
+        serde_json::json!({ "already_exists": true }),
+        serde_json::json!({ "status_ignored": true }),
+        serde_json::json!({ "deleted": false }),
+    ];
+
+    for result in rejected_results {
+        let event = make_event(
+            "task_update",
+            EventDisplayVariant::ToolCall,
+            serde_json::json!({
+                "id": "task-1",
+                "status": "completed"
+            }),
+            result,
+        );
+
+        let data = extract_event_data(&event).unwrap();
+        match data {
+            ExtractedData::OrgTask(org_task) => {
+                assert_eq!(org_task.outcome, OrgTaskOperationOutcome::Rejected);
+            }
+            _ => panic!("Expected OrgTask variant"),
+        }
+    }
+}
+
+#[test]
+fn test_extract_org_task_legacy_invalid_params_is_recoverable_rejection() {
+    let message = "Error executing task_update: Invalid parameters: parameter validation failed: missing field `summary`";
+    let mut event = make_event(
+        "task_update",
+        EventDisplayVariant::ToolCall,
+        serde_json::json!({
+            "id": "task-needs-summary",
+            "status": "completed",
+            "output": { "content": "Full result" }
+        }),
+        serde_json::json!({
+            "content": message,
+            "observation": message
+        }),
+    );
+    event.display_status = EventDisplayStatus::Failed;
+
+    let data = extract_event_data(&event).unwrap();
+    match data {
+        ExtractedData::OrgTask(org_task) => {
+            assert_eq!(org_task.outcome, OrgTaskOperationOutcome::Rejected);
+            assert!(org_task
+                .guidance
+                .as_deref()
+                .is_some_and(|guidance| guidance.contains("non-empty summary")));
+            assert_eq!(org_task.error_message.as_deref(), Some(message));
+            assert_eq!(
+                org_task.task.expect("args-backed task").id,
+                "task-needs-summary"
+            );
+        }
+        _ => panic!("Expected OrgTask variant"),
+    }
+}
+
+#[test]
+fn test_extract_org_task_failed_create_is_not_successful() {
+    let event = make_event(
+        "task_create",
+        EventDisplayVariant::ToolCall,
+        serde_json::json!({
+            "subject": "Invalid dependency task",
+            "owner_member_id": "sde-tester",
+            "status": "pending"
+        }),
+        serde_json::json!({
+            "content": "Error executing task_create: dependency task does not exist",
+            "observation": "Error executing task_create: dependency task does not exist"
+        }),
+    );
+
+    let data = extract_event_data(&event).unwrap();
+    match data {
+        ExtractedData::OrgTask(org_task) => {
+            assert_eq!(org_task.outcome, OrgTaskOperationOutcome::Failed);
+            assert_eq!(
+                org_task.error_message.as_deref(),
+                Some("Error executing task_create: dependency task does not exist")
+            );
+            assert!(org_task.task.is_some());
         }
         _ => panic!("Expected OrgTask variant"),
     }
@@ -540,6 +677,7 @@ fn test_extract_org_task_list() {
     match data {
         ExtractedData::OrgTask(org_task) => {
             assert_eq!(org_task.action, "list");
+            assert_eq!(org_task.outcome, OrgTaskOperationOutcome::Succeeded);
             assert_eq!(org_task.total, Some(2));
             assert_eq!(org_task.org_run_id.as_deref(), Some("run-1"));
             assert_eq!(org_task.tasks.len(), 2);
@@ -846,6 +984,7 @@ fn test_extracted_data_serialization_shape() {
 
 #[test]
 fn test_recompute_extracted_sets_timestamp() {
+    crate::agent_sessions::event_pipeline::extractors::register_extractor_hook();
     let mut event = make_event(
         "read_file",
         EventDisplayVariant::ToolCall,
@@ -865,6 +1004,7 @@ fn test_recompute_extracted_sets_timestamp() {
 fn test_status_change_forces_recompute() {
     use crate::agent_sessions::event_pipeline::types::SessionEventPatch;
 
+    crate::agent_sessions::event_pipeline::extractors::register_extractor_hook();
     let mut event = make_event(
         "run_shell",
         EventDisplayVariant::ToolCall,
@@ -893,6 +1033,7 @@ fn test_status_change_forces_recompute() {
 fn test_debounce_skips_rapid_payload_updates() {
     use crate::agent_sessions::event_pipeline::types::SessionEventPatch;
 
+    crate::agent_sessions::event_pipeline::extractors::register_extractor_hook();
     let mut event = make_event(
         "run_shell",
         EventDisplayVariant::ToolCall,

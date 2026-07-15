@@ -670,16 +670,6 @@ fn all_scenarios() -> Vec<ScenarioDef> {
         ),
         scenario!(
             "agent-org",
-            "agent-org-launch-materializes-cli-member-sessions",
-            agent_org::launch_materializes_cli_member_sessions_in_run_view
-        ),
-        scenario!(
-            "agent-org",
-            "agent-org-cli-member-idle-does-not-prematurely-end-run",
-            agent_org::cli_member_idle_does_not_prematurely_end_run
-        ),
-        scenario!(
-            "agent-org",
             "agent-org-run-pause-resume-toggles-status",
             agent_org::run_pause_resume_toggles_status
         ),
@@ -837,35 +827,35 @@ fn all_scenarios() -> Vec<ScenarioDef> {
             "agent-org-coordinator-cannot-spawn-materialized-member",
             agent_org::coordinator_cannot_spawn_materialized_member
         ),
-        // Agent-team task system (autonomous claim, unassign-on-
+        // Agent-team task system (explicit assignment, unassign-on-
         // shutdown, ExecModeSetRequest). Each scenario is
         // deterministic — seeds task rows / inbox rows via debug
         // endpoints, drives the production drain helper, and asserts
         // the observable post-state.
         scenario!(
             "agent-org",
-            "agent-org-tasks-idle-member-autonomous-claim",
-            agent_org_tasks_and_exec_mode::idle_member_autonomous_claim_assigns_oldest_pending
+            "agent-org-tasks-worker-drain-keeps-ownerless",
+            agent_org_tasks_and_exec_mode::worker_drain_does_not_assign_ownerless_tasks
         ),
         scenario!(
             "agent-org",
-            "agent-org-tasks-coordinator-no-autonomous-claim",
-            agent_org_tasks_and_exec_mode::coordinator_drain_does_not_autonomously_claim
+            "agent-org-tasks-coordinator-drain-keeps-ownerless",
+            agent_org_tasks_and_exec_mode::coordinator_drain_does_not_assign_ownerless_task
         ),
         scenario!(
             "agent-org",
-            "agent-org-tasks-busy-member-skips-claim",
-            agent_org_tasks_and_exec_mode::busy_member_skips_autonomous_claim
+            "agent-org-tasks-owned-work-does-not-claim-ownerless",
+            agent_org_tasks_and_exec_mode::owned_work_does_not_make_ownerless_task_assignable
         ),
         scenario!(
             "agent-org",
-            "agent-org-tasks-concurrent-claim-single-winner",
-            agent_org_tasks_and_exec_mode::concurrent_autonomous_claim_has_single_winner
+            "agent-org-tasks-concurrent-drains-keep-ownerless",
+            agent_org_tasks_and_exec_mode::concurrent_worker_drains_leave_ownerless_task_unassigned
         ),
         scenario!(
             "agent-org",
-            "agent-org-tasks-blocked-dependency-gate",
-            agent_org_tasks_and_exec_mode::blocked_dependency_prevents_claim_until_completed
+            "agent-org-tasks-dependency-readiness-never-auto-assigns",
+            agent_org_tasks_and_exec_mode::dependency_state_never_auto_assigns_ownerless_task
         ),
         scenario!(
             "agent-org",
@@ -899,8 +889,8 @@ fn all_scenarios() -> Vec<ScenarioDef> {
         ),
         scenario!(
             "agent-org",
-            "agent-org-tasks-exec-mode-set-request-lands",
-            agent_org_tasks_and_exec_mode::coordinator_exec_mode_set_request_lands_in_member_inbox
+            "agent-org-tasks-legacy-exec-mode-request-rejected",
+            agent_org_tasks_and_exec_mode::coordinator_cannot_send_legacy_exec_mode_set_request
         ),
         scenario!(
             "agent-org",
@@ -909,13 +899,13 @@ fn all_scenarios() -> Vec<ScenarioDef> {
         ),
         scenario!(
             "agent-org",
-            "agent-org-tasks-exec-mode-rejects-unknown",
-            agent_org_tasks_and_exec_mode::coordinator_exec_mode_set_request_rejects_unknown_mode
+            "agent-org-tasks-legacy-exec-mode-variants-rejected",
+            agent_org_tasks_and_exec_mode::legacy_exec_mode_set_request_variants_are_rejected
         ),
         scenario!(
             "agent-org",
-            "agent-org-tasks-plan-approval-next-mode-contract",
-            agent_org_tasks_and_exec_mode::coordinator_plan_approval_response_defaults_and_rejects_unsupported_next_mode
+            "agent-org-tasks-plan-approval-requires-pending-record",
+            agent_org_tasks_and_exec_mode::plan_approval_response_requires_pending_record
         ),
         scenario!(
             "agent-org",

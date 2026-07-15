@@ -313,10 +313,31 @@ pub struct OrgTaskItem {
     pub blocked_by: Vec<String>,
 }
 
+/// Finality of an Agent Org task-tool operation.
+///
+/// This is deliberately separate from [`OrgTaskItem::status`]: the latter is
+/// the lifecycle of a task that exists, while this enum describes whether the
+/// tool call itself was accepted. A rejected `task_create` can carry attempted
+/// task fields for history rendering without pretending that a task exists.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OrgTaskOperationOutcome {
+    Pending,
+    Succeeded,
+    Rejected,
+    Failed,
+    /// Backward-compatible value for persisted extracted payloads created
+    /// before operation outcomes were added. New extraction never emits it.
+    #[default]
+    Unknown,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtractedOrgTaskData {
     pub action: String,
+    #[serde(default)]
+    pub outcome: OrgTaskOperationOutcome,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub task: Option<OrgTaskItem>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -331,6 +352,10 @@ pub struct ExtractedOrgTaskData {
     pub status_changed: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub task_assigned_dispatched: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub guidance: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

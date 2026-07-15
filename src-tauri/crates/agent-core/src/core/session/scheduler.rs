@@ -260,6 +260,15 @@ impl DialogScheduler {
         if let Some(client_message_id) = msg.client_message_id.as_ref() {
             let mut ids = self.client_message_ids.lock().await;
             if !ids.insert(client_message_id.clone()) {
+                // This request minted its own durable intent before enqueue,
+                // but an equivalent client message is already queued/running.
+                // The scheduler is the single authority that knows the request
+                // was coalesced, so it also closes that new intent here.
+                crate::foundation::session_bridge::update_turn_intent_status(
+                    &self.session_id,
+                    &msg.turn_intent_id,
+                    crate::foundation::session_bridge::TurnIntentBridgeStatus::Coalesced,
+                );
                 return Ok(EnqueueResult {
                     message_id,
                     queue_position: 0,
@@ -289,6 +298,11 @@ impl DialogScheduler {
                         .await
                         .remove(client_message_id);
                 }
+                crate::foundation::session_bridge::update_turn_intent_status(
+                    &self.session_id,
+                    &rejected.turn_intent_id,
+                    crate::foundation::session_bridge::TurnIntentBridgeStatus::Rejected,
+                );
                 Err(format!(
                     "Session queue is full — message rejected (content_len={})",
                     rejected.content.len()
@@ -302,6 +316,11 @@ impl DialogScheduler {
                         .await
                         .remove(client_message_id);
                 }
+                crate::foundation::session_bridge::update_turn_intent_status(
+                    &self.session_id,
+                    &rejected.turn_intent_id,
+                    crate::foundation::session_bridge::TurnIntentBridgeStatus::Rejected,
+                );
                 Err("Session scheduler has shut down".to_string())
             }
         }
@@ -629,6 +648,61 @@ mod tests {
         assert!(second.duplicate);
         assert_eq!(second.message_id, "second");
         release_running.notify_one();
+    }
+
+    #[tokio::test]
+    async fn twenty_concurrent_wakes_coalesce_to_one_turn() {
+        let scheduler = Arc::new(DialogScheduler::new("session-wake-storm", 32));
+        let release = Arc::new(tokio::sync::Notify::new());
+        let executed = Arc::new(AtomicUsize::new(0));
+        let mut joins = tokio::task::JoinSet::new();
+
+        for index in 0..20 {
+            let scheduler = Arc::clone(&scheduler);
+            let release = Arc::clone(&release);
+            let executed = Arc::clone(&executed);
+            joins.spawn(async move {
+                scheduler
+                    .enqueue(ScheduledMessage {
+                        kind: ScheduledKind::Turn,
+                        message_id: format!("wake-{index}"),
+                        generation: 0,
+                        client_message_id: Some("agent-org-wake:run-1:member-a".to_string()),
+                        turn_intent_id: String::new(),
+                        content: String::new(),
+                        execute: Box::new(move || {
+                            Box::pin(async move {
+                                executed.fetch_add(1, Ordering::SeqCst);
+                                release.notified().await;
+                                Ok(String::new())
+                            })
+                        }),
+                    })
+                    .await
+                    .expect("wake enqueue")
+            });
+        }
+
+        let mut accepted = 0;
+        let mut coalesced = 0;
+        while let Some(result) = joins.join_next().await {
+            if result.expect("join wake").duplicate {
+                coalesced += 1;
+            } else {
+                accepted += 1;
+            }
+        }
+        assert_eq!(accepted, 1);
+        assert_eq!(coalesced, 19);
+        tokio::time::timeout(std::time::Duration::from_secs(1), async {
+            while executed.load(Ordering::SeqCst) == 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("accepted wake starts");
+        assert_eq!(executed.load(Ordering::SeqCst), 1);
+        release.notify_one();
     }
 
     #[tokio::test]

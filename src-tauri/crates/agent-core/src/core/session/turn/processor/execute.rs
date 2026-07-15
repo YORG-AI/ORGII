@@ -97,6 +97,19 @@ impl UnifiedMessageProcessor {
 
         let mut event_handler_config = self.event_handler_config.clone();
         event_handler_config.turn_id = Some(turn_id.to_string());
+        event_handler_config.agent_org_task_lifecycle = self
+            .runtime
+            .agent_org_context
+            .as_ref()
+            .zip(self.runtime.agent_org_current_member_id.as_ref())
+            .and_then(|(context, member_id)| {
+                (member_id != crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID).then(
+                    || super::super::event_handler::AgentOrgTaskLifecycleContext {
+                        run_id: context.run_id.clone(),
+                        member_id: member_id.clone(),
+                    },
+                )
+            });
         let handler = UnifiedEventHandler::new(event_handler_config);
 
         // Set per-turn context for streaming/cancellable tools.

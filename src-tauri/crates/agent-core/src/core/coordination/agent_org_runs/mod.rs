@@ -11,12 +11,12 @@ mod worker;
 mod tests;
 
 pub use store::AgentOrgRunStore;
-pub use worker::{StaleWorkerRelease, WorkerSessionInfo, WorkerSessionRuntime};
+pub use worker::{WorkerSessionInfo, WorkerSessionRuntime};
 
 use rusqlite::{Connection, Result as SqliteResult};
 use serde::Serialize;
 
-use crate::definitions::orgs::{HierarchyMode, OrgDefinition};
+use crate::definitions::orgs::{HierarchyMode, OrgDefinition, PlanApprovalPolicy};
 
 pub const COORDINATOR_MEMBER_ID: &str = "coordinator";
 pub(crate) const DEFAULT_COORDINATOR_DISPLAY_NAME: &str = "Coordinator";
@@ -127,6 +127,19 @@ pub struct AgentOrgParticipant {
     pub is_coordinator: bool,
 }
 
+/// One transactionally consistent read of every durable signal that can
+/// prevent an Agent Org run from being safely announced as complete.
+#[derive(Debug, Clone)]
+pub struct AgentOrgCompletionSnapshot {
+    pub run_status: Option<AgentOrgRunStatus>,
+    pub tasks: Vec<crate::coordination::agent_org_tasks::Task>,
+    pub active_member_ids: Vec<String>,
+    pub active_intervention_member_ids: Vec<String>,
+    pub pending_worker_turn_intent_count: usize,
+    pub unread_inbox_count: usize,
+    pub pending_plan_approval_count: usize,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentOrgRunContext {
@@ -152,6 +165,8 @@ pub struct AgentOrgRunContext {
     /// surfaced in the LLM system prompt and enforced by
     /// `org_send_message`. Mirror of `OrgDefinition.hierarchy_mode`.
     pub hierarchy_mode: HierarchyMode,
+    /// Plan-approval policy captured in the launch snapshot.
+    pub plan_approval_policy: PlanApprovalPolicy,
     /// Session ID of the coordinator (root) session for this run. Used by
     /// the frontend to navigate directly to the coordinator's chat history
     /// when the run is paused or the coordinator is not the active session.
@@ -292,6 +307,65 @@ impl AgentOrgRunContext {
         allowed.sort();
         allowed.dedup();
         allowed
+    }
+
+    /// Member ids that `manager_member_id` may directly supervise on the
+    /// shared task board. Task authority deliberately differs from message
+    /// routing: unrestricted peer discussion in `Soft` mode does not make
+    /// every peer every other peer's manager. `Flat` drops the hierarchy, so
+    /// only the coordinator has cross-member task authority in that mode.
+    pub fn direct_report_member_ids_for(&self, manager_member_id: &str) -> Vec<String> {
+        if self.hierarchy_mode == HierarchyMode::Flat
+            || manager_member_id == COORDINATOR_MEMBER_ID
+            || self.participant_by_member_id(manager_member_id).is_none()
+        {
+            return Vec::new();
+        }
+
+        let mut direct_reports = self
+            .members
+            .iter()
+            .filter(|member| member.parent_member_id.as_deref() == Some(manager_member_id))
+            .map(|member| member.member_id.clone())
+            .collect::<Vec<_>>();
+        direct_reports.sort();
+        direct_reports.dedup();
+        direct_reports
+    }
+
+    /// Task assignees that `caller_member_id` is authorized to manage.
+    ///
+    /// - coordinator: itself plus every roster member;
+    /// - ordinary member: itself;
+    /// - manager member in Soft/Strict: itself plus direct reports.
+    ///
+    /// This is the task-governance source of truth. It must not be replaced by
+    /// `allowed_recipient_member_ids_for`: permission to talk to a peer is not
+    /// permission to assign that peer work.
+    pub fn allowed_task_target_member_ids_for(&self, caller_member_id: &str) -> Vec<String> {
+        if self.participant_by_member_id(caller_member_id).is_none() {
+            return Vec::new();
+        }
+
+        let mut allowed = if caller_member_id == COORDINATOR_MEMBER_ID {
+            self.participants()
+                .into_iter()
+                .map(|participant| participant.member_id)
+                .collect::<Vec<_>>()
+        } else {
+            let mut member_ids = vec![caller_member_id.to_string()];
+            member_ids.extend(self.direct_report_member_ids_for(caller_member_id));
+            member_ids
+        };
+        allowed.sort();
+        allowed.dedup();
+        allowed
+    }
+
+    pub fn can_assign_task_to(&self, caller_member_id: &str, target_member_id: &str) -> bool {
+        self.allowed_task_target_member_ids_for(caller_member_id)
+            .iter()
+            .any(|member_id| member_id == target_member_id)
     }
 
     pub fn check_routing(&self, from_member_id: &str, to_member_id: &str) -> RoutingDecision {

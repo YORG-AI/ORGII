@@ -7,6 +7,7 @@ use crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID;
 use crate::definitions::builtin::SDE_AGENT_ID;
 use crate::definitions::orgs::{
     HierarchyMode, OrgDefinition, OrgMember, OrgMemberLaunchOverride, OrgMemberRuntimeConfig,
+    PlanApprovalPolicy,
 };
 use core_types::key_source::KeySource;
 use std::collections::HashMap;
@@ -30,6 +31,7 @@ fn valid_org_with_children(children: Vec<OrgMember>) -> OrgDefinition {
         agent_id: SDE_AGENT_ID.to_string(),
         description: None,
         hierarchy_mode: HierarchyMode::Soft,
+        plan_approval_policy: PlanApprovalPolicy::Coordinator,
         children,
     }
 }
@@ -149,6 +151,7 @@ fn launch_validation_rejects_agent_org_with_missing_member_definition() {
         agent_id: SDE_AGENT_ID.to_string(),
         description: None,
         hierarchy_mode: HierarchyMode::Soft,
+        plan_approval_policy: PlanApprovalPolicy::Coordinator,
         children: vec![OrgMember {
             id: "worker".to_string(),
             name: "Worker".to_string(),
@@ -167,7 +170,7 @@ fn launch_validation_rejects_agent_org_with_missing_member_definition() {
 }
 
 #[test]
-fn launch_validation_accepts_cli_member_reference_without_agent_definition() {
+fn launch_validation_rejects_cli_member_before_run_materialization() {
     let _sandbox = test_helpers::test_env::sandbox();
     let org = valid_org_with_children(vec![OrgMember {
         id: "cli-worker".to_string(),
@@ -178,8 +181,11 @@ fn launch_validation_accepts_cli_member_reference_without_agent_definition() {
         children: Vec::new(),
     }]);
 
-    validate_launch_agent_definitions(Some(SDE_AGENT_ID), Some(&org))
-        .expect("CLI member reference must not require an AgentDefinition row");
+    let error = validate_launch_agent_definitions(Some(SDE_AGENT_ID), Some(&org))
+        .expect_err("CLI Agent Org members are not production-capable yet");
+    assert!(error.contains("cli-worker"), "{error}");
+    assert!(error.contains("cli:claude_code"), "{error}");
+    assert!(error.contains("inbox"), "{error}");
 }
 
 #[test]

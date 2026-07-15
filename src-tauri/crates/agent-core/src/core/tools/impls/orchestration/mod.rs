@@ -4,7 +4,7 @@
 //! - [`agent`]       — Delegate/Shadow worker invocation (`agent` tool modes)
 //! - [`agent_org`]   — Agent Org persistent coordination sub-system:
 //!   - [`agent_org::send_message`] — typed org messaging
-//!   - [`agent_org::tasks`]   — `task_create` / `task_update` / `task_list` / `task_get`
+//!   - [`agent_org::tasks`]   — `task_graph_create` / `task_create` / `task_update` / `task_list` / `task_get`
 //! - [`ask_user_questions`]   — `ask_user_questions` (structured Q&A, blocks until user answers)
 //! - [`channel`]              — channel-attached workspace tools (subfolder)
 //! - [`inbox_wake`]           — production `InboxWakeHook` for `org_send_message`

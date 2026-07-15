@@ -3,12 +3,11 @@
 //! Tasks are stored in a single `agent_org_tasks` table scoped by
 //! `org_run_id` (one Agent Org run = one team execution).
 //!
-//! This module exposes the schema, struct, store CRUD, and atomic
-//! `try_claim` primitive. The LLM tool plumbing (`task_create` /
-//! `task_update` / `task_list` / `task_get`), the `TaskAssigned` inbox
-//! wiring, the autonomous claiming loop, and the `unassignTeammateTasks`
-//! shutdown hook all live in their own modules and consume these
-//! primitives.
+//! This module exposes the schema, structs, and store CRUD used by the Agent
+//! Org task tools and recovery paths. Ownerless tasks are durable
+//! "awaiting assignment" rows; workers never claim them autonomously.
+
+use std::collections::HashSet;
 
 use rusqlite::{Connection, Result as SqliteResult};
 
@@ -21,8 +20,99 @@ pub use store::AgentOrgTaskStore;
 mod tests;
 
 pub const TASK_DEPENDENCY_CYCLE_ERROR: &str = "task_dependency_cycle";
+pub const TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR: &str = "task_graph_unlisted_open_tasks";
+pub const TASK_COMPLETED_IMMUTABLE_ERROR: &str = "task_completed_immutable";
+pub const TASK_MUTATION_CONFLICT_ERROR: &str = "task_mutation_conflict";
 pub const TASK_METADATA_ELIGIBLE_MEMBER_IDS: &str = "eligible_member_ids";
 pub const TASK_METADATA_REQUIRED_ROLE: &str = "required_role";
+pub const TASK_METADATA_OUTPUT: &str = "output";
+pub const TASK_METADATA_EXECUTION_MODE: &str = "execution_mode";
+
+/// Return every task reached by following `blocked_by` links upstream from
+/// `task_ids`, including the starting ids. Scheduling guards share this
+/// helper so single-task creation, atomic graph creation, and the store's
+/// transaction-time recheck agree on what an existing dependency covers.
+pub fn task_dependency_closure(task_ids: &[String], tasks: &[Task]) -> HashSet<String> {
+    let mut covered = HashSet::new();
+    let mut pending = task_ids.to_vec();
+    while let Some(task_id) = pending.pop() {
+        if !covered.insert(task_id.clone()) {
+            continue;
+        }
+        if let Some(task) = tasks.iter().find(|task| task.id == task_id) {
+            pending.extend(task.blocked_by.iter().cloned());
+        }
+    }
+    covered
+}
+
+/// Execution mode requested by the task assignment itself.
+///
+/// This is deliberately task-scoped: a planning task must start its very
+/// first provider turn in Plan mode, rather than relying on a separate inbox
+/// control message that may only be drained after the mode was selected.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskExecutionMode {
+    Build,
+    Plan,
+}
+
+impl TaskExecutionMode {
+    pub fn as_wire(self) -> &'static str {
+        match self {
+            Self::Build => "build",
+            Self::Plan => "plan",
+        }
+    }
+
+    pub fn from_wire(value: &str) -> Result<Self, String> {
+        match value.trim() {
+            "build" => Ok(Self::Build),
+            "plan" => Ok(Self::Plan),
+            other => Err(format!(
+                "invalid task execution_mode {other:?}; expected build or plan"
+            )),
+        }
+    }
+}
+
+/// Historical tasks predate the typed field and retain Build semantics.
+pub fn task_execution_mode(task: &Task) -> TaskExecutionMode {
+    task.metadata
+        .as_ref()
+        .and_then(|metadata| metadata.get(TASK_METADATA_EXECUTION_MODE))
+        .and_then(serde_json::Value::as_str)
+        .and_then(|value| TaskExecutionMode::from_wire(value).ok())
+        .unwrap_or(TaskExecutionMode::Build)
+}
+
+/// Durable, task-scoped result used for cross-session handoff.
+///
+/// A downstream member reads this from the task board instead of trying to
+/// dereference another session's chat history or inbox row number.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskOutput {
+    pub summary: String,
+    pub content: Option<String>,
+    pub artifact_ids: Vec<String>,
+    pub produced_by_member_id: String,
+    pub produced_at: String,
+}
+
+pub fn task_output(task: &Task) -> Option<TaskOutput> {
+    task.metadata
+        .as_ref()
+        .and_then(|metadata| metadata.get(TASK_METADATA_OUTPUT))
+        .cloned()
+        .and_then(|value| serde_json::from_value(value).ok())
+}
+
+/// A quiet Running owner keeps its task; this age only controls when the
+/// watchdog asks the coordinator to inspect it. Explicit failure disposition
+/// is the only automatic task-release path.
+pub const STALE_MEMBER_NOTICE_SECS: i64 = 15 * 60;
 
 pub fn eligible_member_ids(task: &Task) -> Vec<String> {
     task.metadata
@@ -41,16 +131,42 @@ pub fn eligible_member_ids(task: &Task) -> Vec<String> {
         .unwrap_or_default()
 }
 
-pub fn is_task_eligible_for_member(task: &Task, member_id: &str) -> bool {
-    eligible_member_ids(task)
+/// Single-pass ready-unassigned scan over an already-loaded task list.
+///
+/// A task needs coordinator assignment when it is `pending`, has no owner, and every
+/// `blocked_by` entry resolves to a `completed` task in the same list
+/// (a blocker id that does not resolve to a row counts as unresolved,
+/// matching `graph::blockers_resolved`).
+///
+/// Returned in input order (callers load via `list`, which orders by
+/// `created_at ASC`) so coordinator-facing repair notices stay deterministic.
+///
+/// This exists so periodic scanners (watchdog, run-progress wake
+/// collection) can answer "which ready tasks still need assignment?" with
+/// one task-list load + O(T) memory work — see issue #272.
+pub fn ready_unassigned_tasks(tasks: &[Task]) -> Vec<&Task> {
+    let completed_ids: std::collections::HashSet<&str> = tasks
         .iter()
-        .any(|eligible_member_id| eligible_member_id == member_id)
+        .filter(|task| task.status.is_resolved())
+        .map(|task| task.id.as_str())
+        .collect();
+    tasks
+        .iter()
+        .filter(|task| {
+            task.owner.is_none()
+                && task.status == TaskStatus::Pending
+                && task
+                    .blocked_by
+                    .iter()
+                    .all(|blocker_id| completed_ids.contains(blocker_id.as_str()))
+        })
+        .collect()
 }
 
 pub(super) const TASK_EVENT_CREATED: &str = "created";
 pub(super) const TASK_EVENT_UPDATED: &str = "updated";
-pub(super) const TASK_EVENT_CLAIMED: &str = "claimed";
 pub(super) const TASK_EVENT_RELEASED: &str = "released";
+pub(super) const TASK_EVENT_ESCALATED_TO_COORDINATOR: &str = "escalated_to_coordinator";
 
 /// Task status.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -79,9 +195,7 @@ impl TaskStatus {
         }
     }
 
-    /// `completed` is treated as resolved. Used by both `try_claim` (to
-    /// reject `already_resolved`) and `find_available` (to skip resolved
-    /// tasks).
+    /// `completed` is treated as resolved for dependency and finality checks.
     pub fn is_resolved(&self) -> bool {
         matches!(self, TaskStatus::Completed)
     }
@@ -103,6 +217,16 @@ pub struct Task {
     pub metadata: Option<serde_json::Value>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct TaskMutationOutcome {
+    pub previous: Task,
+    pub current: Task,
+    pub owner_changed: bool,
+    pub status_changed: bool,
+    pub became_completed: bool,
+    pub became_ready: bool,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -152,63 +276,6 @@ pub struct UpdateTaskPatch {
     pub blocked_by: Option<Vec<String>>,
     pub metadata: Option<Option<serde_json::Value>>,
 }
-
-/// Options accepted by `try_claim`.
-#[derive(Debug, Clone, Default)]
-pub struct ClaimOptions {
-    /// When `true`, reject the claim if the member already owns another
-    /// non-resolved task in the same run. Default `false` so the
-    /// autonomous loop can keep things flowing. Set `true` if the LLM
-    /// tool wants strict serial-by-member.
-    pub check_member_busy: bool,
-}
-
-/// Reasons `try_claim` can fail.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ClaimError {
-    /// No row matches `(org_run_id, task_id)`.
-    TaskNotFound,
-    /// Row exists but `owner IS NOT NULL` and != claimant.
-    AlreadyClaimed { current_owner: String },
-    /// Row is in a terminal status.
-    AlreadyResolved { status: TaskStatus },
-    /// Row's `blocked_by` contains at least one task that is not
-    /// `completed`.
-    Blocked { by_task_ids: Vec<String> },
-    /// Only emitted when `ClaimOptions::check_member_busy = true` and
-    /// claimant already owns another non-completed task.
-    MemberBusy { busy_with: String },
-    /// Ownerless task has an eligibility list that does not include the claimant,
-    /// or no eligibility list at all.
-    NotEligible,
-    /// SQL or serialization failure. Bubbled as a string so callers can
-    /// surface it without needing to re-implement formatting.
-    Storage(String),
-}
-
-impl std::fmt::Display for ClaimError {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ClaimError::TaskNotFound => write!(fmt, "task_not_found"),
-            ClaimError::AlreadyClaimed { current_owner } => {
-                write!(fmt, "already_claimed by {current_owner}")
-            }
-            ClaimError::AlreadyResolved { status } => {
-                write!(fmt, "already_resolved (status={})", status.as_wire())
-            }
-            ClaimError::Blocked { by_task_ids } => {
-                write!(fmt, "blocked by [{}]", by_task_ids.join(","))
-            }
-            ClaimError::MemberBusy { busy_with } => {
-                write!(fmt, "member_busy (current_task={busy_with})")
-            }
-            ClaimError::NotEligible => write!(fmt, "not_eligible"),
-            ClaimError::Storage(msg) => write!(fmt, "storage: {msg}"),
-        }
-    }
-}
-
-impl std::error::Error for ClaimError {}
 
 pub fn new_task_id() -> String {
     uuid::Uuid::new_v4().to_string()
@@ -306,13 +373,12 @@ fn add_column_if_missing(
 /// - `recipient_agent_id` is only the delivery address for the current
 ///   materialized member session.
 /// - `sender_member_id` is the caller's canonical member id for LLM/tool
-///   producers, or `None` for system-emitted self-claim/requeue events.
+///   producers, or `None` for system recovery/redelivery events.
 ///
 /// Returns the row id of the persisted inbox row. The caller is
 /// responsible for waking the recipient via the `InboxWakeHook`; this
 /// function is intentionally side-effect-free beyond the insert so it
-/// can be reused by both the synchronous tool path and the polling
-/// loop.
+/// can be reused by the synchronous tool path and watchdog redelivery.
 ///
 /// `assigned_by_display_name` is the human-readable label that ends up
 /// in the `<task_assigned assigned_by="...">` attribute. Pass the
@@ -336,11 +402,63 @@ pub fn enqueue_task_assigned_to(
         ));
     }
 
+    let all_tasks = AgentOrgTaskStore::list(&task.org_run_id)?;
+    let mut remaining_inline_chars = 50_000usize;
+    let dependency_outputs = task
+        .blocked_by
+        .iter()
+        .filter_map(|blocker_id| {
+            let blocker = all_tasks
+                .iter()
+                .find(|candidate| &candidate.id == blocker_id)?;
+            let output = task_output(blocker)?;
+            let content = output.content.and_then(|content| {
+                if remaining_inline_chars == 0 {
+                    return None;
+                }
+                let allowance = remaining_inline_chars.min(20_000);
+                let content_chars = content.chars().count();
+                let inline = if content_chars <= allowance {
+                    content
+                } else {
+                    const MARKER: &str =
+                        "\n[Inline output truncated; call task_get for the full durable output.]";
+                    let marker_chars = MARKER.chars().count();
+                    if allowance > marker_chars {
+                        let mut value = crate::utils::safe_truncate_chars_to_string(
+                            &content,
+                            allowance - marker_chars,
+                        );
+                        value.push_str(MARKER);
+                        value
+                    } else {
+                        crate::utils::safe_truncate_chars_to_string(&content, allowance)
+                    }
+                };
+                remaining_inline_chars =
+                    remaining_inline_chars.saturating_sub(inline.chars().count());
+                Some(inline)
+            });
+            Some(
+                crate::core::coordination::agent_inbox::TaskDependencyOutput {
+                    task_id: blocker.id.clone(),
+                    subject: blocker.subject.clone(),
+                    summary: output.summary,
+                    content,
+                    artifact_ids: output.artifact_ids,
+                    produced_by_member_id: output.produced_by_member_id,
+                },
+            )
+        })
+        .collect();
+
     let message = crate::core::coordination::agent_inbox::AgentMessage::TaskAssigned {
         task_id: task.id.clone(),
         subject: task.subject.clone(),
         description: task.description.clone(),
         assigned_by: assigned_by_display_name.to_string(),
+        execution_mode: task_execution_mode(task),
+        dependency_outputs,
     };
     message.validate()?;
 

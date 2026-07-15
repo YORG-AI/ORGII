@@ -16,7 +16,7 @@
 //! design (`tasks/LocalAgentTask.tsx` enqueues a notification; `useQueueProcessor`
 //! auto-starts a turn when the parent loop is idle). ORGII already has the
 //! equivalent restart primitive in `send_message_impl_for_subagent_wake(session_id)`
-//! (a sibling of the Agent Org `InboxWakeHook`'s `send_message_impl_for_wake`).
+//! (a sibling of the Agent Org `InboxWakeHook`'s `send_message_impl_for_org_wake`).
 //! This hook lets the background-subagent completion path reach it without
 //! `background.rs` (which lives below the Tauri layer) needing an `AppHandle`.
 //!

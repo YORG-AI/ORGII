@@ -50,6 +50,7 @@ fn invokable_canonical_tool_names() -> BTreeSet<&'static str> {
         names::TOOL_SEARCH,
         names::ORG_SEND_MESSAGE,
         names::TASK_CREATE,
+        names::TASK_GRAPH_CREATE,
         names::TASK_UPDATE,
         names::TASK_LIST,
         names::TASK_GET,

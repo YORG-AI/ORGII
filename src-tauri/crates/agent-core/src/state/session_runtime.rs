@@ -166,7 +166,8 @@ pub struct AgentSession {
     pub last_non_plan_mode_cache: LastNonPlanModeCache,
     /// Coordinator-requested `AgentExecMode` override.
     /// Set by the inbox-drain side-effect path on
-    /// `AgentMessage::ExecModeSetRequest` from the org coordinator;
+    /// a historical `AgentMessage::ExecModeSetRequest` from an older build;
+    /// new Agent Org tasks carry execution mode on `TaskAssigned`;
     /// consumed by the next `resolve_agent_mode` call so the next turn
     /// starts in the requested mode without the LLM having to echo it.
     pub requested_exec_mode_cache: RequestedExecModeCache,

@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum CancelReason {
+    #[default]
     UserStop,
     ForceSend,
     OrgPause,
@@ -32,6 +33,14 @@ pub struct TurnBoundaryEffect {
 }
 
 impl CancelReason {
+    /// Whether a persisted session that is absent from every live runtime
+    /// should be crash-repaired to `Failed`. Pausing an org intentionally
+    /// enumerates durable member rows, including lazy members that have never
+    /// started, so absence is normal for `OrgPause` and must not corrupt them.
+    pub const fn repairs_missing_session_as_failed(self) -> bool {
+        !matches!(self, Self::OrgPause)
+    }
+
     pub fn boundary_effect(self) -> TurnBoundaryEffect {
         match self {
             Self::UserStop => TurnBoundaryEffect {
@@ -83,8 +92,14 @@ impl CancelReason {
     }
 }
 
-impl Default for CancelReason {
-    fn default() -> Self {
-        Self::UserStop
+#[cfg(test)]
+mod tests {
+    use super::CancelReason;
+
+    #[test]
+    fn org_pause_does_not_fail_lazy_persisted_sessions() {
+        assert!(!CancelReason::OrgPause.repairs_missing_session_as_failed());
+        assert!(CancelReason::UserStop.repairs_missing_session_as_failed());
+        assert!(CancelReason::ProgrammaticShutdown.repairs_missing_session_as_failed());
     }
 }

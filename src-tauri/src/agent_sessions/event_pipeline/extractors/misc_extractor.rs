@@ -7,7 +7,7 @@ use super::helpers::{
     normalized_result_object, obj_bool, obj_f64, obj_i64, obj_str, obj_string_array,
 };
 use crate::agent_sessions::event_pipeline::extractors::types::*;
-use crate::agent_sessions::event_pipeline::types::SessionEvent;
+use crate::agent_sessions::event_pipeline::types::{EventDisplayStatus, SessionEvent};
 
 pub(super) fn extract_thinking(
     args: Option<&serde_json::Map<String, serde_json::Value>>,
@@ -310,14 +310,119 @@ pub(super) fn extract_org_task_args_item(
     })
 }
 
+fn org_task_error_message(
+    result_object: &serde_json::Map<String, serde_json::Value>,
+) -> Option<String> {
+    obj_str(result_object, "error")
+        .or_else(|| obj_str(result_object, "error_message"))
+        .or_else(|| {
+            obj_str(result_object, "content").filter(|message| {
+                let message = message.trim_start();
+                message.starts_with("Error executing") || message.starts_with("Error:")
+            })
+        })
+        .or_else(|| {
+            obj_str(result_object, "observation").filter(|message| {
+                let message = message.trim_start();
+                message.starts_with("Error executing") || message.starts_with("Error:")
+            })
+        })
+}
+
+fn org_task_operation_rejected(result_object: &serde_json::Map<String, serde_json::Value>) -> bool {
+    obj_bool(result_object, "rejected") == Some(true)
+        || obj_bool(result_object, "created") == Some(false)
+        || obj_bool(result_object, "requires_dependency_confirmation") == Some(true)
+        || obj_bool(result_object, "authorization_denied") == Some(true)
+        || obj_bool(result_object, "already_exists") == Some(true)
+        || obj_bool(result_object, "status_ignored") == Some(true)
+        || obj_bool(result_object, "deleted") == Some(false)
+}
+
+fn recoverable_task_validation_message(
+    result_object: &serde_json::Map<String, serde_json::Value>,
+) -> Option<String> {
+    org_task_error_message(result_object).filter(|message| {
+        let message = message.trim_start();
+        message.starts_with("Error executing task_") && message.contains(": Invalid parameters:")
+    })
+}
+
+fn legacy_task_rejection_guidance(
+    result_object: &serde_json::Map<String, serde_json::Value>,
+) -> Option<String> {
+    let message = recoverable_task_validation_message(result_object)?;
+    let guidance = if message.contains("missing field `summary`")
+        || message.contains("output.summary must not be empty")
+    {
+        "Task output needs a non-empty summary. Retry with status=completed and output={summary, content?, artifact_ids?}."
+    } else if message.contains("status=in_progress can only be set by the owning member") {
+        "Only the task owner may mark its work in progress. Assignment already wakes the owner; wait for that member to record its own start."
+    } else if message.contains("status=completed can only be set by the owning member")
+        || message.contains("output can only be written by the owning member")
+    {
+        "Only the task owner may submit progress, completion, and output for its work. Coordinators and managers may assign or repair the task, but cannot impersonate the owner."
+    } else {
+        "This task operation needs corrected parameters before it can be applied. Review the task tool guidance and retry."
+    };
+    Some(guidance.to_string())
+}
+
+fn org_task_operation_outcome(
+    display_status: &EventDisplayStatus,
+    result: Option<&serde_json::Map<String, serde_json::Value>>,
+    result_object: &serde_json::Map<String, serde_json::Value>,
+) -> OrgTaskOperationOutcome {
+    if org_task_operation_rejected(result_object)
+        || recoverable_task_validation_message(result_object).is_some()
+    {
+        return OrgTaskOperationOutcome::Rejected;
+    }
+
+    if matches!(display_status, EventDisplayStatus::Failed) {
+        return OrgTaskOperationOutcome::Failed;
+    }
+
+    if org_task_error_message(result_object).is_some() {
+        return OrgTaskOperationOutcome::Failed;
+    }
+
+    let has_result = result.is_some_and(|value| {
+        value
+            .values()
+            .any(|item| !item.is_null() && item != &serde_json::Value::String(String::new()))
+    });
+    if !has_result
+        && matches!(
+            display_status,
+            EventDisplayStatus::Running
+                | EventDisplayStatus::Pending
+                | EventDisplayStatus::AwaitingUser
+        )
+    {
+        return OrgTaskOperationOutcome::Pending;
+    }
+
+    if has_result {
+        OrgTaskOperationOutcome::Succeeded
+    } else {
+        // A terminal task-tool event without any result is not proof of a
+        // successful mutation. Fail closed so no task board can materialize
+        // an args-only phantom after the call has ended.
+        OrgTaskOperationOutcome::Failed
+    }
+}
+
 pub(super) fn extract_org_task(
     tool: &str,
     args: Option<&serde_json::Map<String, serde_json::Value>>,
     result: Option<&serde_json::Map<String, serde_json::Value>>,
+    display_status: &EventDisplayStatus,
 ) -> ExtractedOrgTaskData {
     let result_object = normalized_result_object(result);
+    let outcome = org_task_operation_outcome(display_status, result, &result_object);
     let action = match tool {
-        tool_names::TASK_CREATE => "create",
+        tool_names::TASK_CREATE | tool_names::TASK_GRAPH_CREATE => "create",
         tool_names::TASK_UPDATE => {
             if obj_bool(&result_object, "deleted") == Some(true) {
                 "delete"
@@ -335,7 +440,12 @@ pub(super) fn extract_org_task(
         .get("task")
         .and_then(|value| value.as_object())
         .and_then(|task| extract_org_task_item(task, args))
-        .or_else(|| extract_org_task_args_item(tool, args));
+        .or_else(|| {
+            // Args-only task data is useful while a call is running and when
+            // explaining a rejected/failed attempt in history. Consumers must
+            // use `outcome` before treating it as persisted task state.
+            extract_org_task_args_item(tool, args)
+        });
 
     let tasks: Vec<OrgTaskItem> = result_object
         .get("tasks")
@@ -363,6 +473,7 @@ pub(super) fn extract_org_task(
 
     ExtractedOrgTaskData {
         action,
+        outcome,
         task,
         tasks,
         total,
@@ -370,6 +481,9 @@ pub(super) fn extract_org_task(
         owner_changed: obj_bool(&result_object, "owner_changed"),
         status_changed: obj_bool(&result_object, "status_changed"),
         task_assigned_dispatched: obj_bool(&result_object, "task_assigned_dispatched"),
+        guidance: obj_str(&result_object, "guidance")
+            .or_else(|| legacy_task_rejection_guidance(&result_object)),
+        error_message: org_task_error_message(&result_object),
     }
 }
 

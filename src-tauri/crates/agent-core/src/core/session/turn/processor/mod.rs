@@ -680,6 +680,29 @@ impl UnifiedMessageProcessor {
         // Once that durable write succeeds, the inbox rows can be marked read;
         // if the LLM call fails, the next turn still sees the message through
         // normal history rather than silently losing it.
+        if context.is_resume && content.trim().is_empty() {
+            if let Some(org_context) = self.runtime.agent_org_context.as_ref() {
+                let running = matches!(
+                    crate::coordination::agent_org_runs::AgentOrgRunStore::get_run_status(
+                        &org_context.run_id
+                    ),
+                    Ok(Some(
+                        crate::coordination::agent_org_runs::AgentOrgRunStatus::Running
+                    ))
+                );
+                if !running {
+                    // Fail closed before inbox drain/provider invocation. The
+                    // unread rows stay durable for a later explicit resume.
+                    info!(run_id = %org_context.run_id, session_id = %session_id, "[unified_processor] queued Agent Org wake cancelled because run is no longer running");
+                    return Ok(ProcessingResult {
+                        turn_id,
+                        ..ProcessingResult::default()
+                    });
+                }
+            }
+        }
+
+        let message_count_before_inbox = messages.len();
         let mut inbox_guard = self.runtime.agent_org_context.as_ref().map(|org_context| {
             inbox_drain::drain_and_render_deferred(
                 org_context,
@@ -724,6 +747,22 @@ impl UnifiedMessageProcessor {
         }
         if let Some(guard) = inbox_guard.take() {
             guard.commit();
+        }
+
+        // An Agent Org wake is only a doorbell. If another worker consumed the
+        // work before this turn started, do not manufacture an empty user
+        // nudge and spend a provider call. A later unread inbox row or
+        // explicit TaskAssigned delivery will trigger a fresh wake.
+        if context.is_resume
+            && content.trim().is_empty()
+            && self.runtime.agent_org_context.is_some()
+            && messages.len() == message_count_before_inbox
+        {
+            info!(session_id = %session_id, "[unified_processor] Agent Org wake had no durable work; returning WakeNoop");
+            return Ok(ProcessingResult {
+                turn_id,
+                ..ProcessingResult::default()
+            });
         }
 
         // 4d. Subagent-wake prefill safety net.
@@ -911,12 +950,39 @@ impl UnifiedMessageProcessor {
             }
             _ => crate::coordination::agent_inbox::MemberIdleReason::Available,
         };
-        member_idle::maybe_emit_member_idle(
+        let unfinished_task_ids = match self
+            .runtime
+            .agent_org_context
+            .as_ref()
+            .zip(self.runtime.agent_org_current_member_id.as_deref())
+        {
+            Some((org_context, member_id)) => {
+                match member_idle::unfinished_build_task_ids_for_member(
+                    &org_context.run_id,
+                    member_id,
+                ) {
+                    Ok(task_ids) => task_ids,
+                    Err(error) => {
+                        warn!(
+                            run_id = %org_context.run_id,
+                            member_id = %member_id,
+                            error = %error,
+                            "failed to inspect unfinished Agent Org tasks before MemberIdle"
+                        );
+                        Vec::new()
+                    }
+                }
+            }
+            None => Vec::new(),
+        };
+        member_idle::maybe_emit_member_idle_with_details(
             self.runtime.agent_org_context.as_ref(),
-            &self.agent_id,
             self.runtime.agent_org_current_member_id.as_deref(),
             idle_reason,
             self.agent_mode,
+            None,
+            None,
+            unfinished_task_ids,
         );
 
         Ok(ProcessingResult {

@@ -40,6 +40,9 @@
 use std::sync::{Arc, OnceLock};
 
 use crate::coordination::agent_inbox::MemberIdleReason;
+use crate::coordination::agent_org_tasks::{
+    self, AgentOrgTaskStore, TaskExecutionMode, TaskStatus,
+};
 use crate::session::AgentExecMode;
 
 /// Fire-and-forget emit hook. Production posts an
@@ -75,6 +78,7 @@ pub trait MemberIdleHook: Send + Sync {
         current_mode: Option<AgentExecMode>,
         summary: Option<String>,
         failure_reason: Option<String>,
+        unfinished_task_ids: Vec<String>,
     );
 }
 
@@ -96,6 +100,7 @@ impl MemberIdleHook for NoopMemberIdleHook {
         _current_mode: Option<AgentExecMode>,
         _summary: Option<String>,
         _failure_reason: Option<String>,
+        _unfinished_task_ids: Vec<String>,
     ) {
     }
 }
@@ -192,6 +197,41 @@ pub(crate) fn idle_emit_target<'a>(
     ))
 }
 
+/// Return build tasks that still claim this idle worker is actively working.
+/// Plan tasks are excluded because a durable plan approval may legitimately
+/// keep them `in_progress` while the user or coordinator reviews the plan.
+pub(crate) fn unfinished_build_task_ids_for_member(
+    run_id: &str,
+    member_id: &str,
+) -> Result<Vec<String>, String> {
+    Ok(AgentOrgTaskStore::list(run_id)?
+        .into_iter()
+        .filter(|task| {
+            task.owner.as_deref() == Some(member_id)
+                && task.status == TaskStatus::InProgress
+                && agent_org_tasks::task_execution_mode(task) == TaskExecutionMode::Build
+        })
+        .map(|task| task.id)
+        .collect())
+}
+
+/// Bounded same-turn correction used by the turn executor's existing Stop
+/// gate. The executor asks at most once; this function never mutates task
+/// state and never infers completion from natural-language output.
+pub(crate) fn task_lifecycle_stop_feedback(
+    run_id: &str,
+    member_id: &str,
+) -> Result<Option<String>, String> {
+    let task_ids = unfinished_build_task_ids_for_member(run_id, member_id)?;
+    if task_ids.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(format!(
+        "Agent Org task lifecycle check: your turn is about to end, but your owned build task(s) [{}] are still in_progress. Do not redo the substantive work. If the work is finished, call task_update for the exact task id with status=completed and output={{summary, content?, artifact_ids?}}. If it is not finished or is blocked, send the coordinator one task-bound explanation with org_send_message and leave the task in_progress. This correction is offered once; do not end silently.",
+        task_ids.join(", ")
+    )))
+}
+
 /// Emit a `MemberIdle` to the coordinator's inbox if the runtime has a
 /// canonical roster `member_id`. No-op for the coordinator, non-org
 /// sessions, ad-hoc delegate/shadow workers, or stale member ids.
@@ -209,6 +249,7 @@ pub fn maybe_emit_member_idle(
         current_mode,
         None,
         None,
+        Vec::new(),
     );
 }
 
@@ -219,6 +260,7 @@ pub fn maybe_emit_member_idle_with_details(
     current_mode: Option<AgentExecMode>,
     summary: Option<String>,
     failure_reason: Option<String>,
+    unfinished_task_ids: Vec<String>,
 ) {
     let Some(org_context) = org_context else {
         return;
@@ -238,6 +280,7 @@ pub fn maybe_emit_member_idle_with_details(
         current_mode,
         summary,
         failure_reason,
+        unfinished_task_ids,
     );
 }
 
@@ -245,7 +288,9 @@ pub fn maybe_emit_member_idle_with_details(
 mod tests {
     use super::*;
     use crate::coordination::agent_org_runs::{AgentOrgContextMember, AgentOrgRunContext};
+    use crate::coordination::agent_org_tasks::{CreateTaskParams, TASK_METADATA_EXECUTION_MODE};
     use std::sync::{Mutex, MutexGuard};
+    use test_helpers::test_env;
 
     /// Serialize the tests in this module that mutate the
     /// `test_overrides::TEST_HOOK` global. Without this, parallel
@@ -279,6 +324,7 @@ mod tests {
         current_mode: Option<AgentExecMode>,
         summary: Option<String>,
         failure_reason: Option<String>,
+        unfinished_task_ids: Vec<String>,
     }
 
     impl MemberIdleHook for RecordingHook {
@@ -294,6 +340,7 @@ mod tests {
             current_mode: Option<AgentExecMode>,
             summary: Option<String>,
             failure_reason: Option<String>,
+            unfinished_task_ids: Vec<String>,
         ) {
             self.calls.lock().unwrap().push(RecordedCall {
                 run_id: run_id.into(),
@@ -305,6 +352,7 @@ mod tests {
                 current_mode,
                 summary,
                 failure_reason,
+                unfinished_task_ids,
             });
         }
     }
@@ -330,8 +378,76 @@ mod tests {
                 })
                 .collect(),
             hierarchy_mode: Default::default(),
+            plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
             root_session_id: Some("root-1".into()),
         }
+    }
+
+    fn seed_lifecycle_task(id: &str, mode: TaskExecutionMode, status: TaskStatus) {
+        AgentOrgTaskStore::create(CreateTaskParams {
+            id: id.to_string(),
+            org_run_id: "run-lifecycle-gate".to_string(),
+            subject: id.to_string(),
+            description: String::new(),
+            active_form: None,
+            owner: Some("member-worker".to_string()),
+            status,
+            blocks: Vec::new(),
+            blocked_by: Vec::new(),
+            metadata: Some(serde_json::json!({
+                TASK_METADATA_EXECUTION_MODE: mode.as_wire(),
+            })),
+        })
+        .expect("seed lifecycle task");
+    }
+
+    #[test]
+    fn lifecycle_stop_feedback_only_reports_unfinished_build_tasks() {
+        let _sandbox = test_env::sandbox();
+        let conn = database::db::get_connection().expect("db");
+        crate::coordination::agent_org_runs::init_schema(&conn).expect("run schema");
+        crate::coordination::agent_org_tasks::init_schema(&conn).expect("task schema");
+        seed_lifecycle_task(
+            "build-open",
+            TaskExecutionMode::Build,
+            TaskStatus::InProgress,
+        );
+        seed_lifecycle_task(
+            "build-done",
+            TaskExecutionMode::Build,
+            TaskStatus::Completed,
+        );
+        seed_lifecycle_task(
+            "plan-awaiting-approval",
+            TaskExecutionMode::Plan,
+            TaskStatus::InProgress,
+        );
+
+        let feedback = task_lifecycle_stop_feedback("run-lifecycle-gate", "member-worker")
+            .expect("lifecycle check")
+            .expect("unfinished build task should stop the turn once");
+        assert!(feedback.contains("build-open"));
+        assert!(!feedback.contains("build-done"));
+        assert!(!feedback.contains("plan-awaiting-approval"));
+    }
+
+    #[test]
+    fn lifecycle_stop_feedback_is_quiet_without_unfinished_build_work() {
+        let _sandbox = test_env::sandbox();
+        let conn = database::db::get_connection().expect("db");
+        crate::coordination::agent_org_runs::init_schema(&conn).expect("run schema");
+        crate::coordination::agent_org_tasks::init_schema(&conn).expect("task schema");
+        seed_lifecycle_task(
+            "plan-awaiting-approval",
+            TaskExecutionMode::Plan,
+            TaskStatus::InProgress,
+        );
+
+        assert_eq!(
+            task_lifecycle_stop_feedback("run-lifecycle-gate", "member-worker")
+                .expect("lifecycle check"),
+            None
+        );
     }
 
     #[test]

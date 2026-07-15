@@ -73,6 +73,7 @@ pub(super) fn create_org(store: &AgentOrgsStore, params: &Value) -> Result<Strin
         agent_id: leader_agent_id,
         description,
         hierarchy_mode: Default::default(),
+        plan_approval_policy: Default::default(),
         children,
     };
 

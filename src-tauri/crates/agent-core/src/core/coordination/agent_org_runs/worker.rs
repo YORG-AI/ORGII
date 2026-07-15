@@ -1,7 +1,6 @@
 use serde::Serialize;
 
 use crate::coordination::agent_member_interventions::AgentMemberInterventionRecord;
-use crate::coordination::agent_org_tasks::Task;
 
 /// Result row for [`super::AgentOrgRunStore::find_worker_session_by_member_id`].
 #[derive(Debug, Clone)]
@@ -28,11 +27,4 @@ pub struct WorkerSessionRuntime {
     pub updated_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub intervention: Option<AgentMemberInterventionRecord>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct StaleWorkerRelease {
-    pub worker: WorkerSessionRuntime,
-    pub released_tasks: Vec<Task>,
 }

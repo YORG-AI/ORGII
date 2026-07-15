@@ -22,7 +22,8 @@ use crate::definitions::orgs::AgentOrgsStore;
 use crate::session::persistence;
 use crate::state::AgentAppState;
 use crate::tools::impls::orchestration::agent_org::tasks::{
-    TaskCreateTool, TaskGetTool, TaskListTool, TaskToolsContext, TaskUpdateTool,
+    TaskCreateTool, TaskGetTool, TaskGraphCreateTool, TaskListTool, TaskToolsContext,
+    TaskUpdateTool,
 };
 use crate::tools::impls::orchestration::org_send_message::{
     NoopInboxWakeHook, NoopSelfAbortHook, OrgSendMessageTool,
@@ -33,6 +34,7 @@ use crate::tools::traits::{Tool, ToolExecuteResult};
 const DETACHED_ORG_RUNTIME_TOOL_NAMES: &[&str] = &[
     names::ORG_SEND_MESSAGE,
     names::TASK_CREATE,
+    names::TASK_GRAPH_CREATE,
     names::TASK_UPDATE,
     names::TASK_LIST,
     names::TASK_GET,
@@ -41,6 +43,7 @@ const DETACHED_ORG_RUNTIME_TOOL_NAMES: &[&str] = &[
 const SESSION_ORG_RUNTIME_TOOL_NAMES: &[&str] = &[
     names::ORG_SEND_MESSAGE,
     names::TASK_CREATE,
+    names::TASK_GRAPH_CREATE,
     names::TASK_UPDATE,
     names::TASK_LIST,
     names::TASK_GET,
@@ -293,6 +296,14 @@ pub async fn debug_agent_org_execute_tool_as_agent(
                 .await
                 .map_err(|err| err.to_string())
         }
+        names::TASK_GRAPH_CREATE => {
+            let context =
+                task_tools_context(org_context, sender_agent_id, sender_member_id.clone());
+            TaskGraphCreateTool::new(context)
+                .execute(params, &crate::tools::call_context::CallContext::default())
+                .await
+                .map_err(|err| err.to_string())
+        }
         names::TASK_UPDATE => {
             let context =
                 task_tools_context(org_context, sender_agent_id, sender_member_id.clone());
@@ -392,6 +403,7 @@ pub async fn debug_agent_org_emit_member_idle(
         current_mode,
         summary: None,
         failure_reason,
+        unfinished_task_ids: Vec::new(),
     };
     message.validate()?;
 

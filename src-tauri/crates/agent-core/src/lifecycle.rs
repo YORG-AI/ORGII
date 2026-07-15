@@ -10,8 +10,10 @@ use serde::Serialize;
 use tauri::Emitter;
 
 use crate::bus::{broadcast_event, event_pipeline_bridge};
-use crate::coordination::agent_inbox::{MemberIdleReason, SYSTEM_SENDER_ID};
-use crate::coordination::agent_org_runs::{AgentOrgRunContext, AgentOrgRunStore};
+use crate::coordination::agent_inbox::MemberIdleReason;
+use crate::coordination::agent_org_runs::{
+    AgentOrgRunContext, AgentOrgRunStatus, AgentOrgRunStore,
+};
 use crate::coordination::agent_org_tasks::{
     self, AgentOrgTaskStore, Task, TASK_METADATA_REQUIRED_ROLE,
 };
@@ -290,8 +292,11 @@ fn member_failure_recovery_guidance(failure_reason: &str, requeued_tasks: &[Task
                 eligible_member_ids.join(", ")
             };
             let required_role = task_required_role(task).unwrap_or("unspecified");
+            let disposition =
+                "awaiting_coordinator_assignment — failed owner removed; no worker may self-claim";
             lines.push(format!("- {}: {}", task.id, task.subject));
             lines.push(format!("  status: {}", task.status.as_wire()));
+            lines.push(format!("  disposition: {disposition}"));
             lines.push(format!("  eligible_member_ids: [{eligible}]"));
             lines.push(format!("  required_role: {required_role}"));
         }
@@ -300,10 +305,10 @@ fn member_failure_recovery_guidance(failure_reason: &str, requeued_tasks: &[Task
     lines.extend([
         String::new(),
         "Recommended recovery:".to_string(),
-        "1. If the provider/quota error looks temporary, use org_send_message to ask the same member to retry.".to_string(),
-        "2. If another eligible member is available, use task_update owner_member_id to assign it directly.".to_string(),
-        "3. If an unowned task is missing eligible_member_ids, use task_update to add them before expecting autonomous claim.".to_string(),
-        "4. Never assign or allow claim outside eligible_member_ids; if no eligible member is available, pause and report to the user.".to_string(),
+        "1. Inspect the failure and choose a replacement owner explicitly with task_update owner_member_id.".to_string(),
+        "2. If retrying the same member is appropriate, explicitly assign the task back to it; the system will not do so automatically.".to_string(),
+        "3. Never assign outside eligible_member_ids; repair eligibility first when the intended replacement is missing.".to_string(),
+        "4. If no eligible member is available, pause and report to the user.".to_string(),
     ]);
 
     lines.join("\n")
@@ -316,7 +321,6 @@ fn parse_agent_exec_mode(value: Option<&str>) -> Option<crate::session::AgentExe
 fn requeue_agent_org_member_in_progress_work(
     session_id: &str,
     requeue_work: bool,
-    enqueue_member_wake: bool,
 ) -> Result<Option<AgentOrgMemberLifecycleSnapshot>, String> {
     let Some(record) =
         session_persistence::get_session(session_id).map_err(|err| err.to_string())?
@@ -339,18 +343,6 @@ fn requeue_agent_org_member_in_progress_work(
     } else {
         Vec::new()
     };
-    if enqueue_member_wake {
-        for task in &requeued {
-            agent_org_tasks::enqueue_task_assigned_to(
-                task,
-                &member_agent_id,
-                &member_id,
-                SYSTEM_SENDER_ID,
-                None,
-                "system",
-            )?;
-        }
-    }
     Ok(Some(AgentOrgMemberLifecycleSnapshot {
         context,
         member_id,
@@ -366,8 +358,13 @@ pub fn finalize_agent_org_member_turn(
     response: &Result<String, String>,
 ) {
     let outcome = tokio::task::block_in_place(|| {
-        requeue_agent_org_member_in_progress_work(session_id, response.is_err(), response.is_ok())
+        requeue_agent_org_member_in_progress_work(session_id, response.is_err())
     });
+    let reconcile_run_id = outcome
+        .as_ref()
+        .ok()
+        .and_then(|snapshot| snapshot.as_ref())
+        .map(|snapshot| snapshot.context.run_id.clone());
 
     match outcome {
         Ok(Some(snapshot)) => {
@@ -377,28 +374,21 @@ pub fn finalize_agent_org_member_turn(
                     run_id = %snapshot.context.run_id,
                     member_id = %snapshot.member_id,
                     requeued_count = snapshot.requeued_tasks.len(),
-                    enqueue_member_wake = response.is_ok(),
                     "[lifecycle] requeued unfinished Agent Org member work after turn finalize"
                 );
-                if let Some(handle) = app_handle {
-                    let wake_hook = AppHandleInboxWakeHook::new(handle.clone());
-                    if response.is_ok() {
-                        wake_hook.wake_member(&snapshot.member_id, &snapshot.context.run_id);
-                    } else {
-                        for task in &snapshot.requeued_tasks {
-                            for member_id in agent_org_tasks::eligible_member_ids(task) {
-                                wake_hook.wake_member(&member_id, &snapshot.context.run_id);
-                            }
-                        }
-                    }
-                }
+                // Failure recovery is coordinator-owned. The failed tasks are
+                // now durable ownerless rows and the typed `MemberIdle::Failed`
+                // notice below wakes the coordinator; no worker is woken to
+                // race for them.
             }
 
             if response.is_ok() {
-                crate::coordination::agent_org_watchdog::clear_rewake_budget(
+                if let Err(err) = crate::coordination::agent_org_watchdog::clear_rewake_budget(
                     &snapshot.context.run_id,
                     &snapshot.member_id,
-                );
+                ) {
+                    tracing::warn!(run_id = %snapshot.context.run_id, member_id = %snapshot.member_id, error = %err, "failed to clear Agent Org recovery budget after successful turn");
+                }
                 // Race-condition guard: a peer may have written an inbox row
                 // while this session was Running (which caused the
                 // `should_dispatch_wake` gate to skip the wake). Now that the
@@ -414,24 +404,12 @@ pub fn finalize_agent_org_member_turn(
                         let should_rewake = tokio::task::spawn_blocking({
                             let mid = member_id.clone();
                             let rid = run_id.clone();
-                            move || {
-                                if matches!(
-                                    crate::coordination::agent_org_runs::AgentOrgRunStore::get_run_status(&rid),
-                                    Ok(Some(crate::coordination::agent_org_runs::AgentOrgRunStatus::Paused))
-                                ) {
-                                    return false;
-                                }
-                                crate::coordination::agent_inbox::AgentInboxStore::list_unread_for_member(
-                                    &mid, &rid,
-                                )
-                                .map(|rows| !rows.is_empty())
-                                .unwrap_or(false)
-                            }
+                            move || should_rewake_agent_org_member_after_turn(&rid, &mid)
                         })
                         .await
-                        .unwrap_or(false);
+                        .unwrap_or_else(|err| Err(err.to_string()));
 
-                        if should_rewake {
+                        if matches!(should_rewake, Ok(true)) {
                             tracing::info!(
                                 member_id = %member_id,
                                 run_id = %run_id,
@@ -440,6 +418,13 @@ pub fn finalize_agent_org_member_turn(
                             );
                             AppHandleInboxWakeHook::new(handle_clone)
                                 .wake_member(&member_id, &run_id);
+                        } else if let Err(err) = should_rewake {
+                            tracing::warn!(
+                                run_id = %run_id,
+                                member_id = %member_id,
+                                error = %err,
+                                "[lifecycle] unread-inbox race-guard check failed; refusing wake"
+                            );
                         }
                     });
                 }
@@ -448,6 +433,11 @@ pub fn finalize_agent_org_member_turn(
             if let Err(err) = response {
                 let failure_guidance =
                     member_failure_recovery_guidance(err, &snapshot.requeued_tasks);
+                let unfinished_task_ids = snapshot
+                    .requeued_tasks
+                    .iter()
+                    .map(|task| task.id.clone())
+                    .collect();
                 crate::session::turn::member_idle::maybe_emit_member_idle_with_details(
                     Some(&snapshot.context),
                     Some(&snapshot.member_id),
@@ -455,6 +445,7 @@ pub fn finalize_agent_org_member_turn(
                     snapshot.agent_exec_mode,
                     Some("Member failed; inspect failure_reason for requeued tasks and recovery guidance.".to_string()),
                     Some(failure_guidance),
+                    unfinished_task_ids,
                 );
                 tracing::warn!(
                     session_id = %session_id,
@@ -475,6 +466,51 @@ pub fn finalize_agent_org_member_turn(
             );
         }
     }
+
+    // Successful Agent Org turns settle back to Idle, not terminal. Reconcile
+    // after every member/coordinator boundary so an all-completed, fully
+    // quiescent run closes without requiring the user to pause/resume it.
+    // The store re-checks tasks, inbox, interventions and queued turn
+    // intents in one IMMEDIATE transaction before committing finality.
+    if let Some(run_id) = reconcile_run_id {
+        match AgentOrgRunStore::reconcile_run_finality(&run_id) {
+            Ok(Some(AgentOrgRunStatus::Completed)) => {
+                tracing::info!(run_id = %run_id, "[lifecycle] completed quiescent Agent Org run");
+            }
+            Ok(_) => {}
+            Err(err) => {
+                tracing::warn!(run_id = %run_id, error = %err, "[lifecycle] failed to reconcile Agent Org run after turn finalization");
+            }
+        }
+    }
+}
+
+/// Decide whether the post-turn unread-inbox race guard should issue one wake.
+///
+/// A direct user intervention owns the member's next turn and deliberately
+/// pauses inbox drain. Treating its unread rows as actionable here caused a
+/// tight WakeNoop → finalize → wake loop. Keeping the decision in one helper
+/// makes the lifecycle caller and its regression test share the exact gate.
+fn should_rewake_agent_org_member_after_turn(
+    run_id: &str,
+    member_id: &str,
+) -> Result<bool, String> {
+    if !matches!(
+        crate::coordination::agent_org_runs::AgentOrgRunStore::get_run_status(run_id)?,
+        Some(crate::coordination::agent_org_runs::AgentOrgRunStatus::Running)
+    ) {
+        return Ok(false);
+    }
+    if crate::coordination::agent_member_interventions::AgentMemberInterventionStore::active_for_member(
+        run_id,
+        member_id,
+    )?
+    .is_some()
+    {
+        return Ok(false);
+    }
+    crate::coordination::agent_inbox::AgentInboxStore::list_unread_for_member(member_id, run_id)
+        .map(|rows| !rows.is_empty())
 }
 
 /// Post-process after `process_message` completes: determine final status,
@@ -702,6 +738,7 @@ mod tests {
         reason: MemberIdleReason,
         current_mode: Option<crate::session::AgentExecMode>,
         failure_reason: Option<String>,
+        unfinished_task_ids: Vec<String>,
     }
 
     #[derive(Default)]
@@ -728,6 +765,7 @@ mod tests {
             current_mode: Option<crate::session::AgentExecMode>,
             _summary: Option<String>,
             failure_reason: Option<String>,
+            unfinished_task_ids: Vec<String>,
         ) {
             self.calls.lock().unwrap().push(IdleCall {
                 org_run_id: org_run_id.to_string(),
@@ -738,6 +776,7 @@ mod tests {
                 reason,
                 current_mode,
                 failure_reason,
+                unfinished_task_ids,
             });
         }
     }
@@ -747,7 +786,56 @@ mod tests {
         crate::persistence::test_schema::ensure_agent_sessions_schema(&conn);
         crate::coordination::agent_org_runs::init_schema(&conn).expect("agent org runs schema");
         crate::coordination::agent_org_tasks::init_schema(&conn).expect("agent org tasks schema");
+        crate::coordination::agent_member_interventions::init_schema(&conn)
+            .expect("agent member interventions schema");
+        crate::coordination::agent_org_watchdog::init_schema(&conn)
+            .expect("agent org recovery schema");
         crate::coordination::agent_inbox::init_schema(&conn).expect("agent inbox schema");
+    }
+
+    #[test]
+    fn unread_race_guard_defers_during_direct_user_intervention() {
+        let _serial = test_serial_guard();
+        let _sandbox = test_helpers::test_env::sandbox();
+        let run_id = seed_run("builtin:sde");
+        let member_id = "member-worker";
+        crate::coordination::agent_inbox::AgentInboxStore::insert(
+            crate::coordination::agent_inbox::InsertInboxParams {
+                recipient_agent_id: "builtin:sde".to_string(),
+                recipient_member_id: Some(member_id.to_string()),
+                sender_agent_id: crate::coordination::agent_inbox::SYSTEM_SENDER_ID.to_string(),
+                sender_member_id: None,
+                org_run_id: Some(run_id.clone()),
+                message: AgentMessage::Plain {
+                    summary: "deferred work".to_string(),
+                    text: "read this after direct user chat".to_string(),
+                },
+            },
+        )
+        .expect("insert unread row");
+        crate::coordination::agent_member_interventions::AgentMemberInterventionStore::enter(
+            crate::coordination::agent_member_interventions::EnterMemberInterventionParams {
+                org_run_id: run_id.clone(),
+                member_id: member_id.to_string(),
+                agent_id: "builtin:sde".to_string(),
+                session_id: "member-session".to_string(),
+                reason: Some("direct_user_chat".to_string()),
+                ttl_secs: 180,
+            },
+        )
+        .expect("enter intervention");
+
+        assert!(
+            !should_rewake_agent_org_member_after_turn(&run_id, member_id).expect("deferred gate")
+        );
+
+        crate::coordination::agent_member_interventions::AgentMemberInterventionStore::clear(
+            &run_id, member_id,
+        )
+        .expect("clear intervention");
+        assert!(
+            should_rewake_agent_org_member_after_turn(&run_id, member_id).expect("wakeable gate")
+        );
     }
 
     fn org_definition(member_agent_id: &str) -> OrgDefinition {
@@ -758,14 +846,25 @@ mod tests {
             agent_id: "builtin:coord".to_string(),
             description: None,
             hierarchy_mode: HierarchyMode::Soft,
-            children: vec![OrgMember {
-                id: "member-worker".to_string(),
-                name: "Worker".to_string(),
-                role: "builder".to_string(),
-                agent_id: member_agent_id.to_string(),
-                runtime_config: None,
-                children: Vec::new(),
-            }],
+            plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
+            children: vec![
+                OrgMember {
+                    id: "member-worker".to_string(),
+                    name: "Worker".to_string(),
+                    role: "builder".to_string(),
+                    agent_id: member_agent_id.to_string(),
+                    runtime_config: None,
+                    children: Vec::new(),
+                },
+                OrgMember {
+                    id: "member-peer".to_string(),
+                    name: "Peer".to_string(),
+                    role: "builder".to_string(),
+                    agent_id: "builtin:sde".to_string(),
+                    runtime_config: None,
+                    children: Vec::new(),
+                },
+            ],
         }
     }
 
@@ -837,13 +936,13 @@ mod tests {
     }
 
     #[test]
-    fn requeue_member_work_uses_context_agent_reference_for_cli_members() {
+    fn requeue_member_work_uses_context_agent_reference_without_self_wake() {
         let _serial = test_serial_guard();
         let _sandbox = test_helpers::test_env::sandbox();
         let run_id = seed_run("claude_code");
         seed_in_progress_task(&run_id, "cli-task");
 
-        let snapshot = requeue_agent_org_member_in_progress_work("member-session", true, true)
+        let snapshot = requeue_agent_org_member_in_progress_work("member-session", true)
             .expect("requeue succeeds")
             .expect("member snapshot");
 
@@ -853,18 +952,16 @@ mod tests {
             .unwrap()
             .expect("task exists");
         assert_eq!(task.status, TaskStatus::Pending);
-        assert_eq!(task.owner.as_deref(), Some("member-worker"));
+        assert_eq!(task.owner, None);
         let inbox = crate::coordination::agent_inbox::AgentInboxStore::list_unread_for_member(
             "member-worker",
             &run_id,
         )
         .expect("list member inbox");
-        assert_eq!(inbox.len(), 1);
-        assert_eq!(inbox[0].recipient_agent_id, "claude_code");
-        match inbox[0].decode_payload().expect("decode task assigned") {
-            AgentMessage::TaskAssigned { task_id, .. } => assert_eq!(task_id, "cli-task"),
-            other => panic!("unexpected payload: {other:?}"),
-        }
+        assert!(
+            inbox.is_empty(),
+            "released work waits for coordinator assignment"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -919,8 +1016,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn failed_member_finalize_requeues_work_wakes_eligible_members_and_notifies_coordinator()
-    {
+    async fn failed_member_finalize_releases_task_for_coordinator_assignment() {
         let _serial = test_serial_guard();
         let _sandbox = test_helpers::test_env::sandbox();
         let hook = Arc::new(RecordingMemberIdleHook::default());
@@ -942,7 +1038,10 @@ mod tests {
             .unwrap()
             .expect("task exists");
         assert_eq!(task.status, TaskStatus::Pending);
-        assert_eq!(task.owner.as_deref(), Some("member-worker"));
+        assert_eq!(
+            task.owner, None,
+            "failed work becomes ownerless so the coordinator can choose the next owner"
+        );
         assert_eq!(
             crate::coordination::agent_org_tasks::eligible_member_ids(&task),
             vec!["member-worker".to_string(), "member-peer".to_string()]
@@ -969,9 +1068,41 @@ mod tests {
         assert!(failure_reason.contains("HTTP 429: rate limit exceeded"));
         assert!(failure_reason.contains("Requeued tasks from the failed member"));
         assert!(failure_reason.contains("failed-task"));
+        assert!(failure_reason.contains("awaiting_coordinator_assignment"));
         assert!(failure_reason.contains("eligible_member_ids: [member-worker, member-peer]"));
         assert!(failure_reason.contains("required_role: implement"));
         assert!(failure_reason.contains("task_update owner_member_id"));
-        assert!(failure_reason.contains("org_send_message"));
+        assert_eq!(call.unfinished_task_ids, vec!["failed-task"]);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn failed_member_finalize_releases_even_when_only_failed_member_is_eligible() {
+        let _serial = test_serial_guard();
+        let _sandbox = test_helpers::test_env::sandbox();
+        let hook = Arc::new(RecordingMemberIdleHook::default());
+        let _guard = MemberIdleHookGuard::install(hook.clone());
+        let run_id = seed_run("builtin:sde");
+        seed_in_progress_task_with_metadata(
+            &run_id,
+            "solo-task",
+            Some(serde_json::json!({
+                TASK_METADATA_ELIGIBLE_MEMBER_IDS: ["member-worker"],
+            })),
+        );
+
+        let error = Err("HTTP 500: provider exploded".to_string());
+        finalize_agent_org_member_turn(None, "member-session", &error);
+
+        let task = AgentOrgTaskStore::get(&run_id, "solo-task")
+            .unwrap()
+            .expect("task exists");
+        assert_eq!(task.status, TaskStatus::Pending);
+        assert_eq!(task.owner, None);
+
+        let calls = hook.snapshot();
+        assert_eq!(calls.len(), 1);
+        let failure_reason = calls[0].failure_reason.as_deref().unwrap_or_default();
+        assert!(failure_reason.contains("awaiting_coordinator_assignment"));
+        assert!(failure_reason.contains("eligible_member_ids: [member-worker]"));
     }
 }

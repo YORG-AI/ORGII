@@ -5,7 +5,8 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, ClaimError, Task};
+use crate::coordination::agent_org_runs::{AgentOrgRunStatus, AgentOrgRunStore};
+use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, Task, TaskStatus};
 use crate::tools::names as tool_names;
 use crate::tools::traits::{params_schema, parse_params, CallContext, Tool, ToolError};
 
@@ -48,7 +49,12 @@ impl Tool for TaskListTool {
             "order (`created_at` ascending). ",
             "Filter with `mine_only=true` to see only the tasks you own, `status` to ",
             "narrow by `pending` / `in_progress` / `completed`, or `owner_member_id` ",
-            "to query a sibling's queue. Combining filters AND-merges them. Read-only."
+            "to query a sibling's queue. Combining filters AND-merges them. The response ",
+            "always includes an unfiltered `run_summary`, so a filtered view cannot make ",
+            "the coordinator falsely conclude that the whole run is complete. Treat ",
+            "run_summary.completion_ready as the completion certificate; zero open tasks ",
+            "alone is not final while a member, inbox delivery, intervention, plan approval, ",
+            "or queued worker turn remains active. Read-only."
         )
     }
 
@@ -74,7 +80,12 @@ impl Tool for TaskListTool {
         _ctx: &CallContext,
     ) -> Result<String, ToolError> {
         let params: TaskListParams = parse_params(params_value)?;
-        let status_filter = match params.status.as_deref() {
+        let normalized_status = params
+            .status
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+        let status_filter = match normalized_status {
             None => None,
             Some(value) => Some(parse_status(value).map_err(ToolError::InvalidParams)?),
         };
@@ -95,10 +106,11 @@ impl Tool for TaskListTool {
             }
         };
 
-        let tasks = AgentOrgTaskStore::list(&self.ctx.org_context.run_id)
+        let completion = AgentOrgRunStore::completion_snapshot(&self.ctx.org_context.run_id)
             .map_err(ToolError::ExecutionFailed)?;
+        let tasks = &completion.tasks;
         let mut filtered: Vec<&Task> = Vec::with_capacity(tasks.len());
-        for task in &tasks {
+        for task in tasks {
             if let Some(status) = status_filter {
                 if task.status != status {
                     continue;
@@ -111,9 +123,68 @@ impl Tool for TaskListTool {
             }
             filtered.push(task);
         }
+
+        let open_task_ids = tasks
+            .iter()
+            .filter(|task| !task.status.is_resolved())
+            .map(|task| task.id.clone())
+            .collect::<Vec<_>>();
+        let mut completion_blockers = Vec::new();
+        if tasks.is_empty() {
+            completion_blockers.push("no_durable_tasks".to_string());
+        }
+        if !open_task_ids.is_empty() {
+            completion_blockers.push("open_tasks".to_string());
+        }
+        if !completion.active_member_ids.is_empty() {
+            completion_blockers.push("active_members".to_string());
+        }
+        if !completion.active_intervention_member_ids.is_empty() {
+            completion_blockers.push("active_member_intervention".to_string());
+        }
+        if completion.pending_worker_turn_intent_count > 0 {
+            completion_blockers.push("pending_worker_turn_intent".to_string());
+        }
+        if completion.unread_inbox_count > 0 {
+            completion_blockers.push("unread_inbox".to_string());
+        }
+        if completion.pending_plan_approval_count > 0 {
+            completion_blockers.push("pending_plan_approval".to_string());
+        }
+        if completion.run_status != Some(AgentOrgRunStatus::Running)
+            && completion.run_status != Some(AgentOrgRunStatus::Completed)
+        {
+            completion_blockers.push("run_not_running_or_completed".to_string());
+        }
+        let completion_ready = matches!(
+            completion.run_status,
+            Some(AgentOrgRunStatus::Running | AgentOrgRunStatus::Completed)
+        ) && completion_blockers.is_empty();
         let body = json!({
             "tasks": filtered.iter().map(|t| task_to_json(t)).collect::<Vec<_>>(),
             "total": filtered.len(),
+            "filtered_total": filtered.len(),
+            "filters_applied": {
+                "mine_only": params.mine_only,
+                "status": normalized_status,
+                "owner_member_id": owner_filter,
+            },
+            "run_summary": {
+                "run_status": completion.run_status.map(|status| status.as_str()),
+                "total": tasks.len(),
+                "open": open_task_ids.len(),
+                "pending": tasks.iter().filter(|task| task.status == TaskStatus::Pending).count(),
+                "in_progress": tasks.iter().filter(|task| task.status == TaskStatus::InProgress).count(),
+                "completed": tasks.iter().filter(|task| task.status == TaskStatus::Completed).count(),
+                "open_task_ids": open_task_ids,
+                "active_member_ids": &completion.active_member_ids,
+                "active_intervention_member_ids": &completion.active_intervention_member_ids,
+                "pending_worker_turn_intent_count": completion.pending_worker_turn_intent_count,
+                "unread_inbox_count": completion.unread_inbox_count,
+                "pending_plan_approval_count": completion.pending_plan_approval_count,
+                "completion_ready": completion_ready,
+                "completion_blockers": completion_blockers,
+            },
             "org_run_id": self.ctx.org_context.run_id,
         });
         serde_json::to_string(&body).map_err(|err| {
@@ -192,27 +263,5 @@ impl Tool for TaskGetTool {
 
     fn is_read_only(&self) -> bool {
         true
-    }
-}
-
-/// Surface ClaimError as a stable string for the autonomous claim
-/// path. Kept here so the tool layer owns the user-facing rendering.
-pub fn claim_error_message(error: &ClaimError) -> String {
-    match error {
-        ClaimError::TaskNotFound => "task_not_found".into(),
-        ClaimError::AlreadyClaimed { current_owner } => {
-            format!("already_claimed by {current_owner}")
-        }
-        ClaimError::AlreadyResolved { status } => {
-            format!("already_resolved (status={})", status.as_wire())
-        }
-        ClaimError::Blocked { by_task_ids } => {
-            format!("blocked by [{}]", by_task_ids.join(","))
-        }
-        ClaimError::MemberBusy { busy_with } => {
-            format!("member_busy (current_task={busy_with})")
-        }
-        ClaimError::NotEligible => "not_eligible".into(),
-        ClaimError::Storage(msg) => format!("storage_error: {msg}"),
     }
 }

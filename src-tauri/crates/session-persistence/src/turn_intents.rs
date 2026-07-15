@@ -107,6 +107,12 @@ pub enum TurnIntentStatus {
     /// Queue invalidated this entry before it started executing
     /// (rewind, generation bump, edit-resend invalidation).
     Stale,
+    /// A duplicate idempotent request was merged into an already-live turn.
+    /// This intent never entered the scheduler and will never create a round.
+    Coalesced,
+    /// The scheduler rejected this intent before execution (for example,
+    /// queue full or closed). This intent will never create a round.
+    Rejected,
 }
 
 impl TurnIntentStatus {
@@ -119,6 +125,8 @@ impl TurnIntentStatus {
             Self::Failed => "failed",
             Self::Cancelled => "cancelled",
             Self::Stale => "stale",
+            Self::Coalesced => "coalesced",
+            Self::Rejected => "rejected",
         }
     }
 
@@ -131,6 +139,8 @@ impl TurnIntentStatus {
             "failed" => Self::Failed,
             "cancelled" => Self::Cancelled,
             "stale" => Self::Stale,
+            "coalesced" => Self::Coalesced,
+            "rejected" => Self::Rejected,
             _ => return None,
         })
     }
@@ -140,7 +150,12 @@ impl TurnIntentStatus {
     pub fn is_terminal(self) -> bool {
         matches!(
             self,
-            Self::Completed | Self::Failed | Self::Cancelled | Self::Stale
+            Self::Completed
+                | Self::Failed
+                | Self::Cancelled
+                | Self::Stale
+                | Self::Coalesced
+                | Self::Rejected
         )
     }
 
@@ -148,7 +163,7 @@ impl TurnIntentStatus {
     /// (currently only `Stale`). Cancelled is NOT in this set — a
     /// cancelled turn still has user-visible intent and gets a round.
     pub fn is_pre_durable_terminal(self) -> bool {
-        matches!(self, Self::Stale)
+        matches!(self, Self::Stale | Self::Coalesced | Self::Rejected)
     }
 }
 
@@ -199,7 +214,12 @@ fn transition_allowed(from: TurnIntentStatus, to: TurnIntentStatus) -> bool {
         | (Running, Failed)
         | (Running, Cancelled) => true,
         // Pre-run invalidation paths.
-        (Optimistic, Stale) | (Queued, Stale) => true,
+        (Optimistic, Stale)
+        | (Queued, Stale)
+        | (Optimistic, Coalesced)
+        | (Queued, Coalesced)
+        | (Optimistic, Rejected)
+        | (Queued, Rejected) => true,
         // Everything else is rejected; in particular a terminal can never
         // walk backwards into a non-terminal.
         _ => false,
@@ -321,6 +341,28 @@ pub fn mark_pending_stale(session_id: &str) -> Result<usize, IntentError> {
             SET status = 'stale', updated_at = ?2
           WHERE session_id = ?1 AND status IN ('optimistic', 'queued')",
         params![session_id, now],
+    )?;
+    Ok(affected)
+}
+
+/// Close every in-flight intent left by a previous process.
+///
+/// The scheduler queue is memory-only, so after a process restart no
+/// `optimistic` or `queued` row can still execute; they are stale. A `running`
+/// row means the process died during execution and is recorded as failed.
+/// This is intentionally connection-scoped so the app can call it from the
+/// database initialization hook without recursively opening the database.
+pub fn reconcile_in_flight_after_restart(conn: &Connection) -> Result<usize, IntentError> {
+    let now = Utc::now().to_rfc3339();
+    let affected = conn.execute(
+        "UPDATE session_turn_intents
+            SET status = CASE
+                    WHEN status = 'running' THEN 'failed'
+                    ELSE 'stale'
+                END,
+                updated_at = ?1
+          WHERE status IN ('optimistic', 'queued', 'running')",
+        [now],
     )?;
     Ok(affected)
 }
@@ -476,6 +518,29 @@ mod tests {
     }
 
     #[test]
+    fn queued_can_close_without_running_when_coalesced_or_rejected() {
+        with_temp_orgii_home(|| {
+            for (intent, terminal) in [
+                ("intent-coalesced", TurnIntentStatus::Coalesced),
+                ("intent-rejected", TurnIntentStatus::Rejected),
+            ] {
+                let _ = fresh_intent("test-session-pre-run-terminal", intent);
+                let row = update_status("test-session-pre-run-terminal", intent, terminal)
+                    .expect("queued intent may close before execution");
+                assert!(row.status.is_terminal());
+                assert!(row.status.is_pre_durable_terminal());
+                let err = update_status(
+                    "test-session-pre-run-terminal",
+                    intent,
+                    TurnIntentStatus::Running,
+                )
+                .expect_err("a pre-run terminal intent cannot resurrect");
+                assert!(matches!(err, IntentError::IllegalTransition { .. }));
+            }
+        });
+    }
+
+    #[test]
     fn mark_pending_stale_only_touches_pending() {
         with_temp_orgii_home(|| {
             let session = "test-session-bulk-stale";
@@ -516,6 +581,55 @@ mod tests {
             assert_eq!(by_id["pending-a"], TurnIntentStatus::Stale);
             assert_eq!(by_id["pending-b"], TurnIntentStatus::Stale);
             assert_eq!(by_id["running-c"], TurnIntentStatus::Running);
+        });
+    }
+
+    #[test]
+    fn restart_reconciliation_closes_every_in_flight_intent() {
+        with_temp_orgii_home(|| {
+            let session = "test-session-restart-intents";
+            for (intent, status) in [
+                ("optimistic-a", TurnIntentStatus::Optimistic),
+                ("queued-b", TurnIntentStatus::Queued),
+                ("running-c", TurnIntentStatus::Running),
+                ("completed-d", TurnIntentStatus::Completed),
+            ] {
+                let _ = upsert_initial(
+                    session,
+                    intent,
+                    None,
+                    TurnIntentSource::AgentOrg,
+                    TurnIntentStatus::Queued,
+                )
+                .unwrap();
+                if status != TurnIntentStatus::Queued {
+                    if status == TurnIntentStatus::Optimistic {
+                        let conn = get_connection().unwrap();
+                        conn.execute(
+                            "UPDATE session_turn_intents SET status='optimistic' WHERE session_id=?1 AND turn_intent_id=?2",
+                            params![session, intent],
+                        )
+                        .unwrap();
+                    } else {
+                        update_status(session, intent, TurnIntentStatus::Running).unwrap();
+                        if status == TurnIntentStatus::Completed {
+                            update_status(session, intent, TurnIntentStatus::Completed).unwrap();
+                        }
+                    }
+                }
+            }
+
+            let conn = get_connection().unwrap();
+            assert_eq!(reconcile_in_flight_after_restart(&conn).unwrap(), 3);
+            let rows = list_for_session(session).unwrap();
+            let by_id = rows
+                .into_iter()
+                .map(|row| (row.turn_intent_id, row.status))
+                .collect::<std::collections::HashMap<_, _>>();
+            assert_eq!(by_id["optimistic-a"], TurnIntentStatus::Stale);
+            assert_eq!(by_id["queued-b"], TurnIntentStatus::Stale);
+            assert_eq!(by_id["running-c"], TurnIntentStatus::Failed);
+            assert_eq!(by_id["completed-d"], TurnIntentStatus::Completed);
         });
     }
 }

@@ -132,7 +132,7 @@ pub async fn agent_org_run_list(limit: Option<usize>) -> Result<Vec<InboxRunSumm
     let effective_limit = limit.map(|n| n.min(MAX_LIMIT)).unwrap_or(MAX_LIMIT);
     let runs = AgentOrgRunStore::list_runs(effective_limit)?;
     for run in &runs {
-        AgentOrgRunStore::reconcile_if_terminal(&run.id)?;
+        AgentOrgRunStore::reconcile_run_finality(&run.id)?;
     }
     let runs = AgentOrgRunStore::list_runs(effective_limit)?;
     Ok(runs

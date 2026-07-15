@@ -15,12 +15,13 @@
 //!   inbox table (`AgentMessage`, `AgentInboxStore`). Distinct from the
 //!   user-facing `inbox` crate; see that module's doc for the contrast.
 //! - `agent_org_tasks` — Agent Org task store (Task schema + atomic
-//!   claim). Backs the task system (`task_create` / `task_update` /
-//!   `task_list` / `task_get` LLM tools and the autonomous claiming
-//!   loop).
+//!   mutations). Backs the task system (`task_create` / `task_update` /
+//!   `task_list` / `task_get` LLM tools and explicit coordinator
+//!   assignment).
 
 pub mod agent_inbox;
 pub mod agent_member_interventions;
+pub mod agent_org_plan_approvals;
 pub mod agent_org_runs;
 pub mod agent_org_tasks;
 pub mod agent_org_watchdog;

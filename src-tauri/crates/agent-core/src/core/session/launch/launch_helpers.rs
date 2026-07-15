@@ -83,14 +83,16 @@ pub(super) fn validate_launch_agent_definitions(
 
     if let Some(org) = org_definition {
         let mut missing: Vec<String> = Vec::new();
+        let mut unsupported_cli: Vec<String> = Vec::new();
         let mut member_ids = HashSet::new();
         let mut invalid_member_ids: Vec<String> = Vec::new();
         let mut duplicate_member_ids: Vec<String> = Vec::new();
-        if !org.agent_id.trim().is_empty()
-            && !is_cli_agent_org_reference(&org.agent_id)
-            && store.get(&org.agent_id).is_none()
-        {
-            missing.push(format!("coordinator '{}'", org.agent_id));
+        if !org.agent_id.trim().is_empty() {
+            if is_cli_agent_org_reference(&org.agent_id) {
+                unsupported_cli.push(format!("coordinator '{}'", org.agent_id));
+            } else if store.get(&org.agent_id).is_none() {
+                missing.push(format!("coordinator '{}'", org.agent_id));
+            }
         }
         for member in flatten_org_members(&org.children) {
             let member_id = member.id.trim();
@@ -105,11 +107,17 @@ pub(super) fn validate_launch_agent_definitions(
                 duplicate_member_ids.push(member_id.to_string());
             }
 
-            if !is_cli_agent_org_reference(&member.agent_id)
-                && store.get(&member.agent_id).is_none()
-            {
+            if is_cli_agent_org_reference(&member.agent_id) {
+                unsupported_cli.push(format!("member '{}' ({})", member.id, member.agent_id));
+            } else if store.get(&member.agent_id).is_none() {
                 missing.push(format!("member '{}' ({})", member.name, member.agent_id));
             }
+        }
+        if !unsupported_cli.is_empty() {
+            return Err(format!(
+                "CLI Agent Org participants are not supported yet because they cannot drain the Agent Org inbox or use task tools: {}",
+                unsupported_cli.join(", ")
+            ));
         }
         duplicate_member_ids.sort();
         duplicate_member_ids.dedup();

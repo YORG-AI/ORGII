@@ -589,7 +589,7 @@ pub fn build_agent_org_context_section(
     _current_agent_id: &str,
     current_member_id: Option<&str>,
 ) -> String {
-    use crate::definitions::orgs::HierarchyMode;
+    use crate::definitions::orgs::{HierarchyMode, PlanApprovalPolicy};
     let identity_line = match current_member_id {
         Some(member_id) if context.participant_by_member_id(member_id).is_some() => format!(
             "- **Your identity in this org:** member_id `{member_id}`."
@@ -598,6 +598,25 @@ pub fn build_agent_org_context_section(
             "- **Your identity in this org:** unknown member_id `{member_id}`. You are not a canonical Agent Org participant."
         ),
         None => "- **Your identity in this org:** delegate/shadow worker. You are not a canonical Agent Org participant and you do not have an org member_id.".to_string(),
+    };
+    let task_authority_line = match current_member_id {
+        Some(COORDINATOR_MEMBER_ID) => {
+            "- **Your task authority:** coordinator — you may create, assign, reassign, edit, and repair tasks for every participant, and approve cross-workflow parallel overrides. You may NOT impersonate another member's work: only the current owner may set its task `in_progress`/`completed` or write its `output`. Assignment and dependency unblocking already wake the owner; do not start or complete the task on that member's behalf.".to_string()
+        }
+        Some(member_id) if context.participant_by_member_id(member_id).is_some() => {
+            let direct_reports = context.direct_report_member_ids_for(member_id);
+            if direct_reports.is_empty() {
+                format!(
+                    "- **Your task authority:** worker — you may create and modify only tasks for `{member_id}`. You may talk to peers when routing allows, but you may not assign or rewrite their work. Only you may record `in_progress`, `completed`, and `output` for tasks you own."
+                )
+            } else {
+                format!(
+                    "- **Your task authority:** manager — you may administer your own tasks and direct-report tasks only: `{}`. Peer and cross-branch work must go through the coordinator. For every task, only its current owner may record `in_progress`, `completed`, or `output`; do not impersonate a direct report's work.",
+                    direct_reports.join("`, `")
+                )
+            }
+        }
+        _ => "- **Your task authority:** none — non-roster sessions cannot mutate the Agent Org task board.".to_string(),
     };
     let mut lines = vec![
         "## Agent Org Run".to_string(),
@@ -611,7 +630,9 @@ pub fn build_agent_org_context_section(
             "- **Hierarchy mode:** {}",
             match context.hierarchy_mode {
                 HierarchyMode::Flat => "flat",
-                HierarchyMode::Soft => "soft (hierarchy is an organizational hint)",
+                HierarchyMode::Soft => {
+                    "soft (peer messaging is open; task authority follows the hierarchy)"
+                }
                 HierarchyMode::Strict => "strict (routing restricted — see rules below)",
             }
         ),
@@ -643,13 +664,25 @@ pub fn build_agent_org_context_section(
     lines.push(String::new());
     lines.push("## Team task board".to_string());
     lines.push(String::new());
+    lines.push(task_authority_line);
+    lines.push(String::new());
     lines.push(
-        "Do NOT use the generic `agent` tool to delegate work to roster members in this Agent Org. Roster members are already materialized as persistent sessions for this run. Use `task_create` to add worker-sized subtasks to the shared task board, set `owner` to a listed member_id when assigning directly, and use `task_update` to reassign, block, unblock, release, or complete existing work. Use `task_list` / `task_get` to inspect current state before changing ownership."
+        "Do NOT use the generic `agent` tool to delegate work to roster members in this Agent Org. Roster members are already materialized as persistent sessions for this run. Use `task_create` and `task_update` only within the task authority stated above. Communication reachability and task authority are separate: being allowed to message a peer never grants permission to assign, reassign, edit, or delete that peer's work. Use `task_list` / `task_get` to inspect current state before an authorized change."
             .to_string(),
     );
     lines.push(String::new());
     lines.push(
-        "For worker tasks, choose exactly one dispatch mode: (1) set `owner_member_id` for direct assignment to one specific member, or (2) leave `owner_member_id` unset and set `eligible_member_ids` to the exact worker member_ids allowed to self-claim. `eligible_member_ids` is the hard claim whitelist. `required_role` is only a human-readable hint and never authorizes a member by itself. Never create worker tasks with neither `owner_member_id` nor `eligible_member_ids`."
+        "For normal worker tasks, set `owner_member_id` for direct assignment to one specific member. An ownerless task is only a parked `awaiting coordinator assignment` state: set `eligible_member_ids` to the exact candidates, but no worker will self-claim or be woken. The coordinator must later choose the owner explicitly. `required_role` is only a human-readable hint and never authorizes a member by itself. Never create worker tasks with neither `owner_member_id` nor `eligible_member_ids`."
+            .to_string(),
+    );
+    lines.push(String::new());
+    lines.push(
+        "For a new multi-stage request, the coordinator should prefer one `task_graph_create` call: give each node a local key and express the complete dependency graph with `depends_on`. The graph is validated and inserted atomically, so review/test/synthesis work cannot disappear between separate create calls. Use single `task_create` only for a genuinely incremental follow-up or repair. Every `task_create` must also make a separate scheduling decision with `dispatch_policy`. Use `dispatch_policy=immediate` only when the task can start now without another task's result. For review, testing, synthesis, or any consumer work, use `dispatch_policy=after_dependencies` plus `dependency_task_ids=[...]` with all upstream task ids. If a request omits currently-open work, `task_create` returns `requires_dependency_confirmation` or `requires_parallel_confirmation` guidance without creating anything. Add omitted ids when their outputs are needed. Only the coordinator may use `allow_parallel_with_unlisted_open_tasks=true`; members must send the proposed parallel work to the coordinator for approval. Dependent tasks remain pending and receive `TaskAssigned` only after their dependencies complete."
+            .to_string(),
+    );
+    lines.push(String::new());
+    lines.push(
+        "Every `task_create` must also set `execution_mode`. Use `execution_mode=plan` only when the task's deliverable is a plan submitted with `create_plan`; use `execution_mode=build` for implementation, writing, review, testing, research, and all other work. The task assignment selects the member's next mode automatically. Inside an active Agent Org, never switch the Group chat or coordinator session into Plan mode in response to phrases such as 'plan then implement'; create a member Plan task instead. Do not send a separate mode-switch message. A Build task that bypasses an open Plan task is rejected for dependency confirmation unless the coordinator explicitly confirms that the work is independent."
             .to_string(),
     );
     lines.push(String::new());
@@ -664,17 +697,27 @@ pub fn build_agent_org_context_section(
     );
     lines.push(String::new());
     lines.push(
-        "Members must set `status=completed` when a task is done. If work is not done and the member is waiting for more context or another turn, leave the task owned and `in_progress`; do not move it back to `pending` just because a turn ended. Stale `in_progress` work is surfaced to the coordinator by the watchdog for explicit retry, reassign, release, or pause/report decisions."
+        "When a member receives `TaskAssigned`, it must first call `task_update` for that exact task id with `status=in_progress` before doing the work. When done, the same owning member must call `task_update` with `status=completed` and `output={summary, content?, artifact_ids?}`; `summary` is required. Coordinators and managers must never perform these lifecycle/output calls for another owner. At turn end, the runtime gives a worker at most one bounded correction if a Build task is still `in_progress`; if it remains unresolved, `MemberIdle.unfinished_task_ids` tells the coordinator to retry or reassign instead of waiting silently. Plan tasks awaiting approval are excluded."
             .to_string(),
     );
     lines.push(String::new());
     lines.push(
-        "When you receive a `MemberIdle` notice with `reason=failed`, read its failure_reason for requeued tasks and recovery guidance. If the error looks temporary, use `org_send_message` to ask the same member to retry. If another eligible member is available, use `task_update owner_member_id` to assign directly. If a task is unowned and missing `eligible_member_ids`, repair it with `task_update eligible_member_ids` before expecting autonomous claim. Never assign or allow claim outside `eligible_member_ids`, and do not ask one member to inspect another member's private failed context. A watchdog stale notice is not permission to assign outside the eligible list; repair the task or explicitly choose a valid owner. If no recovery is possible, pause and report to the user."
+        "The coordinator may announce that the whole Agent Org run is complete only after calling `task_list` and seeing `run_summary.completion_ready=true`. `open=0` alone is insufficient: a Reviewer may still be running, an inbox handoff may be unread, or a member plan may still await approval. When `completion_ready=false`, inspect `completion_blockers`, `active_member_ids`, `unread_inbox_count`, and `pending_plan_approval_count` and keep coordinating or wait quietly for the real event."
             .to_string(),
     );
     lines.push(String::new());
     lines.push(
-        "Before creating a task, compare against the snapshot below and call `task_list` when uncertain. If a task already exists, update it instead of creating a duplicate. Ownerless tasks are claimed through the autonomous claim path only when the task is `pending`, dependencies are resolved, and the caller's member_id is listed in `eligible_member_ids`. Do not manually claim arbitrary ownerless work by setting `status=in_progress`; use `owner_member_id` for direct assignment or repair `eligible_member_ids` first."
+        "When you receive `MemberIdle` with non-empty `unfinished_task_ids`, do not wait silently: ask that owner to finish its lifecycle or explicitly reassign the task. When `reason=failed`, the failed member's in-progress tasks become ownerless Pending rows; read failure_reason, inspect eligibility, and choose a new owner explicitly with `task_update owner_member_id`. Workers never self-claim ownerless work. Never assign outside `eligible_member_ids`, and do not ask one member to inspect another member's private failed context. If no recovery is possible, pause and report to the user."
+            .to_string(),
+    );
+    lines.push(String::new());
+    lines.push(
+        "Before creating a task, compare against the snapshot below and call `task_list` when uncertain. If a task already exists, update it instead of creating a duplicate. Ownerless means waiting for explicit coordinator assignment, never an automatic claim pool. Workers must not set themselves as owner or set an ownerless task to `in_progress`; the coordinator first chooses `owner_member_id`, then normal TaskAssigned delivery wakes only that owner."
+            .to_string(),
+    );
+    lines.push(String::new());
+    lines.push(
+        "Choose skills and tools from the user's actual request. For non-code work such as summaries, research, or writing, do not invoke GitHub issue-fix, repository, or code-audit workflows merely because those tools are available."
             .to_string(),
     );
     lines.push(String::new());
@@ -684,7 +727,7 @@ pub fn build_agent_org_context_section(
     lines.push("## Org messaging".to_string());
     lines.push(String::new());
     lines.push(
-        "Use the `org_send_message` tool to send a typed org message to exactly one coordinator/member participant in this org. The only routing field is `recipient_member_id`; never route by display name or agent id. Messages are persisted and surfaced to the recipient on its next turn — they do not interrupt the recipient's current turn.".to_string(),
+        "Use the `org_send_message` tool to send a typed org message to exactly one coordinator/member participant in this org. The only routing field is `recipient_member_id`; never route by display name or agent id. Messages are persisted and surfaced to the recipient on its next turn — they do not interrupt the recipient's current turn. Every plain message to a non-coordinator worker must include `related_task_id` for unresolved, dependency-ready work already owned by that worker. Eligibility alone is not assignment; the coordinator must set `owner_member_id` before sending formal work instructions. Chat cannot create invisible work or bypass dependencies.".to_string(),
     );
 
     // Routing rules vary by hierarchy mode. The text below is what tells
@@ -717,25 +760,32 @@ pub fn build_agent_org_context_section(
     }
     lines.push(String::new());
     lines.push(
+        "**Messaging is not delegation.** Do not use a `plain` message to bypass task authority by telling a peer or another branch to start formal work. Use messages for questions, discussion, handoff context, and proposals. Formal work must already exist as an authority-checked task; if an unauthorized peer asks you to start new work, route the proposal to the coordinator instead of silently creating or executing a second task chain."
+            .to_string(),
+    );
+    lines.push(String::new());
+    lines.push(
         "**Your normal text output is NOT visible to other agents in this org.** To communicate with another org participant you MUST call `org_send_message` with a listed `recipient_member_id`. Writing the message in your reply alone reaches the user, not the agent.".to_string(),
     );
     lines.push(String::new());
     lines.push(
-        "Available message kinds: `plain` (free-form text — the common case), `shutdown_request` / `shutdown_response` (coordinator-driven graceful stop RPC — pair them with a sender-generated `request_id` the responder must echo), `plan_approval_response` (coordinator reply to a member's submitted plan — echo the plan request_id and set accepted/feedback), and `exec_mode_set_request` (ask a member to switch execution mode). orgii's user permission and user mode-switch systems are separate; do NOT encode user-facing permission prompts as org messages.".to_string(),
+        "Available message kinds: `plain` (free-form text — the common case), `shutdown_request` / `shutdown_response` (coordinator-driven graceful stop RPC — pair them with a sender-generated `request_id` the responder must echo), and, when this run uses coordinator plan approval, `plan_approval_response` (echo the plan request_id and set accepted/feedback). orgii's user permission and user mode-switch systems are separate; do NOT encode user-facing permission prompts as org messages.".to_string(),
     );
     lines.push(String::new());
     lines.push("### Planning workflow".to_string());
     lines.push(String::new());
     lines.push(
-        "If you are the coordinator and you need a member to draft an implementation plan, risk review, migration plan, architecture proposal, or phased design before implementation, first send `org_send_message` with `kind = \"exec_mode_set_request\"` and `mode = \"plan\"` to that member. Planner-like members should be switched to Plan mode before you ask them to produce a plan; otherwise they may treat the request as normal discussion or implementation work.".to_string(),
+        "If a member must draft an implementation plan, risk review, migration plan, architecture proposal, or phased design, create its task with `execution_mode=plan`. The member enters Plan mode automatically, submits through `create_plan`, and stops. Approval completes that planning task and unlocks tasks that depend on it; the Planner is not woken into a fake Build turn.".to_string(),
     );
     lines.push(String::new());
-    lines.push(
-        "When a non-coordinator member submits a plan with `create_plan`, that plan is an internal Agent Org protocol message to the coordinator, not a user-facing Build approval. Review the inbox plan request, then reply with `org_send_message` using `kind = \"plan_approval_response\"`, echo the plan `request_id`, and set `accepted = true` to approve or `accepted = false` with `feedback` to request revision. Approved member plans continue in Build mode by default; rejected member plans stay in Plan mode for revision.".to_string(),
-    );
+    lines.push(match context.plan_approval_policy {
+        PlanApprovalPolicy::Coordinator => "This run uses coordinator plan approval. When a member submits `create_plan`, review the durable inbox request, then send `kind=\"plan_approval_response\"` with the same `request_id`. `accepted=true` completes the source planning task and unlocks its dependants. `accepted=false` requires concrete `feedback` and wakes the Planner once in Plan mode for revision.".to_string(),
+        PlanApprovalPolicy::User => "This run uses user plan approval. A submitted member plan appears in Group chat. Do not manufacture approval messages or bypass the gate; wait quietly until the user approves, edits and approves, or requests changes.".to_string(),
+        PlanApprovalPolicy::Automatic => "This run uses automatic plan approval. A valid `create_plan` submission completes the source planning task immediately and unlocks its dependants; no coordinator approval message is needed.".to_string(),
+    });
     lines.push(String::new());
     lines.push(
-        "Coordinator or top-level Plan mode is different: a coordinator's own `create_plan` can still produce the user-facing Build approval surface. Only non-coordinator member plans use the internal coordinator approval path.".to_string(),
+        "A root session explicitly launched by the user in Plan mode remains a separate, user-selected workflow and may use the coordinator's own `create_plan` Build approval surface. Once an Agent Org run has launched in Build mode, keep the coordinator in Build mode and use member Plan tasks. Only non-coordinator member plans use the internal coordinator approval path.".to_string(),
     );
     lines.join("\n")
 }

@@ -184,6 +184,7 @@ pub async fn process_message(
             .ide_context
             .as_ref()
             .and_then(|ctx| ctx.repo_path.clone()),
+        agent_org_task_lifecycle: None,
     };
 
     let policy = Arc::clone(&runtime.policy);

@@ -12,8 +12,12 @@ use crate::coordination::agent_inbox::{
     USER_SENDER_ID,
 };
 use crate::coordination::agent_member_interventions::{
-    AgentMemberInterventionRecord, AgentMemberInterventionStore, EnterMemberInterventionParams,
-    DEFAULT_INTERVENTION_TTL_SECS,
+    can_enter_member_intervention, AgentMemberInterventionRecord, AgentMemberInterventionStore,
+    EnterMemberInterventionParams, DEFAULT_INTERVENTION_TTL_SECS,
+};
+use crate::coordination::agent_org_plan_approvals::{
+    enqueue_post_approval_messages, AgentOrgPlanApproval, AgentOrgPlanApprovalStore,
+    AgentOrgPlanDecisionBy, AgentOrgPlanInboxDelivery,
 };
 use crate::coordination::agent_org_runs::{
     AgentOrgContextMember, AgentOrgRunContext, AgentOrgRunStatus, AgentOrgRunStore,
@@ -24,7 +28,7 @@ use crate::definitions::orgs::AgentOrgsStore;
 use crate::persistence::AgentResponse;
 use crate::session::persistence;
 use crate::state::commands::session::identity::IdentityOverrides;
-use crate::state::commands::session::message::{send_message_impl, send_message_impl_for_wake};
+use crate::state::commands::session::message::{send_message_impl, send_message_impl_for_org_wake};
 use crate::state::control_flow::CancelReason;
 use crate::state::AgentAppState;
 
@@ -96,10 +100,28 @@ pub struct AgentOrgInboxRuntimeRow {
 pub struct AgentOrgRunView {
     pub context: AgentOrgRunContext,
     pub run_status: String,
+    pub run_phase: AgentOrgRunPhase,
     pub current_member_id: Option<String>,
     pub members: Vec<AgentOrgRunMemberView>,
     pub tasks: Vec<AgentOrgTaskRuntime>,
     pub inbox: Vec<AgentOrgInboxRuntimeRow>,
+    pub pending_plan_approvals: Vec<AgentOrgPlanApproval>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentOrgRunPhase {
+    Coordinating,
+    Dispatching,
+    MembersWorking,
+    Waiting,
+    AwaitingPlanApproval,
+    Finalizing,
+    Paused,
+    Completed,
+    Failed,
+    Cancelled,
+    Abandoned,
 }
 
 struct SessionOrgReadContext {
@@ -125,14 +147,13 @@ pub async fn agent_org_session_run_view_impl(
     let Some(ref context) = read_context.context else {
         return Ok(None);
     };
-    AgentOrgRunStore::reconcile_if_terminal(&context.run_id)?;
+    AgentOrgRunStore::reconcile_run_finality(&context.run_id)?;
 
-    let run_status = AgentOrgRunStore::get_run_status(&context.run_id)?
-        .unwrap_or(AgentOrgRunStatus::Running)
-        .as_str()
-        .to_string();
+    let run_status_value =
+        AgentOrgRunStore::get_run_status(&context.run_id)?.unwrap_or(AgentOrgRunStatus::Running);
+    let run_status = run_status_value.as_str().to_string();
 
-    let tasks = tasks_for_context(&context)?;
+    let tasks = tasks_for_context(context)?;
     let inbox_records = AgentInboxStore::list_by_run(&context.run_id)?;
     let member_ids: Vec<String> = context
         .members
@@ -169,14 +190,14 @@ pub async fn agent_org_session_run_view_impl(
 
     let mut members = Vec::with_capacity(context.members.len() + 1);
     members.push(coordinator_member_view(
-        &context,
+        context,
         coordinator_runtime,
         &tasks,
         &inbox_records,
     )?);
     for member in &context.members {
         members.push(member_view(
-            &context,
+            context,
             member,
             member_runtimes.get(&member.member_id).cloned(),
             &tasks,
@@ -184,7 +205,16 @@ pub async fn agent_org_session_run_view_impl(
         )?);
     }
 
-    let inbox = enrich_inbox_rows(&context, inbox_records);
+    let inbox = enrich_inbox_rows(context, inbox_records);
+    let pending_plan_approvals = AgentOrgPlanApprovalStore::list_pending_by_run(&context.run_id)?;
+
+    let run_phase = project_run_phase(
+        run_status_value,
+        &members,
+        &tasks,
+        &inbox,
+        &pending_plan_approvals,
+    );
 
     let current_member_id = require_session_member_id(&read_context, session_id)?;
 
@@ -192,10 +222,152 @@ pub async fn agent_org_session_run_view_impl(
         current_member_id: Some(current_member_id),
         context: context.clone(),
         run_status,
+        run_phase,
         members,
         tasks,
         inbox,
+        pending_plan_approvals,
     }))
+}
+
+fn project_run_phase(
+    run_status: AgentOrgRunStatus,
+    members: &[AgentOrgRunMemberView],
+    tasks: &[AgentOrgTaskRuntime],
+    inbox: &[AgentOrgInboxRuntimeRow],
+    pending_plan_approvals: &[AgentOrgPlanApproval],
+) -> AgentOrgRunPhase {
+    match run_status {
+        AgentOrgRunStatus::Paused => AgentOrgRunPhase::Paused,
+        AgentOrgRunStatus::Completed => AgentOrgRunPhase::Completed,
+        AgentOrgRunStatus::Failed => AgentOrgRunPhase::Failed,
+        AgentOrgRunStatus::Cancelled => AgentOrgRunPhase::Cancelled,
+        AgentOrgRunStatus::Abandoned => AgentOrgRunPhase::Abandoned,
+        AgentOrgRunStatus::Running => {
+            let all_tasks_completed =
+                !tasks.is_empty() && tasks.iter().all(|task| task.task.status.is_resolved());
+            if all_tasks_completed {
+                return AgentOrgRunPhase::Finalizing;
+            }
+            let any_member_working = members.iter().any(|member| {
+                member.session_runtime.as_ref().is_some_and(|runtime| {
+                    matches!(
+                        runtime.status,
+                        crate::session::SessionStatus::Running
+                            | crate::session::SessionStatus::WaitingForUser
+                            | crate::session::SessionStatus::WaitingForFunds
+                    )
+                })
+            });
+            if any_member_working {
+                return AgentOrgRunPhase::MembersWorking;
+            }
+            if !pending_plan_approvals.is_empty() {
+                return AgentOrgRunPhase::AwaitingPlanApproval;
+            }
+            let has_unread = inbox.iter().any(|row| row.row.read_at.is_none());
+            if has_unread {
+                return AgentOrgRunPhase::Dispatching;
+            }
+            if tasks.iter().any(|task| !task.task.status.is_resolved()) {
+                AgentOrgRunPhase::Waiting
+            } else {
+                AgentOrgRunPhase::Coordinating
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentOrgPlanApprovalDecision {
+    Approve,
+    ApproveWithEdits,
+    RequestChanges,
+}
+
+#[tauri::command]
+// Tauri exposes command arguments as a flat invoke payload. Keeping these
+// fields explicit preserves the stable frontend wire shape.
+#[allow(clippy::too_many_arguments)]
+pub async fn agent_org_plan_approval_respond(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<'_, AgentAppState>,
+    session_id: String,
+    approval_id: String,
+    plan_revision_id: String,
+    decision: AgentOrgPlanApprovalDecision,
+    edited_content: Option<String>,
+    feedback: Option<String>,
+) -> Result<AgentOrgPlanApproval, String> {
+    let Some(read_context) = session_org_read_context(&state, &session_id).await? else {
+        return Err(format!(
+            "Session {session_id} is not part of an Agent Org run"
+        ));
+    };
+    let context = read_context
+        .context
+        .ok_or_else(|| format!("Session {session_id} has no Agent Org context"))?;
+    let approval = AgentOrgPlanApprovalStore::get(&approval_id)?
+        .ok_or_else(|| format!("Agent Org plan approval {approval_id} was not found"))?;
+    if approval.org_run_id != context.run_id {
+        return Err("Agent Org plan approval does not belong to this run".to_string());
+    }
+
+    match decision {
+        AgentOrgPlanApprovalDecision::Approve | AgentOrgPlanApprovalDecision::ApproveWithEdits => {
+            let edited_content = match decision {
+                AgentOrgPlanApprovalDecision::ApproveWithEdits => Some(
+                    edited_content
+                        .filter(|value| !value.trim().is_empty())
+                        .ok_or_else(|| {
+                            "approve_with_edits requires non-empty edited_content".to_string()
+                        })?,
+                ),
+                _ => None,
+            };
+            let approved = AgentOrgPlanApprovalStore::approve(
+                &approval_id,
+                &plan_revision_id,
+                AgentOrgPlanDecisionBy::User,
+                edited_content,
+            )?;
+            let wake_member_ids = enqueue_post_approval_messages(&context, &approved)?;
+            for member_id in wake_member_ids {
+                wake_agent_org_member(app_handle.clone(), &member_id, &context.run_id);
+            }
+            AgentOrgRunStore::reconcile_run_finality(&context.run_id)?;
+            Ok(approved.approval)
+        }
+        AgentOrgPlanApprovalDecision::RequestChanges => {
+            let feedback = feedback
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| "request_changes requires non-empty feedback".to_string())?;
+            let recipient_agent_id = context
+                .participant_agent_id(&approval.source_member_id)
+                .ok_or_else(|| {
+                    format!(
+                        "Agent Org plan source member {} is not in the run roster",
+                        approval.source_member_id
+                    )
+                })?;
+            let (changed, _) = AgentOrgPlanApprovalStore::request_changes(
+                &approval_id,
+                &plan_revision_id,
+                AgentOrgPlanDecisionBy::User,
+                feedback,
+                AgentOrgPlanInboxDelivery {
+                    recipient_agent_id,
+                    sender_agent_id: USER_SENDER_ID.to_string(),
+                    sender_member_id: None,
+                },
+            )?;
+            wake_agent_org_member(app_handle, &changed.source_member_id, &context.run_id);
+            Ok(changed)
+        }
+    }
 }
 
 #[tauri::command]
@@ -210,6 +382,14 @@ pub async fn agent_org_session_enter_intervention(
         return Ok(false);
     };
     let member_id = require_session_member_id(&read_context, &session_id)?;
+    if !can_enter_member_intervention(&member_id) {
+        tracing::debug!(
+            org_run_id = %context.run_id,
+            session_id = %session_id,
+            "ordinary coordinator message does not enter member intervention"
+        );
+        return Ok(false);
+    }
     let agent_id = context.require_participant_agent_id(&member_id)?;
 
     AgentMemberInterventionStore::enter(EnterMemberInterventionParams {
@@ -290,7 +470,7 @@ pub async fn agent_org_session_return_to_work(
     let pending_inbox = AgentInboxStore::list_unread_for_member(&member_id, &context.run_id)?;
     let pending_inbox_ids: Vec<i64> = pending_inbox.iter().map(|row| row.id).collect();
     if changed || !pending_inbox_ids.is_empty() {
-        send_message_impl_for_wake(&state, session_id).await?;
+        send_message_impl_for_org_wake(&state, session_id, &context.run_id, &member_id).await?;
         wait_for_member_inbox_rows_read(&context.run_id, &member_id, &pending_inbox_ids).await?;
         return Ok(true);
     }
@@ -432,6 +612,7 @@ pub async fn agent_org_send_user_message_to_member_impl(
         true,
         None,
         None,
+        None,
         crate::foundation::session_bridge::TurnIntentBridgeSource::AgentOrg,
     )
     .await?;
@@ -466,8 +647,10 @@ pub async fn agent_org_pause_run(
 /// non-paused runs return `Ok(false)` (idempotent).
 ///
 /// After marking the run as resumed and clearing pause cancel flags, re-wakes
-/// members that have unread inbox rows, owned open tasks, or a claimable
-/// unowned task. Without this step the run's DB status becomes `running` but
+/// members that have unread inbox rows. The coordinator also receives one
+/// durable resume event. Owned or ownerless task state by
+/// itself is not new input and must never cause an empty model turn. Without
+/// this step the run's DB status becomes `running` but
 /// no sessions start processing because `InboxWakeHook` only fires when new
 /// rows are written, not when a run is un-paused.
 #[tauri::command]
@@ -566,8 +749,6 @@ fn resume_agent_org_context(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AgentOrgWakeReason {
     UnreadInbox,
-    OwnedOpenTask,
-    ClaimableUnownedTask,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -576,23 +757,9 @@ struct AgentOrgWakeTarget {
     reason: AgentOrgWakeReason,
 }
 
-fn should_wake_member_for_progress(
-    member_id: &str,
-    has_unread: bool,
-    tasks: &[Task],
-    has_available_unowned_task_for_member: bool,
-) -> Option<AgentOrgWakeReason> {
+fn should_wake_member_for_progress(has_unread: bool) -> Option<AgentOrgWakeReason> {
     if has_unread {
         return Some(AgentOrgWakeReason::UnreadInbox);
-    }
-    let has_open_task = tasks
-        .iter()
-        .any(|task| task.owner.as_deref() == Some(member_id) && !task.status.is_resolved());
-    if has_open_task {
-        return Some(AgentOrgWakeReason::OwnedOpenTask);
-    }
-    if member_id != COORDINATOR_MEMBER_ID && has_available_unowned_task_for_member {
-        return Some(AgentOrgWakeReason::ClaimableUnownedTask);
     }
     None
 }
@@ -601,18 +768,10 @@ fn collect_run_progress_wake_targets(
     run_id: &str,
     member_ids: &[String],
 ) -> Result<Vec<AgentOrgWakeTarget>, String> {
-    let tasks = AgentOrgTaskStore::list(run_id)?;
     let mut targets = Vec::new();
     for member_id in member_ids {
         let has_unread = !AgentInboxStore::list_unread_for_member(member_id, run_id)?.is_empty();
-        let has_available_unowned_task_for_member = member_id != COORDINATOR_MEMBER_ID
-            && AgentOrgTaskStore::find_available_for_member(run_id, member_id)?.is_some();
-        if let Some(reason) = should_wake_member_for_progress(
-            member_id,
-            has_unread,
-            &tasks,
-            has_available_unowned_task_for_member,
-        ) {
+        if let Some(reason) = should_wake_member_for_progress(has_unread) {
             targets.push(AgentOrgWakeTarget {
                 member_id: member_id.clone(),
                 reason,
@@ -805,12 +964,14 @@ fn coordinator_member_view(
 ) -> Result<AgentOrgRunMemberView, String> {
     member_view_from_parts(
         context,
-        COORDINATOR_MEMBER_ID.to_string(),
-        context.coordinator_name.clone(),
-        context.coordinator_role.clone(),
-        context.coordinator_agent_id.clone(),
-        None,
-        true,
+        AgentOrgMemberViewIdentity {
+            member_id: COORDINATOR_MEMBER_ID.to_string(),
+            name: context.coordinator_name.clone(),
+            role: context.coordinator_role.clone(),
+            agent_id: context.coordinator_agent_id.clone(),
+            parent_member_id: None,
+            is_coordinator: true,
+        },
         runtime,
         tasks,
         inbox,
@@ -826,30 +987,44 @@ fn member_view(
 ) -> Result<AgentOrgRunMemberView, String> {
     member_view_from_parts(
         context,
-        member.member_id.clone(),
-        member.name.clone(),
-        member.role.clone(),
-        member.agent_id.clone(),
-        member.parent_member_id.clone(),
-        false,
+        AgentOrgMemberViewIdentity {
+            member_id: member.member_id.clone(),
+            name: member.name.clone(),
+            role: member.role.clone(),
+            agent_id: member.agent_id.clone(),
+            parent_member_id: member.parent_member_id.clone(),
+            is_coordinator: false,
+        },
         runtime,
         tasks,
         inbox,
     )
 }
 
-fn member_view_from_parts(
-    context: &AgentOrgRunContext,
+struct AgentOrgMemberViewIdentity {
     member_id: String,
     name: String,
     role: String,
     agent_id: String,
     parent_member_id: Option<String>,
     is_coordinator: bool,
+}
+
+fn member_view_from_parts(
+    context: &AgentOrgRunContext,
+    identity: AgentOrgMemberViewIdentity,
     session_runtime: Option<WorkerSessionRuntime>,
     tasks: &[AgentOrgTaskRuntime],
     inbox: &[AgentInboxRecord],
 ) -> Result<AgentOrgRunMemberView, String> {
+    let AgentOrgMemberViewIdentity {
+        member_id,
+        name,
+        role,
+        agent_id,
+        parent_member_id,
+        is_coordinator,
+    } = identity;
     let inbox_activity_count = inbox
         .iter()
         .filter(|row| {
@@ -1029,6 +1204,7 @@ mod tests {
                 },
             ],
             hierarchy_mode: HierarchyMode::Strict,
+            plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
             root_session_id: Some("root-shared-agent".to_string()),
         }
     }
@@ -1103,33 +1279,60 @@ mod tests {
     }
 
     #[test]
-    fn resume_wake_includes_owned_open_tasks_and_claimable_work() {
-        let coordinator = COORDINATOR_MEMBER_ID;
-        let assigned_pending = vec![task_for_resume(Some("member-builder"), TaskStatus::Pending)];
+    fn run_phase_projects_all_completed_running_board_as_finalizing() {
+        let task = AgentOrgTaskRuntime {
+            task: task_for_resume(Some("member-builder"), TaskStatus::Completed),
+            owner_member: None,
+            owner_runtime: None,
+        };
         assert_eq!(
-            should_wake_member_for_progress("member-builder", false, &assigned_pending, false),
-            Some(AgentOrgWakeReason::OwnedOpenTask)
+            project_run_phase(AgentOrgRunStatus::Running, &[], &[task], &[], &[]),
+            AgentOrgRunPhase::Finalizing
         );
+        assert_eq!(
+            project_run_phase(AgentOrgRunStatus::Completed, &[], &[], &[], &[]),
+            AgentOrgRunPhase::Completed
+        );
+    }
 
-        let assigned_completed = vec![task_for_resume(
-            Some("member-builder"),
-            TaskStatus::Completed,
-        )];
+    #[test]
+    fn run_phase_projects_quiet_user_plan_gate_as_awaiting_approval() {
+        let task = AgentOrgTaskRuntime {
+            task: task_for_resume(Some("member-planner"), TaskStatus::InProgress),
+            owner_member: None,
+            owner_runtime: None,
+        };
+        let approval = AgentOrgPlanApproval {
+            approval_id: "approval-1".to_string(),
+            plan_revision_id: "revision-1".to_string(),
+            request_id: "request-1".to_string(),
+            org_run_id: "run-shared-agent".to_string(),
+            source_task_id: task.task.id.clone(),
+            source_member_id: "member-planner".to_string(),
+            source_session_id: "planner-session".to_string(),
+            root_session_id: "root-shared-agent".to_string(),
+            policy: crate::definitions::orgs::PlanApprovalPolicy::User,
+            status:
+                crate::coordination::agent_org_plan_approvals::AgentOrgPlanApprovalStatus::Pending,
+            plan_title: "Plan".to_string(),
+            plan_path: "/tmp/plan.md".to_string(),
+            plan_content: "# Plan".to_string(),
+            decision_by: None,
+            feedback: None,
+            created_at: "2026-05-28T00:00:00Z".to_string(),
+            resolved_at: None,
+        };
         assert_eq!(
-            should_wake_member_for_progress("member-builder", false, &assigned_completed, false),
-            None
+            project_run_phase(AgentOrgRunStatus::Running, &[], &[task], &[], &[approval]),
+            AgentOrgRunPhase::AwaitingPlanApproval
         );
+    }
 
+    #[test]
+    fn resume_wake_requires_unread_inbox() {
+        assert_eq!(should_wake_member_for_progress(false), None);
         assert_eq!(
-            should_wake_member_for_progress("member-builder", false, &[], true),
-            Some(AgentOrgWakeReason::ClaimableUnownedTask)
-        );
-        assert_eq!(
-            should_wake_member_for_progress(coordinator, false, &[], true),
-            None
-        );
-        assert_eq!(
-            should_wake_member_for_progress(coordinator, true, &[], false),
+            should_wake_member_for_progress(true),
             Some(AgentOrgWakeReason::UnreadInbox)
         );
     }

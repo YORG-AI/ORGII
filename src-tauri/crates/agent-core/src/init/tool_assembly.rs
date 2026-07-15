@@ -29,7 +29,8 @@ use crate::state::{AgentAppState, AgentSession};
 use crate::tools::impls::meta::tool_search::ToolSearchTool;
 use crate::tools::impls::orchestration::agent::{AgentTool, AgentToolConfig};
 use crate::tools::impls::orchestration::agent_tasks::{
-    TaskCreateTool, TaskGetTool, TaskListTool, TaskToolsContext, TaskUpdateTool,
+    TaskCreateTool, TaskGetTool, TaskGraphCreateTool, TaskListTool, TaskToolsContext,
+    TaskUpdateTool,
 };
 use crate::tools::impls::orchestration::inbox_wake::AppHandleInboxWakeHook;
 use crate::tools::impls::orchestration::member_shutdown::AppHandleSelfAbortHook;
@@ -66,6 +67,10 @@ pub(super) struct OverlayContext<'a> {
     /// The session's single `SecurityPolicy` instance, shared with the
     /// subagent AgentTool config.
     pub exec_security_policy: Arc<crate::foundation::security::SecurityPolicy>,
+}
+
+fn should_register_mode_switch_tool(is_agent_org: bool, explicitly_disabled: bool) -> bool {
+    !is_agent_org && !explicitly_disabled
 }
 
 /// Materialize the overlay tool layer on top of `base_registry` and return
@@ -109,8 +114,18 @@ pub(super) fn assemble_overlay(
         )));
     }
 
+    // Agent Org planning is task-scoped: the coordinator creates an
+    // `execution_mode=plan` task and the assigned member enters Plan mode
+    // automatically. Exposing the generic mode-switch tool here lets an
+    // active Group chat switch its root coordinator instead, which stops the
+    // current turn and competes with the task protocol. A root session that
+    // the user explicitly launches in Plan mode remains supported; only
+    // in-run mode suggestions are hidden from org participants.
     if let Some(ref msm) = ctx.session.mode_switch_manager {
-        if !ctx.disabled_set.contains(names::SUGGEST_MODE_SWITCH) {
+        if should_register_mode_switch_tool(
+            ctx.agent_org_context.is_some(),
+            ctx.disabled_set.contains(names::SUGGEST_MODE_SWITCH),
+        ) {
             let mode_ctx = Arc::new(ModeSwitchToolContext::new(Arc::clone(msm)));
             overlay.register(Box::new(SuggestModeSwitchTool::new(mode_ctx)));
         }
@@ -207,6 +222,13 @@ pub(super) fn assemble_overlay(
             if !ctx.disabled_set.contains(names::TASK_CREATE) {
                 overlay.register(Box::new(TaskCreateTool::new(Arc::clone(&task_tools_ctx))));
             }
+            if task_tools_ctx.is_coordinator()
+                && !ctx.disabled_set.contains(names::TASK_GRAPH_CREATE)
+            {
+                overlay.register(Box::new(TaskGraphCreateTool::new(Arc::clone(
+                    &task_tools_ctx,
+                ))));
+            }
             if !ctx.disabled_set.contains(names::TASK_UPDATE) {
                 overlay.register(Box::new(TaskUpdateTool::new(Arc::clone(&task_tools_ctx))));
             }
@@ -231,7 +253,7 @@ pub(super) fn assemble_overlay(
     // already-registered `AgentTool` instance. After this write, every
     // Delegate/Shadow worker launch — Path A inherit, Path B fresh-fallback, shadow,
     // and background — will see overlay tools (`org_send_message`,
-    // `tool_search`, `suggest_mode_switch`) when
+    // `tool_search`, and for non-org parents `suggest_mode_switch`) when
     // it snapshots the parent registry. Order matters: this MUST happen
     // after the last `overlay.register(...)` call above, since the
     // slot's `Arc` clones must be issued from the same `final_registry`
@@ -254,7 +276,7 @@ fn build_agent_tool(
     // launches, that returns `None` — but we still need a `workspace_path`
     // so spawned Delegate/Shadow workers inherit the parent's workspace, otherwise
     // their `agent_sessions.workspace_path` row is NULL and downstream
-    // identity resolution (the inbox-wake hook → `send_message_impl_for_wake`
+    // identity resolution (the inbox-wake hook → `send_message_impl_for_org_wake`
     // → `resolve_session_identity`) errors out with
     // "Cannot resolve workspace_root … not in overrides, runtime, or DB".
     let (work_item_id, workspace_path) = match resolve_sub_agent_link(ctx.session_id) {
@@ -412,4 +434,17 @@ pub(super) fn hydrate_workspace_state(
         }
     };
     Arc::new(parking_lot::RwLock::new(ws))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_register_mode_switch_tool;
+
+    #[test]
+    fn active_agent_org_never_exposes_root_mode_switch_suggestion() {
+        assert!(!should_register_mode_switch_tool(true, false));
+        assert!(!should_register_mode_switch_tool(true, true));
+        assert!(should_register_mode_switch_tool(false, false));
+        assert!(!should_register_mode_switch_tool(false, true));
+    }
 }

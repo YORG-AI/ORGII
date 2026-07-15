@@ -28,6 +28,7 @@ pub fn register(registry: &mut ToolRegistry, deps: &ToolDeps, disabled: &HashSet
         deps.plan_approval_manager.clone(),
         deps.agent_org_context.clone(),
         deps.agent_org_current_member_id.clone(),
+        deps.app_handle.clone(),
     ));
     register_if_enabled(
         registry,

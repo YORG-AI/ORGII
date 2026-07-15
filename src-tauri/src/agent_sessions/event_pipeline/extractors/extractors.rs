@@ -105,6 +105,7 @@ fn extract_tool_call_data(
             org_task_tool,
             args,
             result,
+            &event.display_status,
         )));
     }
 

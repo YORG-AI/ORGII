@@ -215,9 +215,14 @@ pub async fn agent_send_message(
         images,
         ide_context,
         isResume.unwrap_or(false),
-        true,
+        // Direct-user intervention is signalled explicitly at the UI submit
+        // or queue-dispatch boundary. Do not infer it from every generic
+        // agent_send_message call: programmatic continuations use this command
+        // too and must not take over an Agent Org worker accidentally.
+        false,
         clientMessageId,
         turnIntentId,
+        None,
         source,
     )
     .await

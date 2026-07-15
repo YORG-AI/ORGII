@@ -152,9 +152,52 @@ impl AgentAppState {
             ),
         }
 
+        match crate::coordination::agent_org_runs::AgentOrgRunStore::requeue_abandoned_member_tasks_on_startup() {
+            Ok(0) => {}
+            Ok(n) => info!(
+                "[agent-state] Applied failure disposition to {} abandoned Agent Org task(s) on startup",
+                n
+            ),
+            Err(err) => warn!(
+                "[agent-state] Failed to recover abandoned Agent Org tasks on startup: {}",
+                err
+            ),
+        }
+
+        // Interventions cannot survive a process restart: their in-memory
+        // sessions were abandoned above. Clear them before finality checks so
+        // a fully-resolved run is not needlessly paused by an expired control
+        // lease from the previous process.
+        match crate::coordination::agent_member_interventions::AgentMemberInterventionStore::clear_all_active_on_startup() {
+            Ok(0) => {}
+            Ok(n) => info!(
+                "[agent-state] Cleared {} stale member intervention(s) on startup",
+                n
+            ),
+            Err(err) => warn!(
+                "[agent-state] Failed to clear stale member interventions on startup: {}",
+                err
+            ),
+        }
+
+        // Runs whose tasks were already resolved may have been kept open only
+        // by an orphaned queued intent. Close them through the normal atomic
+        // finality path before pausing genuinely unfinished work.
+        match crate::coordination::agent_org_runs::AgentOrgRunStore::reconcile_resolved_running_runs_on_startup() {
+            Ok(0) => {}
+            Ok(n) => info!(
+                "[agent-state] Completed {} fully-resolved Agent Org run(s) during startup recovery",
+                n
+            ),
+            Err(err) => warn!(
+                "[agent-state] Failed to reconcile resolved Agent Org runs on startup: {}",
+                err
+            ),
+        }
+
         // Transition any Agent Org runs that were `running` when the previous
         // process exited to `paused`. Their member sessions are now `abandoned`
-        // (see above), so `reconcile_if_terminal` would auto-terminate the run
+        // (see above), so `reconcile_run_finality` would auto-terminate the run
         // if it remained `running`. By moving to `paused` instead, the run stays
         // visible (non-terminal) and can be resumed from the UI.
         match crate::coordination::agent_org_runs::AgentOrgRunStore::mark_all_running_as_paused_on_startup() {
@@ -165,21 +208,6 @@ impl AgentAppState {
             ),
             Err(err) => warn!(
                 "[agent-state] Failed to pause interrupted Agent Org runs on startup: {}",
-                err
-            ),
-        }
-
-        // Clear all active member interventions: their sessions are now `abandoned`
-        // so the 3-minute TTL window is no longer meaningful. Clearing eagerly
-        // prevents the AgentOrgInterventionPinBar from reappearing after restart.
-        match crate::coordination::agent_member_interventions::AgentMemberInterventionStore::clear_all_active_on_startup() {
-            Ok(0) => {}
-            Ok(n) => info!(
-                "[agent-state] Cleared {} stale member intervention(s) on startup",
-                n
-            ),
-            Err(err) => warn!(
-                "[agent-state] Failed to clear stale member interventions on startup: {}",
                 err
             ),
         }
@@ -420,6 +448,17 @@ impl AgentAppState {
                 reason.as_str()
             );
             true
+        } else if !reason.repairs_missing_session_as_failed() {
+            // Agent Org pause walks the durable roster, which includes lazy
+            // members that have no in-memory runtime yet. Their absence is
+            // expected and must not be rewritten to Failed merely because
+            // the user paused the group chat.
+            info!(
+                "[agent-state] Session not live during cancel; preserving durable status: {} (reason={})",
+                session_id,
+                reason.as_str()
+            );
+            false
         } else {
             // Neither the live session map nor the job registry knows about
             // this session. It may be an orphan DB row from a failed spawn

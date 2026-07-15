@@ -109,7 +109,8 @@ impl PrePlanModeCache {
 /// Coordinator-requested `AgentExecMode` override.
 ///
 /// Set by the inbox-drain side-effect path when the recipient observes
-/// an `AgentMessage::ExecModeSetRequest` from the org coordinator.
+/// a historical `AgentMessage::ExecModeSetRequest` already persisted by an
+/// older build. New Agent Org work carries mode on `TaskAssigned`.
 /// Consumed (`take`) by the next call into `resolve_agent_mode` so the
 /// next turn launches in the requested mode without the LLM having to
 /// echo the override back. Once consumed, the cache resets — a

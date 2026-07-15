@@ -20,13 +20,20 @@ use std::sync::Arc;
 use crate::coordination::agent_inbox::{
     is_supported_agent_org_remote_mode, AgentInboxStore, AgentMessage, InsertInboxParams, RequestId,
 };
+use crate::coordination::agent_org_plan_approvals::{
+    enqueue_post_approval_messages, AgentOrgPlanApprovalStore, AgentOrgPlanDecisionBy,
+    AgentOrgPlanInboxDelivery,
+};
 use crate::coordination::agent_org_runs::{
     AgentOrgParticipant, AgentOrgRunContext, AgentOrgRunStore, RoutingDecision,
     COORDINATOR_MEMBER_ID,
 };
+use crate::coordination::agent_org_tasks::AgentOrgTaskStore;
 use crate::core::session::SessionStatus;
 use crate::tools::names as tool_names;
 use crate::tools::traits::{params_schema, parse_params, Tool, ToolError};
+
+use super::tasks::task_dependencies_resolved;
 
 /// Hook the tool calls (fire-and-forget) once an inbox row has been
 /// persisted, so that idle or stopped recipient sessions can be woken
@@ -117,8 +124,7 @@ pub struct OrgSendMessageParams {
     pub recipient_member_id: Option<String>,
 
     /// Discriminator for the message body. One of:
-    /// `plain | shutdown_request | shutdown_response | plan_approval_response |
-    ///  exec_mode_set_request`.
+    /// `plain | shutdown_request | shutdown_response | plan_approval_response`.
     ///
     /// Use `plain` for free-form text (the common case). The two
     /// `shutdown_*` kinds form an RPC pair: the coordinator sends
@@ -132,9 +138,10 @@ pub struct OrgSendMessageParams {
     /// `create_plan` writes it directly into the coordinator's inbox so
     /// member sessions can never forge a plan request from a different
     /// session id. Coordinator → member: pick the `request_id` from the
-    /// inbox attachment that delivered the plan, set `accepted = true`
-    /// to start a Build turn on the member, or `accepted = false` plus
-    /// `feedback` to bounce the plan back for revision.
+    /// inbox attachment that delivered the plan. `accepted = true`
+    /// completes the source planning task and unlocks dependent work;
+    /// `accepted = false` plus `feedback` wakes the Planner once in Plan
+    /// mode for revision.
     ///
     /// Permission and mode-switch flows live in their own user-facing
     /// systems (`interaction::permission`, `interaction::mode_switch`)
@@ -147,6 +154,12 @@ pub struct OrgSendMessageParams {
     /// Plain-message body. Required when `kind = "plain"`.
     #[serde(default)]
     pub text: Option<String>,
+
+    /// Durable task that gives a non-coordinator recipient authority and
+    /// context to do formal work. Required for every `plain` message sent
+    /// to a worker. Worker → coordinator escalation is exempt.
+    #[serde(default)]
+    pub related_task_id: Option<String>,
 
     /// Free-form note carried by `shutdown_response`.
     #[serde(default)]
@@ -170,15 +183,11 @@ pub struct OrgSendMessageParams {
     #[serde(default)]
     pub feedback: Option<String>,
 
-    /// Optional next `AgentExecMode` for `plan_approval_response`.
-    /// Approvals default to `build`; rejections default to `plan`.
+    /// Deprecated compatibility field for historical
+    /// `plan_approval_response` rows. New Agent Org plans complete their
+    /// source task on approval rather than starting a Build turn in Planner.
     #[serde(default)]
     pub next_mode: Option<String>,
-
-    /// Target `AgentExecMode` for `exec_mode_set_request`. Agent Org
-    /// remote control currently supports only `build | ask | plan`.
-    #[serde(default)]
-    pub mode: Option<String>,
 }
 
 /// Tool instance. Holds the org run context so we can resolve recipients
@@ -240,12 +249,13 @@ impl OrgSendMessageTool {
 
     fn allowed_message_kinds(&self) -> Vec<&'static str> {
         if self.sender.is_coordinator {
-            vec![
-                "plain",
-                "shutdown_request",
-                "plan_approval_response",
-                "exec_mode_set_request",
-            ]
+            let mut kinds = vec!["plain", "shutdown_request"];
+            if self.org_context.plan_approval_policy
+                == crate::definitions::orgs::PlanApprovalPolicy::Coordinator
+            {
+                kinds.push("plan_approval_response");
+            }
+            kinds
         } else {
             vec!["plain", "shutdown_response"]
         }
@@ -277,7 +287,7 @@ impl OrgSendMessageTool {
         let allowed = self.allowed_recipient_member_ids();
         let kinds = self.allowed_message_kinds();
         format!(
-            "{}\n\nCurrent Agent Org routing context:\n- hierarchy_mode: {}\n- sender_member_id: {}\n- routing_rule: {}\n- recipient_member_id enum: [{}]\n- kind enum for this sender: [{}]\n\nUse exactly one recipient_member_id from the enum. Do not route by display name or agent id.\n\nCoordinator planning protocol:\n- Before asking a member to draft an implementation plan, risk review, migration plan, architecture proposal, or phased design, send `kind = \"exec_mode_set_request\"`, set `mode = \"plan\"`, include a fresh `request_id`, and explain the reason.\n- A member's `create_plan` call creates an internal `plan_approval_request` in the coordinator inbox; it is not user-facing and is not LLM-callable here.\n- To answer a submitted member plan, send `kind = \"plan_approval_response\"`, echo the inbox `request_id`, and set `accepted = true` to approve into Build mode by default or `accepted = false` with `feedback` to keep the member in Plan mode for revision.",
+            "{}\n\nCurrent Agent Org routing context:\n- hierarchy_mode: {}\n- sender_member_id: {}\n- routing_rule: {}\n- recipient_member_id enum: [{}]\n- kind enum for this sender: [{}]\n\nUse exactly one recipient_member_id from the enum. Do not route by display name or agent id.\n\nFormal-work rule:\n- A `plain` message to any non-coordinator worker MUST include `related_task_id`.\n- The task must be unresolved, dependency-ready, and already owned by that recipient. Eligibility alone is not an assignment.\n- Create and explicitly assign the durable task first; a chat message cannot replace a task, assign ownerless work, or bypass dependencies.\n- Worker → coordinator status/escalation messages do not need `related_task_id`.\n\nCoordinator planning protocol:\n- Create planning work with `task_create execution_mode=\"plan\"`; the assigned Planner starts in Plan mode automatically.\n- A member's `create_plan` call creates a durable approval bound to that planning task.\n- To answer a submitted member plan, send `kind = \"plan_approval_response\"`, echo the inbox `request_id`, and set `accepted = true` to complete the planning task and unlock its dependants, or `accepted = false` with non-empty `feedback` to wake the Planner once for revision.",
             <Self as Tool>::description(self),
             self.hierarchy_mode_label(),
             self.sender.member_id,
@@ -442,6 +452,17 @@ impl OrgSendMessageTool {
                 let accepted = params.accepted.ok_or_else(|| {
                     "kind 'plan_approval_response' requires accepted=true|false".to_string()
                 })?;
+                if !accepted
+                    && params
+                        .feedback
+                        .as_deref()
+                        .is_none_or(|feedback| feedback.trim().is_empty())
+                {
+                    return Err(
+                        "kind 'plan_approval_response' with accepted=false requires non-empty feedback"
+                            .to_string(),
+                    );
+                }
                 let next_mode = match params.next_mode.as_deref().map(str::trim) {
                     Some(value) if !value.is_empty() => {
                         Some(parse_agent_org_remote_mode(value, "next_mode")?)
@@ -502,57 +523,26 @@ impl OrgSendMessageTool {
                  transitions to idle at a turn boundary"
                     .to_string(),
             ),
-            "exec_mode_set_request" => {
-                // Only the coordinator may flip a member's execution
-                // mode. Same shape as the plan_approval_response
-                // restriction. The recipient-side guard
-                // (`apply_payload_side_effects`) re-checks this on
-                // the read path so a row that somehow lands from a
-                // non-coordinator sender is still ignored.
-                if !self.sender.is_coordinator {
-                    return Err(
-                        "kind 'exec_mode_set_request' is restricted to the coordinator".to_string(),
-                    );
-                }
-                let mode_str = params
-                    .mode
-                    .as_deref()
-                    .map(str::trim)
-                    .filter(|s| !s.is_empty())
-                    .ok_or_else(|| {
-                        "kind 'exec_mode_set_request' requires non-empty 'mode' \
-                         (one of: build, ask, plan)"
-                            .to_string()
-                    })?;
-                let mode = parse_agent_org_remote_mode(mode_str, "mode")?;
-                Ok(AgentMessage::ExecModeSetRequest {
-                    request_id: request_id()?,
-                    mode,
-                    reason: params.reason.clone(),
-                })
-            }
             "task_assigned" => Err(
                 // `task_assigned` is the inbox notification emitted
-                // by `task_create`/`task_update` and the
-                // autonomous-claim path. The assignment row's
+                // by `task_create`/`task_update`. The assignment row's
                 // `task_id` must point at a real row in the
                 // `agent_org_tasks` store and the producers go
-                // through `AgentOrgTaskStore::try_claim`/`update`,
+                // through `AgentOrgTaskStore::create`/`update`,
                 // which set the canonical `owner` field atomically.
                 // Allowing the LLM to forge a `task_assigned` over
                 // the wire would let any member fabricate
                 // assignments without ever touching the task store,
                 // breaking the single-source-of-truth invariant.
                 "kind 'task_assigned' is not LLM-callable — \
-                 it is emitted by the task tools and the autonomous \
-                 claim path; use task_create or task_update to \
+                 it is emitted by the task tools after an explicit \
+                 assignment; use task_create or task_update to \
                  (re)assign a task"
                     .to_string(),
             ),
             other => Err(format!(
                 "unknown message kind '{other}' — must be one of: plain, \
-                 shutdown_request, shutdown_response, plan_approval_response, \
-                 exec_mode_set_request"
+                 shutdown_request, shutdown_response, plan_approval_response"
             )),
         }
     }
@@ -583,6 +573,74 @@ impl OrgSendMessageTool {
         }
         Ok(())
     }
+
+    /// A free-form message may carry details about formal work, but it may
+    /// never *create* invisible work. Every worker-directed plain message is
+    /// therefore bound to one durable, unresolved task for that recipient.
+    fn validate_plain_work_context(
+        &self,
+        params: &OrgSendMessageParams,
+        message: &AgentMessage,
+        recipients: &[OrgRecipientTarget],
+    ) -> Result<Option<String>, ToolError> {
+        if !matches!(message, AgentMessage::Plain { .. })
+            || recipients
+                .iter()
+                .all(|recipient| recipient.member_id == COORDINATOR_MEMBER_ID)
+        {
+            return Ok(None);
+        }
+
+        let related_task_id = params
+            .related_task_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|task_id| !task_id.is_empty());
+        let Some(related_task_id) = related_task_id else {
+            return serde_json::to_string(&json!({
+                "delivered": false,
+                "requires_task": true,
+                "reason": "plain_worker_message_requires_related_task",
+                "guidance": "Create or assign an unresolved durable task first, then retry org_send_message with related_task_id. A plain message cannot create invisible worker work.",
+                "recipient_member_ids": recipients.iter().map(|recipient| recipient.member_id.clone()).collect::<Vec<_>>(),
+            }))
+            .map(Some)
+            .map_err(|err| ToolError::ExecutionFailed(err.to_string()));
+        };
+
+        let all_tasks = AgentOrgTaskStore::list(&self.org_context.run_id)
+            .map_err(ToolError::ExecutionFailed)?;
+        let task = all_tasks.iter().find(|task| task.id == related_task_id);
+        let invalid_reason = match task {
+            None => Some("related_task_not_found"),
+            Some(task) if task.status.is_resolved() => Some("related_task_already_completed"),
+            Some(task) if !task_dependencies_resolved(&all_tasks, task) => {
+                Some("related_task_dependencies_unresolved")
+            }
+            Some(task)
+                if recipients.iter().any(|recipient| {
+                    task.owner.as_deref() != Some(recipient.member_id.as_str())
+                }) =>
+            {
+                Some("related_task_not_owned_by_recipient")
+            }
+            Some(_) => None,
+        };
+        let Some(reason) = invalid_reason else {
+            return Ok(None);
+        };
+
+        serde_json::to_string(&json!({
+            "delivered": false,
+            "requires_task": true,
+            "reason": reason,
+            "related_task_id": related_task_id,
+            "guidance": "Use an unresolved, dependency-ready task already owned by the recipient. If it is ownerless, the coordinator must explicitly set owner_member_id first; eligibility alone is not assignment.",
+            "recipient_member_ids": recipients.iter().map(|recipient| recipient.member_id.clone()).collect::<Vec<_>>(),
+        }))
+        .map(Some)
+        .map_err(|err| ToolError::ExecutionFailed(err.to_string()))
+    }
 }
 
 #[async_trait]
@@ -597,10 +655,10 @@ impl Tool for OrgSendMessageTool {
             "The only routing parameter is recipient_member_id; use one of the allowed values listed below.\n",
             "  - 'plain' for free-form text (the common case — set summary + text).\n",
             "  - 'shutdown_request' / 'shutdown_response' for the coordinator-driven graceful-stop RPC.\n",
-            "  - 'plan_approval_response' for the coordinator to reply to a member's submitted plan; approvals default the member to Build mode and rejections default it back to Plan mode.\n",
-            "  - 'exec_mode_set_request' for the coordinator to set a member's next turn mode; use mode='plan' before asking a member to draft a plan.\n",
+            "  - 'plan_approval_response' for the coordinator to approve a member plan (completes its planning task) or request a revision.\n",
             "Messages are persisted to the org inbox and surfaced to the recipient on its next turn. ",
-            "Normal text output is not visible to other agents; use this tool to communicate."
+            "Normal text output is not visible to other agents; use this tool to communicate. ",
+            "Messaging permission is not task authority: every plain message to a worker requires related_task_id for an unresolved, dependency-ready task already owned by that worker. Eligibility alone is not assignment."
         )
     }
 
@@ -629,6 +687,9 @@ impl Tool for OrgSendMessageTool {
             .build_message(&params)
             .map_err(ToolError::InvalidParams)?;
         message.validate().map_err(ToolError::InvalidParams)?;
+        if let Some(guidance) = self.validate_plain_work_context(&params, &message, &recipients)? {
+            return Ok(guidance);
+        }
 
         // Shutdown acknowledgements are part of the coordinator/member
         // handshake and must go back to the coordinator participant.
@@ -651,7 +712,111 @@ impl Tool for OrgSendMessageTool {
                 return Err(ToolError::InvalidParams(hint));
             }
         }
-        self.ensure_recipients_deliverable(&recipients)?;
+        if !matches!(
+            &message,
+            AgentMessage::PlanApprovalResponse { accepted: true, .. }
+        ) {
+            self.ensure_recipients_deliverable(&recipients)?;
+        }
+
+        if let AgentMessage::PlanApprovalResponse {
+            request_id,
+            accepted,
+            feedback,
+            ..
+        } = &message
+        {
+            let approval = AgentOrgPlanApprovalStore::get_pending_by_request_id(
+                &self.org_context.run_id,
+                request_id.as_str(),
+            )
+            .map_err(ToolError::ExecutionFailed)?
+            .ok_or_else(|| {
+                ToolError::InvalidParams(format!(
+                    "No pending Agent Org plan approval matches request_id '{}'",
+                    request_id.as_str()
+                ))
+            })?;
+            if recipients.len() != 1 || recipients[0].member_id != approval.source_member_id {
+                return Err(ToolError::InvalidParams(format!(
+                    "plan_approval_response request_id '{}' must target source member '{}'",
+                    request_id.as_str(),
+                    approval.source_member_id
+                )));
+            }
+
+            if *accepted {
+                let approved = AgentOrgPlanApprovalStore::approve(
+                    &approval.approval_id,
+                    &approval.plan_revision_id,
+                    AgentOrgPlanDecisionBy::Coordinator,
+                    None,
+                )
+                .map_err(ToolError::ExecutionFailed)?;
+                let wake_member_ids = enqueue_post_approval_messages(&self.org_context, &approved)
+                    .map_err(ToolError::ExecutionFailed)?;
+                for member_id in &wake_member_ids {
+                    self.wake_hook
+                        .wake_member(member_id, &self.org_context.run_id);
+                }
+                return serde_json::to_string(&json!({
+                    "kind": "plan_approval_response",
+                    "request_id": request_id.as_str(),
+                    "org_run_id": self.org_context.run_id,
+                    "sender_member_id": self.sender.member_id,
+                    "approval_id": approval.approval_id,
+                    "source_task_id": approval.source_task_id,
+                    "decision": "approved",
+                    "woken_member_ids": wake_member_ids,
+                }))
+                .map_err(|err| {
+                    ToolError::ExecutionFailed(format!(
+                        "serialize org_send_message result failed: {err}"
+                    ))
+                });
+            }
+
+            let feedback = feedback
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    ToolError::InvalidParams(
+                        "A rejected plan requires non-empty feedback".to_string(),
+                    )
+                })?;
+            let recipient = &recipients[0];
+            let (_, record) = AgentOrgPlanApprovalStore::request_changes(
+                &approval.approval_id,
+                &approval.plan_revision_id,
+                AgentOrgPlanDecisionBy::Coordinator,
+                feedback,
+                AgentOrgPlanInboxDelivery {
+                    recipient_agent_id: recipient.agent_id.clone(),
+                    sender_agent_id: self.sender.agent_id.clone(),
+                    sender_member_id: Some(self.sender.member_id.clone()),
+                },
+            )
+            .map_err(ToolError::ExecutionFailed)?;
+            self.wake_hook
+                .wake_member(&recipient.member_id, &self.org_context.run_id);
+            return serde_json::to_string(&json!({
+                "kind": "plan_approval_response",
+                "request_id": request_id.as_str(),
+                "org_run_id": self.org_context.run_id,
+                "sender_member_id": self.sender.member_id,
+                "approval_id": approval.approval_id,
+                "source_task_id": approval.source_task_id,
+                "decision": "changes_requested",
+                "inbox_id": record.id,
+                "woken_member_ids": [recipient.member_id.clone()],
+            }))
+            .map_err(|err| {
+                ToolError::ExecutionFailed(format!(
+                    "serialize org_send_message result failed: {err}"
+                ))
+            });
+        }
 
         let mut delivered = Vec::with_capacity(recipients.len());
         for recipient in recipients {
@@ -683,6 +848,7 @@ impl Tool for OrgSendMessageTool {
         let result = json!({
             "kind": message.kind_tag(),
             "request_id": message.request_id().map(|r| r.as_str().to_string()),
+            "related_task_id": params.related_task_id.as_deref().map(str::trim).filter(|value| !value.is_empty()),
             "org_run_id": self.org_context.run_id,
             "sender_member_id": self.sender.member_id,
             "delivered": delivered,
@@ -705,6 +871,10 @@ impl Tool for OrgSendMessageTool {
 mod tests {
     use super::*;
     use crate::coordination::agent_org_runs::{AgentOrgContextMember, COORDINATOR_MEMBER_ID};
+    use crate::coordination::agent_org_tasks::{
+        new_task_id, AgentOrgTaskStore, CreateTaskParams, TaskStatus,
+        TASK_METADATA_ELIGIBLE_MEMBER_IDS,
+    };
     use crate::definitions::orgs::HierarchyMode;
     use std::sync::Mutex;
 
@@ -738,6 +908,7 @@ mod tests {
                 },
             ],
             hierarchy_mode,
+            plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
             root_session_id: Some("root-1".to_string()),
         })
     }
@@ -749,6 +920,26 @@ mod tests {
             "summary": "hello",
             "text": "hello"
         })
+    }
+
+    fn seed_owned_task(owner_member_id: &str) -> String {
+        let task_id = new_task_id();
+        AgentOrgTaskStore::create(CreateTaskParams {
+            id: task_id.clone(),
+            org_run_id: "run-1".to_string(),
+            subject: "Durable formal work".to_string(),
+            description: String::new(),
+            active_form: None,
+            owner: Some(owner_member_id.to_string()),
+            status: TaskStatus::Pending,
+            blocks: Vec::new(),
+            blocked_by: Vec::new(),
+            metadata: Some(json!({
+                TASK_METADATA_ELIGIBLE_MEMBER_IDS: [owner_member_id],
+            })),
+        })
+        .expect("seed task");
+        task_id
     }
 
     #[derive(Default, Debug)]
@@ -798,6 +989,7 @@ mod tests {
             .expect("agent sessions schema");
         crate::session::persistence::init(&conn).expect("session schema");
         crate::coordination::agent_org_runs::init_schema(&conn).expect("agent org runs schema");
+        crate::coordination::agent_org_tasks::init_schema(&conn).expect("agent org tasks schema");
         crate::coordination::agent_inbox::init_schema(&conn).expect("agent inbox schema");
         sandbox
     }
@@ -811,13 +1003,13 @@ mod tests {
                 kind: "plain".to_string(),
                 summary: Some("hello".to_string()),
                 text: Some("hello".to_string()),
+                related_task_id: None,
                 note: None,
                 reason: None,
                 request_id: None,
                 accepted: None,
                 feedback: None,
                 next_mode: None,
-                mode: None,
             })
             .expect("builder should be addressable");
 
@@ -834,13 +1026,13 @@ mod tests {
                 kind: "plain".to_string(),
                 summary: Some("hello".to_string()),
                 text: Some("hello".to_string()),
+                related_task_id: None,
                 note: None,
                 reason: None,
                 request_id: None,
                 accepted: None,
                 feedback: None,
                 next_mode: None,
-                mode: None,
             })
             .expect_err("unknown member id should fail");
 
@@ -911,7 +1103,9 @@ mod tests {
         assert!(coordinator_tool
             .llm_description()
             .expect("description")
-            .contains("kind enum for this sender: [plain, shutdown_request, plan_approval_response, exec_mode_set_request]"));
+            .contains(
+                "kind enum for this sender: [plain, shutdown_request, plan_approval_response]"
+            ));
         assert!(member_tool
             .llm_description()
             .expect("description")
@@ -928,9 +1122,9 @@ mod tests {
             "description must include planning protocol guidance: {description}"
         );
         assert!(
-            description.contains("kind = \"exec_mode_set_request\"")
-                && description.contains("mode = \"plan\""),
-            "description must explain setting a member to Plan mode: {description}"
+            description.contains("task_create execution_mode=\"plan\"")
+                && description.contains("starts in Plan mode automatically"),
+            "description must explain task-scoped Plan mode: {description}"
         );
         assert!(
             description.contains("kind = \"plan_approval_response\"")
@@ -939,8 +1133,8 @@ mod tests {
             "description must explain member plan approval and rejection: {description}"
         );
         assert!(
-            description.contains("not user-facing"),
-            "description must distinguish member plans from user-facing approval: {description}"
+            description.contains("durable approval bound to that planning task"),
+            "description must bind approval to the planning task: {description}"
         );
     }
 
@@ -961,6 +1155,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn execute_persists_and_wakes_by_member_id() {
         let _sandbox = init_inbox_schema();
+        let task_id = seed_owned_task("builder");
         let wake = Arc::new(RecordingWakeHook::default());
         let tool = OrgSendMessageTool::with_hooks(
             context(),
@@ -969,11 +1164,10 @@ mod tests {
             Arc::new(NoopSelfAbortHook),
         );
 
+        let mut input = params("builder");
+        input["related_task_id"] = Value::String(task_id);
         let result = tool
-            .execute_text(
-                params("builder"),
-                &crate::tools::call_context::CallContext::default(),
-            )
+            .execute_text(input, &crate::tools::call_context::CallContext::default())
             .await
             .expect("send should succeed");
         let value: serde_json::Value = serde_json::from_str(&result).expect("json result");
@@ -993,6 +1187,138 @@ mod tests {
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].recipient_member_id.as_deref(), Some("builder"));
         assert_eq!(rows[0].sender_member_id.as_deref(), Some("coordinator"));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn plain_message_to_worker_without_task_returns_guidance_and_does_not_wake() {
+        let _sandbox = init_inbox_schema();
+        let wake = Arc::new(RecordingWakeHook::default());
+        let tool = OrgSendMessageTool::with_hooks(
+            context(),
+            COORDINATOR_MEMBER_ID.to_string(),
+            wake.clone(),
+            Arc::new(NoopSelfAbortHook),
+        );
+
+        let result = tool
+            .execute_text(
+                params("builder"),
+                &crate::tools::call_context::CallContext::default(),
+            )
+            .await
+            .expect("missing task is recoverable guidance, not a red tool error");
+        let value: Value = serde_json::from_str(&result).expect("guidance json");
+
+        assert_eq!(value["delivered"].as_bool(), Some(false));
+        assert_eq!(value["requires_task"].as_bool(), Some(true));
+        assert_eq!(
+            value["reason"].as_str(),
+            Some("plain_worker_message_requires_related_task")
+        );
+        assert!(wake.snapshot().is_empty());
+        assert!(AgentInboxStore::list_unread_for_member("builder", "run-1")
+            .expect("inbox")
+            .is_empty());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn plain_message_cannot_turn_ownerless_eligibility_into_assignment() {
+        let _sandbox = init_inbox_schema();
+        let task_id = new_task_id();
+        AgentOrgTaskStore::create(CreateTaskParams {
+            id: task_id.clone(),
+            org_run_id: "run-1".to_string(),
+            subject: "Await coordinator assignment".to_string(),
+            description: String::new(),
+            active_form: None,
+            owner: None,
+            status: TaskStatus::Pending,
+            blocks: Vec::new(),
+            blocked_by: Vec::new(),
+            metadata: Some(json!({
+                TASK_METADATA_ELIGIBLE_MEMBER_IDS: ["builder"],
+            })),
+        })
+        .expect("seed ownerless task");
+        let wake = Arc::new(RecordingWakeHook::default());
+        let tool = OrgSendMessageTool::with_hooks(
+            context(),
+            COORDINATOR_MEMBER_ID.to_string(),
+            wake.clone(),
+            Arc::new(NoopSelfAbortHook),
+        );
+        let mut input = params("builder");
+        input["related_task_id"] = json!(task_id);
+
+        let result = tool
+            .execute_text(input, &crate::tools::call_context::CallContext::default())
+            .await
+            .expect("ownerless work returns structured guidance");
+        let value: Value = serde_json::from_str(&result).expect("guidance json");
+        assert_eq!(value["delivered"], false);
+        assert_eq!(value["reason"], "related_task_not_owned_by_recipient");
+        assert!(wake.snapshot().is_empty());
+        assert!(AgentInboxStore::list_unread_for_member("builder", "run-1")
+            .expect("inbox")
+            .is_empty());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn plain_message_cannot_wake_worker_before_related_task_dependencies_complete() {
+        let _sandbox = init_inbox_schema();
+        let upstream_id = seed_owned_task("planner");
+        let child_id = new_task_id();
+        AgentOrgTaskStore::create(CreateTaskParams {
+            id: child_id.clone(),
+            org_run_id: "run-1".to_string(),
+            subject: "Review only after upstream".to_string(),
+            description: String::new(),
+            active_form: None,
+            owner: Some("builder".to_string()),
+            status: TaskStatus::Pending,
+            blocks: Vec::new(),
+            blocked_by: vec![upstream_id],
+            metadata: Some(json!({
+                TASK_METADATA_ELIGIBLE_MEMBER_IDS: ["builder"],
+            })),
+        })
+        .expect("seed blocked child");
+        let wake = Arc::new(RecordingWakeHook::default());
+        let tool = OrgSendMessageTool::with_hooks(
+            context(),
+            COORDINATOR_MEMBER_ID.to_string(),
+            wake.clone(),
+            Arc::new(NoopSelfAbortHook),
+        );
+        let mut input = params("builder");
+        input["related_task_id"] = json!(child_id);
+
+        let result = tool
+            .execute_text(input, &crate::tools::call_context::CallContext::default())
+            .await
+            .expect("blocked work returns guidance");
+        let value: Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(value["reason"], "related_task_dependencies_unresolved");
+        assert!(wake.snapshot().is_empty());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn worker_status_message_to_coordinator_does_not_require_task() {
+        let _sandbox = init_inbox_schema();
+        let tool = OrgSendMessageTool::new(context(), "builder".to_string());
+
+        let result = tool
+            .execute_text(
+                params("coordinator"),
+                &crate::tools::call_context::CallContext::default(),
+            )
+            .await
+            .expect("worker escalation to coordinator remains available");
+        let value: Value = serde_json::from_str(&result).expect("result json");
+        assert_eq!(
+            value["delivered"][0]["recipient_member_id"].as_str(),
+            Some("coordinator")
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

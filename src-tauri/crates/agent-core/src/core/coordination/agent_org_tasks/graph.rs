@@ -36,6 +36,25 @@ pub(super) fn validate_dependency_graph_after_upsert(
     reject_dependency_cycle(&graph)
 }
 
+pub(super) fn validate_dependency_graph(tasks: &[Task], org_run_id: &str) -> Result<(), String> {
+    let mut graph: HashMap<String, Vec<String>> = HashMap::new();
+    for task in tasks {
+        if task.org_run_id != org_run_id {
+            continue;
+        }
+        if task.blocks.iter().any(|id| id == &task.id)
+            || task.blocked_by.iter().any(|id| id == &task.id)
+        {
+            return Err(format!(
+                "{TASK_DEPENDENCY_CYCLE_ERROR}: task '{}' cannot depend on itself",
+                task.id
+            ));
+        }
+        add_dependency_edges(&mut graph, &task.id, &task.blocks, &task.blocked_by);
+    }
+    reject_dependency_cycle(&graph)
+}
+
 pub(super) fn add_dependency_edges(
     graph: &mut HashMap<String, Vec<String>>,
     task_id: &str,
@@ -102,23 +121,6 @@ pub(super) fn visit_dependency_node(
     Ok(())
 }
 
-pub(super) fn blockers_resolved(all: &[Task], blocked_by: &[String]) -> bool {
-    if blocked_by.is_empty() {
-        return true;
-    }
-    for blocker_id in blocked_by {
-        let resolved = all
-            .iter()
-            .find(|task| &task.id == blocker_id)
-            .map(|task| task.status.is_resolved())
-            .unwrap_or(false);
-        if !resolved {
-            return false;
-        }
-    }
-    true
-}
-
 pub(super) fn unresolved_blockers(all: &[Task], blocked_by: &[String]) -> Vec<String> {
     let mut out = Vec::new();
     for blocker_id in blocked_by {
@@ -132,23 +134,4 @@ pub(super) fn unresolved_blockers(all: &[Task], blocked_by: &[String]) -> Vec<St
         }
     }
     out
-}
-
-pub(super) fn find_busy_task(
-    all: &[Task],
-    owner_member_id: &str,
-    except_task_id: &str,
-) -> Option<String> {
-    for task in all {
-        if task.id == except_task_id {
-            continue;
-        }
-        if task.status.is_resolved() {
-            continue;
-        }
-        if task.owner.as_deref() == Some(owner_member_id) {
-            return Some(task.id.clone());
-        }
-    }
-    None
 }

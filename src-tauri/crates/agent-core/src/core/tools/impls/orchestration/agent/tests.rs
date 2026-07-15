@@ -482,6 +482,7 @@ fn ctx_with_members(coordinator_id: &str, member_ids: &[&str]) -> AgentOrgRunCon
             })
             .collect(),
         hierarchy_mode: Default::default(),
+        plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
         root_session_id: Some("root-test".to_string()),
     }
 }

@@ -13,6 +13,17 @@ use crate::{agent_sessions, api};
 pub(crate) fn register_database_schemas() {
     fn init_sessions(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
         session_persistence::init_session_tables(conn)?;
+        match session_persistence::turn_intents::reconcile_in_flight_after_restart(conn) {
+            Ok(0) => {}
+            Ok(count) => tracing::info!(
+                "[startup] Closed {} turn intent(s) left in-flight by the previous process",
+                count
+            ),
+            Err(err) => tracing::warn!(
+                "[startup] Failed to reconcile in-flight turn intents: {}",
+                err
+            ),
+        }
 
         agent_core::persistence::session_snapshots::ensure_tables_with(conn)?;
         agent_core::session::persistence::init(conn)?;
@@ -54,7 +65,9 @@ pub(crate) fn register_database_schemas() {
 
         agent_core::coordination::agent_org_runs::init_schema(conn)?;
         agent_core::coordination::agent_inbox::init_schema(conn)?;
+        agent_core::coordination::agent_org_plan_approvals::init_schema(conn)?;
         agent_core::coordination::agent_org_tasks::init_schema(conn)?;
+        agent_core::coordination::agent_org_watchdog::init_schema(conn)?;
         agent_core::coordination::agent_member_interventions::init_schema(conn)?;
 
         // Pending plan-approval snapshots (one row per session with a Build

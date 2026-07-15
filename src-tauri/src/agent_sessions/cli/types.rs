@@ -20,7 +20,7 @@ pub enum SessionStatus {
     Running,
     /// Session is idle — waiting for the next dispatch (non-terminal).
     /// Used for Agent Org member sessions after each successful turn so
-    /// `reconcile_if_terminal` does not prematurely end the run.
+    /// `reconcile_run_finality` does not prematurely end the run.
     Idle,
     Completed,
     Failed,

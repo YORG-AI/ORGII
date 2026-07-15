@@ -9,6 +9,8 @@ use crate::coordination::agent_inbox::{
 };
 use crate::coordination::agent_org_runs::AgentOrgRunContext;
 
+const TASK_ASSIGNED_LIFECYCLE_INSTRUCTIONS: &str = "Before doing this task, call task_update for this exact task_id with status=\"in_progress\". Only you, the owning member, may record this task's in_progress/completed lifecycle or output. When finished, call task_update with status=\"completed\" and output={summary, content?, artifact_ids?}; summary is required.";
+
 pub(super) fn render_inbox_attachment(
     rows: &[AgentInboxRecord],
     ctx: &AgentOrgRunContext,
@@ -93,12 +95,14 @@ fn render_payload_for_transcript(msg: &AgentMessage) -> String {
             ])
         }
         AgentMessage::PlanApprovalRequest {
+            source_task_id,
             plan_title,
             plan_path,
             plan_content,
             ..
         } => join_non_empty([
             format!("Plan approval requested: {plan_title}"),
+            format!("Source task: {source_task_id}"),
             plan_path.clone(),
             plan_content.clone(),
         ]),
@@ -126,6 +130,7 @@ fn render_payload_for_transcript(msg: &AgentMessage) -> String {
             reason,
             summary,
             failure_reason,
+            unfinished_task_ids,
             ..
         } => {
             let status = match reason {
@@ -137,6 +142,14 @@ fn render_payload_for_transcript(msg: &AgentMessage) -> String {
                 format!("{member_name} is {status}."),
                 summary.clone().unwrap_or_default(),
                 failure_reason.clone().unwrap_or_default(),
+                if unfinished_task_ids.is_empty() {
+                    String::new()
+                } else {
+                    format!(
+                        "Lifecycle incomplete for task(s): {}. The member is idle; do not wait silently. Ask it to finish the lifecycle or reassign explicitly.",
+                        unfinished_task_ids.join(", ")
+                    )
+                },
             ])
         }
         AgentMessage::TaskAssigned {
@@ -144,10 +157,45 @@ fn render_payload_for_transcript(msg: &AgentMessage) -> String {
             subject,
             description,
             assigned_by,
+            execution_mode,
+            dependency_outputs,
+        } => {
+            let handoffs = dependency_outputs
+                .iter()
+                .map(|output| {
+                    join_non_empty([
+                        format!("Upstream result — {}: {}", output.subject, output.summary),
+                        output.content.clone().unwrap_or_default(),
+                        if output.artifact_ids.is_empty() {
+                            String::new()
+                        } else {
+                            format!("Artifacts: {}", output.artifact_ids.join(", "))
+                        },
+                    ])
+                })
+                .collect::<Vec<_>>()
+                .join("\n\n");
+            join_non_empty([
+                format!("Task assigned by {assigned_by}: {subject}"),
+                format!("Task ID: {task_id}"),
+                format!("Execution mode: {}", execution_mode.as_wire()),
+                description.clone(),
+                handoffs,
+                TASK_ASSIGNED_LIFECYCLE_INSTRUCTIONS.to_string(),
+            ])
+        }
+        AgentMessage::TaskCompleted {
+            task_id,
+            subject,
+            completed_by_member_id,
+            output_summary,
+            remaining_open_task_count,
         } => join_non_empty([
-            format!("Task assigned by {assigned_by}: {subject}"),
+            format!("Task completed by {completed_by_member_id}: {subject}"),
             format!("Task ID: {task_id}"),
-            description.clone(),
+            output_summary.clone().unwrap_or_default(),
+            format!("Remaining open tasks: {remaining_open_task_count}"),
+            "Refresh task_list/task_get from durable state before deciding the next step. Only announce that the whole run is complete when task_list.run_summary.completion_ready is true; zero open tasks alone is not proof because another member, unread handoff, or plan approval may still be active.".to_string(),
         ]),
         AgentMessage::ExecModeSetRequest { mode, reason, .. } => join_non_empty([
             format!("Execution mode requested: {}", mode.as_str()),
@@ -182,12 +230,18 @@ pub(super) fn render_payload(msg: &AgentMessage) -> String {
             note.as_deref().map(xml_escape).unwrap_or_default(),
         ),
         AgentMessage::PlanApprovalRequest {
+            approval_id,
+            plan_revision_id,
+            source_task_id,
             plan_title,
             plan_path,
             plan_content,
             ..
         } => format!(
-            "<plan_approval_request title=\"{}\" path=\"{}\">{}</plan_approval_request>",
+            "<plan_approval_request approval_id=\"{}\" plan_revision_id=\"{}\" source_task_id=\"{}\" title=\"{}\" path=\"{}\">{}</plan_approval_request>",
+            xml_escape(approval_id),
+            xml_escape(plan_revision_id),
+            xml_escape(source_task_id),
             xml_escape(plan_title),
             xml_escape(plan_path),
             xml_escape(plan_content),
@@ -230,6 +284,7 @@ pub(super) fn render_payload(msg: &AgentMessage) -> String {
             current_mode,
             summary,
             failure_reason,
+            unfinished_task_ids,
         } => {
             // `reason` -> stable wire string for the LLM.
             let reason_str = match reason {
@@ -256,14 +311,23 @@ pub(super) fn render_payload(msg: &AgentMessage) -> String {
                 }
                 _ => String::new(),
             };
+            let unfinished_attr = if unfinished_task_ids.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    " unfinished_task_ids=\"{}\"",
+                    xml_escape(&unfinished_task_ids.join(","))
+                )
+            };
             format!(
-                "<member_idle member_id=\"{}\" member_name=\"{}\" reason=\"{}\"{}{}{}/>",
+                "<member_idle member_id=\"{}\" member_name=\"{}\" reason=\"{}\"{}{}{}{}/>",
                 xml_escape(member_id),
                 xml_escape(member_name),
                 xml_escape(reason_str),
                 mode_attr,
                 summary_attr,
                 failure_attr,
+                unfinished_attr,
             )
         }
         AgentMessage::TaskAssigned {
@@ -271,12 +335,49 @@ pub(super) fn render_payload(msg: &AgentMessage) -> String {
             subject,
             description,
             assigned_by,
+            execution_mode,
+            dependency_outputs,
+        } => {
+            let outputs = dependency_outputs
+                .iter()
+                .map(|output| {
+                    let content = output.content.as_deref().unwrap_or_default();
+                    let artifacts = output.artifact_ids.join(",");
+                    format!(
+                        "<dependency_output task_id=\"{}\" subject=\"{}\" produced_by_member_id=\"{}\" summary=\"{}\" artifacts=\"{}\">{}</dependency_output>",
+                        xml_escape(&output.task_id),
+                        xml_escape(&output.subject),
+                        xml_escape(&output.produced_by_member_id),
+                        xml_escape(&output.summary),
+                        xml_escape(&artifacts),
+                        xml_escape(content),
+                    )
+                })
+                .collect::<String>();
+            format!(
+                "<task_assigned task_id=\"{}\" subject=\"{}\" assigned_by=\"{}\" execution_mode=\"{}\"><description>{}</description>{}<instructions>{}</instructions></task_assigned>",
+                xml_escape(task_id),
+                xml_escape(subject),
+                xml_escape(assigned_by),
+                execution_mode.as_wire(),
+                xml_escape(description),
+                outputs,
+                xml_escape(TASK_ASSIGNED_LIFECYCLE_INSTRUCTIONS),
+            )
+        }
+        AgentMessage::TaskCompleted {
+            task_id,
+            subject,
+            completed_by_member_id,
+            output_summary,
+            remaining_open_task_count,
         } => format!(
-            "<task_assigned task_id=\"{}\" subject=\"{}\" assigned_by=\"{}\">{}</task_assigned>",
+            "<task_completed task_id=\"{}\" subject=\"{}\" completed_by_member_id=\"{}\" remaining_open_task_count=\"{}\">{}</task_completed>",
             xml_escape(task_id),
             xml_escape(subject),
-            xml_escape(assigned_by),
-            xml_escape(description),
+            xml_escape(completed_by_member_id),
+            remaining_open_task_count,
+            output_summary.as_deref().map(xml_escape).unwrap_or_default(),
         ),
         AgentMessage::ExecModeSetRequest { mode, reason, .. } => {
             let reason_attr = match reason {

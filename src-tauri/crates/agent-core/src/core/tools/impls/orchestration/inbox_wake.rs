@@ -50,6 +50,17 @@ pub struct AppHandleInboxWakeHook {
     app_handle: AppHandle,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WakeRequestOutcome {
+    Enqueued,
+    Coalesced,
+    DeferredPaused,
+    DeferredIntervention,
+    RunTerminal,
+    SessionUnavailable,
+    Failed(String),
+}
+
 impl AppHandleInboxWakeHook {
     pub fn new(app_handle: AppHandle) -> Arc<Self> {
         Arc::new(Self { app_handle })
@@ -62,7 +73,8 @@ impl InboxWakeHook for AppHandleInboxWakeHook {
         let run_id = org_run_id.to_string();
         let app_handle = self.app_handle.clone();
         tokio::spawn(async move {
-            wake_one_member(app_handle, &member, &run_id).await;
+            let outcome = wake_one_member(app_handle, &member, &run_id).await;
+            info!(run_id = %run_id, member_id = %member, ?outcome, "[inbox_wake] wake request finished");
         });
     }
 }
@@ -79,26 +91,74 @@ fn should_dispatch_wake(status: SessionStatus) -> bool {
     )
 }
 
-async fn wake_one_member(app_handle: AppHandle, member_id: &str, org_run_id: &str) {
-    // Pause gate: do not dispatch wakes while the org run is paused. The
-    // inbox row remains pending and will be drained once the run is resumed.
+async fn wake_one_member(
+    app_handle: AppHandle,
+    member_id: &str,
+    org_run_id: &str,
+) -> WakeRequestOutcome {
+    // Only a Running run can dispatch work. Fail closed so a stale wake never
+    // resurrects a paused, terminal, missing, or unreadable run.
     match AgentOrgRunStore::get_run_status(org_run_id) {
+        Ok(Some(AgentOrgRunStatus::Running)) => {}
         Ok(Some(AgentOrgRunStatus::Paused)) => {
             info!(
                 run_id = %org_run_id,
                 member_id = %member_id,
-                "[inbox_wake] run is paused; deferring wake until resumed"
+                "[inbox_wake] run is paused; inbox row remains pending"
             );
-            return;
+            return WakeRequestOutcome::DeferredPaused;
         }
-        Ok(_) => {}
+        Ok(Some(status)) => {
+            info!(run_id = %org_run_id, member_id = %member_id, ?status, "[inbox_wake] run is terminal; refusing wake");
+            return WakeRequestOutcome::RunTerminal;
+        }
+        Ok(None) => {
+            warn!(
+                run_id = %org_run_id,
+                member_id = %member_id,
+                "[inbox_wake] run does not exist; refusing wake"
+            );
+            return WakeRequestOutcome::RunTerminal;
+        }
         Err(err) => {
             warn!(
                 run_id = %org_run_id,
                 member_id = %member_id,
                 error = %err,
-                "[inbox_wake] run status lookup failed; proceeding with wake"
+                "[inbox_wake] run status lookup failed; refusing wake"
             );
+            return WakeRequestOutcome::Failed(err);
+        }
+    }
+
+    // Direct user chat temporarily owns this member's next turn. Dispatching
+    // an empty resume while the intervention is active cannot drain the inbox;
+    // the lifecycle race guard would then see the same unread row and enqueue
+    // another empty resume forever. Defer before touching the scheduler so the
+    // durable inbox row remains the one source of truth and the frontend never
+    // sees a fake running/idle pulse.
+    match crate::coordination::agent_member_interventions::AgentMemberInterventionStore::active_for_member(
+        org_run_id,
+        member_id,
+    ) {
+        Ok(Some(intervention)) => {
+            info!(
+                run_id = %org_run_id,
+                member_id = %member_id,
+                resume_after = %intervention.resume_after,
+                "[inbox_wake] member is in direct user intervention; deferring wake"
+            );
+            return WakeRequestOutcome::DeferredIntervention;
+        }
+        Ok(None) => {}
+        Err(err) => {
+            warn!(
+                run_id = %org_run_id,
+                member_id = %member_id,
+                error = %err,
+                "[inbox_wake] intervention lookup failed; refusing wake"
+            );
+            return WakeRequestOutcome::Failed(err);
         }
     }
 
@@ -112,7 +172,7 @@ async fn wake_one_member(app_handle: AppHandle, member_id: &str, org_run_id: &st
                     error = %err,
                     "[inbox_wake] coordinator session lookup failed; skipping wake"
                 );
-                return;
+                return WakeRequestOutcome::Failed(err);
             }
         }
     } else {
@@ -120,13 +180,23 @@ async fn wake_one_member(app_handle: AppHandle, member_id: &str, org_run_id: &st
             org_run_id,
             &[member_id.to_string()],
         ) {
-            Ok(mut sessions) => sessions.pop().map(|session| {
-                crate::coordination::agent_org_runs::WorkerSessionInfo {
+            Ok(mut sessions) => match sessions.pop() {
+                Some(session) if session.cli_agent_type.is_some() => {
+                    warn!(
+                        run_id = %org_run_id,
+                        member_id = %member_id,
+                        cli_agent_type = ?session.cli_agent_type,
+                        "[inbox_wake] historical CLI Agent Org member is unsupported; refusing Rust wake"
+                    );
+                    return WakeRequestOutcome::SessionUnavailable;
+                }
+                Some(session) => Some(crate::coordination::agent_org_runs::WorkerSessionInfo {
                     session_id: session.session_id,
                     status: session.status,
                     updated_at: session.updated_at,
-                }
-            }),
+                }),
+                None => None,
+            },
             Err(err) => {
                 warn!(
                     run_id = %org_run_id,
@@ -134,7 +204,7 @@ async fn wake_one_member(app_handle: AppHandle, member_id: &str, org_run_id: &st
                     error = %err,
                     "[inbox_wake] member session lookup failed; skipping wake"
                 );
-                return;
+                return WakeRequestOutcome::Failed(err);
             }
         }
     };
@@ -144,7 +214,7 @@ async fn wake_one_member(app_handle: AppHandle, member_id: &str, org_run_id: &st
             member_id = %member_id,
             "[inbox_wake] no materialized member session; inbox row remains pending"
         );
-        return;
+        return WakeRequestOutcome::SessionUnavailable;
     };
 
     wake_session(
@@ -154,7 +224,7 @@ async fn wake_one_member(app_handle: AppHandle, member_id: &str, org_run_id: &st
         member_id,
         org_run_id,
     )
-    .await;
+    .await
 }
 
 async fn wake_session(
@@ -163,7 +233,7 @@ async fn wake_session(
     status: SessionStatus,
     recipient_member_id: &str,
     org_run_id: &str,
-) {
+) -> WakeRequestOutcome {
     if !should_dispatch_wake(status) {
         info!(
             run_id = %org_run_id,
@@ -172,7 +242,7 @@ async fn wake_session(
             status = status.as_str(),
             "[inbox_wake] session status is not wakeable; inbox row remains pending"
         );
-        return;
+        return WakeRequestOutcome::SessionUnavailable;
     }
 
     // Borrow `AgentAppState` from Tauri-managed state. Returning early
@@ -186,7 +256,7 @@ async fn wake_session(
                 member_id = %recipient_member_id,
                 "[inbox_wake] AgentAppState not registered on app handle; cannot wake"
             );
-            return;
+            return WakeRequestOutcome::Failed("AgentAppState is unavailable".to_string());
         }
     };
 
@@ -196,19 +266,42 @@ async fn wake_session(
     // payload as the user attachment at turn-boundary entry. The
     // resumed turn therefore opens with the inbox contents as user
     // input, exactly like a normal "user typed a message" turn.
-    let result = crate::state::commands::session::message::send_message_impl_for_wake(
+    let result = crate::state::commands::session::message::send_message_impl_for_org_wake(
         &state,
         session_id.to_string(),
+        org_run_id,
+        recipient_member_id,
     )
     .await;
     match result {
-        Ok(_) => {
+        Ok(response) => {
+            let coalesced = serde_json::from_str::<serde_json::Value>(&response.content)
+                .ok()
+                .and_then(|value| value.get("duplicate").and_then(serde_json::Value::as_bool))
+                .unwrap_or(false);
             info!(
                 run_id = %org_run_id,
                 member_id = %recipient_member_id,
                 session_id = %session_id,
-                "[inbox_wake] queued resume turn for stopped recipient"
+                coalesced,
+                "[inbox_wake] processed resume dispatch for stopped recipient"
             );
+            if coalesced {
+                WakeRequestOutcome::Coalesced
+            } else {
+                if status != SessionStatus::Idle {
+                    if let Err(err) =
+                        crate::coordination::agent_org_watchdog::record_accepted_member_rewake(
+                            org_run_id,
+                            recipient_member_id,
+                            status,
+                        )
+                    {
+                        warn!(run_id = %org_run_id, member_id = %recipient_member_id, error = %err, "[inbox_wake] accepted wake but failed to persist recovery attempt");
+                    }
+                }
+                WakeRequestOutcome::Enqueued
+            }
         }
         Err(err) => {
             warn!(
@@ -218,6 +311,7 @@ async fn wake_session(
                 error = %err,
                 "[inbox_wake] resume turn dispatch failed"
             );
+            WakeRequestOutcome::Failed(err)
         }
     }
 }

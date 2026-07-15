@@ -63,6 +63,7 @@ pub const TOOL_GROUPS: &[(&str, &[&str])] = &[
         &[
             tool_names::ORG_SEND_MESSAGE,
             tool_names::TASK_CREATE,
+            tool_names::TASK_GRAPH_CREATE,
             tool_names::TASK_UPDATE,
             tool_names::TASK_LIST,
             tool_names::TASK_GET,

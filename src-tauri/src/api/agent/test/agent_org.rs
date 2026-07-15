@@ -53,11 +53,12 @@ use agent_core::coordination::agent_inbox::AgentInboxStore;
 use agent_core::coordination::agent_org_runs::{
     AgentOrgContextMember, AgentOrgRunContext, AgentOrgRunStore,
 };
-use agent_core::definitions::orgs::{AgentOrgsStore, OrgDefinition, OrgMember};
+use agent_core::coordination::agent_org_tasks::TASK_METADATA_ELIGIBLE_MEMBER_IDS;
+use agent_core::definitions::orgs::{orgs_store, AgentOrgsStore, OrgDefinition, OrgMember};
 use agent_core::state::commands::session::org_tasks::agent_org_session_run_view_impl;
 use agent_core::tools::error::ToolError;
 use agent_core::tools::impls::orchestration::agent_org::tasks::{
-    TaskCreateTool, TaskToolsContext, TaskUpdateTool,
+    TaskCreateTool, TaskGraphCreateTool, TaskToolsContext, TaskUpdateTool,
 };
 use agent_core::tools::impls::orchestration::org_send_message::{
     NoopInboxWakeHook, OrgSendMessageTool,
@@ -170,6 +171,7 @@ pub async fn test_agent_org_seed(Json(body): Json<serde_json::Value>) -> Json<se
         agent_id: coordinator_agent_id.clone(),
         description: Some("E2E test org seeded via /test/agent-org/seed".to_string()),
         hierarchy_mode: Default::default(),
+        plan_approval_policy: Default::default(),
         children,
     };
 
@@ -960,6 +962,7 @@ pub async fn test_agent_org_drain_inbox(
         coordinator_role,
         members,
         hierarchy_mode: Default::default(),
+        plan_approval_policy: Default::default(),
         root_session_id: None,
     };
 
@@ -1108,6 +1111,7 @@ fn parse_direct_org_context(
             coordinator_role,
             members,
             hierarchy_mode: Default::default(),
+            plan_approval_policy: Default::default(),
             root_session_id: None,
         }),
         sender_agent_id,
@@ -1269,11 +1273,12 @@ pub async fn test_agent_org_task_tool_direct(
     };
     let operation = match obj.get("operation").and_then(|value| value.as_str()) {
         Some("create") => "create",
+        Some("graph_create") => "graph_create",
         Some("update") => "update",
         _ => {
             return Json(serde_json::json!({
                 "ok": false,
-                "error": "operation must be 'create' or 'update'"
+                "error": "operation must be 'create', 'graph_create', or 'update'"
             }))
         }
     };
@@ -1305,6 +1310,14 @@ pub async fn test_agent_org_task_tool_direct(
     let result = match operation {
         "create" => {
             TaskCreateTool::new(Arc::clone(&ctx))
+                .execute_text(
+                    params_value,
+                    &agent_core::tools::call_context::CallContext::default(),
+                )
+                .await
+        }
+        "graph_create" => {
+            TaskGraphCreateTool::new(Arc::clone(&ctx))
                 .execute_text(
                     params_value,
                     &agent_core::tools::call_context::CallContext::default(),
@@ -1372,7 +1385,7 @@ pub async fn test_agent_org_task_tool_direct(
 /// `send_message_impl` BEFORE any LLM call (line 125 of
 /// `state/commands/session/message.rs`), so polling status alone is a
 /// faster, cheaper signal that the wake chain wired through the hook
-/// → resolver → terminal-state gate → `send_message_impl_for_wake` →
+/// → resolver → terminal-state gate → `send_message_impl_for_org_wake` →
 /// scheduler enqueue path. A scenario can pin both signals to keep
 /// each other honest.
 pub async fn test_agent_org_run_view(
@@ -1634,6 +1647,7 @@ pub async fn test_agent_org_seed_stale_worker_run(
             agent_id: coordinator_agent_id.clone(),
             description: None,
             hierarchy_mode: Default::default(),
+            plan_approval_policy: Default::default(),
             children: org_snapshot_children,
         };
 
@@ -1722,57 +1736,6 @@ pub async fn test_agent_org_seed_stale_worker_run(
         })),
         Ok(Err(err)) => Json(serde_json::json!({ "ok": false, "error": err })),
         Ok(Ok(value)) => Json(value),
-    }
-}
-
-pub async fn test_agent_org_release_stale_worker_tasks(
-    Json(body): Json<serde_json::Value>,
-) -> Json<serde_json::Value> {
-    let Some(obj) = body.as_object() else {
-        return Json(serde_json::json!({ "ok": false, "error": "body must be an object" }));
-    };
-    let org_run_id = match obj.get("org_run_id").and_then(|value| value.as_str()) {
-        Some(value) if !value.trim().is_empty() => value.to_string(),
-        _ => {
-            return Json(serde_json::json!({
-                "ok": false,
-                "error": "org_run_id is required (non-empty string)"
-            }))
-        }
-    };
-    let stale_before = match obj.get("stale_before").and_then(|value| value.as_str()) {
-        Some(value) => match chrono::DateTime::parse_from_rfc3339(value) {
-            Ok(timestamp) => timestamp.with_timezone(&chrono::Utc),
-            Err(err) => {
-                return Json(serde_json::json!({
-                    "ok": false,
-                    "error": format!("stale_before must be RFC3339: {err}")
-                }))
-            }
-        },
-        None => chrono::Utc::now(),
-    };
-
-    let result = tokio::task::spawn_blocking(move || {
-        AgentOrgRunStore::release_tasks_for_stale_workers(&org_run_id, stale_before)
-    })
-    .await;
-
-    match result {
-        Err(join_err) => Json(serde_json::json!({
-            "ok": false,
-            "error": format!("spawn_blocking join error: {join_err}"),
-        })),
-        Ok(Err(err)) => Json(serde_json::json!({ "ok": false, "error": err })),
-        Ok(Ok(releases)) => Json(serde_json::json!({
-            "ok": true,
-            "released_worker_count": releases.len(),
-            "released_task_count": releases
-                .iter()
-                .map(|release| release.released_tasks.len())
-                .sum::<usize>(),
-            "releases": releases,
-        })),
     }
 }
 
@@ -2001,6 +1964,7 @@ pub async fn test_agent_org_check_member_spawn_gate(
                 coordinator_role: pluck_str("coordinator_role"),
                 members,
                 hierarchy_mode: Default::default(),
+                plan_approval_policy: Default::default(),
                 root_session_id: None,
             })
         }
@@ -2242,6 +2206,7 @@ pub async fn test_agent_org_post_member_idle(
         coordinator_role,
         members,
         hierarchy_mode: Default::default(),
+        plan_approval_policy: Default::default(),
         root_session_id: None,
     };
 
@@ -2276,6 +2241,7 @@ pub async fn test_agent_org_post_member_idle(
         current_mode,
         None,
         failure_reason,
+        Vec::new(),
     );
 
     let after_count = AgentInboxStore::list_by_run(&org_run_id)
@@ -2303,7 +2269,7 @@ pub async fn test_agent_org_post_member_idle(
 /// bypasses the LLM-callable
 /// `task_create` tool so a deterministic E2E can plant a task in any
 /// initial state (e.g. unowned, owned-and-in-progress, completed) and
-/// then exercise the read paths (`drain-inbox` + autonomous claim,
+/// then exercise the read paths (`drain-inbox`, explicit assignment,
 /// shutdown-driven unassign, etc.).
 ///
 /// Body:
@@ -2322,7 +2288,7 @@ pub async fn test_agent_org_post_member_idle(
 /// ```
 ///
 /// `description`/`active_form` default to empty/null. `status` defaults
-/// to `"pending"`. `owner` defaults to null (unclaimed). Returns
+/// to `"pending"`. `owner` defaults to null (awaiting assignment). Returns
 /// `{ok, id}` on success.
 pub async fn test_agent_org_tasks_seed(
     Json(body): Json<serde_json::Value>,
@@ -2393,8 +2359,17 @@ pub async fn test_agent_org_tasks_seed(
                 .collect::<Vec<String>>()
         })
         .unwrap_or_default();
+    let requested_eligible_member_ids = obj
+        .get("eligible_member_ids")
+        .and_then(|value| value.as_array())
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(|value| value.as_str().map(str::to_string))
+                .collect::<Vec<_>>()
+        });
 
-    let params = CreateTaskParams {
+    let mut params = CreateTaskParams {
         id: id.clone(),
         org_run_id,
         subject,
@@ -2407,7 +2382,28 @@ pub async fn test_agent_org_tasks_seed(
         metadata: None,
     };
 
-    match tokio::task::spawn_blocking(move || AgentOrgTaskStore::create(params)).await {
+    match tokio::task::spawn_blocking(move || {
+        if params.owner.is_none() && params.status == TaskStatus::Pending {
+            let eligible_member_ids = match requested_eligible_member_ids {
+                Some(member_ids) => member_ids,
+                None => AgentOrgRunStore::context_for_run(&params.org_run_id, &orgs_store())?
+                    .map(|context| {
+                        context
+                            .members
+                            .into_iter()
+                            .map(|member| member.member_id)
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+            };
+            params.metadata = Some(serde_json::json!({
+                TASK_METADATA_ELIGIBLE_MEMBER_IDS: eligible_member_ids,
+            }));
+        }
+        AgentOrgTaskStore::create(params)
+    })
+    .await
+    {
         Err(join_err) => Json(serde_json::json!({
             "ok": false,
             "error": format!("spawn_blocking join error: {join_err}"),
@@ -2423,8 +2419,8 @@ pub async fn test_agent_org_tasks_seed(
 ///
 /// Returns every task row keyed to the given run, decoded into a
 /// stable shape that mirrors the on-disk schema. Used by deterministic
-/// E2Es to assert side effects (autonomous claim flips owner +
-/// status; shutdown unassign clears owner; task_update sets owner).
+/// E2Es to assert side effects (worker drains leave ownerless state
+/// untouched; shutdown unassign clears owner; task_update sets owner).
 pub async fn test_agent_org_tasks_list(
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
@@ -2481,7 +2477,7 @@ pub async fn test_agent_org_tasks_list(
 ///
 /// Seeds a minimal Agent Org run with a CLI member session at a specified
 /// status in `code_sessions`. Used by deterministic E2E scenarios that
-/// verify `reconcile_if_terminal` does not prematurely end a run when a
+/// verify `reconcile_run_finality` does not prematurely end a run when a
 /// CLI member session is `idle` (non-terminal, between turns).
 ///
 /// Body:
@@ -2575,6 +2571,7 @@ pub async fn test_agent_org_seed_cli_member_run(
             agent_id: coordinator_agent_id.clone(),
             description: None,
             hierarchy_mode: Default::default(),
+            plan_approval_policy: Default::default(),
             children: vec![OrgMember {
                 id: member_id.clone(),
                 name: member_id.clone(),
@@ -2678,34 +2675,60 @@ pub async fn test_agent_org_pause_run(
 /// Simulates the startup cleanup sequence that runs every time the app
 /// initialises after an unexpected exit or normal quit:
 ///
-/// 1. `mark_stale_running_sessions_abandoned` — flips all agent sessions
+/// 1. `reconcile_in_flight_after_restart` — closes turn intents whose
+///    in-memory scheduler disappeared with the previous process.
+/// 2. `reconcile_sessions_with_terminal_turn_markers` — preserves sessions
+///    whose latest turn already durably reached a terminal state.
+/// 3. `mark_stale_running_sessions_abandoned` — flips all remaining sessions
 ///    with an in-flight status (`running`, `waiting_for_user`,
 ///    `waiting_for_funds`) to `abandoned`.
-/// 2. `AgentOrgRunStore::mark_all_running_as_paused_on_startup` — transitions
-///    every `running` org run to `paused` so `reconcile_if_terminal` cannot
+/// 4. `requeue_abandoned_member_tasks_on_startup` — applies the same failed
+///    member task disposition as production startup.
+/// 5. `clear_all_active_on_startup` — clears interventions whose in-memory
+///    sessions no longer exist.
+/// 6. `reconcile_resolved_running_runs_on_startup` — completes runs whose
+///    tasks were already fully resolved.
+/// 7. `mark_all_running_as_paused_on_startup` — transitions
+///    every `running` org run to `paused` so `reconcile_run_finality` cannot
 ///    auto-terminate the run when it sees all sessions abandoned.
-/// 3. `AgentMemberInterventionStore::clear_all_active_on_startup` — clears all
-///    active intervention records so the `AgentOrgInterventionPinBar` does not
-///    reappear after restart.
 ///
-/// Caller-path probe: drives the same three functions that `AgentAppState::
+/// Caller-path probe: drives the same sequence that `AgentAppState::
 /// with_browser` calls, so this endpoint stays in sync if any of those
 /// functions change their signature or semantics. No body required (`{}`).
 pub async fn test_agent_org_simulate_app_restart() -> Json<serde_json::Value> {
     let result = tokio::task::spawn_blocking(move || {
         use agent_core::coordination::agent_member_interventions::AgentMemberInterventionStore;
         use agent_core::coordination::agent_org_runs::AgentOrgRunStore;
-        use agent_core::session::persistence::mark_stale_running_sessions_abandoned;
+        use agent_core::session::persistence::{
+            mark_stale_running_sessions_abandoned, reconcile_sessions_with_terminal_turn_markers,
+        };
 
+        let conn = database::db::get_connection()
+            .map_err(|err| format!("open sessions DB for intent reconciliation failed: {err}"))?;
+        let intents_reconciled =
+            session_persistence::turn_intents::reconcile_in_flight_after_restart(&conn)
+                .map_err(|err| format!("reconcile_in_flight_after_restart failed: {err}"))?;
+        let terminal_sessions_reconciled = reconcile_sessions_with_terminal_turn_markers()
+            .map_err(|err| {
+                format!("reconcile_sessions_with_terminal_turn_markers failed: {err}")
+            })?;
         let sessions_abandoned = mark_stale_running_sessions_abandoned()
             .map_err(|err| format!("mark_stale_running_sessions_abandoned failed: {err}"))?;
-        let runs_paused = AgentOrgRunStore::mark_all_running_as_paused_on_startup()
-            .map_err(|err| format!("mark_all_running_as_paused_on_startup failed: {err}"))?;
+        let tasks_requeued = AgentOrgRunStore::requeue_abandoned_member_tasks_on_startup()
+            .map_err(|err| format!("requeue_abandoned_member_tasks_on_startup failed: {err}"))?;
         let interventions_cleared = AgentMemberInterventionStore::clear_all_active_on_startup()
             .map_err(|err| format!("clear_all_active_on_startup failed: {err}"))?;
+        let runs_completed = AgentOrgRunStore::reconcile_resolved_running_runs_on_startup()
+            .map_err(|err| format!("reconcile_resolved_running_runs_on_startup failed: {err}"))?;
+        let runs_paused = AgentOrgRunStore::mark_all_running_as_paused_on_startup()
+            .map_err(|err| format!("mark_all_running_as_paused_on_startup failed: {err}"))?;
         Ok::<serde_json::Value, String>(serde_json::json!({
             "ok": true,
+            "intents_reconciled": intents_reconciled,
+            "terminal_sessions_reconciled": terminal_sessions_reconciled,
             "sessions_abandoned": sessions_abandoned,
+            "tasks_requeued": tasks_requeued,
+            "runs_completed": runs_completed,
             "runs_paused": runs_paused,
             "interventions_cleared": interventions_cleared,
         }))

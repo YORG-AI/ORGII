@@ -9,7 +9,8 @@ use crate::state::AgentAppState;
 
 use super::identity::{resolve_session_identity, IdentityOverrides};
 use crate::coordination::agent_member_interventions::{
-    AgentMemberInterventionStore, EnterMemberInterventionParams, DEFAULT_INTERVENTION_TTL_SECS,
+    can_enter_member_intervention, AgentMemberInterventionStore, EnterMemberInterventionParams,
+    DEFAULT_INTERVENTION_TTL_SECS,
 };
 
 /// Wake-only entry point for the **background-subagent** completion hook.
@@ -46,25 +47,21 @@ pub async fn send_message_impl_for_subagent_wake(
         false,
         None,
         None,
+        None,
         TurnIntentBridgeSource::Resume,
     )
     .await
 }
 
-/// Wake-only entry point for the inbox auto-resume hook.
+/// Agent Org wake entry point with a stable scheduler idempotency key.
 ///
-/// Equivalent to calling [`send_message_impl`] with empty content,
-/// `is_resume = true`, and otherwise default identity. The combination
-/// `(content="", is_resume=true)` triggers the
-/// `should_save_user_msg = !(context.is_resume && content.is_empty())`
-/// branch in the unified processor, which deliberately skips persisting
-/// an empty user row. The `inbox_drain` hook then injects the
-/// recipient's unread inbox payload as the actual user attachment at
-/// turn-boundary entry, so the resumed turn opens with a real user
-/// message instead of a synthetic empty one.
-pub async fn send_message_impl_for_wake(
+/// The scheduler holds this key while the turn is queued or running, so
+/// concurrent watchdog, inbox, and task wake sources coalesce into one turn.
+pub async fn send_message_impl_for_org_wake(
     state: &AgentAppState,
     session_id: String,
+    org_run_id: &str,
+    member_id: &str,
 ) -> Result<AgentResponse, String> {
     send_message_impl(
         state,
@@ -77,8 +74,9 @@ pub async fn send_message_impl_for_wake(
         None,
         true,
         false,
+        Some(format!("agent-org-wake:{org_run_id}:{member_id}")),
         None,
-        None,
+        Some(org_run_id.to_string()),
         TurnIntentBridgeSource::Resume,
     )
     .await
@@ -119,6 +117,7 @@ pub async fn send_message_impl_for_test(
         false,
         None,
         None,
+        None,
         TurnIntentBridgeSource::UserSubmit,
     )
     .await
@@ -139,6 +138,7 @@ pub(crate) async fn send_message_impl(
     mark_direct_user_intervention: bool,
     client_message_id: Option<String>,
     turn_intent_id: Option<String>,
+    org_wake_run_id: Option<String>,
     source: TurnIntentBridgeSource,
 ) -> Result<AgentResponse, String> {
     // Canonical user-intent id: callers that already mint one at the
@@ -244,6 +244,14 @@ pub(crate) async fn send_message_impl(
                                     session_id_for_intervention
                                 )
                             })?;
+                    if !can_enter_member_intervention(&member_id) {
+                        tracing::debug!(
+                            org_run_id = %org_run_id,
+                            session_id = %session_id_for_intervention,
+                            "ordinary coordinator message does not enter member intervention"
+                        );
+                        return Ok::<(), String>(());
+                    }
                     let agent_id = org_context.require_participant_agent_id(&member_id)?;
                     AgentMemberInterventionStore::enter(EnterMemberInterventionParams {
                         org_run_id,
@@ -252,7 +260,8 @@ pub(crate) async fn send_message_impl(
                         session_id: session_id_for_intervention,
                         reason: Some("direct_user_chat".to_string()),
                         ttl_secs: DEFAULT_INTERVENTION_TTL_SECS,
-                    })
+                    })?;
+                    Ok::<(), String>(())
                 })
                 .await
                 .map_err(|err| err.to_string())??;
@@ -330,7 +339,7 @@ pub(crate) async fn send_message_impl(
         }
     }
 
-    // ── 4. Persist initial status and user_input (single DB write) ───────
+    // ── 4. Persist identity and user_input (single DB write) ─────────────
     //
     // Also closes the override-account persistence gap: callers that switch
     // the account purely on the message wire (plan-approval Build kick-off,
@@ -345,7 +354,6 @@ pub(crate) async fn send_message_impl(
         let prev_account = tokio::task::spawn_blocking(move || {
             let mut prev_account: Option<Option<String>> = None;
             if let Ok(Some(mut db_session)) = session_persistence::get_session(&sid) {
-                db_session.status = crate::session::SessionStatus::Running.as_str().to_owned();
                 if db_session.user_input.is_none() {
                     db_session.user_input = Some(input_preview);
                     db_session.model = Some(model_clone);
@@ -387,8 +395,13 @@ pub(crate) async fn send_message_impl(
     // wire-supplied mode). The override is one-shot — `take` clears
     // it so a follow-up turn falls back to the regular wire value
     // unless the coordinator sends another override.
+    let task_assignment_mode = org_wake_run_id
+        .as_deref()
+        .map(|run_id| resolve_agent_org_task_assignment_mode(&session_id, run_id))
+        .transpose()?
+        .flatten();
     let coordinator_mode_override = session_handle.requested_exec_mode_cache.take(&session_id);
-    let agent_mode = match coordinator_mode_override {
+    let agent_mode = match task_assignment_mode.or(coordinator_mode_override) {
         Some(forced) => forced,
         None => resolve_agent_mode(mode.as_deref())?,
     };
@@ -418,8 +431,78 @@ pub(crate) async fn send_message_impl(
         let workspace_root = workspace_root_for_closure;
         let session = session_for_closure;
         let turn_intent_id = turn_intent_id_for_closure;
+        let org_wake_run_id = org_wake_run_id;
 
         Box::pin(async move {
+            if let Some(run_id) = org_wake_run_id.as_deref() {
+                if !matches!(
+                    crate::coordination::agent_org_runs::AgentOrgRunStore::get_run_status(run_id),
+                    Ok(Some(
+                        crate::coordination::agent_org_runs::AgentOrgRunStatus::Running
+                    ))
+                ) {
+                    tracing::info!(run_id, session_id = %sid, "coalesced Agent Org wake became invalid before execution");
+                    return Ok(String::new());
+                }
+            }
+
+            // Queued and coalesced messages are not running sessions. Promote
+            // the DB state only when the scheduler actually begins execution.
+            // For Agent Org wakes, re-check the run and update the session in
+            // the same writer transaction used by run finality.
+            let status_sid = sid.clone();
+            let status_run_id = org_wake_run_id.clone();
+            match tokio::task::spawn_blocking(move || {
+                database::db::with_sessions_writer(|| -> Result<bool, String> {
+                    let mut conn = database::db::get_connection().map_err(|err| err.to_string())?;
+                    let tx = conn
+                        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+                        .map_err(|err| err.to_string())?;
+                    if let Some(run_id) = status_run_id.as_deref() {
+                        let run_is_running: bool = tx
+                            .query_row(
+                                "SELECT EXISTS(
+                                     SELECT 1 FROM agent_org_runs
+                                     WHERE id=?1 AND status=?2
+                                 )",
+                                rusqlite::params![
+                                    run_id,
+                                    crate::coordination::agent_org_runs::AgentOrgRunStatus::Running
+                                        .as_str()
+                                ],
+                                |row| row.get(0),
+                            )
+                            .map_err(|err| err.to_string())?;
+                        if !run_is_running {
+                            tx.commit().map_err(|err| err.to_string())?;
+                            return Ok(false);
+                        }
+                    }
+                    let updated = tx
+                        .execute(
+                            "UPDATE agent_sessions SET status=?1, updated_at=?2 WHERE session_id=?3",
+                            rusqlite::params![
+                                crate::session::SessionStatus::Running.as_str(),
+                                chrono::Utc::now().to_rfc3339(),
+                                &status_sid
+                            ],
+                        )
+                        .map_err(|err| err.to_string())?;
+                    if updated != 1 {
+                        return Err(format!("session row missing at turn start: {status_sid}"));
+                    }
+                    tx.commit().map_err(|err| err.to_string())?;
+                    Ok(true)
+                })
+            })
+            .await
+            {
+                Ok(Ok(true)) => {}
+                Ok(Ok(false)) => return Ok(String::new()),
+                Ok(Err(err)) => return Err(format!("failed to persist running status: {err}")),
+                Err(err) => return Err(format!("running-status task failed: {err}")),
+            }
+
             // Clear any stale pre-turn cancel signal before starting a fresh
             // turn. A UserStop that lands while the session is idle (e.g. only
             // a background subagent is still running, the parent turn already
@@ -541,7 +624,7 @@ pub(crate) async fn send_message_impl(
         .scheduler
         .enqueue(msg)
         .await
-        .map_err(|err| format!("Failed to enqueue message: {}", err))?;
+        .map_err(|err| format!("Failed to enqueue message: {err}"))?;
 
     tracing::info!(
         "[agent_send_message] Enqueued message {} at position {} for session {}",
@@ -578,14 +661,10 @@ fn restore_mode_before_plan_entry(
 ///     read-only mode (`Plan` / `Ask` / `Review`) into `Build` (full
 ///     write access).
 ///
-/// **Pinned invariant for `send_message_impl_for_wake`**: that helper
-/// always passes `mode = None`, so a wake-resumed turn ALWAYS opens in
-/// `Build`. This is what the plan-approval flow depends on — after the
-/// coordinator approves a member's plan and wakes the member session,
-/// the resumed turn must run in `Build` (write-enabled), not stay in
-/// `Plan` (read-only). Changing the `None` arm to anything other than
-/// `Build` would silently strand approved members in read-only mode;
-/// the `wake_defaults_to_build` unit test below pins this contract.
+/// Background Agent Org wakes override this fallback only from a durable
+/// `TaskAssigned` row whose task still belongs to that member.
+/// `Build` remains the compatibility default for direct calls with no task
+/// mode signal.
 /// `#[doc(hidden)]` — the only external caller is the
 /// `app::api::agent::test::workspace` debug route, reached through
 /// `agent_core::debug::resolve_agent_mode`. Internal callers in
@@ -599,17 +678,61 @@ pub fn resolve_agent_mode(mode: Option<&str>) -> Result<crate::session::AgentExe
     }
 }
 
+/// Resolve the execution mode from a durable unread `TaskAssigned` row before
+/// inbox drain. This is restricted to background Agent Org wakes: direct user
+/// chat keeps the mode the user selected in the composer.
+fn resolve_agent_org_task_assignment_mode(
+    session_id: &str,
+    run_id: &str,
+) -> Result<Option<crate::session::AgentExecMode>, String> {
+    use crate::coordination::agent_inbox::{AgentInboxStore, AgentMessage};
+    use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, TaskExecutionMode, TaskStatus};
+
+    let member_id = crate::session::persistence::get_session(session_id)
+        .map_err(|err| err.to_string())?
+        .and_then(|record| record.org_member_id)
+        .ok_or_else(|| format!("Agent Org wake session {session_id} has no canonical member_id"))?;
+    let unread = AgentInboxStore::list_unread_for_member(&member_id, run_id)?;
+    for row in unread {
+        let Ok(AgentMessage::TaskAssigned {
+            task_id,
+            execution_mode,
+            ..
+        }) = row.decode_payload()
+        else {
+            continue;
+        };
+        let Some(task) = AgentOrgTaskStore::get(run_id, &task_id)? else {
+            continue;
+        };
+        if task.owner.as_deref() != Some(member_id.as_str())
+            || !matches!(task.status, TaskStatus::Pending | TaskStatus::InProgress)
+        {
+            continue;
+        }
+        return Ok(Some(match execution_mode {
+            TaskExecutionMode::Build => crate::session::AgentExecMode::Build,
+            TaskExecutionMode::Plan => crate::session::AgentExecMode::Plan,
+        }));
+    }
+    Ok(None)
+}
+
 #[cfg(test)]
 mod resolve_agent_mode_tests {
-    use super::{resolve_agent_mode, restore_mode_before_plan_entry};
+    use super::{
+        resolve_agent_mode, resolve_agent_org_task_assignment_mode, restore_mode_before_plan_entry,
+    };
+    use crate::coordination::agent_member_interventions::can_enter_member_intervention;
+    use crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID;
+    use crate::coordination::agent_org_tasks::{
+        AgentOrgTaskStore, CreateTaskParams, TaskStatus, TASK_METADATA_ELIGIBLE_MEMBER_IDS,
+        TASK_METADATA_EXECUTION_MODE,
+    };
     use crate::session::AgentExecMode;
+    use core_types::key_source::KeySource;
 
-    /// Pins the implicit contract used by `send_message_impl_for_wake`:
-    /// passing `None` (the wake helper's default) yields `Build`. If
-    /// this assertion ever flips, the plan-approval wake path silently
-    /// keeps the member session in `Plan` mode after the coordinator
-    /// approves, leaving the resumed turn read-only when it should be
-    /// write-enabled.
+    /// Historical callers without a task-scoped mode keep Build semantics.
     #[test]
     fn wake_defaults_to_build() {
         assert_eq!(resolve_agent_mode(None).unwrap(), AgentExecMode::Build);
@@ -651,6 +774,64 @@ mod resolve_agent_mode_tests {
         assert!(
             err.contains("Unknown agent exec mode"),
             "expected typo to fail loudly, got: {err}"
+        );
+    }
+
+    #[test]
+    fn ordinary_coordinator_message_is_not_a_member_takeover() {
+        assert!(!can_enter_member_intervention(COORDINATOR_MEMBER_ID));
+    }
+
+    #[test]
+    fn direct_worker_message_is_a_member_takeover() {
+        assert!(can_enter_member_intervention("member-planner"));
+    }
+
+    #[test]
+    fn ownerless_plan_task_does_not_select_member_mode() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let conn = database::db::get_connection().expect("test db");
+        crate::persistence::test_schema::ensure_agent_sessions_schema(&conn);
+        crate::session::persistence::init(&conn).expect("session schema");
+        crate::coordination::agent_org_runs::init_schema(&conn).expect("run schema");
+        crate::coordination::agent_org_tasks::init_schema(&conn).expect("task schema");
+        crate::coordination::agent_inbox::init_schema(&conn).expect("inbox schema");
+        let now = chrono::Utc::now().to_rfc3339();
+        crate::session::persistence::upsert_session(
+            &crate::session::persistence::UnifiedSessionRecord {
+                session_id: "planner-session".to_string(),
+                name: "Planner".to_string(),
+                status: "idle".to_string(),
+                created_at: now.clone(),
+                updated_at: now,
+                session_type: "sde".to_string(),
+                org_member_id: Some("planner".to_string()),
+                key_source: KeySource::OwnKey,
+                ..Default::default()
+            },
+        )
+        .expect("seed session");
+        AgentOrgTaskStore::create(CreateTaskParams {
+            id: "plan-from-pool".to_string(),
+            org_run_id: "run-plan-pool".to_string(),
+            subject: "Plan the work".to_string(),
+            description: String::new(),
+            active_form: None,
+            owner: None,
+            status: TaskStatus::Pending,
+            blocks: Vec::new(),
+            blocked_by: Vec::new(),
+            metadata: Some(serde_json::json!({
+                TASK_METADATA_ELIGIBLE_MEMBER_IDS: ["planner"],
+                TASK_METADATA_EXECUTION_MODE: "plan",
+            })),
+        })
+        .expect("seed ownerless task");
+
+        assert_eq!(
+            resolve_agent_org_task_assignment_mode("planner-session", "run-plan-pool")
+                .expect("resolve mode"),
+            None
         );
     }
 }

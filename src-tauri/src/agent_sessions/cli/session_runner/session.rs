@@ -1604,7 +1604,7 @@ pub async fn run_session(
     // CLI member sessions inside an Agent Org run must land on `Idle` after each
     // successful turn so they remain available for the next coordinator dispatch.
     // `Completed` is terminal (is_terminal() == true) and would cause
-    // `reconcile_if_terminal` to prematurely end the run.
+    // `reconcile_run_finality` to prematurely end the run.
     let is_org_member = session.org_member_id.is_some();
     let final_status = if raw_final_status == SessionStatus::Completed && is_org_member {
         SessionStatus::Idle

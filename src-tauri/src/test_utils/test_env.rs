@@ -56,6 +56,7 @@ fn prime_schema(_sandbox_root: &Path) {
     let _ = agent_core::coordination::agent_org_runs::init_schema(&conn);
     let _ = agent_core::coordination::agent_inbox::init_schema(&conn);
     let _ = agent_core::coordination::agent_org_tasks::init_schema(&conn);
+    let _ = agent_core::coordination::agent_org_plan_approvals::init_schema(&conn);
     let _ = agent_core::coordination::agent_member_interventions::init_schema(&conn);
 }
 

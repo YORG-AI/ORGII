@@ -1,15 +1,24 @@
 //! User-intervention state for Agent Org members.
 //!
 //! A member can temporarily be in direct conversation with the user. While this
-//! state is active, turn-boundary inbox drain and autonomous claim are paused so
-//! the user's follow-up is processed before coworker messages or new work.
+//! state is active, turn-boundary inbox drain is paused so the user's follow-up
+//! is processed before coworker messages or newly assigned work.
 
 use rusqlite::{params, Connection, OptionalExtension, Result as SqliteResult};
 use serde::Serialize;
 
 use database::db::{get_connection, with_sessions_writer};
 
+use super::agent_org_runs::COORDINATOR_MEMBER_ID;
+
 pub const DEFAULT_INTERVENTION_TTL_SECS: i64 = 180;
+
+/// Member intervention is a temporary user takeover of a worker session.
+/// Coordinator/root chat is the normal Agent Org control surface, not a
+/// takeover target.
+pub fn can_enter_member_intervention(member_id: &str) -> bool {
+    member_id != COORDINATOR_MEMBER_ID
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -85,6 +94,12 @@ impl AgentMemberInterventionStore {
     pub fn enter(
         params: EnterMemberInterventionParams,
     ) -> Result<AgentMemberInterventionRecord, String> {
+        if !can_enter_member_intervention(&params.member_id) {
+            return Err(
+                "coordinator is the normal Agent Org control surface and cannot enter member intervention"
+                    .to_string(),
+            );
+        }
         let now = chrono::Utc::now();
         let now_text = now.to_rfc3339();
         let ttl_secs = if params.ttl_secs > 0 {
@@ -187,6 +202,12 @@ impl AgentMemberInterventionStore {
         org_run_id: &str,
         member_id: &str,
     ) -> Result<Option<AgentMemberInterventionRecord>, String> {
+        if member_id == COORDINATOR_MEMBER_ID {
+            // Self-heal rows written by older builds where any direct root
+            // message was incorrectly classified as a member takeover.
+            let _ = Self::clear(org_run_id, member_id)?;
+            return Ok(None);
+        }
         let Some(record) = Self::get(org_run_id, member_id)? else {
             return Ok(None);
         };
@@ -224,6 +245,9 @@ impl AgentMemberInterventionStore {
     }
 
     pub fn list_active(org_run_id: &str) -> Result<Vec<AgentMemberInterventionRecord>, String> {
+        // Do not let a legacy coordinator row block finality or reappear in the
+        // UI after upgrading to the worker-only intervention invariant.
+        let _ = Self::clear(org_run_id, COORDINATOR_MEMBER_ID)?;
         let conn = get_connection().map_err(|err| err.to_string())?;
         let now = chrono::Utc::now().to_rfc3339();
         let mut stmt = conn
@@ -329,6 +353,60 @@ mod tests {
                 .expect("record")
                 .session_id,
             "session-b"
+        );
+    }
+
+    #[test]
+    fn coordinator_cannot_enter_member_intervention() {
+        let _sandbox = setup();
+        let error = AgentMemberInterventionStore::enter(EnterMemberInterventionParams {
+            org_run_id: "run-1".into(),
+            member_id: COORDINATOR_MEMBER_ID.into(),
+            agent_id: "builtin:sde".into(),
+            session_id: "root-session".into(),
+            reason: Some("direct_user_chat".into()),
+            ttl_secs: 60,
+        })
+        .expect_err("coordinator must not enter member intervention");
+
+        assert!(error.contains("cannot enter member intervention"));
+    }
+
+    #[test]
+    fn legacy_coordinator_intervention_is_cleared_on_read() {
+        let _sandbox = setup();
+        let now = chrono::Utc::now();
+        let conn = get_connection().expect("db connection");
+        conn.execute(
+            "INSERT INTO agent_member_interventions (
+                org_run_id, member_id, agent_id, session_id, status, reason,
+                entered_at, last_user_activity_at, resume_after, cleared_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8, NULL)",
+            params![
+                "run-legacy",
+                COORDINATOR_MEMBER_ID,
+                "builtin:sde",
+                "root-session",
+                MemberInterventionStatus::UserIntervention.as_str(),
+                "direct_user_chat",
+                now.to_rfc3339(),
+                (now + chrono::Duration::minutes(3)).to_rfc3339(),
+            ],
+        )
+        .expect("insert legacy coordinator intervention");
+
+        assert!(AgentMemberInterventionStore::active_for_member(
+            "run-legacy",
+            COORDINATOR_MEMBER_ID
+        )
+        .expect("read legacy intervention")
+        .is_none());
+        assert!(
+            AgentMemberInterventionStore::get("run-legacy", COORDINATOR_MEMBER_ID)
+                .expect("get cleared legacy intervention")
+                .expect("legacy row remains for audit")
+                .cleared_at
+                .is_some()
         );
     }
 
