@@ -465,6 +465,8 @@ export interface RustOrgTaskItem {
 
 export interface RustExtractedOrgTaskData {
   action: "create" | "update" | "delete" | "get" | "list";
+  /** Missing only on persisted events produced before operation outcomes existed. */
+  outcome?: "pending" | "succeeded" | "rejected" | "failed" | "unknown";
   task?: RustOrgTaskItem;
   tasks?: RustOrgTaskItem[];
   total?: number;
@@ -472,6 +474,8 @@ export interface RustExtractedOrgTaskData {
   ownerChanged?: boolean;
   statusChanged?: boolean;
   taskAssignedDispatched?: boolean;
+  guidance?: string;
+  errorMessage?: string;
 }
 
 export interface RustExtractedDeleteFileData {

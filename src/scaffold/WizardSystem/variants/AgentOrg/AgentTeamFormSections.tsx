@@ -34,6 +34,7 @@ import {
   type AgentDefinition,
   type HierarchyMode,
   type OrgMember,
+  type PlanApprovalPolicy,
 } from "@src/modules/MainApp/AgentOrgs/types";
 import {
   SECTION_DESCRIPTION_CLASSES,
@@ -45,6 +46,7 @@ import { SECTION_CONTROL_STYLE } from "@src/modules/shared/layouts/SectionLayout
 import { Placeholder } from "@src/modules/shared/layouts/blocks/Placeholder";
 
 import HierarchyModeSelector from "./HierarchyModeSelector";
+import PlanApprovalPolicySelector from "./PlanApprovalPolicySelector";
 import { ReachabilityPreview } from "./ReachabilityPreview";
 import { findDuplicateMemberNameIds } from "./orgTree";
 
@@ -62,6 +64,8 @@ export interface AgentTeamFormSectionsProps {
   onCoordinatorAgentIdChange: (value: string) => void;
   hierarchyMode: HierarchyMode;
   onHierarchyModeChange: (mode: HierarchyMode) => void;
+  planApprovalPolicy: PlanApprovalPolicy;
+  onPlanApprovalPolicyChange: (policy: PlanApprovalPolicy) => void;
   members: TeamMember[];
   onMembersChange: (members: TeamMember[]) => void;
 
@@ -105,6 +109,8 @@ const AgentTeamFormSections: React.FC<AgentTeamFormSectionsProps> = ({
   onCoordinatorAgentIdChange,
   hierarchyMode,
   onHierarchyModeChange,
+  planApprovalPolicy,
+  onPlanApprovalPolicyChange,
   members,
   onMembersChange,
   membersTab,
@@ -250,6 +256,16 @@ const AgentTeamFormSections: React.FC<AgentTeamFormSectionsProps> = ({
           <HierarchyModeSelector
             value={hierarchyMode}
             onChange={onHierarchyModeChange}
+          />
+        </SectionRow>
+        <SectionRow
+          label={t("agentOrgs.orgWizard.planApprovalPolicy.label")}
+          description={t("agentOrgs.orgWizard.planApprovalPolicy.description")}
+          required
+        >
+          <PlanApprovalPolicySelector
+            value={planApprovalPolicy}
+            onChange={onPlanApprovalPolicyChange}
           />
         </SectionRow>
       </SectionContainer>

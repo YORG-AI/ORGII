@@ -2,10 +2,11 @@
  * TodoKanban Component
  *
  * Replaces the stacked TodoBubble list when viewMode === "todo". Renders the
- * latest manage_todo snapshot using the shared `features/KanbanBoard` so the
+ * latest task snapshot using the shared `features/KanbanBoard` so the
  * Communication app stays visually consistent with the other Kanban
- * surfaces. The board is read-only here (no drag, no add-task) — the source
- * of truth is the manage_todo event stream, not direct user input.
+ * surfaces. The board is read-only here (no drag, no add-task). Agent Org
+ * sessions use their durable run view; ordinary sessions replay manage_todo
+ * events.
  *
  * Column layout: a 3-column board ("Scheduled" / "Done" / "Cancelled").
  * `pending` and `in_progress` both land in the Scheduled column; the
@@ -23,7 +24,9 @@ import {
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { AgentOrgTask } from "@src/api/tauri/agent";
 import type { RustOrgTaskItem } from "@src/engines/SessionCore/core/types";
+import { isPersistedOrgTaskEvent } from "@src/engines/SessionCore/rendering/orgTaskOutcome";
 import { extractTodoData } from "@src/engines/SessionCore/rendering/props";
 import KanbanBoard, {
   DEFAULT_KANBAN_COLUMNS,
@@ -224,6 +227,15 @@ function orgTaskToTodo(task: RustOrgTaskItem): TodoLike {
 function todosFromMessage(message: MessageEntry): TodoLike[] {
   const extracted = message.event.extracted;
   if (extracted?.kind === "orgTask") {
+    if (
+      !isPersistedOrgTaskEvent(
+        extracted,
+        message.event.result,
+        message.event.displayStatus
+      )
+    ) {
+      return [];
+    }
     if (extracted.action === "delete" && extracted.task) {
       return [{ ...orgTaskToTodo(extracted.task), status: "cancelled" }];
     }
@@ -257,7 +269,15 @@ function todosFromMessage(message: MessageEntry): TodoLike[] {
 // final todo snapshot (the list rendered in the kanban).
 function isSnapshotMessage(message: MessageEntry): boolean {
   const extracted = message.event.extracted;
-  return extracted?.kind !== "orgTask" || extracted.action === "list";
+  if (extracted?.kind !== "orgTask") return true;
+  return (
+    extracted.action === "list" &&
+    isPersistedOrgTaskEvent(
+      extracted,
+      message.event.result,
+      message.event.displayStatus
+    )
+  );
 }
 
 export function buildTimeline(messages: MessageEntry[]): {
@@ -321,18 +341,62 @@ export function buildTimeline(messages: MessageEntry[]): {
   return { todos: Array.from(todoMap.values()), timeline: cleaned };
 }
 
-export const TodoKanban: React.FC<{ messages: MessageEntry[] }> = ({
+export function buildAgentOrgTaskTimeline(tasks: readonly AgentOrgTask[]): {
+  todos: TodoLike[];
+  timeline: Map<string, TodoTimelineEntry>;
+} {
+  const timeline = new Map<string, TodoTimelineEntry>();
+  const todos = tasks.map((task) => {
+    timeline.set(task.id, {
+      createdTs: task.createdAt,
+      updatedTs: task.updatedAt,
+    });
+    const ownerName = task.ownerMember
+      ? [task.ownerMember.name, task.ownerMember.role]
+          .filter(Boolean)
+          .join(" · ")
+      : undefined;
+    return {
+      id: task.id,
+      content: task.subject,
+      description: task.description,
+      status: task.status,
+      ownerName,
+      owner: task.owner ?? undefined,
+    };
+  });
+  return { todos, timeline };
+}
+
+export function buildTodoKanbanTimeline(
+  messages: MessageEntry[],
+  agentOrgTasks?: readonly AgentOrgTask[]
+): { todos: TodoLike[]; timeline: Map<string, TodoTimelineEntry> } {
+  return agentOrgTasks === undefined
+    ? buildTimeline(messages)
+    : buildAgentOrgTaskTimeline(agentOrgTasks);
+}
+
+interface TodoKanbanProps {
+  messages: MessageEntry[];
+  /** Defined for Agent Org sessions, including a valid empty task list. */
+  agentOrgTasks?: readonly AgentOrgTask[];
+}
+
+export const TodoKanban: React.FC<TodoKanbanProps> = ({
   messages,
+  agentOrgTasks,
 }) => {
   const { t } = useTranslation("sessions");
 
-  // Source of truth: walk every manage_todo event so we can populate per-todo
-  // created/updated timestamps. The kanban itself still renders the latest
-  // snapshot (the last event's `todos`), which is a full state replay so the
-  // column counts stay accurate.
+  // Agent Org task state is cross-session: workers complete tasks in their own
+  // sessions, so replaying only the root event stream can never be authoritative.
+  // The run view already projects the durable `agent_org_tasks` table and is
+  // therefore the source of truth whenever it is available. Ordinary sessions
+  // keep the existing event-replay behavior.
   const { todos, timeline } = useMemo(
-    () => buildTimeline(messages),
-    [messages]
+    () => buildTodoKanbanTimeline(messages, agentOrgTasks),
+    [agentOrgTasks, messages]
   );
 
   // Translated chunks needed by `formatTodoStamp`. Hoisted out of the map

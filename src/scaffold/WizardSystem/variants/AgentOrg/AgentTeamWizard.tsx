@@ -10,7 +10,7 @@
  * single-step submit chrome and the inline-create AgentWizard overlay.
  */
 import { useAtomValue } from "jotai";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
@@ -20,10 +20,11 @@ import "@src/modules/MainApp/AgentOrgs/components/org/index.scss";
 import { builtInAgentsAtom } from "@src/modules/MainApp/AgentOrgs/store/builtInAgentsAtom";
 import {
   type AgentDefinition,
-  type AvailableCliAgent,
   DEFAULT_HIERARCHY_MODE,
+  DEFAULT_PLAN_APPROVAL_POLICY,
   type HierarchyMode,
   type OrgMember,
+  type PlanApprovalPolicy,
 } from "@src/modules/MainApp/AgentOrgs/types";
 import { SECTION_GAP_CLASSES } from "@src/modules/shared/layouts/SectionLayout";
 import { DETAIL_PANEL_TOKENS } from "@src/modules/shared/layouts/blocks";
@@ -47,10 +48,6 @@ interface AgentTeamWizardProps {
   initialOrg?: OrgMember;
   /** Custom agents created by user (from Agents tab + inline) */
   customAgents?: AgentDefinition[];
-  /** Installed CLI agents that can be selected as org participants. */
-  cliAgents?: AvailableCliAgent[];
-  /** Called to refresh the CLI agents list (e.g. re-run which detection). */
-  onCliAgentRefresh?: () => Promise<void>;
   /** Called when a new custom agent is created inline */
   onAgentCreate?: (agent: AgentDefinition) => void | Promise<void>;
 }
@@ -62,8 +59,6 @@ const AgentTeamWizard: React.FC<AgentTeamWizardProps> = ({
   onCancel,
   initialOrg,
   customAgents = [],
-  cliAgents = [],
-  onCliAgentRefresh,
   onAgentCreate,
 }) => {
   const { t } = useTranslation("integrations");
@@ -80,16 +75,16 @@ const AgentTeamWizard: React.FC<AgentTeamWizardProps> = ({
   const [hierarchyMode, setHierarchyMode] = useState<HierarchyMode>(
     initialOrg?.hierarchyMode ?? DEFAULT_HIERARCHY_MODE
   );
+  const [planApprovalPolicy, setPlanApprovalPolicy] =
+    useState<PlanApprovalPolicy>(
+      initialOrg?.planApprovalPolicy ?? DEFAULT_PLAN_APPROVAL_POLICY
+    );
   const [members, setMembers] = useState<TeamMember[]>(() =>
     initialOrg ? flattenOrgToMembers(initialOrg.children) : []
   );
 
   const [showAgentWizard, setShowAgentWizard] = useState(false);
   const [membersTab, setMembersTab] = useState<"edit" | "preview">("edit");
-
-  useEffect(() => {
-    void onCliAgentRefresh?.();
-  }, [onCliAgentRefresh]);
 
   const canSave = isOrgDraftValid({ orgName, coordinatorAgentId, members });
 
@@ -99,8 +94,8 @@ const AgentTeamWizard: React.FC<AgentTeamWizardProps> = ({
   );
 
   const agentOptions = useMemo(
-    () => buildAgentOptions(customAgents, builtInAgents, cliAgents),
-    [customAgents, builtInAgents, cliAgents]
+    () => buildAgentOptions(customAgents, builtInAgents),
+    [customAgents, builtInAgents]
   );
 
   const previewRoot = useMemo<OrgMember>(
@@ -111,6 +106,7 @@ const AgentTeamWizard: React.FC<AgentTeamWizardProps> = ({
       agentId: coordinatorAgentId,
       description: orgDescription.trim() || undefined,
       hierarchyMode,
+      planApprovalPolicy,
       children: buildOrgTreeFromMembers(members),
     }),
     [
@@ -118,6 +114,7 @@ const AgentTeamWizard: React.FC<AgentTeamWizardProps> = ({
       orgDescription,
       coordinatorAgentId,
       hierarchyMode,
+      planApprovalPolicy,
       members,
       initialOrg,
     ]
@@ -133,6 +130,7 @@ const AgentTeamWizard: React.FC<AgentTeamWizardProps> = ({
       description:
         trimmedDescription.length > 0 ? trimmedDescription : undefined,
       hierarchyMode,
+      planApprovalPolicy,
       children: buildOrgTreeFromMembers(members),
     };
     onSave(root);
@@ -141,6 +139,7 @@ const AgentTeamWizard: React.FC<AgentTeamWizardProps> = ({
     orgDescription,
     coordinatorAgentId,
     hierarchyMode,
+    planApprovalPolicy,
     members,
     onSave,
     initialOrg,
@@ -232,6 +231,8 @@ const AgentTeamWizard: React.FC<AgentTeamWizardProps> = ({
                 onCoordinatorAgentIdChange={setCoordinatorAgentId}
                 hierarchyMode={hierarchyMode}
                 onHierarchyModeChange={setHierarchyMode}
+                planApprovalPolicy={planApprovalPolicy}
+                onPlanApprovalPolicyChange={setPlanApprovalPolicy}
                 members={members}
                 onMembersChange={setMembers}
                 membersTab={membersTab}

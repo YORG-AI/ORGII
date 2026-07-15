@@ -36,10 +36,11 @@ import {
 import { builtInAgentsAtom } from "../store/builtInAgentsAtom";
 import {
   type AgentDefinition,
-  type AvailableCliAgent,
   DEFAULT_HIERARCHY_MODE,
+  DEFAULT_PLAN_APPROVAL_POLICY,
   type HierarchyMode,
   type OrgMember,
+  type PlanApprovalPolicy,
 } from "../types";
 import { buildAgentOptions } from "./org/config";
 import "./org/index.scss";
@@ -47,7 +48,6 @@ import "./org/index.scss";
 interface OrgDetailViewProps {
   selectedOrg: OrgMember;
   customAgents: AgentDefinition[];
-  cliAgents: AvailableCliAgent[];
   onOrgSave: (org: OrgMember) => void | Promise<void>;
   onOrgDelete: (orgId: string) => void | Promise<void>;
 }
@@ -55,7 +55,6 @@ interface OrgDetailViewProps {
 const OrgDetailView: React.FC<OrgDetailViewProps> = ({
   selectedOrg,
   customAgents,
-  cliAgents,
   onOrgSave,
   onOrgDelete,
 }) => {
@@ -83,6 +82,10 @@ const OrgDetailView: React.FC<OrgDetailViewProps> = ({
   const [hierarchyMode, setHierarchyMode] = useState<HierarchyMode>(
     selectedOrg.hierarchyMode ?? DEFAULT_HIERARCHY_MODE
   );
+  const [planApprovalPolicy, setPlanApprovalPolicy] =
+    useState<PlanApprovalPolicy>(
+      selectedOrg.planApprovalPolicy ?? DEFAULT_PLAN_APPROVAL_POLICY
+    );
   const [members, setMembers] = useState<TeamMember[]>(() =>
     flattenOrgToMembers(selectedOrg.children)
   );
@@ -99,13 +102,16 @@ const OrgDetailView: React.FC<OrgDetailViewProps> = ({
     setOrgDescription(selectedOrg.description ?? "");
     setCoordinatorAgentId(selectedOrg.agentId);
     setHierarchyMode(selectedOrg.hierarchyMode ?? DEFAULT_HIERARCHY_MODE);
+    setPlanApprovalPolicy(
+      selectedOrg.planApprovalPolicy ?? DEFAULT_PLAN_APPROVAL_POLICY
+    );
     setMembers(flattenOrgToMembers(selectedOrg.children));
     setSaving(false);
   }, [selectedOrg]);
 
   const agentOptions = useMemo(
-    () => buildAgentOptions(customAgents, builtInAgents, cliAgents),
-    [customAgents, builtInAgents, cliAgents]
+    () => buildAgentOptions(customAgents, builtInAgents),
+    [customAgents, builtInAgents]
   );
 
   const persistedMembersJson = useMemo(
@@ -122,6 +128,7 @@ const OrgDetailView: React.FC<OrgDetailViewProps> = ({
       agentId: coordinatorAgentId,
       description: orgDescription.trim() || undefined,
       hierarchyMode,
+      planApprovalPolicy,
       children: buildOrgTreeFromMembers(members),
     }),
     [
@@ -130,6 +137,7 @@ const OrgDetailView: React.FC<OrgDetailViewProps> = ({
       orgDescription,
       coordinatorAgentId,
       hierarchyMode,
+      planApprovalPolicy,
       members,
     ]
   );
@@ -137,11 +145,14 @@ const OrgDetailView: React.FC<OrgDetailViewProps> = ({
   const persistedDescription = selectedOrg.description ?? "";
   const persistedHierarchyMode =
     selectedOrg.hierarchyMode ?? DEFAULT_HIERARCHY_MODE;
+  const persistedPlanApprovalPolicy =
+    selectedOrg.planApprovalPolicy ?? DEFAULT_PLAN_APPROVAL_POLICY;
   const isDirty =
     orgName !== selectedOrg.name ||
     orgDescription !== persistedDescription ||
     coordinatorAgentId !== selectedOrg.agentId ||
     hierarchyMode !== persistedHierarchyMode ||
+    planApprovalPolicy !== persistedPlanApprovalPolicy ||
     draftMembersJson !== persistedMembersJson;
 
   const isValid = isOrgDraftValid({ orgName, coordinatorAgentId, members });
@@ -151,6 +162,9 @@ const OrgDetailView: React.FC<OrgDetailViewProps> = ({
     setOrgDescription(selectedOrg.description ?? "");
     setCoordinatorAgentId(selectedOrg.agentId);
     setHierarchyMode(selectedOrg.hierarchyMode ?? DEFAULT_HIERARCHY_MODE);
+    setPlanApprovalPolicy(
+      selectedOrg.planApprovalPolicy ?? DEFAULT_PLAN_APPROVAL_POLICY
+    );
     setMembers(flattenOrgToMembers(selectedOrg.children));
   }, [selectedOrg]);
 
@@ -167,6 +181,7 @@ const OrgDetailView: React.FC<OrgDetailViewProps> = ({
         description:
           trimmedDescription.length > 0 ? trimmedDescription : undefined,
         hierarchyMode,
+        planApprovalPolicy,
         children: buildOrgTreeFromMembers(members),
       };
       await onOrgSave(next);
@@ -181,6 +196,7 @@ const OrgDetailView: React.FC<OrgDetailViewProps> = ({
     orgDescription,
     coordinatorAgentId,
     hierarchyMode,
+    planApprovalPolicy,
     members,
     onOrgSave,
   ]);
@@ -231,6 +247,8 @@ const OrgDetailView: React.FC<OrgDetailViewProps> = ({
               onCoordinatorAgentIdChange={setCoordinatorAgentId}
               hierarchyMode={hierarchyMode}
               onHierarchyModeChange={setHierarchyMode}
+              planApprovalPolicy={planApprovalPolicy}
+              onPlanApprovalPolicyChange={setPlanApprovalPolicy}
               members={members}
               onMembersChange={setMembers}
               membersTab={membersTab}

@@ -464,7 +464,11 @@ export function createAgentOrgHelpers(): AgentOrgE2EHelpers {
 
   const agentOrgSimulateAppRestart = async (): Promise<
     Result<{
+      intentsReconciled: number;
+      terminalSessionsReconciled: number;
       sessionsAbandoned: number;
+      tasksRequeued: number;
+      runsCompleted: number;
       runsPaused: number;
       interventionsCleared: number;
     }>
@@ -477,7 +481,11 @@ export function createAgentOrgHelpers(): AgentOrgE2EHelpers {
       const body = (await response.json()) as {
         ok: boolean;
         error?: string;
+        intents_reconciled?: number;
+        terminal_sessions_reconciled?: number;
         sessions_abandoned?: number;
+        tasks_requeued?: number;
+        runs_completed?: number;
         runs_paused?: number;
         interventions_cleared?: number;
       };
@@ -489,7 +497,11 @@ export function createAgentOrgHelpers(): AgentOrgE2EHelpers {
       }
       return {
         ok: true,
+        intentsReconciled: body.intents_reconciled ?? 0,
+        terminalSessionsReconciled: body.terminal_sessions_reconciled ?? 0,
         sessionsAbandoned: body.sessions_abandoned ?? 0,
+        tasksRequeued: body.tasks_requeued ?? 0,
+        runsCompleted: body.runs_completed ?? 0,
         runsPaused: body.runs_paused ?? 0,
         interventionsCleared: body.interventions_cleared ?? 0,
       };

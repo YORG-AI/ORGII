@@ -47,6 +47,7 @@ import {
   orgTaskItemToCardData,
 } from "@src/engines/ChatPanel/rendering/adapters";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import { resolveOrgTaskOperationOutcome } from "@src/engines/SessionCore/rendering/orgTaskOutcome";
 import {
   inferStatusFromResult,
   mapStatus,
@@ -252,6 +253,47 @@ function resolveOrgTaskTitle(
           if (event.functionName === "task_list") return "list";
           return null;
         })();
+
+  if (event.extracted?.kind === "orgTask") {
+    const outcome = resolveOrgTaskOperationOutcome(
+      event.extracted,
+      event.result,
+      event.displayStatus
+    );
+    if (outcome !== "succeeded") {
+      const createKey =
+        outcome === "pending"
+          ? "taskCreateRunning"
+          : outcome === "rejected"
+            ? "taskCreateRejected"
+            : "taskCreateFailed";
+      const genericKey =
+        outcome === "pending"
+          ? "taskOperationRunning"
+          : outcome === "rejected"
+            ? "taskOperationRejected"
+            : "taskOperationFailed";
+      return t(
+        `simulator.replay.messages.bubble.senderTitle.${action === "create" ? createKey : genericKey}`,
+        {
+          ns: "sessions",
+          subject,
+          defaultValue:
+            action === "create"
+              ? outcome === "pending"
+                ? "{{subject}} is creating a task"
+                : outcome === "rejected"
+                  ? "{{subject}}'s task creation needs correction"
+                  : "{{subject}} couldn't create task"
+              : outcome === "pending"
+                ? "{{subject}} is running a task operation"
+                : outcome === "rejected"
+                  ? "{{subject}}'s task operation needs correction"
+                  : "{{subject}}'s task operation failed",
+        }
+      );
+    }
+  }
 
   if (!isAgentOrgBubble) {
     return t("simulator.replay.messages.bubble.senderTitle.updatedTodos", {

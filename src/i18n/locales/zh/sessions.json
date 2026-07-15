@@ -531,6 +531,12 @@
           "smartDateYesterday": "昨天",
           "senderTitle": {
             "taskCreated": "{{subject}} 创建了任务",
+            "taskCreateRunning": "{{subject}} 正在创建任务",
+            "taskCreateRejected": "{{subject}} 的任务创建需要修正",
+            "taskCreateFailed": "{{subject}} 创建任务失败",
+            "taskOperationRunning": "{{subject}} 正在执行任务操作",
+            "taskOperationRejected": "{{subject}} 的任务操作需要修正",
+            "taskOperationFailed": "{{subject}} 的任务操作失败",
             "taskUpdated": "{{subject}} 更新了任务",
             "taskDeleted": "{{subject}} 删除了任务",
             "taskViewed": "{{subject}} 查看了任务详情",
@@ -2295,7 +2301,32 @@
       "memberSessions": "成员会话",
       "pauseRun": "暂停运行",
       "resumeRun": "恢复运行",
-      "viewCoordinatorHistory": "View coordinator chat history"
+      "viewCoordinatorHistory": "查看 Coordinator 对话历史",
+      "planApproval": {
+        "title": "计划等待审批",
+        "from": "由 {{member}} 提交",
+        "approve": "批准计划",
+        "approveEdits": "批准修改版",
+        "requestChanges": "要求修改",
+        "sendFeedback": "发送修改意见",
+        "editLabel": "编辑已提交的计划",
+        "feedbackLabel": "计划修改意见",
+        "feedbackPlaceholder": "清楚告诉 Planner 哪些地方需要修改……",
+        "paused": "请先恢复本次运行，再处理这个计划。"
+      },
+      "phase": {
+        "coordinating": "正在协调",
+        "dispatching": "正在派发",
+        "members_working": "成员工作中",
+        "waiting": "等待下一步",
+        "awaiting_plan_approval": "等待计划审批",
+        "finalizing": "正在收尾",
+        "paused": "已暂停",
+        "completed": "已完成",
+        "failed": "失败",
+        "cancelled": "已取消",
+        "abandoned": "已放弃"
+      }
     },
     "agentOrgInbox": {
       "title": "Agent 消息",
@@ -2566,8 +2597,14 @@
     "taskHeader": {
       "createWithOwner": "{{sender}} 分配任务给 {{ownerName}}",
       "create": "{{sender}} 分配了任务",
+      "createRunning": "{{sender}} 正在创建任务",
+      "createRejected": "{{sender}} 的任务创建需要修正",
+      "createFailed": "{{sender}} 创建任务失败",
       "updateStatus": "{{sender}} 更新了任务状态",
       "updateDetail": "{{sender}} 更新了任务详情",
+      "updateRunning": "{{sender}} 正在更新任务",
+      "updateRejected": "{{sender}} 的任务更新需要修正",
+      "updateFailed": "{{sender}} 更新任务失败",
       "get": "{{sender}} 查看了任务详情",
       "list": "{{sender}} 查看了任务列表"
     },
@@ -2605,12 +2642,18 @@
   "orgTask": {
     "create": {
       "title": "分配任务",
-      "titleWithOwner": "分配任务给 {{ownerName}}"
+      "titleWithOwner": "分配任务给 {{ownerName}}",
+      "runningTitle": "正在创建任务",
+      "rejectedTitle": "任务创建需要修正",
+      "failedTitle": "任务创建失败"
     },
     "update": {
       "titleStatus": "更新任务状态",
       "titleDetail": "更新任务详情",
-      "markedAs": "标记为 {{status}}"
+      "markedAs": "标记为 {{status}}",
+      "runningTitle": "正在更新任务",
+      "rejectedTitle": "任务更新需要修正",
+      "failedTitle": "任务更新失败"
     },
     "get": {
       "title": "查看任务详情"
@@ -2624,6 +2667,11 @@
     "assignedBadge": "已分配",
     "assignedToLabel": "分配给",
     "updatedAtLabel": "更新于",
+    "outcome": {
+      "pending": "正在处理",
+      "rejected": "需要修正",
+      "failed": "失败"
+    },
     "status": {
       "pending": "待处理",
       "in_progress": "进行中",

@@ -400,6 +400,7 @@ const SessionCreatorOrgMembersPanel: React.FC<SessionCreatorOrgMembersPanelProps
             isOpen={isAgentPickerOpen}
             onClose={handleCloseAgentPicker}
             hideOrgs
+            hideCliAgents
             titleLabel={agentPickerMember?.name}
             titleIcon={Users}
             placeholderLabel={

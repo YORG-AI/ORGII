@@ -27,6 +27,8 @@ export interface DispatchCategoryPaletteProps extends BasePaletteProps {
    * pickers inside a team panel where selecting another team makes no sense.
    */
   hideOrgs?: boolean;
+  /** Omit CLI agents from contexts that only support Rust-native sessions. */
+  hideCliAgents?: boolean;
   /**
    * When true only CLI agent entries are shown. Used by CLI-only picker surfaces.
    */

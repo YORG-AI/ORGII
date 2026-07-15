@@ -14,7 +14,6 @@
  */
 import {
   cancelSession,
-  enterAgentOrgSessionIntervention,
   getSession,
   getSessionInfo,
   loadMessages,
@@ -621,9 +620,6 @@ export function createRustAgentAdapter(
       // when two sessions on different repos are open simultaneously.
       const activePath = sessionRepoPath ?? undefined;
       clearSessionStreamingStopped(sessionId);
-      if (!isResume && content.trim()) {
-        await enterAgentOrgSessionIntervention(sessionId);
-      }
       await retryInvokeTauri(
         "agent_send_message",
         {

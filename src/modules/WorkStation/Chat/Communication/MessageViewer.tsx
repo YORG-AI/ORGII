@@ -10,7 +10,7 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { AgentOrgRunMemberView } from "@src/api/tauri/agent";
+import type { AgentOrgRunMemberView, AgentOrgTask } from "@src/api/tauri/agent";
 import Button from "@src/components/Button";
 import { streamingDeltaContentAtom } from "@src/engines/SessionCore/core/atoms";
 import {
@@ -113,6 +113,8 @@ export interface MessageViewerProps {
    * view); bubbles fall back to a generic "Agent" label in that case.
    */
   orgMembers?: ReadonlyArray<AgentOrgRunMemberView>;
+  /** Durable task snapshot for Agent Org sessions. Undefined for ordinary sessions. */
+  agentOrgTasks?: ReadonlyArray<AgentOrgTask>;
 }
 
 export const MessageViewer: React.FC<MessageViewerProps> = ({
@@ -129,6 +131,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   currentEventId,
   setViewMode,
   orgMembers,
+  agentOrgTasks,
 }) => {
   const handleNavigateToTodoList = useCallback(() => {
     setViewMode?.("todo");
@@ -235,7 +238,10 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     return null;
   }, [messages, viewMode]);
 
-  if (messages.length === 0) {
+  const canRenderDurableAgentOrgBoard =
+    viewMode === "todo" && agentOrgTasks !== undefined;
+
+  if (messages.length === 0 && !canRenderDurableAgentOrgBoard) {
     return (
       <div className="allow-select-deep flex h-full min-h-0 w-full flex-col">
         <EmptyState viewMode={viewMode} sessionReplayMode={sessionReplayMode} />
@@ -246,7 +252,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   if (viewMode === "todo") {
     return (
       <div className="allow-select-deep flex h-full min-h-0 w-full flex-col overflow-hidden">
-        <TodoKanban messages={messages} />
+        <TodoKanban messages={messages} agentOrgTasks={agentOrgTasks} />
       </div>
     );
   }

@@ -14,6 +14,7 @@ import React, { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
+  AGENT_ORG_RUN_PHASE,
   AGENT_ORG_TASK_STATUS,
   type AgentOrgRunView,
   pauseAgentOrgRun,
@@ -24,6 +25,7 @@ import { createLogger } from "@src/hooks/logger";
 import { useRefreshSpin } from "@src/hooks/ui";
 import { activeSessionIdAtom } from "@src/store/session";
 
+import AgentOrgPlanApprovalCard from "./AgentOrgPlanApprovalCard";
 import { AgentOrgTaskList } from "./AgentOrgTaskList";
 import ComposerStackHeader, {
   ComposerStackHeaderCountBadge,
@@ -34,6 +36,7 @@ const logger = createLogger("AgentOrgOverviewPanel");
 const AGENT_SESSION_STATUS = {
   RUNNING: "running",
   WAITING_FOR_USER: "waiting_for_user",
+  WAITING_FOR_FUNDS: "waiting_for_funds",
 } as const;
 
 interface AgentOrgOverviewPanelProps {
@@ -57,6 +60,11 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
 
     const isRunning = view?.runStatus === "running";
     const isPaused = view?.runStatus === "paused";
+    const runPhaseLabel = view
+      ? t(`planner.agentOrgOverview.phase.${view.runPhase}`, {
+          defaultValue: view.runPhase.split("_").join(" "),
+        })
+      : null;
 
     const rootSessionId = view?.context.rootSessionId;
     const isViewingCoordinatorSession =
@@ -108,12 +116,19 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
         (member) =>
           member.sessionRuntime?.status === AGENT_SESSION_STATUS.RUNNING ||
           member.sessionRuntime?.status ===
-            AGENT_SESSION_STATUS.WAITING_FOR_USER
+            AGENT_SESSION_STATUS.WAITING_FOR_USER ||
+          member.sessionRuntime?.status ===
+            AGENT_SESSION_STATUS.WAITING_FOR_FUNDS
       ).length ?? 0;
     const unreadMessages =
       view?.inbox.filter(
         (row) => row.readAt === null || row.readAt === undefined
       ).length ?? 0;
+    const userPlanApprovals =
+      view?.pendingPlanApprovals.filter(
+        (approval) =>
+          approval.policy === "user" && approval.status === "pending"
+      ) ?? [];
 
     const badges = error ? (
       <span className="text-error-6 ml-1 inline-flex items-center gap-1 text-[13px] font-medium">
@@ -121,12 +136,30 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
         {t("planner.agentOrgOverview.loadFailed")}
       </span>
     ) : (
-      <ComposerStackHeaderCountBadge>
-        {t("planner.agentOrgOverview.summary", {
-          active: activeMembers,
-          unread: unreadMessages,
-        })}
-      </ComposerStackHeaderCountBadge>
+      <div className="flex items-center gap-1">
+        {runPhaseLabel && (
+          <span
+            className="rounded-full bg-bg-1 px-1.5 py-0.5 text-[10px] font-medium capitalize text-text-2"
+            data-testid="agent-org-overview-run-phase"
+            data-run-phase={view?.runPhase ?? ""}
+          >
+            {view?.runPhase === AGENT_ORG_RUN_PHASE.FINALIZING && (
+              <RefreshCw
+                size={9}
+                strokeWidth={2}
+                className="mr-1 inline-block animate-spin motion-reduce:animate-none"
+              />
+            )}
+            {runPhaseLabel}
+          </span>
+        )}
+        <ComposerStackHeaderCountBadge>
+          {t("planner.agentOrgOverview.summary", {
+            active: activeMembers,
+            unread: unreadMessages,
+          })}
+        </ComposerStackHeaderCountBadge>
+      </div>
     );
 
     return (
@@ -134,6 +167,7 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
         data-testid="agent-org-overview-panel"
         data-agent-org-overview-panel="true"
         data-run-id={view?.context.runId ?? ""}
+        data-run-phase={view?.runPhase ?? ""}
         className="min-w-0"
       >
         <ComposerStackHeader
@@ -248,6 +282,28 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                 </div>
               </div>
             </div>
+
+            {userPlanApprovals.length > 0 ? (
+              <div className="space-y-2" data-testid="agent-org-plan-approvals">
+                <div className="px-1 text-[11px] font-medium text-text-2">
+                  {t("planner.agentOrgOverview.planApproval.title")}
+                </div>
+                {userPlanApprovals.map((approval) => (
+                  <AgentOrgPlanApprovalCard
+                    key={approval.approvalId}
+                    approval={approval}
+                    sourceMemberName={
+                      view.members.find(
+                        (member) => member.memberId === approval.sourceMemberId
+                      )?.name ?? approval.sourceMemberId
+                    }
+                    sessionId={currentSessionId}
+                    disabled={!isRunning}
+                    onResolved={onRefresh}
+                  />
+                ))}
+              </div>
+            ) : null}
 
             {view.tasks.length > 0 && (
               <div className="space-y-1" data-testid="agent-org-overview-tasks">

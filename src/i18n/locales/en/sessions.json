@@ -535,6 +535,12 @@
           "smartDateYesterday": "Yesterday",
           "senderTitle": {
             "taskCreated": "{{subject}} created task",
+            "taskCreateRunning": "{{subject}} is creating a task",
+            "taskCreateRejected": "{{subject}}'s task creation needs correction",
+            "taskCreateFailed": "{{subject}} couldn't create task",
+            "taskOperationRunning": "{{subject}} is running a task operation",
+            "taskOperationRejected": "{{subject}}'s task operation needs correction",
+            "taskOperationFailed": "{{subject}}'s task operation failed",
             "taskUpdated": "{{subject}} updated task",
             "taskDeleted": "{{subject}} deleted task",
             "taskViewed": "{{subject}} viewed task details",
@@ -2311,7 +2317,32 @@
       "memberSessions": "Member sessions",
       "pauseRun": "Pause run",
       "resumeRun": "Resume run",
-      "viewCoordinatorHistory": "View coordinator chat history"
+      "viewCoordinatorHistory": "View coordinator chat history",
+      "planApproval": {
+        "title": "Plan ready for approval",
+        "from": "Submitted by {{member}}",
+        "approve": "Approve plan",
+        "approveEdits": "Approve edits",
+        "requestChanges": "Request changes",
+        "sendFeedback": "Send feedback",
+        "editLabel": "Edit submitted plan",
+        "feedbackLabel": "Plan revision feedback",
+        "feedbackPlaceholder": "Tell the Planner exactly what must change…",
+        "paused": "Resume the run before responding to this plan."
+      },
+      "phase": {
+        "coordinating": "Coordinating",
+        "dispatching": "Dispatching",
+        "members_working": "Members working",
+        "waiting": "Waiting for work",
+        "awaiting_plan_approval": "Awaiting plan approval",
+        "finalizing": "Finalizing",
+        "paused": "Paused",
+        "completed": "Completed",
+        "failed": "Failed",
+        "cancelled": "Cancelled",
+        "abandoned": "Abandoned"
+      }
     },
     "agentOrgInbox": {
       "title": "Agent messages",
@@ -2566,8 +2597,14 @@
     "taskHeader": {
       "createWithOwner": "{{sender}} assigned task to {{ownerName}}",
       "create": "{{sender}} assigned task",
+      "createRunning": "{{sender}} is creating a task",
+      "createRejected": "{{sender}}'s task creation needs correction",
+      "createFailed": "{{sender}} couldn't create task",
       "updateStatus": "{{sender}} updated task status",
       "updateDetail": "{{sender}} updated task detail",
+      "updateRunning": "{{sender}} is updating a task",
+      "updateRejected": "{{sender}}'s task update needs correction",
+      "updateFailed": "{{sender}} couldn't update task",
       "get": "{{sender}} viewed task details",
       "list": "{{sender}} viewed task list"
     },
@@ -2605,12 +2642,18 @@
   "orgTask": {
     "create": {
       "title": "Assigned task",
-      "titleWithOwner": "Assign task to {{ownerName}}"
+      "titleWithOwner": "Assign task to {{ownerName}}",
+      "runningTitle": "Creating task",
+      "rejectedTitle": "Task creation needs correction",
+      "failedTitle": "Task creation failed"
     },
     "update": {
       "titleStatus": "Update task status",
       "titleDetail": "Update task detail",
-      "markedAs": "Marked as {{status}}"
+      "markedAs": "Marked as {{status}}",
+      "runningTitle": "Updating task",
+      "rejectedTitle": "Task update needs correction",
+      "failedTitle": "Task update failed"
     },
     "get": {
       "title": "View task details"
@@ -2625,6 +2668,11 @@
     "assignedBadge": "Assigned",
     "assignedToLabel": "Assigned to",
     "updatedAtLabel": "Updated at",
+    "outcome": {
+      "pending": "In progress",
+      "rejected": "Needs correction",
+      "failed": "Failed"
+    },
     "status": {
       "pending": "Pending",
       "in_progress": "In Progress",

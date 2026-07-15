@@ -333,7 +333,6 @@ const AgentConfigInner: React.FC<AgentConfigInnerProps> = ({ data }) => {
       <OrgDetailView
         selectedOrg={org}
         customAgents={customAgents}
-        cliAgents={cliAgents}
         onOrgSave={handleOrgSave}
         onOrgDelete={handleOrgDelete}
       />

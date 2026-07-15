@@ -71,6 +71,7 @@ export interface DispatchCategoryOptionGroup {
 export interface UseDispatchCategoryOptionsArgs {
   isOpen: boolean;
   hideOrgs: boolean;
+  hideCliAgents?: boolean;
   /** When true, only CLI agent entries are included (Rust-native agents and orgs are hidden). */
   cliOnly?: boolean;
   currentCategory: DispatchCategory;
@@ -142,6 +143,7 @@ export function useDispatchCategoryOptions(
   const {
     isOpen,
     hideOrgs,
+    hideCliAgents = false,
     cliOnly = false,
     currentCategory,
     currentAgentDefinitionId,
@@ -338,7 +340,7 @@ export function useDispatchCategoryOptions(
         ? [...cliOptions]
         : [
             ...builtInRustOptions,
-            ...cliOptions,
+            ...(hideCliAgents ? [] : cliOptions),
             ...externalIdeOptions,
             ...customAgentOptions,
             ...(hideOrgs ? [] : orgOptions),
@@ -351,6 +353,7 @@ export function useDispatchCategoryOptions(
       customAgentOptions,
       orgOptions,
       hideOrgs,
+      hideCliAgents,
     ]
   );
 
@@ -394,7 +397,9 @@ export function useDispatchCategoryOptions(
         builtInRustOptions
       );
     }
-    push("__header_cli__", t("creator.cliAgents"), cliOptions);
+    if (!hideCliAgents) {
+      push("__header_cli__", t("creator.cliAgents"), cliOptions);
+    }
     if (!cliOnly) {
       push(
         "__header_external_ide__",
@@ -412,6 +417,7 @@ export function useDispatchCategoryOptions(
     recentOptions,
     builtInRustOptions,
     cliOptions,
+    hideCliAgents,
     externalIdeOptions,
     customAgentOptions,
     orgOptions,

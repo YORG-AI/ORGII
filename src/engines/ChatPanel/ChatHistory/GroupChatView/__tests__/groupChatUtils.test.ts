@@ -278,6 +278,11 @@ describe("groupChatUtils", () => {
     ]);
 
     expect(isTaskRelatedGroupChatEvent(taskEvent)).toBe(true);
+    expect(
+      isTaskRelatedGroupChatEvent(
+        event({ id: "task-graph", functionName: "task_graph_create" })
+      )
+    ).toBe(true);
     expect(merged.map((candidate) => candidate.id)).toEqual([
       "user-turn",
       "agent-message",

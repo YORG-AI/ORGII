@@ -10,8 +10,10 @@ import { CheckCircle2, CircleDot, PlayCircle } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import InlineAlert from "@src/components/InlineAlert";
 import { getToolIconComponent } from "@src/config/toolIcons";
 import type { ToolUsageMetadata } from "@src/engines/SessionCore/core/types";
+import type { ResolvedOrgTaskOperationOutcome } from "@src/engines/SessionCore/rendering/orgTaskOutcome";
 import { PriorityIndicator } from "@src/features/KanbanBoard/utils/priority";
 import { formatSmartDateTime } from "@src/util/data/formatters/date";
 
@@ -55,6 +57,8 @@ export interface OrgTaskBlockProps {
    */
   statusChanged?: boolean;
   taskAssignedDispatched?: boolean;
+  operationOutcome?: ResolvedOrgTaskOperationOutcome;
+  operationMessage?: string;
   isLoading?: boolean;
   eventId?: string;
   /** ISO timestamp of the underlying event; shown at the right end of the header. */
@@ -147,6 +151,8 @@ function CompactTaskCard({
   blockedBy = [],
   ownerChanged,
   taskAssignedDispatched,
+  operationOutcome = "succeeded",
+  operationMessage,
   formattedTimestamp,
   timestamp,
   hideAssignedRow = false,
@@ -160,6 +166,8 @@ function CompactTaskCard({
   blockedBy?: string[];
   ownerChanged?: boolean;
   taskAssignedDispatched?: boolean;
+  operationOutcome?: ResolvedOrgTaskOperationOutcome;
+  operationMessage?: string;
   formattedTimestamp?: string | null;
   timestamp?: string;
   /**
@@ -172,18 +180,26 @@ function CompactTaskCard({
 }) {
   const { t } = useTranslation("sessions");
 
-  const statusLabel = status
-    ? t(`orgTask.status.${status}`, { defaultValue: status })
-    : null;
-  const assignedLabel = taskAssignedDispatched
-    ? t("orgTask.assignedBadge", { defaultValue: "Assigned" })
-    : null;
-  const statusRowLabel = [assignedLabel, statusLabel]
-    .filter(Boolean)
-    .join(" · ");
+  const operationAccepted = operationOutcome === "succeeded";
+  const statusLabel =
+    operationAccepted && status
+      ? t(`orgTask.status.${status}`, { defaultValue: status })
+      : null;
+  const assignedLabel =
+    operationAccepted && taskAssignedDispatched
+      ? t("orgTask.assignedBadge", { defaultValue: "Assigned" })
+      : null;
+  const outcomeLabel = operationAccepted
+    ? null
+    : t(`orgTask.outcome.${operationOutcome}`, {
+        defaultValue: operationOutcome,
+      });
+  const statusRowLabel =
+    outcomeLabel ?? [assignedLabel, statusLabel].filter(Boolean).join(" · ");
   const dependencyCount = blocks.length + blockedBy.length;
 
-  const showAssignedRow = Boolean(ownerName) && !hideAssignedRow;
+  const showAssignedRow =
+    operationAccepted && Boolean(ownerName) && !hideAssignedRow;
   const hasMetaRows = Boolean(
     showAssignedRow || formattedTimestamp || statusRowLabel
   );
@@ -193,7 +209,7 @@ function CompactTaskCard({
       {/* Title row — leading status icon + title + badges (owner-changed / deps); assigned + status merged into meta rows below */}
       <div className="kanban-task-card__header mb-0">
         <div className="kanban-task-card__title flex min-w-0 items-center gap-1.5 text-[13px]">
-          {getStatusIcon(status)}
+          {operationAccepted ? getStatusIcon(status) : null}
           <span className="min-w-0 truncate">{title}</span>
         </div>
         {ownerChanged && <OrgTaskOwnerChangedBadge />}
@@ -205,6 +221,22 @@ function CompactTaskCard({
         <div className="kanban-task-card__description mt-1 text-[11px]">
           {description}
         </div>
+      )}
+
+      {!operationAccepted && (
+        <InlineAlert
+          type={
+            operationOutcome === "failed"
+              ? "danger"
+              : operationOutcome === "rejected"
+                ? "warning"
+                : "info"
+          }
+          title={outcomeLabel ?? undefined}
+          className="mt-2"
+        >
+          {operationMessage}
+        </InlineAlert>
       )}
 
       {/* Meta rows: Assigned to / Updated at / Status — inline with vertical separators when there is room, wraps to multiple lines otherwise. */}
@@ -283,6 +315,8 @@ const OrgTaskBlock: React.FC<OrgTaskBlockProps> = ({
   ownerChanged,
   statusChanged,
   taskAssignedDispatched,
+  operationOutcome = "succeeded",
+  operationMessage,
   isLoading = false,
   eventId,
   timestamp,
@@ -321,8 +355,36 @@ const OrgTaskBlock: React.FC<OrgTaskBlockProps> = ({
   const updateChangeKind: "status" | "detail" = statusChanged
     ? "status"
     : "detail";
+  const operationHeaderTitle =
+    operationOutcome === "succeeded"
+      ? null
+      : groupSenderName != null
+        ? t(
+            `groupChat.taskHeader.${action}${operationOutcome === "pending" ? "Running" : operationOutcome === "rejected" ? "Rejected" : "Failed"}`,
+            {
+              sender: groupSenderName,
+              defaultValue:
+                operationOutcome === "pending"
+                  ? "{{sender}} is working on a task operation"
+                  : operationOutcome === "rejected"
+                    ? "{{sender}}'s task operation needs correction"
+                    : "{{sender}}'s task operation failed",
+            }
+          )
+        : t(
+            `orgTask.${action}.${operationOutcome === "pending" ? "runningTitle" : operationOutcome === "rejected" ? "rejectedTitle" : "failedTitle"}`,
+            {
+              defaultValue:
+                operationOutcome === "pending"
+                  ? "Working on task operation"
+                  : operationOutcome === "rejected"
+                    ? "Task operation needs correction"
+                    : "Task operation failed",
+            }
+          );
   const headerTitle =
-    groupSenderName != null
+    operationHeaderTitle ??
+    (groupSenderName != null
       ? action === "create"
         ? ownerName
           ? t("groupChat.taskHeader.createWithOwner", {
@@ -356,15 +418,16 @@ const OrgTaskBlock: React.FC<OrgTaskBlockProps> = ({
             })
           : t("orgTask.update.titleDetail", {
               defaultValue: "Update task detail",
-            });
+            }));
 
   // Subtitle: only populated when action is "update" + status changed.
   // Reads "Marked as [Pending|In Progress|Completed]" using the same
   // localized status label as the body chip. For create / detail updates
   // the card body's title row already conveys the change.
-  const statusLabel = status
-    ? t(`orgTask.status.${status}`, { defaultValue: status })
-    : null;
+  const statusLabel =
+    operationOutcome === "succeeded" && status
+      ? t(`orgTask.status.${status}`, { defaultValue: status })
+      : null;
   const headerSubtitle =
     action === "update" && statusChanged && statusLabel
       ? t("orgTask.update.markedAs", {
@@ -379,7 +442,9 @@ const OrgTaskBlock: React.FC<OrgTaskBlockProps> = ({
     ownerName ||
     status ||
     blocks.length > 0 ||
-    blockedBy.length > 0
+    blockedBy.length > 0 ||
+    operationOutcome !== "succeeded" ||
+    operationMessage
   );
 
   // Header-less variant (simulator Messages app): drop the EventBlockHeader
@@ -401,9 +466,13 @@ const OrgTaskBlock: React.FC<OrgTaskBlockProps> = ({
           blockedBy={blockedBy}
           ownerChanged={ownerChanged}
           taskAssignedDispatched={taskAssignedDispatched}
+          operationOutcome={operationOutcome}
+          operationMessage={operationMessage}
           formattedTimestamp={formattedTimestamp}
           timestamp={timestamp}
-          hideAssignedRow={action === "create"}
+          hideAssignedRow={
+            action === "create" || operationOutcome !== "succeeded"
+          }
         />
       </div>
     );
@@ -458,9 +527,13 @@ const OrgTaskBlock: React.FC<OrgTaskBlockProps> = ({
             blockedBy={blockedBy}
             ownerChanged={ownerChanged}
             taskAssignedDispatched={taskAssignedDispatched}
+            operationOutcome={operationOutcome}
+            operationMessage={operationMessage}
             formattedTimestamp={formattedTimestamp}
             timestamp={timestamp}
-            hideAssignedRow={action === "create"}
+            hideAssignedRow={
+              action === "create" || operationOutcome !== "succeeded"
+            }
           />
         </div>
       )}

@@ -274,6 +274,15 @@ export type HierarchyMode = (typeof HIERARCHY_MODES)[number];
 
 export const DEFAULT_HIERARCHY_MODE: HierarchyMode = "soft";
 
+/** Who decides whether a plan produced by an Agent Org planning task is ready. */
+export const PLAN_APPROVAL_POLICIES = [
+  "coordinator",
+  "user",
+  "automatic",
+] as const;
+export type PlanApprovalPolicy = (typeof PLAN_APPROVAL_POLICIES)[number];
+export const DEFAULT_PLAN_APPROVAL_POLICY: PlanApprovalPolicy = "coordinator";
+
 export interface OrgMemberRuntimeConfig {
   keySource?: KeySource;
   accountId?: string;
@@ -306,12 +315,17 @@ export interface OrgMember {
    */
   description?: string;
   /**
-   * Routing/hierarchy semantics. Only meaningful on the root node — the
+   * Communication-routing and task-authority hierarchy semantics. Only
+   * meaningful on the root node — the
    * runtime treats `OrgDefinition.hierarchy_mode` as authoritative and
    * ignores the value on descendants. Carried on the shared `OrgMember`
    * shape because the wizard uses the same object as both root and
-   * subtree, and we don't want a separate "root payload" type.
+   * subtree, and we don't want a separate "root payload" type. Messaging
+   * reachability and task authority remain distinct: Soft can permit peer
+   * discussion while task assignment remains self/direct-report scoped.
    */
   hierarchyMode?: HierarchyMode;
+  /** Root-only policy for plans submitted by execution_mode=plan tasks. */
+  planApprovalPolicy?: PlanApprovalPolicy;
   children: OrgMember[];
 }

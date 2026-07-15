@@ -119,6 +119,7 @@ export function isTaskRelatedGroupChatEvent(event: SessionEvent): boolean {
   const functionName = event.functionName.toLowerCase();
   return (
     functionName === TOOL_NAMES.TASK_CREATE ||
+    functionName === TOOL_NAMES.TASK_GRAPH_CREATE ||
     functionName === TOOL_NAMES.TASK_UPDATE ||
     functionName === TOOL_NAMES.TASK_LIST ||
     functionName === TOOL_NAMES.TASK_GET ||

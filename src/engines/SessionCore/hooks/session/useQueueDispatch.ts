@@ -256,7 +256,10 @@ export function useQueueDispatch(): void {
             }
           );
           await eventStoreProxy.append([userEvent], sessionId);
-          void enterAgentOrgSessionIntervention(sessionId).catch((error) => {
+          // Queued user input becomes a direct takeover only when it is
+          // actually dispatched. The backend ignores coordinator sessions and
+          // records intervention only for canonical worker member_ids.
+          await enterAgentOrgSessionIntervention(sessionId).catch((error) => {
             log.warn("[useQueueDispatch] intervention failed:", error);
           });
           // Pass displayContent as displayText when it differs from content

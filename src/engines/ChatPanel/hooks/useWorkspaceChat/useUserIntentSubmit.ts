@@ -238,7 +238,10 @@ export function useUserIntentSubmit({
         onBeforeDirectDispatch?.();
         await addUserMessage(displayContent, imageDataUrls, turnIntentId);
         userEventAppended = true;
-        void enterAgentOrgSessionIntervention(sessionId).catch((error) => {
+        // This command is only a user-intent signal. The backend resolves the
+        // canonical Agent Org member_id and deliberately ignores coordinator
+        // sessions; only a direct worker chat establishes intervention.
+        await enterAgentOrgSessionIntervention(sessionId).catch((error) => {
           log.warn("[useUserIntentSubmit] intervention failed:", error);
         });
         const displayTextForDispatch =

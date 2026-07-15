@@ -93,6 +93,7 @@ export const taskToolsEvents: Record<string, SessionEvent> = {
     ),
     extracted: {
       kind: "orgTask",
+      outcome: "succeeded",
       action: "create",
       orgRunId: "org-run-preview-001",
       taskAssignedDispatched: true,
@@ -127,6 +128,7 @@ export const taskToolsEvents: Record<string, SessionEvent> = {
     ),
     extracted: {
       kind: "orgTask",
+      outcome: "succeeded",
       action: "update",
       orgRunId: "org-run-preview-001",
       ownerChanged: true,
@@ -160,6 +162,7 @@ export const taskToolsEvents: Record<string, SessionEvent> = {
     ),
     extracted: {
       kind: "orgTask",
+      outcome: "succeeded",
       action: "list",
       orgRunId: "org-run-preview-001",
       total: 3,
@@ -212,6 +215,7 @@ export const taskToolsEvents: Record<string, SessionEvent> = {
     ),
     extracted: {
       kind: "orgTask",
+      outcome: "succeeded",
       action: "get",
       orgRunId: "org-run-preview-001",
       total: 1,

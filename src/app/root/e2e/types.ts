@@ -331,7 +331,11 @@ export interface E2EHelpers {
   ) => Promise<Result<{ transitioned: boolean }>>;
   agentOrgSimulateAppRestart: () => Promise<
     Result<{
+      intentsReconciled: number;
+      terminalSessionsReconciled: number;
       sessionsAbandoned: number;
+      tasksRequeued: number;
+      runsCompleted: number;
       runsPaused: number;
       interventionsCleared: number;
     }>

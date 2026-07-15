@@ -53,6 +53,7 @@ export interface AgentOrgRunContext {
   coordinatorRole: string;
   members: AgentOrgRunContextMember[];
   hierarchyMode: string;
+  planApprovalPolicy: "coordinator" | "user" | "automatic";
   /** Session ID of the coordinator (root) session. Used to navigate directly
    *  to the coordinator's chat history when the run is paused or the user
    *  is viewing a different member. `null` only before the first coordinator
@@ -89,13 +90,57 @@ export const AGENT_ORG_RUN_STATUS = {
 export type AgentOrgRunStatus =
   (typeof AGENT_ORG_RUN_STATUS)[keyof typeof AGENT_ORG_RUN_STATUS];
 
+export const AGENT_ORG_RUN_PHASE = {
+  COORDINATING: "coordinating",
+  DISPATCHING: "dispatching",
+  MEMBERS_WORKING: "members_working",
+  WAITING: "waiting",
+  AWAITING_PLAN_APPROVAL: "awaiting_plan_approval",
+  FINALIZING: "finalizing",
+  PAUSED: "paused",
+  COMPLETED: "completed",
+  FAILED: "failed",
+  CANCELLED: "cancelled",
+  ABANDONED: "abandoned",
+} as const;
+
+export type AgentOrgRunPhase =
+  (typeof AGENT_ORG_RUN_PHASE)[keyof typeof AGENT_ORG_RUN_PHASE];
+
 export interface AgentOrgRunView {
   context: AgentOrgRunContext;
   runStatus: AgentOrgRunStatus;
+  runPhase: AgentOrgRunPhase;
   currentMemberId?: string | null;
   members: AgentOrgRunMemberView[];
   tasks: AgentOrgTask[];
   inbox: AgentOrgInboxRow[];
+  pendingPlanApprovals: AgentOrgPlanApproval[];
+}
+
+export interface AgentOrgPlanApproval {
+  approvalId: string;
+  planRevisionId: string;
+  requestId: string;
+  orgRunId: string;
+  sourceTaskId: string;
+  sourceMemberId: string;
+  sourceSessionId: string;
+  rootSessionId: string;
+  policy: "coordinator" | "user" | "automatic";
+  status:
+    | "pending"
+    | "approved"
+    | "changes_requested"
+    | "superseded"
+    | "cancelled";
+  planTitle: string;
+  planPath: string;
+  planContent: string;
+  decisionBy?: string | null;
+  feedback?: string | null;
+  createdAt: string;
+  resolvedAt?: string | null;
 }
 
 export interface AgentOrgSessionInterventionState {
@@ -130,6 +175,7 @@ export interface AgentOrgTask {
   blocks: string[];
   blockedBy: string[];
   metadata?: unknown;
+  executionMode?: "build" | "plan";
   createdAt: string;
   updatedAt: string;
 }
@@ -156,6 +202,21 @@ export async function getAgentOrgSessionRunView(
 ): Promise<AgentOrgRunView | null> {
   return invokeTauri<AgentOrgRunView | null>("agent_org_session_run_view", {
     sessionId,
+  });
+}
+
+export async function respondAgentOrgPlanApproval(input: {
+  sessionId: string;
+  approvalId: string;
+  planRevisionId: string;
+  decision: "approve" | "approve_with_edits" | "request_changes";
+  editedContent?: string | null;
+  feedback?: string | null;
+}): Promise<AgentOrgPlanApproval> {
+  return invokeTauri<AgentOrgPlanApproval>("agent_org_plan_approval_respond", {
+    ...input,
+    editedContent: input.editedContent ?? null,
+    feedback: input.feedback ?? null,
   });
 }
 

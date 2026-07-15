@@ -375,6 +375,7 @@ const SimulatorMessagesComponent: React.FC<SimulatorMessagesProps> = ({
           viewMode={effectiveViewMode}
           setViewMode={handleViewModeChange}
           orgMembers={orgMembers}
+          agentOrgTasks={agentOrgRunView?.tasks}
           sessionReplayMode={mode}
           planPreviewMode={isPlanDoc ? effectivePreviewMode : undefined}
           planEditState={

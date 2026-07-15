@@ -2,6 +2,7 @@ import React from "react";
 
 import { useAgentTurnContext } from "@src/engines/ChatPanel/ChatHistory/AgentTurnContext";
 import type { RustOrgTaskItem } from "@src/engines/SessionCore/core/types";
+import { resolveOrgTaskOperationOutcome } from "@src/engines/SessionCore/rendering/orgTaskOutcome";
 import {
   statusToLifecycle,
   useLifecycleLabels,
@@ -100,13 +101,33 @@ export const OrgTaskAdapter: React.FC<UniversalEventProps> = (props) => {
 
   const extracted = props.rustExtracted;
   const isSimulator = props.variant === "simulator";
+  const operationOutcome = resolveOrgTaskOperationOutcome(
+    extracted,
+    props.result,
+    props.status
+  );
 
-  if (extracted.action === "list")
+  if (extracted.action === "list" && operationOutcome === "succeeded")
     return renderListCard(props, groupSenderName);
   const task = extracted.task ?? extracted.tasks?.[0];
-  if (!task) return null;
+  if (!task) {
+    return (
+      <ToolCallBlock
+        toolName={props.functionName || props.eventType || "task"}
+        title={title}
+        args={props.args}
+        result={props.result}
+        isLoading={operationOutcome === "pending"}
+        defaultCollapsed={false}
+        eventId={props.eventId}
+        callId={props.callId}
+        sessionId={props.sessionId}
+        payloadRefs={props.payloadRefs}
+      />
+    );
+  }
 
-  if (extracted.action === "get") {
+  if (extracted.action === "get" && operationOutcome === "succeeded") {
     return renderListCard(
       {
         ...props,
@@ -139,6 +160,8 @@ export const OrgTaskAdapter: React.FC<UniversalEventProps> = (props) => {
         ownerChanged={extracted.ownerChanged}
         statusChanged={extracted.statusChanged}
         taskAssignedDispatched={extracted.taskAssignedDispatched}
+        operationOutcome={operationOutcome}
+        operationMessage={extracted.guidance ?? extracted.errorMessage}
         isLoading={
           props.status === "running" && props.showActiveEventPainting === true
         }

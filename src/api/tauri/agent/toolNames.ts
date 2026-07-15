@@ -43,6 +43,7 @@ export const TOOL_NAMES = {
   // ── AgentOrg Messaging / Task Board ────────────────────────────────
   ORG_SEND_MESSAGE: "org_send_message",
   TASK_CREATE: "task_create",
+  TASK_GRAPH_CREATE: "task_graph_create",
   TASK_UPDATE: "task_update",
   TASK_LIST: "task_list",
   TASK_GET: "task_get",

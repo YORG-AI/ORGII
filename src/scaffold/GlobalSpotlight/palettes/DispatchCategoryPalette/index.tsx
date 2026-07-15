@@ -99,6 +99,8 @@ export interface DispatchCategoryPaletteProps extends BasePaletteProps {
    * pickers inside a team panel where selecting another team makes no sense.
    */
   hideOrgs?: boolean;
+  /** Omit CLI agents from contexts that only support Rust-native sessions. */
+  hideCliAgents?: boolean;
   /**
    * When true only CLI agent entries are shown. Used by CLI-only picker surfaces.
    */
@@ -176,6 +178,7 @@ export const DispatchCategoryPalette: React.FC<
   currentAgentOrgId,
   currentCliAgentType,
   hideOrgs = false,
+  hideCliAgents = false,
   cliOnly = false,
   titleLabel,
   titleIcon,
@@ -399,7 +402,7 @@ export const DispatchCategoryPalette: React.FC<
         ? [...cliOptions]
         : [
             ...builtInRustOptions,
-            ...cliOptions,
+            ...(hideCliAgents ? [] : cliOptions),
             ...externalIdeOptions,
             ...customAgentOptions,
             ...(hideOrgs ? [] : orgOptions),
@@ -412,6 +415,7 @@ export const DispatchCategoryPalette: React.FC<
       customAgentOptions,
       orgOptions,
       hideOrgs,
+      hideCliAgents,
     ]
   );
 
@@ -561,7 +565,9 @@ export const DispatchCategoryPalette: React.FC<
         builtInRustOptions
       );
     }
-    pushGroup("__header_cli__", t("creator.cliAgents"), cliOptions);
+    if (!hideCliAgents) {
+      pushGroup("__header_cli__", t("creator.cliAgents"), cliOptions);
+    }
     if (!shouldShowCliOnly) {
       pushGroup(
         "__header_external_ide__",
@@ -586,6 +592,7 @@ export const DispatchCategoryPalette: React.FC<
     recentOptions,
     builtInRustOptions,
     cliOptions,
+    hideCliAgents,
     externalIdeOptions,
     customAgentOptions,
     orgOptions,

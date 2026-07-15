@@ -2,11 +2,7 @@
  * Team chart configuration — tree depth limit, agent color map, agent options builder.
  */
 import type { SelectOption } from "@src/components/Select";
-import type {
-  AgentDefinition,
-  AvailableCliAgent,
-} from "@src/modules/MainApp/AgentOrgs/types";
-import { CLI_AGENT_PREFIX } from "@src/modules/MainApp/AgentOrgs/types";
+import type { AgentDefinition } from "@src/modules/MainApp/AgentOrgs/types";
 import {
   BUILTIN_OS_DEF_ID,
   BUILTIN_SDE_DEF_ID,
@@ -23,11 +19,10 @@ export const AGENT_COLORS: Record<string, string> = {
 
 export const DEFAULT_AGENT_COLOR = "text-primary-6";
 
-/** Build Select options from built-in + custom agents + installed CLI agents. */
+/** Build Select options from Rust-native built-in and custom agents. */
 export function buildAgentOptions(
   customAgents: AgentDefinition[],
-  builtInAgents: AgentDefinition[] = [],
-  cliAgents: AvailableCliAgent[] = []
+  builtInAgents: AgentDefinition[] = []
 ): SelectOption[] {
   const definitionOptions: SelectOption[] = [
     ...builtInAgents,
@@ -38,14 +33,5 @@ export function buildAgentOptions(
     dataTestId: `agent-option-${agent.id}`,
   }));
 
-  const cliOptions: SelectOption[] = cliAgents.map((agent) => {
-    const value = `${CLI_AGENT_PREFIX}${agent.name}`;
-    return {
-      label: agent.displayName,
-      value,
-      dataTestId: `agent-option-${value}`,
-    };
-  });
-
-  return [...definitionOptions, ...cliOptions];
+  return definitionOptions;
 }

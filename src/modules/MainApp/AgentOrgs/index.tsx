@@ -42,7 +42,7 @@ import InlineExternalAgentsImport from "./Table/InlineExternalAgentsImport";
 import OrgsTable from "./Table/OrgsTable";
 import { useAgentDefinitions } from "./hooks/useAgentDefinitions";
 import { builtInAgentsAtom } from "./store/builtInAgentsAtom";
-import type { AgentDefinition, AvailableCliAgent, OrgMember } from "./types";
+import type { AgentDefinition, OrgMember } from "./types";
 
 const logger = createLogger("AgentOrgs");
 const AGENT_ORGS_CHANGED_EVENT = "orgii-agent-orgs-changed";
@@ -123,36 +123,6 @@ const AgentOrgsPage: React.FC = () => {
 
   const { accounts } = useKeyVault({ autoLoad: true });
   const cliAgentControls = useCliAgents({ enabled: activeTableTab === "clis" });
-
-  const [cliAgents, setCliAgents] = useState<AvailableCliAgent[]>([]);
-
-  const fetchInstalledCliAgents = useCallback(async () => {
-    const result = await rpc.agentOrgs.availableCliAgents();
-    return result
-      .filter((agent) => agent.installed)
-      .sort((agentA, agentB) =>
-        agentA.displayName.localeCompare(agentB.displayName)
-      );
-  }, []);
-
-  const refreshInstalledCliAgents = useCallback(async () => {
-    const installed = await fetchInstalledCliAgents();
-    setCliAgents(installed);
-  }, [fetchInstalledCliAgents]);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchInstalledCliAgents()
-      .then((installed) => {
-        if (!cancelled) setCliAgents(installed);
-      })
-      .catch(() => {
-        if (!cancelled) setCliAgents([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchInstalledCliAgents]);
 
   const { wizard, entityId, openWizard, closeWizard } = useWizardParam();
   const teamWizardMode =
@@ -346,8 +316,6 @@ const AgentOrgsPage: React.FC = () => {
           onCancel={closeWizard}
           initialOrg={editingOrg}
           customAgents={customAgents}
-          cliAgents={cliAgents}
-          onCliAgentRefresh={refreshInstalledCliAgents}
           onAgentCreate={handleAgentWizardSave}
         />
       );
