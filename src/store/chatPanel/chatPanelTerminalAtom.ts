@@ -54,6 +54,7 @@ interface CreateChatPanelTerminalOptions {
   cliAgentType?: TerminalSession["cliAgentType"];
   agentCommand?: string;
   expectedProcess?: string;
+  env?: Record<string, string>;
 }
 
 export const createChatPanelTerminalAtom = atom(
@@ -69,6 +70,7 @@ export const createChatPanelTerminalAtom = atom(
       cliAgentType,
       agentCommand,
       expectedProcess,
+      env,
     } = typeof options === "string" ? { name: options } : options;
     const newId = `${CHAT_PANEL_TERMINAL_PREFIX}${crypto.randomUUID()}`;
     const newSession: TerminalSession = {
@@ -79,6 +81,7 @@ export const createChatPanelTerminalAtom = atom(
       cliAgentType,
       agentCommand,
       expectedProcess,
+      env,
       agentStatus: agentCommand ? TERMINAL_AGENT_STATUS.STARTING : undefined,
     };
     set(terminalSessionsAtom, (prev) => [...prev, newSession]);

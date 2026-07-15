@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import {
+  type Options as SystemNotification,
   isPermissionGranted,
+  onAction,
   requestPermission,
   sendNotification,
 } from "@tauri-apps/plugin-notification";
@@ -72,7 +74,12 @@ export interface NotificationOptions {
   body: string;
   category?: NotificationCategory;
   playSound?: boolean;
+  extra?: Record<string, unknown>;
 }
+
+export type SystemNotificationActionHandler = (
+  notification: SystemNotification
+) => void;
 
 /**
  * Check notification permission status
@@ -125,10 +132,11 @@ export const requestNotificationPermission = async (): Promise<string> => {
  */
 export const sendSystemNotification = async (
   title: string,
-  body: string
+  body: string,
+  extra?: Record<string, unknown>
 ): Promise<boolean> => {
   try {
-    await sendNotification({ title, body });
+    await sendNotification({ title, body, extra });
     return true;
   } catch (error) {
     log.error("[Notification] Send failed, trying Rust command:", error);
@@ -140,6 +148,14 @@ export const sendSystemNotification = async (
       return false;
     }
   }
+};
+
+/** Listen for a user clicking or acting on an ORGII system notification. */
+export const onSystemNotificationAction = async (
+  handler: SystemNotificationActionHandler
+): Promise<() => Promise<void>> => {
+  const listener = await onAction(handler);
+  return () => listener.unregister();
 };
 
 /**
@@ -184,7 +200,8 @@ export const notify = async (
   if (settings.systemNotificationEnabled) {
     notificationSent = await sendSystemNotification(
       options.title,
-      options.body
+      options.body,
+      options.extra
     );
   }
 
@@ -218,7 +235,8 @@ export const notifyTaskCompletion = async (
  */
 export const notifyAgentApproval = async (
   actionName: string,
-  settings: NotificationSettings
+  settings: NotificationSettings,
+  extra?: Record<string, unknown>
 ): Promise<boolean> => {
   return notify(
     {
@@ -226,6 +244,7 @@ export const notifyAgentApproval = async (
       body: actionName,
       category: "agentApproval",
       playSound: true,
+      extra,
     },
     settings
   );

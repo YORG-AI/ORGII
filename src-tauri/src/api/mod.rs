@@ -7,10 +7,12 @@
 //! handler.
 
 pub mod agent;
+pub mod hermes_hook;
 mod server;
 pub mod websocket_handler;
 
 // Re-export main server function
+pub(crate) use server::ide_server_port;
 pub use server::start_server;
 pub use websocket_handler::init_broadcaster;
 

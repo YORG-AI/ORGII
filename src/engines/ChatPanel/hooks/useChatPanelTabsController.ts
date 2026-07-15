@@ -1,6 +1,7 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect } from "react";
 
+import { createLogger } from "@src/hooks/logger";
 import {
   activeChatPanelTabAtom,
   addChatPanelTerminalTabAtom,
@@ -9,10 +10,16 @@ import {
   openOrFocusChatPanelStartPageTabAtom,
   setChatPanelTabSessionIdAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
-import { createChatPanelTerminalAtom } from "@src/store/chatPanel/chatPanelTerminalAtom";
+import {
+  createChatPanelTerminalAtom,
+  updateTerminalSessionInfoAtom,
+} from "@src/store/chatPanel/chatPanelTerminalAtom";
 import { WORK_MANAGEMENT_SECTION } from "@src/store/workstation";
+import { invokeTauri } from "@src/util/platform/tauri/init";
 
 import type { ChatPanelCliTerminalLaunchOptions } from "../types";
+
+const logger = createLogger("ChatPanelTabsController");
 
 interface UseChatPanelTabsControllerOptions {
   currentSessionId: string | null;
@@ -34,6 +41,7 @@ export function useChatPanelTabsController({
   const addTerminalTab = useSetAtom(addChatPanelTerminalTabAtom);
   const openKanbanTab = useSetAtom(openKanbanChatPanelTabAtom);
   const createTerminalSession = useSetAtom(createChatPanelTerminalAtom);
+  const updateTerminalSession = useSetAtom(updateTerminalSessionInfoAtom);
   const activeTabId = activeTab?.id;
   const activeTabSessionId = activeTab?.sessionId;
   const activeTabType = activeTab?.type;
@@ -68,14 +76,36 @@ export function useChatPanelTabsController({
         agentCommand: options.command,
         expectedProcess: options.expectedProcess,
       });
-      addTerminalTab({
-        terminalSessionId,
-        title: options.title,
-        cliCommand: options.command,
-      });
-      showSessionSurface();
+      void (async () => {
+        if (options.cliAgentType === "hermes") {
+          try {
+            const env = await invokeTauri<Record<string, string>>(
+              "hermes_hook_prepare",
+              { terminalSessionId }
+            );
+            updateTerminalSession({
+              sessionId: terminalSessionId,
+              info: { env },
+            });
+          } catch (error) {
+            // Hermes still launches with process-based status as a fallback.
+            logger.warn("Failed to prepare Hermes lifecycle hook", error);
+          }
+        }
+        addTerminalTab({
+          terminalSessionId,
+          title: options.title,
+          cliCommand: options.command,
+        });
+        showSessionSurface();
+      })();
     },
-    [addTerminalTab, createTerminalSession, showSessionSurface]
+    [
+      addTerminalTab,
+      createTerminalSession,
+      showSessionSurface,
+      updateTerminalSession,
+    ]
   );
 
   // New-session and launchpad both open the singleton start page (Work

@@ -10,11 +10,25 @@ export const TERMINAL_AGENT_STATUS = {
   STARTING: "starting",
   RUNNING: "running",
   WAITING: "waiting",
+  BLOCKED: "blocked",
   DONE: "done",
 } as const;
 
 export type TerminalAgentStatus =
   (typeof TERMINAL_AGENT_STATUS)[keyof typeof TERMINAL_AGENT_STATUS];
+
+export type TerminalAgentStatusSource = "process" | "hook";
+
+/** Privacy-safe activity metadata emitted by a CLI agent hook. */
+export interface TerminalAgentActivity {
+  hookEventName?: string;
+  toolName?: string;
+  toolInputPreview?: string;
+  model?: string;
+  cwd?: string;
+  durationMs?: number;
+  updatedAt: number;
+}
 
 export interface TerminalSession {
   id: string;
@@ -50,6 +64,12 @@ export interface TerminalSession {
   expectedProcess?: string;
   /** Derived lifecycle state for chat-panel TUI agent tracking. */
   agentStatus?: TerminalAgentStatus;
+  /** Authoritative source for the current lifecycle state. */
+  agentStatusSource?: TerminalAgentStatusSource;
+  /** Latest privacy-safe hook activity for status affordances. */
+  agentActivity?: TerminalAgentActivity;
+  /** Environment inherited by the PTY shell for this session. */
+  env?: Record<string, string>;
 }
 
 /** Resolved display title for a terminal session, by priority. */
@@ -111,6 +131,9 @@ export interface UseTerminalStateReturn {
         | "isDefaultSession"
         | "hasUserInput"
         | "agentStatus"
+        | "agentStatusSource"
+        | "agentActivity"
+        | "env"
       >
     >
   ) => void;

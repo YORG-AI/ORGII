@@ -46,7 +46,6 @@ import {
 import SessionHoverCard from "@src/components/SessionHoverCard";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
-import { TERMINAL_AGENT_STATUS } from "@src/engines/TerminalCore/types";
 import { TabBarTrailingIconButton } from "@src/modules/WorkStation/shared/TabBar/components/TabBarTrailingIconButton";
 import { TabLabelRowScrim } from "@src/modules/WorkStation/shared/TabBar/components/TabLabelRowScrim";
 import { TabPillCloseButton } from "@src/modules/WorkStation/shared/TabBar/components/TabPillCloseButton";
@@ -67,6 +66,8 @@ import { isWindows } from "@src/util/platform/tauri";
 import { resolveSessionRowIcon } from "@src/util/session/sessionSidebarRow";
 
 import { resolveChatPanelTabDisplayTitle } from "./chatPanelTabDisplay";
+import TerminalAgentHoverCard from "./components/TerminalAgentHoverCard";
+import { TERMINAL_AGENT_STATUS_PRESENTATION } from "./components/TerminalAgentHoverCard/presentation";
 import {
   CHAT_PANEL_HEADER_DRAG_STYLE,
   CHAT_PANEL_HEADER_NO_DRAG_STYLE,
@@ -75,13 +76,6 @@ import {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const isMac = !isWindows();
-
-const TERMINAL_AGENT_STATUS_DOT_CLASS = {
-  [TERMINAL_AGENT_STATUS.STARTING]: "bg-warning-6",
-  [TERMINAL_AGENT_STATUS.RUNNING]: "bg-success-6",
-  [TERMINAL_AGENT_STATUS.WAITING]: "bg-warning-6",
-  [TERMINAL_AGENT_STATUS.DONE]: "bg-fill-4",
-} as const;
 
 // ─── TabPill ──────────────────────────────────────────────────────────────────
 
@@ -125,6 +119,14 @@ const TabPill = memo(function TabPill({
         )
       : undefined;
   const agentStatus = terminalSession?.agentStatus;
+  const agentStatusPresentation = agentStatus
+    ? TERMINAL_AGENT_STATUS_PRESENTATION[agentStatus]
+    : null;
+  const agentStatusLabel = agentStatusPresentation
+    ? t(agentStatusPresentation.labelKey, {
+        defaultValue: agentStatusPresentation.defaultLabel,
+      })
+    : undefined;
 
   const displayTitle = resolveChatPanelTabDisplayTitle(tab, session, {
     launchpad: t("navigation:routes.launchpad"),
@@ -222,8 +224,9 @@ const TabPill = memo(function TabPill({
           </span>
           {agentStatus && (
             <span
-              aria-hidden="true"
-              className={`ml-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${TERMINAL_AGENT_STATUS_DOT_CLASS[agentStatus]}`}
+              role="status"
+              aria-label={agentStatusLabel}
+              className={`ml-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${TERMINAL_AGENT_STATUS_PRESENTATION[agentStatus].dotClass}`}
             />
           )}
           <TabLabelRowScrim visible={showCloseSlot} />
@@ -245,6 +248,14 @@ const TabPill = memo(function TabPill({
       />
     </div>
   );
+
+  if (tab.type === "terminal" && terminalSession?.agentStatus) {
+    return (
+      <TerminalAgentHoverCard session={terminalSession} position="bottom-start">
+        {pill}
+      </TerminalAgentHoverCard>
+    );
+  }
 
   // Session tabs with an active session get the hover card
   if (tab.type === "session" && tab.sessionId) {

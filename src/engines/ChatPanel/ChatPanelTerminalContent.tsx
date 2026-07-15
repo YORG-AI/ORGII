@@ -20,6 +20,7 @@
  *     process info. This is the same cadence used by the Workstation terminal
  *     panel — no additional polling is introduced here.
  */
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useAtomValue, useSetAtom } from "jotai";
 import React, {
   useCallback,
@@ -29,15 +30,28 @@ import React, {
   useState,
 } from "react";
 
+import { getCodeEditorWebSocket } from "@src/api/realtime/codeEditorWebSocket";
+import {
+  notifyAgentApproval,
+  onSystemNotificationAction,
+} from "@src/api/services/notification";
+import {
+  getHermesApprovalNotificationBody,
+  isHermesApprovalNotificationFor,
+  shouldNotifyHermesApproval,
+} from "@src/engines/ChatPanel/components/TerminalAgentHoverCard/presentation";
 import { TerminalCore } from "@src/engines/TerminalCore";
 import {
   type AddSessionOptions,
   TERMINAL_AGENT_STATUS,
+  type TerminalAgentActivity,
+  type TerminalAgentStatus,
   type UseTerminalStateReturn,
   getTerminalDisplayTitle,
 } from "@src/engines/TerminalCore/types";
 import { createLogger } from "@src/hooks/logger";
 import {
+  activateChatPanelTabAtom,
   clearChatPanelTabCliCommandAtom,
   setChatPanelTabTitleAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
@@ -47,10 +61,29 @@ import {
   terminalSessionsAtom,
   updateTerminalSessionInfoAtom,
 } from "@src/store/chatPanel/chatPanelTerminalAtom";
+import { notificationSettingsAtom } from "@src/store/ui/notificationAtom";
 import { invokeTauri, listenTauri } from "@src/util/platform/tauri/init";
 import { toBackendPtySessionId } from "@src/util/ui/terminal/ptySessionId";
 
 const logger = createLogger("ChatPanelTerminalContent");
+
+const TERMINAL_AGENT_STATUSES = new Set<string>(
+  Object.values(TERMINAL_AGENT_STATUS)
+);
+
+interface HermesTerminalStatusMessage {
+  type: "terminal_agent.status_changed";
+  terminal_session_id?: string;
+  cli_agent_type?: string;
+  agent_status?: string;
+  hook_event_name?: string;
+  tool_name?: string;
+  tool_input_preview?: string;
+  model?: string;
+  cwd?: string;
+  duration_ms?: number;
+  timestamp?: number;
+}
 
 // ─── Props ─────────────────────────────────────────────────────────────────
 
@@ -79,8 +112,10 @@ export function ChatPanelTerminalContent({
 }: ChatPanelTerminalContentProps): React.ReactNode {
   const allSessions = useAtomValue(terminalSessionsAtom);
   const initializedIds = useAtomValue(initializedTerminalIdsAtom);
+  const notificationSettings = useAtomValue(notificationSettingsAtom);
   const dispatchMarkInitialized = useSetAtom(markTerminalInitializedAtom);
   const dispatchUpdateInfo = useSetAtom(updateTerminalSessionInfoAtom);
+  const activateTab = useSetAtom(activateChatPanelTabAtom);
   const setTabTitle = useSetAtom(setChatPanelTabTitleAtom);
   const clearCliCommand = useSetAtom(clearChatPanelTabCliCommandAtom);
 
@@ -88,6 +123,12 @@ export function ChatPanelTerminalContent({
   const session = useMemo(
     () => allSessions.find((sess) => sess.id === terminalSessionId),
     [allSessions, terminalSessionId]
+  );
+  const lastHermesStatusRef = useRef<TerminalAgentStatus | undefined>(
+    session?.agentStatus
+  );
+  const lastHermesActivityRef = useRef<TerminalAgentActivity | undefined>(
+    session?.agentActivity
   );
 
   // Sync terminal title → tab title whenever process / OSC title metadata changes.
@@ -109,6 +150,7 @@ export function ChatPanelTerminalContent({
 
     const ptySessionId = toBackendPtySessionId(terminalSessionId);
     const unlistenPromise = listenTauri(`pty-exit-${ptySessionId}`, () => {
+      lastHermesStatusRef.current = TERMINAL_AGENT_STATUS.DONE;
       dispatchUpdateInfo({
         sessionId: terminalSessionId,
         info: { agentStatus: TERMINAL_AGENT_STATUS.DONE },
@@ -119,6 +161,123 @@ export function ChatPanelTerminalContent({
       unlistenPromise.then((unlisten) => unlisten()).catch(() => undefined);
     };
   }, [session?.agentCommand, terminalSessionId, dispatchUpdateInfo]);
+
+  // Notification actions are global, so each terminal listener filters by the
+  // opaque target metadata attached to its own approval notification.
+  useEffect(() => {
+    if (session?.cliAgentType !== "hermes") return;
+    let disposed = false;
+    let removeListener: (() => Promise<void>) | undefined;
+
+    void onSystemNotificationAction((notification) => {
+      if (
+        !isHermesApprovalNotificationFor(
+          notification.extra,
+          tabId,
+          terminalSessionId
+        )
+      ) {
+        return;
+      }
+
+      activateTab(tabId);
+      void (async () => {
+        try {
+          const appWindow = getCurrentWindow();
+          await appWindow.show();
+          await appWindow.unminimize();
+          await appWindow.setFocus();
+        } catch (error) {
+          logger.warn("Failed to focus Hermes approval terminal", error);
+        }
+      })();
+    })
+      .then((remove) => {
+        if (disposed) {
+          void remove();
+          return;
+        }
+        removeListener = remove;
+      })
+      .catch((error: unknown) => {
+        logger.warn("Failed to subscribe to notification actions", error);
+      });
+
+    return () => {
+      disposed = true;
+      if (removeListener) void removeListener();
+    };
+  }, [session?.cliAgentType, tabId, terminalSessionId, activateTab]);
+
+  // Hermes' plugin hook is the authoritative busy/idle signal once it has
+  // emitted. Subscribe before command injection so the first session-start
+  // callback cannot race the terminal listener.
+  useEffect(() => {
+    if (session?.cliAgentType !== "hermes") return;
+    const websocket = getCodeEditorWebSocket();
+    if (!websocket) return;
+
+    return websocket.on("terminal_agent.status_changed", (raw) => {
+      const message = raw as unknown as HermesTerminalStatusMessage;
+      if (
+        message.terminal_session_id !== terminalSessionId ||
+        message.cli_agent_type !== "hermes" ||
+        !message.agent_status ||
+        !TERMINAL_AGENT_STATUSES.has(message.agent_status)
+      ) {
+        return;
+      }
+      const nextStatus = message.agent_status as TerminalAgentStatus;
+      const previousStatus = lastHermesStatusRef.current;
+      const previousActivity = lastHermesActivityRef.current;
+      const nextActivity: TerminalAgentActivity = {
+        hookEventName: message.hook_event_name,
+        toolName: message.tool_name || previousActivity?.toolName,
+        toolInputPreview:
+          message.tool_input_preview || previousActivity?.toolInputPreview,
+        model: message.model || previousActivity?.model,
+        cwd: message.cwd || previousActivity?.cwd,
+        durationMs: message.duration_ms,
+        updatedAt: message.timestamp ?? Date.now(),
+      };
+      lastHermesStatusRef.current = nextStatus;
+      lastHermesActivityRef.current = nextActivity;
+
+      dispatchUpdateInfo({
+        sessionId: terminalSessionId,
+        info: {
+          agentStatus: nextStatus,
+          agentStatusSource: "hook",
+          agentActivity: nextActivity,
+        },
+      });
+
+      if (
+        shouldNotifyHermesApproval(
+          previousStatus,
+          nextStatus,
+          document.hidden,
+          document.hasFocus()
+        )
+      ) {
+        void notifyAgentApproval(
+          getHermesApprovalNotificationBody(nextActivity),
+          notificationSettings,
+          {
+            kind: "hermes-approval",
+            tabId,
+            terminalSessionId,
+          }
+        );
+      }
+    });
+  }, [
+    session?.cliAgentType,
+    tabId,
+    terminalSessionId,
+    notificationSettings,
+    dispatchUpdateInfo,
+  ]);
 
   // Track whether we've already injected the CLI command to avoid double-write
   const injectedRef = useRef(false);

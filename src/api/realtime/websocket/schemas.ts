@@ -322,6 +322,7 @@ export const CODE_EDITOR_WEB_SOCKET_EVENT_TYPES = [
   "repo:git_operation",
   "repo:watcher_health",
   "lsp:diagnostics",
+  "terminal_agent.status_changed",
 ] as const;
 
 export const CodeEditorWebSocketMessageSchema = z.object({
@@ -332,6 +333,18 @@ export const CodeEditorWebSocketMessageSchema = z.object({
   payload: z.unknown().optional(),
   status: z.unknown().optional(),
   files: z.array(z.unknown()).optional(),
+  terminal_session_id: z.string().optional(),
+  cli_agent_type: z.string().optional(),
+  agent_status: z
+    .enum(["starting", "running", "waiting", "blocked", "done"])
+    .optional(),
+  hook_event_name: z.string().optional(),
+  tool_name: z.string().optional(),
+  tool_input_preview: z.string().optional(),
+  model: z.string().optional(),
+  cwd: z.string().optional(),
+  duration_ms: z.number().nonnegative().optional(),
+  approval_surface: z.string().optional(),
   timestamp: z.number(),
 });
 

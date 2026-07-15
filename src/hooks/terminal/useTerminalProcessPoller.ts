@@ -48,11 +48,15 @@ function normalizeProcessName(value: string | undefined): string {
   return (value ?? "").replace(/\.(exe|cmd)$/i, "").toLowerCase();
 }
 
-function deriveAgentStatus(
+export function deriveAgentStatus(
   session: TerminalSession,
   processName: string | undefined
 ): TerminalSession["agentStatus"] | undefined {
   if (!session.expectedProcess) return undefined;
+  // Hermes lifecycle hooks distinguish active work from an idle TUI. Once a
+  // hook event has arrived, foreground-process polling remains metadata-only
+  // and must not overwrite the more precise state with a generic "running".
+  if (session.agentStatusSource === "hook") return session.agentStatus;
   if (!processName) return session.agentStatus;
 
   const normalizedProcess = normalizeProcessName(processName);

@@ -1,0 +1,20 @@
+# Managed by ORGII. Changes may be replaced when the integration is updated.
+name: orgii-status
+version: 1.0.0
+description: Reports Hermes Agent lifecycle state to ORGII terminals.
+author: ORGII
+kind: standalone
+provides_hooks:
+  - on_session_start
+  - pre_llm_call
+  - post_llm_call
+  - pre_tool_call
+  - post_tool_call
+  - pre_verify
+  - subagent_start
+  - subagent_stop
+  - pre_approval_request
+  - post_approval_response
+  - on_session_end
+  - on_session_finalize
+  - on_session_reset

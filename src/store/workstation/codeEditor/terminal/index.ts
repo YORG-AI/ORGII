@@ -496,6 +496,9 @@ export const updateTerminalSessionInfoAtom = atom(
           | "isDefaultSession"
           | "hasUserInput"
           | "agentStatus"
+          | "agentStatusSource"
+          | "agentActivity"
+          | "env"
         >
       >;
     }

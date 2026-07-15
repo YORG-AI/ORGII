@@ -239,7 +239,7 @@ struct ApiDoc;
 // High port to avoid conflicts with common apps
 const DEFAULT_IDE_SERVER_PORT: u16 = 13847;
 
-fn ide_server_port() -> u16 {
+pub(crate) fn ide_server_port() -> u16 {
     std::env::var("ORGII_IDE_SERVER_PORT")
         .ok()
         .and_then(|value| value.parse::<u16>().ok())
@@ -283,6 +283,8 @@ pub async fn start_server(
                 std::time::Duration::from_secs(200),
             )),
         )
+        // Hermes plugin lifecycle callbacks for chat-panel TUI terminals.
+        .merge(super::hermes_hook::router())
         // Automation webhook route — fires registered webhook triggers
         .route(
             "/automation/webhook/{*route}",

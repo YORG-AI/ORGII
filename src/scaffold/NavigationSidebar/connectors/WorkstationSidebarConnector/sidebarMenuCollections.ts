@@ -155,7 +155,8 @@ export function useChatPanelTuiSidebarSessions(): Session[] {
       const status =
         terminal.agentStatus === "done"
           ? "completed"
-          : terminal.agentStatus === "waiting"
+          : terminal.agentStatus === "waiting" ||
+              terminal.agentStatus === "blocked"
             ? "idle"
             : "running";
       const title = getTerminalDisplayTitle(terminal) || tab.title;
