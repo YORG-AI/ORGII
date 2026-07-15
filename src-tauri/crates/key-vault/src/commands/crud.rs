@@ -829,7 +829,7 @@ impl From<ModelKey> for FullKeyResponse {
 pub async fn list_keys() -> Result<Vec<KeyInfo>, String> {
     tokio::task::spawn_blocking(|| {
         KEY_SERVICE
-            .list_keys()
+            .list_keys_checked()?
             .into_iter()
             .map(key_info_from_entry)
             .collect::<Result<Vec<_>, _>>()
@@ -848,7 +848,7 @@ pub async fn get_key(
         let agent = ModelType::from_str(&agent_type)
             .ok_or_else(|| format!("Unknown agent_type: {agent_type:?}"))?;
         KEY_SERVICE
-            .get_key(&agent, key_id.as_deref())
+            .get_key_checked(&agent, key_id.as_deref())?
             .map(key_info_from_entry)
             .transpose()
     })
@@ -861,7 +861,7 @@ pub async fn get_key(
 pub async fn get_key_by_id(key_id: String) -> Result<Option<KeyInfo>, String> {
     tokio::task::spawn_blocking(move || {
         KEY_SERVICE
-            .get_key_by_id(&key_id)
+            .get_key_by_id_checked(&key_id)?
             .map(key_info_from_entry)
             .transpose()
     })
@@ -879,7 +879,7 @@ pub async fn get_full_key(
         let agent = ModelType::from_str(&agent_type)
             .ok_or_else(|| format!("Unknown agent_type: {agent_type:?}"))?;
         Ok(KEY_SERVICE
-            .get_key(&agent, key_id.as_deref())
+            .get_key_checked(&agent, key_id.as_deref())?
             .map(FullKeyResponse::from))
     })
     .await
@@ -894,10 +894,10 @@ pub async fn save_key(request: SaveKeyRequest) -> Result<KeyInfo, String> {
             ModelType::from_str(&request.agent_type).ok_or("Unknown agent type".to_string())?;
 
         // Load existing key if updating
-        let existing = request
-            .id
-            .as_ref()
-            .and_then(|id| KEY_SERVICE.get_key_by_id(id));
+        let existing = match request.id.as_deref() {
+            Some(id) => KEY_SERVICE.get_key_by_id_checked(id)?,
+            None => None,
+        };
 
         let mut entry = if let Some(existing) = existing {
             existing

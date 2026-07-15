@@ -39,6 +39,8 @@ export function useUnifiedModelPalette({
     recentEntries,
     recordRecent,
     saveKey,
+    accountsLoading,
+    accountsError,
     refreshAllModels,
     refreshingAllModels,
   } = useUnifiedModelPaletteData({
@@ -122,6 +124,8 @@ export function useUnifiedModelPalette({
     previewModel,
     handleModelPreview,
     handleBack,
+    accountsLoading,
+    accountsError,
     refreshAllModels,
     refreshingAllModels,
     tCommon,

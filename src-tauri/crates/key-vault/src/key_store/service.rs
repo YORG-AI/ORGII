@@ -1,5 +1,6 @@
 use chrono::{Duration as ChronoDuration, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
@@ -26,7 +27,66 @@ const OAUTH_REFRESH_FAILURE_DISABLE_THRESHOLD: u32 = 3;
 const OAUTH_TEMPORARY_UNAVAILABLE_SECONDS: i64 = 30 * 60;
 const OAUTH_RATE_LIMIT_FALLBACK_SECONDS: i64 = 5 * 60;
 const OAUTH_REFRESH_FAILURE_COOLDOWN_SECONDS: i64 = 5 * 60;
+const RETIRED_MODEL_TYPES: &[&str] = &["gemini_cli"];
 type OAuthRefreshLockMap = Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>;
+
+#[derive(Debug)]
+struct InvalidStoredCredential {
+    id: String,
+    raw: JsonValue,
+    error: String,
+}
+
+#[derive(Debug)]
+struct LoadedKeyStore {
+    store: KeyStore,
+    invalid_credentials: Vec<InvalidStoredCredential>,
+    retired_credential_count: usize,
+}
+
+impl LoadedKeyStore {
+    fn log_diagnostics(&self, storage_file: &std::path::Path) {
+        if self.retired_credential_count > 0 {
+            tracing::info!(
+                path = %storage_file.display(),
+                count = self.retired_credential_count,
+                "Ignored retired Key Vault credentials"
+            );
+        }
+        for credential in &self.invalid_credentials {
+            tracing::warn!(
+                path = %storage_file.display(),
+                credential_id = %credential.id,
+                error = %credential.error,
+                "Ignored invalid Key Vault credential; raw entry will be preserved"
+            );
+        }
+    }
+
+    fn invalid_credential_error(&self, key_id: &str) -> Option<String> {
+        self.invalid_credentials.iter().find_map(|credential| {
+            let raw_id = credential.raw.get("id").and_then(JsonValue::as_str);
+            (credential.id == key_id || raw_id == Some(key_id)).then(|| {
+                format!(
+                    "Credential {key_id:?} is invalid and was preserved: {}",
+                    credential.error
+                )
+            })
+        })
+    }
+
+    fn ensure_any_valid_credentials(&self, storage_file: &std::path::Path) -> Result<(), String> {
+        if self.store.keys.is_empty() && !self.invalid_credentials.is_empty() {
+            return Err(format!(
+                "No valid credentials could be loaded; {} invalid credential(s) were preserved in {}",
+                self.invalid_credentials.len(),
+                storage_file.display()
+            ));
+        }
+
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct CliOAuthTokenSync {
@@ -140,12 +200,16 @@ impl KeyService {
 
     /// Load keys from file.
     ///
-    /// On read or parse failure, logs an error and returns `None` so callers
-    /// can decide whether to proceed (read-only callers return empty data,
-    /// write callers abort to avoid overwriting a corrupted file).
-    fn load_store_checked(&self) -> Result<KeyStore, String> {
+    /// Root-level read/parse failures are returned to the caller. Individual
+    /// malformed credentials are isolated in `LoadedKeyStore` so valid
+    /// siblings remain usable and future writes can preserve the raw entries.
+    fn load_store_checked(&self) -> Result<LoadedKeyStore, String> {
         if !self.storage_file.exists() {
-            return Ok(KeyStore::default());
+            return Ok(LoadedKeyStore {
+                store: KeyStore::default(),
+                invalid_credentials: Vec::new(),
+                retired_credential_count: 0,
+            });
         }
 
         let contents = fs::read_to_string(&self.storage_file)
@@ -158,7 +222,7 @@ impl KeyService {
     /// Load keys, returning default on missing file but logging errors.
     fn load_store(&self) -> KeyStore {
         match self.load_store_checked() {
-            Ok(store) => store,
+            Ok(loaded) => loaded.store,
             Err(err) => {
                 eprintln!("[KeyService] {}", err);
                 KeyStore::default()
@@ -169,8 +233,12 @@ impl KeyService {
     /// Save keys to file (atomic write + restrictive permissions).
     /// Secrets (api_key, session_token) are written directly to the JSON file,
     /// protected by 0o600 permissions.
-    fn save_store(&self, store: &KeyStore) -> Result<(), String> {
-        let contents = serde_json::to_string_pretty(store)
+    fn save_store(
+        &self,
+        store: &KeyStore,
+        invalid_credentials: &[InvalidStoredCredential],
+    ) -> Result<(), String> {
+        let contents = serialize_key_store(store, invalid_credentials)
             .map_err(|e| format!("Failed to serialize credentials: {}", e))?;
 
         // Write to a temp file first, then rename — atomic on same filesystem
@@ -193,9 +261,12 @@ impl KeyService {
     {
         let _guard = self.lock.lock().map_err(|e| format!("Lock error: {}", e))?;
 
-        let mut store = self.load_store_checked()?;
-        let result = updater(&mut store);
-        self.save_store(&store)?;
+        let mut loaded = self.load_store_checked()?;
+        let result = updater(&mut loaded.store);
+        if !loaded.invalid_credentials.is_empty() {
+            loaded.log_diagnostics(&self.storage_file);
+        }
+        self.save_store(&loaded.store, &loaded.invalid_credentials)?;
 
         Ok(result)
     }
@@ -204,6 +275,58 @@ impl KeyService {
     pub fn list_keys(&self) -> Vec<ModelKey> {
         let store = self.load_store();
         store.keys.into_values().collect()
+    }
+
+    /// List stored keys while surfacing root-level corruption to user-facing
+    /// callers. Invalid individual entries are isolated and logged; valid
+    /// siblings remain available.
+    pub fn list_keys_checked(&self) -> Result<Vec<ModelKey>, String> {
+        let loaded = self.load_store_checked()?;
+        loaded.log_diagnostics(&self.storage_file);
+
+        loaded.ensure_any_valid_credentials(&self.storage_file)?;
+
+        Ok(loaded.store.keys.into_values().collect())
+    }
+
+    /// Read one credential without turning corruption into a misleading
+    /// "not found" response. Invalid siblings remain isolated.
+    pub fn get_key_checked(
+        &self,
+        agent_type: &ModelType,
+        key_id: Option<&str>,
+    ) -> Result<Option<ModelKey>, String> {
+        let loaded = self.load_store_checked()?;
+        loaded.log_diagnostics(&self.storage_file);
+
+        if let Some(key) = loaded.store.get(agent_type, key_id).cloned() {
+            return Ok(Some(key));
+        }
+        if let Some(key_id) = key_id {
+            if let Some(error) = loaded.invalid_credential_error(key_id) {
+                return Err(error);
+            }
+        }
+        loaded.ensure_any_valid_credentials(&self.storage_file)?;
+
+        Ok(None)
+    }
+
+    /// Read one credential by ID without turning corruption into a
+    /// misleading "not found" response. Invalid siblings remain isolated.
+    pub fn get_key_by_id_checked(&self, key_id: &str) -> Result<Option<ModelKey>, String> {
+        let loaded = self.load_store_checked()?;
+        loaded.log_diagnostics(&self.storage_file);
+
+        if let Some(key) = loaded.store.get_by_id(key_id).cloned() {
+            return Ok(Some(key));
+        }
+        if let Some(error) = loaded.invalid_credential_error(key_id) {
+            return Err(error);
+        }
+        loaded.ensure_any_valid_credentials(&self.storage_file)?;
+
+        Ok(None)
     }
 
     /// Get key by agent type and optional ID
@@ -1131,20 +1254,64 @@ impl KeyService {
     }
 }
 
-fn deserialize_key_store(contents: &str) -> Result<KeyStore, serde_json::Error> {
+fn deserialize_key_store(contents: &str) -> Result<LoadedKeyStore, serde_json::Error> {
     let mut value = serde_json::from_str::<serde_json::Value>(contents)?;
-    if let Some(credentials) = value
+    let credentials = value
         .get_mut("credentials")
         .and_then(serde_json::Value::as_object_mut)
-    {
-        credentials.retain(|_, credential| {
-            credential
-                .get("model_type")
-                .and_then(serde_json::Value::as_str)
-                != Some("gemini_cli")
-        });
+        .map(std::mem::take)
+        .unwrap_or_default();
+
+    // Parse the envelope separately from its entries. One unsupported or
+    // malformed credential must not poison every valid sibling in the vault.
+    let mut store = serde_json::from_value::<KeyStore>(value)?;
+    let mut invalid_credentials = Vec::new();
+    let mut retired_credential_count = 0;
+
+    for (storage_id, raw) in credentials {
+        let agent_type = raw.get("agent_type").and_then(JsonValue::as_str);
+        if agent_type.is_some_and(|value| RETIRED_MODEL_TYPES.contains(&value)) {
+            retired_credential_count += 1;
+            continue;
+        }
+
+        match serde_json::from_value::<ModelKey>(raw.clone()) {
+            Ok(key) => {
+                store.keys.insert(storage_id, key);
+            }
+            Err(error) => invalid_credentials.push(InvalidStoredCredential {
+                id: storage_id,
+                raw,
+                error: error.to_string(),
+            }),
+        }
     }
-    serde_json::from_value(value)
+
+    Ok(LoadedKeyStore {
+        store,
+        invalid_credentials,
+        retired_credential_count,
+    })
+}
+
+fn serialize_key_store(
+    store: &KeyStore,
+    invalid_credentials: &[InvalidStoredCredential],
+) -> Result<String, String> {
+    let mut value = serde_json::to_value(store).map_err(|error| error.to_string())?;
+    let credentials = value
+        .get_mut("credentials")
+        .and_then(JsonValue::as_object_mut)
+        .ok_or_else(|| "serialized KeyStore has no credentials object".to_string())?;
+
+    // Valid entries win if a previously invalid id is repaired explicitly.
+    for credential in invalid_credentials {
+        credentials
+            .entry(credential.id.clone())
+            .or_insert_with(|| credential.raw.clone());
+    }
+
+    serde_json::to_string_pretty(&value).map_err(|error| error.to_string())
 }
 
 fn parse_codex_refresh_error(body: &str) -> String {

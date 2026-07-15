@@ -72,6 +72,8 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
     sourceItems,
     previewModel,
     handleBack,
+    accountsLoading,
+    accountsError,
     refreshAllModels,
     refreshingAllModels,
     tCommon: tCommonHook,
@@ -356,6 +358,11 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
       sourceItems={sourceItems}
       selectedSourceIndex={selectedSourceIndex}
       hasFocusedModel={selectedModelId !== null}
+      accountsLoading={accountsLoading || refreshingAllModels}
+      accountsError={accountsError}
+      onRetryAccounts={() => {
+        void refreshAllModels();
+      }}
       onSourceSelect={(index) => {
         const source = sourceItems[index];
         source?.action?.();
