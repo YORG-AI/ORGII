@@ -1,16 +1,17 @@
 /* global describe, before, beforeEach, afterEach, it, process */
 import {
+  AGENT_ORG_COORDINATOR_MEMBER_ID,
+  AGENT_ORG_TASK_STATUS,
   API_AGENT_TYPE,
   BUILTIN_SDE_AGENT_ID,
   DEFAULT_AGENT_ORG_ID,
   DEFAULT_AGENT_ORG_MEMBER_IDS,
-  RUN_ID,
   RENDER_TIMEOUT_MS,
   REPLY_TIMEOUT_MS,
+  RUN_ID,
   SHARED_CLI_AGENT_ID,
-  AGENT_ORG_COORDINATOR_MEMBER_ID,
-  AGENT_ORG_TASK_STATUS,
   assertCrashRecoveryBannerAbsent,
+  assertE2ERepoFixture,
   assertLongTaskRenderedCollapsed,
   assertNoCurrentPlanBuildSurface,
   assertNoFalseFinality,
@@ -43,13 +44,14 @@ import {
   selectRenderedExecMode,
   sendCoordinatorOrgMessage,
   sendFromRenderedCreator,
-  sendRenderedGroupChatMentionPrompt,
   sendRenderedChatPrompt,
+  sendRenderedGroupChatMentionPrompt,
   unwrap,
   waitForActiveSessionExecMode,
   waitForAgentOrgByName,
   waitForAgentOrgRunView,
   waitForAgentOrgRunViewByOrg,
+  waitForApp,
   waitForCoordinatorRuntimeStatus,
   waitForGroupChatPausedBanner,
   waitForGroupChatPendingTarget,
@@ -67,10 +69,7 @@ import {
   waitForRenderedReleasedTask,
   waitForSessionAggregateRow,
   waitForSessionOrgRuntimeSnapshot,
-  waitForApp,
-  assertE2ERepoFixture,
 } from "../../support/core/agentOrgUiDriver.mjs";
-
 
 async function pauseDefaultAgentOrgRuns(label) {
   const listResult = unwrap(
@@ -145,9 +144,10 @@ describe("Agent Org group chat and plan rendered UI", () => {
     }
     if (
       !promptText.includes("### Planning workflow") ||
-      !promptText.includes('kind = "exec_mode_set_request"') ||
-      !promptText.includes('mode = "plan"') ||
-      !promptText.includes('kind = "plan_approval_response"')
+      !promptText.includes("execution_mode=plan") ||
+      !promptText.includes("enters Plan mode automatically") ||
+      !promptText.includes('kind="plan_approval_response"') ||
+      promptText.includes("exec_mode_set_request")
     ) {
       throw new Error(
         `default Agent Org prompt did not include coordinator Planner protocol: ${JSON.stringify({ prompt: promptText.slice(0, 4000) })}`
@@ -507,7 +507,7 @@ describe("Agent Org group chat and plan rendered UI", () => {
     }
   });
 
-  it("coordinator sets member to Plan, member submits plan, and coordinator approves it", async () => {
+  it("a Plan task starts Planner in Plan mode and approval unlocks dependent work", async () => {
     const account = await getApiAccount();
     const model = selectPreferredModel(account);
     await configureCreatorForDefaultAgentOrg({ account, model });
@@ -553,39 +553,91 @@ describe("Agent Org group chat and plan rendered UI", () => {
       );
     }
 
-    const modeRequestId = `e2e-mode-plan-${RUN_ID}`;
-    await sendCoordinatorOrgMessage(
-      sessionId,
-      {
-        recipient_member_id: DEFAULT_AGENT_ORG_MEMBER_IDS.PLANNER,
-        kind: "exec_mode_set_request",
-        request_id: modeRequestId,
-        mode: "plan",
-        reason: `Planner must draft and submit a plan for approval ${RUN_ID}`,
-      },
-      "set planner to plan"
-    );
+    const planTaskId = `e2e-plan-task-${RUN_ID}`;
+    const downstreamTaskId = `e2e-build-after-plan-${RUN_ID}`;
+    const planTaskCreate = unwrap(
+      await invokeE2E(
+        "debugAgentOrgExecuteToolAsAgent",
+        runId,
+        AGENT_ORG_COORDINATOR_MEMBER_ID,
+        "task_create",
+        {
+          id: planTaskId,
+          subject: `Draft an execution plan ${RUN_ID}`,
+          description: "Submit the complete plan with create_plan.",
+          owner_member_id: DEFAULT_AGENT_ORG_MEMBER_IDS.PLANNER,
+          status: AGENT_ORG_TASK_STATUS.PENDING,
+          dispatch_policy: "immediate",
+          execution_mode: "plan",
+        }
+      ),
+      "debugAgentOrgExecuteToolAsAgent(create Plan task)"
+    ).result;
+    if (planTaskCreate?.ok !== true) {
+      throw new Error(
+        `Plan task creation failed: ${JSON.stringify(planTaskCreate)}`
+      );
+    }
+    const downstreamTaskCreate = unwrap(
+      await invokeE2E(
+        "debugAgentOrgExecuteToolAsAgent",
+        runId,
+        AGENT_ORG_COORDINATOR_MEMBER_ID,
+        "task_create",
+        {
+          id: downstreamTaskId,
+          subject: `Build from the approved plan ${RUN_ID}`,
+          description: "Consume the approved Planner output.",
+          owner_member_id: DEFAULT_AGENT_ORG_MEMBER_IDS.IMPLEMENTER,
+          status: AGENT_ORG_TASK_STATUS.PENDING,
+          dispatch_policy: "after_dependencies",
+          dependency_task_ids: [planTaskId],
+          execution_mode: "build",
+        }
+      ),
+      "debugAgentOrgExecuteToolAsAgent(create dependent Build task)"
+    ).result;
+    if (downstreamTaskCreate?.ok !== true) {
+      throw new Error(
+        `Dependent task creation failed: ${JSON.stringify(downstreamTaskCreate)}`
+      );
+    }
 
     await waitForAgentOrgRunView(
       sessionId,
       (view) =>
         (view?.inbox ?? []).some((row) => {
-          const payload = parseInboxPayload(row, "exec mode set request");
+          const payload = parseInboxPayload(row, "Plan task assignment");
           return (
-            row.payloadKind === "exec_mode_set_request" &&
-            row.senderMemberId === AGENT_ORG_COORDINATOR_MEMBER_ID &&
+            row.payloadKind === "task_assigned" &&
             row.recipientMemberId === DEFAULT_AGENT_ORG_MEMBER_IDS.PLANNER &&
-            payload.request_id === modeRequestId &&
-            payload.mode === "plan"
+            payload.task_id === planTaskId &&
+            payload.execution_mode === "plan"
           );
         }),
-      "coordinator plan-mode request visible in run view"
+      "Plan task assignment visible in run view"
     );
+
+    const plannerStartsTask = unwrap(
+      await invokeE2E(
+        "debugAgentOrgExecuteToolAsAgent",
+        runId,
+        DEFAULT_AGENT_ORG_MEMBER_IDS.PLANNER,
+        "task_update",
+        { id: planTaskId, status: AGENT_ORG_TASK_STATUS.IN_PROGRESS }
+      ),
+      "debugAgentOrgExecuteToolAsAgent(start Plan task)"
+    ).result;
+    if (plannerStartsTask?.ok !== true) {
+      throw new Error(
+        `Planner could not start Plan task: ${JSON.stringify(plannerStartsTask)}`
+      );
+    }
 
     await waitForSessionAggregateRow(
       plannerSessionId,
       (session) => session.sessionId === plannerSessionId,
-      "planner session row after coordinator plan-mode request"
+      "planner session row after Plan task assignment"
     );
     await waitForSessionOrgRuntimeSnapshot(
       plannerSessionId,
@@ -594,11 +646,11 @@ describe("Agent Org group chat and plan rendered UI", () => {
         (snapshot.registeredOrgToolNames ?? []).includes("create_plan") &&
         (snapshot.requestedExecMode === "plan" ||
           snapshot.hasPrePlanMode === true),
-      "planner received coordinator Plan-mode request without user chat"
+      "planner received assignment-driven Plan mode without user chat"
     );
     await assertNoMemberIntervention(
       plannerSessionId,
-      "coordinator plan-mode request"
+      "assignment-driven Plan mode"
     );
 
     const planTitle = `E2E Member Plan ${RUN_ID}`;
@@ -678,7 +730,6 @@ describe("Agent Org group chat and plan rendered UI", () => {
           request_id: planRequestPayload.request_id,
           accepted: true,
           feedback: "peer approval should be rejected",
-          next_mode: "build",
         }
       ),
       "debugAgentOrgExecuteToolAsAgent(peer plan approval)"
@@ -703,7 +754,6 @@ describe("Agent Org group chat and plan rendered UI", () => {
         request_id: planRequestPayload.request_id,
         accepted: false,
         feedback: rejectionFeedback,
-        next_mode: "plan",
       },
       "reject planner plan with feedback"
     );
@@ -780,7 +830,6 @@ describe("Agent Org group chat and plan rendered UI", () => {
       "coordinator viewing member-submitted revised org plan request"
     );
 
-    const approvalFeedback = `Approved revised plan by coordinator during E2E ${RUN_ID}`;
     await sendCoordinatorOrgMessage(
       sessionId,
       {
@@ -788,49 +837,44 @@ describe("Agent Org group chat and plan rendered UI", () => {
         kind: "plan_approval_response",
         request_id: revisedPlanRequestPayload.request_id,
         accepted: true,
-        feedback: approvalFeedback,
-        next_mode: "build",
       },
       "approve revised planner plan"
     );
     await waitForAgentOrgRunView(
       sessionId,
-      (view) =>
-        (view?.inbox ?? []).some((row) => {
+      (view) => {
+        const planTask = (view?.tasks ?? []).find(
+          (task) => task.id === planTaskId
+        );
+        const downstreamAssigned = (view?.inbox ?? []).some((row) => {
+          const payload = parseInboxPayload(row, "dependent task assignment");
+          return (
+            row.payloadKind === "task_assigned" &&
+            row.recipientMemberId ===
+              DEFAULT_AGENT_ORG_MEMBER_IDS.IMPLEMENTER &&
+            payload.task_id === downstreamTaskId &&
+            payload.execution_mode === "build"
+          );
+        });
+        const obsoleteAcceptedPlannerWake = (view?.inbox ?? []).some((row) => {
+          if (row.payloadKind !== "plan_approval_response") return false;
           const payload = parseInboxPayload(
             row,
-            "revised plan approval response"
+            "obsolete accepted plan response"
           );
           return (
-            row.payloadKind === "plan_approval_response" &&
-            row.senderMemberId === AGENT_ORG_COORDINATOR_MEMBER_ID &&
             row.recipientMemberId === DEFAULT_AGENT_ORG_MEMBER_IDS.PLANNER &&
             payload.request_id === revisedPlanRequestPayload.request_id &&
-            payload.accepted === true &&
-            String(payload.feedback ?? "").includes(approvalFeedback)
+            payload.accepted === true
           );
-        }),
-      "coordinator revised approval visible in run view"
-    );
-    await clickRenderedMemberSwitcher(
-      DEFAULT_AGENT_ORG_MEMBER_IDS.PLANNER,
-      plannerSessionId
-    );
-    await waitForAgentOrgRunView(
-      plannerSessionId,
-      (view) => view?.currentMemberId === DEFAULT_AGENT_ORG_MEMBER_IDS.PLANNER,
-      "planner active for rendered approval feedback"
-    );
-    await assertRenderedInboxPinBarAbsent(
-      "planner rendered coordinator approval feedback"
-    );
-    await assertNoCurrentPlanBuildSurface(
-      "planner viewing coordinator approval feedback"
-    );
-    await waitForSessionOrgRuntimeSnapshot(
-      plannerSessionId,
-      (snapshot) => snapshot.hasPlanSlot === true,
-      "planner keeps submitted plan before a member turn drains approval"
+        });
+        return (
+          planTask?.status === AGENT_ORG_TASK_STATUS.COMPLETED &&
+          downstreamAssigned &&
+          !obsoleteAcceptedPlannerWake
+        );
+      },
+      "approval completes Plan task and dispatches dependent Build task"
     );
     await assertNoMemberIntervention(plannerSessionId, "coordinator approval");
 
@@ -839,5 +883,367 @@ describe("Agent Org group chat and plan rendered UI", () => {
       runId,
       "coordinator-controlled member plan approval"
     );
+  });
+
+  it("lets the user request changes, edit, and approve a member plan in Group chat", async () => {
+    const account = await getApiAccount();
+    const model = selectPreferredModel(account);
+    const orgName = `E2E User Plan Approval Org ${RUN_ID}`;
+    const plannerName = `E2E User Plan Planner ${RUN_ID}`;
+    const implementerName = `E2E User Plan Implementer ${RUN_ID}`;
+    await removeAgentOrgsByName(orgName);
+
+    const org = await createRenderedStrictTwoMemberAgentOrg({
+      orgName,
+      leadName: plannerName,
+      childName: implementerName,
+      planApprovalPolicy: "user",
+    });
+    await configureCreatorForAgentOrg({
+      account,
+      model,
+      agentOrgId: org.id,
+    });
+    await selectRenderedExecMode("build");
+    await selectRenderedAgentOrg(org.id);
+
+    const sessionId = await sendFromRenderedCreator(
+      `E2E rendered user plan approval ${RUN_ID}. Reply briefly.`
+    );
+    if (!sessionId) {
+      throw new Error("User plan approval launch did not create a session id");
+    }
+    await waitForRenderedAssistantReply("user plan approval launch");
+
+    let runId = null;
+    let plannerMemberId = null;
+    let plannerSessionId = null;
+    let implementerMemberId = null;
+    await waitForAgentOrgRunView(
+      sessionId,
+      (view) => {
+        runId = view?.context?.runId ?? null;
+        const planner = (view?.members ?? []).find(
+          (member) => member.name === plannerName
+        );
+        const implementer = (view?.members ?? []).find(
+          (member) => member.name === implementerName
+        );
+        plannerMemberId = planner?.memberId ?? null;
+        plannerSessionId = planner?.sessionRuntime?.sessionId ?? null;
+        implementerMemberId = implementer?.memberId ?? null;
+        return Boolean(
+          runId && plannerMemberId && plannerSessionId && implementerMemberId
+        );
+      },
+      "user approval members materialized"
+    );
+    if (
+      !runId ||
+      !plannerMemberId ||
+      !plannerSessionId ||
+      !implementerMemberId
+    ) {
+      throw new Error(
+        `User approval scenario did not materialize runtime ids: ${JSON.stringify({ runId, plannerMemberId, plannerSessionId, implementerMemberId })}`
+      );
+    }
+
+    const planTaskId = `e2e-user-plan-task-${RUN_ID}`;
+    const downstreamTaskId = `e2e-user-plan-build-${RUN_ID}`;
+    const createPlanTask = unwrap(
+      await invokeE2E(
+        "debugAgentOrgExecuteToolAsAgent",
+        runId,
+        AGENT_ORG_COORDINATOR_MEMBER_ID,
+        "task_create",
+        {
+          id: planTaskId,
+          subject: `Draft a user-approved plan ${RUN_ID}`,
+          description: "Submit the complete plan with create_plan.",
+          owner_member_id: plannerMemberId,
+          status: AGENT_ORG_TASK_STATUS.PENDING,
+          dispatch_policy: "immediate",
+          execution_mode: "plan",
+        }
+      ),
+      "debugAgentOrgExecuteToolAsAgent(create user-approved Plan task)"
+    ).result;
+    if (createPlanTask?.ok !== true) {
+      throw new Error(
+        `User-approved Plan task creation failed: ${JSON.stringify(createPlanTask)}`
+      );
+    }
+    const createDownstreamTask = unwrap(
+      await invokeE2E(
+        "debugAgentOrgExecuteToolAsAgent",
+        runId,
+        AGENT_ORG_COORDINATOR_MEMBER_ID,
+        "task_create",
+        {
+          id: downstreamTaskId,
+          subject: `Build after user approval ${RUN_ID}`,
+          description: "Consume the approved plan output.",
+          owner_member_id: implementerMemberId,
+          status: AGENT_ORG_TASK_STATUS.PENDING,
+          dispatch_policy: "after_dependencies",
+          dependency_task_ids: [planTaskId],
+          execution_mode: "build",
+          // The live coordinator may independently create setup work while the
+          // rendered test seeds this isolated chain. The test is explicitly
+          // asserting that this downstream task consumes only planTaskId.
+          allow_parallel_with_unlisted_open_tasks: true,
+        }
+      ),
+      "debugAgentOrgExecuteToolAsAgent(create user-approved downstream task)"
+    ).result;
+    if (createDownstreamTask?.ok !== true) {
+      throw new Error(
+        `User-approved downstream task creation failed: ${JSON.stringify(createDownstreamTask)}`
+      );
+    }
+    const downstreamCreatePayload = JSON.parse(
+      String(createDownstreamTask.result?.text ?? "{}")
+    );
+    if (downstreamCreatePayload?.task?.id !== downstreamTaskId) {
+      throw new Error(
+        `User-approved downstream task was not persisted: ${JSON.stringify(downstreamCreatePayload)}`
+      );
+    }
+
+    const startPlanTask = unwrap(
+      await invokeE2E(
+        "debugAgentOrgExecuteToolAsAgent",
+        runId,
+        plannerMemberId,
+        "task_update",
+        { id: planTaskId, status: AGENT_ORG_TASK_STATUS.IN_PROGRESS }
+      ),
+      "debugAgentOrgExecuteToolAsAgent(start user-approved Plan task)"
+    ).result;
+    if (startPlanTask?.ok !== true) {
+      throw new Error(
+        `User-approved Plan task could not start: ${JSON.stringify(startPlanTask)}`
+      );
+    }
+
+    let latestPlannerRuntime = null;
+    await browser.waitUntil(
+      async () => {
+        const runViewResult = await invokeE2E(
+          "agentOrgSessionRunView",
+          sessionId
+        );
+        const planner = (runViewResult?.view?.members ?? []).find(
+          (member) => member.memberId === plannerMemberId
+        );
+        const candidateSessionId = planner?.sessionRuntime?.sessionId ?? null;
+        if (!candidateSessionId) {
+          latestPlannerRuntime = { candidateSessionId: null };
+          return false;
+        }
+        const snapshotResult = await invokeE2E(
+          "debugSessionOrgRuntimeSnapshot",
+          candidateSessionId
+        );
+        latestPlannerRuntime = {
+          candidateSessionId,
+          snapshotResult,
+        };
+        const snapshot = snapshotResult?.snapshot ?? null;
+        if (
+          snapshotResult?.ok === true &&
+          snapshot?.isOrgMember === true &&
+          (snapshot.registeredOrgToolNames ?? []).includes("create_plan") &&
+          (snapshot.requestedExecMode === "plan" ||
+            snapshot.hasPrePlanMode === true)
+        ) {
+          // A custom member may be rematerialized when its first real wake is
+          // dispatched. Always use the currently registered runtime id rather
+          // than the provisional id from the initial run snapshot.
+          plannerSessionId = candidateSessionId;
+          return true;
+        }
+        return false;
+      },
+      {
+        timeout: REPLY_TIMEOUT_MS,
+        interval: 500,
+        timeoutMsg: `user-approval Planner never reached task-driven Plan mode: ${JSON.stringify(latestPlannerRuntime)}`,
+      }
+    );
+
+    const initialTitle = `E2E User Plan ${RUN_ID}`;
+    const initialContent = `Initial user-reviewed plan ${RUN_ID}: inspect, implement, and verify.`;
+    await executeCreatePlanAsMember(
+      plannerSessionId,
+      initialTitle,
+      initialContent,
+      "planner submits user-reviewed plan"
+    );
+
+    unwrap(
+      await invokeE2E("openSession", sessionId),
+      "openSession(coordinator for user plan approval)"
+    );
+    await refreshRenderedAgentOrgOverview("user plan approval card");
+    await browser.waitUntil(
+      async () => {
+        const card = await execJS(`
+          const element = document.querySelector('[data-testid="agent-org-plan-approval-card"]');
+          return element ? { text: element.textContent || "" } : null;
+        `);
+        return Boolean(
+          card?.text.includes(initialTitle) && card?.text.includes(plannerName)
+        );
+      },
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        interval: 250,
+        timeoutMsg: "user plan approval card never rendered in Group chat",
+      }
+    );
+
+    const requestChangesClick = await execJS(
+      js.click('[data-testid="agent-org-plan-request-changes-button"]')
+    );
+    if (requestChangesClick !== "clicked") {
+      throw new Error(
+        `Request changes button did not click: ${requestChangesClick}`
+      );
+    }
+    const feedback = `Please add explicit checkpoints ${RUN_ID}.`;
+    const feedbackType = await execJS(
+      js.inputValue(
+        '[data-testid="agent-org-plan-approval-feedback"]',
+        feedback
+      )
+    );
+    if (feedbackType !== "typed") {
+      throw new Error(`Plan feedback did not type: ${feedbackType}`);
+    }
+    const sendFeedbackClick = await execJS(
+      js.click('[data-testid="agent-org-plan-send-feedback-button"]')
+    );
+    if (sendFeedbackClick !== "clicked") {
+      throw new Error(
+        `Send feedback button did not click: ${sendFeedbackClick}`
+      );
+    }
+    await waitForAgentOrgRunView(
+      sessionId,
+      (view) => {
+        const planTask = (view?.tasks ?? []).find(
+          (task) => task.id === planTaskId
+        );
+        const feedbackDelivered = (view?.inbox ?? []).some((row) => {
+          const payload = parseInboxPayload(row, "user plan feedback");
+          return (
+            row.recipientMemberId === plannerMemberId &&
+            row.payloadKind === "plan_approval_response" &&
+            payload.accepted === false &&
+            String(payload.feedback ?? "").includes(feedback)
+          );
+        });
+        return (
+          planTask?.status === AGENT_ORG_TASK_STATUS.IN_PROGRESS &&
+          feedbackDelivered
+        );
+      },
+      "user feedback keeps Plan task open and reaches Planner"
+    );
+
+    const revisedTitle = `E2E Revised User Plan ${RUN_ID}`;
+    const revisedContent = `Revised user-reviewed plan ${RUN_ID}: inspect, implement, review each checkpoint, then verify.`;
+    await executeCreatePlanAsMember(
+      plannerSessionId,
+      revisedTitle,
+      revisedContent,
+      "planner submits revised user-reviewed plan"
+    );
+    await refreshRenderedAgentOrgOverview("revised user plan approval card");
+    await browser.waitUntil(
+      async () => {
+        const cardText = await execJS(
+          js.text('[data-testid="agent-org-plan-approval-card"]')
+        );
+        return String(cardText).includes(revisedTitle);
+      },
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        interval: 250,
+        timeoutMsg: "revised user plan approval card never rendered",
+      }
+    );
+
+    const editClick = await execJS(
+      js.click('[data-testid="agent-org-plan-edit-button"]')
+    );
+    if (editClick !== "clicked") {
+      throw new Error(`Edit plan button did not click: ${editClick}`);
+    }
+    const approvedContent = `${revisedContent} User-approved final checkpoint ${RUN_ID}.`;
+    const editType = await execJS(
+      js.inputValue(
+        '[data-testid="agent-org-plan-approval-edit"]',
+        approvedContent
+      )
+    );
+    if (editType !== "typed") {
+      throw new Error(`Edited plan content did not type: ${editType}`);
+    }
+    const approveClick = await execJS(
+      js.click('[data-testid="agent-org-plan-approve-button"]')
+    );
+    if (approveClick !== "clicked") {
+      throw new Error(`Approve edited plan did not click: ${approveClick}`);
+    }
+
+    await waitForAgentOrgRunView(
+      sessionId,
+      (view) => {
+        const planTask = (view?.tasks ?? []).find(
+          (task) => task.id === planTaskId
+        );
+        const downstreamAssigned = (view?.inbox ?? []).some((row) => {
+          const payload = parseInboxPayload(
+            row,
+            "user-approved dependent task assignment"
+          );
+          return (
+            row.payloadKind === "task_assigned" &&
+            row.recipientMemberId === implementerMemberId &&
+            payload.task_id === downstreamTaskId
+          );
+        });
+        return (
+          planTask?.status === AGENT_ORG_TASK_STATUS.COMPLETED &&
+          downstreamAssigned
+        );
+      },
+      "user approval completes Plan task and unlocks dependent work"
+    );
+    await browser.waitUntil(
+      async () =>
+        !(await execJS(
+          js.exists('[data-testid="agent-org-plan-approval-card"]')
+        )),
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        interval: 250,
+        timeoutMsg: "resolved user plan approval card remained visible",
+      }
+    );
+
+    const finalRunView = unwrap(
+      await invokeE2E("agentOrgSessionRunView", sessionId),
+      "agentOrgSessionRunView(user plan approval cleanup)"
+    ).view;
+    if (finalRunView?.runStatus === "running") {
+      unwrap(
+        await invokeE2E("agentOrgPauseRun", sessionId),
+        "agentOrgPauseRun(user plan approval cleanup)"
+      );
+    }
   });
 });

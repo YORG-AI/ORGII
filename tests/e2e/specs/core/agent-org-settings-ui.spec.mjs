@@ -8,8 +8,6 @@ import {
   DEFAULT_AGENT_ORG_MEMBER_IDS,
   E2E_REPO_PATH,
   RUN_ID,
-  SHARED_CLI_AGENT_ID,
-  SHARED_CLI_AGENT_TYPE,
   assertCrashRecoveryBannerAbsent,
   assertE2ERepoFixture,
   assertLongTaskRenderedCollapsed,
@@ -20,13 +18,11 @@ import {
   assertRenderedGroupChatToggleIsIdempotent,
   assertRenderedInboxPinBarAbsent,
   clickGroupChatResumeButton,
-  clickRenderedMemberSwitcher,
   clickReturnToWorkAndWaitCleared,
   configureCreatorForAgentOrg,
   configureCreatorForDefaultAgentOrg,
   createLongTaskPrecondition,
   createRenderedStrictTwoMemberAgentOrg,
-  ensureMemberHasSwitchableInbox,
   executeCreatePlanAsMember,
   getApiAccount,
   invokeE2E,
@@ -435,116 +431,5 @@ describe("Agent Org settings and topology rendered UI", () => {
       await invokeE2E("removeAgentDef", overrideAgentId);
       await removeAgentOrgsByName(orgName);
     }
-  });
-
-  it("materializes multiple Agent Org CLI members from the same CLI source without collapsing them", async () => {
-    const account = await getApiAccount();
-    const model = selectPreferredModel(account);
-    const orgName = `E2E Shared CLI Org ${RUN_ID}`;
-    const leadName = `E2E CLI Lead ${RUN_ID}`;
-    const childName = `E2E CLI Child ${RUN_ID}`;
-    await removeAgentOrgsByName(orgName);
-
-    const org = await createRenderedStrictTwoMemberAgentOrg({
-      orgName,
-      leadName,
-      childName,
-      memberAgentId: SHARED_CLI_AGENT_ID,
-    });
-    const lead = (org.children ?? []).find(
-      (member) => member.name === leadName
-    );
-    const child = lead?.children?.find((member) => member.name === childName);
-    if (
-      lead?.agentId !== SHARED_CLI_AGENT_ID ||
-      child?.agentId !== SHARED_CLI_AGENT_ID
-    ) {
-      throw new Error(
-        `Created shared CLI org did not persist both members on ${SHARED_CLI_AGENT_ID}: ${JSON.stringify(org)}`
-      );
-    }
-
-    await configureCreatorForAgentOrg({ account, model, agentOrgId: org.id });
-    await selectRenderedAgentOrg(org.id);
-    const launchPrompt = `E2E true positive shared CLI Agent Org topology ${RUN_ID}. Reply briefly.`;
-    const sessionId = await sendFromRenderedCreator(launchPrompt);
-    if (!sessionId) {
-      throw new Error(
-        "Shared CLI Agent Org launch did not create a session id"
-      );
-    }
-    await waitForRenderedAssistantReply("shared CLI Agent Org launch");
-
-    let leadMemberId = null;
-    let childMemberId = null;
-    let leadSessionId = null;
-    let childSessionId = null;
-    await waitForAgentOrgRunView(
-      sessionId,
-      (view) => {
-        const members = view?.members ?? [];
-        const leadRuntime = members.find((member) => member.name === leadName);
-        const childRuntime = members.find(
-          (member) => member.name === childName
-        );
-        leadMemberId = leadRuntime?.memberId ?? null;
-        childMemberId = childRuntime?.memberId ?? null;
-        leadSessionId = leadRuntime?.sessionRuntime?.sessionId ?? null;
-        childSessionId = childRuntime?.sessionRuntime?.sessionId ?? null;
-        return Boolean(
-          view?.currentMemberId === AGENT_ORG_COORDINATOR_MEMBER_ID &&
-          view?.context?.runId &&
-          leadMemberId &&
-          childMemberId &&
-          leadMemberId !== childMemberId &&
-          leadRuntime?.agentId === SHARED_CLI_AGENT_ID &&
-          childRuntime?.agentId === SHARED_CLI_AGENT_ID &&
-          !leadRuntime.parentMemberId &&
-          childRuntime.parentMemberId === leadMemberId &&
-          !leadRuntime.sessionRuntime?.agentDefinitionId &&
-          !childRuntime.sessionRuntime?.agentDefinitionId &&
-          leadRuntime.sessionRuntime?.cliAgentType === SHARED_CLI_AGENT_TYPE &&
-          childRuntime.sessionRuntime?.cliAgentType === SHARED_CLI_AGENT_TYPE &&
-          leadRuntime.sessionRuntime?.memberId === leadMemberId &&
-          childRuntime.sessionRuntime?.memberId === childMemberId &&
-          leadSessionId &&
-          childSessionId &&
-          leadSessionId !== childSessionId
-        );
-      },
-      "shared CLI Agent Org members materialized by member_id"
-    );
-
-    await ensureMemberHasSwitchableInbox(
-      sessionId,
-      leadMemberId,
-      "shared CLI lead"
-    );
-    await clickRenderedMemberSwitcher(leadMemberId, leadSessionId);
-    await waitForAgentOrgRunView(
-      leadSessionId,
-      (view) => view?.currentMemberId === leadMemberId,
-      "shared CLI lead member rendered switch"
-    );
-    unwrap(
-      await invokeE2E("openSession", sessionId),
-      "openSession(coordinator)"
-    );
-    await waitForAgentOrgRunView(
-      sessionId,
-      (view) => view?.currentMemberId === AGENT_ORG_COORDINATOR_MEMBER_ID,
-      "shared CLI coordinator restored before child switch"
-    );
-    await ensureMemberHasSwitchableInbox(
-      sessionId,
-      childMemberId,
-      "shared CLI child"
-    );
-    await clickRenderedMemberSwitcher(childMemberId, childSessionId);
-    await waitForAgentOrgRunView(
-      childSessionId,
-      (view) => view?.currentMemberId === childMemberId,
-      "shared CLI child member rendered switch"
-    );
   });
 });

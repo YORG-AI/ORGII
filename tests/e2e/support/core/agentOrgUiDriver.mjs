@@ -532,6 +532,7 @@ export async function createRenderedStrictTwoMemberAgentOrg({
   childName,
   prefix,
   memberAgentId = BUILTIN_SDE_AGENT_ID,
+  planApprovalPolicy = "coordinator",
 }) {
   const tag = prefix ?? "org";
   if (!orgName) orgName = `E2E ${tag} ${RUN_ID}`;
@@ -578,6 +579,11 @@ export async function createRenderedStrictTwoMemberAgentOrg({
     '[data-testid="agent-orgs-hierarchy-mode-select"]',
     '[data-testid="agent-orgs-hierarchy-mode-strict"]',
     "Agent Org strict hierarchy mode"
+  );
+  await selectRenderedOption(
+    '[data-testid="agent-orgs-plan-approval-policy-select"]',
+    `[data-testid="agent-orgs-plan-approval-policy-${planApprovalPolicy}"]`,
+    `Agent Org ${planApprovalPolicy} plan approval policy`
   );
 
   const addMember = async (name, role) => {
@@ -710,6 +716,11 @@ export async function createRenderedStrictTwoMemberAgentOrg({
   if (org?.hierarchyMode !== "strict") {
     throw new Error(
       `Created org did not persist strict hierarchy: ${JSON.stringify(org)}`
+    );
+  }
+  if (org?.planApprovalPolicy !== planApprovalPolicy) {
+    throw new Error(
+      `Created org did not persist plan approval policy ${planApprovalPolicy}: ${JSON.stringify(org)}`
     );
   }
   const lead = (org.children ?? []).find((member) => member.name === leadName);
@@ -985,6 +996,14 @@ export async function selectRenderedOrgMemberAgentDefinition({
       timeoutMsg: `Org member AgentDefinition option ${agentDefinitionId} never rendered for ${label}: ${JSON.stringify(renderedOptions)}`,
     }
   );
+  const cliOptions = renderedOptions.filter((option) =>
+    option.testId?.startsWith("session-creator-agent-option-cli-")
+  );
+  if (cliOptions.length > 0) {
+    throw new Error(
+      `Agent Org member picker exposed unsupported CLI agents for ${label}: ${JSON.stringify(cliOptions)}`
+    );
+  }
   const optionClick = await execJS(js.visibleClick(optionSelector));
   if (optionClick !== "clicked") {
     throw new Error(
@@ -1095,7 +1114,9 @@ export async function assertRenderedGroupChatComposerResponsive(label) {
     };
   `);
   if (!state.present || state.sendDisabled === true) {
-    throw new Error(`group chat composer not responsive for ${label}: ${JSON.stringify(state)}`);
+    throw new Error(
+      `group chat composer not responsive for ${label}: ${JSON.stringify(state)}`
+    );
   }
 }
 
@@ -1108,7 +1129,9 @@ export async function assertAgentOrgOverviewHasRunControl(label) {
     };
   `);
   if (!state.overviewPause && !state.overviewResume) {
-    throw new Error(`Agent Org overview did not expose Pause/Resume for ${label}: ${JSON.stringify(state)}`);
+    throw new Error(
+      `Agent Org overview did not expose Pause/Resume for ${label}: ${JSON.stringify(state)}`
+    );
   }
 }
 
@@ -2068,7 +2091,7 @@ export async function executeCreatePlanAsMember(
       {
         title,
         content,
-        new_plan: true,
+        new_plan: false,
       }
     ),
     `debugSessionExecuteOrgTool(create_plan ${label})`
@@ -2452,6 +2475,8 @@ export async function createLongTaskPrecondition(
       description: subject,
       owner_member_id: memberId,
       status: AGENT_ORG_TASK_STATUS.PENDING,
+      dispatch_policy: "immediate",
+      execution_mode: "build",
     }),
     "debugSessionExecuteOrgTool(long task precondition)"
   ).result;
