@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -11,7 +12,9 @@ import {
   DEFAULT_SESSION_ORG_ID,
   type Session,
   type SessionListCategory,
+  sessionLastLoadedAtom,
   sessionPaginationAtom,
+  upsertSession,
 } from "@src/store/session";
 import { isImportedHistorySession } from "@src/util/session/sessionDispatch";
 import { getSessionSearchText } from "@src/util/session/sessionSearch";
@@ -48,6 +51,97 @@ export { getLoadMoreGroupId, isLoadMoreId } from "./paginationHelpers";
 
 const logger = createLogger("SessionSidebar");
 
+interface ChildSessionRecord {
+  sessionId: string;
+  name: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  sessionType: string;
+  parentSessionId: string | null;
+}
+
+const SUBAGENT_SESSION_ID_SEGMENT = ":subagent:";
+
+function parentSessionIdFor(session: Session): string | null {
+  if (session.parentSessionId) return session.parentSessionId;
+  const segmentIndex = session.session_id.indexOf(SUBAGENT_SESSION_ID_SEGMENT);
+  if (segmentIndex <= 0) return null;
+  return session.session_id.slice(0, segmentIndex);
+}
+
+function agentNameFromChildName(name: string): string | undefined {
+  const markerIndex = name.indexOf(" (");
+  const label = markerIndex >= 0 ? name.slice(0, markerIndex) : name;
+  const trimmed = label.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function childRecordToSession(
+  record: ChildSessionRecord,
+  parentSessionId: string
+): Session {
+  const name = record.name?.trim() || record.sessionId;
+  return {
+    session_id: record.sessionId,
+    status: record.status,
+    created_at: record.createdAt,
+    updated_at: record.updatedAt,
+    created_time: record.createdAt,
+    updated_time: record.updatedAt,
+    name,
+    category: "rust_agent",
+    keySource: "own_key",
+    parentSessionId: record.parentSessionId ?? parentSessionId,
+    background: true,
+    agentDisplayName: agentNameFromChildName(name),
+  };
+}
+
+function buildChildSessionMenuItem(
+  session: Session,
+  buildSessionRow: (session: Session) => NavigationMenuItem
+): NavigationMenuItem {
+  const item = buildSessionRow(session);
+  return {
+    ...item,
+    showIndentGuide: true,
+    visualTone: "secondary",
+    dataTestId: `sidebar-subagent-session-item-${session.session_id}`,
+    // Subagent rows don't carry a meaningful read status, so drop the dot.
+    workingIndicator: undefined,
+    trailingElement: undefined,
+  };
+}
+
+function insertExpandedSubagentRows({
+  items,
+  childSessionsByParent,
+  expandedSubagentParentIds,
+  buildSessionRow,
+}: {
+  items: readonly NavigationMenuItem[];
+  childSessionsByParent: ReadonlyMap<string, readonly Session[]>;
+  expandedSubagentParentIds: ReadonlySet<string>;
+  buildSessionRow: (session: Session) => NavigationMenuItem;
+}): NavigationMenuItem[] {
+  if (expandedSubagentParentIds.size === 0) return items.slice();
+
+  const nextItems: NavigationMenuItem[] = [];
+  for (const item of items) {
+    nextItems.push(item);
+    if (!expandedSubagentParentIds.has(item.id)) continue;
+    const childSessions = childSessionsByParent.get(item.id);
+    if (!childSessions || childSessions.length === 0) continue;
+    nextItems.push(
+      ...childSessions.map((session) =>
+        buildChildSessionMenuItem(session, buildSessionRow)
+      )
+    );
+  }
+  return nextItems;
+}
+
 export function useSessionMenuItems({
   sortedSessions,
   visitedSessions,
@@ -58,12 +152,19 @@ export function useSessionMenuItems({
   selectedOrgId,
   includeExternal,
   groupVisibleCounts,
+  expandedSubagentParentIds = new Set(),
 }: UseSessionMenuItemsParams): UseSessionMenuItemsResult {
   const { t: tCommon } = useTranslation();
   const pagination = useAtomValue(sessionPaginationAtom);
+  const sessionLastLoaded = useAtomValue(sessionLastLoadedAtom);
   const benchmarkAgentBatchStatus = useAtomValue(benchmarkAgentBatchStatusAtom);
   const [benchmarkHistoryChildSessionIds, setBenchmarkHistoryChildSessionIds] =
     useState<ReadonlySet<string>>(() => new Set());
+  const [queriedSubagentParentIds, setQueriedSubagentParentIds] = useState<
+    ReadonlySet<string>
+  >(() => new Set());
+  const [fetchedChildSessionsByParent, setFetchedChildSessionsByParent] =
+    useState<ReadonlyMap<string, Session[]>>(() => new Map());
 
   useEffect(() => {
     let cancelled = false;
@@ -133,6 +234,122 @@ export function useSessionMenuItems({
     ]
   );
 
+  const visibleSessionIds = useMemo(
+    () => visibleSessions.map((session) => session.session_id),
+    [visibleSessions]
+  );
+
+  useEffect(() => {
+    setQueriedSubagentParentIds(new Set());
+  }, [sessionLastLoaded]);
+
+  useEffect(() => {
+    const parentIdsToQuery = visibleSessionIds.filter(
+      (sessionId) => !queriedSubagentParentIds.has(sessionId)
+    );
+    if (parentIdsToQuery.length === 0) return;
+
+    setQueriedSubagentParentIds((previousIds) => {
+      const nextIds = new Set(previousIds);
+      for (const sessionId of parentIdsToQuery) {
+        nextIds.add(sessionId);
+      }
+      return nextIds;
+    });
+
+    let cancelled = false;
+    void Promise.allSettled(
+      parentIdsToQuery.map(async (parentSessionId) => {
+        const records = await invoke<ChildSessionRecord[]>(
+          "es_get_child_sessions",
+          { parentSessionId }
+        );
+        const childSessions = records.map((record) =>
+          childRecordToSession(record, parentSessionId)
+        );
+        for (const childSession of childSessions) {
+          upsertSession(childSession);
+        }
+        return { parentSessionId, childSessions };
+      })
+    ).then((results) => {
+      if (cancelled) return;
+      setFetchedChildSessionsByParent((previousMap) => {
+        const nextMap = new Map(previousMap);
+        for (const result of results) {
+          if (result.status !== "fulfilled") continue;
+          nextMap.set(result.value.parentSessionId, result.value.childSessions);
+        }
+        return nextMap;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [queriedSubagentParentIds, visibleSessionIds]);
+
+  const childSessionsByParent = useMemo(() => {
+    const map = new Map<string, Session[]>();
+
+    for (const session of sortedSessions) {
+      const parentSessionId = parentSessionIdFor(session);
+      if (!parentSessionId) continue;
+      const bucket = map.get(parentSessionId);
+      if (bucket) {
+        bucket.push(session);
+      } else {
+        map.set(parentSessionId, [session]);
+      }
+    }
+
+    for (const [
+      parentSessionId,
+      childSessions,
+    ] of fetchedChildSessionsByParent) {
+      const byId = new Map(
+        (map.get(parentSessionId) ?? []).map(
+          (session) => [session.session_id, session] as const
+        )
+      );
+      for (const childSession of childSessions) {
+        const existing = byId.get(childSession.session_id);
+        byId.set(childSession.session_id, {
+          ...existing,
+          ...childSession,
+          parentSessionId:
+            childSession.parentSessionId ?? existing?.parentSessionId,
+          agentOrgId: childSession.agentOrgId ?? existing?.agentOrgId,
+          agentOrgName: childSession.agentOrgName ?? existing?.agentOrgName,
+          agentDefinitionId:
+            childSession.agentDefinitionId ?? existing?.agentDefinitionId,
+          agentIconId: childSession.agentIconId ?? existing?.agentIconId,
+          agentDisplayName:
+            childSession.agentDisplayName ?? existing?.agentDisplayName,
+        });
+      }
+      map.set(parentSessionId, Array.from(byId.values()));
+    }
+
+    for (const childSessions of map.values()) {
+      childSessions.sort((left, right) =>
+        (right.updated_at || "").localeCompare(left.updated_at || "")
+      );
+    }
+
+    return map;
+  }, [fetchedChildSessionsByParent, sortedSessions]);
+
+  const subagentParentIds = useMemo(
+    () =>
+      new Set(
+        Array.from(childSessionsByParent.entries())
+          .filter(([, childSessions]) => childSessions.length > 0)
+          .map(([parentSessionId]) => parentSessionId)
+      ),
+    [childSessionsByParent]
+  );
+
   const { filteredItems: searchedSessions, isFiltering } = useFilteredItems({
     items: visibleSessions,
     searchQuery,
@@ -154,8 +371,13 @@ export function useSessionMenuItems({
     for (const session of visibleSessions) {
       map.set(session.session_id, session);
     }
+    for (const childSessions of childSessionsByParent.values()) {
+      for (const session of childSessions) {
+        map.set(session.session_id, session);
+      }
+    }
     return map;
-  }, [visibleSessions]);
+  }, [childSessionsByParent, visibleSessions]);
 
   const buildSessionRow = useCallback(
     (session: Session): NavigationMenuItem =>
@@ -295,7 +517,7 @@ export function useSessionMenuItems({
       appendTrailingLoadMoreItems,
     ]
   );
-  const menuItems = useMemo<NavigationMenuItem[]>(() => {
+  const baseMenuItems = useMemo<NavigationMenuItem[]>(() => {
     switch (groupByMode) {
       case "byAgent":
         return byAgentMenuItems;
@@ -307,5 +529,27 @@ export function useSessionMenuItems({
     }
   }, [groupByMode, byTimeMenuItems, byAgentMenuItems, byWorkspaceMenuItems]);
 
-  return { menuItems, sessionMap, isLoadMoreId, getLoadMoreGroupId };
+  const menuItems = useMemo<NavigationMenuItem[]>(
+    () =>
+      insertExpandedSubagentRows({
+        items: baseMenuItems,
+        childSessionsByParent,
+        expandedSubagentParentIds,
+        buildSessionRow,
+      }),
+    [
+      baseMenuItems,
+      buildSessionRow,
+      childSessionsByParent,
+      expandedSubagentParentIds,
+    ]
+  );
+
+  return {
+    menuItems,
+    sessionMap,
+    subagentParentIds,
+    isLoadMoreId,
+    getLoadMoreGroupId,
+  };
 }

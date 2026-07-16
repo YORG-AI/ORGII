@@ -9,7 +9,7 @@ use std::time::Duration;
 use tracing::{debug, info, warn};
 
 use super::client::CodexNativeClient;
-use super::types::{ResponsesRequest, ResponsesResponse};
+use super::types::ResponsesResponse;
 use crate::providers::responses_common::{
     parse_response, ResponsesStreamNormalizer, ResponsesStreamOutput,
 };
@@ -62,25 +62,13 @@ impl LLMProvider for CodexNativeClient {
     ) -> Result<LLMResponse, ProviderError> {
         use futures_util::StreamExt;
 
-        let (instructions, input) = Self::convert_messages(messages);
-        let (converted_tools, tool_choice) =
-            crate::providers::responses_common::convert_tools_with_choice(tools);
-
-        let request_body = ResponsesRequest {
-            model: model.to_string(),
-            input,
-            instructions: Self::required_instructions(instructions),
-            tools: converted_tools,
-            tool_choice,
-            store: false,
-            stream: true,
-        };
+        let request_body = Self::build_responses_request(messages, tools, model, true);
 
         let url = self.responses_url();
         info!(
             "[codex-native] Streaming request to {}, model={}, messages={}",
             url,
-            model,
+            request_body.model,
             messages.len()
         );
 

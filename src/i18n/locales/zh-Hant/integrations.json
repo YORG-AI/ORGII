@@ -225,8 +225,8 @@
     "apiProtocolDesc": "選擇內建 Rust Agent 使用的線路協議",
     "officialUrl": "官方 URL",
     "customUrl": "自定義 URL",
-    "customBaseUrlRiskTitle": "自定義 URL 警告",
-    "customBaseUrlRiskWarning": "使用自定義 Base URL 可能將您的 API 密鑰和數據暴露給第三方服務器。僅在使用可信代理、自建部署或已知安全端點時使用",
+    "customBaseUrlNoteTitle": "關於自訂端點",
+    "customBaseUrlNoteBody": "您的 API 密鑰和請求資料會傳送到您輸入的 URL。請僅將自訂 URL 用於可信代理、自建部署或您控制的端點",
     "addBaseUrl": "添加自定義 Base URL（選填）",
     "localModel": {
       "title": "本地模型 Cookbook",
@@ -291,6 +291,8 @@
     "signInDesc": "通過瀏覽器登錄授權訪問",
     "setupMethod": "設置方式",
     "setupMethodDesc": "如何提供密鑰",
+    "endpoint": "端點",
+    "endpointDesc": "選擇此密鑰連接的端點",
     "detect": "檢測",
     "detected": "已檢測",
     "reDetect": "重新檢測",
@@ -812,7 +814,8 @@
     "pickProviderDesc": "選擇提供商",
     "selectVariant": "連接方式",
     "variantSubscription": "訂閱",
-    "variantApiKey": "API Key"
+    "variantApiKey": "API Key",
+    "providerCustom": "自訂"
   },
   "modelsTable": {
     "noModels": "暫無來自您 Keys 的模型",

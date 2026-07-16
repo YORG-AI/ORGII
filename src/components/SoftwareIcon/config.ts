@@ -9,7 +9,7 @@ import React from "react";
 import ClaudeIcon from "@src/assets/modelIcons/claude.svg";
 import CodexIcon from "@src/assets/modelIcons/codex.svg";
 import CursorIcon from "@src/assets/modelIcons/cursor.svg";
-import GeminiIcon from "@src/assets/modelIcons/gemini.svg";
+import GeminiIcon from "@src/assets/modelIcons/gemini";
 import AiderIcon from "@src/assets/softwareIcons/aider.svg";
 import AndroidStudioIcon from "@src/assets/softwareIcons/android-studio.svg";
 import AtomIcon from "@src/assets/softwareIcons/atom.svg";

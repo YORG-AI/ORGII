@@ -419,6 +419,20 @@ impl SideQueryExecution {
     }
 }
 
+/// Per-call options for [`LLMProvider::chat_with_options`].
+///
+/// Extends the fixed `chat` signature without breaking the nine existing
+/// implementors: providers that don't care simply inherit the default
+/// method, which drops the options and delegates to `chat`.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ChatOptions {
+    /// Suppress prompt-cache write breakpoints (Anthropic `cache_control`)
+    /// for this request. Set for one-shot side queries (e.g. compaction
+    /// summarization) whose prefix is never sent again — writing it to the
+    /// provider cache costs the cache-write premium with zero future reads.
+    pub skip_cache_write: bool,
+}
+
 /// Abstract trait for LLM providers.
 ///
 /// Implementations handle the specifics of each provider's API
@@ -466,6 +480,26 @@ pub trait LLMProvider: Send + Sync {
         _cancel_flag: Option<&AtomicBool>,
     ) -> Result<LLMResponse, ProviderError> {
         // Default: fall back to non-streaming
+        self.chat(messages, tools, model, max_tokens, temperature)
+            .await
+    }
+
+    /// Like [`Self::chat`], with per-call [`ChatOptions`].
+    ///
+    /// Default implementation ignores the options and delegates to `chat`
+    /// — only providers with option-sensitive request builders (currently
+    /// `anthropic_native` for `skip_cache_write`) and pass-through wrappers
+    /// (`ReliableProvider`, which must forward rather than swallow the
+    /// options) need to override this.
+    async fn chat_with_options(
+        &self,
+        messages: &[Value],
+        tools: Option<&[Value]>,
+        model: &str,
+        max_tokens: u32,
+        temperature: f32,
+        _options: ChatOptions,
+    ) -> Result<LLMResponse, ProviderError> {
         self.chat(messages, tools, model, max_tokens, temperature)
             .await
     }

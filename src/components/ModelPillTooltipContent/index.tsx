@@ -43,6 +43,7 @@ export const ModelPillTooltipContent: React.FC<ModelPillTooltipContentProps> =
             variantInfo={variantInfo}
             thinking={thinking}
             rawValue={rawValue}
+            wide
           />
         }
         shortcut={shortcut}

@@ -83,7 +83,8 @@ interface MyAccountsTableSectionProps {
   onEditAccountSave?: (
     accountId: string,
     name: string,
-    description: string
+    description: string,
+    baseUrl?: string
   ) => Promise<void>;
   t: (key: string, options?: Record<string, unknown>) => string;
 }

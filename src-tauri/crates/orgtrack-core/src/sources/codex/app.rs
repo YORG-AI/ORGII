@@ -27,7 +27,7 @@ use crate::sources::imported_history::{
 
 const CODEX_APP_SESSION_PREFIX: &str = "codexapp-";
 const CODEX_PROVIDER_SLUG: &str = "codex";
-const CODEX_APP_METADATA_PARSER_VERSION: i64 = 3;
+const CODEX_APP_METADATA_PARSER_VERSION: i64 = 8;
 
 pub type CodexAppSessionRow = ImportedHistorySessionRow;
 pub type CodexAppSessionPage = ImportedHistorySessionPage;
@@ -43,6 +43,7 @@ struct CodexAppSessionMeta {
     source_size_bytes: i64,
     source_fingerprint: String,
     name: String,
+    parent_session_id: Option<String>,
     created_at_ms: i64,
     updated_at_ms: i64,
     model: Option<String>,
@@ -56,6 +57,8 @@ struct CodexAppSessionMeta {
 struct CodexJsonlLine {
     #[serde(default)]
     timestamp: Option<String>,
+    #[serde(default, rename = "type")]
+    line_type: String,
     #[serde(default)]
     payload: Value,
 }
@@ -66,6 +69,22 @@ struct CodexTurnContextPayload {
     cwd: String,
     #[serde(default)]
     model: String,
+}
+
+#[derive(Debug, Clone)]
+struct CodexSessionIndexEntry {
+    thread_name: String,
+    updated_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CodexSessionIndexLine {
+    #[serde(default)]
+    id: String,
+    #[serde(default)]
+    thread_name: String,
+    #[serde(default)]
+    updated_at: Option<String>,
 }
 
 pub fn list_codex_app_sessions_paginated(
@@ -122,29 +141,33 @@ fn discover_codex_app_records() -> Result<Vec<ImportedHistoryDiscoveredRecord>, 
     let mut sessions = Vec::new();
     for sessions_dir in codex_sessions_dirs()? {
         if sessions_dir.is_dir() {
-            collect_codex_session_files(&sessions_dir, &mut sessions)?;
+            let title_index = load_codex_session_index_for_sessions_dir(&sessions_dir)?;
+            let mut files = Vec::new();
+            collect_codex_session_files(&sessions_dir, &mut files)?;
+            for path in files {
+                let Some(file_stem) = path
+                    .file_stem()
+                    .and_then(|value| value.to_str())
+                    .map(ToString::to_string)
+                else {
+                    continue;
+                };
+                let (source_mtime_ms, source_size_bytes) =
+                    imported_paths::file_metadata_signature(&path, "Codex")?;
+                let source_fingerprint = codex_source_fingerprint(&file_stem, &title_index);
+                sessions.push(ImportedHistoryDiscoveredRecord {
+                    source_session_id: file_stem.clone(),
+                    source_path: path,
+                    source_record_key: file_stem,
+                    source_mtime_ms,
+                    source_size_bytes,
+                    source_fingerprint,
+                    parser_version: CODEX_APP_METADATA_PARSER_VERSION,
+                });
+            }
         }
     }
-    sessions
-        .into_iter()
-        .filter_map(|path| {
-            let file_stem = path.file_stem()?.to_str()?.to_string();
-            Some((path, file_stem))
-        })
-        .map(|(path, file_stem)| {
-            let (source_mtime_ms, source_size_bytes) =
-                imported_paths::file_metadata_signature(&path, "Codex")?;
-            Ok(ImportedHistoryDiscoveredRecord {
-                source_session_id: file_stem.clone(),
-                source_path: path,
-                source_record_key: file_stem,
-                source_mtime_ms,
-                source_size_bytes,
-                source_fingerprint: String::new(),
-                parser_version: CODEX_APP_METADATA_PARSER_VERSION,
-            })
-        })
-        .collect()
+    Ok(sessions)
 }
 
 fn collect_codex_session_files(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
@@ -163,6 +186,139 @@ fn collect_codex_session_files(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(),
     Ok(())
 }
 
+fn load_codex_session_index_for_sessions_dir(
+    sessions_dir: &Path,
+) -> Result<HashMap<String, CodexSessionIndexEntry>, String> {
+    let Some(root) = sessions_dir.parent() else {
+        return Ok(HashMap::new());
+    };
+    load_codex_session_index(&root.join("session_index.jsonl"))
+}
+
+fn load_codex_session_index(
+    index_path: &Path,
+) -> Result<HashMap<String, CodexSessionIndexEntry>, String> {
+    let mut entries = HashMap::new();
+    if !index_path.is_file() {
+        return Ok(entries);
+    }
+
+    let file = fs::File::open(index_path).map_err(|err| {
+        format!(
+            "Failed to open Codex session index {}: {err}",
+            index_path.display()
+        )
+    })?;
+    let reader = BufReader::new(file);
+
+    for line in reader.lines() {
+        let line = line.map_err(|err| {
+            format!(
+                "Failed to read Codex session index {}: {err}",
+                index_path.display()
+            )
+        })?;
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let parsed: CodexSessionIndexLine = match serde_json::from_str(trimmed) {
+            Ok(parsed) => parsed,
+            Err(_) => continue,
+        };
+        let id = parsed.id.trim();
+        let thread_name = parsed.thread_name.trim();
+        if id.is_empty() || thread_name.is_empty() {
+            continue;
+        }
+        entries.insert(
+            id.to_string(),
+            CodexSessionIndexEntry {
+                thread_name: thread_name.to_string(),
+                updated_at: parsed.updated_at,
+            },
+        );
+    }
+
+    Ok(entries)
+}
+
+fn codex_source_fingerprint(
+    file_stem: &str,
+    title_index: &HashMap<String, CodexSessionIndexEntry>,
+) -> String {
+    codex_title_entry_for_file_stem(file_stem, title_index)
+        .map(|entry| {
+            format!(
+                "session-index:{}:{}",
+                entry.updated_at.as_deref().unwrap_or_default(),
+                entry.thread_name
+            )
+        })
+        .unwrap_or_default()
+}
+
+fn codex_session_index_title_for_record(
+    record: &ImportedHistoryDiscoveredRecord,
+) -> Result<String, String> {
+    let Some(index_path) = codex_index_path_for_session_path(&record.source_path) else {
+        return Ok(String::new());
+    };
+    let title_index = load_codex_session_index(&index_path)?;
+    Ok(
+        codex_title_entry_for_file_stem(&record.source_record_key, &title_index)
+            .map(|entry| imported_history::truncate_name(&entry.thread_name, 200))
+            .unwrap_or_default(),
+    )
+}
+
+fn codex_index_path_for_session_path(session_path: &Path) -> Option<PathBuf> {
+    codex_sessions_dir_for_session_path(session_path).and_then(|sessions_dir| {
+        sessions_dir
+            .parent()
+            .map(|root| root.join("session_index.jsonl"))
+    })
+}
+
+fn codex_sessions_dir_for_session_path(session_path: &Path) -> Option<PathBuf> {
+    session_path
+        .ancestors()
+        .find(|ancestor| ancestor.file_name().and_then(|name| name.to_str()) == Some("sessions"))
+        .map(Path::to_path_buf)
+}
+
+fn codex_title_entry_for_file_stem<'a>(
+    file_stem: &str,
+    title_index: &'a HashMap<String, CodexSessionIndexEntry>,
+) -> Option<&'a CodexSessionIndexEntry> {
+    codex_thread_id_from_file_stem(file_stem).and_then(|thread_id| title_index.get(thread_id))
+}
+
+fn codex_thread_id_from_file_stem(file_stem: &str) -> Option<&str> {
+    if is_uuid_like(file_stem) {
+        return Some(file_stem);
+    }
+    if file_stem.len() < 36 {
+        return None;
+    }
+    let candidate = &file_stem[file_stem.len() - 36..];
+    is_uuid_like(candidate).then_some(candidate)
+}
+
+fn is_uuid_like(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    if bytes.len() != 36 {
+        return false;
+    }
+    bytes.iter().enumerate().all(|(index, byte)| {
+        if matches!(index, 8 | 13 | 18 | 23) {
+            *byte == b'-'
+        } else {
+            byte.is_ascii_hexdigit()
+        }
+    })
+}
+
 fn parse_codex_session_meta(
     record: &ImportedHistoryDiscoveredRecord,
 ) -> Result<Option<CodexAppSessionMeta>, String> {
@@ -176,6 +332,7 @@ fn parse_codex_session_meta(
 
     let mut created_at_ms = 0;
     let mut updated_at_ms = 0;
+    let mut external_title = codex_session_index_title_for_record(record)?;
     let mut first_prompt = String::new();
     let mut model: Option<String> = None;
     let mut repo_path: Option<String> = None;
@@ -183,6 +340,7 @@ fn parse_codex_session_meta(
     let mut output_tokens = 0;
     let mut impact = ImportedHistoryImpactStats::default();
     let mut touched_files = BTreeSet::new();
+    let mut parent_thread_id: Option<String> = None;
 
     for line in reader.lines() {
         let line = line.map_err(|err| format!("Failed to read Codex history line: {err}"))?;
@@ -210,6 +368,17 @@ fn parse_codex_session_meta(
             if let Some(message) = user_message_from_payload(&parsed.payload) {
                 first_prompt = imported_history::truncate_name(&message, 200);
             }
+        }
+        if external_title.is_empty() && parsed.line_type == "session_meta" {
+            if let Some(title) = session_title_from_payload(&parsed.payload) {
+                external_title = imported_history::truncate_name(&title, 200);
+            }
+        }
+        if parent_thread_id.is_none() && parsed.line_type == "session_meta" {
+            parent_thread_id = parent_thread_id_from_session_meta_payload(
+                &parsed.payload,
+                codex_thread_id_from_file_stem(&record.source_record_key),
+            );
         }
         if model.is_none() || repo_path.is_none() {
             if let Ok(turn_context) =
@@ -245,7 +414,9 @@ fn parse_codex_session_meta(
         return Ok(None);
     }
 
-    let name = if first_prompt.is_empty() {
+    let name = if !external_title.is_empty() {
+        external_title
+    } else if first_prompt.is_empty() {
         record.source_record_key.clone()
     } else {
         first_prompt
@@ -259,6 +430,9 @@ fn parse_codex_session_meta(
         source_size_bytes: record.source_size_bytes,
         source_fingerprint: record.source_fingerprint.clone(),
         name,
+        parent_session_id: parent_thread_id
+            .as_deref()
+            .and_then(|thread_id| codex_parent_session_id_for_record(record, thread_id)),
         created_at_ms: if created_at_ms > 0 {
             created_at_ms
         } else {
@@ -299,8 +473,70 @@ fn session_meta_to_cache_input(meta: CodexAppSessionMeta) -> ImportedHistoryCach
         impact: meta.impact,
         listable: true,
         source_metadata_json: None,
-        parent_session_id: None,
+        parent_session_id: meta.parent_session_id,
     }
+}
+
+fn parent_thread_id_from_session_meta_payload(
+    payload: &Value,
+    current_thread_id: Option<&str>,
+) -> Option<String> {
+    let is_subagent = payload.get("thread_source").and_then(Value::as_str) == Some("subagent")
+        || payload.pointer("/source/subagent").is_some();
+    if !is_subagent {
+        return None;
+    }
+
+    let direct_candidates = [
+        payload.get("parent_thread_id"),
+        payload.pointer("/source/subagent/thread_spawn/parent_thread_id"),
+        payload.get("forked_from_id"),
+        payload.get("session_id"),
+    ];
+
+    for candidate in direct_candidates {
+        if let Some(parent_thread_id) = candidate
+            .and_then(Value::as_str)
+            .and_then(|value| normalize_parent_thread_id_candidate(value, current_thread_id))
+        {
+            return Some(parent_thread_id);
+        }
+    }
+    None
+}
+
+fn normalize_parent_thread_id_candidate(
+    value: &str,
+    current_thread_id: Option<&str>,
+) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() || Some(trimmed) == current_thread_id {
+        return None;
+    }
+    Some(trimmed.to_string())
+}
+
+fn codex_parent_session_id_for_record(
+    record: &ImportedHistoryDiscoveredRecord,
+    parent_thread_id: &str,
+) -> Option<String> {
+    let parent_file_stem =
+        codex_file_stem_for_thread_id_near_session(&record.source_path, parent_thread_id)?;
+    Some(format!("{CODEX_APP_SESSION_PREFIX}{parent_file_stem}"))
+}
+
+fn codex_file_stem_for_thread_id_near_session(
+    session_path: &Path,
+    thread_id: &str,
+) -> Option<String> {
+    let sessions_dir = codex_sessions_dir_for_session_path(session_path)?;
+    let mut files = Vec::new();
+    collect_codex_session_files(&sessions_dir, &mut files).ok()?;
+    files.into_iter().find_map(|path| {
+        let file_stem = path.file_stem().and_then(|value| value.to_str())?;
+        (codex_thread_id_from_file_stem(file_stem) == Some(thread_id))
+            .then(|| file_stem.to_string())
+    })
 }
 
 fn collect_codex_impact_from_payload(
@@ -359,6 +595,19 @@ fn accumulate_patch_impact(
 }
 
 fn patch_file_path_from_line(line: &str) -> Option<String> {
+    for prefix in [
+        "*** Add File:",
+        "*** Update File:",
+        "*** Modify File:",
+        "*** Delete File:",
+    ] {
+        if let Some(path) = line.strip_prefix(prefix) {
+            let path = path.trim();
+            if !path.is_empty() {
+                return Some(path.to_string());
+            }
+        }
+    }
     if let Some(rest) = line.strip_prefix("diff --git ") {
         let mut parts = rest.split_whitespace();
         let _old_path = parts.next();
@@ -388,7 +637,7 @@ fn load_codex_app_from_path(session_id: &str, path: &Path) -> Result<Vec<Activit
     let reader = BufReader::new(file);
 
     let mut chunks = Vec::new();
-    let mut pending_tool_calls: HashMap<String, ImportedToolCall> = HashMap::new();
+    let mut pending_tool_calls: HashMap<String, Vec<ImportedToolCall>> = HashMap::new();
     let mut sequence = 0usize;
 
     for line in reader.lines() {
@@ -462,28 +711,33 @@ fn load_codex_app_from_path(session_id: &str, path: &Path) -> Result<Vec<Activit
                 }
             }
             "function_call" => {
-                if let Some(call) = pending_tool_call_from_payload(&parsed.payload, &created_at) {
-                    pending_tool_calls.insert(call.call_id.clone(), call);
+                if let Some((call_id, calls)) =
+                    pending_tool_calls_from_payload(&parsed.payload, &created_at)
+                {
+                    pending_tool_calls.insert(call_id, calls);
                 }
             }
             "custom_tool_call" => {
-                if let Some(call) =
-                    pending_custom_tool_call_from_payload(&parsed.payload, &created_at)
+                if let Some((call_id, calls)) =
+                    pending_custom_tool_calls_from_payload(&parsed.payload, &created_at)
                 {
-                    pending_tool_calls.insert(call.call_id.clone(), call);
+                    pending_tool_calls.insert(call_id, calls);
                 }
             }
             "function_call_output" | "custom_tool_call_output" => {
                 let call_id = parsed.payload.get("call_id").and_then(Value::as_str);
                 if let Some(call_id) = call_id {
-                    if let Some(call) = pending_tool_calls.remove(call_id) {
+                    if let Some(calls) = pending_tool_calls.remove(call_id) {
                         let output = parsed
                             .payload
                             .get("output")
                             .and_then(Value::as_str)
                             .unwrap_or_default();
-                        chunks.push(codex_tool_call_chunk(session_id, sequence, &call, output));
-                        sequence += 1;
+                        let outputs = output_parts_for_tool_calls(&calls, output);
+                        for (call, output) in calls.iter().zip(outputs.iter()) {
+                            chunks.push(codex_tool_call_chunk(session_id, sequence, call, output));
+                            sequence += 1;
+                        }
                     }
                 }
             }
@@ -491,9 +745,11 @@ fn load_codex_app_from_path(session_id: &str, path: &Path) -> Result<Vec<Activit
         }
     }
 
-    for call in pending_tool_calls.into_values() {
-        chunks.push(codex_tool_call_chunk(session_id, sequence, &call, ""));
-        sequence += 1;
+    for calls in pending_tool_calls.into_values() {
+        for call in calls {
+            chunks.push(codex_tool_call_chunk(session_id, sequence, &call, ""));
+            sequence += 1;
+        }
     }
 
     Ok(chunks)
@@ -526,7 +782,52 @@ fn codex_tool_call_chunk(
     chunk
 }
 
-fn pending_tool_call_from_payload(payload: &Value, created_at: &str) -> Option<ImportedToolCall> {
+fn output_parts_for_tool_calls(calls: &[ImportedToolCall], output: &str) -> Vec<String> {
+    if calls.len() <= 1 {
+        return vec![output.to_string()];
+    }
+
+    let limits = calls
+        .iter()
+        .map(read_line_limit_from_call)
+        .collect::<Option<Vec<_>>>();
+    let Some(limits) = limits else {
+        return vec![output.to_string(); calls.len()];
+    };
+
+    let lines = output.split_inclusive('\n').collect::<Vec<_>>();
+    let mut cursor = 0usize;
+    calls
+        .iter()
+        .enumerate()
+        .map(|(index, _)| {
+            let remaining = lines.len().saturating_sub(cursor);
+            let take = if index + 1 == calls.len() {
+                remaining
+            } else {
+                limits[index].min(remaining)
+            };
+            let part = lines[cursor..cursor.saturating_add(take)].concat();
+            cursor = cursor.saturating_add(take);
+            part
+        })
+        .collect()
+}
+
+fn read_line_limit_from_call(call: &ImportedToolCall) -> Option<usize> {
+    if call.canonical_name != imported_history::FUNCTION_READ_FILE {
+        return None;
+    }
+    call.args
+        .get("limit")
+        .and_then(Value::as_i64)
+        .and_then(|value| usize::try_from(value).ok())
+}
+
+fn pending_tool_calls_from_payload(
+    payload: &Value,
+    created_at: &str,
+) -> Option<(String, Vec<ImportedToolCall>)> {
     let call_id = payload.get("call_id")?.as_str()?.to_string();
     let raw_name = payload.get("name")?.as_str()?.to_string();
     let arguments = payload
@@ -534,20 +835,29 @@ fn pending_tool_call_from_payload(payload: &Value, created_at: &str) -> Option<I
         .and_then(Value::as_str)
         .map(imported_history::parse_inner_json)
         .unwrap_or_else(|| json!({}));
-    let (canonical_name, args) = normalize_codex_tool_call(&raw_name, arguments);
-    Some(ImportedToolCall {
-        call_id,
-        raw_name,
-        canonical_name,
-        args,
-        created_at: created_at.to_string(),
-    })
+    let normalized_calls = normalize_codex_tool_calls(&raw_name, arguments);
+    let call_count = normalized_calls.len();
+    if call_count == 0 {
+        return None;
+    }
+    let calls = normalized_calls
+        .into_iter()
+        .enumerate()
+        .map(|(index, (canonical_name, args))| ImportedToolCall {
+            call_id: split_call_id(&call_id, index, call_count),
+            raw_name: raw_name.clone(),
+            canonical_name,
+            args,
+            created_at: created_at.to_string(),
+        })
+        .collect();
+    Some((call_id, calls))
 }
 
-fn pending_custom_tool_call_from_payload(
+fn pending_custom_tool_calls_from_payload(
     payload: &Value,
     created_at: &str,
-) -> Option<ImportedToolCall> {
+) -> Option<(String, Vec<ImportedToolCall>)> {
     let call_id = payload.get("call_id")?.as_str()?.to_string();
     let raw_name = payload.get("name")?.as_str()?.to_string();
     let input = payload
@@ -559,61 +869,81 @@ fn pending_custom_tool_call_from_payload(
     } else {
         json!({ "input": input })
     };
-    let (canonical_name, args) = normalize_codex_tool_call(&raw_name, args);
-    Some(ImportedToolCall {
-        call_id,
-        raw_name,
-        canonical_name,
-        args,
-        created_at: created_at.to_string(),
-    })
+    let normalized_calls = normalize_codex_tool_calls(&raw_name, args);
+    let call_count = normalized_calls.len();
+    if call_count == 0 {
+        return None;
+    }
+    let calls = normalized_calls
+        .into_iter()
+        .enumerate()
+        .map(|(index, (canonical_name, args))| ImportedToolCall {
+            call_id: split_call_id(&call_id, index, call_count),
+            raw_name: raw_name.clone(),
+            canonical_name,
+            args,
+            created_at: created_at.to_string(),
+        })
+        .collect();
+    Some((call_id, calls))
 }
 
-fn normalize_codex_tool_call(raw_name: &str, args: Value) -> (String, Value) {
+fn split_call_id(call_id: &str, index: usize, total: usize) -> String {
+    if total <= 1 {
+        call_id.to_string()
+    } else {
+        format!("{call_id}:part-{index}")
+    }
+}
+
+fn normalize_codex_tool_calls(raw_name: &str, args: Value) -> Vec<(String, Value)> {
     let key = normalize_tool_name_key(raw_name);
     match key.as_str() {
         "shell" | "shell_command" | "bash" | "terminal" | "terminal_command" | "run_shell"
         | "run_command" | "execute" | "exec" => {
             let shell_args = normalize_shell_args(args);
-            if let Some(read_args) = read_file_args_from_shell_args(&shell_args) {
-                (imported_history::FUNCTION_READ_FILE.to_string(), read_args)
+            if let Some(read_args) = read_file_arg_values_from_shell_args(&shell_args) {
+                read_args
+                    .into_iter()
+                    .map(|args| (imported_history::FUNCTION_READ_FILE.to_string(), args))
+                    .collect()
             } else if let Some(search_args) = rg_search_args_from_shell_args(&shell_args) {
-                (
+                vec![(
                     imported_history::FUNCTION_CODE_SEARCH.to_string(),
                     search_args,
-                )
+                )]
             } else {
-                (
+                vec![(
                     imported_history::FUNCTION_RUN_COMMAND_LINE.to_string(),
                     shell_args,
-                )
+                )]
             }
         }
         "rg" | "ripgrep" | "grep" | "search" | "code_search" | "search_code"
-        | "search_codebase" => (
+        | "search_codebase" => vec![(
             imported_history::FUNCTION_CODE_SEARCH.to_string(),
             normalize_search_args(args),
-        ),
+        )],
         "cat" | "sed" | "head" | "tail" => {
             let shell_args = normalize_shell_args(args);
             if let Some(read_args) = read_file_args_from_shell_args(&shell_args) {
-                (imported_history::FUNCTION_READ_FILE.to_string(), read_args)
+                vec![(imported_history::FUNCTION_READ_FILE.to_string(), read_args)]
             } else {
-                (
+                vec![(
                     imported_history::FUNCTION_RUN_COMMAND_LINE.to_string(),
                     shell_args,
-                )
+                )]
             }
         }
-        "apply_patch" => (
+        "apply_patch" => vec![(
             imported_history::FUNCTION_EDIT_FILE.to_string(),
             normalize_apply_patch_args(args),
-        ),
-        "edit" | "edit_file" | "write" | "write_file" | "create_file" => (
+        )],
+        "edit" | "edit_file" | "write" | "write_file" | "create_file" => vec![(
             imported_history::FUNCTION_EDIT_FILE.to_string(),
             normalize_edit_args(raw_name, args),
-        ),
-        _ => (raw_name.to_string(), args),
+        )],
+        _ => vec![(raw_name.to_string(), args)],
     }
 }
 
@@ -722,29 +1052,80 @@ fn normalize_search_args(args: Value) -> Value {
 }
 
 fn read_file_args_from_shell_args(shell_args: &Value) -> Option<Value> {
+    read_file_arg_values_from_shell_args(shell_args)?
+        .into_iter()
+        .next()
+}
+
+fn read_file_arg_values_from_shell_args(shell_args: &Value) -> Option<Vec<Value>> {
     let command = shell_args.get("command").and_then(Value::as_str)?.trim();
     if command.is_empty() {
         return None;
     }
 
-    let tokens = shell_tokens(command);
-    let read_args = read_file_args_from_tokens(&tokens)?;
     let cwd = shell_args
         .get("cwd")
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string();
+    let commands = split_shell_read_command_chain(command)?;
+    let command_count = commands.len();
+    let mut read_args_values = Vec::with_capacity(command_count);
 
-    Some(json!({
+    for (index, command_part) in commands.iter().enumerate() {
+        let tokens = shell_tokens(command_part);
+        let read_args = read_file_args_from_tokens(&tokens)?;
+        if command_count > 1 && read_args.limit.is_none() {
+            return None;
+        }
+        let mut value = shell_read_args_to_value(
+            read_args,
+            command_part,
+            &cwd,
+            shell_args,
+            command,
+            index,
+            command_count,
+        );
+        if command_count == 1 {
+            if let Some(obj) = value.as_object_mut() {
+                obj.remove("source_command");
+                obj.remove("command_index");
+                obj.remove("command_count");
+            }
+        }
+        read_args_values.push(value);
+    }
+
+    if read_args_values.is_empty() {
+        None
+    } else {
+        Some(read_args_values)
+    }
+}
+
+fn shell_read_args_to_value(
+    read_args: ShellReadArgs,
+    command: &str,
+    cwd: &str,
+    shell_args: &Value,
+    source_command: &str,
+    command_index: usize,
+    command_count: usize,
+) -> Value {
+    json!({
         "path": read_args.path.clone(),
         "file_path": read_args.path.clone(),
         "target_file": read_args.path,
         "offset": read_args.offset,
         "limit": read_args.limit,
         "command": command,
+        "source_command": source_command,
+        "command_index": command_index,
+        "command_count": command_count,
         "cwd": cwd,
         "payload": shell_args.clone(),
-    }))
+    })
 }
 
 struct ShellReadArgs {
@@ -753,8 +1134,71 @@ struct ShellReadArgs {
     limit: Option<i64>,
 }
 
+fn split_shell_read_command_chain(command: &str) -> Option<Vec<String>> {
+    let mut parts = Vec::new();
+    let mut current = String::new();
+    let mut quote: Option<char> = None;
+    let mut chars = command.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if let Some(active_quote) = quote {
+            current.push(ch);
+            if ch == active_quote {
+                quote = None;
+            } else if ch == '\\' && active_quote == '"' {
+                if let Some(next) = chars.next() {
+                    current.push(next);
+                }
+            }
+            continue;
+        }
+
+        match ch {
+            '\'' | '"' => {
+                quote = Some(ch);
+                current.push(ch);
+            }
+            '&' if chars.peek() == Some(&'&') => {
+                chars.next();
+                push_shell_command_part(&mut parts, &mut current)?;
+            }
+            '|' if chars.peek() == Some(&'|') => return None,
+            ';' => {
+                push_shell_command_part(&mut parts, &mut current)?;
+            }
+            _ => current.push(ch),
+        }
+    }
+
+    if quote.is_some() {
+        return None;
+    }
+    push_shell_command_part(&mut parts, &mut current)?;
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts)
+    }
+}
+
+fn push_shell_command_part(parts: &mut Vec<String>, current: &mut String) -> Option<()> {
+    let part = current.trim();
+    if part.is_empty() {
+        return None;
+    }
+    parts.push(part.to_string());
+    current.clear();
+    Some(())
+}
+
 fn read_file_args_from_tokens(tokens: &[String]) -> Option<ShellReadArgs> {
-    if tokens.is_empty() || tokens.iter().any(|token| is_shell_separator(token)) {
+    if tokens.is_empty() {
+        return None;
+    }
+    if let Some(read_args) = read_file_args_from_nl_sed_pipeline(tokens) {
+        return Some(read_args);
+    }
+    if tokens.iter().any(|token| is_shell_separator(token)) {
         return None;
     }
 
@@ -766,6 +1210,117 @@ fn read_file_args_from_tokens(tokens: &[String]) -> Option<ShellReadArgs> {
         "tail" => read_file_args_from_head_tail(&tokens[1..], false),
         _ => None,
     }
+}
+
+fn read_file_args_from_nl_sed_pipeline(tokens: &[String]) -> Option<ShellReadArgs> {
+    if tokens
+        .iter()
+        .any(|token| matches!(token.as_str(), "&&" | "||" | ";"))
+    {
+        return None;
+    }
+
+    let mut pipe_indices = tokens
+        .iter()
+        .enumerate()
+        .filter_map(|(index, token)| (token == "|").then_some(index));
+    let pipe_index = pipe_indices.next()?;
+    if pipe_indices.next().is_some() || pipe_index == 0 || pipe_index + 1 >= tokens.len() {
+        return None;
+    }
+
+    let path = read_file_path_from_nl(&tokens[..pipe_index])?;
+    let (offset, limit) = read_range_from_pipeline_sed(&tokens[(pipe_index + 1)..])?;
+    Some(ShellReadArgs {
+        path,
+        offset,
+        limit,
+    })
+}
+
+fn read_file_path_from_nl(tokens: &[String]) -> Option<String> {
+    if tokens.is_empty() {
+        return None;
+    }
+    let executable = tokens[0].rsplit('/').next().unwrap_or(tokens[0].as_str());
+    if executable != "nl" {
+        return None;
+    }
+
+    let mut paths = Vec::new();
+    let mut index = 1usize;
+    while index < tokens.len() {
+        let token = tokens[index].as_str();
+        if token == "--" {
+            paths.extend(tokens[(index + 1)..].iter().cloned());
+            break;
+        }
+        if token.starts_with('-') {
+            index += if nl_option_consumes_next(token) { 2 } else { 1 };
+            continue;
+        }
+        paths.push(token.to_string());
+        index += 1;
+    }
+
+    single_shell_path_arg(&paths)
+}
+
+fn nl_option_consumes_next(token: &str) -> bool {
+    matches!(
+        token,
+        "-b" | "-d" | "-f" | "-h" | "-i" | "-l" | "-n" | "-s" | "-v" | "-w"
+    ) || matches!(
+        token,
+        "--body-numbering"
+            | "--section-delimiter"
+            | "--footer-numbering"
+            | "--header-numbering"
+            | "--line-increment"
+            | "--join-blank-lines"
+            | "--number-format"
+            | "--number-separator"
+            | "--starting-line-number"
+            | "--number-width"
+    )
+}
+
+fn read_range_from_pipeline_sed(tokens: &[String]) -> Option<(Option<i64>, Option<i64>)> {
+    if tokens.is_empty() {
+        return None;
+    }
+    let executable = tokens[0].rsplit('/').next().unwrap_or(tokens[0].as_str());
+    if executable != "sed" {
+        return None;
+    }
+
+    let mut index = 1usize;
+    let mut has_quiet = false;
+    let mut range_expr: Option<&str> = None;
+    while index < tokens.len() {
+        let token = tokens[index].as_str();
+        match token {
+            "-n" | "--quiet" | "--silent" => {
+                has_quiet = true;
+                index += 1;
+            }
+            "-e" | "--expression" => {
+                range_expr = tokens.get(index + 1).map(String::as_str);
+                index += 2;
+            }
+            _ if token.starts_with('-') => return None,
+            _ if range_expr.is_none() => {
+                range_expr = Some(token);
+                index += 1;
+            }
+            _ => return None,
+        }
+    }
+
+    if !has_quiet {
+        return None;
+    }
+    sed_range_to_offset_limit(range_expr?)
 }
 
 fn read_file_args_from_cat(tokens: &[String]) -> Option<ShellReadArgs> {
@@ -907,7 +1462,26 @@ fn single_shell_path_arg(paths: &[String]) -> Option<String> {
 
 fn sed_range_to_offset_limit(expr: &str) -> Option<(Option<i64>, Option<i64>)> {
     let expr = expr.trim().trim_end_matches(';');
-    if !expr.ends_with('p') || expr.contains('/') || expr.contains('s') {
+    if expr.contains('/') || expr.contains('s') {
+        return None;
+    }
+    let mut parts = expr
+        .split(';')
+        .map(str::trim)
+        .filter(|part| !part.is_empty());
+    let first_part = parts.next()?;
+    let (offset, limit) = sed_single_range_to_offset_limit(first_part)?;
+    for part in parts {
+        sed_single_range_to_offset_limit(part)?;
+    }
+    if expr.contains(';') {
+        return Some((offset, None));
+    }
+    Some((offset, limit))
+}
+
+fn sed_single_range_to_offset_limit(expr: &str) -> Option<(Option<i64>, Option<i64>)> {
+    if !expr.ends_with('p') {
         return None;
     }
     let range = expr.trim_end_matches('p').trim();
@@ -1099,19 +1673,6 @@ fn rg_flag_consumes_next(token: &str) -> bool {
 
 fn first_apply_patch_file_path(patch: &str) -> Option<String> {
     for line in patch.lines() {
-        for prefix in [
-            "*** Add File:",
-            "*** Update File:",
-            "*** Modify File:",
-            "*** Delete File:",
-        ] {
-            if let Some(path) = line.strip_prefix(prefix) {
-                let path = path.trim();
-                if !path.is_empty() {
-                    return Some(path.to_string());
-                }
-            }
-        }
         if let Some(path) = patch_file_path_from_line(line) {
             if path != "/dev/null" {
                 return Some(path);
@@ -1142,6 +1703,22 @@ fn user_message_from_payload(payload: &Value) -> Option<String> {
         .get("message")
         .and_then(Value::as_str)
         .map(ToString::to_string)
+}
+
+fn session_title_from_payload(payload: &Value) -> Option<String> {
+    [
+        "title",
+        "name",
+        "threadName",
+        "thread_name",
+        "conversationTitle",
+        "conversation_title",
+    ]
+    .iter()
+    .filter_map(|key| payload.get(*key).and_then(Value::as_str))
+    .map(str::trim)
+    .find(|value| !value.is_empty())
+    .map(ToString::to_string)
 }
 
 fn content_text_from_payload(payload: &Value) -> Option<String> {

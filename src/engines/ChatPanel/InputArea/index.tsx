@@ -152,6 +152,7 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
       setIsInputFocused,
       handleInputBlur,
       handleContentChange,
+      compactHintVisible,
       handleAtMention,
       handleAtMentionClose,
       isInputEmpty,
@@ -338,7 +339,7 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
       isCursorIde && sessionId ? (
         <CursorModePill sessionId={sessionId} />
       ) : (
-        <ModePill hideWhenDefault resetToDefaultOnClick />
+        <ModePill resetToDefaultOnClick />
       );
     const clearReplyInfo = useCallback(
       () => setReplyInfo({ isReply: false }),
@@ -511,6 +512,9 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
                 isCursorCompactRow={isCursorCompactRow}
                 suppressToolbarHover={suppressToolbarHover}
                 placeholder={placeholder}
+                trailingHint={
+                  compactHintVisible ? t("input.compactArgHint") : undefined
+                }
                 currentInputEmpty={currentInputEmpty}
                 stopSuppressedForEmptyInput={stopSuppressedForEmptyInput}
                 isWpGeneWorking={isWpGeneWorking}

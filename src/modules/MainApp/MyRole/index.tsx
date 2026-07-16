@@ -22,6 +22,7 @@ import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import NumberInput from "@src/components/NumberInput";
 import Select from "@src/components/Select";
+import Switch from "@src/components/Switch";
 import Textarea from "@src/components/Textarea";
 import {
   SECTION_CONTROL_STYLE,
@@ -210,12 +211,14 @@ const MyRolePage: React.FC = () => {
         stance: PresenceStance;
         questionAutoResolveSecs: number;
         planAutoApproveSecs: number;
+        modeSwitchAutoPlan: boolean;
         goalMaxTurns: number;
       },
       onChange: (patch: {
         stance?: PresenceStance;
         questionAutoResolveSecs?: number;
         planAutoApproveSecs?: number;
+        modeSwitchAutoPlan?: boolean;
         goalMaxTurns?: number;
       }) => void,
       options?: { lockStance?: boolean }
@@ -282,6 +285,23 @@ const MyRolePage: React.FC = () => {
           />
         </SectionRow>
         <SectionRow
+          label={t("myRole.modeSwitchAutoPlanLabel", {
+            defaultValue: "Mode switch auto-plan",
+          })}
+          description={t("myRole.modeSwitchAutoPlanDesc", {
+            defaultValue:
+              "Auto-switch pending Plan mode suggestions when their confirmation timer expires.",
+          })}
+        >
+          <Switch
+            checked={values.modeSwitchAutoPlan}
+            onChange={(checked) => onChange({ modeSwitchAutoPlan: checked })}
+            ariaLabel={t("myRole.modeSwitchAutoPlanLabel", {
+              defaultValue: "Mode switch auto-plan",
+            })}
+          />
+        </SectionRow>
+        <SectionRow
           label={t("myRole.goalMaxTurnsLabel", {
             defaultValue: "Goal continuation budget",
           })}
@@ -313,6 +333,9 @@ const MyRolePage: React.FC = () => {
   const planByPresence = settings[
     "agent.sde.planAutoApproveTimeoutByPresence"
   ] as Record<BuiltInPresenceMode, number>;
+  const modeSwitchByPresence = settings[
+    "agent.sde.modeSwitchAutoPlanByPresence"
+  ] as Record<BuiltInPresenceMode, boolean>;
   const goalByPresence = settings["agent.sde.goalMaxTurnsByPresence"] as Record<
     BuiltInPresenceMode,
     number
@@ -324,6 +347,7 @@ const MyRolePage: React.FC = () => {
         stance?: PresenceStance;
         questionAutoResolveSecs?: number;
         planAutoApproveSecs?: number;
+        modeSwitchAutoPlan?: boolean;
         goalMaxTurns?: number;
       }) => {
         // Built-in stances are fixed (they define the mode); only the
@@ -343,6 +367,15 @@ const MyRolePage: React.FC = () => {
             value: { ...planByPresence, [mode]: patch.planAutoApproveSecs },
           });
         }
+        if (patch.modeSwitchAutoPlan !== undefined) {
+          updateSetting({
+            key: "agent.sde.modeSwitchAutoPlanByPresence",
+            value: {
+              ...modeSwitchByPresence,
+              [mode]: patch.modeSwitchAutoPlan,
+            },
+          });
+        }
         if (patch.goalMaxTurns !== undefined) {
           updateSetting({
             key: "agent.sde.goalMaxTurnsByPresence",
@@ -350,7 +383,13 @@ const MyRolePage: React.FC = () => {
           });
         }
       },
-    [updateSetting, questionByPresence, planByPresence, goalByPresence]
+    [
+      updateSetting,
+      questionByPresence,
+      planByPresence,
+      modeSwitchByPresence,
+      goalByPresence,
+    ]
   );
 
   return (
@@ -409,6 +448,9 @@ const MyRolePage: React.FC = () => {
                       planAutoApproveSecs:
                         planByPresence[role.mode] ??
                         BUILT_IN_PRESENCE_POLICY[role.mode].planAutoApproveSecs,
+                      modeSwitchAutoPlan:
+                        modeSwitchByPresence[role.mode] ??
+                        BUILT_IN_PRESENCE_POLICY[role.mode].modeSwitchAutoPlan,
                       goalMaxTurns:
                         goalByPresence[role.mode] ??
                         BUILT_IN_PRESENCE_POLICY[role.mode].goalMaxTurns,
@@ -517,6 +559,7 @@ const MyRolePage: React.FC = () => {
                         questionAutoResolveSecs:
                           role.questionAutoResolveSecs ?? 0,
                         planAutoApproveSecs: role.planAutoApproveSecs ?? 0,
+                        modeSwitchAutoPlan: role.modeSwitchAutoPlan ?? false,
                         goalMaxTurns: role.goalMaxTurns ?? 0,
                       },
                       (patch) => handleRoleChange(role.id, patch)

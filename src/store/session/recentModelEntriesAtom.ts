@@ -52,20 +52,46 @@ export const recentModelEntriesAtom = atomWithStorage<RecentModelEntry[]>(
   createZodJsonStorage(RecentModelEntriesSchema)
 );
 
+/** Whether two recent entries represent the same account + model selection. */
+export function recentEntriesEquivalent(
+  left: RecentModelEntry,
+  right: RecentModelEntry
+): boolean {
+  if (left.modelId !== right.modelId || left.sourceType !== right.sourceType) {
+    return false;
+  }
+
+  if (left.accountId && right.accountId) {
+    return left.accountId === right.accountId;
+  }
+
+  const leftModelType = left.cliAgentType ?? left.modelType;
+  const rightModelType = right.cliAgentType ?? right.modelType;
+  if (leftModelType !== rightModelType) {
+    return false;
+  }
+
+  if (left.accountName && right.accountName) {
+    return left.accountName === right.accountName;
+  }
+
+  return (
+    !left.accountId &&
+    !right.accountId &&
+    !left.accountName &&
+    !right.accountName
+  );
+}
+
 /**
- * Record a model+source selection. Dedupes by modelId+accountId, keeps max N.
+ * Record a model+source selection. Dedupes by model+account identity, keeps max N.
  */
 export function recordRecentEntry(
   current: RecentModelEntry[],
   entry: RecentModelEntry
 ): RecentModelEntry[] {
   const filtered = current.filter(
-    (existing) =>
-      !(
-        existing.modelId === entry.modelId &&
-        existing.accountId === entry.accountId &&
-        existing.sourceType === entry.sourceType
-      )
+    (existing) => !recentEntriesEquivalent(existing, entry)
   );
   return [entry, ...filtered].slice(0, MAX_RECENT);
 }

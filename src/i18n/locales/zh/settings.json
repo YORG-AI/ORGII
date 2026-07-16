@@ -212,6 +212,9 @@
     "presenceGuidanceInvisible": "隐身 — Agent 行为指引",
     "presenceGuidanceAway": "离开 — Agent 行为指引",
     "presenceGuidancePlaceholder": "告诉 Agent 在这个状态下应如何行事…",
+    "presenceGuidanceOnlineDefault": "我在电脑前。你可以随时向我提出澄清问题，执行任何破坏性操作前请先让我确认",
+    "presenceGuidanceInvisibleDefault": "我在附近但显示为离线。默认自主执行；只有高风险操作或重大重构才通知我，其他问题请汇总成一段摘要，不要逐个询问",
+    "presenceGuidanceAwayDefault": "我暂时不在电脑前。不要等我回复；根据现有信息做出最佳判断，完成能完成的事项，并留下简明总结和待我回来处理的问题",
     "followSystem": "跟随系统"
   },
   "background": {
@@ -618,6 +621,12 @@
     "autoTimeoutTitle": "自动超时",
     "questionAutoSkipTimeoutByStatus": "自动跳过提问",
     "questionAutoSkipTimeoutByStatusDesc": "超过此时间后自动跳过 Agent 提问 (0 = 禁用)",
+    "planAutoApproveTimeoutByStatus": "{{status}}自动批准计划",
+    "planAutoApproveTimeoutByStatusDesc": "在此状态下，等待指定秒数后自动批准待处理计划 (0 = 禁用)",
+    "goalMaxTurnsByStatus": "{{status}}目标续跑预算",
+    "goalMaxTurnsByStatusDesc": "Agent 通常会停止后，继续处理上一个请求的额外轮数上限 (0 = 禁用)",
+    "modeSwitchAutoPlanByStatus": "{{status}}自动切换到计划模式",
+    "modeSwitchAutoPlanByStatusDesc": "待确认的 Plan 模式切换建议倒计时结束后自动切换",
     "resourceTabs": {
       "tools": "工具",
       "mcp": "MCP",

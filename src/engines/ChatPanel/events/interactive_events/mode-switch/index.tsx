@@ -6,6 +6,7 @@
  * - Switched: "Switched to {{mode}} Mode" title, no subtitle
  * - Skipped: "Mode change skipped" title, no subtitle
  */
+import { useAtomValue } from "jotai";
 import React from "react";
 
 import { getEventIcon } from "@src/config/toolIcons";
@@ -30,6 +31,7 @@ import {
   useToolLabelText,
 } from "@src/engines/SessionCore/rendering/registry";
 import type { EventVariant } from "@src/engines/SessionCore/rendering/types/universalProps";
+import { sessionByIdAtom } from "@src/store/session/sessionAtom";
 
 import { AskQuestionHistoryBody } from "../ask-question/AskQuestionHistoryChrome";
 
@@ -148,6 +150,8 @@ export const ModeSwitchEvent: React.FC<ModeSwitchEventProps> = (props) => {
   const reason = (args.reason as string) ?? "";
 
   const displayStatus = props.event?.displayStatus as string | undefined;
+  const eventSessionId = props.event?.sessionId;
+  const session = useAtomValue(sessionByIdAtom(eventSessionId ?? ""));
   const result = props.event?.result as Record<string, unknown> | undefined;
   // Authoritative field written by Rust `ModeSwitchManager::respond` via
   // `agent:interaction_finalized` ("switch" or "skip"). The local cache
@@ -185,15 +189,10 @@ export const ModeSwitchEvent: React.FC<ModeSwitchEventProps> = (props) => {
   } else if (contentChoice === "skip") {
     resolvedStatus = "skipped";
   } else if (displayStatus === "completed" && !resultChoice) {
-    // Rust's `finalize_interaction_event` always writes `choice` ("switch" /
-    // "skip") on every terminal path — including timeout, stop, and superseded.
-    // Reaching this fallback means the structured result lost its `choice`
-    // field AND the content prefix didn't match either of the known phrases
-    // (Rust copy drift). The user actually saw a Plan card and acted on it;
-    // defaulting to "skipped" here was a wrong-by-default guess. Default to
-    // "switched" so the common Build→Plan accept flow is reflected correctly
-    // after reload.
-    resolvedStatus = "switched";
+    // If legacy/clobbered events lost the structured `choice`, fall back to
+    // the session's authoritative mode instead of guessing from completion.
+    resolvedStatus =
+      session?.agentExecMode === targetMode ? "switched" : "skipped";
   }
 
   if (resolvedStatus === "pending") {

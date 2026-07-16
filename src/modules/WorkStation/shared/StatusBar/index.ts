@@ -39,6 +39,9 @@ export type {
   LspStatus,
 } from "./EditorStatusBar";
 
+export { PortsStatusMenu } from "./PortsStatusMenu";
+export { WorkspacePortScanner } from "./WorkspacePortScanner";
+
 // Database status bar (Database Manager)
 export { default as DatabaseStatusBar } from "./DatabaseStatusBar";
 export type { DatabaseStatusBarProps } from "./DatabaseStatusBar";

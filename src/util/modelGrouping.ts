@@ -43,6 +43,8 @@ const CURRENT_THRESHOLDS: Record<string, number> = {
   opus: 406, // Opus 4.6+
   composer: 150, // Composer 1.5+
   o: 540, // O-series: o5.4+ current; o5 / o4 / o3 / o1 older
+  glm: 510, // Zhipu GLM 5.1+ current; GLM 5.0 / 4.x older
+  minimax: 270, // MiniMax 2.7+ / 3+ current; older MiniMax lines older
 };
 
 interface ParsedGroup {
@@ -85,6 +87,13 @@ function formatCursorTierLabel(modelName: string): string {
   return modelName.charAt(0).toUpperCase() + modelName.slice(1);
 }
 
+function versionStringToSortVersion(version: string): number {
+  const [majorRaw, minorRaw = "0"] = version.split(".");
+  const major = Number.parseInt(majorRaw, 10);
+  const minor = Number.parseInt(minorRaw, 10);
+  return major * 100 + (minorRaw.length === 1 ? minor * 10 : minor);
+}
+
 /** Version-extraction patterns tried in order; first match wins. */
 const FAMILY_PATTERNS: {
   prefix: string;
@@ -103,6 +112,7 @@ const FAMILY_PATTERNS: {
   },
   { prefix: "grok", label: "Grok", versionRe: /grok-?(\d+(?:\.\d+)?)?/ },
   { prefix: "kimi", label: "Kimi", versionRe: /kimi-?k?(\d+(?:\.\d+)?)/ },
+  { prefix: "glm", label: "GLM", versionRe: /glm-(\d+(?:\.\d+)?)/ },
   {
     prefix: "minimax",
     label: "MiniMax",
@@ -196,19 +206,18 @@ function parseModelGroup(modelName: string): ParsedGroup {
     if (prefix === "gpt") {
       const versionMatch = cleaned.match(/^gpt-(\d+(?:\.\d+)?)(?:-(.+))?$/);
       if (versionMatch?.[1]) {
-        const ver = parseFloat(versionMatch[1]);
         const rest = versionMatch[2];
         if (!rest) {
           return {
             label: `${label} ${versionMatch[1]}`,
-            sortVersion: ver * 100,
+            sortVersion: versionStringToSortVersion(versionMatch[1]),
           };
         }
         const tier = extractGptTier(rest);
         const subLabel = tier ? ` ${formatGptTierLabel(tier)}` : "";
         return {
           label: `${label} ${versionMatch[1]}${subLabel}`,
-          sortVersion: ver * 100,
+          sortVersion: versionStringToSortVersion(versionMatch[1]),
         };
       }
       return { label, sortVersion: 100 };
@@ -217,14 +226,18 @@ function parseModelGroup(modelName: string): ParsedGroup {
     if (prefix === "o") {
       const match = cleaned.match(/^o(\d+(?:\.\d+)?)/);
       if (!match?.[1]) continue;
-      const ver = parseFloat(match[1]);
-      return { label: `o${match[1]}`, sortVersion: ver * 100 };
+      return {
+        label: `o${match[1]}`,
+        sortVersion: versionStringToSortVersion(match[1]),
+      };
     }
 
     const match = cleaned.match(versionRe);
     if (match && match[1]) {
-      const ver = parseFloat(match[1]);
-      return { label: `${label} ${match[1]}`, sortVersion: ver * 100 };
+      return {
+        label: `${label} ${match[1]}`,
+        sortVersion: versionStringToSortVersion(match[1]),
+      };
     }
     return { label, sortVersion: 100 };
   }
@@ -325,6 +338,7 @@ const FAMILY_TO_PROVIDER: Record<string, string> = {
   gemini: "Gemini",
   grok: "Grok",
   kimi: "Kimi",
+  glm: "Zhipu",
   minimax: "MiniMax",
   abab: "MiniMax",
 };

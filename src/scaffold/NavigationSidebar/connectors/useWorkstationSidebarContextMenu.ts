@@ -68,6 +68,9 @@ export function useWorkstationSidebarContextMenu({
       const isCursorIde = isCursorIdeSession(item.id);
       const session = sessionMap.get(item.id);
 
+      // Subagent rows have no meaningful row-level actions.
+      if (session?.parentSessionId || item.id.includes(":subagent:")) return;
+
       try {
         const openInNewTabItem = await MenuItem.new({
           text: tCommon("actions.openInNewTab", "Open in New Tab"),

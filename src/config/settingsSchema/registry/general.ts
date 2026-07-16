@@ -259,25 +259,25 @@ export const GENERAL_SETTINGS_REGISTRY = {
   "general.presenceGuidanceOnline": {
     schema: z.string(),
     default:
-      "I am at the keyboard. Feel free to ask me clarifying questions at any time and confirm any destructive actions with me before running them.",
+      "I am at the keyboard. Feel free to ask me clarifying questions at any time and confirm any destructive actions with me before running them",
     description:
-      "Per-mode prompt addendum injected when the user's presence is set to Online.",
+      "Per-mode prompt addendum injected when the user's presence is set to Online",
     category: "general",
   },
   "general.presenceGuidanceInvisible": {
     schema: z.string(),
     default:
-      "I am around but appearing offline. Default to autonomous execution and only notify me for high-risk actions or significant refactoring work; batch any other questions into a single summary instead of asking one by one.",
+      "I am around but appearing offline. Default to autonomous execution and only notify me for high-risk actions or significant refactoring work; batch any other questions into a single summary instead of asking one by one",
     description:
-      "Per-mode prompt addendum injected when the user's presence is set to Invisible.",
+      "Per-mode prompt addendum injected when the user's presence is set to Invisible",
     category: "general",
   },
   "general.presenceGuidanceAway": {
     schema: z.string(),
     default:
-      "I am away from the keyboard. Do not block on me — make the best decision you can with the information you have, finish what you can finish, and leave a concise summary of what happened and any open questions for when I return.",
+      "I am away from the keyboard. Do not block on me — make the best decision you can with the information you have, finish what you can finish, and leave a concise summary of what happened and any open questions for when I return",
     description:
-      "Per-mode prompt addendum injected when the user's presence is set to Away.",
+      "Per-mode prompt addendum injected when the user's presence is set to Away",
     category: "general",
   },
 } as const satisfies Record<string, SettingDefinition>;

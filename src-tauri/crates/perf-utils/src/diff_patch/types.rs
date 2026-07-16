@@ -191,6 +191,10 @@ pub struct PatchSegment {
     pub lines_added: usize,
     pub lines_removed: usize,
     pub is_deleted: bool,
+    /// True when the source patch supplied a numeric `@@ -N +M @@` hunk range.
+    /// Synthetic ranges keep the unified diff renderable but should not be
+    /// treated as authoritative line metadata.
+    pub has_explicit_hunk_header: bool,
 }
 
 /// Result of converting a "*** Begin Patch" format to unified diff.

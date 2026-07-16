@@ -88,6 +88,30 @@ fn test_extract_file_read() {
 }
 
 #[test]
+fn test_extract_file_read_uses_offset_limit_for_plain_imported_output() {
+    let event = make_event(
+        "read_file",
+        EventDisplayVariant::ToolCall,
+        serde_json::json!({
+            "file_path": "src/app.rs",
+            "offset": 249,
+            "limit": 36,
+        }),
+        serde_json::json!({"output": "plain imported sed output"}),
+    );
+
+    let data = extract_event_data(&event).unwrap();
+    match data {
+        ExtractedData::File(f) => {
+            assert_eq!(f.file_path, "src/app.rs");
+            assert_eq!(f.start_line, Some(250));
+            assert_eq!(f.line_count, Some(36));
+        }
+        _ => panic!("Expected File variant"),
+    }
+}
+
+#[test]
 fn test_extract_file_read_accepts_camel_case_file_path() {
     let event = make_event(
         "read_file",
@@ -740,6 +764,57 @@ fn test_extract_apply_patch_single_file() {
             assert!(e.apply_patch_segments.is_empty());
             assert_eq!(e.file_path, "src/new.rs");
             assert_eq!(e.file_name, "new.rs");
+        }
+        _ => panic!("Expected Edit variant"),
+    }
+}
+
+#[test]
+fn test_extract_apply_patch_accepts_patch_arg() {
+    let patch = "*** Begin Patch\n*** Update File: src/app.rs\n@@\n-old\n+new\n*** End Patch";
+    let event = make_event(
+        "apply_patch",
+        EventDisplayVariant::ToolCall,
+        serde_json::json!({"patch": patch}),
+        serde_json::json!({}),
+    );
+
+    let data = extract_event_data(&event).unwrap();
+    match data {
+        ExtractedData::Edit(e) => {
+            assert_eq!(e.file_path, "src/app.rs");
+            assert_eq!(e.file_name, "app.rs");
+            assert_eq!(e.lines_added, Some(1));
+            assert_eq!(e.lines_removed, Some(1));
+            assert_eq!(e.old_start_line, None);
+            assert_eq!(e.new_start_line, None);
+            assert!(e.diff.as_deref().unwrap_or_default().contains("+new"));
+        }
+        _ => panic!("Expected Edit variant"),
+    }
+}
+
+#[test]
+fn test_extract_apply_patch_preserves_explicit_hunk_line_range() {
+    let patch = "*** Begin Patch\n*** Update File: src/app.rs\n@@ -42,2 +43,2 @@\n-old\n+new\n*** End Patch";
+    let event = make_event(
+        "apply_patch",
+        EventDisplayVariant::ToolCall,
+        serde_json::json!({"patch": patch}),
+        serde_json::json!({}),
+    );
+
+    let data = extract_event_data(&event).unwrap();
+    match data {
+        ExtractedData::Edit(e) => {
+            assert_eq!(e.file_path, "src/app.rs");
+            assert_eq!(e.old_start_line, Some(42));
+            assert_eq!(e.new_start_line, Some(43));
+            assert!(e
+                .diff
+                .as_deref()
+                .unwrap_or_default()
+                .contains("@@ -42,2 +43,2 @@"));
         }
         _ => panic!("Expected Edit variant"),
     }

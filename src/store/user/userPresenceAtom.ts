@@ -79,6 +79,7 @@ const BUILT_IN_LABELS: Record<BuiltInPresenceMode, string> = {
 };
 
 type PresencePolicyByMode = Partial<Record<string, number>>;
+type PresenceBooleanPolicyByMode = Partial<Record<string, boolean>>;
 
 function policyNumber(
   byPresence: unknown,
@@ -88,6 +89,20 @@ function policyNumber(
   if (byPresence && typeof byPresence === "object") {
     const value = (byPresence as PresencePolicyByMode)[mode];
     if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+      return value;
+    }
+  }
+  return fallback;
+}
+
+function policyBoolean(
+  byPresence: unknown,
+  mode: BuiltInPresenceMode,
+  fallback: boolean
+): boolean {
+  if (byPresence && typeof byPresence === "object") {
+    const value = (byPresence as PresenceBooleanPolicyByMode)[mode];
+    if (typeof value === "boolean") {
       return value;
     }
   }
@@ -116,6 +131,8 @@ export const presenceModeSpecResolverAtom = atom(
           settings["agent.sde.questionAutoSkipTimeoutByPresence"];
         const planByPresence =
           settings["agent.sde.planAutoApproveTimeoutByPresence"];
+        const modeSwitchByPresence =
+          settings["agent.sde.modeSwitchAutoPlanByPresence"];
         const goalByPresence = settings["agent.sde.goalMaxTurnsByPresence"];
         return {
           id: mode,
@@ -131,6 +148,11 @@ export const presenceModeSpecResolverAtom = atom(
             planByPresence,
             mode,
             policy.planAutoApproveSecs
+          ),
+          modeSwitchAutoPlan: policyBoolean(
+            modeSwitchByPresence,
+            mode,
+            policy.modeSwitchAutoPlan
           ),
           goalMaxTurns: policyNumber(goalByPresence, mode, policy.goalMaxTurns),
           builtIn: true,
@@ -149,6 +171,7 @@ export const presenceModeSpecResolverAtom = atom(
         stance: role.stance ?? PRESENCE_STANCE.INTERACTIVE,
         questionAutoResolveSecs: role.questionAutoResolveSecs ?? 0,
         planAutoApproveSecs: role.planAutoApproveSecs ?? 0,
+        modeSwitchAutoPlan: role.modeSwitchAutoPlan ?? false,
         goalMaxTurns: role.goalMaxTurns ?? 0,
         builtIn: false,
       };
@@ -185,6 +208,7 @@ export const userPresenceWireAtom = atom<UserPresenceWire | undefined>(
       stance: spec.stance,
       questionAutoResolveSecs: spec.questionAutoResolveSecs,
       planAutoApproveSecs: spec.planAutoApproveSecs,
+      modeSwitchAutoPlan: spec.modeSwitchAutoPlan,
       goalMaxTurns: spec.goalMaxTurns,
     };
 

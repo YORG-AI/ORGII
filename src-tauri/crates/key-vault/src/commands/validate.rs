@@ -92,8 +92,8 @@ use crate::provider_config::get_provider_config;
 const CLAUDE_CODE_OAUTH_MODELS_URL: &str = "https://api.anthropic.com/v1/models";
 const CLAUDE_CODE_OAUTH_BETA: &str = "oauth-2025-04-20";
 const CLAUDE_CODE_OAUTH_USER_AGENT: &str = "claude-cli/2.1.78 (orgii, cli)";
-const OPENCODE_ZEN_BASE_URL: &str = "https://opencode.ai/zen/v1";
-const OPENCODE_GO_BASE_URL: &str = "https://opencode.ai/zen/go/v1";
+pub const OPENCODE_ZEN_BASE_URL: &str = "https://opencode.ai/zen/v1";
+pub const OPENCODE_GO_BASE_URL: &str = "https://opencode.ai/zen/go/v1";
 
 const GEMINI_OAUTH_MODELS_URL: &str = "https://generativelanguage.googleapis.com/v1beta/models";
 
@@ -110,15 +110,23 @@ fn default_base_url_for_provider(agent_type: &str) -> Option<String> {
     })
 }
 
+/// Anthropic-protocol base URL to fall back on when the caller supplied none.
+///
+/// Anthropic itself is special-cased because its short aliases don't resolve
+/// through `get_provider_config`. Every other provider declares its Anthropic
+/// endpoint in the provider registry, so there is no second table to keep in
+/// sync here.
 fn default_anthropic_base_url_for_provider(agent_type: &str) -> Option<String> {
     match agent_type {
         "anthropic" | "anthropic_api" | "claude_code" => {
             Some("https://api.anthropic.com/v1".to_string())
         }
-        "zenmux_api" => Some("https://zenmux.ai/api/anthropic".to_string()),
-        "longcat_api" => Some("https://api.longcat.chat/anthropic".to_string()),
-        _ => None,
+        other => get_provider_config(other).default_anthropic_base_url(),
     }
+}
+
+fn resolve_opencode_base_url(base_url: Option<&str>) -> &str {
+    base_url.unwrap_or(OPENCODE_ZEN_BASE_URL)
 }
 
 /// Validate an OpenCode Zen/Go key by listing models without issuing a completion request.
@@ -127,16 +135,9 @@ pub async fn validate_opencode_key(api_key: &str, base_url: Option<&str>) -> Val
         return ValidationResult::failure("No API key provided");
     }
 
-    let result = fetch_opencode_models(api_key, base_url.unwrap_or(OPENCODE_GO_BASE_URL)).await;
-    match result {
+    match fetch_opencode_models(api_key, resolve_opencode_base_url(base_url)).await {
         Ok(models) => ValidationResult::success("API key valid").with_models(models),
-        Err(err) if err == "Invalid API key" || base_url.is_some() => {
-            ValidationResult::failure(&err)
-        }
-        Err(_) => match fetch_opencode_models(api_key, OPENCODE_ZEN_BASE_URL).await {
-            Ok(models) => ValidationResult::success("API key valid").with_models(models),
-            Err(err) => ValidationResult::failure(&err),
-        },
+        Err(err) => ValidationResult::failure(&err),
     }
 }
 
@@ -257,10 +258,13 @@ pub async fn run_validate_key(
                 .await)
         }
 
-        // OpenAI-compatible API providers (use OpenAI validator with provider's base URL)
+        // OpenAI-compatible API providers (use OpenAI validator with provider's base URL).
+        // Providers that also speak the Anthropic protocol declare an Anthropic
+        // endpoint in the provider registry and route through it below.
         "deepseek_api" | "groq_api" | "xai_api" | "zhipu_api" | "dashscope_api"
         | "moonshot_api" | "minimax_api" | "longcat_api" | "openrouter_api" | "zenmux_api"
-        | "vllm_api" | "orgii_orchestrator" | "orgii" => {
+        | "siliconflow_api" | "modelscope_api" | "aihubmix_api" | "cherryin_api"
+        | "bedrock_api" | "custom_api" | "vllm_api" | "orgii_orchestrator" | "orgii" => {
             if protocol_lower.as_deref() == Some("anthropic") {
                 let effective_url = base_url
                     .clone()
@@ -285,7 +289,7 @@ pub async fn run_validate_key(
         }
 
         _ => Err(format!(
-            "Unknown agent type: {}. Supported: copilot, cursor_cli, openai, anthropic, google, gemini_cli, codex, claude_code, kiro, opencode, openai_api, anthropic_api, gemini_api, deepseek_api, groq_api, xai_api, zhipu_api, dashscope_api, moonshot_api, minimax_api, longcat_api, openrouter_api, zenmux_api, vllm_api, azure_openai_api, azure_anthropic_api",
+            "Unknown agent type: {}. Supported: copilot, cursor_cli, openai, anthropic, google, gemini_cli, codex, claude_code, kiro, opencode, openai_api, anthropic_api, gemini_api, deepseek_api, groq_api, xai_api, zhipu_api, dashscope_api, moonshot_api, minimax_api, longcat_api, openrouter_api, zenmux_api, siliconflow_api, modelscope_api, aihubmix_api, cherryin_api, bedrock_api, custom_api, vllm_api, azure_openai_api, azure_anthropic_api",
             agent_type
         )),
     }
@@ -510,15 +514,48 @@ pub async fn refresh_key_quota(key_id: String) -> Result<Option<crate::commands:
         .get_key_by_id(&key_id)
         .ok_or_else(|| format!("Key not found: {}", key_id))?;
 
-    let quota = match fetch_quota_for_key(&key).await {
-        Ok(quota) => quota,
-        Err(first_err)
-            if key.auth_method == AuthMethod::Oauth && is_unauthorized_quota_error(&first_err) =>
-        {
-            let refreshed = refresh_oauth_key_for_quota(&key).await?;
-            fetch_quota_for_key(&refreshed).await?
+    let quota = if key.model_type == ModelType::ClaudeCode && key.auth_method == AuthMethod::Oauth {
+        let token = key
+            .session_token
+            .as_deref()
+            .filter(|token| !token.trim().is_empty())
+            .ok_or_else(|| "Claude Code OAuth account has no access token".to_string())?;
+
+        let refresh = match ClaudeCodeQuotaFetcher::new().fetch_quota_refresh(token).await {
+            Ok(refresh) => refresh,
+            Err(first_err) if is_unauthorized_quota_error(&first_err) => {
+                let refreshed = refresh_oauth_key_for_quota(&key).await?;
+                let retry_token = refreshed
+                    .session_token
+                    .as_deref()
+                    .filter(|retry_token| !retry_token.trim().is_empty())
+                    .ok_or_else(|| {
+                        "Claude Code OAuth account has no access token after refresh".to_string()
+                    })?;
+                ClaudeCodeQuotaFetcher::new()
+                    .fetch_quota_refresh(retry_token)
+                    .await?
+            }
+            Err(first_err) => return Err(first_err),
+        };
+
+        if !refresh.account_metadata.is_empty() {
+            KEY_SERVICE.merge_key_account_metadata(&key_id, refresh.account_metadata)?;
         }
-        Err(first_err) => return Err(first_err),
+
+        refresh.quota
+    } else {
+        match fetch_quota_for_key(&key).await {
+            Ok(quota) => quota,
+            Err(first_err)
+                if key.auth_method == AuthMethod::Oauth
+                    && is_unauthorized_quota_error(&first_err) =>
+            {
+                let refreshed = refresh_oauth_key_for_quota(&key).await?;
+                fetch_quota_for_key(&refreshed).await?
+            }
+            Err(first_err) => return Err(first_err),
+        }
     };
 
     let quota_value = serde_json::to_value(quota)
@@ -1163,6 +1200,19 @@ mod tests {
     fn code_assist_quota_response_rejects_invalid_json() {
         let err = parse_code_assist_quota_response("not json").unwrap_err();
         assert!(err.contains("parse failed"));
+    }
+
+    #[test]
+    fn opencode_base_url_defaults_to_zen_and_respects_selection() {
+        assert_eq!(resolve_opencode_base_url(None), OPENCODE_ZEN_BASE_URL);
+        assert_eq!(
+            resolve_opencode_base_url(Some(OPENCODE_ZEN_BASE_URL)),
+            OPENCODE_ZEN_BASE_URL
+        );
+        assert_eq!(
+            resolve_opencode_base_url(Some(OPENCODE_GO_BASE_URL)),
+            OPENCODE_GO_BASE_URL
+        );
     }
 
     // ── validate_token_format dispatch ────────────────────────────────

@@ -6,7 +6,8 @@
  * built-in slash actions in a filterable dropdown.
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import { type RefObject, useCallback, useRef } from "react";
+import { type RefObject, useCallback, useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { ComposerInputRef } from "@src/components/ComposerInput";
 import type { AgentExecMode } from "@src/config/sessionCreatorConfig";
@@ -14,11 +15,9 @@ import { buildMcpToolCommand } from "@src/engines/ChatPanel/InputArea/components
 import { useSessionId } from "@src/engines/SessionCore/hooks/session/useSessionId";
 import { useSessionExecModeField } from "@src/hooks/session/useSessionPatch";
 import { creatorDefaultExecModeAtom } from "@src/store/session/creatorDefaultExecModeAtom";
-import type { SlashItem } from "@src/types/extensions";
+import { SLASH_ACTIONS, type SlashItem } from "@src/types/extensions";
 
 import { useSlashItemsCache } from "./useSlashItemsCache";
-
-const BUILTIN_SLASH_ITEMS: SlashItem[] = [];
 
 interface UseSlashCommandOptions {
   composerInputRef: RefObject<ComposerInputRef | null>;
@@ -93,12 +92,26 @@ export function useSlashCommand(
 
   const queryRef = useRef("");
 
+  const { t } = useTranslation("sessions");
+  const builtinSlashItems = useMemo<SlashItem[]>(
+    () => [
+      {
+        name: SLASH_ACTIONS.COMPACT,
+        description: t("input.compactCommandDescription"),
+        category: "action",
+        source: "builtin",
+        acceptsArgs: true,
+      },
+    ],
+    [t]
+  );
+
   const {
     filteredItems,
     loading: slashLoading,
     prefetch,
   } = useSlashItemsCache({
-    builtinItems: BUILTIN_SLASH_ITEMS,
+    builtinItems: builtinSlashItems,
     workspacePaths,
   });
 
@@ -148,6 +161,24 @@ export function useSlashCommand(
       if (item.category === "tool" && item.serverName) {
         composerInputRef.current.setContent(
           buildMcpToolCommand(item.serverName, item.name)
+        );
+        composerInputRef.current.focus();
+        setShowSlashMenu(false);
+        setSlashQuery("");
+        queryRef.current = "";
+        return;
+      }
+
+      // The compact command renders as a pill (like skills) so the token
+      // reads as one unit with the focus text typed after it. The submit
+      // interceptor recognizes both the pill serialization and plain
+      // "/compact" text (parseCompactSlashCommand).
+      if (item.category === "action" && item.name === SLASH_ACTIONS.COMPACT) {
+        composerInputRef.current.insertFilePill(
+          `/${SLASH_ACTIONS.COMPACT}`,
+          false,
+          "skill",
+          SLASH_ACTIONS.COMPACT
         );
         composerInputRef.current.focus();
         setShowSlashMenu(false);

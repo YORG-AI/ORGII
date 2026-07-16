@@ -47,6 +47,12 @@ const DEFAULT_ICONS: Record<string, React.ReactNode> = {
   info: <Info size={14} className="flex-shrink-0" />,
 };
 
+const INLINE_ALERT_TOKENS = {
+  titleText: "block text-[13px] font-medium leading-[14px]",
+  bodyText: "text-[12px] font-normal leading-snug",
+  subtitleText: "mt-1 block text-[11px] opacity-70",
+} as const;
+
 export interface InlineAlertActionConfig {
   label: string;
   href?: string;
@@ -126,6 +132,7 @@ const InlineAlert: React.FC<InlineAlertProps> = ({
   const resolvedCloseIcon = closeIcon ?? (
     <X size={14} className="flex-shrink-0" />
   );
+  const hasTitle = Boolean(title);
 
   const actionNode =
     action &&
@@ -155,10 +162,15 @@ const InlineAlert: React.FC<InlineAlertProps> = ({
         </span>
       )}
       <div className="min-w-0 flex-1">
-        {title && (
-          <span className="block text-[13px] font-medium leading-[14px]">
-            {title}
-          </span>
+        {hasTitle ? (
+          <span className={INLINE_ALERT_TOKENS.titleText}>{title}</span>
+        ) : (
+          showContent &&
+          children && (
+            <span className={`block ${INLINE_ALERT_TOKENS.bodyText}`}>
+              {children}
+            </span>
+          )
         )}
       </div>
     </div>
@@ -195,13 +207,11 @@ const InlineAlert: React.FC<InlineAlertProps> = ({
           </div>
         )}
       </div>
-      {showContent && children && (
-        <div className="mt-2 text-[12px] font-normal leading-snug">
-          {children}
-        </div>
+      {showContent && hasTitle && children && (
+        <div className={`mt-2 ${INLINE_ALERT_TOKENS.bodyText}`}>{children}</div>
       )}
       {showContent && subtitle && (
-        <span className="mt-1 block text-[11px] opacity-70">{subtitle}</span>
+        <span className={INLINE_ALERT_TOKENS.subtitleText}>{subtitle}</span>
       )}
     </div>
   );

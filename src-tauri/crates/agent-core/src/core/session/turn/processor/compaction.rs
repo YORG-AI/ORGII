@@ -530,15 +530,22 @@ impl UnifiedMessageProcessor {
         // rewriting the transcript. The durable view is `[summary] +
         // rows >= cutoff`; prior rows are never touched, so sequence and
         // created_at coordinates stay valid for truncation/replay.
-        let (summary_text, tail_len) = split_summary_and_tail(&durable_compacted_messages);
+        let compacted_for_persist = durable_compacted_messages.clone();
+        // Boundary display metadata: estimated context tokens either side of
+        // the compaction, shown in the chat marker's subtitle.
+        let boundary_token_delta = Some((
+            ContextCompactor::estimate_messages_tokens(&pre_compact_messages),
+            ContextCompactor::estimate_messages_tokens(messages),
+        ));
         let persist_result = tokio::task::spawn_blocking({
             let sid = session_id.to_string();
             move || -> Result<(), String> {
-                let cutoff = unified_persistence::compact_cutoff_sequence(&sid, tail_len)
-                    .map_err(|err| err.to_string())?;
-                unified_persistence::append_compact_boundary(&sid, &summary_text, cutoff)
-                    .map_err(|err| err.to_string())?;
-                Ok(())
+                super::super::super::compaction::persist::append_in_place_compact_boundary(
+                    &sid,
+                    &compacted_for_persist,
+                    boundary_token_delta,
+                )
+                .map(|_| ())
             }
         })
         .await;
@@ -579,36 +586,6 @@ impl UnifiedMessageProcessor {
         }
 
         CompactionPhaseOutcome::Continue
-    }
-}
-
-/// Split the compacted in-memory view into the boundary summary text and
-/// the number of preserved tail messages. The compactors emit
-/// `[user summary] + tail` (legacy summaries were `system`); if the leading
-/// summary is missing (e.g. truncation fallback dropped messages without
-/// summarizing), a generic marker is used and every message counts as tail.
-fn split_summary_and_tail(durable_compacted_messages: &[Value]) -> (String, usize) {
-    let is_summary_head = durable_compacted_messages.first().is_some_and(|first| {
-        message_role(first) == Some("system")
-            || crate::model_context::session_memory::compact::is_compact_boundary_message(first)
-    });
-    match durable_compacted_messages.first() {
-        Some(first) if is_summary_head => {
-            let text = match first.get("content") {
-                Some(Value::String(text)) => text.clone(),
-                Some(Value::Array(parts)) => parts
-                    .iter()
-                    .filter_map(|part| part.get("text").and_then(Value::as_str))
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-                _ => String::new(),
-            };
-            (text, durable_compacted_messages.len().saturating_sub(1))
-        }
-        _ => (
-            "[Conversation summary — earlier messages compacted without summary]".to_string(),
-            durable_compacted_messages.len(),
-        ),
     }
 }
 

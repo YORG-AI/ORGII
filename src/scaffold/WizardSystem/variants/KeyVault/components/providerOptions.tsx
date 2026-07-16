@@ -58,19 +58,39 @@ export interface ProviderGridOptionGroup {
   options: SelectionGridOption[];
 }
 
+/** Icon source for a provider — a brand logo, or a glyph for brand-less tiles. */
+type ProviderIconSource = Pick<UnifiedProvider, "iconElement" | "iconProvider">;
+
+/**
+ * The "Custom" tiles (local endpoint, cloud gateway) stand for whatever the
+ * user points them at, so they carry a cog glyph instead of a brand logo.
+ */
+export function providerUsesGlyphIcon(provider: ProviderIconSource): boolean {
+  return provider.iconElement === "cog";
+}
+
+/** Single place any surface renders a provider's icon. */
+export function providerIconNode(
+  provider: ProviderIconSource,
+  size: number
+): React.ReactNode {
+  if (providerUsesGlyphIcon(provider)) {
+    return <Cog size={size} className="shrink-0 text-text-3" />;
+  }
+  return (
+    <ModelIcon provider={provider.iconProvider as IconProvider} size={size} />
+  );
+}
+
 function buildProviderGridOption(
   provider: UnifiedProvider
 ): SelectionGridOption {
   return {
     key: provider.key,
     label: provider.label,
-    iconElement:
-      provider.iconElement === "cog" ? (
-        <Cog size={18} className="shrink-0 text-text-3" />
-      ) : (
-        <ModelIcon provider={provider.iconProvider as IconProvider} size={18} />
-      ),
-    iconPreserveColor: provider.iconElement !== "cog",
+    iconElement: providerIconNode(provider, 18),
+    // Brand logos keep their own colours; the cog glyph inherits text colour.
+    iconPreserveColor: !providerUsesGlyphIcon(provider),
   };
 }
 
@@ -90,22 +110,20 @@ export function buildProviderGridOptionGroups(
 export function buildProviderSelectOptions(
   providers: UnifiedProvider[]
 ): SelectOption[] {
-  return providers.map((provider) => ({
-    value: provider.key,
-    label: (
+  return providers.map((provider) => {
+    const labelNode = (
       <span className="flex items-center gap-2">
-        <ModelIcon provider={provider.iconProvider as IconProvider} size={16} />
+        {providerIconNode(provider, 16)}
         {provider.label}
       </span>
-    ),
-    triggerLabel: (
-      <span className="flex items-center gap-2">
-        <ModelIcon provider={provider.iconProvider as IconProvider} size={16} />
-        {provider.label}
-      </span>
-    ),
-    extra: { searchText: provider.label },
-  }));
+    );
+    return {
+      value: provider.key,
+      label: labelNode,
+      triggerLabel: labelNode,
+      extra: { searchText: provider.label },
+    };
+  });
 }
 
 export function buildVariantGridOptions(
@@ -174,10 +192,7 @@ export function buildBrandProviderFilterOptions(
     ...providers.map((provider) => {
       const labelNode = (
         <span className="flex items-center gap-2">
-          <ModelIcon
-            provider={provider.iconProvider as IconProvider}
-            size={16}
-          />
+          {providerIconNode(provider, 16)}
           {provider.label}
         </span>
       );

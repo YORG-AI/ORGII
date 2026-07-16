@@ -178,8 +178,6 @@ export const UnifiedModelDropdown: React.FC<UnifiedModelDropdownProps> = ({
   const tauriSelectAll = useTauriSelectAllShortcut();
 
   const {
-    currentModelItem,
-    currentHeader,
     recentItems,
     recentHeader,
     allModelItems,
@@ -227,15 +225,6 @@ export const UnifiedModelDropdown: React.FC<UnifiedModelDropdownProps> = ({
     return `${item.label} ${item.desc || ""} ${rightLabel} ${searchAlias}`;
   }, []);
 
-  const currentSearchItems = useMemo(
-    () => (currentModelItem ? [currentModelItem] : []),
-    [currentModelItem]
-  );
-  const { filteredItems: filteredCurrentItems } = useFilteredItems({
-    items: currentSearchItems,
-    searchQuery,
-    getSearchText,
-  });
   const { filteredItems: filteredRecentItems } = useFilteredItems({
     items: recentItems,
     searchQuery,
@@ -248,9 +237,6 @@ export const UnifiedModelDropdown: React.FC<UnifiedModelDropdownProps> = ({
   });
   const filteredItems = useMemo((): SpotlightItem[] => {
     const items: SpotlightItem[] = [];
-    if (filteredCurrentItems.length > 0) {
-      items.push(currentHeader, ...filteredCurrentItems);
-    }
     if (filteredRecentItems.length > 0) {
       items.push(recentHeader, ...filteredRecentItems);
     }
@@ -258,14 +244,7 @@ export const UnifiedModelDropdown: React.FC<UnifiedModelDropdownProps> = ({
       items.push(allHeader, ...filteredAllModelItems);
     }
     return items;
-  }, [
-    filteredCurrentItems,
-    currentHeader,
-    filteredRecentItems,
-    recentHeader,
-    filteredAllModelItems,
-    allHeader,
-  ]);
+  }, [filteredRecentItems, recentHeader, filteredAllModelItems, allHeader]);
 
   useEffect(() => {
     if (!isOpen) return;

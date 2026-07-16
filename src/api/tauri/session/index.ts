@@ -132,6 +132,7 @@ export function toFrontendSession(record: SessionAggregateRecord): Session {
     user_input: record.userInput,
     repo_name: record.repoName || "",
     name: record.name,
+    displayLabel: record.displayLabel,
     branch: record.branch || "",
     is_active: record.isActive,
     category,

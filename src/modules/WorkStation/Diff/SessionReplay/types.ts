@@ -25,7 +25,7 @@ export interface DiffEntry {
 }
 
 /** Top-level tabs surfaced in the Diff app chrome. */
-export type DiffReplayTab = "all" | "diff" | "submissions";
+export type DiffReplayTab = "all" | "diff" | "submissions" | "requirements";
 
 /**
  * State derived from filtered events; consumed by the index component.

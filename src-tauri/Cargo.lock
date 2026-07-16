@@ -7932,6 +7932,7 @@ dependencies = [
  "futures",
  "git",
  "integrations",
+ "libc",
  "objc2",
  "objc2-app-kit",
  "objc2-foundation",
@@ -7943,6 +7944,7 @@ dependencies = [
  "tauri-plugin-notification",
  "tokio",
  "tracing",
+ "url",
  "windows 0.61.3",
 ]
 

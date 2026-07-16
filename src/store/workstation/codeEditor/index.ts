@@ -23,6 +23,9 @@ export * from "./testRunner";
 // Diagnostics health
 export * from "./diagnostics";
 
+// Workspace listening ports (status bar)
+export * from "./workspacePortsAtom";
+
 // Git diff review bar (change list position)
 export * from "./gitReviewNavigationAtom";
 

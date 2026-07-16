@@ -220,14 +220,16 @@ export function buildAllModelItems({
 
       const labelContent = aliasDisplayName ? (
         <>
-          <span className="shrink-0 font-medium text-text-1">
+          <span className="shrink-0 font-normal text-text-1">
             {displayLabel}
           </span>
           <span className="ml-1.5 min-w-0 truncate text-[12px] text-text-2">
             {modelId}
           </span>
         </>
-      ) : undefined;
+      ) : (
+        <span className="shrink-0 font-normal text-text-1">{displayLabel}</span>
+      );
 
       items.push({
         id: modelId,
@@ -241,7 +243,7 @@ export function buildAllModelItems({
           groupModelIds: [modelId],
           rightContent: renderAccountCount(accountCount),
           showDisclosureChevron: true,
-          ...(labelContent ? { labelContent } : {}),
+          labelContent,
           searchAlias: aliasDisplayName ? modelId : undefined,
         },
         action: () => handleModelSelect(modelId, displayLabel, [modelId]),
@@ -262,7 +264,7 @@ export function buildAllModelItems({
 
     const labelContent = (
       <span className="flex min-w-0 items-center gap-1.5">
-        <span className="shrink-0 font-medium text-text-1">{group.label}</span>
+        <span className="shrink-0 font-normal text-text-1">{group.label}</span>
       </span>
     );
 

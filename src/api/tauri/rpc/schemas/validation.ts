@@ -91,6 +91,12 @@ export const ApiProviderTypeSchema = z.union([
   z.literal("zenmux_api"),
   z.literal("minimax_api"),
   z.literal("longcat_api"),
+  z.literal("siliconflow_api"),
+  z.literal("modelscope_api"),
+  z.literal("aihubmix_api"),
+  z.literal("cherryin_api"),
+  z.literal("bedrock_api"),
+  z.literal("custom_api"),
   z.literal("vllm_api"),
   z.literal("azure_openai_api"),
   z.literal("azure_anthropic_api"),
@@ -396,6 +402,7 @@ export const AvailableAgentSchema = z.object({
   envConfig: AgentEnvConfigSchema.optional(),
   isComplexSetup: z.boolean(),
   defaultSetupMethod: z.string().optional(),
+  supportedSetupMethods: z.array(z.string()),
   popular: z.boolean(),
   /** Icon provider key for ModelIcon lookup (e.g., "cursor", "claude_code") */
   iconProvider: z.string(),
@@ -439,6 +446,20 @@ export const AvailableApiProviderSchema = z.object({
   supportsRustAgents: z.boolean(),
 });
 
+/**
+ * Matches `ProviderEndpoint` in `src-tauri/.../provider_config.rs`.
+ *
+ * A selectable endpoint — a regional split (Zhipu's China vs Global hosts), a
+ * product tier (OpenCode Zen vs Go), or an AWS region. `anthropic_base_url` is
+ * null when the endpoint has no dedicated Anthropic-protocol host.
+ */
+export const ProviderEndpointSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  base_url: z.string(),
+  anthropic_base_url: z.string().nullable(),
+});
+
 /** Matches `ProviderConfig` in `src-tauri/.../provider_config.rs`. */
 export const ProviderConfigSchema = z.object({
   api_key_env_var: z.string(),
@@ -447,6 +468,8 @@ export const ProviderConfigSchema = z.object({
   default_base_url: z.string().nullable(),
   supported_protocols: z.array(ProviderProtocolSchema),
   default_protocol: ProviderProtocolSchema,
+  /** Empty when the provider has a single implicit endpoint. */
+  endpoints: z.array(ProviderEndpointSchema),
 });
 
 // ============================================================================
@@ -824,6 +847,7 @@ export type ModelVariantInfo = z.infer<typeof ModelVariantInfoSchema>;
 export type DefaultVariantInfo = z.infer<typeof DefaultVariantInfoSchema>;
 export type DetectedQuotaInfo = z.infer<typeof DetectedQuotaInfoSchema>;
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
+export type ProviderEndpoint = z.infer<typeof ProviderEndpointSchema>;
 export type PromptPolishRequest = z.infer<typeof PromptPolishRequestSchema>;
 export type PromptPolishResponse = z.infer<typeof PromptPolishResponseSchema>;
 export type SessionStepExplainRequest = z.infer<

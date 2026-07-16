@@ -432,7 +432,10 @@ pub fn resolve_subagent_model(
     parent_model: &str,
     inherit_parent_verbatim: bool,
 ) -> (String, Option<ReliabilityConfig>) {
-    if let Some(explicit) = explicit_param_model {
+    if let Some(explicit) = explicit_param_model
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
         if explicit == "fast" {
             return (
                 crate::providers::model_hints::fast_model_hint(parent_model),
@@ -643,6 +646,25 @@ mod resolve_subagent_model_tests {
         let (_model, reliability) =
             resolve_subagent_model(&agent, Some("fast"), "claude-opus-4-20250514", false);
         assert!(reliability.is_none(), "fast override must drop reliability");
+    }
+
+    #[test]
+    fn blank_explicit_param_model_is_ignored() {
+        let agent = make_agent_with_model(None, None);
+        let (model, reliability) = resolve_subagent_model(&agent, Some(""), "gpt-5.5", false);
+
+        assert_eq!(model, "gpt-5.5");
+        assert!(reliability.is_none());
+    }
+
+    #[test]
+    fn whitespace_explicit_param_model_is_ignored() {
+        let agent = make_agent_with_model(None, None);
+        let (model, reliability) =
+            resolve_subagent_model(&agent, Some("   \n\t"), "gpt-5.5", false);
+
+        assert_eq!(model, "gpt-5.5");
+        assert!(reliability.is_none());
     }
 
     #[test]

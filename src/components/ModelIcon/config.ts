@@ -12,6 +12,7 @@ import type { FC, SVGProps } from "react";
 
 import type { ModelType } from "@src/api/types/keys";
 import AiderIcon from "@src/assets/modelIcons/aider.svg";
+import AiHubMixIcon from "@src/assets/modelIcons/aihubmix.svg";
 import AmpIcon from "@src/assets/modelIcons/amp.svg";
 import AntigravityIcon from "@src/assets/modelIcons/antigravity.svg";
 import AugmentIcon from "@src/assets/modelIcons/augment.svg";
@@ -20,6 +21,7 @@ import AWSIcon from "@src/assets/modelIcons/aws.svg";
 import AzureIcon from "@src/assets/modelIcons/azure.svg";
 import BaichuanIcon from "@src/assets/modelIcons/baichuan.svg";
 import ByteDanceIcon from "@src/assets/modelIcons/bytedance.svg";
+import CherryInIcon from "@src/assets/modelIcons/cherryin.svg";
 import ClaudeCodeIcon from "@src/assets/modelIcons/claude-code.svg";
 import ClaudeIcon from "@src/assets/modelIcons/claude.svg";
 import ClineIcon from "@src/assets/modelIcons/cline.svg";
@@ -28,11 +30,12 @@ import CohereIcon from "@src/assets/modelIcons/cohere.svg";
 import ContinueIcon from "@src/assets/modelIcons/continue.svg";
 import CopilotIcon from "@src/assets/modelIcons/copilot.svg";
 import CursorIcon from "@src/assets/modelIcons/cursor.svg";
+import CustomGatewayIcon from "@src/assets/modelIcons/custom.svg";
 import DeepSeekIcon from "@src/assets/modelIcons/deepseek.svg";
 import DevinIcon from "@src/assets/modelIcons/devin.svg";
 import DoubaoIcon from "@src/assets/modelIcons/doubao.svg";
 import DroidIcon from "@src/assets/modelIcons/droid.svg";
-import GeminiIcon from "@src/assets/modelIcons/gemini.svg";
+import GeminiIcon from "@src/assets/modelIcons/gemini";
 import GooseIcon from "@src/assets/modelIcons/goose.svg";
 import GrokIcon from "@src/assets/modelIcons/grok.svg";
 import GroqIcon from "@src/assets/modelIcons/groq.svg";
@@ -48,6 +51,7 @@ import LongCatIcon from "@src/assets/modelIcons/longcat.svg";
 import MetaIcon from "@src/assets/modelIcons/meta.svg";
 import MinimaxIcon from "@src/assets/modelIcons/minimax.svg";
 import MistralIcon from "@src/assets/modelIcons/mistral.svg";
+import ModelScopeIcon from "@src/assets/modelIcons/modelscope.svg";
 import NvidiaIcon from "@src/assets/modelIcons/nvidia.svg";
 import OllamaIcon from "@src/assets/modelIcons/ollama.svg";
 import OmpIcon from "@src/assets/modelIcons/omp.svg";
@@ -60,6 +64,7 @@ import PerplexityIcon from "@src/assets/modelIcons/perplexity.svg";
 import PiIcon from "@src/assets/modelIcons/pi.svg";
 import QwenIcon from "@src/assets/modelIcons/qwen.svg";
 import RovoIcon from "@src/assets/modelIcons/rovo.svg";
+import SiliconFlowIcon from "@src/assets/modelIcons/siliconflow.svg";
 import VllmIcon from "@src/assets/modelIcons/vllm.svg";
 import VolcengineIcon from "@src/assets/modelIcons/volcengine.svg";
 import WorkBuddyIcon from "@src/assets/modelIcons/workbuddy.svg";
@@ -133,6 +138,11 @@ export type IconProvider =
   | "baichuan"
   | "minimax"
   | "longcat"
+  | "siliconflow"
+  | "modelscope"
+  | "aihubmix"
+  | "cherryin"
+  | "custom"
   | "doubao"
   | "openrouter"
   | "zenmux"
@@ -195,6 +205,11 @@ export const ICON_MAP: Record<
   baichuan: BaichuanIcon,
   minimax: MinimaxIcon,
   longcat: LongCatIcon,
+  siliconflow: SiliconFlowIcon,
+  modelscope: ModelScopeIcon,
+  aihubmix: AiHubMixIcon,
+  cherryin: CherryInIcon,
+  custom: CustomGatewayIcon,
   doubao: DoubaoIcon,
   openrouter: OpenRouterIcon,
   zenmux: ZenMuxIcon,
@@ -262,6 +277,11 @@ export const SELECTABLE_ICON_PROVIDERS: IconProvider[] = [
   "baichuan",
   "minimax",
   "longcat",
+  "siliconflow",
+  "modelscope",
+  "aihubmix",
+  "cherryin",
+  "custom",
   "doubao",
   "openrouter",
   "zenmux",
@@ -342,6 +362,12 @@ const MODEL_TYPE_TO_ICON: Record<ModelType, IconProvider> = {
   dashscope_api: "qwen",
   minimax_api: "minimax",
   longcat_api: "longcat",
+  siliconflow_api: "siliconflow",
+  modelscope_api: "modelscope",
+  aihubmix_api: "aihubmix",
+  cherryin_api: "cherryin",
+  bedrock_api: "aws",
+  custom_api: "custom",
   moonshot_api: "kimi",
   openrouter_api: "openrouter",
   zenmux_api: "zenmux",
@@ -593,6 +619,7 @@ export const THEMEABLE_ICONS = new Set<IconProvider>([
   "groq",
   "openrouter",
   "zenmux",
+  "custom",
   "yi",
   "zcode",
   "orgii",

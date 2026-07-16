@@ -226,8 +226,8 @@
     "apiProtocolDesc": "Wybierz protokół połączenia dla wbudowanego agenta Rust",
     "officialUrl": "Oficjalny URL",
     "customUrl": "Niestandardowy URL",
-    "customBaseUrlRiskTitle": "Ostrzeżenie o niestandardowym URL",
-    "customBaseUrlRiskWarning": "Użycie niestandardowego base URL może ujawnić Twój klucz API i dane serwerom stron trzecich. Używaj tego tylko dla zaufanych proxy, własnych wdrożeń lub znanych bezpiecznych punktów końcowych",
+    "customBaseUrlNoteTitle": "O niestandardowych endpointach",
+    "customBaseUrlNoteBody": "Twój klucz API i dane żądań są wysyłane do wprowadzonego URL. Używaj niestandardowych URL tylko dla zaufanych proxy, własnych wdrożeń lub kontrolowanych przez Ciebie endpointów",
     "addBaseUrl": "Dodaj niestandardowy base URL (opcjonalnie)",
     "localModel": {
       "title": "Cookbook modeli lokalnych",
@@ -291,6 +291,8 @@
     "signInDesc": "Zaloguj się przez przeglądarkę, aby autoryzować dostęp",
     "setupMethod": "Metoda konfiguracji",
     "setupMethodDesc": "Jak dostarczyć klucze",
+    "endpoint": "Punkt końcowy",
+    "endpointDesc": "Wybierz, z którym punktem końcowym łączy się ten klucz",
     "detect": "Wykryj",
     "detected": "Wykryto",
     "reDetect": "Wykryj ponownie",
@@ -812,7 +814,8 @@
     "pickProviderDesc": "Wybierz dostawcę",
     "selectVariant": "Metoda połączenia",
     "variantSubscription": "Subskrypcja",
-    "variantApiKey": "API Key"
+    "variantApiKey": "API Key",
+    "providerCustom": "Niestandardowy"
   },
   "modelsTable": {
     "noModels": "Brak modeli z Twoich kluczy",

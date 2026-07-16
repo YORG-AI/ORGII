@@ -17,6 +17,16 @@ describe("sessionLabel", () => {
     ).toBe("Fix the bug in auth");
   });
 
+  it("prefers backend displayLabel before user_input for default names", () => {
+    expect(
+      sessionLabel({
+        name: "New Session",
+        displayLabel: "External app title",
+        user_input: "Fix the bug in auth",
+      })
+    ).toBe("External app title");
+  });
+
   it("falls back to user_input when name is undefined", () => {
     expect(sessionLabel({ user_input: "Refactor store" })).toBe(
       "Refactor store"

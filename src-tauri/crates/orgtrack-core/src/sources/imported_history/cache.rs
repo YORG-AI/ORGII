@@ -314,7 +314,7 @@ fn query_cached_sessions_from_conn(
     query_cached_sessions_by_filter_from_conn(
         conn,
         source,
-        "listable = ?2",
+        "listable = ?2 AND parent_session_id = ''",
         &[SqlValue::from(1_i64)],
         limit,
         offset,

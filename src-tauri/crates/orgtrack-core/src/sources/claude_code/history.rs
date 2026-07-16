@@ -26,7 +26,7 @@ use crate::sources::imported_history::{
 
 const CLAUDE_CODE_SESSION_PREFIX: &str = "claudecodeapp-";
 const CLAUDE_CODE_PROVIDER_SLUG: &str = "claudecode";
-const CLAUDE_CODE_METADATA_PARSER_VERSION: i64 = 2;
+const CLAUDE_CODE_METADATA_PARSER_VERSION: i64 = 3;
 
 pub type ClaudeCodeHistorySessionRow = ImportedHistorySessionRow;
 pub type ClaudeCodeHistorySessionPage = ImportedHistorySessionPage;
@@ -58,6 +58,8 @@ struct ClaudeJsonlLine {
     #[serde(default)]
     r#type: String,
     #[serde(default)]
+    summary: String,
+    #[serde(default)]
     timestamp: Option<String>,
     #[serde(default)]
     cwd: String,
@@ -87,6 +89,23 @@ struct ClaudeUsage {
     cache_read_input_tokens: i64,
     #[serde(default)]
     cache_creation_input_tokens: i64,
+}
+
+#[derive(Debug, Clone)]
+struct ClaudeSessionTitle {
+    name: String,
+    name_source: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ClaudeSessionMetadataFile {
+    #[serde(default)]
+    session_id: String,
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    name_source: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -148,28 +167,28 @@ fn sync_claude_code_history_cache(conn: &mut Connection) -> Result<(), String> {
 }
 
 fn discover_claude_code_history_records() -> Result<Vec<ImportedHistoryDiscoveredRecord>, String> {
-    let mut files = Vec::new();
+    let mut records = Vec::new();
     for projects_dir in claude_projects_dirs()? {
         if projects_dir.is_dir() {
+            let title_index = load_claude_session_titles_for_projects_dir(&projects_dir)?;
+            let mut files = Vec::new();
             collect_claude_session_files(&projects_dir, &mut files)?;
+            for file in files {
+                let (source_mtime_ms, source_size_bytes) =
+                    imported_paths::file_metadata_signature(&file.path, "Claude")?;
+                records.push(ImportedHistoryDiscoveredRecord {
+                    source_session_id: file.file_stem.clone(),
+                    source_path: file.path,
+                    source_record_key: file.file_stem.clone(),
+                    source_mtime_ms,
+                    source_size_bytes,
+                    source_fingerprint: claude_source_fingerprint(&file.file_stem, &title_index),
+                    parser_version: CLAUDE_CODE_METADATA_PARSER_VERSION,
+                });
+            }
         }
     }
-    files
-        .into_iter()
-        .map(|file| {
-            let (source_mtime_ms, source_size_bytes) =
-                imported_paths::file_metadata_signature(&file.path, "Claude")?;
-            Ok(ImportedHistoryDiscoveredRecord {
-                source_session_id: file.file_stem.clone(),
-                source_path: file.path,
-                source_record_key: file.file_stem,
-                source_mtime_ms,
-                source_size_bytes,
-                source_fingerprint: String::new(),
-                parser_version: CLAUDE_CODE_METADATA_PARSER_VERSION,
-            })
-        })
-        .collect()
+    Ok(records)
 }
 
 fn collect_claude_session_files(
@@ -197,6 +216,99 @@ fn collect_claude_session_files(
     Ok(())
 }
 
+fn load_claude_session_titles_for_projects_dir(
+    projects_dir: &Path,
+) -> Result<HashMap<String, ClaudeSessionTitle>, String> {
+    let Some(root) = projects_dir.parent() else {
+        return Ok(HashMap::new());
+    };
+    load_claude_session_titles(&root.join("sessions"))
+}
+
+fn load_claude_session_titles(
+    sessions_dir: &Path,
+) -> Result<HashMap<String, ClaudeSessionTitle>, String> {
+    let mut entries = HashMap::new();
+    if !sessions_dir.is_dir() {
+        return Ok(entries);
+    }
+
+    for entry in fs::read_dir(sessions_dir)
+        .map_err(|err| format!("Failed to read Claude sessions dir: {err}"))?
+    {
+        let entry = entry.map_err(|err| format!("Failed to read Claude session entry: {err}"))?;
+        let path = entry.path();
+        if !path
+            .extension()
+            .is_some_and(|extension| extension == "json")
+        {
+            continue;
+        }
+        let contents = fs::read_to_string(&path).map_err(|err| {
+            format!(
+                "Failed to read Claude session metadata {}: {err}",
+                path.display()
+            )
+        })?;
+        let parsed: ClaudeSessionMetadataFile = match serde_json::from_str(&contents) {
+            Ok(parsed) => parsed,
+            Err(_) => continue,
+        };
+        let session_id = parsed.session_id.trim();
+        let name = parsed.name.trim();
+        if session_id.is_empty() || name.is_empty() {
+            continue;
+        }
+        entries.insert(
+            session_id.to_string(),
+            ClaudeSessionTitle {
+                name: name.to_string(),
+                name_source: parsed.name_source,
+            },
+        );
+    }
+
+    Ok(entries)
+}
+
+fn claude_source_fingerprint(
+    file_stem: &str,
+    title_index: &HashMap<String, ClaudeSessionTitle>,
+) -> String {
+    title_index
+        .get(file_stem)
+        .map(|title| {
+            format!(
+                "session-meta:{}:{}",
+                title.name_source.as_deref().unwrap_or_default(),
+                title.name
+            )
+        })
+        .unwrap_or_default()
+}
+
+fn claude_session_title_for_record(
+    record: &ImportedHistoryDiscoveredRecord,
+) -> Result<String, String> {
+    let Some(sessions_dir) = claude_sessions_dir_for_session_path(&record.source_path) else {
+        return Ok(String::new());
+    };
+    let title_index = load_claude_session_titles(&sessions_dir)?;
+    Ok(title_index
+        .get(&record.source_record_key)
+        .map(|title| imported_history::truncate_name(&title.name, 200))
+        .unwrap_or_default())
+}
+
+fn claude_sessions_dir_for_session_path(session_path: &Path) -> Option<PathBuf> {
+    session_path.ancestors().find_map(|ancestor| {
+        if ancestor.file_name().and_then(|name| name.to_str()) == Some("projects") {
+            return ancestor.parent().map(|root| root.join("sessions"));
+        }
+        None
+    })
+}
+
 fn parse_claude_session_meta(
     record: &ImportedHistoryDiscoveredRecord,
 ) -> Result<Option<ClaudeCodeHistoryMeta>, String> {
@@ -210,6 +322,7 @@ fn parse_claude_session_meta(
 
     let mut created_at_ms = 0;
     let mut updated_at_ms = 0;
+    let mut external_title = claude_session_title_for_record(record)?;
     let mut first_prompt = String::new();
     let mut model: Option<String> = None;
     let mut repo_path: Option<String> = None;
@@ -246,6 +359,12 @@ fn parse_claude_session_meta(
         }
         if branch.is_none() && !parsed.git_branch.trim().is_empty() {
             branch = Some(parsed.git_branch.clone());
+        }
+        if external_title.is_empty() && parsed.r#type == "summary" {
+            let summary = parsed.summary.trim();
+            if !summary.is_empty() {
+                external_title = imported_history::truncate_name(summary, 200);
+            }
         }
         if let Some(message) = parsed.message {
             if first_prompt.is_empty() && parsed.r#type == "user" {
@@ -288,7 +407,9 @@ fn parse_claude_session_meta(
         source_mtime_ms: record.source_mtime_ms,
         source_size_bytes: record.source_size_bytes,
         source_fingerprint: record.source_fingerprint.clone(),
-        name: if first_prompt.is_empty() {
+        name: if !external_title.is_empty() {
+            external_title
+        } else if first_prompt.is_empty() {
             record.source_record_key.clone()
         } else {
             first_prompt

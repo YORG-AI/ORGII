@@ -212,6 +212,9 @@
     "presenceGuidanceInvisible": "Görünmez — Agent'lar için yönerge",
     "presenceGuidanceAway": "Uzakta — Agent'lar için yönerge",
     "presenceGuidancePlaceholder": "Bu modda Agent nasıl davranmalı, anlat…",
+    "presenceGuidanceOnlineDefault": "Klavyenin başındayım. İstediğin zaman netleştirici sorular sorabilir ve yıkıcı işlemleri çalıştırmadan önce bana onaylatabilirsin",
+    "presenceGuidanceInvisibleDefault": "Yakındayım ama çevrimdışı görünüyorum. Varsayılan olarak otonom ilerle ve yalnızca yüksek riskli işlemler ya da önemli refaktörler için beni bilgilendir; diğer soruları tek tek sormak yerine tek bir özette topla",
+    "presenceGuidanceAwayDefault": "Klavyeden uzaktayım. Beni bekleyip takılma; elindeki bilgilerle en iyi kararı ver, bitirebildiklerini bitir ve döndüğümde bakmam için olanları ve açık soruları kısa bir özet olarak bırak",
     "followSystem": "Sistemi izle"
   },
   "background": {
@@ -618,6 +621,12 @@
     "autoTimeoutTitle": "Otomatik zaman aşımı",
     "questionAutoSkipTimeoutByStatus": "Soruları otomatik atla",
     "questionAutoSkipTimeoutByStatusDesc": "Bu zaman aşımından sonra Agent sorularını otomatik atla (0 = devre dışı)",
+    "planAutoApproveTimeoutByStatus": "{{status}} plan otomatik onayı",
+    "planAutoApproveTimeoutByStatusDesc": "Bu durumdayken bekleyen bir planı bu kadar saniye sonra otomatik onaylar (0 = devre dışı)",
+    "goalMaxTurnsByStatus": "{{status}} hedef sürdürme bütçesi",
+    "goalMaxTurnsByStatusDesc": "Agent normalde durduktan sonra son isteğin üzerinde en fazla bu kadar ek tur çalışmaya devam eder (0 = devre dışı)",
+    "modeSwitchAutoPlanByStatus": "{{status}} otomatik Plan modu geçişi",
+    "modeSwitchAutoPlanByStatusDesc": "Bekleyen Plan modu önerilerini onay zamanlayıcısı dolunca otomatik geçirir",
     "resourceTabs": {
       "tools": "Araçlar",
       "mcp": "MCP",

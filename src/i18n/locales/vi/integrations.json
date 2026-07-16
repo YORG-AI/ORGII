@@ -228,8 +228,8 @@
     "apiProtocolDesc": "Chọn giao thức kết nối cho Rust Agent tích hợp",
     "officialUrl": "URL chính thức",
     "customUrl": "URL tùy chỉnh",
-    "customBaseUrlRiskTitle": "Cảnh báo URL tùy chỉnh",
-    "customBaseUrlRiskWarning": "Sử dụng Base URL tùy chỉnh có thể khiến khóa API và dữ liệu của bạn bị lộ cho máy chủ bên thứ ba. Chỉ sử dụng cho proxy đáng tin cậy, triển khai tự lưu trữ hoặc điểm cuối bảo mật đã biết",
+    "customBaseUrlNoteTitle": "Về điểm cuối tùy chỉnh",
+    "customBaseUrlNoteBody": "API key và dữ liệu yêu cầu được gửi đến URL bạn nhập. Chỉ dùng URL tùy chỉnh cho proxy đáng tin cậy, triển khai tự lưu trữ hoặc điểm cuối bạn kiểm soát",
     "addBaseUrl": "Thêm Base URL tùy chỉnh (Tùy chọn)",
     "localModel": {
       "title": "Cookbook mô hình cục bộ",
@@ -294,6 +294,8 @@
     "signInDesc": "Đăng nhập qua trình duyệt để ủy quyền truy cập",
     "setupMethod": "Phương thức thiết lập",
     "setupMethodDesc": "Cách cung cấp thông tin xác thực",
+    "endpoint": "Điểm cuối",
+    "endpointDesc": "Chọn điểm cuối mà khóa này kết nối",
     "detect": "Phát hiện",
     "detected": "Đã phát hiện",
     "reDetect": "Phát hiện lại",
@@ -815,7 +817,8 @@
     "pickProviderDesc": "Chọn một nhà cung cấp",
     "selectVariant": "Phương thức kết nối",
     "variantSubscription": "Gói đăng ký",
-    "variantApiKey": "API Key"
+    "variantApiKey": "API Key",
+    "providerCustom": "Tùy chỉnh"
   },
   "modelsTable": {
     "noModels": "Không có mô hình từ Keys của bạn",

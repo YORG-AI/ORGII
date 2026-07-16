@@ -142,7 +142,9 @@
       "views": "Vistas",
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
-      "removeDraft": "Eliminar borrador"
+      "removeDraft": "Eliminar borrador",
+      "showSubagents": "Mostrar subagentes",
+      "hideSubagents": "Ocultar subagentes"
     },
     "resultStatus": {
       "completed": "Completado",
@@ -669,7 +671,9 @@
       "empty": "No se encontraron acciones.",
       "unpinAll": "Desfijar todo",
       "insert": "Insertar"
-    }
+    },
+    "compactArgHint": "<enfoque opcional para el resumen>",
+    "compactCommandDescription": "Resume el contexto anterior para liberar espacio. Opcional: /compact <enfoque del resumen>"
   },
   "listPanel": {
     "showingOf": "Mostrando {{filtered}} de {{total}}",
@@ -731,6 +735,10 @@
       },
       "quota": {
         "empty": "Aún no hay datos de cuota. Actualiza el uso desde Key Vault.",
+        "refresh": "Actualizar",
+        "justNow": "ahora mismo",
+        "minutesAgo": "hace {{count}} min",
+        "hoursAgo": "hace {{count}}h",
         "metrics": {
           "fiveHour": "5h",
           "sevenDay": "7d",
@@ -1878,7 +1886,8 @@
       "models": "Modelos",
       "skills": "Skills",
       "workspaceSkills": "Workspace Skills",
-      "userSkills": "User Skills"
+      "userSkills": "User Skills",
+      "commands": "Comandos"
     },
     "diffMenu": {
       "gitActions": "Acciones GIT",
@@ -2287,7 +2296,8 @@
       "Aún pensándolo, tardando más de lo habitual...",
       "Trabajando en ello, tardando más de lo habitual...",
       "Decidiendo el siguiente paso, tardando más de lo habitual..."
-    ]
+    ],
+    "compacting": "Compactando contexto..."
   },
   "revertConfirm": {
     "title": "Cambios de archivo no guardados",

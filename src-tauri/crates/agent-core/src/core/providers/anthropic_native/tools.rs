@@ -17,7 +17,11 @@ use crate::tools::metadata::{
 /// The registry already emits stable schemas before runtime-live schemas. This
 /// adapter only translates that generic metadata into Anthropic's
 /// `cache_control` wire marker.
-pub(super) fn convert_tools(openai_tools: &[Value]) -> Vec<Value> {
+///
+/// When `skip_cache_write` is true, no breakpoints (BP2) are stamped —
+/// one-shot side queries never re-read the cached prefix, so writing it
+/// only pays the cache-write premium.
+pub(super) fn convert_tools(openai_tools: &[Value], skip_cache_write: bool) -> Vec<Value> {
     let mut tools: Vec<(ToolSchemaCacheScope, Value)> = openai_tools
         .iter()
         .filter_map(|tool| {
@@ -25,15 +29,17 @@ pub(super) fn convert_tools(openai_tools: &[Value]) -> Vec<Value> {
         })
         .collect();
 
-    if let Some(last_stable_index) = tools
-        .iter()
-        .rposition(|(scope, _)| *scope == ToolSchemaCacheScope::StablePrefix)
-    {
-        stamp_cache_control(&mut tools[last_stable_index].1);
-    }
+    if !skip_cache_write {
+        if let Some(last_stable_index) = tools
+            .iter()
+            .rposition(|(scope, _)| *scope == ToolSchemaCacheScope::StablePrefix)
+        {
+            stamp_cache_control(&mut tools[last_stable_index].1);
+        }
 
-    if let Some((_, last)) = tools.last_mut() {
-        stamp_cache_control(last);
+        if let Some((_, last)) = tools.last_mut() {
+            stamp_cache_control(last);
+        }
     }
 
     tools.into_iter().map(|(_, tool)| tool).collect()
@@ -67,7 +73,7 @@ fn stamp_cache_control(tool: &mut Value) {
     if let Some(obj) = tool.as_object_mut() {
         obj.insert(
             "cache_control".to_string(),
-            serde_json::json!({ "type": "ephemeral" }),
+            serde_json::json!({ "type": "ephemeral", "ttl": "1h" }),
         );
     }
 }
@@ -80,7 +86,7 @@ mod tests {
     #[test]
     fn convert_tools_adds_cache_control_to_last() {
         let tools = vec![tool_def("read_file", "Read"), tool_def("exec", "Exec")];
-        let converted = convert_tools(&tools);
+        let converted = convert_tools(&tools, false);
         assert_eq!(converted.len(), 2);
         assert!(converted[0].get("cache_control").is_none());
         assert!(converted[1]["cache_control"].is_object());
@@ -99,7 +105,7 @@ mod tests {
             tool_def_with_scope("plugin_notify", "Notify", ToolSchemaCacheScope::LiveSuffix),
         ];
 
-        let converted = convert_tools(&tools);
+        let converted = convert_tools(&tools, false);
         let names: Vec<&str> = converted
             .iter()
             .map(|tool| tool["name"].as_str().expect("tool name"))
@@ -126,11 +132,30 @@ mod tests {
             tool_def_with_scope("plugin_notify", "Notify", ToolSchemaCacheScope::LiveSuffix),
         ];
 
-        let converted = convert_tools(&tools);
+        let converted = convert_tools(&tools, false);
 
         assert_eq!(converted.len(), 2);
         assert!(converted[0].get("cache_control").is_none());
         assert!(converted[1]["cache_control"].is_object());
+    }
+
+    #[test]
+    fn convert_tools_skip_cache_write_stamps_no_breakpoints() {
+        let tools = vec![
+            tool_def("exec", "Exec"),
+            tool_def("read_file", "Read"),
+            tool_def_with_scope("plugin_notify", "Notify", ToolSchemaCacheScope::LiveSuffix),
+        ];
+
+        let converted = convert_tools(&tools, true);
+
+        assert_eq!(converted.len(), 3);
+        for tool in &converted {
+            assert!(
+                tool.get("cache_control").is_none(),
+                "skip_cache_write must suppress every BP2 stamp: {tool}"
+            );
+        }
     }
 
     fn tool_def(name: &str, description: &str) -> Value {

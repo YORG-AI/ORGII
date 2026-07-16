@@ -723,8 +723,8 @@ fn sanitize_path_segment(segment: &str) -> String {
 /// Restrict a sensitive file (keys, OAuth tokens) to owner-only access.
 ///
 /// Unix: `chmod 0o600`.
-/// Windows: `icacls /inheritance:r /grant:r "%USERNAME%:F"` (best-effort; logs
-/// a warning if `icacls` is unavailable rather than failing the parent op).
+/// Windows: `icacls /inheritance:r /grant:r "<domain>\\<user>:F"` (best-effort;
+/// logs a warning if `icacls` is unavailable rather than failing the parent op).
 pub fn set_sensitive_file_permissions(path: &Path) -> std::io::Result<()> {
     #[cfg(unix)]
     {
@@ -735,14 +735,13 @@ pub fn set_sensitive_file_permissions(path: &Path) -> std::io::Result<()> {
     #[cfg(windows)]
     {
         if let Some(path_str) = path.to_str() {
-            let username = std::env::var("USERNAME").unwrap_or_default();
-            if !username.is_empty() {
+            if let Some(account) = current_windows_account_for_acl() {
                 let mut cmd = std::process::Command::new("icacls");
                 cmd.args([
                     path_str,
                     "/inheritance:r",
                     "/grant:r",
-                    &format!("{}:F", username),
+                    &format!("{}:F", account),
                 ]);
                 // Suppress console window on Windows.
                 app_platform::hide_console(&mut cmd);
@@ -770,6 +769,44 @@ pub fn set_sensitive_file_permissions(path: &Path) -> std::io::Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(windows)]
+fn current_windows_account_for_acl() -> Option<String> {
+    let whoami = std::process::Command::new("whoami")
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .ok()
+        .and_then(|output| {
+            if output.status.success() {
+                String::from_utf8(output.stdout)
+                    .ok()
+                    .map(|value| value.trim().to_string())
+                    .filter(|value| !value.is_empty())
+            } else {
+                None
+            }
+        });
+    if whoami.is_some() {
+        return whoami;
+    }
+
+    let username = std::env::var("USERNAME").ok()?.trim().to_string();
+    if username.is_empty() {
+        return None;
+    }
+    if username.contains('\\') {
+        return Some(username);
+    }
+
+    let domain = std::env::var("USERDOMAIN").unwrap_or_default();
+    let domain = domain.trim();
+    if domain.is_empty() {
+        Some(username)
+    } else {
+        Some(format!("{}\\{}", domain, username))
+    }
 }
 
 // ---------------------------------------------------------------------------

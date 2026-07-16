@@ -196,7 +196,12 @@ pub async fn extract_session_memory(
     }
 
     let sq_config = SideQueryConfig {
-        model: None,
+        // Session-memory extraction only reads the truncated <new_messages>
+        // digest (not the full conversation prefix), so it gains nothing
+        // from the parent prompt cache. Route it to the fast sibling of the
+        // session model (same provider family/protocol) instead of burning
+        // the primary channel model on a summarization side query.
+        model: Some(crate::providers::model_hints::fast_model_hint(model)),
         max_tokens: config.extraction_max_tokens,
         temperature: 0.0,
         system_prompt: Some(SM_EXTRACTION_SYSTEM_PROMPT.to_string()),

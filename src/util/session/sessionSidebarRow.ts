@@ -11,7 +11,7 @@ import { sessionLabel } from "@src/util/session/sessionLabel";
 
 /** Full-length session display name (no truncation). */
 export function getSessionListDisplayName(
-  session: { name?: string; user_input?: string },
+  session: { name?: string; user_input?: string; displayLabel?: string },
   fallback: string
 ): string {
   return sessionLabel(session, Infinity) || fallback;

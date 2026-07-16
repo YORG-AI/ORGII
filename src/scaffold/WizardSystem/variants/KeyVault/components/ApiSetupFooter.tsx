@@ -6,7 +6,7 @@ import { Check } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import type { DetectedKey } from "@src/api/types/keys";
+import type { DetectedKey, ModelType } from "@src/api/types/keys";
 import Button from "@src/components/Button";
 import {
   DETAIL_PANEL_TOKENS,
@@ -31,6 +31,8 @@ interface ApiSetupFooterProps {
   // Key selection modal
   showKeySelection: boolean;
   detectedKeys: DetectedKey[];
+  /** Provider the detected keys belong to — used to label their endpoints. */
+  agentType: ModelType;
   selectedCredentialIndex: number;
   onSelectCredentialIndex: (index: number) => void;
   onConfirmKeySelection: () => void;
@@ -47,6 +49,7 @@ const ApiSetupFooter: React.FC<ApiSetupFooterProps> = ({
   showSessionTokenIndicator,
   showKeySelection,
   detectedKeys,
+  agentType,
   selectedCredentialIndex,
   onSelectCredentialIndex,
   onConfirmKeySelection,
@@ -102,6 +105,7 @@ const ApiSetupFooter: React.FC<ApiSetupFooterProps> = ({
       {showKeySelection && (
         <KeySelectionModal
           keys={detectedKeys}
+          agentType={agentType}
           selectedIndex={selectedCredentialIndex}
           onSelectIndex={onSelectCredentialIndex}
           onConfirm={onConfirmKeySelection}

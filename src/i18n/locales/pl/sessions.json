@@ -677,7 +677,9 @@
       "empty": "Nie znaleziono akcji.",
       "unpinAll": "Odepnij wszystkie",
       "insert": "Wstaw"
-    }
+    },
+    "compactArgHint": "<opcjonalny nacisk podsumowania>",
+    "compactCommandDescription": "Podsumuj starszy kontekst, aby zwolnić miejsce. Opcjonalnie: /compact <nacisk podsumowania>"
   },
   "listPanel": {
     "showingOf": "Wyświetlono {{filtered}} z {{total}}",
@@ -739,6 +741,10 @@
       },
       "quota": {
         "empty": "Brak danych quota. Odśwież użycie w Key Vault.",
+        "refresh": "Odśwież",
+        "justNow": "przed chwilą",
+        "minutesAgo": "{{count}} min temu",
+        "hoursAgo": "{{count}}g temu",
         "metrics": {
           "fiveHour": "5h",
           "sevenDay": "7d",
@@ -1041,7 +1047,8 @@
       "Wciąż myślę, trwa to dłużej niż zwykle...",
       "Pracuję nad tym, trwa to dłużej niż zwykle...",
       "Przemyśliwam to, trwa to dłużej niż zwykle..."
-    ]
+    ],
+    "compacting": "Kompaktowanie kontekstu..."
   },
   "tools": {
     "noResultsFound": "Nie znaleziono wyników",
@@ -1909,7 +1916,8 @@
       "models": "Modele",
       "skills": "Skills",
       "workspaceSkills": "Workspace Skills",
-      "userSkills": "User Skills"
+      "userSkills": "User Skills",
+      "commands": "Polecenia"
     },
     "diffMenu": {
       "gitActions": "Akcje GIT",

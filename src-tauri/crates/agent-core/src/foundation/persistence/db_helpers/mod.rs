@@ -182,6 +182,12 @@ pub struct AgentMessageRow {
     /// Compaction appends boundary + tail rows and never rewrites or deletes
     /// prior rows (immutable transcript invariant).
     pub compact_from_sequence: Option<i64>,
+    /// Estimated context tokens before compaction. Boundary rows only —
+    /// display metadata for the "Context compacted" chat marker; never
+    /// model-facing. `None` on ordinary rows and legacy boundaries.
+    pub compact_tokens_before: Option<i64>,
+    /// Estimated context tokens after compaction. See `compact_tokens_before`.
+    pub compact_tokens_after: Option<i64>,
 }
 
 /// Simplified lifecycle states for agent session persistence (database level).
@@ -274,8 +280,8 @@ fn insert_message(prefix: &str, msg: &AgentMessageRow) -> SqliteResult<String> {
         let seq_sql = format!("SELECT MAX(sequence) FROM {prefix}_messages WHERE session_id = ?1");
         let insert_sql = format!(
             "INSERT OR REPLACE INTO {prefix}_messages
-             (id, session_id, role, content, tool_name, tool_call_id, tool_input, tool_output, model, sequence, created_at, images, compact_from_sequence)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)"
+             (id, session_id, role, content, tool_name, tool_call_id, tool_input, tool_output, model, sequence, created_at, images, compact_from_sequence, compact_tokens_before, compact_tokens_after)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)"
         );
         let touch_sql =
             format!("UPDATE {prefix}_sessions SET updated_at = ?2 WHERE session_id = ?1");
@@ -304,6 +310,8 @@ fn insert_message(prefix: &str, msg: &AgentMessageRow) -> SqliteResult<String> {
                 msg.created_at,
                 msg.images,
                 msg.compact_from_sequence,
+                msg.compact_tokens_before,
+                msg.compact_tokens_after,
             ],
         );
 
@@ -362,7 +370,7 @@ pub fn load_messages(prefix: &str, session_id: &str) -> SqliteResult<Vec<AgentMe
     let sql = format!(
         "SELECT id, session_id, role, content, tool_name, tool_call_id,
                 tool_input, tool_output, model, sequence, created_at, images,
-                compact_from_sequence
+                compact_from_sequence, compact_tokens_before, compact_tokens_after
          FROM {prefix}_messages
          WHERE session_id = ?1
          ORDER BY sequence ASC"
@@ -384,6 +392,8 @@ pub fn load_messages(prefix: &str, session_id: &str) -> SqliteResult<Vec<AgentMe
                 created_at: row.get(10)?,
                 images: row.get(11)?,
                 compact_from_sequence: row.get(12)?,
+                compact_tokens_before: row.get(13)?,
+                compact_tokens_after: row.get(14)?,
             })
         })?
         .collect::<SqliteResult<Vec<_>>>()?;

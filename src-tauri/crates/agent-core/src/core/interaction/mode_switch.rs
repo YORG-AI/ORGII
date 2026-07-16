@@ -182,14 +182,25 @@ impl ModeSwitchManager {
         self.pending.lock().await.is_some()
     }
 
-    /// Auto-skip a pending request after the user-visible timeout elapses.
+    /// Auto-resolve a pending request after the user-visible timeout elapses.
     ///
-    /// Mode switching follows timeout-as-continue semantics: if the user does
-    /// not respond, continue in the current mode instead of surfacing a tool error
-    /// or leaving the UI card awaiting forever.
-    pub async fn auto_skip_after_timeout(&self) {
+    /// By default mode switching follows timeout-as-continue semantics: if the
+    /// user does not respond, continue in the current mode. Presence policy can
+    /// opt into treating the same timeout as accepting the suggested Plan mode.
+    pub async fn auto_resolve_after_timeout(&self, choice: &ModeSwitchChoice) {
         let Some(entry) = self.pending.lock().await.take() else {
             return;
+        };
+
+        let (content, choice_label) = match choice {
+            ModeSwitchChoice::Switch(mode) => (
+                format!("Mode-switch suggestion timed out; auto-switching to {mode} mode."),
+                "switch",
+            ),
+            ModeSwitchChoice::Skip => (
+                "Mode-switch suggestion timed out; continuing in the current mode.".to_string(),
+                "skip",
+            ),
         };
 
         finalize_interaction_event(
@@ -197,15 +208,21 @@ impl ModeSwitchManager {
             entry.tool_call_id.as_deref(),
             crate::tools::names::SUGGEST_MODE_SWITCH,
             FinalizedStatus::Answered,
-            "Mode-switch suggestion timed out; continuing in the current mode.",
+            &content,
             serde_json::json!({
-                "choice": "skip",
+                "choice": choice_label,
                 "targetMode": entry.target_mode,
                 "auto": "timeout",
             }),
         );
 
         drop(entry.sender);
+    }
+
+    /// Backward-compatible helper for callers/tests that expect timeout-as-skip.
+    pub async fn auto_skip_after_timeout(&self) {
+        self.auto_resolve_after_timeout(&ModeSwitchChoice::Skip)
+            .await;
     }
 
     /// Cancel any pending request (Stop button / timeout). Finalizes the event

@@ -12,8 +12,6 @@ import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import InlineAlert from "@src/components/InlineAlert";
-import ModelIcon from "@src/components/ModelIcon";
-import type { IconProvider } from "@src/components/ModelIcon/config";
 import Select from "@src/components/Select";
 import {
   SECTION_CONTROL_STYLE,
@@ -27,6 +25,8 @@ import {
 import {
   buildProviderSelectOptions,
   filterOptionBySearchText,
+  providerIconNode,
+  providerUsesGlyphIcon,
 } from "@src/scaffold/WizardSystem/variants/KeyVault/components/providerOptions";
 import {
   type UnifiedProvider,
@@ -77,12 +77,8 @@ const ProviderSelector: React.FC<ProviderSelectorProps> = ({
       filteredProviders.map((provider) => ({
         key: provider.key,
         label: provider.label,
-        iconElement: (
-          <ModelIcon
-            provider={provider.iconProvider as IconProvider}
-            size={18}
-          />
-        ),
+        iconElement: providerIconNode(provider, 18),
+        iconPreserveColor: !providerUsesGlyphIcon(provider),
       })),
     [filteredProviders]
   );

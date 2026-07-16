@@ -10,14 +10,18 @@ import { stripPillReferences } from "./stripPillReferences";
  * @param maxLength - truncation limit (default 30)
  */
 export function sessionLabel(
-  session: { name?: string; user_input?: string },
+  session: { name?: string; user_input?: string; displayLabel?: string },
   maxLength = 30
 ): string {
   const displayName =
     session.name && session.name !== SESSION_CONFIG.DEFAULT_SESSION_NAME
       ? session.name
       : undefined;
+  const generatedDisplayLabel = session.displayLabel?.trim() || undefined;
   const rawInput =
-    displayName || session.user_input?.slice(0, 80) || "Untitled";
+    displayName ||
+    generatedDisplayLabel ||
+    session.user_input?.slice(0, 80) ||
+    "Untitled";
   return stripPillReferences(rawInput).slice(0, maxLength) || "Untitled";
 }

@@ -228,8 +228,8 @@
     "apiProtocolDesc": "Drahtprotokoll für den integrierten Rust-Agent wählen",
     "officialUrl": "Offizielle URL",
     "customUrl": "Benutzerdefinierte URL",
-    "customBaseUrlRiskTitle": "Warnung: Benutzerdefinierte URL",
-    "customBaseUrlRiskWarning": "Eine benutzerdefinierte Base-URL kann Ihren API-Schlüssel und Ihre Daten Drittanbieter-Servern aussetzen. Verwenden Sie dies nur für vertrauenswürdige Proxys, selbst gehostete Bereitstellungen oder bekannte sichere Endpunkte",
+    "customBaseUrlNoteTitle": "Zu benutzerdefinierten Endpunkten",
+    "customBaseUrlNoteBody": "Ihr API-Schlüssel und Anfragedaten werden an die von Ihnen eingegebene URL gesendet. Verwenden Sie benutzerdefinierte URLs nur für vertrauenswürdige Proxys, selbst gehostete Bereitstellungen oder von Ihnen kontrollierte Endpunkte",
     "addBaseUrl": "Benutzerdefinierte Base URL hinzufügen (Optional)",
     "localModel": {
       "title": "Lokales Modell-Cookbook",
@@ -294,6 +294,8 @@
     "signInDesc": "Über den Browser anmelden, um Zugriff zu autorisieren",
     "setupMethod": "Einrichtungsmethode",
     "setupMethodDesc": "So geben Sie Anmeldedaten an",
+    "endpoint": "Endpunkt",
+    "endpointDesc": "Wählen, mit welchem Endpunkt dieser Schlüssel verbunden wird",
     "detect": "Erkennen",
     "detected": "Erkannt",
     "reDetect": "Erneut erkennen",
@@ -815,7 +817,8 @@
     "pickProviderDesc": "Wählen Sie einen Anbieter",
     "selectVariant": "Verbindungsmethode",
     "variantSubscription": "Abonnement",
-    "variantApiKey": "API Key"
+    "variantApiKey": "API Key",
+    "providerCustom": "Benutzerdefiniert"
   },
   "modelsTable": {
     "noModels": "Keine Modelle von Ihren Keys",

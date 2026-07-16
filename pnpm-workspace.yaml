@@ -1,0 +1,10 @@
+packages:
+  - "."
+
+allowBuilds:
+  "@parcel/watcher": true
+  "@swc/core": true
+  core-js-pure: true
+  dugite: true
+  esbuild: true
+  node-sass: true

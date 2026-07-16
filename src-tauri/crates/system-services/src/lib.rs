@@ -19,6 +19,7 @@ pub mod notifications;
 pub mod power;
 pub mod system_recents;
 pub mod tray;
+pub mod workspace_ports;
 
 #[cfg(test)]
 mod tests;

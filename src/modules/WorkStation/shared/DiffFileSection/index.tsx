@@ -71,6 +71,7 @@ export interface DiffFileSectionData {
   newContent?: string;
   oldStartLine?: number;
   newStartLine?: number;
+  showLineNumbers?: boolean;
   unifiedDiff?: string;
   isBinary?: boolean;
   /** True when the file was edited but content could not be retrieved (e.g. Cursor IDE blob pruned). */
@@ -315,6 +316,7 @@ const DiffFileSection: React.FC<DiffFileSectionProps> = ({
           changeType={file.status}
           oldStartLine={resolvedDiff.oldStartLine}
           newStartLine={resolvedDiff.newStartLine}
+          showLineNumbers={file.showLineNumbers !== false}
           viewMode="unified"
           readOnly={true}
           mergeControls={false}

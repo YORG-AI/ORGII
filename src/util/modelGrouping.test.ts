@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   MODEL_GROUP_SORT_MODE,
+  getDefaultEnabledModels,
   getModelFamily,
   groupModels,
   isLegacyGroup,
@@ -123,6 +124,42 @@ describe("modelGrouping current thresholds", () => {
     expect(isLegacyGroup(byLabel.get("o5.5")!)).toBe(false);
   });
 
+  it("treats Zhipu GLM 5.1+ as current and older GLM lines as non-current", () => {
+    const groups = groupModels([
+      "glm-4.5",
+      "glm-4.6",
+      "glm-5",
+      "glm-5-turbo",
+      "glm-5.1",
+      "glm-5.2",
+    ]);
+    const byLabel = new Map(groups.map((group) => [group.label, group]));
+
+    expect(isLegacyGroup(byLabel.get("GLM 4.5")!)).toBe(true);
+    expect(isLegacyGroup(byLabel.get("GLM 4.6")!)).toBe(true);
+    expect(isLegacyGroup(byLabel.get("GLM 5")!)).toBe(true);
+    expect(isLegacyGroup(byLabel.get("GLM 5.1")!)).toBe(false);
+    expect(isLegacyGroup(byLabel.get("GLM 5.2")!)).toBe(false);
+    expect(byLabel.get("GLM 5")?.models).toEqual(["glm-5", "glm-5-turbo"]);
+  });
+
+  it("treats MiniMax 2.7 and 3+ as current and older MiniMax lines as non-current", () => {
+    const groups = groupModels([
+      "minimax/minimax-m1",
+      "minimax/minimax-m2",
+      "minimax/minimax-m2.5",
+      "minimax/minimax-m2.7",
+      "minimax/minimax-m3",
+    ]);
+    const byLabel = new Map(groups.map((group) => [group.label, group]));
+
+    expect(isLegacyGroup(byLabel.get("MiniMax 1")!)).toBe(true);
+    expect(isLegacyGroup(byLabel.get("MiniMax 2")!)).toBe(true);
+    expect(isLegacyGroup(byLabel.get("MiniMax 2.5")!)).toBe(true);
+    expect(isLegacyGroup(byLabel.get("MiniMax 2.7")!)).toBe(false);
+    expect(isLegacyGroup(byLabel.get("MiniMax 3")!)).toBe(false);
+  });
+
   it("keeps uncategorized models as separate single-model groups", () => {
     const groups = groupModels([
       "my-custom-model",
@@ -188,5 +225,28 @@ describe("sortModelGroups", () => {
       "GPT 5.4",
       "Opus 4.6",
     ]);
+  });
+});
+
+describe("getDefaultEnabledModels", () => {
+  it("preselects only current Zhipu GLM lines by default", () => {
+    const enabled = getDefaultEnabledModels([
+      "glm-4.7",
+      "glm-5",
+      "glm-5.1",
+      "glm-5.2",
+    ]);
+
+    expect(enabled).toEqual(["glm-5.2", "glm-5.1"]);
+  });
+
+  it("preselects only current MiniMax lines by default", () => {
+    const enabled = getDefaultEnabledModels([
+      "minimax/minimax-m2.5",
+      "minimax/minimax-m2.7",
+      "minimax/minimax-m3",
+    ]);
+
+    expect(enabled).toEqual(["minimax/minimax-m3", "minimax/minimax-m2.7"]);
   });
 });

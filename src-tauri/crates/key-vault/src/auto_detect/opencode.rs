@@ -5,12 +5,10 @@ use serde::Deserialize;
 
 use super::helpers::{create_detected_key, get_home_dir};
 use super::DetectedKey;
-use crate::commands::validate_opencode_key;
+use crate::commands::{validate_opencode_key, OPENCODE_GO_BASE_URL, OPENCODE_ZEN_BASE_URL};
 
 const OPENCODE_ZEN_PROVIDER_ID: &str = "opencode";
 const OPENCODE_GO_PROVIDER_ID: &str = "opencode-go";
-const OPENCODE_ZEN_BASE_URL: &str = "https://opencode.ai/zen/v1";
-const OPENCODE_GO_BASE_URL: &str = "https://opencode.ai/zen/go/v1";
 
 #[derive(Debug, Deserialize)]
 struct OpenCodeAuthEntry {
@@ -39,11 +37,7 @@ pub(super) async fn detect_opencode_keys() -> Vec<DetectedKey> {
         ),
     ] {
         if let Ok(api_key) = env::var(env_name) {
-            if api_key.is_empty()
-                || keys
-                    .iter()
-                    .any(|key| key.api_key.as_ref() == Some(&api_key))
-            {
+            if api_key.is_empty() || is_duplicate_detected_key(&keys, &api_key, base_url) {
                 continue;
             }
 
@@ -110,6 +104,12 @@ async fn read_opencode_auth_config(path: &std::path::Path) -> Vec<DetectedKey> {
     keys
 }
 
+fn is_duplicate_detected_key(keys: &[DetectedKey], api_key: &str, base_url: &str) -> bool {
+    keys.iter().any(|key| {
+        key.api_key.as_deref() == Some(api_key) && key.base_url.as_deref() == Some(base_url)
+    })
+}
+
 fn opencode_base_url(provider_id: &str) -> Option<&'static str> {
     match provider_id {
         OPENCODE_ZEN_PROVIDER_ID => Some(OPENCODE_ZEN_BASE_URL),
@@ -149,6 +149,25 @@ mod tests {
         assert_eq!(keys[0].auth_method, "api_key");
         assert_eq!(keys[0].api_key.as_deref(), Some("opencode-test-key"));
         assert_eq!(keys[0].base_url.as_deref(), Some(OPENCODE_GO_BASE_URL));
+    }
+
+    #[test]
+    fn duplicate_detection_keeps_same_key_for_different_endpoints() {
+        let mut zen = create_detected_key("zen", "OpenCode Zen", "api_key");
+        zen.api_key = Some("shared-key".to_string());
+        zen.base_url = Some(OPENCODE_ZEN_BASE_URL.to_string());
+        let keys = vec![zen];
+
+        assert!(!is_duplicate_detected_key(
+            &keys,
+            "shared-key",
+            OPENCODE_GO_BASE_URL
+        ));
+        assert!(is_duplicate_detected_key(
+            &keys,
+            "shared-key",
+            OPENCODE_ZEN_BASE_URL
+        ));
     }
 
     #[tokio::test]

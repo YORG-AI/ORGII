@@ -22,6 +22,8 @@ import {
 } from "../types";
 
 const HUNK_HEADER_REGEX = /^@@\s+-(\d+)(?:,\d+)?\s+\+(\d+)(?:,\d+)?\s+@@/;
+const PATCH_HUNK_HEADER_REGEX =
+  /^@@\s+-(\d+)(?:,\d+)?\s+\+(\d+)(?:,\d+)?\s+@@/m;
 
 interface ParsedUnifiedDiffPayload {
   oldContent: string;
@@ -103,6 +105,38 @@ function parseUnifiedDiffPayload(
     oldStartLine,
     newStartLine,
   };
+}
+
+function patchTextFromArgs(args: SessionEvent["args"]): string | undefined {
+  if (typeof args?.patch_text === "string") return args.patch_text;
+  if (typeof args?.patch === "string") return args.patch;
+  if (typeof args?.input === "string") return args.input;
+  return undefined;
+}
+
+function resultHasRealDiff(result: SessionEvent["result"]): boolean {
+  if (!result) return false;
+  if (
+    typeof result.diffString === "string" ||
+    typeof result.diff === "string"
+  ) {
+    return true;
+  }
+  if (Array.isArray(result.segments) && result.segments.length > 0) {
+    return true;
+  }
+  const output = result.output as Record<string, unknown> | undefined;
+  const success = output?.success as Record<string, unknown> | undefined;
+  return Boolean(
+    typeof success?.diffString === "string" || typeof success?.diff === "string"
+  );
+}
+
+export function shouldTrustDiffStartLines(event: SessionEvent): boolean {
+  const patchText = patchTextFromArgs(event.args);
+  if (!patchText) return true;
+  if (PATCH_HUNK_HEADER_REGEX.test(patchText)) return true;
+  return resultHasRealDiff(event.result);
 }
 
 export function parseFilePath(path: string): {
@@ -242,12 +276,17 @@ export function convertToFileOperation(
     if (!data.filePath) return null;
 
     const { fileName, directory } = parseFilePath(data.filePath);
+    const trustDiffStartLines = shouldTrustDiffStartLines(event);
 
     const parsedDiff = parseUnifiedDiffPayload(data.diff);
     let oldContent = parsedDiff?.oldContent ?? data.oldContent;
     let newContent = parsedDiff?.newContent ?? data.newContent;
-    const oldStartLine = parsedDiff?.oldStartLine ?? data.oldStartLine;
-    const newStartLine = parsedDiff?.newStartLine ?? data.newStartLine;
+    const oldStartLine = trustDiffStartLines
+      ? (parsedDiff?.oldStartLine ?? data.oldStartLine)
+      : undefined;
+    const newStartLine = trustDiffStartLines
+      ? (parsedDiff?.newStartLine ?? data.newStartLine)
+      : undefined;
     if (!oldContent && !newContent) {
       const result = event.result || {};
       const args = event.args || {};

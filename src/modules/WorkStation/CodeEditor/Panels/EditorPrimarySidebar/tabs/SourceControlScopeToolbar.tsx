@@ -1,4 +1,4 @@
-import { ChevronRight, Search, Trash2 } from "lucide-react";
+import { ChevronRight, GitBranch, GitFork, Search, Trash2 } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -6,6 +6,7 @@ import type { GitWorktreeDiffSummary } from "@src/api/http/git/types";
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import Dropdown from "@src/components/Dropdown";
 import DropdownItem from "@src/components/Dropdown/DropdownItem";
+import DropdownSelectedCheck from "@src/components/Dropdown/DropdownSelectedCheck";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -42,9 +43,6 @@ const BREADCRUMB_TONE_CLASS = {
   primary: "text-[12px] font-medium text-text-1",
   secondary: "text-[11px] text-text-2",
 } as const;
-
-const SCOPE_SECTION_LABEL =
-  "px-1.5 pb-0.5 pt-2 text-[11px] font-medium text-text-4 first:pt-1";
 
 const SCOPE_PICKER_REMOVE_BUTTON = [
   "absolute right-1 top-1/2 z-[1] -translate-y-1/2 bg-surface-hover",
@@ -83,8 +81,30 @@ function ScopePickerDiffStats({
   );
 }
 
+function ScopePickerItemSuffix({
+  selected,
+  summary,
+}: {
+  selected: boolean;
+  summary?: GitWorktreeDiffSummary | null;
+}) {
+  const stats = <ScopePickerDiffStats summary={summary} />;
+  if (!selected) return stats;
+
+  return (
+    <span className="flex shrink-0 items-center gap-2">
+      {stats}
+      <DropdownSelectedCheck />
+    </span>
+  );
+}
+
 function ScopePickerSectionLabel({ label }: { label: string }) {
-  return <div className={SCOPE_SECTION_LABEL}>{label}</div>;
+  return (
+    <div className={DROPDOWN_CLASSES.sectionLabel}>
+      {label.toLocaleUpperCase()}
+    </div>
+  );
 }
 
 function ScopePickerItem({
@@ -115,6 +135,8 @@ function ScopePickerItem({
   ]
     .filter(Boolean)
     .join("\n");
+  const ScopeIcon = kind === "worktree" ? GitFork : GitBranch;
+  const hasDiffStats = diffStatsFromSummary(summary) !== null;
 
   return (
     <div className="group/scope-row relative w-full">
@@ -122,8 +144,13 @@ function ScopePickerItem({
         selected={selected}
         showCheckmark={false}
         onClick={onSelect}
+        icon={<ScopeIcon size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />}
         className="w-full"
-        suffix={<ScopePickerDiffStats summary={summary} />}
+        suffix={
+          selected || hasDiffStats ? (
+            <ScopePickerItemSuffix selected={selected} summary={summary} />
+          ) : undefined
+        }
       >
         <span title={title}>{label}</span>
       </DropdownItem>
@@ -266,6 +293,12 @@ export function SourceControlScopeToolbar({
         ) : null}
         {filteredWorktrees.length > 0 ? (
           <>
+            {showMainScope ? (
+              <div
+                aria-hidden="true"
+                className={DROPDOWN_CLASSES.menuSeparatorInset}
+              />
+            ) : null}
             {showMainScope ? (
               <ScopePickerSectionLabel
                 label={t("sourceControl.scope.worktrees")}

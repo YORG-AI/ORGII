@@ -44,6 +44,13 @@ tracing = "0.1"
 # Open URLs/files in default app
 open = "5"
 
+# Advertised URL origin parsing for workspace ports
+url = "2"
+
+# SIGTERM for workspace port kill on Unix
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [target.'cfg(target_os = "macos")'.dependencies]
 dispatch2 = { workspace = true }
 objc2 = { workspace = true }

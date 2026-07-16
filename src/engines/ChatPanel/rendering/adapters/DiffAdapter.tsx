@@ -12,16 +12,29 @@ import {
   statusToLifecycle,
   useLifecycleLabels,
 } from "@src/engines/SessionCore/rendering/registry";
-import type { UniversalEventProps } from "@src/engines/SessionCore/rendering/types/universalProps";
+import type {
+  ExtractedEditData,
+  UniversalEventProps,
+} from "@src/engines/SessionCore/rendering/types/universalProps";
 import { getFileName } from "@src/util/file/pathUtils";
 
 import DiffBlock from "../../blocks/DiffBlock";
+
+function firstSegmentFileName(editData: ExtractedEditData): string | undefined {
+  return editData.applyPatchSegments
+    ?.map(
+      (segment) =>
+        getFileName(segment.filePath) || getFileName(segment.fileName)
+    )
+    .find(Boolean);
+}
 
 export const DiffAdapter: React.FC<UniversalEventProps> = (props) => {
   const { t } = useTranslation("sessions");
   const action = (props.args?.action as string) || undefined;
   const editData = extractEditData(props);
   const fileName =
+    firstSegmentFileName(editData) ||
     getFileName(editData.filePath) ||
     getFileName(editData.fileName) ||
     (typeof props.args?.file_path === "string"

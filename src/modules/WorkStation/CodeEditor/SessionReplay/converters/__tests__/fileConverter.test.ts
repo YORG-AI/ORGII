@@ -195,8 +195,40 @@ describe("convertToFileOperation", () => {
     expect(op?.newContent).toBe(
       "const newValue = true;\nexport const kept = 1;"
     );
+    expect(op?.oldStartLine).toBeUndefined();
+    expect(op?.newStartLine).toBeUndefined();
     expect(op?.linesAdded).toBe(1);
     expect(op?.linesRemoved).toBe(1);
+  });
+
+  it("preserves explicit line ranges from imported Codex apply_patch hunks", () => {
+    const patchText = [
+      "*** Begin Patch",
+      "*** Update File: src/app.ts",
+      "@@ -42,2 +43,2 @@",
+      "-const oldValue = true;",
+      "+const newValue = true;",
+      "*** End Patch",
+    ].join("\n");
+    const event = minimalSessionEvent({
+      id: "patch-ranged",
+      functionName: "edit_file_by_replace",
+      args: {
+        patch_text: patchText,
+        file_path: "src/app.ts",
+        target_file: "src/app.ts",
+      },
+      result: { content: "Success. Updated src/app.ts" },
+      filePath: "src/app.ts",
+    });
+
+    const op = convertToFileOperation(event, true);
+
+    expect(op).not.toBeNull();
+    expect(op?.oldStartLine).toBe(42);
+    expect(op?.newStartLine).toBe(43);
+    expect(op?.oldContent).toBe("const oldValue = true;");
+    expect(op?.newContent).toBe("const newValue = true;");
   });
 
   it("returns null when file path cannot be resolved", () => {

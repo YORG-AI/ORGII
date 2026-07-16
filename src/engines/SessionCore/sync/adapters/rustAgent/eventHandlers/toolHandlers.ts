@@ -4,6 +4,7 @@
  * Handlers for tool_call, tool_result, and interaction finalization events.
  * Shell process / exec-output handlers live in shellHandlers.ts.
  */
+import { switchModeForSession } from "@src/engines/ChatPanel/InputArea/ModeSwitchCard/useModeSwitchActions";
 import { openInSimulatorCanvas } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/openInSimulatorCanvas";
 import type {
   CanvasInlineMode,
@@ -25,6 +26,17 @@ import { clearStreamingInfo, getToolCallId } from "./streamHelpers";
 import type { EventHandlerContext } from "./types";
 
 const log = createLogger("ToolHandlers");
+
+function isAutoModeSwitchAccept(
+  tool: string | undefined,
+  resultObject: Record<string, unknown>
+): boolean {
+  return (
+    tool === "suggest_mode_switch" &&
+    resultObject.choice === "switch" &&
+    resultObject.auto === "timeout"
+  );
+}
 
 export function handleToolCall(
   event: AgentWSEvent,
@@ -257,6 +269,18 @@ export async function handleInteractionFinalized(
     ...resultObject,
   };
   await eventStoreProxy.mergeEvents([resultEvent], sessionId);
+
+  if (isAutoModeSwitchAccept(event.tool, resultObject)) {
+    const targetMode =
+      typeof resultObject.targetMode === "string"
+        ? resultObject.targetMode
+        : "plan";
+    await switchModeForSession(
+      sessionId,
+      `tool-call-${toolCallId}`,
+      targetMode
+    );
+  }
 }
 
 export {

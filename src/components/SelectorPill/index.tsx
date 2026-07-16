@@ -67,10 +67,12 @@ interface SelectorPillContentProps {
   size: SelectorPillSize;
   active: boolean;
   trailingChevron: boolean;
+  textOnly: boolean;
   hoverIcon?: React.ReactNode;
   iconColor: string;
   chevronColor: string;
   labelColor: string;
+  labelClassName?: string;
   iconSize: number;
   labelStyle?: React.CSSProperties;
 }
@@ -82,68 +84,78 @@ const SelectorPillContent: React.FC<SelectorPillContentProps> = ({
   size,
   active,
   trailingChevron,
+  textOnly,
   hoverIcon,
   iconColor,
   chevronColor,
   labelColor,
+  labelClassName,
   iconSize,
   labelStyle,
 }) => {
   return (
     <span
-      className={`inline-flex h-full min-w-0 items-center ${label ? GAP_CLASSES[size] : ""}`}
+      className={`inline-flex h-full min-w-0 items-center ${label && !textOnly ? GAP_CLASSES[size] : ""}`}
     >
-      <span
-        className={`relative inline-flex shrink-0 items-center justify-center ${ICON_CONTAINER_CLASSES[size]}`}
-      >
-        {trailingChevron ? (
-          <span
-            className={`inline-flex items-center justify-center ${iconColor}`}
-          >
-            {icon}
-          </span>
-        ) : (
-          <>
-            {icon !== null && (
-              <span
-                className={`${active ? "hidden" : "group-hover/pill:hidden"} inline-flex items-center justify-center ${iconColor}`}
-              >
-                {icon}
-              </span>
-            )}
-            {active ? (
-              <ChevronUp
-                size={iconSize}
-                strokeWidth={1.75}
-                className={`absolute block ${chevronColor}`}
-              />
-            ) : hoverIcon ? (
-              <span
-                className={`absolute hidden items-center justify-center ${chevronColor} group-hover/pill:flex`}
-              >
-                {hoverIcon}
-              </span>
-            ) : (
-              <ChevronDown
-                size={iconSize}
-                strokeWidth={1.75}
-                className={`absolute hidden ${chevronColor} group-hover/pill:block`}
-              />
-            )}
-          </>
-        )}
-      </span>
+      {!textOnly && (
+        <span
+          className={`relative inline-flex shrink-0 items-center justify-center ${ICON_CONTAINER_CLASSES[size]}`}
+        >
+          {trailingChevron ? (
+            <span
+              className={`inline-flex items-center justify-center ${iconColor}`}
+            >
+              {icon}
+            </span>
+          ) : (
+            <>
+              {icon !== null && (
+                <span
+                  className={`${active ? "hidden" : "group-hover/pill:hidden"} inline-flex items-center justify-center ${iconColor}`}
+                >
+                  {icon}
+                </span>
+              )}
+              {active ? (
+                <ChevronUp
+                  size={iconSize}
+                  strokeWidth={1.75}
+                  className={`absolute block ${chevronColor}`}
+                />
+              ) : hoverIcon ? (
+                <span
+                  className={`absolute hidden items-center justify-center ${chevronColor} group-hover/pill:flex`}
+                >
+                  {hoverIcon}
+                </span>
+              ) : (
+                <ChevronDown
+                  size={iconSize}
+                  strokeWidth={1.75}
+                  className={`absolute hidden ${chevronColor} group-hover/pill:block`}
+                />
+              )}
+            </>
+          )}
+        </span>
+      )}
 
       {label && (
         <span
-          className={`${labelContent || size === "xl" ? "" : "truncate"} inline-flex min-w-0 items-center ${PILL_SM_LABEL_CLASS} ${labelColor}`}
+          className={`min-w-0 ${PILL_SM_LABEL_CLASS} ${
+            labelClassName ?? labelColor
+          } ${
+            labelContent || size === "xl"
+              ? "inline-flex items-center"
+              : "inline-block truncate"
+          }`}
           style={labelStyle}
         >
           {labelContent ?? label}
         </span>
       )}
 
-      {trailingChevron && (
+      {trailingChevron && !textOnly && (
         <span
           className={`inline-flex shrink-0 items-center justify-center ${chevronColor}`}
         >
@@ -171,6 +183,8 @@ export interface SelectorPillProps {
   tooltip?: React.ReactNode;
   /** Framed-panel tooltip style (matches chat header / PillGroup segments) */
   tooltipFramed?: boolean;
+  /** Widen framed-panel tooltips for long breadcrumb content. */
+  tooltipFramedWide?: boolean;
   /** Tooltip position — defaults to "top" */
   tooltipPosition?: TooltipPosition;
   /** Whether the pill is in an open/active state */
@@ -183,6 +197,8 @@ export interface SelectorPillProps {
   variant?: SelectorPillVariant;
   /** Show a persistent right-side chevron instead of swapping the leading icon on hover */
   trailingChevron?: boolean;
+  /** Label-only trigger — no leading icon slot and no hover chevron. */
+  textOnly?: boolean;
   /** Optional leading icon replacement shown on hover when the pill is inactive. */
   hoverIcon?: React.ReactNode;
   onClick?: React.MouseEventHandler<HTMLButtonElement>;
@@ -193,6 +209,7 @@ export interface SelectorPillProps {
   onBlur?: React.FocusEventHandler<HTMLButtonElement>;
   ariaLabel?: string;
   className?: string;
+  labelClassName?: string;
   labelStyle?: React.CSSProperties;
   dataTestId?: string;
   disabled?: boolean;
@@ -207,12 +224,14 @@ export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
       title,
       tooltip,
       tooltipFramed = false,
+      tooltipFramedWide = false,
       tooltipPosition = "top",
       active = false,
       danger = false,
       size = "sm",
       variant = "default",
       trailingChevron = false,
+      textOnly = false,
       hoverIcon,
       onClick,
       onMouseDown,
@@ -222,6 +241,7 @@ export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
       onBlur,
       ariaLabel,
       className = "",
+      labelClassName,
       labelStyle,
       dataTestId,
       disabled,
@@ -277,7 +297,7 @@ export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
         aria-label={ariaLabel}
         data-testid={dataTestId}
         title={tooltip ? undefined : (title ?? label)}
-        className={`group/pill flex items-center rounded-full font-medium transition-colors duration-200 focus:outline-none ${buttonSizeClass} ${variantClasses} ${className}`}
+        className={`group/pill flex min-w-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${buttonSizeClass} ${labelClassName ? "font-normal" : "font-medium"} ${variantClasses} ${className}`}
       >
         <SelectorPillContent
           icon={icon}
@@ -286,10 +306,12 @@ export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
           size={size}
           active={active}
           trailingChevron={trailingChevron}
+          textOnly={textOnly}
           hoverIcon={hoverIcon}
           iconColor={iconColor}
           chevronColor={chevronColor}
           labelColor={labelColor}
+          labelClassName={labelClassName}
           iconSize={iconSize}
           labelStyle={labelStyle}
         />
@@ -305,6 +327,7 @@ export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
           popupVisible={tooltipVisible}
           onVisibleChange={handleTooltipVisibleChange}
           framedPanel={tooltipFramed}
+          framedPanelWide={tooltipFramedWide}
         >
           {button}
         </Tooltip>

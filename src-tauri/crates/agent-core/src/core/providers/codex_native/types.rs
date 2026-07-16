@@ -54,6 +54,10 @@ pub(super) struct ResponsesRequest {
     pub tools: Option<Vec<Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_choice: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub service_tier: Option<String>,
     pub store: bool,
     pub stream: bool,
 }

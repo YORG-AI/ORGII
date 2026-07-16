@@ -74,6 +74,7 @@ interface InitPtyConnectionParams {
   onSessionInfoReady?: TerminalViewProps["onSessionInfoReady"];
   setIsBrowserMode: (value: boolean) => void;
   setIsConnecting: (value: boolean) => void;
+  abortSignal?: AbortSignal;
 }
 
 /**
@@ -269,8 +270,12 @@ export async function initPtyConnection({
   onSessionInfoReady,
   setIsBrowserMode,
   setIsConnecting,
+  abortSignal,
 }: InitPtyConnectionParams) {
+  const isAborted = () => abortSignal?.aborted === true;
+
   if (!isTauriReady()) {
+    if (isAborted()) return;
     setIsBrowserMode(true);
     setIsConnecting(false);
 
@@ -286,7 +291,7 @@ export async function initPtyConnection({
 
   try {
     const terminal = terminalRef.current;
-    if (!terminal) return;
+    if (!terminal || isAborted()) return;
 
     const utf8Decoder = new TextDecoder("utf-8", { fatal: false });
 
@@ -302,6 +307,8 @@ export async function initPtyConnection({
     const unlistenOutput = await listenTauri<PtyOutputPayload>(
       `pty-output-${sessionId}`,
       (event) => {
+        if (isAborted()) return;
+
         const { bytes, byte_count: byteCount, data } = event.payload;
 
         if (bytes && bytes.length > 0) {
@@ -323,9 +330,16 @@ export async function initPtyConnection({
         }
       }
     );
+    if (isAborted()) {
+      unlistenOutput();
+      unregisterPane(sessionId);
+      return;
+    }
     unlistenOutputRef.current = unlistenOutput;
 
     const unlistenExit = await listenTauri(`pty-exit-${sessionId}`, () => {
+      if (isAborted()) return;
+
       const trailingOutput = utf8Decoder.decode();
       if (trailingOutput) {
         terminal.write(trailingOutput);
@@ -333,8 +347,16 @@ export async function initPtyConnection({
       terminal.writeln("\r\n\x1b[33m[Session ended]\x1b[0m");
       unregisterPane(sessionId);
     });
+    if (isAborted()) {
+      unlistenExit();
+      unlistenOutputRef.current?.();
+      unlistenOutputRef.current = null;
+      unregisterPane(sessionId);
+      return;
+    }
     unlistenExitRef.current = unlistenExit;
 
+    if (isAborted()) return;
     await reconnectOrCreatePty({
       cols,
       rows,
@@ -351,9 +373,11 @@ export async function initPtyConnection({
       onSessionInfoReady,
     });
 
+    if (isAborted()) return;
     setIsConnecting(false);
     terminal.focus();
   } catch (error) {
+    if (isAborted()) return;
     log.error("Failed to create/connect PTY session:", error);
     setIsConnecting(false);
     const terminal = terminalRef.current;

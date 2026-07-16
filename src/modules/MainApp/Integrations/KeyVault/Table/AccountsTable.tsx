@@ -66,7 +66,8 @@ interface AccountsTableProps {
   onEditAccountSave?: (
     accountId: string,
     name: string,
-    description: string
+    description: string,
+    baseUrl?: string
   ) => Promise<void>;
   onDisconnectAccount?: (
     accountId: string,

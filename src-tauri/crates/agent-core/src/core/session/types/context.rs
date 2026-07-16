@@ -120,6 +120,9 @@ pub struct UserPresence {
     /// Seconds until pending plan approvals auto-approve. 0 = off.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub plan_auto_approve_secs: Option<u32>,
+    /// Whether pending mode-switch suggestions auto-switch to Plan on timeout.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode_switch_auto_plan: Option<bool>,
     /// Goal continuation loop budget (Ralph loop). 0 = disabled.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub goal_max_turns: Option<u32>,

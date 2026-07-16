@@ -52,6 +52,10 @@
       white-space: normal;
     }
 
+    &.native-tooltip-framed-panel-wide .native-tooltip-content-inner {
+      max-width: min(480px, calc(100vw - 40px));
+    }
+
     kbd {
       color: var(--color-text-1);
     }

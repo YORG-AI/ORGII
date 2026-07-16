@@ -373,7 +373,7 @@ type TimerPatchRecord = {
 
 function setWindowTimerFunction(
   name: TimerFunctionName,
-  value: Window[TimerFunctionName]
+  value: unknown
 ): TimerPatchRecord | undefined {
   const ownDescriptor = Object.getOwnPropertyDescriptor(window, name);
   try {
@@ -403,8 +403,12 @@ function restoreWindowTimerFunction(record: TimerPatchRecord): void {
 function installTimerTracking(): (() => void) | undefined {
   if (timerTrackingPatched || typeof window === "undefined") return undefined;
 
-  const originalSetInterval = window.setInterval.bind(window);
-  const originalSetTimeout = window.setTimeout.bind(window);
+  const originalSetInterval = window.setInterval.bind(
+    window
+  ) as Window["setInterval"];
+  const originalSetTimeout = window.setTimeout.bind(
+    window
+  ) as Window["setTimeout"];
   const originalRequestAnimationFrame =
     window.requestAnimationFrame.bind(window);
 

@@ -228,8 +228,8 @@
     "apiProtocolDesc": "Choisir le protocole fil pour l'agent Rust intégré",
     "officialUrl": "URL officielle",
     "customUrl": "URL personnalisée",
-    "customBaseUrlRiskTitle": "Avertissement URL personnalisée",
-    "customBaseUrlRiskWarning": "L'utilisation d'une URL de base personnalisée peut exposer votre clé API et vos données à des serveurs tiers. Utilisez uniquement pour des proxies de confiance, des déploiements auto-hébergés ou des points de terminaison sécurisés connus",
+    "customBaseUrlNoteTitle": "À propos des endpoints personnalisés",
+    "customBaseUrlNoteBody": "Votre clé API et les données de requête sont envoyées à l'URL que vous saisissez. Utilisez des URLs personnalisées uniquement pour des proxies de confiance, des déploiements auto-hébergés ou des endpoints que vous contrôlez",
     "addBaseUrl": "Base URL personnalisée",
     "localModel": {
       "title": "Cookbook de modèles locaux",
@@ -294,6 +294,8 @@
     "signInDesc": "Connectez-vous via le navigateur pour autoriser l'accès",
     "setupMethod": "Méthode de configuration",
     "setupMethodDesc": "Comment fournir les identifiants",
+    "endpoint": "Point de terminaison",
+    "endpointDesc": "Choisissez le point de terminaison auquel cette clé se connecte",
     "detect": "Détecter",
     "detected": "Détecté",
     "reDetect": "Re-détecter",
@@ -815,7 +817,8 @@
     "pickProviderDesc": "Sélectionnez un fournisseur",
     "selectVariant": "Méthode de connexion",
     "variantSubscription": "Abonnement",
-    "variantApiKey": "API Key"
+    "variantApiKey": "API Key",
+    "providerCustom": "Personnalisé"
   },
   "modelsTable": {
     "noModels": "Aucun modèle de vos Keys",

@@ -13,11 +13,13 @@ export interface UseSessionMenuItemsParams {
   selectedOrgId?: string;
   includeExternal: boolean;
   groupVisibleCounts: ReadonlyMap<string, number>;
+  expandedSubagentParentIds?: ReadonlySet<string>;
 }
 
 export interface UseSessionMenuItemsResult {
   menuItems: NavigationMenuItem[];
   sessionMap: Map<string, Session>;
+  subagentParentIds: ReadonlySet<string>;
   isLoadMoreId: (id: string) => SessionListCategory | null;
   getLoadMoreGroupId: (id: string) => string | null;
 }

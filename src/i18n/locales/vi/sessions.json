@@ -669,7 +669,9 @@
       "empty": "Không tìm thấy hành động.",
       "unpinAll": "Bỏ ghim tất cả",
       "insert": "Chèn"
-    }
+    },
+    "compactArgHint": "<trọng tâm tóm tắt (tùy chọn)>",
+    "compactCommandDescription": "Tóm tắt ngữ cảnh cũ để giải phóng dung lượng. Tùy chọn: /compact <trọng tâm tóm tắt>"
   },
   "listPanel": {
     "showingOf": "Hiển thị {{filtered}} / {{total}}",
@@ -731,6 +733,10 @@
       },
       "quota": {
         "empty": "Chưa có dữ liệu quota. Hãy làm mới mức sử dụng từ Key Vault.",
+        "refresh": "Làm mới",
+        "justNow": "vừa xong",
+        "minutesAgo": "{{count}} phút trước",
+        "hoursAgo": "{{count}} giờ trước",
         "metrics": {
           "fiveHour": "5h",
           "sevenDay": "7d",
@@ -1878,7 +1884,8 @@
       "models": "Mô hình",
       "skills": "Skills",
       "workspaceSkills": "Workspace Skills",
-      "userSkills": "User Skills"
+      "userSkills": "User Skills",
+      "commands": "Lệnh"
     },
     "diffMenu": {
       "gitActions": "Hành động GIT",
@@ -2287,7 +2294,8 @@
       "Vẫn đang suy nghĩ, lâu hơn bình thường...",
       "Đang xử lý, lâu hơn bình thường...",
       "Đang cân nhắc bước tiếp theo, lâu hơn bình thường..."
-    ]
+    ],
+    "compacting": "Đang nén ngữ cảnh..."
   },
   "revertConfirm": {
     "title": "Thay đổi tệp chưa được lưu",

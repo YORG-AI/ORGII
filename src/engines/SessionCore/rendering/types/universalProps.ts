@@ -216,6 +216,7 @@ export interface RustPatchSegment {
   linesAdded: number;
   linesRemoved: number;
   isDeleted: boolean;
+  hasExplicitHunkHeader?: boolean;
 }
 
 /** Mirrors Rust `PatchConversionResult` (serde camelCase). */

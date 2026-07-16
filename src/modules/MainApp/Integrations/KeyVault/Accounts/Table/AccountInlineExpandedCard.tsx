@@ -95,7 +95,8 @@ interface AccountInlineExpandedCardProps {
   onEditSave?: (
     accountId: string,
     name: string,
-    description: string
+    description: string,
+    baseUrl?: string
   ) => Promise<void>;
   /** When true, the Edit tab is shown and auto-activated. Driven by the
    *  parent table — set by clicking the row's pencil button, cleared when
@@ -193,9 +194,9 @@ const AccountInlineExpandedCard: React.FC<AccountInlineExpandedCardProps> = ({
   const showModelRefresh = Boolean(onRevalidateAccount);
 
   const handleEditFormSave = useCallback(
-    async (nextName: string, nextDescription: string) => {
+    async (nextName: string, nextDescription: string, endpoint?: string) => {
       if (!onEditSave) return;
-      await onEditSave(account.id, nextName, nextDescription);
+      await onEditSave(account.id, nextName, nextDescription, endpoint);
       onEditCancel?.();
     },
     [account.id, onEditCancel, onEditSave]

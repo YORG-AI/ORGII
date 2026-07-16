@@ -188,7 +188,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
     );
 
     const initPTY = useCallback(
-      async (cols: number, rows: number) => {
+      async (cols: number, rows: number, abortSignal?: AbortSignal) => {
         await initPtyConnection({
           cols,
           rows,
@@ -208,6 +208,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
           onSessionInfoReady,
           setIsBrowserMode,
           setIsConnecting,
+          abortSignal,
         });
       },
       // repoPath and onSessionInfoReady use refs / mount-time semantics; avoid
@@ -228,6 +229,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
     useEffect(() => {
       if (!containerRef.current || terminalRef.current) return;
 
+      const ptyAbortController = new AbortController();
       const { terminal, fitAddon, searchAddon, serializeAddon } =
         createTerminalInstance({
           terminalTheme: initialThemeRef.current || terminalTheme,
@@ -249,7 +251,9 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
         containerRef,
         terminal,
         fitTerminal,
-        initPty: initPTY,
+        initPty: (cols, rows) => {
+          void initPTY(cols, rows, ptyAbortController.signal);
+        },
         loadWebGL: () => loadTerminalWebgl(terminal, webglAddonRef),
         setIsReady,
       });
@@ -269,8 +273,14 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
       });
 
       return () => {
+        ptyAbortController.abort();
         cleanupContainerVisibilityInit();
         cleanupTerminalHandlers();
+        cleanupPtyListeners({
+          unlistenOutputRef,
+          unlistenExitRef,
+          sessionIdRef,
+        });
 
         if (webglAddonRef.current) {
           webglAddonRef.current.dispose();
@@ -287,16 +297,6 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
       // existing terminal lifetime semantics documented at the top of this file.
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [fitTerminal, initPTY]);
-
-    useEffect(() => {
-      return () => {
-        cleanupPtyListeners({
-          unlistenOutputRef,
-          unlistenExitRef,
-          sessionIdRef,
-        });
-      };
-    }, []);
 
     // Scheduler foreground/background priority and tab-show backlog flush.
     // The sessionId is set during initPtyConnection which runs after mount;

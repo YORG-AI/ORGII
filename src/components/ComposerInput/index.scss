@@ -77,6 +77,17 @@
   // Pin to the content padding box and clip with ellipsis so a long
   // placeholder cannot bleed over neighbouring grid columns (e.g. the
   // ComposerBar pills cluster when the editor column shrinks).
+  // Inline ghost hint after the last content node (e.g. the argument hint
+  // behind a /compact pill). Same muted treatment as the placeholder.
+  &.has-trailing-hint::after {
+    content: attr(data-trailing-hint);
+    color: var(--color-text-3);
+    pointer-events: none;
+    user-select: none;
+    margin-left: 4px;
+    white-space: nowrap;
+  }
+
   &.is-empty::before {
     content: attr(data-placeholder);
     position: absolute;

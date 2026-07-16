@@ -2,7 +2,7 @@
  * ControlButtons Component
  *
  * Control buttons for SessionCreator:
- * - Model selector pill (model name only)
+ * - Model selector pill group (model + effort segments)
  * - Agent execution mode pill for Rust and CLI sessions
  */
 import { useAtom, useAtomValue } from "jotai";
@@ -70,12 +70,18 @@ const ControlButtons: React.FC<ControlButtonsProps> = memo(
       [advancedConfig, onConfigChange]
     );
 
+    const handleVariantApply = useCallback(
+      (nextModelId: string) => {
+        onConfigChange({ ...advancedConfig, model: nextModelId });
+      },
+      [advancedConfig, onConfigChange]
+    );
+
     return (
       <div className="flex min-w-0 items-center gap-px">
         {!hideModePill && usesOrgiiExecMode && (
           <ModePill
             forceVisible
-            hideWhenDefault
             resetToDefaultOnClick
             onModeChange={handleSdeModeChange}
             placement={dropdownDirection === "up" ? "top" : "bottom"}
@@ -97,9 +103,11 @@ const ControlButtons: React.FC<ControlButtonsProps> = memo(
               selection={advancedConfig}
               defaultLabel={tSessions("creator.model")}
               active={isModelOpen}
-              className="max-w-[220px] shrink-0"
+              className="max-w-[360px] shrink-0"
               onClick={handleOpenModelSelector}
+              onVariantApply={handleVariantApply}
               dataTestId="session-creator-input-model-pill"
+              effortDataTestId="session-creator-input-effort-pill"
               ariaLabel={tSessions("creator.selectModel")}
             />
 

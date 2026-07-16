@@ -142,7 +142,9 @@
       "views": "檢視",
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
-      "removeDraft": "刪除草稿"
+      "removeDraft": "刪除草稿",
+      "showSubagents": "顯示子代理",
+      "hideSubagents": "隱藏子代理"
     },
     "resultStatus": {
       "completed": "已完成",
@@ -673,7 +675,9 @@
       "empty": "找不到操作。",
       "unpinAll": "全部取消固定",
       "insert": "插入"
-    }
+    },
+    "compactArgHint": "<可選:本次總結的重點>",
+    "compactCommandDescription": "總結較早的上下文以釋放空間。可選:/compact <本次總結的重點>"
   },
   "listPanel": {
     "showingOf": "顯示 {{filtered}} / {{total}}",
@@ -735,6 +739,10 @@
       },
       "quota": {
         "empty": "暫無配額資料。請在 Key Vault 中重新整理用量。",
+        "refresh": "重新整理",
+        "justNow": "剛剛",
+        "minutesAgo": "{{count}}分鐘前",
+        "hoursAgo": "{{count}}小時前",
         "metrics": {
           "fiveHour": "5h",
           "sevenDay": "7d",
@@ -1878,6 +1886,7 @@
     "slashMenu": {
       "image": "圖片",
       "uploadImage": "上傳圖片",
+      "commands": "指令",
       "mode": "模式",
       "models": "模型",
       "skills": "Skills",
@@ -2291,7 +2300,8 @@
       "仍在思考，比平時更久...",
       "正在處理，比平時更久...",
       "正在琢磨下一步，比平時更久..."
-    ]
+    ],
+    "compacting": "正在壓縮上下文…"
   },
   "revertConfirm": {
     "title": "文件有未保存的變更",

@@ -10,6 +10,7 @@
 pub mod channel;
 mod coding;
 pub(crate) mod common;
+mod compaction;
 pub(crate) mod create;
 pub mod debug;
 mod gateway_cmds;
@@ -22,6 +23,7 @@ mod persistence;
 mod workspace;
 
 pub use coding::*;
+pub use compaction::*;
 pub use interaction::*;
 pub use persistence::*;
 // The three named functions are re-exported under stable, unambiguous

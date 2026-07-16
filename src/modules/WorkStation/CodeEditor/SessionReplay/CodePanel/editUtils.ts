@@ -1,3 +1,4 @@
+import { shouldTrustDiffStartLines } from "../converters/fileConverter";
 import type { FileOperationEntry } from "../types";
 
 /**
@@ -6,6 +7,7 @@ import type { FileOperationEntry } from "../types";
  */
 export function getEditStartLine(op: FileOperationEntry): number {
   if (op.newStartLine) return op.newStartLine;
+  if (!shouldTrustDiffStartLines(op.event)) return 0;
 
   const event = op.event as unknown as {
     context_start_line?: number;

@@ -481,6 +481,166 @@ pub(crate) fn backfill_subagent_links(session_id: &str, events: &mut [SessionEve
 // Synthetic event filtering
 // ============================================================================
 
+// ============================================================================
+// Compact-boundary merge for loaded sessions
+// ============================================================================
+
+/// Merge persisted compact-boundary rows into a loaded event list.
+///
+/// Compaction appends its boundary as a `system` row in `agent_messages`
+/// only — it is never broadcast as a live event, so the SQLite event cache
+/// (and therefore `es_load_from_cache`) has no trace of it. Without this
+/// merge the "Context compacted" marker exists in the durable transcript
+/// but never appears in the chat. Covers manual and automatic compaction,
+/// including boundaries written before this code existed.
+///
+/// Rows already present in `events` (matched by event id) are skipped, so
+/// a future producer that starts caching boundary events stays idempotent.
+pub(crate) fn merge_compact_boundary_events(session_id: &str, events: &mut Vec<SessionEvent>) {
+    let rows = match read_compact_boundary_rows(session_id) {
+        Ok(rows) => rows,
+        Err(err) => {
+            tracing::warn!(
+                "[cache_bridge] failed to read compact boundaries for {session_id}: {err}"
+            );
+            return;
+        }
+    };
+    if rows.is_empty() {
+        return;
+    }
+
+    let existing_ids: HashSet<String> = events.iter().map(|e| e.id.clone()).collect();
+    for row in rows {
+        if existing_ids.contains(&row.id) {
+            continue;
+        }
+        let event = compact_boundary_row_to_event(session_id, row);
+        // RFC3339 timestamps compare correctly as strings; place the marker
+        // after every event that happened before the compaction.
+        let insert_at = events
+            .iter()
+            .position(|e| e.created_at.as_str() > event.created_at.as_str())
+            .unwrap_or(events.len());
+        events.insert(insert_at, event);
+    }
+}
+
+/// One persisted compact-boundary row, as read for chat-marker display.
+pub(crate) struct CompactBoundaryRow {
+    pub(crate) id: String,
+    pub(crate) content: String,
+    pub(crate) created_at: String,
+    /// Estimated context tokens before/after the compaction. `None` on
+    /// boundaries persisted before the metadata columns existed.
+    pub(crate) tokens_before: Option<i64>,
+    pub(crate) tokens_after: Option<i64>,
+}
+
+fn read_compact_boundary_rows(session_id: &str) -> Result<Vec<CompactBoundaryRow>, String> {
+    use rusqlite::params;
+
+    let conn = sqlite_cache::get_connection().map_err(|err| err.to_string())?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, content, created_at, compact_tokens_before, compact_tokens_after
+             FROM agent_messages
+             WHERE session_id = ?1
+               AND compact_from_sequence IS NOT NULL
+             ORDER BY sequence ASC",
+        )
+        .map_err(|err| err.to_string())?;
+
+    let rows = stmt
+        .query_map(params![session_id], |row| {
+            Ok(CompactBoundaryRow {
+                id: row.get(0)?,
+                content: row.get(1)?,
+                created_at: row.get(2)?,
+                tokens_before: row.get(3)?,
+                tokens_after: row.get(4)?,
+            })
+        })
+        .map_err(|err| err.to_string())?;
+
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row.map_err(|err| err.to_string())?);
+    }
+    Ok(out)
+}
+
+/// Build the chat-marker event for one persisted boundary row. Mirrors the
+/// TS adapter's `compactBoundaryToSessionEvent` (`agentMessageAdapters.ts`)
+/// so both load paths produce the same `context_compacted` shape.
+pub(crate) fn compact_boundary_row_to_event(
+    session_id: &str,
+    row: CompactBoundaryRow,
+) -> SessionEvent {
+    let CompactBoundaryRow {
+        id,
+        content,
+        created_at,
+        tokens_before,
+        tokens_after,
+    } = row;
+    let parsed =
+        agent_core::model_context::session_memory::parse_compact_boundary_content(&content);
+
+    let mut result = serde_json::Map::new();
+    result.insert(
+        "observation".to_string(),
+        serde_json::Value::String(parsed.body.clone()),
+    );
+    if let Some(header) = &parsed.header {
+        result.insert(
+            "header".to_string(),
+            serde_json::Value::String(header.clone()),
+        );
+    }
+    if let Some(count) = parsed.compacted_count {
+        result.insert("compactedCount".to_string(), serde_json::json!(count));
+    }
+    if let (Some(before), Some(after)) = (tokens_before, tokens_after) {
+        result.insert("tokensBefore".to_string(), serde_json::json!(before));
+        result.insert("tokensAfter".to_string(), serde_json::json!(after));
+    }
+
+    let display_text = if parsed.body.is_empty() {
+        parsed.header.clone().unwrap_or_default()
+    } else {
+        parsed.body
+    };
+
+    SessionEvent {
+        chunk_id: Some(id.clone()),
+        id,
+        session_id: session_id.to_string(),
+        created_at,
+        function_name: "context_compacted".to_string(),
+        ui_canonical: resolve_ui_canonical("context_compacted"),
+        action_type: "system".to_string(),
+        args: serde_json::json!({}),
+        result: serde_json::Value::Object(result),
+        source: EventSource::System,
+        display_text,
+        display_status: EventDisplayStatus::Completed,
+        display_variant: EventDisplayVariant::Message,
+        activity_status: ActivityStatus::Agent,
+        thread_id: None,
+        process_id: None,
+        call_id: None,
+        file_path: None,
+        command: None,
+        is_delta: None,
+        repo_id: None,
+        repo_path: None,
+        extracted: None,
+        payload_refs: Vec::new(),
+        last_extract_at: None,
+    }
+}
+
 pub(crate) fn is_ts_placeholder_id(id: &str) -> bool {
     id.starts_with("stream-msg-ts-") || id.starts_with("stream-think-ts-")
 }

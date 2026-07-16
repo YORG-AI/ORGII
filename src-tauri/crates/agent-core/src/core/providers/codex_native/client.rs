@@ -10,10 +10,14 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::RwLock;
 
+use super::types::ResponsesRequest;
 use super::types::{CHATGPT_CODEX_BASE, CODEX_USER_AGENT};
-use crate::providers::responses_common::convert_messages;
+use crate::providers::responses_common::{convert_messages, convert_tools_with_choice};
 use crate::providers::traits::{ProviderConfig, ProviderError};
 use crate::utils::build_http_client;
+
+const CODEX_FAST_SERVICE_TIER: &str = "priority";
+const CODEX_PROVIDER_PREFIXES: &[&str] = &["openai/"];
 
 #[derive(Debug, Clone)]
 pub struct CodexOAuthRefreshConfig {
@@ -92,6 +96,70 @@ impl CodexNativeClient {
             .unwrap_or_else(|| "You are Codex, a coding agent running in ORGII.".to_string())
     }
 
+    fn codex_reasoning_effort(
+        level: Option<crate::providers::thinking_mode::ReasoningLevel>,
+    ) -> Option<&'static str> {
+        use crate::providers::thinking_mode::ReasoningLevel;
+
+        Some(match level? {
+            ReasoningLevel::Low => "low",
+            ReasoningLevel::Medium => "medium",
+            ReasoningLevel::High => "high",
+            ReasoningLevel::ExtraHigh => "xhigh",
+            ReasoningLevel::Max | ReasoningLevel::Ultracode => "max",
+            ReasoningLevel::Baseline | ReasoningLevel::None => return None,
+        })
+    }
+
+    fn codex_supports_fast_service_tier(model: &str) -> bool {
+        matches!(model, "gpt-5.5" | "gpt-5.4")
+    }
+
+    fn strip_codex_provider_prefix(model: &str) -> &str {
+        for prefix in CODEX_PROVIDER_PREFIXES {
+            if let Some(stripped) = model.strip_prefix(prefix) {
+                return stripped;
+            }
+        }
+        model
+    }
+
+    /// Build a request for the ChatGPT-backed Codex endpoint.
+    ///
+    /// ORGII exposes reasoning/speed variants as model ids (for example
+    /// `gpt-5.5-medium-fast`), but the Codex backend only accepts the real
+    /// base model slug. Keep the native request shape narrow: unlike the
+    /// public Responses API client, this backend rejects several extra fields.
+    pub(super) fn build_responses_request(
+        messages: &[Value],
+        tools: Option<&[Value]>,
+        model: &str,
+        stream: bool,
+    ) -> ResponsesRequest {
+        let (instructions, input) = Self::convert_messages(messages);
+        let (converted_tools, tool_choice) = convert_tools_with_choice(tools);
+        let parsed = crate::providers::thinking_mode::parse_model_variant(
+            Self::strip_codex_provider_prefix(model),
+        );
+        let reasoning = Self::codex_reasoning_effort(parsed.level)
+            .map(|effort| serde_json::json!({ "effort": effort }));
+        let service_tier = (parsed.fast
+            && Self::codex_supports_fast_service_tier(&parsed.base_model))
+        .then(|| CODEX_FAST_SERVICE_TIER.to_string());
+
+        ResponsesRequest {
+            model: parsed.base_model,
+            input,
+            instructions: Self::required_instructions(instructions),
+            tools: converted_tools,
+            tool_choice,
+            reasoning,
+            service_tier,
+            store: false,
+            stream,
+        }
+    }
+
     /// Build HTTP request with required Codex native backend headers.
     pub(super) fn build_request(
         &self,
@@ -167,5 +235,81 @@ impl CodexNativeClient {
         auth_state.access_token = access_token;
         auth_state.extra_headers = extra_headers;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn build_responses_request_strips_reasoning_and_fast_variant_suffixes() {
+        let messages = [json!({
+            "role": "user",
+            "content": "write tests"
+        })];
+
+        let req = CodexNativeClient::build_responses_request(
+            &messages,
+            None,
+            "gpt-5.5-medium-fast",
+            true,
+        );
+
+        assert_eq!(req.model, "gpt-5.5");
+        assert!(req.stream);
+        assert_eq!(req.reasoning.as_ref().unwrap()["effort"], "medium");
+        assert_eq!(req.service_tier.as_deref(), Some("priority"));
+        assert_eq!(
+            req.instructions,
+            "You are Codex, a coding agent running in ORGII."
+        );
+    }
+
+    #[test]
+    fn build_responses_request_keeps_provider_native_suffixes() {
+        let req =
+            CodexNativeClient::build_responses_request(&[], None, "gpt-5.4-mini-medium-fast", true);
+
+        assert_eq!(req.model, "gpt-5.4-mini");
+        assert_eq!(req.reasoning.as_ref().unwrap()["effort"], "medium");
+        assert!(req.service_tier.is_none());
+    }
+
+    #[test]
+    fn build_responses_request_strips_openai_provider_prefix_for_codex_backend() {
+        let req =
+            CodexNativeClient::build_responses_request(&[], None, "openai/gpt-5.4-mini", true);
+
+        assert_eq!(req.model, "gpt-5.4-mini");
+        assert!(req.reasoning.is_none());
+        assert!(req.service_tier.is_none());
+    }
+
+    #[test]
+    fn build_responses_request_strips_prefix_before_variant_parsing() {
+        let req = CodexNativeClient::build_responses_request(
+            &[],
+            None,
+            "openai/gpt-5.5-medium-fast",
+            true,
+        );
+
+        assert_eq!(req.model, "gpt-5.5");
+        assert_eq!(req.reasoning.as_ref().unwrap()["effort"], "medium");
+        assert_eq!(req.service_tier.as_deref(), Some("priority"));
+    }
+
+    #[test]
+    fn build_responses_request_serializes_reasoning_and_service_tier() {
+        let req = CodexNativeClient::build_responses_request(&[], None, "gpt-5.5-xhigh-fast", true);
+
+        let value = serde_json::to_value(req).expect("serialize request");
+        assert_eq!(value["model"], "gpt-5.5");
+        assert_eq!(value["reasoning"]["effort"], "xhigh");
+        assert_eq!(value["service_tier"], "priority");
+        assert!(value.get("max_output_tokens").is_none());
+        assert!(value.get("temperature").is_none());
     }
 }

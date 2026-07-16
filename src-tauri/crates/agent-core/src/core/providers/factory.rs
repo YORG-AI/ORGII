@@ -285,6 +285,38 @@ fn resolve_spec_for_account(
     })
 }
 
+/// Inverse of [`spec_for_model_type`] for the API-key providers.
+///
+/// Returns `None` for specs backed by a CLI agent's credentials rather than a
+/// stored API key. A provider added to [`provider_id`] but forgotten here would
+/// silently fail to find its key, so both directions are covered by tests.
+fn api_key_model_type_for_spec(spec: &ProviderSpec) -> Option<ModelType> {
+    match spec.name {
+        provider_id::ANTHROPIC => Some(ModelType::AnthropicApi),
+        provider_id::OPENAI => Some(ModelType::OpenaiApi),
+        provider_id::DEEPSEEK => Some(ModelType::DeepseekApi),
+        provider_id::GEMINI => Some(ModelType::GeminiApi),
+        provider_id::GROQ => Some(ModelType::GroqApi),
+        provider_id::XAI => Some(ModelType::XaiApi),
+        provider_id::ZHIPU => Some(ModelType::ZhipuApi),
+        provider_id::DASHSCOPE => Some(ModelType::DashscopeApi),
+        provider_id::MINIMAX => Some(ModelType::MinimaxApi),
+        provider_id::LONGCAT => Some(ModelType::LongcatApi),
+        provider_id::MOONSHOT => Some(ModelType::MoonshotApi),
+        provider_id::SILICONFLOW => Some(ModelType::SiliconflowApi),
+        provider_id::MODELSCOPE => Some(ModelType::ModelscopeApi),
+        provider_id::AIHUBMIX => Some(ModelType::AihubmixApi),
+        provider_id::CHERRYIN => Some(ModelType::CherryinApi),
+        provider_id::BEDROCK => Some(ModelType::BedrockApi),
+        provider_id::CUSTOM => Some(ModelType::CustomApi),
+        provider_id::OPENROUTER => Some(ModelType::OpenrouterApi),
+        provider_id::ZENMUX => Some(ModelType::ZenmuxApi),
+        provider_id::VLLM => Some(ModelType::VllmApi),
+        provider_id::AZURE_OPENAI => Some(ModelType::AzureOpenaiApi),
+        _ => None,
+    }
+}
+
 fn spec_for_model_type(model_type: &ModelType) -> Option<&'static ProviderSpec> {
     let provider_name = match model_type {
         ModelType::AnthropicApi | ModelType::AzureAnthropicApi => provider_id::ANTHROPIC,
@@ -298,6 +330,12 @@ fn spec_for_model_type(model_type: &ModelType) -> Option<&'static ProviderSpec> 
         ModelType::DashscopeApi => provider_id::DASHSCOPE,
         ModelType::MinimaxApi => provider_id::MINIMAX,
         ModelType::LongcatApi => provider_id::LONGCAT,
+        ModelType::SiliconflowApi => provider_id::SILICONFLOW,
+        ModelType::ModelscopeApi => provider_id::MODELSCOPE,
+        ModelType::AihubmixApi => provider_id::AIHUBMIX,
+        ModelType::CherryinApi => provider_id::CHERRYIN,
+        ModelType::BedrockApi => provider_id::BEDROCK,
+        ModelType::CustomApi => provider_id::CUSTOM,
         ModelType::OpenrouterApi => provider_id::OPENROUTER,
         ModelType::ZenmuxApi => provider_id::ZENMUX,
         ModelType::VllmApi => provider_id::VLLM,
@@ -869,24 +907,7 @@ fn find_api_key_for_provider(
     spec: &ProviderSpec,
     creds: &[ModelKey],
 ) -> Result<(String, Option<String>, ProviderProtocol), ProviderError> {
-    let api_key_type = match spec.name {
-        provider_id::ANTHROPIC => Some(ModelType::AnthropicApi),
-        provider_id::OPENAI => Some(ModelType::OpenaiApi),
-        provider_id::DEEPSEEK => Some(ModelType::DeepseekApi),
-        provider_id::GEMINI => Some(ModelType::GeminiApi),
-        provider_id::GROQ => Some(ModelType::GroqApi),
-        provider_id::XAI => Some(ModelType::XaiApi),
-        provider_id::ZHIPU => Some(ModelType::ZhipuApi),
-        provider_id::DASHSCOPE => Some(ModelType::DashscopeApi),
-        provider_id::MINIMAX => Some(ModelType::MinimaxApi),
-        provider_id::LONGCAT => Some(ModelType::LongcatApi),
-        provider_id::MOONSHOT => Some(ModelType::MoonshotApi),
-        provider_id::OPENROUTER => Some(ModelType::OpenrouterApi),
-        provider_id::ZENMUX => Some(ModelType::ZenmuxApi),
-        provider_id::VLLM => Some(ModelType::VllmApi),
-        provider_id::AZURE_OPENAI => Some(ModelType::AzureOpenaiApi),
-        _ => None,
-    };
+    let api_key_type = api_key_model_type_for_spec(spec);
 
     if let Some(ref target_type) = api_key_type {
         for cred in creds {
@@ -1184,17 +1205,73 @@ mod tests {
         );
     }
 
+    /// The Custom provider ships no defaults on purpose — selecting the
+    /// Anthropic protocol without a base URL is a user error, not a lookup miss.
     #[test]
     fn anthropic_protocol_without_endpoint_or_custom_base_errors() {
+        let spec =
+            registry::find_by_name(provider_id::CUSTOM).expect("Custom provider registered");
+        let mut key = ModelKey::new(ModelType::CustomApi);
+        key.protocol = Some(ProviderProtocol::Anthropic);
+
+        let protocol = resolve_protocol(spec, &key);
+        let err = resolve_provider_endpoint(spec, key.base_url.as_ref(), protocol)
+            .expect_err("Custom Anthropic endpoint requires custom base URL");
+
+        assert!(err.to_string().contains("no default Anthropic endpoint"));
+    }
+
+    /// Zhipu's China endpoint is the registry default; the wizard writes the
+    /// Z.ai host into the account's `base_url` when the user picks Global.
+    #[test]
+    fn zhipu_anthropic_protocol_defaults_to_china_endpoint() {
         let spec = registry::find_by_name(provider_id::ZHIPU).expect("Zhipu provider registered");
         let mut key = ModelKey::new(ModelType::ZhipuApi);
         key.protocol = Some(ProviderProtocol::Anthropic);
 
         let protocol = resolve_protocol(spec, &key);
-        let err = resolve_provider_endpoint(spec, key.base_url.as_ref(), protocol)
-            .expect_err("Zhipu Anthropic endpoint requires custom base URL");
+        let api_base = resolve_provider_endpoint(spec, key.base_url.as_ref(), protocol)
+            .expect("Zhipu Anthropic endpoint should resolve");
 
-        assert!(err.to_string().contains("no default Anthropic endpoint"));
+        assert_eq!(protocol, ProviderProtocol::Anthropic);
+        assert_eq!(api_base.as_deref(), Some("https://api.z.ai/api/anthropic"));
+    }
+
+    /// Picking the Global endpoint in the wizard stores `api.z.ai` on the
+    /// account, and account base URLs win over registry defaults.
+    #[test]
+    fn zhipu_global_endpoint_overrides_registry_default() {
+        let spec = registry::find_by_name(provider_id::ZHIPU).expect("Zhipu provider registered");
+        let mut key = ModelKey::new(ModelType::ZhipuApi);
+        key.protocol = Some(ProviderProtocol::Anthropic);
+        key.base_url = Some("https://api.z.ai/api/anthropic".to_string());
+
+        let protocol = resolve_protocol(spec, &key);
+        let api_base = resolve_provider_endpoint(spec, key.base_url.as_ref(), protocol)
+            .expect("Zhipu global Anthropic endpoint should resolve");
+
+        assert_eq!(api_base.as_deref(), Some("https://api.z.ai/api/anthropic"));
+    }
+
+    #[test]
+    fn every_key_vault_model_type_maps_to_a_registered_provider_spec() {
+        for model_type in [
+            ModelType::SiliconflowApi,
+            ModelType::ModelscopeApi,
+            ModelType::AihubmixApi,
+            ModelType::CherryinApi,
+            ModelType::BedrockApi,
+            ModelType::CustomApi,
+        ] {
+            let spec = spec_for_model_type(&model_type).unwrap_or_else(|| {
+                panic!("{model_type:?} has no ProviderSpec in the agent-core registry")
+            });
+            assert_eq!(
+                api_key_model_type_for_spec(spec),
+                Some(model_type.clone()),
+                "{model_type:?} must round-trip through the spec mapping"
+            );
+        }
     }
 
     fn claude_oauth_key_with_token(token: &str) -> ModelKey {

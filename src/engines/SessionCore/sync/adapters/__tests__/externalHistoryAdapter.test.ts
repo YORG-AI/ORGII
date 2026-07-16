@@ -22,6 +22,18 @@ describe("external history initial window", () => {
     expect(selectExternalHistoryInitialWindow(chunks)).toBe(chunks);
   });
 
+  it("returns full histories for non-windowed sources", () => {
+    const chunks = Array.from({ length: 250 }, (_, index) =>
+      chunk(index, index === 0 ? "raw" : "tool_call", "user_message")
+    );
+
+    expect(
+      selectExternalHistoryInitialWindow(chunks, {
+        supportsWindowedReplay: false,
+      })
+    ).toBe(chunks);
+  });
+
   it("expands the tail window back to the current user round", () => {
     const chunks = [
       chunk(0, "raw", "user_message"),

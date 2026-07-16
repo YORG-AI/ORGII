@@ -10,6 +10,9 @@ import { normalizeDiffFilePath } from "@src/util/file/pathUtils";
 import type { DiffFileSectionData } from "../DiffFileSection";
 import type { DiffSectionListItem } from "./index";
 
+const PATCH_HUNK_HEADER_REGEX =
+  /^@@\s+-(\d+)(?:,\d+)?\s+\+(\d+)(?:,\d+)?\s+@@/m;
+
 export interface SessionReplayDiffEntryLike {
   entryId: string;
   event: SessionEvent;
@@ -21,6 +24,38 @@ export interface SessionReplayDiffSectionItem extends DiffSectionListItem<DiffFi
   entryIds: string[];
   /** Raw compact diff strings from each edit, used for multi-hunk merge during consolidation. */
   rawDiffs: string[];
+}
+
+function patchTextFromArgs(args: SessionEvent["args"]): string | undefined {
+  if (typeof args?.patch_text === "string") return args.patch_text;
+  if (typeof args?.patch === "string") return args.patch;
+  if (typeof args?.input === "string") return args.input;
+  return undefined;
+}
+
+function resultHasRealDiff(result: SessionEvent["result"]): boolean {
+  if (!result) return false;
+  if (
+    typeof result.diffString === "string" ||
+    typeof result.diff === "string"
+  ) {
+    return true;
+  }
+  if (Array.isArray(result.segments) && result.segments.length > 0) {
+    return true;
+  }
+  const output = result.output as Record<string, unknown> | undefined;
+  const success = output?.success as Record<string, unknown> | undefined;
+  return Boolean(
+    typeof success?.diffString === "string" || typeof success?.diff === "string"
+  );
+}
+
+function shouldTrustDiffStartLines(event: SessionEvent): boolean {
+  const patchText = patchTextFromArgs(event.args);
+  if (!patchText) return true;
+  if (PATCH_HUNK_HEADER_REGEX.test(patchText)) return true;
+  return resultHasRealDiff(event.result);
 }
 
 function getDiffStatus(
@@ -58,6 +93,7 @@ export function buildSessionReplayDiffSectionItems(
       : [editData];
 
   return segments.flatMap((segment, index) => {
+    const trustDiffStartLines = shouldTrustDiffStartLines(entry.event);
     // When a compact diff string is available, always parse it into
     // old/new values. This avoids passing full file bodies to CodeMirrorDiff
     // (which would show the entire file as context) and gives correct
@@ -88,8 +124,13 @@ export function buildSessionReplayDiffSectionItems(
         deletions: segment.linesRemoved,
         oldContent: contentUnavailable ? undefined : oldContent,
         newContent: contentUnavailable ? undefined : newContent,
-        oldStartLine: segment.oldStartLine ?? parsed?.oldStartLine,
-        newStartLine: segment.newStartLine ?? parsed?.newStartLine,
+        oldStartLine: trustDiffStartLines
+          ? (segment.oldStartLine ?? parsed?.oldStartLine)
+          : undefined,
+        newStartLine: trustDiffStartLines
+          ? (segment.newStartLine ?? parsed?.newStartLine)
+          : undefined,
+        showLineNumbers: trustDiffStartLines ? undefined : false,
         isUnavailable: contentUnavailable || undefined,
       },
       entryIds: [entry.entryId],
@@ -142,6 +183,11 @@ export function buildConsolidatedSessionReplayDiffSectionItems<
           existing.file.deletions !== undefined ||
           section.file.deletions !== undefined
             ? (existing.file.deletions ?? 0) + (section.file.deletions ?? 0)
+            : undefined,
+        showLineNumbers:
+          existing.file.showLineNumbers === false ||
+          section.file.showLineNumbers === false
+            ? false
             : undefined,
       };
 

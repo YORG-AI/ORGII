@@ -11,7 +11,11 @@ import {
   handlePlanReadyForApproval,
 } from "../agentSpecific";
 import { handleToolCallDelta } from "../streamHandlers";
-import { handleToolCall, handleToolResult } from "../toolHandlers";
+import {
+  handleInteractionFinalized,
+  handleToolCall,
+  handleToolResult,
+} from "../toolHandlers";
 import type { EventHandlerContext } from "../types";
 
 vi.hoisted(() => {
@@ -40,6 +44,7 @@ const {
   mergeSpy,
   patchByIdsSpy,
   completeLastRunningSpy,
+  switchModeForSessionSpy,
 } = vi.hoisted(() => {
   const events = new Map<string, SessionEvent>();
   const upsert = vi.fn((event: SessionEvent) => {
@@ -88,6 +93,7 @@ const {
     mergeSpy: merge,
     patchByIdsSpy: patchByIds,
     completeLastRunningSpy: vi.fn(),
+    switchModeForSessionSpy: vi.fn().mockResolvedValue(undefined),
   };
 });
 
@@ -105,6 +111,13 @@ vi.mock(
   "@src/engines/ChatPanel/blocks/CanvasInlineCard/openInSimulatorCanvas",
   () => ({
     openInSimulatorCanvas: vi.fn(),
+  })
+);
+
+vi.mock(
+  "@src/engines/ChatPanel/InputArea/ModeSwitchCard/useModeSwitchActions",
+  () => ({
+    switchModeForSession: switchModeForSessionSpy,
   })
 );
 
@@ -144,6 +157,7 @@ beforeEach(() => {
   mergeSpy.mockClear();
   patchByIdsSpy.mockClear();
   completeLastRunningSpy.mockClear();
+  switchModeForSessionSpy.mockClear();
   vi.stubGlobal("window", {
     dispatchEvent: vi.fn(),
   });
@@ -228,6 +242,32 @@ describe("create_plan streaming finalization", () => {
     expect(upsertSpy).not.toHaveBeenCalledWith(
       expect.objectContaining({ id: "call_plan_1-archived" }),
       "session-1"
+    );
+  });
+
+  it("resumes the session when mode switch is auto-accepted by timeout", async () => {
+    await handleInteractionFinalized(
+      {
+        type: "agent:interaction_finalized",
+        sessionId: "session-1",
+        tool: "suggest_mode_switch",
+        toolCallId: "call_mode_1",
+        resultObject: {
+          choice: "switch",
+          targetMode: "plan",
+          auto: "timeout",
+        },
+        resultPreview:
+          "Mode-switch suggestion timed out; auto-switching to plan mode.",
+      },
+      "session-1"
+    );
+
+    expect(mergeSpy).toHaveBeenCalledTimes(1);
+    expect(switchModeForSessionSpy).toHaveBeenCalledWith(
+      "session-1",
+      "tool-call-call_mode_1",
+      "plan"
     );
   });
 

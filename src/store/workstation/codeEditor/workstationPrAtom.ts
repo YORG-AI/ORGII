@@ -1,19 +1,24 @@
 import { atom } from "jotai";
+import { atomFamily } from "jotai-family";
 
 import type { OpenPRItem } from "@src/api/tauri/github";
+
+export const DEFAULT_WORKSTATION_REPO_SCOPE = "default";
+
+export function workstationRepoScopeKey(
+  repoId: string | null | undefined,
+  repoPath: string | null | undefined
+): string {
+  const id = repoId?.trim();
+  if (id) return `repo:${id}`;
+  const path = repoPath?.trim();
+  return path ? `path:${path}` : DEFAULT_WORKSTATION_REPO_SCOPE;
+}
 
 /**
  * Shared PR state for the active workstation repo.
  * Written by `useWorkstationPr` when eligibility or PR URL changes.
  * Read by Source Control surfaces and context collection.
- *
- * TODO(multi-panel): This is a single global atom. When multiple workstation
- * panels are open simultaneously they will share state incorrectly. Fix by
- * migrating to `atomFamily` keyed by `repoId` (from `jotai-family`), matching
- * the pattern used in `cursorModeOverrideAtom.ts`. Callers to update:
- *   - `useWorkstationPr` (useSetAtom → useAtom(workstationPrAtomFamily(repoId)))
- *   - `workstationPrCallbackAtom` consumers
- *   - Any other direct reader of `workstationPrAtom`
  */
 export interface WorkstationPrSnapshot {
   /** The branch is eligible for PR creation (not default, pushed, clean) */
@@ -30,14 +35,26 @@ export interface WorkstationPrSnapshot {
   isDefaultBranch: boolean;
 }
 
-export const workstationPrAtom = atom<WorkstationPrSnapshot>({
+const initialWorkstationPrSnapshot: WorkstationPrSnapshot = {
   readyToCreate: false,
   prUrl: undefined,
   isCreating: false,
   hasUpstream: false,
   uncommittedCount: 0,
   isDefaultBranch: false,
+};
+
+export const workstationPrAtomFamily = atomFamily((scopeKey: string) => {
+  const scopedAtom = atom<WorkstationPrSnapshot>({
+    ...initialWorkstationPrSnapshot,
+  });
+  scopedAtom.debugLabel = `workstationPrAtom(${scopeKey})`;
+  return scopedAtom;
 });
+
+export const workstationPrAtom = workstationPrAtomFamily(
+  DEFAULT_WORKSTATION_REPO_SCOPE
+);
 
 /**
  * Latest Source Control commit message for the active workstation repo.
@@ -49,14 +66,31 @@ export const workstationPrAtom = atom<WorkstationPrSnapshot>({
  * it. Empty when no Source Control panel is mounted, in which case the PR
  * title falls back to the branch name.
  */
-export const workstationPrCommitMessageAtom = atom<string>("");
+export const workstationPrCommitMessageAtomFamily = atomFamily(
+  (scopeKey: string) => {
+    const scopedAtom = atom<string>("");
+    scopedAtom.debugLabel = `workstationPrCommitMessageAtom(${scopeKey})`;
+    return scopedAtom;
+  }
+);
+export const workstationPrCommitMessageAtom =
+  workstationPrCommitMessageAtomFamily(DEFAULT_WORKSTATION_REPO_SCOPE);
 
 /**
  * All open pull requests for the active workstation repo.
  * Written by `useWorkstationPr` when the PR page requests the list.
  * Read by `PullRequestContent` to render the full PR list.
  */
-export const workstationAllOpenPrsAtom = atom<OpenPRItem[]>([]);
+export const workstationAllOpenPrsAtomFamily = atomFamily(
+  (scopeKey: string) => {
+    const scopedAtom = atom<OpenPRItem[]>([]);
+    scopedAtom.debugLabel = `workstationAllOpenPrsAtom(${scopeKey})`;
+    return scopedAtom;
+  }
+);
+export const workstationAllOpenPrsAtom = workstationAllOpenPrsAtomFamily(
+  DEFAULT_WORKSTATION_REPO_SCOPE
+);
 
 /**
  * Load lifecycle for `workstationAllOpenPrsAtom`. Lets the PR sidebar
@@ -72,16 +106,46 @@ export type WorkstationOpenPrsLoadState =
   | "ready"
   | "error";
 
+export const workstationOpenPrsLoadStateAtomFamily = atomFamily(
+  (scopeKey: string) => {
+    const scopedAtom = atom<WorkstationOpenPrsLoadState>("idle");
+    scopedAtom.debugLabel = `workstationOpenPrsLoadStateAtom(${scopeKey})`;
+    return scopedAtom;
+  }
+);
 export const workstationOpenPrsLoadStateAtom =
-  atom<WorkstationOpenPrsLoadState>("idle");
+  workstationOpenPrsLoadStateAtomFamily(DEFAULT_WORKSTATION_REPO_SCOPE);
 
-export const workstationOpenPrsErrorAtom = atom<string | null>(null);
+export const workstationOpenPrsErrorAtomFamily = atomFamily(
+  (scopeKey: string) => {
+    const scopedAtom = atom<string | null>(null);
+    scopedAtom.debugLabel = `workstationOpenPrsErrorAtom(${scopeKey})`;
+    return scopedAtom;
+  }
+);
+export const workstationOpenPrsErrorAtom = workstationOpenPrsErrorAtomFamily(
+  DEFAULT_WORKSTATION_REPO_SCOPE
+);
 
 /**
  * Stable ref-backed callback for triggering PR creation from Source Control UI.
  * Stored as a ref container to avoid stale closure issues with atom-stored functions.
  */
-export const workstationPrCallbackAtom = atom<{
+type WorkstationPrCallbacks = {
   createPr: (() => Promise<{ url?: string; error?: string }>) | null;
   loadOpenPrs: (() => void) | null;
-}>({ createPr: null, loadOpenPrs: null });
+};
+
+export const workstationPrCallbackAtomFamily = atomFamily(
+  (scopeKey: string) => {
+    const scopedAtom = atom<WorkstationPrCallbacks>({
+      createPr: null,
+      loadOpenPrs: null,
+    });
+    scopedAtom.debugLabel = `workstationPrCallbackAtom(${scopeKey})`;
+    return scopedAtom;
+  }
+);
+export const workstationPrCallbackAtom = workstationPrCallbackAtomFamily(
+  DEFAULT_WORKSTATION_REPO_SCOPE
+);

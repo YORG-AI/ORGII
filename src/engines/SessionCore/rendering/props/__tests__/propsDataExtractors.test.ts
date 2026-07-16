@@ -498,6 +498,42 @@ describe("extractFileData", () => {
       expect(data.startLine).toBeUndefined();
     });
 
+    it("uses imported offset/limit metadata for plain read output ranges", () => {
+      const props = makeUniversalProps({
+        args: {
+          file_path: "src/app.rs",
+          offset: 249,
+          limit: 36,
+        },
+        result: { output: "plain imported sed output" },
+      });
+      const data = extractFileData(props);
+      expect(data.content).toBe("plain imported sed output");
+      expect(data.startLine).toBe(250);
+      expect(data.lineCount).toBe(36);
+    });
+
+    it("lets offset/limit repair stale rust extracted read ranges", () => {
+      const props = makeUniversalProps({
+        args: {
+          file_path: "src/app.rs",
+          offset: 859,
+          limit: 41,
+        },
+        rustExtracted: {
+          kind: "file",
+          filePath: "src/app.rs",
+          fileName: "app.rs",
+          content: "plain imported sed output",
+          language: "rust",
+          lineCount: 1,
+        },
+      });
+      const data = extractFileData(props);
+      expect(data.startLine).toBe(860);
+      expect(data.lineCount).toBe(41);
+    });
+
     it("reports startLine for ranged reads (offset/limit)", () => {
       const rangedContent = "[action: read_text]\n   120│fn main() {\n   121│}";
       const props = makeUniversalProps({
@@ -828,6 +864,82 @@ describe("extractEditData", () => {
       expect(data.applyPatchSegments?.[1]?.filePath).toBe("src/b.ts");
       expect(data.applyPatchSegments?.[1]?.linesRemoved).toBe(1);
       expect(data.applyPatchSegments?.[2]?.filePath).toBe("src/c.ts");
+    });
+
+    it("parses apply_patch text from args.patch", () => {
+      const patchText = [
+        "*** Begin Patch",
+        "*** Update File: src/from-patch.ts",
+        "@@",
+        "-old",
+        "+new",
+        "*** End Patch",
+      ].join("\n");
+      const props = makeUniversalProps({
+        args: { patch: patchText },
+      });
+      const data = extractEditData(props);
+      expect(data.filePath).toBe("src/from-patch.ts");
+      expect(data.fileName).toBe("from-patch.ts");
+      expect(data.applyPatchSegments).toHaveLength(1);
+      expect(data.linesAdded).toBe(1);
+      expect(data.linesRemoved).toBe(1);
+      expect(data.oldStartLine).toBeUndefined();
+      expect(data.newStartLine).toBeUndefined();
+      expect(data.applyPatchSegments?.[0]?.oldStartLine).toBeUndefined();
+      expect(data.applyPatchSegments?.[0]?.newStartLine).toBeUndefined();
+    });
+
+    it("preserves explicit apply_patch hunk line ranges", () => {
+      const patchText = [
+        "*** Begin Patch",
+        "*** Update File: src/ranged.ts",
+        "@@ -42,2 +43,2 @@",
+        "-old",
+        "+new",
+        "*** End Patch",
+      ].join("\n");
+      const props = makeUniversalProps({
+        args: { patch: patchText },
+      });
+      const data = extractEditData(props);
+      expect(data.filePath).toBe("src/ranged.ts");
+      expect(data.oldStartLine).toBe(42);
+      expect(data.newStartLine).toBe(43);
+      expect(data.applyPatchSegments?.[0]?.oldStartLine).toBe(42);
+      expect(data.applyPatchSegments?.[0]?.newStartLine).toBe(43);
+    });
+
+    it("repairs stale Rust patch placeholders from args.patch", () => {
+      const patchText = [
+        "*** Begin Patch",
+        "*** Update File: src/repaired.ts",
+        "@@",
+        "-const oldValue = true;",
+        "+const newValue = true;",
+        "*** End Patch",
+      ].join("\n");
+      const props = makeUniversalProps({
+        args: { patch: patchText },
+        rustExtracted: {
+          kind: "edit",
+          filePath: "",
+          fileName: "patch",
+          language: "diff",
+          diff: "",
+          linesAdded: 0,
+          linesRemoved: 0,
+          isDeleted: false,
+          applyPatchSegments: [],
+        },
+      });
+      const data = extractEditData(props);
+      expect(data.filePath).toBe("src/repaired.ts");
+      expect(data.fileName).toBe("repaired.ts");
+      expect(data.applyPatchSegments).toHaveLength(1);
+      expect(data.applyPatchSegments?.[0]?.filePath).toBe("src/repaired.ts");
+      expect(data.linesAdded).toBe(1);
+      expect(data.linesRemoved).toBe(1);
     });
 
     it("computes line counts from patch diff lines", () => {

@@ -91,7 +91,7 @@ export const SETTINGS_TABLE_COL = {
 export interface SettingsTableColumn<RowData> {
   key: string;
   label: ReactNode;
-  width?: string;
+  width?: React.CSSProperties["width"];
   align?: "left" | "center" | "right";
   /** Legacy: SettingsTable now preserves columns and relies on internal horizontal scrolling. */
   hideBelow?: "sm" | "md";

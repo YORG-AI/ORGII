@@ -43,6 +43,8 @@ export interface InputEditorProps {
   onDrop?: (e: React.DragEvent<HTMLDivElement>) => void;
   /** Placeholder text */
   placeholder?: string;
+  /** Inline ghost hint after the last content node (see ComposerInput) */
+  trailingHint?: string | null;
   /** Callback when images are pasted from clipboard */
   onImagePaste?: (files: File[]) => void;
   /** Whether inline "/" slash command menu is visible */
@@ -90,6 +92,7 @@ const InputEditor: React.FC<InputEditorProps> = memo(
     onDragLeave,
     onDrop,
     placeholder = "Type your message...",
+    trailingHint = null,
     onImagePaste,
     showSlashMenu,
     slashCommandKeyboardHandlerRef,
@@ -172,6 +175,7 @@ const InputEditor: React.FC<InputEditorProps> = memo(
         <ComposerInput
           ref={composerInputRef}
           placeholder={placeholder}
+          trailingHint={trailingHint}
           onContentChange={(text) => onContentChange?.(text)}
           onAtMention={onAtMention}
           onAtMentionClose={onAtMentionClose}

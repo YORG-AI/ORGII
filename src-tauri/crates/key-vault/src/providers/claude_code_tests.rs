@@ -44,6 +44,18 @@ fn ignores_missing_windows() {
 }
 
 #[test]
+fn applies_profile_rate_limit_tier_to_plan_type() {
+    let metadata = parse_oauth_profile_metadata(
+        r#"{
+            "organization": { "rate_limit_tier": "max_20x" }
+        }"#,
+    )
+    .unwrap();
+
+    assert_eq!(metadata.get("rate_limit_tier").map(String::as_str), Some("max_20x"));
+}
+
+#[test]
 fn rejects_invalid_json() {
     let err = parse_oauth_usage_response("not-json").unwrap_err();
     assert!(err.contains("parse failed"));

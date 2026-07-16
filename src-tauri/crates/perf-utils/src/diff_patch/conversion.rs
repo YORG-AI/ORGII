@@ -6,9 +6,26 @@
 
 use super::types::{PatchConversionResult, PatchSegment};
 
+fn is_hunk_marker(line: &str) -> bool {
+    line.trim_start().starts_with("@@")
+}
+
+fn is_explicit_hunk_header(line: &str) -> bool {
+    let mut parts = line.split_whitespace();
+    matches!(parts.next(), Some("@@"))
+        && parts.next().is_some_and(|part| part.starts_with('-'))
+        && parts.next().is_some_and(|part| part.starts_with('+'))
+}
+
 /// Build unified diff lines for one section and return a `PatchSegment`.
 fn flush_section(file_path: &str, is_add: bool, section: &mut Vec<String>) -> Option<PatchSegment> {
-    if file_path.is_empty() || section.is_empty() {
+    let body_lines: Vec<&String> = section
+        .iter()
+        .filter(|line| !is_hunk_marker(line))
+        .collect();
+    let has_explicit_hunk_header = section.iter().any(|line| is_explicit_hunk_header(line));
+
+    if file_path.is_empty() || (body_lines.is_empty() && !has_explicit_hunk_header) {
         section.clear();
         return None;
     }
@@ -20,31 +37,36 @@ fn flush_section(file_path: &str, is_add: bool, section: &mut Vec<String>) -> Op
     if is_add {
         diff_lines.push("--- /dev/null".to_string());
         diff_lines.push(format!("+++ {}", file_path));
-        diff_lines.push(format!("@@ -0,0 +1,{} @@", section.len()));
+        diff_lines.push(format!("@@ -0,0 +1,{} @@", body_lines.len()));
     } else {
         diff_lines.push(format!("--- {}", file_path));
         diff_lines.push(format!("+++ {}", file_path));
-        let add_count = section.iter().filter(|l| l.starts_with('+')).count();
-        let rem_count = section.iter().filter(|l| l.starts_with('-')).count();
-        let ctx_count = section
-            .iter()
-            .filter(|l| !l.starts_with('+') && !l.starts_with('-'))
-            .count();
-        diff_lines.push(format!(
-            "@@ -1,{} +1,{} @@",
-            rem_count + ctx_count,
-            add_count + ctx_count
-        ));
+        if !has_explicit_hunk_header {
+            let add_count = body_lines.iter().filter(|l| l.starts_with('+')).count();
+            let rem_count = body_lines.iter().filter(|l| l.starts_with('-')).count();
+            let ctx_count = body_lines
+                .iter()
+                .filter(|l| !l.starts_with('+') && !l.starts_with('-'))
+                .count();
+            diff_lines.push(format!(
+                "@@ -1,{} +1,{} @@",
+                rem_count + ctx_count,
+                add_count + ctx_count
+            ));
+        }
     }
 
     for line in section.iter() {
+        if is_hunk_marker(line) && !is_explicit_hunk_header(line) {
+            continue;
+        }
         if line.starts_with('+') {
             seg_added += 1;
         } else if line.starts_with('-') {
             seg_removed += 1;
         }
+        diff_lines.push(line.clone());
     }
-    diff_lines.append(&mut section.clone());
     section.clear();
 
     Some(PatchSegment {
@@ -53,6 +75,7 @@ fn flush_section(file_path: &str, is_add: bool, section: &mut Vec<String>) -> Op
         lines_added: seg_added,
         lines_removed: seg_removed,
         is_deleted: false,
+        has_explicit_hunk_header: is_add || has_explicit_hunk_header,
     })
 }
 
@@ -76,10 +99,14 @@ pub(super) fn convert_patch_to_unified_impl(patch_text: &str) -> PatchConversion
             is_add_file = true;
             continue;
         }
-        if let Some(rest) = line.strip_prefix("*** Modify File: ").or_else(|| {
-            line.strip_prefix("***  Modify File: ")
-                .or_else(|| line.strip_prefix("*** \tModify File: "))
-        }) {
+        if let Some(rest) = line
+            .strip_prefix("*** Modify File: ")
+            .or_else(|| line.strip_prefix("***  Modify File: "))
+            .or_else(|| line.strip_prefix("*** \tModify File: "))
+            .or_else(|| line.strip_prefix("*** Update File: "))
+            .or_else(|| line.strip_prefix("***  Update File: "))
+            .or_else(|| line.strip_prefix("*** \tUpdate File: "))
+        {
             if let Some(seg) = flush_section(&current_file, is_add_file, &mut section_lines) {
                 segments.push(seg);
             }
@@ -105,6 +132,7 @@ pub(super) fn convert_patch_to_unified_impl(patch_text: &str) -> PatchConversion
                 lines_added: 0,
                 lines_removed: 0,
                 is_deleted: true,
+                has_explicit_hunk_header: false,
             });
             current_file = String::new();
             continue;
@@ -189,6 +217,7 @@ mod tests {
         let patch = "\
 *** Begin Patch
 *** Modify File: src/utils.rs
+@@
  fn helper() {
 -    old_impl();
 +    new_impl();
@@ -201,8 +230,31 @@ mod tests {
         assert_eq!(result.segments[0].file_path, "src/utils.rs");
         assert_eq!(result.segments[0].lines_added, 1);
         assert_eq!(result.segments[0].lines_removed, 1);
+        assert!(!result.segments[0].has_explicit_hunk_header);
+        assert!(!result.segments[0].diff.contains("\n@@\n"));
         assert_eq!(result.lines_added, 1);
         assert_eq!(result.lines_removed, 1);
+    }
+
+    #[test]
+    fn explicit_hunk_header_is_preserved() {
+        let patch = "\
+*** Begin Patch
+*** Update File: src/utils.rs
+@@ -42,3 +43,3 @@
+ context
+-old
++new
+*** End Patch";
+
+        let result = convert_patch_to_unified_impl(patch);
+
+        assert_eq!(result.segments.len(), 1);
+        assert!(result.segments[0].has_explicit_hunk_header);
+        assert!(result.segments[0].diff.contains("@@ -42,3 +43,3 @@"));
+        assert!(result.diff.contains("@@ -42,3 +43,3 @@"));
+        assert_eq!(result.segments[0].lines_added, 1);
+        assert_eq!(result.segments[0].lines_removed, 1);
     }
 
     #[test]

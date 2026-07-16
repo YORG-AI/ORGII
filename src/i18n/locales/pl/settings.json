@@ -212,6 +212,9 @@
     "presenceGuidanceInvisible": "Niewidoczny — wskazówki dla agentów",
     "presenceGuidanceAway": "Z dala — wskazówki dla agentów",
     "presenceGuidancePlaceholder": "Powiedz agentowi, jak zachowywać się w tym trybie…",
+    "presenceGuidanceOnlineDefault": "Jestem przy klawiaturze. Możesz w każdej chwili zadawać pytania doprecyzowujące i potwierdzać ze mną działania destrukcyjne przed ich uruchomieniem",
+    "presenceGuidanceInvisibleDefault": "Jestem w pobliżu, ale widoczny jako offline. Domyślnie działaj autonomicznie i powiadamiaj mnie tylko o działaniach wysokiego ryzyka lub dużych refaktoryzacjach; pozostałe pytania zbierz w jednym podsumowaniu zamiast zadawać je pojedynczo",
+    "presenceGuidanceAwayDefault": "Jestem z dala od klawiatury. Nie blokuj się, czekając na mnie; podejmij najlepszą decyzję na podstawie dostępnych informacji, dokończ co się da i zostaw krótkie podsumowanie oraz otwarte pytania na mój powrót",
     "followSystem": "Zgodnie z systemem"
   },
   "background": {
@@ -618,6 +621,12 @@
     "autoTimeoutTitle": "Auto-limit czasu",
     "questionAutoSkipTimeoutByStatus": "Automatyczne pomijanie pytań",
     "questionAutoSkipTimeoutByStatusDesc": "Automatycznie pomijaj pytania Agent po tym limicie czasu (0 = wyłączone)",
+    "planAutoApproveTimeoutByStatus": "{{status}} automatyczne zatwierdzanie planu",
+    "planAutoApproveTimeoutByStatusDesc": "Automatycznie zatwierdza oczekujący plan po tylu sekundach w tym statusie (0 = wyłączone)",
+    "goalMaxTurnsByStatus": "{{status}} budżet kontynuacji celu",
+    "goalMaxTurnsByStatusDesc": "Kontynuuje pracę nad ostatnią prośbą przez maksymalnie tyle dodatkowych tur po normalnym zatrzymaniu agenta (0 = wyłączone)",
+    "modeSwitchAutoPlanByStatus": "{{status}} automatyczne przejście do trybu Plan",
+    "modeSwitchAutoPlanByStatusDesc": "Automatycznie przełącza oczekujące sugestie trybu Plan po wygaśnięciu ich licznika potwierdzenia",
     "resourceTabs": {
       "tools": "Narzędzia",
       "mcp": "MCP",

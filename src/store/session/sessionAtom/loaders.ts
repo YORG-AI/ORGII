@@ -121,6 +121,15 @@ function replaceExternalHistorySourceFirstPage(
   );
 }
 
+function replaceAllImportedHistoryFirstPage(
+  prev: readonly Session[],
+  incoming: readonly Session[]
+): Session[] {
+  return replaceImportedFirstPage(prev, incoming, (sessionId) =>
+    Boolean(getImportedHistorySourceBySessionId(sessionId))
+  );
+}
+
 function setPaginationFor(
   category: SessionListCategory,
   patch: Partial<SessionPaginationMap[SessionListCategory]>
@@ -370,7 +379,9 @@ export const loadSidebarSessions = async (options?: {
   try {
     const { sessions: externalSessions, hasMore: externalHasMore } =
       await fetchExternalHistoryPage(0, pageSize);
-    store.set(sessionsAtom, (prev) => mergeSessions(prev, externalSessions));
+    store.set(sessionsAtom, (prev) =>
+      replaceAllImportedHistoryFirstPage(prev, externalSessions)
+    );
 
     const sessionsBySource = new Map<ImportedHistorySource, Session[]>();
     for (const session of externalSessions) {
@@ -434,5 +445,6 @@ export const loadMoreCategory = async (
 
 export const __TESTS_ONLY = {
   mergeSessions,
+  replaceAllImportedHistoryFirstPage,
   replaceExternalHistorySourceFirstPage,
 };

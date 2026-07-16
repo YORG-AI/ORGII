@@ -2,14 +2,14 @@
  * ModelPill Component
  *
  * Compact model selector pill for the chat input toolbar.
- * Shows only the model name; key/source is chosen inside the model palette.
+ * Renders as a unified pill group: model name | effort (when editable).
  *
  * Two operating modes:
  *  - In-session (a sessionId is in scope, the typical InputArea case)
  *    — display values come from `sessionByIdAtom(sessionId)` for the
  *    fields the row carries (`model`, `accountId`, `keySource`,
  *    `cliAgentType`, `tier`); display-only labels are derived from
- *    KeyVault by accountId in `ModelSelectorPill.resolveDisplaySelection`.
+ *    KeyVault by accountId in `resolveModelDisplaySelection`.
  *    A user pick fires `session_patch` AND updates the creator-default
  *    atom so the user's most-recent choice continues to seed new sessions
  *    — mirrors the legacy "last-used" behaviour without losing per-session truth.
@@ -215,14 +215,31 @@ const ModelPill: React.FC = memo(() => {
     setSelectorState({ isOpen: false });
   }, [setSelectorState]);
 
+  const handleVariantApply = useCallback(
+    (nextModelId: string) => {
+      if (!lastModel) return;
+
+      const updatedConfig: AdvancedConfig = isHostedKey(lastModel.keySource)
+        ? advancedConfig
+        : {
+            ...advancedConfig,
+            model: nextModelId,
+          };
+
+      handleConfigChange(updatedConfig);
+    },
+    [advancedConfig, handleConfigChange, lastModel]
+  );
+
   const modelPill = (
     <ModelSelectorPill
       ref={modelSegmentRef}
       selection={lastModel}
       defaultLabel={t("sessions:creator.selectModel")}
       active={isModelOpen}
-      className="h-[28px] max-w-[220px] shrink-0 text-[13px]"
+      className="max-w-[360px]"
       onClick={handleOpenModelSelector}
+      onVariantApply={handleVariantApply}
       dataTestId="chat-model-pill-model"
       ariaLabel={t("sessions:creator.selectModel")}
       isActiveSession={isActiveSession}

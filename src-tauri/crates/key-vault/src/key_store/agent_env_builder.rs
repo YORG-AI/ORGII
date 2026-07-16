@@ -392,6 +392,12 @@ impl KeyService {
             | ModelType::MoonshotApi
             | ModelType::MinimaxApi
             | ModelType::LongcatApi
+            | ModelType::SiliconflowApi
+            | ModelType::ModelscopeApi
+            | ModelType::AihubmixApi
+            | ModelType::CherryinApi
+            | ModelType::BedrockApi
+            | ModelType::CustomApi
             | ModelType::OpenrouterApi
             | ModelType::ZenmuxApi
             | ModelType::VllmApi
@@ -418,6 +424,12 @@ impl KeyService {
                     ModelType::MoonshotApi => "MOONSHOT_API_KEY",
                     ModelType::MinimaxApi => "MINIMAX_API_KEY",
                     ModelType::LongcatApi => "LONGCAT_API_KEY",
+                    ModelType::SiliconflowApi => "SILICONFLOW_API_KEY",
+                    ModelType::ModelscopeApi => "MODELSCOPE_API_KEY",
+                    ModelType::AihubmixApi => "AIHUBMIX_API_KEY",
+                    ModelType::CherryinApi => "CHERRYIN_API_KEY",
+                    ModelType::BedrockApi => "AWS_BEARER_TOKEN_BEDROCK",
+                    ModelType::CustomApi => "CUSTOM_API_KEY",
                     ModelType::OpenrouterApi => "OPENROUTER_API_KEY",
                     ModelType::ZenmuxApi => "ZENMUX_API_KEY",
                     ModelType::VllmApi => "VLLM_API_KEY",
@@ -552,6 +564,12 @@ impl KeyService {
             | ModelType::MoonshotApi
             | ModelType::MinimaxApi
             | ModelType::LongcatApi
+            | ModelType::SiliconflowApi
+            | ModelType::ModelscopeApi
+            | ModelType::AihubmixApi
+            | ModelType::CherryinApi
+            | ModelType::BedrockApi
+            | ModelType::CustomApi
             | ModelType::OpenrouterApi
             | ModelType::ZenmuxApi
             | ModelType::VllmApi
@@ -577,6 +595,12 @@ impl KeyService {
                     ModelType::MoonshotApi => "MOONSHOT_API_KEY",
                     ModelType::MinimaxApi => "MINIMAX_API_KEY",
                     ModelType::LongcatApi => "LONGCAT_API_KEY",
+                    ModelType::SiliconflowApi => "SILICONFLOW_API_KEY",
+                    ModelType::ModelscopeApi => "MODELSCOPE_API_KEY",
+                    ModelType::AihubmixApi => "AIHUBMIX_API_KEY",
+                    ModelType::CherryinApi => "CHERRYIN_API_KEY",
+                    ModelType::BedrockApi => "AWS_BEARER_TOKEN_BEDROCK",
+                    ModelType::CustomApi => "CUSTOM_API_KEY",
                     ModelType::OpenrouterApi => "OPENROUTER_API_KEY",
                     ModelType::ZenmuxApi => "ZENMUX_API_KEY",
                     ModelType::VllmApi => "VLLM_API_KEY",

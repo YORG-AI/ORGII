@@ -212,6 +212,9 @@
     "presenceGuidanceInvisible": "Invisível — orientação para os agentes",
     "presenceGuidanceAway": "Ausente — orientação para os agentes",
     "presenceGuidancePlaceholder": "Diz ao agente como se comportar neste estado…",
+    "presenceGuidanceOnlineDefault": "Estou ao teclado. Podes fazer perguntas de esclarecimento a qualquer momento e confirmar comigo qualquer ação destrutiva antes de a executar",
+    "presenceGuidanceInvisibleDefault": "Estou por perto, mas a aparecer offline. Por padrão, trabalha de forma autónoma e avisa-me apenas sobre ações de alto risco ou refatorações significativas; junta as outras perguntas num único resumo em vez de as fazer uma a uma",
+    "presenceGuidanceAwayDefault": "Estou longe do teclado. Não fiques bloqueado à minha espera; toma a melhor decisão com a informação disponível, termina o que conseguires e deixa um resumo breve do que aconteceu e das perguntas em aberto para quando eu voltar",
     "followSystem": "Seguir o sistema"
   },
   "background": {
@@ -618,6 +621,12 @@
     "autoTimeoutTitle": "Timeout automático",
     "questionAutoSkipTimeoutByStatus": "Pular perguntas automaticamente",
     "questionAutoSkipTimeoutByStatusDesc": "Pula perguntas do Agent automaticamente após este timeout (0 = desabilitado)",
+    "planAutoApproveTimeoutByStatus": "{{status}} aprovação automática do plano",
+    "planAutoApproveTimeoutByStatusDesc": "Aprova automaticamente um plano pendente após este número de segundos neste estado (0 = desabilitado)",
+    "goalMaxTurnsByStatus": "{{status}} orçamento de continuação da meta",
+    "goalMaxTurnsByStatusDesc": "Continua a trabalhar no teu último pedido por até este número de turnos extra depois de o agente normalmente parar (0 = desabilitado)",
+    "modeSwitchAutoPlanByStatus": "{{status}} mudança automática para modo Plan",
+    "modeSwitchAutoPlanByStatusDesc": "Muda automaticamente sugestões pendentes do modo Plan quando o temporizador de confirmação expira",
     "resourceTabs": {
       "tools": "Ferramentas",
       "mcp": "MCP",

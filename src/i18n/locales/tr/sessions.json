@@ -142,7 +142,9 @@
       "views": "Görünümler",
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
-      "removeDraft": "Taslağı kaldır"
+      "removeDraft": "Taslağı kaldır",
+      "showSubagents": "Alt aracıları göster",
+      "hideSubagents": "Alt aracıları gizle"
     },
     "resultStatus": {
       "completed": "Tamamlandı",
@@ -669,7 +671,9 @@
       "empty": "Eylem bulunamadı.",
       "unpinAll": "Tümünün sabitlemesini kaldır",
       "insert": "Ekle"
-    }
+    },
+    "compactArgHint": "<özet için isteğe bağlı odak>",
+    "compactCommandDescription": "Eski bağlamı özetleyerek yer açar. İsteğe bağlı: /compact <özet odağı>"
   },
   "listPanel": {
     "showingOf": "{{total}} içinden {{filtered}} gösteriliyor",
@@ -731,6 +735,10 @@
       },
       "quota": {
         "empty": "Henüz quota verisi yok. Key Vault'tan kullanımı yenileyin.",
+        "refresh": "Yenile",
+        "justNow": "az önce",
+        "minutesAgo": "{{count}} dk önce",
+        "hoursAgo": "{{count}}s önce",
         "metrics": {
           "fiveHour": "5h",
           "sevenDay": "7g",
@@ -1878,7 +1886,8 @@
       "models": "Modeller",
       "skills": "Skills",
       "workspaceSkills": "Workspace Skills",
-      "userSkills": "User Skills"
+      "userSkills": "User Skills",
+      "commands": "Komutlar"
     },
     "diffMenu": {
       "gitActions": "GIT eylemleri",
@@ -2288,7 +2297,8 @@
       "Hâlâ düşünülüyor, olağandan uzun sürüyor...",
       "Üzerinde çalışılıyor, olağandan uzun sürüyor...",
       "Sırada ne olacağı değerlendiriliyor, olağandan uzun sürüyor..."
-    ]
+    ],
+    "compacting": "Bağlam sıkıştırılıyor..."
   },
   "revertConfirm": {
     "title": "Kaydedilmemiş dosya değişiklikleri",

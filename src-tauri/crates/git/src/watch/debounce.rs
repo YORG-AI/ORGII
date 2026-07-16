@@ -323,9 +323,12 @@ impl DebounceManager {
 
     /// Schedule a flush attempt with retry logic.
     ///
-    /// Uses `tokio::spawn` + `tokio::time::sleep` so the debounce delay does
-    /// not occupy an OS thread. The actual git status refresh runs in
-    /// `tokio::task::spawn_blocking` because it calls blocking libgit2 APIs.
+    /// Uses `tauri::async_runtime::spawn` + `tokio::time::sleep` so the debounce
+    /// delay does not occupy an OS thread. Must go through the tauri runtime
+    /// handle (not `tokio::spawn`) because callers include the watcher's
+    /// `std::thread` event processor, which has no tokio runtime context.
+    /// The actual git status refresh runs in `tokio::task::spawn_blocking`
+    /// because it calls blocking libgit2 APIs.
     fn schedule_flush(
         repo_id: String,
         delay_ms: u64,
@@ -335,7 +338,7 @@ impl DebounceManager {
         event_emitter: Arc<EventEmitter>,
         config: DebounceConfig,
     ) {
-        tokio::spawn(async move {
+        tauri::async_runtime::spawn(async move {
             tokio::time::sleep(Duration::from_millis(delay_ms)).await;
 
             // Check if event still exists and should be flushed

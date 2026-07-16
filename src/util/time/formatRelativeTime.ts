@@ -25,7 +25,7 @@ function toMs(timestamp: number | string | null | undefined): number | null {
  *   - "short"   (default): "Now", "2 min ago", "Yesterday", "5 days ago", date fallback
  *   - "compact": "just now", "2 mins", "3 hrs", "1 day", "1 wk", "2 mos", "1 yr"
  *   - "long":    "just now", "2 minutes ago", "3 hours ago", "1 month ago", "2 years ago"
- *   - "nano":    "just now", "5m", "3h", "2d", "1w", "3mo", "1y"
+ *   - "nano":    "Now", "5m", "3h", "2d", "1w", "3mo", "1y"
  *   - "issue":   "today", "yesterday", "5d ago", "2mo ago", "1y ago"
  */
 export function formatRelativeTime(
@@ -79,7 +79,7 @@ export function formatRelativeTime(
   }
 
   if (style === "nano") {
-    if (diffSec < 60) return "just now";
+    if (diffSec < 60) return "Now";
     if (diffMin < 60) return `${diffMin}m`;
     if (diffHr < 24) return `${diffHr}h`;
     if (diffDay < 7) return `${diffDay}d`;

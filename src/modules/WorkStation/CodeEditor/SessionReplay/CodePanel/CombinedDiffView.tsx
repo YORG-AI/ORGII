@@ -16,6 +16,7 @@ import Button from "@src/components/Button";
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import { VirtualizedModernDiff } from "@src/features/CodeViewer/VirtualizedModernDiff";
 
+import { shouldTrustDiffStartLines } from "../converters/fileConverter";
 import { resolveFileOperationPayload } from "../resolveFilePayload";
 import type { FileOperationEntry } from "../types";
 import { getEditStartLine } from "./editUtils";
@@ -54,6 +55,7 @@ const EditSection: React.FC<{
     if (isCollapsed) return null;
     return resolveFileOperationPayload(op);
   }, [isCollapsed, op]);
+  const showLineNumbers = shouldTrustDiffStartLines(op.event);
   const hasContent =
     payload !== null &&
     (payload.oldContent !== undefined || payload.newContent !== undefined);
@@ -101,6 +103,7 @@ const EditSection: React.FC<{
               height="auto"
               oldStartLine={payload.oldStartLine}
               newStartLine={payload.newStartLine}
+              showLineNumbers={showLineNumbers}
               contextLines={3}
               collapseUnchanged={true}
               showFilePath={false}

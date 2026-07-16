@@ -41,7 +41,9 @@ fn seed_session(session_id: &str) {
             sequence     INTEGER NOT NULL DEFAULT 0,
             created_at   TEXT NOT NULL,
             images       TEXT,
-            compact_from_sequence INTEGER
+            compact_from_sequence INTEGER,
+            compact_tokens_before INTEGER,
+            compact_tokens_after INTEGER
          );",
     )
     .expect("create tables in seed_session");
@@ -70,6 +72,8 @@ fn make_msg(session_id: &str, role: &str, content: &str) -> AgentMessageRow {
         created_at: chrono::Utc::now().to_rfc3339(),
         images: None,
         compact_from_sequence: None,
+        compact_tokens_before: None,
+        compact_tokens_after: None,
     }
 }
 

@@ -79,24 +79,14 @@ pub async fn run_extraction(
     let effective_registry: Arc<ToolRegistry> = params.parent_tools.clone();
     let effective_policy = super::super::build_memory_policy();
 
-    let system_prompt = messages
-        .first()
-        .and_then(|m| m.get("content"))
-        .and_then(|c| c.as_str())
-        .unwrap_or("")
-        .to_string();
-
+    // Prompt-cache-critical: clone the parent transcript VERBATIM (system
+    // message included). Re-stringifying the system content through
+    // `as_str()` silently turned structured block arrays into "" and any
+    // re-serialization breaks byte-identity with the parent request, so the
+    // fork stopped sharing the parent prompt cache prefix entirely. The only
+    // addition allowed is the extraction instruction appended at the tail.
     let mut fork_messages = Vec::with_capacity(messages.len() + 1);
-    fork_messages.push(serde_json::json!({
-        "role": "system",
-        "content": system_prompt,
-    }));
-    for msg in messages.iter() {
-        let role = msg.get("role").and_then(|r| r.as_str()).unwrap_or("");
-        if role != "system" {
-            fork_messages.push(msg.clone());
-        }
-    }
+    fork_messages.extend(messages.iter().cloned());
     fork_messages.push(serde_json::json!({
         "role": "user",
         "content": user_prompt,

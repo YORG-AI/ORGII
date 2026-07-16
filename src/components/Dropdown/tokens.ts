@@ -466,6 +466,8 @@ export const DROPDOWN_WIDTHS = {
   wideMenuClass: "min-w-[200px]",
   /** Panel dropdown — info popover, tooltip panel */
   panelWidthClass: "min-w-[220px]",
+  /** Fixed-width status-bar panel (ports menu) */
+  fixedStatusPanelClass: "w-[250px]",
   /** File tree dropdown, multi-select panels */
   fileTreeClass: "min-w-[280px]",
 } as const;

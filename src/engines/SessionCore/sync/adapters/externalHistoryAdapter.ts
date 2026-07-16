@@ -22,8 +22,13 @@ function isUserMessageChunk(chunk: ActivityChunk): boolean {
 }
 
 export function selectExternalHistoryInitialWindow(
-  chunks: ActivityChunk[]
+  chunks: ActivityChunk[],
+  options: { supportsWindowedReplay?: boolean } = {}
 ): ActivityChunk[] {
+  if (options.supportsWindowedReplay === false) {
+    return chunks;
+  }
+
   if (chunks.length <= EXTERNAL_HISTORY_INITIAL_CHUNK_LIMIT) {
     return chunks;
   }
@@ -67,7 +72,9 @@ async function loadExternalHistory(
   if (signal.aborted || !Array.isArray(chunks) || chunks.length === 0) {
     return [];
   }
-  const initialWindow = selectExternalHistoryInitialWindow(chunks);
+  const initialWindow = selectExternalHistoryInitialWindow(chunks, {
+    supportsWindowedReplay: source.supportsWindowedReplay,
+  });
   const events = await processChunksRust(initialWindow, sessionId);
   if (signal.aborted) return [];
   return events;

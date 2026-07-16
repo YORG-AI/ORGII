@@ -24,18 +24,24 @@ import { ReferenceDragGhost } from "@src/shared/dnd/ReferenceDragGhost";
 import { setPrDragStash } from "@src/shared/dnd/dragSideChannel";
 import { useReferencePillDrag } from "@src/shared/dnd/useReferencePillDrag";
 import {
-  workstationAllOpenPrsAtom,
-  workstationOpenPrsErrorAtom,
-  workstationOpenPrsLoadStateAtom,
-  workstationPrAtom,
-  workstationPrCallbackAtom,
+  workstationAllOpenPrsAtomFamily,
+  workstationOpenPrsErrorAtomFamily,
+  workstationOpenPrsLoadStateAtomFamily,
+  workstationPrAtomFamily,
+  workstationPrCallbackAtomFamily,
+  workstationRepoScopeKey,
 } from "@src/store/workstation/codeEditor/workstationPrAtom";
+import type { SourceControlHistorySelection } from "@src/store/workstation/tabs";
 
+import { prefetchWorkstationPrDetail } from "../../hooks/useWorkstationPrDetail";
 import { getPrStatusVariant } from "./prCardHelpers";
 
 export interface PullRequestContentProps {
   branchName?: string;
   filterQuery?: string;
+  onHistorySelectionChange?: (selection: SourceControlHistorySelection) => void;
+  repoId?: string | null;
+  repoPath?: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -91,6 +97,14 @@ const PrRow: React.FC<PrRowProps> = memo(
       setPrDragStash(buildPrPayload());
     }, [buildPrPayload]);
 
+    // Warm the PR-detail cache on hover so opening the PR paints instantly.
+    const handlePrefetch = useCallback(() => {
+      const parsed = parsePrUrl(pr.url);
+      if (parsed) {
+        void prefetchWorkstationPrDetail(parsed.repoFullName, pr.number);
+      }
+    }, [pr.url, pr.number]);
+
     const node: TreeRowNode = useMemo(
       () => ({
         id: String(pr.number),
@@ -122,6 +136,7 @@ const PrRow: React.FC<PrRowProps> = memo(
             isSelected={isSelected}
             onClick={() => onClick(pr)}
             showIndentGuides={false}
+            onMouseEnter={handlePrefetch}
             onMouseDown={stashPrDrag}
             {...dragHandlers}
             className={
@@ -148,19 +163,27 @@ PrRow.displayName = "PrRow";
 const PullRequestContent: React.FC<PullRequestContentProps> = ({
   branchName,
   filterQuery = "",
+  onHistorySelectionChange,
+  repoId,
+  repoPath,
 }) => {
   const { t } = useTranslation("common");
+  const scopeKey = workstationRepoScopeKey(repoId, repoPath);
   const {
     prUrl,
     readyToCreate,
     isCreating: prCreating,
-  } = useAtomValue(workstationPrAtom);
+  } = useAtomValue(workstationPrAtomFamily(scopeKey));
   const { createPr: onCreatePr, loadOpenPrs } = useAtomValue(
-    workstationPrCallbackAtom
+    workstationPrCallbackAtomFamily(scopeKey)
   );
-  const allOpenPrs = useAtomValue(workstationAllOpenPrsAtom);
-  const openPrsLoadState = useAtomValue(workstationOpenPrsLoadStateAtom);
-  const openPrsError = useAtomValue(workstationOpenPrsErrorAtom);
+  const allOpenPrs = useAtomValue(workstationAllOpenPrsAtomFamily(scopeKey));
+  const openPrsLoadState = useAtomValue(
+    workstationOpenPrsLoadStateAtomFamily(scopeKey)
+  );
+  const openPrsError = useAtomValue(
+    workstationOpenPrsErrorAtomFamily(scopeKey)
+  );
 
   useEffect(() => {
     loadOpenPrs?.();
@@ -194,9 +217,21 @@ const PullRequestContent: React.FC<PullRequestContentProps> = ({
     return sorted.filter((p) => p.title.toLowerCase().includes(q));
   }, [allOpenPrs, currentBranchPrFromList, filterQuery]);
 
-  const handlePrClick = useCallback((pr: OpenPRItem) => {
-    setSelectedPrNumber(pr.number);
-  }, []);
+  const handlePrClick = useCallback(
+    (pr: OpenPRItem) => {
+      setSelectedPrNumber(pr.number);
+      const statusKey = pr.draft ? "draft" : pr.state;
+      onHistorySelectionChange?.({
+        type: "pr",
+        prNumber: pr.number,
+        prTitle: pr.title,
+        prUrl: pr.url,
+        prStatus: statusKey,
+        headBranch: pr.head_branch,
+      });
+    },
+    [onHistorySelectionChange]
+  );
 
   const handleCreate = useCallback(async () => {
     if (!onCreatePr || prCreating) return;

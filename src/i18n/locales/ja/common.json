@@ -33,6 +33,8 @@
     "noContent": "コンテンツがありません",
     "noIssueSelected": "Issue が選択されていません",
     "selectIssueHint": "サイドバーの Issues パネルから Issue を選択してください。",
+    "noPrSelected": "Pull request が選択されていません",
+    "selectPrHint": "サイドバーの Pull request パネルから Pull request を選択してください。",
     "reload": "再読み込み",
     "urlPreviewRequiresTauri": "URL プレビューには Tauri が必要です",
     "openInExternalBrowser": "代わりに外部ブラウザーで開いてください",
@@ -1026,6 +1028,20 @@
     "indexingProgress": "インデックス中: {{processed}}/{{total}} ファイル ({{percent}}%)",
     "indexingProgressWithFile": "インデックス中: {{processed}}/{{total}} ファイル ({{percent}}%)\n現在: {{file}}",
     "languageServices": "Language Services",
+    "ports": {
+      "workspaceSection": "Workspace",
+      "externalSection": "外部",
+      "tooltip": "ポート: Workspace {{workspace}}、外部 {{external}}",
+      "noWorkspacePorts": "Workspace ポートは検出されませんでした",
+      "externalLabel": "外部",
+      "unknownProcess": "不明なプロセス",
+      "pidLabel": "PID {{pid}}",
+      "openInBrowser": "ブラウザで開く",
+      "copyAddress": "アドレスをコピー",
+      "stopProcess": "プロセスを停止",
+      "searchPlaceholder": "ポートを検索…",
+      "noSearchResults": "一致するポートがありません"
+    },
     "noLanguageServicesActive": "No language services active",
     "linesSelected": "{{count}} lines selected",
     "charsSelected": "{{count}} selected",
@@ -1217,7 +1233,6 @@
     },
     "modelSelector": {
       "recentModels": "最近のモデル",
-      "currentModel": "現在のモデル",
       "allModels": "すべてのモデル",
       "noRecent": "最近のモデルはありません",
       "noResults": "一致するモデルがありません",
@@ -1232,6 +1247,7 @@
     "modelProperties": {
       "options": "オプション",
       "effort": "Effort",
+      "default": "デフォルト",
       "faster": "高速",
       "smarter": "高精度"
     },
@@ -1965,7 +1981,21 @@
     "warningHint": "コンテキストが埋まりつつあります。より良い結果のため、まもなく新しいセッションを開始してください。",
     "dangerHint": "コンテキストがほぼいっぱいです。詳細を失わないよう、新しいセッションを開始してください。",
     "autoCompactNote": "まもなくコンテキストを要約します",
-    "startNewSession": "新しいセッションを開始"
+    "startNewSession": "新しいセッションを開始",
+    "compactBoundaryTitle": "コンテキストを圧縮しました",
+    "compactBoundarySubtitle_other": "{{count}}件の過去メッセージを要約",
+    "compactBoundaryTokens": "{{before}} → {{after}} トークン",
+    "manualCompactAction": "圧縮",
+    "manualCompactRunning": "圧縮中",
+    "manualCompactInProgress": "コンテキストを圧縮中です — 完了までお待ちください",
+    "manualCompactSuccess": "圧縮完了: {{messagesBefore}} → {{messagesAfter}} メッセージ、{{tokensBefore}} → {{tokensAfter}} トークン",
+    "manualCompactTooShort": "内容が短いため圧縮は不要です",
+    "manualCompactAlreadyCompact": "新たに圧縮できる内容はありません",
+    "manualCompactBusy": "セッション実行中です。完了後に圧縮してください",
+    "manualCompactNoRuntime": "圧縮する前にメッセージを送信してください",
+    "manualCompactFailed": "圧縮に失敗しました: {{message}}",
+    "manualCompactChannelAttached": "このセッションはチャンネル管理です — そちらで /compact を使ってください",
+    "manualCompactInstructionsPlaceholder": "任意: 要約で重視するポイント"
   },
   "relativeDate": {
     "today": "今日",

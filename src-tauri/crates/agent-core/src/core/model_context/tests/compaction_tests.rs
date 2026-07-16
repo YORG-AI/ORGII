@@ -906,3 +906,287 @@ async fn compact_does_not_skip_between_trigger_and_full_budget() {
         "compact must act once the trigger threshold is crossed"
     );
 }
+
+#[tokio::test]
+async fn compact_manual_force_bypasses_automatic_trigger_threshold() {
+    use crate::model_context::compaction::CompactionOutcome;
+    use crate::providers::traits::{LLMProvider, LLMResponse, ProviderError};
+
+    struct SummaryProvider;
+
+    #[async_trait::async_trait]
+    impl LLMProvider for SummaryProvider {
+        async fn chat(
+            &self,
+            _messages: &[Value],
+            _tools: Option<&[Value]>,
+            _model: &str,
+            _max_tokens: u32,
+            _temperature: f32,
+        ) -> Result<LLMResponse, ProviderError> {
+            Ok(LLMResponse {
+                content: Some("manual summary of the older messages".to_string()),
+                tool_calls: vec![],
+                finish_reason: crate::providers::finish_reason::STOP.to_string(),
+                usage: std::collections::HashMap::new(),
+                reasoning_content: None,
+                blocks: Vec::new(),
+                stream_error_kind: None,
+                retry_after_ms: None,
+            })
+        }
+
+        fn default_model(&self) -> &str {
+            "test-model"
+        }
+
+        fn provider_name(&self) -> &str {
+            "mock"
+        }
+    }
+
+    let big = "x".repeat(400);
+    let mut history: Vec<Value> = vec![user_msg("task statement")];
+    for _ in 0..40 {
+        history.push(assistant_msg(&big));
+    }
+    let budget = ContextCompactor::estimate_messages_tokens(&history) * 2;
+    let mut config = default_config();
+    config.floor_tokens = 0;
+    let mut state = CompactionState::default();
+    let provider = SummaryProvider;
+
+    let (_, regular_outcome) = ContextCompactor::compact(
+        &history,
+        budget,
+        &config,
+        &mut state,
+        &provider,
+        "test-model",
+    )
+    .await;
+    assert_eq!(regular_outcome, CompactionOutcome::Skipped);
+
+    let mut manual_state = CompactionState::default();
+    let (compacted, manual_outcome) = ContextCompactor::compact_manual_force(
+        &history,
+        budget,
+        &config,
+        &mut manual_state,
+        &provider,
+        "test-model",
+        None,
+    )
+    .await
+    .expect("manual force compaction succeeds");
+
+    assert_ne!(manual_outcome, CompactionOutcome::Skipped);
+    assert!(compacted.len() < history.len());
+}
+
+#[tokio::test]
+async fn compact_manual_force_propagates_summarization_failure() {
+    use crate::model_context::compaction::CompactionState;
+    use crate::providers::traits::{LLMProvider, LLMResponse, ProviderError};
+
+    struct FailingProvider;
+
+    #[async_trait::async_trait]
+    impl LLMProvider for FailingProvider {
+        async fn chat(
+            &self,
+            _messages: &[Value],
+            _tools: Option<&[Value]>,
+            _model: &str,
+            _max_tokens: u32,
+            _temperature: f32,
+        ) -> Result<LLMResponse, ProviderError> {
+            Err(ProviderError::RequestFailed("provider outage".to_string()))
+        }
+
+        fn default_model(&self) -> &str {
+            "test-model"
+        }
+
+        fn provider_name(&self) -> &str {
+            "mock"
+        }
+    }
+
+    let big = "x".repeat(400);
+    let mut history: Vec<Value> = vec![user_msg("task statement")];
+    for _ in 0..40 {
+        history.push(assistant_msg(&big));
+    }
+    let budget = ContextCompactor::estimate_messages_tokens(&history);
+    let mut config = default_config();
+    config.floor_tokens = 0;
+    let mut state = CompactionState::default();
+
+    let result = ContextCompactor::compact_manual_force(
+        &history,
+        budget,
+        &config,
+        &mut state,
+        &FailingProvider,
+        "test-model",
+        None,
+    )
+    .await;
+
+    // Manual compaction must surface the failure instead of silently
+    // truncating, and must not advance the auto path's circuit breaker.
+    let err = result.expect_err("provider failure propagates");
+    assert!(err.contains("provider outage"), "unexpected error: {err}");
+    assert_eq!(state.consecutive_failures, 0);
+}
+
+#[tokio::test]
+async fn compact_manual_force_threads_custom_instructions_into_prompt() {
+    use std::sync::Mutex;
+
+    use crate::model_context::compaction::CompactionState;
+    use crate::providers::traits::{LLMProvider, LLMResponse, ProviderError};
+
+    struct CapturingProvider {
+        seen_system_prompts: Mutex<Vec<String>>,
+    }
+
+    #[async_trait::async_trait]
+    impl LLMProvider for CapturingProvider {
+        async fn chat(
+            &self,
+            messages: &[Value],
+            _tools: Option<&[Value]>,
+            _model: &str,
+            _max_tokens: u32,
+            _temperature: f32,
+        ) -> Result<LLMResponse, ProviderError> {
+            let system = messages
+                .iter()
+                .filter(|msg| msg.get("role").and_then(Value::as_str) == Some("system"))
+                .filter_map(|msg| msg.get("content").and_then(Value::as_str))
+                .collect::<Vec<_>>()
+                .join("\n");
+            self.seen_system_prompts.lock().unwrap().push(system);
+            Ok(LLMResponse {
+                content: Some("summary honoring the focus".to_string()),
+                tool_calls: vec![],
+                finish_reason: crate::providers::finish_reason::STOP.to_string(),
+                usage: std::collections::HashMap::new(),
+                reasoning_content: None,
+                blocks: Vec::new(),
+                stream_error_kind: None,
+                retry_after_ms: None,
+            })
+        }
+
+        fn default_model(&self) -> &str {
+            "test-model"
+        }
+
+        fn provider_name(&self) -> &str {
+            "mock"
+        }
+    }
+
+    let big = "x".repeat(400);
+    let mut history: Vec<Value> = vec![user_msg("task statement")];
+    for _ in 0..40 {
+        history.push(assistant_msg(&big));
+    }
+    let budget = ContextCompactor::estimate_messages_tokens(&history);
+    let mut config = default_config();
+    config.floor_tokens = 0;
+    let mut state = CompactionState::default();
+    let provider = CapturingProvider {
+        seen_system_prompts: Mutex::new(Vec::new()),
+    };
+
+    let result = ContextCompactor::compact_manual_force(
+        &history,
+        budget,
+        &config,
+        &mut state,
+        &provider,
+        "test-model",
+        Some("focus on the database schema decisions"),
+    )
+    .await;
+
+    assert!(result.is_ok());
+    let prompts = provider.seen_system_prompts.lock().unwrap();
+    assert!(
+        prompts
+            .iter()
+            .any(|prompt| prompt.contains("focus on the database schema decisions")),
+        "custom instructions must reach the summarization prompt"
+    );
+}
+
+#[tokio::test]
+async fn compact_rejects_empty_summary() {
+    use crate::model_context::compaction::CompactionState;
+    use crate::providers::traits::{LLMProvider, LLMResponse, ProviderError};
+
+    struct EmptySummaryProvider;
+
+    #[async_trait::async_trait]
+    impl LLMProvider for EmptySummaryProvider {
+        async fn chat(
+            &self,
+            _messages: &[Value],
+            _tools: Option<&[Value]>,
+            _model: &str,
+            _max_tokens: u32,
+            _temperature: f32,
+        ) -> Result<LLMResponse, ProviderError> {
+            Ok(LLMResponse {
+                content: Some("   ".to_string()),
+                tool_calls: vec![],
+                finish_reason: crate::providers::finish_reason::STOP.to_string(),
+                usage: std::collections::HashMap::new(),
+                reasoning_content: None,
+                blocks: Vec::new(),
+                stream_error_kind: None,
+                retry_after_ms: None,
+            })
+        }
+
+        fn default_model(&self) -> &str {
+            "test-model"
+        }
+
+        fn provider_name(&self) -> &str {
+            "mock"
+        }
+    }
+
+    let big = "x".repeat(400);
+    let mut history: Vec<Value> = vec![user_msg("task statement")];
+    for _ in 0..40 {
+        history.push(assistant_msg(&big));
+    }
+    let budget = ContextCompactor::estimate_messages_tokens(&history);
+    let mut config = default_config();
+    config.floor_tokens = 0;
+    let mut state = CompactionState::default();
+
+    let result = ContextCompactor::compact_manual_force(
+        &history,
+        budget,
+        &config,
+        &mut state,
+        &EmptySummaryProvider,
+        "test-model",
+        None,
+    )
+    .await;
+
+    // A blank summary must never durably replace real history. Depending on
+    // where the blank response is caught (side_query's empty-content guard or
+    // the summarizer's own validation) the message differs, but both surface
+    // an "empty" error instead of accepting the summary.
+    let err = result.expect_err("empty summary is rejected");
+    assert!(err.to_lowercase().contains("empty"), "unexpected error: {err}");
+}

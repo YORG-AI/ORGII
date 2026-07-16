@@ -98,6 +98,7 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
   function ComposerInput(props, ref) {
     const {
       placeholder = "Type your message...",
+      trailingHint = null,
       initialContent = "",
       onContentChange,
       onAtMention,
@@ -833,10 +834,13 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
             ref={hostRef}
             className={`composer-input-content ${isDark ? "dark" : "light"} ${
               hostIsEmpty ? "is-empty" : ""
-            }`}
+            } ${trailingHint && !hostIsEmpty ? "has-trailing-hint" : ""}`}
             contentEditable={editable}
             suppressContentEditableWarning
             data-placeholder={placeholder}
+            data-trailing-hint={
+              trailingHint && !hostIsEmpty ? trailingHint : undefined
+            }
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck={false}

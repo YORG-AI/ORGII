@@ -174,7 +174,7 @@ describe("session menu section builders", () => {
     });
 
     expect(getLoadMoreItemIds(items)).toEqual([
-      "load-more-group-agent:cursor_ide",
+      "load-more-group-agent:external_history:cursor_ide",
     ]);
   });
 
@@ -190,6 +190,8 @@ describe("session menu section builders", () => {
       loadMoreRowFor,
     });
 
-    expect(getLoadMoreItemIds(items)).toEqual(["load-more-cursor_ide"]);
+    expect(getLoadMoreItemIds(items)).toEqual([
+      "load-more-external_history:cursor_ide",
+    ]);
   });
 });

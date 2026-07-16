@@ -11,14 +11,25 @@
  * AccountInlineActionsBar (sibling of InlineCardBody inside
  * InlineCardShell).
  */
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { ProviderEndpoint } from "@src/api/tauri/rpc/schemas/validation";
 import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import Input from "@src/components/Input";
 import Textarea from "@src/components/Textarea";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
+import {
+  SelectionGrid,
+  type SelectionGridOption,
+} from "@src/scaffold/WizardSystem/primitives";
+import {
+  getOfficialBaseUrl,
+  hasEndpointChoice,
+  resolveSelectedEndpoint,
+  useProviderConfig,
+} from "@src/scaffold/WizardSystem/variants/KeyVault/config";
 
 import {
   InlineCardColumnStack,
@@ -30,6 +41,10 @@ interface AccountInlineEditState {
   setName: (value: string) => void;
   description: string;
   setDescription: (value: string) => void;
+  /** Endpoints this account's provider offers; empty when there is no choice. */
+  endpoints: ProviderEndpoint[];
+  endpointId: string | undefined;
+  setEndpointId: (value: string) => void;
   saving: boolean;
   savedAt: number | null;
   canSave: boolean;
@@ -39,37 +54,84 @@ interface AccountInlineEditState {
 /**
  * Owns the edit form state. Pair with {@link AccountInlineEditBody} and
  * {@link AccountInlineEditFooter}.
+ *
+ * Endpoint choices come from the Rust provider registry, so any provider that
+ * declares more than one endpoint (Zhipu, MiniMax, Bedrock, OpenCode…) gets a
+ * picker here without further wiring.
  */
 export function useAccountInlineEditState(
   account: KeyVaultAccount,
-  onSave: (name: string, description: string) => Promise<void>
+  onSave: (name: string, description: string, baseUrl?: string) => Promise<void>
 ): AccountInlineEditState {
+  const { config: providerConfig } = useProviderConfig(account.modelType);
+  const endpoints = useMemo(
+    () => providerConfig?.endpoints ?? [],
+    [providerConfig?.endpoints]
+  );
+  const offersEndpointChoice = hasEndpointChoice(endpoints);
+  const protocol =
+    account.protocol ?? providerConfig?.defaultProtocol ?? "openai";
+
+  const savedEndpointId = resolveSelectedEndpoint(
+    endpoints,
+    account.baseUrl
+  )?.id;
+
   const [name, setName] = useState(account.name);
   const [description, setDescription] = useState(account.description ?? "");
+  const [endpointId, setEndpointId] = useState<string | undefined>(
+    savedEndpointId
+  );
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
   useEffect(() => {
     setName(account.name);
     setDescription(account.description ?? "");
-  }, [account.id, account.name, account.description]);
+    setEndpointId(savedEndpointId);
+  }, [
+    account.id,
+    account.name,
+    account.description,
+    account.baseUrl,
+    savedEndpointId,
+  ]);
 
   const trimmedName = name.trim();
   const isDirty =
     trimmedName !== account.name ||
-    description.trim() !== (account.description ?? "").trim();
+    description.trim() !== (account.description ?? "").trim() ||
+    (offersEndpointChoice && endpointId !== savedEndpointId);
   const canSave = isDirty && trimmedName.length > 0 && !saving;
 
   const handleSave = useCallback(async () => {
     if (!canSave) return;
     setSaving(true);
     try {
-      await onSave(trimmedName, description.trim());
+      const selectedEndpoint = endpoints.find(
+        (entry) => entry.id === endpointId
+      );
+      await onSave(
+        trimmedName,
+        description.trim(),
+        offersEndpointChoice
+          ? getOfficialBaseUrl(selectedEndpoint, protocol)
+          : undefined
+      );
       setSavedAt(Date.now());
     } finally {
       setSaving(false);
     }
-  }, [canSave, description, onSave, trimmedName]);
+  }, [
+    canSave,
+    description,
+    endpointId,
+    endpoints,
+    offersEndpointChoice,
+    onSave,
+    protocol,
+    trimmedName,
+  ]);
 
   useEffect(() => {
     if (savedAt == null) return;
@@ -82,6 +144,9 @@ export function useAccountInlineEditState(
     setName,
     description,
     setDescription,
+    endpoints,
+    endpointId,
+    setEndpointId,
     saving,
     savedAt,
     canSave,
@@ -97,7 +162,19 @@ export const AccountInlineEditBody: React.FC<AccountInlineEditBodyProps> = ({
   state,
 }) => {
   const { t } = useTranslation("integrations");
-  const { name, setName, description, setDescription } = state;
+  const {
+    name,
+    setName,
+    description,
+    setDescription,
+    endpoints,
+    endpointId,
+    setEndpointId,
+  } = state;
+
+  const endpointOptions: SelectionGridOption<string>[] = endpoints.map(
+    (entry) => ({ key: entry.id, label: entry.label })
+  );
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
@@ -126,6 +203,19 @@ export const AccountInlineEditBody: React.FC<AccountInlineEditBodyProps> = ({
             rows={2}
           />
         </div>
+        {hasEndpointChoice(endpoints) ? (
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="text-[12px] font-semibold text-text-1">
+              {t("keyVault.endpoint")}
+            </span>
+            <SelectionGrid
+              options={endpointOptions}
+              selected={endpointId ?? null}
+              onSelect={setEndpointId}
+              cardVariant="subtle"
+            />
+          </div>
+        ) : null}
       </InlineCardColumnStack>
 
       <InlineAlert type="info">{t("keyVault.edit.apiChangeHint")}</InlineAlert>

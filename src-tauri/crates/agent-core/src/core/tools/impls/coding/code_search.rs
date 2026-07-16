@@ -98,22 +98,33 @@ impl SearchTool {
     async fn resolve_repos(&self, params: &Value) -> Result<Vec<PathBuf>, ToolError> {
         let explicit_repo_path = optional_string(params, "repo_path");
         let explicit_repo_paths = optional_string_array(params, "repo_paths")?;
-        if explicit_repo_path.is_some() && explicit_repo_paths.is_some() {
-            return Err(ToolError::InvalidParams(
-                "Use either 'repo_path' for one root or 'repo_paths' for multiple roots, not both."
-                    .to_string(),
-            ));
-        }
 
-        let paths = if let Some(explicit_paths) = explicit_repo_paths {
-            if explicit_paths.is_empty() {
+        // Be tolerant when a model supplies both `repo_path` and `repo_paths`
+        // (some providers leak both sibling fields). Merge them and dedup rather
+        // than erroring — a hard error here can trap the agent in a repeated
+        // tool-error loop until it hits the consecutive-error stop guard.
+        let has_explicit = explicit_repo_path.is_some() || explicit_repo_paths.is_some();
+        let paths = if has_explicit {
+            let mut candidates: Vec<String> = Vec::new();
+            if let Some(explicit_path) = explicit_repo_path {
+                candidates.push(explicit_path);
+            }
+            if let Some(explicit_paths) = explicit_repo_paths {
+                candidates.extend(explicit_paths);
+            }
+            let mut merged: Vec<PathBuf> = Vec::new();
+            for candidate in candidates {
+                let path = PathBuf::from(candidate);
+                if !path.as_os_str().is_empty() && !merged.contains(&path) {
+                    merged.push(path);
+                }
+            }
+            if merged.is_empty() {
                 return Err(ToolError::InvalidParams(
-                    "parameter 'repo_paths' must contain at least one path".to_string(),
+                    "provide at least one path in 'repo_path' or 'repo_paths'".to_string(),
                 ));
             }
-            explicit_paths.into_iter().map(PathBuf::from).collect()
-        } else if let Some(explicit_path) = explicit_repo_path {
-            vec![PathBuf::from(explicit_path)]
+            merged
         } else {
             let active = self.active_repo.lock().await;
             vec![active.clone().unwrap_or_else(|| {

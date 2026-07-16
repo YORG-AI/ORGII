@@ -669,7 +669,9 @@
       "empty": "Keine Aktionen gefunden.",
       "unpinAll": "Alle lösen",
       "insert": "Einfügen"
-    }
+    },
+    "compactArgHint": "<optionaler Fokus für die Zusammenfassung>",
+    "compactCommandDescription": "Älteren Kontext zusammenfassen, um Platz freizugeben. Optional: /compact <Fokus für die Zusammenfassung>"
   },
   "listPanel": {
     "showingOf": "{{filtered}} von {{total}} angezeigt",
@@ -731,6 +733,10 @@
       },
       "quota": {
         "empty": "Noch keine Quota-Daten. Nutzung im Key Vault aktualisieren.",
+        "refresh": "Aktualisieren",
+        "justNow": "gerade eben",
+        "minutesAgo": "vor {{count}} Min.",
+        "hoursAgo": "vor {{count}}Std",
         "metrics": {
           "fiveHour": "5h",
           "sevenDay": "7T",
@@ -1878,7 +1884,8 @@
       "models": "Modelle",
       "skills": "Skills",
       "workspaceSkills": "Workspace Skills",
-      "userSkills": "User Skills"
+      "userSkills": "User Skills",
+      "commands": "Befehle"
     },
     "diffMenu": {
       "gitActions": "GIT-Aktionen",
@@ -2287,7 +2294,8 @@
       "Denke noch nach, dauert länger als üblich...",
       "Arbeite daran, dauert länger als üblich...",
       "Überlege, was als Nächstes kommt, dauert länger als üblich..."
-    ]
+    ],
+    "compacting": "Kontext wird komprimiert..."
   },
   "revertConfirm": {
     "title": "Nicht gespeicherte Dateiänderungen",

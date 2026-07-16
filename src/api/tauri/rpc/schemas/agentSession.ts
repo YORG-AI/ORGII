@@ -4,6 +4,7 @@ import type {
   AgentExecModeConfig,
   AgentStatusInfo,
   FileResolution,
+  ManualCompactResult,
   PendingQuestion,
   RevertResult,
   SessionFileRecord,
@@ -18,6 +19,15 @@ const JsonRecordSchema = z.record(z.string(), z.unknown());
 
 export const SessionIdInput = z.object({
   sessionId: z.string(),
+});
+
+/**
+ * Input for `agent_session_manual_compact` — optional free-form user
+ * instructions steer what the summarizer should focus on.
+ */
+export const ManualCompactInput = z.object({
+  sessionId: z.string(),
+  instructions: z.string().optional(),
 });
 
 export const SessionRequestIdInput = z.object({
@@ -53,6 +63,30 @@ export const SessionInfoSchema = z.object({
   isSingleton: z.boolean(),
 }) as z.ZodType<SessionInfo, SessionInfo>;
 
+export const ManualCompactResultSchema = z.object({
+  status: z.enum([
+    "compacted",
+    "too_short",
+    "already_compact",
+    "busy",
+    "no_runtime",
+    "channel_attached",
+    "failed",
+  ]),
+  message: z.string().optional(),
+  messagesBefore: z.number().optional(),
+  messagesAfter: z.number().optional(),
+  tokensBefore: z.number().optional(),
+  tokensAfter: z.number().optional(),
+  boundary: z
+    .object({
+      id: z.string(),
+      content: z.string(),
+      createdAt: z.string(),
+    })
+    .optional(),
+}) as z.ZodType<ManualCompactResult, ManualCompactResult>;
+
 export const SessionMessageSchema = z
   .object({
     id: z.string(),
@@ -61,6 +95,7 @@ export const SessionMessageSchema = z
     toolName: z.string().optional(),
     toolInput: z.string().optional(),
     createdAt: z.string(),
+    compactFromSequence: z.number().nullable().optional(),
   })
   .catchall(z.unknown()) as z.ZodType<SessionMessage, SessionMessage>;
 

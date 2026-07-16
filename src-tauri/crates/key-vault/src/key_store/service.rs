@@ -1262,6 +1262,32 @@ impl KeyService {
         saved
     }
 
+    /// Merge account metadata fields onto a stored key.
+    pub fn merge_key_account_metadata(
+        &self,
+        key_id: &str,
+        metadata: HashMap<String, String>,
+    ) -> Result<Option<ModelKey>, String> {
+        if metadata.is_empty() {
+            return Ok(self.get_key_by_id(key_id));
+        }
+
+        self.update_store(|store| {
+            if let Some(entry) = store.keys.get_mut(key_id) {
+                for (field, value) in metadata {
+                    if !value.trim().is_empty() {
+                        entry.account_metadata.insert(field, value);
+                    }
+                }
+                entry.updated_at = Utc::now();
+                store.updated_at = Utc::now();
+                Some(entry.clone())
+            } else {
+                None
+            }
+        })
+    }
+
     /// Update key health status
     pub fn update_key_health(
         &self,

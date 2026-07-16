@@ -7,6 +7,7 @@ import {
   GitBranch,
   GitCommitVertical,
   Grip,
+  Pin,
   Save,
   Timer,
 } from "lucide-react";
@@ -17,6 +18,7 @@ import {
   type CursorIdeSessionDetail,
   cursorIdeSessionDetail,
 } from "@src/api/tauri/externalHistory";
+import { IMPORTED_HISTORY_SOURCE_DESCRIPTORS } from "@src/api/tauri/externalHistory/imported/descriptors";
 import {
   type CoreSessionSummary,
   getOrgtrackSessionSummary,
@@ -42,6 +44,7 @@ import { formatBranchLabel } from "@src/util/git/branchLabel";
 import { basename } from "@src/util/path";
 import {
   getDispatchCategory,
+  getExternalHistorySourceId,
   resolveSessionIconId,
 } from "@src/util/session/sessionDispatch";
 import { formatDuration } from "@src/util/time/formatDuration";
@@ -57,6 +60,13 @@ const logger = createLogger("SessionHoverCard");
 interface AgentSessionInfo {
   icon: React.ReactNode;
   label: string;
+  textClassName?: string;
+}
+
+interface SessionOriginInfo {
+  icon: React.ReactNode;
+  label: string;
+  sourceLabel: string;
   textClassName?: string;
 }
 
@@ -127,6 +137,36 @@ function getAgentSessionInfo(session: {
     icon: <AgentIcon size={13} strokeWidth={1.75} />,
     label: session.agentDisplayName || "Agent",
     textClassName: "text-text-1",
+  };
+}
+
+function getSessionOriginInfo(
+  sessionId: string,
+  t: (key: string, options?: { defaultValue?: string }) => string
+): SessionOriginInfo {
+  const sourceId = getExternalHistorySourceId(sessionId);
+  const source = IMPORTED_HISTORY_SOURCE_DESCRIPTORS.find(
+    (descriptor) => descriptor.sourceId === sourceId
+  );
+
+  if (source) {
+    return {
+      icon: <Pin size={13} strokeWidth={1.75} />,
+      label: t("history.detail.externalSession", {
+        defaultValue: "External session",
+      }),
+      sourceLabel: source.displayName,
+      textClassName: "text-accent-9",
+    };
+  }
+
+  return {
+    icon: <Pin size={13} strokeWidth={1.75} />,
+    label: t("history.detail.internalSession", {
+      defaultValue: "Internal session",
+    }),
+    sourceLabel: "ORGII",
+    textClassName: "text-text-3",
   };
 }
 
@@ -302,6 +342,7 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
       lastModel?.listingModel || lastModel?.model || undefined;
     const modelIconAgent = lastModel?.listingModelType || undefined;
     const agentSessionInfo = getAgentSessionInfo(session);
+    const sessionOriginInfo = getSessionOriginInfo(session.session_id, t);
 
     const dateTimeLabelOptions = {
       todayLabel: t("common:relativeDate.today"),
@@ -324,6 +365,19 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
 
     return (
       <HoverCardPanel>
+        <HoverCardRow
+          icon={sessionOriginInfo.icon}
+          iconClassName={sessionOriginInfo.textClassName}
+        >
+          <div
+            className="truncate text-text-2"
+            title={`${sessionOriginInfo.label} · ${sessionOriginInfo.sourceLabel}`}
+          >
+            <span className="text-text-3">{sessionOriginInfo.label}</span>
+            <span className="mx-1 text-text-4">·</span>
+            <span>{sessionOriginInfo.sourceLabel}</span>
+          </div>
+        </HoverCardRow>
         <HoverCardRow
           icon={agentSessionInfo.icon}
           iconClassName={agentSessionInfo.textClassName}

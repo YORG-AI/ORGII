@@ -212,6 +212,9 @@
     "presenceGuidanceInvisible": "Invisible — guidance for agents",
     "presenceGuidanceAway": "Away — guidance for agents",
     "presenceGuidancePlaceholder": "Tell the agent how to behave in this mode…",
+    "presenceGuidanceOnlineDefault": "I am at the keyboard. Feel free to ask me clarifying questions at any time and confirm any destructive actions with me before running them",
+    "presenceGuidanceInvisibleDefault": "I am around but appearing offline. Default to autonomous execution and only notify me for high-risk actions or significant refactoring work; batch any other questions into a single summary instead of asking one by one",
+    "presenceGuidanceAwayDefault": "I am away from the keyboard. Do not block on me — make the best decision you can with the information you have, finish what you can finish, and leave a concise summary of what happened and any open questions for when I return",
     "followSystem": "Follow system"
   },
   "background": {
@@ -618,6 +621,12 @@
     "autoTimeoutTitle": "Auto-timeout",
     "questionAutoSkipTimeoutByStatus": "Auto-skip questions",
     "questionAutoSkipTimeoutByStatusDesc": "Auto-skip Agent questions after this timeout (0 = disabled)",
+    "planAutoApproveTimeoutByStatus": "{{status}} plan auto-approve",
+    "planAutoApproveTimeoutByStatusDesc": "Auto-approve a pending plan after this many seconds in this status (0 = disabled)",
+    "goalMaxTurnsByStatus": "{{status}} goal continuation budget",
+    "goalMaxTurnsByStatusDesc": "Keep working toward your last request for up to this many extra turns after the agent would normally stop (0 = disabled)",
+    "modeSwitchAutoPlanByStatus": "{{status}} mode switch auto-plan",
+    "modeSwitchAutoPlanByStatusDesc": "Auto-switch pending Plan mode suggestions when their confirmation timer expires",
     "resourceTabs": {
       "tools": "Tools",
       "mcp": "MCP",

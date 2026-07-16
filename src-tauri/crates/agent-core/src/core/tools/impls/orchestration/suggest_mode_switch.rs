@@ -17,6 +17,8 @@ use crate::interaction::finalize::{
     await_with_cancel, AutoTimeoutAction, AutoTimeoutPolicy, FinalizedStatus, InteractionOutcome,
 };
 use crate::interaction::mode_switch::{ModeSwitchChoice, ModeSwitchManager};
+use crate::interaction::presence_policy::PresencePolicy;
+use crate::interaction::presence_state;
 use crate::tools::names as tool_names;
 use crate::tools::traits::{Tool, ToolError};
 
@@ -26,6 +28,34 @@ pub struct ModeSwitchToolContext {
     /// Current agent exec mode — set at session init, read by `llm_description()`.
     /// Uses `std::sync::Mutex` because `llm_description()` is sync.
     pub current_mode: std::sync::Mutex<Option<String>>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn timeout_choice_defaults_to_skip() {
+        let choice = mode_switch_timeout_choice(PresencePolicy::default(), "plan");
+
+        assert!(matches!(choice, ModeSwitchChoice::Skip));
+    }
+
+    #[test]
+    fn timeout_choice_switches_to_plan_when_presence_allows_it() {
+        let choice = mode_switch_timeout_choice(
+            PresencePolicy {
+                mode_switch_auto_plan: true,
+                ..PresencePolicy::default()
+            },
+            "plan",
+        );
+
+        match choice {
+            ModeSwitchChoice::Switch(mode) => assert_eq!(mode, "plan"),
+            ModeSwitchChoice::Skip => panic!("expected auto switch"),
+        }
+    }
 }
 
 impl ModeSwitchToolContext {
@@ -57,6 +87,14 @@ impl SuggestModeSwitchTool {
 /// to decide whether to break the loop.
 pub const SWITCH_ACCEPTED_PREFIX: &str = "MODE_SWITCH_ACCEPTED:";
 const MODE_SWITCH_AUTO_SKIP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
+
+fn mode_switch_timeout_choice(policy: PresencePolicy, target_mode: &str) -> ModeSwitchChoice {
+    if policy.mode_switch_auto_plan && target_mode == "plan" {
+        ModeSwitchChoice::Switch(target_mode.to_string())
+    } else {
+        ModeSwitchChoice::Skip
+    }
+}
 
 #[async_trait]
 impl Tool for SuggestModeSwitchTool {
@@ -171,7 +209,15 @@ impl Tool for SuggestModeSwitchTool {
             cancel_flag,
             Some(AutoTimeoutPolicy {
                 timeout: MODE_SWITCH_AUTO_SKIP_TIMEOUT,
-                on_expire: Box::new(|| AutoTimeoutAction::Respond(ModeSwitchChoice::Skip)),
+                on_expire: Box::new({
+                    let target_mode = target_mode.to_string();
+                    move || {
+                        AutoTimeoutAction::Respond(mode_switch_timeout_choice(
+                            presence_state::global_policy(),
+                            &target_mode,
+                        ))
+                    }
+                }),
             }),
         )
         .await;
@@ -179,7 +225,7 @@ impl Tool for SuggestModeSwitchTool {
         let choice = match outcome {
             InteractionOutcome::Responded(c) => c,
             InteractionOutcome::AutoResponded(c) => {
-                self.context.manager.auto_skip_after_timeout().await;
+                self.context.manager.auto_resolve_after_timeout(&c).await;
                 c
             }
             InteractionOutcome::Cancelled => {

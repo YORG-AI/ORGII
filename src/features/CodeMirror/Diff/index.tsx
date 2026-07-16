@@ -87,6 +87,8 @@ export interface CodeMirrorDiffProps {
   oldStartLine?: number;
   /** Starting line number for new/modified content when rendering a diff hunk. */
   newStartLine?: number;
+  /** Show editor gutter line numbers. */
+  showLineNumbers?: boolean;
   /** Custom class name */
   className?: string;
   /**
@@ -185,6 +187,7 @@ export const CodeMirrorDiff: React.FC<CodeMirrorDiffProps> = ({
   changeType,
   oldStartLine = 1,
   newStartLine = 1,
+  showLineNumbers = true,
   className = "",
   noBottomPadding = false,
 }) => {
@@ -234,12 +237,14 @@ export const CodeMirrorDiff: React.FC<CodeMirrorDiffProps> = ({
     new: string;
     changeType?: GitFileStatus;
     startLine: number;
+    showLineNumbers: boolean;
   } | null>(null);
   const splitContentRef = useRef<{
     old: string;
     new: string;
     oldStartLine: number;
     newStartLine: number;
+    showLineNumbers: boolean;
   } | null>(null);
 
   // ── Stable base extensions (rebuilt only when theme/settings change) ─────
@@ -253,32 +258,34 @@ export const CodeMirrorDiff: React.FC<CodeMirrorDiffProps> = ({
     exts.push(getCodeMirrorTheme());
     exts.push(CODEMIRROR_BASE_LAYOUT_THEME);
 
-    if (appearanceSettings.lineNumbers === "on") {
-      exts.push(lineNumbers({ formatNumber: formatAbsoluteLineNumber }));
-    } else if (appearanceSettings.lineNumbers === "relative") {
-      exts.push(
-        lineNumbers({
-          formatNumber: (lineNo: number, state: EditorState) => {
-            const cursorLine = state.doc.lineAt(
-              state.selection.main.head
-            ).number;
-            return lineNo === cursorLine
-              ? formatAbsoluteLineNumber(lineNo)
-              : String(Math.abs(lineNo - cursorLine));
-          },
-        })
-      );
-    } else if (appearanceSettings.lineNumbers === "interval") {
-      exts.push(
-        lineNumbers({
-          formatNumber: (lineNo: number) => {
-            const absoluteLineNo = lineNo + lineNumberOffset;
-            return absoluteLineNo === 1 || absoluteLineNo % 10 === 0
-              ? String(absoluteLineNo)
-              : "";
-          },
-        })
-      );
+    if (showLineNumbers) {
+      if (appearanceSettings.lineNumbers === "on") {
+        exts.push(lineNumbers({ formatNumber: formatAbsoluteLineNumber }));
+      } else if (appearanceSettings.lineNumbers === "relative") {
+        exts.push(
+          lineNumbers({
+            formatNumber: (lineNo: number, state: EditorState) => {
+              const cursorLine = state.doc.lineAt(
+                state.selection.main.head
+              ).number;
+              return lineNo === cursorLine
+                ? formatAbsoluteLineNumber(lineNo)
+                : String(Math.abs(lineNo - cursorLine));
+            },
+          })
+        );
+      } else if (appearanceSettings.lineNumbers === "interval") {
+        exts.push(
+          lineNumbers({
+            formatNumber: (lineNo: number) => {
+              const absoluteLineNo = lineNo + lineNumberOffset;
+              return absoluteLineNo === 1 || absoluteLineNo % 10 === 0
+                ? String(absoluteLineNo)
+                : "";
+            },
+          })
+        );
+      }
     }
 
     if (appearanceSettings.highlightActiveLine) {
@@ -325,7 +332,8 @@ export const CodeMirrorDiff: React.FC<CodeMirrorDiffProps> = ({
       if (
         prev.old !== oldValue ||
         prev.changeType !== changeType ||
-        prev.startLine !== newStartLine
+        prev.startLine !== newStartLine ||
+        prev.showLineNumbers !== showLineNumbers
       ) {
         unifiedViewRef.current.destroy();
         unifiedViewRef.current = null;
@@ -349,6 +357,7 @@ export const CodeMirrorDiff: React.FC<CodeMirrorDiffProps> = ({
         new: newValue,
         changeType,
         startLine: newStartLine,
+        showLineNumbers,
       };
       setUnifiedLines(view.state.doc.lines);
       return;
@@ -405,6 +414,7 @@ export const CodeMirrorDiff: React.FC<CodeMirrorDiffProps> = ({
         new: newValue,
         changeType,
         startLine: newStartLine,
+        showLineNumbers,
       };
       setUnifiedScrollEl(view.scrollDOM);
       setUnifiedLines(view.state.doc.lines);
@@ -425,6 +435,7 @@ export const CodeMirrorDiff: React.FC<CodeMirrorDiffProps> = ({
     newValue,
     changeType,
     newStartLine,
+    showLineNumbers,
     readOnly,
     mergeControls,
     collapseUnchanged,
@@ -465,7 +476,8 @@ export const CodeMirrorDiff: React.FC<CodeMirrorDiffProps> = ({
       const prev = splitContentRef.current;
       if (
         prev.oldStartLine !== oldStartLine ||
-        prev.newStartLine !== newStartLine
+        prev.newStartLine !== newStartLine ||
+        prev.showLineNumbers !== showLineNumbers
       ) {
         splitMergeViewRef.current.destroy();
         splitMergeViewRef.current = null;
@@ -495,6 +507,7 @@ export const CodeMirrorDiff: React.FC<CodeMirrorDiffProps> = ({
         new: newValue,
         oldStartLine,
         newStartLine,
+        showLineNumbers,
       };
       setSplitLines(mv.b.state.doc.lines);
       return;
@@ -533,6 +546,7 @@ export const CodeMirrorDiff: React.FC<CodeMirrorDiffProps> = ({
         new: newValue,
         oldStartLine,
         newStartLine,
+        showLineNumbers,
       };
       setSplitScrollEl(splitContainerRef.current);
       setSplitLines(mergeView.b.state.doc.lines);
@@ -563,6 +577,7 @@ export const CodeMirrorDiff: React.FC<CodeMirrorDiffProps> = ({
     newValue,
     oldStartLine,
     newStartLine,
+    showLineNumbers,
     readOnly,
     collapseUnchanged,
     autoHeight,

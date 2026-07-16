@@ -80,6 +80,8 @@ pub struct AvailableAgent {
     pub is_complex_setup: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_setup_method: Option<String>,
+    /// Setup methods available in the Key Vault GenericSetup wizard flow.
+    pub supported_setup_methods: Vec<String>,
     pub popular: bool,
     /// Icon provider key for ModelIcon lookup (e.g., "cursor", "claude_code")
     pub icon_provider: String,

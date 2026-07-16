@@ -62,8 +62,14 @@ pub(super) fn extract_file(
         }
         None => (None, None),
     };
+    let (metadata_start_line, metadata_line_count) = read_line_metadata(args);
     let language = detect_language(&file_name);
-    let line_count = content.as_ref().map(|c| c.split('\n').count());
+    let line_count = if start_line.is_some() {
+        content.as_ref().map(|c| c.split('\n').count())
+    } else {
+        metadata_line_count.or_else(|| content.as_ref().map(|c| c.split('\n').count()))
+    };
+    let start_line = start_line.or(metadata_start_line);
 
     ExtractedFileData {
         file_path,
@@ -73,6 +79,26 @@ pub(super) fn extract_file(
         line_count,
         start_line,
     }
+}
+
+fn read_line_metadata(
+    args: Option<&serde_json::Map<String, serde_json::Value>>,
+) -> (Option<usize>, Option<usize>) {
+    let Some(args) = args else {
+        return (None, None);
+    };
+    let limit = args
+        .get("limit")
+        .and_then(serde_json::Value::as_u64)
+        .and_then(|value| usize::try_from(value).ok());
+    let Some(limit) = limit else {
+        return (None, None);
+    };
+    let start_line = args
+        .get("offset")
+        .and_then(serde_json::Value::as_u64)
+        .and_then(|value| usize::try_from(value.saturating_add(1)).ok());
+    (start_line, Some(limit))
 }
 
 fn normalize_edit(mut edit: ExtractedEditData) -> ExtractedEditData {
@@ -108,11 +134,12 @@ pub(super) fn extract_edit(
 ) -> ExtractedEditData {
     // apply_patch: multi-file patch with custom format. Delegate to the
     // Rust patch converter so per-file segments are pre-computed.
-    if let Some(patch_text) = args
-        .and_then(|a| a.get("patch_text"))
-        .and_then(|v| v.as_str())
-    {
-        return extract_apply_patch(patch_text, result);
+    if let Some(patch_text) = args.and_then(|a| {
+        obj_str(a, "patch_text")
+            .or_else(|| obj_str(a, "patch"))
+            .or_else(|| obj_str(a, "input"))
+    }) {
+        return extract_apply_patch(&patch_text, result);
     }
 
     let file_data = extract_file(args, result);
@@ -229,8 +256,16 @@ pub(super) fn extract_apply_patch(
 
     let has_diff = !converted.diff.is_empty();
     let diff = if has_diff { Some(converted.diff) } else { None };
-    let (old_start_line, new_start_line) = parse_diff_start_lines(diff.as_deref());
-    normalize_edit(ExtractedEditData {
+    let has_explicit_hunk_header = converted
+        .segments
+        .iter()
+        .any(|seg| seg.has_explicit_hunk_header);
+    let (old_start_line, new_start_line) = if has_explicit_hunk_header {
+        parse_diff_start_lines(diff.as_deref())
+    } else {
+        (None, None)
+    };
+    let mut edit = normalize_edit(ExtractedEditData {
         file_path: first_path,
         file_name,
         language: "diff".to_string(),
@@ -245,7 +280,12 @@ pub(super) fn extract_apply_patch(
         lines_removed: Some(converted.lines_removed),
         is_deleted: false,
         apply_patch_segments: segments,
-    })
+    });
+    if !has_explicit_hunk_header {
+        edit.old_start_line = None;
+        edit.new_start_line = None;
+    }
+    edit
 }
 
 pub(super) fn extract_real_apply_patch_result(
@@ -417,9 +457,14 @@ pub(super) fn segment_to_edit(
     } else {
         None
     };
-    let (old_start_line, new_start_line) = parse_diff_start_lines(diff.as_deref());
+    let (old_start_line, new_start_line) = if segment.has_explicit_hunk_header {
+        parse_diff_start_lines(diff.as_deref())
+    } else {
+        (None, None)
+    };
 
-    normalize_edit(ExtractedEditData {
+    let has_explicit_hunk_header = segment.has_explicit_hunk_header;
+    let mut edit = normalize_edit(ExtractedEditData {
         file_path: segment.file_path.clone(),
         file_name,
         language,
@@ -434,5 +479,10 @@ pub(super) fn segment_to_edit(
         lines_removed: Some(segment.lines_removed),
         is_deleted: false,
         apply_patch_segments: Vec::new(),
-    })
+    });
+    if !has_explicit_hunk_header {
+        edit.old_start_line = None;
+        edit.new_start_line = None;
+    }
+    edit
 }

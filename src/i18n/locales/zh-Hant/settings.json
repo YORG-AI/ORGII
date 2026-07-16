@@ -212,6 +212,9 @@
     "presenceGuidanceInvisible": "隱身 — Agent 行為指引",
     "presenceGuidanceAway": "離開 — Agent 行為指引",
     "presenceGuidancePlaceholder": "告訴 Agent 在這個狀態下應如何行事…",
+    "presenceGuidanceOnlineDefault": "我在電腦前。你可以隨時向我提出澄清問題，執行任何破壞性操作前請先讓我確認",
+    "presenceGuidanceInvisibleDefault": "我在附近但顯示為離線。預設自主執行；只有高風險操作或重大重構才通知我，其他問題請彙總成一段摘要，不要逐個詢問",
+    "presenceGuidanceAwayDefault": "我暫時不在電腦前。不要等我回覆；根據現有資訊做出最佳判斷，完成能完成的事項，並留下簡明總結和待我回來處理的問題",
     "followSystem": "跟隨系統"
   },
   "background": {
@@ -618,6 +621,12 @@
     "autoTimeoutTitle": "自動超時",
     "questionAutoSkipTimeoutByStatus": "自動跳過提問",
     "questionAutoSkipTimeoutByStatusDesc": "超過此時間後自動跳過 Agent 提問 (0 = 禁用)",
+    "planAutoApproveTimeoutByStatus": "{{status}}自動批准計畫",
+    "planAutoApproveTimeoutByStatusDesc": "在此狀態下，等待指定秒數後自動批准待處理計畫 (0 = 禁用)",
+    "goalMaxTurnsByStatus": "{{status}}目標續跑預算",
+    "goalMaxTurnsByStatusDesc": "Agent 通常會停止後，繼續處理上一個請求的額外輪數上限 (0 = 禁用)",
+    "modeSwitchAutoPlanByStatus": "{{status}}自動切換到計畫模式",
+    "modeSwitchAutoPlanByStatusDesc": "待確認的 Plan 模式切換建議倒計時結束後自動切換",
     "resourceTabs": {
       "tools": "工具",
       "mcp": "MCP",

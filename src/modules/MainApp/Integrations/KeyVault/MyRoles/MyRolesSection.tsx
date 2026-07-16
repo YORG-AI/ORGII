@@ -7,6 +7,7 @@ import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import NumberInput from "@src/components/NumberInput";
 import Select, { type SelectOption } from "@src/components/Select";
+import Switch from "@src/components/Switch";
 import TagsInput from "@src/components/TagsInput";
 import Textarea from "@src/components/Textarea";
 import {
@@ -44,6 +45,30 @@ type PresenceGuidanceKey =
   | "general.presenceGuidanceOnline"
   | "general.presenceGuidanceInvisible"
   | "general.presenceGuidanceAway";
+
+const PRESENCE_GUIDANCE_DEFAULT_VALUES: Record<PresenceGuidanceKey, string[]> =
+  {
+    "general.presenceGuidanceOnline": [
+      "I am at the keyboard. Feel free to ask me clarifying questions at any time and confirm any destructive actions with me before running them.",
+      "I am at the keyboard. Feel free to ask me clarifying questions at any time and confirm any destructive actions with me before running them",
+    ],
+    "general.presenceGuidanceInvisible": [
+      "I am around but appearing offline. Default to autonomous execution and only notify me for high-risk actions or significant refactoring work; batch any other questions into a single summary instead of asking one by one.",
+      "I am around but appearing offline. Default to autonomous execution and only notify me for high-risk actions or significant refactoring work; batch any other questions into a single summary instead of asking one by one",
+    ],
+    "general.presenceGuidanceAway": [
+      "I am away from the keyboard. Do not block on me — make the best decision you can with the information you have, finish what you can finish, and leave a concise summary of what happened and any open questions for when I return.",
+      "I am away from the keyboard. Do not block on me — make the best decision you can with the information you have, finish what you can finish, and leave a concise summary of what happened and any open questions for when I return",
+    ],
+  };
+
+const PRESENCE_GUIDANCE_DEFAULT_I18N_KEYS: Record<PresenceGuidanceKey, string> =
+  {
+    "general.presenceGuidanceOnline": "general.presenceGuidanceOnlineDefault",
+    "general.presenceGuidanceInvisible":
+      "general.presenceGuidanceInvisibleDefault",
+    "general.presenceGuidanceAway": "general.presenceGuidanceAwayDefault",
+  };
 
 interface MyRolesSectionProps {
   activeTab?: MyRolesTab;
@@ -109,12 +134,25 @@ const MyRolesSection: React.FC<MyRolesSectionProps> = ({
   const goalMaxTurnsByPresence = settings[
     "agent.sde.goalMaxTurnsByPresence"
   ] as Record<BuiltInPresenceMode, number>;
+  const modeSwitchAutoPlanByPresence = settings[
+    "agent.sde.modeSwitchAutoPlanByPresence"
+  ] as Record<BuiltInPresenceMode, boolean>;
   const presenceGuidanceOnline =
     (settings["general.presenceGuidanceOnline"] as string | undefined) ?? "";
   const presenceGuidanceInvisible =
     (settings["general.presenceGuidanceInvisible"] as string | undefined) ?? "";
   const presenceGuidanceAway =
     (settings["general.presenceGuidanceAway"] as string | undefined) ?? "";
+
+  const getPresenceGuidanceDisplayValue = useCallback(
+    (key: PresenceGuidanceKey, value: string) => {
+      if (PRESENCE_GUIDANCE_DEFAULT_VALUES[key].includes(value)) {
+        return t(PRESENCE_GUIDANCE_DEFAULT_I18N_KEYS[key]);
+      }
+      return value;
+    },
+    [t]
+  );
 
   const statusOptions = useMemo<SelectOption[]>(() => {
     const builtInOptions = BUILT_IN_STATUS_OPTIONS.map((option) => {
@@ -220,6 +258,19 @@ const MyRolesSection: React.FC<MyRolesSectionProps> = ({
     [goalMaxTurnsByPresence, updateSetting]
   );
 
+  const handleModeSwitchAutoPlanChange = useCallback(
+    (mode: BuiltInPresenceMode) => (checked: boolean) => {
+      updateSetting({
+        key: "agent.sde.modeSwitchAutoPlanByPresence",
+        value: {
+          ...modeSwitchAutoPlanByPresence,
+          [mode]: checked,
+        },
+      });
+    },
+    [modeSwitchAutoPlanByPresence, updateSetting]
+  );
+
   const renderPolicyRows = useCallback(
     (mode: BuiltInPresenceMode, statusLabel: string) => (
       <>
@@ -247,7 +298,7 @@ const MyRolesSection: React.FC<MyRolesSectionProps> = ({
           })}
           description={t("sdeAgent.planAutoApproveTimeoutByStatusDesc", {
             defaultValue:
-              "Auto-approve a pending plan after this many seconds in this status (0 = disabled).",
+              "Auto-approve a pending plan after this many seconds in this status (0 = disabled)",
           })}
         >
           <NumberInput
@@ -268,7 +319,7 @@ const MyRolesSection: React.FC<MyRolesSectionProps> = ({
           })}
           description={t("sdeAgent.goalMaxTurnsByStatusDesc", {
             defaultValue:
-              "Keep working toward your last request for up to this many extra turns after the agent would normally stop (0 = disabled).",
+              "Keep working toward your last request for up to this many extra turns after the agent would normally stop (0 = disabled)",
           })}
         >
           <NumberInput
@@ -281,6 +332,25 @@ const MyRolesSection: React.FC<MyRolesSectionProps> = ({
             style={SECTION_CONTROL_STYLE}
           />
         </SectionRow>
+        <SectionRow
+          label={t("sdeAgent.modeSwitchAutoPlanByStatus", {
+            status: statusLabel,
+            defaultValue: `${statusLabel} mode switch auto-plan`,
+          })}
+          description={t("sdeAgent.modeSwitchAutoPlanByStatusDesc", {
+            defaultValue:
+              "Auto-switch pending Plan mode suggestions when their confirmation timer expires",
+          })}
+        >
+          <Switch
+            checked={modeSwitchAutoPlanByPresence[mode]}
+            onChange={handleModeSwitchAutoPlanChange(mode)}
+            ariaLabel={t("sdeAgent.modeSwitchAutoPlanByStatus", {
+              status: statusLabel,
+              defaultValue: `${statusLabel} mode switch auto-plan`,
+            })}
+          />
+        </SectionRow>
       </>
     ),
     [
@@ -288,9 +358,11 @@ const MyRolesSection: React.FC<MyRolesSectionProps> = ({
       questionAutoSkipTimeoutByPresence,
       planAutoApproveTimeoutByPresence,
       goalMaxTurnsByPresence,
+      modeSwitchAutoPlanByPresence,
       handleQuestionAutoSkipTimeoutChange,
       handlePlanAutoApproveTimeoutChange,
       handleGoalMaxTurnsChange,
+      handleModeSwitchAutoPlanChange,
     ]
   );
 
@@ -610,7 +682,10 @@ const MyRolesSection: React.FC<MyRolesSectionProps> = ({
           layout="vertical"
         >
           <Textarea
-            value={presenceGuidanceOnline}
+            value={getPresenceGuidanceDisplayValue(
+              "general.presenceGuidanceOnline",
+              presenceGuidanceOnline
+            )}
             onChange={handlePresenceGuidanceChange(
               "general.presenceGuidanceOnline"
             )}
@@ -630,7 +705,10 @@ const MyRolesSection: React.FC<MyRolesSectionProps> = ({
           layout="vertical"
         >
           <Textarea
-            value={presenceGuidanceInvisible}
+            value={getPresenceGuidanceDisplayValue(
+              "general.presenceGuidanceInvisible",
+              presenceGuidanceInvisible
+            )}
             onChange={handlePresenceGuidanceChange(
               "general.presenceGuidanceInvisible"
             )}
@@ -650,7 +728,10 @@ const MyRolesSection: React.FC<MyRolesSectionProps> = ({
           layout="vertical"
         >
           <Textarea
-            value={presenceGuidanceAway}
+            value={getPresenceGuidanceDisplayValue(
+              "general.presenceGuidanceAway",
+              presenceGuidanceAway
+            )}
             onChange={handlePresenceGuidanceChange(
               "general.presenceGuidanceAway"
             )}

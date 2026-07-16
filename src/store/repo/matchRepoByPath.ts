@@ -1,10 +1,8 @@
 /**
  * Shared path → repo matching.
  *
- * Single normalization + comparison used by both the session→repo
- * auto-follow (jumpToSessionAtom) and the status-bar hint
- * (sessionRepoHintAtom), so the two can never disagree about what
- * "the session's repo" is.
+ * Single normalization + comparison used by session/workspace hint logic
+ * so surfaces agree about what "the session's repo" is.
  */
 import type { Repo } from "./types";
 

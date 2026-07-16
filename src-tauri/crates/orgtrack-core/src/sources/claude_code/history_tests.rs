@@ -117,3 +117,79 @@ fn parses_claude_session_metadata() {
     std::fs::remove_file(&path).expect("remove fixture");
     std::fs::remove_dir(&temp_dir).expect("remove temp dir");
 }
+
+#[test]
+fn prefers_claude_session_json_name_as_name() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-claude-history-session-name-test-{}",
+        std::process::id()
+    ));
+    let project_dir = temp_dir.join("projects").join("-Users-me-project");
+    let sessions_dir = temp_dir.join("sessions");
+    std::fs::create_dir_all(&project_dir).expect("create project dir");
+    std::fs::create_dir_all(&sessions_dir).expect("create sessions dir");
+
+    let path = project_dir.join("64c10ac1-0c64-4437-86df-8a5beac77f4b.jsonl");
+    let content = r#"{"type":"user","sessionId":"64c10ac1-0c64-4437-86df-8a5beac77f4b","cwd":"/Users/me/project","gitBranch":"main","timestamp":"2026-07-08T07:06:46.543Z","message":{"role":"user","content":"first prompt fallback"}}
+{"type":"assistant","sessionId":"64c10ac1-0c64-4437-86df-8a5beac77f4b","cwd":"/Users/me/project","gitBranch":"main","timestamp":"2026-07-08T07:06:49.000Z","message":{"role":"assistant","model":"claude-sonnet-4","content":[{"type":"text","text":"done"}],"usage":{"input_tokens":12,"output_tokens":34}}}
+"#;
+    std::fs::write(&path, content).expect("write fixture");
+    std::fs::write(
+        sessions_dir.join("48664.json"),
+        r#"{"pid":48664,"sessionId":"64c10ac1-0c64-4437-86df-8a5beac77f4b","cwd":"/Users/me/project","startedAt":1783522457884,"name":"orgii-05","nameSource":"derived"}"#,
+    )
+    .expect("write session metadata");
+
+    let (source_mtime_ms, source_size_bytes) =
+        imported_paths::file_metadata_signature(&path, "Claude").expect("metadata");
+    let record = ImportedHistoryDiscoveredRecord {
+        source_session_id: "64c10ac1-0c64-4437-86df-8a5beac77f4b".to_string(),
+        source_path: path.clone(),
+        source_record_key: "64c10ac1-0c64-4437-86df-8a5beac77f4b".to_string(),
+        source_mtime_ms,
+        source_size_bytes,
+        source_fingerprint: String::new(),
+        parser_version: CLAUDE_CODE_METADATA_PARSER_VERSION,
+    };
+    let meta = parse_claude_session_meta(&record)
+        .expect("parse")
+        .expect("session meta");
+
+    assert_eq!(meta.name, "orgii-05");
+
+    std::fs::remove_dir_all(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn prefers_claude_summary_as_session_name() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-claude-history-summary-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("claude-summary.jsonl");
+    let content = r#"{"type":"summary","summary":"Ship auth dashboard","leafUuid":"abc"}
+{"type":"user","sessionId":"abc","cwd":"/tmp/project","gitBranch":"main","timestamp":"2026-04-01T07:06:46.543Z","message":{"role":"user","content":"build this"}}
+"#;
+    std::fs::write(&path, content).expect("write fixture");
+
+    let (source_mtime_ms, source_size_bytes) =
+        imported_paths::file_metadata_signature(&path, "Claude").expect("metadata");
+    let record = ImportedHistoryDiscoveredRecord {
+        source_session_id: "claude-summary".to_string(),
+        source_path: path.clone(),
+        source_record_key: "claude-summary".to_string(),
+        source_mtime_ms,
+        source_size_bytes,
+        source_fingerprint: String::new(),
+        parser_version: CLAUDE_CODE_METADATA_PARSER_VERSION,
+    };
+    let meta = parse_claude_session_meta(&record)
+        .expect("parse")
+        .expect("session meta");
+
+    assert_eq!(meta.name, "Ship auth dashboard");
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}

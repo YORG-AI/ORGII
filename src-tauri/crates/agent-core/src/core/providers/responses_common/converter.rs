@@ -80,7 +80,7 @@ pub fn convert_messages(messages: &[Value]) -> (Option<String>, Vec<Value>) {
                 }
             }
             "user" => {
-                input.push(msg.clone());
+                input.push(normalize_input_message(msg));
             }
             "assistant" => {
                 if let Some(content) = msg.get("content").and_then(|c| c.as_str()) {
@@ -133,12 +133,56 @@ pub fn convert_messages(messages: &[Value]) -> (Option<String>, Vec<Value>) {
                 }
             }
             _ => {
-                input.push(msg.clone());
+                input.push(normalize_input_message(msg));
             }
         }
     }
 
     (instructions, input)
+}
+
+fn normalize_input_message(msg: &Value) -> Value {
+    let Some(content) = msg.get("content").and_then(Value::as_array) else {
+        return msg.clone();
+    };
+
+    let mut normalized = msg.clone();
+    normalized["content"] = Value::Array(
+        content
+            .iter()
+            .map(|part| normalize_input_content_part(part))
+            .collect(),
+    );
+    normalized
+}
+
+fn normalize_input_content_part(part: &Value) -> Value {
+    let Some(content_type) = part.get("type").and_then(Value::as_str) else {
+        return part.clone();
+    };
+
+    match content_type {
+        "text" => {
+            let mut normalized = part.clone();
+            normalized["type"] = Value::String("input_text".to_string());
+            normalized
+        }
+        "image_url" => {
+            let mut normalized = part.clone();
+            normalized["type"] = Value::String("input_image".to_string());
+
+            if let Some(url) = part
+                .get("image_url")
+                .and_then(|image_url| image_url.get("url").or(Some(image_url)))
+                .and_then(Value::as_str)
+            {
+                normalized["image_url"] = Value::String(url.to_string());
+            }
+
+            normalized
+        }
+        _ => part.clone(),
+    }
 }
 
 /// Build a Responses API `user` message with `input_image` blocks from
@@ -283,6 +327,38 @@ mod tests {
         assert_eq!(instructions, Some("You are helpful.".to_string()));
         assert_eq!(input.len(), 1);
         assert_eq!(input[0]["role"], "user");
+    }
+
+    #[test]
+    fn convert_messages_normalizes_user_text_blocks_for_responses() {
+        let messages = vec![serde_json::json!({
+            "role": "user",
+            "content": [
+                { "type": "text", "text": "Hello" },
+                { "type": "input_text", "text": "Already native" }
+            ]
+        })];
+
+        let (_, input) = convert_messages(&messages);
+        let content = input[0]["content"].as_array().expect("array content");
+        assert_eq!(content[0]["type"], "input_text");
+        assert_eq!(content[0]["text"], "Hello");
+        assert_eq!(content[1]["type"], "input_text");
+    }
+
+    #[test]
+    fn convert_messages_normalizes_user_image_url_blocks_for_responses() {
+        let messages = vec![serde_json::json!({
+            "role": "user",
+            "content": [
+                { "type": "image_url", "image_url": { "url": "data:image/png;base64,AAAA" } }
+            ]
+        })];
+
+        let (_, input) = convert_messages(&messages);
+        let content = input[0]["content"].as_array().expect("array content");
+        assert_eq!(content[0]["type"], "input_image");
+        assert_eq!(content[0]["image_url"], "data:image/png;base64,AAAA");
     }
 
     #[test]

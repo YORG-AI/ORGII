@@ -37,6 +37,7 @@ describe("presenceModeSpecResolver / userPresenceWireAtom", () => {
     expect(spec!.questionAutoResolveSecs).toBe(30);
     expect(spec!.planAutoApproveSecs).toBe(120);
     expect(spec!.goalMaxTurns).toBe(20);
+    expect(spec!.modeSwitchAutoPlan).toBe(false);
     expect(spec!.builtIn).toBe(true);
   });
 
@@ -60,6 +61,7 @@ describe("presenceModeSpecResolver / userPresenceWireAtom", () => {
         stance: PRESENCE_STANCE.AUTONOMOUS,
         questionAutoResolveSecs: 15,
         planAutoApproveSecs: 0,
+        modeSwitchAutoPlan: true,
         goalMaxTurns: 2,
       },
     ]);
@@ -69,6 +71,7 @@ describe("presenceModeSpecResolver / userPresenceWireAtom", () => {
     expect(spec!.label).toBe("Angry");
     expect(spec!.stance).toBe(PRESENCE_STANCE.AUTONOMOUS);
     expect(spec!.questionAutoResolveSecs).toBe(15);
+    expect(spec!.modeSwitchAutoPlan).toBe(true);
     expect(spec!.goalMaxTurns).toBe(2);
     expect(spec!.builtIn).toBe(false);
   });
@@ -88,6 +91,7 @@ describe("presenceModeSpecResolver / userPresenceWireAtom", () => {
     expect(spec!.stance).toBe(PRESENCE_STANCE.INTERACTIVE);
     expect(spec!.questionAutoResolveSecs).toBe(0);
     expect(spec!.planAutoApproveSecs).toBe(0);
+    expect(spec!.modeSwitchAutoPlan).toBe(false);
     expect(spec!.goalMaxTurns).toBe(0);
   });
 
@@ -105,6 +109,7 @@ describe("presenceModeSpecResolver / userPresenceWireAtom", () => {
     expect(wire!.stance).toBe(PRESENCE_STANCE.AUTONOMOUS);
     expect(wire!.questionAutoResolveSecs).toBe(30);
     expect(wire!.planAutoApproveSecs).toBe(120);
+    expect(wire!.modeSwitchAutoPlan).toBe(false);
     expect(wire!.goalMaxTurns).toBe(20);
   });
 
@@ -119,6 +124,7 @@ describe("presenceModeSpecResolver / userPresenceWireAtom", () => {
         stance: PRESENCE_STANCE.DEFER_AND_BATCH,
         questionAutoResolveSecs: 60,
         planAutoApproveSecs: 0,
+        modeSwitchAutoPlan: true,
         goalMaxTurns: 0,
       },
     ]);
@@ -128,6 +134,7 @@ describe("presenceModeSpecResolver / userPresenceWireAtom", () => {
     expect(wire!.guidance).toBe("Heads down.");
     expect(wire!.stance).toBe(PRESENCE_STANCE.DEFER_AND_BATCH);
     expect(wire!.questionAutoResolveSecs).toBe(60);
+    expect(wire!.modeSwitchAutoPlan).toBe(true);
   });
 
   it("wire snapshot is undefined for a stale role mode", () => {

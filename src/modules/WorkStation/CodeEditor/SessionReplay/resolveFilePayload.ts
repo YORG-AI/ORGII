@@ -7,7 +7,10 @@
  */
 import { parseUnifiedDiffToOldNew } from "@src/engines/SessionCore/rendering/props";
 
-import { convertToFileOperation } from "./converters/fileConverter";
+import {
+  convertToFileOperation,
+  shouldTrustDiffStartLines,
+} from "./converters/fileConverter";
 import type { FileOperationEntry } from "./types";
 
 export interface ResolvedFilePayload {
@@ -25,7 +28,10 @@ function isEmptyEventPlaceholder(event: FileOperationEntry["event"]): boolean {
   return !event || Object.keys(event as object).length === 0;
 }
 
-function normalizePayload(payload: ResolvedFilePayload): ResolvedFilePayload {
+function normalizePayload(
+  payload: ResolvedFilePayload,
+  trustDiffStartLines = true
+): ResolvedFilePayload {
   if (
     payload.diff !== undefined &&
     payload.oldContent === undefined &&
@@ -36,8 +42,12 @@ function normalizePayload(payload: ResolvedFilePayload): ResolvedFilePayload {
       ...payload,
       oldContent: parsed.oldValue,
       newContent: parsed.newValue,
-      oldStartLine: payload.oldStartLine ?? parsed.oldStartLine,
-      newStartLine: payload.newStartLine ?? parsed.newStartLine,
+      oldStartLine: trustDiffStartLines
+        ? (payload.oldStartLine ?? parsed.oldStartLine)
+        : payload.oldStartLine,
+      newStartLine: trustDiffStartLines
+        ? (payload.newStartLine ?? parsed.newStartLine)
+        : payload.newStartLine,
     };
   }
   return payload;
@@ -55,16 +65,19 @@ export function resolveFileOperationPayload(
     op.newContent !== undefined ||
     op.diff !== undefined
   ) {
-    return normalizePayload({
-      content: op.content,
-      contentStartLine: op.contentStartLine,
-      oldContent: op.oldContent,
-      newContent: op.newContent,
-      diff: op.diff,
-      oldStartLine: op.oldStartLine,
-      newStartLine: op.newStartLine,
-      language: op.language,
-    });
+    return normalizePayload(
+      {
+        content: op.content,
+        contentStartLine: op.contentStartLine,
+        oldContent: op.oldContent,
+        newContent: op.newContent,
+        diff: op.diff,
+        oldStartLine: op.oldStartLine,
+        newStartLine: op.newStartLine,
+        language: op.language,
+      },
+      shouldTrustDiffStartLines(op.event)
+    );
   }
 
   if (isEmptyEventPlaceholder(op.event)) {
@@ -76,14 +89,17 @@ export function resolveFileOperationPayload(
     return { language: op.language };
   }
 
-  return normalizePayload({
-    content: reconverted.content,
-    contentStartLine: reconverted.contentStartLine,
-    oldContent: reconverted.oldContent,
-    newContent: reconverted.newContent,
-    diff: reconverted.diff,
-    oldStartLine: reconverted.oldStartLine,
-    newStartLine: reconverted.newStartLine,
-    language: reconverted.language ?? op.language,
-  });
+  return normalizePayload(
+    {
+      content: reconverted.content,
+      contentStartLine: reconverted.contentStartLine,
+      oldContent: reconverted.oldContent,
+      newContent: reconverted.newContent,
+      diff: reconverted.diff,
+      oldStartLine: reconverted.oldStartLine,
+      newStartLine: reconverted.newStartLine,
+      language: reconverted.language ?? op.language,
+    },
+    shouldTrustDiffStartLines(op.event)
+  );
 }

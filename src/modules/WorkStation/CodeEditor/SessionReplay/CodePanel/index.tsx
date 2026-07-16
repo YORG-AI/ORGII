@@ -30,6 +30,7 @@ import {
 } from "@src/util/file/previewTypes";
 import { deriveToolAction } from "@src/util/ui/rendering/toolAction";
 
+import { shouldTrustDiffStartLines } from "../converters/fileConverter";
 import { resolveFileOperationPayload } from "../resolveFilePayload";
 import {
   CODE_PANEL_MODE,
@@ -305,6 +306,7 @@ export const CodePanel: React.FC<CodePanelProps> = memo(
 
     const { filePath, type, language, relatedOperations } = operation;
     const operationIsLoading = operation.isLoading || isLoading;
+    const showDiffLineNumbers = shouldTrustDiffStartLines(operation.event);
 
     if (operation.isFailed) {
       return (
@@ -410,6 +412,7 @@ export const CodePanel: React.FC<CodePanelProps> = memo(
               height="100%"
               oldStartLine={resolvedPayload?.oldStartLine}
               newStartLine={resolvedPayload?.newStartLine}
+              showLineNumbers={showDiffLineNumbers}
               contextLines={3}
               collapseUnchanged={true}
               showFilePath={false}

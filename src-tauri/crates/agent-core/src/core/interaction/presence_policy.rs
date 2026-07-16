@@ -73,6 +73,7 @@ impl GoalLoopPolicy {
 pub struct PresencePolicy {
     pub question_auto_resolve: AutoResolve,
     pub plan_auto_approve: AutoResolve,
+    pub mode_switch_auto_plan: bool,
     pub goal_loop: GoalLoopPolicy,
     pub prompt_stance: PresenceStance,
 }
@@ -83,6 +84,7 @@ impl Default for PresencePolicy {
         Self {
             question_auto_resolve: AutoResolve::Off,
             plan_auto_approve: AutoResolve::Off,
+            mode_switch_auto_plan: false,
             goal_loop: GoalLoopPolicy::Off,
             prompt_stance: PresenceStance::Interactive,
         }
@@ -92,13 +94,13 @@ impl Default for PresencePolicy {
 /// Built-in defaults per well-known mode id, used when the wire payload
 /// predates the spec redesign (mode only, no policy fields). Mirrors
 /// `BUILT_IN_PRESENCE_POLICY` in `src/types/userPresence.ts`.
-fn built_in_defaults(mode: &str) -> (PresenceStance, u32, u32, u32) {
+fn built_in_defaults(mode: &str) -> (PresenceStance, u32, u32, bool, u32) {
     match mode {
-        presence_mode_ids::AWAY => (PresenceStance::DeferAndBatch, 180, 0, 0),
-        presence_mode_ids::INVISIBLE => (PresenceStance::Autonomous, 30, 120, 20),
+        presence_mode_ids::AWAY => (PresenceStance::DeferAndBatch, 180, 0, false, 0),
+        presence_mode_ids::INVISIBLE => (PresenceStance::Autonomous, 30, 120, false, 20),
         // Online and any unknown/custom mode without explicit fields:
         // conservative interactive, nothing auto-resolves.
-        _ => (PresenceStance::Interactive, 0, 0, 0),
+        _ => (PresenceStance::Interactive, 0, 0, false, 0),
     }
 }
 
@@ -106,8 +108,13 @@ impl PresencePolicy {
     /// Resolve the policy from a wire snapshot. Explicit wire fields win;
     /// missing fields fall back to built-in defaults for the mode id.
     pub fn resolve(presence: &UserPresence) -> Self {
-        let (default_stance, default_question, default_plan, default_goal) =
-            built_in_defaults(&presence.mode);
+        let (
+            default_stance,
+            default_question,
+            default_plan,
+            default_mode_switch_auto_plan,
+            default_goal,
+        ) = built_in_defaults(&presence.mode);
 
         Self {
             question_auto_resolve: AutoResolve::from_secs(
@@ -118,6 +125,9 @@ impl PresencePolicy {
             plan_auto_approve: AutoResolve::from_secs(
                 presence.plan_auto_approve_secs.unwrap_or(default_plan),
             ),
+            mode_switch_auto_plan: presence
+                .mode_switch_auto_plan
+                .unwrap_or(default_mode_switch_auto_plan),
             goal_loop: GoalLoopPolicy::from_max_turns(
                 presence.goal_max_turns.unwrap_or(default_goal),
             ),
@@ -151,6 +161,7 @@ mod tests {
             stance: Some(PresenceStance::Autonomous),
             question_auto_resolve_secs: Some(15),
             plan_auto_approve_secs: Some(0),
+            mode_switch_auto_plan: Some(true),
             goal_max_turns: Some(2),
             ..Default::default()
         };
@@ -161,6 +172,7 @@ mod tests {
             AutoResolve::After(Duration::from_secs(15))
         );
         assert_eq!(policy.plan_auto_approve, AutoResolve::Off);
+        assert!(policy.mode_switch_auto_plan);
         assert_eq!(policy.goal_loop, GoalLoopPolicy::On { max_turns: 2 });
     }
 
@@ -168,6 +180,12 @@ mod tests {
     fn legacy_payload_online_maps_to_interactive_off() {
         let policy = PresencePolicy::resolve(&wire("online"));
         assert_eq!(policy, PresencePolicy::default());
+    }
+
+    #[test]
+    fn legacy_payload_defaults_to_mode_switch_auto_skip() {
+        let policy = PresencePolicy::resolve(&wire("invisible"));
+        assert!(!policy.mode_switch_auto_plan);
     }
 
     #[test]

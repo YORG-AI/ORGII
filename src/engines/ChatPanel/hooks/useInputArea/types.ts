@@ -175,6 +175,8 @@ export interface UseInputAreaReturn {
   setIsInputFocused: (focused: boolean) => void;
   handleInputBlur: () => void;
   handleContentChange: (text: string) => void;
+  /** True while the draft is a `/compact` command with no focus text yet. */
+  compactHintVisible: boolean;
   handleAtMention: (query: string, position: { x: number; y: number }) => void;
   handleAtMentionClose: () => void;
   isInputEmpty: () => boolean;

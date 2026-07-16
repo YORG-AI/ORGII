@@ -212,6 +212,9 @@
     "presenceGuidanceInvisible": "オフライン表示 — Agent への指示",
     "presenceGuidanceAway": "離席中 — Agent への指示",
     "presenceGuidancePlaceholder": "このモードでの Agent の振る舞いを指示してください…",
+    "presenceGuidanceOnlineDefault": "私はキーボードの前にいます。不明点はいつでも確認し、破壊的な操作を実行する前に必ず確認してください",
+    "presenceGuidanceInvisibleDefault": "近くにいますがオフライン表示です。基本的には自律的に進め、高リスクな操作や大きなリファクタリングのときだけ通知してください。その他の質問は一つずつではなく、まとめてください",
+    "presenceGuidanceAwayDefault": "私は席を外しています。私の返答を待たず、手元の情報で最善の判断をして、完了できることを進め、戻ったとき用に結果と未解決の質問を簡潔に残してください",
     "followSystem": "システムに従う"
   },
   "background": {
@@ -618,6 +621,12 @@
     "autoTimeoutTitle": "自動タイムアウト",
     "questionAutoSkipTimeoutByStatus": "質問を自動スキップ",
     "questionAutoSkipTimeoutByStatusDesc": "このタイムアウト後に Agent の質問を自動スキップ (0 = 無効)",
+    "planAutoApproveTimeoutByStatus": "{{status}} Plan 自動承認",
+    "planAutoApproveTimeoutByStatusDesc": "このステータスで指定秒数が経過したら保留中の Plan を自動承認します (0 = 無効)",
+    "goalMaxTurnsByStatus": "{{status}} ゴール継続予算",
+    "goalMaxTurnsByStatusDesc": "Agent が通常停止する後も、最後の依頼に対して追加で作業する最大ターン数 (0 = 無効)",
+    "modeSwitchAutoPlanByStatus": "{{status}} Plan モード自動切り替え",
+    "modeSwitchAutoPlanByStatusDesc": "保留中の Plan モード提案は確認タイマー終了時に自動切り替え",
     "resourceTabs": {
       "tools": "ツール",
       "mcp": "MCP",

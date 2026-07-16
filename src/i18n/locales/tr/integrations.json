@@ -225,8 +225,8 @@
     "apiProtocolDesc": "Yerleşik Rust Agent için bağlantı protokolünü seçin",
     "officialUrl": "Resmi URL",
     "customUrl": "Özel URL",
-    "customBaseUrlRiskTitle": "Özel URL Uyarısı",
-    "customBaseUrlRiskWarning": "Özel Base URL kullanmak API anahtarınızı ve verilerinizi üçüncü taraf sunuculara açabilir. Yalnızca güvenilir proxy'ler, kendi barındırdığınız dağıtımlar veya bilinen güvenli uç noktalar için kullanın",
+    "customBaseUrlNoteTitle": "Özel uç noktalar hakkında",
+    "customBaseUrlNoteBody": "API anahtarınız ve istek verileri girdiğiniz URL'ye gönderilir. Özel URL'leri yalnızca güvenilir proxy'ler, kendi barındırdığınız dağıtımlar veya kontrol ettiğiniz uç noktalar için kullanın",
     "addBaseUrl": "Özel Base URL ekle (İsteğe bağlı)",
     "localModel": {
       "title": "Yerel model Cookbook",
@@ -291,6 +291,8 @@
     "signInDesc": "Erişim yetkisi için tarayıcıda oturum açın",
     "setupMethod": "Kurulum Yöntemi",
     "setupMethodDesc": "Kimlik bilgilerini nasıl sağlayacağınız",
+    "endpoint": "Uç nokta",
+    "endpointDesc": "Bu anahtarın hangi uç noktaya bağlanacağını seçin",
     "detect": "Algıla",
     "detected": "Algılandı",
     "reDetect": "Yeniden Algıla",
@@ -812,7 +814,8 @@
     "pickProviderDesc": "Bir sağlayıcı seçin",
     "selectVariant": "Bağlantı yöntemi",
     "variantSubscription": "Abonelik",
-    "variantApiKey": "API Key"
+    "variantApiKey": "API Key",
+    "providerCustom": "Özel"
   },
   "modelsTable": {
     "noModels": "Keys'inizde model yok",

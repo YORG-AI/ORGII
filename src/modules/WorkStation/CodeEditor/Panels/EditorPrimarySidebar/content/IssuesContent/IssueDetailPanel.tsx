@@ -1,9 +1,7 @@
 import {
-  Check,
   CheckCircle2,
   ChevronLeft,
   CircleDot,
-  Clipboard,
   ExternalLink,
   Loader,
 } from "lucide-react";
@@ -13,7 +11,6 @@ import { useTranslation } from "react-i18next";
 import type { GitHubIssue, GitHubIssueComment } from "@src/api/tauri/github";
 import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
-import Markdown from "@src/components/MarkDown";
 import Tag from "@src/components/Tag";
 import Textarea from "@src/components/Textarea";
 import {
@@ -21,12 +18,16 @@ import {
   HEADER_ICON_SIZE,
   TYPOGRAPHY,
 } from "@src/config/workstation/tokens";
-import { useCopyCheck } from "@src/hooks/ui";
 import {
   formatTimeAgo,
   getLabelColorStyle,
 } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/hooks/workstationIssueHelpers";
-import { copyText } from "@src/util/data/clipboard";
+
+import {
+  ConnectedTimelineItem,
+  GithubMarkdown,
+  TimelineCard,
+} from "../shared/githubTimeline";
 
 interface IssueDetailPanelProps {
   issue: GitHubIssue;
@@ -41,29 +42,6 @@ interface IssueDetailPanelProps {
   onCloseIssue: () => void;
   onReopenIssue: () => void;
   onAddComment: (body: string) => Promise<void>;
-}
-
-const GITHUB_IMAGE_TAG_RE = /<img\b([^>]*)\/?>/gi;
-const IMAGE_ATTR_RE = /([\w:-]+)\s*=\s*(["'])(.*?)\2/g;
-
-function sanitizeMarkdownImageAlt(value: string): string {
-  return value.split("[").join("").split("]").join("");
-}
-
-function normalizeGitHubMarkdownBody(body: string): string {
-  return body.replace(GITHUB_IMAGE_TAG_RE, (match, rawAttrs: string) => {
-    const attrs = new Map<string, string>();
-    for (const attrMatch of rawAttrs.matchAll(IMAGE_ATTR_RE)) {
-      attrs.set(attrMatch[1].toLowerCase(), attrMatch[3]);
-    }
-
-    const src = attrs.get("src");
-    if (!src) return match;
-
-    const alt = attrs.get("alt") ?? "image";
-    const safeAlt = sanitizeMarkdownImageAlt(alt);
-    return `![${safeAlt}](${src})`;
-  });
 }
 
 export function IssueStateIcon({
@@ -154,104 +132,6 @@ function IssueLabelTag({
     </Tag>
   );
 }
-
-function ConnectedTimelineItem({
-  children,
-  isLast,
-}: {
-  children: React.ReactNode;
-  isLast?: boolean;
-}): React.ReactNode {
-  return (
-    <span className="flex min-w-0 flex-col">
-      {children}
-      {!isLast ? (
-        <span
-          className="-mt-px ml-5 h-3 border-l border-border-1"
-          aria-hidden
-        />
-      ) : null}
-    </span>
-  );
-}
-
-function TimelineCopyButton({ body }: { body: string }): React.ReactNode {
-  const { t } = useTranslation("common");
-  const onCopyContent = useCallback(async () => {
-    await copyText(body);
-  }, [body]);
-  const { copied, handleCopy } = useCopyCheck(onCopyContent);
-
-  if (!body.trim()) return null;
-
-  return (
-    <Button
-      variant="tertiary"
-      appearance="ghost"
-      size="mini"
-      iconOnly
-      icon={
-        copied ? (
-          <Check size={12} strokeWidth={1.75} />
-        ) : (
-          <Clipboard size={12} strokeWidth={1.75} />
-        )
-      }
-      title={copied ? t("status.copied") : t("actions.copy")}
-      aria-label={copied ? t("status.copied") : t("actions.copy")}
-      className="shrink-0 text-text-3 hover:bg-fill-2 hover:text-text-1"
-      onClick={(event) => {
-        event.stopPropagation();
-        handleCopy();
-      }}
-    />
-  );
-}
-
-function TimelineCard({
-  header,
-  copyBody,
-  children,
-}: {
-  header: React.ReactNode;
-  copyBody?: string;
-  children: React.ReactNode;
-}): React.ReactNode {
-  return (
-    <span className="bg-surface-1 flex min-w-0 flex-1 flex-col rounded-xl border border-border-1 shadow-sm">
-      <span className="flex min-w-0 select-text items-center justify-between gap-3 border-b border-border-1 px-3 py-2">
-        {header}
-        {copyBody ? <TimelineCopyButton body={copyBody} /> : null}
-      </span>
-      <span className="min-w-0 select-text px-3 py-3">{children}</span>
-    </span>
-  );
-}
-
-const IssueMarkdown = memo(function IssueMarkdown({
-  body,
-  emptyText,
-}: {
-  body: string;
-  emptyText?: string;
-}) {
-  if (!body.trim()) {
-    return (
-      <div className="select-text text-[12px] italic leading-5 text-text-3">
-        {emptyText}
-      </div>
-    );
-  }
-
-  return (
-    <div className="chat-block-content max-w-[860px] select-text text-[12px] leading-5 text-text-2 [&_.chat-markdown-body]:select-text [&_.chat-markdown-body]:text-[12px] [&_.chat-markdown-body]:leading-5">
-      <Markdown
-        textContent={normalizeGitHubMarkdownBody(body)}
-        skipPreprocess
-      />
-    </div>
-  );
-});
 
 export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
   ({
@@ -371,7 +251,7 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
                     </span>
                   }
                 >
-                  <IssueMarkdown
+                  <GithubMarkdown
                     body={issue.body ?? ""}
                     emptyText="No description provided."
                   />
@@ -407,7 +287,7 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
                         </span>
                       }
                     >
-                      <IssueMarkdown body={comment.body} />
+                      <GithubMarkdown body={comment.body} />
                     </TimelineCard>
                   </ConnectedTimelineItem>
                 ))

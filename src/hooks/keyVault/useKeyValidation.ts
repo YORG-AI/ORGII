@@ -40,6 +40,36 @@ function cleanInput(value?: string): string | undefined {
   return cleaned ? cleaned : undefined;
 }
 
+function buildValidationSignature({
+  agentType,
+  rawKeyInput,
+  cursorSessionToken,
+  baseUrl,
+  protocol,
+  testModel,
+}: {
+  agentType: ModelType;
+  rawKeyInput: string;
+  cursorSessionToken?: string;
+  baseUrl?: string;
+  protocol?: ProviderProtocol;
+  testModel?: string;
+}): string {
+  const cleanBaseUrl = cleanInput(baseUrl);
+  const credential =
+    rawKeyInput.trim() ||
+    (agentType === LOCAL_MODEL_PROVIDER && cleanBaseUrl ? "local-model" : "");
+
+  return JSON.stringify({
+    agentType,
+    credential,
+    cursorSessionToken: cleanInput(cursorSessionToken) ?? "",
+    baseUrl: cleanBaseUrl ?? "",
+    protocol: protocol ?? "",
+    testModel: cleanInput(testModel) ?? "",
+  });
+}
+
 /**
  * Quota shape carried back to the wizard. Either the strict-null Tauri
  * `QuotaInfo` or the legacy flat `QuotaSnapshot`.
@@ -190,7 +220,7 @@ export function useKeyValidation(
   const [extractedConfig, setExtractedConfig] =
     useState<ExtractedConfig | null>(null);
 
-  const lastValidatedKeyRef = useRef<string | null>(null);
+  const lastValidationSignatureRef = useRef<string | null>(null);
 
   const resetValidation = useCallback(() => {
     setKeyValidated(false);
@@ -201,15 +231,31 @@ export function useKeyValidation(
   }, []);
 
   useEffect(() => {
-    if (lastValidatedKeyRef.current === null && !keyValidated) return;
-    const cleanBaseUrl = cleanInput(baseUrl);
-    const currentValidationKey =
-      rawKeyInput.trim() ||
-      (agentType === LOCAL_MODEL_PROVIDER && cleanBaseUrl ? "local-model" : "");
-    if (keyValidated && currentValidationKey !== lastValidatedKeyRef.current) {
+    if (lastValidationSignatureRef.current === null && !keyValidated) return;
+    const currentValidationSignature = buildValidationSignature({
+      agentType,
+      rawKeyInput,
+      cursorSessionToken,
+      baseUrl,
+      protocol,
+      testModel,
+    });
+    if (
+      keyValidated &&
+      currentValidationSignature !== lastValidationSignatureRef.current
+    ) {
       resetValidation();
     }
-  }, [agentType, baseUrl, rawKeyInput, keyValidated, resetValidation]);
+  }, [
+    agentType,
+    baseUrl,
+    cursorSessionToken,
+    protocol,
+    rawKeyInput,
+    keyValidated,
+    resetValidation,
+    testModel,
+  ]);
 
   const validateKeyCb = useCallback(
     async (overrideTestModel?: unknown) => {
@@ -265,7 +311,14 @@ export function useKeyValidation(
         }
 
         if (result.valid) {
-          lastValidatedKeyRef.current = cleanRawKeyInput;
+          lastValidationSignatureRef.current = buildValidationSignature({
+            agentType,
+            rawKeyInput,
+            cursorSessionToken,
+            baseUrl,
+            protocol,
+            testModel: effectiveTestModel ?? testModel,
+          });
 
           const envVars =
             (result as { extracted_env_vars?: EnvVar[] }).extracted_env_vars ??

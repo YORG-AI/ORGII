@@ -153,6 +153,16 @@ impl Tool for EditTool {
         let new_string = params.new_string;
         let replace_all = params.replace_all;
 
+        // Disambiguate mode when a caller leaks both `content` and edit fields
+        // (some providers emit sibling optional fields even for a pure
+        // search-replace). Overwrite is destructive, so it must NOT be the
+        // default resolution of an ambiguous call: only treat `content` as a
+        // whole-file write when NO edit fields are present. When `content`
+        // coexists with `old_string`/`new_string`, honor the search-replace
+        // intent and ignore the stray `content`.
+        let has_edit_fields = old_string.is_some() || new_string.is_some();
+        let content = if has_edit_fields { None } else { content };
+
         // Validate path against the live session workspace (single source
         // of truth): primary root = live working_dir(); extras = every
         // effective root (workspace_root, worktree working_dir, `/add-dir`

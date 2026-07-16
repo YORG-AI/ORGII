@@ -4,7 +4,7 @@
  * Extracted from GenericSetup for reuse across KeyVaultAccount and Listing wizards.
  * Supports three methods: Autodetect, Enter Key, Extract Config.
  */
-import { Keyboard, Locate, ScanSearch } from "lucide-react";
+import { ClipboardCopy, Keyboard, ScanSearch } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -92,7 +92,7 @@ const KeyInputSection: React.FC<KeyInputSectionProps> = ({
       {
         key: "extract",
         label: t("keyVault.extractConfig"),
-        icon: Locate,
+        icon: ClipboardCopy,
       },
     ],
     [t]

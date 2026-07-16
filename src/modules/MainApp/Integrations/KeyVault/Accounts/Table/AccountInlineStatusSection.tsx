@@ -17,6 +17,7 @@ import {
   getGroupedUsageItemsForDisplay,
   getQuotaUsageLabel as getSharedQuotaUsageLabel,
   resolveAccountUsageItems,
+  resolveQuotaPlanLabel,
 } from "@src/hooks/keyVault/accountQuotaDisplay";
 import { useCopyCheck } from "@src/hooks/ui";
 import { copyText } from "@src/util/data/clipboard";
@@ -55,29 +56,8 @@ function hasTotalPercentUsed(
   );
 }
 
-function formatPlanLabel(value: string | null | undefined): string | null {
-  const trimmed = value?.trim();
-  if (!trimmed) return null;
-  return trimmed
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .split(" ")
-    .map((part) =>
-      part.length > 0 ? part.charAt(0).toUpperCase() + part.slice(1) : part
-    )
-    .join(" ");
-}
-
 function resolvePlanLabel(account: KeyVaultAccount): string | null {
-  const quotaInfo = account.quotaInfo;
-  if (!quotaInfo) return null;
-
-  if (account.modelType === CLI_AGENT.CLAUDE_CODE) {
-    const tierLabel = formatPlanLabel(account.accountMetadata?.rate_limit_tier);
-    if (tierLabel) return tierLabel;
-  }
-
-  return formatPlanLabel(quotaInfo.plan_type);
+  return resolveQuotaPlanLabel(account);
 }
 
 export const AccountInlineStatusSection: React.FC<

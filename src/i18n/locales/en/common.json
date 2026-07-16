@@ -33,6 +33,8 @@
     "noContent": "No content",
     "noIssueSelected": "No issue selected",
     "selectIssueHint": "Select an issue from the Issues panel in the sidebar.",
+    "noPrSelected": "No pull request selected",
+    "selectPrHint": "Select a pull request from the Pull request panel in the sidebar.",
     "reload": "Reload",
     "urlPreviewRequiresTauri": "URL Preview requires Tauri",
     "openInExternalBrowser": "Open in external browser instead",
@@ -1053,6 +1055,20 @@
     "indexingProgress": "Indexing: {{processed}}/{{total}} files ({{percent}}%)",
     "indexingProgressWithFile": "Indexing: {{processed}}/{{total}} files ({{percent}}%)\nCurrent: {{file}}",
     "languageServices": "Language Services",
+    "ports": {
+      "workspaceSection": "Workspace",
+      "externalSection": "External",
+      "tooltip": "Ports: {{workspace}} workspace, {{external}} external",
+      "noWorkspacePorts": "No workspace ports detected",
+      "externalLabel": "external",
+      "unknownProcess": "Unknown process",
+      "pidLabel": "PID {{pid}}",
+      "openInBrowser": "Open in Browser",
+      "copyAddress": "Copy address",
+      "stopProcess": "Stop Process",
+      "searchPlaceholder": "Search ports…",
+      "noSearchResults": "No matching ports"
+    },
     "noLanguageServicesActive": "No language services active",
     "linesSelected": "{{count}} lines selected",
     "charsSelected": "{{count}} selected",
@@ -1217,6 +1233,41 @@
     },
     "pr": {
       "title": "Pull Request",
+      "baseBranch": "base",
+      "noDescription": "No description provided.",
+      "loadingConversation": "Loading…",
+      "reviewNoBody": "Left review comments.",
+      "commentPlaceholder": "Leave a comment…",
+      "comment": "Comment",
+      "approve": "Approve",
+      "requestChanges": "Request changes",
+      "reply": "Reply",
+      "replyPlaceholder": "Reply…",
+      "reviewThreads": "Review comments",
+      "tabs": {
+        "conversation": "Conversation",
+        "commits": "Commits",
+        "checks": "Checks",
+        "changes": "Changes"
+      },
+      "checks": {
+        "none": "No checks reported",
+        "noneHint": "No CI checks or statuses ran on this pull request's head commit.",
+        "allPassed": "All checks passed",
+        "someFailed": "Some checks failed",
+        "pending": "Checks in progress"
+      },
+      "commits": {
+        "backToList": "All commits",
+        "none": "No commits"
+      },
+      "changes": {
+        "title": "Files changed",
+        "noFiles": "No file changes",
+        "tooLarge": "File too large to diff",
+        "unavailable": "Changes unavailable",
+        "unavailableHint": "Could not resolve the pull request's base and head commits."
+      },
       "creating": "Creating pull request…",
       "createError": "Failed to create pull request",
       "readyHint": "Branch is pushed and ready for a pull request",
@@ -1284,7 +1335,6 @@
     },
     "modelSelector": {
       "recentModels": "Recent Models",
-      "currentModel": "Current Model",
       "allModels": "All Models",
       "noRecent": "No recent models",
       "noResults": "No matching models",
@@ -1299,6 +1349,7 @@
     "modelProperties": {
       "options": "Options",
       "effort": "Effort",
+      "default": "Default",
       "faster": "Faster",
       "smarter": "Smarter"
     },
@@ -2047,9 +2098,25 @@
     "cacheSaved": "Cache saved: {{read}} read, {{write}} write",
     "remaining": "Free: {{tokens}} remaining",
     "cacheHero": "{{pct}}% served from cache · ~{{tokens}} reused this turn",
-    "cacheHeroSub": "Prompt caching cuts the cost of the reused prefix to roughly 1/10.",
+    "cacheHeroSub": "Prompt caching can lower cost by up to 90%",
     "headroom": "{{tokens}} of room left",
-    "autoCompactNote": "Context will be summarized soon"
+    "autoCompactNote": "Context will be summarized soon",
+    "compactBoundaryTitle": "Context compacted",
+    "compactBoundarySubtitle_one": "{{count}} earlier message summarized",
+    "compactBoundaryTokens": "{{before}} → {{after}} tokens",
+    "compactBoundarySubtitle_other": "{{count}} earlier messages summarized",
+    "manualCompactAction": "Compact",
+    "manualCompactRunning": "Compacting",
+    "manualCompactInProgress": "Compacting context — wait for it to finish before sending",
+    "manualCompactSuccess": "Compacted: {{messagesBefore}} → {{messagesAfter}} messages, {{tokensBefore}} → {{tokensAfter}} tokens",
+    "manualCompactTooShort": "Content is short; no compaction needed",
+    "manualCompactAlreadyCompact": "No new compactable content",
+    "manualCompactBusy": "Session is running. Compact after it finishes",
+    "manualCompactNoRuntime": "Send a message before compacting",
+    "manualCompactFailed": "Compaction failed: {{message}}",
+    "manualCompactChannelAttached": "This session is managed by a channel — use /compact there",
+    "manualCompactInstructionsPlaceholder": "Optional: what to focus on when summarizing",
+    "manualCompactSectionTitle": "Manual compaction?"
   },
   "relativeDate": {
     "today": "Today",

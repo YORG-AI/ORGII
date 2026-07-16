@@ -3,7 +3,7 @@
  *
  * Renders the UnifiedModelPalette content area:
  *
- *   │ Current Model + Recent Models (full width, no divider) │
+ *   │ Recent Models (full width, no divider)       │
  *   ├─────────────────────────────────────────────┤
  *   │ All Models (full-width header)               │
  *   ├──────────────────────┬──────────────────────┤
@@ -26,7 +26,7 @@ import type { SpotlightItem } from "../../types";
 // ============ TYPES ============
 
 export interface TwoColumnModelBodyProps {
-  /** Flat kernel list: [current header?, current…, recent header?, recents…, all header, models…]. */
+  /** Flat kernel list: [recent header?, recents…, all header, models…]. */
   items: SpotlightItem[];
   /** Kernel cursor over `items`. */
   selectedIndex: number;
@@ -46,9 +46,7 @@ export interface TwoColumnModelBodyProps {
 // ============ CONSTANTS ============
 
 const COLUMN_HEIGHT = 260;
-const RECENT_MAX_HEIGHT = 150;
-
-const CURRENT_MAX_HEIGHT = 72;
+const RECENT_MAX_HEIGHT = 220;
 
 // ============ HELPERS ============
 
@@ -126,33 +124,21 @@ export const TwoColumnModelBody: React.FC<TwoColumnModelBodyProps> = ({
   const { isKeyboardMode, handleMouseMove, dataKeyboardMode } =
     useKeyboardMouseMode();
 
-  // Split the flat list into Current / Recent vs All-Models rows, preserving
-  // each row's index into the flat `items` array (kernel cursor space).
-  const {
-    currentRows,
-    recentRows,
-    modelRows,
-    currentHeader,
-    recentHeader,
-    allHeader,
-  } = useMemo(() => {
-    const current: { item: SpotlightItem; index: number }[] = [];
+  // Split the flat list into Recent vs All-Models rows, preserving each
+  // row's index into the flat `items` array (kernel cursor space).
+  const { recentRows, modelRows, recentHeader, allHeader } = useMemo(() => {
     const recents: { item: SpotlightItem; index: number }[] = [];
     const models: { item: SpotlightItem; index: number }[] = [];
-    let currentH: SpotlightItem | null = null;
     let recentH: SpotlightItem | null = null;
     let allH: SpotlightItem | null = null;
 
     items.forEach((item, index) => {
       if (isHeader(item)) {
-        if (item.id.endsWith(":current")) currentH = item;
-        else if (item.id.endsWith(":recent")) recentH = item;
+        if (item.id.endsWith(":recent")) recentH = item;
         else allH = item;
         return;
       }
-      if (getSection(item) === "current") {
-        current.push({ item, index });
-      } else if (getSection(item) === "recent") {
+      if (getSection(item) === "recent") {
         recents.push({ item, index });
       } else {
         models.push({ item, index });
@@ -160,64 +146,37 @@ export const TwoColumnModelBody: React.FC<TwoColumnModelBodyProps> = ({
     });
 
     return {
-      currentRows: current,
       recentRows: recents,
       modelRows: models,
-      currentHeader: currentH as SpotlightItem | null,
       recentHeader: recentH as SpotlightItem | null,
       allHeader: allH as SpotlightItem | null,
     };
   }, [items]);
 
   const sourcesColumnActive = activeColumn === "sources";
-  const hasQuickPickSection = currentRows.length > 0 || recentRows.length > 0;
+  const hasQuickPickSection = recentRows.length > 0;
 
   return (
     <div className="flex flex-col">
-      {/* ── Current + Recent (full width, one-click) ─────────────────── */}
+      {/* ── Recent (full width, one-click) ───────────────────────────── */}
       {hasQuickPickSection && (
         <div className="border-b border-border-1">
-          {currentRows.length > 0 && (
-            <>
-              {currentHeader && (
-                <div className="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-text-3">
-                  {currentHeader.label}
-                </div>
-              )}
-              <RowColumn
-                rows={currentRows}
-                selectedIndex={selectedIndex}
-                isKeyboardMode={isKeyboardMode}
-                searchQuery={searchQuery}
-                maxHeight={CURRENT_MAX_HEIGHT}
-                onSelect={onItemSelect}
-                onHover={onItemHover}
-                onMouseMove={handleMouseMove}
-                dataKeyboardMode={dataKeyboardMode}
-              />
-            </>
+          {recentHeader && (
+            <div className="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-text-3">
+              {recentHeader.label}
+            </div>
           )}
-
-          {recentRows.length > 0 && (
-            <>
-              {recentHeader && (
-                <div className="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-text-3">
-                  {recentHeader.label}
-                </div>
-              )}
-              <RowColumn
-                rows={recentRows}
-                selectedIndex={selectedIndex}
-                isKeyboardMode={isKeyboardMode}
-                searchQuery={searchQuery}
-                maxHeight={RECENT_MAX_HEIGHT}
-                onSelect={onItemSelect}
-                onHover={onItemHover}
-                onMouseMove={handleMouseMove}
-                dataKeyboardMode={dataKeyboardMode}
-              />
-            </>
-          )}
+          <RowColumn
+            rows={recentRows}
+            selectedIndex={selectedIndex}
+            isKeyboardMode={isKeyboardMode}
+            searchQuery={searchQuery}
+            maxHeight={RECENT_MAX_HEIGHT}
+            onSelect={onItemSelect}
+            onHover={onItemHover}
+            onMouseMove={handleMouseMove}
+            dataKeyboardMode={dataKeyboardMode}
+          />
         </div>
       )}
 

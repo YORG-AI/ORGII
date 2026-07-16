@@ -154,7 +154,7 @@ const IndependentGridCellComponent: React.FC<GridCellProps> = ({
     <div
       data-subagent-cell-thread-id={threadId ?? undefined}
       data-subagent-cell-focused={isFocused ? "true" : undefined}
-      className={`relative h-full w-full overflow-hidden transition-all duration-300 ${isFocused ? "z-10 ring-1 ring-inset ring-blue-500/50" : ""}`}
+      className={`relative h-full w-full overflow-hidden transition-all duration-300 ${isFocused ? "z-10" : ""}`}
     >
       <div className="flex h-full w-full flex-col overflow-hidden">
         {/* ── Header ── */}
@@ -269,9 +269,9 @@ const IndependentGridCellComponent: React.FC<GridCellProps> = ({
               className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded text-text-2 ${SURFACE_TOKENS.hover} hover:text-text-1`}
             >
               {state.isPlaying ? (
-                <Pause size={11} strokeWidth={2} />
+                <Pause size={11} fill="currentColor" strokeWidth={0} />
               ) : (
-                <Play size={11} strokeWidth={2} />
+                <Play size={11} fill="currentColor" strokeWidth={0} />
               )}
             </button>
             {/* Prev / next event — moves the cell's replay cursor by one

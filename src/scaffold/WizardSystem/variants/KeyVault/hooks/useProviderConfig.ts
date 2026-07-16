@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { rpc } from "@src/api/tauri/rpc";
 import type {
   ProviderConfig,
+  ProviderEndpoint,
   ProviderProtocol,
 } from "@src/api/tauri/rpc/schemas/validation";
 import type { ModelType } from "@src/api/types/keys";
@@ -48,6 +49,33 @@ export interface ProviderEnvConfig {
   defaultBaseUrl: string | null;
   supportedProtocols: ProviderProtocol[];
   defaultProtocol: ProviderProtocol;
+  /**
+   * Selectable endpoints (region / tier variants), first entry being the
+   * default. Empty when the provider has a single implicit endpoint.
+   */
+  endpoints: ProviderEndpoint[];
+}
+
+const FALLBACK_ENV_CONFIG: ProviderEnvConfig = {
+  apiKeyEnvVar: "API_KEY",
+  baseUrlEnvVar: null,
+  supportsBaseUrl: false,
+  defaultBaseUrl: null,
+  supportedProtocols: ["openai"],
+  defaultProtocol: "openai",
+  endpoints: [],
+};
+
+function toEnvConfig(rustConfig: ProviderConfig): ProviderEnvConfig {
+  return {
+    apiKeyEnvVar: rustConfig.api_key_env_var,
+    baseUrlEnvVar: rustConfig.base_url_env_var,
+    supportsBaseUrl: rustConfig.supports_base_url,
+    defaultBaseUrl: rustConfig.default_base_url,
+    supportedProtocols: rustConfig.supported_protocols,
+    defaultProtocol: rustConfig.default_protocol,
+    endpoints: rustConfig.endpoints,
+  };
 }
 
 // ============================================
@@ -103,31 +131,8 @@ export function useProviderConfig(modelType: ModelType | undefined): {
   }
 
   const rustConfig = allConfigs[modelType];
-  if (!rustConfig) {
-    // Fallback for unknown providers
-    return {
-      config: {
-        apiKeyEnvVar: "API_KEY",
-        baseUrlEnvVar: null,
-        supportsBaseUrl: false,
-        defaultBaseUrl: null,
-        supportedProtocols: ["openai"],
-        defaultProtocol: "openai",
-      },
-      loading: false,
-      error: null,
-    };
-  }
-
   return {
-    config: {
-      apiKeyEnvVar: rustConfig.api_key_env_var,
-      baseUrlEnvVar: rustConfig.base_url_env_var,
-      supportsBaseUrl: rustConfig.supports_base_url,
-      defaultBaseUrl: rustConfig.default_base_url,
-      supportedProtocols: rustConfig.supported_protocols,
-      defaultProtocol: rustConfig.default_protocol,
-    },
+    config: rustConfig ? toEnvConfig(rustConfig) : FALLBACK_ENV_CONFIG,
     loading: false,
     error: null,
   };

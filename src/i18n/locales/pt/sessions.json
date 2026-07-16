@@ -148,7 +148,9 @@
       "views": "Visualizações",
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
-      "removeDraft": "Remover rascunho"
+      "removeDraft": "Remover rascunho",
+      "showSubagents": "Mostrar subagentes",
+      "hideSubagents": "Ocultar subagentes"
     },
     "resultStatus": {
       "completed": "Concluído",
@@ -675,7 +677,9 @@
       "empty": "Nenhuma ação encontrada.",
       "unpinAll": "Desafixar tudo",
       "insert": "Inserir"
-    }
+    },
+    "compactArgHint": "<foco opcional do resumo>",
+    "compactCommandDescription": "Resume o contexto antigo para liberar espaço. Opcional: /compact <foco do resumo>"
   },
   "listPanel": {
     "showingOf": "Mostrando {{filtered}} de {{total}}",
@@ -737,6 +741,10 @@
       },
       "quota": {
         "empty": "Ainda não há dados de quota. Atualize o uso no Key Vault.",
+        "refresh": "Atualizar",
+        "justNow": "agora mesmo",
+        "minutesAgo": "há {{count}}min",
+        "hoursAgo": "há {{count}}h",
         "metrics": {
           "fiveHour": "5h",
           "sevenDay": "7d",
@@ -1033,7 +1041,8 @@
       "Ainda pensando, demorando mais que o habitual...",
       "Trabalhando nisso, demorando mais que o habitual...",
       "Refletindo, demorando mais que o habitual..."
-    ]
+    ],
+    "compacting": "Compactando contexto..."
   },
   "tools": {
     "noResultsFound": "Nenhum resultado encontrado",
@@ -1899,7 +1908,8 @@
       "models": "Modelos",
       "skills": "Skills",
       "workspaceSkills": "Workspace Skills",
-      "userSkills": "User Skills"
+      "userSkills": "User Skills",
+      "commands": "Comandos"
     },
     "diffMenu": {
       "gitActions": "Ações GIT",

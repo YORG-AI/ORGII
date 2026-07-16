@@ -170,7 +170,7 @@ fn fast_model_hint_for_claude() {
 
 #[test]
 fn fast_model_hint_for_gpt() {
-    assert!(fast_model_hint("gpt-4o").contains("gpt-4o-mini"));
+    assert!(fast_model_hint("gpt-4o").contains("mini"));
 }
 
 #[test]

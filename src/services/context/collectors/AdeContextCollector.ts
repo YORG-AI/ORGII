@@ -42,8 +42,9 @@ import { userPresenceWireAtom } from "@src/store/user/userPresenceAtom";
 import { activeWorkspaceRootAtom } from "@src/store/workspace";
 import { globalLspDiagnosticsAtom } from "@src/store/workstation/codeEditor/diagnostics/globalLspDiagnosticsAtom";
 import {
-  workstationAllOpenPrsAtom,
-  workstationPrAtom,
+  workstationAllOpenPrsAtomFamily,
+  workstationPrAtomFamily,
+  workstationRepoScopeKey,
 } from "@src/store/workstation/codeEditor/workstationPrAtom";
 import {
   activeWorkStationFilePathAtom,
@@ -372,8 +373,13 @@ export async function collectAdeContextAsync(
   let currentPr: CurrentPullRequestSnapshot | undefined;
   try {
     const store = getInstrumentedStore();
-    const prSnapshot = store.get(workstationPrAtom);
-    const allOpenPrs = store.get(workstationAllOpenPrsAtom);
+    const activeWorkspaceRoot = store.get(activeWorkspaceRootAtom);
+    const scopeKey = workstationRepoScopeKey(
+      undefined,
+      options.expectedRepoPath ?? activeWorkspaceRoot?.path
+    );
+    const prSnapshot = store.get(workstationPrAtomFamily(scopeKey));
+    const allOpenPrs = store.get(workstationAllOpenPrsAtomFamily(scopeKey));
     const branch = store.get(currentBranchAtom);
 
     // Prefer the PR URL from the atom, fall back to matching by branch

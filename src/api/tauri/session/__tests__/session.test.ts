@@ -43,6 +43,7 @@ describe("toFrontendSession", () => {
     const record = makeAggregateRecord({
       sessionId: "session-abc",
       name: "My Session",
+      displayLabel: "My Display Session",
       status: "completed",
       createdAt: "2024-02-15T08:00:00Z",
       updatedAt: "2024-02-15T09:30:00Z",
@@ -53,6 +54,7 @@ describe("toFrontendSession", () => {
 
     expect(result.session_id).toBe("session-abc");
     expect(result.name).toBe("My Session");
+    expect(result.displayLabel).toBe("My Display Session");
     expect(result.status).toBe("completed");
     expect(result.created_at).toBe("2024-02-15T08:00:00Z");
     expect(result.updated_at).toBe("2024-02-15T09:30:00Z");

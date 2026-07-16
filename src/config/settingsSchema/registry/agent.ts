@@ -43,6 +43,12 @@ const goalMaxTurnsByPresenceSchema = z.object({
   away: z.number().int().min(0).max(100),
 });
 
+const modeSwitchAutoPlanByPresenceSchema = z.object({
+  online: z.boolean(),
+  invisible: z.boolean(),
+  away: z.boolean(),
+});
+
 export const AGENT_SETTINGS_REGISTRY = {
   "agent.sde.questionAutoSkipTimeoutByPresence": {
     schema: questionAutoSkipTimeoutByPresenceSchema,
@@ -75,6 +81,17 @@ export const AGENT_SETTINGS_REGISTRY = {
     },
     description:
       "Goal continuation loop budget per user status (0 = disabled). When > 0, the agent judges its own turn-end output against the original request and keeps working until done or the budget runs out.",
+    category: "agent",
+  },
+  "agent.sde.modeSwitchAutoPlanByPresence": {
+    schema: modeSwitchAutoPlanByPresenceSchema,
+    default: {
+      online: false,
+      invisible: false,
+      away: false,
+    },
+    description:
+      "Auto-switch pending mode-switch suggestions to Plan mode on timeout per user status. Disabled by default to preserve timeout-as-skip behavior.",
     category: "agent",
   },
 } as const satisfies Record<string, SettingDefinition>;

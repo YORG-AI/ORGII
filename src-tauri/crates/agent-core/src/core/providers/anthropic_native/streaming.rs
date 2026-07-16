@@ -24,8 +24,8 @@ use super::types::{ContentBlock, MessagesResponse, StreamEvent};
 use super::usage as usage_helpers;
 use crate::providers::safe_truncate::safe_truncate_utf8;
 use crate::providers::traits::{
-    finish_reason as finish, AssistantBlock, LLMProvider, LLMResponse, ProviderError, StreamDelta,
-    StreamErrorKind, ToolCallRequest,
+    finish_reason as finish, AssistantBlock, ChatOptions, LLMProvider, LLMResponse, ProviderError,
+    StreamDelta, StreamErrorKind, ToolCallRequest,
 };
 use crate::utils::http_retry::extract_retry_after_secs;
 
@@ -39,8 +39,40 @@ impl LLMProvider for AnthropicClient {
         max_tokens: u32,
         temperature: f32,
     ) -> Result<LLMResponse, ProviderError> {
-        let mut prepared =
-            prepare_request(self, messages, tools, model, max_tokens, temperature, false);
+        self.chat_with_options(
+            messages,
+            tools,
+            model,
+            max_tokens,
+            temperature,
+            ChatOptions::default(),
+        )
+        .await
+    }
+
+    /// Non-streaming chat body. [`Self::chat`] delegates here with default
+    /// options; `options.skip_cache_write` suppresses all three
+    /// `cache_control` breakpoints in the prepared request (one-shot side
+    /// queries never read the cache back, so writing it is pure cost).
+    async fn chat_with_options(
+        &self,
+        messages: &[Value],
+        tools: Option<&[Value]>,
+        model: &str,
+        max_tokens: u32,
+        temperature: f32,
+        options: ChatOptions,
+    ) -> Result<LLMResponse, ProviderError> {
+        let mut prepared = prepare_request(
+            self,
+            messages,
+            tools,
+            model,
+            max_tokens,
+            temperature,
+            false,
+            options.skip_cache_write,
+        );
 
         info!(
             "Anthropic chat: model={}, url={}, messages={}, tools={}",
@@ -167,8 +199,11 @@ impl LLMProvider for AnthropicClient {
     ) -> Result<LLMResponse, ProviderError> {
         use futures_util::StreamExt;
 
-        let mut prepared =
-            prepare_request(self, messages, tools, model, max_tokens, temperature, true);
+        // Streaming serves the main agent loop, whose prefix IS re-read on
+        // the next turn — always keep cache writes on.
+        let mut prepared = prepare_request(
+            self, messages, tools, model, max_tokens, temperature, true, false,
+        );
 
         info!(
             "Anthropic streaming: model={}, url={}, messages={}, tools={}",

@@ -212,6 +212,9 @@
     "presenceGuidanceInvisible": "Invisible — instrucciones para los agentes",
     "presenceGuidanceAway": "Ausente — instrucciones para los agentes",
     "presenceGuidancePlaceholder": "Dile al agente cómo comportarse en este estado…",
+    "presenceGuidanceOnlineDefault": "Estoy frente al teclado. Puedes hacerme preguntas aclaratorias en cualquier momento y confirmar conmigo cualquier acción destructiva antes de ejecutarla",
+    "presenceGuidanceInvisibleDefault": "Estoy disponible, pero aparezco sin conexión. Por defecto trabaja de forma autónoma y avísame solo ante acciones de alto riesgo o refactorizaciones importantes; agrupa las demás preguntas en un único resumen en vez de hacerlas una por una",
+    "presenceGuidanceAwayDefault": "Estoy lejos del teclado. No te bloquees esperando mi respuesta; toma la mejor decisión con la información disponible, termina lo que puedas y deja un resumen breve con lo ocurrido y las preguntas abiertas para cuando vuelva",
     "followSystem": "Seguir el sistema"
   },
   "background": {
@@ -618,6 +621,12 @@
     "autoTimeoutTitle": "Tiempo de espera automático",
     "questionAutoSkipTimeoutByStatus": "Omitir preguntas automáticamente",
     "questionAutoSkipTimeoutByStatusDesc": "Omitir automáticamente las preguntas del Agent tras este tiempo de espera (0 = desactivado)",
+    "planAutoApproveTimeoutByStatus": "{{status}} aprobación automática de plan",
+    "planAutoApproveTimeoutByStatusDesc": "Aprueba automáticamente un plan pendiente después de esta cantidad de segundos en este estado (0 = desactivado)",
+    "goalMaxTurnsByStatus": "{{status}} presupuesto de continuación de objetivo",
+    "goalMaxTurnsByStatusDesc": "Sigue trabajando en tu última solicitud hasta esta cantidad de turnos adicionales después de que el agente normalmente se detendría (0 = desactivado)",
+    "modeSwitchAutoPlanByStatus": "{{status}} cambio automático a modo Plan",
+    "modeSwitchAutoPlanByStatusDesc": "Cambia automáticamente las sugerencias pendientes de modo Plan cuando vence su temporizador de confirmación",
     "resourceTabs": {
       "tools": "Herramientas",
       "mcp": "MCP",

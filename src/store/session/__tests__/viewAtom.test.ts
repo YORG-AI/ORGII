@@ -5,7 +5,9 @@ const STORAGE_KEY = "orgii-v2-session-view";
 
 type StorageMap = Record<string, string>;
 
-function installMemoryLocalStorage(): StorageMap {
+function installMemoryStorage(
+  target: "localStorage" | "sessionStorage"
+): StorageMap {
   const store: StorageMap = {};
   const mock: Storage = {
     get length() {
@@ -23,14 +25,16 @@ function installMemoryLocalStorage(): StorageMap {
     },
     key: (index: number) => Object.keys(store)[index] ?? null,
   };
-  (globalThis as unknown as { localStorage: Storage }).localStorage = mock;
+  (globalThis as unknown as Record<typeof target, Storage>)[target] = mock;
   return store;
 }
 
-let memoryStore: StorageMap = installMemoryLocalStorage();
+let memoryStore: StorageMap = installMemoryStorage("localStorage");
+installMemoryStorage("sessionStorage");
 
 beforeEach(() => {
-  memoryStore = installMemoryLocalStorage();
+  memoryStore = installMemoryStorage("localStorage");
+  installMemoryStorage("sessionStorage");
   vi.resetModules();
 });
 
@@ -45,6 +49,12 @@ async function loadAtoms() {
     await import("@src/util/core/state/instrumentedStore");
   createInstrumentedStore();
   const mod = await import("../viewAtom");
+  const repoAtoms = await import("@src/store/repo/atoms");
+  const repoDerived = await import("@src/store/repo/derived");
+  const sessionCoreMetadata =
+    await import("@src/engines/SessionCore/core/atoms/metadata");
+  const sessionAtoms = await import("@src/store/session/sessionAtom/atoms");
+  const workspaceAtoms = await import("@src/store/ui/workspaceFoldersAtom");
   return {
     sessionViewAtom: mod.sessionViewAtom,
     activeSessionIdAtom: mod.activeSessionIdAtom,
@@ -52,6 +62,14 @@ async function loadAtoms() {
     jumpToSessionAtom: mod.jumpToSessionAtom,
     openSessionAtom: mod.openSessionAtom,
     closeSessionAtom: mod.closeSessionAtom,
+    sessionReloadEpochMapAtom: sessionCoreMetadata.sessionReloadEpochMapAtom,
+    reposAtom: repoAtoms.reposAtom,
+    selectedRepoIdAtom: repoAtoms.selectedRepoIdAtom,
+    lastUsedRepoAtom: repoAtoms.lastUsedRepoAtom,
+    sessionRepoHintAtom: repoDerived.sessionRepoHintAtom,
+    sessionsAtom: sessionAtoms.sessionsAtom,
+    activeFolderIdAtom: workspaceAtoms.activeFolderIdAtom,
+    workspaceFoldersAtom: workspaceAtoms.workspaceFoldersAtom,
   };
 }
 
@@ -129,6 +147,22 @@ describe("jumpToSessionAtom", () => {
     expect(store.get(activeSessionIdAtom)).toBe("osagent-target");
   });
 
+  it("bumps reload epoch when jumping to the already-active pipeline session", async () => {
+    const {
+      jumpToSessionAtom,
+      activeSessionIdAtom,
+      sessionReloadEpochMapAtom,
+    } = await loadAtoms();
+    const store = createStore();
+
+    store.set(activeSessionIdAtom, "osagent-current");
+
+    store.set(jumpToSessionAtom, "osagent-current");
+
+    expect(store.get(activeSessionIdAtom)).toBe("osagent-current");
+    expect(store.get(sessionReloadEpochMapAtom).get("osagent-current")).toBe(1);
+  });
+
   it("clears both atoms when jumping to null", async () => {
     const {
       jumpToSessionAtom,
@@ -185,6 +219,130 @@ describe("jumpToSessionAtom", () => {
     expect(view.activeSessionId).toBe("second");
     expect(view.sessionName).toBe("Existing label");
     expect(view.repoPath).toBe("/repos/keep-me");
+  });
+
+  it("does not switch My Station repo when selected session belongs to another repo", async () => {
+    const {
+      jumpToSessionAtom,
+      reposAtom,
+      selectedRepoIdAtom,
+      lastUsedRepoAtom,
+      sessionsAtom,
+      sessionRepoHintAtom,
+    } = await loadAtoms();
+    const store = createStore();
+
+    store.set(reposAtom, [
+      {
+        id: "repo-current",
+        name: "Current",
+        path: "/repos/current",
+        kind: "git",
+      },
+      {
+        id: "repo-session",
+        name: "Session Repo",
+        path: "/repos/session",
+        kind: "git",
+      },
+    ]);
+    store.set(selectedRepoIdAtom, "repo-current");
+    store.set(lastUsedRepoAtom, "repo-current");
+    store.set(sessionsAtom, [
+      {
+        session_id: "session-in-other-repo",
+        status: "running",
+        created_at: "2026-07-09T00:00:00.000Z",
+        updated_at: "2026-07-09T00:00:00.000Z",
+        repoPath: "/repos/session",
+      },
+    ]);
+
+    store.set(jumpToSessionAtom, {
+      sessionId: "session-in-other-repo",
+      sessionName: "Other repo work",
+      repoPath: "/repos/session",
+    });
+
+    expect(store.get(selectedRepoIdAtom)).toBe("repo-current");
+    expect(store.get(lastUsedRepoAtom)).toBe("repo-current");
+    expect(store.get(sessionRepoHintAtom)).toEqual({
+      type: "repo",
+      repoId: "repo-session",
+      repoName: "Session Repo",
+    });
+  });
+
+  it("does not switch active workspace folder when selected session belongs to another folder", async () => {
+    const {
+      jumpToSessionAtom,
+      reposAtom,
+      selectedRepoIdAtom,
+      sessionsAtom,
+      sessionRepoHintAtom,
+      activeFolderIdAtom,
+      workspaceFoldersAtom,
+    } = await loadAtoms();
+    const store = createStore();
+
+    store.set(reposAtom, [
+      {
+        id: "repo-current",
+        name: "Current",
+        path: "/repos/current",
+        kind: "git",
+      },
+      {
+        id: "repo-session",
+        name: "Session Repo",
+        path: "/repos/session",
+        kind: "git",
+      },
+    ]);
+    store.set(selectedRepoIdAtom, "repo-current");
+    store.set(workspaceFoldersAtom, [
+      {
+        id: "folder-current",
+        name: "Current",
+        path: "/repos/current",
+        uri: "file:///repos/current",
+        repoId: "repo-current",
+        isPrimary: true,
+      },
+      {
+        id: "folder-session",
+        name: "Session Folder",
+        path: "/repos/session",
+        uri: "file:///repos/session",
+        repoId: "repo-session",
+        isPrimary: false,
+      },
+    ]);
+    store.set(activeFolderIdAtom, "folder-current");
+    store.set(sessionsAtom, [
+      {
+        session_id: "session-in-other-folder",
+        status: "running",
+        created_at: "2026-07-09T00:00:00.000Z",
+        updated_at: "2026-07-09T00:00:00.000Z",
+        repoPath: "/repos/session",
+      },
+    ]);
+
+    store.set(jumpToSessionAtom, {
+      sessionId: "session-in-other-folder",
+      sessionName: "Other folder work",
+      repoPath: "/repos/session",
+    });
+
+    expect(store.get(activeFolderIdAtom)).toBe("folder-current");
+    expect(store.get(selectedRepoIdAtom)).toBe("repo-current");
+    expect(store.get(sessionRepoHintAtom)).toEqual({
+      type: "folder",
+      folderId: "folder-session",
+      folderName: "Session Repo",
+      repoId: "repo-session",
+    });
   });
 });
 

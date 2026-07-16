@@ -12,7 +12,7 @@ fn extract_system_single_message() {
         json!({"role": "system", "content": "You are helpful."}),
         json!({"role": "user", "content": "Hello"}),
     ];
-    let (system, msgs) = extract_system(&messages);
+    let (system, msgs) = extract_system(&messages, false);
     let system = system.unwrap();
     let blocks = system.as_array().unwrap();
     assert_eq!(blocks.len(), 1);
@@ -28,7 +28,7 @@ fn extract_system_multi_block_cache_control() {
         json!({"role": "system", "content": "Dynamic: skills, memories, scratchpad"}),
         json!({"role": "user", "content": "Hello"}),
     ];
-    let (system, msgs) = extract_system(&messages);
+    let (system, msgs) = extract_system(&messages, false);
     let system = system.unwrap();
     let blocks = system.as_array().unwrap();
 
@@ -48,7 +48,7 @@ fn extract_system_three_blocks() {
         json!({"role": "system", "content": "Block C"}),
         json!({"role": "user", "content": "Hi"}),
     ];
-    let (system, _) = extract_system(&messages);
+    let (system, _) = extract_system(&messages, false);
     let blocks = system.unwrap();
     let blocks = blocks.as_array().unwrap();
 
@@ -72,7 +72,7 @@ fn extract_system_structured_compacted_baseline_keeps_session_cache_control() {
         json!({"role": "user", "content": "continue"}),
     ];
 
-    let (system, msgs) = extract_system(&messages);
+    let (system, msgs) = extract_system(&messages, false);
     let blocks = system.unwrap();
     let blocks = blocks.as_array().unwrap();
 
@@ -88,7 +88,7 @@ fn extract_system_structured_compacted_baseline_keeps_session_cache_control() {
 #[test]
 fn extract_system_no_system_messages() {
     let messages = vec![json!({"role": "user", "content": "Hello"})];
-    let (system, msgs) = extract_system(&messages);
+    let (system, msgs) = extract_system(&messages, false);
     assert!(system.is_none());
     assert_eq!(msgs.len(), 1);
 }
@@ -101,7 +101,7 @@ fn extract_system_skips_empty_system_blocks_before_cache_control() {
         json!({"role": "system", "content": "Stable instructions"}),
         json!({"role": "user", "content": "Hello"}),
     ];
-    let (system, msgs) = extract_system(&messages);
+    let (system, msgs) = extract_system(&messages, false);
     let system = system.expect("non-empty system block remains");
     let blocks = system.as_array().expect("system is structured blocks");
 
@@ -122,7 +122,7 @@ fn extract_system_stamps_history_tail_breakpoint() {
         json!({"role": "assistant", "content": "Let me check."}),
         json!({"role": "user", "content": "thanks"}),
     ];
-    let (_system, converted) = extract_system(&messages);
+    let (_system, converted) = extract_system(&messages, false);
     let last = converted.last().unwrap();
     let blocks = last["content"].as_array().unwrap();
     let last_block = blocks.last().unwrap();
@@ -145,7 +145,7 @@ fn extract_system_earlier_blocks_have_no_cache_control() {
         json!({"role": "assistant", "content": "answer"}),
         json!({"role": "user", "content": "second"}),
     ];
-    let (_system, converted) = extract_system(&messages);
+    let (_system, converted) = extract_system(&messages, false);
     let tail_idx = converted.len() - 1;
     for (idx, msg) in converted.iter().enumerate() {
         if idx == tail_idx {
@@ -166,8 +166,41 @@ fn extract_system_earlier_blocks_have_no_cache_control() {
 #[test]
 fn extract_system_stamp_is_noop_when_empty() {
     let messages = vec![json!({"role": "system", "content": "sys"})];
-    let (_system, converted) = extract_system(&messages);
+    let (_system, converted) = extract_system(&messages, false);
     assert!(converted.is_empty());
+}
+
+/// `skip_cache_write: true` must suppress BOTH message-side breakpoints:
+/// BP1 (last cacheable system block) and BP3 (history tail). One-shot side
+/// queries never re-read the cached prefix, so any stamp is pure
+/// cache-write premium.
+#[test]
+fn extract_system_skip_cache_write_stamps_no_breakpoints() {
+    let messages = vec![
+        json!({"role": "system", "content": "sys"}),
+        json!({"role": "user", "content": "first"}),
+        json!({"role": "assistant", "content": "answer"}),
+        json!({"role": "user", "content": "second"}),
+    ];
+    let (system, converted) = extract_system(&messages, true);
+
+    let system = system.unwrap();
+    for block in system.as_array().unwrap() {
+        assert!(
+            block.get("cache_control").is_none(),
+            "BP1 must be suppressed: {}",
+            serde_json::to_string(block).unwrap()
+        );
+    }
+    for msg in &converted {
+        for block in msg["content"].as_array().unwrap() {
+            assert!(
+                block.get("cache_control").is_none(),
+                "BP3 must be suppressed: {}",
+                serde_json::to_string(block).unwrap()
+            );
+        }
+    }
 }
 
 #[test]
@@ -191,7 +224,7 @@ fn extract_system_restores_anthropic_thinking_before_tool_use() {
         }),
     ];
 
-    let (_system, converted) = extract_system(&messages);
+    let (_system, converted) = extract_system(&messages, false);
     let assistant = converted.last().unwrap();
     assert_eq!(assistant["role"].as_str().unwrap(), "assistant");
     let blocks = assistant["content"].as_array().unwrap();
@@ -226,7 +259,7 @@ fn extract_system_tool_message_without_sidecar_is_unchanged() {
             "content": "plain result string"
         }),
     ];
-    let (_system, converted) = extract_system(&messages);
+    let (_system, converted) = extract_system(&messages, false);
     let last = converted.last().unwrap();
     assert_eq!(last["role"].as_str().unwrap(), "user");
     let blocks = last["content"].as_array().unwrap();
@@ -276,7 +309,7 @@ fn extract_system_tool_message_with_is_error_meta_emits_is_error_true() {
             "_orgii_is_error": true,
         }),
     ];
-    let (_system, converted) = extract_system(&messages);
+    let (_system, converted) = extract_system(&messages, false);
     let last = converted.last().unwrap();
     let blocks = last["content"].as_array().unwrap();
     assert_eq!(blocks[0]["type"].as_str().unwrap(), "tool_result");
@@ -312,7 +345,7 @@ fn extract_system_tool_message_with_image_sidecar_emits_sibling_image() {
             ]
         }
     })];
-    let (_system, converted) = extract_system(&messages);
+    let (_system, converted) = extract_system(&messages, false);
     let last = converted.last().unwrap();
     let blocks = last["content"].as_array().unwrap();
     assert_eq!(blocks.len(), 2, "tool_result + sibling image block");
@@ -348,7 +381,7 @@ fn extract_system_multiple_images_in_sidecar_all_become_siblings() {
             ]
         }
     })];
-    let (_system, converted) = extract_system(&messages);
+    let (_system, converted) = extract_system(&messages, false);
     let blocks = converted.last().unwrap()["content"].as_array().unwrap();
     assert_eq!(blocks.len(), 4, "tool_result + 3 images");
     assert_eq!(blocks[0]["type"].as_str().unwrap(), "tool_result");
@@ -370,7 +403,7 @@ fn extract_system_audio_block_degrades_to_text_breadcrumb() {
             ]
         }
     })];
-    let (_system, converted) = extract_system(&messages);
+    let (_system, converted) = extract_system(&messages, false);
     let blocks = converted.last().unwrap()["content"].as_array().unwrap();
     assert_eq!(blocks.len(), 2);
     assert_eq!(blocks[1]["type"].as_str().unwrap(), "text");
@@ -398,7 +431,7 @@ fn extract_system_resource_block_degrades_to_text_with_uri() {
             ]
         }
     })];
-    let (_system, converted) = extract_system(&messages);
+    let (_system, converted) = extract_system(&messages, false);
     let blocks = converted.last().unwrap()["content"].as_array().unwrap();
     let breadcrumb = blocks[1]["text"].as_str().unwrap();
     assert!(breadcrumb.contains("file:///tmp/spec.md"));
@@ -416,7 +449,7 @@ fn extract_system_sidecar_with_only_meta_emits_no_extra_blocks() {
             "mcp_meta": { "meta": { "request_id": "r-7" } }
         }
     })];
-    let (_system, converted) = extract_system(&messages);
+    let (_system, converted) = extract_system(&messages, false);
     let blocks = converted.last().unwrap()["content"].as_array().unwrap();
     assert_eq!(blocks.len(), 1);
     assert_eq!(blocks[0]["type"].as_str().unwrap(), "tool_result");
@@ -443,7 +476,7 @@ fn extract_system_merges_consecutive_tool_messages_with_sidecars() {
             "content": "B result",
         }),
     ];
-    let (_system, converted) = extract_system(&messages);
+    let (_system, converted) = extract_system(&messages, false);
     assert_eq!(
         converted.len(),
         1,

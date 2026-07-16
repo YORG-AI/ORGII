@@ -113,6 +113,8 @@ export interface PresenceModeSpec {
   questionAutoResolveSecs: number;
   /** Seconds until a pending plan approval auto-approves. 0 = off. */
   planAutoApproveSecs: number;
+  /** Whether pending mode-switch suggestions auto-switch to Plan on timeout. */
+  modeSwitchAutoPlan: boolean;
   /** Goal-loop continuation budget (Ralph loop). 0 = loop disabled. */
   goalMaxTurns: number;
   /** Built-in modes cannot be deleted and keep fixed ids/icons. */
@@ -131,6 +133,7 @@ export const BUILT_IN_PRESENCE_POLICY: Record<
     | "stance"
     | "questionAutoResolveSecs"
     | "planAutoApproveSecs"
+    | "modeSwitchAutoPlan"
     | "goalMaxTurns"
   >
 > = {
@@ -138,18 +141,21 @@ export const BUILT_IN_PRESENCE_POLICY: Record<
     stance: PRESENCE_STANCE.INTERACTIVE,
     questionAutoResolveSecs: 0,
     planAutoApproveSecs: 0,
+    modeSwitchAutoPlan: false,
     goalMaxTurns: 0,
   },
   [USER_PRESENCE_MODE.AWAY]: {
     stance: PRESENCE_STANCE.DEFER_AND_BATCH,
     questionAutoResolveSecs: 180,
     planAutoApproveSecs: 0,
+    modeSwitchAutoPlan: false,
     goalMaxTurns: 0,
   },
   [USER_PRESENCE_MODE.INVISIBLE]: {
     stance: PRESENCE_STANCE.AUTONOMOUS,
     questionAutoResolveSecs: 30,
     planAutoApproveSecs: 120,
+    modeSwitchAutoPlan: false,
     goalMaxTurns: 20,
   },
 };
@@ -176,6 +182,8 @@ export interface UserPresenceWire {
   questionAutoResolveSecs?: number;
   /** Seconds until pending plan approvals auto-approve. 0 = off. */
   planAutoApproveSecs?: number;
+  /** Whether pending mode-switch suggestions auto-switch to Plan on timeout. */
+  modeSwitchAutoPlan?: boolean;
   /** Goal-loop continuation budget. 0 = off. */
   goalMaxTurns?: number;
 }
@@ -285,5 +293,6 @@ export interface CustomRoleDefinition {
   stance?: PresenceStance;
   questionAutoResolveSecs?: number;
   planAutoApproveSecs?: number;
+  modeSwitchAutoPlan?: boolean;
   goalMaxTurns?: number;
 }

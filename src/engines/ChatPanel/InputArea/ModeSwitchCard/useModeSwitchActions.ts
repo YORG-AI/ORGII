@@ -17,7 +17,6 @@ import {
 } from "@src/engines/SessionCore/control/optimisticTurnStatus";
 import { eventsAtom } from "@src/engines/SessionCore/core/atoms";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
-import { SessionService } from "@src/engines/SessionCore/services/SessionService";
 import { creatorDefaultModelSelectionAtom } from "@src/store/session/creatorDefaultModelAtom";
 import { sessionByIdAtom, upsertSession } from "@src/store/session/sessionAtom";
 import { activeSessionIdAtom } from "@src/store/session/viewAtom";
@@ -71,6 +70,15 @@ export const MODE_LABELS: Record<string, string> = {
 // ============================================
 // Actions
 // ============================================
+
+// Lazily import SessionService to avoid a static import cycle:
+// SessionService -> sync (getAdapterForSession) -> ... -> toolHandlers ->
+// useModeSwitchActions. Loading it on demand inside the async action keeps the
+// runtime behaviour identical while removing the back-edge from the module graph.
+async function getSessionService() {
+  return (await import("@src/engines/SessionCore/services/SessionService"))
+    .SessionService;
+}
 
 async function markModeSwitchEventResolved(
   eventId: string,
@@ -137,6 +145,7 @@ async function switchCursorIdeMode(
   // (the CDP stream emits no terminal event), so an optimistic `running`
   // would never be cleared — the same reason useMessageDispatch closes the
   // turn immediately after a successful cursor handoff.
+  const SessionService = await getSessionService();
   await SessionService.sendMessage({
     sessionId,
     content: lastUserText,
@@ -214,6 +223,7 @@ async function switchAgentMode(
   beginOptimisticTurn(sessionId);
 
   try {
+    const SessionService = await getSessionService();
     await SessionService.sendMessage({
       sessionId,
       content: "",
@@ -235,12 +245,12 @@ function isE2EModeSwitchMockEnabled(): boolean {
   );
 }
 
-export async function switchMode(
+export async function switchModeForSession(
+  sessionId: string,
   eventId: string,
   targetMode: string
 ): Promise<void> {
   const store = getInstrumentedStore();
-  const sessionId = store.get(activeSessionIdAtom);
   if (!sessionId) return;
 
   markResolved(eventId, "switched");
@@ -270,6 +280,16 @@ export async function switchMode(
   if (isAgentSession(sessionId)) {
     await switchAgentMode(eventId, sessionId, targetMode);
   }
+}
+
+export async function switchMode(
+  eventId: string,
+  targetMode: string
+): Promise<void> {
+  const store = getInstrumentedStore();
+  const sessionId = store.get(activeSessionIdAtom);
+  if (!sessionId) return;
+  await switchModeForSession(sessionId, eventId, targetMode);
 }
 
 export async function skipMode(eventId: string): Promise<void> {

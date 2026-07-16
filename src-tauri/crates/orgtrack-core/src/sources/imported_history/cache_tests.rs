@@ -158,6 +158,28 @@ fn cache_source_list_filters_unlistable_sessions() {
 }
 
 #[test]
+fn cache_session_page_filters_child_sessions() {
+    let mut conn = fixture_conn();
+    let parent = input(SOURCE_CODEX_APP, "parent", 200);
+    let mut child = input(SOURCE_CODEX_APP, "child", 300);
+    child.parent_session_id = Some("codex_app-parent".to_string());
+    upsert_imported_session_cache_from_conn(&mut conn, &[parent, child]).expect("upsert");
+
+    let page =
+        query_imported_session_page_from_conn(&conn, SOURCE_CODEX_APP, 10, 0).expect("query page");
+    let cached_child = query_cached_session_from_conn(&conn, SOURCE_CODEX_APP, "child")
+        .expect("query child")
+        .expect("cached child");
+
+    assert_eq!(page.sessions.len(), 1);
+    assert_eq!(page.sessions[0].session_id, "codex_app-parent");
+    assert_eq!(
+        cached_child.parent_session_id.as_deref(),
+        Some("codex_app-parent")
+    );
+}
+
+#[test]
 fn cache_range_query_is_source_scoped_and_filters_unlistable_sessions() {
     let mut conn = fixture_conn();
     let inside = input(SOURCE_CODEX_APP, "inside", 200);

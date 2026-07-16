@@ -36,7 +36,10 @@ pub mod state;
 // `extract.rs` calls them via `super::sections::*` and the tests reach for
 // `super::super::session_memory::*` directly. So we do not flatten them.
 
-pub use compact::{last_turn_has_tool_calls, try_sm_compact};
+pub use compact::{
+    last_turn_has_tool_calls, parse_compact_boundary_content, try_sm_compact,
+    ParsedCompactBoundary,
+};
 pub use config::{SessionMemoryCompactConfig, SessionMemoryConfig};
 pub use extract::{extract_session_memory, should_extract};
 pub use state::SessionMemoryState;

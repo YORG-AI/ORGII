@@ -212,6 +212,9 @@
     "presenceGuidanceInvisible": "숨김 — Agent 행동 지침",
     "presenceGuidanceAway": "자리비움 — Agent 행동 지침",
     "presenceGuidancePlaceholder": "이 상태에서 Agent가 어떻게 행동해야 하는지 알려주세요…",
+    "presenceGuidanceOnlineDefault": "저는 키보드 앞에 있습니다. 언제든 확인 질문을 해도 되고, 파괴적인 작업을 실행하기 전에는 저에게 확인해 주세요",
+    "presenceGuidanceInvisibleDefault": "근처에 있지만 오프라인으로 표시 중입니다. 기본적으로 자율적으로 진행하고, 고위험 작업이나 큰 리팩터링일 때만 알려 주세요. 그 외 질문은 하나씩 묻지 말고 한 번에 요약해 주세요",
+    "presenceGuidanceAwayDefault": "저는 자리를 비웠습니다. 제 답변을 기다리지 말고 현재 정보로 최선의 결정을 내려 완료할 수 있는 일을 마치고, 돌아왔을 때 볼 수 있도록 결과와 열린 질문을 간단히 남겨 주세요",
     "followSystem": "시스템 설정 따르기"
   },
   "background": {
@@ -618,6 +621,12 @@
     "autoTimeoutTitle": "자동 타임아웃",
     "questionAutoSkipTimeoutByStatus": "질문 자동 건너뛰기",
     "questionAutoSkipTimeoutByStatusDesc": "이 타임아웃 후 Agent 질문 자동 건너뛰기 (0 = 비활성)",
+    "planAutoApproveTimeoutByStatus": "{{status}} Plan 자동 승인",
+    "planAutoApproveTimeoutByStatusDesc": "이 상태에서 지정한 초가 지나면 대기 중인 Plan을 자동 승인합니다 (0 = 비활성)",
+    "goalMaxTurnsByStatus": "{{status}} 목표 계속 진행 예산",
+    "goalMaxTurnsByStatusDesc": "Agent가 보통 멈춘 뒤에도 마지막 요청을 추가로 진행할 최대 턴 수 (0 = 비활성)",
+    "modeSwitchAutoPlanByStatus": "{{status}} Plan 모드 자동 전환",
+    "modeSwitchAutoPlanByStatusDesc": "대기 중인 Plan 모드 제안은 확인 타이머가 만료되면 자동 전환",
     "resourceTabs": {
       "tools": "도구",
       "mcp": "MCP",

@@ -122,6 +122,15 @@ pub enum ModelType {
     VllmApi,
     MinimaxApi,
     LongcatApi,
+    SiliconflowApi,
+    ModelscopeApi,
+    AihubmixApi,
+    CherryinApi,
+    /// AWS Bedrock via the `bedrock-mantle` OpenAI/Anthropic-compatible
+    /// surface, authenticated with a Bedrock API key rather than SigV4.
+    BedrockApi,
+    /// Fully user-defined gateway: the user supplies base URL and protocol.
+    CustomApi,
     AzureOpenaiApi,
     /// Azure-hosted Anthropic gateway. Same auth shape as `AzureOpenaiApi`
     /// (an Azure resource key + base URL) but routed through the Anthropic
@@ -179,6 +188,12 @@ impl ModelType {
             ModelType::VllmApi => "vllm_api",
             ModelType::MinimaxApi => "minimax_api",
             ModelType::LongcatApi => "longcat_api",
+            ModelType::SiliconflowApi => "siliconflow_api",
+            ModelType::ModelscopeApi => "modelscope_api",
+            ModelType::AihubmixApi => "aihubmix_api",
+            ModelType::CherryinApi => "cherryin_api",
+            ModelType::BedrockApi => "bedrock_api",
+            ModelType::CustomApi => "custom_api",
             ModelType::AzureOpenaiApi => "azure_openai_api",
             ModelType::AzureAnthropicApi => "azure_anthropic_api",
             ModelType::OrgiiOrchestrator => "orgii_orchestrator",
@@ -233,6 +248,12 @@ impl ModelType {
             "vllm_api" | "vllm" => Some(ModelType::VllmApi),
             "minimax_api" | "minimax" => Some(ModelType::MinimaxApi),
             "longcat_api" | "longcat" => Some(ModelType::LongcatApi),
+            "siliconflow_api" | "siliconflow" => Some(ModelType::SiliconflowApi),
+            "modelscope_api" | "modelscope" => Some(ModelType::ModelscopeApi),
+            "aihubmix_api" | "aihubmix" => Some(ModelType::AihubmixApi),
+            "cherryin_api" | "cherryin" => Some(ModelType::CherryinApi),
+            "bedrock_api" | "bedrock" => Some(ModelType::BedrockApi),
+            "custom_api" | "custom" => Some(ModelType::CustomApi),
             "azure_openai_api" | "azure_openai" | "azure" => Some(ModelType::AzureOpenaiApi),
             "azure_anthropic_api" | "azure_anthropic" => Some(ModelType::AzureAnthropicApi),
             "orgii_orchestrator" | "orgii" => Some(ModelType::OrgiiOrchestrator),

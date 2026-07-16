@@ -291,7 +291,12 @@ async function main() {
     },
   });
 
-  const bundleTarget = process.platform === "darwin" ? "app" : "nsis";
+  const bundleTarget =
+    process.platform === "darwin"
+      ? "app"
+      : process.platform === "win32"
+        ? "nsis"
+        : "deb";
   const tauriArgs = ["build"];
   if (featureString.length > 0) {
     tauriArgs.push("--features", featureString);

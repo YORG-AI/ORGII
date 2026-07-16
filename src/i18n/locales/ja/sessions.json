@@ -142,7 +142,9 @@
       "views": "ビュー",
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
-      "removeDraft": "ドラフトを削除"
+      "removeDraft": "ドラフトを削除",
+      "showSubagents": "サブエージェントを表示",
+      "hideSubagents": "サブエージェントを非表示"
     },
     "resultStatus": {
       "completed": "完了",
@@ -669,7 +671,9 @@
       "empty": "アクションが見つかりません。",
       "unpinAll": "すべての固定を解除",
       "insert": "挿入"
-    }
+    },
+    "compactArgHint": "<任意: 要約の重点>",
+    "compactCommandDescription": "古いコンテキストを要約して空きを作ります。任意: /compact <要約の重点>"
   },
   "listPanel": {
     "showingOf": "{{total}} 件中 {{filtered}} 件を表示",
@@ -731,6 +735,10 @@
       },
       "quota": {
         "empty": "Quota データはまだありません。Key Vault で使用量を更新してください。",
+        "refresh": "更新",
+        "justNow": "たった今",
+        "minutesAgo": "{{count}}分前",
+        "hoursAgo": "{{count}}時間前",
         "metrics": {
           "fiveHour": "5h",
           "sevenDay": "7d",
@@ -1878,7 +1886,8 @@
       "models": "モデル",
       "skills": "Skills",
       "workspaceSkills": "Workspace Skills",
-      "userSkills": "User Skills"
+      "userSkills": "User Skills",
+      "commands": "コマンド"
     },
     "diffMenu": {
       "gitActions": "GIT アクション",
@@ -2287,7 +2296,8 @@
       "引き続き考え中、いつもより時間がかかっています...",
       "作業中、いつもより時間がかかっています...",
       "次に何をするか検討中、いつもより時間がかかっています..."
-    ]
+    ],
+    "compacting": "コンテキストを圧縮中..."
   },
   "revertConfirm": {
     "title": "未保存のファイル変更",

@@ -1,6 +1,6 @@
 use crate::github::commands::{
     build_clone_argv, clean_git_clone_error, github_repo_full_name_from_remote, parse_branch,
-    parse_repo,
+    parse_check_run, parse_repo, parse_review_comment, parse_status_context, roll_up_checks_state,
 };
 use serde_json::json;
 use std::path::Path;
@@ -442,4 +442,78 @@ fn clone_public_repo_end_to_end() {
     );
 
     let _ = std::fs::remove_dir_all(&tmp);
+}
+
+// ── Checks roll-up + PR parsing ──────────────────────────────────────────────
+
+fn completed_run(conclusion: &str) -> serde_json::Value {
+    json!({ "name": "ci", "status": "completed", "conclusion": conclusion })
+}
+
+#[test]
+fn roll_up_all_success_is_success() {
+    let runs = vec![
+        parse_check_run(&completed_run("success")),
+        parse_check_run(&completed_run("skipped")),
+    ];
+    assert_eq!(roll_up_checks_state(&runs, &[]), "success");
+}
+
+#[test]
+fn roll_up_any_failure_wins() {
+    let runs = vec![
+        parse_check_run(&completed_run("success")),
+        parse_check_run(&completed_run("failure")),
+    ];
+    assert_eq!(roll_up_checks_state(&runs, &[]), "failure");
+}
+
+#[test]
+fn roll_up_in_progress_is_pending() {
+    let runs = vec![parse_check_run(
+        &json!({ "name": "ci", "status": "in_progress", "conclusion": null }),
+    )];
+    assert_eq!(roll_up_checks_state(&runs, &[]), "pending");
+}
+
+#[test]
+fn roll_up_status_error_is_failure() {
+    let runs = vec![parse_check_run(&completed_run("success"))];
+    let statuses = vec![parse_status_context(&json!({
+        "context": "ci/legacy",
+        "state": "error"
+    }))];
+    assert_eq!(roll_up_checks_state(&runs, &statuses), "failure");
+}
+
+#[test]
+fn roll_up_empty_is_success() {
+    assert_eq!(roll_up_checks_state(&[], &[]), "success");
+}
+
+#[test]
+fn parse_review_comment_maps_anchor_and_reply() {
+    let val = json!({
+        "id": 7,
+        "body": "nit",
+        "user": { "login": "octocat", "avatar_url": "https://a/x.png" },
+        "path": "src/lib.rs",
+        "side": "RIGHT",
+        "line": 42,
+        "in_reply_to_id": 3,
+        "commit_id": "abc123",
+        "diff_hunk": "@@ -1 +1 @@",
+        "pull_request_review_id": 99,
+        "created_at": "2024-01-01T00:00:00Z",
+        "updated_at": "2024-01-01T00:00:00Z",
+        "html_url": "https://github.com/o/r/pull/1#c7"
+    });
+    let comment = parse_review_comment(&val);
+    assert_eq!(comment.id, 7);
+    assert_eq!(comment.path, "src/lib.rs");
+    assert_eq!(comment.side.as_deref(), Some("RIGHT"));
+    assert_eq!(comment.line, Some(42));
+    assert_eq!(comment.in_reply_to_id, Some(3));
+    assert_eq!(comment.pull_request_review_id, Some(99));
+    assert_eq!(comment.user.login, "octocat");
 }

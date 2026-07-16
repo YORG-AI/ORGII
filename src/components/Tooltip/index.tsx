@@ -374,6 +374,13 @@ export interface TooltipProps {
   framedPanel?: boolean;
 
   /**
+   * Widen the framed-panel content area for long breadcrumb tooltips
+   * (e.g. model pill account › full model id).
+   * @default false
+   */
+  framedPanelWide?: boolean;
+
+  /**
    * Pick a nearby placement when the requested placement would overflow.
    * @default false
    */
@@ -401,6 +408,7 @@ const Tooltip = forwardRef<HTMLDivElement, TooltipProps>(
       showArrow = true,
       panelStyle = false,
       framedPanel = false,
+      framedPanelWide = false,
       smartPlacement = false,
     },
     _ref
@@ -684,6 +692,7 @@ const Tooltip = forwardRef<HTMLDivElement, TooltipProps>(
       trigger === "click" && "native-tooltip-interactive",
       panelStyle && "native-tooltip-panel",
       usesFramedSurface && "native-tooltip-framed-panel",
+      framedPanelWide && "native-tooltip-framed-panel-wide",
       className,
     ]
       .filter(Boolean)

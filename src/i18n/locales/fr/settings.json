@@ -212,6 +212,9 @@
     "presenceGuidanceInvisible": "Invisible — consignes pour les agents",
     "presenceGuidanceAway": "Absent — consignes pour les agents",
     "presenceGuidancePlaceholder": "Indique à l'agent comment se comporter dans ce mode…",
+    "presenceGuidanceOnlineDefault": "Je suis au clavier. Tu peux me poser des questions de clarification à tout moment et confirmer avec moi toute action destructive avant de l'exécuter",
+    "presenceGuidanceInvisibleDefault": "Je suis disponible mais affiché hors ligne. Par défaut, travaille de façon autonome et préviens-moi seulement pour les actions à risque élevé ou les refactorisations importantes ; regroupe les autres questions dans un seul résumé au lieu de les poser une par une",
+    "presenceGuidanceAwayDefault": "Je suis loin du clavier. Ne bloque pas en m'attendant ; prends la meilleure décision avec les informations disponibles, termine ce qui peut l'être et laisse un bref résumé de ce qui s'est passé avec les questions ouvertes pour mon retour",
     "followSystem": "Suivre le système"
   },
   "background": {
@@ -618,6 +621,12 @@
     "autoTimeoutTitle": "Délai d'attente automatique",
     "questionAutoSkipTimeoutByStatus": "Passer automatiquement les questions",
     "questionAutoSkipTimeoutByStatusDesc": "Passer automatiquement les questions de l'Agent après ce délai (0 = désactivé)",
+    "planAutoApproveTimeoutByStatus": "{{status}} approbation automatique du plan",
+    "planAutoApproveTimeoutByStatusDesc": "Approuve automatiquement un plan en attente après ce nombre de secondes dans ce statut (0 = désactivé)",
+    "goalMaxTurnsByStatus": "{{status}} budget de continuation de l'objectif",
+    "goalMaxTurnsByStatusDesc": "Continue à travailler sur votre dernière demande jusqu'à ce nombre de tours supplémentaires après l'arrêt normal de l'agent (0 = désactivé)",
+    "modeSwitchAutoPlanByStatus": "{{status}} passage automatique en mode Plan",
+    "modeSwitchAutoPlanByStatusDesc": "Bascule automatiquement les suggestions de mode Plan en attente lorsque leur minuteur de confirmation expire",
     "resourceTabs": {
       "tools": "Outils",
       "mcp": "MCP",

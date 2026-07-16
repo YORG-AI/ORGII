@@ -126,12 +126,14 @@ const TAB_IDS: Record<DiffReplayTab, string> = {
   all: "diff-tab:all",
   diff: "diff-tab:diff",
   submissions: "diff-tab:submissions",
+  requirements: "diff-tab:requirements",
 };
 
 const TAB_BY_ID: Record<string, DiffReplayTab> = {
   [TAB_IDS.all]: "all",
   [TAB_IDS.diff]: "diff",
   [TAB_IDS.submissions]: "submissions",
+  [TAB_IDS.requirements]: "requirements",
 };
 
 function hasRepoContext(context: SubmissionRepoContext | null): boolean {

@@ -142,7 +142,9 @@
       "views": "Представления",
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
-      "removeDraft": "Удалить черновик"
+      "removeDraft": "Удалить черновик",
+      "showSubagents": "Показать субагентов",
+      "hideSubagents": "Скрыть субагентов"
     },
     "resultStatus": {
       "completed": "Завершено",
@@ -671,7 +673,9 @@
       "empty": "Действия не найдены.",
       "unpinAll": "Открепить все",
       "insert": "Вставить"
-    }
+    },
+    "compactArgHint": "<необязательный фокус резюме>",
+    "compactCommandDescription": "Обобщить старый контекст, чтобы освободить место. Необязательно: /compact <фокус резюме>"
   },
   "listPanel": {
     "showingOf": "Показано {{filtered}} из {{total}}",
@@ -733,6 +737,10 @@
       },
       "quota": {
         "empty": "Данных о квоте пока нет. Обновите использование в Key Vault.",
+        "refresh": "Обновить",
+        "justNow": "только что",
+        "minutesAgo": "{{count}} мин назад",
+        "hoursAgo": "{{count}}ч назад",
         "metrics": {
           "fiveHour": "5h",
           "sevenDay": "7d",
@@ -1891,7 +1899,8 @@
       "models": "Модели",
       "skills": "Skills",
       "workspaceSkills": "Workspace Skills",
-      "userSkills": "User Skills"
+      "userSkills": "User Skills",
+      "commands": "Команды"
     },
     "diffMenu": {
       "gitActions": "Действия GIT",
@@ -2301,7 +2310,8 @@
       "Всё ещё обдумываем, занимает больше времени, чем обычно...",
       "Работаем над этим, занимает больше времени, чем обычно...",
       "Решаем, что делать дальше, занимает больше времени, чем обычно..."
-    ]
+    ],
+    "compacting": "Сжатие контекста..."
   },
   "revertConfirm": {
     "title": "Несохранённые изменения файлов",

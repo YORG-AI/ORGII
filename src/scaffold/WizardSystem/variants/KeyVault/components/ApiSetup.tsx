@@ -504,6 +504,7 @@ const ApiSetup: React.FC<ApiSetupProps> = ({
           }
           showKeySelection={hook.showKeySelection}
           detectedKeys={hook.detectedKeys}
+          agentType={data.agent_type}
           selectedCredentialIndex={hook.selectedCredentialIndex}
           onSelectCredentialIndex={hook.setSelectedCredentialIndex}
           onConfirmKeySelection={hook.handleConfirmKeySelection}

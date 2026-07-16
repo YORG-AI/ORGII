@@ -317,18 +317,21 @@ export function useLocalKeys(
       try {
         if (keyId) {
           const refreshed = await refreshKeyQuota(keyId);
-          if (refreshed) {
-            updateSharedAllKeys((prev) => {
-              const idx = prev.findIndex((key) => key.id === refreshed.id);
-              if (idx >= 0) {
-                const next = [...prev];
-                next[idx] = refreshed;
-                return next;
-              }
-              return [...prev, refreshed];
-            });
-            return true;
+          if (!refreshed) {
+            return false;
           }
+
+          const updated = (await getKey(agentType, keyId)) ?? refreshed;
+          updateSharedAllKeys((prev) => {
+            const idx = prev.findIndex((key) => key.id === updated.id);
+            if (idx >= 0) {
+              const next = [...prev];
+              next[idx] = updated;
+              return next;
+            }
+            return [...prev, updated];
+          });
+          return true;
         }
 
         const fullKey = await getFullKey(agentType, keyId);

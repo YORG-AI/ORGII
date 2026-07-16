@@ -675,3 +675,51 @@ fn sm_compact_respects_boundary_floor() {
         "Old boundary marker should have been dropped"
     );
 }
+
+#[test]
+fn parse_compact_boundary_content_splits_header_body_and_count() {
+    use crate::model_context::compaction::COMPACT_CONTINUATION_SUFFIX;
+    use crate::model_context::session_memory::parse_compact_boundary_content;
+
+    let content = format!(
+        "[Conversation summary \u{2014} 12 earlier messages compacted]\n\n## Summary\n\nbody text\n\n{}",
+        COMPACT_CONTINUATION_SUFFIX
+    );
+    let parsed = parse_compact_boundary_content(&content);
+
+    assert_eq!(
+        parsed.header.as_deref(),
+        Some("[Conversation summary \u{2014} 12 earlier messages compacted]")
+    );
+    assert!(parsed.body.starts_with("## Summary"));
+    assert!(parsed.body.ends_with("body text"));
+    assert!(
+        !parsed.body.contains("continued from an earlier conversation"),
+        "continuation suffix must be stripped"
+    );
+    assert_eq!(parsed.compacted_count, Some(12));
+}
+
+#[test]
+fn parse_compact_boundary_content_handles_session_memory_and_legacy_markers() {
+    use crate::model_context::session_memory::parse_compact_boundary_content;
+
+    let sm = parse_compact_boundary_content(
+        "[Session Memory \u{2014} 3 earlier messages compacted]\n\nsm body",
+    );
+    assert_eq!(sm.compacted_count, Some(3));
+    assert_eq!(sm.body, "sm body");
+
+    // Legacy ASCII-hyphen marker with no count and no body.
+    let legacy = parse_compact_boundary_content(
+        "[Conversation summary - earlier messages compacted without summary]",
+    );
+    assert!(legacy.header.is_some());
+    assert_eq!(legacy.body, "");
+    assert_eq!(legacy.compacted_count, None);
+
+    // Non-boundary content: everything is body, no header.
+    let plain = parse_compact_boundary_content("just some text");
+    assert_eq!(plain.header, None);
+    assert_eq!(plain.body, "just some text");
+}

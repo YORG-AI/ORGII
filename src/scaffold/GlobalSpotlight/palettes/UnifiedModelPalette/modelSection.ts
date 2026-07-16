@@ -5,7 +5,6 @@ import { groupModels } from "@src/util/modelGrouping";
 import type { SpotlightItem } from "../../types";
 
 export const MODEL_SECTION = {
-  CURRENT: "current",
   RECENT: "recent",
   ALL: "all",
 } as const;
@@ -34,13 +33,41 @@ export function getActiveModelId(
 
 export function entryMatchesActiveConfig(
   entry: RecentModelEntry,
-  config: Pick<AdvancedConfig, "model" | "listingModel" | "selectedAccountId">
+  config: Pick<
+    AdvancedConfig,
+    | "model"
+    | "listingModel"
+    | "selectedAccountId"
+    | "selectedSourceLabel"
+    | "selectedSourceModelType"
+    | "listingModelType"
+    | "cliAgentType"
+  >
 ): boolean {
   const activeModel = getActiveModelId(config);
   if (!activeModel || entry.modelId !== activeModel) return false;
+
+  if (entry.accountId && config.selectedAccountId) {
+    return entry.accountId === config.selectedAccountId;
+  }
+
+  const configModelType =
+    config.cliAgentType ??
+    config.selectedSourceModelType ??
+    config.listingModelType;
+  const entryModelType = entry.cliAgentType ?? entry.modelType;
+  if (configModelType && entryModelType !== configModelType) {
+    return false;
+  }
+
+  if (entry.accountName && config.selectedSourceLabel) {
+    return entry.accountName === config.selectedSourceLabel;
+  }
+
   if (entry.accountId || config.selectedAccountId) {
     return entry.accountId === config.selectedAccountId;
   }
+
   return true;
 }
 

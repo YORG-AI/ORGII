@@ -29,6 +29,8 @@ import {
 } from "@src/store/ui/workStationAtom";
 
 import { StatusBarRenderer } from "../shared/StatusBar/StatusBarRenderer";
+import { WorkspacePortScanner } from "../shared/StatusBar/WorkspacePortScanner";
+import { useWorkspacePortAdvertisedUrls } from "../shared/StatusBar/utils/useWorkspacePortAdvertisedUrls";
 import AgentStationChromeFrame from "./AgentStationChromeFrame";
 import AgentStationTopHeader from "./AgentStationTopHeader";
 import { AppShellContent } from "./AppShellContent";
@@ -146,6 +148,9 @@ const AppShell = React.memo(
       workStationPanels,
     });
 
+    const portsEnabled = isCodeMode && isActive && !isAgentStation;
+    useWorkspacePortAdvertisedUrls(portsEnabled);
+
     const showStatusBar = !statusBarHidden && !isAgentStation;
     const useFloatingStatusBar = internalLayoutMode === "comfort";
     const showOpsControlEmptyStatusBar =
@@ -216,6 +221,7 @@ const AppShell = React.memo(
               />
             </div>
           </div>
+          {portsEnabled && <WorkspacePortScanner enabled />}
           {showStatusBar && !showOpsControlEmptyStatusBar && (
             <StatusBarRenderer floating={useFloatingStatusBar} />
           )}

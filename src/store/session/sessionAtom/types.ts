@@ -36,6 +36,8 @@ export interface Session {
   user_input?: string;
   repo_name?: string;
   name?: string;
+  /** Backend-computed display label for list/search surfaces. */
+  displayLabel?: string;
   branch?: string;
   is_active?: boolean;
   /** Session category: CLI-based agent or Rust-native agent */

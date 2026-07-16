@@ -146,11 +146,26 @@ function formatPlanLabel(value: string | null | undefined): string | null {
     .join(" ");
 }
 
+const GENERIC_QUOTA_PLAN_TYPES = new Set<string>([
+  CLI_AGENT.CLAUDE_CODE,
+  CLI_AGENT.CODEX,
+]);
+
+function isGenericQuotaPlanType(
+  modelType: KeyVaultAccount["modelType"],
+  planType: string | null | undefined
+): boolean {
+  const normalized = planType?.trim().toLowerCase();
+  if (!normalized) return true;
+  if (normalized === modelType.toLowerCase()) return true;
+  return GENERIC_QUOTA_PLAN_TYPES.has(normalized);
+}
+
 function getQuotaAccountIdentityLabel(account: KeyVaultAccount): string {
   return normalizeDisplayText(account.name) ?? account.modelType;
 }
 
-function getQuotaAccountPlanLabel(account: KeyVaultAccount): string | null {
+export function resolveQuotaPlanLabel(account: KeyVaultAccount): string | null {
   if (!account.quotaInfo) return null;
 
   if (account.modelType === CLI_AGENT.CLAUDE_CODE) {
@@ -158,7 +173,19 @@ function getQuotaAccountPlanLabel(account: KeyVaultAccount): string | null {
     if (tier) return tier;
   }
 
-  return formatPlanLabel(account.quotaInfo.plan_type);
+  const planFromQuota = formatPlanLabel(account.quotaInfo.plan_type);
+  if (
+    !planFromQuota ||
+    isGenericQuotaPlanType(account.modelType, account.quotaInfo.plan_type)
+  ) {
+    return null;
+  }
+
+  return planFromQuota;
+}
+
+function getQuotaAccountPlanLabel(account: KeyVaultAccount): string | null {
+  return resolveQuotaPlanLabel(account);
 }
 
 function getQuotaCardLabels(account: KeyVaultAccount): {
@@ -219,6 +246,34 @@ function toMetric(
   };
 }
 
+function formatQuotaResetDurationUntil(
+  resetTime: string | null | undefined,
+  now: Date = new Date()
+): { compact: string; full: string } | null {
+  if (!resetTime) return null;
+
+  const resetDate = new Date(resetTime);
+  if (Number.isNaN(resetDate.getTime())) return null;
+
+  const diffMs = resetDate.getTime() - now.getTime();
+  if (diffMs <= 0) return null;
+
+  const totalMinutes = Math.ceil(diffMs / 60_000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  const compact =
+    hours > 0
+      ? minutes > 0
+        ? `${hours}h ${minutes}m`
+        : `${hours}h`
+      : `${minutes}m`;
+  const full =
+    formatQuotaResetTime(resetTime)?.full ??
+    `${compact} (${resetDate.toISOString()})`;
+
+  return { compact, full };
+}
+
 export function formatQuotaResetTime(
   resetTime: string | null | undefined
 ): { compact: string; full: string } | null {
@@ -255,8 +310,13 @@ export function formatQuotaResetHint(
   resetTime: string | null | undefined,
   tIntegrations: TFunction<"integrations">
 ): { compact: string; full?: string } | null {
-  const resetLabel = formatQuotaResetTime(resetTime);
-  if (resetLabel) return resetLabel;
+  if (usageType === "session") {
+    const sessionResetLabel = formatQuotaResetDurationUntil(resetTime);
+    if (sessionResetLabel) return sessionResetLabel;
+  } else {
+    const resetLabel = formatQuotaResetTime(resetTime);
+    if (resetLabel) return resetLabel;
+  }
 
   if (remainingPercent < 99.5) return null;
 

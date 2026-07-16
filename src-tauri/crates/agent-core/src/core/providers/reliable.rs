@@ -13,7 +13,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
-use super::traits::{LLMProvider, LLMResponse, ProviderError, StreamDelta};
+use super::traits::{ChatOptions, LLMProvider, LLMResponse, ProviderError, StreamDelta};
 
 /// Maximum backoff duration for rate-limit retries (10 seconds).
 const MAX_BACKOFF_MS: u64 = 10_000;
@@ -351,6 +351,30 @@ impl LLMProvider for ReliableProvider {
         max_tokens: u32,
         temperature: f32,
     ) -> Result<LLMResponse, ProviderError> {
+        self.chat_with_options(
+            messages,
+            tools,
+            model,
+            max_tokens,
+            temperature,
+            ChatOptions::default(),
+        )
+        .await
+    }
+
+    /// The retry/fallback loop for non-streaming chat. [`Self::chat`]
+    /// delegates here with default options; this override exists because the
+    /// trait's default `chat_with_options` routes through `chat` and would
+    /// silently drop the options before they reach the inner providers.
+    async fn chat_with_options(
+        &self,
+        messages: &[Value],
+        tools: Option<&[Value]>,
+        model: &str,
+        max_tokens: u32,
+        temperature: f32,
+        options: ChatOptions,
+    ) -> Result<LLMResponse, ProviderError> {
         let mut last_error: Option<ProviderError> = None;
 
         for (provider_idx, (name, provider)) in self.providers.iter().enumerate() {
@@ -363,7 +387,7 @@ impl LLMProvider for ReliableProvider {
             for attempt in 0..=self.max_retries {
                 Self::wait_for_rate_limit_cooldown(name, model).await;
                 match provider
-                    .chat(messages, tools, model, max_tokens, temperature)
+                    .chat_with_options(messages, tools, model, max_tokens, temperature, options)
                     .await
                 {
                     Ok(response) => {
