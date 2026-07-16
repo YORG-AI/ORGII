@@ -136,6 +136,9 @@ describe("collectAppZodActions", () => {
     expect(ids.has(ACTION_ID.SPOTLIGHT_OPEN)).toBe(true);
     expect(ids.has(ACTION_ID.APP_ZOOM_IN)).toBe(true);
     expect(ids.has(ACTION_ID.APP_CHECK_FOR_UPDATES)).toBe(true);
+    expect(ids.has(ACTION_ID.SESSION_CREATE)).toBe(true);
+    expect(ids.has(ACTION_ID.SESSION_LIST)).toBe(true);
+    expect(ids.has(ACTION_ID.SESSION_SEND_MESSAGE)).toBe(true);
     expect(ids.has(ACTION_ID.SETTINGS_SET_LANGUAGE)).toBe(true);
   });
 });

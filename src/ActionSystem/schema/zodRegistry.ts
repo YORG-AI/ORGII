@@ -144,7 +144,11 @@ export class ZodActionRegistry {
   getADEExposedActions(): ZodAction<z.ZodTypeAny>[] {
     return this.getAll().filter((action) => {
       const layer = action.meta.layer ?? "gui";
-      return layer === "gui";
+      // Session actions are intentionally available through the ADE bridge
+      // even though they are backend/control-plane actions. The OS agent
+      // discovers them via inspect/list before dispatching manage_session
+      // flows such as session.create / session.list / session.sendMessage.
+      return layer === "gui" || action.meta.category === "session";
     });
   }
 

@@ -23,6 +23,10 @@ export interface PinnedAction {
   category: SlashItem["category"];
   /** The source group (builtin / skill source / MCP server name). */
   source: string;
+  /** Actual slash command inserted into the composer for built-in actions. */
+  command?: string;
+  /** Stable action identifier for built-in actions. */
+  actionId?: string;
   /** For tool items: the MCP server name. */
   serverName?: string;
 }

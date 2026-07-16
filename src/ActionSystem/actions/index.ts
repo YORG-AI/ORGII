@@ -39,3 +39,8 @@ export {
   appZoomActionRegistration,
   appZoomZodActions,
 } from "./zoomActions.zod";
+
+export {
+  sessionActionRegistration,
+  sessionZodActions,
+} from "./sessionActions.zod";

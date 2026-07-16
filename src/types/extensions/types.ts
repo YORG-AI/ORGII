@@ -145,6 +145,10 @@ export interface SlashItem {
   category: SlashItemCategory;
   source: string;
   acceptsArgs: boolean;
+  /** Actual slash command inserted into the composer, e.g. `/session new`. */
+  command?: string;
+  /** Stable action identifier for dispatching built-in slash actions. */
+  actionId?: string;
   /** For tool items: the MCP server name this tool belongs to. */
   serverName?: string;
   /**
@@ -163,10 +167,167 @@ export interface SlashItem {
 export const SLASH_ACTIONS = {
   SUMMARIZE: "Summarize",
   SETUP_REPO: "Setup Repo",
-  /**
-   * Lowercase on purpose: the generic slash-select handler inserts
-   * `/${name} ` into the composer, and the submit-time interceptor
-   * (`parseCompactSlashCommand`) matches the `/compact` token.
-   */
-  COMPACT: "compact",
+  PROJECT_NEW: "Project New",
+  PROJECT_LIST: "Project List",
+  PROJECT_LINK_REPO: "Project Link Repo",
+  PROJECT_OPEN: "Project Open",
+  WI_NEW: "WI New",
+  WI_LIST: "WI List",
+  WI_LINK_PROJECT: "WI Link Project",
+  WI_START_SESSION: "WI Start Session",
+  SESSION_NEW: "Session New",
+  SESSION_LIST: "Session List",
+  SESSION_LINK_WI: "Session Link WI",
+  SESSION_MERGE: "Session Merge",
+  SESSION_CANCEL: "Session Cancel",
+  MODEL_SWITCH: "Model Switch",
 } as const;
+
+/** Canonical built-in slash action registry shared by the inline `/` menu and pinned actions. */
+export const BUILTIN_SLASH_ACTION_ITEMS: SlashItem[] = [
+  // # 仓库上下文指令：用于重置/刷新当前窗口的 repo 识别与聊天上下文。
+  {
+    name: SLASH_ACTIONS.SETUP_REPO,
+    command: "/setup repo",
+    actionId: "setup.repo",
+    description: "重置当前仓库识别与聊天上下文",
+    category: "action",
+    source: "builtin",
+    acceptsArgs: false,
+  },
+
+  // # 项目指令：用于创建、查看、打开项目，以及把项目绑定到当前代码仓库。
+  {
+    name: SLASH_ACTIONS.PROJECT_NEW,
+    command: "/project new",
+    actionId: "project.new",
+    description: "创建用于归纳相关工作的项目容器",
+    category: "action",
+    source: "builtin",
+    acceptsArgs: true,
+  },
+  {
+    name: SLASH_ACTIONS.PROJECT_LIST,
+    command: "/project list",
+    actionId: "project.list",
+    description: "查看已有项目列表",
+    category: "action",
+    source: "builtin",
+    acceptsArgs: false,
+  },
+  {
+    name: SLASH_ACTIONS.PROJECT_LINK_REPO,
+    command: "/project link-repo",
+    actionId: "project.linkRepo",
+    description: "将项目关联到当前仓库/工作区",
+    category: "action",
+    source: "builtin",
+    acceptsArgs: true,
+  },
+  {
+    name: SLASH_ACTIONS.PROJECT_OPEN,
+    command: "/project open",
+    actionId: "project.open",
+    description: "打开项目工作界面",
+    category: "action",
+    source: "builtin",
+    acceptsArgs: true,
+  },
+
+  // # 任务指令：用于创建、查看任务，并把任务挂到项目或从任务启动执行会话。
+  {
+    name: SLASH_ACTIONS.WI_NEW,
+    command: "/wi new",
+    actionId: "wi.new",
+    description: "创建可追踪的工作项/任务",
+    category: "action",
+    source: "builtin",
+    acceptsArgs: true,
+  },
+  {
+    name: SLASH_ACTIONS.WI_LIST,
+    command: "/wi list",
+    actionId: "wi.list",
+    description: "查看工作项/任务列表",
+    category: "action",
+    source: "builtin",
+    acceptsArgs: false,
+  },
+  {
+    name: SLASH_ACTIONS.WI_LINK_PROJECT,
+    command: "/wi link-project",
+    actionId: "wi.linkProject",
+    description: "将工作项挂到指定项目下",
+    category: "action",
+    source: "builtin",
+    acceptsArgs: true,
+  },
+  {
+    name: SLASH_ACTIONS.WI_START_SESSION,
+    command: "/wi start-session",
+    actionId: "wi.startSession",
+    description: "从工作项启动 agent 会话",
+    category: "action",
+    source: "builtin",
+    acceptsArgs: true,
+  },
+
+  // # 会话指令：用于新建、查看、关联、合并或取消实际执行代码任务的 agent session。
+  {
+    name: SLASH_ACTIONS.SESSION_NEW,
+    command: "/session new",
+    actionId: "session.new",
+    description: "启动一个新的 agent 会话",
+    category: "action",
+    source: "builtin",
+    acceptsArgs: true,
+  },
+  {
+    name: SLASH_ACTIONS.SESSION_LIST,
+    command: "/session list",
+    actionId: "session.list",
+    description: "查看 agent 会话列表",
+    category: "action",
+    source: "builtin",
+    acceptsArgs: false,
+  },
+  {
+    name: SLASH_ACTIONS.SESSION_LINK_WI,
+    command: "/session link-wi",
+    actionId: "session.linkWi",
+    description: "将会话关联到工作项",
+    category: "action",
+    source: "builtin",
+    acceptsArgs: true,
+  },
+  {
+    name: SLASH_ACTIONS.SESSION_MERGE,
+    command: "/session merge",
+    actionId: "session.merge",
+    description: "合并已完成会话的分支",
+    category: "action",
+    source: "builtin",
+    acceptsArgs: true,
+  },
+  {
+    name: SLASH_ACTIONS.SESSION_CANCEL,
+    command: "/session cancel",
+    actionId: "session.cancel",
+    description: "取消正在执行的 agent 会话",
+    category: "action",
+    source: "builtin",
+    acceptsArgs: true,
+  },
+
+  // # 模型指令：用于像 OpenClaw 一样通过 /model <模型名> 切换当前 session 的模型。
+  {
+    name: SLASH_ACTIONS.MODEL_SWITCH,
+    command: "/model",
+    actionId: "model.switch",
+    description:
+      "切换当前会话模型；不带参数时展示可选模型列表，支持别名/模糊匹配",
+    category: "action",
+    source: "builtin",
+    acceptsArgs: true,
+  },
+];
