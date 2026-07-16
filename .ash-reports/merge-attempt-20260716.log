@@ -1,0 +1,16 @@
+===== MERGE origin/pr/reject-truncated-side-query =====
+提交者身份未知
+
+*** 请告诉我您是谁。
+
+运行
+
+  git config --global user.email "you@example.com"
+  git config --global user.name "Your Name"
+
+来设置您账号的缺省身份标识。
+如果仅在本仓库设置身份标识，则省略 --global 参数。
+
+fatal: 无法自动探测邮件地址（得到 'panshuainan@DRL-DZ002459.(none)'）
+CONFLICT origin/pr/reject-truncated-side-query
+?? .ash-reports/

@@ -1,0 +1,16 @@
+Base: origin/develop 46f97760
+
+origin/merge/official-develop-20260629-cache-review     ahead=80   behind=35   last=e1c3c15d 2026-07-09 23:09:56 +0800 fix(compaction): reject truncated side-query summaries
+origin/merge/official-develop-20260709-resolved         ahead=43   behind=13   last=8aadef65 2026-07-09 12:18:58 +0800 fix(compaction): stream summarization + nano fallback ladder
+origin/pr/cache-side-query-isolation                    ahead=101  behind=13   last=46e32da3 2026-07-09 19:59:39 +0800 Merge branch 'develop' into pr/cache-side-query-isolation
+origin/pr/cache-token-usage                             ahead=1    behind=35   last=e2e5b259 2026-07-08 17:37:50 +0800 fix(agent-core): parse provider cache token usage into accounting
+origin/pr/channel-model-alias                           ahead=1    behind=15   last=97377dd0 2026-07-08 17:37:52 +0800 fix(channel): support model slash command aliases
+origin/pr/channel-session-restore                       ahead=1    behind=13   last=0290c06f 2026-07-08 17:38:12 +0800 fix(sidebar): refresh and load channel-created sessions
+origin/pr/fast-model-hints                              ahead=1    behind=35   last=befef2ec 2026-07-07 17:26:38 +0800 fix(providers): refresh fast model hints to current generations
+origin/pr/feishu-ws-stability                           ahead=1    behind=13   last=5156fae8 2026-07-08 17:38:10 +0800 fix(feishu): harden websocket reconnect and fragmentation handling
+origin/pr/linux-cargo-config-portable                   ahead=43   behind=13   last=3f942a56 2026-07-09 10:50:38 +0800 fix(build): keep Homebrew paths out of Cargo config
+origin/pr/linux-fast-build                              ahead=1    behind=35   last=b24bace2 2026-07-07 17:17:01 +0800 fix(build): restore linux bundle target in fast parallel build
+origin/pr/org-hierarchy-tree                            ahead=6    behind=13   last=7107fcf5 2026-07-08 17:38:05 +0800 docs(sidebar): use English hierarchy labels
+origin/pr/reject-truncated-side-query                   ahead=113  behind=13   last=7607f19d 2026-07-09 23:28:43 +0800 fix(side-query): reject length-truncated structured outputs
+origin/simon/orgii-fork                                 ahead=27   behind=371  last=9c0d39ff 2026-06-27 18:45:31 +0800 feat(channel): render session list as readable cards
+origin/simon/product-skeleton-cache-context             ahead=35   behind=340  last=7d2cac9c 2026-06-29 13:32:32 +0800 fix(session): enforce compaction route consistency
