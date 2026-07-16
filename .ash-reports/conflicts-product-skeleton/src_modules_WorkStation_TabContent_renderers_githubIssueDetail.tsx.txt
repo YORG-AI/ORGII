@@ -1,0 +1,13 @@
+FILE: src/modules/WorkStation/TabContent/renderers/githubIssueDetail.tsx
+--- OURS (current integration branch) summary/stat ---
+ .../TabContent/renderers/githubIssueDetail.tsx     | 89 +++++++++++++++-------
+ 1 file changed, 60 insertions(+), 29 deletions(-)
+--- THEIRS (origin/simon/product-skeleton-cache-context) summary/stat ---
+ src/modules/WorkStation/TabContent/renderers/githubIssueDetail.tsx | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+--- OURS content around conflicts is in worktree with markers ---
+39:<<<<<<< HEAD
+50:=======
+51:>>>>>>> origin/simon/product-skeleton-cache-context
+
+--- DIFF OURS..THEIRS ---

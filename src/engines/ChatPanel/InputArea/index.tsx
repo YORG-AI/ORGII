@@ -464,6 +464,7 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
                 onInterrupt={interruptSession}
                 onResume={resumeSession}
                 isCursorIde={isCursorIde}
+                sessionId={sessionId}
               />
             ) : (
               <NormalComposerContent
@@ -506,6 +507,7 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
                 onInterrupt={interruptSession}
                 onResume={resumeSession}
                 isCursorIde={isCursorIde}
+                sessionId={sessionId}
                 showVoiceUi={showVoiceUi}
                 voice={voice}
                 currentRepoPath={currentRepoPath}

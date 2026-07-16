@@ -35,7 +35,13 @@ pub fn create_provider(
     create_provider_with_reliability(model, account_id, &ReliabilityConfig::default())
 }
 
-/// Create a provider wrapped in [`ReliableProvider`] for retry + fallback.
+/// Create a provider wrapped in [`ReliableProvider`] for retry.
+///
+/// Runtime session routing is intentionally strict: the selected account +
+/// model pair is the only route for both foreground turns and compaction side
+/// queries. Cross-model fallback would make route/cost/cache attribution lie.
+/// Low-level tests can still construct `ReliableProvider::with_fallbacks`
+/// directly; production session construction rejects configured fallbacks.
 ///
 /// The primary model is always tried first. If `reliability.fallback_models`
 /// is non-empty, those are tried in order after the primary is exhausted.
@@ -146,27 +152,20 @@ pub fn create_provider_with_native_harness(
     let spec = resolve_spec_for_account(model, account_id)?;
     let resolved = resolve_credentials(spec, account_id)?;
 
+    if !reliability.fallback_models.is_empty() {
+        return Err(ProviderError::Other(format!(
+            "Cross-model fallback is disabled for runtime route consistency; selected route is {}/{}, configured fallback_models={:?}",
+            spec.name, model, reliability.fallback_models
+        )));
+    }
+
     let primary = build_provider_from_resolved(&resolved, spec, model, code_assist_session_id);
     let primary_name = format!("{}/{}", spec.name, model);
 
-    // Build fallback providers (best-effort — skip any that fail credential resolution)
-    let mut providers: Vec<(String, Box<dyn LLMProvider>)> = vec![(primary_name, primary)];
-
-    for fallback_model in &reliability.fallback_models {
-        match create_fallback_provider(fallback_model, account_id) {
-            Ok((name, provider)) => {
-                tracing::info!("[reliable] Registered fallback provider: {}", name);
-                providers.push((name, provider));
-            }
-            Err(err) => {
-                tracing::warn!("[reliable] Skipping fallback '{}': {}", fallback_model, err);
-            }
-        }
-    }
-
-    // Wrap in ReliableProvider (even with a single provider, for retry behavior)
-    Ok(Box::new(ReliableProvider::with_fallbacks(
-        providers,
+    // Wrap in ReliableProvider (single resolved route; retry-only, no route fallback).
+    Ok(Box::new(ReliableProvider::single(
+        primary_name,
+        primary,
         reliability.max_retries,
         reliability.base_backoff_ms,
     )))

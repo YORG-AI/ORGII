@@ -79,6 +79,7 @@ pub const WRITE_ENV_FILE: &str = "write_env_file";
 // ── Project ─────────────────────────────────────────────────────────
 pub const MANAGE_PROJECT: &str = "manage_project";
 pub const MANAGE_WORK_ITEM: &str = "manage_work_item";
+pub const IMPORT_CONTEXT: &str = "import_context";
 
 // ── Web ─────────────────────────────────────────────────────────────
 pub const WEB_SEARCH: &str = "web_search";

@@ -21,6 +21,7 @@ use super::auth::FeishuAuth;
 use super::channel::{self, WsClientConfig};
 use super::codec::*;
 use super::event::{self, FeishuEventConfig};
+use super::api;
 use crate::bus::InboundMessage;
 
 /// Cap for exponential backoff: 15 minutes.
@@ -405,23 +406,18 @@ mod tests {
     #[test]
     fn compute_backoff_caps_at_max() {
         // 10 * 2^10 = 10240 > MAX_BACKOFF_SECS (900)
-        assert_eq!(
-            compute_backoff(10, 10),
-            Duration::from_secs(MAX_BACKOFF_SECS)
-        );
-        assert_eq!(
-            compute_backoff(20, 10),
-            Duration::from_secs(MAX_BACKOFF_SECS)
-        );
+
+        assert_eq!(compute_backoff(10, 10), Duration::from_secs(MAX_BACKOFF_SECS));
+        assert_eq!(compute_backoff(20, 10), Duration::from_secs(MAX_BACKOFF_SECS));
+
     }
 
     #[test]
     fn compute_backoff_handles_large_base() {
         // 120 * 2^3 = 960 > 900 → capped
-        assert_eq!(
-            compute_backoff(3, 120),
-            Duration::from_secs(MAX_BACKOFF_SECS)
-        );
+
+        assert_eq!(compute_backoff(3, 120), Duration::from_secs(MAX_BACKOFF_SECS));
+
     }
 
     #[test]

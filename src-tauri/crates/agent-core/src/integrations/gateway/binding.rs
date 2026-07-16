@@ -147,12 +147,25 @@ impl BindingStore {
     /// not fail the call — in-memory cache still serves follow-up reads
     /// until process restart.
     pub async fn set(&self, key: SessionKey, target_session_id: String) {
+        self.set_with_activity(key, target_session_id, chrono::Utc::now().to_rfc3339())
+            .await;
+    }
+
+    /// Pin `session_key` to `target_session_id` while preserving a caller-provided
+    /// activity timestamp. Used by channel session switching so rebinding to an
+    /// older session does not pretend a new message was sent in that target.
+    pub async fn set_with_activity(
+        &self,
+        key: SessionKey,
+        target_session_id: String,
+        last_activity_at: String,
+    ) {
         let now = chrono::Utc::now().to_rfc3339();
         let binding = SessionBinding {
             session_key: key.clone(),
             target_session_id: target_session_id.clone(),
             updated_at: now.clone(),
-            last_activity_at: now.clone(),
+            last_activity_at: last_activity_at.clone(),
         };
         {
             let mut guard = self.inner.write().await;
@@ -166,12 +179,12 @@ impl BindingStore {
             conn.execute(
                 "INSERT INTO gateway_bindings
                     (session_key, target_session_id, updated_at, last_activity_at)
-                 VALUES (?1, ?2, ?3, ?3)
+                 VALUES (?1, ?2, ?3, ?4)
                  ON CONFLICT(session_key) DO UPDATE SET
                      target_session_id = excluded.target_session_id,
                      updated_at        = excluded.updated_at,
                      last_activity_at  = excluded.last_activity_at",
-                params![key_str, target_session_id, ts],
+                params![key_str, target_session_id, ts, last_activity_at],
             )?;
             Ok(())
         })

@@ -1,0 +1,17 @@
+FILE: src-tauri/crates/agent-core/src/core/session/turn/processor/mod.rs
+--- OURS (current integration branch) summary/stat ---
+ .../src/core/session/turn/processor/mod.rs         | 239 ++-------------------
+ 1 file changed, 21 insertions(+), 218 deletions(-)
+--- THEIRS (origin/simon/product-skeleton-cache-context) summary/stat ---
+ .../src/core/session/turn/processor/mod.rs         | 87 +---------------------
+ 1 file changed, 2 insertions(+), 85 deletions(-)
+--- OURS content around conflicts is in worktree with markers ---
+67:// ============================================
+69:// ============================================
+107:// ============================================
+109:// ============================================
+911:<<<<<<< HEAD
+914:=======
+916:>>>>>>> origin/simon/product-skeleton-cache-context
+
+--- DIFF OURS..THEIRS ---

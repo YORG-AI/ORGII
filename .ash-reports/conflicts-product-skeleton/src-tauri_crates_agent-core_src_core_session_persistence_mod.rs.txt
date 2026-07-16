@@ -1,0 +1,16 @@
+FILE: src-tauri/crates/agent-core/src/core/session/persistence/mod.rs
+--- OURS (current integration branch) summary/stat ---
+ .../crates/agent-core/src/core/session/persistence/mod.rs     | 11 +++++------
+ 1 file changed, 5 insertions(+), 6 deletions(-)
+--- THEIRS (origin/simon/product-skeleton-cache-context) summary/stat ---
+ .../crates/agent-core/src/core/session/persistence/mod.rs | 15 +++++----------
+ 1 file changed, 5 insertions(+), 10 deletions(-)
+--- OURS content around conflicts is in worktree with markers ---
+37:<<<<<<< HEAD
+44:=======
+54:>>>>>>> origin/simon/product-skeleton-cache-context
+66:<<<<<<< HEAD
+67:=======
+69:>>>>>>> origin/simon/product-skeleton-cache-context
+
+--- DIFF OURS..THEIRS ---

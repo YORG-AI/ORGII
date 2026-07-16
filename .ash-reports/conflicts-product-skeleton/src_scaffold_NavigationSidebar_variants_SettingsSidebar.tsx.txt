@@ -1,0 +1,13 @@
+FILE: src/scaffold/NavigationSidebar/variants/SettingsSidebar.tsx
+--- OURS (current integration branch) summary/stat ---
+ .../NavigationSidebar/variants/SettingsSidebar.tsx | 50 ++--------------------
+ 1 file changed, 4 insertions(+), 46 deletions(-)
+--- THEIRS (origin/simon/product-skeleton-cache-context) summary/stat ---
+ src/scaffold/NavigationSidebar/variants/SettingsSidebar.tsx | 8 +-------
+ 1 file changed, 1 insertion(+), 7 deletions(-)
+--- OURS content around conflicts is in worktree with markers ---
+175:<<<<<<< HEAD
+181:=======
+184:>>>>>>> origin/simon/product-skeleton-cache-context
+
+--- DIFF OURS..THEIRS ---

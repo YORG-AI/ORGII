@@ -1,6 +1,6 @@
 use super::section_builders::{
-    build_agent_org_context_section, build_project_environment, build_rules_section,
-    cap_rule_content, format_user_profile,
+    build_agent_org_context_section, build_imported_context_section, build_project_environment,
+    build_rules_section, cap_rule_content, format_user_profile,
 };
 use crate::coordination::agent_org_runs::{AgentOrgContextMember, AgentOrgRunContext};
 use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, CreateTaskParams, TaskStatus};
@@ -278,4 +278,37 @@ fn project_env_lists_each_additional_dir() {
     );
     assert!(out.contains("/tmp/pr-f-alpha"), "first path missing: {out}");
     assert!(out.contains("/tmp/pr-f-beta"), "second path missing: {out}");
+}
+
+#[test]
+fn imported_context_section_hydrates_explicit_snippets() {
+    let snapshot = crate::session::context_import::ContextSnapshotMeta::new_with_snippet(
+        "target-session",
+        crate::session::context_import::ContextSourceKind::Session,
+        "source-session",
+        Some("Source Session".to_string()),
+        12,
+        true,
+        Some("Important decision: imports must be explicit.".to_string()),
+    );
+
+    let section = build_imported_context_section(&[snapshot]).expect("section");
+    assert!(section.contains("# Imported Context"));
+    assert!(section.contains("Source Session"));
+    assert!(section.contains("session:source-session"));
+    assert!(section.contains("Important decision: imports must be explicit."));
+}
+
+#[test]
+fn imported_context_section_omits_metadata_only_snapshots() {
+    let snapshot = crate::session::context_import::ContextSnapshotMeta::new(
+        "target-session",
+        crate::session::context_import::ContextSourceKind::Session,
+        "source-session",
+        Some("Source Session".to_string()),
+        12,
+        true,
+    );
+
+    assert!(build_imported_context_section(&[snapshot]).is_none());
 }

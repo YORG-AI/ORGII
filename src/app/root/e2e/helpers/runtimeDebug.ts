@@ -151,6 +151,25 @@ export function createRuntimeDebugHelpers() {
     }
   };
 
+  const debugSessionContextCacheSnapshot = async (
+    sessionId: string
+  ): Promise<Result<{ snapshot: Json }>> => {
+    try {
+      if (!sessionId) {
+        return {
+          ok: false,
+          error: "debugSessionContextCacheSnapshot: `sessionId` is required",
+        };
+      }
+      const snapshot = (await invoke("debug_session_context_cache_snapshot", {
+        sessionId,
+      })) as Json;
+      return { ok: true, snapshot };
+    } catch (err) {
+      return asError(err);
+    }
+  };
+
   const debugSessionGeneralSnapshot = async (
     sessionId: string
   ): Promise<Result<{ snapshot: Json }>> => {
@@ -175,6 +194,7 @@ export function createRuntimeDebugHelpers() {
     debugSessionValidateCommand,
     debugSessionSubagentSnapshot,
     debugSessionModelSnapshot,
+    debugSessionContextCacheSnapshot,
     debugSessionToolsSnapshot,
     listEffectiveToolsForSession,
     debugSessionSkillsSnapshot,

@@ -56,8 +56,10 @@ pub use lifecycle::{
     mark_merged, promote_pending_to_active, reactivate_learning, record_consolidation_run,
     update_learning_body, ConsolidationRunRecord,
 };
-pub use prompt::{inject_learnings_into_prompt, learning_prompt_revision};
-pub use ranking::{salience_score, search_similar};
+pub use prompt::{
+    inject_learnings_into_prompt, inject_learnings_into_prompt_reranked, learning_prompt_revision,
+};
+pub use ranking::{rerank_candidates, salience_score, search_similar};
 pub use schema::{compute_content_hash, init_learnings_table};
 pub use stats::{
     count_status_per_scope, latest_consolidation_run, list_learnings, LearningListFilter,

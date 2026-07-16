@@ -13,6 +13,7 @@
 //! `crate::memory::reflection`, not here.
 
 pub mod compaction;
+pub mod context_import;
 pub mod exec_modes;
 pub(crate) mod file_registry;
 pub mod gateway_pipeline;
@@ -36,6 +37,7 @@ pub mod recovery;
 // each carry their own `#[doc(hidden)]`.
 pub mod prompt;
 pub(crate) mod scheduler;
+pub mod status_bar;
 pub mod session_id;
 pub mod session_memory_search;
 pub(crate) mod title;

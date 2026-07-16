@@ -12,7 +12,6 @@ import type {
 import type { CliAgentType } from "@src/api/types/keys";
 import type { TechSavvyLevel } from "@src/config/profile/userProfile";
 import type { ViewModeType } from "@src/config/viewModeTypes";
-import type { ChatPanelSurfaceKind } from "@src/store/ui/chatPanelAtom";
 import type { StationMode } from "@src/store/ui/simulatorAtom";
 import type { StatusBarAppType } from "@src/store/ui/workStationLayout/statusBarAtoms";
 import type {
@@ -22,7 +21,6 @@ import type {
 import type { UserPresenceWire } from "@src/types/userPresence";
 
 export interface UserProfileWire {
-  name?: string;
   techSavvy?: TechSavvyLevel;
   jobRoles?: string[];
   familiarTechStacks?: string[];
@@ -39,6 +37,21 @@ export interface GuideTargetSnapshot {
     height: number;
   };
 }
+
+export type ChatPanelSurfaceKind =
+  | "session"
+  | "benchmarkSessionGroup"
+  | "newProject"
+  | "newWorkItem"
+  | "project"
+  | "projectOrg"
+  | "workItem"
+  | "workspaceDashboard"
+  | "workspaceExplore"
+  | "workspaceOverview"
+  | "manageIssues"
+  | "newCollabOrg"
+  | "collabOrg";
 
 export interface AppUiSnapshot {
   route?: {

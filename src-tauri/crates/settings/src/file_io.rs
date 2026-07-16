@@ -151,6 +151,91 @@ fn backup_corrupt_settings(path: &Path, content: &str) -> Result<PathBuf, String
     Ok(backup_path)
 }
 
+/// Back up the existing settings file before an in-place overwrite, then
+/// write the new content atomically.
+///
+/// P5 防呆 / config 改前备份: ORG-2 upstream wrote settings with a bare
+/// `fs::write`, so a crash mid-write (or a bad partial update) could leave a
+/// truncated/corrupt `settings.jsonc` with no recovery point. This helper:
+///
+/// 1. If `path` already exists, copies it to a timestamped backup
+///    `settings.jsonc.bak-YYYYMMDDHHMMSS` (best-effort: a backup failure must
+///    NOT block the write — we log to stderr and continue).
+/// 2. Writes the new content to a sibling temp file then `rename`s it over
+///    `path`. `rename` is atomic on the same filesystem, so readers never see
+///    a half-written file.
+/// 3. Prunes old backups, keeping the most recent `MAX_SETTINGS_BACKUPS`.
+const MAX_SETTINGS_BACKUPS: usize = 10;
+
+fn backup_and_atomic_write(path: &Path, content: &str) -> Result<(), String> {
+    // 1. Snapshot the current file before touching it.
+    if path.exists() {
+        let stamp = backup_timestamp();
+        let backup_path = path.with_extension(format!("jsonc.bak-{stamp}"));
+        if let Err(err) = fs::copy(path, &backup_path) {
+            // Best-effort: never block a config write on backup failure.
+            eprintln!(
+                "[Settings] WARN: failed to back up {} before write: {err}",
+                path.display()
+            );
+        } else {
+            prune_old_backups(path);
+        }
+    }
+
+    // 2. Atomic write: temp file in the same dir, then rename.
+    let tmp_path = path.with_extension("jsonc.tmp");
+    fs::write(&tmp_path, content)
+        .map_err(|err| format!("Failed to write temp settings file: {err}"))?;
+    fs::rename(&tmp_path, path).map_err(|err| {
+        // Clean up the temp file on rename failure so we don't litter.
+        let _ = fs::remove_file(&tmp_path);
+        format!("Failed to atomically replace settings file: {err}")
+    })?;
+
+    Ok(())
+}
+
+fn backup_timestamp() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    secs.to_string()
+}
+
+/// Keep only the newest `MAX_SETTINGS_BACKUPS` `*.jsonc.bak-*` files next to
+/// `path`. Best-effort; errors are ignored (pruning is housekeeping, not
+/// correctness).
+fn prune_old_backups(path: &Path) {
+    let Some(dir) = path.parent() else { return };
+    let Some(stem) = path.file_name().and_then(|n| n.to_str()) else {
+        return;
+    };
+    let prefix = format!("{stem}.bak-");
+    let Ok(entries) = fs::read_dir(dir) else { return };
+    let mut backups: Vec<PathBuf> = entries
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .map(|n| n.starts_with(&prefix))
+                .unwrap_or(false)
+        })
+        .collect();
+    if backups.len() <= MAX_SETTINGS_BACKUPS {
+        return;
+    }
+    // Names embed a monotonic unix-seconds suffix, so lexical sort == chronological.
+    backups.sort();
+    let remove_count = backups.len() - MAX_SETTINGS_BACKUPS;
+    for old in backups.into_iter().take(remove_count) {
+        let _ = fs::remove_file(old);
+    }
+}
+
 /// Read settings from `~/.orgii/settings.jsonc`.
 /// Returns the parsed JSON value. Creates the file with defaults if it doesn't exist.
 pub fn read_settings() -> Result<serde_json::Value, String> {
@@ -198,7 +283,7 @@ pub fn write_settings_jsonc(content: &str) -> Result<(), String> {
     let dir = get_settings_dir()?;
 
     fs::create_dir_all(&dir).map_err(|err| format!("Failed to create settings dir: {err}"))?;
-    fs::write(&path, content).map_err(|err| format!("Failed to write settings file: {err}"))?;
+    backup_and_atomic_write(&path, content)?;
 
     Ok(())
 }
@@ -212,8 +297,7 @@ pub fn write_settings_json(value: &serde_json::Value) -> Result<(), String> {
     let dir = get_settings_dir()?;
 
     fs::create_dir_all(&dir).map_err(|err| format!("Failed to create settings dir: {err}"))?;
-    fs::write(&path, format!("{content}\n"))
-        .map_err(|err| format!("Failed to write settings file: {err}"))?;
+    backup_and_atomic_write(&path, &format!("{content}\n"))?;
 
     Ok(())
 }

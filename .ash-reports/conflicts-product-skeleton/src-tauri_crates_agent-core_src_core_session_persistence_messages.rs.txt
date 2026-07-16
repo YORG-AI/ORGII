@@ -1,0 +1,23 @@
+FILE: src-tauri/crates/agent-core/src/core/session/persistence/messages.rs
+--- OURS (current integration branch) summary/stat ---
+ .../src/core/session/persistence/messages.rs       | 151 +++------------------
+ 1 file changed, 17 insertions(+), 134 deletions(-)
+--- THEIRS (origin/simon/product-skeleton-cache-context) summary/stat ---
+ .../src/core/session/persistence/messages.rs       | 442 ---------------------
+ 1 file changed, 442 deletions(-)
+--- OURS content around conflicts is in worktree with markers ---
+460:// ============================================
+462:// ============================================
+536:// ============================================
+538:// ============================================
+547:// ============================================
+549:// ============================================
+639:<<<<<<< HEAD
+640:=======
+652:// ============================================
+654:// ============================================
+934:>>>>>>> origin/simon/product-skeleton-cache-context
+935:// ============================================
+937:// ============================================
+
+--- DIFF OURS..THEIRS ---

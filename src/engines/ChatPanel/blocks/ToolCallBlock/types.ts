@@ -193,6 +193,23 @@ export interface AgentMessageDeliveryRow {
   inboxId?: number;
 }
 
+export interface ContextImportDebugStat {
+  label: string;
+  value: string;
+}
+
+export interface ContextImportCardData {
+  snapshotId?: string;
+  sourceKind: string;
+  sourceId: string;
+  namespace: string;
+  title?: string;
+  tokenEstimate?: number;
+  pinned?: boolean;
+  sourceChips?: string[];
+  debugStats?: ContextImportDebugStat[];
+}
+
 export interface AgentMessageCardData {
   sender: string;
   recipient: string;
@@ -241,6 +258,7 @@ export type StyledOutput =
   | { type: "websiteCard"; card: WebsiteCardData }
   | { type: "workItemCard"; card: WorkItemCardData }
   | { type: "projectCard"; card: ProjectCardData }
+  | { type: "contextImportCard"; card: ContextImportCardData }
   | { type: "commandResult"; card: CommandResultData }
   | { type: "agentMessageCard"; card: AgentMessageCardData };
 

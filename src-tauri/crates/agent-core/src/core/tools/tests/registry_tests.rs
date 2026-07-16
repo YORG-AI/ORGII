@@ -894,6 +894,37 @@ async fn tool_search_marks_policy_denied_as_unavailable() {
 }
 
 // ============================================
+// Tool Alias Resolution
+// ============================================
+
+#[test]
+fn alias_wi_resolves_to_manage_work_item() {
+    let mut registry = ToolRegistry::new();
+    registry.register(Box::new(MockTool::new("manage_work_item")));
+
+    // "wi" should resolve to "manage_work_item"
+    assert!(registry.has("wi"));
+    let tool = registry.get("wi").unwrap();
+    assert_eq!(tool.name(), "manage_work_item");
+}
+
+#[tokio::test]
+async fn execute_alias_dispatches_to_canonical_tool() {
+    let mut registry = ToolRegistry::new();
+    registry.register(Box::new(MockTool::new("manage_work_item")));
+
+    let result = registry
+        .execute(
+            "wi",
+            json!({}),
+            &crate::tools::call_context::CallContext::default(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(result.text, "executed:manage_work_item");
+}
+
+// ============================================
 // LLM Schema Compatibility Contract
 // ============================================
 

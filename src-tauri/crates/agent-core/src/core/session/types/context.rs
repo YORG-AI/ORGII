@@ -235,6 +235,28 @@ pub struct ProcessingResult {
     pub prompt_tokens: i64,
     /// Completion tokens generated.
     pub completion_tokens: i64,
+    /// Context window tokens used by the final provider request.
+    ///
+    /// This is distinct from `prompt_tokens` (which may be accumulated across
+    /// multiple LLM calls in one turn). Channel status bars use it as the
+    /// current context fill level.
+    #[serde(default)]
+    pub context_tokens: i64,
+    /// Stable-prefix token estimate persisted for cache/layout debugging.
+    #[serde(default)]
+    pub stable_prefix_tokens: i64,
+    /// Volatile-context token estimate persisted for cache/layout debugging.
+    #[serde(default)]
+    pub volatile_context_tokens: i64,
+    /// Number of explicit imported context snapshots included in the turn.
+    #[serde(default)]
+    pub imported_context_count: i64,
+    /// Provider-reported prompt cache read tokens for this turn.
+    #[serde(default)]
+    pub cache_read_tokens: i64,
+    /// Provider-reported prompt cache write tokens for this turn.
+    #[serde(default)]
+    pub cache_write_tokens: i64,
     /// Number of tool calls made.
     pub tool_calls_count: u32,
     /// Whether the response was truncated.

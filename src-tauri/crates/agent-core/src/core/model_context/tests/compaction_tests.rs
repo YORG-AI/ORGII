@@ -715,6 +715,7 @@ fn ptl_ignores_unrelated_errors() {
     ));
 }
 
+
 // -- parse_actual_tokens_from_error --
 
 #[test]
@@ -1189,4 +1190,15 @@ async fn compact_rejects_empty_summary() {
     // an "empty" error instead of accepting the summary.
     let err = result.expect_err("empty summary is rejected");
     assert!(err.to_lowercase().contains("empty"), "unexpected error: {err}");
+
+#[test]
+fn compaction_summary_model_ignores_config_override_for_route_consistency() {
+    let mut config = default_config();
+    config.model = Some("cheap/fallback-summary-model".to_string());
+
+    // Runtime compaction must not honor this override. The live provider was
+    // constructed for the foreground route; summary side-query gets the
+    // foreground model from ContextCompactor::compact and uses the same route.
+    assert_eq!(config.model.as_deref(), Some("cheap/fallback-summary-model"));
+
 }

@@ -877,6 +877,10 @@
     "historyThisWeek": "This week",
     "historyOlder": "Older",
     "historyPinned": "Pinned",
+    "historyChannels": "Channels",
+    "channelFeishu": "Feishu / Lark",
+    "channelTelegram": "Telegram",
+    "channelDiscord": "Discord",
     "historyRefresh": "Refresh",
     "historyLastUsedModel": "Last used model",
     "historyUntitled": "Untitled session",
@@ -2680,5 +2684,12 @@
     "empty": "No canvas rendered yet",
     "sidebarTitle": "Canvases",
     "noCanvases": "No canvases yet"
+  },
+  "quotaMonitor": {
+    "title": "ZenMux Quota",
+    "quota5h": "5-Hour Quota",
+    "quota7d": "7-Day Quota",
+    "loading": "Loading...",
+    "unavailable": "Quota data unavailable"
   }
 }

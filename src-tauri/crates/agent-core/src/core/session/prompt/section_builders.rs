@@ -1049,6 +1049,7 @@ pub fn format_user_presence_compact(presence: &crate::session::UserPresence) -> 
     }
 }
 
+
 #[cfg(test)]
 mod mcp_instructions_tests {
     use super::build_mcp_instructions_section;
@@ -1086,4 +1087,48 @@ mod mcp_instructions_tests {
         assert!(build_mcp_instructions_section(&entries(), &["read_file"]).is_none());
         assert!(build_mcp_instructions_section(&[], &["mcp__brick__explain"]).is_none());
     }
+}
+// ============================================
+// Explicit imported context
+// ============================================
+
+pub(crate) fn build_imported_context_section(
+    snapshots: &[crate::session::context_import::ContextSnapshotMeta],
+) -> Option<String> {
+    let hydrated: Vec<_> = snapshots
+        .iter()
+        .filter_map(|snapshot| {
+            let snippet = snapshot.snippet.as_deref()?.trim();
+            if snippet.is_empty() {
+                return None;
+            }
+            Some((snapshot, truncate_at_boundary(snippet, 2_000)))
+        })
+        .collect();
+    if hydrated.is_empty() {
+        return None;
+    }
+
+    let mut lines = vec![
+        "# Imported Context".to_string(),
+        "The following excerpts were explicitly imported with `import_context`. Treat them as source-scoped context, not hidden global memory. If you rely on one, mention the source when useful.".to_string(),
+    ];
+    for (snapshot, snippet) in hydrated.into_iter().take(8) {
+        let title = snapshot
+            .title
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or(&snapshot.source_id);
+        lines.push(format!(
+            "\n## {} (`{}`)\n- Source: `{}` `{}`\n- Namespace: `{}`\n- Snapshot: `{}`\n\n{}",
+            title,
+            snapshot.source_kind.as_str(),
+            snapshot.source_kind.as_str(),
+            snapshot.source_id,
+            snapshot.namespace,
+            snapshot.snapshot_id,
+            snippet
+        ));
+    }
+    Some(lines.join("\n"))
 }

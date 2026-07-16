@@ -861,6 +861,10 @@
     "historyThisWeek": "本周",
     "historyOlder": "更早",
     "historyPinned": "置顶",
+    "historyChannels": "频道",
+    "channelFeishu": "飞书 / Lark",
+    "channelTelegram": "Telegram",
+    "channelDiscord": "Discord",
     "historyRefresh": "刷新",
     "historyLastUsedModel": "上次使用的模型",
     "historyUntitled": "未命名会话",
@@ -2681,5 +2685,12 @@
     "waiting": "等待内容中…",
     "empty": "无内容",
     "viewInSimulator": "在 Simulator 中查看"
+  },
+  "quotaMonitor": {
+    "title": "ZenMux 配额",
+    "quota5h": "5小时配额",
+    "quota7d": "7天配额",
+    "loading": "加载中...",
+    "unavailable": "配额数据不可用"
   }
 }

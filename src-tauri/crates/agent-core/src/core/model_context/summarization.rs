@@ -28,26 +28,35 @@ pub(crate) fn truncate_for_summary(text: &str, max_chars: usize) -> String {
 // Summarization Prompt
 // ============================================
 
-pub(crate) const SUMMARIZATION_SYSTEM_PROMPT: &str = r#"You are a context compactor. Your task is to create a detailed summary of a conversation between a user and an AI coding assistant, paying close attention to the user's explicit requests and the assistant's previous actions. The summary will REPLACE the older conversation history — anything you omit is lost, and the assistant must be able to resume work from your summary alone.
 
-Before writing, silently review the entire conversation and verify: every user request captured? every touched file listed? the most recent work identified? Then output the summary.
+pub(crate) const SUMMARIZATION_SYSTEM_PROMPT: &str = r#"你是会话压缩器（grill-me 式脉络梳理）。你的唯一任务是读取上面的完整对话历史，输出一份结构化压缩摘要——不是流水账，而是把任务树、决策树、尝试过但被否定/废弃的路线、当前仍有效路线全部梳理清楚。
 
-## Required structure
+## 硬性保真要求（违反即视为压缩失败）
 
-Use exactly these sections:
+1. 保留所有文件路径、IP、端口、命令、配置项、错误信息原文。
+2. 保留所有数值结果（行数、大小、百分比、时间戳、金额、PID、进度等）。
+3. 保留关键决策、用户偏好、项目进展、技术事实。
+4. 保留用户暂未被回答的问题（如果有）。
+5. 必须完整覆盖到对话结尾，不能中途停下；最后的「当前待办 / 下一步 / 未完成事项 / 错误教训」必须保留到末尾。
+6. 对「不再做 / 曾尝试但失败 / 曾被用户否定 / 禁止 fallback / 不应重复的路线」必须单独标记为【否定路线】或【废弃路线】并写明原因。
+7. 对仍在跑的后台任务，写清 PID、log 路径、进度口径、如何复查。
+8. 对用户纠正过的点，原样保留进【用户纠正】，避免压缩后复犯——尤其「不是这样 / 不对 / 其实 / 我没让你 / 不要 / 只用 / 回归 / 固化」这类纠正或范围约束，必须原话保真，不能只留最终结论。
 
-1. **Primary Request and Intent** — all of the user's explicit requests and intents, in detail
-2. **Key Technical Concepts** — technologies, frameworks, and conventions involved
-3. **Files and Code Sections** — files created/edited/read that matter, with exact paths; include the important code snippets or signatures and why each matters
-4. **Errors and Fixes** — every error encountered, its cause, and how it was fixed (or that it remains open); include exact error messages. Pay special attention to explicit user feedback or corrections
-5. **Problem Solving** — problems solved so far and any ongoing troubleshooting
-6. **All User Messages** — a list of ALL non-tool-result user messages, condensed but preserving intent and constraints; these are critical for understanding what the user actually asked
-7. **Pending Tasks** — tasks explicitly requested but not yet done
-8. **Current Work** — precisely what was being worked on immediately before this summary, with file paths and code where relevant
-9. **Next Step** — the immediate next step, ONLY if it is a direct continuation of explicitly requested work; include a verbatim quote of the most recent instruction that justifies it. If there is no explicit next task, omit the step rather than inventing one
+## 必须包含的结构化章节
 
-Preserve specifics: exact file paths, function names, error messages, config values, branch names, IDs.
-Do NOT include pleasantries or conversational filler."#;
+- **全局硬约束**
+- **当前主线任务树**：每个任务写「目标 → 当前状态 → 有效路线 → 分支/决策树 → 已完成 → 待办 → 【否定路线/废弃路线】 → 关键证据/日志/路径」
+- **关键决策账本（Critical Decision Ledger）**：按时间顺序列出每个仍影响后续动作的规则/算法/口径决策，每条含：decision_id、状态（accepted/rejected/superseded/candidate）、用户原话或纠正摘要、当前应执行规则、禁止重复的旧规则、证据路径/消息片段。
+- **当前有效规则（Active Rules）** 与 **已废弃/禁止规则（Rejected Rules）**：若某条算法规则反复过，写清最终有效版本。
+- **用户纠正与踩坑**
+- **下一轮开始时必须主动同步的进度分支树**
+
+## 格式
+
+用 Markdown 结构化输出。中文。不要 preamble、不要思考过程、不要客套。
+优先保留具体信息（精确路径、错误原文、配置值）而非泛泛描述。
+目标长度尽量 ≤12k tokens，但宁可完整也不要截断。"#;
+
 
 // ============================================
 // Message Formatting
@@ -258,7 +267,9 @@ pub(crate) async fn summarize_messages(
                 "properties": {
                     "summary": {
                         "type": "string",
-                        "description": "The complete, detailed multi-section summary of the conversation in markdown, following the required section structure"
+
+                        "description": "grill-me 式结构化压缩摘要（Markdown，中文）：全局硬约束 / 当前主线任务树 / 关键决策账本 / 当前有效规则 / 已废弃规则 / 用户纠正与踩坑 / 下一轮必须主动同步的进度分支树。保留所有路径/IP/端口/命令/配置/错误原文/数值/用户纠正原话。"
+
                     }
                 },
                 "required": ["summary"]

@@ -1,4 +1,5 @@
 import {
+  CHANNEL_LABELS,
   SESSION_GROUP_LABELS,
   SESSION_GROUP_ORDER,
   type SessionGroupKey,
@@ -78,8 +79,20 @@ export function buildByAgentMenuItems({
 }: BuildByAgentMenuItemsParams): NavigationMenuItem[] {
   const groups = new Map<SessionGroupKey, Session[]>();
   const agentOrgGroups = new Map<string, Session[]>();
+  const channelGroups = new Map<string, Session[]>();
 
   for (const session of unpinnedSessions) {
+    // Channel-originated sessions go to their own "Channels" section.
+    if (session.channel) {
+      const bucket = channelGroups.get(session.channel);
+      if (bucket) {
+        bucket.push(session);
+      } else {
+        channelGroups.set(session.channel, [session]);
+      }
+      continue;
+    }
+
     if (session.agentOrgId) {
       const bucket = agentOrgGroups.get(session.agentOrgId);
       if (bucket) {
@@ -102,6 +115,26 @@ export function buildByAgentMenuItems({
   const items: NavigationMenuItem[] = [];
   let hasHiddenLocalSessions = appendPinnedSessions(items);
   const loadMoreEmitted = new Set<SessionListCategory>();
+
+  // ── Channel groups (Feishu, Telegram, etc.) ──
+  const sortedChannelKeys = Array.from(channelGroups.keys()).sort();
+  for (const channelKey of sortedChannelKeys) {
+    const groupSessions = channelGroups.get(channelKey)!;
+    const label =
+      CHANNEL_LABELS[channelKey] ??
+      channelKey.charAt(0).toUpperCase() + channelKey.slice(1);
+    items.push(separator(`channel:${channelKey}`, label));
+    const groupHasHidden = appendGroupSessions(
+      items,
+      `channel:${channelKey}`,
+      groupSessions
+    );
+    if (groupHasHidden) {
+      hasHiddenLocalSessions = true;
+    }
+  }
+
+  // ── Agent Org groups ──
   const sortedAgentOrgGroups = Array.from(agentOrgGroups.entries()).sort(
     ([orgIdA, sessionsA], [orgIdB, sessionsB]) => {
       const labelA = sessionsA[0]?.agentOrgName ?? orgIdA;

@@ -1,0 +1,13 @@
+FILE: src-tauri/crates/agent-core/src/core/model_context/tests/compaction_tests.rs
+--- OURS (current integration branch) summary/stat ---
+ .../core/model_context/tests/compaction_tests.rs   | 571 +--------------------
+ 1 file changed, 16 insertions(+), 555 deletions(-)
+--- THEIRS (origin/simon/product-skeleton-cache-context) summary/stat ---
+ .../src/core/model_context/tests/compaction_tests.rs         | 12 ------------
+ 1 file changed, 12 deletions(-)
+--- OURS content around conflicts is in worktree with markers ---
+718:<<<<<<< HEAD
+1193:=======
+1204:>>>>>>> origin/simon/product-skeleton-cache-context
+
+--- DIFF OURS..THEIRS ---

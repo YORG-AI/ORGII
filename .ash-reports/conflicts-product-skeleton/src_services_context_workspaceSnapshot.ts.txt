@@ -1,0 +1,13 @@
+FILE: src/services/context/workspaceSnapshot.ts
+--- OURS (current integration branch) summary/stat ---
+ src/services/context/workspaceSnapshot.ts | 16 ++++++++++++++--
+ 1 file changed, 14 insertions(+), 2 deletions(-)
+--- THEIRS (origin/simon/product-skeleton-cache-context) summary/stat ---
+ src/services/context/workspaceSnapshot.ts | 1 -
+ 1 file changed, 1 deletion(-)
+--- OURS content around conflicts is in worktree with markers ---
+43:<<<<<<< HEAD
+44:=======
+60:>>>>>>> origin/simon/product-skeleton-cache-context
+
+--- DIFF OURS..THEIRS ---

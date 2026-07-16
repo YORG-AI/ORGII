@@ -44,6 +44,7 @@ import HoverAnimatedIcon, {
 } from "../components/HoverAnimatedIcon";
 import NavigationMenu from "../components/NavigationMenu";
 import type { NavigationMenuItem } from "../components/NavigationMenu/config";
+import { SidebarQuotaMonitorButton } from "../connectors/SidebarQuotaMonitorButton";
 import { SidebarRamMonitorButton } from "../connectors/SidebarRamMonitorButton";
 import { SidebarSearchShortcutTooltip } from "../connectors/WorkstationSidebarConnector/sidebarTabs";
 
@@ -171,6 +172,7 @@ const SettingsSidebar: React.FC = () => {
       <SidebarBottomBar
         rightActions={
           <>
+            <SidebarQuotaMonitorButton />
             <SidebarRamMonitorButton />
             <SettingsFooterBackButton
               label={t("sidebar.bottomBar.settings")}

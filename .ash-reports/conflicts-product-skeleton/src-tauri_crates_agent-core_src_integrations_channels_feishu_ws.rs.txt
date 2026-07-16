@@ -1,0 +1,16 @@
+FILE: src-tauri/crates/agent-core/src/integrations/channels/feishu/ws.rs
+--- OURS (current integration branch) summary/stat ---
+ .../src/integrations/channels/feishu/ws.rs         | 155 +--------------------
+ 1 file changed, 6 insertions(+), 149 deletions(-)
+--- THEIRS (origin/simon/product-skeleton-cache-context) summary/stat ---
+ .../src/integrations/channels/feishu/ws.rs         | 146 +--------------------
+ 1 file changed, 6 insertions(+), 140 deletions(-)
+--- OURS content around conflicts is in worktree with markers ---
+409:<<<<<<< HEAD
+418:=======
+421:>>>>>>> origin/simon/product-skeleton-cache-context
+427:<<<<<<< HEAD
+432:=======
+434:>>>>>>> origin/simon/product-skeleton-cache-context
+
+--- DIFF OURS..THEIRS ---

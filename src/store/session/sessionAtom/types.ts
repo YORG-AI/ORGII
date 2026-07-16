@@ -139,6 +139,8 @@ export interface Session {
   linesRemoved?: number;
   /** Source-cache touched file list for external and Rust-native sessions. */
   touchedFiles?: string[];
+  /** Channel origin for OS Agent sessions (e.g. "feishu", "telegram", "discord"). */
+  channel?: string;
 }
 
 // ============================================

@@ -198,6 +198,18 @@ impl UnifiedMessageProcessor {
             dynamic_sections.push(mem_section.to_string());
         }
 
+        match crate::core::session::persistence::load_context_snapshots(session_id) {
+            Ok(snapshots) => {
+                if let Some(section) = crate::core::session::prompt::section_builders::build_imported_context_section(&snapshots) {
+                    dynamic_sections.push(section);
+                }
+            }
+            Err(err) => warn!(
+                "[unified_processor] Failed to load imported context snapshots: {}",
+                err
+            ),
+        }
+
         // Inject scratchpad directory context so the LLM has a concrete
         // per-session temp dir to write to instead of inventing /tmp paths.
         if self.runtime.native_harness_type.is_none() {

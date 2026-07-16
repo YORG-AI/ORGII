@@ -51,6 +51,15 @@ Focus areas:
 - Preferences: "User prefers X over Y"
 - Strategies: "For this type of task, approach X works best"
 
+VERBATIM USER CORRECTIONS (highest priority — never paraphrase away the original words):
+When the user pushes back, corrects, narrows scope, or forbids something — especially with
+signals like "不是这样 / 不对 / 其实 / 我没让你 / 不要 / 只用 / 回归 / 固化 / actually / no, /
+don't / stop / revert" — you MUST capture it as a `correction` insight, and the `content`
+paragraph MUST embed the user's exact wording verbatim inside 「」or "" quotes. Keep BOTH the
+verbatim correction AND the resulting rule, so a future session cannot silently re-apply the
+rejected behaviour. This rule overrides brevity: a correction with its quote is never "too
+trivial" to keep.
+
 Do NOT extract (hard rejects — these WILL be filtered out post-hoc, do not waste a slot):
 - Technical facts (e.g. "Rust uses ownership")
 - Trivial observations or generic best-practice advice
@@ -141,7 +150,17 @@ const REJECT_PATTERNS: &[&str] = &[
 /// Returns `Some(matched_pattern)` if the insight should be rejected, `None` if
 /// it passes the guard. `content` and `takeaway` are both scanned case-
 /// insensitively.
+///
+/// `correction` insights are exempt from the path/sandbox REJECT_PATTERNS:
+/// those patterns target truncated tool_input/tool_output noise, but a
+/// verbatim user correction may legitimately quote a path (e.g. 「不要用
+/// /tmp/」). User-authored corrections are signal, not noise — dropping them
+/// would defeat the P4 原话保真 guarantee. Tool-noise never lands in the
+/// `correction` category, so the exemption is safe.
 pub(super) fn rejection_reason(insight: &ExtractedInsight) -> Option<&'static str> {
+    if insight.category.eq_ignore_ascii_case("correction") {
+        return None;
+    }
     let haystacks = [
         insight.content.as_str(),
         insight.takeaway.as_deref().unwrap_or(""),
@@ -177,6 +196,15 @@ mod tests {
             None,
         );
         assert_eq!(rejection_reason(&i), Some("/Users/"));
+    }
+
+    #[test]
+    fn correction_category_exempt_from_path_reject() {
+        // P4 原话保真: a verbatim user correction that quotes a path must
+        // survive the noise guard.
+        let mut i = insight("用户纠正：「不要用 /tmp/，必须用 /mnt/share_88」", Some("禁用 /tmp/，改 /mnt/share_88"));
+        i.category = "correction".to_string();
+        assert_eq!(rejection_reason(&i), None);
     }
 
     #[test]

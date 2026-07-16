@@ -194,6 +194,60 @@ pub fn search_similar(
     Ok(scored)
 }
 
+/// Cross-encoder rerank over an already-recalled candidate pool.
+///
+/// ORG-2 upstream only had cosine. The added increment (Simon's setup) is a
+/// local Qwen3 reranker at `http://localhost:9877`: cosine is fast but
+/// bag-of-meaning; the cross-encoder reads `(query, learning)` jointly and
+/// reorders by true relevance, which matters most when several learnings
+/// share surface vocabulary but differ in applicability.
+///
+/// `coarse` MUST come from a prior cosine recall (e.g. `search_similar` with
+/// a widened `top_k`). This function is intentionally DB-free so the caller
+/// can drop its `rusqlite::Connection` borrow before awaiting — `Connection`
+/// is `!Sync` and cannot be held across an `.await`.
+///
+/// Best-effort: if the reranker is unreachable or errors, the cosine order
+/// (truncated to `top_k`) is returned. Retrieval never fails on rerank.
+pub async fn rerank_candidates(
+    query_text: &str,
+    coarse: Vec<(Learning, f32)>,
+    top_k: usize,
+) -> Vec<(Learning, f32)> {
+    // Nothing to rerank, or so few hits the reranker can't improve order.
+    if coarse.len() <= 1 {
+        let mut out = coarse;
+        out.truncate(top_k);
+        return out;
+    }
+
+    let documents: Vec<String> = coarse.iter().map(|(l, _)| l.content.clone()).collect();
+    let reranker = super::super::embeddings::LocalReranker::new();
+    match reranker.rerank(query_text, &documents, top_k).await {
+        Ok(ranked) if !ranked.is_empty() => ranked
+            .into_iter()
+            .filter_map(|(idx, score)| coarse.get(idx).map(|(l, _)| (l.clone(), score)))
+            .collect(),
+        Ok(_) => {
+            let mut out = coarse;
+            out.truncate(top_k);
+            out
+        }
+        Err(err) => {
+            tracing::warn!("[learnings] rerank failed ({err}); falling back to cosine order");
+            let mut out = coarse;
+            out.truncate(top_k);
+            out
+        }
+    }
+}
+
+/// Coarse-recall multiplier: cosine retrieves `top_k * RERANK_RECALL_MULT`
+/// candidates, the cross-encoder reranker then picks the final `top_k`.
+/// 3× gives the reranker enough breadth to surface a learning that cosine
+/// ranked just below the cut without blowing up the rerank payload.
+pub(super) const RERANK_RECALL_MULT: usize = 3;
+
 #[cfg(test)]
 mod tests {
     use super::super::{

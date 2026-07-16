@@ -1,0 +1,16 @@
+FILE: src-tauri/crates/agent-core/src/core/tools/impls/orchestration/agent/system_prompt.rs
+--- OURS (current integration branch) summary/stat ---
+ .../impls/orchestration/agent/system_prompt.rs     | 112 +--------------------
+ 1 file changed, 3 insertions(+), 109 deletions(-)
+--- THEIRS (origin/simon/product-skeleton-cache-context) summary/stat ---
+ .../src/core/tools/impls/orchestration/agent/system_prompt.rs  | 10 +---------
+ 1 file changed, 1 insertion(+), 9 deletions(-)
+--- OURS content around conflicts is in worktree with markers ---
+27:<<<<<<< HEAD
+29:=======
+31:>>>>>>> origin/simon/product-skeleton-cache-context
+40:<<<<<<< HEAD
+43:=======
+52:>>>>>>> origin/simon/product-skeleton-cache-context
+
+--- DIFF OURS..THEIRS ---

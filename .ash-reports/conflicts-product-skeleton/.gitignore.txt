@@ -1,0 +1,13 @@
+FILE: .gitignore
+--- OURS (current integration branch) summary/stat ---
+ .gitignore | 4 ----
+ 1 file changed, 4 deletions(-)
+--- THEIRS (origin/simon/product-skeleton-cache-context) summary/stat ---
+ .gitignore | 8 --------
+ 1 file changed, 8 deletions(-)
+--- OURS content around conflicts is in worktree with markers ---
+142:<<<<<<< HEAD
+143:=======
+149:>>>>>>> origin/simon/product-skeleton-cache-context
+
+--- DIFF OURS..THEIRS ---

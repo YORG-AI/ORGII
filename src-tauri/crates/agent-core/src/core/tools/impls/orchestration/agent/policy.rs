@@ -178,7 +178,12 @@ impl AgentTool {
                 }
                 tool_names::MANAGE_WORK_ITEM => {
                     let parent_session_id = self.parent_session_id.lock().await.clone();
-                    registry.register(Box::new(WorkItemTool::new(parent_session_id)));
+                    registry.register(Box::new(WorkItemTool::with_launch_context(
+                        parent_session_id,
+                        self.config.app_handle.clone(),
+                        self.config.session_account_id.clone(),
+                        self.config.agent_model.clone(),
+                    )));
                 }
                 tool_names::MANAGE_AGENT_DEF => {
                     let handle = self.config.app_handle.as_ref().ok_or_else(|| {

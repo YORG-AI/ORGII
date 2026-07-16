@@ -1,0 +1,13 @@
+FILE: src-tauri/crates/agent-core/src/integrations/gateway/commands.rs
+--- OURS (current integration branch) summary/stat ---
+ .../agent-core/src/integrations/gateway/commands.rs      | 16 ----------------
+ 1 file changed, 16 deletions(-)
+--- THEIRS (origin/simon/product-skeleton-cache-context) summary/stat ---
+ .../src/integrations/gateway/commands.rs           | 106 ---------------------
+ 1 file changed, 106 deletions(-)
+--- OURS content around conflicts is in worktree with markers ---
+32:<<<<<<< HEAD
+35:=======
+48:>>>>>>> origin/simon/product-skeleton-cache-context
+
+--- DIFF OURS..THEIRS ---

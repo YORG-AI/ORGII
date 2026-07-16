@@ -258,7 +258,7 @@ fn derive_os_session_id(channel: &str, chat_id: &str) -> String {
 /// Ensure the OS session is registered against `builtin:os` before
 /// `init_channel_session` tries to look it up — without it the
 /// channel init helper errors with `channel session '…' not registered`.
-async fn ensure_os_session_registered(state: &AgentAppState, sid: &str) {
+pub(super) async fn ensure_os_session_registered(state: &AgentAppState, sid: &str) {
     let needs_register = match state.get_session(sid).await {
         None => true,
         Some(existing) => existing.definition.id != os_agent().id,

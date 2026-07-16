@@ -9,6 +9,7 @@ import type {
   AgentMessageDeliveryRow,
   CommandArtifact,
   CommandResultData,
+  ContextImportCardData,
   FileCardData,
   ProjectCardData,
   WebsiteCardData,
@@ -173,6 +174,82 @@ export function parseWorkItemCardResult(
     assignee,
     dueDate,
     shortId,
+  };
+}
+
+export function parseContextImportCardResult(
+  args: Record<string, unknown>,
+  result: Record<string, unknown>
+): ContextImportCardData | null {
+  const sourceKind =
+    (typeof result.source_kind === "string" ? result.source_kind : null) ??
+    (typeof args.source_kind === "string" ? args.source_kind : null);
+  const sourceId =
+    (typeof result.source_id === "string" ? result.source_id : null) ??
+    (typeof args.source_id === "string" ? args.source_id : null);
+  if (!sourceKind || !sourceId) return null;
+
+  const snapshotId =
+    (typeof result.snapshot_id === "string" ? result.snapshot_id : null) ??
+    (typeof result.snapshotId === "string" ? result.snapshotId : null) ??
+    undefined;
+  const namespace =
+    (typeof result.namespace === "string" ? result.namespace : null) ??
+    `${sourceKind}:${sourceId}`;
+  const title =
+    (typeof result.title === "string" ? result.title : null) ??
+    (typeof args.title === "string" ? args.title : null) ??
+    undefined;
+  const rawTokenEstimate =
+    result.token_estimate ?? result.tokenEstimate ?? args.token_estimate;
+  const tokenEstimate =
+    typeof rawTokenEstimate === "number" && Number.isFinite(rawTokenEstimate)
+      ? Math.max(0, Math.floor(rawTokenEstimate))
+      : undefined;
+  const pinned =
+    typeof result.pinned === "boolean"
+      ? result.pinned
+      : typeof args.pinned === "boolean"
+        ? args.pinned
+        : undefined;
+
+  const sourceChips = [
+    namespace,
+    sourceKind.replace(/_/g, " "),
+    pinned ? "pinned" : null,
+  ].filter((chip): chip is string => Boolean(chip));
+
+  const rawStablePrefixTokens =
+    result.stable_prefix_tokens ?? result.stablePrefixTokens;
+  const rawVolatileContextTokens =
+    result.volatile_context_tokens ?? result.volatileContextTokens;
+  const rawImportedContextCount =
+    result.imported_context_count ?? result.importedContextCount;
+  const rawCacheReadTokens = result.cache_read_tokens ?? result.cacheReadTokens;
+  const rawCacheWriteTokens =
+    result.cache_write_tokens ?? result.cacheWriteTokens;
+  const numberStat = (label: string, value: unknown) =>
+    typeof value === "number" && Number.isFinite(value)
+      ? { label, value: String(Math.max(0, Math.floor(value))) }
+      : null;
+  const debugStats = [
+    numberStat("stable prefix", rawStablePrefixTokens),
+    numberStat("volatile", rawVolatileContextTokens),
+    numberStat("imports", rawImportedContextCount),
+    numberStat("cache read", rawCacheReadTokens),
+    numberStat("cache write", rawCacheWriteTokens),
+  ].filter((stat): stat is { label: string; value: string } => Boolean(stat));
+
+  return {
+    snapshotId,
+    sourceKind,
+    sourceId,
+    namespace,
+    title,
+    tokenEstimate,
+    pinned,
+    sourceChips,
+    debugStats: debugStats.length > 0 ? debugStats : undefined,
   };
 }
 

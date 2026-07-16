@@ -144,12 +144,53 @@ impl IntegrationsConfig {
 
     /// Persist to an explicit path. Same split-for-testability rationale
     /// as `load_from`.
+    ///
+    /// P5 防呆 / config 改前备份: before overwriting an existing
+    /// `integrations.json` (channels, credentials, embedding — the most
+    /// destructive config to lose), snapshot it to a timestamped
+    /// `integrations.json.bak-<unix_secs>` (best-effort, never blocks the
+    /// write) and write the new payload atomically via a temp-file rename so
+    /// a crash mid-write can't truncate the live file. `IntegrationsStore`
+    /// already gates against persisting over a corrupt boot-time file; this
+    /// adds crash-safety + a recovery trail on top.
     pub fn save_to(&self, path: &Path) -> IntegrationsResult<()> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(IntegrationsError::Write)?;
         }
         let payload = serde_json::to_string_pretty(self).map_err(IntegrationsError::Serialize)?;
-        std::fs::write(path, payload).map_err(IntegrationsError::Write)
+
+        // 1. Best-effort backup of the existing file.
+        if path.exists() {
+            let stamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            let mut backup = path.to_path_buf();
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("integrations.json");
+            backup.set_file_name(format!("{name}.bak-{stamp}"));
+            if let Err(err) = std::fs::copy(path, &backup) {
+                tracing::warn!(
+                    "[integrations] failed to back up {} before write: {err}",
+                    path.display()
+                );
+            }
+        }
+
+        // 2. Atomic write: temp file + rename (atomic on same filesystem).
+        let mut tmp = path.to_path_buf();
+        let name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("integrations.json");
+        tmp.set_file_name(format!("{name}.tmp"));
+        std::fs::write(&tmp, &payload).map_err(IntegrationsError::Write)?;
+        std::fs::rename(&tmp, path).map_err(|err| {
+            let _ = std::fs::remove_file(&tmp);
+            IntegrationsError::Write(err)
+        })
     }
 }
 

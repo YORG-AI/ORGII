@@ -50,6 +50,7 @@ import {
   parseAgentMessageCard,
   parseAwaitListingResult,
   parseCommandResult,
+  parseContextImportCardResult,
   parseFileCardResult,
   parseManageLspResult,
   parseManageWorkspaceResult,
@@ -236,6 +237,10 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = React.memo(
       if (toolName === "manage_story" && hasResult) {
         const card = parseProjectCardResult(args, result);
         if (card) return { type: "projectCard" as const, card };
+      }
+      if (toolName === "import_context" && hasResult) {
+        const card = parseContextImportCardResult(args, result);
+        if (card) return { type: "contextImportCard" as const, card };
       }
       if (toolName === "write_file" && hasResult) {
         const card = parseFileCardResult(args, result);

@@ -1,0 +1,13 @@
+FILE: src/i18n/locales/zh/sessions.json
+--- OURS (current integration branch) summary/stat ---
+ src/i18n/locales/zh/sessions.json | 83 +++------------------------------------
+ 1 file changed, 5 insertions(+), 78 deletions(-)
+--- THEIRS (origin/simon/product-skeleton-cache-context) summary/stat ---
+ src/i18n/locales/zh/sessions.json | 11 -----------
+ 1 file changed, 11 deletions(-)
+--- OURS content around conflicts is in worktree with markers ---
+2686:<<<<<<< HEAD
+2689:=======
+2698:>>>>>>> origin/simon/product-skeleton-cache-context
+
+--- DIFF OURS..THEIRS ---

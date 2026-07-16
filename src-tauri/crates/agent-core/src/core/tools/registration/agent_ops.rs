@@ -15,6 +15,7 @@ use crate::tools::impls::nodes::manage_nodes::NodesTool;
 use crate::tools::impls::orchestration::ask_user_questions::{QuestionTool, QuestionToolContext};
 use crate::tools::impls::orchestration::manage_secrets::{SecretTool, SecretToolContext};
 use crate::tools::impls::orchestration::manage_session::SessionTool;
+use crate::tools::impls::project::import_context::ImportContextTool;
 use crate::tools::impls::project::manage_project::ProjectTool;
 use crate::tools::impls::project::manage_work_item::WorkItemTool;
 use crate::tools::registry::ToolRegistry;
@@ -100,7 +101,17 @@ pub fn register(registry: &mut ToolRegistry, deps: &ToolDeps, disabled: &HashSet
     );
     register_if_enabled(
         registry,
-        Box::new(WorkItemTool::new(deps.session_id.clone())),
+        Box::new(WorkItemTool::with_launch_context(
+            deps.session_id.clone(),
+            deps.app_handle.clone(),
+            deps.session_account_id.clone(),
+            deps.agent_model.clone(),
+        )),
+        disabled,
+    );
+    register_if_enabled(
+        registry,
+        Box::new(ImportContextTool::new(deps.session_id.clone())),
         disabled,
     );
 

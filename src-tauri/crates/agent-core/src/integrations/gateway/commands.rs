@@ -31,6 +31,18 @@ pub enum GatewayCommand {
     NewSession,
     /// Switch the bound channel session model without dispatching to the agent.
     Model(Option<String>),
+    /// Show the current channel binding and active Work Item context.
+    SessionCurrent,
+    /// List recent sessions that can be bound to this chat.
+    SessionList,
+    /// Switch this chat to an existing ORG2 session id.
+    SessionSwitch(String),
+    /// Create a fresh versioned session and bind this chat to it immediately.
+    SessionNew,
+    /// Semantic search across indexed Session Memory summaries.
+    SessionSearch(String),
+    /// Bind the current chat/session to a Project or Work Item context.
+    SessionBind { target: String, value: String },
     /// Emit the current binding + running-session summary back to the channel.
     Status,
     /// Manually compact the bound session's transcript and fork to a
@@ -70,7 +82,67 @@ pub fn parse(content: &str) -> Option<GatewayCommand> {
         "/status" => bare_command(rest, GatewayCommand::Status),
         "/model" => Some(GatewayCommand::Model((!rest.is_empty()).then(|| rest.to_string()))),
         "/compact" => bare_command(rest, GatewayCommand::Compact),
+        "/session" | "/ctx" => parse_session_command(rest),
         "/help" | "/commands" => bare_command(rest, GatewayCommand::Help),
+        _ => None,
+    }
+}
+
+fn parse_session_command(rest: &str) -> Option<GatewayCommand> {
+    let mut parts = rest.split_whitespace();
+    let sub = parts.next().unwrap_or("current").to_ascii_lowercase();
+    match sub.as_str() {
+        "current" | "status" => {
+            if parts.next().is_none() {
+                Some(GatewayCommand::SessionCurrent)
+            } else {
+                None
+            }
+        }
+        "list" | "ls" => {
+            if parts.next().is_none() {
+                Some(GatewayCommand::SessionList)
+            } else {
+                None
+            }
+        }
+        "new" => {
+            if parts.next().is_none() {
+                Some(GatewayCommand::SessionNew)
+            } else {
+                None
+            }
+        }
+        "search" | "find" => {
+            let query = parts.collect::<Vec<_>>().join(" ");
+            if query.trim().is_empty() {
+                None
+            } else {
+                Some(GatewayCommand::SessionSearch(query))
+            }
+        }
+        "switch" | "use" => {
+            let sid = parts.next()?;
+            if parts.next().is_none() {
+                Some(GatewayCommand::SessionSwitch(sid.to_string()))
+            } else {
+                None
+            }
+        }
+        "bind" => {
+            let target = parts.next()?.to_ascii_lowercase();
+            let value = parts.next()?.to_string();
+            if parts.next().is_none()
+                && matches!(
+                    target.as_str(),
+                    "project" | "workitem" | "work_item" | "item"
+                )
+            {
+                Some(GatewayCommand::SessionBind { target, value })
+            } else {
+                None
+            }
+        }
         _ => None,
     }
 }
@@ -148,6 +220,40 @@ mod tests {
         assert_eq!(parse("/help"), Some(GatewayCommand::Help));
         assert_eq!(parse("  /HELP  "), Some(GatewayCommand::Help));
         assert_eq!(parse("/commands"), Some(GatewayCommand::Help));
+    }
+
+    #[test]
+    fn parses_session_commands() {
+        assert_eq!(parse("/session"), Some(GatewayCommand::SessionCurrent));
+        assert_eq!(
+            parse("/session current"),
+            Some(GatewayCommand::SessionCurrent)
+        );
+        assert_eq!(parse("/session list"), Some(GatewayCommand::SessionList));
+        assert_eq!(parse("/session new"), Some(GatewayCommand::SessionNew));
+        assert_eq!(
+            parse("/session search feishu image bug"),
+            Some(GatewayCommand::SessionSearch("feishu image bug".into()))
+        );
+        assert_eq!(
+            parse("/session switch osagent-feishu-x"),
+            Some(GatewayCommand::SessionSwitch("osagent-feishu-x".into()))
+        );
+        assert_eq!(
+            parse("/session bind project org2"),
+            Some(GatewayCommand::SessionBind {
+                target: "project".into(),
+                value: "org2".into()
+            })
+        );
+        assert_eq!(
+            parse("/session bind workitem ORG-1"),
+            Some(GatewayCommand::SessionBind {
+                target: "workitem".into(),
+                value: "ORG-1".into()
+            })
+        );
+        assert_eq!(parse("/ctx ls"), Some(GatewayCommand::SessionList));
     }
 
     /// Prose after /help / /status / /new must fall through to the

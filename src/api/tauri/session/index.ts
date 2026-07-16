@@ -170,6 +170,7 @@ export function toFrontendSession(record: SessionAggregateRecord): Session {
     linesAdded: record.linesAdded,
     linesRemoved: record.linesRemoved,
     touchedFiles: record.touchedFiles,
+    channel: record.channel,
   };
 }
 

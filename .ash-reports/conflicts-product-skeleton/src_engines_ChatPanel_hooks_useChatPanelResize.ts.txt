@@ -1,0 +1,13 @@
+FILE: src/engines/ChatPanel/hooks/useChatPanelResize.ts
+--- OURS (current integration branch) summary/stat ---
+ src/engines/ChatPanel/hooks/useChatPanelResize.ts | 2 --
+ 1 file changed, 2 deletions(-)
+--- THEIRS (origin/simon/product-skeleton-cache-context) summary/stat ---
+ src/engines/ChatPanel/hooks/useChatPanelResize.ts | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+--- OURS content around conflicts is in worktree with markers ---
+42:<<<<<<< HEAD
+44:=======
+46:>>>>>>> origin/simon/product-skeleton-cache-context
+
+--- DIFF OURS..THEIRS ---

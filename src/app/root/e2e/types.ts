@@ -489,6 +489,9 @@ export interface E2EHelpers {
   debugSessionToolsSnapshot: (
     sessionId: string
   ) => Promise<Result<{ snapshot: Json }>>;
+  debugSessionContextCacheSnapshot: (
+    sessionId: string
+  ) => Promise<Result<{ snapshot: Json }>>;
   listEffectiveToolsForSession: (
     sessionId: string,
     agentExecMode?: string | null

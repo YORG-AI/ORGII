@@ -34,6 +34,7 @@ use tracing::{debug, info, warn};
 
 use crate::core::session::prompt::cache::{RenderedSystemBlockScope, ORGII_SYSTEM_CACHE_SCOPE_KEY};
 use crate::core::session::types::DialogTurnState;
+use crate::session::context_import::{CacheLayoutStats, SessionEmbeddingState};
 
 use super::super::persistence as unified_persistence;
 use super::super::types::{AgentExecMode, IdeContext, ProcessingContext, ProcessingResult};
@@ -320,7 +321,7 @@ impl UnifiedMessageProcessor {
     }
 
     /// Records token usage for a turn.
-    fn record_token_usage(&self, session_id: &str, result: &TurnResult) {
+    fn record_token_usage(&self, session_id: &str, turn_id: &str, result: &TurnResult) {
         if result.total_tokens == 0 {
             return;
         }
@@ -353,6 +354,74 @@ impl UnifiedMessageProcessor {
             .and_then(|snapshot| serde_json::to_string(snapshot).ok());
 
         tokio::task::block_in_place(|| {
+            let stable_prefix_tokens = result
+                .context_usage_snapshot
+                .as_ref()
+                .map(|snapshot| {
+                    snapshot
+                        .sections
+                        .iter()
+                        .filter(|section| {
+                            matches!(
+                                section.category,
+                                crate::turn_executor::context_accounting::ContextUsageCategory::StablePrompt
+                                    | crate::turn_executor::context_accounting::ContextUsageCategory::Rules
+                                    | crate::turn_executor::context_accounting::ContextUsageCategory::Skills
+                            )
+                        })
+                        .map(|section| section.estimated_tokens)
+                        .sum::<i64>()
+                })
+                .unwrap_or(result.context_tokens);
+            let imported_context_count =
+                unified_persistence::load_context_snapshots(session_id)
+                    .map(|snapshots| snapshots.len() as i64)
+                    .unwrap_or(0);
+            let cache_layout_stats = CacheLayoutStats::new(
+                stable_prefix_tokens,
+                result.context_tokens.saturating_sub(stable_prefix_tokens),
+                imported_context_count,
+                result.cache_read_tokens,
+                result.cache_write_tokens,
+            );
+            if let Err(err) = unified_persistence::save_turn_cache_layout_stats(
+                session_id,
+                turn_id,
+                &cache_layout_stats,
+            ) {
+                warn!(
+                    "[unified_processor] Failed to record cache layout stats: {}",
+                    err
+                );
+            }
+
+            match unified_persistence::latest_message_sequence(session_id) {
+                Ok(last_sequence) => {
+                    let work_item_id = unified_persistence::get_session(session_id)
+                        .ok()
+                        .flatten()
+                        .and_then(|record| record.work_item_id);
+                    let embedding_state = SessionEmbeddingState::for_session(
+                        session_id.to_string(),
+                        work_item_id,
+                        last_sequence,
+                        Some(self.runtime.model.clone()),
+                    );
+                    if let Err(err) =
+                        unified_persistence::save_session_embedding_state(&embedding_state)
+                    {
+                        warn!(
+                            "[unified_processor] Failed to record session embedding state: {}",
+                            err
+                        );
+                    }
+                }
+                Err(err) => warn!(
+                    "[unified_processor] Failed to read latest message sequence for embedding state: {}",
+                    err
+                ),
+            }
+
             use crate::foundation::session_bridge::{record_token_usage, TokenUsageRow};
             if let Err(err) = record_token_usage(TokenUsageRow {
                 session_id,
@@ -839,8 +908,10 @@ impl UnifiedMessageProcessor {
         // so the full say-then-tool-then-say transcript is preserved.
 
         // 8. Record token usage
-        self.record_token_usage(session_id, &result);
+
+        self.record_token_usage(session_id, &turn_id, &result);
         self.record_usage_telemetry(session_id, &turn_id, &result);
+
 
         let final_turn_state = if self
             .session
@@ -897,12 +968,26 @@ impl UnifiedMessageProcessor {
             self.agent_mode,
         );
 
+        let cache_layout = CacheLayoutStats::new(
+            result.context_tokens,
+            result.prompt_tokens.saturating_sub(result.context_tokens),
+            0,
+            result.cache_read_tokens,
+            result.cache_write_tokens,
+        );
+
         Ok(ProcessingResult {
             turn_id,
             content: response_text,
             total_tokens: result.total_tokens,
             prompt_tokens: result.prompt_tokens,
             completion_tokens: result.completion_tokens,
+            context_tokens: result.context_tokens,
+            stable_prefix_tokens: cache_layout.stable_prefix_tokens,
+            volatile_context_tokens: cache_layout.volatile_context_tokens,
+            imported_context_count: cache_layout.imported_context_count,
+            cache_read_tokens: cache_layout.cache_read_tokens,
+            cache_write_tokens: cache_layout.cache_write_tokens,
             tool_calls_count,
             truncated: false,
             turn_summary: None,

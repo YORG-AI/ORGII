@@ -1,0 +1,25 @@
+FILE: src-tauri/crates/agent-core/src/state/commands/channel_handler/slash.rs
+--- OURS (current integration branch) summary/stat ---
+ .../src/state/commands/channel_handler/slash.rs    | 157 +--------------------
+ 1 file changed, 3 insertions(+), 154 deletions(-)
+--- THEIRS (origin/simon/product-skeleton-cache-context) summary/stat ---
+ .../src/state/commands/channel_handler/slash.rs    | 484 ++-------------------
+ 1 file changed, 36 insertions(+), 448 deletions(-)
+--- OURS content around conflicts is in worktree with markers ---
+28:<<<<<<< HEAD
+31:=======
+39:>>>>>>> origin/simon/product-skeleton-cache-context
+138:<<<<<<< HEAD
+262:=======
+667:>>>>>>> origin/simon/product-skeleton-cache-context
+678:<<<<<<< HEAD
+683:=======
+702:>>>>>>> origin/simon/product-skeleton-cache-context
+714:<<<<<<< HEAD
+716:=======
+725:>>>>>>> origin/simon/product-skeleton-cache-context
+740:<<<<<<< HEAD
+767:=======
+770:>>>>>>> origin/simon/product-skeleton-cache-context
+
+--- DIFF OURS..THEIRS ---

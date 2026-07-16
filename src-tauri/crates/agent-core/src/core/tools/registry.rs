@@ -50,20 +50,21 @@ impl ToolRegistry {
 
     /// Get a reference to a tool by name. Checks local tools first, then fallback.
     ///
-    /// If exact match fails, tries reverse-lookup by sanitized name so that
-    /// LLM-returned names like `Disk_Usage_Checker` match the original
-    /// `Disk Usage Checker` registration.
+    /// If exact match fails, tries short alias resolution, then reverse-lookup
+    /// by sanitized name so that LLM-returned names like `Disk_Usage_Checker`
+    /// match the original `Disk Usage Checker` registration.
     pub fn get(&self, name: &str) -> Option<&dyn Tool> {
+        let canonical = resolve_tool_alias(name);
         self.tools
-            .get(name)
+            .get(canonical)
             .map(|boxed| boxed.as_ref())
             .or_else(|| {
                 self.tools
                     .values()
-                    .find(|tool| sanitize_tool_name(tool.name()) == name)
+                    .find(|tool| sanitize_tool_name(tool.name()) == canonical)
                     .map(|boxed| boxed.as_ref())
             })
-            .or_else(|| self.fallback.as_ref().and_then(|fb| fb.get(name)))
+            .or_else(|| self.fallback.as_ref().and_then(|fb| fb.get(canonical)))
     }
 
     /// Check if a tool is registered (locally or in fallback).
@@ -338,13 +339,14 @@ impl ToolRegistry {
         policy: &ResolvedToolPolicy,
         ctx: &crate::tools::call_context::CallContext,
     ) -> Result<ToolExecuteResult, String> {
-        if !policy.is_allowed(name) {
+        let canonical = resolve_tool_alias(name);
+        if !policy.is_allowed(canonical) {
             return Err(format!(
                 "Error: Tool '{}' is not allowed by the current tool policy",
-                name
+                canonical
             ));
         }
-        self.execute(name, params, ctx).await
+        self.execute(canonical, params, ctx).await
     }
 
     /// Get list of registered tool names (including fallback).
@@ -509,6 +511,17 @@ fn tool_schema_summary(schema: &Value) -> Option<(String, String)> {
         .unwrap_or_default()
         .to_string();
     Some((name, description))
+}
+
+/// Resolve short tool aliases to canonical names.
+///
+/// Keeps the alias table small and close to the dispatch site so
+/// new short names are trivially discoverable in one place.
+fn resolve_tool_alias(name: &str) -> &str {
+    match name {
+        "wi" => super::names::MANAGE_WORK_ITEM,
+        _ => name,
+    }
 }
 
 impl Default for ToolRegistry {

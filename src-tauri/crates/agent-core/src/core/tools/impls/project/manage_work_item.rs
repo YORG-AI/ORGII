@@ -37,11 +37,33 @@ enum WorkItemScope {
 /// Work item (task/issue) management tool.
 pub struct WorkItemTool {
     session_id: String,
+    app_handle: Option<tauri::AppHandle>,
+    session_account_id: Option<String>,
+    agent_model: String,
 }
 
 impl WorkItemTool {
     pub fn new(session_id: String) -> Self {
-        Self { session_id }
+        Self {
+            session_id,
+            app_handle: None,
+            session_account_id: None,
+            agent_model: String::new(),
+        }
+    }
+
+    pub fn with_launch_context(
+        session_id: String,
+        app_handle: Option<tauri::AppHandle>,
+        session_account_id: Option<String>,
+        agent_model: String,
+    ) -> Self {
+        Self {
+            session_id,
+            app_handle,
+            session_account_id,
+            agent_model,
+        }
     }
 
     fn resolve_scope(params: &Value) -> Result<WorkItemScope, ToolError> {
@@ -652,7 +674,7 @@ impl Tool for WorkItemTool {
     fn llm_description(&self) -> Option<String> {
         Some(
             "Manage work items (tasks, issues, bugs) in the global project store. Omit project_slug for standalone work items. \
-             Supports: list, read, create, update, delete, add_delegation, link_session, unlink_session, batch. \
+             Supports: list, read, create, update, delete, start, add_delegation, link_session, unlink_session, batch. \
              Use batch for multiple Work Items and put project_slug on each item when operations target different Projects. \
              Use link_session to attach the current chat/session to an existing work item; create may be used first."
                 .to_string(),
@@ -666,7 +688,7 @@ impl Tool for WorkItemTool {
                 "action": {
                     "type": "string",
                     "description": "The operation to perform.",
-                    "enum": ["list", "read", "create", "update", "delete", "add_delegation", "link_session", "unlink_session", "batch"]
+                    "enum": ["list", "read", "create", "update", "delete", "start", "add_delegation", "link_session", "unlink_session", "batch"]
                 },
                 "project_slug": {
                     "type": "string",
@@ -846,6 +868,30 @@ impl Tool for WorkItemTool {
                     WorkItemScope::Standalone => Self::delete_standalone_work_item(short_id).await,
                 }
             }
+            "start" => {
+                let short_id = required_string(&params, "short_id")?;
+                match scope {
+                    WorkItemScope::Project(project_slug) => {
+                        let app = self.app_handle.as_ref().ok_or_else(|| {
+                            ToolError::ExecutionFailed(
+                                "start requires app_handle (not available in this context)".to_string(),
+                            )
+                        })?;
+                        crate::tool_infra::start_work_item(
+                            &project_slug,
+                            &short_id,
+                            app,
+                            self.session_account_id.as_deref().filter(|s| !s.is_empty()),
+                            Some(self.agent_model.as_str()).filter(|s| !s.trim().is_empty()),
+                        )
+                        .await
+                        .map_err(ToolError::ExecutionFailed)
+                    }
+                    WorkItemScope::Standalone => Err(ToolError::InvalidParams(
+                        "start currently requires project_slug; bind or move the standalone Work Item into a Project first".to_string(),
+                    )),
+                }
+            }
             "link_session" => {
                 let short_id = required_string(&params, "short_id")?;
                 self.link_session(scope, short_id, params).await
@@ -903,7 +949,7 @@ impl Tool for WorkItemTool {
                 ))
             }
             _ => Err(ToolError::InvalidParams(format!(
-                "Unknown work_item action: '{}'. Valid actions: list, read, create, update, delete, add_delegation, link_session, unlink_session, batch",
+                "Unknown work_item action: '{}'. Valid actions: list, read, create, update, delete, start, add_delegation, link_session, unlink_session, batch",
                 action
             ))),
         }
