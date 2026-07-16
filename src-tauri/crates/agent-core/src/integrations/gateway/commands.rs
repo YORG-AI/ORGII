@@ -29,8 +29,6 @@
 pub enum GatewayCommand {
     /// Drop the binding for the current chat. Next message re-routes.
     NewSession,
-    /// Switch the bound channel session model without dispatching to the agent.
-    Model(Option<String>),
     /// Show the current channel binding and active Work Item context.
     SessionCurrent,
     /// List recent sessions that can be bound to this chat.
@@ -39,10 +37,18 @@ pub enum GatewayCommand {
     SessionSwitch(String),
     /// Create a fresh versioned session and bind this chat to it immediately.
     SessionNew,
+    /// Natural-language channel request to create and bind a fresh session,
+    /// optionally with a display name (for example: `新建会话，名称为test`).
+    SessionNewNamed(Option<String>),
+    /// Create a fresh named session and optionally dispatch an initial prompt.
+    /// Syntax: `/newsession <session_name> [prompt...]`.
+    NewSessionWithPrompt { name: String, prompt: Option<String> },
     /// Semantic search across indexed Session Memory summaries.
     SessionSearch(String),
     /// Bind the current chat/session to a Project or Work Item context.
     SessionBind { target: String, value: String },
+    /// Switch the bound channel session model without dispatching to the agent.
+    Model(Option<String>),
     /// Emit the current binding + running-session summary back to the channel.
     Status,
     /// Manually compact the bound session's transcript and fork to a
@@ -70,7 +76,7 @@ pub enum GatewayCommand {
 pub fn parse(content: &str) -> Option<GatewayCommand> {
     let trimmed = content.trim_start();
     if !trimmed.starts_with('/') {
-        return None;
+        return parse_natural_language_command(trimmed);
     }
     let first_line = trimmed.lines().next().unwrap_or("").trim();
     let mut parts = first_line.splitn(2, char::is_whitespace);
@@ -83,8 +89,81 @@ pub fn parse(content: &str) -> Option<GatewayCommand> {
         "/model" => Some(GatewayCommand::Model((!rest.is_empty()).then(|| rest.to_string()))),
         "/compact" => bare_command(rest, GatewayCommand::Compact),
         "/session" | "/ctx" => parse_session_command(rest),
+        "/newsession" => parse_newsession_command(rest),
         "/help" | "/commands" => bare_command(rest, GatewayCommand::Help),
         _ => None,
+    }
+}
+
+
+fn parse_newsession_command(rest: &str) -> Option<GatewayCommand> {
+    let rest = rest.trim();
+    if rest.is_empty() {
+        return None;
+    }
+    let mut parts = rest.splitn(2, char::is_whitespace);
+    let name = parts.next()?.trim();
+    if name.is_empty() {
+        return None;
+    }
+    let prompt = parts
+        .next()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+    Some(GatewayCommand::NewSessionWithPrompt {
+        name: name.chars().take(80).collect(),
+        prompt,
+    })
+}
+
+fn parse_natural_language_command(trimmed: &str) -> Option<GatewayCommand> {
+    let first_line = trimmed.lines().next().unwrap_or("").trim();
+    if first_line.is_empty() {
+        return None;
+    }
+    parse_new_session_zh(first_line).map(GatewayCommand::SessionNewNamed)
+}
+
+fn parse_new_session_zh(line: &str) -> Option<Option<String>> {
+    let normalized = line
+        .trim()
+        .trim_matches(|c: char| matches!(c, '"' | '\'' | '“' | '”' | '‘' | '’'));
+    if !(normalized.contains("新建会话")
+        || normalized.contains("创建会话")
+        || normalized.contains("开一个新会话")
+        || normalized.contains("开新会话"))
+    {
+        return None;
+    }
+
+    let name_markers = ["名称为", "名字为", "命名为", "名为", "叫做", "叫"];
+    for marker in name_markers {
+        if let Some((_, tail)) = normalized.split_once(marker) {
+            let name = clean_requested_session_name(tail);
+            return Some(name.filter(|s| !s.is_empty()));
+        }
+    }
+    Some(None)
+}
+
+fn clean_requested_session_name(raw: &str) -> Option<String> {
+    let stop_chars = ['，', ',', '。', '.', '\n', '\r', ';', '；'];
+    let before_stop = raw
+        .split(|c| stop_chars.contains(&c))
+        .next()
+        .unwrap_or(raw)
+        .trim();
+    let cleaned = before_stop
+        .trim_matches(|c: char| {
+            c.is_whitespace() || matches!(c, '"' | '\'' | '`' | '“' | '”' | '‘' | '’' | ':' | '：')
+        })
+        .trim()
+        .to_string();
+    if cleaned.is_empty() {
+        None
+    } else {
+        Some(cleaned.chars().take(80).collect())
     }
 }
 
@@ -107,10 +186,13 @@ fn parse_session_command(rest: &str) -> Option<GatewayCommand> {
             }
         }
         "new" => {
-            if parts.next().is_none() {
+            let rest = parts.collect::<Vec<_>>().join(" ");
+            if rest.trim().is_empty() {
                 Some(GatewayCommand::SessionNew)
             } else {
-                None
+                Some(GatewayCommand::SessionNewNamed(Some(
+                    rest.trim().chars().take(80).collect(),
+                )))
             }
         }
         "search" | "find" => {
@@ -171,6 +253,24 @@ mod tests {
     }
 
     #[test]
+    fn parses_chinese_named_session_request() {
+        assert_eq!(
+            parse("新建会话，名称为test"),
+            Some(GatewayCommand::SessionNewNamed(Some("test".to_string())))
+        );
+        assert_eq!(
+            parse("创建会话，名字为 测试任务。"),
+            Some(GatewayCommand::SessionNewNamed(Some(
+                "测试任务".to_string()
+            )))
+        );
+        assert_eq!(
+            parse("开新会话"),
+            Some(GatewayCommand::SessionNewNamed(None))
+        );
+    }
+
+    #[test]
     fn non_command_returns_none() {
         assert_eq!(parse("hello world"), None);
         assert_eq!(parse("/foobar do things"), None);
@@ -181,19 +281,6 @@ mod tests {
     fn parses_compact() {
         assert_eq!(parse("/compact"), Some(GatewayCommand::Compact));
         assert_eq!(parse("  /COMPACT  "), Some(GatewayCommand::Compact));
-    }
-
-    #[test]
-    fn parses_model_command() {
-        assert_eq!(parse("/model"), Some(GatewayCommand::Model(None)));
-        assert_eq!(
-            parse("/model gpt-5.5"),
-            Some(GatewayCommand::Model(Some("gpt-5.5".to_string())))
-        );
-        assert_eq!(
-            parse("  /MODEL fable  "),
-            Some(GatewayCommand::Model(Some("fable".to_string())))
-        );
     }
 
     /// Prose that mentions `/compact` must not fire the command.
@@ -232,6 +319,13 @@ mod tests {
         assert_eq!(parse("/session list"), Some(GatewayCommand::SessionList));
         assert_eq!(parse("/session new"), Some(GatewayCommand::SessionNew));
         assert_eq!(
+            parse("/newsession 测试会话 请回答 ok"),
+            Some(GatewayCommand::NewSessionWithPrompt {
+                name: "测试会话".into(),
+                prompt: Some("请回答 ok".into())
+            })
+        );
+        assert_eq!(
             parse("/session search feishu image bug"),
             Some(GatewayCommand::SessionSearch("feishu image bug".into()))
         );
@@ -254,6 +348,19 @@ mod tests {
             })
         );
         assert_eq!(parse("/ctx ls"), Some(GatewayCommand::SessionList));
+    }
+
+    #[test]
+    fn parses_model_command() {
+        assert_eq!(parse("/model"), Some(GatewayCommand::Model(None)));
+        assert_eq!(
+            parse("  /MODEL  gpt-5.5  "),
+            Some(GatewayCommand::Model(Some("gpt-5.5".into())))
+        );
+        assert_eq!(
+            parse("/model sonnet please"),
+            Some(GatewayCommand::Model(Some("sonnet please".into())))
+        );
     }
 
     /// Prose after /help / /status / /new must fall through to the

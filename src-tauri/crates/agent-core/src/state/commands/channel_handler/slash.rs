@@ -1,10 +1,13 @@
-//! Slash command handling (`/help`, `/new`, `/status`, `/model`, `/compact`) for
+//! Slash command handling (`/help`, `/new`, `/status`, `/compact`) for
 //! channel-bound chats.
 
 use crate::bus::{InboundMessage, OutboundMessage};
+use crate::definitions::OS_AGENT_ID;
 use crate::gateway::{GatewayCommand, SessionKey};
 use crate::session::session_id::{next_version_for, os_session_id_base, with_version};
 use crate::state::AgentAppState;
+use crate::tools::impls::orchestration::channel::REINJECT_CHANNEL;
+use core_types::key_source::KeySource;
 use tracing::info;
 
 #[cfg(debug_assertions)]
@@ -25,17 +28,24 @@ pub(super) async fn handle_command(
             info!("[gateway] Cleared binding for {}", session_key.as_str());
             "Conversation reset. The next message starts a fresh session.".to_string()
         }
-
-        GatewayCommand::Model(requested) => {
-            handle_model_command(state, msg, session_key, requested.as_deref()).await
-        }
         GatewayCommand::SessionCurrent => build_session_current(state, session_key).await,
         GatewayCommand::SessionList => build_session_list(state, session_key).await,
         GatewayCommand::SessionSwitch(target) => switch_session(state, session_key, &target).await,
-        GatewayCommand::SessionNew => create_and_switch_session(state, msg, session_key).await,
+        GatewayCommand::SessionNew => {
+            create_and_switch_session(state, msg, session_key, None).await
+        }
+        GatewayCommand::SessionNewNamed(name) => {
+            create_and_switch_session(state, msg, session_key, name).await
+        }
+        GatewayCommand::NewSessionWithPrompt { name, prompt } => {
+            create_switch_and_maybe_prompt(state, msg, session_key, name, prompt).await
+        }
         GatewayCommand::SessionSearch(query) => search_session_context(&query).await,
         GatewayCommand::SessionBind { target, value } => {
             bind_active_context(state, session_key, &target, &value).await
+        }
+        GatewayCommand::Model(requested) => {
+            handle_model_command(state, msg, session_key, requested.as_deref()).await
         }
         GatewayCommand::Status => {
             let binding = state.gateway_bindings.get(session_key).await;
@@ -134,160 +144,6 @@ pub(super) async fn handle_command(
     Ok(None)
 }
 
-
-async fn handle_model_command(
-    state: &AgentAppState,
-    _msg: &InboundMessage,
-    session_key: &SessionKey,
-    requested: Option<&str>,
-) -> String {
-    let Some(binding) = state.gateway_bindings.get(session_key).await else {
-        return "No session is bound to this chat yet. Send a message first, then use `/model <model>`."
-            .to_string();
-    };
-    let Some(requested) = requested.map(str::trim).filter(|s| !s.is_empty()) else {
-        return format!(
-            "Usage: `/model <model>`. Common aliases: gpt-5.5, gpt5.5, fable, sonnet, opus. Current session: `{}`",
-            binding.target_session_id
-        );
-    };
-    let account_id = state
-        .current_account_id
-        .lock()
-        .await
-        .clone()
-        .or_else(|| state.integrations.snapshot().channels.gateway.account_id.clone());
-    let Some((model, account_id)) = resolve_model_target(requested, account_id.as_deref()) else {
-        return format!("Model `{}` was not found in the configured model list.", requested);
-    };
-    let sid = binding.target_session_id.clone();
-    let model_for_db = model.clone();
-    let account_for_db = account_id.clone();
-    match tokio::task::spawn_blocking(move || {
-        crate::session::persistence::update_model_and_account(
-            &sid,
-            model_for_db.as_str(),
-            account_for_db.as_deref(),
-        )
-    })
-    .await
-    {
-        Ok(Ok(true)) => {
-            // Model switch must drop the old runtime; next turn rebuilds from persistence.
-            state.invalidate_session(&binding.target_session_id).await;
-            let note = format!("Model switched to {}", model);
-            let sid_for_note = binding.target_session_id.clone();
-            let note_for_db = note.clone();
-            let _ = tokio::task::spawn_blocking(move || {
-                crate::session::persistence::save_compact_summary_msg(&sid_for_note, &note_for_db)
-            })
-            .await;
-            note
-        }
-        Ok(Ok(false)) => format!(
-            "Model switch failed: session {} does not exist",
-            binding.target_session_id
-        ),
-        Ok(Err(err)) => format!("Model switch failed: {}", err),
-        Err(err) => format!("Model switch failed: {}", err),
-    }
-}
-
-fn resolve_model_target(
-    requested: &str,
-    account_id: Option<&str>,
-) -> Option<(String, Option<String>)> {
-    let needle = normalize_model_key(requested);
-    let mut candidates: Vec<String> = Vec::new();
-    if let Some(account_id) = account_id {
-        if let Some(key) = key_vault::key_store::KEY_SERVICE.get_key_by_id(account_id) {
-            // Prefer real callable ids from the active KeyVault account.
-            candidates.extend(key.enabled_models.iter().cloned());
-            candidates.extend(key.available_models.iter().cloned());
-            candidates.extend(key.model_aliases.iter().map(|alias| alias.alias.clone()));
-        }
-    }
-    candidates.extend(DEFAULT_MODEL_TARGETS.iter().copied().map(str::to_string));
-    candidates.sort();
-    candidates.dedup();
-
-    for (target, names) in MODEL_INPUT_ALIASES {
-        if names.iter().any(|name| normalize_model_key(name) == needle) {
-            return Some((
-                best_candidate_for_alias(&candidates, target).unwrap_or_else(|| (*target).to_string()),
-                account_id.map(str::to_string),
-            ));
-        }
-    }
-    candidates
-        .iter()
-        .find(|m| normalize_model_key(m) == needle)
-        .or_else(|| candidates.iter().find(|m| normalize_model_key(m).contains(&needle)))
-        .cloned()
-        .map(|model| (model, account_id.map(str::to_string)))
-}
-
-const DEFAULT_MODEL_TARGETS: &[&str] = &[
-    "openai/gpt-5.5:openai",
-    "anthropic/claude-fable-5:anthropic",
-    "anthropic/claude-sonnet-4-6:anthropic",
-    "anthropic/claude-opus-4-6:anthropic",
-];
-
-const MODEL_INPUT_ALIASES: &[(&str, &[&str])] = &[
-    ("openai/gpt-5.5:openai", &["gpt-5.5", "gpt5.5", "gpt55"]),
-    ("anthropic/claude-fable-5:anthropic", &["fable"]),
-    ("anthropic/claude-sonnet-4-6:anthropic", &["sonnet"]),
-    ("anthropic/claude-opus-4-6:anthropic", &["opus"]),
-];
-
-fn best_candidate_for_alias(candidates: &[String], canonical_target: &str) -> Option<String> {
-    let target_norm = normalize_model_key(canonical_target);
-    let target_base_norm = normalize_model_key(strip_model_route(canonical_target));
-    let mut matches: Vec<&String> = candidates
-        .iter()
-        .filter(|m| {
-            let norm = normalize_model_key(m);
-            norm == target_norm
-                || norm == target_base_norm
-                || norm.ends_with(&target_base_norm)
-                || norm.contains(&target_base_norm)
-        })
-        .collect();
-    // Prefer full provider/route ids; avoid writing bare aliases like `claude-fable-5`.
-    matches.sort_by_key(|m| candidate_rank(m, canonical_target));
-    matches.first().map(|m| (*m).clone())
-}
-
-fn candidate_rank(model: &str, canonical_target: &str) -> (u8, usize) {
-    let norm = normalize_model_key(model);
-    let canonical_norm = normalize_model_key(canonical_target);
-    let has_route = model.contains('/') || model.contains(':');
-    (
-        if norm == canonical_norm {
-            0
-        } else if has_route {
-            1
-        } else {
-            2
-        },
-        model.len(),
-    )
-}
-
-fn strip_model_route(model: &str) -> &str {
-    let without_route = model.split(':').next().unwrap_or(model);
-    without_route.rsplit('/').next().unwrap_or(without_route)
-}
-
-fn normalize_model_key(value: &str) -> String {
-    value
-        .to_ascii_lowercase()
-        .chars()
-        .filter(|c| c.is_ascii_alphanumeric())
-        .collect()
-}
-
 async fn build_session_current(state: &AgentAppState, session_key: &SessionKey) -> String {
     match state.gateway_bindings.get(session_key).await {
         Some(binding) => {
@@ -361,7 +217,7 @@ fn human_session_title(s: &crate::session::persistence::UnifiedSessionRecord) ->
         return format!("项目 {}", project);
     }
     let name = s.name.trim();
-    if !name.is_empty() && name != s.session_id && !name.starts_with("Channel:") {
+    if !name.is_empty() && name != s.session_id {
         return crate::utils::safe_truncate_chars_to_string(name, 48);
     }
     if let Some(title) = recent_user_title(&s.session_id) {
@@ -498,6 +354,7 @@ async fn create_and_switch_session(
     state: &AgentAppState,
     msg: &InboundMessage,
     session_key: &SessionKey,
+    requested_name: Option<String>,
 ) -> String {
     let base = os_session_id_base(&msg.channel, &msg.chat_id);
     let sid = tokio::task::spawn_blocking(move || {
@@ -513,14 +370,86 @@ async fn create_and_switch_session(
         return "Could not create a fresh channel session.".to_string();
     };
     super::dispatch::ensure_os_session_registered(state, &sid).await;
+    let display_name = requested_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+    let persist_sid = sid.clone();
+    let persist_channel = msg.channel.clone();
+    let persist_chat_id = msg.chat_id.clone();
+    let persist_name = display_name
+        .clone()
+        .unwrap_or_else(|| format!("Channel: {}", persist_channel));
+    let _ = tokio::task::spawn_blocking(move || {
+        let now = chrono::Utc::now().to_rfc3339();
+        let record = crate::session::persistence::UnifiedSessionRecord {
+            session_id: persist_sid,
+            name: persist_name,
+            status: crate::session::SessionStatus::Idle.as_str().to_string(),
+            session_type: crate::session::persistence::session_type::DESKTOP.to_string(),
+            channel: Some(persist_channel),
+            chat_id: Some(persist_chat_id),
+            created_at: now.clone(),
+            updated_at: now,
+            key_source: KeySource::OwnKey,
+            ..Default::default()
+        };
+        crate::session::persistence::upsert_session(&record)
+    })
+    .await;
     state
         .gateway_bindings
         .set(session_key.clone(), sid.clone())
         .await;
-    format!(
-        "Created and switched to fresh channel session `{}`.\nRecent context is empty; continue with the new topic.",
-        sid
-    )
+    match display_name {
+        Some(name) => format!(
+            "Created and switched to fresh channel session `{}` named `{}`.\nRecent context is empty; continue with the new topic.",
+            sid, name
+        ),
+        None => format!(
+            "Created and switched to fresh channel session `{}`.\nRecent context is empty; continue with the new topic.",
+            sid
+        ),
+    }
+}
+
+
+async fn create_switch_and_maybe_prompt(
+    state: &AgentAppState,
+    msg: &InboundMessage,
+    session_key: &SessionKey,
+    name: String,
+    prompt: Option<String>,
+) -> String {
+    let created = create_and_switch_session(state, msg, session_key, Some(name.clone())).await;
+    let Some(prompt_text) = prompt.map(|p| p.trim().to_string()).filter(|p| !p.is_empty()) else {
+        return created;
+    };
+    let Some(binding) = state.gateway_bindings.get(session_key).await else {
+        return format!("{}
+
+Created, but could not dispatch prompt: no active binding found.", created);
+    };
+    let target_sid = binding.target_session_id;
+    let sender_placeholder = if msg.sender_id.is_empty() { OS_AGENT_ID } else { msg.sender_id.as_str() };
+    let mut inbound = InboundMessage::new(REINJECT_CHANNEL, sender_placeholder, &target_sid, &prompt_text);
+    inbound.session_key_override = Some(target_sid.clone());
+    inbound.metadata.insert("source_channel".to_string(), serde_json::Value::String(msg.channel.clone()));
+    inbound.metadata.insert("source_chat_id".to_string(), serde_json::Value::String(msg.chat_id.clone()));
+    inbound.media = msg.media.clone();
+    let send_result = {
+        let bus = state.bus.lock().await;
+        bus.inbound_sender().send(inbound).await
+    };
+    match send_result {
+        Ok(()) => format!("{}
+
+Initial prompt dispatched to `{}`.", created, target_sid),
+        Err(err) => format!("{}
+
+Created, but failed to dispatch prompt: {}", created, err),
+    }
 }
 
 async fn search_session_context(query: &str) -> String {
@@ -692,7 +621,156 @@ fn recent_session_summary(session_id: &str, limit: usize) -> String {
         }
         Err(err) => format!("Recent context unavailable: {}", err),
     }
+}
 
+async fn handle_model_command(
+    state: &AgentAppState,
+    _msg: &InboundMessage,
+    session_key: &SessionKey,
+    requested: Option<&str>,
+) -> String {
+    let Some(binding) = state.gateway_bindings.get(session_key).await else {
+        return "还没有绑定会话。先发一条普通消息创建当前 Feishu 会话后，再用 `/model <模型>` 切换。"
+            .to_string();
+    };
+    let Some(requested) = requested.map(str::trim).filter(|s| !s.is_empty()) else {
+        return format!(
+            "用法：`/model <模型>`。常用别名：gpt-5.5、gpt5.5、fable、sonnet、opus。当前会话：`{}`",
+            binding.target_session_id
+        );
+    };
+    let account_id = state
+        .current_account_id
+        .lock()
+        .await
+        .clone()
+        .or_else(|| state.integrations.snapshot().channels.gateway.account_id.clone());
+    let Some((model, account_id)) = resolve_model_target(requested, account_id.as_deref()) else {
+        return format!("未找到模型 `{}`", requested);
+    };
+    let sid = binding.target_session_id.clone();
+    let model_for_db = model.clone();
+    let account_for_db = account_id.clone();
+    match tokio::task::spawn_blocking(move || {
+        crate::session::persistence::update_model_and_account(
+            &sid,
+            model_for_db.as_str(),
+            account_for_db.as_deref(),
+        )
+    })
+    .await
+    {
+        Ok(Ok(true)) => {
+            // # 模型切换后必须丢弃旧 runtime；下一轮会用持久化后的 model 重建 provider。
+            state.invalidate_session(&binding.target_session_id).await;
+            let note = format!("已切换到 {}", model);
+            let sid_for_note = binding.target_session_id.clone();
+            let note_for_db = note.clone();
+            let _ = tokio::task::spawn_blocking(move || {
+                crate::session::persistence::save_compact_summary_msg(&sid_for_note, &note_for_db)
+            }).await;
+            note
+        }
+        Ok(Ok(false)) => format!("切换模型失败：会话 {} 不存在", binding.target_session_id),
+        Ok(Err(err)) => format!("切换模型失败：{}", err),
+        Err(err) => format!("切换模型失败：{}", err),
+    }
+}
+
+fn resolve_model_target(
+    requested: &str,
+    account_id: Option<&str>,
+) -> Option<(String, Option<String>)> {
+    let needle = normalize_model_key(requested);
+    let mut candidates: Vec<String> = Vec::new();
+    if let Some(account_id) = account_id {
+        if let Some(key) = key_vault::key_store::KEY_SERVICE.get_key_by_id(account_id) {
+            // 优先使用 KeyVault 当前账号真实可用的 model id。model_aliases.alias 在
+            // ORG2 里也是可调用 model id，不是 `/model fable` 这种用户输入别名。
+            candidates.extend(key.enabled_models.iter().cloned());
+            candidates.extend(key.available_models.iter().cloned());
+            candidates.extend(key.model_aliases.iter().map(|alias| alias.alias.clone()));
+        }
+    }
+    candidates.extend(DEFAULT_MODEL_TARGETS.iter().copied().map(str::to_string));
+    candidates.sort();
+    candidates.dedup();
+
+    for (target, names) in MODEL_INPUT_ALIASES {
+        if names.iter().any(|name| normalize_model_key(name) == needle) {
+            return Some((
+                best_candidate_for_alias(&candidates, target).unwrap_or_else(|| (*target).to_string()),
+                account_id.map(str::to_string),
+            ));
+        }
+    }
+    candidates
+        .iter()
+        .find(|m| normalize_model_key(m) == needle)
+        .or_else(|| candidates.iter().find(|m| normalize_model_key(m).contains(&needle)))
+        .cloned()
+        .map(|model| (model, account_id.map(str::to_string)))
+}
+
+const DEFAULT_MODEL_TARGETS: &[&str] = &[
+    "openai/gpt-5.5:openai",
+    "anthropic/claude-fable-5:anthropic",
+    "anthropic/claude-sonnet-4-6:anthropic",
+    "anthropic/claude-opus-4-6:anthropic",
+];
+
+const MODEL_INPUT_ALIASES: &[(&str, &[&str])] = &[
+    ("openai/gpt-5.5:openai", &["gpt-5.5", "gpt5.5", "gpt55"]),
+    ("anthropic/claude-fable-5:anthropic", &["fable"]),
+    ("anthropic/claude-sonnet-4-6:anthropic", &["sonnet"]),
+    ("anthropic/claude-opus-4-6:anthropic", &["opus"]),
+];
+
+fn best_candidate_for_alias(candidates: &[String], canonical_target: &str) -> Option<String> {
+    let target_norm = normalize_model_key(canonical_target);
+    let target_base_norm = normalize_model_key(strip_model_route(canonical_target));
+    let mut matches: Vec<&String> = candidates
+        .iter()
+        .filter(|m| {
+            let norm = normalize_model_key(m);
+            norm == target_norm
+                || norm == target_base_norm
+                || norm.ends_with(&target_base_norm)
+                || norm.contains(&target_base_norm)
+        })
+        .collect();
+    // 带 provider / route 的完整 id 优先；避免再次把 `claude-fable-5` 写回库。
+    matches.sort_by_key(|m| candidate_rank(m, canonical_target));
+    matches.first().map(|m| (*m).clone())
+}
+
+fn candidate_rank(model: &str, canonical_target: &str) -> (u8, usize) {
+    let norm = normalize_model_key(model);
+    let canonical_norm = normalize_model_key(canonical_target);
+    let has_route = model.contains('/') || model.contains(':');
+    (
+        if norm == canonical_norm {
+            0
+        } else if has_route {
+            1
+        } else {
+            2
+        },
+        model.len(),
+    )
+}
+
+fn strip_model_route(model: &str) -> &str {
+    let without_route = model.split(':').next().unwrap_or(model);
+    without_route.rsplit('/').next().unwrap_or(without_route)
+}
+
+fn normalize_model_key(value: &str) -> String {
+    value
+        .to_ascii_lowercase()
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect()
 }
 
 /// Static cheat-sheet for the `/help` slash command.
@@ -705,14 +783,15 @@ fn build_help_text() -> String {
         "`/help` — show this list (alias: `/commands`).",
         "`/status` — show this chat's current binding and active runtime sessions.",
         "`/new` — clear this chat's binding; the next normal message creates a fresh session (alias: `/reset`).",
-        "`/model <model>` — switch the bound channel session model. Common aliases: gpt-5.5, fable, sonnet, opus.",
+        "`/model <model>` — switch the current channel session model (aliases: gpt-5.5, sonnet, opus, fable).",
         "`/compact` — manually compact the current channel session and continue in a versioned successor.",
         "",
         "**Session switching**",
         "`/session current` — show the active channel-bound ORG2 session (alias: `/ctx current`).",
         "`/session list` — list recent ORG2 sessions (aliases: `/session ls`, `/ctx ls`).",
         "`/session switch <session_id>` — bind this Feishu chat to an existing session and show recent context (alias: `/session use <session_id>`).",
-        "`/session new` — create and bind a fresh session immediately.",
+        "`/session new [name]` — create and bind a fresh session immediately.",
+        "`/newsession <name> [prompt]` — create a named ORG2 session; with prompt, dispatch it into that session.",
         "`/session search <query>` — semantic search across indexed Session Memory summaries (embedding + rerank).",
         "",
         "**Active project / Work Item context**",
@@ -728,7 +807,9 @@ fn build_help_text() -> String {
 
 #[cfg(test)]
 mod help_text_tests {
-    use super::{best_candidate_for_alias, build_help_text, normalize_model_key};
+    use super::{
+        best_candidate_for_alias, build_help_text, normalize_model_key, resolve_model_target,
+    };
 
     #[test]
     fn lists_every_supported_slash_command() {
@@ -737,8 +818,8 @@ mod help_text_tests {
             "/help",
             "/new",
             "/status",
-            "/model",
             "/compact",
+            "/model",
             "/session current",
             "/session switch",
         ] {
@@ -756,28 +837,40 @@ mod help_text_tests {
     }
 
     #[test]
-    fn resolves_model_alias_to_best_configured_candidate() {
-        let candidates = vec![
-            "openai/gpt-5.5:openai".to_string(),
-            "anthropic/claude-fable-5:anthropic".to_string(),
-        ];
+    fn model_aliases_resolve_without_key_vault() {
+        assert_eq!(normalize_model_key("gpt-5.5"), "gpt55");
         assert_eq!(
-            best_candidate_for_alias(&candidates, "openai/gpt-5.5:openai"),
-            Some("openai/gpt-5.5:openai".to_string())
+            resolve_model_target("gpt-5.5", None).unwrap().0,
+            "openai/gpt-5.5:openai"
         );
         assert_eq!(
-            best_candidate_for_alias(&candidates, "claude-fable-5"),
-            Some("anthropic/claude-fable-5:anthropic".to_string())
+            resolve_model_target("gpt5.5", None).unwrap().0,
+            "openai/gpt-5.5:openai"
+        );
+        assert_eq!(
+            resolve_model_target("sonnet", None).unwrap().0,
+            "anthropic/claude-sonnet-4-6:anthropic"
+        );
+        assert_eq!(
+            resolve_model_target("opus", None).unwrap().0,
+            "anthropic/claude-opus-4-6:anthropic"
+        );
+        assert_eq!(
+            resolve_model_target("fable", None).unwrap().0,
+            "anthropic/claude-fable-5:anthropic"
         );
     }
 
     #[test]
-    fn normalize_model_key_ignores_provider_punctuation() {
+    fn alias_candidate_prefers_full_model_ids() {
+        let candidates = vec![
+            "claude-fable-5".to_string(),
+            "anthropic/anthropic/claude-fable-5:anthropic".to_string(),
+        ];
         assert_eq!(
-            normalize_model_key("openai/gpt-5.5:openai"),
-            "openaigpt55openai"
+            best_candidate_for_alias(&candidates, "anthropic/claude-fable-5:anthropic").unwrap(),
+            "anthropic/anthropic/claude-fable-5:anthropic"
         );
-        assert_eq!(normalize_model_key("GPT-5.5"), "gpt55");
     }
 
     #[test]
