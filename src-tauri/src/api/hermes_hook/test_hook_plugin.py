@@ -1,8 +1,14 @@
-"""Focused privacy tests for the embedded Hermes hook plugin."""
+"""Focused privacy and endpoint-resolution tests for the Hermes hook plugin."""
 
+import json
+import os
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
-from __init__ import _safe_text, _tool_input_preview
+import __init__ as hook
+from __init__ import _hook_target, _safe_text, _session_identity, _tool_input_preview
 
 
 class HookPluginPrivacyTest(unittest.TestCase):
@@ -47,6 +53,76 @@ class HookPluginPrivacyTest(unittest.TestCase):
 
         self.assertEqual(preview, "Command needs elevated access")
         self.assertNotIn("rm -rf", preview)
+
+
+class HookPluginEndpointTest(unittest.TestCase):
+    def setUp(self) -> None:
+        hook._CURRENT_SESSION_ID = ""
+
+    def test_integrated_environment_takes_priority(self) -> None:
+        env = {
+            "ORGII_HERMES_HOOK_ENDPOINT": "http://integrated",
+            "ORGII_HERMES_HOOK_TOKEN": "terminal-token",
+            "ORGII_TERMINAL_SESSION_ID": "chatpanel-hermes",
+            "ORGII_HERMES_HOOK_CONFIG": "/missing/config",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            self.assertEqual(
+                _hook_target(),
+                ("http://integrated", "terminal-token", "chatpanel-hermes"),
+            )
+
+    def test_external_session_reads_global_runtime_descriptor(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory) / "hermes-hook.env"
+            config.write_text(
+                "ORGII_HERMES_HOOK_ENDPOINT=http://127.0.0.1:13847/agent/hooks/hermes\n"
+                "ORGII_HERMES_HOOK_TOKEN=global-token\n",
+                encoding="utf-8",
+            )
+            with patch.dict(
+                os.environ,
+                {"ORGII_HERMES_HOOK_CONFIG": str(config)},
+                clear=True,
+            ):
+                self.assertEqual(
+                    _hook_target(),
+                    (
+                        "http://127.0.0.1:13847/agent/hooks/hermes",
+                        "global-token",
+                        "",
+                    ),
+                )
+
+    def test_external_payload_omits_terminal_identity(self) -> None:
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+        captured = []
+
+        def capture(request, timeout):
+            captured.append((request, timeout))
+            return Response()
+
+        with patch.object(
+            hook, "_hook_target", return_value=("http://orgii", "token", "")
+        ), patch.object(hook.urllib.request, "urlopen", side_effect=capture):
+            hook._post_event("on_session_start", {"session_id": "hermes-session"})
+
+        body = json.loads(captured[0][0].data)
+        self.assertNotIn("terminalSessionId", body)
+        self.assertEqual(body["payload"]["sessionId"], "hermes-session")
+
+    def test_tool_events_reuse_the_active_session_identity(self) -> None:
+        self.assertEqual(_session_identity({"session_id": "session-a"}), "session-a")
+        self.assertEqual(
+            _session_identity({"task_id": "tool-task"}),
+            "session-a",
+        )
 
 
 if __name__ == "__main__":

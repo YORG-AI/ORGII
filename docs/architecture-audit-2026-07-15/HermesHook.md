@@ -3,26 +3,26 @@
 ## Acceptance criteria
 
 - Use Hermes Agent's official plugin-hook mechanism for CLI/TUI lifecycle events.
-- Keep the globally enabled plugin inert outside terminals launched by ORGII.
+- Support both ORGII-integrated terminals and Hermes launched from an external terminal while ORGII is running.
 - Map Hermes work, user-boundary, approval, and teardown events onto `starting | running | waiting | blocked | done`.
-- Notify once when a background Hermes terminal enters a prompted approval boundary, and focus the originating tab when the notification is clicked.
-- Authenticate localhost callbacks per terminal and forward only redacted, allowlisted activity metadata—never prompts, results, file contents, or complete argument objects.
+- Notify once when a background Hermes terminal enters a prompted approval boundary; integrated notifications target their ORGII tab, while external notifications do not claim a tab target.
+- Authenticate integrated callbacks per terminal and external callbacks with a per-process global token stored in a user-private descriptor. Forward only redacted, allowlisted activity metadata—never prompts, results, file contents, or complete argument objects.
 - Preserve foreground-process detection as a fallback when plugin preparation or delivery fails.
 
 ## Ten-layer audit
 
-| Layer                                     | Coverage                                                                                                  | Result                                                                                                                                                                                                                                                                     |
-| ----------------------------------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Compilation correctness                | Rust route/command/plugin installer; TypeScript terminal state, notification bridge, and WebSocket schema | Rust library compilation and 4 hook tests pass. Targeted ESLint, 9 frontend tests, and 3 Python privacy tests pass. Full TypeScript checking reaches one unrelated existing error in `ContextInfoButton.tsx:468`; no Hermes-hook file reports an error.                    |
-| 2. Dead code and structural deduplication | TUI launch → Tauri prepare → PTY env → Hermes plugin → HTTP route → WebSocket → terminal atom             | Every new entry point is connected to the production launch path. Existing `TerminalSession`, PTY env support, unified server, broadcaster, and process poller are reused rather than duplicated.                                                                          |
-| 3. Naming consistency                     | `orgii-status`, `hermes_hook_prepare`, `terminal_agent.status_changed`, `ORGII_HERMES_HOOK_*`             | Names identify both the Hermes source and ORGII ownership. JSON uses camelCase from Python to Rust and the existing snake_case convention from Rust to the code-editor WebSocket.                                                                                          |
-| 4. Semantic overloading                   | “hook”, “waiting”, “blocked”, “session end”, terminal status source                                       | `waiting` means an idle/user-input boundary; `blocked` means a prompted approval decision is outstanding. Smart-mode automatic decisions remain `running`. Only `on_session_finalize` maps to `done`. `agentStatusSource` distinguishes process inference from hook truth. |
-| 5. Default branch analysis                | Unknown hook events, missing env/binary, smart approval, callback/notification failures                   | Unknown events are ignored with 204. Missing plugin env makes the plugin a no-op. Prepare failure preserves process fallback. Smart approvals do not notify. Invalid tokens return 401. Notification failures are logged and do not affect state delivery.                 |
-| 6. Cross-domain concept leakage           | Hermes event vocabulary versus shared terminal/notification types                                         | Hermes mapping and payload construction stay in `api/hermes_hook`; shared terminal state gains only generic status/activity fields, and the notification service gains generic opaque `extra` metadata/action listening. No Hermes branch was added to PTY internals.      |
-| 7. New-developer confusion                | Module docs, transition comments, presentation helpers, acceptance cases                                  | Status meaning, background-only notification deduplication, opaque click targeting, activity privacy limits, and UI acceptance/error/accessibility cases are documented beside their owners.                                                                               |
-| 8. Wire protocol and serialization        | Python callback JSON, auth header, Rust broadcast JSON, Zod validation                                    | Callback sends terminal/event identity plus redacted, truncated values from a small argument-key allowlist, model/CWD/duration, and approval surface. Raw prompts, results, file content, and full argument objects are excluded. Frontend validates five status variants. |
-| 9. Init parity                            | Chat-panel Hermes TUI, non-Hermes TUI, Hermes outside ORGII, prepare failure                              | The one ORGII chat-panel Hermes launch entry point prepares and injects all hook env fields. Non-Hermes terminals skip preparation. Globally enabled plugin sessions without ORGII env remain inert. Failure preserves the prior process-based behavior.                   |
-| 10. Resolver symmetry                     | Callback endpoint, token, terminal ID                                                                     | All three required values are issued together by one Tauri command and injected into the same PTY environment. The plugin requires all three before sending; there is no partial fallback chain.                                                                           |
+| Layer                                     | Coverage                                                                                                   | Result                                                                                                                                                                                                                                                                              |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Compilation correctness                | Rust route/command/plugin installer; TypeScript terminal state, notification bridges, and WebSocket schema | Rust library compilation and 8 hook tests pass. Targeted ESLint and frontend tests pass, as do 7 Python privacy/endpoint tests. Full TypeScript checking reaches one unrelated existing error in `ContextInfoButton.tsx:468`; no Hermes-hook file reports an error.                 |
+| 2. Dead code and structural deduplication | Integrated launch or global descriptor → Hermes plugin → HTTP route → WebSocket → scoped bridge            | Both entry points converge on one plugin payload and one authenticated route. Existing PTY env support, unified server, broadcaster, notification service, and process poller are reused.                                                                                           |
+| 3. Naming consistency                     | `orgii-status`, `hermes_hook_prepare`, `initialize_global_hook`, `source`, `agent_session_id`              | `terminal_session_id` always means an ORGII-owned terminal; `agent_session_id` always means Hermes' own identity. `source` explicitly distinguishes `integrated` and `external` rather than overloading ID presence in frontend consumers.                                          |
+| 4. Semantic overloading                   | “hook”, “waiting”, “blocked”, “session end”, terminal status source                                        | `waiting` means an idle/user-input boundary; `blocked` means a prompted approval decision is outstanding. Smart-mode automatic decisions remain `running`. Only `on_session_finalize` maps to `done`. `agentStatusSource` distinguishes process inference from hook truth.          |
+| 5. Default branch analysis                | Unknown hook events, stale/missing descriptor, missing binary, smart approval, callback failures           | Unknown events are ignored with 204. Missing/stale global config and callback failures are no-ops in Hermes. Global setup failure is logged without stopping ORGII. Prepare failure preserves process fallback. Smart approvals do not notify. Invalid tokens return 401.           |
+| 6. Cross-domain concept leakage           | Hermes event vocabulary versus shared terminal/notification types                                          | Hermes mapping and credential discovery stay in `api/hermes_hook`; the external notification bridge is headless and does not manufacture a terminal session. Shared WebSocket state gains only generic source/session identity fields. No Hermes branch was added to PTY internals. |
+| 7. New-developer confusion                | Module docs, transition comments, presentation helpers, acceptance cases                                   | Status meaning, background-only notification deduplication, opaque click targeting, activity privacy limits, and UI acceptance/error/accessibility cases are documented beside their owners.                                                                                        |
+| 8. Wire protocol and serialization        | Python callback JSON, auth header, Rust broadcast JSON, Zod validation                                     | Integrated payloads include `terminalSessionId`; external payloads deliberately omit it and carry Hermes `sessionId`. Both exclude raw prompts, results, file content, and full argument objects. Frontend validates source and five statuses.                                      |
+| 9. Init parity                            | Chat-panel Hermes TUI, external Hermes, non-Hermes TUI, missing Hermes, prepare failure                    | Server startup installs/enables the plugin and publishes the global descriptor. Integrated launch additionally injects a per-terminal credential. Both paths hit the same route; missing Hermes only disables this optional integration and never stops the server.                 |
+| 10. Resolver symmetry                     | Integrated environment versus external global descriptor                                                   | Resolver priority is explicit: use endpoint + token + terminal ID only when the complete integrated triple exists; otherwise read endpoint + token together from the global descriptor. Partial integrated configuration is never mixed with global values.                         |
 
 ## Event-to-status contract
 
@@ -37,11 +37,12 @@
 
 ## Entry-point parity matrix
 
-| Entry point                   | Plugin preparation                                                                                     | Callback behavior                                                  | Status fallback                                                                                            |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| ORGII chat-panel Hermes TUI   | Install/refresh `~/.hermes/plugins/orgii-status`, run official enable command, inject per-terminal env | Authenticated localhost POST, then terminal-scoped WebSocket event | Foreground process poller until the first valid hook event, and for the whole session if preparation fails |
-| ORGII non-Hermes terminal     | Skipped                                                                                                | Plugin not involved                                                | Existing process behavior                                                                                  |
-| Hermes launched outside ORGII | Plugin may be enabled globally, but ORGII env is absent                                                | No-op                                                              | Owned by the launching application                                                                         |
+| Entry point                   | Plugin preparation                                                     | Callback behavior                                                        | Status fallback                                                                                      |
+| ----------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| ORGII chat-panel Hermes TUI   | Global install/enable plus per-terminal endpoint/token/ID env          | Per-terminal-authenticated POST; terminal-scoped status and notification | Foreground process poller until the first hook event, and for the whole session if preparation fails |
+| Hermes launched outside ORGII | Global install/enable plus `~/.orgii/hermes-hook.env` while ORGII runs | Process-token-authenticated POST; external approval notification         | No synthetic ORGII terminal or click target; Hermes remains owned by its launching terminal          |
+| ORGII non-Hermes terminal     | Skipped                                                                | Plugin not involved                                                      | Existing process behavior                                                                            |
+| Hermes absent at ORGII start  | Best-effort setup logs a warning                                       | No callback                                                              | The IDE server and all unrelated app behavior continue                                               |
 
 ## Wire payload
 
@@ -82,20 +83,34 @@ ORGII backend to frontend:
 }
 ```
 
+External Hermes omits `terminalSessionId` on the inbound payload and emits this identity shape:
+
+```json
+{
+  "type": "terminal_agent.status_changed",
+  "source": "external",
+  "agent_session_id": "hermes-session-…",
+  "cli_agent_type": "hermes",
+  "agent_status": "blocked",
+  "hook_event_name": "pre_approval_request",
+  "timestamp": 0
+}
+```
+
 ## Deliberately skipped
 
-| Area                                      | Reason                                                                                                                                              |
-| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Gateway-only Hermes sessions              | This change tracks ORGII integrated TUI terminals; gateway sessions do not own a chat-panel terminal ID.                                            |
-| Forwarding prompts/results/full arguments | Status UI uses only a redacted and truncated allowlist preview; complete content would add privacy and payload-size risk.                           |
-| Replacing process polling globally        | Other CLI agents do not expose the same Hermes lifecycle contract; polling remains their supported fallback.                                        |
-| Inline approval actions                   | Notification click navigates to the existing Hermes TUI; approve/deny remains inside Hermes so ORGII does not duplicate its authorization boundary. |
+| Area                                      | Reason                                                                                                                                                  |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Creating ORGII tabs for external Hermes   | External processes are owned by another terminal. ORGII reports approval attention without inventing PTY ownership or a broken click target.            |
+| Forwarding prompts/results/full arguments | Status UI uses only a redacted and truncated allowlist preview; complete content would add privacy and payload-size risk.                               |
+| Replacing process polling globally        | Other CLI agents do not expose the same Hermes lifecycle contract; polling remains their supported fallback.                                            |
+| Inline approval actions                   | Integrated notification clicks navigate to their Hermes TUI; external notifications have no synthetic click target. Approve/deny remains inside Hermes. |
 
 ## Verification
 
-- `cargo test --manifest-path src-tauri/Cargo.toml --lib api::hermes_hook::tests` — 4 passed.
-- Targeted Vitest run — 9 passed across status fallback, wire schema, notification deduplication/targeting, and presentation.
-- `python3 -m unittest discover -s src-tauri/src/api/hermes_hook -p 'test_*.py' -v` — 3 privacy tests passed.
+- `cargo test --manifest-path src-tauri/Cargo.toml --lib api::hermes_hook::tests` — 8 passed, including the serialized external WebSocket shape.
+- Targeted Vitest run — passed across status fallback, integrated/external wire schema, notification deduplication/targeting, and presentation.
+- `python3 -m unittest discover -s src-tauri/src/api/hermes_hook -p 'test_*.py' -v` — 7 privacy/endpoint tests passed.
 - Targeted ESLint — passed.
 - `git diff --check` — passed before the final report write and repeated in the final verification pass.
 - `pnpm typecheck` — one unrelated existing error at `src/engines/ChatPanel/InputArea/components/ContextInfoButton.tsx:468`; no changed hook file failed.

@@ -24,6 +24,7 @@ import {
 import { useDiagnosticsBootstrap } from "@src/diagnostics";
 import { usePostPaintGitProbe } from "@src/hooks/dependencies/usePostPaintGitProbe";
 import { useGlobalFlowTracker } from "@src/hooks/flowAwareness";
+import { useExternalHermesStatusBridge } from "@src/hooks/hermes/useExternalHermesStatusBridge";
 import { useModelAliasRegistry } from "@src/hooks/models";
 import {
   useCrossWindowSettingsSync,
@@ -71,6 +72,7 @@ export const AppBootstrap: FC = () => {
   useFirstPaintSignal();
   usePostPaintGitProbe();
   useGlobalFlowTracker(); // Track user activities for agent context
+  useExternalHermesStatusBridge();
   useModelAliasRegistry();
   useDiagnosticsBootstrap();
   useDataSourceAutoScan(); // Keep external-history sources fresh on their cadence

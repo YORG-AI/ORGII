@@ -1,8 +1,8 @@
 """ORGII lifecycle bridge for Hermes Agent.
 
-The plugin is enabled globally, but it only sends events when Hermes was
-started by an ORGII terminal and the per-terminal callback environment is
-present. Hook failures are deliberately best-effort and never affect Hermes.
+Integrated ORGII terminals use per-terminal callback credentials. Hermes
+processes launched elsewhere discover ORGII's user-private runtime descriptor
+while the app is running. Hook failures are best-effort and never affect Hermes.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ import os
 import re
 import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import Any, Callable
 
 EVENTS = (
@@ -47,6 +48,7 @@ SECRET_ASSIGNMENT = re.compile(
 BEARER_TOKEN = re.compile(r"(?i)\b(bearer)\s+[^\s]+")
 KNOWN_TOKEN = re.compile(r"\b(?:sk|ghp|github_pat|xox[baprs])[-_][A-Za-z0-9_-]{12,}\b")
 URL_CREDENTIALS = re.compile(r"(?<=://)[^/@\s:]+:[^/@\s]+@")
+_CURRENT_SESSION_ID = ""
 
 
 def _safe_text(value: Any, limit: int = MAX_PREVIEW_LENGTH) -> str:
@@ -88,20 +90,65 @@ def _optional_number(value: Any) -> int | float | None:
     return None
 
 
-def _post_event(event_name: str, kwargs: dict[str, Any]) -> None:
+def _read_global_config() -> tuple[str, str]:
+    configured_path = os.environ.get("ORGII_HERMES_HOOK_CONFIG", "")
+    path = (
+        Path(configured_path).expanduser()
+        if configured_path
+        else Path.home() / ".orgii" / "hermes-hook.env"
+    )
+    try:
+        values = {}
+        for line in path.read_text(encoding="utf-8").splitlines():
+            key, separator, value = line.partition("=")
+            if separator and key in {
+                "ORGII_HERMES_HOOK_ENDPOINT",
+                "ORGII_HERMES_HOOK_TOKEN",
+            }:
+                values[key] = value.strip()
+        return (
+            values.get("ORGII_HERMES_HOOK_ENDPOINT", ""),
+            values.get("ORGII_HERMES_HOOK_TOKEN", ""),
+        )
+    except (OSError, UnicodeError):
+        return "", ""
+
+
+def _hook_target() -> tuple[str, str, str]:
     endpoint = os.environ.get("ORGII_HERMES_HOOK_ENDPOINT", "")
     token = os.environ.get("ORGII_HERMES_HOOK_TOKEN", "")
     terminal_session_id = os.environ.get("ORGII_TERMINAL_SESSION_ID", "")
-    if not endpoint or not token or not terminal_session_id:
-        return
+    if endpoint and token and terminal_session_id:
+        return endpoint, token, terminal_session_id
 
-    args = kwargs.get("args") if isinstance(kwargs.get("args"), dict) else {}
-    session_id = (
-        kwargs.get("session_id")
+    endpoint, token = _read_global_config()
+    return endpoint, token, ""
+
+
+def _session_identity(kwargs: dict[str, Any]) -> str:
+    global _CURRENT_SESSION_ID
+
+    explicit_session_id = kwargs.get("session_id")
+    if explicit_session_id:
+        _CURRENT_SESSION_ID = str(explicit_session_id)
+    return str(
+        explicit_session_id
+        or _CURRENT_SESSION_ID
         or kwargs.get("session_key")
         or kwargs.get("task_id")
         or ""
     )
+
+
+def _post_event(event_name: str, kwargs: dict[str, Any]) -> None:
+    global _CURRENT_SESSION_ID
+
+    endpoint, token, terminal_session_id = _hook_target()
+    if not endpoint or not token:
+        return
+
+    args = kwargs.get("args") if isinstance(kwargs.get("args"), dict) else {}
+    session_id = _session_identity(kwargs)
     tool_name = kwargs.get("tool_name")
     if not tool_name and event_name in {
         "pre_approval_request",
@@ -109,7 +156,6 @@ def _post_event(event_name: str, kwargs: dict[str, Any]) -> None:
     }:
         tool_name = "terminal"
     payload = {
-        "terminalSessionId": terminal_session_id,
         "payload": {
             "hookEventName": event_name,
             "sessionId": _safe_text(session_id),
@@ -121,6 +167,8 @@ def _post_event(event_name: str, kwargs: dict[str, Any]) -> None:
             "approvalSurface": _safe_text(kwargs.get("surface"), 24),
         },
     }
+    if terminal_session_id:
+        payload["terminalSessionId"] = terminal_session_id
     request = urllib.request.Request(
         endpoint,
         data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
@@ -135,6 +183,9 @@ def _post_event(event_name: str, kwargs: dict[str, Any]) -> None:
             pass
     except (OSError, urllib.error.URLError):
         return
+    finally:
+        if event_name == "on_session_finalize":
+            _CURRENT_SESSION_ID = ""
 
 
 def _make_hook(event_name: str) -> Callable[..., None]:

@@ -39,4 +39,25 @@ describe("Hermes terminal status WebSocket schema", () => {
       )
     ).toThrow();
   });
+
+  it("accepts a global external Hermes event without an ORGII terminal id", () => {
+    const message = maybeParseCodeEditorWebSocketMessage(
+      JSON.stringify({
+        type: "terminal_agent.status_changed",
+        source: "external",
+        agent_session_id: "hermes-session",
+        cli_agent_type: "hermes",
+        agent_status: "blocked",
+        hook_event_name: "pre_approval_request",
+        timestamp: 2,
+      })
+    );
+
+    expect(message).toMatchObject({
+      source: "external",
+      agent_session_id: "hermes-session",
+      agent_status: "blocked",
+    });
+    expect(message?.terminal_session_id).toBeUndefined();
+  });
 });

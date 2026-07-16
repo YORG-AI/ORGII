@@ -334,7 +334,9 @@ export const CodeEditorWebSocketMessageSchema = z.object({
   status: z.unknown().optional(),
   files: z.array(z.unknown()).optional(),
   terminal_session_id: z.string().optional(),
+  agent_session_id: z.string().optional(),
   cli_agent_type: z.string().optional(),
+  source: z.enum(["integrated", "external"]).optional(),
   agent_status: z
     .enum(["starting", "running", "waiting", "blocked", "done"])
     .optional(),

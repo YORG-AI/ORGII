@@ -283,7 +283,7 @@ pub async fn start_server(
                 std::time::Duration::from_secs(200),
             )),
         )
-        // Hermes plugin lifecycle callbacks for chat-panel TUI terminals.
+        // Hermes plugin lifecycle callbacks for integrated and external TUI sessions.
         .merge(super::hermes_hook::router())
         // Automation webhook route — fires registered webhook triggers
         .route(
@@ -309,8 +309,12 @@ pub async fn start_server(
     println!("🤖 Agent API: http://{}/agent/*", addr);
     println!("🔌 WebSocket: ws://{}/ws", addr);
 
-    // Start server
+    // Bind first so the global Hermes descriptor never advertises a port that
+    // this process failed to acquire.
     let listener = tokio::net::TcpListener::bind(addr).await?;
+    if let Err(error) = super::hermes_hook::initialize_global_hook().await {
+        tracing::warn!(%error, "[Hermes Hook] Global hook initialization failed");
+    }
     axum::serve(listener, app).await?;
 
     Ok(())
