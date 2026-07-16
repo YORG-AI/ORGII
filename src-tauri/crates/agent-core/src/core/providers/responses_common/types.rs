@@ -112,6 +112,16 @@ pub struct ResponsesUsage {
     pub input_tokens: Option<i64>,
     pub output_tokens: Option<i64>,
     pub total_tokens: Option<i64>,
+    /// `usage.input_tokens_details.cached_tokens` — prompt-cache hits.
+    #[serde(default)]
+    pub input_tokens_details: Option<ResponsesInputTokensDetails>,
+}
+
+/// `usage.input_tokens_details` from the Responses API.
+#[derive(Debug, Deserialize)]
+pub struct ResponsesInputTokensDetails {
+    #[serde(default)]
+    pub cached_tokens: i64,
 }
 
 /// Error from the Responses API.

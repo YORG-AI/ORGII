@@ -521,6 +521,16 @@ pub(super) async fn run_chat_streaming(
                 final_usage.insert("prompt_tokens".to_string(), usage.prompt_tokens);
                 final_usage.insert("completion_tokens".to_string(), usage.completion_tokens);
                 final_usage.insert("total_tokens".to_string(), usage.total_tokens);
+                if let Some(ref details) = usage.prompt_tokens_details {
+                    if details.cached_tokens > 0 {
+                        debug!(
+                            "[streaming-usage] OpenAI cached_tokens={}",
+                            details.cached_tokens
+                        );
+                        final_usage
+                            .insert("cache_read_tokens".to_string(), details.cached_tokens);
+                    }
+                }
             }
         }
         if stream_done {
