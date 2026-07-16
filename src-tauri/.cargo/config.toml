@@ -1,11 +1,9 @@
 # Cargo build configuration
 
-# ── FFmpeg environment (ac-ffmpeg linking, ARM Homebrew) ──────────────────────
-[env]
-PKG_CONFIG_PATH    = { value = "/opt/homebrew/lib/pkgconfig:/opt/homebrew/opt/openssl@3/lib/pkgconfig", force = true }
-OPENSSL_DIR        = { value = "/opt/homebrew/opt/openssl@3",               force = true }
-FFMPEG_LIB_DIR     = { value = "/opt/homebrew/Cellar/ffmpeg/8.0.1_2/lib",  force = false }
-FFMPEG_INCLUDE_DIR = { value = "/opt/homebrew/Cellar/ffmpeg/8.0.1_2/include", force = false }
+# ── FFmpeg / OpenSSL environment ──────────────────────────────────────────────
+# Keep machine-local Homebrew paths out of the committed Cargo config.
+# Linux/CI builds must use system pkg-config defaults; macOS developers can set
+# OPENSSL_DIR or PKG_CONFIG_PATH in their personal shell/~/.cargo config.
 
 # ── Build performance ─────────────────────────────────────────────────────────
 # Cap parallel rustc processes to limit memory usage (~4-5 GB each).
@@ -59,9 +57,7 @@ incremental = false
 # ── macOS / Apple Silicon target ─────────────────────────────────────────────
 [target.aarch64-apple-darwin]
 rustflags = [
-  # FFmpeg library search paths (arm64 Homebrew)
-  "-L", "/opt/homebrew/lib",
-  "-L", "/opt/homebrew/Cellar/ffmpeg/8.0.1_2/lib",
+  # Add local Homebrew FFmpeg/OpenSSL library paths in personal cargo config if needed.
 ]
 # lld (LLVM linker) is ~3× faster than ld64 for incremental links but is a
 # machine-local optimization: the absolute Homebrew path is not present on CI
