@@ -1,6 +1,7 @@
 import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
+import { useVisiblePolling } from "@src/hooks/async";
 import { useSettingValue } from "@src/hooks/settings";
 import { sessionsAtom } from "@src/store/session/sessionAtom";
 import type { Session } from "@src/store/session/sessionAtom";
@@ -104,7 +105,10 @@ export function useDiagnosticsBootstrap(): void {
   }, [serviceConfig, settingsLoaded]);
 
   const collectAndSendSnapshot = useCallback(
-    async (force = false) => {
+    async (signalOrForce?: AbortSignal | boolean) => {
+      const signal =
+        typeof signalOrForce === "object" ? signalOrForce : undefined;
+      const force = signalOrForce === true;
       if (runningRef.current) return;
       if (!settingsLoaded || offlineMode) {
         return;
@@ -122,9 +126,11 @@ export function useDiagnosticsBootstrap(): void {
           sessions: sessionsRef.current,
           workspaceFolders: workspaceFoldersRef.current,
         });
+        if (signal?.aborted) return;
         if (snapshot) {
           await diagnosticsRecordUsageSnapshot(snapshot);
         }
+        if (signal?.aborted) return;
         writeLastFlushAt(nowMs);
         await diagnosticsFlushNow();
       } finally {
@@ -134,15 +140,9 @@ export function useDiagnosticsBootstrap(): void {
     [diagnosticsLevel, intervalMs, offlineMode, settingsLoaded]
   );
 
-  useEffect(() => {
-    if (!settingsLoaded) return;
-
-    void collectAndSendSnapshot();
-
-    const interval = window.setInterval(() => {
-      void collectAndSendSnapshot(true);
-    }, intervalMs);
-
-    return () => window.clearInterval(interval);
-  }, [collectAndSendSnapshot, intervalMs, settingsLoaded]);
+  useVisiblePolling({
+    enabled: settingsLoaded && !offlineMode,
+    intervalMs,
+    poll: collectAndSendSnapshot,
+  });
 }

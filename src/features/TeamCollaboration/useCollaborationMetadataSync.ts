@@ -350,8 +350,10 @@ export function useCollaborationMetadataSync(): void {
       setStatus(org.id, COLLAB_CONNECTION_STATUS.CONNECTING);
 
       await supabaseSyncClient.verifySetup(profile);
+      if (cancelled) return;
 
       for (const session of sessions) {
+        if (cancelled) return;
         if (!isSessionAllowedByAccessSettings(session, settings)) {
           await supabaseSyncClient.removeSessionMetadata({
             ...profile,
@@ -381,6 +383,7 @@ export function useCollaborationMetadataSync(): void {
             ownerMemberId: request.ownerMemberId,
             sourceSessionId: request.sourceSessionId,
           });
+          if (cancelled) return;
           setSnapshotRequests((current) =>
             current.map((item) =>
               item.requestId === request.requestId
@@ -447,6 +450,7 @@ export function useCollaborationMetadataSync(): void {
       );
 
       for (const request of state.snapshotRequests) {
+        if (cancelled) return;
         if (
           request.ownerMemberId === member.id &&
           request.status === "pending"
@@ -529,6 +533,7 @@ export function useCollaborationMetadataSync(): void {
           });
           persistSessions(getInstrumentedStore().get(sessionsAtom));
           await eventStoreProxy.set(localEvents, localSessionId);
+          if (cancelled) return;
           setSnapshotRequests((current) =>
             current.map((item) =>
               item.requestId === request.requestId
@@ -544,27 +549,63 @@ export function useCollaborationMetadataSync(): void {
         }
       }
 
-      setStatus(org.id, COLLAB_CONNECTION_STATUS.CONNECTED);
-    };
-
-    const runSync = () => {
-      for (const connection of activeConnections) {
-        void syncConnection(connection).catch((error: unknown) => {
-          setStatus(
-            connection.org.id,
-            COLLAB_CONNECTION_STATUS.ERROR,
-            error instanceof Error ? error.message : String(error)
-          );
-        });
+      if (!cancelled) {
+        setStatus(org.id, COLLAB_CONNECTION_STATUS.CONNECTED);
       }
     };
 
-    runSync();
-    const interval = window.setInterval(runSync, SYNC_INTERVAL_MS);
+    let timerId: number | null = null;
+    let syncInFlight = false;
+
+    const runSync = async () => {
+      if (cancelled || syncInFlight || document.visibilityState !== "visible") {
+        return;
+      }
+      syncInFlight = true;
+      try {
+        await Promise.allSettled(
+          activeConnections.map((connection) =>
+            syncConnection(connection).catch((error: unknown) => {
+              if (cancelled) return;
+              setStatus(
+                connection.org.id,
+                COLLAB_CONNECTION_STATUS.ERROR,
+                error instanceof Error ? error.message : String(error)
+              );
+            })
+          )
+        );
+      } finally {
+        syncInFlight = false;
+        if (!cancelled && document.visibilityState === "visible") {
+          timerId = window.setTimeout(() => {
+            timerId = null;
+            void runSync();
+          }, SYNC_INTERVAL_MS);
+        }
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        if (!syncInFlight) {
+          if (timerId !== null) window.clearTimeout(timerId);
+          timerId = null;
+          void runSync();
+        }
+      } else if (timerId !== null) {
+        window.clearTimeout(timerId);
+        timerId = null;
+      }
+    };
+
+    if (document.visibilityState === "visible") void runSync();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       cancelled = true;
-      window.clearInterval(interval);
+      if (timerId !== null) window.clearTimeout(timerId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [
     activeConnections,

@@ -438,7 +438,7 @@ impl RepoWatcher {
             .with_poll_interval(Duration::from_secs(2))
             .with_compare_contents(false);
 
-        let mut watcher = notify::recommended_watcher(move |res: Result<Event, _>| {
+        let mut watcher = match notify::recommended_watcher(move |res: Result<Event, _>| {
             match res {
                 Ok(event) => {
                     // Filter out events from excluded paths and send to processor
@@ -461,18 +461,31 @@ impl RepoWatcher {
                     }
                 }
             }
-        })
-        .map_err(|e| format!("Failed to create watcher: {}", e))?;
+        }) {
+            Ok(watcher) => watcher,
+            Err(error) => {
+                log::warn!(
+                    "Failed to create watcher for {}, using polling-only mode: {}",
+                    repo_info.repo_name,
+                    error
+                );
+                self.state_store
+                    .mark_watcher_unavailable(&repo_info.repo_id);
+                return Ok(());
+            }
+        };
 
         // IMPORTANT: Only watch .git/ directory, NOT the entire repo
         // This prevents EMFILE (too many open files) errors on large repositories.
         // Working directory changes are detected via active-workspace polling.
         match watcher.watch(&git_dir, RecursiveMode::Recursive) {
             Ok(()) => {
-                // Store watcher
+                // Store watcher and restore event-driven mode. This also clears a
+                // previous polling-fallback flag after a successful recovery.
                 self.watchers
                     .write()
                     .insert(repo_info.repo_id.clone(), watcher);
+                self.state_store.mark_watcher_available(&repo_info.repo_id);
 
                 log::info!(
                     "Started watching repository: {} (watching .git/ only, polling for working directory)",
@@ -489,11 +502,10 @@ impl RepoWatcher {
                     e
                 );
 
-                // Mark as degraded but don't return an error
-                self.state_store.mark_degraded(
-                    &repo_info.repo_id,
-                    Some(format!("File watching unavailable: {}", e)),
-                );
+                // File watching is unavailable, so the canonical health monitor
+                // owns the 60s polling fallback and periodic recovery attempts.
+                self.state_store
+                    .mark_watcher_unavailable(&repo_info.repo_id);
             }
         }
 
@@ -743,7 +755,7 @@ impl RepoWatcher {
         Ok(())
     }
 
-    /// Restart watcher for a repository
+    /// Restart watcher for a repository while preserving its state-store entry.
     pub fn restart_watcher(&self, repo_id: &str) -> Result<(), String> {
         // Get repo info
         let repo_info = {
@@ -759,9 +771,19 @@ impl RepoWatcher {
             }
         };
 
-        // Unwatch and rewatch
-        let _ = self.unwatch_repo(repo_id);
+        // Drop only the old watcher. Removing the RepoState here would destroy
+        // polling-fallback metadata when recreation fails.
+        if let Some(watcher) = self.watchers.write().remove(repo_id) {
+            drop(watcher);
+        }
+        self.debounce_manager.cancel_debounce(repo_id);
         self.watch_repo(repo_info)?;
+        if !self.state_store.is_watch_enabled(repo_id) {
+            return Err(format!(
+                "File watcher could not be restored for repository {}",
+                repo_id
+            ));
+        }
 
         log::info!("Restarted watcher for repository: {}", repo_id);
 

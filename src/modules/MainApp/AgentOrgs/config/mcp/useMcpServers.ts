@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { rpc } from "@src/api/tauri/rpc";
 import type { McpConfigScope } from "@src/api/tauri/rpc/schemas/mcp";
+import { useVisiblePolling } from "@src/hooks/async";
 import { createLogger } from "@src/hooks/logger";
 import { clearToolsCache } from "@src/modules/MainApp/Integrations/BuiltInTools/useUnifiedToolsMetadata";
 
@@ -160,36 +161,27 @@ export function useMcpServers(options: UseMcpServersOptions = {}) {
   }, [refresh, enabled]);
 
   const hasConnecting = servers.some((s) => s.status === "connecting");
-  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    if (!enabled || !hasConnecting) {
-      return;
-    }
-
-    const poll = () => {
-      pollTimerRef.current = setTimeout(async () => {
-        try {
-          const result = await listServers();
-          setServers(result);
-          updateToolSignature(result);
-        } catch {
-          // ignore polling errors
-        }
-        if (pollTimerRef.current !== null) {
-          poll();
-        }
-      }, 2000);
-    };
-    poll();
-
-    return () => {
-      if (pollTimerRef.current !== null) {
-        clearTimeout(pollTimerRef.current);
-        pollTimerRef.current = null;
+  const pollConnectingServers = useCallback(
+    async (signal: AbortSignal) => {
+      try {
+        const result = await listServers();
+        if (signal.aborted) return false;
+        setServers(result);
+        updateToolSignature(result);
+        return result.some((server) => server.status === "connecting");
+      } catch {
+        return true;
       }
-    };
-  }, [enabled, hasConnecting, listServers, updateToolSignature]);
+    },
+    [listServers, updateToolSignature]
+  );
+
+  useVisiblePolling({
+    enabled: enabled && hasConnecting,
+    intervalMs: 2000,
+    poll: pollConnectingServers,
+  });
 
   const getConfig = useCallback(
     async (scope?: McpConfigScope) => {

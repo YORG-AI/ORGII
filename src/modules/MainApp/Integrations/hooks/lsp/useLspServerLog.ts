@@ -15,6 +15,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useVisiblePolling } from "@src/hooks/async";
 import type { LspLogLine } from "@src/modules/MainApp/Integrations/DevTools/LanguageServersPage/types";
 
 const POLL_INTERVAL_MS = 1500;
@@ -48,41 +49,45 @@ export function useLspServerLog({
   const [error, setError] = useState<string | null>(null);
   const cancelledRef = useRef(false);
 
-  const fetchOnce = useCallback(async () => {
-    if (!language) {
-      setLog([]);
-      return;
-    }
-    setIsLoading(true);
-    try {
-      const next = await tauriInvoke<LspLogLine[]>("lsp_get_server_log", {
-        language,
-      });
-      if (cancelledRef.current) return;
-      setLog(next);
-      setError(null);
-    } catch (err) {
-      if (cancelledRef.current) return;
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      if (!cancelledRef.current) setIsLoading(false);
-    }
-  }, [language]);
+  const fetchOnce = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!language) {
+        setLog([]);
+        return;
+      }
+      setIsLoading(true);
+      try {
+        const next = await tauriInvoke<LspLogLine[]>("lsp_get_server_log", {
+          language,
+        });
+        if (signal?.aborted || cancelledRef.current) return;
+        setLog(next);
+        setError(null);
+      } catch (err) {
+        if (signal?.aborted || cancelledRef.current) return;
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!signal?.aborted && !cancelledRef.current) setIsLoading(false);
+      }
+    },
+    [language]
+  );
 
   useEffect(() => {
     cancelledRef.current = false;
     if (!enabled || !language) {
       setLog([]);
-      return undefined;
     }
-
-    fetchOnce();
-    const handle = window.setInterval(fetchOnce, POLL_INTERVAL_MS);
     return () => {
       cancelledRef.current = true;
-      window.clearInterval(handle);
     };
-  }, [enabled, language, fetchOnce]);
+  }, [enabled, language]);
+
+  useVisiblePolling({
+    enabled: enabled && !!language,
+    intervalMs: POLL_INTERVAL_MS,
+    poll: fetchOnce,
+  });
 
   return { log, isLoading, error, refresh: fetchOnce };
 }

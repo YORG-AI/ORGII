@@ -1,5 +1,5 @@
 import { Sparkles } from "lucide-react";
-import React, { memo, useCallback, useEffect, useState } from "react";
+import React, { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -8,6 +8,7 @@ import {
   setHousekeeperContextCompactionEnabled,
 } from "@src/api/tauri/agent";
 import Switch from "@src/components/Switch";
+import { useVisiblePolling } from "@src/hooks/async";
 
 const EMPTY_STATE: HousekeeperContextCompactionState = {
   enabled: false,
@@ -44,11 +45,11 @@ const MiniCpmCompactCard: React.FC<MiniCpmCompactCardProps> = memo(
       }
     }, [sessionId]);
 
-    useEffect(() => {
-      void refresh();
-      const interval = window.setInterval(() => void refresh(), 5_000);
-      return () => window.clearInterval(interval);
-    }, [refresh]);
+    useVisiblePolling({
+      enabled: true,
+      intervalMs: 5_000,
+      poll: refresh,
+    });
 
     const handleToggle = useCallback(
       async (enabled: boolean) => {

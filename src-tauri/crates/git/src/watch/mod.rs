@@ -22,6 +22,7 @@ pub use event_emitter::EventEmitter;
 pub use state_store::RepoStateStore;
 pub use watcher::RepoWatcher;
 
+use health_monitor::HealthMonitor;
 use parking_lot::RwLock;
 use std::sync::{Arc, LazyLock};
 
@@ -41,85 +42,20 @@ impl RepoWatchManager {
         let event_emitter = Arc::new(EventEmitter::new(app_handle.clone()));
         let watcher = Arc::new(RepoWatcher::new(state_store.clone(), event_emitter.clone()));
 
-        // Start health monitoring in background
-        Self::start_health_monitor(state_store.clone(), watcher.clone(), event_emitter.clone());
+        // The canonical monitor owns health probes, watcher recovery, and
+        // polling-only fallback. Keep exactly one health loop per manager.
+        Arc::new(HealthMonitor::new(
+            state_store.clone(),
+            watcher.clone(),
+            event_emitter.clone(),
+        ))
+        .start();
 
         Self {
             state_store,
             watcher,
             event_emitter,
         }
-    }
-
-    /// Start background health monitoring thread
-    /// Checks watcher health every 60s and restarts if needed
-    fn start_health_monitor(
-        state_store: Arc<RepoStateStore>,
-        watcher: Arc<RepoWatcher>,
-        event_emitter: Arc<EventEmitter>,
-    ) {
-        use std::time::Duration;
-
-        std::thread::Builder::new()
-            .name("git-health-monitor".to_string())
-            .spawn(move || {
-                // Initial delay to let system stabilize
-                std::thread::sleep(Duration::from_secs(30));
-
-                loop {
-                    std::thread::sleep(Duration::from_secs(60));
-
-                    let states = state_store.get_all_states();
-
-                    for (repo_id, state) in states.iter() {
-                        // Check if watcher is unhealthy (multiple consecutive failures)
-                        if state.consecutive_failures >= 3 && state.watch_enabled {
-                            log::warn!(
-                                "[HealthMonitor] Repo {} has {} failures, attempting restart",
-                                repo_id,
-                                state.consecutive_failures
-                            );
-
-                            // Try to restart the watcher
-                            match watcher.restart_watcher(repo_id) {
-                                Ok(()) => {
-                                    log::info!(
-                                        "[HealthMonitor] Successfully restarted watcher for {}",
-                                        repo_id
-                                    );
-                                    state_store.mark_healthy(repo_id);
-
-                                    event_emitter.emit_watcher_health(
-                                        repo_id.clone(),
-                                        types::HealthStatus::Healthy,
-                                        Some("Watcher recovered".to_string()),
-                                    );
-                                }
-                                Err(e) => {
-                                    log::error!(
-                                        "[HealthMonitor] Failed to restart watcher for {}: {}",
-                                        repo_id,
-                                        e
-                                    );
-
-                                    // Mark as degraded but keep polling active
-                                    state_store.mark_degraded(
-                                        repo_id,
-                                        Some(format!("Watcher restart failed: {}", e)),
-                                    );
-
-                                    event_emitter.emit_watcher_health(
-                                        repo_id.clone(),
-                                        types::HealthStatus::Degraded,
-                                        Some("Watcher failed, using polling only".to_string()),
-                                    );
-                                }
-                            }
-                        }
-                    }
-                }
-            })
-            .expect("Failed to spawn health monitor thread");
     }
 
     pub fn initialize(app_handle: tauri::AppHandle) {

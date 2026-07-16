@@ -312,6 +312,40 @@ fn disable_and_enable_watch() {
 }
 
 #[test]
+fn watcher_availability_transitions_preserve_retry_invariants() {
+    let store = RepoStateStore::new();
+    store.add_repo(test_repo_info("r1"));
+
+    store.mark_watcher_unavailable("r1");
+    assert!(!store.is_watch_enabled("r1"));
+    assert!(!store.should_retry_watcher("r1"));
+
+    store.make_watcher_retry_due("r1");
+    assert!(store.should_retry_watcher("r1"));
+
+    store.mark_watcher_available("r1");
+    assert!(store.is_watch_enabled("r1"));
+    assert!(!store.should_retry_watcher("r1"));
+}
+
+#[test]
+fn polling_fallback_retries_only_when_due() {
+    let store = RepoStateStore::new();
+    store.add_repo(test_repo_info("r1"));
+    store.disable_watch("r1");
+    store.mark_degraded("r1", Some("watch unavailable".to_string()));
+
+    assert!(!store.should_retry_watcher("r1"));
+    store.make_watcher_retry_due("r1");
+    assert!(store.should_retry_watcher("r1"));
+
+    store.update_health_check("r1");
+    assert!(!store.should_retry_watcher("r1"));
+    store.enable_watch("r1");
+    assert!(!store.should_retry_watcher("r1"));
+}
+
+#[test]
 fn is_watch_enabled_returns_false_for_unknown() {
     let store = RepoStateStore::new();
     assert!(!store.is_watch_enabled("unknown"));

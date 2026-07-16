@@ -1,11 +1,10 @@
 //! Watcher health monitor and fallback strategy
 //!
-//! Polls each repo's consecutive-failure count every 60 s; if ≥ 3 failures
-//! are detected it attempts a watcher restart and emits a
-//! `HealthStatus::Degraded` event if the restart fails.
+//! One global monitor performs the 60 s health pass, owns polling-only
+//! fallback refreshes, and retries failed watchers every five minutes.
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::time::{interval, sleep};
+use tokio::time::interval;
 
 use super::event_emitter::EventEmitter;
 use super::state_store::RepoStateStore;
@@ -31,153 +30,121 @@ impl HealthMonitor {
         }
     }
 
-    /// Start health monitoring loop
+    /// Start the health monitor on its own runtime because the manager is
+    /// constructed during Tauri setup, before callers can assume a Tokio context.
     pub fn start(self: Arc<Self>) {
-        tokio::spawn(async move {
-            self.run_health_checks().await;
-        });
+        std::thread::Builder::new()
+            .name("git-health-monitor".to_string())
+            .spawn(move || {
+                let runtime = match tokio::runtime::Runtime::new() {
+                    Ok(runtime) => runtime,
+                    Err(error) => {
+                        log::error!("Failed to create watcher health runtime: {}", error);
+                        return;
+                    }
+                };
+                runtime.block_on(self.run_health_checks());
+            })
+            .expect("Failed to spawn watcher health monitor thread");
     }
 
-    /// Run periodic health checks
+    /// Run the single periodic health and fallback pass.
     async fn run_health_checks(&self) {
         let mut check_interval = interval(Duration::from_secs(HEALTH_CHECK_INTERVAL_SECONDS));
+        // Tokio intervals tick immediately; consume that tick so startup does not
+        // probe every repository before its watcher has had time to initialize.
+        check_interval.tick().await;
 
         loop {
             check_interval.tick().await;
+            self.run_health_check_pass().await;
+        }
+    }
 
-            let repo_ids = self.state_store.get_all_repo_ids();
+    async fn run_health_check_pass(&self) {
+        let repo_ids = self.state_store.get_all_repo_ids();
 
-            for repo_id in repo_ids {
-                // Check if health test is needed
-                if self.state_store.should_test_health(&repo_id) {
-                    log::debug!("Testing watcher health for repo: {}", repo_id);
-
-                    if let Err(e) = self.watcher.test_watcher_health(&repo_id).await {
-                        log::warn!("Watcher health test failed for {}: {}", repo_id, e);
-                        self.state_store.increment_failures(&repo_id);
-                    } else {
-                        log::debug!("Watcher health test passed for: {}", repo_id);
-                    }
+        for repo_id in repo_ids {
+            if !self.state_store.is_watch_enabled(&repo_id) {
+                self.refresh_polling_fallback(&repo_id).await;
+                if self.state_store.should_retry_watcher(&repo_id) {
+                    self.state_store.update_health_check(&repo_id);
+                    self.try_recover_watcher(&repo_id);
                 }
+                continue;
+            }
 
-                // Check if watcher needs restart
-                if self.state_store.is_unhealthy(&repo_id) {
-                    log::warn!(
-                        "Watcher unhealthy for repo: {}, attempting restart",
-                        repo_id
-                    );
-
-                    // Mark as degraded
-                    self.state_store
-                        .mark_degraded(&repo_id, Some("Too many consecutive failures".to_string()));
-
-                    // Emit health event
-                    self.event_emitter.emit_watcher_health(
-                        repo_id.clone(),
-                        HealthStatus::Degraded,
-                        Some("Watcher unhealthy, attempting restart".to_string()),
-                    );
-
-                    // Try to restart watcher
-                    if let Err(e) = self.watcher.restart_watcher(&repo_id) {
-                        log::error!("Failed to restart watcher for {}: {}", repo_id, e);
-
-                        // Emit failed health event
-                        self.event_emitter.emit_watcher_health(
-                            repo_id.clone(),
-                            HealthStatus::Failed,
-                            Some(format!("Watcher restart failed: {}", e)),
-                        );
-
-                        // Fall back to polling mode
-                        self.enable_polling_fallback(&repo_id).await;
-                    } else {
-                        log::info!("Successfully restarted watcher for: {}", repo_id);
-
-                        // Mark as healthy
-                        self.state_store.mark_healthy(&repo_id);
-
-                        // Emit healthy event
-                        self.event_emitter.emit_watcher_health(
-                            repo_id.clone(),
-                            HealthStatus::Healthy,
-                            None,
-                        );
-                    }
-
-                    // Wait before checking next repo
-                    sleep(Duration::from_secs(1)).await;
+            if self.state_store.should_test_health(&repo_id) {
+                log::debug!("Testing watcher health for repo: {}", repo_id);
+                if let Err(error) = self.watcher.test_watcher_health(&repo_id).await {
+                    log::warn!("Watcher health test failed for {}: {}", repo_id, error);
+                    self.state_store.increment_failures(&repo_id);
                 }
+            }
+
+            if !self.state_store.is_unhealthy(&repo_id) {
+                continue;
+            }
+
+            self.state_store
+                .mark_degraded(&repo_id, Some("Too many consecutive failures".to_string()));
+            self.event_emitter.emit_watcher_health(
+                repo_id.clone(),
+                HealthStatus::Degraded,
+                Some("Watcher unhealthy, attempting restart".to_string()),
+            );
+
+            self.try_recover_watcher(&repo_id);
+        }
+    }
+
+    fn try_recover_watcher(&self, repo_id: &str) {
+        match self.watcher.restart_watcher(repo_id) {
+            Ok(()) => {
+                log::info!("Successfully restarted watcher for: {}", repo_id);
+                self.state_store.mark_healthy(repo_id);
+                self.event_emitter.emit_watcher_health(
+                    repo_id.to_string(),
+                    HealthStatus::Healthy,
+                    Some("Watcher recovered".to_string()),
+                );
+            }
+            Err(error) => {
+                log::error!("Failed to restart watcher for {}: {}", repo_id, error);
+                self.state_store.mark_watcher_unavailable(repo_id);
+                self.event_emitter.emit_watcher_health(
+                    repo_id.to_string(),
+                    HealthStatus::Degraded,
+                    Some(format!(
+                        "Watcher restart failed; using polling fallback: {}",
+                        error
+                    )),
+                );
             }
         }
     }
 
-    /// Enable polling fallback for failed watcher
-    async fn enable_polling_fallback(&self, repo_id: &str) {
-        log::info!("Enabling polling fallback for repo: {}", repo_id);
+    /// Refresh a repository whose file watcher is unavailable. The same global
+    /// health loop owns this fallback, so a failed watcher cannot spawn duplicate
+    /// per-repository polling tasks.
+    async fn refresh_polling_fallback(&self, repo_id: &str) {
+        let repo_path = self
+            .state_store
+            .get_all_states()
+            .get(repo_id)
+            .map(|state| state.repo_path.clone());
+        let Some(repo_path) = repo_path else {
+            return;
+        };
 
-        // Disable watcher
-        self.state_store.disable_watch(repo_id);
-
-        // Start slow polling loop
-        let repo_id_clone = repo_id.to_string();
-        let state_store = self.state_store.clone();
-        let event_emitter = self.event_emitter.clone();
-
-        tokio::spawn(async move {
-            Self::polling_loop(repo_id_clone, state_store, event_emitter).await;
-        });
-    }
-
-    /// Slow polling loop as fallback
-    async fn polling_loop(
-        repo_id: String,
-        state_store: Arc<RepoStateStore>,
-        event_emitter: Arc<EventEmitter>,
-    ) {
-        let mut poll_interval = interval(Duration::from_secs(60)); // Slow polling: 60s
-
-        loop {
-            poll_interval.tick().await;
-
-            // Check if watch has been re-enabled (watcher recovered)
-            if state_store.is_watch_enabled(&repo_id) {
-                log::info!(
-                    "Watch re-enabled for {}, stopping polling fallback",
-                    repo_id
-                );
-                break;
+        match super::git_status::refresh_git_status(&repo_path).await {
+            Ok(status) => {
+                self.state_store.update_status(repo_id, status.clone());
+                self.event_emitter
+                    .emit_status_updated(repo_id.to_string(), status);
             }
-
-            // Check if repo still exists
-            let repo_path = {
-                let states = state_store.get_all_states();
-                states.get(&repo_id).map(|s| s.repo_path.clone())
-            };
-
-            if let Some(repo_path) = repo_path {
-                // Run git status
-                match super::git_status::refresh_git_status(&repo_path).await {
-                    Ok(status) => {
-                        // Update cache
-                        state_store.update_status(&repo_id, status.clone());
-
-                        // Emit status update
-                        event_emitter.emit_status_updated(repo_id.clone(), status);
-
-                        log::debug!("Polling fallback: refreshed status for {}", repo_id);
-                    }
-                    Err(e) => {
-                        log::error!("Polling fallback failed for {}: {}", repo_id, e);
-                    }
-                }
-            } else {
-                // Repo no longer exists, stop polling
-                log::info!(
-                    "Repo {} no longer exists, stopping polling fallback",
-                    repo_id
-                );
-                break;
+            Err(error) => {
+                log::error!("Polling fallback failed for {}: {}", repo_id, error);
             }
         }
     }

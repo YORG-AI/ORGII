@@ -1,11 +1,12 @@
 import { useAtom, useAtomValue } from "jotai";
-import { useCallback, useEffect } from "react";
+import { useCallback } from "react";
 
 import {
   BENCHMARK_EVALUATION_MODE,
   BENCHMARK_RUN_STATUS,
   benchmarkApi,
 } from "@src/api/tauri/benchmark";
+import { useVisiblePolling } from "@src/hooks/async";
 import {
   benchmarkEvaluationModeAtom,
   benchmarkKindAtom,
@@ -160,35 +161,33 @@ export function useBenchmarkRun() {
     }
   }, [runStatus?.runId, setIsRunLoading, setRunError, setRunStatus]);
 
-  useEffect(() => {
-    if (
-      !runStatus?.runId ||
-      runStatus.status !== BENCHMARK_RUN_STATUS.RUNNING
-    ) {
-      return;
-    }
-
-    let cancelled = false;
-    const intervalId = window.setInterval(() => {
-      benchmarkApi
-        .getRunStatus({ runId: runStatus.runId })
-        .then((status) => {
-          if (!cancelled) {
-            setRunStatus(status);
-          }
-        })
-        .catch((error) => {
-          if (!cancelled) {
-            setRunError(error instanceof Error ? error.message : String(error));
-          }
+  const pollRunStatus = useCallback(
+    async (signal: AbortSignal) => {
+      if (!runStatus?.runId) return false;
+      try {
+        const status = await benchmarkApi.getRunStatus({
+          runId: runStatus.runId,
         });
-    }, RUN_STATUS_POLL_INTERVAL_MS);
+        if (signal.aborted) return false;
+        setRunStatus(status);
+        setRunError(null);
+        return status.status === BENCHMARK_RUN_STATUS.RUNNING;
+      } catch (error) {
+        if (signal.aborted) return false;
+        setRunError(error instanceof Error ? error.message : String(error));
+        return true;
+      }
+    },
+    [runStatus?.runId, setRunError, setRunStatus]
+  );
 
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
-  }, [runStatus?.runId, runStatus?.status, setRunError, setRunStatus]);
+  useVisiblePolling({
+    enabled:
+      !!runStatus?.runId && runStatus.status === BENCHMARK_RUN_STATUS.RUNNING,
+    intervalMs: RUN_STATUS_POLL_INTERVAL_MS,
+    poll: pollRunStatus,
+    immediate: false,
+  });
 
   return {
     cancelRun,

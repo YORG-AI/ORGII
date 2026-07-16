@@ -21,6 +21,20 @@ export {
   type WebViewRuntimeDiagnostics,
 } from "./runtimeMemoryStats";
 export { useSidebarMemoryEntry } from "./useSidebarMemoryEntry";
+export {
+  CHILD_MEMORY_METRIC_KIND,
+  SYSTEM_METRICS_CHEAP_INTERVAL_MS,
+  SYSTEM_METRICS_EXPENSIVE_INTERVAL_MS,
+  refreshSystemResourceMetrics,
+  useSystemResourceMetrics,
+  type ChildMemoryMetricKind,
+  type ChildProcessInfo,
+  type MemoryBreakdown,
+  type ProcessMetrics,
+  type SystemInfo,
+  type SystemMemoryMetrics,
+  type SystemResourceMetricsSnapshot,
+} from "./useSystemResourceMetrics";
 export type {
   ConnectionStatus,
   GeoInfo,

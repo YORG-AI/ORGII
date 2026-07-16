@@ -1,11 +1,10 @@
 /**
- * useMonitorMetrics
+ * Shared resource metrics adapter for the Settings monitor surface.
  *
- * Encapsulates data fetching, state, and polling lifecycle for MonitorSection.
- * Polls system/process metrics via Tauri invoke commands while the section is
- * visible and the document is in the foreground.
+ * The underlying Tauri requests and polling timers are owned by
+ * `useSystemResourceMetrics`; this hook only adds section visibility and
+ * Settings-specific refresh routing.
  */
-import { invoke } from "@tauri-apps/api/core";
 import { useAtomValue, useSetAtom } from "jotai";
 import {
   type RefObject,
@@ -15,7 +14,14 @@ import {
   useState,
 } from "react";
 
-import { createLogger } from "@src/hooks/logger";
+import {
+  type ChildProcessInfo,
+  type MemoryBreakdown,
+  type ProcessMetrics,
+  type SystemInfo,
+  type SystemMemoryMetrics,
+  useSystemResourceMetrics,
+} from "@src/hooks/perf";
 import {
   monitorActiveTabAtom,
   monitorRefreshTriggerAtom,
@@ -24,59 +30,15 @@ import {
   storageRefreshTriggerAtom,
 } from "@src/store";
 
-const log = createLogger("Monitor");
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-export interface ProcessMetrics {
-  memory_rss_mb: number;
-  memory_virtual_mb: number;
-  cpu_percent: number;
-  start_time_secs: number;
-  uptime_secs: number;
-  pid: number;
-  name: string;
-}
-
-export interface SystemMemoryMetrics {
-  total_mb: number;
-  used_mb: number;
-  available_mb: number;
-  swap_total_mb: number;
-  swap_used_mb: number;
-}
-
-export interface MemoryBreakdown {
-  backend_rss_mb: number;
-  tracked_backend_mb: number;
-  file_cache_mb: number;
-}
-
-export const CHILD_MEMORY_METRIC_KIND = {
-  PSS: "pss",
-  RSS: "rss",
-} as const;
-
-export type ChildMemoryMetricKind =
-  (typeof CHILD_MEMORY_METRIC_KIND)[keyof typeof CHILD_MEMORY_METRIC_KIND];
-
-export interface ChildProcessInfo {
-  pid: number;
-  name: string;
-  memory_mb: number;
-  rss_mb: number;
-  virtual_memory_mb: number;
-  memory_metric_kind: ChildMemoryMetricKind;
-  category: string;
-}
-
-export interface SystemInfo {
-  os_name: string;
-  os_version: string;
-  chip_type: string;
-}
-
-// ── Shared utilities ──────────────────────────────────────────────────────────
+export { CHILD_MEMORY_METRIC_KIND } from "@src/hooks/perf";
+export type {
+  ChildMemoryMetricKind,
+  ChildProcessInfo,
+  MemoryBreakdown,
+  ProcessMetrics,
+  SystemInfo,
+  SystemMemoryMetrics,
+} from "@src/hooks/perf";
 
 export interface BreakdownRow {
   key: string;
@@ -90,13 +52,6 @@ export function formatMemory(megabytes: number): string {
   return megabytes.toFixed(1) + " MB";
 }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const CHEAP_METRICS_POLL_INTERVAL_MS = 15_000;
-const EXPENSIVE_METRICS_POLL_INTERVAL_MS = 60_000;
-
-// ── Hook ──────────────────────────────────────────────────────────────────────
-
 export interface UseMonitorMetricsReturn {
   processMetrics: ProcessMetrics | null;
   systemMemory: SystemMemoryMetrics | null;
@@ -107,184 +62,63 @@ export interface UseMonitorMetricsReturn {
 }
 
 export function useMonitorMetrics(activeTab: string): UseMonitorMetricsReturn {
-  const [processMetrics, setProcessMetrics] = useState<ProcessMetrics | null>(
-    null
-  );
-  const [systemMemory, setSystemMemory] = useState<SystemMemoryMetrics | null>(
-    null
-  );
-  const [memoryBreakdown, setMemoryBreakdown] =
-    useState<MemoryBreakdown | null>(null);
-  const [childProcesses, setChildProcesses] = useState<ChildProcessInfo[]>([]);
-  const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
-
+  const [isSectionVisible, setIsSectionVisible] = useState(false);
+  const { snapshot, refresh } = useSystemResourceMetrics(isSectionVisible);
   const setMonitorActiveTab = useSetAtom(monitorActiveTabAtom);
   const setScanning = useSetAtom(monitorScanningAtom);
   const setNetworkTrigger = useSetAtom(networkRefreshTriggerAtom);
   const setStorageTrigger = useSetAtom(storageRefreshTriggerAtom);
   const monitorRefreshTrigger = useAtomValue(monitorRefreshTriggerAtom);
-
   const containerRef = useRef<HTMLDivElement>(null);
-  const cheapIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const expensiveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
-    null
-  );
-  const lastExpensiveFetchAtRef = useRef(0);
-  const isVisibleRef = useRef(false);
 
   useEffect(() => {
     setMonitorActiveTab(activeTab);
   }, [activeTab, setMonitorActiveTab]);
 
-  const fetchExpensiveMetrics = useCallback(async (force = false) => {
-    if (document.visibilityState !== "visible" || !isVisibleRef.current) return;
-
-    const now = Date.now();
-    if (
-      !force &&
-      now - lastExpensiveFetchAtRef.current < EXPENSIVE_METRICS_POLL_INTERVAL_MS
-    ) {
-      return;
-    }
-    lastExpensiveFetchAtRef.current = now;
-
+  const handleRefresh = useCallback(async () => {
+    setScanning(true);
     try {
-      const children = await invoke<ChildProcessInfo[]>(
-        "get_child_processes_memory"
-      ).catch(() => []);
-      setChildProcesses(children);
-    } catch (error) {
-      log.error("failed to fetch expensive monitor metrics:", error);
+      await refresh(true);
+    } finally {
+      setScanning(false);
     }
-  }, []);
-
-  const fetchCheapMetrics = useCallback(async () => {
-    if (document.visibilityState !== "visible" || !isVisibleRef.current) return;
-
-    try {
-      const [process, system, breakdown, sysInfo] = await Promise.all([
-        invoke<ProcessMetrics>("get_process_metrics"),
-        invoke<SystemMemoryMetrics>("get_system_memory"),
-        invoke<MemoryBreakdown>("get_memory_breakdown").catch(() => null),
-        invoke<SystemInfo>("get_system_info").catch(() => null),
-      ]);
-      setProcessMetrics(process);
-      setSystemMemory(system);
-      setMemoryBreakdown(breakdown);
-      if (sysInfo) setSystemInfo(sysInfo);
-    } catch (error) {
-      log.error("failed to fetch monitor metrics:", error);
-    }
-  }, []);
-  const fetchMetrics = useCallback(
-    async (forceExpensive = false) => {
-      await Promise.all([
-        fetchCheapMetrics(),
-        fetchExpensiveMetrics(forceExpensive),
-      ]);
-    },
-    [fetchCheapMetrics, fetchExpensiveMetrics]
-  );
-
-  const handleRefresh = useCallback(
-    async (onSuccess?: () => void) => {
-      setScanning(true);
-      try {
-        await fetchMetrics(true);
-        onSuccess?.();
-      } finally {
-        setScanning(false);
-      }
-    },
-    [fetchMetrics, setScanning]
-  );
+  }, [refresh, setScanning]);
 
   useEffect(() => {
     if (monitorRefreshTrigger <= 0) return;
     if (activeTab === "resources") {
       void handleRefresh();
     } else if (activeTab === "network") {
-      setNetworkTrigger((prev) => prev + 1);
+      setNetworkTrigger((previous) => previous + 1);
     } else if (activeTab === "storage") {
-      setStorageTrigger((prev) => prev + 1);
+      setStorageTrigger((previous) => previous + 1);
     }
   }, [
-    monitorRefreshTrigger,
     activeTab,
     handleRefresh,
+    monitorRefreshTrigger,
     setNetworkTrigger,
     setStorageTrigger,
   ]);
-
-  const startPolling = useCallback(() => {
-    if (!cheapIntervalRef.current) {
-      cheapIntervalRef.current = setInterval(
-        fetchCheapMetrics,
-        CHEAP_METRICS_POLL_INTERVAL_MS
-      );
-    }
-    if (!expensiveIntervalRef.current) {
-      expensiveIntervalRef.current = setInterval(
-        () => void fetchExpensiveMetrics(true),
-        EXPENSIVE_METRICS_POLL_INTERVAL_MS
-      );
-    }
-  }, [fetchCheapMetrics, fetchExpensiveMetrics]);
-
-  const stopPolling = useCallback(() => {
-    if (cheapIntervalRef.current) {
-      clearInterval(cheapIntervalRef.current);
-      cheapIntervalRef.current = null;
-    }
-    if (expensiveIntervalRef.current) {
-      clearInterval(expensiveIntervalRef.current);
-      expensiveIntervalRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible" && isVisibleRef.current) {
-        void fetchMetrics(true);
-        startPolling();
-      } else {
-        stopPolling();
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () =>
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [fetchMetrics, startPolling, stopPolling]);
 
   useEffect(() => {
     const node = containerRef.current;
     if (!node) return;
 
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        isVisibleRef.current = entry.isIntersecting;
-        if (entry.isIntersecting && document.visibilityState === "visible") {
-          void fetchMetrics(true);
-          startPolling();
-        } else {
-          stopPolling();
-        }
-      },
+      ([entry]) => setIsSectionVisible(entry.isIntersecting),
       { threshold: 0 }
     );
     observer.observe(node);
-    return () => {
-      observer.disconnect();
-      stopPolling();
-    };
-  }, [fetchMetrics, startPolling, stopPolling]);
+    return () => observer.disconnect();
+  }, []);
 
   return {
-    processMetrics,
-    systemMemory,
-    memoryBreakdown,
-    childProcesses,
-    systemInfo,
+    processMetrics: snapshot.processMetrics,
+    systemMemory: snapshot.systemMemory,
+    memoryBreakdown: snapshot.memoryBreakdown,
+    childProcesses: snapshot.childProcesses,
+    systemInfo: snapshot.systemInfo,
     containerRef,
   };
 }

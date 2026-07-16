@@ -23,6 +23,7 @@ import {
 } from "@src/api/tauri/lineage";
 import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
+import { useVisiblePolling } from "@src/hooks/async";
 import {
   CollapsibleSection,
   DETAIL_PANEL_TOKENS,
@@ -137,27 +138,23 @@ const AgentBlamePanelView: React.FC<AgentBlamePanelViewProps> = memo(
       };
     }, [loadIndex, loadScanStatus]);
 
-    useEffect(() => {
-      if (scanProgress?.status !== "running") return;
+    const lastIndexRefreshAtRef = React.useRef(0);
+    const pollScanProgress = useCallback(async () => {
+      await loadScanStatus();
+      const now = Date.now();
+      if (now - lastIndexRefreshAtRef.current >= INDEX_REFRESH_INTERVAL_MS) {
+        lastIndexRefreshAtRef.current = now;
+        await loadIndex();
+      }
+      return true;
+    }, [loadIndex, loadScanStatus]);
 
-      let cancelled = false;
-      let lastIndexRefresh = 0;
-      const interval = window.setInterval(() => {
-        const cancelledRef = { current: cancelled };
-        void loadScanStatus(cancelledRef).then(() => {
-          const now = Date.now();
-          if (now - lastIndexRefresh >= INDEX_REFRESH_INTERVAL_MS) {
-            lastIndexRefresh = now;
-            void loadIndex(cancelledRef);
-          }
-        });
-      }, SCAN_POLL_INTERVAL_MS);
-
-      return () => {
-        cancelled = true;
-        window.clearInterval(interval);
-      };
-    }, [loadIndex, loadScanStatus, scanProgress?.status]);
+    useVisiblePolling({
+      enabled: scanProgress?.status === "running",
+      intervalMs: SCAN_POLL_INTERVAL_MS,
+      poll: pollScanProgress,
+      immediate: false,
+    });
 
     useEffect(() => {
       if (scanProgress?.status === "completed") {

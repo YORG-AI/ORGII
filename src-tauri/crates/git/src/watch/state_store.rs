@@ -163,6 +163,34 @@ impl RepoStateStore {
             .unwrap_or(false)
     }
 
+    /// Enter polling-only fallback and start a fresh watcher-retry backoff.
+    pub fn mark_watcher_unavailable(&self, repo_id: &str) {
+        if let Some(state) = self.states.write().get_mut(repo_id) {
+            state.watch_enabled = false;
+            state.in_degraded_mode = true;
+            state.last_watcher_health_check = Instant::now();
+        }
+    }
+
+    /// Restore event-driven watching and clear degraded health state.
+    pub fn mark_watcher_available(&self, repo_id: &str) {
+        if let Some(state) = self.states.write().get_mut(repo_id) {
+            state.watch_enabled = true;
+            state.in_degraded_mode = false;
+            state.consecutive_failures = 0;
+            state.last_watcher_health_check = Instant::now();
+        }
+    }
+
+    /// Check whether polling-only mode is due for another watcher recovery attempt.
+    pub fn should_retry_watcher(&self, repo_id: &str) -> bool {
+        self.states
+            .read()
+            .get(repo_id)
+            .map(|state| state.should_retry_watcher())
+            .unwrap_or(false)
+    }
+
     /// Check if repository is unhealthy
     pub fn is_unhealthy(&self, repo_id: &str) -> bool {
         self.states
@@ -176,6 +204,14 @@ impl RepoStateStore {
     pub fn update_health_check(&self, repo_id: &str) {
         if let Some(state) = self.states.write().get_mut(repo_id) {
             state.last_watcher_health_check = Instant::now();
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn make_watcher_retry_due(&self, repo_id: &str) {
+        if let Some(state) = self.states.write().get_mut(repo_id) {
+            state.last_watcher_health_check =
+                Instant::now() - Duration::from_secs(WATCHER_RESTART_DELAY_SECONDS);
         }
     }
 
