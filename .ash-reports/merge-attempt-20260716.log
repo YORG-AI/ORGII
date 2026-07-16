@@ -396,3 +396,26 @@ M  src/util/session/__tests__/sessionLabel.test.ts
 M  src/util/session/sessionLabel.ts
 M  src/util/session/sessionSidebarRow.ts
 M  src/util/time/formatRelativeTime.ts
+===== MERGE origin/pr/channel-session-restore =====
+自动合并 src/store/session/sessionAtom/loaders.ts
+Merge made by the 'ort' strategy.
+ .../sidebarSessionRefresh.ts                       | 51 ++++++++++++++++++++++
+ .../connectors/sidebarConnectorUtils.ts            |  8 +++-
+ src/store/session/sessionAtom/loaders.ts           |  8 +++-
+ 3 files changed, 64 insertions(+), 3 deletions(-)
+OK origin/pr/channel-session-restore b0069e19
+===== MERGE origin/pr/feishu-ws-stability =====
+Merge made by the 'ort' strategy.
+ .../src/integrations/channels/feishu/ws.rs         | 155 ++++++++++++++++++++-
+ 1 file changed, 149 insertions(+), 6 deletions(-)
+OK origin/pr/feishu-ws-stability 01147a46
+SKIP already merged origin/pr/channel-model-alias
+===== MERGE origin/pr/org-hierarchy-tree =====
+自动合并 src/scaffold/NavigationSidebar/connectors/WorkstationSidebarConnector/index.tsx
+自动合并 src/scaffold/NavigationSidebar/connectors/WorkstationSidebarConnector/sessionRowActions.tsx
+冲突（内容）：合并冲突于 src/scaffold/NavigationSidebar/connectors/WorkstationSidebarConnector/sessionRowActions.tsx
+自动合并 src/scaffold/NavigationSidebar/connectors/useWorkstationSidebarContextMenu.ts
+自动合并失败，修正冲突然后提交修正的结果。
+CONFLICT origin/pr/org-hierarchy-tree
+ M .ash-reports/merge-attempt-20260716.log
+UU src/scaffold/NavigationSidebar/connectors/WorkstationSidebarConnector/sessionRowActions.tsx
