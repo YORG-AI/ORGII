@@ -12,15 +12,29 @@ use serde_json::Value;
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::{mpsc, RwLock};
+use std::time::{Duration, Instant};
+use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{debug, error, info, warn};
 
+use super::api;
 use super::auth::FeishuAuth;
 use super::channel::{self, WsClientConfig};
 use super::codec::*;
 use super::event::{self, FeishuEventConfig};
 use crate::bus::InboundMessage;
+
+/// Cap for exponential backoff: 15 minutes.
+const MAX_BACKOFF_SECS: u64 = 900;
+
+/// Fragment cache entries older than this are purged.
+const FRAGMENT_TTL: Duration = Duration::from_secs(300);
+
+/// Compute exponential backoff delay: `base * 2^attempt`, capped at [`MAX_BACKOFF_SECS`].
+fn compute_backoff(attempt: u32, base_secs: u64) -> Duration {
+    let exp = std::cmp::min(attempt, 10);
+    let secs = base_secs.saturating_mul(1u64 << exp);
+    Duration::from_secs(std::cmp::min(secs, MAX_BACKOFF_SECS))
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn feishu_ws_loop(
@@ -52,6 +66,7 @@ pub(super) async fn feishu_ws_loop(
         .unwrap_or(120);
     let mut dedup_set: HashSet<String> = HashSet::new();
     let mut dedup_order: Vec<String> = Vec::new();
+    let mut reconnect_attempt: u32 = 0;
 
     fn extract_service_id(url_str: &str) -> i32 {
         url::Url::parse(url_str)
@@ -66,6 +81,8 @@ pub(super) async fn feishu_ws_loop(
 
     #[allow(clippy::type_complexity)]
     let mut fragment_cache: std::collections::HashMap<String, (usize, Vec<Option<Vec<u8>>>)> =
+        std::collections::HashMap::new();
+    let mut fragment_timestamps: std::collections::HashMap<String, Instant> =
         std::collections::HashMap::new();
 
     while running.load(Ordering::Relaxed) {
@@ -91,10 +108,21 @@ pub(super) async fn feishu_ws_loop(
                     }
                     Err(err) => warn!("[{}] Failed to refresh WS URL: {}", channel_name, err),
                 }
-                tokio::time::sleep(Duration::from_secs(reconnect_interval_secs)).await;
+                let backoff = compute_backoff(reconnect_attempt, reconnect_interval_secs);
+                warn!(
+                    "[{}] Reconnect attempt #{}, backing off for {}s",
+                    channel_name,
+                    reconnect_attempt,
+                    backoff.as_secs()
+                );
+                reconnect_attempt = reconnect_attempt.saturating_add(1);
+                tokio::time::sleep(backoff).await;
                 continue;
             }
         };
+
+        // Connection succeeded — reset backoff counter.
+        reconnect_attempt = 0;
 
         let service_id = extract_service_id(&ws_url);
         info!(
@@ -106,17 +134,49 @@ pub(super) async fn feishu_ws_loop(
 
         let (mut ws_sink, mut ws_stream_rx) = ws_stream.split();
 
+        // Shared pong timestamp for timeout detection.
+        let last_pong = Arc::new(Mutex::new(Instant::now()));
+
         let ping_running = running.clone();
         let ping_channel = channel_name.clone();
         let ping_interval = Duration::from_secs(ping_interval_secs);
+        let pong_timeout = Duration::from_secs(ping_interval_secs + 30);
+        let last_pong_ping = last_pong.clone();
         let (ping_tx, mut ping_rx) = mpsc::channel::<Vec<u8>>(4);
 
         let ping_handle = tokio::spawn(async move {
+            // 飞书 ws/v2：连上后立即发首个 ping 建立活跃心跳（对齐官方 SDK 行为）。
+            // 原实现先 sleep(120s) 再 ping，飞书可能视连接为未就绪/不活跃而不推送事件。
+            {
+                let frame = PbFrame::new_ping(service_id);
+                let encoded = frame.encode();
+                if ping_tx.send(encoded).await.is_err() {
+                    return;
+                }
+                debug!("[{}] initial ping sent", ping_channel);
+            }
             loop {
                 tokio::time::sleep(ping_interval).await;
                 if !ping_running.load(Ordering::Relaxed) {
                     break;
                 }
+
+                // Check pong timeout — if no pong received within threshold,
+                // abort to trigger reconnection in the outer loop.
+                {
+                    let last = last_pong_ping.lock().await;
+                    let elapsed = last.elapsed();
+                    if elapsed > pong_timeout {
+                        warn!(
+                            "[{}] Pong timeout ({}s elapsed, threshold {}s), forcing reconnect",
+                            ping_channel,
+                            elapsed.as_secs(),
+                            pong_timeout.as_secs()
+                        );
+                        break; // Exit ping task → triggers outer reconnect
+                    }
+                }
+
                 let frame = PbFrame::new_ping(service_id);
                 let encoded = frame.encode();
                 if ping_tx.send(encoded).await.is_err() {
@@ -125,6 +185,15 @@ pub(super) async fn feishu_ws_loop(
                 debug!("[{}] ping sent", ping_channel);
             }
         });
+
+        // Purge stale fragment cache entries.
+        let now = Instant::now();
+        fragment_cache.retain(|k, _| {
+            fragment_timestamps
+                .get(k)
+                .is_some_and(|ts| now.duration_since(*ts) < FRAGMENT_TTL)
+        });
+        fragment_timestamps.retain(|k, _| fragment_cache.contains_key(k));
 
         let mut connection_alive = true;
         while running.load(Ordering::Relaxed) && connection_alive {
@@ -148,10 +217,16 @@ pub(super) async fn feishu_ws_loop(
 
                             let frame_type = frame.method;
                             let msg_type = frame.header("type").unwrap_or("").to_string();
+                            debug!("[{}] WS frame: method={} type={} headers={}", channel_name, frame_type, msg_type, frame.headers.len());
 
                             match (frame_type, msg_type.as_str()) {
                                 (FRAME_TYPE_CONTROL, MSG_TYPE_PONG) => {
                                     debug!("[{}] received pong", channel_name);
+                                    // Update pong timestamp for timeout detection.
+                                    {
+                                        let mut ts = last_pong.lock().await;
+                                        *ts = Instant::now();
+                                    }
                                     if !frame.payload.is_empty() {
                                         if let Ok(conf) = serde_json::from_slice::<Value>(&frame.payload) {
                                             if let Some(pi) = conf.get("PingInterval").and_then(|v| v.as_u64()) {
@@ -171,6 +246,7 @@ pub(super) async fn feishu_ws_loop(
                                         let entry = fragment_cache
                                             .entry(msg_id.clone())
                                             .or_insert_with(|| (sum as usize, vec![None; sum as usize]));
+                                        fragment_timestamps.insert(msg_id.clone(), Instant::now());
                                         let idx = seq as usize;
                                         if idx < entry.1.len() {
                                             entry.1[idx] = Some(frame.payload.clone());
@@ -183,6 +259,7 @@ pub(super) async fn feishu_ws_loop(
                                                 .flat_map(|p| p.iter().copied())
                                                 .collect();
                                             fragment_cache.remove(&msg_id);
+                                            fragment_timestamps.remove(&msg_id);
                                             Some(combined)
                                         } else {
                                             None
@@ -200,7 +277,10 @@ pub(super) async fn feishu_ws_loop(
                                                 &mut dedup_set,
                                                 &mut dedup_order,
                                             ) {
-                                                super::api::resolve_feishu_media(&auth, &mut inbound.media).await;
+                                                // Download feishu:image / feishu:file refs to local paths.
+                                                // Official media resolution is kept; the fork's WS stability
+                                                // improvements only change connection/reassembly behavior.
+                                                api::resolve_feishu_media(&auth, &mut inbound.media).await;
                                                 info!("[{}] Sending inbound to bus: session_key={}", channel_name, inbound.session_key());
                                                 if let Err(err) = inbound_tx.send(inbound).await {
                                                     error!("[{}] Failed to send inbound: {}", channel_name, err);
@@ -255,7 +335,18 @@ pub(super) async fn feishu_ws_loop(
                             *last_error.write().await = Some("WebSocket stream ended".into());
                             connection_alive = false;
                         }
-                        _ => {}
+                        Some(Ok(other)) => {
+                            // 诊断：捕获未处理的 WsMessage 类型（Text/Ping/Pong/Frame）。
+                            // 飞书 ws/v2 正常只发 Binary(protobuf)；若出现其他类型说明协议变化。
+                            let kind = match &other {
+                                WsMessage::Text(t) => format!("Text({} chars)", t.len()),
+                                WsMessage::Ping(p) => format!("Ping({} bytes)", p.len()),
+                                WsMessage::Pong(p) => format!("Pong({} bytes)", p.len()),
+                                WsMessage::Frame(_) => "Frame".to_string(),
+                                _ => "Other".to_string(),
+                            };
+                            debug!("[{}] WS recv unhandled message type: {}", channel_name, kind);
+                        }
                     }
                 }
             }
@@ -280,9 +371,61 @@ pub(super) async fn feishu_ws_loop(
                     *last_error.write().await = Some(err_msg);
                 }
             }
-            tokio::time::sleep(Duration::from_secs(reconnect_interval_secs)).await;
+            let backoff = compute_backoff(reconnect_attempt, reconnect_interval_secs);
+            warn!(
+                "[{}] Reconnect attempt #{}, backing off for {}s",
+                channel_name,
+                reconnect_attempt,
+                backoff.as_secs()
+            );
+            reconnect_attempt = reconnect_attempt.saturating_add(1);
+            tokio::time::sleep(backoff).await;
         }
     }
 
     info!("[{}] WS receive loop exited", channel_name);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn compute_backoff_base_case() {
+        assert_eq!(compute_backoff(0, 10), Duration::from_secs(10));
+    }
+
+    #[test]
+    fn compute_backoff_grows_exponentially() {
+        assert_eq!(compute_backoff(1, 10), Duration::from_secs(20));
+        assert_eq!(compute_backoff(2, 10), Duration::from_secs(40));
+        assert_eq!(compute_backoff(3, 10), Duration::from_secs(80));
+    }
+
+    #[test]
+    fn compute_backoff_caps_at_max() {
+        // 10 * 2^10 = 10240 > MAX_BACKOFF_SECS (900)
+        assert_eq!(
+            compute_backoff(10, 10),
+            Duration::from_secs(MAX_BACKOFF_SECS)
+        );
+        assert_eq!(
+            compute_backoff(20, 10),
+            Duration::from_secs(MAX_BACKOFF_SECS)
+        );
+    }
+
+    #[test]
+    fn compute_backoff_handles_large_base() {
+        // 120 * 2^3 = 960 > 900 → capped
+        assert_eq!(
+            compute_backoff(3, 120),
+            Duration::from_secs(MAX_BACKOFF_SECS)
+        );
+    }
+
+    #[test]
+    fn compute_backoff_zero_base() {
+        assert_eq!(compute_backoff(5, 0), Duration::from_secs(0));
+    }
 }
