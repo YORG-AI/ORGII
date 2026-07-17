@@ -32,14 +32,17 @@
       "refreshed": "{{name}} erfolgreich aktualisiert",
       "refreshFailed": "{{name}} Validierung fehlgeschlagen - Anmeldedaten prüfen",
       "allRefreshed": "Alle Konten aktualisiert",
-      "refreshError": "{{name}} konnte nicht aktualisiert werden",
+      "refreshError": "{{name}} konnte nicht aktualisiert werden: {{error}}",
       "localRemoved": "{{name}} entfernt",
       "unlistPending": "{{name}} Entfernung angefordert. Wird nach Ende aktiver Session entfernt.",
       "listingRemoved": "{{name}} vom Marktplatz entfernt",
       "listingDeleted": "{{name}} gelöscht",
       "deleteError": "{{name}} konnte nicht gelöscht werden",
       "published": "{{name}} im Marktplatz veröffentlicht",
-      "publishError": "{{name}} konnte nicht veröffentlicht werden"
+      "publishError": "{{name}} konnte nicht veröffentlicht werden",
+      "refreshedDelta": "Modelle aktualisiert: +{{added}} hinzugefügt, -{{removed}} entfernt",
+      "refreshedNoChange": "Modelle aktualisiert — keine Änderungen",
+      "refreshPartial": "Modelle aktualisiert (+{{added}} / -{{removed}}), aber {{failed}} von {{total}} Konten sind fehlgeschlagen"
     },
     "configure": "{{provider}} konfigurieren",
     "providerGroups": {
@@ -477,7 +480,9 @@
     "refreshModels": {
       "button": "Cursor-Modellliste aktualisieren",
       "failed": "Aktualisierung von Cursor fehlgeschlagen: {{error}}"
-    }
+    },
+    "confirmRemoveActiveSessions_one": "{{count}} aktive Sitzung verwendet dieses Konto noch und schlägt beim nächsten Durchlauf fehl:",
+    "confirmRemoveActiveSessions_other": "{{count}} aktive Sitzungen verwenden dieses Konto noch und schlagen beim nächsten Durchlauf fehl:"
   },
   "integrations": {
     "title": "Integrationen",
@@ -1031,7 +1036,8 @@
     "tools": "Integrierte Tools",
     "computerUse": "Computer Use",
     "rulesMemoryEvolution": "Regeln, Speicher & Entwicklung",
-    "externalSkillsets": "Skills, MCPs & Plugins"
+    "externalSkillsets": "Skills, MCPs & Plugins",
+    "housekeeper": "MiniCPM Housekeeper"
   },
   "projectConnections": {
     "linear": "Linear",
@@ -1341,7 +1347,9 @@
     "oauthDeviceCodeDesc": "Öffne die URL unten und gib diesen Code ein",
     "oauthOpenGithub": "GitHub öffnen",
     "oauthCancel": "Abbrechen",
-    "oauthFailed": "Autorisierung fehlgeschlagen"
+    "oauthFailed": "Autorisierung fehlgeschlagen",
+    "autoCreatePr": "Pull Requests automatisch erstellen",
+    "autoCreatePrDesc": "Erstellt automatisch einen Pull Request in der Workstation-Quellcodeverwaltung, wenn ein Feature-Branch vollständig gepusht und sauber ist"
   },
   "skillsHub": {
     "title": "Skills Hub",
@@ -2300,7 +2308,36 @@
     "orgSaveFailed": "Team konnte nicht gespeichert werden",
     "orgDeleteFailed": "Team konnte nicht gelöscht werden",
     "deleteOrgTitle": "Team löschen?",
-    "deleteOrgMessage": "\"{{name}}\" wird dauerhaft entfernt. Dies kann nicht rückgängig gemacht werden."
+    "deleteOrgMessage": "\"{{name}}\" wird dauerhaft entfernt. Dies kann nicht rückgängig gemacht werden.",
+    "cliManagedConfig": {
+      "title": "CLI-Konfigurationswechsel",
+      "modeLabel": "Modus",
+      "modeDesc": "„Standard“ stellt die eigene Konfiguration der CLI wieder her. „Von ORGII verwaltet“ schreibt eine gesicherte Proxy-Konfiguration.",
+      "modeDefault": "Standard",
+      "modeOrgii": "Von ORGII verwaltet",
+      "conflict": "Externe Änderung",
+      "conflictTitle": "Konflikt",
+      "conflictDesc": "Die aktive CLI-Konfiguration wurde geändert, nachdem ORGII sie geschrieben hatte.",
+      "proxyStatus": "Proxy",
+      "proxyDefault": "Standardmodus",
+      "proxyReady": "Proxy bereit",
+      "proxyNotReady": "Proxy nicht bereit",
+      "proxyDesc": "Lokale Anfragen werden über ORGII KeyVault geleitet.",
+      "keyLabel": "Schlüssel",
+      "keyDesc": "Es werden nur API-Schlüssel angezeigt, die mit dieser CLI und dem verwalteten Proxy kompatibel sind.",
+      "selectKey": "Schlüssel auswählen",
+      "modelLabel": "Modell",
+      "selectModel": "Modell auswählen",
+      "configFile": "Konfigurationsdateien",
+      "actions": "Aktionen",
+      "addKey": "Schlüssel hinzufügen",
+      "apply": "Anwenden",
+      "restore": "Standard wiederherstellen",
+      "forceApply": "Anwendung erzwingen",
+      "forceRestore": "Wiederherstellung erzwingen",
+      "applySuccess": "Von ORGII verwaltete Konfiguration angewendet",
+      "restoreSuccess": "Standardkonfiguration wiederhergestellt"
+    }
   },
   "databases": {
     "title": "Datenbanken",
@@ -2394,7 +2431,8 @@
     "queuedMessages": "Warteschlange-Nachrichten",
     "fileReview": "Dateiüberprüfung",
     "terminalProcesses": "Terminalprozesse",
-    "workspaceMemory": "Workspace-Speicher"
+    "workspaceMemory": "Workspace-Speicher",
+    "modeSessionLink": "Sitzungsverknüpfung"
   },
   "rulesTabs": {
     "rules": "Regeln",
@@ -2553,7 +2591,14 @@
       "diagnostics": "Diagnose"
     },
     "health": {
-      "status": "Nicht geprüft"
+      "status": "Nicht geprüft",
+      "title": "Integritätsprüfung",
+      "idle": "Prüft /v1/models und sendet eine kleine Chat-Anfrage.",
+      "checking": "Lokaler vLLM-MiniCPM-Dienst wird geprüft…",
+      "checkButton": "Verbindung prüfen",
+      "configureFirst": "Konfigurieren Sie zuerst ein vLLM-MiniCPM-Konto.",
+      "connectedTo": "Verbunden mit {{baseUrl}}",
+      "failed": "MiniCPM-Integritätsprüfung fehlgeschlagen."
     },
     "benchmark": {
       "title": "MiniCPM-Ausgabegeschwindigkeit",
@@ -2565,6 +2610,51 @@
       "tokensPerSecond": "Ausgabegeschwindigkeit: {{value}} tokens/s",
       "completionTokens": "Ausgabe-tokens: {{value}}",
       "elapsed": "Gesamtzeit: {{value}}s"
+    },
+    "eyebrow": "Permanenter MiniCPM Housekeeper",
+    "title": "Permanenter Housekeeper",
+    "description": "Lokales MiniCPM übernimmt die Optimierung von Prompts, kurze Erklärungen einzelner Schritte und eine leichtgewichtige UI-Steuerung. Coding-Aufgaben und komplexe ADE-Einrichtungen verwenden weiterhin das primäre Agent-Modell.",
+    "autoAccount": "MiniCPM-vLLM-Konto automatisch auswählen",
+    "tiles": {
+      "model": "Modell",
+      "endpoint": "Endpunkt",
+      "safeContext": "Sicherer Kontext"
+    },
+    "settings": {
+      "enabled": {
+        "title": "Housekeeper aktivieren",
+        "description": "Wenn deaktiviert, verwenden Prompt-Optimierung, Schritterklärungen und leichtgewichtige UI-Steuerung MiniCPM nicht."
+      },
+      "account": {
+        "title": "vLLM-MiniCPM-Konto",
+        "description": "Verwendet ein vorhandenes KeyVault-Konto vom Typ vllm_api; es wird kein separater Anmeldedatenspeicher angelegt."
+      },
+      "model": {
+        "title": "Modell-ID",
+        "description": "Docker vLLM MiniCPM5-1B verwendet standardmäßig openbmb/MiniCPM5-1B."
+      },
+      "context": {
+        "title": "Sicheres Kontextbudget",
+        "description": "Verwenden Sie auf GPUs mit 4 GB ein konservatives Budget von 10000 Token, statt sich auf das theoretische Limit von 32k zu verlassen."
+      }
+    },
+    "features": {
+      "promptPolish": {
+        "title": "Prompt-Optimierung",
+        "description": "Optimieren Sie die Eingabe vor dem Senden an das leistungsfähigere Coding-Modell manuell."
+      },
+      "stepExplain": {
+        "title": "Erklärungen zu Agent-Schritten",
+        "description": "Erzeugt ein oder zwei kurze chinesische Erklärungen für Schritte in der Sitzungswiedergabe."
+      },
+      "uiControl": {
+        "title": "Leichtgewichtige ADE-/UI-Steuerung",
+        "description": "MiniCPM darf Anfragen ausschließlich Aktionen aus einer strikten lokalen Positivliste zuordnen."
+      },
+      "contextCompact": {
+        "title": "Automatische Kontextpflege",
+        "description": "MiniCPM pflegt eine isolierte, fortlaufende Zusammenfassung älteren Kontexts, während aktivierte Sitzungen inaktiv sind."
+      }
     }
   },
   "cliLaunchProfiles": {
@@ -2581,5 +2671,38 @@
     "unavailable": "Startprofil nicht verfügbar",
     "saved": "Startprofil gespeichert",
     "resetDone": "Startprofil zurückgesetzt"
+  },
+  "gitProfiles": {
+    "tab": "Git-Profile",
+    "title": "Git-Profile",
+    "add": "Profil hinzufügen",
+    "refresh": "Profile aktualisieren",
+    "refreshed": "Globales Git-Profil aktualisiert",
+    "loading": "Ihr globales Git-Profil wird geladen…",
+    "defaultProfile": "Standardprofil",
+    "newProfile": "Neues Profil",
+    "copyName": "Kopie von {{name}}",
+    "profileName": "Profilname",
+    "authorName": "Autorenname",
+    "email": "E-Mail",
+    "selectEmail": "E-Mail auswählen",
+    "signingKey": "Signaturschlüssel",
+    "signingKeyPlaceholder": "ID des GPG- oder SSH-Signaturschlüssels",
+    "signCommits": "Commits signieren",
+    "active": "Aktiv",
+    "activate": "Profil aktivieren",
+    "activated": "{{name}} ist jetzt das globale Git-Profil",
+    "editRaw": "Rohkonfiguration bearbeiten",
+    "hideRaw": "Rohkonfiguration ausblenden",
+    "rawTitle": "Git-Profil im Rohformat",
+    "rawConfig": "Git-Konfiguration",
+    "updateFromRaw": "Profil aus Konfiguration aktualisieren",
+    "rawUpdated": "Profil aus der Git-Rohkonfiguration aktualisiert",
+    "rawInvalid": "Das Git-Profil im Rohformat ist ungültig",
+    "nameEmailRequired": "Autorenname und E-Mail sind erforderlich",
+    "deleteTitle": "Git-Profil löschen",
+    "deleteMessage": "Profil „{{name}}“ löschen? Ihre aktuelle globale Git-Konfiguration wird dadurch nicht geändert.",
+    "loadFailed": "Globales Git-Profil konnte nicht geladen werden",
+    "applyFailed": "Git-Profil konnte nicht aktiviert werden"
   }
 }

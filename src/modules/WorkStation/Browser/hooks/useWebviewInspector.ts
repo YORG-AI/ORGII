@@ -9,6 +9,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useVisiblePolling } from "@src/hooks/async";
 import { createLogger } from "@src/hooks/logger";
 
 const log = createLogger("useWebviewInspector");
@@ -235,20 +236,11 @@ export function useWebviewInspector(
     }
   }, [webviewLabel]);
 
-  // Poll for selected element changes when inspect mode is active
-  useEffect(() => {
-    if (!isInspectMode || !webviewLabel || !enabled || pollInterval <= 0) {
-      return;
-    }
-
-    // Immediate check
-    refreshSelection();
-
-    // Then poll at interval
-    const intervalId = setInterval(refreshSelection, pollInterval);
-
-    return () => clearInterval(intervalId);
-  }, [isInspectMode, webviewLabel, enabled, pollInterval, refreshSelection]);
+  useVisiblePolling({
+    enabled: isInspectMode && enabled && !!webviewLabel && pollInterval > 0,
+    intervalMs: pollInterval,
+    poll: refreshSelection,
+  });
 
   // Cleanup on unmount or webview change
   useEffect(() => {

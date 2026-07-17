@@ -80,6 +80,13 @@ impl RepoState {
             && self.last_fs_event_ts.elapsed() > Duration::from_secs(300)
     }
 
+    pub fn should_retry_watcher(&self) -> bool {
+        !self.watch_enabled
+            && self.in_degraded_mode
+            && self.last_watcher_health_check.elapsed()
+                >= Duration::from_secs(WATCHER_RESTART_DELAY_SECONDS)
+    }
+
     pub fn is_unhealthy(&self) -> bool {
         self.consecutive_failures >= 3
     }

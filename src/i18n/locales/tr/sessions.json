@@ -1,4 +1,9 @@
 {
+  "canvasApp": {
+    "empty": "Henüz tuval oluşturulmadı",
+    "sidebarTitle": "Tuvaller",
+    "noCanvases": "Henüz tuval yok"
+  },
   "toolUsage": {
     "estimatedContext": "{{tokenCount}} Token bağlam",
     "followup": "{{tokenCount}} Token follow-up",
@@ -89,6 +94,8 @@
       "dataSource": "Veri kaynakları"
     },
     "dataSource": {
+      "rescanUpdate": "Güncelle",
+      "rescanClear": "Temizle ve yeniden tara",
       "title": "Veri kaynakları",
       "description": "ORGII'nin algıladığı harici kodlama araçları. İçe aktarılabilir uygulamalar oturum sayısını gösterir ve yeniden taranabilir; diğerleri kurulum durumunu ve geçmişlerinin nerede olduğunu gösterir.",
       "rescanAll": "Tümünü yeniden tara",
@@ -189,6 +196,8 @@
       "cancelled": "Başarısız"
     },
     "sidebar": {
+      "githubIssues": "GitHub Issue’ları",
+      "githubPrs": "GitHub PR’ları",
       "agentTypes": "Agent Türleri",
       "manageItems": "Öğeleri yönet",
       "sessionsView": "Sessions View",
@@ -330,6 +339,16 @@
       "tasksWillAppear": "Bu oturumda çalışma başladığında görevler burada görünür"
     },
     "replay": {
+      "filters": {
+        "tooltip": "Olayları filtrele",
+        "allEvents": "Tüm olaylar",
+        "keyInteractions": "Temel etkileşimler",
+        "fileChanges": "Dosya değişiklikleri",
+        "terminalEvents": "Terminal olayları",
+        "explore": "Keşfet",
+        "other": "Diğer",
+        "selectedCount": "{{count}} filtre"
+      },
       "following": "Takip ediliyor",
       "freeBrowsing": "Serbest gezinme",
       "replaying": "Oynatılıyor",
@@ -435,6 +454,16 @@
         "emptyForFilter": "Henüz Diff yok",
         "emptyDetail": "Diff'i görüntülemek için bir değişiklik seçin.",
         "submissions": {
+          "labels": {
+            "created": {
+              "commit": "Commit oluşturuldu",
+              "pullRequest": "PR oluşturuldu"
+            },
+            "mentioned": {
+              "commit": "Commit belirtildi",
+              "pullRequest": "PR belirtildi"
+            }
+          },
           "tabLabel": "Gönderimler",
           "commits": "Commits",
           "pr": "PR",
@@ -703,6 +732,10 @@
     "loading": "Editör yükleniyor..."
   },
   "input": {
+    "pr": {
+      "open": "PR aç",
+      "creating": "PR oluşturuluyor…"
+    },
     "editPlaceholder": "Mesajınızı düzenleyin...",
     "defaultPlaceholder": "Agent ile sohbet edin",
     "finishNextStep": "Tamam. Sonraki adım!",
@@ -728,6 +761,7 @@
     "selectedOf": "{{total}} içinden {{selected}} seçildi"
   },
   "chat": {
+    "restoreCheckpoint": "Kontrol noktasını geri yükle",
     "planApprovedLabel": "Onaylanan plan uygulanıyor",
     "planApprovedEditedLabel": "Onaylanan plan uygulanıyor (düzenlendi)",
     "sessionStarted": "Session başlatıldı",
@@ -1920,6 +1954,7 @@
     "branchesTouched": "Branch'ler"
   },
   "modelPill": {
+    "appliesNextTurn": "Hesap değiştirildi. Geçerli yanıt önceki hesapta çalışmaya devam eder; yeni hesap sonraki turda etkinleşir.",
     "immutableInSession": "Anahtar kaynağı, Agent türü ve fiyat kademesi oturum başlangıcında sabittir. Değiştirmek için yeni bir oturum başlatın."
   },
   "creator": {
@@ -2581,6 +2616,7 @@
       "title": "Görev ayrıntılarını görüntüle"
     },
     "list": {
+      "countLabel": "Görevler",
       "title": "Görev listesini görüntüle",
       "count": "{{taskCount}} görev",
       "empty": "Görev yok"
@@ -2622,6 +2658,9 @@
     }
   },
   "cards": {
+    "session": {
+      "open": "Oturumu aç"
+    },
     "openFile": "Düzenleyicide aç",
     "openLink": "Bağlantıyı aç",
     "broadcast": "→ Tüm ajanlar",
@@ -2699,6 +2738,9 @@
     "iframeTitle": "Kod önizleme"
   },
   "canvasCard": {
+    "reactDisabledTitle": "React önizlemesi Simülatör’de çalışır",
+    "reactDisabledDescription": "Agent JavaScript kodu sohbet içinde çalıştırılmaz. Korumalı React önizlemesini çalıştırmak için Simülatör’de açın.",
+    "viewInSimulator": "Simülatör’de görüntüle",
     "titleHtml": "Agent Önizleme",
     "titleUrl": "Agent Önizleme",
     "titleA2ui": "Agent Önizleme",

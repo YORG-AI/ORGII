@@ -8,9 +8,26 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useVisiblePolling } from "@src/hooks/async";
 import { createLogger } from "@src/hooks/logger";
 
 const log = createLogger("useBrowserNetworkLogs");
+const networkLogRequests = new Map<string, Promise<RustNetworkEntry[]>>();
+
+function fetchNetworkLogs(label: string): Promise<RustNetworkEntry[]> {
+  const existing = networkLogRequests.get(label);
+  if (existing) return existing;
+
+  const request = invoke<RustNetworkEntry[]>("get_webview_network_logs", {
+    label,
+  }).finally(() => {
+    if (networkLogRequests.get(label) === request) {
+      networkLogRequests.delete(label);
+    }
+  });
+  networkLogRequests.set(label, request);
+  return request;
+}
 
 // ============================================
 // Types
@@ -103,8 +120,6 @@ export function useBrowserNetworkLogs(
   // Current session's entries (state)
   const [entries, setEntries] = useState<NetworkEntry[]>([]);
 
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
   // Get or create cache entry for a session
   const getSessionCache = useCallback((sid: string): SessionNetworkCache => {
     if (!cacheRef.current.has(sid)) {
@@ -162,79 +177,55 @@ export function useBrowserNetworkLogs(
   }, []);
 
   // Poll for network logs from webview
-  const pollNow = useCallback(async () => {
-    if (!webviewLabel || !sessionId) return;
+  const pollNow = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!webviewLabel || !sessionId) return;
 
-    try {
-      const rustEntries = await invoke<RustNetworkEntry[]>(
-        "get_webview_network_logs",
-        { label: webviewLabel }
-      );
+      try {
+        const rustEntries = await fetchNetworkLogs(webviewLabel);
+        if (signal?.aborted) return;
 
-      if (rustEntries && rustEntries.length > 0) {
-        const cache = getSessionCache(sessionId);
+        if (rustEntries && rustEntries.length > 0) {
+          const cache = getSessionCache(sessionId);
 
-        // Transform entries
-        const newEntries: NetworkEntry[] = rustEntries.map((entry) => ({
-          id: entry.id,
-          type: (entry.type as "fetch" | "xhr") || "fetch",
-          method: entry.method || "GET",
-          url: entry.url || "",
-          startTime: entry.startTime || Date.now(),
-          status: entry.status,
-          duration: entry.duration,
-          size: entry.size,
-          error: entry.error,
-        }));
+          // Transform entries
+          const newEntries: NetworkEntry[] = rustEntries.map((entry) => ({
+            id: entry.id,
+            type: (entry.type as "fetch" | "xhr") || "fetch",
+            method: entry.method || "GET",
+            url: entry.url || "",
+            startTime: entry.startTime || Date.now(),
+            status: entry.status,
+            duration: entry.duration,
+            size: entry.size,
+            error: entry.error,
+          }));
 
-        let combined = [...cache.entries, ...newEntries];
-        if (combined.length > maxEntries) {
-          combined = combined.slice(-maxEntries);
+          let combined = [...cache.entries, ...newEntries];
+          if (combined.length > maxEntries) {
+            combined = combined.slice(-maxEntries);
+          }
+
+          updateSessionEntries(sessionId, combined);
         }
-
-        updateSessionEntries(sessionId, combined);
+      } catch (error) {
+        // Silently ignore - webview might not exist yet or be closing
+        if (
+          process.env.NODE_ENV === "development" &&
+          !String(error).includes("not found")
+        ) {
+          log.debug("[useBrowserNetworkLogs] Poll error:", error);
+        }
       }
-    } catch (error) {
-      // Silently ignore - webview might not exist yet or be closing
-      if (
-        process.env.NODE_ENV === "development" &&
-        !String(error).includes("not found")
-      ) {
-        log.debug("[useBrowserNetworkLogs] Poll error:", error);
-      }
-    }
-  }, [
-    webviewLabel,
-    sessionId,
-    maxEntries,
-    getSessionCache,
-    updateSessionEntries,
-  ]);
+    },
+    [webviewLabel, sessionId, maxEntries, getSessionCache, updateSessionEntries]
+  );
 
-  // Start/stop polling
-  useEffect(() => {
-    if (!enabled || !webviewLabel || !sessionId || pollInterval <= 0) {
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
-      return;
-    }
-
-    // Start polling
-    pollTimerRef.current = setInterval(pollNow, pollInterval);
-
-    // Initial poll - defer to next tick to avoid setState in effect
-    const timer = setTimeout(() => pollNow(), 0);
-
-    return () => {
-      clearTimeout(timer);
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
-    };
-  }, [enabled, webviewLabel, sessionId, pollInterval, pollNow]);
+  useVisiblePolling({
+    enabled: enabled && !!webviewLabel && !!sessionId && pollInterval > 0,
+    intervalMs: pollInterval,
+    poll: pollNow,
+  });
 
   // Compute error count from current entries
   const errorCount = useMemo(() => {

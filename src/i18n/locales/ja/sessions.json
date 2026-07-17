@@ -94,6 +94,8 @@
       "rescanAll": "すべて再スキャン",
       "rescan": "再スキャン",
       "rescanning": "再スキャン中…",
+      "rescanUpdate": "更新",
+      "rescanClear": "クリアして再スキャン",
       "enable": "有効化",
       "disable": "無効化",
       "lastScan": "最終スキャン {{time}}",
@@ -122,6 +124,7 @@
         "apps": "アプリ",
         "clis": "CLI"
       },
+      "sessions_one": "{{count}} 件のセッション",
       "sessions_other": "{{count}} 件のセッション",
       "details": {
         "path": "パス",
@@ -197,7 +200,9 @@
       "rustAgent": "Rust Agent",
       "removeDraft": "ドラフトを削除",
       "showSubagents": "サブエージェントを表示",
-      "hideSubagents": "サブエージェントを非表示"
+      "hideSubagents": "サブエージェントを非表示",
+      "githubIssues": "GitHub Issues",
+      "githubPrs": "GitHub PR"
     },
     "resultStatus": {
       "completed": "完了",
@@ -352,6 +357,16 @@
       "pause": "一時停止",
       "playbackSpeed": "再生速度",
       "noEvents": "イベントなし",
+      "filters": {
+        "tooltip": "イベントを絞り込む",
+        "allEvents": "すべてのイベント",
+        "keyInteractions": "主要なインタラクション",
+        "fileChanges": "ファイル変更",
+        "terminalEvents": "ターミナルイベント",
+        "explore": "探索",
+        "other": "その他",
+        "selectedCount": "{{count}} 件のフィルター"
+      },
       "agentHasNotUsedTool": "Agent はまだこのツールを使用していません",
       "browser": {
         "tabs": {
@@ -440,7 +455,17 @@
           "empty": "提出はまだありません",
           "selectSubmission": "提出を選択して詳細を表示します",
           "noCommits": "Commits はまだありません",
-          "noPullRequests": "Pull Requests はまだありません"
+          "noPullRequests": "Pull Requests はまだありません",
+          "labels": {
+            "created": {
+              "commit": "作成したコミット",
+              "pullRequest": "作成した PR"
+            },
+            "mentioned": {
+              "commit": "言及したコミット",
+              "pullRequest": "言及した PR"
+            }
+          }
         }
       },
       "channelsSidebar": {
@@ -720,7 +745,11 @@
       "insert": "挿入"
     },
     "compactArgHint": "<任意: 要約の重点>",
-    "compactCommandDescription": "古いコンテキストを要約して空きを作ります。任意: /compact <要約の重点>"
+    "compactCommandDescription": "古いコンテキストを要約して空きを作ります。任意: /compact <要約の重点>",
+    "pr": {
+      "open": "PR を開く",
+      "creating": "PR を作成中…"
+    }
   },
   "listPanel": {
     "showingOf": "{{total}} 件中 {{filtered}} 件を表示",
@@ -733,6 +762,7 @@
     "contentCopied": "コンテンツをコピーしました！",
     "failedToCopyContent": "コンテンツのコピーに失敗しました",
     "regenerate": "再生成",
+    "restoreCheckpoint": "チェックポイントを復元",
     "copyTurn": "ターンをコピー",
     "exportAsMarkdown": "Markdownとしてエクスポート",
     "exportSuccess": "セッションをエクスポートしました！",
@@ -1919,7 +1949,8 @@
     "branchesTouched": "ブランチ"
   },
   "modelPill": {
-    "immutableInSession": "キーソース、Agent タイプ、料金ティアはセッション開始時に固定されます。変更するには新しいセッションを開始してください。"
+    "immutableInSession": "キーソース、Agent タイプ、料金ティアはセッション開始時に固定されます。変更するには新しいセッションを開始してください。",
+    "appliesNextTurn": "アカウントを切り替えました。現在の返信は引き続き以前のアカウントで実行され、新しいアカウントは次のターンから適用されます。"
   },
   "creator": {
     "createTarget": {
@@ -2581,7 +2612,8 @@
     "list": {
       "title": "タスクリストを表示",
       "count": "{{taskCount}} 件のタスク",
-      "empty": "タスクなし"
+      "empty": "タスクなし",
+      "countLabel": "タスク"
     },
     "statusLabel": "ステータス",
     "assignedBadge": "割り当て済み",
@@ -2623,6 +2655,9 @@
     "openFile": "エディタで開く",
     "openLink": "リンクを開く",
     "broadcast": "→ 全 Agent",
+    "session": {
+      "open": "セッションを開く"
+    },
     "agentMessage": {
       "fallbackTitle": "メッセージ",
       "accepted": "承認",
@@ -2707,6 +2742,14 @@
     "close": "閉じる",
     "summarize": "Agent で要約",
     "waiting": "コンテンツを待機中…",
-    "empty": "コンテンツなし"
+    "empty": "コンテンツなし",
+    "reactDisabledTitle": "React プレビューはシミュレーターで実行されます",
+    "reactDisabledDescription": "Agent の JavaScript はチャット内では実行されません。サンドボックス化された React プレビューを実行するには、シミュレーターで開いてください。",
+    "viewInSimulator": "シミュレーターで表示"
+  },
+  "canvasApp": {
+    "empty": "まだキャンバスは表示されていません",
+    "sidebarTitle": "キャンバス",
+    "noCanvases": "キャンバスはまだありません"
   }
 }

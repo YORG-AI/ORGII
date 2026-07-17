@@ -10,10 +10,11 @@
  * a no-op.
  */
 import { useAtomValue } from "jotai";
-import { useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
 
 import { gitApi } from "@src/api/http/git";
 import { useGitStatus } from "@src/contexts/git";
+import { useVisiblePolling } from "@src/hooks/async";
 import { createLogger } from "@src/hooks/logger";
 import { selectedRepoAtom, selectedRepoIdAtom } from "@src/store/repo";
 import {
@@ -35,14 +36,13 @@ export function useGitAutoFetch(): void {
   const activeFetchKeyRef = useRef<string | null>(null);
   const repoPath = selectedRepo?.path || selectedRepo?.fs_uri;
 
-  useEffect(() => {
-    if (!autoFetch || !hasActiveRepo || !selectedRepoId || !repoPath) return;
+  const fetchKey =
+    selectedRepoId && repoPath ? `${selectedRepoId}:${repoPath}` : null;
+  const intervalMs = Math.max(intervalSeconds * 1000, MIN_INTERVAL_MS);
 
-    let cancelled = false;
-    const fetchKey = `${selectedRepoId}:${repoPath}`;
-    const intervalMs = Math.max(intervalSeconds * 1000, MIN_INTERVAL_MS);
-
-    const tick = async () => {
+  const tick = useCallback(
+    async (signal: AbortSignal) => {
+      if (!selectedRepoId || !repoPath || !fetchKey) return;
       if (activeFetchKeyRef.current === fetchKey) return;
       activeFetchKeyRef.current = fetchKey;
       try {
@@ -52,9 +52,8 @@ export function useGitAutoFetch(): void {
           remote: DEFAULT_REMOTE_NAME,
           prune: true,
         });
-        if (!cancelled) {
-          await forceRefresh();
-        }
+        if (signal.aborted) return;
+        await forceRefresh();
       } catch (error) {
         logger.warn("background fetch failed:", error);
       } finally {
@@ -62,22 +61,13 @@ export function useGitAutoFetch(): void {
           activeFetchKeyRef.current = null;
         }
       }
-    };
+    },
+    [fetchKey, forceRefresh, repoPath, selectedRepoId]
+  );
 
-    void tick();
-    const id = setInterval(() => {
-      void tick();
-    }, intervalMs);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [
-    autoFetch,
-    intervalSeconds,
-    forceRefresh,
-    hasActiveRepo,
-    selectedRepoId,
-    repoPath,
-  ]);
+  useVisiblePolling({
+    enabled: autoFetch && hasActiveRepo && !!fetchKey,
+    intervalMs,
+    poll: tick,
+  });
 }

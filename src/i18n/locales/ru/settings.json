@@ -790,6 +790,15 @@
     "currentVersion": "Текущая версия"
   },
   "monitor": {
+    "diskCategory_toolResults": "Крупные результаты инструментов",
+    "diskCategory_diagnostics": "Очередь диагностики",
+    "diskCategory_models": "Загруженные модели",
+    "diskCategory_codeMap": "Индексы карты кода",
+    "diskCategory_semanticIndex": "Индекс семантического поиска",
+    "diskCategory_cursorCliProfiles": "Профили Cursor CLI",
+    "diskCategory_kiroCliProfiles": "Профили Kiro CLI",
+    "diskCategory_opencodeCliProfiles": "Профили OpenCode CLI",
+    "diskCategory_sidecarBin": "Загруженные вспомогательные программы",
     "categoryTerminal": "Процесс терминала/инструмента",
     "categoryWebview": "Отрисовщик WebView",
     "categoryGpu": "GPU WebKit",

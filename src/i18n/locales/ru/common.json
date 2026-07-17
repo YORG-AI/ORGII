@@ -1,4 +1,30 @@
 {
+  "sqlEditor": {
+    "placeholder": "Введите SQL-запрос...",
+    "format": "Форматировать",
+    "runQueryToSeeResults": "Выполните запрос, чтобы увидеть результаты",
+    "executingQuery": "Выполнение запроса...",
+    "queryFailed": "Не удалось выполнить запрос",
+    "queryCompleted": "Запрос выполнен",
+    "noResults": "Запрос не вернул результатов",
+    "rowCount_one": "{{count}} строка",
+    "rowCount_other": "{{count}} строк",
+    "press": "Нажмите",
+    "toRun": "для запуска",
+    "nullValue": "NULL",
+    "booleanTrue": "истина",
+    "booleanFalse": "ложь"
+  },
+  "uploadZone": {
+    "clickOrDrag": "Нажмите или перетащите файл в эту область для загрузки",
+    "supportFormats": "Поддерживаются: {{accept}}"
+  },
+  "chatImage": {
+    "maxReached": "Допускается не более {{max}} изображений",
+    "remainingWarning": "Можно добавить ещё только {{remaining}} изображений (максимум {{max}})",
+    "processFailed": "Не удалось обработать изображение",
+    "loadFailed": "Не удалось загрузить изображение: {{fileName}}"
+  },
   "toasts": {
     "replyEmpty": "Ответ не может быть пустым",
     "sessionNotFound": "Сессия не найдена",
@@ -75,6 +101,13 @@
     }
   },
   "actions": {
+    "openOnGitHub": "Открыть на GitHub",
+    "createPullRequest": "Создать пул-реквест",
+    "newIssue": "Новая задача",
+    "closeIssue": "Закрыть задачу",
+    "reopenIssue": "Переоткрыть задачу",
+    "addComment": "Добавить комментарий",
+    "editIssue": "Редактировать задачу",
     "save": "Сохранить",
     "cancel": "Отмена",
     "delete": "Удалить",
@@ -345,6 +378,25 @@
     "filterByLanguage": "Фильтр по языку"
   },
   "labels": {
+    "noPullRequestForBranch": "Для этой ветки пока нет пул-реквеста.",
+    "creatingPullRequest": "Создание…",
+    "failedToLoadPullRequest": "Не удалось загрузить пул-реквест",
+    "noCommitsInPullRequest": "В этом пул-реквесте нет коммитов",
+    "prStatus": {
+      "open": "Открыт",
+      "merged": "Объединён",
+      "closed": "Закрыт",
+      "draft": "Черновик"
+    },
+    "sendingNow": "отправляется…",
+    "issues": "Задачи",
+    "noIssues": "Задач нет",
+    "openIssues": "Открытые",
+    "closedIssues": "Закрытые",
+    "issueComments": "{{count}} комментарий",
+    "issueComments_one": "1 комментарий",
+    "issueComments_other": "{{count}} комментариев",
+    "tokens": "Токены",
     "accounts": "Аккаунты",
     "enabled": "Включено",
     "disabled": "Отключено",
@@ -794,6 +846,7 @@
     "searchModeCycle": "Режим поиска: {{mode}}. Нажмите, чтобы переключать режимы."
   },
   "placeholders": {
+    "noResults": "Результатов нет",
     "loading": "Загрузка...",
     "selectToViewConfig": "Выберите {{type}} для просмотра или настройки",
     "selectToViewConfigSubtitle": "Выберите элемент из списка слева",
@@ -1096,6 +1149,9 @@
     "sendStyleEdits": "Отправить",
     "addToChat": "Добавить в чат",
     "browserCore": {
+      "embeddedFallbackTitle": "Этот сайт может не работать во встроенном браузере",
+      "embeddedFallbackBody": "Некоторые сайты блокируют отображение во встроенных WebView приложения или загружаются в них некорректно. Если страница остаётся пустой, откройте её в системном браузере.",
+      "currentUrl": "Текущий URL",
       "desktopOnlyTitle": "Браузер доступен только в десктопном приложении",
       "desktopOnlyBody": "Встроенный браузер доступен только в настольном приложении Tauri.",
       "debugWebviewAvailable": "WebView доступен: {{value}}",
@@ -1126,6 +1182,63 @@
     "gitSyncMenuTitle": "Действия Git sync"
   },
   "git": {
+    "pr": {
+      "title": "Пул-реквест",
+      "baseBranch": "базовая ветка",
+      "noDescription": "Описание отсутствует.",
+      "loadingConversation": "Загрузка…",
+      "reviewNoBody": "Оставлены комментарии к проверке.",
+      "commentPlaceholder": "Оставьте комментарий…",
+      "comment": "Комментировать",
+      "approve": "Одобрить",
+      "requestChanges": "Запросить изменения",
+      "reply": "Ответить",
+      "replyPlaceholder": "Ответить…",
+      "reviewThreads": "Комментарии к проверке",
+      "tabs": {
+        "conversation": "Обсуждение",
+        "commits": "Коммиты",
+        "checks": "Проверки",
+        "changes": "Изменения"
+      },
+      "checks": {
+        "none": "Проверки не найдены",
+        "noneHint": "Для последнего коммита этого пул-реквеста не запускались проверки CI или проверки статуса.",
+        "allPassed": "Все проверки пройдены",
+        "someFailed": "Некоторые проверки завершились с ошибкой",
+        "pending": "Проверки выполняются"
+      },
+      "commits": {
+        "backToList": "Все коммиты",
+        "none": "Коммитов нет"
+      },
+      "changes": {
+        "title": "Изменённые файлы",
+        "noFiles": "Изменений файлов нет",
+        "tooLarge": "Файл слишком велик для сравнения",
+        "unavailable": "Изменения недоступны",
+        "unavailableHint": "Не удалось определить базовый и последний коммиты пул-реквеста."
+      },
+      "creating": "Создание пул-реквеста…",
+      "createError": "Не удалось создать пул-реквест",
+      "readyHint": "Ветка отправлена и готова к созданию пул-реквеста",
+      "neutralHint": "Отправьте ветку, чтобы создать пул-реквест",
+      "noBranch": "Ветка не выбрана",
+      "noRepoPath": "Путь к репозиторию недоступен",
+      "notAuthenticated": "Войдите, чтобы создавать пул-реквесты",
+      "noOriginRemote": "Удалённый репозиторий origin не настроен",
+      "cannotParseRepoName": "Не удалось определить имя репозитория по адресу origin",
+      "status": {
+        "open": "Открыт",
+        "merged": "Объединён",
+        "closed": "Закрыт",
+        "draft": "Черновик"
+      },
+      "authRequired": {
+        "title": "Подключите GitHub",
+        "description": "Перейдите в Настройки → Интеграции → Git и подключите аккаунт GitHub."
+      }
+    },
     "loading": "Загрузка статуса Git...",
     "resolved": "Предложения Git выполнены",
     "noRepoSelected": "Репо не выбран",
@@ -1203,6 +1316,28 @@
       "shaCopied": "SHA скопирован в буфер обмена"
     },
     "issues": {
+      "title": "Задачи",
+      "loading": "Загрузка задач…",
+      "empty": "Нет задач со статусом «{{state}}»",
+      "failedToLoad": "Не удалось загрузить задачи",
+      "failedToCreate": "Не удалось создать задачу",
+      "failedToUpdate": "Не удалось обновить задачу",
+      "failedToComment": "Не удалось добавить комментарий",
+      "filterAll": "Все",
+      "filterOpen": "Открытые",
+      "filterClosed": "Закрытые",
+      "noGitHubRepo": "Подключите репозиторий GitHub для управления задачами",
+      "commentPlaceholder": "Оставьте комментарий…",
+      "submitComment": "Комментировать",
+      "newIssueTitlePlaceholder": "Название задачи",
+      "newIssueBodyPlaceholder": "Опишите задачу (необязательно)…",
+      "authRequired": {
+        "title": "Подключите GitHub",
+        "description": "Перейдите в Настройки → Интеграции → Git и подключите аккаунт GitHub."
+      },
+      "reAuthRequired": "Требуется повторная авторизация GitHub",
+      "reAuthDescription": "Срок действия токена GitHub истёк. Перейдите в Настройки → Интеграции → Git и подключитесь повторно.",
+      "goToSettings": "Перейти в настройки",
       "updated": "Последнее обновление",
       "notUpdated": "не обновлялось",
       "assignedTo": "Назначено: {{assignees}}",
@@ -1254,6 +1389,7 @@
       "addEntry": "Больше вариантов импорта",
       "addRepoDescription": "Открыть, создать или клонировать workspace",
       "sections": {
+        "recent": "Недавние",
         "coding": "Workspace",
         "nonCoding": "Workspace",
         "pinned": "Закреплено",
@@ -1789,6 +1925,13 @@
     "teamUsage": "Использование команды"
   },
   "otherUsage": {
+    "cost": "Стоимость",
+    "estimatedCost": "Оценочная стоимость",
+    "estimated": "ОЦЕНКА",
+    "estimatedTooltip": "Оценочная стоимость — токены × цена по прайс-листу (для этого источника фактические расходы не учитываются)",
+    "totalEstimatedCost": "Оценочная стоимость",
+    "viewCost": "Стоимость",
+    "viewTokens": "Токены",
     "title": "Другое использование",
     "noData": "Нет данных об использовании AI",
     "sessions": "Сессии",
@@ -1927,6 +2070,14 @@
     "listed": "Список"
   },
   "sourceControl": {
+    "scope": {
+      "local": "Локально",
+      "main": "Основная рабочая копия",
+      "worktrees": "Рабочие деревья",
+      "searchPlaceholder": "Фильтр рабочих деревьев…",
+      "switchScope": "Переключить область управления версиями",
+      "switchScopeActive": "Переключить область управления версиями: {{repo}}, {{branch}}"
+    },
     "notGitInitialized": "Git не инициализирован",
     "notGitInitializedSubtitle": "Инициализируйте Git, чтобы отслеживать изменения, создавать коммиты и использовать инструменты веток в этом Workspace.",
     "initializeGit": "Инициализировать Git",
@@ -1958,6 +2109,25 @@
     }
   },
   "contextInfo": {
+    "cacheSaved": "Сохранено в кэше: чтение — {{read}}, запись — {{write}}",
+    "remaining": "Свободно: осталось {{tokens}}",
+    "cacheHero": "{{pct}}% получено из кэша · ~{{tokens}} повторно использовано в этом ходе",
+    "cacheHeroSub": "Кэширование промптов может снизить стоимость до 90%",
+    "headroom": "Осталось места: {{tokens}}",
+    "manualCompactSectionTitle": "Ручное сжатие",
+    "miniCpmCompactTitle": "Фоновое автосжатие MiniCPM",
+    "miniCpmCompactDescription": "Асинхронно обрабатывает более ранний контекст",
+    "miniCpmCompactToggleAria": "Включить фоновое автосжатие MiniCPM",
+    "miniCpmCompactDisabled": "Фоновое сжатие отключено",
+    "miniCpmCompactEnabled": "Фоновое сжатие включено",
+    "miniCpmCompactRunning": "MiniCPM сжимает контекст",
+    "miniCpmCompactComplete": "Сжатие завершено",
+    "miniCpmCompactBusy": "Текущая сессия занята",
+    "miniCpmCompactUnavailable": "MiniCPM недоступна",
+    "miniCpmCompactError": "Не удалось выполнить сжатие MiniCPM",
+    "miniCpmCompactMetrics": "{{covered}} сообщений · {{source}} → {{summary}} токенов",
+    "miniCpmCompactAction": "Сжать сейчас",
+    "miniCpmCompactRunningAction": "Сжатие",
     "contextUsed": "контекст использован",
     "estimatedFromRules": "оценка по правилам",
     "activeRules": "Активные правила",
@@ -2034,6 +2204,7 @@
     "parentFolderPlaceholder": "Выбрать Parent folder"
   },
   "workspaceForm": {
+    "statusMaxRepos": "Выбрано максимально допустимое число репозиториев: 5",
     "title": "Создать мульти-Repo Workspace",
     "editTitle": "Редактировать Workspace",
     "createWorkspace": "Создать мульти-Repo Workspace",
@@ -2265,11 +2436,31 @@
     "previewAlt": "Предпросмотр"
   },
   "update": {
+    "available": "Доступно обновление",
+    "versionReady": "Версия {{version}} готова к загрузке.",
+    "upToDateVersion": "Установлена последняя версия ORGII (v{{version}}).",
+    "upToDate": "Установлена последняя версия ORGII.",
+    "checkFailed": "Не удалось проверить обновления",
+    "checking": "Проверка обновлений…",
+    "downloadingEllipsis": "Загрузка обновления…",
+    "downloadingWithSize": "Загрузка обновления ({{size}})…",
+    "downloadingDownloaded": "Загрузка обновления… {{downloaded}}",
+    "downloadingPercent": "Загрузка обновления… {{percent}} %",
+    "installingEllipsis": "Установка обновления…",
+    "installed": "Обновление установлено",
+    "installFailed": "Не удалось установить обновление",
+    "downloadTimedOut": "Время ожидания загрузки истекло. Проверьте сеть или прокси-сервер и повторите попытку.",
+    "restarting": "Перезапуск ORGII для завершения обновления.",
+    "preparingVersion": "Подготовка к загрузке v{{version}}…",
     "downloading": "Загрузка обновления",
     "installing": "Установка обновления",
     "progressPercent": "{{percent}} %",
     "downloadedOfTotal": "{{downloaded}} из {{total}}",
     "preparingDownload": "Подготовка загрузки…",
     "downloadingAndInstalling": "Загрузка и установка обновления (v{{version}})…"
+  },
+  "codeViewer": {
+    "original": "Исходный",
+    "modified": "Изменённый"
   }
 }

@@ -1,4 +1,9 @@
 {
+  "canvasApp": {
+    "empty": "Холст пока не отображён",
+    "sidebarTitle": "Холсты",
+    "noCanvases": "Холстов пока нет"
+  },
   "toolUsage": {
     "estimatedContext": "{{tokenCount}} Token контекста",
     "followup": "{{tokenCount}} Token follow-up",
@@ -89,6 +94,8 @@
       "dataSource": "Источники данных"
     },
     "dataSource": {
+      "rescanUpdate": "Обновить",
+      "rescanClear": "Очистить и пересканировать",
       "title": "Источники данных",
       "description": "Внешние инструменты для кодинга, которые обнаруживает ORGII. Импортируемые приложения показывают число сессий и могут быть пересканированы; остальные показывают статус установки и расположение истории.",
       "rescanAll": "Пересканировать все",
@@ -191,6 +198,8 @@
       "cancelled": "Неудачно"
     },
     "sidebar": {
+      "githubIssues": "Задачи GitHub",
+      "githubPrs": "Пул-реквесты GitHub",
       "agentTypes": "Типы Agent",
       "manageItems": "Управление элементами",
       "sessionsView": "Sessions View",
@@ -332,6 +341,16 @@
       "tasksWillAppear": "Задачи появятся здесь, когда над этой сессией начнётся работа"
     },
     "replay": {
+      "filters": {
+        "tooltip": "Фильтр событий",
+        "allEvents": "Все события",
+        "keyInteractions": "Ключевые взаимодействия",
+        "fileChanges": "Изменения файлов",
+        "terminalEvents": "События терминала",
+        "explore": "Обзор",
+        "other": "Другое",
+        "selectedCount": "Выбрано фильтров: {{count}}"
+      },
       "following": "Слежение",
       "freeBrowsing": "Свободный просмотр",
       "replaying": "Воспроизведение",
@@ -439,6 +458,16 @@
         "emptyForFilter": "Diff пока нет",
         "emptyDetail": "Выберите изменение, чтобы посмотреть Diff.",
         "submissions": {
+          "labels": {
+            "created": {
+              "commit": "Создан коммит",
+              "pullRequest": "Создан пул-реквест"
+            },
+            "mentioned": {
+              "commit": "Упомянут коммит",
+              "pullRequest": "Упомянут пул-реквест"
+            }
+          },
           "tabLabel": "Отправки",
           "commits": "Commits",
           "pr": "PR",
@@ -707,6 +736,10 @@
     "loading": "Загрузка редактора..."
   },
   "input": {
+    "pr": {
+      "open": "Открыть пул-реквест",
+      "creating": "Создание пул-реквеста…"
+    },
     "editPlaceholder": "Редактировать сообщение...",
     "defaultPlaceholder": "Чат с Agent",
     "finishNextStep": "Готово. Следующий шаг!",
@@ -732,6 +765,7 @@
     "selectedOf": "Выбрано {{selected}} из {{total}}"
   },
   "chat": {
+    "restoreCheckpoint": "Восстановить контрольную точку",
     "planApprovedLabel": "Выполняется утверждённый план",
     "planApprovedEditedLabel": "Выполняется утверждённый план (изменён)",
     "sessionStarted": "Session запущена",
@@ -1955,6 +1989,7 @@
     "branchesTouched": "Ветки"
   },
   "modelPill": {
+    "appliesNextTurn": "Аккаунт переключён. Текущий ответ по-прежнему выполняется с предыдущим аккаунтом; новый аккаунт будет использоваться со следующего хода.",
     "immutableInSession": "Источник ключа, тип Agent и тарифный уровень фиксируются при запуске сессии. Чтобы изменить их, начните новую сессию."
   },
   "creator": {
@@ -2616,6 +2651,7 @@
       "title": "Просмотр деталей задачи"
     },
     "list": {
+      "countLabel": "Задачи",
       "title": "Просмотр списка задач",
       "count": "{{taskCount}} задач",
       "empty": "Нет задач"
@@ -2657,6 +2693,9 @@
     }
   },
   "cards": {
+    "session": {
+      "open": "Открыть сессию"
+    },
     "openFile": "Открыть в редакторе",
     "openLink": "Открыть ссылку",
     "broadcast": "→ Все агенты",
@@ -2734,6 +2773,9 @@
     "iframeTitle": "Предпросмотр кода"
   },
   "canvasCard": {
+    "reactDisabledTitle": "Предпросмотр React запускается в симуляторе",
+    "reactDisabledDescription": "JavaScript агента не выполняется внутри чата. Откройте предпросмотр в симуляторе, чтобы запустить React в песочнице.",
+    "viewInSimulator": "Открыть в симуляторе",
     "titleHtml": "Предпросмотр Agent",
     "titleUrl": "Предпросмотр Agent",
     "titleA2ui": "Предпросмотр Agent",

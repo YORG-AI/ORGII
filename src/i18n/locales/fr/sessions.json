@@ -1,4 +1,9 @@
 {
+  "canvasApp": {
+    "empty": "Aucun canevas affiché pour le moment",
+    "sidebarTitle": "Canevas",
+    "noCanvases": "Aucun canevas pour le moment"
+  },
   "toolUsage": {
     "estimatedContext": "{{tokenCount}} Token context",
     "followup": "{{tokenCount}} Token follow-up",
@@ -89,6 +94,8 @@
       "dataSource": "Sources de données"
     },
     "dataSource": {
+      "rescanUpdate": "Mise à jour",
+      "rescanClear": "Effacer + réanalyser",
       "title": "Sources de données",
       "description": "Outils de codage externes détectés par ORGII. Les applications importables affichent leur nombre de sessions et peuvent être réanalysées ; les autres affichent l'état d'installation et l'emplacement de leur historique.",
       "rescanAll": "Tout réanalyser",
@@ -189,6 +196,8 @@
       "cancelled": "Échoué"
     },
     "sidebar": {
+      "githubIssues": "Problèmes GitHub",
+      "githubPrs": "PR GitHub",
       "agentTypes": "Types d’Agent",
       "manageItems": "Gérer les éléments",
       "sessionsView": "Vue Sessions",
@@ -330,6 +339,16 @@
       "tasksWillAppear": "Les tâches apparaîtront ici lorsque le travail commencera sur cette session"
     },
     "replay": {
+      "filters": {
+        "tooltip": "Filtrer les événements",
+        "allEvents": "Tous les événements",
+        "keyInteractions": "Interactions clés",
+        "fileChanges": "Modifications de fichiers",
+        "terminalEvents": "Événements terminaux",
+        "explore": "Explorer",
+        "other": "Autre",
+        "selectedCount": "Filtres {{count}}"
+      },
       "following": "En cours",
       "freeBrowsing": "Navigation libre",
       "replaying": "Lecture",
@@ -435,6 +454,16 @@
         "emptyForFilter": "Aucun Diff pour le moment",
         "emptyDetail": "Sélectionnez une modification pour voir le Diff.",
         "submissions": {
+          "labels": {
+            "created": {
+              "commit": "Commit créé",
+              "pullRequest": "Pull request créée"
+            },
+            "mentioned": {
+              "commit": "Commit mentionné",
+              "pullRequest": "Pull request mentionnée"
+            }
+          },
           "tabLabel": "Soumissions",
           "commits": "Commits",
           "pr": "PR",
@@ -703,6 +732,10 @@
     "loading": "Chargement de l'éditeur..."
   },
   "input": {
+    "pr": {
+      "open": "Ouvrir la pull request",
+      "creating": "Création de la pull request…"
+    },
     "editPlaceholder": "Modifier votre message...",
     "defaultPlaceholder": "Discuter avec l'Agent",
     "finishNextStep": "Terminer. Étape suivante !",
@@ -728,6 +761,7 @@
     "selectedOf": "{{selected}} sur {{total}} sélectionnés"
   },
   "chat": {
+    "restoreCheckpoint": "Restaurer le point de contrôle",
     "planApprovedLabel": "Exécution du plan approuvé",
     "planApprovedEditedLabel": "Exécution du plan approuvé (modifié)",
     "sessionStarted": "Session démarrée",
@@ -1920,6 +1954,7 @@
     "branchesTouched": "Branches"
   },
   "modelPill": {
+    "appliesNextTurn": "Compte changé. La réponse actuelle s'exécute toujours sur le compte précédent ; le nouveau compte prend effet au tour suivant.",
     "immutableInSession": "La source de clé, le type d'Agent et le palier tarifaire sont fixés au démarrage de la session. Démarrez une nouvelle session pour les modifier."
   },
   "creator": {
@@ -2580,6 +2615,7 @@
       "title": "Voir les détails de la tâche"
     },
     "list": {
+      "countLabel": "Tâches",
       "title": "Voir la liste des tâches",
       "count": "{{taskCount}} tâches",
       "empty": "Aucune tâche"
@@ -2621,6 +2657,9 @@
     }
   },
   "cards": {
+    "session": {
+      "open": "Ouvrir la session"
+    },
     "openFile": "Ouvrir dans l'éditeur",
     "openLink": "Ouvrir le lien",
     "broadcast": "→ Tous les agents",
@@ -2698,6 +2737,9 @@
     "iframeTitle": "Aperçu du code"
   },
   "canvasCard": {
+    "reactDisabledTitle": "L'aperçu de React s'exécute dans le simulateur",
+    "reactDisabledDescription": "L'agent JavaScript n'est pas exécuté dans le chat. Ouvrez-le dans Simulator pour exécuter l’aperçu React en bac à sable.",
+    "viewInSimulator": "Afficher dans le simulateur",
     "titleHtml": "Aperçu Agent",
     "titleUrl": "Aperçu Agent",
     "titleA2ui": "Aperçu Agent",

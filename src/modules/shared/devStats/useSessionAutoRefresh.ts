@@ -14,9 +14,10 @@
  * - Auto-refreshes every `intervalMs` (default 3 min) in the background.
  * - Manual refresh (via `triggerRefresh`) bypasses the interval timer.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Message } from "@src/components/Message";
+import { useVisiblePolling } from "@src/hooks/async";
 
 const DEFAULT_INTERVAL_MS = 3 * 60 * 1000;
 
@@ -116,9 +117,6 @@ export function useSessionAutoRefresh<T>({
     () => readPersisted<T>(cacheKey)?.data ?? null
   );
   const [error, setError] = useState<string | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(
-    undefined
-  );
 
   // Re-hydrate local state from the persisted cache when `cacheKey` switches
   // (e.g. the user picked a different date range and an entry already exists
@@ -161,52 +159,32 @@ export function useSessionAutoRefresh<T>({
     };
   }, [effectKey, fetcher, cacheKey]);
 
-  const backgroundFetch = useCallback(() => {
-    fetcher()
-      .then((result) => {
+  const backgroundFetch = useCallback(
+    async (signal?: AbortSignal) => {
+      try {
+        const result = await fetcher();
+        if (signal?.aborted) return;
         const count = countFromData(result);
         writePersisted(cacheKey, result);
         setData(result);
         setError(null);
         const { title, description } = formatSuccess(label, count);
         Message.success({ title, content: description });
-      })
-      .catch(() => {
+      } catch {
+        if (signal?.aborted) return;
         const { title, description } = formatError(label);
         Message.error({ title, content: description });
-      });
-  }, [fetcher, countFromData, label, formatSuccess, formatError, cacheKey]);
-
-  useEffect(() => {
-    const stopInterval = () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = undefined;
       }
-    };
+    },
+    [fetcher, countFromData, label, formatSuccess, formatError, cacheKey]
+  );
 
-    const startInterval = () => {
-      if (document.visibilityState !== "visible" || intervalRef.current) return;
-      intervalRef.current = setInterval(backgroundFetch, intervalMs);
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        backgroundFetch();
-        startInterval();
-      } else {
-        stopInterval();
-      }
-    };
-
-    startInterval();
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      stopInterval();
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [backgroundFetch, intervalMs]);
+  useVisiblePolling({
+    enabled: true,
+    intervalMs,
+    poll: backgroundFetch,
+    immediate: false,
+  });
 
   return { data, error, isInitialLoad, triggerRefresh: backgroundFetch };
 }

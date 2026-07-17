@@ -19,7 +19,6 @@ export interface UseWebviewCommandsParams {
   userAgent: string;
   incognito: boolean;
   isDestroyedRef: MutableRefObject<boolean>;
-  pollIntervalRef: MutableRefObject<ReturnType<typeof setInterval> | null>;
   newWindowListenerRef: MutableRefObject<UnlistenFn | null>;
   lastPolledUrlRef: MutableRefObject<string>;
   getContainerRect: () => DOMRect | null;
@@ -56,7 +55,6 @@ export function useWebviewCommands(
     userAgent,
     incognito,
     isDestroyedRef,
-    pollIntervalRef,
     newWindowListenerRef,
     lastPolledUrlRef,
     getContainerRect,
@@ -288,11 +286,6 @@ export function useWebviewCommands(
     if (!hasIncrementedRefCount.current && generation === 0) return;
     hasIncrementedRefCount.current = false;
 
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
-    }
-
     if (newWindowListenerRef.current) {
       safeUnlisten(newWindowListenerRef.current);
       newWindowListenerRef.current = null;
@@ -331,7 +324,6 @@ export function useWebviewCommands(
     log,
     onDestroyed,
     safeUnlisten,
-    pollIntervalRef,
     newWindowListenerRef,
     labelRef,
     isDestroyedRef,

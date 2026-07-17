@@ -11,6 +11,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useVisiblePolling } from "@src/hooks/async";
 import { createLogger } from "@src/hooks/logger";
 import {
   DEBOUNCE_DELAYS,
@@ -281,46 +282,23 @@ export function useWebviewDOMTree(
     };
   }, [enabled, webviewLabel, maxDepth]);
 
-  // Smart dirty-check polling.
-  //
-  // Rather than unconditionally refetching the whole tree every tick, we
-  // poll a cheap boolean command that returns `true` only when
-  // MutationObserver in the webview recorded structural changes since the
-  // last read. On an idle page, this costs one eval per tick; the
-  // expensive walk + JSON.stringify only runs when the DOM actually
-  // changed.
-  //
-  // If a refresh is already in-flight (initial fetch, navigation debounce,
-  // user click), the tick skips — `refresh` itself also guards via
-  // `inFlightRef`, this is just an extra short-circuit to avoid noise.
-  useEffect(() => {
-    if (!enabled || !webviewLabel || pollInterval <= 0) return;
+  const checkForDomChanges = useCallback(async () => {
+    if (inFlightRef.current) return;
+    try {
+      const dirty = await invoke<boolean>("check_webview_dom_dirty", {
+        label: webviewLabel,
+      });
+      if (dirty) await refresh();
+    } catch {
+      // The webview may have been torn down between scheduling and invocation.
+    }
+  }, [refresh, webviewLabel]);
 
-    let cancelled = false;
-
-    const tick = async () => {
-      if (cancelled) return;
-      if (inFlightRef.current) return;
-      try {
-        const dirty = await invoke<boolean>("check_webview_dom_dirty", {
-          label: webviewLabel,
-        });
-        if (cancelled) return;
-        if (dirty) {
-          await refresh();
-        }
-      } catch {
-        // Swallow — the webview may have been torn down between the
-        // interval scheduling and the actual call. Next tick will retry.
-      }
-    };
-
-    const interval = setInterval(tick, pollInterval);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [enabled, webviewLabel, pollInterval, refresh]);
+  useVisiblePolling({
+    enabled: enabled && !!webviewLabel && pollInterval > 0,
+    intervalMs: pollInterval,
+    poll: checkForDomChanges,
+  });
 
   // Toggle expanded state
   const toggleExpanded = useCallback((xpath: string) => {

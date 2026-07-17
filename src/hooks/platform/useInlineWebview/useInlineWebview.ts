@@ -50,7 +50,6 @@ export function useInlineWebview(
     useExactLabel ? labelPrefix : `${labelPrefix}-${uuidv4()}`
   );
   const isDestroyedRef = useRef(false);
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastPolledUrlRef = useRef<string>("");
   const lastRequestedUrlRef = useRef<string>("");
   const newWindowListenerRef = useRef<UnlistenFn | null>(null);
@@ -88,7 +87,6 @@ export function useInlineWebview(
     labelRef,
     isDestroyedRef,
     isUnmountedRef,
-    pollIntervalRef,
     lastPolledUrlRef,
     setCurrentUrl,
     onNavigate,
@@ -104,7 +102,6 @@ export function useInlineWebview(
       userAgent,
       incognito,
       isDestroyedRef,
-      pollIntervalRef,
       newWindowListenerRef,
       lastPolledUrlRef,
       getContainerRect,

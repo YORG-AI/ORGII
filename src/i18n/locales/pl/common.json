@@ -203,7 +203,14 @@
     "openWorkspace": "Otwórz Workspace",
     "skipThisVersion": "Pomiń tę wersję",
     "later": "Później",
-    "link": "Połącz"
+    "link": "Połącz",
+    "openOnGitHub": "Otwórz na GitHubie",
+    "createPullRequest": "Utwórz pull request",
+    "newIssue": "Nowe zgłoszenie",
+    "closeIssue": "Zamknij zgłoszenie",
+    "reopenIssue": "Otwórz zgłoszenie ponownie",
+    "addComment": "Dodaj komentarz",
+    "editIssue": "Edytuj zgłoszenie"
   },
   "refreshToast": {
     "successName": "Odświeżono: {{name}}",
@@ -438,7 +445,26 @@
     "appliedCommits": "Applied commits",
     "noAppliedCommit": "No linked commit yet",
     "noSessionsForFile": "No sessions found for this file",
-    "committedRate": "Scommitowane"
+    "committedRate": "Scommitowane",
+    "noPullRequestForBranch": "Dla tej gałęzi nie ma jeszcze pull requesta.",
+    "creatingPullRequest": "Tworzenie…",
+    "failedToLoadPullRequest": "Nie udało się załadować pull requesta",
+    "noCommitsInPullRequest": "Brak commitów w tym pull requeście",
+    "prStatus": {
+      "open": "Otwarty",
+      "merged": "Scalony",
+      "closed": "Zamknięty",
+      "draft": "Wersja robocza"
+    },
+    "sendingNow": "wysyłanie teraz…",
+    "issues": "Zgłoszenia",
+    "noIssues": "Brak zgłoszeń",
+    "openIssues": "Otwarte",
+    "closedIssues": "Zamknięte",
+    "issueComments": "{{count}} komentarz",
+    "issueComments_one": "1 komentarz",
+    "issueComments_other": "{{count}} komentarzy",
+    "tokens": "Tokeny"
   },
   "searchModes": {
     "keywordLabel": "Słowo kluczowe",
@@ -795,6 +821,7 @@
   },
   "placeholders": {
     "loading": "Ładowanie...",
+    "noResults": "Brak wyników",
     "selectToViewConfig": "Wybierz {{type}}, aby wyświetlić lub skonfigurować",
     "selectToViewConfigSubtitle": "Wybierz element z listy po lewej",
     "noOptions": "Brak opcji",
@@ -1117,7 +1144,10 @@
       "tryHeading": "Spróbuj:",
       "tryCheckConnection": "Sprawdzić połączenie internetowe",
       "tryVerifyUrl": "Zweryfikować poprawność URL",
-      "tryAgainLater": "Spróbować ponownie później"
+      "tryAgainLater": "Spróbować ponownie później",
+      "embeddedFallbackTitle": "Ta witryna może nie działać we wbudowanej przeglądarce",
+      "embeddedFallbackBody": "Niektóre witryny blokują wyświetlanie w widokach WebView aplikacji lub nie renderują się w nich poprawnie. Jeśli strona pozostaje pusta, otwórz ją w przeglądarce systemowej.",
+      "currentUrl": "Bieżący URL"
     },
     "selectRepoFromHome": "Wybierz Repo ze strony głównej",
     "cloneRepoAgain": "Sklonuj Repo ponownie ze strony głównej",
@@ -1202,6 +1232,63 @@
       "copySha": "Kopiuj SHA",
       "shaCopied": "SHA skopiowano do schowka"
     },
+    "pr": {
+      "title": "Pull request",
+      "baseBranch": "gałąź bazowa",
+      "noDescription": "Nie podano opisu.",
+      "loadingConversation": "Ładowanie…",
+      "reviewNoBody": "Dodano komentarze do przeglądu.",
+      "commentPlaceholder": "Dodaj komentarz…",
+      "comment": "Skomentuj",
+      "approve": "Zatwierdź",
+      "requestChanges": "Poproś o zmiany",
+      "reply": "Odpowiedz",
+      "replyPlaceholder": "Odpowiedz…",
+      "reviewThreads": "Komentarze z przeglądu",
+      "tabs": {
+        "conversation": "Dyskusja",
+        "commits": "Commity",
+        "checks": "Kontrole",
+        "changes": "Zmiany"
+      },
+      "checks": {
+        "none": "Brak zgłoszonych kontroli",
+        "noneHint": "Dla commita HEAD tego pull requesta nie uruchomiono kontroli CI ani statusów.",
+        "allPassed": "Wszystkie kontrole zakończone pomyślnie",
+        "someFailed": "Niektóre kontrole zakończyły się niepowodzeniem",
+        "pending": "Kontrole w toku"
+      },
+      "commits": {
+        "backToList": "Wszystkie commity",
+        "none": "Brak commitów"
+      },
+      "changes": {
+        "title": "Zmienione pliki",
+        "noFiles": "Brak zmian w plikach",
+        "tooLarge": "Plik jest zbyt duży, aby wyświetlić diff",
+        "unavailable": "Zmiany niedostępne",
+        "unavailableHint": "Nie udało się ustalić commitów bazowego i końcowego pull requesta."
+      },
+      "creating": "Tworzenie pull requesta…",
+      "createError": "Nie udało się utworzyć pull requesta",
+      "readyHint": "Gałąź została wypchnięta i jest gotowa do utworzenia pull requesta",
+      "neutralHint": "Wypchnij gałąź, aby utworzyć pull request",
+      "noBranch": "Nie wybrano gałęzi",
+      "noRepoPath": "Ścieżka repozytorium jest niedostępna",
+      "notAuthenticated": "Zaloguj się, aby tworzyć pull requesty",
+      "noOriginRemote": "Nie skonfigurowano zdalnego repozytorium origin",
+      "cannotParseRepoName": "Nie udało się odczytać nazwy repozytorium ze zdalnego origin",
+      "status": {
+        "open": "Otwarty",
+        "merged": "Scalony",
+        "closed": "Zamknięty",
+        "draft": "Wersja robocza"
+      },
+      "authRequired": {
+        "title": "Połącz z GitHubem",
+        "description": "Przejdź do Ustawienia → Integracje → Git, aby połączyć konto GitHub."
+      }
+    },
     "issues": {
       "updated": "Ostatnia aktualizacja",
       "notUpdated": "niezaktualizowane",
@@ -1213,7 +1300,29 @@
         "closed": "Zamknięte",
         "completed": "Ukończone",
         "notPlanned": "Nieplanowane"
-      }
+      },
+      "title": "Zgłoszenia",
+      "loading": "Ładowanie zgłoszeń…",
+      "empty": "Brak zgłoszeń: {{state}}",
+      "failedToLoad": "Nie udało się załadować zgłoszeń",
+      "failedToCreate": "Nie udało się utworzyć zgłoszenia",
+      "failedToUpdate": "Nie udało się zaktualizować zgłoszenia",
+      "failedToComment": "Nie udało się dodać komentarza",
+      "filterAll": "Wszystkie",
+      "filterOpen": "Otwarte",
+      "filterClosed": "Zamknięte",
+      "noGitHubRepo": "Połącz repozytorium GitHub, aby zarządzać zgłoszeniami",
+      "commentPlaceholder": "Dodaj komentarz…",
+      "submitComment": "Skomentuj",
+      "newIssueTitlePlaceholder": "Tytuł zgłoszenia",
+      "newIssueBodyPlaceholder": "Opisz zgłoszenie (opcjonalnie)…",
+      "authRequired": {
+        "title": "Połącz z GitHubem",
+        "description": "Przejdź do Ustawienia → Integracje → Git, aby połączyć konto GitHub."
+      },
+      "reAuthRequired": "Wymagana autoryzacja GitHub",
+      "reAuthDescription": "Token GitHub wygasł. Przejdź do Ustawienia → Integracje → Git, aby ponownie nawiązać połączenie.",
+      "goToSettings": "Przejdź do ustawień"
     }
   },
   "selectors": {
@@ -1261,7 +1370,8 @@
         "repo": "Repozytoria",
         "systemPaths": "Ścieżki systemowe",
         "usedElsewhere": "Używane gdzie indziej",
-        "workspace": "Workspace"
+        "workspace": "Workspace",
+        "recent": "Ostatnie"
       },
       "tabs": {
         "repositories": "Repozytoria",
@@ -1800,6 +1910,13 @@
     "linesByModel": "Linie według modelu",
     "completed": "Ukończone",
     "incomplete": "Nieukończone",
+    "cost": "Koszt",
+    "estimatedCost": "Szac. koszt",
+    "estimated": "SZAC.",
+    "estimatedTooltip": "Szacowany koszt — tokeny × cena katalogowa (dla tego źródła nie są naliczane opłaty według zużycia)",
+    "totalEstimatedCost": "Szac. koszt",
+    "viewCost": "Koszt",
+    "viewTokens": "Tokeny",
     "tabs": {
       "overview": "Przegląd",
       "cursor": "Cursor",
@@ -1955,6 +2072,14 @@
     },
     "sessionFilter": {
       "allSessions": "Wszystkie sesje"
+    },
+    "scope": {
+      "local": "Lokalne",
+      "main": "Główny checkout",
+      "worktrees": "Worktree",
+      "searchPlaceholder": "Filtruj worktree…",
+      "switchScope": "Zmień zakres kontroli źródła",
+      "switchScopeActive": "Zmień zakres kontroli źródła: {{repo}}, {{branch}}"
     }
   },
   "contextInfo": {
@@ -1997,7 +2122,26 @@
     "manualCompactNoRuntime": "Wyślij wiadomość przed kompaktowaniem",
     "manualCompactFailed": "Kompaktowanie nie powiodło się: {{message}}",
     "manualCompactChannelAttached": "Ta sesja jest zarządzana przez kanał — użyj tam /compact",
-    "manualCompactInstructionsPlaceholder": "Opcjonalnie: na czym skupić podsumowanie"
+    "manualCompactInstructionsPlaceholder": "Opcjonalnie: na czym skupić podsumowanie",
+    "cacheSaved": "Oszczędność dzięki pamięci podręcznej: odczyt {{read}}, zapis {{write}}",
+    "remaining": "Wolne: pozostało {{tokens}}",
+    "cacheHero": "{{pct}}% obsłużono z pamięci podręcznej · ~{{tokens}} użyto ponownie w tej turze",
+    "cacheHeroSub": "Buforowanie promptów może obniżyć koszt nawet o 90%",
+    "headroom": "Pozostałe miejsce: {{tokens}}",
+    "manualCompactSectionTitle": "Kompaktowanie ręczne",
+    "miniCpmCompactTitle": "Ciche automatyczne kompaktowanie MiniCPM",
+    "miniCpmCompactDescription": "Przetwarza starszy kontekst asynchronicznie",
+    "miniCpmCompactToggleAria": "Włącz ciche automatyczne kompaktowanie MiniCPM",
+    "miniCpmCompactDisabled": "Ciche kompaktowanie jest wyłączone",
+    "miniCpmCompactEnabled": "Ciche kompaktowanie jest włączone",
+    "miniCpmCompactRunning": "MiniCPM kompaktuje kontekst",
+    "miniCpmCompactComplete": "Kompaktowanie zakończone",
+    "miniCpmCompactBusy": "Bieżąca sesja jest zajęta",
+    "miniCpmCompactUnavailable": "MiniCPM jest niedostępny",
+    "miniCpmCompactError": "Kompaktowanie MiniCPM nie powiodło się",
+    "miniCpmCompactMetrics": "{{covered}} wiadomości · {{source}} → {{summary}} tokenów",
+    "miniCpmCompactAction": "Kompaktuj teraz",
+    "miniCpmCompactRunningAction": "Kompaktowanie"
   },
   "relativeDate": {
     "today": "Dzisiaj",
@@ -2051,7 +2195,8 @@
     "statusReadyToCreate": "Gotowy do utworzenia Workspace",
     "defaultName": "Workspace",
     "defaultNameWithRepo": "Workspace {{repo}}",
-    "windowTitle": "Workspace"
+    "windowTitle": "Workspace",
+    "statusMaxRepos": "Można wybrać maksymalnie 5 repozytoriów"
   },
   "database": {
     "addConnection": "Dodaj połączenie bazy danych",
@@ -2264,12 +2409,58 @@
     "copiedToClipboard": "Obraz skopiowano do schowka",
     "previewAlt": "Podgląd"
   },
+  "sqlEditor": {
+    "placeholder": "Wprowadź zapytanie SQL...",
+    "format": "Formatuj",
+    "runQueryToSeeResults": "Uruchom zapytanie, aby zobaczyć wyniki",
+    "executingQuery": "Wykonywanie zapytania...",
+    "queryFailed": "Zapytanie nie powiodło się",
+    "queryCompleted": "Zapytanie wykonane",
+    "noResults": "Zapytanie nie zwróciło wyników",
+    "rowCount_one": "{{count}} wiersz",
+    "rowCount_other": "{{count}} wierszy",
+    "press": "Naciśnij",
+    "toRun": "aby uruchomić",
+    "nullValue": "NULL",
+    "booleanTrue": "prawda",
+    "booleanFalse": "fałsz"
+  },
+  "uploadZone": {
+    "clickOrDrag": "Kliknij lub przeciągnij plik w to miejsce, aby go przesłać",
+    "supportFormats": "Obsługiwane formaty: {{accept}}"
+  },
+  "chatImage": {
+    "maxReached": "Maksymalna liczba obrazów: {{max}}",
+    "remainingWarning": "Można dodać jeszcze tylko {{remaining}} obrazów (maks. {{max}})",
+    "processFailed": "Nie udało się przetworzyć obrazu",
+    "loadFailed": "Nie udało się załadować obrazu: {{fileName}}"
+  },
   "update": {
+    "available": "Dostępna aktualizacja",
+    "versionReady": "Wersja {{version}} jest gotowa do pobrania.",
+    "upToDateVersion": "ORGII jest aktualne (v{{version}}).",
+    "upToDate": "ORGII jest aktualne.",
+    "checkFailed": "Nie udało się sprawdzić aktualizacji",
+    "checking": "Sprawdzanie aktualizacji…",
     "downloading": "Pobieranie aktualizacji",
+    "downloadingEllipsis": "Pobieranie aktualizacji…",
+    "downloadingWithSize": "Pobieranie aktualizacji ({{size}})…",
+    "downloadingDownloaded": "Pobieranie aktualizacji… {{downloaded}}",
+    "downloadingPercent": "Pobieranie aktualizacji… {{percent}}%",
     "installing": "Instalowanie aktualizacji",
+    "installingEllipsis": "Instalowanie aktualizacji…",
+    "installed": "Aktualizacja zainstalowana",
+    "installFailed": "Nie udało się zainstalować aktualizacji",
+    "downloadTimedOut": "Przekroczono limit czasu pobierania. Sprawdź sieć lub serwer proxy i spróbuj ponownie.",
+    "restarting": "Ponowne uruchamianie ORGII w celu ukończenia aktualizacji.",
+    "preparingVersion": "Przygotowywanie pobierania wersji v{{version}}…",
     "progressPercent": "{{percent}}%",
     "downloadedOfTotal": "{{downloaded}} z {{total}}",
     "preparingDownload": "Przygotowywanie pobierania…",
     "downloadingAndInstalling": "Pobieranie i instalowanie aktualizacji (v{{version}})…"
+  },
+  "codeViewer": {
+    "original": "Oryginał",
+    "modified": "Zmodyfikowany"
   }
 }

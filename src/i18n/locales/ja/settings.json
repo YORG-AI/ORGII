@@ -910,6 +910,15 @@
     "diskCategory_screenshots": "ブラウザスクリーンショット",
     "diskCategory_agentWorktrees": "Agent Session Worktrees",
     "diskCategory_lspBin": "LSP Server バイナリ",
+    "diskCategory_toolResults": "大容量ツール結果",
+    "diskCategory_diagnostics": "診断キュー",
+    "diskCategory_models": "ダウンロード済みモデル",
+    "diskCategory_codeMap": "コードマップインデックス",
+    "diskCategory_semanticIndex": "セマンティック検索インデックス",
+    "diskCategory_cursorCliProfiles": "Cursor CLI プロファイル",
+    "diskCategory_kiroCliProfiles": "Kiro CLI プロファイル",
+    "diskCategory_opencodeCliProfiles": "OpenCode CLI プロファイル",
+    "diskCategory_sidecarBin": "ダウンロード済み Sidecar バイナリ",
     "loadZeroRows": "クリックしてさらに {{count}} 件を読み込む"
   },
   "dependencies": {

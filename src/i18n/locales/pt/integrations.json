@@ -1,10 +1,48 @@
 {
+  "gitProfiles": {
+    "tab": "Perfis do Git",
+    "title": "Perfis do Git",
+    "add": "Adicionar perfil",
+    "refresh": "Atualizar perfis",
+    "refreshed": "Perfil global do Git atualizado",
+    "loading": "Carregando seu perfil global do Git…",
+    "defaultProfile": "Perfil padrão",
+    "newProfile": "Novo perfil",
+    "copyName": "Cópia de {{name}}",
+    "profileName": "Nome do perfil",
+    "authorName": "Nome do autor",
+    "email": "E-mail",
+    "selectEmail": "Selecionar um e-mail",
+    "signingKey": "Chave de assinatura",
+    "signingKeyPlaceholder": "ID da chave de assinatura GPG ou SSH",
+    "signCommits": "Assinar commits",
+    "active": "Ativo",
+    "activate": "Ativar perfil",
+    "activated": "{{name}} agora é o perfil global do Git",
+    "editRaw": "Editar configuração bruta",
+    "hideRaw": "Ocultar configuração bruta",
+    "rawTitle": "Perfil bruto do Git",
+    "rawConfig": "Configuração do Git",
+    "updateFromRaw": "Atualizar perfil pela configuração",
+    "rawUpdated": "Perfil atualizado pela configuração bruta do Git",
+    "rawInvalid": "O perfil bruto do Git é inválido",
+    "nameEmailRequired": "O nome do autor e o e-mail são obrigatórios",
+    "deleteTitle": "Excluir perfil do Git",
+    "deleteMessage": "Excluir o perfil “{{name}}”? Isso não altera sua configuração global atual do Git.",
+    "loadFailed": "Falha ao carregar o perfil global do Git",
+    "applyFailed": "Falha ao ativar o perfil do Git"
+  },
+  "github": {
+    "oauthFailed": "Falha na autorização"
+  },
   "scopeLabels": {
     "user": "User",
     "repoSpecific": "Específico do repo",
     "builtIn": "Integrado"
   },
   "keyVault": {
+    "confirmRemoveActiveSessions_one": "{{count}} sessão ativa ainda usa esta conta e falhará na próxima rodada:",
+    "confirmRemoveActiveSessions_other": "{{count}} sessões ativas ainda usam esta conta e falharão na próxima rodada:",
     "title": "Modelos e CLIs",
     "overview": {
       "helpMyAccounts": "Adicione chaves de API e configure CLI Agents. As chaves são armazenadas localmente e nunca saem da sua máquina.",
@@ -30,10 +68,13 @@
     "confirmDeleteTitle": "Excluir \"{{name}}\"?",
     "confirmDeleteMessage": "Isso excluirá permanentemente este anúncio do marketplace.",
     "toasts": {
+      "refreshedDelta": "Modelos atualizados: +{{added}} adicionados, -{{removed}} removidos",
+      "refreshedNoChange": "Modelos atualizados — nenhuma alteração",
+      "refreshPartial": "Modelos atualizados (+{{added}} / -{{removed}}), mas {{failed}} de {{total}} contas falharam",
       "refreshed": "{{name}} atualizado com sucesso",
       "refreshFailed": "Falha na validação de {{name}} — verifique suas chaves",
       "allRefreshed": "Todas as contas atualizadas",
-      "refreshError": "Falha ao atualizar {{name}}",
+      "refreshError": "Falha ao atualizar {{name}}: {{error}}",
       "localRemoved": "{{name}} removido",
       "unlistPending": "Remoção do anúncio {{name}} solicitada. Será removido quando as sessões ativas terminarem.",
       "listingRemoved": "{{name}} removido do marketplace",
@@ -1012,6 +1053,7 @@
     "allImported": "Todos os MCP servers detectados já foram importados"
   },
   "categories": {
+    "housekeeper": "Assistente MiniCPM",
     "git": "Git",
     "gitDesc": "Controle de versão e hospedagem de Repos",
     "channels": "Agent Channels",
@@ -1264,6 +1306,8 @@
     "smitheryApiKeyDesc": "Chave de API para navegar pelos servidores MCP no Smithery. Obtenha sua chave em smithery.ai/account/api-keys"
   },
   "git": {
+    "autoCreatePr": "Criar pull requests automaticamente",
+    "autoCreatePrDesc": "Criar automaticamente um pull request no Controle de Origem do Workstation quando uma branch de recurso estiver totalmente enviada e limpa",
     "searchPlaceholder": "Buscar provedores Git...",
     "connections": "Conexões Git",
     "noProvidersFound": "Nenhum provedor Git encontrado",
@@ -1567,6 +1611,38 @@
     "deleteConfirmMessage": "Isso removerá o servidor do arquivo de configuração. As sessões ativas serão desconectadas."
   },
   "agentOrgs": {
+    "cliManagedConfig": {
+      "title": "Alternância de configuração da CLI",
+      "modeLabel": "Modo",
+      "modeDesc": "O modo Padrão restaura a configuração própria da CLI. O modo Gerenciado pela ORGII grava uma configuração de proxy com backup.",
+      "modeDefault": "Padrão",
+      "modeOrgii": "Gerenciado pela ORGII",
+      "conflict": "Alteração externa",
+      "conflictTitle": "Conflito",
+      "conflictDesc": "A configuração ativa da CLI foi alterada depois que a ORGII a gravou.",
+      "proxyStatus": "Proxy",
+      "proxyDefault": "Modo padrão",
+      "proxyReady": "Proxy pronto",
+      "proxyNotReady": "Proxy não está pronto",
+      "proxyDesc": "As requisições locais são encaminhadas pelo KeyVault da ORGII.",
+      "keyLabel": "Chave",
+      "keyDesc": "Somente chaves de API compatíveis com esta CLI e com o proxy gerenciado são exibidas.",
+      "selectKey": "Selecionar chave",
+      "modelLabel": "Modelo",
+      "selectModel": "Selecionar modelo",
+      "configFile": "Arquivos de configuração",
+      "actions": "Ações",
+      "addKey": "Adicionar chave",
+      "apply": "Aplicar",
+      "restore": "Restaurar padrão",
+      "forceApply": "Forçar aplicação",
+      "forceRestore": "Forçar restauração",
+      "applySuccess": "Configuração gerenciada pela ORGII aplicada",
+      "restoreSuccess": "Configuração padrão restaurada"
+    },
+    "importPreview": {
+      "status": "Não verificado"
+    },
     "title": "Equipes de agentes",
     "running": "Em execução",
     "activeRules": "ativas",
@@ -2370,6 +2446,7 @@
     }
   },
   "devTools": {
+    "modeSessionLink": "Vínculo da sessão",
     "mode": "Modo",
     "modeUi": "Preview de UI",
     "modeTool": "Ferramentas",
@@ -2546,6 +2623,51 @@
     }
   },
   "housekeeper": {
+    "eyebrow": "Assistente residente MiniCPM",
+    "title": "Assistente residente",
+    "description": "O MiniCPM local cuida do refinamento de prompts, de explicações curtas de etapas e do controle leve da interface. Tarefas de Coding e configurações complexas de ADE continuam usando o modelo principal do Agent.",
+    "autoAccount": "Selecionar automaticamente a conta vLLM do MiniCPM",
+    "tiles": {
+      "model": "Modelo",
+      "endpoint": "Endpoint",
+      "safeContext": "Contexto seguro"
+    },
+    "settings": {
+      "enabled": {
+        "title": "Ativar assistente",
+        "description": "Quando desativado, o refinamento de prompts, as explicações de etapas e o controle leve da interface não usarão o MiniCPM."
+      },
+      "account": {
+        "title": "Conta vLLM do MiniCPM",
+        "description": "Reutiliza uma conta vllm_api existente do KeyVault; nenhum armazenamento separado de credenciais é criado."
+      },
+      "model": {
+        "title": "ID do modelo",
+        "description": "O MiniCPM5-1B no Docker vLLM usa openbmb/MiniCPM5-1B por padrão."
+      },
+      "context": {
+        "title": "Orçamento de contexto seguro",
+        "description": "Use um orçamento conservador de 10000 tokens em GPUs de 4 GB em vez de confiar no limite teórico de 32 mil."
+      }
+    },
+    "features": {
+      "promptPolish": {
+        "title": "Refinamento de prompts",
+        "description": "Refine manualmente a entrada antes de enviá-la ao modelo de Coding mais avançado."
+      },
+      "stepExplain": {
+        "title": "Explicações das etapas do Agent",
+        "description": "Gere uma ou duas explicações curtas em chinês para as etapas de replay da sessão."
+      },
+      "uiControl": {
+        "title": "Controle leve de ADE/interface",
+        "description": "O MiniCPM só pode classificar requisições em uma lista local estrita de ações permitidas."
+      },
+      "contextCompact": {
+        "title": "Manutenção automática do contexto",
+        "description": "Permita que o MiniCPM mantenha um resumo contínuo e isolado do contexto mais antigo enquanto as sessões ativadas estiverem inativas."
+      }
+    },
     "addModel": "Adicionar modelo",
     "sections": {
       "configuration": "Configuração",
@@ -2553,6 +2675,13 @@
       "diagnostics": "Diagnóstico"
     },
     "health": {
+      "title": "Verificação de integridade",
+      "idle": "Verifica /v1/models e envia uma pequena requisição de chat.",
+      "checking": "Verificando o serviço MiniCPM local do vLLM...",
+      "checkButton": "Verificar conexão",
+      "configureFirst": "Configure primeiro uma conta vLLM do MiniCPM.",
+      "connectedTo": "Conectado a {{baseUrl}}",
+      "failed": "Falha na verificação de integridade do MiniCPM.",
       "status": "Não verificado"
     },
     "benchmark": {

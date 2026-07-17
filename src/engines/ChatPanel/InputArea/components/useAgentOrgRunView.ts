@@ -5,13 +5,13 @@ import {
   type AgentOrgRunView,
   getAgentOrgSessionRunView,
 } from "@src/api/tauri/agent";
+import { useVisiblePolling } from "@src/hooks/async";
 import {
   isCliSession,
   isImportedHistorySession,
 } from "@src/util/session/sessionDispatch";
 
 const AGENT_ORG_RUN_VIEW_REFRESH_MS = 2500;
-const AGENT_ORG_TERMINAL_RUN_VIEW_REFRESH_MS = 10_000;
 
 /** `paused` is intentionally excluded — it is non-terminal and polling must continue. */
 const TERMINAL_RUN_STATUSES: ReadonlySet<AgentOrgRunStatus> = new Set([
@@ -41,6 +41,27 @@ interface AgentOrgRunViewSnapshot {
 type AgentOrgRunViewSubscriber = (snapshot: AgentOrgRunViewSnapshot) => void;
 
 const runViewSubscribers = new Set<AgentOrgRunViewSubscriber>();
+const runViewRequests = new Map<string, Promise<AgentOrgRunView | null>>();
+
+function fetchRunViewShared(
+  sessionId: string
+): Promise<AgentOrgRunView | null> {
+  const existing = runViewRequests.get(sessionId);
+  if (existing) return existing;
+
+  const request = getAgentOrgSessionRunView(sessionId)
+    .then((view) => {
+      if (view) publishRunViewSnapshot({ view, error: null });
+      return view;
+    })
+    .finally(() => {
+      if (runViewRequests.get(sessionId) === request) {
+        runViewRequests.delete(sessionId);
+      }
+    });
+  runViewRequests.set(sessionId, request);
+  return request;
+}
 
 function runViewContainsSession(
   view: AgentOrgRunView,
@@ -75,34 +96,33 @@ export function useAgentOrgRunView(sessionId: string | null) {
     !isCliSession(sessionId) &&
     !isImportedHistorySession(sessionId);
 
-  const pollingIntervalMs = isRunTerminal
-    ? AGENT_ORG_TERMINAL_RUN_VIEW_REFRESH_MS
-    : AGENT_ORG_RUN_VIEW_REFRESH_MS;
-  const isPollingEnabled = canFetchRunView;
+  const isPollingEnabled = canFetchRunView && !isRunTerminal;
 
-  const refresh = useCallback(async () => {
-    if (
-      !sessionId ||
-      isCliSession(sessionId) ||
-      isImportedHistorySession(sessionId)
-    )
-      return;
+  const refresh = useCallback(
+    async (signal?: AbortSignal) => {
+      if (
+        !sessionId ||
+        isCliSession(sessionId) ||
+        isImportedHistorySession(sessionId)
+      )
+        return;
 
-    try {
-      const view = await getAgentOrgSessionRunView(sessionId);
-      setState({ sessionId, view, error: null });
-      if (view) {
-        publishRunViewSnapshot({ view, error: null });
+      try {
+        const view = await fetchRunViewShared(sessionId);
+        if (signal?.aborted) return;
+        setState({ sessionId, view, error: null });
+      } catch (error: unknown) {
+        if (signal?.aborted) return;
+        const message = error instanceof Error ? error.message : String(error);
+        setState((previous) => ({
+          sessionId,
+          view: previous.sessionId === sessionId ? previous.view : null,
+          error: message,
+        }));
       }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      setState((previous) => ({
-        sessionId,
-        view: previous.sessionId === sessionId ? previous.view : null,
-        error: message,
-      }));
-    }
-  }, [sessionId]);
+    },
+    [sessionId]
+  );
 
   useEffect(() => {
     if (!canFetchRunView || !sessionId) return;
@@ -118,50 +138,19 @@ export function useAgentOrgRunView(sessionId: string | null) {
     };
   }, [canFetchRunView, sessionId]);
 
-  useEffect(() => {
-    if (!canFetchRunView || !sessionId) return;
-
-    let cancelled = false;
-
-    async function refreshRunView() {
-      if (cancelled) return;
-      await refresh();
-    }
-
-    void refreshRunView();
-    if (!isPollingEnabled) {
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    const intervalId = window.setInterval(
-      () => void refreshRunView(),
-      pollingIntervalMs
-    );
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
-  }, [
-    canFetchRunView,
-    sessionId,
-    isPollingEnabled,
-    pollingIntervalMs,
-    refresh,
-  ]);
+  useVisiblePolling({
+    enabled: isPollingEnabled,
+    intervalMs: AGENT_ORG_RUN_VIEW_REFRESH_MS,
+    poll: refresh,
+  });
 
   return useMemo(() => {
     if (!sessionId) {
       return { ...EMPTY_RESULT, refresh };
     }
-    // When the run is terminal, polling slows down. We still surface the last
-    // known view so the Overview Panel remains visible and the user can see the
-    // final status. Critically, `refresh()` remains callable — if something
-    // external (e.g. a pause API call) changes the DB status, calling refresh()
-    // updates `state.view`, which causes `isRunTerminal` to re-evaluate and may
-    // return polling to the normal cadence.
+    // Terminal runs keep their last durable snapshot but stop background
+    // polling. Explicit mutations still call `refresh()` so external status
+    // transitions can be reconciled without a permanent 10s timer.
     if (isRunTerminal && state.sessionId === sessionId && state.view) {
       return { view: state.view, error: state.error, refresh };
     }

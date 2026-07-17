@@ -19,6 +19,7 @@ import {
   setAuthSkipped,
   verifyHostedToken,
 } from "@src/config/serviceAuth";
+import { useVisiblePolling } from "@src/hooks/async";
 import { createLogger } from "@src/hooks/logger";
 
 import {
@@ -293,20 +294,22 @@ export function useServiceAuth(): UseServiceAuthReturn {
     [setToken, setIsAuthenticated, setExpiresIn, setError, navigate]
   );
 
+  const checkAndRefreshExpiry = useCallback(async () => {
+    if (!navigator.onLine) return;
+    if (isTokenAboutToExpire(REFRESH_THRESHOLD_SECONDS)) {
+      if (hasRefreshToken()) await refreshToken();
+    }
+    setExpiresIn(getTimeUntilExpiry());
+  }, [refreshToken, setExpiresIn]);
+
+  useVisiblePolling({
+    enabled: isAuthenticated,
+    intervalMs: EXPIRY_CHECK_INTERVAL_MS,
+    poll: checkAndRefreshExpiry,
+  });
+
   useEffect(() => {
     if (!isAuthenticated) return;
-
-    const checkAndRefresh = async () => {
-      if (!navigator.onLine) return;
-      if (isTokenAboutToExpire(REFRESH_THRESHOLD_SECONDS)) {
-        if (hasRefreshToken()) await refreshToken();
-      }
-      const timeLeft = getTimeUntilExpiry();
-      setExpiresIn(timeLeft);
-    };
-
-    checkAndRefresh();
-    const interval = setInterval(checkAndRefresh, EXPIRY_CHECK_INTERVAL_MS);
 
     let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -343,7 +346,6 @@ export function useServiceAuth(): UseServiceAuthReturn {
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      clearInterval(interval);
       if (debounceTimeout) clearTimeout(debounceTimeout);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };

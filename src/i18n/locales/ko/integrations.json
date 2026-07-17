@@ -24,6 +24,8 @@
     "unlist": "목록에서 제거",
     "confirmRemoveTitle": "\"{{name}}\"을(를) 제거하시겠습니까?",
     "confirmRemoveMessage": "로컬 자격 증명이 제거됩니다. 이 작업은 되돌릴 수 없습니다.",
+    "confirmRemoveActiveSessions_one": "활성 세션 {{count}}개가 아직 이 계정을 사용하고 있으며 다음 턴에 실패합니다:",
+    "confirmRemoveActiveSessions_other": "활성 세션 {{count}}개가 아직 이 계정을 사용하고 있으며 다음 턴에 실패합니다:",
     "confirmUnlistTitle": "\"{{name}}\"을(를) 목록에서 제거하시겠습니까?",
     "confirmUnlistMessage": "마켓플레이스에서 목록이 제거됩니다. 로컬 자격 증명은 유지됩니다.",
     "confirmDeleteTitle": "\"{{name}}\"을(를) 삭제하시겠습니까?",
@@ -32,14 +34,17 @@
       "refreshed": "{{name}} 새로고침 완료",
       "refreshFailed": "{{name}} 검증 실패 - 자격 증명을 확인하세요",
       "allRefreshed": "모든 계정 새로고침 완료",
-      "refreshError": "{{name}} 새로고침 실패",
+      "refreshError": "{{name}} 새로고침 실패: {{error}}",
       "localRemoved": "{{name}} 제거됨",
       "unlistPending": "{{name}} 목록 해제 요청됨. 활성 Session 종료 후 제거됩니다.",
       "listingRemoved": "{{name}} 마켓플레이스에서 제거됨",
       "listingDeleted": "{{name}} 삭제됨",
       "deleteError": "{{name}} 삭제 실패",
       "published": "{{name}} 마켓플레이스에 게시됨",
-      "publishError": "{{name}} 게시 실패"
+      "publishError": "{{name}} 게시 실패",
+      "refreshedDelta": "모델 새로고침 완료: +{{added}}개 추가, -{{removed}}개 제거",
+      "refreshedNoChange": "모델 새로고침 완료 — 변경 사항 없음",
+      "refreshPartial": "모델을 새로고침했지만(+{{added}} / -{{removed}}) 계정 {{total}}개 중 {{failed}}개에서 실패했습니다"
     },
     "configure": "{{provider}} 구성",
     "providerGroups": {
@@ -1028,7 +1033,8 @@
     "tools": "기본 제공 도구",
     "computerUse": "Computer Use",
     "rulesMemoryEvolution": "규칙, 메모리 & 진화",
-    "externalSkillsets": "Skills, MCPs & Plugins"
+    "externalSkillsets": "Skills, MCPs & Plugins",
+    "housekeeper": "MiniCPM 하우스키퍼"
   },
   "projectConnections": {
     "linear": "Linear",
@@ -1338,7 +1344,9 @@
     "oauthDeviceCodeDesc": "아래 URL을 열고 이 코드를 입력하세요",
     "oauthOpenGithub": "GitHub 열기",
     "oauthCancel": "취소",
-    "oauthFailed": "인증 실패"
+    "oauthFailed": "인증 실패",
+    "autoCreatePr": "풀 리퀘스트 자동 생성",
+    "autoCreatePrDesc": "기능 브랜치가 완전히 푸시되고 변경 사항이 없으면 Workstation 소스 제어에서 풀 리퀘스트를 자동으로 만듭니다"
   },
   "skillsHub": {
     "title": "Skills Hub",
@@ -1676,6 +1684,35 @@
       "configFile": "설정 파일",
       "tokenCount": "~{{count}} Token",
       "emptyConfigPreview": "설정 내용이 없습니다"
+    },
+    "cliManagedConfig": {
+      "title": "CLI 설정 전환",
+      "modeLabel": "모드",
+      "modeDesc": "기본 모드는 CLI 자체 설정을 복원합니다. ORGII 관리 모드는 백업된 프록시 설정을 기록합니다.",
+      "modeDefault": "기본",
+      "modeOrgii": "ORGII 관리",
+      "conflict": "외부 변경",
+      "conflictTitle": "충돌",
+      "conflictDesc": "ORGII가 기록한 후 활성 CLI 설정이 변경되었습니다.",
+      "proxyStatus": "프록시",
+      "proxyDefault": "기본 모드",
+      "proxyReady": "프록시 준비됨",
+      "proxyNotReady": "프록시 준비 안 됨",
+      "proxyDesc": "로컬 요청은 ORGII KeyVault를 통해 라우팅됩니다.",
+      "keyLabel": "키",
+      "keyDesc": "이 CLI 및 관리형 프록시와 호환되는 API 키만 표시됩니다.",
+      "selectKey": "키 선택",
+      "modelLabel": "모델",
+      "selectModel": "모델 선택",
+      "configFile": "설정 파일",
+      "actions": "작업",
+      "addKey": "키 추가",
+      "apply": "적용",
+      "restore": "기본값 복원",
+      "forceApply": "강제 적용",
+      "forceRestore": "강제 복원",
+      "applySuccess": "ORGII 관리 설정을 적용했습니다",
+      "restoreSuccess": "기본 설정을 복원했습니다"
     },
     "codexConfig": {
       "sectionTitle": "설정",
@@ -2356,6 +2393,39 @@
       "connectionNamePlaceholder": "자동: {{provider}}"
     }
   },
+  "gitProfiles": {
+    "tab": "Git 프로필",
+    "title": "Git 프로필",
+    "add": "프로필 추가",
+    "refresh": "프로필 새로고침",
+    "refreshed": "전역 Git 프로필을 새로고침했습니다",
+    "loading": "전역 Git 프로필 불러오는 중…",
+    "defaultProfile": "기본 프로필",
+    "newProfile": "새 프로필",
+    "copyName": "{{name}} 복사본",
+    "profileName": "프로필 이름",
+    "authorName": "작성자 이름",
+    "email": "이메일",
+    "selectEmail": "이메일 선택",
+    "signingKey": "서명 키",
+    "signingKeyPlaceholder": "GPG 또는 SSH 서명 키 ID",
+    "signCommits": "커밋 서명",
+    "active": "활성",
+    "activate": "프로필 활성화",
+    "activated": "{{name}}이(가) 전역 Git 프로필로 설정되었습니다",
+    "editRaw": "원시 설정 편집",
+    "hideRaw": "원시 설정 숨기기",
+    "rawTitle": "원시 Git 프로필",
+    "rawConfig": "Git 설정",
+    "updateFromRaw": "설정에서 프로필 업데이트",
+    "rawUpdated": "원시 Git 설정에서 프로필을 업데이트했습니다",
+    "rawInvalid": "원시 Git 프로필이 유효하지 않습니다",
+    "nameEmailRequired": "작성자 이름과 이메일이 필요합니다",
+    "deleteTitle": "Git 프로필 삭제",
+    "deleteMessage": "“{{name}}” 프로필을 삭제하시겠습니까? 현재 전역 Git 설정은 변경되지 않습니다.",
+    "loadFailed": "전역 Git 프로필을 불러오지 못했습니다",
+    "applyFailed": "Git 프로필을 활성화하지 못했습니다"
+  },
   "devTools": {
     "mode": "모드",
     "modeUi": "UI 미리보기",
@@ -2391,7 +2461,8 @@
     "queuedMessages": "대기 메시지",
     "fileReview": "파일 검토",
     "terminalProcesses": "터미널 프로세스",
-    "workspaceMemory": "Workspace 메모리"
+    "workspaceMemory": "Workspace 메모리",
+    "modeSessionLink": "세션 링크"
   },
   "rulesTabs": {
     "rules": "규칙",
@@ -2544,13 +2615,65 @@
   },
   "housekeeper": {
     "addModel": "모델 추가",
+    "eyebrow": "MiniCPM 상주 하우스키퍼",
+    "title": "상주 하우스키퍼",
+    "description": "로컬 MiniCPM이 프롬프트 다듬기, 짧은 단계 설명, 가벼운 UI 제어를 담당합니다. 코딩 작업과 복잡한 ADE 설정에는 계속 기본 Agent 모델을 사용합니다.",
+    "autoAccount": "MiniCPM vLLM 계정 자동 선택",
+    "tiles": {
+      "model": "모델",
+      "endpoint": "엔드포인트",
+      "safeContext": "안전 컨텍스트"
+    },
+    "settings": {
+      "enabled": {
+        "title": "하우스키퍼 활성화",
+        "description": "비활성화하면 프롬프트 다듬기, 단계 설명, 가벼운 UI 제어에 MiniCPM을 사용하지 않습니다."
+      },
+      "account": {
+        "title": "vLLM MiniCPM 계정",
+        "description": "기존 KeyVault vllm_api 계정을 재사용하며 별도의 자격 증명 저장소를 만들지 않습니다."
+      },
+      "model": {
+        "title": "모델 ID",
+        "description": "Docker vLLM MiniCPM5-1B의 기본값은 openbmb/MiniCPM5-1B입니다."
+      },
+      "context": {
+        "title": "안전 컨텍스트 예산",
+        "description": "4GB GPU에서는 이론적인 32k 한도 대신 보수적인 10000 토큰 예산을 사용합니다."
+      }
+    },
+    "features": {
+      "promptPolish": {
+        "title": "프롬프트 다듬기",
+        "description": "더 강력한 코딩 모델에 보내기 전에 입력을 수동으로 다듬습니다."
+      },
+      "stepExplain": {
+        "title": "Agent 단계 설명",
+        "description": "세션 재생 단계에 대한 짧은 한국어 설명을 한두 문장으로 생성합니다."
+      },
+      "uiControl": {
+        "title": "가벼운 ADE/UI 제어",
+        "description": "MiniCPM은 요청을 엄격한 로컬 작업 허용 목록으로만 분류할 수 있습니다."
+      },
+      "contextCompact": {
+        "title": "자동 컨텍스트 관리",
+        "description": "활성화된 세션이 유휴 상태일 때 MiniCPM이 이전 컨텍스트의 독립적인 롤링 요약을 관리합니다."
+      }
+    },
     "sections": {
       "configuration": "Configuration",
       "features": "Features",
       "diagnostics": "Diagnostics"
     },
     "health": {
-      "status": "Not checked"
+      "status": "Not checked",
+      "title": "상태 확인",
+      "idle": "/v1/models를 확인하고 작은 채팅 요청 하나를 보냅니다.",
+      "checking": "로컬 vLLM MiniCPM 서비스 확인 중...",
+      "checkButton": "연결 확인",
+      "configureFirst": "먼저 vLLM MiniCPM 계정을 구성하세요.",
+      "connectedTo": "{{baseUrl}}에 연결됨",
+      "failed": "MiniCPM 상태 확인에 실패했습니다."
     },
     "benchmark": {
       "title": "MiniCPM output speed",

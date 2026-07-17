@@ -30,7 +30,6 @@ function createParams(
     userAgent: "test-agent",
     incognito: false,
     isDestroyedRef: { current: false },
-    pollIntervalRef: { current: null },
     newWindowListenerRef: { current: null },
     lastPolledUrlRef: { current: "https://example.com" },
     getContainerRect: () => null,

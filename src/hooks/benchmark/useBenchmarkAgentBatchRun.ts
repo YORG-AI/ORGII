@@ -9,6 +9,7 @@ import {
 import { DISPATCH_CATEGORY } from "@src/api/tauri/session";
 import { useAdvancedConfig } from "@src/engines/SessionCore/hooks/session/useSessionCreator/useAdvancedConfig";
 import { resolveKeys } from "@src/engines/SessionCore/hooks/session/useSessionCreator/useSessionLaunch/resolveKeys";
+import { useVisiblePolling } from "@src/hooks/async";
 import {
   benchmarkActiveBatchIdAtom,
   benchmarkActiveBatchTaskIdAtom,
@@ -251,42 +252,35 @@ export function useBenchmarkAgentBatchRun() {
     };
   }, [batchStatus?.batchId, setActiveBatchId, setBatchError, setBatchStatus]);
 
-  useEffect(() => {
-    if (
-      !batchStatus?.batchId ||
-      batchStatus.status !== BENCHMARK_AGENT_BATCH_STATUS.RUNNING
-    ) {
-      return undefined;
-    }
-
-    let cancelled = false;
-    const intervalId = window.setInterval(() => {
-      benchmarkApi
-        .getAgentBatchStatus({ batchId: batchStatus.batchId })
-        .then((status) => {
-          if (!cancelled) {
-            setBatchStatus(status);
-          }
-        })
-        .catch((error) => {
-          if (!cancelled) {
-            const message =
-              error instanceof Error ? error.message : String(error);
-            setBatchError(message);
-          }
+  const pollBatchStatus = useCallback(
+    async (signal: AbortSignal) => {
+      if (!batchStatus?.batchId) return false;
+      try {
+        const status = await benchmarkApi.getAgentBatchStatus({
+          batchId: batchStatus.batchId,
         });
-    }, AGENT_BATCH_STATUS_POLL_INTERVAL_MS);
+        if (signal.aborted) return false;
+        setBatchStatus(status);
+        setBatchError(null);
+        return status.status === BENCHMARK_AGENT_BATCH_STATUS.RUNNING;
+      } catch (error) {
+        if (signal.aborted) return false;
+        const message = error instanceof Error ? error.message : String(error);
+        setBatchError(message);
+        return true;
+      }
+    },
+    [batchStatus?.batchId, setBatchError, setBatchStatus]
+  );
 
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
-  }, [
-    batchStatus?.batchId,
-    batchStatus?.status,
-    setBatchError,
-    setBatchStatus,
-  ]);
+  useVisiblePolling({
+    enabled:
+      !!batchStatus?.batchId &&
+      batchStatus.status === BENCHMARK_AGENT_BATCH_STATUS.RUNNING,
+    intervalMs: AGENT_BATCH_STATUS_POLL_INTERVAL_MS,
+    poll: pollBatchStatus,
+    immediate: false,
+  });
 
   return {
     batchStatus,

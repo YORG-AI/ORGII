@@ -24,6 +24,8 @@
     "unlist": "リストから削除",
     "confirmRemoveTitle": "\"{{name}}\" を削除しますか？",
     "confirmRemoveMessage": "ローカル認証情報が削除されます。この操作は元に戻せません。",
+    "confirmRemoveActiveSessions_one": "このアカウントを使用中のセッションが {{count}} 件あります。削除すると次のターンで失敗します:",
+    "confirmRemoveActiveSessions_other": "このアカウントを使用中のセッションが {{count}} 件あります。削除すると次のターンで失敗します:",
     "confirmUnlistTitle": "\"{{name}}\" をリストから削除しますか？",
     "confirmUnlistMessage": "マーケットプレイスからリストが削除されます。ローカル認証情報は保持されます。",
     "confirmDeleteTitle": "\"{{name}}\" を削除しますか？",
@@ -32,14 +34,17 @@
       "refreshed": "{{name}} の更新が完了しました",
       "refreshFailed": "{{name}} の検証に失敗しました - 認証情報を確認してください",
       "allRefreshed": "すべてのアカウントを更新しました",
-      "refreshError": "{{name}} の更新に失敗しました",
+      "refreshError": "{{name}} の更新に失敗しました: {{error}}",
       "localRemoved": "{{name}} を削除しました",
       "unlistPending": "{{name}} のリスト解除をリクエストしました。アクティブなSession終了後に削除されます。",
       "listingRemoved": "{{name}} をマーケットプレイスから削除しました",
       "listingDeleted": "{{name}} を削除しました",
       "deleteError": "{{name}} の削除に失敗しました",
       "published": "{{name}} をマーケットプレイスに公開しました",
-      "publishError": "{{name}} の公開に失敗しました"
+      "publishError": "{{name}} の公開に失敗しました",
+      "refreshedDelta": "モデルを更新しました: {{added}} 件追加、{{removed}} 件削除",
+      "refreshedNoChange": "モデルを更新しました — 変更はありません",
+      "refreshPartial": "モデルを更新しました（追加 {{added}} / 削除 {{removed}}）。ただし {{total}} アカウント中 {{failed}} 件で失敗しました"
     },
     "configure": "{{provider}} を設定",
     "providerGroups": {
@@ -1031,7 +1036,8 @@
     "tools": "組み込みツール",
     "computerUse": "Computer Use",
     "rulesMemoryEvolution": "ルール、メモリ & 進化",
-    "externalSkillsets": "Skills, MCPs & Plugins"
+    "externalSkillsets": "Skills, MCPs & Plugins",
+    "housekeeper": "MiniCPM ハウスキーパー"
   },
   "projectConnections": {
     "linear": "Linear",
@@ -1341,7 +1347,42 @@
     "oauthDeviceCodeDesc": "下記の URL を開き、このコードを入力してください",
     "oauthOpenGithub": "GitHub を開く",
     "oauthCancel": "キャンセル",
-    "oauthFailed": "認証に失敗しました"
+    "oauthFailed": "認証に失敗しました",
+    "autoCreatePr": "プルリクエストを自動作成",
+    "autoCreatePrDesc": "機能ブランチが完全にプッシュされ、変更がない状態になったら、Workstation のソース管理でプルリクエストを自動作成します"
+  },
+  "gitProfiles": {
+    "tab": "Git プロファイル",
+    "title": "Git プロファイル",
+    "add": "プロファイルを追加",
+    "refresh": "プロファイルを更新",
+    "refreshed": "グローバル Git プロファイルを更新しました",
+    "loading": "グローバル Git プロファイルを読み込み中…",
+    "defaultProfile": "デフォルトプロファイル",
+    "newProfile": "新しいプロファイル",
+    "copyName": "{{name}} のコピー",
+    "profileName": "プロファイル名",
+    "authorName": "作成者名",
+    "email": "メールアドレス",
+    "selectEmail": "メールアドレスを選択",
+    "signingKey": "署名キー",
+    "signingKeyPlaceholder": "GPG または SSH 署名キー ID",
+    "signCommits": "コミットに署名",
+    "active": "使用中",
+    "activate": "プロファイルを有効化",
+    "activated": "{{name}} をグローバル Git プロファイルに設定しました",
+    "editRaw": "設定を直接編集",
+    "hideRaw": "直接編集を閉じる",
+    "rawTitle": "Git プロファイルの直接編集",
+    "rawConfig": "Git 設定",
+    "updateFromRaw": "設定内容からプロファイルを更新",
+    "rawUpdated": "Git 設定からプロファイルを更新しました",
+    "rawInvalid": "Git プロファイルの設定内容が無効です",
+    "nameEmailRequired": "作成者名とメールアドレスは必須です",
+    "deleteTitle": "Git プロファイルを削除",
+    "deleteMessage": "プロファイル「{{name}}」を削除しますか？現在のグローバル Git 設定は変更されません。",
+    "loadFailed": "グローバル Git プロファイルの読み込みに失敗しました",
+    "applyFailed": "Git プロファイルの有効化に失敗しました"
   },
   "skillsHub": {
     "title": "Skills Hub",
@@ -1579,6 +1620,35 @@
   },
   "agentOrgs": {
     "title": "Agentチーム",
+    "cliManagedConfig": {
+      "title": "CLI 設定の切り替え",
+      "modeLabel": "モード",
+      "modeDesc": "デフォルトでは CLI 独自の設定を復元します。ORGII 管理では、バックアップ付きのプロキシ設定を書き込みます。",
+      "modeDefault": "デフォルト",
+      "modeOrgii": "ORGII 管理",
+      "conflict": "外部で変更されました",
+      "conflictTitle": "競合",
+      "conflictDesc": "ORGII が書き込んだ後に、有効な CLI 設定が変更されました。",
+      "proxyStatus": "プロキシ",
+      "proxyDefault": "デフォルトモード",
+      "proxyReady": "プロキシ準備完了",
+      "proxyNotReady": "プロキシ未準備",
+      "proxyDesc": "ローカルリクエストを ORGII KeyVault 経由で送信します。",
+      "keyLabel": "キー",
+      "keyDesc": "この CLI と管理プロキシに対応する API キーのみ表示されます。",
+      "selectKey": "キーを選択",
+      "modelLabel": "モデル",
+      "selectModel": "モデルを選択",
+      "configFile": "設定ファイル",
+      "actions": "アクション",
+      "addKey": "キーを追加",
+      "apply": "適用",
+      "restore": "デフォルトに戻す",
+      "forceApply": "強制適用",
+      "forceRestore": "強制復元",
+      "applySuccess": "ORGII 管理設定を適用しました",
+      "restoreSuccess": "デフォルト設定を復元しました"
+    },
     "running": "実行中",
     "fires": "回発火",
     "addRoutine": "Routine を追加",
@@ -2363,6 +2433,7 @@
     "mode": "モード",
     "modeUi": "UI プレビュー",
     "modeTool": "ツール",
+    "modeSessionLink": "セッションリンク",
     "modeInput": "入力",
     "selectionMode": "選択",
     "selectionModeSingle": "単一",
@@ -2546,6 +2617,51 @@
     }
   },
   "housekeeper": {
+    "eyebrow": "MiniCPM 常駐ハウスキーパー",
+    "title": "常駐ハウスキーパー",
+    "description": "ローカルの MiniCPM が、プロンプトの推敲、短いステップ説明、軽量な UI 操作を処理します。コーディングタスクや複雑な ADE セットアップには引き続きメインの Agent モデルを使用します。",
+    "autoAccount": "MiniCPM vLLM アカウントを自動選択",
+    "tiles": {
+      "model": "モデル",
+      "endpoint": "エンドポイント",
+      "safeContext": "安全なコンテキスト"
+    },
+    "settings": {
+      "enabled": {
+        "title": "ハウスキーパーを有効化",
+        "description": "無効にすると、プロンプトの推敲、ステップ説明、軽量な UI 操作に MiniCPM を使用しません。"
+      },
+      "account": {
+        "title": "vLLM MiniCPM アカウント",
+        "description": "既存の KeyVault vllm_api アカウントを再利用します。個別の認証情報ストアは作成しません。"
+      },
+      "model": {
+        "title": "モデル ID",
+        "description": "Docker vLLM MiniCPM5-1B のデフォルトは openbmb/MiniCPM5-1B です。"
+      },
+      "context": {
+        "title": "安全なコンテキスト上限",
+        "description": "4 GB GPU では理論上の 32k 上限を前提にせず、安全を見込んだ 10000 トークンを使用します。"
+      }
+    },
+    "features": {
+      "promptPolish": {
+        "title": "プロンプトの推敲",
+        "description": "高性能なコーディングモデルへ送信する前に、入力を手動で推敲します。"
+      },
+      "stepExplain": {
+        "title": "Agent ステップの説明",
+        "description": "セッション再生の各ステップに、中国語の短い説明を 1～2 文生成します。"
+      },
+      "uiControl": {
+        "title": "軽量な ADE / UI 操作",
+        "description": "MiniCPM は、厳格なローカルアクション許可リストに沿ったリクエスト分類のみ行えます。"
+      },
+      "contextCompact": {
+        "title": "コンテキストの自動メンテナンス",
+        "description": "有効なセッションがアイドル中に、MiniCPM が古いコンテキストの独立したローリング要約を維持します。"
+      }
+    },
     "addModel": "モデルを追加",
     "sections": {
       "configuration": "設定",
@@ -2553,7 +2669,14 @@
       "diagnostics": "診断"
     },
     "health": {
-      "status": "未チェック"
+      "status": "未チェック",
+      "title": "ヘルスチェック",
+      "idle": "/v1/models を確認し、小さなチャットリクエストを 1 件送信します。",
+      "checking": "ローカル vLLM MiniCPM サービスを確認中...",
+      "checkButton": "接続を確認",
+      "configureFirst": "先に vLLM MiniCPM アカウントを設定してください。",
+      "connectedTo": "{{baseUrl}} に接続しました",
+      "failed": "MiniCPM のヘルスチェックに失敗しました。"
     },
     "benchmark": {
       "title": "MiniCPM 出力速度",

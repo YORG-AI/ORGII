@@ -11,9 +11,26 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useVisiblePolling } from "@src/hooks/async";
 import { createLogger } from "@src/hooks/logger";
 
 const log = createLogger("useBrowserConsole");
+const consoleLogRequests = new Map<string, Promise<RustConsoleEntry[]>>();
+
+function fetchConsoleLogs(label: string): Promise<RustConsoleEntry[]> {
+  const existing = consoleLogRequests.get(label);
+  if (existing) return existing;
+
+  const request = invoke<RustConsoleEntry[]>("get_webview_console_logs", {
+    label,
+  }).finally(() => {
+    if (consoleLogRequests.get(label) === request) {
+      consoleLogRequests.delete(label);
+    }
+  });
+  consoleLogRequests.set(label, request);
+  return request;
+}
 
 // ============================================
 // Types
@@ -116,7 +133,6 @@ export function useBrowserConsole(
   const [entries, setEntries] = useState<ConsoleEntry[]>([]);
 
   const entryIdCounter = useRef(0);
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Generate unique ID
   const generateId = useCallback(() => {
@@ -234,129 +250,111 @@ export function useBrowserConsole(
   );
 
   // Poll for console logs from webview
-  const pollNow = useCallback(async () => {
-    if (!webviewLabel || !sessionId) return;
+  const pollNow = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!webviewLabel || !sessionId) return;
 
-    try {
-      const rustEntries = await invoke<RustConsoleEntry[]>(
-        "get_webview_console_logs",
-        { label: webviewLabel }
-      );
+      try {
+        const rustEntries = await fetchConsoleLogs(webviewLabel);
+        if (signal?.aborted) return;
 
-      if (rustEntries && rustEntries.length > 0) {
-        const cache = getSessionCache(sessionId);
+        if (rustEntries && rustEntries.length > 0) {
+          const cache = getSessionCache(sessionId);
 
-        // Rate limit: only process up to maxEntriesPerPoll
-        const limitedEntries = rustEntries.slice(0, maxEntriesPerPoll);
-        const droppedCount = rustEntries.length - limitedEntries.length;
+          // Rate limit: only process up to maxEntriesPerPoll
+          const limitedEntries = rustEntries.slice(0, maxEntriesPerPoll);
+          const droppedCount = rustEntries.length - limitedEntries.length;
 
-        // Transform entries with truncation
-        let newEntries: ConsoleEntry[] = limitedEntries.map((entry) => ({
-          id: generateId(),
-          level: (entry.level as LogLevel) || "log",
-          message: truncateMessage(entry.message || ""),
-          timestamp: entry.timestamp || Date.now(),
-          url: entry.url || "",
-          stack: entry.stack ? truncateMessage(entry.stack) : undefined,
-        }));
-
-        // Deduplicate: collapse repeated consecutive logs
-        if (deduplicateRepeated && newEntries.length > 0) {
-          const dedupedEntries: ConsoleEntry[] = [];
-          let repeatCount = 0;
-          let lastEntry: ConsoleEntry | null =
-            cache.entries.length > 0
-              ? cache.entries[cache.entries.length - 1]
-              : null;
-
-          for (const entry of newEntries) {
-            if (lastEntry && isDuplicate(lastEntry, entry)) {
-              repeatCount++;
-            } else {
-              // Add repeat indicator to previous entry if needed
-              if (repeatCount > 0 && dedupedEntries.length > 0) {
-                const prev = dedupedEntries[dedupedEntries.length - 1];
-                prev.message = `${prev.message} [×${repeatCount + 1}]`;
-              }
-              dedupedEntries.push(entry);
-              lastEntry = entry;
-              repeatCount = 0;
-            }
-          }
-
-          // Handle trailing repeats
-          if (repeatCount > 0 && dedupedEntries.length > 0) {
-            const prev = dedupedEntries[dedupedEntries.length - 1];
-            prev.message = `${prev.message} [×${repeatCount + 1}]`;
-          }
-
-          newEntries = dedupedEntries;
-        }
-
-        // Add rate limit warning if entries were dropped
-        if (droppedCount > 0) {
-          newEntries.push({
+          // Transform entries with truncation
+          let newEntries: ConsoleEntry[] = limitedEntries.map((entry) => ({
             id: generateId(),
-            level: "warn",
-            message: `[DevTools] Rate limited: ${droppedCount} log entries dropped`,
-            timestamp: Date.now(),
-            url: "",
-          });
+            level: (entry.level as LogLevel) || "log",
+            message: truncateMessage(entry.message || ""),
+            timestamp: entry.timestamp || Date.now(),
+            url: entry.url || "",
+            stack: entry.stack ? truncateMessage(entry.stack) : undefined,
+          }));
+
+          // Deduplicate: collapse repeated consecutive logs
+          if (deduplicateRepeated && newEntries.length > 0) {
+            const dedupedEntries: ConsoleEntry[] = [];
+            let repeatCount = 0;
+            let lastEntry: ConsoleEntry | null =
+              cache.entries.length > 0
+                ? cache.entries[cache.entries.length - 1]
+                : null;
+
+            for (const entry of newEntries) {
+              if (lastEntry && isDuplicate(lastEntry, entry)) {
+                repeatCount++;
+              } else {
+                // Add repeat indicator to previous entry if needed
+                if (repeatCount > 0 && dedupedEntries.length > 0) {
+                  const prev = dedupedEntries[dedupedEntries.length - 1];
+                  prev.message = `${prev.message} [×${repeatCount + 1}]`;
+                }
+                dedupedEntries.push(entry);
+                lastEntry = entry;
+                repeatCount = 0;
+              }
+            }
+
+            // Handle trailing repeats
+            if (repeatCount > 0 && dedupedEntries.length > 0) {
+              const prev = dedupedEntries[dedupedEntries.length - 1];
+              prev.message = `${prev.message} [×${repeatCount + 1}]`;
+            }
+
+            newEntries = dedupedEntries;
+          }
+
+          // Add rate limit warning if entries were dropped
+          if (droppedCount > 0) {
+            newEntries.push({
+              id: generateId(),
+              level: "warn",
+              message: `[DevTools] Rate limited: ${droppedCount} log entries dropped`,
+              timestamp: Date.now(),
+              url: "",
+            });
+          }
+
+          let combined = [...cache.entries, ...newEntries];
+          if (combined.length > maxEntries) {
+            combined = combined.slice(-maxEntries);
+          }
+
+          updateSessionEntries(sessionId, combined);
         }
-
-        let combined = [...cache.entries, ...newEntries];
-        if (combined.length > maxEntries) {
-          combined = combined.slice(-maxEntries);
+      } catch (error) {
+        // Silently ignore - webview might not exist yet or be closing
+        if (
+          process.env.NODE_ENV === "development" &&
+          !String(error).includes("not found")
+        ) {
+          log.debug("[useBrowserConsole] Poll error:", error);
         }
-
-        updateSessionEntries(sessionId, combined);
       }
-    } catch (error) {
-      // Silently ignore - webview might not exist yet or be closing
-      if (
-        process.env.NODE_ENV === "development" &&
-        !String(error).includes("not found")
-      ) {
-        log.debug("[useBrowserConsole] Poll error:", error);
-      }
-    }
-  }, [
-    webviewLabel,
-    sessionId,
-    generateId,
-    maxEntries,
-    maxEntriesPerPoll,
-    deduplicateRepeated,
-    truncateMessage,
-    isDuplicate,
-    getSessionCache,
-    updateSessionEntries,
-  ]);
+    },
+    [
+      webviewLabel,
+      sessionId,
+      generateId,
+      maxEntries,
+      maxEntriesPerPoll,
+      deduplicateRepeated,
+      truncateMessage,
+      isDuplicate,
+      getSessionCache,
+      updateSessionEntries,
+    ]
+  );
 
-  // Start/stop polling
-  useEffect(() => {
-    if (!enabled || !webviewLabel || !sessionId || pollInterval <= 0) {
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
-      return;
-    }
-
-    // Start polling
-    pollTimerRef.current = setInterval(pollNow, pollInterval);
-
-    // Initial poll - defer to next tick to avoid setState in effect
-    const timer = setTimeout(() => pollNow(), 0);
-
-    return () => {
-      clearTimeout(timer);
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
-    };
-  }, [enabled, webviewLabel, sessionId, pollInterval, pollNow]);
+  useVisiblePolling({
+    enabled: enabled && !!webviewLabel && !!sessionId && pollInterval > 0,
+    intervalMs: pollInterval,
+    poll: pollNow,
+  });
 
   // Compute counts from current entries
   const { errorCount, warningCount } = useMemo(() => {

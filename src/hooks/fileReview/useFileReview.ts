@@ -31,6 +31,7 @@ import type { SnapshotRecord } from "@src/api/tauri/agent";
 import { beginTimelineBoundary } from "@src/engines/SessionCore/control/sessionTimelineBoundary";
 import { sortedEventsAtom } from "@src/engines/SessionCore/core/atoms/events";
 import { sessionIdAtom } from "@src/engines/SessionCore/core/atoms/metadata";
+import { useVisiblePolling } from "@src/hooks/async";
 import { createLogger } from "@src/hooks/logger";
 import { sessionRuntimeStatusAtom } from "@src/store/session/cliSessionStatusAtom";
 import {
@@ -335,62 +336,55 @@ export function useFileReviewSync(
     };
   }, [sessionId, runtimeStatus, clearReview, registerBatch, enabled]);
 
-  // ── Phase 2: Event-triggered refresh — lightweight, no cleanup ──
-  // CLI tool chunks and file-history snapshots can arrive after React has
-  // already processed the corresponding chat event. Keep polling briefly so
-  // Undo All / Keep All appear without requiring session re-entry.
+  const snapshotRefreshStartedAtRef = useRef(0);
   useEffect(() => {
-    if (!enabled || !hasSnapshotSupport(sessionId)) return;
+    snapshotRefreshStartedAtRef.current = Date.now();
+  }, [events.length, sessionId]);
 
-    let cancelled = false;
-    const sid = sessionId;
-    const startedAt = Date.now();
-
-    const refreshSnapshots = () => {
-      fetchSnapshots(sid)
-        .then(async (records) => {
-          if (cancelled || records.length === 0) return;
-          const hasPreMessageSnapshot = records.some(
-            (record) => record.toolCallId === PRE_MESSAGE_SNAPSHOT_TOOL_CALL_ID
-          );
-          const includePreMessageSnapshot = hasPreMessageSnapshot
-            ? await sessionHasFileChanges(sid)
-            : false;
-          if (cancelled) return;
-          const entries = toRegistryEntries(records, {
-            includePreMessageSnapshot,
-          });
-          if (entries.length === 0) return;
-          lastSnapshotCountRef.current = Math.max(
-            lastSnapshotCountRef.current,
-            entries.length
-          );
-          registerBatch({
-            sessionId: sid,
-            entries,
-          });
-        })
-        .catch((error: unknown) => {
-          if (!cancelled) {
-            log.warn("[useFileReviewSync] Snapshot refresh failed:", error);
-          }
-        });
-    };
-
-    refreshSnapshots();
-    const intervalId = window.setInterval(() => {
-      if (Date.now() - startedAt > SNAPSHOT_REFRESH_WINDOW_MS) {
-        window.clearInterval(intervalId);
-        return;
+  const refreshSnapshots = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!enabled || !hasSnapshotSupport(sessionId)) return false;
+      if (
+        Date.now() - snapshotRefreshStartedAtRef.current >
+        SNAPSHOT_REFRESH_WINDOW_MS
+      ) {
+        return false;
       }
-      refreshSnapshots();
-    }, SNAPSHOT_REFRESH_INTERVAL_MS);
 
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
-  }, [events.length, sessionId, registerBatch, enabled]);
+      try {
+        const records = await fetchSnapshots(sessionId);
+        if (signal?.aborted) return false;
+        if (records.length === 0) return true;
+        const hasPreMessageSnapshot = records.some(
+          (record) => record.toolCallId === PRE_MESSAGE_SNAPSHOT_TOOL_CALL_ID
+        );
+        const includePreMessageSnapshot = hasPreMessageSnapshot
+          ? await sessionHasFileChanges(sessionId)
+          : false;
+        if (signal?.aborted) return false;
+        const entries = toRegistryEntries(records, {
+          includePreMessageSnapshot,
+        });
+        if (entries.length === 0) return true;
+        lastSnapshotCountRef.current = Math.max(
+          lastSnapshotCountRef.current,
+          entries.length
+        );
+        registerBatch({ sessionId, entries });
+      } catch (error) {
+        log.warn("[useFileReviewSync] Snapshot refresh failed:", error);
+      }
+      return true;
+    },
+    [enabled, registerBatch, sessionId]
+  );
+
+  useVisiblePolling({
+    enabled: enabled && hasSnapshotSupport(sessionId),
+    intervalMs: SNAPSHOT_REFRESH_INTERVAL_MS,
+    poll: refreshSnapshots,
+    restartKey: events.length,
+  });
 }
 
 // ============================================

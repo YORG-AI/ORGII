@@ -38,6 +38,7 @@
     "folders": "Thư mục",
     "inbox": "Hộp thư đến",
     "issues": "Hạng mục công việc",
+    "openSourceRepo": "Mở kho mã nguồn",
     "history": "Lịch sử",
     "controlTower": "Control Tower",
     "backgroundTasks": "Tác vụ nền",
@@ -145,7 +146,9 @@
     },
     "folderCounts": {
       "repo": "{{count}} Repo",
-      "multiRepoWorkspace": "{{count}} Workspace đa Repo"
+      "repo_plural": "{{count}} repo",
+      "multiRepoWorkspace": "{{count}} Workspace đa Repo",
+      "multiRepoWorkspace_plural": "{{count}} Workspace đa Repo"
     },
     "bottomBar": {
       "settings": "Cài đặt",
@@ -333,7 +336,27 @@
     "addWorkspace": "Thêm Workspace"
   },
   "explore": {
-    "title": "Khám phá"
+    "title": "Khám phá",
+    "search": "Tìm kiếm",
+    "searching": "Đang tìm kiếm...",
+    "searchPlaceholder": "Tìm kho lưu trữ GitHub (ví dụ: language:rust tauri)",
+    "clone": "Sao chép",
+    "cloning": "Đang sao chép...",
+    "openOnGithub": "GitHub",
+    "cloneSuccess": "Đã sao chép {{name}}",
+    "cloneFailed": "Sao chép thất bại",
+    "cloneNoTarget": "Chưa cấu hình thư mục Workspace mặc định. Hãy thiết lập trong Cài đặt.",
+    "errorTitle": "Tìm kiếm thất bại",
+    "noResultsTitle": "Không có kho lưu trữ nào khớp",
+    "noResultsSubtitle": "Hãy thử truy vấn hoặc cách sắp xếp khác.",
+    "resultsCount": "{{shown}} trong {{total}} kho lưu trữ",
+    "partial": "(một phần — tìm kiếm quá thời gian)",
+    "sort": {
+      "bestMatch": "Phù hợp nhất",
+      "stars": "Số sao",
+      "updated": "Mới cập nhật",
+      "forks": "Số fork"
+    }
   },
   "workstation": {
     "dockFilter": {

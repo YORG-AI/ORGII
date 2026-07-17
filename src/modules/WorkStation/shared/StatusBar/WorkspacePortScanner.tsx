@@ -3,8 +3,9 @@
  * Mount only while the code editor host is active.
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 
+import { useVisiblePolling } from "@src/hooks/async";
 import {
   WORKSPACE_PORT_SCAN_INTERVAL_MS,
   workspacePortProbesAtom,
@@ -37,57 +38,15 @@ export function WorkspacePortScanner({
     });
   }, [setState]);
 
-  useEffect(() => {
-    if (!enabled) {
-      return;
-    }
+  const runScan = useCallback(async () => {
+    await refreshWorkspacePortScan({ folders });
+  }, [folders]);
 
-    let cancelled = false;
-    let intervalId: number | null = null;
-
-    const runScan = (force = false) => {
-      if (cancelled || document.visibilityState !== "visible") {
-        return;
-      }
-      void refreshWorkspacePortScan({ folders, force });
-    };
-
-    const clearPollInterval = () => {
-      if (intervalId != null) {
-        window.clearInterval(intervalId);
-        intervalId = null;
-      }
-    };
-
-    const startPollInterval = () => {
-      clearPollInterval();
-      intervalId = window.setInterval(() => {
-        runScan(false);
-      }, WORKSPACE_PORT_SCAN_INTERVAL_MS);
-    };
-
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") {
-        runScan(false);
-        startPollInterval();
-      } else {
-        clearPollInterval();
-      }
-    };
-
-    if (document.visibilityState === "visible") {
-      runScan(true);
-      startPollInterval();
-    }
-
-    document.addEventListener("visibilitychange", handleVisibility);
-
-    return () => {
-      cancelled = true;
-      clearPollInterval();
-      document.removeEventListener("visibilitychange", handleVisibility);
-    };
-  }, [enabled, folders]);
+  useVisiblePolling({
+    enabled,
+    intervalMs: WORKSPACE_PORT_SCAN_INTERVAL_MS,
+    poll: runScan,
+  });
 
   return null;
 }

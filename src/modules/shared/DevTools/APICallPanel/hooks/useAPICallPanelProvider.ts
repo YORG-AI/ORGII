@@ -15,6 +15,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useVisiblePolling } from "@src/hooks/async";
 import {
   clearApiCalls,
   disableApiTracking,
@@ -147,25 +148,11 @@ export function useAPICallPanelProvider(): UseAPICallPanelProviderReturn {
     };
   }, [togglePanel, updateApiCalls]);
 
-  // Update calls when becoming visible
-  useEffect(() => {
-    if (visible) {
-      // Schedule state updates asynchronously to avoid synchronous setState in effect
-      const timeoutId = setTimeout(() => {
-        updateApiCalls();
-      }, 0);
-
-      // Keep the visible panel fresh without adding a high-frequency devtools loop.
-      const interval = setInterval(() => {
-        updateApiCalls();
-      }, 1000);
-
-      return () => {
-        clearTimeout(timeoutId);
-        clearInterval(interval);
-      };
-    }
-  }, [visible, updateApiCalls]);
+  useVisiblePolling({
+    enabled: visible,
+    intervalMs: 1000,
+    poll: updateApiCalls,
+  });
 
   return {
     visible,
