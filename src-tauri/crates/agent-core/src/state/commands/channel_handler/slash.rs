@@ -785,30 +785,27 @@ fn normalize_model_key(value: &str) -> String {
 fn build_help_text() -> String {
     [
         "**ORG2 Channel Commands**",
-        "These commands are handled inside the gateway before the OS agent runs, so they do **not** spend LLM tokens.",
+        "Gateway-handled; no LLM tokens spent.",
         "",
         "**General**",
-        "`/help` — show this list (alias: `/commands`).",
-        "`/status` — show this chat's current binding and active runtime sessions.",
-        "`/new` — clear this chat's binding; the next normal message creates a fresh session (alias: `/reset`).",
-        "`/model <model>` — switch the current channel session model (aliases: gpt-5.5, sonnet, opus, fable).",
-        "`/compact` — manually compact the current channel session and continue in a versioned successor.",
+        "`/help` — show this list (`/commands`).",
+        "`/status` — show binding + active runtime sessions.",
+        "`/new` — clear this chat binding; next message starts fresh (`/reset`).",
+        "`/model <model>` — switch model (gpt-5.5, sonnet, opus, fable).",
+        "`/compact` — compact current session into a versioned successor.",
         "",
-        "**Session switching**",
-        "`/session current` — show the active channel-bound ORG2 session (alias: `/ctx current`).",
-        "`/session list` — list recent ORG2 sessions (aliases: `/session ls`, `/ctx ls`).",
-        "`/session switch <session_id>` — bind this Feishu chat to an existing session and show recent context (alias: `/session use <session_id>`).",
-        "`/session new [name]` — create and bind a fresh session immediately.",
-        "`/newsession <name> [prompt]` — create a named ORG2 session; with prompt, dispatch it into that session.",
-        "`/session search <query>` — semantic search across indexed Session Memory summaries (embedding + rerank).",
+        "**Sessions**",
+        "`/session current` — show active session (`/ctx current`).",
+        "`/session list` — list recent sessions (`/session ls`, `/ctx ls`).",
+        "`/session switch <id>` — bind existing session (`/session use <id>`).",
+        "`/session new [name]` — create + bind a fresh session.",
+        "`/newsession <name> [prompt]` — create named session; optional prompt sends into it.",
+        "`/session search <query>` — search Session Memory.",
         "",
-        "**Active project / Work Item context**",
-        "`/session bind project <slug>` — set active project context for this channel session.",
-        "`/session bind workitem <project_slug>:<short_id>` — set active Work Item context for this channel session.",
-        "",
-        "**Work Items via agent tools**",
-        "Natural language requests can create/update/list Work Items with `manage_work_item` (`wi` alias).",
-        "Project Work Items can be started with `manage_work_item(action=\"start\", project_slug=..., short_id=...)`.",
+        "**Project context**",
+        "`/session bind project <slug>` — set active project.",
+        "`/session bind workitem <project>:<id>` — set Work Item.",
+        "Use natural language or `manage_work_item` (`wi`) for Work Items.",
     ]
     .join("\n")
 }
@@ -882,11 +879,11 @@ mod help_text_tests {
     }
 
     #[test]
-
     fn fits_message_budget() {
         assert!(build_help_text().len() < 4096);
+    }
 
-
+    #[test]
     fn normalize_model_key_ignores_provider_punctuation() {
         assert_eq!(
             normalize_model_key("openai/gpt-5.5:openai"),
@@ -900,6 +897,5 @@ mod help_text_tests {
         // Hermes caps at 4096 (Telegram limit). 1KB is plenty of head-room
         // for a static list and forces us to revisit if we balloon.
         assert!(build_help_text().len() < 1024);
-
     }
 }

@@ -383,6 +383,17 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
   } = browserAddToConversationNav;
 
   const isAgentWorking = useAtomValue(isSessionActiveAtom);
+  const chatHistoryContainerStyle = useMemo(
+    () =>
+      ({
+        fontSize: `${chatFontSize}px`,
+        lineHeight: chatLineHeight ?? 1.6,
+        "--chat-font-size": `${chatFontSize}px`,
+        "--chat-code-font-size": `${chatCodeFontSize ?? 13}px`,
+        "--chat-line-height": chatLineHeight ?? 1.6,
+      }) as React.CSSProperties,
+    [chatFontSize, chatCodeFontSize, chatLineHeight]
+  );
   const [tailIdleReadyKey, setTailIdleReadyKey] = useState<string | null>(null);
   const turnCollapseOverrides = useAtomValue(turnCollapseOverrideAtom);
   const collapseAllCommand = useAtomValue(collapseAllCommandAtom);

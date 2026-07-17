@@ -21,6 +21,7 @@ import type {
 import type { UserPresenceWire } from "@src/types/userPresence";
 
 export interface UserProfileWire {
+  name?: string;
   techSavvy?: TechSavvyLevel;
   jobRoles?: string[];
   familiarTechStacks?: string[];
@@ -43,6 +44,7 @@ export type ChatPanelSurfaceKind =
   | "benchmarkSessionGroup"
   | "newProject"
   | "newWorkItem"
+  | "newGithubIssuesProject"
   | "project"
   | "projectOrg"
   | "workItem"
@@ -51,7 +53,8 @@ export type ChatPanelSurfaceKind =
   | "workspaceOverview"
   | "manageIssues"
   | "newCollabOrg"
-  | "collabOrg";
+  | "collabOrg"
+  | "cloudOrg";
 
 export interface AppUiSnapshot {
   route?: {

@@ -3,7 +3,7 @@
 use serde_json::Value;
 
 use super::compaction::ContextCompactor;
-use crate::core::side_query::{self, SideQueryConfig};
+use crate::core::side_query::{self, SideQueryConfig, StructuredOutput};
 
 /// Relaxed cap for tool results fed to the summarizer. Large enough to keep
 /// exact error messages / paths intact; the per-message oversized guard in

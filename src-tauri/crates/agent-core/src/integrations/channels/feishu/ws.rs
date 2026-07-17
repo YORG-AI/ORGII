@@ -21,7 +21,6 @@ use super::auth::FeishuAuth;
 use super::channel::{self, WsClientConfig};
 use super::codec::*;
 use super::event::{self, FeishuEventConfig};
-use super::api;
 use crate::bus::InboundMessage;
 
 /// Cap for exponential backoff: 15 minutes.

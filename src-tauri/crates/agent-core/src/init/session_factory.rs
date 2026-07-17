@@ -61,12 +61,14 @@ pub(super) async fn build_session_runtime(
 ) -> Result<SessionRuntimeSpec, String> {
     let workspace_snapshot = tool_deps.workspace.read().clone();
     let workspace_root = workspace_snapshot.working_dir().to_path_buf();
+    let llm_session_id = tool_deps.session_id.clone();
     let provider = crate::providers::factory::create_provider_with_native_harness_preflight(
         model,
         account_id,
         reliability,
         native_harness_type,
         Some(workspace_snapshot),
+        Some(&llm_session_id),
     )
     .await
     .map_err(|err| format!("Failed to create LLM provider: {}", err))?;

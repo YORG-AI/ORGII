@@ -17,9 +17,6 @@ import CloudSessionHoverCard from "@src/components/SessionHoverCard/CloudSession
 import { ROUTES } from "@src/config/routes";
 
 import LinkSessionToWorkItemModal from "@src/engines/ChatPanel/panels/LinkSessionToWorkItemModal";
-import { useCollaborationMetadataSync } from "@src/features/TeamCollaboration/useCollaborationMetadataSync";
-import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
-import { useKeyVault } from "@src/hooks/keyVault";
 
 import CloudSessionShareDialog from "@src/features/Org2Cloud/CloudSessionShareDialog";
 import { useCloudSessionShareDialog } from "@src/features/Org2Cloud/CloudSessionShareDialog/useCloudSessionShareDialog";
@@ -64,7 +61,7 @@ import {
   openOrReplaceSessionInChatPanelTabAtom,
   openSessionInNewChatTabAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
-import { repoMapAtom } from "@src/store/repo";
+import { repoMapAtom, selectedRepoIdAtom } from "@src/store/repo";
 import {
   DEFAULT_SESSION_ORG_ID,
   activeSessionCreatorDraftIdAtom,
@@ -79,6 +76,10 @@ import {
   visitedSessionsAtom,
   workstationActiveSessionIdAtom,
 } from "@src/store/session";
+import {
+  activeWorkspaceNameAtom,
+  workspaceFoldersAtom,
+} from "@src/store/ui/workspaceFoldersAtom";
 import {
   CHAT_PANEL_SURFACE_KIND,
   activeStationChatVisibleAtom,
@@ -193,6 +194,9 @@ export const WorkstationSidebarConnector: React.FC = () => {
   );
   const clearSessionSidebarReveal = useSetAtom(clearSessionSidebarRevealAtom);
   const setSidebarCollapsed = useSetAtom(sidebarCollapsedAtom);
+  const setWorkspaceFolders = useSetAtom(workspaceFoldersAtom);
+  const setActiveWorkspaceName = useSetAtom(activeWorkspaceNameAtom);
+  const setSelectedRepoId = useSetAtom(selectedRepoIdAtom);
   // Managed ORG2 Cloud orgs (the only team backend).
   const cloudOrgs = useAtomValue(org2CloudOrgsAtom);
   const visitedSessions = useAtomValue(visitedSessionsAtom);
@@ -262,8 +266,10 @@ export const WorkstationSidebarConnector: React.FC = () => {
   const [sidebarSearchQueries, setSidebarSearchQueries] = useState<
     Record<WorkstationSidebarKey, string>
   >({ workstation: "", projects: "" });
-  const handleSidebarLayerChange = useCallback((key: WorkstationSidebarKey) => {
-    setActiveSidebarKey(key);
+  const handleSidebarLayerChange = useCallback((key: string) => {
+    if (key === "workstation" || key === "projects") {
+      setActiveSidebarKey(key);
+    }
   }, []);
 
   const fetchProjectOrgs = useCallback(async (): Promise<ProjectOrg[]> => {
@@ -610,9 +616,10 @@ export const WorkstationSidebarConnector: React.FC = () => {
 
   const org2TreeItems = useMemo(() => buildOrg2TreeItems(sessions), [sessions]);
   const clearActiveWorkspace = useCallback(() => {
-    dispatchSetWorkspaceFolders([], null);
+    setWorkspaceFolders([]);
     setActiveWorkspaceName(null);
-  }, [dispatchSetWorkspaceFolders, setActiveWorkspaceName]);
+    setSelectedRepoId("");
+  }, [setWorkspaceFolders, setActiveWorkspaceName, setSelectedRepoId]);
 
   const revealCandidateMenuItems = useMemo(
     () => [...sessionSidebarMenuItems, ...cloudMenuItems],
@@ -1136,7 +1143,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
         items={[]}
         activeKey={activeSidebarKey}
 
-        onChange={handleTabChange}
+        onChange={handleSidebarLayerChange}
         menuItems={
           activeSidebarKey === "workstation"
             ? [...decoratedOrg2TreeItems, ...sidebarMenuItems]

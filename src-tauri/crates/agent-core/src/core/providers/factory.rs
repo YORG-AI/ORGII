@@ -394,23 +394,8 @@ fn build_provider_from_resolved(
     resolved: &ResolvedProviderKey,
     spec: &'static ProviderSpec,
     model: &str,
-    code_assist_session_id: Option<&str>,
+    _code_assist_session_id: Option<&str>,
 ) -> Box<dyn LLMProvider> {
-    if resolved.is_gemini_oauth {
-        let project_id = resolved.gemini_project_id.clone().unwrap_or_default();
-        tracing::info!(
-            "[provider] Using GeminiNativeClient for model={}, project_id_present={}",
-            model,
-            !project_id.trim().is_empty()
-        );
-        return Box::new(GeminiNativeClient::new(
-            resolved.account_id.clone(),
-            project_id,
-            model.to_string(),
-            code_assist_session_id.map(ToString::to_string),
-        ));
-    }
-
     if resolved.is_codex_oauth {
         tracing::info!(
             "[provider] Using CodexNativeClient (Responses API) for model={}",

@@ -532,6 +532,7 @@ impl UnifiedMessageProcessor {
             }
             SideQueryExecution::IsolatedSession => {
                 let workspace = self.runtime.workspace_state.read().clone();
+                let side_query_session_id = format!("{session_id}:{label}");
                 let provider =
                     crate::providers::factory::create_provider_with_native_harness_preflight(
                         &self.runtime.model,
@@ -539,6 +540,7 @@ impl UnifiedMessageProcessor {
                         &self.runtime.resolved.reliability,
                         self.runtime.native_harness_type,
                         Some(workspace),
+                        Some(&side_query_session_id),
                     )
                     .await
                     .map_err(|err| {

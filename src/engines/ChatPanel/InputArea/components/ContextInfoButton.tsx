@@ -24,6 +24,7 @@ import {
 import { useSessionId } from "@src/engines/SessionCore/hooks/session";
 import { useHousekeeperConfig } from "@src/hooks/housekeeper";
 import { useSetting } from "@src/hooks/settings/useSettings";
+import { isSessionActiveAtom } from "@src/store/session/cliSessionStatusAtom";
 
 import ContextBreakdownBar from "./ContextBreakdownBar";
 import ContextCategoryRow from "./ContextCategoryRow";
@@ -151,9 +152,10 @@ function applyCategoryPercents(
 }
 
 const ContextInfoButton: React.FC<ContextInfoButtonProps> = memo(
-  ({ sessionId, variant = "toolbar", compact = false }) => {
+  ({ sessionId: providedSessionId, variant = "toolbar", compact = false }) => {
     const { t } = useTranslation();
-    const { sessionId } = useSessionId();
+    const { sessionId: scopedSessionId } = useSessionId();
+    const sessionId = providedSessionId ?? scopedSessionId;
     const [housekeeperEnabled] = useSetting("housekeeper.enabled");
     const [contextCompactEnabled] = useSetting(
       "housekeeper.features.contextCompact"
