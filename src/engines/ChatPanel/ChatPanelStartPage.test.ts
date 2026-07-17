@@ -111,8 +111,8 @@ describe("ChatPanelStartPage", () => {
     expect(newWorkItemIndex).toBeGreaterThan(importSessionIndex);
     expect(addApiKeyIndex).toBeGreaterThan(newWorkItemIndex);
     expect(markup).toContain("navigation:cloud.share.importEntry");
-    expect(markup.match(/bg-purple-6\/5/g)).toHaveLength(3);
-    expect(markup.match(/hover:bg-bg-2/g)).toHaveLength(3);
+    expect(markup.match(/border-border-2/g)).toHaveLength(3);
+    expect(markup.match(/hover:border-border-3/g)).toHaveLength(3);
     expect(markup).not.toContain("group-hover:bg-fill-3");
   });
 

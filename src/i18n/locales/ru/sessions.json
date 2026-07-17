@@ -2014,6 +2014,14 @@
     "model": "Модель",
     "source": "Аккаунт",
     "addContext": "Добавить контекст",
+    "contextMenu": {
+      "filesAndFolders": "Файлы и папки",
+      "agentSession": "Сеанс агента",
+      "workItems": "Рабочие элементы",
+      "back": "Назад",
+      "recent": "Недавние",
+      "showMore": "Показать ещё: {{remaining}}"
+    },
     "slashSearchPlaceholder": "Поиск команд…",
     "slashMenu": {
       "image": "Изображение",

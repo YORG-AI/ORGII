@@ -2,15 +2,17 @@
  * ChatPanelTabBar
  *
  * Inline tab-pill strip rendered inside the existing ChatPanelHeader row,
- * replacing the title/drag-spacer area. Uses the exact same primitives as
- * the Workstation tab bar:
+ * replacing the title/drag-spacer area. Only shown on the start page —
+ * session/terminal views keep a plain header. Uses the exact same
+ * primitives as the Workstation tab bar:
  *   - WorkStationTabPillSurface  (active/inactive pill surface)
  *   - TabPillCloseButton         (14px X close control)
  *   - TabLabelRowScrim           (gradient scrim behind close button)
  *   - TabBarTrailingIconButton   (+ button)
  *   - TAB_PAIR_SEPARATOR_SLOT_CLASS between pills
  *
- * Keyboard shortcuts (only when focus is inside the chat panel container):
+ * Keyboard shortcuts live in useChatPanelTabShortcuts (mounted by ChatPanel
+ * itself, not this strip, so they keep working while the strip is hidden):
  *   Cmd+W  — close active tab
  *   Cmd+]  — next tab    Cmd+[  — prev tab
  *   Cmd+N  — new session tab
@@ -398,22 +400,26 @@ export function ChatPanelPlusMenu({
   );
 }
 
-// ─── Main component ────────────────────────────────────────────────────────────
+// ─── Keyboard shortcuts hook ──────────────────────────────────────────────────
 
-export interface ChatPanelTabBarProps {
+export interface UseChatPanelTabShortcutsOptions {
   onNewSession: () => void;
   onNewTerminal: () => void;
   /** Ref to the outermost chat panel container for focus-scoped keyboard handling */
   containerRef?: React.RefObject<HTMLElement | null>;
 }
 
-export function ChatPanelTabBar({
+/**
+ * Chat-panel-scoped tab shortcuts (⌘W / ⌘] / ⌘[ / ⌘N) plus the global
+ * "create-chat-tab" event. Mounted by ChatPanel unconditionally so the
+ * shortcuts work even when the visual tab strip is not rendered.
+ */
+export function useChatPanelTabShortcuts({
   onNewSession,
   onNewTerminal,
   containerRef,
-}: ChatPanelTabBarProps): React.ReactNode {
+}: UseChatPanelTabShortcutsOptions): void {
   const state = useAtomValue(chatPanelTabsAtom);
-  const activateTab = useSetAtom(activateChatPanelTabAtom);
   const closeTab = useSetAtom(closeAndDestroyChatPanelTabAtom);
   const nextTab = useSetAtom(nextChatPanelTabAtom);
   const prevTab = useSetAtom(prevChatPanelTabAtom);
@@ -473,6 +479,14 @@ export function ChatPanelTabBar({
     window.addEventListener("create-chat-tab", handler);
     return () => window.removeEventListener("create-chat-tab", handler);
   }, [onNewTerminal]);
+}
+
+// ─── Main component ────────────────────────────────────────────────────────────
+
+export function ChatPanelTabBar(): React.ReactNode {
+  const state = useAtomValue(chatPanelTabsAtom);
+  const activateTab = useSetAtom(activateChatPanelTabAtom);
+  const closeTab = useSetAtom(closeAndDestroyChatPanelTabAtom);
 
   // Inline strip — no outer wrapper, fills the flex row in the header
   return (

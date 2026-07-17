@@ -1,8 +1,11 @@
+import { invoke } from "@tauri-apps/api/core";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useAtomValue } from "jotai";
 import {
+  Check,
   Clock,
   Diff,
+  Fingerprint,
   Folder,
   GitBranch,
   GitCommitVertical,
@@ -10,9 +13,10 @@ import {
   Save,
   Timer,
 } from "lucide-react";
-import React, { memo, useEffect, useMemo, useState } from "react";
+import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { IMPORTED_HISTORY_SOURCE_DESCRIPTORS } from "@src/api/tauri/externalHistory/imported/descriptors";
 import {
   type CoreSessionSummary,
   getOrgtrackSessionSummary,
@@ -30,6 +34,7 @@ import { useValidatedLastPair } from "@src/hooks/models/useValidatedLastPair";
 import { workspaceGitStatusMapAtom } from "@src/store/git/gitStatusAtom";
 import type { LastModelSelection } from "@src/store/session/creatorDefaultModelAtom";
 import { sessionByIdAtom } from "@src/store/session/sessionAtom/atoms";
+import { copyText } from "@src/util/data/clipboard";
 import {
   formatReplayDateLabel,
   toIntlLocaleTag,
@@ -38,6 +43,7 @@ import { formatBranchLabel } from "@src/util/git/branchLabel";
 import { basename } from "@src/util/path";
 import {
   getDispatchCategory,
+  isCliSession,
   resolveSessionIconId,
 } from "@src/util/session/sessionDispatch";
 import { formatDuration } from "@src/util/time/formatDuration";
@@ -58,6 +64,23 @@ interface AgentSessionInfo {
 
 interface SessionHoverCardContentProps {
   sessionId: string;
+}
+
+/** Mirror of the `cli_agent_transcript_path` command payload. */
+interface CliTranscriptLocation {
+  /** True when the transcript of record lives in the CLI's native store. */
+  native: boolean;
+  /** Resolved native store path, when the imported-history cache has it. */
+  path: string | null;
+}
+
+/**
+ * Minimal mirror of the `cli_agent_status` command payload (`CodeSession`,
+ * camelCase). Only the bound native CLI id is read here.
+ */
+interface CliAgentStatusPayload {
+  /** The CLI's own session id (e.g. Claude jsonl stem), once bound. */
+  cliSessionId?: string | null;
 }
 
 const PATH_ROW_CLASS_NAME =
@@ -85,6 +108,37 @@ function formatCompactPath(path: string): string {
 
 function normalizePath(path: string): string {
   return path.replace(/\/+$/u, "");
+}
+
+/** How long the copied-check flash stays visible on the session-id row. */
+const COPIED_FLASH_MS = 1500;
+/** Characters kept on each side when middle-truncating a session id. */
+const COMPACT_ID_EDGE_CHARS = 8;
+
+/**
+ * Middle-truncate a session id so both the distinctive head and tail stay
+ * visible (UUIDs differ at both ends; opencode `ses_` ids differ at the tail).
+ */
+function formatCompactSessionId(id: string): string {
+  if (id.length <= COMPACT_ID_EDGE_CHARS * 2 + 2) return id;
+  return `${id.slice(0, COMPACT_ID_EDGE_CHARS)}…${id.slice(-COMPACT_ID_EDGE_CHARS)}`;
+}
+
+/**
+ * Strip the imported-history prefix (`claudecodeapp-`, `codexapp-`,
+ * `cursoride-`, ...) and return the RAW source-store session id — the value
+ * that matches the CLI's own tooling (Claude jsonl stem, Codex rollout id,
+ * opencode `ses_` id, Cursor composer UUID). Returns `null` for
+ * non-imported sessions.
+ */
+function getImportedRawSessionId(sessionId: string): string | null {
+  for (const descriptor of IMPORTED_HISTORY_SOURCE_DESCRIPTORS) {
+    if (sessionId.startsWith(descriptor.prefix)) {
+      const raw = sessionId.slice(descriptor.prefix.length);
+      return raw.length > 0 ? raw : null;
+    }
+  }
+  return null;
 }
 
 function handleRevealPath(path: string): void {
@@ -136,8 +190,22 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
       useSessionTurnOverview(sessionId);
     const repoPath = session?.repoPath;
     const storagePath = session?.storagePath;
+    const cliAgentType = session?.cliAgentType;
     const [orgtrackSummary, setOrgtrackSummary] =
       useState<CoreSessionSummary | null>(null);
+    const [transcriptLocationState, setTranscriptLocationState] = useState<{
+      sessionId: string;
+      location: CliTranscriptLocation;
+    } | null>(null);
+    const [boundCliIdState, setBoundCliIdState] = useState<{
+      sessionId: string;
+      cliSessionId: string | null;
+    } | null>(null);
+    // Keyed on session id so switching cards never shows a stale check.
+    const [copiedForSessionId, setCopiedForSessionId] = useState<string | null>(
+      null
+    );
+    const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
       let cancelled = false;
@@ -158,6 +226,84 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
         cancelled = true;
       };
     }, [sessionId]);
+
+    // Native-transcript sessions keep their transcript in the CLI's own
+    // store, not sessions.db — resolve the real location for the storage row.
+    useEffect(() => {
+      let cancelled = false;
+      if (!cliAgentType) return undefined;
+
+      invoke<CliTranscriptLocation>("cli_agent_transcript_path", { sessionId })
+        .then((location) => {
+          if (!cancelled) setTranscriptLocationState({ sessionId, location });
+        })
+        .catch((error: unknown) => {
+          logger.warn("failed to resolve session transcript path", {
+            error,
+            sessionId,
+          });
+        });
+
+      return () => {
+        cancelled = true;
+      };
+    }, [cliAgentType, sessionId]);
+
+    // Managed CLI sessions (`cliagent-*`): the bound native CLI id lives on
+    // the `code_sessions` row already returned by `cli_agent_status` — no
+    // new backend surface needed.
+    useEffect(() => {
+      let cancelled = false;
+      if (!isCliSession(sessionId)) return undefined;
+
+      invoke<CliAgentStatusPayload | null>("cli_agent_status", { sessionId })
+        .then((status) => {
+          if (!cancelled) {
+            setBoundCliIdState({
+              sessionId,
+              cliSessionId: status?.cliSessionId ?? null,
+            });
+          }
+        })
+        .catch((error: unknown) => {
+          logger.warn("failed to load bound cli session id", {
+            error,
+            sessionId,
+          });
+        });
+
+      return () => {
+        cancelled = true;
+      };
+    }, [sessionId]);
+
+    // Clear any pending copied-flash timer on unmount.
+    useEffect(() => {
+      return () => {
+        if (copiedTimerRef.current !== null) {
+          clearTimeout(copiedTimerRef.current);
+          copiedTimerRef.current = null;
+        }
+      };
+    }, []);
+
+    const transcriptLocation =
+      transcriptLocationState?.sessionId === sessionId
+        ? transcriptLocationState.location
+        : null;
+
+    // The session's underlying id in its source store, for non-org2-native
+    // sessions: imported external rows expose the prefix-stripped raw id;
+    // managed CLI rows expose the bound native CLI id (null until the first
+    // turn binds one). Pure Rust-agent sessions stay null — row hidden.
+    const underlyingSessionId = useMemo(() => {
+      const importedRawId = getImportedRawSessionId(sessionId);
+      if (importedRawId) return importedRawId;
+      if (boundCliIdState?.sessionId === sessionId) {
+        return boundCliIdState.cliSessionId;
+      }
+      return null;
+    }, [boundCliIdState, sessionId]);
 
     const lastModel: LastModelSelection | null = useMemo(() => {
       if (!session) return creatorDefaultLastModel;
@@ -244,6 +390,23 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
 
     if (!session) return null;
 
+    const handleCopyUnderlyingId = (value: string): void => {
+      void copyText(value)
+        .then(() => {
+          setCopiedForSessionId(sessionId);
+          if (copiedTimerRef.current !== null) {
+            clearTimeout(copiedTimerRef.current);
+          }
+          copiedTimerRef.current = setTimeout(() => {
+            copiedTimerRef.current = null;
+            setCopiedForSessionId(null);
+          }, COPIED_FLASH_MS);
+        })
+        .catch((error: unknown) => {
+          logger.warn("failed to copy session id", { error, sessionId });
+        });
+    };
+
     const repoName = session.repo_name || (repoPath ? basename(repoPath) : "");
     const worktreePath = session.worktreePath;
     const normalizedRepoPath = repoPath ? normalizePath(repoPath) : undefined;
@@ -262,6 +425,12 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
       lastModel?.listingModel || lastModel?.model || undefined;
     const modelIconAgent = lastModel?.listingModelType || undefined;
     const agentSessionInfo = getAgentSessionInfo(session);
+    // Native-transcript sessions must not claim sessions.db: show the CLI
+    // store file when resolved, else a plain "CLI native store" label.
+    const isNativeTranscript = transcriptLocation?.native === true;
+    const storageRowPath = isNativeTranscript
+      ? (transcriptLocation?.path ?? undefined)
+      : storagePath;
 
     const dateTimeLabelOptions = {
       todayLabel: t("common:relativeDate.today"),
@@ -339,15 +508,47 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
             </button>
           </HoverCardRow>
         )}
-        {storagePath && (
+        {(storageRowPath || isNativeTranscript) && (
           <HoverCardRow icon={<Save size={13} strokeWidth={1.75} />}>
+            {storageRowPath ? (
+              <button
+                type="button"
+                className={PATH_ROW_CLASS_NAME}
+                title={storageRowPath}
+                onClick={() => handleRevealPath(storageRowPath)}
+              >
+                {formatCompactPath(storageRowPath)}
+              </button>
+            ) : (
+              <span className="truncate text-text-2">
+                {t("history.detail.cliNativeStore")}
+              </span>
+            )}
+          </HoverCardRow>
+        )}
+        {underlyingSessionId && (
+          <HoverCardRow icon={<Fingerprint size={13} strokeWidth={1.75} />}>
             <button
               type="button"
               className={PATH_ROW_CLASS_NAME}
-              title={storagePath}
-              onClick={() => handleRevealPath(storagePath)}
+              title={underlyingSessionId}
+              onClick={() => handleCopyUnderlyingId(underlyingSessionId)}
             >
-              {formatCompactPath(storagePath)}
+              <span className="text-text-3">
+                {t("history.detail.sessionId")}
+              </span>
+              <span className="mx-1 text-text-4">·</span>
+              <span className="font-mono">
+                {formatCompactSessionId(underlyingSessionId)}
+              </span>
+              {copiedForSessionId === sessionId && (
+                <Check
+                  size={12}
+                  strokeWidth={2}
+                  className="ml-1 inline-block align-[-1px] text-success-6"
+                  aria-hidden="true"
+                />
+              )}
             </button>
           </HoverCardRow>
         )}

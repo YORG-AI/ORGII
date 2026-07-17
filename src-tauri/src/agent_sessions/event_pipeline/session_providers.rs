@@ -1,3 +1,4 @@
+use core_types::session::CLI_SESSION_PREFIX;
 use orgtrack_core::sources::cursor_ide::history::CURSORIDE_SESSION_PREFIX;
 
 use crate::agent_sessions::event_pipeline::types::SessionEvent;
@@ -38,7 +39,29 @@ impl SessionProvider for CursorIdeProvider {
     }
 }
 
-static PROVIDERS: &[&(dyn SessionProvider + Sync)] = &[&CursorIdeProvider];
+/// Managed CLI sessions (`cliagent-*`). Their transcript of record is never
+/// the `events` table: chunks-mode sessions replay `code_session_chunks`,
+/// native-mode sessions replay the CLI's own store via the imported-history
+/// loaders (`cli_agent_chunks` routes both). Persisting the in-memory
+/// EventStore for them only mirrors ephemeral turn state (frontend synthetic
+/// user bubble, streamed placeholders, replay copies) into SQLite, where the
+/// rows resurface as duplicate bubbles on the next merge. Live streaming is
+/// unaffected — it renders from in-memory snapshots (`es:changed`), and
+/// `es_load_from_cache` returning 0 rows simply leaves the chat to the
+/// adapter's replay loader, which is the transcript of record.
+struct ManagedCliProvider;
+
+impl SessionProvider for ManagedCliProvider {
+    fn matches_session(&self, session_id: &str) -> bool {
+        session_id.starts_with(CLI_SESSION_PREFIX)
+    }
+
+    fn skips_event_cache_save(&self, _session_id: &str) -> bool {
+        true
+    }
+}
+
+static PROVIDERS: &[&(dyn SessionProvider + Sync)] = &[&CursorIdeProvider, &ManagedCliProvider];
 
 pub(crate) fn skips_event_cache_save(session_id: &str) -> bool {
     external_cli_adapter::adapter_for_imported_session(session_id).is_some()

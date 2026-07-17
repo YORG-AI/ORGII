@@ -745,7 +745,7 @@ mod tests {
     }
 
     #[test]
-    fn folds_read_and_search_metadata_across_provider_tool_names() {
+    fn folds_read_metadata_and_drops_searches_across_provider_tool_names() {
         let mut acc = TurnMetadataAccumulator::new();
         acc.add_event_at(
             Some("Read"),
@@ -760,16 +760,18 @@ mod tests {
             "2026-07-15T00:00:02Z",
         );
 
+        // search-rows: only the read survives — the Grep contributes neither its
+        // queried path nor the paths named in its matches.
         let interactions = acc.resource_interactions();
-        assert_eq!(interactions.len(), 4);
+        assert_eq!(interactions.len(), 1);
         assert!(interactions.iter().any(|item| {
             item.path == "src/lib.rs"
                 && item.action == ResourceAction::Read
                 && item.outcome == ResourceInteractionOutcome::Succeeded
         }));
-        assert!(interactions
+        assert!(!interactions
             .iter()
-            .any(|item| { item.path == "src/main.rs" && item.action == ResourceAction::Search }));
+            .any(|item| item.action == ResourceAction::Search));
     }
 
     #[test]

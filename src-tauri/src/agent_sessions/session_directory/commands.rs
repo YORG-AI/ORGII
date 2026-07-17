@@ -96,6 +96,20 @@ pub async fn session_external_history_sidebar_list(
                         }
                     }
                 }
+                // Live status decoration happens at this desktop boundary
+                // (not in the core query): hook-derived state first, then
+                // the transcript-recency fallback for hook-less CLIs.
+                for session in &mut page.sessions {
+                    if let Some((status, is_active)) =
+                        crate::orgtrack::agent_live_status::live_status_for_imported_row(
+                            &session.session_id,
+                            &session.updated_at,
+                        )
+                    {
+                        session.status = Some(status.to_string());
+                        session.is_active = Some(is_active);
+                    }
+                }
                 pages.push(ExternalHistorySidebarBucketPage {
                     bucket: request.bucket,
                     sessions: page.sessions,

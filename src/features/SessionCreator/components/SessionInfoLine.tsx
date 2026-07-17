@@ -37,12 +37,14 @@ import {
   isSystemHomeRepoItem,
   isSystemPathRepoItem,
 } from "@src/features/SessionCreator/utils/systemPathSource";
+import { useActiveCloudOrgRepoFilter } from "@src/features/TeamCollaboration/useActiveCloudOrgRepoFilter";
 import { useDropdownEngine } from "@src/hooks/dropdown";
 import { BranchPalette } from "@src/scaffold/GlobalSpotlight/palettes/BranchPalette";
 import { BranchDropdown } from "@src/scaffold/GlobalSpotlight/palettes/BranchPalette/BranchDropdown";
 import { WorkspacePalette } from "@src/scaffold/GlobalSpotlight/palettes/WorkspacePalette";
 import { WorkspaceDropdown } from "@src/scaffold/GlobalSpotlight/palettes/WorkspacePalette/WorkspaceDropdown";
 import { runGuardedCheckout } from "@src/services/git/operations/guardedCheckout";
+import { reposAtom } from "@src/store/repo";
 import { REPO_KIND, type RepoKind } from "@src/store/repo/types";
 import type { WorktreeLaunchSource } from "@src/store/session/worktreeLaunchSourceAtom";
 import { modelPickerStyleAtom } from "@src/store/ui/chatPanelAtom";
@@ -369,6 +371,19 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
   const systemPathSourceItems = useSystemPathRepoItems(includeSystemPaths, t);
   const branchRepoPath = selectedWorktreePath ?? repoPath ?? "";
 
+  const orgScopeRepoFilter = useActiveCloudOrgRepoFilter();
+  const centralRepos = useAtomValue(reposAtom);
+  useEffect(() => {
+    // onRepoSelect only — onRepoChange would persist a global default repo.
+    if (!orgScopeRepoFilter || disabled || !onRepoSelect) return;
+    if (!repoId || centralRepos.length === 0) return;
+    const current = centralRepos.find((repo) => repo.id === repoId);
+    if (!current || orgScopeRepoFilter(current)) return;
+    const fallback = centralRepos.find((repo) => orgScopeRepoFilter(repo));
+    if (!fallback) return;
+    queueMicrotask(() => onRepoSelect(fallback.id, fallback));
+  }, [orgScopeRepoFilter, disabled, repoId, centralRepos, onRepoSelect]);
+
   const handleBranchSelect = useCallback(
     async (branch: string) => {
       if (!repoId || !branchRepoPath || repoKind === REPO_KIND.FOLDER) {
@@ -615,6 +630,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
           currentRepoId={repoId}
           anchorRef={repoTriggerRef}
           leadingRepos={systemPathSourceItems}
+          repoFilter={orgScopeRepoFilter ?? undefined}
         />
       ) : (
         <WorkspacePalette
@@ -625,6 +641,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
           switchPathLabel={t("selectors.sessionInfo.sessionWorkspace")}
           hideActionClose
           leadingRepos={systemPathSourceItems}
+          repoFilter={orgScopeRepoFilter ?? undefined}
         />
       )}
 

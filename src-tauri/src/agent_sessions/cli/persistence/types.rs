@@ -69,6 +69,10 @@ pub struct CodeSession {
     pub project_slug: Option<String>,
     pub work_item_id: Option<String>,
     pub agent_role: Option<String>,
+    /// Where the transcript of record lives: `chunks` (legacy
+    /// `code_session_chunks`) or `native` (the CLI's own store via the
+    /// imported-history loaders). Frozen at creation time.
+    pub transcript_source: String,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -105,6 +109,11 @@ pub struct CreateCodeSessionParams {
     /// Request worktree isolation for parallel execution.
     #[serde(default)]
     pub isolate: Option<bool>,
+    /// Reuse an existing worktree checkout instead of creating one.
+    /// Ignored when `isolate` is set. The path must be an existing
+    /// directory; the session's cwd and merge flow are pinned to it.
+    #[serde(default)]
+    pub worktree_path: Option<String>,
     /// Launch in background mode ("fire and forget" with completion notification).
     #[serde(default)]
     pub background: Option<bool>,

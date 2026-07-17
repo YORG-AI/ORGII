@@ -40,6 +40,7 @@ pub mod activity;
 pub mod claude_code;
 pub mod cline;
 pub mod codex;
+pub mod cursor_cli;
 pub mod cursor_ide;
 pub mod imported_history;
 pub mod opencode;

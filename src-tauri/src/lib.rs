@@ -531,6 +531,13 @@ pub fn run() {
             });
             orgtrack::session_provenance::spawn_hook_inbox_drain_loop(app.handle().clone());
 
+            // Live agent-status registry: frontend fanout handle + restart
+            // continuity from the last-status cache (TTL-filtered).
+            orgtrack::agent_live_status::init_app_handle(app.handle().clone());
+            tauri::async_runtime::spawn_blocking(|| {
+                orgtrack::agent_live_status::hydrate_from_disk();
+            });
+
             // Initialize Rust EventStore state
             app.manage(agent_sessions::event_pipeline::commands::EventStoreState::new());
             tracing::info!("[EventStore] Rust event store initialized");

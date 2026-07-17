@@ -491,7 +491,7 @@
     "moveToOrg": {
       "menuItem": "Теги организаций…",
       "title": "Теги организаций для сессии",
-      "hint": "Добавляет сессию в общую облачную организацию. Она остаётся обычной локальной сессией — просто становится там видимой, независимо от области репозитория.",
+      "hint": "Отметьте одну или несколько организаций, чтобы поделиться этой сессией — она может одновременно быть в Personal и в нескольких организациях. Она остаётся обычной локальной сессией; это лишь делает её там видимой. Выбрать можно только организации, чья область репозиториев охватывает репозиторий этой сессии.",
       "noOrgs": "Облачных организаций пока нет — войдите в ORG2 Cloud, чтобы создать или присоединиться.",
       "cloudBadge": "Облако",
       "added": "Добавлено в {{org}}",
@@ -500,7 +500,12 @@
       "noRemote": "This session's repository has no git remote, so it can't match any org's repo scope.",
       "noScopes": "No repo scopes",
       "outOfScope": "Out of scope",
-      "scopeResolving": "Checking…"
+      "scopeResolving": "Checking…",
+      "personal": "Personal (личное)",
+      "personalBadge": "Локально",
+      "personalOnlyHome": "Единственное место",
+      "personalUnavailable": "Не в Personal",
+      "autoInScope": "В организации по области репозиториев"
     },
     "orgManagement": {
       "invites": {

@@ -237,7 +237,14 @@ export const ExternalHistorySidebarRowSchema = z.object({
   name: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  // Live status decoration (hook-derived or transcript-recency fallback).
+  // Absent means the historical default: a terminal, read-only "completed".
+  status: z.string().optional(),
+  isActive: z.boolean().optional(),
   repoPath: z.string().optional(),
+  // The source app's transcript file. Imported sessions have no sessions.db
+  // copy, so this is their only storage path.
+  storagePath: z.string().optional(),
   model: z.string().optional(),
   totalTokens: z.number().int().optional(),
   filesChanged: z.number().int().optional(),

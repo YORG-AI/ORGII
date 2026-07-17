@@ -12,6 +12,7 @@ import type { eventsAtom as EventsAtomType } from "../events";
 vi.mock("../../store/EventStoreProxy", () => ({
   eventStoreProxy: {
     append: vi.fn().mockResolvedValue(undefined),
+    set: vi.fn().mockResolvedValue(undefined),
     mergeEvents: vi.fn().mockResolvedValue(undefined),
     removeSyntheticUserInputEvents: vi.fn().mockResolvedValue(0),
     scheduleSessionSnapshotRelease: vi.fn(),
@@ -45,6 +46,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   vi.mocked(eventStoreProxy.append).mockClear();
+  vi.mocked(eventStoreProxy.set).mockClear();
   vi.mocked(eventStoreProxy.mergeEvents).mockClear();
   vi.mocked(eventStoreProxy.removeSyntheticUserInputEvents).mockClear();
   vi.mocked(eventStoreProxy.scheduleSessionSnapshotRelease).mockClear();
@@ -208,6 +210,156 @@ describe("loadSessionAtom", () => {
     expect(store.get(eventsAtom)).toHaveLength(1);
     expect(store.get(eventsAtom)[0].id).toBe("user-message-1");
     expect(store.get(eventsAtom)[0].result?.images).toEqual(images);
+  });
+
+  /**
+   * Native-transcript replay user events normalize to functionName "user"
+   * (the alias map resolves the chunk's action_type "raw"; "user_message"
+   * itself is not an alias) under an imported-history id — never the
+   * synthetic's user-input-* id.
+   */
+  function makeReplayEvent(
+    id: string,
+    content: string,
+    role: "user" | "assistant",
+    createdAt: string
+  ): SessionEvent {
+    return {
+      ...makeMessageEvent(id, "session-1", createdAt),
+      functionName: role === "user" ? "user" : "assistant_message",
+      uiCanonical: role === "user" ? "user" : "agent_message",
+      actionType: role === "user" ? "raw" : "assistant",
+      source: role,
+      displayText: content,
+      result:
+        role === "user"
+          ? { type: "user", message: { content, role: "user" } }
+          : { content, observation: content },
+    };
+  }
+
+  it("replace: drops the pre-existing synthetic user event when the replay carries the same content under a different id", () => {
+    const store = createStore();
+    const synthetic = makeUserMessageEvent("user-input-1", "fix the bug", {
+      synthetic: true,
+    });
+    const streamed = makeMessageEvent(
+      "stream-msg-session-1",
+      "session-1",
+      "2026-05-16T00:00:02.000Z"
+    );
+    const replayUser = makeReplayEvent(
+      "claudecodeapp-user-0",
+      "fix the bug",
+      "user",
+      "2026-05-16T00:00:01.000Z"
+    );
+    const replayAssistant = makeReplayEvent(
+      "claudecodeapp-asst-1",
+      "done",
+      "assistant",
+      "2026-05-16T00:00:03.000Z"
+    );
+
+    // Live turn: synthetic user bubble + streamed assistant placeholder.
+    store.set(loadSessionAtom, {
+      sessionId: "session-1",
+      events: [synthetic, streamed],
+    });
+    // Turn end: native-transcript reconcile replays the canonical parse.
+    store.set(loadSessionAtom, {
+      sessionId: "session-1",
+      events: [replayUser, replayAssistant],
+      replace: true,
+    });
+
+    expect(store.get(eventsAtom).map((event) => event.id)).toEqual([
+      "claudecodeapp-user-0",
+      "claudecodeapp-asst-1",
+    ]);
+    // Replace loads must overwrite the Rust store (which still holds the
+    // synthetic + streamed placeholders), not merge into it.
+    expect(eventStoreProxy.set).toHaveBeenLastCalledWith(
+      store.get(eventsAtom),
+      "session-1"
+    );
+  });
+
+  it("without replace, the same reload keeps existing events and merges the replay next to them", () => {
+    const store = createStore();
+    const synthetic = makeUserMessageEvent("user-input-1", "fix the bug", {
+      synthetic: true,
+    });
+    const streamed = makeMessageEvent(
+      "stream-msg-session-1",
+      "session-1",
+      "2026-05-16T00:00:02.000Z"
+    );
+    const replayUser = makeReplayEvent(
+      "claudecodeapp-user-0",
+      "fix the bug",
+      "user",
+      "2026-05-16T00:00:01.000Z"
+    );
+    const replayAssistant = makeReplayEvent(
+      "claudecodeapp-asst-1",
+      "done",
+      "assistant",
+      "2026-05-16T00:00:03.000Z"
+    );
+
+    store.set(loadSessionAtom, {
+      sessionId: "session-1",
+      events: [synthetic, streamed],
+    });
+    store.set(loadSessionAtom, {
+      sessionId: "session-1",
+      events: [replayUser, replayAssistant],
+    });
+
+    // Current merge behavior: existing events survive (only the synthetic
+    // is stripped by the backend-user-message fallback) and the replay rows
+    // append after them; the Rust store is merged, not replaced.
+    expect(store.get(eventsAtom).map((event) => event.id)).toEqual([
+      "stream-msg-session-1",
+      "claudecodeapp-user-0",
+      "claudecodeapp-asst-1",
+    ]);
+    expect(eventStoreProxy.set).not.toHaveBeenCalled();
+    expect(eventStoreProxy.mergeEvents).toHaveBeenLastCalledWith(
+      store.get(eventsAtom),
+      "session-1"
+    );
+  });
+
+  it("replace: still recovers the synthetic user event when the replay has no backend user message yet", () => {
+    const store = createStore();
+    const synthetic = makeUserMessageEvent("user-input-1", "fix the bug", {
+      synthetic: true,
+    });
+    const replayAssistant = makeReplayEvent(
+      "claudecodeapp-asst-0",
+      "working on it",
+      "assistant",
+      "2026-05-16T00:00:02.000Z"
+    );
+
+    store.set(loadSessionAtom, {
+      sessionId: "session-1",
+      events: [synthetic],
+    });
+    store.set(loadSessionAtom, {
+      sessionId: "session-1",
+      events: [replayAssistant],
+      replace: true,
+    });
+
+    // First-message recovery: the native store has not flushed the user
+    // turn yet, so the synthetic bubble must not vanish.
+    expect(store.get(eventsAtom).map((event) => event.id)).toEqual([
+      "user-input-1",
+      "claudecodeapp-asst-0",
+    ]);
   });
 
   it("carries optimistic user images onto a live persisted echo", () => {

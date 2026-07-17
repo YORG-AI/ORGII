@@ -36,12 +36,18 @@ interface BuildSessionMenuItemParams {
   session: Session;
   untitledSession: string;
   visitedSessions: ReadonlySet<string>;
+  /**
+   * Blocked-on-user detail from lifecycle hooks (permission prompt /
+   * question). Rendered as the row subtitle only while the session waits.
+   */
+  liveDetail?: string;
 }
 
 export function buildSessionMenuItem({
   session,
   untitledSession,
   visitedSessions,
+  liveDetail,
 }: BuildSessionMenuItemParams): NavigationMenuItem {
   const inProgress = isSessionInProgress(session.status, session);
   const displayName = getSessionListDisplayName(session, untitledSession);
@@ -62,6 +68,7 @@ export function buildSessionMenuItem({
     searchText: getSessionSearchText(session, untitledSession),
     dataTestId: `sidebar-session-item-${session.session_id}`,
     icon: resolveSessionRowIcon(session),
+    subtitle: liveDetail && pendingAsking ? liveDetail : undefined,
     workingIndicator:
       inProgress && !pendingAsking ? renderBreathingStatusDot() : undefined,
     trailingElement: pendingAsking

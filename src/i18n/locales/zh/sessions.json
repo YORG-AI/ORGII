@@ -23,6 +23,8 @@
       "roundCount_one": "{{count}} 轮",
       "roundCount_other": "{{count}} 轮",
       "agentWorked": "Agent 工作",
+      "cliNativeStore": "CLI 原生存储",
+      "sessionId": "会话 ID",
       "reasoningModel": "Reasoning Model",
       "codingModel": "Coding Model",
       "sessionMode": "Session 模式",
@@ -2004,6 +2006,14 @@
     "model": "模型",
     "source": "账号",
     "addContext": "添加上下文",
+    "contextMenu": {
+      "filesAndFolders": "文件和文件夹",
+      "agentSession": "Agent 会话",
+      "workItems": "工作项",
+      "back": "返回",
+      "recent": "最近使用",
+      "showMore": "再显示 {{remaining}} 项"
+    },
     "slashSearchPlaceholder": "搜索命令…",
     "slashMenu": {
       "image": "图片",

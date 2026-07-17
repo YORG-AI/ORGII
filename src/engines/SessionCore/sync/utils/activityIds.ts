@@ -77,9 +77,12 @@ export function isSyntheticUserInputEvent(
 export function isBackendUserMessageEvent(
   event: UserEventIdentityFields
 ): boolean {
+  // Backend user turns arrive under two names: live-runner broadcasts
+  // normalize to functionName "user" (see loadSessionAtom's identity notes),
+  // while transcript replay/imported loaders emit "user_message".
   return (
     event.source === "user" &&
-    event.functionName === "user_message" &&
+    (event.functionName === "user" || event.functionName === "user_message") &&
     !isSyntheticUserInputEvent(event)
   );
 }

@@ -31,6 +31,7 @@ import {
   isSystemHomeRepoItem,
   isSystemPathRepoItem,
 } from "@src/features/SessionCreator/utils/systemPathSource";
+import { workspaceMatchesRepoFilter } from "@src/features/TeamCollaboration/orgScopeRepoFilter";
 import {
   type UseDropdownListNavigationReturn,
   useDropdownEngine,
@@ -204,6 +205,11 @@ export interface WorkspaceDropdownProps {
   anchorRef: React.RefObject<HTMLElement | null>;
   /** Optional first-class system path source rows. */
   leadingRepos?: readonly RepoItem[];
+  /** Row eligibility predicate (e.g. active cloud org repo scope). */
+  repoFilter?: (repo: {
+    repo_url?: string | null;
+    fs_uri?: string | null;
+  }) => boolean;
 }
 
 export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
@@ -213,6 +219,7 @@ export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
   currentRepoId,
   anchorRef,
   leadingRepos = [],
+  repoFilter,
 }) => {
   const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -267,19 +274,49 @@ export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
     onActivate: onClose,
   });
 
+  // System-path rows bypass the scope filter; running repoFilter on them
+  // would prime git-remote resolution against the user's home directory.
+  const eligibleRepoIds = useMemo(() => {
+    if (!repoFilter) return null;
+    const ids = new Set<string>();
+    for (const repo of [...leadingRepos, ...repos]) {
+      if (isSystemPathRepoItem(repo) || repoFilter(repo)) ids.add(repo.id);
+    }
+    return ids;
+  }, [leadingRepos, repos, repoFilter]);
+
+  const eligibleExternalRecentRepos = useMemo(
+    () =>
+      repoFilter ? externalRecentRepos.filter(repoFilter) : externalRecentRepos,
+    [externalRecentRepos, repoFilter]
+  );
+
+  const eligibleWorkspaces = useMemo(
+    () =>
+      repoFilter
+        ? workspaces.filter((entry) =>
+            workspaceMatchesRepoFilter(
+              entry.workspace.folders.map((folder) => folder.folderPath),
+              repoFilter
+            )
+          )
+        : workspaces,
+    [workspaces, repoFilter]
+  );
+
   // Filter multi-repo workspaces by the same query as repos. Match against
   // workspace name and member folder names so users can find a workspace by
   // any of its repos.
   const filteredWorkspaces = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return workspaces;
-    return workspaces.filter((entry) => {
+    if (!query) return eligibleWorkspaces;
+    return eligibleWorkspaces.filter((entry) => {
       if (entry.workspace.name.toLowerCase().includes(query)) return true;
       return entry.folderNames.some((name) =>
         name.toLowerCase().includes(query)
       );
     });
-  }, [workspaces, searchQuery]);
+  }, [eligibleWorkspaces, searchQuery]);
   const invalidPathTitle = t("selectors.repo.pathImport.invalidTitle");
   const invalidPathMessage = useCallback(
     (path: string) => t("selectors.repo.pathImport.invalidMessage", { path }),
@@ -310,12 +347,15 @@ export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
   );
 
   const sections = useMemo<WorkspaceDropdownSection[]>(() => {
-    const allRepos = [...leadingRepos, ...filteredRepos];
+    const allRepos = eligibleRepoIds
+      ? [...leadingRepos, ...filteredRepos].filter((repo) =>
+          eligibleRepoIds.has(repo.id)
+        )
+      : [...leadingRepos, ...filteredRepos];
     const currentItems: DropdownRepoRowItem[] = [];
     const systemItems: DropdownRepoRowItem[] = [];
-    const externalRecentItems: DropdownRepoRowItem[] = externalRecentRepos.map(
-      (repo) => ({ kind: "repo", repo })
-    );
+    const externalRecentItems: DropdownRepoRowItem[] =
+      eligibleExternalRecentRepos.map((repo) => ({ kind: "repo", repo }));
     const folderWorkspaceItems: DropdownRepoRowItem[] = [];
     const repoItems: DropdownRepoRowItem[] = [];
 
@@ -461,7 +501,8 @@ export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
     filteredWorkspaces,
     cachedRepos,
     currentRepoId,
-    externalRecentRepos,
+    eligibleExternalRecentRepos,
+    eligibleRepoIds,
     leadingRepos,
     openPathItem,
     searchQuery,

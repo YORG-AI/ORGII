@@ -1258,7 +1258,7 @@ describe("Session launch wiring rendered UI invariants", function () {
             .trim()
             .replace(/\s+/g, " ");
           return (
-            activationState === "awaiting_approval" &&
+            activationState === "awaiting_verification" &&
             cardText.includes("ORG2 hooks") &&
             cardText.includes("Trust all and continue") &&
             approvalState?.[2] === true
@@ -1323,7 +1323,7 @@ describe("Session launch wiring rendered UI invariants", function () {
               return false;
             }
             return (
-              approvalOutput.includes("3 hooks are new or changed") &&
+              /\d+ hooks? (?:are|is) new or changed/.test(approvalOutput) &&
               approvalOutput.includes("Trust") &&
               approvalOutput.includes("continue")
             );
@@ -1353,21 +1353,15 @@ describe("Session launch wiring rendered UI invariants", function () {
         );
       }
 
-      // Deterministically emulate the first post-approval callback by invoking
-      // the real installed hook binary and adapter path. This establishes the
-      // activation receipt without automating the user's security decision.
+      // Deterministically emulate the post-approval SessionStart callback by
+      // invoking the real installed hook binary and adapter path. This proves
+      // the activation receipt no longer waits for a later tool interaction,
+      // without automating the user's security decision.
       execFileSync(APP_BINARY, ["--session-provenance-hook", "codex"], {
         input: JSON.stringify({
           session_id: `e2e-codex-trust-${RUN_ID}`,
-          turn_id: `turn-${RUN_ID}`,
           cwd: E2E_REPO_PATH,
-          hook_event_name: "PostToolUse",
-          tool_name: "apply_patch",
-          tool_use_id: `tool-${RUN_ID}`,
-          tool_input: {
-            command:
-              "*** Begin Patch\n*** Add File: e2e-trust-proof.txt\n+proof\n*** End Patch",
-          },
+          hook_event_name: "SessionStart",
         }),
         env: process.env,
         stdio: ["pipe", "ignore", "pipe"],

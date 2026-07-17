@@ -1688,6 +1688,8 @@
       "emptyConfigPreview": "設定内容がありません"
     },
     "sessionProvenance": {
+      "masterToggle": "プロベナンス hooks",
+      "masterToggleDesc": "オフにすると、管理対象の hooks がすべてアンインストールされ、シグナルは取得されません。プラットフォームごとの選択は保持され、再度オンにすると復元されます。",
       "title": "セッションの来歴",
       "capture": "ファイル操作を記録",
       "description": "ファイルの読み取りと書き込みをメタデータとして記録します。プロンプト、ツール出力、ファイル内容は保存されません。",
@@ -1704,16 +1706,16 @@
         "on": "オン",
         "off": "オフ",
         "repair": "修復",
-        "needsApproval": "承認が必要",
+        "awaitingVerification": "検証待ち",
         "checking": "確認中…",
         "error": "エラー"
       },
       "codexApproval": {
-        "title": "Approve ORG2 hooks in Codex",
-        "description": "Codex has the ORG2 hooks installed, but Codex still needs your approval before it can run them.",
-        "instructions": "Open Codex, review the 3 ORG2 hooks, then choose Trust all and continue. ORG2 marks this active after the first real hook signal.",
-        "review": "Review in Codex",
-        "verified": "Verified by a real Codex hook signal {{time}}."
+        "title": "Codex で ORG2 hooks を検証",
+        "description": "Codex が現在の ORG2 hooks を承認して実行するのを待っています。",
+        "instructions": "Codex を開いて ORG2 hooks を確認し、Trust all and continue を選択してください。セッションの開始時に SessionStart hook が有効化を自動検証します。",
+        "review": "Codex で確認",
+        "verified": "実際の Codex hook シグナルで検証済み（{{time}}）。"
       },
       "signals": {
         "title": "最近のシグナル",

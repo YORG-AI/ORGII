@@ -157,6 +157,9 @@ export function useChatPanelTuiSidebarSessions(): Session[] {
       if (tab.type !== "terminal" || !tab.terminalSessionId) return [];
       const terminal = terminalById.get(tab.terminalSessionId);
       if (!terminal?.agentCommand || !terminal.cliAgentType) return [];
+      // TUI terminals backed by a managed code_sessions row are already in
+      // the real session list; a synthetic row would be a duplicate.
+      if (terminal.agentSessionId) return [];
       const fallbackTimestamp = new Date().toISOString();
       const status =
         terminal.agentStatus === "done"

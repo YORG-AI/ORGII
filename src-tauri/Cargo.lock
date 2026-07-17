@@ -5240,6 +5240,7 @@ dependencies = [
 name = "orgtrack_core"
 version = "0.1.0"
 dependencies = [
+ "app_paths",
  "chrono",
  "core_types",
  "dirs",

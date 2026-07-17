@@ -6,6 +6,7 @@ import type { ImportedHistorySourceId } from "./imported/descriptors";
 import { claudeCodeRecentPaths } from "./sources/claudeCode";
 import { clineRecentPaths } from "./sources/cline";
 import { codexAppRecentPaths } from "./sources/codexApp";
+import { cursorCliRecentPaths } from "./sources/cursorCli";
 import { opencodeRecentPaths } from "./sources/opencode";
 import { qoderRecentPaths } from "./sources/qoder";
 import { traeRecentPaths } from "./sources/trae";
@@ -45,6 +46,7 @@ const RECENT_PATH_FETCHERS: Partial<
 > = {
   claude_code: () => claudeCodeRecentPaths(),
   codex_app: () => codexAppRecentPaths(),
+  cursor_cli: () => cursorCliRecentPaths(),
   opencode: () => opencodeRecentPaths(),
   windsurf: () => windsurfRecentPaths(),
   workbuddy: () => workBuddyRecentPaths(),

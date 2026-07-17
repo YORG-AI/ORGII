@@ -20,6 +20,7 @@ import {
   listWorkspaces,
 } from "@src/api/tauri/workspace";
 import Message from "@src/components/Message";
+import { workspaceMatchesRepoFilter } from "@src/features/TeamCollaboration/orgScopeRepoFilter";
 import { createLogger } from "@src/hooks/logger";
 import { useFilteredItems } from "@src/hooks/search";
 import {
@@ -54,6 +55,8 @@ export interface UseWorkspacePaletteWorkspaceOptions {
   searchQuery: string;
   /** multiRepoWorkspaceForm from useAddWorkspaceFlow — only `setEditingWorkspace` is needed */
   setEditingWorkspace: (ws: WorkspaceRecord) => void;
+  /** Row eligibility predicate (e.g. active cloud org repo scope). */
+  repoFilter?: (repo: { fs_uri?: string | null }) => boolean;
 }
 
 export interface UseWorkspacePaletteWorkspaceReturn {
@@ -108,6 +111,7 @@ export function useWorkspacePaletteWorkspace({
   refreshReposForce,
   searchQuery,
   setEditingWorkspace,
+  repoFilter,
 }: UseWorkspacePaletteWorkspaceOptions): UseWorkspacePaletteWorkspaceReturn {
   const { t } = useTranslation();
   const [savedWorkspaces, setSavedWorkspaces] = useAtom(savedWorkspacesAtom);
@@ -323,7 +327,15 @@ export function useWorkspacePaletteWorkspace({
   });
 
   const workspaceItems = useMemo((): SpotlightItem[] => {
-    const orderedWorkspaces = [...filteredWorkspaces].sort(
+    const eligibleWorkspaces = repoFilter
+      ? filteredWorkspaces.filter((ws) =>
+          workspaceMatchesRepoFilter(
+            ws.folders.map((folder) => folder.folderPath),
+            repoFilter
+          )
+        )
+      : filteredWorkspaces;
+    const orderedWorkspaces = [...eligibleWorkspaces].sort(
       (workspaceA, workspaceB) => {
         if (workspaceA.workspaceId === activeWorkspaceId) return -1;
         if (workspaceB.workspaceId === activeWorkspaceId) return 1;
@@ -403,6 +415,7 @@ export function useWorkspacePaletteWorkspace({
     });
   }, [
     filteredWorkspaces,
+    repoFilter,
     activeWorkspaceId,
     handleWorkspaceSelect,
     handleEditWorkspace,

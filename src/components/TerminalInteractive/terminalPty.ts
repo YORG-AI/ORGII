@@ -77,6 +77,7 @@ interface InitPtyConnectionParams {
   shellOverride?: string;
   argsOverride?: string[];
   envOverride?: Record<string, string>;
+  forceRepoCwd?: boolean;
   nameOverride?: string;
   onSessionInfoReady?: TerminalViewProps["onSessionInfoReady"];
   setIsBrowserMode: (value: boolean) => void;
@@ -120,11 +121,13 @@ function resolvePtyLaunchOptions({
   shellType,
   customShellPath,
   shellOverride,
+  forceRepoCwd,
 }: {
   repoPath?: string;
   shellType: ShellType;
   customShellPath?: string;
   shellOverride?: string;
+  forceRepoCwd?: boolean;
 }) {
   let cwd: string | null = null;
   let shell: string | null = shellOverride || null;
@@ -138,6 +141,13 @@ function resolvePtyLaunchOptions({
   } else if (shellType === "custom") {
     if (customShellPath) shell = customShellPath;
     cwd = repoPath || null;
+  }
+
+  // CLI-agent terminals must start where their session lives (worktree /
+  // repo) regardless of the user's shellType cwd preference — `default`
+  // would otherwise drop the agent into the home directory.
+  if (forceRepoCwd && repoPath) {
+    cwd = repoPath;
   }
 
   return { cwd, shell };
@@ -197,6 +207,7 @@ async function reconnectOrCreatePty({
   shellOverride,
   argsOverride,
   envOverride,
+  forceRepoCwd,
   nameOverride,
   isTerminalLive,
   writeToTerminal,
@@ -212,6 +223,7 @@ async function reconnectOrCreatePty({
   shellOverride?: string;
   argsOverride?: string[];
   envOverride?: Record<string, string>;
+  forceRepoCwd?: boolean;
   nameOverride?: string;
   isTerminalLive: () => boolean;
   writeToTerminal: (data: string | Uint8Array) => void;
@@ -241,6 +253,7 @@ async function reconnectOrCreatePty({
       shellType,
       customShellPath,
       shellOverride,
+      forceRepoCwd,
     });
 
     await invokeTauri("create_pty", {
@@ -344,6 +357,7 @@ export async function initPtyConnection({
   shellOverride,
   argsOverride,
   envOverride,
+  forceRepoCwd,
   nameOverride,
   onSessionInfoReady,
   setIsBrowserMode,
@@ -471,6 +485,7 @@ export async function initPtyConnection({
         shellOverride,
         argsOverride,
         envOverride,
+        forceRepoCwd,
         nameOverride,
         isTerminalLive,
         writeToTerminal: terminalWrite,

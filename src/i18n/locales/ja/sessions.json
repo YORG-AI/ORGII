@@ -1972,6 +1972,14 @@
     "model": "モデル",
     "source": "アカウント",
     "addContext": "コンテキストを追加",
+    "contextMenu": {
+      "filesAndFolders": "ファイルとフォルダー",
+      "agentSession": "Agent セッション",
+      "workItems": "作業項目",
+      "back": "戻る",
+      "recent": "最近使用した項目",
+      "showMore": "あと{{remaining}}件を表示"
+    },
     "slashSearchPlaceholder": "コマンドを検索…",
     "slashMenu": {
       "image": "画像",

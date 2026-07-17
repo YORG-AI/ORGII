@@ -13,7 +13,10 @@
 
 pub mod agent_core_bridge;
 pub mod commands;
+pub mod hook_approvals;
 pub mod launch_profile_store;
+pub mod native_transcript;
+pub mod tui_bridge;
 pub mod parsers;
 pub mod persistence;
 pub mod platform_adapters;
@@ -230,6 +233,32 @@ pub fn init_cli_agent_tables(conn: &Connection) -> SqliteResult<()> {
     // ignored for CLI agents that don't accept the flag.
     conn.execute(
         "ALTER TABLE code_sessions ADD COLUMN additional_directories TEXT",
+        [],
+    )
+    .ok();
+
+    // Where this session's transcript of record lives: 'chunks' (legacy,
+    // code_session_chunks) or 'native' (the CLI's own store, read back
+    // through the imported-history loaders). Decided at creation time and
+    // frozen so legacy replays never re-route after a capability flip.
+    conn.execute(
+        "ALTER TABLE code_sessions ADD COLUMN transcript_source TEXT NOT NULL DEFAULT 'chunks'",
+        [],
+    )
+    .ok();
+
+    // Append-only ledger of every CLI-native session id ever bound to a
+    // managed session. `code_sessions.cli_session_id` is overwritten on
+    // account switch and cleared on message edit, but sidebar dedup and
+    // native-transcript replay must keep recognizing superseded forks.
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS code_session_native_transcript_ids (
+            session_id        TEXT NOT NULL,
+            source            TEXT NOT NULL,
+            source_session_id TEXT NOT NULL,
+            bound_at          TEXT NOT NULL,
+            PRIMARY KEY (session_id, source, source_session_id)
+        )",
         [],
     )
     .ok();

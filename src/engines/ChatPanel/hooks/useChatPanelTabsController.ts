@@ -67,6 +67,7 @@ export function useChatPanelTabsController({
         cliAgentType: options.cliAgentType,
         agentCommand: options.command,
         expectedProcess: options.expectedProcess,
+        agentSessionId: options.agentSessionId,
       });
       addTerminalTab({
         terminalSessionId,

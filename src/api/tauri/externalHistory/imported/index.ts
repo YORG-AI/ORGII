@@ -10,6 +10,7 @@ import {
 } from "../sources/claudeCode";
 import { clineHistoryChunks } from "../sources/cline";
 import { codexAppChunks } from "../sources/codexApp";
+import { cursorCliHistoryChunks } from "../sources/cursorCli";
 import { opencodeHistoryChunks } from "../sources/opencode";
 import { qoderHistoryChunks } from "../sources/qoder";
 import { traeHistoryChunks } from "../sources/trae";
@@ -77,6 +78,13 @@ export const IMPORTED_HISTORY_SOURCES: readonly ImportedHistorySource[] = [
       ).chunks;
     },
     loadFullTranscriptChunks: cursorIdeChunks,
+  },
+  {
+    ...descriptorFor("cursor_cli"),
+    dispatchCategory: "external_history",
+    statTranscript: (sessionId) => importedHistoryStat("cursor_cli", sessionId),
+    loadPreviewChunks: cursorCliHistoryChunks,
+    loadFullTranscriptChunks: cursorCliHistoryChunks,
   },
   {
     ...descriptorFor("codex_app"),

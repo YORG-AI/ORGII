@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   claudeCodeRecentPaths,
   codexAppRecentPaths,
+  cursorCliRecentPaths,
   opencodeRecentPaths,
   qoderRecentPaths,
   warpRecentPaths,
@@ -85,6 +86,7 @@ export function useExternalRecentPaths({
     Promise.all([
       codexAppRecentPaths({ limit: EXTERNAL_RECENT_PATH_LIMIT }),
       claudeCodeRecentPaths({ limit: EXTERNAL_RECENT_PATH_LIMIT }),
+      cursorCliRecentPaths({ limit: EXTERNAL_RECENT_PATH_LIMIT }),
       opencodeRecentPaths({ limit: EXTERNAL_RECENT_PATH_LIMIT }),
       windsurfRecentPaths({ limit: EXTERNAL_RECENT_PATH_LIMIT }),
       warpRecentPaths({ limit: EXTERNAL_RECENT_PATH_LIMIT }),
@@ -94,6 +96,7 @@ export function useExternalRecentPaths({
       ([
         codexPaths,
         claudePaths,
+        cursorCliPaths,
         opencodePaths,
         windsurfPaths,
         warpPaths,
@@ -105,6 +108,7 @@ export function useExternalRecentPaths({
             mergeRecentPaths([
               ...codexPaths,
               ...claudePaths,
+              ...cursorCliPaths,
               ...opencodePaths,
               ...windsurfPaths,
               ...warpPaths,

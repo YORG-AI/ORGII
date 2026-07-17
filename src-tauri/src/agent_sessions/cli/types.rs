@@ -89,6 +89,11 @@ impl AsRef<str> for SessionStatus {
 pub enum SessionRunner {
     /// Local CLI agent running on this machine.
     Local,
+    /// Interactive TUI hosted in an app terminal pane. The session row
+    /// carries orchestration metadata (worktree, attribution) but no managed
+    /// child process — `session_runner` never spawns for it; status comes
+    /// from lifecycle hooks (`orgtrack::agent_live_status`).
+    Tui,
 }
 
 impl SessionRunner {
@@ -102,6 +107,7 @@ impl SessionRunner {
     pub fn parse(value: &str) -> Option<Self> {
         match value {
             "local" => Some(Self::Local),
+            "tui" => Some(Self::Tui),
             _ => None,
         }
     }
@@ -117,6 +123,7 @@ impl AsRef<str> for SessionRunner {
     fn as_ref(&self) -> &str {
         match self {
             Self::Local => "local",
+            Self::Tui => "tui",
         }
     }
 }

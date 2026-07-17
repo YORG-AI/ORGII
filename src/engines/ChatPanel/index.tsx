@@ -57,7 +57,11 @@ import { ChatPanelContent } from "./ChatPanelContent";
 import { ChatPanelEmptyContent } from "./ChatPanelEmptyContent";
 import { ChatPanelHeader } from "./ChatPanelHeader";
 import { ChatPanelShell } from "./ChatPanelShell";
-import { ChatPanelPlusMenu, ChatPanelTabBar } from "./ChatPanelTabBar";
+import {
+  ChatPanelPlusMenu,
+  ChatPanelTabBar,
+  useChatPanelTabShortcuts,
+} from "./ChatPanelTabBar";
 import { ChatPanelSurfaceHeaderPublisher } from "./header";
 import { useAiWorkItemCreator } from "./hooks/useAiWorkItemCreator";
 import { useChatPanelContentState } from "./hooks/useChatPanelContentState";
@@ -211,6 +215,14 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       showSessionSurface,
     });
     const isManagementTabActive = activeTab?.type === "work-management";
+
+    // Tab shortcuts (⌘W/⌘]/⌘[/⌘N + "create-chat-tab") stay mounted here so
+    // they keep working while the visual tab strip is hidden off the start page.
+    useChatPanelTabShortcuts({
+      onNewSession: handleNewSessionTab,
+      onNewTerminal: handleNewTerminalTab,
+      containerRef: panelRef,
+    });
 
     React.useLayoutEffect(() => {
       syncActiveTabState();
@@ -417,13 +429,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         contentState.showCloudOrgContent ||
         contentState.showWorkspaceOverviewContent);
 
-    const tabStrip = (
-      <ChatPanelTabBar
-        onNewSession={handleNewSessionTab}
-        onNewTerminal={handleNewTerminalTab}
-        containerRef={panelRef}
-      />
-    );
+    const tabStrip = <ChatPanelTabBar />;
 
     const tabStripPlus = (
       <ChatPanelPlusMenu
@@ -432,6 +438,14 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         onNewWorkItem={handleStartPageNewWorkItem}
       />
     );
+
+    // Terminal / work-management tabs are not creator surfaces: the create
+    // target select and presence button would be launcher noise there. Real
+    // creator surfaces (new work item / project / collab org) keep them.
+    const showCreatorHeaderControls =
+      contentState.showNonSessionContent &&
+      !isTerminalTabActive &&
+      !isManagementTabActive;
 
     const { createTargetOptions, handleCreateTargetChange } =
       useChatPanelCreateTarget({
@@ -518,7 +532,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
           showHeader={contentState.showHeader || isManagementTabActive}
           showExploreAgentSwitchInHeader={contentState.showExploreContent}
           showNewSessionButton={contentState.showNewSessionButton}
-          showNonSessionContent={contentState.showNonSessionContent}
+          showNonSessionContent={showCreatorHeaderControls}
           showProjectAgentCreator={showProjectAgentCreator}
           showProjectAgentSwitchInHeader={
             contentState.showProjectAgentSwitchInHeader

@@ -1973,6 +1973,14 @@
     "model": "Modèle",
     "source": "Compte",
     "addContext": "Ajouter du contexte",
+    "contextMenu": {
+      "filesAndFolders": "Fichiers et dossiers",
+      "agentSession": "Session d’agent",
+      "workItems": "Éléments de travail",
+      "back": "Retour",
+      "recent": "Récents",
+      "showMore": "Afficher {{remaining}} de plus"
+    },
     "slashSearchPlaceholder": "Rechercher des commandes…",
     "slashMenu": {
       "image": "Image",

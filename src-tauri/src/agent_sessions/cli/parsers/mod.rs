@@ -37,6 +37,7 @@ pub mod acp_common;
 pub mod antigravity;
 pub mod claude_code;
 pub mod codex;
+pub mod codex_app_server;
 pub mod copilot;
 pub mod cursor;
 pub mod kiro;

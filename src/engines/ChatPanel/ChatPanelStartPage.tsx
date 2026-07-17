@@ -30,7 +30,7 @@ const DataSourcePanel = React.lazy(
   () => import("@src/modules/shared/dataSource")
 );
 
-type StartPageActionTone = "primary" | "purple" | "success" | "warning";
+type StartPageActionTone = "primary" | "neutral" | "success" | "warning";
 
 interface ChatPanelStartPageAction {
   id: string;
@@ -43,8 +43,7 @@ interface ChatPanelStartPageAction {
 const START_PAGE_ACTION_TONE_CLASS: Record<StartPageActionTone, string> = {
   primary:
     "border-primary-6/20 bg-primary-6/5 hover:border-primary-6/30 hover:bg-primary-6/10",
-  purple:
-    "border-purple-6/20 bg-purple-6/5 hover:border-purple-6/30 hover:bg-bg-2",
+  neutral: "border-border-2 hover:border-border-3",
   success:
     "border-success-6/20 bg-success-6/5 hover:border-success-6/30 hover:bg-success-6/10",
   warning:
@@ -101,7 +100,7 @@ function StartPageActionCard({
   return (
     <button
       type="button"
-      className={`group flex w-full items-center gap-2 rounded-full border px-2 py-1.5 text-left shadow-sm transition-colors focus-visible:border-primary-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/20 ${START_PAGE_ACTION_TONE_CLASS[action.tone]}`}
+      className={`group flex w-full items-center gap-2 rounded-full border px-2 py-1.5 text-left transition-colors focus-visible:border-primary-6 focus-visible:outline-none ${START_PAGE_ACTION_TONE_CLASS[action.tone]}`}
       onClick={action.onClick}
       data-testid={`chat-panel-start-page-${action.id}`}
     >
@@ -242,21 +241,21 @@ export function ChatPanelStartPage({
     title: t("chat.startPage.newWorkItem.title"),
     icon: <BriefcaseBusiness size={16} strokeWidth={1.8} />,
     onClick: onNewWorkItem,
-    tone: "purple",
+    tone: "neutral",
   };
   const importSessionAction: ChatPanelStartPageAction = {
     id: "import-session",
     title: t("navigation:cloud.share.importEntry"),
     icon: <Import size={16} strokeWidth={1.8} />,
     onClick: () => setIsImportSessionDialogOpen(true),
-    tone: "purple",
+    tone: "neutral",
   };
   const addApiKeyAction: ChatPanelStartPageAction = {
     id: "add-api-key",
     title: t("chat.startPage.addApiKey.title"),
     icon: <KeyRound size={16} strokeWidth={1.8} />,
     onClick: onAddApiKey,
-    tone: "purple",
+    tone: "neutral",
   };
   const workActions: ChatPanelStartPageAction[] = availableUpdate?.available
     ? [

@@ -158,6 +158,8 @@ const HookPlatformsTable: React.FC = () => {
 
   const [masterEnabled, setMasterEnabled] = useState(true);
   const [masterPending, setMasterPending] = useState(false);
+  const [liveStatusEnabled, setLiveStatusEnabled] = useState(true);
+  const [liveStatusPending, setLiveStatusPending] = useState(false);
 
   const handleMasterChange = useCallback(async (enabled: boolean) => {
     setMasterPending(true);
@@ -181,15 +183,40 @@ const HookPlatformsTable: React.FC = () => {
     }
   }, []);
 
+  const handleLiveStatusChange = useCallback(async (enabled: boolean) => {
+    setLiveStatusPending(true);
+    const previous = !enabled;
+    setLiveStatusEnabled(enabled);
+    try {
+      const nextStatuses =
+        await rpc.agentOrgs.sessionProvenance.setLiveStatusEnabled({ enabled });
+      setStatuses(indexStatuses(nextStatuses));
+      setErrors({});
+    } catch (error) {
+      setLiveStatusEnabled(previous);
+      const message = error instanceof Error ? error.message : String(error);
+      setErrors(
+        Object.fromEntries(
+          PLATFORMS.map(({ id }) => [id, message])
+        ) as ErrorByPlatform
+      );
+    } finally {
+      setLiveStatusPending(false);
+    }
+  }, []);
+
   const loadStatuses = useCallback(async (silent = false) => {
     if (!silent) setRefreshing(true);
     try {
-      const [nextStatuses, nextMasterEnabled] = await Promise.all([
-        rpc.agentOrgs.sessionProvenance.status(),
-        rpc.agentOrgs.sessionProvenance.masterEnabled(),
-      ]);
+      const [nextStatuses, nextMasterEnabled, nextLiveStatusEnabled] =
+        await Promise.all([
+          rpc.agentOrgs.sessionProvenance.status(),
+          rpc.agentOrgs.sessionProvenance.masterEnabled(),
+          rpc.agentOrgs.sessionProvenance.liveStatusEnabled(),
+        ]);
       setStatuses(indexStatuses(nextStatuses));
       setMasterEnabled(nextMasterEnabled);
+      setLiveStatusEnabled(nextLiveStatusEnabled);
       if (!silent) setErrors({});
     } catch (error) {
       if (silent) return;
@@ -210,22 +237,25 @@ const HookPlatformsTable: React.FC = () => {
   }, [loadStatuses]);
 
   useEffect(() => {
-    if (statuses.codex?.activationState !== "awaiting_approval") return;
+    if (statuses.codex?.activationState !== "awaiting_verification") return;
     const interval = window.setInterval(() => void loadStatuses(true), 2_000);
     return () => window.clearInterval(interval);
   }, [loadStatuses, statuses.codex?.activationState]);
 
   useEffect(() => {
     for (const platform of PLATFORMS) {
-      const awaitingApproval =
+      const awaitingVerification =
         platform.id === "codex" &&
-        statuses[platform.id]?.activationState === "awaiting_approval";
-      if (awaitingApproval && !approvalAutoExpanded.current.has(platform.id)) {
+        statuses[platform.id]?.activationState === "awaiting_verification";
+      if (
+        awaitingVerification &&
+        !approvalAutoExpanded.current.has(platform.id)
+      ) {
         approvalAutoExpanded.current.add(platform.id);
         setExpandedRowKeys((current) =>
           current.includes(platform.id) ? current : [...current, platform.id]
         );
-      } else if (!awaitingApproval) {
+      } else if (!awaitingVerification) {
         approvalAutoExpanded.current.delete(platform.id);
       }
     }
@@ -310,8 +340,8 @@ const HookPlatformsTable: React.FC = () => {
     if (status && status.desiredEnabled && !status.enabled) {
       return { color: "warning", labelKey: "repair" };
     }
-    if (status?.activationState === "awaiting_approval") {
-      return { color: "warning", labelKey: "needsApproval" };
+    if (status?.activationState === "awaiting_verification") {
+      return { color: "warning", labelKey: "awaitingVerification" };
     }
     return status?.enabled
       ? { color: "success", labelKey: "on" }
@@ -402,10 +432,10 @@ const HookPlatformsTable: React.FC = () => {
           path: status.configPath,
         });
       }
-      if (status?.activationState === "awaiting_approval") {
+      if (status?.activationState === "awaiting_verification") {
         return t("agentOrgs.sessionProvenance.codexApproval.description", {
           defaultValue:
-            "Codex has the ORG2 hooks installed, but Codex still needs your approval before it can run them.",
+            "Waiting for Codex to approve and execute the current ORG2 hooks.",
         });
       }
       if (status?.activationState === "active" && status.lastActivatedAt) {
@@ -440,6 +470,25 @@ const HookPlatformsTable: React.FC = () => {
             onChange={(enabled) => void handleMasterChange(enabled)}
             ariaLabel={t("agentOrgs.sessionProvenance.masterToggle", {
               defaultValue: "Provenance hooks",
+            })}
+          />
+        </SectionRow>
+        <SectionRow
+          label={t("agentOrgs.sessionProvenance.liveStatusToggle", {
+            defaultValue: "Live agent status",
+          })}
+          description={t("agentOrgs.sessionProvenance.liveStatusToggleDesc", {
+            defaultValue:
+              "Installs lifecycle events (prompt, tool, permission, stop) so running CLI sessions show live working/waiting status. Off keeps provenance capture only.",
+          })}
+        >
+          <Switch
+            checked={liveStatusEnabled}
+            loading={liveStatusPending}
+            disabled={!masterEnabled}
+            onChange={(enabled) => void handleLiveStatusChange(enabled)}
+            ariaLabel={t("agentOrgs.sessionProvenance.liveStatusToggle", {
+              defaultValue: "Live agent status",
             })}
           />
         </SectionRow>
@@ -519,7 +568,7 @@ const HookPlatformsTable: React.FC = () => {
                   {description(row)}
                 </p>
                 {row.id === "codex" &&
-                  row.status?.activationState === "awaiting_approval" && (
+                  row.status?.activationState === "awaiting_verification" && (
                     <div
                       className="flex items-start justify-between gap-4 rounded-md border border-warning-3 bg-warning-1 px-3 py-2.5"
                       data-testid="session-provenance-codex-approval"
@@ -533,7 +582,7 @@ const HookPlatformsTable: React.FC = () => {
                           <p className="text-[12px] font-medium text-text-1">
                             {t(
                               "agentOrgs.sessionProvenance.codexApproval.title",
-                              { defaultValue: "Approve ORG2 hooks in Codex" }
+                              { defaultValue: "Verify ORG2 hooks in Codex" }
                             )}
                           </p>
                           <p className="mt-0.5 text-[12px] leading-relaxed text-text-2">
@@ -541,7 +590,7 @@ const HookPlatformsTable: React.FC = () => {
                               "agentOrgs.sessionProvenance.codexApproval.instructions",
                               {
                                 defaultValue:
-                                  "Open Codex, review the 3 ORG2 hooks, then choose Trust all and continue. ORG2 marks this active after the first real hook signal.",
+                                  "Open Codex, review the ORG2 hooks, then choose Trust all and continue. The SessionStart hook verifies activation automatically when the session starts.",
                               }
                             )}
                           </p>

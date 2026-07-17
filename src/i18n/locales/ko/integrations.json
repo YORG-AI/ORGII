@@ -1685,6 +1685,8 @@
       "emptyConfigPreview": "설정 내용이 없습니다"
     },
     "sessionProvenance": {
+      "masterToggle": "출처 추적 hooks",
+      "masterToggleDesc": "끄면 관리되는 모든 hooks가 제거되고 신호를 수집하지 않습니다. 플랫폼별 선택은 유지되며 다시 켜면 복원됩니다.",
       "title": "세션 출처",
       "capture": "파일 상호작용 기록",
       "description": "파일 읽기와 쓰기를 메타데이터로 기록합니다. 프롬프트, 도구 출력 및 파일 내용은 저장하지 않습니다.",
@@ -1701,16 +1703,16 @@
         "on": "켜짐",
         "off": "꺼짐",
         "repair": "복구",
-        "needsApproval": "승인 필요",
+        "awaitingVerification": "확인 대기 중",
         "checking": "확인 중…",
         "error": "오류"
       },
       "codexApproval": {
-        "title": "Approve ORG2 hooks in Codex",
-        "description": "Codex has the ORG2 hooks installed, but Codex still needs your approval before it can run them.",
-        "instructions": "Open Codex, review the 3 ORG2 hooks, then choose Trust all and continue. ORG2 marks this active after the first real hook signal.",
-        "review": "Review in Codex",
-        "verified": "Verified by a real Codex hook signal {{time}}."
+        "title": "Codex에서 ORG2 hooks 확인",
+        "description": "Codex가 현재 ORG2 hooks를 승인하고 실행하기를 기다리는 중입니다.",
+        "instructions": "Codex를 열고 ORG2 hooks를 검토한 다음 Trust all and continue를 선택하세요. 세션이 시작되면 SessionStart hook이 활성화를 자동으로 확인합니다.",
+        "review": "Codex에서 검토",
+        "verified": "실제 Codex hook 신호로 확인됨({{time}})."
       },
       "signals": {
         "title": "최근 신호",

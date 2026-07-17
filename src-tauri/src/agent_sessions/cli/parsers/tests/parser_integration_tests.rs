@@ -154,6 +154,31 @@ mod tests {
         assert_eq!(chunks[0].args["cwd"], "/home/user/project");
     }
 
+    /// The cursor-agent stream-json init event carries `session_id`, which is
+    /// the `~/.cursor/chats/<ws-md5>/<uuid>/store.db` dir uuid (the CLI names
+    /// the store dir with the same id it stamps on every stream event).
+    /// Native-transcript replay and managed-mirror dedup key on the runner
+    /// early-binding this value, so it must surface after the first event.
+    #[test]
+    fn test_cursor_cli_session_id_captured_from_init_event() {
+        let mut parser = CursorParser::new("test-session");
+        assert_eq!(parser.cli_session_id(), None);
+
+        // Real shape (cursor-agent 2026.04): system/init is the first event.
+        let line = r#"{"type":"system","subtype":"init","apiKeySource":"login","cwd":"/tmp/ws","session_id":"05835159-632a-419e-811b-d8e25940940a","model":"Claude 4.5 Sonnet","permissionMode":"default"}"#;
+        let chunks = parser.parse_line(line);
+
+        assert_eq!(
+            parser.cli_session_id().as_deref(),
+            Some("05835159-632a-419e-811b-d8e25940940a")
+        );
+        // The captured id also threads through emitted chunks.
+        assert_eq!(
+            chunks[0].thread_id.as_deref(),
+            Some("05835159-632a-419e-811b-d8e25940940a")
+        );
+    }
+
     #[test]
     fn test_cursor_tool_call_shell() {
         let mut parser = CursorParser::new("test-session");

@@ -101,7 +101,7 @@ import {
   isSessionTaggedToCloudOrg,
   sessionOrgTagsAtom,
   taggedCloudOrgIds,
-  withoutTag,
+  withoutCloudOrgTag,
 } from "../TeamCollaboration/sessionOrgTagsAtom";
 import { computeSegmentHash } from "../TeamCollaboration/sync/collabGzip";
 import { ORG2_CLOUD_EXPECTED_SCHEMA_VERSION, getCloudEndpoint } from "./config";
@@ -822,11 +822,7 @@ export class Org2CloudSyncEngine {
               }
             }
             store.set(sessionOrgTagsAtom, (current) =>
-              withoutTag(
-                current,
-                session.session_id,
-                buildCloudOrgSelectorValue(org.orgId)
-              )
+              withoutCloudOrgTag(current, session.session_id, org.orgId)
             );
             log.info(
               `dropped out-of-scope org tag: session ${session.session_id} → org ${org.orgId}`

@@ -481,3 +481,146 @@ fn edit_without_structured_patch_falls_back_to_old_new_on_args() {
     std::fs::remove_file(&path).expect("remove fixture");
     std::fs::remove_dir(&temp_dir).expect("remove temp dir");
 }
+
+#[test]
+fn captures_first_user_uuid_as_continuation_group_key() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-claude-history-continuation-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("d0641111-1111-1111-1111-111111111111.jsonl");
+    // Continuation rewrites preserve message uuids; the first `type:"user"`
+    // line's uuid is the family key. Title/meta records before it must not
+    // contribute a key.
+    let content = r#"{"type":"custom-title","customTitle":"My convo","sessionId":"d0641111-1111-1111-1111-111111111111"}
+{"type":"user","uuid":"b7b5ae5f-0000-0000-0000-000000000001","sessionId":"d0641111-1111-1111-1111-111111111111","cwd":"/tmp/project","gitBranch":"main","timestamp":"2026-07-17T10:00:00.000Z","message":{"role":"user","content":"first message"}}
+{"type":"user","uuid":"b7b5ae5f-0000-0000-0000-000000000002","sessionId":"d0641111-1111-1111-1111-111111111111","cwd":"/tmp/project","gitBranch":"main","timestamp":"2026-07-17T10:01:00.000Z","message":{"role":"user","content":"second message"}}
+"#;
+    std::fs::write(&path, content).expect("write fixture");
+
+    let (source_mtime_ms, source_size_bytes) =
+        imported_paths::file_metadata_signature(&path, "Claude").expect("metadata");
+    let record = ImportedHistoryDiscoveredRecord {
+        source_session_id: "d0641111-1111-1111-1111-111111111111".to_string(),
+        source_path: path.clone(),
+        source_record_key: "d0641111-1111-1111-1111-111111111111".to_string(),
+        source_mtime_ms,
+        source_size_bytes,
+        source_fingerprint: String::new(),
+        parser_version: CLAUDE_CODE_METADATA_PARSER_VERSION,
+    };
+    let meta = parse_claude_session_meta(&record)
+        .expect("parse")
+        .expect("session meta");
+    assert_eq!(
+        meta.first_user_uuid.as_deref(),
+        Some("b7b5ae5f-0000-0000-0000-000000000001")
+    );
+
+    let cache_input = session_meta_to_cache_input(meta);
+    let metadata_json = cache_input.source_metadata_json.expect("metadata json");
+    let parsed: serde_json::Value = serde_json::from_str(&metadata_json).expect("parse json");
+    assert_eq!(
+        parsed
+            .get(imported_cache::CONTINUATION_GROUP_KEY_FIELD)
+            .and_then(|value| value.as_str()),
+        Some("b7b5ae5f-0000-0000-0000-000000000001")
+    );
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn strips_ide_context_from_claude_replay() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-claude-history-ide-context-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("claude-ide-context.jsonl");
+    // Line 1: ide_context-only user message (no user-authored text at all).
+    // Line 2: bridge + ide_context prefixed user message with real text.
+    let content = r#"{"type":"user","sessionId":"abc","cwd":"/tmp/project","gitBranch":"main","timestamp":"2026-04-01T07:06:46.543Z","message":{"role":"user","content":"<ide_context>\nopen file: src/app.ts\n</ide_context>"}}
+{"type":"user","sessionId":"abc","cwd":"/tmp/project","gitBranch":"main","timestamp":"2026-04-01T07:06:47.000Z","message":{"role":"user","content":"<orgii_cli_exec_mode_bridge>\ninternal briefing\n</orgii_cli_exec_mode_bridge>\n\n<ide_context>\nopen file: src/app.ts\n</ide_context>\n\nfix the login bug"}}
+{"type":"assistant","sessionId":"abc","cwd":"/tmp/project","gitBranch":"main","timestamp":"2026-04-01T07:06:49.000Z","message":{"role":"assistant","model":"claude-sonnet-4","content":[{"type":"text","text":"done"}],"usage":{"input_tokens":3,"output_tokens":5}}}
+"#;
+    std::fs::write(&path, content).expect("write fixture");
+
+    // Replay: the ide_context-only line emits no bubble; the prefixed
+    // line's bubble carries only the user-authored text.
+    let chunks =
+        load_claude_code_history_from_path("claudecodeapp-abc", &path).expect("parse");
+    let user_chunks: Vec<_> = chunks
+        .iter()
+        .filter(|chunk| chunk.function == imported_history::FUNCTION_USER_MESSAGE)
+        .collect();
+    assert_eq!(user_chunks.len(), 1);
+    assert_eq!(
+        user_chunks[0]
+            .result
+            .get("message")
+            .and_then(|message| message.get("content"))
+            .and_then(Value::as_str),
+        Some("fix the login bug")
+    );
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn strips_orgii_exec_mode_bridge_from_claude_title_and_replay() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-claude-history-bridge-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("claude-bridge.jsonl");
+    // Line 1: bridge-only user message (no user-authored text at all).
+    // Line 2: bridge-prefixed user message with real text after it.
+    let content = r#"{"type":"user","sessionId":"abc","cwd":"/tmp/project","gitBranch":"main","timestamp":"2026-04-01T07:06:46.543Z","message":{"role":"user","content":"<orgii_cli_exec_mode_bridge>\ninternal briefing\n</orgii_cli_exec_mode_bridge>"}}
+{"type":"user","sessionId":"abc","cwd":"/tmp/project","gitBranch":"main","timestamp":"2026-04-01T07:06:47.000Z","message":{"role":"user","content":"<orgii_cli_exec_mode_bridge>\ninternal briefing\n</orgii_cli_exec_mode_bridge>\n\nfix the login bug"}}
+{"type":"assistant","sessionId":"abc","cwd":"/tmp/project","gitBranch":"main","timestamp":"2026-04-01T07:06:49.000Z","message":{"role":"assistant","model":"claude-sonnet-4","content":[{"type":"text","text":"done"}],"usage":{"input_tokens":3,"output_tokens":5}}}
+"#;
+    std::fs::write(&path, content).expect("write fixture");
+
+    // Title/first_prompt: the bridge-only line is skipped as a candidate;
+    // the prefixed line contributes only the user-authored text.
+    let (source_mtime_ms, source_size_bytes) =
+        imported_paths::file_metadata_signature(&path, "Claude").expect("metadata");
+    let record = ImportedHistoryDiscoveredRecord {
+        source_session_id: "claude-bridge".to_string(),
+        source_path: path.clone(),
+        source_record_key: "claude-bridge".to_string(),
+        source_mtime_ms,
+        source_size_bytes,
+        source_fingerprint: String::new(),
+        parser_version: CLAUDE_CODE_METADATA_PARSER_VERSION,
+    };
+    let meta = parse_claude_session_meta(&record)
+        .expect("parse")
+        .expect("session meta");
+    assert_eq!(meta.name, "fix the login bug");
+
+    // Replay: the bridge-only line emits no bubble; the prefixed line's
+    // bubble carries only the user-authored text.
+    let chunks = load_claude_code_history_from_path("claudecodeapp-abc", &path).expect("parse");
+    let user_chunks: Vec<_> = chunks
+        .iter()
+        .filter(|chunk| chunk.function == imported_history::FUNCTION_USER_MESSAGE)
+        .collect();
+    assert_eq!(user_chunks.len(), 1);
+    assert_eq!(
+        user_chunks[0]
+            .result
+            .get("message")
+            .and_then(|message| message.get("content"))
+            .and_then(Value::as_str),
+        Some("fix the login bug")
+    );
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}

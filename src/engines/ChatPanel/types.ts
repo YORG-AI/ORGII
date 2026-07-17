@@ -19,6 +19,13 @@ export interface ChatPanelCliTerminalLaunchOptions {
   title: string;
   cwd?: string;
   expectedProcess?: string;
+  /**
+   * Managed `code_sessions` row backing this TUI launch (`runner = 'tui'`).
+   * Injected into the PTY as `ORGII_SESSION_ID` so lifecycle hooks attribute
+   * status and transcripts to it; absent when session creation failed and
+   * the terminal runs unbound.
+   */
+  agentSessionId?: string;
 }
 
 /**

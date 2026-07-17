@@ -1688,6 +1688,8 @@
       "emptyConfigPreview": "Нет содержимого конфигурации"
     },
     "sessionProvenance": {
+      "masterToggle": "Хуки происхождения",
+      "masterToggleDesc": "При отключении все управляемые хуки удаляются и сигналы не собираются; выбор для каждой платформы сохраняется и восстанавливается при повторном включении.",
       "title": "Происхождение сессий",
       "capture": "Записывать взаимодействия с файлами",
       "description": "Записывает чтение и запись файлов как метаданные. Запросы, вывод инструментов и содержимое файлов не сохраняются.",
@@ -1704,16 +1706,16 @@
         "on": "Вкл.",
         "off": "Выкл.",
         "repair": "Восстановить",
-        "needsApproval": "Требуется одобрение",
+        "awaitingVerification": "Ожидание проверки",
         "checking": "Проверка…",
         "error": "Ошибка"
       },
       "codexApproval": {
-        "title": "Approve ORG2 hooks in Codex",
-        "description": "Codex has the ORG2 hooks installed, but Codex still needs your approval before it can run them.",
-        "instructions": "Open Codex, review the 3 ORG2 hooks, then choose Trust all and continue. ORG2 marks this active after the first real hook signal.",
-        "review": "Review in Codex",
-        "verified": "Verified by a real Codex hook signal {{time}}."
+        "title": "Проверить хуки ORG2 в Codex",
+        "description": "Ожидание, пока Codex одобрит и выполнит текущие хуки ORG2.",
+        "instructions": "Откройте Codex, проверьте хуки ORG2 и выберите Trust all and continue. Хук SessionStart автоматически подтвердит активацию при запуске сессии.",
+        "review": "Проверить в Codex",
+        "verified": "Проверено реальным сигналом хука Codex ({{time}})."
       },
       "signals": {
         "title": "Недавние сигналы",

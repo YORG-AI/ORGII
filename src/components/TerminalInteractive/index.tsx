@@ -95,6 +95,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
       shellOverride,
       argsOverride,
       envOverride,
+      forceRepoCwd,
       nameOverride,
       backgroundColor,
       shellIntegration,
@@ -204,6 +205,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
           shellOverride,
           argsOverride,
           envOverride,
+          forceRepoCwd,
           nameOverride,
           onSessionInfoReady,
           setIsBrowserMode,
@@ -222,6 +224,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
         shellOverride,
         argsOverride,
         envOverride,
+        forceRepoCwd,
         nameOverride,
       ]
     );

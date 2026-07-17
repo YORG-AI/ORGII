@@ -1688,6 +1688,8 @@
       "emptyConfigPreview": "沒有配置內容"
     },
     "sessionProvenance": {
+      "masterToggle": "溯源 Hooks",
+      "masterToggleDesc": "關閉後將解除安裝所有受管理的 hook，並停止擷取任何訊號；各平台的選擇會保留，重新開啟時恢復。",
       "title": "Session 來源追蹤",
       "capture": "擷取檔案互動",
       "description": "以中繼資料記錄檔案讀取與寫入。不會儲存提示詞、工具輸出或檔案內容。",
@@ -1704,14 +1706,14 @@
         "on": "開啟",
         "off": "關閉",
         "repair": "修復",
-        "needsApproval": "需要授權",
+        "awaitingVerification": "等待驗證",
         "checking": "檢查中…",
         "error": "錯誤"
       },
       "codexApproval": {
-        "title": "在 Codex 中授權 ORG2 hooks",
-        "description": "ORG2 hooks 已安裝，但 Codex 仍需要你的明確授權才能執行。",
-        "instructions": "開啟 Codex，檢查 3 條 ORG2 hooks，然後選擇 Trust all and continue。收到第一條真實 hook 訊號後，ORG2 會自動標記為已啟用。",
+        "title": "在 Codex 中驗證 ORG2 hooks",
+        "description": "正在等待 Codex 授權並執行目前的 ORG2 hooks。",
+        "instructions": "開啟 Codex，檢查 ORG2 hooks，然後選擇 Trust all and continue。工作階段啟動時，SessionStart hook 會自動驗證是否已啟用。",
         "review": "在 Codex 中檢查",
         "verified": "已透過真實 Codex hook 訊號驗證（{{time}}）。"
       },

@@ -1970,6 +1970,14 @@
     "model": "Mô hình",
     "source": "Tài khoản",
     "addContext": "Thêm ngữ cảnh",
+    "contextMenu": {
+      "filesAndFolders": "Tệp và thư mục",
+      "agentSession": "Phiên Agent",
+      "workItems": "Hạng mục công việc",
+      "back": "Quay lại",
+      "recent": "Gần đây",
+      "showMore": "Hiển thị thêm {{remaining}}"
+    },
     "slashSearchPlaceholder": "Tìm lệnh…",
     "slashMenu": {
       "image": "Hình ảnh",

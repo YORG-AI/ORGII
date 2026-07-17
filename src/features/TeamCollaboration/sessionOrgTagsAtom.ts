@@ -39,9 +39,19 @@ export const sessionOrgTagsAtom = atomWithStorage<SessionOrgTags>(
 );
 sessionOrgTagsAtom.debugLabel = "sessionOrgTagsAtom";
 
+export const PERSONAL_EXCLUDED_TOKEN = "personal:excluded";
+
 /** Token for a cloud org (`cloud:` prefixed). */
 export function cloudOrgToken(orgId: string): string {
   return buildCloudOrgSelectorValue(orgId);
+}
+
+/** Whether the user has removed this session from the Personal scope. */
+export function isSessionExcludedFromPersonal(
+  tags: SessionOrgTags,
+  sessionId: string
+): boolean {
+  return tokensForSession(tags, sessionId).includes(PERSONAL_EXCLUDED_TOKEN);
 }
 
 /** All tokens a session is tagged to (empty array when untagged). */
@@ -110,4 +120,15 @@ export function withoutTag(
     return rest;
   }
   return { ...tags, [sessionId]: next };
+}
+
+/** Removing the LAST cloud tag also clears the Personal exclusion, else the session is reachable in no scope. */
+export function withoutCloudOrgTag(
+  tags: SessionOrgTags,
+  sessionId: string,
+  orgId: string
+): SessionOrgTags {
+  const next = withoutTag(tags, sessionId, cloudOrgToken(orgId));
+  if (cloudOrgIdsForSession(next, sessionId).length > 0) return next;
+  return withoutTag(next, sessionId, PERSONAL_EXCLUDED_TOKEN);
 }

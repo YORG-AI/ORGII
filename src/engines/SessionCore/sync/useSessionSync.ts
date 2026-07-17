@@ -40,6 +40,7 @@ import { wpReadOnlyAtom } from "@src/store/ui/chatPanelAtom";
 
 import "./adapters";
 import { useExternalHistoryAutoRefresh } from "./externalHistoryAutoRefresh";
+import { scheduleNativeTranscriptReconcile } from "./nativeTranscriptReconcile";
 import {
   resetEmptySessionRefs,
   runSessionSwitchEffect,
@@ -178,6 +179,22 @@ export function useSessionSync(
     ]
   );
 
+  const scheduleReconcile = useCallback(
+    (sid: string) => {
+      scheduleNativeTranscriptReconcile(sid, {
+        loadHistory: async (target) => {
+          const adapter = getAdapterForSession(target);
+          if (!adapter) return [];
+          const controller = new AbortController();
+          return adapter.loadHistory(target, controller.signal);
+        },
+        dispatchLoadSession,
+        isSessionLive: (target) => liveSessionIdRef.current === target,
+      });
+    },
+    [dispatchLoadSession]
+  );
+
   const handlerActions = useMemo(
     () => ({
       setSessionContextTokens,
@@ -189,6 +206,7 @@ export function useSessionSync(
       setSessionRolledBack,
       setStreamingDeltaContent,
       dismissCanvasAtNewTurn,
+      scheduleNativeTranscriptReconcile: scheduleReconcile,
     }),
     [
       setSessionContextTokens,
@@ -200,6 +218,7 @@ export function useSessionSync(
       setSessionRolledBack,
       setStreamingDeltaContent,
       dismissCanvasAtNewTurn,
+      scheduleReconcile,
     ]
   );
 

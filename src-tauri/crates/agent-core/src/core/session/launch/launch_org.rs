@@ -227,6 +227,7 @@ pub(super) async fn materialize_org_member_sessions(
                 branch: None,
                 hosted_token: None,
                 isolate: false,
+                worktree_path: None,
                 background: true,
                 key_source: Some(member_key_source.as_ref().to_string()),
                 additional_directories: None,

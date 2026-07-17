@@ -331,6 +331,7 @@ async fn launch_cli_agent(
         branch: params.branch,
         hosted_token: params.hosted_token,
         isolate: params.isolate,
+        worktree_path: params.worktree_path.clone(),
         background: params.background,
         key_source: params.key_source,
         additional_directories: extras,

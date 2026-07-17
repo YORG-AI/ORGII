@@ -491,7 +491,7 @@
     "moveToOrg": {
       "menuItem": "組織タグ…",
       "title": "セッションの組織タグ",
-      "hint": "このセッションを共有クラウド組織に追加します。セッションは通常のローカルセッションのまま — リポジトリスコープに関係なく、その組織で見えるようになるだけです。",
+      "hint": "1つ以上の組織にチェックを入れてこのセッションを共有します。Personal と複数の組織に同時に所属できます。通常のローカルセッションのままで、そこで表示されるようになるだけです。リポジトリ範囲がこのセッションのリポジトリを含む組織のみ選択できます。",
       "noOrgs": "クラウド組織がまだありません — ORG2 クラウドにサインインして作成または参加してください。",
       "cloudBadge": "クラウド",
       "added": "{{org}} に追加しました",
@@ -500,7 +500,12 @@
       "noRemote": "This session's repository has no git remote, so it can't match any org's repo scope.",
       "noScopes": "No repo scopes",
       "outOfScope": "Out of scope",
-      "scopeResolving": "Checking…"
+      "scopeResolving": "Checking…",
+      "personal": "Personal（個人）",
+      "personalBadge": "ローカル",
+      "personalOnlyHome": "唯一の所属先",
+      "personalUnavailable": "Personal 対象外",
+      "autoInScope": "範囲により自動所属"
     },
     "orgManagement": {
       "invites": {

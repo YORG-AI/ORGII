@@ -23,6 +23,8 @@
       "roundCount_one": "{{count}} round",
       "roundCount_other": "{{count}} rounds",
       "agentWorked": "Agent worked",
+      "cliNativeStore": "CLI native store",
+      "sessionId": "Session ID",
       "reasoningModel": "Reasoning Model",
       "codingModel": "Coding Model",
       "sessionMode": "Session Mode",
@@ -2021,6 +2023,14 @@
     "model": "Model",
     "source": "Account",
     "addContext": "Add Context",
+    "contextMenu": {
+      "filesAndFolders": "Files & Folders",
+      "agentSession": "Agent Session",
+      "workItems": "Work Items",
+      "back": "Back",
+      "recent": "Recent",
+      "showMore": "Show {{remaining}} more"
+    },
     "slashSearchPlaceholder": "Search commands…",
     "slashMenu": {
       "image": "Image",

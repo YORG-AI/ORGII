@@ -300,12 +300,31 @@ interface LoadSessionPayload {
   events: SessionEvent[];
   specs?: SessionSpec[];
   isFromCache?: boolean;
+  /**
+   * When true and the session is already on screen, the incoming events are
+   * the canonical transcript: skip the base-events merge entirely and use
+   * them wholesale (the Rust EventStore is replaced too, not merged into).
+   * Used by the native-transcript reconcile — the CLI's own store is the
+   * transcript of record, so ephemeral in-memory turn events must not
+   * survive next to their replayed counterparts.
+   *
+   * Synthetic-preservation still applies when the incoming replay carries no
+   * backend user message (first-message recovery), and queued-synthetic
+   * filtering always runs.
+   */
+  replace?: boolean;
 }
 
 export const loadSessionAtom = atom(
   null,
   (get, set, payload: LoadSessionPayload) => {
-    const { sessionId, events, specs = [], isFromCache = false } = payload;
+    const {
+      sessionId,
+      events,
+      specs = [],
+      isFromCache = false,
+      replace = false,
+    } = payload;
 
     // Preserve synthetic user events (injected by session launch) when the
     // sync hooks reload from SQLite/API before the backend has persisted the
@@ -375,8 +394,14 @@ export const loadSessionAtom = atom(
     const existingIds = new Set(
       existingSameSessionEvents.map((event) => event.id)
     );
+    // replace: the incoming events ARE the transcript — never merge them
+    // next to the existing in-memory events (whose ids never match, so the
+    // id-based merge would duplicate every replayed user/assistant turn).
+    const replaceForSession = replace && currentSessionId === sessionId;
     const baseEvents =
-      currentSessionId === sessionId && existingSameSessionEvents.length > 0
+      !replaceForSession &&
+      currentSessionId === sessionId &&
+      existingSameSessionEvents.length > 0
         ? existingSameSessionEvents
         : [];
     // Imported transcripts are append-only and their parsed events immutable,
@@ -512,9 +537,19 @@ export const loadSessionAtom = atom(
     // and the cache-hit case (events come from getEvents() so they already
     // include live data — merging them back is a no-op dedup).
     //
+    // Exception: replace loads (native-transcript reconcile at a terminal
+    // turn status). There the Rust store still holds the ephemeral in-memory
+    // turn events (synthetic user bubble, streamed placeholders) whose ids
+    // never match the replayed transcript, so a merge would push a snapshot
+    // that reintroduces them as duplicates. The turn is over — set() carries
+    // no live-work race and is the intended "replace all" semantics.
+    //
     // Explicit sessionId avoids the "active session" fallback that crashes on
     // app restart when Rust has no active session but localStorage has a stale id.
-    eventStoreProxy.mergeEvents(mergedEvents, sessionId).catch((err) => {
+    const rustStoreWrite = replaceForSession
+      ? eventStoreProxy.set(mergedEvents, sessionId)
+      : eventStoreProxy.mergeEvents(mergedEvents, sessionId);
+    rustStoreWrite.catch((err) => {
       log.warn("[loadSession] Failed to sync events to Rust store:", err);
     });
     set(specsAtom, specs);

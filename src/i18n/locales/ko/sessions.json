@@ -1972,6 +1972,14 @@
     "model": "모델",
     "source": "계정",
     "addContext": "컨텍스트 추가",
+    "contextMenu": {
+      "filesAndFolders": "파일 및 폴더",
+      "agentSession": "Agent 세션",
+      "workItems": "작업 항목",
+      "back": "뒤로",
+      "recent": "최근 항목",
+      "showMore": "{{remaining}}개 더 보기"
+    },
     "slashSearchPlaceholder": "명령 검색…",
     "slashMenu": {
       "image": "이미지",

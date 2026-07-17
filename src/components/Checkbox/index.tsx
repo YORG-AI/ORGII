@@ -80,14 +80,14 @@ function getCheckboxIconClassName(options: {
     "peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary-6",
   ];
 
+  if (isOn) {
+    return [...base, "bg-primary-6 border-primary-6"].join(" ");
+  }
   if (disabled) {
     return [
       ...base,
       isDark ? "bg-fill-3 border-border-2" : "bg-fill-2 border-border-2",
     ].join(" ");
-  }
-  if (isOn) {
-    return [...base, "bg-primary-6 border-primary-6"].join(" ");
   }
   if (isDark) {
     return [...base, "bg-bg-2 border-border-2 hover:border-border-3"].join(" ");

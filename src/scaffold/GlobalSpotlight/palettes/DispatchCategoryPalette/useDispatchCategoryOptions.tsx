@@ -20,6 +20,7 @@ import type { DispatchCategory } from "@src/api/tauri/session";
 import { isApiKeyProvider } from "@src/assets/providers";
 import ModelIcon from "@src/components/ModelIcon";
 import { resolveAgentIcon } from "@src/config/agentIcons";
+import { getCliTransportLabel } from "@src/config/cliAgents";
 import { type KeyVaultAccount, useKeyVault } from "@src/hooks/keyVault";
 import {
   getCliCompatibleAccounts,
@@ -452,6 +453,13 @@ export function useDispatchCategoryOptions(
           isSelector: true,
           optionId: option.id,
           isCurrentSelection: isCurrent,
+          // Execution transport for managed GUI runs (ACP vs shell-out).
+          // CLI agent rows only — Rust agents, orgs, and the Cursor IDE row
+          // (which carries `cliAgentType` purely for icon parity) never get it.
+          inlineTag:
+            option.isCli && option.cliAgentType
+              ? getCliTransportLabel(option.cliAgentType)
+              : undefined,
           rightContent: option.rightContent,
           testId: option.isOrg
             ? `session-creator-agent-option-org-${option.agentOrgId}`

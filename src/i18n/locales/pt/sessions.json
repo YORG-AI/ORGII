@@ -1988,6 +1988,14 @@
     "model": "Modelo",
     "source": "Conta",
     "addContext": "Adicionar contexto",
+    "contextMenu": {
+      "filesAndFolders": "Arquivos e pastas",
+      "agentSession": "Sessão do agente",
+      "workItems": "Itens de trabalho",
+      "back": "Voltar",
+      "recent": "Recentes",
+      "showMore": "Mostrar mais {{remaining}}"
+    },
     "slashSearchPlaceholder": "Pesquisar comandos…",
     "slashMenu": {
       "image": "Imagem",

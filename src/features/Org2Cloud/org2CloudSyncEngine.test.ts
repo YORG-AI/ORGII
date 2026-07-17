@@ -21,6 +21,7 @@ import {
   primeShareableScopeKey,
 } from "../TeamCollaboration/repoScopeResolver";
 import {
+  PERSONAL_EXCLUDED_TOKEN,
   cloudOrgToken,
   sessionOrgTagsAtom,
 } from "../TeamCollaboration/sessionOrgTagsAtom";
@@ -788,6 +789,15 @@ describe("Org2CloudSyncEngine", () => {
     await engine.runSyncPass();
     expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
     expect(client.deleteSession).not.toHaveBeenCalled();
+    expect(store.get(sessionOrgTagsAtom)).toEqual({});
+  });
+
+  it("clears the Personal exclusion when dropping the session's last cloud tag", async () => {
+    store.set(org2CloudRepoScopesAtom, { "corg-1": ["github.com/other/repo"] });
+    store.set(sessionOrgTagsAtom, {
+      "session-1": [cloudOrgToken("corg-1"), PERSONAL_EXCLUDED_TOKEN],
+    });
+    await engine.runSyncPass();
     expect(store.get(sessionOrgTagsAtom)).toEqual({});
   });
 

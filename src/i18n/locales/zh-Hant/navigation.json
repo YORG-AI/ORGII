@@ -583,7 +583,7 @@
     "moveToOrg": {
       "menuItem": "組織標籤…",
       "title": "工作階段的組織標籤",
-      "hint": "把這個工作階段加入一個共享雲組織。它仍是你本地的一般工作階段——這只是讓它在該組織可見，與 repo 範圍無關。",
+      "hint": "勾選一個或多個組織來共享這個會話——它可以同時在 Personal 和多個組織裡。它仍是你本地的普通會話，這只是讓它在這些地方可見。只有 repo 範圍覆蓋此會話倉庫的組織才能選擇。",
       "noOrgs": "還沒有雲組織——登入 ORG2 Cloud 後建立或加入一個。",
       "cloudBadge": "雲",
       "added": "已加入 {{org}}",
@@ -592,7 +592,12 @@
       "noRemote": "This session's repository has no git remote, so it can't match any org's repo scope.",
       "noScopes": "No repo scopes",
       "outOfScope": "Out of scope",
-      "scopeResolving": "Checking…"
+      "scopeResolving": "Checking…",
+      "personal": "Personal（個人）",
+      "personalBadge": "本地",
+      "personalOnlyHome": "唯一歸屬",
+      "personalUnavailable": "不屬於 Personal",
+      "autoInScope": "已按範圍歸入"
     },
     "orgManagement": {
       "invites": {

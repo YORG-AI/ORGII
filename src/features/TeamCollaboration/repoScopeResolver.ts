@@ -18,6 +18,8 @@
  * NOT cached, so a repo is never permanently marked unshareable by a hiccup
  * (e.g. the git server still booting).
  */
+import { useSyncExternalStore } from "react";
+
 import { getGitRemotes } from "@src/api/http/git/remotes";
 
 import { isLocalRepoPath, normalizeRepoScopeKey } from "./collabSyncUtils";
@@ -70,6 +72,13 @@ export function subscribeShareableScopeKeys(
 /** Monotonic cache version — `useSyncExternalStore` snapshot. */
 export function getShareableScopeKeyVersion(): number {
   return shareableScopeKeyVersion;
+}
+
+export function useShareableScopeKeyVersion(): number {
+  return useSyncExternalStore(
+    subscribeShareableScopeKeys,
+    getShareableScopeKeyVersion
+  );
 }
 
 /**

@@ -37,6 +37,9 @@ pub fn cli_launch_profile_update(
         command_override,
         args_override,
         env_override,
+        // Experimental app-server transport opt-in is not exposed in the
+        // settings UI; `None` preserves whatever the store already holds.
+        transport: None,
     })
 }
 
@@ -129,6 +132,7 @@ pub async fn cli_agent_create(mut params: CreateCodeSessionParams) -> Result<Cod
     let isolate = params.isolate.unwrap_or(false);
     let repo_path = params.repo_path.clone();
     let branch_for_worktree = params.branch.clone();
+    let reuse_worktree_path = params.worktree_path.clone();
 
     let session = tokio::task::spawn_blocking({
         let sid = session_id.clone();
@@ -218,9 +222,57 @@ pub async fn cli_agent_create(mut params: CreateCodeSessionParams) -> Result<Cod
                 }
             }
         }
+    } else if let Some(worktree_path) = reuse_worktree_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|path| !path.is_empty())
+    {
+        // Reuse an existing worktree checkout: pin the session's cwd and
+        // merge flow to it. The base ref is already baked into the checkout.
+        if !std::path::Path::new(worktree_path).is_dir() {
+            return Err(format!(
+                "Selected worktree path does not exist: {worktree_path}"
+            ));
+        }
+        let updated = tokio::task::spawn_blocking({
+            let sid = session_id.clone();
+            let path = worktree_path.to_string();
+            let repo = repo_path.clone();
+            move || -> Result<Option<CodeSession>, String> {
+                let worktree_branch = repo
+                    .as_deref()
+                    .filter(|repo| !repo.is_empty())
+                    .and_then(|repo| worktree::list_all_worktrees(std::path::Path::new(repo)).ok())
+                    .and_then(|entries| {
+                        entries
+                            .into_iter()
+                            .find(|entry| entry.path == path)
+                            .map(|entry| entry.branch)
+                    })
+                    .unwrap_or_default();
+                persistence::update_worktree_info(&sid, &path, &worktree_branch, "")
+                    .map_err(|e| format!("Failed to store worktree info: {}", e))?;
+                persistence::get_session(&sid).map_err(|e| format!("DB error: {}", e))
+            }
+        })
+        .await
+        .map_err(|e| format!("Task error: {}", e))??;
+
+        if let Some(updated_session) = updated {
+            return Ok(updated_session);
+        }
     }
 
     Ok(session)
+}
+
+/// Park a TUI-hosted session when its terminal pane goes away (PTY exit or
+/// tab close). Non-TUI sessions and already-terminal rows are left alone.
+#[tauri::command]
+pub async fn cli_agent_tui_release(session_id: String) -> Result<bool, String> {
+    tokio::task::spawn_blocking(move || super::tui_bridge::release_tui_session(&session_id))
+        .await
+        .map_err(|e| format!("Task error: {}", e))?
 }
 
 /// Run a code session (spawn CLI agent in background).
@@ -492,18 +544,38 @@ pub async fn cli_agent_message(
     .await
 }
 
-/// Respond to a pending approval request from an ACP agent.
+/// Respond to a pending approval request from a CLI agent.
 ///
-/// When an ACP agent (Copilot, Kiro) requests tool permission, the backend
-/// emits an `approval_request` chunk and blocks until this command is called.
+/// Two registries can be waiting on this:
+/// - **Hook approvals** (managed Claude Code shell-out sessions): a parked
+///   `PermissionRequest` hook long-poll keyed by `request_id`
+///   (`hookperm-*`, from the `permission:request` wire event). Checked
+///   first. `always_allow` maps to a plain allow — persistent rules stay
+///   with Claude's own permission store.
+/// - **ACP agents** (OpenCode, Copilot, Kiro): a `session/request_permission`
+///   parked in `acp_common::PENDING_APPROVALS`, keyed by `request_id`
+///   (`acpperm-*`, from the `permission:request` wire event with
+///   `origin: "acp"`), with a session-id fallback.
 #[tauri::command]
 pub async fn cli_agent_approval_response(
     session_id: String,
     approved: bool,
     always_allow: Option<bool>,
+    request_id: Option<String>,
 ) -> Result<(), String> {
+    if crate::agent_sessions::cli::hook_approvals::has_pending_hook_approval(
+        &session_id,
+        request_id.as_deref(),
+    ) {
+        return crate::agent_sessions::cli::hook_approvals::resolve_hook_approval(
+            &session_id,
+            request_id.as_deref(),
+            approved,
+        );
+    }
     crate::agent_sessions::cli::parsers::acp_common::resolve_approval(
         &session_id,
+        request_id.as_deref(),
         approved,
         always_allow.unwrap_or(false),
     )
@@ -551,7 +623,134 @@ pub async fn cli_agent_list() -> Result<Vec<CodeSession>, String> {
     .map_err(|e| format!("Task error: {}", e))?
 }
 
+/// Resolve and parse a native-mode session's transcript from the CLI's own
+/// store through the imported-history loaders. `None` falls back to legacy
+/// chunks — covering pre-migration sessions, crash-before-native-write, and
+/// a store the reader can't currently open.
+fn load_native_transcript_chunks(session: &CodeSession) -> Option<Vec<ActivityChunk>> {
+    use super::native_transcript;
+    if session.transcript_source != native_transcript::TRANSCRIPT_SOURCE_NATIVE {
+        return None;
+    }
+    let agent = session
+        .cli_agent_type
+        .as_deref()
+        .and_then(key_vault::key_store::ModelType::from_str)?;
+    let binding = native_transcript::native_transcript_binding(&agent)?;
+    let cli_session_id =
+        persistence::latest_native_transcript_id(&session.session_id, binding.source)
+            .ok()
+            .flatten()
+            .or_else(|| session.cli_session_id.clone())?;
+    let imported_id = binding.imported_session_id(&cli_session_id);
+    let conn = database::db::get_connection().ok()?;
+    match orgtrack_core::sources::imported_history::load_activity_chunks_for_session(
+        &conn,
+        &imported_id,
+    ) {
+        Ok(Some(mut chunks)) if !chunks.is_empty() => {
+            // Loaders stamp the imported id; the frontend event store,
+            // WS merge, and snapshot keys all key on the managed id.
+            for chunk in &mut chunks {
+                chunk.session_id = session.session_id.clone();
+            }
+            Some(chunks)
+        }
+        Ok(_) => None,
+        Err(err) => {
+            tracing::warn!(
+                "[cli_agent_chunks] Native transcript load failed for {imported_id}: {err}"
+            );
+            None
+        }
+    }
+}
+
+/// Where a managed session's transcript of record lives, for display
+/// surfaces (session hover card storage row).
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CliTranscriptLocation {
+    /// True when the transcript lives in the CLI's native store
+    /// (`code_sessions.transcript_source = 'native'`), not `sessions.db`.
+    pub native: bool,
+    /// Resolved native store path (e.g. a Codex rollout jsonl), when the
+    /// imported-history cache already knows it. `None` for chunks-mode
+    /// sessions, or for native sessions not yet scanned into the cache.
+    pub path: Option<String>,
+}
+
+/// Resolve the storage location of a session's transcript of record.
+/// Chunks-mode (legacy) sessions report `native: false` — the caller keeps
+/// showing `sessions.db`. Native sessions report the CLI store file path when
+/// the imported-history cache has it, else `native: true` with no path.
+#[tauri::command]
+pub async fn cli_agent_transcript_path(
+    session_id: String,
+) -> Result<CliTranscriptLocation, String> {
+    tokio::task::spawn_blocking(move || {
+        use super::native_transcript;
+        let is_native = persistence::get_session(&session_id)
+            .map_err(|e| format!("DB error: {}", e))?
+            .is_some_and(|session| {
+                session.transcript_source == native_transcript::TRANSCRIPT_SOURCE_NATIVE
+            });
+        if !is_native {
+            return Ok(CliTranscriptLocation {
+                native: false,
+                path: None,
+            });
+        }
+        // Native session with no bound CLI id yet (first turn still running,
+        // or crash before bind): native, but no path to show.
+        let Some((binding, cli_session_id)) =
+            native_transcript::native_store_key_for_managed_session(&session_id)
+        else {
+            return Ok(CliTranscriptLocation {
+                native: true,
+                path: None,
+            });
+        };
+        let conn = database::db::get_connection()
+            .map_err(|err| format!("Failed to open orgtrack source cache DB: {err}"))?;
+        // Exact match first; Codex caches key on the rollout file stem, which
+        // only the `-`-bounded suffix variant matches.
+        let mut path =
+            orgtrack_core::sources::imported_history::cache::get_cached_source_path_from_conn(
+                &conn,
+                binding.source,
+                &cli_session_id,
+            )?;
+        if path.is_none() {
+            path = orgtrack_core::sources::imported_history::cache::
+                get_cached_source_path_by_suffix_from_conn(&conn, binding.source, &cli_session_id)?;
+        }
+        Ok(CliTranscriptLocation { native: true, path })
+    })
+    .await
+    .map_err(|e| format!("Task error: {}", e))?
+}
+
+/// A failed first turn in native mode may leave no readable transcript at
+/// all; a synthesized user bubble beats a blank chat.
+fn synthesized_user_message_chunk(session: &CodeSession) -> Option<ActivityChunk> {
+    let user_input = session.user_input.as_deref()?.trim();
+    if user_input.is_empty() {
+        return None;
+    }
+    let mut chunk = ActivityChunk::new(&session.session_id, "raw", "user_message");
+    chunk.chunk_id = format!("user-input-{}-synthesized", session.session_id);
+    chunk.created_at = session.created_at.clone();
+    chunk.result = serde_json::json!({
+        "type": "user",
+        "message": { "content": user_input, "role": "user" }
+    });
+    Some(chunk)
+}
+
 /// Load persisted chunks for a session (for resume/session switch).
+/// Native-transcript sessions route through the imported-history loaders;
+/// everything else (and every fallback) reads legacy `code_session_chunks`.
 #[tauri::command]
 pub async fn cli_agent_chunks(session_id: String) -> Result<Vec<ActivityChunk>, String> {
     tracing::info!(
@@ -559,7 +758,27 @@ pub async fn cli_agent_chunks(session_id: String) -> Result<Vec<ActivityChunk>, 
         session_id
     );
     let result = tokio::task::spawn_blocking(move || {
-        persistence::load_chunks(&session_id).map_err(|e| format!("DB error: {}", e))
+        let session =
+            persistence::get_session(&session_id).map_err(|e| format!("DB error: {}", e))?;
+        if let Some(session) = session.as_ref() {
+            if let Some(chunks) = load_native_transcript_chunks(session) {
+                return Ok(chunks);
+            }
+        }
+        let chunks =
+            persistence::load_chunks(&session_id).map_err(|e| format!("DB error: {}", e))?;
+        if chunks.is_empty() {
+            if let Some(chunk) = session
+                .as_ref()
+                .filter(|session| {
+                    session.transcript_source == super::native_transcript::TRANSCRIPT_SOURCE_NATIVE
+                })
+                .and_then(synthesized_user_message_chunk)
+            {
+                return Ok(vec![chunk]);
+            }
+        }
+        Ok(chunks)
     })
     .await
     .map_err(|e| format!("Task error: {}", e))?;
@@ -585,8 +804,18 @@ pub async fn cli_agent_truncate_after_chunk(
     // Kill any running agent first to prevent it from writing new chunks
     session_runner::kill_running_agent(&session_id).await;
 
-    // Clean up CLI config dir so the agent starts fresh
-    session_runner::cleanup_cursor_config_dir(&session_id);
+    // Wipe the Cursor config dir so the agent starts fresh — legacy chunk mode
+    // ONLY. Under `transcript_source = 'native'` that directory IS the
+    // transcript of record (hosted-key Cursor stores its chats under the
+    // per-session config dir), so deleting it would erase the whole
+    // conversation instead of truncating it. The fork is driven by
+    // `clear_cli_resume_state_with_tx` inside the truncate below: with no
+    // resume id the CLI opens a fresh conversation, and the superseded store
+    // stays on disk hidden behind the native-transcript ledger — the same
+    // semantics Claude/Codex native forks already have.
+    if persistence::session_persists_chunks(&session_id) {
+        session_runner::cleanup_cursor_config_dir(&session_id);
+    }
 
     let should_revert_files = revert_files.unwrap_or(true);
     if should_revert_files {

@@ -362,6 +362,15 @@ export const TerminalCore: React.FC<TerminalCoreProps> = ({
                 onOpenFileLink={onOpenFileLink}
                 backgroundColor={bgColor}
                 shellOverride={session.shell}
+                // CLI-agent terminals: pin the PTY to the session's cwd
+                // (worktree) and let lifecycle hooks attribute status and
+                // transcripts to the backing managed session row.
+                forceRepoCwd={Boolean(session.agentCommand)}
+                envOverride={
+                  session.agentCommand && session.agentSessionId
+                    ? { ORGII_SESSION_ID: session.agentSessionId }
+                    : undefined
+                }
                 nameOverride={session.name}
                 onUserInput={() => {
                   requestProcessRefresh();

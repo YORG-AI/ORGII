@@ -17,14 +17,17 @@ use database::db::get_connection;
 use orgtrack_core::sources::claude_code::history as claude_code_history;
 use orgtrack_core::sources::cline::history as cline_history;
 use orgtrack_core::sources::codex::app as codex_app_history;
+use orgtrack_core::sources::cursor_cli::history as cursor_cli_history;
 use orgtrack_core::sources::cursor_ide::history as cursor_ide_history;
 use orgtrack_core::sources::cursor_ide::history::CursorIdeSessionPage;
 use orgtrack_core::sources::imported_history::cache as imported_history_cache;
 use orgtrack_core::sources::imported_history::metadata::{
-    SOURCE_CLAUDE_CODE, SOURCE_CLINE, SOURCE_CODEX_APP, SOURCE_CURSOR_IDE, SOURCE_OPENCODE,
-    SOURCE_QODER, SOURCE_TRAE, SOURCE_WARP, SOURCE_WINDSURF, SOURCE_WORKBUDDY, SOURCE_ZCODE,
+    SOURCE_CLAUDE_CODE, SOURCE_CLINE, SOURCE_CODEX_APP, SOURCE_CURSOR_CLI, SOURCE_CURSOR_IDE,
+    SOURCE_OPENCODE, SOURCE_QODER, SOURCE_TRAE, SOURCE_WARP, SOURCE_WINDSURF, SOURCE_WORKBUDDY,
+    SOURCE_ZCODE,
 };
 use orgtrack_core::sources::imported_history::ImportedHistorySessionPage;
+use orgtrack_core::sources::imported_history::IMPORTED_STATUS_COMPLETED;
 use orgtrack_core::sources::opencode::history as opencode_history;
 use orgtrack_core::sources::qoder::history as qoder_history;
 use orgtrack_core::sources::trae::history as trae_history;
@@ -80,6 +83,15 @@ fn load_cursor_ide_external_history_page(
 ) -> Result<ExternalHistoryPage, String> {
     cursor_ide_history::list_cursor_ide_sessions_paginated(conn, limit, offset)
         .map(ExternalHistoryPage::CursorIde)
+}
+
+fn load_cursor_cli_external_history_page(
+    conn: &mut rusqlite::Connection,
+    limit: usize,
+    offset: usize,
+) -> Result<ExternalHistoryPage, String> {
+    cursor_cli_history::list_cursor_cli_history_sessions_paginated(conn, limit, offset)
+        .map(ExternalHistoryPage::Imported)
 }
 
 fn load_opencode_external_history_page(
@@ -168,6 +180,10 @@ const EXTERNAL_HISTORY_SOURCE_LOADERS: &[ExternalHistorySourceLoader] = &[
         load_page: load_cursor_ide_external_history_page,
     },
     ExternalHistorySourceLoader {
+        source: SOURCE_CURSOR_CLI,
+        load_page: load_cursor_cli_external_history_page,
+    },
+    ExternalHistorySourceLoader {
         source: SOURCE_OPENCODE,
         load_page: load_opencode_external_history_page,
     },
@@ -245,6 +261,37 @@ fn append_external_history_page(
     }
 }
 
+/// How long after the last transcript write a hook-less CLI still counts as
+/// running. Scan cadence (60s focused) bounds how fresh `updated_at` can be,
+/// so the effective "running" window is roughly one to two scan ticks.
+const IMPORTED_MTIME_ACTIVE_WINDOW_MS: i64 = 60_000;
+
+/// Live-status decoration for imported rows: a fresh lifecycle-hook state
+/// wins; otherwise a transcript updated moments ago flips the row to
+/// `running` — the only liveness signal CLIs without any hook surface
+/// (aider, goose, cline, warp, ...) can give us.
+fn decorate_imported_live_status(records: &mut [SessionAggregateRecord]) {
+    let now_ms = chrono::Utc::now().timestamp_millis();
+    for record in records.iter_mut() {
+        if let Some((status, _entry)) =
+            crate::orgtrack::agent_live_status::effective_live_status(&record.session_id)
+        {
+            record.status = status.to_string();
+            record.is_active = super::status::is_active_status(status);
+            continue;
+        }
+        if record.status == IMPORTED_STATUS_COMPLETED {
+            let recently_updated = DateTime::parse_from_rfc3339(&record.updated_at)
+                .map(|updated| now_ms - updated.timestamp_millis() < IMPORTED_MTIME_ACTIVE_WINDOW_MS)
+                .unwrap_or(false);
+            if recently_updated {
+                record.status = "running".to_string();
+                record.is_active = true;
+            }
+        }
+    }
+}
+
 fn load_imported_history_sessions(
     filter: Option<&SessionFilter>,
 ) -> Result<Vec<SessionAggregateRecord>, String> {
@@ -279,6 +326,7 @@ fn load_imported_history_sessions(
                 &source,
             ));
         }
+        decorate_imported_live_status(&mut records);
         return Ok(records);
     }
 
@@ -304,6 +352,7 @@ fn load_imported_history_sessions(
         append_external_history_page(&mut records, loader.source, page);
     }
 
+    decorate_imported_live_status(&mut records);
     Ok(records)
 }
 

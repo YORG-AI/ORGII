@@ -1688,6 +1688,8 @@
       "emptyConfigPreview": "Không có nội dung cấu hình"
     },
     "sessionProvenance": {
+      "masterToggle": "Hook truy xuất nguồn gốc",
+      "masterToggleDesc": "Khi tắt, tất cả hook được quản lý sẽ bị gỡ và không có tín hiệu nào được thu thập; lựa chọn của từng nền tảng được giữ lại và khôi phục khi bật lại.",
       "title": "Nguồn gốc phiên",
       "capture": "Ghi lại tương tác với tệp",
       "description": "Ghi các thao tác đọc và ghi tệp dưới dạng siêu dữ liệu. Không lưu câu lệnh, đầu ra công cụ hoặc nội dung tệp.",
@@ -1704,16 +1706,16 @@
         "on": "Bật",
         "off": "Tắt",
         "repair": "Sửa",
-        "needsApproval": "Cần phê duyệt",
+        "awaitingVerification": "Đang chờ xác minh",
         "checking": "Đang kiểm tra…",
         "error": "Lỗi"
       },
       "codexApproval": {
-        "title": "Approve ORG2 hooks in Codex",
-        "description": "Codex has the ORG2 hooks installed, but Codex still needs your approval before it can run them.",
-        "instructions": "Open Codex, review the 3 ORG2 hooks, then choose Trust all and continue. ORG2 marks this active after the first real hook signal.",
-        "review": "Review in Codex",
-        "verified": "Verified by a real Codex hook signal {{time}}."
+        "title": "Xác minh hook ORG2 trong Codex",
+        "description": "Đang chờ Codex phê duyệt và chạy các hook ORG2 hiện tại.",
+        "instructions": "Mở Codex, xem lại các hook ORG2, rồi chọn Trust all and continue. Hook SessionStart sẽ tự động xác minh việc kích hoạt khi phiên bắt đầu.",
+        "review": "Xem lại trong Codex",
+        "verified": "Đã xác minh bằng tín hiệu hook Codex thực ({{time}})."
       },
       "signals": {
         "title": "Tín hiệu gần đây",

@@ -2024,6 +2024,14 @@
     "model": "Model",
     "source": "Konto",
     "addContext": "Dodaj kontekst",
+    "contextMenu": {
+      "filesAndFolders": "Pliki i foldery",
+      "agentSession": "Sesja agenta",
+      "workItems": "Elementy pracy",
+      "back": "Wstecz",
+      "recent": "Ostatnie",
+      "showMore": "Pokaż jeszcze {{remaining}}"
+    },
     "slashSearchPlaceholder": "Szukaj komend…",
     "slashMenu": {
       "image": "Obraz",

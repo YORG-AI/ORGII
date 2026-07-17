@@ -466,7 +466,7 @@ export const SpotlightItemRow = memo<SpotlightItemRowProps>(
               </span>
             )}
             {data.inlineTag && (
-              <span className="shrink-0 rounded bg-fill-2 px-1.5 py-0.5 text-[10px] text-text-3">
+              <span className="shrink-0 text-[10px] text-text-3">
                 {data.inlineTag}
               </span>
             )}

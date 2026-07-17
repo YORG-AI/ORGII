@@ -1971,6 +1971,14 @@
     "model": "Modell",
     "source": "Konto",
     "addContext": "Kontext hinzufügen",
+    "contextMenu": {
+      "filesAndFolders": "Dateien und Ordner",
+      "agentSession": "Agent-Sitzung",
+      "workItems": "Arbeitselemente",
+      "back": "Zurück",
+      "recent": "Zuletzt verwendet",
+      "showMore": "{{remaining}} weitere anzeigen"
+    },
     "slashSearchPlaceholder": "Befehle suchen…",
     "slashMenu": {
       "image": "Bild",

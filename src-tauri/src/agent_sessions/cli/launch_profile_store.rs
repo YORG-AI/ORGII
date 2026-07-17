@@ -129,12 +129,14 @@ pub fn resolve_cli_launch_profile(
     let env = override_profile
         .and_then(|profile| profile.env_override.clone())
         .unwrap_or_else(|| default_env_for_mode(defaults, permission_mode));
+    let transport = override_profile.and_then(|profile| profile.transport.clone());
 
     Ok(ResolvedCliLaunchProfile {
         permission_mode,
         command,
         args,
         env,
+        transport,
     })
 }
 
@@ -191,6 +193,7 @@ pub fn cli_launch_profile_get(agent_name: String) -> Result<CliLaunchProfileView
             .is_some(),
         effective_command,
         required_args,
+        transport: override_profile.and_then(|profile| profile.transport.clone()),
     })
 }
 
@@ -208,6 +211,15 @@ pub fn cli_launch_profile_update(
         ));
     }
     let mut store = read_store()?;
+    // The transport opt-in is experimental and not surfaced in the settings
+    // UI; carry the stored value forward when the update doesn't mention it
+    // so editing args/mode can't silently flip a session back to shell-out.
+    // Clearing is done via `cli_launch_profile_reset` or hand-editing
+    // `~/.orgii/config/cli_launch_profiles.json`.
+    let existing_transport = store
+        .profiles
+        .get(agent_type.as_str())
+        .and_then(|profile| profile.transport.clone());
     store.profiles.insert(
         agent_type.as_str().to_string(),
         CliLaunchProfileOverride {
@@ -215,6 +227,7 @@ pub fn cli_launch_profile_update(
             command_override: normalize_optional_string(update.command_override),
             args_override: normalize_optional_args(update.args_override),
             env_override: normalize_optional_env(update.env_override),
+            transport: normalize_optional_string(update.transport).or(existing_transport),
         },
     );
     write_store(&store)?;

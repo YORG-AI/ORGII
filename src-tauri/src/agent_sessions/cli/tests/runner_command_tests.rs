@@ -71,6 +71,7 @@ fn build_command_from_options(options: TestCommandBuildOptions<'_>) -> Vec<Strin
             .to_string(),
         args: default_args_for_mode(defaults, CliPermissionMode::FullPermission),
         env: default_env_for_mode(defaults, CliPermissionMode::FullPermission),
+        transport: None,
     };
 
     build_command_with_launch_profile(CliCommandBuildRequest {
@@ -428,4 +429,84 @@ fn map_claude_model_variant_no_effort_keeps_base() {
     let cfg = map_claude_model_variant("claude-opus-4-8-thinking");
     assert_eq!(cfg.base_model, "claude-opus-4-8-thinking");
     assert!(cfg.effort.is_none());
+}
+
+// ─── Codex app-server transport (experimental gate) ───
+
+fn app_server_profile(agent: &ModelType, transport: Option<&str>) -> ResolvedCliLaunchProfile {
+    let defaults = defaults_for_agent(agent).expect("CLI defaults");
+    ResolvedCliLaunchProfile {
+        permission_mode: CliPermissionMode::Manual,
+        command: bare_command_for_agent(agent)
+            .expect("CLI bare command")
+            .to_string(),
+        args: default_args_for_mode(defaults, CliPermissionMode::Manual),
+        env: default_env_for_mode(defaults, CliPermissionMode::Manual),
+        transport: transport.map(|value| value.to_string()),
+    }
+}
+
+#[test]
+fn uses_codex_app_server_requires_codex_and_explicit_flag() {
+    use super::launch_profiles::uses_codex_app_server;
+
+    // Default (no flag) stays on the shell-out path.
+    let default_profile = app_server_profile(&ModelType::Codex, None);
+    assert!(!uses_codex_app_server(&ModelType::Codex, &default_profile));
+
+    // Explicit opt-in flips the codex profile only.
+    let opted_in = app_server_profile(&ModelType::Codex, Some("app-server"));
+    assert!(uses_codex_app_server(&ModelType::Codex, &opted_in));
+
+    // Unknown transport values are ignored.
+    let unknown = app_server_profile(&ModelType::Codex, Some("websocket"));
+    assert!(!uses_codex_app_server(&ModelType::Codex, &unknown));
+
+    // Non-codex agents never honor the flag.
+    let claude = app_server_profile(&ModelType::ClaudeCode, Some("app-server"));
+    assert!(!uses_codex_app_server(&ModelType::ClaudeCode, &claude));
+}
+
+#[test]
+fn build_codex_app_server_argv_is_bare_subcommand() {
+    let profile = app_server_profile(&ModelType::Codex, Some("app-server"));
+    let cmd = build_command_with_launch_profile(CliCommandBuildRequest {
+        agent: &ModelType::Codex,
+        launch_profile: &profile,
+        model: None,
+        task: "fix the bug",
+        resume_id: Some("thread-123"),
+        api_key: None,
+        endpoint: None,
+        mode: None,
+        repo_path: Some("/workspace"),
+        additional_dirs: &[],
+    });
+    // Task, resume id, cwd, sandbox and approval flags all travel over
+    // JSON-RPC — none of them may leak into the argv.
+    assert_eq!(command_name(&cmd[0]), "codex");
+    assert_eq!(cmd[1..], ["app-server".to_string()]);
+}
+
+#[test]
+fn build_codex_app_server_argv_keeps_model_variant_overrides() {
+    let profile = app_server_profile(&ModelType::Codex, Some("app-server"));
+    let cmd = build_command_with_launch_profile(CliCommandBuildRequest {
+        agent: &ModelType::Codex,
+        launch_profile: &profile,
+        model: Some("gpt-5.4-medium-fast"),
+        task: "write tests",
+        resume_id: None,
+        api_key: None,
+        endpoint: None,
+        mode: None,
+        repo_path: None,
+        additional_dirs: &[],
+    });
+    assert_eq!(cmd[1], "app-server");
+    assert!(cmd.contains(&"model_reasoning_effort=\"medium\"".to_string()));
+    assert!(cmd.contains(&"service_tier=\"priority\"".to_string()));
+    // The base model itself goes via thread/start params, not argv.
+    assert!(!cmd.iter().any(|arg| arg == "-m"));
+    assert!(!cmd.iter().any(|arg| arg == "gpt-5.4"));
 }

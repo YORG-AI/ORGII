@@ -114,18 +114,20 @@ pub fn file_interactions_from_tool(
                 }),
         );
     }
-    if default_action == ResourceAction::Search {
-        interactions.extend(
-            tool_result
-                .into_iter()
-                .chain(successful_result)
-                .flat_map(search_result_paths)
-                .map(|file_path| FileInteractionCandidate {
-                    file_path,
-                    action: ResourceAction::Search,
-                }),
-        );
-    }
+    // search-rows: turn cards surface only writes and reads, so search results
+    // are no longer harvested. Restore with the sibling `search-rows` sites.
+    // if default_action == ResourceAction::Search {
+    //     interactions.extend(
+    //         tool_result
+    //             .into_iter()
+    //             .chain(successful_result)
+    //             .flat_map(search_result_paths)
+    //             .map(|file_path| FileInteractionCandidate {
+    //                 file_path,
+    //                 action: ResourceAction::Search,
+    //             }),
+    //     );
+    // }
     interactions.sort_by(|left, right| {
         left.file_path
             .cmp(&right.file_path)
@@ -157,11 +159,14 @@ pub fn action_for_tool_name(tool_name: &str) -> Option<ResourceAction> {
         Some(ResourceAction::Write)
     } else if normalized.contains("read") || normalized.contains("view_file") {
         Some(ResourceAction::Read)
-    } else if normalized.contains("grep")
-        || normalized.contains("search")
-        || normalized.contains("glob")
-    {
-        Some(ResourceAction::Search)
+    // search-rows: classifying grep/search/glob as Search is disabled so the
+    // interactions are never captured. Restore with the sibling `search-rows`
+    // sites.
+    // } else if normalized.contains("grep")
+    //     || normalized.contains("search")
+    //     || normalized.contains("glob")
+    // {
+    //     Some(ResourceAction::Search)
     } else {
         None
     }
@@ -199,6 +204,9 @@ pub fn explicit_file_paths(value: &Value) -> Vec<String> {
     paths
 }
 
+// search-rows: kept intact but unused while search capture is disabled in
+// `file_interactions_from_tool`. Drop the attribute when restoring.
+#[allow(dead_code)]
 fn search_result_paths(value: &Value) -> Vec<String> {
     const COLLECTION_FIELDS: &[&str] = &["matches", "results", "files", "filePaths"];
     const ITEM_PATH_FIELDS: &[&str] = &[
@@ -338,7 +346,7 @@ mod tests {
     }
 
     #[test]
-    fn rename_and_nested_search_results_keep_protocol_actions() {
+    fn rename_keeps_protocol_action_and_search_is_not_captured() {
         assert_eq!(
             action_for_tool_name("rename_file"),
             Some(ResourceAction::Rename)
@@ -347,14 +355,15 @@ mod tests {
             file_interactions_from_tool("rename_file", &json!({"file_path": "src/old.rs"}), None);
         assert_eq!(renamed[0].action, ResourceAction::Rename);
 
+        // search-rows: search tools are unclassified, so neither the queried
+        // path nor the nested result paths become interactions.
+        assert_eq!(action_for_tool_name("search_files"), None);
         let searched = file_interactions_from_tool(
             "search_files",
             &json!({"path": "src"}),
             Some(&json!({"success": {"results": [{"filePath": "src/lib.rs"}]}})),
         );
-        assert!(searched.iter().any(|item| {
-            item.file_path == "src/lib.rs" && item.action == ResourceAction::Search
-        }));
+        assert!(searched.is_empty());
     }
 
     #[test]

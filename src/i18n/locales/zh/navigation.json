@@ -583,7 +583,7 @@
     "moveToOrg": {
       "menuItem": "组织标签…",
       "title": "会话的组织标签",
-      "hint": "把这个会话加入一个共享云组织。它仍是你本地的普通会话——这只是让它在该组织可见。只有 repo 范围覆盖此会话仓库的组织才能选择。",
+      "hint": "勾选一个或多个组织来共享这个会话——它可以同时在 Personal 和多个组织里。它仍是你本地的普通会话，这只是让它在这些地方可见。只有 repo 范围覆盖此会话仓库的组织才能选择。",
       "noOrgs": "还没有云组织——登录 ORG2 Cloud 后创建或加入一个。",
       "cloudBadge": "云",
       "added": "已加入 {{org}}",
@@ -592,7 +592,12 @@
       "noRemote": "此会话的仓库没有 git remote，无法匹配任何组织的 repo 范围。",
       "noScopes": "未配置 repo 范围",
       "outOfScope": "不在范围内",
-      "scopeResolving": "检查中…"
+      "scopeResolving": "检查中…",
+      "personal": "Personal（个人）",
+      "personalBadge": "本地",
+      "personalOnlyHome": "唯一归属",
+      "personalUnavailable": "不属于 Personal",
+      "autoInScope": "已按范围归入"
     },
     "orgManagement": {
       "invites": {

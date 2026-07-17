@@ -315,6 +315,69 @@ fn parses_opencode_parts_into_replay_chunks() {
 }
 
 #[test]
+fn strips_orgii_exec_mode_bridge_from_opencode_user_parts() {
+    let make_row = |text_json: &str| OpenCodePartRow {
+        part_id: "prt_bridge".to_string(),
+        message_id: "msg_user".to_string(),
+        role: "user".to_string(),
+        part: serde_json::from_str::<OpenCodePart>(text_json).expect("parse part"),
+        time_created: 1_770_000_000_000,
+    };
+
+    // Bridge-prefixed user part → bubble carries only the user text.
+    let row = make_row(
+        r#"{"type":"text","text":"<orgii_cli_exec_mode_bridge>\nbriefing\n</orgii_cli_exec_mode_bridge>\n\nfix the login bug"}"#,
+    );
+    let chunk = text_to_user_chunk("opencodeapp-ses_1", 0, &row).expect("user chunk");
+    assert_eq!(
+        chunk
+            .result
+            .get("message")
+            .and_then(|message| message.get("content"))
+            .and_then(Value::as_str),
+        Some("fix the login bug")
+    );
+
+    // Bridge-only user part → no bubble at all.
+    let row = make_row(
+        r#"{"type":"text","text":"<orgii_cli_exec_mode_bridge>\nbriefing\n</orgii_cli_exec_mode_bridge>"}"#,
+    );
+    assert!(text_to_user_chunk("opencodeapp-ses_1", 1, &row).is_none());
+}
+
+#[test]
+fn strips_ide_context_from_opencode_user_parts() {
+    let make_row = |text_json: &str| OpenCodePartRow {
+        part_id: "prt_ide_ctx".to_string(),
+        message_id: "msg_user".to_string(),
+        role: "user".to_string(),
+        part: serde_json::from_str::<OpenCodePart>(text_json).expect("parse part"),
+        time_created: 1_770_000_000_000,
+    };
+
+    // Bridge + ide_context prefixed user part → bubble carries only the
+    // user-authored text.
+    let row = make_row(
+        r#"{"type":"text","text":"<orgii_cli_exec_mode_bridge>\nbriefing\n</orgii_cli_exec_mode_bridge>\n\n<ide_context>\nopen file: src/app.ts\n</ide_context>\n\nfix the login bug"}"#,
+    );
+    let chunk = text_to_user_chunk("opencodeapp-ses_1", 0, &row).expect("user chunk");
+    assert_eq!(
+        chunk
+            .result
+            .get("message")
+            .and_then(|message| message.get("content"))
+            .and_then(Value::as_str),
+        Some("fix the login bug")
+    );
+
+    // ide_context-only user part → no bubble at all.
+    let row = make_row(
+        r#"{"type":"text","text":"<ide_context>\nopen file: src/app.ts\n</ide_context>"}"#,
+    );
+    assert!(text_to_user_chunk("opencodeapp-ses_1", 1, &row).is_none());
+}
+
+#[test]
 fn derives_opencode_impact_from_session_edit_parts() {
     let conn = fixture_conn();
     conn.execute(

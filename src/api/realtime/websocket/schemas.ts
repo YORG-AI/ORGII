@@ -322,18 +322,29 @@ export const CODE_EDITOR_WEB_SOCKET_EVENT_TYPES = [
   "repo:git_operation",
   "repo:watcher_health",
   "lsp:diagnostics",
+  // Session lifecycle broadcasts from the CLI runner. Consumed globally by
+  // useBackgroundSessionMonitor (background-session completion toasts); the
+  // active session gets the same events over its own session channel.
+  "code_session.status_changed",
 ] as const;
 
-export const CodeEditorWebSocketMessageSchema = z.object({
-  type: z.enum(CODE_EDITOR_WEB_SOCKET_EVENT_TYPES),
-  repo_id: z.string().optional(),
-  language: z.string().optional(),
-  data: z.unknown().optional(),
-  payload: z.unknown().optional(),
-  status: z.unknown().optional(),
-  files: z.array(z.unknown()).optional(),
-  timestamp: z.number(),
-});
+// `.passthrough()` because session broadcasts carry their payload as
+// top-level fields (session_id, status, background, session_name,
+// error_message) — the default zod strip would silently drop them before
+// handlers run. `timestamp` is optional for the same reason: repo/file/lsp
+// events include it, session broadcasts do not.
+export const CodeEditorWebSocketMessageSchema = z
+  .object({
+    type: z.enum(CODE_EDITOR_WEB_SOCKET_EVENT_TYPES),
+    repo_id: z.string().optional(),
+    language: z.string().optional(),
+    data: z.unknown().optional(),
+    payload: z.unknown().optional(),
+    status: z.unknown().optional(),
+    files: z.array(z.unknown()).optional(),
+    timestamp: z.number().optional(),
+  })
+  .passthrough();
 
 export type ParsedWSMessage = z.output<typeof WSMessageSchema>;
 export type ParsedCodeEditorWebSocketMessage = z.output<

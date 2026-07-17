@@ -87,14 +87,23 @@ pub fn create_session(
         .filter(|v| !v.is_empty())
         .map(|v| serde_json::to_string(v).unwrap_or_else(|_| "[]".to_string()));
 
+    // Native-transcript capability is decided once at creation and frozen:
+    // a later capability flip must never re-route an existing session's
+    // replay away from where its turns were actually persisted.
+    let transcript_source = key_vault::key_store::ModelType::from_str(&params.cli_agent_type)
+        .filter(super::super::native_transcript::native_transcript_enabled)
+        .map(|_| super::super::native_transcript::TRANSCRIPT_SOURCE_NATIVE)
+        .unwrap_or(super::super::native_transcript::TRANSCRIPT_SOURCE_CHUNKS);
+
     conn.execute(
         "INSERT INTO code_sessions
             (session_id, name, status, flow, runner, cli_agent_type, model, tier,
              account_id, repo_path, branch, proxy_token, proxy_url, hosted_token,
              proxy_session_id, background, key_source, additional_directories,
              parent_session_id, org_member_id, org_id, project_id, project_name,
-             project_slug, work_item_id, agent_role, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28)",
+             project_slug, work_item_id, agent_role, created_at, updated_at,
+             transcript_source)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29)",
         params![
             session_id, name, SessionStatus::Pending.as_ref(), flow, runner, params.cli_agent_type,
             params.model, params.tier, params.account_id,
@@ -102,7 +111,7 @@ pub fn create_session(
             params.hosted_token, params.proxy_session_id, background, key_source_str,
             additional_dirs_json, params.parent_session_id, params.org_member_id,
             org_id, params.project_id, params.project_name, params.project_slug,
-            params.work_item_id, params.agent_role, ts, ts,
+            params.work_item_id, params.agent_role, ts, ts, transcript_source,
         ],
     )?;
 
@@ -127,7 +136,8 @@ const SESSION_COLUMNS: &str =
      cs.parent_session_id, cs.org_member_id,
      COALESCE(cs.org_id, 'personal-org'), cs.project_id, cs.project_name,
      cs.project_slug, cs.work_item_id, cs.agent_role,
-     cs.created_at, cs.updated_at";
+     cs.created_at, cs.updated_at,
+     COALESCE(cs.transcript_source, 'chunks')";
 
 /// Get a session by ID.
 pub fn get_session(session_id: &str) -> SqliteResult<Option<CodeSession>> {
@@ -301,8 +311,103 @@ pub fn update_cli_session_id_for_account(
                        updated_at = excluded.updated_at",
         params![session_id, profile_key, cli_session_id, now_iso()],
     )?;
+    // Append-only binding ledger (native-transcript replay + sidebar dedup
+    // keep recognizing superseded forks after account switch / message edit).
+    let binding = conn
+        .query_row(
+            "SELECT COALESCE(cli_agent_type, platform) FROM code_sessions WHERE session_id = ?1",
+            params![session_id],
+            |row| row.get::<_, Option<String>>(0),
+        )
+        .optional()?
+        .flatten()
+        .as_deref()
+        .and_then(key_vault::key_store::ModelType::from_str)
+        .as_ref()
+        .and_then(super::super::native_transcript::native_transcript_binding);
+    if let Some(binding) = binding {
+        tx.execute(
+            "INSERT OR IGNORE INTO code_session_native_transcript_ids
+                (session_id, source, source_session_id, bound_at)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![session_id, binding.source, cli_session_id, now_iso()],
+        )?;
+        // Close the dedup race window immediately (the next source scan
+        // re-derives the same verdict from the ledger): the imported twin
+        // must not appear in the sidebar for up to one scan cadence.
+        // Suffix form covers Codex, whose imported key is the rollout stem
+        // (`rollout-<timestamp>-<thread-uuid>`) around the bound bare uuid.
+        tx.execute(
+            "UPDATE imported_history_session_cache
+             SET listable = 0
+             WHERE source = ?1
+               AND (source_session_id = ?2 OR source_session_id LIKE '%-' || ?2)",
+            params![binding.source, cli_session_id],
+        )
+        .ok();
+    }
     tx.commit()?;
     Ok(true)
+}
+
+/// Whether this session persists transcript chunks to `code_session_chunks`
+/// (legacy mode) or relies on the CLI's native store (`transcript_source =
+/// 'native'`). The column is frozen at creation, so the answer is memoized
+/// process-wide — chunk gates on the hot streaming path never re-query.
+pub fn session_persists_chunks(session_id: &str) -> bool {
+    use std::collections::HashMap;
+    use std::sync::{OnceLock, RwLock};
+    static CACHE: OnceLock<RwLock<HashMap<String, bool>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| RwLock::new(HashMap::new()));
+    if let Some(&persists) = cache
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .get(session_id)
+    {
+        return persists;
+    }
+    let source: Option<String> = (|| -> SqliteResult<Option<String>> {
+        let conn = get_connection()?;
+        conn.query_row(
+            "SELECT COALESCE(transcript_source, 'chunks') FROM code_sessions WHERE session_id = ?1",
+            params![session_id],
+            |row| row.get(0),
+        )
+        .optional()
+    })()
+    // Fail toward persisting: losing a transcript is worse than a redundant
+    // chunk row for a native session.
+    .unwrap_or(None);
+    let Some(source) = source else {
+        // Row not visible yet (or DB error): persist, but don't memoize a
+        // guess — the next call after creation sees the real value.
+        return true;
+    };
+    let persists = source != super::super::native_transcript::TRANSCRIPT_SOURCE_NATIVE;
+    cache
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .insert(session_id.to_string(), persists);
+    persists
+}
+
+/// Latest native transcript id bound to this managed session for `source`
+/// (account switches / message-edit forks append; replay follows the newest).
+pub fn latest_native_transcript_id(
+    session_id: &str,
+    source: &str,
+) -> SqliteResult<Option<String>> {
+    let conn = get_connection()?;
+    conn.query_row(
+        "SELECT source_session_id
+         FROM code_session_native_transcript_ids
+         WHERE session_id = ?1 AND source = ?2
+         ORDER BY bound_at DESC
+         LIMIT 1",
+        params![session_id, source],
+        |row| row.get(0),
+    )
+    .optional()
 }
 
 pub fn get_cli_session_id_for_account(
@@ -730,5 +835,6 @@ fn row_to_session(row: &rusqlite::Row) -> rusqlite::Result<CodeSession> {
         agent_role: row.get(38)?,
         created_at: row.get(39)?,
         updated_at: row.get(40)?,
+        transcript_source: row.get(41)?,
     })
 }

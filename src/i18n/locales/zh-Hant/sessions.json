@@ -1976,6 +1976,14 @@
     "model": "模型",
     "source": "帳號",
     "addContext": "添加上下文",
+    "contextMenu": {
+      "filesAndFolders": "檔案與資料夾",
+      "agentSession": "Agent 工作階段",
+      "workItems": "工作項目",
+      "back": "返回",
+      "recent": "最近使用",
+      "showMore": "再顯示 {{remaining}} 項"
+    },
     "slashSearchPlaceholder": "搜尋指令…",
     "slashMenu": {
       "image": "圖片",

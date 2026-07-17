@@ -19,6 +19,7 @@ export * from "./cursorIde";
 export * from "./imported";
 export * from "./sources/claudeCode";
 export * from "./sources/codexApp";
+export * from "./sources/cursorCli";
 export * from "./sources/opencode";
 export * from "./sources/trae";
 export * from "./sources/windsurf";

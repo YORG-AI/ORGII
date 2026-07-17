@@ -1216,3 +1216,71 @@ fn prefers_codex_session_meta_title_as_name() {
     std::fs::remove_file(&path).expect("remove fixture");
     std::fs::remove_dir(&temp_dir).expect("remove temp dir");
 }
+
+#[test]
+fn strips_orgii_exec_mode_bridge_from_codex_user_text() {
+    // Bridge prefix followed by the real user text → only the user text.
+    let with_bridge = "<orgii_cli_exec_mode_bridge>\ninternal briefing\n</orgii_cli_exec_mode_bridge>\n\nfix the login bug";
+    assert_eq!(
+        strip_orgii_exec_mode_bridge(with_bridge),
+        "fix the login bug"
+    );
+
+    // Bridge-only message → empty.
+    let bridge_only = "<orgii_cli_exec_mode_bridge>\ninternal briefing\n</orgii_cli_exec_mode_bridge>";
+    assert_eq!(strip_orgii_exec_mode_bridge(bridge_only), "");
+
+    // No bridge → unchanged.
+    let plain = "just a normal prompt";
+    assert_eq!(strip_orgii_exec_mode_bridge(plain), plain);
+
+    // Payload plumbing: bridge-only user_message is skipped entirely
+    // (no replay chunk, no title candidate); prefixed one is stripped.
+    let bridge_only_payload = serde_json::json!({
+        "type": "user_message",
+        "message": bridge_only,
+    });
+    assert_eq!(user_message_from_payload(&bridge_only_payload), None);
+
+    let prefixed_payload = serde_json::json!({
+        "type": "user_message",
+        "message": with_bridge,
+    });
+    assert_eq!(
+        user_message_from_payload(&prefixed_payload).as_deref(),
+        Some("fix the login bug")
+    );
+}
+
+#[test]
+fn strips_ide_context_from_codex_user_text() {
+    // Bridge + ide_context prefixes followed by the real user text → only
+    // the user text.
+    let with_both = "<orgii_cli_exec_mode_bridge>\ninternal briefing\n</orgii_cli_exec_mode_bridge>\n\n<ide_context>\nopen file: src/app.ts\n</ide_context>\n\nfix the login bug";
+    assert_eq!(strip_orgii_exec_mode_bridge(with_both), "fix the login bug");
+
+    // ide_context-only message → empty.
+    let ide_only = "<ide_context>\nopen file: src/app.ts\n</ide_context>";
+    assert_eq!(strip_orgii_exec_mode_bridge(ide_only), "");
+
+    // Unclosed known tag → the whole remainder is internal.
+    let unclosed = "<ide_context>\ntruncated without close";
+    assert_eq!(strip_orgii_exec_mode_bridge(unclosed), "");
+
+    // Payload plumbing: ide_context-only user_message is skipped entirely
+    // (no replay chunk, no title candidate); prefixed one is stripped.
+    let ide_only_payload = serde_json::json!({
+        "type": "user_message",
+        "message": ide_only,
+    });
+    assert_eq!(user_message_from_payload(&ide_only_payload), None);
+
+    let both_payload = serde_json::json!({
+        "type": "user_message",
+        "message": with_both,
+    });
+    assert_eq!(
+        user_message_from_payload(&both_payload).as_deref(),
+        Some("fix the login bug")
+    );
+}

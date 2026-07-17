@@ -491,7 +491,7 @@
     "moveToOrg": {
       "menuItem": "조직 태그…",
       "title": "세션의 조직 태그",
-      "hint": "이 세션을 공유 클라우드 조직에 추가합니다. 세션은 평소처럼 로컬에 남아 있고, 리포 범위와 무관하게 해당 조직에서 보이게만 됩니다.",
+      "hint": "하나 이상의 조직을 선택해 이 세션을 공유하세요 — Personal과 여러 조직에 동시에 있을 수 있습니다. 여전히 일반 로컬 세션이며, 해당 위치에서 보이게 될 뿐입니다. 저장소 범위가 이 세션의 저장소를 포함하는 조직만 선택할 수 있습니다.",
       "noOrgs": "아직 클라우드 조직이 없습니다 — ORG2 클라우드에 로그인해 만들거나 참여하세요.",
       "cloudBadge": "클라우드",
       "added": "{{org}}에 추가됨",
@@ -500,7 +500,12 @@
       "noRemote": "This session's repository has no git remote, so it can't match any org's repo scope.",
       "noScopes": "No repo scopes",
       "outOfScope": "Out of scope",
-      "scopeResolving": "Checking…"
+      "scopeResolving": "Checking…",
+      "personal": "Personal(개인)",
+      "personalBadge": "로컬",
+      "personalOnlyHome": "유일한 소속",
+      "personalUnavailable": "Personal 소속 아님",
+      "autoInScope": "범위에 따라 자동 포함"
     },
     "orgManagement": {
       "invites": {

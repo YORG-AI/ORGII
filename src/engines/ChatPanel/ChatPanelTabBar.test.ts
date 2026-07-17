@@ -26,14 +26,7 @@ describe("ChatPanelTabBar", () => {
     });
 
     const markup = renderToStaticMarkup(
-      createElement(
-        Provider,
-        { store },
-        createElement(ChatPanelTabBar, {
-          onNewSession: vi.fn(),
-          onNewTerminal: vi.fn(),
-        })
-      )
+      createElement(Provider, { store }, createElement(ChatPanelTabBar))
     );
 
     expect(markup).toMatch(

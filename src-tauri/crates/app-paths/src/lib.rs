@@ -74,6 +74,27 @@ pub fn session_provenance_inbox_dir() -> PathBuf {
     orgii_root().join("session-provenance").join("inbox")
 }
 
+/// Live agent-status loopback endpoint descriptor:
+/// `~/.orgii/session-provenance/status-endpoint.json`.
+///
+/// Written atomically by the desktop each launch (`{version, port, token,
+/// pid, startedAt}`), re-read by every hook subprocess invocation so CLI
+/// sessions that outlive an Orgii restart reach the new server/token. Never
+/// deleted on shutdown — a dead server just refuses the TCP connect.
+pub fn agent_status_endpoint_path() -> PathBuf {
+    orgii_root().join("session-provenance").join("status-endpoint.json")
+}
+
+/// Live agent-status last-status cache:
+/// `~/.orgii/session-provenance/last-status.json`.
+///
+/// Debounced snapshot of the in-memory live-status map, hydrated on startup
+/// (TTL-filtered) for UI continuity across restarts. Owner-only permissions;
+/// never mirrored into `sessions.db`.
+pub fn agent_status_cache_path() -> PathBuf {
+    orgii_root().join("session-provenance").join("last-status.json")
+}
+
 /// Project & work-item SQLite database: `~/.orgii/projects/projects.db`.
 ///
 /// Kept separate from `sessions_db` so cross-device sync and manual

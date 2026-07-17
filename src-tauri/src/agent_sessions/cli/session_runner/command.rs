@@ -6,7 +6,7 @@ use crate::agent_sessions::cli::parsers::codex::CodexParser;
 use crate::agent_sessions::cli::parsers::cursor::CursorParser;
 use crate::agent_sessions::cli::parsers::CliAgentParser;
 use crate::agent_sessions::cli::session_runner::launch_profiles::{
-    defaults_for_agent, static_args_to_vec, ResolvedCliLaunchProfile,
+    defaults_for_agent, static_args_to_vec, uses_codex_app_server, ResolvedCliLaunchProfile,
 };
 use key_vault::key_store::ModelType;
 use std::collections::HashMap;
@@ -46,6 +46,23 @@ pub(super) fn build_command_with_launch_profile(
             dirs = ?additional_dirs,
             "[cli-runner] CLI agent does not support --add-dir; additional directories will NOT be visible to it",
         );
+    }
+
+    // Codex app-server transport: the argv is just `codex app-server` plus
+    // model-variant `-c` overrides. The exec-mode defaults (`exec` subcommand)
+    // and the profile's sandbox/approval args are meaningless to app-server —
+    // sandbox, approval policy, cwd, model, resume and the task itself all
+    // travel over JSON-RPC (`thread/start` / `turn/start` params) instead.
+    if uses_codex_app_server(agent, launch_profile) {
+        let mut cmd = vec![launch_profile.command.clone(), "app-server".into()];
+        if let Some(m) = model {
+            let codex_model = map_codex_model_variant(m);
+            for config in codex_model.config_overrides {
+                cmd.push("-c".into());
+                cmd.push(config);
+            }
+        }
+        return cmd;
     }
 
     let mut cmd = vec![launch_profile.command.clone()];
@@ -224,6 +241,14 @@ pub(super) fn launch_profile_env(profile: &ResolvedCliLaunchProfile) -> HashMap<
 struct CodexModelLaunchConfig {
     base_model: String,
     config_overrides: Vec<String>,
+}
+
+/// Base model name for the app-server `thread/start` params. The reasoning
+/// effort / service-tier variant suffixes go on the argv as `-c` overrides
+/// (see the app-server arm in [`build_command_with_launch_profile`]); the
+/// thread param only carries the variant-stripped base model.
+pub(super) fn codex_app_server_thread_model(model: Option<&str>) -> Option<String> {
+    model.map(|m| map_codex_model_variant(m).base_model)
 }
 
 fn map_codex_model_variant(model: &str) -> CodexModelLaunchConfig {

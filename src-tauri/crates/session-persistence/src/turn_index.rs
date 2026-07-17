@@ -1031,10 +1031,17 @@ mod tests {
             .resource_interactions()
             .iter()
             .any(|item| item.path == "src/lib.rs" && item.action.as_str() == "read"));
-        assert!(drafts[0]
+        // search-rows: the Grep is projected away entirely, so `src/main.rs` —
+        // named only by that search's matches — never reaches the index.
+        assert!(!drafts[0]
             .metadata_accumulator
             .resource_interactions()
             .iter()
-            .any(|item| item.path == "src/main.rs" && item.action.as_str() == "search"));
+            .any(|item| item.action.as_str() == "search"));
+        assert!(!drafts[0]
+            .metadata_accumulator
+            .resource_interactions()
+            .iter()
+            .any(|item| item.path == "src/main.rs"));
     }
 }

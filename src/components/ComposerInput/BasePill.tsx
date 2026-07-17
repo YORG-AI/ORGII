@@ -3,7 +3,8 @@
  *
  * Shared pill shell used by both:
  * - ComposerPill (variant="editor"): flat inline ref inside a contenteditable host,
- *   primary-6 text color, no background, shows an X delete button on hover.
+ *   primary-6 text color, text-1 monochrome icons, no background, and an X
+ *   delete button on hover.
  * - InlinePill in UserMessageContent (variant="display"): badge-style pill with
  *   primary-2 background, padding, border-radius — read-only, no delete button.
  *

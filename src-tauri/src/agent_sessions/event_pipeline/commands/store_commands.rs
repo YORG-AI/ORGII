@@ -10,6 +10,7 @@
 use tauri::{AppHandle, State};
 
 use crate::agent_sessions::event_pipeline::ingestion::function_map::resolve_ui_canonical;
+use crate::agent_sessions::event_pipeline::session_providers;
 use crate::agent_sessions::event_pipeline::types::{
     ActivityStatus, EventDisplayStatus, EventSource, SessionEvent, SessionEventPatch,
 };
@@ -104,15 +105,26 @@ pub async fn es_append(
     // (streaming deltas, placeholders) and must NOT be written to SQLite
     // here — they are either already persisted by push_events_to_session
     // or are transient.
-    let user_events: Vec<_> = events
-        .iter()
-        .filter(|event| {
-            event.source == EventSource::User
-                && !is_ts_placeholder_id(&event.id)
-                && !is_synthetic_user_input(event)
-        })
-        .map(session_event_to_cached_event)
-        .collect();
+    //
+    // Sessions whose transcript of record lives elsewhere (managed CLI
+    // sessions replay chunks / the CLI's native store; imported histories
+    // replay their source files) must never gain `events` rows: the copies
+    // only resurface as duplicate user bubbles on the next replay merge.
+    // Their edit path (`cli_agent_truncate_after_chunk`) truncates chunks by
+    // timestamp and does not consult the `events` table.
+    let user_events: Vec<_> = if session_providers::skips_event_cache_save(&sid) {
+        Vec::new()
+    } else {
+        events
+            .iter()
+            .filter(|event| {
+                event.source == EventSource::User
+                    && !is_ts_placeholder_id(&event.id)
+                    && !is_synthetic_user_input(event)
+            })
+            .map(session_event_to_cached_event)
+            .collect()
+    };
 
     state.with_store_mut(&sid, |store| store.append(events));
     schedule_notify(&app, &state, &sid);

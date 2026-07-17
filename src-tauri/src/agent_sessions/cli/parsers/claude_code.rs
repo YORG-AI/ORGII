@@ -165,6 +165,16 @@ impl CliAgentParser for ClaudeCodeParser {
         match event_type {
             // ── system (init) ────────────────────────────────────
             "system" => {
+                // The init event carries the conversation's session_id up
+                // front; capturing it here (not only at the terminal
+                // "result" event) lets the runner bind the native
+                // transcript mid-turn and shrinks the crash window where a
+                // failed run leaves no resume/replay id at all.
+                if let Some(sid) = data.get("session_id").and_then(|v| v.as_str()) {
+                    if !sid.is_empty() {
+                        self.thread_id = Some(sid.to_string());
+                    }
+                }
                 let mut chunk =
                     ActivityChunk::new(&self.session_id, "session_start", "session_start");
                 chunk.args = serde_json::json!({

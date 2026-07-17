@@ -49,6 +49,9 @@ pub struct CliLaunchParams {
     pub branch: Option<String>,
     pub hosted_token: Option<String>,
     pub isolate: bool,
+    /// Reuse an existing worktree checkout (mutually exclusive with
+    /// `isolate`, which creates a fresh one).
+    pub worktree_path: Option<String>,
     pub background: bool,
     pub key_source: Option<String>,
     pub additional_directories: Option<Vec<String>>,

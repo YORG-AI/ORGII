@@ -20,6 +20,7 @@ pub mod resource_interaction;
 #[cfg(feature = "sqlite")]
 pub mod session_usage;
 pub mod sources;
+pub mod status_adapter;
 pub mod store;
 pub mod sync_export;
 

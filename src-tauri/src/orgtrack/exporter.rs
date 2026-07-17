@@ -1118,6 +1118,57 @@ fn load_local_edit_rows(
         }
     }
 
+    // Native-mode managed sessions persist no chunk rows — their transcript
+    // lives in the CLI's own store. Recover their file edits through the
+    // imported loaders so exports don't silently lose those sessions.
+    // `unwrap_or_default` tolerates DBs predating the transcript_source column.
+    if table_exists(conn, "code_sessions")? {
+        let native_session_ids: Vec<String> = conn
+            .prepare("SELECT session_id FROM code_sessions WHERE transcript_source = 'native'")
+            .and_then(|mut stmt| {
+                stmt.query_map([], |row| row.get::<_, String>(0))?
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .unwrap_or_default();
+        for session_id in native_session_ids {
+            let Some(imported_id) =
+                crate::agent_sessions::cli::native_transcript::imported_transcript_id_for_managed_session(
+                    &session_id,
+                )
+            else {
+                continue;
+            };
+            let Ok(Some(chunks)) =
+                orgtrack_core::sources::imported_history::load_activity_chunks_for_session(
+                    conn,
+                    &imported_id,
+                )
+            else {
+                continue;
+            };
+            for chunk in chunks {
+                if !is_file_edit_function(&chunk.function) {
+                    continue;
+                }
+                let args_json = chunk.args.to_string();
+                let result_json = chunk.result.to_string();
+                for file_path in
+                    extract_file_paths_from_json(&chunk.function, &args_json, &result_json)
+                {
+                    if path_belongs_to_repo(conn, repo_path, &session_id, &file_path)? {
+                        rows.push(LocalEditRow {
+                            event_id: chunk.chunk_id.clone(),
+                            session_id: session_id.clone(),
+                            file_path,
+                            function_name: Some(chunk.function.clone()),
+                            created_at: parse_timestamp(&chunk.created_at),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
     rows.sort_by(|left, right| {
         left.created_at
             .cmp(&right.created_at)
@@ -1509,6 +1560,32 @@ fn load_raw_events(
             .map_err(|err| format!("Query failed: {}", err))?;
         for row in rows {
             raw_events.push(row.map_err(|err| format!("Row decode failed: {}", err))?);
+        }
+    }
+    // Native-mode managed sessions persist no chunk rows — replay the
+    // imported transcript into the same raw-event shape so exported
+    // trajectories stay complete.
+    if let Some(imported_id) =
+        crate::agent_sessions::cli::native_transcript::imported_transcript_id_for_managed_session(
+            session_id,
+        )
+    {
+        if let Some(chunks) =
+            orgtrack_core::sources::imported_history::load_activity_chunks_for_session(
+                conn,
+                &imported_id,
+            )?
+        {
+            for (index, chunk) in chunks.into_iter().enumerate() {
+                raw_events.push(OrgtrackRawEvent {
+                    source: OrgtrackRawEventSource::CodeSessionChunk,
+                    name: Some(chunk.function),
+                    args_json: Some(chunk.args.to_string()),
+                    result_json: Some(chunk.result.to_string()),
+                    sequence: Some(index as i64),
+                    created_at: Some(chunk.created_at),
+                });
+            }
         }
     }
     Ok(raw_events)

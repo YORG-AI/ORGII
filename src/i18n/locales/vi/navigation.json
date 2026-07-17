@@ -491,7 +491,7 @@
     "moveToOrg": {
       "menuItem": "Thẻ tổ chức…",
       "title": "Thẻ tổ chức của phiên",
-      "hint": "Thêm phiên này vào một tổ chức đám mây chia sẻ. Nó vẫn là phiên cục bộ bình thường — chỉ là hiển thị ở đó, bất kể phạm vi repo.",
+      "hint": "Chọn một hoặc nhiều tổ chức để chia sẻ phiên này — nó có thể ở trong Personal và nhiều tổ chức cùng lúc. Nó vẫn là phiên cục bộ bình thường; điều này chỉ làm cho nó hiển thị ở đó. Chỉ có thể chọn các tổ chức có phạm vi repo bao gồm kho của phiên này.",
       "noOrgs": "Chưa có tổ chức đám mây nào — đăng nhập ORG2 Cloud để tạo hoặc tham gia.",
       "cloudBadge": "Đám mây",
       "added": "Đã thêm vào {{org}}",
@@ -500,7 +500,12 @@
       "noRemote": "This session's repository has no git remote, so it can't match any org's repo scope.",
       "noScopes": "No repo scopes",
       "outOfScope": "Out of scope",
-      "scopeResolving": "Checking…"
+      "scopeResolving": "Checking…",
+      "personal": "Personal (Cá nhân)",
+      "personalBadge": "Cục bộ",
+      "personalOnlyHome": "Nơi duy nhất",
+      "personalUnavailable": "Không thuộc Personal",
+      "autoInScope": "Trong tổ chức theo phạm vi repo"
     },
     "orgManagement": {
       "invites": {

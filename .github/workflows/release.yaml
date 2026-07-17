@@ -345,7 +345,10 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           BUNDLE_DIR="src-tauri/target/x86_64-pc-windows-msvc/release/bundle"
-          MSI=$(find "$BUNDLE_DIR/msi" -name "*.msi" ! -name "*.zip" 2>/dev/null | head -1)
+          # The msi directory does not exist on prerelease builds (nsis-only).
+          # This step runs under bash -eo pipefail, so a bare find would kill
+          # the whole script the moment it exits non-zero.
+          MSI=$(find "$BUNDLE_DIR/msi" -name "*.msi" ! -name "*.zip" 2>/dev/null | head -1 || true)
           NSIS=$(find "$BUNDLE_DIR/nsis" -name "*.exe" ! -name "*.zip" | head -1)
 
           if [ ! -f "$NSIS" ]; then
@@ -371,8 +374,10 @@ jobs:
         run: |
           BUNDLE_DIR="src-tauri/target/x86_64-pc-windows-msvc/release/bundle"
 
-          MSI=$(find "$BUNDLE_DIR/msi" -name "*.msi" ! -name "*.zip" 2>/dev/null | head -1)
-          MSI_SIG=$(find "$BUNDLE_DIR/msi" -name "*.msi.sig" 2>/dev/null | head -1)
+          # msi directory is absent on prerelease builds; see note in the
+          # signature-regeneration step about bash -eo pipefail.
+          MSI=$(find "$BUNDLE_DIR/msi" -name "*.msi" ! -name "*.zip" 2>/dev/null | head -1 || true)
+          MSI_SIG=$(find "$BUNDLE_DIR/msi" -name "*.msi.sig" 2>/dev/null | head -1 || true)
           NSIS=$(find "$BUNDLE_DIR/nsis" -name "*.exe" ! -name "*.zip" | head -1)
           NSIS_SIG=$(find "$BUNDLE_DIR/nsis" -name "*.exe.sig" | head -1)
 
@@ -615,6 +620,10 @@ jobs:
           # after a newer one already published (e.g. a stable hotfix behind
           # the current beta). semver handles prerelease ordering correctly.
           HIGHEST=$(npx --yes semver@7 "$NEW_VERSION" "$EXISTING_VERSION" | tail -1)
+          if [ -z "$HIGHEST" ]; then
+            echo "semver comparison produced no output (npx failure?); refusing to guess" >&2
+            exit 1
+          fi
           if [ "$HIGHEST" != "$NEW_VERSION" ]; then
             echo "Skipping beta.json: existing $EXISTING_VERSION > new $NEW_VERSION"
             exit 0

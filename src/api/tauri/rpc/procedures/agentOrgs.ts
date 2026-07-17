@@ -140,6 +140,18 @@ const sessionProvenance = {
     .input(schemas.agentOrgs.SessionProvenanceRecentSignalsInput)
     .output(z.array(schemas.agentOrgs.SessionProvenanceRecentSignalSchema))
     .build(),
+  liveStatusEnabled: defineProcedure("session_provenance_live_status_enabled")
+    .output(z.boolean())
+    .build(),
+  setLiveStatusEnabled: defineProcedure(
+    "session_provenance_set_live_status_enabled"
+  )
+    .input(z.object({ enabled: z.boolean() }))
+    .output(z.array(schemas.agentOrgs.SessionProvenanceHookStatusSchema))
+    .build(),
+  liveStatusList: defineProcedure("agent_live_status_list")
+    .output(z.array(schemas.agentOrgs.AgentLiveStatusSchema))
+    .build(),
 } as const;
 
 const skills = {

@@ -206,38 +206,13 @@ fn opencode_meta_signature(meta: &OpenCodeSessionMeta) -> ImportedHistoryRecordS
 fn managed_opencode_source_session_ids_from_conn(
     conn: &Connection,
 ) -> Result<HashSet<String>, String> {
-    let has_code_sessions = conn
-        .query_row(
-            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'code_sessions'",
-            [],
-            |_| Ok(()),
-        )
-        .is_ok();
-    if !has_code_sessions {
-        return Ok(HashSet::new());
-    }
-
-    let mut stmt = conn
-        .prepare(
-            "SELECT cli_session_id FROM code_sessions \
-             WHERE cli_agent_type = 'opencode' AND cli_session_id IS NOT NULL AND cli_session_id != ''",
-        )
-        .map_err(|err| format!("Failed to prepare managed OpenCode session query: {err}"))?;
-    let rows = stmt
-        .query_map([], |row| row.get::<_, String>(0))
-        .map_err(|err| format!("Failed to query managed OpenCode sessions: {err}"))?;
-
-    let mut ids = HashSet::new();
-    for row in rows {
-        let id = row
-            .map_err(|err| format!("Failed to read managed OpenCode session row: {err}"))?
-            .trim()
-            .to_string();
-        if !id.is_empty() {
-            ids.insert(id);
-        }
-    }
-    Ok(ids)
+    // Shared helper unions the live `code_sessions.cli_session_id` binding
+    // with the append-only native-transcript ledger (superseded forks).
+    crate::sources::imported_history::managed_mirror::managed_source_session_ids_from_conn(
+        conn,
+        "opencode",
+        crate::sources::imported_history::metadata::SOURCE_OPENCODE,
+    )
 }
 
 fn container_parent_ids_from_metas(metas: &[OpenCodeSessionMeta]) -> HashSet<String> {
@@ -382,7 +357,12 @@ fn session_meta_to_cache_input(
         source_size_bytes: meta.source_size_bytes,
         source_fingerprint: meta.source_fingerprint,
         parser_version: OPENCODE_METADATA_PARSER_VERSION,
-        name: imported_history::truncate_name(&meta.title, 200),
+        // OpenCode may default the title to the first message text, which for
+        // GUI-launched runs starts with the exec-mode briefing — strip it.
+        name: imported_history::truncate_name(
+            imported_history::strip_orgii_exec_mode_bridge(&meta.title),
+            200,
+        ),
         created_at_ms: meta.time_created,
         updated_at_ms,
         model,
@@ -496,8 +476,10 @@ fn text_to_user_chunk(
     sequence: usize,
     row: &OpenCodePartRow,
 ) -> Option<ActivityChunk> {
-    let text = row.part.text.trim();
-    if text.is_empty() {
+    // Strip the GUI exec-mode briefing; a bridge-only part carries no
+    // user-authored text, so emit no bubble.
+    let text = imported_history::strip_orgii_exec_mode_bridge(row.part.text.trim());
+    if text.trim().is_empty() {
         return None;
     }
     Some(imported_history::user_message_chunk(
@@ -693,7 +675,18 @@ fn opencode_db_candidate_paths() -> Vec<PathBuf> {
     let Some(home_dir) = dirs::home_dir() else {
         return Vec::new();
     };
-    opencode_db_candidate_paths_for_home(&home_dir)
+    let mut paths = opencode_db_candidate_paths_for_home(&home_dir);
+    // ORGII-managed OpenCode runs override HOME/XDG into per-account profile
+    // dirs whose data lands under `<profile>/.local/share/opencode`.
+    paths.extend(
+        crate::sources::imported_history::managed_roots::profile_root_children(
+            &app_paths::opencode_cli_profile_root(),
+            &[".local", "share", "opencode"],
+        )
+        .into_iter()
+        .map(|dir| dir.join(OPENCODE_DB_FILENAME)),
+    );
+    paths
 }
 
 fn opencode_db_candidate_paths_for_home(home_dir: &Path) -> Vec<PathBuf> {

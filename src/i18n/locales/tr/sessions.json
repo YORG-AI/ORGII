@@ -1973,6 +1973,14 @@
     "model": "Model",
     "source": "Hesap",
     "addContext": "Bağlam ekle",
+    "contextMenu": {
+      "filesAndFolders": "Dosyalar ve Klasörler",
+      "agentSession": "Agent Oturumu",
+      "workItems": "İş Öğeleri",
+      "back": "Geri",
+      "recent": "Son Kullanılanlar",
+      "showMore": "{{remaining}} tane daha göster"
+    },
     "slashSearchPlaceholder": "Komut ara…",
     "slashMenu": {
       "image": "Görsel",

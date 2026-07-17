@@ -15,7 +15,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::sources::imported_history::{
-    self, cache as imported_cache,
+    self, cache as imported_cache, managed_mirror,
     metadata::{
         ImportedHistoryCacheInput, ImportedHistoryDiscoveredRecord, ImportedHistoryImpactStats,
         SOURCE_CLAUDE_CODE,
@@ -28,7 +28,8 @@ use super::SESSION_PREFIX as CLAUDE_CODE_SESSION_PREFIX;
 const CLAUDE_CODE_PROVIDER_SLUG: &str = "claudecode";
 // v4: read ai-title/custom-title records for the name, and derive diff stats
 // from tool_use_result.structuredPatch instead of the old_string/new_string heuristic.
-const CLAUDE_CODE_METADATA_PARSER_VERSION: i64 = 5;
+// v6: capture first-user-message uuid as the continuation dedupe group key.
+const CLAUDE_CODE_METADATA_PARSER_VERSION: i64 = 6;
 
 pub type ClaudeCodeHistorySessionRow = ImportedHistorySessionRow;
 pub type ClaudeCodeHistorySessionPage = ImportedHistorySessionPage;
@@ -56,6 +57,11 @@ struct ClaudeCodeHistoryMeta {
     /// id (`claudecodeapp-<parent-uuid>`). `None` for ordinary top-level
     /// sessions. Non-empty values are subsumed out of the sidebar/kanban.
     parent_session_id: Option<String>,
+    /// `uuid` of the first `type == "user"` line. Context-window continuation
+    /// rewrites copy the conversation into a NEW session file with no link
+    /// field, but message uuids are preserved — so this is a stable group key
+    /// uniting a conversation's continuation siblings for dedupe.
+    first_user_uuid: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -93,6 +99,9 @@ struct ClaudeJsonlLine {
     /// which is exactly the parent linkage we need.
     #[serde(default)]
     session_id: String,
+    /// Per-message uuid, preserved verbatim across continuation rewrites.
+    #[serde(default)]
+    uuid: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -192,7 +201,21 @@ pub fn stat_claude_code_history_for_session(
 }
 
 fn sync_claude_code_history_cache(conn: &mut Connection) -> Result<(), String> {
-    let discovered = discover_claude_code_history_records()?;
+    let mut discovered = discover_claude_code_history_records()?;
+    // Managed (GUI-launched) sessions surface through their code_sessions
+    // row; the imported twin goes unlistable. Folding the verdict into the
+    // fingerprint re-parses a session whose managed status flips.
+    let managed_ids = managed_mirror::managed_source_session_ids_from_conn(
+        conn,
+        SOURCE_CLAUDE_CODE,
+        SOURCE_CLAUDE_CODE,
+    )?;
+    for record in &mut discovered {
+        managed_mirror::append_managed_fingerprint(
+            &mut record.source_fingerprint,
+            managed_ids.contains(&record.source_session_id),
+        );
+    }
     let signatures = discovered
         .iter()
         .map(ImportedHistoryDiscoveredRecord::signature)
@@ -206,7 +229,10 @@ fn sync_claude_code_history_cache(conn: &mut Connection) -> Result<(), String> {
     let mut inputs = Vec::new();
     for record in changed {
         if let Some(meta) = parse_claude_session_meta(record)? {
-            inputs.push(session_meta_to_cache_input(meta));
+            let is_managed_history_mirror = managed_ids.contains(&meta.source_session_id);
+            let mut input = session_meta_to_cache_input(meta);
+            input.listable = input.listable && !is_managed_history_mirror;
+            inputs.push(input);
         }
     }
     imported_cache::sync_source_cache_from_conn(
@@ -214,7 +240,12 @@ fn sync_claude_code_history_cache(conn: &mut Connection) -> Result<(), String> {
         SOURCE_CLAUDE_CODE,
         imported_cache::live_ids_from_signatures(&signatures),
         inputs,
-    )
+    )?;
+    // Context-window continuations rewrite the conversation into a new
+    // session file with the same first-user-message uuid; keep only the
+    // newest sibling of each family listable.
+    imported_cache::demote_superseded_continuations_from_conn(conn, SOURCE_CLAUDE_CODE)?;
+    Ok(())
 }
 
 fn discover_claude_code_history_records() -> Result<Vec<ImportedHistoryDiscoveredRecord>, String> {
@@ -394,6 +425,7 @@ fn parse_claude_session_meta(
     // `sessionId`. Capturing it lets us subsume the child under its parent the
     // same way Codex does, instead of listing it as a top-level session.
     let mut parent_source_session_id: Option<String> = None;
+    let mut first_user_uuid: Option<String> = None;
 
     for line in reader.lines() {
         let line = line.map_err(|err| format!("Failed to read Claude history line: {err}"))?;
@@ -459,10 +491,19 @@ fn parse_claude_session_meta(
         if let Some(result) = parsed.tool_use_result.as_ref() {
             collect_claude_impact_from_tool_result(result, &mut impact, &mut touched_files);
         }
+        if first_user_uuid.is_none() && parsed.r#type == "user" && !parsed.uuid.trim().is_empty() {
+            first_user_uuid = Some(parsed.uuid.trim().to_string());
+        }
         if let Some(message) = parsed.message {
             if first_prompt.is_empty() && parsed.r#type == "user" {
                 if let Some(text) = claude_content_text(&message.content) {
-                    first_prompt = imported_history::truncate_name(&text, 200);
+                    // GUI-launched runs prefix the first prompt with the
+                    // exec-mode briefing; bridge-only text is no title
+                    // candidate at all.
+                    let text = imported_history::strip_orgii_exec_mode_bridge(&text);
+                    if !text.trim().is_empty() {
+                        first_prompt = imported_history::truncate_name(text, 200);
+                    }
                 }
             }
             if model.is_none()
@@ -543,6 +584,7 @@ fn parse_claude_session_meta(
         impact,
         parent_session_id: parent_source_session_id
             .map(|uuid| format!("{CLAUDE_CODE_SESSION_PREFIX}{uuid}")),
+        first_user_uuid,
     }))
 }
 
@@ -567,7 +609,9 @@ fn session_meta_to_cache_input(meta: ClaudeCodeHistoryMeta) -> ImportedHistoryCa
         branch: meta.branch,
         impact: meta.impact,
         listable: true,
-        source_metadata_json: None,
+        source_metadata_json: imported_cache::continuation_group_metadata_json(
+            meta.first_user_uuid.as_deref(),
+        ),
         parent_session_id: meta.parent_session_id,
     }
 }
@@ -724,14 +768,19 @@ fn load_claude_code_history_from_path(
                         }
                     }
                 } else if let Some(text) = claude_content_text(&message.content) {
-                    chunks.push(imported_history::user_message_chunk(
-                        session_id,
-                        CLAUDE_CODE_PROVIDER_SLUG,
-                        sequence,
-                        &created_at,
-                        &text,
-                    ));
-                    sequence += 1;
+                    // Strip the GUI exec-mode briefing; a bridge-only message
+                    // carries no user-authored text, so emit no bubble.
+                    let text = imported_history::strip_orgii_exec_mode_bridge(&text);
+                    if !text.trim().is_empty() {
+                        chunks.push(imported_history::user_message_chunk(
+                            session_id,
+                            CLAUDE_CODE_PROVIDER_SLUG,
+                            sequence,
+                            &created_at,
+                            text,
+                        ));
+                        sequence += 1;
+                    }
                 }
             }
             "assistant" => {
@@ -1016,7 +1065,17 @@ fn resolve_claude_session_path(conn: &Connection, file_stem: &str) -> Result<Pat
 
 fn claude_projects_dirs() -> Result<Vec<PathBuf>, String> {
     let home = dirs::home_dir().ok_or_else(|| "Home directory not found".to_string())?;
-    Ok(claude_projects_dir_candidates(&home))
+    let mut dirs = claude_projects_dir_candidates(&home);
+    // ORGII-managed sessions run with CLAUDE_CONFIG_DIR redirected into
+    // per-account (own-key) or per-session (hosted-key) profile dirs; in
+    // native-transcript mode those stores are the transcript of record.
+    dirs.extend(
+        crate::sources::imported_history::managed_roots::profile_root_children(
+            &app_paths::claude_code_cli_profile_root(),
+            &["projects"],
+        ),
+    );
+    Ok(dirs)
 }
 
 fn claude_projects_dir_candidates(home: &Path) -> Vec<PathBuf> {

@@ -45,6 +45,7 @@ function makeRow(sessionId: string, updatedAt: string) {
     createdAt: updatedAt,
     updatedAt,
     repoPath: "/tmp/project",
+    storagePath: `/tmp/store/${sessionId}.jsonl`,
   };
 }
 
@@ -128,9 +129,16 @@ describe("loadSidebarSessions", () => {
       )
     ).toBe(false);
 
-    const loadedIds = new Set(
-      mocks.store?.get(sessionsAtom).map((session) => session.session_id)
-    );
+    const loaded = mocks.store?.get(sessionsAtom) ?? [];
+    const loadedIds = new Set(loaded.map((session) => session.session_id));
+    // Imported sessions live only in the source app's own store, so the
+    // sidebar row is the hover card's only chance at a storage path.
+    expect(
+      loaded.every(
+        (session) =>
+          session.storagePath === `/tmp/store/${session.session_id}.jsonl`
+      )
+    ).toBe(true);
     for (const source of IMPORTED_HISTORY_SOURCES) {
       expect(loadedIds).toContain(`${source.prefix}yesterday`);
       expect(

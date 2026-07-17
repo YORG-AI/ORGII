@@ -31,6 +31,17 @@ export const IMPORTED_HISTORY_SOURCE_DESCRIPTORS: readonly ImportedHistorySource
       supportsWindowedReplay: true,
     },
     {
+      sourceId: "cursor_cli",
+      listCategory: "external_history:cursor_cli",
+      prefix: "cursorcliapp-",
+      iconId: "cursor",
+      displayName: "Cursor CLI",
+      groupLabel: "Cursor CLI",
+      listable: true,
+      replayable: true,
+      supportsWindowedReplay: false,
+    },
+    {
       sourceId: "codex_app",
       listCategory: "external_history:codex_app",
       prefix: "codexapp-",

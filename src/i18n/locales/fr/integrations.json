@@ -1688,6 +1688,8 @@
       "emptyConfigPreview": "Aucun contenu de configuration"
     },
     "sessionProvenance": {
+      "masterToggle": "Hooks de provenance",
+      "masterToggleDesc": "Lorsque cette option est désactivée, tous les hooks gérés sont désinstallés et aucun signal n’est collecté ; les choix par plateforme sont conservés et restaurés à la réactivation.",
       "title": "Traçabilité des sessions",
       "capture": "Enregistrer les interactions avec les fichiers",
       "description": "Enregistre les lectures et écritures de fichiers sous forme de métadonnées. Les prompts, les sorties d’outils et le contenu des fichiers ne sont pas stockés.",
@@ -1704,16 +1706,16 @@
         "on": "Activé",
         "off": "Désactivé",
         "repair": "Réparer",
-        "needsApproval": "Approbation requise",
+        "awaitingVerification": "En attente de vérification",
         "checking": "Vérification…",
         "error": "Erreur"
       },
       "codexApproval": {
-        "title": "Approve ORG2 hooks in Codex",
-        "description": "Codex has the ORG2 hooks installed, but Codex still needs your approval before it can run them.",
-        "instructions": "Open Codex, review the 3 ORG2 hooks, then choose Trust all and continue. ORG2 marks this active after the first real hook signal.",
-        "review": "Review in Codex",
-        "verified": "Verified by a real Codex hook signal {{time}}."
+        "title": "Vérifier les hooks ORG2 dans Codex",
+        "description": "En attente de l’approbation et de l’exécution des hooks ORG2 actuels par Codex.",
+        "instructions": "Ouvrez Codex, vérifiez les hooks ORG2, puis choisissez Trust all and continue. Le hook SessionStart vérifie automatiquement l’activation au démarrage de la session.",
+        "review": "Vérifier dans Codex",
+        "verified": "Vérifié par un signal réel de hook Codex ({{time}})."
       },
       "signals": {
         "title": "Signaux récents",

@@ -1685,6 +1685,8 @@
       "emptyConfigPreview": "Yapılandırma içeriği yok"
     },
     "sessionProvenance": {
+      "masterToggle": "Kaynak izleme hook'ları",
+      "masterToggleDesc": "Kapatıldığında tüm yönetilen hook'lar kaldırılır ve hiçbir sinyal yakalanmaz; platform seçimleri korunur ve yeniden açıldığında geri yüklenir.",
       "title": "Oturum kaynağı",
       "capture": "Dosya etkileşimlerini kaydet",
       "description": "Dosya okuma ve yazma işlemlerini meta veri olarak kaydeder. İstemler, araç çıktıları ve dosya içerikleri saklanmaz.",
@@ -1701,16 +1703,16 @@
         "on": "Açık",
         "off": "Kapalı",
         "repair": "Onar",
-        "needsApproval": "Onay gerekli",
+        "awaitingVerification": "Doğrulama bekleniyor",
         "checking": "Kontrol ediliyor…",
         "error": "Hata"
       },
       "codexApproval": {
-        "title": "Approve ORG2 hooks in Codex",
-        "description": "Codex has the ORG2 hooks installed, but Codex still needs your approval before it can run them.",
-        "instructions": "Open Codex, review the 3 ORG2 hooks, then choose Trust all and continue. ORG2 marks this active after the first real hook signal.",
-        "review": "Review in Codex",
-        "verified": "Verified by a real Codex hook signal {{time}}."
+        "title": "ORG2 hook'larını Codex'te doğrula",
+        "description": "Codex'in mevcut ORG2 hook'larını onaylayıp çalıştırması bekleniyor.",
+        "instructions": "Codex'i açın, ORG2 hook'larını inceleyin ve Trust all and continue seçeneğini seçin. SessionStart hook'u, oturum başladığında etkinleştirmeyi otomatik olarak doğrular.",
+        "review": "Codex'te incele",
+        "verified": "Gerçek bir Codex hook sinyaliyle doğrulandı ({{time}})."
       },
       "signals": {
         "title": "Son sinyaller",

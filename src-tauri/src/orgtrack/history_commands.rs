@@ -4,6 +4,7 @@ use database::db::get_connection;
 use orgtrack_core::sources::claude_code::history as claude_code_history;
 use orgtrack_core::sources::cline::history as cline_history;
 use orgtrack_core::sources::codex::app as codex_app;
+use orgtrack_core::sources::cursor_cli::history as cursor_cli_history;
 use orgtrack_core::sources::cursor_ide::{
     db as cursor_db, disk_reads as cursor_disk_reads, history as cursor_db_history,
 };
@@ -78,8 +79,15 @@ pub async fn orgtrack_session_turn_metadata_index(
             return Err("At most 500 turn summaries can be loaded at once".to_string());
         }
         let conn = open_cache_conn()?;
+        // Managed native-transcript sessions project from the CLI's own
+        // store: remap the managed id to its imported transcript id first.
+        let transcript_session_id =
+            crate::agent_sessions::cli::native_transcript::imported_transcript_id_for_managed_session(
+                &session_id,
+            )
+            .unwrap_or_else(|| session_id.clone());
         if let Some(chunks) =
-            imported_history::load_activity_chunks_for_session(&conn, &session_id)?
+            imported_history::load_activity_chunks_for_session(&conn, &transcript_session_id)?
         {
             let projected =
                 orgtrack_core::projectors::turn_metadata::project_activity_chunks(&chunks);
@@ -113,6 +121,9 @@ fn imported_recent_paths() -> Result<Vec<imported_history::ImportedHistoryRecent
     let mut conn = open_cache_conn()?;
     let mut paths = codex_app::list_codex_app_recent_paths(&mut conn, 0)?;
     paths.extend(claude_code_history::list_claude_code_recent_paths(
+        &mut conn, 0,
+    )?);
+    paths.extend(cursor_cli_history::list_cursor_cli_recent_paths(
         &mut conn, 0,
     )?);
     paths.extend(opencode_history::list_opencode_recent_paths(&mut conn, 0)?);
@@ -409,6 +420,52 @@ pub async fn claude_code_recent_paths(
     tokio::task::spawn_blocking(move || {
         let mut conn = open_cache_conn()?;
         claude_code_history::list_claude_code_recent_paths(&mut conn, limit)
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
+}
+
+#[tauri::command]
+pub async fn cursor_cli_history_chunks(
+    session_id: String,
+) -> Result<Vec<core_types::activity::ActivityChunk>, String> {
+    tokio::task::spawn_blocking(move || {
+        let conn = open_cache_conn()?;
+        cursor_cli_history::load_cursor_cli_history_for_session(&conn, &session_id)
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
+}
+
+/// Cheap freshness probe for the replay auto-refresh, folding the store's
+/// `-wal` sidecar in (a WAL commit doesn't touch the main file's mtime).
+#[tauri::command]
+pub async fn cursor_cli_history_stat(
+    session_id: String,
+) -> Result<Option<ImportedTranscriptStat>, String> {
+    tokio::task::spawn_blocking(move || {
+        let conn = open_cache_conn()?;
+        Ok(
+            cursor_cli_history::stat_cursor_cli_history_for_session(&conn, &session_id)?.map(
+                |(mtime_ms, size_bytes)| ImportedTranscriptStat {
+                    mtime_ms,
+                    size_bytes,
+                },
+            ),
+        )
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
+}
+
+#[tauri::command]
+pub async fn cursor_cli_recent_paths(
+    limit: Option<usize>,
+) -> Result<Vec<cursor_cli_history::CursorCliRecentPath>, String> {
+    let limit = limit.unwrap_or(20);
+    tokio::task::spawn_blocking(move || {
+        let mut conn = open_cache_conn()?;
+        cursor_cli_history::list_cursor_cli_recent_paths(&mut conn, limit)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?

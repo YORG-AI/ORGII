@@ -13,6 +13,7 @@
  */
 import { AtSign } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
 
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import { useMouseMoved } from "@src/hooks/ui/useMouseMoved";
@@ -75,6 +76,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
   treePosition = "right",
   keyboardOpened = false,
 }) => {
+  const { t } = useTranslation("sessions");
   const menuWidthStyle = { width: "100%" };
   const dropdownRef = useRef<HTMLDivElement>(null);
   const mouseMovedRef = useMouseMoved(visible);
@@ -335,7 +337,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
                 <MenuItemRow
                   key={item.id}
                   icon={item.icon}
-                  label={item.label}
+                  label={t(item.translationKey, { defaultValue: item.label })}
                   hasArrow={item.hasSecondLayer}
                   isActive={keyboardNavigated && activeIndex === itemIndex}
                   onClick={() => handleMenuItemClick(item)}

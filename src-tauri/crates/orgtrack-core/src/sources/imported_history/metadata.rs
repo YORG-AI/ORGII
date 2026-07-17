@@ -11,6 +11,7 @@ pub struct ImportedHistoryImpactStats {
 pub const SOURCE_CLAUDE_CODE: &str = "claude_code";
 pub const SOURCE_CODEX_APP: &str = "codex_app";
 pub const SOURCE_CURSOR_IDE: &str = "cursor_ide";
+pub const SOURCE_CURSOR_CLI: &str = "cursor_cli";
 pub const SOURCE_OPENCODE: &str = "opencode";
 pub const SOURCE_WINDSURF: &str = "windsurf";
 pub const SOURCE_WORKBUDDY: &str = "workbuddy";
@@ -34,6 +35,7 @@ pub fn is_imported_history_source(source: &str) -> bool {
         SOURCE_CLAUDE_CODE
             | SOURCE_CODEX_APP
             | SOURCE_CURSOR_IDE
+            | SOURCE_CURSOR_CLI
             | SOURCE_OPENCODE
             | SOURCE_WINDSURF
             | SOURCE_WORKBUDDY

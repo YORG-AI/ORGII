@@ -85,6 +85,12 @@ export interface TerminalViewProps {
   argsOverride?: string[];
   /** Custom environment variables (from session profile) */
   envOverride?: Record<string, string>;
+  /**
+   * Always start the PTY in `repoPath`, overriding the user's shellType
+   * cwd preference (whose `default` resolves to the home directory).
+   * Set for CLI-agent terminals, whose cwd is the session's worktree.
+   */
+  forceRepoCwd?: boolean;
   /** User-assigned display name for this terminal */
   nameOverride?: string;
   /** Overrides the xterm surface background for embedded contexts. */

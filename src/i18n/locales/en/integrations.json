@@ -2400,14 +2400,14 @@
         "on": "On",
         "off": "Off",
         "repair": "Repair",
-        "needsApproval": "Needs approval",
+        "awaitingVerification": "Awaiting verification",
         "checking": "Checking…",
         "error": "Error"
       },
       "codexApproval": {
-        "title": "Approve ORG2 hooks in Codex",
-        "description": "Codex has the ORG2 hooks installed, but Codex still needs your approval before it can run them.",
-        "instructions": "Open Codex, review the 3 ORG2 hooks, then choose Trust all and continue. ORG2 marks this active after the first real hook signal.",
+        "title": "Verify ORG2 hooks in Codex",
+        "description": "Waiting for Codex to approve and execute the current ORG2 hooks.",
+        "instructions": "Open Codex, review the ORG2 hooks, then choose Trust all and continue. The SessionStart hook verifies activation automatically when the session starts.",
         "review": "Review in Codex",
         "verified": "Verified by a real Codex hook signal {{time}}."
       },

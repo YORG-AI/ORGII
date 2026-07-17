@@ -148,14 +148,21 @@ pub(super) fn emit_chunk(
         flush_and_broadcast(session_id);
     }
 
-    // Persist non-delta chunks to DB
+    // Persist non-delta chunks to DB (legacy mode). Native-transcript
+    // sessions skip the row — the CLI's own store is the transcript of
+    // record — but keep the chunk side effects (lineage, subagent rows)
+    // and the sequence bump so broadcast ordering stays stable.
     if !chunk.broadcast_only {
-        if let Err(err) = persistence::insert_chunk(chunk, *sequence) {
-            tracing::warn!(
-                "[CodeSession] Failed to persist chunk seq={}: {}",
-                *sequence,
-                err
-            );
+        if persistence::session_persists_chunks(session_id) {
+            if let Err(err) = persistence::insert_chunk(chunk, *sequence) {
+                tracing::warn!(
+                    "[CodeSession] Failed to persist chunk seq={}: {}",
+                    *sequence,
+                    err
+                );
+            }
+        } else {
+            persistence::run_chunk_side_effects(chunk);
         }
         *sequence += 1;
     }
@@ -192,10 +199,20 @@ fn persist_and_broadcast_streaming_complete(
     event: &crate::agent_sessions::event_pipeline::types::SessionEvent,
     sequence: Option<&mut i64>,
 ) {
-    let cached = session_event_to_cached_event(event);
-    let _ = save_events_retry("cli-stream-flush", session_id, &[cached], 5);
+    // Native-transcript sessions broadcast only: neither the event cache
+    // nor a chunk row is written, but the sequence still advances so
+    // later persisted artifacts can't collide with broadcast ordering.
+    let persists = persistence::session_persists_chunks(session_id);
+    if persists {
+        let cached = session_event_to_cached_event(event);
+        let _ = save_events_retry("cli-stream-flush", session_id, &[cached], 5);
+    }
     if let Some(sequence) = sequence {
-        persist_streaming_complete_chunk(session_id, stream_type, event, sequence);
+        if persists {
+            persist_streaming_complete_chunk(session_id, stream_type, event, sequence);
+        } else {
+            *sequence += 1;
+        }
     }
     broadcast_streaming_complete(session_id, stream_type, event);
 }
@@ -255,6 +272,38 @@ pub(super) fn flush_and_broadcast(session_id: &str) {
 
 pub fn flush_cli_streams_for_session(session_id: &str) {
     flush_and_broadcast(session_id);
+}
+
+/// Drop hook-derived live status for a finished managed session. The
+/// runner's exit-code truth wins at terminal transitions; a lingering
+/// hook `working`/`waiting` entry would otherwise ghost on the sidebar.
+/// Clears both the ORGII session id and (when the CLI's native id is
+/// known) the canonical imported-history id the hooks report under.
+pub(super) fn clear_live_status(
+    agent: &key_vault::key_store::ModelType,
+    session_id: &str,
+    cli_session_id: Option<&str>,
+) {
+    use key_vault::key_store::ModelType;
+    // Terminal transition: drop the launch permission-mode record and wake
+    // any parked PermissionRequest hook long-poll with a no-decision so it
+    // never outlives the session it was asking about.
+    super::super::hook_approvals::unregister_session(session_id);
+    let canonical = cli_session_id.and_then(|cli_sid| match agent {
+        ModelType::ClaudeCode => Some(
+            orgtrack_core::sources::claude_code::canonical_session_id(cli_sid),
+        ),
+        ModelType::Codex => Some(orgtrack_core::sources::codex::canonical_session_id(cli_sid)),
+        ModelType::CursorCli => Some(
+            orgtrack_core::sources::cursor_ide::canonical_session_id(cli_sid),
+        ),
+        _ => None,
+    });
+    let mut ids = vec![session_id];
+    if let Some(ref canonical) = canonical {
+        ids.push(canonical.as_str());
+    }
+    crate::orgtrack::agent_live_status::clear(&ids);
 }
 
 fn is_cli_file_edit_function(function_name: &str) -> bool {

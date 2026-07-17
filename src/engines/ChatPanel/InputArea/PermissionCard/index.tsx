@@ -10,7 +10,10 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { respondPermission } from "@src/api/tauri/agent";
+import {
+  respondCliHookPermission,
+  respondPermission,
+} from "@src/api/tauri/agent";
 import Message from "@src/components/Message";
 import type { PermissionRequestEvent } from "@src/engines/SessionCore/sync/adapters/shared";
 import { createLogger } from "@src/hooks/logger";
@@ -78,13 +81,25 @@ const PermissionCard: React.FC<PermissionCardProps> = ({
       setIsSubmitting(true);
       const respondingId = pending.requestId;
       try {
-        await respondPermission(
-          pending.sessionId ?? "",
-          pending.requestId,
-          response,
-          pending.tool,
-          pending.args
-        );
+        if (pending.origin === "cli_hook" || pending.origin === "acp") {
+          // Managed CLI session: the approval is parked in a CLI-side
+          // registry (Claude PermissionRequest hook long-poll or an ACP
+          // agent's session/request_permission), not the Rust-agent
+          // permission manager.
+          await respondCliHookPermission(
+            pending.sessionId ?? "",
+            pending.requestId,
+            response
+          );
+        } else {
+          await respondPermission(
+            pending.sessionId ?? "",
+            pending.requestId,
+            response,
+            pending.tool,
+            pending.args
+          );
+        }
         setQueue((prev) =>
           prev.filter((req) => req.requestId !== respondingId)
         );

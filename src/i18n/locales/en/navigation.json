@@ -520,7 +520,7 @@
     "moveToOrg": {
       "menuItem": "Org tags…",
       "title": "Org tags for this session",
-      "hint": "Add this session to a shared cloud org. It stays a normal local session — this makes it visible there. Only orgs whose repo scopes cover this session's repository can be selected.",
+      "hint": "Check one or more orgs to share this session — it can live in Personal and multiple orgs at once. It stays a normal local session; this only makes it visible there. Only orgs whose repo scope covers this session's repo can be selected.",
       "noOrgs": "No cloud orgs yet — sign in to ORG2 Cloud to create or join one.",
       "cloudBadge": "Cloud",
       "added": "Added to {{org}}",
@@ -529,7 +529,12 @@
       "noRemote": "This session's repository has no git remote, so it can't match any org's repo scope.",
       "noScopes": "No repo scopes",
       "outOfScope": "Out of scope",
-      "scopeResolving": "Checking…"
+      "scopeResolving": "Checking…",
+      "personal": "Personal",
+      "personalBadge": "Local",
+      "personalOnlyHome": "Only home",
+      "personalUnavailable": "Not in Personal",
+      "autoInScope": "In org via scope"
     },
     "orgManagement": {
       "invites": {

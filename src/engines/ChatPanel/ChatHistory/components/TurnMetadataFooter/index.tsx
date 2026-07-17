@@ -6,7 +6,6 @@ import {
   GitCommitHorizontal,
   GitPullRequest,
   MoreHorizontal,
-  Search,
 } from "lucide-react";
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -86,25 +85,17 @@ const TurnMetadataFooter: React.FC<TurnMetadataFooterProps> = memo(
       () => summary.gitArtifacts.filter((item) => item.kind === "pullRequest"),
       [summary.gitArtifacts]
     );
+    // Writes reach the card as `files` (the modifiedFiles projection), so only
+    // reads are taken from the interaction stream. Searches are dropped at the
+    // Rust capture boundary; this filter also hides them for sessions indexed
+    // before that change.
     const observedResources = useMemo(
       () =>
-        summary.resourceInteractions.filter(
-          (item) => item.action === "read" || item.action === "search"
-        ),
+        summary.resourceInteractions.filter((item) => item.action === "read"),
       [summary.resourceInteractions]
     );
     const readCount = useMemo(
-      () =>
-        observedResources
-          .filter((item) => item.action === "read")
-          .reduce((total, item) => total + item.count, 0),
-      [observedResources]
-    );
-    const searchCount = useMemo(
-      () =>
-        observedResources
-          .filter((item) => item.action === "search")
-          .reduce((total, item) => total + item.count, 0),
+      () => observedResources.reduce((total, item) => total + item.count, 0),
       [observedResources]
     );
 
@@ -222,15 +213,6 @@ const TurnMetadataFooter: React.FC<TurnMetadataFooterProps> = memo(
                   {t("chat.turnMetadata.reads", { count: readCount })}
                 </span>
               )}
-              {searchCount > 0 && (
-                <span
-                  className="flex items-center gap-1"
-                  data-testid="turn-metadata-searches-count"
-                >
-                  <Search size={13} />
-                  {t("chat.turnMetadata.searches", { count: searchCount })}
-                </span>
-              )}
               {commits.length > 0 && (
                 <span
                   className="flex items-center gap-1"
@@ -299,54 +281,40 @@ const TurnMetadataFooter: React.FC<TurnMetadataFooterProps> = memo(
                 <ExternalLink size={12} className="shrink-0 text-text-3" />
               </StackRowButton>
             ))}
-            {visibleResources.map((interaction: TurnResourceInteraction) => {
-              const isRead = interaction.action === "read";
-              const Icon = isRead ? BookOpenText : Search;
-              const displayName =
-                interaction.fileName ||
-                getFileName(interaction.path) ||
-                interaction.path;
-              const row = (
-                <div
-                  className={COMPOSER_STACK_ROW_BASE}
-                  data-testid={`turn-metadata-${interaction.action}`}
-                >
-                  {isRead ? (
-                    <FileTypeIcon fileName={displayName} size="small" />
-                  ) : (
-                    <Icon size={14} className="shrink-0 text-text-3" />
-                  )}
-                  <span className="min-w-0 flex-1 truncate text-[12px] text-text-2">
-                    {displayName}
-                  </span>
-                  <span className="shrink-0 text-[11px] text-text-3">
-                    {interaction.outcome === "failed"
-                      ? t("chat.turnMetadata.failed")
-                      : interaction.count > 1
-                        ? `×${interaction.count}`
-                        : t(
-                            isRead
-                              ? "chat.turnMetadata.reads"
-                              : "chat.turnMetadata.searches",
-                            { count: 1 }
-                          )}
-                  </span>
-                </div>
-              );
-              const key = `${interaction.action}-${interaction.outcome}-${interaction.path}`;
-              return isRead ? (
-                <EventFileHoverPreview key={key} path={interaction.path}>
-                  {row}
-                </EventFileHoverPreview>
-              ) : (
-                <React.Fragment key={key}>{row}</React.Fragment>
-              );
-            })}
             {visibleFiles.map((file) => (
               <EventFileHoverPreview key={file.path} path={file.path}>
                 <FileChangeRow file={file} onFileClick={openDiff} />
               </EventFileHoverPreview>
             ))}
+            {visibleResources.map((interaction: TurnResourceInteraction) => {
+              const displayName =
+                interaction.fileName ||
+                getFileName(interaction.path) ||
+                interaction.path;
+              return (
+                <EventFileHoverPreview
+                  key={`${interaction.outcome}-${interaction.path}`}
+                  path={interaction.path}
+                >
+                  <div
+                    className={COMPOSER_STACK_ROW_BASE}
+                    data-testid="turn-metadata-read"
+                  >
+                    <FileTypeIcon fileName={displayName} size="small" />
+                    <span className="min-w-0 flex-1 truncate text-[12px] text-text-2">
+                      {displayName}
+                    </span>
+                    <span className="shrink-0 text-[11px] text-text-3">
+                      {interaction.outcome === "failed"
+                        ? t("chat.turnMetadata.failed")
+                        : interaction.count > 1
+                          ? `×${interaction.count}`
+                          : t("chat.turnMetadata.reads", { count: 1 })}
+                    </span>
+                  </div>
+                </EventFileHoverPreview>
+              );
+            })}
             {hiddenCount > 0 || expanded ? (
               <StackRowButton
                 onClick={() => setExpanded((previous) => !previous)}

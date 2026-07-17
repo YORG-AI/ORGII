@@ -21,8 +21,8 @@ use crate::sources::imported_history::{
         ImportedHistoryCacheInput, ImportedHistoryDiscoveredRecord, ImportedHistoryImpactStats,
         SOURCE_CODEX_APP,
     },
-    paths as imported_paths, ImportedHistoryRecentPath, ImportedHistorySessionPage,
-    ImportedHistorySessionRow, ImportedToolCall,
+    paths as imported_paths, strip_orgii_exec_mode_bridge, ImportedHistoryRecentPath,
+    ImportedHistorySessionPage, ImportedHistorySessionRow, ImportedToolCall,
 };
 use crate::store::{sqlite::SqliteRecordStore, RecordStore};
 
@@ -137,7 +137,23 @@ pub fn load_codex_app_for_session(
 }
 
 fn sync_codex_app_cache(conn: &mut Connection) -> Result<(), String> {
-    let discovered = discover_codex_app_records()?;
+    let mut discovered = discover_codex_app_records()?;
+    // Managed (GUI-launched) Codex sessions surface through their
+    // code_sessions row (`cli_agent_type = 'codex'`); the imported twin goes
+    // unlistable. Same pattern as the OpenCode/Claude readers.
+    let managed_ids = crate::sources::imported_history::managed_mirror::
+        managed_source_session_ids_from_conn(conn, "codex", SOURCE_CODEX_APP)?;
+    for record in &mut discovered {
+        crate::sources::imported_history::managed_mirror::append_managed_fingerprint(
+            &mut record.source_fingerprint,
+            // Suffix match: the imported key is the rollout stem while the
+            // runner binds the bare thread uuid.
+            crate::sources::imported_history::managed_mirror::is_managed_source_session_id(
+                &managed_ids,
+                &record.source_session_id,
+            ),
+        );
+    }
     let signatures = discovered
         .iter()
         .map(ImportedHistoryDiscoveredRecord::signature)
@@ -149,7 +165,14 @@ fn sync_codex_app_cache(conn: &mut Connection) -> Result<(), String> {
     let mut inputs = Vec::new();
     for record in changed {
         if let Some(meta) = parse_codex_session_meta(record)? {
-            inputs.push(session_meta_to_cache_input(meta));
+            let is_managed_history_mirror =
+                crate::sources::imported_history::managed_mirror::is_managed_source_session_id(
+                    &managed_ids,
+                    &meta.source_session_id,
+                );
+            let mut input = session_meta_to_cache_input(meta);
+            input.listable = input.listable && !is_managed_history_mirror;
+            inputs.push(input);
         }
     }
     imported_cache::sync_source_cache_from_conn(
@@ -2145,10 +2168,14 @@ fn parse_rg_output_matches(output: &str) -> Vec<(String, i64, String)> {
 }
 
 fn user_message_from_payload(payload: &Value) -> Option<String> {
-    payload
-        .get("message")
-        .and_then(Value::as_str)
-        .map(ToString::to_string)
+    let raw = payload.get("message").and_then(Value::as_str)?;
+    let stripped = strip_orgii_exec_mode_bridge(raw);
+    // Bridge-only messages carry no user-authored text: skip them entirely
+    // (no replay bubble, no title candidate).
+    if stripped.trim().is_empty() {
+        return None;
+    }
+    Some(stripped.to_string())
 }
 
 fn session_title_from_payload(payload: &Value) -> Option<String> {
@@ -2253,9 +2280,13 @@ fn resolve_codex_session_path(conn: &Connection, file_stem: &str) -> Result<Path
         }
     }
 
-    if let Some(path) =
-        imported_cache::get_cached_source_path_from_conn(conn, SOURCE_CODEX_APP, file_stem)?
-    {
+    // Suffix form: runner bindings carry the bare thread uuid while rollout
+    // stems are `rollout-<timestamp>-<thread-uuid>`.
+    if let Some(path) = imported_cache::get_cached_source_path_by_suffix_from_conn(
+        conn,
+        SOURCE_CODEX_APP,
+        file_stem,
+    )? {
         let path = PathBuf::from(path);
         if path.is_file() {
             return Ok(path);
@@ -2268,15 +2299,41 @@ fn resolve_codex_session_path(conn: &Connection, file_stem: &str) -> Result<Path
             collect_codex_session_files(&sessions_dir, &mut files)?;
         }
     }
+    let stem_matches = |stem: &str| {
+        stem == file_stem
+            || (stem.len() > file_stem.len() + 1
+                && stem.ends_with(file_stem)
+                && stem.as_bytes()[stem.len() - file_stem.len() - 1] == b'-')
+    };
     files
         .into_iter()
-        .find(|path| path.file_stem().and_then(|value| value.to_str()) == Some(file_stem))
+        .filter(|path| {
+            path.file_stem()
+                .and_then(|value| value.to_str())
+                .is_some_and(stem_matches)
+        })
+        // Newest rollout wins when several share a thread (resume forks).
+        .max_by_key(|path| {
+            std::fs::metadata(path)
+                .and_then(|meta| meta.modified())
+                .ok()
+        })
         .ok_or_else(|| format!("Codex app file not found for session: {file_stem}"))
 }
 
 fn codex_sessions_dirs() -> Result<Vec<PathBuf>, String> {
     let home = dirs::home_dir().ok_or_else(|| "Home directory not found".to_string())?;
-    Ok(codex_sessions_dir_candidates(&home))
+    let mut dirs = codex_sessions_dir_candidates(&home);
+    // ORGII-managed own-key Codex runs redirect CODEX_HOME into per-account
+    // profile dirs; native-transcript mode reads those rollouts back here.
+    // (Hosted-key Codex keeps the system CODEX_HOME and is covered above.)
+    dirs.extend(
+        crate::sources::imported_history::managed_roots::profile_root_children(
+            &app_paths::codex_cli_profile_root(),
+            &["sessions"],
+        ),
+    );
+    Ok(dirs)
 }
 
 fn codex_sessions_dir_candidates(home: &Path) -> Vec<PathBuf> {

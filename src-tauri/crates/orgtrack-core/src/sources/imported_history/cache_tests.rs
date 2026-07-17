@@ -85,6 +85,9 @@ fn sidebar_query_is_date_bounded_and_carries_impact_metadata() {
     let row = &page.sessions[0];
     assert_eq!(row.session_id, "codex_app-inside");
     assert_eq!(row.repo_path.as_deref(), Some("/tmp/repo-inside"));
+    // Imported sessions have no sessions.db copy — the hover card's storage
+    // row can only point at the source app's own transcript file.
+    assert_eq!(row.storage_path.as_deref(), Some("/tmp/inside.jsonl"));
     // The Kanban board and other card surfaces render these inline, so the
     // lightweight sidebar row must carry them (regression guard).
     assert_eq!(row.model.as_deref(), Some("model-a"));
@@ -293,4 +296,82 @@ fn cache_range_query_is_source_scoped_and_filters_unlistable_sessions() {
 
     assert_eq!(sessions.len(), 1);
     assert_eq!(sessions[0].source_session_id, "inside");
+}
+
+fn listable_of(conn: &Connection, source: &str, source_session_id: &str) -> bool {
+    conn.query_row(
+        "SELECT listable FROM imported_history_session_cache
+         WHERE source = ?1 AND source_session_id = ?2",
+        rusqlite::params![source, source_session_id],
+        |row| row.get::<_, i64>(0),
+    )
+    .expect("listable")
+        != 0
+}
+
+#[test]
+fn continuation_election_demotes_all_but_newest_sibling() {
+    let mut conn = fixture_conn();
+    let group = continuation_group_metadata_json(Some("first-user-uuid-1"));
+    let mut oldest = input(SOURCE_CODEX_APP, "gen1", 100);
+    oldest.source_metadata_json = group.clone();
+    let mut middle = input(SOURCE_CODEX_APP, "gen2", 200);
+    middle.source_metadata_json = group.clone();
+    let mut newest = input(SOURCE_CODEX_APP, "gen3", 300);
+    newest.source_metadata_json = group;
+    // Unrelated session with its own group stays untouched.
+    let mut loner = input(SOURCE_CODEX_APP, "solo", 150);
+    loner.source_metadata_json = continuation_group_metadata_json(Some("other-uuid"));
+    // Session with no group key is never part of an election.
+    let keyless = input(SOURCE_CODEX_APP, "keyless", 50);
+    upsert_imported_session_cache_from_conn(&mut conn, &[oldest, middle, newest, loner, keyless])
+        .expect("upsert");
+
+    let demoted =
+        demote_superseded_continuations_from_conn(&conn, SOURCE_CODEX_APP).expect("election");
+
+    assert_eq!(demoted, 2);
+    assert!(!listable_of(&conn, SOURCE_CODEX_APP, "gen1"));
+    assert!(!listable_of(&conn, SOURCE_CODEX_APP, "gen2"));
+    assert!(listable_of(&conn, SOURCE_CODEX_APP, "gen3"));
+    assert!(listable_of(&conn, SOURCE_CODEX_APP, "solo"));
+    assert!(listable_of(&conn, SOURCE_CODEX_APP, "keyless"));
+}
+
+#[test]
+fn continuation_election_never_promotes_and_skips_subagents() {
+    let mut conn = fixture_conn();
+    let group = continuation_group_metadata_json(Some("family-a"));
+    // Newest sibling is itself unlistable (e.g. managed mirror): the older
+    // listable sibling must still demote, and the winner must NOT be promoted.
+    let mut older = input(SOURCE_OPENCODE, "old-fork", 100);
+    older.source_metadata_json = group.clone();
+    let mut newest_hidden = input(SOURCE_OPENCODE, "new-fork", 200);
+    newest_hidden.source_metadata_json = group.clone();
+    newest_hidden.listable = false;
+    // Subagent rows are outside elections entirely.
+    let mut subagent = input(SOURCE_OPENCODE, "child", 300);
+    subagent.source_metadata_json = group;
+    subagent.parent_session_id = Some("opencode-parent".to_string());
+    upsert_imported_session_cache_from_conn(&mut conn, &[older, newest_hidden, subagent])
+        .expect("upsert");
+
+    let demoted =
+        demote_superseded_continuations_from_conn(&conn, SOURCE_OPENCODE).expect("election");
+
+    assert_eq!(demoted, 1);
+    assert!(!listable_of(&conn, SOURCE_OPENCODE, "old-fork"));
+    assert!(!listable_of(&conn, SOURCE_OPENCODE, "new-fork"));
+}
+
+#[test]
+fn continuation_group_metadata_json_shapes() {
+    assert_eq!(continuation_group_metadata_json(None), None);
+    assert_eq!(continuation_group_metadata_json(Some("  ")), None);
+    let json = continuation_group_metadata_json(Some("uuid-1")).expect("json");
+    let parsed: serde_json::Value = serde_json::from_str(&json).expect("parse");
+    assert_eq!(
+        parsed.get(CONTINUATION_GROUP_KEY_FIELD).and_then(|v| v.as_str()),
+        Some("uuid-1")
+    );
 }

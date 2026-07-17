@@ -58,6 +58,20 @@ export const OrgiiSessionProvenance = async ({ directory }) => {
     }
   };
 
+  // Live-status throttle: message-part streaming can fire dozens of events
+  // per second; one Working heartbeat per session per interval is plenty.
+  const MESSAGE_PART_THROTTLE_MS = 2000;
+  const lastMessagePartAt = new Map();
+
+  const emitStatus = (sessionID, eventName) => {
+    if (!sessionID) return;
+    emit({
+      session_id: sessionID,
+      cwd,
+      hook_event_name: eventName,
+    });
+  };
+
   return {
     // input:  { tool, sessionID, callID, args }
     // output: { title, output, metadata }
@@ -77,6 +91,48 @@ export const OrgiiSessionProvenance = async ({ directory }) => {
           hook_event_name: "PostToolUse",
           tool_use_id: input.callID,
         });
+      } catch {
+        /* never throw from a hook */
+      }
+    },
+    // Live-status lifecycle: OpenCode has no native hooks vocabulary, so the
+    // plugin synthesizes hook_event_name values the ORGII status normalizer
+    // maps (SessionBusy/MessagePart → working, PermissionRequest → waiting,
+    // SessionIdle → done, SessionError → failed).
+    event: async ({ event }) => {
+      try {
+        if (!event || typeof event.type !== "string") return;
+        const properties = event.properties || {};
+        const sessionID =
+          properties.sessionID ||
+          (properties.info && properties.info.sessionID) ||
+          (properties.info && properties.info.id) ||
+          (properties.part && properties.part.sessionID);
+        switch (event.type) {
+          case "session.idle":
+            emitStatus(sessionID, "SessionIdle");
+            break;
+          case "session.error":
+            emitStatus(sessionID, "SessionError");
+            break;
+          case "permission.updated":
+          case "permission.ask":
+            emitStatus(sessionID, "PermissionRequest");
+            break;
+          case "message.updated":
+          case "message.part.updated": {
+            if (!sessionID) return;
+            const now = Date.now();
+            const last = lastMessagePartAt.get(sessionID) || 0;
+            if (now - last < MESSAGE_PART_THROTTLE_MS) return;
+            lastMessagePartAt.set(sessionID, now);
+            if (lastMessagePartAt.size > 64) lastMessagePartAt.clear();
+            emitStatus(sessionID, "MessagePart");
+            break;
+          }
+          default:
+            break;
+        }
       } catch {
         /* never throw from a hook */
       }

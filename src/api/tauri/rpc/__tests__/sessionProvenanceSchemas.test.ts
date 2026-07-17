@@ -42,13 +42,13 @@ describe("session provenance RPC schemas", () => {
       platform: "codex",
       enabled: true,
       desiredEnabled: true,
-      activationState: "awaiting_approval",
+      activationState: "awaiting_verification",
       lastActivatedAt: null,
       configPath: "/Users/test/.codex/hooks.json",
       error: null,
     });
     expect(parsed.enabled).toBe(true);
-    expect(parsed.activationState).toBe("awaiting_approval");
+    expect(parsed.activationState).toBe("awaiting_verification");
   });
 
   it("parses a recent hook signal from the Rust camelCase payload", () => {

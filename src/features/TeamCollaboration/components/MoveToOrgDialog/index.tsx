@@ -19,6 +19,7 @@ import { useTranslation } from "react-i18next";
 import Checkbox from "@src/components/Checkbox";
 import Message from "@src/components/Message";
 import { createLogger } from "@src/hooks/logger";
+import { DEFAULT_SESSION_ORG_ID } from "@src/store/session";
 import type { Session } from "@src/store/session/sessionAtom/types";
 
 import {
@@ -31,12 +32,17 @@ import { org2CloudRepoScopesAtom } from "../../../Org2Cloud/org2CloudSyncAtoms";
 import { deleteSession } from "../../../Org2Cloud/org2CloudSyncClient";
 import { org2CloudSyncEngine } from "../../../Org2Cloud/org2CloudSyncEngine";
 import { pickMatchingOrgScope } from "../../collabSyncUtils";
+import { isScopeMatchableImportedSession } from "../../importedSessionScopeMatch";
 import { resolveShareableScopeKeys } from "../../repoScopeResolver";
 import {
+  PERSONAL_EXCLUDED_TOKEN,
+  cloudOrgIdsForSession,
   cloudOrgToken,
+  isSessionExcludedFromPersonal,
   isSessionTaggedToCloudOrg,
   sessionOrgTagsAtom,
   withTag,
+  withoutCloudOrgTag,
   withoutTag,
 } from "../../sessionOrgTagsAtom";
 
@@ -81,6 +87,33 @@ const MoveToOrgDialog: React.FC<MoveToOrgDialogProps> = ({
     };
   }, [repoPath]);
 
+  const personalUnavailable = session
+    ? Boolean(session.orgId) && session.orgId !== DEFAULT_SESSION_ORG_ID
+    : false;
+  const personalIncluded = session
+    ? !personalUnavailable &&
+      !isSessionExcludedFromPersonal(tags, session.session_id)
+    : true;
+  const canLeavePersonal = session
+    ? cloudOrgIdsForSession(tags, session.session_id).length > 0
+    : false;
+  const scopeAutoMatched = session
+    ? isScopeMatchableImportedSession(session)
+    : false;
+
+  const togglePersonal = useCallback(
+    (nextIncluded: boolean) => {
+      if (!session) return;
+      const sessionId = session.session_id;
+      setTags((current) =>
+        nextIncluded
+          ? withoutTag(current, sessionId, PERSONAL_EXCLUDED_TOKEN)
+          : withTag(current, sessionId, PERSONAL_EXCLUDED_TOKEN)
+      );
+    },
+    [session, setTags]
+  );
+
   const toggle = useCallback(
     async (orgId: string, orgName: string, nextChecked: boolean) => {
       if (!session) return;
@@ -116,7 +149,7 @@ const MoveToOrgDialog: React.FC<MoveToOrgDialogProps> = ({
             await deleteSession(fresh.accessToken, orgId, sessionId);
             org2CloudSyncEngine.invalidatePushedMetadataHash(orgId, sessionId);
           }
-          setTags((current) => withoutTag(current, sessionId, token));
+          setTags((current) => withoutCloudOrgTag(current, sessionId, orgId));
           Message.success(t("cloud.moveToOrg.removed", { org: orgName }));
         }
       } catch (error) {
@@ -124,7 +157,7 @@ const MoveToOrgDialog: React.FC<MoveToOrgDialogProps> = ({
         // turn. If publication fails, restore the pre-action state instead of
         // leaving a local-only "moved" badge that teammates can never see.
         if (nextChecked) {
-          setTags((current) => withoutTag(current, sessionId, token));
+          setTags((current) => withoutCloudOrgTag(current, sessionId, orgId));
         }
         log.warn("move-to-org toggle failed", error);
         Message.error(t("cloud.moveToOrg.error"));
@@ -150,6 +183,28 @@ const MoveToOrgDialog: React.FC<MoveToOrgDialogProps> = ({
           </div>
           <div className="text-[11px] text-text-3">
             {t("cloud.moveToOrg.hint")}
+          </div>
+          <div
+            className="flex items-center gap-2 rounded-lg border border-border-2 bg-bg-2 px-3 py-2"
+            data-testid="session-move-org-option-personal"
+          >
+            <Checkbox
+              checked={personalIncluded}
+              disabled={
+                personalUnavailable || (personalIncluded && !canLeavePersonal)
+              }
+              onChange={(next: boolean) => togglePersonal(next)}
+            />
+            <span className="text-[13px] text-text-1">
+              {t("cloud.moveToOrg.personal")}
+            </span>
+            <span className="ml-auto text-[11px] text-text-3">
+              {personalUnavailable
+                ? t("cloud.moveToOrg.personalUnavailable")
+                : personalIncluded && !canLeavePersonal
+                  ? t("cloud.moveToOrg.personalOnlyHome")
+                  : t("cloud.moveToOrg.personalBadge")}
+            </span>
           </div>
           {cloudOrgs.length === 0 ? (
             <div className="text-[12px] text-text-3">
@@ -205,7 +260,9 @@ const MoveToOrgDialog: React.FC<MoveToOrgDialogProps> = ({
                       {scopeKeys === undefined
                         ? t("cloud.moveToOrg.scopeResolving")
                         : inScope
-                          ? t("cloud.moveToOrg.cloudBadge")
+                          ? scopeAutoMatched && !checked
+                            ? t("cloud.moveToOrg.autoInScope")
+                            : t("cloud.moveToOrg.cloudBadge")
                           : (scopesByOrg[org.orgId]?.length ?? 0) === 0
                             ? t("cloud.moveToOrg.noScopes")
                             : t("cloud.moveToOrg.outOfScope")}

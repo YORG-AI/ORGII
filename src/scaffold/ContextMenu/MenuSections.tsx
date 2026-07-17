@@ -5,6 +5,7 @@
  * and second layer panels (files, terminals, sessions, browser).
  */
 import React, { memo, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import FolderIcon from "@src/assets/fileTypeIcons/folder-base.svg";
 import DropdownHeader from "@src/components/Dropdown/DropdownHeader";
@@ -350,6 +351,7 @@ export const SecondLayerPanel: React.FC<SecondLayerPanelProps> = memo(
     titleOverride,
     recentFiles = [],
   }) => {
+    const { t } = useTranslation("sessions");
     const [recentExpanded, setRecentExpanded] = useState(false);
     const config = SECOND_LAYER_CONFIG[layerId];
     const activeItem = results[activeIndex];
@@ -390,7 +392,7 @@ export const SecondLayerPanel: React.FC<SecondLayerPanelProps> = memo(
                 onBack();
               }}
               className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-text-2 transition-colors hover:text-text-1 ${DROPDOWN_CLASSES.itemHover}`}
-              aria-label="Back"
+              aria-label={t("creator.contextMenu.back")}
             >
               <ICON_CONFIG.arrowBack
                 size={DROPDOWN_ITEM.iconSize}
@@ -398,7 +400,8 @@ export const SecondLayerPanel: React.FC<SecondLayerPanelProps> = memo(
               />
             </button>
             <span className="flex min-h-5 min-w-0 flex-1 items-center truncate text-[13px] font-medium leading-5 text-text-1">
-              {titleOverride || config.title}
+              {titleOverride ||
+                t(config.translationKey, { defaultValue: config.title })}
             </span>
           </DropdownHeader>
 
@@ -410,7 +413,9 @@ export const SecondLayerPanel: React.FC<SecondLayerPanelProps> = memo(
             {/* Recent files section — only shown in the files second layer */}
             {layerId === "files" && recentFiles.length > 0 && (
               <div className={DROPDOWN_CLASSES.sectionContainer}>
-                <div className={DROPDOWN_CLASSES.sectionLabel}>Recent</div>
+                <div className={DROPDOWN_CLASSES.sectionLabel}>
+                  {t("creator.contextMenu.recent")}
+                </div>
                 {(recentExpanded
                   ? recentFiles
                   : recentFiles.slice(0, STYLE_CONFIG.recentSectionMaxItems)
@@ -453,10 +458,11 @@ export const SecondLayerPanel: React.FC<SecondLayerPanelProps> = memo(
                       }}
                     >
                       <span className="text-[13px]">
-                        Show{" "}
-                        {recentFiles.length -
-                          STYLE_CONFIG.recentSectionMaxItems}{" "}
-                        more
+                        {t("creator.contextMenu.showMore", {
+                          remaining:
+                            recentFiles.length -
+                            STYLE_CONFIG.recentSectionMaxItems,
+                        })}
                       </span>
                     </div>
                   )}

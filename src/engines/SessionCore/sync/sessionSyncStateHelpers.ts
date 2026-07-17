@@ -35,6 +35,13 @@ type LoadSessionPayload = {
   sessionId: string;
   events: SessionEvent[];
   isFromCache?: boolean;
+  /**
+   * The incoming events ARE the canonical transcript — replace the on-screen
+   * events instead of id-merging next to them (see loadSessionAtom). Used by
+   * native-transcript replay loads, whose replayed ids never match the
+   * ephemeral in-memory turn events.
+   */
+  replace?: boolean;
 };
 
 export interface SessionSwitchStateActions {
@@ -74,6 +81,12 @@ export interface SessionEventHandlerStateActions {
   ) => void;
   /** Dismiss any existing canvas preview when a new agent turn starts. */
   dismissCanvasAtNewTurn: (sessionId: string) => void;
+  /**
+   * Replace the turn's ephemeral in-memory events with the canonical
+   * native-store parse once a terminal status lands. No-op for legacy
+   * (chunk-persisted) sessions.
+   */
+  scheduleNativeTranscriptReconcile?: (sessionId: string) => void;
 }
 
 const TERMINAL_HANDLER_STATUSES = new Set<string>([
@@ -220,6 +233,7 @@ export function createSessionEventHandlerCallbacks(
         actions.setPendingCancel(false);
         eventStoreProxy.unpinSession(sessionId);
         updateSessionStatus(sessionId, status as SessionStatus);
+        actions.scheduleNativeTranscriptReconcile?.(sessionId);
       }
       if (status === "running") {
         markTurnRunning(sessionId);

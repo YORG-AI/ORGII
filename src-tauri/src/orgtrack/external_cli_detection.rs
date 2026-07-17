@@ -52,6 +52,7 @@ const IMPORTABLE_HISTORY_SOURCE_IDS: &[&str] = &[
     "codex_app",
     "claude_code",
     "cursor_ide",
+    "cursor_cli",
     "opencode",
     "windsurf",
     "workbuddy",
@@ -71,10 +72,10 @@ fn store_kind_for(source_id: &str) -> &'static str {
     match source_id {
         // Importable — ORGII parses these.
         "claude_code" | "codex_app" | "workbuddy" | "trae" | "cline" | "qoder" => "jsonl",
-        "cursor_ide" | "opencode" | "windsurf" | "warp" | "zcode" => "sqlite",
+        "cursor_ide" | "cursor_cli" | "opencode" | "windsurf" | "warp" | "zcode" => "sqlite",
         // Known store format, not yet imported.
         "qwen_code" | "kimi" | "pi" | "omp" | "droid" => "jsonl",
-        "cursor" | "copilot" | "goose" | "grok" | "openclaw" => "sqlite",
+        "copilot" | "goose" | "grok" | "openclaw" => "sqlite",
         "aider" => "markdown",
         _ => "",
     }
@@ -277,15 +278,18 @@ pub const EXTERNAL_CLI_SOURCES: &[ExternalCliSourceSpec] = &[
         &[".continue"],
     ),
     source(
-        "cursor",
+        "cursor_cli",
         "Cursor CLI",
         "cursor",
         "cursor-agent",
         &[],
         "cursor-agent",
         "cursor-agent",
-        false,
-        &[".cursor"],
+        // cursor-agent writes one SQLite store per session under
+        // `~/.cursor/chats/<workspace-hash>/<session-uuid>/store.db`,
+        // parsed by `orgtrack_core::sources::cursor_cli`.
+        true,
+        &[".cursor/chats"],
     ),
     source(
         "droid",
@@ -555,6 +559,9 @@ fn importable_history_candidates(source_id: &str) -> Vec<PathBuf> {
         "codex_app" => home_candidates(&[".codex", ".codex/sessions"]),
         "opencode" => home_candidates(&[".config/opencode", ".local/share/opencode"]),
         "cursor_ide" => platform_data_candidates(&["Cursor/User/globalStorage"]),
+        "cursor_cli" => {
+            orgtrack_core::sources::cursor_cli::history::cursor_cli_history_candidate_paths()
+        }
         "windsurf" => platform_data_candidates(&[
             "Windsurf/User/globalStorage",
             "Windsurf/User/workspaceStorage",

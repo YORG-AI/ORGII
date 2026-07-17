@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { benchmarkApi } from "@src/api/tauri/benchmark";
+import type { AgentLiveStatus } from "@src/api/tauri/rpc/schemas/agentOrgs";
 import { createLogger } from "@src/hooks/logger";
 import { useFilteredItems } from "@src/hooks/search";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
@@ -14,6 +15,7 @@ import {
   sessionPaginationAtom,
   upsertSession,
 } from "@src/store/session";
+import { agentLiveStatusAtom } from "@src/store/session/agentLiveStatusAtom";
 import { isImportedHistorySession } from "@src/util/session/sessionDispatch";
 import { getSessionSearchText } from "@src/util/session/sessionSearch";
 import { isPrimarySessionListSession } from "@src/util/session/sessionVisibility";
@@ -45,6 +47,21 @@ import type {
   UseSessionMenuItemsParams,
   UseSessionMenuItemsResult,
 } from "./types";
+
+/**
+ * One-line subtitle for a session row, shown ONLY while the session is
+ * blocked on the user (permission prompt / question). Running sessions keep
+ * a single-line row — the breathing dot already signals activity.
+ */
+function liveDetailForSession(
+  entry: AgentLiveStatus | undefined
+): string | undefined {
+  if (entry?.status !== "waiting_for_user") return undefined;
+  return (
+    entry.interactivePrompt ??
+    (entry.toolName ? `Waiting: ${entry.toolName}` : "Waiting for input")
+  );
+}
 
 export { getLoadMoreGroupId, isLoadMoreId } from "./paginationHelpers";
 
@@ -161,6 +178,7 @@ export function useSessionMenuItems({
 }: UseSessionMenuItemsParams): UseSessionMenuItemsResult {
   const { t: tCommon } = useTranslation();
   const pagination = useAtomValue(sessionPaginationAtom);
+  const agentLiveStatuses = useAtomValue(agentLiveStatusAtom);
   const benchmarkAgentBatchStatus = useAtomValue(benchmarkAgentBatchStatusAtom);
   const [benchmarkHistoryChildSessionIds, setBenchmarkHistoryChildSessionIds] =
     useState<ReadonlySet<string>>(() => new Set());
@@ -420,8 +438,15 @@ export function useSessionMenuItems({
 
   const buildSessionRow = useCallback(
     (session: Session): NavigationMenuItem =>
-      buildSessionMenuItem({ session, untitledSession, visitedSessions }),
-    [untitledSession, visitedSessions]
+      buildSessionMenuItem({
+        session,
+        untitledSession,
+        visitedSessions,
+        liveDetail: liveDetailForSession(
+          agentLiveStatuses.get(session.session_id)
+        ),
+      }),
+    [agentLiveStatuses, untitledSession, visitedSessions]
   );
 
   const loadMoreRowFor = useCallback(

@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import { cliAgentCreateTuiSession } from "@src/api/tauri/agent/cliTerminalSession";
 import type { ModelType } from "@src/api/tauri/rpc/schemas/validation";
 import type { CliAgentType } from "@src/api/types/keys";
 import Button from "@src/components/Button";
@@ -28,6 +29,7 @@ import type {
   ChatPanelRegionNotice,
 } from "@src/engines/ChatPanel/types";
 import { useSessionCreator } from "@src/engines/SessionCore/hooks/session/useSessionCreator";
+import { getWorktreeFields } from "@src/engines/SessionCore/hooks/session/useSessionCreator/useSessionLaunch/launchPayload";
 import type {
   SessionLaunchSuccessInfo,
   SessionLaunchWorkItemContext,
@@ -306,6 +308,7 @@ const SessionCreatorChatPanelSingle: React.FC<
 
   const runningLocation = useAtomValue(runningLocationAtom);
   const setRunningLocation = useSetAtom(runningLocationAtom);
+  const selectedWorktreePath = useAtomValue(selectedWorktreePathAtom);
   const setSelectedWorktreePath = useSetAtom(selectedWorktreePathAtom);
   const worktreeLaunchSource = useAtomValue(worktreeLaunchSourceAtom);
   const setWorktreeLaunchSource = useSetAtom(worktreeLaunchSourceAtom);
@@ -500,11 +503,41 @@ const SessionCreatorChatPanelSingle: React.FC<
     ) {
       const command = selectedCliAgent.command.trim();
       if (command.length > 0) {
+        // Back the TUI terminal with a managed session row so the worktree
+        // selection is honored (cwd below) and lifecycle hooks can attribute
+        // status/transcripts via ORGII_SESSION_ID. Creation failure degrades
+        // to the old unbound repo-root terminal rather than blocking launch.
+        const repoPath = effectiveSource?.repoPath;
+        let cwd = repoPath;
+        let agentSessionId: string | undefined;
+        try {
+          const worktreeFields = getWorktreeFields({
+            runningLocation,
+            selectedWorktreePath,
+            worktreeLaunchSource,
+          });
+          const created = await cliAgentCreateTuiSession({
+            platform: cliAgentType,
+            name: selectedCliAgent.displayName,
+            repoPath,
+            isolate: worktreeFields.isolate,
+            branch: worktreeFields.branch,
+            worktreePath: worktreeFields.worktreePath,
+          });
+          agentSessionId = created.sessionId;
+          cwd = created.worktreePath || repoPath;
+        } catch (error) {
+          log.warn(
+            "TUI session create failed; opening unbound terminal",
+            error
+          );
+        }
         onOpenCliTerminal({
           cliAgentType,
           command,
           title: selectedCliAgent.displayName,
-          cwd: effectiveSource?.repoPath,
+          cwd,
+          agentSessionId,
           expectedProcess: deriveExpectedProcess(command),
         });
         setAttachedWorkItemContext(null);
@@ -519,7 +552,10 @@ const SessionCreatorChatPanelSingle: React.FC<
     isCliTuiMode,
     onOpenCliTerminal,
     originalHandleLaunch,
+    runningLocation,
     selectedCliAgent,
+    selectedWorktreePath,
+    worktreeLaunchSource,
   ]);
 
   const handleCliLaunchModeChange = useCallback(

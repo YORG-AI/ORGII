@@ -1,7 +1,7 @@
 //! Fast hook capture, durable inbox spooling, and bounded desktop draining.
 
 use std::fs;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
@@ -15,7 +15,7 @@ use orgtrack_core::repo_sync::paths::record_id;
 use orgtrack_core::store::{sqlite::SqliteRecordStore, RecentHookSignal};
 use tauri::Emitter;
 
-use super::{persist_actor_lifecycle, persist_envelope};
+use super::{approval_gate, persist_actor_lifecycle, persist_envelope};
 
 const DEFAULT_RECENT_HOOK_SIGNALS: usize = 50;
 const MAX_RECENT_HOOK_SIGNALS: usize = 500;
@@ -47,6 +47,22 @@ pub fn capture_hook_stdin(source: &str) -> Result<usize, String> {
     }
     let payload: serde_json::Value = serde_json::from_slice(&payload)
         .map_err(|err| format!("Invalid session-provenance hook JSON: {err}"))?;
+    // Latency-sensitive live-status fast path first: one loopback POST that
+    // silently no-ops when the desktop is closed or the feature is off. The
+    // durable provenance spool below is unaffected either way.
+    if agent_cli::session_provenance::live_status_enabled_quick() {
+        let orgii_session_id = std::env::var("ORGII_SESSION_ID")
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+        if let Some(status) = orgtrack_core::status_adapter::normalize_status_payload(
+            source,
+            &payload,
+            orgii_session_id,
+        ) {
+            super::status_post::post_status_event(&status);
+        }
+    }
     let lifecycle = normalize_actor_lifecycle_payload(source, &payload)?;
     let envelopes = normalize_hook_payload(source, &payload)?;
     for envelope in &envelopes {
@@ -63,6 +79,19 @@ pub fn capture_hook_stdin(source: &str) -> Result<usize, String> {
             source = source_arg,
             "[SessionProvenance] Failed to record hook activation"
         );
+    }
+    // Interactive approval bridge, deliberately LAST: status and provenance
+    // capture are already durable before we block. For a managed Claude
+    // session's PermissionRequest this long-polls the desktop for the
+    // user's Approve/Deny and prints the verified decision JSON to stdout;
+    // every other event/session/error path prints nothing, so Claude's own
+    // permission flow applies (see `approval_gate` for the contract).
+    if let Some(decision_json) =
+        approval_gate::maybe_block_for_permission_decision(source, &payload)
+    {
+        let mut stdout = std::io::stdout();
+        let _ = stdout.write_all(decision_json.as_bytes());
+        let _ = stdout.flush();
     }
     Ok(envelopes.len() + usize::from(lifecycle.is_some()))
 }

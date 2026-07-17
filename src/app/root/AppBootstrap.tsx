@@ -32,6 +32,7 @@ import {
   useSleepInhibitor,
 } from "@src/hooks/settings";
 import { router } from "@src/router";
+import { useAgentLiveStatusSync } from "@src/store/session/agentLiveStatusAtom";
 import { hydrateCreatorDefaultModelAtom } from "@src/store/session/creatorDefaultModelAtom";
 import { useDataSourceAutoScan } from "@src/store/session/useDataSourceAutoScan";
 import { useSettingsSync } from "@src/store/settings";
@@ -74,6 +75,7 @@ export const AppBootstrap: FC = () => {
   useModelAliasRegistry();
   useDiagnosticsBootstrap();
   useDataSourceAutoScan(); // Keep external-history sources fresh on their cadence
+  useAgentLiveStatusSync(); // Hook-driven live agent status → sidebar dots
 
   return (
     <DeferredGitStatusProvider>
