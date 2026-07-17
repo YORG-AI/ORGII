@@ -46,7 +46,8 @@
     "projectManager": "Project マネージャー",
     "diff": "Diff",
     "colleagues": "同僚",
-    "terminals": "ターミナル"
+    "terminals": "ターミナル",
+    "openSourceRepo": "オープンソースリポジトリ"
   },
   "trajectoryPanel": {
     "title": "トラジェクトリ",
@@ -145,7 +146,9 @@
     },
     "folderCounts": {
       "repo": "{{count}} Repo",
-      "multiRepoWorkspace": "{{count}} マルチ Repo Workspace"
+      "repo_plural": "{{count}} Repo",
+      "multiRepoWorkspace": "{{count}} マルチ Repo Workspace",
+      "multiRepoWorkspace_plural": "{{count}} マルチ Repo Workspace"
     },
     "bottomBar": {
       "settings": "設定",
@@ -333,7 +336,27 @@
     "addWorkspace": "Workspace を追加"
   },
   "explore": {
-    "title": "探す"
+    "title": "探す",
+    "search": "検索",
+    "searching": "検索中...",
+    "searchPlaceholder": "GitHub リポジトリを検索（例: language:rust tauri）",
+    "clone": "クローン",
+    "cloning": "クローン中...",
+    "openOnGithub": "GitHub",
+    "cloneSuccess": "{{name}} をクローンしました",
+    "cloneFailed": "クローンに失敗しました",
+    "cloneNoTarget": "デフォルトの Workspace フォルダーが設定されていません。設定で指定してください。",
+    "errorTitle": "検索に失敗しました",
+    "noResultsTitle": "一致するリポジトリはありません",
+    "noResultsSubtitle": "別の検索条件または並べ替えをお試しください。",
+    "resultsCount": "{{total}} 件中 {{shown}} 件のリポジトリ",
+    "partial": "（一部のみ — 検索がタイムアウトしました）",
+    "sort": {
+      "bestMatch": "関連度順",
+      "stars": "スター数",
+      "updated": "更新日時順",
+      "forks": "フォーク数"
+    }
   },
   "workstation": {
     "dockFilter": {

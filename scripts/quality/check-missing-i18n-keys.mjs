@@ -2,7 +2,7 @@
  * Missing i18n Keys Detector
  *
  * Compares English (source-of-truth) locale keys against all other locales
- * and reports keys that exist in English but are missing in other languages.
+ * and reports missing keys plus interpolation-placeholder mismatches.
  *
  * Usage:
  *   node scripts/quality/check-missing-i18n-keys.mjs [--namespace market] [--fix]
@@ -12,13 +12,10 @@
  *   --fix             Copy missing keys from English into other locale files
  *   --verbose         Show all keys, not just missing ones
  */
-import { readFileSync, writeFileSync, readdirSync } from "fs";
-import { join, basename } from "path";
+import { readFileSync, readdirSync, writeFileSync } from "fs";
+import { basename, join } from "path";
 
-const LOCALES_DIR = join(
-  import.meta.dirname,
-  "../../src/i18n/locales"
-);
+const LOCALES_DIR = join(import.meta.dirname, "../../src/i18n/locales");
 
 const SOURCE_LANG = "en";
 
@@ -29,9 +26,85 @@ const nsFilter = args.includes("--namespace")
 const shouldFix = args.includes("--fix");
 const verbose = args.includes("--verbose");
 
+function findDuplicateJsonKeys(text) {
+  const duplicates = [];
+  let index = text.charCodeAt(0) === 0xfeff ? 1 : 0;
+
+  const skipWhitespace = () => {
+    while (/\s/.test(text[index] ?? "")) index++;
+  };
+
+  const parseString = () => {
+    const start = index++;
+    while (index < text.length) {
+      if (text[index] === "\\") {
+        index += 2;
+      } else if (text[index++] === '"') {
+        return JSON.parse(text.slice(start, index));
+      }
+    }
+    throw new Error("Unterminated JSON string");
+  };
+
+  const parseValue = (path) => {
+    skipWhitespace();
+    if (text[index] === "{") return parseObject(path);
+    if (text[index] === "[") return parseArray(path);
+    if (text[index] === '"') return void parseString();
+    while (index < text.length && !/[\]},]/.test(text[index])) index++;
+  };
+
+  const parseObject = (path) => {
+    index++;
+    skipWhitespace();
+    const seen = new Set();
+    while (index < text.length && text[index] !== "}") {
+      const key = parseString();
+      const keyPath = path ? `${path}.${key}` : key;
+      if (seen.has(key)) duplicates.push(keyPath);
+      seen.add(key);
+      skipWhitespace();
+      if (text[index++] !== ":") throw new Error(`Expected ':' at ${keyPath}`);
+      parseValue(keyPath);
+      skipWhitespace();
+      if (text[index] === ",") {
+        index++;
+        skipWhitespace();
+      } else if (text[index] !== "}") {
+        throw new Error(`Expected ',' or '}' at ${keyPath}`);
+      }
+    }
+    index++;
+  };
+
+  const parseArray = (path) => {
+    index++;
+    skipWhitespace();
+    let itemIndex = 0;
+    while (index < text.length && text[index] !== "]") {
+      parseValue(`${path}[${itemIndex++}]`);
+      skipWhitespace();
+      if (text[index] === ",") {
+        index++;
+        skipWhitespace();
+      } else if (text[index] !== "]") {
+        throw new Error(`Expected ',' or ']' at ${path}`);
+      }
+    }
+    index++;
+  };
+
+  parseValue("");
+  return duplicates;
+}
+
 // Locale files may carry a UTF-8 BOM; strip it so JSON.parse doesn't choke.
 function readJson(filePath) {
-  return JSON.parse(readFileSync(filePath, "utf-8").replace(/^﻿/, ""));
+  const text = readFileSync(filePath, "utf-8");
+  return {
+    data: JSON.parse(text.replace(/^﻿/, "")),
+    duplicateKeys: findDuplicateJsonKeys(text),
+  };
 }
 
 function flattenKeys(obj, prefix = "") {
@@ -45,6 +118,17 @@ function flattenKeys(obj, prefix = "") {
     }
   }
   return keys;
+}
+
+function getPlaceholders(value) {
+  if (typeof value !== "string") return [];
+  return [
+    ...new Set(
+      [...value.matchAll(/\{\{\s*([^},\s]+)[^}]*\}\}/g)].map(
+        (match) => match[1]
+      )
+    ),
+  ].sort();
 }
 
 function getNestedValue(obj, keyPath) {
@@ -80,13 +164,23 @@ const namespaceFiles = readdirSync(sourceDir)
   .map((fileName) => basename(fileName, ".json"));
 
 let totalMissing = 0;
+let totalPlaceholderMismatches = 0;
+let totalDuplicateKeys = 0;
+let totalInvalidFiles = 0;
 let totalFixed = 0;
 
 for (const ns of namespaceFiles) {
   if (nsFilter && ns !== nsFilter) continue;
 
   const enPath = join(sourceDir, `${ns}.json`);
-  const enData = readJson(enPath);
+  const { data: enData, duplicateKeys: enDuplicateKeys } = readJson(enPath);
+  if (enDuplicateKeys.length > 0) {
+    console.log(
+      `\n  en/${ns}.json — ${enDuplicateKeys.length} duplicate key(s):`
+    );
+    for (const key of enDuplicateKeys) console.log(`    - ${key}`);
+    totalDuplicateKeys += enDuplicateKeys.length;
+  }
   const enKeys = flattenKeys(enData);
 
   let nsMissing = 0;
@@ -94,20 +188,38 @@ for (const ns of namespaceFiles) {
   for (const lang of languages) {
     const langPath = join(LOCALES_DIR, lang, `${ns}.json`);
     let langData;
+    let duplicateKeys;
     try {
-      langData = readJson(langPath);
+      ({ data: langData, duplicateKeys } = readJson(langPath));
     } catch {
       console.error(`  ✗ ${lang}/${ns}.json — file missing or invalid`);
+      totalInvalidFiles++;
       continue;
+    }
+
+    if (duplicateKeys.length > 0) {
+      console.log(
+        `\n  ${lang}/${ns}.json — ${duplicateKeys.length} duplicate key(s):`
+      );
+      for (const key of duplicateKeys) console.log(`    - ${key}`);
+      totalDuplicateKeys += duplicateKeys.length;
     }
 
     const langKeys = new Set(flattenKeys(langData));
     const missing = enKeys.filter((key) => !langKeys.has(key));
+    const placeholderMismatches = enKeys
+      .filter((key) => langKeys.has(key))
+      .map((key) => {
+        const expected = getPlaceholders(getNestedValue(enData, key));
+        const actual = getPlaceholders(getNestedValue(langData, key));
+        return { key, expected, actual };
+      })
+      .filter(
+        ({ expected, actual }) => expected.join("|") !== actual.join("|")
+      );
 
     if (missing.length > 0) {
-      console.log(
-        `\n  ${lang}/${ns}.json — ${missing.length} missing key(s):`
-      );
+      console.log(`\n  ${lang}/${ns}.json — ${missing.length} missing key(s):`);
       for (const key of missing) {
         const enValue = getNestedValue(enData, key);
         console.log(`    - ${key}: ${JSON.stringify(enValue)}`);
@@ -121,10 +233,24 @@ for (const ns of namespaceFiles) {
 
       if (shouldFix && missing.length > 0) {
         writeFileSync(langPath, JSON.stringify(langData, null, 2) + "\n");
-        console.log(`    → Fixed: wrote ${missing.length} key(s) to ${lang}/${ns}.json`);
+        console.log(
+          `    → Fixed: wrote ${missing.length} key(s) to ${lang}/${ns}.json`
+        );
       }
     } else if (verbose) {
       console.log(`  ✓ ${lang}/${ns}.json — all ${enKeys.length} keys present`);
+    }
+
+    if (placeholderMismatches.length > 0) {
+      console.log(
+        `\n  ${lang}/${ns}.json — ${placeholderMismatches.length} placeholder mismatch(es):`
+      );
+      for (const { key, expected, actual } of placeholderMismatches) {
+        console.log(
+          `    - ${key}: expected [${expected.join(", ")}], found [${actual.join(", ")}]`
+        );
+      }
+      totalPlaceholderMismatches += placeholderMismatches.length;
     }
 
     const extraKeys = [...langKeys].filter((key) => !enKeys.includes(key));
@@ -146,10 +272,20 @@ for (const ns of namespaceFiles) {
 
 console.log(`\n${"═".repeat(50)}`);
 console.log(`Total missing: ${totalMissing}`);
+console.log(`Placeholder mismatches: ${totalPlaceholderMismatches}`);
+console.log(`Duplicate keys: ${totalDuplicateKeys}`);
+console.log(`Invalid files: ${totalInvalidFiles}`);
 if (shouldFix) {
   console.log(`Total fixed: ${totalFixed} (copied English value)`);
 }
 if (totalMissing > 0 && !shouldFix) {
   console.log(`Run with --fix to copy English values into missing slots.`);
+}
+if (
+  totalMissing > 0 ||
+  totalPlaceholderMismatches > 0 ||
+  totalDuplicateKeys > 0 ||
+  totalInvalidFiles > 0
+) {
   process.exit(1);
 }

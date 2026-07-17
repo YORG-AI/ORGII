@@ -6,6 +6,7 @@
     "dbManager": "數據庫管理",
     "economy": "經濟",
     "sourceControl": "原始碼控制",
+    "openSourceRepo": "開啟開放原始碼 Repo",
     "startSession": "開始會話",
     "newSession": "新建會話",
     "quickstart": "快速開始",
@@ -146,6 +147,8 @@
     },
     "folderCounts": {
       "repo": "{{count}}個倉庫",
+      "repo_plural": "{{count}} 個 Repo",
+      "multiRepoWorkspace_plural": "{{count}} 個多 Repo 工作區",
       "multiRepoWorkspace": "{{count}}個多倉庫工作區"
     },
     "bottomBar": {
@@ -425,6 +428,26 @@
     "addWorkspace": "新增工作區"
   },
   "explore": {
+    "search": "搜尋",
+    "searching": "搜尋中...",
+    "searchPlaceholder": "搜尋 GitHub Repo（例如 language:rust tauri）",
+    "clone": "Clone",
+    "cloning": "正在 Clone...",
+    "openOnGithub": "GitHub",
+    "cloneSuccess": "已 Clone {{name}}",
+    "cloneFailed": "Clone 失敗",
+    "cloneNoTarget": "尚未設定預設工作區資料夾。請前往設定進行設定。",
+    "errorTitle": "搜尋失敗",
+    "noResultsTitle": "沒有符合的 Repo",
+    "noResultsSubtitle": "請嘗試其他查詢或排序方式。",
+    "resultsCount": "顯示 {{shown}} / {{total}} 個 Repo",
+    "partial": "（部分結果 — 搜尋逾時）",
+    "sort": {
+      "bestMatch": "最佳相符項目",
+      "stars": "星標數",
+      "updated": "最近更新",
+      "forks": "Forks"
+    },
     "title": "探索"
   },
   "workstation": {

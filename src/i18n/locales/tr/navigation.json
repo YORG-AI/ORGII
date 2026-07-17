@@ -1,5 +1,6 @@
 {
   "labels": {
+    "openSourceRepo": "Açık kaynak deposu",
     "devRecord": "Geliştirme Kaydı",
     "workItems": "İş Öğeleri",
     "codeSearch": "Kod Arama",
@@ -144,6 +145,8 @@
       "colleagues": "Ekip arkadaşlarını ara..."
     },
     "folderCounts": {
+      "repo_plural": "{{count}} depo",
+      "multiRepoWorkspace_plural": "{{count}} çoklu depo çalışma alanı",
       "repo": "{{count}} Repo",
       "multiRepoWorkspace": "{{count}} çoklu repo Workspace"
     },
@@ -333,6 +336,26 @@
     "addWorkspace": "Workspace ekle"
   },
   "explore": {
+    "search": "Ara",
+    "searching": "Aranıyor...",
+    "searchPlaceholder": "GitHub depolarında ara (ör. language:rust tauri)",
+    "clone": "Klonla",
+    "cloning": "Klonlanıyor...",
+    "openOnGithub": "GitHub",
+    "cloneSuccess": "{{name}} klonlandı",
+    "cloneFailed": "Klonlama başarısız",
+    "cloneNoTarget": "Varsayılan çalışma alanı klasörü yapılandırılmamış. Ayarlar’dan belirleyin.",
+    "errorTitle": "Arama başarısız",
+    "noResultsTitle": "Eşleşen depo bulunamadı",
+    "noResultsSubtitle": "Farklı bir sorgu veya sıralama deneyin.",
+    "resultsCount": "{{total}} depodan {{shown}} tanesi",
+    "partial": "(kısmi — arama zaman aşımına uğradı)",
+    "sort": {
+      "bestMatch": "En iyi eşleşme",
+      "stars": "Yıldızlar",
+      "updated": "Son güncellenen",
+      "forks": "Forklar"
+    },
     "title": "Keşfet"
   },
   "workstation": {

@@ -1,4 +1,9 @@
 {
+  "canvasApp": {
+    "empty": "Nenhum canvas renderizado ainda",
+    "sidebarTitle": "Canvas",
+    "noCanvases": "Nenhum canvas ainda"
+  },
   "toolUsage": {
     "estimatedContext": "{{tokenCount}} Token de contexto",
     "followup": "{{tokenCount}} Token follow-up",
@@ -89,6 +94,8 @@
       "dataSource": "Fontes de dados"
     },
     "dataSource": {
+      "rescanUpdate": "Atualizar",
+      "rescanClear": "Limpar e verificar novamente",
       "title": "Fontes de dados",
       "description": "Ferramentas de programação externas que o ORGII detecta. Apps importáveis mostram sua contagem de sessões e podem ser reescaneados; o restante mostra o status de instalação e onde fica seu histórico.",
       "rescanAll": "Reescanear tudo",
@@ -195,6 +202,8 @@
       "cancelled": "Falhou"
     },
     "sidebar": {
+      "githubIssues": "Issues do GitHub",
+      "githubPrs": "PRs do GitHub",
       "agentTypes": "Tipos de Agent",
       "manageItems": "Gerenciar itens",
       "sessionsView": "Sessions View",
@@ -330,6 +339,16 @@
       "tasksWillAppear": "As tarefas aparecerão aqui quando o trabalho começar nesta sessão"
     },
     "replay": {
+      "filters": {
+        "tooltip": "Filtrar eventos",
+        "allEvents": "Todos os eventos",
+        "keyInteractions": "Interações principais",
+        "fileChanges": "Alterações de arquivos",
+        "terminalEvents": "Eventos do terminal",
+        "explore": "Explorar",
+        "other": "Outros",
+        "selectedCount": "{{count}} filtros"
+      },
       "following": "Acompanhando",
       "followingApp": "Acompanhando: {{appName}}",
       "followingAgent": "Acompanhando Agent",
@@ -441,6 +460,16 @@
         "emptyForFilter": "Ainda não há Diffs",
         "emptyDetail": "Selecione uma alteração para ver o Diff.",
         "submissions": {
+          "labels": {
+            "created": {
+              "commit": "Commit criado",
+              "pullRequest": "PR criado"
+            },
+            "mentioned": {
+              "commit": "Commit mencionado",
+              "pullRequest": "PR mencionado"
+            }
+          },
           "tabLabel": "Submissões",
           "commits": "Commits",
           "pr": "PR",
@@ -702,6 +731,10 @@
     "loading": "Carregando editor..."
   },
   "input": {
+    "pr": {
+      "open": "Abrir PR",
+      "creating": "Criando PR…"
+    },
     "editPlaceholder": "Edite sua mensagem...",
     "defaultPlaceholder": "Conversar com o Agent",
     "finishNextStep": "Concluir. Próximo passo!",
@@ -727,6 +760,7 @@
     "selectedOf": "{{selected}} de {{total}} selecionados"
   },
   "chat": {
+    "restoreCheckpoint": "Restaurar checkpoint",
     "planApprovedLabel": "Executando plano aprovado",
     "planApprovedEditedLabel": "Executando plano aprovado (editado)",
     "sessionStarted": "Sessão iniciada",
@@ -1935,6 +1969,7 @@
     "branchesTouched": "Branches"
   },
   "modelPill": {
+    "appliesNextTurn": "Conta alterada. A resposta atual ainda usa a conta anterior; a nova conta será aplicada a partir da próxima rodada.",
     "immutableInSession": "A origem da chave, o tipo de Agent e o nível de preço são fixados no início da sessão. Inicie uma nova sessão para alterá-los."
   },
   "creator": {
@@ -2579,6 +2614,7 @@
       "title": "Ver detalhes da tarefa"
     },
     "list": {
+      "countLabel": "Tarefas",
       "title": "Ver lista de tarefas",
       "count": "{{taskCount}} tarefas",
       "empty": "Nenhuma tarefa"
@@ -2620,6 +2656,9 @@
     }
   },
   "cards": {
+    "session": {
+      "open": "Abrir sessão"
+    },
     "openFile": "Abrir no editor",
     "openLink": "Abrir link",
     "broadcast": "→ Todos os agentes",
@@ -2697,6 +2736,9 @@
     "iframeTitle": "Pré-visualização de código"
   },
   "canvasCard": {
+    "reactDisabledTitle": "A pré-visualização React é executada no Simulador",
+    "reactDisabledDescription": "O JavaScript do Agent não é executado no chat. Abra-o no Simulador para executar a pré-visualização React em sandbox.",
+    "viewInSimulator": "Ver no Simulador",
     "titleHtml": "Pré-visualização do Agent",
     "titleUrl": "Pré-visualização do Agent",
     "titleA2ui": "Pré-visualização do Agent",

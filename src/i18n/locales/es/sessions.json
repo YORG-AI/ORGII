@@ -139,7 +139,9 @@
         "installed": "Instalado",
         "notInstalled": "No detectado",
         "disabled": "Desactivado"
-      }
+      },
+      "rescanUpdate": "Actualizar",
+      "rescanClear": "Limpiar y volver a escanear"
     },
     "list": {
       "updated": "Actualizado",
@@ -198,7 +200,9 @@
       "rustAgent": "Rust Agent",
       "removeDraft": "Eliminar borrador",
       "showSubagents": "Mostrar subagentes",
-      "hideSubagents": "Ocultar subagentes"
+      "hideSubagents": "Ocultar subagentes",
+      "githubIssues": "Incidencias de GitHub",
+      "githubPrs": "Pull requests de GitHub"
     },
     "resultStatus": {
       "completed": "Completado",
@@ -441,7 +445,17 @@
           "empty": "Aún no hay envíos",
           "selectSubmission": "Selecciona un envío para ver los detalles",
           "noCommits": "Aún no hay Commits",
-          "noPullRequests": "Aún no hay Pull Requests"
+          "noPullRequests": "Aún no hay Pull Requests",
+          "labels": {
+            "created": {
+              "commit": "Commit creado",
+              "pullRequest": "Pull request creado"
+            },
+            "mentioned": {
+              "commit": "Commit mencionado",
+              "pullRequest": "Pull request mencionado"
+            }
+          }
         }
       },
       "channelsSidebar": {
@@ -608,7 +622,17 @@
       "trajectoryThisApp": "Seguir esta app",
       "followAgent": "Seguir al Agent",
       "followThisApp": "Seguir esta app",
-      "followApp": "Seguir {{appName}}"
+      "followApp": "Seguir {{appName}}",
+      "filters": {
+        "tooltip": "Filtrar eventos",
+        "allEvents": "Todos los eventos",
+        "keyInteractions": "Interacciones clave",
+        "fileChanges": "Cambios en archivos",
+        "terminalEvents": "Eventos del terminal",
+        "explore": "Explorar",
+        "other": "Otros",
+        "selectedCount": "{{count}} filtros"
+      }
     },
     "codeEditor": {
       "switchToListView": "Cambiar a vista de lista",
@@ -721,7 +745,11 @@
       "insert": "Insertar"
     },
     "compactArgHint": "<enfoque opcional para el resumen>",
-    "compactCommandDescription": "Resume el contexto anterior para liberar espacio. Opcional: /compact <enfoque del resumen>"
+    "compactCommandDescription": "Resume el contexto anterior para liberar espacio. Opcional: /compact <enfoque del resumen>",
+    "pr": {
+      "open": "Abrir pull request",
+      "creating": "Creando pull request…"
+    }
   },
   "listPanel": {
     "showingOf": "Mostrando {{filtered}} de {{total}}",
@@ -1046,7 +1074,8 @@
         "filters": "Filters",
         "openInGitHub": "Open in GitHub"
       }
-    }
+    },
+    "restoreCheckpoint": "Restaurar punto de control"
   },
   "chatStatus": {
     "approved": "Aprobado",
@@ -1920,7 +1949,8 @@
     "branchesTouched": "Ramas"
   },
   "modelPill": {
-    "immutableInSession": "La fuente de clave, el tipo de Agent y el nivel de precio se fijan al iniciar la sesión. Inicia una nueva sesión para cambiarlos."
+    "immutableInSession": "La fuente de clave, el tipo de Agent y el nivel de precio se fijan al iniciar la sesión. Inicia una nueva sesión para cambiarlos.",
+    "appliesNextTurn": "Cuenta cambiada. La respuesta actual sigue ejecutándose con la cuenta anterior; la nueva cuenta se aplicará a partir del próximo turno."
   },
   "creator": {
     "createTarget": {
@@ -2582,7 +2612,8 @@
     "list": {
       "title": "Ver lista de tareas",
       "count": "{{taskCount}} tareas",
-      "empty": "Sin tareas"
+      "empty": "Sin tareas",
+      "countLabel": "Tareas"
     },
     "statusLabel": "Estado",
     "assignedBadge": "Asignado",
@@ -2684,6 +2715,9 @@
       "directory": "Directorio",
       "file": "Archivo",
       "emptyDirectory": "Directorio vacío"
+    },
+    "session": {
+      "open": "Abrir sesión"
     }
   },
   "codePreview": {
@@ -2708,6 +2742,14 @@
     "close": "Cerrar",
     "summarize": "Resumir con Agent",
     "waiting": "Esperando contenido…",
-    "empty": "Sin contenido"
+    "empty": "Sin contenido",
+    "reactDisabledTitle": "La vista previa de React se ejecuta en el simulador",
+    "reactDisabledDescription": "El JavaScript del agente no se ejecuta dentro del chat. Ábrelo en el simulador para ejecutar la vista previa de React en un entorno aislado.",
+    "viewInSimulator": "Ver en el simulador"
+  },
+  "canvasApp": {
+    "empty": "Aún no se ha renderizado ningún lienzo",
+    "sidebarTitle": "Lienzos",
+    "noCanvases": "Aún no hay lienzos"
   }
 }

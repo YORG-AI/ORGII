@@ -1,10 +1,45 @@
 {
+  "gitProfiles": {
+    "tab": "Git profilleri",
+    "title": "Git profilleri",
+    "add": "Profil ekle",
+    "refresh": "Profilleri yenile",
+    "refreshed": "Genel Git profili yenilendi",
+    "loading": "Genel Git profiliniz yükleniyor…",
+    "defaultProfile": "Varsayılan profil",
+    "newProfile": "Yeni profil",
+    "copyName": "{{name}} kopyası",
+    "profileName": "Profil adı",
+    "authorName": "Yazar adı",
+    "email": "E-posta",
+    "selectEmail": "E-posta seçin",
+    "signingKey": "İmzalama anahtarı",
+    "signingKeyPlaceholder": "GPG veya SSH imzalama anahtarı kimliği",
+    "signCommits": "Commitleri imzala",
+    "active": "Etkin",
+    "activate": "Profili etkinleştir",
+    "activated": "{{name}} artık genel Git profili",
+    "editRaw": "Ham yapılandırmayı düzenle",
+    "hideRaw": "Ham yapılandırmayı gizle",
+    "rawTitle": "Ham Git profili",
+    "rawConfig": "Git yapılandırması",
+    "updateFromRaw": "Profili yapılandırmadan güncelle",
+    "rawUpdated": "Profil ham Git yapılandırmasından güncellendi",
+    "rawInvalid": "Ham Git profili geçersiz",
+    "nameEmailRequired": "Yazar adı ve e-posta zorunludur",
+    "deleteTitle": "Git profilini sil",
+    "deleteMessage": "“{{name}}” profili silinsin mi? Bu işlem geçerli genel Git yapılandırmanızı değiştirmez.",
+    "loadFailed": "Genel Git profili yüklenemedi",
+    "applyFailed": "Git profili etkinleştirilemedi"
+  },
   "scopeLabels": {
     "user": "User",
     "repoSpecific": "Repo-specific",
     "builtIn": "Yerleşik"
   },
   "keyVault": {
+    "confirmRemoveActiveSessions_one": "{{count}} etkin oturum hâlâ bu hesabı kullanıyor ve sonraki turunda başarısız olacak:",
+    "confirmRemoveActiveSessions_other": "{{count}} etkin oturum hâlâ bu hesabı kullanıyor ve sonraki turlarında başarısız olacak:",
     "title": "Modeller & CLI",
     "overview": {
       "helpMyAccounts": "API anahtarları ekleyin ve CLI aracılarını yapılandırın. Anahtarlar yalnızca yerelde saklanır ve cihazınızdan çıkmaz.",
@@ -29,10 +64,13 @@
     "confirmDeleteTitle": "\"{{name}}\" silinsin mi?",
     "confirmDeleteMessage": "Bu liste pazar yerinden kalıcı olarak silinecek.",
     "toasts": {
+      "refreshedDelta": "Modeller yenilendi: +{{added}} eklendi, -{{removed}} kaldırıldı",
+      "refreshedNoChange": "Modeller yenilendi — değişiklik yok",
+      "refreshPartial": "Modeller yenilendi (+{{added}} / -{{removed}}), ancak {{total}} hesaptan {{failed}} tanesi başarısız oldu",
       "refreshed": "{{name}} başarıyla yenilendi",
       "refreshFailed": "{{name}} doğrulama başarısız - kimlik bilgilerini kontrol edin",
       "allRefreshed": "Tüm hesaplar yenilendi",
-      "refreshError": "{{name}} yenilenemedi",
+      "refreshError": "{{name}} yenilenemedi: {{error}}",
       "localRemoved": "{{name}} kaldırıldı",
       "unlistPending": "{{name}} listeden çıkarma istendi. Aktif Session sona erdiğinde kaldırılacak.",
       "listingRemoved": "{{name}} pazar yerinden kaldırıldı",
@@ -1009,6 +1047,7 @@
     "allImported": "Algılanan tüm MCP servers zaten içe aktarıldı"
   },
   "categories": {
+    "housekeeper": "MiniCPM Bakımcısı",
     "git": "Git",
     "gitDesc": "Sürüm kontrolü ve depo barındırma",
     "channels": "Agent Channels",
@@ -1272,6 +1311,8 @@
     "smitheryApiKeyDesc": "Smithery'de MCP sunucularını taramak için API key. Get your key at smithery.ai/account/api-keys"
   },
   "git": {
+    "autoCreatePr": "Pull request’leri otomatik oluştur",
+    "autoCreatePrDesc": "Bir özellik dalı tamamen push edilmiş ve temiz olduğunda Workstation Kaynak Denetimi’nde otomatik olarak pull request oluştur",
     "searchPlaceholder": "Git sağlayıcılarını ara...",
     "connections": "Git Bağlantıları",
     "noProvidersFound": "Git sağlayıcısı bulunamadı",
@@ -1575,6 +1616,35 @@
     "deleteConfirmMessage": "Bu işlem sunucuyu yapılandırma dosyasından kaldıracaktır. Aktif oturumlar kesilecektir."
   },
   "agentOrgs": {
+    "cliManagedConfig": {
+      "title": "CLI yapılandırma geçişi",
+      "modeLabel": "Mod",
+      "modeDesc": "Varsayılan, CLI’ın kendi yapılandırmasını geri yükler. ORGII Yönetimli, yedeği alınmış bir proxy yapılandırması yazar.",
+      "modeDefault": "Varsayılan",
+      "modeOrgii": "ORGII Yönetimli",
+      "conflict": "Harici değişiklik",
+      "conflictTitle": "Çakışma",
+      "conflictDesc": "Etkin CLI yapılandırması ORGII tarafından yazıldıktan sonra değişti.",
+      "proxyStatus": "Proxy",
+      "proxyDefault": "Varsayılan mod",
+      "proxyReady": "Proxy hazır",
+      "proxyNotReady": "Proxy hazır değil",
+      "proxyDesc": "Yerel istekler ORGII KeyVault üzerinden yönlendirilir.",
+      "keyLabel": "Anahtar",
+      "keyDesc": "Yalnızca bu CLI ve yönetilen proxy ile uyumlu API anahtarları gösterilir.",
+      "selectKey": "Anahtar seçin",
+      "modelLabel": "Model",
+      "selectModel": "Model seçin",
+      "configFile": "Yapılandırma dosyaları",
+      "actions": "Eylemler",
+      "addKey": "Anahtar ekle",
+      "apply": "Uygula",
+      "restore": "Varsayılanı geri yükle",
+      "forceApply": "Zorla uygula",
+      "forceRestore": "Zorla geri yükle",
+      "applySuccess": "ORGII yönetimli yapılandırma uygulandı",
+      "restoreSuccess": "Varsayılan yapılandırma geri yüklendi"
+    },
     "title": "Agent ekipleri",
     "running": "Çalışıyor",
     "fires": "tetikleme",
@@ -2357,6 +2427,7 @@
     }
   },
   "devTools": {
+    "modeSessionLink": "Oturum bağlantısı",
     "mode": "Mod",
     "modeUi": "UI Önizleme",
     "modeTool": "Araçlar",
@@ -2543,6 +2614,51 @@
     }
   },
   "housekeeper": {
+    "eyebrow": "MiniCPM Yerleşik Bakımcı",
+    "title": "Yerleşik Bakımcı",
+    "description": "Yerel MiniCPM; istem iyileştirme, kısa adım açıklamaları ve hafif kullanıcı arayüzü denetimini üstlenir. Kodlama görevleri ve karmaşık ADE kurulumu ana agent modelini kullanmaya devam eder.",
+    "autoAccount": "MiniCPM vLLM hesabını otomatik seç",
+    "tiles": {
+      "model": "Model",
+      "endpoint": "Uç nokta",
+      "safeContext": "Güvenli bağlam"
+    },
+    "settings": {
+      "enabled": {
+        "title": "Bakımcıyı etkinleştir",
+        "description": "Devre dışıyken istem iyileştirme, adım açıklamaları ve hafif kullanıcı arayüzü denetimi MiniCPM kullanmaz."
+      },
+      "account": {
+        "title": "vLLM MiniCPM hesabı",
+        "description": "Mevcut bir KeyVault vllm_api hesabını yeniden kullanır; ayrı bir kimlik bilgisi deposu oluşturulmaz."
+      },
+      "model": {
+        "title": "Model kimliği",
+        "description": "Docker vLLM MiniCPM5-1B varsayılan olarak openbmb/MiniCPM5-1B kullanır."
+      },
+      "context": {
+        "title": "Güvenli bağlam bütçesi",
+        "description": "Teorik 32k sınırına güvenmek yerine 4 GB GPU’larda ölçülü bir 10000 token bütçesi kullanın."
+      }
+    },
+    "features": {
+      "promptPolish": {
+        "title": "İstem iyileştirme",
+        "description": "Daha güçlü kodlama modeline göndermeden önce girdiyi manuel olarak iyileştirin."
+      },
+      "stepExplain": {
+        "title": "Agent adımı açıklamaları",
+        "description": "Oturum tekrarındaki adımlar için bir veya iki kısa Çince açıklama oluşturun."
+      },
+      "uiControl": {
+        "title": "Hafif ADE/UI denetimi",
+        "description": "MiniCPM istekleri yalnızca katı bir yerel eylem izin listesine göre sınıflandırabilir."
+      },
+      "contextCompact": {
+        "title": "Otomatik bağlam bakımı",
+        "description": "Etkin oturumlar boşta olduğunda MiniCPM’in eski bağlamın yalıtılmış, sürekli bir özetini tutmasına izin verin."
+      }
+    },
     "addModel": "Model Ekle",
     "sections": {
       "configuration": "Yapılandırma",
@@ -2550,6 +2666,13 @@
       "diagnostics": "Tanılama"
     },
     "health": {
+      "title": "Durum denetimi",
+      "idle": "/v1/models uç noktasını denetler ve küçük bir sohbet isteği gönderir.",
+      "checking": "Yerel vLLM MiniCPM hizmeti denetleniyor...",
+      "checkButton": "Bağlantıyı denetle",
+      "configureFirst": "Önce bir vLLM MiniCPM hesabı yapılandırın.",
+      "connectedTo": "{{baseUrl}} adresine bağlandı",
+      "failed": "MiniCPM durum denetimi başarısız.",
       "status": "Kontrol edilmedi"
     },
     "benchmark": {

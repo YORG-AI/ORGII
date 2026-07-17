@@ -93,6 +93,9 @@
       "description": "ORGII 偵測到的外部程式設計工具。可匯入的應用程式會顯示工作階段數量並可重新掃描；其餘僅顯示安裝狀態和歷史記錄所在位置。",
       "rescanAll": "全部重新掃描",
       "rescan": "重新掃描",
+      "rescanUpdate": "更新",
+      "rescanClear": "清除並重新掃描",
+      "sessions_one": "{{count}} 個 Session",
       "rescanning": "正在重新掃描…",
       "enable": "啟用",
       "disable": "停用",
@@ -197,6 +200,8 @@
       "rustAgent": "Rust Agent",
       "removeDraft": "刪除草稿",
       "showSubagents": "顯示子代理",
+      "githubIssues": "GitHub Issues",
+      "githubPrs": "GitHub PRs",
       "hideSubagents": "隱藏子代理"
     },
     "resultStatus": {
@@ -338,6 +343,16 @@
       "followThisApp": "跟隨當前應用",
       "followApp": "跟隨 {{appName}}",
       "freeBrowsing": "自由瀏覽",
+      "filters": {
+        "tooltip": "篩選事件",
+        "allEvents": "所有事件",
+        "keyInteractions": "重要互動",
+        "fileChanges": "檔案變更",
+        "terminalEvents": "Terminal 事件",
+        "explore": "探索",
+        "other": "其他",
+        "selectedCount": "{{count}} 個篩選條件"
+      },
       "replaying": "回放中",
       "freeBrowse": "自由瀏覽",
       "follow": "跟隨",
@@ -447,6 +462,16 @@
           "empty": "暫無提交",
           "selectSubmission": "選擇一項提交以查看詳情",
           "noCommits": "暫無 Commits",
+          "labels": {
+            "created": {
+              "commit": "已建立 commit",
+              "pullRequest": "已建立 PR"
+            },
+            "mentioned": {
+              "commit": "已提及 commit",
+              "pullRequest": "已提及 PR"
+            }
+          },
           "noPullRequests": "暫無 Pull Requests"
         }
       },
@@ -737,6 +762,7 @@
     "contentCopied": "內容複製！",
     "failedToCopyContent": "複製內容失敗",
     "regenerate": "重新生成",
+    "restoreCheckpoint": "還原檢查點",
     "copyTurn": "複製對話",
     "exportAsMarkdown": "匯出為 Markdown",
     "exportSuccess": "會話匯出！",
@@ -1923,6 +1949,7 @@
     "branchesTouched": "分支"
   },
   "modelPill": {
+    "appliesNextTurn": "帳號已切換。目前的回覆仍使用先前帳號；新帳號將從下一輪開始生效。",
     "immutableInSession": "密鑰來源、Agent 類型和價格檔位在會話啓動時已固定。如需更改請新建會話。"
   },
   "creator": {
@@ -2585,6 +2612,7 @@
     "list": {
       "title": "查看任務列表",
       "count": "{{taskCount}} 個任務",
+      "countLabel": "任務",
       "empty": "暫無任務"
     },
     "statusLabel": "狀態",
@@ -2626,6 +2654,9 @@
   "cards": {
     "openFile": "在編輯器中開啟",
     "openLink": "開啟連結",
+    "session": {
+      "open": "開啟 Session"
+    },
     "broadcast": "→ 所有 Agent",
     "agentMessage": {
       "fallbackTitle": "訊息",
@@ -2711,6 +2742,14 @@
     "close": "關閉",
     "summarize": "讓 Agent 總結",
     "waiting": "等待內容中…",
+    "reactDisabledTitle": "React 預覽會在 Simulator 中執行",
+    "reactDisabledDescription": "聊天中不會執行 Agent JavaScript。請在 Simulator 中開啟，以執行沙箱化的 React 預覽。",
+    "viewInSimulator": "在 Simulator 中檢視",
     "empty": "無內容"
+  },
+  "canvasApp": {
+    "empty": "尚未渲染 Canvas",
+    "sidebarTitle": "畫布",
+    "noCanvases": "尚無 Canvas"
   }
 }

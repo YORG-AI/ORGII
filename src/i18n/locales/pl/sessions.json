@@ -92,6 +92,8 @@
       "title": "Źródła danych",
       "description": "Zewnętrzne narzędzia do kodowania wykrywane przez ORGII. Aplikacje importowalne pokazują liczbę sesji i można je przeskanować ponownie; pozostałe pokazują status instalacji i lokalizację historii.",
       "rescanAll": "Przeskanuj wszystko",
+      "rescanUpdate": "Aktualizuj",
+      "rescanClear": "Wyczyść i przeskanuj ponownie",
       "rescan": "Przeskanuj",
       "rescanning": "Skanowanie…",
       "enable": "Włącz",
@@ -204,7 +206,11 @@
       "views": "Widoki",
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
-      "removeDraft": "Usuń wersję roboczą"
+      "removeDraft": "Usuń wersję roboczą",
+      "githubIssues": "Zgłoszenia GitHub",
+      "githubPrs": "Pull requesty GitHub",
+      "showSubagents": "Pokaż subagentów",
+      "hideSubagents": "Ukryj subagentów"
     },
     "resultStatus": {
       "completed": "Ukończone",
@@ -343,6 +349,16 @@
       "follow": "Śledź",
       "dockShowChatInput": "Pokaż pole wprowadzania czatu",
       "dockHideChatInput": "Ukryj pole wprowadzania czatu",
+      "filters": {
+        "tooltip": "Filtruj zdarzenia",
+        "allEvents": "Wszystkie zdarzenia",
+        "keyInteractions": "Kluczowe interakcje",
+        "fileChanges": "Zmiany w plikach",
+        "terminalEvents": "Zdarzenia terminala",
+        "explore": "Eksploracja",
+        "other": "Inne",
+        "selectedCount": "{{count}} filtrów"
+      },
       "bottomPanel": {
         "tabTrajectory": "Trajektoria",
         "tabTodo": "Lista zadań",
@@ -449,7 +465,17 @@
           "empty": "Brak zgłoszeń",
           "selectSubmission": "Wybierz zgłoszenie, aby zobaczyć szczegóły",
           "noCommits": "Brak Commits",
-          "noPullRequests": "Brak Pull Requests"
+          "noPullRequests": "Brak Pull Requests",
+          "labels": {
+            "created": {
+              "commit": "Utworzono commit",
+              "pullRequest": "Utworzono PR"
+            },
+            "mentioned": {
+              "commit": "Wspomniano commit",
+              "pullRequest": "Wspomniano PR"
+            }
+          }
         }
       },
       "channelsSidebar": {
@@ -722,7 +748,11 @@
       "insert": "Wstaw"
     },
     "compactArgHint": "<opcjonalny nacisk podsumowania>",
-    "compactCommandDescription": "Podsumuj starszy kontekst, aby zwolnić miejsce. Opcjonalnie: /compact <nacisk podsumowania>"
+    "compactCommandDescription": "Podsumuj starszy kontekst, aby zwolnić miejsce. Opcjonalnie: /compact <nacisk podsumowania>",
+    "pr": {
+      "open": "Otwórz PR",
+      "creating": "Tworzenie PR…"
+    }
   },
   "listPanel": {
     "showingOf": "Wyświetlono {{filtered}} z {{total}}",
@@ -732,6 +762,7 @@
     "planApprovedLabel": "Wykonywanie zatwierdzonego planu",
     "planApprovedEditedLabel": "Wykonywanie zatwierdzonego planu (edytowany)",
     "sessionStarted": "Sesja rozpoczęta",
+    "restoreCheckpoint": "Przywróć punkt kontrolny",
     "contentCopied": "Treść skopiowana!",
     "failedToCopyContent": "Nie udało się skopiować treści",
     "regenerate": "Wygeneruj ponownie",
@@ -776,7 +807,9 @@
       "tabs": {
         "work": "Praca",
         "manage": "Zarządzaj",
-        "heatmap": "Trendy"
+        "heatmap": "Trendy",
+        "history": "Historia",
+        "review": "Przegląd"
       },
       "heatmap": {
         "loading": "Ładowanie trendów aktywności…",
@@ -1053,6 +1086,30 @@
         "filters": "Filters",
         "openInGitHub": "Open in GitHub"
       }
+    },
+    "topBar": {
+      "title": "Czat",
+      "newSession": "Nowa sesja"
+    },
+    "mode": {
+      "chat": "Czat",
+      "plan": "Plan",
+      "focus": "Skupienie"
+    },
+    "attachments": {
+      "add": "Dodaj załącznik",
+      "clear": "Wyczyść załączniki",
+      "limitReached": "Osiągnięto limit załączników"
+    },
+    "composer": {
+      "placeholder": "Wpisz wiadomość...",
+      "send": "Wyślij",
+      "cancel": "Anuluj"
+    },
+    "status": {
+      "sending": "Wysyłanie...",
+      "sent": "Wysłano",
+      "failed": "Nie udało się wysłać"
     }
   },
   "chatStatus": {
@@ -1965,7 +2022,8 @@
     "branchesTouched": "Branche"
   },
   "modelPill": {
-    "immutableInSession": "Źródło klucza, typ Agenta i poziom cenowy są ustalane na początku sesji. Aby je zmienić, rozpocznij nową sesję."
+    "immutableInSession": "Źródło klucza, typ Agenta i poziom cenowy są ustalane na początku sesji. Aby je zmienić, rozpocznij nową sesję.",
+    "appliesNextTurn": "Konto zostało przełączone. Bieżąca odpowiedź nadal korzysta z poprzedniego konta; nowe konto zacznie obowiązywać od następnej tury."
   },
   "creator": {
     "createTarget": {
@@ -2611,7 +2669,8 @@
     "list": {
       "title": "Wyświetl listę zadań",
       "count": "{{taskCount}} zadań",
-      "empty": "Brak zadań"
+      "empty": "Brak zadań",
+      "countLabel": "Zadania"
     },
     "statusLabel": "Status",
     "assignedBadge": "Przypisane",
@@ -2650,6 +2709,9 @@
     }
   },
   "cards": {
+    "session": {
+      "open": "Otwórz sesję"
+    },
     "openFile": "Otwórz w edytorze",
     "openLink": "Otwórz link",
     "broadcast": "→ Wszyscy agenci",
@@ -2737,6 +2799,14 @@
     "close": "Zamknij",
     "summarize": "Podsumuj z Agent",
     "waiting": "Oczekiwanie na treść…",
-    "empty": "Brak treści"
+    "empty": "Brak treści",
+    "reactDisabledTitle": "Podgląd React działa w Symulatorze",
+    "reactDisabledDescription": "Kod JavaScript agenta nie jest wykonywany w czacie. Otwórz podgląd w Symulatorze, aby uruchomić React w piaskownicy.",
+    "viewInSimulator": "Wyświetl w Symulatorze"
+  },
+  "canvasApp": {
+    "empty": "Nie wyrenderowano jeszcze żadnego płótna",
+    "sidebarTitle": "Płótna",
+    "noCanvases": "Brak płócien"
   }
 }

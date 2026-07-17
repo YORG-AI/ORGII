@@ -203,6 +203,11 @@
     "addWorkspace": "新增工作區",
     "openSpotlight": "開啟 Spotlight",
     "openWorkspace": "開啟工作區",
+    "newIssue": "新增 Issue",
+    "closeIssue": "關閉 Issue",
+    "reopenIssue": "重新開啟 Issue",
+    "addComment": "新增留言",
+    "editIssue": "編輯 Issue",
     "skipThisVersion": "跳過此版本",
     "later": "稍後",
     "link": "連結"
@@ -417,6 +422,15 @@
     "nearby": "附近",
     "renowned": "知名",
     "dragToReorder": "拖拽調整消息順序",
+    "sendingNow": "正在傳送…",
+    "issues": "Issues",
+    "noIssues": "沒有 Issue",
+    "openIssues": "開啟",
+    "closedIssues": "已關閉",
+    "issueComments": "{{count}} 則留言",
+    "issueComments_one": "1 則留言",
+    "issueComments_other": "{{count}} 則留言",
+    "tokens": "Tokens",
     "sessionBlame": "Session Blame",
     "agentBlame": "Agent Blame",
     "initializeAgentBlame": "Initialize Agent Blame",
@@ -807,6 +821,7 @@
   },
   "placeholders": {
     "loading": "加載中...",
+    "noResults": "沒有結果",
     "selectToViewConfig": "選擇 {{type}} 以查看或配置",
     "selectToViewConfigSubtitle": "從左側列表中選擇一項",
     "noOptions": "無選項",
@@ -1121,6 +1136,9 @@
       "simulatorBrowserNotice": "此瀏覽器僅用於會話回放。持久瀏覽請使用主應用中的瀏覽器（工具 → 瀏覽器）。",
       "tlsDevNote": "說明：部分 HTTPS 網站（如 GitHub）在開發模式下可能因證書校驗出現 TLS 錯誤。請嘗試 HTTP 或 example.com 等簡單 HTTPS 站點。",
       "siteUnreachableTitle": "無法訪問此網站",
+      "embeddedFallbackTitle": "此網站可能無法在嵌入式瀏覽器中運作",
+      "embeddedFallbackBody": "部分網站會封鎖 App WebView 或無法在其中正常顯示。若頁面持續空白，請改用系統瀏覽器開啟。",
+      "currentUrl": "目前 URL",
       "errorTls": "與此站點的連接不安全。HTTPS 站點在開發模式下常會出現此情況。",
       "errorTimeout": "連接超時，服務器響應時間過長。",
       "errorDns": "無法解析服務器 DNS。請檢查網址是否拼寫正確。",
@@ -1211,16 +1229,95 @@
       "conflictedFiles": "衝突文件需要解決",
       "gitAction": "Git 操作"
     },
+    "pr": {
+      "title": "Pull Request",
+      "baseBranch": "基底",
+      "noDescription": "未提供描述。",
+      "loadingConversation": "載入中…",
+      "reviewNoBody": "已留下審查留言。",
+      "commentPlaceholder": "留下留言…",
+      "comment": "留言",
+      "approve": "核准",
+      "requestChanges": "要求變更",
+      "reply": "回覆",
+      "replyPlaceholder": "回覆…",
+      "reviewThreads": "審查留言",
+      "tabs": {
+        "conversation": "對話",
+        "commits": "Commits",
+        "checks": "檢查",
+        "changes": "變更"
+      },
+      "checks": {
+        "none": "沒有回報檢查結果",
+        "noneHint": "此 Pull Request 的最新 commit 未執行 CI 檢查或狀態檢查。",
+        "allPassed": "所有檢查皆已通過",
+        "someFailed": "部分檢查失敗",
+        "pending": "檢查進行中"
+      },
+      "commits": {
+        "backToList": "所有 commits",
+        "none": "沒有 commit"
+      },
+      "changes": {
+        "title": "已變更檔案",
+        "noFiles": "沒有檔案變更",
+        "tooLarge": "檔案過大，無法顯示 diff",
+        "unavailable": "無法取得變更",
+        "unavailableHint": "無法解析 Pull Request 的基底與最新 commit。"
+      },
+      "creating": "正在建立 Pull Request…",
+      "createError": "建立 Pull Request 失敗",
+      "readyHint": "分支已推送，可以建立 Pull Request",
+      "neutralHint": "推送分支以建立 Pull Request",
+      "noBranch": "未選擇分支",
+      "noRepoPath": "沒有可用的 Repo 路徑",
+      "notAuthenticated": "登入後即可建立 Pull Request",
+      "noOriginRemote": "尚未設定 origin remote",
+      "cannotParseRepoName": "無法從 origin remote 解析 Repo 名稱",
+      "status": {
+        "open": "開啟",
+        "merged": "已合併",
+        "closed": "已關閉",
+        "draft": "草稿"
+      },
+      "authRequired": {
+        "title": "連接 GitHub",
+        "description": "前往「設定 → 整合 → Git」連接你的 GitHub 帳號。"
+      }
+    },
     "commit": {
       "copySha": "複製 SHA",
       "shaCopied": "SHA 已複製到剪貼簿"
     },
     "issues": {
+      "title": "Issues",
+      "loading": "正在載入 Issues…",
+      "empty": "沒有{{state}}的 Issue",
+      "failedToLoad": "載入 Issues 失敗",
+      "failedToCreate": "建立 Issue 失敗",
+      "failedToUpdate": "更新 Issue 失敗",
+      "failedToComment": "新增留言失敗",
+      "filterAll": "全部",
+      "filterOpen": "開啟",
+      "filterClosed": "已關閉",
+      "noGitHubRepo": "連接 GitHub Repo 以管理 Issues",
+      "commentPlaceholder": "留下留言…",
+      "submitComment": "留言",
+      "newIssueTitlePlaceholder": "Issue 標題",
+      "newIssueBodyPlaceholder": "描述此 Issue（選填）…",
+      "authRequired": {
+        "title": "連接 GitHub",
+        "description": "前往「設定 → 整合 → Git」連接你的 GitHub 帳號。"
+      },
       "updated": "最後更新",
       "notUpdated": "未更新",
       "assignedTo": "指派給 {{assignees}}",
       "commentCount_one": "{{count}} 則留言",
       "commentCount_other": "{{count}} 則留言",
+      "reAuthRequired": "需要重新授權 GitHub",
+      "reAuthDescription": "你的 GitHub token 已過期。請前往「設定 → 整合 → Git」重新連接。",
+      "goToSettings": "前往設定",
       "status": {
         "open": "開啟",
         "closed": "已關閉",
@@ -1271,6 +1368,7 @@
         "nonCoding": "工作區",
         "pinned": "固定",
         "current": "當前",
+        "recent": "最近",
         "repo": "倉庫",
         "systemPaths": "系統路徑",
         "usedElsewhere": "在其他位置使用",
@@ -1818,6 +1916,13 @@
     "linesByModel": "按模型行數",
     "completed": "已完成",
     "incomplete": "未完成",
+    "cost": "費用",
+    "estimatedCost": "預估費用",
+    "estimated": "預估",
+    "estimatedTooltip": "預估費用 — tokens × 定價（此來源沒有實際計量支出）",
+    "totalEstimatedCost": "預估費用",
+    "viewCost": "費用",
+    "viewTokens": "Tokens",
     "tabs": {
       "overview": "概覽",
       "cursor": "Cursor",
@@ -1973,6 +2078,14 @@
     },
     "sessionFilter": {
       "allSessions": "所有會話"
+    },
+    "scope": {
+      "local": "本機",
+      "main": "主要 checkout",
+      "worktrees": "Worktrees",
+      "searchPlaceholder": "篩選 Worktree…",
+      "switchScope": "切換原始碼控制範圍",
+      "switchScopeActive": "切換原始碼控制範圍：{{repo}}，{{branch}}"
     }
   },
   "contextInfo": {
@@ -1984,6 +2097,11 @@
     "contextShort": "context",
     "estimatedFill": "約 {{pct}}% 已用",
     "ariaLabel": "Context 用量",
+    "cacheSaved": "快取節省：讀取 {{read}}，寫入 {{write}}",
+    "remaining": "可用：剩餘 {{tokens}}",
+    "cacheHero": "{{pct}}% 由快取提供 · 本輪重用約 {{tokens}}",
+    "cacheHeroSub": "Prompt 快取最多可降低 90% 費用",
+    "headroom": "剩餘 {{tokens}} 空間",
     "previewNote": "在會話開始前，根據規則檔案大小預估。",
     "categories": {
       "rules": "Rules",
@@ -2000,8 +2118,11 @@
     "autoCompactNote": "即將自動摘要上下文",
     "compactBoundaryTitle": "上下文已壓縮",
     "compactBoundarySubtitle": "已總結 {{count}} 則較早的訊息",
+    "compactBoundarySubtitle_one": "已總結 {{count}} 則較早的訊息",
+    "compactBoundarySubtitle_other": "已總結 {{count}} 則較早的訊息",
     "compactBoundaryTokens": "{{before}} → {{after}} tokens",
     "startNewSession": "開始新會話",
+    "manualCompactSectionTitle": "手動壓縮",
     "manualCompactAction": "手動壓縮",
     "manualCompactRunning": "壓縮中",
     "manualCompactInProgress": "正在壓縮上下文，完成後再傳送",
@@ -2077,6 +2198,7 @@
     "willInclude": "工作區將包含 {{count}} 個 Repo",
     "statusSelectAtLeastTwo": "請至少選擇 2 個 Repo",
     "statusReadyToCreate": "可以創建工作區",
+    "statusMaxRepos": "最多可選擇 5 個 Repo",
     "defaultName": "工作區",
     "defaultNameWithRepo": "{{repo}} 工作區",
     "windowTitle": "工作區"
@@ -2136,6 +2258,32 @@
       "pickerAllFiles": "所有文件",
       "pickerError": "無法打開選擇器"
     }
+  },
+  "sqlEditor": {
+    "placeholder": "輸入 SQL 查詢...",
+    "format": "格式化",
+    "runQueryToSeeResults": "執行查詢以查看結果",
+    "executingQuery": "正在執行查詢...",
+    "queryFailed": "查詢失敗",
+    "queryCompleted": "查詢完成",
+    "noResults": "查詢未傳回結果",
+    "rowCount_one": "{{count}} 列",
+    "rowCount_other": "{{count}} 列",
+    "press": "按下",
+    "toRun": "以執行",
+    "nullValue": "NULL",
+    "booleanTrue": "true",
+    "booleanFalse": "false"
+  },
+  "uploadZone": {
+    "clickOrDrag": "點擊或將檔案拖曳至此區域上傳",
+    "supportFormats": "支援格式：{{accept}}"
+  },
+  "chatImage": {
+    "maxReached": "最多允許 {{max}} 張圖片",
+    "remainingWarning": "還可新增 {{remaining}} 張圖片（上限 {{max}} 張）",
+    "processFailed": "處理圖片失敗",
+    "loadFailed": "載入圖片失敗：{{fileName}}"
   },
   "dragDrop": {
     "dropFilesToUpload": "拖放文件以上傳",
@@ -2293,11 +2441,31 @@
     "previewAlt": "預覽"
   },
   "update": {
+    "available": "有可用更新",
+    "versionReady": "版本 {{version}} 已可下載。",
+    "upToDateVersion": "ORGII 已是最新版本 (v{{version}})。",
+    "upToDate": "ORGII 已是最新版本。",
+    "checkFailed": "檢查更新失敗",
+    "checking": "正在檢查更新…",
     "downloading": "正在下載更新",
+    "downloadingEllipsis": "正在下載更新…",
+    "downloadingWithSize": "正在下載更新 ({{size}})…",
+    "downloadingDownloaded": "正在下載更新… {{downloaded}}",
+    "downloadingPercent": "正在下載更新… {{percent}}%",
     "installing": "正在安裝更新",
+    "installingEllipsis": "正在安裝更新…",
+    "installed": "更新已安裝",
+    "installFailed": "更新安裝失敗",
+    "downloadTimedOut": "下載逾時。請檢查網路或 Proxy 後重試。",
+    "restarting": "正在重新啟動 ORGII 以完成更新。",
+    "preparingVersion": "正在準備下載 v{{version}}…",
     "progressPercent": "{{percent}}%",
     "downloadedOfTotal": "{{downloaded}} / {{total}}",
     "preparingDownload": "正在準備下載…",
     "downloadingAndInstalling": "正在下載並安裝更新 (v{{version}})…"
+  },
+  "codeViewer": {
+    "original": "原始版本",
+    "modified": "修改後"
   }
 }

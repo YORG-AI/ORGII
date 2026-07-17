@@ -203,7 +203,14 @@
     "openWorkspace": "Workspace 열기",
     "skipThisVersion": "이 버전 건너뛰기",
     "later": "나중에",
-    "link": "연결"
+    "link": "연결",
+    "openOnGitHub": "GitHub에서 열기",
+    "createPullRequest": "풀 리퀘스트 만들기",
+    "newIssue": "새 이슈",
+    "closeIssue": "이슈 닫기",
+    "reopenIssue": "이슈 다시 열기",
+    "addComment": "댓글 추가",
+    "editIssue": "이슈 편집"
   },
   "refreshToast": {
     "successName": "{{name}} 새로고침됨",
@@ -438,7 +445,26 @@
     "appliedCommits": "Applied commits",
     "noAppliedCommit": "No linked commit yet",
     "noSessionsForFile": "No sessions found for this file",
-    "committedRate": "커밋됨"
+    "committedRate": "커밋됨",
+    "noPullRequestForBranch": "이 브랜치에는 아직 풀 리퀘스트가 없습니다.",
+    "creatingPullRequest": "만드는 중…",
+    "failedToLoadPullRequest": "풀 리퀘스트를 불러오지 못했습니다",
+    "noCommitsInPullRequest": "이 풀 리퀘스트에 커밋이 없습니다",
+    "prStatus": {
+      "open": "열림",
+      "merged": "병합됨",
+      "closed": "닫힘",
+      "draft": "초안"
+    },
+    "sendingNow": "지금 전송 중…",
+    "issues": "이슈",
+    "noIssues": "이슈 없음",
+    "openIssues": "열림",
+    "closedIssues": "닫힘",
+    "issueComments": "댓글 {{count}}개",
+    "issueComments_one": "댓글 1개",
+    "issueComments_other": "댓글 {{count}}개",
+    "tokens": "토큰"
   },
   "searchModes": {
     "keywordLabel": "키워드",
@@ -795,6 +821,7 @@
   },
   "placeholders": {
     "loading": "로딩 중...",
+    "noResults": "결과 없음",
     "selectToViewConfig": "{{type}}을(를) 선택하여 보기 또는 설정",
     "selectToViewConfigSubtitle": "왼쪽 목록에서 항목을 선택하세요",
     "noOptions": "옵션 없음",
@@ -1118,7 +1145,10 @@
       "tryHeading": "시도:",
       "tryCheckConnection": "인터넷 연결 확인",
       "tryVerifyUrl": "URL이 올바른지 확인",
-      "tryAgainLater": "나중에 다시 시도"
+      "tryAgainLater": "나중에 다시 시도",
+      "embeddedFallbackTitle": "이 사이트는 내장 브라우저에서 작동하지 않을 수 있습니다",
+      "embeddedFallbackBody": "일부 사이트는 앱 WebView에서 표시를 차단하거나 렌더링에 실패합니다. 페이지가 계속 비어 있으면 시스템 브라우저에서 여세요.",
+      "currentUrl": "현재 URL"
     },
     "selectRepoFromHome": "Please select a repo from the home page",
     "cloneRepoAgain": "Please clone the repo again from the home page",
@@ -1214,6 +1244,85 @@
         "closed": "닫힘",
         "completed": "완료됨",
         "notPlanned": "계획 없음"
+      },
+      "title": "이슈",
+      "loading": "이슈 불러오는 중…",
+      "empty": "{{state}} 이슈 없음",
+      "failedToLoad": "이슈를 불러오지 못했습니다",
+      "failedToCreate": "이슈를 만들지 못했습니다",
+      "failedToUpdate": "이슈를 업데이트하지 못했습니다",
+      "failedToComment": "댓글을 추가하지 못했습니다",
+      "filterAll": "전체",
+      "filterOpen": "열림",
+      "filterClosed": "닫힘",
+      "noGitHubRepo": "이슈를 관리하려면 GitHub 저장소를 연결하세요",
+      "commentPlaceholder": "댓글 남기기…",
+      "submitComment": "댓글",
+      "newIssueTitlePlaceholder": "이슈 제목",
+      "newIssueBodyPlaceholder": "이슈를 설명하세요(선택 사항)…",
+      "authRequired": {
+        "title": "GitHub 연결",
+        "description": "설정 → 통합 → Git에서 GitHub 계정을 연결하세요."
+      },
+      "reAuthRequired": "GitHub 인증 필요",
+      "reAuthDescription": "GitHub 토큰이 만료되었습니다. 설정 → 통합 → Git에서 다시 연결하세요.",
+      "goToSettings": "설정으로 이동"
+    },
+    "pr": {
+      "title": "풀 리퀘스트",
+      "baseBranch": "기준",
+      "noDescription": "설명이 없습니다.",
+      "loadingConversation": "불러오는 중…",
+      "reviewNoBody": "리뷰 댓글을 남겼습니다.",
+      "commentPlaceholder": "댓글 남기기…",
+      "comment": "댓글",
+      "approve": "승인",
+      "requestChanges": "변경 요청",
+      "reply": "답장",
+      "replyPlaceholder": "답장…",
+      "reviewThreads": "리뷰 댓글",
+      "tabs": {
+        "conversation": "대화",
+        "commits": "커밋",
+        "checks": "검사",
+        "changes": "변경 사항"
+      },
+      "checks": {
+        "none": "보고된 검사가 없습니다",
+        "noneHint": "이 풀 리퀘스트의 최신 커밋에서 실행된 CI 검사나 상태가 없습니다.",
+        "allPassed": "모든 검사를 통과했습니다",
+        "someFailed": "일부 검사가 실패했습니다",
+        "pending": "검사 진행 중"
+      },
+      "commits": {
+        "backToList": "모든 커밋",
+        "none": "커밋 없음"
+      },
+      "changes": {
+        "title": "변경된 파일",
+        "noFiles": "변경된 파일 없음",
+        "tooLarge": "파일이 너무 커서 diff를 표시할 수 없습니다",
+        "unavailable": "변경 사항을 사용할 수 없습니다",
+        "unavailableHint": "풀 리퀘스트의 기준 커밋과 최신 커밋을 확인할 수 없습니다."
+      },
+      "creating": "풀 리퀘스트 만드는 중…",
+      "createError": "풀 리퀘스트를 만들지 못했습니다",
+      "readyHint": "브랜치가 푸시되어 풀 리퀘스트를 만들 준비가 되었습니다",
+      "neutralHint": "풀 리퀘스트를 만들려면 브랜치를 푸시하세요",
+      "noBranch": "선택된 브랜치가 없습니다",
+      "noRepoPath": "사용 가능한 저장소 경로가 없습니다",
+      "notAuthenticated": "풀 리퀘스트를 만들려면 로그인하세요",
+      "noOriginRemote": "origin 리모트가 구성되지 않았습니다",
+      "cannotParseRepoName": "origin 리모트에서 저장소 이름을 확인할 수 없습니다",
+      "status": {
+        "open": "열림",
+        "merged": "병합됨",
+        "closed": "닫힘",
+        "draft": "초안"
+      },
+      "authRequired": {
+        "title": "GitHub 연결",
+        "description": "설정 → 통합 → Git에서 GitHub 계정을 연결하세요."
       }
     }
   },
@@ -1262,7 +1371,8 @@
         "repo": "리포지토리",
         "systemPaths": "시스템 경로",
         "usedElsewhere": "다른 곳에서 사용됨",
-        "workspace": "Workspace"
+        "workspace": "Workspace",
+        "recent": "최근"
       },
       "tabs": {
         "repositories": "저장소",
@@ -1804,6 +1914,13 @@
     "linesByModel": "모델별 행 수",
     "completed": "완료",
     "incomplete": "미완료",
+    "cost": "비용",
+    "estimatedCost": "예상 비용",
+    "estimated": "예상",
+    "estimatedTooltip": "예상 비용 — 토큰 × 정가(이 소스에는 실제 청구액이 제공되지 않음)",
+    "totalEstimatedCost": "예상 비용",
+    "viewCost": "비용",
+    "viewTokens": "토큰",
     "tabs": {
       "overview": "개요",
       "cursor": "Cursor",
@@ -1959,6 +2076,14 @@
     },
     "sessionFilter": {
       "allSessions": "모든 세션"
+    },
+    "scope": {
+      "local": "로컬",
+      "main": "기본 체크아웃",
+      "worktrees": "Worktree",
+      "searchPlaceholder": "Worktree 필터…",
+      "switchScope": "소스 제어 범위 전환",
+      "switchScopeActive": "소스 제어 범위 전환: {{repo}}, {{branch}}"
     }
   },
   "contextInfo": {
@@ -1998,7 +2123,27 @@
     "manualCompactNoRuntime": "압축하기 전에 메시지를 보내세요",
     "manualCompactFailed": "압축 실패: {{message}}",
     "manualCompactChannelAttached": "이 세션은 채널에서 관리됩니다 — 그곳에서 /compact를 사용하세요",
-    "manualCompactInstructionsPlaceholder": "선택: 요약 시 집중할 내용"
+    "manualCompactInstructionsPlaceholder": "선택: 요약 시 집중할 내용",
+    "cacheSaved": "캐시 절감: 읽기 {{read}}, 쓰기 {{write}}",
+    "remaining": "여유: {{tokens}} 남음",
+    "cacheHero": "{{pct}}%가 캐시에서 제공됨 · 이번 턴에 약 {{tokens}} 재사용",
+    "cacheHeroSub": "프롬프트 캐싱으로 비용을 최대 90% 절감할 수 있습니다",
+    "headroom": "{{tokens}}의 여유 공간 남음",
+    "compactBoundarySubtitle_one": "이전 메시지 {{count}}개 요약됨",
+    "manualCompactSectionTitle": "수동 압축",
+    "miniCpmCompactTitle": "MiniCPM 자동 무음 압축",
+    "miniCpmCompactDescription": "이전 컨텍스트를 비동기식으로 처리합니다",
+    "miniCpmCompactToggleAria": "MiniCPM 자동 무음 압축 활성화",
+    "miniCpmCompactDisabled": "무음 압축이 꺼져 있습니다",
+    "miniCpmCompactEnabled": "무음 압축이 켜져 있습니다",
+    "miniCpmCompactRunning": "MiniCPM이 압축 중입니다",
+    "miniCpmCompactComplete": "압축 완료",
+    "miniCpmCompactBusy": "현재 세션이 사용 중입니다",
+    "miniCpmCompactUnavailable": "MiniCPM을 사용할 수 없습니다",
+    "miniCpmCompactError": "MiniCPM 압축에 실패했습니다",
+    "miniCpmCompactMetrics": "메시지 {{covered}}개 · {{source}} → {{summary}} 토큰",
+    "miniCpmCompactAction": "지금 압축",
+    "miniCpmCompactRunningAction": "압축 중"
   },
   "relativeDate": {
     "today": "오늘",
@@ -2052,7 +2197,8 @@
     "statusReadyToCreate": "Workspace 생성 준비 완료",
     "defaultName": "Workspace",
     "defaultNameWithRepo": "{{repo}} Workspace",
-    "windowTitle": "Workspace"
+    "windowTitle": "Workspace",
+    "statusMaxRepos": "최대 5개의 Repo를 선택할 수 있습니다"
   },
   "database": {
     "addConnection": "Add Database Connection",
@@ -2266,11 +2412,57 @@
     "previewAlt": "미리보기"
   },
   "update": {
+    "available": "업데이트가 있습니다",
+    "versionReady": "버전 {{version}}을(를) 다운로드할 수 있습니다.",
+    "upToDateVersion": "ORGII가 최신 상태입니다 (v{{version}}).",
+    "upToDate": "ORGII가 최신 상태입니다.",
+    "checkFailed": "업데이트 확인에 실패했습니다",
+    "checking": "업데이트 확인 중…",
     "downloading": "업데이트 다운로드 중",
+    "downloadingEllipsis": "업데이트 다운로드 중…",
+    "downloadingWithSize": "업데이트 다운로드 중 ({{size}})…",
+    "downloadingDownloaded": "업데이트 다운로드 중… {{downloaded}}",
+    "downloadingPercent": "업데이트 다운로드 중… {{percent}}%",
     "installing": "업데이트 설치 중",
+    "installingEllipsis": "업데이트 설치 중…",
+    "installed": "업데이트가 설치되었습니다",
+    "installFailed": "업데이트 설치에 실패했습니다",
+    "downloadTimedOut": "다운로드 시간이 초과되었습니다. 네트워크 또는 프록시를 확인한 후 다시 시도하세요.",
+    "restarting": "업데이트를 완료하기 위해 ORGII를 다시 시작합니다.",
+    "preparingVersion": "v{{version}} 다운로드 준비 중…",
     "progressPercent": "{{percent}}%",
     "downloadedOfTotal": "{{downloaded}} / {{total}}",
     "preparingDownload": "다운로드 준비 중…",
     "downloadingAndInstalling": "업데이트 다운로드 및 설치 중 (v{{version}})…"
+  },
+  "sqlEditor": {
+    "placeholder": "SQL 쿼리를 입력하세요...",
+    "format": "서식 지정",
+    "runQueryToSeeResults": "결과를 보려면 쿼리를 실행하세요",
+    "executingQuery": "쿼리 실행 중...",
+    "queryFailed": "쿼리 실행 실패",
+    "queryCompleted": "쿼리 실행 완료",
+    "noResults": "쿼리 결과가 없습니다",
+    "rowCount_one": "{{count}}개 행",
+    "rowCount_other": "{{count}}개 행",
+    "press": "누르기",
+    "toRun": "실행",
+    "nullValue": "NULL",
+    "booleanTrue": "참",
+    "booleanFalse": "거짓"
+  },
+  "uploadZone": {
+    "clickOrDrag": "업로드할 파일을 클릭하거나 이 영역으로 끌어다 놓으세요",
+    "supportFormats": "지원 형식: {{accept}}"
+  },
+  "chatImage": {
+    "maxReached": "이미지는 최대 {{max}}개까지 허용됩니다",
+    "remainingWarning": "이미지를 {{remaining}}개만 더 추가할 수 있습니다(최대 {{max}}개)",
+    "processFailed": "이미지를 처리하지 못했습니다",
+    "loadFailed": "이미지를 불러오지 못했습니다: {{fileName}}"
+  },
+  "codeViewer": {
+    "original": "변경 전",
+    "modified": "변경 후"
   }
 }

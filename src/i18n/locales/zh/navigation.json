@@ -1,5 +1,6 @@
 {
   "labels": {
+    "openSourceRepo": "开源仓库",
     "devRecord": "开发记录",
     "workItems": "工作项",
     "codeSearch": "代码搜索",
@@ -145,6 +146,8 @@
       "colleagues": "搜索同事..."
     },
     "folderCounts": {
+      "repo_plural": "{{count}} 个仓库",
+      "multiRepoWorkspace_plural": "{{count}} 个多仓库工作区",
       "repo": "{{count}}个仓库",
       "multiRepoWorkspace": "{{count}}个多仓库工作区"
     },
@@ -425,7 +428,27 @@
     "addWorkspace": "添加工作区"
   },
   "explore": {
-    "title": "探索"
+    "title": "探索",
+    "search": "搜索",
+    "searching": "正在搜索…",
+    "searchPlaceholder": "搜索 GitHub 仓库（例如 language:rust tauri）",
+    "clone": "克隆",
+    "cloning": "正在克隆…",
+    "openOnGithub": "GitHub",
+    "cloneSuccess": "已克隆 {{name}}",
+    "cloneFailed": "克隆失败",
+    "cloneNoTarget": "未配置默认工作区文件夹。请在设置中配置。",
+    "errorTitle": "搜索失败",
+    "noResultsTitle": "没有匹配的仓库",
+    "noResultsSubtitle": "请尝试其他查询或排序方式。",
+    "resultsCount": "显示 {{shown}} 个，共 {{total}} 个仓库",
+    "partial": "（部分结果 — 搜索超时）",
+    "sort": {
+      "bestMatch": "最佳匹配",
+      "stars": "星标数",
+      "updated": "最近更新",
+      "forks": "Fork 数"
+    }
   },
   "workstation": {
     "dockFilter": {

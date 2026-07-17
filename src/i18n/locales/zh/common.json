@@ -75,6 +75,11 @@
     }
   },
   "actions": {
+    "newIssue": "新建 Issue",
+    "closeIssue": "关闭 Issue",
+    "reopenIssue": "重新打开 Issue",
+    "addComment": "添加评论",
+    "editIssue": "编辑 Issue",
     "save": "保存",
     "cancel": "取消",
     "delete": "删除",
@@ -347,6 +352,14 @@
     "filterByLanguage": "按语言筛选"
   },
   "labels": {
+    "issues": "Issues",
+    "noIssues": "暂无 Issue",
+    "openIssues": "开放",
+    "closedIssues": "已关闭",
+    "issueComments": "{{count}} 条评论",
+    "issueComments_one": "1 条评论",
+    "issueComments_other": "{{count}} 条评论",
+    "tokens": "Token",
     "accounts": "账户",
     "enabled": "已启用",
     "disabled": "已禁用",
@@ -1232,6 +1245,84 @@
         "closed": "已关闭",
         "completed": "已完成",
         "notPlanned": "未计划"
+      },
+      "loading": "正在加载 Issue…",
+      "empty": "没有{{state}}的 Issue",
+      "failedToLoad": "加载 Issue 失败",
+      "failedToCreate": "创建 Issue 失败",
+      "failedToUpdate": "更新 Issue 失败",
+      "failedToComment": "添加评论失败",
+      "filterAll": "全部",
+      "filterOpen": "开放",
+      "filterClosed": "已关闭",
+      "noGitHubRepo": "连接 GitHub 仓库以管理 Issue",
+      "commentPlaceholder": "留下评论…",
+      "submitComment": "评论",
+      "newIssueTitlePlaceholder": "Issue 标题",
+      "newIssueBodyPlaceholder": "描述 Issue（可选）…",
+      "authRequired": {
+        "title": "连接 GitHub",
+        "description": "前往设置 → 集成 → Git，连接你的 GitHub 账户。"
+      },
+      "reAuthRequired": "需要重新授权 GitHub",
+      "reAuthDescription": "你的 GitHub Token 已过期。请前往设置 → 集成 → Git 重新连接。",
+      "goToSettings": "前往设置"
+    },
+    "pr": {
+      "title": "Pull Request",
+      "baseBranch": "基础分支",
+      "noDescription": "未提供描述。",
+      "loadingConversation": "正在加载…",
+      "reviewNoBody": "已留下审查评论。",
+      "commentPlaceholder": "留下评论…",
+      "comment": "评论",
+      "approve": "批准",
+      "requestChanges": "请求更改",
+      "reply": "回复",
+      "replyPlaceholder": "回复…",
+      "reviewThreads": "审查评论",
+      "tabs": {
+        "conversation": "对话",
+        "commits": "Commit",
+        "checks": "检查",
+        "changes": "更改"
+      },
+      "checks": {
+        "none": "未报告检查结果",
+        "noneHint": "此 Pull Request 的最新提交未运行 CI 检查或状态检查。",
+        "allPassed": "所有检查均已通过",
+        "someFailed": "部分检查失败",
+        "pending": "检查进行中"
+      },
+      "commits": {
+        "backToList": "所有 Commit",
+        "none": "暂无 Commit"
+      },
+      "changes": {
+        "title": "更改的文件",
+        "noFiles": "没有文件更改",
+        "tooLarge": "文件过大，无法显示 Diff",
+        "unavailable": "更改不可用",
+        "unavailableHint": "无法解析 Pull Request 的基础提交和最新提交。"
+      },
+      "creating": "正在创建 Pull Request…",
+      "createError": "创建 Pull Request 失败",
+      "readyHint": "分支已推送，可以创建 Pull Request",
+      "neutralHint": "推送分支后即可创建 Pull Request",
+      "noBranch": "未选择分支",
+      "noRepoPath": "仓库路径不可用",
+      "notAuthenticated": "登录后才能创建 Pull Request",
+      "noOriginRemote": "未配置 origin 远程仓库",
+      "cannotParseRepoName": "无法从 origin 远程仓库解析仓库名称",
+      "status": {
+        "open": "开放",
+        "merged": "已合并",
+        "closed": "已关闭",
+        "draft": "草稿"
+      },
+      "authRequired": {
+        "title": "连接 GitHub",
+        "description": "前往设置 → 集成 → Git，连接你的 GitHub 账户。"
       }
     }
   },
@@ -1825,6 +1916,13 @@
     "linesByModel": "按模型行数",
     "completed": "已完成",
     "incomplete": "未完成",
+    "cost": "费用",
+    "estimatedCost": "预估费用",
+    "estimated": "预估",
+    "estimatedTooltip": "预估费用 — Token 数 × 标价（此来源不产生按量计费）",
+    "totalEstimatedCost": "预估费用",
+    "viewCost": "费用",
+    "viewTokens": "Token",
     "tabs": {
       "overview": "概览",
       "cursor": "Cursor",
@@ -2021,6 +2119,8 @@
     "autoCompactNote": "即将自动总结上下文",
     "compactBoundaryTitle": "上下文已压缩",
     "compactBoundarySubtitle": "已总结 {{count}} 条较早的消息",
+    "compactBoundarySubtitle_one": "已总结 {{count}} 条较早的消息",
+    "compactBoundarySubtitle_other": "已总结 {{count}} 条较早的消息",
     "compactBoundaryTokens": "{{before}} → {{after}} tokens",
     "manualCompactAction": "手动压缩",
     "manualCompactRunning": "压缩中",
@@ -2097,6 +2197,7 @@
     "workspaceNamePlaceholder": "我的工作区",
     "willInclude": "工作区将包含 {{count}} 个 Repo",
     "statusSelectAtLeastTwo": "请至少选择 2 个 Repo",
+    "statusMaxRepos": "最多选择 5 个 Repo",
     "statusReadyToCreate": "可以创建工作区",
     "defaultName": "工作区",
     "defaultNameWithRepo": "{{repo}} 工作区",
@@ -2313,12 +2414,58 @@
     "cancel": "取消",
     "confirm": "退出"
   },
+  "sqlEditor": {
+    "placeholder": "输入 SQL 查询…",
+    "format": "格式化",
+    "runQueryToSeeResults": "运行查询以查看结果",
+    "executingQuery": "正在执行查询…",
+    "queryFailed": "查询失败",
+    "queryCompleted": "查询完成",
+    "noResults": "查询未返回结果",
+    "rowCount_one": "{{count}} 行",
+    "rowCount_other": "{{count}} 行",
+    "press": "按",
+    "toRun": "运行",
+    "nullValue": "NULL",
+    "booleanTrue": "true",
+    "booleanFalse": "false"
+  },
+  "uploadZone": {
+    "clickOrDrag": "点击或将文件拖到此处上传",
+    "supportFormats": "支持：{{accept}}"
+  },
+  "chatImage": {
+    "maxReached": "最多添加 {{max}} 张图片",
+    "remainingWarning": "还可添加 {{remaining}} 张图片（最多 {{max}} 张）",
+    "processFailed": "处理图片失败",
+    "loadFailed": "加载图片失败：{{fileName}}"
+  },
   "update": {
+    "available": "有可用更新",
+    "versionReady": "版本 {{version}} 已可下载。",
+    "upToDateVersion": "ORGII 已是最新版本 (v{{version}})。",
+    "upToDate": "ORGII 已是最新版本。",
+    "checkFailed": "检查更新失败",
+    "checking": "正在检查更新…",
     "downloading": "正在下载更新",
+    "downloadingEllipsis": "正在下载更新…",
+    "downloadingWithSize": "正在下载更新 ({{size}})…",
+    "downloadingDownloaded": "正在下载更新… {{downloaded}}",
+    "downloadingPercent": "正在下载更新… {{percent}}%",
     "installing": "正在安装更新",
+    "installingEllipsis": "正在安装更新…",
+    "installed": "更新已安装",
+    "installFailed": "更新安装失败",
+    "downloadTimedOut": "下载超时。请检查网络或代理后重试。",
+    "restarting": "正在重启 ORGII 以完成更新。",
+    "preparingVersion": "正在准备下载 v{{version}}…",
     "progressPercent": "{{percent}}%",
     "downloadedOfTotal": "{{downloaded}} / {{total}}",
     "preparingDownload": "正在准备下载…",
     "downloadingAndInstalling": "正在下载并安装更新 (v{{version}})…"
+  },
+  "codeViewer": {
+    "original": "原始版本",
+    "modified": "修改后"
   }
 }

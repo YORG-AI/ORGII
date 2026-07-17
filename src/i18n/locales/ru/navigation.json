@@ -1,5 +1,6 @@
 {
   "labels": {
+    "openSourceRepo": "Открыть репозиторий с исходным кодом",
     "devRecord": "Журнал разработки",
     "workItems": "Рабочие элементы",
     "codeSearch": "Поиск кода",
@@ -144,6 +145,8 @@
       "colleagues": "Поиск коллег..."
     },
     "folderCounts": {
+      "repo_plural": "{{count}} репозиториев",
+      "multiRepoWorkspace_plural": "{{count}} рабочих пространств с несколькими репозиториями",
       "repo": "{{count}} репо",
       "multiRepoWorkspace": "{{count}} мульти-Repo Workspace"
     },
@@ -333,6 +336,26 @@
     "addWorkspace": "Добавить workspace"
   },
   "explore": {
+    "search": "Поиск",
+    "searching": "Поиск...",
+    "searchPlaceholder": "Поиск репозиториев GitHub (например, language:rust tauri)",
+    "clone": "Клонировать",
+    "cloning": "Клонирование...",
+    "openOnGithub": "GitHub",
+    "cloneSuccess": "{{name}} клонирован",
+    "cloneFailed": "Не удалось клонировать",
+    "cloneNoTarget": "Папка рабочего пространства по умолчанию не настроена. Укажите её в настройках.",
+    "errorTitle": "Не удалось выполнить поиск",
+    "noResultsTitle": "Подходящие репозитории не найдены",
+    "noResultsSubtitle": "Попробуйте изменить запрос или сортировку.",
+    "resultsCount": "Показано {{shown}} из {{total}} репозиториев",
+    "partial": "(частичные результаты — время ожидания поиска истекло)",
+    "sort": {
+      "bestMatch": "Лучшее совпадение",
+      "stars": "Звёзды",
+      "updated": "Недавно обновлённые",
+      "forks": "Форки"
+    },
     "title": "Обзор"
   },
   "workstation": {

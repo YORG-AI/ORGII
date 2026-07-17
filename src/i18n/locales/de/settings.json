@@ -910,7 +910,16 @@
     "diskCategory_screenshots": "Browser-Screenshots",
     "diskCategory_agentWorktrees": "Agent Session Worktrees",
     "diskCategory_lspBin": "LSP Server Binaries",
-    "loadZeroRows": "Klicken, um {{count}} weitere zu laden"
+    "loadZeroRows": "Klicken, um {{count}} weitere zu laden",
+    "diskCategory_toolResults": "Übergroße Tool-Ergebnisse",
+    "diskCategory_diagnostics": "Diagnosewarteschlange",
+    "diskCategory_models": "Heruntergeladene Modelle",
+    "diskCategory_codeMap": "Code-Map-Indizes",
+    "diskCategory_semanticIndex": "Semantischer Suchindex",
+    "diskCategory_cursorCliProfiles": "Cursor-CLI-Profile",
+    "diskCategory_kiroCliProfiles": "Kiro-CLI-Profile",
+    "diskCategory_opencodeCliProfiles": "OpenCode-CLI-Profile",
+    "diskCategory_sidecarBin": "Heruntergeladene Sidecar-Binärdateien"
   },
   "dependencies": {
     "systemDependencies": "System-Dependencies",

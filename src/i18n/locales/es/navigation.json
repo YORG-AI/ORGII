@@ -46,7 +46,8 @@
     "projectManager": "Project Manager",
     "diff": "Diff",
     "colleagues": "Colegas",
-    "terminals": "Terminales"
+    "terminals": "Terminales",
+    "openSourceRepo": "Abrir repositorio de código fuente"
   },
   "trajectoryPanel": {
     "title": "Trayectoria",
@@ -335,7 +336,27 @@
     "addWorkspace": "Añadir espacio de trabajo"
   },
   "explore": {
-    "title": "Explorar"
+    "title": "Explorar",
+    "search": "Buscar",
+    "searching": "Buscando...",
+    "searchPlaceholder": "Buscar repositorios de GitHub (p. ej., language:rust tauri)",
+    "clone": "Clonar",
+    "cloning": "Clonando...",
+    "openOnGithub": "GitHub",
+    "cloneSuccess": "{{name}} clonado",
+    "cloneFailed": "No se pudo clonar",
+    "cloneNoTarget": "No hay una carpeta de espacio de trabajo predeterminada configurada. Establécela en Ajustes.",
+    "errorTitle": "La búsqueda falló",
+    "noResultsTitle": "Ningún repositorio coincide",
+    "noResultsSubtitle": "Prueba con otra consulta u orden.",
+    "resultsCount": "{{shown}} de {{total}} repositorios",
+    "partial": "(parcial: la búsqueda agotó el tiempo de espera)",
+    "sort": {
+      "bestMatch": "Mejor coincidencia",
+      "stars": "Estrellas",
+      "updated": "Actualizados recientemente",
+      "forks": "Forks"
+    }
   },
   "workstation": {
     "dockFilter": {

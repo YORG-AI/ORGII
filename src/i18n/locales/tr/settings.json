@@ -790,6 +790,15 @@
     "currentVersion": "Mevcut Sürüm"
   },
   "monitor": {
+    "diskCategory_toolResults": "Büyük araç sonuçları",
+    "diskCategory_diagnostics": "Tanılama kuyruğu",
+    "diskCategory_models": "İndirilen modeller",
+    "diskCategory_codeMap": "Kod Haritası indeksleri",
+    "diskCategory_semanticIndex": "Anlamsal arama indeksi",
+    "diskCategory_cursorCliProfiles": "Cursor CLI profilleri",
+    "diskCategory_kiroCliProfiles": "Kiro CLI profilleri",
+    "diskCategory_opencodeCliProfiles": "OpenCode CLI profilleri",
+    "diskCategory_sidecarBin": "İndirilen yardımcı program ikilileri",
     "categoryTerminal": "Terminal/araç süreci",
     "categoryWebview": "WebView işleyici",
     "categoryGpu": "WebKit GPU",

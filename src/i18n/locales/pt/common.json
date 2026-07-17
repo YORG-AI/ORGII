@@ -1,4 +1,30 @@
 {
+  "sqlEditor": {
+    "placeholder": "Insira a consulta SQL...",
+    "format": "Formatar",
+    "runQueryToSeeResults": "Execute uma consulta para ver os resultados",
+    "executingQuery": "Executando consulta...",
+    "queryFailed": "Falha na consulta",
+    "queryCompleted": "Consulta concluída",
+    "noResults": "A consulta não retornou resultados",
+    "rowCount_one": "{{count}} linha",
+    "rowCount_other": "{{count}} linhas",
+    "press": "Pressione",
+    "toRun": "para executar",
+    "nullValue": "NULL",
+    "booleanTrue": "verdadeiro",
+    "booleanFalse": "falso"
+  },
+  "uploadZone": {
+    "clickOrDrag": "Clique ou arraste um arquivo para esta área para enviá-lo",
+    "supportFormats": "Formatos aceitos: {{accept}}"
+  },
+  "chatImage": {
+    "maxReached": "Máximo de {{max}} imagens permitido",
+    "remainingWarning": "Só é possível adicionar mais {{remaining}} imagem(ns) (máx. {{max}})",
+    "processFailed": "Falha ao processar a imagem",
+    "loadFailed": "Falha ao carregar a imagem: {{fileName}}"
+  },
   "toasts": {
     "replyEmpty": "A resposta não pode estar vazia",
     "sessionNotFound": "Sessão não encontrada",
@@ -75,6 +101,13 @@
     }
   },
   "actions": {
+    "openOnGitHub": "Abrir no GitHub",
+    "createPullRequest": "Criar pull request",
+    "newIssue": "Nova issue",
+    "closeIssue": "Fechar issue",
+    "reopenIssue": "Reabrir issue",
+    "addComment": "Adicionar comentário",
+    "editIssue": "Editar issue",
     "all": "Todos",
     "save": "Salvar",
     "cancel": "Cancelar",
@@ -345,6 +378,25 @@
     "filterByLanguage": "Filtrar por linguagem"
   },
   "labels": {
+    "noPullRequestForBranch": "Ainda não há pull request para esta branch.",
+    "creatingPullRequest": "Criando…",
+    "failedToLoadPullRequest": "Falha ao carregar o pull request",
+    "noCommitsInPullRequest": "Nenhum commit neste pull request",
+    "prStatus": {
+      "open": "Aberto",
+      "merged": "Mesclado",
+      "closed": "Fechado",
+      "draft": "Rascunho"
+    },
+    "sendingNow": "enviando agora…",
+    "issues": "Issues",
+    "noIssues": "Nenhuma issue",
+    "openIssues": "Abertas",
+    "closedIssues": "Fechadas",
+    "issueComments": "{{count}} comentário",
+    "issueComments_one": "1 comentário",
+    "issueComments_other": "{{count}} comentários",
+    "tokens": "Tokens",
     "accounts": "Contas",
     "enabled": "Ativado",
     "disabled": "Desativado",
@@ -794,6 +846,7 @@
     "searchModeCycle": "Modo de pesquisa: {{mode}}. Clique para alternar modos."
   },
   "placeholders": {
+    "noResults": "Nenhum resultado",
     "loading": "Carregando...",
     "selectToViewConfig": "Selecione um(a) {{type}} para visualizar ou configurar",
     "selectToViewConfigSubtitle": "Escolha um item da lista à esquerda",
@@ -1096,6 +1149,9 @@
     "sendStyleEdits": "Enviar",
     "addToChat": "Adicionar ao chat",
     "browserCore": {
+      "embeddedFallbackTitle": "Este site pode não funcionar no navegador incorporado",
+      "embeddedFallbackBody": "Alguns sites bloqueiam ou não são renderizados em WebViews de aplicativos. Se a página permanecer em branco, abra-a no navegador do sistema.",
+      "currentUrl": "URL atual",
       "desktopOnlyTitle": "Navegador disponível no app desktop",
       "desktopOnlyBody": "O navegador incorporado está disponível somente no aplicativo desktop Tauri.",
       "debugWebviewAvailable": "WebView disponível: {{value}}",
@@ -1126,6 +1182,63 @@
     "gitSyncMenuTitle": "Ações de sincronização Git"
   },
   "git": {
+    "pr": {
+      "title": "Pull Request",
+      "baseBranch": "base",
+      "noDescription": "Nenhuma descrição fornecida.",
+      "loadingConversation": "Carregando…",
+      "reviewNoBody": "Deixou comentários de revisão.",
+      "commentPlaceholder": "Deixe um comentário…",
+      "comment": "Comentar",
+      "approve": "Aprovar",
+      "requestChanges": "Solicitar alterações",
+      "reply": "Responder",
+      "replyPlaceholder": "Responder…",
+      "reviewThreads": "Comentários da revisão",
+      "tabs": {
+        "conversation": "Conversa",
+        "commits": "Commits",
+        "checks": "Verificações",
+        "changes": "Alterações"
+      },
+      "checks": {
+        "none": "Nenhuma verificação informada",
+        "noneHint": "Nenhuma verificação de CI ou status foi executada no commit mais recente deste pull request.",
+        "allPassed": "Todas as verificações passaram",
+        "someFailed": "Algumas verificações falharam",
+        "pending": "Verificações em andamento"
+      },
+      "commits": {
+        "backToList": "Todos os commits",
+        "none": "Nenhum commit"
+      },
+      "changes": {
+        "title": "Arquivos alterados",
+        "noFiles": "Nenhuma alteração de arquivo",
+        "tooLarge": "Arquivo grande demais para exibir o diff",
+        "unavailable": "Alterações indisponíveis",
+        "unavailableHint": "Não foi possível resolver os commits base e mais recente do pull request."
+      },
+      "creating": "Criando pull request…",
+      "createError": "Falha ao criar o pull request",
+      "readyHint": "A branch foi enviada e está pronta para um pull request",
+      "neutralHint": "Envie sua branch para criar um pull request",
+      "noBranch": "Nenhuma branch selecionada",
+      "noRepoPath": "Nenhum caminho de repositório disponível",
+      "notAuthenticated": "Entre para criar pull requests",
+      "noOriginRemote": "Nenhum remote origin configurado",
+      "cannotParseRepoName": "Não foi possível identificar o nome do repositório pelo remote origin",
+      "status": {
+        "open": "Aberto",
+        "merged": "Mesclado",
+        "closed": "Fechado",
+        "draft": "Rascunho"
+      },
+      "authRequired": {
+        "title": "Conectar ao GitHub",
+        "description": "Acesse Configurações → Integrações → Git para conectar sua conta do GitHub."
+      }
+    },
     "loading": "Carregando status do Git...",
     "resolved": "Sugestões do Git resolvidas",
     "noRepoSelected": "Nenhum Repo selecionado",
@@ -1203,6 +1316,28 @@
       "shaCopied": "SHA copiado para a área de transferência"
     },
     "issues": {
+      "title": "Issues",
+      "loading": "Carregando issues…",
+      "empty": "Nenhuma issue {{state}}",
+      "failedToLoad": "Falha ao carregar issues",
+      "failedToCreate": "Falha ao criar a issue",
+      "failedToUpdate": "Falha ao atualizar a issue",
+      "failedToComment": "Falha ao adicionar comentário",
+      "filterAll": "Todas",
+      "filterOpen": "Abertas",
+      "filterClosed": "Fechadas",
+      "noGitHubRepo": "Conecte um repositório do GitHub para gerenciar issues",
+      "commentPlaceholder": "Deixe um comentário…",
+      "submitComment": "Comentar",
+      "newIssueTitlePlaceholder": "Título da issue",
+      "newIssueBodyPlaceholder": "Descreva a issue (opcional)…",
+      "authRequired": {
+        "title": "Conectar ao GitHub",
+        "description": "Acesse Configurações → Integrações → Git para conectar sua conta do GitHub."
+      },
+      "reAuthRequired": "Autorização do GitHub necessária",
+      "reAuthDescription": "Seu token do GitHub expirou. Acesse Configurações → Integrações → Git para se reconectar.",
+      "goToSettings": "Ir para Configurações",
       "updated": "Última atualização",
       "notUpdated": "não atualizado",
       "assignedTo": "Atribuído a {{assignees}}",
@@ -1249,11 +1384,17 @@
       "name": "nome"
     },
     "repo": {
+      "spotlight": {
+        "placeholders": {
+          "workspace": "Workspace"
+        }
+      },
       "workspaceFolders": "Pastas do Workspace",
       "addRepo": "Adicionar workspace",
       "addEntry": "Mais opções de importação",
       "addRepoDescription": "Abrir, criar ou clonar um workspace",
       "sections": {
+        "recent": "Recentes",
         "coding": "Workspace",
         "nonCoding": "Workspace",
         "pinned": "Fixado",
@@ -1789,6 +1930,13 @@
     "teamUsage": "Uso da equipe"
   },
   "otherUsage": {
+    "cost": "Custo",
+    "estimatedCost": "Custo estimado",
+    "estimated": "EST.",
+    "estimatedTooltip": "Custo estimado — tokens × preço de tabela (sem gastos medidos para esta origem)",
+    "totalEstimatedCost": "Custo estimado",
+    "viewCost": "Custo",
+    "viewTokens": "Tokens",
     "title": "Outro uso",
     "noData": "Ainda não há dados de uso de IA",
     "sessions": "Sessões",
@@ -1927,6 +2075,14 @@
     "listed": "Listou"
   },
   "sourceControl": {
+    "scope": {
+      "local": "Local",
+      "main": "Checkout principal",
+      "worktrees": "Worktrees",
+      "searchPlaceholder": "Filtrar worktrees…",
+      "switchScope": "Alternar escopo do controle de origem",
+      "switchScopeActive": "Alternar escopo do controle de origem: {{repo}}, {{branch}}"
+    },
     "notGitInitialized": "Git não inicializado",
     "notGitInitializedSubtitle": "Inicialize o Git para acompanhar alterações, criar commits e usar ferramentas de branch neste workspace.",
     "initializeGit": "Inicializar Git",
@@ -1958,6 +2114,25 @@
     }
   },
   "contextInfo": {
+    "cacheSaved": "Cache economizado: {{read}} de leitura, {{write}} de gravação",
+    "remaining": "Livre: {{tokens}} restantes",
+    "cacheHero": "{{pct}}% fornecido pelo cache · ~{{tokens}} reutilizados nesta rodada",
+    "cacheHeroSub": "O cache de prompts pode reduzir o custo em até 90%",
+    "headroom": "{{tokens}} de espaço restante",
+    "manualCompactSectionTitle": "Compactação manual",
+    "miniCpmCompactTitle": "Compactação automática silenciosa do MiniCPM",
+    "miniCpmCompactDescription": "Processa o contexto mais antigo de forma assíncrona",
+    "miniCpmCompactToggleAria": "Ativar compactação automática silenciosa do MiniCPM",
+    "miniCpmCompactDisabled": "A compactação silenciosa está desativada",
+    "miniCpmCompactEnabled": "A compactação silenciosa está ativada",
+    "miniCpmCompactRunning": "O MiniCPM está compactando",
+    "miniCpmCompactComplete": "Compactação concluída",
+    "miniCpmCompactBusy": "A sessão atual está ocupada",
+    "miniCpmCompactUnavailable": "O MiniCPM não está disponível",
+    "miniCpmCompactError": "Falha na compactação do MiniCPM",
+    "miniCpmCompactMetrics": "{{covered}} mensagens · {{source}} → {{summary}} tokens",
+    "miniCpmCompactAction": "Compactar agora",
+    "miniCpmCompactRunningAction": "Compactando",
     "contextUsed": "contexto usado",
     "estimatedFromRules": "estimado a partir das regras",
     "activeRules": "Regras ativas",
@@ -2032,6 +2207,7 @@
     "parentFolderPlaceholder": "Escolher pasta pai"
   },
   "workspaceForm": {
+    "statusMaxRepos": "Máximo de 5 Repos selecionados",
     "title": "Criar Workspace multi-Repo",
     "editTitle": "Editar Workspace",
     "createWorkspace": "Criar Workspace multi-Repo",
@@ -2263,11 +2439,31 @@
     "previewAlt": "Pré-visualização"
   },
   "update": {
+    "available": "Atualização disponível",
+    "versionReady": "A versão {{version}} está pronta para baixar.",
+    "upToDateVersion": "O ORGII está atualizado (v{{version}}).",
+    "upToDate": "O ORGII está atualizado.",
+    "checkFailed": "Falha ao verificar atualizações",
+    "checking": "Verificando atualizações…",
+    "downloadingEllipsis": "Baixando atualização…",
+    "downloadingWithSize": "Baixando atualização ({{size}})…",
+    "downloadingDownloaded": "Baixando atualização… {{downloaded}}",
+    "downloadingPercent": "Baixando atualização… {{percent}}%",
+    "installingEllipsis": "Instalando atualização…",
+    "installed": "Atualização instalada",
+    "installFailed": "Falha ao instalar a atualização",
+    "downloadTimedOut": "O tempo limite do download foi excedido. Verifique a rede ou o proxy e tente novamente.",
+    "restarting": "Reiniciando o ORGII para concluir a atualização.",
+    "preparingVersion": "Preparando o download da v{{version}}…",
     "downloading": "Baixando atualização",
     "installing": "Instalando atualização",
     "progressPercent": "{{percent}}%",
     "downloadedOfTotal": "{{downloaded}} de {{total}}",
     "preparingDownload": "Preparando download…",
     "downloadingAndInstalling": "Baixando e instalando atualização (v{{version}})…"
+  },
+  "codeViewer": {
+    "original": "Original",
+    "modified": "Modificado"
   }
 }

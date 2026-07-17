@@ -46,7 +46,8 @@
     "projectManager": "Project 관리자",
     "diff": "Diff",
     "colleagues": "Colleagues",
-    "terminals": "터미널"
+    "terminals": "터미널",
+    "openSourceRepo": "오픈 소스 저장소 열기"
   },
   "trajectoryPanel": {
     "title": "트래젝터리",
@@ -145,7 +146,9 @@
     },
     "folderCounts": {
       "repo": "{{count}}개 Repo",
-      "multiRepoWorkspace": "{{count}}개 멀티 Repo Workspace"
+      "repo_plural": "{{count}}개 Repo",
+      "multiRepoWorkspace": "{{count}}개 멀티 Repo Workspace",
+      "multiRepoWorkspace_plural": "{{count}}개 멀티 Repo Workspace"
     },
     "bottomBar": {
       "settings": "설정",
@@ -332,9 +335,6 @@
     },
     "addWorkspace": "Workspace 추가"
   },
-  "explore": {
-    "title": "탐색"
-  },
   "workstation": {
     "dockFilter": {
       "all": "모든 탭",
@@ -361,6 +361,29 @@
       "newPrivateBrowserTab": "새 시크릿 브라우저 탭",
       "workItems": "작업 항목",
       "projects": "프로젝트"
+    }
+  },
+  "explore": {
+    "title": "탐색",
+    "search": "검색",
+    "searching": "검색 중...",
+    "searchPlaceholder": "GitHub 저장소 검색(예: language:rust tauri)",
+    "clone": "클론",
+    "cloning": "클론 중...",
+    "openOnGithub": "GitHub",
+    "cloneSuccess": "{{name}} 클론 완료",
+    "cloneFailed": "클론 실패",
+    "cloneNoTarget": "기본 Workspace 폴더가 구성되지 않았습니다. 설정에서 지정하세요.",
+    "errorTitle": "검색 실패",
+    "noResultsTitle": "일치하는 저장소가 없습니다",
+    "noResultsSubtitle": "다른 검색어나 정렬 방식을 시도하세요.",
+    "resultsCount": "저장소 {{total}}개 중 {{shown}}개",
+    "partial": "(일부만 표시 — 검색 시간 초과)",
+    "sort": {
+      "bestMatch": "관련도순",
+      "stars": "스타 수",
+      "updated": "최근 업데이트순",
+      "forks": "포크 수"
     }
   },
   "changelog": {

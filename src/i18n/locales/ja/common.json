@@ -201,6 +201,13 @@
     "addWorkspace": "Workspace を追加",
     "openSpotlight": "Spotlight を開く",
     "openWorkspace": "Workspace を開く",
+    "openOnGitHub": "GitHub で開く",
+    "createPullRequest": "プルリクエストを作成",
+    "newIssue": "新しい Issue",
+    "closeIssue": "Issue をクローズ",
+    "reopenIssue": "Issue を再オープン",
+    "addComment": "コメントを追加",
+    "editIssue": "Issue を編集",
     "skipThisVersion": "このバージョンをスキップ",
     "later": "後で",
     "link": "リンク"
@@ -388,6 +395,16 @@
     "gitHistory": "Git 履歴",
     "noPullRequest": "プルリクエストがありません",
     "pullRequest": "プルリクエスト",
+    "noPullRequestForBranch": "このブランチにはまだプルリクエストがありません。",
+    "creatingPullRequest": "作成中…",
+    "failedToLoadPullRequest": "プルリクエストの読み込みに失敗しました",
+    "noCommitsInPullRequest": "このプルリクエストにはコミットがありません",
+    "prStatus": {
+      "open": "オープン",
+      "merged": "マージ済み",
+      "closed": "クローズ済み",
+      "draft": "下書き"
+    },
     "operationLog": "操作ログ",
     "gitDashboard": "ダッシュボード",
     "changedFiles": "変更されたファイル",
@@ -397,6 +414,7 @@
     "fileCount_other": "{{count}} 個のファイル",
     "queuedCount_one": "{{count}} 件待ち",
     "queuedCount_other": "{{count}} 件待ち",
+    "sendingNow": "今すぐ送信中…",
     "processCount_one": "{{count}} 件実行中",
     "processCount_other": "{{count}} 件実行中",
     "filters": "フィルター",
@@ -405,6 +423,13 @@
     "nearby": "近く",
     "renowned": "著名",
     "dragToReorder": "ドラッグしてメッセージの順序を変更",
+    "issues": "Issues",
+    "noIssues": "Issue はありません",
+    "openIssues": "オープン",
+    "closedIssues": "クローズ済み",
+    "issueComments": "{{count}} 件のコメント",
+    "issueComments_one": "1 件のコメント",
+    "issueComments_other": "{{count}} 件のコメント",
     "sessionBlame": "Session Blame",
     "agentBlame": "Agent Blame",
     "initializeAgentBlame": "Initialize Agent Blame",
@@ -438,6 +463,7 @@
     "appliedCommits": "Applied commits",
     "noAppliedCommit": "No linked commit yet",
     "noSessionsForFile": "No sessions found for this file",
+    "tokens": "トークン",
     "committedRate": "コミット済み"
   },
   "searchModes": {
@@ -798,6 +824,7 @@
     "selectToViewConfig": "{{type}} を選択して表示または設定",
     "selectToViewConfigSubtitle": "左のリストから項目を選んでください",
     "noOptions": "オプションなし",
+    "noResults": "結果がありません",
     "noResultsSubtitle": "別の検索語をお試しください",
     "noResultsWithFilters": "別の検索語を試すか、フィルターを調整してください",
     "noRows": "行がありません",
@@ -1109,6 +1136,9 @@
       "simulatorBrowserNotice": "このブラウザはセッション再生専用です。継続的な閲覧はメインアプリのブラウザ（ツール → ブラウザ）を使用してください。",
       "tlsDevNote": "注: GitHub など一部の HTTPS サイトは開発モードで証明書検証により TLS エラーが出ることがあります。HTTP や example.com などのシンプルな HTTPS を試してください。",
       "siteUnreachableTitle": "このサイトにアクセスできません",
+      "embeddedFallbackTitle": "このサイトは埋め込みブラウザで正常に動作しない可能性があります",
+      "embeddedFallbackBody": "一部のサイトはアプリ内 WebView での表示をブロックするか、正しく描画できません。ページが空白のままの場合は、システムブラウザで開いてください。",
+      "currentUrl": "現在の URL",
       "errorTls": "このサイトへの接続は安全ではありません。開発モードでは HTTPS サイトでよく発生します。",
       "errorTimeout": "接続がタイムアウトしました。サーバーの応答に時間がかかりすぎました。",
       "errorDns": "サーバーの DNS アドレスが見つかりません。URL の誤りを確認してください。",
@@ -1199,22 +1229,101 @@
       "conflictedFiles": "コンフリクトのあるファイルの解決が必要です",
       "gitAction": "Git アクション"
     },
+    "pr": {
+      "title": "プルリクエスト",
+      "baseBranch": "ベース",
+      "noDescription": "説明はありません。",
+      "loadingConversation": "読み込み中…",
+      "reviewNoBody": "レビューコメントを残しました。",
+      "commentPlaceholder": "コメントを入力…",
+      "comment": "コメント",
+      "approve": "承認",
+      "requestChanges": "変更をリクエスト",
+      "reply": "返信",
+      "replyPlaceholder": "返信を入力…",
+      "reviewThreads": "レビューコメント",
+      "tabs": {
+        "conversation": "会話",
+        "commits": "コミット",
+        "checks": "チェック",
+        "changes": "変更"
+      },
+      "checks": {
+        "none": "チェック結果はありません",
+        "noneHint": "このプルリクエストの最新コミットでは CI チェックやステータスが実行されていません。",
+        "allPassed": "すべてのチェックに合格しました",
+        "someFailed": "一部のチェックに失敗しました",
+        "pending": "チェックを実行中"
+      },
+      "commits": {
+        "backToList": "すべてのコミット",
+        "none": "コミットはありません"
+      },
+      "changes": {
+        "title": "変更されたファイル",
+        "noFiles": "ファイルの変更はありません",
+        "tooLarge": "ファイルが大きすぎるため差分を表示できません",
+        "unavailable": "変更を取得できません",
+        "unavailableHint": "プルリクエストのベースコミットと最新コミットを特定できませんでした。"
+      },
+      "creating": "プルリクエストを作成中…",
+      "createError": "プルリクエストの作成に失敗しました",
+      "readyHint": "ブランチはプッシュ済みで、プルリクエストを作成できます",
+      "neutralHint": "プルリクエストを作成するにはブランチをプッシュしてください",
+      "noBranch": "ブランチが選択されていません",
+      "noRepoPath": "リポジトリのパスを取得できません",
+      "notAuthenticated": "プルリクエストを作成するにはサインインしてください",
+      "noOriginRemote": "origin リモートが設定されていません",
+      "cannotParseRepoName": "origin リモートからリポジトリ名を取得できませんでした",
+      "status": {
+        "open": "オープン",
+        "merged": "マージ済み",
+        "closed": "クローズ済み",
+        "draft": "下書き"
+      },
+      "authRequired": {
+        "title": "GitHub に接続",
+        "description": "設定 → 連携 → Git で GitHub アカウントに接続してください。"
+      }
+    },
     "commit": {
       "copySha": "SHAをコピー",
       "shaCopied": "SHAをクリップボードにコピーしました"
     },
     "issues": {
+      "title": "Issues",
+      "loading": "Issue を読み込み中…",
+      "empty": "{{state}}の Issue はありません",
+      "failedToLoad": "Issue の読み込みに失敗しました",
+      "failedToCreate": "Issue の作成に失敗しました",
+      "failedToUpdate": "Issue の更新に失敗しました",
+      "failedToComment": "コメントの追加に失敗しました",
+      "filterAll": "すべて",
+      "filterOpen": "オープン",
+      "filterClosed": "クローズ済み",
+      "noGitHubRepo": "Issue を管理するには GitHub リポジトリに接続してください",
+      "commentPlaceholder": "コメントを入力…",
       "updated": "最終更新",
       "notUpdated": "未更新",
       "assignedTo": "{{assignees}} に割り当て",
       "commentCount_one": "{{count}} 件のコメント",
       "commentCount_other": "{{count}} 件のコメント",
+      "submitComment": "コメント",
+      "newIssueTitlePlaceholder": "Issue のタイトル",
+      "newIssueBodyPlaceholder": "Issue の説明（任意）…",
       "status": {
         "open": "オープン",
         "closed": "クローズ",
         "completed": "完了",
         "notPlanned": "未計画"
-      }
+      },
+      "authRequired": {
+        "title": "GitHub に接続",
+        "description": "設定 → 連携 → Git で GitHub アカウントに接続してください。"
+      },
+      "reAuthRequired": "GitHub の再認証が必要です",
+      "reAuthDescription": "GitHub トークンの有効期限が切れました。設定 → 連携 → Git で再接続してください。",
+      "goToSettings": "設定へ移動"
     }
   },
   "selectors": {
@@ -1259,6 +1368,7 @@
         "nonCoding": "Workspace",
         "pinned": "ピン留め",
         "current": "現在",
+        "recent": "最近",
         "repo": "リポジトリ",
         "systemPaths": "システムパス",
         "usedElsewhere": "他の場所で使用",
@@ -1810,7 +1920,14 @@
       "overview": "概要",
       "cursor": "Cursor",
       "cli": "CLI"
-    }
+    },
+    "cost": "コスト",
+    "estimatedCost": "推定コスト",
+    "estimated": "推定",
+    "estimatedTooltip": "推定コスト — トークン数 × 定価（このソースの従量課金額ではありません）",
+    "totalEstimatedCost": "推定コスト",
+    "viewCost": "コスト",
+    "viewTokens": "トークン"
   },
   "devActivity": {
     "title": "コーディングプロフィール",
@@ -1961,10 +2078,23 @@
     },
     "sessionFilter": {
       "allSessions": "すべてのセッション"
+    },
+    "scope": {
+      "local": "ローカル",
+      "main": "メインチェックアウト",
+      "worktrees": "Worktree",
+      "searchPlaceholder": "Worktree を絞り込む…",
+      "switchScope": "ソース管理の範囲を切り替え",
+      "switchScopeActive": "ソース管理の範囲を切り替え: {{repo}}、{{branch}}"
     }
   },
   "contextInfo": {
     "contextUsed": "コンテキスト使用量",
+    "cacheSaved": "キャッシュ節約量: 読み取り {{read}}、書き込み {{write}}",
+    "remaining": "残り: {{tokens}}",
+    "cacheHero": "{{pct}}% をキャッシュから提供 · このターンで約 {{tokens}} を再利用",
+    "cacheHeroSub": "プロンプトキャッシュによりコストを最大 90% 削減できます",
+    "headroom": "残り {{tokens}}",
     "estimatedFromRules": "ルールからの推定",
     "activeRules": "有効なルール",
     "title": "Context",
@@ -1988,6 +2118,7 @@
     "autoCompactNote": "まもなくコンテキストを要約します",
     "startNewSession": "新しいセッションを開始",
     "compactBoundaryTitle": "コンテキストを圧縮しました",
+    "compactBoundarySubtitle_one": "過去のメッセージ {{count}} 件を要約",
     "compactBoundarySubtitle_other": "{{count}}件の過去メッセージを要約",
     "compactBoundaryTokens": "{{before}} → {{after}} トークン",
     "manualCompactAction": "圧縮",
@@ -2000,7 +2131,21 @@
     "manualCompactNoRuntime": "圧縮する前にメッセージを送信してください",
     "manualCompactFailed": "圧縮に失敗しました: {{message}}",
     "manualCompactChannelAttached": "このセッションはチャンネル管理です — そちらで /compact を使ってください",
-    "manualCompactInstructionsPlaceholder": "任意: 要約で重視するポイント"
+    "manualCompactInstructionsPlaceholder": "任意: 要約で重視するポイント",
+    "manualCompactSectionTitle": "手動圧縮",
+    "miniCpmCompactTitle": "MiniCPM による自動サイレント圧縮",
+    "miniCpmCompactDescription": "古いコンテキストを非同期で処理します",
+    "miniCpmCompactToggleAria": "MiniCPM による自動サイレント圧縮を有効化",
+    "miniCpmCompactDisabled": "サイレント圧縮はオフです",
+    "miniCpmCompactEnabled": "サイレント圧縮はオンです",
+    "miniCpmCompactRunning": "MiniCPM が圧縮中です",
+    "miniCpmCompactComplete": "圧縮が完了しました",
+    "miniCpmCompactBusy": "現在のセッションは処理中です",
+    "miniCpmCompactUnavailable": "MiniCPM を利用できません",
+    "miniCpmCompactError": "MiniCPM による圧縮に失敗しました",
+    "miniCpmCompactMetrics": "{{covered}} 件のメッセージ · {{source}} → {{summary}} トークン",
+    "miniCpmCompactAction": "今すぐ圧縮",
+    "miniCpmCompactRunningAction": "圧縮中"
   },
   "relativeDate": {
     "today": "今日",
@@ -2051,6 +2196,7 @@
     "workspaceNamePlaceholder": "マイ Workspace",
     "willInclude": "Workspace には {{count}} 個の Repo が含まれます",
     "statusSelectAtLeastTwo": "2つ以上の Repo を選択してください",
+    "statusMaxRepos": "選択できる Repo は最大 5 件です",
     "statusReadyToCreate": "Workspace を作成する準備ができました",
     "defaultName": "Workspace",
     "defaultNameWithRepo": "{{repo}} Workspace",
@@ -2268,11 +2414,57 @@
     "previewAlt": "プレビュー"
   },
   "update": {
+    "available": "アップデートがあります",
+    "versionReady": "バージョン {{version}} をダウンロードできます。",
+    "upToDateVersion": "ORGII は最新です (v{{version}})。",
+    "upToDate": "ORGII は最新です。",
+    "checkFailed": "アップデートの確認に失敗しました",
+    "checking": "アップデートを確認中…",
     "downloading": "アップデートをダウンロード中",
+    "downloadingEllipsis": "アップデートをダウンロード中…",
+    "downloadingWithSize": "アップデートをダウンロード中 ({{size}})…",
+    "downloadingDownloaded": "アップデートをダウンロード中… {{downloaded}}",
+    "downloadingPercent": "アップデートをダウンロード中… {{percent}}%",
     "installing": "アップデートをインストール中",
+    "installingEllipsis": "アップデートをインストール中…",
+    "installed": "アップデートをインストールしました",
+    "installFailed": "アップデートのインストールに失敗しました",
+    "downloadTimedOut": "ダウンロードがタイムアウトしました。ネットワークまたはプロキシを確認して、もう一度お試しください。",
+    "restarting": "アップデートを完了するため ORGII を再起動します。",
+    "preparingVersion": "v{{version}} のダウンロードを準備中…",
     "progressPercent": "{{percent}}%",
     "downloadedOfTotal": "{{downloaded}} / {{total}}",
     "preparingDownload": "ダウンロードを準備中…",
     "downloadingAndInstalling": "アップデートをダウンロードしてインストール中 (v{{version}})…"
+  },
+  "sqlEditor": {
+    "placeholder": "SQL クエリを入力...",
+    "format": "整形",
+    "runQueryToSeeResults": "クエリを実行すると結果が表示されます",
+    "executingQuery": "クエリを実行中...",
+    "queryFailed": "クエリに失敗しました",
+    "queryCompleted": "クエリが完了しました",
+    "noResults": "クエリの結果はありません",
+    "rowCount_one": "{{count}} 行",
+    "rowCount_other": "{{count}} 行",
+    "press": "押す:",
+    "toRun": "実行",
+    "nullValue": "NULL",
+    "booleanTrue": "true",
+    "booleanFalse": "false"
+  },
+  "uploadZone": {
+    "clickOrDrag": "クリックするか、ファイルをここにドラッグしてアップロード",
+    "supportFormats": "対応形式: {{accept}}"
+  },
+  "chatImage": {
+    "maxReached": "画像は最大 {{max}} 枚まで追加できます",
+    "remainingWarning": "追加できる画像はあと {{remaining}} 枚です（最大 {{max}} 枚）",
+    "processFailed": "画像の処理に失敗しました",
+    "loadFailed": "画像の読み込みに失敗しました: {{fileName}}"
+  },
+  "codeViewer": {
+    "original": "変更前",
+    "modified": "変更後"
   }
 }

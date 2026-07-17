@@ -2434,11 +2434,31 @@
     "confirm": "Quit"
   },
   "update": {
+    "available": "Update available",
+    "versionReady": "Version {{version}} is ready to download.",
+    "upToDateVersion": "ORGII is up to date (v{{version}}).",
+    "upToDate": "ORGII is up to date.",
+    "checkFailed": "Update check failed",
+    "checking": "Checking for updates…",
     "downloading": "Downloading update",
+    "downloadingEllipsis": "Downloading update…",
+    "downloadingWithSize": "Downloading update ({{size}})…",
+    "downloadingDownloaded": "Downloading update… {{downloaded}}",
+    "downloadingPercent": "Downloading update… {{percent}}%",
     "installing": "Installing update",
+    "installingEllipsis": "Installing update…",
+    "installed": "Update installed",
+    "installFailed": "Update install failed",
+    "downloadTimedOut": "The download timed out. Check your network or proxy, then retry.",
+    "restarting": "Restarting ORGII to finish the update.",
+    "preparingVersion": "Preparing to download v{{version}}…",
     "progressPercent": "{{percent}}%",
     "downloadedOfTotal": "{{downloaded}} of {{total}}",
     "preparingDownload": "Preparing download…",
     "downloadingAndInstalling": "Downloading and installing update (v{{version}})…"
+  },
+  "codeViewer": {
+    "original": "Original",
+    "modified": "Modified"
   }
 }

@@ -910,7 +910,16 @@
     "diskCategory_screenshots": "Capturas del navegador",
     "diskCategory_agentWorktrees": "Worktrees de Session Agent",
     "diskCategory_lspBin": "Binarios de LSP Server",
-    "loadZeroRows": "Haz clic para cargar {{count}} más"
+    "loadZeroRows": "Haz clic para cargar {{count}} más",
+    "diskCategory_toolResults": "Resultados de herramientas de gran tamaño",
+    "diskCategory_diagnostics": "Cola de diagnósticos",
+    "diskCategory_models": "Modelos descargados",
+    "diskCategory_codeMap": "Índices de mapas de código",
+    "diskCategory_semanticIndex": "Índice de búsqueda semántica",
+    "diskCategory_cursorCliProfiles": "Perfiles de Cursor CLI",
+    "diskCategory_kiroCliProfiles": "Perfiles de Kiro CLI",
+    "diskCategory_opencodeCliProfiles": "Perfiles de OpenCode CLI",
+    "diskCategory_sidecarBin": "Binarios auxiliares descargados"
   },
   "storage": {
     "dataDirectory": "Directorio de datos",

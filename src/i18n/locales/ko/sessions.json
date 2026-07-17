@@ -93,6 +93,8 @@
       "description": "ORGII가 감지하는 외부 코딩 도구입니다. 가져올 수 있는 앱은 세션 수를 표시하고 다시 스캔할 수 있으며, 나머지는 설치 상태와 기록 위치를 표시합니다.",
       "rescanAll": "모두 다시 스캔",
       "rescan": "다시 스캔",
+      "rescanUpdate": "업데이트",
+      "rescanClear": "지우고 다시 스캔",
       "rescanning": "다시 스캔 중…",
       "enable": "사용",
       "disable": "사용 안 함",
@@ -122,6 +124,7 @@
         "apps": "앱",
         "clis": "CLI"
       },
+      "sessions_one": "{{count}}개 세션",
       "sessions_other": "{{count}}개 세션",
       "details": {
         "path": "경로",
@@ -197,7 +200,9 @@
       "rustAgent": "Rust Agent",
       "removeDraft": "초안 제거",
       "showSubagents": "하위 에이전트 표시",
-      "hideSubagents": "하위 에이전트 숨기기"
+      "hideSubagents": "하위 에이전트 숨기기",
+      "githubIssues": "GitHub 이슈",
+      "githubPrs": "GitHub PR"
     },
     "resultStatus": {
       "completed": "완료",
@@ -353,6 +358,16 @@
       "playbackSpeed": "재생 속도",
       "noEvents": "이벤트 없음",
       "agentHasNotUsedTool": "Agent가 아직 이 도구를 사용하지 않았습니다",
+      "filters": {
+        "tooltip": "이벤트 필터",
+        "allEvents": "모든 이벤트",
+        "keyInteractions": "주요 상호작용",
+        "fileChanges": "파일 변경",
+        "terminalEvents": "터미널 이벤트",
+        "explore": "탐색",
+        "other": "기타",
+        "selectedCount": "필터 {{count}}개"
+      },
       "browser": {
         "tabs": {
           "browser": "브라우저",
@@ -440,7 +455,17 @@
           "empty": "아직 제출이 없습니다",
           "selectSubmission": "세부 정보를 보려면 제출을 선택하세요",
           "noCommits": "아직 Commits가 없습니다",
-          "noPullRequests": "아직 Pull Requests가 없습니다"
+          "noPullRequests": "아직 Pull Requests가 없습니다",
+          "labels": {
+            "created": {
+              "commit": "생성한 커밋",
+              "pullRequest": "생성한 PR"
+            },
+            "mentioned": {
+              "commit": "언급한 커밋",
+              "pullRequest": "언급한 PR"
+            }
+          }
         }
       },
       "channelsSidebar": {
@@ -720,7 +745,11 @@
       "insert": "삽입"
     },
     "compactArgHint": "<선택: 요약의 초점>",
-    "compactCommandDescription": "이전 컨텍스트를 요약해 공간을 확보합니다. 선택: /compact <요약의 초점>"
+    "compactCommandDescription": "이전 컨텍스트를 요약해 공간을 확보합니다. 선택: /compact <요약의 초점>",
+    "pr": {
+      "open": "PR 열기",
+      "creating": "PR 만드는 중…"
+    }
   },
   "listPanel": {
     "showingOf": "{{total}}개 중 {{filtered}}개 표시",
@@ -739,6 +768,7 @@
     "exportFailed": "내보내기 실패",
     "activities": "활동",
     "findInChat": "채팅에서 검색",
+    "restoreCheckpoint": "체크포인트 복원",
     "searchKeysOrValues": "keys 또는 values 검색...",
     "replyToQuestion": "질문에 답변",
     "workspaceIsWorking": "워크스페이스가 작동 중입니다!",
@@ -1919,7 +1949,8 @@
     "branchesTouched": "브랜치"
   },
   "modelPill": {
-    "immutableInSession": "키 소스, Agent 유형 및 가격 티어는 세션 시작 시 고정됩니다. 변경하려면 새 세션을 시작하세요."
+    "immutableInSession": "키 소스, Agent 유형 및 가격 티어는 세션 시작 시 고정됩니다. 변경하려면 새 세션을 시작하세요.",
+    "appliesNextTurn": "계정이 전환되었습니다. 현재 응답은 이전 계정에서 계속 실행되며 새 계정은 다음 턴부터 적용됩니다."
   },
   "creator": {
     "createTarget": {
@@ -2582,6 +2613,7 @@
     "list": {
       "title": "작업 목록 보기",
       "count": "{{taskCount}}개 작업",
+      "countLabel": "작업",
       "empty": "작업 없음"
     },
     "statusLabel": "상태",
@@ -2623,6 +2655,9 @@
   "cards": {
     "openFile": "에디터에서 열기",
     "openLink": "링크 열기",
+    "session": {
+      "open": "세션 열기"
+    },
     "broadcast": "→ 모든 Agent",
     "agentMessage": {
       "fallbackTitle": "메시지",
@@ -2708,6 +2743,14 @@
     "close": "닫기",
     "summarize": "Agent로 요약",
     "waiting": "콘텐츠 대기 중…",
-    "empty": "콘텐츠 없음"
+    "empty": "콘텐츠 없음",
+    "reactDisabledTitle": "React 미리보기는 Simulator에서 실행됩니다",
+    "reactDisabledDescription": "Agent JavaScript는 채팅 안에서 실행되지 않습니다. 샌드박스 React 미리보기를 실행하려면 Simulator에서 여세요.",
+    "viewInSimulator": "Simulator에서 보기"
+  },
+  "canvasApp": {
+    "empty": "아직 렌더링된 캔버스가 없습니다",
+    "sidebarTitle": "캔버스",
+    "noCanvases": "아직 캔버스가 없습니다"
   }
 }

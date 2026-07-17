@@ -139,7 +139,9 @@
         "installed": "Installiert",
         "notInstalled": "Nicht erkannt",
         "disabled": "Deaktiviert"
-      }
+      },
+      "rescanUpdate": "Aktualisieren",
+      "rescanClear": "Löschen + neu scannen"
     },
     "list": {
       "updated": "Aktualisiert",
@@ -196,7 +198,11 @@
       "views": "Ansichten",
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
-      "removeDraft": "Entwurf entfernen"
+      "removeDraft": "Entwurf entfernen",
+      "githubIssues": "GitHub Issues",
+      "githubPrs": "GitHub PRs",
+      "showSubagents": "Subagents anzeigen",
+      "hideSubagents": "Subagents ausblenden"
     },
     "resultStatus": {
       "completed": "Abgeschlossen",
@@ -439,7 +445,17 @@
           "empty": "Noch keine Einreichungen",
           "selectSubmission": "Wählen Sie eine Einreichung aus, um Details anzuzeigen",
           "noCommits": "Noch keine Commits",
-          "noPullRequests": "Noch keine Pull Requests"
+          "noPullRequests": "Noch keine Pull Requests",
+          "labels": {
+            "created": {
+              "commit": "Commit erstellt",
+              "pullRequest": "PR erstellt"
+            },
+            "mentioned": {
+              "commit": "Commit erwähnt",
+              "pullRequest": "PR erwähnt"
+            }
+          }
         }
       },
       "channelsSidebar": {
@@ -606,7 +622,17 @@
       "trajectoryThisApp": "Dieser App folgen",
       "followAgent": "Agent folgen",
       "followThisApp": "Dieser App folgen",
-      "followApp": "{{appName}} folgen"
+      "followApp": "{{appName}} folgen",
+      "filters": {
+        "tooltip": "Ereignisse filtern",
+        "allEvents": "Alle Ereignisse",
+        "keyInteractions": "Wichtige Interaktionen",
+        "fileChanges": "Dateiänderungen",
+        "terminalEvents": "Terminal-Ereignisse",
+        "explore": "Erkunden",
+        "other": "Sonstige",
+        "selectedCount": "{{count}} Filter"
+      }
     },
     "codeEditor": {
       "switchToListView": "Zur Listenansicht wechseln",
@@ -719,7 +745,11 @@
       "insert": "Einfügen"
     },
     "compactArgHint": "<optionaler Fokus für die Zusammenfassung>",
-    "compactCommandDescription": "Älteren Kontext zusammenfassen, um Platz freizugeben. Optional: /compact <Fokus für die Zusammenfassung>"
+    "compactCommandDescription": "Älteren Kontext zusammenfassen, um Platz freizugeben. Optional: /compact <Fokus für die Zusammenfassung>",
+    "pr": {
+      "open": "PR öffnen",
+      "creating": "PR wird erstellt…"
+    }
   },
   "listPanel": {
     "showingOf": "{{filtered}} von {{total}} angezeigt",
@@ -1044,7 +1074,8 @@
         "filters": "Filters",
         "openInGitHub": "Open in GitHub"
       }
-    }
+    },
+    "restoreCheckpoint": "Checkpoint wiederherstellen"
   },
   "chatStatus": {
     "approved": "Genehmigt",
@@ -1918,7 +1949,8 @@
     "branchesTouched": "Branches"
   },
   "modelPill": {
-    "immutableInSession": "Schlüsselquelle, Agent-Typ und Preisstufe sind beim Sitzungsstart festgelegt. Starten Sie eine neue Sitzung, um sie zu ändern."
+    "immutableInSession": "Schlüsselquelle, Agent-Typ und Preisstufe sind beim Sitzungsstart festgelegt. Starten Sie eine neue Sitzung, um sie zu ändern.",
+    "appliesNextTurn": "Konto gewechselt. Die aktuelle Antwort wird noch mit dem vorherigen Konto ausgeführt; das neue Konto gilt ab dem nächsten Durchlauf."
   },
   "creator": {
     "createTarget": {
@@ -2580,7 +2612,8 @@
     "list": {
       "title": "Aufgabenliste anzeigen",
       "count": "{{taskCount}} Aufgaben",
-      "empty": "Keine Aufgaben"
+      "empty": "Keine Aufgaben",
+      "countLabel": "Aufgaben"
     },
     "statusLabel": "Status",
     "assignedBadge": "Zugewiesen",
@@ -2682,6 +2715,9 @@
       "directory": "Verzeichnis",
       "file": "Datei",
       "emptyDirectory": "Leeres Verzeichnis"
+    },
+    "session": {
+      "open": "Sitzung öffnen"
     }
   },
   "codePreview": {
@@ -2706,6 +2742,14 @@
     "close": "Schließen",
     "summarize": "Mit Agent zusammenfassen",
     "waiting": "Warte auf Inhalt…",
-    "empty": "Kein Inhalt"
+    "empty": "Kein Inhalt",
+    "reactDisabledTitle": "React-Vorschau wird im Simulator ausgeführt",
+    "reactDisabledDescription": "Agent-JavaScript wird im Chat nicht ausgeführt. Öffnen Sie die Vorschau im Simulator, um sie in der React-Sandbox auszuführen.",
+    "viewInSimulator": "Im Simulator anzeigen"
+  },
+  "canvasApp": {
+    "empty": "Noch kein Canvas gerendert",
+    "sidebarTitle": "Canvas-Bereiche",
+    "noCanvases": "Noch keine Canvases"
   }
 }
