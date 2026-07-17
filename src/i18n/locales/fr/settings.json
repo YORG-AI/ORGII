@@ -790,6 +790,15 @@
     "currentVersion": "Version actuelle"
   },
   "monitor": {
+    "diskCategory_toolResults": "Résultats d’outils volumineux",
+    "diskCategory_diagnostics": "File d’attente des diagnostics",
+    "diskCategory_models": "Modèles téléchargés",
+    "diskCategory_codeMap": "Index de cartographie du code",
+    "diskCategory_semanticIndex": "Index de recherche sémantique",
+    "diskCategory_cursorCliProfiles": "Profils de la CLI Cursor",
+    "diskCategory_kiroCliProfiles": "Profils de la CLI Kiro",
+    "diskCategory_opencodeCliProfiles": "Profils de la CLI OpenCode",
+    "diskCategory_sidecarBin": "Binaires sidecar téléchargés",
     "categoryTerminal": "Processus terminal/outil",
     "categoryWebview": "Moteur de rendu WebView",
     "categoryGpu": "GPU WebKit",

@@ -203,7 +203,14 @@
     "openWorkspace": "Mở Workspace",
     "skipThisVersion": "Bỏ qua phiên bản này",
     "later": "Để sau",
-    "link": "Liên kết"
+    "link": "Liên kết",
+    "openOnGitHub": "Mở trên GitHub",
+    "createPullRequest": "Tạo pull request",
+    "newIssue": "Vấn đề mới",
+    "closeIssue": "Đóng vấn đề",
+    "reopenIssue": "Mở lại vấn đề",
+    "addComment": "Thêm bình luận",
+    "editIssue": "Chỉnh sửa vấn đề"
   },
   "refreshToast": {
     "successName": "Đã làm mới {{name}}",
@@ -438,7 +445,26 @@
     "appliedCommits": "Applied commits",
     "noAppliedCommit": "No linked commit yet",
     "noSessionsForFile": "No sessions found for this file",
-    "committedRate": "Đã commit"
+    "committedRate": "Đã commit",
+    "noPullRequestForBranch": "Chưa có pull request cho nhánh này.",
+    "creatingPullRequest": "Đang tạo…",
+    "failedToLoadPullRequest": "Không thể tải pull request",
+    "noCommitsInPullRequest": "Pull request này chưa có commit",
+    "prStatus": {
+      "open": "Đang mở",
+      "merged": "Đã hợp nhất",
+      "closed": "Đã đóng",
+      "draft": "Bản nháp"
+    },
+    "sendingNow": "đang gửi ngay…",
+    "issues": "Vấn đề",
+    "noIssues": "Không có vấn đề",
+    "openIssues": "Đang mở",
+    "closedIssues": "Đã đóng",
+    "issueComments": "{{count}} bình luận",
+    "issueComments_one": "1 bình luận",
+    "issueComments_other": "{{count}} bình luận",
+    "tokens": "Token"
   },
   "searchModes": {
     "keywordLabel": "Từ khóa",
@@ -795,6 +821,7 @@
   },
   "placeholders": {
     "loading": "Đang tải...",
+    "noResults": "Không có kết quả",
     "selectToViewConfig": "Chọn {{type}} để xem hoặc cấu hình",
     "selectToViewConfigSubtitle": "Chọn một mục từ danh sách bên trái",
     "noOptions": "Không có tùy chọn",
@@ -1118,7 +1145,10 @@
       "tryHeading": "Thử:",
       "tryCheckConnection": "Kiểm tra kết nối internet",
       "tryVerifyUrl": "Xác minh URL đúng",
-      "tryAgainLater": "Thử lại sau"
+      "tryAgainLater": "Thử lại sau",
+      "embeddedFallbackTitle": "Trang web này có thể không hoạt động trong trình duyệt nhúng",
+      "embeddedFallbackBody": "Một số trang web chặn hoặc không hiển thị được trong WebView của ứng dụng. Hãy mở bằng trình duyệt hệ thống nếu trang vẫn trống.",
+      "currentUrl": "URL hiện tại"
     },
     "selectRepoFromHome": "Please select a repo from the home page",
     "cloneRepoAgain": "Please clone the repo again from the home page",
@@ -1214,6 +1244,85 @@
         "closed": "Đã đóng",
         "completed": "Hoàn tất",
         "notPlanned": "Không lên kế hoạch"
+      },
+      "title": "Vấn đề",
+      "loading": "Đang tải vấn đề…",
+      "empty": "Không có vấn đề {{state}}",
+      "failedToLoad": "Không thể tải vấn đề",
+      "failedToCreate": "Không thể tạo vấn đề",
+      "failedToUpdate": "Không thể cập nhật vấn đề",
+      "failedToComment": "Không thể thêm bình luận",
+      "filterAll": "Tất cả",
+      "filterOpen": "Đang mở",
+      "filterClosed": "Đã đóng",
+      "noGitHubRepo": "Kết nối kho lưu trữ GitHub để quản lý vấn đề",
+      "commentPlaceholder": "Viết bình luận…",
+      "submitComment": "Bình luận",
+      "newIssueTitlePlaceholder": "Tiêu đề vấn đề",
+      "newIssueBodyPlaceholder": "Mô tả vấn đề (tùy chọn)…",
+      "authRequired": {
+        "title": "Kết nối GitHub",
+        "description": "Đi tới Cài đặt → Tích hợp → Git để kết nối tài khoản GitHub."
+      },
+      "reAuthRequired": "Cần cấp quyền lại cho GitHub",
+      "reAuthDescription": "Token GitHub của bạn đã hết hạn. Đi tới Cài đặt → Tích hợp → Git để kết nối lại.",
+      "goToSettings": "Đi tới Cài đặt"
+    },
+    "pr": {
+      "title": "Pull Request",
+      "baseBranch": "nhánh cơ sở",
+      "noDescription": "Chưa cung cấp mô tả.",
+      "loadingConversation": "Đang tải…",
+      "reviewNoBody": "Đã để lại bình luận đánh giá.",
+      "commentPlaceholder": "Viết bình luận…",
+      "comment": "Bình luận",
+      "approve": "Phê duyệt",
+      "requestChanges": "Yêu cầu thay đổi",
+      "reply": "Trả lời",
+      "replyPlaceholder": "Trả lời…",
+      "reviewThreads": "Bình luận đánh giá",
+      "tabs": {
+        "conversation": "Trao đổi",
+        "commits": "Commit",
+        "checks": "Kiểm tra",
+        "changes": "Thay đổi"
+      },
+      "checks": {
+        "none": "Không có kiểm tra nào được báo cáo",
+        "noneHint": "Không có kiểm tra CI hoặc trạng thái nào chạy trên commit đầu của pull request này.",
+        "allPassed": "Tất cả kiểm tra đều đạt",
+        "someFailed": "Một số kiểm tra thất bại",
+        "pending": "Đang kiểm tra"
+      },
+      "commits": {
+        "backToList": "Tất cả commit",
+        "none": "Không có commit"
+      },
+      "changes": {
+        "title": "Tệp đã thay đổi",
+        "noFiles": "Không có thay đổi tệp",
+        "tooLarge": "Tệp quá lớn để hiển thị diff",
+        "unavailable": "Không có dữ liệu thay đổi",
+        "unavailableHint": "Không thể phân giải commit cơ sở và commit đầu của pull request."
+      },
+      "creating": "Đang tạo pull request…",
+      "createError": "Không thể tạo pull request",
+      "readyHint": "Nhánh đã được push và sẵn sàng tạo pull request",
+      "neutralHint": "Push nhánh để tạo pull request",
+      "noBranch": "Chưa chọn nhánh",
+      "noRepoPath": "Không có đường dẫn kho lưu trữ",
+      "notAuthenticated": "Đăng nhập để tạo pull request",
+      "noOriginRemote": "Chưa cấu hình remote origin",
+      "cannotParseRepoName": "Không thể phân tích tên kho lưu trữ từ remote origin",
+      "status": {
+        "open": "Đang mở",
+        "merged": "Đã hợp nhất",
+        "closed": "Đã đóng",
+        "draft": "Bản nháp"
+      },
+      "authRequired": {
+        "title": "Kết nối GitHub",
+        "description": "Đi tới Cài đặt → Tích hợp → Git để kết nối tài khoản GitHub."
       }
     }
   },
@@ -1262,7 +1371,8 @@
         "repo": "Kho lưu trữ",
         "systemPaths": "Đường dẫn hệ thống",
         "usedElsewhere": "Được dùng ở nơi khác",
-        "workspace": "Workspace"
+        "workspace": "Workspace",
+        "recent": "Gần đây"
       },
       "tabs": {
         "repositories": "Kho lưu trữ",
@@ -1799,6 +1909,13 @@
     "viewPie": "Tròn",
     "viewLine": "Đường",
     "linesByModel": "Dòng theo mô hình",
+    "cost": "Chi phí",
+    "estimatedCost": "Chi phí ước tính",
+    "estimated": "ƯỚC TÍNH",
+    "estimatedTooltip": "Chi phí ước tính — số token × giá niêm yết (nguồn này không ghi nhận chi tiêu thực tế)",
+    "totalEstimatedCost": "Chi phí ước tính",
+    "viewCost": "Chi phí",
+    "viewTokens": "Token",
     "completed": "Hoàn thành",
     "incomplete": "Chưa hoàn thành",
     "tabs": {
@@ -1956,6 +2073,14 @@
     },
     "sessionFilter": {
       "allSessions": "Tất cả phiên"
+    },
+    "scope": {
+      "local": "Cục bộ",
+      "main": "Checkout chính",
+      "worktrees": "Worktree",
+      "searchPlaceholder": "Lọc worktree…",
+      "switchScope": "Chuyển phạm vi quản lý mã nguồn",
+      "switchScopeActive": "Chuyển phạm vi quản lý mã nguồn: {{repo}}, {{branch}}"
     }
   },
   "contextInfo": {
@@ -1995,7 +2120,27 @@
     "manualCompactNoRuntime": "Hãy gửi một tin nhắn trước khi nén",
     "manualCompactFailed": "Nén thất bại: {{message}}",
     "manualCompactChannelAttached": "Phiên này do một kênh quản lý — hãy dùng /compact ở đó",
-    "manualCompactInstructionsPlaceholder": "Tùy chọn: trọng tâm khi tóm tắt"
+    "manualCompactInstructionsPlaceholder": "Tùy chọn: trọng tâm khi tóm tắt",
+    "cacheSaved": "Đã tiết kiệm bộ nhớ đệm: đọc {{read}}, ghi {{write}}",
+    "remaining": "Còn trống: {{tokens}}",
+    "cacheHero": "{{pct}}% được phục vụ từ bộ nhớ đệm · tái sử dụng khoảng {{tokens}} trong lượt này",
+    "cacheHeroSub": "Bộ nhớ đệm prompt có thể giảm chi phí tới 90%",
+    "headroom": "Còn chỗ cho {{tokens}}",
+    "compactBoundarySubtitle_one": "Đã tóm tắt {{count}} tin nhắn trước đó",
+    "manualCompactSectionTitle": "Nén thủ công",
+    "miniCpmCompactTitle": "Tự động nén ngầm bằng MiniCPM",
+    "miniCpmCompactDescription": "Xử lý ngữ cảnh cũ hơn theo cách bất đồng bộ",
+    "miniCpmCompactToggleAria": "Bật tự động nén ngầm bằng MiniCPM",
+    "miniCpmCompactDisabled": "Tính năng nén ngầm đang tắt",
+    "miniCpmCompactEnabled": "Tính năng nén ngầm đang bật",
+    "miniCpmCompactRunning": "MiniCPM đang nén",
+    "miniCpmCompactComplete": "Đã nén xong",
+    "miniCpmCompactBusy": "Phiên hiện tại đang bận",
+    "miniCpmCompactUnavailable": "MiniCPM không khả dụng",
+    "miniCpmCompactError": "MiniCPM nén thất bại",
+    "miniCpmCompactMetrics": "{{covered}} tin nhắn · {{source}} → {{summary}} token",
+    "miniCpmCompactAction": "Nén ngay",
+    "miniCpmCompactRunningAction": "Đang nén"
   },
   "relativeDate": {
     "today": "Hôm nay",
@@ -2047,6 +2192,7 @@
     "willInclude": "Workspace sẽ bao gồm {{count}} repo",
     "statusSelectAtLeastTwo": "Chọn ít nhất 2 repo",
     "statusReadyToCreate": "Sẵn sàng tạo Workspace",
+    "statusMaxRepos": "Đã chọn tối đa 5 repo",
     "defaultName": "Workspace",
     "defaultNameWithRepo": "Workspace {{repo}}",
     "windowTitle": "Workspace"
@@ -2263,11 +2409,57 @@
     "previewAlt": "Xem trước"
   },
   "update": {
+    "available": "Có bản cập nhật",
+    "versionReady": "Phiên bản {{version}} đã sẵn sàng để tải xuống.",
+    "upToDateVersion": "ORGII đang ở phiên bản mới nhất (v{{version}}).",
+    "upToDate": "ORGII đang ở phiên bản mới nhất.",
+    "checkFailed": "Không thể kiểm tra bản cập nhật",
+    "checking": "Đang kiểm tra bản cập nhật…",
     "downloading": "Đang tải bản cập nhật",
+    "downloadingEllipsis": "Đang tải bản cập nhật…",
+    "downloadingWithSize": "Đang tải bản cập nhật ({{size}})…",
+    "downloadingDownloaded": "Đang tải bản cập nhật… {{downloaded}}",
+    "downloadingPercent": "Đang tải bản cập nhật… {{percent}}%",
     "installing": "Đang cài đặt bản cập nhật",
+    "installingEllipsis": "Đang cài đặt bản cập nhật…",
+    "installed": "Đã cài đặt bản cập nhật",
+    "installFailed": "Không thể cài đặt bản cập nhật",
+    "downloadTimedOut": "Quá thời gian tải xuống. Hãy kiểm tra mạng hoặc proxy rồi thử lại.",
+    "restarting": "Đang khởi động lại ORGII để hoàn tất cập nhật.",
+    "preparingVersion": "Đang chuẩn bị tải v{{version}}…",
     "progressPercent": "{{percent}}%",
     "downloadedOfTotal": "{{downloaded}} trên {{total}}",
     "preparingDownload": "Đang chuẩn bị tải xuống…",
     "downloadingAndInstalling": "Đang tải và cài đặt bản cập nhật (v{{version}})…"
+  },
+  "sqlEditor": {
+    "placeholder": "Nhập truy vấn SQL...",
+    "format": "Định dạng",
+    "runQueryToSeeResults": "Chạy truy vấn để xem kết quả",
+    "executingQuery": "Đang thực thi truy vấn...",
+    "queryFailed": "Truy vấn thất bại",
+    "queryCompleted": "Truy vấn hoàn tất",
+    "noResults": "Truy vấn không trả về kết quả",
+    "rowCount_one": "{{count}} hàng",
+    "rowCount_other": "{{count}} hàng",
+    "press": "Nhấn",
+    "toRun": "để chạy",
+    "nullValue": "NULL",
+    "booleanTrue": "đúng",
+    "booleanFalse": "sai"
+  },
+  "uploadZone": {
+    "clickOrDrag": "Nhấp hoặc kéo tệp vào khu vực này để tải lên",
+    "supportFormats": "Hỗ trợ: {{accept}}"
+  },
+  "chatImage": {
+    "maxReached": "Chỉ được phép tối đa {{max}} hình ảnh",
+    "remainingWarning": "Chỉ có thể thêm {{remaining}} hình ảnh nữa (tối đa {{max}})",
+    "processFailed": "Không thể xử lý hình ảnh",
+    "loadFailed": "Không thể tải hình ảnh: {{fileName}}"
+  },
+  "codeViewer": {
+    "original": "Bản gốc",
+    "modified": "Đã sửa đổi"
   }
 }

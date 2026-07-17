@@ -46,7 +46,8 @@
     "projectManager": "Project Manager",
     "diff": "Diff",
     "colleagues": "Współpracownicy",
-    "terminals": "Terminale"
+    "terminals": "Terminale",
+    "openSourceRepo": "Otwórz repozytorium źródłowe"
   },
   "trajectoryPanel": {
     "title": "Trajektoria",
@@ -145,7 +146,9 @@
     },
     "folderCounts": {
       "repo": "{{count}} Repo",
-      "multiRepoWorkspace": "{{count}} Workspace z wieloma Repo"
+      "repo_plural": "{{count}} repozytoriów",
+      "multiRepoWorkspace": "{{count}} Workspace z wieloma Repo",
+      "multiRepoWorkspace_plural": "{{count}} obszarów roboczych z wieloma repozytoriami"
     },
     "bottomBar": {
       "settings": "Ustawienia",
@@ -333,7 +336,27 @@
     "addWorkspace": "Dodaj workspace"
   },
   "explore": {
-    "title": "Odkrywaj"
+    "title": "Odkrywaj",
+    "search": "Szukaj",
+    "searching": "Wyszukiwanie...",
+    "searchPlaceholder": "Szukaj repozytoriów GitHub (np. language:rust tauri)",
+    "clone": "Klonuj",
+    "cloning": "Klonowanie...",
+    "openOnGithub": "GitHub",
+    "cloneSuccess": "Sklonowano {{name}}",
+    "cloneFailed": "Klonowanie nie powiodło się",
+    "cloneNoTarget": "Nie skonfigurowano domyślnego folderu obszaru roboczego. Ustaw go w Ustawieniach.",
+    "errorTitle": "Wyszukiwanie nie powiodło się",
+    "noResultsTitle": "Żadne repozytorium nie pasuje",
+    "noResultsSubtitle": "Spróbuj innego zapytania lub sortowania.",
+    "resultsCount": "{{shown}} z {{total}} repozytoriów",
+    "partial": "(wyniki częściowe — przekroczono limit czasu wyszukiwania)",
+    "sort": {
+      "bestMatch": "Najlepsze dopasowanie",
+      "stars": "Gwiazdki",
+      "updated": "Ostatnio aktualizowane",
+      "forks": "Forki"
+    }
   },
   "workstation": {
     "dockFilter": {
@@ -387,7 +410,7 @@
     "supabaseAnonKey": "Supabase anon key",
     "orgName": "Nazwa ORG",
     "orgNamePlaceholder": "Team Alpha",
-    "inviteCode": "Link lub kod zaproszenia",
+    "inviteCode": "Kod zaproszenia",
     "inviteCodePlaceholder": "Wklej link orgii:// lub kod zaproszenia",
     "joinAs": "Dołącz jako",
     "joinAsPlaceholder": "Twoje imię",
@@ -489,5 +512,13 @@
     "members": {
       "remove": "Usuń"
     }
+  },
+  "publish": {
+    "title": "Publikuj",
+    "description": "Opublikuj zmiany i udostępnij je zespołowi"
+  },
+  "importExport": {
+    "import": "Import",
+    "export": "Eksport"
   }
 }

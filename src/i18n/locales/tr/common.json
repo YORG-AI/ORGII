@@ -1,4 +1,30 @@
 {
+  "sqlEditor": {
+    "placeholder": "SQL sorgusu girin...",
+    "format": "Biçimlendir",
+    "runQueryToSeeResults": "Sonuçları görmek için bir sorgu çalıştırın",
+    "executingQuery": "Sorgu çalıştırılıyor...",
+    "queryFailed": "Sorgu başarısız",
+    "queryCompleted": "Sorgu tamamlandı",
+    "noResults": "Sorgu sonuç döndürmedi",
+    "rowCount_one": "{{count}} satır",
+    "rowCount_other": "{{count}} satır",
+    "press": "Çalıştırmak için",
+    "toRun": "tuşlarına basın",
+    "nullValue": "NULL",
+    "booleanTrue": "doğru",
+    "booleanFalse": "yanlış"
+  },
+  "uploadZone": {
+    "clickOrDrag": "Yüklemek için dosyayı bu alana tıklayın veya sürükleyin",
+    "supportFormats": "Desteklenen biçimler: {{accept}}"
+  },
+  "chatImage": {
+    "maxReached": "En fazla {{max}} görsele izin verilir",
+    "remainingWarning": "Yalnızca {{remaining}} görsel daha eklenebilir (en fazla {{max}})",
+    "processFailed": "Görsel işlenemedi",
+    "loadFailed": "Görsel yüklenemedi: {{fileName}}"
+  },
   "toasts": {
     "replyEmpty": "Yanıt boş olamaz",
     "sessionNotFound": "Oturum bulunamadı",
@@ -75,6 +101,13 @@
     }
   },
   "actions": {
+    "openOnGitHub": "GitHub’da aç",
+    "createPullRequest": "Pull request oluştur",
+    "newIssue": "Yeni issue",
+    "closeIssue": "Issue’yu kapat",
+    "reopenIssue": "Issue’yu yeniden aç",
+    "addComment": "Yorum ekle",
+    "editIssue": "Issue’yu düzenle",
     "save": "Kaydet",
     "cancel": "İptal",
     "delete": "Sil",
@@ -345,6 +378,25 @@
     "filterByLanguage": "Dile göre filtrele"
   },
   "labels": {
+    "noPullRequestForBranch": "Bu dal için henüz bir pull request yok.",
+    "creatingPullRequest": "Oluşturuluyor…",
+    "failedToLoadPullRequest": "Pull request yüklenemedi",
+    "noCommitsInPullRequest": "Bu pull request’te commit yok",
+    "prStatus": {
+      "open": "Açık",
+      "merged": "Birleştirildi",
+      "closed": "Kapalı",
+      "draft": "Taslak"
+    },
+    "sendingNow": "şimdi gönderiliyor…",
+    "issues": "Issue’lar",
+    "noIssues": "Issue yok",
+    "openIssues": "Açık",
+    "closedIssues": "Kapalı",
+    "issueComments": "{{count}} yorum",
+    "issueComments_one": "1 yorum",
+    "issueComments_other": "{{count}} yorum",
+    "tokens": "Tokenlar",
     "accounts": "Hesaplar",
     "enabled": "Etkin",
     "disabled": "Devre dışı",
@@ -794,6 +846,7 @@
     "searchModeCycle": "Arama modu: {{mode}}. Modlar arasında geçiş için tıklayın."
   },
   "placeholders": {
+    "noResults": "Sonuç yok",
     "loading": "Yükleniyor...",
     "selectToViewConfig": "Görüntülemek veya yapılandırmak için bir {{type}} seçin",
     "selectToViewConfigSubtitle": "Soldaki listeden bir öğe seçin",
@@ -1097,6 +1150,9 @@
     "sendStyleEdits": "Gönder",
     "addToChat": "Sohbete ekle",
     "browserCore": {
+      "embeddedFallbackTitle": "Bu site gömülü tarayıcıda çalışmayabilir",
+      "embeddedFallbackBody": "Bazı siteler uygulama içi WebView’larda görüntülenmeyi engeller veya görüntülenemez. Sayfa boş kalırsa sistem tarayıcınızda açın.",
+      "currentUrl": "Geçerli URL",
       "desktopOnlyTitle": "Tarayıcı yalnızca masaüstü uygulamasında",
       "desktopOnlyBody": "Gömülü tarayıcı yalnızca Tauri masaüstü uygulamasında kullanılabilir.",
       "debugWebviewAvailable": "WebView kullanılabilir: {{value}}",
@@ -1127,6 +1183,63 @@
     "gitSyncMenuTitle": "Git sync actions"
   },
   "git": {
+    "pr": {
+      "title": "Pull Request",
+      "baseBranch": "temel dal",
+      "noDescription": "Açıklama sağlanmadı.",
+      "loadingConversation": "Yükleniyor…",
+      "reviewNoBody": "İnceleme yorumları bıraktı.",
+      "commentPlaceholder": "Yorum bırakın…",
+      "comment": "Yorum yap",
+      "approve": "Onayla",
+      "requestChanges": "Değişiklik iste",
+      "reply": "Yanıtla",
+      "replyPlaceholder": "Yanıt yazın…",
+      "reviewThreads": "İnceleme yorumları",
+      "tabs": {
+        "conversation": "Konuşma",
+        "commits": "Commitler",
+        "checks": "Kontroller",
+        "changes": "Değişiklikler"
+      },
+      "checks": {
+        "none": "Bildirilen kontrol yok",
+        "noneHint": "Bu pull request’in son commit’inde hiçbir CI kontrolü veya durum denetimi çalışmadı.",
+        "allPassed": "Tüm kontroller başarılı",
+        "someFailed": "Bazı kontroller başarısız",
+        "pending": "Kontroller sürüyor"
+      },
+      "commits": {
+        "backToList": "Tüm commitler",
+        "none": "Commit yok"
+      },
+      "changes": {
+        "title": "Değiştirilen dosyalar",
+        "noFiles": "Dosya değişikliği yok",
+        "tooLarge": "Dosya diff için çok büyük",
+        "unavailable": "Değişiklikler kullanılamıyor",
+        "unavailableHint": "Pull request’in temel ve son commitleri çözümlenemedi."
+      },
+      "creating": "Pull request oluşturuluyor…",
+      "createError": "Pull request oluşturulamadı",
+      "readyHint": "Dal push edildi ve pull request için hazır",
+      "neutralHint": "Pull request oluşturmak için dalınızı push edin",
+      "noBranch": "Dal seçilmedi",
+      "noRepoPath": "Depo yolu kullanılamıyor",
+      "notAuthenticated": "Pull request oluşturmak için giriş yapın",
+      "noOriginRemote": "Origin remote yapılandırılmamış",
+      "cannotParseRepoName": "Origin remote üzerinden depo adı ayrıştırılamadı",
+      "status": {
+        "open": "Açık",
+        "merged": "Birleştirildi",
+        "closed": "Kapalı",
+        "draft": "Taslak"
+      },
+      "authRequired": {
+        "title": "GitHub’a bağlan",
+        "description": "GitHub hesabınızı bağlamak için Ayarlar → Entegrasyonlar → Git’e gidin."
+      }
+    },
     "loading": "Git durumu yükleniyor...",
     "resolved": "Git önerileri çözüldü",
     "noRepoSelected": "Depo seçilmedi",
@@ -1204,6 +1317,28 @@
       "shaCopied": "SHA panoya kopyalandı"
     },
     "issues": {
+      "title": "Issue’lar",
+      "loading": "Issue’lar yükleniyor…",
+      "empty": "{{state}} issue yok",
+      "failedToLoad": "Issue’lar yüklenemedi",
+      "failedToCreate": "Issue oluşturulamadı",
+      "failedToUpdate": "Issue güncellenemedi",
+      "failedToComment": "Yorum eklenemedi",
+      "filterAll": "Tümü",
+      "filterOpen": "Açık",
+      "filterClosed": "Kapalı",
+      "noGitHubRepo": "Issue’ları yönetmek için bir GitHub deposu bağlayın",
+      "commentPlaceholder": "Yorum bırakın…",
+      "submitComment": "Yorum yap",
+      "newIssueTitlePlaceholder": "Issue başlığı",
+      "newIssueBodyPlaceholder": "Issue’yu açıklayın (isteğe bağlı)…",
+      "authRequired": {
+        "title": "GitHub’a bağlan",
+        "description": "GitHub hesabınızı bağlamak için Ayarlar → Entegrasyonlar → Git’e gidin."
+      },
+      "reAuthRequired": "GitHub yetkilendirmesi gerekli",
+      "reAuthDescription": "GitHub tokenınızın süresi doldu. Yeniden bağlanmak için Ayarlar → Entegrasyonlar → Git’e gidin.",
+      "goToSettings": "Ayarlara git",
       "updated": "Son güncelleme",
       "notUpdated": "güncellenmedi",
       "assignedTo": "{{assignees}} kişisine atandı",
@@ -1255,6 +1390,7 @@
       "addEntry": "Daha fazla içe aktarma seçeneği",
       "addRepoDescription": "Workspace aç, oluştur veya klonla",
       "sections": {
+        "recent": "Son kullanılanlar",
         "coding": "Workspace",
         "nonCoding": "Workspace",
         "pinned": "Sabitlenmiş",
@@ -1794,6 +1930,13 @@
     "teamUsage": "Takım kullanımı"
   },
   "otherUsage": {
+    "cost": "Maliyet",
+    "estimatedCost": "Tahmini maliyet",
+    "estimated": "TAHMİNİ",
+    "estimatedTooltip": "Tahmini maliyet — tokenlar × liste fiyatı (bu kaynak için ölçülen harcama yok)",
+    "totalEstimatedCost": "Tahmini maliyet",
+    "viewCost": "Maliyet",
+    "viewTokens": "Tokenlar",
     "title": "Diğer Kullanım",
     "noData": "Henüz AI kullanım verisi yok",
     "sessions": "Oturumlar",
@@ -1932,6 +2075,14 @@
     "listed": "Listelendi"
   },
   "sourceControl": {
+    "scope": {
+      "local": "Yerel",
+      "main": "Ana checkout",
+      "worktrees": "Worktree’ler",
+      "searchPlaceholder": "Worktree’leri filtrele…",
+      "switchScope": "Kaynak denetimi kapsamını değiştir",
+      "switchScopeActive": "Kaynak denetimi kapsamını değiştir: {{repo}}, {{branch}}"
+    },
     "notGitInitialized": "Git başlatılmadı",
     "notGitInitializedSubtitle": "Bu Workspace içinde değişiklikleri izlemek, commit oluşturmak ve branch araçlarını kullanmak için Git'i başlatın.",
     "initializeGit": "Git'i başlat",
@@ -1963,6 +2114,25 @@
     }
   },
   "contextInfo": {
+    "cacheSaved": "Önbellekten tasarruf: {{read}} okuma, {{write}} yazma",
+    "remaining": "Boş: {{tokens}} kaldı",
+    "cacheHero": "%{{pct}} önbellekten sunuldu · bu turda ~{{tokens}} yeniden kullanıldı",
+    "cacheHeroSub": "İstem önbellekleme maliyeti %90’a kadar azaltabilir",
+    "headroom": "{{tokens}} kullanılabilir alan kaldı",
+    "manualCompactSectionTitle": "Manuel sıkıştırma",
+    "miniCpmCompactTitle": "MiniCPM sessiz otomatik sıkıştırma",
+    "miniCpmCompactDescription": "Eski bağlamı eşzamansız işler",
+    "miniCpmCompactToggleAria": "MiniCPM sessiz otomatik sıkıştırmayı etkinleştir",
+    "miniCpmCompactDisabled": "Sessiz sıkıştırma kapalı",
+    "miniCpmCompactEnabled": "Sessiz sıkıştırma açık",
+    "miniCpmCompactRunning": "MiniCPM sıkıştırıyor",
+    "miniCpmCompactComplete": "Sıkıştırma tamamlandı",
+    "miniCpmCompactBusy": "Geçerli oturum meşgul",
+    "miniCpmCompactUnavailable": "MiniCPM kullanılamıyor",
+    "miniCpmCompactError": "MiniCPM sıkıştırması başarısız",
+    "miniCpmCompactMetrics": "{{covered}} mesaj · {{source}} → {{summary}} token",
+    "miniCpmCompactAction": "Şimdi sıkıştır",
+    "miniCpmCompactRunningAction": "Sıkıştırılıyor",
     "contextUsed": "bağlam kullanıldı",
     "estimatedFromRules": "kurallardan tahmini",
     "activeRules": "Etkin kurallar",
@@ -2037,6 +2207,7 @@
     "parentFolderPlaceholder": "Parent folder seçin"
   },
   "workspaceForm": {
+    "statusMaxRepos": "En fazla 5 depo seçilebilir",
     "title": "Çoklu Repo Workspace Oluştur",
     "editTitle": "Workspace Düzenle",
     "createWorkspace": "Çoklu repo Workspace oluştur",
@@ -2268,11 +2439,31 @@
     "previewAlt": "Önizleme"
   },
   "update": {
+    "available": "Güncelleme mevcut",
+    "versionReady": "{{version}} sürümü indirilmeye hazır.",
+    "upToDateVersion": "ORGII güncel (v{{version}}).",
+    "upToDate": "ORGII güncel.",
+    "checkFailed": "Güncellemeler denetlenemedi",
+    "checking": "Güncellemeler denetleniyor…",
+    "downloadingEllipsis": "Güncelleme indiriliyor…",
+    "downloadingWithSize": "Güncelleme indiriliyor ({{size}})…",
+    "downloadingDownloaded": "Güncelleme indiriliyor… {{downloaded}}",
+    "downloadingPercent": "Güncelleme indiriliyor… %{{percent}}",
+    "installingEllipsis": "Güncelleme yükleniyor…",
+    "installed": "Güncelleme yüklendi",
+    "installFailed": "Güncelleme yüklenemedi",
+    "downloadTimedOut": "İndirme zaman aşımına uğradı. Ağınızı veya proxy ayarlarınızı denetleyip yeniden deneyin.",
+    "restarting": "Güncellemeyi tamamlamak için ORGII yeniden başlatılıyor.",
+    "preparingVersion": "v{{version}} indirmeye hazırlanıyor…",
     "downloading": "Güncelleme indiriliyor",
     "installing": "Güncelleme yükleniyor",
     "progressPercent": "%{{percent}}",
     "downloadedOfTotal": "{{downloaded}} / {{total}}",
     "preparingDownload": "İndirme hazırlanıyor…",
     "downloadingAndInstalling": "Güncelleme indiriliyor ve yükleniyor (v{{version}})…"
+  },
+  "codeViewer": {
+    "original": "Orijinal",
+    "modified": "Değiştirilmiş"
   }
 }

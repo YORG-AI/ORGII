@@ -1,5 +1,6 @@
 {
   "labels": {
+    "openSourceRepo": "Repo de código aberto",
     "devRecord": "Registro de Dev",
     "workItems": "Itens de Trabalho",
     "codeSearch": "Busca de Código",
@@ -335,6 +336,26 @@
     "addWorkspace": "Adicionar workspace"
   },
   "explore": {
+    "search": "Pesquisar",
+    "searching": "Pesquisando...",
+    "searchPlaceholder": "Pesquisar repositórios no GitHub (ex.: language:rust tauri)",
+    "clone": "Clonar",
+    "cloning": "Clonando...",
+    "openOnGithub": "GitHub",
+    "cloneSuccess": "{{name}} clonado",
+    "cloneFailed": "Falha ao clonar",
+    "cloneNoTarget": "Nenhuma pasta padrão de workspace configurada. Defina uma em Configurações.",
+    "errorTitle": "Falha na pesquisa",
+    "noResultsTitle": "Nenhum repositório correspondente",
+    "noResultsSubtitle": "Tente outra consulta ou ordenação.",
+    "resultsCount": "{{shown}} de {{total}} repositórios",
+    "partial": "(parcial — tempo limite da pesquisa esgotado)",
+    "sort": {
+      "bestMatch": "Melhor correspondência",
+      "stars": "Estrelas",
+      "updated": "Atualizados recentemente",
+      "forks": "Forks"
+    },
     "title": "Explorar"
   },
   "workstation": {

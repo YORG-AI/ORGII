@@ -46,7 +46,8 @@
     "projectManager": "Project Manager",
     "diff": "Diff",
     "colleagues": "Kolleg:innen",
-    "terminals": "Terminals"
+    "terminals": "Terminals",
+    "openSourceRepo": "Open-Source-Repository"
   },
   "trajectoryPanel": {
     "title": "Trajektorie",
@@ -335,7 +336,27 @@
     "addWorkspace": "Workspace hinzufügen"
   },
   "explore": {
-    "title": "Entdecken"
+    "title": "Entdecken",
+    "search": "Suchen",
+    "searching": "Suche läuft…",
+    "searchPlaceholder": "GitHub-Repositories durchsuchen (z. B. language:rust tauri)",
+    "clone": "Klonen",
+    "cloning": "Wird geklont…",
+    "openOnGithub": "GitHub",
+    "cloneSuccess": "{{name}} geklont",
+    "cloneFailed": "Klonen fehlgeschlagen",
+    "cloneNoTarget": "Kein Standardordner für Workspaces konfiguriert. Legen Sie einen in den Einstellungen fest.",
+    "errorTitle": "Suche fehlgeschlagen",
+    "noResultsTitle": "Keine passenden Repositories",
+    "noResultsSubtitle": "Versuchen Sie eine andere Abfrage oder Sortierung.",
+    "resultsCount": "{{shown}} von {{total}} Repositories",
+    "partial": "(unvollständig — Zeitüberschreitung bei der Suche)",
+    "sort": {
+      "bestMatch": "Beste Übereinstimmung",
+      "stars": "Sterne",
+      "updated": "Kürzlich aktualisiert",
+      "forks": "Forks"
+    }
   },
   "workstation": {
     "dockFilter": {

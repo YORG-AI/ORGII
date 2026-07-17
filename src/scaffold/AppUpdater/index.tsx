@@ -5,7 +5,9 @@ import { atom, useAtomValue } from "jotai";
 import React, { useEffect } from "react";
 
 import Message from "@src/components/Message";
+import { useVisiblePolling } from "@src/hooks/async";
 import { createLogger } from "@src/hooks/logger";
+import i18n from "@src/i18n";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
 const log = createLogger("AppUpdater");
@@ -18,6 +20,8 @@ const UPDATE_CHECK_INTERVAL_MS = 2 * 60 * 60_000;
 const FOREGROUND_CHECK_MIN_INTERVAL_MS = 5 * 60_000;
 const INSTALL_PROGRESS_MESSAGE_MIN_INTERVAL_MS = 2_000;
 const UPDATE_TOAST_DURATION_MS = 5_000;
+const UPDATE_CHECK_TIMEOUT_MS = 30_000;
+const UPDATE_DOWNLOAD_TIMEOUT_MS = 5 * 60_000;
 
 // Reused toast slots so status updates replace in place instead of stacking.
 const CHECK_TOAST_ID = "app-update-check";
@@ -40,7 +44,20 @@ function store() {
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
-  return typeof error === "string" ? error : "Unknown error";
+  return typeof error === "string"
+    ? error
+    : i18n.t("common:errors.unknownError", "Unknown error");
+}
+
+function getInstallErrorMessage(error: unknown): string {
+  const message = getErrorMessage(error);
+  if (/timed?\s*out|timeout/i.test(message)) {
+    return i18n.t(
+      "common:update.downloadTimedOut",
+      "The download timed out. Check your network or proxy, then retry."
+    );
+  }
+  return message;
 }
 
 function getCachedUpdate(): Update | null {
@@ -67,8 +84,12 @@ function notifyCheckSuccess(
   if (update) {
     Message.info({
       id: CHECK_TOAST_ID,
-      title: "Update available",
-      content: `Version ${update.version} is ready to download.`,
+      title: i18n.t("common:update.available", "Update available"),
+      content: i18n.t(
+        "common:update.versionReady",
+        "Version {{version}} is ready to download.",
+        { version: update.version }
+      ),
       duration: UPDATE_TOAST_DURATION_MS,
     });
     return;
@@ -77,8 +98,12 @@ function notifyCheckSuccess(
   Message.success({
     id: CHECK_TOAST_ID,
     content: currentVersion
-      ? `ORGII is up to date (v${currentVersion}).`
-      : "ORGII is up to date.",
+      ? i18n.t(
+          "common:update.upToDateVersion",
+          "ORGII is up to date (v{{version}}).",
+          { version: currentVersion }
+        )
+      : i18n.t("common:update.upToDate", "ORGII is up to date."),
     duration: UPDATE_TOAST_DURATION_MS,
   });
 }
@@ -90,7 +115,7 @@ function notifyCheckFailure(error: unknown, notify: boolean): void {
   if (!notify) return;
   Message.error({
     id: CHECK_TOAST_ID,
-    title: "Update check failed",
+    title: i18n.t("common:update.checkFailed", "Update check failed"),
     content: message,
     duration: UPDATE_TOAST_DURATION_MS,
   });
@@ -102,7 +127,7 @@ async function runUpdateCheck(notify: boolean): Promise<Update | null> {
   if (notify) {
     Message.info({
       id: CHECK_TOAST_ID,
-      content: "Checking for updates…",
+      content: i18n.t("common:update.checking", "Checking for updates…"),
       duration: 0,
     });
   }
@@ -110,7 +135,7 @@ async function runUpdateCheck(notify: boolean): Promise<Update | null> {
   try {
     const [currentVersion, update] = await Promise.all([
       getVersion().catch(() => undefined),
-      check(),
+      check({ timeout: UPDATE_CHECK_TIMEOUT_MS }),
     ]);
 
     setCachedUpdate(update);
@@ -166,15 +191,29 @@ function createProgressReporter(): (event: DownloadEvent) => void {
     switch (event.event) {
       case "Started":
         return total
-          ? `Downloading update (${formatBytes(total)})…`
-          : "Downloading update…";
+          ? i18n.t(
+              "common:update.downloadingWithSize",
+              "Downloading update ({{size}})…",
+              { size: formatBytes(total) }
+            )
+          : i18n.t("common:update.downloadingEllipsis", "Downloading update…");
       case "Progress": {
-        if (!total) return `Downloading update… ${formatBytes(downloaded)}`;
+        if (!total) {
+          return i18n.t(
+            "common:update.downloadingDownloaded",
+            "Downloading update… {{downloaded}}",
+            { downloaded: formatBytes(downloaded) }
+          );
+        }
         const percent = Math.min(100, Math.round((downloaded / total) * 100));
-        return `Downloading update… ${percent}%`;
+        return i18n.t(
+          "common:update.downloadingPercent",
+          "Downloading update… {{percent}}%",
+          { percent }
+        );
       }
       case "Finished":
-        return "Installing update…";
+        return i18n.t("common:update.installingEllipsis", "Installing update…");
     }
   };
 
@@ -210,17 +249,26 @@ export async function installAvailableAppUpdate(): Promise<void> {
   try {
     Message.info({
       id: INSTALL_TOAST_ID,
-      title: "Installing update",
-      content: `Preparing to download v${update.version}…`,
+      title: i18n.t("common:update.installing", "Installing update"),
+      content: i18n.t(
+        "common:update.preparingVersion",
+        "Preparing to download v{{version}}…",
+        { version: update.version }
+      ),
       duration: 0,
     });
 
-    await update.downloadAndInstall(createProgressReporter());
+    await update.downloadAndInstall(createProgressReporter(), {
+      timeout: UPDATE_DOWNLOAD_TIMEOUT_MS,
+    });
 
     Message.success({
       id: INSTALL_TOAST_ID,
-      title: "Update installed",
-      content: "Restarting ORGII to finish the update.",
+      title: i18n.t("common:update.installed", "Update installed"),
+      content: i18n.t(
+        "common:update.restarting",
+        "Restarting ORGII to finish the update."
+      ),
       duration: 2500,
     });
 
@@ -229,9 +277,14 @@ export async function installAvailableAppUpdate(): Promise<void> {
   } catch (error) {
     Message.error({
       id: INSTALL_TOAST_ID,
-      title: "Update install failed",
-      content: getErrorMessage(error),
-      duration: 6000,
+      title: i18n.t("common:update.installFailed", "Update install failed"),
+      content: getInstallErrorMessage(error),
+      duration: 0,
+      cancel: {
+        label: i18n.t("common:actions.retry", "Retry"),
+        onClick: () => void installAvailableAppUpdate(),
+        closeOnClick: false,
+      },
     });
     log.error("Update install failed", error);
   } finally {
@@ -248,27 +301,30 @@ export function useIsAppUpdateInstalling(): boolean {
 }
 
 export const AppUpdater: React.FC = () => {
+  const pollForUpdates = React.useCallback(async () => {
+    await checkForAppUpdates();
+  }, []);
+
+  useVisiblePolling({
+    enabled: true,
+    intervalMs: UPDATE_CHECK_INTERVAL_MS,
+    poll: pollForUpdates,
+    immediate: false,
+  });
+
   useEffect(() => {
     const startupTimer = window.setTimeout(() => {
       void checkForAppUpdates();
     }, STARTUP_CHECK_DELAY_MS);
-
-    const interval = window.setInterval(() => {
-      void checkForAppUpdates({ force: true });
-    }, UPDATE_CHECK_INTERVAL_MS);
 
     const checkWhenVisible = () => {
       if (document.visibilityState === "visible") void checkForAppUpdates();
     };
 
     window.addEventListener("focus", checkWhenVisible);
-    document.addEventListener("visibilitychange", checkWhenVisible);
-
     return () => {
       window.clearTimeout(startupTimer);
-      window.clearInterval(interval);
       window.removeEventListener("focus", checkWhenVisible);
-      document.removeEventListener("visibilitychange", checkWhenVisible);
     };
   }, []);
 

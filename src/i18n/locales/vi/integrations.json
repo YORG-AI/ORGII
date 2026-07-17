@@ -24,6 +24,8 @@
     "unlist": "Hủy niêm yết",
     "confirmRemoveTitle": "Xóa \"{{name}}\"?",
     "confirmRemoveMessage": "Thông tin xác thực cục bộ sẽ bị xóa. Hành động này không thể hoàn tác.",
+    "confirmRemoveActiveSessions_one": "{{count}} phiên đang hoạt động vẫn sử dụng tài khoản này và sẽ thất bại ở lượt tiếp theo:",
+    "confirmRemoveActiveSessions_other": "{{count}} phiên đang hoạt động vẫn sử dụng tài khoản này và sẽ thất bại ở lượt tiếp theo:",
     "confirmUnlistTitle": "Hủy niêm yết \"{{name}}\"?",
     "confirmUnlistMessage": "Danh sách sẽ bị xóa khỏi marketplace. Thông tin xác thực cục bộ sẽ được giữ lại.",
     "confirmDeleteTitle": "Xóa \"{{name}}\"?",
@@ -32,14 +34,17 @@
       "refreshed": "{{name}} đã làm mới thành công",
       "refreshFailed": "{{name}} xác thực thất bại - kiểm tra thông tin đăng nhập",
       "allRefreshed": "Tất cả tài khoản đã được làm mới",
-      "refreshError": "Không thể làm mới {{name}}",
+      "refreshError": "Không thể làm mới {{name}}: {{error}}",
       "localRemoved": "{{name}} đã xóa",
       "unlistPending": "{{name}} yêu cầu hủy niêm yết. Sẽ được xóa khi các Session hoạt động kết thúc.",
       "listingRemoved": "{{name}} đã xóa khỏi marketplace",
       "listingDeleted": "{{name}} đã xóa",
       "deleteError": "Không thể xóa {{name}}",
       "published": "{{name}} đã đăng lên marketplace",
-      "publishError": "Không thể đăng {{name}}"
+      "publishError": "Không thể đăng {{name}}",
+      "refreshedDelta": "Đã làm mới mô hình: thêm {{added}}, xóa {{removed}}",
+      "refreshedNoChange": "Đã làm mới mô hình — không có thay đổi",
+      "refreshPartial": "Đã làm mới mô hình (+{{added}} / -{{removed}}), nhưng {{failed}} trong {{total}} tài khoản thất bại"
     },
     "configure": "Cấu hình {{provider}}",
     "providerGroups": {
@@ -1031,7 +1036,8 @@
     "tools": "Công cụ tích hợp",
     "computerUse": "Computer Use",
     "rulesMemoryEvolution": "Quy tắc, Bộ nhớ & Tiến hóa",
-    "externalSkillsets": "Skills, MCPs & Plugins"
+    "externalSkillsets": "Skills, MCPs & Plugins",
+    "housekeeper": "Trình quản lý MiniCPM"
   },
   "projectConnections": {
     "linear": "Linear",
@@ -1341,7 +1347,42 @@
     "oauthDeviceCodeDesc": "Mở URL bên dưới và nhập mã này",
     "oauthOpenGithub": "Mở GitHub",
     "oauthCancel": "Hủy",
-    "oauthFailed": "Cấp quyền thất bại"
+    "oauthFailed": "Cấp quyền thất bại",
+    "autoCreatePr": "Tự động tạo pull request",
+    "autoCreatePrDesc": "Tự động tạo pull request trong Quản lý mã nguồn của Workstation khi nhánh tính năng đã được push đầy đủ và không còn thay đổi"
+  },
+  "gitProfiles": {
+    "tab": "Hồ sơ Git",
+    "title": "Hồ sơ Git",
+    "add": "Thêm hồ sơ",
+    "refresh": "Làm mới hồ sơ",
+    "refreshed": "Đã làm mới hồ sơ Git toàn cục",
+    "loading": "Đang tải hồ sơ Git toàn cục…",
+    "defaultProfile": "Hồ sơ mặc định",
+    "newProfile": "Hồ sơ mới",
+    "copyName": "Bản sao của {{name}}",
+    "profileName": "Tên hồ sơ",
+    "authorName": "Tên tác giả",
+    "email": "Email",
+    "selectEmail": "Chọn email",
+    "signingKey": "Khóa ký",
+    "signingKeyPlaceholder": "ID khóa ký GPG hoặc SSH",
+    "signCommits": "Ký commit",
+    "active": "Đang hoạt động",
+    "activate": "Kích hoạt hồ sơ",
+    "activated": "{{name}} hiện là hồ sơ Git toàn cục",
+    "editRaw": "Chỉnh sửa cấu hình thô",
+    "hideRaw": "Ẩn cấu hình thô",
+    "rawTitle": "Hồ sơ Git thô",
+    "rawConfig": "Cấu hình Git",
+    "updateFromRaw": "Cập nhật hồ sơ từ cấu hình",
+    "rawUpdated": "Đã cập nhật hồ sơ từ cấu hình Git thô",
+    "rawInvalid": "Hồ sơ Git thô không hợp lệ",
+    "nameEmailRequired": "Tên tác giả và email là bắt buộc",
+    "deleteTitle": "Xóa hồ sơ Git",
+    "deleteMessage": "Xóa hồ sơ “{{name}}”? Thao tác này không thay đổi cấu hình Git toàn cục hiện tại.",
+    "loadFailed": "Không thể tải hồ sơ Git toàn cục",
+    "applyFailed": "Không thể kích hoạt hồ sơ Git"
   },
   "skillsHub": {
     "title": "Skills Hub",
@@ -1579,6 +1620,35 @@
   },
   "agentOrgs": {
     "title": "Nhóm Agent",
+    "cliManagedConfig": {
+      "title": "Chuyển cấu hình CLI",
+      "modeLabel": "Chế độ",
+      "modeDesc": "Mặc định khôi phục cấu hình riêng của CLI. ORGII Quản lý ghi cấu hình proxy có bản sao lưu.",
+      "modeDefault": "Mặc định",
+      "modeOrgii": "ORGII Quản lý",
+      "conflict": "Thay đổi bên ngoài",
+      "conflictTitle": "Xung đột",
+      "conflictDesc": "Cấu hình CLI đang hoạt động đã thay đổi sau khi ORGII ghi cấu hình.",
+      "proxyStatus": "Proxy",
+      "proxyDefault": "Chế độ mặc định",
+      "proxyReady": "Proxy sẵn sàng",
+      "proxyNotReady": "Proxy chưa sẵn sàng",
+      "proxyDesc": "Các yêu cầu cục bộ được định tuyến qua ORGII KeyVault.",
+      "keyLabel": "Khóa",
+      "keyDesc": "Chỉ hiển thị API key tương thích với CLI này và proxy được quản lý.",
+      "selectKey": "Chọn khóa",
+      "modelLabel": "Mô hình",
+      "selectModel": "Chọn mô hình",
+      "configFile": "Tệp cấu hình",
+      "actions": "Hành động",
+      "addKey": "Thêm khóa",
+      "apply": "Áp dụng",
+      "restore": "Khôi phục mặc định",
+      "forceApply": "Buộc áp dụng",
+      "forceRestore": "Buộc khôi phục",
+      "applySuccess": "Đã áp dụng cấu hình do ORGII quản lý",
+      "restoreSuccess": "Đã khôi phục cấu hình mặc định"
+    },
     "running": "Đang chạy",
     "fires": "lần kích hoạt",
     "addRoutine": "Thêm Routine",
@@ -2363,6 +2433,7 @@
     "mode": "Chế độ",
     "modeUi": "Xem trước UI",
     "modeTool": "Công cụ",
+    "modeSessionLink": "Liên kết phiên",
     "modeInput": "Đầu vào",
     "selectionMode": "Chọn",
     "selectionModeSingle": "Đơn",
@@ -2546,6 +2617,51 @@
     }
   },
   "housekeeper": {
+    "eyebrow": "Trình quản lý MiniCPM thường trú",
+    "title": "Trình quản lý thường trú",
+    "description": "MiniCPM cục bộ xử lý việc trau chuốt prompt, giải thích ngắn các bước và điều khiển UI nhẹ. Tác vụ lập trình và thiết lập ADE phức tạp vẫn dùng mô hình Agent chính.",
+    "autoAccount": "Tự động chọn tài khoản MiniCPM vLLM",
+    "tiles": {
+      "model": "Mô hình",
+      "endpoint": "Điểm cuối",
+      "safeContext": "Ngữ cảnh an toàn"
+    },
+    "settings": {
+      "enabled": {
+        "title": "Bật trình quản lý",
+        "description": "Khi tắt, MiniCPM sẽ không được dùng để trau chuốt prompt, giải thích bước và điều khiển UI nhẹ."
+      },
+      "account": {
+        "title": "Tài khoản vLLM MiniCPM",
+        "description": "Tái sử dụng tài khoản vllm_api hiện có trong KeyVault; không tạo kho thông tin xác thực riêng."
+      },
+      "model": {
+        "title": "ID mô hình",
+        "description": "Docker vLLM MiniCPM5-1B mặc định dùng openbmb/MiniCPM5-1B."
+      },
+      "context": {
+        "title": "Ngân sách ngữ cảnh an toàn",
+        "description": "Dùng ngân sách thận trọng 10000 token trên GPU 4GB thay vì dựa vào giới hạn lý thuyết 32k."
+      }
+    },
+    "features": {
+      "promptPolish": {
+        "title": "Trau chuốt prompt",
+        "description": "Trau chuốt thủ công nội dung nhập trước khi gửi đến mô hình lập trình mạnh hơn."
+      },
+      "stepExplain": {
+        "title": "Giải thích bước của Agent",
+        "description": "Tạo một hoặc hai lời giải thích ngắn bằng tiếng Trung cho các bước phát lại phiên."
+      },
+      "uiControl": {
+        "title": "Điều khiển ADE/UI nhẹ",
+        "description": "MiniCPM chỉ được phân loại yêu cầu vào danh sách hành động cục bộ cho phép nghiêm ngặt."
+      },
+      "contextCompact": {
+        "title": "Tự động bảo trì ngữ cảnh",
+        "description": "Cho phép MiniCPM duy trì bản tóm tắt luân phiên, tách biệt của ngữ cảnh cũ khi các phiên đã bật ở trạng thái rảnh."
+      }
+    },
     "addModel": "Thêm mô hình",
     "sections": {
       "configuration": "Cấu hình",
@@ -2553,7 +2669,14 @@
       "diagnostics": "Chẩn đoán"
     },
     "health": {
-      "status": "Chưa kiểm tra"
+      "status": "Chưa kiểm tra",
+      "title": "Kiểm tra tình trạng",
+      "idle": "Kiểm tra /v1/models và gửi một yêu cầu chat nhỏ.",
+      "checking": "Đang kiểm tra dịch vụ vLLM MiniCPM cục bộ...",
+      "checkButton": "Kiểm tra kết nối",
+      "configureFirst": "Trước tiên hãy cấu hình tài khoản vLLM MiniCPM.",
+      "connectedTo": "Đã kết nối với {{baseUrl}}",
+      "failed": "Kiểm tra tình trạng MiniCPM thất bại."
     },
     "benchmark": {
       "title": "Tốc độ đầu ra MiniCPM",

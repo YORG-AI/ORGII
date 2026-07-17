@@ -1,5 +1,6 @@
 {
   "labels": {
+    "openSourceRepo": "Dépôt Open Source",
     "devRecord": "Journal de développement",
     "workItems": "Éléments de travail",
     "codeSearch": "Recherche de code",
@@ -335,6 +336,26 @@
     "addWorkspace": "Ajouter un espace de travail"
   },
   "explore": {
+    "search": "Recherche",
+    "searching": "Recherche...",
+    "searchPlaceholder": "Rechercher dans les dépôts GitHub (par exemple, langue : rust tauri)",
+    "clone": "Cloner",
+    "cloning": "Clonage...",
+    "openOnGithub": "GitHub",
+    "cloneSuccess": "{{name}} cloné",
+    "cloneFailed": "Le clonage a échoué",
+    "cloneNoTarget": "Aucun dossier d'espace de travail par défaut configuré. Définissez-en un dans Paramètres.",
+    "errorTitle": "La recherche a échoué",
+    "noResultsTitle": "Aucun dépôt ne correspond",
+    "noResultsSubtitle": "Essayez une autre requête ou un autre tri.",
+    "resultsCount": "{{shown}} dépôts sur {{total}}",
+    "partial": "(partiel — délai de recherche dépassé)",
+    "sort": {
+      "bestMatch": "Meilleure correspondance",
+      "stars": "Étoiles",
+      "updated": "Récemment mis à jour",
+      "forks": "Forks"
+    },
     "title": "Explorer"
   },
   "workstation": {

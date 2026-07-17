@@ -41,6 +41,19 @@ vi.mock("@src/hooks/logger", () => ({
   }),
 }));
 
+vi.mock("@src/i18n", () => ({
+  default: {
+    t: (
+      _key: string,
+      defaultValue: string,
+      values?: Record<string, string | number>
+    ) =>
+      defaultValue.replace(/\{\{(\w+)\}\}/g, (_match, name: string) =>
+        String(values?.[name] ?? "")
+      ),
+  },
+}));
+
 vi.mock("@src/util/core/state/instrumentedStore", () => ({
   getInstrumentedStore: () => ({
     get: mocks.storeGet,
@@ -66,7 +79,7 @@ describe("AppUpdater", () => {
 
     await expect(checkForUpdatesManually()).resolves.toBe(update);
 
-    expect(mocks.check).toHaveBeenCalledOnce();
+    expect(mocks.check).toHaveBeenCalledWith({ timeout: 30_000 });
     expect(mocks.messageInfo).toHaveBeenCalledWith(
       expect.objectContaining({
         content: "Version 1.1.20 is ready to download.",
@@ -88,7 +101,39 @@ describe("AppUpdater", () => {
     await installAvailableAppUpdate();
 
     expect(mocks.check).toHaveBeenCalledOnce();
-    expect(downloadAndInstall).toHaveBeenCalledOnce();
+    expect(downloadAndInstall).toHaveBeenCalledWith(expect.any(Function), {
+      timeout: 5 * 60_000,
+    });
     expect(mocks.relaunch).toHaveBeenCalledOnce();
+  });
+
+  it("surfaces a retry action when the update download times out", async () => {
+    const downloadAndInstall = vi
+      .fn()
+      .mockRejectedValue(new Error("request timed out"));
+    mocks.getVersion.mockResolvedValue("1.1.23");
+    mocks.check.mockResolvedValue({
+      available: true,
+      currentVersion: "1.1.23",
+      downloadAndInstall,
+      version: "1.1.24",
+    });
+
+    await installAvailableAppUpdate();
+
+    expect(mocks.relaunch).not.toHaveBeenCalled();
+    expect(mocks.messageError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content:
+          "The download timed out. Check your network or proxy, then retry.",
+        duration: 0,
+        title: "Update install failed",
+        cancel: expect.objectContaining({
+          closeOnClick: false,
+          label: "Retry",
+        }),
+      })
+    );
+    expect(mocks.storeSet).toHaveBeenLastCalledWith(expect.anything(), false);
   });
 });

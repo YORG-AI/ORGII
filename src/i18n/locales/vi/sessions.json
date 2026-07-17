@@ -93,6 +93,8 @@
       "description": "Các công cụ lập trình bên ngoài mà ORGII phát hiện. Các ứng dụng có thể nhập hiển thị số phiên và có thể quét lại; số còn lại hiển thị trạng thái cài đặt và nơi lưu lịch sử.",
       "rescanAll": "Quét lại tất cả",
       "rescan": "Quét lại",
+      "rescanUpdate": "Cập nhật",
+      "rescanClear": "Xóa và quét lại",
       "rescanning": "Đang quét lại…",
       "enable": "Bật",
       "disable": "Tắt",
@@ -122,6 +124,7 @@
         "apps": "Ứng dụng",
         "clis": "CLI"
       },
+      "sessions_one": "{{count}} phiên",
       "sessions_other": "{{count}} phiên",
       "details": {
         "path": "Đường dẫn",
@@ -195,7 +198,11 @@
       "views": "Chế độ xem",
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
-      "removeDraft": "Xóa bản nháp"
+      "removeDraft": "Xóa bản nháp",
+      "githubIssues": "Vấn đề GitHub",
+      "githubPrs": "PR GitHub",
+      "showSubagents": "Hiện subagent",
+      "hideSubagents": "Ẩn subagent"
     },
     "resultStatus": {
       "completed": "Hoàn thành",
@@ -350,6 +357,16 @@
       "pause": "Tạm dừng",
       "playbackSpeed": "Tốc độ phát",
       "noEvents": "Không có sự kiện",
+      "filters": {
+        "tooltip": "Lọc sự kiện",
+        "allEvents": "Tất cả sự kiện",
+        "keyInteractions": "Tương tác chính",
+        "fileChanges": "Thay đổi tệp",
+        "terminalEvents": "Sự kiện terminal",
+        "explore": "Khám phá",
+        "other": "Khác",
+        "selectedCount": "{{count}} bộ lọc"
+      },
       "agentHasNotUsedTool": "Agent chưa sử dụng công cụ này",
       "browser": {
         "tabs": {
@@ -438,7 +455,17 @@
           "empty": "Chưa có bài gửi",
           "selectSubmission": "Chọn một bài gửi để xem chi tiết",
           "noCommits": "Chưa có Commits",
-          "noPullRequests": "Chưa có Pull Requests"
+          "noPullRequests": "Chưa có Pull Requests",
+          "labels": {
+            "created": {
+              "commit": "Đã tạo commit",
+              "pullRequest": "Đã tạo PR"
+            },
+            "mentioned": {
+              "commit": "Đã đề cập commit",
+              "pullRequest": "Đã đề cập PR"
+            }
+          }
         }
       },
       "channelsSidebar": {
@@ -718,7 +745,11 @@
       "insert": "Chèn"
     },
     "compactArgHint": "<trọng tâm tóm tắt (tùy chọn)>",
-    "compactCommandDescription": "Tóm tắt ngữ cảnh cũ để giải phóng dung lượng. Tùy chọn: /compact <trọng tâm tóm tắt>"
+    "compactCommandDescription": "Tóm tắt ngữ cảnh cũ để giải phóng dung lượng. Tùy chọn: /compact <trọng tâm tóm tắt>",
+    "pr": {
+      "open": "Mở PR",
+      "creating": "Đang tạo PR…"
+    }
   },
   "listPanel": {
     "showingOf": "Hiển thị {{filtered}} / {{total}}",
@@ -731,6 +762,7 @@
     "contentCopied": "Đã sao chép nội dung!",
     "failedToCopyContent": "Sao chép nội dung thất bại",
     "regenerate": "Tạo lại",
+    "restoreCheckpoint": "Khôi phục điểm kiểm tra",
     "copyTurn": "Sao chép lượt",
     "exportAsMarkdown": "Xuất dưới dạng Markdown",
     "exportSuccess": "Đã xuất phiên!",
@@ -1917,7 +1949,8 @@
     "branchesTouched": "Branch"
   },
   "modelPill": {
-    "immutableInSession": "Nguồn khóa, loại Agent và bậc giá được cố định khi bắt đầu phiên. Bắt đầu phiên mới để thay đổi."
+    "immutableInSession": "Nguồn khóa, loại Agent và bậc giá được cố định khi bắt đầu phiên. Bắt đầu phiên mới để thay đổi.",
+    "appliesNextTurn": "Đã chuyển tài khoản. Phản hồi hiện tại vẫn chạy bằng tài khoản trước; tài khoản mới có hiệu lực từ lượt tiếp theo."
   },
   "creator": {
     "createTarget": {
@@ -2579,7 +2612,8 @@
     "list": {
       "title": "Xem danh sách nhiệm vụ",
       "count": "{{taskCount}} nhiệm vụ",
-      "empty": "Không có nhiệm vụ"
+      "empty": "Không có nhiệm vụ",
+      "countLabel": "Nhiệm vụ"
     },
     "statusLabel": "Trạng thái",
     "assignedBadge": "Đã giao",
@@ -2620,6 +2654,9 @@
   "cards": {
     "openFile": "Mở trong trình soạn thảo",
     "openLink": "Mở liên kết",
+    "session": {
+      "open": "Mở phiên"
+    },
     "broadcast": "→ Tất cả Agent",
     "agentMessage": {
       "fallbackTitle": "Tin nhắn",
@@ -2705,6 +2742,14 @@
     "close": "Đóng",
     "summarize": "Tóm tắt với Agent",
     "waiting": "Đang chờ nội dung…",
-    "empty": "Không có nội dung"
+    "empty": "Không có nội dung",
+    "reactDisabledTitle": "Bản xem trước React chạy trong Trình mô phỏng",
+    "reactDisabledDescription": "JavaScript của Agent không được thực thi trong trò chuyện. Hãy mở trong Trình mô phỏng để chạy bản xem trước React trong sandbox.",
+    "viewInSimulator": "Xem trong Trình mô phỏng"
+  },
+  "canvasApp": {
+    "empty": "Chưa hiển thị canvas nào",
+    "sidebarTitle": "Canvas",
+    "noCanvases": "Chưa có canvas"
   }
 }

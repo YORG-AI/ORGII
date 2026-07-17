@@ -89,6 +89,9 @@
       "dataSource": "数据源"
     },
     "dataSource": {
+      "rescanUpdate": "更新",
+      "rescanClear": "清除并重新扫描",
+      "sessions_one": "{{count}} 个会话",
       "title": "数据源",
       "description": "ORGII 检测到的外部编程工具。可导入的应用会显示会话数并可重新扫描；其余仅显示安装状态和历史记录所在位置。",
       "rescanAll": "全部重新扫描",
@@ -197,7 +200,9 @@
       "rustAgent": "Rust Agent",
       "removeDraft": "删除草稿",
       "showSubagents": "显示子代理",
-      "hideSubagents": "隐藏子代理"
+      "hideSubagents": "隐藏子代理",
+      "githubIssues": "GitHub Issues",
+      "githubPrs": "GitHub PR"
     },
     "resultStatus": {
       "completed": "已完成",
@@ -2608,6 +2613,7 @@
     "list": {
       "title": "查看任务列表",
       "count": "{{taskCount}} 个任务",
+      "countLabel": "任务",
       "empty": "暂无任务"
     },
     "statusLabel": "状态",
@@ -2743,5 +2749,10 @@
     "waiting": "等待内容中…",
     "empty": "无内容",
     "viewInSimulator": "在 Simulator 中查看"
+  },
+  "canvasApp": {
+    "empty": "尚未渲染画布",
+    "sidebarTitle": "画布",
+    "noCanvases": "暂无画布"
   }
 }

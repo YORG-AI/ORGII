@@ -1,4 +1,30 @@
 {
+  "sqlEditor": {
+    "placeholder": "Saisissez une requête SQL...",
+    "format": "Formater",
+    "runQueryToSeeResults": "Exécutez une requête pour afficher les résultats",
+    "executingQuery": "Exécution de la requête...",
+    "queryFailed": "Échec de la requête",
+    "queryCompleted": "Requête terminée",
+    "noResults": "La requête n’a renvoyé aucun résultat",
+    "rowCount_one": "{{count}} ligne",
+    "rowCount_other": "{{count}} lignes",
+    "press": "Appuyez sur",
+    "toRun": "pour exécuter",
+    "nullValue": "NULL",
+    "booleanTrue": "true",
+    "booleanFalse": "false"
+  },
+  "uploadZone": {
+    "clickOrDrag": "Cliquez ou déposez un fichier dans cette zone pour le téléverser",
+    "supportFormats": "Formats pris en charge : {{accept}}"
+  },
+  "chatImage": {
+    "maxReached": "Maximum de {{max}} images autorisées",
+    "remainingWarning": "Vous ne pouvez ajouter que {{remaining}} image(s) supplémentaire(s) (maximum : {{max}})",
+    "processFailed": "Échec du traitement de l’image",
+    "loadFailed": "Échec du chargement de l’image : {{fileName}}"
+  },
   "toasts": {
     "replyEmpty": "La réponse ne peut pas être vide",
     "sessionNotFound": "Session introuvable",
@@ -75,6 +101,13 @@
     }
   },
   "actions": {
+    "openOnGitHub": "Ouvrir sur GitHub",
+    "createPullRequest": "Créer une pull request",
+    "newIssue": "Nouveau ticket",
+    "closeIssue": "Fermer le ticket",
+    "reopenIssue": "Rouvrir le ticket",
+    "addComment": "Ajouter un commentaire",
+    "editIssue": "Modifier le ticket",
     "save": "Enregistrer",
     "cancel": "Annuler",
     "delete": "Supprimer",
@@ -345,6 +378,25 @@
     "filterByLanguage": "Filtrer par langage"
   },
   "labels": {
+    "noPullRequestForBranch": "Il n’y a pas encore de pull request pour cette branche.",
+    "creatingPullRequest": "Création…",
+    "failedToLoadPullRequest": "Échec du chargement de la pull request",
+    "noCommitsInPullRequest": "Aucun commit dans cette pull request",
+    "prStatus": {
+      "open": "Ouvrir",
+      "merged": "Fusionné",
+      "closed": "Fermé",
+      "draft": "Brouillon"
+    },
+    "sendingNow": "envoyer maintenant…",
+    "issues": "Problèmes",
+    "noIssues": "Aucun problème",
+    "openIssues": "Ouvrir",
+    "closedIssues": "Fermé",
+    "issueComments": "Commentaire sur {{count}}",
+    "issueComments_one": "1 commentaire",
+    "issueComments_other": "Commentaires sur {{count}}",
+    "tokens": "Jetons",
     "accounts": "Comptes",
     "enabled": "Activé",
     "disabled": "Désactivé",
@@ -794,6 +846,7 @@
     "searchModeCycle": "Mode de recherche : {{mode}}. Cliquez pour faire défiler les modes."
   },
   "placeholders": {
+    "noResults": "Aucun résultat",
     "loading": "Chargement...",
     "selectToViewConfig": "Sélectionnez un {{type}} pour voir ou configurer",
     "selectToViewConfigSubtitle": "Choisissez un élément dans la liste à gauche",
@@ -1096,6 +1149,9 @@
     "sendStyleEdits": "Envoyer",
     "addToChat": "Ajouter à la discussion",
     "browserCore": {
+      "embeddedFallbackTitle": "Ce site peut ne pas fonctionner dans le navigateur intégré",
+      "embeddedFallbackBody": "Certains sites bloquent ou ne parviennent pas à restituer les WebViews de l'application. Ouvrez-le dans votre navigateur système si la page reste vide.",
+      "currentUrl": "URL actuelle",
       "desktopOnlyTitle": "Navigateur disponible dans l’app de bureau",
       "desktopOnlyBody": "Le navigateur intégré n’est disponible que dans l’application de bureau Tauri.",
       "debugWebviewAvailable": "WebView disponible : {{value}}",
@@ -1126,6 +1182,63 @@
     "gitSyncMenuTitle": "Actions de synchronisation Git"
   },
   "git": {
+    "pr": {
+      "title": "pull request",
+      "baseBranch": "base",
+      "noDescription": "Aucune description fournie.",
+      "loadingConversation": "Chargement…",
+      "reviewNoBody": "Commentaires de révision laissés.",
+      "commentPlaceholder": "Laisser un commentaire…",
+      "comment": "Commentaire",
+      "approve": "Approuver",
+      "requestChanges": "Demander des modifications",
+      "reply": "Répondre",
+      "replyPlaceholder": "Répondre…",
+      "reviewThreads": "Examiner les commentaires",
+      "tabs": {
+        "conversation": "Conversation",
+        "commits": "Commits",
+        "checks": "Vérifications",
+        "changes": "Modifications"
+      },
+      "checks": {
+        "none": "Aucune vérification signalée",
+        "noneHint": "Aucune vérification ni aucun statut CI n’a été exécuté sur le commit de tête de cette pull request.",
+        "allPassed": "Toutes les vérifications ont réussi",
+        "someFailed": "Certaines vérifications ont échoué",
+        "pending": "Vérifications en cours"
+      },
+      "commits": {
+        "backToList": "Tous les commits",
+        "none": "Aucun commit"
+      },
+      "changes": {
+        "title": "Fichiers modifiés",
+        "noFiles": "Aucune modification de fichier",
+        "tooLarge": "Fichier trop volumineux pour afficher le diff",
+        "unavailable": "Modifications indisponibles",
+        "unavailableHint": "Impossible de résoudre les commits de base et de tête de la pull request."
+      },
+      "creating": "Création d’une pull request…",
+      "createError": "Échec de la création de la pull request",
+      "readyHint": "La branche est publiée et prête pour une pull request",
+      "neutralHint": "Publiez votre branche pour créer une pull request",
+      "noBranch": "Aucune branche sélectionnée",
+      "noRepoPath": "Aucun chemin de dépôt disponible",
+      "notAuthenticated": "Connectez-vous pour créer des pull requests",
+      "noOriginRemote": "Aucun dépôt distant origin configuré",
+      "cannotParseRepoName": "Impossible d’extraire le nom du dépôt depuis le dépôt distant origin",
+      "status": {
+        "open": "Ouvrir",
+        "merged": "Fusionné",
+        "closed": "Fermé",
+        "draft": "Brouillon"
+      },
+      "authRequired": {
+        "title": "Connectez-vous à GitHub",
+        "description": "Accédez à Paramètres → Intégrations → Git pour connecter votre compte GitHub."
+      }
+    },
     "loading": "Chargement du statut Git...",
     "resolved": "Suggestions Git résolues",
     "noRepoSelected": "Aucun dépôt sélectionné",
@@ -1203,6 +1316,28 @@
       "shaCopied": "SHA copié dans le presse-papiers"
     },
     "issues": {
+      "title": "Tickets",
+      "loading": "Chargement des tickets…",
+      "empty": "Aucun ticket {{state}}",
+      "failedToLoad": "Échec du chargement des tickets",
+      "failedToCreate": "Échec de la création du ticket",
+      "failedToUpdate": "Échec de la mise à jour du ticket",
+      "failedToComment": "Échec de l’ajout du commentaire",
+      "filterAll": "Tous",
+      "filterOpen": "Ouverts",
+      "filterClosed": "Fermés",
+      "noGitHubRepo": "Connectez un dépôt GitHub pour gérer les tickets",
+      "commentPlaceholder": "Laisser un commentaire…",
+      "submitComment": "Commenter",
+      "newIssueTitlePlaceholder": "Titre du ticket",
+      "newIssueBodyPlaceholder": "Décrivez le ticket (facultatif)…",
+      "authRequired": {
+        "title": "Connectez-vous à GitHub",
+        "description": "Accédez à Paramètres → Intégrations → Git pour connecter votre compte GitHub."
+      },
+      "reAuthRequired": "Autorisation GitHub requise",
+      "reAuthDescription": "Votre jeton GitHub a expiré. Accédez à Paramètres → Intégrations → Git pour vous reconnecter.",
+      "goToSettings": "Allez dans Paramètres",
       "updated": "Dernière mise à jour",
       "notUpdated": "non mis à jour",
       "assignedTo": "Assigné à {{assignees}}",
@@ -1254,6 +1389,7 @@
       "addEntry": "Plus d’options d’importation",
       "addRepoDescription": "Ouvrir, créer ou cloner un espace de travail",
       "sections": {
+        "recent": "Récent",
         "coding": "Espace de travail",
         "nonCoding": "Espace de travail",
         "pinned": "Épinglé",
@@ -1792,6 +1928,13 @@
     "teamUsage": "Utilisation équipe"
   },
   "otherUsage": {
+    "cost": "Coût",
+    "estimatedCost": "Coût estimé",
+    "estimated": "EST.",
+    "estimatedTooltip": "Coût estimé — tokens × tarif catalogue (aucune dépense mesurée pour cette source)",
+    "totalEstimatedCost": "Coût estimé",
+    "viewCost": "Coût",
+    "viewTokens": "Jetons",
     "title": "Autre utilisation",
     "noData": "Aucune donnée d'utilisation AI",
     "sessions": "Sessions",
@@ -1930,6 +2073,14 @@
     "listed": "Listé"
   },
   "sourceControl": {
+    "scope": {
+      "local": "Local",
+      "main": "Checkout principal",
+      "worktrees": "Worktrees",
+      "searchPlaceholder": "Filtrer les worktrees…",
+      "switchScope": "Changer la portée du contrôle de source",
+      "switchScopeActive": "Changer la portée du contrôle de source : {{repo}}, {{branch}}"
+    },
     "notGitInitialized": "Git non initialisé",
     "notGitInitializedSubtitle": "Initialisez Git pour suivre les changements, créer des commits et utiliser les outils de branche dans cet espace de travail.",
     "initializeGit": "Initialiser Git",
@@ -1961,6 +2112,25 @@
     }
   },
   "contextInfo": {
+    "cacheSaved": "Cache enregistré : lecture {{read}}, écriture {{write}}",
+    "remaining": "Disponible : {{tokens}} tokens",
+    "cacheHero": "{{pct}} % servis depuis le cache · ~{{tokens}} réutilisés ce tour-ci",
+    "cacheHeroSub": "La mise en cache des prompts peut réduire les coûts jusqu’à 90 %",
+    "headroom": "{{tokens}} tokens disponibles",
+    "manualCompactSectionTitle": "Compactage manuel",
+    "miniCpmCompactTitle": "Compactage automatique silencieux par MiniCPM",
+    "miniCpmCompactDescription": "Traite l’ancien contexte de manière asynchrone",
+    "miniCpmCompactToggleAria": "Activer le compactage automatique silencieux par MiniCPM",
+    "miniCpmCompactDisabled": "Le compactage silencieux est désactivé",
+    "miniCpmCompactEnabled": "Le compactage silencieux est activé",
+    "miniCpmCompactRunning": "MiniCPM compacte le contexte",
+    "miniCpmCompactComplete": "Compactage terminé",
+    "miniCpmCompactBusy": "La session actuelle est occupée",
+    "miniCpmCompactUnavailable": "MiniCPM n’est pas disponible",
+    "miniCpmCompactError": "Échec du compactage par MiniCPM",
+    "miniCpmCompactMetrics": "{{covered}} messages · {{source}} → {{summary}} jetons",
+    "miniCpmCompactAction": "Compacter maintenant",
+    "miniCpmCompactRunningAction": "Compactage en cours",
     "contextUsed": "contexte utilisé",
     "estimatedFromRules": "estimé à partir des règles",
     "activeRules": "Règles actives",
@@ -2035,6 +2205,7 @@
     "parentFolderPlaceholder": "Choisir Parent folder"
   },
   "workspaceForm": {
+    "statusMaxRepos": "Maximum 5 dépôts sélectionnés",
     "title": "Créer un Workspace multi-Repo",
     "editTitle": "Modifier le Workspace",
     "createWorkspace": "Créer un Workspace multi-repo",
@@ -2266,11 +2437,31 @@
     "previewAlt": "Aperçu"
   },
   "update": {
+    "available": "Mise à jour disponible",
+    "versionReady": "La version {{version}} est prête à être téléchargée.",
+    "upToDateVersion": "ORGII est à jour (v{{version}}).",
+    "upToDate": "ORGII est à jour.",
+    "checkFailed": "Échec de la recherche de mises à jour",
+    "checking": "Recherche de mises à jour…",
     "downloading": "Téléchargement de la mise à jour",
+    "downloadingEllipsis": "Téléchargement de la mise à jour…",
+    "downloadingWithSize": "Téléchargement de la mise à jour ({{size}})…",
+    "downloadingDownloaded": "Téléchargement de la mise à jour… {{downloaded}}",
+    "downloadingPercent": "Téléchargement de la mise à jour… {{percent}} %",
     "installing": "Installation de la mise à jour",
+    "installingEllipsis": "Installation de la mise à jour…",
+    "installed": "Mise à jour installée",
+    "installFailed": "Échec de l’installation de la mise à jour",
+    "downloadTimedOut": "Le téléchargement a expiré. Vérifiez votre réseau ou votre proxy, puis réessayez.",
+    "restarting": "Redémarrage d’ORGII pour terminer la mise à jour.",
+    "preparingVersion": "Préparation du téléchargement de la v{{version}}…",
     "progressPercent": "{{percent}} %",
     "downloadedOfTotal": "{{downloaded}} sur {{total}}",
     "preparingDownload": "Préparation du téléchargement…",
     "downloadingAndInstalling": "Téléchargement et installation de la mise à jour (v{{version}})…"
+  },
+  "codeViewer": {
+    "original": "Original",
+    "modified": "Modifié"
   }
 }
