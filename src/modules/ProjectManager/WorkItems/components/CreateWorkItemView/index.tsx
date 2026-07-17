@@ -42,6 +42,12 @@ export interface CreateWorkItemViewProps {
   projectId?: string;
   projectSlug?: string;
   projectName?: string;
+  /**
+   * Project-org id of the surface hosting the creator. Standalone
+   * creations (no project picked) are written under this org so
+   * collab-synced orgs pick them up; omitted → personal-org.
+   */
+  orgId?: string | null;
   repoPath?: string | null;
   scopeBreadcrumbLabel?: string;
   onCancel: () => void;
@@ -77,6 +83,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
   projectId,
   projectSlug,
   projectName,
+  orgId,
   repoPath,
   scopeBreadcrumbLabel,
   onCancel,
@@ -120,6 +127,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
     defaultProjectId: projectId,
     onDraftChange,
     onSetUnsaved,
+    orgId,
     propertiesOpen: resolvedPropertiesOpen,
     projectId,
     projectName,
@@ -205,6 +213,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
         createMore,
         description: rawMarkdown,
         draft,
+        orgId,
         selectedProjectSlug: inlineFields.selectedProjectSlug,
       });
 
@@ -223,7 +232,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
     } finally {
       setSaving(false);
     }
-  }, [createMore, draft, inlineFields, onWorkItemCreated, saving]);
+  }, [createMore, draft, inlineFields, onWorkItemCreated, orgId, saving]);
 
   useKeyboardSave(handleCreate, !saving && !!draft.name.trim());
 

@@ -175,11 +175,7 @@ export const PrChangesTab: React.FC<PrChangesTabProps> = ({
 
   if (loading && files.length === 0) {
     return (
-      <Placeholder
-        variant="loading"
-        placement="detail-panel"
-        fillParentHeight
-      />
+      <Placeholder variant="loading" placement="sidebar" fillParentHeight />
     );
   }
 
@@ -187,7 +183,7 @@ export const PrChangesTab: React.FC<PrChangesTabProps> = ({
     return (
       <Placeholder
         variant="empty"
-        placement="detail-panel"
+        placement="sidebar"
         title={t("git.pr.changes.noFiles", "No file changes")}
         fillParentHeight
       />
@@ -249,13 +245,13 @@ export const PrChangesTab: React.FC<PrChangesTabProps> = ({
                 {loadState === "loading" ? (
                   <Placeholder
                     variant="loading"
-                    placement="detail-panel"
+                    placement="sidebar"
                     fillParentHeight
                   />
                 ) : loadState === "error" ? (
                   <Placeholder
                     variant="error"
-                    placement="detail-panel"
+                    placement="sidebar"
                     title={t("placeholders.failedToLoad")}
                     subtitle={error ?? selectedFile.filename}
                     onRetry={reload}
@@ -264,7 +260,7 @@ export const PrChangesTab: React.FC<PrChangesTabProps> = ({
                 ) : truncated ? (
                   <Placeholder
                     variant="empty"
-                    placement="detail-panel"
+                    placement="sidebar"
                     title={t(
                       "git.pr.changes.tooLarge",
                       "File too large to diff"
@@ -275,7 +271,7 @@ export const PrChangesTab: React.FC<PrChangesTabProps> = ({
                 ) : isBinary ? (
                   <Placeholder
                     variant="empty"
-                    placement="detail-panel"
+                    placement="sidebar"
                     title={t("placeholders.unsupportedFileType")}
                     subtitle={t("placeholders.binaryUnsupportedEncoding")}
                     fillParentHeight
@@ -297,7 +293,7 @@ export const PrChangesTab: React.FC<PrChangesTabProps> = ({
           ) : (
             <Placeholder
               variant="empty"
-              placement="detail-panel"
+              placement="sidebar"
               title={t("placeholders.selectFileToViewChanges")}
               fillParentHeight
             />

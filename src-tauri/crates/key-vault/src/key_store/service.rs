@@ -1,5 +1,6 @@
 use chrono::{Duration as ChronoDuration, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
@@ -26,19 +27,72 @@ const OAUTH_REFRESH_FAILURE_DISABLE_THRESHOLD: u32 = 3;
 const OAUTH_TEMPORARY_UNAVAILABLE_SECONDS: i64 = 30 * 60;
 const OAUTH_RATE_LIMIT_FALLBACK_SECONDS: i64 = 5 * 60;
 const OAUTH_REFRESH_FAILURE_COOLDOWN_SECONDS: i64 = 5 * 60;
-const GEMINI_TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
-const GEMINI_REFRESH_TOKEN_URL_OVERRIDE_ENV: &str = "GEMINI_REFRESH_TOKEN_URL_OVERRIDE";
-const GEMINI_REFRESH_TOKEN_ENV: &str = "GEMINI_REFRESH_TOKEN";
-const GEMINI_EXPIRES_IN_ENV: &str = "GEMINI_EXPIRES_IN";
-const GEMINI_EXPIRES_AT_ENV: &str = "GEMINI_EXPIRES_AT";
+const RETIRED_MODEL_TYPES: &[&str] = &["gemini_cli"];
 type OAuthRefreshLockMap = Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>;
+
+#[derive(Debug)]
+struct InvalidStoredCredential {
+    id: String,
+    raw: JsonValue,
+    error: String,
+}
+
+#[derive(Debug)]
+struct LoadedKeyStore {
+    store: KeyStore,
+    invalid_credentials: Vec<InvalidStoredCredential>,
+    retired_credential_count: usize,
+}
+
+impl LoadedKeyStore {
+    fn log_diagnostics(&self, storage_file: &std::path::Path) {
+        if self.retired_credential_count > 0 {
+            tracing::info!(
+                path = %storage_file.display(),
+                count = self.retired_credential_count,
+                "Ignored retired Key Vault credentials"
+            );
+        }
+        for credential in &self.invalid_credentials {
+            tracing::warn!(
+                path = %storage_file.display(),
+                credential_id = %credential.id,
+                error = %credential.error,
+                "Ignored invalid Key Vault credential; raw entry will be preserved"
+            );
+        }
+    }
+
+    fn invalid_credential_error(&self, key_id: &str) -> Option<String> {
+        self.invalid_credentials.iter().find_map(|credential| {
+            let raw_id = credential.raw.get("id").and_then(JsonValue::as_str);
+            (credential.id == key_id || raw_id == Some(key_id)).then(|| {
+                format!(
+                    "Credential {key_id:?} is invalid and was preserved: {}",
+                    credential.error
+                )
+            })
+        })
+    }
+
+    fn ensure_any_valid_credentials(&self, storage_file: &std::path::Path) -> Result<(), String> {
+        if self.store.keys.is_empty() && !self.invalid_credentials.is_empty() {
+            return Err(format!(
+                "No valid credentials could be loaded; {} invalid credential(s) were preserved in {}",
+                self.invalid_credentials.len(),
+                storage_file.display()
+            ));
+        }
+
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct CliOAuthTokenSync {
     pub access_token: Option<String>,
     pub refresh_token: Option<String>,
     pub id_token: Option<String>,
-    pub expires_at: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -100,30 +154,6 @@ struct CodexRefreshErrorResponse {
     code: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
-struct GeminiRefreshRequest<'a> {
-    client_id: &'a str,
-    client_secret: &'a str,
-    grant_type: &'static str,
-    refresh_token: &'a str,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeminiRefreshResponse {
-    access_token: Option<String>,
-    refresh_token: Option<String>,
-    expires_in: Option<u64>,
-    token_type: Option<String>,
-    scope: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeminiRefreshErrorResponse {
-    error: Option<String>,
-    error_description: Option<String>,
-    message: Option<String>,
-}
-
 /// Thread-safe key storage service (`~/.orgii/credentials.json`)
 pub struct KeyService {
     storage_dir: PathBuf,
@@ -170,25 +200,29 @@ impl KeyService {
 
     /// Load keys from file.
     ///
-    /// On read or parse failure, logs an error and returns `None` so callers
-    /// can decide whether to proceed (read-only callers return empty data,
-    /// write callers abort to avoid overwriting a corrupted file).
-    fn load_store_checked(&self) -> Result<KeyStore, String> {
+    /// Root-level read/parse failures are returned to the caller. Individual
+    /// malformed credentials are isolated in `LoadedKeyStore` so valid
+    /// siblings remain usable and future writes can preserve the raw entries.
+    fn load_store_checked(&self) -> Result<LoadedKeyStore, String> {
         if !self.storage_file.exists() {
-            return Ok(KeyStore::default());
+            return Ok(LoadedKeyStore {
+                store: KeyStore::default(),
+                invalid_credentials: Vec::new(),
+                retired_credential_count: 0,
+            });
         }
 
         let contents = fs::read_to_string(&self.storage_file)
             .map_err(|e| format!("Failed to read {:?}: {}", self.storage_file, e))?;
 
-        serde_json::from_str(&contents)
+        deserialize_key_store(&contents)
             .map_err(|e| format!("Corrupted credentials file {:?}: {}", self.storage_file, e))
     }
 
     /// Load keys, returning default on missing file but logging errors.
     fn load_store(&self) -> KeyStore {
         match self.load_store_checked() {
-            Ok(store) => store,
+            Ok(loaded) => loaded.store,
             Err(err) => {
                 eprintln!("[KeyService] {}", err);
                 KeyStore::default()
@@ -199,8 +233,12 @@ impl KeyService {
     /// Save keys to file (atomic write + restrictive permissions).
     /// Secrets (api_key, session_token) are written directly to the JSON file,
     /// protected by 0o600 permissions.
-    fn save_store(&self, store: &KeyStore) -> Result<(), String> {
-        let contents = serde_json::to_string_pretty(store)
+    fn save_store(
+        &self,
+        store: &KeyStore,
+        invalid_credentials: &[InvalidStoredCredential],
+    ) -> Result<(), String> {
+        let contents = serialize_key_store(store, invalid_credentials)
             .map_err(|e| format!("Failed to serialize credentials: {}", e))?;
 
         // Write to a temp file first, then rename — atomic on same filesystem
@@ -223,9 +261,12 @@ impl KeyService {
     {
         let _guard = self.lock.lock().map_err(|e| format!("Lock error: {}", e))?;
 
-        let mut store = self.load_store_checked()?;
-        let result = updater(&mut store);
-        self.save_store(&store)?;
+        let mut loaded = self.load_store_checked()?;
+        let result = updater(&mut loaded.store);
+        if !loaded.invalid_credentials.is_empty() {
+            loaded.log_diagnostics(&self.storage_file);
+        }
+        self.save_store(&loaded.store, &loaded.invalid_credentials)?;
 
         Ok(result)
     }
@@ -234,6 +275,58 @@ impl KeyService {
     pub fn list_keys(&self) -> Vec<ModelKey> {
         let store = self.load_store();
         store.keys.into_values().collect()
+    }
+
+    /// List stored keys while surfacing root-level corruption to user-facing
+    /// callers. Invalid individual entries are isolated and logged; valid
+    /// siblings remain available.
+    pub fn list_keys_checked(&self) -> Result<Vec<ModelKey>, String> {
+        let loaded = self.load_store_checked()?;
+        loaded.log_diagnostics(&self.storage_file);
+
+        loaded.ensure_any_valid_credentials(&self.storage_file)?;
+
+        Ok(loaded.store.keys.into_values().collect())
+    }
+
+    /// Read one credential without turning corruption into a misleading
+    /// "not found" response. Invalid siblings remain isolated.
+    pub fn get_key_checked(
+        &self,
+        agent_type: &ModelType,
+        key_id: Option<&str>,
+    ) -> Result<Option<ModelKey>, String> {
+        let loaded = self.load_store_checked()?;
+        loaded.log_diagnostics(&self.storage_file);
+
+        if let Some(key) = loaded.store.get(agent_type, key_id).cloned() {
+            return Ok(Some(key));
+        }
+        if let Some(key_id) = key_id {
+            if let Some(error) = loaded.invalid_credential_error(key_id) {
+                return Err(error);
+            }
+        }
+        loaded.ensure_any_valid_credentials(&self.storage_file)?;
+
+        Ok(None)
+    }
+
+    /// Read one credential by ID without turning corruption into a
+    /// misleading "not found" response. Invalid siblings remain isolated.
+    pub fn get_key_by_id_checked(&self, key_id: &str) -> Result<Option<ModelKey>, String> {
+        let loaded = self.load_store_checked()?;
+        loaded.log_diagnostics(&self.storage_file);
+
+        if let Some(key) = loaded.store.get_by_id(key_id).cloned() {
+            return Ok(Some(key));
+        }
+        if let Some(error) = loaded.invalid_credential_error(key_id) {
+            return Err(error);
+        }
+        loaded.ensure_any_valid_credentials(&self.storage_file)?;
+
+        Ok(None)
     }
 
     /// Get key by agent type and optional ID
@@ -352,7 +445,6 @@ impl KeyService {
             {
                 let refresh_key = match model_type {
                     ModelType::Codex => CODEX_REFRESH_TOKEN_ENV_KEY,
-                    ModelType::GeminiCli => GEMINI_REFRESH_TOKEN_ENV,
                     _ => return Ok(CliOAuthTokenSyncOutcome::NotApplicable),
                 };
                 if entry.env_vars.get(refresh_key) != Some(&token) {
@@ -370,17 +462,6 @@ impl KeyService {
                     changed = true;
                 }
             }
-            if let Some(value) = tokens.expires_at.filter(|value| !value.trim().is_empty()) {
-                if model_type == ModelType::GeminiCli
-                    && entry.env_vars.get(GEMINI_EXPIRES_AT_ENV) != Some(&value)
-                {
-                    entry
-                        .env_vars
-                        .insert(GEMINI_EXPIRES_AT_ENV.to_string(), value);
-                    changed = true;
-                }
-            }
-
             if changed {
                 Self::reset_oauth_refresh_failure_state(entry);
                 entry.enabled = true;
@@ -873,24 +954,6 @@ impl KeyService {
         chrono::DateTime::<Utc>::from_timestamp(exp, 0)
     }
 
-    fn google_oauth_client_id() -> String {
-        std::env::var("GEMINI_OAUTH_CLIENT_ID").unwrap_or_else(|_| {
-            let parts: &[&str] = &[
-                "681255809395-oo8ft2oprd",
-                "rnp9e3aqf6av3hmdib135j",
-                ".apps.googleusercontent.com",
-            ];
-            parts.concat()
-        })
-    }
-
-    fn google_oauth_client_secret() -> String {
-        std::env::var("GEMINI_OAUTH_CLIENT_SECRET").unwrap_or_else(|_| {
-            let parts: &[&str] = &["GOCSPX-", "4uHgMPm-1o7", "Sk-geV6Cu5clXFsxl"];
-            parts.concat()
-        })
-    }
-
     fn codex_oauth_key_needs_refresh(key: &ModelKey) -> bool {
         if key.model_type != ModelType::Codex || key.auth_method != AuthMethod::Oauth {
             return false;
@@ -1065,203 +1128,6 @@ impl KeyService {
         saved
     }
 
-    fn gemini_oauth_key_needs_refresh(key: &ModelKey) -> bool {
-        if key.model_type != ModelType::GeminiCli || key.auth_method != AuthMethod::Oauth {
-            return false;
-        }
-        if key
-            .session_token
-            .as_deref()
-            .is_none_or(|token| token.trim().is_empty())
-        {
-            return true;
-        }
-
-        let Some(expires_at_value) = key.env_vars.get(GEMINI_EXPIRES_AT_ENV) else {
-            return false;
-        };
-        let Ok(expires_at) = chrono::DateTime::parse_from_rfc3339(expires_at_value) else {
-            return false;
-        };
-        Utc::now() + ChronoDuration::seconds(OAUTH_REFRESH_EXPIRY_SKEW_SECONDS)
-            >= expires_at.with_timezone(&Utc)
-    }
-
-    pub async fn ensure_gemini_oauth_key_fresh(&self, key_id: &str) -> Result<ModelKey, String> {
-        let key = self
-            .get_key_by_id(key_id)
-            .ok_or_else(|| format!("Key not found: {}", key_id))?;
-
-        if !Self::gemini_oauth_key_needs_refresh(&key) {
-            return Ok(key);
-        }
-
-        let rejected_access_token = key.session_token.clone().unwrap_or_default();
-        self.refresh_gemini_oauth_key_after_rejection(key_id, &rejected_access_token)
-            .await
-    }
-
-    pub async fn refresh_gemini_oauth_key(&self, key_id: &str) -> Result<ModelKey, String> {
-        self.refresh_gemini_oauth_key_inner(key_id, None).await
-    }
-
-    pub async fn refresh_gemini_oauth_key_after_rejection(
-        &self,
-        key_id: &str,
-        rejected_access_token: &str,
-    ) -> Result<ModelKey, String> {
-        self.refresh_gemini_oauth_key_inner(key_id, Some(rejected_access_token))
-            .await
-    }
-
-    async fn refresh_gemini_oauth_key_inner(
-        &self,
-        key_id: &str,
-        rejected_access_token: Option<&str>,
-    ) -> Result<ModelKey, String> {
-        crate::e2e_guard::ensure_oauth_refresh_allowed()?;
-
-        let refresh_lock = self.oauth_refresh_lock_for_key(key_id)?;
-        let _refresh_guard = refresh_lock.lock().await;
-
-        let key = self
-            .get_key_by_id(key_id)
-            .ok_or_else(|| format!("Key not found: {}", key_id))?;
-
-        if key.model_type != ModelType::GeminiCli || key.auth_method != AuthMethod::Oauth {
-            return Ok(key);
-        }
-
-        if let Some(rejected_access_token) = rejected_access_token {
-            if key
-                .session_token
-                .as_deref()
-                .is_some_and(|token| !token.is_empty() && token != rejected_access_token)
-            {
-                return Ok(key);
-            }
-        }
-
-        let refresh_token = key
-            .env_vars
-            .get(GEMINI_REFRESH_TOKEN_ENV)
-            .filter(|value| !value.trim().is_empty())
-            .cloned()
-            .ok_or_else(|| format!("Gemini OAuth key {} has no refresh token", key_id))?;
-        let client_id = Self::google_oauth_client_id();
-        let client_secret = Self::google_oauth_client_secret();
-        let request = GeminiRefreshRequest {
-            client_id: &client_id,
-            client_secret: &client_secret,
-            grant_type: "refresh_token",
-            refresh_token: &refresh_token,
-        };
-
-        let token_url = std::env::var(GEMINI_REFRESH_TOKEN_URL_OVERRIDE_ENV)
-            .unwrap_or_else(|_| GEMINI_TOKEN_URL.to_string());
-
-        let response = match reqwest::Client::builder()
-            .timeout(OAUTH_REFRESH_REQUEST_TIMEOUT)
-            .build()
-            .map_err(|err| format!("Gemini OAuth refresh client build failed: {}", err))?
-            .post(token_url)
-            .form(&request)
-            .send()
-            .await
-        {
-            Ok(response) => response,
-            Err(err) => {
-                let message = format!("Gemini OAuth refresh request failed: {}", err);
-                self.record_oauth_refresh_failure(key_id, &message)?;
-                return Err(message);
-            }
-        };
-
-        let status = response.status();
-        let body = match response.text().await {
-            Ok(body) => body,
-            Err(err) => {
-                let message = format!("Gemini OAuth refresh response read failed: {}", err);
-                self.record_oauth_refresh_failure(key_id, &message)?;
-                return Err(message);
-            }
-        };
-
-        if !status.is_success() {
-            let detail = serde_json::from_str::<GeminiRefreshErrorResponse>(&body)
-                .ok()
-                .and_then(|parsed| parsed.error_description.or(parsed.message).or(parsed.error))
-                .unwrap_or(body);
-            let message = format!(
-                "Gemini OAuth refresh failed with HTTP {}: {}",
-                status, detail
-            );
-            self.record_oauth_refresh_failure(key_id, &message)?;
-            return Err(message);
-        }
-
-        let refreshed: GeminiRefreshResponse = match serde_json::from_str(&body) {
-            Ok(refreshed) => refreshed,
-            Err(err) => {
-                let message = format!("Gemini OAuth refresh response parse failed: {}", err);
-                self.record_oauth_refresh_failure(key_id, &message)?;
-                return Err(message);
-            }
-        };
-
-        let access_token = refreshed
-            .access_token
-            .filter(|token| !token.trim().is_empty());
-        if access_token.is_none() {
-            let message = "Gemini OAuth refresh response omitted access_token".to_string();
-            self.record_oauth_refresh_failure(key_id, &message)?;
-            return Err(message);
-        }
-
-        let saved = self.update_store(|store| {
-            let entry = store.keys.get_mut(key_id).ok_or_else(|| {
-                format!(
-                    "Key disappeared while saving refreshed Gemini token: {}",
-                    key_id
-                )
-            })?;
-
-            entry.session_token = access_token;
-            if let Some(next_refresh_token) = refreshed.refresh_token {
-                if !next_refresh_token.trim().is_empty() {
-                    entry
-                        .env_vars
-                        .insert(GEMINI_REFRESH_TOKEN_ENV.to_string(), next_refresh_token);
-                }
-            }
-            if let Some(expires_in) = refreshed.expires_in {
-                entry
-                    .env_vars
-                    .insert(GEMINI_EXPIRES_IN_ENV.to_string(), expires_in.to_string());
-                let expires_at = Utc::now() + ChronoDuration::seconds(expires_in as i64);
-                entry.env_vars.insert(
-                    GEMINI_EXPIRES_AT_ENV.to_string(),
-                    expires_at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-                );
-            }
-            if let Some(token_type) = refreshed.token_type {
-                entry
-                    .env_vars
-                    .insert("GEMINI_TOKEN_TYPE".to_string(), token_type);
-            }
-            if let Some(scope) = refreshed.scope {
-                entry.env_vars.insert("GEMINI_SCOPE".to_string(), scope);
-            }
-            Self::reset_oauth_refresh_failure_state(entry);
-            entry.enabled = true;
-            entry.updated_at = Utc::now();
-            store.updated_at = Utc::now();
-            Ok(entry.clone())
-        })?;
-
-        saved
-    }
-
     /// Merge account metadata fields onto a stored key.
     pub fn merge_key_account_metadata(
         &self,
@@ -1386,6 +1252,66 @@ impl KeyService {
     pub fn get_storage_file(&self) -> &PathBuf {
         &self.storage_file
     }
+}
+
+fn deserialize_key_store(contents: &str) -> Result<LoadedKeyStore, serde_json::Error> {
+    let mut value = serde_json::from_str::<serde_json::Value>(contents)?;
+    let credentials = value
+        .get_mut("credentials")
+        .and_then(serde_json::Value::as_object_mut)
+        .map(std::mem::take)
+        .unwrap_or_default();
+
+    // Parse the envelope separately from its entries. One unsupported or
+    // malformed credential must not poison every valid sibling in the vault.
+    let mut store = serde_json::from_value::<KeyStore>(value)?;
+    let mut invalid_credentials = Vec::new();
+    let mut retired_credential_count = 0;
+
+    for (storage_id, raw) in credentials {
+        let agent_type = raw.get("agent_type").and_then(JsonValue::as_str);
+        if agent_type.is_some_and(|value| RETIRED_MODEL_TYPES.contains(&value)) {
+            retired_credential_count += 1;
+            continue;
+        }
+
+        match serde_json::from_value::<ModelKey>(raw.clone()) {
+            Ok(key) => {
+                store.keys.insert(storage_id, key);
+            }
+            Err(error) => invalid_credentials.push(InvalidStoredCredential {
+                id: storage_id,
+                raw,
+                error: error.to_string(),
+            }),
+        }
+    }
+
+    Ok(LoadedKeyStore {
+        store,
+        invalid_credentials,
+        retired_credential_count,
+    })
+}
+
+fn serialize_key_store(
+    store: &KeyStore,
+    invalid_credentials: &[InvalidStoredCredential],
+) -> Result<String, String> {
+    let mut value = serde_json::to_value(store).map_err(|error| error.to_string())?;
+    let credentials = value
+        .get_mut("credentials")
+        .and_then(JsonValue::as_object_mut)
+        .ok_or_else(|| "serialized KeyStore has no credentials object".to_string())?;
+
+    // Valid entries win if a previously invalid id is repaired explicitly.
+    for credential in invalid_credentials {
+        credentials
+            .entry(credential.id.clone())
+            .or_insert_with(|| credential.raw.clone());
+    }
+
+    serde_json::to_string_pretty(&value).map_err(|error| error.to_string())
 }
 
 fn parse_codex_refresh_error(body: &str) -> String {

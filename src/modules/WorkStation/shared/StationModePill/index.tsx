@@ -4,22 +4,19 @@
  * Renders the My Station / Agent's Station icon segmented toggle.
  */
 import { useAtom } from "jotai";
-import { Infinity, Laptop, type LucideIcon, Radar } from "lucide-react";
+import { Infinity, Laptop, type LucideIcon } from "lucide-react";
 import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { useLocation, useNavigate } from "react-router-dom";
 
 import SegmentedIconButton from "@src/components/SegmentedIconButton";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
-import { ROUTES } from "@src/config/routes";
-import { GENERAL_LAYOUT_TOUR_TARGETS } from "@src/scaffold/Tutorials/GeneralLayoutTour";
+import { GENERAL_LAYOUT_TOUR_TARGETS } from "@src/scaffold/Tutorials/generalLayoutTourConfig";
 import { type StationMode, stationModeAtom } from "@src/store/ui/simulatorAtom";
 
 import { WorkstationToolbarTooltip } from "../WorkstationToolbarTooltip";
 
 const MY_STATION_SHORTCUT_ID = "open_my_station";
 const AGENT_STATION_SHORTCUT_ID = "open_agent_station";
-const OPS_CONTROL_SHORTCUT_ID = "open_ops_control";
 
 interface IconSwitchButtonProps {
   label: string;
@@ -71,35 +68,18 @@ const IconSwitchButton: React.FC<IconSwitchButtonProps> = ({
 
 const StationModePill: React.FC = () => {
   const [stationMode, setStationMode] = useAtom(stationModeAtom);
-  const navigate = useNavigate();
-  const location = useLocation();
 
   const { t } = useTranslation("common");
   const mySegment = t("terminology.myStation");
   const agentSegment = t("terminology.agentStation");
-  const opsControlSegment = t("navigation:routes.opsControl");
 
   const myStationShortcut = getShortcutKeys(MY_STATION_SHORTCUT_ID);
   const agentStationShortcut = getShortcutKeys(AGENT_STATION_SHORTCUT_ID);
-  const opsControlShortcut = getShortcutKeys(OPS_CONTROL_SHORTCUT_ID);
-  const activeStationMode = stationMode;
-
   const handleChange = useCallback(
     (mode: StationMode) => {
       setStationMode(mode);
-
-      if (mode === "ops-control") {
-        if (location.pathname !== ROUTES.workStation.opsControl.path) {
-          navigate(ROUTES.workStation.opsControl.path);
-        }
-        return;
-      }
-
-      if (location.pathname === ROUTES.workStation.opsControl.path) {
-        navigate(ROUTES.workStation.base.path);
-      }
     },
-    [location.pathname, navigate, setStationMode]
+    [setStationMode]
   );
 
   return (
@@ -107,25 +87,11 @@ const StationModePill: React.FC = () => {
       className="flex items-center gap-px rounded-[100px] border border-border-2 bg-fill-1 p-0.5"
       data-tour-target={GENERAL_LAYOUT_TOUR_TARGETS.stationModePill}
     >
-      {activeStationMode === "ops-control" && (
-        <IconSwitchButton
-          label={opsControlSegment}
-          tooltipLabel={t("actions.switchToStation", {
-            station: opsControlSegment,
-          })}
-          icon={Radar}
-          selected
-          onClick={() => handleChange("ops-control")}
-          testId="station-mode-ops-control"
-          shortcut={opsControlShortcut}
-          selectedClassName="bg-warning-6 text-white"
-        />
-      )}
       <IconSwitchButton
         label={mySegment}
         tooltipLabel={t("actions.switchToStation", { station: mySegment })}
         icon={Laptop}
-        selected={activeStationMode === "my-station"}
+        selected={stationMode === "my-station"}
         onClick={() => handleChange("my-station")}
         testId="station-mode-my-station"
         shortcut={myStationShortcut}
@@ -134,7 +100,7 @@ const StationModePill: React.FC = () => {
         label={agentSegment}
         tooltipLabel={t("actions.switchToStation", { station: agentSegment })}
         icon={Infinity}
-        selected={activeStationMode === "agent-station"}
+        selected={stationMode === "agent-station"}
         onClick={() => handleChange("agent-station")}
         testId="station-mode-agent-station"
         shortcut={agentStationShortcut}

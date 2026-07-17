@@ -24,7 +24,16 @@ export function createRedrawTerminalAfterLayoutChange({
     if (!terminal || !fitAddon || !container) return;
 
     requestAnimationFrame(() => {
-      if (!terminalRef.current || !fitAddonRef.current) return;
+      // A replacement terminal can mount before this frame runs. Checking
+      // merely for non-null refs would then operate on the disposed instance
+      // captured above while a different live instance occupies the refs.
+      if (
+        terminalRef.current !== terminal ||
+        fitAddonRef.current !== fitAddon ||
+        containerRef.current !== container
+      ) {
+        return;
+      }
       const rect = container.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
 

@@ -36,6 +36,12 @@ export const SPOTLIGHT_TOKENS = {
   iconSize: 16,
 } as const;
 
+export const SPOTLIGHT_CLASSES = {
+  /** Primary contextual pill used by palette navigation and active state badges. */
+  primaryPill:
+    "flex items-center gap-1 rounded-full bg-primary-1 px-2.5 py-1 text-primary-6",
+} as const;
+
 // ============ LIMITS ============
 
 export const LIMITS = {

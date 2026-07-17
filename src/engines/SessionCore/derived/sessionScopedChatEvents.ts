@@ -20,9 +20,10 @@
  * - The subscription is established eagerly in `onMount` and cleaned up in
  *   the returned disposer; a `getLatestSessionSnapshot` poll closes the race
  *   between mount and the next push.
- * - When the family entry is garbage-collected (no subscriber), the disposer
- *   tears down the per-session subscription. The Rust EventStore keeps its
- *   own LRU cache; we only mirror what is currently mounted.
+ * - Family entries are explicitly removed (jotai-family pins them in a
+ *   strong Map otherwise) once the snapshot atom has been unmounted for
+ *   SESSION_FAMILY_RETAIN_MS. The Rust EventStore keeps its own LRU cache;
+ *   we only mirror what is mounted or recently unmounted.
  */
 import { atom } from "jotai";
 import { atomFamily } from "jotai-family";
@@ -58,6 +59,42 @@ const EMPTY_STATE: SnapshotState = {
 };
 
 /**
+ * Family GC. `jotai-family` pins every created atom in a strong Map until
+ * `remove()` is called, so without this each subagent session ever rendered
+ * would keep its last full snapshot (and derived chat-events array) on the
+ * heap for the app lifetime. Entries are released once the session's
+ * snapshot atom has been unmounted for SESSION_FAMILY_RETAIN_MS — long
+ * enough that grid-layout churn and quick switch-backs stay warm, short
+ * enough that hopping across many replays doesn't accumulate transcripts.
+ *
+ * Removal is mount-gated and therefore glitch-free: the two derived families
+ * read `sessionSnapshotAtomFamily`, so none of the three can still be
+ * mounted when the snapshot atom's unmount cleanup fires, and a remount
+ * within the grace period cancels the pending removal.
+ */
+export const SESSION_FAMILY_RETAIN_MS = 3 * 60 * 1000;
+
+const familyRemovalTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function cancelSessionFamilyRemoval(sessionId: string): void {
+  const timer = familyRemovalTimers.get(sessionId);
+  if (timer === undefined) return;
+  clearTimeout(timer);
+  familyRemovalTimers.delete(sessionId);
+}
+
+function scheduleSessionFamilyRemoval(sessionId: string): void {
+  cancelSessionFamilyRemoval(sessionId);
+  const timer = setTimeout(() => {
+    familyRemovalTimers.delete(sessionId);
+    chatEventsForSessionAtomFamily.remove(sessionId);
+    sessionScopedPlanningMetaAtomFamily.remove(sessionId);
+    sessionSnapshotAtomFamily.remove(sessionId);
+  }, SESSION_FAMILY_RETAIN_MS);
+  familyRemovalTimers.set(sessionId, timer);
+}
+
+/**
  * Backing snapshot atom for a single subagent session.
  *
  * Subscribes to `eventStoreProxy.subscribeSession(sessionId, ...)` on mount,
@@ -71,6 +108,7 @@ const sessionSnapshotAtomFamily = atomFamily((sessionId: string) => {
 
   a.onMount = (setSelf) => {
     let disposed = false;
+    cancelSessionFamilyRemoval(sessionId);
 
     setSelf((prev) => {
       if (prev.loadStarted) return prev;
@@ -106,6 +144,7 @@ const sessionSnapshotAtomFamily = atomFamily((sessionId: string) => {
     return () => {
       disposed = true;
       unsubscribe();
+      scheduleSessionFamilyRemoval(sessionId);
     };
   };
 

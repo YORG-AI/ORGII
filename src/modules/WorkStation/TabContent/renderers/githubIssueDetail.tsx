@@ -7,7 +7,6 @@
  */
 import { useAtomValue, useSetAtom } from "jotai";
 import React, { memo, useCallback, useMemo } from "react";
-import { useTranslation } from "react-i18next";
 
 import { usePublishWorkstationTabHeader } from "@src/hooks/workStation";
 import { useWorkStationTabs } from "@src/hooks/workStation/tabs/useWorkStationTabs";
@@ -33,7 +32,6 @@ import type { UnifiedTabContentProps } from "../types";
 
 const GitHubIssueDetailTabRenderer: React.FC<UnifiedTabContentProps> = memo(
   ({ tab }) => {
-    const { t } = useTranslation();
     const { closeTab } = useWorkStationTabs();
     const tabData = tab.data as unknown as GitHubIssueDetailTabData;
     const scopeKey = workstationRepoScopeKey(undefined, tabData.repoPath);
@@ -173,8 +171,7 @@ const GitHubIssueDetailTabRenderer: React.FC<UnifiedTabContentProps> = memo(
         <Placeholder
           variant="empty"
           placement="detail-panel"
-          title={t("previews.noIssueSelected")}
-          subtitle={t("previews.selectIssueHint")}
+          fillParentHeight
         />
       );
     }

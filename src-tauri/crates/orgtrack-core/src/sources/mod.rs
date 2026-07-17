@@ -38,12 +38,16 @@ pub trait SourceAdapter {
 
 pub mod activity;
 pub mod claude_code;
-pub mod cli_session_db;
+pub mod cline;
 pub mod codex;
 pub mod cursor_ide;
 pub mod imported_history;
 pub mod opencode;
 pub mod orgii_cli;
 pub mod orgii_rust_agents;
+pub mod qoder;
+pub mod trae;
+pub mod warp;
 pub mod windsurf;
 pub mod workbuddy;
+pub mod zcode;

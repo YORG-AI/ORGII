@@ -8,7 +8,7 @@ import type { SessionCreatorDraft } from "@src/store/session";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-/** Poll intervals for sidebar session list refresh. */
+/** Poll intervals for Cursor IDE session list refresh. */
 export const CURSOR_IDE_ACTIVE_REFRESH_INTERVAL_MS = 60_000;
 export const CURSOR_IDE_IDLE_REFRESH_INTERVAL_MS = 5 * 60_000;
 
@@ -23,9 +23,21 @@ export const PROJECTS_NEW_PROJECT_MENU_ITEM_ID = "projects-new-project";
 export const PROJECTS_IMPORT_GITHUB_ISSUES_MENU_ITEM_ID =
   "projects-import-github-issues";
 export const PROJECTS_NEW_WORK_ITEM_MENU_ITEM_ID = "projects-new-work-item";
-export const OPS_CONTROL_MENU_ITEM_ID = "ops-control";
+export const WORK_ITEMS_MENU_ITEM_ID = "work-items";
+export const KANBAN_MENU_ITEM_ID = "kanban";
+export const WORK_ITEMS_PROJECTS_MENU_ITEM_ID = "work-items:projects";
+export const WORK_ITEMS_GITHUB_ISSUES_MENU_ITEM_ID = "work-items:github-issues";
+export const WORK_ITEMS_GITHUB_PRS_MENU_ITEM_ID = "work-items:github-prs";
 export const COLLAB_ADD_ORG_MENU_ITEM_ID = "colleagues-add-org";
 export const SESSION_CREATOR_DRAFT_MENU_PREFIX = "session-creator-draft:";
+
+export function isWorkManagementMenuItemId(menuItemId: string): boolean {
+  return (
+    menuItemId === KANBAN_MENU_ITEM_ID ||
+    menuItemId === WORK_ITEMS_MENU_ITEM_ID ||
+    menuItemId.startsWith(`${WORK_ITEMS_MENU_ITEM_ID}:`)
+  );
+}
 
 // ── Draft helpers ─────────────────────────────────────────────────────────────
 

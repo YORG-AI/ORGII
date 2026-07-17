@@ -33,7 +33,7 @@ import { useZoomShortcuts } from "./useZoomShortcuts";
  * - Command+Option+B / Ctrl+Alt+B: Focus Chat Panel or show Workstation
  * - Command+1 / Ctrl+1: Open My Station
  * - Command+2 / Ctrl+2: Open Agent's Station
- * - Command+3 / Ctrl+3: Open Ops Control
+ * - Command+3 / Ctrl+3: Open Kanban
  * - Command+Option+U / Ctrl+Alt+U: Toggle Workstation sidebar
  * - Command+= (Meta+=): Zoom in (increase UI scale)
  * - Command+- (Meta+-): Zoom out (decrease UI scale)
@@ -66,6 +66,7 @@ export const useGlobalShortcuts = () => {
     spotlightOpen,
     spotlightOpenRef,
     handleCreateNewSession,
+    handleNewSessionShortcut,
     handleGoToCreateSession,
     handleToggleSpotlight,
     handleOpenModelSelector,
@@ -106,6 +107,7 @@ export const useGlobalShortcuts = () => {
     handleHideWindow,
     spotlightOpenRef,
     handleCreateNewSession,
+    handleNewSessionShortcut,
     handleGoToCreateSession,
     handleToggleSpotlight,
     handleOpenModelSelector,

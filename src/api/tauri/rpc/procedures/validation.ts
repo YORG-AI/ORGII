@@ -140,11 +140,6 @@ export const validation = {
     .output(z.array(z.string()))
     .build(),
 
-  geminiOauthListModels: defineProcedure("gemini_oauth_list_models")
-    .input(schemas.validation.GeminiOauthListModelsInput)
-    .output(z.array(z.string()))
-    .build(),
-
   refreshOauthToken: defineProcedure("refresh_oauth_token")
     .input(schemas.validation.RefreshOauthTokenInput)
     .build(),
@@ -178,15 +173,6 @@ export const validation = {
   exchangeCodexOauthCode: defineProcedure("exchange_codex_oauth_code")
     .input(schemas.validation.CodexOauthExchangeInput)
     .output(schemas.validation.CodexOauthExchangeResponseSchema)
-    .build(),
-
-  startGeminiOauthLogin: defineProcedure("start_gemini_oauth_login")
-    .output(schemas.validation.GeminiOauthStartResponseSchema)
-    .build(),
-
-  exchangeGeminiOauthCode: defineProcedure("exchange_gemini_oauth_code")
-    .input(schemas.validation.GeminiOauthExchangeInput)
-    .output(schemas.validation.GeminiOauthExchangeResponseSchema)
     .build(),
 
   getProviderConfig: defineProcedure("get_provider_config")

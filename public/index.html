@@ -51,6 +51,8 @@
           pageVal = "12px";
           html.dataset.hostDesktop = "linux";
         } else {
+          winVal = "10px";
+          pageVal = "20px";
           html.dataset.hostDesktop = "macos";
         }
         if (winVal) {
@@ -261,7 +263,7 @@
     </script>
     <style nonce="orgii-codemirror-style">
       :root {
-        --border-radius-window: 26px;
+        --border-radius-window: 10px;
       }
       * {
         margin: 0;
@@ -421,6 +423,8 @@
         }
 
         var maxAttempts = 30;
+        var maxRetryDelayMs = 750;
+        var scriptLoadTimeoutMs = 8000;
         var attempt = 0;
         var retryDelayMs = 250;
         var markStartup =
@@ -431,45 +435,92 @@
 
         function loadMainScript() {
           attempt += 1;
-          markStartup("main.js loader attempt", { attempt: attempt });
+          var currentAttempt = attempt;
+          var settled = false;
+          var script = null;
+          var objectUrl = null;
+          markStartup("main.js loader attempt", { attempt: currentAttempt });
 
-          var script = document.createElement("script");
-          script.src = "/main.js?orgii_startup_attempt=" + attempt;
-          script.async = false;
-          script.onload = function () {
-            markStartup("main.js loader loaded", {
-              attempt: attempt,
-              mode: "external-retry",
+          function cleanupAttempt() {
+            if (script) {
+              script.remove();
+            }
+            if (objectUrl) {
+              URL.revokeObjectURL(objectUrl);
+              objectUrl = null;
+            }
+          }
+
+          function scheduleRetry(reason, details) {
+            markStartup(reason, {
+              attempt: currentAttempt,
+              message: details && details.message,
+              timeoutMs: scriptLoadTimeoutMs,
             });
-          };
-          script.onerror = function () {
-            markStartup("main.js loader failed", { attempt: attempt });
-            script.remove();
-            fetch("/main.js", { cache: "no-store" })
-              .then(function (response) {
-                markStartup("main.js fetch after script failure", {
-                  attempt: attempt,
-                  ok: response.ok,
-                  status: response.status,
-                });
-              })
-              .catch(function (error) {
-                markStartup("main.js fetch after script failure failed", {
-                  attempt: attempt,
-                  message:
-                    error && error.message ? error.message : String(error),
-                });
-              });
-            if (attempt >= maxAttempts) {
+            cleanupAttempt();
+            if (currentAttempt >= maxAttempts) {
               if (typeof window.__ORGII_SHOW_STARTUP_ERROR__ === "function") {
                 window.__ORGII_SHOW_STARTUP_ERROR__(true);
               }
               return;
             }
             setTimeout(loadMainScript, retryDelayMs);
-            retryDelayMs = Math.min(retryDelayMs * 1.5, 2000);
-          };
-          document.body.appendChild(script);
+            retryDelayMs = Math.min(retryDelayMs * 1.5, maxRetryDelayMs);
+          }
+
+          var scriptTimeoutId = setTimeout(function () {
+            if (settled) return;
+            settled = true;
+            scheduleRetry("main.js loader timed out");
+          }, scriptLoadTimeoutMs);
+
+          fetch("/main.js?orgii_startup_attempt=" + currentAttempt, {
+            cache: "no-store",
+          })
+            .then(function (response) {
+              markStartup("main.js fetch completed", {
+                attempt: currentAttempt,
+                ok: response.ok,
+                status: response.status,
+              });
+              if (!response.ok) {
+                throw new Error("HTTP " + response.status);
+              }
+              return response.blob();
+            })
+            .then(function (blob) {
+              if (settled) return;
+              objectUrl = URL.createObjectURL(blob);
+              script = document.createElement("script");
+              script.src = objectUrl;
+              script.async = false;
+              script.onload = function () {
+                if (settled) return;
+                settled = true;
+                clearTimeout(scriptTimeoutId);
+                markStartup("main.js loader loaded", {
+                  attempt: currentAttempt,
+                  mode: "fetch-blob-retry",
+                });
+                cleanupAttempt();
+              };
+              script.onerror = function () {
+                if (settled) return;
+                settled = true;
+                clearTimeout(scriptTimeoutId);
+                scheduleRetry("main.js loader failed");
+              };
+              document.body.appendChild(script);
+            })
+            .catch(function (error) {
+              if (settled) return;
+              settled = true;
+              clearTimeout(scriptTimeoutId);
+              scheduleRetry("main.js fetch failed", {
+                message:
+                  error && error.message ? error.message : String(error),
+              });
+            });
         }
 
         loadMainScript();

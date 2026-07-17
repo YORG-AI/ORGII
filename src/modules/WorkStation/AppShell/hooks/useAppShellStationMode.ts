@@ -1,23 +1,16 @@
-import { useAtomValue, useSetAtom } from "jotai";
-import { useEffect, useRef, useState } from "react";
+import { useAtomValue } from "jotai";
+import { useEffect, useState } from "react";
 
-import { useRouteAppMode } from "@src/config/routeViewModeConfig";
 import { replayModeAtom } from "@src/engines/SessionCore";
 import {
   type StationMode,
   simulatorSessionPlaybackPlayingAtom,
   stationModeAtom,
 } from "@src/store/ui/simulatorAtom";
-import {
-  opsControlFocusedTabAtom,
-  opsControlPeekHostAtom,
-} from "@src/store/workstation";
 
 interface AppShellStationModeState {
   stationMode: StationMode;
   isAgentStation: boolean;
-  isOpsControlStation: boolean;
-  opsControlPeekHost: "code" | "browser" | "data" | "project" | null;
   hasVisitedAgentStation: boolean;
   illuminateAgentStationChrome: boolean;
 }
@@ -27,46 +20,12 @@ export function useAppShellStationMode({
 }: {
   followAgentHighlightEnabled: boolean;
 }): AppShellStationModeState {
-  const appMode = useRouteAppMode();
   const stationMode = useAtomValue(stationModeAtom);
-  const setStationMode = useSetAtom(stationModeAtom);
-  const opsControlPeekHost = useAtomValue(opsControlPeekHostAtom);
-  const setOpsControlPeekHost = useSetAtom(opsControlPeekHostAtom);
-  const setOpsControlFocusedTab = useSetAtom(opsControlFocusedTabAtom);
   const isAgentStation = stationMode === "agent-station";
-  const isOpsControlStation = stationMode === "ops-control";
   const replayMode = useAtomValue(replayModeAtom);
   const sessionPlaybackPlaying = useAtomValue(
     simulatorSessionPlaybackPlayingAtom
   );
-
-  const stationModeRef = useRef(stationMode);
-  useEffect(() => {
-    stationModeRef.current = stationMode;
-  }, [stationMode]);
-
-  useEffect(() => {
-    if (appMode === "opsControl") {
-      if (stationModeRef.current !== "ops-control") {
-        setStationMode("ops-control");
-      }
-      return;
-    }
-    if (stationModeRef.current === "ops-control") {
-      setStationMode("my-station");
-    }
-  }, [appMode, setStationMode]);
-
-  useEffect(() => {
-    if (isOpsControlStation || opsControlPeekHost === null) return;
-    setOpsControlPeekHost(null);
-    setOpsControlFocusedTab(null);
-  }, [
-    isOpsControlStation,
-    opsControlPeekHost,
-    setOpsControlFocusedTab,
-    setOpsControlPeekHost,
-  ]);
 
   const [hasVisitedAgentStation, setHasVisitedAgentStation] = useState(
     () => isAgentStation
@@ -89,8 +48,6 @@ export function useAppShellStationMode({
   return {
     stationMode,
     isAgentStation,
-    isOpsControlStation,
-    opsControlPeekHost,
     hasVisitedAgentStation,
     illuminateAgentStationChrome,
   };

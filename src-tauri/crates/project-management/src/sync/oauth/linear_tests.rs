@@ -1,6 +1,7 @@
 //! Wiremock-backed unit tests for the Linear OAuth helpers.
 
 use super::*;
+use serial_test::serial;
 use std::time::Duration;
 use wiremock::matchers::{body_string_contains, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -34,6 +35,7 @@ fn random_base64url_yields_distinct_long_outputs() {
 /// `start_auth_flow` must build an `authorize_url` that contains every
 /// PKCE-required query parameter, encoded properly.
 #[tokio::test]
+#[serial(linear_oauth_loopback)]
 async fn start_auth_flow_builds_pkce_compliant_authorize_url() {
     let descriptor = start_auth_flow("test_client_123")
         .await
@@ -71,6 +73,7 @@ async fn start_auth_flow_rejects_empty_client_id() {
 }
 
 #[tokio::test]
+#[serial(linear_oauth_loopback)]
 async fn await_callback_resolves_with_code_on_state_match() {
     let descriptor = start_auth_flow("test_client").await.expect("flow start");
     let port = descriptor.port;
@@ -101,6 +104,7 @@ async fn await_callback_resolves_with_code_on_state_match() {
 }
 
 #[tokio::test]
+#[serial(linear_oauth_loopback)]
 async fn await_callback_returns_state_mismatch_when_state_differs() {
     let descriptor = start_auth_flow("test_client").await.expect("flow start");
     let port = descriptor.port;
@@ -133,6 +137,7 @@ async fn await_callback_returns_state_mismatch_when_state_differs() {
 }
 
 #[tokio::test]
+#[serial(linear_oauth_loopback)]
 async fn await_callback_times_out_when_no_callback_arrives() {
     let descriptor = start_auth_flow("test_client").await.expect("flow start");
     let outcome = await_callback_with_timeout(
@@ -150,6 +155,7 @@ async fn await_callback_times_out_when_no_callback_arrives() {
 }
 
 #[tokio::test]
+#[serial(linear_oauth_loopback)]
 async fn await_callback_returns_cancelled_when_token_signalled() {
     let descriptor = start_auth_flow("test_client").await.expect("flow start");
     let cancel = CancellationToken::new();
@@ -173,6 +179,7 @@ async fn await_callback_returns_cancelled_when_token_signalled() {
 }
 
 #[tokio::test]
+#[serial(linear_oauth_loopback)]
 async fn await_callback_returns_access_denied_on_authorize_error() {
     let descriptor = start_auth_flow("test_client").await.expect("flow start");
     let port = descriptor.port;

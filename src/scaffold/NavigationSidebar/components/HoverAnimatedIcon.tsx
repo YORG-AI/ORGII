@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import React, { useCallback, useEffect, useRef } from "react";
 
-import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/csp";
+import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/nonce";
 
 type AnimationStrategy =
   | "stroke-draw"

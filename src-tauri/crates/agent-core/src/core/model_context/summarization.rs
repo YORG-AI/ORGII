@@ -3,7 +3,7 @@
 use serde_json::Value;
 
 use super::compaction::ContextCompactor;
-use crate::core::side_query::{self, SideQueryConfig, StructuredOutput};
+use crate::core::side_query::{self, SideQueryConfig};
 
 /// Relaxed cap for tool results fed to the summarizer. Large enough to keep
 /// exact error messages / paths intact; the per-message oversized guard in
@@ -171,6 +171,171 @@ pub(crate) fn format_tool_calls(msg: &Value) -> String {
         .unwrap_or_default()
 }
 
+/// Build the summarization instruction prompt (system prompt for the
+/// side-query path, user-message text for the fork path).
+///
+/// `include_prior_summary` is false on the fork path: the prior compact
+/// summary is already present in the forked message list as the boundary
+/// user message, so repeating it would only bloat the request.
+fn build_summary_prompt(
+    state: &super::compaction::CompactionState,
+    custom_instructions: Option<&str>,
+    include_prior_summary: bool,
+) -> String {
+    let mut prompt = String::from(SUMMARIZATION_SYSTEM_PROMPT);
+
+    if state.recompaction_info.compaction_count > 0 {
+        prompt.push_str(&format!(
+            "\n\n## Re-compaction Context\n\nThis is compaction #{} for this session (last at turn {}). \
+             Merge the prior summary with the new messages — preserve important details from both, \
+             but prioritize recent information when there are conflicts or superseded decisions.",
+            state.recompaction_info.compaction_count + 1,
+            state.recompaction_info.last_compaction_turn,
+        ));
+    }
+
+    if include_prior_summary {
+        if let Some(ref prior_summary) = state.summary {
+            prompt.push_str(&format!(
+                "\n\n## Prior Context Summary\n\n{}\n\n## New Messages to Incorporate\n\n",
+                prior_summary
+            ));
+        }
+    }
+
+    if let Some(instructions) = custom_instructions
+        .map(str::trim)
+        .filter(|instructions| !instructions.is_empty())
+    {
+        prompt.push_str(&format!(
+            "\n\n## Additional Instructions\n\nThe user provided extra focus instructions for this \
+             summary. Honor them on top of the required section structure — they refine emphasis, \
+             they do not replace any section:\n{}",
+            instructions
+        ));
+    }
+
+    prompt
+}
+
+/// Validate a summarizer response shared by both paths: reject output cut
+/// off at the cap and empty summaries.
+///
+/// NOTE: these messages must NOT contain any keyword matched by
+/// `ContextCompactor::is_prompt_too_long_error` (e.g. "max_tokens",
+/// "token limit"), or `try_compact` would misroute an OUTPUT-side failure
+/// into the input-shrinking PTL retry loop.
+fn validate_summary(
+    summary: String,
+    finish_reason: &str,
+    output_cap: u32,
+) -> Result<String, String> {
+    // A response cut off at the output cap is a mid-sentence summary;
+    // persisting it would durably hide the compacted messages behind an
+    // incomplete replacement.
+    if finish_reason == crate::providers::finish_reason::LENGTH {
+        return Err(format!(
+            "summary output hit the summarizer cap ({}) — refusing incomplete summary",
+            output_cap
+        ));
+    }
+    // An empty summary must never replace real history: the compacted view
+    // would render `[Conversation summary — N messages compacted]` followed
+    // by nothing, silently destroying context.
+    if summary.trim().is_empty() {
+        return Err("summarizer returned an empty summary".to_string());
+    }
+    Ok(summary)
+}
+
+// ============================================
+// Fork-form summarization (prompt-cache sharing)
+// ============================================
+
+/// Inputs for the fork-form summarization call.
+///
+/// The summary request is appended to the main turn's EXACT request prefix
+/// (runtime system prefix + full history, same tools / model / max_tokens /
+/// temperature) so the provider prompt cache written by the previous turn is
+/// read instead of paying a cold full-prompt cost. Ref: claude_code
+/// runForkedAgent + CacheSafeParams (compact.ts streamCompactSummary,
+/// forkedAgent.ts): system prompt, tools, model, message prefix and thinking
+/// config must be identical to share the parent's cache — disabling cache
+/// sharing measured ~98% cache miss.
+pub struct ForkSummaryInputs<'a> {
+    /// Wire-identical main-turn message list (runtime system prefix +
+    /// history, screenshots resolved, timestamp metadata stripped).
+    pub messages: &'a [Value],
+    /// Main turn's tool definitions. Affects both the cache key and the
+    /// thinking directive the request builder picks (no tools → PlainText,
+    /// which would diverge from the main turn's Auto).
+    pub tools: &'a [Value],
+    /// Main turn's model — NOT the compaction summary-model override.
+    pub model: &'a str,
+    /// Main turn's max_tokens. Legacy models derive the thinking budget
+    /// from it; a different value changes the thinking config and breaks
+    /// the cache prefix.
+    pub max_tokens: u32,
+    pub temperature: f32,
+}
+
+/// Fork-form summarization: main-turn prefix + a volatile-marked summary
+/// request, plain-text response.
+///
+/// `skip_cache_write` stays FALSE: on Anthropic, suppressing breakpoints
+/// removes the cache LOOKUP points too — no breakpoints means zero cache
+/// reads, not "read without writing". The prefix breakpoints land at the
+/// same positions as the main turn's request (the summary-request block is
+/// scope-marked `volatile`, so the trailing breakpoint skips it), making
+/// the call almost entirely cache reads.
+pub(crate) async fn summarize_messages_forked(
+    provider: &dyn crate::providers::traits::LLMProvider,
+    inputs: &ForkSummaryInputs<'_>,
+    state: &super::compaction::CompactionState,
+    custom_instructions: Option<&str>,
+) -> Result<String, String> {
+    use crate::session::prompt::cache::{RenderedSystemBlockScope, ORGII_SYSTEM_CACHE_SCOPE_KEY};
+
+    let prompt = build_summary_prompt(state, custom_instructions, false);
+    let mut messages: Vec<Value> = inputs.messages.to_vec();
+    messages.push(serde_json::json!({
+        "role": "user",
+        "content": [{
+            "type": "text",
+            "text": prompt,
+            (ORGII_SYSTEM_CACHE_SCOPE_KEY): RenderedSystemBlockScope::Volatile.as_str(),
+        }],
+    }));
+
+    tracing::info!(
+        "[compaction] fork summary request: {} prefix messages, {} tools, model={}",
+        inputs.messages.len(),
+        inputs.tools.len(),
+        inputs.model,
+    );
+
+    let response = provider
+        .chat_with_options(
+            &messages,
+            Some(inputs.tools),
+            inputs.model,
+            inputs.max_tokens,
+            inputs.temperature,
+            crate::providers::traits::ChatOptions::default(),
+        )
+        .await
+        .map_err(|err| err.to_string())?;
+
+    // Tools are present with tool_choice auto — a model that answers with
+    // a tool call instead of prose yields no primary text; treat as failure
+    // so the caller falls back to the side-query path.
+    let summary = response
+        .primary_text()
+        .map(str::to_string)
+        .unwrap_or_default();
+    validate_summary(summary, &response.finish_reason, inputs.max_tokens)
+}
+
 /// Generate a summary of messages using the LLM.
 ///
 /// Oversized messages (>50% of context window) are excluded from
@@ -219,42 +384,19 @@ pub(crate) async fn summarize_messages(
 
     let formatted = format_messages_for_summary_refs(&summarizable);
 
-    let mut prompt = String::from(SUMMARIZATION_SYSTEM_PROMPT);
-
-    if state.recompaction_info.compaction_count > 0 {
-        prompt.push_str(&format!(
-            "\n\n## Re-compaction Context\n\nThis is compaction #{} for this session (last at turn {}). \
-             Merge the prior summary with the new messages — preserve important details from both, \
-             but prioritize recent information when there are conflicts or superseded decisions.",
-            state.recompaction_info.compaction_count + 1,
-            state.recompaction_info.last_compaction_turn,
-        ));
-    }
-
-    if let Some(ref prior_summary) = state.summary {
-        prompt.push_str(&format!(
-            "\n\n## Prior Context Summary\n\n{}\n\n## New Messages to Incorporate\n\n",
-            prior_summary
-        ));
-    }
-
-    if let Some(instructions) = custom_instructions
-        .map(str::trim)
-        .filter(|instructions| !instructions.is_empty())
-    {
-        prompt.push_str(&format!(
-            "\n\n## Additional Instructions\n\nThe user provided extra focus instructions for this \
-             summary. Honor them on top of the required section structure — they refine emphasis, \
-             they do not replace any section:\n{}",
-            instructions
-        ));
-    }
+    let prompt = build_summary_prompt(state, custom_instructions, true);
 
     let user_message = vec![serde_json::json!({
         "role": "user",
         "content": formatted,
     })];
 
+    // Plain-text output, NOT a forced tool call. Ref: claude_code
+    // streamCompactSummary sends the compact prompt as a normal user
+    // message and reads back the assistant's text. Forcing the 9-section
+    // summary into a single tool-call string argument made models answer
+    // huge prompts (233K observed) with an empty `{}` — long-form markdown
+    // prose is what they are actually good at.
     let sq_config = SideQueryConfig {
         model: None,
         max_tokens: config.summary_max_tokens,
@@ -270,9 +412,7 @@ pub(crate) async fn summarize_messages(
                 "properties": {
                     "summary": {
                         "type": "string",
-
-                        "description": "grill-me 式结构化压缩摘要（Markdown，中文）：全局硬约束 / 当前主线任务树 / 关键决策账本 / 当前有效规则 / 已废弃规则 / 用户纠正与踩坑 / 下一轮必须主动同步的进度分支树。保留所有路径/IP/端口/命令/配置/错误原文/数值/用户纠正原话。"
-
+                        "description": "Structured compaction summary (Markdown). Preserve hard constraints, active task tree, decisions, valid rules, superseded rules, user corrections, pitfalls, exact paths/IPs/ports/commands/config/errors/numbers, and the next-turn progress plan."
                     }
                 },
                 "required": ["summary"]
@@ -286,40 +426,11 @@ pub(crate) async fn summarize_messages(
 
     let result = side_query::side_query(provider, &user_message, &sq_config, model).await?;
 
-    // A response cut off at the output cap is a mid-sentence summary;
-    // persisting it would durably hide the compacted messages behind an
-    // incomplete replacement. Treat as failure so the caller can fall back /
-    // surface it.
-    //
-    // NOTE: this message must NOT contain any keyword matched by
-    // `ContextCompactor::is_prompt_too_long_error` (e.g. "max_tokens",
-    // "token limit"), or `try_compact` would misroute this OUTPUT-side
-    // failure into the input-shrinking PTL retry loop.
-    if result.finish_reason == crate::providers::finish_reason::LENGTH {
-        return Err(format!(
-            "summary output hit the summarizer cap ({}) — refusing incomplete summary",
-            config.summary_max_tokens
-        ));
-    }
-
-    // Extract from structured output (forced tool call) if available,
-    // fall back to text content for providers that don't support tool_choice.
-    let mut summary = if let Some(structured) = result.structured {
-        structured
-            .get("summary")
-            .and_then(|s| s.as_str())
-            .unwrap_or("")
-            .to_string()
-    } else {
-        result.content
-    };
-
-    // An empty summary must never replace real history: the compacted view
-    // would render `[Conversation summary — N messages compacted]` followed
-    // by nothing, silently destroying context.
-    if summary.trim().is_empty() {
-        return Err("summarizer returned an empty summary".to_string());
-    }
+    let mut summary = validate_summary(
+        result.content,
+        &result.finish_reason,
+        config.summary_max_tokens,
+    )?;
 
     if !oversized_notes.is_empty() {
         summary.push_str("\n\n");

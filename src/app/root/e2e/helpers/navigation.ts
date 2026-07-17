@@ -23,7 +23,7 @@ import {
   editorPanelPositionPersistAtom,
   workStationEditorSecondaryCollapsedPersistAtom,
 } from "@src/store/ui/workStationAtom";
-import { activeHostAtom, dockFilterAtom } from "@src/store/workstation";
+import { activeHostAtom } from "@src/store/workstation";
 import type { AgentConfigTabVariant } from "@src/store/workstation/tabs";
 import {
   PROJECT_DETAIL_SURFACE_VIEW,
@@ -63,7 +63,6 @@ export function createNavigationHelpers(store: E2EStore) {
   > => {
     try {
       store.set(stationModeAtom, "my-station");
-      store.set(dockFilterAtom, "project");
       store.set(chatPanelMaximizedAtom, false);
       const tab = createProjectWorkItemsIndexTab();
       const current = store.get(workstationLayoutAtom);
@@ -101,7 +100,6 @@ export function createNavigationHelpers(store: E2EStore) {
   > => {
     try {
       store.set(stationModeAtom, "my-station");
-      store.set(dockFilterAtom, "project");
       store.set(chatPanelMaximizedAtom, false);
       const tab = createProjectWorkItemsTab(
         projectId,
@@ -145,7 +143,6 @@ export function createNavigationHelpers(store: E2EStore) {
     try {
       await router.navigate(buildAgentOrgsPath({ tab: "agents" }));
       store.set(stationModeAtom, "my-station");
-      store.set(dockFilterAtom, "code");
       store.set(chatPanelMaximizedAtom, false);
       store.set(activeStationChatVisibleAtom, "my-station", false);
       store.set(workStationEditorSecondaryCollapsedPersistAtom, false);
@@ -220,7 +217,6 @@ export function createNavigationHelpers(store: E2EStore) {
     try {
       await router.navigate(buildAgentOrgsPath({ tab: "orgs" }));
       store.set(stationModeAtom, "my-station");
-      store.set(dockFilterAtom, "code");
       store.set(chatPanelMaximizedAtom, false);
       store.set(activeStationChatVisibleAtom, "my-station", false);
       store.set(workStationEditorSecondaryCollapsedPersistAtom, false);
@@ -277,7 +273,6 @@ export function createNavigationHelpers(store: E2EStore) {
         };
       }
       store.set(stationModeAtom, "my-station");
-      store.set(dockFilterAtom, "project");
       store.set(chatPanelMaximizedAtom, true);
       store.set(chatWidthAtom, 560);
       store.set(chatPanelContentModeAtom, CHAT_PANEL_CONTENT_MODE.NON_SESSION);
@@ -300,7 +295,6 @@ export function createNavigationHelpers(store: E2EStore) {
         ok: true;
         pathname: string;
         stationMode: string;
-        dockFilter: string;
         activeHost: string;
         activeTabId: string | null;
         activeTabType: string | null;
@@ -322,7 +316,6 @@ export function createNavigationHelpers(store: E2EStore) {
         ok: true,
         pathname: window.location.pathname,
         stationMode: store.get(stationModeAtom),
-        dockFilter: store.get(dockFilterAtom),
         activeHost: store.get(activeHostAtom),
         activeTabId: activeTab?.id ?? null,
         activeTabType: activeTab?.type ?? null,

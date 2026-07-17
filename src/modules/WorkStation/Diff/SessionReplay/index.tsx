@@ -10,7 +10,7 @@
  *
  * The diff always shows the cumulative whole-session state (no per-event
  * replay focus and no per-round narrowing — see issue #24). A chat
- * `TurnFilesFooter` "Review"/file click still scrolls the cumulative list to
+ * `TurnMetadataFooter` "Review"/file click still scrolls the cumulative list to
  * the clicked file, but never filters it down to a single round.
  */
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
@@ -27,7 +27,6 @@ import { simulatorEventsAtom } from "@src/engines/SessionCore/derived/simulatorE
 import { parseUnifiedDiffToOldNew } from "@src/engines/SessionCore/rendering/props/propsDataExtractors";
 import type { SimulatorAppProps } from "@src/engines/Simulator/apps/core/types";
 import { useFileReviewBatchActions } from "@src/hooks/fileReview/useFileReview";
-import { createLogger } from "@src/hooks/logger";
 import { usePublishWorkstationTabHeader } from "@src/hooks/workStation";
 import {
   type DiffFileNavigationItem,
@@ -77,7 +76,6 @@ import {
 } from "./useSubmissionsData";
 
 const SUBMISSION_COMMIT_RESOLVE_LIMIT = 200;
-const logger = createLogger("SessionReplayDiff");
 
 /** Exported for unit testing. */
 export function finalDiffToSection(
@@ -259,7 +257,7 @@ const SessionReplayDiff: React.FC<SimulatorAppProps> = ({
   const hasSimulatorDiffs = simulatorConsolidatedSections.length > 0;
 
   // The Agent Station diff is always cumulative (whole-session). The chat
-  // `TurnFilesFooter` no longer narrows it to a single round (issue #24); it
+  // `TurnMetadataFooter` does not narrow it to a single round (issue #24); it
   // only scrolls the cumulative list to a clicked file (see the scope effect).
   const sidebarItems =
     finalDiffCount > 0 ? canonicalFinalSections : simulatorConsolidatedSections;
@@ -359,25 +357,6 @@ const SessionReplayDiff: React.FC<SimulatorAppProps> = ({
     [activeTab, handleUndoAll, canUndoAll, handleCollapseAll, tCommon]
   );
 
-  useEffect(() => {
-    logger.info("submission artifacts derived", {
-      eventCount: simulatorEvents.length,
-      submissionCommitCount: submissionCommits.length,
-      pullRequestCount: submissionsData.pullRequests.length,
-      fallbackRepoContext,
-      currentRepoContext: getRepoContextFromUnknown(currentEvent),
-      sessionId,
-      sessionRepoPath,
-    });
-  }, [
-    currentEvent,
-    fallbackRepoContext,
-    sessionId,
-    sessionRepoPath,
-    simulatorEvents.length,
-    submissionCommits.length,
-    submissionsData.pullRequests.length,
-  ]);
   const hasSubmissions =
     submissionCommits.length > 0 || submissionsData.pullRequests.length > 0;
 
@@ -423,16 +402,6 @@ const SessionReplayDiff: React.FC<SimulatorAppProps> = ({
 
   const handleSubmissionCommitSelect = useCallback(
     (commit: SubmissionCommit) => {
-      logger.info(
-        `submission commit selected sha=${commit.sha} repoId=${commit.repoId ?? ""} repoPath=${commit.repoPath ?? ""}`,
-        {
-          commitSha: commit.sha,
-          shortSha: commit.short_sha,
-          summary: commit.summary,
-          repoId: commit.repoId,
-          repoPath: commit.repoPath,
-        }
-      );
       setHistorySelection({
         type: "commit",
         commitSha: commit.sha,
@@ -528,7 +497,7 @@ const SessionReplayDiff: React.FC<SimulatorAppProps> = ({
     setDiffCommitNavigationRequest,
   ]);
 
-  // A chat `TurnFilesFooter` "Review"/file click switches to the (cumulative)
+  // A chat `TurnMetadataFooter` "Review"/file click switches to the (cumulative)
   // diff tab and scrolls to the clicked row, if any. The list is never
   // narrowed to the round (issue #24). `nonce` is part of the dep set so
   // re-clicking the same file refocuses.
@@ -679,29 +648,6 @@ const SessionReplayDiff: React.FC<SimulatorAppProps> = ({
       handlePrimarySidebarWidthChange,
     ]
   );
-
-  useEffect(() => {
-    if (historySelection?.type !== "commit") return;
-    const detailRepoPath =
-      historyRepoContext?.repoPath ?? fallbackRepoContext.repoPath;
-    const detailRepoId =
-      historyRepoContext?.repoId ??
-      fallbackRepoContext.repoId ??
-      detailRepoPath;
-    logger.info(
-      `commit detail context resolved sha=${historySelection.commitSha} repoId=${detailRepoId ?? ""} repoPath=${detailRepoPath ?? ""} ready=${Boolean(detailRepoPath && detailRepoId)}`,
-      {
-        commitSha: historySelection.commitSha,
-        shortSha: historySelection.shortSha,
-        commitMessage: historySelection.commitMessage,
-        detailRepoId,
-        detailRepoPath,
-        repoReady: Boolean(detailRepoPath && detailRepoId),
-        historyRepoContext,
-        fallbackRepoContext,
-      }
-    );
-  }, [historySelection, historyRepoContext, fallbackRepoContext]);
 
   const detailContent = useMemo(() => {
     if (historySelection?.type === "commit") {

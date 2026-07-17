@@ -37,8 +37,7 @@ pub mod state;
 // `super::super::session_memory::*` directly. So we do not flatten them.
 
 pub use compact::{
-    last_turn_has_tool_calls, parse_compact_boundary_content, try_sm_compact,
-    ParsedCompactBoundary,
+    last_turn_has_tool_calls, parse_compact_boundary_content, try_sm_compact, ParsedCompactBoundary,
 };
 pub use config::{SessionMemoryCompactConfig, SessionMemoryConfig};
 pub use extract::{extract_session_memory, should_extract};

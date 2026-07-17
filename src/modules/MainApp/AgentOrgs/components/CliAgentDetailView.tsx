@@ -18,7 +18,6 @@ import { buildIntegrationsPath } from "@src/config/mainAppPaths";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
 import {
   getCliCompatibleAccounts,
-  getCliCompatibleProviderTypes,
   useAgentCompatibility,
 } from "@src/hooks/models/useAgentCompatibility";
 import { useAppNavigation } from "@src/hooks/navigation/useAppNavigation";
@@ -36,6 +35,7 @@ import { openExternalLink } from "@src/util/platform/ipcRenderer";
 
 import type { AvailableCliAgent } from "../types";
 import AgentDetailHeader from "./AgentDetailHeader";
+import CliConfigSwitchCard from "./CliConfigSwitchCard";
 import CliRawConfigFileEditor from "./CliRawConfigFileEditor";
 
 interface CliAgentDetailState {
@@ -121,14 +121,9 @@ const CliAgentDetailView: React.FC<CliAgentDetailViewProps> = ({
     [t]
   );
 
-  const compatibleTypes = useMemo(
-    () => getCliCompatibleProviderTypes(registry, agent.name),
-    [registry, agent.name]
-  );
-
   const credentials = useMemo(
-    () => accounts.filter((acc) => compatibleTypes.has(acc.modelType)),
-    [accounts, compatibleTypes]
+    () => getCliCompatibleAccounts(registry, agent.name, accounts),
+    [registry, agent.name, accounts]
   );
 
   const hasCompatibleAccounts = useMemo(
@@ -368,6 +363,12 @@ const CliAgentDetailView: React.FC<CliAgentDetailViewProps> = ({
               variant="settings"
             />
           </SectionContainer>
+
+          <CliConfigSwitchCard
+            agent={agent}
+            credentials={credentials}
+            onOpenCredentials={openCredentialInIntegrations}
+          />
 
           {hasConfig && agent.configFiles.length > 1 && (
             <SectionContainer title={t("agentOrgs.cliAgentDetail.configFiles")}>

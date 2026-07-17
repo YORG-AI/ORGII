@@ -7,6 +7,5 @@
 pub mod claude_code;
 pub mod codex;
 pub mod cursor;
-pub mod gemini;
 pub mod kiro;
 pub mod webview_session;

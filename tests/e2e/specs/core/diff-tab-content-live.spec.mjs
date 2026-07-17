@@ -15,9 +15,11 @@
  * (here: the orgtrack consolidation worker that feeds the Diff tab) need a
  * real-provider live spec, not just unit tests + seeded fixtures.
  */
+import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
+import { hasAuthoritativeRunningTurn } from "../../support/core/session/agentQueuedControlScenarios.mjs";
 import {
   configureScenario,
   execJS,
@@ -44,6 +46,42 @@ const TARGET_FILE = `diff-live-${RUN_ID}.ts`;
 // A single rendered code row taller than this means a line stretched the
 // layout instead of scrolling — the "giant row" artifact regressed.
 const MAX_SANE_LINE_HEIGHT_PX = 80;
+
+function execFileWithClosedStdin(file, args, options) {
+  return new Promise((resolve, reject) => {
+    const child = execFile(file, args, options, (error, stdout, stderr) => {
+      if (error) {
+        error.stdout = stdout;
+        error.stderr = stderr;
+        reject(error);
+        return;
+      }
+      resolve({ stdout, stderr });
+    });
+    child.stdin?.end();
+  });
+}
+
+function sqlLiteral(value) {
+  return `'${String(value).replaceAll("'", "''")}'`;
+}
+
+async function finalDiffCountForSession(orgiiHome, sessionId) {
+  const databasePath = join(orgiiHome, "sessions.db");
+  if (!existsSync(databasePath)) return 0;
+  const sql = `
+    SELECT COUNT(*)
+    FROM orgtrack_core_final_diffs
+    WHERE source = 'orgii_rust_agents'
+      AND session_id = ${sqlLiteral(sessionId)};
+  `;
+  const { stdout } = await execFileWithClosedStdin(
+    "sqlite3",
+    [databasePath, sql],
+    { maxBuffer: 1024 * 1024 }
+  );
+  return Number(stdout.trim() || "0");
+}
 
 async function diffPanelSnapshot() {
   return execJS(`
@@ -95,6 +133,8 @@ async function toggleLiveFileSection() {
 describe("Diff tab content live (real agent edit → orgtrack final-diff)", () => {
   let config = null;
   let repoPath = null;
+  let orgiiHome = null;
+  let nativeSessionId = null;
 
   before(async function () {
     await waitForApp();
@@ -111,6 +151,8 @@ describe("Diff tab content live (real agent edit → orgtrack final-diff)", () =
       rustConfigs[0];
     repoPath = process.env.E2E_REPO_PATH;
     if (!repoPath) throw new Error("E2E_REPO_PATH missing");
+    orgiiHome = process.env.ORGII_HOME;
+    if (!orgiiHome) throw new Error("ORGII_HOME missing for isolated E2E run");
   });
 
   after(async () => {
@@ -118,13 +160,18 @@ describe("Diff tab content live (real agent edit → orgtrack final-diff)", () =
   });
 
   it("renders the agent's real edited content in the Diff tab", async function () {
+    unwrap(
+      await invokeE2E("ensureRepoSelected", { repoPath }),
+      "ensureRepoSelected(diff provenance live)"
+    );
     await configureScenario(config, { agentExecMode: "build" });
 
     const prompt = [
       `Create a new file named ${TARGET_FILE} in the repository root`,
       `(${repoPath}). The file must contain exactly this single line of`,
       `TypeScript: export const marker = "${SENTINEL}";`,
-      `Use your edit_file / file-write tool to create it, then stop.`,
+      `Use your edit_file / file-write tool to create it. Then use your`,
+      `read-file tool to read the new file back and stop.`,
     ].join(" ");
 
     await typeAndClickSend(CHAT_INPUT, prompt);
@@ -141,6 +188,34 @@ describe("Diff tab content live (real agent edit → orgtrack final-diff)", () =
           `agent never created ${TARGET_FILE}; tail=${JSON.stringify(
             (await diffPanelSnapshot()).bodyTail
           )}`,
+      }
+    );
+
+    // File creation can precede turn finalization. Wait for both the
+    // authoritative turn state and the production final-diff row before
+    // mounting Diff; its initial load is intentionally not a poller.
+    await browser.waitUntil(
+      async () => {
+        const state = unwrap(
+          await invokeE2E("inspectChatState"),
+          "inspectChatState(native provenance pre-Diff)"
+        );
+        nativeSessionId = state.activeSessionId;
+        return Boolean(nativeSessionId) && !hasAuthoritativeRunningTurn(state);
+      },
+      {
+        timeout: LIVE_TIMEOUT_MS,
+        interval: 2_000,
+        timeoutMsg: "native ORG2 turn never settled after writing and reading",
+      }
+    );
+    await browser.waitUntil(
+      async () =>
+        (await finalDiffCountForSession(orgiiHome, nativeSessionId)) > 0,
+      {
+        timeout: DIFF_RENDER_TIMEOUT_MS,
+        interval: 1_000,
+        timeoutMsg: "native ORG2 final diff never became authoritative",
       }
     );
 
@@ -224,5 +299,7 @@ describe("Diff tab content live (real agent edit → orgtrack final-diff)", () =
         timeoutMsg: "live file section never re-expanded",
       }
     );
+
+    expect(nativeSessionId).toBeTruthy();
   });
 });

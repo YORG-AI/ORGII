@@ -78,14 +78,88 @@
       }
     }
   },
-  "opsControl": {
+  "kanban": {
     "sessions": "Sessions",
-    "replayBarAriaLabel": "Ops Control replay timeline",
+    "fileSearch": {
+      "placeholder": "Search sessions by file path",
+      "noResults": "No sessions touched a matching file"
+    },
+    "replayBarAriaLabel": "Kanban replay timeline",
     "followLabel": "Current Kanban",
     "view": {
       "list": "List",
       "diary": "Diary",
-      "opsControl": "Ops Control"
+      "kanban": "Kanban",
+      "dataSource": "Data Sources"
+    },
+    "dataSource": {
+      "title": "Data Sources",
+      "description": "External coding tools ORGII detects. Importable apps show their session count and can be rescanned; the rest show install status and where their history lives.",
+      "rescanAll": "Rescan all",
+      "rescan": "Rescan",
+      "rescanUpdate": "Update",
+      "rescanClear": "Clear + rescan",
+      "rescanning": "Rescanning…",
+      "openFolder": "Open folder",
+      "enable": "Enable",
+      "disable": "Disable",
+      "lastScan": "Last scan {{time}}",
+      "neverScanned": "Never scanned",
+      "frequencyTitle": "Auto-scan frequency",
+      "externalSessionsToggle": "External sessions",
+      "externalSessionsToggleDesc": "When off, no external source is scanned or its sessions loaded",
+      "globalFrequency": "External source auto-scan",
+      "globalFrequencyDesc": "Default scan frequency for external sources set to Default",
+      "activeSessionRefresh": "Open external session refresh",
+      "activeSessionRefreshDesc": "Refresh frequency for the external session currently open in the chat pane",
+      "activeSessionFreq": {
+        "3s": "Every 3 seconds",
+        "5s": "Every 5 seconds",
+        "10s": "Every 10 seconds",
+        "1m": "Every minute"
+      },
+      "col": {
+        "source": "Source",
+        "sessions": "Sessions",
+        "lastScan": "Last scan",
+        "frequency": "Auto-scan",
+        "status": "Status"
+      },
+      "freq": {
+        "default": "Default",
+        "manual": "Manual",
+        "60s": "Every 60s",
+        "5m": "Every 5 min",
+        "1h": "Hourly",
+        "1d": "Daily"
+      },
+      "tabs": {
+        "all": "All",
+        "apps": "Apps",
+        "clis": "CLIs"
+      },
+      "views": {
+        "scanning": "Scanning",
+        "hooks": "Hooks"
+      },
+      "sessions_one": "{{count}} session",
+      "sessions_other": "{{count}} sessions",
+      "details": {
+        "path": "Path",
+        "storeType": "Store type",
+        "copyPath": "Copy path"
+      },
+      "noPath": "No path detected",
+      "notImported": "Not imported",
+      "status": {
+        "ready": "Ready",
+        "empty": "No history",
+        "loading": "Checking…",
+        "error": "Error",
+        "installed": "Installed",
+        "notInstalled": "Not detected",
+        "disabled": "Disabled"
+      }
     },
     "list": {
       "updated": "Updated",
@@ -145,6 +219,8 @@
       "manageItems": "Manage items",
       "sessionsView": "Sessions View",
       "workitemView": "Workitem View",
+      "githubIssues": "GitHub Issues",
+      "githubPrs": "GitHub PRs",
       "views": "Views",
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
@@ -196,13 +272,13 @@
       "discarding": "Discarding…",
       "confirmMessage": "Discard all changes in this worktree? This cannot be undone."
     },
-    "diff": {
-      "openDiffWindow": "View Diff",
-      "windowTitle": "Session Diff",
-      "filesChanged": "Files"
-    },
     "replay": {
       "replaySession": "Replay"
+    },
+    "detailView": {
+      "trajectory": "Trajectory",
+      "touchedFiles": "Touched files",
+      "noTouchedFiles": "No files touched"
     },
     "diary": {
       "title": "Diary",
@@ -227,13 +303,6 @@
         "stillWorking": "Still working"
       }
     }
-  },
-  "worktreeCompare": {
-    "title": "Compare Worktrees",
-    "button": "Compare",
-    "buttonTooltip": "Compare worktree diffs side-by-side",
-    "noSessions": "No sessions to compare.",
-    "sessionTab": "Session {{n}}"
   },
   "changes": {
     "scope": {
@@ -441,7 +510,6 @@
         "interactionAskQuestion": "Question",
         "interactionAskPermission": "Permission request",
         "interactionModeSwitch": "Mode switch",
-        "interactionNextSteps": "Next steps",
         "interactionPlanDoc": "Plan document",
         "interactionGeneric": "Interaction"
       },
@@ -749,20 +817,17 @@
       "addApiKey": {
         "title": "Add API key"
       },
+      "installLatestUpdate": {
+        "title": "Install latest update"
+      },
       "agents": {
         "title": "Agents"
       },
       "tabs": {
         "work": "Work",
-        "explore": "Explore",
-        "heatmap": "Trends"
-      },
-      "heatmap": {
-        "loading": "Loading activity trends…",
-        "empty": "No session activity yet.",
-        "sessions": "Sessions",
-        "tokens": "Tokens",
-        "cost": "Cost"
+        "manage": "Manage",
+        "heatmap": "Trends",
+        "runtime": "Runtime"
       },
       "quota": {
         "empty": "No quota data yet. Refresh usage from Key Vault.",
@@ -811,18 +876,9 @@
     "hideChatPanel": "Hide chat panel",
     "showTokenUsage": "Show token",
     "compactDisplayMode": "Compact mode",
+    "showStatusBar": "Show status bar",
     "replay": {
       "follow": "Follow"
-    },
-    "turnFiles": {
-      "filesChangedCount_one": "{{count}} file changed this round",
-      "filesChangedCount_other": "{{count}} files changed this round",
-      "historicalRoundDiffFiles_one": "Earlier round diff · {{count}} file",
-      "historicalRoundDiffFiles_other": "Earlier round diff · {{count}} files",
-      "review": "Review",
-      "showLess": "Show less",
-      "showMore_one": "Show {{count}} more",
-      "showMore_other": "Show {{count}} more"
     },
     "readOnlyBannerCursorIde": "Read-only Cursor IDE history. Open Cursor to continue this chat.",
     "cursorControl": {
@@ -995,6 +1051,25 @@
         "importFailed": "Failed to import Session JSON."
       }
     },
+    "turnMetadata": {
+      "noChanges": "No file changes this round",
+      "earlierRound": "Earlier round",
+      "files_one": "{{count}} file",
+      "files_other": "{{count}} files",
+      "reads_one": "{{count}} read",
+      "reads_other": "{{count}} reads",
+      "searches_one": "{{count}} search",
+      "searches_other": "{{count}} searches",
+      "failed": "Failed",
+      "commits_one": "{{count}} commit",
+      "commits_other": "{{count}} commits",
+      "pullRequests_one": "{{count}} PR",
+      "pullRequests_other": "{{count}} PRs",
+      "review": "Review",
+      "showLess": "Show less",
+      "showMore_one": "Show {{count}} more",
+      "showMore_other": "Show {{count}} more"
+    },
     "manageIssues": {
       "title": "Manage issues",
       "myWork": "My work",
@@ -1084,6 +1159,8 @@
     "deleteFileRunning": "Deleting {{name}}",
     "deleteFileDone": "Deleted {{name}}",
     "deleteFileFailed": "Failed to delete {{name}}",
+    "deleteFileCompactRunning": "Deleting",
+    "deleteFileCompactDone": "Delete",
     "directoryTree": "Directory Tree",
     "ls": "ls",
     "listDirRunning": "Listing directory",
@@ -1126,7 +1203,7 @@
     "pathCopied": "Path Copied!",
     "failedToCopyPath": "Failed to copy path",
     "copyFilePath": "Copy file path",
-    "explore": "Explore",
+    "manage": "Manage",
     "readFile": "Read file",
     "readFileRunning": "Reading",
     "readFileDone": "Read",
@@ -1149,12 +1226,30 @@
     "editFileDoneNoName": "Edited file",
     "editFileCompactRunning": "Editing",
     "editFileCompactDone": "Edit",
+    "editFiles": "Edit files",
+    "editSummary": {
+      "edit_one": "{{count}} edit",
+      "edit_other": "{{count}} edits",
+      "read_one": "{{count}} file read",
+      "read_other": "{{count}} reads",
+      "separator": ", "
+    },
     "editFileFailedNoName": "Attempted to edit",
     "file": "file",
     "runShellRunning": "Running command",
     "terminalWaitRunning": "Waiting for terminal to finish",
     "runShellDone": "Ran command",
     "runShellFailed": "Command failed",
+    "runCommands": "Run commands",
+    "terminalSummary": {
+      "command_one": "{{count}} command",
+      "command_other": "{{count}} commands",
+      "wait_one": "{{count}} wait",
+      "wait_other": "{{count}} waits",
+      "check_one": "{{count}} check",
+      "check_other": "{{count}} checks",
+      "separator": ", "
+    },
     "inspectTerminalsRunning": "Inspecting terminals",
     "inspectTerminalsDone": "Inspected terminals",
     "inspectTerminalsFailed": "Terminal inspection failed",
@@ -1192,6 +1287,7 @@
     "askUserSkipped": "Skipped",
     "askUserQuestionsAnswered": "Questions were answered",
     "askUserQuestionsSkipped": "Questions skipped",
+    "explore": "Explore",
     "exploreSummary": {
       "read_one": "{{count}} file",
       "read_other": "{{count}} files",
@@ -1202,7 +1298,8 @@
       "ls_one": "ls {{count}} folder",
       "ls_other": "ls {{count}} folders",
       "lsp_one": "{{count}} LSP query",
-      "lsp_other": "{{count}} LSP queries"
+      "lsp_other": "{{count}} LSP queries",
+      "separator": ", "
     },
     "categoryRead": "Read",
     "categorySearch": "Search",
@@ -1485,9 +1582,6 @@
     "toolSearchRunning": "Searching for tools",
     "toolSearchDone": "Searched for tools",
     "toolSearchFailed": "Tool search failed",
-    "suggestNextStepsRunning": "Suggesting next steps",
-    "suggestNextStepsDone": "Suggested {{count}} next steps",
-    "suggestNextStepsFailed": "Could not suggest next steps",
     "agentSendMessageRunning": "Sending message to teammate",
     "agentSendMessageDone": "Sent message to teammate",
     "agentSendMessageFailed": "Could not send message to teammate",

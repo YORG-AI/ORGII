@@ -1,3 +1,4 @@
+import type { ChatPanelTabType } from "@src/store/chatPanel/chatPanelTabsAtom";
 import type { SessionCreatorDraft } from "@src/store/session";
 import {
   CHAT_PANEL_CONTENT_MODE,
@@ -6,35 +7,27 @@ import {
   type ChatPanelCreateTarget,
   type ChatPanelSelectedProject,
   type ChatPanelSelectedWorkItem,
-  type ChatPanelSelectedWorkspace,
 } from "@src/store/ui/chatPanelAtom";
 
-import { COLLAB_ADD_ORG_MENU_ITEM_ID } from "../sidebarConnectorUtils";
+import {
+  COLLAB_ADD_ORG_MENU_ITEM_ID,
+  KANBAN_MENU_ITEM_ID,
+} from "../sidebarConnectorUtils";
 import {
   getSelectedDraftMenuItemId,
   getSelectedMenuItemId,
-  getSelectedPinnedMenuItemId,
 } from "../workstationSidebarData";
-import {
-  FOLDERS_DASHBOARD_ITEM_ID,
-  FOLDERS_EXPLORE_ITEM_ID,
-  getFolderItemId,
-} from "./foldersSidebarMenuItems";
 import type { WorkstationSidebarKey } from "./types";
 
 interface ResolveSelectedMenuItemIdParams {
   activeSessionCreatorDraftId: string | null | undefined;
   activeSessionId: string;
   activeSidebarKey: WorkstationSidebarKey;
+  activeChatPanelTabType: ChatPanelTabType | null;
   chatPanelContentMode: ChatPanelContentMode;
   chatPanelCreateTarget: ChatPanelCreateTarget;
   chatPanelSelectedProject: ChatPanelSelectedProject | null;
   chatPanelSelectedWorkItem: ChatPanelSelectedWorkItem | null;
-  chatPanelSelectedWorkspace: ChatPanelSelectedWorkspace | null;
-  chatPanelWorkspaceDashboardOpen: boolean;
-  chatPanelExploreOpen: boolean;
-  opsControlRoutePath: string;
-  pathname: string;
   projectsSelectedMenuItemId: string;
   sessionCreatorDrafts: readonly SessionCreatorDraft[];
 }
@@ -48,15 +41,11 @@ export function resolveSelectedMenuItemIds({
   activeSessionCreatorDraftId,
   activeSessionId,
   activeSidebarKey,
+  activeChatPanelTabType,
   chatPanelContentMode,
   chatPanelCreateTarget,
   chatPanelSelectedProject,
   chatPanelSelectedWorkItem,
-  chatPanelSelectedWorkspace,
-  chatPanelWorkspaceDashboardOpen,
-  chatPanelExploreOpen,
-  opsControlRoutePath,
-  pathname,
   projectsSelectedMenuItemId,
   sessionCreatorDrafts,
 }: ResolveSelectedMenuItemIdParams): ResolvedSelectedMenuItemIds {
@@ -64,10 +53,8 @@ export function resolveSelectedMenuItemIds({
     activeSessionCreatorDraftId ?? null,
     sessionCreatorDrafts
   );
-  const selectedPinnedMenuItemId = getSelectedPinnedMenuItemId(
-    pathname,
-    opsControlRoutePath
-  );
+  const selectedPinnedMenuItemId =
+    activeChatPanelTabType === "work-management" ? KANBAN_MENU_ITEM_ID : "";
   const isChatPanelProjectsContentSelected =
     chatPanelContentMode === CHAT_PANEL_CONTENT_MODE.NON_SESSION ||
     Boolean(chatPanelSelectedWorkItem) ||
@@ -92,19 +79,10 @@ export function resolveSelectedMenuItemIds({
           chatPanelSelectedProject
         ? projectsSelectedMenuItemId
         : "";
-  const foldersSelectedMenuItemId = chatPanelSelectedWorkspace
-    ? getFolderItemId(chatPanelSelectedWorkspace)
-    : chatPanelExploreOpen
-      ? FOLDERS_EXPLORE_ITEM_ID
-      : chatPanelWorkspaceDashboardOpen
-        ? FOLDERS_DASHBOARD_ITEM_ID
-        : "";
   const selectedMenuItemId =
     activeSidebarKey === "projects"
       ? resolvedProjectsSelectedMenuItemId || projectsSelectedMenuItemId
-      : activeSidebarKey === "folders"
-        ? foldersSelectedMenuItemId
-        : sessionSelectedMenuItemId;
+      : sessionSelectedMenuItemId;
 
   return { selectedMenuItemId, sessionSelectedMenuItemId };
 }

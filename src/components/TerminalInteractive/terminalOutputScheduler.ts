@@ -27,6 +27,16 @@
  * 5. Background pane isolation — background panes use a separate MessageChannel
  *    with a 50ms coalescing timer, so their work loop never steals time slices
  *    from the foreground pane.
+ *
+ * Ordering invariant: bytes reach terminal.write() in exactly the order they
+ * arrived from the PTY. Every fast path (interactive bypass) must yield to the
+ * queue when older output is still buffered — an out-of-order write corrupts
+ * cursor positioning and SGR state on screen.
+ *
+ * ACK invariant: every byte accepted by scheduleWrite is eventually ACKed to
+ * the backend exactly once — written, dropped, or discarded on unregister.
+ * Bytes that silently vanish shrink the backend flow-control window forever
+ * and eventually stall the PTY reader (a stuck CLI).
  */
 import { createLogger } from "@src/hooks/logger";
 import { invokeTauri, isTauriReady } from "@src/util/platform/tauri/init";
@@ -91,6 +101,12 @@ interface SchedulerEntry {
   start: number;
   byteLength: number;
   /**
+   * Backend byte offset of this chunk's first byte (from the pty-output
+   * payload). Used during reconnect to drop chunks already covered by the
+   * restored snapshot. Undefined for legacy payloads and synthetic writes.
+   */
+  seq?: number;
+  /**
    * The last position returned by `findAnsiSafeSplit` for this entry.
    *
    * O5 optimisation: since `findAnsiSafeSplit` always returns a position where
@@ -139,6 +155,19 @@ interface PaneScheduler {
   fastFrameStreak: number;
   /** Last measured render time in ms (for telemetry). */
   lastRenderMs: number;
+  /**
+   * While true, nothing is written to the terminal (no drain, no bypass,
+   * no flushBacklog) — incoming chunks only queue up. Used during reconnect
+   * so live output cannot interleave with the snapshot restore.
+   */
+  suspended: boolean;
+  /**
+   * Unterminated escape-sequence tail left behind by the most recent
+   * backlog drop. The head of the surviving queue starts mid-sequence;
+   * the repair pass skips past the dangling remainder so it is never
+   * rendered as literal text.
+   */
+  dropDanglingTail: string | null;
 }
 
 // ============================================
@@ -403,6 +432,8 @@ function getOrCreate(sessionId: string, write: WriteCallback): PaneScheduler {
       chunkSize: INITIAL_CHUNK_SIZE,
       fastFrameStreak: 0,
       lastRenderMs: 0,
+      suspended: false,
+      dropDanglingTail: null,
     };
     paneMap.set(sessionId, pane);
   } else {
@@ -545,7 +576,7 @@ function queueHasItems(pane: PaneScheduler): boolean {
 }
 
 function drainForegroundTurn(pane: PaneScheduler) {
-  if (!pane.foreground || !queueHasItems(pane)) return;
+  if (pane.suspended || !pane.foreground || !queueHasItems(pane)) return;
 
   for (let i = 0; i < FOREGROUND_WRITES_PER_TURN && queueHasItems(pane); i++) {
     const chunk = consumeChunk(pane);
@@ -562,7 +593,7 @@ function drainForegroundTurn(pane: PaneScheduler) {
 
 function drainBackground(pane: PaneScheduler) {
   pane.timerId = null;
-  if (!queueHasItems(pane)) return;
+  if (pane.suspended || !queueHasItems(pane)) return;
 
   const deadline = performance.now() + BACKGROUND_TIME_BUDGET_MS;
   while (queueHasItems(pane) && performance.now() < deadline) {
@@ -582,6 +613,7 @@ function drainBackground(pane: PaneScheduler) {
 }
 
 function scheduleDrain(pane: PaneScheduler) {
+  if (pane.suspended) return;
   if (pane.foreground) {
     postWorkTurn(pane);
   } else {
@@ -594,10 +626,73 @@ function scheduleDrain(pane: PaneScheduler) {
   }
 }
 
+/**
+ * Returns the unterminated escape-sequence tail at the end of `s`, or ""
+ * when `s` ends at a sequence boundary. The last ESC in the string is the
+ * only candidate: if the sequence starting there is complete, everything
+ * after it is plain text.
+ */
+function danglingTailOf(s: string): string {
+  const idx = s.lastIndexOf("\x1b");
+  if (idx === -1) return "";
+  return ansiSequenceLength(s, idx) === 0 ? s.slice(idx) : "";
+}
+
+/** Max chars of the surviving head entry scanned to complete a dangling sequence. */
+const DANGLING_SCAN_WINDOW = 4096;
+
+/**
+ * After a backlog drop, the first surviving entry may begin with the tail of
+ * an escape sequence whose ESC prefix was dropped — xterm would render that
+ * tail as literal text (e.g. `[38;2;26;26;26m`). Skip past the remainder,
+ * keeping byte accounting and ACKs consistent.
+ */
+function repairDanglingTail(pane: PaneScheduler) {
+  const tail = pane.dropDanglingTail;
+  if (!tail) return;
+  if (pane.queueHead >= pane.queue.length) return; // wait for the next chunk
+
+  pane.dropDanglingTail = null;
+  const head = pane.queue[pane.queueHead];
+  const window =
+    tail + head.data.slice(head.start, head.start + DANGLING_SCAN_WINDOW);
+  const seqLen = ansiSequenceLength(window, 0);
+  // seqLen === 0: the sequence still doesn't terminate within the scan
+  // window — pathological (multi-KB sequence); give up rather than scan
+  // unbounded input.
+  if (seqLen <= tail.length) return;
+
+  const skipChars = Math.min(
+    seqLen - tail.length,
+    head.data.length - head.start
+  );
+  const remainingChars = head.data.length - head.start;
+  const skippedBytes =
+    remainingChars > 0
+      ? Math.round((skipChars / remainingChars) * head.byteLength)
+      : 0;
+
+  head.start += skipChars;
+  head.lastSafeSplitEnd = Math.max(head.lastSafeSplitEnd, head.start);
+  head.byteLength -= skippedBytes;
+  pane.queueByteLength -= skippedBytes;
+  pane.pendingAckBytes += skippedBytes;
+
+  if (head.start >= head.data.length) {
+    // Entry fully consumed by the skip — retire it and ACK any residue.
+    pane.pendingAckBytes += head.byteLength;
+    pane.queueByteLength -= head.byteLength;
+    pane.queueHead++;
+    maybeCompactQueue(pane);
+  }
+  scheduleAck(pane);
+}
+
 function enforceBacklogCap(pane: PaneScheduler) {
   if (pane.queueByteLength <= HIDDEN_BACKLOG_CAP) return;
 
   let dropped = 0;
+  let lastDropped: SchedulerEntry | null = null;
   while (
     pane.queueHead < pane.queue.length &&
     pane.queueByteLength > HIDDEN_BACKLOG_CAP
@@ -605,17 +700,36 @@ function enforceBacklogCap(pane: PaneScheduler) {
     const entry = pane.queue[pane.queueHead++];
     pane.queueByteLength -= entry.byteLength;
     dropped += entry.byteLength;
+    lastDropped = entry;
   }
   maybeCompactQueue(pane);
+
+  // Dropped bytes still count against the backend flow-control window —
+  // ACK them or the window shrinks permanently and the PTY reader stalls.
+  pane.pendingAckBytes += dropped;
+  scheduleAck(pane);
+
+  // If the last dropped chunk ended mid-escape-sequence, the surviving data
+  // starts with an orphaned sequence tail; repair before it renders.
+  if (lastDropped) {
+    pane.dropDanglingTail = danglingTailOf(lastDropped.data) || null;
+    repairDanglingTail(pane);
+  }
 
   log.warn(
     `[OutputScheduler] Backlog cap exceeded for session ${pane.sessionId}: dropped ${dropped} bytes`
   );
 
-  // Emit a visible warning marker into the terminal
-  pane.write(
-    "\r\n\x1b[33m[⚠ terminal output dropped: backlog limit reached]\x1b[0m\r\n"
-  );
+  // Visible warning marker, inserted in-stream at the gap the drop created
+  // (never written out-of-band — that would break ordering while suspended).
+  // Leading SGR reset clears whatever text state the dropped output left
+  // behind. byteLength 0: synthetic data is exempt from flow-control ACKs.
+  pane.queue.splice(pane.queueHead, 0, {
+    data: "\r\n\x1b[0m\x1b[33m[⚠ terminal output dropped: backlog limit reached]\x1b[0m\r\n",
+    start: 0,
+    byteLength: 0,
+    lastSafeSplitEnd: 0,
+  });
 }
 
 function checkInteractiveBypass(
@@ -623,6 +737,11 @@ function checkInteractiveBypass(
   data: string,
   byteLength: number
 ): boolean {
+  // The bypass may only fire when nothing older is buffered: a bypass write
+  // with a non-empty queue lands ahead of earlier output and scrambles
+  // cursor/SGR state on screen. Suspended panes never write at all.
+  if (pane.suspended || queueHasItems(pane)) return false;
+
   const now = performance.now();
 
   // Reset bypass window if needed
@@ -674,6 +793,18 @@ export function unregisterPane(sessionId: string): void {
   if (pane.timerId !== null) {
     clearTimeout(pane.timerId);
   }
+
+  // The queue is discarded — ACK everything outstanding (consumed-but-unACKed
+  // plus queued-but-never-written) so the backend flow-control window is not
+  // left holding bytes that will never be acknowledged.
+  for (let i = pane.queueHead; i < pane.queue.length; i++) {
+    pane.pendingAckBytes += pane.queue[i].byteLength;
+  }
+  pane.queue.length = 0;
+  pane.queueHead = 0;
+  pane.queueByteLength = 0;
+  flushAck(pane);
+
   paneMap.delete(sessionId);
 }
 
@@ -726,6 +857,59 @@ export function notifyUserInput(sessionId: string): void {
 }
 
 /**
+ * ACK bytes that will never be written (e.g. a chunk that decoded to an
+ * empty string because it ended mid-codepoint). Keeps the backend
+ * flow-control window in sync with bytes actually delivered.
+ */
+export function ackBytesWithoutWrite(
+  sessionId: string,
+  byteCount: number
+): void {
+  const pane = paneMap.get(sessionId);
+  if (!pane || byteCount <= 0) return;
+  pane.pendingAckBytes += byteCount;
+  scheduleAck(pane);
+}
+
+/**
+ * Suspend all terminal writes for a pane while a reconnect snapshot is being
+ * fetched and applied. Incoming chunks queue in arrival order; nothing is
+ * drained, bypassed, or flushed until resumePane.
+ */
+export function suspendPane(sessionId: string): void {
+  const pane = paneMap.get(sessionId);
+  if (!pane) return;
+  pane.suspended = true;
+}
+
+/**
+ * Resume draining after a reconnect snapshot has been written.
+ *
+ * `dropBeforeSeq`: backend byte offset already covered by the snapshot —
+ * queued chunks that start below it were captured inside the snapshot and
+ * would double-render if drained. They are removed without ACKing: the
+ * backend reset its flow-control window when it served the snapshot, so
+ * those bytes belong to the pre-reset window.
+ */
+export function resumePane(sessionId: string, dropBeforeSeq?: number): void {
+  const pane = paneMap.get(sessionId);
+  if (!pane) return;
+  pane.suspended = false;
+
+  if (dropBeforeSeq !== undefined) {
+    while (pane.queueHead < pane.queue.length) {
+      const entry = pane.queue[pane.queueHead];
+      if (entry.seq === undefined || entry.seq >= dropBeforeSeq) break;
+      pane.queueByteLength -= entry.byteLength;
+      pane.queueHead++;
+    }
+    maybeCompactQueue(pane);
+  }
+
+  scheduleDrain(pane);
+}
+
+/**
  * Schedule output to be written to the terminal, applying backpressure and
  * priority rules.
  */
@@ -733,18 +917,26 @@ export function scheduleWrite(
   sessionId: string,
   data: string,
   byteLength: number,
-  write: WriteCallback
+  write: WriteCallback,
+  seq?: number
 ): void {
   const pane = getOrCreate(sessionId, write);
 
-  // Interactive bypass: go straight to terminal for interactive-feeling output
+  // Interactive bypass: go straight to terminal for interactive-feeling
+  // output. Only fires when the queue is empty (ordering invariant).
   if (checkInteractiveBypass(pane, data, byteLength)) {
     return;
   }
 
   // Enqueue — lastSafeSplitEnd starts at 0 (no prior split for this entry).
-  pane.queue.push({ data, start: 0, byteLength, lastSafeSplitEnd: 0 });
+  pane.queue.push({ data, start: 0, byteLength, lastSafeSplitEnd: 0, seq });
   pane.queueByteLength += byteLength;
+
+  // A previous drop may have left an orphaned escape-sequence tail waiting
+  // for the next chunk to complete it.
+  if (pane.dropDanglingTail) {
+    repairDanglingTail(pane);
+  }
 
   enforceBacklogCap(pane);
   scheduleDrain(pane);
@@ -756,7 +948,7 @@ export function scheduleWrite(
  */
 export function flushBacklog(sessionId: string, maxBytes: number): number {
   const pane = paneMap.get(sessionId);
-  if (!pane) return 0;
+  if (!pane || pane.suspended) return 0;
 
   // Use pendingAckBytes as the byte-written counter — consumeChunk already
   // increments it by the stored byteLength of each entry, avoiding a

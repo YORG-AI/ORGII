@@ -78,14 +78,83 @@
       }
     }
   },
-  "opsControl": {
+  "kanban": {
     "sessions": "Session",
-    "replayBarAriaLabel": "Ops Control replay timeline",
+    "fileSearch": {
+      "placeholder": "ファイルパスでセッションを検索",
+      "noResults": "一致するファイルを変更したセッションはありません"
+    },
+    "replayBarAriaLabel": "Kanban replay timeline",
     "followLabel": "現在のKanban",
     "view": {
       "list": "リスト",
       "diary": "日誌",
-      "opsControl": "Ops Control"
+      "kanban": "Kanban",
+      "dataSource": "データソース"
+    },
+    "dataSource": {
+      "title": "データソース",
+      "description": "ORGII が検出する外部コーディングツール。インポート可能なアプリはセッション数を表示し、再スキャンできます。その他はインストール状況と履歴の保存場所を表示します。",
+      "rescanAll": "すべて再スキャン",
+      "rescan": "再スキャン",
+      "rescanning": "再スキャン中…",
+      "enable": "有効化",
+      "disable": "無効化",
+      "lastScan": "最終スキャン {{time}}",
+      "neverScanned": "未スキャン",
+      "frequencyTitle": "自動スキャン頻度",
+      "globalFrequency": "外部ソースの自動スキャン",
+      "globalFrequencyDesc": "「デフォルト」に設定された外部ソースの既定のスキャン頻度",
+      "activeSessionRefresh": "開いている外部セッションの更新",
+      "activeSessionRefreshDesc": "チャットペインで現在開いている外部セッションの更新頻度",
+      "activeSessionFreq": {
+        "3s": "3秒ごと",
+        "5s": "5秒ごと",
+        "10s": "10秒ごと",
+        "1m": "1分ごと"
+      },
+      "col": {
+        "source": "ソース",
+        "sessions": "セッション",
+        "lastScan": "最終スキャン",
+        "frequency": "自動スキャン",
+        "status": "ステータス"
+      },
+      "freq": {
+        "default": "デフォルト",
+        "manual": "手動",
+        "60s": "60秒ごと",
+        "5m": "5分ごと",
+        "1h": "1時間ごと",
+        "1d": "毎日"
+      },
+      "openFolder": "フォルダを開く",
+      "tabs": {
+        "all": "すべて",
+        "apps": "アプリ",
+        "clis": "CLI"
+      },
+      "views": {
+        "scanning": "スキャン",
+        "hooks": "フック"
+      },
+      "sessions_other": "{{count}} 件のセッション",
+      "details": {
+        "path": "パス",
+        "storeType": "保存形式",
+        "copyPath": "パスをコピー"
+      },
+      "noPath": "パスが検出されません",
+      "notImported": "未インポート",
+      "status": {
+        "ready": "準備完了",
+        "empty": "履歴なし",
+        "loading": "確認中…",
+        "error": "エラー",
+        "installed": "インストール済み",
+        "notInstalled": "未検出",
+        "disabled": "無効"
+      }
     },
     "list": {
       "updated": "更新済み",
@@ -184,11 +253,6 @@
       "merging": "マージ中…",
       "merged": "マージ済み"
     },
-    "diff": {
-      "openDiffWindow": "Diff を表示",
-      "windowTitle": "Session Diff",
-      "filesChanged": "ファイル"
-    },
     "replay": {
       "replaySession": "リプレイ"
     },
@@ -226,6 +290,11 @@
       "commits_one": "{{count}} Commit",
       "commits_other": "{{count}} Commit",
       "committedRateShort": "{{percent}}% コミット済み"
+    },
+    "detailView": {
+      "trajectory": "Trajectory",
+      "touchedFiles": "Touched files",
+      "noTouchedFiles": "No files touched"
     }
   },
   "changes": {
@@ -408,7 +477,6 @@
         "interactionAskQuestion": "質問",
         "interactionAskPermission": "権限リクエスト",
         "interactionModeSwitch": "モード切替",
-        "interactionNextSteps": "次のステップ",
         "interactionPlanDoc": "Plan ドキュメント",
         "interactionGeneric": "インタラクション"
       },
@@ -718,20 +786,17 @@
       "addApiKey": {
         "title": "API キーを追加"
       },
+      "installLatestUpdate": {
+        "title": "最新アップデートをインストール"
+      },
       "agents": {
         "title": "Agents"
       },
       "tabs": {
         "work": "作業",
-        "explore": "探索",
-        "heatmap": "トレンド"
-      },
-      "heatmap": {
-        "loading": "アクティビティトレンドを読み込み中…",
-        "empty": "まだセッションアクティビティはありません。",
-        "sessions": "セッション",
-        "tokens": "Tokens",
-        "cost": "コスト"
+        "manage": "管理",
+        "heatmap": "トレンド",
+        "runtime": "ランタイム"
       },
       "quota": {
         "empty": "Quota データはまだありません。Key Vault で使用量を更新してください。",
@@ -779,6 +844,7 @@
     "defaultTitle": "チャット",
     "hideChatPanel": "チャットパネルを非表示",
     "showTokenUsage": "Token を表示",
+    "showStatusBar": "ステータスバーを表示",
     "compactDisplayMode": "コンパクトモード",
     "replay": {
       "follow": "フォロー"
@@ -950,15 +1016,24 @@
         "importFailed": "Session JSON をインポートできませんでした。"
       }
     },
-    "turnFiles": {
-      "filesChangedCount_one": "このラウンドで {{count}} 件のファイルを変更",
-      "filesChangedCount_other": "このラウンドで {{count}} 件のファイルを変更",
-      "historicalRoundDiffFiles_one": "過去のラウンド Diff · {{count}} ファイル",
-      "historicalRoundDiffFiles_other": "過去のラウンド Diff · {{count}} ファイル",
-      "review": "確認",
-      "showLess": "表示を減らす",
-      "showMore_one": "他 {{count}} 件を表示",
-      "showMore_other": "他 {{count}} 件を表示"
+    "turnMetadata": {
+      "noChanges": "このラウンドではファイル変更なし",
+      "earlierRound": "以前のラウンド",
+      "files_one": "{{count}} ファイル",
+      "files_other": "{{count}} ファイル",
+      "reads_one": "{{count}} 回読み取り",
+      "reads_other": "{{count}} 回読み取り",
+      "searches_one": "{{count}} 回検索",
+      "searches_other": "{{count}} 回検索",
+      "failed": "失敗",
+      "commits_one": "{{count}} コミット",
+      "commits_other": "{{count}} コミット",
+      "pullRequests_one": "{{count}} PR",
+      "pullRequests_other": "{{count}} PR",
+      "review": "レビュー",
+      "showLess": "折りたたむ",
+      "showMore_one": "残り {{count}} 件を表示",
+      "showMore_other": "残り {{count}} 件を表示"
     },
     "manageIssues": {
       "title": "Issues を管理",
@@ -989,9 +1064,9 @@
         "sourcePrs": "PRs",
         "stateOpen": "Open",
         "stateClosed": "Closed",
-        "stateAll": "All states",
-        "assignedToMe": "Assigned to me",
-        "createdByMe": "Created by me",
+        "stateAll": "すべての状態",
+        "assignedToMe": "自分に割り当て済み",
+        "createdByMe": "自分が作成",
         "filters": "Filters",
         "openInGitHub": "Open in GitHub"
       }
@@ -1033,6 +1108,8 @@
     "deleteFileRunning": "{{name}} を削除中",
     "deleteFileDone": "{{name}} を削除しました",
     "deleteFileFailed": "{{name}} の削除に失敗しました",
+    "deleteFileCompactRunning": "削除中",
+    "deleteFileCompactDone": "削除",
     "directoryTree": "ディレクトリツリー",
     "ls": "ls",
     "listDirRunning": "ディレクトリを一覧表示中",
@@ -1075,7 +1152,7 @@
     "pathCopied": "パスをコピーしました！",
     "failedToCopyPath": "パスのコピーに失敗しました",
     "copyFilePath": "ファイルパスをコピー",
-    "explore": "探索",
+    "manage": "管理",
     "readFile": "ファイルを読み込む",
     "readFileRunning": "読み取り中",
     "readFileDone": "読み取り",
@@ -1098,12 +1175,30 @@
     "editFileDoneNoName": "ファイルを編集しました",
     "editFileCompactRunning": "編集中",
     "editFileCompactDone": "編集",
+    "editFiles": "ファイルを編集",
+    "editSummary": {
+      "edit_one": "{{count}} 回編集",
+      "edit_other": "{{count}} 回編集",
+      "read_one": "{{count}} 回読み取り",
+      "read_other": "{{count}} 回読み取り",
+      "separator": "、"
+    },
     "editFileFailedNoName": "編集を試行",
     "file": "ファイル",
     "runShellRunning": "コマンド実行中",
     "terminalWaitRunning": "Terminal の完了を待機中",
     "runShellDone": "コマンド実行完了",
     "runShellFailed": "コマンド実行に失敗しました",
+    "runCommands": "コマンドを実行",
+    "terminalSummary": {
+      "command_one": "{{count}} 件のコマンド",
+      "command_other": "{{count}} 件のコマンド",
+      "wait_one": "{{count}} 件の待機",
+      "wait_other": "{{count}} 件の待機",
+      "check_one": "{{count}} 件の確認",
+      "check_other": "{{count}} 件の確認",
+      "separator": "、"
+    },
     "inspectTerminalsRunning": "Terminal を確認中",
     "inspectTerminalsDone": "Terminal を確認しました",
     "inspectTerminalsFailed": "Terminal の確認に失敗しました",
@@ -1137,6 +1232,7 @@
       "skip": "スキップ",
       "noReason": "Agent がモード切り替えを提案しています"
     },
+    "explore": "探索",
     "exploreSummary": {
       "read_one": "{{count}} 件のファイル",
       "read_other": "{{count}} 件のファイル",
@@ -1147,7 +1243,8 @@
       "ls_one": "ls {{count}} フォルダ",
       "ls_other": "ls {{count}} フォルダ",
       "lsp_one": "{{count}} 件の LSP クエリ",
-      "lsp_other": "{{count}} 件の LSP クエリ"
+      "lsp_other": "{{count}} 件の LSP クエリ",
+      "separator": "、"
     },
     "categoryRead": "読み取り",
     "categorySearch": "検索",
@@ -1426,9 +1523,6 @@
     "toolSearchRunning": "ツールを検索中",
     "toolSearchDone": "ツールを検索しました",
     "toolSearchFailed": "ツール検索に失敗",
-    "suggestNextStepsRunning": "次のステップを提案中",
-    "suggestNextStepsDone": "{{count}} 件の次のステップを提案しました",
-    "suggestNextStepsFailed": "次のステップを提案できませんでした",
     "agentSendMessageRunning": "チーム Agent にメッセージを送信中",
     "agentSendMessageDone": "チーム Agent にメッセージを送信しました",
     "agentSendMessageFailed": "チーム Agent へのメッセージ送信に失敗しました",
@@ -2451,13 +2545,6 @@
       "missing": "未インストール",
       "disabled": "無効"
     }
-  },
-  "worktreeCompare": {
-    "title": "Worktreeを比較",
-    "button": "比較",
-    "buttonTooltip": "Worktreeの差分を並べて表示",
-    "noSessions": "比較するセッションがありません。",
-    "sessionTab": "Session {{n}}"
   },
   "groupChat": {
     "senderTitle": {

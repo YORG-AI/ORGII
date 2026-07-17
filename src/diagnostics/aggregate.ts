@@ -261,7 +261,6 @@ async function collectExternalToolUsage(
           category: "external_history",
           externalHistorySource: source.sourceId,
           includeExternalHistory: true,
-          includeStats: false,
           limit: EXTERNAL_HISTORY_LIMIT,
         });
         const periodRows = page.sessions.filter((session) =>

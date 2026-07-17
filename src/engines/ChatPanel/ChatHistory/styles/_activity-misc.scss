@@ -19,11 +19,11 @@
     border-radius: 3px;
     background: color-mix(in srgb, var(--color-warning-6) 12%, transparent);
     color: var(--color-warning-6);
-    font-size: calc(var(--chat-font-size, $font-size-fallback) - 3px);
+    font-size: calc(var(--chat-font-size, $font-size-fallback) - 2px);
     font-weight: 500;
 
     svg {
-      font-size: calc(var(--chat-font-size, $font-size-fallback) - 3px);
+      font-size: calc(var(--chat-font-size, $font-size-fallback) - 2px);
     }
   }
 }

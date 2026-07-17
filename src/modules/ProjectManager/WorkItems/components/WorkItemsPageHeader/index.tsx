@@ -180,6 +180,11 @@ const AddActionsButton: React.FC<AddActionsButtonProps> = ({
           iconOnly
           onClick={onAddWorkItem ?? onAddProject}
           aria-label={label}
+          data-testid={
+            onAddWorkItem
+              ? "work-items-create-work-item"
+              : "work-items-create-project"
+          }
           icon={<Plus size={HEADER_ICON_SIZE.md} strokeWidth={2} />}
         />
       </WorkstationToolbarTooltip>
@@ -198,6 +203,7 @@ const AddActionsButton: React.FC<AddActionsButtonProps> = ({
           className={isOpen ? "!bg-surface-selected !text-primary-6" : ""}
           onClick={toggle}
           aria-label={addWorkItemLabel}
+          data-testid="work-items-create-menu"
           icon={<Plus size={HEADER_ICON_SIZE.md} strokeWidth={2} />}
         />
       </WorkstationToolbarTooltip>
@@ -223,6 +229,7 @@ const AddActionsButton: React.FC<AddActionsButtonProps> = ({
               onClick={handleAddWorkItem}
               className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left`}
               role="menuitem"
+              data-testid="work-items-create-work-item"
             >
               <ListChecks
                 size={DROPDOWN_ITEM.iconSize}
@@ -238,6 +245,7 @@ const AddActionsButton: React.FC<AddActionsButtonProps> = ({
               onClick={handleAddProject}
               className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left`}
               role="menuitem"
+              data-testid="work-items-create-project"
             >
               <Box
                 size={DROPDOWN_ITEM.iconSize}

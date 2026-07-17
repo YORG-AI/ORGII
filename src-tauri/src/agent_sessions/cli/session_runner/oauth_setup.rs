@@ -2,7 +2,6 @@
 //! sanitization for CLI agent sessions.
 
 use std::collections::HashMap;
-use std::path::Path;
 
 use chrono::{SecondsFormat, Utc};
 use core_types::activity::ActivityChunk;
@@ -74,10 +73,7 @@ pub(super) fn is_retryable_overloaded_chunk(chunk: &ActivityChunk) -> Option<Str
 }
 
 pub(super) fn is_cli_oauth_retry_agent(agent: &ModelType) -> bool {
-    matches!(
-        agent,
-        ModelType::Codex | ModelType::ClaudeCode | ModelType::GeminiCli
-    )
+    matches!(agent, ModelType::Codex | ModelType::ClaudeCode)
 }
 
 pub(super) fn is_cli_oauth_stderr_retry_candidate(
@@ -133,9 +129,6 @@ pub(super) fn sanitize_cli_oauth_env_for_child(
         ModelType::Codex => {
             env_vars.remove(CODEX_REFRESH_TOKEN_ENV_KEY);
             env_vars.remove(CODEX_ID_TOKEN_ENV_KEY);
-        }
-        ModelType::GeminiCli => {
-            env_vars.remove("GEMINI_REFRESH_TOKEN");
         }
         ModelType::ClaudeCode => {
             env_vars.remove("CLAUDE_CODE_REFRESH_TOKEN");
@@ -193,151 +186,6 @@ pub(super) fn write_codex_cli_auth_file(account_id: &str, env_vars: &HashMap<Str
     }
 }
 
-pub(super) fn gemini_cli_oauth_payload(
-    env_vars: &HashMap<String, String>,
-) -> Result<serde_json::Value, String> {
-    let access_token = env_vars
-        .get("GEMINI_ACCESS_TOKEN")
-        .filter(|token| !token.trim().is_empty())
-        .ok_or_else(|| "Gemini OAuth profile requires GEMINI_ACCESS_TOKEN".to_string())?;
-    let refresh_token = env_vars.get("GEMINI_REFRESH_TOKEN").cloned();
-    let expiry = env_vars
-        .get("GEMINI_EXPIRES_AT")
-        .cloned()
-        .unwrap_or_else(|| {
-            (Utc::now() + chrono::Duration::hours(1)).to_rfc3339_opts(SecondsFormat::Secs, true)
-        });
-    let expiry_date = chrono::DateTime::parse_from_rfc3339(&expiry)
-        .map(|date| date.timestamp_millis())
-        .unwrap_or_else(|_| (Utc::now() + chrono::Duration::hours(1)).timestamp_millis());
-    let client_id = std::env::var("GEMINI_OAUTH_CLIENT_ID").unwrap_or_else(|_| {
-        [
-            "681255809395-oo8ft2oprd",
-            "rnp9e3aqf6av3hmdib135j",
-            ".apps.googleusercontent.com",
-        ]
-        .concat()
-    });
-    let client_secret = std::env::var("GEMINI_OAUTH_CLIENT_SECRET")
-        .unwrap_or_else(|_| ["GOCSPX-", "4uHgMPm-1o7", "Sk-geV6Cu5clXFsxl"].concat());
-
-    Ok(serde_json::json!({
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "scope": env_vars.get("GEMINI_SCOPE").cloned().unwrap_or_else(|| "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile".to_string()),
-        "token_type": env_vars.get("GEMINI_TOKEN_TYPE").cloned().unwrap_or_else(|| "Bearer".to_string()),
-        "expiry": expiry,
-        "expiry_date": expiry_date,
-        "expiryDate": expiry_date,
-        "client_id": client_id,
-        "client_secret": client_secret,
-    }))
-}
-
-pub(super) fn gemini_cli_oauth_settings_payload() -> serde_json::Value {
-    serde_json::json!({
-        "ide": {
-            "enabled": false
-        },
-        "security": {
-            "auth": {
-                "selectedType": "oauth-personal"
-            }
-        },
-        "context": {
-            "loadMemoryFromIncludeDirectories": true
-        }
-    })
-}
-
-pub(super) fn gemini_cli_api_key_settings_payload() -> serde_json::Value {
-    serde_json::json!({
-        "ide": {
-            "enabled": false
-        },
-        "security": {
-            "auth": {
-                "selectedType": "gemini-api-key"
-            }
-        }
-    })
-}
-
-pub(super) fn write_json_file(path: &Path, value: &serde_json::Value) -> Result<(), String> {
-    let bytes = serde_json::to_vec_pretty(value).map_err(|err| err.to_string())?;
-    std::fs::write(path, bytes).map_err(|err| err.to_string())
-}
-
-pub(super) fn write_gemini_cli_oauth_files_at(
-    gemini_home: &std::path::Path,
-    env_vars: &HashMap<String, String>,
-) -> Result<(), String> {
-    let gemini_dir = gemini_home.join(".gemini");
-    std::fs::create_dir_all(&gemini_dir)
-        .map_err(|err| format!("Failed to create Gemini home: {}", err))?;
-
-    write_json_file(
-        &gemini_dir.join("oauth_creds.json"),
-        &gemini_cli_oauth_payload(env_vars)?,
-    )?;
-    write_json_file(
-        &gemini_dir.join("settings.json"),
-        &gemini_cli_oauth_settings_payload(),
-    )?;
-    tracing::info!(
-        "[CodeSession] Wrote Gemini OAuth files under {:?}",
-        gemini_dir
-    );
-    Ok(())
-}
-
-pub(super) fn write_gemini_cli_oauth_files(
-    account_id: &str,
-    env_vars: &HashMap<String, String>,
-) -> Result<(), String> {
-    write_gemini_cli_oauth_files_at(&app_paths::gemini_cli_profile_dir(account_id), env_vars)
-}
-
-pub(super) fn write_gemini_cli_api_key_settings_at(
-    gemini_home: &std::path::Path,
-) -> Result<(), String> {
-    let gemini_dir = gemini_home.join(".gemini");
-    std::fs::create_dir_all(&gemini_dir)
-        .map_err(|err| format!("Failed to create Gemini home: {}", err))?;
-    write_json_file(
-        &gemini_dir.join("settings.json"),
-        &gemini_cli_api_key_settings_payload(),
-    )
-}
-
-pub(super) fn setup_gemini_cli_home(
-    session_key_source: KeySource,
-    session_id: &str,
-    account_id: Option<&str>,
-    env_vars: &HashMap<String, String>,
-) -> Result<std::path::PathBuf, String> {
-    let gemini_home = if session_key_source == KeySource::HostedKey {
-        app_paths::gemini_cli_home(session_id)
-    } else {
-        let account_id = account_id
-            .filter(|value| !value.trim().is_empty())
-            .ok_or_else(|| "Gemini CLI own-key session requires account_id".to_string())?;
-        app_paths::gemini_cli_profile_dir(account_id)
-    };
-
-    if session_key_source == KeySource::OwnKey
-        && env_vars
-            .get("GEMINI_ACCESS_TOKEN")
-            .is_some_and(|token| !token.trim().is_empty())
-    {
-        write_gemini_cli_oauth_files_at(&gemini_home, env_vars)?;
-    } else {
-        write_gemini_cli_api_key_settings_at(&gemini_home)?;
-    }
-
-    Ok(gemini_home)
-}
-
 // ── OAuth refresh for retry ───────────────────────────────────────────────────
 
 pub(super) async fn refresh_cli_oauth_for_retry(
@@ -372,17 +220,6 @@ pub(super) async fn refresh_cli_oauth_for_retry(
                 )
                 .await?,
         ),
-        ModelType::GeminiCli => Some(
-            KEY_SERVICE
-                .refresh_gemini_oauth_key_after_rejection(
-                    account_id,
-                    env_vars
-                        .get("GEMINI_ACCESS_TOKEN")
-                        .map(String::as_str)
-                        .unwrap_or(""),
-                )
-                .await?,
-        ),
         _ => None,
     };
 
@@ -396,9 +233,6 @@ pub(super) async fn refresh_cli_oauth_for_retry(
     }
     if matches!(agent, ModelType::Codex) {
         write_codex_cli_auth_file(account_id, env_vars);
-    }
-    if matches!(agent, ModelType::GeminiCli) {
-        write_gemini_cli_oauth_files(account_id, env_vars)?;
     }
     sanitize_cli_oauth_env_for_child(agent, env_vars);
     Ok(true)

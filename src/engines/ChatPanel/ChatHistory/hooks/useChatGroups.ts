@@ -86,6 +86,10 @@ function isUnloadedTurnItem(item: OptimizedChatItem | undefined): boolean {
   return getUnloadedTurnMeta(item) !== null;
 }
 
+function isTurnPreviewItem(item: OptimizedChatItem | undefined): boolean {
+  return item?.event?.args?.turnPreviewOnly === true;
+}
+
 function withoutUnloadedTurnItems(
   items: OptimizedChatItem[]
 ): OptimizedChatItem[] {
@@ -260,7 +264,7 @@ export function useChatGroups(
     forceCollapseAllTurns = false,
     disableTurnCollapse = false,
     allTurnsCollapsed,
-    defaultTurnCollapsed = false,
+    defaultTurnCollapsed = true,
     isTurnHeaderItem,
     isTurnBoundaryItem,
   } = options;
@@ -319,7 +323,7 @@ export function useChatGroups(
         g.items.map(getUnloadedTurnMeta).find((value) => value !== null) ??
         null;
       const hasLoadedBodyItem = g.items.some(
-        (item) => !isUnloadedTurnItem(item)
+        (item) => !isUnloadedTurnItem(item) && !isTurnPreviewItem(item)
       );
       const unloadedTurn = hasLoadedBodyItem ? null : unloadedTurnPlaceholder;
       const unloadedStartMs = parseEpochMs(unloadedTurn?.startedAt);
@@ -384,10 +388,24 @@ export function useChatGroups(
       }
 
       if (meta.unloadedTurn) {
-        survivingPerGroup[gi] = group.items;
-        droppedItemTargetByGroup[gi] = group.items.map(() => null);
-        groupCounts[gi] = group.items.length;
-        runningFlatIdx += group.items.length;
+        const previewIdxs = group.items
+          .map((item, index) => (isTurnPreviewItem(item) ? index : -1))
+          .filter((index) => index >= 0);
+        if (previewIdxs.length > 0) {
+          const previewIdxSet = new Set(previewIdxs);
+          const previews = previewIdxs.map((index) => group.items[index]);
+          survivingPerGroup[gi] = previews;
+          droppedItemTargetByGroup[gi] = group.items.map((_, index) =>
+            previewIdxSet.has(index) ? null : runningFlatIdx
+          );
+          groupCounts[gi] = previews.length;
+          runningFlatIdx += previews.length;
+        } else {
+          survivingPerGroup[gi] = group.items;
+          droppedItemTargetByGroup[gi] = group.items.map(() => null);
+          groupCounts[gi] = group.items.length;
+          runningFlatIdx += group.items.length;
+        }
         continue;
       }
 

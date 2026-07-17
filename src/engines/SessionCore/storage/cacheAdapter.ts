@@ -45,9 +45,10 @@ export async function loadEvents(sessionId: string): Promise<SessionEvent[]> {
 }
 
 export async function loadTurnIndex(
-  sessionId: string
+  sessionId: string,
+  turnIds?: string[]
 ): Promise<sqliteCache.TurnSummary[]> {
-  return sqliteCache.loadTurnIndex(sessionId);
+  return sqliteCache.loadTurnIndex(sessionId, turnIds);
 }
 
 export async function loadTurnBody(

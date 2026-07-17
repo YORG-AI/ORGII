@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, RefreshCw } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
 import { ORGII_ORCHESTRATOR } from "@src/assets/providers/types";
@@ -12,6 +12,7 @@ import SettingsTable, {
 } from "@src/components/SettingsTable";
 import Switch from "@src/components/Switch";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
+import { useRefreshSpin } from "@src/hooks/ui";
 
 import { EnabledFractionText } from "../../../shared/EnabledFractionText";
 import ModelInlineExpandedCard from "./ModelInlineExpandedCard";
@@ -92,6 +93,8 @@ export default function ModelsTableSection({
   accounts,
   loading,
   onAdd,
+  onRefreshModels,
+  refreshingAllModels,
   onToggleModel,
   onUpdateAccountEnabledModels,
   onUpdateAccountDefaultVariant,
@@ -102,6 +105,8 @@ export default function ModelsTableSection({
   accounts: KeyVaultAccount[];
   loading: boolean;
   onAdd: () => void;
+  onRefreshModels?: () => void | Promise<void>;
+  refreshingAllModels?: boolean;
   onToggleModel: (
     model: string,
     agentType: string,
@@ -325,6 +330,25 @@ export default function ModelsTableSection({
     [expandedGroupKeys, renderExpandedGroupCard]
   );
 
+  const { spinClass: refreshSpinClass, handleClick: handleRefreshModelsClick } =
+    useRefreshSpin(() => {
+      void onRefreshModels?.();
+    }, refreshingAllModels ?? false);
+
+  const refreshModelsButton = onRefreshModels ? (
+    <Button
+      variant="secondary"
+      size="default"
+      icon={<RefreshCw size={14} className={refreshSpinClass} />}
+      iconOnly
+      onClick={handleRefreshModelsClick}
+      disabled={refreshingAllModels}
+      aria-label={t("keyVault.refreshModels.button")}
+      title={t("keyVault.refreshModels.button")}
+      data-testid="key-vault-models-refresh-button"
+    />
+  ) : null;
+
   const addProviderButton = (
     <Button
       variant="secondary"
@@ -355,7 +379,12 @@ export default function ModelsTableSection({
         onSearchChange: setModelsSearchQuery,
         searchPlaceholder: t("modelsTable.searchPlaceholder"),
         allowSearchClear: true,
-        rightContent: addProviderButton,
+        rightContent: (
+          <>
+            {refreshModelsButton}
+            {addProviderButton}
+          </>
+        ),
       }}
       emptyTitle={t("modelsTable.noModels")}
       emptyAction={{

@@ -3,7 +3,6 @@ import {
   CLAUDE_CODE_AGENT_TYPE,
   CODEX_AGENT_TYPE,
   CURSOR_AGENT_TYPE,
-  GEMINI_AGENT_TYPE,
   PREFERRED_CLAUDE_CODE_MODEL_ID,
   PREFERRED_CODEX_MODEL_ID,
   PREFERRED_API_MODEL_ID,
@@ -187,25 +186,4 @@ describe("Live rendered UI tool-call matrix", () => {
     );
   });
 
-  it("renders tool UI for Gemini through CLI agent", async function () {
-    await runRenderedToolScenario(
-      {
-        label: "gemini-cli-agent",
-        account: geminiAccount,
-        model: selectModelFromChain(geminiAccount, GEMINI_MODEL_CHAIN),
-        category: "cli_agent",
-        cliAgentType: GEMINI_AGENT_TYPE,
-        expectedToolNames: [
-          "Shell",
-          "run_shell",
-          "run_shell_command",
-          "read_file",
-          "Read",
-        ],
-        sessionIdPattern: /^cliagent-/,
-        prompt: `${PROMPT_PREFIX}_GEMINI_CLI Use an available read-only tool to inspect package.json before answering. Then reply with the package name you found and mention Gemini CLI.`,
-      },
-      this
-    );
-  });
 });

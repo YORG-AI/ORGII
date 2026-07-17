@@ -6,9 +6,10 @@ use key_vault::key_store::ModelType;
 use serde::{Deserialize, Serialize};
 
 use super::session_runner::launch_profiles::{
-    bare_command_for_agent, default_args_for_mode, default_env_for_mode, defaults_for_agent,
-    static_args_to_vec, static_env_to_map, CliLaunchProfileOverride, CliLaunchProfileUpdate,
-    CliLaunchProfileView, ResolvedCliLaunchProfile,
+    bare_command_for_agent, default_args_for_mode, default_env_for_mode, default_permission_mode,
+    defaults_for_agent, mode_defaults_view, static_args_to_vec, supported_permission_modes,
+    supports_permission_mode, CliLaunchProfileDefaults, CliLaunchProfileOverride,
+    CliLaunchProfileUpdate, CliLaunchProfileView, CliPermissionMode, ResolvedCliLaunchProfile,
 };
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -96,6 +97,14 @@ fn normalize_optional_env(
     })
 }
 
+fn normalize_permission_mode(
+    defaults: &CliLaunchProfileDefaults,
+    mode: Option<CliPermissionMode>,
+) -> CliPermissionMode {
+    mode.filter(|mode| supports_permission_mode(defaults, *mode))
+        .unwrap_or_else(|| default_permission_mode(defaults))
+}
+
 pub fn resolve_cli_launch_profile(
     agent_type: &ModelType,
 ) -> Result<ResolvedCliLaunchProfile, String> {
@@ -103,9 +112,10 @@ pub fn resolve_cli_launch_profile(
         .ok_or_else(|| format!("No CLI launch defaults for {}", agent_type.as_str()))?;
     let store = read_store()?;
     let override_profile = store.profiles.get(agent_type.as_str());
-    let permission_mode = override_profile
-        .and_then(|profile| profile.permission_mode)
-        .unwrap_or_default();
+    let permission_mode = normalize_permission_mode(
+        defaults,
+        override_profile.and_then(|profile| profile.permission_mode),
+    );
     let default_command = bare_command_for_agent(agent_type)
         .ok_or_else(|| format!("No CLI binary metadata for {}", agent_type.as_str()))?
         .to_string();
@@ -134,9 +144,10 @@ pub fn cli_launch_profile_get(agent_name: String) -> Result<CliLaunchProfileView
         .ok_or_else(|| format!("No CLI launch defaults for {}", agent_type.as_str()))?;
     let store = read_store()?;
     let override_profile = store.profiles.get(agent_type.as_str());
-    let permission_mode = override_profile
-        .and_then(|profile| profile.permission_mode)
-        .unwrap_or_default();
+    let permission_mode = normalize_permission_mode(
+        defaults,
+        override_profile.and_then(|profile| profile.permission_mode),
+    );
     let default_command = bare_command_for_agent(&agent_type)
         .ok_or_else(|| format!("No CLI binary metadata for {}", agent_type.as_str()))?
         .to_string();
@@ -163,10 +174,12 @@ pub fn cli_launch_profile_get(agent_name: String) -> Result<CliLaunchProfileView
         command,
         args,
         env,
-        manual_args: static_args_to_vec(defaults.manual_args),
-        full_permission_args: static_args_to_vec(defaults.full_permission_args),
-        manual_env: static_env_to_map(defaults.manual_env),
-        full_permission_env: static_env_to_map(defaults.full_permission_env),
+        manual_args: default_args_for_mode(defaults, CliPermissionMode::Manual),
+        full_permission_args: default_args_for_mode(defaults, CliPermissionMode::FullPermission),
+        manual_env: default_env_for_mode(defaults, CliPermissionMode::Manual),
+        full_permission_env: default_env_for_mode(defaults, CliPermissionMode::FullPermission),
+        supported_permission_modes: supported_permission_modes(defaults),
+        mode_defaults: mode_defaults_view(defaults),
         command_overridden: override_profile
             .and_then(|profile| profile.command_override.as_ref())
             .is_some(),
@@ -185,8 +198,15 @@ pub fn cli_launch_profile_update(
     update: CliLaunchProfileUpdate,
 ) -> Result<CliLaunchProfileView, String> {
     let agent_type = parse_cli_agent(&update.agent_name)?;
-    defaults_for_agent(&agent_type)
+    let defaults = defaults_for_agent(&agent_type)
         .ok_or_else(|| format!("No CLI launch defaults for {}", agent_type.as_str()))?;
+    if !supports_permission_mode(defaults, update.permission_mode) {
+        return Err(format!(
+            "Permission mode {:?} is not supported for {}",
+            update.permission_mode,
+            agent_type.as_str()
+        ));
+    }
     let mut store = read_store()?;
     store.profiles.insert(
         agent_type.as_str().to_string(),
@@ -221,7 +241,14 @@ mod tests {
             default_args_for_mode(defaults, CliPermissionMode::FullPermission),
             vec!["--dangerously-skip-permissions".to_string()]
         );
-        assert!(default_args_for_mode(defaults, CliPermissionMode::Manual).is_empty());
+        assert_eq!(
+            default_args_for_mode(defaults, CliPermissionMode::Manual),
+            vec!["--permission-mode".to_string(), "manual".to_string()]
+        );
+        assert_eq!(
+            default_args_for_mode(defaults, CliPermissionMode::AutoEdit),
+            vec!["--permission-mode".to_string(), "acceptEdits".to_string()]
+        );
     }
 
     #[test]
@@ -234,5 +261,15 @@ mod tests {
                 .map(String::as_str),
             Some("auto")
         );
+    }
+
+    #[test]
+    fn opencode_does_not_expose_noop_full_permission() {
+        let defaults = defaults_for_agent(&ModelType::OpenCode).expect("opencode defaults");
+        assert_eq!(
+            supported_permission_modes(defaults),
+            vec![CliPermissionMode::Manual]
+        );
+        assert_eq!(default_permission_mode(defaults), CliPermissionMode::Manual);
     }
 }

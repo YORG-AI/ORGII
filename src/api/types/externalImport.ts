@@ -3,7 +3,7 @@
  *
  * Covers external `ItemKind`s end-to-end: rule-flavored sources (Cursor
  * IDE rules, Claude Code memory, GitHub Copilot instructions, Kiro
- * steering, Codex, Gemini CLI), skill sources
+ * steering, and Codex), skill sources
  * (`SKILL.md` bundles and command Markdown files), MCP server configs,
  * and agent definitions. The apply path lives in `commands.rs::apply_single`
  * and persists each kind to its canonical ORGII home.
@@ -13,7 +13,6 @@ export type SourceAgent =
   | "cursor_ide"
   | "claude_code"
   | "codex"
-  | "gemini_cli"
   | "copilot"
   | "kiro";
 

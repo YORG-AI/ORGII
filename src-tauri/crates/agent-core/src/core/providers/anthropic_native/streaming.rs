@@ -202,7 +202,14 @@ impl LLMProvider for AnthropicClient {
         // Streaming serves the main agent loop, whose prefix IS re-read on
         // the next turn — always keep cache writes on.
         let mut prepared = prepare_request(
-            self, messages, tools, model, max_tokens, temperature, true, false,
+            self,
+            messages,
+            tools,
+            model,
+            max_tokens,
+            temperature,
+            true,
+            false,
         );
 
         info!(

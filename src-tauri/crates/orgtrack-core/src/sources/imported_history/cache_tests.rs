@@ -66,6 +66,63 @@ fn cache_query_paginates_newest_first() {
 }
 
 #[test]
+fn sidebar_query_is_date_bounded_and_carries_impact_metadata() {
+    let mut conn = fixture_conn();
+    let mut inside = input(SOURCE_CODEX_APP, "inside", 250);
+    inside.impact.files_changed = 1;
+    inside.impact.lines_added = 7;
+    inside.impact.lines_removed = 2;
+    inside.impact.touched_files = vec!["large/path.rs".to_string()];
+    let outside = input(SOURCE_CODEX_APP, "outside", 450);
+    upsert_imported_session_cache_from_conn(&mut conn, &[inside, outside]).expect("upsert");
+
+    let page =
+        query_imported_sidebar_page_from_conn(&conn, SOURCE_CODEX_APP, Some(200), Some(300), 10, 0)
+            .expect("sidebar page");
+
+    assert!(!page.has_more);
+    assert_eq!(page.sessions.len(), 1);
+    let row = &page.sessions[0];
+    assert_eq!(row.session_id, "codex_app-inside");
+    assert_eq!(row.repo_path.as_deref(), Some("/tmp/repo-inside"));
+    // The Kanban board and other card surfaces render these inline, so the
+    // lightweight sidebar row must carry them (regression guard).
+    assert_eq!(row.model.as_deref(), Some("model-a"));
+    assert_eq!(row.total_tokens, 7); // input_tokens (3) + output_tokens (4)
+    assert_eq!(row.files_changed, 1);
+    assert_eq!(row.lines_added, 7);
+    assert_eq!(row.lines_removed, 2);
+    assert_eq!(row.touched_files, vec!["large/path.rs".to_string()]);
+}
+
+#[test]
+fn sidebar_query_paginates_within_one_date_bucket() {
+    let mut conn = fixture_conn();
+    upsert_imported_session_cache_from_conn(
+        &mut conn,
+        &[
+            input(SOURCE_CODEX_APP, "old", 210),
+            input(SOURCE_CODEX_APP, "mid", 220),
+            input(SOURCE_CODEX_APP, "new", 230),
+        ],
+    )
+    .expect("upsert");
+
+    let first =
+        query_imported_sidebar_page_from_conn(&conn, SOURCE_CODEX_APP, Some(200), Some(300), 2, 0)
+            .expect("first page");
+    let second =
+        query_imported_sidebar_page_from_conn(&conn, SOURCE_CODEX_APP, Some(200), Some(300), 2, 2)
+            .expect("second page");
+
+    assert!(first.has_more);
+    assert_eq!(first.sessions[0].session_id, "codex_app-new");
+    assert_eq!(first.sessions[1].session_id, "codex_app-mid");
+    assert!(!second.has_more);
+    assert_eq!(second.sessions[0].session_id, "codex_app-old");
+}
+
+#[test]
 fn cache_pruning_is_source_scoped() {
     let mut conn = fixture_conn();
     upsert_imported_session_cache_from_conn(
@@ -143,6 +200,24 @@ fn cache_single_session_lookup_returns_source_metadata() {
 }
 
 #[test]
+fn cache_canonical_session_lookup_returns_source_and_hidden_rows() {
+    let mut conn = fixture_conn();
+    let mut cached = input(SOURCE_CODEX_APP, "child-source-id", 100);
+    cached.session_id = "codexapp-child-canonical-id".to_string();
+    cached.listable = false;
+    upsert_imported_session_cache_from_conn(&mut conn, &[cached]).expect("upsert");
+
+    let (source, session) =
+        query_cached_session_by_session_id_from_conn(&conn, "codexapp-child-canonical-id")
+            .expect("query")
+            .expect("cached child");
+
+    assert_eq!(source, SOURCE_CODEX_APP);
+    assert_eq!(session.source_session_id, "child-source-id");
+    assert!(!session.listable);
+}
+
+#[test]
 fn cache_source_list_filters_unlistable_sessions() {
     let mut conn = fixture_conn();
     let listed = input(SOURCE_CODEX_APP, "listed", 300);
@@ -155,6 +230,29 @@ fn cache_source_list_filters_unlistable_sessions() {
 
     assert_eq!(sessions.len(), 1);
     assert_eq!(sessions[0].source_session_id, "listed");
+}
+
+#[test]
+fn cache_repo_query_includes_hidden_child_with_inherited_parent_repo() {
+    let mut conn = fixture_conn();
+    let mut parent = input(SOURCE_CODEX_APP, "parent", 300);
+    parent.repo_path = Some("/tmp/target-repo".to_string());
+    let mut child = input(SOURCE_CODEX_APP, "child", 200);
+    child.repo_path = None;
+    child.listable = false;
+    child.parent_session_id = Some(parent.session_id.clone());
+    let outside = input(SOURCE_CODEX_APP, "outside", 100);
+    upsert_imported_session_cache_from_conn(&mut conn, &[parent, child, outside]).expect("upsert");
+
+    let sessions =
+        query_cached_sessions_for_repo_from_conn(&conn, SOURCE_CODEX_APP, "/tmp/target-repo")
+            .expect("query repo sessions");
+    let ids = sessions
+        .iter()
+        .map(|session| session.source_session_id.as_str())
+        .collect::<Vec<_>>();
+
+    assert_eq!(ids, vec!["parent", "child"]);
 }
 
 #[test]

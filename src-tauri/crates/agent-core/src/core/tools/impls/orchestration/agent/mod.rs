@@ -404,6 +404,7 @@ impl AgentTool {
             plan_slot_cache: None,
             agent_org_context: self.config.agent_org_context.as_deref().cloned(),
             agent_org_current_member_id: None,
+            session_org_id: None,
             channel_context: None,
         };
         let mut overlay = ToolRegistry::with_fallback(base_registry);
@@ -796,14 +797,12 @@ impl Tool for AgentTool {
 
         let subagent_provider: Arc<dyn LLMProvider> = match sub_reliability_opt.as_ref() {
             Some(reliability) => {
-                let subagent_session_id = format!("{parent_session_id}:subagent:{agent_id}");
                 match crate::providers::factory::create_provider_with_native_harness_preflight(
                     &model,
                     parent_account_id_for_provider.as_deref(),
                     reliability,
                     self.config.native_harness_type,
                     Some(self.config.workspace.clone()),
-                    Some(&subagent_session_id),
                 )
                 .await
                 {
@@ -825,14 +824,12 @@ impl Tool for AgentTool {
                 }
             }
             None if self.config.native_harness_type.is_some() => {
-                let subagent_session_id = format!("{parent_session_id}:subagent:{agent_id}");
                 match crate::providers::factory::create_provider_with_native_harness_preflight(
                     &model,
                     parent_account_id_for_provider.as_deref(),
                     &crate::config::ReliabilityConfig::default(),
                     self.config.native_harness_type,
                     Some(self.config.workspace.clone()),
-                    Some(&subagent_session_id),
                 )
                 .await
                 {

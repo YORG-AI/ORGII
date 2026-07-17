@@ -6,18 +6,19 @@
 import { IMPORTED_HISTORY_SOURCE_DESCRIPTORS } from "@src/api/tauri/externalHistory/imported/descriptors";
 import { rpc } from "@src/api/tauri/rpc";
 import type {
-  AggregateStats,
+  ExternalHistorySidebarBatchResponse,
+  ExternalHistorySidebarDateBucket,
+  ExternalHistorySidebarListRequest,
+  ExternalHistorySidebarResponse,
+  ExternalHistorySidebarSourceRequest,
   SessionAggregateRecord,
   SessionFilter,
-  SessionHeatmapFilter,
-  SessionHeatmapResponse,
   SessionListResponse,
-  SessionUsageSummary,
 } from "@src/api/tauri/rpc/schemas/sessionAggregate";
 import { normalizeAgentExecMode } from "@src/config/sessionCreatorConfig";
 import type { Session } from "@src/store/session/sessionAtom/types";
 
-import type { DispatchCategory, KeySource } from "./dispatchTypes";
+import type { DispatchCategory } from "./dispatchTypes";
 
 // Re-export from zero-dep module so callers keep the same import path.
 export type { DispatchCategory, KeySource } from "./dispatchTypes";
@@ -41,13 +42,14 @@ export type {
 
 // Re-export session aggregate types from RPC schemas (single source of truth).
 export type {
-  AggregateStats,
+  ExternalHistorySidebarBatchResponse,
+  ExternalHistorySidebarDateBucket,
+  ExternalHistorySidebarListRequest,
+  ExternalHistorySidebarResponse,
+  ExternalHistorySidebarSourceRequest,
   SessionAggregateRecord,
   SessionFilter,
-  SessionHeatmapFilter,
-  SessionHeatmapResponse,
   SessionListResponse,
-  SessionUsageSummary,
 };
 
 // ============================================================================
@@ -66,35 +68,10 @@ export async function sessionAggregateList(
   return rpc.sessionAggregate.list({ filter }) as Promise<SessionListResponse>;
 }
 
-/**
- * Get aggregate statistics for sessions.
- *
- * Optionally filter by session IDs or key source.
- */
-export async function sessionGetAggregateStats(
-  sessionIds?: string[],
-  keySource?: KeySource
-): Promise<AggregateStats> {
-  return rpc.sessionAggregate.getStats({
-    sessionIds,
-    keySource,
-  }) as Promise<AggregateStats>;
-}
-
-export async function sessionUsageSummary(
-  sessionId: string
-): Promise<SessionUsageSummary> {
-  return rpc.sessionAggregate.usageSummary({
-    sessionId,
-  }) as Promise<SessionUsageSummary>;
-}
-
-export async function sessionHeatmap(
-  filter?: SessionHeatmapFilter
-): Promise<SessionHeatmapResponse> {
-  return rpc.sessionAggregate.heatmap({
-    filter,
-  }) as Promise<SessionHeatmapResponse>;
+export async function externalHistorySidebarList(
+  request: ExternalHistorySidebarListRequest
+): Promise<ExternalHistorySidebarBatchResponse> {
+  return rpc.sessionAggregate.externalHistorySidebarList(request);
 }
 
 // ============================================================================
@@ -110,17 +87,18 @@ function importedHistoryDescriptorForSession(sessionId: string) {
 function getFrontendDispatchCategory(
   record: SessionAggregateRecord
 ): DispatchCategory {
-  if (importedHistoryDescriptorForSession(record.sessionId)) {
-    return "external_history";
+  const importedSource = importedHistoryDescriptorForSession(record.sessionId);
+  if (importedSource) {
+    return importedSource.sourceId === "cursor_ide"
+      ? "cursor_ide"
+      : "external_history";
   }
   return record.category;
 }
 
 export function toFrontendSession(record: SessionAggregateRecord): Session {
   const category = getFrontendDispatchCategory(record);
-  const importedIconId = importedHistoryDescriptorForSession(
-    record.sessionId
-  )?.iconId;
+  const importedSource = importedHistoryDescriptorForSession(record.sessionId);
 
   return {
     session_id: record.sessionId,
@@ -136,7 +114,10 @@ export function toFrontendSession(record: SessionAggregateRecord): Session {
     branch: record.branch || "",
     is_active: record.isActive,
     category,
-    cliAgentType: record.cliAgentType,
+    // Imported app history can carry a backend CLI compatibility value, but
+    // exposing it here makes app sessions indistinguishable from sessions
+    // actually launched through that CLI.
+    cliAgentType: importedSource ? undefined : record.cliAgentType,
     model: record.model,
     keySource: record.keySource,
     accountId: record.accountId,
@@ -160,8 +141,8 @@ export function toFrontendSession(record: SessionAggregateRecord): Session {
     agentOrgId: record.agentOrgId,
     agentOrgName: record.agentOrgName,
     agentDefinitionId: record.agentDefinitionId,
-    agentIconId: importedIconId ?? record.agentIconId,
-    agentDisplayName: record.agentDisplayName,
+    agentIconId: importedSource?.iconId ?? record.agentIconId,
+    agentDisplayName: importedSource?.displayName ?? record.agentDisplayName,
     agentExecMode: normalizeAgentExecMode(record.agentExecMode) ?? undefined,
     draftText: record.draftText,
     replyTargetEventId: record.replyTargetEventId,
@@ -171,6 +152,7 @@ export function toFrontendSession(record: SessionAggregateRecord): Session {
     linesRemoved: record.linesRemoved,
     touchedFiles: record.touchedFiles,
     channel: record.channel,
+    totalTokens: record.totalTokens,
   };
 }
 

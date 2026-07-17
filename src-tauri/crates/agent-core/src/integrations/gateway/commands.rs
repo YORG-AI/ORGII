@@ -86,7 +86,9 @@ pub fn parse(content: &str) -> Option<GatewayCommand> {
     match head.as_str() {
         "/new" | "/reset" => bare_command(rest, GatewayCommand::NewSession),
         "/status" => bare_command(rest, GatewayCommand::Status),
-        "/model" => Some(GatewayCommand::Model((!rest.is_empty()).then(|| rest.to_string()))),
+        "/model" => Some(GatewayCommand::Model(
+            (!rest.is_empty()).then(|| rest.to_string()),
+        )),
         "/compact" => bare_command(rest, GatewayCommand::Compact),
         "/session" | "/ctx" => parse_session_command(rest),
         "/newsession" => parse_newsession_command(rest),

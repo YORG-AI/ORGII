@@ -9,10 +9,8 @@ import { useFilteredItems } from "@src/hooks/search";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import { benchmarkAgentBatchStatusAtom } from "@src/store/benchmark";
 import {
-  DEFAULT_SESSION_ORG_ID,
   type Session,
   type SessionListCategory,
-  sessionLastLoadedAtom,
   sessionPaginationAtom,
   upsertSession,
 } from "@src/store/session";
@@ -34,6 +32,7 @@ import {
   buildByTimeMenuItems,
   buildByWorkspaceMenuItems,
 } from "./menuSectionBuilders";
+import { sessionMatchesOrgFilter } from "./orgFilter";
 import {
   appendSessionGroup,
   getLoadMoreGroupId,
@@ -62,6 +61,9 @@ interface ChildSessionRecord {
 }
 
 const SUBAGENT_SESSION_ID_SEGMENT = ":subagent:";
+
+/** Max concurrent `es_get_child_sessions` calls when hydrating the sidebar. */
+const SUBAGENT_QUERY_CONCURRENCY = 8;
 
 function parentSessionIdFor(session: Session): string | null {
   if (session.parentSessionId) return session.parentSessionId;
@@ -149,20 +151,26 @@ export function useSessionMenuItems({
   groupByMode,
   untitledSession,
   searchQuery = "",
-  selectedOrgId,
+  selectedOrgIds,
+  extraSessionIds,
+  excludedSessionIds,
   includeExternal,
   groupVisibleCounts,
   expandedSubagentParentIds = new Set(),
+  revealedSessionIds = new Set(),
 }: UseSessionMenuItemsParams): UseSessionMenuItemsResult {
   const { t: tCommon } = useTranslation();
   const pagination = useAtomValue(sessionPaginationAtom);
-  const sessionLastLoaded = useAtomValue(sessionLastLoadedAtom);
   const benchmarkAgentBatchStatus = useAtomValue(benchmarkAgentBatchStatusAtom);
   const [benchmarkHistoryChildSessionIds, setBenchmarkHistoryChildSessionIds] =
     useState<ReadonlySet<string>>(() => new Set());
-  const [queriedSubagentParentIds, setQueriedSubagentParentIds] = useState<
-    ReadonlySet<string>
-  >(() => new Set());
+  // parentId → the parent's updated_at at query time. Children are re-fetched
+  // only when the parent session changes, instead of re-querying every
+  // visible session on every list refresh (that pattern issued 100+
+  // concurrent `es_get_child_sessions` calls that queued up on SQLite).
+  const [queriedSubagentParents, setQueriedSubagentParents] = useState<
+    ReadonlyMap<string, string>
+  >(() => new Map());
   const [fetchedChildSessionsByParent, setFetchedChildSessionsByParent] =
     useState<ReadonlyMap<string, Session[]>>(() => new Map());
 
@@ -214,11 +222,14 @@ export function useSessionMenuItems({
   const visibleSessions = useMemo(
     () =>
       sortedSessions.filter((session) => {
-        const sessionOrgId = session.orgId ?? DEFAULT_SESSION_ORG_ID;
+        const explicitlyRevealed = revealedSessionIds.has(session.session_id);
         return (
           isPrimarySessionListSession(session) &&
-          (includeExternal || !isImportedHistorySession(session.session_id)) &&
-          (!selectedOrgId || sessionOrgId === selectedOrgId) &&
+          (explicitlyRevealed ||
+            ((includeExternal ||
+              !isImportedHistorySession(session.session_id)) &&
+              (sessionMatchesOrgFilter(session, selectedOrgIds) ||
+                (extraSessionIds?.has(session.session_id) ?? false)))) &&
           !benchmarkChildSessionIds.has(session.session_id) &&
           !benchmarkHistoryChildSessionIds.has(session.session_id) &&
           !benchmarkCoordinatorSessionIds.has(session.parentSessionId ?? "")
@@ -228,66 +239,80 @@ export function useSessionMenuItems({
       benchmarkChildSessionIds,
       benchmarkCoordinatorSessionIds,
       benchmarkHistoryChildSessionIds,
+      extraSessionIds,
       includeExternal,
-      selectedOrgId,
+      revealedSessionIds,
+      selectedOrgIds,
       sortedSessions,
     ]
   );
 
-  const visibleSessionIds = useMemo(
-    () => visibleSessions.map((session) => session.session_id),
-    [visibleSessions]
-  );
-
   useEffect(() => {
-    setQueriedSubagentParentIds(new Set());
-  }, [sessionLastLoaded]);
-
-  useEffect(() => {
-    const parentIdsToQuery = visibleSessionIds.filter(
-      (sessionId) => !queriedSubagentParentIds.has(sessionId)
+    const parentsToQuery = visibleSessions.filter(
+      (session) =>
+        queriedSubagentParents.get(session.session_id) !==
+        (session.updated_at ?? "")
     );
-    if (parentIdsToQuery.length === 0) return;
+    if (parentsToQuery.length === 0) return;
 
-    setQueriedSubagentParentIds((previousIds) => {
-      const nextIds = new Set(previousIds);
-      for (const sessionId of parentIdsToQuery) {
-        nextIds.add(sessionId);
+    setQueriedSubagentParents((previous) => {
+      const next = new Map(previous);
+      for (const session of parentsToQuery) {
+        next.set(session.session_id, session.updated_at ?? "");
       }
-      return nextIds;
+      return next;
     });
 
     let cancelled = false;
-    void Promise.allSettled(
-      parentIdsToQuery.map(async (parentSessionId) => {
-        const records = await invoke<ChildSessionRecord[]>(
-          "es_get_child_sessions",
-          { parentSessionId }
+    // Bounded concurrency: a cold sidebar can have 100+ visible sessions and
+    // firing them all at once queues the backend's blocking pool on SQLite
+    // (observed 2.6s average per call under that contention). Batches keep
+    // per-call latency flat and results paint incrementally.
+    void (async () => {
+      for (
+        let offset = 0;
+        offset < parentsToQuery.length && !cancelled;
+        offset += SUBAGENT_QUERY_CONCURRENCY
+      ) {
+        const batch = parentsToQuery.slice(
+          offset,
+          offset + SUBAGENT_QUERY_CONCURRENCY
         );
-        const childSessions = records.map((record) =>
-          childRecordToSession(record, parentSessionId)
+        const results = await Promise.allSettled(
+          batch.map(async (parent) => {
+            const parentSessionId = parent.session_id;
+            const records = await invoke<ChildSessionRecord[]>(
+              "es_get_child_sessions",
+              { parentSessionId }
+            );
+            const childSessions = records.map((record) =>
+              childRecordToSession(record, parentSessionId)
+            );
+            for (const childSession of childSessions) {
+              upsertSession(childSession);
+            }
+            return { parentSessionId, childSessions };
+          })
         );
-        for (const childSession of childSessions) {
-          upsertSession(childSession);
-        }
-        return { parentSessionId, childSessions };
-      })
-    ).then((results) => {
-      if (cancelled) return;
-      setFetchedChildSessionsByParent((previousMap) => {
-        const nextMap = new Map(previousMap);
-        for (const result of results) {
-          if (result.status !== "fulfilled") continue;
-          nextMap.set(result.value.parentSessionId, result.value.childSessions);
-        }
-        return nextMap;
-      });
-    });
+        if (cancelled) return;
+        setFetchedChildSessionsByParent((previousMap) => {
+          const nextMap = new Map(previousMap);
+          for (const result of results) {
+            if (result.status !== "fulfilled") continue;
+            nextMap.set(
+              result.value.parentSessionId,
+              result.value.childSessions
+            );
+          }
+          return nextMap;
+        });
+      }
+    })();
 
     return () => {
       cancelled = true;
     };
-  }, [queriedSubagentParentIds, visibleSessionIds]);
+  }, [queriedSubagentParents, visibleSessions]);
 
   const childSessionsByParent = useMemo(() => {
     const map = new Map<string, Session[]>();
@@ -350,8 +375,22 @@ export function useSessionMenuItems({
     [childSessionsByParent]
   );
 
+  // Excluded ids leave the rendered list but stay in sessionMap so click
+  // routing (threaded cloud rows mapping to local sessions) keeps working.
+  // Subagent fetching above intentionally still covers the full visible set
+  // (visibleSessions), not just the listed subset.
+  const listedSessions = useMemo(
+    () =>
+      excludedSessionIds && excludedSessionIds.size > 0
+        ? visibleSessions.filter(
+            (session) => !excludedSessionIds.has(session.session_id)
+          )
+        : visibleSessions,
+    [excludedSessionIds, visibleSessions]
+  );
+
   const { filteredItems: searchedSessions, isFiltering } = useFilteredItems({
-    items: visibleSessions,
+    items: listedSessions,
     searchQuery,
     getSearchText: (session) => getSessionSearchText(session, untitledSession),
   });
@@ -425,16 +464,27 @@ export function useSessionMenuItems({
       const visibleCount = isFiltering
         ? groupSessions.length
         : (groupVisibleCounts.get(groupId) ?? DEFAULT_GROUP_VISIBLE_COUNT);
+      const revealedIndex = groupSessions.reduce(
+        (lastIndex, session, index) =>
+          revealedSessionIds.has(session.session_id) ? index : lastIndex,
+        -1
+      );
       return appendSessionGroup({
         items,
         groupId,
         groupSessions,
-        visibleCount,
+        visibleCount: Math.max(visibleCount, revealedIndex + 1),
         buildSessionRow,
         loadMoreLabel: tCommon("common:actions.loadMore"),
       });
     },
-    [buildSessionRow, groupVisibleCounts, isFiltering, tCommon]
+    [
+      buildSessionRow,
+      groupVisibleCounts,
+      isFiltering,
+      revealedSessionIds,
+      tCommon,
+    ]
   );
 
   const dateGroupLabels: Record<DateGroupKey, string> = useMemo(

@@ -16,6 +16,7 @@ import SettingsTable, {
 } from "@src/components/SettingsTable";
 import type { DependencyStatus } from "@src/hooks/dependencies";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { InfoRow } from "@src/modules/shared/layouts/blocks/InfoRow";
 
 import {
   InlineCardBody,
@@ -25,7 +26,6 @@ import {
   InlineCardSplit,
 } from "../../../KeyVault/shared/InlineCardPrimitives";
 import { StatusDot, selectedRowClassName } from "../../../Tables/shared";
-import { InfoRow } from "../../../shared/InfoRow";
 import { InstallScriptPanel } from "../../../shared/InstallScriptPanel";
 
 const DEFAULT_CATEGORY_KEY = "package-manager";

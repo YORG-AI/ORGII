@@ -269,7 +269,7 @@ function removeTerminalSessionLocalOnly(
 export const editorAddTerminalSessionAtom = atom(
   null,
   (get, set, options?: AddSessionOptions) => {
-    if (!tryBeginTerminalCreation()) {
+    if (!options?.bypassCreationCooldown && !tryBeginTerminalCreation()) {
       notifyTerminalCreationCooldown();
       return get(activeTerminalIdAtom);
     }
@@ -315,6 +315,20 @@ export const closeTerminalSessionAtom = atom(
   }
 );
 closeTerminalSessionAtom.debugLabel = "closeTerminalSessionAtom";
+
+/**
+ * Kill every terminal session's PTY. Fired when the Terminal tab is closed —
+ * closing the tab tears down all running shells (dev servers, agents, …). The
+ * store always keeps one session, so this leaves a single fresh default that
+ * only spins up a PTY when the Terminal tab is reopened.
+ */
+export const closeAllTerminalSessionsAtom = atom(null, async (get, set) => {
+  const ids = get(terminalSessionsAtom).map((session) => session.id);
+  for (const id of ids) {
+    await set(closeTerminalSessionAtom, id);
+  }
+});
+closeAllTerminalSessionsAtom.debugLabel = "closeAllTerminalSessionsAtom";
 
 export const removeStaleTerminalSessionAtom = atom(
   null,

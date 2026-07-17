@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import { CLI_AGENT } from "@src/api/types/keys";
 import InlineAlert from "@src/components/InlineAlert";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
+import { AccountInlineDetails } from "@src/modules/shared/keyVault/AccountInlineDetails";
 
 import {
   buildVariantsByModelFromAccounts,
@@ -27,7 +28,6 @@ import {
   AccountInlineEditFooter,
   useAccountInlineEditState,
 } from "./AccountInlineEditSection";
-import { AccountInlineStatusSection } from "./AccountInlineStatusSection";
 import AccountModelsInlineSplit from "./AccountModelsInlineSplit";
 import { isGatewayWithNoModels } from "./accountInlineGatewayTypes";
 
@@ -62,6 +62,10 @@ function supportsQuotaRefresh(account: KeyVaultAccount): boolean {
       );
     case CLI_AGENT.OPENCODE:
       return account.hasKey;
+    // Zhipu (GLM Coding Plan) exposes a quota API; pay-as-you-go keys still
+    // resolve to a "Pay-as-you-go" QuotaInfo (no bar) rather than an error.
+    case "zhipu_api":
+      return account.hasApiKey;
     default:
       return false;
   }
@@ -335,7 +339,7 @@ const AccountInlineExpandedCard: React.FC<AccountInlineExpandedCardProps> = ({
   const tabContent = useMemo(() => {
     switch (effectiveActiveTab) {
       case ACCOUNT_INLINE_TAB.STATUS:
-        return <AccountInlineStatusSection account={account} />;
+        return <AccountInlineDetails account={account} />;
       case ACCOUNT_INLINE_TAB.EDIT:
         if (!showEditTab) return null;
         return <AccountInlineEditBody state={editState} />;
@@ -420,8 +424,7 @@ const AccountInlineExpandedCard: React.FC<AccountInlineExpandedCardProps> = ({
           state={editState}
           onCancel={handleEditCancel}
         />
-      ) : effectiveActiveTab === ACCOUNT_INLINE_TAB.STATUS &&
-        (showQuotaRefresh || showModelRefresh) ? (
+      ) : effectiveActiveTab === ACCOUNT_INLINE_TAB.STATUS ? (
         <AccountInlineActionsBar
           account={account}
           refreshLabel={t("keyVault.quota.refreshUsage")}

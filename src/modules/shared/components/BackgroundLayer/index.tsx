@@ -10,14 +10,14 @@
  * - Trusts cached images immediately (no redundant Image() preload)
  * - Only preloads truly new/uncached images (e.g., user just selected a new background)
  */
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { createLogger } from "@src/hooks/logger";
 import {
   addToBackgroundCache,
   backgroundImageCache,
 } from "@src/util/core/init/backgroundInit";
-import { isWindows } from "@src/util/platform/tauri";
+import { isMacOS, isWindows } from "@src/util/platform/tauri";
 
 const log = createLogger("BackgroundLayer");
 
@@ -26,6 +26,8 @@ interface BackgroundLayerProps {
   blurAmount: number;
   backgroundColor?: string;
   glass?: "regular" | "medium" | "thick";
+  /** Width reserved for native macOS sidebar material. */
+  sidebarInset?: number;
 }
 
 export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
@@ -33,6 +35,7 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
   blurAmount,
   backgroundColor,
   glass,
+  sidebarInset = 0,
 }) => {
   const [displayedImage, setDisplayedImage] = useState<string | null>(() => {
     if (!image) return null;
@@ -75,6 +78,15 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
 
   // If backgroundColor is set and no image, use solid color
   const useColorBackground = backgroundColor && !displayedImage;
+  const nativeSidebarInset = isMacOS() ? Math.max(0, sidebarInset) : 0;
+  const frameStyle = useMemo<React.CSSProperties>(
+    () => ({
+      left: nativeSidebarInset,
+      right: 0,
+      height: "100vh",
+    }),
+    [nativeSidebarInset]
+  );
 
   if (isWindows()) {
     return (
@@ -86,29 +98,23 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
     );
   }
 
-  // Glass mode: render a 30% bg-2 tint behind the native glass effect
-  if (glass != null) {
-    return (
-      <div
-        data-background-layer="true"
-        className="absolute left-0 top-0 z-0 bg-bg-2"
-        style={{ width: "100vw", height: "100vh", opacity: 0.5 }}
-      />
-    );
-  }
-
   return (
-    <>
-      {/* Base background layer - absolute with explicit viewport height */}
+    <div
+      className="pointer-events-none absolute top-0 z-0 overflow-hidden"
+      style={frameStyle}
+      data-background-layer-frame="true"
+    >
       <div
         data-background-layer="true"
-        className="absolute left-0 top-0 z-0"
+        className={`absolute inset-0 ${glass != null ? "bg-bg-2" : ""}`}
         style={{
-          width: "100vw",
-          height: "100vh",
-          backgroundColor: useColorBackground ? backgroundColor : undefined,
+          width: "100%",
+          height: "100%",
+          opacity: glass != null ? 0.5 : undefined,
+          backgroundColor:
+            glass == null && useColorBackground ? backgroundColor : undefined,
           backgroundImage:
-            displayedImage && !backgroundColor
+            glass == null && displayedImage && !backgroundColor
               ? `url(${displayedImage})`
               : "none",
           backgroundSize: "cover",
@@ -121,6 +127,6 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
           willChange: "transform",
         }}
       />
-    </>
+    </div>
   );
 };

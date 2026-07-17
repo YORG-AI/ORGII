@@ -25,33 +25,27 @@
  * un-maximize actions taken while narrow are preserved across the
  * next resize.
  *
- * Width sources (two of them, switched on the maximized flag):
+ * Width sources (two of them, switched on direct manipulation):
  *
- * - Normal layout: `[data-workbench-surface]` is the children-wrapping
- *   div, sized exactly to the visible workbench. Its
- *   `contentRect.width` IS the workbench width.
+ * - While the user drags the chat divider, `[data-workbench-surface]`
+ *   provides the live width because the CSS variable intentionally leads
+ *   the persisted chat-width atom.
  *
- * - Maximized layout: the workbench surface is forcibly collapsed to
- *   `w-0` by `AppLayout` so any inline native webview hosted inside
- *   it shrinks to a zero-area frame (WKWebViews are window-level
- *   sibling NSViews, not DOM children, so this is the only way to
- *   keep them mounted without painting through the React chat
- *   panel). The element's measured width is therefore ~0 and would
- *   immediately trip the restore branch, creating a feedback loop.
- *   So while maximized we compute the *projected* workbench width
- *   from `[data-main-content].contentRect.width - chatWidth`, which
- *   models "what the workbench width would be if chat were docked
- *   normally". Stable across maximize toggles.
+ * - At rest or during programmatic pane motion, derive the projected target
+ *   width from `[data-main-content].contentRect.width - chatWidth`. This
+ *   keeps animated intermediate widths from looking like a genuine narrow
+ *   viewport while still shrinking inline native webviews with the real
+ *   flex track.
  */
 import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useRef } from "react";
 
 import {
+  chatPanelDraggingAtom,
   chatPanelMaximizedAtom,
   chatVisibleAtom,
   chatWidthAtom,
 } from "@src/store/ui/chatPanelAtom";
-import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 
 /**
  * Below this *workbench* width the chat panel takes over the entire
@@ -91,11 +85,42 @@ interface UseNarrowChatFocusOptions {
   enabled: boolean;
 }
 
+interface ResolveWorkbenchEvaluationWidthOptions {
+  chatPanelDragging: boolean;
+  chatPanelMaximized: boolean;
+  chatVisible: boolean;
+  chatWidth: number;
+  mainContentWidth: number;
+  measuredWorkbenchWidth: number;
+}
+
+/**
+ * Use the target normal-flow width for programmatic pane motion so the
+ * intermediate animation frames do not look like a genuine narrow layout.
+ * During direct manipulation, keep reading the measured workbench because
+ * the live CSS width intentionally leads the persisted chat-width atom.
+ */
+export function resolveWorkbenchEvaluationWidth({
+  chatPanelDragging,
+  chatPanelMaximized,
+  chatVisible,
+  chatWidth,
+  mainContentWidth,
+  measuredWorkbenchWidth,
+}: ResolveWorkbenchEvaluationWidthOptions): number {
+  if (chatPanelDragging && !chatPanelMaximized) {
+    return measuredWorkbenchWidth;
+  }
+
+  const chatSlice = chatVisible ? chatWidth : 0;
+  return Math.max(0, mainContentWidth - chatSlice);
+}
+
 export function useNarrowChatFocus({
   enabled,
 }: UseNarrowChatFocusOptions): void {
-  const stationMode = useAtomValue(stationModeAtom);
   const chatPanelMaximized = useAtomValue(chatPanelMaximizedAtom);
+  const chatPanelDragging = useAtomValue(chatPanelDraggingAtom);
   const chatWidth = useAtomValue(chatWidthAtom);
   const chatVisible = useAtomValue(chatVisibleAtom);
   const setChatPanelMaximized = useSetAtom(chatPanelMaximizedAtom);
@@ -116,16 +141,16 @@ export function useNarrowChatFocus({
   // Latest atom values for the observer callbacks to read without
   // re-subscribing on every render. Mirrored in an effect so the
   // ref write happens after render (react-hooks/refs lint rule).
-  const stationModeRef = useRef(stationMode);
   const chatPanelMaximizedRef = useRef(chatPanelMaximized);
+  const chatPanelDraggingRef = useRef(chatPanelDragging);
   const chatWidthRef = useRef(chatWidth);
   const chatVisibleRef = useRef(chatVisible);
   useEffect(() => {
-    stationModeRef.current = stationMode;
     chatPanelMaximizedRef.current = chatPanelMaximized;
+    chatPanelDraggingRef.current = chatPanelDragging;
     chatWidthRef.current = chatWidth;
     chatVisibleRef.current = chatVisible;
-  }, [stationMode, chatPanelMaximized, chatWidth, chatVisible]);
+  }, [chatPanelDragging, chatPanelMaximized, chatWidth, chatVisible]);
 
   // Last observed measurements. Cached so atom-driven re-evaluations
   // (chat width slider, chat visibility toggle, maximize toggle) can
@@ -147,17 +172,14 @@ export function useNarrowChatFocus({
     let lookupTimer: ReturnType<typeof setInterval> | null = null;
 
     const computeWorkbenchWidth = (): number => {
-      // When maximized, AppLayout collapses the workbench surface to
-      // `w-0` (so inline NSView webviews shrink with it), so its
-      // measured width is ~0. Project from main-content minus the
-      // docked chat slice instead — this models "what the workbench
-      // width would be if chat were docked normally" and keeps the
-      // narrow→wide edge stable across maximize toggles.
-      if (chatPanelMaximizedRef.current) {
-        const slice = chatVisibleRef.current ? chatWidthRef.current : 0;
-        return Math.max(0, mainContentWidthRef.current - slice);
-      }
-      return workbenchWidthRef.current;
+      return resolveWorkbenchEvaluationWidth({
+        chatPanelDragging: chatPanelDraggingRef.current,
+        chatPanelMaximized: chatPanelMaximizedRef.current,
+        chatVisible: chatVisibleRef.current,
+        chatWidth: chatWidthRef.current,
+        mainContentWidth: mainContentWidthRef.current,
+        measuredWorkbenchWidth: workbenchWidthRef.current,
+      });
     };
 
     const evaluate = () => {
@@ -167,15 +189,10 @@ export function useNarrowChatFocus({
       const isNarrow = width < NARROW_CHAT_FOCUS_BREAKPOINT_PX;
       const wasNarrow = wasNarrowRef.current;
       wasNarrowRef.current = isNarrow;
-      const mode = stationModeRef.current;
       const maximized = chatPanelMaximizedRef.current;
 
       if (isNarrow && wasNarrow !== true) {
         if (maximized) return;
-        // Ops Control hides the chat panel entirely (Kanban surface);
-        // surprise-maximizing it on narrow would reveal a panel the
-        // user explicitly switched away from. Leave it alone.
-        if (mode === "ops-control") return;
         setChatPanelMaximized(true);
         autoTriggeredRef.current = true;
         return;
@@ -254,9 +271,14 @@ export function useNarrowChatFocus({
       return;
     }
 
-    const width = chatPanelMaximized
-      ? Math.max(0, mainContentWidthRef.current - (chatVisible ? chatWidth : 0))
-      : workbenchWidthRef.current;
+    const width = resolveWorkbenchEvaluationWidth({
+      chatPanelDragging,
+      chatPanelMaximized,
+      chatVisible,
+      chatWidth,
+      mainContentWidth: mainContentWidthRef.current,
+      measuredWorkbenchWidth: workbenchWidthRef.current,
+    });
 
     if (width <= 0) return;
 
@@ -266,7 +288,6 @@ export function useNarrowChatFocus({
 
     if (isNarrow && wasNarrow !== true) {
       if (chatPanelMaximized) return;
-      if (stationMode === "ops-control") return;
       setChatPanelMaximized(true);
       autoTriggeredRef.current = true;
       return;
@@ -280,9 +301,9 @@ export function useNarrowChatFocus({
     }
   }, [
     enabled,
+    chatPanelDragging,
     chatWidth,
     chatVisible,
-    stationMode,
     chatPanelMaximized,
     setChatPanelMaximized,
   ]);

@@ -33,16 +33,11 @@ export type WorkStationTabType =
   | "search" // Repository-wide search tab
   | "lint-scan" // Workspace lint scan configuration
   | "ai-impact" // AI session impact dashboard
+  | "search-sessions" // Session search + table (reuses SessionTable; launchpad tab)
   | "benchmark" // Benchmark task browser and runner setup
   | "url-preview" // URL preview (agent-triggered webview in editor)
-  // Database Explorer tabs
-  | "table"
-  | "query"
-  | "schema"
-  | "add-connection"
   // Browser tabs
   | "browser-session"
-  | "token-category"
   /** DevTools right panel (Elements / Console / Network) */
   | "devtools"
   // Project Manager tabs
@@ -63,12 +58,14 @@ export type WorkStationTabType =
   // view inside the Code Editor surface (opened from the Agent Teams page
   // table rows; mirrors how skills are previewed).
   | "agent-config"
-  // Ops Control station tabs
-  | "ops-control-station"
   // Canvas preview tab — renders agent-generated canvas from canvasPreviewAtom
   | "canvas-preview"
   // GitHub Issues detail tab — opened from the sidebar Issues panel
-  | "github-issue-detail";
+  | "github-issue-detail"
+  // GitHub Pull Request detail tab — opened from Kanban PR rows
+  | "github-pr-detail"
+  // Start page — the launcher shown when nothing else is open
+  | "start";
 
 // ============================================
 // Tab Types
@@ -99,6 +96,7 @@ export type WorkStationTabCategory =
   | "settings"
   | "lint"
   | "ai-impact"
+  | "search-sessions"
   | "benchmark"
   | "preview"
   | "subagent"
@@ -109,7 +107,6 @@ export type WorkStationTabCategory =
   | "db-schema"
   | "browser"
   | "project"
-  | "ops-control"
   | "launchpad";
 
 export const TAB_RETURN_TARGET_DATA_KEY = "returnTabId";
@@ -186,28 +183,6 @@ export interface TimelineDiffCommitInfo {
   message: string;
   author: string;
   timestamp: string;
-}
-
-// ============================================
-// Database Tab Data Types
-// ============================================
-
-/**
- * Data stored in table tabs
- */
-export interface TableTabData {
-  connectionId: string;
-  tableName: string;
-  connectionName?: string;
-}
-
-/**
- * Data stored in query tabs
- */
-export interface QueryTabData {
-  connectionId: string;
-  connectionName?: string;
-  queryText?: string;
 }
 
 // ============================================
@@ -419,15 +394,10 @@ export const TOOL_TAB_TYPES = [
   "search",
   "lint-scan",
   "ai-impact",
+  "search-sessions",
   "url-preview",
-  // Database tabs
-  "table",
-  "query",
-  "schema",
-  "add-connection",
   // Browser tabs
   "browser-session",
-  "token-category",
   // Project Manager tabs
   "project-dashboard",
   "project-work-items",
@@ -441,9 +411,12 @@ export const TOOL_TAB_TYPES = [
   "chat-session",
   "subagent-detail",
   "agent-config",
-  "ops-control-station",
   // GitHub Issues detail
   "github-issue-detail",
+  // GitHub Pull Request detail
+  "github-pr-detail",
+  // Start page launcher
+  "start",
 ] as const;
 
 export type FileTabType = (typeof FILE_TAB_TYPES)[number];

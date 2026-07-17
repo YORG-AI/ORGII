@@ -86,6 +86,7 @@ pub async fn read_project(slug: &str) -> Result<String, String> {
 pub async fn create_project(
     name: &str,
     description: &str,
+    org_id: Option<&str>,
     status: Option<&str>,
     priority: Option<&str>,
     health: Option<&str>,
@@ -97,6 +98,9 @@ pub async fn create_project(
     target_date: Option<&str>,
 ) -> Result<String, String> {
     let name = name.to_string();
+    let org_id = org_id
+        .filter(|value| !value.trim().is_empty())
+        .map(String::from);
     let description = description.to_string();
     let status = status.unwrap_or("backlog").to_string();
     let priority = priority.unwrap_or("none").to_string();
@@ -114,11 +118,29 @@ pub async fn create_project(
             return Err("Cannot create project: name produces empty slug".to_string());
         }
 
+        let org_id = match org_id {
+            Some(requested) if requested != "personal-org" => {
+                let orgs = io::read_project_orgs()?;
+                if !orgs.iter().any(|org| org.id == requested) {
+                    return Err(format!(
+                        "Unknown org_id '{}'. Available orgs: {}",
+                        requested,
+                        orgs.iter()
+                            .map(|org| format!("{} ({})", org.id, org.name))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                }
+                requested
+            }
+            _ => "personal-org".to_string(),
+        };
+
         let now = now_iso();
         let meta = ProjectMeta {
             id: format!("project-{}", slug),
             name: name.clone(),
-            org_id: "personal-org".to_string(),
+            org_id,
             status,
             priority,
             health,

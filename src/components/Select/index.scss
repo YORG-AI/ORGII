@@ -101,11 +101,11 @@
 }
 
 .select-ghost:hover:not(.select-disabled) .select-selector {
-  background: var(--color-surface-hover);
+  background: var(--select-ghost-hover-bg, var(--color-surface-hover));
 }
 
 .select-ghost.select-open .select-selector {
-  background: var(--color-fill-2);
+  background: var(--select-ghost-open-bg, var(--color-fill-2));
 }
 
 .select-ghost .select-suffix {

@@ -136,6 +136,81 @@ fn sanitize_todo_text(value: &str) -> String {
     }
 }
 
+fn sanitize_required_todo_content(value: &str, idx: usize) -> Result<String, ToolError> {
+    let content = sanitize_todo_text(value);
+    if content.is_empty() {
+        return Err(ToolError::InvalidParams(format!(
+            "Todo {} has empty 'content'",
+            idx
+        )));
+    }
+    Ok(content)
+}
+
+fn optional_string_param<'a>(params: &'a Value, key: &str) -> Result<Option<&'a str>, ToolError> {
+    match params.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::String(value)) => Ok(Some(value)),
+        Some(_) => Err(ToolError::InvalidParams(format!(
+            "'{key}' must be a string or null"
+        ))),
+    }
+}
+
+fn optional_index_array(params: &Value, key: &str) -> Result<Option<Vec<usize>>, ToolError> {
+    let Some(value) = params.get(key) else {
+        return Ok(None);
+    };
+    if value.is_null() {
+        return Ok(None);
+    }
+
+    let values = value.as_array().ok_or_else(|| {
+        ToolError::InvalidParams(format!("'{key}' must be an array of non-negative integers"))
+    })?;
+    values
+        .iter()
+        .enumerate()
+        .map(|(index, value)| {
+            let value = value.as_u64().ok_or_else(|| {
+                ToolError::InvalidParams(format!("'{key}[{index}]' must be a non-negative integer"))
+            })?;
+            usize::try_from(value)
+                .map_err(|_| ToolError::InvalidParams(format!("'{key}[{index}]' is too large")))
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(Some)
+}
+
+fn todo_update_from_params(params: &Value) -> Result<TodoUpdate, ToolError> {
+    let content = optional_string_param(params, "content")?
+        .map(|value| {
+            let sanitized = sanitize_todo_text(value);
+            if sanitized.is_empty() {
+                return Err(ToolError::InvalidParams(
+                    "'content' cannot be empty; omit it to leave the title unchanged".into(),
+                ));
+            }
+            Ok(sanitized)
+        })
+        .transpose()?;
+
+    // The outer Option distinguishes "leave unchanged" from an explicit
+    // clear; the inner Option is the value persisted on the todo record.
+    let active_form = optional_string_param(params, "activeForm")?.map(|value| {
+        let sanitized = sanitize_todo_text(value);
+        (!sanitized.is_empty()).then_some(sanitized)
+    });
+
+    Ok(TodoUpdate {
+        content,
+        active_form,
+        status: optional_string_param(params, "status")?.map(str::to_owned),
+        priority: optional_string_param(params, "priority")?.map(str::to_owned),
+        blocked_by: optional_index_array(params, "blockedBy")?,
+    })
+}
+
 #[async_trait]
 impl Tool for TodoTool {
     fn name(&self) -> &str {
@@ -178,6 +253,7 @@ Skip this tool when:\n\
 ## Task Management Rules\n\
 - Exactly ONE task must be in_progress at a time (not zero, not two)\n\
 - Mark tasks completed IMMEDIATELY after finishing — don't batch completions\n\
+- When updating only status or priority, omit `content`; never pass an empty title\n\
 - ONLY mark completed when you have FULLY accomplished the task. If tests fail, implementation is partial, or errors remain, keep it in_progress and create a follow-up task describing the blocker.\n\
 - Remove tasks that are no longer relevant (status=cancelled or a full rewrite)\n\
 - Use `blockedBy` when tasks have clear sequential dependencies so you always pick up the next unblocked task\n\n\
@@ -210,6 +286,7 @@ Skip this tool when:\n\
                         "properties": {
                             "content": {
                                 "type": "string",
+                                "minLength": 1,
                                 "description": "Imperative-form title (e.g. \"Run tests\")"
                             },
                             "activeForm": {
@@ -239,7 +316,8 @@ Skip this tool when:\n\
                 },
                 "content": {
                     "type": "string",
-                    "description": "Optional for update. New imperative-form title."
+                    "minLength": 1,
+                    "description": "Optional for update. New imperative-form title. Omit to keep the existing title; never pass an empty string."
                 },
                 "activeForm": {
                     "type": "string",
@@ -334,10 +412,14 @@ impl TodoTool {
 
         let mut records: Vec<TodoRecord> = Vec::with_capacity(todos_raw.len());
         for (idx, todo) in todos_raw.iter().enumerate() {
-            let content =
-                sanitize_todo_text(todo.get("content").and_then(|v| v.as_str()).ok_or_else(
-                    || ToolError::InvalidParams(format!("Todo {} missing 'content'", idx)),
-                )?);
+            let content = sanitize_required_todo_content(
+                todo.get("content")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| {
+                        ToolError::InvalidParams(format!("Todo {} missing 'content'", idx))
+                    })?,
+                idx,
+            )?;
             let active_form = todo
                 .get("activeForm")
                 .and_then(|v| v.as_str())
@@ -353,15 +435,7 @@ impl TodoTool {
                 .and_then(|v| v.as_str())
                 .unwrap_or("medium")
                 .to_string();
-            let blocked_by = todo
-                .get("blockedBy")
-                .and_then(|v| v.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|v| v.as_u64().map(|n| n as usize))
-                        .collect()
-                })
-                .unwrap_or_default();
+            let blocked_by = optional_index_array(todo, "blockedBy")?.unwrap_or_default();
             records.push(TodoRecord {
                 content,
                 active_form,
@@ -392,40 +466,10 @@ impl TodoTool {
             .ok_or_else(|| ToolError::InvalidParams("'update' requires integer 'index'".into()))?
             as usize;
 
-        let patch = TodoUpdate {
-            content: params
-                .get("content")
-                .and_then(|v| v.as_str())
-                .map(sanitize_todo_text),
-            // Empty string clears `activeForm` (stored as None); a missing
-            // key leaves it untouched. The outer Option distinguishes the
-            // two, the inner Option is the stored value.
-            active_form: params.get("activeForm").map(|v| {
-                v.as_str().and_then(|s| {
-                    if s.is_empty() {
-                        None
-                    } else {
-                        Some(sanitize_todo_text(s))
-                    }
-                })
-            }),
-            status: params
-                .get("status")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string()),
-            priority: params
-                .get("priority")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string()),
-            blocked_by: params
-                .get("blockedBy")
-                .and_then(|v| v.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|v| v.as_u64().map(|n| n as usize))
-                        .collect()
-                }),
-        };
+        // Empty string clears `activeForm` (stored as None); a missing key or
+        // null leaves it untouched. Empty todo titles are rejected so a
+        // provider-generated placeholder cannot erase the visible task.
+        let patch = todo_update_from_params(params)?;
 
         let sid = session_id.clone();
         let patch_clone = patch.clone();
@@ -604,7 +648,10 @@ fn broadcast_todos(session_id: &str, records: &[TodoRecord]) {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_embedded_todo_array, sanitize_todo_text};
+    use super::{
+        parse_embedded_todo_array, sanitize_required_todo_content, sanitize_todo_text,
+        todo_update_from_params,
+    };
 
     #[test]
     fn sanitize_todo_text_replaces_standalone_internal_plan_artifacts() {
@@ -627,6 +674,77 @@ mod tests {
         assert_eq!(
             sanitize_todo_text("Implement tasks from `.orgii/plans/foo.plan.md`"),
             "Implement tasks from `approved plan`"
+        );
+    }
+
+    #[test]
+    fn sanitize_required_todo_content_rejects_empty_after_trim() {
+        let err = sanitize_required_todo_content("   ", 3).unwrap_err();
+        assert!(
+            err.to_string().contains("Todo 3 has empty 'content'"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn nullable_update_placeholders_leave_fields_untouched() {
+        let patch = todo_update_from_params(&serde_json::json!({
+            "content": null,
+            "activeForm": null,
+            "status": "completed",
+            "priority": null,
+            "blockedBy": null
+        }))
+        .expect("nullable strict-schema placeholders should parse");
+
+        assert_eq!(patch.content, None);
+        assert_eq!(patch.active_form, None);
+        assert_eq!(patch.status.as_deref(), Some("completed"));
+        assert_eq!(patch.priority, None);
+        assert_eq!(patch.blocked_by, None);
+    }
+
+    #[test]
+    fn explicit_empty_active_form_clears_but_empty_content_is_rejected() {
+        let patch = todo_update_from_params(&serde_json::json!({
+            "activeForm": "   "
+        }))
+        .expect("blank activeForm is an explicit clear");
+        assert_eq!(patch.active_form, Some(None));
+
+        assert!(todo_update_from_params(&serde_json::json!({
+            "content": ""
+        }))
+        .is_err());
+    }
+
+    #[test]
+    fn malformed_update_fields_are_rejected_instead_of_silently_ignored() {
+        for params in [
+            serde_json::json!({ "status": 1 }),
+            serde_json::json!({ "priority": false }),
+            serde_json::json!({ "blockedBy": "0" }),
+            serde_json::json!({ "blockedBy": [0, -1] }),
+        ] {
+            assert!(
+                todo_update_from_params(&params).is_err(),
+                "params: {params}"
+            );
+        }
+    }
+
+    #[test]
+    fn parameters_require_non_empty_todo_content_when_present() {
+        let tool = super::TodoTool::new(std::sync::Arc::new(super::TodoSessionContext::new()));
+        let parameters = crate::tools::traits::Tool::parameters(&tool);
+
+        assert_eq!(
+            parameters.pointer("/properties/todos/items/properties/content/minLength"),
+            Some(&serde_json::json!(1))
+        );
+        assert_eq!(
+            parameters.pointer("/properties/content/minLength"),
+            Some(&serde_json::json!(1))
         );
     }
 

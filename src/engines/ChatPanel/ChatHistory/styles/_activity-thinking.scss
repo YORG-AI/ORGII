@@ -17,12 +17,12 @@
   border: 1px solid var(--color-border-2);
 
   // Font size one smaller than chat font size
-  font-size: calc(var(--chat-font-size, $font-size-fallback) - 2px);
+  font-size: calc(var(--chat-font-size, $font-size-fallback) - 1px);
   color: var(--color-text-4);
 
   svg {
-    width: calc(var(--chat-font-size, $font-size-fallback) - 2px);
-    height: calc(var(--chat-font-size, $font-size-fallback) - 2px);
+    width: calc(var(--chat-font-size, $font-size-fallback) - 1px);
+    height: calc(var(--chat-font-size, $font-size-fallback) - 1px);
     color: var(--color-text-4);
     flex-shrink: 0;
     // Align with first line of text (line-height based offset)

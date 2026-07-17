@@ -31,10 +31,6 @@
     "closeCanvas": "キャンバスを閉じる",
     "generatingCanvas": "キャンバスを生成中…",
     "noContent": "コンテンツがありません",
-    "noIssueSelected": "Issue が選択されていません",
-    "selectIssueHint": "サイドバーの Issues パネルから Issue を選択してください。",
-    "noPrSelected": "Pull request が選択されていません",
-    "selectPrHint": "サイドバーの Pull request パネルから Pull request を選択してください。",
     "reload": "再読み込み",
     "urlPreviewRequiresTauri": "URL プレビューには Tauri が必要です",
     "openInExternalBrowser": "代わりに外部ブラウザーで開いてください",
@@ -78,6 +74,11 @@
       "other": "シークレット"
     }
   },
+  "secretScan": {
+    "title": "シークレットの可能性を検出しました",
+    "message": "このメッセージには機密性の高い認証情報が含まれているようです：\n\n{{items}}\n\n送信すると、シークレットがチャット履歴に保存され、モデルに送信されます。それでも送信しますか？",
+    "sendAnyway": "それでも送信"
+  },
   "actions": {
     "save": "保存",
     "cancel": "キャンセル",
@@ -107,6 +108,7 @@
     "retry": "再試行",
     "regenerate": "再生成",
     "refresh": "更新",
+    "rescan": "再スキャン",
     "reload": "再読み込み",
     "reviewNextFile": "次のファイルをレビュー",
     "reviewPreviousFile": "前のファイルをレビュー",
@@ -206,9 +208,8 @@
     "openWorkspace": "Workspace を開く",
     "skipThisVersion": "このバージョンをスキップ",
     "later": "後で",
-    "updateAiBlame": "AI Blame を更新",
     "link": "リンク",
-    "fetchPr": "Fetch PR"
+    "copyName": "名前をコピー"
   },
   "refreshToast": {
     "successName": "{{name}} を更新しました",
@@ -410,7 +411,28 @@
     "nearby": "近く",
     "renowned": "著名",
     "dragToReorder": "ドラッグしてメッセージの順序を変更",
-    "sessionBlame": "Session Blame",
+    "sessionBlame": "セッションの帰属",
+    "sessionBlameSubagent": "サブエージェント: {{name}}",
+    "sessionBlameMainSession": "メインセッション",
+    "sessionBlameAction": {
+      "read": "読み取り",
+      "write": "書き込み",
+      "create": "作成",
+      "delete": "削除",
+      "rename": "名前変更",
+      "search": "検索"
+    },
+    "sessionBlamePrecision": {
+      "unknown": "信頼度不明",
+      "session_only": "セッションのみ",
+      "correlated": "関連付け済み",
+      "exact": "正確な帰属"
+    },
+    "sessionBlameBackfill": {
+      "indexing": "過去のセッションをインデックス中 {{indexed}}/{{total}}",
+      "partial": "履歴インデックスが不完全です（{{failed}} 件失敗）",
+      "failed": "過去のセッションのインデックス作成に失敗しました"
+    },
     "agentBlame": "Agent Blame",
     "initializeAgentBlame": "Initialize Agent Blame",
     "rescan": "Rescan",
@@ -428,7 +450,7 @@
     "orgtrackRebuildIndex": "Rebuild derived index",
     "orgtrackScanPhase": "Phase",
     "sessions": "Sessions",
-    "files": "Files",
+    "files": "ファイル",
     "commits": "Commits",
     "entries": "Entries",
     "records": "Records",
@@ -965,9 +987,7 @@
     "scanningFileExtensions": "Scanning file extensions...",
     "startBrowsingMarket": "Start browsing the marketplace",
     "previewUnavailable": "プレビューを利用できません",
-    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff.",
-    "fetchPrCommitToViewDiff": "Fetch PR to view this commit",
-    "prCommitMissingLocally": "This pull request commit is not available in your local repository yet."
+    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff."
   },
   "inbox": {
     "searchPlaceholder": "メッセージを検索...",
@@ -1020,6 +1040,10 @@
     "scanningFiles": "Scanning files...",
     "branchTooltip": "ブランチ: {{branch}}",
     "branchTooltipSwitching": "ブランチ: {{branch}}（切り替え中…）",
+    "switchWorkspaceTooltip": "Workspace を切り替え",
+    "switchWorktreeTooltip": "Worktree を切り替え",
+    "switchBranchTooltip": "ブランチを切り替え",
+    "gitActionsTooltip": "Git アクション",
     "switchToSessionRepo": "{{name}} に切り替え",
     "embeddingProgress": "Embedding: {{count}} チャンク処理済み",
     "embeddingProgressWithPercent": "Embedding: {{count}} チャンク処理済み ({{percent}}%)",
@@ -1032,6 +1056,7 @@
       "workspaceSection": "Workspace",
       "externalSection": "外部",
       "tooltip": "ポート: Workspace {{workspace}}、外部 {{external}}",
+      "viewPortsTooltip": "使用中のポートを表示",
       "noWorkspacePorts": "Workspace ポートは検出されませんでした",
       "externalLabel": "外部",
       "unknownProcess": "不明なプロセス",
@@ -1151,9 +1176,9 @@
       "tokenLabel": "Personal access token",
       "tokenRequired": "Token は必須です",
       "createTokenButton": "Token を作成",
-      "openGitSettingsButton": "Git 設定を開く",
+      "openGitSettingsButton": "設定を開く",
       "configureInSettings": "設定で Git を構成",
-      "configureInSettingsDesc": "設定 → 連携 → Git で GitHub App アクセスの追加、token の保存、またはローカル認証情報のスキャンを行い、その後この Git 操作を再試行してください。"
+      "configureInSettingsDesc": "設定 → 接続 で GitHub App アクセスの追加、token の保存、またはローカル認証情報のスキャンを行い、その後この Git 操作を再試行してください。"
     },
     "actions": {
       "publish": "Publish",
@@ -1360,7 +1385,9 @@
         "delete": "削除",
         "deleteTemplate": "{branch} を削除",
         "createSessionWith": "セッション Branch を切り替え",
-        "createSessionWithTemplate": "セッション Branch を {branch} に切り替え"
+        "createSessionWithTemplate": "セッション Branch を {branch} に切り替え",
+        "switchWorktree": "Worktree を切り替え",
+        "switchWorktreeTemplate": "{worktree} に切り替え"
       },
       "actions": {
         "createNew": "新しいブランチを作成",
@@ -1371,7 +1398,8 @@
         "refresh": "ブランチを更新",
         "checkoutDetachedSuccess": "detached HEAD 状態になりました（現在のコミット）",
         "checkoutDetachedFailed": "detached HEAD へのチェックアウトに失敗しました",
-        "removeWorktree": "Worktree を削除"
+        "removeWorktree": "Worktree を削除",
+        "newWorktree": "新規 Worktree..."
       },
       "messages": {
         "deletedCount_one": "{{count}} 件のブランチを削除しました",
@@ -1386,7 +1414,9 @@
         "basedOn": "ベース",
         "worktrees": "Worktrees",
         "worktreeInUse": "使用中",
-        "checkedOutInWorktree": "Worktree でチェックアウト済み: {{path}}"
+        "checkedOutInWorktree": "Worktree でチェックアウト済み: {{path}}",
+        "mainWorktreeSection": "メイン Worktree",
+        "linkedWorktrees": "リンク済み Worktree"
       },
       "placeholders": {
         "checkout": "ブランチ",
@@ -1495,7 +1525,8 @@
         "workspace": "検索またはフォルダパスを入力",
         "branch": "ブランチを検索...",
         "source": "ソースを検索...",
-        "actions": "アクションを検索..."
+        "actions": "アクションを検索...",
+        "worktree": "Worktree を検索..."
       },
       "groups": {
         "agentSession": "Agent セッション",
@@ -1526,6 +1557,11 @@
           "label": "Agent セッションを検索",
           "pillLabel": "セッションを検索",
           "placeholder": "Agent セッションを検索..."
+        },
+        "searchAllSessions": {
+          "label": "Search across all sessions",
+          "pillLabel": "Search All Sessions",
+          "placeholder": "Search across all sessions..."
         },
         "switchWorkspace": {
           "label": "Workspace を切り替え"
@@ -1624,11 +1660,8 @@
     "chatRight": "右チャット",
     "pageSettings": "ページ設定",
     "pageLayout": "ページレイアウト",
-    "layoutMode": "レイアウトモード",
     "inset": "インセット",
     "full": "フル",
-    "compact": "コンパクト",
-    "comfort": "快適",
     "theme": "テーマ",
     "primaryPanel": "サイドバー",
     "sidebarPosition": "サイドバーの位置",
@@ -1687,15 +1720,13 @@
     "disableChatPagination": "チャットのページ分割をオフにする",
     "useModelPickerSpotlight": "Spotlight モデル選択を使う",
     "useModelPickerDropdown": "ドロップダウンモデル選択を使う",
-    "useCompactWorkstationLayout": "コンパクトな Workstation レイアウトを使う",
-    "useComfortWorkstationLayout": "ゆったりした Workstation レイアウトを使う",
     "moveWorkstationSidebarLeft": "Workstation サイドバーを左に移動",
     "moveWorkstationSidebarRight": "Workstation サイドバーを右に移動",
     "enableDockAutoHide": "Workstation Dock を自動的に隠す",
     "disableDockAutoHide": "Workstation Dock を常に表示",
     "openMyStation": "My Station に移動",
     "openAgentStation": "Agent Station に移動",
-    "openOpsControl": "Ops Control に移動",
+    "openKanban": "Kanban に移動",
     "changeLanguage": "言語を変更",
     "switchToSystemTheme": "システムテーマに従う",
     "detectUpdate": "アップデートを確認",
@@ -1860,15 +1891,6 @@
     "lastActive": "最終アクティブ: {{date}}",
     "activeNow": "アクティブ中: {{ides}}",
     "active": "アクティブ",
-    "tabs": {
-      "activity": "アクティビティ",
-      "focus": "集中",
-      "languages": "言語",
-      "heatmap": "ヒートマップ",
-      "ide": "IDE",
-      "cursor": "Cursor",
-      "cli": "CLI"
-    },
     "cliSessions": "AI CLI セッション",
     "cliPrompt": "プロンプト",
     "cliMessages": "メッセージ",
@@ -1950,12 +1972,15 @@
     "removeWorktreeMessage": "ディスクから Worktree checkout を削除します。branch と commits は保持されます。",
     "removeWorktreeSuccess": "Worktree を削除しました",
     "removeWorktreeFailed": "Worktree の削除に失敗しました",
+    "emptyState": {
+      "viewSourceControl": "Source Control を表示",
+      "viewIssues": "Issues を表示",
+      "viewGitHistory": "Git 履歴を表示",
+      "viewPullRequests": "Pull Requests を表示"
+    },
     "pill": {
       "focus": "フォーカス",
       "allChanges": "すべての変更"
-    },
-    "sessionFilter": {
-      "allSessions": "すべてのセッション"
     }
   },
   "contextInfo": {

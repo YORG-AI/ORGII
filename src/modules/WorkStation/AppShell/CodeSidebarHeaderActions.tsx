@@ -6,7 +6,6 @@ import { useTranslation } from "react-i18next";
 import Button from "@src/components/Button";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
-import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import {
   PRIMARY_SIDEBAR_TABS,
   type PrimarySidebarTabKey,
@@ -14,7 +13,6 @@ import {
   workStationPrimarySidebarCollapsedPersistAtom,
   workStationPrimarySidebarTabAtom,
 } from "@src/store/ui/workStationAtom";
-import { opsControlPeekHostAtom } from "@src/store/workstation";
 import {
   type WorkStationTab,
   activeWorkStationTabAtom,
@@ -42,9 +40,11 @@ function usesFallbackCodeSidebar(tab: WorkStationTab | null): boolean {
   return (
     tab.type !== "agent-config" &&
     tab.type !== "github-issue-detail" &&
+    tab.type !== "github-pr-detail" &&
     tab.type !== "source-control" &&
     tab.type !== "terminal" &&
-    tab.type !== "benchmark"
+    tab.type !== "benchmark" &&
+    tab.type !== "search-sessions"
   );
 }
 
@@ -52,8 +52,6 @@ const CodeSidebarHeaderActionsComponent: React.FC = () => {
   const { t } = useTranslation("common");
   const activeApp = useAtomValue(activeStatusBarAppAtom);
   const activeTab = useAtomValue(activeWorkStationTabAtom);
-  const stationMode = useAtomValue(stationModeAtom);
-  const opsControlPeekHost = useAtomValue(opsControlPeekHostAtom);
   const [activeSidebarTab, setActiveSidebarTab] = useAtom(
     workStationPrimarySidebarTabAtom
   );
@@ -71,8 +69,6 @@ const CodeSidebarHeaderActionsComponent: React.FC = () => {
     [activeSidebarTab, setActiveSidebarTab, setSidebarCollapsed]
   );
 
-  if (stationMode === "ops-control" && opsControlPeekHost !== "code")
-    return null;
   if (activeApp !== "code" || !usesFallbackCodeSidebar(activeTab)) return null;
 
   return (

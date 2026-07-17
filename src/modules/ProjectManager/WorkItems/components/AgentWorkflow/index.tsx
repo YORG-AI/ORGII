@@ -60,6 +60,9 @@ interface AgentWorkflowProps {
   onRefresh?: () => void;
   activeAgentSessionId?: string | null;
   activeAgentRole?: AgentRole | null;
+  /** Collab execution lock held by a teammate (design §16.6). */
+  isLockedByOther?: boolean;
+  lockHolderName?: string | null;
 }
 
 const AgentWorkflow: React.FC<AgentWorkflowProps> = ({
@@ -81,6 +84,8 @@ const AgentWorkflow: React.FC<AgentWorkflowProps> = ({
   onRefresh,
   activeAgentSessionId,
   activeAgentRole,
+  isLockedByOther,
+  lockHolderName,
 }) => {
   const { t } = useTranslation("projects");
   const persistedPhase: OrchestratorPhase =
@@ -195,6 +200,8 @@ const AgentWorkflow: React.FC<AgentWorkflowProps> = ({
             executionLock={executionLock}
             onStartAgent={onStartAgent}
             isStartingAgent={isStartingAgent}
+            isLockedByOther={isLockedByOther}
+            lockHolderName={lockHolderName}
           />
         )}
         {ACTIVE_PHASES.has(phase) && (
@@ -206,6 +213,8 @@ const AgentWorkflow: React.FC<AgentWorkflowProps> = ({
             executionLock={isCompletedWorkItem ? null : executionLock}
             onStartAgent={onStartAgent}
             isStartingAgent={isStartingAgent}
+            isLockedByOther={isLockedByOther}
+            lockHolderName={lockHolderName}
           />
         )}
         {phase === "failed" && (

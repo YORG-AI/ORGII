@@ -1,10 +1,4 @@
 [workspace]
-# `crates/cursor-bridge` drives a running Cursor.app over the
-# Chrome DevTools Protocol exposed by `--remote-debugging-port=<port>`
-# so the user can submit prompts (start + follow-up) without leaving
-# this app. The lib is wired into the main `app` binary via the
-# `cursor_bridge` dep below; the probe binary
-# (`cursor-bridge-probe`) ships alongside as internal tooling.
 members = [
     ".",
     "crates/agent-cli",
@@ -22,8 +16,6 @@ members = [
     "crates/container",
     "crates/code-map",
     "crates/ui-indexer",
-    "crates/cursor-bridge",
-    "crates/cursor-bridge-app",
     "crates/database",
     "crates/db-browser",
     "crates/db-clients",
@@ -36,6 +28,7 @@ members = [
     "crates/key-vault",
     "crates/lsp",
     "crates/orgtrack-core",
+    "crates/orgtrack-protocol",
     "crates/orgtrack-graph",
     "crates/orgtrack-sync",
     "crates/perf-utils",
@@ -172,7 +165,6 @@ ignored = [
     "advanced_search",
     "agent_cli",
     "container",
-    "cursor_bridge_app",
     "db_browser",
     "db_clients",
 ]
@@ -212,12 +204,6 @@ portable-pty = "0.9"
 tokio = { workspace = true }
 uuid = { version = "1", features = ["v4"] }
 
-# Tauri-side wrapper around `cursor_bridge`: command handlers,
-# isolated probe-instance lifecycle, and `state.vscdb` diffing. Keeps its
-# `#[tauri::command]` macros in-crate (key-vault / git pattern); the
-# `app` crate just re-registers them in `commands/handler_list.inc`.
-cursor_bridge_app = { path = "crates/cursor-bridge-app" }
-
 # Shared cross-crate type definitions (Phase 1 of workspace migration).
 # See `docs/rust-backend/modularization-plan--0504.md`.
 core_types = { path = "crates/types" }
@@ -234,7 +220,8 @@ app_paths = { path = "crates/app-paths" }
 # `set_sensitive_file_permissions` chmod.
 app_utils = { path = "crates/app-utils" }
 
-# Native window helpers (macOS traffic-light positioning,
+# Native window helpers (macOS traffic-light positioning + liquid-glass
+# background,
 # Windows DWM rounded corners, "Open new window" /
 # "Recreate main window" flows). Used by `app::lib`, the macOS app menu,
 # and `browser::windows`. Synchronous Tauri operations only — no IoC
@@ -427,7 +414,7 @@ git_api = { path = "crates/git-api" }
 # Pure leaf — depends only on the underlying `search` engine crate.
 api_search = { path = "crates/api-search" }
 
-# Session-specific SQLite persistence: event cache (FTS5), branching,
+# Session-specific SQLite persistence: event cache, branching,
 # file-change aggregation, token usage. Owns ~23 `#[tauri::command]`s
 # that the `app` crate re-registers from `commands/handler_list.inc`
 # via the bare `session_persistence::…` path. Wires concrete impls
@@ -505,6 +492,9 @@ reqwest = { workspace = true }
 # of pulling both.
 tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "tls12", "ring"] }
 url = "2"                 # URL parsing for proxy routing
+# RFC3339 date formatting for updater metadata. Already in the graph via
+# tauri-plugin-updater, which exposes `Update.date` as a time::OffsetDateTime.
+time = { version = "0.3", features = ["formatting"] }
 
 # ===========================================
 # Performance Optimizations
@@ -552,6 +542,7 @@ windows = { version = "0.61", features = [
 ] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
+tauri-plugin-liquid-glass = "0.1.6"
 objc2 = { workspace = true }
 objc2-foundation = { workspace = true }
 objc2-app-kit = { workspace = true }

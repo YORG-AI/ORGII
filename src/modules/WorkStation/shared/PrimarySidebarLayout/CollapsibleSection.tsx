@@ -52,6 +52,8 @@ export interface CollapsibleSectionProps {
   /** Whether to show top border instead of bottom border (for global sections) */
   showTopBorder?: boolean;
   hideSeparator?: boolean;
+  /** Stable selector for automated interaction with the section toggle. */
+  headerTestId?: string;
 }
 
 // ============================================
@@ -73,6 +75,7 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = memo(
     autoHeight = false,
     showTopBorder = false,
     hideSeparator = false,
+    headerTestId,
   }) => {
     const effectiveCollapsed = collapsible ? collapsed : false;
 
@@ -133,6 +136,8 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = memo(
         {/* Header */}
         <div className={HEADER_CLASSES.sectionHeader}>
           <div
+            data-testid={headerTestId}
+            data-collapsed={effectiveCollapsed ? "true" : "false"}
             className={`flex min-w-0 flex-1 items-center gap-1.5 ${collapsible ? "cursor-pointer" : ""}`}
             onClick={handleToggle}
           >

@@ -12,8 +12,6 @@ import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import {
   sessionChatPositionAtom,
   workStationChatPositionAtom,
-  workStationDockAutoHidePersistAtom,
-  workStationInternalLayoutModePersistAtom,
   workStationLayoutModePersistAtom,
 } from "@src/store/ui/workStationAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
@@ -21,7 +19,6 @@ import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 const emptyParams = z.object({});
 
 type ChatPanelPosition = "left" | "right";
-type InternalLayoutMode = "comfort" | "compact";
 type ModelPickerStyle = "spotlight" | "dropdown";
 
 function showActiveStationChatIfNeeded(): void {
@@ -70,11 +67,6 @@ function setAgentStationChatPosition(position: ChatPanelPosition): void {
 function setModelPickerStyle(style: ModelPickerStyle): void {
   const store = getInstrumentedStore();
   store.set(modelPickerStyleAtom, style);
-}
-
-function setInternalLayoutMode(mode: InternalLayoutMode): void {
-  const store = getInstrumentedStore();
-  store.set(workStationInternalLayoutModePersistAtom, mode);
 }
 
 const chatPanelSetMyStationLeft = defineEmptyAction(
@@ -155,24 +147,6 @@ const chatPanelUseModelPickerDropdown = defineEmptyAction(
   () => setModelPickerStyle("dropdown")
 );
 
-const workstationSetComfortLayout = defineEmptyAction(
-  ACTION_ID.WORKSTATION_SET_COMFORT_LAYOUT,
-  "view",
-  "Use the comfort workstation layout density",
-  "Workstation layout set to comfort",
-  ["use comfort layout", "make workstation comfortable"],
-  () => setInternalLayoutMode("comfort")
-);
-
-const workstationSetCompactLayout = defineEmptyAction(
-  ACTION_ID.WORKSTATION_SET_COMPACT_LAYOUT,
-  "view",
-  "Use the compact workstation layout density",
-  "Workstation layout set to compact",
-  ["use compact layout", "make workstation compact"],
-  () => setInternalLayoutMode("compact")
-);
-
 const workstationSetSidebarLeft = defineEmptyAction(
   ACTION_ID.WORKSTATION_SET_SIDEBAR_LEFT,
   "view",
@@ -197,30 +171,6 @@ const workstationSetSidebarRight = defineEmptyAction(
   }
 );
 
-const workstationEnableDockAutoHide = defineEmptyAction(
-  ACTION_ID.WORKSTATION_ENABLE_DOCK_AUTO_HIDE,
-  "view",
-  "Enable Workstation dock auto-hide",
-  "Dock auto-hide enabled",
-  ["enable dock auto hide", "auto hide dock"],
-  () => {
-    const store = getInstrumentedStore();
-    store.set(workStationDockAutoHidePersistAtom, true);
-  }
-);
-
-const workstationDisableDockAutoHide = defineEmptyAction(
-  ACTION_ID.WORKSTATION_DISABLE_DOCK_AUTO_HIDE,
-  "view",
-  "Disable Workstation dock auto-hide",
-  "Dock auto-hide disabled",
-  ["disable dock auto hide", "keep dock visible"],
-  () => {
-    const store = getInstrumentedStore();
-    store.set(workStationDockAutoHidePersistAtom, false);
-  }
-);
-
 export const chatPanelZodActions = [
   chatPanelSetMyStationLeft,
   chatPanelSetMyStationRight,
@@ -230,12 +180,8 @@ export const chatPanelZodActions = [
   chatPanelDisablePagination,
   chatPanelUseModelPickerSpotlight,
   chatPanelUseModelPickerDropdown,
-  workstationSetComfortLayout,
-  workstationSetCompactLayout,
   workstationSetSidebarLeft,
   workstationSetSidebarRight,
-  workstationEnableDockAutoHide,
-  workstationDisableDockAutoHide,
 ];
 
 export const chatPanelActionRegistration =

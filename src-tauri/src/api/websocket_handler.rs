@@ -146,9 +146,11 @@ fn dispatch_to_channel_entries(
     channels: &mut Vec<RegisteredChannel>,
     message: &str,
 ) {
+    let mut delivered = false;
     for entry in channels.iter_mut() {
         if entry.channel.send(message.to_string()).is_ok() {
             entry.consecutive_failures = 0;
+            delivered = true;
         } else {
             entry.consecutive_failures += 1;
             if entry.consecutive_failures == 1 {
@@ -161,6 +163,13 @@ fn dispatch_to_channel_entries(
                 );
             }
         }
+    }
+    if delivered {
+        // Channel payloads are drained on the webview main thread; on macOS
+        // the idle main run loop may not wake for work queued from this
+        // background thread until the next user-input event ("UI frozen
+        // until the mouse moves"). Nudge it so delivery is immediate.
+        crate::infrastructure::main_runloop::wake_main_runloop();
     }
 
     channels.retain(|entry| {

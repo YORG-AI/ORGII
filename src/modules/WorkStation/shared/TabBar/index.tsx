@@ -42,7 +42,6 @@ import {
   COLLAPSED_SIDEBAR_CHROME_OFFSET,
   useShouldOffsetWorkStationTopBar,
 } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
-import { useIsCompactLayout } from "@src/modules/shared/layouts/useCompactLayout";
 import { CollapsedSidebarButton } from "@src/scaffold/NavigationSidebar/CollapsedSidebarButton";
 import { type GitFileInfo, gitFileStatusMapAtom } from "@src/store/git";
 import { tabScrollRevealAtom } from "@src/store/workstation/tabs";
@@ -159,10 +158,7 @@ const SortableTabList: React.FC<SortableTabListProps> = memo(
                   onCloseClick={onCloseClick}
                   onContextMenu={onContextMenu}
                   gitInfo={tabGitInfoMap.get(tab.id)}
-                  hideLabel={
-                    tab.pinned ||
-                    (hideInactiveTabLabels && tab.id !== activeTabId)
-                  }
+                  hideLabel={hideInactiveTabLabels && tab.id !== activeTabId}
                 />
               </NoDragRegion>
               {next && (
@@ -211,7 +207,6 @@ export const TabBar: React.FC<TabBarProps> = memo(
     const actionSystem = useActionSystemOptional();
     const dispatch = actionSystem?.dispatch;
     const shouldOffsetLeftChrome = useShouldOffsetWorkStationTopBar();
-    const isCompactLayout = useIsCompactLayout();
 
     const scrollReveal = useAtomValue(tabScrollRevealAtom);
     const gitStatusMap = useAtomValue(gitFileStatusMapAtom);
@@ -307,7 +302,7 @@ export const TabBar: React.FC<TabBarProps> = memo(
         data-tauri-drag-region
         style={
           {
-            height: `${TAB_BAR_HEIGHT + (isCompactLayout ? 8 : 0)}px`,
+            height: `${TAB_BAR_HEIGHT + 8}px`,
             paddingLeft: shouldOffsetLeftChrome
               ? COLLAPSED_SIDEBAR_CHROME_OFFSET
               : undefined,
@@ -315,9 +310,7 @@ export const TabBar: React.FC<TabBarProps> = memo(
           } as React.CSSProperties
         }
       >
-        <div
-          className={`flex h-9 min-w-0 flex-1 items-center ${isCompactLayout ? "mt-2" : ""}`}
-        >
+        <div className="mt-2 flex h-9 min-w-0 flex-1 items-center">
           {shouldOffsetLeftChrome ? <CollapsedSidebarButton /> : null}
           {leadingSlot ? (
             <div

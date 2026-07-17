@@ -181,7 +181,7 @@ fn maps_opencode_session_metadata_to_cache_input() {
     .expect("list session metadata");
     let inputs = metas
         .into_iter()
-        .map(|meta| session_meta_to_cache_input(meta, &HashSet::new()))
+        .map(|meta| session_meta_to_cache_input(meta, &HashSet::new(), &HashSet::new()))
         .collect::<Vec<_>>();
 
     assert_eq!(inputs.len(), 1);
@@ -241,7 +241,7 @@ fn opencode_recent_paths_use_all_sessions_before_limiting() {
     let rows = list_all_opencode_session_meta_from_conn(&conn, std::path::Path::new(""), 0, 0)
         .expect("list all sessions")
         .into_iter()
-        .map(|meta| session_meta_to_cache_input(meta, &HashSet::new()))
+        .map(|meta| session_meta_to_cache_input(meta, &HashSet::new(), &HashSet::new()))
         .map(|input| {
             imported_cache::ImportedHistoryCachedSession {
                 source_session_id: input.source_session_id,
@@ -315,6 +315,30 @@ fn parses_opencode_parts_into_replay_chunks() {
 }
 
 #[test]
+fn derives_opencode_impact_from_session_edit_parts() {
+    let conn = fixture_conn();
+    conn.execute(
+        "INSERT INTO part (id, message_id, session_id, data, time_created) VALUES (?1, ?2, ?3, ?4, ?5)",
+        (
+            "prt_edit",
+            "msg_assistant",
+            "ses_1",
+            r#"{"type":"tool","tool":"edit","callID":"call_edit","state":{"status":"completed","input":{"filePath":"src/main.ts","oldString":"old","newString":"new\nextra"},"output":"done"}}"#,
+            1770000002500_i64,
+        ),
+    )
+    .expect("insert edit part");
+
+    let chunks = load_opencode_history_from_conn(&conn, "opencodeapp-ses_1", "ses_1")
+        .expect("load session chunks");
+    let impact = imported_history::impact_from_edit_chunks(&chunks);
+
+    assert_eq!(impact.touched_files, vec!["src/main.ts"]);
+    assert_eq!(impact.lines_added, 2);
+    assert_eq!(impact.lines_removed, 1);
+}
+
+#[test]
 fn rejects_invalid_opencode_prefixed_ids() {
     assert!(opencode_source_id_from_session_id("codexapp-ses_1").is_err());
     assert!(opencode_source_id_from_session_id("opencodeapp-").is_err());
@@ -353,15 +377,11 @@ fn maps_opencode_parent_id_to_parent_session_id() {
     )
     .expect("list sessions");
 
-    let container_parent_ids: HashSet<String> = metas
-        .iter()
-        .filter_map(|meta| meta.parent_id.clone())
-        .filter(|parent_id| metas.iter().any(|m| &m.source_session_id == parent_id))
-        .collect();
+    let container_parent_ids = container_parent_ids_from_metas(&metas);
 
     let inputs: Vec<ImportedHistoryCacheInput> = metas
         .into_iter()
-        .map(|meta| session_meta_to_cache_input(meta, &container_parent_ids))
+        .map(|meta| session_meta_to_cache_input(meta, &container_parent_ids, &HashSet::new()))
         .collect();
 
     let container = inputs
@@ -383,4 +403,205 @@ fn maps_opencode_parent_id_to_parent_session_id() {
         "task row remains listable and carries parent relation"
     );
     assert_eq!(task.parent_session_id.as_deref(), Some("opencodeapp-ses_1"));
+}
+
+#[test]
+fn reads_managed_opencode_source_session_ids_from_code_sessions() {
+    let conn = fixture_conn();
+    conn.execute(
+        "CREATE TABLE code_sessions (
+            session_id TEXT PRIMARY KEY,
+            cli_agent_type TEXT,
+            cli_session_id TEXT
+        )",
+        [],
+    )
+    .expect("create code_sessions");
+    conn.execute(
+        "INSERT INTO code_sessions (session_id, cli_agent_type, cli_session_id)
+         VALUES (?1, ?2, ?3), (?4, ?5, ?6), (?7, ?8, ?9)",
+        (
+            "cliagent-opencode",
+            "opencode",
+            "ses_managed",
+            "cliagent-empty",
+            "opencode",
+            "",
+            "cliagent-codex",
+            "codex",
+            "ses_codex",
+        ),
+    )
+    .expect("insert code sessions");
+
+    let ids = managed_opencode_source_session_ids_from_conn(&conn).expect("managed ids");
+
+    assert_eq!(ids.len(), 1);
+    assert!(ids.contains("ses_managed"));
+}
+
+#[test]
+fn managed_opencode_source_session_is_hidden_but_preserved() {
+    let conn = fixture_conn();
+    let metas = list_all_opencode_session_meta_from_conn(
+        &conn,
+        std::path::Path::new("/tmp/opencode.db"),
+        0,
+        0,
+    )
+    .expect("list sessions");
+    let managed_source_session_ids = ["ses_1".to_string()].into_iter().collect::<HashSet<_>>();
+    let inputs = metas
+        .into_iter()
+        .map(|meta| session_meta_to_cache_input(meta, &HashSet::new(), &managed_source_session_ids))
+        .collect::<Vec<_>>();
+
+    assert_eq!(inputs.len(), 1);
+    assert_eq!(inputs[0].source_session_id, "ses_1");
+    assert_eq!(inputs[0].session_id, "opencodeapp-ses_1");
+    assert!(!inputs[0].listable);
+    assert!(inputs[0].parent_session_id.is_none());
+}
+
+#[test]
+fn external_unmanaged_opencode_source_session_stays_listable() {
+    let conn = fixture_conn();
+    let metas = list_all_opencode_session_meta_from_conn(
+        &conn,
+        std::path::Path::new("/tmp/opencode.db"),
+        0,
+        0,
+    )
+    .expect("list sessions");
+    let inputs = metas
+        .into_iter()
+        .map(|meta| session_meta_to_cache_input(meta, &HashSet::new(), &HashSet::new()))
+        .collect::<Vec<_>>();
+
+    assert_eq!(inputs.len(), 1);
+    assert!(inputs[0].listable);
+    assert!(inputs[0].parent_session_id.is_none());
+}
+
+#[test]
+fn ignores_missing_parent_id_so_orphan_history_stays_visible() {
+    let conn = fixture_conn();
+    conn.execute(
+        "INSERT INTO session (
+            id, title, directory, model, tokens_input, tokens_output,
+            tokens_reasoning, tokens_cache_read, tokens_cache_write,
+            time_created, time_updated, time_archived, parent_id
+        ) VALUES (?1, ?2, ?3, ?4, 0, 0, 0, 0, 0, ?5, ?6, NULL, ?7)",
+        (
+            "ses_orphan",
+            "Orphan parent history",
+            "/tmp/opencode-repo",
+            "gpt-5",
+            1770000030000_i64,
+            1770000035000_i64,
+            "ses_missing",
+        ),
+    )
+    .expect("insert orphan session");
+
+    let metas = list_all_opencode_session_meta_from_conn(
+        &conn,
+        std::path::Path::new("/tmp/opencode.db"),
+        0,
+        0,
+    )
+    .expect("list sessions");
+    let container_parent_ids = container_parent_ids_from_metas(&metas);
+    let orphan = metas
+        .into_iter()
+        .find(|meta| meta.source_session_id == "ses_orphan")
+        .expect("orphan meta");
+    let input = session_meta_to_cache_input(orphan, &container_parent_ids, &HashSet::new());
+
+    assert!(input.listable);
+    assert!(input.parent_session_id.is_none());
+}
+
+#[test]
+fn ignores_self_parent_id() {
+    let conn = fixture_conn();
+    conn.execute(
+        "INSERT INTO session (
+            id, title, directory, model, tokens_input, tokens_output,
+            tokens_reasoning, tokens_cache_read, tokens_cache_write,
+            time_created, time_updated, time_archived, parent_id
+        ) VALUES (?1, ?2, ?3, ?4, 0, 0, 0, 0, 0, ?5, ?6, NULL, ?7)",
+        (
+            "ses_self",
+            "Self parent history",
+            "/tmp/opencode-repo",
+            "gpt-5",
+            1770000040000_i64,
+            1770000045000_i64,
+            "ses_self",
+        ),
+    )
+    .expect("insert self-parent session");
+
+    let metas = list_all_opencode_session_meta_from_conn(
+        &conn,
+        std::path::Path::new("/tmp/opencode.db"),
+        0,
+        0,
+    )
+    .expect("list sessions");
+    let container_parent_ids = container_parent_ids_from_metas(&metas);
+    let self_parent = metas
+        .into_iter()
+        .find(|meta| meta.source_session_id == "ses_self")
+        .expect("self parent meta");
+    let input = session_meta_to_cache_input(self_parent, &container_parent_ids, &HashSet::new());
+
+    assert!(input.listable);
+    assert!(input.parent_session_id.is_none());
+}
+
+#[test]
+fn ignores_mutual_parent_cycle() {
+    let conn = fixture_conn();
+    for (id, parent_id, created_at) in [
+        ("ses_cycle_a", "ses_cycle_b", 1770000050000_i64),
+        ("ses_cycle_b", "ses_cycle_a", 1770000051000_i64),
+    ] {
+        conn.execute(
+            "INSERT INTO session (
+                id, title, directory, model, tokens_input, tokens_output,
+                tokens_reasoning, tokens_cache_read, tokens_cache_write,
+                time_created, time_updated, time_archived, parent_id
+            ) VALUES (?1, ?2, ?3, ?4, 0, 0, 0, 0, 0, ?5, ?6, NULL, ?7)",
+            (
+                id,
+                format!("Cycle {id}"),
+                "/tmp/opencode-repo",
+                "gpt-5",
+                created_at,
+                created_at + 5000,
+                parent_id,
+            ),
+        )
+        .expect("insert cycle session");
+    }
+
+    let metas = list_all_opencode_session_meta_from_conn(
+        &conn,
+        std::path::Path::new("/tmp/opencode.db"),
+        0,
+        0,
+    )
+    .expect("list sessions");
+    let container_parent_ids = container_parent_ids_from_metas(&metas);
+    let inputs = metas
+        .into_iter()
+        .filter(|meta| meta.source_session_id.starts_with("ses_cycle_"))
+        .map(|meta| session_meta_to_cache_input(meta, &container_parent_ids, &HashSet::new()))
+        .collect::<Vec<_>>();
+
+    assert_eq!(inputs.len(), 2);
+    assert!(inputs.iter().all(|input| input.listable));
+    assert!(inputs.iter().all(|input| input.parent_session_id.is_none()));
 }

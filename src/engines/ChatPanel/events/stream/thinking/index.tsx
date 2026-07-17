@@ -27,6 +27,7 @@ import LlmUsageBadge from "@src/engines/ChatPanel/blocks/ToolCallBlock/LlmUsageB
 import {
   EventBlockHeader,
   EventBlockHeaderIcon,
+  EventBlockHeaderSubtitle,
   EventBlockHeaderTitle,
   getEventBlockContainerClasses,
   getEventBlockContentClasses,
@@ -43,6 +44,8 @@ import type {
   UniversalEventProps,
 } from "@src/engines/SessionCore/rendering/types/universalProps";
 import { formatDuration } from "@src/util/time/formatDuration";
+
+import { getThoughtPreview } from "./thoughtPreview";
 
 const LazySimulatorMessages = lazy(
   () => import("@src/modules/WorkStation/Chat/Communication")
@@ -61,15 +64,6 @@ export interface ThinkingEventProps extends RawEventInput {
 // Chat Variant (uses ThinkingBlock styling)
 // ============================================
 
-const THOUGHT_PREVIEW_MAX_LENGTH = 96;
-
-function getThoughtPreview(content?: string): string | null {
-  const normalized = content?.replace(/\s+/g, " ").trim();
-  if (!normalized) return null;
-  if (normalized.length <= THOUGHT_PREVIEW_MAX_LENGTH) return normalized;
-  return `${normalized.slice(0, THOUGHT_PREVIEW_MAX_LENGTH).trimEnd()}...`;
-}
-
 interface ThoughtSubtitleProps {
   content?: string;
   duration?: number;
@@ -87,10 +81,9 @@ const ThoughtSubtitle: React.FC<ThoughtSubtitleProps> = ({
   if (!preview && !durationLabel) return null;
 
   return (
-    <span
-      className={`inline-flex min-w-0 flex-initial items-center gap-1 overflow-hidden leading-tight ${
-        isLoading ? "font-medium text-text-2" : "text-text-3"
-      }`}
+    <EventBlockHeaderSubtitle
+      isLoading={isLoading}
+      className="gap-1 text-text-1"
       title={[durationLabel, preview].filter(Boolean).join(" · ")}
     >
       {durationLabel && (
@@ -102,7 +95,7 @@ const ThoughtSubtitle: React.FC<ThoughtSubtitleProps> = ({
         <span className="shrink-0 text-text-4">·</span>
       )}
       {preview && <span className="min-w-0 truncate">{preview}</span>}
-    </span>
+    </EventBlockHeaderSubtitle>
   );
 };
 

@@ -59,10 +59,12 @@ async function loadAtoms() {
     sessionViewAtom: mod.sessionViewAtom,
     activeSessionIdAtom: mod.activeSessionIdAtom,
     workstationActiveSessionIdAtom: mod.workstationActiveSessionIdAtom,
+    claimPipelineSessionAtom: mod.claimPipelineSessionAtom,
     jumpToSessionAtom: mod.jumpToSessionAtom,
     openSessionAtom: mod.openSessionAtom,
     closeSessionAtom: mod.closeSessionAtom,
     sessionReloadEpochMapAtom: sessionCoreMetadata.sessionReloadEpochMapAtom,
+    loadStatusAtom: sessionCoreMetadata.loadStatusAtom,
     reposAtom: repoAtoms.reposAtom,
     selectedRepoIdAtom: repoAtoms.selectedRepoIdAtom,
     lastUsedRepoAtom: repoAtoms.lastUsedRepoAtom,
@@ -343,6 +345,55 @@ describe("jumpToSessionAtom", () => {
       folderName: "Session Repo",
       repoId: "repo-session",
     });
+  });
+});
+
+describe("claimPipelineSessionAtom", () => {
+  it("loads a secondary session without changing WorkStation memory", async () => {
+    const {
+      activeSessionIdAtom,
+      claimPipelineSessionAtom,
+      loadStatusAtom,
+      sessionViewAtom,
+      workstationActiveSessionIdAtom,
+    } = await loadAtoms();
+    const store = createStore();
+
+    store.set(sessionViewAtom, {
+      activeSessionId: "osagent-workstation",
+      sessionName: "Primary work",
+      repoPath: "/repos/primary",
+    });
+
+    store.set(
+      claimPipelineSessionAtom,
+      "claudecodeapp-48238728-ab4f-4697-850d-459b12e03e72"
+    );
+
+    expect(store.get(activeSessionIdAtom)).toBe(
+      "claudecodeapp-48238728-ab4f-4697-850d-459b12e03e72"
+    );
+    expect(store.get(loadStatusAtom)).toBe("loading");
+    expect(store.get(workstationActiveSessionIdAtom)).toBe(
+      "osagent-workstation"
+    );
+  });
+
+  it("bumps reload epoch when reclaiming the current pipeline session", async () => {
+    const {
+      activeSessionIdAtom,
+      claimPipelineSessionAtom,
+      sessionReloadEpochMapAtom,
+    } = await loadAtoms();
+    const store = createStore();
+
+    store.set(activeSessionIdAtom, "claudecodeapp-history");
+    store.set(claimPipelineSessionAtom, "claudecodeapp-history");
+
+    expect(store.get(activeSessionIdAtom)).toBe("claudecodeapp-history");
+    expect(
+      store.get(sessionReloadEpochMapAtom).get("claudecodeapp-history")
+    ).toBe(1);
   });
 });
 

@@ -18,7 +18,7 @@ function isBigThreeApiProvider(
  * Resolves which OpenAI / Anthropic / Google region policy applies for the
  * session creator hero selection. Returns "" when the user is not on own key,
  * has no model, or the selection is not one of those providers (incl. CLI
- * Codex / Claude Code / Gemini CLI).
+ * Codex / Claude Code).
  */
 export function getBigThreeRegionModelTypeForSession(
   dispatchCategory: DispatchCategory,
@@ -34,11 +34,7 @@ export function getBigThreeRegionModelTypeForSession(
     const cli =
       advancedConfig.cliAgentType ?? cliAgentTypeFromAtom ?? undefined;
     if (!cli) return "";
-    if (
-      cli === CLI_AGENT.CODEX ||
-      cli === CLI_AGENT.CLAUDE_CODE ||
-      cli === CLI_AGENT.GEMINI
-    ) {
+    if (cli === CLI_AGENT.CODEX || cli === CLI_AGENT.CLAUDE_CODE) {
       return cli as ModelType;
     }
     return "";
@@ -67,7 +63,6 @@ export function bigThreeProviderLabelForModelType(
     case "claude_code":
       return "Anthropic";
     case "gemini_api":
-    case "gemini_cli":
       return "Google";
     default:
       return "";

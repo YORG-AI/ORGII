@@ -8,6 +8,11 @@ import { createStore } from "jotai/vanilla";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  notifyTerminalCreationCooldown,
+  tryBeginTerminalCreation,
+} from "@src/util/ui/terminal/creationThrottle";
+
+import {
   activeTerminalIdAtom,
   closeTerminalSessionAtom,
   createAgentSessionTerminalAtom,
@@ -46,6 +51,7 @@ describe("terminal atoms", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(tryBeginTerminalCreation).mockReturnValue(true);
     store = createStore();
     // Initialize with a clean state
     store.set(terminalSessionsAtom, [
@@ -94,6 +100,22 @@ describe("terminal atoms", () => {
       expect(newSession?.shell).toBe("/bin/fish");
       expect(newSession?.profileId).toBe("fish-profile");
       expect(newSession?.cwd).toBe("/repo/project");
+    });
+
+    it("allows controlled setup flows to create a dedicated session during cooldown", () => {
+      vi.mocked(tryBeginTerminalCreation).mockReturnValue(false);
+
+      const newId = store.set(editorAddTerminalSessionAtom, {
+        name: "Codex hook approval",
+        bypassCreationCooldown: true,
+      });
+
+      const sessions = store.get(terminalSessionsAtom);
+      expect(sessions).toHaveLength(2);
+      expect(sessions.find((session) => session.id === newId)?.name).toBe(
+        "Codex hook approval"
+      );
+      expect(notifyTerminalCreationCooldown).not.toHaveBeenCalled();
     });
   });
 

@@ -162,7 +162,7 @@ const ExploreBlock: React.FC<ExploreBlockProps> = React.memo(
       [toolName, action]
     );
     const {
-      isCollapsed: isExpanded,
+      isCollapsed,
       isHeaderHovered,
       handleHeaderClick,
       handleHeaderMouseEnter,
@@ -171,7 +171,7 @@ const ExploreBlock: React.FC<ExploreBlockProps> = React.memo(
     } = useBlockHeader({
       defaultCollapsed,
       eventId,
-      collapseAllValue: false,
+      collapseAllValue: true,
       preserveDefaultOnExpand: true,
     });
 
@@ -371,7 +371,7 @@ const ExploreBlock: React.FC<ExploreBlockProps> = React.memo(
     return (
       <div className={`group/explore ${getEventBlockContainerClasses(false)}`}>
         <EventBlockHeader
-          isCollapsed={!isExpanded}
+          isCollapsed={isCollapsed}
           withHover={false}
           onClick={hasContent ? handleHeaderClick : undefined}
           onNavigate={handleLocate}
@@ -384,7 +384,7 @@ const ExploreBlock: React.FC<ExploreBlockProps> = React.memo(
         >
           <EventBlockHeaderIcon
             icon={toolIcon}
-            isCollapsed={!isExpanded}
+            isCollapsed={isCollapsed}
             isHeaderHovered={isHeaderHovered}
             onToggle={hasContent ? handleHeaderClick : undefined}
             hasContent={hasContent}
@@ -401,7 +401,7 @@ const ExploreBlock: React.FC<ExploreBlockProps> = React.memo(
           )}
         </EventBlockHeader>
 
-        {isExpanded && hasContent && !isLoading && (
+        {!isCollapsed && hasContent && !isLoading && (
           <div className="explore-block__content animate-fade-in overflow-hidden">
             <div className={EVENT_BLOCK_TRANSPARENT_EXPANDED_SHELL_CLASSES}>
               {treeContentJSX || flatContentJSX}

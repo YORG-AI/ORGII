@@ -406,3 +406,87 @@ fn upsert_preserves_created_at_on_second_write() {
     );
     assert_eq!(back.body, "v2");
 }
+
+/// Whole-row writes (create / delete / restore / batch /
+/// git-folder-sync) must not wipe the sync-side metadata that only the
+/// atomic RMW path used to preserve — and a local whole-row edit must
+/// stamp the fields it actually changed so peers' per-field resolvers
+/// see it as newer.
+#[test]
+fn whole_row_write_preserves_sync_metadata_and_stamps_changed_fields() {
+    use crate::projects::io::{apply_remote_merge, read_sync_metadata, FieldRevision};
+
+    let _sandbox = test_env::sandbox();
+    seed_project("demo", "p1");
+    write_work_item(
+        "demo",
+        "AAA-0001",
+        &work_item_fixture("w1", "AAA-0001", "Task"),
+        "body",
+    )
+    .expect("create");
+
+    // Simulate a prior sync: adapter watermark + external ref.
+    let mut revisions = std::collections::HashMap::new();
+    revisions.insert(
+        "title".to_string(),
+        FieldRevision {
+            mtime: 1_111,
+            source: "linear".to_string(),
+        },
+    );
+    apply_remote_merge(
+        "demo",
+        "AAA-0001",
+        revisions,
+        Some(("linear".to_string(), "EXT-9".to_string())),
+    )
+    .expect("stamp");
+
+    // Whole-row rewrite that changes ONLY status.
+    let mut item = read_work_item("demo", "AAA-0001").expect("read");
+    item.frontmatter.status = "in_progress".to_string();
+    write_work_item("demo", "AAA-0001", &item.frontmatter, &item.body).expect("whole-row write");
+
+    let metadata = read_sync_metadata("demo", "AAA-0001")
+        .expect("metadata read")
+        .expect("item exists");
+    assert_eq!(
+        metadata.field_revisions.get("title"),
+        Some(&FieldRevision {
+            mtime: 1_111,
+            source: "linear".to_string(),
+        }),
+        "untouched field keeps its pre-write watermark"
+    );
+    let status_revision = metadata
+        .field_revisions
+        .get("status")
+        .expect("changed field stamped");
+    assert_eq!(status_revision.source, "local");
+    assert!(status_revision.mtime > 1_111);
+    assert_eq!(
+        metadata.external_refs.get("linear").map(String::as_str),
+        Some("EXT-9"),
+        "external refs survive the whole-row write"
+    );
+
+    // The delete-bin round trip is the original data-loss path.
+    delete_work_item("demo", "AAA-0001").expect("delete");
+    restore_work_item("demo", "AAA-0001").expect("restore");
+    let metadata = read_sync_metadata("demo", "AAA-0001")
+        .expect("metadata read")
+        .expect("item exists");
+    assert_eq!(
+        metadata.field_revisions.get("title"),
+        Some(&FieldRevision {
+            mtime: 1_111,
+            source: "linear".to_string(),
+        }),
+        "delete + restore must not wipe watermarks"
+    );
+    assert_eq!(
+        metadata.external_refs.get("linear").map(String::as_str),
+        Some("EXT-9")
+    );
+}

@@ -46,6 +46,10 @@ pub(super) fn parameters() -> Value {
                 "type": "string",
                 "description": "Project name (required for create, optional for update)"
             },
+            "project_org_id": {
+                "type": "string",
+                "description": "Project-org id to create the project under (for 'create'). Omit to use the session's org context (falls back to 'personal-org'). NOT the agent org — see 'org_id'."
+            },
             "description": {
                 "type": "string",
                 "description": "Project description (markdown)"

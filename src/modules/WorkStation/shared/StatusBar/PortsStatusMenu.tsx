@@ -32,6 +32,7 @@ import { copyText } from "@src/util/data/clipboard";
 import { classNames } from "@src/util/ui/classNames";
 
 import { StatusBarButton } from "./StatusBarBase";
+import { StatusBarTooltip } from "./StatusBarTooltip";
 import {
   refreshWorkspacePortScan,
   stopWorkspacePort,
@@ -270,19 +271,21 @@ export const PortsStatusMenu: React.FC = memo(() => {
 
   return (
     <div ref={triggerRef} className="flex h-full">
-      <StatusBarButton
-        onClick={handleToggle}
-        active={isOpen}
-        title={t("workstation.ports.tooltip", {
-          workspace: workspaceCount,
-          external: externalCount,
-        })}
-        className="gap-1.5"
-        dataTestId="status-bar-ports"
+      <StatusBarTooltip
+        label={t("workstation.ports.viewPortsTooltip", "View used ports")}
+        disabled={isOpen}
       >
-        <Unplug size={13} className="text-text-1" />
-        <span className="font-medium text-text-1">{workspaceCount}</span>
-      </StatusBarButton>
+        <StatusBarButton
+          onClick={handleToggle}
+          active={isOpen}
+          ariaLabel={t("workstation.ports.viewPortsTooltip", "View used ports")}
+          className="gap-1.5"
+          dataTestId="status-bar-ports"
+        >
+          <Unplug size={13} className="text-text-1" />
+          <span className="font-medium text-text-1">{workspaceCount}</span>
+        </StatusBarButton>
+      </StatusBarTooltip>
 
       {isOpen &&
         isPositioned &&

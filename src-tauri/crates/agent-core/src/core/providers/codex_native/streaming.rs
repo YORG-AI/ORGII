@@ -18,15 +18,6 @@ use crate::providers::traits::{
     StreamErrorKind, ToolCallDelta, ToolCallRequest,
 };
 
-fn is_codex_auth_error_message(message: &str) -> bool {
-    let lower = message.to_ascii_lowercase();
-    lower.contains("unauthorized")
-        || lower.contains("unauthorized_unknown")
-        || lower.contains("could not parse your authentication token")
-        || lower.contains("invalid authentication")
-        || lower.contains("expired") && lower.contains("token")
-}
-
 #[async_trait]
 impl LLMProvider for CodexNativeClient {
     async fn chat(
@@ -307,20 +298,19 @@ impl LLMProvider for CodexNativeClient {
                             ResponsesStreamOutput::ResponseCompleted(response) => {
                                 final_response = Some(response);
                             }
-                            ResponsesStreamOutput::Error(error_msg) => {
+                            ResponsesStreamOutput::Error(error) => {
                                 let has_partial_data = !accumulated_text.is_empty()
                                     || stream_normalizer.has_pending_tool_calls()
                                     || !tool_calls.is_empty();
-                                if is_codex_auth_error_message(&error_msg) {
+                                if error.is_auth_error() {
                                     if !auth_retry_used && !has_partial_data {
                                         warn!("[codex-native] Access token rejected inside stream before output; refreshing and retrying once");
                                         self.refresh_auth_after_unauthorized().await?;
                                         auth_retry_used = true;
                                         continue 'request_attempt;
                                     }
-                                    return Err(ProviderError::AuthError(error_msg));
                                 }
-                                return Err(ProviderError::RequestFailed(error_msg));
+                                return Err(error.into_provider_error());
                             }
                             ResponsesStreamOutput::UnknownFrame { event_type, sample } => {
                                 warn!(event_type, sample, "[codex-native] unknown stream frame");

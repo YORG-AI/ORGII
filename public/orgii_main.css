@@ -118,7 +118,16 @@ body {
   /* Sidebar */
   --sidebar-bg: rgba(242, 242, 242, 0.78);
   --sidebar-border: rgba(0, 0, 0, 0.08);
+  --sidebar-selected-row-opacity: 5%;
+  --sidebar-selected-row-bg: color-mix(
+    in oklab,
+    var(--color-text-1) var(--sidebar-selected-row-opacity),
+    transparent
+  );
   --sidebar-backdrop: blur(10px) saturate(140%);
+  --sidebar-edge-shadow:
+    inset -1px 0 0 rgba(0, 0, 0, 0.015),
+    inset -8px 0 12px -12px rgba(0, 0, 0, 0.12);
   --sidebar-shadow:
     0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.08);
 

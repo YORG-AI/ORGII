@@ -1,5 +1,5 @@
 import { useSetAtom } from "jotai";
-import React, { memo, useCallback, useEffect, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
@@ -32,6 +32,10 @@ import {
 
 import type { EmbeddedWorkItemDetailState } from "../WorkItems";
 import { ProjectManagerContentRouter } from "./components/ProjectManagerContentRouter";
+import {
+  type ProjectHostContextValue,
+  ProjectHostProvider,
+} from "./context/projectHostContext";
 import { useProjectManagerSidebarConfig } from "./hooks/useProjectManagerSidebarConfig";
 import { useProjectStatusBar } from "./hooks/useProjectStatusBar";
 import { useProjectTabActions } from "./hooks/useProjectTabActions";
@@ -257,6 +261,54 @@ export const ProjectManagerLayout: React.FC<ProjectManagerLayoutProps> = memo(
       onOpenRepoSettings: handleOpenRepoSettings,
     });
 
+    // Phase 2.1: publish the Project host's action surface above the tab
+    // dispatcher. The value mirrors the content-router props (minus tabs/
+    // activeTab) so staged project renderers can consume it via
+    // `useProjectHostContext` once `UnifiedTabContent` is mounted for project
+    // tabs. Providing it here is additive — the router below still receives
+    // its props directly and renders unchanged.
+    const projectHostValue = useMemo<ProjectHostContextValue>(
+      () => ({
+        repoPath,
+        repoName,
+        projectQuickActions,
+        onSelectProject: handleSelectProject,
+        onCreateProject: handleCreateProject,
+        onCreateWorkItem: handleCreateWorkItem,
+        onOpenProjects: handleOpenProjects,
+        onOpenLinearProjects: handleOpenLinearProjects,
+        onOpenRepoSettings: handleOpenRepoSettings,
+        onExpandWorkItemToTab: handleExpandWorkItemToTab,
+        onOpenChatSession: handleOpenChatSession,
+        onCloseTab: closeTab,
+        onUpdateTabData: updateTabData,
+        onUpdateTabMeta: updateTabMeta,
+        onSetTabUnsaved: setTabUnsaved,
+        onEmbeddedWorkItemDetailStateChange:
+          handleEmbeddedWorkItemDetailStateChange,
+        onProjectListRefreshRequested: handleProjectListRefreshRequested,
+      }),
+      [
+        repoPath,
+        repoName,
+        projectQuickActions,
+        handleSelectProject,
+        handleCreateProject,
+        handleCreateWorkItem,
+        handleOpenProjects,
+        handleOpenLinearProjects,
+        handleOpenRepoSettings,
+        handleExpandWorkItemToTab,
+        handleOpenChatSession,
+        closeTab,
+        updateTabData,
+        updateTabMeta,
+        setTabUnsaved,
+        handleEmbeddedWorkItemDetailStateChange,
+        handleProjectListRefreshRequested,
+      ]
+    );
+
     const mainContent = (
       <ProjectManagerContentRouter
         repoPath={repoPath}
@@ -283,13 +335,15 @@ export const ProjectManagerLayout: React.FC<ProjectManagerLayoutProps> = memo(
     );
 
     return (
-      <WorkStationShell
-        primarySidebarConfig={activePrimarySidebarConfig}
-        content={mainContent}
-        statusBar={null}
-        layoutMode={layoutMode}
-        appClassName="project-manager"
-      />
+      <ProjectHostProvider value={projectHostValue}>
+        <WorkStationShell
+          primarySidebarConfig={activePrimarySidebarConfig}
+          content={mainContent}
+          statusBar={null}
+          layoutMode={layoutMode}
+          appClassName="project-manager"
+        />
+      </ProjectHostProvider>
     );
   }
 );

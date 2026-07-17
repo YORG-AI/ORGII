@@ -5,7 +5,7 @@
  * All sidebar components should use these types for consistency.
  */
 import type { LucideIcon } from "lucide-react";
-import type { MouseEvent, ReactNode } from "react";
+import type { MouseEvent, ReactNode, Ref } from "react";
 
 // ============================================
 // Base Types
@@ -268,6 +268,8 @@ export interface SidebarEmptyStateProps {
 export interface SidebarListProps {
   /** Children content */
   children: ReactNode;
+  /** Optional ref to the scroll container for scoped reveal/navigation. */
+  scrollContainerRef?: Ref<HTMLDivElement>;
   /** Loading state */
   isLoading?: boolean;
   /** Custom theme */

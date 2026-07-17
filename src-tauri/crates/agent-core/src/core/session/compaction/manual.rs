@@ -102,10 +102,6 @@ pub struct ManualCompactSummary {
     pub messages_after: usize,
     pub tokens_before: usize,
     pub tokens_after: usize,
-    /// Whether the compactor fell back to plain truncation (no LLM
-    /// summary produced). Surfaced so the user knows their history
-    /// wasn't preserved in summary form.
-    pub truncated: bool,
 }
 
 /// Run a manual compact for `session_id`.
@@ -212,7 +208,16 @@ pub async fn run_manual_compact(
         )
         .await
     };
-    let truncated = matches!(outcome, CompactionOutcome::Truncated { .. });
+
+    // Summarization failed → the history is unchanged; forking it would
+    // waste a session id without freeing any context. Surface the error.
+    if let CompactionOutcome::Failed { reason } = outcome {
+        warn!(
+            "[manual_compact] {}: compaction failed — {}",
+            session_id, reason
+        );
+        return ManualCompactResult::Failed(format!("compaction failed: {}", reason));
+    }
 
     // History still fits the model budget. Nothing meaningful to fork:
     // the transcript is unchanged, so we short-circuit with a dedicated
@@ -252,14 +257,13 @@ pub async fn run_manual_compact(
     match fork_outcome {
         ForkOutcome::Forked { new_session_id } => {
             info!(
-                "[manual_compact] {} → {}: {} msgs ({} tokens) → {} msgs ({} tokens), truncated={}",
+                "[manual_compact] {} → {}: {} msgs ({} tokens) → {} msgs ({} tokens)",
                 session_id,
                 new_session_id,
                 messages_before,
                 tokens_before,
                 messages_after,
                 tokens_after,
-                truncated
             );
             ManualCompactResult::Forked(ManualCompactSummary {
                 old_session_id: session_id.to_string(),
@@ -268,7 +272,6 @@ pub async fn run_manual_compact(
                 messages_after,
                 tokens_before,
                 tokens_after,
-                truncated,
             })
         }
         ForkOutcome::NotChannelAttached => ManualCompactResult::NotChannelAttached,

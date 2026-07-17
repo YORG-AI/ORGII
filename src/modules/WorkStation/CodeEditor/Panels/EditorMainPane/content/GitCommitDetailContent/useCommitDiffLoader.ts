@@ -45,6 +45,10 @@ export function useCommitDiffLoader({
   const [commitReloadKey, setCommitReloadKey] = useState(0);
 
   const reloadCommit = useCallback(() => {
+    setCommitLoadState("loading");
+    setCommitError(null);
+    setCommitDiff(null);
+    setSelectedFilePath(null);
     setCommitReloadKey((prev) => prev + 1);
   }, []);
 

@@ -39,9 +39,19 @@ const MY_ROLE_SETTING_KEYS = [
   "general.profileDescription",
 ] as const satisfies readonly SettingsKey[];
 
+// Rendered by the dedicated Security section (not General), so exclude them
+// from General's prefix-based coverage to keep parity 1:1 with the UI.
+const SECURITY_SECTION_KEYS = [
+  "general.secretScanEnabled",
+  "general.secretScanEntropyEnabled",
+  "general.secretScanCustomPatterns",
+] as const satisfies readonly SettingsKey[];
+
 const GENERAL_SECTION_KEYS: SettingsKey[] = [
   ...keysByPrefixes(["general.", "notifications.", "privacy."]).filter(
-    (key) => !(MY_ROLE_SETTING_KEYS as readonly string[]).includes(key)
+    (key) =>
+      !(MY_ROLE_SETTING_KEYS as readonly string[]).includes(key) &&
+      !(SECURITY_SECTION_KEYS as readonly string[]).includes(key)
   ),
   "network.httpVersion",
 ] as SettingsKey[];
@@ -69,6 +79,15 @@ export const APP_SETTINGS_UI_SECTIONS: SettingsSectionDefinition[] = [
     coveredKeys: GENERAL_SECTION_KEYS,
   },
   {
+    id: "collaboration",
+    tab: "app",
+    labelKey: "collaboration",
+    headingTitleKey: "sections.collaboration",
+    icon: iconForSegment("collaboration"),
+    customSectionSlotId: SETTINGS_SECTION_SLOT_IDS.APP_COLLABORATION,
+    coveredKeys: [],
+  },
+  {
     id: "appearance",
     tab: "app",
     labelKey: "appearance",
@@ -89,6 +108,15 @@ export const APP_SETTINGS_UI_SECTIONS: SettingsSectionDefinition[] = [
     // rendered by `EditorSection` itself (lazy-loaded `IndexingSection`)
     // and has no schema-driven rows.
     coveredKeys: EDITOR_SECTION_KEYS,
+  },
+  {
+    id: "security",
+    tab: "app",
+    labelKey: "security",
+    headingTitleKey: "sections.security",
+    icon: iconForSegment("security"),
+    customSectionSlotId: SETTINGS_SECTION_SLOT_IDS.APP_SECURITY,
+    coveredKeys: [...SECURITY_SECTION_KEYS],
   },
   {
     id: "monitor",

@@ -107,6 +107,15 @@ describe("filterIssuesByQuery", () => {
     expect(result[0].number).toBe(2);
   });
 
+  it("matches by issue number with or without a hash", () => {
+    expect(
+      filterIssuesByQuery(issues, "2").map((issue) => issue.number)
+    ).toEqual([2]);
+    expect(
+      filterIssuesByQuery(issues, "#3").map((issue) => issue.number)
+    ).toEqual([3]);
+  });
+
   it("matches by label name", () => {
     const result = filterIssuesByQuery(issues, "performance");
     expect(result).toHaveLength(1);

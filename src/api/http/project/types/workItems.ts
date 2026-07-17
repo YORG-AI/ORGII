@@ -66,6 +66,14 @@ export interface WorkItemExecutionLock {
   executionTarget?: WorkItemAssigneeTarget;
   lockedAt?: string;
   lockReason?: WorkItemExecutionLockReason;
+  /**
+   * Collab execution-lock holder (design §16.6). Set by the server
+   * (`orgii_acquire_work_item_lock` forces it to the authenticated member)
+   * and synced down inside the work item payload. Absent on purely local
+   * (non-collab) locks. Consumers use it to disable "start agent" when a
+   * teammate already holds the lock.
+   */
+  lockedByMemberId?: string;
 }
 
 export const WORK_ITEM_CLOSE_OUT_STATUS = {

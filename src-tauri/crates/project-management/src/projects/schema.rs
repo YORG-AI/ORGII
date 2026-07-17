@@ -423,6 +423,7 @@ fn init_local_tables(conn: &Connection) -> SqliteResult<()> {
     )?;
     ensure_workitems_deleted_at_column(conn)?;
     ensure_projects_sync_columns(conn)?;
+    ensure_collab_sync_columns(conn)?;
     ensure_routine_definitions_durable_columns(conn)?;
     ensure_routine_fires_durable_columns(conn)?;
     conn.execute(
@@ -472,6 +473,25 @@ fn ensure_projects_sync_columns(conn: &Connection) -> SqliteResult<()> {
         ensure_column(conn, "projects", column, definition)?;
     }
     Ok(())
+}
+
+/// Last server row version applied/acknowledged for the `orgii_collab`
+/// provider (design §16.4). NULL for rows that never synced. Kept as a
+/// dedicated column because `local_version` is the local OCC counter
+/// (bumped on every local write) and `sync_cursor_blob` is the
+/// project-bound adapter's pull cursor — both have incompatible
+/// semantics with a remote row version.
+///
+/// `projects.field_revisions_json` is the project counterpart of
+/// `workitem_extras.field_revisions`: a JSON map of
+/// `local field name → { mtime, source }` watermarks stamped on local
+/// edits and on remote-adopted fields, consumed by the collab bridge's
+/// per-field project merge. NULL / absent = never stamped (whole-row
+/// fallback semantics).
+fn ensure_collab_sync_columns(conn: &Connection) -> SqliteResult<()> {
+    ensure_column(conn, "projects", "collab_remote_version", "INTEGER")?;
+    ensure_column(conn, "projects", "field_revisions_json", "TEXT")?;
+    ensure_column(conn, "workitems", "collab_remote_version", "INTEGER")
 }
 
 fn ensure_routine_definitions_durable_columns(conn: &Connection) -> SqliteResult<()> {
@@ -551,6 +571,17 @@ pub fn init_outbox_table(conn: &Connection) -> SqliteResult<()> {
         CREATE INDEX IF NOT EXISTS idx_outbox_project_entity
             ON outbox_entries(project_slug, entity_type, entity_id);
         "#,
+    )?;
+    // `org_id` discriminates orgii_collab bridge rows (design §16.8): a
+    // non-NULL org_id means the row is drained/acked by the TS
+    // CollabSyncEngine through the `project_collab_outbox_*` commands,
+    // never by the in-process worker — both worker claim paths filter
+    // `org_id IS NULL`. Legacy rows (adapter-bound projects) keep NULL.
+    ensure_column(conn, "outbox_entries", "org_id", "TEXT")?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_outbox_org_status
+             ON outbox_entries(org_id, status, created_at)",
+        [],
     )?;
     Ok(())
 }
@@ -730,6 +761,8 @@ mod tests {
             "sync_last_pull_at",
             "sync_cursor_blob",
             "sync_last_webhook_at",
+            "collab_remote_version",
+            "field_revisions_json",
         ] {
             assert!(
                 cols.iter().any(|column| column == expected),
@@ -789,6 +822,8 @@ mod tests {
             "sync_last_pull_at",
             "sync_cursor_blob",
             "sync_last_webhook_at",
+            "collab_remote_version",
+            "field_revisions_json",
         ] {
             assert!(
                 cols.iter().any(|column| column == expected),
@@ -1033,7 +1068,7 @@ mod tests {
     }
 
     #[test]
-    fn workitems_cascade_on_project_delete() {
+    fn direct_project_delete_detaches_workitems_for_tombstone_ordering() {
         let conn = open_in_memory();
         init_project_tables(&conn).expect("init");
 
@@ -1053,10 +1088,17 @@ mod tests {
         conn.execute("DELETE FROM projects WHERE id = 'p1'", [])
             .unwrap();
 
-        let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM workitems", [], |row| row.get(0))
+        let project_id: Option<String> = conn
+            .query_row(
+                "SELECT project_id FROM workitems WHERE id = 'w1'",
+                [],
+                |row| row.get(0),
+            )
             .unwrap();
-        assert_eq!(count, 0, "workitems should cascade-delete with project");
+        assert_eq!(
+            project_id, None,
+            "raw project tombstones detach children until their own tombstones arrive"
+        );
     }
 
     /// End-to-end: with a sandboxed `ORGII_HOME`, opening the project pool

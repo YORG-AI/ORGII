@@ -143,6 +143,7 @@ const GeneralSection: React.FC<GeneralSectionProps> = ({
               size="small"
               onClick={() => setShowConfirm(true)}
               disabled={!onDeleteProject}
+              data-testid="project-delete-start"
             >
               {t("settings.deleteThisProject")}
             </Button>
@@ -162,6 +163,7 @@ const GeneralSection: React.FC<GeneralSectionProps> = ({
                 onChange={setConfirmText}
                 placeholder={projectName}
                 className="max-w-[320px]"
+                data-testid="project-delete-confirm-input"
                 autoFocus
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && isConfirmed) handleDelete();
@@ -175,6 +177,7 @@ const GeneralSection: React.FC<GeneralSectionProps> = ({
                   disabled={!isConfirmed}
                   loading={deleting}
                   onClick={handleDelete}
+                  data-testid="project-delete-confirm"
                 >
                   {t("settings.confirmDelete")}
                 </Button>

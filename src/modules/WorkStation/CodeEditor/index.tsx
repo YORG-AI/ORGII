@@ -225,7 +225,6 @@ export const CodeEditor: React.FC<CodeEditorProps> = memo(
       activeTab,
       setPrimaryPanel,
       handleGitFileSelect,
-      isMultiRoot: workspaceFolders.length > 1,
     });
 
     // === Pinned tabs (always-visible icon-only tabs) ===
@@ -249,8 +248,12 @@ export const CodeEditor: React.FC<CodeEditorProps> = memo(
       ],
       [explorerTab, sourceControlFilterCounts.unstaged]
     );
+    // Unified surface: nothing is auto-opened. The editor fixtures
+    // (Explorer / Source Control / Terminal) are no longer force-seeded on
+    // mount — the pool starts empty (WorkStationStartPage) and every tab is
+    // opened lazily on user action.
     usePinnedTabs({
-      enabled: true,
+      enabled: false,
       pinnedTabs,
       initialActiveTabId: explorerTab.id,
     });
@@ -262,7 +265,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = memo(
 
     const activeTabHasNoSidebar =
       activeTab?.type === "agent-config" ||
-      activeTab?.type === "github-issue-detail";
+      activeTab?.type === "github-issue-detail" ||
+      activeTab?.type === "github-pr-detail" ||
+      activeTab?.type === "search-sessions";
     const sidebarVisible =
       !activeTabHasNoSidebar && !panels.primarySidebarCollapsed;
     const repoDisplayName = repoName || repoPath.split("/").pop() || "Repo";
@@ -529,7 +534,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = memo(
     // Editor panel size: bottom uses persisted bottomPanelHeight; right uses local width.
     // Single mount while visible — CSS grid swaps axis without unmounting EditorBottomPanel.
     const [editorRightPanelWidth, setEditorRightPanelWidth] = useState(400);
-    const shouldHideSecondaryPanel = activeTab?.type === "terminal";
+    const shouldHideSecondaryPanel =
+      activeTab?.type === "terminal" || activeTab?.type === "source-control";
     const secondaryPanelConfig = useMemo(() => {
       if (shouldHideSecondaryPanel) return undefined;
 

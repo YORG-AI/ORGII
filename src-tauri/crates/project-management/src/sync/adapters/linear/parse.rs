@@ -309,7 +309,7 @@ mod tests {
         assert_eq!(change.entity_type, EntityType::WorkItem);
         assert!(!change.deleted);
         assert_eq!(change.fields["title"], "Implement Linear adapter");
-        assert_eq!(change.fields["status"], "In Progress");
+        assert_eq!(change.fields["status"], "in_progress");
         assert_eq!(change.fields["priority"], 2);
         assert_eq!(change.fields["estimate"], 3.0);
         assert_eq!(change.fields["assignee"], "Alice");

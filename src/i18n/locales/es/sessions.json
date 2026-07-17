@@ -78,14 +78,84 @@
       }
     }
   },
-  "opsControl": {
+  "kanban": {
     "sessions": "Session",
-    "replayBarAriaLabel": "Ops Control replay timeline",
+    "fileSearch": {
+      "placeholder": "Buscar sesiones por ruta de archivo",
+      "noResults": "Ninguna sesión modificó un archivo coincidente"
+    },
+    "replayBarAriaLabel": "Kanban replay timeline",
     "followLabel": "Kanban actual",
     "view": {
       "list": "Lista",
       "diary": "Diario",
-      "opsControl": "Ops Control"
+      "kanban": "Kanban",
+      "dataSource": "Fuentes de datos"
+    },
+    "dataSource": {
+      "title": "Fuentes de datos",
+      "description": "Herramientas de programación externas que ORGII detecta. Las apps importables muestran su número de sesiones y pueden reescanearse; el resto muestra el estado de instalación y dónde está su historial.",
+      "rescanAll": "Reescanear todo",
+      "rescan": "Reescanear",
+      "rescanning": "Reescaneando…",
+      "enable": "Activar",
+      "disable": "Desactivar",
+      "lastScan": "Último escaneo {{time}}",
+      "neverScanned": "Nunca escaneado",
+      "frequencyTitle": "Frecuencia de escaneo",
+      "globalFrequency": "Escaneo automático de fuentes externas",
+      "globalFrequencyDesc": "Frecuencia de escaneo predeterminada para las fuentes externas configuradas como “Predeterminado”",
+      "activeSessionRefresh": "Actualización de sesión externa abierta",
+      "activeSessionRefreshDesc": "Frecuencia de actualización de la sesión externa abierta actualmente en el panel de chat",
+      "activeSessionFreq": {
+        "3s": "Cada 3 segundos",
+        "5s": "Cada 5 segundos",
+        "10s": "Cada 10 segundos",
+        "1m": "Cada minuto"
+      },
+      "col": {
+        "source": "Fuente",
+        "sessions": "Sesiones",
+        "lastScan": "Último escaneo",
+        "frequency": "Escaneo automático",
+        "status": "Estado"
+      },
+      "freq": {
+        "default": "Predeterminado",
+        "manual": "Manual",
+        "60s": "Cada 60s",
+        "5m": "Cada 5 min",
+        "1h": "Cada hora",
+        "1d": "Diario"
+      },
+      "openFolder": "Abrir carpeta",
+      "tabs": {
+        "all": "Todos",
+        "apps": "Apps",
+        "clis": "CLIs"
+      },
+      "views": {
+        "scanning": "Escaneo",
+        "hooks": "Hooks"
+      },
+      "sessions_one": "{{count}} sesión",
+      "sessions_other": "{{count}} sesiones",
+      "details": {
+        "path": "Ruta",
+        "storeType": "Tipo de almacenamiento",
+        "copyPath": "Copiar ruta"
+      },
+      "noPath": "Ninguna ruta detectada",
+      "notImported": "No importado",
+      "status": {
+        "ready": "Listo",
+        "empty": "Sin historial",
+        "loading": "Comprobando…",
+        "error": "Error",
+        "installed": "Instalado",
+        "notInstalled": "No detectado",
+        "disabled": "Desactivado"
+      }
     },
     "list": {
       "updated": "Actualizado",
@@ -184,11 +254,6 @@
       "merging": "Fusionando…",
       "merged": "Fusionado"
     },
-    "diff": {
-      "openDiffWindow": "Ver Diff",
-      "windowTitle": "Diff de Sesión",
-      "filesChanged": "Archivos"
-    },
     "replay": {
       "replaySession": "Reproducir"
     },
@@ -226,6 +291,11 @@
       "commits_one": "{{count}} commit",
       "commits_other": "{{count}} commits",
       "committedRateShort": "{{percent}}% confirmado"
+    },
+    "detailView": {
+      "trajectory": "Trajectory",
+      "touchedFiles": "Touched files",
+      "noTouchedFiles": "No files touched"
     }
   },
   "changes": {
@@ -408,7 +478,6 @@
         "interactionAskQuestion": "Pregunta",
         "interactionAskPermission": "Solicitud de permiso",
         "interactionModeSwitch": "Cambio de modo",
-        "interactionNextSteps": "Próximos pasos",
         "interactionPlanDoc": "Documento de plan",
         "interactionGeneric": "Interacción"
       },
@@ -718,20 +787,17 @@
       "addApiKey": {
         "title": "Añadir clave API"
       },
+      "installLatestUpdate": {
+        "title": "Instalar la última actualización"
+      },
       "agents": {
         "title": "Agents"
       },
       "tabs": {
         "work": "Trabajo",
-        "explore": "Explorar",
-        "heatmap": "Tendencias"
-      },
-      "heatmap": {
-        "loading": "Cargando tendencias de actividad…",
-        "empty": "Aún no hay actividad de sesiones.",
-        "sessions": "Sesiones",
-        "tokens": "Tokens",
-        "cost": "Costo"
+        "manage": "Gestionar",
+        "heatmap": "Tendencias",
+        "runtime": "Tiempo de ejecución"
       },
       "quota": {
         "empty": "Aún no hay datos de cuota. Actualiza el uso desde Key Vault.",
@@ -779,6 +845,7 @@
     "defaultTitle": "Chat",
     "hideChatPanel": "Ocultar panel de chat",
     "showTokenUsage": "Mostrar Token",
+    "showStatusBar": "Mostrar barra de estado",
     "compactDisplayMode": "Modo compacto",
     "replay": {
       "follow": "Seguir"
@@ -950,11 +1017,20 @@
         "importFailed": "No se pudo importar la Session JSON."
       }
     },
-    "turnFiles": {
-      "filesChangedCount_one": "{{count}} archivo cambiado en esta ronda",
-      "filesChangedCount_other": "{{count}} archivos cambiados en esta ronda",
-      "historicalRoundDiffFiles_one": "Diff de ronda anterior · {{count}} archivo",
-      "historicalRoundDiffFiles_other": "Diff de ronda anterior · {{count}} archivos",
+    "turnMetadata": {
+      "noChanges": "No hubo cambios de archivos en esta ronda",
+      "earlierRound": "Ronda anterior",
+      "files_one": "{{count}} archivo",
+      "files_other": "{{count}} archivos",
+      "reads_one": "{{count}} lectura",
+      "reads_other": "{{count}} lecturas",
+      "searches_one": "{{count}} búsqueda",
+      "searches_other": "{{count}} búsquedas",
+      "failed": "Fallido",
+      "commits_one": "{{count}} commit",
+      "commits_other": "{{count}} commits",
+      "pullRequests_one": "{{count}} PR",
+      "pullRequests_other": "{{count}} PRs",
       "review": "Revisar",
       "showLess": "Mostrar menos",
       "showMore_one": "Mostrar {{count}} más",
@@ -989,9 +1065,9 @@
         "sourcePrs": "PRs",
         "stateOpen": "Open",
         "stateClosed": "Closed",
-        "stateAll": "All states",
-        "assignedToMe": "Assigned to me",
-        "createdByMe": "Created by me",
+        "stateAll": "Todos los estados",
+        "assignedToMe": "Asignados a mí",
+        "createdByMe": "Creados por mí",
         "filters": "Filters",
         "openInGitHub": "Open in GitHub"
       }
@@ -1033,6 +1109,8 @@
     "deleteFileRunning": "Eliminando {{name}}",
     "deleteFileDone": "{{name}} eliminado",
     "deleteFileFailed": "Error al eliminar {{name}}",
+    "deleteFileCompactRunning": "Eliminando",
+    "deleteFileCompactDone": "Eliminar",
     "directoryTree": "Árbol de directorios",
     "ls": "ls",
     "listDirRunning": "Listando directorio",
@@ -1075,7 +1153,7 @@
     "pathCopied": "¡Ruta copiada!",
     "failedToCopyPath": "Error al copiar la ruta",
     "copyFilePath": "Copiar ruta del archivo",
-    "explore": "Explorar",
+    "manage": "Gestionar",
     "readFile": "Leer archivo",
     "readFileRunning": "Leyendo",
     "readFileDone": "Leer",
@@ -1098,12 +1176,30 @@
     "editFileDoneNoName": "Archivo editado",
     "editFileCompactRunning": "Editando",
     "editFileCompactDone": "Editar",
+    "editFiles": "Editar archivos",
+    "editSummary": {
+      "edit_one": "{{count}} edición",
+      "edit_other": "{{count}} ediciones",
+      "read_one": "{{count}} lectura",
+      "read_other": "{{count}} lecturas",
+      "separator": ", "
+    },
     "editFileFailedNoName": "Intentó editar",
     "file": "archivo",
     "runShellRunning": "Ejecutando comando",
     "terminalWaitRunning": "Esperando a que termine el terminal",
     "runShellDone": "Comando ejecutado",
     "runShellFailed": "Error en el comando",
+    "runCommands": "Ejecutar comandos",
+    "terminalSummary": {
+      "command_one": "{{count}} comando",
+      "command_other": "{{count}} comandos",
+      "wait_one": "{{count}} espera",
+      "wait_other": "{{count}} esperas",
+      "check_one": "{{count}} comprobación",
+      "check_other": "{{count}} comprobaciones",
+      "separator": ", "
+    },
     "inspectTerminalsRunning": "Inspeccionando terminales",
     "inspectTerminalsDone": "Terminales inspeccionadas",
     "inspectTerminalsFailed": "Error al inspeccionar terminales",
@@ -1137,6 +1233,7 @@
       "skip": "Omitir",
       "noReason": "El Agent sugiere cambiar de modo"
     },
+    "explore": "Explorar",
     "exploreSummary": {
       "read_one": "{{count}} archivo",
       "read_other": "{{count}} archivos",
@@ -1147,7 +1244,8 @@
       "ls_one": "ls {{count}} carpeta",
       "ls_other": "ls {{count}} carpetas",
       "lsp_one": "{{count}} consulta LSP",
-      "lsp_other": "{{count}} consultas LSP"
+      "lsp_other": "{{count}} consultas LSP",
+      "separator": ", "
     },
     "categoryRead": "Leer",
     "categorySearch": "Buscar",
@@ -1422,9 +1520,6 @@
     "toolSearchRunning": "Buscando herramientas",
     "toolSearchDone": "Herramientas buscadas",
     "toolSearchFailed": "Error en la búsqueda de herramientas",
-    "suggestNextStepsRunning": "Sugiriendo próximos pasos",
-    "suggestNextStepsDone": "Se sugirieron {{count}} próximos pasos",
-    "suggestNextStepsFailed": "No se pudieron sugerir próximos pasos",
     "agentSendMessageRunning": "Enviando mensaje al Agent compañero",
     "agentSendMessageDone": "Mensaje enviado al Agent compañero",
     "agentSendMessageFailed": "No se pudo enviar el mensaje al Agent compañero",
@@ -2451,13 +2546,6 @@
       "missing": "Falta",
       "disabled": "Desactivado"
     }
-  },
-  "worktreeCompare": {
-    "title": "Comparar Worktrees",
-    "button": "Comparar",
-    "buttonTooltip": "Comparar diffs de worktree uno al lado del otro",
-    "noSessions": "No hay sesiones para comparar.",
-    "sessionTab": "Sesión {{n}}"
   },
   "groupChat": {
     "senderTitle": {

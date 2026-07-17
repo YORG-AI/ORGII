@@ -1,6 +1,6 @@
 import { emit } from "@tauri-apps/api/event";
-import { useSetAtom } from "jotai";
-import { ExternalLink, X } from "lucide-react";
+import { useAtomValue, useSetAtom } from "jotai";
+import { ExternalLink, Trash2, X } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -9,18 +9,23 @@ import {
   type WorkItemPartialUpdate,
   enrichedWorkItemToUI,
   projectApi,
+  standaloneWorkItemDataToEnriched,
 } from "@src/api/http/project";
 import Button from "@src/components/Button";
+import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import {
   ChatPanelHeaderBreadcrumb,
   usePublishChatPanelHeader,
 } from "@src/engines/ChatPanel/header";
 import { createLogger } from "@src/hooks/logger";
+import { useProjectDataChanged } from "@src/hooks/project";
 import {
   WorkItemContent,
   WorkItemProperties,
 } from "@src/modules/ProjectManager/WorkItems/components";
 import { WORK_ITEM_PROPERTY_INLINE_FIELDS } from "@src/modules/ProjectManager/WorkItems/components/WorkItemProperties";
+import { useWorkItemOrchestrator } from "@src/modules/ProjectManager/WorkItems/hooks";
+import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
 import { activeSessionIdAtom } from "@src/store/session";
 import {
   CHAT_PANEL_SURFACE_KIND,
@@ -28,15 +33,19 @@ import {
   chatPanelNavigateAtom,
   chatPanelSelectedWorkItemAtom,
 } from "@src/store/ui/chatPanelAtom";
+import { activeWorkspaceRootPathAtom } from "@src/store/workspace";
 import {
   STORY_ORG_SCOPE,
   STORY_PERSONAL_ORG_FILTER_ID,
 } from "@src/store/workstation";
 import type { WorkItem } from "@src/types/core/workItem";
+import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
 
 import ChatView from "../ChatView";
 
 const logger = createLogger("WorkItemPanelView");
+const saveNoPendingWorkItemChanges = async (): Promise<void> => undefined;
+
 interface WorkItemPanelViewProps {
   selectedWorkItem: ChatPanelSelectedWorkItem;
   onUpdateWorkItem?: (updates: Partial<WorkItem>) => void;
@@ -165,6 +174,7 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
   const navigateChatPanel = useSetAtom(chatPanelNavigateAtom);
   const setSelectedWorkItem = useSetAtom(chatPanelSelectedWorkItemAtom);
   const setActiveSessionId = useSetAtom(activeSessionIdAtom);
+  const activeWorkspaceRootPath = useAtomValue(activeWorkspaceRootPathAtom);
   const [floatingSessionId, setFloatingSessionId] = useState<string | null>(
     null
   );
@@ -197,10 +207,17 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
             selectedWorkItem.workItem,
             updates
           );
+          // Keep the item under its owning org — the Rust upsert
+          // overwrites org_id on conflict, so an orgless write would
+          // re-home a collab-org item to personal-org and detach it
+          // from sync.
           await projectApi.writeStandaloneWorkItem(
             selectedWorkItem.shortId,
             toStandaloneFrontmatter(updatedWorkItem, selectedWorkItem.shortId),
-            updatedWorkItem.spec ?? ""
+            updatedWorkItem.spec ?? "",
+            selectedWorkItem.orgId
+              ? { orgId: selectedWorkItem.orgId }
+              : undefined
           );
           setSelectedWorkItem({
             ...selectedWorkItem,
@@ -214,6 +231,104 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
     },
     [onUpdateWorkItem, selectedWorkItem, setSelectedWorkItem]
   );
+
+  const refreshSelectedWorkItem = useCallback(async () => {
+    try {
+      if (selectedWorkItem.projectSlug) {
+        const projects = await projectApi.readProjects();
+        const projectStillExists = projects.some(
+          (project) => project.slug === selectedWorkItem.projectSlug
+        );
+        if (!projectStillExists) {
+          // Reading the deleted project's items throws before it can return an
+          // empty list, so detect the parent tombstone explicitly. The local
+          // project store is authoritative even when cloud transport is down.
+          setSelectedWorkItem(null);
+          return;
+        }
+        const items = await projectApi.readWorkItemsEnriched(
+          selectedWorkItem.projectSlug,
+          selectedWorkItem.orgId ? { orgId: selectedWorkItem.orgId } : undefined
+        );
+        const fresh = items.find(
+          (item) => item.shortId === selectedWorkItem.shortId
+        );
+        if (!fresh) {
+          // A collaborator may delete the item itself or its parent project
+          // while this detail is open. Do not leave an editable ghost surface.
+          setSelectedWorkItem(null);
+          return;
+        }
+        setSelectedWorkItem((current) =>
+          current?.projectSlug === selectedWorkItem.projectSlug &&
+          current.shortId === selectedWorkItem.shortId &&
+          current.orgId === selectedWorkItem.orgId
+            ? { ...current, workItem: enrichedWorkItemToUI(fresh) }
+            : current
+        );
+        return;
+      }
+      if (!selectedWorkItem.shortId) return;
+      const data = await projectApi.readStandaloneWorkItem(
+        selectedWorkItem.shortId,
+        selectedWorkItem.orgId ? { orgId: selectedWorkItem.orgId } : undefined
+      );
+      setSelectedWorkItem((current) =>
+        current?.shortId === selectedWorkItem.shortId &&
+        current.orgId === selectedWorkItem.orgId
+          ? {
+              ...current,
+              workItem: enrichedWorkItemToUI(
+                standaloneWorkItemDataToEnriched(data)
+              ),
+            }
+          : current
+      );
+    } catch (error) {
+      logger.warn("Failed to refresh chat panel work item", error);
+    }
+  }, [selectedWorkItem, setSelectedWorkItem]);
+
+  useProjectDataChanged(
+    useCallback(() => {
+      void refreshSelectedWorkItem();
+    }, [refreshSelectedWorkItem]),
+    // A detail surface can mount from a cached navigation payload after the
+    // mutation signal already fired. Refreshing on mount closes that race;
+    // subsequent signals keep the open panel live.
+    { fireOnMount: true }
+  );
+
+  // The chat-panel detail is a second presentation of the same Work Item,
+  // not a read-only workflow mock. Reuse the canonical orchestrator hook so
+  // agent actions, cloud execution locks, and lock-holder labels behave the
+  // same here as they do in the full Project Manager detail.
+  const repoPath =
+    selectedWorkItem.sourceProject?.project.linkedRepos?.[0]?.id ??
+    activeWorkspaceRootPath ??
+    null;
+  const {
+    isStartingAgent,
+    activeAgentSessionId,
+    activeAgentRole,
+    handleStartAgent,
+    handleRetry,
+    handleCancelAgent,
+    handleAcceptAsIs,
+    handleCreateFollowUp,
+    isLockedByOther,
+    lockHolderName,
+  } = useWorkItemOrchestrator({
+    workItem: selectedWorkItem.workItem,
+    displayWorkItem: selectedWorkItem.workItem,
+    repoPath,
+    projectSlug: selectedWorkItem.projectSlug,
+    shortId: selectedWorkItem.shortId,
+    onRefreshWorkItem: refreshSelectedWorkItem,
+    onUpdateWorkItem: handleUpdateWorkItem,
+    hasPendingChanges: false,
+    handleSave: saveNoPendingWorkItemChanges,
+  });
 
   const handleOpenSession = useCallback(
     (sessionId: string) => {
@@ -230,9 +345,6 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
   const linkedSessions = useMemo(
     () => selectedWorkItem.workItem.linkedSessions ?? [],
     [selectedWorkItem.workItem.linkedSessions]
-  );
-  const activeLinkedSession = linkedSessions.find(
-    (session) => session.status === "running"
   );
   const floatingSession = useMemo(
     () =>
@@ -319,8 +431,57 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
     ]
   );
 
+  const handleDeleteWorkItem = useCallback(async () => {
+    if (!selectedWorkItem.projectSlug) return;
+
+    const confirmed = await confirmDestructiveAction({
+      title: t("common:actions.confirmDeleteTitle", {
+        name: selectedWorkItem.workItem.name,
+      }),
+      message: t("common:actions.confirmDeleteMessage"),
+      okLabel: t("common:actions.delete"),
+      cancelLabel: t("common:actions.cancel"),
+    });
+    if (!confirmed) return;
+
+    try {
+      await projectApi.deleteWorkItem(
+        selectedWorkItem.projectSlug,
+        selectedWorkItem.shortId
+      );
+      setSelectedWorkItem(null);
+      await emit("orgii-data-changed");
+    } catch (error) {
+      logger.error("Failed to delete chat panel work item", error);
+    }
+  }, [selectedWorkItem, setSelectedWorkItem, t]);
+
+  const headerDeleteAction = useMemo(
+    () =>
+      selectedWorkItem.projectSlug ? (
+        <WorkstationToolbarTooltip
+          label={t("projects:workItems.deleteWorkItem")}
+        >
+          <Button
+            htmlType="button"
+            variant="tertiary"
+            size="small"
+            iconOnly
+            onClick={() => void handleDeleteWorkItem()}
+            aria-label={t("projects:workItems.deleteWorkItem")}
+            data-testid="work-item-delete"
+            icon={<Trash2 size={HEADER_ICON_SIZE.sm} />}
+          />
+        </WorkstationToolbarTooltip>
+      ) : null,
+    [handleDeleteWorkItem, selectedWorkItem.projectSlug, t]
+  );
+
   usePublishChatPanelHeader({
-    content: { content: headerBreadcrumbContent },
+    content: {
+      content: headerBreadcrumbContent,
+      trailing: headerDeleteAction,
+    },
   });
 
   const inlineProperties = (
@@ -343,11 +504,23 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
         workItem={selectedWorkItem.workItem}
         onUpdateWorkItem={handleUpdateWorkItem}
         onUpdateWorkItemImmediate={handleUpdateWorkItem}
+        repoPath={repoPath}
         projectSlug={selectedWorkItem.projectSlug}
         shortId={selectedWorkItem.shortId}
         headerProperties={inlineProperties}
+        titleVisible
+        onStartAgent={handleStartAgent}
+        isStartingAgent={isStartingAgent}
+        onCancelAgent={handleCancelAgent}
+        onRetry={handleRetry}
+        onAcceptAsIs={handleAcceptAsIs}
+        onCreateFollowUp={handleCreateFollowUp}
         onOpenSession={handleOpenSession}
-        activeAgentSessionId={activeLinkedSession?.session_id ?? null}
+        onRefreshWorkflow={refreshSelectedWorkItem}
+        activeAgentSessionId={activeAgentSessionId}
+        activeAgentRole={activeAgentRole}
+        isLockedByOther={isLockedByOther}
+        lockHolderName={lockHolderName}
       />
       {floatingSessionId && (
         <div

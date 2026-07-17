@@ -14,6 +14,7 @@ import type {
   AgentStatusInfo,
   FileResolution,
   FileResolutionValue,
+  HousekeeperContextCompactionState,
   ManualCompactResult,
   ModeSwitchChoice,
   PendingQuestion,
@@ -46,6 +47,28 @@ export async function manualCompactSession(
     sessionId,
     ...(instructions ? { instructions } : {}),
   });
+}
+
+export async function getHousekeeperContextCompactionStatus(
+  sessionId: string
+): Promise<HousekeeperContextCompactionState> {
+  return rpc.agentSession.housekeeperContextCompactionStatus({ sessionId });
+}
+
+export async function setHousekeeperContextCompactionEnabled(
+  sessionId: string,
+  enabled: boolean
+): Promise<HousekeeperContextCompactionState> {
+  return rpc.agentSession.setHousekeeperContextCompactionEnabled({
+    sessionId,
+    enabled,
+  });
+}
+
+export async function compactHousekeeperContextNow(
+  sessionId: string
+): Promise<HousekeeperContextCompactionState> {
+  return rpc.agentSession.compactHousekeeperContextNow({ sessionId });
 }
 
 /** Cancel the active turn for a session using an explicit control-flow reason. */

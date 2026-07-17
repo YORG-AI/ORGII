@@ -11,7 +11,7 @@ import { useAtomValue } from "jotai";
 import React, { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
-import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/csp";
+import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/nonce";
 import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
 import { spotlightPlacementAtom } from "@src/store/ui/uiAtom";
 

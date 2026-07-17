@@ -35,10 +35,6 @@ export const MyRolePage = React.lazy(
   () => import(/* webpackChunkName: "mainapp" */ "@src/modules/MainApp/MyRole")
 );
 
-export const DevRecordPage = React.lazy(
-  () => import(/* webpackChunkName: "misc" */ "@src/modules/MainApp/DevRecord")
-);
-
 // Market routes (Consumer Wallet, Profile, Provider Earnings/Boost, Creator
 // Studio, Delegation History) all resolve to the OSS unavailable-page
 // placeholder. The real implementations live out-of-app on the ORGII
@@ -76,18 +72,6 @@ export const TabWindow = React.lazy(
 export const ModeSelectionWindow = React.lazy(
   () =>
     import(/* webpackChunkName: "windows" */ "@src/windows/ModeSelectionWindow")
-);
-
-export const SessionDiffWindowPage = React.lazy(
-  () =>
-    import(/* webpackChunkName: "windows" */ "@src/windows/SessionDiffWindow")
-);
-
-export const WorktreeCompareWindowPage = React.lazy(
-  () =>
-    import(
-      /* webpackChunkName: "windows" */ "@src/windows/WorktreeCompareWindow"
-    )
 );
 
 export const LoginPage = React.lazy(

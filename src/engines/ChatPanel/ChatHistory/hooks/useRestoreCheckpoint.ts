@@ -24,7 +24,7 @@ import {
   checkSnapshotChanges,
   truncateAfterMessage,
 } from "@src/api/tauri/agent";
-import { analyzeOrgtrackSessions } from "@src/api/tauri/lineage";
+import { deleteOrgtrackSessionArtifacts } from "@src/api/tauri/lineage";
 import Message from "@src/components/Message";
 import { editTruncationTimestampAtom } from "@src/engines/SessionCore";
 import { cancelTurnForTimelineBoundary } from "@src/engines/SessionCore/control/sessionTimelineBoundary";
@@ -189,22 +189,19 @@ export function useRestoreCheckpoint(): (
 
           // Realign the orgtrack ledger with the checkpoint. The Workstation
           // "Diff (N)" panel reads orgtrack's own tables (final_diffs /
-          // edit_artifacts / diff_chunks / file_changes), which restore does
-          // not touch directly — so without this the panel keeps listing every
-          // file the session ever edited, even ones we just reverted. orgtrack
-          // analysis for ORGII sessions reads the (now-truncated) `events`
-          // cache, so a forced single-session rebuild re-derives all four
-          // tables from the post-checkpoint event stream (delete-then-reinsert,
-          // already idempotent). Non-fatal: a stale panel is better than a
-          // failed restore.
-          await analyzeOrgtrackSessions({
-            sessionId: initiatedSessionId,
-            rebuild: true,
-          }).catch((err) =>
-            log.warn(
-              "[useRestoreCheckpoint] orgtrack reanalyze failed (non-fatal):",
-              err
-            )
+          // diff_chunks / commit_links), which restore does not touch directly
+          // — so without this the panel keeps listing every file the session
+          // ever edited, even ones we just reverted. We invalidate (delete) the
+          // session's derived rows rather than recomputing them: the panel then
+          // shows the clean post-checkpoint state, and the live runtime path
+          // repopulates the tables as the user makes new edits. Non-fatal: a
+          // stale panel is better than a failed restore.
+          await deleteOrgtrackSessionArtifacts(initiatedSessionId).catch(
+            (err) =>
+              log.warn(
+                "[useRestoreCheckpoint] orgtrack invalidation failed (non-fatal):",
+                err
+              )
           );
         }
 

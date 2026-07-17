@@ -9,16 +9,14 @@ import { rpc } from "@src/api/tauri/rpc";
 import type {
   CoreSessionSummary,
   FunctionEntry,
-  OrgtrackAnalysisBackfillStats,
   OrgtrackCheckpointFileState,
   OrgtrackCommitLink,
   OrgtrackDiffReplayPreview,
   OrgtrackExportResult,
   OrgtrackExtractionMemoryGate,
-  OrgtrackFileSessionLookup,
+  OrgtrackFileSessionHistory,
   OrgtrackFileTimeline,
   OrgtrackIndex,
-  OrgtrackScanProgress,
   OrgtrackSessionCheckpoint,
   OrgtrackSessionDiffChunk,
   OrgtrackSessionEditArtifact,
@@ -32,16 +30,14 @@ import type {
 export type {
   CoreSessionSummary,
   FunctionEntry,
-  OrgtrackAnalysisBackfillStats,
   OrgtrackCheckpointFileState,
   OrgtrackDiffReplayPreview,
   OrgtrackExportResult,
   OrgtrackExtractionMemoryGate,
   OrgtrackCommitLink,
-  OrgtrackFileSessionLookup,
+  OrgtrackFileSessionHistory,
   OrgtrackFileTimeline,
   OrgtrackIndex,
-  OrgtrackScanProgress,
   OrgtrackSessionCheckpoint,
   OrgtrackSessionDiffChunk,
   OrgtrackSessionEditArtifact,
@@ -69,28 +65,6 @@ export async function initializeOrgtrack(input: {
   return rpc.lineage.orgtrackInitialize(input);
 }
 
-export async function startOrgtrackScan(input: {
-  repoPath: string;
-  tier?: OrgtrackTier;
-  allowRawTrajectory?: boolean;
-  resume?: boolean;
-  rebuild?: boolean;
-}): Promise<OrgtrackScanProgress> {
-  return rpc.lineage.orgtrackScanStart(input);
-}
-
-export async function getOrgtrackScanStatus(
-  repoPath: string
-): Promise<OrgtrackScanProgress | null> {
-  return rpc.lineage.orgtrackScanStatus({ repoPath });
-}
-
-export async function cancelOrgtrackScan(
-  repoPath: string
-): Promise<OrgtrackScanProgress> {
-  return rpc.lineage.orgtrackScanCancel({ repoPath });
-}
-
 export async function syncOrgtrackCoreRepo(
   repoPath: string
 ): Promise<OrgtrackIndex> {
@@ -105,17 +79,51 @@ export async function exportOrgtrack(input: {
   return rpc.lineage.orgtrackExport(input);
 }
 
-export async function getOrgtrackIndex(
-  repoPath: string
-): Promise<OrgtrackIndex | null> {
-  return rpc.lineage.orgtrackGetIndex({ repoPath });
-}
-
 export async function getOrgtrackFileTimeline(input: {
   repoPath: string;
   filePath: string;
 }): Promise<OrgtrackFileTimeline | null> {
   return rpc.lineage.orgtrackGetFileTimeline(input);
+}
+
+export async function getOrgtrackFileSessionHistory(input: {
+  repoPath: string;
+  filePath: string;
+  limit?: number;
+  offset?: number;
+}): Promise<OrgtrackFileSessionHistory> {
+  return rpc.lineage.orgtrackGetFileSessionHistory(input);
+}
+
+export async function getOrgtrackFileSessionHistoryRevision(input: {
+  repoPath: string;
+  filePath: string;
+}): Promise<number> {
+  return rpc.lineage.orgtrackGetFileSessionHistoryRevision(input);
+}
+
+export interface IndexOrgtrackCollaborationSessionInput {
+  localSessionId: string;
+  sourceSessionId: string;
+  title: string;
+  workspacePath: string;
+  sourceWorkspacePath?: string;
+  orgId: string;
+  sessionRowId: string;
+  ownerMemberId: string;
+  ownerDisplayName: string;
+}
+
+export async function indexOrgtrackCollaborationSession(
+  input: IndexOrgtrackCollaborationSessionInput
+): Promise<number> {
+  return rpc.lineage.orgtrackIndexCollaborationSession(input);
+}
+
+export async function deleteOrgtrackCollaborationSession(
+  localSessionId: string
+): Promise<void> {
+  await rpc.lineage.orgtrackDeleteCollaborationSession({ localSessionId });
 }
 
 export async function getOrgtrackSessionSummaries(
@@ -132,21 +140,15 @@ export async function getOrgtrackSessionSummary(
   return rpc.lineage.orgtrackGetSessionSummary({ sessionId });
 }
 
-export async function analyzeOrgtrackSessions(
-  input: {
-    workspacePath?: string;
-    sessionId?: string;
-    rebuild?: boolean;
-  } = {}
-): Promise<OrgtrackAnalysisBackfillStats> {
-  return rpc.lineage.orgtrackAnalyzeSessions(input);
-}
-
-export async function lookupOrgtrackFileSessions(input: {
-  repoPath: string;
-  filePath: string;
-}): Promise<OrgtrackFileSessionLookup | null> {
-  return rpc.lineage.orgtrackLookupFileSessions(input);
+/**
+ * Delete a session's derived orgtrack artifacts without recomputing them.
+ * Checkpoint-restore uses this to drop diff rows that no longer match the
+ * rewound event stream — a pure invalidation, never an analysis pass.
+ */
+export async function deleteOrgtrackSessionArtifacts(
+  sessionId: string
+): Promise<void> {
+  await rpc.lineage.orgtrackDeleteSessionArtifacts({ sessionId });
 }
 
 export async function getOrgtrackSourceTierPolicy(

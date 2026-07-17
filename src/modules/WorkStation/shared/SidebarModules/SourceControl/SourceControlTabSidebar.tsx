@@ -28,6 +28,7 @@ import { useSourceControlSidebarModule } from "./useSourceControlSidebarModule";
 
 interface SourceControlSidebarContext {
   filterMode?: SourceControlFilterMode;
+  onFilterModeChange?: (mode: SourceControlFilterMode) => void;
   navigateWithoutSelecting?: boolean;
   worktrees?: GitWorktreeEntry[];
   hasWorktrees?: boolean;
@@ -72,6 +73,7 @@ const SourceControlTabSidebar: TabSidebarComponent = ({
     onGitFilesChange: context.git?.onFilesChange,
     isMultiRoot: context.isMultiRoot,
     filterMode: sourceControlContext?.filterMode,
+    onFilterModeChange: sourceControlContext?.onFilterModeChange,
     navigateWithoutSelecting:
       sourceControlContext?.navigateWithoutSelecting ?? false,
     worktrees: hostWorktrees,

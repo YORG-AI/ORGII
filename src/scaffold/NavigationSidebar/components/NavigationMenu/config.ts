@@ -10,6 +10,8 @@ export interface NavigationMenuRowAction {
   icon?: LucideIcon;
   label: string;
   active?: boolean;
+  /** Stable rendered selector for high-value header/row actions. */
+  dataTestId?: string;
   onClick: (event: MouseEvent<HTMLButtonElement>) => void;
 }
 
@@ -57,6 +59,8 @@ export interface NavigationMenuItem {
   rowActionIcon?: LucideIcon;
   rowActionLabel?: string;
   onRowActionClick?: (event: MouseEvent<HTMLButtonElement>) => void;
+  /** Let a primary click on the selected row open its context menu. */
+  openContextMenuOnSelectedClick?: boolean;
   routePath?: string;
   /** Tab type for proper tab handling */
   tabType?: "app" | "terminal" | "browser" | "editor";

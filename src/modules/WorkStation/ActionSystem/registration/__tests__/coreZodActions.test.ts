@@ -5,7 +5,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { ZodTypeAny } from "zod";
 
 import { ACTION_ID } from "@src/ActionSystem/actionIds";
-import { guiControlZodActions } from "@src/ActionSystem/actions/guiControlActions.zod";
+import {
+  guiControlZodActions,
+  guiExecuteAction,
+} from "@src/ActionSystem/actions/guiControlActions.zod";
 import { settingsZodActions } from "@src/ActionSystem/actions/languageActions.zod";
 import { spotlightZodActions } from "@src/ActionSystem/actions/spotlightActions.zod";
 import { appZoomZodActions } from "@src/ActionSystem/actions/zoomActions.zod";
@@ -50,18 +53,14 @@ function getRepresentativeSpotlightActionIds(): Set<string> {
       agentStationChatPosition: "left",
       chatTurnPaginationEnabled: true,
       modelPickerStyle: "spotlight",
-      internalLayoutMode: "comfort",
       workstationSidebarPosition: "left",
-      dockAutoHide: true,
     }).map((action) => action.actionId),
     ...buildChatPanelSettingsActions({
       myStationChatPosition: "right",
       agentStationChatPosition: "right",
       chatTurnPaginationEnabled: false,
       modelPickerStyle: "dropdown",
-      internalLayoutMode: "compact",
       workstationSidebarPosition: "right",
-      dockAutoHide: false,
     }).map((action) => action.actionId),
     ...STATION_MODE_ACTIONS.map((action) => action.actionId),
     ...QUICK_NAVIGATION_ACTIONS.map((action) => action.actionId),
@@ -120,7 +119,7 @@ describe("getAllCoreZodActions", () => {
     expect(ids.has(ACTION_ID.WORKSTATION_TOGGLE_SIDEBAR)).toBe(true);
     expect(ids.has(ACTION_ID.WORKSTATION_OPEN_MY_STATION)).toBe(true);
     expect(ids.has(ACTION_ID.WORKSTATION_OPEN_AGENT_STATION)).toBe(true);
-    expect(ids.has(ACTION_ID.WORKSTATION_OPEN_OPS_CONTROL)).toBe(true);
+    expect(ids.has(ACTION_ID.WORKSTATION_OPEN_KANBAN)).toBe(true);
     expect(ids.has(ACTION_ID.WORKSTATION_OPEN_FILE_FOLDER_TAB)).toBe(true);
     expect(ids.has(ACTION_ID.WORKSTATION_OPEN_SOURCE_CONTROL_TAB)).toBe(true);
     expect(ids.has(ACTION_ID.WORKSTATION_OPEN_TERMINAL_TAB)).toBe(true);
@@ -148,6 +147,20 @@ describe("app-level guiControlZodActions", () => {
     const ids = new Set(guiControlZodActions.map((action) => action.meta.id));
     expect(ids.has(ACTION_ID.GUI_INSPECT)).toBe(true);
     expect(ids.has(ACTION_ID.GUI_EXECUTE)).toBe(true);
+  });
+
+  it("refuses to launder session.replyComment through gui.execute", async () => {
+    const result = await guiExecuteAction.execute({
+      targetKind: "action",
+      actionId: ACTION_ID.SESSION_REPLY_COMMENT,
+      params: {
+        commentId: "victim-thread",
+        body: "forged",
+        localSessionId: "ls-victim",
+      },
+    });
+    expect(result.success).toBe(false);
+    expect(result.message).toContain("cannot be run through gui.execute");
   });
 
   it("produces OpenAI-style LLM tool definitions for GUI control actions", () => {

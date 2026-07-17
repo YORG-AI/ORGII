@@ -25,6 +25,8 @@ import {
   EventBlockHeaderTitle,
 } from "./EventBlockHeaderTextSlots";
 
+const STACKED_BLOCK_CONTENT_MAX_HEIGHT_PX = 250;
+
 // ============================================
 // Types
 // ============================================
@@ -39,7 +41,7 @@ export interface StackedBlockProps<T> {
   /** Label shown in the header (e.g. "Browser", "Explored") */
   label?: string;
   /** Summary text shown after the label (e.g. "3 actions", "4 files, 2 searches") */
-  groupSummary?: string;
+  groupSummary?: React.ReactNode;
   /** Start collapsed (default: true) */
   defaultCollapsed?: boolean;
   /** Collapse when this value changes from false to true. */
@@ -105,14 +107,19 @@ function StackedBlockInner<T>({
         />
         {label && <EventBlockHeaderTitle>{label}</EventBlockHeaderTitle>}
         {groupSummary && (
-          <EventBlockHeaderSubtitle title={groupSummary}>
+          <EventBlockHeaderSubtitle
+            title={typeof groupSummary === "string" ? groupSummary : undefined}
+          >
             {groupSummary}
           </EventBlockHeaderSubtitle>
         )}
       </EventBlockHeader>
 
       {!isCollapsed && (
-        <div className="ml-[14px] border-l border-border-1 py-0.5">
+        <div
+          className="ml-[14px] overflow-y-auto border-l border-border-1 py-0.5"
+          style={{ maxHeight: STACKED_BLOCK_CONTENT_MAX_HEIGHT_PX }}
+        >
           <div className="flex flex-col gap-0.5 pl-3">
             {items.map((item, idx) => (
               <React.Fragment key={idx}>{renderItem(item, idx)}</React.Fragment>

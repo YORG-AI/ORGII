@@ -6,7 +6,7 @@
  *
  * Hierarchy:
  *   <SectionHeading title="General" id="general">     page-level heading
- *     <SectionContainer title="Layout">                surface-container card + optional sub-title
+ *     <SectionContainer title="Layout">                bordered container + optional sub-title
  *       <SectionRow label="Theme">                     label + control pair
  *         <Select style={SECTION_CONTROL_STYLE} />
  *       </SectionRow>
@@ -52,6 +52,17 @@ export type { ExpandableTableRowProps } from "./ExpandableTableRow";
 
 export { default as PathCopyOpenRow } from "./PathCopyOpenRow";
 export type { PathCopyOpenRowProps } from "./PathCopyOpenRow";
+
+export {
+  SectionSidebarItem,
+  SectionSidebarList,
+  SectionSidebarSplit,
+} from "./SidebarSplit";
+export type {
+  SectionSidebarItemProps,
+  SectionSidebarListProps,
+  SectionSidebarSplitProps,
+} from "./SidebarSplit";
 
 // ── Public tokens (for consumers) ───────────────────────
 export {

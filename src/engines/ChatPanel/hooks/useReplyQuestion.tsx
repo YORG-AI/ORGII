@@ -1,5 +1,5 @@
 import { useSetAtom } from "jotai";
-import { throttle } from "lodash";
+import throttle from "lodash/throttle";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";

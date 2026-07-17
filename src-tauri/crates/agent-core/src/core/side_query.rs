@@ -100,7 +100,9 @@ pub enum SideQueryError {
     Provider(ProviderError),
     /// The model hit its output token limit. Never accept this for side queries:
     /// summaries / classifiers may be syntactically parseable but semantically truncated.
-    IncompleteOutput { finish_reason: String },
+    IncompleteOutput {
+        finish_reason: String,
+    },
     EmptyContent,
 }
 
@@ -143,7 +145,6 @@ impl std::error::Error for SideQueryError {}
 //   - `anthropic_native`→ `extract_tool_choice_override` (request.rs)
 //   - `openai_responses`→ `convert_tools_with_choice` (responses_common)
 //   - `codex_native`    → `convert_tools_with_choice` (responses_common)
-//   - `gemini_native`   → implicitly safe: `convert_tools` `filter_map`
 //                         drops any element lacking a `name` key.
 // A new provider that builds a `tools` payload without one of the above is a
 // latent `Unsupported tool type` bug — wire it through the shared helper.
@@ -410,7 +411,36 @@ fn extract_structured_from_response(
         .tool_calls
         .iter()
         .find(|tc| tc.name == structured_cfg.tool_name)?;
+    // A forced tool call guarantees a `tool_use` block, but not a useful
+    // one: on very large prompts models sometimes emit the call with `{}`
+    // or all-empty fields (observed live: compaction summarizer answered
+    // a 233K-token prompt with completion=2 — an empty emit_summary).
+    // Accepting that as success bypasses the retry chain and hands the
+    // caller an empty payload, so treat it as "no structured output" and
+    // let the normal empty-response retry/fallback path run.
+    if structured_arguments_are_empty(&tool_call.arguments) {
+        warn!(
+            "[side-query] forced tool call '{}' returned empty arguments — treating as empty response",
+            structured_cfg.tool_name
+        );
+        return None;
+    }
     Some(tool_call.arguments.clone())
+}
+
+/// True when forced-tool-call arguments carry no usable payload: `null`,
+/// `{}`, or an object whose fields are all null / blank strings. Non-object
+/// shapes are left to the caller's own schema validation.
+fn structured_arguments_are_empty(arguments: &Value) -> bool {
+    match arguments {
+        Value::Null => true,
+        Value::Object(map) => map.values().all(|field| match field {
+            Value::Null => true,
+            Value::String(text) => text.trim().is_empty(),
+            _ => false,
+        }),
+        _ => false,
+    }
 }
 
 fn build_structured_result(response: &LLMResponse, structured: Value) -> SideQueryResult {

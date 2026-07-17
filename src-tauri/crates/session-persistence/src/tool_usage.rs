@@ -124,7 +124,18 @@ pub fn insert_usage_telemetry_batch(
     with_sessions_writer(|| {
         let mut conn = get_connection()?;
         insert_usage_telemetry_batch_with_conn(&mut conn, spans, attributions)
-    })
+    })?;
+    // Spans describe the same tokens as `session_token_usage` at per-LLM-call
+    // granularity — the projection reads only the rollups (summing both would
+    // double-count). Refreshing here guards against a batch landing after the
+    // turn rollup's own refresh.
+    let mut seen = std::collections::HashSet::new();
+    for span in spans {
+        if seen.insert(span.session_id) {
+            super::token_usage::recompute_usage_projection(span.session_id);
+        }
+    }
+    Ok(())
 }
 
 pub fn insert_usage_telemetry_batch_with_conn(
@@ -364,12 +375,9 @@ pub fn delete_usage_telemetry(session_id: &str) -> SqliteResult<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex as StdMutex;
-
-    static ORGII_HOME_TEST_LOCK: StdMutex<()> = StdMutex::new(());
 
     fn with_temp_orgii_home<R>(run: impl FnOnce() -> R) -> R {
-        let _guard = match ORGII_HOME_TEST_LOCK.lock() {
+        let _guard = match crate::ORGII_HOME_TEST_LOCK.lock() {
             Ok(guard) => guard,
             Err(poisoned) => poisoned.into_inner(),
         };

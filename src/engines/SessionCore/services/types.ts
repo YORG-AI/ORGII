@@ -17,6 +17,8 @@ import type { DispatchCategory } from "@src/api/tauri/session";
 export interface SessionCreateParams {
   /** User's task description */
   task: string;
+  /** Base64 image data URLs attached to the initial user task. */
+  imageDataUrls?: string[];
   /** Repository path for the SDE agent to work in (agent_session_message's workspacePath) */
   repoPath?: string;
   /** Project repo path where Work Items live (stored in session DB for orchestration notifications) */

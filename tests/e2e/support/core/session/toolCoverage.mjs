@@ -84,7 +84,6 @@ export const CANONICAL_TOOL_NAMES = Object.freeze([
   "worktree",
   "send_to_inbox",
   "suggest_mode_switch",
-  "suggest_next_steps",
   "tool_search",
   "render_inline_canvas",
   "create_plan",

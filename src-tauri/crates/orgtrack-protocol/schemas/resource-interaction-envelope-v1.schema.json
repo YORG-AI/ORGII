@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://orgtrack.dev/schemas/resource-interaction-envelope-v1.schema.json",
+  "title": "Orgtrack Resource Interaction Envelope v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "source",
+    "sourceSessionId",
+    "sessionId",
+    "sourceEventId",
+    "turnId",
+    "actorId",
+    "cwd",
+    "filePath",
+    "action",
+    "outcome",
+    "occurredAt",
+    "attributionPrecision"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "source": { "type": "string", "minLength": 1 },
+    "sourceSessionId": { "type": "string", "minLength": 1 },
+    "sessionId": { "type": "string", "minLength": 1 },
+    "sourceEventId": { "type": ["string", "null"] },
+    "turnId": { "type": ["string", "null"] },
+    "actorId": { "type": ["string", "null"] },
+    "cwd": { "type": "string", "minLength": 1 },
+    "filePath": { "type": "string", "minLength": 1 },
+    "action": {
+      "enum": ["read", "write", "create", "delete", "rename", "search"]
+    },
+    "outcome": { "enum": ["succeeded", "failed", "unknown"] },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "attributionPrecision": {
+      "enum": ["unknown", "session_only", "correlated", "exact"]
+    }
+  }
+}

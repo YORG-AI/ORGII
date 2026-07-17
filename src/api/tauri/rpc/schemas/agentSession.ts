@@ -4,6 +4,7 @@ import type {
   AgentExecModeConfig,
   AgentStatusInfo,
   FileResolution,
+  HousekeeperContextCompactionState,
   ManualCompactResult,
   PendingQuestion,
   RevertResult,
@@ -28,6 +29,11 @@ export const SessionIdInput = z.object({
 export const ManualCompactInput = z.object({
   sessionId: z.string(),
   instructions: z.string().optional(),
+});
+
+export const HousekeeperContextCompactionEnabledInput = z.object({
+  sessionId: z.string(),
+  enabled: z.boolean(),
 });
 
 export const SessionRequestIdInput = z.object({
@@ -86,6 +92,28 @@ export const ManualCompactResultSchema = z.object({
     })
     .optional(),
 }) as z.ZodType<ManualCompactResult, ManualCompactResult>;
+
+export const HousekeeperContextCompactionStateSchema = z.object({
+  enabled: z.boolean(),
+  status: z.enum([
+    "disabled",
+    "idle",
+    "running",
+    "complete",
+    "error",
+    "unavailable",
+    "busy",
+  ]),
+  coveredMessages: z.number(),
+  sourceTokens: z.number(),
+  summaryTokens: z.number(),
+  lastRunAt: z.string().optional(),
+  lastError: z.string().optional(),
+  message: z.string().optional(),
+}) as z.ZodType<
+  HousekeeperContextCompactionState,
+  HousekeeperContextCompactionState
+>;
 
 export const SessionMessageSchema = z
   .object({

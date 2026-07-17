@@ -28,6 +28,7 @@
     "agentSessions": "Agent Session",
     "apiKeys": "API Keys",
     "appUpdate": "アプリの更新",
+    "security": "セキュリティ",
     "monitor": "デバイス & ネットワーク",
     "osAgentConfig": "OS Agent 設定",
     "sdeAgentConfig": "SDE Agent 設定",
@@ -39,7 +40,8 @@
     "storage": "ストレージ",
     "projectUsage": "Projectと使用量",
     "agentMemory": "Agent メモリ",
-    "agentOrg": "Agent チーム"
+    "agentOrg": "Agent チーム",
+    "collaboration": "コラボレーション"
   },
   "coreSidebar": {
     "groups": {
@@ -54,6 +56,7 @@
       "models": "モデル & Keys",
       "myRoles": "マイロール",
       "rulesMemoryEvolution": "ルール、メモリ & 進化",
+      "security": "セキュリティ",
       "routines": "ルーチン",
       "tools": "Built-in Tools",
       "computerUse": "Computer Use",
@@ -66,6 +69,16 @@
       "housekeeper": "MiniCPM Housekeeper",
       "externalSkillsets": "Skills、MCPs、Plugins"
     }
+  },
+  "security": {
+    "scan": "シークレット送信前に警告する",
+    "scanDesc": "入力欄に入力した内容から API キー、トークン、パスワードを検出し、モデルへ送信する前に確認を求めます",
+    "entropy": "高エントロピー文字列を検出する",
+    "entropyDesc": "既知のキー形式に一致しない、ランダムに見える長い文字列も検出します。より多くのシークレットを検出できますが、ハッシュや ID を誤検出することがあります",
+    "customPatterns": "カスタムパターン",
+    "customPatternsDesc": "1 行に 1 つの正規表現を入力します。一致したものはシークレットとして扱われます。無効な表現は無視されます",
+    "customPatternsPlaceholder": "例: MYCORP_[A-Z0-9]{20}",
+    "invalidPatterns": "{{count}} 個のパターンが無効なため無視されます：{{patterns}}"
   },
   "myRoles": {
     "currentStatus": "現在のステータス",
@@ -149,17 +162,16 @@
       "zh-Hant": "繁体中国語"
     },
     "layout": "レイアウト",
-    "globalLayoutMethod": "レイアウト方式",
-    "globalLayoutMethodDesc": "コンテンツパネルの枠取り方を選択",
+    "sidebar": "サイドバー",
+    "spotlight": "Spotlight",
+    "sidebarEdgeDepth": "サイドバー境界の奥行き",
+    "selectedItemTransparency": "選択項目の透明度",
     "spotlightPlacement": "Spotlight の位置",
     "spotlightPlacementDesc": "Spotlight コマンドパレットを開く位置を選択",
     "spotlightPlacementOptions": {
       "top": "上部",
       "center": "ページ中央"
     },
-    "inset": "快適",
-    "full": "拡張",
-    "compact": "モダン",
     "left": "左",
     "right": "右",
     "light": "ライト",
@@ -324,7 +336,7 @@
     "configAgentKeys": "OS & SDE Agent の API Keys",
     "configAgentKeysDesc": "OpenAI、Anthropic、DeepSeek などのプロバイダーの API Key を追加",
     "configCliKeys": "CLI Agent の API Keys",
-    "configCliKeysDesc": "Claude Code、Codex、Gemini CLI などの CLI ツールの API Key を追加"
+    "configCliKeysDesc": "Claude Code、Codex などの CLI ツールの API Key を追加"
   },
   "cliConfig": {
     "overviewLabel": "CLI Agent",
@@ -890,7 +902,6 @@
     "diskCategory_logs": "ログ",
     "diskCategory_personalWorkspace": "OS Agent ワークスペース",
     "diskCategory_cursorConfig": "Session CLI 設定",
-    "diskCategory_geminiCliHome": "Gemini CLI ディレクトリ",
     "diskCategory_extensions": "拡張機能",
     "diskNotScanned": "未スキャン",
     "diskScanning": "スキャン中...",
@@ -1292,5 +1303,11 @@
     "searchActions": "アクションを検索...",
     "noActionsFound": "アクションが見つかりません",
     "noConfigurableProperties": "設定可能なプロパティはありません"
+  },
+  "collaboration": {
+    "tabs": {
+      "cloud": "クラウド",
+      "selfHosted": "セルフホスト"
+    }
   }
 }

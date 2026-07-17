@@ -33,7 +33,6 @@ const SKIP_CHAT_TOOLS = new Set([
   "create_plan",
   "manage_todo",
   "ask_user_questions",
-  "suggest_next_steps",
   "suggest_mode_switch",
   "ask_user_permissions",
   "thinking",
@@ -2289,6 +2288,327 @@ async function assertOpenCodeSubagentReloadKeepsAnswerAndAssignment() {
   );
 }
 
+async function assertTurnMetadataFooterRendered() {
+  const sessionId = `sdeagent-e2e-turn-metadata-${RUN_ID}`;
+  const baseTime = Date.now();
+  const user = withCreatedAt(
+    makeUserEvent(sessionId, `metadata-${RUN_ID}`),
+    baseTime
+  );
+  const edit = {
+    id: `${sessionId}-edit`,
+    chunk_id: `${sessionId}-edit`,
+    sessionId,
+    createdAt: new Date(baseTime + 1_000).toISOString(),
+    functionName: "edit_file",
+    uiCanonical: "edit_file",
+    actionType: "tool_call",
+    args: {
+      file_path: "src/features/metadata/sessionMetadata.ts",
+      old_string: "old line",
+      new_string: "new line\nsecond line\nthird line",
+    },
+    result: {
+      output: "Updated src/features/metadata/sessionMetadata.ts",
+      linesAdded: 3,
+      linesRemoved: 1,
+    },
+    source: "assistant",
+    displayText: "Updated sessionMetadata.ts",
+    displayStatus: "completed",
+    displayVariant: "tool_call",
+    activityStatus: "agent",
+    isDelta: false,
+  };
+  const read = {
+    ...edit,
+    id: `${sessionId}-read`,
+    chunk_id: `${sessionId}-read`,
+    createdAt: new Date(baseTime + 500).toISOString(),
+    functionName: "read_file",
+    uiCanonical: "read_file",
+    args: { file_path: "src/features/metadata/source.ts" },
+    result: { output: "source contents" },
+    displayText: "Read source.ts",
+  };
+  const search = {
+    ...edit,
+    id: `${sessionId}-search`,
+    chunk_id: `${sessionId}-search`,
+    createdAt: new Date(baseTime + 750).toISOString(),
+    functionName: "search_files",
+    uiCanonical: "search_files",
+    args: { path: "src/features/metadata" },
+    result: {
+      results: [{ file: "src/features/metadata/sessionMetadata.ts" }],
+    },
+    displayText: "Searched metadata files",
+  };
+  const commit = {
+    ...edit,
+    id: `${sessionId}-commit`,
+    chunk_id: `${sessionId}-commit`,
+    createdAt: new Date(baseTime + 2_000).toISOString(),
+    functionName: "run_shell",
+    uiCanonical: "run_shell",
+    args: { command: "git commit -m 'feat: session metadata'" },
+    result: {
+      success: {
+        command: "git commit -m 'feat: session metadata'",
+        stdout: "[feature/session-metadata abc1234] feat: session metadata",
+        exitCode: 0,
+      },
+    },
+    displayText: "Committed session metadata",
+  };
+  const pullRequest = {
+    ...commit,
+    id: `${sessionId}-pr`,
+    chunk_id: `${sessionId}-pr`,
+    createdAt: new Date(baseTime + 3_000).toISOString(),
+    args: { command: "gh pr create --title 'Session metadata'" },
+    result: {
+      success: {
+        command: "gh pr create --title 'Session metadata'",
+        stdout: "https://github.com/yorgai/ORG2/pull/387",
+        exitCode: 0,
+      },
+    },
+    displayText: "Created pull request 387",
+  };
+  const assistant = withCreatedAt(
+    makeAssistantEvent(sessionId, `metadata-${RUN_ID}`),
+    baseTime + 4_000
+  );
+
+  const seed = await invokeE2E("seedPersistedCachedSession", {
+    sessionId,
+    name: "Turn metadata E2E",
+    userInput: "Edit a file, commit it, and open a PR",
+    category: "rust_agent",
+    status: "completed",
+    events: [user, read, search, edit, commit, pullRequest, assistant],
+  });
+  if (!seed || seed.ok !== true) {
+    throw new Error(`turn metadata seed failed: ${seed?.error ?? "unknown"}`);
+  }
+  const opened = await invokeE2E("openSession", sessionId);
+  if (!opened || opened.ok !== true) {
+    throw new Error(`turn metadata open failed: ${opened?.error ?? "unknown"}`);
+  }
+
+  await browser.waitUntil(
+    async () =>
+      execJS(`
+        const footer = document.querySelector('[data-testid="turn-metadata-footer"]');
+        return !!footer &&
+          !!footer.querySelector('[data-testid="turn-metadata-files-count"]') &&
+          !!footer.querySelector('[data-testid="turn-metadata-reads-count"]') &&
+          !!footer.querySelector('[data-testid="turn-metadata-searches-count"]') &&
+          !!footer.querySelector('[data-testid="turn-metadata-commits-count"]') &&
+          !!footer.querySelector('[data-testid="turn-metadata-prs-count"]') &&
+          footer.querySelectorAll('[data-testid="turn-metadata-commit"]').length === 1 &&
+          footer.querySelectorAll('[data-testid="turn-metadata-pr"]').length === 1 &&
+          footer.querySelectorAll('[data-testid="turn-metadata-read"]').length === 1 &&
+          footer.querySelectorAll('[data-testid="turn-metadata-search"]').length === 2 &&
+          (footer.innerText || '').includes('sessionMetadata.ts') &&
+          (footer.innerText || '').includes('abc1234') &&
+          (footer.innerText || '').includes('#387');
+      `),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: `turn metadata footer did not render: ${JSON.stringify(
+        await execJS(`return (document.body.innerText || '').slice(-5000);`)
+      )}`,
+    }
+  );
+
+  const emptySessionId = `sdeagent-e2e-turn-metadata-empty-${RUN_ID}`;
+  const emptySeed = await invokeE2E("seedPersistedCachedSession", {
+    sessionId: emptySessionId,
+    name: "Empty turn metadata E2E",
+    category: "rust_agent",
+    status: "completed",
+    events: [
+      withCreatedAt(makeUserEvent(emptySessionId, `empty-${RUN_ID}`), baseTime),
+      withCreatedAt(
+        makeAssistantEvent(emptySessionId, `empty-${RUN_ID}`),
+        baseTime + 1_000
+      ),
+    ],
+  });
+  if (!emptySeed || emptySeed.ok !== true) {
+    throw new Error(
+      `empty turn metadata seed failed: ${emptySeed?.error ?? "unknown"}`
+    );
+  }
+  const emptyOpened = await invokeE2E("openSession", emptySessionId);
+  if (!emptyOpened || emptyOpened.ok !== true) {
+    throw new Error(
+      `empty turn metadata open failed: ${emptyOpened?.error ?? "unknown"}`
+    );
+  }
+  await browser.waitUntil(
+    async () =>
+      execJS(
+        `return !!document.querySelector('[data-testid="turn-metadata-empty"]');`
+      ),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg:
+        "completed no-edit round did not render its empty metadata state",
+    }
+  );
+}
+
+async function assertKanbanFileSearchRendered() {
+  const opened = await invokeE2E("openWorkManagementTab");
+  if (!opened || opened.ok !== true) {
+    throw new Error(
+      `open work management failed: ${opened?.error ?? "unknown"}`
+    );
+  }
+  await browser.waitUntil(
+    async () =>
+      execJS(
+        `return !!document.querySelector('[data-testid="kanban-file-search-input"] input');`
+      ),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: "Kanban file search input did not render",
+    }
+  );
+
+  const alphaTitle = `Metadata alpha ${RUN_ID}`;
+  const betaTitle = `Metadata beta ${RUN_ID}`;
+  for (const fixture of [
+    {
+      sessionId: `sdeagent-e2e-file-search-alpha-${RUN_ID}`,
+      name: alphaTitle,
+      touchedFiles: ["src/features/metadata/SessionRoundMetadata.tsx"],
+    },
+    {
+      sessionId: `sdeagent-e2e-file-search-beta-${RUN_ID}`,
+      name: betaTitle,
+      touchedFiles: ["src/engines/kanban/searchIndex.rs"],
+    },
+  ]) {
+    const seed = await invokeE2E("seedSidebarSession", fixture);
+    if (!seed || seed.ok !== true) {
+      throw new Error(`Kanban search seed failed: ${seed?.error ?? "unknown"}`);
+    }
+  }
+
+  const cardTitles = () =>
+    execJS(`
+      return Array.from(document.querySelectorAll('.kanban-task-card'))
+        .map((card) => card.innerText || '');
+    `);
+  const setFileSearch = async (value) => {
+    const nextValue = await execJS(`
+      const input = document.querySelector('[data-testid="kanban-file-search-input"] input');
+      if (!(input instanceof HTMLInputElement)) return null;
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      if (!setter) return null;
+      setter.call(input, ${JSON.stringify(value)});
+      input.dispatchEvent(new InputEvent('input', {
+        bubbles: true,
+        data: ${JSON.stringify(value)},
+        inputType: 'insertText',
+      }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return input.value;
+    `);
+    if (nextValue !== value) {
+      throw new Error(`failed to set Kanban file search to ${value}`);
+    }
+  };
+  await browser.waitUntil(
+    async () => {
+      const titles = await cardTitles();
+      return (
+        titles.some((title) => title.includes(alphaTitle)) &&
+        titles.some((title) => title.includes(betaTitle))
+      );
+    },
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: "seeded Kanban search cards did not render",
+    }
+  );
+
+  await setFileSearch("roundmetadata");
+  try {
+    await browser.waitUntil(
+      async () => {
+        const titles = await cardTitles();
+        return (
+          titles.some((title) => title.includes(alphaTitle)) &&
+          !titles.some((title) => title.includes(betaTitle))
+        );
+      },
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        timeoutMsg: "basename fragment did not filter Kanban sessions",
+      }
+    );
+  } catch (error) {
+    throw new Error(
+      `${error.message}: ${JSON.stringify({
+        inputValue: await execJS(
+          `return document.querySelector('[data-testid="kanban-file-search-input"] input')?.value ?? null;`
+        ),
+        titles: await cardTitles(),
+        body: await execJS(
+          `return (document.body.innerText || '').slice(-3000);`
+        ),
+      })}`
+    );
+  }
+
+  await setFileSearch("ENGINES\\KANBAN");
+  await browser.waitUntil(
+    async () => {
+      const titles = await cardTitles();
+      return (
+        !titles.some((title) => title.includes(alphaTitle)) &&
+        titles.some((title) => title.includes(betaTitle))
+      );
+    },
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: "normalized partial path did not filter Kanban sessions",
+    }
+  );
+
+  await setFileSearch("definitely-not-a-touched-file");
+  await browser.waitUntil(
+    async () =>
+      execJS(
+        `return !!document.querySelector('[data-testid="kanban-file-search-empty"]');`
+      ),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: "Kanban file search empty state did not render",
+    }
+  );
+
+  await setFileSearch("");
+  await browser.waitUntil(
+    async () => {
+      const titles = await cardTitles();
+      return (
+        titles.some((title) => title.includes(alphaTitle)) &&
+        titles.some((title) => title.includes(betaTitle))
+      );
+    },
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: "clearing Kanban file search did not restore all sessions",
+    }
+  );
+}
+
 describe("Core chat rendering UI", () => {
   before(async () => {
     await waitForApp();
@@ -2480,5 +2800,23 @@ describe("Core chat rendering UI", () => {
     }
 
     await assertThinkingChronologicalOrder();
+  });
+
+  it("renders DB-materialized files, commits, PRs, and the no-change state per round", async function () {
+    if (!shouldRunScenario("turn-metadata")) {
+      this.skip();
+      return;
+    }
+
+    await assertTurnMetadataFooterRendered();
+  });
+
+  it("filters rendered Kanban sessions by basename and partial file path", async function () {
+    if (!shouldRunScenario("kanban-file-search")) {
+      this.skip();
+      return;
+    }
+
+    await assertKanbanFileSearchRendered();
   });
 });

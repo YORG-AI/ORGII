@@ -19,7 +19,7 @@ import { useNavigate } from "react-router-dom";
 
 import type { WorkspaceRecord } from "@src/api/tauri/workspace";
 import Input from "@src/components/Input";
-import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/csp";
+import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/nonce";
 import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
 import { createLogger } from "@src/hooks/logger";
 import {

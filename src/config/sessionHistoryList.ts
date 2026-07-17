@@ -2,7 +2,7 @@
  * Session history list — shared limits for chat panel, Workstation chat sidebar,
  * and any UI that lists sessions with "load more" pagination.
  *
- * Fetch size applies to `loadSessions()`; visible counts apply to client-side slicing.
+ * Fetch size applies to flat history; visible counts apply to client-side slicing.
  */
 
 /** Page size for `loadSessions({ limit })` when loading the history cache */

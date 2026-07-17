@@ -6,6 +6,7 @@ import Button from "@src/components/Button";
 import { requiredBinaryFromHint } from "@src/config/prerequisites";
 import { usePrerequisiteCheck } from "@src/hooks/dependencies/usePrerequisiteCheck";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { InfoRow } from "@src/modules/shared/layouts/blocks/InfoRow";
 import { openExternalLink } from "@src/util/platform/ipcRenderer";
 
 import {
@@ -17,7 +18,6 @@ import {
   InlineCardTabs,
   InlineSplitNavRow,
 } from "../../../KeyVault/shared/InlineCardPrimitives";
-import { InfoRow } from "../../../shared/InfoRow";
 import { InstallScriptPanel } from "../../../shared/InstallScriptPanel";
 import type {
   ActionState,

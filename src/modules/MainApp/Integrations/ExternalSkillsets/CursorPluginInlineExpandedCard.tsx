@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import type { CursorPluginInfo } from "@src/api/tauri/rpc/procedures/agentOrgs";
 import { createLogger } from "@src/hooks/logger";
 import { useCopyCheck } from "@src/hooks/ui";
+import { InfoRow } from "@src/modules/shared/layouts/blocks/InfoRow";
 import { copyText } from "@src/util/data/clipboard";
 import { extractSkillPreviewDescription } from "@src/util/skills/skillFrontmatter";
 import { openFileInWorkStation } from "@src/util/ui/openFileInWorkStation";
@@ -24,7 +25,6 @@ import {
   InlineCardSplit,
   InlineCardTabs,
 } from "../KeyVault/shared/InlineCardPrimitives";
-import { InfoRow } from "../shared/InfoRow";
 import { getMcpServerNames } from "./usePluginLogo";
 
 const PLUGIN_INLINE_TAB = {

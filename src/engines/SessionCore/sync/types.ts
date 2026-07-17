@@ -21,7 +21,7 @@ import type { ContextUsageSnapshot } from "@src/store/session/cliSessionStatusAt
 import {
   isAgentSession,
   isCliSession,
-  isExternalHistorySession,
+  isImportedHistorySession,
 } from "@src/util/session/sessionDispatch";
 
 import type { SessionEvent } from "../core/types";
@@ -320,7 +320,11 @@ export function getAdapterForSession(
   if (isCliSession(sessionId)) {
     return adapterRegistry.get("cli");
   }
-  if (isExternalHistorySession(sessionId)) {
+  // Cursor IDE history carries a distinct `cursor_ide` display category (to
+  // separate imported IDE history from launched Cursor CLI sessions), but for
+  // *loading* it is read-only external history like the rest — route it to the
+  // same adapter. `isImportedHistorySession` = cursor_ide OR external_history.
+  if (isImportedHistorySession(sessionId)) {
     return adapterRegistry.get("external_history");
   }
   return undefined;

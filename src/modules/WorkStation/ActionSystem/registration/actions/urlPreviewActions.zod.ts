@@ -8,7 +8,7 @@ import { z } from "zod";
 
 import { ACTION_ID } from "@src/ActionSystem/actionIds";
 import { defineZodAction } from "@src/ActionSystem/schema/defineZodAction";
-import { EditorTabService } from "@src/services/workStation";
+import { EditorTabService } from "@src/services/workStation/EditorTabService";
 import { createUrlPreviewTab } from "@src/store/workstation/tabs/factories";
 
 export const urlPreview = defineZodAction(

@@ -5,6 +5,12 @@
  * Handles icons, labels, status indicators, git badges, and keyboard shortcuts.
  */
 import {
+  MenuItem,
+  PredefinedMenuItem,
+  Menu as TauriMenu,
+} from "@tauri-apps/api/menu";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import {
   Check,
   ChevronRight,
   CornerDownRight,
@@ -13,11 +19,15 @@ import {
   Lock,
 } from "lucide-react";
 import React, { memo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 
 import Checkbox from "@src/components/Checkbox";
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import { KeyboardShortcut } from "@src/components/KeyboardShortcut";
 import Tooltip from "@src/components/Tooltip";
+import { createLogger } from "@src/hooks/logger";
+import { copyText } from "@src/util/data/clipboard";
+import { getFileManagerRevealLabelKey } from "@src/util/platform/fileManagerLabels";
 
 import { ICONS } from "../config";
 import { SPOTLIGHT_TOKENS } from "../constants";
@@ -36,6 +46,65 @@ const GIT_BADGE_GROUP_CLASSES = "flex items-center gap-3";
 
 const GIT_BADGE_CLASSES = `${TAG_BASE_CLASSES} !gap-1 text-[12px] text-text-2`;
 const PATH_ELLIPSIS_SEGMENT = "/ ... /";
+const log = createLogger("SpotlightItemRow");
+
+interface SpotlightContextMenuOptions {
+  name?: string;
+  path?: string;
+  copyNameLabel: string;
+  copyPathLabel: string;
+  revealLabel: string;
+}
+
+async function showSpotlightContextMenu({
+  name,
+  path,
+  copyNameLabel,
+  copyPathLabel,
+  revealLabel,
+}: SpotlightContextMenuOptions): Promise<void> {
+  const items: (MenuItem | PredefinedMenuItem)[] = [];
+  if (path) {
+    items.push(
+      await MenuItem.new({
+        text: copyPathLabel,
+        action: () => {
+          void copyText(path).catch((error: unknown) => {
+            log.error("Failed to copy path:", error);
+          });
+        },
+      })
+    );
+  }
+  if (name) {
+    items.push(
+      await MenuItem.new({
+        text: copyNameLabel,
+        action: () => {
+          void copyText(name).catch((error: unknown) => {
+            log.error("Failed to copy name:", error);
+          });
+        },
+      })
+    );
+  }
+  if (path) {
+    items.push(
+      await PredefinedMenuItem.new({ item: "Separator" }),
+      await MenuItem.new({
+        text: revealLabel,
+        action: () => {
+          void revealItemInDir(path).catch((error: unknown) => {
+            log.error("Failed to reveal path in file manager:", error);
+          });
+        },
+      })
+    );
+  }
+  if (items.length === 0) return;
+  const menu = await TauriMenu.new({ items });
+  await menu.popup();
+}
 
 interface PathParts {
   prefix: string;
@@ -180,6 +249,7 @@ export const SpotlightItemRow = memo<SpotlightItemRowProps>(
     onHoverEnd,
     searchQuery,
   }) => {
+    const { t } = useTranslation();
     const data = getItemData(item);
     const isChildItem = data.parentAction && item.type === "option";
     const isCurrentSelection = data.isCurrentSelection;
@@ -221,6 +291,8 @@ export const SpotlightItemRow = memo<SpotlightItemRowProps>(
         : undefined;
     const sourceType =
       typeof data.sourceType === "string" ? data.sourceType : undefined;
+    const copyName = data.contextMenuCopy?.name;
+    const copyPath = data.contextMenuCopy?.path;
 
     const handleMouseEnter = useCallback(() => {
       if (!isKeyboardMode && !isHeader && !isDisabled) {
@@ -242,6 +314,25 @@ export const SpotlightItemRow = memo<SpotlightItemRowProps>(
         }
       },
       [onSelect, item, isHeader, isDisabled]
+    );
+
+    const handleContextMenu = useCallback(
+      (event: React.MouseEvent) => {
+        if (isHeader || isDisabled || (!copyName && !copyPath)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onHover(index);
+        void showSpotlightContextMenu({
+          name: copyName,
+          path: copyPath,
+          copyNameLabel: t("actions.copyName", "Copy Name"),
+          copyPathLabel: t("actions.copyPath", "Copy Path"),
+          revealLabel: t(getFileManagerRevealLabelKey()),
+        }).catch((error: unknown) => {
+          log.error("Failed to show context menu:", error);
+        });
+      },
+      [copyName, copyPath, index, isDisabled, isHeader, onHover, t]
     );
 
     if (isHeader) {
@@ -275,6 +366,7 @@ export const SpotlightItemRow = memo<SpotlightItemRowProps>(
         }`}
         style={{ height: getItemHeight(item) }}
         onClick={handleClick}
+        onContextMenu={handleContextMenu}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >

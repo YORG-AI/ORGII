@@ -31,7 +31,7 @@ export interface PrStatusVariant {
  * node) so this module stays pure; consumers map it onto a real icon
  * component. Extend the union + map below when a surface needs a new glyph.
  */
-export type PrStatusIconName = "pull-request" | "merge" | "closed";
+export type PrStatusIconName = "pull-request" | "merge" | "closed" | "draft";
 
 const PR_STATUS_VARIANTS: Record<string, PrStatusVariant> = {
   open: { badgeClass: "bg-success-1 text-success-6", dotClass: "bg-success-6" },
@@ -54,7 +54,7 @@ const FALLBACK_STATUS_VARIANT: PrStatusVariant = {
 
 const PR_STATUS_ICONS: Record<string, PrStatusIconName> = {
   open: "pull-request",
-  draft: "pull-request",
+  draft: "draft",
   merged: "merge",
   closed: "closed",
 };

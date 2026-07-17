@@ -43,6 +43,17 @@ const WorkstationTabHeader: React.FC = memo(() => {
   const isSourceControlTab =
     activeApp === "code" && activeTab?.type === "source-control";
 
+  // Launchpad: keep the strip for stable row height but render it empty —
+  // no sidebar toggle, no search/lab actions, nothing to publish.
+  if (activeTab?.type === "start") {
+    return (
+      <div
+        className="flex h-10 shrink-0 items-center border-b border-border-2"
+        data-tauri-drag-region={windowsHost ? undefined : true}
+      />
+    );
+  }
+
   return (
     <div
       className="flex h-10 shrink-0 items-center gap-2 border-b border-border-2 pl-1.5 pr-2"

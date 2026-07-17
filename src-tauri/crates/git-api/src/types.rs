@@ -390,6 +390,13 @@ pub struct WorktreeEntry {
 }
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct CreateWorktreeRequest {
+    pub worktree_path: String,
+    pub branch: String,
+    pub base_ref: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct RemoveWorktreeRequest {
     pub worktree_path: String,
     #[serde(default = "default_force_remove_worktree")]

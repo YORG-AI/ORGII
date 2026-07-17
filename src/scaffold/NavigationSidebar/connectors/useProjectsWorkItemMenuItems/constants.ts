@@ -11,7 +11,6 @@ export const PROJECTS_WORK_ITEM_PREFIX = "projects-work-item:";
 export const PROJECTS_LINEAR_WORK_ITEM_PREFIX = "projects-linear-work-item:";
 export const PROJECTS_LINEAR_LOAD_PREFIX = "projects-linear-load:";
 export const PROJECTS_LOCAL_ORG_PREFIX = "projects-local-org:";
-export const PROJECTS_CLOUD_ORG_PREFIX = "projects-cloud-org:";
 export const PROJECTS_LINEAR_ORG_PREFIX = "projects-linear-org:";
 export const PROJECTS_WORK_ITEM_CREATE_PREFIX = `${PROJECTS_NEW_WORK_ITEM_MENU_ITEM_ID}:`;
 export const PROJECTS_WORK_ITEM_GROUP_PREFIX = "projects-work-items:";

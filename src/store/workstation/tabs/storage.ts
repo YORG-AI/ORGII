@@ -42,13 +42,31 @@ function isValidWorkStationTab(value: unknown): value is WorkStationTab {
   );
 }
 
+/**
+ * Unified surface: there are no pinned / non-closable tabs. Normalize any
+ * legacy fixture flags — Explorer / Source Control / Terminal used to persist
+ * `pinned:true, closable:false, hideWhenOthersExist:true` — so every restored
+ * tab is a regular, named, closable tab (and can reach the empty start page).
+ */
+function normalizeTab(tab: WorkStationTab): WorkStationTab {
+  if (tab.pinned || tab.closable === false || tab.hideWhenOthersExist) {
+    return {
+      ...tab,
+      pinned: false,
+      closable: true,
+      hideWhenOthersExist: false,
+    };
+  }
+  return tab;
+}
+
 function validatePanelState(value: unknown): PanelState {
   if (!value || typeof value !== "object") {
     return { tabs: [], activeTabId: null };
   }
   const candidate = value as Record<string, unknown>;
   const tabs = Array.isArray(candidate.tabs)
-    ? candidate.tabs.filter(isValidWorkStationTab)
+    ? candidate.tabs.filter(isValidWorkStationTab).map(normalizeTab)
     : [];
   const activeTabId =
     typeof candidate.activeTabId === "string" &&

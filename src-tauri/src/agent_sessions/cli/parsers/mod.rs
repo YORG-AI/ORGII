@@ -1,6 +1,6 @@
 //! CLI Agent Output Parsers
 //!
-//! Parses output from external CLI agents (Cursor, Claude Code, Codex, Gemini,
+//! Parses output from external CLI agents (Cursor, Claude Code, Codex,
 //! Kiro, Copilot) and normalizes events into `ActivityChunk` objects that the
 //! frontend can render.
 //!
@@ -34,11 +34,11 @@ pub mod types;
 
 // Per-agent parsers
 pub mod acp_common;
+pub mod antigravity;
 pub mod claude_code;
 pub mod codex;
 pub mod copilot;
 pub mod cursor;
-pub mod gemini;
 pub mod kiro;
 pub mod opencode;
 

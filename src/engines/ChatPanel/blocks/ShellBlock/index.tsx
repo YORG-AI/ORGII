@@ -239,9 +239,9 @@ const RunShellView: React.FC<ShellBlockProps> = (props) => {
     );
   }
 
-  // Show the lifecycle label as the fixed title and the agent-provided
-  // description (human summary) as a truncatable subtitle — so the
-  // command symbols (npm, git, …) always remain visible in the header.
+  // When the agent provides a description (human summary), TerminalBlock
+  // promotes it to the primary title and hides the default lifecycle label.
+  // The parsed command symbols (npm, git, …) always remain visible either way.
   const trimmedDescription = description?.trim();
   const headerSubtitle =
     trimmedDescription && trimmedDescription.length > 0

@@ -5,7 +5,14 @@
  * "OPEN" section header (same pattern as IssuesContent).
  */
 import { useAtomValue } from "jotai";
-import { GitPullRequest, Loader2, TriangleAlert } from "lucide-react";
+import {
+  GitMerge,
+  GitPullRequest,
+  GitPullRequestClosed,
+  GitPullRequestDraft,
+  Loader2,
+  TriangleAlert,
+} from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -20,11 +27,15 @@ import {
 import { TreeSectionHeader } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/components/TreeSectionHeader";
 import type { TabDragPillPayload } from "@src/modules/WorkStation/shared/TabBar/tabDragTypes";
 import { TYPOGRAPHY } from "@src/modules/WorkStation/shared/tokens";
+import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { ReferenceDragGhost } from "@src/shared/dnd/ReferenceDragGhost";
 import { setPrDragStash } from "@src/shared/dnd/dragSideChannel";
 import { useReferencePillDrag } from "@src/shared/dnd/useReferencePillDrag";
 import {
+  workstationAllClosedPrsAtomFamily,
   workstationAllOpenPrsAtomFamily,
+  workstationClosedPrsErrorAtomFamily,
+  workstationClosedPrsLoadStateAtomFamily,
   workstationOpenPrsErrorAtomFamily,
   workstationOpenPrsLoadStateAtomFamily,
   workstationPrAtomFamily,
@@ -34,7 +45,8 @@ import {
 import type { SourceControlHistorySelection } from "@src/store/workstation/tabs";
 
 import { prefetchWorkstationPrDetail } from "../../hooks/useWorkstationPrDetail";
-import { getPrStatusVariant } from "./prCardHelpers";
+import { filterPullRequestsByQuery } from "../../hooks/workstationPrHelpers";
+import { getPrStatusIconName, getPrStatusVariant } from "./prCardHelpers";
 
 export interface PullRequestContentProps {
   branchName?: string;
@@ -105,20 +117,28 @@ const PrRow: React.FC<PrRowProps> = memo(
       }
     }, [pr.url, pr.number]);
 
-    const node: TreeRowNode = useMemo(
-      () => ({
+    const node: TreeRowNode = useMemo(() => {
+      const iconName = getPrStatusIconName(statusKey);
+      const PrIcon =
+        iconName === "draft"
+          ? GitPullRequestDraft
+          : iconName === "merge"
+            ? GitMerge
+            : iconName === "closed"
+              ? GitPullRequestClosed
+              : GitPullRequest;
+      return {
         id: String(pr.number),
         name: pr.title,
         path: pr.url,
         type: "file",
         icon: (
           <span className={statusVariant.dotClass.replace("bg-", "text-")}>
-            <GitPullRequest size={14} strokeWidth={1.75} />
+            <PrIcon size={14} strokeWidth={1.75} />
           </span>
         ),
-      }),
-      [pr.number, pr.title, pr.url, statusVariant.dotClass]
-    );
+      };
+    }, [pr.number, pr.title, pr.url, statusKey, statusVariant.dotClass]);
 
     const { dragHandlers, dragState } = useReferencePillDrag<HTMLDivElement>({
       tabId: `pr-${pr.number}`,
@@ -174,15 +194,26 @@ const PullRequestContent: React.FC<PullRequestContentProps> = ({
     readyToCreate,
     isCreating: prCreating,
   } = useAtomValue(workstationPrAtomFamily(scopeKey));
-  const { createPr: onCreatePr, loadOpenPrs } = useAtomValue(
-    workstationPrCallbackAtomFamily(scopeKey)
-  );
+  const {
+    createPr: onCreatePr,
+    loadOpenPrs,
+    loadClosedPrs,
+  } = useAtomValue(workstationPrCallbackAtomFamily(scopeKey));
   const allOpenPrs = useAtomValue(workstationAllOpenPrsAtomFamily(scopeKey));
+  const allClosedPrs = useAtomValue(
+    workstationAllClosedPrsAtomFamily(scopeKey)
+  );
   const openPrsLoadState = useAtomValue(
     workstationOpenPrsLoadStateAtomFamily(scopeKey)
   );
   const openPrsError = useAtomValue(
     workstationOpenPrsErrorAtomFamily(scopeKey)
+  );
+  const closedPrsLoadState = useAtomValue(
+    workstationClosedPrsLoadStateAtomFamily(scopeKey)
+  );
+  const closedPrsError = useAtomValue(
+    workstationClosedPrsErrorAtomFamily(scopeKey)
   );
 
   useEffect(() => {
@@ -192,6 +223,7 @@ const PullRequestContent: React.FC<PullRequestContentProps> = ({
   const [selectedPrNumber, setSelectedPrNumber] = useState<number | null>(null);
   const [localCreateError, setLocalCreateError] = useState<string | null>(null);
   const [openCollapsed, setOpenCollapsed] = useState(false);
+  const [closedCollapsed, setClosedCollapsed] = useState(true);
 
   const currentBranchPrFromList = useMemo(
     () =>
@@ -212,10 +244,22 @@ const PullRequestContent: React.FC<PullRequestContentProps> = ({
           ),
         ]
       : allOpenPrs;
-    if (!filterQuery.trim()) return sorted;
-    const q = filterQuery.trim().toLowerCase();
-    return sorted.filter((p) => p.title.toLowerCase().includes(q));
+    return filterPullRequestsByQuery(sorted, filterQuery);
   }, [allOpenPrs, currentBranchPrFromList, filterQuery]);
+
+  const filteredClosedPrs = useMemo(
+    () => filterPullRequestsByQuery(allClosedPrs, filterQuery),
+    [allClosedPrs, filterQuery]
+  );
+
+  const handleToggleClosed = useCallback(() => {
+    setClosedCollapsed((collapsed) => {
+      if (collapsed && closedPrsLoadState === "idle") {
+        loadClosedPrs?.();
+      }
+      return !collapsed;
+    });
+  }, [closedPrsLoadState, loadClosedPrs]);
 
   const handlePrClick = useCallback(
     (pr: OpenPRItem) => {
@@ -264,6 +308,30 @@ const PullRequestContent: React.FC<PullRequestContentProps> = ({
               message: t("labels.noPullRequest", "No pull request"),
             }
           : null;
+
+  const closedStatus: SectionStatus | null =
+    closedPrsLoadState === "loading" && filteredClosedPrs.length === 0
+      ? { kind: "loading", message: t("actions.loading", "Loading…") }
+      : closedPrsLoadState === "error" && filteredClosedPrs.length === 0
+        ? {
+            kind: "error",
+            message:
+              closedPrsError ??
+              t("git.pr.failedToLoad", "Failed to load pull requests"),
+          }
+        : closedPrsLoadState === "ready" && filteredClosedPrs.length === 0
+          ? {
+              kind: "empty",
+              message: t("labels.noPullRequest", "No pull request"),
+            }
+          : null;
+
+  // When the Open section is the sidebar's only content (Closed collapsed) and
+  // it has no rows, render its loading/empty state as a centered Explorer-style
+  // Placeholder that fills the pane instead of a compact inline row. Error
+  // states and per-section states keep the inline SectionStatusRow so each
+  // section retains its own structured state.
+  const openWholePane = closedCollapsed && orderedPrs.length === 0;
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -327,9 +395,47 @@ const PullRequestContent: React.FC<PullRequestContentProps> = ({
 
         {!openCollapsed &&
           (openStatus ? (
-            <SectionStatusRow status={openStatus} />
+            openWholePane && openStatus.kind !== "error" ? (
+              <Placeholder
+                variant={openStatus.kind === "loading" ? "loading" : "empty"}
+                placement="sidebar"
+                title={
+                  openStatus.kind === "loading" ? undefined : openStatus.message
+                }
+                fillParentHeight
+              />
+            ) : (
+              <SectionStatusRow status={openStatus} />
+            )
           ) : (
             orderedPrs.map((pr) => (
+              <PrRow
+                key={pr.number}
+                pr={pr}
+                depth={1}
+                isCurrentBranch={pr.head_branch === branchName}
+                isSelected={pr.number === selectedPrNumber}
+                onClick={handlePrClick}
+              />
+            ))
+          ))}
+
+        {/* Closed section header — lazy-loaded on first expand */}
+        <TreeSectionHeader
+          id="closed-prs"
+          title="Closed"
+          collapsed={closedCollapsed}
+          count={
+            closedPrsLoadState === "ready" ? filteredClosedPrs.length : null
+          }
+          onToggle={handleToggleClosed}
+        />
+
+        {!closedCollapsed &&
+          (closedStatus ? (
+            <SectionStatusRow status={closedStatus} />
+          ) : (
+            filteredClosedPrs.map((pr) => (
               <PrRow
                 key={pr.number}
                 pr={pr}

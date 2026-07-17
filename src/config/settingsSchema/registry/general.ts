@@ -124,18 +124,6 @@ export const GENERAL_SETTINGS_REGISTRY = {
       helveticaNeue: "Helvetica Neue style",
     },
   },
-  "general.globalLayoutMethod": {
-    schema: z.enum(["inset", "full", "compact"]),
-    default: "compact" as const,
-    description:
-      'Global layout method applied across MainApp, Workstation, and Simulator: "inset" (padded with rounded corners), "full" (edge-to-edge content panel), or "compact" (Cursor Agent-style — sidebar flush with edge, no radius, single bg-bg-2 surface)',
-    category: "general",
-    enumLabels: {
-      inset: "Comfort",
-      full: "Expanded",
-      compact: "Modern",
-    },
-  },
   "general.spotlightPlacement": {
     schema: z.enum(["top", "center"]),
     default: "top" as const,
@@ -146,6 +134,19 @@ export const GENERAL_SETTINGS_REGISTRY = {
       top: "Top",
       center: "Page center",
     },
+  },
+  "layout.sidebarSelectedRowOpacity": {
+    schema: z.number().min(0).max(20),
+    default: 5,
+    description: "Selected sidebar row highlight intensity percentage",
+    category: "general",
+  },
+  "layout.sidebarEdgeDepthEnabled": {
+    schema: z.boolean(),
+    default: true,
+    description:
+      "Show a theme-aware depth edge between the macOS sidebar and content panel",
+    category: "general",
   },
   "general.workStationChatPosition": {
     schema: z.enum(["left", "right"]),
@@ -249,11 +250,46 @@ export const GENERAL_SETTINGS_REGISTRY = {
       "Prevent the system from sleeping while any agent session is actively working. Releases automatically when all sessions finish or the toggle is turned off",
     category: "general",
   },
+  "general.autoUpdateEnabled": {
+    schema: z.boolean(),
+    default: true,
+    description:
+      "Automatically check for app updates, install them during startup, and download them silently while the app is running",
+    category: "general",
+  },
+  "general.updateChannel": {
+    schema: z.enum(["auto", "stable", "beta"]),
+    default: "auto",
+    description:
+      "Release channel for app updates. auto follows the installed build (prerelease builds track beta, release builds track stable); stable and beta pin the channel explicitly. Switching from beta to stable never downgrades — it takes effect at the next stable release",
+    category: "general",
+  },
   "general.voiceInputEnabled": {
     schema: z.boolean(),
     default: true,
     description:
       "Show the microphone button in composer toolbars and bind the Ctrl+M shortcut for push-to-talk dictation. Disabling hides the button everywhere",
+    category: "general",
+  },
+  "general.secretScanEnabled": {
+    schema: z.boolean(),
+    default: true,
+    description:
+      "Scan composer input (new session prompts and follow-up messages) for API keys, tokens, and passwords, and ask for confirmation before sending them to the model",
+    category: "general",
+  },
+  "general.secretScanEntropyEnabled": {
+    schema: z.boolean(),
+    default: false,
+    description:
+      "In addition to known key formats, flag long high-entropy (random-looking) strings as possible secrets. Catches more but may occasionally flag hashes or IDs",
+    category: "general",
+  },
+  "general.secretScanCustomPatterns": {
+    schema: z.array(z.string()),
+    default: [],
+    description:
+      "User-defined regular expressions (one per entry) whose matches are treated as secrets by the composer secret scanner. Invalid expressions are ignored",
     category: "general",
   },
   "general.presenceGuidanceOnline": {

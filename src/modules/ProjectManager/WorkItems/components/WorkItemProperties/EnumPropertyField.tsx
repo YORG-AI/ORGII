@@ -26,6 +26,7 @@ interface EnumPropertyFieldProps<T extends string> {
   onClear?: () => void | Promise<void>;
   disabled?: boolean;
   fieldVariant?: FieldRowVariant;
+  dataTestId?: string;
 }
 
 export function EnumPropertyField<T extends string>({
@@ -42,6 +43,7 @@ export function EnumPropertyField<T extends string>({
   onClear,
   disabled = false,
   fieldVariant = "row",
+  dataTestId,
 }: EnumPropertyFieldProps<T>) {
   const dropdownOptions: PropertyDropdownOption<T>[] = options.map(
     (option) => ({
@@ -71,6 +73,7 @@ export function EnumPropertyField<T extends string>({
       onActiveChange={onPickerActiveChange}
       onClear={disabled ? undefined : onClear}
       maxWidthClassName={fieldVariant === "pill" ? "max-w-[220px]" : "w-full"}
+      dataTestId={dataTestId}
     />
   );
 }

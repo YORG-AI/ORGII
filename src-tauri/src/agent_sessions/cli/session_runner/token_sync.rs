@@ -1,6 +1,5 @@
 //! Post-run token sync from CLI auth files back to the key vault.
 
-use chrono::SecondsFormat;
 use core_types::providers::CodexCliAuthConfig;
 use key_vault::key_store::{CliOAuthTokenSync, CliOAuthTokenSyncOutcome, ModelType, KEY_SERVICE};
 
@@ -51,88 +50,12 @@ pub(super) fn sync_codex_cli_auth_to_key_vault(
                 access_token,
                 refresh_token,
                 id_token,
-                expires_at: None,
             },
         )
         .map_err(|err| format!("Failed to save refreshed Codex CLI tokens: {err}"))?;
     if matches!(outcome, CliOAuthTokenSyncOutcome::SkippedNewerKeyVaultToken) {
         tracing::warn!(
             "[CodeSession] Skipped Codex CLI auth sync because Key Vault has a newer access token"
-        );
-    }
-    Ok(())
-}
-
-pub(super) fn sync_gemini_cli_auth_to_key_vault(
-    account_id: Option<&str>,
-    launched_access_token: Option<&str>,
-) -> Result<(), String> {
-    let Some(account_id) = account_id else {
-        return Ok(());
-    };
-    let auth_path = app_paths::gemini_cli_profile_dir(account_id)
-        .join(".gemini")
-        .join("oauth_creds.json");
-    if !auth_path.exists() {
-        return Ok(());
-    }
-
-    let content = std::fs::read_to_string(&auth_path).map_err(|err| {
-        format!(
-            "Failed to read Gemini OAuth file {}: {err}",
-            auth_path.display()
-        )
-    })?;
-    let auth: serde_json::Value = serde_json::from_str(&content).map_err(|err| {
-        format!(
-            "Failed to parse Gemini OAuth file {}: {err}",
-            auth_path.display()
-        )
-    })?;
-
-    let access_token = auth
-        .get("access_token")
-        .and_then(|value| value.as_str())
-        .filter(|token| !token.trim().is_empty())
-        .map(str::to_string);
-    let refresh_token = auth
-        .get("refresh_token")
-        .and_then(|value| value.as_str())
-        .filter(|token| !token.trim().is_empty())
-        .map(str::to_string);
-    let expiry = auth
-        .get("expiry")
-        .and_then(|value| value.as_str())
-        .filter(|value| !value.trim().is_empty())
-        .map(str::to_string)
-        .or_else(|| {
-            auth.get("expiry_date")
-                .or_else(|| auth.get("expiryDate"))
-                .and_then(|value| value.as_i64())
-                .and_then(chrono::DateTime::<chrono::Utc>::from_timestamp_millis)
-                .map(|date| date.to_rfc3339_opts(SecondsFormat::Secs, true))
-        });
-
-    if access_token.is_none() && refresh_token.is_none() && expiry.is_none() {
-        return Ok(());
-    }
-
-    let outcome = KEY_SERVICE
-        .sync_cli_oauth_tokens_if_current(
-            account_id,
-            ModelType::GeminiCli,
-            launched_access_token,
-            CliOAuthTokenSync {
-                access_token,
-                refresh_token,
-                id_token: None,
-                expires_at: expiry,
-            },
-        )
-        .map_err(|err| format!("Failed to save refreshed Gemini CLI tokens: {err}"))?;
-    if matches!(outcome, CliOAuthTokenSyncOutcome::SkippedNewerKeyVaultToken) {
-        tracing::warn!(
-            "[CodeSession] Skipped Gemini CLI auth sync because Key Vault has a newer access token"
         );
     }
     Ok(())

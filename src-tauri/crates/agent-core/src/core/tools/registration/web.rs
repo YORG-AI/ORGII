@@ -6,6 +6,7 @@ use crate::tools::impls::web::control_browser_with_agent_browser;
 use crate::tools::impls::web::control_browser_with_playwright;
 use crate::tools::impls::web::control_internal_browser::InternalBrowserTool;
 use crate::tools::impls::web::control_orgii::OrgiiControlTool;
+use crate::tools::impls::web::reply_session_comment::ReplySessionCommentTool;
 use crate::tools::impls::web::spotlight::SpotlightTool;
 use crate::tools::impls::web::web_fetch::WebFetchTool;
 use crate::tools::impls::web::web_search::WebSearchTool;
@@ -25,7 +26,16 @@ pub async fn register(registry: &mut ToolRegistry, deps: &ToolDeps, disabled: &H
             Box::new(OrgiiControlTool::new(bridge.clone())),
             disabled,
         );
-        register_if_enabled(registry, Box::new(SpotlightTool::new(bridge)), disabled);
+        register_if_enabled(
+            registry,
+            Box::new(SpotlightTool::new(bridge.clone())),
+            disabled,
+        );
+        register_if_enabled(
+            registry,
+            Box::new(ReplySessionCommentTool::new(bridge)),
+            disabled,
+        );
     }
 
     register_if_enabled(

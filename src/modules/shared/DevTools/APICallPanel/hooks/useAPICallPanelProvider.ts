@@ -21,11 +21,13 @@ import {
   enableApiTracking,
   getApiCallHotspots,
   getApiCalls,
+  getPushHotspots,
   getTimerHotspots,
 } from "@src/util/monitoring/apiTracker";
 import type {
   ApiCall,
   ApiCallHotspot,
+  PushHotspot,
   TimerHotspot,
 } from "@src/util/monitoring/apiTracker";
 
@@ -38,6 +40,7 @@ export interface UseAPICallPanelProviderReturn {
   apiCalls: ApiCall[];
   hotspots: ApiCallHotspot[];
   timerHotspots: TimerHotspot[];
+  pushHotspots: PushHotspot[];
   handleClose: () => void;
   handleClear: () => void;
 }
@@ -52,6 +55,7 @@ export function useAPICallPanelProvider(): UseAPICallPanelProviderReturn {
   const [apiCalls, setApiCalls] = useState<ApiCall[]>([]);
   const [hotspots, setHotspots] = useState<ApiCallHotspot[]>([]);
   const [timerHotspots, setTimerHotspots] = useState<TimerHotspot[]>([]);
+  const [pushHotspots, setPushHotspots] = useState<PushHotspot[]>([]);
 
   // Avoid updating panel state unless the panel is actually visible.
   // Without this, devtools tracking can cause heavy re-render work (and even visible UI "flash")
@@ -75,6 +79,7 @@ export function useAPICallPanelProvider(): UseAPICallPanelProviderReturn {
     setApiCalls(calls);
     setHotspots(getApiCallHotspots());
     setTimerHotspots(getTimerHotspots());
+    setPushHotspots(getPushHotspots());
   }, []);
 
   const openPanel = useCallback(() => {
@@ -82,6 +87,7 @@ export function useAPICallPanelProvider(): UseAPICallPanelProviderReturn {
     setApiCalls([]);
     setHotspots([]);
     setTimerHotspots([]);
+    setPushHotspots([]);
     enableApiTracking();
     visibleRef.current = true;
     setVisible(true);
@@ -112,6 +118,7 @@ export function useAPICallPanelProvider(): UseAPICallPanelProviderReturn {
     setApiCalls([]);
     setHotspots([]);
     setTimerHotspots([]);
+    setPushHotspots([]);
   }, []);
 
   /**
@@ -172,6 +179,7 @@ export function useAPICallPanelProvider(): UseAPICallPanelProviderReturn {
     apiCalls,
     hotspots,
     timerHotspots,
+    pushHotspots,
     handleClose,
     handleClear,
   };

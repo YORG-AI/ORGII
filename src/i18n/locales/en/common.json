@@ -1,4 +1,4 @@
-{
+﻿{
   "toasts": {
     "replyEmpty": "Reply cannot be empty",
     "sessionNotFound": "Session not found",
@@ -31,10 +31,6 @@
     "closeCanvas": "Close canvas",
     "generatingCanvas": "Generating canvas…",
     "noContent": "No content",
-    "noIssueSelected": "No issue selected",
-    "selectIssueHint": "Select an issue from the Issues panel in the sidebar.",
-    "noPrSelected": "No pull request selected",
-    "selectPrHint": "Select a pull request from the Pull request panel in the sidebar.",
     "reload": "Reload",
     "urlPreviewRequiresTauri": "URL Preview requires Tauri",
     "openInExternalBrowser": "Open in external browser instead",
@@ -78,6 +74,11 @@
       "other": "Secret"
     }
   },
+  "secretScan": {
+    "title": "Possible secret detected",
+    "message": "This message looks like it contains sensitive credentials:\n\n{{items}}\n\nSending it will store the secret in the chat transcript and send it to the model. Send anyway?",
+    "sendAnyway": "Send anyway"
+  },
   "actions": {
     "all": "All",
     "save": "Save",
@@ -108,6 +109,7 @@
     "retry": "Retry",
     "regenerate": "Regenerate",
     "refresh": "Refresh",
+    "rescan": "Rescan",
     "reload": "Reload",
     "reviewNextFile": "Review Next File",
     "reviewPreviousFile": "Review Previous File",
@@ -181,8 +183,6 @@
     "stop": "Stop",
     "find": "Find",
     "filter": "Filter",
-    "filterCommits": "Filter commits...",
-    "filterPullRequests": "Filter pull requests...",
     "loading": "Loading...",
     "replace": "Replace",
     "publish": "Publish",
@@ -215,9 +215,8 @@
     "openInApp": "Open in App",
     "skipThisVersion": "Skip this version",
     "later": "Later",
-    "updateAiBlame": "Update AI Blame",
     "link": "Link",
-    "fetchPr": "Fetch PR"
+    "copyName": "Copy Name"
   },
   "refreshToast": {
     "successName": "{{name}} refreshed",
@@ -438,6 +437,27 @@
     "issueComments_other": "{{count}} comments",
     "overview": "Overview",
     "sessionBlame": "Session Blame",
+    "sessionBlameSubagent": "Subagent: {{name}}",
+    "sessionBlameMainSession": "Main session",
+    "sessionBlameAction": {
+      "read": "Read",
+      "write": "Write",
+      "create": "Create",
+      "delete": "Delete",
+      "rename": "Rename",
+      "search": "Search"
+    },
+    "sessionBlamePrecision": {
+      "unknown": "Unknown confidence",
+      "session_only": "Session only",
+      "correlated": "Correlated",
+      "exact": "Exact attribution"
+    },
+    "sessionBlameBackfill": {
+      "indexing": "Indexing historical sessions {{indexed}}/{{total}}",
+      "partial": "Historical index incomplete ({{failed}} failed)",
+      "failed": "Historical session indexing failed"
+    },
     "agentBlame": "Agent Blame",
     "initializeAgentBlame": "Initialize Agent Blame",
     "rescan": "Rescan",
@@ -458,6 +478,7 @@
     "files": "Files",
     "commits": "Commits",
     "committedRate": "Committed",
+    "tokens": "Tokens",
     "entries": "Entries",
     "records": "Records",
     "topSessions": "Top Sessions",
@@ -993,9 +1014,7 @@
     "scanningFileExtensions": "Scanning file extensions...",
     "startBrowsingMarket": "Start browsing the marketplace",
     "previewUnavailable": "Preview unavailable",
-    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff.",
-    "fetchPrCommitToViewDiff": "Fetch PR to view this commit",
-    "prCommitMissingLocally": "This pull request commit is not available in your local repository yet."
+    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff."
   },
   "inbox": {
     "searchPlaceholder": "Search messages...",
@@ -1047,6 +1066,10 @@
     "scanningFiles": "Scanning files...",
     "branchTooltip": "Branch: {{branch}}",
     "branchTooltipSwitching": "Branch: {{branch}} (switching...)",
+    "switchWorkspaceTooltip": "Switch workspace",
+    "switchWorktreeTooltip": "Switch worktree",
+    "switchBranchTooltip": "Switch branch",
+    "gitActionsTooltip": "Git actions",
     "switchToSessionRepo": "Switch to {{name}}",
     "embeddingProgress": "Embedding: {{count}} chunks processed",
     "embeddingProgressWithPercent": "Embedding: {{count}} chunks processed ({{percent}}%)",
@@ -1059,6 +1082,7 @@
       "workspaceSection": "Workspace",
       "externalSection": "External",
       "tooltip": "Ports: {{workspace}} workspace, {{external}} external",
+      "viewPortsTooltip": "View used ports",
       "noWorkspacePorts": "No workspace ports detected",
       "externalLabel": "external",
       "unknownProcess": "Unknown process",
@@ -1181,9 +1205,9 @@
       "tokenLabel": "Personal access token",
       "tokenRequired": "Token is required",
       "createTokenButton": "Create Token",
-      "openGitSettingsButton": "Open Git Settings",
+      "openGitSettingsButton": "Open Settings",
       "configureInSettings": "Configure Git in Settings",
-      "configureInSettingsDesc": "Add GitHub App access, save a token, or scan local credentials in Settings → Integrations → Git, then retry this Git operation."
+      "configureInSettingsDesc": "Add GitHub App access, save a token, or scan local credentials in Settings → Connections, then retry this Git operation."
     },
     "actions": {
       "publish": "Publish",
@@ -1285,7 +1309,7 @@
       },
       "authRequired": {
         "title": "Connect GitHub",
-        "description": "Go to Settings → Integrations → Git to connect your GitHub account."
+        "description": "Go to Settings → Connections to connect your GitHub account."
       }
     },
     "issues": {
@@ -1300,7 +1324,6 @@
       "filterOpen": "Open",
       "filterClosed": "Closed",
       "noGitHubRepo": "Connect a GitHub repository to manage issues",
-      "searchPlaceholder": "Filter by title or label…",
       "commentPlaceholder": "Leave a comment…",
       "updated": "Last updated",
       "notUpdated": "not updated",
@@ -1318,10 +1341,10 @@
       },
       "authRequired": {
         "title": "Connect GitHub",
-        "description": "Go to Settings → Integrations → Git to connect your GitHub account."
+        "description": "Go to Settings → Connections to connect your GitHub account."
       },
       "reAuthRequired": "GitHub Authorization Required",
-      "reAuthDescription": "Your GitHub token has expired. Go to Settings → Integrations → Git to reconnect.",
+      "reAuthDescription": "Your GitHub token has expired. Go to Settings → Connections to reconnect.",
       "goToSettings": "Go to Settings"
     },
     "commit": {
@@ -1471,7 +1494,9 @@
         "delete": "Delete",
         "deleteTemplate": "Delete {branch}",
         "createSessionWith": "Switch Session Branch",
-        "createSessionWithTemplate": "Switch Session Branch to {branch}"
+        "createSessionWithTemplate": "Switch Session Branch to {branch}",
+        "switchWorktree": "Switch worktree",
+        "switchWorktreeTemplate": "Switch to {worktree}"
       },
       "actions": {
         "createNew": "Create new branch",
@@ -1482,7 +1507,8 @@
         "refresh": "Refresh branch",
         "checkoutDetachedSuccess": "Now in detached HEAD state at current commit",
         "checkoutDetachedFailed": "Failed to checkout detached HEAD",
-        "removeWorktree": "Remove Worktree"
+        "removeWorktree": "Remove Worktree",
+        "newWorktree": "New Worktree..."
       },
       "messages": {
         "deletedCount_one": "Deleted {{count}} branch",
@@ -1497,7 +1523,9 @@
         "basedOn": "Based on",
         "worktrees": "Worktrees",
         "worktreeInUse": "In use",
-        "checkedOutInWorktree": "Checked out in worktree: {{path}}"
+        "checkedOutInWorktree": "Checked out in worktree: {{path}}",
+        "mainWorktreeSection": "Main worktree",
+        "linkedWorktrees": "Linked worktrees"
       },
       "placeholders": {
         "checkout": "branch",
@@ -1606,7 +1634,8 @@
         "workspace": "Search or enter folder path",
         "branch": "Search branch...",
         "source": "Search source...",
-        "actions": "Search actions..."
+        "actions": "Search actions...",
+        "worktree": "Search worktree..."
       },
       "groups": {
         "agentSession": "Agent Session",
@@ -1637,6 +1666,11 @@
           "label": "Search Agent sessions",
           "pillLabel": "Search Sessions",
           "placeholder": "Search Agent sessions..."
+        },
+        "searchAllSessions": {
+          "label": "Search across all sessions",
+          "pillLabel": "Search All Sessions",
+          "placeholder": "Search across all sessions..."
         },
         "switchWorkspace": {
           "label": "Switch workspace"
@@ -1735,11 +1769,8 @@
     "chatRight": "Chat Right",
     "pageSettings": "Page Settings",
     "pageLayout": "Page layout",
-    "layoutMode": "Layout mode",
     "inset": "Inset",
     "full": "Full",
-    "compact": "Compact",
-    "comfort": "Comfort",
     "theme": "Theme",
     "primaryPanel": "Sidebar",
     "sidebarPosition": "Sidebar position",
@@ -1793,15 +1824,13 @@
     "disableChatPagination": "Turn off chat pagination",
     "useModelPickerSpotlight": "Use Spotlight model picker",
     "useModelPickerDropdown": "Use dropdown model picker",
-    "useCompactWorkstationLayout": "Use compact Workstation layout",
-    "useComfortWorkstationLayout": "Use comfort Workstation layout",
     "moveWorkstationSidebarLeft": "Move Workstation sidebar to the left",
     "moveWorkstationSidebarRight": "Move Workstation sidebar to the right",
     "enableDockAutoHide": "Auto-hide the Workstation dock",
     "disableDockAutoHide": "Keep the Workstation dock visible",
     "openMyStation": "Go to My Station",
     "openAgentStation": "Go to Agent Station",
-    "openOpsControl": "Go to Ops Control",
+    "openKanban": "Go to Kanban",
     "changeLanguage": "Change language",
     "switchToSystemTheme": "Follow system theme",
     "detectUpdate": "Detect update",
@@ -1917,7 +1946,14 @@
       "overview": "Overview",
       "cursor": "Cursor",
       "cli": "CLI"
-    }
+    },
+    "cost": "Cost",
+    "estimatedCost": "Est. Cost",
+    "estimated": "EST",
+    "estimatedTooltip": "Estimated cost — tokens × list price (no metered spend for this source)",
+    "totalEstimatedCost": "Est. Cost",
+    "viewCost": "Cost",
+    "viewTokens": "Tokens"
   },
   "devActivity": {
     "title": "Coding Profile",
@@ -1966,15 +2002,6 @@
     "lastActive": "Last active: {{date}}",
     "activeNow": "Active now: {{ides}}",
     "active": "Active",
-    "tabs": {
-      "activity": "Activity",
-      "focus": "Focus",
-      "languages": "Languages",
-      "heatmap": "Heatmap",
-      "ide": "IDE",
-      "cursor": "Cursor",
-      "cli": "CLI"
-    },
     "cliSessions": "AI CLI Sessions",
     "cliPrompt": "Prompt",
     "cliMessages": "Messages",
@@ -2056,12 +2083,15 @@
     "removeWorktreeMessage": "This removes the worktree checkout from disk. The branch and commits are kept.",
     "removeWorktreeSuccess": "Worktree removed",
     "removeWorktreeFailed": "Failed to remove worktree",
+    "emptyState": {
+      "viewSourceControl": "View Source Control",
+      "viewIssues": "View Issues",
+      "viewGitHistory": "View Git history",
+      "viewPullRequests": "View PRs"
+    },
     "pill": {
       "focus": "Focus",
       "allChanges": "All Changes"
-    },
-    "sessionFilter": {
-      "allSessions": "All sessions"
     },
     "scope": {
       "local": "Local",
@@ -2116,7 +2146,20 @@
     "manualCompactFailed": "Compaction failed: {{message}}",
     "manualCompactChannelAttached": "This session is managed by a channel — use /compact there",
     "manualCompactInstructionsPlaceholder": "Optional: what to focus on when summarizing",
-    "manualCompactSectionTitle": "Manual compaction?"
+    "manualCompactSectionTitle": "Manual compaction",
+    "miniCpmCompactTitle": "MiniCPM silent auto-compaction",
+    "miniCpmCompactDescription": "Processes older context asynchronously",
+    "miniCpmCompactToggleAria": "Enable MiniCPM silent auto-compaction",
+    "miniCpmCompactDisabled": "Silent compaction is off",
+    "miniCpmCompactEnabled": "Silent compaction is on",
+    "miniCpmCompactRunning": "MiniCPM is compacting",
+    "miniCpmCompactComplete": "Compaction complete",
+    "miniCpmCompactBusy": "Current session is busy",
+    "miniCpmCompactUnavailable": "MiniCPM is not available",
+    "miniCpmCompactError": "MiniCPM compaction failed",
+    "miniCpmCompactMetrics": "{{covered}} messages · {{source}} → {{summary}} tokens",
+    "miniCpmCompactAction": "Compact now",
+    "miniCpmCompactRunningAction": "Compacting"
   },
   "relativeDate": {
     "today": "Today",

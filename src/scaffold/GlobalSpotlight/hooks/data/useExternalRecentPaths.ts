@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { claudeCodeRecentPaths } from "@src/api/tauri/externalHistory";
-import { codexAppRecentPaths } from "@src/api/tauri/externalHistory";
-import { opencodeRecentPaths } from "@src/api/tauri/externalHistory";
-import { windsurfRecentPaths } from "@src/api/tauri/externalHistory";
+import {
+  claudeCodeRecentPaths,
+  codexAppRecentPaths,
+  opencodeRecentPaths,
+  qoderRecentPaths,
+  warpRecentPaths,
+  windsurfRecentPaths,
+  zcodeRecentPaths,
+} from "@src/api/tauri/externalHistory";
 import type { RepoItem } from "@src/scaffold/GlobalSpotlight/types";
 import { REPO_KIND } from "@src/store/repo";
 
@@ -82,18 +87,34 @@ export function useExternalRecentPaths({
       claudeCodeRecentPaths({ limit: EXTERNAL_RECENT_PATH_LIMIT }),
       opencodeRecentPaths({ limit: EXTERNAL_RECENT_PATH_LIMIT }),
       windsurfRecentPaths({ limit: EXTERNAL_RECENT_PATH_LIMIT }),
-    ]).then(([codexPaths, claudePaths, opencodePaths, windsurfPaths]) => {
-      if (!cancelled) {
-        setPaths(
-          mergeRecentPaths([
-            ...codexPaths,
-            ...claudePaths,
-            ...opencodePaths,
-            ...windsurfPaths,
-          ])
-        );
+      warpRecentPaths({ limit: EXTERNAL_RECENT_PATH_LIMIT }),
+      zcodeRecentPaths({ limit: EXTERNAL_RECENT_PATH_LIMIT }),
+      qoderRecentPaths({ limit: EXTERNAL_RECENT_PATH_LIMIT }),
+    ]).then(
+      ([
+        codexPaths,
+        claudePaths,
+        opencodePaths,
+        windsurfPaths,
+        warpPaths,
+        zcodePaths,
+        qoderPaths,
+      ]) => {
+        if (!cancelled) {
+          setPaths(
+            mergeRecentPaths([
+              ...codexPaths,
+              ...claudePaths,
+              ...opencodePaths,
+              ...windsurfPaths,
+              ...warpPaths,
+              ...zcodePaths,
+              ...qoderPaths,
+            ])
+          );
+        }
       }
-    });
+    );
 
     return () => {
       cancelled = true;

@@ -40,10 +40,6 @@ export interface BrowserSessionData {
   isLoading?: boolean;
 }
 
-export interface TokenCategoryData {
-  category: string;
-}
-
 // ============================================
 // Tab ID Helpers
 // ============================================
@@ -52,24 +48,12 @@ export function createBrowserSessionTabId(sessionId: string): string {
   return `browser:${sessionId}`;
 }
 
-export function createTokenCategoryTabId(category: string): string {
-  return `token:${category}`;
-}
-
 export function isBrowserSessionTab(tabId: string): boolean {
   return tabId.startsWith("browser:");
 }
 
-export function isTokenCategoryTab(tabId: string): boolean {
-  return tabId.startsWith("token:");
-}
-
 export function extractSessionId(tabId: string): string {
   return tabId.replace("browser:", "");
-}
-
-export function extractTokenCategory(tabId: string): string {
-  return tabId.replace("token:", "");
 }
 
 // ============================================
@@ -172,43 +156,12 @@ export function createBrowserSessionTab(
   };
 }
 
-export function createTokenCategoryTab(category: string): WorkStationTab {
-  return {
-    id: createTokenCategoryTabId(category),
-    type: "token-category",
-    title: `Tokens: ${category}`,
-    icon: "Palette",
-    data: {
-      category,
-    },
-    hasUnsavedChanges: false,
-  };
-}
-
-/**
- * Create a consolidated color tokens tab
- * Shows all color tokens with category filtering
- */
-export function createColorTokensTab(): WorkStationTab {
-  return {
-    id: "token:color-tokens",
-    type: "token-category",
-    title: "Color Tokens",
-    icon: "Palette",
-    data: {
-      category: "color-tokens",
-    },
-    hasUnsavedChanges: false,
-  };
-}
-
 // ============================================
 // Browser-family tab classification
 // ============================================
 
 const BROWSER_TAB_TYPES: ReadonlySet<WorkStationTabType> = new Set([
   "browser-session",
-  "token-category",
 ]);
 
 function isBrowserFamilyTab(tab: WorkStationTab): boolean {
@@ -342,27 +295,11 @@ export const isShowingBrowserSessionAtom = atom((get) => {
 });
 
 /**
- * Check if showing a token category
- */
-export const isShowingTokenCategoryAtom = atom((get) => {
-  const activeTab = get(activeBrowserTabAtom);
-  return activeTab?.type === "token-category";
-});
-
-/**
  * Get all browser session tabs
  */
 export const browserSessionTabsAtom = atom((get) => {
   const state = get(browserTabsAtom);
   return state.tabs.filter((tab) => tab.type === "browser-session");
-});
-
-/**
- * Get all token category tabs
- */
-export const tokenCategoryTabsAtom = atom((get) => {
-  const state = get(browserTabsAtom);
-  return state.tabs.filter((tab) => tab.type === "token-category");
 });
 
 // ============================================

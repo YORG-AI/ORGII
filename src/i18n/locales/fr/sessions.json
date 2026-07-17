@@ -78,14 +78,84 @@
       }
     }
   },
-  "opsControl": {
+  "kanban": {
     "sessions": "Sessions",
-    "replayBarAriaLabel": "Ops Control replay timeline",
+    "fileSearch": {
+      "placeholder": "Rechercher par chemin de fichier",
+      "noResults": "Aucune session n’a modifié de fichier correspondant"
+    },
+    "replayBarAriaLabel": "Kanban replay timeline",
     "followLabel": "Kanban actuel",
     "view": {
       "list": "Liste",
       "diary": "Journal",
-      "opsControl": "Ops Control"
+      "kanban": "Kanban",
+      "dataSource": "Sources de données"
+    },
+    "dataSource": {
+      "title": "Sources de données",
+      "description": "Outils de codage externes détectés par ORGII. Les applications importables affichent leur nombre de sessions et peuvent être réanalysées ; les autres affichent l'état d'installation et l'emplacement de leur historique.",
+      "rescanAll": "Tout réanalyser",
+      "rescan": "Réanalyser",
+      "rescanning": "Réanalyse…",
+      "enable": "Activer",
+      "disable": "Désactiver",
+      "lastScan": "Dernier scan {{time}}",
+      "neverScanned": "Jamais scanné",
+      "frequencyTitle": "Fréquence d'analyse",
+      "globalFrequency": "Analyse automatique des sources externes",
+      "globalFrequencyDesc": "Fréquence d’analyse par défaut pour les sources externes réglées sur « Par défaut »",
+      "activeSessionRefresh": "Actualisation de la session externe ouverte",
+      "activeSessionRefreshDesc": "Fréquence d’actualisation de la session externe actuellement ouverte dans le volet de discussion",
+      "activeSessionFreq": {
+        "3s": "Toutes les 3 secondes",
+        "5s": "Toutes les 5 secondes",
+        "10s": "Toutes les 10 secondes",
+        "1m": "Chaque minute"
+      },
+      "col": {
+        "source": "Source",
+        "sessions": "Sessions",
+        "lastScan": "Dernier scan",
+        "frequency": "Analyse auto",
+        "status": "Statut"
+      },
+      "freq": {
+        "default": "Par défaut",
+        "manual": "Manuel",
+        "60s": "Toutes les 60s",
+        "5m": "Toutes les 5 min",
+        "1h": "Toutes les heures",
+        "1d": "Quotidien"
+      },
+      "openFolder": "Ouvrir le dossier",
+      "tabs": {
+        "all": "Tous",
+        "apps": "Applis",
+        "clis": "CLIs"
+      },
+      "views": {
+        "scanning": "Analyse",
+        "hooks": "Hooks"
+      },
+      "sessions_one": "{{count}} session",
+      "sessions_other": "{{count}} sessions",
+      "details": {
+        "path": "Chemin",
+        "storeType": "Type de stockage",
+        "copyPath": "Copier le chemin"
+      },
+      "noPath": "Aucun chemin détecté",
+      "notImported": "Non importé",
+      "status": {
+        "ready": "Prêt",
+        "empty": "Aucun historique",
+        "loading": "Vérification…",
+        "error": "Erreur",
+        "installed": "Installé",
+        "notInstalled": "Non détecté",
+        "disabled": "Désactivé"
+      }
     },
     "list": {
       "updated": "Mis à jour",
@@ -184,11 +254,6 @@
       "merging": "Fusion…",
       "merged": "Fusionné"
     },
-    "diff": {
-      "openDiffWindow": "Voir le Diff",
-      "windowTitle": "Diff de Session",
-      "filesChanged": "Fichiers"
-    },
     "replay": {
       "replaySession": "Rejouer"
     },
@@ -226,6 +291,11 @@
       "commits_one": "{{count}} commit",
       "commits_other": "{{count}} commits",
       "committedRateShort": "{{percent}} % validé"
+    },
+    "detailView": {
+      "trajectory": "Trajectory",
+      "touchedFiles": "Touched files",
+      "noTouchedFiles": "No files touched"
     }
   },
   "changes": {
@@ -408,7 +478,6 @@
         "interactionAskQuestion": "Question",
         "interactionAskPermission": "Demande de permission",
         "interactionModeSwitch": "Changement de mode",
-        "interactionNextSteps": "Étapes suivantes",
         "interactionPlanDoc": "Document de plan",
         "interactionGeneric": "Interaction"
       },
@@ -718,20 +787,17 @@
       "addApiKey": {
         "title": "Ajouter une clé API"
       },
+      "installLatestUpdate": {
+        "title": "Installer la dernière mise à jour"
+      },
       "agents": {
         "title": "Agents"
       },
       "tabs": {
         "work": "Travail",
-        "explore": "Explorer",
-        "heatmap": "Tendances"
-      },
-      "heatmap": {
-        "loading": "Chargement des tendances d’activité…",
-        "empty": "Aucune activité de session pour le moment.",
-        "sessions": "Sessions",
-        "tokens": "Tokens",
-        "cost": "Coût"
+        "manage": "Gérer",
+        "heatmap": "Tendances",
+        "runtime": "Exécution"
       },
       "quota": {
         "empty": "Aucune donnée de quota pour le moment. Actualisez l'utilisation depuis Key Vault.",
@@ -779,6 +845,7 @@
     "defaultTitle": "Chat",
     "hideChatPanel": "Masquer le panneau de chat",
     "showTokenUsage": "Afficher les Token",
+    "showStatusBar": "Afficher la barre d’état",
     "compactDisplayMode": "Mode compact",
     "replay": {
       "follow": "Suivre"
@@ -950,11 +1017,20 @@
         "importFailed": "Impossible d'importer la Session JSON."
       }
     },
-    "turnFiles": {
-      "filesChangedCount_one": "{{count}} fichier modifié dans ce tour",
-      "filesChangedCount_other": "{{count}} fichiers modifiés dans ce tour",
-      "historicalRoundDiffFiles_one": "Diff d’un tour précédent · {{count}} fichier",
-      "historicalRoundDiffFiles_other": "Diff d’un tour précédent · {{count}} fichiers",
+    "turnMetadata": {
+      "noChanges": "Aucun fichier modifié pendant ce tour",
+      "earlierRound": "Tour précédent",
+      "files_one": "{{count}} fichier",
+      "files_other": "{{count}} fichiers",
+      "reads_one": "{{count}} lecture",
+      "reads_other": "{{count}} lectures",
+      "searches_one": "{{count}} recherche",
+      "searches_other": "{{count}} recherches",
+      "failed": "Échec",
+      "commits_one": "{{count}} commit",
+      "commits_other": "{{count}} commits",
+      "pullRequests_one": "{{count}} PR",
+      "pullRequests_other": "{{count}} PRs",
       "review": "Examiner",
       "showLess": "Afficher moins",
       "showMore_one": "Afficher {{count}} de plus",
@@ -989,9 +1065,9 @@
         "sourcePrs": "PRs",
         "stateOpen": "Open",
         "stateClosed": "Closed",
-        "stateAll": "All states",
-        "assignedToMe": "Assigned to me",
-        "createdByMe": "Created by me",
+        "stateAll": "Tous les statuts",
+        "assignedToMe": "Qui me sont attribués",
+        "createdByMe": "Créés par moi",
         "filters": "Filters",
         "openInGitHub": "Open in GitHub"
       }
@@ -1033,6 +1109,8 @@
     "deleteFileRunning": "Suppression de {{name}}",
     "deleteFileDone": "{{name}} supprimé",
     "deleteFileFailed": "Échec de la suppression de {{name}}",
+    "deleteFileCompactRunning": "Suppression",
+    "deleteFileCompactDone": "Supprimer",
     "directoryTree": "Arborescence",
     "ls": "ls",
     "listDirRunning": "Listage du répertoire",
@@ -1075,7 +1153,7 @@
     "pathCopied": "Chemin copié !",
     "failedToCopyPath": "Échec de la copie du chemin",
     "copyFilePath": "Copier le chemin du fichier",
-    "explore": "Explorer",
+    "manage": "Gérer",
     "readFile": "Lire le fichier",
     "readFileRunning": "Lecture",
     "readFileDone": "Lire",
@@ -1098,12 +1176,30 @@
     "editFileDoneNoName": "Fichier modifié",
     "editFileCompactRunning": "Modification",
     "editFileCompactDone": "Modifier",
+    "editFiles": "Modifier des fichiers",
+    "editSummary": {
+      "edit_one": "{{count}} modification",
+      "edit_other": "{{count}} modifications",
+      "read_one": "{{count}} lecture",
+      "read_other": "{{count}} lectures",
+      "separator": ", "
+    },
     "editFileFailedNoName": "Tentative de modification",
     "file": "fichier",
     "runShellRunning": "Exécution de la commande",
     "terminalWaitRunning": "En attente de la fin du terminal",
     "runShellDone": "Commande exécutée",
     "runShellFailed": "Échec de la commande",
+    "runCommands": "Exécuter des commandes",
+    "terminalSummary": {
+      "command_one": "{{count}} commande",
+      "command_other": "{{count}} commandes",
+      "wait_one": "{{count}} attente",
+      "wait_other": "{{count}} attentes",
+      "check_one": "{{count}} vérification",
+      "check_other": "{{count}} vérifications",
+      "separator": ", "
+    },
     "inspectTerminalsRunning": "Inspection des terminaux",
     "inspectTerminalsDone": "Terminaux inspectés",
     "inspectTerminalsFailed": "Échec de l’inspection des terminaux",
@@ -1137,6 +1233,7 @@
       "skip": "Ignorer",
       "noReason": "L’agent suggère de changer de mode"
     },
+    "explore": "Explorer",
     "exploreSummary": {
       "read_one": "{{count}} fichier",
       "read_other": "{{count}} fichiers",
@@ -1147,7 +1244,8 @@
       "ls_one": "ls {{count}} dossier",
       "ls_other": "ls {{count}} dossiers",
       "lsp_one": "{{count}} requête LSP",
-      "lsp_other": "{{count}} requêtes LSP"
+      "lsp_other": "{{count}} requêtes LSP",
+      "separator": ", "
     },
     "categoryRead": "Lire",
     "categorySearch": "Rechercher",
@@ -1422,9 +1520,6 @@
     "toolSearchRunning": "Recherche d'outils",
     "toolSearchDone": "Outils recherchés",
     "toolSearchFailed": "Échec de la recherche d'outils",
-    "suggestNextStepsRunning": "Suggestion des prochaines étapes",
-    "suggestNextStepsDone": "{{count}} prochaines étapes suggérées",
-    "suggestNextStepsFailed": "Impossible de suggérer les prochaines étapes",
     "agentSendMessageRunning": "Envoi d'un message à l'Agent coéquipier",
     "agentSendMessageDone": "Message envoyé à l'Agent coéquipier",
     "agentSendMessageFailed": "Impossible d'envoyer le message à l'Agent coéquipier",
@@ -2451,13 +2546,6 @@
       "missing": "Manquant",
       "disabled": "Désactivé"
     }
-  },
-  "worktreeCompare": {
-    "title": "Comparer les Worktrees",
-    "button": "Comparer",
-    "buttonTooltip": "Comparer les diffs côte à côte",
-    "noSessions": "Aucune session à comparer.",
-    "sessionTab": "Session {{n}}"
   },
   "groupChat": {
     "senderTitle": {

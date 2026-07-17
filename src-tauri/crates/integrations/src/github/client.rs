@@ -91,9 +91,11 @@ impl GitHubClient {
         }
 
         if status == StatusCode::NOT_MODIFIED {
-            if let Some(entry) = etag_cache().lock().ok().and_then(|cache| {
-                cache.get(path).map(|entry| entry.value.clone())
-            }) {
+            if let Some(entry) = etag_cache()
+                .lock()
+                .ok()
+                .and_then(|cache| cache.get(path).map(|entry| entry.value.clone()))
+            {
                 log::info!("[GitHub][API] 304 {path} (served from ETag cache)");
                 return Ok(entry);
             }

@@ -47,4 +47,11 @@ export const HOUSEKEEPER_SETTINGS_REGISTRY = {
     description: "Allow MiniCPM to classify lightweight UI control requests",
     category: "housekeeper",
   },
+  "housekeeper.features.contextCompact": {
+    schema: z.boolean(),
+    default: false,
+    description:
+      "Allow MiniCPM to maintain an isolated rolling summary of older context",
+    category: "housekeeper",
+  },
 } as const satisfies Record<string, SettingDefinition>;

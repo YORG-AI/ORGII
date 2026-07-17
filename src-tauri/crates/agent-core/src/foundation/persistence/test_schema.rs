@@ -9,7 +9,9 @@
 //! test scheduling order. One authority, kept in lock-step with
 //! `UPSERT_SESSION_SQL` / `UNIFIED_SESSION_SELECT`, removes the class.
 
-/// Full production column set (34 columns) plus `session_token_usage`.
+/// Full production column set (34 columns) plus the usage telemetry tables
+/// (`session_token_usage`, `session_llm_usage_spans`, `session_tool_usage`)
+/// so the delete cascade in `crud::ops` can run against the test schema.
 pub(crate) const AGENT_SESSIONS_TEST_DDL: &str = r#"
     CREATE TABLE IF NOT EXISTS agent_sessions (
         session_id TEXT PRIMARY KEY,
@@ -62,6 +64,57 @@ pub(crate) const AGENT_SESSIONS_TEST_DDL: &str = r#"
         context_tokens INTEGER NOT NULL DEFAULT 0,
         context_usage_json TEXT,
         created_at TEXT NOT NULL DEFAULT ''
+    );
+    CREATE TABLE IF NOT EXISTS session_llm_usage_spans (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL,
+        turn_id TEXT NOT NULL,
+        iteration_index INTEGER NOT NULL,
+        model TEXT,
+        account_id TEXT,
+        prompt_tokens INTEGER NOT NULL DEFAULT 0,
+        completion_tokens INTEGER NOT NULL DEFAULT 0,
+        cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+        cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+        total_tokens INTEGER NOT NULL DEFAULT 0,
+        context_tokens INTEGER NOT NULL DEFAULT 0,
+        related_tool_call_ids_json TEXT,
+        context_usage_json TEXT,
+        created_at TEXT NOT NULL DEFAULT ''
+    );
+    CREATE TABLE IF NOT EXISTS session_tool_usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL,
+        turn_id TEXT NOT NULL,
+        event_id TEXT NOT NULL,
+        tool_call_id TEXT NOT NULL,
+        tool_name TEXT NOT NULL,
+        iteration_index INTEGER NOT NULL,
+        decision_completion_tokens INTEGER NOT NULL DEFAULT 0,
+        result_context_tokens INTEGER NOT NULL DEFAULT 0,
+        followup_completion_tokens INTEGER NOT NULL DEFAULT 0,
+        input_bytes INTEGER NOT NULL DEFAULT 0,
+        output_bytes INTEGER NOT NULL DEFAULT 0,
+        attribution_method TEXT NOT NULL DEFAULT 'bytes_only',
+        created_at TEXT NOT NULL DEFAULT ''
+    );
+    CREATE TABLE IF NOT EXISTS orgtrack_core_session_usage (
+        session_id          TEXT PRIMARY KEY,
+        source              TEXT NOT NULL,
+        model               TEXT,
+        account_id          TEXT,
+        key_source          TEXT,
+        input_tokens        INTEGER NOT NULL DEFAULT 0,
+        output_tokens       INTEGER NOT NULL DEFAULT 0,
+        cache_read_tokens   INTEGER NOT NULL DEFAULT 0,
+        cache_write_tokens  INTEGER NOT NULL DEFAULT 0,
+        total_tokens        INTEGER NOT NULL DEFAULT 0,
+        context_tokens      INTEGER NOT NULL DEFAULT 0,
+        recorded_cost_usd   REAL NOT NULL DEFAULT 0,
+        estimated_cost_usd  REAL NOT NULL DEFAULT 0,
+        cost_usd            REAL NOT NULL DEFAULT 0,
+        tokens_source       TEXT NOT NULL DEFAULT 'none',
+        computed_at         TEXT NOT NULL
     );
 "#;
 

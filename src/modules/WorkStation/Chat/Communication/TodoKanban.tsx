@@ -33,6 +33,7 @@ import KanbanBoard, {
 } from "@src/features/KanbanBoard";
 import { createLogger } from "@src/hooks/logger";
 import { normalizeActivity } from "@src/lib/activityData";
+import { preserveTodoContent } from "@src/store/ui/todoMerge";
 import { formatSmartDateTime } from "@src/util/data/formatters/date";
 import { prettifyMemberName } from "@src/util/data/formatters/memberName";
 
@@ -259,7 +260,7 @@ function isSnapshotMessage(message: MessageEntry): boolean {
   return extracted?.kind !== "orgTask" || extracted.action === "list";
 }
 
-function buildTimeline(messages: MessageEntry[]): {
+export function buildTimeline(messages: MessageEntry[]): {
   todos: TodoLike[];
   timeline: Map<string, TodoTimelineEntry>;
 } {
@@ -272,12 +273,18 @@ function buildTimeline(messages: MessageEntry[]): {
   for (const message of messages) {
     const snapshot = todosFromMessage(message);
     const ts = message.timestamp;
+    const previousTodos = Array.from(todoMap.values());
+    const reconciledSnapshot = preserveTodoContent(previousTodos, snapshot);
     if (isSnapshotMessage(message)) {
       todoMap.clear();
     }
 
-    for (let todoIndex = 0; todoIndex < snapshot.length; todoIndex++) {
-      const todo = snapshot[todoIndex];
+    for (
+      let todoIndex = 0;
+      todoIndex < reconciledSnapshot.length;
+      todoIndex++
+    ) {
+      const todo = reconciledSnapshot[todoIndex];
       // Fall back to position when the source omitted a stable id. This is
       // best-effort: positional ids only match across events if the list
       // wasn't reordered, but it's better than collapsing every id-less
@@ -429,7 +436,7 @@ export const TodoKanban: React.FC<{ messages: MessageEntry[] }> = ({
     [todos, timeline, yesterdayLabel, nowLabel, minutesAgoLabel]
   );
 
-  // `kanban-board--linear` matches the Ops Control / WorkItems styling
+  // `kanban-board--linear` matches the Kanban / WorkItems styling
   // (column-as-card, fill-2 surface, floating task cards).
   return (
     <div

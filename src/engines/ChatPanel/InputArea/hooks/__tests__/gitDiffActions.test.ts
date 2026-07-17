@@ -1,13 +1,31 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { generateCommitMessage } from "@src/hooks/git/sourceControl/commitMessageGeneration";
 
 import {
   GIT_DIFF_COMMIT_PROMPT,
   GIT_DIFF_COMMIT_PUSH_PROMPT,
   GIT_DIFF_PUSH_PROMPT,
   type RunAgentGitActionDeps,
+  buildGitDiffCommitPrompt,
+  buildGitDiffCommitPushPrompt,
+  buildGitDiffCreatePrPrompt,
   computeGitActionsDisabled,
   runAgentGitAction,
 } from "../gitDiffActions";
+
+const { invokeMock } = vi.hoisted(() => ({
+  invokeMock: vi.fn(),
+}));
+
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: invokeMock,
+}));
+
+beforeEach(() => {
+  invokeMock.mockReset();
+  invokeMock.mockResolvedValue("feat(git): customize prompts");
+});
 
 function createDeps(
   overrides: Partial<RunAgentGitActionDeps> = {}
@@ -22,6 +40,67 @@ function createDeps(
     ...overrides,
   };
 }
+
+describe("git action prompt customization", () => {
+  it("preserves builtin prompts for empty instructions", () => {
+    expect(buildGitDiffCommitPrompt()).toBe(GIT_DIFF_COMMIT_PROMPT);
+    expect(buildGitDiffCommitPushPrompt("  \n ")).toBe(
+      GIT_DIFF_COMMIT_PUSH_PROMPT
+    );
+  });
+
+  it("appends commit instructions to commit and commit & push only", () => {
+    const instructions = "  Write in English.  ";
+    const commitPrompt = buildGitDiffCommitPrompt(instructions);
+    const commitPushPrompt = buildGitDiffCommitPushPrompt(instructions);
+
+    expect(commitPrompt).toContain(GIT_DIFF_COMMIT_PROMPT);
+    expect(commitPushPrompt).toContain(GIT_DIFF_COMMIT_PUSH_PROMPT);
+    expect(commitPrompt).toContain(
+      "User-configured additional instructions:\nWrite in English."
+    );
+    expect(commitPushPrompt).toContain(
+      "User-configured additional instructions:\nWrite in English."
+    );
+    expect(GIT_DIFF_PUSH_PROMPT).not.toContain("Write in English.");
+  });
+
+  it("applies pull request instructions only to the PR prompt", () => {
+    const prompt = buildGitDiffCreatePrPrompt("Include a testing section.");
+
+    expect(prompt).toContain("Action: Create a pull request");
+    expect(prompt).toContain("Include a testing section.");
+    expect(buildGitDiffCommitPrompt()).not.toContain(
+      "Include a testing section."
+    );
+  });
+});
+
+describe("commit message generation contract", () => {
+  it("passes normalized instructions to the Tauri command", async () => {
+    await generateCommitMessage(
+      "/repo",
+      "  Write in English.\nInclude a body.  "
+    );
+
+    expect(invokeMock).toHaveBeenCalledWith("generate_commit_message", {
+      repoPath: "/repo",
+      commitInstructions: "Write in English.\nInclude a body.",
+    });
+  });
+
+  it.each([undefined, "", " \n "])(
+    "uses null for empty instructions (%s)",
+    async (instructions) => {
+      await generateCommitMessage("/repo", instructions);
+
+      expect(invokeMock).toHaveBeenCalledWith("generate_commit_message", {
+        repoPath: "/repo",
+        commitInstructions: null,
+      });
+    }
+  );
+});
 
 describe("computeGitActionsDisabled", () => {
   it("is enabled for an idle session", () => {

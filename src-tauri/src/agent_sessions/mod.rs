@@ -5,7 +5,7 @@
 //! ## Structure
 //! - `cli`            — CLI agent session lifecycle (parsers, runner, persistence)
 //! - `event_pipeline` — Event ingestion, buffering, filtering, streaming, history, statistics
-//! - `unified_stats`  — Cross-backend unified session listing, filtering, and statistics
+//! - `session_directory`  — Cross-backend session listing, filtering, and per-row patches
 //! - `health`         — Session health checks and stale detection
 //!
 //! Session-specific SQLite persistence (event cache + token usage) lives
@@ -16,5 +16,5 @@
 
 pub mod cli;
 pub mod event_pipeline;
-pub mod health;
-pub mod unified_stats;
+pub mod external_cli_adapter;
+pub mod session_directory;

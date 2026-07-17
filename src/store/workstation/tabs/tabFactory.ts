@@ -87,14 +87,10 @@ const DEFAULT_CATEGORY_BY_TYPE: Record<
   search: "search",
   "lint-scan": "lint",
   "ai-impact": "ai-impact",
+  "search-sessions": "search-sessions",
   benchmark: "benchmark",
   "url-preview": "preview",
-  table: "db-table",
-  query: "db-query",
-  schema: "db-schema",
-  "add-connection": "db-table",
   "browser-session": "browser",
-  "token-category": "browser",
   devtools: "browser",
   "project-dashboard": "project",
   "project-work-items": "project",
@@ -109,9 +105,10 @@ const DEFAULT_CATEGORY_BY_TYPE: Record<
   "chat-session": "chat",
   "subagent-detail": "subagent",
   "agent-config": "agent-config",
-  "ops-control-station": "ops-control",
   "canvas-preview": "preview",
   "github-issue-detail": "git",
+  "github-pr-detail": "git",
+  start: "launchpad",
 };
 
 // ============================================

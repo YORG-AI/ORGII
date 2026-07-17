@@ -40,6 +40,9 @@ module.exports = {
           "selected-hover": colorVariable("surface-selected-hover"),
           container: colorVariable("surface-container"),
         },
+        sidebar: {
+          selected: "var(--sidebar-selected-row-bg)",
+        },
         event: {
           block: colorVariable("event-block"),
           "block-fade": colorVariable("event-block-fade"),

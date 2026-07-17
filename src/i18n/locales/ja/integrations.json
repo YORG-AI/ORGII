@@ -474,24 +474,6 @@
     "claudeCodeAutodetectDesc": "macOS Keychain または ~/.claude/.credentials.json からローカルの Claude Code ログインを読み取ります",
     "claudeCodeConnected": "Claude Code 接続済み",
     "claudeCodeDetectErrorHint": "内蔵ブラウザでサインインするか、claude auth login を実行してから再検出してください",
-    "geminiSetupMethodDesc": "Connect Gemini CLI with Google sign-in, local detection, or a Gemini API key",
-    "geminiSignInTitle": "Gemini Sign In",
-    "geminiSignInDesc": "Sign in to Google for Gemini CLI in a native secure sign-in window. ORGII captures the callback, resolves the Code Assist project, and stores OAuth tokens locally.",
-    "signInWithGemini": "Sign in with Gemini",
-    "geminiReadyToSignIn": "Ready to sign in to Gemini",
-    "geminiSignedIn": "Gemini connected",
-    "geminiOAuthHint": "This saves a Gemini OAuth account for official Gemini CLI access",
-    "geminiBrowserHint": "Complete Google authorization in the secure sign-in window.",
-    "geminiSignInErrorHint": "Close the sign-in window and try signing in again. No token was saved",
-    "geminiProjectId": "Code Assist project: {{projectId}}",
-    "geminiAutodetectTitle": "Detect Gemini session",
-    "geminiAutodetectDesc": "Reads ~/.gemini/oauth_creds.json and GEMINI_API_KEY from your local environment",
-    "geminiApiKeyLabel": "Gemini API Key",
-    "geminiApiKeyDesc": "Paste a Gemini API key if you do not want to use Google sign-in",
-    "geminiApiKeyPlaceholder": "AIza...",
-    "geminiConnected": "Gemini connected",
-    "geminiDetectErrorHint": "Sign in with the secure native window, or paste a Gemini API key manually",
-    "geminiValidationErrorHint": "Check that the Gemini token or API key is valid and try again",
     "refreshModels": {
       "button": "Cursor モデル一覧を更新",
       "failed": "Cursor からの更新に失敗しました: {{error}}"
@@ -1342,6 +1324,13 @@
     "commitAttributionDesc": "ORGII から作成した Commit メッセージに ORGII を Co-authored-by として追加します",
     "prAttribution": "Pull Request Attribution",
     "prAttributionDesc": "ORGII から作成した Pull Request の説明に ORGII の帰属フッターを追加します",
+    "promptInstructionsTitle": "プロンプト指示",
+    "commitInstructions": "コミット指示",
+    "commitInstructionsDesc": "コミットメッセージ生成プロンプトに追加され、ローカルに保存して選択した Agent に送信されます",
+    "commitInstructionsPlaceholder": "例：コミットメッセージを日本語で記述し、詳細な本文を含める",
+    "pullRequestInstructions": "Pull Request 指示",
+    "pullRequestInstructionsDesc": "Pull Request のタイトルと説明の生成プロンプトに追加され、ローカルに保存して選択した Agent に送信されます",
+    "pullRequestInstructionsPlaceholder": "例：タイトルの先頭に Issue ID を付け、テストセクションを含める",
     "coauthor": "Co-authored-by",
     "coauthorDesc": "ORGII から作成した Git Commit に {{name}} <{{email}}> を追加します",
     "noTokenYet": "Token が必要ですか？",
@@ -1698,6 +1687,61 @@
       "tokenCount": "~{{count}} Token",
       "emptyConfigPreview": "設定内容がありません"
     },
+    "sessionProvenance": {
+      "title": "セッションの来歴",
+      "capture": "ファイル操作を記録",
+      "description": "ファイルの読み取りと書き込みをメタデータとして記録します。プロンプト、ツール出力、ファイル内容は保存されません。",
+      "configPath": "ファイルの読み取りと書き込みをメタデータとして記録します。プロンプト、ツール出力、ファイル内容は保存されません。設定: {{path}}",
+      "installDrift": "保存された設定とインストール済み hook が一致しません。記録を切り替えて管理対象の hook を修復してください。設定: {{path}}",
+      "copyPath": "コピー",
+      "reveal": "表示",
+      "col": {
+        "source": "ツール",
+        "config": "設定",
+        "capture": "記録"
+      },
+      "status": {
+        "on": "オン",
+        "off": "オフ",
+        "repair": "修復",
+        "needsApproval": "承認が必要",
+        "checking": "確認中…",
+        "error": "エラー"
+      },
+      "codexApproval": {
+        "title": "Approve ORG2 hooks in Codex",
+        "description": "Codex has the ORG2 hooks installed, but Codex still needs your approval before it can run them.",
+        "instructions": "Open Codex, review the 3 ORG2 hooks, then choose Trust all and continue. ORG2 marks this active after the first real hook signal.",
+        "review": "Review in Codex",
+        "verified": "Verified by a real Codex hook signal {{time}}."
+      },
+      "signals": {
+        "title": "最近のシグナル",
+        "empty": "hook シグナルはまだ受信していません。",
+        "noResults": "一致するシグナルがありません",
+        "search": "シグナルを検索",
+        "refresh": "更新",
+        "openSession": "セッション {{session}} を開く",
+        "diffLoading": "Loading patch…",
+        "diffEmpty": "No patch captured. Provenance records file changes as metadata; a diff appears only once this session's edits are imported.",
+        "col": {
+          "source": "ツール",
+          "action": "アクション",
+          "file": "ファイル",
+          "workspace": "ワークスペース",
+          "session": "セッション",
+          "when": "日時"
+        },
+        "action": {
+          "read": "読み取り",
+          "write": "書き込み",
+          "create": "作成",
+          "delete": "削除",
+          "rename": "名前変更",
+          "search": "検索"
+        }
+      }
+    },
     "codexConfig": {
       "sectionTitle": "設定",
       "model": "モデル",
@@ -2031,8 +2075,7 @@
         "claude_code": "Claude Code",
         "copilot": "GitHub Copilot",
         "kiro": "Kiro",
-        "codex": "Codex",
-        "gemini_cli": "Gemini CLI"
+        "codex": "Codex"
       },
       "noSkillsResults": "インポート可能な Skill が見つかりません。~/.claude/skills と ~/.claude/commands を検索しました。",
       "noAgentResults": "インポートできる Agent がまだありません",
@@ -2452,13 +2495,6 @@
     "installHintNote": "この機能を有効にするには不足している依存関係をインストールしてください",
     "installSection": "インストール"
   },
-  "worktreeCompare": {
-    "button": "比較",
-    "buttonTooltip": "Worktreeを比較",
-    "title": "Worktreeの比較",
-    "noSessions": "比較するセッションがありません",
-    "sessionTab": "セッション"
-  },
   "creator": {
     "assign": "割り当て"
   },
@@ -2595,7 +2631,10 @@
   },
   "cliLaunchProfiles": {
     "title": "起動プロファイル",
+    "plain": "ベース",
+    "plan": "計画",
     "fullPermission": "フル権限",
+    "autoEdit": "自動編集",
     "manual": "手動",
     "command": "コマンド",
     "environment": "環境変数",

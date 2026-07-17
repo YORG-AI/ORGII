@@ -102,6 +102,7 @@
     "**/node_modules/**", // Explicitly exclude node_modules at any level
     "dist", // Build output
     "build", // Webpack build output
-    ".market" // Archived market business; not part of any build (see docs/shared/oss-market-extraction--0507.md)
+    ".market", // Archived market business; not part of any build (see docs/shared/oss-market-extraction--0507.md)
+    ".archive" // Parked code excluded from build (see .archive/README.md)
   ]
 }

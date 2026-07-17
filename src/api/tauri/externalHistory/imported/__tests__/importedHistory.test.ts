@@ -28,6 +28,7 @@ function probe(sourceId: string, importable = false): ExternalCliSourceProbe {
     historyPaths: [],
     status: "detected_no_importer",
     importable,
+    storeKind: "",
   };
 }
 
@@ -35,6 +36,7 @@ describe("imported history source helpers", () => {
   it("recognizes replayable imported-history source ids", () => {
     expect(isImportedHistoryReplayableSourceId("codex_app")).toBe(true);
     expect(isImportedHistoryReplayableSourceId("claude_code")).toBe(true);
+    expect(isImportedHistoryReplayableSourceId("warp")).toBe(true);
     expect(isImportedHistoryReplayableSourceId("qwen_code")).toBe(false);
     expect(isImportedHistoryReplayableSourceId(null)).toBe(false);
   });

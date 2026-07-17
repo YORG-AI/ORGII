@@ -18,23 +18,10 @@ import {
   POPUP_SHADOW,
 } from "@src/scaffold/shared/popupTokens";
 import { type StationMode, stationModeAtom } from "@src/store/ui/simulatorAtom";
-import { type DockFilter, dockFilterAtom } from "@src/store/workstation";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
-export const GENERAL_LAYOUT_TOUR_EVENT = "orgii:start-general-layout-tour";
-
-export const GENERAL_LAYOUT_TOUR_TARGETS = {
-  sessionSidebar: "session-layout-session-sidebar",
-  chatPanel: "session-layout-chat-panel",
-  workstation: "session-layout-workstation",
-  stationModePill: "session-layout-station-mode-pill",
-  dock: "session-layout-dock",
-  dockAllTabs: "session-layout-dock-all-tabs",
-  dockCodeEditor: "session-layout-dock-code-editor",
-  dockBrowser: "session-layout-dock-browser",
-  dockProjects: "session-layout-dock-projects",
-} as const;
+import { GENERAL_LAYOUT_TOUR_TARGETS } from "./generalLayoutTourConfig";
 
 type GeneralLayoutTourTarget =
   (typeof GENERAL_LAYOUT_TOUR_TARGETS)[keyof typeof GENERAL_LAYOUT_TOUR_TARGETS];
@@ -44,7 +31,8 @@ interface TourStep {
   target: GeneralLayoutTourTarget;
   title: string;
   body: string;
-  dockFilter?: DockFilter;
+  /** Snap into My Station when this step becomes active (dock chrome steps). */
+  switchToMyStation?: boolean;
   stationMode?: StationMode;
   demoStationModeSwitch?: boolean;
 }
@@ -86,28 +74,28 @@ const TOUR_STEPS: TourStep[] = [
     id: "all-tabs",
     target: GENERAL_LAYOUT_TOUR_TARGETS.dockAllTabs,
     title: "All Tabs",
-    dockFilter: "all",
+    switchToMyStation: true,
     body: "The first dock icon shows all open tabs together, regardless of which workstation app owns them.",
   },
   {
     id: "code-editor",
     target: GENERAL_LAYOUT_TOUR_TARGETS.dockCodeEditor,
     title: "Code Editor",
-    dockFilter: "code",
+    switchToMyStation: true,
     body: "Use Code Editor for files, diffs, terminals, source control, and coding changes made during a session.",
   },
   {
     id: "browser",
     target: GENERAL_LAYOUT_TOUR_TARGETS.dockBrowser,
     title: "Browser",
-    dockFilter: "browser",
+    switchToMyStation: true,
     body: "Use Browser for web pages, previews, app testing, and browser-based investigation alongside the chat.",
   },
   {
     id: "projects",
     target: GENERAL_LAYOUT_TOUR_TARGETS.dockProjects,
     title: "Projects",
-    dockFilter: "project",
+    switchToMyStation: true,
     body: "Use Projects to track work items, plans, and project state connected to the current workspace.",
   },
 ];
@@ -230,7 +218,6 @@ const GeneralLayoutTour: React.FC<GeneralLayoutTourProps> = ({
   onClose,
 }) => {
   const { isDark } = useCurrentTheme();
-  const setDockFilter = useSetAtom(dockFilterAtom);
   const setStationMode = useSetAtom(stationModeAtom);
   const [stepIndex, setStepIndex] = useState(0);
   const [targetRect, setTargetRect] = useState<TargetRect | null>(null);
@@ -240,10 +227,9 @@ const GeneralLayoutTour: React.FC<GeneralLayoutTourProps> = ({
   const isLastStep = stepIndex === TOUR_STEPS.length - 1;
 
   useEffect(() => {
-    if (!open || !currentStep.dockFilter) return;
+    if (!open || !currentStep.switchToMyStation) return;
     setStationMode("my-station");
-    setDockFilter(currentStep.dockFilter);
-  }, [currentStep.dockFilter, open, setDockFilter, setStationMode]);
+  }, [currentStep.switchToMyStation, open, setStationMode]);
 
   useEffect(() => {
     if (!open || !currentStep.stationMode) return;

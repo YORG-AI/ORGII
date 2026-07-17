@@ -78,14 +78,84 @@
       }
     }
   },
-  "opsControl": {
+  "kanban": {
     "sessions": "Session",
-    "replayBarAriaLabel": "Ops Control replay timeline",
+    "fileSearch": {
+      "placeholder": "Dosya yoluna göre oturum ara",
+      "noResults": "Eşleşen bir dosyayı değiştiren oturum yok"
+    },
+    "replayBarAriaLabel": "Kanban replay timeline",
     "followLabel": "Mevcut Kanban",
     "view": {
       "list": "Liste",
       "diary": "Günlük",
-      "opsControl": "Ops Control"
+      "kanban": "Kanban",
+      "dataSource": "Veri kaynakları"
+    },
+    "dataSource": {
+      "title": "Veri kaynakları",
+      "description": "ORGII'nin algıladığı harici kodlama araçları. İçe aktarılabilir uygulamalar oturum sayısını gösterir ve yeniden taranabilir; diğerleri kurulum durumunu ve geçmişlerinin nerede olduğunu gösterir.",
+      "rescanAll": "Tümünü yeniden tara",
+      "rescan": "Yeniden tara",
+      "rescanning": "Yeniden taranıyor…",
+      "enable": "Etkinleştir",
+      "disable": "Devre dışı bırak",
+      "lastScan": "Son tarama {{time}}",
+      "neverScanned": "Hiç taranmadı",
+      "frequencyTitle": "Otomatik tarama sıklığı",
+      "globalFrequency": "Harici kaynakları otomatik tarama",
+      "globalFrequencyDesc": "“Varsayılan” olarak ayarlanan harici kaynaklar için varsayılan tarama sıklığı",
+      "activeSessionRefresh": "Açık harici oturumu yenileme",
+      "activeSessionRefreshDesc": "Sohbet panelinde açık olan harici oturumun yenileme sıklığı",
+      "activeSessionFreq": {
+        "3s": "Her 3 saniyede",
+        "5s": "Her 5 saniyede",
+        "10s": "Her 10 saniyede",
+        "1m": "Her dakika"
+      },
+      "col": {
+        "source": "Kaynak",
+        "sessions": "Oturumlar",
+        "lastScan": "Son tarama",
+        "frequency": "Otomatik tarama",
+        "status": "Durum"
+      },
+      "freq": {
+        "default": "Varsayılan",
+        "manual": "Manuel",
+        "60s": "60 saniyede bir",
+        "5m": "5 dakikada bir",
+        "1h": "Saatlik",
+        "1d": "Günlük"
+      },
+      "openFolder": "Klasörü aç",
+      "tabs": {
+        "all": "Tümü",
+        "apps": "Uygulamalar",
+        "clis": "CLI'ler"
+      },
+      "views": {
+        "scanning": "Tarama",
+        "hooks": "Hooks"
+      },
+      "sessions_one": "{{count}} oturum",
+      "sessions_other": "{{count}} oturum",
+      "details": {
+        "path": "Yol",
+        "storeType": "Depolama türü",
+        "copyPath": "Yolu kopyala"
+      },
+      "noPath": "Yol algılanmadı",
+      "notImported": "İçe aktarılmadı",
+      "status": {
+        "ready": "Hazır",
+        "empty": "Geçmiş yok",
+        "loading": "Kontrol ediliyor…",
+        "error": "Hata",
+        "installed": "Kurulu",
+        "notInstalled": "Algılanmadı",
+        "disabled": "Devre dışı"
+      }
     },
     "list": {
       "updated": "Güncellendi",
@@ -184,11 +254,6 @@
       "merging": "Birleştiriliyor…",
       "merged": "Birleştirildi"
     },
-    "diff": {
-      "openDiffWindow": "Diff'i Görüntüle",
-      "windowTitle": "Oturum Diff",
-      "filesChanged": "Dosyalar"
-    },
     "replay": {
       "replaySession": "Oynat"
     },
@@ -226,6 +291,11 @@
       "commits_one": "{{count}} commit",
       "commits_other": "{{count}} commit",
       "committedRateShort": "%{{percent}} commitlendi"
+    },
+    "detailView": {
+      "trajectory": "Trajectory",
+      "touchedFiles": "Touched files",
+      "noTouchedFiles": "No files touched"
     }
   },
   "changes": {
@@ -408,7 +478,6 @@
         "interactionAskQuestion": "Soru",
         "interactionAskPermission": "İzin isteği",
         "interactionModeSwitch": "Mod değişimi",
-        "interactionNextSteps": "Sonraki adımlar",
         "interactionPlanDoc": "Plan belgesi",
         "interactionGeneric": "Etkileşim"
       },
@@ -718,20 +787,17 @@
       "addApiKey": {
         "title": "API key ekle"
       },
+      "installLatestUpdate": {
+        "title": "En son güncellemeyi yükle"
+      },
       "agents": {
         "title": "Agents"
       },
       "tabs": {
         "work": "Çalışma",
-        "explore": "Keşfet",
-        "heatmap": "Trendler"
-      },
-      "heatmap": {
-        "loading": "Etkinlik trendleri yükleniyor…",
-        "empty": "Henüz oturum etkinliği yok.",
-        "sessions": "Oturumlar",
-        "tokens": "Tokens",
-        "cost": "Maliyet"
+        "manage": "Yönet",
+        "heatmap": "Trendler",
+        "runtime": "Çalışma zamanı"
       },
       "quota": {
         "empty": "Henüz quota verisi yok. Key Vault'tan kullanımı yenileyin.",
@@ -779,6 +845,7 @@
     "defaultTitle": "Sohbet",
     "hideChatPanel": "Sohbet panelini gizle",
     "showTokenUsage": "Token göster",
+    "showStatusBar": "Durum çubuğunu göster",
     "compactDisplayMode": "Kompakt mod",
     "replay": {
       "follow": "Takip et"
@@ -950,11 +1017,20 @@
         "importFailed": "Session JSON içe aktarılamadı."
       }
     },
-    "turnFiles": {
-      "filesChangedCount_one": "Bu turda {{count}} dosya değişti",
-      "filesChangedCount_other": "Bu turda {{count}} dosya değişti",
-      "historicalRoundDiffFiles_one": "Önceki tur diff’i · {{count}} dosya",
-      "historicalRoundDiffFiles_other": "Önceki tur diff’i · {{count}} dosya",
+    "turnMetadata": {
+      "noChanges": "Bu turda dosya değişikliği yok",
+      "earlierRound": "Önceki tur",
+      "files_one": "{{count}} dosya",
+      "files_other": "{{count}} dosya",
+      "reads_one": "{{count}} okuma",
+      "reads_other": "{{count}} okuma",
+      "searches_one": "{{count}} arama",
+      "searches_other": "{{count}} arama",
+      "failed": "Başarısız",
+      "commits_one": "{{count}} commit",
+      "commits_other": "{{count}} commit",
+      "pullRequests_one": "{{count}} PR",
+      "pullRequests_other": "{{count}} PR",
       "review": "İncele",
       "showLess": "Daha az göster",
       "showMore_one": "{{count}} tane daha göster",
@@ -989,9 +1065,9 @@
         "sourcePrs": "PRs",
         "stateOpen": "Open",
         "stateClosed": "Closed",
-        "stateAll": "All states",
-        "assignedToMe": "Assigned to me",
-        "createdByMe": "Created by me",
+        "stateAll": "Tüm durumlar",
+        "assignedToMe": "Bana atananlar",
+        "createdByMe": "Benim oluşturduklarım",
         "filters": "Filters",
         "openInGitHub": "Open in GitHub"
       }
@@ -1033,6 +1109,8 @@
     "deleteFileRunning": "{{name}} siliniyor",
     "deleteFileDone": "{{name}} silindi",
     "deleteFileFailed": "{{name}} silinemedi",
+    "deleteFileCompactRunning": "Siliniyor",
+    "deleteFileCompactDone": "Sil",
     "directoryTree": "Dizin ağacı",
     "ls": "ls",
     "listDirRunning": "Dizin listeleniyor",
@@ -1075,7 +1153,7 @@
     "pathCopied": "Yol kopyalandı!",
     "failedToCopyPath": "Yol kopyalanamadı",
     "copyFilePath": "Dosya yolunu kopyala",
-    "explore": "Keşfet",
+    "manage": "Yönet",
     "readFile": "Dosya oku",
     "readFileRunning": "Okunuyor",
     "readFileDone": "Oku",
@@ -1098,12 +1176,30 @@
     "editFileDoneNoName": "Dosya düzenlendi",
     "editFileCompactRunning": "Düzenleniyor",
     "editFileCompactDone": "Düzenle",
+    "editFiles": "Dosyaları düzenle",
+    "editSummary": {
+      "edit_one": "{{count}} düzenleme",
+      "edit_other": "{{count}} düzenleme",
+      "read_one": "{{count}} okuma",
+      "read_other": "{{count}} okuma",
+      "separator": ", "
+    },
     "editFileFailedNoName": "Düzenlemeyi denedi",
     "file": "dosya",
     "runShellRunning": "Komut çalıştırılıyor",
     "terminalWaitRunning": "Terminalin bitmesi bekleniyor",
     "runShellDone": "Komut çalıştırıldı",
     "runShellFailed": "Komut başarısız",
+    "runCommands": "Komutları çalıştır",
+    "terminalSummary": {
+      "command_one": "{{count}} komut",
+      "command_other": "{{count}} komut",
+      "wait_one": "{{count}} bekleme",
+      "wait_other": "{{count}} bekleme",
+      "check_one": "{{count}} kontrol",
+      "check_other": "{{count}} kontrol",
+      "separator": ", "
+    },
     "inspectTerminalsRunning": "Terminaller inceleniyor",
     "inspectTerminalsDone": "Terminaller incelendi",
     "inspectTerminalsFailed": "Terminal incelemesi başarısız",
@@ -1141,6 +1237,7 @@
       "skip": "Atla",
       "noReason": "Agent mod değiştirmeyi öneriyor"
     },
+    "explore": "Keşfet",
     "exploreSummary": {
       "read_one": "{{count}} dosya",
       "read_other": "{{count}} dosya",
@@ -1151,7 +1248,8 @@
       "ls_one": "ls {{count}} klasör",
       "ls_other": "ls {{count}} klasör",
       "lsp_one": "{{count}} LSP sorgusu",
-      "lsp_other": "{{count}} LSP sorgusu"
+      "lsp_other": "{{count}} LSP sorgusu",
+      "separator": ", "
     },
     "categoryRead": "Oku",
     "categorySearch": "Ara",
@@ -1422,9 +1520,6 @@
     "toolSearchRunning": "Araçlar aranıyor",
     "toolSearchDone": "Araçlar arandı",
     "toolSearchFailed": "Araç araması başarısız",
-    "suggestNextStepsRunning": "Sonraki adımlar öneriliyor",
-    "suggestNextStepsDone": "{{count}} sonraki adım önerildi",
-    "suggestNextStepsFailed": "Sonraki adımlar önerilemedi",
     "agentSendMessageRunning": "Takım Agent'ına mesaj gönderiliyor",
     "agentSendMessageDone": "Takım Agent'ına mesaj gönderildi",
     "agentSendMessageFailed": "Takım Agent'ına mesaj gönderilemedi",
@@ -2452,13 +2547,6 @@
       "missing": "Eksik",
       "disabled": "Devre dışı"
     }
-  },
-  "worktreeCompare": {
-    "title": "Worktree'leri Karşılaştır",
-    "button": "Karşılaştır",
-    "buttonTooltip": "Worktree diff'lerini yan yana karşılaştır",
-    "noSessions": "Karşılaştırılacak oturum yok.",
-    "sessionTab": "Oturum {{n}}"
   },
   "groupChat": {
     "senderTitle": {

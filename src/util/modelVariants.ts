@@ -7,6 +7,7 @@ export const MODEL_REASONING_LEVEL = {
   MEDIUM: "medium",
   HIGH: "high",
   EXTRA_HIGH: "extra_high",
+  ULTRA: "ultra",
   MAX: "max",
   ULTRACODE: "ultracode",
 } as const;
@@ -51,6 +52,7 @@ const VARIANT_SUFFIX_TOKENS = new Set<string>([
   "extra",
   "extra-high",
   "xhigh",
+  "ultra",
   "max",
   "ultracode",
   "minimal",
@@ -71,6 +73,7 @@ function normalizeReasoning(
   if (value === MODEL_REASONING_LEVEL.HIGH) return MODEL_REASONING_LEVEL.HIGH;
   if (value === MODEL_REASONING_LEVEL.EXTRA_HIGH)
     return MODEL_REASONING_LEVEL.EXTRA_HIGH;
+  if (value === MODEL_REASONING_LEVEL.ULTRA) return MODEL_REASONING_LEVEL.ULTRA;
   if (value === MODEL_REASONING_LEVEL.MAX) return MODEL_REASONING_LEVEL.MAX;
   if (value === MODEL_REASONING_LEVEL.ULTRACODE)
     return MODEL_REASONING_LEVEL.ULTRACODE;
@@ -143,6 +146,32 @@ function parseClaudeVariant(model: string): ModelVariantMetadata | undefined {
   const lower = model.toLowerCase();
   if (!lower.startsWith("claude-")) return undefined;
 
+  const { baseSegments, suffixTokens } = collectSuffixTokens(
+    lower.split("-"),
+    1
+  );
+  return buildVariant(model, baseSegments.join("-"), suffixTokens);
+}
+
+/**
+ * Provider-native OpenAI-compatible families (GLM/Zhipu, Grok/xAI) whose ids
+ * carry ORG2 effort suffixes directly from the provider list (e.g.
+ * `glm-5.2-high`, `grok-4.5-max`). These have no dedicated tier grammar like
+ * GPT's `codex-max`, so a straight suffix-peel — mirroring the Rust
+ * `parse_model_variant` in agent-core `thinking_mode.rs` — is correct and keeps
+ * both sides in agreement. Bare ids (`glm-5.2`) peel nothing → `undefined`.
+ */
+const SUFFIX_PARSED_FAMILY_PREFIXES = ["glm-", "grok-"] as const;
+
+function parseSuffixOnlyFamilyVariant(
+  model: string
+): ModelVariantMetadata | undefined {
+  const lower = model.toLowerCase();
+  if (
+    !SUFFIX_PARSED_FAMILY_PREFIXES.some((prefix) => lower.startsWith(prefix))
+  ) {
+    return undefined;
+  }
   const { baseSegments, suffixTokens } = collectSuffixTokens(
     lower.split("-"),
     1
@@ -240,7 +269,11 @@ export function parseModelVariant(
     return parseClaudeVariant(model);
   }
 
-  return undefined;
+  // Provider-native families (GLM/Zhipu, Grok/xAI) whose effort suffixes come
+  // straight from the provider list. Mirrors the Rust `parse_model_variant`
+  // so both sides agree on base/effort splits. Other families (Gemini, etc.)
+  // intentionally stay unparsed.
+  return parseSuffixOnlyFamilyVariant(model);
 }
 
 export function parseModelVariants(models: string[]): ModelVariantMetadata[] {
@@ -270,13 +303,15 @@ export function formatReasoningLevel(
     case MODEL_REASONING_LEVEL.BASELINE:
       return "Baseline";
     case MODEL_REASONING_LEVEL.LOW:
-      return "Low";
+      return "Light";
     case MODEL_REASONING_LEVEL.MEDIUM:
       return "Medium";
     case MODEL_REASONING_LEVEL.HIGH:
       return "High";
     case MODEL_REASONING_LEVEL.EXTRA_HIGH:
       return "Extra High";
+    case MODEL_REASONING_LEVEL.ULTRA:
+      return "Ultra";
     case MODEL_REASONING_LEVEL.MAX:
       return "Max";
     case MODEL_REASONING_LEVEL.ULTRACODE:

@@ -30,6 +30,8 @@ export const DROPDOWN_PANEL = {
   /** z-index for dropdown panels — must exceed Spotlight's containerZIndex (9999) */
   zIndex: 10000,
   zIndexClass: "z-[10000]",
+  /** Nested portals rendered above the slash-command panel and its bridge. */
+  portalSubmenuZIndex: 99999,
 
   /** Panel padding (no header) */
   padding: 4,

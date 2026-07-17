@@ -3,6 +3,8 @@
 //! Runtime queries that read from KEY_SERVICE, detect installed binaries,
 //! and merge static registry data with live state.
 
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -14,12 +16,12 @@ use crate::provider_config::{
     ProviderConfig,
 };
 
+use super::data::supported_setup_methods_for_agent;
 use super::data::{
     api_provider_registry, cli_agent_registry, cli_env_config, cli_install_methods,
     cli_uninstall_methods, infer_install_method, CliConfigPathKind,
 };
 use super::{AvailableAgent, AvailableApiProvider, CliConfigFile};
-use super::data::supported_setup_methods_for_agent;
 
 const AVAILABLE_AGENTS_CACHE_TTL: Duration = Duration::from_secs(60);
 const PROTOCOL_ANTHROPIC_MESSAGES: &str = "Anthropic Messages";
@@ -56,10 +58,6 @@ fn native_subscription_labels_for_agent(agent_name: &str) -> Vec<String> {
         "cursor_cli" => &["Cursor account / Cursor subscription"][..],
         "claude_code" => &["Claude Pro / Max account", "Anthropic Console account"],
         "codex" => &["ChatGPT account", "OpenAI API account"],
-        "gemini_cli" => &[
-            "Google account / Gemini Code Assist",
-            "Google AI Studio API key",
-        ],
         "kiro" => &["Kiro account"],
         "copilot" => &["GitHub Copilot subscription"],
         "opencode" => &["opencode account"],
@@ -139,13 +137,18 @@ fn resolve_cli_config_path(kind: CliConfigPathKind, relative_path: &str) -> Stri
 struct AvailableAgentsCacheEntry {
     path: String,
     key_signature: String,
+    binary_signature: String,
     captured_at: Instant,
     agents: Vec<AvailableAgent>,
 }
 
 static AVAILABLE_AGENTS_CACHE: OnceLock<Mutex<Option<AvailableAgentsCacheEntry>>> = OnceLock::new();
 
-fn cached_available_agents(path: &str, key_signature: &str) -> Option<Vec<AvailableAgent>> {
+fn cached_available_agents(
+    path: &str,
+    key_signature: &str,
+    binary_signature: &str,
+) -> Option<Vec<AvailableAgent>> {
     let cache = AVAILABLE_AGENTS_CACHE.get_or_init(|| Mutex::new(None));
     let Ok(cache) = cache.lock() else {
         return None;
@@ -155,6 +158,7 @@ fn cached_available_agents(path: &str, key_signature: &str) -> Option<Vec<Availa
     };
     if entry.path == path
         && entry.key_signature == key_signature
+        && entry.binary_signature == binary_signature
         && entry.captured_at.elapsed() < AVAILABLE_AGENTS_CACHE_TTL
     {
         return Some(entry.agents.clone());
@@ -162,7 +166,12 @@ fn cached_available_agents(path: &str, key_signature: &str) -> Option<Vec<Availa
     None
 }
 
-fn store_available_agents_cache(path: String, key_signature: String, agents: Vec<AvailableAgent>) {
+fn store_available_agents_cache(
+    path: String,
+    key_signature: String,
+    binary_signature: String,
+    agents: Vec<AvailableAgent>,
+) {
     let cache = AVAILABLE_AGENTS_CACHE.get_or_init(|| Mutex::new(None));
     let Ok(mut cache) = cache.lock() else {
         return;
@@ -170,9 +179,92 @@ fn store_available_agents_cache(path: String, key_signature: String, agents: Vec
     *cache = Some(AvailableAgentsCacheEntry {
         path,
         key_signature,
+        binary_signature,
         captured_at: Instant::now(),
         agents,
     });
+}
+
+fn command_path_candidates(dir: &Path, command: &str) -> Vec<PathBuf> {
+    #[cfg(windows)]
+    {
+        if Path::new(command).extension().is_some() {
+            return vec![dir.join(command)];
+        }
+
+        let path_ext = std::env::var("PATHEXT")
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| ".COM;.EXE;.BAT;.CMD".to_string());
+
+        path_ext
+            .split(';')
+            .filter_map(|extension| {
+                let extension = extension.trim();
+                if extension.is_empty() {
+                    None
+                } else if extension.starts_with('.') {
+                    Some(dir.join(format!("{command}{extension}")))
+                } else {
+                    Some(dir.join(format!("{command}.{extension}")))
+                }
+            })
+            .collect()
+    }
+    #[cfg(not(windows))]
+    {
+        vec![dir.join(command)]
+    }
+}
+
+fn is_executable_file(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        return path
+            .metadata()
+            .map(|metadata| metadata.permissions().mode() & 0o111 != 0)
+            .unwrap_or(false);
+    }
+
+    #[cfg(not(unix))]
+    {
+        true
+    }
+}
+
+fn binary_cache_fingerprint(path: &Path) -> String {
+    let Ok(metadata) = fs::metadata(path) else {
+        return path.to_string_lossy().to_string();
+    };
+    let modified = metadata
+        .modified()
+        .ok()
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|duration| format!("{}.{}", duration.as_secs(), duration.subsec_nanos()))
+        .unwrap_or_else(|| "unknown".to_string());
+    format!("{}:{}:{}", path.to_string_lossy(), metadata.len(), modified)
+}
+
+fn path_binary_signature(registry_entries: &[(&str, &str)], path: &str) -> String {
+    let path_dirs: Vec<PathBuf> = std::env::split_paths(path).collect();
+    registry_entries
+        .iter()
+        .map(|(name, binary)| {
+            let fingerprint = path_dirs
+                .iter()
+                .flat_map(|dir| command_path_candidates(dir, binary))
+                .find(|candidate| is_executable_file(candidate))
+                .map(|candidate| binary_cache_fingerprint(&candidate))
+                .unwrap_or_else(|| "-".to_string());
+            format!("{name}={fingerprint}")
+        })
+        .collect::<Vec<_>>()
+        .join("|")
 }
 
 /// Get available CLI agents with full metadata (install methods, env config, etc.).
@@ -192,7 +284,16 @@ pub async fn get_available_agents() -> Result<Vec<AvailableAgent>, String> {
         .collect();
     key_signature_parts.sort();
     let current_key_signature = key_signature_parts.join("|");
-    if let Some(agents) = cached_available_agents(&current_path, &current_key_signature) {
+    let binary_signature_entries: Vec<(&str, &str)> = registry
+        .iter()
+        .map(|entry| (entry.name, entry.binary))
+        .collect();
+    let current_binary_signature = path_binary_signature(&binary_signature_entries, &current_path);
+    if let Some(agents) = cached_available_agents(
+        &current_path,
+        &current_key_signature,
+        &current_binary_signature,
+    ) {
         return Ok(agents);
     }
     tracing::debug!("[get_available_agents] PATH={}", current_path);
@@ -273,7 +374,12 @@ pub async fn get_available_agents() -> Result<Vec<AvailableAgent>, String> {
         });
     }
 
-    store_available_agents_cache(current_path, current_key_signature, results.clone());
+    store_available_agents_cache(
+        current_path,
+        current_key_signature,
+        current_binary_signature,
+        results.clone(),
+    );
     Ok(results)
 }
 
@@ -339,4 +445,40 @@ pub fn get_provider_config(model_type: String) -> ProviderConfig {
 #[tauri::command]
 pub fn get_all_provider_configs() -> std::collections::HashMap<String, ProviderConfig> {
     get_all_configs_impl().into_iter().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(unix)]
+    fn make_executable(path: &Path) {
+        use std::os::unix::fs::PermissionsExt;
+
+        fs::write(path, "#!/bin/sh\nexit 0\n").unwrap();
+        let mut permissions = fs::metadata(path).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(path, permissions).unwrap();
+    }
+
+    #[cfg(not(unix))]
+    fn make_executable(path: &Path) {
+        fs::write(path, "@echo off\r\nexit /b 0\r\n").unwrap();
+    }
+
+    #[test]
+    fn path_binary_signature_changes_when_binary_appears_in_existing_path_dir() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path().to_string_lossy().to_string();
+        let entries = [("codex", "codex")];
+
+        let before = path_binary_signature(&entries, &path);
+        make_executable(&temp_dir.path().join("codex"));
+        let after = path_binary_signature(&entries, &path);
+
+        assert_ne!(before, after);
+        assert!(before.contains("codex=-"));
+        assert!(after.contains("codex="));
+        assert!(!after.contains("codex=-"));
+    }
 }

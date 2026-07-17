@@ -321,6 +321,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
         value: org.id,
         label: org.name,
         triggerLabel: org.name,
+        dataTestId: `create-project-org-option-${org.id}`,
       })),
     [availableOrgs]
   );
@@ -350,6 +351,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
       dropdownWidthMode="min-match"
       dropdownMinWidth={220}
       panelZIndex={10000}
+      dataTestId="create-project-org-select"
       className="w-auto max-w-[220px] [&_.select-selector]:!h-7 [&_.select-selector]:!rounded-full [&_.select-selector]:!bg-bg-2 [&_.select-selector]:!px-3 [&_.select-selector]:!text-[13px] [&_.select-selector]:!font-medium [&_.select-selector]:!shadow-none [&_.select-suffix]:!hidden"
     />
   );
@@ -439,6 +441,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
               size="small"
               onClick={handleCreate}
               disabled={!draft.name.trim() || saving}
+              data-testid="create-project-submit"
             >
               {saving ? t("common:status.saving") : t("projects.createProject")}
             </Button>

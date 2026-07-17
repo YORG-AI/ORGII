@@ -7,13 +7,32 @@
 //! (`ProjectMeta.id`); we never mint IDs here so callers stay in charge
 //! of identifier strategy.
 
-use rusqlite::{params, OptionalExtension};
+use std::collections::HashMap;
+
+use rusqlite::{params, OptionalExtension, TransactionBehavior};
 
 use super::helpers::{conn, from_iso8601, map_db, now_ms, to_iso8601};
+use super::work_items::{FieldRevision, REVISION_SOURCE_LOCAL};
 use crate::projects::types::{AgentDefaults, ProjectData, ProjectMeta};
 
 const WORK_ITEM_PREFIX_LENGTH: usize = 3;
 const DEFAULT_WORK_ITEM_PREFIX: &str = "STR";
+
+/// Sync-tracked project fields, keyed by their local names — the same
+/// strings stamped into `projects.field_revisions_json` and carried on
+/// the collab wire as `_fieldRevisions` keys. The project counterpart
+/// of the work-item sync-tracked field set.
+pub(crate) const PROJECT_SYNC_FIELDS: &[&str] = &[
+    "name",
+    "status",
+    "priority",
+    "health",
+    "lead",
+    "start_date",
+    "target_date",
+    "description",
+    "work_item_prefix",
+];
 
 pub fn derive_work_item_prefix(project_name: &str) -> String {
     let mut prefix = String::new();
@@ -141,6 +160,48 @@ pub fn write_project(
     description: &str,
     expect_new: bool,
 ) -> Result<(), String> {
+    write_project_inner(slug, meta, description, expect_new, true, None)?;
+    // orgii_collab bridge (design §16.8): project writes under a
+    // collab-synced org enqueue one bridge row. Remote-applied writes go
+    // through `write_project_remote` and never enqueue (no echo).
+    crate::sync::collab_bridge::record_project_write(
+        &meta.org_id,
+        &meta.id,
+        slug,
+        crate::sync::types::OutboxOp::Update,
+    )
+}
+
+/// Silent variant used exclusively by the collab bridge's remote-apply
+/// path: no outbox emission (applying a pulled change must not echo it
+/// back to the server) and no `("local", now)` stamping. Instead the
+/// bridge passes the resolver's `adopted_revisions` — remote-sourced
+/// watermarks for the fields it adopted — which are merged into
+/// `field_revisions_json` in the same transaction as the row write.
+pub(crate) fn write_project_remote(
+    slug: &str,
+    meta: &ProjectMeta,
+    description: &str,
+    adopted_revisions: &HashMap<String, FieldRevision>,
+) -> Result<(), String> {
+    write_project_inner(
+        slug,
+        meta,
+        description,
+        false,
+        false,
+        Some(adopted_revisions),
+    )
+}
+
+fn write_project_inner(
+    slug: &str,
+    meta: &ProjectMeta,
+    description: &str,
+    expect_new: bool,
+    stamp_local_revisions: bool,
+    merge_revisions: Option<&HashMap<String, FieldRevision>>,
+) -> Result<(), String> {
     let mut next_meta = meta.clone();
     if next_meta.work_item_prefix_custom {
         next_meta.work_item_prefix =
@@ -149,17 +210,20 @@ pub fn write_project(
         next_meta.work_item_prefix = derive_work_item_prefix(&next_meta.name);
     }
 
-    let connection = conn()?;
+    let mut connection = conn()?;
+    // One transaction for the prior-state read + upsert so revision
+    // stamping is atomic with the row write (mirrors the work-item
+    // whole-row write path).
+    let tx = map_db(connection.transaction_with_behavior(TransactionBehavior::Immediate))?;
 
     if expect_new {
         let exists: bool = map_db(
-            connection
-                .query_row(
-                    "SELECT 1 FROM projects WHERE slug = ?1",
-                    params![slug],
-                    |_| Ok(true),
-                )
-                .optional(),
+            tx.query_row(
+                "SELECT 1 FROM projects WHERE slug = ?1",
+                params![slug],
+                |_| Ok(true),
+            )
+            .optional(),
         )?
         .unwrap_or(false);
         if exists {
@@ -177,6 +241,63 @@ pub fn write_project(
         from_iso8601(&next_meta.created_at)
     };
 
+    // Pre-write values of the sync-tracked fields plus the existing
+    // revision store. Whole-row writes rebuild the row, so the prior
+    // watermarks are layered back on top — a rewrite must never wipe
+    // them. Local-driven writes additionally stamp every sync-tracked
+    // field that actually changed at `("local", now)` so whole-row
+    // project edits propagate through the per-field resolver on peers.
+    let prior: Option<PriorProjectSnapshot> = map_db(
+        tx.query_row(
+            "SELECT name, status, priority, health, lead, description,
+                    short_id_prefix, start_date, target_date, field_revisions_json
+               FROM projects WHERE id = ?1",
+            params![&next_meta.id],
+            |row| {
+                Ok(PriorProjectSnapshot {
+                    name: row.get(0)?,
+                    status: row.get(1)?,
+                    priority: row.get(2)?,
+                    health: row.get(3)?,
+                    lead: row.get(4)?,
+                    description: row.get::<_, Option<String>>(5)?.unwrap_or_default(),
+                    short_id_prefix: row.get(6)?,
+                    start_date: row.get(7)?,
+                    target_date: row.get(8)?,
+                    field_revisions_json: row.get(9)?,
+                })
+            },
+        )
+        .optional(),
+    )?;
+
+    let mut field_revisions: HashMap<String, FieldRevision> = prior
+        .as_ref()
+        .map(|snapshot| {
+            parse_field_revisions_json(snapshot.field_revisions_json.as_deref(), &next_meta.id)
+        })
+        .unwrap_or_default();
+    if stamp_local_revisions {
+        if let Some(prior) = prior.as_ref() {
+            for field in prior.changed_sync_fields(&next_meta, description) {
+                field_revisions.insert(
+                    field.to_string(),
+                    FieldRevision {
+                        mtime: now,
+                        source: REVISION_SOURCE_LOCAL.to_string(),
+                    },
+                );
+            }
+        }
+    }
+    if let Some(adopted) = merge_revisions {
+        for (field, revision) in adopted {
+            field_revisions.insert(field.clone(), revision.clone());
+        }
+    }
+    let field_revisions_json = serde_json::to_string(&field_revisions)
+        .map_err(|err| format!("serialize field_revisions: {}", err))?;
+
     let linked_repos_json = serde_json::to_string(&next_meta.linked_repos)
         .map_err(|err| format!("serialize linked_repos: {}", err))?;
     let agent_defaults_json = next_meta
@@ -186,15 +307,17 @@ pub fn write_project(
         .transpose()
         .map_err(|err| format!("serialize agent_defaults: {}", err))?;
 
-    map_db(connection.execute(
+    map_db(tx.execute(
         "INSERT INTO projects (
             id, name, slug, org_id, status, priority, health, lead, description,
             short_id_prefix, next_work_item_id, start_date, target_date,
-            linked_repos_json, agent_defaults_json, created_at, updated_at
+            linked_repos_json, agent_defaults_json, created_at, updated_at,
+            field_revisions_json
          ) VALUES (
             ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9,
             ?10, ?11, ?12, ?13,
-            ?14, ?15, ?16, ?17
+            ?14, ?15, ?16, ?17,
+            ?18
          )
          ON CONFLICT(id) DO UPDATE SET
             name = excluded.name,
@@ -211,7 +334,8 @@ pub fn write_project(
             target_date = excluded.target_date,
             linked_repos_json = excluded.linked_repos_json,
             agent_defaults_json = excluded.agent_defaults_json,
-            updated_at = excluded.updated_at",
+            updated_at = excluded.updated_at,
+            field_revisions_json = excluded.field_revisions_json",
         params![
             next_meta.id,
             next_meta.name,
@@ -230,23 +354,156 @@ pub fn write_project(
             agent_defaults_json,
             created_at,
             now,
+            field_revisions_json,
         ],
     ))?;
 
-    Ok(())
+    map_db(tx.commit())
 }
 
-/// Delete a project and everything that cascades from it: work items,
-/// labels, milestones, and members.
-pub fn delete_project(slug: &str) -> Result<(), String> {
+/// Per-field revision watermarks for one project — the project
+/// counterpart of `read_sync_metadata().field_revisions` for work
+/// items. Empty for projects that were never stamped (pre-migration
+/// rows, or rows only ever written by peers without the per-field wire
+/// map) and for unknown ids (callers gate on row existence).
+pub(crate) fn read_project_field_revisions(
+    project_id: &str,
+) -> Result<HashMap<String, FieldRevision>, String> {
     let connection = conn()?;
-    let affected =
-        map_db(connection.execute("DELETE FROM projects WHERE slug = ?1", params![slug]))?;
+    let raw: Option<Option<String>> = map_db(
+        connection
+            .query_row(
+                "SELECT field_revisions_json FROM projects WHERE id = ?1",
+                params![project_id],
+                |row| row.get(0),
+            )
+            .optional(),
+    )?;
+    Ok(parse_field_revisions_json(
+        raw.flatten().as_deref(),
+        project_id,
+    ))
+}
 
-    if affected == 0 {
-        return Err(format!("Project '{}' not found", slug));
+/// Parse `projects.field_revisions_json`. A corrupt blob degrades to
+/// "never stamped" (whole-row merge semantics) — warn so the data-loss
+/// event surfaces, mirroring the work-item extras read path.
+fn parse_field_revisions_json(
+    raw: Option<&str>,
+    project_id: &str,
+) -> HashMap<String, FieldRevision> {
+    let Some(json) = raw.filter(|value| !value.is_empty()) else {
+        return HashMap::new();
+    };
+    match serde_json::from_str(json) {
+        Ok(map) => map,
+        Err(err) => {
+            tracing::warn!(
+                project_id,
+                error = %err,
+                raw_len = json.len(),
+                "projects::io: field_revisions_json parse failed; treating project as unstamped"
+            );
+            HashMap::new()
+        }
     }
-    Ok(())
+}
+
+/// Pre-write values of every sync-tracked project field (the same set
+/// as [`PROJECT_SYNC_FIELDS`]), captured inside the write transaction
+/// so whole-row writes can stamp `("local", now)` revisions for the
+/// fields they actually changed. Mirrors the work-item
+/// `PriorSyncSnapshot`.
+struct PriorProjectSnapshot {
+    name: String,
+    status: String,
+    priority: String,
+    health: String,
+    lead: Option<String>,
+    description: String,
+    short_id_prefix: String,
+    start_date: Option<String>,
+    target_date: Option<String>,
+    field_revisions_json: Option<String>,
+}
+
+impl PriorProjectSnapshot {
+    /// Canonical names of sync-tracked fields whose incoming value
+    /// differs from the stored row. Names match [`PROJECT_SYNC_FIELDS`].
+    fn changed_sync_fields(&self, next: &ProjectMeta, next_description: &str) -> Vec<&'static str> {
+        let mut changed = Vec::new();
+        if self.name != next.name {
+            changed.push("name");
+        }
+        if self.status != next.status {
+            changed.push("status");
+        }
+        if self.priority != next.priority {
+            changed.push("priority");
+        }
+        if self.health != next.health {
+            changed.push("health");
+        }
+        if self.lead != next.lead {
+            changed.push("lead");
+        }
+        if self.start_date != next.start_date {
+            changed.push("start_date");
+        }
+        if self.target_date != next.target_date {
+            changed.push("target_date");
+        }
+        if self.description != next_description {
+            changed.push("description");
+        }
+        // `next.work_item_prefix` is the post-normalization value the
+        // caller computed above, so derived-prefix drift (a rename
+        // changing the derived prefix) stamps too.
+        if self.short_id_prefix != next.work_item_prefix {
+            changed.push("work_item_prefix");
+        }
+        changed
+    }
+}
+
+/// Delete a project and its project-scoped children.
+///
+/// The schema intentionally keeps `workitems.project_id` as `ON DELETE SET
+/// NULL` so a remotely-arriving project tombstone can be applied before the
+/// matching work-item tombstones without destroying their replication rows.
+/// A user-confirmed project deletion has stronger semantics, however: its
+/// work items must disappear immediately, including while offline. Delete
+/// those rows explicitly in the same transaction; their labels/extras then
+/// cascade, while the server-side project delete supplies peer tombstones.
+pub fn delete_project(slug: &str) -> Result<(), String> {
+    let mut connection = conn()?;
+    let tx = map_db(connection.transaction_with_behavior(TransactionBehavior::Immediate))?;
+    let row: Option<(String, String)> = map_db(
+        tx.query_row(
+            "SELECT id, org_id FROM projects WHERE slug = ?1",
+            params![slug],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        )
+        .optional(),
+    )?;
+    let Some((project_id, org_id)) = row else {
+        return Err(format!("Project '{}' not found", slug));
+    };
+    map_db(tx.execute(
+        "DELETE FROM workitems WHERE project_id = ?1",
+        params![&project_id],
+    ))?;
+    map_db(tx.execute("DELETE FROM projects WHERE id = ?1", params![&project_id]))?;
+    map_db(tx.commit())?;
+
+    // Collab orgs propagate one project tombstone; the server atomically
+    // cascades it to the remote work-item rows.
+    crate::sync::collab_bridge::record_project_write(
+        &org_id,
+        &project_id,
+        slug,
+        crate::sync::types::OutboxOp::Delete,
+    )
 }
 
 // ---------------------------------------------------------------------
@@ -377,8 +634,8 @@ mod tests {
         assert_eq!(back.meta.name, "Project One");
         assert_eq!(back.description, "Hello world");
         assert_eq!(back.meta.linked_repos, vec!["github.com/example/repo"]);
-        // Auto-derived prefix from name "Project One" → "STO".
-        assert_eq!(back.meta.work_item_prefix, "STO");
+        // Auto-derived prefix is the first three alphanumeric characters.
+        assert_eq!(back.meta.work_item_prefix, "PRO");
     }
 
     #[test]
@@ -491,6 +748,16 @@ mod tests {
             },
         )
         .expect("members");
+        let connection = conn().expect("project connection");
+        connection
+            .execute(
+                "INSERT INTO workitems
+                    (id, project_id, short_id, title, created_at, updated_at)
+                 VALUES ('w1', 'p1', 'ALP-0001', 'Child', 0, 0)",
+                [],
+            )
+            .expect("work item");
+        drop(connection);
 
         delete_project(&slug).expect("delete");
 
@@ -499,6 +766,15 @@ mod tests {
         let members_after = read_members("p1").expect("read members");
         assert!(labels_after.labels.is_empty());
         assert!(members_after.members.is_empty());
+        let connection = conn().expect("project connection");
+        let work_item_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM workitems WHERE id = 'w1'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("work item count");
+        assert_eq!(work_item_count, 0, "project command must delete its items");
     }
 
     #[test]
@@ -511,7 +787,7 @@ mod tests {
     #[test]
     fn derive_prefix_pads_short_names() {
         assert_eq!(derive_work_item_prefix("Hi"), "HIX");
-        assert_eq!(derive_work_item_prefix("Project One"), "STO");
+        assert_eq!(derive_work_item_prefix("Project One"), "PRO");
         assert_eq!(derive_work_item_prefix(""), DEFAULT_WORK_ITEM_PREFIX);
     }
 

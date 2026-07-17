@@ -177,6 +177,8 @@ export function isAssistantMessageEvent(event: SessionEvent): boolean {
   if (isTurnSummaryEvent(event)) return false;
   return (
     event.actionType === "assistant" ||
+    event.uiCanonical === "assistant_message" ||
+    event.uiCanonical === "agent_message" ||
     event.functionName === "assistant_message" ||
     event.functionName === "agent_message" ||
     event.functionName === "message"

@@ -32,21 +32,21 @@ import {
   listPrReviewsLocal,
   replyPrReviewCommentLocal,
 } from "@src/api/tauri/github";
-import { parseGithubRepoFullName } from "@src/services/git/operations/createPullRequest";
-import {
-  type PrIdentity,
-  initialSelectedPrState,
-  workstationPrDetailCallbackAtom,
-  workstationSelectedPrAtom,
-} from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
-
 import {
   type CachedPrDetail,
   getCachedPrDetail,
   isPrDetailStale,
   prDetailKey,
   setCachedPrDetail,
-} from "./githubListCache";
+} from "@src/services/git/githubListCache";
+import { parseGithubRepoFullName } from "@src/services/git/operations/createPullRequest";
+import {
+  type PrIdentity,
+  initialSelectedPrState,
+  workstationPrDetailCallbackAtomFamily,
+  workstationPrScopeKey,
+  workstationSelectedPrAtomFamily,
+} from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
 
 type PrDetailBundle = Omit<CachedPrDetail, "cachedAt">;
 
@@ -150,11 +150,14 @@ export interface UseWorkstationPrDetailOptions {
 
 export function useWorkstationPrDetail({
   repoPath,
-  repoId = "default",
+  repoId,
   pr,
 }: UseWorkstationPrDetailOptions) {
-  const setSelectedPr = useSetAtom(workstationSelectedPrAtom);
-  const setCallbacks = useSetAtom(workstationPrDetailCallbackAtom);
+  const scopeKey = workstationPrScopeKey(repoId, repoPath, pr?.number);
+  const setSelectedPr = useSetAtom(workstationSelectedPrAtomFamily(scopeKey));
+  const setCallbacks = useSetAtom(
+    workstationPrDetailCallbackAtomFamily(scopeKey)
+  );
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -179,7 +182,7 @@ export function useWorkstationPrDetail({
     void (async () => {
       try {
         const remotes = await getGitRemotes({
-          repo_id: repoId,
+          repo_id: repoId ?? "default",
           repo_path: repoPath,
         });
         const origin = remotes?.remotes?.find((r) => r.name === "origin");

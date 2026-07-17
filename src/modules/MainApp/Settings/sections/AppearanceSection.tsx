@@ -4,28 +4,34 @@ import {
   SectionContainer,
   SectionRow,
 } from "@/src/modules/shared/layouts/SectionLayout";
+import { useAtom } from "jotai";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Select from "@src/components/Select";
+import Slider from "@src/components/Slider";
+import Switch from "@src/components/Switch";
 import type { ApplicationUiFontId } from "@src/config/appearance/applicationUiFonts";
 import type { PrimaryColorPreset } from "@src/config/appearance/primaryColors";
+import {
+  HOST_DESKTOP,
+  resolveHostDesktop,
+} from "@src/config/windowChromeRadius";
+import { useSetting } from "@src/hooks/settings/useSettings";
 import { BackgroundSettings } from "@src/modules/MainApp/Settings/subpages/BackgroundPage/BackgroundSettings";
 import {
   FeaturesSection as EditorFeaturesSection,
   TerminalSection as EditorTerminalSection,
   TypographySection as EditorTypographySection,
 } from "@src/modules/MainApp/Settings/subpages/EditorAppearancePage";
-import { LayoutPresetOption } from "@src/modules/WorkStation/shared/LayoutSettingsDropdown/LayoutDropdownControls";
 import {
-  CompactLayoutThumb,
-  FullLayoutThumb,
-  InsetLayoutThumb,
-} from "@src/modules/WorkStation/shared/LayoutSettingsDropdown/LayoutThumbs";
-import type {
-  GlobalLayoutMethod,
-  SpotlightPlacement,
-} from "@src/store/ui/uiAtom";
+  DEFAULT_SIDEBAR_OPACITY,
+  MAX_SIDEBAR_OPACITY,
+  MIN_SIDEBAR_OPACITY,
+  backgroundConfigPersistAtom,
+  sanitizeSidebarOpacity,
+} from "@src/store/ui/backgroundConfigAtom";
+import type { SpotlightPlacement } from "@src/store/ui/uiAtom";
 
 import { ChatPanelAppearanceTab } from "./ChatPanelAppearanceTab";
 import { UI_SCALE_OPTIONS, useAppearanceState } from "./useAppearanceState";
@@ -45,24 +51,32 @@ export const APPEARANCE_TAB_KEYS = {
 export type AppearanceTabKey =
   (typeof APPEARANCE_TAB_KEYS)[keyof typeof APPEARANCE_TAB_KEYS];
 
-const GLOBAL_LAYOUT_METHODS: GlobalLayoutMethod[] = [
-  "compact",
-  "inset",
-  "full",
-];
-
 const SPOTLIGHT_PLACEMENT_OPTIONS: SpotlightPlacement[] = ["top", "center"];
+const IS_MACOS_HOST = resolveHostDesktop() === HOST_DESKTOP.MACOS;
 
-function renderGlobalLayoutThumb(method: GlobalLayoutMethod) {
-  switch (method) {
-    case "inset":
-      return <InsetLayoutThumb />;
-    case "full":
-      return <FullLayoutThumb />;
-    case "compact":
-      return <CompactLayoutThumb />;
-  }
-}
+const MacOSSidebarOpacityRow: React.FC = () => {
+  const { t } = useTranslation("settings");
+  const [config, setConfig] = useAtom(backgroundConfigPersistAtom);
+
+  return (
+    <SectionRow label={t("background.sidebarOpacity")}>
+      <div className="min-w-0" style={SECTION_CONTROL_STYLE}>
+        <Slider
+          min={MIN_SIDEBAR_OPACITY}
+          max={MAX_SIDEBAR_OPACITY}
+          value={config.sidebarOpacity ?? DEFAULT_SIDEBAR_OPACITY}
+          onChange={(value) =>
+            setConfig({
+              ...config,
+              sidebarOpacity: sanitizeSidebarOpacity(value),
+            })
+          }
+          noPadding
+        />
+      </div>
+    </SectionRow>
+  );
+};
 
 interface AppearanceSectionProps {
   activeTab?: string;
@@ -72,6 +86,12 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
   activeTab = APPEARANCE_TAB_KEYS.APP,
 }) => {
   const { t } = useTranslation("settings");
+  const [sidebarSelectedRowOpacity, setSidebarSelectedRowOpacity] = useSetting(
+    "layout.sidebarSelectedRowOpacity"
+  );
+  const [sidebarEdgeDepthEnabled, setSidebarEdgeDepthEnabled] = useSetting(
+    "layout.sidebarEdgeDepthEnabled"
+  );
   const {
     globalThemeId,
     primaryColorPreset,
@@ -79,8 +99,6 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
     uiScale,
     applicationUiFont,
     setApplicationUiFont,
-    globalLayoutMethod,
-    setGlobalLayoutMethod,
     spotlightPlacement,
     setSpotlightPlacement,
     appearanceMode,
@@ -159,28 +177,34 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
             </SectionRow>
           </SectionContainer>
 
-          <SectionContainer title={t("general.layout")}>
-            <SectionRow
-              label={t("general.globalLayoutMethod")}
-              description={t("general.globalLayoutMethodDesc")}
-              align="start"
-              headerClassName="@[480px]:pt-1"
-            >
-              <div className="flex max-w-full flex-wrap gap-3 @[480px]:justify-end">
-                {GLOBAL_LAYOUT_METHODS.map((method) => (
-                  <LayoutPresetOption
-                    key={method}
-                    active={globalLayoutMethod === method}
-                    label={t(`general.${method}`)}
-                    captionSize="body"
-                    stretch={false}
-                    onClick={() => setGlobalLayoutMethod(method)}
-                  >
-                    {renderGlobalLayoutThumb(method)}
-                  </LayoutPresetOption>
-                ))}
+          <SectionContainer title={t("general.sidebar")}>
+            {IS_MACOS_HOST && <MacOSSidebarOpacityRow />}
+            <SectionRow label={t("general.selectedItemTransparency")}>
+              <div className="min-w-0" style={SECTION_CONTROL_STYLE}>
+                <Slider
+                  min={0}
+                  max={20}
+                  value={sidebarSelectedRowOpacity}
+                  onChange={(value) =>
+                    setSidebarSelectedRowOpacity(
+                      Array.isArray(value) ? value[0] : value
+                    )
+                  }
+                  noPadding
+                />
               </div>
             </SectionRow>
+            {IS_MACOS_HOST && (
+              <SectionRow label={t("general.sidebarEdgeDepth")}>
+                <Switch
+                  checked={sidebarEdgeDepthEnabled}
+                  onChange={setSidebarEdgeDepthEnabled}
+                />
+              </SectionRow>
+            )}
+          </SectionContainer>
+
+          <SectionContainer title={t("general.spotlight")}>
             <SectionRow
               label={t("general.spotlightPlacement")}
               description={t("general.spotlightPlacementDesc")}
@@ -200,7 +224,7 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
             </SectionRow>
           </SectionContainer>
 
-          <BackgroundSettings embedded showHeader={false} />
+          {!IS_MACOS_HOST && <BackgroundSettings embedded showHeader={false} />}
         </>
       )}
 

@@ -33,7 +33,11 @@ pub fn spawn_consolidation_tick() {
     }
 
     std::thread::spawn(|| {
-        let rt = match tokio::runtime::Runtime::new() {
+        // Single 60s ticker; a current-thread runtime avoids a per-core worker set.
+        let rt = match tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+        {
             Ok(rt) => rt,
             Err(err) => {
                 warn!("[consolidation] tick runtime init failed: {}", err);

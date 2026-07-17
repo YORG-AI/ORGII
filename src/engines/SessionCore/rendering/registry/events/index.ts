@@ -145,7 +145,6 @@ export const COMPONENT_LOADERS: ComponentLoaderMap = {
   //   `ask_user_questions`   — form with submit flow (answers posted back)
   //   `ask_user_permissions` — approve/deny buttons on PermissionCard
   //   `suggest_mode_switch`  — clickable card mutating `creatorDefaultExecModeAtom`
-  //   `suggest_next_steps`   — clickable cards that post a follow-up
   //
   // `plan_approval` uses chatBlockLoader (dispatches to `plan_doc` ChatBlock
   // → PlanDocAdapter). Explicit entry required so `_lazyComponentCache` is
@@ -169,12 +168,6 @@ export const COMPONENT_LOADERS: ComponentLoaderMap = {
     import("@src/engines/ChatPanel/events/interactive_events/mode-switch").then(
       (mod) => ({
         default: mod.ModeSwitchEvent as React.ComponentType<unknown>,
-      })
-    ),
-  suggest_next_steps: () =>
-    import("@src/engines/ChatPanel/events/interactive_events/next-step").then(
-      (mod) => ({
-        default: mod.NextStepEvent as React.ComponentType<unknown>,
       })
     ),
 };
@@ -355,12 +348,6 @@ export const CONTEXT_CONFIG: Record<string, ContextConfig> = {
 
   // Plan card
   plan_approval: {
-    chat: { requiresItemIndex: false, showStatusLine: false },
-    simulator: { supportsSplitView: false, supportsFullscreen: false },
-  },
-
-  // Suggested next steps
-  suggest_next_steps: {
     chat: { requiresItemIndex: false, showStatusLine: false },
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },

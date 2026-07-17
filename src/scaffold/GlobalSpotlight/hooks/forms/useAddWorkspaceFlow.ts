@@ -291,21 +291,51 @@ export function useAddWorkspaceFlow(
     [getModalSourceLabel]
   );
 
+  // The form hooks return fresh object identities each render, so effects
+  // must read them through this ref instead of listing them as deps — a
+  // fresh-object dep re-runs the effect on EVERY render. That exact mistake
+  // in the reset effect below once produced a self-sustaining ~1000
+  // commits/s loop: resetForm()'s setState batch scheduled another render
+  // (React can't eagerly bail a multi-setState batch even when all values
+  // are unchanged), which re-created the form objects and re-fired the
+  // effect — pegging the webview at ~90% CPU whenever a closed
+  // WorkspacePalette was mounted (e.g. the session-creator repo pill).
+  const formsRef = useRef({
+    localWorkspaceForm,
+    cloneForm,
+    multiRepoWorkspaceForm,
+  });
+  useEffect(() => {
+    formsRef.current = {
+      localWorkspaceForm,
+      cloneForm,
+      multiRepoWorkspaceForm,
+    };
+  });
+
   useEffect(() => {
     if (!isDirectOpenStage(modalStage)) return;
 
     const initialPath = consumeDragDropInitialPath();
     setModalStage(null);
-    void localWorkspaceForm.handleOpenLocalWorkspace(initialPath);
-  }, [modalStage, localWorkspaceForm, setModalStage]);
+    void formsRef.current.localWorkspaceForm.handleOpenLocalWorkspace(
+      initialPath
+    );
+  }, [modalStage, setModalStage]);
+
+  // Reset the forms when the modal CLOSES (stage transitions to null) — not
+  // on every render while it is closed (see formsRef comment above).
+  const prevModalStageRef = useRef<AddWorkspaceModalStage>(modalStage);
 
   useEffect(() => {
-    if (!modalStage) {
-      localWorkspaceForm.resetForm();
-      cloneForm.resetForm();
-      multiRepoWorkspaceForm.resetForm();
+    const previousStage = prevModalStageRef.current;
+    prevModalStageRef.current = modalStage;
+    if (modalStage === null && previousStage !== null) {
+      formsRef.current.localWorkspaceForm.resetForm();
+      formsRef.current.cloneForm.resetForm();
+      formsRef.current.multiRepoWorkspaceForm.resetForm();
     }
-  }, [modalStage, localWorkspaceForm, cloneForm, multiRepoWorkspaceForm]);
+  }, [modalStage]);
 
   const hasAttemptedGitHubFetchRef = useRef(false);
   const cloneFormReposLength = cloneForm.repositories.length;

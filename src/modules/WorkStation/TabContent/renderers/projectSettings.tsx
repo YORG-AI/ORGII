@@ -1,25 +1,20 @@
 /**
  * Renderer wrapper for `project-settings` tabs.
  *
- * Project settings is wired today through `RepoSettingsTabContent`
- * inside `ProjectManagerContentRouter`, depending on `onCloseTab`,
- * `onUpdateTabData`, and `onUpdateTabMeta`.
- *
- * TODO(phase-2): expose the tab mutators through the dispatcher
- * context so this surface can render standalone.
+ * Renders the repo-settings surface directly from tab data. Despite the old
+ * stub note, the router mounts `RepoSettingsTabContent` with only
+ * `initialSection` from `tab.data.section` — no host-coupled callbacks — so
+ * this needs nothing from the Project host context.
  */
 import React, { memo } from "react";
 
+import { RepoSettingsTabContent } from "@src/modules/ProjectManager/ProjectManagerLayout/components/RepoSettingsTabContent";
+
 import type { UnifiedTabContentProps } from "../types";
-import { HostCoupledPlaceholder } from "./HostCoupledPlaceholder";
 
 const ProjectSettingsTabRenderer: React.FC<UnifiedTabContentProps> = memo(
   ({ tab }) => (
-    <HostCoupledPlaceholder
-      tabType={tab.type}
-      title={String(tab.title ?? "Project Settings")}
-      hostNote="Project settings still rendered by ProjectManagerContentRouter (needs tab mutators). Phase 2 will lift these through the dispatcher context."
-    />
+    <RepoSettingsTabContent initialSection={tab.data.section as string} />
   )
 );
 

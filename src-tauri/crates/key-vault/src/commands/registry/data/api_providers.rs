@@ -33,7 +33,7 @@ pub(crate) fn api_provider_registry() -> Vec<ApiProviderEntry> {
             brand_color: "#4285F4",
             docs_url: "https://ai.google.dev/docs",
             icon_provider: "gemini",
-            paired_cli_agent: Some("gemini_cli"),
+            paired_cli_agent: None,
             popular: false,
             supports_rust_agents: true,
         },
@@ -173,7 +173,8 @@ pub(crate) fn api_provider_registry() -> Vec<ApiProviderEntry> {
         ApiProviderEntry {
             name: "aihubmix_api",
             display_name: "AiHubMix",
-            description: "Multi-provider LLM gateway with OpenAI and Anthropic-compatible protocols",
+            description:
+                "Multi-provider LLM gateway with OpenAI and Anthropic-compatible protocols",
             brand_color: "#006FFB",
             docs_url: "https://docs.aihubmix.com",
             icon_provider: "aihubmix",

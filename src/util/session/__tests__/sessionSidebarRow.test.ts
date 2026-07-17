@@ -46,6 +46,15 @@ describe("resolveSessionRowIcon", () => {
     );
   });
 
+  it.each([
+    ["Claude Code root", "claudecodeapp-root", "claude_code"],
+    ["Claude Code subagent", "claudecodeapp-agent-child", "claude_code"],
+    ["Codex", "codexapp-thread", "codex"],
+    ["Cursor", "cursoride-composer", "cursor"],
+  ])("uses the sidebar brand icon for %s history", (_label, id, iconId) => {
+    expect(resolveSessionRowIcon(id)).toBe(resolveAgentIcon(iconId));
+  });
+
   it("uses agentIconId for non-CLI agent sessions", () => {
     expect(
       resolveSessionRowIcon({

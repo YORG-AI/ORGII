@@ -220,9 +220,6 @@ export function getRouteDescription(pathname: string): string | null {
  * @returns AppMode for Workstation
  */
 export function getAppModeForRoute(pathname: string): AppModeType {
-  if (pathname.startsWith("/orgii/workstation/database")) {
-    return "data";
-  }
   if (pathname.startsWith("/orgii/workstation/browser")) {
     return "browser";
   }
@@ -232,10 +229,6 @@ export function getAppModeForRoute(pathname: string): AppModeType {
   if (pathname.startsWith("/orgii/workstation/project")) {
     return "project";
   }
-  if (pathname.startsWith("/orgii/workstation/ops-control")) {
-    return "opsControl";
-  }
-
   return "code";
 }
 
@@ -248,7 +241,7 @@ export function getAppModeForRoute(pathname: string): AppModeType {
  * @example
  * ```tsx
  * const appMode = useRouteAppMode();
- * // appMode is "code" | "data" | "browser" | "chat" | "project" | "opsControl"
+ * // appMode is "code" | "browser" | "chat" | "project"
  * ```
  */
 export function useRouteAppMode(): AppModeType {

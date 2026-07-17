@@ -6,11 +6,11 @@ A **session** is a single running agent conversation. ORGII manages multiple con
 
 Every session belongs to one of three dispatch categories:
 
-| Category     | What it is                                                                                                                             |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `cli_agent`  | An external CLI coding-agent process (Cursor, Claude Code, Codex, Gemini CLI, Copilot, Kiro, OpenCode, …) spawned and managed by ORGII |
-| `rust_agent` | ORGII's built-in Rust-native agent — the SDE Agent or OS Agent                                                                         |
-| `cursor_ide` | A read-only view of a Cursor IDE chat imported into ORGII (no ORGII-side process)                                                      |
+| Category     | What it is                                                                                                                              |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `cli_agent`  | An external CLI coding-agent process (Cursor, Claude Code, Codex, Antigravity, Copilot, Kiro, OpenCode, …) spawned and managed by ORGII |
+| `rust_agent` | ORGII's built-in Rust-native agent — the SDE Agent or OS Agent                                                                          |
+| `cursor_ide` | A read-only view of a Cursor IDE chat imported into ORGII (no ORGII-side process)                                                       |
 
 ## CLI agents
 
@@ -21,7 +21,7 @@ When you select `cli_agent`, ORGII spawns the chosen CLI tool as a subprocess, p
 | Cursor         | `cursor_cli`  |
 | Claude Code    | `claude_code` |
 | Codex          | `codex`       |
-| Gemini CLI     | `gemini_cli`  |
+| Antigravity    | `antigravity` |
 | GitHub Copilot | `copilot`     |
 | Kiro           | `kiro`        |
 | OpenCode       | `opencode`    |

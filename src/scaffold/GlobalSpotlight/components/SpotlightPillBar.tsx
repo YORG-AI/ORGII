@@ -8,7 +8,7 @@
 import { ChevronLeft } from "lucide-react";
 import React from "react";
 
-import { SPOTLIGHT_TOKENS } from "../constants";
+import { SPOTLIGHT_CLASSES, SPOTLIGHT_TOKENS } from "../constants";
 import type { PathSegment } from "../types";
 
 export interface SpotlightPillBarProps {
@@ -43,7 +43,7 @@ export const SpotlightPillBar: React.FC<SpotlightPillBarProps> = ({
           return (
             <div
               key={`${segment.type}-${segment.id}`}
-              className={`flex items-center gap-1 rounded-full bg-primary-1 px-2.5 py-1 text-primary-6 ${canRemove ? "cursor-pointer" : ""}`}
+              className={`${SPOTLIGHT_CLASSES.primaryPill} ${canRemove ? "cursor-pointer" : ""}`}
               onClick={
                 canRemove
                   ? (event) => handlePillRemove(index, event)

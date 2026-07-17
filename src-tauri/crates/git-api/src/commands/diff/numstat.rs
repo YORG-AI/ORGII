@@ -65,6 +65,7 @@ pub fn get_diff_numstat(
     from_ref: &str,
     to_ref: Option<&str>,
     staged_only: bool,
+    include_untracked: bool,
 ) -> Result<DiffNumstatResult, String> {
     let repo =
         Repository::open(repo_path).map_err(|e| format!("Failed to open repository: {}", e))?;
@@ -73,11 +74,18 @@ pub fn get_diff_numstat(
     let empty_base = super::ref_utils::is_empty_base(from_ref);
 
     let mut diff_opts = git2::DiffOptions::new();
-    if empty_base {
+    if empty_base || include_untracked {
+        // Count untracked (new) files toward the diff: list them, recurse into
+        // new directories, and read their content so line stats reflect the
+        // added lines instead of reporting each file as a bare delta with 0
+        // insertions. Binary files and .gitignore exclusions are still handled
+        // natively by libgit2.
         diff_opts.include_untracked(true);
+        diff_opts.recurse_untracked_dirs(true);
+        diff_opts.show_untracked_content(true);
     }
 
-    let diff = if staged_only {
+    let mut diff = if staged_only {
         let index = repo
             .index()
             .map_err(|e| format!("Failed to get index: {}", e))?;
@@ -103,6 +111,17 @@ pub fn get_diff_numstat(
                 .map_err(|e| format!("Failed to create diff: {}", e))?,
         }
     };
+
+    // Raw tree/index/workdir diffs expose moves as separate delete/add (or
+    // delete/untracked) deltas. Coalesce them before reading line stats so a
+    // content-identical relocation contributes 0 insertions and 0 deletions.
+    let mut find_opts = git2::DiffFindOptions::new();
+    find_opts.renames(true);
+    if include_untracked {
+        find_opts.for_untracked(true);
+    }
+    diff.find_similar(Some(&mut find_opts))
+        .map_err(|e| format!("Failed to detect renames: {}", e))?;
 
     let mut files = Vec::new();
     let mut total_insertions: u32 = 0;
@@ -183,14 +202,18 @@ pub struct CombinedDiffNumstatResult {
 pub fn get_diff_numstat_combined(
     repo_path: &Path,
     from_ref: &str,
+    include_untracked: bool,
 ) -> Result<CombinedDiffNumstatResult, String> {
     // Cache lookup: skip the libgit2 diff walk if HEAD hasn't changed and the
     // entry is fresh enough. The 500ms TTL is short enough that staged/unstaged
     // changes appearing from a git operation still propagate promptly.
     let repo_path_str = repo_path.to_string_lossy().to_string();
+    // Fold the untracked flag into the ref component of the cache key so
+    // tracked-only and untracked-inclusive results never alias each other.
+    let cache_ref = format!("{}|untracked={}", from_ref, include_untracked);
     let head_sha_opt = read_head_sha_for_numstat(repo_path);
     if let Some(ref head_sha) = head_sha_opt {
-        let cache_key = (repo_path_str.clone(), from_ref.to_string(), head_sha.clone());
+        let cache_key = (repo_path_str.clone(), cache_ref.clone(), head_sha.clone());
         if let Ok(cache) = numstat_cache().lock() {
             if let Some(entry) = cache.get(&cache_key) {
                 if entry.cached_at.elapsed() < NUMSTAT_CACHE_TTL {
@@ -200,11 +223,13 @@ pub fn get_diff_numstat_combined(
         }
     }
 
-    // Get unstaged changes (working directory vs HEAD)
-    let unstaged = get_diff_numstat(repo_path, from_ref, None, false)?;
+    // Get unstaged changes (working directory vs HEAD). Untracked files only
+    // surface through this workdir diff, so the flag is applied here.
+    let unstaged = get_diff_numstat(repo_path, from_ref, None, false, include_untracked)?;
 
-    // Get staged changes (index vs HEAD)
-    let staged = get_diff_numstat(repo_path, from_ref, None, true)?;
+    // Get staged changes (index vs HEAD). Untracked files are not in the index,
+    // so the flag never applies to the staged diff.
+    let staged = get_diff_numstat(repo_path, from_ref, None, true, false)?;
 
     // Merge results: combine stats for files that appear in both
     let mut file_map: HashMap<String, FileNumstat> = HashMap::new();
@@ -244,7 +269,7 @@ pub fn get_diff_numstat_combined(
 
     // Populate cache so repeated calls within the TTL window are served instantly.
     if let Some(head_sha) = head_sha_opt {
-        let cache_key = (repo_path_str, from_ref.to_string(), head_sha);
+        let cache_key = (repo_path_str, cache_ref, head_sha);
         if let Ok(mut cache) = numstat_cache().lock() {
             cache.insert(
                 cache_key,

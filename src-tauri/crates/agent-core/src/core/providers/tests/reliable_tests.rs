@@ -143,6 +143,14 @@ fn auth_error_is_non_retryable() {
 }
 
 #[test]
+fn usage_limit_is_non_retryable() {
+    let error = ProviderError::UsageLimitReached("The usage limit has been reached".into());
+    assert!(ReliableProvider::is_non_retryable(&error));
+    assert_eq!(ReliableProvider::error_kind(&error), "usage_limit_reached");
+    assert_eq!(ReliableProvider::retry_after_ms(&error), None);
+}
+
+#[test]
 fn model_not_found_is_non_retryable() {
     assert!(ReliableProvider::is_non_retryable(
         &ProviderError::ModelNotFound("gpt-99".into())

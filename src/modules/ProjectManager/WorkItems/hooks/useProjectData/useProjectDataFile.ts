@@ -116,6 +116,7 @@ export function useProjectDataFile(): UseProjectDataFileReturn {
             name: selected.name,
             description: selected.description,
             slug: selected.slug,
+            orgId: selected.orgId,
             workItemPrefix: selected.workItemPrefix,
             workItemPrefixCustom: selected.workItemPrefixCustom,
             status: selected.status,

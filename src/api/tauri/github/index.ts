@@ -237,13 +237,72 @@ export interface OpenPRItem {
   updated_at: string;
 }
 
+export type PullRequestListState = "open" | "closed";
+
+export async function listPRsLocal(
+  repoFullName: string,
+  state: PullRequestListState,
+  perPage?: number
+): Promise<OpenPRItem[]> {
+  return invokeWithAuth<OpenPRItem[]>("github_list_prs", {
+    repoFullName,
+    state,
+    perPage: perPage ?? null,
+  });
+}
+
 export async function listOpenPRsLocal(
   repoFullName: string,
   perPage?: number
 ): Promise<OpenPRItem[]> {
-  return invokeWithAuth<OpenPRItem[]>("github_list_open_prs", {
-    repoFullName,
-    perPage: perPage ?? null,
+  return listPRsLocal(repoFullName, "open", perPage);
+}
+
+/**
+ * Which fetch strategy the backend used to resolve a PR head into a SHA.
+ * Mirrors the Rust `PrBaseSource` enum (serialized camelCase).
+ */
+export type PrBaseSource = "branch" | "pullRef";
+
+/**
+ * Result of resolving a GitHub PR into a git-resolvable base ref. Mirrors the
+ * Rust `PrBaseResolution`.
+ */
+export interface PrBaseResolution {
+  /** Git-resolvable commit-ish (PR head SHA) for `git worktree add … <base>`. */
+  baseRef: string;
+  /** PR head commit SHA (identical to `baseRef`). */
+  headSha: string;
+  /** PR head branch name, when known — a label hint, not a git base. */
+  branchNameOverride: string | null;
+  /** `refs/remotes/<remote>/<base>` when a base branch was supplied. */
+  compareBaseRef: string | null;
+  /** `branch` = same-repo head fetch, `pullRef` = fork / `refs/pull/<n>/head`. */
+  source: PrBaseSource;
+}
+
+/**
+ * Resolve a GitHub PR (including fork / cross-repo PRs) into a concrete,
+ * git-resolvable base ref by fetching its head into the local repo.
+ *
+ * Tries `git fetch <remote> <headBranch>` first, falling back to
+ * `git fetch <remote> refs/pull/<prNumber>/head` for fork PRs whose head
+ * branch is not on the base remote. Returns the head SHA as `baseRef`, ready
+ * to feed the isolated-worktree launch path.
+ */
+export async function resolvePrWorktreeBase(params: {
+  repoPath: string;
+  prNumber: number;
+  remote?: string;
+  headBranch?: string;
+  baseBranch?: string;
+}): Promise<PrBaseResolution> {
+  return invoke<PrBaseResolution>("worktree_resolve_pr_base", {
+    repoPath: params.repoPath,
+    prNumber: params.prNumber,
+    remote: params.remote ?? null,
+    headBranch: params.headBranch ?? null,
+    baseBranch: params.baseBranch ?? null,
   });
 }
 

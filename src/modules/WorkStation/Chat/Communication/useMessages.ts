@@ -37,7 +37,7 @@ export interface UseMessagesReturn {
   setViewMode: (mode: MessageViewMode) => void;
   /** Chat messages up to the current replay position (full list, scrollable) */
   chatMessages: MessageEntry[];
-  /** Interactive widgets (ask_user, approval, next-step, mode-switch) */
+  /** Interactive widgets (ask_user, approval, mode-switch) */
   interactionMessages: MessageEntry[];
   /** Currently selected message */
   selectedMessage: MessageEntry | null;

@@ -114,7 +114,7 @@ BE：
 ### `mode`（3 套状态机）
 
 1. `agentExecMode`（build / ask / plan / debug / review / wingman）
-2. `stationMode`（workstation surface mode：agent-station / my-station / ops-control 等）
+2. `stationMode`（workstation surface mode：agent-station / my-station / work-management 等）
 3. `chatPanelContentModeAtom`（哪个 content view 显示）
 
 ### `pill`（3 个 UI primitive）

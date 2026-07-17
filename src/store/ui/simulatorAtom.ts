@@ -160,11 +160,9 @@ simulatorDiffCommitNavigationRequestAtom.debugLabel =
 /**
  * Per-round Diff scope request.
  *
- * Set by the chat `TurnFilesFooter` (the per-round "N Files Changed" card)
- * so the Agent Station Diff app narrows its file list to just that round's
- * modified files, mirroring Cursor's message-scoped "Review". `null` (the
- * default, and what `openAgentStationDiff` resets it to) means "no scope" —
- * the Diff app shows the whole session working diff exactly as before.
+ * Set by the chat `TurnMetadataFooter` so Agent Station can focus a file from
+ * that round inside the cumulative whole-session diff. `null` (the default,
+ * and what `openAgentStationDiff` resets it to) means no focus request.
  *
  * - `filePaths` — the round's modified file paths (the scope set).
  * - `selectedPath` — optional clicked row, scrolled/focused on open.
@@ -187,7 +185,7 @@ simulatorDiffScopeRequestAtom.debugLabel = "simulatorDiffScopeRequestAtom";
 /**
  * Diff-app refresh signal — a monotonically increasing nonce bumped whenever
  * the user navigates *into* the Agent Station Diff app from chat (the per-round
- * `TurnFilesFooter` "Review"/file-row click, or the composer "files" pill in
+ * `TurnMetadataFooter` "Review"/file-row click, or the composer "files" pill in
  * `ChatView.openAgentStationDiff`).
  *
  * The Diff app caches its canonical Orgtrack final diffs per session, so a
@@ -245,17 +243,14 @@ simulatorAutoScrollAtom.debugLabel = "simulatorAutoScrollAtom";
 
 // ============================================
 // Station Mode — switches the right-side WorkStation surface between live
-// tools, agent simulator, and Ops Control. Chat-panel maximization is now a
-// separate axis (see `chatPanelMaximizedAtom` in `chatPanelAtom.ts`) so the
-// two concerns don't share an enum value any more.
+// tools and the agent simulator. Chat-panel maximization is a separate axis.
 // ============================================
 
-const STATION_MODES = ["my-station", "agent-station", "ops-control"] as const;
+const STATION_MODES = ["my-station", "agent-station"] as const;
 export type StationMode = (typeof STATION_MODES)[number];
 export const STATION_MODE = {
   MY_STATION: "my-station",
   AGENT_STATION: "agent-station",
-  OPS_CONTROL: "ops-control",
 } as const satisfies Record<string, StationMode>;
 const StationModeSchema = z.enum(STATION_MODES);
 

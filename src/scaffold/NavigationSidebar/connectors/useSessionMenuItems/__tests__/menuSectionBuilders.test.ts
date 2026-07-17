@@ -173,6 +173,8 @@ describe("session menu section builders", () => {
       loadMoreRowFor,
     });
 
+    // Imported-history list categories are namespaced
+    // (`external_history:<sourceId>`) since the loading consolidation.
     expect(getLoadMoreItemIds(items)).toEqual([
       "load-more-group-agent:external_history:cursor_ide",
     ]);

@@ -29,15 +29,15 @@ $font-mono: var(
   line-height: var(--chat-line-height, 1.6);
 }
 
-// Small text - 2px smaller than main
+// Small text - 1px smaller than main
 .chat-text-sm {
-  font-size: calc(var(--chat-font-size, $font-size-fallback) - 2px);
+  font-size: calc(var(--chat-font-size, $font-size-fallback) - 1px);
   line-height: var(--chat-line-height, 1.6);
 }
 
-// Extra small text - 3px smaller than main
+// Extra small text - 2px smaller than main
 .chat-text-xs {
-  font-size: calc(var(--chat-font-size, $font-size-fallback) - 3px);
+  font-size: calc(var(--chat-font-size, $font-size-fallback) - 2px);
   line-height: var(--chat-line-height, 1.6);
 }
 
@@ -57,14 +57,14 @@ $font-mono: var(
 // Block-level font-size token classes
 // All derived from --chat-font-size (set on .wp__chat__history via inline style).
 // Hierarchy (default 14px base):
-//   xs  = -3px (11px)  labels, badges, section headers
+//   xs  = -2px (12px)  labels, badges, section headers
 //   content = code-font-size (13px)  code/content areas
-//   title   = -1px (13px)  block headers, meta
+//   title   = base (14px)  block headers, meta
 //   md  = base (14px)  main body text
 // ============================================
 
 .chat-block-xs {
-  font-size: var(--chat-block-xs-size, 11px);
+  font-size: var(--chat-block-xs-size, 12px);
 }
 
 .chat-block-content {
@@ -72,7 +72,7 @@ $font-mono: var(
 }
 
 .chat-block-title {
-  font-size: var(--chat-block-title-size, 13px);
+  font-size: var(--chat-block-title-size, 14px);
 }
 
 .chat-block-md {
@@ -90,16 +90,16 @@ $font-mono: var(
   flex-shrink: 0;
 }
 
-// Small icon - matches chat-text-sm (2px smaller)
+// Small icon - matches chat-text-sm (1px smaller)
 .chat-icon-sm {
-  width: calc(var(--chat-font-size, $font-size-fallback) - 2px);
-  height: calc(var(--chat-font-size, $font-size-fallback) - 2px);
+  width: calc(var(--chat-font-size, $font-size-fallback) - 1px);
+  height: calc(var(--chat-font-size, $font-size-fallback) - 1px);
   flex-shrink: 0;
 }
 
-// Extra small icon - matches chat-text-xs (3px smaller)
+// Extra small icon - matches chat-text-xs (2px smaller)
 .chat-icon-xs {
-  width: calc(var(--chat-font-size, $font-size-fallback) - 3px);
-  height: calc(var(--chat-font-size, $font-size-fallback) - 3px);
+  width: calc(var(--chat-font-size, $font-size-fallback) - 2px);
+  height: calc(var(--chat-font-size, $font-size-fallback) - 2px);
   flex-shrink: 0;
 }

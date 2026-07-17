@@ -326,6 +326,18 @@ export const HousekeeperCategoryView: React.FC = () => {
             onChange={(checked) => config.setFeatures.uiControl(checked)}
           />
         </SectionRow>
+        <SectionRow
+          label={t("housekeeper.features.contextCompact.title")}
+          description={formatDescription(
+            t("housekeeper.features.contextCompact.description")
+          )}
+        >
+          <Switch
+            checked={config.features.contextCompact}
+            disabled={!config.enabled}
+            onChange={(checked) => config.setFeatures.contextCompact(checked)}
+          />
+        </SectionRow>
       </SectionContainer>
 
       <SectionContainer title={t("housekeeper.sections.diagnostics")}>

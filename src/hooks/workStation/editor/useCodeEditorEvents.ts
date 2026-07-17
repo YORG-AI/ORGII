@@ -13,24 +13,27 @@
  * - open-source-control - Drive the unified Source Control tab into All Changes mode
  * - workstation-open-code-tab - Focus a pinned Code Editor tab from global shortcuts
  * - close-all-tabs - Close all editor tabs
- * - orgii:open-file-in-editor (Tauri) - Cross-window file open (e.g. from SessionDiffWindow)
  */
-import { listen } from "@tauri-apps/api/event";
+import { exists } from "@tauri-apps/plugin-fs";
 import { useSetAtom } from "jotai";
 import { useEffect, useRef } from "react";
 
+import { listSessionWorkspace } from "@src/api/tauri/agent/sessionWorkspace";
 import Message from "@src/components/Message";
 import { ROUTES } from "@src/config/routes";
 import { createEditorSpotlightRequest } from "@src/scaffold/GlobalSpotlight/openSpotlight";
 import { FileOperationsService } from "@src/services/file/FileOperationsService";
 import { PanelService } from "@src/services/panel";
 import { TerminalService } from "@src/services/terminal";
-import { WorkStationViewService } from "@src/services/workStation";
+import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
+import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
+import { workstationActiveSessionIdAtom } from "@src/store/session/viewAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import {
   spotlightInitialQueryAtom,
   spotlightOpenAtom,
 } from "@src/store/ui/uiAtom";
+import { workspaceFoldersAtom } from "@src/store/ui/workspaceFoldersAtom";
 import {
   type PanelState,
   consumePendingCodeEditorTab,
@@ -44,7 +47,12 @@ import {
 } from "@src/store/workstation/tabs";
 import type { GitFile } from "@src/types/git/types";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
-import { isTauriDesktop } from "@src/util/platform/tauri";
+
+import {
+  buildCandidateRoots,
+  isUnderAnyRoot,
+  resolveFileAgainstRoots,
+} from "./resolveFileAgainstRoots";
 
 // ============================================
 // Types
@@ -132,6 +140,65 @@ export function useCodeEditorEvents(options: CodeEditorEventsOptions): void {
     };
 
     // ============================================
+    // Multi-root file resolution for chat references
+    // ============================================
+    // Relative paths in agent messages are relative to the SESSION's
+    // workspace, not necessarily the folder the file tree shows. Build
+    // the ordered candidate roots at click time (session root →
+    // session additional dirs → active WorkStation root → other IDE
+    // folders) and probe for existence. See resolveFileAgainstRoots.ts.
+    const gatherCandidateRoots = async (): Promise<string[]> => {
+      const store = getInstrumentedStore();
+      const activeSessionId = store.get(workstationActiveSessionIdAtom);
+      const session = activeSessionId
+        ? store.get(sessionsAtom).find((s) => s.session_id === activeSessionId)
+        : undefined;
+
+      // Additional directories live in the session runtime; the lookup
+      // fails for historical/idle sessions — that's fine, the session
+      // root + IDE folders still cover the common cases.
+      let additionalDirs: string[] = [];
+      if (activeSessionId) {
+        try {
+          const workspace = await listSessionWorkspace(activeSessionId);
+          additionalDirs = workspace.additionalDirectories.map(
+            (dir) => dir.path
+          );
+        } catch {
+          additionalDirs = [];
+        }
+      }
+
+      return buildCandidateRoots({
+        sessionRepoPath: session?.repoPath,
+        sessionAdditionalDirs: additionalDirs,
+        activeRootPath: optionsRef.current.repoPath,
+        workspaceFolderPaths: store
+          .get(workspaceFoldersAtom)
+          .map((folder) => folder.path),
+      });
+    };
+
+    const resolveChatFilePath = async (
+      rawPath: string
+    ): Promise<{ absolutePath: string; roots: string[] }> => {
+      const roots = await gatherCandidateRoots();
+      if (rawPath.startsWith("/")) {
+        return { absolutePath: rawPath, roots };
+      }
+      const resolved = await resolveFileAgainstRoots(rawPath, roots, exists);
+      // No root contains the file: fall back to the legacy join so the
+      // editor surfaces its normal "Unable to locate the file" view
+      // instead of silently doing nothing.
+      return {
+        absolutePath:
+          resolved ??
+          `${optionsRef.current.repoPath}/${rawPath.replace(/^\.\//, "")}`,
+        roots,
+      };
+    };
+
+    // ============================================
     // Keyboard Shortcuts
     // ============================================
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -187,27 +254,26 @@ export function useCodeEditorEvents(options: CodeEditorEventsOptions): void {
 
       if (isFolder) return;
 
-      let absolutePath: string;
-      if (filePath.startsWith("/")) {
-        absolutePath = filePath;
-      } else {
-        absolutePath = `${opts.repoPath}/${filePath}`;
-      }
+      void (async () => {
+        const { absolutePath, roots } = await resolveChatFilePath(filePath);
 
-      if (!absolutePath.startsWith(opts.repoPath)) {
-        const lineParam = lineStart ? `:${lineStart}` : "";
-        window.location.href = `vscode://file${absolutePath}${lineParam}`;
-        return;
-      }
+        // Absolute paths outside every known root belong to another
+        // checkout entirely — hand off to VS Code like before.
+        if (!isUnderAnyRoot(absolutePath, roots)) {
+          const lineParam = lineStart ? `:${lineStart}` : "";
+          window.location.href = `vscode://file${absolutePath}${lineParam}`;
+          return;
+        }
 
-      focusCodeEditor();
+        focusCodeEditor();
 
-      if (opts.selectedFile === absolutePath) return;
+        if (optionsRef.current.selectedFile === absolutePath) return;
 
-      opts.selectFile(absolutePath);
+        optionsRef.current.selectFile(absolutePath);
 
-      const tab = createFileTab(absolutePath);
-      opts.setPrimaryPanel((prev) => openTab(prev, tab));
+        const tab = createFileTab(absolutePath);
+        optionsRef.current.setPrimaryPanel((prev) => openTab(prev, tab));
+      })();
     };
 
     // ============================================
@@ -284,26 +350,27 @@ export function useCodeEditorEvents(options: CodeEditorEventsOptions): void {
     ) => {
       if (!path) return;
 
-      let absolutePath = path;
-      if (!path.startsWith("/")) {
-        absolutePath = `${opts.repoPath}/${path.replace(/^\.\//, "")}`;
-      }
+      void (async () => {
+        const absolutePath = path.startsWith("/")
+          ? path
+          : (await resolveChatFilePath(path)).absolutePath;
 
-      focusCodeEditor();
+        focusCodeEditor();
 
-      if (isDirectory || path.endsWith("/")) {
-        PanelService.showPrimarySidebar("files");
-        void FileOperationsService.reveal(absolutePath, {
-          expandTargetDirectory: true,
-        });
-        const tab = createDirectoryTab(absolutePath.replace(/\/+$/, ""));
-        opts.setPrimaryPanel((prev) => openTab(prev, tab));
-        return;
-      }
+        if (isDirectory || path.endsWith("/")) {
+          PanelService.showPrimarySidebar("files");
+          void FileOperationsService.reveal(absolutePath, {
+            expandTargetDirectory: true,
+          });
+          const tab = createDirectoryTab(absolutePath.replace(/\/+$/, ""));
+          optionsRef.current.setPrimaryPanel((prev) => openTab(prev, tab));
+          return;
+        }
 
-      const tab = createFileTab(absolutePath, line);
-      opts.setPrimaryPanel((prev) => openTab(prev, tab));
-      opts.selectFile(absolutePath);
+        const tab = createFileTab(absolutePath, line);
+        optionsRef.current.setPrimaryPanel((prev) => openTab(prev, tab));
+        optionsRef.current.selectFile(absolutePath);
+      })();
     };
 
     const handleOpenFileInEditor = (event: Event) => {
@@ -404,24 +471,6 @@ export function useCodeEditorEvents(options: CodeEditorEventsOptions): void {
     window.addEventListener("workstation-open-code-tab", handleOpenCodeTab);
     window.addEventListener("close-all-tabs", handleCloseAllTabs);
 
-    // Cross-window Tauri event (emitted by standalone windows like SessionDiffWindow)
-    let unlistenTauriOpenFile: (() => void) | undefined;
-    let tauriListenCancelled = false;
-    if (isTauriDesktop()) {
-      void listen<{ path: string; line?: number }>(
-        "orgii:open-file-in-editor",
-        (event) => {
-          openFileTab(event.payload.path, false, event.payload.line);
-        }
-      ).then((unlisten) => {
-        if (tauriListenCancelled) {
-          unlisten();
-        } else {
-          unlistenTauriOpenFile = unlisten;
-        }
-      });
-    }
-
     // Consume any files queued by other pages before this hook mounted
     const pendingFiles = consumePendingFileOpens();
     if (pendingFiles.length > 0) {
@@ -461,8 +510,6 @@ export function useCodeEditorEvents(options: CodeEditorEventsOptions): void {
         handleOpenCodeTab
       );
       window.removeEventListener("close-all-tabs", handleCloseAllTabs);
-      tauriListenCancelled = true;
-      unlistenTauriOpenFile?.();
     };
   }, [
     repoPath,

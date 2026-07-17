@@ -14,7 +14,7 @@ import { getViewportSize } from "@src/util/ui/window/viewport";
 import {
   allocateInstanceId,
   cancelPendingClose,
-  isGroupWarm,
+  dismissHoverCard,
   openCard,
   scheduleClose,
   useHoverCardState,
@@ -22,7 +22,7 @@ import {
 
 export type HoverCardPosition = "bottom-start" | "right-start";
 
-const DEFAULT_MOUSE_ENTER_DELAY_MS = 150;
+const DEFAULT_MOUSE_ENTER_DELAY_MS = 500;
 const DEFAULT_MOUSE_LEAVE_DELAY_MS = 100;
 const DEFAULT_POSITION: HoverCardPosition = "bottom-start";
 const VIEWPORT_PADDING_PX = 8;
@@ -69,6 +69,7 @@ type ElementProps = {
   ref?: React.Ref<HTMLElement>;
   onMouseEnter?: (event: React.MouseEvent) => void;
   onMouseLeave?: (event: React.MouseEvent) => void;
+  onClick?: (event: React.MouseEvent) => void;
   [key: string]: unknown;
 };
 
@@ -159,18 +160,16 @@ const HoverCardTrigger: React.FC<HoverCardTriggerProps> = ({
     clearEnterTimer();
     const node = triggerRef.current;
     if (!node) return;
-    const warm = isGroupWarm();
-    const delay = warm ? 0 : mouseEnterDelay;
     const run = () => {
       enterTimerRef.current = null;
       const current = triggerRef.current;
       if (!current) return;
       openCard(instanceId, cardId, current.getBoundingClientRect(), position);
     };
-    if (delay <= 0) {
+    if (mouseEnterDelay <= 0) {
       run();
     } else {
-      enterTimerRef.current = setTimeout(run, delay);
+      enterTimerRef.current = setTimeout(run, mouseEnterDelay);
     }
   }, [cardId, clearEnterTimer, instanceId, mouseEnterDelay, position]);
 
@@ -181,8 +180,7 @@ const HoverCardTrigger: React.FC<HoverCardTriggerProps> = ({
 
   const originalProps =
     (children.props as ElementProps | undefined) ?? ({} as ElementProps);
-  const originalRef = (children as unknown as { ref?: React.Ref<HTMLElement> })
-    .ref;
+  const originalRef = originalProps.ref;
 
   const composedRef = useCallback(
     (node: HTMLElement | null) => {
@@ -202,6 +200,11 @@ const HoverCardTrigger: React.FC<HoverCardTriggerProps> = ({
     onMouseLeave: (event: React.MouseEvent) => {
       handleLeave();
       originalProps.onMouseLeave?.(event);
+    },
+    onClick: (event: React.MouseEvent) => {
+      clearEnterTimer();
+      dismissHoverCard();
+      originalProps.onClick?.(event);
     },
   } as ElementProps);
 };

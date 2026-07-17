@@ -24,9 +24,6 @@ import type {
   OutputModality,
 } from "@src/types/model/catalog";
 
-// Re-export InfoRow so existing imports from this file keep working
-export { InfoRow } from "../../../shared/InfoRow";
-
 // ── Formatting helpers ──
 
 export function formatContext(tokens: number): string {

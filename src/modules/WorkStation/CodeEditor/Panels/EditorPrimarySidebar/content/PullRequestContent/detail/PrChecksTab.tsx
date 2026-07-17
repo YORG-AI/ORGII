@@ -142,11 +142,7 @@ export const PrChecksTab: React.FC<PrChecksTabProps> = ({
 
   if (loading && !checks) {
     return (
-      <Placeholder
-        variant="loading"
-        placement="detail-panel"
-        fillParentHeight
-      />
+      <Placeholder variant="loading" placement="sidebar" fillParentHeight />
     );
   }
 
@@ -157,7 +153,7 @@ export const PrChecksTab: React.FC<PrChecksTabProps> = ({
     return (
       <Placeholder
         variant="empty"
-        placement="detail-panel"
+        placement="sidebar"
         title={t("git.pr.checks.none", "No checks reported")}
         subtitle={t(
           "git.pr.checks.noneHint",

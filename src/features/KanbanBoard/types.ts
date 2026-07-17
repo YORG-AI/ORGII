@@ -25,7 +25,7 @@ export const KANBAN_RESULT_STATUS = {
 export type KanbanResultStatus =
   (typeof KANBAN_RESULT_STATUS)[keyof typeof KANBAN_RESULT_STATUS];
 
-export interface KanbanTaskOrgtrackMetadata {
+export interface SessionImpactStats {
   filesChanged: number;
   linesAdded: number;
   linesRemoved: number;
@@ -65,16 +65,14 @@ export interface KanbanTask {
   cliAgentType?: CliAgentType;
   /** Raw LLM model id used by the session. */
   modelName?: string;
-  /** Repo-shareable orgtrack metadata for session file/commit attribution. */
-  orgtrackMetadata?: KanbanTaskOrgtrackMetadata;
-  /** True when source impact metadata is known to be unavailable for this task. */
-  orgtrackMetadataUnavailable?: boolean;
-  /** True while explicit Orgtrack / AI Blame analysis is running for this session. */
-  orgtrackMetadataLoading?: boolean;
-  /** Explicitly rebuilds Rust-side Orgtrack / AI Blame analysis for this session. */
-  onUpdateGitBlame?: (task: KanbanTask) => void | Promise<void>;
-  /** Queues Rust-side Orgtrack / AI Blame analysis without rebuilding current artifacts. */
-  onAnalyzeGitBlame?: (task: KanbanTask) => void | Promise<void>;
+  /** Total token usage (input + output) reported by the source, when known. */
+  totalTokens?: number;
+  /**
+   * Session impact stats — file/line/commit attribution for the card.
+   * Read-only: parsed from external app data / previously-stored orgtrack
+   * summaries. The Kanban never computes this on demand.
+   */
+  impact?: SessionImpactStats;
   /** Display label for the workspace root associated with the session. */
   workspaceName?: string;
   /**

@@ -394,6 +394,10 @@ impl PlanApprovalManager {
         let row = snapshot.to_row();
 
         *guard = Some(snapshot.clone());
+        // Keep the in-memory slot and its restart-persistent mirror inside
+        // one serialization boundary. The auto-approve watcher must never
+        // observe the new revision before its row exists.
+        persist_ready_row(previous_session_id, row).await;
         drop(guard);
 
         // A live pending plan supersedes the Plan-mode re-entry note that
@@ -424,11 +428,8 @@ impl PlanApprovalManager {
             snapshot.session_id.clone(),
             snapshot.plan_revision_id.clone(),
             created_at_ms,
+            self.pending.clone(),
         );
-
-        tokio::spawn(async move {
-            persist_ready_row(previous_session_id, row).await;
-        });
 
         info!(
             "[plan_approval] Plan ready (session={}, path={})",
@@ -550,6 +551,13 @@ impl PlanApprovalManager {
             "autoApproveAt": auto_approve_at_ms,
         });
         crate::bus::broadcast_event("agent:plan_ready_for_approval", payload);
+
+        spawn_auto_approve_watcher(
+            snapshot.session_id.clone(),
+            snapshot.plan_revision_id.clone(),
+            snapshot.created_at_ms,
+            self.pending.clone(),
+        );
 
         info!(
             "[plan_approval] Rehydrated pending plan from DB (session={}, path={})",
@@ -689,7 +697,12 @@ impl Default for PlanApprovalManager {
 /// presence change; exits when the plan is resolved or superseded.
 /// Resolution is idempotent — a racing manual click wins and the watcher
 /// becomes a no-op.
-fn spawn_auto_approve_watcher(session_id: String, plan_revision_id: String, created_at_ms: i64) {
+fn spawn_auto_approve_watcher(
+    session_id: String,
+    plan_revision_id: String,
+    created_at_ms: i64,
+    pending: Arc<Mutex<Option<PendingPlanApproval>>>,
+) {
     use super::presence_policy::AutoResolve;
     use super::presence_state;
     use tauri::Manager;
@@ -699,17 +712,10 @@ fn spawn_auto_approve_watcher(session_id: String, plan_revision_id: String, crea
 
         loop {
             // Exit when this revision is no longer the pending plan.
-            let sid = session_id.clone();
-            let still_pending =
-                tokio::task::spawn_blocking(move || PlanApprovalStore::load_by_session(&sid))
-                    .await
-                    .ok()
-                    .and_then(Result::ok)
-                    .flatten()
-                    .is_some_and(|row| {
-                        row.plan_revision_id == plan_revision_id
-                            || row.tool_call_id.as_deref() == Some(plan_revision_id.as_str())
-                    });
+            let still_pending = pending.lock().await.as_ref().is_some_and(|snapshot| {
+                snapshot.plan_revision_id == plan_revision_id
+                    || snapshot.tool_call_id.as_deref() == Some(plan_revision_id.as_str())
+            });
             if !still_pending {
                 return;
             }
@@ -1197,7 +1203,10 @@ mod tests {
                 Some("call_9"),
             )
             .await;
-            wait_for_pending_row(session_id).await;
+            let persisted = PlanApprovalStore::load_by_session(session_id)
+                .unwrap()
+                .expect("mark_ready must persist before it returns");
+            assert_eq!(persisted.plan_revision_id, "call_9");
             assert!(mgr.is_pending().await);
         }
 

@@ -11,10 +11,7 @@ import Input from "@src/components/Input";
 import Message from "@src/components/Message";
 import TabPill from "@src/components/TabPill";
 import Textarea from "@src/components/Textarea";
-import {
-  SECTION_CONTROL_STYLE,
-  SectionRow,
-} from "@src/modules/shared/layouts/SectionLayout";
+import { SectionRow } from "@src/modules/shared/layouts/SectionLayout";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import { InlineCardColumnStack } from "../../shared/InlineCardPrimitives";
@@ -30,7 +27,12 @@ interface DraftState {
   envText: string;
 }
 
-const PERMISSION_MODES: CliPermissionMode[] = ["full_permission", "manual"];
+const MODE_LABEL_KEYS: Record<CliPermissionMode, string> = {
+  plan: "cliLaunchProfiles.plan",
+  manual: "cliLaunchProfiles.manual",
+  auto_edit: "cliLaunchProfiles.autoEdit",
+  full_permission: "cliLaunchProfiles.fullPermission",
+};
 
 function buildLaunchCommandText(command: string, args: string[]) {
   return [command, ...args].filter(Boolean).join(" ");
@@ -77,18 +79,18 @@ function defaultArgsForMode(
   profile: CliLaunchProfileView,
   mode: CliPermissionMode
 ) {
-  return mode === "full_permission"
-    ? profile.fullPermissionArgs
-    : profile.manualArgs;
+  return (
+    profile.modeDefaults.find((defaults) => defaults.mode === mode)?.args ?? []
+  );
 }
 
 function defaultEnvForMode(
   profile: CliLaunchProfileView,
   mode: CliPermissionMode
 ) {
-  return mode === "full_permission"
-    ? profile.fullPermissionEnv
-    : profile.manualEnv;
+  return (
+    profile.modeDefaults.find((defaults) => defaults.mode === mode)?.env ?? {}
+  );
 }
 
 function profileToDraft(profile: CliLaunchProfileView): DraftState {
@@ -137,14 +139,11 @@ export const CliLaunchProfileSection: React.FC<
 
   const modeTabs = useMemo(
     () =>
-      PERMISSION_MODES.map((mode) => ({
+      (profile?.supportedPermissionModes ?? []).map((mode) => ({
         key: mode,
-        label:
-          mode === "full_permission"
-            ? t("cliLaunchProfiles.fullPermission")
-            : t("cliLaunchProfiles.manual"),
+        label: t(MODE_LABEL_KEYS[mode]),
       })),
-    [t]
+    [profile?.supportedPermissionModes, t]
   );
 
   const dirty = useMemo(() => {
@@ -228,17 +227,20 @@ export const CliLaunchProfileSection: React.FC<
   if (variant === "settings") {
     return (
       <>
-        <SectionRow label={t("cliLaunchProfiles.title")}>
-          <TabPill
-            tabs={modeTabs}
-            activeTab={draft.permissionMode}
-            onChange={handleModeChange}
-            variant="pill"
-            fillWidth={false}
-            size="small"
-          />
+        <SectionRow label={t("cliLaunchProfiles.title")} layout="vertical">
+          <div className="max-w-xs">
+            <TabPill
+              tabs={modeTabs}
+              activeTab={draft.permissionMode}
+              onChange={handleModeChange}
+              variant="pill"
+              fillWidth={false}
+              size="small"
+              buttonStyle
+            />
+          </div>
         </SectionRow>
-        <SectionRow label={t("cliLaunchProfiles.command")}>
+        <SectionRow label={t("cliLaunchProfiles.command")} layout="vertical">
           <Input
             size="default"
             value={draft.launchCommandText}
@@ -246,7 +248,7 @@ export const CliLaunchProfileSection: React.FC<
               profile.defaultCommand,
               profile.args
             )}
-            style={SECTION_CONTROL_STYLE}
+            className="w-full"
             onChange={(value) =>
               setDraft((current) =>
                 current ? { ...current, launchCommandText: value } : current
@@ -308,20 +310,21 @@ export const CliLaunchProfileSection: React.FC<
 
   return (
     <InlineCardColumnStack>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0">
-          <div className="text-[12px] font-medium text-text-1">
-            {t("cliLaunchProfiles.title")}
-          </div>
+      <div className="flex flex-col gap-2">
+        <div className="text-[12px] font-medium text-text-1">
+          {t("cliLaunchProfiles.title")}
         </div>
-        <TabPill
-          tabs={modeTabs}
-          activeTab={draft.permissionMode}
-          onChange={handleModeChange}
-          variant="pill"
-          fillWidth={false}
-          size="small"
-        />
+        <div className="max-w-xs">
+          <TabPill
+            tabs={modeTabs}
+            activeTab={draft.permissionMode}
+            onChange={handleModeChange}
+            variant="pill"
+            fillWidth={false}
+            size="small"
+            buttonStyle
+          />
+        </div>
       </div>
 
       <label className="flex flex-col gap-1 text-[11px] text-text-3">

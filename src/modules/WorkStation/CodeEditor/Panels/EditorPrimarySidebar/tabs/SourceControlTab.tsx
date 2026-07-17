@@ -69,6 +69,8 @@ export interface SourceControlTabConfigProps {
    * callers to replace the plain Source Control title with custom content.
    */
   sourceControlTitleOverride?: React.ReactNode;
+  /** Disable collapsing when the header is used for navigation. */
+  sourceControlCollapsible?: boolean;
   /**
    * Optional override for the Source Control section's `content`. When set,
    * it replaces the file-list / commit-box content — used by the Diff tab's
@@ -98,6 +100,7 @@ export function useSourceControlTabConfig({
   navigateWithoutSelecting = false,
   sectionFilter,
   sourceControlTitleOverride,
+  sourceControlCollapsible = true,
   sourceControlContentOverride,
   worktrees: hostWorktrees,
   hasWorktrees: hostHasWorktrees,
@@ -255,7 +258,7 @@ export function useSourceControlTabConfig({
               ? (sourceControlContentOverride ?? sourceControlContent)
               : sourceControlContent,
           defaultFlexGrow: 1,
-          collapsible: true,
+          collapsible: sourceControlCollapsible,
           resizable: true,
           actions: isGitInitialized === true ? actions : [],
         },
@@ -264,6 +267,7 @@ export function useSourceControlTabConfig({
     [
       sourceControlContent,
       sourceControlTitleOverride,
+      sourceControlCollapsible,
       sourceControlContentOverride,
       actions,
       isGitInitialized,

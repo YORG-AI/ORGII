@@ -115,6 +115,7 @@ export function StatusPrioritySection({
             }
             onChange={handleExternalStatusChange}
             disabled={externalStatusDisabled}
+            dataTestId={`work-item-property-status-${workItem.session_id}`}
           />
         ) : (
           <EnumPropertyField
@@ -135,6 +136,7 @@ export function StatusPrioritySection({
               togglePicker(active ? "status" : null)
             }
             onChange={handlers.handleStatusChange}
+            dataTestId={`work-item-property-status-${workItem.session_id}`}
           />
         ))}
 
@@ -158,6 +160,7 @@ export function StatusPrioritySection({
           }
           onChange={handlers.handlePriorityChange}
           onClear={() => handlers.handlePriorityChange("none")}
+          dataTestId={`work-item-property-priority-${workItem.session_id}`}
         />
       )}
     </>

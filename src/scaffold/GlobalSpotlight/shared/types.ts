@@ -60,6 +60,11 @@ export interface SpotlightItemData {
   disabled?: boolean;
   /** Whether this item should use danger styling */
   isDanger?: boolean;
+  /** Values exposed through the row's native copy context menu. */
+  contextMenuCopy?: {
+    name?: string;
+    path?: string;
+  };
   /** When set, the row renders a Checkbox at the very start (before the
    *  icon) reflecting the given checked state. Used by manage-mode multi
    *  select. The checkbox calls `onToggle`; clicking the rest of the row

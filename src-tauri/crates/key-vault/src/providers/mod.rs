@@ -11,3 +11,4 @@ pub mod kiro;
 pub mod openai;
 pub mod opencode_go;
 pub(crate) mod quota_windows;
+pub mod zhipu;

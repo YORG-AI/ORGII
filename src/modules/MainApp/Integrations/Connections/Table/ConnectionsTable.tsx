@@ -21,6 +21,7 @@ import {
   Placeholder,
   ScrollPreservation,
 } from "@src/modules/shared/layouts/blocks";
+import { InfoRow } from "@src/modules/shared/layouts/blocks/InfoRow";
 
 import {
   InlineCardBody,
@@ -30,7 +31,6 @@ import {
 } from "../../KeyVault/shared/InlineCardPrimitives";
 import { ThirdPartyDisclaimer } from "../../Tables/TrademarkDisclaimer";
 import { StatusDot, selectedRowClassName } from "../../Tables/shared";
-import { InfoRow } from "../../shared/InfoRow";
 import type { DetailMode } from "../../types";
 import { CHANNEL_TYPES, type ChannelInstance } from "../Channels";
 import GatewayAgentCard from "../Channels/GatewayAgentCard";

@@ -34,7 +34,7 @@ export interface SoftwareIconProps {
   className?: string;
 }
 
-const AI_CLI_IDS = new Set<string>(["claude", "codex", "gemini-cli"]);
+const AI_CLI_IDS = new Set<string>(["claude", "codex"]);
 
 const SoftwareIcon: React.FC<SoftwareIconProps> = memo(
   ({ type, size = 16, className = "" }) => {

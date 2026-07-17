@@ -39,6 +39,10 @@ export function useUnifiedModelPalette({
     recentEntries,
     recordRecent,
     saveKey,
+    accountsLoading,
+    accountsError,
+    refreshAllModels,
+    refreshingAllModels,
   } = useUnifiedModelPaletteData({
     isOpen,
     dispatchCategoryOverride,
@@ -120,6 +124,10 @@ export function useUnifiedModelPalette({
     previewModel,
     handleModelPreview,
     handleBack,
+    accountsLoading,
+    accountsError,
+    refreshAllModels,
+    refreshingAllModels,
     tCommon,
   };
 }

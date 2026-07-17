@@ -24,11 +24,15 @@ pub use members::{
 };
 pub use milestones::{read_milestones, write_milestones};
 pub use orgs::{
-    configure_project_org_git_folder_sync, create_project_org, read_project_org, read_project_orgs,
+    configure_project_org_collab_sync, configure_project_org_git_folder_sync, create_project_org,
+    read_project_org, read_project_orgs,
 };
 pub use projects::{
     delete_project, derive_work_item_prefix, normalize_custom_work_item_prefix, read_all_projects,
     read_all_projects_scoped, read_project, read_project_scoped, write_project,
+};
+pub(crate) use projects::{
+    read_project_field_revisions, write_project_remote, PROJECT_SYNC_FIELDS,
 };
 pub use routines::{
     create_routine_fire, create_routine_fire_for_policy, create_routine_fire_for_policy_with_key,
@@ -45,10 +49,12 @@ pub use work_items::{
     move_work_item, purge_expired_deleted_work_items, read_all_work_items,
     read_all_work_items_enriched, read_all_work_items_enriched_scoped, read_all_work_items_scoped,
     read_standalone_work_item, read_standalone_work_items, read_sync_metadata, read_work_item,
-    read_work_item_enriched, read_work_item_enriched_scoped, read_work_item_scoped,
-    read_work_items_view_data, read_work_items_view_data_scoped, release_execution_lock,
-    restore_work_item, update_work_item_atomic, update_work_item_atomic_with_revisions,
-    update_work_item_partial, update_work_item_partial_enriched,
-    update_work_item_partial_with_revisions, write_standalone_work_item, write_work_item,
-    FieldRevision, SyncMetadata, REVISION_SOURCE_LOCAL,
+    read_work_item_by_row_id, read_work_item_enriched, read_work_item_enriched_scoped,
+    read_work_item_scoped, read_work_items_view_data, read_work_items_view_data_scoped,
+    release_execution_lock, restore_work_item, update_work_item_atomic,
+    update_work_item_atomic_with_revisions, update_work_item_partial,
+    update_work_item_partial_enriched, update_work_item_partial_with_revisions,
+    write_standalone_work_item, write_work_item, FieldRevision, SyncMetadata,
+    REVISION_SOURCE_LOCAL,
 };
+pub(crate) use work_items::{purge_work_item, write_work_item_remote};

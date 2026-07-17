@@ -33,6 +33,7 @@ import {
 } from "@src/hooks/settings";
 import { router } from "@src/router";
 import { hydrateCreatorDefaultModelAtom } from "@src/store/session/creatorDefaultModelAtom";
+import { useDataSourceAutoScan } from "@src/store/session/useDataSourceAutoScan";
 import { useSettingsSync } from "@src/store/settings";
 import { settingsLoadedAtom } from "@src/store/settings/settingsAtom";
 import {
@@ -72,6 +73,7 @@ export const AppBootstrap: FC = () => {
   useGlobalFlowTracker(); // Track user activities for agent context
   useModelAliasRegistry();
   useDiagnosticsBootstrap();
+  useDataSourceAutoScan(); // Keep external-history sources fresh on their cadence
 
   return (
     <DeferredGitStatusProvider>

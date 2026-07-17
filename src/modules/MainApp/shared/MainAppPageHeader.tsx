@@ -5,7 +5,6 @@ import {
   useShouldOffsetMainAppHeader,
 } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
 import { PageBreadcrumb } from "@src/modules/shared/layouts/blocks";
-import { useIsCompactLayout } from "@src/modules/shared/layouts/useCompactLayout";
 import { CollapsedSidebarButton } from "@src/scaffold/NavigationSidebar/CollapsedSidebarButton";
 
 interface MainAppPageHeaderProps {
@@ -26,16 +25,13 @@ const MainAppPageHeader: React.FC<MainAppPageHeaderProps> = ({
   style,
   offsetForCollapsedSidebar,
 }) => {
-  const isCompactLayout = useIsCompactLayout();
   const defaultOffsetForCollapsedSidebar = useShouldOffsetMainAppHeader();
   const shouldOffsetHeaderForCollapsedSidebar =
     offsetForCollapsedSidebar ?? defaultOffsetForCollapsedSidebar;
 
   return (
     <div
-      className={`workspace-header header-tab-group relative z-30 flex flex-shrink-0 items-center gap-1.5 px-2 ${
-        isCompactLayout ? "h-11 min-h-11 pt-2" : "h-9 min-h-9"
-      } ${className}`}
+      className={`workspace-header header-tab-group relative z-30 flex h-11 min-h-11 flex-shrink-0 items-center gap-1.5 px-2 pt-2 ${className}`}
       data-tauri-drag-region
       style={
         {

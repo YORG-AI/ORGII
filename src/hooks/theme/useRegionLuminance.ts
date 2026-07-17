@@ -22,6 +22,10 @@
 import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 
+import {
+  HOST_DESKTOP,
+  resolveHostDesktop,
+} from "@src/config/windowChromeRadius";
 import { createLogger } from "@src/hooks/logger";
 import { resolvedBackgroundConfigAtom } from "@src/store";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
@@ -41,6 +45,7 @@ import type {
 import { useBackgroundImage } from "./useBackgroundImage";
 
 const log = createLogger("RegionLuminance");
+const IS_MACOS_HOST = resolveHostDesktop() === HOST_DESKTOP.MACOS;
 
 // ============================================
 // Hook
@@ -62,7 +67,9 @@ export function useRegionLuminance(): UseRegionLuminanceReturn {
   const backgroundConfig = useAtomValue(resolvedBackgroundConfigAtom);
   const currentImageUrl = useBackgroundImage();
   const shouldUseAdaptiveColors = Boolean(
-    backgroundConfig.adaptiveColors && backgroundConfig.selectedImageId
+    !IS_MACOS_HOST &&
+    backgroundConfig.adaptiveColors &&
+    backgroundConfig.selectedImageId
   );
   const adaptiveImageUrl = shouldUseAdaptiveColors ? currentImageUrl : "";
   const { isDark } = useCurrentTheme();

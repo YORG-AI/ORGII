@@ -1,26 +1,49 @@
 /**
  * Renderer wrapper for `git-commit-detail` tabs.
  *
- * The leaf `GitCommitDetailContent` accepts repoPath / repoId / commit
- * metadata as plain props, so this wrapper can be self-contained once
- * tab data carries an explicit `repoPath`. Phase 1b still defers the
- * actual render to the host renderers (editor + project) — this stub
- * stays a placeholder so verification step 4 (no imports) holds.
+ * Renders `GitCommitDetailContent` through the unified dispatcher, pulling
+ * repoPath / repoId / file-select from the hoisted Code Editor host context
+ * and the commit metadata from tab data — a 1:1 mirror of
+ * `TabContentRenderer`'s `case "git-commit-detail"`.
  */
-import React, { memo } from "react";
+import React, { Suspense, memo } from "react";
+
+import { useEditorHostContext } from "@src/modules/WorkStation/CodeEditor/Panels/EditorMainPane/context/editorHostContext";
+import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import type { UnifiedTabContentProps } from "../types";
-import { HostCoupledPlaceholder } from "./HostCoupledPlaceholder";
+
+const GitCommitDetailContent = React.lazy(
+  () =>
+    import("@src/modules/WorkStation/CodeEditor/Panels/EditorMainPane/content/GitCommitDetailContent")
+);
+
+const LazyFallback = () => (
+  <Placeholder variant="loading" placement="detail-panel" fillParentHeight />
+);
 
 const GitCommitDetailTabRenderer: React.FC<UnifiedTabContentProps> = memo(
   ({ tab }) => {
-    const shortSha = String(tab.data.shortSha ?? "");
+    const { repoPath, repoId, onFileSelect } = useEditorHostContext();
+
+    const commitSha = String(tab.data.commitSha || "");
+    const commitShortSha = String(tab.data.shortSha || "");
+    const commitMsg = String(tab.data.commitMessage || "");
+    const resolvedRepoId = repoId ?? repoPath;
+    const repoReady = Boolean(repoPath && resolvedRepoId);
+
     return (
-      <HostCoupledPlaceholder
-        tabType="git-commit-detail"
-        title={shortSha ? `Commit ${shortSha}` : "Commit"}
-        hostNote="Host provides repoPath/repoId + file-select callback"
-      />
+      <Suspense fallback={<LazyFallback />}>
+        <GitCommitDetailContent
+          commitSha={commitSha}
+          shortSha={commitShortSha}
+          commitMessage={commitMsg}
+          repoPath={repoPath}
+          repoId={resolvedRepoId}
+          isRepoReady={repoReady}
+          onFileSelect={onFileSelect}
+        />
+      </Suspense>
     );
   }
 );

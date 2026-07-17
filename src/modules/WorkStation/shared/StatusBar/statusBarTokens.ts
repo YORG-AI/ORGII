@@ -7,8 +7,8 @@
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 
 export const STATUS_BAR_TOKENS = {
-  /** Bar height (32px) */
-  heightClass: "h-8",
+  /** Bar height (36px) */
+  heightClass: "h-9",
   /** Primary label size */
   textSizeClass: "text-[11px]",
   /** Outer horizontal padding of the bar (outside left/right clusters) */

@@ -31,10 +31,6 @@
     "closeCanvas": "Закрыть холст",
     "generatingCanvas": "Создание холста…",
     "noContent": "Нет содержимого",
-    "noIssueSelected": "Issue не выбран",
-    "selectIssueHint": "Выберите issue на панели Issues в боковой панели.",
-    "noPrSelected": "Pull request не выбран",
-    "selectPrHint": "Выберите Pull request на панели Pull request в боковой панели.",
     "reload": "Перезагрузить",
     "urlPreviewRequiresTauri": "Для предпросмотра URL требуется Tauri",
     "openInExternalBrowser": "Откройте во внешнем браузере",
@@ -78,6 +74,11 @@
       "other": "Секрет"
     }
   },
+  "secretScan": {
+    "title": "Обнаружен возможный секрет",
+    "message": "Похоже, это сообщение содержит конфиденциальные учётные данные:\n\n{{items}}\n\nПри отправке секрет будет сохранён в истории чата и передан модели. Всё равно отправить?",
+    "sendAnyway": "Всё равно отправить"
+  },
   "actions": {
     "save": "Сохранить",
     "cancel": "Отмена",
@@ -107,6 +108,7 @@
     "retry": "Повторить",
     "regenerate": "Перегенерировать",
     "refresh": "Обновить",
+    "rescan": "Сканировать снова",
     "reload": "Перезагрузить",
     "reviewNextFile": "Проверить следующий файл",
     "reviewPreviousFile": "Проверить предыдущий файл",
@@ -206,9 +208,8 @@
     "openWorkspace": "Открыть workspace",
     "skipThisVersion": "Пропустить эту версию",
     "later": "Позже",
-    "updateAiBlame": "Обновить AI Blame",
     "link": "Связать",
-    "fetchPr": "Fetch PR"
+    "copyName": "Копировать имя"
   },
   "refreshToast": {
     "successName": "{{name}} обновлено",
@@ -410,7 +411,28 @@
     "nearby": "Рядом",
     "renowned": "Известные",
     "dragToReorder": "Перетащите для изменения порядка сообщений",
-    "sessionBlame": "Session Blame",
+    "sessionBlame": "Атрибуция сессий",
+    "sessionBlameSubagent": "Подагент: {{name}}",
+    "sessionBlameMainSession": "Основная сессия",
+    "sessionBlameAction": {
+      "read": "Чтение",
+      "write": "Запись",
+      "create": "Создание",
+      "delete": "Удаление",
+      "rename": "Переименование",
+      "search": "Поиск"
+    },
+    "sessionBlamePrecision": {
+      "unknown": "Точность неизвестна",
+      "session_only": "Только сессия",
+      "correlated": "Сопоставлено",
+      "exact": "Точная атрибуция"
+    },
+    "sessionBlameBackfill": {
+      "indexing": "Индексирование истории сессий {{indexed}}/{{total}}",
+      "partial": "Исторический индекс неполон (ошибок: {{failed}})",
+      "failed": "Не удалось проиндексировать историю сессий"
+    },
     "agentBlame": "Agent Blame",
     "initializeAgentBlame": "Initialize Agent Blame",
     "rescan": "Rescan",
@@ -428,7 +450,7 @@
     "orgtrackRebuildIndex": "Rebuild derived index",
     "orgtrackScanPhase": "Phase",
     "sessions": "Sessions",
-    "files": "Files",
+    "files": "Файлы",
     "commits": "Commits",
     "entries": "Entries",
     "records": "Records",
@@ -965,9 +987,7 @@
     "scanningFileExtensions": "Scanning file extensions...",
     "startBrowsingMarket": "Start browsing the marketplace",
     "previewUnavailable": "Предпросмотр недоступен",
-    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff.",
-    "fetchPrCommitToViewDiff": "Fetch PR to view this commit",
-    "prCommitMissingLocally": "This pull request commit is not available in your local repository yet."
+    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff."
   },
   "inbox": {
     "searchPlaceholder": "Поиск сообщений...",
@@ -1019,6 +1039,10 @@
     "scanningFiles": "Scanning files...",
     "branchTooltip": "Ветка: {{branch}}",
     "branchTooltipSwitching": "Ветка: {{branch}} (переключение…)",
+    "switchWorkspaceTooltip": "Сменить workspace",
+    "switchWorktreeTooltip": "Сменить worktree",
+    "switchBranchTooltip": "Сменить ветку",
+    "gitActionsTooltip": "Действия Git",
     "switchToSessionRepo": "Переключиться на {{name}}",
     "embeddingProgress": "Embedding: обработано чанков — {{count}}",
     "embeddingProgressWithPercent": "Embedding: обработано чанков — {{count}} ({{percent}}%)",
@@ -1031,6 +1055,7 @@
       "workspaceSection": "Workspace",
       "externalSection": "Внешние",
       "tooltip": "Порты: {{workspace}} workspace, {{external}} внешних",
+      "viewPortsTooltip": "Показать используемые порты",
       "noWorkspacePorts": "Порты workspace не обнаружены",
       "externalLabel": "внешний",
       "unknownProcess": "Неизвестный процесс",
@@ -1150,9 +1175,9 @@
       "tokenLabel": "Personal access token",
       "tokenRequired": "Token обязателен",
       "createTokenButton": "Создать token",
-      "openGitSettingsButton": "Открыть настройки Git",
+      "openGitSettingsButton": "Открыть настройки",
       "configureInSettings": "Настройте Git в настройках",
-      "configureInSettingsDesc": "Добавьте доступ GitHub App, сохраните token или просканируйте локальные учетные данные в Настройки → Интеграции → Git, затем повторите эту операцию Git."
+      "configureInSettingsDesc": "Добавьте доступ GitHub App, сохраните token или просканируйте локальные учетные данные в Настройки → Подключения, затем повторите эту операцию Git."
     },
     "actions": {
       "publish": "Publish",
@@ -1359,7 +1384,9 @@
         "delete": "Удалить",
         "deleteTemplate": "Удалить {branch}",
         "createSessionWith": "Сменить Branch сессии",
-        "createSessionWithTemplate": "Сменить Branch сессии на {branch}"
+        "createSessionWithTemplate": "Сменить Branch сессии на {branch}",
+        "switchWorktree": "Сменить worktree",
+        "switchWorktreeTemplate": "Переключиться на {worktree}"
       },
       "actions": {
         "createNew": "Создать новую ветку",
@@ -1370,7 +1397,8 @@
         "refresh": "Обновить ветку",
         "checkoutDetachedSuccess": "В состоянии detached HEAD на текущем коммите",
         "checkoutDetachedFailed": "Ошибка checkout detached HEAD",
-        "removeWorktree": "Удалить Worktree"
+        "removeWorktree": "Удалить Worktree",
+        "newWorktree": "Новый worktree..."
       },
       "messages": {
         "deletedCount_one": "Удалена {{count}} ветка",
@@ -1385,7 +1413,9 @@
         "basedOn": "На основе",
         "worktrees": "Worktrees",
         "worktreeInUse": "Используется",
-        "checkedOutInWorktree": "Checkout в Worktree: {{path}}"
+        "checkedOutInWorktree": "Checkout в Worktree: {{path}}",
+        "mainWorktreeSection": "Основной worktree",
+        "linkedWorktrees": "Связанные worktree"
       },
       "placeholders": {
         "checkout": "ветка",
@@ -1494,7 +1524,8 @@
         "workspace": "Найти или ввести путь к папке",
         "branch": "Поиск ветки...",
         "source": "Поиск источника...",
-        "actions": "Поиск действий..."
+        "actions": "Поиск действий...",
+        "worktree": "Поиск worktree..."
       },
       "groups": {
         "agentSession": "Сессия Agent",
@@ -1525,6 +1556,11 @@
           "label": "Искать Agent-сессии",
           "pillLabel": "Искать сессии",
           "placeholder": "Искать Agent-сессии..."
+        },
+        "searchAllSessions": {
+          "label": "Search across all sessions",
+          "pillLabel": "Search All Sessions",
+          "placeholder": "Search across all sessions..."
         },
         "switchWorkspace": {
           "label": "Переключить Workspace"
@@ -1623,11 +1659,8 @@
     "chatRight": "Чат справа",
     "pageSettings": "Настройки страницы",
     "pageLayout": "Макет страницы",
-    "layoutMode": "Режим макета",
     "inset": "Вставка",
     "full": "Полный",
-    "compact": "Компактный",
-    "comfort": "Комфортный",
     "theme": "Тема",
     "primaryPanel": "Боковая панель",
     "sidebarPosition": "Положение панели",
@@ -1681,15 +1714,13 @@
     "disableChatPagination": "Отключить пагинацию чата",
     "useModelPickerSpotlight": "Использовать выбор модели через Spotlight",
     "useModelPickerDropdown": "Использовать выпадающий выбор модели",
-    "useCompactWorkstationLayout": "Использовать компактную компоновку Workstation",
-    "useComfortWorkstationLayout": "Использовать комфортную компоновку Workstation",
     "moveWorkstationSidebarLeft": "Переместить боковую панель Workstation влево",
     "moveWorkstationSidebarRight": "Переместить боковую панель Workstation вправо",
     "enableDockAutoHide": "Автоматически скрывать Dock Workstation",
     "disableDockAutoHide": "Всегда показывать Dock Workstation",
     "openMyStation": "Перейти в My Station",
     "openAgentStation": "Перейти в Agent Station",
-    "openOpsControl": "Перейти в Ops Control",
+    "openKanban": "Перейти в Kanban",
     "changeLanguage": "Изменить язык",
     "switchToSystemTheme": "Следовать системной теме",
     "detectUpdate": "Проверить обновления",
@@ -1854,15 +1885,6 @@
     "lastActive": "Последняя активность: {{date}}",
     "activeNow": "Активно сейчас: {{ides}}",
     "active": "Активно",
-    "tabs": {
-      "activity": "Активность",
-      "focus": "Фокус",
-      "languages": "Языки",
-      "heatmap": "Тепловая карта",
-      "ide": "IDE",
-      "cursor": "Cursor",
-      "cli": "CLI"
-    },
     "cliSessions": "Сессии AI CLI",
     "cliPrompt": "Запрос",
     "cliMessages": "Сообщения",
@@ -1944,12 +1966,15 @@
     "removeWorktreeMessage": "Это удалит checkout Worktree с диска. Branch и commits сохранятся.",
     "removeWorktreeSuccess": "Worktree удален",
     "removeWorktreeFailed": "Не удалось удалить Worktree",
+    "emptyState": {
+      "viewSourceControl": "Просмотреть Source Control",
+      "viewIssues": "Просмотреть Issues",
+      "viewGitHistory": "Просмотреть историю Git",
+      "viewPullRequests": "Просмотреть Pull Requests"
+    },
     "pill": {
       "focus": "Фокус",
       "allChanges": "Все изменения"
-    },
-    "sessionFilter": {
-      "allSessions": "Все сессии"
     }
   },
   "contextInfo": {

@@ -34,7 +34,7 @@ fn detects_cursor_rules_in_project() {
 
     let fake_home = tmp.path().join("fake-home");
     fs::create_dir_all(&fake_home).unwrap();
-    let _home = UserHomeGuard::set(&fake_home);
+    let _home = HomeEnvGuard::set_user_home(&fake_home);
 
     let items = detect_all(Some(repo));
     let cursor_items: Vec<_> = items
@@ -127,7 +127,7 @@ fn skips_extension_bundles() {
 
     let fake_home = tmp.path().join("fake-home");
     fs::create_dir_all(&fake_home).unwrap();
-    let _home = UserHomeGuard::set(&fake_home);
+    let _home = HomeEnvGuard::set_user_home(&fake_home);
 
     let items = detect_all(Some(repo));
     let cursor: Vec<_> = items
@@ -193,7 +193,7 @@ async fn user_global_policy_import_lands_in_personal_rules() {
     let tmp = TempDir::new().unwrap();
     let orgii_home = tmp.path().join("orgii-home");
     fs::create_dir_all(&orgii_home).unwrap();
-    let _orgii_home = OrgiiHomeGuard::set(&orgii_home);
+    let _orgii_home = HomeEnvGuard::set_orgii_home(&orgii_home);
 
     let source_path = tmp.path().join("source-rule.md");
     write_file(&source_path, "user rule body\n");
@@ -277,7 +277,7 @@ fn detects_claude_code_subagents_in_project() {
     // same `cargo test` run hold the HOME guard concurrently.
     let fake_home = tmp.path().join("fake-home");
     fs::create_dir_all(&fake_home).unwrap();
-    let _home = UserHomeGuard::set(&fake_home);
+    let _home = HomeEnvGuard::set_user_home(&fake_home);
 
     let items = detect_all(Some(&repo));
     let agents: Vec<_> = items
@@ -317,7 +317,7 @@ fn detects_cursor_subagents_in_project_and_user_home() {
         &fake_home.join(".cursor/agents/global.md"),
         "---\nname: global-helper\n---\nGlobal subagent body.\n",
     );
-    let _home = UserHomeGuard::set(&fake_home);
+    let _home = HomeEnvGuard::set_user_home(&fake_home);
 
     let repo_items = detect_all(Some(&repo));
     let cursor_repo_agents: Vec<_> = repo_items
@@ -364,55 +364,6 @@ fn detects_cursor_subagents_in_project_and_user_home() {
 }
 
 #[test]
-fn detects_gemini_subagents_in_project_and_user_home() {
-    // Gemini CLI subagents (Oct 2025): `<repo>/.gemini/agents/<name>.md`
-    // and `~/.gemini/agents/<name>.md`. Same markdown + YAML
-    // frontmatter as Claude Code / Cursor.
-    let tmp = TempDir::new().unwrap();
-    let repo = tmp.path().join("repo");
-    fs::create_dir_all(&repo).unwrap();
-
-    write_file(
-        &repo.join(".gemini/agents/planner.md"),
-        "---\nname: planner\ndescription: Plans work\n---\nProject planner body.\n",
-    );
-
-    let fake_home = tmp.path().join("fake-home");
-    fs::create_dir_all(&fake_home).unwrap();
-    write_file(
-        &fake_home.join(".gemini/agents/explorer.md"),
-        "---\nname: explorer\n---\nGlobal explorer body.\n",
-    );
-    let _home = UserHomeGuard::set(&fake_home);
-
-    let repo_items = detect_all(Some(&repo));
-    let gemini_repo_agents: Vec<_> = repo_items
-        .iter()
-        .filter(|item| {
-            item.kind == ItemKind::AgentDefinition
-                && matches!(item.source_agent, SourceAgent::GeminiCli)
-        })
-        .collect();
-    assert_eq!(gemini_repo_agents.len(), 1);
-    assert!(gemini_repo_agents
-        .iter()
-        .any(|item| item.suggested_name == "planner"));
-
-    let global_items = detect_all(None);
-    let gemini_global_agents: Vec<_> = global_items
-        .iter()
-        .filter(|item| {
-            item.kind == ItemKind::AgentDefinition
-                && matches!(item.source_agent, SourceAgent::GeminiCli)
-        })
-        .collect();
-    assert_eq!(gemini_global_agents.len(), 1);
-    assert!(gemini_global_agents
-        .iter()
-        .any(|item| item.suggested_name == "explorer"));
-}
-
-#[test]
 fn detects_copilot_agent_and_chatmode_files() {
     // Copilot: `<repo>/.github/agents/<name>.agent.md` (new) and
     // `<repo>/.github/chatmodes/<name>.chatmode.md` (back-compat).
@@ -438,7 +389,7 @@ fn detects_copilot_agent_and_chatmode_files() {
 
     let fake_home = tmp.path().join("fake-home");
     fs::create_dir_all(&fake_home).unwrap();
-    let _home = UserHomeGuard::set(&fake_home);
+    let _home = HomeEnvGuard::set_user_home(&fake_home);
 
     let items = detect_all(Some(&repo));
     let copilot_agents: Vec<_> = items
@@ -480,7 +431,7 @@ fn detects_codex_subagents_in_project_and_user_home() {
         &fake_home.join(".codex/agents/researcher.md"),
         "---\nname: researcher\n---\nResearch body.\n",
     );
-    let _home = UserHomeGuard::set(&fake_home);
+    let _home = HomeEnvGuard::set_user_home(&fake_home);
 
     let repo_items = detect_all(Some(&repo));
     let codex_repo_agents: Vec<_> = repo_items
@@ -524,7 +475,7 @@ fn detects_claude_code_skills_dir_and_commands_file() {
 
     let fake_home = tmp.path().join("fake-home");
     fs::create_dir_all(&fake_home).unwrap();
-    let _home = UserHomeGuard::set(&fake_home);
+    let _home = HomeEnvGuard::set_user_home(&fake_home);
 
     let items = detect_all(Some(repo));
     let skills: Vec<_> = items.iter().filter(|i| i.kind == ItemKind::Skill).collect();
@@ -550,7 +501,7 @@ fn skips_workspace_local_claude_skill_import_without_copying_to_orgii() {
         "before",
     );
 
-    let _guard = OrgiiHomeGuard::set(&orgii_home);
+    let _guard = HomeEnvGuard::set_orgii_home(&orgii_home);
     let items = detect_all(Some(&repo));
     let skill = items
         .iter()
@@ -593,7 +544,7 @@ fn applies_claude_code_agent_definition_via_store() {
         "---\nname: poet\ndescription: Writes haikus\n---\nYou produce haikus on demand.\n",
     );
 
-    let _guard = OrgiiHomeGuard::set(&orgii_home);
+    let _guard = HomeEnvGuard::set_orgii_home(&orgii_home);
     let items = detect_all(Some(&repo));
     let agent = items
         .iter()
@@ -654,7 +605,7 @@ fn agent_definition_import_rejects_collision_without_overwrite() {
         "---\nname: poet\n---\nbody\n",
     );
 
-    let _guard = OrgiiHomeGuard::set(&orgii_home);
+    let _guard = HomeEnvGuard::set_orgii_home(&orgii_home);
     let items = detect_all(Some(&repo));
     let agent = items
         .iter()
@@ -706,7 +657,7 @@ fn readonly_subagent_emits_downgrade_warning_in_detect() {
 
     let fake_home = tmp.path().join("fake-home");
     fs::create_dir_all(&fake_home).unwrap();
-    let _home = UserHomeGuard::set(&fake_home);
+    let _home = HomeEnvGuard::set_user_home(&fake_home);
 
     let items = detect_all(Some(&repo));
     let auditor = items
@@ -746,8 +697,7 @@ fn readonly_apply_excludes_write_tools_on_imported_agent() {
 
     let fake_home = tmp.path().join("fake-home");
     fs::create_dir_all(&fake_home).unwrap();
-    let _home = UserHomeGuard::set(&fake_home);
-    let _guard = OrgiiHomeGuard::set(&orgii_home);
+    let _home = HomeEnvGuard::set_both(&fake_home, &orgii_home);
 
     let items = detect_all(Some(&repo));
     let agent = items
@@ -838,7 +788,7 @@ fn detects_cursor_skills_in_project() {
 
     let fake_home = tmp.path().join("fake-home");
     fs::create_dir_all(&fake_home).unwrap();
-    let _home = UserHomeGuard::set(&fake_home);
+    let _home = HomeEnvGuard::set_user_home(&fake_home);
 
     let items = detect_all(Some(repo));
     let cursor_skills: Vec<_> = items
@@ -888,7 +838,7 @@ fn cursor_skill_loose_md_in_skills_dir_is_ignored() {
 
     let fake_home = tmp.path().join("fake-home");
     fs::create_dir_all(&fake_home).unwrap();
-    let _home = UserHomeGuard::set(&fake_home);
+    let _home = HomeEnvGuard::set_user_home(&fake_home);
 
     let items = detect_all(Some(repo));
     let cursor_skills: Vec<_> = items
@@ -922,8 +872,7 @@ fn skips_workspace_local_cursor_skill_import_without_copying_to_orgii() {
 
     let fake_home = tmp.path().join("fake-home");
     fs::create_dir_all(&fake_home).unwrap();
-    let _home = UserHomeGuard::set(&fake_home);
-    let _guard = OrgiiHomeGuard::set(&orgii_home);
+    let _home = HomeEnvGuard::set_both(&fake_home, &orgii_home);
     let items = detect_all(Some(&repo));
     let skill = items
         .iter()
@@ -992,7 +941,7 @@ fn apply_workspace_mcp_import_writes_workspace_config() {
     let repo = tmp.path().join("repo");
     fs::create_dir_all(&repo).unwrap();
     let orgii_home = tmp.path().join("orgii-home");
-    let _guard = OrgiiHomeGuard::set(&orgii_home);
+    let _guard = HomeEnvGuard::set_orgii_home(&orgii_home);
     let source_path = repo.join(".cursor/mcp.json");
     write_file(
         &source_path,
@@ -1041,73 +990,72 @@ fn apply_workspace_mcp_import_writes_workspace_config() {
 
 /// RAII helper that overrides `ORGII_HOME` for the duration of one test.
 ///
-/// `paths::orgii_root()` consults this env var, so setting it isolates
-/// every disk write made through the canonical path helpers from the
-/// real `~/.orgii/` of the developer running the test. Process-global
-/// env state means parallel tests would race; we serialise around a
-/// shared mutex held for the lifetime of the guard.
-struct OrgiiHomeGuard {
-    prev: Option<String>,
+/// RAII guard for `ORGII_HOME` / `$HOME` mutations in this module.
+///
+/// `paths::orgii_root()` consults `ORGII_HOME`, and several detector
+/// branches (`~/.cursor/rules`, `~/.claude/...`, `~/.codex/...`) consult
+/// `$HOME` — pinning them to clean tmpdirs keeps these tests deterministic
+/// and off the developer's real `~/.orgii`.
+///
+/// Env vars are process-global, so every mutation MUST hold the
+/// workspace-canonical `test_env::lock_home()` — a private module mutex
+/// would still race the `sandbox()`-based tests in sibling modules
+/// (observed as "no such table" failures when this module's tests stomp
+/// `ORGII_HOME` mid-flight under another module's sandbox). One guard
+/// handles either or both vars under a single lock acquisition, since a
+/// second acquisition from the same test would deadlock.
+struct HomeEnvGuard {
+    prev_user_home: Option<Option<String>>,
+    prev_orgii_home: Option<Option<String>>,
     _lock: std::sync::MutexGuard<'static, ()>,
 }
 
-static ORGII_HOME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-impl OrgiiHomeGuard {
-    fn set(path: &Path) -> Self {
-        let lock = ORGII_HOME_LOCK
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let prev = std::env::var("ORGII_HOME").ok();
-        std::env::set_var("ORGII_HOME", path);
-        Self { prev, _lock: lock }
-    }
-}
-
-impl Drop for OrgiiHomeGuard {
-    fn drop(&mut self) {
-        match &self.prev {
-            Some(prev) => std::env::set_var("ORGII_HOME", prev),
-            None => std::env::remove_var("ORGII_HOME"),
+impl HomeEnvGuard {
+    fn new(user_home: Option<&Path>, orgii_home: Option<&Path>) -> Self {
+        let lock = test_helpers::test_env::lock_home();
+        let prev_user_home = user_home.map(|path| {
+            let prev = std::env::var("HOME").ok();
+            std::env::set_var("HOME", path);
+            prev
+        });
+        let prev_orgii_home = orgii_home.map(|path| {
+            let prev = std::env::var("ORGII_HOME").ok();
+            std::env::set_var("ORGII_HOME", path);
+            prev
+        });
+        Self {
+            prev_user_home,
+            prev_orgii_home,
+            _lock: lock,
         }
     }
-}
 
-/// RAII helper that points `$HOME` at a tmpdir for the duration of one test.
-///
-/// Several detector branches (`~/.cursor/rules`, `~/.cursor/skills-cursor`,
-/// `~/.claude/...`, `~/.codex/...`, `~/.gemini/...`) consult the user's
-/// home directory and therefore see the developer's real artifacts when
-/// tests run locally. That bleeds counts into `assert_eq!(len, …)`
-/// assertions made on `detect_all` output — pinning `$HOME` to a clean
-/// tmpdir makes these tests deterministic across machines.
-///
-/// We use a dedicated mutex (separate from `ORGII_HOME_LOCK`) so a test
-/// can hold both guards simultaneously without recursively locking the
-/// same `Mutex` (which would panic).
-struct UserHomeGuard {
-    prev: Option<String>,
-    _lock: std::sync::MutexGuard<'static, ()>,
-}
+    fn set_user_home(path: &Path) -> Self {
+        Self::new(Some(path), None)
+    }
 
-static USER_HOME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    fn set_orgii_home(path: &Path) -> Self {
+        Self::new(None, Some(path))
+    }
 
-impl UserHomeGuard {
-    fn set(path: &Path) -> Self {
-        let lock = USER_HOME_LOCK
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let prev = std::env::var("HOME").ok();
-        std::env::set_var("HOME", path);
-        Self { prev, _lock: lock }
+    fn set_both(user_home: &Path, orgii_home: &Path) -> Self {
+        Self::new(Some(user_home), Some(orgii_home))
     }
 }
 
-impl Drop for UserHomeGuard {
+impl Drop for HomeEnvGuard {
     fn drop(&mut self) {
-        match &self.prev {
-            Some(prev) => std::env::set_var("HOME", prev),
-            None => std::env::remove_var("HOME"),
+        if let Some(prev) = self.prev_orgii_home.take() {
+            match prev {
+                Some(value) => std::env::set_var("ORGII_HOME", value),
+                None => std::env::remove_var("ORGII_HOME"),
+            }
+        }
+        if let Some(prev) = self.prev_user_home.take() {
+            match prev {
+                Some(value) => std::env::set_var("HOME", value),
+                None => std::env::remove_var("HOME"),
+            }
         }
     }
 }

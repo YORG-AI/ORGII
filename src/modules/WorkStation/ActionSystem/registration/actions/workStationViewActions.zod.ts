@@ -63,7 +63,7 @@ export const workstationToggleChatPanelVisibility = defineZodAction(
 
 function defineOpenStationAction(
   id: ActionId,
-  mode: "my-station" | "agent-station" | "ops-control",
+  mode: "my-station" | "agent-station",
   description: string,
   message: string,
   shortcut: string,
@@ -110,13 +110,23 @@ export const workstationOpenAgentStation = defineOpenStationAction(
   ["open agent station", "switch to agent station", "show agent station"]
 );
 
-export const workstationOpenOpsControl = defineOpenStationAction(
-  ACTION_ID.WORKSTATION_OPEN_OPS_CONTROL,
-  "ops-control",
-  "Open Ops Control in Workstation",
-  "Opened Ops Control",
-  getShortcutKeys("open_ops_control"),
-  ["open ops control", "go to ops control", "show ops control"]
+export const workstationOpenKanban = defineZodAction(
+  {
+    id: ACTION_ID.WORKSTATION_OPEN_KANBAN,
+    category: "navigation",
+    description: "Open Kanban in the chat pane",
+    params: z.object({}),
+    shortcut: getShortcutKeys("open_kanban"),
+    tags: ["workstation", "chat", "kanban", "navigation"],
+    examples: ["open kanban", "go to kanban", "show kanban"],
+  },
+  async () => {
+    const workStationViewService = await getWorkStationViewService();
+    const success = await workStationViewService.openKanbanTab();
+    return success
+      ? { success: true, message: "Opened Kanban" }
+      : { success: false, message: "Kanban is not available" };
+  }
 );
 
 export const workstationToggleSidebar = defineZodAction(
@@ -312,7 +322,7 @@ export const workStationViewZodActions = [
   workstationToggleChatPanelVisibility,
   workstationOpenMyStation,
   workstationOpenAgentStation,
-  workstationOpenOpsControl,
+  workstationOpenKanban,
   workstationToggleSidebar,
   workstationOpenCodeEditorTab,
   workstationOpenFileFolderTab,

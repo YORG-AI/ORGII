@@ -55,6 +55,7 @@ export interface ChatPanelProps {
     variant?: "default" | "fullScreen";
     centerFullScreenContent?: boolean;
     footerSlot?: ReactNode;
+    innerClassName?: string;
     leadingActionSlot?: ReactNode;
     hideRepoLine?: boolean;
     onRegionNoticeChange?: (notice: ChatPanelRegionNotice | null) => void;

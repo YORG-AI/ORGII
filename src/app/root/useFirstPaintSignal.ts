@@ -38,6 +38,49 @@ function isLocalDevOrigin(): boolean {
   );
 }
 
+function hasRenderableRootContent(): boolean {
+  const root = document.getElementById("root");
+  if (!root) {
+    return false;
+  }
+
+  return root.childElementCount > 0;
+}
+
+function afterRenderableRootContent(callback: () => void): () => void {
+  if (hasRenderableRootContent()) {
+    callback();
+    return () => undefined;
+  }
+
+  const root = document.getElementById("root");
+  if (!root) {
+    callback();
+    return () => undefined;
+  }
+
+  let didRun = false;
+  const observer = new MutationObserver(() => {
+    if (!hasRenderableRootContent()) {
+      return;
+    }
+    didRun = true;
+    observer.disconnect();
+    callback();
+  });
+
+  observer.observe(root, {
+    childList: true,
+    subtree: true,
+  });
+
+  return () => {
+    if (!didRun) {
+      observer.disconnect();
+    }
+  };
+}
+
 function emitFirstPaintMetric(): void {
   if (!isLocalDevOrigin()) {
     return;
@@ -58,32 +101,34 @@ export function useFirstPaintSignal(): void {
   useLayoutEffect(() => {
     if (hasSignaledFirstPaint.current) return;
 
-    requestAnimationFrame(() => {
+    return afterRenderableRootContent(() => {
       requestAnimationFrame(() => {
-        if (hasSignaledFirstPaint.current) {
-          return;
-        }
+        requestAnimationFrame(() => {
+          if (hasSignaledFirstPaint.current) {
+            return;
+          }
 
-        hasSignaledFirstPaint.current = true;
-        signalFirstPaintComplete();
-        emitFirstPaintMetric();
+          hasSignaledFirstPaint.current = true;
+          signalFirstPaintComplete();
+          emitFirstPaintMetric();
 
-        // The app committed its first paint — cancel the pre-bundle splash
-        // watchdog (index.html) and clear the chunk-reload retry budget so a
-        // later transient chunk failure still gets a fresh set of retries.
-        const splashDone = (
-          window as unknown as { __ORGII_SPLASH_DONE__?: () => void }
-        ).__ORGII_SPLASH_DONE__;
-        if (typeof splashDone === "function") {
-          splashDone();
-        }
-        resetChunkReloadCount();
+          // The app committed its first paint — cancel the pre-bundle splash
+          // watchdog (index.html) and clear the chunk-reload retry budget so a
+          // later transient chunk failure still gets a fresh set of retries.
+          const splashDone = (
+            window as unknown as { __ORGII_SPLASH_DONE__?: () => void }
+          ).__ORGII_SPLASH_DONE__;
+          if (typeof splashDone === "function") {
+            splashDone();
+          }
+          resetChunkReloadCount();
 
-        const splash = document.getElementById("splash");
-        if (splash) {
-          splash.classList.add("fade-out");
-          setTimeout(() => splash.remove(), 200);
-        }
+          const splash = document.getElementById("splash");
+          if (splash) {
+            splash.classList.add("fade-out");
+            setTimeout(() => splash.remove(), 200);
+          }
+        });
       });
     });
   }, []);

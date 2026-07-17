@@ -274,6 +274,7 @@ fn emit_snapshot(app: &AppHandle, state: &EventStoreState, session_id: &str) {
             snapshot,
         };
         app.emit(NOTIFY_EVENT_NAME, &envelope).ok();
+        crate::infrastructure::main_runloop::wake_main_runloop();
         return;
     }
 
@@ -289,6 +290,7 @@ fn emit_snapshot(app: &AppHandle, state: &EventStoreState, session_id: &str) {
         if app.emit(NOTIFY_EVENT_NAME, &envelope).is_ok() {
             store.mark_full_snapshot_emitted();
         }
+        crate::infrastructure::main_runloop::wake_main_runloop();
         return;
     }
 
@@ -355,6 +357,7 @@ fn emit_snapshot(app: &AppHandle, state: &EventStoreState, session_id: &str) {
         snapshot,
     };
     app.emit(NOTIFY_EVENT_NAME, &envelope).ok();
+    crate::infrastructure::main_runloop::wake_main_runloop();
 }
 
 // ============================================================================
@@ -685,21 +688,33 @@ mod bulk_writer {
     }
 }
 
-fn persist_runtime_edit_artifacts_async(session_id: String, events: Vec<(usize, SessionEvent)>) {
+fn persist_runtime_orgtrack_records_async(
+    app: tauri::AppHandle,
+    session_id: String,
+    events: Vec<(usize, Option<String>, SessionEvent)>,
+) {
     tokio::task::spawn_blocking(move || {
-        if let Err(err) = persist_runtime_edit_artifacts(&session_id, events) {
-            tracing::warn!(
-                session_id = %session_id,
-                error = %err,
-                "[orgtrack_runtime_artifacts] failed to persist runtime edit artifacts"
-            );
+        match persist_runtime_orgtrack_records(&session_id, events) {
+            Ok(()) => {
+                let _ = app.emit(
+                    crate::orgtrack::session_provenance::RESOURCE_INTERACTIONS_CHANGED_EVENT,
+                    (),
+                );
+            }
+            Err(err) => {
+                tracing::warn!(
+                    session_id = %session_id,
+                    error = %err,
+                    "[orgtrack_runtime_artifacts] failed to persist runtime provenance records"
+                );
+            }
         }
     });
 }
 
-fn persist_runtime_edit_artifacts(
+fn persist_runtime_orgtrack_records(
     session_id: &str,
-    events: Vec<(usize, SessionEvent)>,
+    events: Vec<(usize, Option<String>, SessionEvent)>,
 ) -> Result<(), String> {
     if events.is_empty() {
         return Ok(());
@@ -711,7 +726,20 @@ fn persist_runtime_edit_artifacts(
     store.upsert_session(&session)?;
 
     let mut chunks_by_file: HashMap<String, Vec<SessionDiffChunkRecord>> = HashMap::new();
-    for (sequence_index, event) in events {
+    for (sequence_index, turn_id, event) in events {
+        if let Err(err) = crate::orgtrack::session_provenance::persist_native_event_interactions(
+            &store,
+            &session,
+            &event,
+            turn_id.as_deref(),
+        ) {
+            tracing::warn!(
+                session_id = %session.session_id,
+                event_id = %event.id,
+                error = %err,
+                "[SessionProvenance] Native interaction persistence failed"
+            );
+        }
         let Some(ExtractedData::Edit(edit)) = event.extracted.as_ref() else {
             continue;
         };
@@ -720,7 +748,7 @@ fn persist_runtime_edit_artifacts(
             source_session_id: Some(session.source_session_id.clone()),
             session_id: session.session_id.clone(),
             source_event_id: Some(event.id.clone()),
-            turn_id: event.thread_id.clone(),
+            turn_id,
             sequence_index: sequence_index as i64,
             timestamp: Some(event.created_at.clone()),
             workspace_path: event
@@ -756,7 +784,7 @@ fn persist_runtime_edit_artifacts(
     Ok(())
 }
 
-fn runtime_artifact_session_record(session_id: &str) -> Result<SessionRecord, String> {
+pub(crate) fn runtime_artifact_session_record(session_id: &str) -> Result<SessionRecord, String> {
     let Some(record) =
         agent_core::session::persistence::get_session(session_id).map_err(|err| err.to_string())?
     else {
@@ -774,6 +802,7 @@ fn runtime_artifact_session_record(session_id: &str) -> Result<SessionRecord, St
             branch: None,
             parent_session_id: None,
             org_member_id: None,
+            collaboration_origin: None,
             metadata: AgentMetadata {
                 dispatch_category: Some("rust_agent".to_string()),
                 origin: Some(SOURCE_ORGII_RUST_AGENTS.to_string()),
@@ -807,6 +836,7 @@ fn runtime_artifact_session_record(session_id: &str) -> Result<SessionRecord, St
         branch: record.worktree_branch.or(record.base_branch),
         parent_session_id: record.parent_session_id,
         org_member_id: record.org_member_id,
+        collaboration_origin: None,
         metadata: AgentMetadata {
             dispatch_category: Some("rust_agent".to_string()),
             rust_agent_type,
@@ -856,42 +886,55 @@ pub fn push_events_to_session(
         if result_call_ids.is_empty() {
             return Vec::new();
         }
-        store
-            .events()
-            .iter()
-            .enumerate()
-            .filter(|(_, event)| {
-                event.action_type == ACTION_TYPE_TOOL_CALL
-                    && event
-                        .call_id
-                        .as_ref()
-                        .is_some_and(|call_id| result_call_ids.contains(call_id))
-            })
-            .map(|(sequence_index, event)| (sequence_index, event.clone()))
-            .collect::<Vec<_>>()
+        let mut current_turn_id: Option<String> = None;
+        let mut matched = Vec::new();
+        for (sequence_index, event) in store.events().iter().enumerate() {
+            if event.function_name == "user_message"
+                && event
+                    .result
+                    .get("syntheticUserInput")
+                    .and_then(|value| value.as_bool())
+                    != Some(true)
+            {
+                current_turn_id = Some(event.id.clone());
+            }
+            if event.action_type == ACTION_TYPE_TOOL_CALL
+                && event
+                    .call_id
+                    .as_ref()
+                    .is_some_and(|call_id| result_call_ids.contains(call_id))
+            {
+                matched.push((sequence_index, current_turn_id.clone(), event.clone()));
+            }
+        }
+        matched
     });
 
-    let mut impact_events = Vec::new();
     let mut runtime_artifact_events = Vec::new();
-    for (sequence_index, event) in merged_tool_calls {
+    for (sequence_index, turn_id, event) in merged_tool_calls {
         if event_conversion::is_ts_placeholder_id(&event.id) {
             continue;
         }
-        impact_events.push(event.clone());
-        if matches!(event.extracted, Some(ExtractedData::Edit(_))) {
-            runtime_artifact_events.push((sequence_index, event.clone()));
+        if matches!(
+            event.extracted,
+            Some(
+                ExtractedData::File(_)
+                    | ExtractedData::Edit(_)
+                    | ExtractedData::Search(_)
+                    | ExtractedData::DeleteFile(_)
+            )
+        ) {
+            runtime_artifact_events.push((sequence_index, turn_id, event.clone()));
         }
         persistable.push(event_conversion::session_event_to_cached_event(&event));
     }
 
-    if !impact_events.is_empty() {
-        crate::orgtrack::impact_indexer::record_session_events_async(
-            session_id.to_string(),
-            impact_events,
-        );
-    }
     if !runtime_artifact_events.is_empty() {
-        persist_runtime_edit_artifacts_async(session_id.to_string(), runtime_artifact_events);
+        persist_runtime_orgtrack_records_async(
+            app.clone(),
+            session_id.to_string(),
+            runtime_artifact_events,
+        );
     }
 
     schedule_notify(app, state, session_id);

@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   BUILTIN_SDE_AGENT_ID,
@@ -28,6 +29,12 @@ import {
 } from "../../support/core/session/toolCoverage.mjs";
 
 const RUN_ID = Date.now();
+const SPEC_DIR = path.dirname(fileURLToPath(import.meta.url));
+const APP_BINARY = path.resolve(
+  SPEC_DIR,
+  "../../../..",
+  "src-tauri/target/debug/org2"
+);
 const BUILTIN_OS_AGENT_ID = "builtin:os";
 const RENDER_TIMEOUT_MS = 30_000;
 const E2E_BASE_URL = `http://127.0.0.1:${process.env.E2E_IDE_SERVER_PORT ?? "13847"}`;
@@ -44,6 +51,7 @@ function shouldSetupRealApiAccount() {
   const fakeOnlyScenarios = new Set([
     "provider-payload-snapshot",
     "fake-provider-auto-compact",
+    "runtime-hooks",
   ]);
   return (
     SCENARIO_FILTER.length === 0 ||
@@ -104,6 +112,31 @@ async function postJson(pathname, body = {}, timeoutMs = 10_000) {
 
 async function execJS(script) {
   return browser.executeScript(script, []);
+}
+
+async function invokeTauriCommand(command, args = {}) {
+  const envelope = await browser.executeAsyncScript(
+    `
+      const cb = arguments[arguments.length - 1];
+      const command = arguments[0];
+      const args = arguments[1];
+      const invoke = window.__TAURI_INTERNALS__?.invoke;
+      if (typeof invoke !== 'function') {
+        cb({ ok: false, error: 'Tauri invoke is unavailable' });
+        return;
+      }
+      Promise.resolve(invoke(command, args))
+        .then((result) => cb({ ok: true, result }))
+        .catch((error) => cb({ ok: false, error: String(error?.message || error) }));
+    `,
+    [command, args]
+  );
+  if (envelope?.ok !== true) {
+    throw new Error(
+      `Tauri ${command} failed: ${envelope?.error ?? "unknown error"}`
+    );
+  }
+  return envelope.result;
 }
 
 async function waitForRenderedSession(sessionId, label) {
@@ -1000,6 +1033,374 @@ describe("Session launch wiring rendered UI invariants", function () {
     if (shouldSetupRealApiAccount()) {
       account = await getApiAccount();
       model = selectPreferredModel(account);
+    }
+  });
+
+  it("centralizes hook capture settings in Launchpad Runtime", async function () {
+    if (!shouldRunScenario("runtime-hooks")) {
+      this.skip();
+      return;
+    }
+
+    unwrap(
+      await invokeE2E("ensureRepoSelected", { repoPath: E2E_REPO_PATH }),
+      "select workspace for Codex hook approval"
+    );
+    unwrap(await invokeE2E("resetToNewSession"), "reset to Launchpad");
+
+    const clickVisible = async (selector, label) => {
+      let point = null;
+      await browser.waitUntil(
+        async () => {
+          point = await execJS(`
+            const element = document.querySelector(${JSON.stringify(selector)});
+            if (!element) return { ok: false, reason: 'missing' };
+            element.scrollIntoView({ block: 'center', inline: 'center' });
+            const rect = element.getBoundingClientRect();
+            const style = window.getComputedStyle(element);
+            const x = Math.floor(rect.left + rect.width / 2);
+            const y = Math.floor(rect.top + rect.height / 2);
+            const hit = document.elementFromPoint(x, y);
+            return {
+              ok: rect.width > 0 && rect.height > 0 &&
+                style.display !== 'none' && style.visibility !== 'hidden' &&
+                Boolean(hit && (hit === element || element.contains(hit))),
+              x,
+              y,
+              text: element.textContent?.trim().replace(/\s+/g, ' ').slice(0, 160) ?? '',
+            };
+          `);
+          return point?.ok === true;
+        },
+        {
+          timeout: RENDER_TIMEOUT_MS,
+          interval: 250,
+          timeoutMsg: `${label} was not pointer-clickable: ${JSON.stringify(point)}`,
+        }
+      );
+      await browser
+        .action("pointer")
+        .move({ x: point.x, y: point.y })
+        .down()
+        .up()
+        .perform();
+    };
+
+    const waitForSwitchState = async (platform, expected) => {
+      const selector = `[data-testid="session-provenance-hook-switch-${platform}"]`;
+      let state = null;
+      await browser.waitUntil(
+        async () => {
+          state = await execJS(`
+            const element = document.querySelector(${JSON.stringify(selector)});
+            return element ? {
+              present: true,
+              checked: element.getAttribute('aria-checked'),
+              disabled: Boolean(element.disabled),
+            } : { present: false };
+          `);
+          return (
+            state?.present === true &&
+            state.checked === String(expected) &&
+            state.disabled === false
+          );
+        },
+        {
+          timeout: RENDER_TIMEOUT_MS,
+          interval: 200,
+          timeoutMsg: `Hook switch ${platform} did not settle at ${expected}: ${JSON.stringify(state)}`,
+        }
+      );
+    };
+
+    const openHooks = async () => {
+      await clickVisible(
+        '[data-testid="chat-panel-start-page-tab-runtime"]',
+        "Launchpad Runtime tab"
+      );
+      await browser.waitUntil(
+        async () =>
+          execJS(`
+            const hooks = document.querySelector('[data-testid="data-source-view-hooks"]');
+            if (hooks) return true;
+            document.querySelector('[data-testid="chat-panel-start-page-tab-runtime"]')?.click();
+            return false;
+          `),
+        {
+          timeout: RENDER_TIMEOUT_MS,
+          interval: 300,
+          timeoutMsg: "Launchpad Runtime content did not activate",
+        }
+      );
+      await clickVisible('[data-testid="data-source-view-hooks"]', "Hooks tab");
+      await browser.waitUntil(
+        async () =>
+          execJS(`
+            const element = document.querySelector('[data-testid="session-provenance-hooks-panel"]');
+            if (!element) return false;
+            const rect = element.getBoundingClientRect();
+            const style = window.getComputedStyle(element);
+            return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+          `),
+        {
+          timeout: RENDER_TIMEOUT_MS,
+          timeoutMsg: "Session Provenance hooks panel did not render",
+        }
+      );
+    };
+
+    await openHooks();
+
+    let panelState = null;
+    await browser.waitUntil(
+      async () => {
+        panelState = await execJS(`
+          const panel = document.querySelector('[data-testid="session-provenance-hooks-panel"]');
+          const switches = ['claude_code', 'codex', 'cursor'].map((platform) => {
+            const element = document.querySelector('[data-testid="session-provenance-hook-switch-' + platform + '"]');
+            return {
+              platform,
+              present: Boolean(element),
+              checked: element?.getAttribute('aria-checked') ?? null,
+              disabled: element ? Boolean(element.disabled) : null,
+            };
+          });
+          return {
+            text: panel?.textContent ?? '',
+            switches,
+          };
+        `);
+        return (
+          panelState.switches.every(
+            (item) => item.present && item.disabled === false
+          ) &&
+          panelState.text.includes("Claude Code") &&
+          panelState.text.includes("Codex") &&
+          panelState.text.includes("Cursor") &&
+          panelState.text.includes(".claude/settings.json") &&
+          panelState.text.includes(".codex/hooks.json") &&
+          panelState.text.includes(".cursor/hooks.json")
+        );
+      },
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        interval: 250,
+        timeoutMsg: `Centralized hook settings did not load: ${JSON.stringify(panelState)}`,
+      }
+    );
+
+    const originalCodexState =
+      panelState.switches.find((item) => item.platform === "codex")?.checked ===
+      "true";
+    const toggledCodexState = !originalCodexState;
+
+    try {
+      await clickVisible(
+        '[data-testid="session-provenance-hook-switch-codex"]',
+        "Codex hook switch"
+      );
+      await waitForSwitchState("codex", toggledCodexState);
+
+      // Unmount and remount the production panel. The reloaded state comes
+      // from the real Tauri status command, not the component's optimistic state.
+      await clickVisible(
+        '[data-testid="data-source-view-scanning"]',
+        "Scanning tab"
+      );
+      await openHooks();
+      await waitForSwitchState("codex", toggledCodexState);
+    } finally {
+      await openHooks();
+      const current = await execJS(`
+        return document.querySelector('[data-testid="session-provenance-hook-switch-codex"]')?.getAttribute('aria-checked') === 'true';
+      `);
+      if (current !== originalCodexState) {
+        await clickVisible(
+          '[data-testid="session-provenance-hook-switch-codex"]',
+          "Codex hook switch restore"
+        );
+      }
+      await waitForSwitchState("codex", originalCodexState);
+    }
+
+    // Codex is the one managed provider with its own trust gate. Installation
+    // alone must never be rendered as active.
+    await openHooks();
+    const codexEnabled = await execJS(`
+      return document.querySelector('[data-testid="session-provenance-hook-switch-codex"]')?.getAttribute('aria-checked') === 'true';
+    `);
+    if (!codexEnabled) {
+      await clickVisible(
+        '[data-testid="session-provenance-hook-switch-codex"]',
+        "Codex hook switch for approval flow"
+      );
+      await waitForSwitchState("codex", true);
+    }
+
+    let approvalState = null;
+    try {
+      await browser.waitUntil(
+        async () => {
+          try {
+            approvalState = await execJS(`
+              return [
+                document.querySelector('[data-testid="session-provenance-hook-status-codex"]')?.getAttribute('data-activation-state') || '',
+                document.querySelector('[data-testid="session-provenance-codex-approval"]')?.textContent || '',
+                Boolean(document.querySelector('[data-testid="session-provenance-review-codex-hooks"] button'))
+              ];
+            `);
+          } catch (error) {
+            approvalState = ["webdriver-error", String(error), false];
+            return false;
+          }
+          const activationState = String(approvalState?.[0] ?? "").trim();
+          const cardText = String(approvalState?.[1] ?? "")
+            .trim()
+            .replace(/\s+/g, " ");
+          return (
+            activationState === "awaiting_approval" &&
+            cardText.includes("ORG2 hooks") &&
+            cardText.includes("Trust all and continue") &&
+            approvalState?.[2] === true
+          );
+        },
+        {
+          timeout: RENDER_TIMEOUT_MS,
+          interval: 250,
+          timeoutMsg: "Codex approval state did not render",
+        }
+      );
+    } catch (error) {
+      throw new Error(
+        `${error.message}: latest=${JSON.stringify(approvalState)}`
+      );
+    }
+
+    const ptysBeforeApproval = await invokeTauriCommand("list_pty_sessions");
+    const ptyIdsBeforeApproval = new Set(
+      ptysBeforeApproval.map((session) => session.session_id)
+    );
+    let approvalPty = null;
+    let approvalOutput = "";
+    let latestPtySessions = [];
+    let skippedCodexUpdatePrompt = false;
+    try {
+      await clickVisible(
+        '[data-testid="session-provenance-review-codex-hooks"] button',
+        "Review Codex hooks button"
+      );
+
+      // The production button must open a dedicated visible terminal and run
+      // Codex far enough to render its native trust prompt. We intentionally do
+      // not choose a trust option in automation.
+      try {
+        await browser.waitUntil(
+          async () => {
+            latestPtySessions = await invokeTauriCommand("list_pty_sessions");
+            approvalPty = latestPtySessions.find(
+              (session) =>
+                !ptyIdsBeforeApproval.has(session.session_id) &&
+                session.name === "Codex hook approval"
+            );
+            if (!approvalPty) return false;
+            const snapshot = await invokeTauriCommand(
+              "get_pty_output_snapshot",
+              { sessionId: approvalPty.session_id }
+            );
+            approvalOutput = String(snapshot?.output ?? "");
+            if (
+              !skippedCodexUpdatePrompt &&
+              approvalOutput.includes("Update now") &&
+              approvalOutput.includes("Skip")
+            ) {
+              // A Codex release prompt can precede hook review. Skip only this
+              // update choice; the user's hook trust decision remains untouched.
+              await invokeTauriCommand("write_pty", {
+                sessionId: approvalPty.session_id,
+                data: "2",
+              });
+              skippedCodexUpdatePrompt = true;
+              return false;
+            }
+            return (
+              approvalOutput.includes("3 hooks are new or changed") &&
+              approvalOutput.includes("Trust") &&
+              approvalOutput.includes("continue")
+            );
+          },
+          {
+            timeout: RENDER_TIMEOUT_MS,
+            interval: 300,
+            timeoutMsg: "Codex native hook trust prompt did not appear",
+          }
+        );
+      } catch (error) {
+        const terminalUiState = await execJS(`
+          return {
+            href: window.location.href,
+            hasTerminal: Boolean(document.querySelector('.terminal-core')),
+            body: (document.body.innerText || '').slice(0, 2000)
+          };
+        `);
+        throw new Error(
+          `${error.message}: ptys=${JSON.stringify(latestPtySessions)} selected=${JSON.stringify(approvalPty)} output=${JSON.stringify(approvalOutput.slice(-2000))} ui=${JSON.stringify(terminalUiState)}`
+        );
+      }
+
+      if (approvalPty.name !== "Codex hook approval") {
+        throw new Error(
+          `Dedicated approval terminal was not named correctly: ${JSON.stringify(approvalPty)}`
+        );
+      }
+
+      // Deterministically emulate the first post-approval callback by invoking
+      // the real installed hook binary and adapter path. This establishes the
+      // activation receipt without automating the user's security decision.
+      execFileSync(APP_BINARY, ["--session-provenance-hook", "codex"], {
+        input: JSON.stringify({
+          session_id: `e2e-codex-trust-${RUN_ID}`,
+          turn_id: `turn-${RUN_ID}`,
+          cwd: E2E_REPO_PATH,
+          hook_event_name: "PostToolUse",
+          tool_name: "apply_patch",
+          tool_use_id: `tool-${RUN_ID}`,
+          tool_input: {
+            command:
+              "*** Begin Patch\n*** Add File: e2e-trust-proof.txt\n+proof\n*** End Patch",
+          },
+        }),
+        env: process.env,
+        stdio: ["pipe", "ignore", "pipe"],
+      });
+    } finally {
+      if (approvalPty?.session_id) {
+        await invokeTauriCommand("close_pty", {
+          sessionId: approvalPty.session_id,
+        });
+      }
+    }
+
+    let activeState = null;
+    await browser.waitUntil(
+      async () => {
+        activeState = await execJS(`
+          return document.querySelector('[data-testid="session-provenance-hook-status-codex"]')?.getAttribute('data-activation-state') ?? '';
+        `);
+        return activeState === "active";
+      },
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        interval: 250,
+        timeoutMsg: `Codex did not render active after a real hook callback: ${JSON.stringify(activeState)}`,
+      }
+    );
+
+    if (!originalCodexState) {
+      await clickVisible(
+        '[data-testid="session-provenance-hook-switch-codex"]',
+        "Codex hook switch final restore"
+      );
+      await waitForSwitchState("codex", false);
     }
   });
 

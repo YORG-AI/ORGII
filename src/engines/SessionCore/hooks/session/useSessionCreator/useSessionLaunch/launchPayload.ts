@@ -24,6 +24,7 @@ import type {
   SessionLaunchOrgContext,
   SessionSource,
 } from "@src/store/session/creatorStateAtom";
+import type { WorktreeLaunchSource } from "@src/store/session/worktreeLaunchSourceAtom";
 
 import type { ResolvedKeys } from "./resolveKeys";
 
@@ -48,6 +49,7 @@ export interface BuildSessionLaunchParamsOptions {
   sessionName: string;
   targetKind: SessionTargetKind;
   workspaceFolders: WorkspaceFolderRef[];
+  worktreeLaunchSource: WorktreeLaunchSource | null;
 }
 
 interface BuildLaunchPayloadResult {
@@ -148,18 +150,54 @@ function getRustAgentIdentityFields(options: {
   return {};
 }
 
+/**
+ * Resolve the worktree-related launch fields.
+ *
+ * Three shapes come out of here, matching the backend's three worktree modes
+ * (`launch_rust_agent` in `state/commands/session/launch.rs`):
+ *
+ *  - Not a worktree launch → `{}` (plain local workspace).
+ *  - Reusing an existing worktree path → `{ worktreePath }`. The base ref is
+ *    already baked into that checkout, so the picked source metadata is moot.
+ *  - Fresh isolated worktree → `{ isolate: true }`, plus `branch` when the
+ *    picked source carries a base ref. The backend's
+ *    `create_session_worktree` runs `git worktree add -b agent/<session>
+ *    <path> <base>`, so `branch` is literally the git base ref the isolated
+ *    worktree is created from. Forwarding the picked source's base ref here
+ *    makes the isolated worktree track the chosen PR head / branch / smart
+ *    base explicitly, independent of whatever the branch selector last held.
+ *
+ * `resolvedBaseRef` wins over `baseBranch` when present: it is the concrete
+ * commit-ish (PR head SHA) that `worktree_resolve_pr_base` fetched, which is
+ * what lets fork / cross-repo PRs — whose head branch is not a local ref —
+ * actually drive worktree creation. `baseBranch` remains the fallback for
+ * branch / smart / same-repo sources that need no fetch.
+ *
+ * `sourceRef` / `kind` / PR number stay synthetic identifiers with no backend
+ * field, so they cannot influence worktree creation and are not forwarded.
+ */
 function getWorktreeFields(options: {
   runningLocation: RunningLocation;
   selectedWorktreePath: string | null;
+  worktreeLaunchSource: WorktreeLaunchSource | null;
 }): Partial<SessionLaunchParams> {
-  const { runningLocation, selectedWorktreePath } = options;
+  const { runningLocation, selectedWorktreePath, worktreeLaunchSource } =
+    options;
   if (runningLocation !== "worktree") {
     return {};
   }
 
-  return selectedWorktreePath
-    ? { worktreePath: selectedWorktreePath }
-    : { isolate: true };
+  if (selectedWorktreePath) {
+    return { worktreePath: selectedWorktreePath };
+  }
+
+  const base =
+    worktreeLaunchSource?.resolvedBaseRef?.trim() ||
+    worktreeLaunchSource?.baseBranch?.trim();
+  return {
+    isolate: true,
+    ...(base ? { branch: base } : {}),
+  };
 }
 
 export function buildSessionLaunchPayload(
@@ -182,6 +220,7 @@ export function buildSessionLaunchPayload(
     sessionName,
     targetKind,
     workspaceFolders,
+    worktreeLaunchSource,
   } = options;
 
   const sessionRepoPath = effectiveSource?.repoPath ?? "";
@@ -231,7 +270,11 @@ export function buildSessionLaunchPayload(
     ...(isRustAgent && resolvedKeys.nativeHarnessType
       ? { nativeHarnessType: resolvedKeys.nativeHarnessType }
       : {}),
-    ...getWorktreeFields({ runningLocation, selectedWorktreePath }),
+    ...getWorktreeFields({
+      runningLocation,
+      selectedWorktreePath,
+      worktreeLaunchSource,
+    }),
     ...(additionalDirectories.length > 0 ? { additionalDirectories } : {}),
   };
 

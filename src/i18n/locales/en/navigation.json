@@ -1,6 +1,6 @@
 {
   "labels": {
-    "devRecord": "Dev Record",
+    "openSourceRepo": "Open Source Repo",
     "workItems": "Work Items",
     "codeSearch": "Code Search",
     "dbManager": "DB Manager",
@@ -46,17 +46,9 @@
     "projects": "Projects",
     "projectManager": "Project Manager",
     "diff": "Diff",
-    "opsControl": "Ops Control",
     "terminals": "Terminals"
   },
   "workstation": {
-    "dockFilter": {
-      "all": "All Tabs",
-      "code": "Code",
-      "browser": "Browser",
-      "data": "Database",
-      "project": "Projects"
-    },
     "agentComputer": {
       "label": "{{agent}}'s Workstation",
       "agents": {
@@ -71,10 +63,18 @@
     "plusMenu": {
       "title": "New tab",
       "searchFile": "Search file",
+      "searchSessions": "Kanban",
       "newBrowserTab": "New browser tab",
       "newPrivateBrowserTab": "New private browser tab",
       "workItems": "Work items",
       "projects": "Projects"
+    },
+    "startPage": {
+      "title": "Start",
+      "subtitle": "Open a tab to get started.",
+      "explorer": "Explorer",
+      "sourceControl": "Source Control",
+      "terminal": "Terminal"
     }
   },
   "trajectoryPanel": {
@@ -111,8 +111,7 @@
     "signingIn": "Signing in...",
     "launchpad": "Launchpad",
     "ideaArea": "Idea Area",
-    "changelog": "Changelog",
-    "opsControl": "Ops Control"
+    "changelog": "Changelog"
   },
   "appGrid": {
     "customizeGrid": "Customize Grid",
@@ -216,120 +215,58 @@
     }
   },
   "collaboration": {
+    "switchOrg": "Switch ORG",
     "addOrg": "Add ORG",
-    "unknownOrg": "Unknown ORG",
-    "emptyColleagues": "No colleague activity yet",
-    "emptyColleaguesDesc": "Add an ORG to start sharing session metadata with teammates.",
     "createOrg": "Create",
     "joinOrg": "Join",
     "orgSource": "Org source",
     "localOrg": "Local",
-    "supabaseSyncOrg": "Supabase Sync",
-    "supabaseUrl": "Supabase Project URL",
-    "supabaseAnonKey": "Supabase anon key",
     "orgName": "ORG name",
     "orgNamePlaceholder": "Team Alpha",
     "inviteCode": "Invite link or code",
     "inviteCodePlaceholder": "Paste an orgii:// invite link or invite code",
-    "joinAs": "Join as",
-    "joinAsPlaceholder": "Your name",
-    "identityKind": "My identity",
-    "identityHuman": "Human",
-    "identityAgent": "Agent",
-    "inviteReady": "Invite ready",
     "copyInvite": "Copy invite",
     "copiedInvite": "Copied",
     "setupMode": "Setup mode",
-    "supabaseSetupTitle": "How to set up Supabase Sync",
-    "verifySupabaseSetup": "Verify setup",
-    "copySetupSql": "Copy setup SQL",
-    "copiedSetupSql": "SQL copied",
-    "openSupabaseSqlEditor": "Open Supabase SQL Editor",
-    "supabaseSetupVerified": "Supabase setup verified",
-    "supabaseSetupMissing": "Supabase setup is missing. Copy the setup SQL, run it in Supabase SQL Editor, then verify again.",
-    "orgDemoTitle": "ORG",
-    "orgNotFound": "ORG not found",
-    "tabs": {
-      "workItems": "Work Items",
-      "projects": "Project",
-      "sessions": "Sessions",
-      "members": "Members",
-      "chat": "Group chat",
-      "settings": "Settings"
+    "manageOrg": "Manage ORG",
+    "session": {
+      "forkFailed": "Failed to fork the session",
+      "forkedFromLabel": "⑂ from {{name}}",
+      "forkNoLocalCheckout": "No local checkout of this repo was found — the fork opened without a workspace.",
+      "forkModelFallback": "The owner's model {{model}} isn't available with your keys — this fork will use {{fallback}} instead.",
+      "forkModelUnavailable": "The owner's model {{model}} isn't available with your keys — choose a model before running this fork.",
+      "forkPickCheckoutTitle": "Select your local checkout of {{repo}}",
+      "forkPickCheckoutHint": "The fork of \"{{session}}\" continues work on {{repo}}. Pick the workspace repo it should run in — only checkouts of that repo are selectable.",
+      "forkPickCheckoutClone": "Don't see it? Clone the repo and add it as a workspace first, then fork again.",
+      "forkCheckoutMismatch": "The selected folder is not a checkout of {{repo}} — fork of \"{{session}}\" cancelled. Clone the repo first, then fork again.",
+      "forkSetupTitle": "Continue on this machine",
+      "forkSetupHint": "Create a writable continuation of \"{{session}}\" using your local checkout and credentials.",
+      "forkSetupWorkspace": "Workspace",
+      "forkSetupNoWorkspace": "Continue without a workspace",
+      "forkSetupAccount": "Account",
+      "forkSetupModel": "Model",
+      "forkSetupContinue": "Fork & continue"
     },
-    "stats": {
-      "members": "Members",
-      "sessionsToday": "Sessions today",
-      "totalSessions": "Total sessions",
-      "activeToday": "Active today"
+    "repoPicker": {
+      "loading": "Loading repos…",
+      "empty": "No repos found. Add a repo to your workspace first.",
+      "resolving": "Resolving git remote…",
+      "noRemote": "No git remote — push it to a remote to share"
     },
-    "status": {
-      "connected": "Connected",
-      "offline": "Offline",
-      "activeToday": "Active today",
-      "idle": "Idle"
-    },
-    "chat": {
-      "empty": "No group messages yet",
-      "placeholder": "Share an update or link...",
-      "send": "Send",
-      "humanOnly": "Only human identities can post in group chat.",
-      "hint": "Humans can talk here and share links with the ORG."
-    },
-    "workItems": {
-      "title": "Work Items",
-      "description": "Track ORG work items from the same local/cloud structure.",
-      "empty": "No work items in this ORG yet.",
-      "count": "{{count}} items",
-      "unassigned": "Unassigned"
-    },
-    "projects": {
-      "title": "Project",
-      "description": "Review projects associated with this ORG.",
-      "empty": "No projects in this ORG yet.",
-      "count": "{{count}} projects",
-      "noDescription": "No description"
-    },
-    "sessionStatusActive": "Active",
-    "localHuman": "Local human",
-    "backToOrg": "Back to ORG",
-    "invite": {
-      "title": "Invite link",
-      "description": "Create an invite link for teammates to join this ORG. The latest link is shown here for quick copying.",
-      "adminOnly": "Only ORG admins can create invite links.",
-      "create": "Create invite",
-      "createNew": "New invite",
-      "remainingUses": "{{count}} uses remaining",
-      "expires": "Expires {{date}}"
-    },
-    "orgDashboard": "Dashboard",
-    "access": {
-      "title": "Session access",
-      "description": "Choose what teammates can see from your local sessions in this ORG.",
-      "modes": {
-        "off": {
-          "title": "Off",
-          "description": "Do not share session cards or replay data."
-        },
-        "metadata_only": {
-          "title": "Session cards only",
-          "description": "Share titles, owners, branches, and workspaces only."
-        },
-        "full_replay": {
-          "title": "Full replay",
-          "description": "Allow teammates to request the full event snapshot."
-        }
-      },
-      "workspaces": "Allowed workspaces",
-      "workspacesHint": "Pick the workspace paths that can be shared. Nothing is shared until at least one workspace is selected.",
-      "noWorkspaces": "No local session workspaces found yet.",
-      "fullReplayWarning": "Full replay can include prompts, outputs, tool calls, and file paths. Only enable it for trusted ORGs.",
-      "metadataOnlyBadge": "Metadata only",
-      "metadataOnlyDenied": "This session is shared as metadata only. Full replay is not available.",
-      "requestPending": "Requesting session replay from the owner..."
-    },
-    "members": {
-      "remove": "Remove"
+    "forkImported": {
+      "headerButton": "Fork",
+      "headerTooltip": "Fork this imported session into your own writable session",
+      "confirmTitle": "Fork & continue?",
+      "confirmBody": "This is {{name}}'s session — your copy is a read-only import. Continuing forks it into your own session and sends your message there.",
+      "confirm": "Fork & continue",
+      "cancel": "Cancel",
+      "retentionError": "This session is outside your plan's replay window — upgrade to fork it",
+      "goneError": "This shared session is no longer available (deleted or aged out)",
+      "error": "Failed to fork the session",
+      "sendFailed": "Forked, but the message failed to send — it was restored to the composer",
+      "forkedChipTooltip": "Forked from {{name}}",
+      "sourceChipTooltip": "Shared by {{name}}",
+      "continuePlaceholder": "Message to fork and continue in ORGII…"
     }
   },
   "myRole": {
@@ -512,5 +449,306 @@
     "details": "Details",
     "frontend": "Frontend",
     "backend": "Backend"
+  },
+  "cloud": {
+    "title": "ORG2 Cloud",
+    "signIn": "Login",
+    "signOut": "Logout",
+    "signedInToast": "Signed in to ORG2 Cloud",
+    "recommendedBadge": "Recommended",
+    "recommendedDesc": "Managed session sharing, replay storage, team permissions, and secure share links. No Supabase setup required. ORG2 manages Auth, database migrations, RLS policies, billing, retention, quota, and backend upgrades for you",
+    "customEndpoint": {
+      "title": "Custom ORG2 Cloud backend",
+      "toggleDesc": "Use your own ORG2 Cloud deployment",
+      "webOriginLabel": "Web app origin",
+      "supabaseUrlLabel": "Supabase URL",
+      "anonKeyLabel": "Anon (publishable) key",
+      "httpsRequired": "Enter a valid https:// URL",
+      "anonKeyRequired": "Enter the anon key",
+      "apply": "Apply and sign out",
+      "appliedToast": "Backend endpoint updated — sign in again to continue",
+      "resetToast": "Official ORG2 Cloud endpoint restored"
+    },
+    "orgPanel": {
+      "planStatus": "{{plan}} · {{status}}",
+      "retention": "Replay retention: {{days}} days",
+      "retentionNote": "Shared sessions older than this are hidden until you upgrade",
+      "upgrade": "Upgrade",
+      "membersTitle": "Members",
+      "membersEmpty": "No members",
+      "loading": "Loading…",
+      "loadError": "Couldn't load cloud org details",
+      "repoScopesTitle": "Repo scopes",
+      "repoScopesHelp": "Sessions from repos in these scopes sync to this cloud org. Scopes are matched by git remote, so teammates on any machine share the same key",
+      "repoScopesEmpty": "No repo scopes yet",
+      "removeRepoScope": "Remove",
+      "saveRepoScopes": "Save repo scopes",
+      "repoScopesSaved": "Saved",
+      "scopeCapReached": "Repo scope limit reached ({{used}}/{{cap}}) — upgrade your plan to add more",
+      "scopeCoolingRow": "Slot frees in ~{{days}} days",
+      "scopeCooldownError": "That scope's slot is still cooling down — try again after {{date}}",
+      "scopeCooldownErrorNoDate": "That scope's slot is still cooling down — try again later",
+      "sessionsEmpty": "No shared sessions yet",
+      "sessionsLoadError": "Couldn't load shared sessions",
+      "fork": "Fork",
+      "retentionUpgrade": "This session is outside your plan's replay window — upgrade to view it",
+      "importError": "Couldn't import the session",
+      "manageBilling": "Manage billing",
+      "manageBillingNote": "Cancel or change your plan in the billing portal"
+    },
+    "sidebar": {
+      "teamSessions": "Team sessions",
+      "memberFilter": "Filter by member",
+      "sessionFilter": "Filter sessions",
+      "directlySharedWithMe": "Shared directly with me",
+      "everyone": "Everyone",
+      "forkedFrom": "forked from @{{name}}",
+      "notPublished": "The owner hasn't published this session yet",
+      "metadataOnly": "The owner shares this session's metadata only — replay isn't available",
+      "showHidden": "Show hidden sessions ({{count}})",
+      "viewerTooltip": "{{name}} is viewing this session",
+      "viewerOverflow": "and {{count}} more viewers",
+      "memberViewing": "viewing: {{title}}",
+      "viewerOverflow_one": "and 1 more viewer",
+      "viewerOverflow_other": "and {{count}} more viewers"
+    },
+    "sync": {
+      "quotaExceededToast": "ORG2 Cloud sync paused: this org's plan quota is exceeded",
+      "syncDisabledToast": "ORG2 Cloud sync paused: session sync is disabled for this org's plan",
+      "schemaMismatchToast": "ORG2 Cloud sync paused: backend schema version {{backend}}, app expects {{expected}}"
+    },
+    "moveToOrg": {
+      "menuItem": "Org tags…",
+      "title": "Org tags for this session",
+      "hint": "Add this session to a shared cloud org. It stays a normal local session — this makes it visible there. Only orgs whose repo scopes cover this session's repository can be selected.",
+      "noOrgs": "No cloud orgs yet — sign in to ORG2 Cloud to create or join one.",
+      "cloudBadge": "Cloud",
+      "added": "Added to {{org}}",
+      "removed": "Removed from {{org}}",
+      "error": "Could not update — please try again.",
+      "noRemote": "This session's repository has no git remote, so it can't match any org's repo scope.",
+      "noScopes": "No repo scopes",
+      "outOfScope": "Out of scope",
+      "scopeResolving": "Checking…"
+    },
+    "orgManagement": {
+      "invites": {
+        "title": "Invites",
+        "empty": "No invites yet",
+        "loadError": "Couldn't load invites",
+        "create": "Create invite",
+        "usageLimitLabel": "Max uses",
+        "expiryLabel": "Expires",
+        "roleLabel": "Role",
+        "expiryOption1d": "1 day",
+        "expiryOption7d": "7 days",
+        "expiryOption30d": "30 days",
+        "expiryOptionNever": "Never",
+        "roleAdmin": "Admin",
+        "roleMember": "Member",
+        "createdAt": "Created {{date}}",
+        "remainingUses": "Uses left: {{uses}}",
+        "expires": "Expires {{date}}",
+        "neverExpires": "Never expires",
+        "revoke": "Revoke",
+        "stateRevoked": "Revoked",
+        "stateExpired": "Expired",
+        "stateExhausted": "Used up",
+        "linkOneTimeNote": "Copy it now — the link is shown only once on this device.",
+        "copyLink": "Copy link",
+        "copied": "Copied"
+      },
+      "members": {
+        "roleChangeTitle": "Change role",
+        "roleChangeConfirm": "Change {{member}}'s role to {{role}}?",
+        "roleChangeAction": "Change",
+        "remove": "Remove",
+        "removeTitle": "Remove member",
+        "removeConfirm": "Remove {{member}} from this org?",
+        "youTag": "You",
+        "ownerTag": "Owner",
+        "floorOff": "No minimum",
+        "floorTooltip": "Minimum sharing level for this member. The stricter of this and the org-wide floor applies."
+      },
+      "leave": {
+        "action": "Leave org",
+        "confirmTitle": "Leave this org?",
+        "warning": "You lose access to this org's shared sessions until someone invites you again",
+        "confirm": "Leave",
+        "cancel": "Cancel",
+        "leftToast": "You left {{org}}"
+      },
+      "settings": {
+        "title": "Org settings",
+        "renameLabel": "Org name",
+        "renameSave": "Rename",
+        "renamed": "Renamed",
+        "transferTitle": "Transfer ownership",
+        "transferHint": "The new owner takes full control of this org; you become an admin",
+        "transferPlaceholder": "Choose a member…",
+        "transferAction": "Transfer",
+        "transferConfirm": "Transfer ownership of {{org}} to {{member}}? You will become an admin.",
+        "transferredToast": "Ownership transferred",
+        "deleteTitle": "Delete org",
+        "deleteHint": "Deletes {{org}} for every member and stops all session sharing in it. This cannot be undone from the app",
+        "deleteTypeToConfirm": "Type {{org}} to confirm",
+        "deleteAction": "Delete org",
+        "deletedToast": "Org deleted",
+        "ownerLeaveHint": "As the owner you can't leave this org — transfer ownership or delete it instead",
+        "dangerZone": "Danger Zone"
+      },
+      "join": {
+        "dialogTitle": "Join cloud org",
+        "prompt": "You opened an ORG2 Cloud invite. Join this org?",
+        "codeSuffix": "Invite code ending in {{suffix}}",
+        "confirm": "Join org",
+        "cancel": "Not now",
+        "signInFirst": "Sign in to ORG2 Cloud to accept this invite — it stays pending while you sign in.",
+        "openSettings": "Open sign-in settings",
+        "joinedToast": "Joined {{org}}",
+        "joinedFallbackToast": "Joined the cloud org"
+      },
+      "create": {
+        "sourceCloud": "ORG2 Cloud (managed)",
+        "signInFirst": "Sign in to ORG2 Cloud to create or join a managed org.",
+        "openSettings": "Open sign-in settings",
+        "createdToast": "Cloud org created"
+      },
+      "errors": {
+        "lastAdmin": "This is the org's last admin — promote another member first.",
+        "ownerMustTransfer": "The owner can't leave — transfer ownership or delete the org first.",
+        "ownerRequired": "Only the org owner can do this.",
+        "adminRequired": "Only org admins can do this.",
+        "quotaExceeded": "This org's plan limit has been reached.",
+        "forbidden": "You don't have permission to do that.",
+        "memberNotFound": "That member is no longer active in this org.",
+        "validation": "Invalid value — please check the input and try again.",
+        "inviteInvalid": "This invite code isn't valid.",
+        "inviteRevoked": "This invite has been revoked.",
+        "inviteExpired": "This invite has expired.",
+        "inviteExhausted": "This invite has no uses left."
+      }
+    },
+    "defaultAccess": {
+      "label": "Default sync level",
+      "help": "Applies to this device's sessions matched by repo scope, unless a session has its own override. Off keeps sessions local until you opt in"
+    },
+    "syncLevel": {
+      "menuItem": "Cloud sync level…",
+      "title": "Cloud sync level",
+      "hint": "Choose what this session shares to each cloud org — nothing, metadata only, or full replay — and who can see it.",
+      "orgDefaultOption": "Org default ({{mode}})",
+      "modeOff": "Off",
+      "modeMetadata": "Metadata only",
+      "modeFullReplay": "Full replay",
+      "visibilityOrg": "Everyone in org",
+      "visibilityRestricted": "Only me",
+      "taggedNote": "This session was moved into this org, so it always shares at least metadata while tagged.",
+      "floorNote": "Your org admin requires sharing at least {{mode}}."
+    },
+    "share": {
+      "menuItem": "Cloud share…",
+      "dialogTitle": "Cloud session sharing",
+      "noOrgs": "This session does not belong to any cloud org.",
+      "directedTitle": "Share with members",
+      "directedEmpty": "No other members to share with.",
+      "createDirected": "Share",
+      "linkTitle": "Share link",
+      "createLink": "Create share link",
+      "linkCopied": "Link copied — it is shown only this once.",
+      "linkShownOnce": "Copy this link now — it is shown only this once.",
+      "activeShares": "Active shares",
+      "noShares": "No active shares.",
+      "linkShareLabel": "Share link",
+      "revoke": "Revoke",
+      "sharesError": "Share operation failed",
+      "incomingTitle": "Import shared session",
+      "incomingResolving": "Resolving share link…",
+      "incomingOwner": "Owner",
+      "incomingImport": "Import",
+      "incomingDismiss": "Close",
+      "incomingError": "This share link is invalid, expired, or has been revoked.",
+      "incomingRetryHint": "Import didn't finish. The shared session may still be uploading — try again.",
+      "importEntry": "Import Session",
+      "importDialogTitle": "Import a shared session",
+      "importInputPlaceholder": "orgii://cloud/session?share=…",
+      "importPasteClipboard": "Paste from clipboard",
+      "importSubmit": "Import",
+      "importInvalidInput": "This doesn't look like a valid share link or token.",
+      "selectAll": "Everyone ({{count}})"
+    },
+    "agentRunner": {
+      "title": "Agent task runner",
+      "desc": "Defaults for comment tasks you run from session threads (“Run here”)",
+      "machineNotice": "Runs execute on this machine with this account's tokens",
+      "orgLabel": "Organization",
+      "accountLabel": "Account",
+      "accountPlaceholder": "Default account",
+      "modelLabel": "Model",
+      "modelPlaceholder": "Default model",
+      "modeLabel": "Mode",
+      "autoRunLabel": "Auto-run @agent tasks",
+      "autoRunDesc": "Automatically claim and run open @agent comment tasks on sessions you own. Off by default — teammates' @agent mentions won't spend your tokens until you turn this on."
+    },
+    "comments": {
+      "task": {
+        "assignFailed": "Comment posted, but assigning the agent failed — retry from the thread",
+        "assignUnavailableHere": "Comment posted — agent assignment isn't available in this view",
+        "turnBadge": "an agent is on this turn",
+        "addressingChip": "Addressing comment: “{{excerpt}}”",
+        "addressingChipGeneric": "Addressing a comment",
+        "addressingChipTooltip": "Forked to address a comment thread on the source session",
+        "openBadge_one": "{{count}} agent task awaiting pickup",
+        "openBadge": "{{count}} agent tasks awaiting pickup",
+        "activeBadge_one": "an agent is working on this session",
+        "activeBadge": "{{count}} agents are working on this session"
+      },
+      "toggleLabel": "Comments",
+      "notesButton": "Session notes",
+      "notesTitle": "Session notes",
+      "empty": "No comments yet",
+      "loadError": "Couldn't load comments",
+      "addPlaceholder": "Add a comment…",
+      "replyPlaceholder": "Reply…",
+      "send": "Comment",
+      "reply": "Reply",
+      "edit": "Edit",
+      "save": "Save",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "resolve": "Resolve",
+      "unresolve": "Reopen",
+      "resolved": "Resolved",
+      "statusActive": "Active",
+      "wontFix": "Won't fix",
+      "agentAddressing": "Agent is addressing…",
+      "resolvedToggle": "Resolved ({{count}})",
+      "deletedComment": "Comment deleted",
+      "editedMarker": "edited",
+      "earlierVersion": "From an earlier version of this session",
+      "replayRequired": "Turn comments require full replay access",
+      "addError": "Couldn't post — your draft was kept",
+      "actionError": "Action failed — please try again",
+      "unresolvedBadge_one": "{{count}} unresolved comment",
+      "unresolvedBadge": "{{count}} unresolved comments",
+      "addressButton": "Address comments",
+      "addressPill_one": "address {{count}} comment",
+      "addressPill_other": "address {{count}} comments",
+      "addressSelectAll": "Select all",
+      "addressSessionScope": "Session notes",
+      "addressRoundScope": "Round comments",
+      "addressConfirm_one": "Address {{count}} comment",
+      "addressConfirm_other": "Address {{count}} comments",
+      "agentAuthor": "Agent @{{name}}"
+    },
+    "billing": {
+      "openFailed": "Couldn't open billing. Please try again."
+    },
+    "sharingFloor": {
+      "label": "Minimum sharing level",
+      "help": "Set the least a member may share for sessions in this org's repos. Members can't set sessions below it. \"No minimum\" keeps the current behavior",
+      "optionNone": "No minimum",
+      "memberNote": "Your org admin requires sharing at least {{mode}}, so you can't set sessions below that"
+    }
   }
 }

@@ -8,7 +8,8 @@ import { useTranslation } from "react-i18next";
 
 import Select from "@src/components/Select";
 
-const PAGE_ICON_BUTTON =
+/** Shared prev/next icon-button style for table/list pagination footers. */
+export const PAGE_ICON_BUTTON =
   "flex h-6 w-6 items-center justify-center rounded text-text-3 transition-colors hover:bg-fill-3 hover:text-text-1 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-text-3";
 
 export interface SettingsTablePaginationProps {
@@ -44,7 +45,7 @@ export function SettingsTablePagination({
 
   return (
     <div className={`grid w-full grid-cols-3 items-center py-1 ${className}`}>
-      <span className="text-sm font-medium text-text-1">
+      <span className="text-xs font-medium text-text-1">
         {t("pagination.totalItems", { count: total })}
       </span>
 
@@ -56,7 +57,7 @@ export function SettingsTablePagination({
         >
           <ChevronLeft size={14} />
         </button>
-        <span className="text-sm text-text-1">
+        <span className="text-xs text-text-1">
           {t("pagination.pageOf", {
             current: currentPage,
             total: pageCount,

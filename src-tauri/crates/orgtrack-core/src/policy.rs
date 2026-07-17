@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::canonical::{SOURCE_ORGII_CLI_SESSIONS, SOURCE_ORGII_RUST_AGENTS};
 use crate::sources::imported_history::metadata::{
-    SOURCE_CLAUDE_CODE, SOURCE_CODEX_APP, SOURCE_OPENCODE, SOURCE_WINDSURF,
+    SOURCE_CLAUDE_CODE, SOURCE_CODEX_APP, SOURCE_OPENCODE, SOURCE_WARP, SOURCE_WINDSURF,
 };
 
 pub const SOURCE_CURSOR_IDE: &str = "cursor_ide";
@@ -49,6 +49,7 @@ pub fn source_tier_policy(source: &str) -> SourceTierPolicy {
         | SOURCE_CLAUDE_CODE
         | SOURCE_CODEX_APP
         | SOURCE_OPENCODE
+        | SOURCE_WARP
         | SOURCE_WINDSURF
         | SOURCE_IMPORTED_HISTORY => SourceTierPolicy::external_default(),
         _ => SourceTierPolicy {

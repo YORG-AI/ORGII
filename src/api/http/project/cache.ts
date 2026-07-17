@@ -26,6 +26,13 @@ interface CacheEntry<T> {
 
 const cache = new Map<string, CacheEntry<unknown>>();
 const inflight = new Map<string, Promise<unknown>>();
+/**
+ * Fences reads that were already in flight when any mutation invalidated the
+ * cache. Clearing `inflight` alone is insufficient: the detached Promise can
+ * still resolve later, repopulate the cache with its pre-mutation snapshot,
+ * and hand that stale snapshot to an open Work Item detail.
+ */
+let invalidationGeneration = 0;
 
 function evictIfNeeded(): void {
   if (cache.size < MAX_ENTRIES) return;
@@ -48,15 +55,25 @@ export async function cachedRead<T>(
     return pending as Promise<T>;
   }
 
+  const requestGeneration = invalidationGeneration;
   const promise = fetcher()
-    .then((result) => {
+    .then(async (result): Promise<T> => {
+      if (requestGeneration !== invalidationGeneration) {
+        // This request crossed a mutation boundary. Never expose/cache its
+        // stale snapshot; converge the original waiter onto the post-change
+        // read (or its already-running shared Promise) instead.
+        if (inflight.get(cacheKey) === promise) inflight.delete(cacheKey);
+        return cachedRead(cacheKey, fetcher);
+      }
       evictIfNeeded();
       cache.set(cacheKey, { data: result, timestamp: Date.now() });
-      inflight.delete(cacheKey);
+      if (inflight.get(cacheKey) === promise) inflight.delete(cacheKey);
       return result;
     })
     .catch((err: unknown) => {
-      inflight.delete(cacheKey);
+      // Do not let an obsolete request remove the newer request installed
+      // under the same key after invalidation.
+      if (inflight.get(cacheKey) === promise) inflight.delete(cacheKey);
       throw err;
     });
 
@@ -69,6 +86,7 @@ export async function cachedRead<T>(
  * whole cache (used by the project-data-changed event listener).
  */
 export function invalidateCache(slug?: string): void {
+  invalidationGeneration += 1;
   if (!slug) {
     cache.clear();
     inflight.clear();

@@ -58,23 +58,37 @@ async function writeSettingsPartial(partial) {
   );
 }
 
-async function setPresenceMode(mode) {
-  await browser.executeScript(
-    `
-      const serialized = JSON.stringify({ mode: arguments[0] });
-      localStorage.setItem("orgii:userPresence", serialized);
-      window.dispatchEvent(
-        new StorageEvent("storage", {
-          key: "orgii:userPresence",
-          newValue: serialized,
-          storageArea: localStorage,
-        })
-      );
-      return true;
-    `,
-    [mode]
+async function setPresenceMode(mode, expectedPolicy = {}) {
+  const roles = await browser.executeScript(
+    `return JSON.parse(localStorage.getItem("orgii:userCustomRoles") || "[]");`,
+    []
   );
-  await browser.pause(1_000);
+  let snapshot = null;
+  await browser.waitUntil(
+    async () => {
+      snapshot = unwrap(
+        await invokeE2E("seedUserPresence", {
+          roles,
+          presence: { mode },
+        }),
+        `set presence ${mode}`
+      ).wire;
+      return (
+        snapshot?.mode === mode &&
+        Object.entries(expectedPolicy).every(
+          ([key, value]) => snapshot?.[key] === value
+        )
+      );
+    },
+    {
+      timeout: 10_000,
+      interval: 250,
+      timeoutMsg: () =>
+        `presence wire did not resolve requested policy; mode=${mode} expected=${JSON.stringify(expectedPolicy)} actual=${JSON.stringify(snapshot)}`,
+    }
+  );
+  // Let useUserPresenceSync deliver the resolved wire to the Rust runtime.
+  await browser.pause(500);
 }
 
 describe("Presence runtime live (auto-skip / auto-approve / budget pause)", () => {
@@ -85,10 +99,22 @@ describe("Presence runtime live (auto-skip / auto-approve / budget pause)", () =
   before(async function () {
     await waitForApp();
     const accounts = await listAccounts();
-    const rustConfigs = rustAgentConfigs(
-      filteredConfigs(scenarioConfigs(accounts))
-    );
+    let rustConfigs = [];
+    try {
+      rustConfigs = rustAgentConfigs(
+        filteredConfigs(scenarioConfigs(accounts))
+      );
+    } catch (error) {
+      console.warn(
+        `[presence-runtime-provider-blocker] ${error instanceof Error ? error.message : String(error)}`
+      );
+      this.skip();
+      return;
+    }
     if (rustConfigs.length === 0) {
+      console.warn(
+        "[presence-runtime-provider-blocker] no configured account supports a Rust-agent runtime scenario"
+      );
       this.skip();
       return;
     }
@@ -99,7 +125,8 @@ describe("Presence runtime live (auto-skip / auto-approve / budget pause)", () =
     if (!repoPath) throw new Error("E2E_REPO_PATH missing");
 
     const settings = await readSettings();
-    originals.question = settings["agent.sde.questionAutoSkipTimeoutByPresence"];
+    originals.question =
+      settings["agent.sde.questionAutoSkipTimeoutByPresence"];
     originals.plan = settings["agent.sde.planAutoApproveTimeoutByPresence"];
     originals.goal = settings["agent.sde.goalMaxTurnsByPresence"];
   });
@@ -126,7 +153,9 @@ describe("Presence runtime live (auto-skip / auto-approve / budget pause)", () =
       },
     });
     await configureScenario(config, { agentExecMode: "build" });
-    await setPresenceMode("online");
+    await setPresenceMode("online", {
+      questionAutoResolveSecs: QUESTION_SKIP_SECS,
+    });
 
     const fileA = `presence-q-alpha-${RUN_ID}.txt`;
     const fileB = `presence-q-beta-${RUN_ID}.txt`;
@@ -178,7 +207,9 @@ describe("Presence runtime live (auto-skip / auto-approve / budget pause)", () =
       },
     });
     await configureScenario(config, { agentExecMode: "plan" });
-    await setPresenceMode("online");
+    await setPresenceMode("online", {
+      planAutoApproveSecs: PLAN_APPROVE_SECS,
+    });
 
     const marker = `presence-plan-done-${RUN_ID}.txt`;
     const prompt = [
@@ -190,32 +221,36 @@ describe("Presence runtime live (auto-skip / auto-approve / budget pause)", () =
     await typeAndClickSend(CHAT_INPUT, prompt);
     await waitForChatLaunched(prompt);
 
-    // 1. A pending plan must render (Build card visible).
-    let bodySnapshot = "";
+    // 1. A pending, buildable plan must render. This deliberately uses the
+    //    plan surface contract instead of localized button/body copy.
+    let planSnapshot = null;
     await browser.waitUntil(
       async () => {
-        bodySnapshot = await execJS(js.bodyText);
-        return /Build|Skip/.test(bodySnapshot) && bodySnapshot.includes("plan");
+        planSnapshot = await execJS(js.planUi);
+        return (
+          (planSnapshot.visibleReadyCardCount > 0 &&
+            planSnapshot.visibleEnabledBuildButtonCount > 0) ||
+          (planSnapshot.planDocPanelVisible &&
+            planSnapshot.planDocBuildVisible &&
+            planSnapshot.planDocBuildEnabled)
+        );
       },
       {
         timeout: LIVE_TIMEOUT_MS,
         interval: 2_000,
         timeoutMsg: () =>
-          `plan approval card never rendered; tail=${JSON.stringify(bodySnapshot.slice(-1200))}`,
+          `buildable plan approval surface never rendered; ui=${JSON.stringify(planSnapshot)}`,
       }
     );
 
     // 2. ZERO clicks: the auto-approve watcher must fire and the build
     //    turn must create the marker file.
-    await browser.waitUntil(
-      async () => existsSync(join(repoPath, marker)),
-      {
-        timeout: LIVE_TIMEOUT_MS,
-        interval: 3_000,
-        timeoutMsg: async () =>
-          `auto-approve never produced the artifact; tail=${JSON.stringify((await execJS(js.bodyText)).slice(-1500))}`,
-      }
-    );
+    await browser.waitUntil(async () => existsSync(join(repoPath, marker)), {
+      timeout: LIVE_TIMEOUT_MS,
+      interval: 3_000,
+      timeoutMsg: async () =>
+        `auto-approve never produced the artifact; tail=${JSON.stringify((await execJS(js.bodyText)).slice(-1500))}`,
+    });
   });
 
   it("pauses the goal loop when the turn budget is exhausted", async () => {
@@ -226,7 +261,9 @@ describe("Presence runtime live (auto-skip / auto-approve / budget pause)", () =
       },
     });
     await configureScenario(config, { agentExecMode: "build" });
-    await setPresenceMode("invisible");
+    await setPresenceMode("invisible", {
+      goalMaxTurns: PAUSE_GOAL_BUDGET,
+    });
 
     const stem = `presence-pause-${RUN_ID}`;
     const files = [1, 2, 3, 4].map((n) => `${stem}-${n}.txt`);

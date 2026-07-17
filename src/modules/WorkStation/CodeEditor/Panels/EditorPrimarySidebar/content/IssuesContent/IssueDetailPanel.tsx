@@ -3,7 +3,6 @@ import {
   ChevronLeft,
   CircleDot,
   ExternalLink,
-  Loader,
 } from "lucide-react";
 import React, { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -22,6 +21,7 @@ import {
   formatTimeAgo,
   getLabelColorStyle,
 } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/hooks/workstationIssueHelpers";
+import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import {
   ConnectedTimelineItem,
@@ -164,7 +164,7 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
     }, [commentBody, submittingComment, onAddComment]);
 
     return (
-      <div className="flex h-full min-h-0 select-text flex-col overflow-hidden">
+      <div className="allow-select-deep flex h-full min-h-0 select-text flex-col overflow-hidden">
         {showHeader && (
           <div className={HEADER_CLASSES.pageHeader}>
             <IssueDetailHeaderContent issue={issue} />
@@ -174,7 +174,7 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
 
         {showBackTitleHeader ? (
           <div className={`shrink-0 ${horizontalPaddingClass}`}>
-            <div className="mx-auto flex w-full max-w-[920px] items-center gap-2 border-b border-border-1 py-2">
+            <div className="mx-auto flex w-full max-w-[932px] items-center gap-2 border-b border-border-1 py-2">
               <Button
                 htmlType="button"
                 variant="tertiary"
@@ -192,7 +192,7 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
 
         <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
           <div
-            className={`mx-auto flex w-full max-w-[920px] flex-col ${horizontalPaddingClass} py-4`}
+            className={`mx-auto flex w-full max-w-[932px] flex-col ${horizontalPaddingClass} py-4`}
           >
             <div className="mb-4 flex min-w-0 flex-col gap-2 border-b border-border-1 pb-4">
               <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[12px] text-text-3">
@@ -260,12 +260,11 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
 
               {commentsLoading ? (
                 <ConnectedTimelineItem isLast>
-                  <div className="rounded-xl border border-dashed border-border-1 px-4 py-3 text-[12px] text-text-3">
-                    <span className="flex items-center gap-2">
-                      <Loader size={14} className="animate-spin" />
-                      <span>Loading comments…</span>
-                    </span>
-                  </div>
+                  <Placeholder
+                    variant="loading"
+                    placement="sidebar"
+                    title={t("git.issues.loadingComments", "Loading comments…")}
+                  />
                 </ConnectedTimelineItem>
               ) : (
                 comments.map((comment, index) => (
@@ -299,7 +298,7 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
         <div
           className={`bg-surface-1 flex-shrink-0 border-t border-border-1 ${horizontalPaddingClass} py-3`}
         >
-          <div className="mx-auto flex w-full max-w-[920px] flex-col gap-2">
+          <div className="mx-auto flex w-full max-w-[932px] flex-col gap-2">
             <Textarea
               value={commentBody}
               onChange={setCommentBody}

@@ -15,6 +15,25 @@ export interface WorkstationPrEligibilityInput {
   uncommittedCount: number;
 }
 
+export interface FilterablePullRequest {
+  number: number;
+  title: string;
+}
+
+export function filterPullRequestsByQuery<T extends FilterablePullRequest>(
+  pullRequests: T[],
+  query: string
+): T[] {
+  if (!query.trim()) return pullRequests;
+  const q = query.trim().toLowerCase();
+  return pullRequests.filter(
+    (pullRequest) =>
+      pullRequest.title.toLowerCase().includes(q) ||
+      String(pullRequest.number).includes(q) ||
+      `#${pullRequest.number}`.includes(q)
+  );
+}
+
 export function buildWorkstationPrStorageKey(
   repoPath: string,
   branch: string

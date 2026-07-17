@@ -11,7 +11,6 @@ export interface ApiSetupProceedOptions {
   data: WizardData;
   isCursor: boolean;
   isCodex: boolean;
-  isGemini: boolean;
   isKiro: boolean;
   isClaudeCode: boolean;
   keyValidated: boolean;
@@ -36,7 +35,6 @@ export function getApiSetupProceedState({
   data,
   isCursor,
   isCodex,
-  isGemini,
   isKiro,
   isClaudeCode,
   keyValidated,
@@ -70,7 +68,7 @@ export function getApiSetupProceedState({
       (data.available_models?.length ?? 0) > 0);
   const canProceed = isClaudeCode
     ? hasClaudeCodeOAuthToken
-    : isCodex || isGemini
+    : isCodex
       ? (data.auth_method === "oauth" && data.validated) ||
         (keyValidated && hasApiKeyInput) ||
         (data.validated && hasApiKeyInput)

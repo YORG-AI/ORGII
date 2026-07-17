@@ -59,7 +59,7 @@ describe("getStatusColor", () => {
       ["U", "text-success-6"],
       ["A", "text-success-6"],
       ["D", "text-danger-6"],
-      ["R", "text-success-6"],
+      ["R", "text-primary-6"],
       ["C", "text-danger-6"],
       ["I", "text-text-3"],
       ["?", "text-text-3"],
@@ -74,7 +74,7 @@ describe("getStatusColor", () => {
       ["A", "text-success-6"],
       ["?", "text-text-3"],
       ["D", "text-danger-6"],
-      ["R", "text-success-6"],
+      ["R", "text-primary-6"],
       ["C", "text-danger-6"],
       ["!", "text-text-3"],
     ])("%s resolves to expected Tailwind class", (code, expected) => {
@@ -91,7 +91,7 @@ describe("getStatusColor", () => {
       ["modified", "text-warning-6"],
       ["added", "text-success-6"],
       ["deleted", "text-danger-6"],
-      ["renamed", "text-success-6"],
+      ["renamed", "text-primary-6"],
       ["conflict", "text-danger-6"],
       ["ignored", "text-text-3"],
     ])("%s → %s", (status, expected) => {
@@ -115,7 +115,7 @@ describe("getStatusBgColor", () => {
       ["U", "bg-success-5"],
       ["A", "bg-success-5"],
       ["D", "bg-danger-5"],
-      ["R", "bg-success-5"],
+      ["R", "bg-primary-5"],
       ["C", "bg-danger-5"],
       ["I", "bg-text-3"],
       ["?", "bg-text-3"],
@@ -130,7 +130,7 @@ describe("getStatusBgColor", () => {
       ["A", "bg-success-5"],
       ["?", "bg-text-3"],
       ["D", "bg-danger-5"],
-      ["R", "bg-success-5"],
+      ["R", "bg-primary-5"],
       ["C", "bg-danger-5"],
       ["!", "bg-text-3"],
     ])("%s resolves to expected Tailwind class", (code, expected) => {
@@ -147,7 +147,7 @@ describe("getStatusBgColor", () => {
       ["modified", "bg-warning-5"],
       ["added", "bg-success-5"],
       ["deleted", "bg-danger-5"],
-      ["renamed", "bg-success-5"],
+      ["renamed", "bg-primary-5"],
       ["conflict", "bg-danger-5"],
       ["ignored", "bg-text-3"],
     ])("%s → %s", (status, expected) => {

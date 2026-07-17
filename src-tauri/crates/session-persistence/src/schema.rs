@@ -12,7 +12,7 @@ use rusqlite::{Connection, Result as SqliteResult};
 ///
 /// Called once per process by `database::db::init_all_schemas()`.
 /// Creates tables for:
-/// - Session events and FTS index
+/// - Session events
 /// - Session metadata
 /// - OS Agent sessions and messages
 /// - Token usage tracking
@@ -85,6 +85,9 @@ pub fn init_session_tables(conn: &Connection) -> SqliteResult<()> {
             status TEXT NOT NULL,
             interrupted INTEGER NOT NULL DEFAULT 0,
             updated_at TEXT NOT NULL,
+            modified_files_json TEXT NOT NULL DEFAULT '[]',
+            resource_interactions_json TEXT NOT NULL DEFAULT '[]',
+            git_artifacts_json TEXT NOT NULL DEFAULT '[]',
             PRIMARY KEY (session_id, turn_id)
         )",
         [],
@@ -104,6 +107,21 @@ pub fn init_session_tables(conn: &Connection) -> SqliteResult<()> {
     // `{ path, fileName, status, additions, deletions }`.
     conn.execute(
         "ALTER TABLE session_turns ADD COLUMN modified_files_json TEXT NOT NULL DEFAULT '[]'",
+        [],
+    )
+    .ok();
+    // Provider-neutral per-round resource observations. Only normalized path,
+    // action, outcome, timestamps, and count are stored; raw tool payloads are
+    // deliberately excluded.
+    conn.execute(
+        "ALTER TABLE session_turns ADD COLUMN resource_interactions_json TEXT NOT NULL DEFAULT '[]'",
+        [],
+    )
+    .ok();
+    // Per-round commits and pull requests, parsed from successful git/gh
+    // shell results by the same parser as the live event pipeline.
+    conn.execute(
+        "ALTER TABLE session_turns ADD COLUMN git_artifacts_json TEXT NOT NULL DEFAULT '[]'",
         [],
     )
     .ok();
@@ -156,39 +174,7 @@ pub fn init_session_tables(conn: &Connection) -> SqliteResult<()> {
         [],
     )?;
 
-    // Create FTS5 virtual table for full-text search
-    conn.execute(
-        "CREATE VIRTUAL TABLE IF NOT EXISTS events_fts USING fts5(
-            id,
-            content,
-            function_name,
-            args_json,
-            content='events',
-            content_rowid='rowid',
-            tokenize='porter unicode61'
-        )",
-        [],
-    )?;
-
-    // Create triggers to keep FTS index in sync
-    conn.execute_batch(
-        "CREATE TRIGGER IF NOT EXISTS events_ai AFTER INSERT ON events BEGIN
-            INSERT INTO events_fts(rowid, id, content, function_name, args_json)
-            VALUES (NEW.rowid, NEW.id, NEW.content, NEW.function_name, NEW.args_json);
-        END;
-
-        CREATE TRIGGER IF NOT EXISTS events_ad AFTER DELETE ON events BEGIN
-            INSERT INTO events_fts(events_fts, rowid, id, content, function_name, args_json)
-            VALUES ('delete', OLD.rowid, OLD.id, OLD.content, OLD.function_name, OLD.args_json);
-        END;
-
-        CREATE TRIGGER IF NOT EXISTS events_au AFTER UPDATE ON events BEGIN
-            INSERT INTO events_fts(events_fts, rowid, id, content, function_name, args_json)
-            VALUES ('delete', OLD.rowid, OLD.id, OLD.content, OLD.function_name, OLD.args_json);
-            INSERT INTO events_fts(rowid, id, content, function_name, args_json)
-            VALUES (NEW.rowid, NEW.id, NEW.content, NEW.function_name, NEW.args_json);
-        END;",
-    )?;
+    drop_events_fts(conn);
 
     // Create sessions metadata table
     conn.execute(
@@ -411,6 +397,67 @@ pub fn init_session_tables(conn: &Connection) -> SqliteResult<()> {
     Ok(())
 }
 
+/// Drop the events FTS5 index and its sync triggers.
+///
+/// The index cost far more than it was worth: `save_events` churn (frontend
+/// re-submissions cycling delete + insert through the triggers) with no
+/// compaction left the shadow tables ~70x their live size (594 MB indexing
+/// ~9 MB of text, 98% orphaned entries), and the only UI consumer of FTS
+/// search is not mounted. Event search now runs LIKE scans over `events`
+/// directly (`crud::search_events` / `crud::search_all_sessions`).
+///
+/// Triggers must go in the same batch: an insert into `events` with a
+/// surviving trigger referencing the dropped vtable would fail. `DROP TABLE`
+/// on an FTS5 vtable removes all of its shadow tables. Marker-gated so the
+/// batch runs once (a failed attempt retries next startup); best-effort —
+/// schema init must never fail over cleanup.
+fn drop_events_fts(conn: &Connection) {
+    const MARKER: &str = "events_fts_dropped_2026_07";
+
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)",
+    )
+    .ok();
+    let already_dropped = conn
+        .prepare("SELECT COUNT(*) FROM _migrations WHERE name = ?1")
+        .and_then(|mut stmt| stmt.query_row([MARKER], |row| row.get::<_, i64>(0)))
+        .unwrap_or(0)
+        > 0;
+    if already_dropped {
+        return;
+    }
+
+    let started = std::time::Instant::now();
+    match conn.execute_batch(
+        "DROP TRIGGER IF EXISTS events_ai;
+         DROP TRIGGER IF EXISTS events_ad;
+         DROP TRIGGER IF EXISTS events_au;
+         DROP TABLE IF EXISTS events_fts;",
+    ) {
+        Ok(()) => {
+            // Freed pages land on the freelist and are reclaimed lazily
+            // (page reuse + `incremental_vacuum` in `clear_old_sessions`);
+            // log the expectation so the one-time win is visible.
+            let freelist_pages: i64 = conn
+                .query_row("PRAGMA freelist_count", [], |row| row.get(0))
+                .unwrap_or(0);
+            tracing::info!(
+                elapsed_ms = started.elapsed().as_millis() as u64,
+                freelist_pages,
+                "[schema] events_fts index and triggers dropped; freelist pages are reclaimable"
+            );
+            conn.execute(
+                "INSERT OR IGNORE INTO _migrations (name, applied_at) VALUES (?1, ?2)",
+                rusqlite::params![MARKER, chrono::Utc::now().to_rfc3339()],
+            )
+            .ok();
+        }
+        Err(err) => {
+            tracing::warn!(error = %err, "[schema] events_fts drop failed; will retry next startup");
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -445,5 +492,82 @@ mod tests {
         assert!(index_exists(&conn, "idx_stool_session_turn"));
         assert!(index_exists(&conn, "idx_stool_session_call"));
         assert!(index_exists(&conn, "idx_stool_session_iteration"));
+    }
+
+    fn trigger_exists(conn: &Connection, trigger_name: &str) -> bool {
+        conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = ?1)",
+            [trigger_name],
+            |row| row.get::<_, bool>(0),
+        )
+        .expect("query trigger existence")
+    }
+
+    #[test]
+    fn init_session_tables_drops_legacy_events_fts_and_records_marker() {
+        let conn = Connection::open_in_memory().expect("open in-memory sqlite");
+
+        // Recreate the legacy state: events table + FTS vtable + sync triggers.
+        conn.execute(
+            "CREATE TABLE events (
+                id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                function_name TEXT,
+                thread_id TEXT,
+                args_json TEXT NOT NULL DEFAULT '{}',
+                result_json TEXT NOT NULL DEFAULT '{}',
+                content TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                meta_json TEXT,
+                history_sequence INTEGER,
+                UNIQUE(id, session_id)
+            )",
+            [],
+        )
+        .expect("create legacy events table");
+        conn.execute_batch(
+            "CREATE VIRTUAL TABLE events_fts USING fts5(
+                id, content, function_name, args_json,
+                content='events', content_rowid='rowid'
+            );
+            CREATE TRIGGER events_ai AFTER INSERT ON events BEGIN
+                INSERT INTO events_fts(rowid, id, content, function_name, args_json)
+                VALUES (NEW.rowid, NEW.id, NEW.content, NEW.function_name, NEW.args_json);
+            END;
+            CREATE TRIGGER events_ad AFTER DELETE ON events BEGIN
+                INSERT INTO events_fts(events_fts, rowid, id, content, function_name, args_json)
+                VALUES ('delete', OLD.rowid, OLD.id, OLD.content, OLD.function_name, OLD.args_json);
+            END;
+            CREATE TRIGGER events_au AFTER UPDATE ON events BEGIN
+                INSERT INTO events_fts(events_fts, rowid, id, content, function_name, args_json)
+                VALUES ('delete', OLD.rowid, OLD.id, OLD.content, OLD.function_name, OLD.args_json);
+                INSERT INTO events_fts(rowid, id, content, function_name, args_json)
+                VALUES (NEW.rowid, NEW.id, NEW.content, NEW.function_name, NEW.args_json);
+            END;",
+        )
+        .expect("create legacy FTS vtable and triggers");
+
+        init_session_tables(&conn).expect("init session schema");
+
+        assert!(!table_exists(&conn, "events_fts"));
+        assert!(!trigger_exists(&conn, "events_ai"));
+        assert!(!trigger_exists(&conn, "events_ad"));
+        assert!(!trigger_exists(&conn, "events_au"));
+        // Shadow tables go with the vtable.
+        assert!(!table_exists(&conn, "events_fts_data"));
+        assert!(!table_exists(&conn, "events_fts_docsize"));
+
+        let marker_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM _migrations WHERE name = 'events_fts_dropped_2026_07'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("query migration marker");
+        assert_eq!(marker_count, 1);
+
+        // Second init is a no-op (marker-gated) and must not fail.
+        init_session_tables(&conn).expect("re-init session schema");
     }
 }

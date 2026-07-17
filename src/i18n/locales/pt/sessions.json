@@ -78,14 +78,84 @@
       }
     }
   },
-  "opsControl": {
+  "kanban": {
     "sessions": "Sessões",
-    "replayBarAriaLabel": "Ops Control replay timeline",
+    "fileSearch": {
+      "placeholder": "Buscar sessões pelo caminho do arquivo",
+      "noResults": "Nenhuma sessão alterou um arquivo correspondente"
+    },
+    "replayBarAriaLabel": "Kanban replay timeline",
     "followLabel": "Kanban atual",
     "view": {
       "list": "Lista",
       "diary": "Diário",
-      "opsControl": "Ops Control"
+      "kanban": "Kanban",
+      "dataSource": "Fontes de dados"
+    },
+    "dataSource": {
+      "title": "Fontes de dados",
+      "description": "Ferramentas de programação externas que o ORGII detecta. Apps importáveis mostram sua contagem de sessões e podem ser reescaneados; o restante mostra o status de instalação e onde fica seu histórico.",
+      "rescanAll": "Reescanear tudo",
+      "rescan": "Reescanear",
+      "rescanning": "Reescaneando…",
+      "enable": "Ativar",
+      "disable": "Desativar",
+      "lastScan": "Última varredura {{time}}",
+      "neverScanned": "Nunca verificado",
+      "frequencyTitle": "Frequência de varredura",
+      "globalFrequency": "Varredura automática de fontes externas",
+      "globalFrequencyDesc": "Frequência de varredura padrão para fontes externas definidas como “Padrão”",
+      "activeSessionRefresh": "Atualização da sessão externa aberta",
+      "activeSessionRefreshDesc": "Frequência de atualização da sessão externa atualmente aberta no painel de chat",
+      "activeSessionFreq": {
+        "3s": "A cada 3 segundos",
+        "5s": "A cada 5 segundos",
+        "10s": "A cada 10 segundos",
+        "1m": "A cada minuto"
+      },
+      "col": {
+        "source": "Fonte",
+        "sessions": "Sessões",
+        "lastScan": "Última varredura",
+        "frequency": "Varredura automática",
+        "status": "Status"
+      },
+      "freq": {
+        "default": "Padrão",
+        "manual": "Manual",
+        "60s": "A cada 60s",
+        "5m": "A cada 5 min",
+        "1h": "A cada hora",
+        "1d": "Diário"
+      },
+      "openFolder": "Abrir pasta",
+      "tabs": {
+        "all": "Todos",
+        "apps": "Apps",
+        "clis": "CLIs"
+      },
+      "views": {
+        "scanning": "Escaneamento",
+        "hooks": "Hooks"
+      },
+      "sessions_one": "{{count}} sessão",
+      "sessions_other": "{{count}} sessões",
+      "details": {
+        "path": "Caminho",
+        "storeType": "Tipo de armazenamento",
+        "copyPath": "Copiar caminho"
+      },
+      "noPath": "Nenhum caminho detectado",
+      "notImported": "Não importado",
+      "status": {
+        "ready": "Pronto",
+        "empty": "Sem histórico",
+        "loading": "Verificando…",
+        "error": "Erro",
+        "installed": "Instalado",
+        "notInstalled": "Não detectado",
+        "disabled": "Desativado"
+      }
     },
     "list": {
       "updated": "Atualizado",
@@ -189,11 +259,6 @@
       "discarding": "Descartando…",
       "confirmMessage": "Descartar todas as alterações neste Worktree? Esta ação não pode ser desfeita."
     },
-    "diff": {
-      "openDiffWindow": "Ver diff",
-      "windowTitle": "Diff da sessão",
-      "filesChanged": "Arquivos"
-    },
     "replay": {
       "replaySession": "Repetir"
     },
@@ -226,14 +291,12 @@
       "commits_one": "{{count}} commit",
       "commits_other": "{{count}} commits",
       "committedRateShort": "{{percent}}% commitado"
+    },
+    "detailView": {
+      "trajectory": "Trajectory",
+      "touchedFiles": "Touched files",
+      "noTouchedFiles": "No files touched"
     }
-  },
-  "worktreeCompare": {
-    "title": "Comparar Worktrees",
-    "button": "Comparar",
-    "buttonTooltip": "Comparar diffs de Worktree lado a lado",
-    "noSessions": "Nenhuma sessão para comparar.",
-    "sessionTab": "Sessão {{n}}"
   },
   "changes": {
     "scope": {
@@ -421,7 +484,6 @@
         "interactionAskQuestion": "Pergunta",
         "interactionAskPermission": "Solicitação de permissão",
         "interactionModeSwitch": "Troca de modo",
-        "interactionNextSteps": "Próximos passos",
         "interactionPlanDoc": "Documento de plano",
         "interactionGeneric": "Interação"
       },
@@ -724,20 +786,17 @@
       "addApiKey": {
         "title": "Adicionar chave API"
       },
+      "installLatestUpdate": {
+        "title": "Instalar atualização mais recente"
+      },
       "agents": {
         "title": "Agents"
       },
       "tabs": {
         "work": "Trabalho",
-        "explore": "Explorar",
-        "heatmap": "Tendências"
-      },
-      "heatmap": {
-        "loading": "Carregando tendências de atividade…",
-        "empty": "Ainda não há atividade de sessões.",
-        "sessions": "Sessões",
-        "tokens": "Tokens",
-        "cost": "Custo"
+        "manage": "Gerenciar",
+        "heatmap": "Tendências",
+        "runtime": "Tempo de execução"
       },
       "quota": {
         "empty": "Ainda não há dados de quota. Atualize o uso no Key Vault.",
@@ -785,6 +844,7 @@
     "defaultTitle": "Chat",
     "hideChatPanel": "Ocultar painel de chat",
     "showTokenUsage": "Mostrar Token",
+    "showStatusBar": "Mostrar barra de estado",
     "compactDisplayMode": "Modo compacto",
     "replay": {
       "follow": "Acompanhar"
@@ -956,11 +1016,20 @@
         "importFailed": "Não foi possível importar a Session JSON."
       }
     },
-    "turnFiles": {
-      "filesChangedCount_one": "{{count}} arquivo alterado nesta rodada",
-      "filesChangedCount_other": "{{count}} arquivos alterados nesta rodada",
-      "historicalRoundDiffFiles_one": "Diff de rodada anterior · {{count}} arquivo",
-      "historicalRoundDiffFiles_other": "Diff de rodada anterior · {{count}} arquivos",
+    "turnMetadata": {
+      "noChanges": "Nenhuma alteração de arquivo nesta rodada",
+      "earlierRound": "Rodada anterior",
+      "files_one": "{{count}} arquivo",
+      "files_other": "{{count}} arquivos",
+      "reads_one": "{{count}} leitura",
+      "reads_other": "{{count}} leituras",
+      "searches_one": "{{count}} pesquisa",
+      "searches_other": "{{count}} pesquisas",
+      "failed": "Falhou",
+      "commits_one": "{{count}} commit",
+      "commits_other": "{{count}} commits",
+      "pullRequests_one": "{{count}} PR",
+      "pullRequests_other": "{{count}} PRs",
       "review": "Revisar",
       "showLess": "Mostrar menos",
       "showMore_one": "Mostrar mais {{count}}",
@@ -995,9 +1064,9 @@
         "sourcePrs": "PRs",
         "stateOpen": "Open",
         "stateClosed": "Closed",
-        "stateAll": "All states",
-        "assignedToMe": "Assigned to me",
-        "createdByMe": "Created by me",
+        "stateAll": "Todos os estados",
+        "assignedToMe": "Atribuídos a mim",
+        "createdByMe": "Criados por mim",
         "filters": "Filters",
         "openInGitHub": "Open in GitHub"
       }
@@ -1055,6 +1124,8 @@
     "deleteFileRunning": "Excluindo {{name}}",
     "deleteFileDone": "{{name}} excluído",
     "deleteFileFailed": "Falha ao excluir {{name}}",
+    "deleteFileCompactRunning": "Excluindo",
+    "deleteFileCompactDone": "Excluir",
     "directoryTree": "Árvore de diretórios",
     "ls": "ls",
     "listDirRunning": "Listando diretório",
@@ -1097,7 +1168,7 @@
     "pathCopied": "Caminho copiado!",
     "failedToCopyPath": "Falha ao copiar caminho",
     "copyFilePath": "Copiar caminho do arquivo",
-    "explore": "Explorar",
+    "manage": "Gerenciar",
     "readFile": "Ler arquivo",
     "readFileRunning": "Lendo",
     "readFileDone": "Ler",
@@ -1120,12 +1191,30 @@
     "editFileDoneNoName": "Arquivo editado",
     "editFileCompactRunning": "Editando",
     "editFileCompactDone": "Editar",
+    "editFiles": "Editar arquivos",
+    "editSummary": {
+      "edit_one": "{{count}} edição",
+      "edit_other": "{{count}} edições",
+      "read_one": "{{count}} leitura",
+      "read_other": "{{count}} leituras",
+      "separator": ", "
+    },
     "editFileFailedNoName": "Tentou editar",
     "file": "arquivo",
     "runShellRunning": "Executando comando",
     "terminalWaitRunning": "Aguardando o terminal terminar",
     "runShellDone": "Comando executado",
     "runShellFailed": "Falha no comando",
+    "runCommands": "Executar comandos",
+    "terminalSummary": {
+      "command_one": "{{count}} comando",
+      "command_other": "{{count}} comandos",
+      "wait_one": "{{count}} espera",
+      "wait_other": "{{count}} esperas",
+      "check_one": "{{count}} verificação",
+      "check_other": "{{count}} verificações",
+      "separator": ", "
+    },
     "inspectTerminalsRunning": "Inspecionando terminais",
     "inspectTerminalsDone": "Terminais inspecionados",
     "inspectTerminalsFailed": "Falha ao inspecionar terminais",
@@ -1163,6 +1252,7 @@
     "askUserSkipped": "Ignorado",
     "askUserQuestionsAnswered": "As perguntas foram respondidas",
     "askUserQuestionsSkipped": "Perguntas ignoradas",
+    "explore": "Explorar",
     "exploreSummary": {
       "read_one": "{{count}} arquivo",
       "read_other": "{{count}} arquivos",
@@ -1173,7 +1263,8 @@
       "ls_one": "ls {{count}} pasta",
       "ls_other": "ls {{count}} pastas",
       "lsp_one": "{{count}} consulta LSP",
-      "lsp_other": "{{count}} consultas LSP"
+      "lsp_other": "{{count}} consultas LSP",
+      "separator": ", "
     },
     "categoryRead": "Ler",
     "categorySearch": "Buscar",
@@ -1459,9 +1550,6 @@
     "toolSearchRunning": "Buscando ferramentas",
     "toolSearchDone": "Ferramentas buscadas",
     "toolSearchFailed": "Falha na busca de ferramentas",
-    "suggestNextStepsRunning": "Sugerindo próximos passos",
-    "suggestNextStepsDone": "Sugeridos {{count}} próximos passos",
-    "suggestNextStepsFailed": "Não foi possível sugerir próximos passos",
     "agentSendMessageRunning": "Enviando mensagem ao colega",
     "agentSendMessageDone": "Mensagem enviada ao colega",
     "agentSendMessageFailed": "Não foi possível enviar mensagem ao colega",

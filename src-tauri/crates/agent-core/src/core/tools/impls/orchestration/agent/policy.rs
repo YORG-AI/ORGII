@@ -23,6 +23,16 @@ use crate::tools::impls::project::manage_project::ProjectTool;
 
 use super::AgentTool;
 
+fn session_org_for(session_id: &str) -> Option<String> {
+    if session_id.is_empty() {
+        return None;
+    }
+    crate::session::persistence::get_session(session_id)
+        .ok()
+        .flatten()
+        .and_then(|record| record.org_id)
+}
+
 pub(super) fn agent_supports_builtin_tool(agent: &AgentDefinition, tool_name: &str) -> bool {
     let Some(required) = builtin_tool_required_capability(tool_name) else {
         return true;
@@ -169,20 +179,24 @@ impl AgentTool {
 
             match tool_name.as_str() {
                 tool_names::MANAGE_PROJECT => {
+                    let parent_session_id = self.parent_session_id.lock().await.clone();
                     let project_tool = ProjectTool::new(
                         self.config.app_handle.clone(),
                         self.config.session_account_id.clone(),
                         self.config.agent_model.clone(),
+                        session_org_for(&parent_session_id),
                     );
                     registry.register(Box::new(project_tool));
                 }
                 tool_names::MANAGE_WORK_ITEM => {
                     let parent_session_id = self.parent_session_id.lock().await.clone();
+                    let session_org_id = session_org_for(&parent_session_id);
                     registry.register(Box::new(WorkItemTool::with_launch_context(
                         parent_session_id,
                         self.config.app_handle.clone(),
                         self.config.session_account_id.clone(),
                         self.config.agent_model.clone(),
+                        session_org_id,
                     )));
                 }
                 tool_names::MANAGE_AGENT_DEF => {

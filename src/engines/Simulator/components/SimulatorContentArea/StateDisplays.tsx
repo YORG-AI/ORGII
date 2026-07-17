@@ -10,7 +10,7 @@ import { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
-import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/csp";
+import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/nonce";
 
 /** Idle state display - shown when no event is active (Gemini style) */
 export const IdleState = memo(() => {

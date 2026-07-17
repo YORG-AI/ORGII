@@ -107,6 +107,15 @@ pub struct ClaudeCodeSession {
     pub git_branch: String,
     pub input_tokens: i64,
     pub output_tokens: i64,
+    /// List-price estimate in USD, priced from `input_tokens`/`output_tokens`
+    /// via the shared pricing catalog. Filled at the command boundary (this
+    /// crate has no pricing dependency); `0.0` until then.
+    #[serde(rename = "estimatedCost", default)]
+    pub estimated_cost: f64,
+    /// Metered spend recorded by the source. Always `0.0` for Claude Code
+    /// subscription sessions — they record no dollar figures.
+    #[serde(rename = "recordedCost", default)]
+    pub recorded_cost: f64,
 }
 
 // ============================================
@@ -257,6 +266,8 @@ fn build_session(entry: &IndexEntry) -> Option<ClaudeCodeSession> {
         git_branch: entry.git_branch.clone(),
         input_tokens,
         output_tokens,
+        estimated_cost: 0.0,
+        recorded_cost: 0.0,
     })
 }
 
@@ -409,6 +420,8 @@ fn query_cache(
                 git_branch: row.get(7)?,
                 input_tokens: row.get(8)?,
                 output_tokens: row.get(9)?,
+                estimated_cost: 0.0,
+                recorded_cost: 0.0,
             })
         })
         .map_err(|err| format!("Failed to read claude cache results: {}", err))?

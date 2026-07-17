@@ -41,7 +41,6 @@ export const AGENT_TYPE_LIST: CliAgentType[] = [
   CLI_AGENT.CLAUDE_CODE, // Claude Code
   CLI_AGENT.CODEX, // Codex
   CLI_AGENT.CURSOR, // Cursor
-  CLI_AGENT.GEMINI, // Gemini CLI
   CLI_AGENT.COPILOT, // GitHub Copilot
   CLI_AGENT.OPENCODE, // OpenCode
 ];

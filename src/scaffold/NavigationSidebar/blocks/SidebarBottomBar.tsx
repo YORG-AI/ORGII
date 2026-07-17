@@ -2,13 +2,11 @@
  * SidebarBottomBar
  *
  * Footer strip rendered inside any sidebar variant via the `bottomContent`
- * slot. Left side hosts the user presence pill — a QQ-style availability
- * control (Online / Invisible / Away) the user toggles from here. The
- * selected mode is shipped to every agent turn via the ADE context payload
- * and surfaced in the system prompt's `user_presence` section so the agent
- * can adapt to whether the human is at the keyboard.
+ * slot. The left side accepts contextual sidebar content, such as the active
+ * organization selector. User presence remains available as a reusable menu
+ * for the Settings dropdown and roomier composer/header surfaces.
  *
- * Right side hosts compact action buttons — by default a Settings gear
+ * Right side hosts compact action buttons, including the Settings gear
  * that opens quick settings actions and links to the app settings route.
  * `AppShell` detects that route and renders Settings inside the
  * chat-panel slot with the WorkStation kept visible underneath, so the
@@ -44,15 +42,16 @@ import {
   parseCustomRoleId,
 } from "@src/types/userPresence";
 
-import SidebarSettingsMenuButton from "./SidebarSettingsMenuButton";
 import SidebarUpdateButton from "./SidebarUpdateButton";
 import { resolveCustomRoleIcon } from "./customRoleIcons";
 
 interface SidebarBottomBarProps {
+  /** Content rendered in the footer's left-side slot. */
+  leftContent?: React.ReactNode;
   /** Extra action buttons rendered to the left of the Settings gear. */
   rightActions?: React.ReactNode;
-  /** Hide the built-in Settings gear (e.g. when already on Settings). */
-  hideSettings?: boolean;
+  /** Settings menu trigger supplied by sidebar variants that expose it. */
+  settingsAction?: React.ReactNode;
 }
 
 const PRESENCE_ICON: Record<BuiltInPresenceMode, LucideIcon> = {
@@ -153,12 +152,138 @@ const PRESENCE_LABEL_KEY: Record<
   },
 };
 
+export interface PresenceMenuItemsProps {
+  onSelectionComplete?: () => void;
+  className?: string;
+}
+
+export const PresenceMenuItems: React.FC<PresenceMenuItemsProps> = ({
+  onSelectionComplete,
+  className,
+}) => {
+  const { t } = useTranslation("navigation");
+  const [presence, setPresence] = useAtom(userPresenceAtom);
+  const mode = useAtomValue(userPresenceModeAtom);
+  const customRoles = useAtomValue(userCustomRolesAtom);
+
+  const handleSelectMode = useCallback(
+    (next: UserPresenceMode) => {
+      if (next === USER_PRESENCE_MODE.AWAY) {
+        const fallback = AWAY_DURATIONS[1];
+        setPresence({
+          mode: next,
+          backAtMs: computeBackAtMs(fallback.id),
+          awayDurationLabel: fallback.id,
+        });
+      } else {
+        setPresence({
+          mode: next,
+          backAtMs: undefined,
+          awayDurationLabel: undefined,
+        });
+      }
+      onSelectionComplete?.();
+    },
+    [onSelectionComplete, setPresence]
+  );
+
+  const handleSelectAwayDuration = useCallback(
+    (durationId: string) => {
+      setPresence({
+        mode: USER_PRESENCE_MODE.AWAY,
+        backAtMs: computeBackAtMs(durationId),
+        awayDurationLabel: durationId,
+      });
+      onSelectionComplete?.();
+    },
+    [onSelectionComplete, setPresence]
+  );
+
+  return (
+    <div className={className}>
+      {PRESENCE_MENU_ORDER.map((option) => {
+        const OptionIcon = PRESENCE_ICON[option];
+        return (
+          <button
+            key={option}
+            type="button"
+            onClick={() => handleSelectMode(option)}
+            className={DROPDOWN_CLASSES.menuActionItem}
+          >
+            <PresenceItemContent
+              icon={
+                <OptionIcon
+                  size={DROPDOWN_ITEM.iconSize}
+                  className={PRESENCE_COLOR[option]}
+                />
+              }
+              label={t(`sidebar.presence.${option}`)}
+              selected={option === mode}
+            />
+          </button>
+        );
+      })}
+
+      {customRoles.length > 0 && (
+        <>
+          <div className={DROPDOWN_CLASSES.menuSeparator} />
+          {customRoles.map((role) => {
+            const RoleIcon = resolveCustomRoleIcon(role.iconId);
+            const roleMode = buildCustomRoleMode(role.id);
+            return (
+              <button
+                key={role.id}
+                type="button"
+                onClick={() => handleSelectMode(roleMode)}
+                className={DROPDOWN_CLASSES.menuActionItem}
+              >
+                <PresenceItemContent
+                  icon={
+                    <RoleIcon
+                      size={DROPDOWN_ITEM.iconSize}
+                      className={CUSTOM_ROLE_COLOR_CLASS}
+                    />
+                  }
+                  label={role.label}
+                  selected={roleMode === mode}
+                />
+              </button>
+            );
+          })}
+        </>
+      )}
+
+      {mode === USER_PRESENCE_MODE.AWAY && (
+        <>
+          <div className={DROPDOWN_CLASSES.menuSeparator} />
+          <div className={DROPDOWN_CLASSES.sectionLabel}>
+            {t("sidebar.presence.awayDurationHeading")}
+          </div>
+          {AWAY_DURATIONS.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              onClick={() => handleSelectAwayDuration(entry.id)}
+              className={DROPDOWN_CLASSES.menuActionItem}
+            >
+              <PresenceItemContent
+                label={t(entry.labelKey)}
+                selected={presence.awayDurationLabel === entry.id}
+              />
+            </button>
+          ))}
+        </>
+      )}
+    </div>
+  );
+};
+
 export const PresenceMenuButton: React.FC<PresenceMenuButtonProps> = ({
   variant = "concise",
   dropdownPosition = "top-start",
 }) => {
   const { t } = useTranslation("navigation");
-  const [presence, setPresence] = useAtom(userPresenceAtom);
+  const presence = useAtomValue(userPresenceAtom);
   const mode = useAtomValue(userPresenceModeAtom);
   const customRoles = useAtomValue(userCustomRolesAtom);
   const [menuVisible, setMenuVisible] = useState(false);
@@ -170,43 +295,6 @@ export const PresenceMenuButton: React.FC<PresenceMenuButtonProps> = ({
     if (!id) return undefined;
     return customRoles.find((role) => role.id === id);
   }, [mode, customRoles]);
-
-  const handleSelectMode = useCallback(
-    (next: UserPresenceMode) => {
-      if (next === USER_PRESENCE_MODE.AWAY) {
-        // Default to AWAY_DURATIONS[1] (30m) so picking Away alone is
-        // immediately useful; the user can refine via the duration group
-        // that appears below the mode list.
-        const fallback = AWAY_DURATIONS[1];
-        setPresence({
-          mode: next,
-          backAtMs: computeBackAtMs(fallback.id),
-          awayDurationLabel: fallback.id,
-        });
-        closeMenu();
-        return;
-      }
-      setPresence({
-        mode: next,
-        backAtMs: undefined,
-        awayDurationLabel: undefined,
-      });
-      closeMenu();
-    },
-    [setPresence, closeMenu]
-  );
-
-  const handleSelectAwayDuration = useCallback(
-    (durationId: string) => {
-      setPresence({
-        mode: USER_PRESENCE_MODE.AWAY,
-        backAtMs: computeBackAtMs(durationId),
-        awayDurationLabel: durationId,
-      });
-      closeMenu();
-    },
-    [setPresence, closeMenu]
-  );
 
   // Resolve icon / color / label for either a built-in mode or a custom
   // role. Custom roles that have been deleted (stale `role:<id>` in the
@@ -264,89 +352,10 @@ export const PresenceMenuButton: React.FC<PresenceMenuButtonProps> = ({
   );
 
   const droplist = (
-    <div
+    <PresenceMenuItems
       className={`${DROPDOWN_CLASSES.menuPanelBase} ${DROPDOWN_WIDTHS.sidebarMenuClass}`}
-    >
-      {PRESENCE_MENU_ORDER.map((option) => {
-        const OptionIcon = PRESENCE_ICON[option];
-        const optionColor = PRESENCE_COLOR[option];
-        const isSelected = option === mode;
-        return (
-          <button
-            key={option}
-            type="button"
-            onClick={() => handleSelectMode(option)}
-            className={DROPDOWN_CLASSES.menuActionItem}
-          >
-            <PresenceItemContent
-              icon={
-                <OptionIcon
-                  size={DROPDOWN_ITEM.iconSize}
-                  className={optionColor}
-                />
-              }
-              label={t(`sidebar.presence.${option}`)}
-              selected={isSelected}
-            />
-          </button>
-        );
-      })}
-
-      {customRoles.length > 0 && (
-        <>
-          <div className={DROPDOWN_CLASSES.menuSeparator} />
-          {customRoles.map((role) => {
-            const RoleIcon = resolveCustomRoleIcon(role.iconId);
-            const roleMode = buildCustomRoleMode(role.id);
-            const isSelected = roleMode === mode;
-            return (
-              <button
-                key={role.id}
-                type="button"
-                onClick={() => handleSelectMode(roleMode)}
-                className={DROPDOWN_CLASSES.menuActionItem}
-              >
-                <PresenceItemContent
-                  icon={
-                    <RoleIcon
-                      size={DROPDOWN_ITEM.iconSize}
-                      className={CUSTOM_ROLE_COLOR_CLASS}
-                    />
-                  }
-                  label={role.label}
-                  selected={isSelected}
-                />
-              </button>
-            );
-          })}
-        </>
-      )}
-
-      {mode === USER_PRESENCE_MODE.AWAY && (
-        <>
-          <div className={DROPDOWN_CLASSES.menuSeparator} />
-          <div className={DROPDOWN_CLASSES.sectionLabel}>
-            {t("sidebar.presence.awayDurationHeading")}
-          </div>
-          {AWAY_DURATIONS.map((entry) => {
-            const isSelected = presence.awayDurationLabel === entry.id;
-            return (
-              <button
-                key={entry.id}
-                type="button"
-                onClick={() => handleSelectAwayDuration(entry.id)}
-                className={DROPDOWN_CLASSES.menuActionItem}
-              >
-                <PresenceItemContent
-                  label={t(entry.labelKey)}
-                  selected={isSelected}
-                />
-              </button>
-            );
-          })}
-        </>
-      )}
-    </div>
+      onSelectionComplete={closeMenu}
+    />
   );
 
   return (
@@ -365,16 +374,16 @@ export const PresenceMenuButton: React.FC<PresenceMenuButtonProps> = ({
 };
 
 const SidebarBottomBar: React.FC<SidebarBottomBarProps> = React.memo(
-  ({ rightActions, hideSettings = false }) => {
+  ({ leftContent, rightActions, settingsAction }) => {
     return (
       <div className="flex h-[52px] flex-shrink-0 items-center justify-between gap-2 px-3">
-        <div className="flex min-w-0 items-center gap-1">
-          <PresenceMenuButton />
+        <div className="flex min-w-0 flex-1 items-center gap-1">
+          {leftContent}
         </div>
         <div className="flex items-center gap-1">
           <div className="flex items-center gap-1">
             {rightActions}
-            {!hideSettings && <SidebarSettingsMenuButton />}
+            {settingsAction}
           </div>
           <SidebarUpdateButton />
         </div>

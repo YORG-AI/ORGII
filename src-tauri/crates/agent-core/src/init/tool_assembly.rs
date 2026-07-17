@@ -39,7 +39,6 @@ use crate::tools::impls::orchestration::org_send_message::{
 use crate::tools::impls::orchestration::suggest_mode_switch::{
     ModeSwitchToolContext, SuggestModeSwitchTool,
 };
-use crate::tools::impls::orchestration::suggest_next_steps::SuggestNextStepsTool;
 use crate::tools::names;
 use crate::tools::policy::ResolvedToolPolicy;
 use crate::tools::registry::ToolRegistry;
@@ -115,10 +114,6 @@ pub(super) fn assemble_overlay(
             let mode_ctx = Arc::new(ModeSwitchToolContext::new(Arc::clone(msm)));
             overlay.register(Box::new(SuggestModeSwitchTool::new(mode_ctx)));
         }
-    }
-
-    if !ctx.disabled_set.contains(names::SUGGEST_NEXT_STEPS) {
-        overlay.register(Box::new(SuggestNextStepsTool::new()));
     }
 
     // Register `org_send_message` for inter-agent typed messaging.
@@ -236,7 +231,7 @@ pub(super) fn assemble_overlay(
     // already-registered `AgentTool` instance. After this write, every
     // Delegate/Shadow worker launch — Path A inherit, Path B fresh-fallback, shadow,
     // and background — will see overlay tools (`org_send_message`,
-    // `tool_search`, `suggest_mode_switch`, `suggest_next_steps`) when
+    // `tool_search`, `suggest_mode_switch`) when
     // it snapshots the parent registry. Order matters: this MUST happen
     // after the last `overlay.register(...)` call above, since the
     // slot's `Arc` clones must be issued from the same `final_registry`

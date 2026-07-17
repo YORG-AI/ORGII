@@ -13,11 +13,13 @@ its diff view, scroll position, and lazy chunk survive navigation.
 
 ## Happy Path
 
-| #   | Steps                                                                                                                  | Expected Result                                                                                        |
-| --- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| 1   | Open Source Control tab, select a file in Focus mode, scroll the diff. Open a file tab, then return to Source Control. | Same focused diff is shown at the same scroll position; no loading flash (lazy chunk not re-imported). |
-| 2   | Open Source Control → All Changes, scroll partway down the list. Switch to a file tab and back.                        | All Changes list is preserved at the same scroll offset.                                               |
-| 3   | Never open Source Control during a session.                                                                            | The Source Control main pane chunk is not mounted/parsed (lazy — only mounts after first visit).       |
+| #   | Steps                                                                                                                  | Expected Result                                                                                                           |
+| --- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Open Source Control tab, select a file in Focus mode, scroll the diff. Open a file tab, then return to Source Control. | Same focused diff is shown at the same scroll position; no loading flash (lazy chunk not re-imported).                    |
+| 2   | Open Source Control → All Changes, scroll partway down the list. Switch to a file tab and back.                        | All Changes list is preserved at the same scroll offset.                                                                  |
+| 3   | Never open Source Control during a session.                                                                            | The Source Control main pane chunk is not mounted/parsed (lazy — only mounts after first visit).                          |
+| 4   | Open Source Control Focus mode without selecting a file.                                                               | A Git-branch placeholder offers View Issues, View Git history, and View PRs; each action opens the matching sidebar mode. |
+| 5   | Open an empty History, Issues, or PR detail state.                                                                     | The current destination is omitted; View Source Control appears first, followed by the other destinations.                |
 
 ## Edge Cases
 
@@ -39,6 +41,7 @@ its diff view, scroll position, and lazy chunk survive navigation.
 
 - [ ] Hidden keep-alive overlay sets `aria-hidden` and `pointer-events-none` so it is not focusable/announced when inactive.
 - [ ] Active pane is keyboard-navigable (list + diff) exactly as before.
+- [ ] Source Control placeholder actions are keyboard-focusable buttons with descriptive labels.
 
 ## Acceptance Criteria
 
@@ -46,6 +49,7 @@ its diff view, scroll position, and lazy chunk survive navigation.
 - [ ] Navigating away from and back to Source Control preserves the diff view, selection, and scroll without a remount flash.
 - [ ] Users who never open Source Control do not pay the heavy chunk's mount cost.
 - [ ] `TabContentRenderer` no longer double-renders the `source-control` case (it is a no-op; the overlay owns rendering).
+- [ ] Empty Source Control detail states use Source Control navigation rather than editor/workspace actions.
 - [ ] No new TypeScript errors; no new lint warnings; `deriveSourceControlMainProps` / `getGitFileForPath` unit tests pass.
 
 ## Notes / Manual QA required

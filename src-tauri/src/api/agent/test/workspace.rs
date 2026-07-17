@@ -552,7 +552,7 @@ pub async fn test_session_aggregate_list_filter(
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
-    let filter = crate::agent_sessions::unified_stats::types::SessionFilter {
+    let filter = crate::agent_sessions::session_directory::types::SessionFilter {
         key_source: key_source.clone(),
         // Cap the result set so this probe never returns megabytes of
         // session rows from a developer's local DB.
@@ -561,7 +561,7 @@ pub async fn test_session_aggregate_list_filter(
     };
 
     let result = tokio::task::spawn_blocking(move || {
-        crate::agent_sessions::unified_stats::aggregation::list_all_sessions(Some(&filter))
+        crate::agent_sessions::session_directory::aggregation::list_all_sessions(Some(&filter))
     })
     .await;
 
@@ -1123,7 +1123,7 @@ pub async fn test_session_update_status_via_cmd(
 pub async fn test_session_aggregate_list_via_cmd(
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
-    use crate::agent_sessions::unified_stats::types::SessionFilter;
+    use crate::agent_sessions::session_directory::types::SessionFilter;
 
     // The production command takes `Option<SessionFilter>` deserialized
     // from a JSON object; an empty `{}` body should resolve to `None`
@@ -1163,7 +1163,7 @@ pub async fn test_session_aggregate_list_via_cmd(
     };
 
     let join = tokio::task::spawn_blocking(move || {
-        crate::agent_sessions::unified_stats::aggregation::list_all_sessions(filter.as_ref())
+        crate::agent_sessions::session_directory::aggregation::list_all_sessions(filter.as_ref())
     })
     .await;
 
@@ -1181,7 +1181,7 @@ pub async fn test_session_aggregate_list_via_cmd(
                 "session_count": response.sessions.len(),
                 "target_session": target_session,
                 "sessions": if target_session_id.is_some() {
-                    Vec::<crate::agent_sessions::unified_stats::types::SessionAggregateRecord>::new()
+                    Vec::<crate::agent_sessions::session_directory::types::SessionAggregateRecord>::new()
                 } else {
                     response.sessions
                 },

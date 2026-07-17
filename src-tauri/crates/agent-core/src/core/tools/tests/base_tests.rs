@@ -256,7 +256,7 @@ fn search_tool_llm_description_contains_repo() {
 #[test]
 fn work_item_tool_llm_description_mentions_global_store() {
     use crate::tools::impls::project::manage_work_item::WorkItemTool;
-    let tool = WorkItemTool::new("test-session".to_string());
+    let tool = WorkItemTool::new("test-session".to_string(), None);
     let desc = tool.llm_description().expect("should return description");
     assert!(desc.contains("global project store"));
 }

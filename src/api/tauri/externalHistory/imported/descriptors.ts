@@ -1,10 +1,6 @@
-export type ImportedHistorySourceId =
-  | "cursor_ide"
-  | "codex_app"
-  | "claude_code"
-  | "opencode"
-  | "windsurf"
-  | "workbuddy";
+import type { ImportedHistorySourceId } from "@src/types/session/externalHistory";
+
+export type { ImportedHistorySourceId } from "@src/types/session/externalHistory";
 
 export type ImportedHistoryListCategory =
   `external_history:${ImportedHistorySourceId}`;
@@ -16,7 +12,6 @@ export interface ImportedHistorySourceDescriptor {
   iconId: string;
   displayName: string;
   groupLabel: string;
-  sidebarPageSize?: number;
   listable: true;
   replayable: true;
   supportsWindowedReplay: boolean;
@@ -29,9 +24,8 @@ export const IMPORTED_HISTORY_SOURCE_DESCRIPTORS: readonly ImportedHistorySource
       listCategory: "external_history:cursor_ide",
       prefix: "cursoride-",
       iconId: "cursor",
-      displayName: "Cursor",
-      groupLabel: "Cursor History",
-      sidebarPageSize: 50,
+      displayName: "Cursor App",
+      groupLabel: "Cursor App",
       listable: true,
       replayable: true,
       supportsWindowedReplay: true,
@@ -41,7 +35,7 @@ export const IMPORTED_HISTORY_SOURCE_DESCRIPTORS: readonly ImportedHistorySource
       listCategory: "external_history:codex_app",
       prefix: "codexapp-",
       iconId: "codex",
-      displayName: "Codex",
+      displayName: "Codex App",
       groupLabel: "Codex App",
       listable: true,
       replayable: true,
@@ -52,8 +46,8 @@ export const IMPORTED_HISTORY_SOURCE_DESCRIPTORS: readonly ImportedHistorySource
       listCategory: "external_history:claude_code",
       prefix: "claudecodeapp-",
       iconId: "claude_code",
-      displayName: "Claude Code",
-      groupLabel: "Claude Code",
+      displayName: "Claude App",
+      groupLabel: "Claude App",
       listable: true,
       replayable: true,
       supportsWindowedReplay: false,
@@ -87,6 +81,61 @@ export const IMPORTED_HISTORY_SOURCE_DESCRIPTORS: readonly ImportedHistorySource
       iconId: "workbuddy",
       displayName: "WorkBuddy",
       groupLabel: "WorkBuddy",
+      listable: true,
+      replayable: true,
+      supportsWindowedReplay: false,
+    },
+    {
+      sourceId: "trae",
+      listCategory: "external_history:trae",
+      prefix: "traeapp-",
+      iconId: "trae",
+      displayName: "Trae",
+      groupLabel: "Trae",
+      listable: true,
+      replayable: true,
+      supportsWindowedReplay: false,
+    },
+    {
+      sourceId: "cline",
+      listCategory: "external_history:cline",
+      prefix: "clineapp-",
+      iconId: "cline",
+      displayName: "Cline",
+      groupLabel: "Cline",
+      listable: true,
+      replayable: true,
+      supportsWindowedReplay: false,
+    },
+    {
+      sourceId: "warp",
+      listCategory: "external_history:warp",
+      prefix: "warpapp-",
+      iconId: "warp",
+      displayName: "Warp",
+      groupLabel: "Warp",
+      listable: true,
+      replayable: true,
+      supportsWindowedReplay: false,
+    },
+    {
+      sourceId: "zcode",
+      listCategory: "external_history:zcode",
+      prefix: "zcodeapp-",
+      iconId: "zcode",
+      displayName: "ZCode",
+      groupLabel: "ZCode",
+      listable: true,
+      replayable: true,
+      supportsWindowedReplay: false,
+    },
+    {
+      sourceId: "qoder",
+      listCategory: "external_history:qoder",
+      prefix: "qoderapp-",
+      iconId: "qoder",
+      displayName: "Qoder",
+      groupLabel: "Qoder",
       listable: true,
       replayable: true,
       supportsWindowedReplay: false,

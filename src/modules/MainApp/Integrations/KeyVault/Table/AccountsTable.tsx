@@ -75,6 +75,8 @@ interface AccountsTableProps {
   ) => void;
   onRevalidateAccount?: (accountId: string) => Promise<void>;
   refreshingAccountId?: string | null;
+  onRefreshModels?: () => Promise<void>;
+  refreshingAllModels?: boolean;
   selectedRowId?: string | null;
   modelsActiveTab?: string;
   onModelsTabChange?: (tab: string) => void;
@@ -111,6 +113,8 @@ export const AccountsTable: React.FC<AccountsTableProps> = ({
   onDisconnectAccount,
   onRevalidateAccount,
   refreshingAccountId,
+  onRefreshModels,
+  refreshingAllModels,
   modelsActiveTab: modelsActiveTabProp,
   onModelsTabChange,
   onToggleModel: onToggleModelProp,
@@ -548,6 +552,8 @@ export const AccountsTable: React.FC<AccountsTableProps> = ({
                 accounts={modelAdjustedAccounts}
                 loading={loading}
                 onAdd={onAdd}
+                onRefreshModels={onRefreshModels}
+                refreshingAllModels={refreshingAllModels}
                 onToggleModel={handleToggleModel}
                 onUpdateAccountEnabledModels={handleUpdateAccountEnabledModels}
                 onUpdateAccountDefaultVariant={

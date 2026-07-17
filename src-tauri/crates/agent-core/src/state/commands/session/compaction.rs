@@ -172,12 +172,10 @@ pub async fn agent_session_manual_compact(
         ));
     };
 
-    if session.scheduler.is_processing() || session.scheduler.pending_count() > 0 {
-        return Ok(ManualCompactCommandResult::status(
-            ManualCompactStatus::Busy,
-        ));
-    }
-
+    // Always enqueue maintenance, even while a turn is running. The scheduler
+    // serializes it behind the active turn; rejecting here as Busy made both
+    // UI entry points silently do nothing exactly when users most need to
+    // compact a long-running session.
     let (result_tx, result_rx) = oneshot::channel();
     let exec_session = Arc::clone(&session);
     let exec_session_id = session_id.clone();
@@ -336,9 +334,7 @@ async fn run_manual_compact_exclusive(
             // conversion `adjust_sm_state_for_compactable_tail` performs
             // on the auto paths. Without it the kept tail starts past
             // messages the SM summary never covered.
-            last_summarized_msg_idx: sm_persisted
-                .last_msg_idx
-                .and_then(|idx| idx.checked_sub(1)),
+            last_summarized_msg_idx: sm_persisted.last_msg_idx.and_then(|idx| idx.checked_sub(1)),
             ..Default::default()
         };
         if let Some(sm_view) = session_memory::try_sm_compact(
@@ -404,15 +400,15 @@ async fn run_manual_compact_exclusive(
         }
     };
 
-    let messages_after = compacted.len();
-    let tokens_after = ContextCompactor::estimate_messages_tokens(&compacted);
+    let candidate_messages_after = compacted.len();
+    let candidate_tokens_after = ContextCompactor::estimate_messages_tokens(&compacted);
 
     crate::specialization::hooks::dispatch::fire_post_compaction(
         Some(&hook_executor),
         &session_id,
         "manual",
         messages_before,
-        messages_after,
+        candidate_messages_after,
     );
 
     let context_window =
@@ -424,22 +420,12 @@ async fn run_manual_compact_exclusive(
                 .context_window_configured
                 .then_some(runtime.resolved.context_window),
         ) as i64;
-    let snapshot = ContextUsageSnapshot::from_payload(
-        &compacted,
-        &[],
-        tokens_after as i64,
-        0,
-        0,
-        Some(context_window),
-    );
-
     let persist_result = tokio::task::spawn_blocking({
         let sid = session_id.clone();
         let compacted = compacted.clone();
         let model = runtime.model.clone();
         let account_id = runtime.account_id.clone();
-        let snapshot_json = serde_json::to_string(&snapshot).ok();
-        move || -> Result<persist::AppendedCompactBoundary, String> {
+        move || -> Result<(persist::AppendedCompactBoundary, usize, usize, ContextUsageSnapshot), String> {
             // Snapshot invariant: the scheduler serializes this job against
             // turns, but channel-attached turns bypass the DialogScheduler,
             // and the upfront binding guard is check-then-enqueue. Re-verify
@@ -456,11 +442,28 @@ async fn run_manual_compact_exclusive(
             }
 
             // The boundary row is the compaction — its failure is fatal.
-            let boundary = persist::append_in_place_compact_boundary(
+            let mut boundary = persist::append_in_place_compact_boundary(
                 &sid,
                 &compacted,
-                Some((tokens_before, tokens_after)),
+                Some((tokens_before, candidate_tokens_after)),
             )?;
+            let durable_messages = boundary
+                .durable_messages
+                .take()
+                .unwrap_or_else(|| compacted.clone());
+            let tokens_after = boundary
+                .durable_tokens_after
+                .unwrap_or_else(|| ContextCompactor::estimate_messages_tokens(&durable_messages));
+            let messages_after = durable_messages.len();
+            let snapshot = ContextUsageSnapshot::from_payload(
+                &durable_messages,
+                &[],
+                tokens_after as i64,
+                0,
+                0,
+                Some(context_window),
+            );
+            let snapshot_json = serde_json::to_string(&snapshot).ok();
 
             // Everything below is bookkeeping: log-and-continue so a
             // secondary failure cannot report `Failed` for a compaction
@@ -501,13 +504,13 @@ async fn run_manual_compact_exclusive(
                 );
             }
 
-            Ok(boundary)
+            Ok((boundary, messages_after, tokens_after, snapshot))
         }
     })
     .await;
 
-    let boundary = match persist_result {
-        Ok(Ok(boundary)) => boundary,
+    let (boundary, messages_after, tokens_after, snapshot) = match persist_result {
+        Ok(Ok(result)) => result,
         Ok(Err(err)) => {
             warn!(
                 "[manual_compact_desktop] failed to persist compact boundary for session {}: {}",

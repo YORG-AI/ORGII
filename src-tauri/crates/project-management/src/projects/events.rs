@@ -12,3 +12,19 @@ pub const DATA_CHANGED_EVENT: &str = "orgii-data-changed";
 /// (fired, started, succeeded, failed, …). Payload:
 /// `{ routineId, fireId?, status }`.
 pub const ROUTINE_CHANGED_EVENT: &str = "orgii-routine-changed";
+
+use std::sync::OnceLock;
+
+static DATA_CHANGED_NOTIFIER: OnceLock<Box<dyn Fn() + Send + Sync>> = OnceLock::new();
+
+/// App-level registration of the frontend notifier (Tauri emit). First call wins.
+pub fn register_data_changed_notifier(notifier: Box<dyn Fn() + Send + Sync>) {
+    let _ = DATA_CHANGED_NOTIFIER.set(notifier);
+}
+
+/// Notify the frontend that project/work-item state changed. No-op before registration.
+pub fn notify_data_changed() {
+    if let Some(notifier) = DATA_CHANGED_NOTIFIER.get() {
+        notifier();
+    }
+}

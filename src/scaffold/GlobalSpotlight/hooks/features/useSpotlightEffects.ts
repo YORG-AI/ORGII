@@ -31,11 +31,13 @@ export interface UseSpotlightEffectsOptions {
   closeModal: () => void;
   onOpenWorkspaceLayer?: (mode: "switch" | "open" | "add" | "create") => void;
   onOpenBranchLayer?: () => void;
+  onOpenWorktreeLayer?: () => void;
   onOpenEditorLayer?: (
     query: string,
     mode?: SpotlightInitialEditorMode
   ) => void;
   onOpenAgentSessionSearchLayer?: () => void;
+  onOpenAllSessionsSearchLayer?: () => void;
   onOpenAgentControlLayer?: () => void;
   onOpenSessionCreatorLayer?: () => void;
 }
@@ -49,9 +51,11 @@ export function useSpotlightEffects(options: UseSpotlightEffectsOptions): void {
     isOpen,
     dispatch,
     onOpenBranchLayer,
+    onOpenWorktreeLayer,
     onOpenEditorLayer,
     onOpenWorkspaceLayer,
     onOpenAgentSessionSearchLayer,
+    onOpenAllSessionsSearchLayer,
     onOpenAgentControlLayer,
     onOpenSessionCreatorLayer,
   } = options;
@@ -102,10 +106,14 @@ export function useSpotlightEffects(options: UseSpotlightEffectsOptions): void {
       onOpenWorkspaceLayer?.(initialQuery.layer.mode);
     } else if (initialQuery.layer?.kind === "branch") {
       onOpenBranchLayer?.();
+    } else if (initialQuery.layer?.kind === "worktree") {
+      onOpenWorktreeLayer?.();
     } else if (initialQuery.layer?.kind === "editor") {
       onOpenEditorLayer?.(initialQuery.query, initialQuery.layer.mode);
     } else if (initialQuery.layer?.kind === "agentSessionSearch") {
       onOpenAgentSessionSearchLayer?.();
+    } else if (initialQuery.layer?.kind === "allSessionsSearch") {
+      onOpenAllSessionsSearchLayer?.();
     } else if (initialQuery.layer?.kind === "agentControl") {
       onOpenAgentControlLayer?.();
     } else if (initialQuery.layer?.kind === "sessionCreator") {
@@ -123,7 +131,9 @@ export function useSpotlightEffects(options: UseSpotlightEffectsOptions): void {
     initialQuery,
     onOpenAgentControlLayer,
     onOpenAgentSessionSearchLayer,
+    onOpenAllSessionsSearchLayer,
     onOpenBranchLayer,
+    onOpenWorktreeLayer,
     onOpenEditorLayer,
     onOpenWorkspaceLayer,
     onOpenSessionCreatorLayer,

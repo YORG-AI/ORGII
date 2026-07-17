@@ -11,13 +11,11 @@ use serde_json::{json, Value};
 
 use core_types::activity::ActivityChunk;
 
-use super::history::{
-    CursorIdeSessionDetail, CursorIdeSessionRow, CURSORIDE_SESSION_PREFIX, CURSOR_IDE_CATEGORY,
-};
-use super::io::{load_composer_for_order, load_content_blob};
+use super::history::{CursorIdeSessionRow, CURSORIDE_SESSION_PREFIX, CURSOR_IDE_CATEGORY};
+use super::io::load_content_blob;
 use super::models::{
-    CursorComposerContext, CursorWorkspaceMetadata, OrderedBubble, RawBubble, RawComposerForOrder,
-    RawComposerHeader, RawCursorSubagentInfo, RawToolFormerData,
+    CursorComposerContext, CursorWorkspaceMetadata, OrderedBubble, RawBubble, RawComposerHeader,
+    RawCursorSubagentInfo, RawToolFormerData,
 };
 
 // ============================================================================
@@ -85,6 +83,7 @@ pub(super) fn cache_row_to_session_row(
     } else {
         Some(row.model)
     };
+    let repo_name = row.repo_path.as_deref().and_then(repo_name_from_path);
     Ok(CursorIdeSessionRow {
         session_id,
         name: if row.name.is_empty() {
@@ -106,61 +105,29 @@ pub(super) fn cache_row_to_session_row(
         lines_added: row.lines_added,
         lines_removed: row.lines_removed,
         files_changed: row.files_changed,
-        touched_files: Vec::new(),
+        touched_files: row.touched_files,
         background: false,
         is_active: false,
-        repo_path: None,
+        repo_path: row.repo_path,
         storage_path: Some(row.source_path),
-        repo_name: None,
-        branch: None,
-    })
-}
-
-/// Hover-card detail for a single Cursor IDE session.
-///
-/// Opens Cursor's `state.vscdb` and reads the composer's workspace metadata
-/// and touched-file list. Called only when the user hovers a sidebar row —
-/// never during list pagination.
-pub fn cursor_ide_session_detail(session_id: &str) -> Result<CursorIdeSessionDetail, String> {
-    let composer_id = session_id
-        .strip_prefix(CURSORIDE_SESSION_PREFIX)
-        .ok_or_else(|| format!("not a cursoride session: {session_id}"))?;
-
-    let storage_path = super::io::cursor_db_path().map(|path| path.to_string_lossy().to_string());
-    let conn = match super::io::open_cursor_db() {
-        Some(c) => c,
-        None => {
-            return Ok(CursorIdeSessionDetail {
-                storage_path,
-                ..CursorIdeSessionDetail::default()
-            })
-        }
-    };
-
-    let composer = load_composer_for_order(&conn, composer_id)?;
-    let metadata = cursor_workspace_metadata_from_composer(&composer);
-    let repo_name = metadata.repo_path.as_deref().and_then(repo_name_from_path);
-    let touched_files = cursor_touched_files_from_composer(&composer);
-
-    Ok(CursorIdeSessionDetail {
-        repo_path: metadata.repo_path,
-        storage_path,
         repo_name,
-        branch: metadata.branch,
-        touched_files,
+        branch: row.branch,
     })
 }
 
-fn cursor_touched_files_from_composer(composer: &RawComposerForOrder) -> Vec<String> {
-    composer
-        .original_file_states
+/// The files a session edited, from the composer's `originalFileStates` map
+/// (a key is present for every file whose before-state was captured for a diff).
+pub(super) fn cursor_touched_files_from_states(
+    original_file_states: &std::collections::BTreeMap<
+        String,
+        super::models::RawCursorOriginalFileState,
+    >,
+) -> Vec<String> {
+    original_file_states
         .iter()
         .filter_map(|(uri, state)| {
             let has_edit_marker = state.is_newly_created || !state.content_key.trim().is_empty();
-            if !has_edit_marker {
-                return None;
-            }
-            Some(cursor_file_uri_to_path(uri))
+            has_edit_marker.then(|| cursor_file_uri_to_path(uri))
         })
         .collect()
 }
@@ -176,16 +143,7 @@ fn cursor_file_uri_to_path(uri: &str) -> String {
 // Workspace metadata helpers
 // ============================================================================
 
-fn cursor_workspace_metadata_from_composer(
-    composer: &RawComposerForOrder,
-) -> CursorWorkspaceMetadata {
-    cursor_workspace_metadata_from_parts(
-        &composer.tracked_git_repos,
-        composer.workspace_identifier.as_ref(),
-    )
-}
-
-fn cursor_workspace_metadata_from_parts(
+pub(super) fn cursor_workspace_metadata_from_parts(
     tracked_git_repos: &[super::models::RawTrackedGitRepo],
     workspace_identifier: Option<&super::models::RawWorkspaceIdentifier>,
 ) -> CursorWorkspaceMetadata {
@@ -294,6 +252,29 @@ pub(super) fn normalize_created_at(raw: &str) -> String {
         return raw.to_string();
     }
     chrono::Utc::now().to_rfc3339()
+}
+
+/// Cursor stamps every bubble in a turn with the **same** `createdAt`, so a
+/// downstream sort by `(created_at, id)` reorders the turn — e.g. the user
+/// message renders after the assistant's reply, because the tie falls to the id
+/// and `cursoride-asst-…` sorts before `cursoride-user-…`. Our chunk order is
+/// already canonical (composer header order), so rewrite tied/decreasing
+/// timestamps to be strictly increasing, encoding the true order into the
+/// timestamp itself. Bumps are ≤ (bubbles per turn) ms, far below the seconds
+/// between real turns, so displayed timing is effectively unchanged.
+pub(super) fn enforce_monotonic_created_at(chunks: &mut [ActivityChunk]) {
+    let mut prev_ms: Option<i64> = None;
+    for chunk in chunks.iter_mut() {
+        let ms = parse_iso_to_epoch_ms(&chunk.created_at);
+        let next = match prev_ms {
+            Some(previous) if ms <= previous => previous + 1,
+            _ => ms,
+        };
+        if next != ms {
+            chunk.created_at = epoch_ms_to_iso(next);
+        }
+        prev_ms = Some(next);
+    }
 }
 
 // ============================================================================

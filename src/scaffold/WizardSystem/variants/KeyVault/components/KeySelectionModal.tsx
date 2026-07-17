@@ -43,7 +43,7 @@ const KeySelectionModal: React.FC<KeySelectionModalProps> = ({
   const { config: providerConfig } = useProviderConfig(agentType);
 
   // Detected keys can come from different endpoints of the same provider
-  // (OpenCode Zen vs Go, Zhipu China vs Global). Name the one each key targets.
+  // (OpenCode tiers, Zhipu regions and credential types). Name each target.
   const endpointLabel = (baseUrl?: string | null): string | null =>
     findEndpointByBaseUrl(providerConfig?.endpoints ?? [], baseUrl)?.label ??
     null;

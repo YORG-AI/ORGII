@@ -21,6 +21,9 @@ fn optional_string_array(params: &Value, key: &str) -> Result<Option<Vec<String>
     let Some(value) = params.get(key) else {
         return Ok(None);
     };
+    if value.is_null() {
+        return Ok(None);
+    }
     let Some(array) = value.as_array() else {
         return Err(ToolError::InvalidParams(format!(
             "parameter '{}' must be an array of strings",
@@ -41,7 +44,12 @@ fn optional_string_array(params: &Value, key: &str) -> Result<Option<Vec<String>
 }
 
 fn has_explicit_repo_scope(params: &Value) -> bool {
-    params.get("repo_path").is_some() || params.get("repo_paths").is_some()
+    params
+        .get("repo_path")
+        .is_some_and(|value| !value.is_null())
+        || params
+            .get("repo_paths")
+            .is_some_and(|value| !value.is_null())
 }
 
 /// Code and file search tool.

@@ -26,7 +26,11 @@ import {
   useState,
 } from "react";
 
-import { DEFAULT_CHAT_WIDTH, chatWidthAtom } from "@src/store/ui/chatPanelAtom";
+import {
+  DEFAULT_CHAT_WIDTH,
+  chatPanelDraggingAtom,
+  chatWidthAtom,
+} from "@src/store/ui/chatPanelAtom";
 
 import {
   CHAT_WIDTH_CSS_VAR,
@@ -78,6 +82,7 @@ export function useChatPanelResize(
   // OPTIMIZED: Only use setter, don't subscribe to value changes
   // Width is read from CSS variable when needed
   const setChatWidth = useSetAtom(chatWidthAtom);
+  const setChatPanelDragging = useSetAtom(chatPanelDraggingAtom);
   const [isDragging, setIsDragging] = useState(false);
 
   // Refs for pure DOM resize (no React renders during drag)
@@ -141,6 +146,7 @@ export function useChatPanelResize(
         if (!hasDraggedRef.current) {
           hasDraggedRef.current = true;
           setIsDragging(true);
+          setChatPanelDragging(true);
 
           // Set cursor globally - only when actually dragging
           document.body.style.cursor = "ew-resize";
@@ -186,6 +192,7 @@ export function useChatPanelResize(
 
           commitPendingWidth();
           setIsDragging(false);
+          setChatPanelDragging(false);
           hasDraggedRef.current = false;
         }
       };
@@ -202,12 +209,13 @@ export function useChatPanelResize(
         }
         hasDraggedRef.current = false;
         setIsDragging(false);
+        setChatPanelDragging(false);
       };
 
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
     },
-    [isLeftPosition, setChatWidth, useExternalWidth]
+    [isLeftPosition, setChatPanelDragging, setChatWidth, useExternalWidth]
   );
 
   // Cleanup drag listeners on unmount

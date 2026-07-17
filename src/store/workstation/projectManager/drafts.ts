@@ -95,6 +95,7 @@ export interface WorkItemDraft {
   assigneeType?: string;
   orchestratorConfig?: import("@src/api/http/project").OrchestratorConfig;
   projectId?: string;
+  orgId?: string;
   milestoneId?: string;
   labelIds: string[];
   startDate?: string;

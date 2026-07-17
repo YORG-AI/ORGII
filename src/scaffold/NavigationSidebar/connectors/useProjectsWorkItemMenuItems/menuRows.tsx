@@ -1,12 +1,5 @@
 import type { TFunction } from "i18next";
-import {
-  Box,
-  Cloud,
-  Loader2,
-  MoreHorizontal,
-  Network,
-  SquarePen,
-} from "lucide-react";
+import { Box, Loader2, MoreHorizontal, Network, SquarePen } from "lucide-react";
 import React from "react";
 
 import IntegrationIcon from "@src/components/IntegrationIcon";
@@ -18,7 +11,6 @@ import {
   PROJECTS_WORK_ITEM_CREATE_PREFIX,
 } from "./constants";
 import {
-  getCloudOrgMenuItemId,
   getLinearOrgMenuItemId,
   getLinearWorkItemMenuItemId,
   getLocalOrgMenuItemId,
@@ -45,18 +37,6 @@ function localOrgMenuRow(id: string, label: string): NavigationMenuItem {
 
 export function localOrgRow(orgId: string, label: string): NavigationMenuItem {
   return localOrgMenuRow(getLocalOrgMenuItemId(orgId), label);
-}
-
-export function cloudOrgRow(orgId: string, label: string): NavigationMenuItem {
-  const id = getCloudOrgMenuItemId(orgId);
-  return {
-    id,
-    key: id,
-    label,
-    icon: Cloud,
-    iconName: "cloud",
-    visualTone: "secondary",
-  };
 }
 
 export function linearOrgRow(orgId: string, label: string): NavigationMenuItem {
@@ -141,9 +121,25 @@ export function buildProjectOverviewRow(
   };
 }
 
+export function pendingSyncIndicator(t: TFunction): React.ReactElement {
+  const label = t("projects:orgs.pendingSync");
+  return (
+    <span
+      title={label}
+      aria-label={label}
+      className="flex items-center"
+      data-testid="sidebar-pending-sync-indicator"
+    >
+      <Loader2 size={12} strokeWidth={2} className="animate-spin text-text-4" />
+    </span>
+  );
+}
+
 export function buildProjectRow(
+  t: TFunction,
   projectSlug: string,
-  projectName: string
+  projectName: string,
+  pendingSync = false
 ): NavigationMenuItem {
   const id = getProjectOverviewMenuItemId(projectSlug);
   return {
@@ -154,6 +150,7 @@ export function buildProjectRow(
     iconName: "box",
     visualTone: "secondary",
     dataTestId: `sidebar-project-overview-${projectSlug}`,
+    workingIndicator: pendingSync ? pendingSyncIndicator(t) : undefined,
     dragPayload: {
       path: projectSlug,
       name: projectName,
@@ -164,7 +161,8 @@ export function buildProjectRow(
 
 export function buildWorkItemRow(
   t: TFunction,
-  workItem: SidebarAnyWorkItem
+  workItem: SidebarAnyWorkItem,
+  pendingSync = false
 ): NavigationMenuItem {
   const id =
     workItem.source === "local"
@@ -182,6 +180,7 @@ export function buildWorkItemRow(
     label: workItem.title || t("projects:workItems.untitledWorkItem"),
     iconElement: statusIconElement(toWorkItemStatus(workItem.status)),
     dataTestId: `sidebar-work-item-${workItem.id}`,
+    workingIndicator: pendingSync ? pendingSyncIndicator(t) : undefined,
     dragPayload: {
       path: workItemPath,
       name: workItem.title || t("projects:workItems.untitledWorkItem"),

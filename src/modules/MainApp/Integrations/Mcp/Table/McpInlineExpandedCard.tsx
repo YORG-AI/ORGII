@@ -6,6 +6,7 @@ import type {
   McpServerStatus,
   McpToolDef,
 } from "@src/modules/MainApp/AgentOrgs/config/mcp/useMcpServers";
+import { InfoRow } from "@src/modules/shared/layouts/blocks/InfoRow";
 
 import {
   InlineCardBody,
@@ -14,7 +15,6 @@ import {
   InlineCardShell,
   InlineCardSplit,
 } from "../../KeyVault/shared/InlineCardPrimitives";
-import { InfoRow } from "../../shared/InfoRow";
 
 interface McpInlineExpandedCardProps {
   server: McpServerStatus;

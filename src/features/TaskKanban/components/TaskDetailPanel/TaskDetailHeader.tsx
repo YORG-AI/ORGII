@@ -28,6 +28,7 @@ const TaskDetailHeader: React.FC<TaskDetailHeaderProps> = ({
     hasPrev={hasPrev}
     hasNext={hasNext}
     actions={actions}
+    draggable
   />
 );
 

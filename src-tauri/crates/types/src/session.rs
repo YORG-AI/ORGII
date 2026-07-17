@@ -50,12 +50,16 @@ pub const PENDING_SESSION_PLACEHOLDER: &str = "pending";
 /// (with its impls keyed on `agent_core::persistence::db_helpers`)
 /// down into the shared crate.
 ///
-/// Not to be confused with `unified_stats::SessionFilter`, which is the
+/// Not to be confused with `session_directory::SessionFilter`, which is the
 /// richer frontend-facing filter (sorting, text search, key source, etc.).
 #[derive(Debug, Clone, Default)]
 pub struct SessionListFilter {
     /// Filter by session type name ("os", "sde", "custom").
     pub type_name: Option<String>,
+    /// Filter by any of several session type names. Combines with
+    /// `type_name` as OR-of-equals; used by paginated directory reads
+    /// that span coding + org-member sessions in one SQL page.
+    pub type_names: Option<Vec<String>>,
     /// Filter by status — wire/DB string form (e.g. `"running"`).
     pub status: Option<String>,
     /// Filter by channel (OS sessions only).

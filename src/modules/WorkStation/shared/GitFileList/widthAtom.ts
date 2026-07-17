@@ -10,7 +10,7 @@ import { atomWithStorage } from "jotai/utils";
 
 export const GIT_FILE_LIST_MIN_WIDTH = 180;
 export const GIT_FILE_LIST_MAX_WIDTH = 520;
-export const GIT_FILE_LIST_DEFAULT_WIDTH = 260;
+export const GIT_FILE_LIST_DEFAULT_WIDTH = 180;
 
 export const gitFileListWidthAtom = atomWithStorage<number>(
   "orgii:gitFileListWidth",

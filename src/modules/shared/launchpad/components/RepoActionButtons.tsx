@@ -5,7 +5,6 @@ import {
   FolderOpen,
   FolderSearch,
   MessageCircle,
-  Sparkles,
   Trash2,
   X,
 } from "lucide-react";
@@ -18,9 +17,6 @@ import Message from "@src/components/Message";
 import { ROUTES } from "@src/config/routes";
 import { useRepoLoader } from "@src/hooks/git/useRepoSelection";
 import { createLogger } from "@src/hooks/logger";
-import { useValidatedLastPair } from "@src/hooks/models/useValidatedLastPair";
-import { useRepoDetection } from "@src/modules/shared/launchpad/hooks/useRepoDetection";
-import { useRepoSetup } from "@src/modules/shared/launchpad/hooks/useRepoSetup";
 import { selectedRepoIdAtom } from "@src/store/repo";
 import type { Repo } from "@src/store/repo/types";
 import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
@@ -69,60 +65,8 @@ const RepoActionButtons: React.FC<RepoActionButtonsProps> = ({
   const setSelectedRepoId = useSetAtom(selectedRepoIdAtom);
   const { forceRefreshRepos } = useRepoLoader();
 
-  const { launching, launchSetup } = useRepoSetup();
-  const lastModel = useValidatedLastPair();
-
   const repoPath = repo.fs_uri ? stripFileUri(repo.fs_uri) : (repo.path ?? "");
   const repoLabel = repo.name || repoPath.split("/").pop() || "Repo";
-
-  const { repoType, repoTypeLabel, configFiles, hasDocker, hasMakefile } =
-    useRepoDetection(repoPath || undefined);
-
-  const handleSetupRepo = useCallback(async () => {
-    if (!repoPath || launching) return;
-    try {
-      await launchSetup(
-        {
-          repoPath,
-          repoName: repoLabel,
-          repoType,
-          repoTypeLabel,
-          configFiles,
-          hasDocker,
-          hasMakefile,
-        },
-        {
-          trusted: false,
-          keySource: lastModel?.keySource,
-          model: lastModel?.model,
-          accountId: lastModel?.selectedAccountId,
-          cliAgentType: lastModel?.cliAgentType,
-          listingModel: lastModel?.listingModel,
-          listingModelType: lastModel?.listingModelType,
-          tier: lastModel?.tier,
-        }
-      );
-    } catch (error) {
-      logger.error("launching repo setup failed:", error);
-      Message.error(
-        t("navigation:launchpad.actions.setupFailed", {
-          defaultValue: "Failed to start repo setup",
-        })
-      );
-    }
-  }, [
-    repoPath,
-    repoLabel,
-    repoType,
-    repoTypeLabel,
-    configFiles,
-    hasDocker,
-    hasMakefile,
-    launching,
-    launchSetup,
-    lastModel,
-    t,
-  ]);
 
   const handleSwitch = useCallback(() => {
     setSelectedRepoId(repo.id);
@@ -198,18 +142,7 @@ const RepoActionButtons: React.FC<RepoActionButtonsProps> = ({
 
   return (
     <div className={`flex max-w-full items-center gap-1.5 ${className}`}>
-      <Button
-        variant="primary"
-        size="small"
-        shape={shape}
-        className="shrink-0"
-        icon={<Sparkles size={14} />}
-        disabled={!repoPath || launching}
-        loading={launching}
-        onClick={handleSetupRepo}
-      >
-        {t("navigation:launchpad.preview.setupWithAI")}
-      </Button>
+      {/* Temporarily disabled: Turn into app */}
       <Button
         variant="secondary"
         size="small"

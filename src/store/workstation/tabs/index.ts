@@ -78,6 +78,7 @@ export {
   outputTabFactory,
   settingsTabFactory,
   aiImpactTabFactory,
+  searchSessionsTabFactory,
   benchmarkTabFactory,
   lintScanTabFactory,
   searchTabFactory,
@@ -88,6 +89,7 @@ export {
   createFileTab,
   createDirectoryTab,
   createExplorerTab,
+  createStartTab,
   createGitDiffTab,
   createTimelineDiffTab,
   createSourceControlTab,
@@ -100,18 +102,10 @@ export {
   createOutputTab,
   createSettingsTab,
   createAIImpactTab,
+  createSearchSessionsTab,
   createBenchmarkTab,
   createLintScanTab,
   createSearchTab,
-  // Database factories
-  tableTabFactory,
-  queryTabFactory,
-  schemaTabFactory,
-  addConnectionTabFactory,
-  createTableTab,
-  createQueryTab,
-  createSchemaTab,
-  createAddConnectionTab,
   // Browser factories
   browserSessionTabFactory,
   createBrowserSessionTab,
@@ -163,6 +157,9 @@ export {
   // GitHub Issue Detail factories
   githubIssueDetailTabFactory,
   createGitHubIssueDetailTab,
+  // GitHub PR Detail factories
+  githubPrDetailTabFactory,
+  createGitHubPrDetailTab,
 } from "./factories";
 
 export type {
@@ -179,10 +176,6 @@ export type {
   DomComponentPreviewTabData,
   OutputTabData,
   SearchTabData,
-  // Database data types
-  TableTabData,
-  QueryTabData,
-  SchemaTabData,
   DirectoryTabData,
   // Browser data types
   BrowserSessionTabData,
@@ -208,6 +201,8 @@ export type {
   AgentConfigTabVariant,
   // GitHub Issue Detail data types
   GitHubIssueDetailTabData,
+  // GitHub PR Detail data types
+  GitHubPrDetailTabData,
 } from "./factories";
 
 // ============================================

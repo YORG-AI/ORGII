@@ -17,6 +17,7 @@ import {
   useGitOperations,
 } from "@src/hooks/git/useGitOperations";
 import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
+import { useWorkingTreeDiffTotals } from "@src/hooks/git/useWorkingTreeDiffTotals";
 import { useRefreshSpin } from "@src/hooks/ui";
 import { workspaceGitStatusMapAtom } from "@src/store/git";
 import type { GitPullStrategy } from "@src/store/ui/editorSettingsAtom";
@@ -41,6 +42,8 @@ export interface UseEditorStatusBarGitReturn {
   isMultiRoot: boolean;
   aheadCount: number;
   behindCount: number;
+  workingAdditions: number;
+  workingDeletions: number;
   needsPublish: boolean;
   isSyncBusy: boolean;
   isPublishing: boolean;
@@ -96,6 +99,10 @@ export function useEditorStatusBarGit({
     ? selectedRepoId || undefined
     : undefined;
   const canSyncDisplayedRepo = !!operationRepoPath;
+
+  const { additions: workingAdditions, deletions: workingDeletions } =
+    useWorkingTreeDiffTotals(operationRepoId, operationRepoPath);
+
   const { push, pull, fetch, publish, isLoading } = useGitOperations({
     repoId: operationRepoId,
     repoPath: operationRepoPath,
@@ -326,6 +333,8 @@ export function useEditorStatusBarGit({
     isMultiRoot,
     aheadCount,
     behindCount,
+    workingAdditions,
+    workingDeletions,
     needsPublish: !!needsPublish,
     isSyncBusy,
     isPublishing,

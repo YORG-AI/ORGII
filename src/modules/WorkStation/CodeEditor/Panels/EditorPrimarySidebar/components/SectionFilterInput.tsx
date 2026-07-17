@@ -1,5 +1,6 @@
 import { Funnel } from "lucide-react";
 import React from "react";
+import { useTranslation } from "react-i18next";
 
 import Input from "@src/components/Input";
 import type { SectionHeaderAction } from "@src/components/TreePanelSidebar/types";
@@ -18,25 +19,29 @@ export const SectionFilterInput: React.FC<SectionFilterInputProps> = ({
   query,
   onChange,
   onClose,
-  placeholder = "Filter…",
-}) => (
-  <div className="flex-shrink-0 px-3 pb-2 pt-1">
-    <Input
-      prefix={<Funnel size={14} strokeWidth={1.75} />}
-      placeholder={placeholder}
-      value={query}
-      onChange={(value) => onChange(value)}
-      size="small"
-      className="input-pane-surface"
-      autoFocus
-      onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === "Escape") {
-          onClose();
-        }
-      }}
-    />
-  </div>
-);
+  placeholder,
+}) => {
+  const { t } = useTranslation("common");
+
+  return (
+    <div className="flex-shrink-0 px-3 pb-2 pt-1">
+      <Input
+        prefix={<Funnel size={14} strokeWidth={1.75} />}
+        placeholder={placeholder ?? t("actions.filter", "Filter")}
+        value={query}
+        onChange={(value) => onChange(value)}
+        size="small"
+        className="input-pane-surface"
+        autoFocus
+        onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+          if (e.key === "Escape") {
+            onClose();
+          }
+        }}
+      />
+    </div>
+  );
+};
 
 // ─── Section Header Action Factory ───────────────────────────────────────────
 

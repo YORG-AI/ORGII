@@ -4,6 +4,19 @@
 # Release tags must be valid three-part SemVer because Tauri app/updater
 # versions are written directly from the tag.
 #
+# Update channels:
+#   Stable — tag vX.Y.Z. Served via the GitHub "latest release" alias
+#     (releases/latest/download/latest.json), which excludes prereleases.
+#   Beta   — tag vX.Y.Z-beta.N for the NEXT unreleased X.Y.Z (never a version
+#     that already shipped, or SemVer would sort it below stable and the
+#     updater would never offer it). Marked as a GitHub prerelease.
+#     Windows beta builds ship NSIS only: WiX/MSI rejects SemVer prerelease
+#     versions, and the updater uses the NSIS artifact anyway.
+#   Every release (stable and beta) overwrites beta.json on the rolling
+#   `updater` release when it is the highest version so far, so the beta
+#   channel always points at the newest build of either kind and beta users
+#   converge back onto stable once it overtakes the last beta.
+#
 # Sidecar binaries (peekaboo, agent-browser, dugite/git) are NOT bundled in the
 # .app. They are downloaded at first launch into ~/.orgii/bin/ by the app itself
 # (post-notarized download strategy). This keeps the notarized bundle small and
@@ -255,6 +268,15 @@ jobs:
           SEMVER="$FULL_VERSION"
           echo "VERSION=$FULL_VERSION" >> "$GITHUB_ENV"
           echo "SEMVER=$SEMVER" >> "$GITHUB_ENV"
+          # WiX/MSI rejects SemVer prerelease versions, so beta builds ship NSIS only.
+          # The updater's windows-x86_64 entry uses NSIS either way.
+          if [[ "$FULL_VERSION" == *-* ]]; then
+            echo "IS_PRERELEASE=true" >> "$GITHUB_ENV"
+            echo "WIN_BUNDLES=nsis" >> "$GITHUB_ENV"
+          else
+            echo "IS_PRERELEASE=false" >> "$GITHUB_ENV"
+            echo "WIN_BUNDLES=msi,nsis" >> "$GITHUB_ENV"
+          fi
           sed -i "s/\"version\": \".*\"/\"version\": \"$SEMVER\"/" src-tauri/tauri.conf.json
           sed -i "s/\"version\": \".*\"/\"version\": \"$FULL_VERSION\"/" package.json
 
@@ -290,7 +312,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           ORGII_DIAGNOSTICS_TOKEN: ${{ secrets.ORGII_DIAGNOSTICS_TOKEN }}
           ORGII_APP_VERSION: ${{ env.SEMVER }}
-        run: pnpm tauri build --target x86_64-pc-windows-msvc
+        run: pnpm tauri build --target x86_64-pc-windows-msvc --bundles ${{ env.WIN_BUNDLES }}
 
       # ── Sign with Azure Trusted Signing ─────────────────────────
       - name: Azure login (OIDC)
@@ -323,19 +345,24 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           BUNDLE_DIR="src-tauri/target/x86_64-pc-windows-msvc/release/bundle"
-          MSI=$(find "$BUNDLE_DIR/msi" -name "*.msi" ! -name "*.zip" | head -1)
+          MSI=$(find "$BUNDLE_DIR/msi" -name "*.msi" ! -name "*.zip" 2>/dev/null | head -1)
           NSIS=$(find "$BUNDLE_DIR/nsis" -name "*.exe" ! -name "*.zip" | head -1)
 
-          for artifact in "$MSI" "$NSIS"; do
-            if [ ! -f "$artifact" ]; then
-              echo "Missing Windows updater artifact: $artifact" >&2
-              exit 1
-            fi
-          done
+          if [ ! -f "$NSIS" ]; then
+            echo "Missing Windows updater artifact: $NSIS" >&2
+            exit 1
+          fi
+          if [ "$IS_PRERELEASE" != "true" ] && [ ! -f "$MSI" ]; then
+            echo "Missing Windows updater artifact: $MSI" >&2
+            exit 1
+          fi
 
-          rm -f "$MSI.sig" "$NSIS.sig"
-          pnpm tauri signer sign "$MSI"
+          rm -f "$NSIS.sig"
           pnpm tauri signer sign "$NSIS"
+          if [ -f "$MSI" ]; then
+            rm -f "$MSI.sig"
+            pnpm tauri signer sign "$MSI"
+          fi
 
       # ── Gather artifacts ─────────────────────────────────────────
       - name: Gather release artifacts
@@ -344,33 +371,45 @@ jobs:
         run: |
           BUNDLE_DIR="src-tauri/target/x86_64-pc-windows-msvc/release/bundle"
 
-          MSI=$(find "$BUNDLE_DIR/msi" -name "*.msi" ! -name "*.zip" | head -1)
-          MSI_SIG=$(find "$BUNDLE_DIR/msi" -name "*.msi.sig" | head -1)
+          MSI=$(find "$BUNDLE_DIR/msi" -name "*.msi" ! -name "*.zip" 2>/dev/null | head -1)
+          MSI_SIG=$(find "$BUNDLE_DIR/msi" -name "*.msi.sig" 2>/dev/null | head -1)
           NSIS=$(find "$BUNDLE_DIR/nsis" -name "*.exe" ! -name "*.zip" | head -1)
           NSIS_SIG=$(find "$BUNDLE_DIR/nsis" -name "*.exe.sig" | head -1)
 
-          for artifact in "$MSI" "$MSI_SIG" "$NSIS" "$NSIS_SIG"; do
+          for artifact in "$NSIS" "$NSIS_SIG"; do
             if [ ! -f "$artifact" ]; then
               echo "Missing Windows release artifact: $artifact" >&2
               exit 1
             fi
           done
 
-          LATEST_MSI="ORG2-latest-windows-x64.msi"
+          if [ "$IS_PRERELEASE" != "true" ]; then
+            for artifact in "$MSI" "$MSI_SIG"; do
+              if [ ! -f "$artifact" ]; then
+                echo "Missing Windows release artifact: $artifact" >&2
+                exit 1
+              fi
+            done
+          fi
+
           LATEST_NSIS="ORG2-latest-windows-x64-setup.exe"
-          cp "$MSI" "$LATEST_MSI"
           cp "$NSIS" "$LATEST_NSIS"
 
-          echo "msi=$MSI"                 >> "$GITHUB_OUTPUT"
-          echo "msi_sig=$MSI_SIG"         >> "$GITHUB_OUTPUT"
+          if [ -f "$MSI" ]; then
+            LATEST_MSI="ORG2-latest-windows-x64.msi"
+            cp "$MSI" "$LATEST_MSI"
+            echo "msi=$MSI"               >> "$GITHUB_OUTPUT"
+            echo "msi_sig=$MSI_SIG"       >> "$GITHUB_OUTPUT"
+            echo "latest_msi=$LATEST_MSI" >> "$GITHUB_OUTPUT"
+          fi
+
           echo "nsis=$NSIS"               >> "$GITHUB_OUTPUT"
           echo "nsis_sig=$NSIS_SIG"       >> "$GITHUB_OUTPUT"
-          echo "latest_msi=$LATEST_MSI"   >> "$GITHUB_OUTPUT"
           echo "latest_nsis=$LATEST_NSIS" >> "$GITHUB_OUTPUT"
 
           echo "=== Windows artifacts ==="
-          echo "MSI:      $MSI"
-          echo "MSI sig:  $MSI_SIG"
+          echo "MSI:      ${MSI:-<skipped for prerelease>}"
+          echo "MSI sig:  ${MSI_SIG:-<skipped for prerelease>}"
           echo "NSIS:     $NSIS"
           echo "NSIS sig: $NSIS_SIG"
 
@@ -548,3 +587,39 @@ jobs:
             ${{ steps.artifacts.outputs.latest_deb }}
             ${{ steps.artifacts.outputs.latest_appimage }}
             latest.json
+
+      # ── Publish beta channel manifest ─────────────────────────────
+      # The `updater` release is a rolling prerelease that hosts channel
+      # manifests at a stable URL. Every release (stable and beta) overwrites
+      # beta.json when it is the highest version so far, so the beta channel
+      # always tracks the newest build of either kind. The stable channel
+      # keeps using the releases/latest alias and needs no extra publishing.
+      - name: Publish beta channel manifest
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view updater >/dev/null 2>&1; then
+            gh release create updater \
+              --title "Updater channel manifests" \
+              --notes "Rolling release hosting update-channel manifests (beta.json). Do not delete: installed apps on the beta channel poll its assets." \
+              --prerelease \
+              --target "$GITHUB_SHA"
+          fi
+
+          NEW_VERSION=$(jq -r '.version' latest.json)
+          EXISTING_VERSION=$(gh release download updater --pattern beta.json --output - 2>/dev/null | jq -r '.version // empty' || true)
+          EXISTING_VERSION="${EXISTING_VERSION:-0.0.0}"
+
+          # Guard against regressing beta.json when an older tag is (re)built
+          # after a newer one already published (e.g. a stable hotfix behind
+          # the current beta). semver handles prerelease ordering correctly.
+          HIGHEST=$(npx --yes semver@7 "$NEW_VERSION" "$EXISTING_VERSION" | tail -1)
+          if [ "$HIGHEST" != "$NEW_VERSION" ]; then
+            echo "Skipping beta.json: existing $EXISTING_VERSION > new $NEW_VERSION"
+            exit 0
+          fi
+
+          cp latest.json beta.json
+          gh release upload updater beta.json --clobber
+          echo "Published beta.json for $NEW_VERSION (was $EXISTING_VERSION)"

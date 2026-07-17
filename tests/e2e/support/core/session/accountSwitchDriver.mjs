@@ -10,7 +10,7 @@ import { providerBlockedText } from "./e2eBrowserHelpers.mjs";
 export const CLAUDE_CODE_AGENT_TYPE = "claude_code";
 export const CODEX_AGENT_TYPE = "codex";
 export const CURSOR_AGENT_TYPE = "cursor_cli";
-export const GEMINI_AGENT_TYPE = "gemini_cli";
+const GEMINI_API_AGENT_TYPE = "gemini_api";
 const INITIAL_ACCOUNT_NAME = process.env.E2E_CLAUDE_CODE_INITIAL_ACCOUNT;
 const FOLLOWUP_ACCOUNT_NAME = process.env.E2E_CLAUDE_CODE_FOLLOWUP_ACCOUNT;
 export const CODEX_INITIAL_ACCOUNT_NAME = process.env.E2E_CODEX_INITIAL_ACCOUNT;
@@ -76,14 +76,11 @@ const ACCOUNT_SWITCH_SCENARIO_NAMES = new Set([
   "claude-code-rust",
   "claude-code-rust-midstream",
   "gemini-rust",
-  "gemini-cli",
 ]);
 export const INITIAL_EXPECTED_TEXT = "ORGII_CC_SWITCH_INITIAL_READY";
 export const FOLLOWUP_EXPECTED_TEXT = "ORGII_CC_SWITCH_FOLLOWUP_READY";
 export const CODEX_INITIAL_EXPECTED_TEXT = "ORGII_CODEX_SWITCH_INITIAL_READY";
 export const CODEX_FOLLOWUP_EXPECTED_TEXT = "ORGII_CODEX_SWITCH_FOLLOWUP_READY";
-export const GEMINI_INITIAL_EXPECTED_TEXT = "ORGII_GEMINI_SWITCH_INITIAL_READY";
-export const GEMINI_FOLLOWUP_EXPECTED_TEXT = "ORGII_GEMINI_SWITCH_FOLLOWUP_READY";
 const MOUNT_TIMEOUT_MS = 60_000;
 const ENDPOINT_TIMEOUT_MS = Number.parseInt(
   process.env.E2E_CLAUDE_SWITCH_TIMEOUT_MS ?? "120000",
@@ -1471,10 +1468,9 @@ export function findCursorNativeAccountPair(accounts) {
 export function findGeminiAccountPair(accounts) {
   const candidates = accounts.filter(
     (row) =>
-      row.agent_type === GEMINI_AGENT_TYPE &&
+      row.agent_type === GEMINI_API_AGENT_TYPE &&
       row.enabled &&
-      row.auth_method === "oauth" &&
-      row.has_session_token &&
+      row.has_api_key &&
       GEMINI_MODEL_CHAIN.some((model) =>
         (row.enabled_models ?? []).includes(model)
       )
@@ -1516,11 +1512,10 @@ export function findGeminiAccountPair(accounts) {
 function findGeminiAccount(accounts, accountName) {
   const account = accounts.find(
     (row) =>
-      row.agent_type === GEMINI_AGENT_TYPE &&
+      row.agent_type === GEMINI_API_AGENT_TYPE &&
       (!accountName || row.name === accountName || row.id === accountName) &&
       row.enabled &&
-      row.auth_method === "oauth" &&
-      row.has_session_token &&
+      row.has_api_key &&
       GEMINI_MODEL_CHAIN.some((model) =>
         (row.enabled_models ?? []).includes(model)
       )
@@ -1528,12 +1523,13 @@ function findGeminiAccount(accounts, accountName) {
   if (account) return account;
 
   const available = accounts
-    .filter((row) => row.agent_type === GEMINI_AGENT_TYPE)
+    .filter((row) => row.agent_type === GEMINI_API_AGENT_TYPE)
     .map((row) => ({
       id: row.id,
       name: row.name,
       enabled: row.enabled,
       auth_method: row.auth_method,
+      has_api_key: row.has_api_key,
       has_session_token: row.has_session_token,
       enabled_models: row.enabled_models,
     }));

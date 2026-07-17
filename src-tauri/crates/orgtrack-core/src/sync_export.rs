@@ -220,6 +220,7 @@ mod tests {
             branch: Some("Dev".to_string()),
             parent_session_id: None,
             org_member_id: None,
+            collaboration_origin: None,
             metadata: AgentMetadata::default(),
         };
         let final_diffs = vec![SessionFinalDiffRecord {

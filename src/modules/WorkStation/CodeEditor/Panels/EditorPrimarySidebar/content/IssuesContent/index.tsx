@@ -3,7 +3,7 @@
  *
  * GitHub Issues panel for the workstation primary sidebar.
  * Interaction patterns aligned with SourceControlContent:
- * - "Filter issues…" input (same style as "Filter changes…")
+ * - Generic localized filter input
  * - Refresh and filter controls in the regular section header actions
  * - The outer CollapsibleSection header ("ISSUES") is provided by the sidebar module
  */
@@ -298,6 +298,14 @@ const IssuesContent: React.FC<IssuesContentProps> = memo(
 
     let listContent: React.ReactNode;
 
+    // When the Open section is the sidebar's only content (Closed collapsed,
+    // Open expanded with no rows), surface its loading/empty state as a centered
+    // Explorer-style Placeholder that fills the pane. Section headers and the
+    // inline SectionStatusRow are still used once Closed is expanded or Open has
+    // rows, so each section keeps its own structured state.
+    const openWholePane =
+      !openCollapsed && closedCollapsed && openIssues.length === 0;
+
     if (needsReAuth) {
       listContent = (
         <Placeholder
@@ -309,11 +317,12 @@ const IssuesContent: React.FC<IssuesContentProps> = memo(
           )}
           subtitle={t(
             "git.issues.reAuthDescription",
-            "Your GitHub token has expired. Go to Settings → Integrations → Git to reconnect."
+            "Your GitHub token has expired. Go to Settings → Connections to reconnect."
           )}
           action={{
             label: t("git.issues.goToSettings", "Go to Settings"),
-            onClick: () => navigate(buildIntegrationsPath({ category: "git" })),
+            onClick: () =>
+              navigate(buildIntegrationsPath({ category: "connections" })),
           }}
           fillParentHeight
         />
@@ -328,6 +337,33 @@ const IssuesContent: React.FC<IssuesContentProps> = memo(
           action={{ label: t("actions.retry", "Retry"), onClick: refresh }}
           fillParentHeight
         />
+      );
+    } else if (openWholePane && openStatus && openStatus.kind !== "error") {
+      listContent = (
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <TreeSectionHeader
+            id="open-issues"
+            title="Open"
+            collapsed={openCollapsed}
+            count={openIssues.length}
+            onToggle={() => setOpenCollapsed((prev) => !prev)}
+          />
+          <Placeholder
+            variant={openStatus.kind === "loading" ? "loading" : "empty"}
+            placement="sidebar"
+            title={
+              openStatus.kind === "loading" ? undefined : openStatus.message
+            }
+            fillParentHeight
+          />
+          <TreeSectionHeader
+            id="closed-issues"
+            title="Closed"
+            collapsed={closedCollapsed}
+            count={closedLoadState === "ready" ? closedIssues.length : null}
+            onToggle={handleToggleClosed}
+          />
+        </div>
       );
     } else {
       const renderVirtualRow = (row: IssueVirtualRow): React.ReactNode => {
@@ -416,7 +452,6 @@ const IssuesContent: React.FC<IssuesContentProps> = memo(
             query={filterQuery}
             onChange={(q) => onFilterQueryChange?.(q)}
             onClose={() => onFilterClose?.()}
-            placeholder={t("git.issues.searchPlaceholder", "Filter issues…")}
           />
         )}
 

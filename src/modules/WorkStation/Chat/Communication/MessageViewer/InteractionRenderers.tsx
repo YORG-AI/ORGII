@@ -4,7 +4,6 @@ import type { AgentOrgRunMemberView } from "@src/api/tauri/agent";
 import { ApprovalRequestEvent } from "@src/engines/ChatPanel/events/interactive_events/approval";
 import { AskQuestionEvent } from "@src/engines/ChatPanel/events/interactive_events/ask-question";
 import { ModeSwitchEvent } from "@src/engines/ChatPanel/events/interactive_events/mode-switch";
-import { NextStepEvent } from "@src/engines/ChatPanel/events/interactive_events/next-step";
 import PlanDocAdapter from "@src/engines/ChatPanel/rendering/adapters/PlanDocAdapter";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { isPlanDisplayEvent } from "@src/engines/SessionCore/derived/planDisplayEvents";
@@ -26,18 +25,12 @@ const MODE_SWITCH_FUNCTIONS = new Set<string>([
   "mode_switch",
 ]);
 
-const NEXT_STEP_FUNCTIONS = new Set<string>(["suggest_next_steps"]);
-
 function isApprovalEvent(event: SessionEvent): boolean {
   return APPROVAL_FUNCTIONS.has(event.functionName?.toLowerCase() || "");
 }
 
 function isModeSwitchEvent(event: SessionEvent): boolean {
   return MODE_SWITCH_FUNCTIONS.has(event.functionName?.toLowerCase() || "");
-}
-
-function isNextStepEvent(event: SessionEvent): boolean {
-  return NEXT_STEP_FUNCTIONS.has(event.functionName?.toLowerCase() || "");
 }
 
 export function renderPlanDocCard(
@@ -85,8 +78,6 @@ export function renderInteractionWidget(
     widget = <ApprovalRequestEvent {...eventProps} />;
   } else if (isModeSwitchEvent(message.event)) {
     widget = <ModeSwitchEvent {...eventProps} />;
-  } else if (isNextStepEvent(message.event)) {
-    widget = <NextStepEvent {...eventProps} />;
   }
   if (!widget) return null;
   return (

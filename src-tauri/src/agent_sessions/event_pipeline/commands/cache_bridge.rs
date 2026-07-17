@@ -197,7 +197,7 @@ pub async fn cache_load_session_events(session_id: String) -> Result<Vec<Session
     Ok(prepare_loaded_events(&session_id, events))
 }
 
-/// Search events via FTS5, returning SessionEvents directly.
+/// Search events via LIKE substring matching, returning SessionEvents directly.
 #[tauri::command]
 pub async fn cache_search_session_events(
     session_id: String,
@@ -1027,7 +1027,8 @@ mod tests {
 
     #[test]
     fn compact_boundary_row_maps_to_context_compacted_event() {
-        let content = "[Conversation summary \u{2014} 6 earlier messages compacted]\n\nsummary body";
+        let content =
+            "[Conversation summary \u{2014} 6 earlier messages compacted]\n\nsummary body";
         let event = compact_boundary_row_to_event(
             "session-x",
             CompactBoundaryRow {

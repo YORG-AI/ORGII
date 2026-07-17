@@ -1,9 +1,9 @@
 //! CLI command building and parser creation for each CLI agent type (ModelType).
 
+use crate::agent_sessions::cli::parsers::antigravity::AntigravityParser;
 use crate::agent_sessions::cli::parsers::claude_code::ClaudeCodeParser;
 use crate::agent_sessions::cli::parsers::codex::CodexParser;
 use crate::agent_sessions::cli::parsers::cursor::CursorParser;
-use crate::agent_sessions::cli::parsers::gemini::GeminiParser;
 use crate::agent_sessions::cli::parsers::CliAgentParser;
 use crate::agent_sessions::cli::session_runner::launch_profiles::{
     defaults_for_agent, static_args_to_vec, ResolvedCliLaunchProfile,
@@ -100,8 +100,13 @@ pub(super) fn build_command_with_launch_profile(
                 cmd.push(rid.into());
             }
             if let Some(m) = model {
+                let claude_model = map_claude_model_variant(m);
                 cmd.push("--model".into());
-                cmd.push(map_claude_model(m));
+                cmd.push(claude_model.base_model);
+                if let Some(effort) = claude_model.effort {
+                    cmd.push("--effort".into());
+                    cmd.push(effort);
+                }
             }
             for dir in additional_dirs {
                 if dir.is_empty() {
@@ -144,21 +149,6 @@ pub(super) fn build_command_with_launch_profile(
             cmd.push(task.into());
             cmd
         }
-        ModelType::GeminiCli => {
-            cmd.push("--output-format".into());
-            cmd.push("stream-json".into());
-            if let Some(rid) = resume_id {
-                cmd.push("--resume".into());
-                cmd.push(rid.into());
-            }
-            if let Some(m) = model {
-                cmd.push("--model".into());
-                cmd.push(m.into());
-            }
-            cmd.push("-p".into());
-            cmd.push(task.into());
-            cmd
-        }
         ModelType::Copilot => {
             cmd.push("--acp".into());
             if let Some(rid) = resume_id {
@@ -172,6 +162,26 @@ pub(super) fn build_command_with_launch_profile(
             cmd
         }
         ModelType::Kiro | ModelType::OpenCode => cmd,
+        ModelType::Antigravity => {
+            if let Some(rid) = resume_id {
+                cmd.push("--conversation".into());
+                cmd.push(rid.into());
+            }
+            if let Some(m) = model {
+                cmd.push("--model".into());
+                cmd.push(m.into());
+            }
+            for dir in additional_dirs {
+                if dir.is_empty() {
+                    continue;
+                }
+                cmd.push("--add-dir".into());
+                cmd.push(dir.clone());
+            }
+            cmd.push("--print".into());
+            cmd.push(task.into());
+            cmd
+        }
         ModelType::KimiCli
         | ModelType::Aider
         | ModelType::Goose
@@ -187,7 +197,6 @@ pub(super) fn build_command_with_launch_profile(
         | ModelType::Codebuff
         | ModelType::QwenCode
         | ModelType::MimoCode
-        | ModelType::Antigravity
         | ModelType::Continue
         | ModelType::Droid
         | ModelType::MistralVibe
@@ -218,14 +227,17 @@ struct CodexModelLaunchConfig {
 }
 
 fn map_codex_model_variant(model: &str) -> CodexModelLaunchConfig {
-    const CODEX_VARIANT_BASES: [&str; 5] = [
+    const CODEX_VARIANT_BASES: [&str; 8] = [
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna",
         "gpt-5.5",
         "gpt-5.4",
         "gpt-5.4-mini",
         "gpt-5.3-codex",
         "gpt-5.2",
     ];
-    const CODEX_REASONING_LEVELS: [&str; 4] = ["low", "medium", "high", "xhigh"];
+    const CODEX_REASONING_LEVELS: [&str; 5] = ["low", "medium", "high", "xhigh", "ultra"];
 
     for base_model in CODEX_VARIANT_BASES {
         let Some(suffix) = model.strip_prefix(base_model) else {
@@ -270,9 +282,70 @@ fn map_codex_model_variant(model: &str) -> CodexModelLaunchConfig {
 /// Also strips trailing YYYYMMDD date suffixes (e.g. `claude-haiku-4-5-20251001`
 /// → `claude-haiku-4-5`). The API layer accepts these suffixes, but Claude Code
 /// CLI rejects them.
+#[cfg(test)]
 pub(super) fn map_claude_model(model: &str) -> String {
-    let model = strip_cli_date_suffix(model);
-    agent_core::providers::model_hints::normalize_claude_shorthand(model)
+    map_claude_model_variant(model).base_model
+}
+
+pub(super) struct ClaudeModelLaunchConfig {
+    pub base_model: String,
+    pub effort: Option<String>,
+}
+
+/// Effort/reasoning suffix tokens the Claude Code CLI accepts via `--effort`.
+/// The market model id encodes effort as a trailing suffix (e.g.
+/// `claude-opus-4-8-high`), but Claude Code's `--model` only understands the
+/// base model name — the level must go to the separate `--effort` flag.
+/// `extra-high` is the frontend variant token; the CLI spells it `xhigh`.
+fn claude_effort_token(token: &str) -> Option<&'static str> {
+    match token {
+        "low" => Some("low"),
+        "medium" => Some("medium"),
+        "high" => Some("high"),
+        "xhigh" | "extra-high" => Some("xhigh"),
+        "max" => Some("max"),
+        _ => None,
+    }
+}
+
+/// Split a Claude market model id into the base model (for `--model`) and an
+/// optional effort level (for `--effort`), then normalize the base name the
+/// same way [`map_claude_model`] does (strip date suffix, re-add `claude-`
+/// prefix). Non-effort suffixes (e.g. `thinking`, `fast`) and plain version
+/// numbers are left on the base model untouched.
+pub(super) fn map_claude_model_variant(model: &str) -> ClaudeModelLaunchConfig {
+    // Try the compound `extra-high` token first (two trailing segments),
+    // then a single trailing segment. `rfind` alone would split
+    // `...-extra-high` at the last `-`, leaving `extra` on the base model.
+    let (base, effort) = split_claude_effort(model);
+
+    let base_model = strip_cli_date_suffix(base);
+    ClaudeModelLaunchConfig {
+        base_model: agent_core::providers::model_hints::normalize_claude_shorthand(base_model),
+        effort,
+    }
+}
+
+fn split_claude_effort(model: &str) -> (&str, Option<String>) {
+    let mut dash_positions = model
+        .char_indices()
+        .filter(|(_, c)| *c == '-')
+        .map(|(idx, _)| idx);
+    let last = dash_positions.next_back();
+    let second_last = dash_positions.next_back();
+
+    // Compound token like `extra-high` spans the final two segments.
+    if let (Some(second), Some(_)) = (second_last, last) {
+        if let Some(level) = claude_effort_token(&model[second + 1..]) {
+            return (&model[..second], Some(level.to_string()));
+        }
+    }
+    if let Some(pos) = last {
+        if let Some(level) = claude_effort_token(&model[pos + 1..]) {
+            return (&model[..pos], Some(level.to_string()));
+        }
+    }
+    (model, None)
 }
 
 /// Strip a trailing 8-digit date suffix (YYYYMMDD) from a model ID.
@@ -297,9 +370,9 @@ pub(super) fn create_parser(agent: &ModelType, session_id: &str) -> Box<dyn CliA
         ModelType::CursorCli => Box::new(CursorParser::new(session_id)),
         ModelType::ClaudeCode => Box::new(ClaudeCodeParser::new(session_id)),
         ModelType::Codex => Box::new(CodexParser::new(session_id)),
-        ModelType::GeminiCli => Box::new(GeminiParser::new(session_id)),
+        ModelType::Antigravity => Box::new(AntigravityParser::new(session_id)),
         other => panic!(
-            "ModelType::{:?} does not use CliAgentParser (Copilot/Kiro use ACP; API providers are not CLI agents)",
+            "ModelType::{:?} does not use CliAgentParser (Copilot/Kiro/OpenCode use ACP; API providers are not CLI agents)",
             other
         ),
     }

@@ -43,7 +43,10 @@ export function buildBranchSpotlightItem(
     icon: branch.worktreePath ? ICONS.worktree : ICONS.branch,
     type: "branch" as const,
     statusType: branch.isCurrent ? ("ongoing" as const) : undefined,
-    data: { ...branch },
+    data: {
+      ...branch,
+      contextMenuCopy: { name: branch.name },
+    },
     action: () => onAction(branch),
   };
 }

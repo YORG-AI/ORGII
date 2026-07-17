@@ -66,10 +66,32 @@ function resolveAwaitCommand(
   // it". Only a non-null present value counts as "wait_for intent".
   const hasPattern = args?.pattern !== undefined && args?.pattern !== null;
   const hasWaitMode = args?.wait_mode !== undefined && args?.wait_mode !== null;
-  if (hasPattern || hasWaitMode) {
+  const isCodexWait =
+    args?.cell_id !== undefined || args?.yield_time_ms !== undefined;
+  if (hasPattern || hasWaitMode || isCodexWait) {
     return "wait_for";
   }
   return "monitor";
+}
+
+/** Read Codex's wall-time line, falling back to the requested yield window. */
+function readCodexWaitedMs(
+  args: Record<string, unknown> | undefined,
+  result: Record<string, unknown> | undefined
+): number | undefined {
+  if (args?.cell_id === undefined && args?.yield_time_ms === undefined) {
+    return undefined;
+  }
+
+  for (const value of [result?.output, result?.content, result?.observation]) {
+    if (typeof value !== "string") continue;
+    const match = value.match(/Wall time\s+([\d.]+)\s+seconds?/i);
+    if (match) return Number.parseFloat(match[1]) * 1000;
+  }
+
+  return typeof args?.yield_time_ms === "number"
+    ? args.yield_time_ms
+    : undefined;
 }
 
 /** Format a remaining-ms value for `Waiting {{countdown}} ...` titles. */
@@ -173,7 +195,8 @@ function useAwaitExtras(
   // Countdown must be called unconditionally (rules of hooks), so pull the
   // inputs before the early return for non-await tools. Only `wait_for`
   // shows a countdown — for other commands we pass `undefined` to no-op.
-  const blockUntilMs = props.args?.block_until_ms as number | undefined;
+  const blockUntilMs = (props.args?.block_until_ms ??
+    props.args?.yield_time_ms) as number | undefined;
   const countdownActive =
     awaitCommand === "wait_for" && lifecycle === "running";
   const countdown = useCountdownString(
@@ -190,7 +213,8 @@ function useAwaitExtras(
   const items = meta?.items ?? [];
   const representative =
     items.find((it) => it.status !== "running") ?? items[0];
-  const waitedMs = representative?.waitedMs;
+  const waitedMs =
+    representative?.waitedMs ?? readCodexWaitedMs(props.args, props.result);
 
   const summary = buildSummary(items, t);
 

@@ -402,8 +402,7 @@ mod tests {
 
     /// Nested DTO that, under schemars' draft-07 default, would be hoisted
     /// into a top-level `definitions` map and referenced via
-    /// `$ref: "#/definitions/Nested"`. Mirrors `StepProposal` in
-    /// `suggest_next_steps`. With `inline_subschemas = true` it must be
+    /// `$ref: "#/definitions/Nested"`. With `inline_subschemas = true` it must be
     /// expanded in place with no `$ref` anywhere.
     #[allow(dead_code)]
     #[derive(Debug, Deserialize, JsonSchema)]

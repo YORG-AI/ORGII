@@ -48,6 +48,8 @@ export interface MessageConfig {
   icon?: ReactNode;
   className?: string;
   id?: string;
+  /** Keep this message from being evicted by the three-message soft limit. */
+  persistent?: boolean;
   /** Optional title for the message */
   title?: string;
   /** Optional download action shown in the toast */
@@ -84,23 +86,20 @@ const ICONS: Record<MessageType, typeof CheckCircle2> = {
 
 const TYPE_STYLES: Record<MessageType, { border: string; icon: string }> = {
   success: {
-    border:
-      "border-[color-mix(in_srgb,var(--color-success-6)_30%,transparent)]",
-    icon: "text-[var(--color-success-6)] bg-[color-mix(in_srgb,var(--color-success-6)_15%,transparent)]",
+    border: "border-success-6/30",
+    icon: "bg-success-6/15 text-success-6",
   },
   error: {
-    border: "border-[color-mix(in_srgb,var(--color-danger-6)_30%,transparent)]",
-    icon: "text-[var(--color-danger-6)] bg-[color-mix(in_srgb,var(--color-danger-6)_15%,transparent)]",
+    border: "border-danger-6/30",
+    icon: "bg-danger-6/15 text-danger-6",
   },
   warning: {
-    border:
-      "border-[color-mix(in_srgb,var(--color-warning-6)_30%,transparent)]",
-    icon: "text-[var(--color-warning-6)] bg-[color-mix(in_srgb,var(--color-warning-6)_15%,transparent)]",
+    border: "border-warning-6/30",
+    icon: "bg-warning-6/15 text-warning-6",
   },
   info: {
-    border:
-      "border-[color-mix(in_srgb,var(--color-primary-6)_30%,transparent)]",
-    icon: "text-[var(--color-primary-6)] bg-[color-mix(in_srgb,var(--color-primary-6)_15%,transparent)]",
+    border: "border-primary-6/30",
+    icon: "bg-primary-6/15 text-primary-6",
   },
 };
 
@@ -241,7 +240,7 @@ const MessageItem = ({
       {/* Close button */}
       {closable && (
         <button
-          className="my-[-2px] ml-1 mr-[-4px] flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0 text-text-3 opacity-60 transition-all duration-150 ease-out hover:bg-[rgba(255,255,255,0.1)] hover:text-text-1 hover:opacity-100 active:scale-95"
+          className="my-[-2px] ml-1 mr-[-4px] flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0 text-text-3 opacity-60 transition-all duration-150 ease-out hover:bg-white/10 hover:text-text-1 hover:opacity-100 active:scale-95"
           onClick={handleClose}
           aria-label={t("actions.close")}
         >
@@ -334,29 +333,34 @@ class MessageManager {
   private add(config: MessageConfig): string {
     this.ensureContainer();
 
-    // Deduplication: Skip if same message was shown recently
-    const hash = this.generateHash(config);
-    if (this.recentHashes.has(hash)) {
-      return ""; // Skip duplicate
-    }
-
-    // Mark as shown and auto-clear after duration
-    this.recentHashes.add(hash);
-    setTimeout(
-      () => {
-        this.recentHashes.delete(hash);
-      },
-      (config.duration || DEFAULT_DURATION) + 500
-    );
-
     const id = config.id || this.generateId();
 
-    // Limit to max 3 messages
-    if (this.messages.size >= 3) {
-      const firstKey = this.messages.keys().next().value;
-      if (firstKey) {
-        this.messages.delete(firstKey);
+    // Fixed IDs are update slots: callers use them to replace live progress
+    // and must also be able to reopen the same content immediately after a
+    // manual close. Only generated one-shot messages participate in dedupe.
+    if (!config.id) {
+      const hash = this.generateHash(config);
+      if (this.recentHashes.has(hash)) {
+        return ""; // Skip duplicate
       }
+
+      this.recentHashes.add(hash);
+      setTimeout(
+        () => {
+          this.recentHashes.delete(hash);
+        },
+        (config.duration || DEFAULT_DURATION) + 500
+      );
+    }
+
+    // Limit one-shot messages to a soft maximum of three. Replacing an
+    // existing slot does not evict anything, and persistent progress notices
+    // are never chosen as eviction candidates.
+    if (!this.messages.has(id) && this.messages.size >= 3) {
+      const firstDismissible = Array.from(this.messages.entries()).find(
+        ([, message]) => !message.persistent
+      );
+      if (firstDismissible) this.messages.delete(firstDismissible[0]);
     }
 
     this.messages.set(id, config);

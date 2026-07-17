@@ -141,7 +141,6 @@ const ORGII_HOME_SECRET_SEED_ENTRIES = new Set([
   "claude-code-cli-profiles",
   "codex-cli-profiles",
   "cursor-cli-profiles",
-  "gemini-cli-profiles",
 ]);
 const ORGII_HOME_SEED_EXCLUDED_NAMES = new Set([
   ".cargo",
@@ -408,6 +407,21 @@ function createFixtureRepo(repoPath) {
   execFileSync("git", ["init", "--initial-branch=main", repoPath], {
     stdio: "ignore",
   });
+  // Cross-device collaboration identifies workspaces by normalized remote,
+  // never by local path. Give the deterministic fixture a harmless fake
+  // origin so cloud share/fork E2E can exercise that production boundary.
+  execFileSync(
+    "git",
+    [
+      "-C",
+      repoPath,
+      "remote",
+      "add",
+      "origin",
+      "https://github.com/orgii/e2e-workspace.git",
+    ],
+    { stdio: "ignore" }
+  );
   execFileSync(
     "git",
     ["-C", repoPath, "add", "README.md", "package.json", "src/math.ts"],

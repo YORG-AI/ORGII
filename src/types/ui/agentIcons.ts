@@ -5,20 +5,13 @@
  * Separated from pure types to keep type files clean of UI dependencies.
  */
 import type { LucideIcon } from "lucide-react";
-import {
-  Bot,
-  Code2,
-  Cpu,
-  Github,
-  HelpCircle,
-  MousePointer2,
-  Zap,
-} from "lucide-react";
+import { Bot, Cpu, Github, HelpCircle, MousePointer2, Zap } from "lucide-react";
 
 import type {
   StreamingAgentType,
   ToolKind,
 } from "@src/api/realtime/websocket/types";
+import { resolveAgentIcon } from "@src/config/agentIcons";
 
 // ============================================
 // Icon Mapping for Tool Kinds
@@ -48,7 +41,7 @@ export const AGENT_TYPE_ICONS: Record<StreamingAgentType, LucideIcon> = {
   claude: Bot,
   amp: Zap,
   cursor: MousePointer2,
-  codex: Code2,
+  codex: resolveAgentIcon("codex"),
   acp: Cpu,
   droid: Bot,
   copilot: Github,

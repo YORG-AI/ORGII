@@ -105,7 +105,9 @@ pub(crate) enum WorkspaceLaunchTarget {
 pub(crate) enum LaunchProvenance {
     UserSession,
     WorkItem {
-        project_slug: String,
+        /// Project scope for the Work Item. `None` is a first-class
+        /// standalone Work Item, not a reason to discard the linkage.
+        project_slug: Option<String>,
         work_item_id: String,
         agent_role: Option<String>,
         lock_reason: project_types::WorkItemExecutionLockReason,
@@ -313,7 +315,7 @@ pub async fn launch_agent_session(
                 project_name: None,
             },
             provenance: LaunchProvenance::WorkItem {
-                project_slug: project_slug.to_string(),
+                project_slug: Some(project_slug.to_string()),
                 work_item_id: work_item_id.to_string(),
                 agent_role: Some(agent_role.to_string()),
                 lock_reason,

@@ -23,9 +23,8 @@ function createInput(
   return {
     tabData: {},
     gitFilesByPath: new Map(),
-    sourceControlAttributedFiles: [],
+    sourceControlFiles: [],
     sourceControlFilterMode: "uncommitted",
-    sourceControlSessionFilter: "all",
     repoPath: "/repo",
     ...overrides,
   };
@@ -74,16 +73,16 @@ describe("deriveSourceControlMainProps", () => {
     expect(result.staged).toBe(true);
   });
 
-  it("prefers attributed files over the raw git status map", () => {
-    const attributed = createGitFile({ path: "attributed.ts" });
+  it("prefers supplied source control files over the raw git status map", () => {
+    const supplied = createGitFile({ path: "supplied.ts" });
     const status = createGitFile({ path: "status.ts" });
     const result = deriveSourceControlMainProps(
       createInput({
-        sourceControlAttributedFiles: [attributed],
+        sourceControlFiles: [supplied],
         gitFilesByPath: new Map([["status.ts", status]]),
       })
     );
-    expect(result.allFiles).toEqual([attributed]);
+    expect(result.allFiles).toEqual([supplied]);
   });
 
   it("falls back to embedded tab files when no status/attribution exists", () => {
@@ -99,7 +98,7 @@ describe("deriveSourceControlMainProps", () => {
     const unstaged = createGitFile({ path: "unstaged.ts", staged: false });
     const result = deriveSourceControlMainProps(
       createInput({
-        sourceControlAttributedFiles: [staged, unstaged],
+        sourceControlFiles: [staged, unstaged],
         sourceControlFilterMode: "staged",
       })
     );
@@ -111,37 +110,23 @@ describe("deriveSourceControlMainProps", () => {
     const unstaged = createGitFile({ path: "unstaged.ts", staged: false });
     const result = deriveSourceControlMainProps(
       createInput({
-        sourceControlAttributedFiles: [staged, unstaged],
+        sourceControlFiles: [staged, unstaged],
         sourceControlFilterMode: "unstaged",
       })
     );
     expect(result.allFiles).toEqual([unstaged]);
   });
 
-  it("keeps only files without a session for the 'other' session filter", () => {
-    const owned = createGitFile({ path: "owned.ts", sourceSessionId: "s1" });
-    const other = createGitFile({ path: "other.ts" });
-    const result = deriveSourceControlMainProps(
-      createInput({
-        sourceControlAttributedFiles: [owned, other],
-        sourceControlFilterMode: "uncommitted",
-        sourceControlSessionFilter: "other",
-      })
-    );
-    expect(result.allFiles).toEqual([other]);
-  });
-
-  it("keeps only files matching a specific session id filter", () => {
+  it("does not filter uncommitted files by session metadata", () => {
     const s1 = createGitFile({ path: "s1.ts", sourceSessionId: "s1" });
     const s2 = createGitFile({ path: "s2.ts", sourceSessionId: "s2" });
     const result = deriveSourceControlMainProps(
       createInput({
-        sourceControlAttributedFiles: [s1, s2],
+        sourceControlFiles: [s1, s2],
         sourceControlFilterMode: "uncommitted",
-        sourceControlSessionFilter: "s2",
       })
     );
-    expect(result.allFiles).toEqual([s2]);
+    expect(result.allFiles).toEqual([s1, s2]);
   });
 
   it("resolves the focus git file for the focus path", () => {

@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 
 import TabPill from "@src/components/TabPill";
 import type { TabPillItem } from "@src/components/TabPill";
+import { useProjectOrgCloudPermissions } from "@src/features/Org2Cloud/useProjectOrgCloudPermissions";
 import { useCurrentUserMemberIds } from "@src/hooks/project/useCurrentUserMemberId";
 import type { WorkstationTabHeaderHost } from "@src/hooks/workStation";
 import type { LinkedRepoOption } from "@src/modules/ProjectManager/shared";
@@ -24,6 +25,7 @@ import {
   type ProjectDetailSurfaceView,
 } from "@src/store/workstation/tabs";
 import type { WorkItemStatus } from "@src/types/core/workItem";
+import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
 
 import { ProjectDetailSurfacePillSwitch } from "../ProjectManagerLayout/components/ProjectDetailSurfacePillSwitch";
 import {
@@ -155,6 +157,8 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
   workstationHeaderHost = "project",
 }) => {
   const { t } = useTranslation("projects");
+  const { canAdminister: canAdministerProjectOrg } =
+    useProjectOrgCloudPermissions();
   const activeWorkspaceRootPath = useAtomValue(activeWorkspaceRootPathAtom);
   const allRepos = useAtomValue(reposAtom);
   const availableRepos = useMemo<LinkedRepoOption[]>(
@@ -241,6 +245,29 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
     setPendingSettingsSection(undefined);
   }, []);
 
+  const confirmWorkItemDelete = useCallback(
+    async (name?: string) =>
+      confirmDestructiveAction({
+        title: name
+          ? t("common:actions.confirmDeleteTitle", { name })
+          : t("common:actions.confirmDelete"),
+        message: t("common:actions.confirmDeleteMessage"),
+        okLabel: t("common:actions.delete"),
+        cancelLabel: t("common:actions.cancel"),
+      }),
+    [t]
+  );
+  const handleDeleteWorkItem = useCallback(
+    async (workItemId: string) => {
+      const item = data.workItems.find(
+        (candidate) => candidate.session_id === workItemId
+      );
+      if (!(await confirmWorkItemDelete(item?.name))) return;
+      await handlers.handleDelete(workItemId);
+    },
+    [confirmWorkItemDelete, data.workItems, handlers]
+  );
+
   const {
     selectedIds,
     bulkDeleting,
@@ -254,6 +281,7 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
     projectSlug: projectData.project?.slug,
     getShortId: data.getShortId,
     onBatchDeleteComplete: data.refresh,
+    onBeforeDelete: () => confirmWorkItemDelete(),
   });
 
   const handleOpenSearch = useCallback(() => {
@@ -328,7 +356,7 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
       hasPrev={data.navigation.hasPrev}
       hasNext={data.navigation.hasNext}
       onUpdateWorkItem={handlers.handleUpdate}
-      onDeleteWorkItem={handlers.handleDelete}
+      onDeleteWorkItem={handleDeleteWorkItem}
       availableMembers={projectData.availableMembers}
       availableProjects={projectData.availableProjects}
       availableMilestones={projectData.availableMilestones}
@@ -498,7 +526,11 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
         workItemPrefix={displayProject.workItemPrefix ?? "PRJ"}
         workItemPrefixCustom={displayProject.workItemPrefixCustom ?? false}
         onUpdateWorkItemPrefix={handleWorkItemPrefixUpdate}
-        onDeleteProject={handleDeleteProject}
+        onDeleteProject={
+          canAdministerProjectOrg(displayProject.orgId)
+            ? handleDeleteProject
+            : undefined
+        }
         projectMembers={displayProject.members ?? []}
         onUpdateProjectMembers={handleUpdateProjectMembers}
         onOpenRepoSettings={onOpenRepoSettings}
@@ -605,7 +637,7 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
           onCheckedChange={handleCheckedChange}
           onSelectWorkItem={handlers.handleSelect}
           onUpdateWorkItem={handlers.handleUpdate}
-          onDeleteWorkItem={handlers.handleDelete}
+          onDeleteWorkItem={handleDeleteWorkItem}
           onRestoreWorkItem={handlers.handleRestore}
           onAddListItem={(status: WorkItemStatus) =>
             handlers.handleAddListItem(status)

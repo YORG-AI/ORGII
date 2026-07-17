@@ -11,6 +11,7 @@ import { clearLoadedPayloads } from "@src/engines/SessionCore/payloads";
 import { clearLoadedTurnRegistry } from "@src/engines/SessionCore/turns/loadedTurnRegistry";
 import { createLogger } from "@src/hooks/logger";
 import { messageQueueAtom } from "@src/store/ui/messageQueueAtom";
+import { isImportedHistorySession } from "@src/util/session/sessionDispatch";
 
 import { isVisibleInChat } from "../../ingestion/visibilityFilters";
 import {
@@ -256,6 +257,11 @@ export const clearSessionAtom = atom(null, (get, set) => {
   clearLoadedPayloads();
   if (currentSessionId) {
     clearLoadedTurnRegistry(currentSessionId);
+    // Free the departing session's JS snapshot mirror (full event arrays,
+    // inflated further by any replay-loaded turn bodies) after a grace
+    // window, so rapid switch-backs stay warm. Skipped while it is still
+    // streaming; Rust remains the source of truth either way.
+    eventStoreProxy.scheduleSessionSnapshotRelease(currentSessionId);
   }
   // NOTE: Do NOT call set(eventsAtom, []) here. eventsAtom's write handler
   // fires eventStoreProxy.set([]) which is an async fire-and-forget IPC to
@@ -353,9 +359,15 @@ export const loadSessionAtom = atom(
         set(pendingSyntheticEventAtom, null);
       }
       resetSessionUIState(set, currentSessionId);
+      // Direct A→B switches come through here without clearSessionAtom —
+      // schedule the outgoing session's snapshot release here too.
+      eventStoreProxy.scheduleSessionSnapshotRelease(currentSessionId);
     }
 
     set(sessionIdAtom, sessionId);
+    // Belt-and-braces for load paths that skip switchSession(): the incoming
+    // session is active again, so rescue it from any pending release.
+    eventStoreProxy.cancelScheduledSnapshotRelease(sessionId);
 
     resetRunningArgsCache();
 
@@ -367,10 +379,26 @@ export const loadSessionAtom = atom(
       currentSessionId === sessionId && existingSameSessionEvents.length > 0
         ? existingSameSessionEvents
         : [];
+    // Imported transcripts are append-only and their parsed events immutable,
+    // so a refresh reload keeps the EXISTING object references for events the
+    // store already holds — the memoized render pipeline (sameFlatItems &co)
+    // then short-circuits on identity and only genuinely new rows render.
+    // The final existing event is the exception: chunk aggregation can still
+    // extend it while new lines append, so it takes the incoming version.
+    // Live sessions keep replace semantics: streaming events evolve in place
+    // under a stable id, and stale references would freeze their content.
+    const reuseExistingReferences = isImportedHistorySession(sessionId);
     const eventsForLoad =
       baseEvents.length > 0
         ? [
-            ...baseEvents.map((event) => incomingById.get(event.id) ?? event),
+            ...baseEvents.map((event, index) => {
+              const incoming = incomingById.get(event.id);
+              if (!incoming) return event;
+              if (reuseExistingReferences && index < baseEvents.length - 1) {
+                return event;
+              }
+              return incoming;
+            }),
             ...events.filter((event) => !existingIds.has(event.id)),
           ]
         : events;

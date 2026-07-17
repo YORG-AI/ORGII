@@ -44,7 +44,6 @@ async fn fresh_fork_provider(spec: &ForkProviderSpec) -> Result<Arc<dyn LLMProvi
         &spec.reliability,
         spec.native_harness_type,
         Some(spec.workspace.clone()),
-        None,
     )
     .await
     .map(Arc::from)

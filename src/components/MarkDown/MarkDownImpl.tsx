@@ -24,7 +24,7 @@ import { isThemeCssPathDark } from "@src/config/appearance/globalThemes";
 import { getLanguageFromPath } from "@src/config/languageMap";
 import CanvasInlineCard from "@src/engines/ChatPanel/blocks/CanvasInlineCard";
 import ChatCodeBlock from "@src/engines/ChatPanel/blocks/CodeBlock";
-import { codeMirrorPrismTheme } from "@src/features/CodeMirror/themes";
+import { codeMirrorPrismTheme } from "@src/features/CodeMirror/themes/prism";
 import { useCopyCheck } from "@src/hooks/ui";
 import { themesAtom } from "@src/store";
 import { activeWorkspaceRootAtom } from "@src/store/workspace";

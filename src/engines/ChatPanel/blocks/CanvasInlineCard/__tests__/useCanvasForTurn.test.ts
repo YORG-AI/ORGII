@@ -1,9 +1,8 @@
 /**
  * Tests for useCanvasForTurn state derivations.
  *
- * All logic is tested as pure functions that mirror the hook's atom-update
- * and derivation logic, following the project pattern of extracting testable
- * logic from hooks.
+ * Tests exercise the hook's exported pure state derivation and update
+ * functions directly, so production behavior cannot drift from test mirrors.
  *
  * Covers:
  * - State machine: idle → ready → dismissed → cleared
@@ -16,7 +15,14 @@
  */
 import { describe, expect, it } from "vitest";
 
-import type { CanvasPreviewEntry } from "@src/store/session/canvasPreviewAtom";
+import {
+  type CanvasPreviewEntry,
+  clearCanvasForSession,
+  deriveCanvasForSessionSnapshot,
+  dismissCanvasForSession,
+} from "@src/store/session/canvasPreviewAtom";
+
+import { deriveCanvasForTurnSnapshot } from "../useCanvasForTurn";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -34,41 +40,24 @@ function makeEntry(
   };
 }
 
-/**
- * Pure implementation of useCanvasForTurn's payload derivation.
- * Mirrors: payload = entry?.sessionId === sessionId && !entry.cardDismissed
- *           ? entry.payload : null
- */
 function derivePayload(
   entry: CanvasPreviewEntry | null,
   sessionId: string | null | undefined
 ) {
-  if (!entry) return null;
-  if (!sessionId) return null;
-  if (entry.sessionId !== sessionId) return null;
-  if (entry.cardDismissed) return null;
-  return entry.payload;
+  return deriveCanvasForSessionSnapshot(entry, sessionId).payload;
 }
 
-/**
- * Pure implementation of useCanvasForTurn's openedInSimulator derivation.
- */
 function deriveOpenedInSimulator(
   entry: CanvasPreviewEntry | null,
   sessionId: string | null | undefined
 ): boolean {
-  return Boolean(
-    entry && entry.sessionId === sessionId && entry.openedInSimulator
-  );
+  return deriveCanvasForSessionSnapshot(entry, sessionId).openedInSimulator;
 }
 
-/**
- * Pure implementation of the dismiss updater.
- */
 function applyDismiss(
   prev: CanvasPreviewEntry | null
 ): CanvasPreviewEntry | null {
-  return prev ? { ...prev, cardDismissed: true } : null;
+  return dismissCanvasForSession(prev, "session-1");
 }
 
 /**
@@ -79,8 +68,7 @@ function applyDismissAtNewTurn(
   prev: CanvasPreviewEntry | null,
   sessionId: string
 ): CanvasPreviewEntry | null {
-  if (!prev || prev.sessionId !== sessionId || prev.cardDismissed) return prev;
-  return { ...prev, cardDismissed: true };
+  return dismissCanvasForSession(prev, sessionId);
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -145,6 +133,46 @@ describe("useCanvasForTurn — openedInSimulator derivation", () => {
       openedInSimulator: true,
     });
     expect(deriveOpenedInSimulator(entry, "session-1")).toBe(true);
+  });
+});
+
+describe("useCanvasForTurn — pill ownership", () => {
+  it("allows the generic latest-canvas shortcut for a visible canvas", () => {
+    expect(
+      deriveCanvasForTurnSnapshot(makeEntry(), "session-1")
+        .allowsLatestCanvasShortcut
+    ).toBe(true);
+  });
+
+  it("lets PinnedActionsBar exclusively own a dismissed canvas", () => {
+    const state = deriveCanvasForTurnSnapshot(
+      makeEntry({ cardDismissed: true }),
+      "session-1"
+    );
+    expect(state.isDismissed).toBe(true);
+    expect(state.allowsLatestCanvasShortcut).toBe(false);
+  });
+
+  it("hides the generic shortcut after opening in Simulator", () => {
+    expect(
+      deriveCanvasForTurnSnapshot(
+        makeEntry({ openedInSimulator: true }),
+        "session-1"
+      ).allowsLatestCanvasShortcut
+    ).toBe(false);
+  });
+
+  it("does not let another session suppress the shortcut", () => {
+    expect(
+      deriveCanvasForTurnSnapshot(
+        makeEntry({
+          sessionId: "session-2",
+          cardDismissed: true,
+          openedInSimulator: true,
+        }),
+        "session-1"
+      ).allowsLatestCanvasShortcut
+    ).toBe(true);
   });
 });
 
@@ -278,6 +306,17 @@ describe("useCanvasForTurn — cross-session isolation", () => {
     const result = applyDismissAtNewTurn(entryB, "session-A");
     expect(result).toBe(entryB);
     expect(result?.cardDismissed).toBeUndefined();
+  });
+
+  it("manual dismiss for session-A does not modify session-B entry", () => {
+    const entryB = makeEntry({ sessionId: "session-B" });
+    expect(dismissCanvasForSession(entryB, "session-A")).toBe(entryB);
+  });
+
+  it("manual clear for session-A does not remove session-B entry", () => {
+    const entryB = makeEntry({ sessionId: "session-B" });
+    expect(clearCanvasForSession(entryB, "session-A")).toBe(entryB);
+    expect(clearCanvasForSession(entryB, "session-B")).toBeNull();
   });
 });
 

@@ -173,3 +173,63 @@ fn parses_windsurf_bubbles_into_replay_chunks() {
     );
     assert_eq!(chunks[2].function, imported_history::FUNCTION_ASSISTANT);
 }
+
+#[test]
+fn maps_windsurf_subagent_parent_and_child_impact() {
+    let conn = fixture_conn();
+    let child = r#"{
+        "composerId":"composer-child",
+        "name":"Edit the child file",
+        "createdAt":1770000006000,
+        "lastUpdatedAt":1770000007000,
+        "subagentInfo":{"parentComposerId":"composer-1"},
+        "fullConversationHeadersOnly":[{"bubbleId":"edit1","type":2}]
+    }"#;
+    let edit = r#"{
+        "type":2,
+        "bubbleId":"edit1",
+        "createdAt":"2026-02-01T00:00:03Z",
+        "toolFormerData":{
+            "name":"edit_file",
+            "toolCallId":"call-edit",
+            "status":"completed",
+            "params":"{\"file_path\":\"src/child.ts\",\"old_content\":\"old\",\"new_content\":\"new\\nextra\"}",
+            "result":"{}",
+            "additionalData":{}
+        }
+    }"#;
+    conn.execute(
+        "INSERT INTO cursorDiskKV (key, value) VALUES (?1, ?2)",
+        ["composerData:composer-child", child],
+    )
+    .expect("insert child composer");
+    conn.execute(
+        "INSERT INTO cursorDiskKV (key, value) VALUES (?1, ?2)",
+        ["bubbleId:composer-child:edit1", edit],
+    )
+    .expect("insert child edit");
+
+    let inputs = list_windsurf_composer_meta_from_conn(
+        &conn,
+        std::path::Path::new("/tmp/state.vscdb"),
+        1770000008000,
+        4096,
+    )
+    .expect("list metadata")
+    .into_iter()
+    .map(composer_meta_to_cache_input)
+    .collect::<Vec<_>>();
+    let child = inputs
+        .iter()
+        .find(|input| input.source_session_id == "composer-child")
+        .expect("child input");
+
+    assert_eq!(
+        child.parent_session_id.as_deref(),
+        Some("windsurfapp-composer-1")
+    );
+    assert_eq!(child.impact.touched_files, vec!["src/child.ts"]);
+    assert_eq!(child.impact.lines_added, 2);
+    assert_eq!(child.impact.lines_removed, 1);
+    assert!(!child.listable);
+}

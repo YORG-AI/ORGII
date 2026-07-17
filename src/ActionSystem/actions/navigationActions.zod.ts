@@ -115,14 +115,6 @@ const appGoToBrowser = defineRouteNavigationAction(
   ["open the browser", "switch to browser"]
 );
 
-const appGoToDatabase = defineRouteNavigationAction(
-  ACTION_ID.APP_GO_TO_DATABASE,
-  "Switch to the Database Manager (Workstation)",
-  ROUTES.workStation.database.path,
-  "Switched to Database Manager",
-  ["open the database manager", "switch to database"]
-);
-
 const appGoToChat = defineRouteNavigationAction(
   ACTION_ID.APP_GO_TO_CHAT,
   "Switch to Chat (Workstation)",
@@ -155,14 +147,6 @@ const appGoToProjects = defineRouteNavigationAction(
   ["open projects", "open project manager"]
 );
 
-const appGoToDevRecord = defineRouteNavigationAction(
-  ACTION_ID.APP_GO_TO_DEV_RECORD,
-  "Open the Dev Record page",
-  ROUTES.app.journey.record.path,
-  "Opened Dev Record",
-  ["open dev record", "show development record"]
-);
-
 const appGoToChangelog = defineRouteNavigationAction(
   ACTION_ID.APP_GO_TO_CHANGELOG,
   "Open the Changelog",
@@ -171,12 +155,23 @@ const appGoToChangelog = defineRouteNavigationAction(
   ["open changelog", "show changes"]
 );
 
-const appGoToOpsControl = defineRouteNavigationAction(
-  ACTION_ID.APP_GO_TO_OPS_CONTROL,
-  "Open Ops Control",
-  ROUTES.workStation.opsControl.path,
-  "Opened Ops Control",
-  ["open ops control", "open kanban"]
+const appGoToKanban = defineZodAction(
+  {
+    id: ACTION_ID.APP_GO_TO_KANBAN,
+    category: "app",
+    description: "Open Kanban",
+    params: z.object({}),
+    layer: "gui",
+    examples: ["open kanban", "show kanban"],
+  },
+  async () => {
+    const { WorkStationViewService } =
+      await import("@src/services/workStation/WorkStationViewService");
+    const success = await WorkStationViewService.openKanbanTab();
+    return success
+      ? { success: true, message: "Opened Kanban" }
+      : { success: false, message: "Kanban is not available" };
+  }
 );
 
 const appGoToAgentOrgs = defineRouteNavigationAction(
@@ -268,14 +263,12 @@ export const appNavigationZodActions = [
   appGoToSettings,
   appGoToEditor,
   appGoToBrowser,
-  appGoToDatabase,
   appGoToChat,
   appGoToMarket,
   appGoToStartPage,
   appGoToProjects,
-  appGoToDevRecord,
   appGoToChangelog,
-  appGoToOpsControl,
+  appGoToKanban,
   appGoToAgentOrgs,
   appGoToIntegrations,
   appGoToConnections,

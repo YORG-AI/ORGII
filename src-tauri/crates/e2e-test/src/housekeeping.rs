@@ -8,7 +8,6 @@
 //! - `POST /agent/test/housekeeping/seed-snapshots`   — plant N synthetic manifests + DB rows
 //! - `POST /agent/test/housekeeping/seed-aged`        — plant an aged session dir
 //! - `POST /agent/test/housekeeping/seed-session-dir` — plant a `cursor-config/<sid>/` or
-//!   `gemini-cli-home/<sid>/` dir, optionally with a matching `agent_sessions` row
 //! - `POST /agent/test/housekeeping/seed-aged-file`   — plant a flat TTL file under `screenshots/` or `merkle/`
 //! - `POST /agent/test/housekeeping/seed-plan-file`   — plant a file under `plans/<agent_subdir>/`
 //! - `POST /agent/test/housekeeping/seed-worktree-dir` — plant `agent-worktrees/<repo_hash>/<sid>/`
@@ -114,6 +113,40 @@ async fn run_housekeeping(cfg: &Config) -> Result<serde_json::Value, String> {
         return Err(err.to_string());
     }
     Ok(json)
+}
+
+/// Seed a flat TTL file under a supported `~/.orgii/` root through the
+/// debug-only housekeeping endpoint and return its absolute path.
+async fn seed_aged_file(
+    cfg: &Config,
+    root: &str,
+    name: &str,
+    age_days: u64,
+) -> Result<String, String> {
+    let url = format!("{}/agent/test/housekeeping/seed-aged-file", cfg.base_url);
+    let body = serde_json::json!({
+        "root": root,
+        "name": name,
+        "age_days": age_days,
+    });
+    let resp = reqwest::Client::new()
+        .post(&url)
+        .json(&body)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|err| format!("HTTP error: {}", err))?;
+    let json: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|err| format!("JSON parse error: {}", err))?;
+    if let Some(err) = json.get("error").and_then(|v| v.as_str()) {
+        return Err(err.to_string());
+    }
+    json.get("path")
+        .and_then(|v| v.as_str())
+        .map(str::to_owned)
+        .ok_or_else(|| "response missing 'path'".to_string())
 }
 
 // ============================================
@@ -376,93 +409,6 @@ pub async fn cursor_config_orphan_evict(cfg: &Config) -> bool {
     )
 }
 
-/// Same shape as `cursor_config_orphan_evict` but targets
-/// `~/.orgii/gemini-cli-home/`. These two sweeps share a single helper
-/// (`evict_orphan_session_dirs`) so if either passes while the other
-/// fails, the plumbing — not the logic — is broken.
-pub async fn gemini_home_orphan_evict(cfg: &Config) -> bool {
-    let orphan_sid = format!("{}-gemini-orphan", cfg.session_prefix);
-    let live_sid = format!("{}-gemini-live", cfg.session_prefix);
-
-    let orphan_path = match seed_session_dir(cfg, "gemini-cli-home", &orphan_sid, false).await {
-        Ok(p) => p,
-        Err(err) => return harness::print_error("Housekeeping: Gemini Home Orphan", &err),
-    };
-    let live_path = match seed_session_dir(cfg, "gemini-cli-home", &live_sid, true).await {
-        Ok(p) => p,
-        Err(err) => return harness::print_error("Housekeeping: Gemini Home Orphan", &err),
-    };
-
-    let orphan_pre = std::path::Path::new(&orphan_path).exists();
-    let live_pre = std::path::Path::new(&live_path).exists();
-
-    let result = match run_housekeeping(cfg).await {
-        Ok(json) => json,
-        Err(err) => return harness::print_error("Housekeeping: Gemini Home Orphan", &err),
-    };
-
-    let orphan_post = std::path::Path::new(&orphan_path).exists();
-    let live_post = std::path::Path::new(&live_path).exists();
-
-    let evicted = result
-        .get("gemini_homes_evicted")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0);
-
-    let _ = std::fs::remove_dir_all(&live_path);
-
-    harness::print_result(
-        "Housekeeping: Gemini Home Orphan",
-        &result.to_string(),
-        &[
-            ("Orphan gemini dir seeded", orphan_pre),
-            ("Live gemini dir seeded", live_pre),
-            ("Orphan gemini dir evicted", !orphan_post),
-            ("Live gemini dir survived", live_post),
-            ("Reported >= 1 gemini_homes_evicted", evicted >= 1),
-        ],
-    )
-}
-
-// ============================================
-// Flat TTL directory sweeps: screenshots / merkle / plans
-// ============================================
-
-/// Seed a file under `~/.orgii/<root>/<name>` with a controlled mtime via
-/// the `housekeeping/seed-aged-file` debug endpoint. `root` must be one of
-/// `"screenshots"` or `"merkle"` (the two flat TTL dirs).
-async fn seed_aged_file(
-    cfg: &Config,
-    root: &str,
-    name: &str,
-    age_days: u64,
-) -> Result<String, String> {
-    let url = format!("{}/agent/test/housekeeping/seed-aged-file", cfg.base_url);
-    let body = serde_json::json!({ "root": root, "name": name, "age_days": age_days });
-    let resp = reqwest::Client::new()
-        .post(&url)
-        .json(&body)
-        .timeout(std::time::Duration::from_secs(10))
-        .send()
-        .await
-        .map_err(|err| format!("HTTP error: {}", err))?;
-    let json: serde_json::Value = resp
-        .json()
-        .await
-        .map_err(|err| format!("JSON parse error: {}", err))?;
-    if let Some(err) = json.get("error").and_then(|v| v.as_str()) {
-        return Err(err.to_string());
-    }
-    json.get("path")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
-        .ok_or_else(|| "response missing 'path'".to_string())
-}
-
-/// Seed one aged screenshot (8 days > `SCREENSHOTS_TTL_DAYS=7`) AND one
-/// fresh screenshot, run the cleanup pass, and assert positive + negative:
-/// aged is gone, fresh survives, counter reports >= 1. Uses unique uuid
-/// prefixes so parallel reruns don't collide.
 pub async fn screenshots_ttl(cfg: &Config) -> bool {
     let tag = uuid::Uuid::new_v4().simple().to_string();
     let aged_name = format!("e2e-aged-{}.png", tag);

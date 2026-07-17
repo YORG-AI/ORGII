@@ -72,7 +72,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
       data-testid={`kanban-task-card-${task.id}`}
       onClick={handleClick}
     >
-      {/* Owning Agent Team (only set on the global Ops Control board) */}
+      {/* Owning Agent Team (only set on the global Kanban board) */}
       {task.orgName && (
         <div className="kanban-task-card__chat-tag">
           <MessagesSquare size={12} strokeWidth={1.75} />

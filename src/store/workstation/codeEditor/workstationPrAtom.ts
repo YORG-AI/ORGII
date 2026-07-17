@@ -92,6 +92,18 @@ export const workstationAllOpenPrsAtom = workstationAllOpenPrsAtomFamily(
   DEFAULT_WORKSTATION_REPO_SCOPE
 );
 
+/** Closed pull requests, loaded lazily when the CLOSED section is expanded. */
+export const workstationAllClosedPrsAtomFamily = atomFamily(
+  (scopeKey: string) => {
+    const scopedAtom = atom<OpenPRItem[]>([]);
+    scopedAtom.debugLabel = `workstationAllClosedPrsAtom(${scopeKey})`;
+    return scopedAtom;
+  }
+);
+export const workstationAllClosedPrsAtom = workstationAllClosedPrsAtomFamily(
+  DEFAULT_WORKSTATION_REPO_SCOPE
+);
+
 /**
  * Load lifecycle for `workstationAllOpenPrsAtom`. Lets the PR sidebar
  * distinguish "still fetching" from "truly empty" / "failed to fetch".
@@ -127,13 +139,36 @@ export const workstationOpenPrsErrorAtom = workstationOpenPrsErrorAtomFamily(
   DEFAULT_WORKSTATION_REPO_SCOPE
 );
 
+export const workstationClosedPrsLoadStateAtomFamily = atomFamily(
+  (scopeKey: string) => {
+    const scopedAtom = atom<WorkstationOpenPrsLoadState>("idle");
+    scopedAtom.debugLabel = `workstationClosedPrsLoadStateAtom(${scopeKey})`;
+    return scopedAtom;
+  }
+);
+export const workstationClosedPrsLoadStateAtom =
+  workstationClosedPrsLoadStateAtomFamily(DEFAULT_WORKSTATION_REPO_SCOPE);
+
+export const workstationClosedPrsErrorAtomFamily = atomFamily(
+  (scopeKey: string) => {
+    const scopedAtom = atom<string | null>(null);
+    scopedAtom.debugLabel = `workstationClosedPrsErrorAtom(${scopeKey})`;
+    return scopedAtom;
+  }
+);
+export const workstationClosedPrsErrorAtom =
+  workstationClosedPrsErrorAtomFamily(DEFAULT_WORKSTATION_REPO_SCOPE);
+
 /**
  * Stable ref-backed callback for triggering PR creation from Source Control UI.
  * Stored as a ref container to avoid stale closure issues with atom-stored functions.
  */
 type WorkstationPrCallbacks = {
   createPr: (() => Promise<{ url?: string; error?: string }>) | null;
-  loadOpenPrs: (() => void) | null;
+  loadOpenPrs: ((force?: boolean) => void) | null;
+  loadClosedPrs: ((force?: boolean) => void) | null;
+  /** Force a re-fetch of the visible PR lists (sidebar header refresh). */
+  refreshPrs: (() => void) | null;
 };
 
 export const workstationPrCallbackAtomFamily = atomFamily(
@@ -141,6 +176,8 @@ export const workstationPrCallbackAtomFamily = atomFamily(
     const scopedAtom = atom<WorkstationPrCallbacks>({
       createPr: null,
       loadOpenPrs: null,
+      loadClosedPrs: null,
+      refreshPrs: null,
     });
     scopedAtom.debugLabel = `workstationPrCallbackAtom(${scopeKey})`;
     return scopedAtom;

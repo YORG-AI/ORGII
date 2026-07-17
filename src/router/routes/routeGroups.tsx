@@ -4,7 +4,6 @@ import {
   Outlet,
   type RouteObject,
   useLocation,
-  useSearchParams,
 } from "react-router-dom";
 
 import { ROUTES } from "@src/config/routes";
@@ -17,7 +16,6 @@ import {
   ChangelogPage,
   ConsumerWallet,
   DelegationHistoryPage,
-  DevRecordPage,
   FlowAwarenessTestPage,
   LoginPage,
   ModeSelectionWindow,
@@ -26,11 +24,9 @@ import {
   ProviderEarnings,
   PublicProfilePage,
   SelectRepoPage,
-  SessionDiffWindowPage,
   SetupWalkthrough,
   SuggestionsPage,
   TabWindow,
-  WorktreeCompareWindowPage,
 } from "@src/router/lazy/pages";
 import ComingSoonRoutePage from "@src/router/routes/ComingSoonRoutePage";
 import OpenSourceMarketUnavailablePage from "@src/router/routes/OpenSourceMarketUnavailablePage";
@@ -94,16 +90,17 @@ const LegacyCoreSettingsRedirect: React.FC = () => {
 const WORK_STATION_PATHS = [
   "workstation",
   "workstation/code",
-  "workstation/database",
   "workstation/browser",
   "workstation/chat",
   "workstation/project",
-  "workstation/ops-control",
 ] as const;
 
-export const workStationRouteGroup: RouteObject[] = WORK_STATION_PATHS.map(
-  (path) => ({ path, element: <WorkStationRoutePlaceholder /> })
-);
+export const workStationRouteGroup: RouteObject[] = [
+  ...WORK_STATION_PATHS.map((path) => ({
+    path,
+    element: <WorkStationRoutePlaceholder />,
+  })),
+];
 
 export const projectManagerRouteGroup: RouteObject[] = [
   {
@@ -232,38 +229,8 @@ export const mainAppRouteGroup: RouteObject = {
       element: <Navigate to={ROUTES.workStation.code.path} replace />,
     },
     { path: "changelog", element: lazy(<ChangelogPage />) },
-    { path: "journey/record", element: <DevRecordPage /> },
     { path: "ideas", element: <ComingSoonRoutePage /> },
   ],
-};
-
-const SessionDiffWindowRoute: React.FC = () => {
-  const [searchParams] = useSearchParams();
-  const sessionId = searchParams.get("sessionId") ?? "";
-  const title = searchParams.get("title") ?? undefined;
-  const repoPath = searchParams.get("repoPath") ?? undefined;
-  const hasWorktree = searchParams.get("hasWorktree") === "1";
-  return (
-    <SessionDiffWindowPage
-      sessionId={sessionId}
-      title={title}
-      repoPath={repoPath}
-      hasWorktree={hasWorktree}
-    />
-  );
-};
-
-const WorktreeCompareWindowRoute: React.FC = () => {
-  const [searchParams] = useSearchParams();
-  const raw = searchParams.get("sessionIds") ?? "";
-  const sessionIds = raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const repoPath = searchParams.get("repoPath") ?? undefined;
-  return (
-    <WorktreeCompareWindowPage sessionIds={sessionIds} repoPath={repoPath} />
-  );
 };
 
 export const windowRouteGroup: RouteObject = {
@@ -272,10 +239,5 @@ export const windowRouteGroup: RouteObject = {
   children: [
     { path: "welcome", element: lazy(<ModeSelectionWindow />) },
     { path: "tab", element: lazy(<TabWindow />) },
-    { path: "session-diff", element: lazy(<SessionDiffWindowRoute />) },
-    {
-      path: "worktree-compare",
-      element: lazy(<WorktreeCompareWindowRoute />),
-    },
   ],
 };

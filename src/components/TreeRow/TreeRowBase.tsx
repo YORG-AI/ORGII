@@ -24,8 +24,12 @@ import {
   TREE_GUIDE_OFFSET_BASE,
   TREE_INDENT_GUIDE_CLASS,
   TREE_INDENT_PX,
+  TREE_PADDING_RIGHT,
   TREE_PADDING_X,
   TREE_ROW_HOVER_BG_CLASS,
+  TREE_ROW_INSET_CLASS,
+  TREE_ROW_INSET_X,
+  TREE_ROW_ROUNDED_CLASS,
 } from "./config";
 import type { TreeRowBaseProps } from "./types";
 
@@ -52,6 +56,7 @@ export const TreeRowBase = React.memo(
         onPointerDown,
         showIndentGuides,
         showPathHint = false,
+        rounded = true,
       },
       ref
     ) => {
@@ -86,7 +91,10 @@ export const TreeRowBase = React.memo(
       );
 
       // Calculate padding based on depth
-      const paddingLeft = depth * TREE_INDENT_PX + TREE_PADDING_X;
+      // The row is inset from the sidebar edge, so subtract that same amount
+      // from its internal padding to keep all content at its original x-axis.
+      const paddingLeft =
+        depth * TREE_INDENT_PX + TREE_PADDING_X - TREE_ROW_INSET_X;
 
       // Determine text color based on ignored state and selection
       const getTextColorClass = () => {
@@ -103,18 +111,18 @@ export const TreeRowBase = React.memo(
         <div
           ref={ref}
           data-tree-path={dataPath}
-          className={`tree-row-base group/item relative flex h-7 min-w-0 shrink-0 ${
+          className={`tree-row-base group/item relative ${TREE_ROW_INSET_CLASS} flex h-7 min-w-0 shrink-0 ${
             isClickable && !cursorReset && !isHighlighted
               ? "cursor-pointer"
               : "cursor-default"
-          } items-center gap-1.5 overflow-hidden transition-colors ${
+          } items-center gap-1.5 overflow-hidden transition-colors ${rounded ? TREE_ROW_ROUNDED_CLASS : ""} ${
             isHighlighted
               ? `${SURFACE_TOKENS.selected} ${SURFACE_TOKENS.selectedHover}`
               : TREE_ROW_HOVER_BG_CLASS
           } ${className}`}
           style={{
             paddingLeft: `${paddingLeft}px`,
-            paddingRight: `8px`,
+            paddingRight: `${TREE_PADDING_RIGHT - TREE_ROW_INSET_X}px`,
           }}
           onClick={isClickable ? handleRowClick : undefined}
           onContextMenu={onContextMenu}
@@ -134,7 +142,7 @@ export const TreeRowBase = React.memo(
                 key={level}
                 className={TREE_INDENT_GUIDE_CLASS}
                 style={{
-                  left: `${TREE_GUIDE_OFFSET_BASE + level * TREE_INDENT_PX}px`,
+                  left: `${TREE_GUIDE_OFFSET_BASE - TREE_ROW_INSET_X + level * TREE_INDENT_PX}px`,
                 }}
               />
             ))}

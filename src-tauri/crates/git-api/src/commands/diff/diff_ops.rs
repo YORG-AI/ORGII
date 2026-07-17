@@ -292,8 +292,11 @@ pub fn get_file_diff_with_rename(
     let mut diff_opts = DiffOptions::new();
     diff_opts.context_lines(context_lines);
     diff_opts.pathspec(file_path);
-    if empty_base {
+    let compares_to_workdir = new_tree.is_none();
+    if empty_base || (original_path.is_some() && compares_to_workdir) {
         diff_opts.include_untracked(true);
+        diff_opts.recurse_untracked_dirs(true);
+        diff_opts.show_untracked_content(true);
     }
 
     // If we have an original_path (renamed file), also include it in the pathspec
@@ -301,7 +304,7 @@ pub fn get_file_diff_with_rename(
         diff_opts.pathspec(orig);
     }
 
-    let diff = if new_tree.is_some() {
+    let mut diff = if new_tree.is_some() {
         repo.diff_tree_to_tree(old_tree.as_ref(), new_tree.as_ref(), Some(&mut diff_opts))
             .map_err(|e| format!("Failed to create diff: {}", e))?
     } else if old_tree.is_some() || empty_base {
@@ -311,6 +314,21 @@ pub fn get_file_diff_with_rename(
         repo.diff_index_to_workdir(None, Some(&mut diff_opts))
             .map_err(|e| format!("Failed to create diff: {}", e))?
     };
+
+    // An unstaged move arrives as a tracked deletion plus an untracked
+    // destination. The caller already supplied the original path, so include
+    // that destination in similarity detection before calculating stats.
+    // Otherwise a byte-identical one-line move is incorrectly reported as
+    // one deletion even though the status layer correctly labels it renamed.
+    if original_path.is_some() {
+        let mut find_opts = git2::DiffFindOptions::new();
+        find_opts.renames(true);
+        if compares_to_workdir {
+            find_opts.for_untracked(true);
+        }
+        diff.find_similar(Some(&mut find_opts))
+            .map_err(|e| format!("Failed to detect rename for {file_path}: {e}"))?;
+    }
 
     let stats = diff
         .stats()
@@ -408,14 +426,17 @@ fn diff_single_file_in_repo(
     let mut diff_opts = DiffOptions::new();
     diff_opts.context_lines(context_lines);
     diff_opts.pathspec(file_path);
-    if empty_base {
+    let compares_to_workdir = new_tree.is_none();
+    if empty_base || (original_path.is_some() && compares_to_workdir) {
         diff_opts.include_untracked(true);
+        diff_opts.recurse_untracked_dirs(true);
+        diff_opts.show_untracked_content(true);
     }
     if let Some(orig) = original_path {
         diff_opts.pathspec(orig);
     }
 
-    let diff = if new_tree.is_some() {
+    let mut diff = if new_tree.is_some() {
         repo.diff_tree_to_tree(old_tree.as_ref(), new_tree.as_ref(), Some(&mut diff_opts))
             .map_err(|e| format!("diff_tree_to_tree failed for {file_path}: {e}"))?
     } else if old_tree.is_some() || empty_base {
@@ -425,6 +446,16 @@ fn diff_single_file_in_repo(
         repo.diff_index_to_workdir(None, Some(&mut diff_opts))
             .map_err(|e| format!("diff_index_to_workdir failed for {file_path}: {e}"))?
     };
+
+    if original_path.is_some() {
+        let mut find_opts = git2::DiffFindOptions::new();
+        find_opts.renames(true);
+        if compares_to_workdir {
+            find_opts.for_untracked(true);
+        }
+        diff.find_similar(Some(&mut find_opts))
+            .map_err(|e| format!("Failed to detect rename for {file_path}: {e}"))?;
+    }
 
     let stats = diff
         .stats()

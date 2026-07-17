@@ -6,6 +6,7 @@
 import { useCallback, useState } from "react";
 
 import { type WorkItemFrontmatter, projectApi } from "@src/api/http/project";
+import { allocateCloudAwareWorkItemId } from "@src/features/Org2Cloud/cloudShortId";
 import { createLogger } from "@src/hooks/logger";
 
 const log = createLogger("useWorkItemActions");
@@ -101,7 +102,10 @@ export function useWorkItemActions(options: UseWorkItemActionsOptions = {}) {
           return null;
         }
 
-        const shortId = await projectApi.allocateWorkItemId(projectSlug);
+        // Collab-synced orgs allocate on the server (design §16.5) so two
+        // members can never mint the same PREFIX-n; local orgs fall through
+        // to the local counter inside the helper.
+        const shortId = await allocateCloudAwareWorkItemId(projectSlug);
         const now = new Date().toISOString();
 
         const frontmatter: WorkItemFrontmatter = {

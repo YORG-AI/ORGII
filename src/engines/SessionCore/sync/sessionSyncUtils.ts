@@ -117,7 +117,11 @@ export async function loadPersistedHistory(
   signal: AbortSignal
 ): Promise<SessionEvent[]> {
   if (adapter.category === "agent") {
-    return loadOwnSessionInitialEvents(sessionId);
+    const events = await loadOwnSessionInitialEvents(sessionId);
+    if (events.length > 0 || signal.aborted) {
+      return events;
+    }
+    return adapter.loadHistory(sessionId, signal);
   }
   return adapter.loadHistory(sessionId, signal);
 }

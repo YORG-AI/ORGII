@@ -137,7 +137,6 @@ const AGENT_REGION_MAP: Partial<Record<ModelType, ReadonlySet<string>>> = {
   [CLI_AGENT.CURSOR]: OPENAI_REGIONS,
   [CLI_AGENT.CODEX]: OPENAI_REGIONS,
   [CLI_AGENT.CLAUDE_CODE]: ANTHROPIC_REGIONS,
-  [CLI_AGENT.GEMINI]: GOOGLE_REGIONS,
 };
 
 // ── Utilities ────────────────────────────────────────────────

@@ -28,6 +28,10 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { useRouteViewMode } from "@src/config/routeViewModeConfig";
 import { ROUTES } from "@src/config/routes";
+import {
+  HOST_DESKTOP,
+  resolveHostDesktop,
+} from "@src/config/windowChromeRadius";
 import { BrowserProvider, TerminalProvider } from "@src/contexts/workstation";
 import { useAgentADEActions } from "@src/engines/SessionCore/hooks/useAgentADEActions";
 import { useProjectDataChangedListener } from "@src/hooks/project";
@@ -35,20 +39,14 @@ import { useBackgroundImage } from "@src/hooks/theme/useBackgroundImage";
 import { useOpenUrlInBrowser } from "@src/hooks/workStation/browser/useOpenUrlInBrowser";
 import { useUrlPreviewEvents } from "@src/hooks/workStation/tabs";
 import { useNarrowChatFocus } from "@src/hooks/workStation/useNarrowChatFocus";
-import WorkStationPage from "@src/modules/WorkStation";
 import { useGlobalBrowserWebviewLayering } from "@src/modules/WorkStation/Browser/hooks";
-import { SharedBrowserApp } from "@src/modules/WorkStation/Browser/shared";
+import { CODE_EDITOR_TOUR_EVENT } from "@src/scaffold/Tutorials/codeEditorTourConfig";
 import {
-  CODE_EDITOR_TOUR_EVENT,
-  CodeEditorTour,
   GENERAL_LAYOUT_TOUR_EVENT,
   GENERAL_LAYOUT_TOUR_TARGETS,
-  GUIDE_TARGETS,
-  GeneralLayoutTour,
-  GuideHighlightOverlay,
-  TUTORIALS_OPEN_EVENT,
-  TutorialsModal,
-} from "@src/scaffold/Tutorials";
+} from "@src/scaffold/Tutorials/generalLayoutTourConfig";
+import { GUIDE_TARGETS } from "@src/scaffold/Tutorials/guideTargets";
+import { TUTORIALS_OPEN_EVENT } from "@src/scaffold/Tutorials/tutorialRegistry";
 import { resolvedBackgroundConfigAtom } from "@src/store";
 import { useSyncStatusBridge } from "@src/store/sync";
 import {
@@ -64,13 +62,10 @@ import {
   sidebarWidthAtom,
 } from "@src/store/ui/sidebarAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
-import { globalLayoutMethodAtom } from "@src/store/ui/uiAtom";
 import {
   sessionChatPositionAtom,
   workStationChatPositionAtom,
-  workStationDockAutoHidePersistAtom,
 } from "@src/store/ui/workStationAtom";
-import { dockFilterAtom } from "@src/store/workstation";
 import { prewarmColor } from "@src/util/ui/theme/glassMaterial";
 
 import { BackgroundLayer } from "./shared/components";
@@ -82,13 +77,51 @@ import {
   useWorkspaceEvents,
 } from "./shared/hooks";
 import { AppLayout } from "./shared/layouts";
-import type { ChatLayout } from "./shared/layouts/AppLayout";
 import {
   LAYOUT_CONTAIN_STYLE,
   VIEW_CONTAINER_CLASSES,
   getViewToggleStyle,
 } from "./shared/layouts/viewContainerTokens";
 import { useWorkStationPipelineBridge } from "./useWorkStationPipelineBridge";
+
+const WorkStationPage = React.lazy(
+  () => import(/* webpackChunkName: "workstation" */ "@src/modules/WorkStation")
+);
+
+const SharedBrowserApp = React.lazy(
+  () =>
+    import(
+      /* webpackChunkName: "browser-shared" */ "@src/modules/WorkStation/Browser/shared/SharedBrowserApp"
+    )
+);
+
+const GuideHighlightOverlay = React.lazy(
+  () =>
+    import(
+      /* webpackChunkName: "tutorials" */ "@src/scaffold/Tutorials/GuideHighlightOverlay"
+    )
+);
+
+const TutorialsModal = React.lazy(
+  () =>
+    import(
+      /* webpackChunkName: "tutorials" */ "@src/scaffold/Tutorials/TutorialsModal"
+    )
+);
+
+const GeneralLayoutTour = React.lazy(
+  () =>
+    import(
+      /* webpackChunkName: "tutorials" */ "@src/scaffold/Tutorials/GeneralLayoutTour"
+    )
+);
+
+const CodeEditorTour = React.lazy(
+  () =>
+    import(
+      /* webpackChunkName: "tutorials" */ "@src/scaffold/Tutorials/CodeEditorTour"
+    )
+);
 
 /**
  * Main Orgii Component
@@ -112,9 +145,20 @@ const BrowserEventBridge: React.FC = () => {
   return null;
 };
 
-const AppShell = () => {
-  const location = useLocation();
+const WorkStationLoadingFallback: React.FC = () => (
+  <div className="h-full w-full bg-workstation-bg" />
+);
 
+const IS_MACOS_HOST = resolveHostDesktop() === HOST_DESKTOP.MACOS;
+
+interface ConfiguredBackgroundLayerProps {
+  sidebarInset: number;
+}
+
+/** Legacy wallpaper/color background, retained for non-macOS hosts. */
+const ConfiguredBackgroundLayer: React.FC<ConfiguredBackgroundLayerProps> = ({
+  sidebarInset,
+}) => {
   const backgroundConfig = useAtomValue(resolvedBackgroundConfigAtom);
   const currentBackgroundImage = useBackgroundImage();
 
@@ -122,6 +166,20 @@ const AppShell = () => {
     if (!backgroundConfig.backgroundColor) return;
     prewarmColor(backgroundConfig.backgroundColor);
   }, [backgroundConfig.backgroundColor]);
+
+  return (
+    <BackgroundLayer
+      image={backgroundConfig.backgroundColor ? null : currentBackgroundImage}
+      blurAmount={backgroundConfig.blurAmount ?? 0}
+      backgroundColor={backgroundConfig.backgroundColor}
+      glass={backgroundConfig.glass}
+      sidebarInset={sidebarInset}
+    />
+  );
+};
+
+const AppShell = () => {
+  const location = useLocation();
 
   const viewMode = useRouteViewMode();
 
@@ -194,8 +252,6 @@ const AppShell = () => {
   const setStationMode = useSetAtom(stationModeAtom);
   const setSidebarCollapsed = useSetAtom(sidebarCollapsedAtom);
   const setStationChatVisibility = useSetAtom(stationChatVisibilityAtom);
-  const setDockAutoHide = useSetAtom(workStationDockAutoHidePersistAtom);
-  const setDockFilter = useSetAtom(dockFilterAtom);
   const [tutorialsModalOpen, setTutorialsModalOpen] = useState(false);
   const [generalLayoutTourOpen, setGeneralLayoutTourOpen] = useState(false);
   const [generalLayoutTourRunId, setGeneralLayoutTourRunId] = useState(0);
@@ -229,8 +285,6 @@ const AppShell = () => {
       "my-station": true,
     }));
     restoreChatWidth();
-    setDockAutoHide(false);
-    setDockFilter("all");
     setGeneralLayoutTourRunId((value) => value + 1);
     window.setTimeout(() => setGeneralLayoutTourOpen(true), 220);
   }, [
@@ -238,8 +292,6 @@ const AppShell = () => {
     navigate,
     restoreChatWidth,
     setChatPanelMaximized,
-    setDockAutoHide,
-    setDockFilter,
     setSidebarCollapsed,
     setStationChatVisibility,
     setStationMode,
@@ -258,8 +310,6 @@ const AppShell = () => {
       "my-station": true,
     }));
     restoreChatWidth();
-    setDockAutoHide(false);
-    setDockFilter("code");
     setCodeEditorTourRunId((value) => value + 1);
     window.setTimeout(() => setCodeEditorTourOpen(true), 240);
   }, [
@@ -267,8 +317,6 @@ const AppShell = () => {
     navigate,
     restoreChatWidth,
     setChatPanelMaximized,
-    setDockAutoHide,
-    setDockFilter,
     setSidebarCollapsed,
     setStationChatVisibility,
     setStationMode,
@@ -300,16 +348,13 @@ const AppShell = () => {
 
   const showChatPanel = useMemo(() => {
     const path = location.pathname;
-    // Settings-in-slot must stay visible even on Ops Control so the user can
-    // open Settings from the Kanban surface without flipping out of it.
     if (isSettingsRoute) return true;
-    if (stationMode === "ops-control") return false;
     return path.includes("/workstation");
-  }, [location.pathname, isSettingsRoute, stationMode]);
+  }, [location.pathname, isSettingsRoute]);
 
   useEffect(() => {
     if (viewMode !== "workStation") return;
-    if (chatPanelMaximized || stationMode === "ops-control") return;
+    if (chatPanelMaximized) return;
     // Don't touch chat width while Settings-in-slot owns the slot — its
     // own fallback width (DEFAULT_CHAT_WIDTH) shouldn't be overwritten.
     if (isSettingsRoute) return;
@@ -325,7 +370,6 @@ const AppShell = () => {
     isSettingsRoute,
     restoreChatWidth,
     setChatWidth,
-    stationMode,
     viewMode,
   ]);
 
@@ -370,16 +414,10 @@ const AppShell = () => {
     }
   }, [chatPanelMaximized, isSettingsRoute, setChatPanelMaximized]);
 
-  const globalLayoutMethod = useAtomValue(globalLayoutMethodAtom);
-
-  // `/orgii/app/settings/*` resolves to `viewMode === "workStation"` (see routeViewModeConfig),
-  // so this captures the settings surface too — no extra OR clause needed.
   const isWorkStationViewActive = viewMode === "workStation";
   // Skip bridging when Settings-in-slot is active — it doesn't run a real chat session.
   const shouldBridgeWorkStationPipeline =
-    isWorkStationViewActive &&
-    stationMode !== "ops-control" &&
-    !isSettingsRoute;
+    isWorkStationViewActive && !isSettingsRoute;
 
   useNarrowChatFocus({ enabled: isWorkStationViewActive });
   useWorkStationPipelineBridge(shouldBridgeWorkStationPipeline);
@@ -388,11 +426,6 @@ const AppShell = () => {
   // Settings-in-slot owns the slot while its route is active; the Outlet stays
   // mounted but hidden so deeplinks / refresh still work.
   const shouldShowOutlet = !isWorkStationViewActive;
-
-  // GlobalLayoutMethod and ChatLayout unions match exactly, so the value passes through.
-  const chatLayout: ChatLayout = isWorkStationViewActive
-    ? globalLayoutMethod
-    : "inset";
 
   const workStationChatPosition = useAtomValue(workStationChatPositionAtom);
   const sessionChatPosition = useAtomValue(sessionChatPositionAtom);
@@ -407,37 +440,30 @@ const AppShell = () => {
       ? sidebarWidth || DEFAULT_SIDEBAR_WIDTH
       : 0;
 
-  // Ops Control suppresses overlay unless Settings-in-slot is active.
-  const effectiveChatFocus =
-    chatPanelMaximized &&
-    isWorkStationViewActive &&
-    (stationMode !== "ops-control" || isSettingsRoute);
+  const effectiveChatFocus = chatPanelMaximized && isWorkStationViewActive;
 
   return (
     <TerminalProvider>
       <BrowserProvider>
         <BrowserEventBridge />
-        <SharedBrowserApp />
+        <React.Suspense fallback={null}>
+          <SharedBrowserApp />
+        </React.Suspense>
         <div
           className="relative flex h-full"
           data-guide-target={GUIDE_TARGETS.APP_ROOT}
         >
-          <BackgroundLayer
-            image={
-              backgroundConfig.backgroundColor ? null : currentBackgroundImage
-            }
-            blurAmount={backgroundConfig.blurAmount ?? 0}
-            backgroundColor={backgroundConfig.backgroundColor}
-            glass={backgroundConfig.glass}
-          />
+          {!IS_MACOS_HOST && (
+            <ConfiguredBackgroundLayer
+              sidebarInset={sidebarCollapsed ? 0 : sidebarWidth}
+            />
+          )}
 
           {/* Main layout with sidebar, toolbar, content, and chat panel */}
           <AppLayout
             sidebar={<SidebarSelector />}
             floatingSidebar={<FloatingSidebar />}
             showChatPanel={showChatPanel}
-            contentPadding={isWorkStationViewActive}
-            chatLayout={chatLayout}
             chatPosition={chatPosition}
             chatPanelMaximized={effectiveChatFocus}
             chatPanelMode={chatPanelMode}
@@ -447,13 +473,7 @@ const AppShell = () => {
               {/* WorkStation — deferred until first visit, then kept mounted */}
               {shouldRenderWorkStation && (
                 <div
-                  className={
-                    globalLayoutMethod === "compact"
-                      ? VIEW_CONTAINER_CLASSES.compactWithBg
-                      : globalLayoutMethod === "full"
-                        ? VIEW_CONTAINER_CLASSES.fullWithBg
-                        : VIEW_CONTAINER_CLASSES.insetWithBg
-                  }
+                  className={VIEW_CONTAINER_CLASSES.withBg}
                   style={getViewToggleStyle(isWorkStationViewActive)}
                   data-guide-target={
                     isWorkStationViewActive
@@ -466,14 +486,12 @@ const AppShell = () => {
                       : undefined
                   }
                 >
-                  <WorkStationPage
-                    isActive={isWorkStationViewActive}
-                    chatPanelFocused={effectiveChatFocus}
-                    isFullMode={
-                      globalLayoutMethod === "full" ||
-                      globalLayoutMethod === "compact"
-                    }
-                  />
+                  <React.Suspense fallback={<WorkStationLoadingFallback />}>
+                    <WorkStationPage
+                      isActive={isWorkStationViewActive}
+                      chatPanelFocused={effectiveChatFocus}
+                    />
+                  </React.Suspense>
                 </div>
               )}
 
@@ -488,21 +506,23 @@ const AppShell = () => {
               </div>
             </div>
           </AppLayout>
-          <GuideHighlightOverlay />
-          <TutorialsModal
-            open={tutorialsModalOpen}
-            onClose={() => setTutorialsModalOpen(false)}
-          />
-          <GeneralLayoutTour
-            key={`general-layout-tour-${generalLayoutTourRunId}`}
-            open={generalLayoutTourOpen}
-            onClose={() => setGeneralLayoutTourOpen(false)}
-          />
-          <CodeEditorTour
-            key={`code-editor-tour-${codeEditorTourRunId}`}
-            open={codeEditorTourOpen}
-            onClose={() => setCodeEditorTourOpen(false)}
-          />
+          <React.Suspense fallback={null}>
+            <GuideHighlightOverlay />
+            <TutorialsModal
+              open={tutorialsModalOpen}
+              onClose={() => setTutorialsModalOpen(false)}
+            />
+            <GeneralLayoutTour
+              key={`general-layout-tour-${generalLayoutTourRunId}`}
+              open={generalLayoutTourOpen}
+              onClose={() => setGeneralLayoutTourOpen(false)}
+            />
+            <CodeEditorTour
+              key={`code-editor-tour-${codeEditorTourRunId}`}
+              open={codeEditorTourOpen}
+              onClose={() => setCodeEditorTourOpen(false)}
+            />
+          </React.Suspense>
         </div>
       </BrowserProvider>
     </TerminalProvider>

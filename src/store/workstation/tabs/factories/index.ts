@@ -11,6 +11,7 @@ export {
   fileTabFactory,
   directoryTabFactory,
   explorerTabFactory,
+  startTabFactory,
   gitDiffTabFactory,
   sourceControlTabFactory,
   gitLogTabFactory,
@@ -22,6 +23,7 @@ export {
   outputTabFactory,
   settingsTabFactory,
   aiImpactTabFactory,
+  searchSessionsTabFactory,
   benchmarkTabFactory,
   lintScanTabFactory,
   searchTabFactory,
@@ -32,6 +34,7 @@ export {
   createFileTab,
   createDirectoryTab,
   createExplorerTab,
+  createStartTab,
   createGitDiffTab,
   createTimelineDiffTab,
   createSourceControlTab,
@@ -44,6 +47,7 @@ export {
   createOutputTab,
   createSettingsTab,
   createAIImpactTab,
+  createSearchSessionsTab,
   createBenchmarkTab,
   createLintScanTab,
   createSearchTab,
@@ -66,19 +70,6 @@ export type {
   SearchTabData,
   UrlPreviewTabData,
 } from "./codeEditor";
-
-// Database
-export {
-  tableTabFactory,
-  queryTabFactory,
-  schemaTabFactory,
-  addConnectionTabFactory,
-  createTableTab,
-  createQueryTab,
-  createSchemaTab,
-  createAddConnectionTab,
-} from "./database";
-export type { TableTabData, QueryTabData, SchemaTabData } from "./database";
 
 // Browser
 export { browserSessionTabFactory, createBrowserSessionTab } from "./browser";
@@ -164,3 +155,7 @@ export {
   createGitHubIssueDetailTab,
 } from "./githubIssue";
 export type { GitHubIssueDetailTabData } from "./githubIssue";
+
+// GitHub PR Detail
+export { githubPrDetailTabFactory, createGitHubPrDetailTab } from "./githubPr";
+export type { GitHubPrDetailTabData } from "./githubPr";

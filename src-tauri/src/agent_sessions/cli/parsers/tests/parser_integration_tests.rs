@@ -5,7 +5,6 @@ mod tests {
     use crate::agent_sessions::cli::parsers::claude_code::ClaudeCodeParser;
     use crate::agent_sessions::cli::parsers::codex::CodexParser;
     use crate::agent_sessions::cli::parsers::cursor::CursorParser;
-    use crate::agent_sessions::cli::parsers::gemini::GeminiParser;
     use crate::agent_sessions::cli::parsers::CliAgentParser;
 
     // ── Codex Parser Tests ──────────────────────────────────────
@@ -139,74 +138,6 @@ mod tests {
         // Then on_exit should not produce another session_end
         let exit_chunks = parser.on_exit(0);
         assert!(exit_chunks.is_empty());
-    }
-
-    // ── Gemini Parser Tests ─────────────────────────────────────
-
-    #[test]
-    fn test_gemini_init() {
-        let mut parser = GeminiParser::new("test-session");
-        let line = r#"{"type":"init","timestamp":"2026-02-11T02:08:13.739Z","session_id":"49b6f2fe-fe70-4887-9184-2b4332989f28","model":"auto"}"#;
-        let chunks = parser.parse_line(line);
-
-        assert_eq!(chunks.len(), 1);
-        assert_eq!(chunks[0].action_type, "session_start");
-        assert_eq!(chunks[0].function, "session_start");
-        assert_eq!(
-            chunks[0].thread_id.as_deref(),
-            Some("49b6f2fe-fe70-4887-9184-2b4332989f28")
-        );
-    }
-
-    #[test]
-    fn test_gemini_user_message_skipped() {
-        let mut parser = GeminiParser::new("test-session");
-        let line = r#"{"type":"message","timestamp":"2026-02-11T02:08:13.740Z","role":"user","content":"say hello"}"#;
-        let chunks = parser.parse_line(line);
-
-        // User messages should be skipped
-        assert!(chunks.is_empty());
-    }
-
-    #[test]
-    fn test_gemini_assistant_message() {
-        let mut parser = GeminiParser::new("test-session");
-        let line = r#"{"type":"message","role":"assistant","content":"Hello! How can I help?"}"#;
-        let chunks = parser.parse_line(line);
-
-        assert_eq!(chunks.len(), 1);
-        assert_eq!(chunks[0].action_type, "assistant");
-        assert_eq!(chunks[0].function, "message");
-        assert_eq!(chunks[0].result["content"], "Hello! How can I help?");
-    }
-
-    #[test]
-    fn test_gemini_non_json_lines_ignored() {
-        let mut parser = GeminiParser::new("test-session");
-        // These are startup log lines that Gemini outputs before JSON
-        assert!(parser
-            .parse_line("YOLO mode is enabled. All tool calls will be automatically approved.")
-            .is_empty());
-        assert!(parser
-            .parse_line("[STARTUP] StartupProfiler.flush() called with 9 phases")
-            .is_empty());
-    }
-
-    #[test]
-    fn test_gemini_tool_use_and_result_share_stable_id() {
-        let mut parser = GeminiParser::new("test-session");
-        let started = r#"{"type":"tool_use","tool_id":"gem_tool_1","tool_name":"edit_file","parameters":{"path":"/tmp/a.md","old_string":"","new_string":"hi"}}"#;
-        let completed = r#"{"type":"tool_result","tool_id":"gem_tool_1","result":"diff"}"#;
-
-        let start_chunks = parser.parse_line(started);
-        let complete_chunks = parser.parse_line(completed);
-
-        assert_eq!(start_chunks.len(), 1);
-        assert_eq!(complete_chunks.len(), 1);
-        assert_eq!(start_chunks[0].chunk_id, "tool-call-gem_tool_1");
-        assert_eq!(complete_chunks[0].chunk_id, "tool-call-gem_tool_1");
-        assert_eq!(start_chunks[0].result["status"], "running");
-        assert_eq!(complete_chunks[0].result["call_id"], "gem_tool_1");
     }
 
     // ── Cursor Parser Tests ─────────────────────────────────────

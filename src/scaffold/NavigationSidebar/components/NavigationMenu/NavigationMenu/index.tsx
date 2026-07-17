@@ -9,9 +9,6 @@ import { useTranslation } from "react-i18next";
 
 import { preloadRouteByPath } from "@src/router/lazy/preload";
 
-import HoverAnimatedIcon, {
-  triggerIconAnimation,
-} from "../../HoverAnimatedIcon";
 import type { NavigationMenuItem } from "../config";
 import { renderNavigationMenuItem } from "./renderSection";
 import type { NavigationMenuProps } from "./types";
@@ -21,11 +18,11 @@ const NavigationMenu: React.FC<NavigationMenuProps> = React.memo(
     items,
     selectedKeys,
     onMenuItemClick,
+    onSubmenuOpenChange,
     onMenuItemContextMenu,
     renderMenuItemWrapper,
     collapsed = false,
     defaultOpenKeys = [],
-    enableHoverIconAnimation = false,
     compactRows = false,
   }) => {
     const { t } = useTranslation();
@@ -45,13 +42,18 @@ const NavigationMenu: React.FC<NavigationMenuProps> = React.memo(
 
     const [openSubmenus, setOpenSubmenus] = useState<string[]>(defaultOpenKeys);
 
-    const toggleSubmenu = useCallback((key: string) => {
-      setOpenSubmenus((prev) =>
-        prev.includes(key)
-          ? prev.filter((keyItem) => keyItem !== key)
-          : [...prev, key]
-      );
-    }, []);
+    const toggleSubmenu = useCallback(
+      (key: string) => {
+        setOpenSubmenus((prev) => {
+          const open = !prev.includes(key);
+          onSubmenuOpenChange?.(key, open);
+          return open
+            ? [...prev, key]
+            : prev.filter((keyItem) => keyItem !== key);
+        });
+      },
+      [onSubmenuOpenChange]
+    );
 
     const isSubmenuSelected = useCallback(
       (item: NavigationMenuItem): boolean => {
@@ -79,18 +81,20 @@ const NavigationMenu: React.FC<NavigationMenuProps> = React.memo(
     useEffect(() => {
       items.forEach((item) => {
         if (item.children && isSubmenuSelected(item)) {
-          setOpenSubmenus((prev) =>
-            prev.includes(item.key) ? prev : [...prev, item.key]
-          );
+          setOpenSubmenus((prev) => {
+            if (prev.includes(item.key)) return prev;
+            onSubmenuOpenChange?.(item.key, true);
+            return [...prev, item.key];
+          });
         }
       });
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [itemsKey, selectedKeysKey]);
+    }, [itemsKey, onSubmenuOpenChange, selectedKeysKey]);
 
     const renderIcon = useCallback(
       (
         icon: NavigationMenuItem["icon"],
-        iconName: string | undefined,
+        _iconName: string | undefined,
         colorClass: string,
         iconElement?: NavigationMenuItem["iconElement"]
       ) => {
@@ -112,37 +116,22 @@ const NavigationMenu: React.FC<NavigationMenuProps> = React.memo(
           );
         }
 
-        if (enableHoverIconAnimation) {
-          return (
-            <HoverAnimatedIcon
-              icon={icon}
-              iconName={iconName}
-              size={14}
-              strokeWidth={2}
-              className={`flex-shrink-0 ${colorClass}`}
-            />
-          );
-        }
-
         return React.createElement(icon, {
           size: 14,
           strokeWidth: 2,
           className: `flex-shrink-0 ${colorClass}`,
         });
       },
-      [enableHoverIconAnimation]
+      []
     );
 
     const handleRowMouseEnter = useCallback(
-      (event: React.MouseEvent, routePath?: string) => {
-        if (enableHoverIconAnimation) {
-          triggerIconAnimation(event.currentTarget as HTMLElement);
-        }
+      (_event: React.MouseEvent, routePath?: string) => {
         if (routePath) {
           preloadRouteByPath(routePath);
         }
       },
-      [enableHoverIconAnimation]
+      []
     );
 
     const handleRowActionClick = useCallback(
@@ -173,7 +162,6 @@ const NavigationMenu: React.FC<NavigationMenuProps> = React.memo(
           renderMenuItemWrapper,
           renderIcon,
           renderMenuItem,
-          isSubmenuSelected,
           onMenuItemClick,
           onMenuItemContextMenu,
           onRowMouseEnter: handleRowMouseEnter,
@@ -188,7 +176,6 @@ const NavigationMenu: React.FC<NavigationMenuProps> = React.memo(
         t,
         renderMenuItemWrapper,
         renderIcon,
-        isSubmenuSelected,
         onMenuItemClick,
         onMenuItemContextMenu,
         handleRowMouseEnter,

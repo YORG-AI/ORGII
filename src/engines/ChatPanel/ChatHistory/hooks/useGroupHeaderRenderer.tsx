@@ -21,7 +21,6 @@ interface UseGroupHeaderRendererOptions {
   displayGroupHeaders: (OptimizedChatItem | null)[];
   displayGroupMeta: ChatGroupMeta[];
   displayGroupCount: number;
-  hasPinnedContent: boolean;
   collapseLabelVariant?: GroupHeaderRendererProps["collapseLabelVariant"];
   turnPaginationEnabled: boolean;
   collapseTailWhenIdle: boolean;
@@ -38,7 +37,6 @@ export function useGroupHeaderRenderer({
   displayGroupHeaders,
   displayGroupMeta,
   displayGroupCount,
-  hasPinnedContent,
   collapseLabelVariant,
   turnPaginationEnabled,
   collapseTailWhenIdle,
@@ -67,7 +65,6 @@ export function useGroupHeaderRenderer({
           groupHeaders={displayGroupHeaders}
           groupMeta={displayGroupMeta}
           groupCount={displayGroupCount}
-          hasPinnedContent={hasPinnedContent}
           collapseLabelVariant={collapseLabelVariant}
           hideCollapseTimeRange={turnPaginationEnabled}
           collapseTailWhenIdle={collapseTailWhenIdle}
@@ -86,7 +83,6 @@ export function useGroupHeaderRenderer({
       displayGroupHeaders,
       displayGroupMeta,
       displayGroupCount,
-      hasPinnedContent,
       collapseLabelVariant,
       turnPaginationEnabled,
       collapseTailWhenIdle,

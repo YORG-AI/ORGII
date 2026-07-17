@@ -67,14 +67,6 @@ pub(crate) fn cli_install_methods(name: &str) -> Vec<CliInstallMethod> {
             m("homebrew", "Homebrew", "brew install copilot-cli"),
             m("winget", "WinGet", "winget install GitHub.Copilot"),
         ],
-        "gemini_cli" => vec![
-            m("npm", "npm", "npm install -g @google/gemini-cli"),
-            m(
-                "npx",
-                "npx",
-                "npx https://github.com/google-gemini/gemini-cli",
-            ),
-        ],
         "kimi_cli" => vec![
             m(
                 "curl",
@@ -175,6 +167,11 @@ pub(crate) fn cli_install_methods(name: &str) -> Vec<CliInstallMethod> {
                 "PowerShell",
                 "irm https://antigravity.google/cli/install.ps1 | iex",
             ),
+            m(
+                "cmd",
+                "Windows CMD",
+                "curl -fsSL https://antigravity.google/cli/install.cmd -o install.cmd && install.cmd && del install.cmd",
+            ),
         ],
         "continue_cli" => vec![
             m("npm", "npm", "npm install -g @continuedev/cli"),
@@ -254,7 +251,6 @@ pub(crate) fn cli_uninstall_methods(name: &str) -> Vec<CliInstallMethod> {
             m("homebrew", "Homebrew", "brew uninstall copilot-cli"),
             m("winget", "WinGet", "winget uninstall GitHub.Copilot"),
         ],
-        "gemini_cli" => vec![m("npm", "npm", "npm uninstall -g @google/gemini-cli")],
         "kimi_cli" => vec![m("uv", "uv", "uv tool uninstall kimi-cli")],
         "aider" => vec![
             m("pip", "pip", "pip uninstall aider-chat"),

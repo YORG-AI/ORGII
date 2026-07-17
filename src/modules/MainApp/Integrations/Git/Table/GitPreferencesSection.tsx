@@ -1,4 +1,4 @@
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { Trash2 } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
@@ -7,6 +7,7 @@ import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import Select from "@src/components/Select";
 import Switch from "@src/components/Switch";
+import SaveableTextarea from "@src/modules/shared/components/SaveableTextarea";
 import {
   SECTION_ACTION_GAP_CLASSES,
   SECTION_CONTROL_STYLE,
@@ -18,6 +19,7 @@ import {
   ORGII_COAUTHOR_EMAIL,
   ORGII_COAUTHOR_NAME,
 } from "@src/services/git/operations/commitAttribution";
+import { saveSettingAtom, settingAtom } from "@src/store/settings/settingsAtom";
 import {
   GIT_PULL_STRATEGIES,
   type GitPullStrategy,
@@ -69,6 +71,13 @@ const GitPreferencesSection: React.FC = () => {
     gitAutoFetchIntervalAtom
   );
   const [autoCreatePr, setAutoCreatePr] = useAtom(gitAutoCreatePrAtom);
+  const commitInstructions = useAtomValue(
+    settingAtom("git.prompts.commitInstructions")
+  );
+  const pullRequestInstructions = useAtomValue(
+    settingAtom("git.prompts.pullRequestInstructions")
+  );
+  const saveSetting = useSetAtom(saveSettingAtom);
   const [coauthorAttributionEnabled, setCoauthorAttributionEnabled] = useAtom(
     gitCoauthorAttributionEnabledAtom
   );
@@ -149,6 +158,54 @@ const GitPreferencesSection: React.FC = () => {
           description={t("git.autoCreatePrDesc")}
         >
           <Switch checked={autoCreatePr} onChange={setAutoCreatePr} />
+        </SectionRow>
+      </SectionContainer>
+
+      <SectionContainer title={t("git.promptInstructionsTitle")}>
+        <SectionRow
+          label={t("git.commitInstructions")}
+          description={t("git.commitInstructionsDesc")}
+          layout="vertical"
+        >
+          <SaveableTextarea
+            value={commitInstructions}
+            onSave={(value) =>
+              saveSetting({
+                key: "git.prompts.commitInstructions",
+                value: value.trim(),
+              })
+            }
+            placeholder={t("git.commitInstructionsPlaceholder")}
+            autoSize={{ minRows: 4, maxRows: 10 }}
+            maxLength={4000}
+            maxWords={200}
+            showWordLimit
+            dataTestId="settings-git-commit-instructions"
+            saveButtonDataTestId="settings-git-commit-instructions-save"
+          />
+        </SectionRow>
+
+        <SectionRow
+          label={t("git.pullRequestInstructions")}
+          description={t("git.pullRequestInstructionsDesc")}
+          layout="vertical"
+        >
+          <SaveableTextarea
+            value={pullRequestInstructions}
+            onSave={(value) =>
+              saveSetting({
+                key: "git.prompts.pullRequestInstructions",
+                value: value.trim(),
+              })
+            }
+            placeholder={t("git.pullRequestInstructionsPlaceholder")}
+            autoSize={{ minRows: 4, maxRows: 10 }}
+            maxLength={4000}
+            maxWords={200}
+            showWordLimit
+            dataTestId="settings-git-pull-request-instructions"
+            saveButtonDataTestId="settings-git-pull-request-instructions-save"
+          />
         </SectionRow>
       </SectionContainer>
 

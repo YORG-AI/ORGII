@@ -96,6 +96,15 @@ const DropdownOptionsRenderer: React.FC<DropdownOptionsRendererProps> = ({
                 {isMultiple && (
                   <Checkbox checked={isSelected} className="size-4 shrink-0" />
                 )}
+                {option.icon ? (
+                  <span
+                    className={`flex shrink-0 items-center ${
+                      isSelected ? "text-primary-6" : "text-text-1"
+                    }`}
+                  >
+                    {option.icon}
+                  </span>
+                ) : null}
                 <span
                   className={`flex min-w-0 flex-1 items-center justify-between ${DROPDOWN_ITEM.gapClass} overflow-hidden`}
                 >

@@ -32,12 +32,8 @@ export interface ComposerStackHeaderProps {
    * Color variant for icon + label:
    * - `default` — muted icon (text-3 → text-1 hover), text-2 label (→ text-1 hover).
    * - `primary` — primary-6 (→ primary-7 hover) for both.
-   * - `strong` — text-2 for both at rest, text-1 hover. Used when the bar
-   *   represents persistent content (e.g. the pinned todo / plan row)
-   *   that should read at the same weight as adjacent body text rather
-   *   than as a quieter chrome row.
    */
-  labelVariant?: "default" | "primary" | "strong";
+  labelVariant?: "default" | "primary";
 }
 
 const ICON_SIZE = 14;
@@ -58,12 +54,6 @@ const COLOR = {
     iconHover: "text-primary-7",
     label: "text-primary-6",
     labelHover: "text-primary-7",
-  },
-  strong: {
-    icon: "text-text-2",
-    iconHover: "text-text-1",
-    label: "text-text-2",
-    labelHover: "text-text-1",
   },
 } as const;
 

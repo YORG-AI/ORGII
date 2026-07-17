@@ -27,7 +27,25 @@ interface UseWorkstationSidebarContextMenuParams {
   handleExportMarkdown: (sessionId: string) => Promise<void>;
   handleOpenInNewTab: (sessionId: string) => void;
   handleTogglePin: (sessionId: string) => Promise<void>;
+
   onLinkToWorkItem?: (sessionId: string) => void;
+
+  /** Owner-side share dialog gate + opener (design §6.3, M4b). */
+  /** Move-to-cloud-org (session→org tag) gate + opener. */
+  isMoveEligible: (session: Session) => boolean;
+  handleOpenMoveToOrg: (session: Session) => void;
+  moveToOrgLabel: string;
+  /** Per-session cloud access ladder (§13.4) gate + opener. */
+  isCloudSyncLevelEligible: (session: Session) => boolean;
+  handleOpenCloudSyncLevel: (session: Session) => void;
+  cloudSyncLevelLabel: string;
+  /** Cloud per-session shares (0012) gate + opener. */
+  isCloudShareEligible: (session: Session) => boolean;
+  handleOpenCloudShare: (session: Session) => void;
+  cloudShareLabel: string;
+  /** Teammate cloud rows have no local Session; remove means local hide. */
+  handleCloudRemoteItemRemove?: (item: NavigationMenuItem) => boolean;
+
   tCommon: (key: string, defaultValue?: string) => string;
 }
 
@@ -39,7 +57,20 @@ export function useWorkstationSidebarContextMenu({
   handleExportMarkdown,
   handleOpenInNewTab,
   handleTogglePin,
+
   onLinkToWorkItem,
+
+  isMoveEligible,
+  handleOpenMoveToOrg,
+  moveToOrgLabel,
+  isCloudSyncLevelEligible,
+  handleOpenCloudSyncLevel,
+  cloudSyncLevelLabel,
+  isCloudShareEligible,
+  handleOpenCloudShare,
+  cloudShareLabel,
+  handleCloudRemoteItemRemove,
+
   tCommon,
 }: UseWorkstationSidebarContextMenuParams): (
   event: MouseEvent,
@@ -63,7 +94,16 @@ export function useWorkstationSidebarContextMenu({
         return;
       }
 
-      if (!sessionMap.has(item.id)) return;
+      if (!sessionMap.has(item.id)) {
+        if (!handleCloudRemoteItemRemove) return;
+        const removeItem = await MenuItem.new({
+          text: tCommon("actions.remove", "Remove"),
+          action: () => handleCloudRemoteItemRemove(item),
+        });
+        const menu = await TauriMenu.new({ items: [removeItem] });
+        await menu.popup();
+        return;
+      }
 
       const isCursorIde = isCursorIdeSession(item.id);
       const session = sessionMap.get(item.id);
@@ -126,13 +166,45 @@ export function useWorkstationSidebarContextMenu({
         const menuSeparator = await PredefinedMenuItem.new({
           item: "Separator",
         });
+
         const primaryItems = [
           openInNewTabItem,
           renameItem,
           exportItem,
-          pinItem,
           linkWorkItem,
         ];
+        // Move (tag) the session into a managed cloud org, independent of
+        // repo-scope auto-sharing. Owner's own pushable sessions only.
+        if (session && isMoveEligible(session)) {
+          primaryItems.push(
+            await MenuItem.new({
+              text: moveToOrgLabel,
+              action: () => handleOpenMoveToOrg(session),
+            })
+          );
+        }
+        // Per-session cloud access ladder (§13.4): Off / Metadata only /
+        // Full replay + org/restricted visibility, per cloud org.
+        if (session && isCloudSyncLevelEligible(session)) {
+          primaryItems.push(
+            await MenuItem.new({
+              text: cloudSyncLevelLabel,
+              action: () => handleOpenCloudSyncLevel(session),
+            })
+          );
+        }
+        // Cloud per-session shares (0012): directed member grants + guest
+        // link shares, for the owner's own cloud-synced sessions.
+        if (session && isCloudShareEligible(session)) {
+          primaryItems.push(
+            await MenuItem.new({
+              text: cloudShareLabel,
+              action: () => handleOpenCloudShare(session),
+            })
+          );
+        }
+        primaryItems.push(pinItem);
+
         const menu = await TauriMenu.new({
           items: [...primaryItems, menuSeparator, deleteItem],
         });
@@ -150,7 +222,20 @@ export function useWorkstationSidebarContextMenu({
       handleExportMarkdown,
       handleOpenInNewTab,
       handleTogglePin,
+
       onLinkToWorkItem,
+
+      handleOpenMoveToOrg,
+      isMoveEligible,
+      moveToOrgLabel,
+      handleOpenCloudSyncLevel,
+      isCloudSyncLevelEligible,
+      cloudSyncLevelLabel,
+      handleOpenCloudShare,
+      isCloudShareEligible,
+      cloudShareLabel,
+      handleCloudRemoteItemRemove,
+
     ]
   );
 }

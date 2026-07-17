@@ -9,7 +9,6 @@ mod claude;
 mod codex;
 mod copilot;
 mod cursor;
-mod gemini;
 pub(crate) mod helpers;
 mod kiro;
 mod opencode;
@@ -87,7 +86,6 @@ pub async fn auto_detect_key(agent_type: &str) -> AutoDetectResult {
         ModelType::CursorCli => cursor::detect_cursor_keys().await,
         ModelType::ClaudeCode => claude::detect_claude_keys().await,
         ModelType::Codex => codex::detect_codex_keys().await,
-        ModelType::GeminiCli => gemini::detect_gemini_keys().await,
         ModelType::Copilot => copilot::detect_copilot_keys().await,
         ModelType::Kiro => kiro::detect_kiro_keys().await,
         ModelType::OpenCode => opencode::detect_opencode_keys().await,

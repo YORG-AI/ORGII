@@ -18,7 +18,6 @@ export {
 } from "./ExtensionDetailBlocks";
 export type { ContentSection, MetadataItem } from "./ExtensionDetailBlocks";
 export { default as HubDetailPanel } from "./HubDetailPanel";
-export { InfoRow } from "./InfoRow";
 export { InstallScriptPanel } from "./InstallScriptPanel";
 export type { InstallScriptMode } from "./InstallScriptPanel";
 export { PreviewTitleBlock } from "./PreviewTitleBlock";

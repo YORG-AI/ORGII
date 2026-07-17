@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import Textarea from "@src/components/Textarea";
+import { countWords } from "@src/components/Textarea/wordCount";
 import { useKeyboardSave } from "@src/hooks/keyboard";
 import { createLogger } from "@src/hooks/logger";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
@@ -23,6 +24,12 @@ export interface SaveableTextareaProps {
   placeholder?: string;
   /** Auto-size config for the textarea */
   autoSize?: { minRows?: number; maxRows?: number };
+  /** Maximum number of characters allowed in the draft. */
+  maxLength?: number;
+  /** Maximum number of locale-aware words allowed in the draft. */
+  maxWords?: number;
+  /** Show the textarea's built-in character counter. */
+  showWordLimit?: boolean;
   /** Whether the component is in a loading state (hides content) */
   loading?: boolean;
   dataTestId?: string;
@@ -34,6 +41,9 @@ const SaveableTextarea: React.FC<SaveableTextareaProps> = ({
   onSave,
   placeholder,
   autoSize = { minRows: 3, maxRows: 10 },
+  maxLength,
+  maxWords,
+  showWordLimit = false,
   loading = false,
   dataTestId,
   saveButtonDataTestId,
@@ -56,8 +66,12 @@ const SaveableTextarea: React.FC<SaveableTextareaProps> = ({
   }, [value]);
 
   const hasChanges = draft !== value;
+  const exceedsWordLimit =
+    maxWords !== undefined && countWords(draft) > maxWords;
 
   const handleSave = useCallback(async () => {
+    if (exceedsWordLimit) return;
+
     setSaving(true);
     setSaveStatus("idle");
 
@@ -72,13 +86,13 @@ const SaveableTextarea: React.FC<SaveableTextareaProps> = ({
     } finally {
       setSaving(false);
     }
-  }, [draft, onSave]);
+  }, [draft, exceedsWordLimit, onSave]);
 
   const handleCancel = useCallback(() => {
     setDraft(value);
   }, [value]);
 
-  useKeyboardSave(handleSave, hasChanges && !saving);
+  useKeyboardSave(handleSave, hasChanges && !saving && !exceedsWordLimit);
 
   if (loading) return <Placeholder variant="loading" />;
 
@@ -89,6 +103,9 @@ const SaveableTextarea: React.FC<SaveableTextareaProps> = ({
         onChange={(val: string) => setDraft(val)}
         placeholder={placeholder}
         autoSize={autoSize}
+        maxLength={maxLength}
+        maxWords={maxWords}
+        showWordLimit={showWordLimit}
         data-testid={dataTestId}
       />
       <div className="flex items-center gap-2">
@@ -101,7 +118,7 @@ const SaveableTextarea: React.FC<SaveableTextareaProps> = ({
           size="default"
           variant="primary"
           onClick={handleSave}
-          disabled={!hasChanges || saving}
+          disabled={!hasChanges || saving || exceedsWordLimit}
           data-testid={saveButtonDataTestId}
         >
           {saving ? t("status.saving") : t("actions.save")}

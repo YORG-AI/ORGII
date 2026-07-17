@@ -7,6 +7,8 @@ import type { ReactNode } from "react";
 export interface DropdownOption {
   label: ReactNode;
   value: string | number;
+  /** Optional leading visual, rendered in the option and single-value Select trigger. */
+  icon?: ReactNode;
   disabled?: boolean;
   extra?: unknown;
   /** Label shown in the Select trigger when selected (falls back to label) */

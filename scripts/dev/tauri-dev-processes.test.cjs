@@ -1,4 +1,5 @@
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const test = require("node:test");
 
 const {
@@ -10,6 +11,13 @@ const {
   isInitialWebpackReadyLine,
   waitForDevServerAsset,
 } = require("./tauri-dev-processes.cjs");
+
+const tauriDevSource = fs.readFileSync("scripts/dev/tauri.js", "utf8");
+const tauriLauncherSource = fs.readFileSync(
+  "scripts/dev/tauri-launcher.cjs",
+  "utf8"
+);
+const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
 
 test("recognizes only the initial successful webpack compile as ready", () => {
   assert.equal(
@@ -47,6 +55,38 @@ test("tauri args preserve features and devUrl override", () => {
       '{"build":{"beforeDevCommand":"","devUrl":"http://127.0.0.1:1998"}}',
     ]
   );
+});
+
+test("dev wrapper does not pass terminal stdin to child processes", () => {
+  const ignoredStdinSpawns = tauriDevSource.match(
+    /stdio:\s*\["ignore",\s*"pipe",\s*"pipe"\]/g
+  );
+  assert.equal(ignoredStdinSpawns?.length, 2);
+});
+
+test("tauri dev npm scripts use a cross-platform launcher", () => {
+  assert.equal(
+    packageJson.scripts["tauri:dev"],
+    "node scripts/dev/tauri-launcher.cjs"
+  );
+  assert.equal(
+    packageJson.scripts["tauri:dev:light"],
+    "node scripts/dev/tauri-launcher.cjs --light"
+  );
+  assert.doesNotMatch(packageJson.scripts["tauri:dev"], /setsid|\/dev\/null/);
+  assert.doesNotMatch(
+    packageJson.scripts["tauri:dev:light"],
+    /setsid|\/dev\/null/
+  );
+});
+
+test("tauri dev launcher detaches Unix stdin without requiring setsid", () => {
+  assert.match(tauriLauncherSource, /detached:\s*process\.platform !== "win32"/);
+  assert.match(tauriLauncherSource, /stdio:\s*\["ignore",\s*"inherit",\s*"inherit"\]/);
+  assert.match(tauriLauncherSource, /env\.ORGII_LIGHT_DEV = "true"/);
+  assert.match(tauriLauncherSource, /SIGINT:\s*130/);
+  assert.match(tauriLauncherSource, /SIGTERM:\s*143/);
+  assert.doesNotMatch(tauriLauncherSource, /setsid/);
 });
 
 test("dev URL defaults to the same localhost origin as Tauri config", () => {

@@ -96,6 +96,7 @@ pub fn register(registry: &mut ToolRegistry, deps: &ToolDeps, disabled: &HashSet
             deps.app_handle.clone(),
             deps.session_account_id.clone(),
             deps.agent_model.clone(),
+            deps.session_org_id.clone(),
         )),
         disabled,
     );
@@ -106,6 +107,7 @@ pub fn register(registry: &mut ToolRegistry, deps: &ToolDeps, disabled: &HashSet
             deps.app_handle.clone(),
             deps.session_account_id.clone(),
             deps.agent_model.clone(),
+            deps.session_org_id.clone(),
         )),
         disabled,
     );

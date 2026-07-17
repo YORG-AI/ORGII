@@ -191,15 +191,15 @@ async fn launch_rust_agent(
         project_id: params.project_id.clone(),
         project_name: params.project_name.clone(),
     };
-    let provenance = match (params.project_slug.clone(), params.work_item_id.clone()) {
-        (Some(project_slug), Some(work_item_id)) => LaunchProvenance::WorkItem {
-            project_slug,
+    let provenance = match params.work_item_id.clone() {
+        Some(work_item_id) => LaunchProvenance::WorkItem {
+            project_slug: params.project_slug.clone(),
             work_item_id,
             agent_role: params.agent_role.clone(),
             lock_reason:
                 project_management::projects::types::WorkItemExecutionLockReason::ManualStart,
         },
-        _ => LaunchProvenance::UserSession,
+        None => LaunchProvenance::UserSession,
     };
 
     let result = launch_rust_agent_run(
@@ -278,11 +278,6 @@ async fn ensure_cli_account_key_fresh(
         ModelType::Codex => {
             key_vault::key_store::KEY_SERVICE
                 .ensure_codex_oauth_key_fresh(account_id)
-                .await?;
-        }
-        ModelType::GeminiCli => {
-            key_vault::key_store::KEY_SERVICE
-                .ensure_gemini_oauth_key_fresh(account_id)
                 .await?;
         }
         _ => {}

@@ -784,3 +784,37 @@ fn raw_bubble_with_unknown_fields_still_parses() {
     assert_eq!(parsed.bubble_type, 2);
     assert_eq!(parsed.text, "hi");
 }
+
+#[test]
+fn monotonic_created_at_breaks_tied_turn_timestamps() {
+    use core_types::activity::ActivityChunk;
+    let make = |id: &str, ts: &str| {
+        let mut chunk = ActivityChunk::new("cursoride-x", "raw", "user_message");
+        chunk.chunk_id = id.to_string();
+        chunk.created_at = ts.to_string();
+        chunk
+    };
+    // A whole turn stamped identically (Cursor's quirk): user + two assistant
+    // bubbles at the same instant, then a genuinely-later turn.
+    let mut chunks = vec![
+        make("cursoride-user-a", "2026-07-12T19:25:18.317Z"),
+        make("cursoride-asst-b", "2026-07-12T19:25:18.317Z"),
+        make("cursoride-asst-c", "2026-07-12T19:25:18.317Z"),
+        make("cursoride-asst-d", "2026-07-12T19:25:30.950Z"),
+    ];
+    enforce_monotonic_created_at(&mut chunks);
+
+    let times: Vec<i64> = chunks
+        .iter()
+        .map(|chunk| parse_iso_to_epoch_ms(&chunk.created_at))
+        .collect();
+    // Strictly increasing → any downstream (created_at, id) sort keeps the
+    // user bubble first even though "asst" < "user".
+    assert!(
+        times.windows(2).all(|pair| pair[0] < pair[1]),
+        "not strictly increasing: {times:?}"
+    );
+    // Ties are nudged by ms; the real later turn is not dragged backwards.
+    assert_eq!(times[3], parse_iso_to_epoch_ms("2026-07-12T19:25:30.950Z"));
+    assert!(times[3] - times[0] > 12_000);
+}

@@ -3,9 +3,8 @@ import React from "react";
 
 import TabPill from "@src/components/TabPill";
 import type { TabPillItem } from "@src/components/TabPill";
+import InlineExpandedSplitCard from "@src/modules/shared/layouts/blocks/InlineExpandedSplitCard";
 import InlineInfoCard from "@src/modules/shared/layouts/blocks/InlineInfoCard";
-
-import InlineExpandedSplitCard from "./InlineExpandedSplitCard";
 
 interface InlineCardShellProps {
   children: React.ReactNode;

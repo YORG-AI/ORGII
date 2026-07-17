@@ -45,19 +45,6 @@ static CODEX_TO_CURSOR: LazyLock<HashMap<&'static str, &'static str>> = LazyLock
     m
 });
 
-static GEMINI_TO_CURSOR: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
-    let mut m = HashMap::new();
-    m.insert("write_file", "Edit");
-    m.insert("replace", "Edit");
-    m.insert("read_file", "Read");
-    m.insert("run_shell_command", "Shell");
-    m.insert("search_file_content", "Grep");
-    m.insert("list_directory", "Ls");
-    m.insert("glob", "Glob");
-    m.insert("write_todos", "UpdateTodos");
-    m
-});
-
 /// Normalize a tool name from any agent to the Cursor canonical format.
 ///
 /// Copilot uses ACP with its own `map_acp_kind()` in `parsers::copilot` and
@@ -67,7 +54,6 @@ pub fn normalize_tool_name(agent: CliAgentType, raw_name: &str) -> String {
         CliAgentType::CursorCli => return raw_name.to_string(), // Cursor is canonical
         CliAgentType::ClaudeCode => &*CLAUDE_TO_CURSOR,
         CliAgentType::Codex => &*CODEX_TO_CURSOR,
-        CliAgentType::GeminiCli => &*GEMINI_TO_CURSOR,
         // These agents use their own formats or ACP, pass through unchanged
         CliAgentType::Copilot
         | CliAgentType::Kiro

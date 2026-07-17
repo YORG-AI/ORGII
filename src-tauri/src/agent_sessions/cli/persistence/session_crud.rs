@@ -14,6 +14,17 @@ pub(super) fn now_iso() -> String {
     Utc::now().to_rfc3339()
 }
 
+/// Best-effort mirror of the session row into orgtrack's canonical store.
+/// Runs after writes that change fields orgtrack surfaces (title, status,
+/// model, exec mode); never fails the primary write.
+fn sync_orgtrack_mirror(session_id: &str) {
+    if let Err(err) =
+        crate::agent_sessions::session_directory::orgtrack_adapter::upsert_cli_session(session_id)
+    {
+        tracing::warn!(session_id, error = %err, "[cli-persistence] orgtrack session mirror failed");
+    }
+}
+
 /// Create a new code session. Returns the session ID.
 pub fn create_session(
     session_id: &str,
@@ -95,7 +106,9 @@ pub fn create_session(
         ],
     )?;
 
-    get_session(session_id)?.ok_or(rusqlite::Error::QueryReturnedNoRows)
+    let session = get_session(session_id)?.ok_or(rusqlite::Error::QueryReturnedNoRows)?;
+    sync_orgtrack_mirror(session_id);
+    Ok(session)
 }
 
 /// Column list shared by get_session and list_sessions.
@@ -104,7 +117,7 @@ const SESSION_COLUMNS: &str =
     "cs.session_id, cs.name, cs.status, cs.flow, cs.runner,
      COALESCE(cs.cli_agent_type, cs.platform), cs.model, cs.tier, cs.account_id, cs.repo_path, cs.branch, cs.user_input,
      cs.proxy_token, cs.proxy_url, cs.hosted_token, cs.error_message,
-     COALESCE((SELECT SUM(total_tokens) FROM session_token_usage WHERE session_id = cs.session_id), 0),
+     COALESCE((SELECT total_tokens FROM orgtrack_core_session_usage WHERE session_id = cs.session_id), 0),
      cs.pid, cs.cli_session_id, cs.proxy_session_id,
      cs.worktree_path, cs.worktree_branch, cs.base_branch, cs.merge_status,
      COALESCE(cs.background, 0),
@@ -143,6 +156,21 @@ pub fn list_sessions() -> SqliteResult<Vec<CodeSession>> {
     rows.collect()
 }
 
+/// One page of sessions ordered by recent activity. Serves the sidebar's
+/// paginated category view without loading the whole table.
+pub fn list_sessions_page(limit: usize, offset: usize) -> SqliteResult<Vec<CodeSession>> {
+    let conn = get_connection()?;
+    let query = format!(
+        "SELECT {} FROM code_sessions cs ORDER BY cs.updated_at DESC LIMIT ?1 OFFSET ?2",
+        SESSION_COLUMNS
+    );
+    let limit = limit.min(i64::MAX as usize) as i64;
+    let offset = offset.min(i64::MAX as usize) as i64;
+    let mut stmt = conn.prepare(&query)?;
+    let rows = stmt.query_map(params![limit, offset], row_to_session)?;
+    rows.collect()
+}
+
 /// Update session status.
 pub fn update_status(session_id: &str, status: SessionStatus) -> SqliteResult<bool> {
     let conn = get_connection()?;
@@ -158,6 +186,9 @@ pub fn update_status(session_id: &str, status: SessionStatus) -> SqliteResult<bo
             params![session_id, status.as_ref(), now],
         )?
     };
+    if affected > 0 {
+        sync_orgtrack_mirror(session_id);
+    }
     Ok(affected > 0)
 }
 
@@ -180,6 +211,9 @@ pub fn update_status_with_error(
             params![session_id, status.as_ref(), error, now],
         )?
     };
+    if affected > 0 {
+        sync_orgtrack_mirror(session_id);
+    }
     Ok(affected > 0)
 }
 
@@ -390,6 +424,9 @@ pub fn update_name(session_id: &str, name: &str) -> SqliteResult<bool> {
         "UPDATE code_sessions SET name = ?2 WHERE session_id = ?1",
         params![session_id, name],
     )?;
+    if affected > 0 {
+        sync_orgtrack_mirror(session_id);
+    }
     Ok(affected > 0)
 }
 
@@ -452,6 +489,9 @@ pub fn update_model_and_account(
         (None, None) => 0,
     };
     tx.commit()?;
+    if affected > 0 {
+        sync_orgtrack_mirror(session_id);
+    }
     Ok(affected > 0)
 }
 
@@ -469,6 +509,9 @@ pub fn update_agent_exec_mode(session_id: &str, mode: &str) -> SqliteResult<bool
         "UPDATE code_sessions SET agent_exec_mode = ?2 WHERE session_id = ?1",
         params![session_id, parsed.as_str()],
     )?;
+    if affected > 0 {
+        sync_orgtrack_mirror(session_id);
+    }
     Ok(affected > 0)
 }
 
@@ -545,10 +588,29 @@ pub fn delete_session(session_id: &str) -> SqliteResult<bool> {
         "DELETE FROM session_token_usage WHERE session_id = ?1",
         [session_id],
     )?;
+    // Per-LLM-call telemetry lives in the shared usage tables (not under the
+    // code_session_chunks CASCADE), so it needs its own cleanup here.
+    conn.execute(
+        "DELETE FROM session_llm_usage_spans WHERE session_id = ?1",
+        [session_id],
+    )?;
+    conn.execute(
+        "DELETE FROM session_tool_usage WHERE session_id = ?1",
+        [session_id],
+    )?;
     let affected = conn.execute(
         "DELETE FROM code_sessions WHERE session_id = ?1",
         [session_id],
     )?;
+    if affected > 0 {
+        if let Err(err) =
+            crate::agent_sessions::session_directory::orgtrack_adapter::remove_mirrored_session(
+                session_id,
+            )
+        {
+            tracing::warn!(session_id, error = %err, "[cli-persistence] orgtrack delete mirror failed");
+        }
+    }
     Ok(affected > 0)
 }
 

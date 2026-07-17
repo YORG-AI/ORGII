@@ -59,6 +59,115 @@ fn test_key_crud() {
 }
 
 #[test]
+fn retired_gemini_cli_credentials_do_not_corrupt_the_vault() {
+    let temp_dir = tempdir().unwrap();
+    let service = KeyService::new(Some(temp_dir.path().to_path_buf()));
+
+    let codex_key = ModelKey::new(ModelType::Codex);
+    let codex_id = codex_key.id.clone();
+    service.save_key(codex_key).unwrap();
+
+    let storage_file = temp_dir.path().join("credentials.json");
+    let mut stored: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&storage_file).unwrap()).unwrap();
+    let credentials = stored
+        .get_mut("credentials")
+        .and_then(serde_json::Value::as_object_mut)
+        .unwrap();
+    let mut retired = credentials.get(&codex_id).unwrap().clone();
+    retired["id"] = serde_json::Value::String("retired-gemini-cli".to_string());
+    retired["agent_type"] = serde_json::Value::String("gemini_cli".to_string());
+    credentials.insert("retired-gemini-cli".to_string(), retired);
+    std::fs::write(&storage_file, serde_json::to_vec_pretty(&stored).unwrap()).unwrap();
+
+    let keys = service.list_keys();
+    assert_eq!(keys.len(), 1);
+    assert_eq!(keys[0].model_type, ModelType::Codex);
+
+    service
+        .save_key(ModelKey::new(ModelType::AnthropicApi))
+        .unwrap();
+    let persisted = std::fs::read_to_string(storage_file).unwrap();
+    assert!(!persisted.contains("gemini_cli"));
+}
+
+#[test]
+fn invalid_credential_does_not_hide_valid_siblings_and_survives_writes() {
+    let temp_dir = tempdir().unwrap();
+    let service = KeyService::new(Some(temp_dir.path().to_path_buf()));
+
+    let codex_key = ModelKey::new(ModelType::Codex);
+    let codex_id = codex_key.id.clone();
+    service.save_key(codex_key).unwrap();
+
+    let storage_file = temp_dir.path().join("credentials.json");
+    let mut stored: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&storage_file).unwrap()).unwrap();
+    let credentials = stored
+        .get_mut("credentials")
+        .and_then(serde_json::Value::as_object_mut)
+        .unwrap();
+    let mut future_credential = credentials.get(&codex_id).unwrap().clone();
+    future_credential["id"] = serde_json::Value::String("future-account".to_string());
+    future_credential["agent_type"] = serde_json::Value::String("future_provider".to_string());
+    credentials.insert("future-account".to_string(), future_credential.clone());
+    std::fs::write(&storage_file, serde_json::to_vec_pretty(&stored).unwrap()).unwrap();
+
+    let keys = service.list_keys_checked().unwrap();
+    assert_eq!(keys.len(), 1);
+    assert_eq!(keys[0].model_type, ModelType::Codex);
+    assert!(service
+        .get_key_checked(&ModelType::Codex, Some(&codex_id))
+        .unwrap()
+        .is_some());
+    let invalid_error = service.get_key_by_id_checked("future-account").unwrap_err();
+    assert!(invalid_error.contains("is invalid and was preserved"));
+
+    service
+        .save_key(ModelKey::new(ModelType::AnthropicApi))
+        .unwrap();
+    let persisted: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(storage_file).unwrap()).unwrap();
+    assert_eq!(
+        persisted["credentials"]["future-account"],
+        future_credential
+    );
+    assert_eq!(
+        persisted["credentials"].as_object().unwrap().len(),
+        3,
+        "two valid credentials plus the preserved future credential"
+    );
+}
+
+#[test]
+fn checked_list_reports_when_every_credential_is_invalid() {
+    let temp_dir = tempdir().unwrap();
+    let service = KeyService::new(Some(temp_dir.path().to_path_buf()));
+
+    let key = service.save_key(ModelKey::new(ModelType::Codex)).unwrap();
+    let storage_file = temp_dir.path().join("credentials.json");
+    let mut stored: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&storage_file).unwrap()).unwrap();
+    stored["credentials"][&key.id]["agent_type"] =
+        serde_json::Value::String("future_provider".to_string());
+    std::fs::write(&storage_file, serde_json::to_vec_pretty(&stored).unwrap()).unwrap();
+
+    let error = service.list_keys_checked().unwrap_err();
+    assert!(error.contains("No valid credentials could be loaded"));
+    assert!(error.contains("1 invalid credential(s) were preserved"));
+}
+
+#[test]
+fn checked_list_reports_malformed_root_json() {
+    let temp_dir = tempdir().unwrap();
+    let service = KeyService::new(Some(temp_dir.path().to_path_buf()));
+    std::fs::write(temp_dir.path().join("credentials.json"), "{").unwrap();
+
+    let error = service.list_keys_checked().unwrap_err();
+    assert!(error.contains("Corrupted credentials file"));
+}
+
+#[test]
 fn test_mask_api_key() {
     let mut cred = ModelKey::new(ModelType::CursorCli);
     cred.api_key = Some("key_1234567890abcdef".to_string());
@@ -98,7 +207,6 @@ fn test_e2e_with_real_keys() {
     for agent_type in &[
         ModelType::CursorCli,
         ModelType::ClaudeCode,
-        ModelType::GeminiCli,
         ModelType::Codex,
         ModelType::Copilot,
     ] {
@@ -325,11 +433,10 @@ fn test_update_key_health_preserves_context_window_without_model_refresh() {
     );
 }
 
-/// Debug test to check parsing of real credentials file
+/// E2E coverage for the same tolerant loader used by the Tauri `list_keys`
+/// command. Never print raw file contents: they contain live secrets.
 #[test]
 fn test_parse_real_credentials_file() {
-    use std::fs;
-
     let creds_path = app_paths::keys();
 
     if !creds_path.exists() {
@@ -340,31 +447,10 @@ fn test_parse_real_credentials_file() {
     println!("\n=== Parsing Real Credentials File ===\n");
     println!("Path: {:?}", creds_path);
 
-    let contents = fs::read_to_string(&creds_path).expect("Failed to read file");
-    println!("File size: {} bytes", contents.len());
-
-    // Try to parse
-    match serde_json::from_str::<KeyStore>(&contents) {
-        Ok(store) => {
-            println!("SUCCESS: Parsed {} keys", store.keys.len());
-            for (id, cred) in &store.keys {
-                println!(
-                    "  - [{}] {} ({:?})",
-                    id,
-                    cred.name.as_deref().unwrap_or("unnamed"),
-                    cred.model_type
-                );
-            }
-        }
-        Err(e) => {
-            println!("PARSE ERROR: {}", e);
-            // Try to identify the issue
-            println!(
-                "\nFirst 1000 chars of file:\n{}",
-                &contents[..contents.len().min(1000)]
-            );
-        }
-    }
+    let keys = KEY_SERVICE
+        .list_keys_checked()
+        .expect("production Key Vault loader should read real credentials");
+    println!("SUCCESS: Parsed {} valid keys", keys.len());
 
     println!("\n=== Parse Test Complete ===\n");
 }
@@ -682,51 +768,6 @@ fn test_claude_code_relay_oauth_env_keeps_relay_base_url() {
 }
 
 #[test]
-fn test_gemini_oauth_env_exports_access_refresh_expiry_and_project() {
-    let temp_dir = tempdir().unwrap();
-    let service = KeyService::new(Some(temp_dir.path().to_path_buf()));
-
-    let mut key = ModelKey::new(ModelType::GeminiCli);
-    key.auth_method = AuthMethod::Oauth;
-    key.session_token = Some("gemini-access-token".to_string());
-    key.api_key = Some("gemini-api-key-should-not-export".to_string());
-    key.env_vars.insert(
-        "GEMINI_REFRESH_TOKEN".to_string(),
-        "gemini-refresh-token".to_string(),
-    );
-    key.env_vars.insert(
-        "GEMINI_EXPIRES_AT".to_string(),
-        "2030-01-01T00:00:00Z".to_string(),
-    );
-    key.env_vars.insert(
-        "GOOGLE_CLOUD_PROJECT".to_string(),
-        "gemini-code-assist-project".to_string(),
-    );
-    let key_id = key.id.clone();
-    service.save_key(key).unwrap();
-
-    let env = service.get_env_for_agent(&ModelType::GeminiCli, Some(&key_id));
-    assert_eq!(
-        env.get("GEMINI_ACCESS_TOKEN").map(|value| value.as_str()),
-        Some("gemini-access-token"),
-    );
-    assert_eq!(
-        env.get("GEMINI_REFRESH_TOKEN").map(|value| value.as_str()),
-        Some("gemini-refresh-token"),
-    );
-    assert_eq!(
-        env.get("GEMINI_EXPIRES_AT").map(|value| value.as_str()),
-        Some("2030-01-01T00:00:00Z"),
-    );
-    assert_eq!(
-        env.get("GOOGLE_CLOUD_PROJECT").map(|value| value.as_str()),
-        Some("gemini-code-assist-project"),
-    );
-    assert_eq!(env.get("GEMINI_API_KEY"), None);
-    assert_eq!(env.get("GOOGLE_API_KEY"), None);
-}
-
-#[test]
 fn test_codex_cli_oauth_sync_does_not_overwrite_newer_key_vault_token() {
     use core_types::providers::CODEX_REFRESH_TOKEN_ENV_KEY;
 
@@ -752,7 +793,6 @@ fn test_codex_cli_oauth_sync_does_not_overwrite_newer_key_vault_token() {
                 access_token: Some("cli-access".to_string()),
                 refresh_token: Some("cli-refresh".to_string()),
                 id_token: Some("cli-id".to_string()),
-                expires_at: None,
             },
         )
         .unwrap();
@@ -772,65 +812,6 @@ fn test_codex_cli_oauth_sync_does_not_overwrite_newer_key_vault_token() {
             .get(CODEX_REFRESH_TOKEN_ENV_KEY)
             .map(|value| value.as_str()),
         Some("newer-key-vault-refresh")
-    );
-}
-
-#[test]
-fn test_gemini_cli_oauth_sync_updates_when_key_vault_matches_launched_token() {
-    let temp_dir = tempdir().unwrap();
-    let service = KeyService::new(Some(temp_dir.path().to_path_buf()));
-
-    let mut key = ModelKey::new(ModelType::GeminiCli);
-    key.auth_method = AuthMethod::Oauth;
-    key.session_token = Some("launched-gemini-access".to_string());
-    key.env_vars.insert(
-        "GEMINI_REFRESH_TOKEN".to_string(),
-        "launched-gemini-refresh".to_string(),
-    );
-    key.enabled = false;
-    key.health_status = HealthStatus::Invalid;
-    key.oauth_refresh_failure_count = 2;
-    key.last_oauth_refresh_failed_at = Some(Utc::now());
-    key.last_validation_error = Some("previous failure".to_string());
-    let key_id = key.id.clone();
-    service.save_key(key).unwrap();
-
-    let outcome = service
-        .sync_cli_oauth_tokens_if_current(
-            &key_id,
-            ModelType::GeminiCli,
-            Some("launched-gemini-access"),
-            CliOAuthTokenSync {
-                access_token: Some("cli-gemini-access".to_string()),
-                refresh_token: Some("cli-gemini-refresh".to_string()),
-                id_token: None,
-                expires_at: Some("2031-01-01T00:00:00Z".to_string()),
-            },
-        )
-        .unwrap();
-
-    let CliOAuthTokenSyncOutcome::Updated(updated) = outcome else {
-        panic!("Gemini sync should update matching launched token");
-    };
-    assert_eq!(updated.session_token.as_deref(), Some("cli-gemini-access"));
-    assert!(updated.enabled);
-    assert_eq!(updated.health_status, HealthStatus::Unknown);
-    assert_eq!(updated.oauth_refresh_failure_count, 0);
-    assert_eq!(updated.last_oauth_refresh_failed_at, None);
-    assert_eq!(updated.last_validation_error, None);
-    assert_eq!(
-        updated
-            .env_vars
-            .get("GEMINI_REFRESH_TOKEN")
-            .map(|value| value.as_str()),
-        Some("cli-gemini-refresh")
-    );
-    assert_eq!(
-        updated
-            .env_vars
-            .get("GEMINI_EXPIRES_AT")
-            .map(|value| value.as_str()),
-        Some("2031-01-01T00:00:00Z")
     );
 }
 
@@ -994,93 +975,6 @@ async fn test_codex_refresh_uses_form_body_and_concurrent_refreshes_once() {
             .get(CODEX_REFRESH_TOKEN_ENV_KEY)
             .map(|value| value.as_str()),
         Some("fresh-codex-refresh"),
-    );
-}
-
-#[tokio::test]
-async fn test_gemini_concurrent_ensure_refreshes_once_without_deadlock() {
-    use std::io::{Read, Write};
-    use std::net::TcpListener;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::Arc;
-    use std::thread;
-    use std::time::Duration;
-
-    let _ = tokio_rustls::rustls::crypto::ring::default_provider().install_default();
-
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let token_url = format!("http://{}/token", listener.local_addr().unwrap());
-    let request_count = Arc::new(AtomicUsize::new(0));
-    let server_request_count = Arc::clone(&request_count);
-    let server = thread::spawn(move || {
-        let (mut stream, _) = listener.accept().unwrap();
-        server_request_count.fetch_add(1, Ordering::SeqCst);
-        let mut buffer = [0_u8; 4096];
-        let _ = stream.read(&mut buffer).unwrap();
-        thread::sleep(Duration::from_millis(150));
-        let body = r#"{"access_token":"fresh-gemini-access","refresh_token":"fresh-gemini-refresh","expires_in":3600,"token_type":"Bearer","scope":"code-assist"}"#;
-        let response = format!(
-            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-            body.len(),
-            body
-        );
-        stream.write_all(response.as_bytes()).unwrap();
-    });
-
-    std::env::set_var("GEMINI_REFRESH_TOKEN_URL_OVERRIDE", token_url);
-    let temp_dir = tempdir().unwrap();
-    let service = Arc::new(KeyService::new(Some(temp_dir.path().to_path_buf())));
-
-    let mut key = ModelKey::new(ModelType::GeminiCli);
-    key.auth_method = AuthMethod::Oauth;
-    key.session_token = Some("expired-gemini-access".to_string());
-    key.env_vars.insert(
-        "GEMINI_REFRESH_TOKEN".to_string(),
-        "expired-gemini-refresh".to_string(),
-    );
-    key.env_vars.insert(
-        "GEMINI_EXPIRES_AT".to_string(),
-        "2020-01-01T00:00:00Z".to_string(),
-    );
-    let key_id = key.id.clone();
-    service.save_key(key).unwrap();
-
-    let first_service = Arc::clone(&service);
-    let second_service = Arc::clone(&service);
-    let first_key_id = key_id.clone();
-    let second_key_id = key_id.clone();
-    let (first, second) = tokio::time::timeout(Duration::from_secs(3), async move {
-        tokio::join!(
-            first_service
-                .refresh_gemini_oauth_key_after_rejection(&first_key_id, "expired-gemini-access",),
-            second_service
-                .refresh_gemini_oauth_key_after_rejection(&second_key_id, "expired-gemini-access",),
-        )
-    })
-    .await
-    .expect("Gemini concurrent ensure refresh should not deadlock");
-
-    std::env::remove_var("GEMINI_REFRESH_TOKEN_URL_OVERRIDE");
-    server.join().unwrap();
-
-    let first = first.unwrap();
-    let second = second.unwrap();
-    assert_eq!(request_count.load(Ordering::SeqCst), 1);
-    assert_eq!(first.session_token.as_deref(), Some("fresh-gemini-access"));
-    assert_eq!(second.session_token.as_deref(), Some("fresh-gemini-access"));
-    assert_eq!(
-        first
-            .env_vars
-            .get("GEMINI_REFRESH_TOKEN")
-            .map(|value| value.as_str()),
-        Some("fresh-gemini-refresh"),
-    );
-    assert_eq!(
-        first
-            .env_vars
-            .get("GEMINI_TOKEN_TYPE")
-            .map(|value| value.as_str()),
-        Some("Bearer"),
     );
 }
 

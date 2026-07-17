@@ -7,6 +7,7 @@ import type { TFunction } from "i18next";
 
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import type { QuickAction } from "@src/modules/WorkStation/shared";
+import type { SourceControlFilterMode } from "@src/modules/WorkStation/shared/SidebarModules";
 import {
   openEditorSpotlight,
   openWorkspaceSpotlight,
@@ -25,6 +26,17 @@ export interface EditorQuickActionsOptions {
     source: "system" | "user" | "ai"
   ) => void;
   sidebarCollapsed: boolean;
+}
+
+export type SourceControlDestination = Extract<
+  SourceControlFilterMode,
+  "uncommitted" | "issues" | "history" | "pr"
+>;
+
+export interface SourceControlQuickActionsOptions {
+  t: TFunction;
+  activeMode: SourceControlFilterMode;
+  onNavigate: (destination: SourceControlDestination) => void;
 }
 
 // ============================================
@@ -132,4 +144,46 @@ export function createEditorQuickActions(
       onAction: () => dispatch("panel.togglePrimary", {}, "user"),
     },
   ];
+}
+
+/** Creates navigation actions for an empty Source Control detail pane. */
+export function createSourceControlQuickActions(
+  options: SourceControlQuickActionsOptions
+): QuickAction[] {
+  const { t, activeMode, onNavigate } = options;
+  const activeDestination: SourceControlDestination =
+    activeMode === "issues" || activeMode === "history" || activeMode === "pr"
+      ? activeMode
+      : "uncommitted";
+
+  const actions: Array<
+    QuickAction & { destination: SourceControlDestination }
+  > = [
+    {
+      id: "view-source-control",
+      label: t("sourceControl.emptyState.viewSourceControl"),
+      destination: "uncommitted",
+      onAction: () => onNavigate("uncommitted"),
+    },
+    {
+      id: "view-issues",
+      label: t("sourceControl.emptyState.viewIssues"),
+      destination: "issues",
+      onAction: () => onNavigate("issues"),
+    },
+    {
+      id: "view-git-history",
+      label: t("sourceControl.emptyState.viewGitHistory"),
+      destination: "history",
+      onAction: () => onNavigate("history"),
+    },
+    {
+      id: "view-pull-requests",
+      label: t("sourceControl.emptyState.viewPullRequests"),
+      destination: "pr",
+      onAction: () => onNavigate("pr"),
+    },
+  ];
+
+  return actions.filter((action) => action.destination !== activeDestination);
 }

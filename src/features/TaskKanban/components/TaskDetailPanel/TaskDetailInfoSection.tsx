@@ -16,7 +16,7 @@ const TaskDetailInfoSection: React.FC<TaskDetailInfoSectionProps> = ({
     <div className="task-detail-panel__content">
       <div className="task-detail-panel__section">
         <h3 className="task-detail-panel__section-title">
-          {t("opsControl.detail.title")}
+          {t("kanban.detail.title")}
         </h3>
         <div className="task-detail-panel__task-title">{task.title}</div>
       </div>
@@ -35,7 +35,7 @@ const TaskDetailInfoSection: React.FC<TaskDetailInfoSectionProps> = ({
       {task.tags && task.tags.length > 0 && (
         <div className="task-detail-panel__section">
           <h3 className="task-detail-panel__section-title">
-            {t("opsControl.detail.tags")}
+            {t("kanban.detail.tags")}
           </h3>
           <div className="task-detail-panel__tags">
             {task.tags.map((tag, index) => (

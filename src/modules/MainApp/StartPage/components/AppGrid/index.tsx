@@ -22,16 +22,23 @@ import React, { useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { ACTION_ID, useActionSystemOptional } from "@src/ActionSystem";
-import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/csp";
+import {
+  HOST_DESKTOP,
+  resolveHostDesktop,
+} from "@src/config/windowChromeRadius";
+import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/nonce";
 import { useRegionLuminance } from "@src/hooks/theme/useRegionLuminance";
 import { appGridConfigAtom } from "@src/store/ui/appGridAtom";
 import { resolvedBackgroundConfigAtom } from "@src/store/ui/backgroundConfigAtom";
+import { openExternalLink } from "@src/util/platform/ipcRenderer";
 import { classNames } from "@src/util/ui/classNames";
 
 import AppGridEditPanel from "../AppGridEditPanel";
 import { AppGridIcon } from "./AppGridIcon";
 import { APP_GRID_ITEMS, type AppItem } from "./config";
 import { useAppGridDrag } from "./useAppGridDrag";
+
+const IS_MACOS_HOST = resolveHostDesktop() === HOST_DESKTOP.MACOS;
 
 // ============================================
 // Styles
@@ -139,15 +146,12 @@ const APP_GRID_ACTION_IDS: Partial<Record<string, string>> = {
   "create-session": ACTION_ID.AGENT_STATION_CREATE_SESSION,
   editor: ACTION_ID.APP_GO_TO_EDITOR,
   browser: ACTION_ID.APP_GO_TO_BROWSER,
-  "ops-control": ACTION_ID.APP_GO_TO_OPS_CONTROL,
-  "db-manager": ACTION_ID.APP_GO_TO_DATABASE,
+  kanban: ACTION_ID.APP_GO_TO_KANBAN,
   integrations: ACTION_ID.APP_GO_TO_INTEGRATIONS,
   economy: ACTION_ID.APP_GO_TO_MARKET,
   "agent-orgs": ACTION_ID.APP_GO_TO_AGENT_ORGS,
-  // launchpad: intentionally absent — falls through to APP_NAVIGATE,
-  // which lands on the Code Editor route (the launchpad dashboard is
-  // pinned there as the first tab).
-  "dev-record": ACTION_ID.APP_GO_TO_DEV_RECORD,
+  // Legacy launchpad action: intentionally absent so it falls through to
+  // APP_NAVIGATE and opens the renamed Dashboard in the Code Editor route.
   changelog: ACTION_ID.APP_GO_TO_CHANGELOG,
   projects: ACTION_ID.APP_GO_TO_STORIES,
   settings: ACTION_ID.APP_GO_TO_SETTINGS,
@@ -190,7 +194,9 @@ const AppGrid: React.FC<AppGridProps> = ({ className }) => {
   const [gridConfig, setGridConfig] = useAtom(appGridConfigAtom);
   const backgroundConfig = useAtomValue(resolvedBackgroundConfigAtom);
   const shouldUseAdaptiveColors = Boolean(
-    backgroundConfig.adaptiveColors && backgroundConfig.selectedImageId
+    !IS_MACOS_HOST &&
+    backgroundConfig.adaptiveColors &&
+    backgroundConfig.selectedImageId
   );
 
   const sortedApps = useMemo(() => {
@@ -236,6 +242,13 @@ const AppGrid: React.FC<AppGridProps> = ({ className }) => {
 
   const handleAppClick = useCallback(
     (app: AppItem, _event?: React.MouseEvent) => {
+      // External-link tiles (e.g. the open-source repo) open in the system
+      // browser instead of navigating an in-app route.
+      if (app.externalUrl) {
+        void openExternalLink(app.externalUrl);
+        return;
+      }
+
       const path = app.routePath;
       const actionId = APP_GRID_ACTION_IDS[app.action];
       if (actionId && actionSystem?.isValidAction(actionId)) {

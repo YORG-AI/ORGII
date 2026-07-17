@@ -10,7 +10,7 @@ export interface ProjectOrgHubHeaderProps {
   breadcrumbSegments: readonly ProjectManagerBreadcrumbSegment[];
   orgView: ProjectOrgSurfaceView;
   onOrgViewChange: (view: ProjectOrgSurfaceView) => void;
-  workstationHeaderHost?: "project" | "opsControl";
+  workstationHeaderHost?: "project" | "workManagement";
 }
 
 export const ProjectOrgHubHeader: React.FC<ProjectOrgHubHeaderProps> = ({

@@ -15,7 +15,7 @@
  */
 import { atom } from "jotai";
 
-import { reposAtom } from "@src/store/repo/atoms";
+import { reposAtom, selectedRepoIdAtom } from "@src/store/repo/atoms";
 import { matchRepoByPath } from "@src/store/repo/matchRepoByPath";
 import type { Repo } from "@src/store/repo/types";
 import { fileSelectedPathAtom } from "@src/store/workstation/codeEditor/file";
@@ -89,6 +89,48 @@ export const activeFolderAtom = atom<WorkspaceFolder | null>((get) => {
 });
 activeFolderAtom.debugLabel = "activeFolderAtom";
 
+export interface ActiveWorktreeSelection {
+  repoId: string;
+  path: string;
+  branch: string;
+  isMain: boolean;
+}
+
+/** Window-local worktree context keyed by repository ID. */
+export const activeWorktreeByRepoAtom = atom<
+  Record<string, ActiveWorktreeSelection>
+>({});
+activeWorktreeByRepoAtom.debugLabel = "activeWorktreeByRepoAtom";
+
+export const activeWorktreeAtom = atom<ActiveWorktreeSelection | null>(
+  (get) => {
+    const repoId = get(selectedRepoIdAtom);
+    if (!repoId) return null;
+    return get(activeWorktreeByRepoAtom)[repoId] ?? null;
+  }
+);
+activeWorktreeAtom.debugLabel = "activeWorktreeAtom";
+
+export const setActiveWorktreeAtom = atom(
+  null,
+  (get, set, selection: ActiveWorktreeSelection | null) => {
+    const repoId = selection?.repoId ?? get(selectedRepoIdAtom);
+    if (!repoId) return;
+
+    const previous = get(activeWorktreeByRepoAtom);
+    if (selection) {
+      set(activeWorktreeByRepoAtom, { ...previous, [repoId]: selection });
+      return;
+    }
+
+    if (!(repoId in previous)) return;
+    const next = { ...previous };
+    delete next[repoId];
+    set(activeWorktreeByRepoAtom, next);
+  }
+);
+setActiveWorktreeAtom.debugLabel = "setActiveWorktreeAtom";
+
 export interface WorkspaceRootContext {
   id: string;
   name: string;
@@ -134,7 +176,29 @@ export const activeWorkspaceFolderRepoAtom = atom<Repo | undefined>((get) => {
 activeWorkspaceFolderRepoAtom.debugLabel = "activeWorkspaceFolderRepoAtom";
 
 export const activeWorkspaceRootAtom = atom<WorkspaceRootContext | null>(
-  (get) => rootContextFromFolder(get(activeFolderAtom), get(reposAtom))
+  (get) => {
+    const folderRoot = rootContextFromFolder(
+      get(activeFolderAtom),
+      get(reposAtom)
+    );
+    const worktree = get(activeWorktreeAtom);
+    if (
+      !folderRoot ||
+      !worktree ||
+      worktree.repoId !== get(selectedRepoIdAtom)
+    ) {
+      return folderRoot;
+    }
+    return {
+      ...folderRoot,
+      id: `worktree:${worktree.path}`,
+      name: worktree.path.split("/").pop() || folderRoot.name,
+      path: worktree.path,
+      uri: `file://${worktree.path}`,
+      kind: "git",
+      repoId: worktree.repoId,
+    };
+  }
 );
 activeWorkspaceRootAtom.debugLabel = "activeWorkspaceRootAtom";
 

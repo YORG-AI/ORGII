@@ -542,6 +542,9 @@ pub enum ProviderError {
     ParseError(String),
     /// Authentication failed (invalid API key).
     AuthError(String),
+    /// Provider account or subscription usage quota is exhausted. Unlike a
+    /// transient 429 rate limit, retrying the same request cannot recover.
+    UsageLimitReached(String),
     /// Rate limited by the provider (429).
     RateLimited {
         message: String,
@@ -575,6 +578,9 @@ impl std::fmt::Display for ProviderError {
             ProviderError::RequestFailed(msg) => write!(formatter, "Request failed: {}", msg),
             ProviderError::ParseError(msg) => write!(formatter, "Parse error: {}", msg),
             ProviderError::AuthError(msg) => write!(formatter, "Auth error: {}", msg),
+            ProviderError::UsageLimitReached(msg) => {
+                write!(formatter, "Usage limit reached: {}", msg)
+            }
             ProviderError::RateLimited {
                 message,
                 retry_after_secs,

@@ -149,6 +149,7 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
                 iconOnly
                 onClick={onAddProject}
                 title={t("projects.createProject")}
+                data-testid="projects-create-project"
                 icon={<Plus size={HEADER_ICON_SIZE.md} strokeWidth={2} />}
               />
             )}

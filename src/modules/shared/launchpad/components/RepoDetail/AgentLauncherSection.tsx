@@ -24,9 +24,9 @@ import {
 } from "@src/config/inputAreaTokens";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import {
-  OPS_CONTROL_SESSION_CREATOR_OVERLAY_CLASS,
-  OPS_CONTROL_SESSION_CREATOR_SURFACE_CLASS,
-} from "@src/config/opsControlCardTokens";
+  WORK_MANAGEMENT_SESSION_CREATOR_OVERLAY_CLASS,
+  WORK_MANAGEMENT_SESSION_CREATOR_SURFACE_CLASS,
+} from "@src/config/workManagementCardTokens";
 import type { AdvancedConfig } from "@src/features/SessionCreator/types";
 import { useModelPillLabel } from "@src/hooks/models";
 import { useValidatedLastPair } from "@src/hooks/models/useValidatedLastPair";
@@ -175,9 +175,9 @@ const AgentLauncherSection: React.FC<AgentLauncherSectionProps> = ({
       )}
 
       {expanded && (
-        <div className={OPS_CONTROL_SESSION_CREATOR_OVERLAY_CLASS}>
+        <div className={WORK_MANAGEMENT_SESSION_CREATOR_OVERLAY_CLASS}>
           <div
-            className={`${OPS_CONTROL_SESSION_CREATOR_SURFACE_CLASS} relative flex flex-col gap-1 rounded-[12px] px-2 shadow-2xl`}
+            className={`${WORK_MANAGEMENT_SESSION_CREATOR_SURFACE_CLASS} relative flex flex-col gap-1 rounded-[12px] px-2 shadow-2xl`}
             style={{
               paddingTop: INPUT_AREA_PADDING_COMPACT.paddingTop,
               paddingBottom: INPUT_AREA_PADDING_COMPACT.paddingBottom,

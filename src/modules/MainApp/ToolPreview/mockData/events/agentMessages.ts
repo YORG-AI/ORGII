@@ -159,46 +159,4 @@ export const agentMessageEvents: Record<string, SessionEvent> = {
     "tool_call",
     "running"
   ),
-
-  suggest_next_steps: createEvent(
-    "suggest_next_steps",
-    {
-      steps: [
-        {
-          title: "Add unit tests for auth module",
-          command:
-            "Write unit tests for the authentication module covering login, logout, and token refresh flows.",
-        },
-        {
-          title: "Refactor database layer",
-          command:
-            "Refactor the database access layer to use connection pooling and add retry logic for transient failures.",
-        },
-        {
-          title: "Update API documentation",
-          command:
-            "Update the REST API documentation to reflect the new endpoints added in the auth refactor.",
-        },
-      ],
-    },
-    {
-      content: JSON.stringify([
-        {
-          title: "Add unit tests for auth module",
-          command:
-            "Write unit tests for the authentication module covering login, logout, and token refresh flows.",
-        },
-        {
-          title: "Refactor database layer",
-          command:
-            "Refactor the database access layer to use connection pooling and add retry logic for transient failures.",
-        },
-        {
-          title: "Update API documentation",
-          command:
-            "Update the REST API documentation to reflect the new endpoints added in the auth refactor.",
-        },
-      ]),
-    }
-  ),
 };

@@ -13,16 +13,17 @@ pub use exec::exec_in_pty;
 #[cfg(test)]
 pub(crate) use exec::{extract_done_marker, strip_command_echo, ExecPhase};
 
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use chrono::Utc;
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use std::{
     collections::HashMap,
     io::{BufRead, BufReader, Write},
     sync::{
-        atomic::{AtomicU32, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering},
         Arc, Mutex,
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 use tauri::{async_runtime::Mutex as AsyncMutex, AppHandle, Emitter};
 use tokio::sync::{broadcast, Notify};
@@ -97,6 +98,16 @@ const BACKPRESSURE_TIMEOUT_MS: u64 = 200;
 /// Grace period before dropping a session in `close_session` to let
 /// the reader flush remaining output.
 const CLOSE_FLUSH_MS: u64 = 250;
+/// Safety valve: if the reader has been parked on backpressure this long
+/// with no ACK progress, the listener is presumed dead (webview reloaded,
+/// listener torn down without a detach). Force-detach so the child process
+/// is never left blocked on a full PTY buffer; the next attach resyncs from
+/// the snapshot. A healthy frontend ACKs even when it drops backlog, so it
+/// never trips this.
+const STALL_FORCE_DETACH_MS: u64 = 10_000;
+/// PTY read buffer. Larger reads mean fewer, bigger events under floods
+/// (the frontend scheduler re-chunks adaptively for rendering).
+const PTY_READ_BUFFER_BYTES: usize = 64 * 1024;
 
 // ============================================
 // Session Management
@@ -317,11 +328,17 @@ pub async fn create_session(params: CreateSessionParams) -> Result<(), String> {
     let frontend_render_ms = Arc::new(AtomicU32::new(0));
     let last_output_at = Arc::new(Mutex::new(None));
     let redacted_output = Arc::new(Mutex::new(String::new()));
+    let detached = Arc::new(AtomicBool::new(false));
+    let covers_seq = Arc::new(AtomicU64::new(0));
+    let missed_while_detached = Arc::new(AtomicUsize::new(0));
 
     let session = PtySession {
         pty_pair: Arc::new(AsyncMutex::new(pty_pair)),
         writer: Arc::new(AsyncMutex::new(writer)),
-        reader: Arc::new(AsyncMutex::new(BufReader::new(reader))),
+        reader: Arc::new(AsyncMutex::new(BufReader::with_capacity(
+            PTY_READ_BUFFER_BYTES,
+            reader,
+        ))),
         pid,
         shell: shell_path.clone(),
         shell_kind,
@@ -334,6 +351,9 @@ pub async fn create_session(params: CreateSessionParams) -> Result<(), String> {
         created_at: Utc::now(),
         last_output_at: last_output_at.clone(),
         redacted_output: redacted_output.clone(),
+        detached: detached.clone(),
+        covers_seq: covers_seq.clone(),
+        missed_while_detached: missed_while_detached.clone(),
     };
 
     // Clone the reader Arc before storing the session
@@ -357,6 +377,9 @@ pub async fn create_session(params: CreateSessionParams) -> Result<(), String> {
 
         // Track consecutive empty reads for adaptive sleep
         let mut empty_reads: u32 = 0;
+        // Stream offset (total bytes read); mirrors covers_seq and stamps
+        // each emitted chunk so the frontend can align snapshot and stream.
+        let mut stream_seq: u64 = 0;
 
         loop {
             // Backpressure state machine with proper async waker.
@@ -368,9 +391,30 @@ pub async fn create_session(params: CreateSessionParams) -> Result<(), String> {
             // parked with zero CPU until ack_pty_data() fires notify_one().
             // A BACKPRESSURE_TIMEOUT_MS timeout lets us check session liveness
             // without holding a lock continuously.
-            if unacked_bytes.load(Ordering::Relaxed) >= HIGH_WATERMARK {
+            //
+            // A detached session never parks: unacked_bytes is frozen at 0 and
+            // nothing will ACK, so parking would block the child forever.
+            if !detached.load(Ordering::Relaxed)
+                && unacked_bytes.load(Ordering::Relaxed) >= HIGH_WATERMARK
+            {
+                let parked_at = Instant::now();
                 loop {
-                    if unacked_bytes.load(Ordering::Relaxed) < LOW_WATERMARK {
+                    if detached.load(Ordering::Relaxed)
+                        || unacked_bytes.load(Ordering::Relaxed) < LOW_WATERMARK
+                    {
+                        break;
+                    }
+
+                    // Listener presumed dead after a long stall with no ACK
+                    // progress — force-detach rather than leave the child
+                    // blocked on a full PTY buffer.
+                    if parked_at.elapsed() >= Duration::from_millis(STALL_FORCE_DETACH_MS) {
+                        warn!(
+                            "[terminal] No ACK progress for {}ms on {}; detaching stream",
+                            STALL_FORCE_DETACH_MS, event_session_id
+                        );
+                        detached.store(true, Ordering::Relaxed);
+                        unacked_bytes.store(0, Ordering::Relaxed);
                         break;
                     }
 
@@ -443,33 +487,62 @@ pub async fn create_session(params: CreateSessionParams) -> Result<(), String> {
                             &data[..emit_cap]
                         };
                         let data_len = emit_slice.len();
+                        let seq_start = stream_seq;
 
-                        // Track unacknowledged output for backpressure
-                        unacked_bytes.fetch_add(data_len, Ordering::Relaxed);
                         *last_output_at
                             .lock()
                             .expect("last_output_at mutex poisoned") = Some(Utc::now());
-                        // Emit Tauri event for frontend display
-                        if let Err(err) = app_clone.emit(
-                            &output_event,
-                            serde_json::json!({ "bytes": emit_slice, "byte_count": data_len }),
-                        ) {
-                            warn!(
-                                "[terminal] Failed to emit output event {}: {}",
-                                output_event, err
-                            );
+
+                        if detached.load(Ordering::Relaxed) {
+                            // No listener: skip emission and flow-control
+                            // accounting. Output still accrues in the snapshot
+                            // below, and the next attach reports it as missed.
+                            missed_while_detached.fetch_add(data_len, Ordering::Relaxed);
+                        } else {
+                            // base64 body instead of a JSON integer array: the
+                            // webview parses ~1.33x the raw size instead of a
+                            // 3-5x digits-and-commas payload per chunk.
+                            match app_clone.emit(
+                                &output_event,
+                                serde_json::json!({
+                                    "b64": BASE64_STANDARD.encode(emit_slice),
+                                    "byte_count": data_len,
+                                    "seq": seq_start,
+                                }),
+                            ) {
+                                // Only delivered bytes count toward the
+                                // flow-control window — a failed emit is never
+                                // ACKed and would shrink the window forever.
+                                Ok(()) => {
+                                    unacked_bytes.fetch_add(data_len, Ordering::Relaxed);
+                                }
+                                Err(err) => {
+                                    warn!(
+                                        "[terminal] Failed to emit output event {}: {}",
+                                        output_event, err
+                                    );
+                                }
+                            }
                         }
 
                         // from_utf8_lossy borrows for valid UTF-8 (no alloc) — used only
                         // for the redacted snapshot and only when needed.
                         let data_text = String::from_utf8_lossy(emit_slice);
-                        append_redacted_bounded(
-                            &mut redacted_output
+                        {
+                            let mut snapshot = redacted_output
                                 .lock()
-                                .expect("redacted_output mutex poisoned"),
-                            &data_text,
-                            MAX_REDACTED_SNAPSHOT_CHARS,
-                        );
+                                .expect("redacted_output mutex poisoned");
+                            append_redacted_bounded(
+                                &mut snapshot,
+                                &data_text,
+                                MAX_REDACTED_SNAPSHOT_CHARS,
+                            );
+                            // covers_seq is only touched under this lock so
+                            // snapshot text and covered offset stay consistent
+                            // for attach_pty_stream.
+                            covers_seq.store(seq_start + data_len as u64, Ordering::Relaxed);
+                        }
+                        stream_seq += data_len as u64;
 
                         // Send raw bytes through the tap channel. Arc<[u8]> clone is O(1);
                         // the receiver decodes UTF-8 lazily when it needs text. A SendError

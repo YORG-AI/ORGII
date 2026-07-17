@@ -9,7 +9,7 @@ status: active
 Integrate the useful parts of `agentsview` into ORGII without creating a second
 session analytics system. ORGII should keep `orgtrack` and the existing
 `unified_stats` Tauri API as the shared pipeline for session discovery,
-activity, token accounting, cost reporting, Dev Record, ops control, and chat
+activity, token accounting, cost reporting, Dev Record, Kanban, and chat
 start-page analytics.
 
 ## What agentsview does well
@@ -92,7 +92,7 @@ Dev Record’s shared `HeatmapGrid`. The card displays:
 This keeps the heatmap visible at the point where users decide what work to do
 next.
 
-### Dev Record / ops-control improvements
+### Dev Record / work-management improvements
 
 Dev Record session rows now use computed cache-aware cost instead of hardcoded
 zero-cost placeholders. Expanded per-round rows show cache write/read token

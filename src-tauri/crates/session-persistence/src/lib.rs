@@ -11,13 +11,14 @@
 //!   path.
 //!
 //! ## Database location
-//! `~/.orgii/sessions.db` (managed by `database::db`). FTS5 is used for
-//! full-text event search; sequence numbers gate edit / truncate flows.
+//! `~/.orgii/sessions.db` (managed by `database::db`). Event search runs
+//! LIKE scans over `events` (the FTS5 index was dropped — see
+//! `schema::drop_events_fts`); sequence numbers gate edit / truncate flows.
 //!
 //! ## Layering
-//! Pure leaf — no back-edges into `app`. Depends only on `agent_core`
-//! (for `foundation::{db_bridge, session_bridge}` slot registration and
-//! `tools::names` constants) and `database` (for the connection pool).
+//! Pure host adapter — no back-edges into `app`. Provider-neutral provenance
+//! projection lives in `orgtrack_core`; this crate only materializes that
+//! projection in ORG2's local session cache.
 
 pub mod agent_core_bridge;
 pub mod commands;
@@ -28,16 +29,16 @@ pub(crate) mod schema;
 mod sequence;
 pub mod token_usage;
 pub mod tool_usage;
-mod turn_files;
 mod turn_index;
 mod turn_index_debounce;
 pub mod turn_intents;
 mod turn_window;
 mod types;
 
-pub use turn_files::TurnModifiedFile;
+pub use orgtrack_core::projectors::turn_metadata::{TurnModifiedFile, TurnResourceInteraction};
 pub use turn_index::{
-    ensure_turn_index_fresh, load_turn_index, rebuild_turn_index, CachedTurnSummary,
+    ensure_turn_index_fresh, load_turn_index, load_turn_summaries, rebuild_turn_index,
+    CachedTurnSummary,
 };
 pub use turn_window::{
     load_initial_turn_window, load_turn_body_window, CachedInitialTurnWindow, CachedTurnBodyWindow,
@@ -72,3 +73,9 @@ pub use commands::{
     cache_update_session_specs, get_session_llm_usage_spans, get_session_token_usage_records,
     get_session_tool_usage_attributions, get_session_tool_usage_attributions_for_call,
 };
+
+/// Tests in several modules temporarily redirect the process-wide
+/// `ORGII_HOME`. One crate-wide lock is required: module-local locks still let
+/// those tests race and point unrelated connections at each other's databases.
+#[cfg(test)]
+pub(crate) static ORGII_HOME_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());

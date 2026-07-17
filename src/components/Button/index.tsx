@@ -127,6 +127,12 @@ export interface ButtonProps extends Omit<
   /** Optional main segment width for icon-only split buttons. */
   splitIconOnlyMainWidth?: number;
 
+  /**
+   * Optional width (px) of the split-button dropdown caret segment. Overrides
+   * the default (`height / 2` for icon-only, `height` otherwise).
+   */
+  splitDropdownWidth?: number;
+
   /** Align split-button content within the main segment or the full button. */
   splitContentAlign?: "main" | "button";
 
@@ -280,6 +286,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       onDropdownClick,
       dropdownVisible,
       splitIconOnlyMainWidth,
+      splitDropdownWidth,
       splitContentAlign = "main",
       splitWidthMode = "fill",
       ...rest
@@ -306,49 +313,53 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         width: long ? "100%" : iconOnlySize,
         minWidth: long ? 0 : undefined,
         fontSize: sizeConfig.fontSize,
-        gap: children && (icon || loading) && !iconOnly ? "8px" : undefined,
         borderRadius,
         ...style,
       };
-    }, [
-      sizeConfig,
-      iconOnly,
-      shape,
-      long,
-      children,
-      icon,
-      loading,
-      borderRadius,
-      style,
-    ]);
+    }, [sizeConfig, iconOnly, shape, long, borderRadius, style]);
+
+    // Icon↔label spacing lives on the icon itself (margin), NOT on a flex
+    // `gap` of the <button>: WebKit's button-internal (anonymous-box) layout
+    // can drop the gap, which rendered the loading spinner flush against /
+    // overlapping the label (e.g. the "Verify setup" button while verifying).
+    const iconSpacingClass =
+      children && !iconOnly ? (iconPosition === "right" ? "ml-2" : "mr-2") : "";
 
     const renderIcon = () => {
       if (loading) {
         if (loadingSpinIcon && icon) {
           return (
-            <span className="pointer-events-none inline-flex shrink-0 animate-spin items-center justify-center leading-none">
+            <span
+              className={`pointer-events-none inline-flex shrink-0 animate-spin items-center justify-center leading-none ${iconSpacingClass}`}
+            >
               {icon}
             </span>
           );
         }
+        // Wrapped in a span (like the icon branches): WKWebView's
+        // button-internal layout can drop margins set directly on the svg,
+        // which rendered the spinner on top of the label.
         return (
-          <Loader2
-            size={sizeConfig.iconSize}
-            className="shrink-0 animate-spin"
-          />
+          <span
+            className={`pointer-events-none inline-flex shrink-0 items-center justify-center leading-none ${iconSpacingClass}`}
+          >
+            <Loader2 size={sizeConfig.iconSize} className="animate-spin" />
+          </span>
         );
       }
       if (icon) {
         if (typeof icon === "string") {
           return (
             <i
-              className={`${icon} inline-flex shrink-0 items-center justify-center leading-none`}
+              className={`${icon} inline-flex shrink-0 items-center justify-center leading-none ${iconSpacingClass}`}
               style={{ fontSize: sizeConfig.iconSize }}
             />
           );
         }
         return (
-          <span className="pointer-events-none inline-flex shrink-0 items-center justify-center leading-none">
+          <span
+            className={`pointer-events-none inline-flex shrink-0 items-center justify-center leading-none ${iconSpacingClass}`}
+          >
             {icon}
           </span>
         );
@@ -446,9 +457,9 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     }
 
     if (hasSplitButton) {
-      const dropdownWidth = iconOnly
-        ? sizeConfig.height / 2
-        : sizeConfig.height;
+      const dropdownWidth =
+        splitDropdownWidth ??
+        (iconOnly ? sizeConfig.height / 2 : sizeConfig.height);
       const splitMainWidth = iconOnly
         ? (splitIconOnlyMainWidth ?? sizeConfig.height)
         : undefined;
@@ -507,10 +518,8 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    gap:
-                      children && (icon || loading) && !iconOnly
-                        ? "8px"
-                        : undefined,
+                    // Icon↔label spacing comes from the icon margin (see
+                    // iconSpacingClass) — no flex gap needed here either.
                     pointerEvents: "none",
                   }}
                 >

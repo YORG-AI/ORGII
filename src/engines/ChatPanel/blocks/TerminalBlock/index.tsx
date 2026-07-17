@@ -1,9 +1,9 @@
 /**
  * TerminalBlock Component
  *
- * Same outer shell as ChatCodeBlock (edit): one `bg-fill-2` rounded card; header and
- * body share that background. Command + output sit below the header without a nested
- * second fill panel.
+ * Transparent event header matching Explore/LSP blocks. Expanded command and
+ * output content lives in the shared filled body shell, separated by a subtle
+ * divider without additional section labels.
  */
 import { Square } from "lucide-react";
 import React, {
@@ -16,7 +16,7 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import ExpandOverlay from "@src/components/ExpandOverlay";
+import "@src/components/TerminalDisplay/index.scss";
 import { getToolIcon } from "@src/config/toolIcons";
 import type {
   PayloadRef,
@@ -26,7 +26,7 @@ import type {
 import ToolUsageBadge from "../ToolCallBlock/ToolUsageBadge";
 import {
   BlockOutput,
-  EVENT_BLOCK_FADE_FROM,
+  EVENT_BLOCK_TRANSPARENT_EXPANDED_SHELL_CLASSES,
   EVENT_LOADING_SHIMMER_TEXT_CLASSES,
   EventBlockHeader,
   EventBlockHeaderIcon,
@@ -35,11 +35,13 @@ import {
   getEventBlockContainerClasses,
 } from "../primitives";
 import { useBlockHeader } from "../useBlockLocate";
-import { formatCommandForDisplay, getCommandSymbolList } from "./commandParser";
+import {
+  formatCommandForDisplay,
+  getCommandSymbolList,
+  truncateCommandPreview,
+} from "./commandParser";
 
-const TERMINAL_COMMAND_PREVIEW_MAX_HEIGHT = 72;
 const TERMINAL_OUTPUT_PREVIEW_MAX_HEIGHT = 72;
-const TERMINAL_EXPANDED_MAX_HEIGHT = "min(320px, 30vh)";
 const TERMINAL_OUTPUT_EXPAND_LINE_THRESHOLD = 3;
 
 export interface TerminalBlockProps {
@@ -140,7 +142,14 @@ const TerminalBlock: React.FC<TerminalBlockProps> = memo(
     const { t } = useTranslation("sessions");
     const { t: tCommon } = useTranslation();
     const displayOutput = output || streamOutput;
+    // When the agent provides a description (human summary), promote it to the
+    // primary title and drop the default lifecycle label. The parsed command
+    // symbols (git, npm, …) still render separately, so the command stays
+    // visible in the header.
+    const trimmedSubtitle = subtitle?.trim();
+    const hasDescriptionTitle = Boolean(trimmedSubtitle);
     const displayTitle =
+      trimmedSubtitle ||
       title?.trim() ||
       (isLoading ? t("tools.runCommandRunning") : t("tools.runCommandDone"));
     const commandSymbols = useMemo(
@@ -153,26 +162,10 @@ const TerminalBlock: React.FC<TerminalBlockProps> = memo(
       () => (command ? formatCommandForDisplay(command) : ""),
       [command]
     );
-    const commandViewportRef = useRef<HTMLDivElement | null>(null);
-    const [isCommandExpanded, setIsCommandExpanded] = useState(false);
-    const [commandNeedsExpand, setCommandNeedsExpand] = useState(false);
-
-    useEffect(() => {
-      const element = commandViewportRef.current;
-      if (!element || !command) return;
-
-      const measure = () => {
-        setCommandNeedsExpand(element.scrollHeight > element.clientHeight + 1);
-      };
-
-      const frameId = requestAnimationFrame(measure);
-      const observer = new ResizeObserver(measure);
-      observer.observe(element);
-      return () => {
-        cancelAnimationFrame(frameId);
-        observer.disconnect();
-      };
-    }, [command, formattedCommand, isCommandExpanded]);
+    const commandPreview = useMemo(
+      () => truncateCommandPreview(formattedCommand),
+      [formattedCommand]
+    );
 
     // Stop button state — reset when process finishes.
     //
@@ -260,15 +253,12 @@ const TerminalBlock: React.FC<TerminalBlockProps> = memo(
 
     return (
       <>
-        <div className={getEventBlockContainerClasses(true)}>
+        <div
+          className={`group/terminal ${getEventBlockContainerClasses(false)}`}
+        >
           <EventBlockHeader
             isCollapsed={isCollapsed}
-            withHover
-            className={
-              isCollapsed
-                ? "border-b border-solid border-transparent"
-                : "border-b border-solid border-border-1"
-            }
+            withHover={false}
             onClick={handleLocate}
             onNavigate={handleLocate}
             onMouseEnter={handleHeaderMouseEnter}
@@ -291,10 +281,13 @@ const TerminalBlock: React.FC<TerminalBlockProps> = memo(
               isLoading={isStillRunning}
               isFailed={isError}
             />
-            <EventBlockHeaderTitle isLoading={isStillRunning}>
+            <EventBlockHeaderTitle
+              isLoading={isStillRunning}
+              truncate={hasDescriptionTitle}
+            >
               {displayTitle}
             </EventBlockHeaderTitle>
-            {subtitle && (
+            {subtitle && !hasDescriptionTitle && (
               <EventBlockHeaderSubtitle
                 isLoading={isStillRunning}
                 title={subtitle}
@@ -318,25 +311,11 @@ const TerminalBlock: React.FC<TerminalBlockProps> = memo(
           </EventBlockHeader>
 
           {!isCollapsed && (
-            <div className="min-w-0">
+            <div
+              className={`${EVENT_BLOCK_TRANSPARENT_EXPANDED_SHELL_CLASSES} min-w-0 animate-fade-in`}
+            >
               {command && (
-                <div
-                  ref={commandViewportRef}
-                  className="group/expand relative scrollbar-hide"
-                  style={
-                    isCommandExpanded
-                      ? {
-                          maxHeight: TERMINAL_EXPANDED_MAX_HEIGHT,
-                          overflowY: "auto",
-                          overflowX: "auto",
-                        }
-                      : {
-                          maxHeight: TERMINAL_COMMAND_PREVIEW_MAX_HEIGHT,
-                          overflowY: "hidden",
-                          overflowX: "auto",
-                        }
-                  }
-                >
+                <div className="overflow-x-auto scrollbar-hide">
                   <div
                     className="terminal-command terminal-command--chat"
                     style={{
@@ -347,53 +326,42 @@ const TerminalBlock: React.FC<TerminalBlockProps> = memo(
                       $
                     </span>
                     <span className="terminal-command__text">
-                      {formattedCommand}
+                      {commandPreview}
                     </span>
                   </div>
-                  {(commandNeedsExpand || isCommandExpanded) && (
-                    <ExpandOverlay
-                      isExpanded={isCommandExpanded}
-                      onToggle={(event) => {
-                        event.stopPropagation();
-                        if (isCommandExpanded) {
-                          commandViewportRef.current?.scrollTo({ top: 0 });
-                        }
-                        setIsCommandExpanded((prev) => !prev);
-                      }}
-                      fadeFrom={EVENT_BLOCK_FADE_FROM}
-                    />
-                  )}
-                </div>
-              )}
-
-              {command && hasOutput && (
-                <div className="px-2">
-                  <div className="border-t border-solid border-border-2" />
                 </div>
               )}
 
               {hasOutput && (
-                <BlockOutput
-                  output={displayOutput!}
-                  isError={
-                    !isLoading && exitCode !== undefined && exitCode !== 0
+                <div
+                  className={
+                    command
+                      ? "border-t border-solid border-border-1"
+                      : undefined
                   }
-                  status={
-                    isLoading || exitCode === undefined
-                      ? "default"
-                      : exitCode === 0
-                        ? "success"
-                        : "error"
-                  }
-                  withBorder={false}
-                  sessionId={sessionId}
-                  eventId={eventId}
-                  payloadRef={payloadRef}
-                  collapsedMaxHeight={TERMINAL_OUTPUT_PREVIEW_MAX_HEIGHT}
-                  defaultScrollToBottom
-                  expandLineThreshold={TERMINAL_OUTPUT_EXPAND_LINE_THRESHOLD}
-                  tuiRendering={tuiRendering}
-                />
+                >
+                  <BlockOutput
+                    output={displayOutput!}
+                    isError={
+                      !isLoading && exitCode !== undefined && exitCode !== 0
+                    }
+                    status={
+                      isLoading || exitCode === undefined
+                        ? "default"
+                        : exitCode === 0
+                          ? "success"
+                          : "error"
+                    }
+                    withBorder={false}
+                    sessionId={sessionId}
+                    eventId={eventId}
+                    payloadRef={payloadRef}
+                    collapsedMaxHeight={TERMINAL_OUTPUT_PREVIEW_MAX_HEIGHT}
+                    defaultScrollToBottom
+                    expandLineThreshold={TERMINAL_OUTPUT_EXPAND_LINE_THRESHOLD}
+                    tuiRendering={tuiRendering}
+                  />
+                </div>
               )}
             </div>
           )}

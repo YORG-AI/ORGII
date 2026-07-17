@@ -19,8 +19,6 @@ import type {
   CodexOauthExchangeResponse,
   CodexOauthStartResponse,
   FullKeyResponse,
-  GeminiOauthExchangeResponse,
-  GeminiOauthStartResponse,
   HealthStatus,
   HousekeeperHealthCheckResponse,
   HousekeeperTokenBenchmarkResponse,
@@ -49,8 +47,6 @@ export type {
   DetectedKey,
   DetectedQuotaInfo,
   FullKeyResponse,
-  GeminiOauthExchangeResponse,
-  GeminiOauthStartResponse,
   HealthStatus,
   HousekeeperHealthCheckRequest,
   HousekeeperHealthCheckResponse,
@@ -202,13 +198,6 @@ export async function getCodexOAuthModels(
   });
 }
 
-export async function getGeminiOAuthModels(
-  accessToken: string,
-  projectId?: string | null
-): Promise<string[]> {
-  return rpc.validation.geminiOauthListModels({ accessToken, projectId });
-}
-
 /**
  * Force-refresh an OAuth account's access token after a list-models call
  * was rejected (e.g. HTTP 401). Backend takes a per-key lock so callers
@@ -248,26 +237,6 @@ export async function exchangeCodexOauthCode(
   redirectUri: string
 ): Promise<CodexOauthExchangeResponse> {
   return rpc.validation.exchangeCodexOauthCode({
-    code,
-    state,
-    expectedState,
-    codeVerifier,
-    redirectUri,
-  });
-}
-
-export async function startGeminiOauthLogin(): Promise<GeminiOauthStartResponse> {
-  return rpc.validation.startGeminiOauthLogin();
-}
-
-export async function exchangeGeminiOauthCode(
-  code: string,
-  state: string,
-  expectedState: string,
-  codeVerifier: string,
-  redirectUri: string
-): Promise<GeminiOauthExchangeResponse> {
-  return rpc.validation.exchangeGeminiOauthCode({
     code,
     state,
     expectedState,

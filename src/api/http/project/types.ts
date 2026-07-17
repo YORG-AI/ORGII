@@ -7,6 +7,7 @@
  */
 
 export * from "./types/agentWorkflow";
+export * from "./types/collabSync";
 export * from "./types/common";
 export * from "./types/labels";
 export * from "./types/members";

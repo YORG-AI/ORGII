@@ -284,6 +284,10 @@ const ActivityChatItem: React.FC<ActivityChatItemProps> = memo(
           const llmUsage = readLlmUsage(event);
           return (
             <AgentMessageBlock
+              itemIndex={itemIndex}
+              isStreaming={isStreaming}
+              messageContent={assistantContent}
+              messageTimestamp={event.createdAt}
               rightContent={
                 llmUsage ? <LlmUsageBadge usage={llmUsage} /> : undefined
               }
@@ -293,6 +297,8 @@ const ActivityChatItem: React.FC<ActivityChatItemProps> = memo(
                 expand={true}
                 finish={!isStreaming}
                 streamHtml={isStreaming}
+                messageTimestamp={event.createdAt}
+                showCopyButton={false}
                 appendedContent={
                   <MessageReferenceCards
                     content={assistantContent}

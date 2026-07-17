@@ -471,24 +471,6 @@
     "claudeCodeAutodetectDesc": "Reads your local Claude Code login from macOS Keychain or ~/.claude/.credentials.json",
     "claudeCodeConnected": "Claude Code connected",
     "claudeCodeDetectErrorHint": "Sign in with the embedded browser, or run claude auth login and try detection again",
-    "geminiSetupMethodDesc": "Connect Gemini CLI with Google sign-in, local detection, or a Gemini API key",
-    "geminiSignInTitle": "Gemini Sign In",
-    "geminiSignInDesc": "Sign in to Google for Gemini CLI in a native secure sign-in window. ORGII captures the callback, resolves the Code Assist project, and stores OAuth tokens locally.",
-    "signInWithGemini": "Sign in with Gemini",
-    "geminiReadyToSignIn": "Ready to sign in to Gemini",
-    "geminiSignedIn": "Gemini connected",
-    "geminiOAuthHint": "This saves a Gemini OAuth account for official Gemini CLI access",
-    "geminiBrowserHint": "Complete Google authorization in the secure sign-in window.",
-    "geminiSignInErrorHint": "Close the sign-in window and try signing in again. No token was saved",
-    "geminiProjectId": "Code Assist project: {{projectId}}",
-    "geminiAutodetectTitle": "Detect Gemini session",
-    "geminiAutodetectDesc": "Reads ~/.gemini/oauth_creds.json and GEMINI_API_KEY from your local environment",
-    "geminiApiKeyLabel": "Gemini API Key",
-    "geminiApiKeyDesc": "Paste a Gemini API key if you do not want to use Google sign-in",
-    "geminiApiKeyPlaceholder": "AIza...",
-    "geminiConnected": "Gemini connected",
-    "geminiDetectErrorHint": "Sign in with the secure native window, or paste a Gemini API key manually",
-    "geminiValidationErrorHint": "Check that the Gemini token or API key is valid and try again",
     "refreshModels": {
       "button": "Cursor 모델 목록 새로고침",
       "failed": "Cursor에서 새로고침 실패: {{error}}"
@@ -1339,6 +1321,13 @@
     "commitAttributionDesc": "ORGII에서 만든 Commit 메시지에 ORGII를 Co-authored-by로 추가합니다",
     "prAttribution": "Pull Request Attribution",
     "prAttributionDesc": "ORGII에서 만든 Pull Request 설명에 ORGII 기여 표시 footer를 추가합니다",
+    "promptInstructionsTitle": "프롬프트 지침",
+    "commitInstructions": "커밋 지침",
+    "commitInstructionsDesc": "커밋 메시지 생성 프롬프트에 추가되며 로컬에 저장되고 선택한 Agent로 전송됩니다",
+    "commitInstructionsPlaceholder": "예: 커밋 메시지를 한국어로 작성하고 자세한 본문 포함",
+    "pullRequestInstructions": "Pull Request 지침",
+    "pullRequestInstructionsDesc": "Pull Request 제목 및 설명 생성 프롬프트에 추가되며 로컬에 저장되고 선택한 Agent로 전송됩니다",
+    "pullRequestInstructionsPlaceholder": "예: 제목 앞에 이슈 ID를 붙이고 테스트 섹션 포함",
     "coauthor": "Co-authored-by",
     "coauthorDesc": "ORGII에서 만든 Git Commit에 {{name}} <{{email}}>를 추가합니다",
     "noTokenYet": "Token이 필요하신가요?",
@@ -1695,6 +1684,61 @@
       "tokenCount": "~{{count}} Token",
       "emptyConfigPreview": "설정 내용이 없습니다"
     },
+    "sessionProvenance": {
+      "title": "세션 출처",
+      "capture": "파일 상호작용 기록",
+      "description": "파일 읽기와 쓰기를 메타데이터로 기록합니다. 프롬프트, 도구 출력 및 파일 내용은 저장하지 않습니다.",
+      "configPath": "파일 읽기와 쓰기를 메타데이터로 기록합니다. 프롬프트, 도구 출력 및 파일 내용은 저장하지 않습니다. 설정: {{path}}",
+      "installDrift": "저장된 설정과 설치된 hook이 다릅니다. 기록을 전환하여 관리되는 hook을 복구하세요. 설정: {{path}}",
+      "copyPath": "복사",
+      "reveal": "표시",
+      "col": {
+        "source": "도구",
+        "config": "구성",
+        "capture": "캡처"
+      },
+      "status": {
+        "on": "켜짐",
+        "off": "꺼짐",
+        "repair": "복구",
+        "needsApproval": "승인 필요",
+        "checking": "확인 중…",
+        "error": "오류"
+      },
+      "codexApproval": {
+        "title": "Approve ORG2 hooks in Codex",
+        "description": "Codex has the ORG2 hooks installed, but Codex still needs your approval before it can run them.",
+        "instructions": "Open Codex, review the 3 ORG2 hooks, then choose Trust all and continue. ORG2 marks this active after the first real hook signal.",
+        "review": "Review in Codex",
+        "verified": "Verified by a real Codex hook signal {{time}}."
+      },
+      "signals": {
+        "title": "최근 신호",
+        "empty": "아직 수신된 hook 신호가 없습니다.",
+        "noResults": "일치하는 신호 없음",
+        "search": "신호 검색",
+        "refresh": "새로 고침",
+        "openSession": "세션 {{session}} 열기",
+        "diffLoading": "Loading patch…",
+        "diffEmpty": "No patch captured. Provenance records file changes as metadata; a diff appears only once this session's edits are imported.",
+        "col": {
+          "source": "도구",
+          "action": "액션",
+          "file": "파일",
+          "workspace": "작업 공간",
+          "session": "세션",
+          "when": "시간"
+        },
+        "action": {
+          "read": "읽기",
+          "write": "쓰기",
+          "create": "생성",
+          "delete": "삭제",
+          "rename": "이름 변경",
+          "search": "검색"
+        }
+      }
+    },
     "codexConfig": {
       "sectionTitle": "설정",
       "model": "모델",
@@ -2028,8 +2072,7 @@
         "claude_code": "Claude Code",
         "copilot": "GitHub Copilot",
         "kiro": "Kiro",
-        "codex": "Codex",
-        "gemini_cli": "Gemini CLI"
+        "codex": "Codex"
       },
       "noSkillsResults": "가져올 수 있는 Skill이 없습니다. ~/.claude/skills 및 ~/.claude/commands를 확인했습니다。",
       "noAgentResults": "가져올 Agent가 아직 없습니다",
@@ -2449,13 +2492,6 @@
     "installHintNote": "이 기능을 활성화하려면 누락된 종속성을 설치하세요",
     "installSection": "설치"
   },
-  "worktreeCompare": {
-    "button": "비교",
-    "buttonTooltip": "Worktree 비교",
-    "title": "Worktree 비교",
-    "noSessions": "비교할 세션 없음",
-    "sessionTab": "세션"
-  },
   "creator": {
     "assign": "할당"
   },
@@ -2592,7 +2628,10 @@
   },
   "cliLaunchProfiles": {
     "title": "실행 프로필",
+    "plain": "기본",
+    "plan": "계획",
     "fullPermission": "전체 권한",
+    "autoEdit": "자동 편집",
     "manual": "수동",
     "command": "명령",
     "environment": "환경 변수",

@@ -13,12 +13,15 @@ import {
   CircleDot,
   Code,
   Code2,
+  FileDiff,
   Folder,
   GitBranch,
   GitCommitHorizontal,
   GitMerge,
+  GitPullRequest,
   Globe,
   Layout,
+  LayoutGrid,
   LayoutList,
   ListChecks,
   Lock,
@@ -56,7 +59,10 @@ import {
   isPlaceholderBrowserSessionTitle,
   translatePlaceholderBrowserSessionTitle,
 } from "@src/store/workstation/browser/tabs";
-import { resolveProjectManagerTabTitle } from "@src/store/workstation/tabs";
+import {
+  CODE_EDITOR_MAIN_TERMINAL_TAB_ID,
+  resolveProjectManagerTabTitle,
+} from "@src/store/workstation/tabs";
 
 import { WorkstationToolbarTooltip } from "../../../WorkstationToolbarTooltip";
 import type { WorkStationTab } from "../../types";
@@ -75,12 +81,15 @@ const WORKSTATION_TAB_ICONS = {
   CircleDot,
   Code,
   Code2,
+  FileDiff,
   GitBranch,
   GitCommitHorizontal,
   GitMerge,
+  GitPullRequest,
   Globe,
   Infinity,
   Layout,
+  LayoutGrid,
   LayoutList,
   ListChecks,
   MessageCircle,
@@ -248,6 +257,22 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
       ) {
         return resolveProjectManagerTabTitle(tab, t);
       }
+      // Localized titles for the singleton tool tabs.
+      switch (tab.type) {
+        case "start":
+          return t("navigation:routes.launchpad");
+        case "search-sessions":
+          return t("navigation:workstation.plusMenu.searchSessions");
+        case "explorer":
+          return t("common:labels.files");
+        case "source-control":
+          return t("common:actions.review");
+        case "terminal":
+          if (tab.id === CODE_EDITOR_MAIN_TERMINAL_TAB_ID) {
+            return t("common:tabs.terminal");
+          }
+          break;
+      }
       return tab.title;
     };
 
@@ -271,6 +296,10 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
           return `Terminal: ${sessionName || tab.title}`;
         case "output":
           return `Output: ${channelName || tab.title}`;
+        case "github-pr-detail": {
+          const prTitle = tab.data.prTitle as string | undefined;
+          return prTitle ? `#${tab.data.prNumber} ${prTitle}` : tab.title;
+        }
         default:
           return getDisplayTitle();
       }
@@ -288,11 +317,9 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
     const shortcutTooltipLabel = getDisplayTitle();
 
     const hasUnsaved = !!tab.hasUnsavedChanges;
-    const showCloseSlot =
-      tab.closable !== false && (isTabHovered || hasUnsaved);
+    const showCloseSlot = isTabHovered || hasUnsaved;
     const showCloseIcon = isTabHovered;
-    const showLabelRightScrim =
-      tab.closable !== false && (isTabHovered || hasUnsaved);
+    const showLabelRightScrim = isTabHovered || hasUnsaved;
     const closeButtonLayoutClass =
       "-translate-y-1/2 absolute right-1 top-1/2 z-10 h-5 w-5";
 
@@ -385,28 +412,26 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
           </div>
         ) : null}
 
-        {tab.closable !== false && (
-          <TabPillCloseButton
-            data-action="editor.tab.close"
-            data-action-id={tab.id}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(event) => onCloseClick(event, tab.id)}
-            title={
-              showCloseIcon
-                ? t("actions.close")
-                : hasUnsaved
-                  ? t("common:placeholders.unsavedEdits")
-                  : t("actions.close")
-            }
-            hasUnsaved={hasUnsaved}
-            showX={showCloseIcon}
-            className={`grid place-items-center rounded text-text-3 transition-[opacity,colors,background-color] duration-150 ${SURFACE_TOKENS.hover} hover:text-text-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-6 focus-visible:ring-offset-0 ${closeButtonLayoutClass} ${
-              showCloseSlot
-                ? "pointer-events-auto opacity-100"
-                : "pointer-events-none opacity-0"
-            }`}
-          />
-        )}
+        <TabPillCloseButton
+          data-action="editor.tab.close"
+          data-action-id={tab.id}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(event) => onCloseClick(event, tab.id)}
+          title={
+            showCloseIcon
+              ? t("actions.close")
+              : hasUnsaved
+                ? t("common:placeholders.unsavedEdits")
+                : t("actions.close")
+          }
+          hasUnsaved={hasUnsaved}
+          showX={showCloseIcon}
+          className={`grid place-items-center rounded text-text-3 transition-[opacity,colors,background-color] duration-150 ${SURFACE_TOKENS.hover} hover:text-text-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-6 focus-visible:ring-offset-0 ${closeButtonLayoutClass} ${
+            showCloseSlot
+              ? "pointer-events-auto opacity-100"
+              : "pointer-events-none opacity-0"
+          }`}
+        />
       </WorkStationTabPillSurface>
     );
 

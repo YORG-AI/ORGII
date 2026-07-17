@@ -31,6 +31,12 @@ const ExplorerEntry: RendererEntry = {
   debugLabel: "explorer",
 };
 
+const DirectoryEntry: RendererEntry = {
+  Component: lazy(() => import("./renderers/directory")),
+  requiresRepo: true,
+  debugLabel: "directory",
+};
+
 const GitDiffEntry: RendererEntry = {
   Component: lazy(() => import("./renderers/gitDiff")),
   requiresRepo: true,
@@ -109,6 +115,11 @@ const AIImpactEntry: RendererEntry = {
   debugLabel: "ai-impact",
 };
 
+const SearchSessionsEntry: RendererEntry = {
+  Component: lazy(() => import("./renderers/searchSessions")),
+  debugLabel: "search-sessions",
+};
+
 const UrlPreviewEntry: RendererEntry = {
   Component: lazy(() => import("./renderers/urlPreview")),
   debugLabel: "url-preview",
@@ -130,42 +141,12 @@ const ChatSessionEntry: RendererEntry = {
 };
 
 // ============================================
-// Database renderers
-// ============================================
-
-const TableEntry: RendererEntry = {
-  Component: lazy(() => import("./renderers/table")),
-  debugLabel: "table",
-};
-
-const QueryEntry: RendererEntry = {
-  Component: lazy(() => import("./renderers/query")),
-  debugLabel: "query",
-};
-
-const SchemaEntry: RendererEntry = {
-  Component: lazy(() => import("./renderers/schema")),
-  debugLabel: "schema",
-};
-
-const AddConnectionEntry: RendererEntry = {
-  Component: lazy(() => import("./renderers/addConnection")),
-  debugLabel: "add-connection",
-};
-
-// ============================================
 // Browser renderers
 // ============================================
 
 const BrowserSessionEntry: RendererEntry = {
   Component: lazy(() => import("./renderers/browserSession")),
   debugLabel: "browser-session",
-};
-
-const TokenCategoryEntry: RendererEntry = {
-  Component: lazy(() => import("./renderers/tokenCategory")),
-  requiresRepo: true,
-  debugLabel: "token-category",
 };
 
 const DevtoolsEntry: RendererEntry = {
@@ -228,13 +209,8 @@ const WorkItemDetailEntry: RendererEntry = {
 };
 
 // ============================================
-// Ops Control / Launchpad renderers
+// Launchpad renderers
 // ============================================
-
-const OpsControlStationEntry: RendererEntry = {
-  Component: lazy(() => import("./renderers/opsControlStation")),
-  debugLabel: "ops-control-station",
-};
 
 const BenchmarkEntry: RendererEntry = {
   Component: lazy(() => import("./renderers/benchmark")),
@@ -259,6 +235,16 @@ const GitHubIssueDetailEntry: RendererEntry = {
   debugLabel: "github-issue-detail",
 };
 
+const GitHubPrDetailEntry: RendererEntry = {
+  Component: lazy(() => import("./renderers/githubPrDetail")),
+  debugLabel: "github-pr-detail",
+};
+
+const StartEntry: RendererEntry = {
+  Component: lazy(() => import("./renderers/start")),
+  debugLabel: "start",
+};
+
 // ============================================
 // Registry — exhaustive over WorkStationTabType
 // ============================================
@@ -266,7 +252,7 @@ const GitHubIssueDetailEntry: RendererEntry = {
 export const REGISTRY: TabContentRegistry = {
   // Code Editor
   file: FileEntry,
-  directory: ExplorerEntry,
+  directory: DirectoryEntry,
   explorer: ExplorerEntry,
   "git-diff": GitDiffEntry,
   "source-control": SourceControlEntry,
@@ -282,18 +268,12 @@ export const REGISTRY: TabContentRegistry = {
   search: SearchEntry,
   "lint-scan": LintScanEntry,
   "ai-impact": AIImpactEntry,
+  "search-sessions": SearchSessionsEntry,
   benchmark: BenchmarkEntry,
   "url-preview": UrlPreviewEntry,
 
-  // Database
-  table: TableEntry,
-  query: QueryEntry,
-  schema: SchemaEntry,
-  "add-connection": AddConnectionEntry,
-
   // Browser
   "browser-session": BrowserSessionEntry,
-  "token-category": TokenCategoryEntry,
   devtools: DevtoolsEntry,
 
   // Project Manager
@@ -315,14 +295,17 @@ export const REGISTRY: TabContentRegistry = {
   // Agent Config (Agent Teams page → opens here)
   "agent-config": AgentConfigEntry,
 
-  // Ops Control
-  "ops-control-station": OpsControlStationEntry,
-
   // Canvas Preview
   "canvas-preview": CanvasPreviewEntry,
 
   // GitHub Issue Detail
   "github-issue-detail": GitHubIssueDetailEntry,
+
+  // GitHub PR Detail
+  "github-pr-detail": GitHubPrDetailEntry,
+
+  // Start page launcher
+  start: StartEntry,
 };
 
 // Exhaustiveness check: any missing WorkStationTabType becomes a TS error.

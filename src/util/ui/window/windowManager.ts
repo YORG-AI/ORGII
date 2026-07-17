@@ -412,66 +412,6 @@ export const emitOpenWorkflowWorkspace = async (
 };
 
 /**
- * Open a dedicated diff viewer window for a single agent session.
- *
- * Re-focuses the window if one is already open for this session.
- */
-export const openSessionDiffWindow = async (
-  sessionId: string,
-  title?: string,
-  opts?: { repoPath?: string; hasWorktree?: boolean }
-): Promise<WebviewWindow | null> => {
-  const params = new URLSearchParams({ sessionId });
-  if (title) params.set("title", title);
-  if (opts?.repoPath) params.set("repoPath", opts.repoPath);
-  if (opts?.hasWorktree) params.set("hasWorktree", "1");
-
-  return openMultiWindow(
-    `session-diff-${sessionId}`,
-    `/windows/session-diff?${params.toString()}`,
-    {
-      title: title ?? "Session Diff",
-      width: 960,
-      height: 720,
-      center: true,
-      focus: true,
-      resizable: true,
-    }
-  );
-};
-
-/**
- * Open a worktree comparison window showing multiple session diffs in tabs.
- * Re-focuses the window if one is already open (using a stable label).
- */
-export const openWorktreeCompareWindow = async (
-  sessionIds: string[],
-  opts?: { repoPath?: string; title?: string }
-): Promise<WebviewWindow | null> => {
-  if (sessionIds.length === 0) return null;
-  const params = new URLSearchParams({ sessionIds: sessionIds.join(",") });
-  if (opts?.repoPath) params.set("repoPath", opts.repoPath);
-
-  const label = `worktree-compare-${sessionIds
-    .slice(0, 3)
-    .join("-")
-    .replace(/[^a-zA-Z0-9-]/g, "")}`;
-
-  return openMultiWindow(
-    label,
-    `/windows/worktree-compare?${params.toString()}`,
-    {
-      title: opts?.title ?? "Compare Worktrees",
-      width: 1100,
-      height: 760,
-      center: true,
-      focus: true,
-      resizable: true,
-    }
-  );
-};
-
-/**
  * Toggle main window show/hide state
  */
 export const toggleMainWindow = async (): Promise<void> => {

@@ -22,10 +22,12 @@ import {
   useManualCompact,
 } from "@src/engines/ChatPanel/hooks/useManualCompact";
 import { useSessionId } from "@src/engines/SessionCore/hooks/session";
-import { isSessionActiveAtom } from "@src/store/session/cliSessionStatusAtom";
+import { useHousekeeperConfig } from "@src/hooks/housekeeper";
+import { useSetting } from "@src/hooks/settings/useSettings";
 
 import ContextBreakdownBar from "./ContextBreakdownBar";
 import ContextCategoryRow from "./ContextCategoryRow";
+import MiniCpmCompactCard from "./MiniCpmCompactCard";
 import ProgressRing from "./ProgressRing";
 import { type PanelCategory, ringToneForPercentage } from "./contextInfoTypes";
 import { useContextCacheSnapshot } from "./useContextCacheSnapshot";
@@ -47,16 +49,122 @@ export interface ContextInfoButtonProps {
   compact?: boolean;
 }
 
+const ConfiguredMiniCpmCompactCard: React.FC<{ sessionId: string }> = memo(
+  ({ sessionId }) => {
+    const housekeeper = useHousekeeperConfig();
+    if (!housekeeper.isConfigured) return null;
+    return (
+      <div className="mt-2">
+        <MiniCpmCompactCard sessionId={sessionId} />
+      </div>
+    );
+  }
+);
+
+ConfiguredMiniCpmCompactCard.displayName = "ConfiguredMiniCpmCompactCard";
+
+function normalizeCategoryTokens(
+  categories: PanelCategory[],
+  totalTokens: number
+): PanelCategory[] {
+  const rawTotal = categories.reduce(
+    (sum, category) => sum + category.tokens,
+    0
+  );
+  if (rawTotal <= 0 || totalTokens <= 0 || rawTotal <= totalTokens) {
+    return categories;
+  }
+
+  const scaled = categories.map((category, index) => {
+    const exact = (category.tokens / rawTotal) * totalTokens;
+    const tokens = Math.floor(exact);
+    return {
+      category: { ...category, tokens },
+      index,
+      remainder: exact - tokens,
+    };
+  });
+
+  const assigned = scaled.reduce(
+    (sum, entry) => sum + entry.category.tokens,
+    0
+  );
+  let remaining = Math.max(0, totalTokens - assigned);
+
+  scaled
+    .sort((a, b) => b.remainder - a.remainder || a.index - b.index)
+    .forEach((entry) => {
+      if (remaining <= 0) return;
+      entry.category.tokens += 1;
+      remaining -= 1;
+    });
+
+  return scaled
+    .sort((a, b) => a.index - b.index)
+    .map((entry) => entry.category)
+    .filter((category) => category.tokens > 0);
+}
+
+function applyCategoryPercents(
+  categories: PanelCategory[],
+  totalTokens: number
+): PanelCategory[] {
+  if (totalTokens <= 0) return categories;
+
+  const exactPercentages = categories.map((category, index) => {
+    const exact = (category.tokens / totalTokens) * 100;
+    const percent = Math.floor(exact);
+    return {
+      index,
+      percent,
+      remainder: exact - percent,
+    };
+  });
+
+  const currentTotal = exactPercentages.reduce(
+    (sum, entry) => sum + entry.percent,
+    0
+  );
+  const targetTotal =
+    categories.reduce((sum, category) => sum + category.tokens, 0) >=
+    totalTokens
+      ? 100
+      : currentTotal;
+  let remaining = Math.max(0, targetTotal - currentTotal);
+
+  exactPercentages
+    .sort((a, b) => b.remainder - a.remainder || a.index - b.index)
+    .forEach((entry) => {
+      if (remaining <= 0) return;
+      entry.percent += 1;
+      remaining -= 1;
+    });
+
+  const percentsByIndex = exactPercentages
+    .sort((a, b) => a.index - b.index)
+    .map((entry) => entry.percent);
+
+  return categories.map((category, index) => ({
+    ...category,
+    percent: percentsByIndex[index] ?? 0,
+  }));
+}
+
 const ContextInfoButton: React.FC<ContextInfoButtonProps> = memo(
   ({ sessionId, variant = "toolbar", compact = false }) => {
     const { t } = useTranslation();
     const { sessionId } = useSessionId();
+    const [housekeeperEnabled] = useSetting("housekeeper.enabled");
+    const [contextCompactEnabled] = useSetting(
+      "housekeeper.features.contextCompact"
+    );
     const { runManualCompact: runSharedManualCompact } = useManualCompact();
     const compactingSessionId = useAtomValue(manualCompactInFlightSessionAtom);
     const {
       percentage,
       tokenLabel,
       maxTokens,
+      displayTokens,
       contextUsage,
       cacheReadTokens,
       cacheWriteTokens,
@@ -71,12 +179,14 @@ const ContextInfoButton: React.FC<ContextInfoButtonProps> = memo(
     // Shared in-flight state: covers compactions started from this popover
     // AND from the `/compact` slash command.
     const manualCompacting = compactingSessionId !== null;
+
     // Same "session is working" signal the composer/git actions use, so the
     // Compact button greys out predictively instead of bouncing off a busy
     // toast from the backend.
     const isSessionActive = useAtomValue(isSessionActiveAtom);
     const { snapshot: contextCacheSnapshot, error: contextCacheError } =
       useContextCacheSnapshot(sessionId, panelPos !== null);
+
 
     const ringTone = ringToneForPercentage(percentage);
     const displayPct = percentage > 100 ? 100 : percentage;
@@ -104,16 +214,61 @@ const ContextInfoButton: React.FC<ContextInfoButtonProps> = memo(
         other: "#94a3b8",
         unattributed: "#f87171",
       };
-      return (contextUsage?.sections ?? [])
+      const rawCategories = (contextUsage?.sections ?? [])
         .filter((section) => section.estimatedTokens > 0)
         .map((section) => ({
           key: section.category,
           label: section.label,
           tokens: section.estimatedTokens,
-          percent: section.percent,
+          percent: 0,
           hex: colors[section.category] ?? colors.other,
         }));
-    }, [contextUsage]);
+
+      const totalTokens = displayTokens;
+      if (rawCategories.length === 0 || totalTokens <= 0) {
+        return rawCategories.map((category) => ({
+          ...category,
+          percent: category.percent,
+        }));
+      }
+
+      const rawTotal = rawCategories.reduce(
+        (sum, category) => sum + category.tokens,
+        0
+      );
+      const categories =
+        rawTotal > totalTokens
+          ? normalizeCategoryTokens(rawCategories, totalTokens)
+          : rawCategories;
+      const categoryTotal = categories.reduce(
+        (sum, category) => sum + category.tokens,
+        0
+      );
+      if (categoryTotal > 0 && categoryTotal < totalTokens) {
+        const delta = totalTokens - categoryTotal;
+        const unattributedIndex = categories.findIndex(
+          (category) => category.key === "unattributed"
+        );
+        if (unattributedIndex >= 0) {
+          categories[unattributedIndex] = {
+            ...categories[unattributedIndex],
+            tokens: categories[unattributedIndex].tokens + delta,
+          };
+        } else {
+          categories.push({
+            key: "unattributed",
+            label: t("contextInfo.categories.unattributed", {
+              defaultValue: "Unattributed",
+            }),
+            tokens: delta,
+            percent: 0,
+            hex: colors.unattributed,
+          });
+        }
+      }
+
+      return applyCategoryPercents(categories, totalTokens);
+    }, [contextUsage, displayTokens, t]);
 
     const latestCacheLayout = contextCacheSnapshot?.latestCacheLayout;
     const embeddingState = contextCacheSnapshot?.embeddingState;
@@ -127,7 +282,7 @@ const ContextInfoButton: React.FC<ContextInfoButtonProps> = memo(
     );
     const handleMouseLeave = useCallback(() => setHoveredKey(null), []);
     const runManualCompact = useCallback(async () => {
-      if (manualCompacting || isSessionActive) return;
+      if (manualCompacting) return;
       const compacted = await runSharedManualCompact(
         sessionId,
         compactInstructions
@@ -137,7 +292,6 @@ const ContextInfoButton: React.FC<ContextInfoButtonProps> = memo(
       if (compacted) setCompactInstructions("");
     }, [
       manualCompacting,
-      isSessionActive,
       sessionId,
       compactInstructions,
       runSharedManualCompact,
@@ -157,7 +311,7 @@ const ContextInfoButton: React.FC<ContextInfoButtonProps> = memo(
       [runManualCompact]
     );
 
-    const compactDisabled = manualCompacting || isSessionActive;
+    const compactDisabled = manualCompacting;
 
     return (
       <>
@@ -326,6 +480,12 @@ const ContextInfoButton: React.FC<ContextInfoButtonProps> = memo(
                         ? t("contextInfo.manualCompactRunning")
                         : t("contextInfo.manualCompactAction")}
                     </Button>
+
+                    {housekeeperEnabled &&
+                      contextCompactEnabled &&
+                      sessionId && (
+                        <ConfiguredMiniCpmCompactCard sessionId={sessionId} />
+                      )}
                   </div>
                 )}
               </div>

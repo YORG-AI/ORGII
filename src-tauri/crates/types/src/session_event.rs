@@ -296,7 +296,6 @@ fn classify_simulator_event(event: &SessionEvent) -> SimulatorEventFilterCategor
             tool_names::ASK_USER_QUESTIONS
                 | tool_names::ASK_USER_PERMISSIONS
                 | tool_names::SUGGEST_MODE_SWITCH
-                | tool_names::SUGGEST_NEXT_STEPS
                 | tool_names::CREATE_PLAN
                 | tool_names::MANAGE_SECRETS
         )

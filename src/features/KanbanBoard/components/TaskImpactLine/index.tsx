@@ -1,6 +1,5 @@
-import { CircleSlash, Diff, GitCommit, LoaderCircle } from "lucide-react";
+import { CircleSlash, Diff, GitCommit } from "lucide-react";
 import React from "react";
-import { useTranslation } from "react-i18next";
 
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 
@@ -13,14 +12,14 @@ interface TaskImpactLineProps {
   showUnavailable?: boolean;
 }
 
-function hasImpactMetadata(task: KanbanTask): boolean {
+function hasImpact(task: KanbanTask): boolean {
   return Boolean(
-    task.orgtrackMetadata &&
-    (task.orgtrackMetadata.filesChanged > 0 ||
-      task.orgtrackMetadata.linesAdded > 0 ||
-      task.orgtrackMetadata.linesRemoved > 0 ||
-      task.orgtrackMetadata.relatedCommits > 0 ||
-      task.orgtrackMetadata.committedRatePercent > 0)
+    task.impact &&
+    (task.impact.filesChanged > 0 ||
+      task.impact.linesAdded > 0 ||
+      task.impact.linesRemoved > 0 ||
+      task.impact.relatedCommits > 0 ||
+      task.impact.committedRatePercent > 0)
   );
 }
 
@@ -29,27 +28,18 @@ const TaskImpactLine: React.FC<TaskImpactLineProps> = ({
   className,
   showUnavailable = true,
 }) => {
-  const { t } = useTranslation("common");
-  const relatedCommits = task.orgtrackMetadata?.relatedCommits ?? 0;
+  const relatedCommits = task.impact?.relatedCommits ?? 0;
   const hasRelatedCommits = relatedCommits > 0;
   const rootClassName = ["task-impact-line", className]
     .filter(Boolean)
     .join(" ");
 
-  const handleRefreshGitBlame = (
-    event: React.MouseEvent<HTMLButtonElement>
-  ) => {
-    event.stopPropagation();
-    const refresh = task.onAnalyzeGitBlame ?? task.onUpdateGitBlame;
-    void refresh?.(task);
-  };
-
-  if (hasImpactMetadata(task) && task.orgtrackMetadata) {
+  if (hasImpact(task) && task.impact) {
     return (
       <span className={rootClassName}>
         <DiffStatsBadge
-          additions={task.orgtrackMetadata.linesAdded}
-          deletions={task.orgtrackMetadata.linesRemoved}
+          additions={task.impact.linesAdded}
+          deletions={task.impact.linesRemoved}
           variant="plain"
           size="sm"
           className="task-impact-line__diff"
@@ -58,7 +48,7 @@ const TaskImpactLine: React.FC<TaskImpactLineProps> = ({
         <span className="task-impact-line__dot" />
         <span className="task-impact-line__item">
           <Diff size={12} strokeWidth={1.75} />
-          <span>{task.orgtrackMetadata.filesChanged.toLocaleString()}</span>
+          <span>{task.impact.filesChanged.toLocaleString()}</span>
         </span>
         {hasRelatedCommits && (
           <>
@@ -77,34 +67,7 @@ const TaskImpactLine: React.FC<TaskImpactLineProps> = ({
     );
   }
 
-  if (task.orgtrackMetadataLoading) {
-    return (
-      <span className={rootClassName}>
-        <span className="task-impact-line__loading">
-          <LoaderCircle size={12} strokeWidth={1.75} />
-          <span>{t("loading")}</span>
-        </span>
-      </span>
-    );
-  }
-
   if (!showUnavailable) return null;
-
-  if (task.onAnalyzeGitBlame || task.onUpdateGitBlame) {
-    return (
-      <span className={rootClassName}>
-        <button
-          className="task-impact-line__action"
-          type="button"
-          title={t("actions.refresh")}
-          onClick={handleRefreshGitBlame}
-        >
-          <CircleSlash size={12} strokeWidth={1.75} />
-          <span>N/A</span>
-        </button>
-      </span>
-    );
-  }
 
   return (
     <span className={rootClassName}>

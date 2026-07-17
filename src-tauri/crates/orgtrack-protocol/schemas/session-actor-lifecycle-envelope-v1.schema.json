@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://orgtrack.dev/schemas/session-actor-lifecycle-envelope-v1.schema.json",
+  "title": "SessionActorLifecycleEnvelopeV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "source",
+    "sourceSessionId",
+    "sessionId",
+    "turnId",
+    "actorId",
+    "actorType",
+    "phase",
+    "occurredAt",
+    "cwd",
+    "transcriptPath"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "source": { "type": "string", "minLength": 1 },
+    "sourceSessionId": { "type": "string", "minLength": 1 },
+    "sessionId": { "type": "string", "minLength": 1 },
+    "turnId": { "type": ["string", "null"] },
+    "actorId": { "type": "string", "minLength": 1 },
+    "actorType": { "type": ["string", "null"] },
+    "phase": { "enum": ["started", "stopped"] },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "cwd": { "type": "string", "minLength": 1 },
+    "transcriptPath": { "type": ["string", "null"] }
+  }
+}

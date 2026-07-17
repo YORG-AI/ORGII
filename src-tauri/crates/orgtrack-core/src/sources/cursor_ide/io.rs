@@ -28,40 +28,59 @@ pub(super) fn open_cursor_db() -> Option<Connection> {
     .ok()
 }
 
-pub(super) fn cursor_db_path() -> Option<PathBuf> {
+/// Cursor's `User/globalStorage` directory for the current platform. Does not
+/// check existence — callers join a filename and test that.
+fn cursor_global_storage_dir() -> Option<PathBuf> {
     let home = dirs::home_dir()?;
 
     #[cfg(target_os = "macos")]
-    let path = home
+    let dir = home
         .join("Library")
         .join("Application Support")
         .join("Cursor")
         .join("User")
-        .join("globalStorage")
-        .join("state.vscdb");
+        .join("globalStorage");
 
     #[cfg(target_os = "linux")]
-    let path = home
+    let dir = home
         .join(".config")
         .join("Cursor")
         .join("User")
-        .join("globalStorage")
-        .join("state.vscdb");
+        .join("globalStorage");
 
     #[cfg(target_os = "windows")]
-    let path = home
+    let dir = home
         .join("AppData")
         .join("Roaming")
         .join("Cursor")
         .join("User")
-        .join("globalStorage")
-        .join("state.vscdb");
+        .join("globalStorage");
 
-    if path.exists() {
-        Some(path)
-    } else {
-        None
-    }
+    Some(dir)
+}
+
+pub(super) fn cursor_db_path() -> Option<PathBuf> {
+    let path = cursor_global_storage_dir()?.join("state.vscdb");
+    path.exists().then_some(path)
+}
+
+/// Cursor's newer conversation index — a small, indexed SQLite listing every
+/// conversation (`id`, `title`, `updated_at`, `is_archived`, `root_fingerprint`)
+/// next to `state.vscdb`. Lets discovery avoid scanning the multi-GB `state.vscdb`.
+/// `None` on older Cursor builds that predate it.
+pub(super) fn cursor_conversation_index_path() -> Option<PathBuf> {
+    let path = cursor_global_storage_dir()?.join("conversation-search.db");
+    path.exists().then_some(path)
+}
+
+/// Open the conversation index read-only, or `None` if absent/unreadable.
+pub(super) fn open_cursor_conversation_index_db() -> Option<Connection> {
+    let path = cursor_conversation_index_path()?;
+    Connection::open_with_flags(
+        &path,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .ok()
 }
 
 pub(super) fn load_complete_bubble_order(

@@ -9,15 +9,15 @@ import {
   ChartNoAxesGantt,
   ChevronsLeftRightEllipsis,
   Code2,
+  Columns3,
   Database,
+  Github,
   Globe,
-  History,
+  Info,
   ListTodo,
   Network,
   Play,
   Puzzle,
-  Radar,
-  Rocket,
   Settings,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -27,11 +27,7 @@ import {
   buildExternalSkillsetsPath,
   buildIntegrationsPath,
 } from "@src/config/mainAppPaths";
-import {
-  ROUTES,
-  getIconComponentForPath,
-  getIconForPath,
-} from "@src/config/routes";
+import { ROUTES } from "@src/config/routes";
 
 // ============================================
 // Icon Config
@@ -41,15 +37,16 @@ export const ICON_CONFIG = {
   projects: ListTodo,
   dbManager: Database,
   changelog: ChartNoAxesGantt,
-  opsControl: Radar,
+  kanban: Columns3,
   startSession: Play,
   integrations: ChevronsLeftRightEllipsis,
-  launchpad: Rocket,
+  dashboard: Info,
   agentOrgs: Network,
   plugins: Puzzle,
   browser: Globe,
   editor: Code2,
   settings: Settings,
+  openSourceRepo: Github,
 } as const;
 
 // ============================================
@@ -69,16 +66,20 @@ export interface AppItem {
   action: string;
   /** Route path used by fallback navigation and generic ActionSystem navigation */
   routePath: string;
+  /**
+   * External URL to open in the system browser. When set, the tile opens this
+   * link instead of navigating an in-app route (routePath is left empty).
+   */
+  externalUrl?: string;
 }
 
 // ============================================
 // App Grid Items
 // ============================================
 
-const devRecordIcon =
-  getIconComponentForPath(ROUTES.app.journey.record.path) ?? History;
-const devRecordIconName =
-  getIconForPath(ROUTES.app.journey.record.path) ?? "history";
+/** External URL for the ORGII open-source repository. */
+export const OPEN_SOURCE_REPO_URL = "https://github.com/yorgai/ORG2";
+
 export const APP_GRID_ITEMS: AppItem[] = [
   // ========== Row 1 ==========
   {
@@ -90,24 +91,26 @@ export const APP_GRID_ITEMS: AppItem[] = [
     routePath: ROUTES.app.home.changelog.path,
   },
   {
-    id: "launchpad",
-    labelKey: "navigation:routes.launchpad",
-    icon: ICON_CONFIG.launchpad,
-    iconName: "rocket",
-    action: "launchpad",
-    // Launchpad is no longer a standalone Workstation host — its dashboard
-    // and per-repo views are pinned tabs inside the Code Editor surface.
-    // The start-page tile lands the user on the editor route, where the
-    // pinned dashboard tab is the first fixture.
-    routePath: ROUTES.workStation.code.path,
+    id: "open-source-repo",
+    labelKey: "navigation:labels.openSourceRepo",
+    icon: ICON_CONFIG.openSourceRepo,
+    iconName: "github",
+    action: "open-source-repo",
+    routePath: "",
+    externalUrl: OPEN_SOURCE_REPO_URL,
   },
   {
-    id: "dev-record",
-    labelKey: "navigation:labels.devRecord",
-    icon: devRecordIcon,
-    iconName: devRecordIconName,
-    action: "dev-record",
-    routePath: ROUTES.app.journey.record.path,
+    // Keep the legacy id/action so customized app-grid ordering persists.
+    id: "launchpad",
+    labelKey: "navigation:launchpad.dashboard",
+    icon: ICON_CONFIG.dashboard,
+    iconName: "info",
+    action: "launchpad",
+    // Dashboard is no longer a standalone Workstation host — its workspace
+    // and per-repo views are pinned tabs inside the Code Editor surface.
+    // The start-page tile lands the user on the editor route, where the
+    // dashboard tab is the first fixture.
+    routePath: ROUTES.workStation.code.path,
   },
 
   // ========== Row 2 (5 items - center row) ==========
@@ -128,12 +131,12 @@ export const APP_GRID_ITEMS: AppItem[] = [
     routePath: buildExternalSkillsetsPath({ tab: "skills" }),
   },
   {
-    id: "ops-control",
-    labelKey: "navigation:routes.opsControl",
-    icon: ICON_CONFIG.opsControl,
-    iconName: "radar",
-    action: "ops-control",
-    routePath: ROUTES.workStation.opsControl.path,
+    id: "kanban",
+    labelKey: "sessions:simulator.tabs.kanban",
+    icon: ICON_CONFIG.kanban,
+    iconName: "columns-3",
+    action: "kanban",
+    routePath: ROUTES.workStation.base.path,
   },
   {
     id: "create-session",
@@ -176,14 +179,6 @@ export const APP_GRID_ITEMS: AppItem[] = [
     iconName: "globe",
     action: "browser",
     routePath: ROUTES.workStation.browser.path,
-  },
-  {
-    id: "db-manager",
-    labelKey: "navigation:labels.dbManager",
-    icon: ICON_CONFIG.dbManager,
-    iconName: "database",
-    action: "db-manager",
-    routePath: ROUTES.workStation.database.path,
   },
   {
     id: "projects",

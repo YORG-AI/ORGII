@@ -5,7 +5,6 @@ use super::codex_native::{
     CodexNativeClient, CodexOAuthRefreshConfig, CODEX_ACCOUNT_ID_HEADER, CODEX_ID_TOKEN_ENV_KEY,
 };
 use super::cursor_native::{CursorNativeProvider, CursorNativeWorkspaceContext};
-use super::gemini_native::GeminiNativeClient;
 use super::openai_adaptive::OpenAiAdaptiveClient;
 use super::openai_compat::OpenAICompatClient;
 use super::registry::{self, provider_id, ProviderSpec};
@@ -111,12 +110,6 @@ async fn ensure_account_key_fresh(account_id: Option<&str>) -> Result<(), Provid
         ModelType::Codex => {
             key_vault::key_store::KEY_SERVICE
                 .ensure_codex_oauth_key_fresh(account_id)
-                .await
-                .map_err(ProviderError::AuthError)?;
-        }
-        ModelType::GeminiCli => {
-            key_vault::key_store::KEY_SERVICE
-                .ensure_gemini_oauth_key_fresh(account_id)
                 .await
                 .map_err(ProviderError::AuthError)?;
         }
@@ -236,10 +229,7 @@ fn create_fallback_provider(
     let resolved = resolve_credentials(spec, account_id)?;
 
     let name = format!("{}/{}", spec.name, model);
-    Ok((
-        name,
-        build_provider_from_resolved(&resolved, spec, model, None),
-    ))
+    Ok((name, build_provider_from_resolved(&resolved, spec, model, None)))
 }
 
 /// Guess the provider spec from a model-name hint.
@@ -320,7 +310,7 @@ fn spec_for_model_type(model_type: &ModelType) -> Option<&'static ProviderSpec> 
     let provider_name = match model_type {
         ModelType::AnthropicApi | ModelType::AzureAnthropicApi => provider_id::ANTHROPIC,
         ModelType::Codex | ModelType::OpenaiApi => provider_id::OPENAI,
-        ModelType::GeminiApi | ModelType::GeminiCli => provider_id::GEMINI,
+        ModelType::GeminiApi => provider_id::GEMINI,
         ModelType::MoonshotApi => provider_id::MOONSHOT,
         ModelType::DeepseekApi => provider_id::DEEPSEEK,
         ModelType::GroqApi => provider_id::GROQ,
@@ -390,8 +380,6 @@ struct ResolvedProviderKey {
     api_base: Option<String>,
     custom_base_url: Option<String>,
     is_codex_oauth: bool,
-    is_gemini_oauth: bool,
-    gemini_project_id: Option<String>,
     codex_refresh_config: Option<CodexOAuthRefreshConfig>,
     claude_oauth_refresh_config: Option<ClaudeOAuthRefreshConfig>,
     extra_headers: std::collections::HashMap<String, String>,
@@ -676,13 +664,12 @@ fn resolve_credentials(
 
     let is_codex_oauth = is_codex_oauth_key(&cred);
     let is_claude_oauth = is_claude_oauth_key(&cred);
-    let is_gemini_oauth = is_gemini_oauth_key(&cred);
 
     // auth_method is authoritative. Rust-native HTTP sessions support OAuth
     // only for providers with an explicit native auth mode. Do not substitute
     // OAuth tokens into generic provider API-key clients.
     let token = if cred.auth_method == AuthMethod::Oauth {
-        if !is_codex_oauth && !is_claude_oauth && !is_gemini_oauth {
+        if !is_codex_oauth && !is_claude_oauth {
             return Err(ProviderError::AuthError(format!(
                 "Account '{}' uses OAuth (type={}), which is not supported for Rust-native provider sessions.",
                 acct_id,
@@ -779,8 +766,6 @@ fn resolve_credentials(
         api_base,
         custom_base_url,
         is_codex_oauth,
-        is_gemini_oauth,
-        gemini_project_id: gemini_project_id(&cred),
         codex_refresh_config,
         claude_oauth_refresh_config,
         extra_headers,
@@ -800,18 +785,6 @@ fn is_codex_oauth_key(cred: &ModelKey) -> bool {
 /// against the native Anthropic Messages API.
 fn is_claude_oauth_key(cred: &ModelKey) -> bool {
     oauth_key_has_session_token(cred, ModelType::ClaudeCode)
-}
-
-fn is_gemini_oauth_key(cred: &ModelKey) -> bool {
-    oauth_key_has_session_token(cred, ModelType::GeminiCli)
-}
-
-fn gemini_project_id(cred: &ModelKey) -> Option<String> {
-    ["GOOGLE_CLOUD_PROJECT", "GOOGLE_CLOUD_PROJECT_ID"]
-        .iter()
-        .find_map(|key| cred.env_vars.get(*key))
-        .map(|project_id| project_id.trim().to_string())
-        .filter(|project_id| !project_id.is_empty())
 }
 
 fn oauth_key_has_session_token(cred: &ModelKey, model_type: ModelType) -> bool {
@@ -1086,12 +1059,6 @@ mod tests {
                 .name,
             provider_id::OPENCODE
         );
-        assert_eq!(
-            spec_for_model_type(&ModelType::GeminiCli)
-                .expect("Gemini CLI can power Rust-native sessions")
-                .name,
-            provider_id::GEMINI
-        );
     }
 
     #[test]
@@ -1118,33 +1085,6 @@ mod tests {
         key.auth_method = AuthMethod::Oauth;
 
         assert!(!is_claude_oauth_key(&key));
-    }
-
-    #[test]
-    fn gemini_oauth_credential_resolves_to_gemini_spec_and_project_id() {
-        let mut key = ModelKey::new(ModelType::GeminiCli);
-        key.auth_method = AuthMethod::Oauth;
-        key.session_token = Some("access-token".to_string());
-        key.env_vars.insert(
-            "GOOGLE_CLOUD_PROJECT".to_string(),
-            "project-from-load-code-assist".to_string(),
-        );
-
-        let spec = spec_for_credential(&key).expect("Gemini OAuth should map to Gemini");
-        assert_eq!(spec.name, provider_id::GEMINI);
-        assert!(is_gemini_oauth_key(&key));
-        assert_eq!(
-            gemini_project_id(&key).as_deref(),
-            Some("project-from-load-code-assist")
-        );
-    }
-
-    #[test]
-    fn gemini_oauth_key_requires_session_token() {
-        let mut key = ModelKey::new(ModelType::GeminiCli);
-        key.auth_method = AuthMethod::Oauth;
-
-        assert!(!is_gemini_oauth_key(&key));
     }
 
     #[test]
@@ -1208,8 +1148,7 @@ mod tests {
     /// Anthropic protocol without a base URL is a user error, not a lookup miss.
     #[test]
     fn anthropic_protocol_without_endpoint_or_custom_base_errors() {
-        let spec =
-            registry::find_by_name(provider_id::CUSTOM).expect("Custom provider registered");
+        let spec = registry::find_by_name(provider_id::CUSTOM).expect("Custom provider registered");
         let mut key = ModelKey::new(ModelType::CustomApi);
         key.protocol = Some(ProviderProtocol::Anthropic);
 

@@ -63,3 +63,65 @@ sidebarCollapsedAtom.debugLabel = "sidebarCollapsedAtom";
  */
 export const sidebarDraggingAtom = atom<boolean>(false);
 sidebarDraggingAtom.debugLabel = "sidebarDraggingAtom";
+
+export interface SessionSidebarRevealTarget {
+  /** Independently replayable session row that should be selected and shown. */
+  sessionId: string;
+  /** Root row to hydrate/expand when `sessionId` is a subagent transcript. */
+  parentSessionId?: string;
+  /**
+   * Exact rendered menu item when the transcript is represented by another
+   * surface (for example a `cloudremote-…` Team Session row).
+   */
+  sidebarItemId?: string;
+  /** Cloud org whose Team Sessions section owns `sidebarItemId`. */
+  cloudOrgId?: string;
+}
+
+export interface SessionSidebarRevealRequest extends SessionSidebarRevealTarget {
+  requestId: number;
+}
+
+/**
+ * Ephemeral navigation intent for cross-surface session links.
+ *
+ * The connector remains the sole owner of sidebar filters, collapsed groups,
+ * and subagent expansion. Callers publish only the target identity here so a
+ * Session Blame link does not need to duplicate sidebar grouping logic.
+ */
+export const sessionSidebarRevealRequestAtom =
+  atom<SessionSidebarRevealRequest | null>(null);
+sessionSidebarRevealRequestAtom.debugLabel = "sessionSidebarRevealRequestAtom";
+const sessionSidebarRevealRequestIdAtom = atom(0);
+
+export const requestSessionSidebarRevealAtom = atom(
+  null,
+  (get, set, target: SessionSidebarRevealTarget) => {
+    const sessionId = target.sessionId.trim();
+    const parentSessionId = target.parentSessionId?.trim() || undefined;
+    const sidebarItemId = target.sidebarItemId?.trim() || undefined;
+    const cloudOrgId = target.cloudOrgId?.trim() || undefined;
+    if (!sessionId) return;
+    const requestId = get(sessionSidebarRevealRequestIdAtom) + 1;
+    set(sessionSidebarRevealRequestIdAtom, requestId);
+    set(sessionSidebarRevealRequestAtom, {
+      sessionId,
+      parentSessionId,
+      ...(sidebarItemId ? { sidebarItemId } : {}),
+      ...(cloudOrgId ? { cloudOrgId } : {}),
+      requestId,
+    });
+  }
+);
+requestSessionSidebarRevealAtom.debugLabel = "requestSessionSidebarRevealAtom";
+
+/** Clear one completed reveal without racing a newer navigation request. */
+export const clearSessionSidebarRevealAtom = atom(
+  null,
+  (get, set, requestId: number) => {
+    if (get(sessionSidebarRevealRequestAtom)?.requestId === requestId) {
+      set(sessionSidebarRevealRequestAtom, null);
+    }
+  }
+);
+clearSessionSidebarRevealAtom.debugLabel = "clearSessionSidebarRevealAtom";

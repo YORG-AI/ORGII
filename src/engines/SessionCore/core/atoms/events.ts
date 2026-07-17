@@ -42,18 +42,21 @@ const log = createLogger("eventsAtom");
 // ============================================
 
 /**
- * Per-session live stream content updated on every token delta.
+ * Per-session live stream content.
  *
  * Provides a direct rendering path that bypasses the EventStore snapshot
  * pipeline (16ms TS throttle → IPC → 33ms Rust batch → serialization → IPC
- * back → React). Components that read this atom see each token immediately
- * as it arrives from the LLM, giving smooth streaming UX.
+ * back → React).
  *
  * Shape: Map<sessionId, { kind, content }> so message and thinking streams
  * cannot be confused while multiple sessions stream concurrently.
  *
- * Set by the `onStreamingDelta` callback in useSessionSync (keyed by sessionId).
- * Cleared per-session on streaming_complete, session complete, and session switch.
+ * Set by the `onStreamingDelta` callback in useSessionSync (keyed by
+ * sessionId) through streamingDeltaBuffer.ts: chunks are buffered and land
+ * here on a trailing ~50ms flush (≤20Hz), with immediate flushes on stream
+ * start, kind change, and completion. Cleared per-session on
+ * streaming_complete, session complete, and session switch — clear paths
+ * must also discard the buffer (see streamingDeltaBuffer.ts).
  * Token-level live content must not be written to the durable EventStore.
  */
 export type StreamingDeltaKind = "message" | "thinking";

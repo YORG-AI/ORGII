@@ -27,6 +27,7 @@ import {
   pruneSubagentJobsAtom,
   updateSubagentJobAtom,
 } from "@src/store/session/subagentJobAtom";
+import { activeSessionIdAtom } from "@src/store/session/viewAtom";
 import {
   removeStaleTerminalSessionAtom,
   terminalSessionsAtom,
@@ -88,6 +89,7 @@ export function findStaleShellProcesses(
 export function useProcessReconciliation(): void {
   const shellProcessMap = useAtomValue(shellProcessMapAtom);
   const terminalSessions = useAtomValue(terminalSessionsAtom);
+  const activeSessionId = useAtomValue(activeSessionIdAtom);
   const dispatchUpdateShellProcess = useSetAtom(updateShellProcessAtom);
   const dispatchUpdateSubagentJob = useSetAtom(updateSubagentJobAtom);
   const dispatchPruneSubagentJobs = useSetAtom(pruneSubagentJobsAtom);
@@ -103,6 +105,9 @@ export function useProcessReconciliation(): void {
   const dispatchPruneSubagentJobsRef = useRef(dispatchPruneSubagentJobs);
   const dispatchUpdateTerminalInfoRef = useRef(dispatchUpdateTerminalInfo);
   const dispatchRemoveStaleSessionRef = useRef(dispatchRemoveStaleSession);
+  // Latest reconcile closure, exposed to the session-switch effect below
+  // without re-running the one-shot listener setup.
+  const reconcileRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     shellProcessMapRef.current = shellProcessMap;
@@ -236,6 +241,8 @@ export function useProcessReconciliation(): void {
       }
     }
 
+    reconcileRef.current = reconcile;
+
     // Run immediately on mount, then only reconcile when the user returns to
     // the app. Live process events remain the fast path while the app is open;
     // this path repairs stale state after reloads, missed events, or time away.
@@ -254,9 +261,21 @@ export function useProcessReconciliation(): void {
 
     return () => {
       cancelled = true;
+      reconcileRef.current = null;
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []); // Reconciliation listeners set up once; live values accessed via refs
   // updated on every render above. Startup, focus, and visibility drive re-runs.
+
+  // Session switches also reconcile. The per-session IPC channel only
+  // subscribes to the VISIBLE session, so a subagent's terminal
+  // `agent:subagent_job_changed` broadcast is lost while the user is on
+  // another session — the ghost "running" row then keeps `hasLiveSubagent`
+  // true forever (stuck planning footer / Stop button). Focus/visibility
+  // can't catch this case because the window never lost focus.
+  useEffect(() => {
+    if (!activeSessionId) return;
+    reconcileRef.current?.();
+  }, [activeSessionId]);
 }

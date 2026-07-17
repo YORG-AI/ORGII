@@ -246,15 +246,25 @@ impl UnifiedMessageProcessor {
                 )
                 .await;
 
-            if let CompactionOutcome::Truncated { messages_dropped } = reactive_outcome {
+            if let CompactionOutcome::Failed { ref reason } = reactive_outcome {
+                // Reaching Failed here means the normal compactor AND the
+                // manual-force rescue both failed (see
+                // reactive_llm_compact_with_rescue) — typically a provider
+                // outage. The history is unchanged, so a retry would fail
+                // identically; surface the error instead of spinning.
+                warn!(
+                    "[unified_processor] Reactive compaction (incl. rescue) FAILED for session {} (attempt {}) — surfacing ContextTooLong: {}",
+                    session_id, attempt, reason
+                );
                 broadcast_agent_warning(
                     session_id,
                     &format!(
-                        "Reactive compaction fell back to truncation ({} messages dropped without summary, attempt {})",
-                        messages_dropped, attempt
+                        "Context compaction failed ({}); the conversation exceeds the model's context window",
+                        reason
                     ),
                     "compaction",
                 );
+                return Err(last_err);
             } else if reactive_outcome == CompactionOutcome::Skipped {
                 // The provider just rejected the prompt as too long, yet the
                 // compactor's estimate judged the history within budget — the

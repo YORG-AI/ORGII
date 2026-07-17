@@ -474,24 +474,6 @@
     "claudeCodeAutodetectDesc": "Đọc đăng nhập Claude Code cục bộ từ macOS Keychain hoặc ~/.claude/.credentials.json",
     "claudeCodeConnected": "Claude Code đã kết nối",
     "claudeCodeDetectErrorHint": "Đăng nhập bằng trình duyệt nhúng hoặc chạy claude auth login rồi thử phát hiện lại",
-    "geminiSetupMethodDesc": "Connect Gemini CLI with Google sign-in, local detection, or a Gemini API key",
-    "geminiSignInTitle": "Gemini Sign In",
-    "geminiSignInDesc": "Sign in to Google for Gemini CLI in a native secure sign-in window. ORGII captures the callback, resolves the Code Assist project, and stores OAuth tokens locally.",
-    "signInWithGemini": "Sign in with Gemini",
-    "geminiReadyToSignIn": "Ready to sign in to Gemini",
-    "geminiSignedIn": "Gemini connected",
-    "geminiOAuthHint": "This saves a Gemini OAuth account for official Gemini CLI access",
-    "geminiBrowserHint": "Complete Google authorization in the secure sign-in window.",
-    "geminiSignInErrorHint": "Close the sign-in window and try signing in again. No token was saved",
-    "geminiProjectId": "Code Assist project: {{projectId}}",
-    "geminiAutodetectTitle": "Detect Gemini session",
-    "geminiAutodetectDesc": "Reads ~/.gemini/oauth_creds.json and GEMINI_API_KEY from your local environment",
-    "geminiApiKeyLabel": "Gemini API Key",
-    "geminiApiKeyDesc": "Paste a Gemini API key if you do not want to use Google sign-in",
-    "geminiApiKeyPlaceholder": "AIza...",
-    "geminiConnected": "Gemini connected",
-    "geminiDetectErrorHint": "Sign in with the secure native window, or paste a Gemini API key manually",
-    "geminiValidationErrorHint": "Check that the Gemini token or API key is valid and try again",
     "refreshModels": {
       "button": "Làm mới danh sách mô hình Cursor",
       "failed": "Làm mới từ Cursor thất bại: {{error}}"
@@ -1342,6 +1324,13 @@
     "commitAttributionDesc": "Thêm ORGII dưới dạng Co-authored-by vào thông điệp Commit được tạo từ ORGII",
     "prAttribution": "Pull Request Attribution",
     "prAttributionDesc": "Thêm footer ghi nhận ORGII vào mô tả Pull Request được tạo từ ORGII",
+    "promptInstructionsTitle": "Hướng dẫn prompt",
+    "commitInstructions": "Hướng dẫn commit",
+    "commitInstructionsDesc": "Được thêm vào prompt tạo thông điệp commit, lưu trên máy và gửi đến Agent đã chọn",
+    "commitInstructionsPlaceholder": "Ví dụ: Viết thông điệp commit bằng tiếng Việt và thêm phần nội dung chi tiết",
+    "pullRequestInstructions": "Hướng dẫn pull request",
+    "pullRequestInstructionsDesc": "Được thêm vào prompt tạo tiêu đề và mô tả pull request, lưu trên máy và gửi đến Agent đã chọn",
+    "pullRequestInstructionsPlaceholder": "Ví dụ: Thêm mã vấn đề vào đầu tiêu đề và thêm phần kiểm thử",
     "coauthor": "Co-authored-by",
     "coauthorDesc": "Thêm {{name}} <{{email}}> vào các Git Commit được tạo từ ORGII",
     "noTokenYet": "Cần Token?",
@@ -1698,6 +1687,61 @@
       "tokenCount": "~{{count}} Token",
       "emptyConfigPreview": "Không có nội dung cấu hình"
     },
+    "sessionProvenance": {
+      "title": "Nguồn gốc phiên",
+      "capture": "Ghi lại tương tác với tệp",
+      "description": "Ghi các thao tác đọc và ghi tệp dưới dạng siêu dữ liệu. Không lưu câu lệnh, đầu ra công cụ hoặc nội dung tệp.",
+      "configPath": "Ghi các thao tác đọc và ghi tệp dưới dạng siêu dữ liệu. Không lưu câu lệnh, đầu ra công cụ hoặc nội dung tệp. Cấu hình: {{path}}",
+      "installDrift": "Tùy chọn đã lưu và hook đã cài đặt không khớp. Hãy chuyển đổi tính năng ghi để sửa hook được quản lý. Cấu hình: {{path}}",
+      "copyPath": "Sao chép",
+      "reveal": "Hiển thị",
+      "col": {
+        "source": "Công cụ",
+        "config": "Cấu hình",
+        "capture": "Thu thập"
+      },
+      "status": {
+        "on": "Bật",
+        "off": "Tắt",
+        "repair": "Sửa",
+        "needsApproval": "Cần phê duyệt",
+        "checking": "Đang kiểm tra…",
+        "error": "Lỗi"
+      },
+      "codexApproval": {
+        "title": "Approve ORG2 hooks in Codex",
+        "description": "Codex has the ORG2 hooks installed, but Codex still needs your approval before it can run them.",
+        "instructions": "Open Codex, review the 3 ORG2 hooks, then choose Trust all and continue. ORG2 marks this active after the first real hook signal.",
+        "review": "Review in Codex",
+        "verified": "Verified by a real Codex hook signal {{time}}."
+      },
+      "signals": {
+        "title": "Tín hiệu gần đây",
+        "empty": "Chưa nhận được tín hiệu hook nào.",
+        "noResults": "Không có tín hiệu phù hợp",
+        "search": "Tìm tín hiệu",
+        "refresh": "Làm mới",
+        "openSession": "Mở phiên {{session}}",
+        "diffLoading": "Loading patch…",
+        "diffEmpty": "No patch captured. Provenance records file changes as metadata; a diff appears only once this session's edits are imported.",
+        "col": {
+          "source": "Công cụ",
+          "action": "Hành động",
+          "file": "Tệp",
+          "workspace": "Không gian làm việc",
+          "session": "Phiên",
+          "when": "Thời điểm"
+        },
+        "action": {
+          "read": "Đọc",
+          "write": "Ghi",
+          "create": "Tạo",
+          "delete": "Xóa",
+          "rename": "Đổi tên",
+          "search": "Tìm kiếm"
+        }
+      }
+    },
     "codexConfig": {
       "sectionTitle": "Cấu hình",
       "model": "Mô hình",
@@ -2029,8 +2073,7 @@
         "claude_code": "Claude Code",
         "copilot": "GitHub Copilot",
         "kiro": "Kiro",
-        "codex": "Codex",
-        "gemini_cli": "Gemini CLI"
+        "codex": "Codex"
       },
       "noSkillsResults": "Không tìm thấy skill nào để nhập. Đã tìm trong ~/.claude/skills và ~/.claude/commands.",
       "noAgentResults": "Chưa có agent nào để nhập",
@@ -2452,13 +2495,6 @@
     "installHintNote": "Cài đặt phụ thuộc còn thiếu để kích hoạt tính năng này",
     "installSection": "Cài đặt"
   },
-  "worktreeCompare": {
-    "button": "So sánh",
-    "buttonTooltip": "So sánh các Worktree",
-    "title": "So sánh Worktree",
-    "noSessions": "Không có phiên nào để so sánh",
-    "sessionTab": "Phiên"
-  },
   "creator": {
     "assign": "Giao việc"
   },
@@ -2595,7 +2631,10 @@
   },
   "cliLaunchProfiles": {
     "title": "Hồ sơ khởi chạy",
+    "plain": "Cơ bản",
+    "plan": "Kế hoạch",
     "fullPermission": "Toàn quyền",
+    "autoEdit": "Tự sửa",
     "manual": "Thủ công",
     "command": "Lệnh",
     "environment": "Môi trường",

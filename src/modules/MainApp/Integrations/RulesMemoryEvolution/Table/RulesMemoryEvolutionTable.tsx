@@ -28,13 +28,13 @@ import {
   InternalHeader,
   ScrollPreservation,
 } from "@src/modules/shared/layouts/blocks";
+import { InfoRow } from "@src/modules/shared/layouts/blocks/InfoRow";
 import { openFileInWorkStation } from "@src/util/ui/openFileInWorkStation";
 
 import {
   InlineCardColumnStack,
   InlineCardSplit,
 } from "../../KeyVault/shared/InlineCardPrimitives";
-import { InfoRow } from "../../shared/InfoRow";
 import type { DetailMode } from "../../types";
 import AgentEvolutionPanel from "../Evolution/AgentEvolutionPanel";
 import WorkspaceMemoryBrowser from "../Memory/WorkspaceMemoryBrowser";

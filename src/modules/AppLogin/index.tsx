@@ -7,7 +7,7 @@ import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import { ROUTES } from "@src/config/routes";
 import { HOSTED_LOGIN_ENABLED, setAuthSkipped } from "@src/config/serviceAuth";
-import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/csp";
+import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/nonce";
 import {
   clearAuthStateCompletely,
   useServiceAuth,

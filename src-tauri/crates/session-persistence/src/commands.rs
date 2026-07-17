@@ -78,7 +78,7 @@ pub async fn cache_load_turn_index(session_id: String) -> Result<Vec<CachedTurnS
         .map_err(|e| e.to_string())
 }
 
-/// Search events using FTS5 full-text search
+/// Search events within a session (LIKE substring matching)
 #[tauri::command]
 pub async fn cache_search_events(
     session_id: String,
@@ -93,9 +93,9 @@ pub async fn cache_search_events(
     .map_err(|e| e.to_string())
 }
 
-/// Full-text search across all cached sessions.
+/// Search across all cached sessions (LIKE substring matching).
 ///
-/// Returns one result per session containing the best-matched snippet.
+/// Returns one result per session containing the most recent matched snippet.
 /// The frontend should join with the session list to resolve display names.
 #[tauri::command]
 pub async fn cache_search_all_sessions(

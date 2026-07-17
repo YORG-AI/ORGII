@@ -5,17 +5,15 @@
  * it. Agent messages still do NOT participate in "collapse all" so the user
  * can always read the conversation.
  *
- * **Clamping policy**: when the user is on the Agent Station surface
- * (`stationMode === "agent-station"`) AND the chat panel is NOT maximized,
- * the agent simulator is rendered alongside the chat and already shows the
- * full message. In that layout, we clamp the message in the chat panel to
- * a 20-line preview with the same expand-overlay pill that TerminalBlock
- * uses, so long replies don't push the user's eye away from the simulator.
+ * **Clamping policy**: completed agent messages clamp long content to a
+ * 20-line preview with the same expand-overlay pill that TerminalBlock uses.
+ * This applies to every round, the latest included; only the live streaming
+ * message stays fully open so active generation remains readable.
  *
- * In every other layout (chat-panel maximized, or any non-agent-station
- * station mode) the full message renders as before. The clamp also no-ops
- * silently when content already fits inside the preview height — only
- * messages that genuinely overflow surface the fade + Show more pill.
+ * The clamp no-ops silently when content already fits inside the preview
+ * height — only messages that genuinely overflow surface the fade + Show
+ * more pill. Renderers outside a turn context retain the host-provided clamp
+ * eligibility for synthetic previews.
  *
  * **Locate arrow**: while clamped, a footer-variant `EventNavigateIcon`
  * sits below the preview at the right edge so the user can jump to the
@@ -33,6 +31,12 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import ExpandOverlay from "@src/components/ExpandOverlay";
+import MessageFooter from "@src/components/MessageFooter";
+import { useAgentTurnContext } from "@src/engines/ChatPanel/ChatHistory/AgentTurnContext";
+import {
+  formatSmartDateTime,
+  toIntlLocaleTag,
+} from "@src/util/data/formatters/date";
 
 import { EventNavigateIcon } from "../primitives";
 import { useBlockHeader } from "../useBlockLocate";
@@ -44,10 +48,34 @@ import { useBlockHeader } from "../useBlockLocate";
 // bar floating over the message.
 const CHAT_PANE_FADE_FROM = "from-chat-pane";
 
-// Ten lines at ~24px line-height. Earlier clamp keeps the chat-panel
-// preview compact so the user's eye stays on the simulator side; the
-// expand pill is the escape hatch when they want the full message.
-const AGENT_MESSAGE_PREVIEW_MAX_HEIGHT = 240;
+// Twenty lines at ~24px line-height, matching the earlier long-message
+// preview depth used by the chat pane.
+export const AGENT_MESSAGE_PREVIEW_MAX_HEIGHT = 480;
+
+export function resolveAgentMessageClampEligibility(
+  isLastGroup: boolean | null,
+  fallbackEligible: boolean
+): boolean {
+  // Every round inside a turn context clamps long (>20-line) messages — the
+  // latest round included. The live streaming tail is exempted separately by
+  // the caller (via `isStreaming`) so active generation stays fully visible.
+  // Outside a turn context (synthetic previews) fall back to the host flag.
+  return isLastGroup === null ? fallbackEligible : true;
+}
+
+export function shouldShowAgentMessageFooter(params: {
+  content: string | undefined;
+  isStreaming: boolean;
+  itemIndex: number | undefined;
+  lastAssistantFlatIndex: number | null | undefined;
+}): boolean {
+  return Boolean(
+    !params.isStreaming &&
+    params.content?.trim() &&
+    params.itemIndex !== undefined &&
+    params.itemIndex === params.lastAssistantFlatIndex
+  );
+}
 
 const AgentMessageClampContext = createContext(false);
 
@@ -63,6 +91,12 @@ export interface AgentMessageBlockProps {
   rightContent?: React.ReactNode;
   /** Hide footer chrome while tokens are still streaming. */
   isStreaming?: boolean;
+  /** Content copied by the final-message footer. */
+  messageContent?: string;
+  /** Event timestamp displayed by the final-message footer. */
+  messageTimestamp?: string;
+  /** Flat chat-history index used to identify the round's final message. */
+  itemIndex?: number;
 }
 
 const AgentMessageBlock: React.FC<AgentMessageBlockProps> = ({
@@ -70,9 +104,46 @@ const AgentMessageBlock: React.FC<AgentMessageBlockProps> = ({
   eventId,
   rightContent,
   isStreaming = false,
+  messageContent,
+  messageTimestamp = "",
+  itemIndex,
 }) => {
-  const { t } = useTranslation("common");
-  const clampEligible = useContext(AgentMessageClampContext);
+  const { t, i18n } = useTranslation("common");
+  const fallbackClampEligible = useContext(AgentMessageClampContext);
+  const turnContext = useAgentTurnContext();
+  const showMessageFooter = shouldShowAgentMessageFooter({
+    content: messageContent,
+    isStreaming,
+    itemIndex,
+    lastAssistantFlatIndex: turnContext?.lastAssistantFlatIndex,
+  });
+  const timestampLabel =
+    showMessageFooter && messageTimestamp
+      ? formatSmartDateTime(messageTimestamp, {
+          yesterdayLabel: t("relativeDate.yesterday"),
+          locale: toIntlLocaleTag(i18n.resolvedLanguage),
+        })
+      : "";
+  const messageFooter = showMessageFooter ? (
+    <MessageFooter
+      content={messageContent ?? ""}
+      timestamp={messageTimestamp}
+      timestampLabel={timestampLabel}
+      copyLabel={t("actions.copy")}
+      copiedLabel={t("status.copied")}
+      className="mt-1"
+    />
+  ) : null;
+  // The live streaming message is never clamped — it grows as tokens arrive
+  // and hiding the tail behind a preview would bury the newest output. Once
+  // it settles (isStreaming false) it clamps like any other completed message,
+  // including in the latest round.
+  const clampEligible =
+    !isStreaming &&
+    resolveAgentMessageClampEligibility(
+      turnContext?.isLastGroup ?? null,
+      fallbackClampEligible
+    );
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const [overflows, setOverflows] = useState(false);
@@ -110,7 +181,15 @@ const AgentMessageBlock: React.FC<AgentMessageBlockProps> = ({
     const element = viewportRef.current;
     if (!element) return;
     const measure = () => {
-      setOverflows(element.scrollHeight > element.clientHeight + 1);
+      // Compare content height against the fixed preview height, NOT against
+      // clientHeight. clientHeight is subject to sub-pixel line-height
+      // rounding that reads 1–2px larger than scrollHeight for single-line
+      // content — and once the overlay mounts inside this measured element it
+      // latches — which false-positived the clamp on one-line messages
+      // (wrapping the same text to two lines made the discrepancy vanish).
+      // The clamp only needs to fire when content genuinely exceeds the
+      // 20-line preview, so measure that directly.
+      setOverflows(element.scrollHeight > AGENT_MESSAGE_PREVIEW_MAX_HEIGHT + 1);
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -120,11 +199,12 @@ const AgentMessageBlock: React.FC<AgentMessageBlockProps> = ({
 
   if (!clampEligible) {
     return (
-      <div className="w-full min-w-0 overflow-hidden px-2 py-0.5">
+      <div className="group/agent-message w-full min-w-0 overflow-hidden px-2 py-0.5">
         {children}
         {rightContent && (
           <div className="mt-1 flex justify-end">{rightContent}</div>
         )}
+        {messageFooter}
       </div>
     );
   }
@@ -176,6 +256,7 @@ const AgentMessageBlock: React.FC<AgentMessageBlockProps> = ({
           />
         </div>
       )}
+      {messageFooter}
     </div>
   );
 };

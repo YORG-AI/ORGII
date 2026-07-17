@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import Message from "@src/components/Message";
 import { SessionService } from "@src/engines/SessionCore/services/SessionService";
 import type { AgentExecMode } from "@src/features/SessionCreator/config";
+import { isCollabConflictError } from "@src/features/TeamCollaboration/engine/collabSyncEngineHelpers";
 import { createLogger } from "@src/hooks/logger";
 import { activeWorkspaceRootPathAtom } from "@src/store/workspace";
 import type { WorkItem as WorkItemExtended } from "@src/types/core/workItem";
@@ -21,6 +22,10 @@ import {
 import type { AgentRole, OrchestratorPhase } from "../../constants";
 import { useAutoReview } from "./useAutoReview";
 import { useStaleSessionDetection } from "./useStaleSessionDetection";
+import {
+  isCollabMembershipUnresolvedError,
+  useWorkItemCollabLock,
+} from "./useWorkItemCollabLock";
 
 const logger = createLogger("useWorkItemOrchestrator");
 const RUNNING_LINKED_SESSION_STATUS = "running" as const;
@@ -82,6 +87,15 @@ export function useWorkItemOrchestrator(
 
   const worktreePath = useAtomValue(activeWorkspaceRootPathAtom) || null;
 
+  // Collab execution lock (design §16.6): resolves whether this work item is
+  // under a collab-synced org and, if so, whether a teammate holds the lock.
+  const collabLock = useWorkItemCollabLock({
+    projectSlug,
+    shortId,
+    workItemId: workItem.session_id,
+    executionLock: displayWorkItem.executionLock,
+  });
+
   const projectRepoPath = repoPath ?? null;
   const accountId =
     displayWorkItem.orchestratorConfig?.selected_account_id ?? null;
@@ -135,6 +149,43 @@ export function useWorkItemOrchestrator(
         return;
       }
 
+      // Collab lock held by a teammate (design §16.6): the synced payload
+      // already tells us; refuse before spending a start.
+      if (collabLock.isLockedByOther) {
+        Message.warning(
+          t("workItems.agentWorkflow.collabLockHeld", {
+            name: collabLock.lockHolderName ?? "",
+          })
+        );
+        onRefreshWorkItem?.();
+        return;
+      }
+
+      // Acquire the server-arbitrated lock first (design §16.6). A no-op for
+      // non-collab work items; ORGII_CONFLICT means a teammate won the race.
+      let collabLockAcquired = false;
+      try {
+        collabLockAcquired = await collabLock.acquireLock();
+      } catch (lockError) {
+        if (isCollabConflictError(lockError)) {
+          Message.warning(t("workItems.agentWorkflow.collabLockConflict"));
+          onRefreshWorkItem?.();
+          return;
+        }
+        if (isCollabMembershipUnresolvedError(lockError)) {
+          // We cannot prove this work item is NOT collab-synced, so starting
+          // would skip server arbitration entirely — block instead.
+          Message.warning(t("workItems.agentWorkflow.collabLockUnresolved"));
+          return;
+        }
+        logger.warn(
+          `Failed to acquire collab lock for ${shortId}: ${formatOrchestratorError(lockError)}`
+        );
+        // Non-conflict acquire failures on a KNOWN-collab work item (offline
+        // etc.) fall through: the local execution lock still guards
+        // single-machine safety.
+      }
+
       setIsStartingAgent(true);
       try {
         await invokeTauri(orchestratorCommand, {
@@ -170,6 +221,13 @@ export function useWorkItemOrchestrator(
       } catch (error) {
         setActiveAgentSessionId(null);
         setActiveAgentRole(null);
+        // The start failed AFTER the server lock was acquired: release it,
+        // or the holder-less run deadlocks this work item for every member
+        // (including us — the row would show OUR id as a live holder until
+        // the stale-TTL takeover). Best-effort: releaseLock swallows errors.
+        if (collabLockAcquired) {
+          void collabLock.releaseLock();
+        }
         try {
           await invokeTauri(ORCHESTRATOR_COMMAND.Cancel, {
             projectSlug,
@@ -193,6 +251,7 @@ export function useWorkItemOrchestrator(
       handleSave,
       validateOrchestratorParams,
       accountId,
+      collabLock,
       displayWorkItem.executionLock?.activeSessionId,
       displayWorkItem.status,
       displayWorkItem.workItemStatus,
@@ -346,20 +405,27 @@ export function useWorkItemOrchestrator(
       (workItem.orchestratorState?.current_phase as OrchestratorPhase) ??
       "idle";
     if (prevPhaseRef.current !== phase) {
+      const wasActive = !TERMINAL_PHASES.has(prevPhaseRef.current);
       prevPhaseRef.current = phase;
-      if (
-        TERMINAL_PHASES.has(phase) &&
-        activeAgentSessionId &&
-        !persistedActiveSessionId
-      ) {
-        setActiveAgentSessionId(null);
-        setActiveAgentRole(null);
+      if (TERMINAL_PHASES.has(phase)) {
+        if (activeAgentSessionId && !persistedActiveSessionId) {
+          setActiveAgentSessionId(null);
+          setActiveAgentRole(null);
+        }
+        // Release the server lock on the run→terminal transition (design
+        // §16.6). The Rust side clears the LOCAL execution_lock; this drops
+        // the collab holder so teammates can start next (best-effort — the
+        // synced payload also reconciles it).
+        if (wasActive) {
+          void collabLock.releaseLock();
+        }
       }
     }
   }, [
     workItem.orchestratorState?.current_phase,
     activeAgentSessionId,
     persistedActiveSessionId,
+    collabLock,
   ]);
 
   useAutoReview({
@@ -398,5 +464,9 @@ export function useWorkItemOrchestrator(
     handleCreateFollowUp,
     worktreePath,
     projectRepoPath,
+    // Collab execution lock (design §16.6): the start-agent affordance uses
+    // these to disable + show "@name is running" when a teammate holds it.
+    isLockedByOther: collabLock.isLockedByOther,
+    lockHolderName: collabLock.lockHolderName,
   };
 }

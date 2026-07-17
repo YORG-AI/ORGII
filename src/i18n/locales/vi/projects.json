@@ -143,6 +143,7 @@
     "gitFolderPathHint": "Liên kết tổ chức này với một cây làm việc Git hiện có để đồng bộ thư mục.",
     "gitFolderBadge": "Git",
     "gitFolderSynced": "Đã đồng bộ với thư mục Git",
+    "pendingSync": "Đang chờ đồng bộ",
     "management": {
       "breadcrumb": "Cài đặt tổ chức",
       "overview": "Tổng quan",
@@ -538,7 +539,11 @@
       "tokens": "Token",
       "subAgentDefault": "Sub-Agent",
       "toolResult": "kết quả {{tool}}",
-      "reviewRequestedChanges": "Review yêu cầu thay đổi"
+      "reviewRequestedChanges": "Review yêu cầu thay đổi",
+      "collabLockRunning": "{{name}} is running",
+      "collabLockHeld": "{{name}}'s agent is already working on this item",
+      "collabLockConflict": "Another member just started an agent on this item",
+      "collabLockUnresolved": "Could not verify this work item's collaboration status. Check your connection and try again."
     },
     "changedFiles": {
       "title": "Tệp Thay Đổi",

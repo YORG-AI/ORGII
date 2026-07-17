@@ -20,8 +20,9 @@ core_types = { path = "../types" }
 app_paths = { path = "../app-paths" }
 app_platform = { path = "../app-platform" } # hide_console / CREATE_NO_WINDOW (Windows)
 app_utils = { path = "../app-utils" }
-cursor_bridge_app = { path = "../cursor-bridge-app" }
 integrations = { path = "../integrations" }
+# Cursor's on-disk model catalog (read-only) for Cursor CLI model enrichment.
+orgtrack_core = { path = "../orgtrack-core" }
 
 # Tauri command macro surface only — no AppHandle / Manager / Emitter use here.
 tauri = { workspace = true }

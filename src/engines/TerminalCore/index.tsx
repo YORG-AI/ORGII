@@ -362,6 +362,7 @@ export const TerminalCore: React.FC<TerminalCoreProps> = ({
                 onOpenFileLink={onOpenFileLink}
                 backgroundColor={bgColor}
                 shellOverride={session.shell}
+                nameOverride={session.name}
                 onUserInput={() => {
                   requestProcessRefresh();
                   if (!session.hasUserInput) {

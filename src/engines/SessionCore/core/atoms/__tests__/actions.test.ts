@@ -14,6 +14,8 @@ vi.mock("../../store/EventStoreProxy", () => ({
     append: vi.fn().mockResolvedValue(undefined),
     mergeEvents: vi.fn().mockResolvedValue(undefined),
     removeSyntheticUserInputEvents: vi.fn().mockResolvedValue(0),
+    scheduleSessionSnapshotRelease: vi.fn(),
+    cancelScheduledSnapshotRelease: vi.fn(),
   },
 }));
 
@@ -45,6 +47,8 @@ beforeEach(() => {
   vi.mocked(eventStoreProxy.append).mockClear();
   vi.mocked(eventStoreProxy.mergeEvents).mockClear();
   vi.mocked(eventStoreProxy.removeSyntheticUserInputEvents).mockClear();
+  vi.mocked(eventStoreProxy.scheduleSessionSnapshotRelease).mockClear();
+  vi.mocked(eventStoreProxy.cancelScheduledSnapshotRelease).mockClear();
 });
 
 function makeMessageEvent(
@@ -177,6 +181,14 @@ describe("loadSessionAtom", () => {
     expect(store.get(eventsAtom).map((event) => event.sessionId)).toEqual([
       "session-2",
     ]);
+    // Switching away schedules the outgoing session's snapshot release;
+    // the incoming session is rescued from any pending release.
+    expect(eventStoreProxy.scheduleSessionSnapshotRelease).toHaveBeenCalledWith(
+      "session-1"
+    );
+    expect(eventStoreProxy.cancelScheduledSnapshotRelease).toHaveBeenCalledWith(
+      "session-2"
+    );
   });
 
   it("carries optimistic user images onto the persisted echo during load", () => {

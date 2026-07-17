@@ -461,6 +461,40 @@ fn test_remove_by_id_prefix_no_match() {
 }
 
 #[test]
+fn test_remove_by_ids() {
+    let mut store = EventStore::new();
+    store.set(vec![
+        make_event("stream-msg-1", "message"),
+        make_event("normal-1", "tool_call"),
+        make_event("stream-think-1", "message"),
+    ]);
+    let removed = store.remove_by_ids(&[
+        "stream-msg-1".to_string(),
+        "stream-think-1".to_string(),
+        "nonexistent".to_string(),
+    ]);
+    assert_eq!(removed, 2);
+    assert!(store.get_by_id("stream-msg-1").is_none());
+    assert!(store.get_by_id("stream-think-1").is_none());
+    assert!(store.get_by_id("normal-1").is_some());
+
+    // Removed ids surface in delta tracking so `es:changed` subscribers drop them.
+    let (_, _, removed_ids) = store.take_delta_tracking();
+    assert!(removed_ids.contains(&"stream-msg-1".to_string()));
+    assert!(removed_ids.contains(&"stream-think-1".to_string()));
+}
+
+#[test]
+fn test_remove_by_ids_no_match_keeps_version() {
+    let mut store = EventStore::new();
+    store.set(vec![make_event("a", "message")]);
+    let v_before = store.version();
+    let removed = store.remove_by_ids(&["nonexistent".to_string()]);
+    assert_eq!(removed, 0);
+    assert_eq!(store.version(), v_before);
+}
+
+#[test]
 fn test_remove_synthetic_user_inputs_keeps_backend_user_input_ids() {
     let mut store = EventStore::new();
     let mut synthetic = make_event("user-input-synthetic", "raw");
@@ -1111,6 +1145,34 @@ fn test_unload_turn_body_restores_placeholder_and_preserves_headers() {
         store.hydration_mode(),
         crate::agent_sessions::event_pipeline::store::HydrationMode::RoundWindow
     );
+}
+
+#[test]
+fn test_unload_turn_body_preserves_final_reply_as_preview() {
+    let mut final_reply = make_event("turn-1-final-reply", "assistant");
+    final_reply.function_name = "assistant".to_string();
+    final_reply.ui_canonical = "agent_message".to_string();
+    final_reply.display_variant = EventDisplayVariant::Message;
+    final_reply.display_text = "Finished the work".to_string();
+
+    let mut store = EventStore::new();
+    store.set_round_window(vec![
+        make_user_turn_header("turn-1", "2026-01-01T00:00:00Z"),
+        make_event("turn-1-tool", "tool_call"),
+        final_reply,
+        make_user_turn_header("turn-2", "2026-01-01T00:01:00Z"),
+    ]);
+
+    let removed = store.unload_turn_body("turn-1", make_turn_placeholder("turn-1", Some("turn-2")));
+
+    assert_eq!(removed, 1);
+    let preview = store.get_by_id("turn-1-final-reply").unwrap();
+    assert_eq!(
+        preview.args.get("turnPreviewOnly"),
+        Some(&serde_json::Value::Bool(true))
+    );
+    assert!(store.get_by_id("turn-1-tool").is_none());
+    assert!(store.get_by_id("turn-placeholder-turn-1").is_some());
 }
 
 #[test]

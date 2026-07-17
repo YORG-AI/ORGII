@@ -7,6 +7,7 @@
 use serde_json::Value;
 
 use super::manual::MIN_HISTORY_FOR_MANUAL_COMPACT;
+use crate::core::model_context::compaction::ContextCompactor;
 use crate::session::persistence as unified_persistence;
 
 fn message_role(message: &Value) -> Option<&str> {
@@ -49,13 +50,18 @@ pub(crate) fn split_summary_and_tail(durable_compacted_messages: &[Value]) -> (S
     }
 }
 
-/// Durable identity of a freshly appended compact boundary row, so callers
-/// can push the matching chat event to the frontend without a full session
-/// reload (the load path dedups on `id`).
+/// Durable identity of a freshly appended compact boundary row plus the
+/// reloaded durable view. The identity fields let callers push the matching
+/// chat event to the frontend without a full session reload (the load path
+/// dedups on `id`); the durable view fields carry post-persist token
+/// accounting (the durable view can differ from the compaction candidate,
+/// so token numbers must be measured after the boundary lands).
 pub(crate) struct AppendedCompactBoundary {
     pub id: String,
     pub summary: String,
     pub created_at: String,
+    pub durable_messages: Option<Vec<Value>>,
+    pub durable_tokens_after: Option<usize>,
 }
 
 /// Appends an in-place compact boundary for an app-side session.
@@ -67,7 +73,7 @@ pub(crate) fn append_in_place_compact_boundary(
     let (summary_text, tail_len) = split_summary_and_tail(durable_compacted_messages);
     let cutoff = unified_persistence::compact_cutoff_sequence(session_id, tail_len)
         .map_err(|err| err.to_string())?;
-    let (tokens_before, tokens_after) = match token_delta {
+    let (tokens_before, fallback_tokens_after) = match token_delta {
         Some((before, after)) => (Some(before as i64), Some(after as i64)),
         None => (None, None),
     };
@@ -76,13 +82,51 @@ pub(crate) fn append_in_place_compact_boundary(
         &summary_text,
         cutoff,
         tokens_before,
-        tokens_after,
+        None,
     )
     .map_err(|err| err.to_string())?;
+
+    let (durable_messages, durable_tokens_after) = match unified_persistence::load_llm_history(
+        session_id,
+    ) {
+        Ok(messages) => {
+            let tokens_after = ContextCompactor::estimate_messages_tokens(&messages);
+            if token_delta.is_some() {
+                unified_persistence::update_compact_boundary_token_delta(
+                    session_id,
+                    &id,
+                    tokens_before,
+                    Some(tokens_after as i64),
+                )
+                .map_err(|err| err.to_string())?;
+            }
+            (Some(messages), Some(tokens_after))
+        }
+        Err(err) => {
+            tracing::warn!(
+                    "[compact_persist] failed to reload durable compact view for {} after boundary append: {}",
+                    session_id,
+                    err
+                );
+            if token_delta.is_some() {
+                unified_persistence::update_compact_boundary_token_delta(
+                    session_id,
+                    &id,
+                    tokens_before,
+                    fallback_tokens_after,
+                )
+                .map_err(|err| err.to_string())?;
+            }
+            (None, fallback_tokens_after.map(|tokens| tokens as usize))
+        }
+    };
+
     Ok(AppendedCompactBoundary {
         id,
         summary: summary_text,
         created_at,
+        durable_messages,
+        durable_tokens_after,
     })
 }
 

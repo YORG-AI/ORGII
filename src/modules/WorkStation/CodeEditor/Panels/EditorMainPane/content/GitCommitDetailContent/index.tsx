@@ -9,7 +9,14 @@
  */
 import { useAtom, useAtomValue } from "jotai";
 import { ChevronRight } from "lucide-react";
-import React, { memo, useCallback, useMemo, useState } from "react";
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import { gitFetchStream } from "@src/api/http/git/streaming";
@@ -78,7 +85,15 @@ const GitCommitDetailContent: React.FC<GitCommitDetailContentProps> = ({
   const { onOpenSettings } = useAtomValue(activeStatusBarCallbacksAtom);
   const [fileListWidth, setFileListWidth] = useAtom(gitFileListWidthAtom);
   const [fetchingPrCommit, setFetchingPrCommit] = useState(false);
-  const [fetchPrError, setFetchPrError] = useState<string | null>(null);
+  const [fetchPrError, setFetchPrError] = useState<{
+    key: string;
+    message: string;
+  } | null>(null);
+  const [fetchedPrCommitKey, setFetchedPrCommitKey] = useState<string | null>(
+    null
+  );
+  const autoFetchAttemptRef = useRef<string | null>(null);
+  const prCommitFetchKey = `${repoId}:${repoPath}:${prNumber ?? ""}:${commitSha}`;
   const { columnRef: fileListRef, handleMouseDown: handleFileListResize } =
     useColumnResize({
       width: fileListWidth,
@@ -182,20 +197,61 @@ const GitCommitDetailContent: React.FC<GitCommitDetailContentProps> = ({
       },
       {
         onComplete: (success) => {
-          setFetchingPrCommit(false);
           if (success) {
+            setFetchedPrCommitKey(prCommitFetchKey);
+            setFetchingPrCommit(false);
             reloadCommit();
           } else {
-            setFetchPrError(`git fetch origin pull/${prNumber}/head`);
+            setFetchingPrCommit(false);
+            setFetchPrError({
+              key: prCommitFetchKey,
+              message: `git fetch origin pull/${prNumber}/head`,
+            });
           }
         },
         onError: (error) => {
           setFetchingPrCommit(false);
-          setFetchPrError(error);
+          setFetchPrError({ key: prCommitFetchKey, message: error });
         },
       }
     );
-  }, [fetchingPrCommit, prNumber, reloadCommit, repoId, repoPath]);
+  }, [
+    fetchingPrCommit,
+    prCommitFetchKey,
+    prNumber,
+    reloadCommit,
+    repoId,
+    repoPath,
+  ]);
+
+  useEffect(() => {
+    if (
+      !isRepoReady ||
+      !prNumber ||
+      commitLoadState !== "missing" ||
+      autoFetchAttemptRef.current === prCommitFetchKey ||
+      fetchingPrCommit
+    ) {
+      return;
+    }
+
+    const autoFetchTimer = window.setTimeout(() => {
+      autoFetchAttemptRef.current = prCommitFetchKey;
+      handleFetchPrCommit();
+    }, 0);
+
+    return () => window.clearTimeout(autoFetchTimer);
+  }, [
+    commitLoadState,
+    fetchingPrCommit,
+    handleFetchPrCommit,
+    isRepoReady,
+    prCommitFetchKey,
+    prNumber,
+  ]);
+
+  const currentFetchPrError =
+    fetchPrError?.key === prCommitFetchKey ? fetchPrError.message : null;
 
   const stashHeaderPath = `${headerRootLabel ?? shortSha}/${commitMessage}`;
 
@@ -256,34 +312,25 @@ const GitCommitDetailContent: React.FC<GitCommitDetailContentProps> = ({
           fillParentHeight
         />
       ) : commitLoadState === "missing" ? (
-        <Placeholder
-          variant="empty"
-          placement="detail-panel"
-          title={t(
-            "placeholders.fetchPrCommitToViewDiff",
-            "Fetch PR to view this commit"
-          )}
-          subtitle={
-            fetchPrError ??
-            t(
-              "placeholders.prCommitMissingLocally",
-              "This pull request commit is not available in your local repository yet."
-            )
-          }
-          action={
-            prNumber
-              ? {
-                  label: fetchingPrCommit
-                    ? t("status.loading")
-                    : t("actions.fetchPr", "Fetch PR"),
-                  onClick: handleFetchPrCommit,
-                  disabled: fetchingPrCommit,
-                  variant: "primary",
-                }
-              : undefined
-          }
-          fillParentHeight
-        />
+        fetchingPrCommit ||
+        (prNumber &&
+          !currentFetchPrError &&
+          fetchedPrCommitKey !== prCommitFetchKey) ? (
+          <Placeholder
+            variant="loading"
+            placement="detail-panel"
+            fillParentHeight
+          />
+        ) : (
+          <Placeholder
+            variant="error"
+            placement="detail-panel"
+            title={t("placeholders.failedToLoadCommitDiff")}
+            subtitle={currentFetchPrError ?? commitError ?? commitSha}
+            onRetry={prNumber ? handleFetchPrCommit : reloadCommit}
+            fillParentHeight
+          />
+        )
       ) : commitLoadState === "no-files" ? (
         <Placeholder
           variant="empty"

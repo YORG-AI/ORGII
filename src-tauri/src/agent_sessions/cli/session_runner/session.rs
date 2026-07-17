@@ -32,15 +32,14 @@ use super::helpers::{
 use super::oauth_setup::{
     is_cli_chunk_replay_unsafe, is_cli_oauth_failure_message, is_cli_oauth_stderr_retry_candidate,
     is_retryable_cli_oauth_failure_chunk, is_retryable_overloaded_chunk,
-    refresh_cli_oauth_for_retry, sanitize_cli_oauth_env_for_child, setup_gemini_cli_home,
-    write_codex_cli_auth_file,
+    refresh_cli_oauth_for_retry, sanitize_cli_oauth_env_for_child, write_codex_cli_auth_file,
 };
 use super::plan_approval::{
     create_plan_content_from_chunk, is_successful_mode_tool, plan_candidate_path_from_chunk,
     register_cli_plan_approval, register_synthetic_cli_plan_approval,
 };
 use super::proxy_release::release_proxy_token_for_session;
-use super::token_sync::{sync_codex_cli_auth_to_key_vault, sync_gemini_cli_auth_to_key_vault};
+use super::token_sync::sync_codex_cli_auth_to_key_vault;
 
 const SPAWN_RETRY_ATTEMPTS: usize = 3;
 const SPAWN_RETRY_BASE_DELAY_MS: u64 = 250;
@@ -221,7 +220,7 @@ pub async fn run_session(
         .ok_or("cli_agent_type is required but was not set on the session")?;
     let agent = ModelType::from_str(cli_agent_type_str).ok_or_else(|| {
         format!(
-            "Unknown CLI agent type: '{}'. Supported: cursor_cli, claude_code, codex, gemini_cli, kiro, copilot, opencode",
+            "Unknown CLI agent type: '{}'. Supported: cursor_cli, claude_code, codex, kiro, copilot, opencode",
             cli_agent_type_str
         )
     })?;
@@ -242,11 +241,6 @@ pub async fn run_session(
                 ModelType::ClaudeCode => Some(
                     KEY_SERVICE
                         .ensure_claude_code_oauth_key_fresh(account_id)
-                        .await?,
-                ),
-                ModelType::GeminiCli => Some(
-                    KEY_SERVICE
-                        .ensure_gemini_oauth_key_fresh(account_id)
                         .await?,
                 ),
                 _ => selected_key,
@@ -604,15 +598,6 @@ pub async fn run_session(
             codex_home.to_string_lossy().to_string(),
         );
         write_codex_cli_auth_file(account_id, &env_vars);
-    }
-
-    if matches!(agent, ModelType::GeminiCli) {
-        let gemini_home =
-            setup_gemini_cli_home(session.key_source, &session_id, account_id, &env_vars)
-                .map_err(|err| format!("Failed to setup Gemini CLI home: {}", err))?;
-        let home_path = gemini_home.to_string_lossy().to_string();
-        tracing::info!("[CodeSession] GEMINI_CLI_HOME={}", home_path);
-        env_vars.insert("GEMINI_CLI_HOME".to_string(), home_path);
     }
 
     if matches!(agent, ModelType::OpenCode)
@@ -976,16 +961,6 @@ pub async fn run_session(
             .current_dir(working_dir)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        if matches!(agent, ModelType::GeminiCli) {
-            if let Some(gemini_home) = env_vars.get("GEMINI_CLI_HOME") {
-                spawn_cmd.env("HOME", gemini_home);
-            }
-            spawn_cmd
-                .env("GEMINI_CLI_TRUST_WORKSPACE", "true")
-                .env_remove("GEMINI_CLI_IDE_PID")
-                .env_remove("GEMINI_CLI_IDE_SERVER_PORT")
-                .env_remove("GEMINI_CLI_IDE_WORKSPACE_PATH");
-        }
         if is_acp_agent {
             spawn_cmd.stdin(Stdio::piped());
         } else {
@@ -1608,26 +1583,6 @@ pub async fn run_session(
         }
     }
 
-    if agent == ModelType::GeminiCli && session.key_source == KeySource::OwnKey {
-        let launched_access_token = env_vars.get("GEMINI_ACCESS_TOKEN").map(String::as_str);
-        if let Err(err) = sync_gemini_cli_auth_to_key_vault(account_id, launched_access_token) {
-            tracing::warn!(
-                "[CodeSession] Failed to sync Gemini CLI auth tokens: {}",
-                err
-            );
-        }
-        if exit_code == 0 {
-            if let Some(account_id) = account_id {
-                if let Err(err) = KEY_SERVICE.reset_oauth_refresh_failures(account_id) {
-                    tracing::warn!(
-                        "[CodeSession] Failed to reset Gemini OAuth refresh failures: {}",
-                        err
-                    );
-                }
-            }
-        }
-    }
-
     if let Some(ref cli_sid) = cli_session_id_out {
         persistence::update_cli_session_id_for_account(&session_id, account_id, cli_sid).ok();
     }
@@ -2030,132 +1985,6 @@ mod tests {
         );
         assert!(!codex_env.contains_key(CODEX_REFRESH_TOKEN_ENV_KEY));
         assert!(!codex_env.contains_key(CODEX_ID_TOKEN_ENV_KEY));
-
-        let mut gemini_env = HashMap::new();
-        gemini_env.insert(
-            "GEMINI_ACCESS_TOKEN".to_string(),
-            "access-token".to_string(),
-        );
-        gemini_env.insert(
-            "GEMINI_REFRESH_TOKEN".to_string(),
-            "refresh-token".to_string(),
-        );
-        gemini_env.insert(
-            "GEMINI_EXPIRES_AT".to_string(),
-            "2030-01-01T00:00:00Z".to_string(),
-        );
-        sanitize_cli_oauth_env_for_child(&ModelType::GeminiCli, &mut gemini_env);
-        assert_eq!(
-            gemini_env.get("GEMINI_ACCESS_TOKEN").map(String::as_str),
-            Some("access-token")
-        );
-        assert!(!gemini_env.contains_key("GEMINI_REFRESH_TOKEN"));
-        assert_eq!(
-            gemini_env.get("GEMINI_EXPIRES_AT").map(String::as_str),
-            Some("2030-01-01T00:00:00Z")
-        );
-    }
-
-    #[test]
-    fn gemini_own_key_oauth_home_writes_oauth_files() {
-        with_temp_orgii_home(|root| {
-            let mut env_vars = HashMap::new();
-            env_vars.insert(
-                "GEMINI_ACCESS_TOKEN".to_string(),
-                "access-token".to_string(),
-            );
-            env_vars.insert(
-                "GEMINI_REFRESH_TOKEN".to_string(),
-                "refresh-token".to_string(),
-            );
-            env_vars.insert(
-                "GEMINI_EXPIRES_AT".to_string(),
-                "2026-05-18T00:00:00Z".to_string(),
-            );
-            env_vars.insert("GEMINI_TOKEN_TYPE".to_string(), "Bearer".to_string());
-
-            let home = setup_gemini_cli_home(
-                KeySource::OwnKey,
-                "session-1",
-                Some("gemini-account"),
-                &env_vars,
-            )
-            .expect("setup Gemini OAuth home");
-
-            assert!(home.starts_with(root));
-            let gemini_dir = home.join(".gemini");
-            let oauth = read_json(&gemini_dir.join("oauth_creds.json"));
-            let settings = read_json(&gemini_dir.join("settings.json"));
-            assert_eq!(oauth["access_token"], "access-token");
-            assert_eq!(oauth["refresh_token"], "refresh-token");
-            assert_eq!(oauth["expiry"], "2026-05-18T00:00:00Z");
-            assert_eq!(
-                settings["security"]["auth"]["selectedType"],
-                "oauth-personal"
-            );
-            assert_eq!(settings["ide"]["enabled"], false);
-        });
-    }
-
-    #[test]
-    fn gemini_own_key_api_key_home_writes_api_key_settings_only() {
-        with_temp_orgii_home(|root| {
-            let mut env_vars = HashMap::new();
-            env_vars.insert("GEMINI_API_KEY".to_string(), "api-key".to_string());
-
-            let home = setup_gemini_cli_home(
-                KeySource::OwnKey,
-                "session-2",
-                Some("gemini-api-account"),
-                &env_vars,
-            )
-            .expect("setup Gemini API-key home");
-
-            assert!(home.starts_with(root));
-            let gemini_dir = home.join(".gemini");
-            let settings = read_json(&gemini_dir.join("settings.json"));
-            assert_eq!(
-                settings["security"]["auth"]["selectedType"],
-                "gemini-api-key"
-            );
-            assert_eq!(settings["ide"]["enabled"], false);
-            assert!(!gemini_dir.join("oauth_creds.json").exists());
-        });
-    }
-
-    #[test]
-    fn gemini_own_key_home_requires_account_id() {
-        with_temp_orgii_home(|_root| {
-            let env_vars = HashMap::new();
-            let err = setup_gemini_cli_home(KeySource::OwnKey, "session-3", None, &env_vars)
-                .expect_err("missing account id must fail");
-            assert!(err.contains("requires account_id"));
-        });
-    }
-
-    #[test]
-    fn gemini_stderr_oauth_failure_is_retryable_before_replay_unsafe_output() {
-        assert!(is_cli_oauth_stderr_retry_candidate(
-            &ModelType::GeminiCli,
-            KeySource::OwnKey,
-            1,
-            false,
-        ));
-        assert!(is_cli_oauth_failure_message(
-            "Gemini OAuth access token expired and failed to refresh"
-        ));
-        assert!(!is_cli_oauth_stderr_retry_candidate(
-            &ModelType::GeminiCli,
-            KeySource::OwnKey,
-            1,
-            true,
-        ));
-        assert!(!is_cli_oauth_stderr_retry_candidate(
-            &ModelType::GeminiCli,
-            KeySource::HostedKey,
-            1,
-            false,
-        ));
     }
 
     #[test]

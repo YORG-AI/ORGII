@@ -72,6 +72,16 @@ pub fn record_local_update(
     }
     let connection = super::conn()?;
     if read_adapter_binding(&connection, project_slug)?.is_none() {
+        // Adapter binding and collab-org sync are mutually exclusive per
+        // project (design §16.10): with no adapter bound, a project whose
+        // org is collab-synced routes the change to the orgii_collab
+        // bridge queue instead.
+        crate::sync::collab_bridge::record_project_work_item_update(
+            &connection,
+            project_slug,
+            short_id,
+            changed_fields,
+        )?;
         return Ok(());
     }
     let now = std::time::SystemTime::now()
@@ -112,11 +122,18 @@ pub fn claim_next_pending(c: &Connection, now_ms: i64) -> Result<Option<OutboxEn
     // immediately abandon. Filtering at claim time keeps the
     // discrimination in one place rather than scattered across every
     // adapter's push implementation.
+    //
+    // Rows with a non-NULL `org_id` belong to the orgii_collab TS
+    // bridge (see `crate::sync::collab_bridge`); the worker must not
+    // claim them — process_entry would resolve `sync_kind='none'` and
+    // mark them succeeded as a no-op before the bridge ever drained
+    // them.
     let candidate: Option<i64> = c
         .query_row(
             "SELECT id FROM outbox_entries
              WHERE status = ?1
                AND op != ?3
+               AND org_id IS NULL
                AND (last_attempted_at IS NULL OR last_attempted_at <= ?2)
              ORDER BY created_at ASC, id ASC
              LIMIT 1",
@@ -170,6 +187,7 @@ pub fn claim_next_merge_external(
             "SELECT id FROM outbox_entries
              WHERE status = ?1
                AND op = ?3
+               AND org_id IS NULL
                AND (last_attempted_at IS NULL OR last_attempted_at <= ?2)
              ORDER BY created_at ASC, id ASC
              LIMIT 1",

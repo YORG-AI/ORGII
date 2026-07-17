@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::agent_sessions::unified_stats::status::is_active_status;
+use crate::agent_sessions::session_directory::status::is_active_status;
 
 // ============================================================================
 // Types

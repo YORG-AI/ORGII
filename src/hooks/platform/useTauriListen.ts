@@ -12,6 +12,8 @@
 import { type UnlistenFn, listen } from "@tauri-apps/api/event";
 import { useEffect, useRef } from "react";
 
+import { recordPushEvent } from "@src/util/monitoring/apiTracker";
+
 interface UseTauriListenOptions {
   enabled?: boolean;
 }
@@ -41,6 +43,7 @@ export function useTauriListen<T = unknown>(
 
     (async () => {
       const fn = await listen<T>(event, (e) => {
+        recordPushEvent("tauri-event", event);
         handlerRef.current(e.payload);
       });
       if (cancelled) {
@@ -85,6 +88,7 @@ export function useTauriListenMany(
     (async () => {
       for (const reg of active) {
         const fn = await listen<unknown>(reg.event, (e) => {
+          recordPushEvent("tauri-event", reg.event);
           const idx = registrationsRef.current.findIndex(
             (r) => r?.event === reg.event
           );

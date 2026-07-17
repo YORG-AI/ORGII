@@ -100,17 +100,11 @@ const PAGES: NavDestination[] = [
   dest("nav-browser", ROUTES.workStation.browser.path, "pages", {
     keywords: ["web", "devtools", "preview"],
   }),
-  dest("nav-database", ROUTES.workStation.database.path, "pages", {
-    keywords: ["sql", "schema", "query"],
-  }),
   dest("nav-project", ROUTES.workStation.project.path, "pages", {
     keywords: ["projects", "work items", "tasks"],
   }),
   dest("nav-agents", buildAgentOrgsPath(), "pages", {
     keywords: ["automation", "agent teams", "team"],
-  }),
-  dest("nav-journey-record", ROUTES.app.journey.record.path, "pages", {
-    keywords: ["analytics", "activity", "history"],
   }),
 ];
 

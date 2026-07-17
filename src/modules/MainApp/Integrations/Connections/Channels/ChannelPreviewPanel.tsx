@@ -16,10 +16,10 @@ import {
   PanelHeader,
   Placeholder,
 } from "@src/modules/shared/layouts/blocks";
+import { InfoRow } from "@src/modules/shared/layouts/blocks/InfoRow";
 
 import { ChannelDetailContent, ChannelWizard } from ".";
 import { DetailHeaderClose } from "../../shared/DetailHeaderClose";
-import { InfoRow } from "../../shared/InfoRow";
 import { ChannelOverviewSection, ProbeSection } from "./components";
 
 interface ChannelPreviewPanelProps {

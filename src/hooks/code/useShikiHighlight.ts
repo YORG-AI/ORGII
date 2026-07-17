@@ -13,12 +13,123 @@
  */
 import { useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
-import { createJavaScriptRegexEngine, getSingletonHighlighter } from "shiki";
+import { createBundledHighlighter, makeSingletonHighlighter } from "shiki/core";
+import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 
 import { createLogger } from "@src/hooks/logger";
 import { isDarkThemeAtom } from "@src/store/ui/uiAtom";
 
 const logger = createLogger("ShikiHighlight");
+
+const shikiLanguages = {
+  css: () =>
+    import(/* webpackChunkName: "shiki-lang-css" */ "shiki/langs/css.mjs"),
+  diff: () =>
+    import(/* webpackChunkName: "shiki-lang-diff" */ "shiki/langs/diff.mjs"),
+  dockerfile: () =>
+    import(
+      /* webpackChunkName: "shiki-lang-dockerfile" */ "shiki/langs/dockerfile.mjs"
+    ),
+  go: () =>
+    import(/* webpackChunkName: "shiki-lang-go" */ "shiki/langs/go.mjs"),
+  html: () =>
+    import(/* webpackChunkName: "shiki-lang-html" */ "shiki/langs/html.mjs"),
+  javascript: () =>
+    import(
+      /* webpackChunkName: "shiki-lang-javascript" */ "shiki/langs/javascript.mjs"
+    ),
+  json: () =>
+    import(/* webpackChunkName: "shiki-lang-json" */ "shiki/langs/json.mjs"),
+  jsx: () =>
+    import(/* webpackChunkName: "shiki-lang-jsx" */ "shiki/langs/jsx.mjs"),
+  log: () =>
+    import(/* webpackChunkName: "shiki-lang-log" */ "shiki/langs/log.mjs"),
+  markdown: () =>
+    import(
+      /* webpackChunkName: "shiki-lang-markdown" */ "shiki/langs/markdown.mjs"
+    ),
+  python: () =>
+    import(
+      /* webpackChunkName: "shiki-lang-python" */ "shiki/langs/python.mjs"
+    ),
+  rust: () =>
+    import(/* webpackChunkName: "shiki-lang-rust" */ "shiki/langs/rust.mjs"),
+  shellscript: () =>
+    import(
+      /* webpackChunkName: "shiki-lang-shellscript" */ "shiki/langs/shellscript.mjs"
+    ),
+  sql: () =>
+    import(/* webpackChunkName: "shiki-lang-sql" */ "shiki/langs/sql.mjs"),
+  tsx: () =>
+    import(/* webpackChunkName: "shiki-lang-tsx" */ "shiki/langs/tsx.mjs"),
+  typescript: () =>
+    import(
+      /* webpackChunkName: "shiki-lang-typescript" */ "shiki/langs/typescript.mjs"
+    ),
+  yaml: () =>
+    import(/* webpackChunkName: "shiki-lang-yaml" */ "shiki/langs/yaml.mjs"),
+};
+
+const shikiThemes = {
+  "github-light": () =>
+    import(
+      /* webpackChunkName: "shiki-theme-github-light" */ "shiki/themes/github-light.mjs"
+    ),
+  "one-dark-pro": () =>
+    import(
+      /* webpackChunkName: "shiki-theme-one-dark-pro" */ "shiki/themes/one-dark-pro.mjs"
+    ),
+};
+
+type SupportedShikiLanguage = keyof typeof shikiLanguages;
+type SupportedShikiTheme = keyof typeof shikiThemes;
+
+const shikiLanguageAliases: Record<string, SupportedShikiLanguage> = {
+  bash: "shellscript",
+  cjs: "javascript",
+  js: "javascript",
+  jsonc: "json",
+  jsx: "jsx",
+  mjs: "javascript",
+  md: "markdown",
+  py: "python",
+  rs: "rust",
+  sh: "shellscript",
+  shell: "shellscript",
+  ts: "typescript",
+  tsx: "tsx",
+  txt: "log",
+  yml: "yaml",
+  zsh: "shellscript",
+};
+
+function resolveSupportedLanguage(lang: string): SupportedShikiLanguage | null {
+  const normalized = lang.trim().toLowerCase();
+  if (!normalized || normalized === "text" || normalized === "plain") {
+    return null;
+  }
+
+  if (normalized in shikiLanguages) {
+    return normalized as SupportedShikiLanguage;
+  }
+
+  return shikiLanguageAliases[normalized] ?? null;
+}
+
+function resolveSupportedTheme(
+  theme: string,
+  fallback: SupportedShikiTheme
+): SupportedShikiTheme {
+  return theme in shikiThemes ? (theme as SupportedShikiTheme) : fallback;
+}
+
+const getSingletonHighlighter = makeSingletonHighlighter(
+  createBundledHighlighter({
+    langs: shikiLanguages,
+    themes: shikiThemes,
+    engine: createJavaScriptRegexEngine,
+  })
+);
 
 // Resolve the highlighter once with the JS regex engine (no WASM) so webpack
 // production builds don't fail on `import('shiki/wasm')` dynamic imports that
@@ -26,7 +137,6 @@ const logger = createLogger("ShikiHighlight");
 const highlighterPromise = getSingletonHighlighter({
   langs: [],
   themes: [],
-  engine: createJavaScriptRegexEngine(),
 });
 
 // ============================================
@@ -138,13 +248,17 @@ export function useShikiHighlight(
   options: UseShikiHighlightOptions = {}
 ): string {
   const isDark = useAtomValue(isDarkThemeAtom);
-  const defaultTheme = isDark ? "one-dark-pro" : "github-light";
+  const defaultTheme: SupportedShikiTheme = isDark
+    ? "one-dark-pro"
+    : "github-light";
 
   const {
     lang = "shellscript",
     theme = defaultTheme,
     enabled = true,
   } = options;
+  const resolvedLang = resolveSupportedLanguage(lang);
+  const resolvedTheme = resolveSupportedTheme(theme, defaultTheme);
 
   // Store the resolved result as { key, html } so that stale HTML from a
   // previous theme/code/lang is never returned: if the stored key does not
@@ -156,16 +270,16 @@ export function useShikiHighlight(
 
   const cacheEligibility = getCacheEligibility(code);
   const cacheKey =
-    !code || !enabled || !cacheEligibility.cacheable
+    !code || !enabled || !resolvedLang || !cacheEligibility.cacheable
       ? ""
-      : getCacheKey(code, lang, theme);
+      : getCacheKey(code, resolvedLang, resolvedTheme);
   const resultKey =
-    !code || !enabled
+    !code || !enabled || !resolvedLang
       ? ""
-      : `${lang}:${theme}:${code.length}:${getStableHash(code)}`;
+      : `${resolvedLang}:${resolvedTheme}:${code.length}:${getStableHash(code)}`;
 
   useEffect(() => {
-    if (!code || !enabled) return;
+    if (!code || !enabled || !resolvedLang) return;
 
     const cached = cacheKey ? getCachedHighlight(cacheKey) : undefined;
     if (cached) {
@@ -183,9 +297,12 @@ export function useShikiHighlight(
 
     highlighterPromise
       .then(async (hl) => {
-        await hl.loadLanguage(lang as Parameters<typeof hl.loadLanguage>[0]);
-        await hl.loadTheme(theme as Parameters<typeof hl.loadTheme>[0]);
-        return hl.codeToHtml(code, { lang, theme });
+        await hl.loadLanguage(resolvedLang);
+        await hl.loadTheme(resolvedTheme);
+        return hl.codeToHtml(code, {
+          lang: resolvedLang,
+          theme: resolvedTheme,
+        });
       })
       .then((html) => {
         if (!cancelled) {
@@ -202,9 +319,17 @@ export function useShikiHighlight(
     return () => {
       cancelled = true;
     };
-  }, [cacheEligibility.bytes, cacheKey, code, enabled, lang, resultKey, theme]);
+  }, [
+    cacheEligibility.bytes,
+    cacheKey,
+    code,
+    enabled,
+    resolvedLang,
+    resolvedTheme,
+    resultKey,
+  ]);
 
-  if (!code || !enabled) return "";
+  if (!code || !enabled || !resolvedLang) return "";
   // Only return HTML when the key matches; otherwise fall back to plain text
   // so stale dark-theme colors are never painted on a light background.
   return result?.key === resultKey ? result.html : "";
@@ -237,23 +362,30 @@ export function getHighlightCacheSize(): number {
 export async function preWarmCache(
   snippets: Array<{ code: string; lang?: string; theme?: string }>
 ): Promise<void> {
-  const defaultTheme = "one-dark-pro";
+  const defaultTheme: SupportedShikiTheme = "one-dark-pro";
   const hl = await highlighterPromise;
 
   for (const snippet of snippets) {
-    const lang = snippet.lang || "shellscript";
-    const resolvedTheme = snippet.theme || defaultTheme;
+    const resolvedLang = resolveSupportedLanguage(
+      snippet.lang || "shellscript"
+    );
+    if (!resolvedLang) continue;
+
+    const resolvedTheme = resolveSupportedTheme(
+      snippet.theme || defaultTheme,
+      defaultTheme
+    );
     const cacheEligibility = getCacheEligibility(snippet.code);
     if (!cacheEligibility.cacheable) continue;
 
-    const cacheKey = getCacheKey(snippet.code, lang, resolvedTheme);
+    const cacheKey = getCacheKey(snippet.code, resolvedLang, resolvedTheme);
 
     if (!highlightCache.has(cacheKey)) {
       try {
-        await hl.loadLanguage(lang as Parameters<typeof hl.loadLanguage>[0]);
-        await hl.loadTheme(resolvedTheme as Parameters<typeof hl.loadTheme>[0]);
+        await hl.loadLanguage(resolvedLang);
+        await hl.loadTheme(resolvedTheme);
         const result = hl.codeToHtml(snippet.code, {
-          lang,
+          lang: resolvedLang,
           theme: resolvedTheme,
         });
         addToCache(cacheKey, result, cacheEligibility.bytes);

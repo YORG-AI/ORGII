@@ -98,20 +98,14 @@ pub(super) async fn handle_command(
 
             match run_manual_compact(state, &target_sid, &reset_policy).await {
                 ManualCompactResult::Forked(s) => {
-                    let suffix = if s.truncated {
-                        "\n_(Note: compactor fell back to truncation — older context dropped without summary.)_"
-                    } else {
-                        ""
-                    };
                     format!(
-                        "🗜️ Context compacted.\nCompressed: {} → {} messages (~{} → ~{} tokens).\nContinuing in new session `{}` (previous: `{}`).{}",
+                        "🗜️ Context compacted.\nCompressed: {} → {} messages (~{} → ~{} tokens).\nContinuing in new session `{}` (previous: `{}`).",
                         s.messages_before,
                         s.messages_after,
                         s.tokens_before,
                         s.tokens_after,
                         s.new_session_id,
                         s.old_session_id,
-                        suffix,
                     )
                 }
                 ManualCompactResult::AlreadyCompact { message_count, tokens } => format!(
@@ -143,6 +137,7 @@ pub(super) async fn handle_command(
     push_debug_outbound(state, &reply).await;
     Ok(None)
 }
+
 
 async fn build_session_current(state: &AgentAppState, session_key: &SessionKey) -> String {
     match state.gateway_bindings.get(session_key).await {
@@ -623,6 +618,7 @@ fn recent_session_summary(session_id: &str, limit: usize) -> String {
     }
 }
 
+
 async fn handle_model_command(
     state: &AgentAppState,
     _msg: &InboundMessage,
@@ -639,14 +635,19 @@ async fn handle_model_command(
             binding.target_session_id
         );
     };
-    let account_id = state
-        .current_account_id
-        .lock()
-        .await
-        .clone()
-        .or_else(|| state.integrations.snapshot().channels.gateway.account_id.clone());
+    let account_id = state.current_account_id.lock().await.clone().or_else(|| {
+        state
+            .integrations
+            .snapshot()
+            .channels
+            .gateway
+            .account_id
+            .clone()
+    });
     let Some((model, account_id)) = resolve_model_target(requested, account_id.as_deref()) else {
+
         return format!("未找到模型 `{}`", requested);
+
     };
     let sid = binding.target_session_id.clone();
     let model_for_db = model.clone();
@@ -671,9 +672,11 @@ async fn handle_model_command(
             }).await;
             note
         }
+
         Ok(Ok(false)) => format!("切换模型失败：会话 {} 不存在", binding.target_session_id),
         Ok(Err(err)) => format!("切换模型失败：{}", err),
         Err(err) => format!("切换模型失败：{}", err),
+
     }
 }
 
@@ -699,7 +702,8 @@ fn resolve_model_target(
     for (target, names) in MODEL_INPUT_ALIASES {
         if names.iter().any(|name| normalize_model_key(name) == needle) {
             return Some((
-                best_candidate_for_alias(&candidates, target).unwrap_or_else(|| (*target).to_string()),
+                best_candidate_for_alias(&candidates, target)
+                    .unwrap_or_else(|| (*target).to_string()),
                 account_id.map(str::to_string),
             ));
         }
@@ -707,7 +711,11 @@ fn resolve_model_target(
     candidates
         .iter()
         .find(|m| normalize_model_key(m) == needle)
-        .or_else(|| candidates.iter().find(|m| normalize_model_key(m).contains(&needle)))
+        .or_else(|| {
+            candidates
+                .iter()
+                .find(|m| normalize_model_key(m).contains(&needle))
+        })
         .cloned()
         .map(|model| (model, account_id.map(str::to_string)))
 }
@@ -874,7 +882,24 @@ mod help_text_tests {
     }
 
     #[test]
+
     fn fits_message_budget() {
         assert!(build_help_text().len() < 4096);
+
+
+    fn normalize_model_key_ignores_provider_punctuation() {
+        assert_eq!(
+            normalize_model_key("openai/gpt-5.5:openai"),
+            "openaigpt55openai"
+        );
+        assert_eq!(normalize_model_key("GPT-5.5"), "gpt55");
+    }
+
+    #[test]
+    fn fits_telegram_message_budget() {
+        // Hermes caps at 4096 (Telegram limit). 1KB is plenty of head-room
+        // for a static list and forces us to revisit if we balloon.
+        assert!(build_help_text().len() < 1024);
+
     }
 }

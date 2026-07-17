@@ -8,20 +8,23 @@
  * tab pool (`mainPane`), so dispatch to a content renderer is derived from the
  * active tab's type rather than from a separate per-host pane bucket.
  */
+import { atom } from "jotai";
+
+import { activeWorkStationTabAtom } from "./tabs";
 import type {
   WorkStationTab,
   WorkStationTabCategory,
   WorkStationTabType,
 } from "./tabs/types";
 
-export type WorkstationTabHost = "code" | "browser" | "data" | "project";
+export type WorkstationTabHost = "code" | "browser" | "project";
 
 /**
  * Map a tab category onto its content host. Categories are the canonical
  * discriminator already used by the renderer registry.
  *
  * Code-editor-family categories (file, git, terminal, search, settings, lint,
- * ai-impact, preview, subagent, chat, explorer, ops-control, launchpad) all
+ * ai-impact, preview, subagent, chat, explorer, work-management, launchpad) all
  * project onto `"code"` because they render inside the Code Editor surface.
  */
 export function categoryToTabHost(
@@ -30,10 +33,6 @@ export function categoryToTabHost(
   switch (category) {
     case "browser":
       return "browser";
-    case "db-table":
-    case "db-query":
-    case "db-schema":
-      return "data";
     case "project":
       return "project";
     default:
@@ -49,14 +48,8 @@ export function categoryToTabHost(
 export function tabTypeToTabHost(type: WorkStationTabType): WorkstationTabHost {
   switch (type) {
     case "browser-session":
-    case "token-category":
     case "devtools":
       return "browser";
-    case "table":
-    case "query":
-    case "schema":
-    case "add-connection":
-      return "data";
     case "project-dashboard":
     case "project-work-items":
     case "project-linear-projects":
@@ -79,3 +72,16 @@ export function tabToHost(tab: WorkStationTab): WorkstationTabHost {
     ? categoryToTabHost(tab.category)
     : tabTypeToTabHost(tab.type);
 }
+
+/**
+ * The host whose content the AppShell mounts. The unified workstation runs a
+ * single flat tab pool, so the visible host simply follows the active tab's
+ * type — clicking a tab in the unified bar swaps the content area without any
+ * route navigation. Falls back to `"code"` when no tab is active (empty pool /
+ * Launchpad).
+ */
+export const activeHostAtom = atom<WorkstationTabHost>((get) => {
+  const activeTab = get(activeWorkStationTabAtom);
+  return activeTab ? tabToHost(activeTab) : "code";
+});
+activeHostAtom.debugLabel = "activeHostAtom";

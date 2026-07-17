@@ -33,6 +33,7 @@ const APICallPanel: React.FC<APICallPanelProps> = ({
   apiCalls,
   hotspots,
   timerHotspots,
+  pushHotspots,
   onClose,
   onClear,
 }) => {
@@ -69,6 +70,7 @@ const APICallPanel: React.FC<APICallPanelProps> = ({
             apiCalls={apiCalls}
             hotspots={hotspots}
             timerHotspots={timerHotspots}
+            pushHotspots={pushHotspots}
             expandedCall={expandedCall}
             onToggleExpand={toggleExpand}
             onExpandedChange={setExpandedCall}
@@ -96,6 +98,7 @@ export const APICallPanelProvider: React.FC = () => {
     apiCalls,
     hotspots,
     timerHotspots,
+    pushHotspots,
     handleClose,
     handleClear,
   } = useAPICallPanelProvider();
@@ -106,6 +109,7 @@ export const APICallPanelProvider: React.FC = () => {
       apiCalls={apiCalls}
       hotspots={hotspots}
       timerHotspots={timerHotspots}
+      pushHotspots={pushHotspots}
       onClose={handleClose}
       onClear={handleClear}
     />

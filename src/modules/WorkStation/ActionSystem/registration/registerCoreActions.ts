@@ -37,6 +37,7 @@ import { navigationZodActions } from "./actions/navigationActions.zod";
 import { panelZodActions } from "./actions/panelActions.zod";
 import { repoZodActions } from "./actions/repoActions.zod";
 import { createSearchZodActions } from "./actions/searchActions.zod";
+import { sessionCommentZodActions } from "./actions/sessionCommentActions.zod";
 import { terminalZodActions } from "./actions/terminalActions.zod";
 import { createTestZodActions } from "./actions/testActions.zod";
 import { urlPreviewActions } from "./actions/urlPreviewActions.zod";
@@ -72,6 +73,7 @@ export function getAllCoreZodActions(
     ...gitZodActions,
     ...urlPreviewActions,
     ...repoZodActions,
+    ...sessionCommentZodActions,
   ];
 }
 

@@ -61,12 +61,7 @@ const RUST_TOOL_NAMES = {
     "manage_nodes",
     "manage_agent_def",
   ],
-  meta: [
-    "suggest_mode_switch",
-    "suggest_next_steps",
-    "worktree",
-    "tool_search",
-  ],
+  meta: ["suggest_mode_switch", "worktree", "tool_search"],
 } as const;
 
 const ALL_RUST_TOOLS = Object.values(RUST_TOOL_NAMES).flat();

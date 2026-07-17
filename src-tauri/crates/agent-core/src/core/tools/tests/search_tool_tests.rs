@@ -217,7 +217,32 @@ async fn repo_paths_rejects_empty_array() {
 }
 
 #[tokio::test]
-async fn repo_path_and_repo_paths_conflict_returns_error() {
+async fn nullable_repo_paths_placeholder_uses_default_repo() {
+    let tool = make_tool("/definitely/does/not/exist/default-repo");
+    let result = tool
+        .execute(
+            serde_json::json!({
+                "action": "grep",
+                "pattern": "test",
+                "repo_paths": null
+            }),
+            &crate::tools::call_context::CallContext::default(),
+        )
+        .await;
+
+    let err = format!("{}", result.expect_err("default repo should not exist"));
+    assert!(
+        err.contains("default-repo"),
+        "should use default repo: {err}"
+    );
+    assert!(
+        !err.contains("array of strings"),
+        "null placeholder should be treated as omitted: {err}"
+    );
+}
+
+#[tokio::test]
+async fn repo_path_and_repo_paths_merge_without_conflict_error() {
     let tool = make_tool("/tmp");
     let result = tool
         .execute(
@@ -230,12 +255,14 @@ async fn repo_path_and_repo_paths_conflict_returns_error() {
             &crate::tools::call_context::CallContext::default(),
         )
         .await;
-    assert!(result.is_err());
-    let err = format!("{}", result.unwrap_err());
-    assert!(
-        err.contains("repo_path") && err.contains("repo_paths"),
-        "Should mention conflicting repo path fields: {err}"
-    );
+
+    if let Err(err) = result {
+        let err = format!("{err}");
+        assert!(
+            !(err.contains("repo_path") && err.contains("repo_paths")),
+            "both fields should merge rather than conflict: {err}"
+        );
+    }
 }
 
 #[tokio::test]

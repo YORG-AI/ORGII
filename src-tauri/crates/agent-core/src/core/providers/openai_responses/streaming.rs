@@ -319,8 +319,8 @@ impl LLMProvider for OpenAIResponsesClient {
                         ResponsesStreamOutput::ResponseCompleted(response) => {
                             final_response = Some(response);
                         }
-                        ResponsesStreamOutput::Error(error_msg) => {
-                            return Err(ProviderError::RequestFailed(error_msg));
+                        ResponsesStreamOutput::Error(error) => {
+                            return Err(error.into_provider_error());
                         }
                         ResponsesStreamOutput::UnknownFrame { event_type, sample } => {
                             warn!(

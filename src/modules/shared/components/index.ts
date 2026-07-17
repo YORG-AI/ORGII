@@ -5,9 +5,7 @@
  */
 
 export { BackgroundLayer } from "./BackgroundLayer";
-export { default as MarkdownEditor } from "./MarkdownEditor";
 export type { MarkdownEditorProps } from "./MarkdownEditor";
-export { useMarkdownEditorTabs } from "./MarkdownEditor";
 export { default as SaveableTextarea } from "./SaveableTextarea";
 export type { SaveableTextareaProps } from "./SaveableTextarea";
 export { GlobalSpotlightPortal } from "./GlobalSpotlightPortal";

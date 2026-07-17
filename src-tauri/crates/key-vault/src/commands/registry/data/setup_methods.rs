@@ -4,11 +4,7 @@ pub const SETUP_AUTODETECT: &str = "autodetect";
 pub const SETUP_ENTER_KEY: &str = "enter_key";
 pub const SETUP_EXTRACT: &str = "extract";
 
-const GENERIC_SETUP_METHODS_DEFAULT: &[&str] = &[
-    SETUP_AUTODETECT,
-    SETUP_ENTER_KEY,
-    SETUP_EXTRACT,
-];
+const GENERIC_SETUP_METHODS_DEFAULT: &[&str] = &[SETUP_AUTODETECT, SETUP_ENTER_KEY, SETUP_EXTRACT];
 
 const GENERIC_SETUP_METHOD_OVERRIDES: &[(&str, &[&str])] =
     &[("opencode", &[SETUP_AUTODETECT, SETUP_ENTER_KEY])];

@@ -1,9 +1,17 @@
 /**
  * Pure tab mutation helpers (panel tab strip).
  */
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  clearSearchTabSessionStates,
+  deleteSearchTabSessionState,
+} from "@src/store/workstation/codeEditor/search";
+
+import {
+  closeAllTabs,
+  closeOtherTabs,
+  closeSavedTabs,
   closeTab,
   openTab,
   reorderTabs,
@@ -12,6 +20,17 @@ import {
 } from "../tabMutations";
 import { TAB_RETURN_TARGET_DATA_KEY } from "../types";
 import type { PanelState, WorkStationTab } from "../types";
+
+// The search session cache is the one resource teardown that lives *inside*
+// the close mutations (see tabMutations.ts). Mock it so we can assert the
+// "offload on close" contract without touching the real module-level Map.
+vi.mock("@src/store/workstation/codeEditor/search", () => ({
+  deleteSearchTabSessionState: vi.fn(),
+  clearSearchTabSessionStates: vi.fn(),
+}));
+
+const mockDeleteSearchTabSessionState = vi.mocked(deleteSearchTabSessionState);
+const mockClearSearchTabSessionStates = vi.mocked(clearSearchTabSessionStates);
 
 function tab(
   overrides: Partial<WorkStationTab> & Pick<WorkStationTab, "id">
@@ -136,5 +155,92 @@ describe("updateTabData", () => {
     };
     const next = updateTabData(state, "file:a.ts", { scrollTop: 10 });
     expect(next.tabs[0].data).toEqual({ path: "/a.ts", scrollTop: 10 });
+  });
+});
+
+// "Offload on close": search tabs own an in-memory session-cache entry
+// (query + options + result array) keyed by the `search:` tab id. Every
+// close mutation must release it so it does not outlive the tab. This is
+// the only resource teardown wired inside the mutation helpers, so it is
+// locked here against regressions to the `search:` id prefix / strategy.
+describe("search session cache cleanup on close", () => {
+  beforeEach(() => {
+    mockDeleteSearchTabSessionState.mockClear();
+    mockClearSearchTabSessionStates.mockClear();
+  });
+
+  it("closeTab deletes the session state for a search tab", () => {
+    const state: PanelState = {
+      tabs: [tab({ id: "search:123-abc", type: "search" })],
+      activeTabId: "search:123-abc",
+    };
+    closeTab(state, "search:123-abc");
+    expect(mockDeleteSearchTabSessionState).toHaveBeenCalledWith(
+      "search:123-abc"
+    );
+  });
+
+  it("closeTab does not touch the cache for a non-search tab", () => {
+    const state: PanelState = {
+      tabs: [tab({ id: "file:a.ts" })],
+      activeTabId: "file:a.ts",
+    };
+    closeTab(state, "file:a.ts");
+    expect(mockDeleteSearchTabSessionState).not.toHaveBeenCalled();
+  });
+
+  it("closeAllTabs clears every search session state when a search tab existed", () => {
+    const state: PanelState = {
+      tabs: [tab({ id: "file:a.ts" }), tab({ id: "search:1", type: "search" })],
+      activeTabId: "search:1",
+    };
+    closeAllTabs(state);
+    expect(mockClearSearchTabSessionStates).toHaveBeenCalledTimes(1);
+  });
+
+  it("closeAllTabs skips the cache clear when no search tab existed", () => {
+    const state: PanelState = {
+      tabs: [tab({ id: "file:a.ts" })],
+      activeTabId: "file:a.ts",
+    };
+    closeAllTabs(state);
+    expect(mockClearSearchTabSessionStates).not.toHaveBeenCalled();
+  });
+
+  it("closeOtherTabs deletes closed search tabs but keeps the retained one", () => {
+    const state: PanelState = {
+      tabs: [
+        tab({ id: "search:keep", type: "search" }),
+        tab({ id: "search:drop", type: "search" }),
+        tab({ id: "file:a.ts" }),
+      ],
+      activeTabId: "search:keep",
+    };
+    closeOtherTabs(state, "search:keep");
+    expect(mockDeleteSearchTabSessionState).toHaveBeenCalledWith("search:drop");
+    expect(mockDeleteSearchTabSessionState).not.toHaveBeenCalledWith(
+      "search:keep"
+    );
+  });
+
+  it("closeSavedTabs deletes session state for closed (saved) search tabs", () => {
+    const state: PanelState = {
+      tabs: [
+        tab({ id: "search:saved", type: "search" }),
+        tab({
+          id: "search:dirty",
+          type: "search",
+          hasUnsavedChanges: true,
+        }),
+      ],
+      activeTabId: "search:saved",
+    };
+    closeSavedTabs(state);
+    expect(mockDeleteSearchTabSessionState).toHaveBeenCalledWith(
+      "search:saved"
+    );
+    expect(mockDeleteSearchTabSessionState).not.toHaveBeenCalledWith(
+      "search:dirty"
+    );
   });
 });

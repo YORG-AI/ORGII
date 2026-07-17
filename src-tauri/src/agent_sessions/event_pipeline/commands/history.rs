@@ -132,7 +132,7 @@ fn cli_child_session_records(parent_session_id: &str) -> Result<Vec<UnifiedSessi
     let mut stmt = conn
         .prepare(
             "SELECT cs.session_id, cs.name, cs.status, cs.model, cs.user_input, cs.created_at, cs.updated_at, cs.repo_path, cs.branch, \
-             COALESCE((SELECT SUM(total_tokens) FROM session_token_usage WHERE session_id = cs.session_id), 0) AS total_tokens \
+             COALESCE((SELECT total_tokens FROM orgtrack_core_session_usage WHERE session_id = cs.session_id), 0) AS total_tokens \
              FROM code_sessions cs \
              WHERE cs.parent_session_id = ?1 \
              ORDER BY cs.updated_at DESC, cs.created_at DESC, cs.session_id ASC",

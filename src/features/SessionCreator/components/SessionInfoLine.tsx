@@ -24,7 +24,7 @@ import React, {
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
-import { gitApi, removeGitWorktree } from "@src/api/http/git";
+import { gitApi } from "@src/api/http/git";
 import { CheckoutBlockedDialog } from "@src/components/GitDialogs/CheckoutBlockedDialog";
 import { CheckoutConflictDialog } from "@src/components/GitDialogs/CheckoutConflictDialog";
 import PillGroup, { type PillGroupVariant } from "@src/components/PillGroup";
@@ -44,6 +44,7 @@ import { WorkspacePalette } from "@src/scaffold/GlobalSpotlight/palettes/Workspa
 import { WorkspaceDropdown } from "@src/scaffold/GlobalSpotlight/palettes/WorkspacePalette/WorkspaceDropdown";
 import { runGuardedCheckout } from "@src/services/git/operations/guardedCheckout";
 import { REPO_KIND, type RepoKind } from "@src/store/repo/types";
+import type { WorktreeLaunchSource } from "@src/store/session/worktreeLaunchSourceAtom";
 import { modelPickerStyleAtom } from "@src/store/ui/chatPanelAtom";
 import {
   branchSelectorOpenAtom,
@@ -60,6 +61,7 @@ import {
 } from "./SessionInfoLine/buildSessionInfoSegments";
 import { type LocationRow } from "./SessionInfoLine/locationConfig";
 import { useSystemPathRepoItems } from "./SessionInfoLine/useSystemPathRepoItems";
+import WorktreeSourceModal from "./WorktreeSourceModal";
 
 // ============================================
 // Type Definitions
@@ -122,7 +124,127 @@ export interface SessionInfoLineProps {
    * (This Mac / New Worktree / Cloud) — modelled after Cursor's context bar.
    */
   worktreeLocation?: RunningLocation;
+  selectedWorktreePath?: string | null;
+  worktreeSourceLabel?: string;
   onWorktreeLocationChange?: (location: RunningLocation) => void;
+  onWorktreeSourceSelect?: (source: WorktreeLaunchSource) => void;
+}
+
+const LOCATION_ROWS: LocationRow[] = RUNNING_LOCATIONS.map((entry) => ({
+  id: entry.id,
+  disabled: entry.disabled === true,
+}));
+
+function getLocationRow(location: RunningLocation): LocationRow {
+  return (
+    LOCATION_ROWS.find((row) => row.id === location) ?? {
+      id: location,
+      disabled: false,
+    }
+  );
+}
+
+interface SelectorShortcutBridgeState {
+  disabled: boolean;
+  showBranchRow: boolean;
+  repoId?: string;
+  worktreeLocation?: RunningLocation;
+  isLocationDropdownOpen: boolean;
+  toggleLocation: () => void;
+}
+
+interface SelectorShortcutBridgeParams extends SelectorShortcutBridgeState {
+  openBranchSelector: () => void;
+  openRepoSelector: () => void;
+}
+
+function useSelectorShortcutBridge({
+  disabled,
+  showBranchRow,
+  repoId,
+  worktreeLocation,
+  isLocationDropdownOpen,
+  toggleLocation,
+  openBranchSelector,
+  openRepoSelector,
+}: SelectorShortcutBridgeParams): void {
+  const store = useStore();
+  const setGlobalBranchSelectorOpen = useSetAtom(branchSelectorOpenAtom);
+  const setGlobalRepoSelectorOpen = useSetAtom(repoSelectorOpenAtom);
+  const setGlobalLocationSelectorOpen = useSetAtom(locationSelectorOpenAtom);
+
+  // Latest gating flags + handlers accessed from the store subscription.
+  // The subscription registers once per `store` instance; without a ref we
+  // would have to re-subscribe on every prop change. The ref body is
+  // refreshed in an effect (writing `.current` in render is disallowed by
+  // the React Compiler `refs` rule).
+  const bridgeStateRef = useRef<SelectorShortcutBridgeState>({
+    disabled,
+    showBranchRow,
+    repoId,
+    worktreeLocation,
+    isLocationDropdownOpen,
+    toggleLocation,
+  });
+
+  useEffect(() => {
+    bridgeStateRef.current = {
+      disabled,
+      showBranchRow,
+      repoId,
+      worktreeLocation,
+      isLocationDropdownOpen,
+      toggleLocation,
+    };
+  });
+
+  // Bridge global shortcut atoms (⌘., ⌥⌘., ⇧⌘.) → local dropdown state.
+  // The atoms behave as one-shot signals: a shortcut handler flips them to
+  // true, this component consumes the edge, opens the matching dropdown,
+  // and flips the atom back to false so a second press re-triggers.
+  //
+  // We subscribe to the Jotai store directly (outside the React render
+  // tree) rather than reading the atom via `useAtomValue` + `useEffect`.
+  // That avoids the React Compiler `set-state-in-effect` rule, because
+  // the setState calls run from a store subscription callback — the same
+  // category as a DOM event listener — instead of synchronously inside a
+  // render effect.
+  useEffect(() => {
+    const unsubBranch = store.sub(branchSelectorOpenAtom, () => {
+      if (!store.get(branchSelectorOpenAtom)) return;
+      setGlobalBranchSelectorOpen(false);
+      const s = bridgeStateRef.current;
+      if (s.disabled || !s.showBranchRow || !s.repoId) return;
+      openBranchSelector();
+    });
+    const unsubRepo = store.sub(repoSelectorOpenAtom, () => {
+      if (!store.get(repoSelectorOpenAtom)) return;
+      setGlobalRepoSelectorOpen(false);
+      const s = bridgeStateRef.current;
+      if (s.disabled) return;
+      openRepoSelector();
+    });
+    const unsubLocation = store.sub(locationSelectorOpenAtom, () => {
+      if (!store.get(locationSelectorOpenAtom)) return;
+      setGlobalLocationSelectorOpen(false);
+      const s = bridgeStateRef.current;
+      if (s.disabled || s.worktreeLocation === undefined) return;
+      if (s.isLocationDropdownOpen) return;
+      s.toggleLocation();
+    });
+    return () => {
+      unsubBranch();
+      unsubRepo();
+      unsubLocation();
+    };
+  }, [
+    store,
+    setGlobalBranchSelectorOpen,
+    setGlobalRepoSelectorOpen,
+    setGlobalLocationSelectorOpen,
+    openBranchSelector,
+    openRepoSelector,
+  ]);
 }
 
 // ============================================
@@ -143,7 +265,10 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
   pillVariant = "default",
   fullWidth: _fullWidth = false,
   worktreeLocation,
+  selectedWorktreePath,
+  worktreeSourceLabel,
   onWorktreeLocationChange,
+  onWorktreeSourceSelect,
   disabled = false,
   hideBranch = false,
 }) => {
@@ -155,15 +280,8 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
 
   const [isRepoSelectorOpen, setIsRepoSelectorOpen] = useState(false);
   const [isBranchSelectorOpen, setIsBranchSelectorOpen] = useState(false);
-
-  const locationRows = useMemo<LocationRow[]>(
-    () =>
-      RUNNING_LOCATIONS.map((entry) => ({
-        id: entry.id,
-        disabled: entry.disabled === true,
-      })),
-    []
-  );
+  const [isWorktreeSourceModalOpen, setIsWorktreeSourceModalOpen] =
+    useState(false);
 
   // Forward declaration: the actual `close` comes back from
   // `useDropdownEngine` below, but `handleLocationRowSelect` needs to
@@ -173,10 +291,15 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
 
   const handleLocationRowSelect = useCallback(
     (row: LocationRow) => {
+      if (row.id === "worktree" && onWorktreeSourceSelect) {
+        closeLocationRef.current();
+        setIsWorktreeSourceModalOpen(true);
+        return;
+      }
       onWorktreeLocationChange?.(row.id);
       closeLocationRef.current();
     },
-    [onWorktreeLocationChange]
+    [onWorktreeLocationChange, onWorktreeSourceSelect]
   );
 
   const {
@@ -195,7 +318,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
     // against the bottom of the viewport.
     placement: "auto",
     listNavigation: {
-      items: locationRows,
+      items: LOCATION_ROWS,
       onSelect: handleLocationRowSelect,
       isItemSelectable: (row) => !row.disabled,
     },
@@ -244,10 +367,11 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
   );
 
   const systemPathSourceItems = useSystemPathRepoItems(includeSystemPaths, t);
+  const branchRepoPath = selectedWorktreePath ?? repoPath ?? "";
 
   const handleBranchSelect = useCallback(
     async (branch: string) => {
-      if (!repoId || !repoPath || repoKind === REPO_KIND.FOLDER) {
+      if (!repoId || !branchRepoPath || repoKind === REPO_KIND.FOLDER) {
         onBranchChange?.(branch);
         setIsBranchSelectorOpen(false);
         return true;
@@ -255,7 +379,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
 
       const result = await runGuardedCheckout({
         repoId,
-        repoPath,
+        repoPath: branchRepoPath,
         ref: branch,
         onConflict: (name) => CheckoutConflictDialog.open({ branchName: name }),
         onBlocked: ({ branch: name, errorType, message }) =>
@@ -283,7 +407,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
       }
       return false;
     },
-    [onBranchChange, repoId, repoKind, repoPath]
+    [branchRepoPath, onBranchChange, repoId, repoKind]
   );
 
   const handleBranchPaletteSelect = useCallback(
@@ -295,10 +419,10 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
 
   const handleCreateBranch = useCallback(
     async (branch: string, startPoint?: string) => {
-      if (!repoId || !repoPath) return;
+      if (!repoId || !branchRepoPath) return;
       const result = await gitApi.gitCreateBranch({
         repo_id: repoId,
-        repo_path: repoPath,
+        repo_path: branchRepoPath,
         name: branch,
         start_point: startPoint ?? null,
         checkout: false,
@@ -312,7 +436,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
       }
       await handleBranchSelect(branch);
     },
-    [handleBranchSelect, repoId, repoPath]
+    [branchRepoPath, handleBranchSelect, repoId]
   );
 
   const handleDeleteBranch = useCallback(
@@ -320,7 +444,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
       branch: string,
       options?: { silent?: boolean; skipRefresh?: boolean }
     ) => {
-      if (!repoId || !repoPath) {
+      if (!repoId || !branchRepoPath) {
         const message = "No repo selected";
         if (!options?.silent) {
           showGitActionDialogSafely(message, "error");
@@ -330,7 +454,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
 
       const result = await gitApi.gitDeleteBranch({
         repo_id: repoId,
-        repo_path: repoPath,
+        repo_path: branchRepoPath,
         branch_name: branch,
       });
 
@@ -347,48 +471,35 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
       }
       return { success: true };
     },
-    [repoId, repoPath]
-  );
-
-  const handleRemoveWorktree = useCallback(
-    async (
-      worktreePath: string,
-      options?: { silent?: boolean; skipRefresh?: boolean }
-    ) => {
-      if (!repoId || !repoPath) {
-        const message = "No repo selected";
-        if (!options?.silent) {
-          showGitActionDialogSafely(message, "error");
-        }
-        return { success: false, message };
-      }
-
-      try {
-        await removeGitWorktree({
-          repo_id: repoId,
-          repo_path: repoPath,
-          worktree_path: worktreePath,
-          force: true,
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        if (!options?.silent) {
-          showGitActionDialogSafely(message, "error");
-        }
-        return { success: false, message };
-      }
-
-      if (!options?.silent) {
-        showGitActionDialogSafely(`Worktree "${worktreePath}" removed`, "info");
-      }
-      return { success: true };
-    },
-    [repoId, repoPath]
+    [branchRepoPath, repoId]
   );
 
   const handleBranchClose = useCallback(() => {
     setIsBranchSelectorOpen(false);
   }, []);
+
+  const handleRepoClose = useCallback(() => {
+    setIsRepoSelectorOpen(false);
+  }, []);
+
+  const handleLocationPanelSelect = useCallback(
+    (location: RunningLocation) => {
+      handleLocationRowSelect(getLocationRow(location));
+    },
+    [handleLocationRowSelect]
+  );
+
+  const handleWorktreeSourceModalClose = useCallback(() => {
+    setIsWorktreeSourceModalOpen(false);
+  }, []);
+
+  const handleWorktreeSourceSelect = useCallback(
+    (source: WorktreeLaunchSource) => {
+      onWorktreeSourceSelect?.(source);
+      setIsWorktreeSourceModalOpen(false);
+    },
+    [onWorktreeSourceSelect]
+  );
 
   // ============================================
   // Display
@@ -434,85 +545,29 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
     ]
   );
 
-  // Bridge global shortcut atoms (⌘., ⌥⌘., ⇧⌘.) → local dropdown state.
-  // The atoms behave as one-shot signals: a shortcut handler flips them to
-  // true, this component consumes the edge, opens the matching dropdown,
-  // and flips the atom back to false so a second press re-triggers.
-  //
-  // We subscribe to the Jotai store directly (outside the React render
-  // tree) rather than reading the atom via `useAtomValue` + `useEffect`.
-  // That avoids the React Compiler `set-state-in-effect` rule, because
-  // the setState calls run from a store subscription callback — the same
-  // category as a DOM event listener — instead of synchronously inside a
-  // render effect.
-  const store = useStore();
-  const setGlobalBranchSelectorOpen = useSetAtom(branchSelectorOpenAtom);
-  const setGlobalRepoSelectorOpen = useSetAtom(repoSelectorOpenAtom);
-  const setGlobalLocationSelectorOpen = useSetAtom(locationSelectorOpenAtom);
+  const handleLocationTriggerClick = useCallback(() => {
+    if (disabled) return;
+    toggleLocation();
+  }, [disabled, toggleLocation]);
 
-  // Latest gating flags + handlers accessed from the store subscription.
-  // The subscription registers once per `store` instance; without a ref we
-  // would have to re-subscribe on every prop change. The ref body is
-  // refreshed in an effect (writing `.current` in render is disallowed by
-  // the React Compiler `refs` rule).
-  const bridgeStateRef = useRef({
+  const openRepoSelector = useCallback(() => {
+    setIsRepoSelectorOpen(true);
+  }, []);
+
+  const openBranchSelector = useCallback(() => {
+    setIsBranchSelectorOpen(true);
+  }, []);
+
+  useSelectorShortcutBridge({
     disabled,
     showBranchRow,
     repoId,
     worktreeLocation,
     isLocationDropdownOpen,
     toggleLocation,
+    openBranchSelector,
+    openRepoSelector,
   });
-  useEffect(() => {
-    bridgeStateRef.current = {
-      disabled,
-      showBranchRow,
-      repoId,
-      worktreeLocation,
-      isLocationDropdownOpen,
-      toggleLocation,
-    };
-  });
-
-  useEffect(() => {
-    const unsubBranch = store.sub(branchSelectorOpenAtom, () => {
-      if (!store.get(branchSelectorOpenAtom)) return;
-      setGlobalBranchSelectorOpen(false);
-      const s = bridgeStateRef.current;
-      if (s.disabled || !s.showBranchRow || !s.repoId) return;
-      setIsBranchSelectorOpen(true);
-    });
-    const unsubRepo = store.sub(repoSelectorOpenAtom, () => {
-      if (!store.get(repoSelectorOpenAtom)) return;
-      const s = bridgeStateRef.current;
-      if (s.disabled) return;
-      setGlobalRepoSelectorOpen(false);
-      setIsRepoSelectorOpen(true);
-    });
-    const unsubLocation = store.sub(locationSelectorOpenAtom, () => {
-      if (!store.get(locationSelectorOpenAtom)) return;
-      setGlobalLocationSelectorOpen(false);
-      const s = bridgeStateRef.current;
-      if (s.disabled || s.worktreeLocation === undefined) return;
-      if (s.isLocationDropdownOpen) return;
-      s.toggleLocation();
-    });
-    return () => {
-      unsubBranch();
-      unsubRepo();
-      unsubLocation();
-    };
-  }, [
-    store,
-    setGlobalBranchSelectorOpen,
-    setGlobalRepoSelectorOpen,
-    setGlobalLocationSelectorOpen,
-  ]);
-
-  const handleLocationTriggerClick = useCallback(() => {
-    if (disabled) return;
-    toggleLocation();
-  }, [disabled, toggleLocation]);
 
   const baseSegments = buildSessionInfoSegments({
     SourceIcon,
@@ -526,6 +581,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
     isBranchSelectorOpen,
     handleBranchTriggerClick,
     worktreeLocation,
+    worktreeSourceLabel,
     isLocationDropdownOpen,
     handleLocationTriggerClick,
     locationTriggerRef,
@@ -554,7 +610,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
       {useDropdownPicker ? (
         <WorkspaceDropdown
           isOpen={isRepoSelectorOpen}
-          onClose={() => setIsRepoSelectorOpen(false)}
+          onClose={handleRepoClose}
           onSelect={handleRepoSelected}
           currentRepoId={repoId}
           anchorRef={repoTriggerRef}
@@ -563,7 +619,7 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
       ) : (
         <WorkspacePalette
           isOpen={isRepoSelectorOpen}
-          onClose={() => setIsRepoSelectorOpen(false)}
+          onClose={handleRepoClose}
           onSelect={handleRepoSelected}
           currentRepoId={repoId}
           switchPathLabel={t("selectors.sessionInfo.sessionWorkspace")}
@@ -581,8 +637,9 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
             onClose={handleBranchClose}
             onSelect={handleBranchSelect}
             repoId={repoId}
-            repoPath={repoPath}
+            repoPath={branchRepoPath}
             currentBranchName={branchName}
+            groupWorktreeBranches={false}
             anchorRef={branchTriggerRef}
           />
         ) : (
@@ -591,11 +648,11 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
             onClose={handleBranchClose}
             onSelect={handleBranchPaletteSelect}
             repoId={repoId}
-            repoPath={repoPath}
+            repoPath={branchRepoPath}
             currentBranchName={branchName}
+            groupWorktreeBranches={false}
             onCreateBranch={handleCreateBranch}
             onDeleteBranch={handleDeleteBranch}
-            onRemoveWorktree={handleRemoveWorktree}
             variant="create-session"
             showRemoveMode
             hideActionClose
@@ -617,13 +674,22 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
             }}
             selected={worktreeLocation}
             getItemProps={locationKeyboard.getItemProps}
-            onSelect={(location) => {
-              onWorktreeLocationChange?.(location);
-              closeLocation();
-            }}
+            onSelect={handleLocationPanelSelect}
           />,
           document.body
         )}
+
+      {worktreeLocation !== undefined && isWorktreeSourceModalOpen && (
+        <WorktreeSourceModal
+          open
+          repoId={repoId}
+          repoName={repoName}
+          repoPath={repoPath}
+          branchName={branchName}
+          onClose={handleWorktreeSourceModalClose}
+          onSelect={handleWorktreeSourceSelect}
+        />
+      )}
     </>
   );
 };

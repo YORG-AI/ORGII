@@ -7,6 +7,7 @@ import Table, { type TableColumn } from "@src/components/Table";
 import type {
   ApiCall,
   ApiCallHotspot,
+  PushHotspot,
   TimerHotspot,
 } from "@src/util/monitoring/apiTracker";
 
@@ -28,6 +29,7 @@ export interface PanelContentProps {
   apiCalls: ApiCall[];
   hotspots: ApiCallHotspot[];
   timerHotspots: TimerHotspot[];
+  pushHotspots: PushHotspot[];
   expandedCall: string | null;
   onToggleExpand: (id: string) => void;
   onExpandedChange: (id: string | null) => void;
@@ -197,10 +199,81 @@ const TimerHotspotSummary: React.FC<{ hotspots: TimerHotspot[] }> = ({
   );
 };
 
+const PUSH_KIND_LABELS: Record<PushHotspot["kind"], string> = {
+  "tauri-event": "Tauri event",
+  channel: "IPC channel",
+  ws: "WebSocket",
+  sse: "SSE",
+};
+
+const PushTrafficSummary: React.FC<{ hotspots: PushHotspot[] }> = ({
+  hotspots,
+}) => {
+  const topHotspots = hotspots.slice(0, 6);
+  if (topHotspots.length === 0) return null;
+
+  return (
+    <div className="border-b border-border-2 bg-bg-1/70 px-4 py-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div>
+          <div className="text-[12px] font-semibold text-text-1">
+            Backend push traffic
+          </div>
+          <div className="text-[11px] text-text-3">
+            Events delivered TO the frontend (Tauri events, channels, WS, SSE)
+            over the last 2 minutes
+          </div>
+        </div>
+        <div className="text-[11px] text-text-3">
+          {hotspots.filter((hotspot) => hotspot.isLikelyStream).length} active
+          streams
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 xl:grid-cols-3">
+        {topHotspots.map((hotspot) => (
+          <div
+            key={hotspot.key}
+            className={`rounded-lg border p-2.5 ${
+              hotspot.isLikelyStream
+                ? "border-primary-6/40 bg-primary-6/10"
+                : "border-border-2 bg-bg-2"
+            }`}
+          >
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-text-3">
+                {PUSH_KIND_LABELS[hotspot.kind]}
+              </span>
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                  hotspot.isLikelyStream
+                    ? "bg-primary-6/15 text-primary-6"
+                    : "bg-fill-2 text-text-3"
+                }`}
+              >
+                {formatCallsPerMinute(hotspot.eventsPerMinute)}/min
+              </span>
+            </div>
+            <div
+              className="truncate text-[11px] font-medium text-primary-6"
+              title={hotspot.name}
+            >
+              {hotspot.name}
+            </div>
+            <div className="mt-1 text-right text-[10px] text-text-3">
+              {hotspot.count} events
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const PanelContent: React.FC<PanelContentProps> = ({
   apiCalls,
   hotspots,
   timerHotspots,
+  pushHotspots,
   expandedCall,
   onToggleExpand,
   onExpandedChange,
@@ -364,7 +437,11 @@ const PanelContent: React.FC<PanelContentProps> = ({
     [expandedCall, onExpandedChange]
   );
 
-  if (apiCalls.length === 0 && timerHotspots.length === 0) {
+  if (
+    apiCalls.length === 0 &&
+    timerHotspots.length === 0 &&
+    pushHotspots.length === 0
+  ) {
     return <EmptyState />;
   }
 
@@ -372,6 +449,7 @@ const PanelContent: React.FC<PanelContentProps> = ({
     <div className="flex min-h-0 flex-col">
       <TimerHotspotSummary hotspots={timerHotspots} />
       <HotspotSummary hotspots={hotspots} />
+      <PushTrafficSummary hotspots={pushHotspots} />
       {apiCalls.length > 0 ? (
         <Table<ApiCall>
           columns={columns}

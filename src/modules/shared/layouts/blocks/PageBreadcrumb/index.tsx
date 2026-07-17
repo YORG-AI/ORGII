@@ -19,22 +19,14 @@ import {
 } from "@src/components/Dropdown/tokens";
 import { deriveBreadcrumbKeys, getPathIcon } from "@src/config/mainAppPaths";
 import { findRouteByPath, getLabelForPath } from "@src/config/routes";
-import { ROUTES, getIconComponentForPath } from "@src/config/routes";
+import { getIconComponentForPath } from "@src/config/routes";
 import { useDropdownEngine } from "@src/hooks/dropdown";
 import { useRouteLabel } from "@src/hooks/i18n";
 import { useSafeHover } from "@src/hooks/ui/useSafeHover";
 import {
-  DEV_RECORD_VIEW_ITEMS,
-  getDevRecordViewConfig,
-} from "@src/modules/MainApp/DevRecord/devRecordViewConfig";
-import {
   ECONOMY_ROOT_PATH,
   ECONOMY_ROUTES,
 } from "@src/modules/MainApp/shared/economyRouteConfig";
-import {
-  type DevRecordView,
-  devRecordActiveViewAtom,
-} from "@src/store/ui/devRecordToolbarAtom";
 import { hoverSidebarOpenAtom } from "@src/store/ui/hoverSidebarAtom";
 import { sidebarCollapsedAtom } from "@src/store/ui/sidebarAtom";
 
@@ -77,8 +69,6 @@ const PageBreadcrumb: React.FC<PageBreadcrumbProps> = ({ className = "" }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const isSidebarCollapsed = useAtomValue(sidebarCollapsedAtom);
-  const activeDevRecordView = useAtomValue(devRecordActiveViewAtom);
-  const setActiveDevRecordView = useSetAtom(devRecordActiveViewAtom);
   const setIsHoverSidebarOpen = useSetAtom(hoverSidebarOpenAtom);
   const [ref, isHovered] = useSafeHover<HTMLDivElement>();
   const [selectorOpen, setSelectorOpen] = useState(false);
@@ -98,21 +88,7 @@ const PageBreadcrumb: React.FC<PageBreadcrumbProps> = ({ className = "" }) => {
     let activeSelectorItem: BreadcrumbSelectorItem | null = null;
     let selectorReplacesLeaf = false;
 
-    if (path.startsWith(ROUTES.app.journey.record.path)) {
-      selectorItems = DEV_RECORD_VIEW_ITEMS.map((item) => ({
-        key: item.key,
-        label: t(item.labelKey),
-        icon: item.icon,
-      }));
-      const activeViewConfig = getDevRecordViewConfig(activeDevRecordView);
-      activeSelectorItem = activeViewConfig
-        ? {
-            key: activeViewConfig.key,
-            label: t(activeViewConfig.labelKey),
-            icon: activeViewConfig.icon,
-          }
-        : null;
-    } else if (path.startsWith(ECONOMY_ROOT_PATH)) {
+    if (path.startsWith(ECONOMY_ROOT_PATH)) {
       selectorItems = ECONOMY_ROUTES.map((route) => ({
         key: route.path,
         label: getTranslatedRouteLabel(route),
@@ -136,7 +112,6 @@ const PageBreadcrumb: React.FC<PageBreadcrumbProps> = ({ className = "" }) => {
 
     return { labels, IconComponent: icon, selectorItems, activeSelectorItem };
   }, [
-    activeDevRecordView,
     getTranslatedLabelForPath,
     getTranslatedRouteLabel,
     location.pathname,
@@ -147,14 +122,10 @@ const PageBreadcrumb: React.FC<PageBreadcrumbProps> = ({ className = "" }) => {
 
   const handleSelectorSelect = useCallback(
     (item: BreadcrumbSelectorItem) => {
-      if (location.pathname.startsWith(ROUTES.app.journey.record.path)) {
-        setActiveDevRecordView(item.key as DevRecordView);
-      } else {
-        navigate(item.key, { replace: false });
-      }
+      navigate(item.key, { replace: false });
       setSelectorOpen(false);
     },
-    [location.pathname, navigate, setActiveDevRecordView]
+    [navigate]
   );
 
   const {

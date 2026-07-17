@@ -11,6 +11,7 @@ import {
   CHAT_PANEL_CONTENT_MODE,
   CHAT_PANEL_CREATE_TARGET,
   type ChatPanelContentMode,
+  type ChatPanelCreateProjectContext,
   type ChatPanelCreateTarget,
   type ChatPanelSelectedProject,
   type ChatPanelSelectedWorkItem,
@@ -21,6 +22,12 @@ type StateSetter<T> = (value: T | ((previous: T) => T)) => void;
 
 interface UseProjectWorkItemHandlersOptions {
   bumpProjectListRefresh: (updater: (previous: number) => number) => void;
+  /**
+   * Org context of the create surface (NEW_WORK_ITEM navigation from an
+   * org hub). Used to label the created item's org — the create result
+   * only carries the org id.
+   */
+  createProjectContext: ChatPanelCreateProjectContext | null;
   dispatchClearSession: () => void;
   handleNewSession: () => void;
   selectedProject: ChatPanelSelectedProject | null;
@@ -39,6 +46,7 @@ interface UseProjectWorkItemHandlersOptions {
 
 export function useProjectWorkItemHandlers({
   bumpProjectListRefresh,
+  createProjectContext,
   dispatchClearSession,
   handleNewSession,
   selectedProject,
@@ -115,6 +123,16 @@ export function useProjectWorkItemHandlers({
         projectId:
           result.item?.frontmatter.project ?? workItem.project?.id ?? "",
         projectName: workItem.project?.name ?? "",
+        // Standalone items keep their creating org: WorkItemPanelView's
+        // standalone writes are org-scoped and would otherwise re-home
+        // the row to personal-org. The org NAME comes from the surface
+        // context — without it the panel breadcrumb falls back to
+        // "My Personal Org" even though the row is org-scoped.
+        orgId: result.orgId,
+        orgName:
+          result.orgId && result.orgId === createProjectContext?.orgId
+            ? createProjectContext?.scopeBreadcrumbLabel
+            : undefined,
         workItem,
       });
       if (!result.keepOpen) {
@@ -128,6 +146,7 @@ export function useProjectWorkItemHandlers({
       }
     },
     [
+      createProjectContext,
       dispatchClearSession,
       sessionCreatorAvailable,
       setActiveSessionId,

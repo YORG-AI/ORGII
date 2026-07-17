@@ -22,7 +22,6 @@ import { PRIMARY_COLOR_PRESETS } from "@src/config/appearance/primaryColors";
 import {
   UI_SCALE_CONFIG,
   applicationUiFontAtom,
-  globalLayoutMethodAtom,
   globalThemeIdAtom,
   primaryColorPresetAtom,
   spotlightPlacementAtom,
@@ -58,9 +57,6 @@ export function useAppearanceState() {
   const [uiScale, setUIScale] = useAtom(uiScaleAtom);
   const [applicationUiFont, setApplicationUiFont] = useAtom(
     applicationUiFontAtom
-  );
-  const [globalLayoutMethod, setGlobalLayoutMethod] = useAtom(
-    globalLayoutMethodAtom
   );
   const [spotlightPlacement, setSpotlightPlacement] = useAtom(
     spotlightPlacementAtom
@@ -171,8 +167,6 @@ export function useAppearanceState() {
     uiScale,
     applicationUiFont,
     setApplicationUiFont,
-    globalLayoutMethod,
-    setGlobalLayoutMethod,
     spotlightPlacement,
     setSpotlightPlacement,
     appearanceMode,

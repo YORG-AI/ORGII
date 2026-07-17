@@ -1,3 +1,4 @@
+use super::strip_optional_null_placeholders;
 use crate::tools::policy::{ResolvedToolPolicy, ToolPolicyLayer};
 use crate::tools::registry::ToolRegistry;
 use crate::tools::traits::{Tool, ToolError, ToolPriority, ToolSchemaCacheScope};
@@ -135,6 +136,70 @@ impl Tool for MockTool {
 // ============================================
 // Basic Operations
 // ============================================
+
+#[test]
+fn strict_schema_null_placeholders_restore_optional_omissions() {
+    let schema = json!({
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+            "query": {"type": "string"},
+            "repo_paths": {
+                "type": "array",
+                "items": {"type": "string"}
+            },
+            "explicit_null": {
+                "anyOf": [
+                    {"type": "string"},
+                    {"type": "null"}
+                ]
+            }
+        }
+    });
+    let mut params = json!({
+        "query": "TodoBlock",
+        "repo_paths": null,
+        "explicit_null": null
+    });
+
+    strip_optional_null_placeholders(&mut params, &schema);
+
+    assert_eq!(
+        params,
+        json!({
+            "query": "TodoBlock",
+            "explicit_null": null
+        })
+    );
+}
+
+#[test]
+fn strict_schema_null_placeholder_cleanup_recurses_into_nested_objects() {
+    let schema = json!({
+        "type": "object",
+        "required": ["items"],
+        "properties": {
+            "items": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["content"],
+                    "properties": {
+                        "content": {"type": "string"},
+                        "activeForm": {"type": "string"}
+                    }
+                }
+            }
+        }
+    });
+    let mut params = json!({
+        "items": [{"content": "Run tests", "activeForm": null}]
+    });
+
+    strip_optional_null_placeholders(&mut params, &schema);
+
+    assert_eq!(params, json!({"items": [{"content": "Run tests"}]}));
+}
 
 #[test]
 fn new_registry_is_empty() {
@@ -982,18 +1047,10 @@ fn nested_struct_tool_schemas_inline_without_refs() {
     // caught here rather than at runtime against a specific provider.
     use crate::tools::traits::{assert_llm_compatible_schema, params_schema};
 
-    let schemas: Vec<(&str, Value)> = vec![
-        (
-            "suggest_next_steps",
-            params_schema::<
-                crate::tools::impls::orchestration::suggest_next_steps::SuggestNextStepsParams,
-            >(),
-        ),
-        (
-            "manage_code_map",
-            params_schema::<crate::tools::impls::coding::code_map::CodeMapToolParams>(),
-        ),
-    ];
+    let schemas: Vec<(&str, Value)> = vec![(
+        "manage_code_map",
+        params_schema::<crate::tools::impls::coding::code_map::CodeMapToolParams>(),
+    )];
 
     for (name, schema) in schemas {
         assert_llm_compatible_schema(&schema).unwrap_or_else(|err| {

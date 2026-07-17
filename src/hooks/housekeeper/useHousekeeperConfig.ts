@@ -39,8 +39,24 @@ function firstMiniCPMModel(account: KeyVaultAccount | null | undefined) {
   );
 }
 
-function isVllmAccount(account: KeyVaultAccount): boolean {
-  return account.modelType === "vllm_api" && account.enabled;
+function isLocalBaseUrl(baseUrl: string | null | undefined): boolean {
+  if (!baseUrl) return false;
+  try {
+    const hostname = new URL(baseUrl).hostname.toLowerCase();
+    return hostname === "localhost" || hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+
+function isHousekeeperAccount(account: KeyVaultAccount): boolean {
+  if (!account.enabled) return false;
+  if (account.modelType === "vllm_api") return true;
+  return (
+    account.modelType === "openai_api" &&
+    isLocalBaseUrl(account.baseUrl) &&
+    Boolean(firstMiniCPMModel(account))
+  );
 }
 
 export function useHousekeeperConfig() {
@@ -59,10 +75,13 @@ export function useHousekeeperConfig() {
   const [uiControlEnabled, setUiControlEnabled] = useSetting(
     "housekeeper.features.uiControl"
   );
+  const [contextCompactEnabled, setContextCompactEnabled] = useSetting(
+    "housekeeper.features.contextCompact"
+  );
   const keyVault = useKeyVault({ autoLoad: true });
 
   const vllmAccounts = useMemo(
-    () => keyVault.accounts.filter(isVllmAccount),
+    () => keyVault.accounts.filter(isHousekeeperAccount),
     [keyVault.accounts]
   );
 
@@ -85,8 +104,11 @@ export function useHousekeeperConfig() {
 
   const resolvedAccount = configuredAccount ?? autoAccount;
   const accountModel = firstMiniCPMModel(resolvedAccount);
+  const configuredModel = model.trim();
   const resolvedModel =
-    model.trim() || accountModel || HOUSEKEEPER_DEFAULT_MODEL;
+    !configuredModel || configuredModel === HOUSEKEEPER_DEFAULT_MODEL
+      ? accountModel || HOUSEKEEPER_DEFAULT_MODEL
+      : configuredModel;
   const resolvedAccountId = resolvedAccount?.id ?? null;
   const isConfigured = Boolean(enabled && resolvedAccountId && resolvedModel);
 
@@ -103,11 +125,13 @@ export function useHousekeeperConfig() {
       promptPolish: promptPolishEnabled,
       stepExplain: stepExplainEnabled,
       uiControl: uiControlEnabled,
+      contextCompact: contextCompactEnabled,
     },
     setFeatures: {
       promptPolish: setPromptPolishEnabled,
       stepExplain: setStepExplainEnabled,
       uiControl: setUiControlEnabled,
+      contextCompact: setContextCompactEnabled,
     },
     keyVault,
     vllmAccounts,

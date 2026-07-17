@@ -21,7 +21,7 @@ import {
   SIMULATOR_POINTER_HOVER_CLOSE_DELAY_MS,
   SIMULATOR_POINTER_HOVER_OPEN_DEBOUNCE_MS,
 } from "@src/engines/Simulator/constants/simulatorPointerHover";
-import { GENERAL_LAYOUT_TOUR_TARGETS } from "@src/scaffold/Tutorials/GeneralLayoutTour";
+import { GENERAL_LAYOUT_TOUR_TARGETS } from "@src/scaffold/Tutorials/generalLayoutTourConfig";
 import { classNames } from "@src/util/ui/classNames";
 
 export interface StationDockChromeProps {

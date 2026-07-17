@@ -121,6 +121,21 @@ describe("buildRepoSpotlightItem", () => {
     expect(item.id).toBe("manage-repo-1");
   });
 
+  it("exposes normalized name and path copy targets", () => {
+    const item = buildRepoSpotlightItem(
+      {
+        ...baseRepo,
+        fs_uri: "file:///Users/example/alpha/",
+      },
+      { onAction: () => {} }
+    );
+
+    expect(item.data?.contextMenuCopy).toEqual({
+      name: "alpha",
+      path: "/Users/example/alpha",
+    });
+  });
+
   it("uses folder icon for folder kind and repo icon otherwise", () => {
     const folderItem = buildRepoSpotlightItem(
       { id: "f1", name: "f", kind: "folder" },

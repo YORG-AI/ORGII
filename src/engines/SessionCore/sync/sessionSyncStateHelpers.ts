@@ -7,6 +7,10 @@ import {
   toTurnTerminalStatus,
 } from "@src/engines/SessionCore/control/turnLifecycle";
 import type { StreamingDeltaContent } from "@src/engines/SessionCore/core/atoms/events";
+import {
+  bufferStreamingDelta,
+  clearStreamingDelta,
+} from "@src/engines/SessionCore/core/atoms/streamingDeltaBuffer";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import type {
   SessionEvent,
@@ -143,23 +147,29 @@ export function applyPostLoadResult(
   }
 }
 
+/**
+ * Per-chunk writes go through the streaming delta buffer: chunks land in a
+ * module-level holder synchronously and reach the atom on a trailing ~50ms
+ * flush (immediate on stream start, kind change, and completion) — see
+ * streamingDeltaBuffer.ts for the flush guarantees.
+ */
 export function updateStreamingDeltaContent(
   sessionId: string,
   info: StreamingDeltaInfo,
   setStreamingDeltaContent: SessionEventHandlerStateActions["setStreamingDeltaContent"]
 ): void {
-  setStreamingDeltaContent((prev) => {
-    const next = new Map(prev);
-    if (info.isStreaming) {
-      next.set(sessionId, {
+  if (info.isStreaming) {
+    bufferStreamingDelta(
+      sessionId,
+      {
         kind: info.isThinking ? "thinking" : "message",
         content: info.content,
-      });
-    } else {
-      next.delete(sessionId);
-    }
-    return next;
-  });
+      },
+      setStreamingDeltaContent
+    );
+  } else {
+    clearStreamingDelta(sessionId, setStreamingDeltaContent);
+  }
 }
 
 export function createSessionEventHandlerCallbacks(

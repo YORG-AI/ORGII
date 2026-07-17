@@ -21,7 +21,7 @@ import {
   UnsavedChangesBar,
 } from "@src/modules/WorkStation/shared";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
-import { EditorService } from "@src/services/workStation";
+import { EditorService } from "@src/services/workStation/EditorService";
 import {
   editorHighlightActiveLineAtom,
   editorLineNumbersAtom,

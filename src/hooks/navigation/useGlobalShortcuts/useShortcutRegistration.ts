@@ -1,10 +1,7 @@
 import { type MutableRefObject, useEffect } from "react";
 
 import { shortcutRegistry } from "@src/hooks/keyboard";
-import {
-  openAgentControlSpotlight,
-  openSessionCreatorSpotlight,
-} from "@src/scaffold/GlobalSpotlight/openSpotlight";
+import { openAgentControlSpotlight } from "@src/scaffold/GlobalSpotlight/openSpotlight";
 import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
 import { spotlightOpenAtom } from "@src/store/ui/uiAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
@@ -32,6 +29,7 @@ interface ShortcutRegistrationOptions {
   // Tabs & navigation
   spotlightOpenRef: MutableRefObject<boolean>;
   handleCreateNewSession: () => void;
+  handleNewSessionShortcut: () => void;
   handleGoToCreateSession: (shortcut: string) => void;
   handleToggleSpotlight: () => void;
   handleOpenModelSelector: () => void;
@@ -76,6 +74,7 @@ export function useShortcutRegistration(options: ShortcutRegistrationOptions) {
     handleHideWindow,
     spotlightOpenRef,
     handleCreateNewSession,
+    handleNewSessionShortcut,
     handleGoToCreateSession,
     handleToggleSpotlight,
     handleOpenModelSelector,
@@ -137,7 +136,7 @@ export function useShortcutRegistration(options: ShortcutRegistrationOptions) {
         "maximize_work_station",
         () => void WorkStationViewService.showWorkStation()
       ),
-      shortcutRegistry.on("new_session", openSessionCreatorSpotlight),
+      shortcutRegistry.on("new_session", handleNewSessionShortcut),
       shortcutRegistry.on("new_tab", () => handleGoToCreateSession("Cmd+T")),
       shortcutRegistry.on("new_tab_alt", () =>
         handleGoToCreateSession("Cmd+L")
@@ -176,8 +175,8 @@ export function useShortcutRegistration(options: ShortcutRegistrationOptions) {
       shortcutRegistry.on("open_agent_station", () => {
         void WorkStationViewService.openStationMode("agent-station");
       }),
-      shortcutRegistry.on("open_ops_control", () => {
-        void WorkStationViewService.openStationMode("ops-control");
+      shortcutRegistry.on("open_kanban", () => {
+        void WorkStationViewService.openKanbanTab();
       }),
       shortcutRegistry.on(
         "open_file_folder_tab",
@@ -199,6 +198,7 @@ export function useShortcutRegistration(options: ShortcutRegistrationOptions) {
     handleCloseCurrentTab,
     handleHideWindow,
     handleCreateNewSession,
+    handleNewSessionShortcut,
     handleGoToCreateSession,
     handleToggleSpotlight,
     handleOpenModelSelector,

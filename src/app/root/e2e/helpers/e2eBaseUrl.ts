@@ -1,4 +1,6 @@
-const DEFAULT_E2E_BASE_URL = "http://127.0.0.1:13847";
+import { IDE_SERVER_PORT } from "@src/config/ideServer";
+
+const DEFAULT_E2E_BASE_URL = `http://127.0.0.1:${IDE_SERVER_PORT}`;
 const E2E_BASE_URL_STORAGE_KEY = "orgii:e2eBaseUrl";
 
 export function e2eBaseUrl(): string {

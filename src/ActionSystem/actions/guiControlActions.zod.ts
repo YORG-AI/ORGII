@@ -507,6 +507,13 @@ export const guiExecuteAction = defineZodAction(
           message: "GUI meta-actions cannot execute themselves",
         };
       }
+      if (actionId === ACTION_ID.SESSION_REPLY_COMMENT) {
+        return {
+          success: false,
+          message:
+            "session.replyComment cannot be run through gui.execute; it is only reachable via its own reply tool, which binds the reply to the invoking session.",
+        };
+      }
       return zodActionRegistry.execute(actionId, params ?? {});
     }
 

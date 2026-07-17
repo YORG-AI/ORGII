@@ -23,6 +23,9 @@ import {
   GitStatusBadge,
   TREE_INDENT_PX,
   TREE_PADDING_X,
+  TREE_ROW_INSET_CLASS,
+  TREE_ROW_INSET_X,
+  TREE_ROW_ROUNDED_CLASS,
   TreeRowAction,
   TreeRowBase,
 } from "@src/components/TreeRow";
@@ -122,7 +125,8 @@ const SectionHeaderRow: React.FC<SectionHeaderRowProps> = memo(
       : sectionCount === 0
         ? COUNT_BADGE.muted
         : COUNT_BADGE.primary;
-    const paddingLeft = depth * TREE_INDENT_PX + TREE_PADDING_X;
+    const paddingLeft =
+      depth * TREE_INDENT_PX + TREE_PADDING_X - TREE_ROW_INSET_X;
 
     const handleToggle = useCallback(() => {
       if (onSectionToggle && node.section) {
@@ -200,8 +204,11 @@ const SectionHeaderRow: React.FC<SectionHeaderRowProps> = memo(
 
     return (
       <div
-        className={`group/header flex h-[28px] w-full cursor-pointer items-center gap-1.5 ${PRIMARY_SIDEBAR_HOVER.row}`}
-        style={{ paddingLeft: `${paddingLeft}px`, paddingRight: "12px" }}
+        className={`group/header ${TREE_ROW_INSET_CLASS} flex h-[28px] cursor-pointer items-center gap-1.5 ${TREE_ROW_ROUNDED_CLASS} ${PRIMARY_SIDEBAR_HOVER.row}`}
+        style={{
+          paddingLeft: `${paddingLeft}px`,
+          paddingRight: `${12 - TREE_ROW_INSET_X}px`,
+        }}
         onClick={handleToggle}
       >
         {/* Chevron */}

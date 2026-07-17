@@ -8,7 +8,7 @@
 use rusqlite::{params, OptionalExtension};
 
 use super::super::helpers::{conn, from_iso8601, map_db, now_ms, to_iso8601};
-use super::extras::ExtrasPayload;
+use super::extras::{ExtrasPayload, FieldRevision, REVISION_SOURCE_LOCAL};
 use super::history::{append_deleted_event, append_restored_event, ensure_created_event};
 use super::mapping::{
     assemble_work_item, read_extras_for, read_labels_for, row_to_core, ConnectionLike,
@@ -153,7 +153,17 @@ pub fn write_work_item(
     ))?;
     drop(connection);
 
-    write_work_item_with_scope(Some(project_id), &org_id, short_id, frontmatter, body)
+    write_work_item_with_scope(Some(project_id), &org_id, short_id, frontmatter, body, true)?;
+    // orgii_collab bridge (design §16.8): full writes — create, delete,
+    // restore, whole-row update — enqueue one bridge row when the org is
+    // collab-synced. Remote-applied writes go through
+    // `write_work_item_remote` instead and never enqueue (no echo).
+    crate::sync::collab_bridge::record_work_item_write(
+        &org_id,
+        Some(project_slug),
+        &frontmatter.id,
+        frontmatter.deleted_at.is_some(),
+    )
 }
 
 pub fn write_standalone_work_item(
@@ -162,13 +172,57 @@ pub fn write_standalone_work_item(
     frontmatter: &WorkItemFrontmatter,
     body: &str,
 ) -> Result<(), String> {
-    write_work_item_with_scope(
+    let org_id = org_id.unwrap_or("personal-org");
+    write_work_item_with_scope(None, org_id, short_id, frontmatter, body, true)?;
+    crate::sync::collab_bridge::record_work_item_write(
+        org_id,
         None,
-        org_id.unwrap_or("personal-org"),
-        short_id,
-        frontmatter,
-        body,
+        &frontmatter.id,
+        frontmatter.deleted_at.is_some(),
     )
+}
+
+/// Silent variant used exclusively by the collab bridge's remote-apply
+/// path: identical write semantics, but never emits an outbox row —
+/// applying a pulled change must not echo it back to the server — and
+/// never stamps `("local", now)` field revisions (the bridge stamps
+/// remote-sourced watermarks itself via `apply_remote_merge`).
+pub(crate) fn write_work_item_remote(
+    project_id: Option<String>,
+    org_id: &str,
+    short_id: &str,
+    frontmatter: &WorkItemFrontmatter,
+    body: &str,
+) -> Result<(), String> {
+    write_work_item_with_scope(project_id, org_id, short_id, frontmatter, body, false)
+}
+
+/// Read one work item by its `workitems.id` primary key, scoped to an
+/// org. The collab bridge's outbox rows carry the row id (stable across
+/// project moves) rather than a `(project, short_id)` pair.
+pub fn read_work_item_by_row_id(
+    org_id: &str,
+    work_item_id: &str,
+) -> Result<Option<WorkItemData>, String> {
+    let connection = conn()?;
+    let core = map_db(
+        connection
+            .query_row(
+                "SELECT id, project_id, short_id, title, body, status, priority, assignee, assignee_type,
+                        milestone, parent, start_date, target_date, created_at, updated_at, deleted_at
+                 FROM workitems
+                 WHERE id = ?1 AND org_id = ?2",
+                params![work_item_id, org_id],
+                row_to_core,
+            )
+            .optional(),
+    )?;
+    let Some(core) = core else {
+        return Ok(None);
+    };
+    let labels = read_labels_for(&connection, &core.work_item_id)?;
+    let extras = read_extras_for(&connection, &core.work_item_id)?;
+    Ok(Some(assemble_work_item(core, labels, extras)))
 }
 
 fn write_work_item_with_scope(
@@ -177,6 +231,7 @@ fn write_work_item_with_scope(
     short_id: &str,
     frontmatter: &WorkItemFrontmatter,
     body: &str,
+    stamp_local_revisions: bool,
 ) -> Result<(), String> {
     let mut connection = conn()?;
     let now = now_ms();
@@ -194,19 +249,100 @@ fn write_work_item_with_scope(
     };
     let deleted_at = next_frontmatter.deleted_at.as_deref().map(from_iso8601);
     let tx = map_db(connection.transaction())?;
-    let existing_item: Option<String> = map_db(
+    let existing_item: Option<PriorSyncSnapshot> = map_db(
         tx.query_row(
-            "SELECT id FROM workitems WHERE id = ?1",
+            "SELECT id, title, body, status, priority, assignee, milestone,
+                    start_date, target_date
+             FROM workitems WHERE id = ?1",
             params![&next_frontmatter.id],
-            |row| row.get(0),
+            |row| {
+                Ok(PriorSyncSnapshot {
+                    title: row.get(1)?,
+                    body: row.get::<_, Option<String>>(2)?.unwrap_or_default(),
+                    status: row.get(3)?,
+                    priority: row.get(4)?,
+                    assignee: row.get(5)?,
+                    milestone: row.get(6)?,
+                    start_date: row.get(7)?,
+                    target_date: row.get(8)?,
+                    labels: Vec::new(),
+                })
+            },
         )
         .optional(),
     )?;
+    let existing_item = match existing_item {
+        Some(mut prior) => {
+            let mut stmt =
+                map_db(tx.prepare("SELECT label_id FROM workitem_labels WHERE work_item_id = ?1"))?;
+            let rows = map_db(
+                stmt.query_map(params![&next_frontmatter.id], |row| row.get::<_, String>(0)),
+            )?;
+            for entry in rows {
+                prior.labels.push(map_db(entry)?);
+            }
+            Some(prior)
+        }
+        None => None,
+    };
     if existing_item.is_none() {
         ensure_created_event(&mut next_frontmatter, &to_iso8601(created_at));
     }
 
-    let extras = ExtrasPayload::from_frontmatter(&next_frontmatter);
+    // Whole-row writes rebuild extras from the frontmatter, which does
+    // not carry the sync-side metadata (`field_revisions` /
+    // `external_refs`). Layer the pre-write watermarks back on top —
+    // mirroring the atomic RMW path — so delete / restore / batch /
+    // git-folder-sync rewrites can't silently wipe them. Local-driven
+    // writes additionally stamp every sync-tracked field that actually
+    // changed at `("local", now)` so whole-row edits propagate through
+    // the per-field resolver on peers.
+    let prior_extras: Option<ExtrasPayload> = if existing_item.is_some() {
+        let raw: Option<String> = map_db(
+            tx.query_row(
+                "SELECT extras_json FROM workitem_extras WHERE work_item_id = ?1",
+                params![&next_frontmatter.id],
+                |row| row.get(0),
+            )
+            .optional(),
+        )?;
+        match raw.as_deref() {
+            Some(json) => match serde_json::from_str::<ExtrasPayload>(json) {
+                Ok(v) => Some(v),
+                Err(err) => {
+                    tracing::warn!(
+                        work_item_id = %next_frontmatter.id,
+                        error = %err,
+                        raw_len = json.len(),
+                        "work_items::crud: extras_json parse failed; whole-row write will OVERWRITE the corrupt row"
+                    );
+                    None
+                }
+            },
+            None => None,
+        }
+    } else {
+        None
+    };
+
+    let mut extras = ExtrasPayload::from_frontmatter(&next_frontmatter);
+    if let Some(prior) = prior_extras {
+        extras.field_revisions = prior.field_revisions;
+        extras.external_refs = prior.external_refs;
+    }
+    if stamp_local_revisions {
+        if let Some(prior) = existing_item.as_ref() {
+            for field in prior.changed_sync_fields(&next_frontmatter, body) {
+                extras.field_revisions.insert(
+                    field.to_string(),
+                    FieldRevision {
+                        mtime: now,
+                        source: REVISION_SOURCE_LOCAL.to_string(),
+                    },
+                );
+            }
+        }
+    }
     let extras_json =
         serde_json::to_string(&extras).map_err(|err| format!("serialize extras: {}", err))?;
 
@@ -296,6 +432,26 @@ pub fn delete_work_item(project_slug: &str, short_id: &str) -> Result<(), String
         &existing.frontmatter,
         &existing.body,
     )
+}
+
+/// Permanently remove a work item and its dependent rows.
+///
+/// This is deliberately separate from [`delete_work_item`], whose user-facing
+/// semantics are recoverable. External adapters call this only after the
+/// upstream system has already deleted/archived the item; retaining a local
+/// recoverable row there would keep its external identity bound forever.
+pub(crate) fn purge_work_item(project_slug: &str, short_id: &str) -> Result<(), String> {
+    let mut connection = conn()?;
+    let tx = map_db(connection.transaction())?;
+    let project_id = resolve_project_id(&tx, project_slug)?;
+    let affected = map_db(tx.execute(
+        "DELETE FROM workitems WHERE project_id = ?1 AND short_id = ?2",
+        params![project_id, short_id],
+    ))?;
+    if affected == 0 {
+        return Err(format!("Work item '{}' not found", short_id));
+    }
+    map_db(tx.commit())
 }
 
 pub fn restore_work_item(project_slug: &str, short_id: &str) -> Result<WorkItemData, String> {
@@ -432,13 +588,91 @@ pub fn move_work_item(short_id: &str, from_project: &str, to_project: &str) -> R
         ));
     }
 
+    let moved: Option<(String, String)> = map_db(
+        tx.query_row(
+            "SELECT id, org_id FROM workitems WHERE project_id = ?1 AND short_id = ?2",
+            params![&to_id, short_id],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        )
+        .optional(),
+    )?;
+
     map_db(tx.commit())?;
+    if let Some((work_item_id, org_id)) = moved {
+        crate::sync::collab_bridge::record_work_item_write(
+            &org_id,
+            Some(to_project),
+            &work_item_id,
+            false,
+        )?;
+    }
     Ok(())
 }
 
 // ---------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------
+
+/// Pre-write values of every sync-tracked field (the same set as
+/// `atomic::SYNC_TRACKED_FIELDS`), captured inside the write
+/// transaction so whole-row writes can stamp `("local", now)` revisions
+/// for the fields they actually changed.
+struct PriorSyncSnapshot {
+    title: String,
+    body: String,
+    status: String,
+    priority: String,
+    assignee: Option<String>,
+    milestone: Option<String>,
+    start_date: Option<String>,
+    target_date: Option<String>,
+    labels: Vec<String>,
+}
+
+impl PriorSyncSnapshot {
+    /// Canonical names of sync-tracked fields whose incoming value
+    /// differs from the stored row. Field names match
+    /// [`crate::sync::adapter::EntityField::as_local_name`].
+    fn changed_sync_fields(
+        &self,
+        next: &WorkItemFrontmatter,
+        next_body: &str,
+    ) -> Vec<&'static str> {
+        let mut changed = Vec::new();
+        if self.title != next.title {
+            changed.push("title");
+        }
+        if self.body != next_body {
+            changed.push("body");
+        }
+        if self.status != next.status {
+            changed.push("status");
+        }
+        if self.priority != next.priority {
+            changed.push("priority");
+        }
+        if self.assignee != next.assignee {
+            changed.push("assignee");
+        }
+        if self.milestone != next.milestone {
+            changed.push("milestone");
+        }
+        if self.start_date != next.start_date {
+            changed.push("start_date");
+        }
+        if self.target_date != next.target_date {
+            changed.push("target_date");
+        }
+        let mut prior_labels = self.labels.clone();
+        let mut next_labels = next.labels.clone();
+        prior_labels.sort();
+        next_labels.sort();
+        if prior_labels != next_labels {
+            changed.push("labels");
+        }
+        changed
+    }
+}
 
 /// Resolve `slug → project_id` against the `projects` table.
 ///

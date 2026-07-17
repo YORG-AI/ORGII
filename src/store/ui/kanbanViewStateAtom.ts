@@ -262,3 +262,7 @@ kanbanSelectedTaskIdAtom.debugLabel = "kanban/selectedTaskId";
 /** Whether the floating session-preview panel is visible. */
 export const kanbanDetailPanelVisibleAtom = atom<boolean>(false);
 kanbanDetailPanelVisibleAtom.debugLabel = "kanban/detailPanelVisible";
+
+/** Transient filename/path query; intentionally resets on app reload. */
+export const kanbanFileSearchQueryAtom = atom<string>("");
+kanbanFileSearchQueryAtom.debugLabel = "kanban/fileSearchQuery";

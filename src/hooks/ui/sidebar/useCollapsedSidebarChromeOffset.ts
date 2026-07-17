@@ -22,8 +22,6 @@ export function useShouldOffsetWorkStationTopBar(): boolean {
   const workStationChatPosition = useAtomValue(workStationChatPositionAtom);
   const sessionChatPosition = useAtomValue(sessionChatPositionAtom);
 
-  if (stationMode === "ops-control") return sidebarCollapsed;
-
   const activeChatPosition =
     stationMode === "agent-station"
       ? sessionChatPosition

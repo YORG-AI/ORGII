@@ -14,8 +14,8 @@ export type { WorkspacePaletteProps } from "./WorkspacePalette/types";
 export { WorkspaceDropdown } from "./WorkspacePalette/WorkspaceDropdown";
 export type { WorkspaceDropdownProps } from "./WorkspacePalette/WorkspaceDropdown";
 
-export { BranchPalette } from "./BranchPalette";
-export type { BranchPaletteProps } from "./BranchPalette";
+export { BranchPalette, WorktreePalette } from "./BranchPalette";
+export type { BranchPaletteProps, WorktreePaletteProps } from "./BranchPalette";
 
 export { BranchDropdown } from "./BranchPalette/BranchDropdown";
 export type { BranchDropdownProps } from "./BranchPalette/BranchDropdown";
@@ -28,12 +28,6 @@ export type { UnifiedModelPaletteProps } from "./UnifiedModelPalette";
 
 export { UnifiedModelDropdown } from "./UnifiedModelPalette/UnifiedModelDropdown";
 export type { UnifiedModelDropdownProps } from "./UnifiedModelPalette/UnifiedModelDropdown";
-
-export { CursorModelPalette } from "./CursorModelPalette";
-export type { CursorModelPaletteProps } from "./CursorModelPalette";
-
-export { CursorModelDropdown } from "./CursorModelPalette/CursorModelDropdown";
-export type { CursorModelDropdownProps } from "./CursorModelPalette/CursorModelDropdown";
 
 export { DispatchCategoryPalette } from "./DispatchCategoryPalette";
 export type {

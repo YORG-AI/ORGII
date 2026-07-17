@@ -16,6 +16,7 @@ export interface ContextUsageInfo {
   clampedPercentage: number;
   tokenLabel: string;
   maxTokens: number;
+  displayTokens: number;
   contextUsage: ContextUsageSnapshot | null;
   /** Cache-read tokens saved by Anthropic prompt caching (not counted as used). */
   cacheReadTokens: number;
@@ -117,6 +118,7 @@ export function useContextUsageInfo(): ContextUsageInfo {
     clampedPercentage,
     tokenLabel,
     maxTokens,
+    displayTokens,
     contextUsage,
     cacheReadTokens,
     cacheWriteTokens,

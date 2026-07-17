@@ -147,7 +147,6 @@ fn can_launch_cli(entry: &ModelKey) -> bool {
         ModelType::CursorCli => has_cursor_api_key(entry),
         ModelType::ClaudeCode
         | ModelType::Codex
-        | ModelType::GeminiCli
         | ModelType::Copilot
         | ModelType::Kiro
         | ModelType::KimiCli
@@ -171,7 +170,6 @@ fn supports_rust_agents(
         ModelType::CursorCli | ModelType::OrgiiOrchestrator => false,
         ModelType::ClaudeCode
         | ModelType::Codex
-        | ModelType::GeminiCli
         | ModelType::Copilot
         | ModelType::Kiro
         | ModelType::KimiCli
@@ -181,8 +179,7 @@ fn supports_rust_agents(
 }
 
 fn cursor_native_model_ids() -> Result<Vec<String>, String> {
-    let models = cursor_bridge_app::vscdb_models::read_models_from_disk()?;
-    Ok(models.into_iter().map(|model| model.name).collect())
+    orgtrack_core::sources::cursor_ide::disk_reads::cursor_model_names_from_disk()
 }
 
 fn merge_unique_models(target: &mut Vec<String>, models: impl IntoIterator<Item = String>) {
@@ -316,6 +313,9 @@ pub const CLAUDE_CODE_OAUTH_DEFAULT_ENABLED_MODELS: &[&str] = &[
 ];
 
 pub const CODEX_OAUTH_MODELS: &[&str] = &[
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
     "gpt-5.5",
     "gpt-5.4",
     "gpt-5.4-mini",
@@ -324,7 +324,7 @@ pub const CODEX_OAUTH_MODELS: &[&str] = &[
     "codex-auto-review",
 ];
 
-pub const CODEX_OAUTH_DEFAULT_ENABLED_MODELS: &[&str] = &["gpt-5.5"];
+pub const CODEX_OAUTH_DEFAULT_ENABLED_MODELS: &[&str] = &["gpt-5.6-sol"];
 
 /// Claude models whose Messages requests carry `output_config.effort`.
 pub fn model_supports_output_config_effort(model: &str) -> bool {
@@ -360,6 +360,7 @@ fn is_actionable_variant(variant: &ModelVariant) -> bool {
                     | "high"
                     | "extra_high"
                     | "xhigh"
+                    | "ultra"
                     | "max"
                     | "ultracode",
             )
@@ -421,13 +422,24 @@ fn codex_model_supports_variants(model: &str) -> bool {
 }
 
 fn codex_model_supports_fast_tier(model: &str) -> bool {
-    matches!(model, "gpt-5.5" | "gpt-5.4")
+    matches!(
+        model,
+        "gpt-5.6-sol" | "gpt-5.6-terra" | "gpt-5.6-luna" | "gpt-5.5" | "gpt-5.4"
+    )
+}
+
+fn codex_model_supports_ultra_tier(model: &str) -> bool {
+    matches!(model, "gpt-5.6-sol" | "gpt-5.6-terra")
 }
 
 fn codex_effort_variants_for_base_model(base_model: &str) -> Vec<ModelVariantInfo> {
     let mut out = Vec::new();
     let supports_fast = codex_model_supports_fast_tier(base_model);
-    for effort in ["low", "medium", "high", "xhigh"] {
+    let mut efforts = vec!["low", "medium", "high", "xhigh"];
+    if codex_model_supports_ultra_tier(base_model) {
+        efforts.push("ultra");
+    }
+    for effort in efforts {
         out.push(ModelVariantInfo {
             model: format!("{base_model}-{effort}"),
             base_model: base_model.to_string(),
@@ -446,6 +458,36 @@ fn codex_effort_variants_for_base_model(base_model: &str) -> Vec<ModelVariantInf
         }
     }
     out
+}
+
+/// GLM (Zhipu) models that expose a thinking-effort ladder (High / Max on top
+/// of the bare Baseline row). Only GLM 5.2 and newer 5.x lines qualify — GLM 5.1
+/// and older have no effort ladder. Distinct sub-models (e.g. `glm-5-turbo`) are
+/// excluded because their id carries a non-numeric tier segment.
+fn glm_model_supports_variants(model: &str) -> bool {
+    let lower = model.to_lowercase();
+    let Some(rest) = lower.strip_prefix("glm-5.") else {
+        return false;
+    };
+    // `rest` must be a pure minor version (e.g. "2", "3") — reject anything with
+    // a further `-tier` segment like `glm-5.2-air`.
+    rest.parse::<u32>().map(|minor| minor >= 2).unwrap_or(false)
+}
+
+/// GLM effort ladder: `High` and `Max` synthesized on top of the bare Baseline
+/// model row. Zhipu recommends `Max` for coding, which drives the default in
+/// [`default_variants_for_key`].
+fn glm_effort_variants_for_base_model(base_model: &str) -> Vec<ModelVariantInfo> {
+    ["high", "max"]
+        .into_iter()
+        .map(|effort| ModelVariantInfo {
+            model: format!("{base_model}-{effort}"),
+            base_model: base_model.to_string(),
+            reasoning: Some(effort.to_string()),
+            fast: false,
+            context_window: None,
+        })
+        .collect()
 }
 
 fn append_missing_variants(out: &mut Vec<ModelVariantInfo>, variants: Vec<ModelVariantInfo>) {
@@ -481,6 +523,21 @@ fn default_variants_for_key(entry: &ModelKey) -> Vec<DefaultVariantInfo> {
                 model: format!("{model}-medium"),
             });
         }
+    }
+
+    // GLM 5.2+ defaults to Max effort (Zhipu recommends Max for coding).
+    for model in entry
+        .available_models
+        .iter()
+        .filter(|model| glm_model_supports_variants(model))
+    {
+        if out.iter().any(|variant| variant.base_model == *model) {
+            continue;
+        }
+        out.push(DefaultVariantInfo {
+            base_model: model.clone(),
+            model: format!("{model}-max"),
+        });
     }
 
     if account_uses_anthropic_native_messages(entry) {
@@ -526,6 +583,24 @@ fn model_variants_for_key(entry: &ModelKey) -> Vec<ModelVariantInfo> {
         {
             append_missing_variants(&mut out, codex_effort_variants_for_base_model(model));
         }
+    }
+
+    // GLM (Zhipu) 5.2+ effort ladder (High / Max). Not gated on ModelType —
+    // Zhipu accounts are OpenAI-compatible API keys, matched by model id. Skip
+    // any model that already carries a real ladder from the provider/user.
+    for model in entry
+        .available_models
+        .iter()
+        .filter(|model| glm_model_supports_variants(model))
+    {
+        if entry
+            .model_variants
+            .iter()
+            .any(|variant| variant.base_model == *model && is_actionable_variant(variant))
+        {
+            continue;
+        }
+        append_missing_variants(&mut out, glm_effort_variants_for_base_model(model));
     }
 
     if !account_uses_anthropic_native_messages(entry) {
@@ -754,7 +829,7 @@ impl From<ModelKey> for FullKeyResponse {
 pub async fn list_keys() -> Result<Vec<KeyInfo>, String> {
     tokio::task::spawn_blocking(|| {
         KEY_SERVICE
-            .list_keys()
+            .list_keys_checked()?
             .into_iter()
             .map(key_info_from_entry)
             .collect::<Result<Vec<_>, _>>()
@@ -773,7 +848,7 @@ pub async fn get_key(
         let agent = ModelType::from_str(&agent_type)
             .ok_or_else(|| format!("Unknown agent_type: {agent_type:?}"))?;
         KEY_SERVICE
-            .get_key(&agent, key_id.as_deref())
+            .get_key_checked(&agent, key_id.as_deref())?
             .map(key_info_from_entry)
             .transpose()
     })
@@ -786,7 +861,7 @@ pub async fn get_key(
 pub async fn get_key_by_id(key_id: String) -> Result<Option<KeyInfo>, String> {
     tokio::task::spawn_blocking(move || {
         KEY_SERVICE
-            .get_key_by_id(&key_id)
+            .get_key_by_id_checked(&key_id)?
             .map(key_info_from_entry)
             .transpose()
     })
@@ -804,7 +879,7 @@ pub async fn get_full_key(
         let agent = ModelType::from_str(&agent_type)
             .ok_or_else(|| format!("Unknown agent_type: {agent_type:?}"))?;
         Ok(KEY_SERVICE
-            .get_key(&agent, key_id.as_deref())
+            .get_key_checked(&agent, key_id.as_deref())?
             .map(FullKeyResponse::from))
     })
     .await
@@ -819,10 +894,10 @@ pub async fn save_key(request: SaveKeyRequest) -> Result<KeyInfo, String> {
             ModelType::from_str(&request.agent_type).ok_or("Unknown agent type".to_string())?;
 
         // Load existing key if updating
-        let existing = request
-            .id
-            .as_ref()
-            .and_then(|id| KEY_SERVICE.get_key_by_id(id));
+        let existing = match request.id.as_deref() {
+            Some(id) => KEY_SERVICE.get_key_by_id_checked(id)?,
+            None => None,
+        };
 
         let mut entry = if let Some(existing) = existing {
             existing

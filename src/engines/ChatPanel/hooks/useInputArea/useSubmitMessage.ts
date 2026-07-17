@@ -23,14 +23,22 @@ import { rejectQuestion, respondQuestion } from "@src/api/tauri/agent";
 import Message from "@src/components/Message";
 import { extractQuestionBatch } from "@src/engines/ChatPanel/InputArea/AskQuestionCard/extractQuestionBatch";
 import { chatEventsAtom } from "@src/engines/SessionCore";
+import { parseAddressCommentsSlashCommand } from "@src/features/Org2Cloud/addressCommentsSlashToken";
+import { useAddressCommentsSlashCommand } from "@src/features/Org2Cloud/useAddressCommentsSlashCommand";
 import { useKeyVault } from "@src/hooks/keyVault";
 import { createLogger } from "@src/hooks/logger";
+import { useSecretScanGuard } from "@src/hooks/security/useSecretScanGuard";
 import { useSessionModelField } from "@src/hooks/session/useSessionPatch";
 import { sessionByIdAtom } from "@src/store/session";
 import type { ChatImageAttachment } from "@src/store/ui/chatImageAtom";
 import { wpReadOnlyAtom } from "@src/store/ui/chatPanelAtom";
 
 import { clearImageDraft } from "../../InputArea/utils/imageDraftCache";
+import {
+  manualCompactInFlightSessionAtom,
+  parseCompactSlashCommand,
+  useManualCompact,
+} from "../useManualCompact";
 import { resolveMcpSlashCommand } from "./mcpSlashCommand";
 import type {
   CiteCodeSnapshot,
@@ -125,17 +133,34 @@ export function useSubmitMessage({
   const { setModel: setSessionModel } = useSessionModelField(draftSessionId);
   const { accounts: keyVaultAccounts } = useKeyVault({ autoLoad: true });
   const submitInFlightKeyRef = useRef<string | null>(null);
+  const { runManualCompact } = useManualCompact();
+  const guardAgainstSecrets = useSecretScanGuard();
+  const addressComments = useAddressCommentsSlashCommand(
+    draftSessionId || null
+  );
 
   return useCallback(
     async (options: SubmitMessageOptions = {}) => {
-      if (submitDisabled) return;
-
-      if (wpReadOnly) {
+      // Imported teammate replays are intentionally read-only in the event
+      // store, but their composer owns an onSubmitOverride that performs
+      // fork-before-send. Let that coordinator inspect the submission before
+      // applying the ordinary read-only guard; otherwise the generic
+      // "No active session" toast makes the fork flow unreachable.
+      if (wpReadOnly && !onSubmitOverride) {
         Message.warning(t("chat.noActiveSession"));
         return;
       }
 
       if (!refs.composerInputRef.current) return;
+
+      // Hold ordinary sends while this session's durable transcript is being compacted.
+      if (
+        draftSessionId &&
+        store.get(manualCompactInFlightSessionAtom) === draftSessionId
+      ) {
+        Message.info(t("common:contextInfo.manualCompactInProgress"));
+        return;
+      }
 
       const liveDisplayText = refs.composerInputRef.current.getTextWithPills();
       let displayText =
@@ -205,6 +230,19 @@ export function useSubmitMessage({
           return;
         }
 
+        const compactCommand = parseCompactSlashCommand(displayText);
+        if (compactCommand) {
+          refs.composerInputRef.current.clear();
+          void flushDraft("").catch((err: unknown) => {
+            log.warn("[useSubmitMessage] flushDraft(compact) failed:", err);
+          });
+          void runManualCompact(
+            draftSessionId || null,
+            compactCommand.instructions
+          );
+          return;
+        }
+
         const dispatched = await dispatchBuiltinSlashCommand(displayText);
         if (dispatched) {
           refs.composerInputRef.current.clear();
@@ -214,6 +252,33 @@ export function useSubmitMessage({
           });
           return;
         }
+
+        const addressDraft = parseAddressCommentsSlashCommand(displayText);
+        if (addressDraft) {
+          refs.composerInputRef.current.clear();
+          void flushDraft("").catch((err: unknown) => {
+            log.warn("[useSubmitMessage] flushDraft(address) failed:", err);
+          });
+          addressComments.run({
+            selectedHeadIds: addressDraft.selectedHeadIds,
+            instruction: addressDraft.instruction,
+          });
+          return;
+        }
+      }
+
+      // A running session blocks ordinary sends, but not `/compact`: manual
+      // compaction is a maintenance job queued behind the active turn by the
+      // backend scheduler. Parse the command first so selecting its pill never
+      // becomes a silent no-op while the session is working.
+      if (submitDisabled) return;
+
+      // ── Secret scan gate ─────────────────────────────────────────────────
+      // Warn before a typed API key / token / password enters the transcript
+      // and reaches the model. The user can still choose to send anyway.
+      if (hasText) {
+        const clearedSecretScan = await guardAgainstSecrets(displayText);
+        if (!clearedSecretScan) return;
       }
 
       // ── Question intercept ────────────────────────────────────────────────
@@ -511,6 +576,7 @@ export function useSubmitMessage({
     [
       wpReadOnly,
       store,
+      guardAgainstSecrets,
       handleSessChatSubmit,
       citeCode,
       refs,
@@ -524,6 +590,8 @@ export function useSubmitMessage({
       setSessionModel,
       keyVaultAccounts,
       submitDisabled,
+      runManualCompact,
+      addressComments,
     ]
   );
 }

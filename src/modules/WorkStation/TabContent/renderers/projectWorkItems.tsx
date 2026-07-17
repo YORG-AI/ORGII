@@ -1,28 +1,55 @@
 /**
  * Renderer wrapper for `project-work-items` tabs.
  *
- * Project work items tab uses the keep-alive cache and several host
- * callbacks (`onExpandWorkItemToTab`, `onOpenChatSession`, tab data
- * mutators). Phase 1b cannot reach those without rewriting the
- * router; we render a placeholder for now.
- *
- * TODO(phase-2): expose the project-manager tab mutators through
- * the dispatcher context and move the keep-alive cache inside this
- * wrapper.
+ * Renders the all-work-items index (`ProjectWorkItemsTabContent`) through the
+ * unified dispatcher, pulling action callbacks from the hoisted Project host
+ * context and deriving breadcrumb / org scope from tab data — mirroring
+ * `ProjectManagerContentRouter`.
  */
 import React, { memo } from "react";
+import { useTranslation } from "react-i18next";
+
+import { ProjectWorkItemsTabContent } from "@src/modules/ProjectManager/ProjectManagerLayout/components/ProjectWorkItemsTabContent";
+import { getProjectManagerBreadcrumbSegments } from "@src/modules/ProjectManager/ProjectManagerLayout/components/projectManagerRouterUtils";
+import { useProjectHostContext } from "@src/modules/ProjectManager/ProjectManagerLayout/context/projectHostContext";
 
 import type { UnifiedTabContentProps } from "../types";
-import { HostCoupledPlaceholder } from "./HostCoupledPlaceholder";
+import { getProjectOrgScopeProps } from "./projectOrgScope";
 
 const ProjectWorkItemsTabRenderer: React.FC<UnifiedTabContentProps> = memo(
-  ({ tab }) => (
-    <HostCoupledPlaceholder
-      tabType={tab.type}
-      title={String(tab.title ?? "Work Items")}
-      hostNote="Project work items still rendered by ProjectManagerContentRouter (keep-alive cache + tab mutators). Phase 2 will lift these through the dispatcher context."
-    />
-  )
+  ({ tab }) => {
+    const { t } = useTranslation("projects");
+    const {
+      onExpandWorkItemToTab,
+      onOpenLinearProjects,
+      onCreateProject,
+      onCreateWorkItem,
+    } = useProjectHostContext();
+
+    const breadcrumbSegments = getProjectManagerBreadcrumbSegments(tab, t);
+    const { allowExternalSources, scopedOrgId } = getProjectOrgScopeProps(tab);
+
+    return (
+      <ProjectWorkItemsTabContent
+        breadcrumbSegments={breadcrumbSegments}
+        orgId={scopedOrgId}
+        onOpenWorkItem={(selection) =>
+          onExpandWorkItemToTab(
+            selection.projectId,
+            selection.projectName,
+            selection.projectSlug,
+            selection.workItem.session_id,
+            selection.workItem.name
+          )
+        }
+        onOpenLinearProject={onOpenLinearProjects}
+        allowExternalSources={allowExternalSources}
+        onCreateProject={onCreateProject}
+        onCreateWorkItem={() => onCreateWorkItem()}
+        workStationTabId={tab.id}
+      />
+    );
+  }
 );
 
 ProjectWorkItemsTabRenderer.displayName = "ProjectWorkItemsTabRenderer";

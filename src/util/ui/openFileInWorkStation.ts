@@ -7,8 +7,8 @@
  * `/orgii/workstation/code`, this helper writes directly to the workstation
  * layout atom. That means:
  *
- *   - the file tab is added to the main pane and becomes active
- *   - the WorkStation dock is flipped to Code Editor
+ *   - the file tab is added to the main pane and becomes active (the visible
+ *     content host follows the active tab, so this reveals the Code Editor)
  *   - the station mode is flipped to `"my-station"` so the WorkStation is
  *     actually visible
  *   - the chat-panel slot is un-maximized so the WorkStation pane on the
@@ -21,7 +21,6 @@
  */
 import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
-import { dockFilterAtom } from "@src/store/workstation";
 import {
   createFileTab,
   openTab,
@@ -49,7 +48,6 @@ export function openFileInWorkStation(
 
   const store = getInstrumentedStore();
   store.set(stationModeAtom, "my-station");
-  store.set(dockFilterAtom, "code");
   // If the chat-panel slot is maximized (covering the main area), un-maximize
   // it so the WorkStation pane on the right is actually visible. The caller's
   // current route (e.g. settings) is preserved.

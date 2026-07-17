@@ -90,7 +90,7 @@ export function generateJsoncContent(settings: SettingsObject): string {
     "{",
     "  // NOTE: This file only includes schema-backed settings.",
     "  // Some Settings UI sections are managed by other systems and are not represented here.",
-    "  // Not covered in this JSON: update, network, dependencies, monitor, storage,",
+    "  // Not covered in this JSON: network, dependencies, monitor, storage,",
     "  // and Agent sections: cli-config, agent-tools, agent-skills, agent-connectivity.",
   ];
 

@@ -14,6 +14,7 @@ mod compaction;
 pub(crate) mod create;
 pub mod debug;
 mod gateway_cmds;
+mod housekeeper;
 pub(crate) mod identity;
 mod interaction;
 pub mod launch;
@@ -24,6 +25,7 @@ mod workspace;
 
 pub use coding::*;
 pub use compaction::*;
+pub use housekeeper::*;
 pub use interaction::*;
 pub use persistence::*;
 // The three named functions are re-exported under stable, unambiguous

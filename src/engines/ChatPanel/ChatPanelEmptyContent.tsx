@@ -2,6 +2,7 @@ import type { TFunction } from "i18next";
 import { useAtomValue } from "jotai";
 import React, { Suspense } from "react";
 
+import type { SessionLaunchSuccessInfo } from "@src/engines/SessionCore/hooks/session/useSessionCreator/useSessionLaunch/types";
 import { SESSION_CREATOR_LAUNCH_MODE } from "@src/features/SessionCreator/types";
 import type { CreatedOrgResult } from "@src/features/TeamCollaboration/components/CreateCollabOrgView";
 import type { CreatedWorkItemResult } from "@src/modules/ProjectManager/WorkItems/components/CreateWorkItemView";
@@ -14,6 +15,7 @@ import { primaryWorkspaceRootAtom } from "@src/store/workspace";
 import {
   PROJECT_CREATOR_DRAFT_ID,
   type WorkItemDraft,
+  projectDraftsAtom,
 } from "@src/store/workstation/projectManager";
 import { STORY_PERSONAL_ORG_FILTER_ID } from "@src/store/workstation/tabs";
 
@@ -87,11 +89,9 @@ interface ChatPanelEmptyContentProps {
   >;
   handleRegionNoticeChange: (notice: ChatPanelRegionNotice | null) => void;
   handleStartPageAddApiKey: () => void;
-  handleStartPageExploreRepos: () => void;
-  handleStartPageManageIssues: () => void;
-  handleStartPageNewSession: () => void;
+  handleStartPageInstallLatestUpdate: () => void;
+  handleStartPageSessionStart: (info: SessionLaunchSuccessInfo) => void;
   handleStartPageNewWorkItem: () => void;
-  handleStartPageSetupRepo: () => void;
   handleWorkItemAgentCreatorToggle: (enabled: boolean) => void;
   resolveAiWorkItemContext: NonNullable<
     React.ComponentProps<SessionCreatorSlot>["resolveWorkItemContext"]
@@ -119,11 +119,9 @@ export function ChatPanelEmptyContent({
   handleOpenCliTerminal,
   handleRegionNoticeChange,
   handleStartPageAddApiKey,
-  handleStartPageExploreRepos,
-  handleStartPageManageIssues,
-  handleStartPageNewSession,
+  handleStartPageInstallLatestUpdate,
+  handleStartPageSessionStart,
   handleStartPageNewWorkItem,
-  handleStartPageSetupRepo,
   handleWorkItemAgentCreatorToggle,
   resolveAiWorkItemContext,
   SessionCreatorSlot,
@@ -132,16 +130,29 @@ export function ChatPanelEmptyContent({
   showWorkItemAgentCreator,
   t,
 }: ChatPanelEmptyContentProps): React.ReactNode {
+  const projectDrafts = useAtomValue(projectDraftsAtom);
+  const projectDraftOrgId = projectDrafts.get(PROJECT_CREATOR_DRAFT_ID)?.orgId;
+
   if (showStartPage) {
+    const sessionLauncher = SessionCreatorSlot ? (
+      <SessionCreatorSlot
+        className="shrink-0"
+        variant={creatorVariant}
+        innerClassName="pb-2 pt-1"
+        hidePresenceButton
+        onOpenCliTerminal={handleOpenCliTerminal}
+        onRegionNoticeChange={handleRegionNoticeChange}
+        onSessionStart={handleStartPageSessionStart}
+      />
+    ) : null;
+
     return (
       <ChatPanelStartPage
         className={creatorClassName}
         onAddApiKey={handleStartPageAddApiKey}
-        onExploreRepos={handleStartPageExploreRepos}
-        onManageIssues={handleStartPageManageIssues}
-        onNewSession={handleStartPageNewSession}
+        onInstallLatestUpdate={handleStartPageInstallLatestUpdate}
         onNewWorkItem={handleStartPageNewWorkItem}
-        onSetupRepo={handleStartPageSetupRepo}
+        sessionLauncher={sessionLauncher}
         t={t}
       />
     );
@@ -158,6 +169,12 @@ export function ChatPanelEmptyContent({
           launchMode={SESSION_CREATOR_LAUNCH_MODE.START_BACKGROUND}
           onOpenCliTerminal={handleOpenCliTerminal}
           onRegionNoticeChange={handleRegionNoticeChange}
+          workItemContext={{
+            orgId:
+              projectDraftOrgId ??
+              createProjectContext?.orgId ??
+              STORY_PERSONAL_ORG_FILTER_ID,
+          }}
         />
       ) : null;
 
@@ -243,6 +260,10 @@ export function ChatPanelEmptyContent({
           const workItemCreator = (
             <Suspense fallback={null}>
               <CreateWorkItemView
+                orgId={createProjectContext?.orgId}
+                scopeBreadcrumbLabel={
+                  createProjectContext?.scopeBreadcrumbLabel
+                }
                 repoPath={workspacePath}
                 onCancel={handleCancelWorkItemCreate}
                 onSetUnsaved={() => undefined}
@@ -308,19 +329,6 @@ export function ChatPanelEmptyContent({
       <Suspense fallback={null}>
         <BenchmarkRunBuilder className={creatorClassName} />
       </Suspense>
-    );
-  }
-
-  if (SessionCreatorSlot) {
-    return (
-      <SessionCreatorSlot
-        className={creatorClassName}
-        variant={creatorVariant}
-        centerFullScreenContent
-        hidePresenceButton
-        onOpenCliTerminal={handleOpenCliTerminal}
-        onRegionNoticeChange={handleRegionNoticeChange}
-      />
     );
   }
 

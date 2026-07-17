@@ -4,6 +4,7 @@ import { usePublishWorkstationTabHeader } from "@src/hooks/workStation";
 
 import DiaryDateControls from "../components/DiaryDateControls";
 import type { FactoryViewMode } from "../components/FactoryViewPill";
+import KanbanFileSearchInput from "../components/KanbanFileSearchInput";
 import KanbanHeaderFilters from "../components/KanbanHeaderFilters";
 import KanbanHeaderTrailingControls from "../components/KanbanHeaderTrailingControls";
 import type { KanbanAutoArchiveTtl, KanbanTimeFilter } from "../config";
@@ -12,8 +13,6 @@ export interface UseTaskKanbanHeaderOptions {
   viewMode: FactoryViewMode;
   calendarDate: Date;
   onCalendarDateChange: React.Dispatch<React.SetStateAction<Date>>;
-  worktreeSessionCount: number;
-  onCompareWorktrees: () => void;
   autoArchiveTtl: KanbanAutoArchiveTtl;
   onAutoArchiveTtlChange: (ttl: KanbanAutoArchiveTtl) => void;
   timeFilter: KanbanTimeFilter;
@@ -25,8 +24,6 @@ export function useTaskKanbanHeader({
   viewMode,
   calendarDate,
   onCalendarDateChange,
-  worktreeSessionCount,
-  onCompareWorktrees,
   autoArchiveTtl,
   onAutoArchiveTtlChange,
   timeFilter,
@@ -47,8 +44,6 @@ export function useTaskKanbanHeader({
     if (viewMode === "diary") return null;
     return (
       <KanbanHeaderTrailingControls
-        worktreeSessionCount={worktreeSessionCount}
-        onCompareWorktrees={onCompareWorktrees}
         autoArchiveTtl={autoArchiveTtl}
         onAutoArchiveTtlChange={onAutoArchiveTtlChange}
         timeFilter={timeFilter}
@@ -58,20 +53,24 @@ export function useTaskKanbanHeader({
   }, [
     autoArchiveTtl,
     onAutoArchiveTtlChange,
-    onCompareWorktrees,
     onTimeFilterChange,
     timeFilter,
     viewMode,
-    worktreeSessionCount,
   ]);
 
   const headerContent = useMemo(() => {
+    // Data Source tab manages its own actions (per-source + "Rescan all"),
+    // so the Kanban time/archive filters don't apply here.
+    if (viewMode === "datasource") {
+      return { trailing: null };
+    }
     if (viewMode === "diary") {
       return {
         trailing: diaryControls,
       };
     }
     return {
+      leading: <KanbanFileSearchInput />,
       trailing: (
         <div className="flex min-w-0 items-center gap-1 overflow-visible">
           <KanbanHeaderFilters />
@@ -82,7 +81,7 @@ export function useTaskKanbanHeader({
   }, [diaryControls, headerTrailing, viewMode]);
 
   usePublishWorkstationTabHeader({
-    host: "opsControl",
+    host: "workManagement",
     content: headerContent,
     enabled: !hidden,
   });

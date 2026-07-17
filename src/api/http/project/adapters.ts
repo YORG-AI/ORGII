@@ -179,6 +179,7 @@ export function projectDataToUI(
     name: meta.name,
     description: projectData.description || meta.name,
     slug: projectData.slug,
+    orgId: meta.org_id,
     workItemPrefix: meta.work_item_prefix,
     workItemPrefixCustom: meta.work_item_prefix_custom,
     status: validateEnum<ProjectStatus>(
@@ -292,6 +293,57 @@ export function workItemDataToUI(
     executionLock: frontmatter.execution_lock,
     closeOut: frontmatter.close_out,
     workProducts: frontmatter.work_products,
+  };
+}
+
+/**
+ * Lift a raw standalone work item (`work_item_read_standalone_items`)
+ * into the `EnrichedWorkItem` shape used by list surfaces. Standalone
+ * rows have no project, and without a project there is no member/label
+ * file to resolve against, so people fall back to their raw ids (same
+ * convention as `workItemDataToUI` with empty maps).
+ */
+export function standaloneWorkItemDataToEnriched(
+  itemData: WorkItemData
+): EnrichedWorkItem {
+  const { frontmatter } = itemData;
+  const emptyMemberMap = new Map<string, MemberEntry>();
+  return {
+    id: frontmatter.id,
+    shortId: frontmatter.short_id,
+    title: frontmatter.title,
+    body: itemData.body,
+    filename: itemData.filename,
+    status: frontmatter.status,
+    priority: frontmatter.priority,
+    starred: frontmatter.starred,
+    assignee: resolveMemberId(frontmatter.assignee, emptyMemberMap),
+    assigneeType: frontmatter.assignee_type,
+    labels: resolveLabelIds(frontmatter.labels ?? [], new Map()),
+    project: undefined,
+    milestone: frontmatter.milestone
+      ? { id: frontmatter.milestone, name: frontmatter.milestone }
+      : undefined,
+    startDate: frontmatter.start_date,
+    targetDate: frontmatter.target_date,
+    createdAt: frontmatter.created_at,
+    updatedAt: frontmatter.updated_at,
+    deletedAt: frontmatter.deleted_at,
+    createdBy: frontmatter.created_by,
+    createdByPerson: resolveMemberId(frontmatter.created_by, emptyMemberMap),
+    todos: frontmatter.todos ?? [],
+    comments: frontmatter.comments ?? [],
+    history: frontmatter.history ?? [],
+    linkedSessions: frontmatter.linked_sessions ?? [],
+    proofOfWork: frontmatter.proof_of_work,
+    orchestratorConfig: frontmatter.orchestrator_config,
+    orchestratorState: frontmatter.orchestrator_state,
+    followUpItems: frontmatter.follow_up_items ?? [],
+    schedule: frontmatter.schedule,
+    routineSource: frontmatter.routine_source,
+    executionLock: frontmatter.execution_lock,
+    closeOut: frontmatter.close_out,
+    workProducts: frontmatter.work_products ?? [],
   };
 }
 

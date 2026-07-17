@@ -36,12 +36,10 @@ interface ChatPinnedHeaderLayerProps {
   groupChatViewActive?: boolean;
   onGroupChatViewToggle?: (active: boolean) => void;
   showPinnedTurnHeader: boolean;
-  sessionId: string | null;
   sourceGroupIndex?: number;
   sourceGroupCount: number;
   header: OptimizedChatItem | null | undefined;
   meta: ChatGroupMeta | undefined;
-  hasPinnedContent: boolean;
   collapseLabelVariant?: GroupHeaderRendererProps["collapseLabelVariant"];
   collapseTailWhenIdle: boolean;
   hideUserMessage: boolean;
@@ -80,12 +78,10 @@ const ChatPinnedHeaderLayer: React.FC<ChatPinnedHeaderLayerProps> = memo(
     groupChatViewActive,
     onGroupChatViewToggle,
     showPinnedTurnHeader,
-    sessionId,
     sourceGroupIndex,
     sourceGroupCount,
     header,
     meta,
-    hasPinnedContent,
     collapseLabelVariant,
     collapseTailWhenIdle,
     hideUserMessage,
@@ -132,12 +128,10 @@ const ChatPinnedHeaderLayer: React.FC<ChatPinnedHeaderLayerProps> = memo(
         )}
         <PinnedTurnHeader
           visible={showPinnedTurnHeader}
-          sessionId={sessionId}
           sourceGroupIndex={sourceGroupIndex}
           sourceGroupCount={sourceGroupCount}
           header={header}
           meta={meta}
-          hasPinnedContent={hasPinnedContent}
           collapseLabelVariant={collapseLabelVariant}
           collapseTailWhenIdle={collapseTailWhenIdle}
           hideUserMessage={hideUserMessage}

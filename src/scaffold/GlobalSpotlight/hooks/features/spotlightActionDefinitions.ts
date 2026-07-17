@@ -15,6 +15,7 @@ import {
   ArrowBigLeft,
   ArrowBigRight,
   Box,
+  Columns3,
   Contrast,
   Dock,
   DraftingCompass,
@@ -22,7 +23,6 @@ import {
   FolderTree,
   GitBranch,
   GitPullRequest,
-  LayoutPanelLeft,
   LayoutPanelTop,
   List,
   Menu,
@@ -32,7 +32,6 @@ import {
   PanelBottom,
   PanelLeft,
   Play,
-  RadioTower,
   RefreshCw,
   RotateCcw,
   Search,
@@ -58,6 +57,7 @@ export type SpotlightStaticActionId =
   | "create-project"
   | "create-work-item"
   | "search-agent-sessions"
+  | "search-all-sessions"
   | "open-agent-control"
   | "switch-workspace"
   | "switch-branch"
@@ -76,15 +76,13 @@ export type SpotlightStaticActionId =
   | "disable-chat-pagination"
   | "use-model-picker-spotlight"
   | "use-model-picker-dropdown"
-  | "set-comfort-layout"
-  | "set-compact-layout"
   | "set-workstation-sidebar-left"
   | "set-workstation-sidebar-right"
   | "enable-dock-auto-hide"
   | "disable-dock-auto-hide"
   | "open-my-station"
   | "open-agent-station"
-  | "open-ops-control"
+  | "open-kanban"
   | "zoom-in"
   | "zoom-out"
   | "zoom-reset"
@@ -102,6 +100,7 @@ export type SpotlightStaticActionFallback =
   | "create-project"
   | "create-work-item"
   | "search-agent-sessions"
+  | "search-all-sessions"
   | "agent-control"
   | "workspace-switch"
   | "workspace-add"
@@ -117,7 +116,7 @@ export type SpotlightStaticActionFallback =
   | "toggle-chat-panel"
   | "open-my-station"
   | "open-agent-station"
-  | "open-ops-control"
+  | "open-kanban"
   | "open-search-sidebar"
   | "open-source-control-tab"
   | "open-terminal-tab"
@@ -236,6 +235,23 @@ export const AGENT_SESSION_ACTIONS = [
     actionId: ACTION_ID.SPOTLIGHT_OPEN_AGENT_SESSION_SEARCH,
     payload: {},
     fallback: "search-agent-sessions",
+    opensSecondLevel: true,
+    closeOnSuccess: false,
+  },
+  {
+    id: "search-all-sessions",
+    labelKey: "selectors.spotlight.actions.searchAllSessions.label",
+    icon: Search,
+    keywords: [
+      "full text search",
+      "search content",
+      "search transcripts",
+      "search all sessions",
+      "grep sessions",
+    ],
+    actionId: ACTION_ID.SPOTLIGHT_OPEN_ALL_SESSIONS_SEARCH,
+    payload: {},
+    fallback: "search-all-sessions",
     opensSecondLevel: true,
     closeOnSuccess: false,
   },
@@ -377,14 +393,14 @@ export const STATION_MODE_ACTIONS = [
     closeOnSuccess: true,
   },
   {
-    id: "open-ops-control",
-    labelKey: "common:spotlightActions.openOpsControl",
-    icon: RadioTower,
-    keywords: ["ops control", "ops", "kanban", "project", "work items"],
-    shortcut: getShortcutKeys("open_ops_control"),
-    actionId: ACTION_ID.WORKSTATION_OPEN_OPS_CONTROL,
+    id: "open-kanban",
+    labelKey: "common:spotlightActions.openKanban",
+    icon: Columns3,
+    keywords: ["kanban", "project", "work items"],
+    shortcut: getShortcutKeys("open_kanban"),
+    actionId: ACTION_ID.WORKSTATION_OPEN_KANBAN,
     payload: {},
-    fallback: "open-ops-control",
+    fallback: "open-kanban",
     closeOnSuccess: true,
   },
 ] satisfies SpotlightStaticActionDefinition[];
@@ -416,17 +432,13 @@ export function buildChatPanelSettingsActions({
   agentStationChatPosition,
   chatTurnPaginationEnabled,
   modelPickerStyle,
-  internalLayoutMode,
   workstationSidebarPosition,
-  dockAutoHide,
 }: {
   myStationChatPosition: "left" | "right";
   agentStationChatPosition: "left" | "right";
   chatTurnPaginationEnabled: boolean;
   modelPickerStyle: "spotlight" | "dropdown";
-  internalLayoutMode: "comfort" | "compact";
   workstationSidebarPosition: "left" | "right";
-  dockAutoHide: boolean;
 }): SpotlightStaticActionDefinition[] {
   const actions: SpotlightStaticActionDefinition[] = [];
 
@@ -514,25 +526,6 @@ export function buildChatPanelSettingsActions({
 
   actions.push({
     id:
-      internalLayoutMode === "comfort"
-        ? "set-compact-layout"
-        : "set-comfort-layout",
-    labelKey:
-      internalLayoutMode === "comfort"
-        ? "common:spotlightActions.useCompactWorkstationLayout"
-        : "common:spotlightActions.useComfortWorkstationLayout",
-    icon: LayoutPanelLeft,
-    keywords: ["layout mode", "compact layout", "comfort layout", "density"],
-    actionId:
-      internalLayoutMode === "comfort"
-        ? ACTION_ID.WORKSTATION_SET_COMPACT_LAYOUT
-        : ACTION_ID.WORKSTATION_SET_COMFORT_LAYOUT,
-    payload: {},
-    closeOnSuccess: false,
-  });
-
-  actions.push({
-    id:
       workstationSidebarPosition === "left"
         ? "set-workstation-sidebar-right"
         : "set-workstation-sidebar-left",
@@ -551,20 +544,6 @@ export function buildChatPanelSettingsActions({
       workstationSidebarPosition === "left"
         ? ACTION_ID.WORKSTATION_SET_SIDEBAR_RIGHT
         : ACTION_ID.WORKSTATION_SET_SIDEBAR_LEFT,
-    payload: {},
-    closeOnSuccess: false,
-  });
-
-  actions.push({
-    id: dockAutoHide ? "disable-dock-auto-hide" : "enable-dock-auto-hide",
-    labelKey: dockAutoHide
-      ? "common:spotlightActions.disableDockAutoHide"
-      : "common:spotlightActions.enableDockAutoHide",
-    icon: Dock,
-    keywords: ["dock auto hide", "dock", "auto hide dock", "keep dock visible"],
-    actionId: dockAutoHide
-      ? ACTION_ID.WORKSTATION_DISABLE_DOCK_AUTO_HIDE
-      : ACTION_ID.WORKSTATION_ENABLE_DOCK_AUTO_HIDE,
     payload: {},
     closeOnSuccess: false,
   });

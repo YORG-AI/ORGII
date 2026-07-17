@@ -11,7 +11,7 @@
  * Not every block uses all four; omit `subtitle` or `info` when unused.
  *
  * ⚠️ Every Chat block header must use these primitives — never a raw `<span>`
- * with `font-medium text-text-1`. Reasons:
+ * with `font-medium text-text-2`. Reasons:
  *
  * - Consistent font size regardless of ancestor wrapper. The `.chat-block-header`
  *   size reset lives in `ChatHistory/index.scss` scoped to `.wp__chat__history`;
@@ -33,6 +33,12 @@ export interface EventBlockHeaderTitleProps {
   children: ReactNode;
   /** When true, applies loading shimmer to text */
   isLoading?: boolean;
+  /**
+   * When true, the title truncates instead of staying at natural width.
+   * Use when the title carries a long, variable-length string (e.g. an
+   * agent-provided description promoted into the title slot).
+   */
+  truncate?: boolean;
   className?: string;
 }
 
@@ -53,10 +59,11 @@ export interface EventBlockHeaderInfoProps {
 export const EventBlockHeaderTitle: React.FC<EventBlockHeaderTitleProps> = ({
   children,
   isLoading = false,
+  truncate = false,
   className = "",
 }) => (
   <span
-    className={`inline-flex shrink-0 items-center whitespace-nowrap leading-tight ${isLoading ? `font-bold ${EVENT_LOADING_SHIMMER_TEXT_CLASSES}` : "font-medium text-text-1"} ${className}`.trim()}
+    className={`inline-flex items-center leading-tight ${truncate ? "min-w-0 flex-initial truncate" : "shrink-0 whitespace-nowrap"} ${isLoading ? `font-bold ${EVENT_LOADING_SHIMMER_TEXT_CLASSES}` : "font-medium text-text-2"} ${className}`.trim()}
   >
     {children}
   </span>

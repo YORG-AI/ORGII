@@ -14,7 +14,7 @@ const REPO_SKILL_STORAGE_DIRS = [
   ".claude/skills",
   ".codex/skills",
   ".opencode/skills",
-  ".gemini/skills",
+  ".gemini/antigravity-cli/skills",
   ".agents/skills",
   "skills",
 ] as const;
@@ -26,7 +26,6 @@ const USER_SKILL_STORAGE_DIRS = [
   ".claude/commands",
   ".codex/skills",
   ".opencode/skills",
-  ".gemini/skills",
   ".agents/skills",
   ".hermes/skills",
   ".openclaw/skills",

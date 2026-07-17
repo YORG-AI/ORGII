@@ -15,7 +15,7 @@
  * │ [Left Content]  [Center Content]  [Right Content] │
  * └────────────────────────────────────────────────┘
  */
-import React, { memo } from "react";
+import React, { forwardRef, memo } from "react";
 
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { classNames } from "@src/util/ui/classNames";
@@ -59,8 +59,18 @@ export interface StatusBarButtonProps {
   onClick?: () => void;
   /** Whether the button is disabled */
   disabled?: boolean;
-  /** Tooltip text */
+  /**
+   * Native `title` tooltip. Prefer wrapping the button in the app `Tooltip`
+   * (see {@link ariaLabel}) for a styled hover tooltip instead of the
+   * browser's native one.
+   */
   title?: string;
+  /**
+   * Accessible name. Use this instead of `title` when a styled app `Tooltip`
+   * supplies the visible hover label — the button stays screen-reader
+   * labelled without the browser also rendering its native tooltip.
+   */
+  ariaLabel?: string;
   /** Whether the button is active/selected (ghost only) */
   active?: boolean;
   /** Visual variant — see {@link StatusBarButtonVariant} */
@@ -68,52 +78,76 @@ export interface StatusBarButtonProps {
   /** Additional class name */
   className?: string;
   dataTestId?: string;
+  /**
+   * Hover/focus handlers, forwarded to the underlying `<button>`. These let an
+   * app `Tooltip` wrap the button directly (it clones the child and attaches
+   * these) without an extra element that would break the flex truncation.
+   */
+  onMouseEnter?: React.MouseEventHandler<HTMLButtonElement>;
+  onMouseLeave?: React.MouseEventHandler<HTMLButtonElement>;
+  onFocus?: React.FocusEventHandler<HTMLButtonElement>;
+  onBlur?: React.FocusEventHandler<HTMLButtonElement>;
 }
 
 /**
  * Styled button for use within status bars.
  */
-export const StatusBarButton: React.FC<StatusBarButtonProps> = memo(
-  ({
-    children,
-    onClick,
-    disabled = false,
-    title,
-    active = false,
-    variant = "ghost",
-    className,
-    dataTestId,
-  }) => {
-    // `active` only applies to the ghost variant — the primary fill
-    // already reads as a pressed CTA, so adding bg-fill-2 on top would
-    // mute the brand color.
-    const activeClass =
-      variant === "ghost" && active ? SURFACE_TOKENS.selected : "";
-    const variantClass =
-      variant === "primary"
-        ? STATUS_BAR_TOKENS.buttonPrimary
-        : STATUS_BAR_TOKENS.buttonGhost;
+export const StatusBarButton = memo(
+  forwardRef<HTMLButtonElement, StatusBarButtonProps>(
+    (
+      {
+        children,
+        onClick,
+        disabled = false,
+        title,
+        ariaLabel,
+        active = false,
+        variant = "ghost",
+        className,
+        dataTestId,
+        onMouseEnter,
+        onMouseLeave,
+        onFocus,
+        onBlur,
+      },
+      ref
+    ) => {
+      // `active` only applies to the ghost variant — the primary fill
+      // already reads as a pressed CTA, so adding bg-fill-2 on top would
+      // mute the brand color.
+      const activeClass =
+        variant === "ghost" && active ? SURFACE_TOKENS.selected : "";
+      const variantClass =
+        variant === "primary"
+          ? STATUS_BAR_TOKENS.buttonPrimary
+          : STATUS_BAR_TOKENS.buttonGhost;
 
-    return (
-      <button
-        type="button"
-        className={classNames(
-          STATUS_BAR_TOKENS.button,
-          variantClass,
-          activeClass,
-          disabled && "cursor-not-allowed opacity-50",
-          className
-        )}
-        onClick={onClick}
-        disabled={disabled}
-        title={title}
-        aria-label={title}
-        data-testid={dataTestId}
-      >
-        {children}
-      </button>
-    );
-  }
+      return (
+        <button
+          ref={ref}
+          type="button"
+          className={classNames(
+            STATUS_BAR_TOKENS.button,
+            variantClass,
+            activeClass,
+            disabled && "cursor-not-allowed opacity-50",
+            className
+          )}
+          onClick={onClick}
+          onMouseEnter={onMouseEnter}
+          onMouseLeave={onMouseLeave}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          disabled={disabled}
+          title={title}
+          aria-label={ariaLabel ?? title}
+          data-testid={dataTestId}
+        >
+          {children}
+        </button>
+      );
+    }
+  )
 );
 
 StatusBarButton.displayName = "StatusBarButton";

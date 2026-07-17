@@ -91,6 +91,26 @@ export interface ManualCompactResult {
   boundary?: ManualCompactBoundary;
 }
 
+export type HousekeeperContextCompactionStatus =
+  | "disabled"
+  | "idle"
+  | "running"
+  | "complete"
+  | "error"
+  | "unavailable"
+  | "busy";
+
+export interface HousekeeperContextCompactionState {
+  enabled: boolean;
+  status: HousekeeperContextCompactionStatus;
+  coveredMessages: number;
+  sourceTokens: number;
+  summaryTokens: number;
+  lastRunAt?: string;
+  lastError?: string;
+  message?: string;
+}
+
 export interface AgentMessageResponse {
   content: string;
   sessionId: string;

@@ -24,14 +24,32 @@ use crate::sources::imported_history::{
     paths as imported_paths, ImportedHistoryRecentPath, ImportedHistorySessionPage,
     ImportedHistorySessionRow, ImportedToolCall,
 };
+use crate::store::{sqlite::SqliteRecordStore, RecordStore};
 
-const CODEX_APP_SESSION_PREFIX: &str = "codexapp-";
+mod desktop_exec;
+
+use desktop_exec::{
+    codex_tool_exit_code, codex_tool_output_failed, codex_tool_output_text,
+    normalize_codex_exec_tool_calls,
+};
+
+use super::SESSION_PREFIX as CODEX_APP_SESSION_PREFIX;
 const CODEX_PROVIDER_SLUG: &str = "codex";
-const CODEX_APP_METADATA_PARSER_VERSION: i64 = 8;
+// v9: derive impact from authoritative `patch_apply_end` events (structured
+// `changes` map with unified diffs) instead of only scanning `apply_patch`
+// tool calls, so `exec`-wrapped and other edit paths are counted too.
+const CODEX_APP_METADATA_PARSER_VERSION: i64 = 9;
 
 pub type CodexAppSessionRow = ImportedHistorySessionRow;
 pub type CodexAppSessionPage = ImportedHistorySessionPage;
 pub type CodexAppRecentPath = ImportedHistoryRecentPath;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CodexTranscriptLocator {
+    pub source_session_id: String,
+    pub session_id: String,
+    pub source_path: PathBuf,
+}
 
 #[derive(Debug, Clone)]
 struct CodexAppSessionMeta {
@@ -85,6 +103,11 @@ struct CodexSessionIndexLine {
     thread_name: String,
     #[serde(default)]
     updated_at: Option<String>,
+}
+
+struct PendingBackgroundToolCall {
+    calls: Vec<ImportedToolCall>,
+    latest_output: String,
 }
 
 pub fn list_codex_app_sessions_paginated(
@@ -338,8 +361,15 @@ fn parse_codex_session_meta(
     let mut repo_path: Option<String> = None;
     let mut input_tokens = 0;
     let mut output_tokens = 0;
+    // Primary impact source: `patch_apply_end` events, which Codex emits after
+    // every *successful* apply with a structured `changes` map (path ->
+    // unified_diff). This covers every edit path uniformly — the `apply_patch`
+    // tool, `exec`-wrapped patches, etc. The tool-call scan below is only a
+    // fallback for older rollouts that predate `patch_apply_end`.
     let mut impact = ImportedHistoryImpactStats::default();
     let mut touched_files = BTreeSet::new();
+    let mut fallback_impact = ImportedHistoryImpactStats::default();
+    let mut fallback_touched = BTreeSet::new();
     let mut parent_thread_id: Option<String> = None;
 
     for line in reader.lines() {
@@ -404,7 +434,19 @@ fn parse_codex_session_meta(
                     .unwrap_or(output_tokens);
             }
         }
-        collect_codex_impact_from_payload(&parsed.payload, &mut impact, &mut touched_files);
+        collect_codex_impact_from_patch_apply_end(&parsed.payload, &mut impact, &mut touched_files);
+        collect_codex_impact_from_payload(
+            &parsed.payload,
+            &mut fallback_impact,
+            &mut fallback_touched,
+        );
+    }
+
+    // Prefer the authoritative `patch_apply_end` tally; only fall back to the
+    // tool-call scan when no successful applies were recorded (older rollouts).
+    if touched_files.is_empty() && impact.lines_added == 0 && impact.lines_removed == 0 {
+        impact = fallback_impact;
+        touched_files = fallback_touched;
     }
 
     impact.touched_files = touched_files.into_iter().collect();
@@ -423,7 +465,7 @@ fn parse_codex_session_meta(
     };
     Ok(Some(CodexAppSessionMeta {
         source_session_id: record.source_session_id.clone(),
-        session_id: format!("{CODEX_APP_SESSION_PREFIX}{}", record.source_session_id),
+        session_id: super::canonical_session_id(&record.source_session_id),
         source_path: record.source_path.to_string_lossy().to_string(),
         source_record_key: record.source_record_key.clone(),
         source_mtime_ms: record.source_mtime_ms,
@@ -520,23 +562,90 @@ fn codex_parent_session_id_for_record(
     record: &ImportedHistoryDiscoveredRecord,
     parent_thread_id: &str,
 ) -> Option<String> {
-    let parent_file_stem =
-        codex_file_stem_for_thread_id_near_session(&record.source_path, parent_thread_id)?;
-    Some(format!("{CODEX_APP_SESSION_PREFIX}{parent_file_stem}"))
+    resolve_codex_transcript_for_thread_id_near_path(&record.source_path, parent_thread_id)
+        .ok()
+        .flatten()
+        .map(|locator| locator.session_id)
 }
 
-fn codex_file_stem_for_thread_id_near_session(
-    session_path: &Path,
+/// Resolve a Codex thread UUID to the concrete rollout file that ORGII can
+/// replay. Lifecycle hooks identify the parent with a stable thread UUID, but
+/// their common `transcript_path` may point at the active child rollout.
+pub fn resolve_codex_transcript_for_thread_id_near_path(
+    reference_path: &Path,
     thread_id: &str,
-) -> Option<String> {
-    let sessions_dir = codex_sessions_dir_for_session_path(session_path)?;
+) -> Result<Option<CodexTranscriptLocator>, String> {
+    let Some(sessions_dir) = codex_sessions_dir_for_session_path(reference_path) else {
+        return Ok(None);
+    };
+    let find_locator = |mut files: Vec<PathBuf>| {
+        files.sort();
+        files.into_iter().find_map(|path| {
+            let file_stem = path
+                .file_stem()
+                .and_then(|value| value.to_str())?
+                .to_string();
+            (codex_thread_id_from_file_stem(&file_stem) == Some(thread_id)).then(|| {
+                CodexTranscriptLocator {
+                    session_id: super::canonical_session_id(&file_stem),
+                    source_session_id: file_stem,
+                    source_path: path,
+                }
+            })
+        })
+    };
+
+    // Parent and child rollouts from one subagent run normally share the same
+    // dated directory. Search that tiny locality before falling back to the
+    // full CODEX_HOME session tree, which can contain years of history.
+    if let Some(nearby_dir) = reference_path.parent() {
+        let mut nearby_files = Vec::new();
+        collect_codex_session_files(nearby_dir, &mut nearby_files)?;
+        if let Some(locator) = find_locator(nearby_files) {
+            return Ok(Some(locator));
+        }
+    }
+
     let mut files = Vec::new();
-    collect_codex_session_files(&sessions_dir, &mut files).ok()?;
-    files.into_iter().find_map(|path| {
-        let file_stem = path.file_stem().and_then(|value| value.to_str())?;
-        (codex_thread_id_from_file_stem(file_stem) == Some(thread_id))
-            .then(|| file_stem.to_string())
-    })
+    collect_codex_session_files(&sessions_dir, &mut files)?;
+    Ok(find_locator(files))
+}
+
+/// Tally impact from a `patch_apply_end` event — Codex's authoritative record
+/// of a successfully applied patch. `changes` maps each touched path to a
+/// `{ type, unified_diff }` object; the diff's `+`/`-` lines give exact
+/// add/remove counts regardless of how the edit was requested.
+fn collect_codex_impact_from_patch_apply_end(
+    payload: &Value,
+    impact: &mut ImportedHistoryImpactStats,
+    touched_files: &mut BTreeSet<String>,
+) {
+    if payload.get("type").and_then(Value::as_str) != Some("patch_apply_end") {
+        return;
+    }
+    // A failed apply changed nothing; don't attribute its diff.
+    if payload.get("success").and_then(Value::as_bool) == Some(false) {
+        return;
+    }
+    let Some(changes) = payload.get("changes").and_then(Value::as_object) else {
+        return;
+    };
+    for (path, change) in changes {
+        let path = path.trim();
+        if path.is_empty() {
+            continue;
+        }
+        touched_files.insert(path.to_string());
+        if let Some(diff) = change.get("unified_diff").and_then(Value::as_str) {
+            for line in diff.lines() {
+                if line.starts_with('+') && !line.starts_with("+++") {
+                    impact.lines_added += 1;
+                } else if line.starts_with('-') && !line.starts_with("---") {
+                    impact.lines_removed += 1;
+                }
+            }
+        }
+    }
 }
 
 fn collect_codex_impact_from_payload(
@@ -631,13 +740,17 @@ fn normalize_patch_path(path: &str) -> Option<String> {
     }
 }
 
-fn load_codex_app_from_path(session_id: &str, path: &Path) -> Result<Vec<ActivityChunk>, String> {
+pub fn load_codex_app_from_path(
+    session_id: &str,
+    path: &Path,
+) -> Result<Vec<ActivityChunk>, String> {
     let file = fs::File::open(path)
         .map_err(|err| format!("Failed to open Codex history {}: {err}", path.display()))?;
     let reader = BufReader::new(file);
 
     let mut chunks = Vec::new();
     let mut pending_tool_calls: HashMap<String, Vec<ImportedToolCall>> = HashMap::new();
+    let mut background_tool_calls: HashMap<String, PendingBackgroundToolCall> = HashMap::new();
     let mut sequence = 0usize;
 
     for line in reader.lines() {
@@ -724,16 +837,55 @@ fn load_codex_app_from_path(session_id: &str, path: &Path) -> Result<Vec<Activit
                     pending_tool_calls.insert(call_id, calls);
                 }
             }
+            "web_search_call" => {
+                if let Some(call) = web_search_call_from_payload(&parsed.payload, &created_at) {
+                    chunks.push(codex_tool_call_chunk(session_id, sequence, &call, ""));
+                    sequence += 1;
+                }
+            }
             "function_call_output" | "custom_tool_call_output" => {
                 let call_id = parsed.payload.get("call_id").and_then(Value::as_str);
                 if let Some(call_id) = call_id {
                     if let Some(calls) = pending_tool_calls.remove(call_id) {
-                        let output = parsed
-                            .payload
-                            .get("output")
-                            .and_then(Value::as_str)
-                            .unwrap_or_default();
-                        let outputs = output_parts_for_tool_calls(&calls, output);
+                        let output = codex_tool_output_text(parsed.payload.get("output"));
+                        if let Some(cell_id) = wait_cell_id(&calls) {
+                            if let Some(mut background) = background_tool_calls.remove(cell_id) {
+                                if let Some(next_cell_id) = background_cell_id(&output) {
+                                    background.latest_output = output;
+                                    background_tool_calls.insert(next_cell_id, background);
+                                } else {
+                                    let final_output = if output.trim().is_empty() {
+                                        background.latest_output
+                                    } else {
+                                        output
+                                    };
+                                    let outputs = output_parts_for_tool_calls(
+                                        &background.calls,
+                                        &final_output,
+                                    );
+                                    for (call, output) in
+                                        background.calls.iter().zip(outputs.iter())
+                                    {
+                                        chunks.push(codex_tool_call_chunk(
+                                            session_id, sequence, call, output,
+                                        ));
+                                        sequence += 1;
+                                    }
+                                }
+                                continue;
+                            }
+                        }
+                        if let Some(cell_id) = background_cell_id(&output) {
+                            background_tool_calls.insert(
+                                cell_id,
+                                PendingBackgroundToolCall {
+                                    calls,
+                                    latest_output: output,
+                                },
+                            );
+                            continue;
+                        }
+                        let outputs = output_parts_for_tool_calls(&calls, &output);
                         for (call, output) in calls.iter().zip(outputs.iter()) {
                             chunks.push(codex_tool_call_chunk(session_id, sequence, call, output));
                             sequence += 1;
@@ -751,8 +903,35 @@ fn load_codex_app_from_path(session_id: &str, path: &Path) -> Result<Vec<Activit
             sequence += 1;
         }
     }
+    for background in background_tool_calls.into_values() {
+        let outputs = output_parts_for_tool_calls(&background.calls, &background.latest_output);
+        for (call, output) in background.calls.iter().zip(outputs.iter()) {
+            chunks.push(codex_tool_call_chunk(session_id, sequence, call, output));
+            sequence += 1;
+        }
+    }
 
     Ok(chunks)
+}
+
+fn background_cell_id(output: &str) -> Option<String> {
+    output.lines().find_map(|line| {
+        line.trim()
+            .strip_prefix("Script running with cell ID ")
+            .map(str::trim)
+            .filter(|cell_id| !cell_id.is_empty())
+            .map(str::to_string)
+    })
+}
+
+fn wait_cell_id(calls: &[ImportedToolCall]) -> Option<&str> {
+    let [call] = calls else {
+        return None;
+    };
+    if normalize_tool_name_key(&call.raw_name) != "wait" {
+        return None;
+    }
+    call.args.get("cell_id").and_then(Value::as_str)
 }
 
 fn codex_tool_call_chunk(
@@ -779,6 +958,27 @@ fn codex_tool_call_chunk(
             result.insert("matches".to_string(), Value::Array(matches));
         }
     }
+    let exit_code = codex_tool_exit_code(output);
+    let failed = codex_tool_output_failed(output, exit_code);
+    if let Some(result) = chunk.result.as_object_mut() {
+        if let Some(exit_code) = exit_code {
+            result.insert("exit_code".to_string(), json!(exit_code));
+        }
+        if failed {
+            result.insert("success".to_string(), Value::Bool(false));
+            result.insert("status".to_string(), Value::String("failed".to_string()));
+            result.insert("is_error".to_string(), Value::Bool(true));
+            result.insert(
+                "failure".to_string(),
+                json!({
+                    "command": call.args.get("command").and_then(Value::as_str).unwrap_or_default(),
+                    "stdout": "",
+                    "stderr": output,
+                    "exitCode": exit_code,
+                }),
+            );
+        }
+    }
     chunk
 }
 
@@ -787,11 +987,15 @@ fn output_parts_for_tool_calls(calls: &[ImportedToolCall], output: &str) -> Vec<
         return vec![output.to_string()];
     }
 
-    let limits = calls
+    // A multiline Desktop shell script may normalize to several reads followed
+    // by a different final operation (for example three `sed` reads then
+    // `rg`). Each bounded read consumes its known number of lines; the final
+    // tool receives the remainder.
+    let bounded_prefix_limits = calls[..calls.len() - 1]
         .iter()
         .map(read_line_limit_from_call)
         .collect::<Option<Vec<_>>>();
-    let Some(limits) = limits else {
+    let Some(limits) = bounded_prefix_limits else {
         return vec![output.to_string(); calls.len()];
     };
 
@@ -864,12 +1068,16 @@ fn pending_custom_tool_calls_from_payload(
         .get("input")
         .and_then(Value::as_str)
         .unwrap_or_default();
-    let args = if raw_name == "apply_patch" {
-        json!({ "patch": input })
+    let normalized_calls = if normalize_tool_name_key(&raw_name) == "exec" {
+        normalize_codex_exec_tool_calls(input)
     } else {
-        json!({ "input": input })
+        let args = if raw_name == "apply_patch" {
+            json!({ "patch": input })
+        } else {
+            json!({ "input": input })
+        };
+        normalize_codex_tool_calls(&raw_name, args)
     };
-    let normalized_calls = normalize_codex_tool_calls(&raw_name, args);
     let call_count = normalized_calls.len();
     if call_count == 0 {
         return None;
@@ -888,6 +1096,18 @@ fn pending_custom_tool_calls_from_payload(
     Some((call_id, calls))
 }
 
+fn web_search_call_from_payload(payload: &Value, created_at: &str) -> Option<ImportedToolCall> {
+    let call_id = payload.get("id")?.as_str()?.to_string();
+    let action = payload.get("action").cloned().unwrap_or_else(|| json!({}));
+    Some(ImportedToolCall {
+        call_id,
+        raw_name: "web_search_call".to_string(),
+        canonical_name: "web_search".to_string(),
+        args: normalize_web_search_args(action),
+        created_at: created_at.to_string(),
+    })
+}
+
 fn split_call_id(call_id: &str, index: usize, total: usize) -> String {
     if total <= 1 {
         call_id.to_string()
@@ -896,22 +1116,19 @@ fn split_call_id(call_id: &str, index: usize, total: usize) -> String {
     }
 }
 
-fn normalize_codex_tool_calls(raw_name: &str, args: Value) -> Vec<(String, Value)> {
+pub(crate) fn normalize_codex_tool_calls(raw_name: &str, args: Value) -> Vec<(String, Value)> {
     let key = normalize_tool_name_key(raw_name);
     match key.as_str() {
-        "shell" | "shell_command" | "bash" | "terminal" | "terminal_command" | "run_shell"
-        | "run_command" | "execute" | "exec" => {
+        "shell" | "shell_command" | "exec_command" | "bash" | "terminal" | "terminal_command"
+        | "run_shell" | "run_command" | "execute" | "exec" => {
             let shell_args = normalize_shell_args(args);
             if let Some(read_args) = read_file_arg_values_from_shell_args(&shell_args) {
                 read_args
                     .into_iter()
                     .map(|args| (imported_history::FUNCTION_READ_FILE.to_string(), args))
                     .collect()
-            } else if let Some(search_args) = rg_search_args_from_shell_args(&shell_args) {
-                vec![(
-                    imported_history::FUNCTION_CODE_SEARCH.to_string(),
-                    search_args,
-                )]
+            } else if let Some(calls) = exploration_tool_calls_from_shell_args(&shell_args) {
+                calls
             } else {
                 vec![(
                     imported_history::FUNCTION_RUN_COMMAND_LINE.to_string(),
@@ -924,6 +1141,9 @@ fn normalize_codex_tool_calls(raw_name: &str, args: Value) -> Vec<(String, Value
             imported_history::FUNCTION_CODE_SEARCH.to_string(),
             normalize_search_args(args),
         )],
+        "web__run" | "web_run" | "web_search" => {
+            vec![("web_search".to_string(), normalize_web_search_args(args))]
+        }
         "cat" | "sed" | "head" | "tail" => {
             let shell_args = normalize_shell_args(args);
             if let Some(read_args) = read_file_args_from_shell_args(&shell_args) {
@@ -1047,6 +1267,43 @@ fn normalize_search_args(args: Value) -> Value {
         "action": "grep",
         "query": query.clone(),
         "pattern": query,
+        "payload": args,
+    })
+}
+
+fn normalize_web_search_args(args: Value) -> Value {
+    let action = args
+        .get("action")
+        .and_then(Value::as_str)
+        .or_else(|| args.get("type").and_then(Value::as_str))
+        .unwrap_or("search")
+        .to_string();
+    let url = args
+        .get("url")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let pattern = args
+        .get("pattern")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let query = args
+        .get("query")
+        .and_then(Value::as_str)
+        .or_else(|| args.get("search_query").and_then(Value::as_str))
+        .or_else(|| args.get("input").and_then(Value::as_str))
+        .or_else(|| (!url.is_empty()).then_some(url.as_str()))
+        .or_else(|| (!pattern.is_empty()).then_some(pattern.as_str()))
+        .unwrap_or_default()
+        .to_string();
+    let queries = args.get("queries").cloned().unwrap_or_else(|| json!([]));
+    json!({
+        "action": action,
+        "query": query,
+        "queries": queries,
+        "url": url,
+        "pattern": pattern,
         "payload": args,
     })
 }
@@ -1520,20 +1777,12 @@ fn rg_search_args_from_shell_args(shell_args: &Value) -> Option<Value> {
     }
 
     let tokens = shell_tokens(command);
-    let rg_index = tokens.iter().enumerate().find_map(|(index, token)| {
-        if !is_rg_executable(token) {
-            return None;
-        }
-        if index == 0
-            || tokens
-                .get(index.saturating_sub(1))
-                .is_some_and(|prev| is_shell_separator(prev))
-        {
-            Some(index)
-        } else {
-            None
-        }
-    })?;
+    // The caller splits safe exploration chains first. This parser still
+    // requires the individual segment itself to begin with `rg`.
+    if !tokens.first().is_some_and(|token| is_rg_executable(token)) {
+        return None;
+    }
+    let rg_index = 0usize;
 
     let query =
         rg_pattern_from_tokens(&tokens[(rg_index + 1)..]).unwrap_or_else(|| command.to_string());
@@ -1551,6 +1800,203 @@ fn rg_search_args_from_shell_args(shell_args: &Value) -> Option<Value> {
         "cwd": cwd,
         "payload": shell_args.clone(),
     }))
+}
+
+/// Decompose a shell chain only when every segment is a known read-only
+/// exploration operation. Context probes (`pwd`, `wc -l`) are omitted; their
+/// meaningful read/search successor represents the action in chat. Any
+/// unknown or potentially mutating segment keeps the entire call in Terminal.
+fn exploration_tool_calls_from_shell_args(shell_args: &Value) -> Option<Vec<(String, Value)>> {
+    let source_command = shell_args.get("command").and_then(Value::as_str)?.trim();
+    if source_command.is_empty() {
+        return None;
+    }
+
+    let command_parts = split_shell_read_command_chain(source_command)?;
+    let command_count = command_parts.len();
+    let mut calls = Vec::new();
+
+    for (command_index, command) in command_parts.iter().enumerate() {
+        let part_args = shell_args_for_command_part(shell_args, command);
+        let tokens = shell_tokens(command);
+        if is_exploration_context_probe(&tokens) {
+            continue;
+        }
+
+        let (canonical_name, mut args) =
+            if let Some(read_args) = read_file_args_from_shell_args(&part_args) {
+                (imported_history::FUNCTION_READ_FILE.to_string(), read_args)
+            } else if let Some(glob_args) = rg_files_args_from_shell_args(&part_args) {
+                (
+                    imported_history::FUNCTION_GLOB_FILE_SEARCH.to_string(),
+                    glob_args,
+                )
+            } else if let Some(search_args) = rg_search_args_from_shell_args(&part_args) {
+                (
+                    imported_history::FUNCTION_CODE_SEARCH.to_string(),
+                    search_args,
+                )
+            } else if let Some(glob_args) = find_args_from_shell_args(&part_args) {
+                (
+                    imported_history::FUNCTION_GLOB_FILE_SEARCH.to_string(),
+                    glob_args,
+                )
+            } else {
+                return None;
+            };
+
+        if command_count > 1 {
+            if let Some(object) = args.as_object_mut() {
+                object.insert(
+                    "source_command".to_string(),
+                    Value::String(source_command.to_string()),
+                );
+                object.insert("command_index".to_string(), json!(command_index));
+                object.insert("command_count".to_string(), json!(command_count));
+            }
+        }
+        calls.push((canonical_name, args));
+    }
+
+    (!calls.is_empty()).then_some(calls)
+}
+
+fn shell_args_for_command_part(shell_args: &Value, command: &str) -> Value {
+    let mut part_args = shell_args.clone();
+    if let Some(object) = part_args.as_object_mut() {
+        object.insert("command".to_string(), Value::String(command.to_string()));
+        object.insert("cmd".to_string(), Value::String(command.to_string()));
+    }
+    part_args
+}
+
+fn is_exploration_context_probe(tokens: &[String]) -> bool {
+    let Some(executable) = tokens
+        .first()
+        .map(|token| token.rsplit('/').next().unwrap_or(token))
+    else {
+        return false;
+    };
+    match executable {
+        "pwd" => tokens.len() == 1,
+        "wc" => {
+            tokens.len() == 3
+                && matches!(tokens[1].as_str(), "-l" | "--lines")
+                && !tokens[2].starts_with('-')
+        }
+        _ => false,
+    }
+}
+
+fn rg_files_args_from_shell_args(shell_args: &Value) -> Option<Value> {
+    let command = shell_args.get("command").and_then(Value::as_str)?.trim();
+    let tokens = shell_tokens(command);
+    if !tokens.first().is_some_and(|token| is_rg_executable(token))
+        || !tokens.iter().any(|token| token == "--files")
+        || !has_only_output_limiter_pipeline(&tokens)
+    {
+        return None;
+    }
+
+    let patterns = option_values(&tokens, "-g", "--glob")
+        .into_iter()
+        .filter(|pattern| !pattern.starts_with('!'))
+        .collect::<Vec<_>>();
+    let pattern = if patterns.is_empty() {
+        "*".to_string()
+    } else {
+        patterns.join(", ")
+    };
+    let cwd = shell_args
+        .get("cwd")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+
+    Some(json!({
+        "action": "find_files",
+        "pattern": pattern.clone(),
+        "glob": pattern,
+        "path": cwd,
+        "command": command,
+        "cwd": shell_args.get("cwd").cloned().unwrap_or_else(|| json!("")),
+        "payload": shell_args.clone(),
+    }))
+}
+
+fn find_args_from_shell_args(shell_args: &Value) -> Option<Value> {
+    let command = shell_args.get("command").and_then(Value::as_str)?.trim();
+    let tokens = shell_tokens(command);
+    let executable = tokens
+        .first()?
+        .rsplit('/')
+        .next()
+        .unwrap_or(tokens.first()?.as_str());
+    if executable != "find"
+        || tokens.iter().any(|token| {
+            matches!(
+                token.as_str(),
+                "-delete" | "-exec" | "-execdir" | "-ok" | "-okdir" | "-fprint" | "-fprintf"
+            )
+        })
+        || !has_only_output_limiter_pipeline(&tokens)
+    {
+        return None;
+    }
+
+    let pattern = option_values(&tokens, "-name", "-path")
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| "*".to_string());
+    let path = tokens
+        .get(1)
+        .filter(|token| !token.starts_with('-'))
+        .cloned()
+        .unwrap_or_else(|| ".".to_string());
+    let cwd = shell_args
+        .get("cwd")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+
+    Some(json!({
+        "action": "find_files",
+        "pattern": pattern.clone(),
+        "glob": pattern,
+        "path": path,
+        "command": command,
+        "cwd": cwd,
+        "payload": shell_args.clone(),
+    }))
+}
+
+fn option_values(tokens: &[String], short: &str, long: &str) -> Vec<String> {
+    let mut values = Vec::new();
+    let mut index = 0usize;
+    while index + 1 < tokens.len() {
+        if tokens[index] == short || tokens[index] == long {
+            values.push(tokens[index + 1].clone());
+            index += 2;
+        } else {
+            index += 1;
+        }
+    }
+    values
+}
+
+fn has_only_output_limiter_pipeline(tokens: &[String]) -> bool {
+    let separators = tokens
+        .iter()
+        .enumerate()
+        .filter(|(_, token)| is_shell_separator(token))
+        .collect::<Vec<_>>();
+    match separators.as_slice() {
+        [] => true,
+        [(index, separator)] if separator.as_str() == "|" => tokens
+            .get(index + 1)
+            .is_some_and(|token| matches!(token.as_str(), "head" | "tail" | "sed")),
+        _ => false,
+    }
 }
 
 fn shell_tokens(command: &str) -> Vec<String> {
@@ -1776,6 +2222,37 @@ fn codex_file_stem_from_session_id(session_id: &str) -> Result<&str, String> {
 }
 
 fn resolve_codex_session_path(conn: &Connection, file_stem: &str) -> Result<PathBuf, String> {
+    let transcript_session_id = super::canonical_session_id(file_stem);
+    let store = SqliteRecordStore::new(conn);
+    if let Some(path) = store
+        .get_session_actor_by_transcript_session_id(SOURCE_CODEX_APP, &transcript_session_id)?
+        .and_then(|actor| actor.transcript_path)
+    {
+        let path = PathBuf::from(path);
+        if path.is_file() {
+            return Ok(path);
+        }
+    }
+
+    // The lifecycle record stores the stable parent thread UUID plus the
+    // child's concrete transcript path. That is enough to rediscover the
+    // parent's rollout even when CODEX_HOME is outside the standard roots.
+    for actor in store.list_session_actors(SOURCE_CODEX_APP, &transcript_session_id)? {
+        let Some(reference_path) = actor.transcript_path.as_deref() else {
+            continue;
+        };
+        let Some(locator) = resolve_codex_transcript_for_thread_id_near_path(
+            Path::new(reference_path),
+            &actor.source_session_id,
+        )?
+        else {
+            continue;
+        };
+        if locator.session_id == transcript_session_id && locator.source_path.is_file() {
+            return Ok(locator.source_path);
+        }
+    }
+
     if let Some(path) =
         imported_cache::get_cached_source_path_from_conn(conn, SOURCE_CODEX_APP, file_stem)?
     {

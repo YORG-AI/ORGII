@@ -146,10 +146,6 @@ const URL_PAGE_MAP: Record<string, { name: string; filePath: string }> = {
     name: "CodeEditor",
     filePath: "src/modules/WorkStation/CodeEditor/index.tsx",
   },
-  "/orgii/workstation/database": {
-    name: "DatabaseManager",
-    filePath: "src/modules/WorkStation/DatabaseManager/index.tsx",
-  },
   "/orgii/workstation/browser": {
     name: "Browser",
     filePath: "src/modules/WorkStation/Browser/index.tsx",

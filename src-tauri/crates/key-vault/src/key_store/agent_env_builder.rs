@@ -216,23 +216,6 @@ impl KeyService {
                     );
                 }
             }
-            ModelType::GeminiCli => {
-                if entry.auth_method == AuthMethod::Oauth {
-                    if let Some(token) = entry
-                        .session_token
-                        .as_deref()
-                        .filter(|token| !token.trim().is_empty())
-                    {
-                        env.insert("GEMINI_ACCESS_TOKEN".to_string(), token.to_string());
-                    }
-                } else if let Some(ref key) = entry.api_key {
-                    env.insert("GEMINI_API_KEY".to_string(), key.clone());
-                    env.insert("GOOGLE_API_KEY".to_string(), key.clone());
-                }
-                if let Some(ref url) = entry.base_url {
-                    env.insert("GEMINI_BASE_URL".to_string(), url.clone());
-                }
-            }
             ModelType::Copilot => {
                 // Token sources (in priority order):
                 // 1. entry.api_key — legacy market-publish path.
@@ -490,14 +473,6 @@ impl KeyService {
                 // The base URL is configured in ~/.codex/config.toml under
                 // [model_providers.proxy], and selected via `-c model_provider="proxy"`.
                 // This matches the market-worker's approach.
-            }
-            ModelType::GeminiCli => {
-                env.insert("GEMINI_API_KEY".to_string(), proxy_token.to_string());
-                env.insert("GOOGLE_API_KEY".to_string(), proxy_token.to_string());
-                env.insert(
-                    "GEMINI_BASE_URL".to_string(),
-                    format!("{}/orgii", proxy_url),
-                );
             }
             ModelType::Copilot => {
                 // IMPORTANT: Only set COPILOT_GITHUB_TOKEN for proxy mode.

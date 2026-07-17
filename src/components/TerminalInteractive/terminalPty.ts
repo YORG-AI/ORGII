@@ -8,13 +8,21 @@ import {
   isTauriReady,
   listenTauri,
 } from "@src/util/platform/tauri/init";
+import {
+  type PtyOutputPayload,
+  ptyPayloadBytes,
+} from "@src/util/terminal/ptyOutputPayload";
 
 import { deleteTerminalBuffer, getTerminalBuffer } from "./bufferCache";
 import {
+  ackBytesWithoutWrite,
+  flushBacklog,
   notifyUserInput,
   registerPane,
+  resumePane,
   scheduleWrite,
   setPaneForeground,
+  suspendPane,
   unregisterPane,
 } from "./terminalOutputScheduler";
 import type { TerminalViewProps } from "./types";
@@ -48,11 +56,10 @@ function estimateByteLength(s: string): number {
   return len;
 }
 
-interface PtyOutputPayload {
-  bytes?: number[];
-  byte_count?: number;
-  // Backward-compatible fallback for older backends during hot reloads.
-  data?: string;
+interface AttachPtyStreamResponse {
+  output: string;
+  covers_seq: number;
+  missed_output: boolean;
 }
 
 interface InitPtyConnectionParams {
@@ -75,6 +82,29 @@ interface InitPtyConnectionParams {
   setIsBrowserMode: (value: boolean) => void;
   setIsConnecting: (value: boolean) => void;
   abortSignal?: AbortSignal;
+}
+
+/**
+ * Leaf guard for every async PTY write. Identity is as important as abort:
+ * React may already have mounted a replacement terminal in the same ref by
+ * the time an IPC/snapshot/scheduler continuation resumes.
+ */
+export function writeToLiveTerminal(
+  terminalRef: MutableRefObject<Terminal | null>,
+  terminal: Terminal,
+  isAborted: () => boolean,
+  data: string | Uint8Array
+): boolean {
+  if (isAborted() || terminalRef.current !== terminal) return false;
+  try {
+    terminal.write(data);
+    return true;
+  } catch (error) {
+    // xterm renderer disposal must never replace the whole application with
+    // an error boundary. A later live terminal/output snapshot can recover.
+    log.warn("[TerminalView] Dropped write for unavailable renderer:", error);
+    return false;
+  }
 }
 
 /**
@@ -131,6 +161,7 @@ function formatLastLogin(sessionKey: string) {
 async function fetchPtyInfo(
   sessionId: string,
   sessionKey: string,
+  isTerminalLive: () => boolean,
   onSessionInfoReady?: TerminalViewProps["onSessionInfoReady"]
 ) {
   try {
@@ -143,6 +174,7 @@ async function fetchPtyInfo(
       sessionId,
     });
 
+    if (!isTerminalLive()) return;
     onSessionInfoReady?.({
       sessionKey,
       pid: ptyInfo.pid || undefined,
@@ -159,7 +191,6 @@ async function reconnectOrCreatePty({
   rows,
   sessionId,
   sessionKey,
-  terminal,
   repoPath,
   shellType,
   customShellPath,
@@ -167,13 +198,14 @@ async function reconnectOrCreatePty({
   argsOverride,
   envOverride,
   nameOverride,
+  isTerminalLive,
+  writeToTerminal,
   onSessionInfoReady,
 }: {
   cols: number;
   rows: number;
   sessionId: string;
   sessionKey: string;
-  terminal: Terminal;
   repoPath?: string;
   shellType: ShellType;
   customShellPath?: string;
@@ -181,6 +213,8 @@ async function reconnectOrCreatePty({
   argsOverride?: string[];
   envOverride?: Record<string, string>;
   nameOverride?: string;
+  isTerminalLive: () => boolean;
+  writeToTerminal: (data: string | Uint8Array) => void;
   onSessionInfoReady?: TerminalViewProps["onSessionInfoReady"];
 }) {
   let ptyExists = false;
@@ -197,8 +231,10 @@ async function reconnectOrCreatePty({
     ptyExists = false;
   }
 
+  if (!isTerminalLive()) return;
+
   if (!ptyExists) {
-    terminal.writeln(formatLastLogin(sessionKey));
+    writeToTerminal(`${formatLastLogin(sessionKey)}\r\n`);
 
     const { cwd, shell } = resolvePtyLaunchOptions({
       repoPath,
@@ -220,34 +256,76 @@ async function reconnectOrCreatePty({
       },
     });
 
-    await fetchPtyInfo(sessionId, sessionKey, onSessionInfoReady);
-    return;
+    if (!isTerminalLive()) return;
+    await fetchPtyInfo(
+      sessionId,
+      sessionKey,
+      isTerminalLive,
+      onSessionInfoReady
+    );
+    return undefined;
   }
 
-  const cachedBuffer = getTerminalBuffer(sessionId);
-  if (cachedBuffer) {
-    terminal.write(cachedBuffer);
-    deleteTerminalBuffer(sessionId);
-    return;
-  }
-
+  // Live session: attach atomically. The backend resumes event emission,
+  // resets the flow-control window (fresh listener, no debt — this is what
+  // recovers a reader parked on ACKs lost to the previous listener), and
+  // returns the restore snapshot plus the stream offset it covers.
   try {
-    const snapshot = await invokeTauri<{
-      output: string;
-      unacked_bytes?: number;
-    }>("get_pty_output_snapshot", { sessionId });
+    const attach = await invokeTauri<AttachPtyStreamResponse>(
+      "attach_pty_stream",
+      { sessionId }
+    );
 
-    if (snapshot.output) {
-      terminal.write(snapshot.output);
+    if (!isTerminalLive()) return attach.covers_seq;
+    const cachedBuffer = getTerminalBuffer(sessionId);
+    deleteTerminalBuffer(sessionId);
+    if (cachedBuffer && !attach.missed_output) {
+      // Nothing was produced while detached: the client-side serialized
+      // buffer is the richer restore (full scrollback vs bounded snapshot).
+      writeToTerminal(cachedBuffer);
+    } else if (attach.output) {
+      writeToTerminal(attach.output);
     }
-    if (snapshot.unacked_bytes && snapshot.unacked_bytes > 0) {
-      await invokeTauri("ack_pty_data", {
-        sessionId,
-        byteCount: snapshot.unacked_bytes,
-      });
-    }
+    return attach.covers_seq;
   } catch (error) {
-    log.error("[TerminalView] Failed to restore PTY output snapshot:", error);
+    // Backend without attach_pty_stream (hot-reload version skew) — legacy
+    // restore: client buffer if present, else bounded snapshot + window resync.
+    log.warn(
+      "[TerminalView] attach_pty_stream unavailable, using legacy restore:",
+      error
+    );
+
+    const cachedBuffer = getTerminalBuffer(sessionId);
+    if (cachedBuffer) {
+      if (!isTerminalLive()) return undefined;
+      writeToTerminal(cachedBuffer);
+      deleteTerminalBuffer(sessionId);
+      return undefined;
+    }
+
+    try {
+      const snapshot = await invokeTauri<{
+        output: string;
+        unacked_bytes?: number;
+      }>("get_pty_output_snapshot", { sessionId });
+
+      if (!isTerminalLive()) return undefined;
+      if (snapshot.output) {
+        writeToTerminal(snapshot.output);
+      }
+      if (snapshot.unacked_bytes && snapshot.unacked_bytes > 0) {
+        await invokeTauri("ack_pty_data", {
+          sessionId,
+          byteCount: snapshot.unacked_bytes,
+        });
+      }
+    } catch (snapshotError) {
+      log.error(
+        "[TerminalView] Failed to restore PTY output snapshot:",
+        snapshotError
+      );
+    }
+    return undefined;
   }
 }
 
@@ -292,16 +370,24 @@ export async function initPtyConnection({
   try {
     const terminal = terminalRef.current;
     if (!terminal || isAborted()) return;
+    const isTerminalLive = () =>
+      !isAborted() && terminalRef.current === terminal;
 
     const utf8Decoder = new TextDecoder("utf-8", { fatal: false });
 
     // Stable write callback — captured once per session so the hot IPC
-    // handler never allocates a new closure per event.
-    const terminalWrite = (d: string | Uint8Array) => terminal.write(d);
+    // handler never allocates a new closure per event. The identity guard is
+    // deliberately inside the callback: a scheduler turn already queued
+    // before cleanup must also be harmless after this terminal is replaced.
+    const terminalWrite = (d: string | Uint8Array) =>
+      writeToLiveTerminal(terminalRef, terminal, isAborted, d);
 
-    // Register this pane with the output scheduler. ACK is handled by the
-    // scheduler after it drains chunks — we no longer call ack directly here.
+    // Register this pane with the output scheduler, suspended: chunks that
+    // arrive during connect queue up in order but nothing is written until
+    // the restore base (snapshot or cached buffer) is in place — otherwise
+    // live output interleaves with the restore and garbles the screen.
     registerPane(sessionId, terminalWrite);
+    suspendPane(sessionId);
     setPaneForeground(sessionId, isForeground);
 
     const unlistenOutput = await listenTauri<PtyOutputPayload>(
@@ -309,15 +395,25 @@ export async function initPtyConnection({
       (event) => {
         if (isAborted()) return;
 
-        const { bytes, byte_count: byteCount, data } = event.payload;
+        const { byte_count: byteCount, seq, data } = event.payload;
+        const chunk = ptyPayloadBytes(event.payload);
 
-        if (bytes && bytes.length > 0) {
-          const decoded = utf8Decoder.decode(new Uint8Array(bytes), {
-            stream: true,
-          });
+        if (chunk && chunk.length > 0) {
+          const resolvedByteCount = byteCount ?? chunk.length;
+          const decoded = utf8Decoder.decode(chunk, { stream: true });
           if (decoded) {
-            const resolvedByteCount = byteCount ?? bytes.length;
-            scheduleWrite(sessionId, decoded, resolvedByteCount, terminalWrite);
+            scheduleWrite(
+              sessionId,
+              decoded,
+              resolvedByteCount,
+              terminalWrite,
+              seq
+            );
+          } else {
+            // Chunk ended mid-codepoint and decoded to nothing — the bytes
+            // sit in the decoder but still count against the backend
+            // flow-control window.
+            ackBytesWithoutWrite(sessionId, resolvedByteCount);
           }
         } else if (data) {
           // Backward-compat branch (no byte_count from backend): estimate byte
@@ -326,7 +422,7 @@ export async function initPtyConnection({
           // scheduler treats byte_count as a flow-control hint, not an exact
           // invariant, so a cheap over-estimate is correct.
           const encodedLen = estimateByteLength(data);
-          scheduleWrite(sessionId, data, encodedLen, terminalWrite);
+          scheduleWrite(sessionId, data, encodedLen, terminalWrite, seq);
         }
       }
     );
@@ -338,13 +434,18 @@ export async function initPtyConnection({
     unlistenOutputRef.current = unlistenOutput;
 
     const unlistenExit = await listenTauri(`pty-exit-${sessionId}`, () => {
-      if (isAborted()) return;
+      if (!isTerminalLive()) return;
+
+      // Drain any still-queued output before the banner so the final bytes
+      // land in order (resume first in case exit raced a reconnect).
+      resumePane(sessionId);
+      flushBacklog(sessionId, Number.MAX_SAFE_INTEGER);
 
       const trailingOutput = utf8Decoder.decode();
       if (trailingOutput) {
-        terminal.write(trailingOutput);
+        terminalWrite(trailingOutput);
       }
-      terminal.writeln("\r\n\x1b[33m[Session ended]\x1b[0m");
+      terminalWrite("\r\n\x1b[33m[Session ended]\x1b[0m\r\n");
       unregisterPane(sessionId);
     });
     if (isAborted()) {
@@ -357,33 +458,47 @@ export async function initPtyConnection({
     unlistenExitRef.current = unlistenExit;
 
     if (isAborted()) return;
-    await reconnectOrCreatePty({
-      cols,
-      rows,
-      sessionId,
-      sessionKey,
-      terminal,
-      repoPath: repoPathRef.current,
-      shellType,
-      customShellPath,
-      shellOverride,
-      argsOverride,
-      envOverride,
-      nameOverride,
-      onSessionInfoReady,
-    });
+    let coversSeq: number | undefined;
+    try {
+      coversSeq = await reconnectOrCreatePty({
+        cols,
+        rows,
+        sessionId,
+        sessionKey,
+        repoPath: repoPathRef.current,
+        shellType,
+        customShellPath,
+        shellOverride,
+        argsOverride,
+        envOverride,
+        nameOverride,
+        isTerminalLive,
+        writeToTerminal: terminalWrite,
+        onSessionInfoReady,
+      });
+    } finally {
+      // Always lift the suspension — a pane left suspended never renders.
+      // Queued chunks the snapshot already covers are dropped here.
+      resumePane(sessionId, coversSeq);
+    }
 
-    if (isAborted()) return;
+    if (!isTerminalLive()) return;
     setIsConnecting(false);
     terminal.focus();
   } catch (error) {
     if (isAborted()) return;
     log.error("Failed to create/connect PTY session:", error);
     setIsConnecting(false);
-    const terminal = terminalRef.current;
-    if (terminal) {
-      terminal.writeln("\x1b[31mFailed to connect to system terminal\x1b[0m");
-      terminal.writeln(`\x1b[90mError: ${error}\x1b[0m`);
+    const liveTerminal = terminalRef.current;
+    if (liveTerminal) {
+      try {
+        liveTerminal.writeln(
+          "\x1b[31mFailed to connect to system terminal\x1b[0m"
+        );
+        liveTerminal.writeln(`\x1b[90mError: ${error}\x1b[0m`);
+      } catch (writeError) {
+        log.warn("[TerminalView] Failed to render PTY error:", writeError);
+      }
     }
   }
 }

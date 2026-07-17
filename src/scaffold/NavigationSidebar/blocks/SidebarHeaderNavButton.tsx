@@ -20,7 +20,7 @@ const SidebarHeaderNavButton: React.FC<SidebarHeaderNavButtonProps> = ({
 }) => {
   return (
     <div
-      className={`group flex min-h-[36px] w-full cursor-pointer items-center justify-between overflow-hidden rounded-lg px-2 text-text-1 transition-colors duration-150 hover:bg-fill-2 ${className}`}
+      className={`group flex min-h-[36px] w-full cursor-pointer items-center justify-between overflow-hidden rounded-lg px-2 text-text-1 transition-colors duration-150 hover:bg-sidebar-selected ${className}`}
       onClick={onClick}
       role="button"
       tabIndex={0}

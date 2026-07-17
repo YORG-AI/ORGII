@@ -9,7 +9,7 @@
  * - "message"            → Messages timeline
  * - "thinking"           → Messages timeline
  * - "todo"               → Todo tab and Messages timeline
- * - "other_interactions" → interactions tab (ask_user, approval, next-step,
+ * - "other_interactions" → interactions tab (ask_user, approval,
  *                          mode-switch)
  */
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";

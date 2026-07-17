@@ -63,6 +63,10 @@ export function getTerminalDisplayTitle(session: TerminalSession): string {
 }
 
 export interface AddSessionOptions {
+  /** Internal setup flows may require a dedicated session immediately after
+   * the Terminal tab mounts its default session. User-initiated creation must
+   * leave this false so rapid clicks remain throttled. */
+  bypassCreationCooldown?: boolean;
   /** Shell profile ID to use (if omitted, uses default profile) */
   profileId?: string;
   /** Shell executable path override */

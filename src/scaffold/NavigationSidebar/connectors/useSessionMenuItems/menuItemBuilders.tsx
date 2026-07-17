@@ -70,6 +70,7 @@ export function buildSessionMenuItem({
         ? undefined
         : renderStatusDot(statusDotTone),
     shortcut: formatRelativeTime(timestampSrc, "nano"),
+    openContextMenuOnSelectedClick: true,
     dragPayload: {
       path: `session://${session.session_id}`,
       name: displayName,

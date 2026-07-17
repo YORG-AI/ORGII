@@ -1,12 +1,15 @@
 //! Materialized turn index derived from normalized session events.
 
 use chrono::{DateTime, Utc};
+use core_types::extracted::ExtractedGitArtifactData;
+use orgtrack_core::projectors::turn_metadata::{
+    TurnMetadataAccumulator, TurnModifiedFile, TurnResourceInteraction,
+};
 use rusqlite::{params, Connection, OptionalExtension, Result as SqliteResult};
 use serde::{Deserialize, Serialize};
 
 use super::connection::{begin_immediate, get_connection, with_sessions_writer};
 use super::crud::normalize_session_sequences;
-use super::turn_files::{TurnFileAccumulator, TurnModifiedFile};
 
 const USER_MESSAGE_FUNCTION: &str = "user_message";
 const TURN_STATUS_PENDING: &str = "pending";
@@ -20,7 +23,10 @@ const TURN_STATUS_FAILED: &str = "failed";
 /// v6: materialize the per-round modified-file list (`modified_files_json`).
 /// v7: include patch-text fallback line stats in `modified_files_json`.
 /// v8: include content fallback line stats for create/write-style tools.
-const TURN_INDEX_VERSION: i64 = 8;
+/// v9: materialize exact per-round commits and pull requests.
+/// v10: project provider-neutral read/search/write resource interactions via
+/// Orgtrack instead of interpreting ORG2 tool names in this host crate.
+const TURN_INDEX_VERSION: i64 = 10;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -43,6 +49,15 @@ pub struct CachedTurnSummary {
     /// re-aggregates file changes from raw events.
     #[serde(default)]
     pub modified_files: Vec<TurnModifiedFile>,
+    /// Privacy-safe read/search/write/create/delete/rename aggregates for this
+    /// round. Raw queries, commands, tool output, and file contents are not
+    /// materialized here.
+    #[serde(default)]
+    pub resource_interactions: Vec<TurnResourceInteraction>,
+    /// Commits and pull requests produced by successful git/gh commands in
+    /// this round. Materialized for lazy historical backfill and direct UI use.
+    #[serde(default)]
+    pub git_artifacts: Vec<ExtractedGitArtifactData>,
 }
 
 #[derive(Debug, Clone)]
@@ -72,8 +87,8 @@ struct TurnDraft {
     /// one. Used by `build_turn_drafts` to collapse a synthetic + backend
     /// pair into a single draft.
     turn_intent_id: Option<String>,
-    /// File changes accumulated from the round's body events.
-    file_accumulator: TurnFileAccumulator,
+    /// Provider-neutral Orgtrack metadata accumulated from body events.
+    metadata_accumulator: TurnMetadataAccumulator,
 }
 
 #[derive(Debug, Clone)]
@@ -429,7 +444,7 @@ fn build_turn_drafts(rows: &[IndexEventRow], stale_intent_ids: &StaleIntentIds) 
                 event_count: 1,
                 body_event_count: 0,
                 turn_intent_id: row_intent_id,
-                file_accumulator: TurnFileAccumulator::new(),
+                metadata_accumulator: TurnMetadataAccumulator::new(),
             });
             continue;
         }
@@ -438,10 +453,11 @@ fn build_turn_drafts(rows: &[IndexEventRow], stale_intent_ids: &StaleIntentIds) 
             turn.ended_at = Some(max_timestamp(&turn.started_at, &row.created_at));
             turn.event_count += 1;
             turn.body_event_count += 1;
-            turn.file_accumulator.add_event(
+            turn.metadata_accumulator.add_event_at(
                 row.function_name.as_deref(),
                 &row.args_json,
                 &row.result_json,
+                &row.created_at,
             );
         }
     }
@@ -474,6 +490,11 @@ fn turn_summary_from_row(row: &rusqlite::Row<'_>) -> SqliteResult<CachedTurnSumm
     let interrupted_int: i64 = row.get(13)?;
     let modified_files_json: String = row.get(14)?;
     let modified_files = serde_json::from_str(&modified_files_json).unwrap_or_else(|_| Vec::new());
+    let resource_interactions_json: String = row.get(15)?;
+    let resource_interactions =
+        serde_json::from_str(&resource_interactions_json).unwrap_or_else(|_| Vec::new());
+    let git_artifacts_json: String = row.get(16)?;
+    let git_artifacts = serde_json::from_str(&git_artifacts_json).unwrap_or_else(|_| Vec::new());
 
     Ok(CachedTurnSummary {
         session_id: row.get(0)?,
@@ -491,6 +512,8 @@ fn turn_summary_from_row(row: &rusqlite::Row<'_>) -> SqliteResult<CachedTurnSumm
         status: row.get(12)?,
         interrupted: interrupted_int != 0,
         modified_files,
+        resource_interactions,
+        git_artifacts,
     })
 }
 
@@ -524,15 +547,22 @@ fn rebuild_turn_index_inner(session_id: &str) -> SqliteResult<Vec<CachedTurnSumm
             "INSERT INTO session_turns
              (session_id, turn_id, start_sequence, end_sequence, next_turn_id, started_at, ended_at,
               duration_ms, user_event_ids_json, user_preview, event_count, body_event_count,
-              status, interrupted, updated_at, modified_files_json)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+              status, interrupted, updated_at, modified_files_json, resource_interactions_json,
+              git_artifacts_json)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
         )?;
 
         for draft in &drafts {
             let user_event_ids_json =
                 serde_json::to_string(&draft.user_event_ids).unwrap_or_else(|_| "[]".to_string());
-            let modified_files_json = serde_json::to_string(draft.file_accumulator.files())
+            let modified_files_json = serde_json::to_string(draft.metadata_accumulator.files())
                 .unwrap_or_else(|_| "[]".to_string());
+            let resource_interactions_json =
+                serde_json::to_string(draft.metadata_accumulator.resource_interactions())
+                    .unwrap_or_else(|_| "[]".to_string());
+            let git_artifacts_json =
+                serde_json::to_string(draft.metadata_accumulator.git_artifacts())
+                    .unwrap_or_else(|_| "[]".to_string());
             // Status derivation: lifecycle store wins when available.
             // Falls back to the legacy `body_event_count > 0` heuristic for
             // rows that predate the canonical intent id (no row in
@@ -575,6 +605,8 @@ fn rebuild_turn_index_inner(session_id: &str) -> SqliteResult<Vec<CachedTurnSumm
                 0_i64,
                 rebuilt_at,
                 modified_files_json,
+                resource_interactions_json,
+                git_artifacts_json,
             ])?;
         }
     }
@@ -656,7 +688,8 @@ pub fn load_turn_index(session_id: &str) -> SqliteResult<Vec<CachedTurnSummary>>
     let mut stmt = conn.prepare_cached(
         "SELECT session_id, turn_id, start_sequence, end_sequence, next_turn_id, started_at, ended_at,
                 duration_ms, user_event_ids_json, user_preview, event_count, body_event_count,
-                status, interrupted, modified_files_json
+                status, interrupted, modified_files_json, resource_interactions_json,
+                git_artifacts_json
          FROM session_turns
          WHERE session_id = ?1
          ORDER BY started_at ASC, start_sequence ASC",
@@ -669,6 +702,35 @@ pub fn load_turn_index(session_id: &str) -> SqliteResult<Vec<CachedTurnSummary>>
     Ok(rows)
 }
 
+/// Load only the requested materialized rounds. This is the low-memory read
+/// path used by a paged/virtualized transcript; the durable index remains the
+/// source of truth and no session-wide summary vector is constructed.
+pub fn load_turn_summaries(
+    session_id: &str,
+    turn_ids: &[String],
+) -> SqliteResult<Vec<CachedTurnSummary>> {
+    ensure_turn_index_fresh(session_id)?;
+    let conn = get_connection()?;
+    let mut summaries = Vec::with_capacity(turn_ids.len());
+    let mut statement = conn.prepare_cached(
+        "SELECT session_id, turn_id, start_sequence, end_sequence, next_turn_id, started_at, ended_at,
+                duration_ms, user_event_ids_json, user_preview, event_count, body_event_count,
+                status, interrupted, modified_files_json, resource_interactions_json,
+                git_artifacts_json
+         FROM session_turns
+         WHERE session_id = ?1 AND turn_id = ?2",
+    )?;
+    for turn_id in turn_ids {
+        if let Some(summary) = statement
+            .query_row(params![session_id, turn_id], turn_summary_from_row)
+            .optional()?
+        {
+            summaries.push(summary);
+        }
+    }
+    Ok(summaries)
+}
+
 pub fn get_turn_summary(
     conn: &Connection,
     session_id: &str,
@@ -677,7 +739,8 @@ pub fn get_turn_summary(
     conn.query_row(
         "SELECT session_id, turn_id, start_sequence, end_sequence, next_turn_id, started_at, ended_at,
                 duration_ms, user_event_ids_json, user_preview, event_count, body_event_count,
-                status, interrupted, modified_files_json
+                status, interrupted, modified_files_json, resource_interactions_json,
+                git_artifacts_json
          FROM session_turns
          WHERE session_id = ?1 AND turn_id = ?2",
         params![session_id, turn_id],
@@ -936,5 +999,42 @@ mod tests {
         assert_eq!(drafts.len(), 2);
         assert_eq!(drafts[0].turn_id, "user-message-a");
         assert_eq!(drafts[1].turn_id, "user-message-b");
+    }
+
+    #[test]
+    fn round_metadata_is_projected_by_orgtrack_from_normalized_provider_events() {
+        let mut read = row("read-1", Some("Read"), "{}", 2);
+        read.args_json = r#"{"file_path":"src/lib.rs"}"#.to_string();
+        let mut search = row(
+            "search-1",
+            Some("Grep"),
+            r#"{"matches":[{"file":"src/lib.rs"},{"file":"src/main.rs"}]}"#,
+            3,
+        );
+        search.args_json = r#"{"path":"src"}"#.to_string();
+        let rows = vec![
+            row(
+                "user-message-1",
+                Some(USER_MESSAGE_FUNCTION),
+                r#"{"backendPersisted":true}"#,
+                1,
+            ),
+            read,
+            search,
+        ];
+
+        let drafts = build_turn_drafts(&rows, &StaleIntentIds::new());
+
+        assert_eq!(drafts.len(), 1);
+        assert!(drafts[0]
+            .metadata_accumulator
+            .resource_interactions()
+            .iter()
+            .any(|item| item.path == "src/lib.rs" && item.action.as_str() == "read"));
+        assert!(drafts[0]
+            .metadata_accumulator
+            .resource_interactions()
+            .iter()
+            .any(|item| item.path == "src/main.rs" && item.action.as_str() == "search"));
     }
 }

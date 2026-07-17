@@ -15,6 +15,24 @@ export const agentSession = {
     .input(schemas.agentSession.ManualCompactInput)
     .output(schemas.agentSession.ManualCompactResultSchema)
     .build(),
+  housekeeperContextCompactionStatus: defineProcedure(
+    "housekeeper_context_compaction_status"
+  )
+    .input(schemas.agentSession.SessionIdInput)
+    .output(schemas.agentSession.HousekeeperContextCompactionStateSchema)
+    .build(),
+  setHousekeeperContextCompactionEnabled: defineProcedure(
+    "housekeeper_context_compaction_set_enabled"
+  )
+    .input(schemas.agentSession.HousekeeperContextCompactionEnabledInput)
+    .output(schemas.agentSession.HousekeeperContextCompactionStateSchema)
+    .build(),
+  compactHousekeeperContextNow: defineProcedure(
+    "housekeeper_context_compact_now"
+  )
+    .input(schemas.agentSession.SessionIdInput)
+    .output(schemas.agentSession.HousekeeperContextCompactionStateSchema)
+    .build(),
   cancelSession: defineProcedure("agent_session_cancel")
     .input(schemas.agentSession.CancelSessionInput)
     .output(z.boolean())

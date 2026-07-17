@@ -5,6 +5,7 @@ import {
   OPENCODE_HISTORY_SESSION_PREFIX,
   OS_AGENT_SESSION_PREFIX,
   SDE_AGENT_SESSION_PREFIX,
+  WARP_HISTORY_SESSION_PREFIX,
   WINDSURF_HISTORY_SESSION_PREFIX,
   getDispatchCategory,
   getExternalHistorySourceId,
@@ -15,6 +16,7 @@ import {
   isCodexAppSession,
   isExternalHistorySession,
   isOpenCodeHistorySession,
+  isWarpHistorySession,
   isWindsurfHistorySession,
 } from "../sessionDispatch";
 
@@ -27,6 +29,7 @@ describe("sessionDispatch constants", () => {
     expect(CLAUDE_CODE_HISTORY_SESSION_PREFIX).toBe("claudecodeapp-");
     expect(OPENCODE_HISTORY_SESSION_PREFIX).toBe("opencodeapp-");
     expect(WINDSURF_HISTORY_SESSION_PREFIX).toBe("windsurfapp-");
+    expect(WARP_HISTORY_SESSION_PREFIX).toBe("warpapp-");
   });
 });
 
@@ -69,10 +72,12 @@ describe("getDispatchCategory", () => {
     expect(getDispatchCategory("osagent-x")).toBe("rust_agent");
     expect(getDispatchCategory("sdeagent-x")).toBe("rust_agent");
     expect(getDispatchCategory("cliagent-x")).toBe("cli_agent");
+    expect(getDispatchCategory("cursoride-x")).toBe("cursor_ide");
     expect(getDispatchCategory("codexapp-x")).toBe("external_history");
     expect(getDispatchCategory("claudecodeapp-x")).toBe("external_history");
     expect(getDispatchCategory("opencodeapp-x")).toBe("external_history");
     expect(getDispatchCategory("windsurfapp-x")).toBe("external_history");
+    expect(getDispatchCategory("warpapp-x")).toBe("external_history");
   });
 
   it("returns rust_agent for unknown id (default)", () => {
@@ -113,9 +118,17 @@ describe("external history source detection", () => {
     );
   });
 
-  it("does not treat Cursor IDE as external history", () => {
+  it("recognizes Warp imported history sessions", () => {
+    expect(isExternalHistorySession("warpapp-session-1")).toBe(true);
+    expect(isWarpHistorySession("warpapp-session-1")).toBe(true);
+    expect(getExternalHistorySourceId("warpapp-session-1")).toBe("warp");
+  });
+
+  it("routes Cursor App history through the Cursor IDE category", () => {
     expect(isExternalHistorySession("cursoride-session-1")).toBe(false);
-    expect(getExternalHistorySourceId("cursoride-session-1")).toBeUndefined();
+    expect(getExternalHistorySourceId("cursoride-session-1")).toBe(
+      "cursor_ide"
+    );
   });
 });
 

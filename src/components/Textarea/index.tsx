@@ -31,6 +31,7 @@ import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 
 import "./index.scss";
+import { countWords } from "./wordCount";
 
 export interface TextareaProps extends Omit<
   React.TextareaHTMLAttributes<HTMLTextAreaElement>,
@@ -81,6 +82,11 @@ export interface TextareaProps extends Omit<
    * Max length
    */
   maxLength?: number;
+
+  /**
+   * Maximum number of locale-aware words allowed.
+   */
+  maxWords?: number;
 
   /**
    * Show word count
@@ -137,6 +143,7 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
       readOnly = false,
       allowClear = false,
       maxLength,
+      maxWords,
       showWordLimit = false,
       autoSize = false,
       resize = "vertical",
@@ -163,6 +170,9 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
 
     const isControlled = value !== undefined;
     const currentValue = isControlled ? value : internalValue;
+    const currentWordCount = countWords(currentValue || "");
+    const exceedsWordLimit =
+      maxWords !== undefined && currentWordCount > maxWords;
 
     // Handle ref forwarding
     const setRef = useCallback(
@@ -219,6 +229,7 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
       "textarea-wrapper",
       `textarea-size-${size}`,
       error && "textarea-error",
+      exceedsWordLimit && "textarea-error",
       disabled && "textarea-disabled",
       isFocused && "textarea-focused",
       readOnly && "textarea-readonly",
@@ -238,6 +249,15 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
     const handleChange = useCallback(
       (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const newValue = e.target.value;
+        const nextWordCount = countWords(newValue);
+
+        if (
+          maxWords !== undefined &&
+          nextWordCount > maxWords &&
+          (currentWordCount <= maxWords || nextWordCount > currentWordCount)
+        ) {
+          return;
+        }
 
         if (!isControlled) {
           setInternalValue(newValue);
@@ -245,7 +265,7 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
 
         onChange?.(newValue, e);
       },
-      [isControlled, onChange]
+      [currentWordCount, isControlled, maxWords, onChange]
     );
 
     const handleClear = useCallback(() => {
@@ -324,7 +344,8 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           />
 
           {/* Footer with clear button and word limit */}
-          {(showClearButton || (showWordLimit && maxLength)) && (
+          {(showClearButton ||
+            (showWordLimit && (maxWords !== undefined || maxLength))) && (
             <div className="textarea-footer">
               {showClearButton && (
                 <button
@@ -337,9 +358,13 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
                 </button>
               )}
 
-              {showWordLimit && maxLength && (
-                <span className="textarea-word-limit">
-                  {currentValue?.length || 0}/{maxLength}
+              {showWordLimit && (maxWords !== undefined || maxLength) && (
+                <span
+                  className={`textarea-word-limit ${exceedsWordLimit ? "text-danger-6" : ""}`}
+                >
+                  {maxWords !== undefined
+                    ? `${currentWordCount}/${maxWords}`
+                    : `${currentValue?.length || 0}/${maxLength}`}
                 </span>
               )}
             </div>

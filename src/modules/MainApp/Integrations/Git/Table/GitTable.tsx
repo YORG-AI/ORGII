@@ -24,6 +24,7 @@ import {
   InternalHeader,
   ScrollPreservation,
 } from "@src/modules/shared/layouts/blocks";
+import { InfoRow } from "@src/modules/shared/layouts/blocks/InfoRow";
 import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
 
 import {
@@ -32,9 +33,9 @@ import {
 } from "../../KeyVault/shared/InlineCardPrimitives";
 import { ThirdPartyDisclaimer } from "../../Tables/TrademarkDisclaimer";
 import { StatusDot } from "../../Tables/shared";
-import { InfoRow } from "../../shared";
 import type { DetailMode } from "../../types";
 import GitPreferencesSection from "./GitPreferencesSection";
+import GitProfilesTab from "./GitProfilesTab";
 
 const logger = createLogger("GitTable");
 
@@ -85,6 +86,7 @@ export const GitTable: React.FC<GitTableProps> = ({
   const [removingRowId, setRemovingRowId] = useState<string | null>(null);
   const [connections, setConnections] = useState<SyncConnection[]>([]);
   const [internalLoading, setInternalLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("connections");
 
   const refresh = useCallback(async () => {
     setInternalLoading(true);
@@ -225,8 +227,22 @@ export const GitTable: React.FC<GitTableProps> = ({
   );
 
   const tabs = useMemo(
-    () => [{ key: "connections", label: t("git.connections") }],
+    () => [
+      { key: "connections", label: t("git.connections") },
+      { key: "profiles", label: t("gitProfiles.tab") },
+    ],
     [t]
+  );
+
+  const connectedEmails = useMemo(
+    () => [
+      ...new Set(
+        connections
+          .map((connection) => connection.account_email?.trim())
+          .filter((email): email is string => !!email)
+      ),
+    ],
+    [connections]
   );
 
   return (
@@ -238,8 +254,8 @@ export const GitTable: React.FC<GitTableProps> = ({
         tabs={
           <TabPill
             tabs={tabs}
-            activeTab="connections"
-            onChange={() => undefined}
+            activeTab={activeTab}
+            onChange={setActiveTab}
             variant="simple"
             fillWidth={false}
             size="large"
@@ -248,66 +264,73 @@ export const GitTable: React.FC<GitTableProps> = ({
       />
       <ScrollPreservation className={DETAIL_PANEL_TOKENS.scrollContentNoTop}>
         <div className={DETAIL_PANEL_TOKENS.contentWidthWithPaddingNoTop}>
-          <div className="flex flex-col gap-3">
-            <SettingsTable<GitRow>
-              hover
-              loading={externalLoading || internalLoading}
-              columns={columns}
-              rows={rows}
-              getRowKey={(row) => row.id}
-              headerHeight="tall"
-              searchBar={{
-                searchValue: searchQuery,
-                onSearchChange: setSearchQuery,
-                searchPlaceholder: t("git.searchPlaceholder"),
-              }}
-              emptyTitle={t("git.noProvidersFound")}
-              expandable={{
-                expandedRowKeys: expandedKeys,
-                onExpandedRowsChange: (keys) => setExpandedKeys(keys.slice(-1)),
-                expandedRowRender: (row) => (
-                  <InlineInfoCard>
-                    <div className="flex min-w-0 flex-col gap-3">
-                      <InlineCardSplit
-                        equalColumns
-                        left={
-                          <InlineCardColumnStack>
-                            <InfoRow
-                              label={t("gitPreview.provider")}
-                              value={row.provider}
-                            />
-                            <InfoRow
-                              label={t("gitPreview.connections")}
-                              value={row.access}
-                            />
-                            {row.accountEmail && (
+          {activeTab === "connections" ? (
+            <div className="flex flex-col gap-3">
+              <SettingsTable<GitRow>
+                hover
+                loading={externalLoading || internalLoading}
+                columns={columns}
+                rows={rows}
+                getRowKey={(row) => row.id}
+                headerHeight="tall"
+                searchBar={{
+                  searchValue: searchQuery,
+                  onSearchChange: setSearchQuery,
+                  searchPlaceholder: t("git.searchPlaceholder"),
+                }}
+                emptyTitle={t("git.noProvidersFound")}
+                expandable={{
+                  expandedRowKeys: expandedKeys,
+                  onExpandedRowsChange: (keys) =>
+                    setExpandedKeys(keys.slice(-1)),
+                  expandedRowRender: (row) => (
+                    <InlineInfoCard>
+                      <div className="flex min-w-0 flex-col gap-3">
+                        <InlineCardSplit
+                          equalColumns
+                          left={
+                            <InlineCardColumnStack>
                               <InfoRow
-                                label={tCommon("labels.email")}
-                                value={row.accountEmail}
+                                label={t("gitPreview.provider")}
+                                value={row.provider}
                               />
-                            )}
-                            <InfoRow label={tCommon("labels.status")}>
-                              <StatusDot
-                                size="inline"
-                                color={row.statusColor}
-                                label={row.statusLabel}
+                              <InfoRow
+                                label={t("gitPreview.connections")}
+                                value={row.access}
                               />
-                            </InfoRow>
-                          </InlineCardColumnStack>
-                        }
-                        right={
-                          <InlineCardColumnStack>{null}</InlineCardColumnStack>
-                        }
-                      />
-                    </div>
-                  </InlineInfoCard>
-                ),
-              }}
-            />
+                              {row.accountEmail && (
+                                <InfoRow
+                                  label={tCommon("labels.email")}
+                                  value={row.accountEmail}
+                                />
+                              )}
+                              <InfoRow label={tCommon("labels.status")}>
+                                <StatusDot
+                                  size="inline"
+                                  color={row.statusColor}
+                                  label={row.statusLabel}
+                                />
+                              </InfoRow>
+                            </InlineCardColumnStack>
+                          }
+                          right={
+                            <InlineCardColumnStack>
+                              {null}
+                            </InlineCardColumnStack>
+                          }
+                        />
+                      </div>
+                    </InlineInfoCard>
+                  ),
+                }}
+              />
 
-            <GitPreferencesSection />
-            <ThirdPartyDisclaimer />
-          </div>
+              <GitPreferencesSection />
+              <ThirdPartyDisclaimer />
+            </div>
+          ) : (
+            <GitProfilesTab connectedEmails={connectedEmails} />
+          )}
         </div>
       </ScrollPreservation>
     </DetailPanelContainer>

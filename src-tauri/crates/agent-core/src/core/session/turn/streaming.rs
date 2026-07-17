@@ -152,6 +152,12 @@ impl From<ProviderError> for StreamingError {
     fn from(err: ProviderError) -> Self {
         match err {
             ProviderError::AuthError(msg) => Self::new(msg, StreamingErrorCode::AuthError),
+            ProviderError::UsageLimitReached(msg) => {
+                Self::new(msg, StreamingErrorCode::RateLimited).with_details(serde_json::json!({
+                    "reason": "usage_limit_reached",
+                    "retryable": false
+                }))
+            }
             ProviderError::RateLimited {
                 message,
                 retry_after_secs,

@@ -45,13 +45,13 @@ $font-size-code-fallback: 13px;
 
 // Small text (e.g., secondary labels, descriptions)
 .chat-text-sm {
-  font-size: calc(var(--chat-font-size, $font-size-fallback) - 2px);
+  font-size: calc(var(--chat-font-size, $font-size-fallback) - 1px);
   line-height: var(--chat-line-height, 1.6);
 }
 
 // Extra small text (e.g., badges, very fine print)
 .chat-text-xs {
-  font-size: calc(var(--chat-font-size, $font-size-fallback) - 3px);
+  font-size: calc(var(--chat-font-size, $font-size-fallback) - 2px);
   line-height: var(--chat-line-height, 1.6);
 }
 

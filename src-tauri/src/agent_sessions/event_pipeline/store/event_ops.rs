@@ -195,6 +195,18 @@ impl EventStore {
         removed
     }
 
+    /// Remove events by exact ids. Ids not present are ignored.
+    /// Returns the number of events actually removed.
+    pub fn remove_by_ids(&mut self, ids: &[String]) -> usize {
+        let existing_ids: Vec<String> = self
+            .events
+            .iter()
+            .filter(|event| ids.contains(&event.id))
+            .map(|event| event.id.clone())
+            .collect();
+        self.remove_events_by_ids(existing_ids)
+    }
+
     pub fn remove_synthetic_user_inputs(&mut self) -> usize {
         let removed_ids: Vec<String> = self
             .events

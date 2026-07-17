@@ -10,10 +10,30 @@ export interface UseSessionMenuItemsParams {
   groupByMode: GroupByMode;
   untitledSession: string;
   searchQuery?: string;
-  selectedOrgId?: string;
+  /**
+   * Org ids accepted by the sidebar org selector (see orgFilter.ts). A set,
+   * not a single id: a collab org selection also accepts its local
+   * `projectOrgId` alias so work-item-launched sessions match. Undefined or
+   * empty disables org filtering.
+   */
+  selectedOrgIds?: ReadonlySet<string>;
+  /**
+   * Session ids matched INTO the scope regardless of their `orgId` — e.g.
+   * sessions explicitly tagged into the active cloud org
+   * (sessionOrgTagsAtom). OR-ed with the `selectedOrgIds` match.
+   */
+  extraSessionIds?: ReadonlySet<string>;
+  /**
+   * Session ids hidden from the rendered list but KEPT in `sessionMap`
+   * (click routing still works). Used by the cloud scope to dedupe local
+   * sessions that already render inside the threaded team-sessions section.
+   */
+  excludedSessionIds?: ReadonlySet<string>;
   includeExternal: boolean;
   groupVisibleCounts: ReadonlyMap<string, number>;
   expandedSubagentParentIds?: ReadonlySet<string>;
+  /** IDs temporarily forced through view filters for cross-surface reveal. */
+  revealedSessionIds?: ReadonlySet<string>;
 }
 
 export interface UseSessionMenuItemsResult {

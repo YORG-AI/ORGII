@@ -3,7 +3,13 @@
  *
  * Defines the Testing tab structure with test explorer section.
  */
-import { Filter as FilterIcon, Play, RefreshCw, Square } from "lucide-react";
+import {
+  ArrowLeft,
+  Filter as FilterIcon,
+  Play,
+  RefreshCw,
+  Square,
+} from "lucide-react";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -19,6 +25,7 @@ export interface TestingTabConfigProps {
   repoPath: string;
   isActive: boolean;
   showFilter: boolean;
+  onBack: () => void;
   onToggleFilter: () => void;
 }
 
@@ -27,6 +34,7 @@ export function useTestingTabConfig({
   repoPath,
   isActive,
   showFilter,
+  onBack,
   onToggleFilter,
 }: TestingTabConfigProps): PrimarySidebarTab {
   const { t } = useTranslation();
@@ -60,15 +68,25 @@ export function useTestingTabConfig({
         {
           key: "test-explorer",
           title: (
-            <>
-              {t("labels.testExplorer")}
-              <span className="ml-2 text-[11px] font-normal normal-case text-text-3">
+            <button
+              type="button"
+              className="flex min-w-0 items-center gap-1.5 normal-case"
+              onClick={onBack}
+              aria-label={t("tabs.files")}
+              title={t("tabs.files")}
+            >
+              <ArrowLeft size={14} className="shrink-0 text-text-3" />
+              <span className="truncate uppercase">
+                {t("labels.testExplorer")}
+              </span>
+              <span className="ml-0.5 text-[11px] font-normal normal-case text-text-3">
                 {frameworkLabel}
               </span>
-            </>
+            </button>
           ),
           content: testingPanelContent,
           defaultFlexGrow: 1,
+          collapsible: false,
           resizable: false,
           actions: [
             {
@@ -111,6 +129,7 @@ export function useTestingTabConfig({
       refreshSpinClass,
       handleRefreshClick,
       showFilter,
+      onBack,
       onToggleFilter,
       isRunning,
       runAllTests,

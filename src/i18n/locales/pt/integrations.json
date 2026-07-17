@@ -474,24 +474,6 @@
     "claudeCodeAutodetectDesc": "Lê seu login local do Claude Code pelo macOS Keychain ou ~/.claude/.credentials.json",
     "claudeCodeConnected": "Claude Code conectado",
     "claudeCodeDetectErrorHint": "Entre pelo navegador incorporado ou execute claude auth login e tente detectar novamente",
-    "geminiSetupMethodDesc": "Connect Gemini CLI with Google sign-in, local detection, or a Gemini API key",
-    "geminiSignInTitle": "Gemini Sign In",
-    "geminiSignInDesc": "Sign in to Google for Gemini CLI in a native secure sign-in window. ORGII captures the callback, resolves the Code Assist project, and stores OAuth tokens locally.",
-    "signInWithGemini": "Sign in with Gemini",
-    "geminiReadyToSignIn": "Ready to sign in to Gemini",
-    "geminiSignedIn": "Gemini connected",
-    "geminiOAuthHint": "This saves a Gemini OAuth account for official Gemini CLI access",
-    "geminiBrowserHint": "Complete Google authorization in the secure sign-in window.",
-    "geminiSignInErrorHint": "Close the sign-in window and try signing in again. No token was saved",
-    "geminiProjectId": "Code Assist project: {{projectId}}",
-    "geminiAutodetectTitle": "Detect Gemini session",
-    "geminiAutodetectDesc": "Reads ~/.gemini/oauth_creds.json and GEMINI_API_KEY from your local environment",
-    "geminiApiKeyLabel": "Gemini API Key",
-    "geminiApiKeyDesc": "Paste a Gemini API key if you do not want to use Google sign-in",
-    "geminiApiKeyPlaceholder": "AIza...",
-    "geminiConnected": "Gemini connected",
-    "geminiDetectErrorHint": "Sign in with the secure native window, or paste a Gemini API key manually",
-    "geminiValidationErrorHint": "Check that the Gemini token or API key is valid and try again",
     "refreshModels": {
       "button": "Atualizar lista de modelos do Cursor",
       "failed": "Falha ao atualizar a partir do Cursor: {{error}}"
@@ -1331,6 +1313,13 @@
     "commitAttributionDesc": "Adicionar ORGII como Co-authored-by às mensagens de Commit criadas no ORGII",
     "prAttribution": "Pull Request Attribution",
     "prAttributionDesc": "Adicionar um rodapé de atribuição ORGII às descrições de Pull Request criadas no ORGII",
+    "promptInstructionsTitle": "Instruções dos prompts",
+    "commitInstructions": "Instruções para commits",
+    "commitInstructionsDesc": "Adicionadas aos prompts de geração de mensagens de commit, armazenadas localmente e enviadas ao Agent selecionado",
+    "commitInstructionsPlaceholder": "Exemplo: Escreva as mensagens de commit em português e inclua uma descrição detalhada",
+    "pullRequestInstructions": "Instruções para pull requests",
+    "pullRequestInstructionsDesc": "Adicionadas aos prompts de geração de títulos e descrições de pull requests, armazenadas localmente e enviadas ao Agent selecionado",
+    "pullRequestInstructionsPlaceholder": "Exemplo: Inicie os títulos com o ID da tarefa e inclua uma seção de testes",
     "coauthor": "Co-authored-by",
     "coauthorDesc": "Adicionar {{name}} <{{email}}> aos commits Git criados no ORGII",
     "noTokenYet": "Precisa de um Token?",
@@ -1698,6 +1687,61 @@
       "tokenCount": "~{{count}} Token",
       "emptyConfigPreview": "Sem conteúdo de configuração"
     },
+    "sessionProvenance": {
+      "title": "Proveniência da sessão",
+      "capture": "Registrar interações com arquivos",
+      "description": "Registra leituras e gravações de arquivos como metadados. Prompts, saídas de ferramentas e conteúdo dos arquivos não são armazenados.",
+      "configPath": "Registra leituras e gravações de arquivos como metadados. Prompts, saídas de ferramentas e conteúdo dos arquivos não são armazenados. Configuração: {{path}}",
+      "installDrift": "A preferência salva e o hook instalado são diferentes. Alterne a captura para reparar o hook gerenciado. Configuração: {{path}}",
+      "copyPath": "Copiar",
+      "reveal": "Mostrar",
+      "col": {
+        "source": "Ferramenta",
+        "config": "Configuração",
+        "capture": "Captura"
+      },
+      "status": {
+        "on": "Ativado",
+        "off": "Desativado",
+        "repair": "Reparar",
+        "needsApproval": "Requer aprovação",
+        "checking": "Verificando…",
+        "error": "Erro"
+      },
+      "codexApproval": {
+        "title": "Approve ORG2 hooks in Codex",
+        "description": "Codex has the ORG2 hooks installed, but Codex still needs your approval before it can run them.",
+        "instructions": "Open Codex, review the 3 ORG2 hooks, then choose Trust all and continue. ORG2 marks this active after the first real hook signal.",
+        "review": "Review in Codex",
+        "verified": "Verified by a real Codex hook signal {{time}}."
+      },
+      "signals": {
+        "title": "Sinais recentes",
+        "empty": "Nenhum sinal de hook recebido ainda.",
+        "noResults": "Nenhum sinal correspondente",
+        "search": "Pesquisar sinais",
+        "refresh": "Atualizar",
+        "openSession": "Abrir sessão {{session}}",
+        "diffLoading": "Loading patch…",
+        "diffEmpty": "No patch captured. Provenance records file changes as metadata; a diff appears only once this session's edits are imported.",
+        "col": {
+          "source": "Ferramenta",
+          "action": "Ação",
+          "file": "Arquivo",
+          "workspace": "Espaço de trabalho",
+          "session": "Sessão",
+          "when": "Quando"
+        },
+        "action": {
+          "read": "Ler",
+          "write": "Gravar",
+          "create": "Criar",
+          "delete": "Excluir",
+          "rename": "Renomear",
+          "search": "Pesquisar"
+        }
+      }
+    },
     "codexConfig": {
       "sectionTitle": "Configuração",
       "model": "Modelo",
@@ -2043,8 +2087,7 @@
         "claude_code": "Claude Code",
         "copilot": "GitHub Copilot",
         "kiro": "Kiro",
-        "codex": "Codex",
-        "gemini_cli": "Gemini CLI"
+        "codex": "Codex"
       },
       "noSkillsResults": "Nenhum Skill importável encontrado. Procuramos em ~/.claude/skills e ~/.claude/commands.",
       "noAgentResults": "Nenhum Agent para importar ainda",
@@ -2452,13 +2495,6 @@
     "installHintNote": "Instale a dependência ausente para ativar este recurso",
     "installSection": "Instalação"
   },
-  "worktreeCompare": {
-    "button": "Comparar",
-    "buttonTooltip": "Comparar Worktrees",
-    "title": "Comparar Worktrees",
-    "noSessions": "Nenhuma sessão para comparar",
-    "sessionTab": "Sessão"
-  },
   "creator": {
     "assign": "Atribuir"
   },
@@ -2595,7 +2631,10 @@
   },
   "cliLaunchProfiles": {
     "title": "Perfil de inicialização",
+    "plain": "Base",
+    "plan": "Plano",
     "fullPermission": "Permissão total",
+    "autoEdit": "Edição automática",
     "manual": "Manual",
     "command": "Comando",
     "environment": "Ambiente",

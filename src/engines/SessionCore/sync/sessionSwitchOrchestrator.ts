@@ -1,4 +1,4 @@
-import { cursorBridgeComposerLastUpdatedAt } from "@src/api/tauri/cursorBridge";
+import { cursorIdeComposerLastUpdatedAt } from "@src/api/tauri/externalHistory/cursorIde";
 import { Message } from "@src/components/Message";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import { isVisibleInChat } from "@src/engines/SessionCore/ingestion/visibilityFilters";
@@ -20,7 +20,6 @@ import type { SessionSyncRefs } from "./sessionSyncTypes";
 import {
   hydrateSessionStoreBeforeDisplay,
   isInFlightRunStatus,
-  loadOwnSessionInitialEvents,
   loadPersistedHistory,
 } from "./sessionSyncUtils";
 import type { SessionAdapter } from "./types";
@@ -144,7 +143,11 @@ async function handleCacheHit(
       // initial load (which itself falls back to `loadEvents` when the turn
       // index is empty) and re-hydrate the store so the events actually show.
       if (displayEvents.length === 0 || !displayEvents.some(isVisibleInChat)) {
-        const fallbackEvents = await loadOwnSessionInitialEvents(sessionId);
+        const fallbackEvents = await loadPersistedHistory(
+          adapter,
+          sessionId,
+          abortController.signal
+        );
         if (abortController.signal.aborted) return;
         if (fallbackEvents.length > 0) {
           await hydrateSessionStoreBeforeDisplay(sessionId, fallbackEvents);
@@ -195,7 +198,7 @@ async function handleCursorIdeCacheHit(
   actions.setLoadStatus("loading");
   const composerId = composerIdFromSessionId(sessionId);
   const currentUpdatedAt = composerId
-    ? await cursorBridgeComposerLastUpdatedAt(composerId)
+    ? await cursorIdeComposerLastUpdatedAt(composerId)
     : null;
   if (abortController.signal.aborted) return true;
   const cachedUpdatedAt = getCursorIdeSnapshotLastUpdatedAt(sessionId);

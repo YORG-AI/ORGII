@@ -309,6 +309,105 @@ fn codex_key_info_exposes_requested_gpt_effort_and_speed_variants() {
 }
 
 #[test]
+fn codex_gpt_5_6_ultra_tier_limited_to_sol_and_terra() {
+    use crate::commands::crud::KeyInfo;
+    use crate::key_store::{AuthMethod, ModelKey, ModelType};
+
+    let mut key = ModelKey::new(ModelType::Codex);
+    key.auth_method = AuthMethod::Oauth;
+    key.session_token = Some("access-token".to_string());
+    key.available_models = vec![
+        "gpt-5.6-sol".to_string(),
+        "gpt-5.6-terra".to_string(),
+        "gpt-5.6-luna".to_string(),
+    ];
+
+    let info = KeyInfo::from(key);
+
+    // sol/terra: low/medium/high/xhigh/ultra × {non-fast, fast} = 10 variants.
+    for base in ["gpt-5.6-sol", "gpt-5.6-terra"] {
+        let variants: Vec<_> = info
+            .model_variants
+            .iter()
+            .filter(|variant| variant.base_model == base)
+            .collect();
+        assert_eq!(variants.len(), 10, "{base} should expose ultra tier");
+        assert!(variants
+            .iter()
+            .any(|variant| variant.model == format!("{base}-ultra") && !variant.fast));
+        assert!(variants
+            .iter()
+            .any(|variant| variant.model == format!("{base}-ultra-fast") && variant.fast));
+    }
+
+    // luna: no ultra tier → low/medium/high/xhigh × {non-fast, fast} = 8 variants.
+    let luna_variants: Vec<_> = info
+        .model_variants
+        .iter()
+        .filter(|variant| variant.base_model == "gpt-5.6-luna")
+        .collect();
+    assert_eq!(luna_variants.len(), 8);
+    assert!(luna_variants
+        .iter()
+        .all(|variant| variant.model != "gpt-5.6-luna-ultra"));
+    assert!(luna_variants
+        .iter()
+        .any(|variant| variant.model == "gpt-5.6-luna-high-fast" && variant.fast));
+}
+
+#[test]
+fn glm_5_2_plus_gets_high_max_ladder_and_max_default() {
+    use crate::commands::crud::KeyInfo;
+    use crate::key_store::{AuthMethod, ModelKey, ModelType};
+
+    let mut key = ModelKey::new(ModelType::ZhipuApi);
+    key.auth_method = AuthMethod::ApiKey;
+    key.api_key = Some("zhipu-key".to_string());
+    key.available_models = vec![
+        "glm-5.2".to_string(),
+        "glm-5.1".to_string(),
+        "glm-5".to_string(),
+        "glm-5-turbo".to_string(),
+    ];
+
+    let info = KeyInfo::from(key);
+
+    // GLM 5.2 → exactly High + Max (Baseline is the bare model row), no fast.
+    let glm52_variants: Vec<_> = info
+        .model_variants
+        .iter()
+        .filter(|variant| variant.base_model == "glm-5.2")
+        .collect();
+    assert_eq!(glm52_variants.len(), 2);
+    assert!(glm52_variants
+        .iter()
+        .any(|variant| variant.model == "glm-5.2-high" && !variant.fast));
+    assert!(glm52_variants
+        .iter()
+        .any(|variant| variant.model == "glm-5.2-max" && !variant.fast));
+
+    // GLM 5.1 and older, and the distinct glm-5-turbo sub-model, get no ladder.
+    assert!(info
+        .model_variants
+        .iter()
+        .all(|variant| variant.base_model != "glm-5.1"));
+    assert!(info
+        .model_variants
+        .iter()
+        .all(|variant| variant.base_model != "glm-5"));
+    assert!(info
+        .model_variants
+        .iter()
+        .all(|variant| variant.base_model != "glm-5-turbo"));
+
+    // GLM 5.2 defaults to Max (recommended for coding).
+    assert!(info
+        .default_variants
+        .iter()
+        .any(|variant| variant.base_model == "glm-5.2" && variant.model == "glm-5.2-max"));
+}
+
+#[test]
 fn relay_claude_code_key_gets_no_synthesized_effort_variants() {
     use crate::commands::crud::KeyInfo;
     use crate::key_store::{AuthMethod, ModelKey, ModelType, ModelVariant};
@@ -385,5 +484,5 @@ fn sonnet_ladders_follow_reference_effort_limits() {
     assert!(info
         .model_variants
         .iter()
-        .any(|variant| variant.model == "claude-sonnet-5-thinking-extra"));
+        .any(|variant| variant.model == "claude-sonnet-5-thinking-xhigh"));
 }

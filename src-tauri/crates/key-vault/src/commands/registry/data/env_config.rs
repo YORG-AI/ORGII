@@ -36,13 +36,6 @@ pub(crate) fn cli_env_config(name: &str) -> Option<AgentEnvConfig> {
             "codeAccounts.apiKeyPlaceholder.codex",
             Some("https://api.example.com/v1"),
         )),
-        "gemini_cli" => Some(cfg(
-            "GEMINI_API_KEY",
-            Some("GOOGLE_GEMINI_BASE_URL"),
-            true,
-            "codeAccounts.apiKeyPlaceholder.gemini_cli",
-            Some("https://geminicode.net"),
-        )),
         "copilot" => Some(cfg(
             "OPENAI_API_KEY",
             Some("OPENAI_BASE_URL"),

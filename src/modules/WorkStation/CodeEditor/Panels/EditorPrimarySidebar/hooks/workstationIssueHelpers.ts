@@ -12,10 +12,12 @@ export function filterIssuesByQuery(
   query: string
 ): GitHubIssue[] {
   if (!query.trim()) return issues;
-  const q = query.toLowerCase();
+  const q = query.trim().toLowerCase();
   return issues.filter(
     (issue) =>
       issue.title.toLowerCase().includes(q) ||
+      String(issue.number).includes(q) ||
+      `#${issue.number}`.includes(q) ||
       issue.labels.some((l) => l.name.toLowerCase().includes(q)) ||
       issue.user.login.toLowerCase().includes(q)
   );

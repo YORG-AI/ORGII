@@ -1,9 +1,8 @@
 /**
  * TurnCollapsePinBar — "Agent worked for xxx" collapse control.
  *
- * Rendered inside the sticky group header (`GroupHeaderRenderer`),
- * positioned *below* the pinned user message + `ChatPinnedBars` block,
- * for every completed turn that has body items. Clicking the chevron
+ * Rendered inside the group header (`GroupHeaderRenderer`), positioned below
+ * the user message for every completed turn that has body items. Clicking the chevron
  * toggles the collapse state in `turnCollapseOverrideAtom`; when
  * collapsed, `GroupItemRenderer` hides every non-final-assistant item
  * in the group so only the closing agent message remains visible —
@@ -23,6 +22,7 @@ import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import React, { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { getTurnTimingLabels } from "@src/engines/ChatPanel/ChatHistory/utils/turnTimingFormatting";
 import {
   collapseAllCommandAtom,
   setTurnCollapseOverrideAtom,
@@ -47,38 +47,6 @@ export interface TurnCollapsePinBarProps {
   turnCollapseInteractionAtRef: React.MutableRefObject<number>;
   /** Called before expanding a lazy-loaded turn. */
   onExpand?: () => Promise<void> | void;
-}
-
-/**
- * `5m 5s`, not `5m 05s` — the seconds field is *not* zero-padded so the
- * label stays compact and reads like spoken duration. Sub-minute values
- * collapse to bare seconds; whole-minute values drop the seconds field.
- */
-function formatDurationValue(durationMs: number): string {
-  if (!Number.isFinite(durationMs) || durationMs <= 0) return "0s";
-  const totalSeconds = Math.round(durationMs / 1000);
-  if (totalSeconds < 60) return `${totalSeconds}s`;
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return seconds === 0 ? `${minutes}m` : `${minutes}m ${seconds}s`;
-}
-
-/**
- * Format an epoch ms as a wall-clock `HH:MM` in the user's locale,
- * 24-hour-style. Falls back to an empty string if the timestamp is
- * unparseable.
- */
-function formatClockTime(ms: number): string {
-  if (!Number.isFinite(ms)) return "";
-  try {
-    return new Date(ms).toLocaleTimeString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-  } catch {
-    return "";
-  }
 }
 
 const CHEVRON_SIZE = 14;
@@ -143,26 +111,16 @@ const TurnCollapsePinBar: React.FC<TurnCollapsePinBarProps> = memo(
       labelVariant === "agents"
         ? "tools.turnCollapse.agentsWorkedFor"
         : "tools.turnCollapse.agentWorkedFor";
+    const timing = getTurnTimingLabels(durationMs, startMs, endMs);
     const label = t(labelKey, {
-      value: formatDurationValue(durationMs),
+      value: timing.duration,
     });
 
-    // Build the `HH:MM - HH:MM` subtitle only when both endpoints are known
-    // and at least one second apart — otherwise it would read as e.g.
-    // "14:32 - 14:32" which is noise.
-    const startClock = startMs !== null ? formatClockTime(startMs) : "";
-    const endClock = endMs !== null ? formatClockTime(endMs) : "";
-    const showRange =
-      showTimeRange &&
-      startClock !== "" &&
-      endClock !== "" &&
-      startMs !== null &&
-      endMs !== null &&
-      endMs - startMs >= 1000;
+    const showRange = showTimeRange && timing.showRange;
     const rangeLabel = showRange
       ? t("tools.turnCollapse.timeRange", {
-          start: startClock,
-          end: endClock,
+          start: timing.startClock,
+          end: timing.endClock,
         })
       : "";
 

@@ -23,7 +23,7 @@ export type UnifiedSessionStatus = "active" | "completed" | "failed";
  *
  * Covers SDE/OS agent sessions (HTTP API), CLI sessions (Tauri IPC / WS), and
  * market-backed sessions. Align with Rust SessionStatus and
- * src-tauri/src/agent_sessions/unified_stats/status.rs.
+ * src-tauri/src/agent_sessions/session_directory/status.rs.
  */
 export type SessionStatus =
   // Active statuses (session alive)

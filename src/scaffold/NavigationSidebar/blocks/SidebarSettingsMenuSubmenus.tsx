@@ -8,9 +8,11 @@ import {
 } from "@src/components/Dropdown/tokens";
 import type { AppearanceMode } from "@src/config/appearance/globalThemes";
 
+import { PresenceMenuItems } from "./SidebarBottomBar";
 import { SidebarWorkstationSettingsSubmenu } from "./SidebarWorkstationSettingsSubmenu";
 
 export type SettingsSubmenu =
+  | "presence"
   | "appearance"
   | "chatPanelLocation"
   | "workstation";
@@ -40,6 +42,7 @@ interface SidebarSettingsMenuSubmenusProps {
   submenuPosition: SubmenuPosition | null;
   themeOptions: readonly ThemeOption[];
   themePresetLabel: string;
+  onPresenceSelectionComplete: () => void;
   onSelectAppearanceMode: (mode: AppearanceMode) => void;
   onSelectTheme: (themeId: string) => void;
   onSubmenuMouseDown: (event: React.MouseEvent<HTMLDivElement>) => void;
@@ -56,12 +59,28 @@ export function SidebarSettingsMenuSubmenus({
   submenuPosition,
   themeOptions,
   themePresetLabel,
+  onPresenceSelectionComplete,
   onSelectAppearanceMode,
   onSelectTheme,
   onSubmenuMouseDown,
   onSubmenuPointerDown,
 }: SidebarSettingsMenuSubmenusProps): React.ReactPortal | null {
   if (!activeSubmenu || !submenuPosition) return null;
+
+  if (activeSubmenu === "presence") {
+    return createPortal(
+      <div
+        ref={submenuPanelRef}
+        className={`${DROPDOWN_CLASSES.menuPanelBase} ${DROPDOWN_WIDTHS.panelWidthClass} fixed`}
+        style={{ left: submenuPosition.left, bottom: submenuPosition.bottom }}
+        onPointerDown={onSubmenuPointerDown}
+        onMouseDown={onSubmenuMouseDown}
+      >
+        <PresenceMenuItems onSelectionComplete={onPresenceSelectionComplete} />
+      </div>,
+      document.body
+    );
+  }
 
   if (
     activeSubmenu === "chatPanelLocation" ||

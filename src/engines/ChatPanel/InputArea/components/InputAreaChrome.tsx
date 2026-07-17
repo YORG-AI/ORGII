@@ -7,6 +7,7 @@ import ChatHeader from "../ChatHeader";
 import EditModeImageThumbnail from "./EditModeImageThumbnail";
 import ImageAttachmentPreview from "./ImageAttachmentPreview";
 import PinnedActionsBar from "./PinnedActionsBar";
+import PlanTodoPill from "./PlanTodoPill";
 
 interface TopRowsProps {
   isEditMode: boolean;
@@ -37,7 +38,12 @@ export const InputAreaTopRows: React.FC<TopRowsProps> = ({
           composerInputRef={composerInputRef}
           sessionId={sessionId}
           workspacePaths={skillWorkspacePaths ?? undefined}
-          leadingContent={topRowPills}
+          leadingContent={
+            <>
+              <PlanTodoPill sessionId={sessionId} />
+              {topRowPills}
+            </>
+          }
           trailingContent={topRowTrailingContent}
         />
       </div>
@@ -138,15 +144,19 @@ export const getComposerShellClassName = ({
   isDragOver,
   isEditMode,
   quietEditSurface,
+  disableBreathing,
 }: {
   isDragOver: boolean;
   isEditMode: boolean;
   quietEditSurface: boolean;
+  /** Suppress the pulsing primary-6 breathing glow (e.g. when the chat status
+   * bar is shown and the input should read as a flat, flush surface). */
+  disableBreathing?: boolean;
 }): string | undefined => {
   if (isDragOver) {
     return "!border-primary-6 !bg-[color-mix(in_srgb,var(--color-primary-6)_5%,var(--color-chat-input))] !shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_20%,transparent)]";
   }
-  if (!isEditMode) return "composer-breathing";
+  if (!isEditMode) return disableBreathing ? undefined : "composer-breathing";
   if (quietEditSurface) {
     return "!border-warning-6 !shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-warning-6)_15%,transparent)]";
   }

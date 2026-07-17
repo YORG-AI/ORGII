@@ -19,6 +19,7 @@ use serde_json::Value;
 use tracing::{info, warn};
 
 use super::summarization;
+pub use super::summarization::ForkSummaryInputs;
 use super::tokenizer;
 use crate::providers::traits::LLMProvider;
 
@@ -45,9 +46,7 @@ pub struct CompactionConfig {
     #[serde(default = "default_keep_ratio")]
     pub keep_ratio: f32,
 
-    /// Legacy summarization model override. Ignored by runtime compaction: summaries
-    /// must use the same resolved model/route as the foreground turn. Kept only
-    /// for config/backward-compatible deserialization.
+    /// Model to use for summarization. If empty, uses the agent's main model.
     #[serde(default)]
     pub model: Option<String>,
 
@@ -179,11 +178,37 @@ pub enum CompactionOutcome {
         messages_dropped: usize,
         messages_kept: usize,
     },
-    /// LLM summarization failed or was skipped by the circuit breaker;
-    /// oldest messages were silently dropped instead.
-    Truncated { messages_dropped: usize },
+    /// LLM summarization failed (or the circuit breaker is open). The
+    /// history is returned UNCHANGED — never silently truncated. Ref:
+    /// claude_code autoCompact.ts: a failed compaction returns
+    /// `wasCompacted: false` and the turn proceeds with the original
+    /// history (if it can't compact, it doesn't compact).
+    Failed { reason: String },
     /// History was already within budget — no compaction needed.
     Skipped,
+}
+
+/// Result of a single LLM compaction attempt, before any fallback policy is
+/// applied. Internal to [`ContextCompactor::try_compact`] and its wrappers:
+/// the automatic path maps non-`Compacted` attempts to `Failed` (history
+/// unchanged), the manual path maps them to user-facing statuses.
+enum CompactAttempt {
+    /// Summarization succeeded; `compacted` is `[summary] + recent tail`.
+    Compacted {
+        compacted: Vec<Value>,
+        messages_dropped: usize,
+        messages_kept: usize,
+    },
+    /// History is under the trigger threshold — nothing to do.
+    Skipped,
+    /// The keep window covers the entire history (or nothing would remain);
+    /// there is no older segment to summarize.
+    NoCompactableSegment,
+    /// The summarizer input stayed prompt-too-long even after head-dropping
+    /// retries. Not a provider failure: the automatic path reports `Failed`
+    /// without feeding the circuit breaker, the manual path surfaces it as
+    /// an error.
+    SummarizeInputExhausted,
 }
 
 // ============================================
@@ -200,6 +225,14 @@ pub(crate) const MAX_CONSECUTIVE_COMPACTION_FAILURES: u32 = 3;
 /// Minimum adaptive keep ratio (don't go below 15% recent).
 pub(crate) const MIN_KEEP_RATIO: f32 = 0.15;
 
+/// Manual desktop compaction should work on medium-sized histories too; the
+/// automatic 16k floor often keeps too much recent context for an explicit
+/// user-triggered compaction.
+pub(crate) const MANUAL_COMPACT_FLOOR_TOKENS: usize = 4_000;
+
+/// Head-dropping retries when the summarizer input is itself prompt-too-long.
+const MAX_PTL_RETRIES: usize = 2;
+
 /// Context compactor: summarizes older messages to fit the context window.
 pub struct ContextCompactor;
 
@@ -207,7 +240,12 @@ pub struct ContextCompactor;
 /// summary lands as a **user** message (models weigh user messages far more
 /// than system background), and this suffix tells the model to resume
 /// silently instead of treating the summary as reference material.
-pub(crate) const COMPACT_CONTINUATION_SUFFIX: &str = "This session is being continued from an earlier conversation that exceeded the context window; the older messages were compacted into the summary above. Resume the work directly from this state — do not acknowledge this summary, do not re-describe it to the user, and do not ask questions it already answers. Continue with the last task you were working on, following the user's most recent instructions.";
+///
+/// `pub` (not `pub(crate)`): the app-side event pipeline strips it when
+/// rendering a persisted boundary row as a chat marker, and the TS adapter
+/// keeps a string twin in `agentMessageAdapters.ts` — this constant is the
+/// source of truth for both.
+pub const COMPACT_CONTINUATION_SUFFIX: &str = "This session is being continued from an earlier conversation that exceeded the context window; the older messages were compacted into the summary above. Resume the work directly from this state — do not acknowledge this summary, do not re-describe it to the user, and do not ask questions it already answers. Continue with the last task you were working on, following the user's most recent instructions.";
 
 pub(crate) fn compacted_summary_message(text: impl Into<String>) -> Value {
     serde_json::json!({
@@ -333,7 +371,10 @@ impl ContextCompactor {
     /// Compact history by summarizing older messages.
     ///
     /// Returns the compacted history and an outcome describing what happened.
-    /// If compaction fails (LLM error), falls back to simple truncation.
+    /// If compaction fails (LLM error), the history is returned UNCHANGED
+    /// with [`CompactionOutcome::Failed`] — the caller decides whether to
+    /// proceed with the original history (auto path) or surface the error
+    /// (reactive/manual paths). Never silently truncates.
     pub async fn compact(
         history: &[Value],
         budget_tokens: usize,
@@ -342,21 +383,161 @@ impl ContextCompactor {
         provider: &dyn LLMProvider,
         model: &str,
     ) -> (Vec<Value>, CompactionOutcome) {
+        Self::compact_with_fork(history, budget_tokens, config, state, provider, model, None).await
+    }
+
+    /// Like [`Self::compact`], with optional fork-form summarization
+    /// inputs. When provided, the summary call is issued against the main
+    /// turn's exact request prefix (system prefix + full history + same
+    /// tools/model), reading the provider prompt cache written by the
+    /// previous turn instead of paying a cold full-prompt cost. A fork
+    /// failure falls back to the side-query path transparently.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn compact_with_fork(
+        history: &[Value],
+        budget_tokens: usize,
+        config: &CompactionConfig,
+        state: &mut CompactionState,
+        provider: &dyn LLMProvider,
+        model: &str,
+        fork_inputs: Option<&ForkSummaryInputs<'_>>,
+    ) -> (Vec<Value>, CompactionOutcome) {
         if state.consecutive_failures >= MAX_CONSECUTIVE_COMPACTION_FAILURES {
             warn!(
                 "[compaction] Circuit breaker: {} consecutive failures, skipping LLM compaction",
                 state.consecutive_failures
             );
-            let truncated = Self::simple_truncate(history, budget_tokens);
-            let dropped = history.len().saturating_sub(truncated.len());
             return (
-                truncated,
-                CompactionOutcome::Truncated {
-                    messages_dropped: dropped,
+                history.to_vec(),
+                CompactionOutcome::Failed {
+                    reason: format!(
+                        "circuit breaker open ({} consecutive failures)",
+                        state.consecutive_failures
+                    ),
                 },
             );
         }
 
+        match Self::try_compact(
+            history,
+            budget_tokens,
+            config,
+            state,
+            provider,
+            model,
+            None,
+            fork_inputs,
+        )
+        .await
+        {
+            Ok(CompactAttempt::Compacted {
+                compacted,
+                messages_dropped,
+                messages_kept,
+            }) => (
+                compacted,
+                CompactionOutcome::Compacted {
+                    messages_dropped,
+                    messages_kept,
+                },
+            ),
+            Ok(CompactAttempt::Skipped) => (history.to_vec(), CompactionOutcome::Skipped),
+            Ok(CompactAttempt::NoCompactableSegment) => (
+                history.to_vec(),
+                CompactionOutcome::Failed {
+                    reason: "no compactable segment (keep window covers entire history)"
+                        .to_string(),
+                },
+            ),
+            Ok(CompactAttempt::SummarizeInputExhausted) => (
+                history.to_vec(),
+                CompactionOutcome::Failed {
+                    reason: format!(
+                        "summarization input remained too large after {} head-dropping retries",
+                        MAX_PTL_RETRIES
+                    ),
+                },
+            ),
+            Err(err) => {
+                state.consecutive_failures += 1;
+                warn!(
+                    "[compaction] Summarization failed ({}/{}), keeping history unchanged: {}",
+                    state.consecutive_failures, MAX_CONSECUTIVE_COMPACTION_FAILURES, err
+                );
+                (history.to_vec(), CompactionOutcome::Failed { reason: err })
+            }
+        }
+    }
+
+    /// Force a user-triggered compaction without changing automatic
+    /// threshold behavior.
+    ///
+    /// Unlike [`Self::compact`], this neither consults the failure circuit
+    /// breaker nor falls back to silent truncation: the user asked for this
+    /// compaction explicitly, so a summarization failure must surface as an
+    /// error, and a manual failure must not advance the auto path's failure
+    /// counter.
+    pub async fn compact_manual_force(
+        history: &[Value],
+        budget_tokens: usize,
+        config: &CompactionConfig,
+        state: &mut CompactionState,
+        provider: &dyn LLMProvider,
+        model: &str,
+        custom_instructions: Option<&str>,
+    ) -> Result<(Vec<Value>, CompactionOutcome), String> {
+        let mut manual_config = config.clone();
+        manual_config.trigger_ratio = 0.0;
+        manual_config.floor_tokens = manual_config.floor_tokens.min(MANUAL_COMPACT_FLOOR_TOKENS);
+
+        match Self::try_compact(
+            history,
+            budget_tokens,
+            &manual_config,
+            state,
+            provider,
+            model,
+            custom_instructions,
+            None,
+        )
+        .await?
+        {
+            CompactAttempt::Compacted {
+                compacted,
+                messages_dropped,
+                messages_kept,
+            } => Ok((
+                compacted,
+                CompactionOutcome::Compacted {
+                    messages_dropped,
+                    messages_kept,
+                },
+            )),
+            CompactAttempt::Skipped | CompactAttempt::NoCompactableSegment => {
+                Ok((history.to_vec(), CompactionOutcome::Skipped))
+            }
+            CompactAttempt::SummarizeInputExhausted => Err(format!(
+                "summarization input remained too large after {} head-dropping retries",
+                MAX_PTL_RETRIES
+            )),
+        }
+    }
+
+    /// One LLM compaction attempt with no fallback: the caller decides how
+    /// to handle a summarization failure (`compact` returns the history
+    /// unchanged as `Failed`, the manual path surfaces the error to the
+    /// user).
+    #[allow(clippy::too_many_arguments)]
+    async fn try_compact(
+        history: &[Value],
+        budget_tokens: usize,
+        config: &CompactionConfig,
+        state: &mut CompactionState,
+        provider: &dyn LLMProvider,
+        model: &str,
+        custom_instructions: Option<&str>,
+        fork_inputs: Option<&ForkSummaryInputs<'_>>,
+    ) -> Result<CompactAttempt, String> {
         let history_tokens = Self::estimate_messages_tokens(history);
 
         // Skip at the same trigger threshold as `needs_compaction`, not at
@@ -365,7 +546,7 @@ impl ContextCompactor {
         // and the history keeps growing until the provider rejects it.
         let trigger_threshold = (budget_tokens as f32 * config.trigger_ratio) as usize;
         if history_tokens <= trigger_threshold {
-            return (history.to_vec(), CompactionOutcome::Skipped);
+            return Ok(CompactAttempt::Skipped);
         }
 
         let effective_ratio = Self::adaptive_keep_ratio(history, budget_tokens, config.keep_ratio);
@@ -386,14 +567,7 @@ impl ContextCompactor {
         }
 
         if split_idx == 0 || split_idx >= history.len() {
-            let truncated = Self::simple_truncate(history, budget_tokens);
-            let dropped = history.len().saturating_sub(truncated.len());
-            return (
-                truncated,
-                CompactionOutcome::Truncated {
-                    messages_dropped: dropped,
-                },
-            );
+            return Ok(CompactAttempt::NoCompactableSegment);
         }
 
         let split_idx = Self::snap_to_api_round_boundary(history, split_idx);
@@ -410,83 +584,65 @@ impl ContextCompactor {
             Self::estimate_messages_tokens(recent),
         );
 
-        // Primary summarization stays on the live resolved model/route: it has
-        // maximum context understanding of the session (no re-reading with a
-        // dumber model) and keeps cost attribution / route debugging sane. Do
-        // not honor `config.model` for the primary attempt.
-        let summary_model = model;
-        // Cheap same-family sibling used only as a fallback ladder step when
-        // the primary model fails or refuses: a nano cold re-read is still far
-        // better than dropping history via simple truncation.
-        let nano_model = crate::providers::model_hints::nano_model_hint(model);
+        let summary_model = config.model.as_deref().unwrap_or(model);
+
+        // Fork-form first: reuse the main turn's prompt-cache prefix. The
+        // fork summarizes the FULL conversation (prefix includes `recent`);
+        // keeping `recent` verbatim afterwards mirrors claude_code, which
+        // also keeps recent turns alongside the whole-conversation summary.
+        // Any fork failure falls back to the cold side-query path (ref:
+        // claude_code tengu_compact_cache_sharing_fallback).
+        if let Some(fork) = fork_inputs {
+            match summarization::summarize_messages_forked(
+                provider,
+                fork,
+                state,
+                custom_instructions,
+            )
+            .await
+            {
+                Ok(summary_text) => {
+                    return Ok(Self::accept_summary(
+                        state,
+                        history,
+                        split_idx,
+                        recent,
+                        summary_text,
+                    ));
+                }
+                Err(err) => {
+                    warn!(
+                        "[compaction] fork-form summarization failed, falling back to side query: {}",
+                        err
+                    );
+                }
+            }
+        }
 
         let mut messages_to_summarize: Vec<Value> = older.to_vec();
         let mut ptl_retries = 0;
-        const MAX_PTL_RETRIES: usize = 2;
 
         loop {
-            let mut summary = summarization::summarize_messages(
+            let summary = summarization::summarize_messages(
                 &messages_to_summarize,
                 state,
                 provider,
                 summary_model,
                 config,
                 budget_tokens,
+                custom_instructions,
             )
             .await;
 
-            // Fallback ladder: primary live model failed (non-PTL) → retry
-            // once with the cheap same-family sibling before giving up to
-            // truncation. PTL errors are handled by the head-drop retry loop
-            // below instead (dropping history is what actually fixes PTL).
-            if let Err(ref primary_err) = summary {
-                if !Self::is_prompt_too_long_error(primary_err) && nano_model != summary_model {
-                    warn!(
-                        "[compaction] Primary model {} summarization failed ({}); retrying with fallback model {}",
-                        summary_model, primary_err, nano_model
-                    );
-                    summary = summarization::summarize_messages(
-                        &messages_to_summarize,
-                        state,
-                        provider,
-                        &nano_model,
-                        config,
-                        budget_tokens,
-                    )
-                    .await;
-                }
-            }
-
             match summary {
                 Ok(summary_text) => {
-                    state.consecutive_failures = 0;
-                    state.summary = Some(summary_text.clone());
-                    state.compacted_count = split_idx;
-                    state.recompaction_info.compaction_count += 1;
-                    state.recompaction_info.last_compaction_turn = history.len();
-
-                    let mut compacted = Vec::with_capacity(recent.len() + 1);
-
-                    let summary_msg = compacted_summary_message(format!(
-                        "{} {} earlier messages compacted]\n\n{}",
-                        super::session_memory::compact::LLM_COMPACT_BOUNDARY_PREFIX,
+                    return Ok(Self::accept_summary(
+                        state,
+                        history,
                         split_idx,
-                        summary_text
+                        recent,
+                        summary_text,
                     ));
-                    compacted.push(summary_msg);
-                    compacted.extend_from_slice(recent);
-
-                    let compacted_tokens = Self::estimate_messages_tokens(&compacted);
-                    info!(
-                        "[compaction] Compacted history: {} messages, ~{} tokens (was {} messages, ~{} tokens)",
-                        compacted.len(), compacted_tokens, history.len(), history_tokens
-                    );
-
-                    let outcome = CompactionOutcome::Compacted {
-                        messages_dropped: split_idx,
-                        messages_kept: recent.len(),
-                    };
-                    return (compacted, outcome);
                 }
                 Err(err)
                     if Self::is_prompt_too_long_error(&err) && ptl_retries < MAX_PTL_RETRIES =>
@@ -501,32 +657,57 @@ impl ContextCompactor {
                     );
 
                     if messages_to_summarize.is_empty() {
-                        let truncated = Self::simple_truncate(history, budget_tokens);
-                        let dropped = history.len().saturating_sub(truncated.len());
-                        return (
-                            truncated,
-                            CompactionOutcome::Truncated {
-                                messages_dropped: dropped,
-                            },
+                        warn!(
+                            "[compaction] summarization input still too large after {} retries: {}",
+                            MAX_PTL_RETRIES, err
                         );
+                        return Ok(CompactAttempt::SummarizeInputExhausted);
                     }
                 }
-                Err(err) => {
-                    state.consecutive_failures += 1;
-                    warn!(
-                        "[compaction] Summarization failed ({}/{}), falling back to truncation: {}",
-                        state.consecutive_failures, MAX_CONSECUTIVE_COMPACTION_FAILURES, err
-                    );
-                    let truncated = Self::simple_truncate(history, budget_tokens);
-                    let dropped = history.len().saturating_sub(truncated.len());
-                    return (
-                        truncated,
-                        CompactionOutcome::Truncated {
-                            messages_dropped: dropped,
-                        },
-                    );
-                }
+                Err(err) => return Err(err),
             }
+        }
+    }
+
+    /// Record a successful summarization into `state` and assemble the
+    /// compacted view (`[boundary summary message] + recent tail`).
+    fn accept_summary(
+        state: &mut CompactionState,
+        history: &[Value],
+        split_idx: usize,
+        recent: &[Value],
+        summary_text: String,
+    ) -> CompactAttempt {
+        state.consecutive_failures = 0;
+        state.summary = Some(summary_text.clone());
+        state.compacted_count = split_idx;
+        state.recompaction_info.compaction_count += 1;
+        state.recompaction_info.last_compaction_turn = history.len();
+
+        let mut compacted = Vec::with_capacity(recent.len() + 1);
+
+        let summary_msg = compacted_summary_message(format!(
+            "{} {} earlier messages compacted]\n\n{}",
+            super::session_memory::compact::LLM_COMPACT_BOUNDARY_PREFIX,
+            split_idx,
+            summary_text
+        ));
+        compacted.push(summary_msg);
+        compacted.extend_from_slice(recent);
+
+        let compacted_tokens = Self::estimate_messages_tokens(&compacted);
+        info!(
+            "[compaction] Compacted history: {} messages, ~{} tokens (was {} messages, ~{} tokens)",
+            compacted.len(),
+            compacted_tokens,
+            history.len(),
+            Self::estimate_messages_tokens(history),
+        );
+
+        CompactAttempt::Compacted {
+            compacted,
+            messages_dropped: split_idx,
+            messages_kept: recent.len(),
         }
     }
 

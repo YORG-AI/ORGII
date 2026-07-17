@@ -36,6 +36,7 @@ import {
   replayModeAtom,
   replayTimeRangeAtom,
 } from "./replay";
+import { discardStreamingDeltaBuffer } from "./streamingDeltaBuffer";
 
 // ============================================
 // Running args cache
@@ -135,7 +136,10 @@ export function resetSessionUIState(
   set(sessionRuntimeStatusAtom, "idle");
   set(sessionRuntimeErrorAtom, null);
   set(streamRetryStatusAtom, null);
+  // Cancel buffered chunks BEFORE clearing the atom so a queued trailing
+  // flush cannot resurrect the cleared session's streaming content.
   if (sessionId) {
+    discardStreamingDeltaBuffer(sessionId);
     set(streamingDeltaContentAtom, (prev) => {
       if (!prev.has(sessionId)) return prev;
       const next = new Map(prev);
@@ -143,6 +147,7 @@ export function resetSessionUIState(
       return next;
     });
   } else {
+    discardStreamingDeltaBuffer();
     set(streamingDeltaContentAtom, new Map());
   }
 }

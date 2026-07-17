@@ -13,7 +13,6 @@ import {
   Network,
   Pencil,
   RefreshCw,
-  SlidersHorizontal,
   UserPlus,
 } from "lucide-react";
 import { useCallback, useMemo } from "react";
@@ -36,10 +35,6 @@ import { ROUTE_PATHS } from "@src/config/routePaths";
 import { ROUTES } from "@src/config/routes";
 import { useRefreshSpin } from "@src/hooks/ui/useRefreshSpin";
 import { appGridEditModeAtom } from "@src/store/ui/appGridAtom";
-import {
-  devRecordActiveViewAtom,
-  devRecordToolbarRegistryAtom,
-} from "@src/store/ui/devRecordToolbarAtom";
 import {
   dispatchIntegrationsAddAtom,
   integrationsToolbarAtom,
@@ -67,7 +62,6 @@ function toIntegrationCategory(
 }
 
 const SETTINGS_PREFIX = ROUTES.app.settings.path;
-const DEV_RECORD_PREFIX = ROUTES.app.journey.record.path;
 
 export function useRouteToolbarConfig(): RouteToolbarConfig | null {
   const { pathname } = useLocation();
@@ -122,15 +116,6 @@ export function useRouteToolbarConfig(): RouteToolbarConfig | null {
     integrationsToolbar.onRefresh ?? noop,
     integrationsToolbar.loading ?? false
   );
-
-  const devRecordActiveView = useAtomValue(devRecordActiveViewAtom);
-  const devRecordRegistry = useAtomValue(devRecordToolbarRegistryAtom);
-  const activeToolbarEntry = devRecordRegistry[devRecordActiveView];
-  const { spinClass: devRecordSpinClass, handleClick: devRecordRefreshClick } =
-    useRefreshSpin(
-      activeToolbarEntry?.onRefresh ?? noop,
-      activeToolbarEntry?.loading ?? false
-    );
 
   return useMemo(() => {
     if (pathname.startsWith(SETTINGS_PREFIX)) {
@@ -216,35 +201,6 @@ export function useRouteToolbarConfig(): RouteToolbarConfig | null {
       };
     }
 
-    if (pathname.startsWith(DEV_RECORD_PREFIX)) {
-      const extraButtons: RouteToolbarButton[] = [];
-
-      if (activeToolbarEntry?.onRefresh) {
-        extraButtons.push({
-          id: "dev-record-refresh",
-          icon: RefreshCw,
-          onClick: devRecordRefreshClick,
-          title: t("common:actions.refresh"),
-          iconClassName: devRecordSpinClass,
-          disabled: !!devRecordSpinClass,
-        });
-      }
-
-      if (activeToolbarEntry?.onToggleFilter) {
-        extraButtons.push({
-          id: "dev-record-filter",
-          icon: SlidersHorizontal,
-          onClick: activeToolbarEntry.onToggleFilter,
-          title: t("common:labels.filters"),
-          selected: activeToolbarEntry.filterVisible,
-        });
-      }
-
-      return {
-        extraButtons: extraButtons.length > 0 ? extraButtons : undefined,
-      };
-    }
-
     if (pathname.startsWith(ROUTE_PATHS.startPage)) {
       return {
         ellipsisItems: [
@@ -283,9 +239,6 @@ export function useRouteToolbarConfig(): RouteToolbarConfig | null {
     integrationsToolbar,
     integrationsRefreshClick,
     integrationsSpinClass,
-    activeToolbarEntry,
-    devRecordRefreshClick,
-    devRecordSpinClass,
     appGridEditMode,
     openAddWorkspace,
     toggleAppGridEditing,

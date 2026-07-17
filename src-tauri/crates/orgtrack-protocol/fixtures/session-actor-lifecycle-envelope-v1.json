@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "source": "codex_app",
+  "sourceSessionId": "019f5ed4-653b-75c1-92ce-669810102f7f",
+  "sessionId": "codexapp-rollout-2026-07-14T16-30-00-019f5ed4-653b-75c1-92ce-669810102f7f",
+  "turnId": "turn-1",
+  "actorId": "agent-1",
+  "actorType": "explorer",
+  "phase": "stopped",
+  "occurredAt": "2026-07-14T23:31:00.000Z",
+  "cwd": "/Users/example/project",
+  "transcriptPath": "/Users/example/.codex/sessions/2026/07/14/rollout-child-agent-1.jsonl"
+}

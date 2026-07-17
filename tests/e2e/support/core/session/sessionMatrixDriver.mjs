@@ -55,7 +55,7 @@ const E2E_REPO_PATH = process.env.E2E_REPO_PATH;
 export const CLAUDE_CODE_AGENT_TYPE = "claude_code";
 export const CURSOR_AGENT_TYPE = "cursor_cli";
 export const CODEX_AGENT_TYPE = "codex";
-export const GEMINI_AGENT_TYPE = "gemini_cli";
+const GEMINI_API_AGENT_TYPE = "gemini_api";
 export const CURSOR_NATIVE_HARNESS_TYPE = "cursor_native";
 const MOUNT_TIMEOUT_MS = 60_000;
 const REPLY_TIMEOUT_MS = Number.parseInt(
@@ -284,7 +284,7 @@ function shouldRunMatrixLabel(label) {
 }
 
 function isGeminiConfig(config) {
-  return config.account?.agent_type === GEMINI_AGENT_TYPE;
+  return config.account?.agent_type === GEMINI_API_AGENT_TYPE;
 }
 
 function isClaudeCodeConfig(config) {
@@ -474,7 +474,7 @@ export async function getGeminiAccount() {
   const accounts = await listAccounts();
   const account = accounts.find(
     (row) =>
-      row.agent_type === GEMINI_AGENT_TYPE &&
+      row.agent_type === GEMINI_API_AGENT_TYPE &&
       row.enabled &&
       row.auth_method === "oauth" &&
       row.has_session_token &&
@@ -483,7 +483,7 @@ export async function getGeminiAccount() {
   );
   if (!account) {
     throw new Error(
-      `No enabled Gemini OAuth account found. requested=${GEMINI_ACCOUNT_NAME ?? "<any>"} rows=${JSON.stringify(accountSummary(accounts, GEMINI_AGENT_TYPE))}`
+      `No enabled Gemini API account found. requested=${GEMINI_ACCOUNT_NAME ?? "<any>"} rows=${JSON.stringify(accountSummary(accounts, GEMINI_API_AGENT_TYPE))}`
     );
   }
   return account;

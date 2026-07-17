@@ -29,6 +29,7 @@ import type { SelectOption } from "@src/components/Select";
 import TabPill from "@src/components/TabPill";
 import type { TabPillItem } from "@src/components/TabPill";
 import { ROUTES } from "@src/config/routes";
+import { useProjectOrgCloudPermissions } from "@src/features/Org2Cloud/useProjectOrgCloudPermissions";
 import { createLogger } from "@src/hooks/logger";
 import { useProjectDataChanged } from "@src/hooks/project";
 import type { LinearProjectSelection } from "@src/modules/ProjectManager/Panels/ProjectManagerSidebar/content/WorkspaceTreeContent";
@@ -46,6 +47,7 @@ import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { ContentSearchPalette } from "@src/scaffold/GlobalSpotlight/palettes";
 import { projectListRefreshAtom } from "@src/store/project/projectAtom";
 import type { Project } from "@src/types/core/project";
+import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
 
 import { ProjectRow, ProjectsPageHeader } from "./components";
 import {
@@ -84,7 +86,7 @@ export interface ProjectsPageProps {
   /** Workstation tab id used to publish tab-bar trailing controls. */
   workStationTabId?: string;
   /** Host slot used by the global WorkstationTabHeader. */
-  workstationHeaderHost?: "project" | "opsControl";
+  workstationHeaderHost?: "project" | "workManagement";
   /** Org hub surface pills shown after the breadcrumb (Overview / Projects / …). */
   orgSurfaceControls?: React.ReactNode;
 }
@@ -240,14 +242,23 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
   );
 
   const groupedProjects = useProjectsGrouping({ filteredProjects, groupMode });
+  const { canAdminister: canAdministerProjectOrg } =
+    useProjectOrgCloudPermissions();
+
+  // Linear rows are read-only. Managed-cloud projects additionally require
+  // an owner/admin role; the backend remains authoritative, while this gate
+  // keeps forbidden single and bulk delete controls out of the member UX.
+  const isProjectDeletable = useCallback(
+    (project: WorkspaceProject) =>
+      project.workspaceSource?.source !== WORKSPACE_SOURCE.LINEAR &&
+      canAdministerProjectOrg(project.orgId),
+    [canAdministerProjectOrg]
+  );
 
   const showCheckboxesOnAllRows = selectedProjectIds.size > 0;
   const selectableFilteredProjectCount = useMemo(
-    () =>
-      filteredProjects.filter(
-        (project) => project.workspaceSource?.source !== WORKSPACE_SOURCE.LINEAR
-      ).length,
-    [filteredProjects]
+    () => filteredProjects.filter(isProjectDeletable).length,
+    [filteredProjects, isProjectDeletable]
   );
 
   const loading = fileProjectsLoading;
@@ -303,7 +314,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
   const handleProjectCheckedChange = useCallback(
     (projectId: string, checked: boolean) => {
       const project = fileProjects.find((item) => item.id === projectId);
-      if (project?.workspaceSource?.source === WORKSPACE_SOURCE.LINEAR) return;
+      if (project && !isProjectDeletable(project)) return;
       setSelectedProjectIds((previous) => {
         const next = new Set(previous);
         if (checked) {
@@ -314,21 +325,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
         return next;
       });
     },
-    [fileProjects]
+    [fileProjects, isProjectDeletable]
   );
 
   const handleSelectAllProjects = useCallback(() => {
     setSelectedProjectIds(
       new Set(
-        filteredProjects
-          .filter(
-            (project) =>
-              project.workspaceSource?.source !== WORKSPACE_SOURCE.LINEAR
-          )
-          .map((project) => project.id)
+        filteredProjects.filter(isProjectDeletable).map((project) => project.id)
       )
     );
-  }, [filteredProjects]);
+  }, [filteredProjects, isProjectDeletable]);
 
   const handleUnselectAllProjects = useCallback(() => {
     setSelectedProjectIds(new Set());
@@ -338,6 +344,14 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
     const projectIds = Array.from(selectedProjectIds);
     if (projectIds.length === 0) return;
 
+    const confirmed = await confirmDestructiveAction({
+      title: t("common:actions.confirmDelete"),
+      message: t("common:actions.confirmDeleteMessage"),
+      okLabel: t("common:actions.delete"),
+      cancelLabel: t("common:actions.cancel"),
+    });
+    if (!confirmed) return;
+
     setBulkDeleting(true);
     try {
       const projectById = new Map(
@@ -346,6 +360,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
       for (const projectId of projectIds) {
         const project = projectById.get(projectId);
         if (!project) continue;
+        // Defensive re-check: the collab role may have changed between
+        // selection and delete (see isProjectDeletable above).
+        if (!isProjectDeletable(project)) continue;
         const slug =
           project.slug ||
           project.name
@@ -360,7 +377,13 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
     } finally {
       setBulkDeleting(false);
     }
-  }, [selectedProjectIds, fileProjects, loadFileProjects]);
+  }, [
+    selectedProjectIds,
+    t,
+    fileProjects,
+    isProjectDeletable,
+    loadFileProjects,
+  ]);
 
   const handleDeleteProject = useCallback(
     async (project: Project) => {
@@ -563,10 +586,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
                         onSelect={handleProjectClick}
                         onCheckedChange={handleProjectCheckedChange}
                         onDelete={
-                          project.workspaceSource?.source ===
-                          WORKSPACE_SOURCE.LINEAR
-                            ? undefined
-                            : handleDeleteProject
+                          isProjectDeletable(project)
+                            ? handleDeleteProject
+                            : undefined
                         }
                       />
                     ))}

@@ -67,6 +67,14 @@ describe("hasPillSyntax", () => {
   it("returns false for plain text", () => {
     expect(hasPillSyntax("hello world")).toBe(false);
   });
+
+  it("returns true every time the same serialized pill is checked", () => {
+    const content = "ChatView.md [file:/repo/docs/ChatView.md] 看这个file";
+
+    expect(hasPillSyntax(content)).toBe(true);
+    expect(hasPillSyntax(content)).toBe(true);
+    expect(hasPillSyntax(content)).toBe(true);
+  });
 });
 
 // ============================================================
@@ -94,15 +102,32 @@ describe("parsePillTextToSnapshot", () => {
     ]);
   });
 
-  it("does not swallow CJK prose into the pill display name when no space precedes the pill", () => {
-    // Regression: previously `lastSpaceIdx === -1` made the entire CJK prefix
-    // become the pill's fileName, rendering the whole sentence as a single
-    // blue file pill.
+  it("restores a leading file reference without duplicating its label", () => {
+    const snapshot = parsePillTextToSnapshot(
+      "AgentMessage.md [file:/repo/src/AgentMessage.md] 看看这个文件"
+    );
+    expect(snapshot.parts).toEqual([
+      {
+        kind: "pill",
+        attrs: {
+          filePath: "/repo/src/AgentMessage.md",
+          fileName: "AgentMessage.md",
+          isFolder: false,
+          iconType: "file",
+          lineStart: null,
+          lineEnd: null,
+        },
+      },
+      { kind: "text", text: " 看看这个文件" },
+    ]);
+  });
+
+  it("preserves CJK prose adjacent to a file pill without duplicating its label", () => {
     const snapshot = parsePillTextToSnapshot(
       "生成一个plan给我看看这个package.json [file:/repo/package.json]"
     );
     expect(snapshot.parts).toEqual([
-      { kind: "text", text: "生成一个plan给我看看这个package.json" },
+      { kind: "text", text: "生成一个plan给我看看这个" },
       {
         kind: "pill",
         attrs: {

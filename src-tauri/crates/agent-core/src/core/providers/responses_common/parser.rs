@@ -53,10 +53,7 @@ fn reasoning_summary_text_from_value(value: &Value) -> Vec<String> {
 /// reasoning, and tool calls that the model produced.
 pub fn parse_response(resp: ResponsesResponse) -> Result<LLMResponse, ProviderError> {
     if let Some(err) = resp.error {
-        return Err(ProviderError::RequestFailed(
-            err.message
-                .unwrap_or_else(|| "Unknown API error".to_string()),
-        ));
+        return Err(err.into_provider_error());
     }
 
     let mut content_parts: Vec<String> = Vec::new();
@@ -218,16 +215,21 @@ mod tests {
             usage: None,
             error: Some(ResponsesError {
                 message: Some("Rate limit exceeded".to_string()),
+                code: Some("rate_limit_exceeded".to_string()),
+                error_type: Some("rate_limit_error".to_string()),
+                param: None,
             }),
         };
 
         let result = parse_response(resp);
         assert!(result.is_err());
         match result {
-            Err(ProviderError::RequestFailed(msg)) => {
-                assert_eq!(msg, "Rate limit exceeded");
+            Err(ProviderError::RateLimited { message, .. }) => {
+                assert!(message.starts_with("Rate limit exceeded"));
+                assert!(message.contains("code=rate_limit_exceeded"));
+                assert!(message.contains("type=rate_limit_error"));
             }
-            _ => panic!("Expected RequestFailed error"),
+            _ => panic!("Expected RateLimited error"),
         }
     }
 

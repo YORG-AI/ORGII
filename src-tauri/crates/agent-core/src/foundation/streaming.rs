@@ -302,6 +302,16 @@ impl StreamingBuffer {
         counters.retain(|(sid, _), _| sid != session_id);
     }
 
+    /// Discard any in-flight streams for a session WITHOUT resetting segment
+    /// counters. Used by stream-error retry: the partial accumulation belongs
+    /// to an aborted LLM response and must not prefix the retry's regenerated
+    /// text, while counters keep advancing so retracted segment ids are never
+    /// reused by later flushes.
+    pub fn discard_streams(&self, session_id: &str) {
+        let mut streams = self.streams.lock().unwrap();
+        streams.retain(|(sid, _), _| sid != session_id);
+    }
+
     /// Flush expired streams. Returns events for streams that timed out.
     /// Call this periodically (e.g., every second) to auto-complete stale streams.
     pub fn flush_expired(&self) -> Vec<SessionEvent> {

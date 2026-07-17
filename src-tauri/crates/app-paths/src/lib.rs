@@ -64,6 +64,16 @@ pub fn sessions_db() -> PathBuf {
     orgii_root().join("sessions.db")
 }
 
+/// Privacy-filtered session-provenance hook inbox:
+/// `~/.orgii/session-provenance/inbox/`.
+///
+/// External agent hooks write small, versioned envelopes here instead of
+/// opening `sessions.db` directly. The desktop process drains the inbox and
+/// owns all canonical SQLite writes.
+pub fn session_provenance_inbox_dir() -> PathBuf {
+    orgii_root().join("session-provenance").join("inbox")
+}
+
 /// Project & work-item SQLite database: `~/.orgii/projects/projects.db`.
 ///
 /// Kept separate from `sessions_db` so cross-device sync and manual
@@ -863,26 +873,6 @@ pub fn codex_cli_profile_dir(account_id: &str) -> PathBuf {
     codex_cli_profile_root().join(sanitize_path_segment(account_id))
 }
 
-/// Per-session Gemini CLI home root: `~/.orgii/gemini-cli-home/`.
-pub fn gemini_cli_home_root() -> PathBuf {
-    orgii_root().join("gemini-cli-home")
-}
-
-/// Per-session Gemini CLI home dir for one session.
-pub fn gemini_cli_home(session_id: &str) -> PathBuf {
-    gemini_cli_home_root().join(session_id)
-}
-
-/// Account-scoped Gemini CLI profile root: `~/.orgii/gemini-cli-profiles/`.
-pub fn gemini_cli_profile_root() -> PathBuf {
-    orgii_root().join("gemini-cli-profiles")
-}
-
-/// Account-scoped Gemini CLI home dir.
-pub fn gemini_cli_profile_dir(account_id: &str) -> PathBuf {
-    gemini_cli_profile_root().join(sanitize_path_segment(account_id))
-}
-
 /// Account-scoped Kiro CLI profile root: `~/.orgii/kiro-cli-profiles/`.
 pub fn kiro_cli_profile_root() -> PathBuf {
     orgii_root().join("kiro-cli-profiles")
@@ -901,6 +891,35 @@ pub fn opencode_cli_profile_root() -> PathBuf {
 /// Account-scoped OpenCode CLI HOME dir.
 pub fn opencode_cli_profile_dir(account_id: &str) -> PathBuf {
     opencode_cli_profile_root().join(sanitize_path_segment(account_id))
+}
+
+/// CLI config manager profile root: `~/.orgii/cli-config-profiles/`.
+///
+/// Holds ORGII-managed backups and generated config profiles for external CLI
+/// agents whose real user config may be switched between Default and
+/// ORGII-managed modes.
+pub fn cli_config_profiles_root() -> PathBuf {
+    orgii_root().join("cli-config-profiles")
+}
+
+/// CLI config manager profile dir for one agent.
+pub fn cli_config_profile_agent_dir(agent_name: &str) -> PathBuf {
+    cli_config_profiles_root().join(sanitize_path_segment(agent_name))
+}
+
+/// Default/original CLI config backup dir for one agent.
+pub fn cli_config_profile_default_dir(agent_name: &str) -> PathBuf {
+    cli_config_profile_agent_dir(agent_name).join("default")
+}
+
+/// ORGII-generated CLI config profile dir for one agent.
+pub fn cli_config_profile_orgii_dir(agent_name: &str) -> PathBuf {
+    cli_config_profile_agent_dir(agent_name).join("orgii")
+}
+
+/// CLI config manager manifest path for one agent.
+pub fn cli_config_profile_manifest(agent_name: &str) -> PathBuf {
+    cli_config_profile_agent_dir(agent_name).join("manifest.json")
 }
 
 /// Oversized tool result spill root: `~/.orgii/tool-results/`.

@@ -14,11 +14,7 @@ import { describe, expect, it } from "vitest";
 import { __TESTS_ONLY } from "../loaders";
 import type { Session } from "../types";
 
-const {
-  mergeSessions,
-  replaceAllImportedHistoryFirstPage,
-  replaceExternalHistorySourceFirstPage,
-} = __TESTS_ONLY;
+const { mergeSessions, replaceExternalHistorySourceFirstPage } = __TESTS_ONLY;
 
 function makeSession(
   id: string,
@@ -90,7 +86,8 @@ describe("replaceExternalHistorySourceFirstPage", () => {
     listable: true,
     replayable: true,
     supportsWindowedReplay: false,
-    loadChunks: async () => [],
+    loadPreviewChunks: async () => [],
+    loadFullTranscriptChunks: async () => [],
   } as const;
 
   it("replaces only rows for the matching imported-history source", () => {
@@ -111,24 +108,6 @@ describe("replaceExternalHistorySourceFirstPage", () => {
       "codexapp-new",
       "claudecodeapp-keep",
       "cursoride-keep",
-    ]);
-  });
-});
-
-describe("replaceAllImportedHistoryFirstPage", () => {
-  it("drops stale imported rows while preserving non-imported sessions", () => {
-    const prev = [
-      makeSession("codexapp-stale-child", "2026-01-03"),
-      makeSession("claudecodeapp-stale", "2026-01-02"),
-      makeSession("cliagent-keep", "2026-01-01"),
-    ];
-    const incoming = [makeSession("codexapp-parent", "2026-01-04")];
-
-    const merged = replaceAllImportedHistoryFirstPage(prev, incoming);
-
-    expect(merged.map((session) => session.session_id)).toEqual([
-      "codexapp-parent",
-      "cliagent-keep",
     ]);
   });
 });

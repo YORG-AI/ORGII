@@ -13,7 +13,6 @@ import {
 } from "@src/scaffold/shared/popupTokens";
 import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
-import { type DockFilter, dockFilterAtom } from "@src/store/workstation";
 import { sourceControlFilterModeAtom } from "@src/store/workstation/codeEditor/sourceControlFilterModeAtom";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 import { getViewportSize } from "@src/util/ui/window/viewport";
@@ -29,7 +28,6 @@ interface TourStep {
   fallbackTarget?: CodeEditorTourTarget;
   title: string;
   body: string;
-  dockFilter?: DockFilter;
   openSourceControl?: boolean;
   openDashboard?: boolean;
   sourceControlFilterMode?: SourceControlFilterMode;
@@ -52,14 +50,12 @@ const TOUR_STEPS: TourStep[] = [
     id: "tabs",
     target: CODE_EDITOR_TOUR_TARGETS.tabBar,
     title: "Code Editor tabs",
-    dockFilter: "code",
     body: "Tabs collect the files, diffs, terminals, source control views, and dashboards you open while working in the repo.",
   },
   {
     id: "repo-selector",
     target: CODE_EDITOR_TOUR_TARGETS.repoSelector,
     title: "Create or switch repos",
-    dockFilter: "code",
     body: "Use the repo selector to switch the active repo or start the flow for adding another repository or workspace.",
   },
   {
@@ -67,28 +63,24 @@ const TOUR_STEPS: TourStep[] = [
     target: CODE_EDITOR_TOUR_TARGETS.branchSelector,
     fallbackTarget: CODE_EDITOR_TOUR_TARGETS.repoSelector,
     title: "Change branches",
-    dockFilter: "code",
     body: "The branch selector shows the current Git branch and opens the branch switch/create flow for this repo.",
   },
   {
     id: "editor-surface",
     target: CODE_EDITOR_TOUR_TARGETS.editorSurface,
     title: "Editor workspace",
-    dockFilter: "code",
     body: "This is the main Code Editor surface. Open files, inspect diffs, run terminals, and review generated changes here.",
   },
   {
     id: "create-tabs",
     target: CODE_EDITOR_TOUR_TARGETS.plusMenu,
     title: "Create new tabs",
-    dockFilter: "all",
     body: "Use the plus menu in All Tabs to create new work surfaces such as terminals, browser tabs, files, dashboards, and repo utilities.",
   },
   {
     id: "source-control",
     target: CODE_EDITOR_TOUR_TARGETS.sourceControl,
     title: "Git changes",
-    dockFilter: "code",
     openSourceControl: true,
     sourceControlFilterMode: "uncommitted",
     body: "Open Source Control to review changed files, stage or unstage work, commit, pull, push, fetch, and sync with the remote.",
@@ -98,7 +90,6 @@ const TOUR_STEPS: TourStep[] = [
     target: CODE_EDITOR_TOUR_TARGETS.gitHistory,
     fallbackTarget: CODE_EDITOR_TOUR_TARGETS.sourceControl,
     title: "Git history",
-    dockFilter: "code",
     openSourceControl: true,
     sourceControlFilterMode: "history",
     body: "Git History switches Source Control into commit history mode so you can inspect previous commits and related changes.",
@@ -107,7 +98,6 @@ const TOUR_STEPS: TourStep[] = [
     id: "dashboard",
     target: CODE_EDITOR_TOUR_TARGETS.dashboard,
     title: "Code Editor dashboard",
-    dockFilter: "code",
     openDashboard: true,
     body: "The dashboard is the Code Editor home tab for workspaces. Use it to add repos, open repo details, and jump into project work.",
   },
@@ -228,7 +218,6 @@ function buildPopoverStyle(rect: TargetRect): React.CSSProperties {
 
 const CodeEditorTour: React.FC<CodeEditorTourProps> = ({ open, onClose }) => {
   const { isDark } = useCurrentTheme();
-  const setDockFilter = useSetAtom(dockFilterAtom);
   const setStationMode = useSetAtom(stationModeAtom);
   const setSourceControlFilterMode = useSetAtom(sourceControlFilterModeAtom);
   const [stepIndex, setStepIndex] = useState(0);
@@ -241,7 +230,6 @@ const CodeEditorTour: React.FC<CodeEditorTourProps> = ({ open, onClose }) => {
   useEffect(() => {
     if (!open) return;
     setStationMode("my-station");
-    if (currentStep.dockFilter) setDockFilter(currentStep.dockFilter);
     if (currentStep.sourceControlFilterMode) {
       setSourceControlFilterMode(currentStep.sourceControlFilterMode);
     }
@@ -252,12 +240,10 @@ const CodeEditorTour: React.FC<CodeEditorTourProps> = ({ open, onClose }) => {
       void WorkStationViewService.openFileFolderTab();
     }
   }, [
-    currentStep.dockFilter,
     currentStep.openDashboard,
     currentStep.openSourceControl,
     currentStep.sourceControlFilterMode,
     open,
-    setDockFilter,
     setSourceControlFilterMode,
     setStationMode,
   ]);

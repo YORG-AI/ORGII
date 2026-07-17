@@ -57,6 +57,8 @@ export interface SelectProps {
   /** Horizontal alignment of dropdown panel: "right" aligns right edges */
   dropdownAlign?: "left" | "right";
   dropdownMinWidth?: number;
+  /** Exact dropdown panel width in pixels. */
+  dropdownWidth?: number;
   /** @default 'min-match' */
   dropdownWidthMode?: "match" | "min-match" | "auto";
   /**

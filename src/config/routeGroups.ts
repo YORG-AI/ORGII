@@ -39,14 +39,6 @@ export const WORK_STATION_ROUTES = {
     "code",
     "Code editing with file tree and terminal"
   ),
-  database: route(
-    "/orgii/workstation/database",
-    "Database Manager",
-    "workStation",
-    "workstation",
-    "database",
-    "Database explorer with SQL editor"
-  ),
   browser: route(
     "/orgii/workstation/browser",
     "Browser",
@@ -70,14 +62,6 @@ export const WORK_STATION_ROUTES = {
     "workstation",
     "list-todo",
     "Project and work item management"
-  ),
-  opsControl: route(
-    "/orgii/workstation/ops-control",
-    "Ops Control",
-    "workStation",
-    "workstation",
-    "radar",
-    "Cross-session operations control surface for agents, tasks, and workspace tools"
   ),
 } as const;
 
@@ -168,16 +152,9 @@ export const APP_SETTINGS_ROUTE = route(
 // JOURNEY ROUTES
 // ============================================================================
 
-export const APP_JOURNEY_ROUTES = {
-  record: route(
-    "/orgii/app/journey/record",
-    "Dev Record",
-    "mainApp",
-    "app",
-    "history",
-    "Developer activity record and analytics"
-  ),
-} as const;
+// Dev Record (journey/record) has been retired. The route group is kept as an
+// empty object so `ROUTES.app.journey` and its re-exports remain valid.
+export const APP_JOURNEY_ROUTES = {} as const;
 
 // ============================================================================
 // IDEA ROUTES

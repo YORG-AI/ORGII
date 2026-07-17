@@ -23,7 +23,6 @@ interface RenderNavigationMenuItemArgs {
   renderMenuItemWrapper?: NavigationMenuProps["renderMenuItemWrapper"];
   renderIcon: NavigationMenuIconRenderer;
   renderMenuItem: NavigationMenuItemRenderer;
-  isSubmenuSelected: (item: NavigationMenuItem) => boolean;
   onMenuItemClick: NavigationMenuProps["onMenuItemClick"];
   onMenuItemContextMenu?: NavigationMenuProps["onMenuItemContextMenu"];
   onRowMouseEnter: NavigationMenuRowMouseEnterHandler;
@@ -42,7 +41,6 @@ export function renderNavigationMenuItem({
   renderMenuItemWrapper,
   renderIcon,
   renderMenuItem,
-  isSubmenuSelected,
   onMenuItemClick,
   onMenuItemContextMenu,
   onRowMouseEnter,
@@ -53,7 +51,7 @@ export function renderNavigationMenuItem({
   const hasChildren = item.children && item.children.length > 0;
   const isSelected = selectedKeys.includes(item.key);
   const isOpen = openSubmenus.includes(item.key);
-  const submenuSelected = Boolean(hasChildren && isSubmenuSelected(item));
+  const submenuSelected = Boolean(hasChildren && isSelected);
 
   const node = hasChildren ? (
     <NavigationMenuParentRow
@@ -65,9 +63,9 @@ export function renderNavigationMenuItem({
       t={t}
       renderIcon={renderIcon}
       renderMenuItem={renderMenuItem}
-      onMenuItemClick={onMenuItemClick}
       onMenuItemContextMenu={onMenuItemContextMenu}
       onRowMouseEnter={onRowMouseEnter}
+      onRowActionClick={onRowActionClick}
       onToggleSubmenu={onToggleSubmenu}
       compactRows={compactRows}
     />

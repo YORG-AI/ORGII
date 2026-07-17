@@ -254,10 +254,17 @@ export function useSelector(options: UseSelectorOptions): UseSelectorReturn {
     }
   }, [itemsIdentityKey, findFirstSelectable]);
 
-  // Refocus input after DOM commits when the view changes
+  // Refocus input after DOM commits when the view changes. Two guards keep
+  // this from becoming a focus-steal loop (it once pegged the webview at
+  // ~90% CPU on the session-starter page):
+  //  - never run while closed — a closed palette must not steal focus from
+  //    the composer (the steal triggers re-renders that re-fire this effect);
+  //  - key on the items' CONTENT identity, not the array reference, which
+  //    changes on every parent render.
   useEffect(() => {
+    if (!isOpen) return;
     focusInput();
-  }, [focusTick, items, focusInput]);
+  }, [focusTick, itemsIdentityKey, isOpen, focusInput]);
 
   // Unified keyboard navigation with global listener support
   const { handleKeyDown: internalHandleKeyDown } = useListNavigation({

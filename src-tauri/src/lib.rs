@@ -105,7 +105,9 @@ fn apply_linux_webkit_cpu_guards() {}
 // Workstation (IDE functionality and development tools)
 pub mod agent_sessions; // Agent session management (CLI, event pipeline, persistence, aggregation)
 pub mod api;
+pub mod app_update; // Channel-aware (stable/beta) app update checks
 pub mod benchmark;
+pub mod cli_managed_proxy;
 pub mod infrastructure; // In-tree-only cross-cutting infrastructure (paths, platform, archive, index_manager, jsonrpc, housekeeping). Leaf pieces live in their own workspace crates.
 pub mod orgtrack;
 pub(crate) mod setup;
@@ -173,6 +175,7 @@ pub fn run() {
     // the watcher in `setup` starts, otherwise the first change event
     // after launch silently drops the HTTP-version update.
     register_settings_hooks();
+    agent_core::session::housekeeper_compaction::refresh_global_config_from_disk();
 
     // Wire `integrations::computer_use_lock`'s abort broadcaster so the ESC
     // hotkey can fan an event out to the frontend without the `integrations`
@@ -307,7 +310,7 @@ pub fn run() {
     #[cfg(all(debug_assertions, feature = "webdriver"))]
     let builder = builder.plugin(tauri_plugin_webdriver_automation::init());
 
-    builder
+    let builder = builder
         // NOTE: Single-instance disabled for development - uncomment for production
         // .plugin(tauri_plugin_single_instance::init(|_app, argv, _cwd| {
         //   tracing::info!(?argv, "a new app instance was opened and the deep link event was already triggered");
@@ -324,7 +327,12 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::new().build())
-        .plugin(tauri_plugin_drag::init())
+        .plugin(tauri_plugin_drag::init());
+
+    #[cfg(target_os = "macos")]
+    let builder = builder.plugin(tauri_plugin_liquid_glass::init());
+
+    builder
         .on_window_event(|_window, _event| {
             #[cfg(target_os = "macos")]
             match _event {
@@ -379,6 +387,7 @@ pub fn run() {
                             app_window::TRAFFIC_LIGHT_X,
                             app_window::TRAFFIC_LIGHT_Y,
                         );
+                        app_window::apply_macos_window_material(&main_window);
                     }
 
                     app_window::apply_host_desktop_window_chrome(&main_window);
@@ -453,6 +462,29 @@ pub fn run() {
             // ad-hoc tokio runtime.
             agent_core::specialization::memory::consolidation::spawn_consolidation_tick();
 
+            // Mirror Rust-agent session writes (status, name, model, …) into
+            // orgtrack's canonical session store. Registered once here so the
+            // agent-core persistence layer stays orgtrack-agnostic; CLI
+            // sessions mirror through their own persistence write path.
+            agent_core::session::persistence::register_session_mirror_hook(|session_id| {
+                if let Err(err) = crate::agent_sessions::session_directory::orgtrack_adapter::upsert_rust_agent_session(session_id) {
+                    tracing::warn!(session_id, error = %err, "[session-mirror] orgtrack session mirror failed");
+                }
+            });
+            agent_core::session::persistence::register_session_delete_mirror_hook(|session_id| {
+                if let Err(err) = crate::agent_sessions::session_directory::orgtrack_adapter::remove_mirrored_session(session_id) {
+                    tracing::warn!(session_id, error = %err, "[session-mirror] orgtrack delete mirror failed");
+                }
+            });
+            // Repair mirror rows from before the write-path hooks existed
+            // (stale/mislabeled rows, cold titles). One bounded pass off the
+            // main thread; the hooks keep it fresh from here on.
+            tauri::async_runtime::spawn_blocking(|| {
+                if let Err(err) = crate::agent_sessions::session_directory::orgtrack_adapter::reconcile_native_session_mirror() {
+                    tracing::warn!(error = %err, "[session-mirror] startup reconcile failed");
+                }
+            });
+
 
             // Create WebSocket broadcast channel for real-time events
             let (ws_tx, _ws_rx) = tokio::sync::broadcast::channel::<String>(1000);
@@ -464,8 +496,14 @@ pub fn run() {
             #[cfg(debug_assertions)]
             api::init_app_handle(app.handle().clone());
 
-            // Start unified IDE server (Git API + Search API + WebSocket) in background thread
-            std::thread::spawn(move || match tokio::runtime::Runtime::new() {
+            // Start unified IDE server (Git API + Search API + WebSocket) in background
+            // thread. Local single-user server: a small worker cap serves it fine and
+            // avoids a full core-count worker pool (the app spawns several runtimes).
+            std::thread::spawn(move || match tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(4)
+                .enable_all()
+                .build()
+            {
                 Ok(rt) => {
                     rt.block_on(async {
                         match api::start_server(ws_tx).await {
@@ -478,6 +516,20 @@ pub fn run() {
                 }
                 Err(err) => tracing::error!(error = %err, "[IDE Server] Failed to create tokio runtime"),
             });
+
+            // Start the local managed-config proxy used by supported CLI agents.
+            // It stays idle until a CLI points at 127.0.0.1:17888.
+            cli_managed_proxy::start_cli_managed_proxy_thread();
+
+            // First launch defaults session-provenance capture on for supported
+            // external agents. Later launches reconcile the platform hook
+            // files with the user's per-platform preferences.
+            tauri::async_runtime::spawn_blocking(|| {
+                if let Err(err) = agent_cli::session_provenance::ensure_hooks_from_preferences() {
+                    tracing::warn!(error = %err, "[SessionProvenance] Failed to reconcile agent hooks");
+                }
+            });
+            orgtrack::session_provenance::spawn_hook_inbox_drain_loop(app.handle().clone());
 
             // Initialize Rust EventStore state
             app.manage(agent_sessions::event_pipeline::commands::EventStoreState::new());
@@ -599,8 +651,16 @@ pub fn run() {
             );
             tracing::info!("[SubagentWake] Subagent completion wake hook installed");
 
+            let housekeeper_compaction_state = unified_state.clone();
             app.manage(unified_state);
             tracing::info!("[UnifiedAgent] Unified agent state initialized");
+
+            agent_core::session::housekeeper_compaction::spawn(
+                housekeeper_compaction_state,
+            );
+            tracing::info!(
+                "[HousekeeperCompaction] opt-in MiniCPM context worker initialized"
+            );
 
             // Spawn work item schedule executor
             {
@@ -645,6 +705,17 @@ pub fn run() {
             // `orgii-project-sync-status` events to the frontend.
             project_management::sync::start_worker(app.handle().clone());
             tracing::info!("[sync::worker] Sync worker started");
+
+            let data_changed_handle = app.handle().clone();
+            project_management::projects::events::register_data_changed_notifier(Box::new(
+                move || {
+                    use tauri::Emitter;
+                    let _ = data_changed_handle.emit(
+                        project_management::projects::events::DATA_CHANGED_EVENT,
+                        serde_json::json!({ "source": "rust" }),
+                    );
+                },
+            ));
 
             // Restore previously-enabled channels (e.g. feishu was toggled on last run)
             let app_handle_for_restore = app.handle().clone();
@@ -919,22 +990,41 @@ pub fn run() {
                 // Debug Linux/Windows exits normally when the last window closes.
                 // code.is_none() means it's an automatic exit (last window closed), not an explicit exit(0).
                 tauri::RunEvent::ExitRequested {
-                    api: _api, code, ..
+                    api: _api,
+                    code: _code,
+                    ..
                 } => {
                     #[cfg(any(target_os = "macos", not(debug_assertions)))]
-                    if code.is_none() {
+                    if _code.is_none() {
                         _api.prevent_exit();
                         return;
                     }
 
-                    if code.is_some()
-                        || cfg!(all(debug_assertions, not(target_os = "macos")))
-                    {
-                        // Explicit exit — mark active orchestrator workflows as interrupted
-                        agent_core::coordination::work_item_recovery::mark_all_interrupted_sync();
-                        // Release computer-use lock if held
-                        integrations::computer_use_lock::force_release_on_exit();
+                    match agent_cli::managed_config::restore_managed_configs_for_shutdown() {
+                        Ok(report) => {
+                            if !report.restored_agents.is_empty() {
+                                tracing::info!(
+                                    agents = ?report.restored_agents,
+                                    "[CLI Managed Config] restored Default configs before exit"
+                                );
+                            }
+                            for (agent, error) in report.failed_agents {
+                                tracing::warn!(
+                                    agent,
+                                    error = %error,
+                                    "[CLI Managed Config] left config unchanged during exit"
+                                );
+                            }
+                        }
+                        Err(error) => tracing::warn!(
+                            error = %error,
+                            "[CLI Managed Config] failed to run shutdown restoration"
+                        ),
                     }
+                    // Explicit exit — mark active orchestrator workflows as interrupted
+                    agent_core::coordination::work_item_recovery::mark_all_interrupted_sync();
+                    // Release computer-use lock if held
+                    integrations::computer_use_lock::force_release_on_exit();
                 }
                 _ => {}
             }

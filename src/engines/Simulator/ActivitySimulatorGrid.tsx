@@ -21,7 +21,6 @@ import { useAtomValue } from "jotai";
 import React, { memo } from "react";
 
 import { replayModeAtom } from "@src/engines/SessionCore";
-import { globalLayoutMethodAtom } from "@src/store/ui/uiAtom";
 
 import { IndependentGridCell, SimpleGridCell } from "./components/GridCell";
 import { MultiTaskHeader } from "./components/MultiTaskHeader";
@@ -65,8 +64,6 @@ const ActivitySimulatorGridComponent: React.FC<ActivitySimulatorGridProps> = ({
   taskThreads = [],
   selectedThreadId = null,
 }) => {
-  const globalLayoutMethod = useAtomValue(globalLayoutMethodAtom);
-  const isFullMode = globalLayoutMethod === "full";
   const replayMode = useAtomValue(replayModeAtom);
   const isFollowingReplay = replayMode === "follow";
 
@@ -126,13 +123,7 @@ const ActivitySimulatorGridComponent: React.FC<ActivitySimulatorGridProps> = ({
     const headerCount = taskThreads.length;
     return (
       <div
-        className={`flex h-full w-full flex-col overflow-hidden bg-bg-1 ${
-          isFullMode
-            ? ""
-            : isFollowingReplay
-              ? "rounded-xl"
-              : "rounded-xl border border-border-2"
-        }`}
+        className={`flex h-full w-full flex-col overflow-hidden bg-bg-1 ${isFollowingReplay ? "rounded-xl" : "rounded-xl border border-border-2"}`}
       >
         <MultiTaskHeader taskCount={headerCount} />
         <div className="min-h-0 flex-1 overflow-hidden">{containerContent}</div>

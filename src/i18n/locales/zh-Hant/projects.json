@@ -143,6 +143,7 @@
     "gitFolderPathHint": "將此組織綁定到既有 Git 工作區，用於資料夾同步。",
     "gitFolderBadge": "Git",
     "gitFolderSynced": "已與 Git 資料夾同步",
+    "pendingSync": "等待同步",
     "management": {
       "breadcrumb": "組織設定",
       "overview": "概覽",
@@ -538,7 +539,11 @@
       "tokens": "Token",
       "subAgentDefault": "Sub-Agent",
       "toolResult": "{{tool}} 結果",
-      "reviewRequestedChanges": "Review 請求修改"
+      "reviewRequestedChanges": "Review 請求修改",
+      "collabLockRunning": "{{name}} is running",
+      "collabLockHeld": "{{name}}'s agent is already working on this item",
+      "collabLockConflict": "Another member just started an agent on this item",
+      "collabLockUnresolved": "Could not verify this work item's collaboration status. Check your connection and try again."
     },
     "changedFiles": {
       "title": "變更文件",

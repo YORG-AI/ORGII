@@ -10,6 +10,8 @@ const WAIT_TIMEOUT_MS = 30_000;
 
 let originalWorktreeMaxCount = null;
 let originalCleanupIntervalHours = null;
+let originalCommitInstructions = null;
+let originalPullRequestInstructions = null;
 
 async function waitForScript(predicateScript, label, args = []) {
   let state = null;
@@ -78,7 +80,12 @@ async function pointerClick(selector, label) {
       timeoutMsg: `${label} not clickable: ${JSON.stringify(point, null, 2)}`,
     }
   );
-  await browser.action("pointer").move({ x: point.x, y: point.y }).down().up().perform();
+  await browser
+    .action("pointer")
+    .move({ x: point.x, y: point.y })
+    .down()
+    .up()
+    .perform();
 }
 
 async function selectOption(selectTestId, optionTestId, label) {
@@ -122,7 +129,10 @@ async function readSettings() {
 }
 
 async function writeSettingsPartial(partial) {
-  unwrap(await invokeE2E("writeSettingsPartial", partial), "write settings partial");
+  unwrap(
+    await invokeE2E("writeSettingsPartial", partial),
+    "write settings partial"
+  );
 }
 
 async function waitForSettings(expectedMaxCount, expectedCleanupHours) {
@@ -132,7 +142,8 @@ async function waitForSettings(expectedMaxCount, expectedCleanupHours) {
       lastSettings = await readSettings();
       return (
         lastSettings["git.worktree.maxCount"] === expectedMaxCount &&
-        lastSettings["git.worktree.cleanupIntervalHours"] === expectedCleanupHours
+        lastSettings["git.worktree.cleanupIntervalHours"] ===
+          expectedCleanupHours
       );
     },
     {
@@ -155,20 +166,124 @@ describe("Settings Git preferences UI", () => {
     );
     const settings = await readSettings();
     originalWorktreeMaxCount = settings["git.worktree.maxCount"];
-    originalCleanupIntervalHours = settings["git.worktree.cleanupIntervalHours"];
+    originalCleanupIntervalHours =
+      settings["git.worktree.cleanupIntervalHours"];
+    originalCommitInstructions =
+      settings["git.prompts.commitInstructions"] ?? "";
+    originalPullRequestInstructions =
+      settings["git.prompts.pullRequestInstructions"] ?? "";
     await writeSettingsPartial({
       "git.worktree.maxCount": 8,
       "git.worktree.cleanupIntervalHours": 6,
+      "git.prompts.commitInstructions": "",
+      "git.prompts.pullRequestInstructions": "",
     });
   });
 
   after(async () => {
-    if (originalWorktreeMaxCount !== null && originalCleanupIntervalHours !== null) {
+    if (
+      originalWorktreeMaxCount !== null &&
+      originalCleanupIntervalHours !== null &&
+      originalCommitInstructions !== null &&
+      originalPullRequestInstructions !== null
+    ) {
       await writeSettingsPartial({
         "git.worktree.maxCount": originalWorktreeMaxCount,
         "git.worktree.cleanupIntervalHours": originalCleanupIntervalHours,
+        "git.prompts.commitInstructions": originalCommitInstructions,
+        "git.prompts.pullRequestInstructions": originalPullRequestInstructions,
       });
     }
+  });
+
+  it("persists rendered prompt instructions only after saving", async () => {
+    unwrap(await invokeE2E("navigateTo", ROUTE), "navigate to Git settings");
+    await waitForScript(
+      `
+        return {
+          ok: !!document.querySelector('[data-testid="settings-git-commit-instructions"]') &&
+            !!document.querySelector('[data-testid="settings-git-pull-request-instructions"]'),
+          bodyText: document.body.innerText.slice(0, 1200),
+        };
+      `,
+      "Git prompt instruction fields did not render"
+    );
+
+    const commitInstructions = "Use English.\nInclude a detailed body.";
+    const pullRequestInstructions = "Prefix titles with #305.";
+
+    await browser.executeScript(
+      `
+        const setValue = (testId, value) => {
+          const element = document.querySelector('[data-testid="' + testId + '"]');
+          const setter = Object.getOwnPropertyDescriptor(
+            HTMLTextAreaElement.prototype,
+            'value'
+          )?.set;
+          setter?.call(element, value);
+          element?.dispatchEvent(new Event('input', { bubbles: true }));
+        };
+        setValue('settings-git-commit-instructions', arguments[0]);
+        setValue('settings-git-pull-request-instructions', arguments[1]);
+        return true;
+      `,
+      [commitInstructions, pullRequestInstructions]
+    );
+
+    let settings = await readSettings();
+    if (
+      settings["git.prompts.commitInstructions"] !== "" ||
+      settings["git.prompts.pullRequestInstructions"] !== ""
+    ) {
+      throw new Error("Unsaved Git prompt drafts were persisted");
+    }
+
+    await pointerClick(
+      '[data-testid="settings-git-commit-instructions-save"]',
+      "Commit instructions save"
+    );
+    await pointerClick(
+      '[data-testid="settings-git-pull-request-instructions-save"]',
+      "Pull request instructions save"
+    );
+
+    await browser.waitUntil(
+      async () => {
+        settings = await readSettings();
+        return (
+          settings["git.prompts.commitInstructions"] === commitInstructions &&
+          settings["git.prompts.pullRequestInstructions"] ===
+            pullRequestInstructions
+        );
+      },
+      {
+        timeout: 10_000,
+        interval: 250,
+        timeoutMsg: `Git prompt instructions did not persist. Last=${JSON.stringify(settings)}`,
+      }
+    );
+
+    unwrap(
+      await invokeE2E("navigateTo", "/orgii/app/settings/integrations/models"),
+      "navigate away from Git settings"
+    );
+    unwrap(
+      await invokeE2E("navigateTo", ROUTE),
+      "navigate back to Git settings"
+    );
+    await waitForScript(
+      `
+        const commitValue = document.querySelector('[data-testid="settings-git-commit-instructions"]')?.value ?? '';
+        const prValue = document.querySelector('[data-testid="settings-git-pull-request-instructions"]')?.value ?? '';
+        return {
+          ok: commitValue === arguments[0] && prValue === arguments[1],
+          commitValue,
+          prValue,
+        };
+      `,
+      "Git prompt instruction fields did not reflect persisted settings",
+      [commitInstructions, pullRequestInstructions]
+    );
   });
 
   it("persists rendered Worktree preferences to settings", async () => {
@@ -200,8 +315,14 @@ describe("Settings Git preferences UI", () => {
 
     await waitForSettings(12, 24);
 
-    unwrap(await invokeE2E("navigateTo", "/orgii/app/settings/integrations/models"), "navigate away from Git settings");
-    unwrap(await invokeE2E("navigateTo", ROUTE), "navigate back to Git settings");
+    unwrap(
+      await invokeE2E("navigateTo", "/orgii/app/settings/integrations/models"),
+      "navigate away from Git settings"
+    );
+    unwrap(
+      await invokeE2E("navigateTo", ROUTE),
+      "navigate back to Git settings"
+    );
     await waitForScript(
       `
         const maxText = document.querySelector('[data-testid="settings-git-worktree-max-count-select"]')?.textContent ?? '';

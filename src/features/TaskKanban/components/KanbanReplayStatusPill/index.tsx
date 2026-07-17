@@ -277,7 +277,7 @@ const KanbanReplayStatusPill: React.FC = memo(() => {
         {replayMode === "follow" ? (
           <>
             <span className="inline-flex h-5 shrink-0 items-center pl-1.5 text-[11px] font-medium leading-none text-white">
-              {t("opsControl.followLabel")}
+              {t("kanban.followLabel")}
             </span>
             <div className="ml-1 h-4 w-px shrink-0 bg-white/25" />
             <Tooltip

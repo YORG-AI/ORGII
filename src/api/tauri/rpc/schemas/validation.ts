@@ -15,7 +15,6 @@ export const CLI_AGENT = {
   CURSOR: "cursor_cli",
   CLAUDE_CODE: "claude_code",
   CODEX: "codex",
-  GEMINI: "gemini_cli",
   COPILOT: "copilot",
   KIRO: "kiro",
   KIMI: "kimi_cli",
@@ -48,7 +47,6 @@ export const CliAgentTypeSchema = z.union([
   z.literal("cursor_cli"),
   z.literal("claude_code"),
   z.literal("codex"),
-  z.literal("gemini_cli"),
   z.literal("copilot"),
   z.literal("kiro"),
   z.literal("kimi_cli"),
@@ -217,7 +215,7 @@ export const DefaultVariantInfoSchema = z.object({
   model: z.string(),
 });
 
-export const ProviderProtocolSchema = z.enum(["openai", "anthropic"]);
+export const ProviderProtocolSchema = z.enum(["openai", "anthropic", "gemini"]);
 
 export const KeyInfoSchema = z.object({
   id: z.string(),
@@ -449,9 +447,8 @@ export const AvailableApiProviderSchema = z.object({
 /**
  * Matches `ProviderEndpoint` in `src-tauri/.../provider_config.rs`.
  *
- * A selectable endpoint — a regional split (Zhipu's China vs Global hosts), a
- * product tier (OpenCode Zen vs Go), or an AWS region. `anthropic_base_url` is
- * null when the endpoint has no dedicated Anthropic-protocol host.
+ * A selectable endpoint — sometimes combining dimensions (Zhipu region and
+ * credential type), or representing a product tier or AWS region.
  */
 export const ProviderEndpointSchema = z.object({
   id: z.string(),
@@ -698,11 +695,6 @@ export const CodexOauthListModelsInput = z.object({
   }),
 });
 
-export const GeminiOauthListModelsInput = z.object({
-  accessToken: z.string(),
-  projectId: z.string().nullable().optional(),
-});
-
 export const RefreshOauthTokenInput = z.object({
   keyId: z.string(),
 });
@@ -786,32 +778,6 @@ export const CodexOauthExchangeResponseSchema = z.object({
   scope: z.string().nullable().optional(),
 });
 
-export const GeminiOauthStartResponseSchema = z.object({
-  authUrl: z.string(),
-  state: z.string(),
-  codeVerifier: z.string(),
-  redirectUri: z.string(),
-});
-
-export const GeminiOauthExchangeInput = z.object({
-  code: z.string(),
-  state: z.string(),
-  expectedState: z.string(),
-  codeVerifier: z.string(),
-  redirectUri: z.string(),
-});
-
-export const GeminiOauthExchangeResponseSchema = z.object({
-  accessToken: z.string(),
-  refreshToken: z.string(),
-  expiresIn: z.number().nullable().optional(),
-  tokenType: z.string().nullable().optional(),
-  scope: z.string().nullable().optional(),
-  projectId: z.string(),
-  expiresAt: z.string(),
-  availableModels: z.array(z.string()),
-});
-
 export const GetProviderConfigInput = z.object({
   modelType: z.string(),
 });
@@ -892,10 +858,4 @@ export type CodexOauthStartResponse = z.infer<
 >;
 export type CodexOauthExchangeResponse = z.infer<
   typeof CodexOauthExchangeResponseSchema
->;
-export type GeminiOauthStartResponse = z.infer<
-  typeof GeminiOauthStartResponseSchema
->;
-export type GeminiOauthExchangeResponse = z.infer<
-  typeof GeminiOauthExchangeResponseSchema
 >;

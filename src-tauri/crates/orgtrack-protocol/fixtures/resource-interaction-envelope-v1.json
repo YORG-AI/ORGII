@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "source": "cursor_ide",
+  "sourceSessionId": "conversation-123",
+  "sessionId": "cursor:conversation-123",
+  "sourceEventId": "tool-use-456:read:src/lib.rs",
+  "turnId": "generation-789",
+  "actorId": null,
+  "cwd": "/workspace/project",
+  "filePath": "src/lib.rs",
+  "action": "read",
+  "outcome": "succeeded",
+  "occurredAt": "2026-07-14T12:34:56Z",
+  "attributionPrecision": "session_only"
+}

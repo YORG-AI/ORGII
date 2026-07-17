@@ -22,7 +22,6 @@ import SettingsTable, {
 import StatusDot from "@src/components/StatusDot";
 import TabPill from "@src/components/TabPill";
 import type { TabPillItem } from "@src/components/TabPill";
-import { InfoRow } from "@src/modules/MainApp/Integrations/shared/InfoRow";
 import {
   useContainers,
   useEnvCrud,
@@ -39,6 +38,7 @@ import {
   CollapsibleSection,
   DETAIL_PANEL_TOKENS,
 } from "@src/modules/shared/layouts/blocks";
+import { InfoRow } from "@src/modules/shared/layouts/blocks/InfoRow";
 import type { Repo } from "@src/store/repo/types";
 import { copyText } from "@src/util/data/clipboard";
 

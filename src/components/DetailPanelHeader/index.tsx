@@ -13,6 +13,8 @@ import {
   HEADER_ICON_SIZE,
 } from "@src/config/workstation/tokens";
 
+import { useWindowDrag } from "./useWindowDrag";
+
 export interface DetailPanelHeaderProps {
   /** Title to display */
   title: string;
@@ -26,6 +28,12 @@ export interface DetailPanelHeaderProps {
   hasNext?: boolean;
   /** Optional extra actions rendered before the nav/close buttons */
   actions?: React.ReactNode;
+  /**
+   * When true, dragging the header repositions the nearest
+   * `[data-draggable-window]` ancestor. Used by the floating Kanban detail
+   * panel; docked panels leave this off.
+   */
+  draggable?: boolean;
 }
 
 const DetailPanelHeader: React.FC<DetailPanelHeaderProps> = ({
@@ -35,9 +43,18 @@ const DetailPanelHeader: React.FC<DetailPanelHeaderProps> = ({
   hasPrev = false,
   hasNext = false,
   actions,
+  draggable = false,
 }) => {
+  const onPointerDown = useWindowDrag(draggable);
   return (
-    <div className={HEADER_CLASSES.pageHeader}>
+    <div
+      className={
+        draggable
+          ? `${HEADER_CLASSES.pageHeader} cursor-grab select-none`
+          : HEADER_CLASSES.pageHeader
+      }
+      onPointerDown={onPointerDown}
+    >
       <div className="flex min-w-0 flex-1 items-center">
         <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-text-1">
           {title}

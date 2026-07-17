@@ -12,7 +12,7 @@ import { defineZodAction } from "@src/ActionSystem/schema/defineZodAction";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { openEditorSpotlight } from "@src/scaffold/GlobalSpotlight/openSpotlight";
 import { SearchService } from "@src/services/search";
-import { WorkStationViewService } from "@src/services/workStation";
+import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
 import type { SearchResultFile } from "@src/store/workstation/codeEditor/search";
 
 // ============================================

@@ -471,24 +471,6 @@
     "claudeCodeAutodetectDesc": "Yerel Claude Code girişinizi macOS Keychain veya ~/.claude/.credentials.json üzerinden okur",
     "claudeCodeConnected": "Claude Code bağlandı",
     "claudeCodeDetectErrorHint": "Yerleşik tarayıcıyla oturum açın veya claude auth login çalıştırıp algılamayı tekrar deneyin",
-    "geminiSetupMethodDesc": "Connect Gemini CLI with Google sign-in, local detection, or a Gemini API key",
-    "geminiSignInTitle": "Gemini Sign In",
-    "geminiSignInDesc": "Sign in to Google for Gemini CLI in a native secure sign-in window. ORGII captures the callback, resolves the Code Assist project, and stores OAuth tokens locally.",
-    "signInWithGemini": "Sign in with Gemini",
-    "geminiReadyToSignIn": "Ready to sign in to Gemini",
-    "geminiSignedIn": "Gemini connected",
-    "geminiOAuthHint": "This saves a Gemini OAuth account for official Gemini CLI access",
-    "geminiBrowserHint": "Complete Google authorization in the secure sign-in window.",
-    "geminiSignInErrorHint": "Close the sign-in window and try signing in again. No token was saved",
-    "geminiProjectId": "Code Assist project: {{projectId}}",
-    "geminiAutodetectTitle": "Detect Gemini session",
-    "geminiAutodetectDesc": "Reads ~/.gemini/oauth_creds.json and GEMINI_API_KEY from your local environment",
-    "geminiApiKeyLabel": "Gemini API Key",
-    "geminiApiKeyDesc": "Paste a Gemini API key if you do not want to use Google sign-in",
-    "geminiApiKeyPlaceholder": "AIza...",
-    "geminiConnected": "Gemini connected",
-    "geminiDetectErrorHint": "Sign in with the secure native window, or paste a Gemini API key manually",
-    "geminiValidationErrorHint": "Check that the Gemini token or API key is valid and try again",
     "refreshModels": {
       "button": "Cursor model listesini yenile",
       "failed": "Cursor'dan yenileme başarısız: {{error}}"
@@ -1339,6 +1321,13 @@
     "commitAttributionDesc": "ORGII üzerinden oluşturulan Commit mesajlarına ORGII’yi Co-authored-by olarak ekle",
     "prAttribution": "Pull Request Attribution",
     "prAttributionDesc": "ORGII üzerinden oluşturulan Pull Request açıklamalarına ORGII atıf footer’ı ekle",
+    "promptInstructionsTitle": "Prompt talimatları",
+    "commitInstructions": "Commit talimatları",
+    "commitInstructionsDesc": "Commit mesajı oluşturma promptlarına eklenir, yerel olarak saklanır ve seçtiğiniz Agent’a gönderilir",
+    "commitInstructionsPlaceholder": "Örnek: Commit mesajlarını Türkçe yaz ve ayrıntılı bir açıklama ekle",
+    "pullRequestInstructions": "Pull request talimatları",
+    "pullRequestInstructionsDesc": "Pull request başlığı ve açıklaması oluşturma promptlarına eklenir, yerel olarak saklanır ve seçtiğiniz Agent’a gönderilir",
+    "pullRequestInstructionsPlaceholder": "Örnek: Başlıkların önüne iş kimliğini ekle ve bir test bölümü ekle",
     "coauthor": "Co-authored-by",
     "coauthorDesc": "ORGII üzerinden oluşturulan Git commit'lerine {{name}} <{{email}}> ekle",
     "noTokenYet": "Token gerekiyor mu?",
@@ -1695,6 +1684,61 @@
       "tokenCount": "~{{count}} Token",
       "emptyConfigPreview": "Yapılandırma içeriği yok"
     },
+    "sessionProvenance": {
+      "title": "Oturum kaynağı",
+      "capture": "Dosya etkileşimlerini kaydet",
+      "description": "Dosya okuma ve yazma işlemlerini meta veri olarak kaydeder. İstemler, araç çıktıları ve dosya içerikleri saklanmaz.",
+      "configPath": "Dosya okuma ve yazma işlemlerini meta veri olarak kaydeder. İstemler, araç çıktıları ve dosya içerikleri saklanmaz. Yapılandırma: {{path}}",
+      "installDrift": "Kaydedilen tercih ile yüklü hook farklı. Yönetilen hook'u onarmak için kaydı değiştirin. Yapılandırma: {{path}}",
+      "copyPath": "Kopyala",
+      "reveal": "Göster",
+      "col": {
+        "source": "Araç",
+        "config": "Yapılandırma",
+        "capture": "Yakalama"
+      },
+      "status": {
+        "on": "Açık",
+        "off": "Kapalı",
+        "repair": "Onar",
+        "needsApproval": "Onay gerekli",
+        "checking": "Kontrol ediliyor…",
+        "error": "Hata"
+      },
+      "codexApproval": {
+        "title": "Approve ORG2 hooks in Codex",
+        "description": "Codex has the ORG2 hooks installed, but Codex still needs your approval before it can run them.",
+        "instructions": "Open Codex, review the 3 ORG2 hooks, then choose Trust all and continue. ORG2 marks this active after the first real hook signal.",
+        "review": "Review in Codex",
+        "verified": "Verified by a real Codex hook signal {{time}}."
+      },
+      "signals": {
+        "title": "Son sinyaller",
+        "empty": "Henüz hook sinyali alınmadı.",
+        "noResults": "Eşleşen sinyal yok",
+        "search": "Sinyal ara",
+        "refresh": "Yenile",
+        "openSession": "{{session}} oturumunu aç",
+        "diffLoading": "Loading patch…",
+        "diffEmpty": "No patch captured. Provenance records file changes as metadata; a diff appears only once this session's edits are imported.",
+        "col": {
+          "source": "Araç",
+          "action": "Eylem",
+          "file": "Dosya",
+          "workspace": "Çalışma alanı",
+          "session": "Oturum",
+          "when": "Ne zaman"
+        },
+        "action": {
+          "read": "Okuma",
+          "write": "Yazma",
+          "create": "Oluşturma",
+          "delete": "Silme",
+          "rename": "Yeniden adlandırma",
+          "search": "Arama"
+        }
+      }
+    },
     "codexConfig": {
       "sectionTitle": "Yapılandırma",
       "model": "Model",
@@ -2028,8 +2072,7 @@
         "claude_code": "Claude Code",
         "copilot": "GitHub Copilot",
         "kiro": "Kiro",
-        "codex": "Codex",
-        "gemini_cli": "Gemini CLI"
+        "codex": "Codex"
       },
       "noSkillsResults": "İçe aktarılabilir skill bulunamadı. ~/.claude/skills ve ~/.claude/commands incelendi.",
       "noAgentResults": "İçe aktarılacak agent henüz yok",
@@ -2449,13 +2492,6 @@
     "installHintNote": "Bu özelliği etkinleştirmek için eksik bağımlılığı yükleyin",
     "installSection": "Kurulum"
   },
-  "worktreeCompare": {
-    "button": "Karşılaştır",
-    "buttonTooltip": "Worktree'leri karşılaştır",
-    "title": "Worktree'leri Karşılaştır",
-    "noSessions": "Karşılaştırmak için oturum yok",
-    "sessionTab": "Oturum"
-  },
   "creator": {
     "assign": "Ata"
   },
@@ -2592,7 +2628,10 @@
   },
   "cliLaunchProfiles": {
     "title": "Başlatma profili",
+    "plain": "Temel",
+    "plan": "Plan",
     "fullPermission": "Tam izin",
+    "autoEdit": "Otomatik düzenleme",
     "manual": "Manuel",
     "command": "Komut",
     "environment": "Ortam",

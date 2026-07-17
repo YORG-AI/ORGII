@@ -36,9 +36,10 @@ function applyEventUpserts(
   previousEvents: SessionEvent[],
   previousEventIndex: Record<string, number>,
   upserts: SessionEvent[]
-): SessionEvent[] {
-  if (upserts.length === 0) return previousEvents;
+): { events: SessionEvent[]; appended: boolean } {
+  if (upserts.length === 0) return { events: previousEvents, appended: false };
   let nextEvents: SessionEvent[] | null = null;
+  let appended = false;
 
   for (const upsert of upserts) {
     const existingIndex = previousEventIndex[upsert.id];
@@ -50,10 +51,11 @@ function applyEventUpserts(
     } else {
       nextEvents ??= [...previousEvents];
       nextEvents.push(upsert);
+      appended = true;
     }
   }
 
-  return nextEvents ?? previousEvents;
+  return { events: nextEvents ?? previousEvents, appended };
 }
 
 function buildEventIndex(events: SessionEvent[]): Record<string, number> {
@@ -143,15 +145,16 @@ export function useEventStoreBridge(): void {
             // mid-stream, showing "(plan is empty)" until the turn completes.
             const prev = lastDerivedRef.current;
             if (prev) {
-              const events = applyEventUpserts(
+              const { events, appended } = applyEventUpserts(
                 prev.events,
                 prev.eventIndex,
                 snapshot.simulatorEventUpserts ?? []
               );
-              const eventIndex =
-                events === prev.events
-                  ? prev.eventIndex
-                  : buildEventIndex(events);
+              // In-place replacements keep every id → index mapping valid;
+              // only appends (membership growth) require rebuilding.
+              const eventIndex = appended
+                ? buildEventIndex(events)
+                : prev.eventIndex;
               const sortedSimulatorEvents =
                 snapshot.sortedSimulatorEventIds &&
                 snapshot.sortedSimulatorEventIds.length > 0

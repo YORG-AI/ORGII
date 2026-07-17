@@ -321,4 +321,33 @@ mod tests {
             "Core tools always available"
         );
     }
+
+    #[test]
+    fn sde_default_session_config_offers_reply_session_comment() {
+        use crate::definitions::capabilities::{
+            BrowserCapability, CapabilitySet, CodingCapability,
+        };
+        let sde_caps = CapabilitySet {
+            coding: Some(CodingCapability { mode_switch: true }),
+            desktop: None,
+            browser: Some(BrowserCapability {
+                external: true,
+                internal: false,
+            }),
+            gateway: None,
+            data: None,
+            management: None,
+        };
+        let excluded = default_excluded_tools_for_capabilities(&sde_caps);
+        assert!(
+            !excluded.contains(&tool_names::REPLY_SESSION_COMMENT.to_string()),
+            "SDE should NOT exclude reply_session_comment by default"
+        );
+
+        let disabled = derive_disabled_tools(&[], &excluded);
+        assert!(
+            !disabled.contains(tool_names::REPLY_SESSION_COMMENT),
+            "reply_session_comment must not land in the derived disabled set for SDE"
+        );
+    }
 }

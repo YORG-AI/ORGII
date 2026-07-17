@@ -15,7 +15,7 @@ import { Prism as PrismHighlighter } from "react-syntax-highlighter";
 import { Components, Virtuoso } from "react-virtuoso";
 
 import { getLanguageFromPath } from "@src/config/languageMap";
-import { codeMirrorPrismTheme } from "@src/features/CodeMirror/themes";
+import { codeMirrorPrismTheme } from "@src/features/CodeMirror/themes/prism";
 import { getLanguageFromFilePath } from "@src/util/editor/extension";
 
 import "./index.scss";

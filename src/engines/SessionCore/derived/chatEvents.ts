@@ -175,9 +175,10 @@ export const chatEventsAtom = atom((get) => {
 
   // During streaming, inject the live-assistant placeholder with a stable
   // sentinel so `appendLiveAssistantEvent` adds it to the list without
-  // subscribing to `streamingDeltaContentAtom` (which fires on every token).
-  // The actual streaming text is read directly from `streamingDeltaContentAtom`
-  // inside `AgentMessageEvent` at the leaf renderer level.
+  // subscribing to `streamingDeltaContentAtom` (which fires on every
+  // buffered flush, ≤20Hz mid-stream). The actual streaming text is read
+  // directly from `streamingDeltaContentAtom` inside `AgentMessageEvent` at
+  // the leaf renderer level.
   const streaming = snap ? isStreamingSnap(snap) : false;
   const liveContent = streaming && sessionId ? "\u200b" : null;
   const queuedMessages = get(messageQueueAtom);

@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useMounted } from "@src/hooks/lifecycle/useMounted";
 import { createLogger } from "@src/hooks/logger";
-import { mergeInstalledSkills } from "@src/hooks/skills/installedSkillsMerge";
+import { scanInstalledSkills } from "@src/hooks/skills/installedSkillsScan";
 import {
   installedSkillsAtom,
   installedSkillsLoadingAtom,
@@ -82,31 +82,20 @@ export function useSkillsHub({
     "\0"
   );
 
-  const listInstalledSkills = useCallback(async (workspacePaths?: string[]) => {
-    // Always query the global scope; additionally query any workspace/repo
-    // paths so repo-scoped skills (`.<tool>/skills` and root `skills`)
-    // appear in the list — `skills_list(null)` only returns global + builtin skills.
-    const uniqueWorkspacePaths = getUniqueWorkspacePaths(workspacePaths ?? []);
-    const tasks: Promise<InstalledSkill[]>[] = [
-      invoke<InstalledSkill[]>("skills_list", { workspacePath: null }),
-    ];
-    for (const path of uniqueWorkspacePaths) {
-      tasks.push(
-        invoke<InstalledSkill[]>("skills_list", { workspacePath: path })
+  const listInstalledSkills = useCallback(
+    async (workspacePaths?: string[], options?: { force?: boolean }) => {
+      // Bounded/coalesced shared scan. Always queries the global scope plus any
+      // workspace/repo paths so repo-scoped skills (`.<tool>/skills` and root
+      // `skills`) appear. `force` bypasses the TTL after a mutation.
+      return scanInstalledSkills(
+        getUniqueWorkspacePaths(workspacePaths ?? []),
+        {
+          force: options?.force,
+        }
       );
-    }
-
-    const results = await Promise.allSettled(tasks);
-    const lists: InstalledSkill[][] = [];
-    for (const result of results) {
-      if (result.status === "fulfilled") {
-        lists.push(result.value);
-      } else {
-        log.error("[SkillsHub] skills_list failed:", result.reason);
-      }
-    }
-    return mergeInstalledSkills(lists);
-  }, []);
+    },
+    []
+  );
 
   const refreshInstalled = useCallback(
     async (extraWorkspacePaths?: string[], options?: { scoped?: boolean }) => {
@@ -125,7 +114,7 @@ export function useSkillsHub({
       const refreshSeq = ++refreshSeqRef.current;
       setInstalledLoading(true);
       try {
-        const result = await listInstalledSkills(scopePaths);
+        const result = await listInstalledSkills(scopePaths, { force: true });
         if (refreshSeq === refreshSeqRef.current) {
           setInstalledSkills(result);
         }
@@ -153,7 +142,7 @@ export function useSkillsHub({
       const retryDelaysMs = [100, 300, 700];
       for (const delayMs of retryDelaysMs) {
         await new Promise((resolve) => setTimeout(resolve, delayMs));
-        const result = await listInstalledSkills(scopePaths);
+        const result = await listInstalledSkills(scopePaths, { force: true });
         if (!result.some((skill) => skill.name === deletedName)) {
           setInstalledSkills(result);
           return;

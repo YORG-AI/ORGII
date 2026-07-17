@@ -101,7 +101,7 @@ const FlyoutSubmenu: React.FC<FlyoutSubmenuProps> = ({
         left: panelRight + DROPDOWN_PANEL.submenuGap,
         minWidth: 200,
         maxWidth: 280,
-        zIndex: 99999,
+        zIndex: DROPDOWN_PANEL.portalSubmenuZIndex,
       }}
       onMouseDown={(e) => {
         e.preventDefault();

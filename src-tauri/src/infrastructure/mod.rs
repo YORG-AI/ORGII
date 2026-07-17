@@ -10,6 +10,9 @@
 // Frontend log persistence (IPC → ~/.orgii/logs/frontend.log)
 pub mod frontend_log;
 
+// macOS main-run-loop wake nudge for backend → frontend notification delivery
+pub mod main_runloop;
+
 // Disk-usage and storage-management Tauri commands. Path helpers
 // themselves live in the `app_paths` workspace crate; this module just
 // composes them into the Settings → Disk Usage report.

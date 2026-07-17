@@ -338,6 +338,8 @@ export interface OptionProps {
   isSelected?: boolean;
   onClick: () => void;
   children?: React.ReactNode;
+  /** Stable selector for rendered UI tests. */
+  dataTestId?: string;
 }
 
 export const Option: React.FC<OptionProps> = ({
@@ -347,9 +349,11 @@ export const Option: React.FC<OptionProps> = ({
   isSelected,
   onClick,
   children,
+  dataTestId,
 }) => (
   <button
     type="button"
+    data-testid={dataTestId}
     className={[
       DROPDOWN_CLASSES.item,
       DROPDOWN_CLASSES.itemHover,

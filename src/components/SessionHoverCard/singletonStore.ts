@@ -4,13 +4,6 @@ type HoverCardPosition = "bottom-start" | "right-start";
 
 const DEFAULT_POSITION: HoverCardPosition = "bottom-start";
 
-/**
- * Grace window after the singleton card closes during which the *next* card
- * opens with zero enter delay. Lets the user scrub down the session list and
- * preview neighbours instantly without re-paying the enter delay at every row.
- */
-const WARMUP_WINDOW_MS = 400;
-
 export interface HoverCardState {
   /**
    * The trigger instance that currently owns the card. Two triggers with the
@@ -38,7 +31,6 @@ const initialState: HoverCardState = {
 };
 
 let state: HoverCardState = initialState;
-let lastClosedAt = 0;
 let pendingCloseTimer: ReturnType<typeof setTimeout> | null = null;
 let nextInstanceId = 1;
 const storeSubscribers = new Set<() => void>();
@@ -64,16 +56,25 @@ export function allocateInstanceId(): number {
   return id;
 }
 
-export function isGroupWarm(): boolean {
-  if (state.activeInstanceId !== null) return true;
-  return Date.now() - lastClosedAt < WARMUP_WINDOW_MS;
-}
-
 export function cancelPendingClose(): void {
   if (pendingCloseTimer !== null) {
     clearTimeout(pendingCloseTimer);
     pendingCloseTimer = null;
   }
+}
+
+/** Immediately hides the active card (for example, when its row is clicked). */
+export function dismissHoverCard(): void {
+  cancelPendingClose();
+  if (state.activeInstanceId === null) return;
+  state = {
+    activeInstanceId: null,
+    activeCardId: null,
+    triggerRect: null,
+    position: DEFAULT_POSITION,
+    revision: state.revision + 1,
+  };
+  notifyStoreSubscribers();
 }
 
 export function openCard(
@@ -106,7 +107,6 @@ export function scheduleClose(instanceId: number, delayMs: number): void {
       position: DEFAULT_POSITION,
       revision: state.revision + 1,
     };
-    lastClosedAt = Date.now();
     notifyStoreSubscribers();
   }, delayMs);
 }

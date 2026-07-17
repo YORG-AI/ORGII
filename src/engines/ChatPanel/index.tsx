@@ -1,13 +1,5 @@
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import {
-  Gauge,
-  LayoutDashboard,
-  ListTodo,
-  Search,
-  UsersRound,
-  Workflow,
-} from "lucide-react";
-import React, { memo, useCallback, useMemo, useState } from "react";
+import React, { memo, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
@@ -22,17 +14,22 @@ import {
   clampChatWidth,
   getChatMaxWidth,
 } from "@src/engines/ChatPanel/config";
+import SessionCommentsHeaderExtras from "@src/features/Org2Cloud/SessionComments/SessionCommentsHeaderExtras";
+import {
+  org2CloudOrgsAtom,
+  org2CloudOrgsLoadedAtom,
+} from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import type { CreatedOrgResult } from "@src/features/TeamCollaboration/components/CreateCollabOrgView";
+import SessionForkHeaderExtras from "@src/features/TeamCollaboration/components/SessionForkHeaderExtras";
 import { useShouldOffsetChatPanelHeader } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
 import { allAgentDefsAtom } from "@src/modules/MainApp/AgentOrgs/store/builtInAgentsAtom";
-import { useIsCompactLayout } from "@src/modules/shared/layouts/useCompactLayout";
 import { getChatPanelBackgroundStyle } from "@src/modules/shared/layouts/viewContainerTokens";
+import { installAvailableAppUpdate } from "@src/scaffold/AppUpdater";
 import {
-  collabConnectionStatesAtom,
-  collabMembersAtom,
-  collabOrgsAtom,
-  remoteTeammateSessionsAtom,
-} from "@src/store/collaboration/collabOrgsAtom";
+  closeCloudOrgManagementChatPanelTabAtom,
+  openSessionInNewChatTabAtom,
+  syncActiveChatPanelTabStateAtom,
+} from "@src/store/chatPanel/chatPanelTabsAtom";
 import { projectListRefreshAtom } from "@src/store/project/projectAtom";
 import { sessionCreatorStateAtom } from "@src/store/session";
 import { tuiModeAtom } from "@src/store/session/tuiModeAtom";
@@ -42,15 +39,13 @@ import {
   chatPanelCreateProjectContextAtom,
   chatPanelCreateTargetAtom,
   chatPanelExploreOpenAtom,
-  chatPanelManageIssuesOpenAtom,
   chatPanelMaximizedAtom,
-  chatPanelSelectedCollabOrgAtom,
+  chatPanelSelectedCloudOrgAtom,
   chatPanelSelectedProjectAtom,
   chatPanelSelectedProjectOrgAtom,
   chatPanelSelectedWorkItemAtom,
   chatPanelSelectedWorkspaceAtom,
   chatPanelStartPageOpenAtom,
-  chatPanelWorkspaceDashboardOpenAtom,
   chatWidthAtom,
   toggleChatPanelMaximizedAtom,
 } from "@src/store/ui/chatPanelAtom";
@@ -72,7 +67,6 @@ import { useChatPanelNavigationActions } from "./hooks/useChatPanelNavigationAct
 import { useChatPanelResize } from "./hooks/useChatPanelResize";
 import { useChatPanelSessionModals } from "./hooks/useChatPanelSessionModals";
 import { useChatPanelTabsController } from "./hooks/useChatPanelTabsController";
-import { useCollabOrgHeaderModel } from "./hooks/useCollabOrgHeaderModel";
 import { usePanelTitle } from "./hooks/usePanelTitle";
 import { useProjectWorkItemHandlers } from "./hooks/useProjectWorkItemHandlers";
 import { useViewportWidth } from "./hooks/useViewportWidth";
@@ -96,7 +90,6 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     const isLeftPosition = position === "left";
     const shouldOffsetHeaderForCollapsedSidebar =
       useShouldOffsetChatPanelHeader({ position, useExternalWidth });
-    const isCompactLayout = useIsCompactLayout();
     const navigate = useNavigate();
     const viewMode = useRouteViewMode();
     const { currentSessionId, panelTitle, currentSession } = usePanelTitle();
@@ -119,21 +112,19 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     const selectedProject = useAtomValue(chatPanelSelectedProjectAtom);
     const selectedProjectOrg = useAtomValue(chatPanelSelectedProjectOrgAtom);
     const selectedWorkspace = useAtomValue(chatPanelSelectedWorkspaceAtom);
-    const selectedCollabOrg = useAtomValue(chatPanelSelectedCollabOrgAtom);
-    const collabOrgs = useAtomValue(collabOrgsAtom);
-    const collabMembers = useAtomValue(collabMembersAtom);
-    const collabConnectionStates = useAtomValue(collabConnectionStatesAtom);
-    const remoteTeammateSessions = useAtomValue(remoteTeammateSessionsAtom);
-    const workspaceDashboardOpen = useAtomValue(
-      chatPanelWorkspaceDashboardOpenAtom
+    const selectedCloudOrg = useAtomValue(chatPanelSelectedCloudOrgAtom);
+    const cloudOrgs = useAtomValue(org2CloudOrgsAtom);
+    const cloudOrgsLoaded = useAtomValue(org2CloudOrgsLoadedAtom);
+    const closeCloudOrgManagementTab = useSetAtom(
+      closeCloudOrgManagementChatPanelTabAtom
     );
     const exploreOpen = useAtomValue(chatPanelExploreOpenAtom);
-    const manageIssuesOpen = useAtomValue(chatPanelManageIssuesOpenAtom);
     const createProjectContext = useAtomValue(
       chatPanelCreateProjectContextAtom
     );
 
     const isChatFocus = useAtomValue(chatPanelMaximizedAtom);
+    const syncActiveTabState = useSetAtom(syncActiveChatPanelTabStateAtom);
     const toggleChatFocus = useSetAtom(toggleChatPanelMaximizedAtom);
     const showChatFocusToggle = viewMode === "workStation";
     const rawChatWidth = useAtomValue(chatWidthAtom);
@@ -145,6 +136,27 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       [backgroundConfig.pageOpacity]
     );
     const chatWidth = clampChatWidth(rawChatWidth, viewportWidth);
+
+    // A teammate can lose the selected cloud org while its management panel
+    // is open (member removal or org deletion). Once the authoritative roster
+    // has loaded, an absent org is not a recoverable panel state: close the
+    // stale surface immediately instead of leaving deleted names/actions on
+    // screen. Keep the selection during the initial unknown-roster phase so
+    // a cold start does not flicker the panel closed before list_my_orgs lands.
+    useEffect(() => {
+      if (
+        selectedCloudOrg &&
+        cloudOrgsLoaded &&
+        !cloudOrgs.some((org) => org.orgId === selectedCloudOrg.orgId)
+      ) {
+        closeCloudOrgManagementTab();
+      }
+    }, [
+      closeCloudOrgManagementTab,
+      cloudOrgs,
+      cloudOrgsLoaded,
+      selectedCloudOrg,
+    ]);
     const chatWidthStyleValue =
       chatWidth > 0 ? `var(${CHAT_WIDTH_CSS_VAR})` : chatWidth;
     const { isDragging, panelRef, handleMouseDown } = useChatPanelResize({
@@ -174,12 +186,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
 
     const {
       dispatchClearSession,
-      openCollabOrgSurface,
-      openManageIssues,
-      openStartPage,
       openWorkItemCreate,
-      openWorkspaceDashboard,
-      openWorkspaceExplore,
       resetActiveSession,
       resetToSessionSurface,
       setActiveSessionId,
@@ -193,14 +200,21 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       handleNewSessionTab,
       handleNewTerminalTab,
       handleOpenCliTerminal,
+      handleOpenLaunchpadTab,
+      handleOpenKanbanTab,
       isTerminalTabActive,
       terminalTabs,
     } = useChatPanelTabsController({
       currentSessionId: currentSessionId ?? null,
-      panelTitle,
-      resetToSessionSurface,
+      launchpadTitle: t("navigation:routes.launchpad"),
+      kanbanTitle: t("sessions:simulator.tabs.kanban"),
       showSessionSurface,
     });
+    const isManagementTabActive = activeTab?.type === "work-management";
+
+    React.useLayoutEffect(() => {
+      syncActiveTabState();
+    }, [activeTab, syncActiveTabState]);
 
     const creatorState = useAtomValue(sessionCreatorStateAtom);
     const setCreatorState = useSetAtom(sessionCreatorStateAtom);
@@ -222,6 +236,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       handlePaginationToggle,
       handleRegisterSearchOpen,
       handleReloadFromMenu,
+      handleStatusBarVisibleToggle,
       handleToggleAllBlocksCollapsed,
       handleTokenUsageVisibleToggle,
       headerActionsDropdownRef,
@@ -230,6 +245,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       isHeaderActionsOpen,
       isHeaderActionsPositioned,
       paginationEnabled,
+      statusBarVisible,
       tokenUsageVisible,
       toggleHeaderActionsMenu,
     } = useChatPanelHeaderActions({ handleReloadSession });
@@ -239,28 +255,22 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       : t("common:actions.collapseAll");
 
     const handleNewSession = resetToSessionSurface;
-    const handleOpenStartPage = openStartPage;
     const handleStartPageNewWorkItem = openWorkItemCreate;
-    const handleStartPageSetupRepo = openWorkspaceDashboard;
-    const handleStartPageExploreRepos = openWorkspaceExplore;
-    const handleStartPageManageIssues = openManageIssues;
+    const openLaunchedSessionTab = useSetAtom(openSessionInNewChatTabAtom);
+    const handleStartPageSessionStart = useCallback(
+      (info: { sessionId: string }) => {
+        openLaunchedSessionTab({ sessionId: info.sessionId });
+      },
+      [openLaunchedSessionTab]
+    );
 
     const handleChatPanelCollabOrgCreated = useCallback(
-      (result: CreatedOrgResult) => {
-        if (result.source === "supabase") {
-          openCollabOrgSurface(result.org.id);
-        } else {
-          bumpProjectListRefresh((previous) => previous + 1);
-          showSessionSurface();
-        }
+      (_result: CreatedOrgResult) => {
+        bumpProjectListRefresh((previous) => previous + 1);
+        showSessionSurface();
         resetActiveSession();
       },
-      [
-        bumpProjectListRefresh,
-        openCollabOrgSurface,
-        resetActiveSession,
-        showSessionSurface,
-      ]
+      [bumpProjectListRefresh, resetActiveSession, showSessionSurface]
     );
 
     const handleStartPageAddApiKey = useCallback(() => {
@@ -268,33 +278,26 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       navigate(buildWizardPath(accountsPath, WIZARD_IDS.KEY_ADD));
     }, [navigate]);
 
+    const handleStartPageInstallLatestUpdate = useCallback(() => {
+      void installAvailableAppUpdate();
+    }, []);
+
     const sessionSidebarVisible = sessionSidebarWidth > 0;
-    const collabOrgHeader = useCollabOrgHeaderModel({
-      collabConnectionStates,
-      collabMembers,
-      collabOrgs,
-      remoteTeammateSessions,
-      selectedCollabOrg,
-      t,
-    });
     const contentState = useChatPanelContentState({
       active,
       contentMode,
       createTarget,
       currentSessionId: currentSessionId ?? null,
       exploreOpen,
-      manageIssuesOpen,
-      isChatFocus,
       panelTitle,
-      collabOrgHeaderTitle: collabOrgHeader?.title,
-      collabOrgHeaderTitleContent: collabOrgHeader?.titleContent,
-      selectedCollabOrg,
+      cloudOrgHeaderTitle: selectedCloudOrg
+        ? cloudOrgs.find((org) => org.orgId === selectedCloudOrg.orgId)?.name
+        : undefined,
+      selectedCloudOrg,
       selectedProject,
       selectedProjectOrg,
       selectedWorkItem,
       selectedWorkspace,
-      workspaceDashboardOpen,
-      showChatFocusToggle,
       sidebarCollapsed,
       sessionCreatorAvailable: Boolean(SessionCreatorSlot),
       sessionSidebarVisible,
@@ -314,6 +317,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       handleWorkItemTitleChange,
     } = useProjectWorkItemHandlers({
       bumpProjectListRefresh,
+      createProjectContext,
       dispatchClearSession,
       handleNewSession,
       selectedProject,
@@ -335,6 +339,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       resolveAiWorkItemContext,
     } = useAiWorkItemCreator({
       allAgentDefs,
+      createProjectContext,
       creatorState,
       dispatchClearSession,
       setActiveSessionId,
@@ -352,10 +357,13 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     const {
       handleOpenExportSessionJson,
       handleOpenLinkWorkItem,
+      handleOpenCloudShareSettings,
+      showCloudShareSettings,
       sessionModals,
     } = useChatPanelSessionModals({
       activeSession,
       closeHeaderActionsMenu,
+      currentSession: currentSession ?? null,
       currentSessionId: currentSessionId ?? null,
       t,
     });
@@ -367,9 +375,6 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
           ? "border-r border-border-1"
           : "border-l border-border-1"
         : "";
-    const chatFocusLabel = isChatFocus
-      ? t("chat.showWorkstation")
-      : t("chat.maximizeChatPanel");
     const useFullScreenCreator =
       isChatFocus || useExternalWidth || chatWidth >= chatMaxWidth;
     const creatorVariant = useFullScreenCreator ? "fullScreen" : "default";
@@ -390,11 +395,9 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         handleOpenCliTerminal={handleOpenCliTerminal}
         handleRegionNoticeChange={handleRegionNoticeChange}
         handleStartPageAddApiKey={handleStartPageAddApiKey}
-        handleStartPageExploreRepos={handleStartPageExploreRepos}
-        handleStartPageManageIssues={handleStartPageManageIssues}
-        handleStartPageNewSession={handleNewSession}
+        handleStartPageInstallLatestUpdate={handleStartPageInstallLatestUpdate}
+        handleStartPageSessionStart={handleStartPageSessionStart}
         handleStartPageNewWorkItem={handleStartPageNewWorkItem}
-        handleStartPageSetupRepo={handleStartPageSetupRepo}
         handleWorkItemAgentCreatorToggle={handleWorkItemAgentCreatorToggle}
         resolveAiWorkItemContext={resolveAiWorkItemContext}
         SessionCreatorSlot={SessionCreatorSlot}
@@ -407,69 +410,12 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     );
 
     const publishSurfaceHeader =
-      startPageOpen ||
-      contentState.showBenchmarkSessionGroupContent ||
-      contentState.showExploreContent ||
-      contentState.showManageIssuesContent ||
-      contentState.showWorkspaceDashboardContent ||
-      contentState.showCollabOrgContent ||
-      contentState.showWorkspaceOverviewContent;
-
-    const surfaceTabChrome = useMemo(() => {
-      if (startPageOpen) {
-        return {
-          title: t("navigation:launchpad.dashboard"),
-          icon: <LayoutDashboard size={16} strokeWidth={1.75} />,
-        };
-      }
-      if (contentState.showManageIssuesContent) {
-        return {
-          title: t("chat.manageIssues.title"),
-          icon: <ListTodo size={16} strokeWidth={1.75} />,
-        };
-      }
-      if (contentState.showExploreContent) {
-        return {
-          title: t("navigation:explore.title", { defaultValue: "Explore" }),
-          icon: <Search size={16} strokeWidth={1.75} />,
-        };
-      }
-      if (contentState.showWorkspaceDashboardContent) {
-        return {
-          title: t("navigation:launchpad.dashboard"),
-          icon: <LayoutDashboard size={16} strokeWidth={1.75} />,
-        };
-      }
-      if (contentState.showCollabOrgContent) {
-        return {
-          title: contentState.headerTitle,
-          icon: <UsersRound size={16} strokeWidth={1.75} />,
-        };
-      }
-      if (contentState.showWorkspaceOverviewContent) {
-        return {
-          title: contentState.headerTitle,
-          icon: <Workflow size={16} strokeWidth={1.75} />,
-        };
-      }
-      if (contentState.showBenchmarkSessionGroupContent) {
-        return {
-          title: contentState.headerTitle,
-          icon: <Gauge size={16} strokeWidth={1.75} />,
-        };
-      }
-      return null;
-    }, [
-      contentState.headerTitle,
-      contentState.showBenchmarkSessionGroupContent,
-      contentState.showCollabOrgContent,
-      contentState.showExploreContent,
-      contentState.showManageIssuesContent,
-      contentState.showWorkspaceDashboardContent,
-      contentState.showWorkspaceOverviewContent,
-      startPageOpen,
-      t,
-    ]);
+      !isManagementTabActive &&
+      (startPageOpen ||
+        contentState.showBenchmarkSessionGroupContent ||
+        contentState.showExploreContent ||
+        contentState.showCloudOrgContent ||
+        contentState.showWorkspaceOverviewContent);
 
     const tabStrip = (
       <ChatPanelTabBar
@@ -481,10 +427,9 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
 
     const tabStripPlus = (
       <ChatPanelPlusMenu
-        onNewSession={handleNewSessionTab}
+        onOpenLaunchpad={handleOpenLaunchpadTab}
+        onOpenKanban={handleOpenKanbanTab}
         onNewWorkItem={handleStartPageNewWorkItem}
-        onManageIssues={handleStartPageManageIssues}
-        onAddApiKey={handleStartPageAddApiKey}
       />
     );
 
@@ -508,8 +453,6 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
           enabled={publishSurfaceHeader}
           title={contentState.headerTitle}
           titleContent={contentState.headerTitleContent}
-          tabTitle={surfaceTabChrome?.title}
-          tabIcon={surfaceTabChrome?.icon}
           showAgentSwitch={contentState.showExploreContent}
           agentSwitchLabel={t("navigation:labels.agent", {
             defaultValue: "Agent",
@@ -535,13 +478,14 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
           handleExploreAgentSearchToggle={handleExploreAgentSearchToggle}
           handleOpenExportSessionJson={handleOpenExportSessionJson}
           handleOpenLinkWorkItem={handleOpenLinkWorkItem}
+          handleOpenCloudShareSettings={handleOpenCloudShareSettings}
           handleOpenSearch={handleOpenSearch}
           handleNewSession={handleNewSession}
-          handleOpenStartPage={handleOpenStartPage}
           handlePaginationToggle={handlePaginationToggle}
           handleProjectAgentCreatorToggle={handleProjectAgentCreatorToggle}
           handleProjectTitleChange={handleProjectTitleChange}
           handleReloadFromMenu={handleReloadFromMenu}
+          handleStatusBarVisibleToggle={handleStatusBarVisibleToggle}
           handleToggleAllBlocksCollapsed={handleToggleAllBlocksCollapsed}
           handleTokenUsageVisibleToggle={handleTokenUsageVisibleToggle}
           handleWorkItemAgentCreatorToggle={handleWorkItemAgentCreatorToggle}
@@ -552,11 +496,11 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
           headerTitle={contentState.headerTitle}
           headerTitleContent={contentState.headerTitleContent}
           isChatFocus={isChatFocus}
-          isCompactLayout={isCompactLayout}
           isHeaderActionsOpen={isHeaderActionsOpen}
           isHeaderActionsPositioned={isHeaderActionsPositioned}
           isProjectTarget={contentState.isProjectTarget}
           paginationEnabled={paginationEnabled}
+          statusBarVisible={statusBarVisible}
           tokenUsageVisible={tokenUsageVisible}
           showStartPageBackButton={
             !startPageOpen && !contentState.showSessionContent
@@ -571,7 +515,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
           }
           showChatFocusToggle={showChatFocusToggle}
           showCreatorPresenceInHeader={contentState.showCreatorPresenceInHeader}
-          showHeader={contentState.showHeader}
+          showHeader={contentState.showHeader || isManagementTabActive}
           showExploreAgentSwitchInHeader={contentState.showExploreContent}
           showNewSessionButton={contentState.showNewSessionButton}
           showNonSessionContent={contentState.showNonSessionContent}
@@ -579,7 +523,10 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
           showProjectAgentSwitchInHeader={
             contentState.showProjectAgentSwitchInHeader
           }
-          showSessionContent={contentState.showSessionContent}
+          showSessionContent={
+            contentState.showSessionContent && !isManagementTabActive
+          }
+          showCloudShareSettings={showCloudShareSettings}
           showStartPage={startPageOpen}
           showWorkItemAgentCreator={showWorkItemAgentCreator}
           showTuiModeToggle={showTuiModeToggle}
@@ -587,6 +534,14 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
           handleTuiModeToggle={handleTuiModeToggle}
           tabStrip={tabStrip}
           tabStripPlus={tabStripPlus}
+          sessionHeaderExtras={
+            <>
+              {/* Session-level cloud notes (Phase F) — renders null for
+                  non-cloud sessions, exactly like the fork extras. */}
+              <SessionCommentsHeaderExtras session={currentSession ?? null} />
+              <SessionForkHeaderExtras session={currentSession ?? null} />
+            </>
+          }
           showWorkItemAgentSwitchInHeader={
             contentState.showWorkItemAgentSwitchInHeader
           }
@@ -599,15 +554,13 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
 
     const chatColumn = (
       <ChatPanelContent
-        chatFocusLabel={chatFocusLabel}
         currentSessionId={currentSessionId ?? null}
         displayMode={displayMode}
         emptyChatContent={emptyChatContent}
-        handleChatFocusToggle={handleChatFocusToggle}
         handleRegisterSearchOpen={handleRegisterSearchOpen}
         paginationEnabled={paginationEnabled}
         position={position}
-        selectedCollabOrg={selectedCollabOrg}
+        selectedCloudOrg={selectedCloudOrg}
         selectedProject={selectedProject}
         selectedProjectOrg={selectedProjectOrg}
         selectedWorkItem={selectedWorkItem}
@@ -615,20 +568,13 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         showBenchmarkSessionGroupContent={
           contentState.showBenchmarkSessionGroupContent
         }
-        showCollabOrgContent={contentState.showCollabOrgContent}
-        showEmptyChatFocusRestoreButton={
-          contentState.showEmptyChatFocusRestoreButton
-        }
+        showCloudOrgContent={contentState.showCloudOrgContent}
         showExploreContent={contentState.showExploreContent}
-        showManageIssuesContent={contentState.showManageIssuesContent}
         showPanelContent={contentState.showPanelContent}
         showProjectContent={contentState.showProjectContent}
         showProjectOrgContent={contentState.showProjectOrgContent}
         showSessionContent={contentState.showSessionContent}
         showWorkItemContent={contentState.showWorkItemContent}
-        showWorkspaceDashboardContent={
-          contentState.showWorkspaceDashboardContent
-        }
         showWorkspaceOverviewContent={contentState.showWorkspaceOverviewContent}
       />
     );

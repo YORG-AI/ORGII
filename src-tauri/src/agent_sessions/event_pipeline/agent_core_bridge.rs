@@ -146,10 +146,28 @@ fn replace_streaming_event_adapter(
     event: SessionEvent,
 ) {
     let state = handle.state::<EventStoreState>();
+    let persistable =
+        if super::commands::event_conversion::is_synthetic_persistence_artifact(&event) {
+            None
+        } else {
+            Some(session_event_to_cached_event(&event))
+        };
     state.with_store_mut(session_id, |store| {
         store.replace_and_remove(Some(placeholder_id), event);
     });
     schedule_notify(handle, &state, session_id);
+
+    if let Some(cached) = persistable {
+        let sid = session_id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let _ = save_events_retry(
+                "replace_streaming_event",
+                &sid,
+                &[cached],
+                BULK_WRITE_MAX_RETRIES,
+            );
+        });
+    }
 }
 
 fn pin_session_adapter(handle: &AppHandle, session_id: &str) {
@@ -454,6 +472,32 @@ pub fn repair_stranded_plan_events() {
     }
 }
 
+fn remove_events_by_ids_adapter(handle: &AppHandle, session_id: &str, ids: Vec<String>) {
+    if ids.is_empty() {
+        return;
+    }
+    let state = handle.state::<EventStoreState>();
+    let removed = state.with_store_mut(session_id, |store| store.remove_by_ids(&ids));
+    if removed > 0 {
+        schedule_notify(handle, &state, session_id);
+    }
+
+    // SQLite write-through: the segments were persisted by push_events, so
+    // they must be retracted from disk too or a reload resurrects them.
+    let sid = session_id.to_string();
+    tokio::task::spawn_blocking(move || {
+        for event_id in &ids {
+            if let Err(err) = session_persistence::delete_event(&sid, event_id) {
+                tracing::warn!(
+                    "[event-pipeline] remove_events_by_ids: failed to delete {} from SQLite: {}",
+                    event_id,
+                    err
+                );
+            }
+        }
+    });
+}
+
 /// Register every IoC slot exposed by `agent_core::bus::event_pipeline_bridge`.
 /// Called once from `app::run` at startup.
 pub fn register() {
@@ -466,6 +510,7 @@ pub fn register() {
         finalize_streaming_adapter,
         set_session_streaming_adapter,
         replace_streaming_event_adapter,
+        remove_events_by_ids_adapter,
         pin_session_adapter,
         unpin_session_adapter,
         read_session_events_adapter,

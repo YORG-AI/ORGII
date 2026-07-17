@@ -52,7 +52,10 @@ fn applies_profile_rate_limit_tier_to_plan_type() {
     )
     .unwrap();
 
-    assert_eq!(metadata.get("rate_limit_tier").map(String::as_str), Some("max_20x"));
+    assert_eq!(
+        metadata.get("rate_limit_tier").map(String::as_str),
+        Some("max_20x")
+    );
 }
 
 #[test]

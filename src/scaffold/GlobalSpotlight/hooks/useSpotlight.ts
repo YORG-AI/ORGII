@@ -29,7 +29,7 @@ import {
 } from "@src/scaffold/GlobalSpotlight/openSpotlight";
 import { AppViewService } from "@src/services/app";
 import { PanelService } from "@src/services/panel";
-import { WorkStationViewService } from "@src/services/workStation";
+import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
 import { selectedRepoAtom } from "@src/store/repo";
 import { REPO_KIND } from "@src/store/repo/types";
 import { spotlightRecentActionsAtom } from "@src/store/ui/spotlightRecentActionsAtom";
@@ -74,6 +74,7 @@ export function useSpotlight(
     onOpenBranchPicker?: () => void;
     onOpenEditorPalette?: (prefix: string, mode?: EditorPaletteMode) => void;
     onOpenAgentSessionSearch?: () => void;
+    onOpenAllSessionsSearch?: () => void;
     isEditorRoute?: boolean;
     isWorkStationRoute?: boolean;
     currentRepoId?: string;
@@ -86,6 +87,7 @@ export function useSpotlight(
     onOpenBranchPicker,
     onOpenEditorPalette,
     onOpenAgentSessionSearch,
+    onOpenAllSessionsSearch,
     isEditorRoute = false,
     isWorkStationRoute = false,
     currentRepoId,
@@ -185,6 +187,7 @@ export function useSpotlight(
           );
         },
         "search-agent-sessions": () => onOpenAgentSessionSearch?.(),
+        "search-all-sessions": () => onOpenAllSessionsSearch?.(),
         "agent-control": openAgentControlSpotlight,
         "workspace-switch": () => onOpenWorkspacePicker?.("switch"),
         "workspace-add": () => onOpenWorkspacePicker?.("add"),
@@ -232,8 +235,8 @@ export function useSpotlight(
         "open-agent-station": () => {
           void WorkStationViewService.openStationMode("agent-station");
         },
-        "open-ops-control": () => {
-          void WorkStationViewService.openStationMode("ops-control");
+        "open-kanban": () => {
+          void WorkStationViewService.openKanbanTab();
         },
         "open-search-sidebar": () => {
           void WorkStationViewService.openSearchSidebar();
@@ -251,7 +254,12 @@ export function useSpotlight(
 
       fallbackHandlers[fallback]();
     },
-    [onOpenAgentSessionSearch, onOpenBranchPicker, onOpenWorkspacePicker]
+    [
+      onOpenAgentSessionSearch,
+      onOpenAllSessionsSearch,
+      onOpenBranchPicker,
+      onOpenWorkspacePicker,
+    ]
   );
 
   const handleSelectStaticAction = useCallback(

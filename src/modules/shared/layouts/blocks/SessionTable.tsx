@@ -24,15 +24,58 @@ export interface SessionTableItem {
   relatedCommitsLabel?: React.ReactNode;
   committedRateLabel?: React.ReactNode;
   committedRateValue?: number;
+  tokensLabel?: React.ReactNode;
+  tokensValue?: number;
   startedLabel?: React.ReactNode;
   lastUpdatedLabel?: React.ReactNode;
   active?: boolean;
   disabled?: boolean;
   testId?: string;
   dataAttributes?: Record<string, string | number | boolean | undefined>;
+  /**
+   * Optional trailing per-row action (e.g. the collab panel's fork button).
+   * The actions column only renders when at least one item provides this;
+   * clicks inside it do not trigger the row's `onSelect`.
+   */
+  rowAction?: React.ReactNode;
 }
 
-interface SessionTableProps {
+export type SessionTableColumnKey =
+  | "name"
+  | "status"
+  | "agent"
+  | "model"
+  | "workspace"
+  | "impact"
+  | "filesChanged"
+  | "relatedCommits"
+  | "committedRate"
+  | "tokens"
+  | "started"
+  | "lastUpdated"
+  | "actions";
+
+/**
+ * Preserve established table layouts while allowing the Kanban list to opt
+ * into its token-usage column. Row actions remain visible whenever supplied.
+ */
+const DEFAULT_COLUMN_VISIBILITY: Record<SessionTableColumnKey, boolean> = {
+  name: true,
+  status: true,
+  agent: true,
+  model: true,
+  workspace: true,
+  impact: true,
+  filesChanged: true,
+  relatedCommits: true,
+  committedRate: true,
+  tokens: false,
+  started: true,
+  lastUpdated: true,
+  actions: true,
+};
+
+export interface SessionTableProps {
   items: SessionTableItem[];
   onSelect?: (item: SessionTableItem) => void;
   className?: string;
@@ -43,6 +86,8 @@ interface SessionTableProps {
   maxHeight?: number | string;
   pageSize?: number;
   pageSizeOptions?: number[];
+  /** Per-column overrides merged over the shared visibility defaults. */
+  columnVisibility?: Partial<Record<SessionTableColumnKey, boolean>>;
 }
 
 const EMPTY_CELL = "—";
@@ -83,6 +128,7 @@ function matchesSessionSearch(
     toSearchText(item.filesChangedLabel),
     toSearchText(item.relatedCommitsLabel),
     toSearchText(item.committedRateLabel),
+    toSearchText(item.tokensLabel),
     toSearchText(item.startedLabel),
     toSearchText(item.lastUpdatedLabel),
   ]
@@ -103,13 +149,17 @@ export const SessionTable: React.FC<SessionTableProps> = ({
   maxHeight,
   pageSize,
   pageSizeOptions,
+  columnVisibility,
 }) => {
   const { t } = useTranslation(["sessions", "common"]);
   const [searchQuery, setSearchQuery] = useState("");
   const shouldShowSearch = showSearch ?? true;
+  const hasRowActions = items.some((item) => item.rowAction != null);
 
-  const columns = useMemo<SettingsTableColumn<SessionTableItem>[]>(
-    () => [
+  const columns = useMemo<SettingsTableColumn<SessionTableItem>[]>(() => {
+    const availableColumns: Array<
+      SettingsTableColumn<SessionTableItem> & { key: SessionTableColumnKey }
+    > = [
       {
         key: "name",
         label: t("common:labels.name"),
@@ -181,7 +231,7 @@ export const SessionTable: React.FC<SessionTableProps> = ({
       },
       {
         key: "impact",
-        label: t("sessions:simulator.impact.lines"),
+        label: t("common:aiImpact.lines"),
         width: "110px",
         renderCell: (item) => (
           <div className="truncate text-text-3">
@@ -230,8 +280,20 @@ export const SessionTable: React.FC<SessionTableProps> = ({
         ),
       },
       {
+        key: "tokens",
+        label: t("common:labels.tokens"),
+        width: "90px",
+        sorter: (left, right) =>
+          (left.tokensValue ?? -1) - (right.tokensValue ?? -1),
+        renderCell: (item) => (
+          <div className="truncate text-text-3">
+            {item.tokensLabel ?? EMPTY_CELL}
+          </div>
+        ),
+      },
+      {
         key: "started",
-        label: t("sessions:opsControl.list.started"),
+        label: t("sessions:kanban.list.started"),
         width: "115px",
         renderCell: (item) => (
           <div className="truncate text-text-3">
@@ -241,7 +303,7 @@ export const SessionTable: React.FC<SessionTableProps> = ({
       },
       {
         key: "lastUpdated",
-        label: t("sessions:opsControl.list.lastUpdated"),
+        label: t("sessions:kanban.list.lastUpdated"),
         width: "115px",
         renderCell: (item) => (
           <div className="truncate text-text-3">
@@ -249,9 +311,33 @@ export const SessionTable: React.FC<SessionTableProps> = ({
           </div>
         ),
       },
-    ],
-    [t]
-  );
+      ...(hasRowActions
+        ? [
+            {
+              key: "actions" as const,
+              label: "",
+              width: "60px",
+              renderCell: (item: SessionTableItem) =>
+                item.rowAction != null ? (
+                  // Stop propagation so the action does not double as a row
+                  // click (row click = select/replay, action = its own verb).
+                  <div
+                    className="flex items-center justify-end"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    {item.rowAction}
+                  </div>
+                ) : null,
+            },
+          ]
+        : []),
+    ];
+
+    return availableColumns.filter(
+      (column) =>
+        columnVisibility?.[column.key] ?? DEFAULT_COLUMN_VISIBILITY[column.key]
+    );
+  }, [t, hasRowActions, columnVisibility]);
 
   const filteredItems = useMemo(() => {
     if (!shouldShowSearch) return items;
@@ -268,21 +354,22 @@ export const SessionTable: React.FC<SessionTableProps> = ({
       hover
       headerBorder
       stickyHeader
+      stickyFirstColumn
       surfaceVariant={surfaceVariant}
       fillHeight={fillHeight}
       maxHeight={maxHeight}
       pageSize={pageSize}
       pageSizeOptions={pageSizeOptions}
-      className={className}
+      className={["table-settings-session-list-hover", className]
+        .filter(Boolean)
+        .join(" ")}
       rootClassName={rootClassName}
       emptyTitle={hasSearchFilter ? t("common:status.noResults") : undefined}
       searchBar={
         shouldShowSearch
           ? {
               searchValue: searchQuery,
-              searchPlaceholder: t(
-                "sessions:opsControl.list.searchPlaceholder"
-              ),
+              searchPlaceholder: t("sessions:kanban.list.searchPlaceholder"),
               onSearchChange: setSearchQuery,
               onSearchClear: () => setSearchQuery(""),
               searchCountText:

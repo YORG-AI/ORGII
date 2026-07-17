@@ -13,9 +13,6 @@
 use tauri::{AppHandle, Manager};
 
 #[cfg(target_os = "macos")]
-use window_vibrancy::clear_vibrancy;
-
-#[cfg(target_os = "macos")]
 use objc2::msg_send;
 #[cfg(target_os = "macos")]
 use objc2::runtime::{AnyClass, AnyObject};
@@ -130,8 +127,10 @@ pub async fn set_window_vibrancy(
     {
         use base64::Engine as _;
 
-        if !enabled {
-            let _ = clear_vibrancy(&window);
+        if enabled {
+            super::apply_macos_window_material(&window);
+        } else {
+            super::clear_macos_window_material(&window);
         }
 
         let image_bytes: Option<Vec<u8>> = bg_image_base64

@@ -16,7 +16,6 @@
  *   React subtree is mounted once; only the grid placement changes on
  *   toggle, so terminal/devtools state survives position flips.
  */
-import { useAtomValue } from "jotai";
 import React, { memo } from "react";
 
 import { useResizeContextMenu } from "@src/hooks/ui/useResizeContextMenu";
@@ -25,7 +24,6 @@ import {
   HorizontalResizeHandle,
   VerticalResizeHandle,
 } from "@src/scaffold/Resize";
-import { workStationInternalLayoutModeAtom } from "@src/store/ui/workStationAtom";
 import { classNames } from "@src/util/ui/classNames";
 
 import {
@@ -133,9 +131,6 @@ export const WorkStationShell: React.FC<WorkStationShellProps> = memo(
     className,
     appClassName,
   }) => {
-    const internalLayoutMode = useAtomValue(workStationInternalLayoutModeAtom);
-    const isComfortLayout = internalLayoutMode === "comfort";
-
     const resolvedPrimarySidebar = {
       content: primarySidebarConfig?.content,
       collapsed:
@@ -235,7 +230,6 @@ export const WorkStationShell: React.FC<WorkStationShellProps> = memo(
       <PrimarySidebarPanel
         className={classNames(
           "work-station-shell__side-panel",
-          isComfortLayout && "work-station-shell__side-panel--comfort",
           !isLeftMode && "work-station-shell__side-panel--right",
           resolvedPrimarySidebar.collapsed &&
             "work-station-shell__side-panel--collapsed",
@@ -257,7 +251,7 @@ export const WorkStationShell: React.FC<WorkStationShellProps> = memo(
     const primarySidebarResizeHandle = !resolvedPrimarySidebar.collapsed &&
       resolvedPrimarySidebar.onSizeChange && (
         <VerticalResizeHandle
-          variant={isComfortLayout ? "transparent" : "border"}
+          variant="border"
           onMouseDown={handlePrimarySidebarResize}
           onContextMenu={handlePrimarySidebarContextMenu}
         />
@@ -294,7 +288,6 @@ export const WorkStationShell: React.FC<WorkStationShellProps> = memo(
             (isLeftMode
               ? "work-station-shell__secondary-panel--right"
               : "work-station-shell__secondary-panel--left"),
-          isComfortLayout && "work-station-shell__secondary-panel--comfort",
           secondaryPanelCollapsed &&
             "work-station-shell__secondary-panel--collapsed",
           appClassName && `${appClassName}__secondary-panel`
@@ -316,13 +309,13 @@ export const WorkStationShell: React.FC<WorkStationShellProps> = memo(
     const secondaryResizeHandleElement = showSecondaryResizeHandle ? (
       secondaryPosition === "right" ? (
         <VerticalResizeHandle
-          variant={isComfortLayout ? "transparent" : "border"}
+          variant="border"
           onMouseDown={handleSecondaryResize}
           onContextMenu={handleSecondaryContextMenu}
         />
       ) : (
         <HorizontalResizeHandle
-          variant={isComfortLayout ? "transparent" : "border"}
+          variant="border"
           onMouseDown={handleSecondaryResize}
           onContextMenu={handleSecondaryContextMenu}
         />
@@ -333,12 +326,7 @@ export const WorkStationShell: React.FC<WorkStationShellProps> = memo(
 
     return (
       <div
-        className={classNames(
-          "work-station-shell",
-          isComfortLayout && "work-station-shell--comfort",
-          appClassName,
-          className
-        )}
+        className={classNames("work-station-shell", appClassName, className)}
       >
         {hasSecondary ? (
           <div

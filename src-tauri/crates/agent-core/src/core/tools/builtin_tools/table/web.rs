@@ -141,6 +141,24 @@ pub(super) static TOOLS: &[ToolEntry] = &[
         ..DEFAULT_TOOL_ENTRY
     },
     ToolEntry {
+        name: tool_names::REPLY_SESSION_COMMENT,
+        description: "Reply to a review-comment thread on this session.",
+        description_detail: "Posts a reply to a session review-comment thread through the frontend ActionSystem bridge. Only valid for commentIds provided in the current instructions.",
+        category: tool_categories::WEB,
+        icon_id: "message-square-reply",
+        simulator_app: AppCode,
+        app_subtool: OtherTool,
+        chat_block: CbFallback,
+        action_icons: &[("reply", "message-square-reply")],
+        label_running: "tools.orgiiGuiRunning",
+        label_done: "tools.orgiiGuiDone",
+        label_failed: "tools.orgiiGuiFailed",
+        actions: &[
+            action_sub!("reply", "Post a reply to a review-comment thread", OtherTool, labels: "tools.orgiiGuiRunning", "tools.orgiiGuiDone", "tools.orgiiGuiFailed"),
+        ],
+        ..DEFAULT_TOOL_ENTRY
+    },
+    ToolEntry {
         name: tool_names::WEB_SEARCH,
         description: "Search the web for information via Brave Search API.",
         description_detail: "Queries the Brave Search API for ranked results and snippets when fresh public information is required beyond the training cutoff.",

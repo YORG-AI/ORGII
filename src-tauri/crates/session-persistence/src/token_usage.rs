@@ -56,7 +56,7 @@ pub fn insert_token_usage_record(
     context_tokens: i64,
     context_usage_json: Option<&str>,
 ) -> SqliteResult<i64> {
-    with_sessions_writer(|| {
+    let row_id = with_sessions_writer(|| -> SqliteResult<i64> {
         let conn = get_connection()?;
         let now = Utc::now().to_rfc3339();
         conn.execute(
@@ -81,7 +81,29 @@ pub fn insert_token_usage_record(
             ],
         )?;
         Ok(conn.last_insert_rowid())
-    })
+    })?;
+    // Every native token write funnels through here (rust-agent bridge, CLI
+    // runner, Cursor usage fetch), so the usage projection refresh lives here
+    // once instead of at each call site.
+    recompute_usage_projection(session_id);
+    Ok(row_id)
+}
+
+/// Best-effort refresh of the `orgtrack_core_session_usage` projection after
+/// a token write. Runs outside the sessions-writer guard (the recompute opens
+/// its own statements) and never fails the primary write — a stale projection
+/// row is repaired by the next write or the startup backfill.
+pub(crate) fn recompute_usage_projection(session_id: &str) {
+    let result = get_connection().map_err(|err| err.to_string()).and_then(|conn| {
+        orgtrack_core::session_usage::recompute_session_usage(&conn, session_id).map(|_| ())
+    });
+    if let Err(err) = result {
+        tracing::warn!(
+            session_id = %session_id,
+            error = %err,
+            "session usage projection recompute failed"
+        );
+    }
 }
 
 /// Get all per-round token usage records for a session, ordered by created_at.
@@ -134,18 +156,18 @@ pub fn delete_token_usage_records(session_id: &str) -> SqliteResult<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex as StdMutex;
-
-    static ORGII_HOME_TEST_LOCK: StdMutex<()> = StdMutex::new(());
 
     fn with_temp_orgii_home<R>(run: impl FnOnce() -> R) -> R {
-        let _guard = match ORGII_HOME_TEST_LOCK.lock() {
+        let _guard = match crate::ORGII_HOME_TEST_LOCK.lock() {
             Ok(guard) => guard,
             Err(poisoned) => poisoned.into_inner(),
         };
         let previous = std::env::var("ORGII_HOME").ok();
-        let root = std::path::Path::new("/private/var/folders/10/t245s0211dv9d_5252w6y5wh0000gn/T/orgii-501/Users_junyu_github_ORGII/sdeagent-7fa054ca-ee9b-4c49-b96b-35024a069eaf/scratchpad")
-            .join(format!("orgii-token-usage-test-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!(
+            "orgii-token-usage-test-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).expect("create temp ORGII_HOME");
         std::env::set_var("ORGII_HOME", &root);

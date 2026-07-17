@@ -78,14 +78,83 @@
       }
     }
   },
-  "opsControl": {
+  "kanban": {
     "sessions": "Session",
-    "replayBarAriaLabel": "Ops Control replay timeline",
+    "fileSearch": {
+      "placeholder": "依檔案路徑搜尋 Session",
+      "noResults": "沒有 Session 改動過符合的檔案"
+    },
+    "replayBarAriaLabel": "Kanban replay timeline",
     "followLabel": "目前看板",
     "view": {
       "list": "列表",
       "diary": "日誌",
-      "opsControl": "Ops Control"
+      "kanban": "Kanban",
+      "dataSource": "資料來源"
+    },
+    "dataSource": {
+      "title": "資料來源",
+      "description": "ORGII 偵測到的外部程式設計工具。可匯入的應用程式會顯示工作階段數量並可重新掃描；其餘僅顯示安裝狀態和歷史記錄所在位置。",
+      "rescanAll": "全部重新掃描",
+      "rescan": "重新掃描",
+      "rescanning": "正在重新掃描…",
+      "enable": "啟用",
+      "disable": "停用",
+      "lastScan": "上次掃描 {{time}}",
+      "neverScanned": "從未掃描",
+      "frequencyTitle": "自動掃描頻率",
+      "globalFrequency": "外部資料來源自動掃描",
+      "globalFrequencyDesc": "設為「預設」的外部資料來源所使用的掃描頻率",
+      "activeSessionRefresh": "已開啟外部工作階段重新整理",
+      "activeSessionRefreshDesc": "目前在聊天面板中開啟的外部工作階段的重新整理頻率",
+      "activeSessionFreq": {
+        "3s": "每 3 秒",
+        "5s": "每 5 秒",
+        "10s": "每 10 秒",
+        "1m": "每分鐘"
+      },
+      "col": {
+        "source": "來源",
+        "sessions": "工作階段",
+        "lastScan": "上次掃描",
+        "frequency": "自動掃描",
+        "status": "狀態"
+      },
+      "freq": {
+        "default": "預設",
+        "manual": "手動",
+        "60s": "每 60 秒",
+        "5m": "每 5 分鐘",
+        "1h": "每小時",
+        "1d": "每天"
+      },
+      "openFolder": "開啟資料夾",
+      "tabs": {
+        "all": "全部",
+        "apps": "應用程式",
+        "clis": "命令列"
+      },
+      "views": {
+        "scanning": "掃描",
+        "hooks": "掛鉤"
+      },
+      "sessions_other": "{{count}} 個工作階段",
+      "details": {
+        "path": "路徑",
+        "storeType": "儲存類型",
+        "copyPath": "複製路徑"
+      },
+      "noPath": "未偵測到路徑",
+      "notImported": "未匯入",
+      "status": {
+        "ready": "就緒",
+        "empty": "沒有歷史記錄",
+        "loading": "檢查中…",
+        "error": "錯誤",
+        "installed": "已安裝",
+        "notInstalled": "未偵測到",
+        "disabled": "已停用"
+      }
     },
     "list": {
       "updated": "已更新",
@@ -184,11 +253,6 @@
       "merging": "合併中…",
       "merged": "已合併"
     },
-    "diff": {
-      "openDiffWindow": "查看 Diff",
-      "windowTitle": "Session Diff",
-      "filesChanged": "文件"
-    },
     "discard": {
       "discard": "丟棄",
       "discarding": "丟棄中…",
@@ -196,6 +260,11 @@
     },
     "replay": {
       "replaySession": "回放"
+    },
+    "detailView": {
+      "trajectory": "軌跡",
+      "touchedFiles": "變更檔案",
+      "noTouchedFiles": "尚無變更檔案"
     },
     "diary": {
       "title": "日記",
@@ -415,7 +484,6 @@
         "interactionAskQuestion": "提問",
         "interactionAskPermission": "權限請求",
         "interactionModeSwitch": "模式切換",
-        "interactionNextSteps": "下一步建議",
         "interactionPlanDoc": "Plan 文檔",
         "interactionGeneric": "交互"
       },
@@ -722,20 +790,17 @@
       "addApiKey": {
         "title": "新增 API 金鑰"
       },
+      "installLatestUpdate": {
+        "title": "安裝最新更新"
+      },
       "agents": {
         "title": "Agents"
       },
       "tabs": {
         "work": "工作",
-        "explore": "探索",
-        "heatmap": "趨勢"
-      },
-      "heatmap": {
-        "loading": "正在載入活動趨勢…",
-        "empty": "尚無會話活動。",
-        "sessions": "會話",
-        "tokens": "Tokens",
-        "cost": "成本"
+        "manage": "管理",
+        "heatmap": "趨勢",
+        "runtime": "執行階段"
       },
       "quota": {
         "empty": "暫無配額資料。請在 Key Vault 中重新整理用量。",
@@ -783,6 +848,7 @@
     "defaultTitle": "Session",
     "hideChatPanel": "隱藏聊天面板",
     "showTokenUsage": "顯示 Token",
+    "showStatusBar": "顯示狀態列",
     "compactDisplayMode": "精簡模式",
     "replay": {
       "follow": "跟隨"
@@ -954,11 +1020,20 @@
         "importFailed": "無法匯入 Session JSON。"
       }
     },
-    "turnFiles": {
-      "filesChangedCount_one": "本輪變更了 {{count}} 個檔案",
-      "filesChangedCount_other": "本輪變更了 {{count}} 個檔案",
-      "historicalRoundDiffFiles_one": "歷史輪次 Diff · {{count}} 個檔案",
-      "historicalRoundDiffFiles_other": "歷史輪次 Diff · {{count}} 個檔案",
+    "turnMetadata": {
+      "noChanges": "本輪沒有檔案改動",
+      "earlierRound": "較早輪次",
+      "files_one": "{{count}} 個檔案",
+      "files_other": "{{count}} 個檔案",
+      "reads_one": "讀取 {{count}} 次",
+      "reads_other": "讀取 {{count}} 次",
+      "searches_one": "搜尋 {{count}} 次",
+      "searches_other": "搜尋 {{count}} 次",
+      "failed": "失敗",
+      "commits_one": "{{count}} 個 Commit",
+      "commits_other": "{{count}} 個 Commit",
+      "pullRequests_one": "{{count}} 個 PR",
+      "pullRequests_other": "{{count}} 個 PR",
       "review": "檢視",
       "showLess": "收合",
       "showMore_one": "顯示其餘 {{count}} 個",
@@ -993,9 +1068,9 @@
         "sourcePrs": "PRs",
         "stateOpen": "Open",
         "stateClosed": "Closed",
-        "stateAll": "All states",
-        "assignedToMe": "Assigned to me",
-        "createdByMe": "Created by me",
+        "stateAll": "所有狀態",
+        "assignedToMe": "指派給我的",
+        "createdByMe": "由我建立",
         "filters": "Filters",
         "openInGitHub": "Open in GitHub"
       }
@@ -1037,6 +1112,8 @@
     "deleteFileRunning": "正在刪除 {{name}}",
     "deleteFileDone": "刪除 {{name}}",
     "deleteFileFailed": "刪除 {{name}} 失敗",
+    "deleteFileCompactRunning": "正在刪除",
+    "deleteFileCompactDone": "刪除",
     "directoryTree": "目錄樹",
     "ls": "ls",
     "listDirRunning": "正在列出目錄",
@@ -1079,7 +1156,7 @@
     "pathCopied": "路徑複製！",
     "failedToCopyPath": "複製路徑失敗",
     "copyFilePath": "複製文件路徑",
-    "explore": "探索",
+    "manage": "管理",
     "readFile": "讀取文件",
     "readFileRunning": "正在讀取",
     "readFileDone": "閱讀",
@@ -1102,12 +1179,30 @@
     "editFileDoneNoName": "編輯文件",
     "editFileCompactRunning": "正在編輯",
     "editFileCompactDone": "編輯",
+    "editFiles": "編輯檔案",
+    "editSummary": {
+      "edit_one": "{{count}} 次修改",
+      "edit_other": "{{count}} 次修改",
+      "read_one": "{{count}} 次閱讀",
+      "read_other": "{{count}} 次閱讀",
+      "separator": "、"
+    },
     "editFileFailedNoName": "嘗試編輯",
     "file": "文件",
     "runShellRunning": "正在執行命令",
     "terminalWaitRunning": "正在等待終端完成",
     "runShellDone": "執行命令",
     "runShellFailed": "命令執行失敗",
+    "runCommands": "執行命令",
+    "terminalSummary": {
+      "command_one": "{{count}} 個命令",
+      "command_other": "{{count}} 個命令",
+      "wait_one": "{{count}} 次等待",
+      "wait_other": "{{count}} 次等待",
+      "check_one": "{{count}} 次檢查",
+      "check_other": "{{count}} 次檢查",
+      "separator": "、"
+    },
     "inspectTerminalsRunning": "正在檢查終端",
     "inspectTerminalsDone": "檢查終端",
     "inspectTerminalsFailed": "終端檢查失敗",
@@ -1141,6 +1236,7 @@
       "skip": "跳過",
       "noReason": "Agent 建議切換模式"
     },
+    "explore": "探索",
     "exploreSummary": {
       "read_one": "{{count}} 個文件",
       "read_other": "{{count}} 個文件",
@@ -1151,7 +1247,8 @@
       "ls_one": "ls {{count}} 個文件夾",
       "ls_other": "ls {{count}} 個文件夾",
       "lsp_one": "{{count}} 次 LSP 查詢",
-      "lsp_other": "{{count}} 次 LSP 查詢"
+      "lsp_other": "{{count}} 次 LSP 查詢",
+      "separator": "、"
     },
     "categoryRead": "讀取",
     "categorySearch": "搜索",
@@ -1430,9 +1527,6 @@
     "toolSearchRunning": "正在搜索工具",
     "toolSearchDone": "搜索工具",
     "toolSearchFailed": "工具搜索失敗",
-    "suggestNextStepsRunning": "正在生成後續步驟",
-    "suggestNextStepsDone": "生成 {{count}} 條後續步驟",
-    "suggestNextStepsFailed": "無法生成後續步驟",
     "agentSendMessageRunning": "正在向隊友 Agent 發送消息",
     "agentSendMessageDone": "向隊友 Agent 發送消息",
     "agentSendMessageFailed": "向隊友 Agent 發送消息失敗",
@@ -2455,13 +2549,6 @@
       "missing": "缺少",
       "disabled": "已停用"
     }
-  },
-  "worktreeCompare": {
-    "title": "比較 Worktree",
-    "button": "比較",
-    "buttonTooltip": "並排比較 Worktree 差異",
-    "noSessions": "沒有可比較的 Session。",
-    "sessionTab": "Session {{n}}"
   },
   "groupChat": {
     "senderTitle": {

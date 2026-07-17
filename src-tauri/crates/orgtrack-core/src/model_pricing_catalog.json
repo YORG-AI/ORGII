@@ -1,0 +1,733 @@
+{
+  "_comment": "Bundled model-price catalog. Rates are approximate published list prices in USD per 1,000,000 tokens (per Mtok). input/output are per-token rates; cache_write is the 5-minute cache-creation rate; cache_read is the cache-hit rate. For providers that do not price cache writes separately, cache_write mirrors input. Sources (2026-07-16): platform.claude.com/docs/en/about-claude/pricing, developers.openai.com/api/docs/pricing, cursor.com/docs/models-and-pricing, api-docs.deepseek.com/quick_start/pricing, platform.minimax.io/docs/guides/pricing-paygo, docs.z.ai/guides/overview/pricing. Notes: claude-sonnet-5 carries introductory pricing (2/10) through 2026-08-31, standard 3/15 from 2026-09-01. The op-*/opus-*/composer/grok/default ids are model labels observed in imported Cursor sessions; 'default' is Cursor Auto. This file is reference data compiled into the binary via include_str! - no user data.",
+  "_updated": "2026-07-16",
+  "default": {
+    "input": 3.0,
+    "output": 15.0,
+    "cache_write": 3.75,
+    "cache_read": 0.3
+  },
+  "models": [
+    {
+      "id": "claude-opus-4-5",
+      "input": 5.0,
+      "output": 25.0,
+      "cache_write": 6.25,
+      "cache_read": 0.5
+    },
+    {
+      "id": "claude-opus-4-1",
+      "input": 15.0,
+      "output": 75.0,
+      "cache_write": 18.75,
+      "cache_read": 1.5
+    },
+    {
+      "id": "claude-opus-4",
+      "input": 15.0,
+      "output": 75.0,
+      "cache_write": 18.75,
+      "cache_read": 1.5
+    },
+    {
+      "id": "claude-3-opus",
+      "input": 15.0,
+      "output": 75.0,
+      "cache_write": 18.75,
+      "cache_read": 1.5
+    },
+    {
+      "id": "claude-sonnet-4-5",
+      "input": 3.0,
+      "output": 15.0,
+      "cache_write": 3.75,
+      "cache_read": 0.3
+    },
+    {
+      "id": "claude-sonnet-4",
+      "input": 3.0,
+      "output": 15.0,
+      "cache_write": 3.75,
+      "cache_read": 0.3
+    },
+    {
+      "id": "claude-3-7-sonnet",
+      "input": 3.0,
+      "output": 15.0,
+      "cache_write": 3.75,
+      "cache_read": 0.3
+    },
+    {
+      "id": "claude-3-5-sonnet",
+      "input": 3.0,
+      "output": 15.0,
+      "cache_write": 3.75,
+      "cache_read": 0.3
+    },
+    {
+      "id": "claude-3-sonnet",
+      "input": 3.0,
+      "output": 15.0,
+      "cache_write": 3.75,
+      "cache_read": 0.3
+    },
+    {
+      "id": "claude-haiku-4-5",
+      "input": 1.0,
+      "output": 5.0,
+      "cache_write": 1.25,
+      "cache_read": 0.1
+    },
+    {
+      "id": "claude-3-5-haiku",
+      "input": 0.8,
+      "output": 4.0,
+      "cache_write": 1.0,
+      "cache_read": 0.08
+    },
+    {
+      "id": "claude-3-haiku",
+      "input": 0.25,
+      "output": 1.25,
+      "cache_write": 0.3,
+      "cache_read": 0.03
+    },
+    {
+      "id": "claude-opus",
+      "input": 5.0,
+      "output": 25.0,
+      "cache_write": 6.25,
+      "cache_read": 0.5
+    },
+    {
+      "id": "claude-sonnet",
+      "input": 3.0,
+      "output": 15.0,
+      "cache_write": 3.75,
+      "cache_read": 0.3
+    },
+    {
+      "id": "claude-haiku",
+      "input": 1.0,
+      "output": 5.0,
+      "cache_write": 1.25,
+      "cache_read": 0.1
+    },
+    {
+      "id": "gpt-5-nano",
+      "input": 0.05,
+      "output": 0.4,
+      "cache_write": 0.05,
+      "cache_read": 0.005
+    },
+    {
+      "id": "gpt-5-mini",
+      "input": 0.25,
+      "output": 2.0,
+      "cache_write": 0.25,
+      "cache_read": 0.025
+    },
+    {
+      "id": "gpt-5-codex",
+      "input": 1.25,
+      "output": 10.0,
+      "cache_write": 1.25,
+      "cache_read": 0.125
+    },
+    {
+      "id": "gpt-5",
+      "input": 1.25,
+      "output": 10.0,
+      "cache_write": 1.25,
+      "cache_read": 0.125
+    },
+    {
+      "id": "gpt-4.1-nano",
+      "input": 0.1,
+      "output": 0.4,
+      "cache_write": 0.1,
+      "cache_read": 0.025
+    },
+    {
+      "id": "gpt-4.1-mini",
+      "input": 0.4,
+      "output": 1.6,
+      "cache_write": 0.4,
+      "cache_read": 0.1
+    },
+    {
+      "id": "gpt-4.1",
+      "input": 2.0,
+      "output": 8.0,
+      "cache_write": 2.0,
+      "cache_read": 0.5
+    },
+    {
+      "id": "gpt-4o-mini",
+      "input": 0.15,
+      "output": 0.6,
+      "cache_write": 0.15,
+      "cache_read": 0.075
+    },
+    {
+      "id": "gpt-4o",
+      "input": 2.5,
+      "output": 10.0,
+      "cache_write": 2.5,
+      "cache_read": 1.25
+    },
+    {
+      "id": "gpt-4-turbo",
+      "input": 10.0,
+      "output": 30.0,
+      "cache_write": 10.0,
+      "cache_read": 10.0
+    },
+    {
+      "id": "gpt-4",
+      "input": 30.0,
+      "output": 60.0,
+      "cache_write": 30.0,
+      "cache_read": 30.0
+    },
+    {
+      "id": "gpt-3.5-turbo",
+      "input": 0.5,
+      "output": 1.5,
+      "cache_write": 0.5,
+      "cache_read": 0.5
+    },
+    {
+      "id": "o4-mini",
+      "input": 1.1,
+      "output": 4.4,
+      "cache_write": 1.1,
+      "cache_read": 0.275
+    },
+    {
+      "id": "o3-mini",
+      "input": 1.1,
+      "output": 4.4,
+      "cache_write": 1.1,
+      "cache_read": 0.55
+    },
+    {
+      "id": "o3-pro",
+      "input": 20.0,
+      "output": 80.0,
+      "cache_write": 20.0,
+      "cache_read": 20.0
+    },
+    {
+      "id": "o3",
+      "input": 2.0,
+      "output": 8.0,
+      "cache_write": 2.0,
+      "cache_read": 0.5
+    },
+    {
+      "id": "o1-mini",
+      "input": 1.1,
+      "output": 4.4,
+      "cache_write": 1.1,
+      "cache_read": 0.55
+    },
+    {
+      "id": "o1-pro",
+      "input": 150.0,
+      "output": 600.0,
+      "cache_write": 150.0,
+      "cache_read": 150.0
+    },
+    {
+      "id": "o1",
+      "input": 15.0,
+      "output": 60.0,
+      "cache_write": 15.0,
+      "cache_read": 7.5
+    },
+    {
+      "id": "gemini-2.5-pro",
+      "input": 1.25,
+      "output": 10.0,
+      "cache_write": 1.25,
+      "cache_read": 0.31
+    },
+    {
+      "id": "gemini-2.5-flash-lite",
+      "input": 0.1,
+      "output": 0.4,
+      "cache_write": 0.1,
+      "cache_read": 0.025
+    },
+    {
+      "id": "gemini-2.5-flash",
+      "input": 0.3,
+      "output": 2.5,
+      "cache_write": 0.3,
+      "cache_read": 0.075
+    },
+    {
+      "id": "gemini-2.0-flash-lite",
+      "input": 0.075,
+      "output": 0.3,
+      "cache_write": 0.075,
+      "cache_read": 0.01875
+    },
+    {
+      "id": "gemini-2.0-flash",
+      "input": 0.1,
+      "output": 0.4,
+      "cache_write": 0.1,
+      "cache_read": 0.025
+    },
+    {
+      "id": "gemini-1.5-pro",
+      "input": 1.25,
+      "output": 5.0,
+      "cache_write": 1.25,
+      "cache_read": 0.3125
+    },
+    {
+      "id": "gemini-1.5-flash",
+      "input": 0.075,
+      "output": 0.3,
+      "cache_write": 0.075,
+      "cache_read": 0.01875
+    },
+    {
+      "id": "gemini-pro",
+      "input": 1.25,
+      "output": 5.0,
+      "cache_write": 1.25,
+      "cache_read": 0.3125
+    },
+    {
+      "id": "gemini-flash",
+      "input": 0.3,
+      "output": 2.5,
+      "cache_write": 0.3,
+      "cache_read": 0.075
+    },
+    {
+      "id": "claude-fable-5",
+      "input": 10.0,
+      "output": 50.0,
+      "cache_write": 12.5,
+      "cache_read": 1.0
+    },
+    {
+      "id": "claude-mythos-5",
+      "input": 10.0,
+      "output": 50.0,
+      "cache_write": 12.5,
+      "cache_read": 1.0
+    },
+    {
+      "id": "claude-mythos",
+      "input": 10.0,
+      "output": 50.0,
+      "cache_write": 12.5,
+      "cache_read": 1.0
+    },
+    {
+      "id": "claude-fable",
+      "input": 10.0,
+      "output": 50.0,
+      "cache_write": 12.5,
+      "cache_read": 1.0
+    },
+    {
+      "id": "claude-opus-4-8",
+      "input": 5.0,
+      "output": 25.0,
+      "cache_write": 6.25,
+      "cache_read": 0.5
+    },
+    {
+      "id": "claude-opus-4-7",
+      "input": 5.0,
+      "output": 25.0,
+      "cache_write": 6.25,
+      "cache_read": 0.5
+    },
+    {
+      "id": "claude-opus-4-6",
+      "input": 5.0,
+      "output": 25.0,
+      "cache_write": 6.25,
+      "cache_read": 0.5
+    },
+    {
+      "id": "claude-sonnet-5",
+      "input": 2.0,
+      "output": 10.0,
+      "cache_write": 2.5,
+      "cache_read": 0.2
+    },
+    {
+      "id": "claude-sonnet-4-6",
+      "input": 3.0,
+      "output": 15.0,
+      "cache_write": 3.75,
+      "cache_read": 0.3
+    },
+    {
+      "id": "opus-4-8",
+      "input": 5.0,
+      "output": 25.0,
+      "cache_write": 6.25,
+      "cache_read": 0.5
+    },
+    {
+      "id": "opus-4-7",
+      "input": 5.0,
+      "output": 25.0,
+      "cache_write": 6.25,
+      "cache_read": 0.5
+    },
+    {
+      "id": "opus-4-6",
+      "input": 5.0,
+      "output": 25.0,
+      "cache_write": 6.25,
+      "cache_read": 0.5
+    },
+    {
+      "id": "op-4-8",
+      "input": 5.0,
+      "output": 25.0,
+      "cache_write": 6.25,
+      "cache_read": 0.5
+    },
+    {
+      "id": "op-4-7",
+      "input": 5.0,
+      "output": 25.0,
+      "cache_write": 6.25,
+      "cache_read": 0.5
+    },
+    {
+      "id": "op-4-6",
+      "input": 5.0,
+      "output": 25.0,
+      "cache_write": 6.25,
+      "cache_read": 0.5
+    },
+    {
+      "id": "composer-2-5",
+      "input": 0.5,
+      "output": 2.5,
+      "cache_write": 0.5,
+      "cache_read": 0.2
+    },
+    {
+      "id": "composer",
+      "input": 0.5,
+      "output": 2.5,
+      "cache_write": 0.5,
+      "cache_read": 0.2
+    },
+    {
+      "id": "grok-4-5",
+      "input": 2.0,
+      "output": 6.0,
+      "cache_write": 2.0,
+      "cache_read": 0.5
+    },
+    {
+      "id": "grok",
+      "input": 2.0,
+      "output": 6.0,
+      "cache_write": 2.0,
+      "cache_read": 0.5
+    },
+    {
+      "id": "default",
+      "input": 1.25,
+      "output": 6.0,
+      "cache_write": 1.25,
+      "cache_read": 0.25
+    },
+    {
+      "id": "gpt-5-6-sol",
+      "input": 5.0,
+      "output": 30.0,
+      "cache_write": 5.0,
+      "cache_read": 0.5
+    },
+    {
+      "id": "gpt-5-6-terra",
+      "input": 2.5,
+      "output": 15.0,
+      "cache_write": 2.5,
+      "cache_read": 0.25
+    },
+    {
+      "id": "gpt-5-6-luna",
+      "input": 1.0,
+      "output": 6.0,
+      "cache_write": 1.0,
+      "cache_read": 0.1
+    },
+    {
+      "id": "gpt-5-5-pro",
+      "input": 30.0,
+      "output": 180.0,
+      "cache_write": 30.0,
+      "cache_read": 3.0
+    },
+    {
+      "id": "gpt-5-5",
+      "input": 5.0,
+      "output": 30.0,
+      "cache_write": 5.0,
+      "cache_read": 0.5
+    },
+    {
+      "id": "gpt-5-4-mini",
+      "input": 0.75,
+      "output": 4.5,
+      "cache_write": 0.75,
+      "cache_read": 0.075
+    },
+    {
+      "id": "gpt-5-4-nano",
+      "input": 0.2,
+      "output": 1.25,
+      "cache_write": 0.2,
+      "cache_read": 0.02
+    },
+    {
+      "id": "gpt-5-4",
+      "input": 2.5,
+      "output": 15.0,
+      "cache_write": 2.5,
+      "cache_read": 0.25
+    },
+    {
+      "id": "gpt-5-3-codex",
+      "input": 1.75,
+      "output": 14.0,
+      "cache_write": 1.75,
+      "cache_read": 0.175
+    },
+    {
+      "id": "gemini-3-5-flash",
+      "input": 1.5,
+      "output": 9.0,
+      "cache_write": 1.5,
+      "cache_read": 0.375
+    },
+    {
+      "id": "deepseek-v4-pro",
+      "input": 0.435,
+      "output": 0.87,
+      "cache_write": 0.435,
+      "cache_read": 0.003625
+    },
+    {
+      "id": "deepseek-v4-flash",
+      "input": 0.14,
+      "output": 0.28,
+      "cache_write": 0.14,
+      "cache_read": 0.0028
+    },
+    {
+      "id": "deepseek-chat",
+      "input": 0.14,
+      "output": 0.28,
+      "cache_write": 0.14,
+      "cache_read": 0.0028
+    },
+    {
+      "id": "deepseek-reasoner",
+      "input": 0.14,
+      "output": 0.28,
+      "cache_write": 0.14,
+      "cache_read": 0.0028
+    },
+    {
+      "id": "deepseek",
+      "input": 0.14,
+      "output": 0.28,
+      "cache_write": 0.14,
+      "cache_read": 0.0028
+    },
+    {
+      "id": "minimax-m3",
+      "input": 0.3,
+      "output": 1.2,
+      "cache_write": 0.3,
+      "cache_read": 0.06
+    },
+    {
+      "id": "minimax-m2-7-highspeed",
+      "input": 0.6,
+      "output": 2.4,
+      "cache_write": 0.375,
+      "cache_read": 0.06
+    },
+    {
+      "id": "minimax-m2-7",
+      "input": 0.3,
+      "output": 1.2,
+      "cache_write": 0.375,
+      "cache_read": 0.06
+    },
+    {
+      "id": "minimax-m2-5",
+      "input": 0.3,
+      "output": 1.2,
+      "cache_write": 0.375,
+      "cache_read": 0.03
+    },
+    {
+      "id": "minimax-m2-5-highspeed",
+      "input": 0.6,
+      "output": 2.4,
+      "cache_write": 0.375,
+      "cache_read": 0.03
+    },
+    {
+      "id": "minimax-m2-1",
+      "input": 0.3,
+      "output": 1.2,
+      "cache_write": 0.375,
+      "cache_read": 0.03
+    },
+    {
+      "id": "minimax-m2-1-highspeed",
+      "input": 0.6,
+      "output": 2.4,
+      "cache_write": 0.375,
+      "cache_read": 0.03
+    },
+    {
+      "id": "minimax-m2-highspeed",
+      "input": 0.6,
+      "output": 2.4,
+      "cache_write": 0.375,
+      "cache_read": 0.03
+    },
+    {
+      "id": "minimax-m2",
+      "input": 0.3,
+      "output": 1.2,
+      "cache_write": 0.375,
+      "cache_read": 0.03
+    },
+    {
+      "id": "minimax",
+      "input": 0.3,
+      "output": 1.2,
+      "cache_write": 0.375,
+      "cache_read": 0.06
+    },
+    {
+      "id": "glm-5-2",
+      "input": 1.4,
+      "output": 4.4,
+      "cache_write": 1.4,
+      "cache_read": 0.26
+    },
+    {
+      "id": "glm-5-1",
+      "input": 1.4,
+      "output": 4.4,
+      "cache_write": 1.4,
+      "cache_read": 0.26
+    },
+    {
+      "id": "glm-5-turbo",
+      "input": 1.2,
+      "output": 4.0,
+      "cache_write": 1.2,
+      "cache_read": 0.24
+    },
+    {
+      "id": "glm-5",
+      "input": 1.0,
+      "output": 3.2,
+      "cache_write": 1.0,
+      "cache_read": 0.2
+    },
+    {
+      "id": "glm-4-7-flashx",
+      "input": 0.07,
+      "output": 0.4,
+      "cache_write": 0.07,
+      "cache_read": 0.01
+    },
+    {
+      "id": "glm-4-7-flash",
+      "input": 0.0,
+      "output": 0.0,
+      "cache_write": 0.0,
+      "cache_read": 0.0
+    },
+    {
+      "id": "glm-4-7",
+      "input": 0.6,
+      "output": 2.2,
+      "cache_write": 0.6,
+      "cache_read": 0.11
+    },
+    {
+      "id": "glm-4-6",
+      "input": 0.6,
+      "output": 2.2,
+      "cache_write": 0.6,
+      "cache_read": 0.11
+    },
+    {
+      "id": "glm-4-5-airx",
+      "input": 1.1,
+      "output": 4.5,
+      "cache_write": 1.1,
+      "cache_read": 0.22
+    },
+    {
+      "id": "glm-4-5-air",
+      "input": 0.2,
+      "output": 1.1,
+      "cache_write": 0.2,
+      "cache_read": 0.03
+    },
+    {
+      "id": "glm-4-5-x",
+      "input": 2.2,
+      "output": 8.9,
+      "cache_write": 2.2,
+      "cache_read": 0.45
+    },
+    {
+      "id": "glm-4-5-flash",
+      "input": 0.0,
+      "output": 0.0,
+      "cache_write": 0.0,
+      "cache_read": 0.0
+    },
+    {
+      "id": "glm-4-5",
+      "input": 0.6,
+      "output": 2.2,
+      "cache_write": 0.6,
+      "cache_read": 0.11
+    },
+    {
+      "id": "glm-4-32b",
+      "input": 0.1,
+      "output": 0.1,
+      "cache_write": 0.1,
+      "cache_read": 0.1
+    },
+    {
+      "id": "glm",
+      "input": 0.6,
+      "output": 2.2,
+      "cache_write": 0.6,
+      "cache_read": 0.11
+    }
+  ]
+}

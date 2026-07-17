@@ -74,6 +74,12 @@ pub(crate) fn normalize_session_sequences(conn: &Connection, session_id: &str) -
 /// with `BEGIN IMMEDIATE` so concurrent callers queue in Rust instead of
 /// racing for `SQLITE_BUSY` mid-transaction.
 ///
+/// Events are upserted (`ON CONFLICT(id) DO UPDATE ... WHERE <changed>`),
+/// not `INSERT OR REPLACE`d: re-submitting an unchanged batch (which the
+/// frontend does after every reload) is a true no-op that preserves rowids
+/// and writes nothing, and a real change updates the row in place instead
+/// of cycling a delete + insert.
+///
 /// `rebuild_turn_index` is **debounced** to run asynchronously rather
 /// than synchronously at the tail of every batch. The streaming agent
 /// pipeline emits hundreds of events per second across parent + child
@@ -91,11 +97,38 @@ pub fn save_events(session_id: &str, events: &[CachedEvent]) -> SqliteResult<()>
 
         get_next_sequence(&conn, session_id)?;
 
+        // Conflict target is the PRIMARY KEY (id). The table also carries
+        // UNIQUE(id, session_id), but that constraint cannot conflict
+        // without the PK conflicting on the same row, so the single target
+        // is unambiguous. `IS NOT` (null-safe) comparisons everywhere so
+        // NULLable columns (function_name, thread_id, meta_json,
+        // history_sequence) compare correctly.
         let mut stmt = conn.prepare_cached(
-            "INSERT OR REPLACE INTO events
+            "INSERT INTO events
              (id, session_id, event_type, function_name, thread_id, args_json, result_json,
               content, created_at, meta_json, history_sequence)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+             ON CONFLICT(id) DO UPDATE SET
+                 session_id       = excluded.session_id,
+                 event_type       = excluded.event_type,
+                 function_name    = excluded.function_name,
+                 thread_id        = excluded.thread_id,
+                 args_json        = excluded.args_json,
+                 result_json      = excluded.result_json,
+                 content          = excluded.content,
+                 created_at       = excluded.created_at,
+                 meta_json        = excluded.meta_json,
+                 history_sequence = excluded.history_sequence
+             WHERE events.session_id       IS NOT excluded.session_id
+                OR events.event_type       IS NOT excluded.event_type
+                OR events.function_name    IS NOT excluded.function_name
+                OR events.thread_id        IS NOT excluded.thread_id
+                OR events.args_json        IS NOT excluded.args_json
+                OR events.result_json      IS NOT excluded.result_json
+                OR events.content          IS NOT excluded.content
+                OR events.created_at       IS NOT excluded.created_at
+                OR events.meta_json        IS NOT excluded.meta_json
+                OR events.history_sequence IS NOT excluded.history_sequence",
         )?;
 
         let mut time_start: Option<String> = None;
@@ -105,13 +138,12 @@ pub fn save_events(session_id: &str, events: &[CachedEvent]) -> SqliteResult<()>
             if is_ts_placeholder_id(&event.id) {
                 continue;
             }
-            // `save_events` is `INSERT OR REPLACE`: it rewrites the whole row.
             // The frontend's in-memory event cache does NOT track the server-
             // owned `history_sequence` stamp (minted by the sequence counter).
             // When the frontend re-submits an already persisted event after a
-            // reload, the field comes back as `None`. Replacing the row with
-            // `None` would desync `history_sequence` from `created_at` and
-            // break truncate cutoffs. So: for an event the frontend submits
+            // reload, the field comes back as `None`. Writing `None` through
+            // would desync `history_sequence` from `created_at` and break
+            // truncate cutoffs. So: for an event the frontend submits
             // without a stamp, KEEP the value already persisted; only mint a
             // fresh sequence for genuinely new rows.
             let seq = match event.history_sequence {
@@ -207,87 +239,193 @@ pub fn load_events(session_id: &str) -> SqliteResult<Vec<CachedEvent>> {
     Ok(events)
 }
 
-/// Full-text search within a session
+/// Byte radius of the excerpt window taken on each side of the first match
+/// (snapped outward to char boundaries).
+const EXCERPT_RADIUS_BYTES: usize = 60;
+
+/// Escape `%`, `_`, and `\` so a user-supplied query matches literally
+/// inside a `LIKE '%' || ? || '%' ESCAPE '\'` pattern.
+fn escape_like_pattern(query: &str) -> String {
+    let mut escaped = String::with_capacity(query.len() + 4);
+    for ch in query.chars() {
+        if matches!(ch, '%' | '_' | '\\') {
+            escaped.push('\\');
+        }
+        escaped.push(ch);
+    }
+    escaped
+}
+
+/// Byte offset of the first ASCII-case-insensitive occurrence of `needle`
+/// in `haystack`. Mirrors SQLite's default `LIKE` semantics (ASCII-only
+/// case folding) so the excerpt window lands on the same match the SQL
+/// predicate found. Both offsets of a hit are guaranteed char boundaries:
+/// a valid-UTF-8 needle can never start or end mid-sequence in a
+/// valid-UTF-8 haystack.
+fn ascii_case_insensitive_find(haystack: &str, needle: &str) -> Option<usize> {
+    if needle.is_empty() || needle.len() > haystack.len() {
+        return None;
+    }
+    let h = haystack.as_bytes();
+    let n = needle.as_bytes();
+    (0..=h.len() - n.len()).find(|&i| h[i..i + n.len()].eq_ignore_ascii_case(n))
+}
+
+fn floor_char_boundary(s: &str, mut idx: usize) -> usize {
+    if idx >= s.len() {
+        return s.len();
+    }
+    while !s.is_char_boundary(idx) {
+        idx -= 1;
+    }
+    idx
+}
+
+fn ceil_char_boundary(s: &str, mut idx: usize) -> usize {
+    if idx >= s.len() {
+        return s.len();
+    }
+    while !s.is_char_boundary(idx) {
+        idx += 1;
+    }
+    idx
+}
+
+/// Rust-side replacement for the FTS5 `snippet()` auxiliary function: the
+/// first case-insensitive match of `query` in `content` is wrapped in
+/// `<mark>` tags with ~[`EXCERPT_RADIUS_BYTES`] of context on each side and
+/// `...` on the clipped edges. Falls back to a plain content prefix when the
+/// match is in another searched column (`function_name` / `args_json`) or
+/// `content` is empty.
+fn build_excerpt(content: &str, query: &str) -> String {
+    match ascii_case_insensitive_find(content, query) {
+        Some(start) => {
+            let end = start + query.len();
+            let win_start =
+                floor_char_boundary(content, start.saturating_sub(EXCERPT_RADIUS_BYTES));
+            let win_end = ceil_char_boundary(content, end + EXCERPT_RADIUS_BYTES);
+            let mut excerpt = String::with_capacity(win_end - win_start + 19);
+            if win_start > 0 {
+                excerpt.push_str("...");
+            }
+            excerpt.push_str(&content[win_start..start]);
+            excerpt.push_str("<mark>");
+            excerpt.push_str(&content[start..end]);
+            excerpt.push_str("</mark>");
+            excerpt.push_str(&content[end..win_end]);
+            if win_end < content.len() {
+                excerpt.push_str("...");
+            }
+            excerpt
+        }
+        None => {
+            let prefix_end = floor_char_boundary(content, 2 * EXCERPT_RADIUS_BYTES);
+            let mut excerpt = content[..prefix_end].to_string();
+            if prefix_end < content.len() {
+                excerpt.push_str("...");
+            }
+            excerpt
+        }
+    }
+}
+
+/// Substring search within a session.
+///
+/// LIKE scan over `events` — the FTS5 index was dropped (see
+/// `schema::drop_events_fts`). Matching is ASCII-case-insensitive (SQLite
+/// `LIKE` default; non-ASCII case differences do not match) and `%`/`_` in
+/// the query are escaped so they match literally. Results are newest-first;
+/// `rank` is the 0-based position in that order, preserving the FTS-era
+/// "ascending rank = better" wire contract.
 pub fn search_events(session_id: &str, query: &str, limit: i64) -> SqliteResult<Vec<SearchResult>> {
     let conn = get_connection()?;
+    let pattern = escape_like_pattern(query);
 
-    // Use FTS5 for fast full-text search with BM25 ranking
     let mut stmt = conn.prepare_cached(
-        "SELECT e.id, e.session_id, e.event_type, e.function_name,
-                e.thread_id, e.args_json, e.result_json, e.content, e.created_at, e.meta_json,
-                e.history_sequence,
-                bm25(events_fts) as rank,
-                snippet(events_fts, 1, '<mark>', '</mark>', '...', 32) as snippet
-         FROM events_fts fts
-         JOIN events e ON fts.id = e.id
-         WHERE events_fts MATCH ?1 AND e.session_id = ?2
-         ORDER BY rank
+        "SELECT id, session_id, event_type, function_name, thread_id,
+                args_json, result_json, content, created_at, meta_json, history_sequence
+         FROM events
+         WHERE session_id = ?1
+           AND (content LIKE '%' || ?2 || '%' ESCAPE '\\'
+                OR function_name LIKE '%' || ?2 || '%' ESCAPE '\\'
+                OR args_json LIKE '%' || ?2 || '%' ESCAPE '\\')
+         ORDER BY created_at DESC
          LIMIT ?3",
     )?;
 
-    // Escape special FTS5 characters and add prefix matching
-    let fts_query = format!("\"{}\"*", query.replace('"', "\"\""));
-
-    let results = stmt
-        .query_map(params![fts_query, session_id, limit], |row| {
-            Ok(SearchResult {
-                event: CachedEvent {
-                    id: row.get(0)?,
-                    session_id: row.get(1)?,
-                    event_type: row.get(2)?,
-                    function_name: row.get(3)?,
-                    thread_id: row.get(4)?,
-                    args_json: row.get(5)?,
-                    result_json: row.get(6)?,
-                    content: row.get(7)?,
-                    created_at: row.get(8)?,
-                    meta_json: row.get(9)?,
-                    history_sequence: row.get(10)?,
-                },
-                rank: row.get(11)?,
-                snippet: row.get(12)?,
+    let events = stmt
+        .query_map(params![session_id, pattern, limit], |row| {
+            Ok(CachedEvent {
+                id: row.get(0)?,
+                session_id: row.get(1)?,
+                event_type: row.get(2)?,
+                function_name: row.get(3)?,
+                thread_id: row.get(4)?,
+                args_json: row.get(5)?,
+                result_json: row.get(6)?,
+                content: row.get(7)?,
+                created_at: row.get(8)?,
+                meta_json: row.get(9)?,
+                history_sequence: row.get(10)?,
             })
         })?
         .collect::<SqliteResult<Vec<_>>>()?;
 
-    Ok(results)
+    Ok(events
+        .into_iter()
+        .enumerate()
+        .map(|(idx, event)| {
+            let snippet = build_excerpt(&event.content, query);
+            SearchResult {
+                event,
+                rank: idx as f64,
+                snippet,
+            }
+        })
+        .collect())
 }
 
-/// Full-text search across all sessions. Returns one hit per session (the
-/// best-ranked snippet for that session). The caller should join with the
-/// session list API to resolve display names.
+/// Substring search across all sessions. Returns one hit per session — the
+/// most recent matching event (`MAX(created_at)`; SQLite's bare-column
+/// guarantee pins `content` to that row). Sessions are ordered newest-hit
+/// first; `rank` is the 0-based position in that order. LIKE semantics are
+/// documented on [`search_events`]. The caller should join with the session
+/// list API to resolve display names.
 pub fn search_all_sessions(query: &str, limit: i64) -> SqliteResult<Vec<CrossSessionSearchHit>> {
     let conn = get_connection()?;
-    let fts_query = format!("\"{}\"*", query.replace('"', "\"\""));
+    let pattern = escape_like_pattern(query);
 
-    // Use FTS5 to find the best-ranked snippet per session_id.
-    // GROUP BY session_id picks the highest-scored row for each session
-    // (MIN(rank) because BM25 scores are negative — lower = better).
     let mut stmt = conn.prepare_cached(
-        "SELECT e.session_id,
-                snippet(events_fts, 1, '<mark>', '</mark>', '...', 32) as snip,
-                e.created_at,
-                bm25(events_fts) as rank
-         FROM events_fts fts
-         JOIN events e ON fts.id = e.id
-         WHERE events_fts MATCH ?1
-         GROUP BY e.session_id
-         ORDER BY rank
+        "SELECT session_id, content, MAX(created_at) AS created_at
+         FROM events
+         WHERE content LIKE '%' || ?1 || '%' ESCAPE '\\'
+            OR function_name LIKE '%' || ?1 || '%' ESCAPE '\\'
+            OR args_json LIKE '%' || ?1 || '%' ESCAPE '\\'
+         GROUP BY session_id
+         ORDER BY created_at DESC
          LIMIT ?2",
     )?;
 
-    let hits = stmt
-        .query_map(params![fts_query, limit], |row| {
-            Ok(CrossSessionSearchHit {
-                session_id: row.get(0)?,
-                snippet: row.get(1)?,
-                timestamp: row.get(2)?,
-                rank: row.get(3)?,
-            })
+    let rows = stmt
+        .query_map(params![pattern, limit], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(2)?,
+            ))
         })?
         .collect::<SqliteResult<Vec<_>>>()?;
 
-    Ok(hits)
+    Ok(rows
+        .into_iter()
+        .enumerate()
+        .map(|(idx, (session_id, content, timestamp))| CrossSessionSearchHit {
+            session_id,
+            snippet: build_excerpt(&content, query),
+            timestamp,
+            rank: idx as f64,
+        })
+        .collect())
 }
 
 /// Get session metadata
@@ -649,14 +787,11 @@ pub fn get_event(session_id: &str, event_id: &str) -> SqliteResult<Option<Cached
 mod tests {
     use super::*;
     use rusqlite::params;
-    use std::sync::Mutex as StdMutex;
-
-    static ORGII_HOME_TEST_LOCK: StdMutex<()> = StdMutex::new(());
 
     fn with_temp_orgii_home<R>(run: impl FnOnce() -> R) -> R {
         // Tolerate poison so that one panicking test doesn't take down
         // every other test that shares the ORGII_HOME env var.
-        let _guard = match ORGII_HOME_TEST_LOCK.lock() {
+        let _guard = match crate::ORGII_HOME_TEST_LOCK.lock() {
             Ok(guard) => guard,
             Err(poisoned) => poisoned.into_inner(),
         };
@@ -816,6 +951,127 @@ mod tests {
                 NUM_THREADS * WRITES_PER_THREAD,
                 "expected every concurrent save to persist"
             );
+        });
+    }
+
+    fn test_event(id: &str, session_id: &str, content: &str, created_at: &str) -> CachedEvent {
+        CachedEvent {
+            id: id.to_string(),
+            session_id: session_id.to_string(),
+            event_type: "raw".to_string(),
+            function_name: Some("user_message".to_string()),
+            thread_id: None,
+            args_json: "{}".to_string(),
+            result_json: "{}".to_string(),
+            content: content.to_string(),
+            created_at: created_at.to_string(),
+            meta_json: None,
+            history_sequence: None,
+        }
+    }
+
+    fn event_rowids(conn: &Connection, session_id: &str) -> Vec<(String, i64)> {
+        let mut stmt = conn
+            .prepare("SELECT id, rowid FROM events WHERE session_id = ?1 ORDER BY id")
+            .expect("prepare rowid query");
+        stmt.query_map([session_id], |row| Ok((row.get(0)?, row.get(1)?)))
+            .expect("query rowids")
+            .collect::<SqliteResult<Vec<_>>>()
+            .expect("collect rowids")
+    }
+
+    /// Re-saving an identical batch must be a write no-op (rowids survive —
+    /// `INSERT OR REPLACE` would have cycled delete + insert and minted new
+    /// ones), while a genuinely changed event updates in place.
+    #[test]
+    fn resaving_identical_batch_preserves_rowids_and_changed_rows_update_in_place() {
+        with_temp_orgii_home(|| {
+            {
+                let conn = get_connection().expect("open sessions DB");
+                super::super::schema::init_session_tables(&conn).expect("init session schema");
+            }
+            let session_id = "upsert-noop-session";
+            let batch = vec![
+                test_event("evt-a", session_id, "first message", "2026-07-16T00:00:00.000Z"),
+                test_event("evt-b", session_id, "second message", "2026-07-16T00:00:01.000Z"),
+            ];
+
+            save_events(session_id, &batch).expect("initial save");
+            let conn = get_connection().expect("open sessions DB");
+            let rowids_before = event_rowids(&conn, session_id);
+            assert_eq!(rowids_before.len(), 2);
+
+            // Identical re-submission (history_sequence None, exactly what the
+            // frontend sends after a reload) must not rewrite any row.
+            save_events(session_id, &batch).expect("identical re-save");
+            let rowids_after = event_rowids(&conn, session_id);
+            assert_eq!(
+                rowids_before, rowids_after,
+                "identical re-save must preserve rowids"
+            );
+
+            // A real content change updates the row in place.
+            let mut changed = batch.clone();
+            changed[1].content = "second message, edited".to_string();
+            save_events(session_id, &changed).expect("changed re-save");
+
+            let rowids_final = event_rowids(&conn, session_id);
+            assert_eq!(
+                rowids_before, rowids_final,
+                "in-place update must preserve rowids"
+            );
+            let events = load_events(session_id).expect("load events");
+            assert_eq!(events[0].content, "first message");
+            assert_eq!(events[1].content, "second message, edited");
+            // Server-assigned sequences survive the None re-submission.
+            assert_eq!(events[0].history_sequence, Some(0));
+            assert_eq!(events[1].history_sequence, Some(1));
+        });
+    }
+
+    /// LIKE fallback search: literal `%`/`_` in the query must not act as
+    /// wildcards, matching is ASCII-case-insensitive, and the snippet wraps
+    /// the hit in `<mark>` tags like the FTS-era `snippet()` output.
+    #[test]
+    fn like_search_escapes_wildcards_and_builds_marked_excerpts() {
+        with_temp_orgii_home(|| {
+            {
+                let conn = get_connection().expect("open sessions DB");
+                super::super::schema::init_session_tables(&conn).expect("init session schema");
+            }
+            let session_id = "like-search-session";
+            let batch = vec![
+                test_event(
+                    "evt-discount",
+                    session_id,
+                    "offering a 50% discount today",
+                    "2026-07-16T01:00:00.000Z",
+                ),
+                test_event(
+                    "evt-number",
+                    session_id,
+                    "the answer is 508 exactly",
+                    "2026-07-16T01:00:01.000Z",
+                ),
+            ];
+            save_events(session_id, &batch).expect("save events");
+
+            // "50%" must match only the literal occurrence, not "508".
+            let hits = search_events(session_id, "50%", 10).expect("search literal percent");
+            assert_eq!(hits.len(), 1);
+            assert_eq!(hits[0].event.id, "evt-discount");
+            assert!(hits[0].snippet.contains("<mark>50%</mark>"));
+
+            // ASCII-case-insensitive matching.
+            let hits = search_events(session_id, "DISCOUNT", 10).expect("search case-folded");
+            assert_eq!(hits.len(), 1);
+            assert_eq!(hits[0].event.id, "evt-discount");
+
+            // Cross-session search returns one hit for the session.
+            let all = search_all_sessions("discount", 10).expect("search all sessions");
+            assert_eq!(all.len(), 1);
+            assert_eq!(all[0].session_id, session_id);
+            assert!(all[0].snippet.contains("<mark>discount</mark>"));
         });
     }
 }

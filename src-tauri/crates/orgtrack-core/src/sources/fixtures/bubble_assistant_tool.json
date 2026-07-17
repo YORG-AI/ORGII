@@ -1,0 +1,13 @@
+{
+  "type": 2,
+  "bubbleId": "b3-assistant-tool",
+  "createdAt": "2026-05-02T08:33:01.500Z",
+  "text": "",
+  "toolFormerData": {
+    "name": "edit_file_v2",
+    "toolCallId": "toolu_01Lz199WAyPGPwoETvjas8he",
+    "status": "completed",
+    "params": "{\"relativeWorkspacePath\":\"/Users/test_user/Documents/GitHub/orgii_frontend/src/store/session/sessionAtom/atoms.ts\",\"noCodeblock\":true}",
+    "result": "{\"beforeContentId\":\"composer.content.before123\",\"afterContentId\":\"composer.content.after456\"}"
+  }
+}

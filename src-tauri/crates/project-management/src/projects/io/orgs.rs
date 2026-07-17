@@ -69,26 +69,27 @@ pub fn create_project_org(request: &CreateProjectOrgRequest) -> Result<ProjectOr
         .unwrap_or_else(|| format!("{}-{}", DEFAULT_ORG_ID_PREFIX, slug));
 
     let connection = conn()?;
-    let exists: bool = map_db(
+    let id_exists: bool = map_db(
         connection
             .query_row(
-                "SELECT 1 FROM project_orgs WHERE id = ?1 OR slug = ?2 OR org_key = ?3",
-                params![&org_id, &slug, org_key_from_slug(&slug)],
+                "SELECT 1 FROM project_orgs WHERE id = ?1",
+                params![&org_id],
                 |_| Ok(true),
             )
             .optional(),
     )?
     .unwrap_or(false);
-    if exists {
+    if id_exists {
         return Err(format!("An org named '{}' already exists", name));
     }
+    let (slug, org_key) = free_slug_and_key(&connection, &slug)?;
 
     let now = now_ms();
     let org = ProjectOrg {
         id: org_id,
         name: name.to_string(),
         slug: slug.clone(),
-        org_key: org_key_from_slug(&slug),
+        org_key,
         source: LOCAL_ORG_SOURCE.to_string(),
         sync_provider: NO_SYNC_PROVIDER.to_string(),
         sync_config_json: None,
@@ -170,6 +171,45 @@ pub fn configure_project_org_git_folder_sync(
     read_project_org(org_id)
 }
 
+/// Mark a project org as backed by the orgii collab plane (design
+/// §16.2): `source='collab'`, `sync_provider='orgii_collab'`. Mirrors
+/// [`configure_project_org_git_folder_sync`]; the two providers are
+/// mutually exclusive per org. `external_org_id` records the collab org
+/// id when the aliased local org uses a different id.
+pub fn configure_project_org_collab_sync(
+    org_id: &str,
+    external_org_id: Option<&str>,
+) -> Result<ProjectOrg, String> {
+    let org_id = org_id.trim();
+    if org_id.is_empty() {
+        return Err("Org ID is required".to_string());
+    }
+    let now = now_ms();
+    let connection = conn()?;
+    let updated = map_db(connection.execute(
+        "UPDATE project_orgs
+            SET source = ?1,
+                sync_provider = ?2,
+                sync_config_json = NULL,
+                sync_connection_id = NULL,
+                external_org_id = ?3,
+                updated_at = ?4
+          WHERE id = ?5",
+        params![
+            crate::sync::collab_bridge::COLLAB_ORG_SOURCE,
+            crate::sync::collab_bridge::COLLAB_SYNC_PROVIDER,
+            external_org_id,
+            now,
+            org_id,
+        ],
+    ))?;
+    if updated == 0 {
+        return Err(format!("org not found: {}", org_id));
+    }
+
+    read_project_org(org_id)
+}
+
 fn row_to_project_org(row: &rusqlite::Row<'_>) -> rusqlite::Result<ProjectOrg> {
     let created_at_ms: i64 = row.get(9)?;
     let updated_at_ms: i64 = row.get(10)?;
@@ -201,6 +241,44 @@ fn normalize_slug(value: &str) -> String {
         }
     }
     slug.trim_matches('-').to_string()
+}
+
+fn free_slug_and_key(
+    connection: &rusqlite::Connection,
+    base_slug: &str,
+) -> Result<(String, String), String> {
+    for attempt in 0..100u32 {
+        let slug = if attempt == 0 {
+            base_slug.to_string()
+        } else {
+            format!("{}-{}", base_slug, attempt + 1)
+        };
+        let org_key = if attempt == 0 {
+            org_key_from_slug(&slug)
+        } else {
+            let base_key = org_key_from_slug(base_slug);
+            let suffix = (attempt + 1).to_string();
+            let keep = 8usize.saturating_sub(suffix.len()).min(base_key.len());
+            format!("{}{}", &base_key[..keep], suffix)
+        };
+        let taken: bool = map_db(
+            connection
+                .query_row(
+                    "SELECT 1 FROM project_orgs WHERE slug = ?1 OR org_key = ?2",
+                    params![&slug, &org_key],
+                    |_| Ok(true),
+                )
+                .optional(),
+        )?
+        .unwrap_or(false);
+        if !taken {
+            return Ok((slug, org_key));
+        }
+    }
+    Err(format!(
+        "Could not derive a unique slug for org '{}'",
+        base_slug
+    ))
 }
 
 fn org_key_from_slug(slug: &str) -> String {
@@ -248,6 +326,25 @@ mod tests {
 
         let orgs = read_project_orgs().expect("read orgs");
         assert!(orgs.iter().any(|entry| entry.id == org.id));
+    }
+
+    #[test]
+    fn create_project_org_uniquifies_colliding_slug_and_key() {
+        let _sandbox = test_env::sandbox();
+        let first = create_project_org(&CreateProjectOrgRequest {
+            name: "vinceorz418's workspace".to_string(),
+            id: Some("cloud-org-a".to_string()),
+        })
+        .expect("create first org");
+        let second = create_project_org(&CreateProjectOrgRequest {
+            name: "vinceorz's workspace".to_string(),
+            id: Some("cloud-org-b".to_string()),
+        })
+        .expect("create second org despite key collision");
+
+        assert_ne!(first.slug, second.slug);
+        assert_ne!(first.org_key, second.org_key);
+        assert_eq!(second.org_key.len(), 8);
     }
 
     #[test]

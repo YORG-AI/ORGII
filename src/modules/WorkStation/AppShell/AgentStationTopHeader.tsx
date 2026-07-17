@@ -26,7 +26,6 @@ import {
   useShouldOffsetWorkStationTopBar,
 } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
 import { HEADER_ICON_SIZE } from "@src/modules/WorkStation/shared/tokens";
-import { useIsCompactLayout } from "@src/modules/shared/layouts/useCompactLayout";
 import { CollapsedSidebarButton } from "@src/scaffold/NavigationSidebar/CollapsedSidebarButton";
 import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
 import {
@@ -54,7 +53,6 @@ import {
 
 const AgentStationTopHeader: React.FC = memo(() => {
   const { t } = useTranslation("sessions");
-  const isCompactLayout = useIsCompactLayout();
   const shouldOffsetLeftChrome = useShouldOffsetWorkStationTopBar();
   const getStationChatVisible = useAtomValue(activeStationChatVisibleAtom);
   const chatWidth = useAtomValue(chatWidthAtom);
@@ -145,7 +143,7 @@ const AgentStationTopHeader: React.FC = memo(() => {
   return (
     <div className="flex shrink-0 flex-col">
       <div
-        className={`relative flex shrink-0 items-center ${isCompactLayout ? "h-11 min-h-11 pt-2" : "h-9 min-h-9"}`}
+        className="relative flex h-11 min-h-11 shrink-0 items-center pt-2"
         data-tauri-drag-region
         style={
           {

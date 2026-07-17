@@ -2,26 +2,43 @@
  * Renderer wrapper for `terminal-content` tabs (read-only terminal
  * output viewer opened from a pill double-click).
  *
- * The editor host currently pipes `tab.data.content` through a read-only
- * `CodeViewerContent`. Phase 2 will perform that adaptation here once
- * `CodeViewerContent` becomes mountable without the file-manager bag.
+ * Pipes `tab.data.content` through a read-only `CodeViewerContent` — a 1:1
+ * mirror of `TabContentRenderer`'s `case "terminal-content"`. Self-contained:
+ * it derives everything from `tab.data` and needs no host context (the viewer
+ * takes `repoPath=""`).
  */
-import React, { memo } from "react";
+import React, { Suspense, memo } from "react";
+
+import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import type { UnifiedTabContentProps } from "../types";
-import { HostCoupledPlaceholder } from "./HostCoupledPlaceholder";
+
+const CodeViewerContent = React.lazy(
+  () =>
+    import("@src/modules/WorkStation/CodeEditor/Panels/EditorMainPane/content/CodeViewerContent")
+);
+
+const LazyFallback = () => (
+  <Placeholder variant="loading" placement="detail-panel" fillParentHeight />
+);
 
 const TerminalContentTabRenderer: React.FC<UnifiedTabContentProps> = memo(
   ({ tab }) => {
-    const terminalName = String(
-      tab.data.terminalName ?? tab.title ?? "Terminal Output"
-    );
+    const terminalContent = String(tab.data.content || "");
+    const terminalName =
+      tab.data.terminalName || tab.title || "Terminal Output";
+
     return (
-      <HostCoupledPlaceholder
-        tabType="terminal-content"
-        title={terminalName}
-        hostNote="CodeViewerContent still requires editor host context"
-      />
+      <Suspense fallback={<LazyFallback />}>
+        <CodeViewerContent
+          selectedFile={String(terminalName)}
+          fileContent={terminalContent}
+          loading={false}
+          error={null}
+          repoPath=""
+          readOnly={true}
+        />
+      </Suspense>
     );
   }
 );

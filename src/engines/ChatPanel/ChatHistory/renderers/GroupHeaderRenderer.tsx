@@ -1,13 +1,13 @@
 import { useAtomValue } from "jotai";
-import React, { memo, useCallback, useState } from "react";
+import React, { memo, useCallback } from "react";
 
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { CHAT_ITEM_PADDING_X } from "@src/engines/ChatPanel/blocks/primitives/config";
 import { sessionIdAtom } from "@src/engines/SessionCore/core/atoms";
 import { loadSessionTurnBodyIntoStore } from "@src/engines/SessionCore/turns";
+import TurnCommentChrome from "@src/features/Org2Cloud/SessionComments/TurnCommentChrome";
 
 import UserChatItem from "../../ChatItems/UserChatItem";
-import ChatPinnedBars from "../../InputArea/components/ChatPinnedBars";
 import TurnCollapsePinBar from "../../InputArea/components/TurnCollapsePinBar";
 import type { OptimizedChatItem } from "../chatItemPipeline/types";
 import { CHAT_FOOTER_SPACER } from "../config/chatFooterSpacer";
@@ -74,7 +74,6 @@ function sameGroupHeaderProps(
     previousHeaderKey === nextHeaderKey &&
     previousSourceGroupIndex === nextSourceGroupIndex &&
     previousSourceGroupCount === nextSourceGroupCount &&
-    previous.hasPinnedContent === next.hasPinnedContent &&
     previous.collapseLabelVariant === next.collapseLabelVariant &&
     previous.hideCollapseTimeRange === next.hideCollapseTimeRange &&
     previous.suppressRoundGap === next.suppressRoundGap &&
@@ -101,8 +100,6 @@ export interface GroupHeaderRendererProps {
   /** Per-group metadata aligned with `groupHeaders`. */
   groupMeta: ChatGroupMeta[];
   groupCount: number;
-  /** Whether any pinned todo content exists for the current session. */
-  hasPinnedContent: boolean;
   collapseLabelVariant?: "agent" | "agents";
   /** Hide the turn time range when another surface already shows it. */
   hideCollapseTimeRange?: boolean;
@@ -111,10 +108,9 @@ export interface GroupHeaderRendererProps {
   /** Allows the latest turn to show the collapse bar after the session idles. */
   collapseTailWhenIdle?: boolean;
   /**
-   * Skip rendering the per-turn user-message card (`UserChatItem` + its
-   * attached `ChatPinnedBars`). The `TurnCollapsePinBar` ("Agent worked
-   * for X") still renders. Subagent cells use this so each turn's
-   * Coordinator prompt is hidden by default, surfaced via a toggle in
+   * Skip rendering the per-turn user-message card. The `TurnCollapsePinBar`
+   * ("Agent worked for X") still renders. Subagent cells use this so each
+   * turn's Coordinator prompt is hidden by default, surfaced via a toggle in
    * the pagination row.
    */
   hideUserMessage?: boolean;
@@ -134,8 +130,8 @@ export interface GroupHeaderRendererProps {
  * Renders the user-message group header row for ChatHistory.
  *
  * Wrapped in `memo` so it doesn't re-render every time the chat panel
- * tree re-mounts during scroll / event ticks. The header is one of N
- * sticky rows in the viewport, so even tiny wasted renders compound.
+ * tree re-mounts during scroll / event ticks. A long conversation can render
+ * many headers, so even tiny wasted renders compound.
  */
 export const GroupHeaderRenderer: React.FC<GroupHeaderRendererProps> = memo(
   ({
@@ -145,7 +141,6 @@ export const GroupHeaderRenderer: React.FC<GroupHeaderRendererProps> = memo(
     groupHeaders,
     groupMeta,
     groupCount,
-    hasPinnedContent,
     collapseLabelVariant = "agent",
     hideCollapseTimeRange = false,
     suppressRoundGap = false,
@@ -162,7 +157,6 @@ export const GroupHeaderRenderer: React.FC<GroupHeaderRendererProps> = memo(
     const collapseGroupIndex = sourceGroupIndex ?? groupIndex;
     const collapseGroupCount = sourceGroupCount ?? groupCount;
     const sessionId = useAtomValue(sessionIdAtom);
-    const [isEditing, setIsEditing] = useState(false);
 
     // Stabilize the per-message handlers so memoized children
     // (`UserChatItem`, `TurnCollapsePinBar`) can skip identical-prop
@@ -199,10 +193,6 @@ export const GroupHeaderRenderer: React.FC<GroupHeaderRendererProps> = memo(
 
     if (!header) return <div />;
 
-    const isLastGroup = collapseGroupIndex === collapseGroupCount - 1;
-    // Hide the attached pinned bar while the user is editing this message
-    // so the editor doesn't carry an unrelated todo strip below it.
-    const showPinnedBars = isLastGroup && hasPinnedContent && !isEditing;
     // Show the "Agent worked for …" pin bar on collapse-eligible turns.
     // The latest turn joins after the session has idled long enough.
     const showCollapseBar = isTurnCollapseEligible(
@@ -230,25 +220,20 @@ export const GroupHeaderRenderer: React.FC<GroupHeaderRendererProps> = memo(
         style={roundGap > 0 ? { marginTop: roundGap } : undefined}
       >
         {showUserPart && (
-          <div
-            className={
-              showPinnedBars
-                ? "flex flex-col rounded-[12px] bg-chat-container"
-                : "contents"
+          <UserChatItem
+            chatItem={header}
+            onEditSubmit={onEditSubmit ? handleEdit : undefined}
+            onRestoreCheckpoint={
+              onRestoreCheckpoint ? handleRestoreCheckpoint : undefined
             }
-          >
-            <UserChatItem
-              chatItem={header}
-              onEditSubmit={onEditSubmit ? handleEdit : undefined}
-              onRestoreCheckpoint={
-                onRestoreCheckpoint ? handleRestoreCheckpoint : undefined
-              }
-              onEditingChange={
-                isLastGroup && hasPinnedContent ? setIsEditing : undefined
-              }
-            />
-            {showPinnedBars && <ChatPinnedBars />}
-          </div>
+          />
+        )}
+        {/* Session comments (cloud replay surfaces only): anchor = the
+            turn's leading user-message event id. The component consumes
+            SessionCommentsContext and renders NOTHING when the surface has
+            no cloud comment target, so ordinary sessions are untouched. */}
+        {showUserPart && header.event?.id && (
+          <TurnCommentChrome anchorEventId={header.event.id} />
         )}
         {showCollapsePart && (
           <TurnCollapsePinBar

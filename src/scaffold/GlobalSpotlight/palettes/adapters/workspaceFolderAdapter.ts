@@ -39,6 +39,7 @@ export function buildWorkspaceFolderItems(
       data: {
         isSelector: true,
         isCurrentSelection: folder.id === activeFolderId,
+        contextMenuCopy: { name: folder.name, path: folder.path },
         tagLabel: folder.isPrimary ? "Primary" : undefined,
         gitStatus:
           changedCount > 0

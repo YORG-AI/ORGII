@@ -43,6 +43,7 @@ export function buildRepoSpotlightItem(
     getSelectionState,
   } = options;
   const inManageMode = !!manageAction;
+  const copyPath = repo.fs_uri?.replace(/^file:\/\//, "").replace(/\/+$/, "");
   return {
     id: `${idPrefix}${repo.id}`,
     label: repo.name,
@@ -56,6 +57,10 @@ export function buildRepoSpotlightItem(
       ...repo,
       isSelector: true,
       isCurrentSelection: repo.id === currentRepoId,
+      contextMenuCopy: {
+        name: repo.name,
+        path: copyPath || undefined,
+      },
       gitStatus: inManageMode ? undefined : repo.gitStatus,
       rightContent: inManageMode ? manageAction(repo) : undefined,
       selectionState: getSelectionState?.(repo),

@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::projects::io::projects::write_project;
-use crate::projects::io::work_items::{read_work_item, write_work_item};
+use crate::projects::io::work_items::{read_standalone_work_item, read_work_item, write_work_item};
 use crate::projects::types::{
     CommentEntry, ProjectMeta, TodoEntry, WorkItemHistoryAction, WorkItemPartialUpdate,
     WorkItemSchedule,
@@ -388,7 +388,7 @@ fn partial_clears_schedule_from_json_null() {
 }
 
 #[test]
-fn partial_moves_project_reference_and_ignores_clear() {
+fn partial_moves_between_project_and_standalone_scopes() {
     let _sandbox = test_env::sandbox();
     seed("demo", "p1");
     write_project("other", &project_fixture("p2", "Other"), "", true).expect("project p2");
@@ -412,7 +412,15 @@ fn partial_moves_project_reference_and_ignores_clear() {
     clear_project.project = Some(None);
     let without_project =
         update_work_item_partial("other", "AAA-0001", &clear_project).expect("clear project");
-    assert_eq!(without_project.frontmatter.project.as_deref(), Some("p2"));
+    assert!(without_project.frontmatter.project.is_none());
+    assert!(read_work_item("other", "AAA-0001").is_err());
+    assert_eq!(
+        read_standalone_work_item(Some("personal-org"), "AAA-0001")
+            .expect("read standalone work item")
+            .frontmatter
+            .project,
+        None
+    );
 }
 
 #[test]

@@ -26,7 +26,11 @@ import {
 import {
   CHEVRON_SIZE,
   TREE_INDENT_PX,
+  TREE_PADDING_RIGHT,
   TREE_PADDING_X,
+  TREE_ROW_INSET_CLASS,
+  TREE_ROW_INSET_X,
+  TREE_ROW_ROUNDED_CLASS,
 } from "@src/components/TreeRow";
 import { type NativeDragItem, useNativeDrag } from "@src/hooks/files";
 import { useIsFileSelected } from "@src/store/ui/fileTreeSelectionAtom";
@@ -134,17 +138,18 @@ const TreeNodeInner: React.FC<TreeNodeProps> = ({
   }, []);
 
   if (isRenaming) {
-    const paddingLeft = depth * TREE_INDENT_PX + TREE_PADDING_X;
+    const paddingLeft =
+      depth * TREE_INDENT_PX + TREE_PADDING_X - TREE_ROW_INSET_X;
     const isExpanded = node.expanded ?? false;
 
     return (
       <div
         ref={rowRef}
         data-tree-path={node.path}
-        className="tree-row-base group/item flex h-7 shrink-0 items-center gap-1.5 bg-primary-1"
+        className={`tree-row-base group/item ${TREE_ROW_INSET_CLASS} flex h-7 shrink-0 items-center gap-1.5 ${TREE_ROW_ROUNDED_CLASS} bg-primary-1`}
         style={{
           paddingLeft: `${paddingLeft}px`,
-          paddingRight: "8px",
+          paddingRight: `${TREE_PADDING_RIGHT - TREE_ROW_INSET_X}px`,
         }}
       >
         {node.icon ? (

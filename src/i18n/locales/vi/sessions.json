@@ -78,14 +78,83 @@
       }
     }
   },
-  "opsControl": {
+  "kanban": {
     "sessions": "Session",
-    "replayBarAriaLabel": "Ops Control replay timeline",
+    "fileSearch": {
+      "placeholder": "Tìm phiên theo đường dẫn tệp",
+      "noResults": "Không có phiên nào sửa tệp phù hợp"
+    },
+    "replayBarAriaLabel": "Kanban replay timeline",
     "followLabel": "Kanban hiện tại",
     "view": {
       "list": "Danh sách",
       "diary": "Nhật ký",
-      "opsControl": "Ops Control"
+      "kanban": "Kanban",
+      "dataSource": "Nguồn dữ liệu"
+    },
+    "dataSource": {
+      "title": "Nguồn dữ liệu",
+      "description": "Các công cụ lập trình bên ngoài mà ORGII phát hiện. Các ứng dụng có thể nhập hiển thị số phiên và có thể quét lại; số còn lại hiển thị trạng thái cài đặt và nơi lưu lịch sử.",
+      "rescanAll": "Quét lại tất cả",
+      "rescan": "Quét lại",
+      "rescanning": "Đang quét lại…",
+      "enable": "Bật",
+      "disable": "Tắt",
+      "lastScan": "Quét lần cuối {{time}}",
+      "neverScanned": "Chưa quét",
+      "frequencyTitle": "Tần suất tự quét",
+      "globalFrequency": "Tự quét nguồn bên ngoài",
+      "globalFrequencyDesc": "Tần suất quét mặc định cho nguồn bên ngoài được đặt thành “Mặc định”",
+      "activeSessionRefresh": "Làm mới phiên bên ngoài đang mở",
+      "activeSessionRefreshDesc": "Tần suất làm mới phiên bên ngoài hiện đang mở trong khung trò chuyện",
+      "activeSessionFreq": {
+        "3s": "Mỗi 3 giây",
+        "5s": "Mỗi 5 giây",
+        "10s": "Mỗi 10 giây",
+        "1m": "Mỗi phút"
+      },
+      "col": {
+        "source": "Nguồn",
+        "sessions": "Phiên",
+        "lastScan": "Quét lần cuối",
+        "frequency": "Tự quét",
+        "status": "Trạng thái"
+      },
+      "freq": {
+        "default": "Mặc định",
+        "manual": "Thủ công",
+        "60s": "Mỗi 60 giây",
+        "5m": "Mỗi 5 phút",
+        "1h": "Hàng giờ",
+        "1d": "Hàng ngày"
+      },
+      "openFolder": "Mở thư mục",
+      "tabs": {
+        "all": "Tất cả",
+        "apps": "Ứng dụng",
+        "clis": "CLI"
+      },
+      "views": {
+        "scanning": "Quét",
+        "hooks": "Hooks"
+      },
+      "sessions_other": "{{count}} phiên",
+      "details": {
+        "path": "Đường dẫn",
+        "storeType": "Loại lưu trữ",
+        "copyPath": "Sao chép đường dẫn"
+      },
+      "noPath": "Không phát hiện đường dẫn",
+      "notImported": "Chưa nhập",
+      "status": {
+        "ready": "Sẵn sàng",
+        "empty": "Không có lịch sử",
+        "loading": "Đang kiểm tra…",
+        "error": "Lỗi",
+        "installed": "Đã cài đặt",
+        "notInstalled": "Không phát hiện",
+        "disabled": "Đã tắt"
+      }
     },
     "list": {
       "updated": "Đã cập nhật",
@@ -182,11 +251,6 @@
       "merging": "Đang hợp nhất…",
       "merged": "Đã hợp nhất"
     },
-    "diff": {
-      "openDiffWindow": "Xem Diff",
-      "windowTitle": "Diff Phiên",
-      "filesChanged": "Tệp"
-    },
     "replay": {
       "replaySession": "Phát lại"
     },
@@ -224,6 +288,11 @@
       "commits_one": "{{count}} commit",
       "commits_other": "{{count}} commit",
       "committedRateShort": "{{percent}}% đã commit"
+    },
+    "detailView": {
+      "trajectory": "Trajectory",
+      "touchedFiles": "Touched files",
+      "noTouchedFiles": "No files touched"
     }
   },
   "changes": {
@@ -406,7 +475,6 @@
         "interactionAskQuestion": "Câu hỏi",
         "interactionAskPermission": "Yêu cầu quyền",
         "interactionModeSwitch": "Chuyển chế độ",
-        "interactionNextSteps": "Các bước tiếp theo",
         "interactionPlanDoc": "Tài liệu Plan",
         "interactionGeneric": "Tương tác"
       },
@@ -716,20 +784,17 @@
       "addApiKey": {
         "title": "Thêm API key"
       },
+      "installLatestUpdate": {
+        "title": "Cài đặt bản cập nhật mới nhất"
+      },
       "agents": {
         "title": "Agents"
       },
       "tabs": {
         "work": "Làm việc",
-        "explore": "Khám phá",
-        "heatmap": "Xu hướng"
-      },
-      "heatmap": {
-        "loading": "Đang tải xu hướng hoạt động…",
-        "empty": "Chưa có hoạt động phiên.",
-        "sessions": "Phiên",
-        "tokens": "Tokens",
-        "cost": "Chi phí"
+        "manage": "Quản lý",
+        "heatmap": "Xu hướng",
+        "runtime": "Thời gian chạy"
       },
       "quota": {
         "empty": "Chưa có dữ liệu quota. Hãy làm mới mức sử dụng từ Key Vault.",
@@ -777,6 +842,7 @@
     "defaultTitle": "Chat",
     "hideChatPanel": "Ẩn bảng trò chuyện",
     "showTokenUsage": "Hiển thị Token",
+    "showStatusBar": "Hiển thị thanh trạng thái",
     "compactDisplayMode": "Chế độ gọn",
     "replay": {
       "follow": "Theo dõi"
@@ -948,15 +1014,24 @@
         "importFailed": "Không thể nhập Session JSON."
       }
     },
-    "turnFiles": {
-      "filesChangedCount_one": "Đã thay đổi {{count}} tệp trong vòng này",
-      "filesChangedCount_other": "Đã thay đổi {{count}} tệp trong vòng này",
-      "historicalRoundDiffFiles_one": "Diff vòng trước · {{count}} tệp",
-      "historicalRoundDiffFiles_other": "Diff vòng trước · {{count}} tệp",
+    "turnMetadata": {
+      "noChanges": "Không có thay đổi tệp trong vòng này",
+      "earlierRound": "Vòng trước",
+      "files_one": "{{count}} tệp",
+      "files_other": "{{count}} tệp",
+      "reads_one": "{{count}} lượt đọc",
+      "reads_other": "{{count}} lượt đọc",
+      "searches_one": "{{count}} lượt tìm kiếm",
+      "searches_other": "{{count}} lượt tìm kiếm",
+      "failed": "Thất bại",
+      "commits_one": "{{count}} commit",
+      "commits_other": "{{count}} commit",
+      "pullRequests_one": "{{count}} PR",
+      "pullRequests_other": "{{count}} PR",
       "review": "Xem lại",
-      "showLess": "Thu gọn",
-      "showMore_one": "Hiển thị thêm {{count}}",
-      "showMore_other": "Hiển thị thêm {{count}}"
+      "showLess": "Hiện ít hơn",
+      "showMore_one": "Hiện thêm {{count}}",
+      "showMore_other": "Hiện thêm {{count}}"
     },
     "manageIssues": {
       "title": "Quản lý issues",
@@ -987,9 +1062,9 @@
         "sourcePrs": "PRs",
         "stateOpen": "Open",
         "stateClosed": "Closed",
-        "stateAll": "All states",
-        "assignedToMe": "Assigned to me",
-        "createdByMe": "Created by me",
+        "stateAll": "Tất cả trạng thái",
+        "assignedToMe": "Được giao cho tôi",
+        "createdByMe": "Do tôi tạo",
         "filters": "Filters",
         "openInGitHub": "Open in GitHub"
       }
@@ -1031,6 +1106,8 @@
     "deleteFileRunning": "Đang xóa {{name}}",
     "deleteFileDone": "Đã xóa {{name}}",
     "deleteFileFailed": "Không thể xóa {{name}}",
+    "deleteFileCompactRunning": "Đang xóa",
+    "deleteFileCompactDone": "Xóa",
     "directoryTree": "Cây thư mục",
     "ls": "ls",
     "listDirRunning": "Đang liệt kê thư mục",
@@ -1073,7 +1150,7 @@
     "pathCopied": "Đã sao chép đường dẫn!",
     "failedToCopyPath": "Sao chép đường dẫn thất bại",
     "copyFilePath": "Sao chép đường dẫn tệp",
-    "explore": "Khám phá",
+    "manage": "Quản lý",
     "readFile": "Đọc tệp",
     "readFileRunning": "Đang đọc",
     "readFileDone": "Đọc",
@@ -1096,12 +1173,30 @@
     "editFileDoneNoName": "Đã chỉnh sửa tệp",
     "editFileCompactRunning": "Đang chỉnh sửa",
     "editFileCompactDone": "Chỉnh sửa",
+    "editFiles": "Chỉnh sửa tệp",
+    "editSummary": {
+      "edit_one": "{{count}} lần sửa",
+      "edit_other": "{{count}} lần sửa",
+      "read_one": "{{count}} lần đọc",
+      "read_other": "{{count}} lần đọc",
+      "separator": ", "
+    },
     "editFileFailedNoName": "Đã thử chỉnh sửa",
     "file": "tệp",
     "runShellRunning": "Đang chạy lệnh",
     "terminalWaitRunning": "Đang chờ terminal hoàn tất",
     "runShellDone": "Đã chạy lệnh",
     "runShellFailed": "Lệnh thất bại",
+    "runCommands": "Chạy lệnh",
+    "terminalSummary": {
+      "command_one": "{{count}} lệnh",
+      "command_other": "{{count}} lệnh",
+      "wait_one": "{{count}} lần chờ",
+      "wait_other": "{{count}} lần chờ",
+      "check_one": "{{count}} lần kiểm tra",
+      "check_other": "{{count}} lần kiểm tra",
+      "separator": ", "
+    },
     "inspectTerminalsRunning": "Đang kiểm tra terminal",
     "inspectTerminalsDone": "Đã kiểm tra terminal",
     "inspectTerminalsFailed": "Kiểm tra terminal thất bại",
@@ -1135,6 +1230,7 @@
       "skip": "Bỏ qua",
       "noReason": "Agent đề xuất chuyển chế độ"
     },
+    "explore": "Khám phá",
     "exploreSummary": {
       "read_one": "{{count}} tệp",
       "read_other": "{{count}} tệp",
@@ -1145,7 +1241,8 @@
       "ls_one": "ls {{count}} thư mục",
       "ls_other": "ls {{count}} thư mục",
       "lsp_one": "{{count}} truy vấn LSP",
-      "lsp_other": "{{count}} truy vấn LSP"
+      "lsp_other": "{{count}} truy vấn LSP",
+      "separator": ", "
     },
     "categoryRead": "Đọc",
     "categorySearch": "Tìm kiếm",
@@ -1420,9 +1517,6 @@
     "toolSearchRunning": "Đang tìm kiếm công cụ",
     "toolSearchDone": "Đã tìm kiếm công cụ",
     "toolSearchFailed": "Tìm kiếm công cụ thất bại",
-    "suggestNextStepsRunning": "Đang đề xuất các bước tiếp theo",
-    "suggestNextStepsDone": "Đã đề xuất {{count}} bước tiếp theo",
-    "suggestNextStepsFailed": "Không thể đề xuất các bước tiếp theo",
     "agentSendMessageRunning": "Đang gửi tin nhắn tới Agent đồng đội",
     "agentSendMessageDone": "Đã gửi tin nhắn tới Agent đồng đội",
     "agentSendMessageFailed": "Không thể gửi tin nhắn tới Agent đồng đội",
@@ -2449,13 +2543,6 @@
       "missing": "Thiếu",
       "disabled": "Đã tắt"
     }
-  },
-  "worktreeCompare": {
-    "title": "So sánh Worktree",
-    "button": "So sánh",
-    "buttonTooltip": "So sánh diff Worktree cạnh nhau",
-    "noSessions": "Không có phiên nào để so sánh.",
-    "sessionTab": "Phiên {{n}}"
   },
   "groupChat": {
     "senderTitle": {

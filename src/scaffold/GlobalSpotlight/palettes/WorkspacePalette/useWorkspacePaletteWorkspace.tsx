@@ -333,6 +333,9 @@ export function useWorkspacePaletteWorkspace({
 
     return orderedWorkspaces.map((ws: WorkspaceRecord) => {
       const names = ws.folders.map(resolveWorkspaceRepoName);
+      const workspacePath =
+        ws.folders.find((folder) => folder.isPrimary)?.folderPath ??
+        ws.folders[0]?.folderPath;
       const isActive = ws.workspaceId === activeWorkspaceId;
       const repoCount = ws.folders.length;
       const itemId = `workspace-${ws.workspaceId}`;
@@ -380,6 +383,10 @@ export function useWorkspacePaletteWorkspace({
         data: {
           isCurrentSelection: isActive,
           updatedAt: ws.updatedAt,
+          contextMenuCopy: {
+            name: ws.name,
+            path: workspacePath || undefined,
+          },
           rightContent: isManageMode ? manageActions : repoCountBadge,
           selectionState: isManageMode
             ? { checked: isChecked, onToggle: () => toggleSelection(itemId) }

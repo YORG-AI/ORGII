@@ -4,7 +4,7 @@
  * Unified session sync hook replacing three divergent per-agent hooks.
  * Mounted ONCE in SessionSyncProvider (inside AppLayout).
  */
-import { useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import {
@@ -16,7 +16,10 @@ import {
   streamingDeltaContentAtom,
 } from "@src/engines/SessionCore";
 import { createLogger } from "@src/hooks/logger";
-import { canvasPreviewAtom } from "@src/store/session/canvasPreviewAtom";
+import {
+  canvasPreviewAtom,
+  dismissCanvasForSession,
+} from "@src/store/session/canvasPreviewAtom";
 import {
   type CliSessionStatus,
   isPendingCancelAtom,
@@ -28,10 +31,15 @@ import {
   setSessionRuntimeStatusAtom,
   streamRetryStatusAtom,
 } from "@src/store/session/cliSessionStatusAtom";
+import {
+  ACTIVE_EXTERNAL_SESSION_REFRESH_INTERVAL_MS,
+  activeExternalSessionRefreshFrequencyAtom,
+} from "@src/store/session/dataSourceConfigAtom";
 import { pendingPlanApprovalsAtom } from "@src/store/session/planApprovalAtom";
 import { wpReadOnlyAtom } from "@src/store/ui/chatPanelAtom";
 
 import "./adapters";
+import { useExternalHistoryAutoRefresh } from "./externalHistoryAutoRefresh";
 import {
   resetEmptySessionRefs,
   runSessionSwitchEffect,
@@ -91,11 +99,13 @@ export function useSessionSync(
   const setStreamingDeltaContent = useSetAtom(streamingDeltaContentAtom);
   const setPendingPlanApprovals = useSetAtom(pendingPlanApprovalsAtom);
   const setCanvasPreview = useSetAtom(canvasPreviewAtom);
+  const activeExternalSessionRefreshFrequency = useAtomValue(
+    activeExternalSessionRefreshFrequencyAtom
+  );
   const dismissCanvasAtNewTurn = useCallback(
     (sid: string) => {
       setCanvasPreview((prev) => {
-        if (!prev || prev.sessionId !== sid || prev.cardDismissed) return prev;
-        return { ...prev, cardDismissed: true };
+        return dismissCanvasForSession(prev, sid);
       });
     },
     [setCanvasPreview]
@@ -256,6 +266,15 @@ export function useSessionSync(
     [refs]
   );
   useSessionChannel(sessionId, handleChannelEvent);
+
+  useExternalHistoryAutoRefresh({
+    sessionId,
+    intervalMs:
+      ACTIVE_EXTERNAL_SESSION_REFRESH_INTERVAL_MS[
+        activeExternalSessionRefreshFrequency
+      ],
+    dispatchLoadSession,
+  });
 
   useEventStoreCacheSync(sessionId);
   useSessionSyncCleanup(refs);

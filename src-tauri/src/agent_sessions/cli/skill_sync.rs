@@ -1,6 +1,6 @@
 //! Skill synchronization for CLI agents.
 //!
-//! CLI agents (Cursor, Claude Code, Codex, Gemini, Kiro, Copilot) are external
+//! CLI agents (Cursor, Claude Code, Codex, Antigravity, Kiro, Copilot) are external
 //! subprocesses — we cannot control their system prompts. Each agent has its own
 //! native rules system that automatically loads project-level instruction files:
 //!
@@ -9,7 +9,6 @@
 //! | Cursor CLI  | `.cursor/rules/*.mdc` (alwaysApply)     |
 //! | Claude Code | `.claude/rules/*.md`                    |
 //! | Codex       | `AGENTS.md` (walks up from cwd)         |
-//! | Gemini CLI  | `GEMINI.md` (walks up from cwd)         |
 //! | Copilot     | reads `CLAUDE.md`, `AGENTS.md`, etc.    |
 //! | Kiro        | no known rules file                     |
 //!
@@ -128,9 +127,6 @@ fn rule_targets_for_agent(agent: &ModelType, workspace_path: &Path) -> Vec<PathB
             // file and rely on Codex picking up all .md files in the workspace root.
             // Use .codex/AGENTS.md which Codex also discovers.
             vec![workspace_path.join(".codex").join("orgii-skills.md")]
-        }
-        ModelType::GeminiCli => {
-            vec![workspace_path.join(".gemini").join("orgii-skills.md")]
         }
         ModelType::Copilot => {
             // Copilot reads CLAUDE.md, AGENTS.md, and GEMINI.md.
@@ -338,9 +334,6 @@ fn convention_targets_for_agent(agent: &ModelType, workspace_path: &Path) -> Vec
         }
         ModelType::Codex => {
             vec![workspace_path.join(".codex").join("orgii-conventions.md")]
-        }
-        ModelType::GeminiCli => {
-            vec![workspace_path.join(".gemini").join("orgii-conventions.md")]
         }
         ModelType::Copilot => {
             vec![workspace_path

@@ -7,6 +7,28 @@ import { deleteSession } from "@src/api/tauri/agent";
 import { benchmarkApi } from "@src/api/tauri/benchmark";
 import { rpc } from "@src/api/tauri/rpc";
 import Message from "@src/components/Message";
+import {
+  commitRefreshedAuth,
+  org2CloudAuthAtom,
+} from "@src/features/Org2Cloud/org2CloudAuthAtom";
+import { ensureFreshSession } from "@src/features/Org2Cloud/org2CloudClient";
+import {
+  buildCloudOrgSelectorValue,
+  org2CloudOrgsAtom,
+} from "@src/features/Org2Cloud/org2CloudOrgsAtom";
+import {
+  deleteSession as deleteCloudSession,
+  isOrg2SyncErrorCode,
+} from "@src/features/Org2Cloud/org2CloudSyncClient";
+import { org2CloudSyncEngine } from "@src/features/Org2Cloud/org2CloudSyncEngine";
+import {
+  getSessionForkedFrom,
+  removeForkRelayEntry,
+} from "@src/features/TeamCollaboration/forkSession";
+import {
+  isSessionTaggedToCloudOrg,
+  sessionOrgTagsAtom,
+} from "@src/features/TeamCollaboration/sessionOrgTagsAtom";
 import { createLogger } from "@src/hooks/logger";
 import type { GoToNewSessionOptions } from "@src/hooks/navigation/useAppNavigation";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
@@ -49,7 +71,6 @@ const log = createLogger("WorkstationSidebar");
 
 interface UseWorkstationSidebarHandlersParams {
   activeSessionId: string;
-  selectedMenuItemId: string;
   sessionMap: Map<string, Session>;
   isLoadMoreId: (id: string) => SessionListCategory | null;
   getLoadMoreGroupId: (id: string) => string | null;
@@ -65,7 +86,18 @@ interface UseWorkstationSidebarHandlersParams {
   setGroupVisibleCounts: Dispatch<SetStateAction<Map<string, number>>>;
   tCommon: (key: string, defaultValue?: string) => string;
   onOpenChatPanelTab: (tabId: string) => void;
+  onOpenSessionChatPanelTab: (options: {
+    sessionId: string;
+    sessionName?: string;
+    repoPath?: string;
+  }) => void;
   onCloseChatPanelTab: (tabId: string) => Promise<void>;
+  /**
+   * Cloud-org remote session rows (`cloudremote-<orgId>|<rowId>` ids, built
+   * by cloudSessionsSection). Consulted BEFORE the sessionMap fallback —
+   * these rows have no local Session yet. Returns true when handled.
+   */
+  onCloudRemoteItemClick?: (item: NavigationMenuItem) => boolean;
 }
 
 interface UseWorkstationSidebarHandlersResult {
@@ -77,7 +109,6 @@ interface UseWorkstationSidebarHandlersResult {
 
 export function useWorkstationSidebarHandlers({
   activeSessionId,
-  selectedMenuItemId,
   sessionMap,
   isLoadMoreId,
   getLoadMoreGroupId,
@@ -89,7 +120,9 @@ export function useWorkstationSidebarHandlers({
   setGroupVisibleCounts,
   tCommon,
   onOpenChatPanelTab,
+  onOpenSessionChatPanelTab,
   onCloseChatPanelTab,
+  onCloudRemoteItemClick,
 }: UseWorkstationSidebarHandlersParams): UseWorkstationSidebarHandlersResult {
   const navigateChatPanel = useSetAtom(chatPanelNavigateAtom);
   const setBenchmarkAgentBatchStatus = useSetAtom(
@@ -100,6 +133,10 @@ export function useWorkstationSidebarHandlers({
     benchmarkActiveBatchTaskIdAtom
   );
   const pagination = useAtomValue(sessionPaginationAtom);
+  const cloudAuth = useAtomValue(org2CloudAuthAtom);
+  const setCloudAuth = useSetAtom(org2CloudAuthAtom);
+  const cloudOrgs = useAtomValue(org2CloudOrgsAtom);
+  const sessionOrgTags = useAtomValue(sessionOrgTagsAtom);
   const handleDeleteSession = useCallback(
     async (sessionId: string) => {
       try {
@@ -108,12 +145,53 @@ export function useWorkstationSidebarHandlers({
           if (tabId) await onCloseChatPanelTab(tabId);
           return;
         }
+        const session = sessionMap.get(sessionId);
+        const forkedFrom = session ? getSessionForkedFrom(session) : undefined;
+        // Cloud retraction targets, mirroring the engine's publish targets:
+        // a fork publishes only to its source org; an ordinary session
+        // publishes to orgs it is explicitly owned by or Move-tagged to.
+        // Owner delete = retract everywhere it was published — a local-only
+        // delete would leave a ghost row every teammate still sees.
+        const cloudTargetOrgIds = forkedFrom
+          ? [forkedFrom.orgId]
+          : session
+            ? cloudOrgs
+                .filter(
+                  (org) =>
+                    session.orgId === buildCloudOrgSelectorValue(org.orgId) ||
+                    isSessionTaggedToCloudOrg(
+                      sessionOrgTags,
+                      sessionId,
+                      org.orgId
+                    )
+                )
+                .map((org) => org.orgId)
+            : [];
+        if (cloudTargetOrgIds.length > 0) {
+          const fresh = cloudAuth ? await ensureFreshSession(cloudAuth) : null;
+          if (!fresh || !cloudAuth) {
+            throw new Error("Cannot retract cloud session without cloud auth");
+          }
+          commitRefreshedAuth(setCloudAuth, cloudAuth, fresh);
+          for (const orgId of cloudTargetOrgIds) {
+            try {
+              await deleteCloudSession(fresh.accessToken, orgId, sessionId);
+            } catch (error) {
+              // Never pushed (or already tombstoned) — nothing to retract.
+              if (!isOrg2SyncErrorCode(error, "ORG2_SESSION_NOT_FOUND")) {
+                throw error;
+              }
+            }
+            org2CloudSyncEngine.invalidatePushedMetadataHash(orgId, sessionId);
+          }
+        }
         if (isCliSession(sessionId)) {
           await invokeTauri("cli_agent_delete", { sessionId });
         } else {
           await deleteSession(sessionId);
         }
         removeSession(sessionId);
+        removeForkRelayEntry(sessionId);
 
         if (sessionId === activeSessionId) {
           goToNewSession();
@@ -123,7 +201,17 @@ export function useWorkstationSidebarHandlers({
         Message.error(tCommon("sessions:chat.failedToDeleteSession"));
       }
     },
-    [activeSessionId, goToNewSession, onCloseChatPanelTab, tCommon]
+    [
+      activeSessionId,
+      cloudAuth,
+      setCloudAuth,
+      cloudOrgs,
+      goToNewSession,
+      onCloseChatPanelTab,
+      sessionMap,
+      sessionOrgTags,
+      tCommon,
+    ]
   );
 
   const handleExportMarkdown = useCallback(
@@ -159,7 +247,6 @@ export function useWorkstationSidebarHandlers({
   const handleMenuItemClick = useCallback(
     (_key: string, item: NavigationMenuItem) => {
       if (item.id === NEW_SESSION_MENU_ITEM_ID) {
-        if (selectedMenuItemId === NEW_SESSION_MENU_ITEM_ID) return;
         goToNewSession();
         return;
       }
@@ -211,6 +298,10 @@ export function useWorkstationSidebarHandlers({
         return;
       }
 
+      // Teammate rows in the cloud "Team sessions" section import remotely —
+      // resolve them before the local sessionMap fallback.
+      if (onCloudRemoteItemClick?.(item)) return;
+
       const originalSession = sessionMap.get(item.id);
       if (!originalSession) return;
 
@@ -241,6 +332,11 @@ export function useWorkstationSidebarHandlers({
 
       navigateChatPanel({ kind: CHAT_PANEL_SURFACE_KIND.SESSION });
       promoteActiveSessionCreatorDraft();
+      onOpenSessionChatPanelTab({
+        sessionId: item.id,
+        sessionName,
+        repoPath: originalSession.repoPath,
+      });
       openSession(item.id, sessionName, originalSession.repoPath);
     },
     [
@@ -252,9 +348,10 @@ export function useWorkstationSidebarHandlers({
       goToNewSession,
       navigateChatPanel,
       navigateTo,
+      onCloudRemoteItemClick,
       onOpenChatPanelTab,
+      onOpenSessionChatPanelTab,
       promoteActiveSessionCreatorDraft,
-      selectedMenuItemId,
       sessionRouteLabel,
       setBenchmarkActiveBatchId,
       setBenchmarkActiveBatchTaskId,

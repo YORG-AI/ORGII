@@ -471,24 +471,6 @@
     "claudeCodeAutodetectDesc": "從 macOS Keychain 或 ~/.claude/.credentials.json 讀取本機 Claude Code 登入",
     "claudeCodeConnected": "Claude Code 已連接",
     "claudeCodeDetectErrorHint": "請使用內嵌瀏覽器登入，或執行 claude auth login 後重新偵測",
-    "geminiSetupMethodDesc": "Connect Gemini CLI with Google sign-in, local detection, or a Gemini API key",
-    "geminiSignInTitle": "Gemini Sign In",
-    "geminiSignInDesc": "Sign in to Google for Gemini CLI in a native secure sign-in window. ORGII captures the callback, resolves the Code Assist project, and stores OAuth tokens locally.",
-    "signInWithGemini": "Sign in with Gemini",
-    "geminiReadyToSignIn": "Ready to sign in to Gemini",
-    "geminiSignedIn": "Gemini connected",
-    "geminiOAuthHint": "This saves a Gemini OAuth account for official Gemini CLI access",
-    "geminiBrowserHint": "Complete Google authorization in the secure sign-in window.",
-    "geminiSignInErrorHint": "Close the sign-in window and try signing in again. No token was saved",
-    "geminiProjectId": "Code Assist project: {{projectId}}",
-    "geminiAutodetectTitle": "Detect Gemini session",
-    "geminiAutodetectDesc": "Reads ~/.gemini/oauth_creds.json and GEMINI_API_KEY from your local environment",
-    "geminiApiKeyLabel": "Gemini API Key",
-    "geminiApiKeyDesc": "Paste a Gemini API key if you do not want to use Google sign-in",
-    "geminiApiKeyPlaceholder": "AIza...",
-    "geminiConnected": "Gemini connected",
-    "geminiDetectErrorHint": "Sign in with the secure native window, or paste a Gemini API key manually",
-    "geminiValidationErrorHint": "Check that the Gemini token or API key is valid and try again",
     "refreshModels": {
       "button": "重新整理模型",
       "failed": "重新整理模型失敗：{{error}}"
@@ -1047,7 +1029,7 @@
     "computerUse": "Computer Use",
     "rulesMemoryEvolution": "規則、記憶 & 進化",
     "externalSkillsets": "Skills, MCPs & Plugins",
-    "housekeeper": "常駐管家"
+    "housekeeper": "MiniCPM 常駐管家"
   },
   "projectConnections": {
     "linear": "Linear",
@@ -1340,6 +1322,15 @@
     "commitAttributionDesc": "為 ORGII 建立的 Commit 添加 ORGII Co-authored-by 署名",
     "prAttribution": "Pull Request Attribution",
     "prAttributionDesc": "為 ORGII 建立的 Pull Request 添加 ORGII 署名頁腳",
+    "autoCreatePr": "自動建立 Pull Request",
+    "autoCreatePrDesc": "當功能分支已完整推送且工作區沒有未提交的變更時，在 Workstation 原始碼管理中自動建立 Pull Request",
+    "promptInstructionsTitle": "提示詞指示",
+    "commitInstructions": "Commit 指示",
+    "commitInstructionsDesc": "加入 Commit 訊息生成提示詞，儲存在本機並傳送至所選的 Agent",
+    "commitInstructionsPlaceholder": "例如：使用繁體中文撰寫 Commit 訊息並包含詳細內文",
+    "pullRequestInstructions": "Pull Request 指示",
+    "pullRequestInstructionsDesc": "加入 Pull Request 標題與描述生成提示詞，儲存在本機並傳送至所選的 Agent",
+    "pullRequestInstructionsPlaceholder": "例如：在標題前加上問題 ID 並包含測試區段",
     "coauthor": "Co-authored-by",
     "coauthorDesc": "為 ORGII 建立的 Git Commit 添加 {{name}} <{{email}}>",
     "noTokenYet": "需要 Token？",
@@ -1696,6 +1687,91 @@
       "tokenCount": "~{{count}} Token",
       "emptyConfigPreview": "沒有配置內容"
     },
+    "sessionProvenance": {
+      "title": "Session 來源追蹤",
+      "capture": "擷取檔案互動",
+      "description": "以中繼資料記錄檔案讀取與寫入。不會儲存提示詞、工具輸出或檔案內容。",
+      "configPath": "以中繼資料記錄檔案讀取與寫入。不會儲存提示詞、工具輸出或檔案內容。設定：{{path}}",
+      "installDrift": "已儲存的偏好設定與已安裝的 hook 不一致。切換擷取功能即可修復受管理的 hook。設定：{{path}}",
+      "copyPath": "複製",
+      "reveal": "顯示",
+      "col": {
+        "source": "工具",
+        "config": "設定",
+        "capture": "擷取"
+      },
+      "status": {
+        "on": "開啟",
+        "off": "關閉",
+        "repair": "修復",
+        "needsApproval": "需要授權",
+        "checking": "檢查中…",
+        "error": "錯誤"
+      },
+      "codexApproval": {
+        "title": "在 Codex 中授權 ORG2 hooks",
+        "description": "ORG2 hooks 已安裝，但 Codex 仍需要你的明確授權才能執行。",
+        "instructions": "開啟 Codex，檢查 3 條 ORG2 hooks，然後選擇 Trust all and continue。收到第一條真實 hook 訊號後，ORG2 會自動標記為已啟用。",
+        "review": "在 Codex 中檢查",
+        "verified": "已透過真實 Codex hook 訊號驗證（{{time}}）。"
+      },
+      "signals": {
+        "title": "最近訊號",
+        "empty": "尚未收到任何 hook 訊號。",
+        "noResults": "沒有相符的訊號",
+        "search": "搜尋訊號",
+        "refresh": "重新整理",
+        "openSession": "開啟會話 {{session}}",
+        "diffLoading": "正在載入 patch…",
+        "diffEmpty": "尚未擷取到 patch。Provenance 會記錄檔案變更 metadata；只有在此會話的編輯匯入後才會顯示 diff。",
+        "col": {
+          "source": "工具",
+          "action": "動作",
+          "file": "檔案",
+          "workspace": "工作區",
+          "session": "會話",
+          "when": "時間"
+        },
+        "action": {
+          "read": "讀取",
+          "write": "寫入",
+          "create": "建立",
+          "delete": "刪除",
+          "rename": "重新命名",
+          "search": "搜尋"
+        }
+      }
+    },
+    "cliManagedConfig": {
+      "title": "CLI 設定切換",
+      "modeLabel": "模式",
+      "modeDesc": "預設設定會還原 CLI 原有設定；ORGII 託管會在備份後寫入本機代理設定。",
+      "modeDefault": "預設設定",
+      "modeOrgii": "ORGII 託管",
+      "conflict": "外部修改",
+      "conflictTitle": "設定衝突",
+      "conflictDesc": "ORGII 寫入後，目前 CLI 設定又被其他程式修改。",
+      "proxyStatus": "本機代理",
+      "proxyDefault": "預設設定模式",
+      "proxyReady": "代理已就緒",
+      "proxyNotReady": "代理未就緒",
+      "proxyDesc": "CLI 請求會透過 ORGII KeyVault 本機代理轉送。",
+      "proxyLifecycleDesc": "使用此模式時請保持 ORGII 運行。關閉視窗後代理會留在系統列；完全退出時會安全還原預設設定，外部修改不會被覆蓋。",
+      "keyLabel": "金鑰",
+      "keyDesc": "僅顯示與目前 CLI 和託管代理相容的 API Key。",
+      "selectKey": "選擇金鑰",
+      "modelLabel": "模型",
+      "selectModel": "選擇模型",
+      "configFile": "設定檔",
+      "actions": "操作",
+      "addKey": "新增金鑰",
+      "apply": "套用",
+      "restore": "還原預設設定",
+      "forceApply": "強制套用",
+      "forceRestore": "強制還原",
+      "applySuccess": "已套用 ORGII 託管設定",
+      "restoreSuccess": "已還原 CLI 預設設定"
+    },
     "codexConfig": {
       "sectionTitle": "配置",
       "model": "模型",
@@ -2029,8 +2105,7 @@
         "claude_code": "Claude Code",
         "copilot": "GitHub Copilot",
         "kiro": "Kiro",
-        "codex": "Codex",
-        "gemini_cli": "Gemini CLI"
+        "codex": "Codex"
       },
       "noSkillsResults": "未找到可導入的 Skills。已掃描 ~/.claude/skills 和 ~/.claude/commands。",
       "noAgentResults": "暫無可導入的 Agent",
@@ -2450,13 +2525,6 @@
     "installHintNote": "安裝缺失的依賴以啓用此功能",
     "installSection": "安裝"
   },
-  "worktreeCompare": {
-    "button": "比較",
-    "buttonTooltip": "比較工作樹",
-    "title": "比較工作樹",
-    "noSessions": "沒有可比較的會話",
-    "sessionTab": "會話"
-  },
   "creator": {
     "assign": "分配"
   },
@@ -2610,6 +2678,10 @@
       "uiControl": {
         "title": "輕量 ADE/UI 控制",
         "description": "MiniCPM 只能把請求識別成嚴格白名單裡的本地 action。"
+      },
+      "contextCompact": {
+        "title": "自動壓縮上下文",
+        "description": "會話閒置時由 MiniCPM 分段維護舊上下文，獨立於原有手動與自動壓縮。"
       }
     },
     "health": {
@@ -2641,7 +2713,10 @@
   },
   "cliLaunchProfiles": {
     "title": "啟動設定",
+    "plain": "基礎",
+    "plan": "計劃",
     "fullPermission": "完整權限",
+    "autoEdit": "自動編輯",
     "manual": "手動",
     "command": "命令",
     "environment": "環境變數",

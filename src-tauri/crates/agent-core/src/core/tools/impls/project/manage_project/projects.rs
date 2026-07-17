@@ -19,9 +19,15 @@ pub(super) async fn read(slug: &str) -> Result<String, ToolError> {
         .map_err(ToolError::ExecutionFailed)
 }
 
-pub(super) async fn create(params: &Value) -> Result<String, ToolError> {
+pub(super) async fn create(
+    params: &Value,
+    default_org_id: Option<&str>,
+) -> Result<String, ToolError> {
     let name = required_string(params, "name")?;
     let description = optional_string(params, "description").unwrap_or_default();
+    let org_id = optional_string(params, "project_org_id")
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| default_org_id.map(String::from));
     let status = optional_string(params, "status");
     let priority = optional_string(params, "priority");
     let health = optional_string(params, "health");
@@ -35,6 +41,7 @@ pub(super) async fn create(params: &Value) -> Result<String, ToolError> {
     crate::tool_infra::create_project(
         &name,
         &description,
+        org_id.as_deref(),
         status.as_deref(),
         priority.as_deref(),
         health.as_deref(),

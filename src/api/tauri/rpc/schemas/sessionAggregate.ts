@@ -2,7 +2,7 @@
  * Session Aggregate RPC Schemas
  *
  * Zod schemas for session_aggregate_list / session_get_aggregate_stats commands.
- * Rust source: src-tauri/src/agent_sessions/unified_stats/
+ * Rust source: src-tauri/src/agent_sessions/session_directory/
  *
  * All Rust structs use #[serde(rename_all = "camelCase")], so field names
  * arrive as camelCase — no transform needed.
@@ -35,6 +35,7 @@ const KeySourceSchema = z.enum(["own_key", "hosted_key"]);
 // ── Filter input ──
 
 export const SessionFilterInput = z.object({
+  sessionIds: z.array(z.string().min(1)).optional(),
   category: z.string().optional(),
   status: z.string().optional(),
   keySource: z.string().optional(),
@@ -48,8 +49,8 @@ export const SessionFilterInput = z.object({
   sortBy: z.string().optional(),
   sortOrder: z.enum(["asc", "desc"]).optional(),
   includeExternalHistory: z.boolean().optional(),
-  includeStats: z.boolean().optional(),
   externalHistorySource: z.string().optional(),
+  disabledExternalHistorySources: z.array(z.string()).optional(),
   activeOnly: z.boolean().optional(),
 });
 
@@ -57,32 +58,47 @@ export const SessionAggregateListInput = z.object({
   filter: SessionFilterInput.optional(),
 });
 
-export const SessionGetAggregateStatsInput = z.object({
-  sessionIds: z.array(z.string()).optional(),
-  keySource: z.string().optional(),
-});
-
-export const SessionUsageSummaryInput = z.object({
-  sessionId: z.string().min(1),
-});
-
-export const SessionHeatmapMetricSchema = z.enum([
-  "sessions",
-  "tokens",
-  "cost",
+export const ExternalHistorySidebarDateBucketSchema = z.enum([
+  "today",
+  "yesterday",
+  "thisWeek",
+  "older",
 ]);
 
-export const SessionHeatmapInput = z.object({
-  filter: z
-    .object({
-      startDate: z.string().optional(),
-      endDate: z.string().optional(),
-      metric: SessionHeatmapMetricSchema.optional(),
-      category: z.string().optional(),
-      keySource: z.string().optional(),
-      timezoneOffsetMinutes: z.number().int().optional(),
-    })
-    .optional(),
+export const ExternalHistorySidebarSourceRequestSchema = z.object({
+  source: z.string().min(1),
+  buckets: z
+    .array(
+      z
+        .object({
+          bucket: ExternalHistorySidebarDateBucketSchema,
+          startMs: z.number().int().optional(),
+          endMs: z.number().int().optional(),
+          limit: z.number().int().min(1).max(50),
+          offset: z.number().int().min(0),
+        })
+        .refine(
+          ({ startMs, endMs }) =>
+            startMs === undefined || endMs === undefined || startMs < endMs,
+          { message: "startMs must precede endMs" }
+        )
+    )
+    .refine(
+      (buckets) =>
+        new Set(buckets.map(({ bucket }) => bucket)).size === buckets.length,
+      { message: "date buckets must be unique" }
+    ),
+});
+
+export const ExternalHistorySidebarListInput = z.object({
+  requests: z
+    .array(ExternalHistorySidebarSourceRequestSchema)
+    .min(1)
+    .refine(
+      (requests) =>
+        new Set(requests.map(({ source }) => source)).size === requests.length,
+      { message: "external history sources must be unique" }
+    ),
 });
 
 /**
@@ -90,7 +106,7 @@ export const SessionHeatmapInput = z.object({
  *
  * Mutation API for in-session field edits. Mirrors the Rust
  * `SessionPatch` struct one-to-one — see
- * `src-tauri/src/agent_sessions/unified_stats/patch.rs` for the
+ * `src-tauri/src/agent_sessions/session_directory/patch.rs` for the
  * routing rules.
  *
  * Allowed fields are deliberately limited:
@@ -212,83 +228,37 @@ export const SessionAggregateRecordSchema = z.object({
   channel: z.string().optional(),
 });
 
-export const CategoryStatsSchema = z
-  .object({
-    cli: z.number().int(),
-    agent: z.number().int(),
-    os: z.number().int().optional(),
-  })
-  .transform((raw) => ({
-    cliAgent: raw.cli,
-    rustAgent: raw.agent + (raw.os ?? 0),
-  }));
-
-export const KeySourceStatsSchema = z.object({
-  ownKey: z.number().int(),
-  hostedKey: z.number().int(),
-});
-
-export const SessionStatsSchema = z.object({
-  total: z.number().int(),
-  active: z.number().int(),
-  completed: z.number().int(),
-  failed: z.number().int(),
-  byCategory: CategoryStatsSchema,
-  byKeySource: KeySourceStatsSchema,
-});
-
 export const SessionListResponseSchema = z.object({
   sessions: z.array(SessionAggregateRecordSchema),
-  stats: SessionStatsSchema.optional(),
 });
 
-export const AggregateStatsSchema = z.object({
-  totalCostUsd: z.number(),
-  totalTokensInput: z.number().int(),
-  totalTokensOutput: z.number().int(),
-  totalTokens: z.number().int(),
-  ongoingCount: z.number().int(),
-  completedCount: z.number().int(),
-  failedCount: z.number().int(),
+export const ExternalHistorySidebarRowSchema = z.object({
+  sessionId: z.string(),
+  name: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  repoPath: z.string().optional(),
+  model: z.string().optional(),
+  totalTokens: z.number().int().optional(),
+  filesChanged: z.number().int().optional(),
+  linesAdded: z.number().int().optional(),
+  linesRemoved: z.number().int().optional(),
+  touchedFiles: z.array(z.string()).optional(),
 });
 
-export const SessionUsageSummarySchema = z.object({
-  inputTokens: z.number().int(),
-  outputTokens: z.number().int(),
-  cacheReadTokens: z.number().int(),
-  cacheWriteTokens: z.number().int(),
-  totalTokens: z.number().int(),
-  contextTokens: z.number().int(),
-  costUsd: z.number(),
-});
-
-export const SessionHeatmapCellSchema = z.object({
-  day: z.number().int(),
-  date: z.string(),
-  label: z.string(),
-  hour: z.number().int(),
-  count: z.number().int(),
-  tokens: z.number().int(),
-  cost: z.number(),
-  sessions: z.array(
+export const ExternalHistorySidebarResponseSchema = z.object({
+  source: z.string(),
+  buckets: z.array(
     z.object({
-      sessionId: z.string(),
-      name: z.string(),
-      userInput: z.string().optional(),
-      cliAgentType: CliAgentTypeSchema.optional(),
-      agentIconId: z.string().optional(),
+      bucket: ExternalHistorySidebarDateBucketSchema,
+      sessions: z.array(ExternalHistorySidebarRowSchema),
+      hasMore: z.boolean(),
     })
   ),
 });
 
-export const SessionHeatmapResponseSchema = z.object({
-  cells: z.array(SessionHeatmapCellSchema),
-  maxCount: z.number().int(),
-  maxTokens: z.number().int(),
-  maxCost: z.number(),
-  totalSessions: z.number().int(),
-  totalTokens: z.number().int(),
-  totalCost: z.number(),
+export const ExternalHistorySidebarBatchResponseSchema = z.object({
+  sources: z.array(ExternalHistorySidebarResponseSchema),
 });
 
 export type SessionFilter = z.input<typeof SessionFilterInput>;
@@ -296,13 +266,19 @@ export type SessionAggregateRecord = z.output<
   typeof SessionAggregateRecordSchema
 >;
 export type SessionListResponse = z.output<typeof SessionListResponseSchema>;
-export type AggregateStats = z.output<typeof AggregateStatsSchema>;
-export type SessionUsageSummary = z.output<typeof SessionUsageSummarySchema>;
-export type SessionHeatmapMetric = z.output<typeof SessionHeatmapMetricSchema>;
-export type SessionHeatmapFilter = z.input<
-  typeof SessionHeatmapInput
->["filter"];
-export type SessionHeatmapResponse = z.output<
-  typeof SessionHeatmapResponseSchema
+export type ExternalHistorySidebarDateBucket = z.output<
+  typeof ExternalHistorySidebarDateBucketSchema
+>;
+export type ExternalHistorySidebarListRequest = z.input<
+  typeof ExternalHistorySidebarListInput
+>;
+export type ExternalHistorySidebarSourceRequest = z.input<
+  typeof ExternalHistorySidebarSourceRequestSchema
+>;
+export type ExternalHistorySidebarResponse = z.output<
+  typeof ExternalHistorySidebarResponseSchema
+>;
+export type ExternalHistorySidebarBatchResponse = z.output<
+  typeof ExternalHistorySidebarBatchResponseSchema
 >;
 export type SessionPatchPayload = z.input<typeof SessionPatchInput>;

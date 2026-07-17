@@ -18,7 +18,7 @@
  * goToSettings();
  *
  * // Navigate to WorkStation with specific app
- * goToEditor(); // or goToBrowser(), goToDatabase()
+ * goToEditor(); // or goToBrowser()
  *
  * // Navigate to session creator (clears active session)
  * goToNewSession(); // or goToNewSession({ projectId, workflowId })
@@ -62,7 +62,7 @@ import {
 // ============================================
 
 /** Workstation app modes */
-export type WorkStationApp = "code" | "database" | "browser";
+export type WorkStationApp = "code" | "browser";
 
 /** Navigation options */
 export interface NavigateOptions {
@@ -92,7 +92,6 @@ export interface GoToNewSessionOptions {
 
 const WORK_STATION_ROUTES: Record<WorkStationApp, string> = {
   code: ROUTES.workStation.code.path,
-  database: ROUTES.workStation.database.path,
   browser: ROUTES.workStation.browser.path,
 };
 
@@ -131,7 +130,6 @@ export interface UseAppNavigationReturn {
   goToAgentOrgs: () => void;
   goToEditor: () => void;
   goToBrowser: () => void;
-  goToDatabase: () => void;
   goToNewSession: (options?: GoToNewSessionOptions) => void;
 }
 
@@ -284,10 +282,6 @@ export function useAppNavigation(): UseAppNavigationReturn {
     navigateToWorkStation("browser");
   }, [navigateToWorkStation]);
 
-  const goToDatabase = useCallback(() => {
-    navigateToWorkStation("database");
-  }, [navigateToWorkStation]);
-
   const goToNewSession = useCallback(
     (options?: GoToNewSessionOptions) => {
       dispatchClearSession();
@@ -350,7 +344,6 @@ export function useAppNavigation(): UseAppNavigationReturn {
     goToAgentOrgs,
     goToEditor,
     goToBrowser,
-    goToDatabase,
     goToNewSession,
   };
 }

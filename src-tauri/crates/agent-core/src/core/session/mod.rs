@@ -18,6 +18,7 @@ pub mod exec_modes;
 pub(crate) mod file_registry;
 pub mod gateway_pipeline;
 pub mod goal_loop;
+pub mod housekeeper_compaction;
 pub mod launch;
 pub mod overrides;
 pub mod persistence;

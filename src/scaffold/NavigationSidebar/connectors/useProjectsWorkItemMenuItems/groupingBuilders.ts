@@ -10,7 +10,6 @@ import type {
 
 import {
   PROJECTS_WORK_ITEM_GROUP_PREFIX,
-  UNKNOWN_ORG_KEY,
   UNKNOWN_PROJECT_KEY,
   WORK_ITEM_PRIORITY_ORDER,
   WORK_ITEM_STATUS_ORDER,
@@ -39,6 +38,31 @@ interface GroupingBuilderContext {
   groupVisibleCounts: ReadonlyMap<string, number>;
   searchQuery: string;
   t: TFunction;
+  pendingSync?: PendingSyncSets;
+}
+
+export interface PendingSyncSets {
+  projectIds: ReadonlySet<string>;
+  workItemIds: ReadonlySet<string>;
+}
+
+function isWorkItemPendingSync(
+  context: GroupingBuilderContext,
+  workItem: SidebarAnyWorkItem
+): boolean {
+  return (
+    workItem.source === "local" &&
+    (context.pendingSync?.workItemIds.has(workItem.id) ?? false)
+  );
+}
+
+function isProjectPendingSync(
+  context: GroupingBuilderContext,
+  project: SidebarProject
+): boolean {
+  return (
+    context.pendingSync?.projectIds.has(project.projectData.meta.id) ?? false
+  );
 }
 
 interface OrgGroupingBuilderContext extends GroupingBuilderContext {
@@ -55,7 +79,13 @@ function appendGroupItems(
     context.groupVisibleCounts.get(groupId) ?? SESSION_SIDEBAR_PAGE_SIZE;
   const visibleItems = groupItems.slice(0, visibleCount);
   for (const workItem of visibleItems) {
-    items.push(buildWorkItemRow(context.t, workItem));
+    items.push(
+      buildWorkItemRow(
+        context.t,
+        workItem,
+        isWorkItemPendingSync(context, workItem)
+      )
+    );
   }
   if (groupItems.length > visibleItems.length) {
     items.push(groupLoadMoreRow(groupId, context.t("common:actions.loadMore")));
@@ -65,11 +95,6 @@ function appendGroupItems(
 export function buildByOrgMenuItems(
   context: OrgGroupingBuilderContext
 ): NavigationMenuItem[] {
-  const groups = new Map<string, SidebarAnyWorkItem[]>();
-  for (const workItem of sortWorkItemsByActivity(context.allWorkItems)) {
-    pushGroupedItems(groups, workItem.orgId || UNKNOWN_ORG_KEY, workItem);
-  }
-
   const query = context.searchQuery.trim().toLowerCase();
 
   const items: NavigationMenuItem[] = [];
@@ -87,8 +112,19 @@ export function buildByOrgMenuItems(
       .slice(0, SESSION_SIDEBAR_PAGE_SIZE);
     for (const project of recentProjects) {
       items.push(
-        buildProjectRow(project.projectData.slug, project.projectData.meta.name)
+        buildProjectRow(
+          context.t,
+          project.projectData.slug,
+          project.projectData.meta.name,
+          isProjectPendingSync(context, project)
+        )
       );
+    }
+    const recentWorkItems = sortWorkItemsByActivity(context.allWorkItems);
+    if (recentWorkItems.length > 0) {
+      const groupId = `${PROJECTS_WORK_ITEM_GROUP_PREFIX}recent`;
+      items.push(separator(groupId, context.t("projects:workItems.label")));
+      appendGroupItems(items, groupId, recentWorkItems, context);
     }
     return items;
   }
@@ -100,7 +136,14 @@ export function buildByOrgMenuItems(
       projectName.toLowerCase().includes(query) ||
       project.orgName.toLowerCase().includes(query)
     ) {
-      items.push(buildProjectRow(project.projectData.slug, projectName));
+      items.push(
+        buildProjectRow(
+          context.t,
+          project.projectData.slug,
+          projectName,
+          isProjectPendingSync(context, project)
+        )
+      );
     }
   }
   for (const workItem of sortWorkItemsByActivity(context.allWorkItems)) {
@@ -114,7 +157,13 @@ export function buildByOrgMenuItems(
       .join(" ")
       .toLowerCase();
     if (searchableText.includes(query)) {
-      items.push(buildWorkItemRow(context.t, workItem));
+      items.push(
+        buildWorkItemRow(
+          context.t,
+          workItem,
+          isWorkItemPendingSync(context, workItem)
+        )
+      );
     }
   }
   return items;

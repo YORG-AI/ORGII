@@ -51,7 +51,7 @@ export function createInspectChatStateHelper(store: E2EStore) {
       workstationActiveSessionId: string | null;
       sessionView: Json;
       coreSessionId: string | null;
-      stationMode: "my-station" | "agent-station" | "ops-control";
+      stationMode: "my-station" | "agent-station";
       chatPanelMaximized: boolean;
       snapshotEventCount: number;
       snapshotChatEventCount: number;

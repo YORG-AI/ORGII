@@ -19,6 +19,26 @@ use crate::core::session::prompt::cache::SkillListingCacheKey;
 use crate::core::session::prompt::sections::build_agent_org_context_section;
 use crate::core::session::types::{SystemPromptConfig, ToolSummary};
 
+fn render_linked_work_item_context(work_item_id: &str, project_slug: Option<&str>) -> String {
+    let scope_instruction = match project_slug {
+        Some(project_slug) => format!(
+            "Set `project_slug` to {} on every `manage_work_item` call for this item.",
+            serde_json::to_string(project_slug).expect("project slug is JSON serializable")
+        ),
+        None => "Omit `project_slug` on every `manage_work_item` call for this standalone item."
+            .to_string(),
+    };
+
+    format!(
+        "## Linked Work Item\n\n\
+         This planning session is already linked to Work Item `short_id` {}. \
+         {} Update this linked draft instead of creating a duplicate unless the user explicitly asks for multiple Work Items. \
+         Keep the current session linked after every update.",
+        serde_json::to_string(work_item_id).expect("work item id is JSON serializable"),
+        scope_instruction,
+    )
+}
+
 impl UnifiedMessageProcessor {
     /// Builds the system prompt split into `(stable, volatile)` bodies.
     ///
@@ -120,6 +140,35 @@ impl UnifiedMessageProcessor {
                 &self.agent_id,
                 self.runtime.agent_org_current_member_id.as_deref(),
             ));
+        }
+
+        // The ChatPanel "Create with AI" flow persists a draft before launch
+        // so the planning session has a durable Work Item target. The generic
+        // session runtime carries that linkage, but it was not previously
+        // visible to Work Item Manager; the model could therefore create a
+        // second item and strand the original "AI Work Item Draft". Keep this
+        // volatile (session-specific) and narrowly scoped to the manager.
+        if self.runtime.agent_definition_id.as_deref()
+            == Some(crate::core::definitions::WORK_ITEM_MANAGER_AGENT_ID)
+        {
+            let linked_session =
+                tokio::task::block_in_place(|| super::unified_persistence::get_session(session_id));
+            match linked_session {
+                Ok(Some(session)) => {
+                    if let Some(work_item_id) = session.work_item_id.as_deref() {
+                        dynamic_sections.push(render_linked_work_item_context(
+                            work_item_id,
+                            session.project_slug.as_deref(),
+                        ));
+                    }
+                }
+                Ok(None) => {}
+                Err(error) => warn!(
+                    session_id,
+                    error = %error,
+                    "[unified_processor] Failed to load linked Work Item prompt context"
+                ),
+            }
         }
 
         // Skill listing attachment (per-turn name+description summary). Full SKILL.md
@@ -393,5 +442,28 @@ impl UnifiedMessageProcessor {
             .into_iter()
             .map(|(name, description)| ToolSummary { name, description })
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod linked_work_item_context_tests {
+    use super::render_linked_work_item_context;
+
+    #[test]
+    fn renders_project_scope_without_ambiguous_discovery() {
+        let prompt = render_linked_work_item_context("AUTH-0042", Some("auth-core"));
+
+        assert!(prompt.contains("`short_id` \"AUTH-0042\""));
+        assert!(prompt.contains("Set `project_slug` to \"auth-core\""));
+        assert!(prompt.contains("instead of creating a duplicate"));
+    }
+
+    #[test]
+    fn renders_standalone_scope_without_fake_project() {
+        let prompt = render_linked_work_item_context("ORG-0042", None);
+
+        assert!(prompt.contains("`short_id` \"ORG-0042\""));
+        assert!(prompt.contains("Omit `project_slug`"));
+        assert!(!prompt.contains("personal-org"));
     }
 }

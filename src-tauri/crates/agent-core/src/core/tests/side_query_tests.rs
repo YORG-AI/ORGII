@@ -8,7 +8,9 @@ use crate::core::side_query::{
     extract_tool_choice_override, side_query, SideQueryConfig, StructuredOutput,
     TOOL_CHOICE_OVERRIDE_KEY,
 };
-use crate::providers::traits::{finish_reason, LLMProvider, LLMResponse, ProviderError, ToolCallRequest};
+use crate::providers::traits::{
+    finish_reason, LLMProvider, LLMResponse, ProviderError, ToolCallRequest,
+};
 
 // ── Mock infrastructure ──
 
@@ -98,7 +100,6 @@ impl MockProvider {
             call_count: Mutex::new(0),
         }
     }
-
 
     fn with_tool_call_finish(tool_name: &str, arguments: Value, finish: &str) -> Self {
         let mut provider = Self::with_tool_call(tool_name, arguments);
@@ -299,6 +300,173 @@ async fn structured_output_extracts_from_tool_call() {
     assert_eq!(structured["summary"], "Files were changed, tests passed");
 }
 
+// ── Empty forced-tool-call arguments (live bug: compaction summarizer
+//     answered a 233K-token prompt with an empty emit_summary `{}`) ──
+
+#[test]
+fn structured_arguments_are_empty_detects_useless_payloads() {
+    use super::structured_arguments_are_empty;
+
+    // Empty shapes → true
+    assert!(structured_arguments_are_empty(&json!(null)));
+    assert!(structured_arguments_are_empty(&json!({})));
+    assert!(structured_arguments_are_empty(&json!({"summary": ""})));
+    assert!(structured_arguments_are_empty(&json!({"summary": "  \n"})));
+    assert!(structured_arguments_are_empty(
+        &json!({"summary": null, "notes": ""})
+    ));
+
+    // Usable payloads → false
+    assert!(!structured_arguments_are_empty(
+        &json!({"summary": "real content"})
+    ));
+    assert!(!structured_arguments_are_empty(
+        &json!({"count": 0, "summary": ""})
+    ));
+    // Non-object shapes are the caller's schema problem, not "empty"
+    assert!(!structured_arguments_are_empty(&json!("bare string")));
+    assert!(!structured_arguments_are_empty(&json!([1, 2])));
+}
+
+/// First call answers the forced tool call with `{}`; the retry (which
+/// drops the tool_choice override) answers with a real tool call. The
+/// empty first response must NOT be accepted as structured output.
+struct EmptyThenGoodProvider {
+    call_count: Mutex<u32>,
+}
+
+#[async_trait]
+impl LLMProvider for EmptyThenGoodProvider {
+    async fn chat(
+        &self,
+        _messages: &[Value],
+        _tools: Option<&[Value]>,
+        _model: &str,
+        _max_tokens: u32,
+        _temperature: f32,
+    ) -> Result<LLMResponse, ProviderError> {
+        let mut count = self.call_count.lock().unwrap();
+        *count += 1;
+        let arguments = if *count == 1 {
+            json!({})
+        } else {
+            json!({"summary": "recovered on retry"})
+        };
+        Ok(LLMResponse {
+            content: None,
+            tool_calls: vec![ToolCallRequest {
+                id: format!("call_{count}"),
+                name: "emit_summary".to_string(),
+                arguments,
+                thought_signature: None,
+            }],
+            finish_reason: crate::providers::finish_reason::STOP.to_string(),
+            usage: HashMap::new(),
+            reasoning_content: None,
+            blocks: Vec::new(),
+            stream_error_kind: None,
+            retry_after_ms: None,
+        })
+    }
+
+    fn default_model(&self) -> &str {
+        "mock-model"
+    }
+
+    fn provider_name(&self) -> &str {
+        "mock"
+    }
+}
+
+#[tokio::test]
+async fn empty_structured_arguments_trigger_retry_instead_of_success() {
+    let provider = EmptyThenGoodProvider {
+        call_count: Mutex::new(0),
+    };
+    let messages = vec![json!({"role": "user", "content": "Summarize"})];
+    let config = SideQueryConfig {
+        structured: Some(StructuredOutput {
+            tool_name: "emit_summary".to_string(),
+            schema: json!({
+                "type": "object",
+                "properties": { "summary": { "type": "string" } },
+                "required": ["summary"]
+            }),
+        }),
+        ..SideQueryConfig::default()
+    };
+
+    let result = side_query(&provider, &messages, &config, "test-model")
+        .await
+        .unwrap();
+
+    assert_eq!(*provider.call_count.lock().unwrap(), 2);
+    let structured = result.structured.expect("retry should recover");
+    assert_eq!(structured["summary"], "recovered on retry");
+}
+
+/// Both attempts return empty arguments and no text at all → hard error,
+/// never an empty structured "success" (the caller would persist a blank
+/// summary over real history).
+struct AlwaysEmptyStructuredProvider;
+
+#[async_trait]
+impl LLMProvider for AlwaysEmptyStructuredProvider {
+    async fn chat(
+        &self,
+        _messages: &[Value],
+        _tools: Option<&[Value]>,
+        _model: &str,
+        _max_tokens: u32,
+        _temperature: f32,
+    ) -> Result<LLMResponse, ProviderError> {
+        Ok(LLMResponse {
+            content: None,
+            tool_calls: vec![ToolCallRequest {
+                id: "call_1".to_string(),
+                name: "emit_summary".to_string(),
+                arguments: json!({"summary": ""}),
+                thought_signature: None,
+            }],
+            finish_reason: crate::providers::finish_reason::STOP.to_string(),
+            usage: HashMap::new(),
+            reasoning_content: None,
+            blocks: Vec::new(),
+            stream_error_kind: None,
+            retry_after_ms: None,
+        })
+    }
+
+    fn default_model(&self) -> &str {
+        "mock-model"
+    }
+
+    fn provider_name(&self) -> &str {
+        "mock"
+    }
+}
+
+#[tokio::test]
+async fn persistently_empty_structured_arguments_return_error() {
+    let provider = AlwaysEmptyStructuredProvider;
+    let messages = vec![json!({"role": "user", "content": "Summarize"})];
+    let config = SideQueryConfig {
+        structured: Some(StructuredOutput {
+            tool_name: "emit_summary".to_string(),
+            schema: json!({
+                "type": "object",
+                "properties": { "summary": { "type": "string" } },
+                "required": ["summary"]
+            }),
+        }),
+        ..SideQueryConfig::default()
+    };
+
+    let result = side_query(&provider, &messages, &config, "test-model").await;
+    assert!(result.is_err());
+    assert!(result.unwrap_err().contains("empty content"));
+}
+
 #[tokio::test]
 async fn structured_output_length_finish_is_rejected_even_when_parseable() {
     let provider = MockProvider::with_tool_call_finish(
@@ -324,7 +492,11 @@ async fn structured_output_length_finish_is_rejected_even_when_parseable() {
         .expect_err("length-truncated structured output must not be accepted");
 
     assert!(err.contains("incomplete output"), "unexpected error: {err}");
-    assert_eq!(*provider.call_count.lock().unwrap(), 2, "should retry once before hard fail");
+    assert_eq!(
+        *provider.call_count.lock().unwrap(),
+        2,
+        "should retry once before hard fail"
+    );
 }
 
 #[tokio::test]

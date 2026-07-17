@@ -240,11 +240,16 @@ impl SkillsLoader {
             workspace_root.join(".claude").join("skills"),
             workspace_root.join(".codex").join("skills"),
             workspace_root.join(".opencode").join("skills"),
-            workspace_root.join(".gemini").join("skills"),
             workspace_root.join(".agents").join("skills"),
         ];
         if is_home_root {
             dirs.push(workspace_root.join(".cursor").join("skills-cursor"));
+            dirs.push(
+                workspace_root
+                    .join(".gemini")
+                    .join("antigravity-cli")
+                    .join("skills"),
+            );
             dirs.push(workspace_root.join(".hermes").join("skills"));
             dirs.push(workspace_root.join(".openclaw").join("skills"));
         } else if is_orgii_workspace {
@@ -1157,13 +1162,6 @@ mod include_filter_tests {
             skill_doc("opencode-review", "OpenCode repo skill"),
         )
         .expect("write opencode skill");
-        let gemini_skill_dir = repo.join(".gemini/skills/gemini-review");
-        fs::create_dir_all(&gemini_skill_dir).expect("mkdir gemini skill");
-        fs::write(
-            gemini_skill_dir.join("SKILL.md"),
-            skill_doc("gemini-review", "Gemini repo skill"),
-        )
-        .expect("write gemini skill");
         let agents_skill_dir = repo.join(".agents/skills/agent-review");
         fs::create_dir_all(&agents_skill_dir).expect("mkdir agent skill");
         fs::write(
@@ -1212,7 +1210,6 @@ mod include_filter_tests {
             vec![
                 ("agent-review".to_string(), "external-source".to_string()),
                 ("cursor-audit".to_string(), "external-source".to_string()),
-                ("gemini-review".to_string(), "external-source".to_string()),
                 ("opencode-review".to_string(), "external-source".to_string()),
                 ("windsurf-review".to_string(), "external-source".to_string()),
                 ("root-review".to_string(), "external-source".to_string()),
@@ -1226,10 +1223,6 @@ mod include_filter_tests {
             .load_skill("opencode-review")
             .unwrap_or_default()
             .contains("OpenCode repo skill"));
-        assert!(loader
-            .load_skill("gemini-review")
-            .unwrap_or_default()
-            .contains("Gemini repo skill"));
         assert!(loader
             .load_skill("agent-review")
             .unwrap_or_default()

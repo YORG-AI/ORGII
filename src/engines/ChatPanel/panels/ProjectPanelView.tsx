@@ -22,6 +22,7 @@ import {
 } from "@src/engines/ChatPanel/header";
 import KanbanBoard from "@src/features/KanbanBoard";
 import type { KanbanTask, TaskStatus } from "@src/features/KanbanBoard";
+import { allocateCloudAwareWorkItemId } from "@src/features/Org2Cloud/cloudShortId";
 import { createLogger } from "@src/hooks/logger";
 import {
   useCurrentUserMemberIds,
@@ -504,7 +505,10 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
   const handleAddKanbanTask = useCallback(
     async (status: TaskStatus) => {
       if (!projectSlug) return;
-      const shortId = await projectApi.allocateWorkItemId(projectSlug);
+      // Collab-synced orgs allocate on the server (design §16.5) — a local
+      // counter here could mint the same PREFIX-n as a teammate and merge
+      // two distinct work items on push.
+      const shortId = await allocateCloudAwareWorkItemId(projectSlug);
       const now = new Date().toISOString();
       const frontmatter: WorkItemFrontmatter = {
         id: shortId,

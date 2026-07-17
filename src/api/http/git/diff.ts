@@ -243,10 +243,13 @@ export const getGitDiffNumstatCombined = async (params: {
   repo_id: string;
   repo_path?: string;
   from_ref?: string;
+  /** Count untracked (new) files toward the totals. Defaults to false. */
+  include_untracked?: boolean;
 }): Promise<GitDiffNumstatCombinedResult | undefined> => {
   const queryParams = new URLSearchParams();
   if (params.repo_path) queryParams.append("path", params.repo_path);
   queryParams.append("from_ref", params.from_ref ?? "HEAD");
+  if (params.include_untracked) queryParams.append("include_untracked", "true");
 
   try {
     const response = await fetchRustApi<GitDiffNumstatCombinedResult>(
@@ -320,6 +323,7 @@ export async function fetchNumstatMap(
       repo_id: repoId,
       repo_path: repoPath,
       from_ref: fromRef,
+      include_untracked: true,
     });
     for (const entry of result?.files ?? []) {
       map.set(entry.path, {

@@ -1,157 +1,123 @@
+/**
+ * Backend contract shared by the projects/work-items sync channel and the
+ * teammate-session replay/fork importers.
+ *
+ * Post cloud-parity Phase E the only implementation is the managed ORG2
+ * Cloud plane (`org2CloudProjectsClient.createCloudProjectSyncClient` for
+ * the channel slice, `org2CloudBackendAdapter.buildCloudSessionFetchClient`
+ * for the segments read) — the self-hosted Supabase client and its ~30 RPC
+ * input types were deleted with the in-app self-hosted track. What remains
+ * is exactly the surface those cloud adapters implement.
+ */
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import type {
-  CollabChatMessageRecord,
-  CollabIdentityKind,
-  CollabInviteRecord,
-  CollabMemberRecord,
-  CollabOrgRecord,
   CollabProjectMetadataRecord,
   CollabWorkItemMetadataRecord,
-  RemoteTeammateSessionMetadata,
 } from "@src/store/collaboration/types";
 
-export interface CollabSyncProfile {
-  supabaseUrl: string;
-  anonKey: string;
-  orgSecret?: string;
-  memberId?: string;
-}
-
-export interface CreateOrgInput extends CollabSyncProfile {
-  name: string;
-  displayName: string;
-  identityKind: CollabIdentityKind;
-}
-
-export interface AcceptInviteInput extends CollabSyncProfile {
-  inviteCode: string;
-  displayName: string;
-  identityKind: CollabIdentityKind;
-}
-
-export interface CreateInviteInput extends CollabSyncProfile {
-  orgId: string;
-  usageLimit?: number;
-  expiresAt?: string;
-}
-
-export interface RemoveMemberInput extends CollabSyncProfile {
-  orgId: string;
-  memberId: string;
-}
-
-export interface ListChatMessagesInput extends CollabSyncProfile {
-  orgId: string;
-  limit?: number;
-}
-
-export interface PostChatMessageInput extends CollabSyncProfile {
-  orgId: string;
-  memberId: string;
-  authorDisplayName: string;
-  authorIdentityKind: CollabIdentityKind;
-  body: string;
-}
-
-export interface UpsertProjectMetadataInput extends CollabSyncProfile {
+export interface UpsertProjectMetadataInput {
   orgId: string;
   project: CollabProjectMetadataRecord;
+  /** OCC base version; defaults to `project.version` when omitted. */
+  baseVersion?: number | null;
 }
 
-export interface UpsertWorkItemInput extends CollabSyncProfile {
+export interface UpsertWorkItemInput {
   orgId: string;
   workItem: CollabWorkItemMetadataRecord;
+  /** OCC base version; defaults to `workItem.version` when omitted. */
+  baseVersion?: number | null;
 }
 
-export interface UpsertSessionMetadataInput extends CollabSyncProfile {
-  session: RemoteTeammateSessionMetadata;
+/** Server acknowledgement of an OCC upsert: the row's new version. */
+export interface CollabUpsertResult {
+  id: string;
+  version: number;
 }
 
-export interface RemoveSessionMetadataInput extends CollabSyncProfile {
+export interface DeleteProjectMetadataInput {
   orgId: string;
-  sourceSessionId: string;
-  ownerMemberId: string;
+  projectId: string;
 }
 
-export interface RequestSessionSnapshotInput extends CollabSyncProfile {
-  requestId: string;
+export interface DeleteWorkItemMetadataInput {
   orgId: string;
-  requesterMemberId: string;
-  ownerMemberId: string;
-  sourceSessionId: string;
+  workItemId: string;
 }
 
-export interface PublishSessionSnapshotInput extends CollabSyncProfile {
-  requestId: string;
-  orgId: string;
-  sourceSessionId: string;
-  session: RemoteTeammateSessionMetadata;
-  events: SessionEvent[];
+/** Server-allocated short id (design §16.5): `<PREFIX>-<n>`. */
+export interface AllocateWorkItemShortIdResult {
+  shortId: string;
+  n: number;
 }
 
-export interface DenySessionSnapshotInput extends CollabSyncProfile {
-  requestId: string;
-  reason: string;
-}
-
-export interface ListOrgStateInput extends CollabSyncProfile {
+export interface ListOrgStateInput {
   orgId: string;
   sinceTimestamp?: string;
 }
 
+/**
+ * Projects/work-items delta consumed by `ProjectSyncChannel.applyPulledState`
+ * (rows = payload merged with version/updatedByMemberId/deletedAt).
+ */
 export interface CollabOrgState {
-  orgs: CollabOrgRecord[];
-  members: CollabMemberRecord[];
-  invites: CollabInviteRecord[];
+  serverTime?: string;
   projects: CollabProjectMetadataRecord[];
   workItems: CollabWorkItemMetadataRecord[];
-  sessions: RemoteTeammateSessionMetadata[];
-  chatMessages: CollabChatMessageRecord[];
-  snapshotRequests: Array<{
-    requestId: string;
-    orgId: string;
-    requesterMemberId: string;
-    ownerMemberId: string;
-    sourceSessionId: string;
-    status: "pending" | "sent" | "denied" | "completed" | "failed";
-    error?: string;
-    createdAt: string;
-    updatedAt?: string;
-    session?: RemoteTeammateSessionMetadata;
-    events?: SessionEvent[];
-  }>;
 }
 
-export interface VerifySetupInput extends CollabSyncProfile {}
+// ---------------------------------------------------------------------------
+// Segments data plane (design §7). Events are stored as an immutable frozen
+// prefix (append-only numbered segments) plus one mutable tail segment.
+// The client layer owns gzip + segment hashing; callers pass plain events.
+// ---------------------------------------------------------------------------
 
-export interface VerifySetupResult {
-  ok: boolean;
-  schemaVersion?: number;
-  missing?: string[];
+/** One frozen segment to write: `seq` is server-side ordering (1-based). */
+export interface SessionEventsSegmentInput {
+  seq: number;
+  events: SessionEvent[];
+}
+
+export interface GetSessionEventSegmentsInput {
+  orgId: string;
+  sessionRowId: string;
+  /** Return frozen segments with seq strictly greater; tail always included. */
+  afterSeq?: number;
+  /**
+   * Link-share capability (design §6.4): when set, the call authenticates
+   * with the token alone (member/root credentials are not sent) and can only
+   * read the one session the token is bound to.
+   */
+  shareToken?: string;
+}
+
+export interface SessionEventSegmentRecord {
+  seq: number;
+  isTail: boolean;
+  events: SessionEvent[];
+  eventCount: number;
+  segmentHash: string;
+}
+
+/** Single-statement snapshot of the summary + requested segments. */
+export interface SessionEventSegmentsSnapshot {
+  /** null ⇒ the owner has never pushed segments for this session. */
+  epoch: number | null;
+  frozenSeq: number | null;
+  tailHash: string | null;
+  count: number | null;
+  segments: SessionEventSegmentRecord[];
 }
 
 export interface CollabSyncBackendClient {
-  verifySetup(input: VerifySetupInput): Promise<VerifySetupResult>;
-  createOrg(
-    input: CreateOrgInput
-  ): Promise<{ org: CollabOrgRecord; member: CollabMemberRecord }>;
-  acceptInvite(
-    input: AcceptInviteInput
-  ): Promise<{ org: CollabOrgRecord; member: CollabMemberRecord }>;
-  createInvite(input: CreateInviteInput): Promise<CollabInviteRecord>;
-  removeMember(input: RemoveMemberInput): Promise<CollabMemberRecord>;
-  listChatMessages(
-    input: ListChatMessagesInput
-  ): Promise<CollabChatMessageRecord[]>;
-  postChatMessage(
-    input: PostChatMessageInput
-  ): Promise<CollabChatMessageRecord>;
-  upsertProjectMetadata(input: UpsertProjectMetadataInput): Promise<void>;
-  upsertWorkItem(input: UpsertWorkItemInput): Promise<void>;
-  upsertSessionMetadata(input: UpsertSessionMetadataInput): Promise<void>;
-  removeSessionMetadata(input: RemoveSessionMetadataInput): Promise<void>;
-  requestSessionSnapshot(input: RequestSessionSnapshotInput): Promise<void>;
-  publishSessionSnapshot(input: PublishSessionSnapshotInput): Promise<void>;
-  denySessionSnapshot(input: DenySessionSnapshotInput): Promise<void>;
+  upsertProjectMetadata(
+    input: UpsertProjectMetadataInput
+  ): Promise<CollabUpsertResult>;
+  upsertWorkItem(input: UpsertWorkItemInput): Promise<CollabUpsertResult>;
+  deleteProjectMetadata(input: DeleteProjectMetadataInput): Promise<void>;
+  deleteWorkItemMetadata(input: DeleteWorkItemMetadataInput): Promise<void>;
+  getSessionEventSegments(
+    input: GetSessionEventSegmentsInput
+  ): Promise<SessionEventSegmentsSnapshot>;
   listOrgState(input: ListOrgStateInput): Promise<CollabOrgState>;
 }

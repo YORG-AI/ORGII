@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
-use std::thread;
 
 use chrono::{DateTime, Utc};
 use core_types::tool_names;
@@ -15,10 +14,10 @@ use super::types::{
     OrgtrackExportResult, OrgtrackFileTimelineEntry, OrgtrackIndex, OrgtrackIndexCommit,
     OrgtrackIndexFile, OrgtrackIndexSession, OrgtrackManifest, OrgtrackParsedCategory,
     OrgtrackProvenanceRecord, OrgtrackRawEvent, OrgtrackRawEventSource, OrgtrackReachability,
-    OrgtrackReachabilityState, OrgtrackScanCheckpoint, OrgtrackScanCounts, OrgtrackScanOptions,
-    OrgtrackScanPhase, OrgtrackScanProgress, OrgtrackScanStatus, OrgtrackSessionDetails,
-    OrgtrackSessionMeta, OrgtrackSessionTrajectory, OrgtrackSummaryBucket, OrgtrackSymbolEntry,
-    OrgtrackTier, OrgtrackTimelineEntryType, OrgtrackTimelineRecord, ORGTRACK_SCHEMA_VERSION,
+    OrgtrackReachabilityState, OrgtrackScanCheckpoint, OrgtrackScanCounts, OrgtrackScanPhase,
+    OrgtrackScanProgress, OrgtrackScanStatus, OrgtrackSessionDetails, OrgtrackSessionMeta,
+    OrgtrackSessionTrajectory, OrgtrackSummaryBucket, OrgtrackSymbolEntry, OrgtrackTier,
+    OrgtrackTimelineEntryType, OrgtrackTimelineRecord, ORGTRACK_SCHEMA_VERSION,
 };
 
 #[derive(Debug, Clone)]
@@ -68,78 +67,11 @@ pub fn initialize_orgtrack(
     export_orgtrack(repo_path, tier)
 }
 
-pub fn start_orgtrack_scan(options: OrgtrackScanOptions) -> Result<OrgtrackScanProgress, String> {
-    let repo_path = std::path::PathBuf::from(options.repo_path.clone());
-    paths::ensure_orgtrack_dirs(&repo_path)?;
-    if matches!(
-        read_scan_progress(&repo_path)?.map(|progress| progress.status),
-        Some(OrgtrackScanStatus::Running)
-    ) {
-        return read_scan_progress(&repo_path)?
-            .ok_or_else(|| "Orgtrack scan is running but status is missing".to_string());
-    }
-    let _ = fs::remove_file(paths::scan_cancel_path(&repo_path));
-    let started = initial_scan_progress(&repo_path, options.tier, OrgtrackScanStatus::Running);
-    write_scan_progress(&repo_path, &started)?;
-    thread::spawn(move || {
-        let result = export_orgtrack_with_options(&repo_path, options);
-        if let Err(err) = result {
-            let _ = mark_scan_failed(&repo_path, err);
-        }
-    });
-    Ok(started)
-}
-
-pub fn read_scan_progress(repo_path: &Path) -> Result<Option<OrgtrackScanProgress>, String> {
-    let path = paths::scan_progress_path(repo_path);
-    if !path.exists() {
-        return Ok(None);
-    }
-    paths::read_json(&path).map(Some)
-}
-
-pub fn cancel_orgtrack_scan(repo_path: &Path) -> Result<OrgtrackScanProgress, String> {
-    paths::ensure_orgtrack_dirs(repo_path)?;
-    fs::write(paths::scan_cancel_path(repo_path), "cancel")
-        .map_err(|err| format!("Failed to request orgtrack scan cancellation: {}", err))?;
-    let mut progress = read_scan_progress(repo_path)?.unwrap_or_else(|| {
-        initial_scan_progress(repo_path, OrgtrackTier::Meta, OrgtrackScanStatus::Cancelled)
-    });
-    progress.cancel_requested = true;
-    progress.updated_at = Utc::now().to_rfc3339();
-    write_scan_progress(repo_path, &progress)?;
-    Ok(progress)
-}
-
 pub fn export_orgtrack(
     repo_path: &Path,
     tier: OrgtrackTier,
 ) -> Result<OrgtrackExportResult, String> {
-    export_orgtrack_with_options(
-        repo_path,
-        OrgtrackScanOptions {
-            repo_path: repo_path.to_string_lossy().to_string(),
-            tier,
-            allow_raw_trajectory: tier.includes_trajectory(),
-            resume: true,
-            rebuild: false,
-        },
-    )
-}
-
-fn export_orgtrack_with_options(
-    repo_path: &Path,
-    options: OrgtrackScanOptions,
-) -> Result<OrgtrackExportResult, String> {
-    let tier = options.tier;
     paths::ensure_orgtrack_dirs(repo_path)?;
-    if options.rebuild {
-        clear_derived_outputs(repo_path)?;
-        paths::ensure_orgtrack_dirs(repo_path)?;
-    }
-    if !options.resume {
-        let _ = fs::remove_file(paths::scan_checkpoint_path(repo_path));
-    }
     let mut config = paths::load_config(repo_path)?;
     if !config.tracked_tiers.contains(&tier) {
         config.tracked_tiers.push(tier);
@@ -160,18 +92,13 @@ fn export_orgtrack_with_options(
     let mut scan = ScanContext {
         repo_path,
         progress: initial_scan_progress(repo_path, tier, OrgtrackScanStatus::Running),
-        checkpoint: if options.resume {
-            read_scan_checkpoint(repo_path)?.unwrap_or_default()
-        } else {
-            OrgtrackScanCheckpoint::default()
-        },
+        checkpoint: read_scan_checkpoint(repo_path)?.unwrap_or_default(),
     };
     scan.progress.phase = OrgtrackScanPhase::Discover;
     scan.progress.total =
         provenance.len() + local_edits.len() + session_ids.len() + commit_links.len() + 1;
-    scan.progress.resumable = options.resume;
+    scan.progress.resumable = true;
     write_scan_state(&mut scan)?;
-    check_cancelled(&mut scan)?;
 
     let mut provenance_records = Vec::new();
     let mut session_to_files: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
@@ -190,9 +117,6 @@ fn export_orgtrack_with_options(
             .checkpoint
             .last_provenance_id
             .is_some_and(|last_id| row.id <= last_id);
-        if !already_checkpointed {
-            check_cancelled(&mut scan)?;
-        }
         let file_path = paths::repo_relative_path(repo_path, &row.file_path);
         let linked_commits = commit_links.get(&row.id).cloned().unwrap_or_default();
         let session = sessions.get(&row.session_id);
@@ -334,9 +258,6 @@ fn export_orgtrack_with_options(
             .last_local_edit_event_id
             .as_ref()
             .is_some_and(|last_id| row.event_id <= *last_id);
-        if !already_checkpointed {
-            check_cancelled(&mut scan)?;
-        }
         let file_path = paths::repo_relative_path(repo_path, &row.file_path);
         if covered_session_files.contains(&(row.session_id.clone(), file_path.clone())) {
             continue;
@@ -431,9 +352,6 @@ fn export_orgtrack_with_options(
             .last_session_id
             .as_ref()
             .is_some_and(|last_id| session_id <= last_id);
-        if !already_checkpointed {
-            check_cancelled(&mut scan)?;
-        }
         let Some(session) = sessions.get(session_id) else {
             continue;
         };
@@ -520,9 +438,6 @@ fn export_orgtrack_with_options(
             .last_commit_sha
             .as_ref()
             .is_some_and(|last_sha| commit_sha <= last_sha);
-        if !already_checkpointed {
-            check_cancelled(&mut scan)?;
-        }
         let record = OrgtrackCommitRecord {
             schema_version: ORGTRACK_SCHEMA_VERSION,
             record_id: paths::record_id(&["commit", commit_sha]),
@@ -552,7 +467,6 @@ fn export_orgtrack_with_options(
 
     scan.progress.phase = OrgtrackScanPhase::Index;
     write_scan_state(&mut scan)?;
-    check_cancelled(&mut scan)?;
 
     let entries_written = file_entry_count.values().sum::<usize>();
     let manifest_version = entries_written as u64;
@@ -656,8 +570,6 @@ fn export_orgtrack_with_options(
     scan.progress.updated_at = Utc::now().to_rfc3339();
     scan.progress.completed_at = Some(scan.progress.updated_at.clone());
     write_scan_state(&mut scan)?;
-    let _ = fs::remove_file(paths::scan_cancel_path(repo_path));
-
     Ok(OrgtrackExportResult {
         repo_path: repo_path.to_string_lossy().to_string(),
         orgtrack_path: paths::orgtrack_root(repo_path)
@@ -722,31 +634,6 @@ fn write_scan_state(scan: &mut ScanContext<'_>) -> Result<(), String> {
         &paths::scan_checkpoint_path(scan.repo_path),
         &scan.checkpoint,
     )
-}
-
-fn mark_scan_failed(repo_path: &Path, err: String) -> Result<(), String> {
-    let mut progress = read_scan_progress(repo_path)?.unwrap_or_else(|| {
-        initial_scan_progress(repo_path, OrgtrackTier::Meta, OrgtrackScanStatus::Failed)
-    });
-    progress.status = OrgtrackScanStatus::Failed;
-    progress.last_error = Some(err);
-    progress.resumable = paths::scan_checkpoint_path(repo_path).exists();
-    progress.updated_at = Utc::now().to_rfc3339();
-    progress.completed_at = Some(progress.updated_at.clone());
-    write_scan_progress(repo_path, &progress)
-}
-
-fn check_cancelled(scan: &mut ScanContext<'_>) -> Result<(), String> {
-    if !paths::scan_cancel_path(scan.repo_path).exists() {
-        return Ok(());
-    }
-    scan.progress.status = OrgtrackScanStatus::Cancelled;
-    scan.progress.cancel_requested = true;
-    scan.progress.resumable = true;
-    scan.progress.updated_at = Utc::now().to_rfc3339();
-    scan.progress.completed_at = Some(scan.progress.updated_at.clone());
-    write_scan_state(scan)?;
-    Err("Orgtrack scan cancelled".to_string())
 }
 
 fn committed_files_count(
@@ -817,29 +704,6 @@ fn summary_buckets(counts: BTreeMap<String, usize>) -> Vec<OrgtrackSummaryBucket
         .collect();
     buckets.sort_by(|left, right| right.count.cmp(&left.count).then(left.key.cmp(&right.key)));
     buckets
-}
-
-fn clear_derived_outputs(repo_path: &Path) -> Result<(), String> {
-    for path in [
-        paths::index_path(repo_path),
-        paths::manifest_path(repo_path),
-        paths::files_dir(repo_path),
-        paths::commits_dir(repo_path),
-        paths::objects_dir(repo_path),
-        paths::packs_dir(repo_path),
-    ] {
-        if !path.exists() {
-            continue;
-        }
-        if path.is_dir() {
-            fs::remove_dir_all(&path)
-                .map_err(|err| format!("Failed to remove {}: {}", path.display(), err))?;
-        } else {
-            fs::remove_file(&path)
-                .map_err(|err| format!("Failed to remove {}: {}", path.display(), err))?;
-        }
-    }
-    Ok(())
 }
 
 fn write_record_if_missing<T: serde::Serialize>(path: &Path, value: &T) -> Result<(), String> {
@@ -1080,7 +944,6 @@ fn infer_cli_agent_type(session_id: &str, agent_kind: Option<&str>) -> Option<St
         "claude_code",
         "cursor_cli",
         "codex",
-        "gemini_cli",
         "copilot",
         "kiro",
         "opencode",
