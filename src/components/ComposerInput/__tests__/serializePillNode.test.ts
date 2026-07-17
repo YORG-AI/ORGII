@@ -72,17 +72,6 @@ describe("serializePillNode", () => {
     expect(serialized).toBe("some-file.ts [file:/repo/some file.ts]");
   });
 
-  it("preserves a pasted GitHub pull URL in its PR pill token", () => {
-    const serialized = serializePillNode({
-      filePath: "https://github.com/yorgai/ORG2/pull/406",
-      fileName: "yorgai/ORG2#406",
-      iconType: "pr",
-    });
-    expect(serialized).toBe(
-      "yorgai/ORG2#406 [pr:https://github.com/yorgai/ORG2/pull/406]"
-    );
-  });
-
   it("serializes browser-inspect DOM component pills with stored paste content", () => {
     window.__orgiiTerminalPillTexts = {
       "paste://inspect-1": '{"cssSelector":"button.primary"}',

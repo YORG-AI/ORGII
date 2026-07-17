@@ -15,7 +15,6 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import {
   insertNodeAtCaret,
   placeCaretAfter,
-  placeCaretAfterPill,
   placeCaretAtEnd,
 } from "./selection";
 import type { ComposerPillAttrs, ComposerSnapshot } from "./types";
@@ -145,11 +144,6 @@ export function useEditorOperations(): UseEditorOperationsResult {
       if (!prev || prev.nodeType !== Node.TEXT_NODE) {
         span.parentNode?.insertBefore(document.createTextNode(""), span);
       }
-
-      // Inserting the leading sentinel can make WebKit move its live Range
-      // to the pill's left edge. Correct it synchronously so there is never
-      // a painted frame with the caret/highlight before a first pill.
-      placeCaretAfterPill(span);
 
       syncPillEntries();
     },

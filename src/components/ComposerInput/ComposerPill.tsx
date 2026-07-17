@@ -9,7 +9,6 @@
  * Mirrors the inline context-pill visual + hover-preview behavior without
  * relying on a rich text editor framework.
  */
-import { useAtomValue } from "jotai";
 import {
   AtSign,
   Code,
@@ -18,6 +17,7 @@ import {
   GitPullRequest,
   Globe,
   ListChecks,
+  MessageSquare,
   MousePointer2,
   SquareMousePointer,
   Terminal,
@@ -34,41 +34,18 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 
-import GitHubPillIcon from "@src/assets/modelIcons/github-pill.svg";
 import FileTreePreview from "@src/components/FileTreePreview";
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import Tooltip from "@src/components/Tooltip";
 import { PILL_SIZE, readPillText } from "@src/config/pillTokens";
-import { sessionByIdAtom } from "@src/store/session/sessionAtom";
-import { openExternalLink } from "@src/util/platform/ipcRenderer";
-import { resolveSessionRowIcon } from "@src/util/session/sessionSidebarRow";
 
 import BasePill from "./BasePill";
-import { isGitHubPillUrl } from "./githubUrl";
 import type { ComposerPillAttrs, PillIconType } from "./types";
 import { truncateVisiblePillLabel } from "./utils";
 
 const PREVIEW_SHOW_DELAY = 300;
 const PREVIEW_HIDE_DELAY = 150;
 const ICON_PROPS = { size: PILL_SIZE.iconSize, strokeWidth: 1.75 } as const;
-
-function sessionIdFromPillPath(path: string): string {
-  const withoutScheme = path.startsWith("session://")
-    ? path.slice("session://".length)
-    : path;
-  return withoutScheme.split("::")[0].split("/")[0];
-}
-
-const SessionPillIcon: React.FC<{ path: string }> = memo(({ path }) => {
-  const sessionId = sessionIdFromPillPath(path);
-  const session = useAtomValue(sessionByIdAtom(sessionId));
-  const Icon = useMemo(
-    () => resolveSessionRowIcon(session ?? sessionId),
-    [session, sessionId]
-  );
-  return React.createElement(Icon, ICON_PROPS);
-});
-SessionPillIcon.displayName = "SessionPillIcon";
 
 /** Heuristic for resolving plain file/folder references into folder icons. */
 function isLikelyFolder(path: string, name: string): boolean {
@@ -141,9 +118,8 @@ const ComposerPill: React.FC<ComposerPillProps> = ({
   }, [lineStart, lineEnd]);
 
   const visibleFileName = useMemo(
-    () =>
-      isGitHubPillUrl(filePath) ? fileName : truncateVisiblePillLabel(fileName),
-    [fileName, filePath]
+    () => truncateVisiblePillLabel(fileName),
+    [fileName]
   );
 
   const isFolder = useMemo(() => {
@@ -177,13 +153,6 @@ const ComposerPill: React.FC<ComposerPillProps> = ({
 
   const handlePillClick = useCallback(
     (event: React.MouseEvent) => {
-      if (isGitHubPillUrl(filePath)) {
-        event.preventDefault();
-        event.stopPropagation();
-        void openExternalLink(filePath);
-        return;
-      }
-
       if ((event.target as HTMLElement).closest("svg")) return;
 
       if (iconType === "member") {
@@ -305,31 +274,19 @@ const ComposerPill: React.FC<ComposerPillProps> = ({
     }
     switch (iconType as PillIconType | null) {
       case "repo":
-      case "pr":
-      case "issue":
-        if (isGitHubPillUrl(filePath)) {
-          return (
-            <GitHubPillIcon
-              width={PILL_SIZE.iconSize}
-              height={PILL_SIZE.iconSize}
-              className="text-primary-6"
-            />
-          );
-        }
-        if (iconType === "repo") return <Code {...ICON_PROPS} />;
-        if (iconType === "pr") return <GitPullRequest {...ICON_PROPS} />;
-        return <ListChecks {...ICON_PROPS} />;
+        return <Code {...ICON_PROPS} />;
       case "branch":
         return <GitBranch {...ICON_PROPS} />;
       case "terminal":
         return <Terminal {...ICON_PROPS} />;
       case "session":
-        return <SessionPillIcon path={filePath} />;
+        return <MessageSquare {...ICON_PROPS} />;
       case "browser":
         return <Globe {...ICON_PROPS} />;
       case "project":
         return <FolderKanban {...ICON_PROPS} />;
       case "workitem":
+      case "issue":
         return <ListChecks {...ICON_PROPS} />;
       case "dom-element":
         return <SquareMousePointer {...ICON_PROPS} />;
@@ -339,6 +296,8 @@ const ComposerPill: React.FC<ComposerPillProps> = ({
         return <Toolbox {...ICON_PROPS} />;
       case "member":
         return <AtSign {...ICON_PROPS} />;
+      case "pr":
+        return <GitPullRequest {...ICON_PROPS} />;
       default:
         return (
           <FileTypeIcon

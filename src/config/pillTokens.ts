@@ -189,8 +189,7 @@ export const PILL_BASE_STYLE: CSSProperties = {
 } as const;
 
 /**
- * Editable composer: flat refs with primary-6 text, no filled pill background.
- * Monochrome icons use text-1 while multicolor SVGs retain their native fills.
+ * Editable composer: flat refs with primary-6 text/icon, no filled pill background.
  * Chat history read-only pills keep {@link PILL_BASE_STYLE}.
  */
 export const EDITOR_FILE_PILL_BASE_STYLE: CSSProperties = {
@@ -216,7 +215,6 @@ export const EDITOR_FILE_PILL_ICON_STYLE: CSSProperties = {
   marginRight: `${PILL_SIZE.gap}px`,
   verticalAlign: "-0.125em",
   transform: "translateY(2px)",
-  color: "var(--color-text-1)",
 };
 
 /** Icon container dimensions */
