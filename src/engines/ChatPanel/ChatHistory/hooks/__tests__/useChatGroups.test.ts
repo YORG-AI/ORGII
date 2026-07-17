@@ -17,6 +17,7 @@ import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 
 import type { OptimizedChatItem } from "../../chatItemPipeline/types";
 import { useChatGroups } from "../useChatGroups";
+import { projectChatGroups } from "../useChatGroupsProjection";
 
 vi.mock("react", () => ({
   useMemo: <Value>(factory: () => Value) => factory(),
@@ -157,6 +158,37 @@ function turnPreviewItem(text: string): OptimizedChatItem {
 function flatTexts(items: OptimizedChatItem[]): string[] {
   return items.map((entry) => entry.event?.displayText ?? "");
 }
+
+describe("projectChatGroups", () => {
+  it("matches the React hook adapter without requiring React state", () => {
+    const history = [
+      userItem("first turn"),
+      toolItem(),
+      assistantItem("first reply"),
+      userItem("current turn"),
+      assistantItem("current reply"),
+    ];
+    const options = { allTurnsCollapsed: true };
+
+    const projected = projectChatGroups(history, options);
+    const hooked = useChatGroups(history, options);
+
+    expect(projected).toEqual(hooked);
+  });
+
+  it("accepts custom turn callbacks as plain function inputs", () => {
+    const boundary = boundaryItem("new logical turn");
+    const history = [toolItem(), boundary, assistantItem("reply")];
+
+    const result = projectChatGroups(history, {
+      disableTurnCollapse: true,
+      isTurnBoundaryItem: (entry) => entry === boundary,
+    });
+
+    expect(result.groupHeaders).toEqual([null, boundary]);
+    expect(result.groupCounts).toEqual([1, 1]);
+  });
+});
 
 describe("useChatGroups collapse — terminal error survival", () => {
   it("collapses completed historical turns by default", () => {

@@ -9,12 +9,23 @@
  */
 import { readAwaitMetaFromResult } from "@src/engines/ChatPanel/rendering/adapters/awaitMeta";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
-import {
-  getBuiltinSimulatorApp,
-  getCliSimulatorApp,
-} from "@src/engines/SessionCore/rendering/registry/initToolRegistry";
-import { getActivitySummaryCategory } from "@src/engines/SessionCore/rendering/registry/toolCategories";
-import { normalizeFunctionName } from "@src/lib/activityData/activityNormalizers";
+
+const UI_CANONICAL_ALIASES: Readonly<Record<string, string>> = {
+  read: "read_file",
+  cat: "read_file",
+  file_read: "read_file",
+  list_directory: "list_dir",
+  file_search: "glob_file_search",
+  todowrite: "manage_todo",
+  todo_write: "manage_todo",
+  browser: "browser_navigate",
+  browser_act: "browser_navigate",
+};
+
+function normalizeCanonical(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  return UI_CANONICAL_ALIASES[normalized] ?? normalized;
+}
 
 /**
  * Get UI canonical name from a SessionEvent.
@@ -22,7 +33,7 @@ import { normalizeFunctionName } from "@src/lib/activityData/activityNormalizers
  */
 function getUiCanonical(event: SessionEvent): string {
   if (event.uiCanonical) return event.uiCanonical;
-  return normalizeFunctionName(event.functionName || event.actionType || "");
+  return normalizeCanonical(event.functionName || event.actionType || "");
 }
 
 // ============================================
@@ -31,6 +42,17 @@ function getUiCanonical(event: SessionEvent): string {
 
 export type ActionSummaryCategory = "read" | "search" | "list" | "glob" | "lsp";
 
+const SUMMARY_CATEGORY_BY_CANONICAL: Readonly<
+  Record<string, ActionSummaryCategory>
+> = {
+  read_file: "read",
+  code_search: "search",
+  search_in_file: "search",
+  glob_file_search: "glob",
+  list_dir: "list",
+  query_lsp: "lsp",
+};
+
 /**
  * Classify an event into an action summary category.
  * Returns null if the event is not an exploration/lookup action.
@@ -38,13 +60,7 @@ export type ActionSummaryCategory = "read" | "search" | "list" | "glob" | "lsp";
 export function getActionSummaryCategory(
   event: SessionEvent
 ): ActionSummaryCategory | null {
-  const uiCategory = event.uiCanonical
-    ? getActivitySummaryCategory(event.uiCanonical)
-    : null;
-  return (
-    uiCategory ??
-    getActivitySummaryCategory(event.actionType, event.functionName)
-  );
+  return SUMMARY_CATEGORY_BY_CANONICAL[getUiCanonical(event)] ?? null;
 }
 
 /**
@@ -69,35 +85,45 @@ export const isFileModificationEvent = (event: SessionEvent): boolean => {
   return isEditFileEvent(event) || isDeleteFileEvent(event);
 };
 
-/**
- * Get the simulator app type for a tool (Rust source of truth).
- */
+const SIMULATOR_APP_BY_CANONICAL: Readonly<Record<string, string>> = {
+  read_file: "CODE_EDITOR",
+  edit_file: "CODE_EDITOR",
+  edit_file_by_replace: "CODE_EDITOR",
+  delete_file: "CODE_EDITOR",
+  apply_patch: "CODE_EDITOR",
+  manage_todo: "CHANNELS",
+  control_browser_with_agent_browser: "BROWSER",
+  control_browser_with_playwright: "BROWSER",
+  control_external_browser: "BROWSER",
+  control_internal_browser: "BROWSER",
+  browser_navigate: "BROWSER",
+  browser_act: "BROWSER",
+};
+
+/** Serializable simulator classification shared by main-thread and Worker paths. */
 export function getToolSimulatorApp(
   rawName: string,
   normalizedName?: string
 ): string | null {
-  const cliApp = getCliSimulatorApp(rawName);
-  if (cliApp) return cliApp;
-
-  const nameToCheck = normalizedName ?? rawName;
-  const builtinApp = getBuiltinSimulatorApp(nameToCheck);
-  if (builtinApp) return builtinApp;
-
-  return null;
+  const canonical = normalizeCanonical(normalizedName ?? rawName);
+  return SIMULATOR_APP_BY_CANONICAL[canonical] ?? null;
 }
 
-/**
- * Check if an event routes to a specific simulator app type.
- */
 export function isEventInSimulatorApp(
   event: SessionEvent,
   appType: string
 ): boolean {
-  const rawName = event.functionName || event.actionType || "";
-  const normalized = getUiCanonical(event);
-  const toolApp = getToolSimulatorApp(rawName, normalized);
-  return toolApp === appType;
+  return (
+    getToolSimulatorApp(event.functionName, getUiCanonical(event)) === appType
+  );
 }
+
+const BROWSER_CANONICALS = new Set([
+  "control_browser_with_agent_browser",
+  "control_browser_with_playwright",
+  "control_external_browser",
+  "control_internal_browser",
+]);
 
 /**
  * Check if an event is a browser tool call.
@@ -108,7 +134,12 @@ export const isBrowserEvent = (event: SessionEvent): boolean => {
     event.actionType === "tool_call_start" ||
     event.actionType === "tool_call_update";
 
-  return isToolCallAction && isEventInSimulatorApp(event, "BROWSER");
+  const canonical = getUiCanonical(event);
+  return (
+    isToolCallAction &&
+    (BROWSER_CANONICALS.has(canonical) ||
+      getToolSimulatorApp(event.functionName, canonical) === "BROWSER")
+  );
 };
 
 /**

@@ -25,6 +25,7 @@ import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
 import { streamingDeltaContentAtom } from "@src/engines/SessionCore/core/atoms";
+import { derivedSnapshotAtom } from "@src/engines/SessionCore/core/atoms/events";
 import { sessionIdAtom } from "@src/engines/SessionCore/core/atoms/metadata";
 import { usePlanningIndicator } from "@src/engines/SessionCore/hooks";
 import { addressRunActiveAtom } from "@src/features/Org2Cloud/addressCommentsRun";
@@ -40,16 +41,13 @@ import {
   collapseAllCommandAtom,
   turnCollapseOverrideAtom,
 } from "@src/store/ui/collapseStateAtom";
+import { selectedExecutionThreadAtom } from "@src/store/ui/sessionPaginationAtom";
 import { isCursorIdeSession } from "@src/util/session/sessionDispatch";
 
 import SessionHeader from "../ChatItems/SessionHeader";
 import { useChatSessionId } from "../ChatSessionContext";
 import { useGroupChatContext } from "./GroupChatView/GroupChatContext";
-import {
-  isAgentOrgGroupChatUserMessage,
-  isAgentOrgInboxTranscriptEvent,
-  isCoordinatorHumanUserEvent,
-} from "./GroupChatView/groupChatUtils";
+import { isAgentOrgInboxTranscriptEvent } from "./GroupChatView/groupChatUtils";
 import { ChatHistoryDisplayModeProvider } from "./chatDisplayModeContext";
 import type { OptimizedChatItem } from "./chatItemPipeline/types";
 import ChatHistoryEmptyState from "./components/ChatHistoryEmptyState";
@@ -64,8 +62,6 @@ import { getChatContentBottomDistance } from "./config/chatFooterSpacer";
 import {
   useChatEmptyState,
   useChatFooterSpacer,
-  useChatGroups,
-  useChatHistoryOptimization,
   useChatHistoryState,
   useChatPagination,
   useChatScroll,
@@ -79,7 +75,9 @@ import {
   useTurnPageNavigation,
   useTurnPageSelectionState,
 } from "./hooks";
+import type { ChatGroupsProjectionOptions } from "./hooks/useChatGroupsProjection";
 import "./index.scss";
+import { useChatProjection } from "./projection/useChatProjection";
 
 // ============================================
 // PlanningIndicatorBridge
@@ -398,41 +396,34 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
   const turnCollapseOverrides = useAtomValue(turnCollapseOverrideAtom);
   const collapseAllCommand = useAtomValue(collapseAllCommandAtom);
 
-  // --- Optimization ---
-  const { optimizedChatHistory, sessionInfo } =
-    useChatHistoryOptimization(chatHistory);
-
+  const selectedThreadId = useAtomValue(selectedExecutionThreadAtom);
+  const derivedSnapshot = useAtomValue(derivedSnapshotAtom);
+  const snapshotSessionId =
+    derivedSnapshot?.lastEvent?.sessionId ??
+    derivedSnapshot?.chatEvents[0]?.sessionId ??
+    null;
+  const hasAuthoritativeSourceVersion =
+    derivedSnapshot !== null && snapshotSessionId === activeId;
+  const sourceVersion = hasAuthoritativeSourceVersion
+    ? derivedSnapshot.version
+    : chatHistory.length;
   const groupChat = useGroupChatContext();
-  const isTurnHeaderItem = useMemo(() => {
-    if (groupChat?.enabled) {
-      return (item: OptimizedChatItem) => {
-        const event = item.event;
-        if (!event) return false;
-        return isCoordinatorHumanUserEvent(
-          event,
-          groupChat.coordinatorSessionId
-        );
-      };
-    }
-    return (item: OptimizedChatItem) => {
-      const event = item.event;
-      if (event?.source !== "user") return false;
-      if (!event.displayText) return false;
-      return !isAgentOrgInboxTranscriptEvent(event);
-    };
-  }, [groupChat]);
 
-  const isTurnBoundaryItem = useMemo(() => {
-    if (!groupChat?.enabled) return undefined;
-    return (item: OptimizedChatItem) => {
-      const event = item.event;
-      return Boolean(event && isAgentOrgGroupChatUserMessage(event));
+  const sessionInfo = useMemo(() => {
+    const start = chatHistory.find(
+      (event) => event.actionType === "session_start"
+    );
+    if (!start) return null;
+    return {
+      sessionId: start.sessionId,
+      model:
+        (start.args?.model as string) || (start.result?.model as string) || "",
+      startedAt: start.createdAt,
     };
-  }, [groupChat?.enabled]);
-
+  }, [chatHistory]);
   const tailTurnId = useMemo(() => {
-    for (let index = optimizedChatHistory.length - 1; index >= 0; index--) {
-      const event = optimizedChatHistory[index].event;
+    for (let index = chatHistory.length - 1; index >= 0; index--) {
+      const event = chatHistory[index];
       if (!event?.id) continue;
       if (groupChat?.enabled) {
         if (groupChat.isCoordinatorTurnHeader(event)) return event.id;
@@ -443,7 +434,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
       }
     }
     return null;
-  }, [optimizedChatHistory, groupChat]);
+  }, [chatHistory, groupChat]);
 
   const tailIdleKey =
     !isAgentWorking && !isCursorIde && activeId && tailTurnId
@@ -490,6 +481,51 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
   // message before flatItems/groupCounts are returned. Hiding items inline
   // leaves virtualization measurement caches stuck at pre-collapse heights,
   // which shows up as a tall blank tail beneath the surviving last reply.
+  const groupOptions = useMemo<ChatGroupsProjectionOptions>(
+    () => ({
+      collapseOverrides: turnCollapseOverrides,
+      isAgentWorking,
+      collapseTailWhenIdle,
+      forceCollapseAllTurns,
+      defaultTurnCollapsed,
+      allTurnsCollapsed:
+        collapseAllCommand.epoch > 0 && collapseAllCommand.collapsed
+          ? true
+          : undefined,
+      turnGrouping: groupChat?.enabled
+        ? {
+            mode: "agent-org",
+            coordinatorSessionId: groupChat.coordinatorSessionId,
+          }
+        : { mode: "standard" },
+    }),
+    [
+      collapseAllCommand,
+      collapseTailWhenIdle,
+      defaultTurnCollapsed,
+      forceCollapseAllTurns,
+      groupChat,
+      isAgentWorking,
+      turnCollapseOverrides,
+    ]
+  );
+  const projectionOptions = useMemo(
+    () => ({
+      selectedThreadId,
+      skipPolicy: "none" as const,
+      groups: groupOptions,
+    }),
+    [groupOptions, selectedThreadId]
+  );
+  const projection = useChatProjection({
+    sessionId: activeId,
+    sourceVersion,
+    events: chatHistory,
+    options: projectionOptions,
+    enabled: hasAuthoritativeSourceVersion,
+  });
+  const activeProjectionHistory = projection.optimizedChatHistory;
+  const projectedGroups = projection.groups;
   const {
     groupCounts,
     groupHeaders,
@@ -499,25 +535,22 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     originalToFlatIndex,
     lastGroupFirstFlatIndex: _lastGroupFirstFlatIndex,
     lastAssistantFlatIndexPerItem,
-  } = useChatGroups(optimizedChatHistory, {
-    collapseOverrides: turnCollapseOverrides,
-    isAgentWorking,
-    collapseTailWhenIdle,
-    forceCollapseAllTurns,
-    defaultTurnCollapsed,
-    allTurnsCollapsed:
-      collapseAllCommand.epoch > 0 && collapseAllCommand.collapsed
-        ? true
-        : undefined,
-    isTurnBoundaryItem,
-    isTurnHeaderItem,
-  });
+  } = projectedGroups ?? {
+    groupCounts: [],
+    groupHeaders: [],
+    groupMeta: [],
+    flatItems: [],
+    totalFlatItems: 0,
+    originalToFlatIndex: new Map<number, number>(),
+    lastGroupFirstFlatIndex: null,
+    lastAssistantFlatIndexPerItem: [],
+  };
 
   useEffect(() => {
     const key = memoryStatsKeyRef.current;
     updateChatRenderedTreeMemoryEntry(key, {
       bytes:
-        estimateRuntimeValueBytes(optimizedChatHistory) +
+        estimateRuntimeValueBytes(activeProjectionHistory) +
         estimateRuntimeValueBytes(flatItems) +
         groupCounts.length * 8,
       items: totalFlatItems,
@@ -525,7 +558,13 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     });
 
     return () => removeChatRenderedTreeMemoryEntry(key);
-  }, [activeId, flatItems, groupCounts, optimizedChatHistory, totalFlatItems]);
+  }, [
+    activeId,
+    activeProjectionHistory,
+    flatItems,
+    groupCounts,
+    totalFlatItems,
+  ]);
 
   // --- Turn page selection state ---
   // Owns the user-selected page index that drives `useChatTurnPagination`.
@@ -636,10 +675,8 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
       .join("|");
     return `${collapseAllCommand.epoch}:${collapseAllCommand.collapsed ? 1 : 0}:${overrideKey}`;
   }, [collapseAllCommand, turnCollapseOverrides]);
-  const virtualListGroupShapeKey = displayGroupCounts.join(",");
-  const virtualListItemShapeKey = displayFlatItems
-    .map((item) => item.chunk_id)
-    .join(",");
+  const virtualListGroupShapeKey = projection.groupShapeDigest;
+  const virtualListItemShapeKey = projection.itemShapeDigest;
   const virtualListDataKey = `${activeId ?? "no-session"}:${
     turnPaginationEnabled ? `page-${currentPageIndex}` : "all"
   }:${virtualListGroupShapeKey}:${virtualListItemShapeKey}:${collapseStateKey}`;
@@ -687,7 +724,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     handleCloseSearch,
   } = useChatSearchIntegration({
     chatHistory,
-    optimizedChatHistory,
+    optimizedChatHistory: activeProjectionHistory,
     virtualListRef,
     chatContainerRef,
     originalToFlatIndex,
@@ -789,7 +826,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
   const { footerSpacerHeight, virtuosoScrollerRef, isContentOverflowingRef } =
     useChatFooterSpacer({
       scrollAreaRef,
-      optimizedChatHistoryLength: optimizedChatHistory.length,
+      optimizedChatHistoryLength: activeProjectionHistory.length,
       totalFlatItems: displayTotalFlatItems,
       planningIndicatorCount,
       lastGroupFirstFlatIndex: displayLastGroupFirstFlatIndex,
@@ -943,7 +980,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     atBottom,
     isPendingCancelRef,
     isContentOverflowingRef,
-    optimizedChatHistoryLength: optimizedChatHistory.length,
+    optimizedChatHistoryLength: activeProjectionHistory.length,
     pinLastGroupRef,
     manualScrollAtRef,
     programmaticScrollAtRef,
@@ -1262,9 +1299,9 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
         className="wp__chat__history relative z-20 flex h-full min-w-0 max-w-full flex-1 flex-col self-stretch overflow-hidden"
         data-testid="chat-message-list"
         data-chat-history-count={chatHistory.length}
-        data-optimized-count={optimizedChatHistory.length}
+        data-optimized-count={activeProjectionHistory.length}
         data-flat-count={displayTotalFlatItems}
-        data-group-counts={displayGroupCounts.join(",")}
+        data-group-shape={projection.groupShapeDigest}
         ref={chatContainerRef as React.RefObject<HTMLDivElement>}
         style={
           {
@@ -1406,7 +1443,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
               className="absolute inset-0 overflow-hidden"
             >
               <div className="h-full w-full">
-                {optimizedChatHistory.length > 0 ? (
+                {activeProjectionHistory.length > 0 ? (
                   <>
                     <TurnMetadataLoader
                       sessionId={activeId}
@@ -1479,6 +1516,9 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
                     emptyConfirmed={emptyConfirmed}
                     shouldShowEmpty={shouldShowEmpty}
                     isRolledBack={isRolledBack}
+                    projectionPending={
+                      projection.pending && chatHistory.length > 0
+                    }
                     onReload={handleReloadSession}
                   />
                 )}
