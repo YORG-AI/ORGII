@@ -5,7 +5,9 @@ import { TERMINAL_AGENT_STATUS } from "@src/engines/TerminalCore/types";
 import {
   formatTerminalAgentDuration,
   getHermesApprovalNotificationBody,
+  isExternalHermesNotificationOwner,
   isHermesApprovalNotificationFor,
+  isHermesTerminalBackground,
   shouldNotifyHermesApproval,
 } from "../presentation";
 
@@ -15,8 +17,7 @@ describe("Hermes approval notification presentation", () => {
       shouldNotifyHermesApproval(
         TERMINAL_AGENT_STATUS.RUNNING,
         TERMINAL_AGENT_STATUS.BLOCKED,
-        true,
-        false
+        true
       )
     ).toBe(true);
   });
@@ -26,18 +27,32 @@ describe("Hermes approval notification presentation", () => {
       shouldNotifyHermesApproval(
         TERMINAL_AGENT_STATUS.BLOCKED,
         TERMINAL_AGENT_STATUS.BLOCKED,
-        true,
-        false
+        true
       )
     ).toBe(false);
     expect(
       shouldNotifyHermesApproval(
         TERMINAL_AGENT_STATUS.RUNNING,
         TERMINAL_AGENT_STATUS.BLOCKED,
-        false,
-        true
+        false
       )
     ).toBe(false);
+  });
+
+  it("notifies when the Hermes tab is inactive in a focused window", () => {
+    const isBackground = isHermesTerminalBackground(false, false, true);
+    expect(
+      shouldNotifyHermesApproval(
+        TERMINAL_AGENT_STATUS.RUNNING,
+        TERMINAL_AGENT_STATUS.BLOCKED,
+        isBackground
+      )
+    ).toBe(true);
+  });
+
+  it("assigns external Hermes notifications to the main window only", () => {
+    expect(isExternalHermesNotificationOwner("main")).toBe(true);
+    expect(isExternalHermesNotificationOwner("workspace-2")).toBe(false);
   });
 
   it("prefers the safe preview for the notification body", () => {

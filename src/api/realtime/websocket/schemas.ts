@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 
+import { TERMINAL_AGENT_STATUS_VALUES } from "@src/types/terminalAgentStatus";
 import { JsonRecordFromAnySchema } from "@src/util/schemas/jsonRecord";
 
 const UnknownRecordSchema = z.record(z.string(), z.unknown());
@@ -337,9 +338,7 @@ export const CodeEditorWebSocketMessageSchema = z.object({
   agent_session_id: z.string().optional(),
   cli_agent_type: z.string().optional(),
   source: z.enum(["integrated", "external"]).optional(),
-  agent_status: z
-    .enum(["starting", "running", "waiting", "blocked", "done"])
-    .optional(),
+  agent_status: z.enum(TERMINAL_AGENT_STATUS_VALUES).optional(),
   hook_event_name: z.string().optional(),
   tool_name: z.string().optional(),
   tool_input_preview: z.string().optional(),

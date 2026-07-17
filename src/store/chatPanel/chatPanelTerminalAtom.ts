@@ -97,8 +97,11 @@ createChatPanelTerminalAtom.debugLabel = "createChatPanelTerminal";
 
 export const destroyChatPanelTerminalAtom = atom(
   null,
-  async (_get, set, sessionId: string): Promise<void> => {
+  async (get, set, sessionId: string): Promise<void> => {
     if (!isChatPanelTerminalId(sessionId)) return;
+    const session = get(terminalSessionsAtom).find(
+      (candidate) => candidate.id === sessionId
+    );
 
     // Kill PTY
     if (isTauriReady()) {
@@ -108,6 +111,18 @@ export const destroyChatPanelTerminalAtom = atom(
         });
       } catch {
         // PTY may already be gone
+      }
+    }
+
+    // Revoke the per-terminal callback credential even if Hermes did not emit
+    // its final lifecycle hook while the PTY was shutting down.
+    if (isTauriReady() && session?.cliAgentType === "hermes") {
+      try {
+        await invokeTauri("hermes_hook_release", {
+          terminalSessionId: sessionId,
+        });
+      } catch {
+        // Finalization may already have revoked the idempotent credential.
       }
     }
 

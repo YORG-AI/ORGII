@@ -950,6 +950,8 @@ pub fn run() {
                     if code.is_some()
                         || cfg!(all(debug_assertions, not(target_os = "macos")))
                     {
+                        // Remove only this process's Hermes callback descriptor.
+                        api::hermes_hook::cleanup_global_hook();
                         // Explicit exit — mark active orchestrator workflows as interrupted
                         agent_core::coordination::work_item_recovery::mark_all_interrupted_sync();
                         // Release computer-use lock if held

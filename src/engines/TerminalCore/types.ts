@@ -5,17 +5,14 @@
  */
 import type { CliAgentType } from "@src/api/types/keys";
 import type { ShellKind } from "@src/types/terminal";
+import type { TerminalAgentStatus } from "@src/types/terminalAgentStatus";
 
-export const TERMINAL_AGENT_STATUS = {
-  STARTING: "starting",
-  RUNNING: "running",
-  WAITING: "waiting",
-  BLOCKED: "blocked",
-  DONE: "done",
-} as const;
-
-export type TerminalAgentStatus =
-  (typeof TERMINAL_AGENT_STATUS)[keyof typeof TERMINAL_AGENT_STATUS];
+export {
+  TERMINAL_AGENT_STATUS,
+  TERMINAL_AGENT_STATUS_VALUES,
+  isTerminalAgentStatus,
+  type TerminalAgentStatus,
+} from "@src/types/terminalAgentStatus";
 
 export type TerminalAgentStatusSource = "process" | "hook";
 

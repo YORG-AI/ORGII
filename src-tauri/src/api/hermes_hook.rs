@@ -8,9 +8,12 @@
 //! endpoint and are broadcast to the frontend.
 
 use std::collections::HashMap;
+use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Output, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use axum::extract::Json;
 use axum::http::{HeaderMap, StatusCode};
@@ -18,7 +21,7 @@ use axum::response::IntoResponse;
 use axum::routing::post;
 use axum::Router;
 use integrations::cli_binary_resolver::{resolve_cli_binary_command, CliBinaryId};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::websocket_handler;
 
@@ -26,11 +29,16 @@ const PLUGIN_NAME: &str = "orgii-status";
 const PLUGIN_MANIFEST: &str = include_str!("hermes_hook/plugin.yaml");
 const PLUGIN_CODE: &str = include_str!("hermes_hook/__init__.py");
 const TOKEN_HEADER: &str = "x-orgii-hermes-hook-token";
+const PLUGIN_ENABLE_TIMEOUT: Duration = Duration::from_secs(10);
+const PLUGIN_ENABLE_POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 static INSTALL_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 static INSTALL_COMPLETE: OnceLock<()> = OnceLock::new();
 static TERMINAL_TOKENS: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
 static GLOBAL_TOKEN: OnceLock<String> = OnceLock::new();
+static GLOBAL_DESCRIPTOR_ID: OnceLock<String> = OnceLock::new();
+static SHUTTING_DOWN: AtomicBool = AtomicBool::new(false);
+static GLOBAL_CONFIG_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -60,10 +68,23 @@ fn terminal_tokens() -> &'static Mutex<HashMap<String, String>> {
     TERMINAL_TOKENS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+fn global_config_lock() -> &'static Mutex<()> {
+    GLOBAL_CONFIG_LOCK.get_or_init(|| Mutex::new(()))
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum HermesHookSource {
     Integrated,
     External,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum TerminalAgentStatus {
+    Running,
+    Waiting,
+    Blocked,
+    Done,
 }
 
 impl HermesHookSource {
@@ -79,6 +100,20 @@ fn global_token() -> &'static str {
     GLOBAL_TOKEN
         .get_or_init(|| uuid::Uuid::new_v4().simple().to_string())
         .as_str()
+}
+
+fn global_descriptor_id() -> &'static str {
+    GLOBAL_DESCRIPTOR_ID
+        .get_or_init(|| format!("{}-{}", std::process::id(), uuid::Uuid::new_v4().simple()))
+        .as_str()
+}
+
+fn release_terminal_token(terminal_session_id: &str) -> Result<bool, String> {
+    Ok(terminal_tokens()
+        .lock()
+        .map_err(|_| "Hermes hook token registry is poisoned".to_string())?
+        .remove(terminal_session_id)
+        .is_some())
 }
 
 fn authenticate_request(
@@ -99,7 +134,7 @@ fn authenticate_request(
     (global_token() == supplied_token).then_some(HermesHookSource::External)
 }
 
-fn hook_status(event_name: &str, approval_surface: Option<&str>) -> Option<&'static str> {
+fn hook_status(event_name: &str, approval_surface: Option<&str>) -> Option<TerminalAgentStatus> {
     match event_name {
         "on_session_start"
         | "pre_llm_call"
@@ -108,11 +143,15 @@ fn hook_status(event_name: &str, approval_surface: Option<&str>) -> Option<&'sta
         | "pre_verify"
         | "subagent_start"
         | "subagent_stop"
-        | "post_approval_response" => Some("running"),
-        "post_llm_call" | "on_session_end" | "on_session_reset" => Some("waiting"),
-        "pre_approval_request" if approval_surface != Some("smart") => Some("blocked"),
-        "pre_approval_request" => Some("running"),
-        "on_session_finalize" => Some("done"),
+        | "post_approval_response" => Some(TerminalAgentStatus::Running),
+        "post_llm_call" | "on_session_end" | "on_session_reset" => {
+            Some(TerminalAgentStatus::Waiting)
+        }
+        "pre_approval_request" if approval_surface != Some("smart") => {
+            Some(TerminalAgentStatus::Blocked)
+        }
+        "pre_approval_request" => Some(TerminalAgentStatus::Running),
+        "on_session_finalize" => Some(TerminalAgentStatus::Done),
         _ => None,
     }
 }
@@ -132,10 +171,19 @@ async fn receive_hermes_hook(
         return StatusCode::UNAUTHORIZED;
     };
 
+    let finalized_terminal_session_id = (request.payload.hook_event_name == "on_session_finalize")
+        .then(|| terminal_session_id.clone())
+        .flatten();
+
     let Some(message) = build_status_message(source, terminal_session_id, request.payload) else {
         return StatusCode::NO_CONTENT;
     };
     websocket_handler::broadcast(message.to_string());
+    if let Some(terminal_session_id) = finalized_terminal_session_id {
+        if let Err(error) = release_terminal_token(&terminal_session_id) {
+            tracing::warn!(%error, %terminal_session_id, "[Hermes Hook] Failed to release finalized terminal token");
+        }
+    }
     StatusCode::NO_CONTENT
 }
 
@@ -208,14 +256,21 @@ fn write_if_changed(path: &Path, content: &str) -> Result<(), String> {
         .map_err(|err| format!("Failed to write {}: {err}", path.display()))
 }
 
+fn default_global_hook_config_path(home: &Path, descriptor_id: &str) -> PathBuf {
+    home.join(".orgii")
+        .join("hermes-hooks")
+        .join(format!("{descriptor_id}.env"))
+}
+
 fn global_hook_config_path() -> Result<PathBuf, String> {
     if let Some(path) = std::env::var_os("ORGII_HERMES_HOOK_CONFIG") {
         return Ok(PathBuf::from(path));
     }
-    Ok(dirs::home_dir()
-        .ok_or_else(|| "Unable to resolve home directory".to_string())?
-        .join(".orgii")
-        .join("hermes-hook.env"))
+    let home = dirs::home_dir().ok_or_else(|| "Unable to resolve home directory".to_string())?;
+    Ok(default_global_hook_config_path(
+        &home,
+        global_descriptor_id(),
+    ))
 }
 
 fn global_hook_config_content(token: &str) -> String {
@@ -269,6 +324,87 @@ fn write_private_file(path: &Path, content: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn read_command_pipe<R>(
+    mut pipe: R,
+    stream_name: &'static str,
+) -> std::thread::JoinHandle<Result<Vec<u8>, String>>
+where
+    R: Read + Send + 'static,
+{
+    std::thread::spawn(move || {
+        let mut bytes = Vec::new();
+        pipe.read_to_end(&mut bytes).map_err(|error| {
+            format!("Failed to read Hermes plugin command {stream_name}: {error}")
+        })?;
+        Ok(bytes)
+    })
+}
+
+fn join_command_pipe(
+    reader: &mut Option<std::thread::JoinHandle<Result<Vec<u8>, String>>>,
+    stream_name: &str,
+) -> Result<Vec<u8>, String> {
+    reader
+        .take()
+        .ok_or_else(|| format!("Hermes plugin command {stream_name} reader is unavailable"))?
+        .join()
+        .map_err(|_| format!("Hermes plugin command {stream_name} reader panicked"))?
+}
+
+fn enable_plugin_with_timeout(hermes: &str) -> Result<Output, String> {
+    let mut child = Command::new(hermes)
+        .args(["plugins", "enable", PLUGIN_NAME])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|err| format!("Failed to run `{hermes} plugins enable {PLUGIN_NAME}`: {err}"))?;
+    let mut stdout_reader = child
+        .stdout
+        .take()
+        .map(|pipe| read_command_pipe(pipe, "stdout"));
+    let mut stderr_reader = child
+        .stderr
+        .take()
+        .map(|pipe| read_command_pipe(pipe, "stderr"));
+    let deadline = Instant::now() + PLUGIN_ENABLE_TIMEOUT;
+
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                let stdout = join_command_pipe(&mut stdout_reader, "stdout")?;
+                let stderr = join_command_pipe(&mut stderr_reader, "stderr")?;
+                return Ok(Output {
+                    status,
+                    stdout,
+                    stderr,
+                });
+            }
+            Ok(None) if Instant::now() < deadline => {
+                std::thread::sleep(PLUGIN_ENABLE_POLL_INTERVAL);
+            }
+            Ok(None) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                let _ = join_command_pipe(&mut stdout_reader, "stdout");
+                let _ = join_command_pipe(&mut stderr_reader, "stderr");
+                return Err(format!(
+                    "`{hermes} plugins enable {PLUGIN_NAME}` timed out after {} seconds",
+                    PLUGIN_ENABLE_TIMEOUT.as_secs()
+                ));
+            }
+            Err(err) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                let _ = join_command_pipe(&mut stdout_reader, "stdout");
+                let _ = join_command_pipe(&mut stderr_reader, "stderr");
+                return Err(format!(
+                    "Failed while waiting for `{hermes} plugins enable {PLUGIN_NAME}`: {err}"
+                ));
+            }
+        }
+    }
+}
+
 fn ensure_plugin_installed() -> Result<(), String> {
     if INSTALL_COMPLETE.get().is_some() {
         return Ok(());
@@ -287,10 +423,7 @@ fn ensure_plugin_installed() -> Result<(), String> {
     write_if_changed(&plugin_dir.join("__init__.py"), PLUGIN_CODE)?;
 
     let hermes = resolve_cli_binary_command(CliBinaryId::Hermes);
-    let output = Command::new(&hermes)
-        .args(["plugins", "enable", PLUGIN_NAME])
-        .output()
-        .map_err(|err| format!("Failed to run `{hermes} plugins enable {PLUGIN_NAME}`: {err}"))?;
+    let output = enable_plugin_with_timeout(&hermes)?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -308,8 +441,53 @@ fn ensure_plugin_installed() -> Result<(), String> {
 
 fn initialize_global_hook_sync() -> Result<(), String> {
     ensure_plugin_installed()?;
+
+    let _config_guard = global_config_lock()
+        .lock()
+        .map_err(|error| format!("Hermes global hook config lock poisoned: {error}"))?;
+
+    if SHUTTING_DOWN.load(Ordering::Acquire) {
+        return Ok(());
+    }
     let path = global_hook_config_path()?;
     write_private_file(&path, &global_hook_config_content(global_token()))
+}
+
+fn remove_owned_global_hook_config(path: &Path, expected_content: &str) -> Result<(), String> {
+    let existing = match std::fs::read_to_string(path) {
+        Ok(existing) => existing,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(format!("Failed to read {}: {err}", path.display())),
+    };
+    if existing != expected_content {
+        return Ok(());
+    }
+    std::fs::remove_file(path).map_err(|err| format!("Failed to remove {}: {err}", path.display()))
+}
+
+/// Remove this process's external-session descriptor during an actual app
+/// shutdown. Ownership is still verified for callers that override the normal
+/// process-specific descriptor path with a shared path.
+pub fn cleanup_global_hook() {
+    SHUTTING_DOWN.store(true, Ordering::Release);
+
+    let _config_guard = match global_config_lock().lock() {
+        Ok(guard) => guard,
+        Err(error) => {
+            tracing::warn!("Hermes global hook config lock poisoned during cleanup: {error}");
+            return;
+        }
+    };
+
+    let Some(token) = GLOBAL_TOKEN.get() else {
+        return;
+    };
+    let result = global_hook_config_path().and_then(|path| {
+        remove_owned_global_hook_config(&path, &global_hook_config_content(token))
+    });
+    if let Err(error) = result {
+        tracing::warn!(%error, "[Hermes Hook] Failed to clean up global descriptor");
+    }
 }
 
 /// Install the globally enabled plugin and publish the current process's
@@ -321,15 +499,21 @@ pub async fn initialize_global_hook() -> Result<(), String> {
         .map_err(|err| format!("Hermes global hook initializer failed: {err}"))?
 }
 
+fn validate_terminal_session_id(terminal_session_id: &str) -> Result<(), String> {
+    if terminal_session_id.starts_with("chatpanel-") {
+        Ok(())
+    } else {
+        Err("Hermes hooks require a chat-panel terminal session id".to_string())
+    }
+}
+
 /// Install/enable the ORGII Hermes plugin and return the environment that must
 /// be inherited by the matching integrated terminal.
 #[tauri::command]
 pub async fn hermes_hook_prepare(
     terminal_session_id: String,
 ) -> Result<HashMap<String, String>, String> {
-    if !terminal_session_id.starts_with("chatpanel-") {
-        return Err("Hermes hooks require a chat-panel terminal session id".to_string());
-    }
+    validate_terminal_session_id(&terminal_session_id)?;
     tokio::task::spawn_blocking(ensure_plugin_installed)
         .await
         .map_err(|err| format!("Hermes hook installer task failed: {err}"))??;
@@ -353,6 +537,15 @@ pub async fn hermes_hook_prepare(
     ]))
 }
 
+/// Revoke the callback credential for an integrated terminal that is closing.
+/// The operation is idempotent because Hermes may already have finalized it.
+#[tauri::command]
+pub fn hermes_hook_release(terminal_session_id: String) -> Result<(), String> {
+    validate_terminal_session_id(&terminal_session_id)?;
+    release_terminal_token(&terminal_session_id)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -369,14 +562,22 @@ mod tests {
             "subagent_stop",
             "post_approval_response",
         ] {
-            assert_eq!(hook_status(event, None), Some("running"), "{event}");
+            assert_eq!(
+                hook_status(event, None),
+                Some(TerminalAgentStatus::Running),
+                "{event}"
+            );
         }
     }
 
     #[test]
     fn maps_user_boundaries_to_waiting() {
         for event in ["post_llm_call", "on_session_end", "on_session_reset"] {
-            assert_eq!(hook_status(event, None), Some("waiting"), "{event}");
+            assert_eq!(
+                hook_status(event, None),
+                Some(TerminalAgentStatus::Waiting),
+                "{event}"
+            );
         }
     }
 
@@ -384,19 +585,36 @@ mod tests {
     fn maps_approval_request_to_blocked() {
         assert_eq!(
             hook_status("pre_approval_request", Some("cli")),
-            Some("blocked")
+            Some(TerminalAgentStatus::Blocked)
         );
         assert_eq!(
             hook_status("pre_approval_request", Some("smart")),
-            Some("running")
+            Some(TerminalAgentStatus::Running)
         );
-        assert_eq!(hook_status("post_approval_response", None), Some("running"));
+        assert_eq!(
+            hook_status("post_approval_response", None),
+            Some(TerminalAgentStatus::Running)
+        );
     }
 
     #[test]
     fn only_finalize_marks_the_terminal_done() {
-        assert_eq!(hook_status("on_session_finalize", None), Some("done"));
+        assert_eq!(
+            hook_status("on_session_finalize", None),
+            Some(TerminalAgentStatus::Done)
+        );
         assert_eq!(hook_status("unknown", None), None);
+    }
+
+    #[test]
+    fn process_descriptors_have_distinct_paths() {
+        let home = Path::new("/tmp/home");
+        let first = default_global_hook_config_path(home, "100-first");
+        let second = default_global_hook_config_path(home, "200-second");
+        let expected_parent = home.join(".orgii").join("hermes-hooks");
+
+        assert_ne!(first, second);
+        assert_eq!(first.parent(), Some(expected_parent.as_path()));
     }
 
     #[test]
@@ -408,6 +626,21 @@ mod tests {
     }
 
     #[test]
+    fn cleanup_only_removes_the_descriptor_owned_by_this_process() {
+        let directory = tempfile::tempdir().expect("temp directory");
+        let path = directory.path().join("hermes-hook.env");
+        let owned = global_hook_config_content("owned-token");
+        write_private_file(&path, &owned).expect("write owned descriptor");
+
+        remove_owned_global_hook_config(&path, "different descriptor")
+            .expect("ignore descriptor from another process");
+        assert!(path.exists());
+
+        remove_owned_global_hook_config(&path, &owned).expect("remove owned descriptor");
+        assert!(!path.exists());
+    }
+
+    #[test]
     fn external_auth_requires_the_process_global_token() {
         assert_eq!(
             authenticate_request(None, global_token()),
@@ -415,6 +648,27 @@ mod tests {
         );
         assert_eq!(authenticate_request(None, "wrong-token"), None);
         assert_eq!(authenticate_request(None, ""), None);
+    }
+
+    #[test]
+    fn integrated_terminal_token_is_revoked_idempotently() {
+        let terminal_session_id = format!("chatpanel-test-{}", uuid::Uuid::new_v4());
+        let token = "terminal-token".to_string();
+        terminal_tokens()
+            .lock()
+            .expect("terminal token registry")
+            .insert(terminal_session_id.clone(), token.clone());
+
+        assert_eq!(
+            authenticate_request(Some(&terminal_session_id), &token),
+            Some(HermesHookSource::Integrated)
+        );
+        assert_eq!(release_terminal_token(&terminal_session_id), Ok(true));
+        assert_eq!(
+            authenticate_request(Some(&terminal_session_id), &token),
+            None
+        );
+        assert_eq!(release_terminal_token(&terminal_session_id), Ok(false));
     }
 
     #[test]
