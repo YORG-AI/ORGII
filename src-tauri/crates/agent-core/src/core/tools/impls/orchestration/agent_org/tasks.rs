@@ -34,13 +34,16 @@ use crate::coordination::agent_org_runs::{AgentOrgRunContext, COORDINATOR_MEMBER
 use crate::coordination::agent_org_tasks::{
     self, eligible_member_ids as task_eligible_member_ids, Task, TaskExecutionMode,
     TaskMutationOutcome, TaskOutput, TaskStatus, TaskSummary, TASK_COMPLETED_IMMUTABLE_ERROR,
-    TASK_DELETE_HAS_DEPENDENTS_ERROR, TASK_DEPENDENCY_CYCLE_ERROR,
-    TASK_METADATA_ELIGIBLE_MEMBER_IDS, TASK_METADATA_EXECUTION_MODE, TASK_METADATA_OUTPUT,
-    TASK_METADATA_REQUIRED_ROLE, TASK_MUTATION_CONFLICT_ERROR,
+    TASK_DELETE_HAS_DEPENDENTS_ERROR, TASK_DELETE_IS_DELIVERY_REPLACEMENT_ERROR,
+    TASK_DEPENDENCY_CYCLE_ERROR, TASK_DEPENDENCY_LIMIT_ERROR, TASK_METADATA_ELIGIBLE_MEMBER_IDS,
+    TASK_METADATA_EXECUTION_MODE, TASK_METADATA_OUTPUT, TASK_METADATA_REQUIRED_ROLE,
+    TASK_MUTATION_CONFLICT_ERROR, TASK_RUN_TASK_LIMIT_ERROR,
 };
 use crate::tools::impls::orchestration::org_send_message::InboxWakeHook;
 use crate::tools::traits::ToolError;
 
+#[path = "inbox_repair.rs"]
+pub mod inbox_repair;
 #[path = "run_complete.rs"]
 pub mod run_complete;
 #[path = "task_create.rs"]
@@ -55,14 +58,16 @@ mod task_tests;
 #[path = "task_update.rs"]
 pub mod task_update;
 
+pub use inbox_repair::{OrgInboxRepairParams, OrgInboxRepairTool};
 pub use run_complete::{OrgRunCompleteParams, OrgRunCompleteTool};
 pub use task_create::{TaskCreateParams, TaskCreateTool, TaskDispatchPolicy};
 pub use task_graph_create::{TaskGraphCreateParams, TaskGraphCreateTool, TaskGraphNodeParams};
 pub use task_list_get::{TaskGetParams, TaskGetTool, TaskListParams, TaskListTool};
 pub use task_update::{TaskUpdateParams, TaskUpdateTool};
 
-/// Shared context for the four task tools. Cloned cheaply via `Arc` —
-/// every tool stores its own clone so registry slots stay independent.
+/// Shared context for Agent Org task, run-completion, and inbox-repair tools.
+/// Cloned cheaply via `Arc` — every tool stores its own clone so registry
+/// slots stay independent.
 pub struct TaskToolsContext {
     pub org_context: Arc<AgentOrgRunContext>,
     /// Backing agent definition id of the calling session. This is transport
@@ -262,6 +267,10 @@ impl TaskToolsContext {
         &self,
         raw_member_ids: Vec<String>,
     ) -> Result<Vec<String>, String> {
+        crate::coordination::agent_org_payload_limits::validate_task_eligible_member_ids(
+            "eligible_member_ids",
+            &raw_member_ids,
+        )?;
         let mut resolved = Vec::new();
         for raw_member_id in raw_member_ids {
             let member_id = raw_member_id.trim();
@@ -547,6 +556,9 @@ pub(crate) fn map_task_write_error(err: String) -> ToolError {
         || err.starts_with(TASK_COMPLETED_IMMUTABLE_ERROR)
         || err.starts_with(TASK_MUTATION_CONFLICT_ERROR)
         || err.starts_with(TASK_DELETE_HAS_DEPENDENTS_ERROR)
+        || err.starts_with(TASK_DELETE_IS_DELIVERY_REPLACEMENT_ERROR)
+        || err.starts_with(TASK_DEPENDENCY_LIMIT_ERROR)
+        || err.starts_with(TASK_RUN_TASK_LIMIT_ERROR)
     {
         ToolError::InvalidParams(err)
     } else {

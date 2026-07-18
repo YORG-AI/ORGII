@@ -896,12 +896,18 @@ impl UnifiedMessageProcessor {
         // Reasoning trigger words are detected on the CURRENT user input
         // only (never history) so escalation stays per-turn.
         let reasoning_trigger = crate::providers::thinking_mode::detect_reasoning_trigger(content);
+        let projected_inbox_ids = inbox_guard
+            .as_ref()
+            .map(|guard| guard.pending_ids().to_vec())
+            .unwrap_or_default();
         let turn_result = self
             .execute_turn_with_reactive_retry(
                 session_id,
                 &turn_id,
                 &mut messages,
                 reasoning_trigger,
+                &context.turn_intent_id,
+                projected_inbox_ids,
             )
             .await;
         if let Some(prefetch_hook) = self.turn_prefetch_hook.lock().await.take() {

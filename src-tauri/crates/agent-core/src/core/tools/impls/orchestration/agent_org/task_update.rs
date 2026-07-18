@@ -5,6 +5,9 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
 
+use crate::coordination::agent_org_payload_limits::{
+    validate_task_identifier, validate_task_identifier_list,
+};
 use crate::coordination::agent_org_tasks::{
     task_output, AgentOrgTaskStore, Task, TaskOutput, TaskStatus, UpdateTaskPatch,
 };
@@ -268,6 +271,7 @@ impl Tool for TaskUpdateTool {
                 "task_update requires a non-empty `id`".into(),
             ));
         }
+        validate_task_identifier("task_update.id", &task_id).map_err(ToolError::InvalidParams)?;
         let org_run_id = self.ctx.org_context.run_id.clone();
         let output_requested = params.output.is_some();
         let output_params = params.output;
@@ -315,6 +319,8 @@ impl Tool for TaskUpdateTool {
             patch.status = Some(parse_status(status).map_err(ToolError::InvalidParams)?);
         }
         if let Some(blocked_by) = params.blocked_by {
+            validate_task_identifier_list("task_update.blocked_by", &blocked_by)
+                .map_err(ToolError::InvalidParams)?;
             patch.blocked_by = Some(blocked_by);
         }
         let freeform_metadata_patch = params.metadata;

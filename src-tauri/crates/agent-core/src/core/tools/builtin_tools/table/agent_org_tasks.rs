@@ -99,4 +99,20 @@ pub(super) static TOOLS: &[ToolEntry] = &[
         required_capability: CapOrch,
         ..DEFAULT_TOOL_ENTRY
     },
+    ToolEntry {
+        name: tool_names::ORG_INBOX_REPAIR,
+        description: "Repair an undeliverable Agent Org Inbox row.",
+        description_detail: "Coordinator-only. Inspects, cancels, or supersedes an Inbox delivery while preserving the original row as audit evidence.",
+        category: tool_categories::ORCHESTRATION,
+        icon_id: "mail-warning",
+        simulator_app: AppChannels,
+        app_subtool: SubTodo,
+        chat_block: CbOrgTask,
+        hidden: true,
+        label_running: "tools.taskUpdateRunning",
+        label_done: "tools.taskUpdateDone",
+        label_failed: "tools.taskUpdateFailed",
+        required_capability: CapOrch,
+        ..DEFAULT_TOOL_ENTRY
+    },
 ];

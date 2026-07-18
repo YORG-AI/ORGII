@@ -187,6 +187,13 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
 
 pub struct AgentOrgPlanApprovalStore;
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct AgentOrgPlanArtifactRepairReport {
+    pub inspected: usize,
+    pub repaired: usize,
+    pub failed: usize,
+}
+
 impl AgentOrgPlanApprovalStore {
     /// Resolve a filename under the exact Plan root owned by a persisted
     /// source session. Callers use this when they need a fresh path after a
@@ -496,8 +503,8 @@ impl AgentOrgPlanApprovalStore {
         // SQLite is the durable source of truth. Prepare and fsync the slow
         // file bytes before taking the sessions writer, commit SQLite first,
         // then perform only the same-directory rename while writes remain
-        // serialized. SQLite remains authoritative if the derived artifact
-        // cannot be installed after the commit.
+        // serialized. A process crash in the tiny commit -> rename window is
+        // healed from `plan_content` on startup or the next detail read.
         let canonical_content = edited_content
             .clone()
             .unwrap_or_else(|| current.plan_content.clone());
@@ -665,34 +672,105 @@ impl AgentOrgPlanApprovalStore {
         query_record(&conn, "WHERE approval_id=?1", params![approval_id])
     }
 
-    /// Read one immutable plan revision. The durable database content is the
-    /// source of truth for approval detail views.
+    /// Read one immutable plan revision and best-effort reconcile the shared
+    /// plan artifact to the latest revision stored for that path.
+    ///
+    /// Historical rows remain immutable and are returned exactly as stored;
+    /// only the derived filesystem artifact is repaired. A repair failure is
+    /// logged rather than turning an otherwise valid detail read into a false
+    /// user-visible failure.
     pub fn get_revision(
         approval_id: &str,
         plan_revision_id: &str,
     ) -> Result<Option<AgentOrgPlanApproval>, String> {
         let conn = get_connection().map_err(|err| err.to_string())?;
-        query_record(
+        let record = query_record(
             &conn,
             "WHERE approval_id=?1 AND plan_revision_id=?2",
             params![approval_id, plan_revision_id],
-        )
+        )?;
+        drop(conn);
+        if let Some(record) = record.as_ref() {
+            if let Err(err) = repair_latest_plan_artifact_for_path(&record.plan_path) {
+                tracing::warn!(
+                    approval_id,
+                    plan_revision_id,
+                    plan_path = %record.plan_path,
+                    error = %err,
+                    "failed to reconcile Agent Org plan artifact during detail read"
+                );
+            }
+        }
+        Ok(record)
     }
 
     /// Run-scoped detail lookup for user-facing/API callers. The ownership
     /// predicate is part of the SQLite query, so an approval from another Run
-    /// cannot be exposed to the caller.
+    /// cannot trigger even the best-effort filesystem repair performed after
+    /// an authorized detail read.
     pub fn get_revision_for_run(
         org_run_id: &str,
         approval_id: &str,
         plan_revision_id: &str,
     ) -> Result<Option<AgentOrgPlanApproval>, String> {
         let conn = get_connection().map_err(|err| err.to_string())?;
-        query_record(
+        let record = query_record(
             &conn,
             "WHERE org_run_id=?1 AND approval_id=?2 AND plan_revision_id=?3",
             params![org_run_id, approval_id, plan_revision_id],
-        )
+        )?;
+        drop(conn);
+        if let Some(record) = record.as_ref() {
+            if let Err(err) = repair_latest_plan_artifact_for_path(&record.plan_path) {
+                tracing::warn!(
+                    org_run_id,
+                    approval_id,
+                    plan_revision_id,
+                    plan_path = %record.plan_path,
+                    error = %err,
+                    "failed to reconcile Agent Org plan artifact during run-scoped detail read"
+                );
+            }
+        }
+        Ok(record)
+    }
+
+    /// Reconcile every physical plan artifact from the latest durable SQLite
+    /// revision for its path. The query is paged so retained approval history
+    /// cannot create one unbounded allocation. Individual corrupt/unwritable
+    /// paths are isolated and reported without preventing other plans from
+    /// being repaired.
+    pub fn repair_latest_plan_artifacts() -> Result<AgentOrgPlanArtifactRepairReport, String> {
+        const PAGE_SIZE: usize = 64;
+
+        let mut report = AgentOrgPlanArtifactRepairReport::default();
+        let mut after_path: Option<String> = None;
+        loop {
+            let paths = list_distinct_plan_paths_after(after_path.as_deref(), PAGE_SIZE)?;
+            if paths.is_empty() {
+                break;
+            }
+            for path in &paths {
+                report.inspected += 1;
+                match repair_latest_plan_artifact_for_path(path) {
+                    Ok(true) => report.repaired += 1,
+                    Ok(false) => {}
+                    Err(err) => {
+                        report.failed += 1;
+                        tracing::warn!(
+                            plan_path = %path,
+                            error = %err,
+                            "failed to reconcile one Agent Org plan artifact"
+                        );
+                    }
+                }
+            }
+            after_path = paths.last().cloned();
+            if paths.len() < PAGE_SIZE {
+                break;
+            }
+        }
+        Ok(report)
     }
 
     /// Cancel approvals whose parent run is gone or terminal. A paused run is
@@ -1006,6 +1084,44 @@ fn resolve_owned_plan_target(
     }
 }
 
+fn stage_plan_artifact_if_needed(
+    source_session_id: &str,
+    plan_path: &str,
+    canonical_content: &str,
+) -> Result<Option<StagedPlanArtifact>, String> {
+    let conn = get_connection().map_err(|err| err.to_string())?;
+    let Some(owned) =
+        owned_plan_path_for_existing_revision_with_connection(&conn, source_session_id, plan_path)?
+    else {
+        return Ok(None);
+    };
+    let target_path = match resolve_owned_plan_target(&owned, true) {
+        Ok(Some(target)) => target,
+        Ok(None) => return Ok(None),
+        Err(err) => {
+            tracing::warn!(
+                source_session_id,
+                plan_path,
+                error = %err,
+                "skipping unsafe Agent Org plan artifact repair"
+            );
+            return Ok(None);
+        }
+    };
+    match std::fs::read(&target_path) {
+        Ok(existing) if existing == canonical_content.as_bytes() => return Ok(None),
+        Ok(_) => {}
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+        Err(err) => {
+            return Err(format!(
+                "failed to inspect Agent Org plan artifact {}: {err}",
+                target_path.display()
+            ))
+        }
+    }
+    stage_owned_plan_artifact(owned, target_path, canonical_content).map(Some)
+}
+
 fn stage_plan_artifact_with_connection(
     conn: &Connection,
     source_session_id: &str,
@@ -1150,8 +1266,8 @@ fn sync_parent_directory(_path: &Path) -> Result<(), String> {
 }
 
 /// A committed DB mutation must never be surfaced as failed merely because
-/// its derived artifact could not be installed. SQLite remains authoritative,
-/// and approval detail reads use the durable database content.
+/// its derived artifact could not be installed. SQLite remains authoritative;
+/// startup/detail reconciliation will retry the projection.
 fn finish_committed_artifact<T>(
     result: Result<(T, Option<String>), String>,
     staged: Option<&StagedPlanArtifact>,
@@ -1164,13 +1280,119 @@ fn finish_committed_artifact<T>(
                         .map(|artifact| artifact.target_path.display().to_string())
                         .unwrap_or_default(),
                     error = %err,
-                    "Agent Org plan DB commit succeeded but its derived artifact could not be installed"
+                    "Agent Org plan DB commit succeeded but artifact installation needs repair"
                 );
             }
             Ok(value)
         }
         Err(err) => Err(err),
     }
+}
+
+fn list_distinct_plan_paths_after(
+    after_path: Option<&str>,
+    limit: usize,
+) -> Result<Vec<String>, String> {
+    let conn = get_connection().map_err(|err| err.to_string())?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT DISTINCT plan_path
+             FROM agent_org_plan_approvals
+             WHERE (?1 IS NULL OR plan_path > ?1)
+             ORDER BY plan_path ASC
+             LIMIT ?2",
+        )
+        .map_err(|err| err.to_string())?;
+    let rows = stmt
+        .query_map(params![after_path, limit as i64], |row| {
+            row.get::<_, String>(0)
+        })
+        .map_err(|err| err.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|err| err.to_string())
+}
+
+fn latest_plan_revision_for_path_with_connection(
+    conn: &Connection,
+    plan_path: &str,
+) -> Result<Option<AgentOrgPlanApproval>, String> {
+    query_record(
+        conn,
+        "WHERE plan_path=?1 ORDER BY created_at DESC, rowid DESC",
+        params![plan_path],
+    )
+}
+
+fn latest_plan_revision_for_path(plan_path: &str) -> Result<Option<AgentOrgPlanApproval>, String> {
+    let conn = get_connection().map_err(|err| err.to_string())?;
+    latest_plan_revision_for_path_with_connection(&conn, plan_path)
+}
+
+fn repair_latest_plan_artifact_for_path(plan_path: &str) -> Result<bool, String> {
+    const MAX_REPAIR_RACES: usize = 4;
+
+    for _ in 0..MAX_REPAIR_RACES {
+        let Some(canonical) = latest_plan_revision_for_path(plan_path)? else {
+            return Ok(false);
+        };
+        let staged = stage_plan_artifact_if_needed(
+            &canonical.source_session_id,
+            plan_path,
+            &canonical.plan_content,
+        )?;
+        if staged.is_none() {
+            // Confirm that the row did not advance between the first DB read
+            // and the artifact comparison. If it did, loop and compare the
+            // new durable revision instead of declaring success too early.
+            let latest = latest_plan_revision_for_path(plan_path)?;
+            if latest.as_ref().is_some_and(|record| {
+                record.approval_id == canonical.approval_id
+                    && record.plan_revision_id == canonical.plan_revision_id
+                    && record.plan_content == canonical.plan_content
+            }) {
+                return Ok(false);
+            }
+            continue;
+        }
+
+        let _artifact_guard = plan_artifact_install_lock().lock();
+        let should_install = with_sessions_writer(|| -> Result<bool, String> {
+            let conn = get_connection().map_err(|err| err.to_string())?;
+            let latest = latest_plan_revision_for_path_with_connection(&conn, plan_path)?;
+            let still_current = latest.as_ref().is_some_and(|record| {
+                record.approval_id == canonical.approval_id
+                    && record.plan_revision_id == canonical.plan_revision_id
+                    && record.plan_content == canonical.plan_content
+            });
+            if !still_current {
+                return Ok(false);
+            }
+            let Some(latest) = latest.as_ref() else {
+                return Ok(false);
+            };
+            if let Err(err) = validate_owned_plan_path_with_connection(
+                &conn,
+                &latest.source_session_id,
+                &latest.plan_path,
+            ) {
+                tracing::warn!(
+                    source_session_id = %latest.source_session_id,
+                    plan_path = %latest.plan_path,
+                    error = %err,
+                    "skipping Agent Org plan artifact repair after ownership changed"
+                );
+                return Ok(false);
+            }
+            Ok(true)
+        })?;
+        if should_install {
+            install_staged_plan_artifact(staged.as_ref())?;
+            return Ok(true);
+        }
+    }
+    Err(format!(
+        "Agent Org plan artifact kept changing while being repaired: {plan_path}"
+    ))
 }
 
 fn create_pending_in_tx(
@@ -2019,10 +2241,12 @@ mod tests {
     }
 
     #[test]
-    fn run_scoped_revision_lookup_rejects_cross_run() {
+    fn run_scoped_revision_lookup_rejects_cross_run_before_artifact_repair() {
         let (_sandbox, context) = setup(PlanApprovalPolicy::User);
         create_plan_task(&context);
         let pending = create_pending_approval(&context);
+        std::fs::write(&pending.plan_path, "cross-run sentinel")
+            .expect("replace derived artifact with a repair sentinel");
 
         let cross_run = AgentOrgPlanApprovalStore::get_revision_for_run(
             "different-run",
@@ -2031,6 +2255,11 @@ mod tests {
         )
         .expect("cross-run lookup should be a normal miss");
         assert!(cross_run.is_none());
+        assert_eq!(
+            std::fs::read_to_string(&pending.plan_path).expect("read unrepaired sentinel"),
+            "cross-run sentinel",
+            "an unauthorized Run must not trigger filesystem repair"
+        );
 
         let detail = AgentOrgPlanApprovalStore::get_revision_for_run(
             &context.run_id,
@@ -2040,6 +2269,50 @@ mod tests {
         .expect("authorized lookup")
         .expect("authorized revision exists");
         assert_eq!(detail.plan_content, pending.plan_content);
+        assert_eq!(
+            std::fs::read_to_string(&pending.plan_path).expect("read repaired artifact"),
+            pending.plan_content
+        );
+    }
+
+    #[test]
+    fn historical_external_notes_path_is_never_repaired() {
+        let (sandbox, context) = setup(PlanApprovalPolicy::User);
+        create_plan_task(&context);
+        let pending = create_pending_approval(&context);
+        let external_dir = sandbox.path().join("external");
+        std::fs::create_dir_all(&external_dir).expect("create external directory");
+        let external_notes = external_dir.join("notes.md");
+        std::fs::write(&external_notes, "user-owned notes").expect("seed external notes");
+        get_connection()
+            .expect("test db")
+            .execute(
+                "UPDATE agent_org_plan_approvals SET plan_path=?1 WHERE approval_id=?2",
+                params![
+                    external_notes.to_string_lossy().as_ref(),
+                    &pending.approval_id
+                ],
+            )
+            .expect("seed historical unmanaged plan path");
+
+        let detail = AgentOrgPlanApprovalStore::get_revision_for_run(
+            &context.run_id,
+            &pending.approval_id,
+            &pending.plan_revision_id,
+        )
+        .expect("read historical revision")
+        .expect("historical revision exists");
+        assert_eq!(detail.plan_path, external_notes.to_string_lossy());
+        let report = AgentOrgPlanApprovalStore::repair_latest_plan_artifacts()
+            .expect("scan historical artifacts");
+        assert_eq!(report.inspected, 1);
+        assert_eq!(report.repaired, 0);
+        assert_eq!(report.failed, 0);
+        assert_eq!(
+            std::fs::read_to_string(&external_notes).expect("read external notes"),
+            "user-owned notes",
+            "historical arbitrary files must never be overwritten by repair"
+        );
     }
 
     #[test]
@@ -2062,6 +2335,40 @@ mod tests {
             AgentOrgPlanApprovalStore::list_pending_by_run(&context.run_id)
                 .expect("list approvals")
                 .is_empty()
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn repair_does_not_follow_managed_artifact_symlink() {
+        use std::os::unix::fs::symlink;
+
+        let (sandbox, context) = setup(PlanApprovalPolicy::User);
+        create_plan_task(&context);
+        let pending = create_pending_approval(&context);
+        let external_notes = sandbox.path().join("external-notes.md");
+        std::fs::write(&external_notes, "user-owned notes").expect("seed external notes");
+        std::fs::remove_file(&pending.plan_path).expect("remove managed artifact");
+        symlink(&external_notes, &pending.plan_path).expect("replace artifact with symlink");
+
+        AgentOrgPlanApprovalStore::get_revision_for_run(
+            &context.run_id,
+            &pending.approval_id,
+            &pending.plan_revision_id,
+        )
+        .expect("read revision")
+        .expect("revision exists");
+
+        assert_eq!(
+            std::fs::read_to_string(&external_notes).expect("read external notes"),
+            "user-owned notes"
+        );
+        assert!(
+            std::fs::symlink_metadata(&pending.plan_path)
+                .expect("inspect managed symlink")
+                .file_type()
+                .is_symlink(),
+            "repair must leave an unsafe symlink untouched"
         );
     }
 
@@ -2265,6 +2572,102 @@ mod tests {
             TaskStatus::InProgress
         );
         std::fs::remove_dir(&pending.plan_path).expect("remove target directory");
+    }
+
+    #[test]
+    fn startup_repair_restores_db_content_after_precommit_artifact_crash() {
+        let (_sandbox, context) = setup(PlanApprovalPolicy::User);
+        create_plan_task(&context);
+        let pending = create_pending_approval(&context);
+
+        // Simulate the old crash window: the edited artifact was renamed into
+        // place, then the process exited before SQLite committed that edit.
+        std::fs::write(&pending.plan_path, "# Uncommitted edit").expect("seed crash residue");
+        assert_ne!(
+            std::fs::read_to_string(&pending.plan_path).unwrap(),
+            pending.plan_content
+        );
+
+        let report = AgentOrgPlanApprovalStore::repair_latest_plan_artifacts()
+            .expect("repair startup artifacts");
+        assert_eq!(report.inspected, 1);
+        assert_eq!(report.repaired, 1);
+        assert_eq!(report.failed, 0);
+        assert_eq!(
+            std::fs::read_to_string(&pending.plan_path).unwrap(),
+            pending.plan_content
+        );
+        assert_eq!(
+            AgentOrgPlanApprovalStore::get(&pending.approval_id)
+                .unwrap()
+                .unwrap()
+                .plan_content,
+            pending.plan_content
+        );
+    }
+
+    #[test]
+    fn detail_read_repairs_artifact_after_postcommit_install_crash() {
+        let (_sandbox, context) = setup(PlanApprovalPolicy::User);
+        create_plan_task(&context);
+        let pending = create_pending_approval(&context);
+        let committed_content = "# Durable DB revision\n\n1. Recover artifact.";
+
+        // Simulate the new, safe crash window: SQLite committed first, but
+        // the process exited before the staged file was installed.
+        get_connection()
+            .unwrap()
+            .execute(
+                "UPDATE agent_org_plan_approvals SET plan_content=?1
+                 WHERE approval_id=?2",
+                params![committed_content, &pending.approval_id],
+            )
+            .unwrap();
+        assert_eq!(
+            std::fs::read_to_string(&pending.plan_path).unwrap(),
+            pending.plan_content
+        );
+
+        let detail = AgentOrgPlanApprovalStore::get_revision(
+            &pending.approval_id,
+            &pending.plan_revision_id,
+        )
+        .expect("read revision")
+        .expect("revision exists");
+        assert_eq!(detail.plan_content, committed_content);
+        assert_eq!(
+            std::fs::read_to_string(&pending.plan_path).unwrap(),
+            committed_content
+        );
+    }
+
+    #[test]
+    fn historical_detail_repairs_shared_path_to_latest_revision() {
+        let (_sandbox, context) = setup(PlanApprovalPolicy::User);
+        create_plan_task(&context);
+        let original = create_pending_approval(&context);
+        let mut revised_params = approval_params(&context);
+        revised_params.request_id = "request-plan-revised".into();
+        revised_params.plan_path = original.plan_path.clone();
+        revised_params.plan_content = "# Latest plan\n\nUse the latest revision.".into();
+        let latest = AgentOrgPlanApprovalStore::create_pending(revised_params)
+            .expect("create latest revision");
+
+        std::fs::write(&latest.plan_path, &original.plan_content)
+            .expect("simulate stale historical artifact");
+        let historical = AgentOrgPlanApprovalStore::get_revision(
+            &original.approval_id,
+            &original.plan_revision_id,
+        )
+        .expect("read historical detail")
+        .expect("historical revision exists");
+
+        assert_eq!(historical.plan_content, original.plan_content);
+        assert_eq!(
+            std::fs::read_to_string(&latest.plan_path).unwrap(),
+            latest.plan_content,
+            "a historical detail read must never project old content over the latest shared artifact"
+        );
     }
 
     #[test]

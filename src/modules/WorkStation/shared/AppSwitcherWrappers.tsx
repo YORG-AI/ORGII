@@ -21,6 +21,7 @@ import {
   sessionMapAtom,
   workstationActiveSessionIdAtom,
 } from "@src/store/session";
+import { isAgentOrgMemberEmpty } from "@src/util/agentOrg/memberActivity";
 import {
   getRustAgentType,
   isCursorIdeSession,
@@ -181,12 +182,7 @@ const SimulatorAgentChipComponent: React.FC = () => {
       (member) => !member.isCoordinator
     );
     const withEmptyState = nonCoordinators.map((member) => {
-      const hasNoTasksAndNoInbox =
-        member.activeTaskCount === 0 &&
-        member.pendingTaskCount === 0 &&
-        member.inProgressTaskCount === 0 &&
-        member.completedTaskCount === 0 &&
-        member.inboxActivityCount === 0;
+      const hasNoTasksAndNoInbox = isAgentOrgMemberEmpty(member);
       return { member, hasNoTasksAndNoInbox };
     });
     withEmptyState.sort((a, b) => {

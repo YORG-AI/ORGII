@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { WorkStationTab } from "@src/store/workstation/tabs";
 
-import { getOpenedTabMentionOptions } from "../../openedTabMentionOptions";
+import {
+  getOpenedTabMentionOptions,
+  mergeCustomMentionOptions,
+} from "../../openedTabMentionOptions";
 
 vi.mock("@src/components/TerminalInteractive/bufferCache", () => ({
   hasNonEmptyTerminalBuffer: vi.fn(() => true),
@@ -21,6 +24,36 @@ function makeTab(overrides: Partial<WorkStationTab>): WorkStationTab {
 }
 
 describe("getOpenedTabMentionOptions", () => {
+  it("keeps distinct member mentions while deduplicating shared targets", () => {
+    const options = mergeCustomMentionOptions(
+      [
+        { id: "coordinator", label: "Coordinator" },
+        { id: "planner", label: "Planner" },
+        {
+          id: "file-primary",
+          label: "Primary file",
+          selectType: "files",
+          selectValue: "/repo/src/index.tsx",
+        },
+      ],
+      [
+        { id: "planner", label: "Planner duplicate" },
+        {
+          id: "file-secondary",
+          label: "Duplicate target",
+          selectType: "files",
+          selectValue: "/repo/src/index.tsx",
+        },
+      ]
+    );
+
+    expect(options.map((option) => option.id)).toEqual([
+      "coordinator",
+      "planner",
+      "file-primary",
+    ]);
+  });
+
   it("deduplicates tabs that point to the same mention target", () => {
     const options = getOpenedTabMentionOptions([
       makeTab({

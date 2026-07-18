@@ -6,6 +6,8 @@ import {
   getAgentOrgPlanApprovalDetail,
 } from "@src/api/tauri/agent";
 
+const MAX_CACHED_PLAN_REVISIONS = 32;
+
 interface ApprovalDetailSnapshot {
   detail: AgentOrgPlanApproval | null;
   error: string | null;
@@ -17,6 +19,7 @@ interface ApprovalDetailEntry {
   snapshot: ApprovalDetailSnapshot;
   listeners: Set<() => void>;
   inFlight: Promise<void> | null;
+  touchedAt: number;
 }
 
 const EMPTY_SNAPSHOT: ApprovalDetailSnapshot = {
@@ -32,16 +35,32 @@ function approvalRevisionKey(
   return `${approval.approvalId}:${approval.planRevisionId}`;
 }
 
+function trimDetailCache(): void {
+  if (detailCache.size <= MAX_CACHED_PLAN_REVISIONS) return;
+  const removable = Array.from(detailCache.values())
+    .filter((entry) => entry.listeners.size === 0 && !entry.inFlight)
+    .sort((left, right) => left.touchedAt - right.touchedAt);
+  while (detailCache.size > MAX_CACHED_PLAN_REVISIONS && removable.length > 0) {
+    const entry = removable.shift();
+    if (entry) detailCache.delete(entry.key);
+  }
+}
+
 function getOrCreateEntry(key: string): ApprovalDetailEntry {
   const existing = detailCache.get(key);
-  if (existing) return existing;
+  if (existing) {
+    existing.touchedAt = Date.now();
+    return existing;
+  }
   const entry: ApprovalDetailEntry = {
     key,
     snapshot: EMPTY_SNAPSHOT,
     listeners: new Set(),
     inFlight: null,
+    touchedAt: Date.now(),
   };
   detailCache.set(key, entry);
+  trimDetailCache();
   return entry;
 }
 
@@ -50,16 +69,17 @@ function publish(
   snapshot: ApprovalDetailSnapshot
 ): void {
   entry.snapshot = snapshot;
+  entry.touchedAt = Date.now();
   for (const listener of entry.listeners) listener();
 }
 
 async function loadDetail(
   entry: ApprovalDetailEntry,
   sessionId: string,
-  approval: Pick<AgentOrgPlanApprovalSummary, "approvalId" | "planRevisionId">,
+  approval: AgentOrgPlanApprovalSummary,
   force = false
 ): Promise<void> {
-  if (!force && (entry.snapshot.detail || entry.snapshot.error)) return;
+  if (!force && entry.snapshot.detail) return;
   if (entry.inFlight) return entry.inFlight;
 
   publish(entry, {
@@ -93,8 +113,7 @@ export function useAgentOrgPlanApprovalDetail(
   sessionId: string,
   approval: AgentOrgPlanApprovalSummary
 ) {
-  const { approvalId, planRevisionId } = approval;
-  const key = approvalRevisionKey({ approvalId, planRevisionId });
+  const key = approvalRevisionKey(approval);
   const subscribe = useCallback(
     (listener: () => void) => {
       const entry = getOrCreateEntry(key);
@@ -109,20 +128,12 @@ export function useAgentOrgPlanApprovalDetail(
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   useEffect(() => {
-    void loadDetail(getOrCreateEntry(key), sessionId, {
-      approvalId,
-      planRevisionId,
-    });
-  }, [approvalId, key, planRevisionId, sessionId]);
+    void loadDetail(getOrCreateEntry(key), sessionId, approval);
+  }, [approval, key, sessionId]);
 
   const retry = useCallback(async () => {
-    await loadDetail(
-      getOrCreateEntry(key),
-      sessionId,
-      { approvalId, planRevisionId },
-      true
-    );
-  }, [approvalId, key, planRevisionId, sessionId]);
+    await loadDetail(getOrCreateEntry(key), sessionId, approval, true);
+  }, [approval, key, sessionId]);
 
   return { ...snapshot, retry };
 }

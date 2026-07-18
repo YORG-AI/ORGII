@@ -56,6 +56,7 @@ fn invokable_canonical_tool_names() -> BTreeSet<&'static str> {
         names::TASK_LIST,
         names::TASK_GET,
         names::ORG_RUN_COMPLETE,
+        names::ORG_INBOX_REPAIR,
     ])
 }
 

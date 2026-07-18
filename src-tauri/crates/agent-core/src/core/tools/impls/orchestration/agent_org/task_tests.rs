@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::{json, Value};
 
-use crate::coordination::agent_inbox::{AgentInboxStore, AgentMessage};
+use crate::coordination::agent_inbox::{AgentInboxStore, AgentMessage, InsertInboxParams};
 use crate::coordination::agent_org_runs::{
     AgentOrgContextMember, AgentOrgRunContext, COORDINATOR_MEMBER_ID,
 };
@@ -246,6 +246,7 @@ fn task_tools_sandbox() -> test_env::SandboxGuard {
             session_id TEXT NOT NULL,
             turn_intent_id TEXT NOT NULL,
             client_message_id TEXT,
+            org_run_id TEXT,
             source TEXT NOT NULL,
             status TEXT NOT NULL,
             created_at TEXT NOT NULL,
@@ -398,6 +399,32 @@ async fn task_create_rejects_missing_dispatch_policy() {
     assert!(
         matches!(err, ToolError::InvalidParams(message) if message.contains("dispatch_policy"))
     );
+}
+
+#[tokio::test]
+async fn task_create_rejects_ownerless_task_with_undeliverable_id() {
+    let _sandbox = task_tools_sandbox();
+    let tool = TaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
+    let oversized_id =
+        "x".repeat(crate::coordination::agent_org_payload_limits::TASK_IDENTIFIER_MAX_CHARS + 1);
+    let error = tool
+        .execute_text(
+            json!({
+                "id": oversized_id,
+                "subject": "Ownerless bounded task",
+                "eligible_member_ids": ["m-alice"],
+            }),
+            &test_ctx(),
+        )
+        .await
+        .expect_err("task id must fit every TaskAssigned delivery path");
+
+    assert!(
+        matches!(error, ToolError::InvalidParams(message) if message.contains("task_create.id must be <= 1000 chars"))
+    );
+    assert!(AgentOrgTaskStore::list("run-tools-1")
+        .expect("inspect rejected board")
+        .is_empty());
 }
 
 #[test]
@@ -2809,6 +2836,275 @@ async fn task_list_defaults_to_fifty_compact_rows() {
     assert!(value["page"]["next_cursor"].is_string());
 }
 
+fn seed_task_list_current_turn_finality_fixture(materialize_inbox: bool) -> i64 {
+    let now = chrono::Utc::now().to_rfc3339();
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    conn.execute(
+        "UPDATE agent_org_runs
+         SET root_session_id='root-tools-1', status='running', updated_at=?2
+         WHERE id=?1",
+        rusqlite::params!["run-tools-1", &now],
+    )
+    .expect("reset running Agent Org run");
+    upsert_session(&UnifiedSessionRecord {
+        session_id: "root-tools-1".to_string(),
+        name: "Coordinator".to_string(),
+        status: "running".to_string(),
+        session_type: "agent".to_string(),
+        created_at: now.clone(),
+        updated_at: now.clone(),
+        ..Default::default()
+    })
+    .expect("seed running coordinator session");
+    AgentOrgTaskStore::create(CreateTaskParams {
+        id: "current-turn-finished-task".to_string(),
+        org_run_id: "run-tools-1".to_string(),
+        subject: "Finished work presented to the coordinator".to_string(),
+        description: String::new(),
+        active_form: None,
+        owner: Some("m-alice".to_string()),
+        status: TaskStatus::Completed,
+        blocks: Vec::new(),
+        blocked_by: Vec::new(),
+        metadata: None,
+    })
+    .expect("seed resolved task board");
+    conn.execute(
+        "INSERT INTO session_turn_intents
+         (session_id, turn_intent_id, org_run_id, source, status, created_at, updated_at)
+         VALUES ('root-tools-1', 'current-coordinator-turn', 'run-tools-1',
+                 'agent_org', 'running', ?1, ?1)",
+        rusqlite::params![&now],
+    )
+    .expect("seed current coordinator turn intent");
+    let inbox = AgentInboxStore::insert(InsertInboxParams {
+        recipient_agent_id: "coord-1".to_string(),
+        recipient_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
+        sender_agent_id: "alice-1".to_string(),
+        sender_member_id: Some("m-alice".to_string()),
+        org_run_id: Some("run-tools-1".to_string()),
+        message: AgentMessage::Plain {
+            summary: "Worker result".to_string(),
+            text: "The finished work is in this coordinator turn.".to_string(),
+        },
+    })
+    .expect("seed unread coordinator inbox row");
+    if materialize_inbox {
+        crate::session::persistence::materialize_agent_org_inbox_transcript(
+            "root-tools-1",
+            &[inbox.id],
+            "current-turn-inbox-transcript",
+            "current-turn-inbox-intent",
+            "<agent-org-inbox>worker result</agent-org-inbox>",
+        )
+        .expect("materialize current coordinator inbox row");
+    }
+    crate::coordination::agent_org_runs::AgentOrgRunStore::stage_coordinator_work_revision(
+        "run-tools-1",
+    )
+    .expect("stage the current work revision");
+    inbox.id
+}
+
+fn has_finality_blocker(value: &Value, field: &str, kind: &str, count: i64) -> bool {
+    value["run_summary"][field]
+        .as_array()
+        .expect("finality blocker array")
+        .iter()
+        .any(|blocker| blocker["kind"] == kind && blocker["count"] == count)
+}
+
+#[tokio::test]
+async fn task_list_projects_exact_current_root_turn_and_materialized_inbox() {
+    let _sandbox = task_tools_sandbox();
+    let inbox_id = seed_task_list_current_turn_finality_fixture(true);
+    let call_ctx = crate::tools::call_context::CallContext::for_turn(
+        "task-list-current-turn",
+        "root-tools-1",
+        "current-coordinator-turn",
+        vec![inbox_id],
+    );
+
+    let result = TaskListTool::new(ctx(COORDINATOR_MEMBER_ID))
+        .execute_text(json!({}), &call_ctx)
+        .await
+        .expect("list tasks from the current coordinator turn");
+    let value: Value = serde_json::from_str(&result).expect("decode task_list result");
+
+    assert_eq!(value["run_summary"]["open"], 0);
+    assert_eq!(
+        value["run_summary"]["pending_worker_turn_intent_count"], 1,
+        "the raw snapshot still includes the currently running coordinator intent"
+    );
+    assert_eq!(value["run_summary"]["unread_inbox_count"], 1);
+    assert!(has_finality_blocker(
+        &value,
+        "current_finality_blockers",
+        "in_flight_turn_intents",
+        1,
+    ));
+    assert!(has_finality_blocker(
+        &value,
+        "current_finality_blockers",
+        "unread_inbox",
+        1,
+    ));
+    assert_eq!(value["run_summary"]["completion_ready"], true);
+    assert_eq!(value["run_summary"]["completion_blockers"], json!([]));
+}
+
+#[tokio::test]
+async fn task_list_current_turn_projection_keeps_unrelated_durable_blockers() {
+    let _sandbox = task_tools_sandbox();
+    let projected_inbox_id = seed_task_list_current_turn_finality_fixture(true);
+    let now = chrono::Utc::now().to_rfc3339();
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    conn.execute(
+        "INSERT INTO session_turn_intents
+         (session_id, turn_intent_id, org_run_id, source, status, created_at, updated_at)
+         VALUES ('reviewer-session', 'unrelated-queued-turn', 'run-tools-1',
+                 'agent_org', 'queued', ?1, ?1)",
+        rusqlite::params![&now],
+    )
+    .expect("seed unrelated queued turn");
+    let unrelated_inbox = AgentInboxStore::insert(InsertInboxParams {
+        recipient_agent_id: "coord-1".to_string(),
+        recipient_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
+        sender_agent_id: "alice-1".to_string(),
+        sender_member_id: Some("m-alice".to_string()),
+        org_run_id: Some("run-tools-1".to_string()),
+        message: AgentMessage::Plain {
+            summary: "Later worker result".to_string(),
+            text: "This row was not materialized into the current turn.".to_string(),
+        },
+    })
+    .expect("seed unrelated unread inbox row");
+    let call_ctx = crate::tools::call_context::CallContext::for_turn(
+        "task-list-current-turn",
+        "root-tools-1",
+        "current-coordinator-turn",
+        vec![projected_inbox_id],
+    );
+
+    let result = TaskListTool::new(ctx(COORDINATOR_MEMBER_ID))
+        .execute_text(json!({}), &call_ctx)
+        .await
+        .expect("list tasks without hiding unrelated blockers");
+    let value: Value = serde_json::from_str(&result).expect("decode task_list result");
+
+    assert_ne!(unrelated_inbox.id, projected_inbox_id);
+    assert_eq!(value["run_summary"]["pending_worker_turn_intent_count"], 2);
+    assert_eq!(value["run_summary"]["unread_inbox_count"], 2);
+    assert_eq!(value["run_summary"]["completion_ready"], false);
+    assert!(has_finality_blocker(
+        &value,
+        "completion_blockers",
+        "in_flight_turn_intents",
+        1,
+    ));
+    assert!(has_finality_blocker(
+        &value,
+        "completion_blockers",
+        "unread_inbox",
+        1,
+    ));
+}
+
+#[tokio::test]
+async fn task_list_current_turn_projection_fails_closed_for_wrong_identity_or_receipt() {
+    let _sandbox = task_tools_sandbox();
+    let inbox_id = seed_task_list_current_turn_finality_fixture(true);
+    let list = TaskListTool::new(ctx(COORDINATOR_MEMBER_ID));
+
+    let wrong_session_ctx = crate::tools::call_context::CallContext::for_turn(
+        "task-list-wrong-session",
+        "reviewer-session",
+        "current-coordinator-turn",
+        vec![inbox_id],
+    );
+    let wrong_session: Value = serde_json::from_str(
+        &list
+            .execute_text(json!({}), &wrong_session_ctx)
+            .await
+            .expect("wrong-session call still returns diagnostics"),
+    )
+    .expect("decode wrong-session result");
+    assert_eq!(wrong_session["run_summary"]["completion_ready"], false);
+    assert!(has_finality_blocker(
+        &wrong_session,
+        "completion_blockers",
+        "in_flight_turn_intents",
+        1,
+    ));
+    assert!(has_finality_blocker(
+        &wrong_session,
+        "completion_blockers",
+        "unread_inbox",
+        1,
+    ));
+
+    let wrong_intent_ctx = crate::tools::call_context::CallContext::for_turn(
+        "task-list-wrong-intent",
+        "root-tools-1",
+        "another-turn-intent",
+        vec![inbox_id],
+    );
+    let wrong_intent: Value = serde_json::from_str(
+        &list
+            .execute_text(json!({}), &wrong_intent_ctx)
+            .await
+            .expect("wrong-intent call still returns diagnostics"),
+    )
+    .expect("decode wrong-intent result");
+    assert_eq!(wrong_intent["run_summary"]["completion_ready"], false);
+    assert!(has_finality_blocker(
+        &wrong_intent,
+        "completion_blockers",
+        "in_flight_turn_intents",
+        1,
+    ));
+    assert!(has_finality_blocker(
+        &wrong_intent,
+        "completion_blockers",
+        "unread_inbox",
+        1,
+    ));
+
+    database::db::get_connection()
+        .expect("test sqlite connection")
+        .execute(
+            "DELETE FROM agent_inbox_materializations WHERE inbox_id=?1",
+            rusqlite::params![inbox_id],
+        )
+        .expect("remove the receipt to exercise fail-closed validation");
+    let missing_receipt_ctx = crate::tools::call_context::CallContext::for_turn(
+        "task-list-missing-receipt",
+        "root-tools-1",
+        "current-coordinator-turn",
+        vec![inbox_id],
+    );
+    let missing_receipt: Value = serde_json::from_str(
+        &list
+            .execute_text(json!({}), &missing_receipt_ctx)
+            .await
+            .expect("missing-receipt call still returns diagnostics"),
+    )
+    .expect("decode missing-receipt result");
+    assert_eq!(missing_receipt["run_summary"]["completion_ready"], false);
+    assert!(has_finality_blocker(
+        &missing_receipt,
+        "completion_blockers",
+        "unread_inbox",
+        1,
+    ));
+    assert!(!has_finality_blocker(
+        &missing_receipt,
+        "completion_blockers",
+        "in_flight_turn_intents",
+        1,
+    ));
+}
+
 #[tokio::test]
 async fn task_list_completion_certificate_blocks_while_reviewer_is_running() {
     let _sandbox = task_tools_sandbox();
@@ -2825,7 +3121,7 @@ async fn task_list_completion_certificate_blocks_while_reviewer_is_running() {
         UnifiedSessionRecord {
             session_id: "root-tools-1".to_string(),
             name: "Coordinator".to_string(),
-            status: "idle".to_string(),
+            status: "running".to_string(),
             session_type: "agent".to_string(),
             created_at: now.clone(),
             updated_at: now.clone(),
@@ -2859,7 +3155,24 @@ async fn task_list_completion_certificate_blocks_while_reviewer_is_running() {
         metadata: None,
     })
     .unwrap();
-    let call_ctx = test_ctx();
+    crate::coordination::agent_org_runs::AgentOrgRunStore::stage_coordinator_work_revision(
+        "run-tools-1",
+    )
+    .expect("stage current work revision");
+    conn.execute(
+        "INSERT INTO session_turn_intents
+         (session_id, turn_intent_id, org_run_id, source, status, created_at, updated_at)
+         VALUES ('root-tools-1', 'current-review-turn', 'run-tools-1',
+                 'agent_org', 'running', ?1, ?1)",
+        rusqlite::params![chrono::Utc::now().to_rfc3339()],
+    )
+    .expect("seed the current coordinator intent");
+    let call_ctx = crate::tools::call_context::CallContext::for_turn(
+        "task-list-review-turn",
+        "root-tools-1",
+        "current-review-turn",
+        Vec::new(),
+    );
 
     let list = TaskListTool::new(ctx(COORDINATOR_MEMBER_ID));
     let result = list
@@ -2878,6 +3191,102 @@ async fn task_list_completion_certificate_blocks_while_reviewer_is_running() {
         .unwrap()
         .iter()
         .any(|blocker| blocker["kind"] == "sessions_active"));
+
+    conn.execute(
+        "UPDATE agent_sessions SET status='idle', updated_at=?2 WHERE session_id=?1",
+        rusqlite::params!["reviewer-session", chrono::Utc::now().to_rfc3339()],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO session_turn_intents
+         (session_id, turn_intent_id, org_run_id, source, status, created_at, updated_at)
+         VALUES (?1, 'queued-review', 'run-tools-1', 'resume', 'queued', ?2, ?2)",
+        rusqlite::params!["reviewer-session", chrono::Utc::now().to_rfc3339()],
+    )
+    .unwrap();
+    let result = list.execute_text(json!({}), &call_ctx).await.unwrap();
+    let value: Value = serde_json::from_str(&result).unwrap();
+    assert_eq!(value["run_summary"]["completion_ready"], false);
+    assert_eq!(value["run_summary"]["pending_worker_turn_intent_count"], 2);
+    assert!(value["run_summary"]["completion_blockers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|blocker| blocker["kind"] == "in_flight_turn_intents"));
+
+    conn.execute(
+        "UPDATE session_turn_intents SET status='completed', updated_at=?2
+         WHERE session_id=?1 AND turn_intent_id='queued-review'",
+        rusqlite::params!["reviewer-session", chrono::Utc::now().to_rfc3339()],
+    )
+    .unwrap();
+    let result = list.execute_text(json!({}), &call_ctx).await.unwrap();
+    let value: Value = serde_json::from_str(&result).unwrap();
+    assert_eq!(value["run_summary"]["completion_ready"], true);
+    assert_eq!(value["run_summary"]["completion_blockers"], json!([]));
+}
+
+#[tokio::test]
+async fn task_list_surfaces_corrupt_task_data_without_false_empty_completion() {
+    let _sandbox = task_tools_sandbox();
+    let now = chrono::Utc::now().to_rfc3339();
+    let conn = database::db::get_connection().unwrap();
+    conn.execute(
+        "INSERT OR REPLACE INTO agent_org_runs
+         (id, org_id, coordinator_agent_id, root_session_id, entry_mode, status, created_at, updated_at)
+         VALUES ('run-tools-1', 'org-tools-1', 'coord-1', 'root-tools-1', 'standalone_session', 'running', ?1, ?1)",
+        rusqlite::params![&now],
+    )
+    .unwrap();
+    upsert_session(&UnifiedSessionRecord {
+        session_id: "root-tools-1".to_string(),
+        name: "Coordinator".to_string(),
+        status: "running".to_string(),
+        session_type: "agent".to_string(),
+        created_at: now.clone(),
+        updated_at: now,
+        ..Default::default()
+    })
+    .unwrap();
+    AgentOrgTaskStore::create(CreateTaskParams {
+        id: "corrupt-task".to_string(),
+        org_run_id: "run-tools-1".to_string(),
+        subject: "Corrupt persisted task".to_string(),
+        description: String::new(),
+        active_form: None,
+        owner: Some("m-alice".to_string()),
+        status: TaskStatus::Completed,
+        blocks: Vec::new(),
+        blocked_by: Vec::new(),
+        metadata: None,
+    })
+    .unwrap();
+    conn.execute(
+        "UPDATE agent_org_tasks SET blocks_json='not-json' WHERE id='corrupt-task'",
+        [],
+    )
+    .unwrap();
+    crate::coordination::agent_org_runs::AgentOrgRunStore::stage_coordinator_work_revision(
+        "run-tools-1",
+    )
+    .unwrap();
+
+    let result = TaskListTool::new(ctx(COORDINATOR_MEMBER_ID))
+        .execute_text(json!({}), &test_ctx())
+        .await
+        .expect("corrupt board still returns canonical diagnostics");
+    let value: Value = serde_json::from_str(&result).unwrap();
+    assert_eq!(value["tasks"].as_array().unwrap().len(), 1);
+    assert_eq!(value["tasks"][0]["id"], "corrupt-task");
+    assert_eq!(value["tasks"][0]["blocks"], json!([]));
+    assert_eq!(value["run_summary"]["total"], 1);
+    assert_eq!(value["run_summary"]["corrupt_task_count"], 1);
+    assert_eq!(value["run_summary"]["completion_ready"], false);
+    assert!(value["run_summary"]["completion_blockers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|blocker| blocker["kind"] == "corrupt_task_data"));
 }
 
 #[tokio::test]

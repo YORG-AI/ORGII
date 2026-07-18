@@ -16,6 +16,7 @@ function row(
     displayText: `@Reviewer message-${inboxId}`,
     createdAt: `2026-07-17T00:00:${String(inboxId).padStart(2, "0")}Z`,
     readAt: null,
+    deliveryResolution: null,
     ...overrides,
   };
 }
@@ -62,7 +63,7 @@ describe("Agent Org Group Chat durable history", () => {
       ),
       request,
       {
-        rows: [row(3), row(4), row(5)],
+        rows: [row(3, { deliveryResolution: "superseded" }), row(4), row(5)],
         hasMore: true,
         nextBeforeId: 3,
       }
@@ -80,6 +81,9 @@ describe("Agent Org Group Chat durable history", () => {
     expect(loaded.rows.find((item) => item.inboxId === 3)?.readAt).toBe(
       "2026-07-17T00:01:00Z"
     );
+    expect(
+      loaded.rows.find((item) => item.inboxId === 3)?.deliveryResolution
+    ).toBe("superseded");
     expect(loaded).toMatchObject({ hasMore: false, nextBeforeId: null });
   });
 
@@ -101,16 +105,16 @@ describe("Agent Org Group Chat durable history", () => {
       older,
       request,
       {
-        rows: [row(4, { readAt: "2026-07-17T00:02:00Z" }), row(5)],
+        rows: [row(4, { deliveryResolution: "cancelled" }), row(5)],
         hasMore: true,
         nextBeforeId: 4,
       }
     );
 
     expect(refreshed.rows.map((item) => item.inboxId)).toEqual([1, 2, 3, 4, 5]);
-    expect(refreshed.rows.find((item) => item.inboxId === 4)?.readAt).toBe(
-      "2026-07-17T00:02:00Z"
-    );
+    expect(
+      refreshed.rows.find((item) => item.inboxId === 4)?.deliveryResolution
+    ).toBe("cancelled");
     expect(refreshed).toMatchObject({ hasMore: false, nextBeforeId: null });
   });
 
@@ -235,6 +239,29 @@ describe("Agent Org Group Chat durable history", () => {
     });
   });
 
+  it("bounds stacked refresh gaps and falls back to a complete cursor scan", () => {
+    let model = agentOrgGroupChatHistoryTestApi.applyRefreshPage(
+      agentOrgGroupChatHistoryTestApi.createHistoryModel(
+        request.scopeKey,
+        request.generation
+      ),
+      request,
+      { rows: [row(1)], hasMore: false }
+    );
+    for (let page = 1; page <= 33; page += 1) {
+      const inboxId = page * 100 + 1;
+      model = agentOrgGroupChatHistoryTestApi.applyRefreshPage(model, request, {
+        rows: [row(inboxId)],
+        hasMore: true,
+        nextBeforeId: inboxId,
+      });
+    }
+
+    expect(model.continuationFrontiers).toHaveLength(0);
+    expect(model.scanThroughLoadedRows).toBe(true);
+    expect(model.nextBeforeId).toBe(3301);
+  });
+
   it("ignores a response from a previous session or enablement generation", () => {
     const current = agentOrgGroupChatHistoryTestApi.applyRefreshPage(
       agentOrgGroupChatHistoryTestApi.createHistoryModel(
@@ -293,5 +320,45 @@ describe("Agent Org Group Chat durable history", () => {
       refreshing: false,
       rows: [expect.objectContaining({ inboxId: 8 })],
     });
+  });
+
+  it("recognizes cancelled and superseded rows as resolved pending delivery", () => {
+    const rows = [
+      row(10),
+      row(11, { deliveryResolution: "cancelled" }),
+      row(12, { deliveryResolution: "superseded" }),
+    ];
+
+    expect(
+      agentOrgGroupChatHistoryTestApi.isGroupChatDeliveryResolved(10, rows)
+    ).toBe(false);
+    expect(
+      agentOrgGroupChatHistoryTestApi.isGroupChatDeliveryResolved(11, rows)
+    ).toBe(true);
+    expect(
+      agentOrgGroupChatHistoryTestApi.isGroupChatDeliveryResolved(12, rows)
+    ).toBe(true);
+    expect(
+      agentOrgGroupChatHistoryTestApi.isGroupChatPendingDeliverySettled(
+        10,
+        {
+          id: 10,
+          recipientAgentId: "reviewer-agent",
+          recipientMemberId: "reviewer",
+          senderAgentId: "_user",
+          senderMemberId: null,
+          recipientName: "Reviewer",
+          senderName: "User",
+          displayText: "@Reviewer message-10",
+          orgRunId: "run-1",
+          payloadKind: "plain",
+          requestId: null,
+          createdAt: "2026-07-17T00:00:10Z",
+          readAt: null,
+          deliveryResolution: "cancelled",
+        },
+        rows
+      )
+    ).toBe(true);
   });
 });

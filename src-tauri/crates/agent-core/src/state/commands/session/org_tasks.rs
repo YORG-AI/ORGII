@@ -86,6 +86,8 @@ pub struct AgentOrgGroupChatHistoryRow {
     pub display_text: String,
     pub created_at: String,
     pub read_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delivery_resolution: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -148,6 +150,8 @@ pub struct AgentOrgInboxPreviewRow {
     pub created_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub read_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delivery_resolution: Option<String>,
     pub recipient_name: String,
     pub sender_name: String,
     pub display_text: String,
@@ -177,6 +181,7 @@ pub struct AgentOrgRunTaskOverview {
     pub pending: usize,
     pub in_progress: usize,
     pub completed: usize,
+    pub corrupt: usize,
     pub visible: usize,
     pub truncated: bool,
 }
@@ -293,7 +298,10 @@ fn load_group_chat_history_page(
     let mut stmt = conn
         .prepare(
             "SELECT inbox.id,
-                    inbox.recipient_member_id,
+                    CASE WHEN inbox.recipient_member_id IS NULL THEN NULL
+                         WHEN length(CAST(inbox.recipient_member_id AS BLOB))<=?7
+                         THEN substr(inbox.recipient_member_id, 1, ?8)
+                         ELSE NULL END AS recipient_member_id,
                     CASE
                       WHEN length(CAST(inbox.payload_json AS BLOB))<=?4
                        AND json_valid(inbox.payload_json)
@@ -307,14 +315,17 @@ fn load_group_chat_history_page(
                          THEN substr(inbox.display_text, 1, ?5)
                          ELSE NULL END AS display_text,
                     substr(inbox.created_at, 1, 64),
-                    CASE WHEN inbox.read_at IS NULL THEN NULL ELSE substr(inbox.read_at, 1, 64) END
+                    CASE WHEN inbox.read_at IS NULL THEN NULL ELSE substr(inbox.read_at, 1, 64) END,
+                    resolution.resolution_kind
              FROM agent_inbox inbox
+             LEFT JOIN agent_inbox_delivery_resolutions resolution
+               ON resolution.inbox_id=inbox.id
              WHERE inbox.org_run_id=?1
                AND inbox.sender_agent_id=?2
                AND inbox.payload_kind='plain'
                AND (?3 IS NULL OR inbox.id<?3)
              ORDER BY inbox.id DESC
-             LIMIT ?7",
+             LIMIT ?9",
         )
         .map_err(|err| err.to_string())?;
     let rows = stmt
@@ -326,6 +337,9 @@ fn load_group_chat_history_page(
                 crate::coordination::agent_org_payload_limits::AGENT_INBOX_PAYLOAD_MAX_BYTES as i64,
                 (crate::coordination::agent_org_payload_limits::PLAIN_TEXT_MAX_CHARS + 1) as i64,
                 crate::coordination::agent_org_payload_limits::PLAIN_TEXT_MAX_BYTES as i64,
+                crate::coordination::agent_org_payload_limits::MESSAGE_IDENTIFIER_MAX_BYTES as i64,
+                (crate::coordination::agent_org_payload_limits::MESSAGE_IDENTIFIER_MAX_CHARS + 1)
+                    as i64,
                 (limit + 1) as i64,
             ],
             |row| {
@@ -336,6 +350,7 @@ fn load_group_chat_history_page(
                     row.get::<_, Option<String>>(3)?,
                     row.get::<_, String>(4)?,
                     row.get::<_, Option<String>>(5)?,
+                    row.get::<_, Option<String>>(6)?,
                 ))
             },
         )
@@ -345,16 +360,39 @@ fn load_group_chat_history_page(
     let mut serialized_bytes = 2usize;
     let mut has_more = false;
     for row in rows {
-        let (inbox_id, target_member_id, text, stored_display_text, created_at, read_at) =
-            row.map_err(|err| err.to_string())?;
+        let (
+            inbox_id,
+            target_member_id,
+            text,
+            stored_display_text,
+            created_at,
+            read_at,
+            delivery_resolution,
+        ) = row.map_err(|err| err.to_string())?;
         if newest_first.len() == limit {
             has_more = true;
             break;
         }
+        let target_member_id = target_member_id.filter(|value| {
+            crate::coordination::agent_org_payload_limits::validate_message_identifier(
+                "group_chat_history.target_member_id",
+                value,
+            )
+            .is_ok()
+        });
         let target_member_name = target_member_id
             .as_deref()
             .and_then(|member_id| context.participant_display_name(member_id))
             .or_else(|| target_member_id.clone())
+            .filter(|value| {
+                crate::coordination::agent_org_payload_limits::validate_text_len(
+                    "group_chat_history.target_member_name",
+                    value,
+                    crate::coordination::agent_org_payload_limits::MEMBER_DISPLAY_NAME_MAX_CHARS,
+                    crate::coordination::agent_org_payload_limits::MEMBER_DISPLAY_NAME_MAX_BYTES,
+                )
+                .is_ok()
+            })
             .unwrap_or_else(|| "Unknown recipient".to_string());
         let text = text
             .filter(|value| {
@@ -386,6 +424,7 @@ fn load_group_chat_history_page(
             display_text,
             created_at,
             read_at,
+            delivery_resolution,
         };
         let row_bytes = serde_json::to_vec(&history_row)
             .map_err(|err| format!("serialize Group Chat history row failed: {err}"))?
@@ -443,6 +482,7 @@ fn build_agent_org_run_view(
         pending: finality.facts.pending_task_count,
         in_progress: finality.facts.in_progress_task_count,
         completed: finality.facts.completed_task_count,
+        corrupt: finality.facts.corrupt_task_count,
         visible: task_page.tasks.len(),
         truncated: task_page.has_more,
     };
@@ -564,7 +604,8 @@ fn project_run_phase(
         AgentOrgRunStatus::Running => {
             let all_tasks_completed = task_overview.total > 0
                 && task_overview.pending == 0
-                && task_overview.in_progress == 0;
+                && task_overview.in_progress == 0
+                && task_overview.corrupt == 0;
             if all_tasks_completed {
                 return AgentOrgRunPhase::Finalizing;
             }
@@ -587,7 +628,10 @@ fn project_run_phase(
             if unread_inbox_count > 0 {
                 return AgentOrgRunPhase::Dispatching;
             }
-            if task_overview.pending > 0 || task_overview.in_progress > 0 {
+            if task_overview.pending > 0
+                || task_overview.in_progress > 0
+                || task_overview.corrupt > 0
+            {
                 AgentOrgRunPhase::Waiting
             } else {
                 AgentOrgRunPhase::Coordinating
@@ -1139,6 +1183,7 @@ pub async fn agent_org_send_user_message_to_member_impl(
     let view = agent_org_session_run_view_impl(state, &session_id)
         .await?
         .ok_or_else(|| format!("Session {session_id} is not part of an Agent Org run"))?;
+    let org_run_id = view.context.run_id.clone();
     let member = view
         .members
         .into_iter()
@@ -1168,6 +1213,7 @@ pub async fn agent_org_send_user_message_to_member_impl(
         None,
         None,
         None,
+        Some(org_run_id),
         crate::foundation::session_bridge::TurnIntentBridgeSource::AgentOrg,
     )
     .await?;
@@ -1484,6 +1530,10 @@ fn seed_coordinator_resume_inbox_in_tx(
                  WHERE recipient_member_id=?1
                    AND org_run_id=?2
                    AND read_at IS NULL
+                   AND NOT EXISTS (
+                       SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=agent_inbox.id
+                   )
              )",
             params![coordinator_member_id, &context.run_id],
             |row| row.get(0),
@@ -1712,6 +1762,7 @@ fn enrich_inbox_preview_rows(
                 request_id: row.request_id,
                 created_at: row.created_at,
                 read_at: row.read_at,
+                delivery_resolution: row.delivery_resolution,
                 recipient_name,
                 sender_name,
                 display_text,
@@ -1792,6 +1843,9 @@ fn member_view_from_parts(
     } = identity;
     let (inbox_activity_count, unread_inbox_count) = inbox_counts
         .iter()
+        // member_id is the only canonical Agent Org identity. A legacy row
+        // without it remains visible in the bounded Run Inbox, but is not
+        // copied onto every roster member that happens to share agent_id.
         .filter(|counts| counts.recipient_member_id.as_deref() == Some(member_id.as_str()))
         .fold((0usize, 0usize), |(activity, unread), counts| {
             (
@@ -2118,6 +2172,7 @@ mod tests {
             pending: 0,
             in_progress: 0,
             completed: 1,
+            corrupt: 0,
             visible: 1,
             truncated: false,
         };
@@ -2134,6 +2189,7 @@ mod tests {
                     pending: 0,
                     in_progress: 0,
                     completed: 0,
+                    corrupt: 0,
                     visible: 0,
                     truncated: false,
                 },
@@ -2206,6 +2262,7 @@ mod tests {
             request_id: None,
             created_at: "2026-05-28T00:00:00Z".to_string(),
             read_at: None,
+            delivery_resolution: None,
             recipient_name: "Alice".to_string(),
             sender_name: "User".to_string(),
             display_text: "hello".to_string(),
@@ -2214,6 +2271,128 @@ mod tests {
         let value = serde_json::to_value(row).expect("serialize inbox preview");
         assert!(value.get("payloadJson").is_none());
         assert_eq!(value["displayText"], "hello");
+    }
+
+    #[test]
+    fn run_view_does_not_copy_legacy_agent_only_inbox_counts_to_shared_members() {
+        let recent_rows = vec![
+            AgentInboxPreviewRecord {
+                id: 1,
+                recipient_agent_id: "builtin:sde".to_string(),
+                recipient_member_id: None,
+                sender_agent_id: USER_SENDER_ID.to_string(),
+                sender_member_id: None,
+                org_run_id: Some("run-shared-agent".to_string()),
+                payload_kind: "plain".to_string(),
+                request_id: None,
+                created_at: "2026-05-28T00:00:00Z".to_string(),
+                read_at: None,
+                display_preview: Some("legacy".to_string()),
+                delivery_resolution: None,
+            },
+            AgentInboxPreviewRecord {
+                id: 2,
+                recipient_agent_id: "builtin:sde".to_string(),
+                recipient_member_id: Some("member-planner".to_string()),
+                sender_agent_id: USER_SENDER_ID.to_string(),
+                sender_member_id: None,
+                org_run_id: Some("run-shared-agent".to_string()),
+                payload_kind: "plain".to_string(),
+                request_id: None,
+                created_at: "2026-05-28T00:00:01Z".to_string(),
+                read_at: None,
+                display_preview: Some("canonical".to_string()),
+                delivery_resolution: None,
+            },
+        ];
+        let unread_counts = vec![
+            AgentInboxUnreadRecipientCounts {
+                recipient_agent_id: "builtin:sde".to_string(),
+                recipient_member_id: None,
+                unread_count: 7,
+                max_unread_id: 7,
+            },
+            AgentInboxUnreadRecipientCounts {
+                recipient_agent_id: "builtin:sde".to_string(),
+                recipient_member_id: Some("member-planner".to_string()),
+                unread_count: 2,
+                max_unread_id: 9,
+            },
+        ];
+        let inbox_counts = bounded_run_view_inbox_counts(&recent_rows, &unread_counts);
+        let task_counts = HashMap::new();
+        let interventions = HashMap::new();
+
+        let planner = member_view_from_parts(
+            AgentOrgMemberViewIdentity {
+                member_id: "member-planner".to_string(),
+                name: "Planner".to_string(),
+                role: "Plan".to_string(),
+                agent_id: "builtin:sde".to_string(),
+                parent_member_id: None,
+                is_coordinator: false,
+            },
+            None,
+            &task_counts,
+            &inbox_counts,
+            &interventions,
+        )
+        .expect("project planner");
+        let builder = member_view_from_parts(
+            AgentOrgMemberViewIdentity {
+                member_id: "member-builder".to_string(),
+                name: "Builder".to_string(),
+                role: "Build".to_string(),
+                agent_id: "builtin:sde".to_string(),
+                parent_member_id: None,
+                is_coordinator: false,
+            },
+            None,
+            &task_counts,
+            &inbox_counts,
+            &interventions,
+        )
+        .expect("project builder");
+
+        assert_eq!(planner.inbox_activity_count, 1);
+        assert_eq!(planner.unread_inbox_count, 2);
+        assert_eq!(builder.inbox_activity_count, 0);
+        assert_eq!(builder.unread_inbox_count, 0);
+        assert!(
+            inbox_counts
+                .iter()
+                .any(|count| count.recipient_member_id.is_none()
+                    && count.activity_count == 1
+                    && count.unread_count == 7),
+            "legacy rows remain visible at run level without being guessed onto a member"
+        );
+
+        let old_unread_counts = bounded_run_view_inbox_counts(
+            &[],
+            &[AgentInboxUnreadRecipientCounts {
+                recipient_agent_id: "builtin:sde".to_string(),
+                recipient_member_id: Some("member-planner".to_string()),
+                unread_count: 1,
+                max_unread_id: 10,
+            }],
+        );
+        let planner_with_old_unread = member_view_from_parts(
+            AgentOrgMemberViewIdentity {
+                member_id: "member-planner".to_string(),
+                name: "Planner".to_string(),
+                role: "Plan".to_string(),
+                agent_id: "builtin:sde".to_string(),
+                parent_member_id: None,
+                is_coordinator: false,
+            },
+            None,
+            &task_counts,
+            &old_unread_counts,
+            &interventions,
+        )
+        .expect("project old unread");
+        assert_eq!(planner_with_old_unread.inbox_activity_count, 0);
+        assert_eq!(planner_with_old_unread.unread_inbox_count, 1);
     }
 
     #[test]
@@ -2232,6 +2411,7 @@ mod tests {
             pending: 0,
             in_progress: 1,
             completed: 0,
+            corrupt: 0,
             visible: 1,
             truncated: false,
         };
@@ -2412,6 +2592,23 @@ mod tests {
                 .rows
                 .len(),
             100
+        );
+
+        conn.execute(
+            "UPDATE agent_inbox
+             SET recipient_member_id=?1
+             WHERE id=(SELECT MAX(id) FROM agent_inbox WHERE org_run_id=?2)",
+            params!["x".repeat(2 * 1024 * 1024), &context.run_id],
+        )
+        .expect("seed oversized historical recipient identity");
+        let corrupt_page = load_group_chat_history_page(&context, None, 100)
+            .expect("oversized historical identity is bounded, not loaded into the response");
+        let latest = corrupt_page.rows.last().expect("latest history row");
+        assert!(latest.target_member_id.is_none());
+        assert_eq!(latest.target_member_name, "Unknown recipient");
+        assert!(
+            serde_json::to_vec(&corrupt_page).unwrap().len() <= GROUP_CHAT_HISTORY_PAGE_MAX_BYTES,
+            "one corrupt recipient identity must not make the page exceed its payload cap"
         );
     }
 

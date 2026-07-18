@@ -3,9 +3,14 @@
 //! Inter-agent E2E observability probes for Agent Org runs. Most
 //! endpoints in this module are **helper-isolation / symbol-pinning**
 //! probes (driving an `AgentInboxStore` / `AgentOrgRunContext` helper
-//! directly, no live session, no LLM). The caller-path exception is
-//! `launch-coordinator`, which drives the canonical `session_launch_impl`.
-//! Each endpoint's individual doc states which kind it is.
+//! directly, no live session, no LLM). The caller-path exceptions are
+//! `launch-coordinator`, which drives the canonical `session_launch_impl`,
+//! and `session-return-to-work`, which drives the production wake scheduler
+//! and inbox drain on a materialized member session. Each endpoint's
+//! individual doc states which kind it is. Helper-isolation probes catch
+//! contract drift cheaply; the deterministic fake-provider return-to-work
+//! scenario catches regressions where the real turn processor stops draining
+//! or persisting inbox input.
 //!
 //! Currently exposed:
 //!
@@ -33,6 +38,11 @@
 //!   set. Init parity is automatic because we drive the same path the
 //!   production frontend uses; we never re-implement runtime assembly
 //!   here.
+//! - `POST /test/agent-org/session-return-to-work` — call the same
+//!   `agent_org_session_return_to_work_impl` as the Tauri command. This is a
+//!   narrow HTTP bridge, not a replacement drain helper: the production
+//!   scheduler, turn processor, inbox persistence, and provider path all run.
+//!
 //! `payload_kind` and `payload_decoded` are returned alongside the raw
 //! row so a corrupted serde tag (anti-pattern caught by
 //! `kind_tag_matches_serde_tag` in unit tests) shows up here too —
@@ -868,6 +878,11 @@ pub async fn test_agent_org_inbox_seed(
 /// caller (`UnifiedMessageProcessor::process`) actually invokes
 /// `drain_and_render_deferred` with the correct `org_context` and
 /// `recipient_agent_id` at the start of every turn. The full
+/// caller-path is exercised by
+/// `agent_org::production_return_to_work_drains_inbox_into_member_transcript`,
+/// which launches a real member session and uses the deterministic debug
+/// provider while leaving the scheduler and turn processor unchanged.
+///
 /// Response shape: `{ ok: true, drained_count: usize, rendered: usize, messages: Value[] }`.
 pub async fn test_agent_org_drain_inbox(
     Json(body): Json<serde_json::Value>,
@@ -1041,6 +1056,60 @@ pub async fn test_agent_org_drain_inbox(
         "rendered": messages.len(),
         "messages": messages,
     }))
+}
+
+/// `POST /test/agent-org/session-return-to-work`
+///
+/// Debug HTTP bridge to the production return-to-work command implementation.
+/// It deliberately does not drain or mark any inbox row itself. The invoked
+/// implementation must resolve the persisted member session, enqueue the
+/// idempotent Agent Org wake, run the real scheduler/turn processor/provider,
+/// and observe the production drain's durable acknowledgement.
+///
+/// Body: `{ "session_id": "agent-..." }`.
+/// Response: `{ "ok": true, "woke": true }` on a real wake, or a structured
+/// error. E2E preconditions may use a seeded inbox row, but the behavior under
+/// test starts at this bridge and cannot pass through `drain-inbox`.
+pub async fn test_agent_org_session_return_to_work(
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use tauri::Manager;
+
+    let session_id = match body.get("session_id").and_then(|value| value.as_str()) {
+        Some(value) if !value.trim().is_empty() => value.to_string(),
+        _ => {
+            return Json(serde_json::json!({
+                "ok": false,
+                "error": "session_id is required (non-empty string)"
+            }))
+        }
+    };
+
+    let Some(handle) = crate::api::get_app_handle() else {
+        return Json(serde_json::json!({
+            "ok": false,
+            "error": "AppHandle not initialized."
+        }));
+    };
+    let state = handle.state::<agent_core::state::AgentAppState>();
+
+    match agent_core::state::commands::session::org_tasks::agent_org_session_return_to_work_impl(
+        &state,
+        session_id.clone(),
+    )
+    .await
+    {
+        Ok(woke) => Json(serde_json::json!({
+            "ok": true,
+            "session_id": session_id,
+            "woke": woke,
+        })),
+        Err(error) => Json(serde_json::json!({
+            "ok": false,
+            "session_id": session_id,
+            "error": error,
+        })),
+    }
 }
 
 /// Render a `ToolError` into the stable `{error_kind, error_message}`
@@ -1762,8 +1831,9 @@ pub async fn test_agent_org_seed_stale_worker_run(
 /// [`AgentOrgRunStore::find_worker_session_by_member_id`]. Runtime scenarios
 /// use it to poll production background member materialization and to obtain
 /// the real session id needed for a subsequent caller-path action. A status
-/// value alone is not accepted as proof of inbox delivery; callers must also
-/// inspect the durable `read_at` and transcript materialization evidence.
+/// value alone is not accepted as proof of inbox delivery; the production
+/// return-to-work scenario also checks `read_at` and persisted transcript
+/// input.
 pub async fn test_agent_org_find_worker_session(
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
@@ -2048,7 +2118,9 @@ pub async fn test_agent_org_check_member_spawn_gate(
 /// [`agent_core::core::session::turn::processor::UnifiedMessageProcessor::process`]
 /// actually invokes `maybe_emit_member_idle` at turn end with the
 /// right `idle_reason` (Cancelled → Interrupted, Completed →
-/// Available). Those lifecycle classifications remain pinned by focused
+/// Available). The completed/Available caller path is exercised incidentally
+/// by the production return-to-work scenario, which runs a real member turn;
+/// Interrupted and Failed lifecycle classification remain pinned by focused
 /// lifecycle/unit coverage rather than this helper endpoint.
 ///
 /// Body shape mirrors the other agent-org probes (`org_run_id`,

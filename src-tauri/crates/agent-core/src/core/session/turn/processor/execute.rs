@@ -39,6 +39,8 @@ impl UnifiedMessageProcessor {
         turn_id: &str,
         messages: &mut Vec<Value>,
         reasoning_trigger: Option<crate::providers::thinking_mode::ReasoningLevel>,
+        turn_intent_id: &str,
+        projected_inbox_ids: Vec<i64>,
     ) -> Result<(TurnResult, UnifiedEventHandler), String> {
         let effective_policy = self.effective_tool_policy();
 
@@ -69,6 +71,8 @@ impl UnifiedMessageProcessor {
         };
 
         let turn_config = TurnConfig {
+            turn_intent_id: turn_intent_id.to_string(),
+            projected_inbox_ids,
             model: turn_model,
             account_id: self.runtime.account_id.clone(),
             context_window_override: self

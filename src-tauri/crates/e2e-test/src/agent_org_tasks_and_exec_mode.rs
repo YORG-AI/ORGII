@@ -7,6 +7,11 @@
 //!   `/test/agent-org/drain-inbox`, and assert on post-state via
 //!   `/test/agent-org/tasks/list` and `/test/agent-org/inbox/list-by-run`.
 //!   These pin the tool/store/helper contract only.
+//! - caller-path: `agent_org.rs`'s production return-to-work scenario drives
+//!   `/test/agent-org/launch-coordinator` followed by the same
+//!   `agent_org_session_return_to_work_impl` used by the Tauri command. That
+//!   scenario proves a real materialized member scheduler/turn reaches the
+//!   production drain instead of calling this file's drain helper endpoint.
 //! - rendered UI: frontend rendered E2E must assert user-visible history and
 //!   run-view badges/cards. Helper endpoints may seed or inspect, but must not
 //!   be the side-effect path for rendered history assertions.

@@ -922,6 +922,8 @@ impl Tool for AgentTool {
             .map(|sm| sm.max_iterations)
             .unwrap_or(DEFAULT_SUBAGENT_MAX_ITERATIONS);
         let turn_config = TurnConfig {
+            turn_intent_id: String::new(),
+            projected_inbox_ids: Vec::new(),
             model: model.clone(),
             account_id: self.config.session_account_id.clone(),
             context_window_override: agent.context_window,
