@@ -5,6 +5,9 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
+use crate::coordination::agent_org_payload_limits::{
+    validate_task_identifier, validate_task_identifier_list,
+};
 use crate::coordination::agent_org_tasks::{
     self, task_dependency_closure, AgentOrgTaskStore, CreateTaskParams, TaskCreateSchedulingPolicy,
     TaskExecutionMode, TaskStatus, TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR,
@@ -80,7 +83,7 @@ impl TaskDispatchPolicy {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TaskCreateParams {
-    /// Optional caller-supplied identifier. Defaults to a freshly
+    /// Optional caller-supplied bounded identifier. Defaults to a freshly
     /// minted v4 UUID. Use only when porting an external task or stamping a
     /// deterministic id in tests.
     #[serde(default)]
@@ -348,6 +351,9 @@ impl Tool for TaskCreateTool {
             .clone()
             .filter(|s| !s.trim().is_empty())
             .unwrap_or_else(agent_org_tasks::new_task_id);
+        validate_task_identifier("task_create.id", &id).map_err(ToolError::InvalidParams)?;
+        validate_task_identifier_list("task_create.dependency_task_ids", &blocked_by)
+            .map_err(ToolError::InvalidParams)?;
         if blocked_by.iter().any(|dependency_id| dependency_id == &id) {
             return Err(ToolError::InvalidParams(format!(
                 "{}: task '{id}' cannot depend on itself",

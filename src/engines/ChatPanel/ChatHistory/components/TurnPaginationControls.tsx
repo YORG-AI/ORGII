@@ -33,6 +33,7 @@ import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import SessionViewersIndicator from "@src/features/Org2Cloud/SessionViewersIndicator";
 import { useDropdownEngine } from "@src/hooks/dropdown";
 import { WorkstationHeaderSectionSeparator } from "@src/modules/WorkStation/shared";
+import { isAgentOrgMemberEmpty } from "@src/util/agentOrg/memberActivity";
 
 interface TurnPaginationControlsProps {
   agentName?: string | null;
@@ -300,11 +301,7 @@ const TurnPaginationControls: React.FC<TurnPaginationControlsProps> = memo(
                           : member.name;
                         const hasNoTasksAndNoInbox =
                           !member.isCoordinator &&
-                          member.activeTaskCount === 0 &&
-                          member.pendingTaskCount === 0 &&
-                          member.inProgressTaskCount === 0 &&
-                          member.completedTaskCount === 0 &&
-                          member.inboxActivityCount === 0;
+                          isAgentOrgMemberEmpty(member);
                         const runtimeStatusLabelKey =
                           MEMBER_RUNTIME_STATUS_LABEL_KEYS[runtimeStatus];
                         const runtimeStatusLabel = hasNoTasksAndNoInbox
@@ -316,8 +313,9 @@ const TurnPaginationControls: React.FC<TurnPaginationControlsProps> = memo(
                               ? t(`sessions:${runtimeStatusLabelKey}`)
                               : formatFallbackStatusLabel(runtimeStatus)
                             : "";
-                        // Members with no tasks or inbox activity cannot be
-                        // switched to — opening their session would render a
+                        // Members with no tasks, recent activity, or durable
+                        // unread Inbox cannot be switched to — opening their
+                        // session would render a
                         // chat panel with no events and a "session may not
                         // have loaded" reload prompt. Coordinator is always
                         // selectable (the parent session, never empty).

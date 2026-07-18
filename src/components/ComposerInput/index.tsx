@@ -39,6 +39,7 @@ import {
   createKeyDownHandler,
   removePillForDeleteDirection,
 } from "./keyboard";
+import { getInlineMentionQuery } from "./mentionQuery";
 import { createDropHandler, createPasteHandler } from "./pasteHandlers";
 import {
   caretTextOffset,
@@ -274,9 +275,11 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
                 onAtMentionCloseRef.current?.();
               }
             } else {
-              const query = text
-                .slice(atMentionRef.current.startOffset, caretOffset)
-                .replace(/\u200B/g, "");
+              const query = getInlineMentionQuery(
+                text,
+                caretOffset,
+                atMentionRef.current
+              );
               if (/\s/.test(query)) {
                 if (!openedRecently) {
                   atMentionRef.current = { active: false, startOffset: 0 };

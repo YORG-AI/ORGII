@@ -48,6 +48,7 @@ pub async fn send_message_impl_for_subagent_wake(
         None,
         None,
         None,
+        None,
         TurnIntentBridgeSource::Resume,
     )
     .await
@@ -76,6 +77,7 @@ pub async fn send_message_impl_for_org_wake(
         false,
         Some(format!("agent-org-wake:{org_run_id}:{member_id}")),
         None,
+        Some(org_run_id.to_string()),
         Some(org_run_id.to_string()),
         TurnIntentBridgeSource::Resume,
     )
@@ -118,6 +120,7 @@ pub async fn send_message_impl_for_test(
         None,
         None,
         None,
+        None,
         TurnIntentBridgeSource::UserSubmit,
     )
     .await
@@ -139,6 +142,7 @@ pub(crate) async fn send_message_impl(
     client_message_id: Option<String>,
     turn_intent_id: Option<String>,
     org_wake_run_id: Option<String>,
+    intent_org_run_id: Option<String>,
     source: TurnIntentBridgeSource,
 ) -> Result<AgentResponse, String> {
     // Canonical user-intent id: callers that already mint one at the
@@ -195,14 +199,27 @@ pub(crate) async fn send_message_impl(
 
     let runtime = crate::init::init_session(state, launch_spec).await?;
 
-    // Scheduler messages keep the current run id in memory so post-turn
-    // finality can reconcile the run that actually produced this turn. The
-    // durable turn-intent bridge remains session-scoped; nested-run intent
-    // ownership belongs to the later red-team hardening change.
-    let scheduled_org_run_id = runtime
+    // Turn intent ownership is independent from wake behavior. Explicit
+    // callers (initial Org launch, direct member message, wake) pass the run
+    // id before the runtime necessarily exists; ordinary messages recover it
+    // from the canonical runtime context. Never allow a retry to cross runs.
+    let runtime_org_run_id = runtime
         .agent_org_context
         .as_ref()
         .map(|context| context.run_id.clone());
+    let effective_intent_org_run_id = match (
+        intent_org_run_id.as_deref(),
+        runtime_org_run_id.as_deref(),
+    ) {
+        (Some(explicit), Some(runtime_id)) if explicit != runtime_id => {
+            return Err(format!(
+                "Agent Org turn intent run mismatch for session {session_id}: explicit run {explicit}, runtime run {runtime_id}"
+            ));
+        }
+        (Some(_), _) => intent_org_run_id,
+        (None, Some(_)) => runtime_org_run_id,
+        (None, None) => None,
+    };
 
     // Wingman resume: reopen the bottom bar. On fresh start the frontend
     // sends `wingman_start` which opens the bar, but after app restart
@@ -303,6 +320,7 @@ pub(crate) async fn send_message_impl(
             &session_id,
             &effective_turn_intent_id,
             client_message_id.as_deref(),
+            effective_intent_org_run_id.as_deref(),
             source,
             crate::foundation::session_bridge::TurnIntentBridgeStatus::Queued,
         );
@@ -597,7 +615,7 @@ pub(crate) async fn send_message_impl(
         generation: 0,
         client_message_id,
         turn_intent_id: effective_turn_intent_id.clone(),
-        org_run_id: scheduled_org_run_id,
+        org_run_id: effective_intent_org_run_id.clone(),
         content,
         execute,
     };
@@ -611,6 +629,7 @@ pub(crate) async fn send_message_impl(
         &session_id,
         &effective_turn_intent_id,
         msg.client_message_id.as_deref(),
+        effective_intent_org_run_id.as_deref(),
         source,
         crate::foundation::session_bridge::TurnIntentBridgeStatus::Queued,
     );
@@ -688,10 +707,23 @@ fn promote_agent_org_wake_session_to_running(
     let wakeable = SessionStatus::AGENT_ORG_WAKEABLE;
     let now = chrono::Utc::now().to_rfc3339();
     conn.execute(
-        "WITH run_anchor(root_session_id) AS (
+        "WITH RECURSIVE
+         run_anchor(root_session_id) AS (
              SELECT root_session_id
              FROM agent_org_runs
              WHERE id=?4 AND status=?5 AND root_session_id IS NOT NULL
+         ),
+         descendants(session_id) AS (
+             SELECT root_session_id FROM run_anchor
+             UNION
+             SELECT child.session_id
+             FROM agent_sessions child
+             JOIN descendants parent ON child.parent_session_id=parent.session_id
+             WHERE NOT EXISTS (
+                 SELECT 1 FROM agent_org_runs nested
+                 WHERE nested.id<>?4
+                   AND nested.root_session_id=child.session_id
+             )
          ),
          ranked(session_id, member_rank) AS (
              SELECT session.session_id,
@@ -704,10 +736,10 @@ fn promote_agent_org_wake_session_to_running(
                         ORDER BY session.updated_at DESC, session.session_id DESC
                     )
              FROM agent_sessions session
+             JOIN descendants USING (session_id)
              CROSS JOIN run_anchor anchor
              WHERE session.session_id=anchor.root_session_id
-                OR (session.parent_session_id=anchor.root_session_id
-                    AND session.agent_definition_id IS NOT NULL
+                OR (session.agent_definition_id IS NOT NULL
                     AND session.org_member_id IS NOT NULL)
          )
          UPDATE agent_sessions
@@ -786,6 +818,10 @@ fn resolve_agent_org_wake_mode(
                  WHERE org_run_id=?1
                    AND recipient_member_id=?2
                    AND read_at IS NULL
+                   AND NOT EXISTS (
+                       SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=agent_inbox.id
+                   )
                  ORDER BY id ASC
                  LIMIT ?3
              ), delivery_window AS (
@@ -1189,6 +1225,88 @@ mod resolve_agent_mode_tests {
     }
 
     #[test]
+    fn queued_outer_run_wake_cannot_claim_a_nested_run_session() {
+        let fixture = setup_wake_mode_fixture("build", TaskStatus::Pending);
+        let nested_root = "nested-root-session";
+        let nested_worker = "nested-planner-session";
+        let nested_org = OrgDefinition {
+            id: format!("nested-org-{}", uuid::Uuid::new_v4()),
+            name: "Nested Org".into(),
+            role: "Coordinator".into(),
+            agent_id: "nested-coordinator-agent".into(),
+            description: None,
+            hierarchy_mode: HierarchyMode::Soft,
+            plan_approval_policy: PlanApprovalPolicy::Coordinator,
+            children: vec![OrgMember {
+                id: fixture.member_id.clone(),
+                name: "Nested Planner".into(),
+                role: "Planner".into(),
+                agent_id: "planner-agent".into(),
+                runtime_config: None,
+                children: Vec::new(),
+            }],
+        };
+        AgentOrgRunStore::create(CreateAgentOrgRunParams {
+            org_id: nested_org.id.clone(),
+            coordinator_agent_id: nested_org.agent_id.clone(),
+            root_session_id: Some(nested_root.into()),
+            org_snapshot: nested_org,
+            entry_mode: AgentOrgRunEntryMode::StandaloneSession,
+            status: AgentOrgRunStatus::Running,
+            work_item_id: None,
+            project_slug: None,
+            routine_fire_id: None,
+        })
+        .expect("create nested run");
+
+        let now = chrono::Utc::now().to_rfc3339();
+        crate::session::persistence::upsert_session(
+            &crate::session::persistence::UnifiedSessionRecord {
+                session_id: nested_root.into(),
+                name: "Nested Coordinator".into(),
+                status: "idle".into(),
+                created_at: now.clone(),
+                updated_at: now.clone(),
+                session_type: "sde".into(),
+                org_member_id: Some(COORDINATOR_MEMBER_ID.into()),
+                parent_session_id: Some(fixture.session_id.clone()),
+                agent_definition_id: Some("nested-coordinator-agent".into()),
+                key_source: KeySource::OwnKey,
+                ..Default::default()
+            },
+        )
+        .expect("seed nested root");
+        crate::session::persistence::upsert_session(
+            &crate::session::persistence::UnifiedSessionRecord {
+                session_id: nested_worker.into(),
+                name: "Nested Planner".into(),
+                status: "idle".into(),
+                created_at: now.clone(),
+                updated_at: chrono::Utc::now().to_rfc3339(),
+                session_type: "sde".into(),
+                org_member_id: Some(fixture.member_id.clone()),
+                parent_session_id: Some(nested_root.into()),
+                agent_definition_id: Some("planner-agent".into()),
+                key_source: KeySource::OwnKey,
+                ..Default::default()
+            },
+        )
+        .expect("seed nested worker");
+
+        let conn = database::db::get_connection().expect("test db");
+        assert_eq!(
+            promote_agent_org_wake_session_to_running(&conn, &fixture.run_id, nested_worker)
+                .expect("reject nested session"),
+            0
+        );
+        assert_eq!(
+            promote_agent_org_wake_session_to_running(&conn, &fixture.run_id, &fixture.session_id,)
+                .expect("claim outer member despite fresher nested session"),
+            1
+        );
+    }
+
+    #[test]
     fn plan_entry_without_prior_non_plan_mode_restores_to_plan() {
         assert_eq!(restore_mode_before_plan_entry(None), AgentExecMode::Plan);
     }
@@ -1331,6 +1449,36 @@ mod resolve_agent_mode_tests {
         assert_eq!(
             resolve_agent_org_wake_mode(&fixture.session_id, &fixture.run_id)
                 .expect("ignore forged override"),
+            None
+        );
+    }
+
+    #[test]
+    fn malformed_historical_control_row_is_ignored_without_poisoning_wake() {
+        let fixture = setup_wake_mode_fixture("build", TaskStatus::Pending);
+        let conn = database::db::get_connection().expect("test db");
+        conn.execute(
+            "INSERT INTO agent_inbox (
+                 recipient_agent_id, recipient_member_id, sender_agent_id,
+                 sender_member_id, org_run_id, payload_kind, payload_json,
+                 created_at
+             ) VALUES (
+                 'planner-agent', ?1, 'coordinator-agent', 'coordinator', ?2,
+                 'exec_mode_set_request',
+                 '{\"kind\":\"exec_mode_set_request\",\"request_id\":7,\"mode\":{\"bad\":true}}',
+                 ?3
+             )",
+            rusqlite::params![
+                &fixture.member_id,
+                &fixture.run_id,
+                chrono::Utc::now().to_rfc3339(),
+            ],
+        )
+        .expect("seed malformed historical control row");
+
+        assert_eq!(
+            resolve_agent_org_wake_mode(&fixture.session_id, &fixture.run_id)
+                .expect("malformed control must degrade to ignored"),
             None
         );
     }

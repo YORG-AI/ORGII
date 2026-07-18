@@ -26,6 +26,7 @@
 use rusqlite::{params, Connection, OptionalExtension, Result as SqliteResult};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use thiserror::Error;
 
 use crate::coordination::agent_org_payload_limits as limits;
 use crate::session::AgentExecMode;
@@ -407,7 +408,7 @@ impl AgentMessage {
     /// via tool error reporting.
     pub fn validate(&self) -> Result<(), String> {
         if let Some(request_id) = self.request_id() {
-            validate_non_empty_identifier("request_id", request_id.as_str())?;
+            limits::validate_message_identifier("request_id", request_id.as_str())?;
         }
         match self {
             Self::Plain { summary, text } => {
@@ -455,12 +456,15 @@ impl AgentMessage {
                     limits::PLAN_TITLE_MAX_CHARS,
                     limits::PLAN_TITLE_MAX_BYTES,
                 )?;
-                validate_non_empty_identifier("PlanApprovalRequest.approval_id", approval_id)?;
-                validate_non_empty_identifier(
+                limits::validate_message_identifier(
+                    "PlanApprovalRequest.approval_id",
+                    approval_id,
+                )?;
+                limits::validate_message_identifier(
                     "PlanApprovalRequest.plan_revision_id",
                     plan_revision_id,
                 )?;
-                validate_non_empty_identifier(
+                limits::validate_task_identifier(
                     "PlanApprovalRequest.source_task_id",
                     source_task_id,
                 )?;
@@ -502,7 +506,7 @@ impl AgentMessage {
                 member_name,
                 ..
             } => {
-                validate_non_empty_identifier("MemberTerminated.member_id", member_id)?;
+                limits::validate_message_identifier("MemberTerminated.member_id", member_id)?;
                 limits::validate_required_text(
                     "MemberTerminated.member_name",
                     member_name,
@@ -519,7 +523,7 @@ impl AgentMessage {
                 unfinished_task_ids,
                 ..
             } => {
-                validate_non_empty_identifier("MemberIdle.member_id", member_id)?;
+                limits::validate_message_identifier("MemberIdle.member_id", member_id)?;
                 limits::validate_required_text(
                     "MemberIdle.member_name",
                     member_name,
@@ -532,16 +536,15 @@ impl AgentMessage {
                     limits::MEMBER_SUMMARY_MAX_CHARS,
                     limits::MEMBER_SUMMARY_MAX_BYTES,
                 )?;
-                if unfinished_task_ids.len() > 32
-                    || unfinished_task_ids
-                        .iter()
-                        .any(|task_id| task_id.trim().is_empty() || task_id.len() > 200)
-                {
+                if unfinished_task_ids.len() > 32 {
                     return Err(
-                        "MemberIdle.unfinished_task_ids must contain at most 32 non-empty task ids of <= 200 chars"
-                            .into(),
+                        "MemberIdle.unfinished_task_ids must contain at most 32 task ids".into(),
                     );
                 }
+                limits::validate_task_identifier_list(
+                    "MemberIdle.unfinished_task_ids",
+                    unfinished_task_ids,
+                )?;
                 match reason {
                     MemberIdleReason::Failed => {
                         let fr = failure_reason.as_deref().unwrap_or("").trim();
@@ -570,7 +573,7 @@ impl AgentMessage {
                 dependency_outputs,
                 ..
             } => {
-                validate_non_empty_identifier("TaskAssigned.task_id", task_id)?;
+                limits::validate_task_identifier("TaskAssigned.task_id", task_id)?;
                 if dependency_outputs.len() > limits::TASK_DEPENDENCY_OUTPUT_MAX_COUNT {
                     return Err(format!(
                         "TaskAssigned.dependency_outputs must contain at most {} entries",
@@ -606,6 +609,14 @@ impl AgentMessage {
                                 .into(),
                         );
                     }
+                    limits::validate_task_identifier(
+                        "TaskAssigned dependency task_id",
+                        &output.task_id,
+                    )?;
+                    limits::validate_message_identifier(
+                        "TaskAssigned dependency produced_by_member_id",
+                        &output.produced_by_member_id,
+                    )?;
                     limits::validate_required_text(
                         "TaskAssigned dependency subject",
                         &output.subject,
@@ -623,6 +634,10 @@ impl AgentMessage {
                         output.content.as_deref(),
                         limits::TASK_OUTPUT_CONTENT_MAX_CHARS,
                         limits::TASK_OUTPUT_CONTENT_MAX_BYTES,
+                    )?;
+                    limits::validate_task_artifact_ids(
+                        "TaskAssigned dependency artifact_ids",
+                        &output.artifact_ids,
                     )?;
                 }
                 let total_inline_chars: usize = dependency_outputs
@@ -655,14 +670,14 @@ impl AgentMessage {
                 output_summary,
                 ..
             } => {
-                validate_non_empty_identifier("TaskCompleted.task_id", task_id)?;
+                limits::validate_task_identifier("TaskCompleted.task_id", task_id)?;
                 limits::validate_required_text(
                     "TaskCompleted.subject",
                     subject,
                     limits::TASK_SUBJECT_MAX_CHARS,
                     limits::TASK_SUBJECT_MAX_BYTES,
                 )?;
-                validate_non_empty_identifier(
+                limits::validate_message_identifier(
                     "TaskCompleted.completed_by_member_id",
                     completed_by_member_id,
                 )?;
@@ -687,13 +702,6 @@ impl AgentMessage {
         }
         Ok(())
     }
-}
-
-fn validate_non_empty_identifier(field: &str, value: &str) -> Result<(), String> {
-    if value.trim().is_empty() {
-        return Err(format!("{field} must not be empty"));
-    }
-    Ok(())
 }
 
 /// Persisted inbox row.
@@ -764,6 +772,7 @@ pub struct AgentInboxPreviewRecord {
     pub created_at: String,
     pub read_at: Option<String>,
     pub display_preview: Option<String>,
+    pub delivery_resolution: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -778,6 +787,71 @@ pub struct AgentInboxPage {
     pub rows: Vec<AgentInboxRecord>,
     pub has_more: bool,
     pub next_cursor: Option<i64>,
+}
+
+/// Explicit disposition for an Inbox row that can no longer be delivered to
+/// its original canonical recipient. The source row remains immutable and
+/// unread for audit/history; operational readers treat a row with one of
+/// these append-only records as no longer pending delivery.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentInboxDeliveryResolutionKind {
+    Cancelled,
+    Superseded,
+}
+
+impl AgentInboxDeliveryResolutionKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Cancelled => "cancelled",
+            Self::Superseded => "superseded",
+        }
+    }
+
+    fn parse(value: &str) -> Result<Self, String> {
+        match value {
+            "cancelled" => Ok(Self::Cancelled),
+            "superseded" => Ok(Self::Superseded),
+            other => Err(format!(
+                "unknown Agent Inbox delivery resolution kind: {other:?}"
+            )),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentInboxDeliveryResolution {
+    pub inbox_id: i64,
+    pub org_run_id: String,
+    pub resolution_kind: AgentInboxDeliveryResolutionKind,
+    pub resolved_by_member_id: String,
+    pub reason: String,
+    pub replacement_inbox_id: Option<i64>,
+    pub replacement_task_id: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ResolveInboxDeliveryParams {
+    pub inbox_id: i64,
+    pub org_run_id: String,
+    pub resolved_by_member_id: String,
+    pub resolution_kind: AgentInboxDeliveryResolutionKind,
+    pub reason: String,
+    pub replacement_inbox_id: Option<i64>,
+    pub replacement_task_id: Option<String>,
+}
+
+/// Typed boundary between expected coordinator corrections and infrastructure
+/// failures. The LLM tool renders `Constraint` as recoverable guidance while
+/// keeping SQLite/schema/locking failures as real execution failures.
+#[derive(Debug, Error)]
+pub enum ResolveInboxDeliveryError {
+    #[error("{0}")]
+    Constraint(String),
+    #[error("{0}")]
+    Storage(String),
 }
 
 impl AgentInboxRecord {
@@ -809,6 +883,10 @@ const UNREAD_COUNTS_BY_RECIPIENT_SQL: &str = "SELECT recipient_agent_id,
      FROM agent_inbox INDEXED BY idx_agent_inbox_run_unread_recipient
      WHERE org_run_id = ?1
        AND read_at IS NULL
+       AND NOT EXISTS (
+            SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+            WHERE resolution.inbox_id=agent_inbox.id
+       )
      GROUP BY recipient_member_id, recipient_agent_id
      ORDER BY recipient_member_id ASC, recipient_agent_id ASC";
 
@@ -831,6 +909,28 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
             transcript_intent_id TEXT NOT NULL,
             materialized_at TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS agent_inbox_delivery_resolutions (
+            inbox_id INTEGER PRIMARY KEY,
+            org_run_id TEXT NOT NULL,
+            resolution_kind TEXT NOT NULL
+                CHECK(resolution_kind IN ('cancelled', 'superseded')),
+            resolved_by_member_id TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            replacement_inbox_id INTEGER,
+            replacement_task_id TEXT,
+            created_at TEXT NOT NULL,
+            CHECK(
+                (resolution_kind='cancelled'
+                    AND replacement_inbox_id IS NULL
+                    AND replacement_task_id IS NULL)
+                OR
+                (resolution_kind='superseded'
+                    AND ((replacement_inbox_id IS NOT NULL)
+                         <> (replacement_task_id IS NOT NULL)))
+            )
+        );
+        CREATE INDEX IF NOT EXISTS idx_agent_inbox_delivery_resolutions_run
+            ON agent_inbox_delivery_resolutions(org_run_id, inbox_id);
         CREATE INDEX IF NOT EXISTS idx_agent_inbox_materializations_session
             ON agent_inbox_materializations(session_id, inbox_id);
         CREATE INDEX IF NOT EXISTS idx_agent_inbox_recipient_member_unread
@@ -897,6 +997,10 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
                        SELECT 1 FROM agent_inbox inbox
                        WHERE inbox.id=receipt.inbox_id
                          AND inbox.read_at IS NULL
+                         AND NOT EXISTS (
+                             SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                             WHERE resolution.inbox_id=inbox.id
+                         )
                    )
                 OR NOT EXISTS (
                        SELECT 1 FROM agent_messages message
@@ -1070,15 +1174,30 @@ impl AgentInboxStore {
         params: InsertInboxParams,
         causation_inbox_id: Option<i64>,
     ) -> Result<(AgentInboxRecord, bool), String> {
-        validate_non_empty_identifier("recipient_agent_id", &params.recipient_agent_id)?;
-        validate_non_empty_identifier("sender_agent_id", &params.sender_agent_id)?;
+        limits::validate_required_text(
+            "recipient_agent_id",
+            &params.recipient_agent_id,
+            limits::MESSAGE_IDENTIFIER_MAX_CHARS,
+            limits::MESSAGE_IDENTIFIER_MAX_BYTES,
+        )?;
+        limits::validate_required_text(
+            "sender_agent_id",
+            &params.sender_agent_id,
+            limits::MESSAGE_IDENTIFIER_MAX_CHARS,
+            limits::MESSAGE_IDENTIFIER_MAX_BYTES,
+        )?;
         for (field, value) in [
             ("recipient_member_id", params.recipient_member_id.as_deref()),
             ("sender_member_id", params.sender_member_id.as_deref()),
             ("org_run_id", params.org_run_id.as_deref()),
         ] {
             if let Some(value) = value {
-                validate_non_empty_identifier(field, value)?;
+                limits::validate_required_text(
+                    field,
+                    value,
+                    limits::MESSAGE_IDENTIFIER_MAX_CHARS,
+                    limits::MESSAGE_IDENTIFIER_MAX_BYTES,
+                )?;
             }
         }
         if params.org_run_id.is_some() && params.recipient_member_id.is_none() {
@@ -1222,8 +1341,20 @@ impl AgentInboxStore {
                         sender_agent_id,
                         sender_member_id,
                         org_run_id,
-                        payload_kind,
-                        payload_json,
+                        CASE WHEN length(CAST(payload_json AS BLOB))<=?2
+                             THEN payload_kind ELSE 'oversized_payload' END,
+                        CASE WHEN length(CAST(payload_json AS BLOB))<=?2
+                             THEN payload_json
+                             ELSE json_object(
+                                 'kind', 'plain',
+                                 'summary', 'Oversized historical inbox payload',
+                                 'text', printf(
+                                     'Inbox row %d contained %d bytes, above the supported delivery limit. The original row remains durable; this bounded diagnostic replaces its body. Raw prefix: %s',
+                                     id,
+                                     length(CAST(payload_json AS BLOB)),
+                                     substr(payload_json,1,4096)
+                                 )
+                             ) END,
                         request_id,
                         created_at,
                         read_at
@@ -1233,7 +1364,10 @@ impl AgentInboxStore {
             )
             .map_err(|err| err.to_string())?;
         let rows = stmt
-            .query_map(params![org_run_id], row_to_record)
+            .query_map(
+                params![org_run_id, limits::AGENT_INBOX_PAYLOAD_MAX_BYTES as i64],
+                row_to_record,
+            )
             .map_err(|err| err.to_string())?;
         let mut out = Vec::new();
         for row in rows {
@@ -1255,16 +1389,38 @@ impl AgentInboxStore {
         let mut stmt = conn
             .prepare(
                 "SELECT id,
-                        recipient_agent_id,
-                        recipient_member_id,
-                        sender_agent_id,
-                        sender_member_id,
+                        CASE WHEN length(CAST(recipient_agent_id AS BLOB))<=?4
+                             THEN recipient_agent_id
+                             ELSE printf('[oversized recipient agent row %d]', id) END,
+                        CASE WHEN recipient_member_id IS NULL THEN NULL
+                             WHEN length(CAST(recipient_member_id AS BLOB))<=?4
+                             THEN recipient_member_id
+                             ELSE printf('[oversized recipient member row %d]', id) END,
+                        CASE WHEN length(CAST(sender_agent_id AS BLOB))<=?4
+                             THEN sender_agent_id
+                             ELSE printf('[oversized sender agent row %d]', id) END,
+                        CASE WHEN sender_member_id IS NULL THEN NULL
+                             WHEN length(CAST(sender_member_id AS BLOB))<=?4
+                             THEN sender_member_id
+                             ELSE printf('[oversized sender member row %d]', id) END,
                         ?1,
-                        payload_kind,
-                        payload_json,
-                        request_id,
-                        created_at,
-                        read_at
+                        CASE WHEN length(CAST(payload_json AS BLOB))<=?5
+                             THEN substr(payload_kind,1,128) ELSE 'oversized_payload' END,
+                        CASE WHEN length(CAST(payload_json AS BLOB))<=?5
+                             THEN payload_json
+                             ELSE json_object(
+                                 'kind', 'plain',
+                                 'summary', 'Oversized historical inbox payload',
+                                 'text', printf(
+                                     'Inbox row %d contained %d bytes, above the supported delivery limit. The original row remains durable; this bounded diagnostic replaces its body. Raw prefix: %s',
+                                     id,
+                                     length(CAST(payload_json AS BLOB)),
+                                     substr(payload_json,1,4096)
+                                 )
+                             ) END,
+                        CASE WHEN request_id IS NULL THEN NULL ELSE substr(request_id,1,1000) END,
+                        substr(created_at,1,64),
+                        CASE WHEN read_at IS NULL THEN NULL ELSE substr(read_at,1,64) END
                  FROM agent_inbox
                  WHERE org_run_id=?1 AND id>?2
                  ORDER BY id ASC
@@ -1277,6 +1433,8 @@ impl AgentInboxStore {
                     org_run_id,
                     after_id.unwrap_or(0),
                     (bounded_limit + 1) as i64,
+                    limits::MESSAGE_IDENTIFIER_MAX_BYTES as i64,
+                    limits::AGENT_INBOX_PAYLOAD_MAX_BYTES as i64,
                 ],
                 row_to_record,
             )
@@ -1327,6 +1485,322 @@ impl AgentInboxStore {
             )
             .map_err(|err| err.to_string())?;
         usize::try_from(count).map_err(|_| format!("invalid Inbox row count: {count}"))
+    }
+
+    /// Read one durable Inbox row for an explicit repair/diagnostic action.
+    /// The stored row is never mutated and oversized historical payloads are
+    /// replaced in the response by the same bounded diagnostic used by the
+    /// cursor history API.
+    pub fn get_by_id_for_run(
+        org_run_id: &str,
+        inbox_id: i64,
+    ) -> Result<Option<AgentInboxRecord>, String> {
+        if inbox_id <= 0 {
+            return Err("inbox_id must be a positive integer".to_string());
+        }
+        let conn = get_connection().map_err(|err| err.to_string())?;
+        conn.query_row(
+            "SELECT id,
+                    CASE WHEN length(CAST(recipient_agent_id AS BLOB))<=?3
+                         THEN recipient_agent_id
+                         ELSE printf('[oversized recipient agent row %d]', id) END,
+                    CASE WHEN recipient_member_id IS NULL THEN NULL
+                         WHEN length(CAST(recipient_member_id AS BLOB))<=?3
+                         THEN recipient_member_id
+                         ELSE printf('[oversized recipient member row %d]', id) END,
+                    CASE WHEN length(CAST(sender_agent_id AS BLOB))<=?3
+                         THEN sender_agent_id
+                         ELSE printf('[oversized sender agent row %d]', id) END,
+                    CASE WHEN sender_member_id IS NULL THEN NULL
+                         WHEN length(CAST(sender_member_id AS BLOB))<=?3
+                         THEN sender_member_id
+                         ELSE printf('[oversized sender member row %d]', id) END,
+                    ?1,
+                    CASE WHEN length(CAST(payload_json AS BLOB))<=?4
+                         THEN substr(payload_kind,1,128) ELSE 'oversized_payload' END,
+                    CASE WHEN length(CAST(payload_json AS BLOB))<=?4
+                         THEN payload_json
+                         ELSE json_object(
+                             'kind', 'plain',
+                             'summary', 'Oversized historical inbox payload',
+                             'text', printf(
+                                 'Inbox row %d contained %d bytes, above the supported delivery limit. The original row remains durable; this bounded diagnostic replaces its body. Raw prefix: %s',
+                                 id,
+                                 length(CAST(payload_json AS BLOB)),
+                                 substr(payload_json,1,4096)
+                             )
+                         ) END,
+                    CASE WHEN request_id IS NULL THEN NULL ELSE substr(request_id,1,1000) END,
+                    substr(created_at,1,64),
+                    CASE WHEN read_at IS NULL THEN NULL ELSE substr(read_at,1,64) END
+             FROM agent_inbox
+             WHERE org_run_id=?1 AND id=?2
+             LIMIT 1",
+            params![
+                org_run_id,
+                inbox_id,
+                limits::MESSAGE_IDENTIFIER_MAX_BYTES as i64,
+                limits::AGENT_INBOX_PAYLOAD_MAX_BYTES as i64,
+            ],
+            row_to_record,
+        )
+        .optional()
+        .map_err(|err| err.to_string())
+    }
+
+    pub fn delivery_resolution_for_inbox(
+        org_run_id: &str,
+        inbox_id: i64,
+    ) -> Result<Option<AgentInboxDeliveryResolution>, String> {
+        let conn = get_connection().map_err(|err| err.to_string())?;
+        load_delivery_resolution(&conn, org_run_id, inbox_id)
+    }
+
+    /// Resolve an otherwise-undeliverable source row without falsifying its
+    /// read receipt. Only the canonical coordinator may call this store path;
+    /// the LLM tool also enforces that authority before entering the blocking
+    /// transaction.
+    pub fn resolve_delivery(
+        params: ResolveInboxDeliveryParams,
+    ) -> Result<AgentInboxDeliveryResolution, ResolveInboxDeliveryError> {
+        use crate::coordination::agent_org_runs::{
+            AgentOrgRunStatus, AgentOrgRunStore, COORDINATOR_MEMBER_ID,
+        };
+
+        let constraint = ResolveInboxDeliveryError::Constraint;
+        let storage = ResolveInboxDeliveryError::Storage;
+
+        if params.inbox_id <= 0 {
+            return Err(constraint(
+                "inbox_id must be a positive integer".to_string(),
+            ));
+        }
+        limits::validate_message_identifier("org_run_id", &params.org_run_id)
+            .map_err(constraint)?;
+        limits::validate_message_identifier("resolved_by_member_id", &params.resolved_by_member_id)
+            .map_err(constraint)?;
+        if params.resolved_by_member_id != COORDINATOR_MEMBER_ID {
+            return Err(constraint(
+                "Inbox delivery resolution is coordinator-only".to_string(),
+            ));
+        }
+        limits::validate_required_text(
+            "reason",
+            &params.reason,
+            limits::PLAN_FEEDBACK_MAX_CHARS,
+            limits::PLAN_FEEDBACK_MAX_BYTES,
+        )
+        .map_err(constraint)?;
+        if let Some(task_id) = params.replacement_task_id.as_deref() {
+            limits::validate_task_identifier("replacement_task_id", task_id).map_err(constraint)?;
+        }
+        if params.replacement_inbox_id.is_some_and(|id| id <= 0) {
+            return Err(constraint(
+                "replacement_inbox_id must be a positive integer".to_string(),
+            ));
+        }
+        match params.resolution_kind {
+            AgentInboxDeliveryResolutionKind::Cancelled => {
+                if params.replacement_inbox_id.is_some() || params.replacement_task_id.is_some() {
+                    return Err(constraint(
+                        "cancelled delivery resolution cannot name a replacement".to_string(),
+                    ));
+                }
+            }
+            AgentInboxDeliveryResolutionKind::Superseded => {
+                if params.replacement_inbox_id.is_some() == params.replacement_task_id.is_some() {
+                    return Err(constraint(
+                        "superseded delivery resolution requires exactly one of replacement_inbox_id or replacement_task_id"
+                            .to_string(),
+                    ));
+                }
+                if params.replacement_inbox_id == Some(params.inbox_id) {
+                    return Err(constraint(
+                        "an Inbox row cannot supersede itself".to_string(),
+                    ));
+                }
+            }
+        }
+
+        with_sessions_writer(
+            || -> Result<AgentInboxDeliveryResolution, ResolveInboxDeliveryError> {
+                let mut conn = get_connection().map_err(|err| storage(err.to_string()))?;
+                let tx = conn
+                    .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+                    .map_err(|err| storage(err.to_string()))?;
+                let run_status =
+                    AgentOrgRunStore::get_run_status_with_connection(&tx, &params.org_run_id)
+                        .map_err(storage)?;
+                if run_status != Some(AgentOrgRunStatus::Running) {
+                    return Err(constraint(format!(
+                        "Agent Org run {} is not Running; Inbox delivery repair was not applied",
+                        params.org_run_id
+                    )));
+                }
+
+                let source: Option<(Option<String>, Option<String>)> = tx
+                    .query_row(
+                        "SELECT recipient_member_id, read_at
+                     FROM agent_inbox
+                     WHERE id=?1 AND org_run_id=?2
+                     LIMIT 1",
+                        params![params.inbox_id, &params.org_run_id],
+                        |row| Ok((row.get(0)?, row.get(1)?)),
+                    )
+                    .optional()
+                    .map_err(|err| storage(err.to_string()))?;
+                let Some((source_recipient_member_id, read_at)) = source else {
+                    return Err(constraint(format!(
+                        "Inbox row {} does not belong to Agent Org run {}",
+                        params.inbox_id, params.org_run_id
+                    )));
+                };
+                if read_at.is_some() {
+                    return Err(constraint(format!(
+                    "Inbox row {} was already delivered and cannot be resolved as undeliverable",
+                    params.inbox_id
+                )));
+                }
+
+                if let Some(existing) =
+                    load_delivery_resolution(&tx, &params.org_run_id, params.inbox_id)
+                        .map_err(storage)?
+                {
+                    let is_same = existing.resolution_kind == params.resolution_kind
+                        && existing.resolved_by_member_id == params.resolved_by_member_id
+                        && existing.reason == params.reason
+                        && existing.replacement_inbox_id == params.replacement_inbox_id
+                        && existing.replacement_task_id == params.replacement_task_id;
+                    if is_same {
+                        tx.commit().map_err(|err| storage(err.to_string()))?;
+                        return Ok(existing);
+                    }
+                    return Err(constraint(format!(
+                        "Inbox row {} already has a different delivery resolution",
+                        params.inbox_id
+                    )));
+                }
+
+                // A model-visible repair tool must not be able to discard healthy
+                // work merely because the coordinator changed its mind. Only
+                // identities that are provably outside a deliverable production
+                // path may be resolved here. Recoverable states (Idle, terminal
+                // retry candidates, Pending, Paused, Running/waiting) must instead
+                // be resumed/retried or explicitly archived by the user first.
+                let permanently_unavailable = inbox_recipient_is_permanently_unavailable(
+                    &tx,
+                    &params.org_run_id,
+                    source_recipient_member_id.as_deref(),
+                )
+                .map_err(storage)?;
+                if !permanently_unavailable {
+                    return Err(constraint(format!(
+                    "Inbox row {} still has a recoverable canonical recipient. Resume/retry that recipient instead of discarding or superseding healthy delivery; archive it explicitly first only if the user has decided it is permanently unavailable.",
+                    params.inbox_id
+                )));
+                }
+
+                if let Some(replacement_inbox_id) = params.replacement_inbox_id {
+                    let replacement: Option<(Option<String>, Option<String>, bool)> = tx
+                        .query_row(
+                            "SELECT inbox.recipient_member_id,
+                                inbox.read_at,
+                                EXISTS(
+                                    SELECT 1
+                                    FROM agent_inbox_delivery_resolutions resolution
+                                    WHERE resolution.inbox_id=inbox.id
+                                )
+                         FROM agent_inbox inbox
+                         WHERE inbox.id=?1 AND inbox.org_run_id=?2
+                         LIMIT 1",
+                            params![replacement_inbox_id, &params.org_run_id],
+                            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                        )
+                        .optional()
+                        .map_err(|err| storage(err.to_string()))?;
+                    let Some((Some(replacement_member_id), replacement_read_at, is_resolved)) =
+                        replacement
+                    else {
+                        return Err(constraint(format!(
+                        "replacement Inbox row {replacement_inbox_id} must exist in the same run and name a canonical recipient_member_id"
+                    )));
+                    };
+                    if is_resolved {
+                        return Err(constraint(format!(
+                        "replacement Inbox row {replacement_inbox_id} already has a delivery resolution and cannot be used as a live replacement"
+                    )));
+                    }
+                    let replacement_is_unavailable = inbox_recipient_is_permanently_unavailable(
+                        &tx,
+                        &params.org_run_id,
+                        Some(&replacement_member_id),
+                    )
+                    .map_err(storage)?;
+                    if replacement_read_at.is_none() && replacement_is_unavailable {
+                        return Err(constraint(format!(
+                        "replacement Inbox row {replacement_inbox_id} has not been delivered and its recipient {replacement_member_id:?} is permanently unavailable"
+                    )));
+                    }
+                }
+                if let Some(replacement_task_id) = params.replacement_task_id.as_deref() {
+                    let replacement_exists: bool = tx
+                        .query_row(
+                            "SELECT EXISTS(
+                             SELECT 1 FROM agent_org_tasks
+                             WHERE id=?1 AND org_run_id=?2
+                         )",
+                            params![replacement_task_id, &params.org_run_id],
+                            |row| row.get(0),
+                        )
+                        .map_err(|err| storage(err.to_string()))?;
+                    if !replacement_exists {
+                        return Err(constraint(format!(
+                        "replacement task {replacement_task_id:?} does not exist in Agent Org run {}",
+                        params.org_run_id
+                    )));
+                    }
+                }
+
+                let created_at = chrono::Utc::now().to_rfc3339();
+                tx.execute(
+                    "INSERT INTO agent_inbox_delivery_resolutions (
+                    inbox_id, org_run_id, resolution_kind,
+                    resolved_by_member_id, reason,
+                    replacement_inbox_id, replacement_task_id, created_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                    params![
+                        params.inbox_id,
+                        &params.org_run_id,
+                        params.resolution_kind.as_str(),
+                        &params.resolved_by_member_id,
+                        &params.reason,
+                        params.replacement_inbox_id,
+                        params.replacement_task_id.as_deref(),
+                        &created_at,
+                    ],
+                )
+                .map_err(|err| storage(err.to_string()))?;
+                // A Session that materialized the old row before this repair must
+                // not later acknowledge it as delivered. The guarded mark-read
+                // path also rechecks the resolution table.
+                tx.execute(
+                    "DELETE FROM agent_inbox_materializations WHERE inbox_id=?1",
+                    params![params.inbox_id],
+                )
+                .map_err(|err| storage(err.to_string()))?;
+                tx.commit().map_err(|err| storage(err.to_string()))?;
+                Ok(AgentInboxDeliveryResolution {
+                    inbox_id: params.inbox_id,
+                    org_run_id: params.org_run_id,
+                    resolution_kind: params.resolution_kind,
+                    resolved_by_member_id: params.resolved_by_member_id,
+                    reason: params.reason,
+                    replacement_inbox_id: params.replacement_inbox_id,
+                    replacement_task_id: params.replacement_task_id,
+                    created_at,
+                })
+            },
+        )
     }
 
     /// Return a bounded tail of one run's inbox history in chronological
@@ -1422,7 +1896,8 @@ impl AgentInboxStore {
                         request_id,
                         created_at,
                         read_at,
-                        display_preview
+                        display_preview,
+                        delivery_resolution
                  FROM (
                      SELECT id,
                             recipient_agent_id,
@@ -1474,7 +1949,13 @@ impl AgentInboxStore {
                                 )
                                 ELSE NULL
                               END ELSE NULL END
-                            ELSE NULL END AS display_preview
+                            ELSE NULL END AS display_preview,
+                            (
+                                SELECT resolution.resolution_kind
+                                FROM agent_inbox_delivery_resolutions resolution
+                                WHERE resolution.inbox_id=agent_inbox.id
+                                LIMIT 1
+                            ) AS delivery_resolution
                      FROM agent_inbox
                      WHERE org_run_id = ?1
                      ORDER BY id DESC
@@ -1521,7 +2002,13 @@ impl AgentInboxStore {
                 "SELECT recipient_agent_id,
                         recipient_member_id,
                         COUNT(*) AS activity_count,
-                        SUM(CASE WHEN read_at IS NULL THEN 1 ELSE 0 END) AS unread_count
+                        SUM(CASE WHEN read_at IS NULL
+                                      AND NOT EXISTS (
+                                          SELECT 1
+                                          FROM agent_inbox_delivery_resolutions resolution
+                                          WHERE resolution.inbox_id=agent_inbox.id
+                                      )
+                                 THEN 1 ELSE 0 END) AS unread_count
                  FROM agent_inbox
                  WHERE org_run_id = ?1
                  GROUP BY recipient_member_id, recipient_agent_id
@@ -1574,6 +2061,35 @@ impl AgentInboxStore {
         Ok(out)
     }
 
+    /// Load only the durable task ids that have ever received a TaskAssigned
+    /// envelope in this run. Recovery uses this instead of decoding the full
+    /// inbox history in Rust.
+    #[cfg(test)]
+    fn task_assignment_ids_by_run(org_run_id: &str) -> Result<HashSet<String>, String> {
+        let conn = get_connection().map_err(|err| err.to_string())?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT DISTINCT json_extract(payload_json, '$.task_id')
+                 FROM agent_inbox
+                 WHERE org_run_id=?1
+                   AND payload_kind='task_assigned'
+                   AND json_valid(payload_json)
+                   AND json_type(payload_json, '$.task_id')='text'",
+            )
+            .map_err(|err| err.to_string())?;
+        let rows = stmt
+            .query_map(params![org_run_id], |row| row.get::<_, String>(0))
+            .map_err(|err| err.to_string())?;
+        let mut task_ids = HashSet::new();
+        for row in rows {
+            let task_id = row.map_err(|err| err.to_string())?;
+            if !task_id.trim().is_empty() {
+                task_ids.insert(task_id);
+            }
+        }
+        Ok(task_ids)
+    }
+
     /// Return only current open task ids whose *current owner* has a valid,
     /// durable `TaskAssigned` envelope. The expression index turns this into
     /// bounded lookups from the current task board instead of re-running
@@ -1585,7 +2101,6 @@ impl AgentInboxStore {
         conn: &Connection,
         org_run_id: &str,
     ) -> Result<HashSet<String>, String> {
-        const TASK_PAGE_SIZE: i64 = 200;
         let mut task_stmt = conn
             .prepare(
                 "SELECT id, owner
@@ -1593,55 +2108,54 @@ impl AgentInboxStore {
                  WHERE org_run_id=?1
                    AND status IN ('pending','in_progress')
                    AND owner IS NOT NULL
-                   AND id>?2
                  ORDER BY id ASC
-                 LIMIT ?3",
+                 LIMIT ?2",
             )
             .map_err(|err| err.to_string())?;
+        let open_tasks = task_stmt
+            .query_map(
+                params![
+                    org_run_id,
+                    (crate::coordination::agent_org_payload_limits::TASK_RUN_MAX_TASKS + 1) as i64,
+                ],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )
+            .map_err(|err| err.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|err| err.to_string())?;
+        if open_tasks.len() > crate::coordination::agent_org_payload_limits::TASK_RUN_MAX_TASKS {
+            return Err(
+                "Agent Org task board exceeds the supported assignment snapshot limit".to_string(),
+            );
+        }
 
-        // Page the current board in bounded reads. SQLite does not bind an
-        // outer task.id into the third expression-index column, so one reused
-        // exact probe per current task is faster than scanning historical
-        // Inbox JSON and does not impose a run-level task capacity policy.
+        // At most 200 exact probes are preferable to one nominally joined
+        // query here. SQLite does not bind an outer task.id into the third
+        // expression-index column and otherwise scans historical Inbox rows
+        // plus a temp sort. One reused prepared statement with ?3 uses all
+        // `(run, member, task_id)` keys and traverses rowid newest-first.
         let lookup_sql = task_assignment_lookup_sql();
         let mut assignment_stmt = conn.prepare(&lookup_sql).map_err(|err| err.to_string())?;
         let mut task_ids = HashSet::new();
-        let mut after_task_id = String::new();
-        loop {
-            let open_tasks = task_stmt
-                .query_map(params![org_run_id, &after_task_id, TASK_PAGE_SIZE], |row| {
-                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        for (task_id, owner) in open_tasks {
+            let payload_json = assignment_stmt
+                .query_row(params![org_run_id, &owner, &task_id], |row| {
+                    row.get::<_, String>(0)
                 })
-                .map_err(|err| err.to_string())?
-                .collect::<Result<Vec<_>, _>>()
+                .optional()
                 .map_err(|err| err.to_string())?;
-            if open_tasks.is_empty() {
-                break;
+            let Some(payload_json) = payload_json else {
+                continue;
+            };
+            let Ok(message) = serde_json::from_str::<AgentMessage>(&payload_json) else {
+                continue;
+            };
+            if message.validate().is_err() {
+                continue;
             }
-            after_task_id = open_tasks
-                .last()
-                .map(|(task_id, _)| task_id.clone())
-                .unwrap_or_default();
-            for (task_id, owner) in open_tasks {
-                let payload_json = assignment_stmt
-                    .query_row(params![org_run_id, &owner, &task_id], |row| {
-                        row.get::<_, String>(0)
-                    })
-                    .optional()
-                    .map_err(|err| err.to_string())?;
-                let Some(payload_json) = payload_json else {
-                    continue;
-                };
-                let Ok(message) = serde_json::from_str::<AgentMessage>(&payload_json) else {
-                    continue;
-                };
-                if message.validate().is_err() {
-                    continue;
-                }
-                if matches!(message, AgentMessage::TaskAssigned { task_id: ref id, .. } if id == &task_id)
-                {
-                    task_ids.insert(task_id);
-                }
+            if matches!(message, AgentMessage::TaskAssigned { task_id: ref id, .. } if id == &task_id)
+            {
+                task_ids.insert(task_id);
             }
         }
         Ok(task_ids)
@@ -1671,13 +2185,121 @@ impl AgentInboxStore {
                  FROM agent_inbox
                  WHERE recipient_member_id=?1
                    AND org_run_id=?2
-                   AND read_at IS NULL",
+                   AND read_at IS NULL
+                   AND NOT EXISTS (
+                       SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=agent_inbox.id
+                   )",
                 params![recipient_member_id, org_run_id],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .map_err(|err| err.to_string())?;
         Ok(max_id.map(|max_id| format!("{max_id}:{count}")))
     }
+}
+
+fn inbox_recipient_is_permanently_unavailable(
+    conn: &Connection,
+    org_run_id: &str,
+    recipient_member_id: Option<&str>,
+) -> Result<bool, String> {
+    use crate::coordination::agent_org_runs::{AgentOrgRunStore, COORDINATOR_MEMBER_ID};
+    use crate::session::SessionStatus;
+
+    let Some(member_id) = recipient_member_id.filter(|value| !value.trim().is_empty()) else {
+        return Ok(true);
+    };
+    let roster = AgentOrgRunStore::snapshot_member_ids_with_connection(conn, org_run_id)?;
+    if member_id != COORDINATOR_MEMBER_ID
+        && roster
+            .as_ref()
+            .is_some_and(|members| !members.contains(member_id))
+    {
+        return Ok(true);
+    }
+    if member_id == COORDINATOR_MEMBER_ID {
+        return Ok(
+            AgentOrgRunStore::find_coordinator_session_by_member_id_with_connection(
+                conn,
+                org_run_id,
+                COORDINATOR_MEMBER_ID,
+            )?
+            .is_none_or(|runtime| runtime.status == SessionStatus::Archived),
+        );
+    }
+    Ok(
+        AgentOrgRunStore::list_descendant_worker_sessions_with_connection(conn, org_run_id)?
+            .into_iter()
+            .find(|runtime| runtime.member_id.as_deref() == Some(member_id))
+            .is_none_or(|runtime| {
+                runtime.cli_agent_type.is_some() || runtime.status == SessionStatus::Archived
+            }),
+    )
+}
+
+fn load_delivery_resolution(
+    conn: &Connection,
+    org_run_id: &str,
+    inbox_id: i64,
+) -> Result<Option<AgentInboxDeliveryResolution>, String> {
+    type DeliveryResolutionRow = (
+        i64,
+        String,
+        String,
+        String,
+        String,
+        Option<i64>,
+        Option<String>,
+        String,
+    );
+    let raw: Option<DeliveryResolutionRow> = conn
+        .query_row(
+            "SELECT inbox_id, org_run_id, resolution_kind,
+                    resolved_by_member_id, reason,
+                    replacement_inbox_id, replacement_task_id, created_at
+             FROM agent_inbox_delivery_resolutions
+             WHERE inbox_id=?1 AND org_run_id=?2
+             LIMIT 1",
+            params![inbox_id, org_run_id],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                    row.get(6)?,
+                    row.get(7)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(|err| err.to_string())?;
+    raw.map(
+        |(
+            inbox_id,
+            org_run_id,
+            resolution_kind,
+            resolved_by_member_id,
+            reason,
+            replacement_inbox_id,
+            replacement_task_id,
+            created_at,
+        )| {
+            Ok(AgentInboxDeliveryResolution {
+                inbox_id,
+                org_run_id,
+                resolution_kind: AgentInboxDeliveryResolutionKind::parse(&resolution_kind)?,
+                resolved_by_member_id,
+                reason,
+                replacement_inbox_id,
+                replacement_task_id,
+                created_at,
+            })
+        },
+    )
+    .transpose()
 }
 
 fn row_to_record(row: &rusqlite::Row<'_>) -> SqliteResult<AgentInboxRecord> {
@@ -1709,6 +2331,7 @@ fn row_to_preview_record(row: &rusqlite::Row<'_>) -> SqliteResult<AgentInboxPrev
         created_at: row.get(8)?,
         read_at: row.get(9)?,
         display_preview: row.get(10)?,
+        delivery_resolution: row.get(11)?,
     })
 }
 
@@ -1727,6 +2350,10 @@ impl AgentInboxStore {
                  WHERE recipient_member_id = ?1
                    AND org_run_id = ?2
                    AND read_at IS NULL
+                   AND NOT EXISTS (
+                       SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=agent_inbox.id
+                   )
              )",
             params![recipient_member_id, org_run_id],
             |row| row.get::<_, bool>(0),
@@ -1757,6 +2384,10 @@ impl AgentInboxStore {
                  WHERE recipient_member_id = ?1
                    AND org_run_id = ?2
                    AND read_at IS NULL
+                   AND NOT EXISTS (
+                       SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=agent_inbox.id
+                   )
                  ORDER BY id ASC",
             )
             .map_err(|err| err.to_string())?;
@@ -1782,7 +2413,11 @@ impl AgentInboxStore {
             "SELECT MAX(id) FROM agent_inbox
              WHERE recipient_member_id=?1
                AND org_run_id=?2
-               AND read_at IS NULL",
+               AND read_at IS NULL
+               AND NOT EXISTS (
+                   SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                   WHERE resolution.inbox_id=agent_inbox.id
+               )",
             params![recipient_member_id, org_run_id],
             |row| row.get(0),
         )
@@ -1804,7 +2439,11 @@ impl AgentInboxStore {
                  WHERE recipient_member_id=?1
                    AND org_run_id=?2
                    AND id<=?3
-                   AND read_at IS NULL",
+                   AND read_at IS NULL
+                   AND NOT EXISTS (
+                       SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=agent_inbox.id
+                   )",
                 params![recipient_member_id, org_run_id, boundary_id],
                 |row| row.get(0),
             )
@@ -1829,8 +2468,20 @@ impl AgentInboxStore {
                         sender_agent_id,
                         sender_member_id,
                         org_run_id,
-                        payload_kind,
-                        payload_json,
+                        CASE WHEN length(CAST(payload_json AS BLOB))<=?4
+                             THEN payload_kind ELSE 'oversized_payload' END,
+                        CASE WHEN length(CAST(payload_json AS BLOB))<=?4
+                             THEN payload_json
+                             ELSE json_object(
+                                 'kind', 'plain',
+                                 'summary', 'Oversized historical inbox payload',
+                                 'text', printf(
+                                     'Inbox row %d contained %d bytes, above the supported delivery limit. The original row remains durable; this bounded diagnostic replaces its body. Raw prefix: %s',
+                                     id,
+                                     length(CAST(payload_json AS BLOB)),
+                                     substr(payload_json,1,4096)
+                                 )
+                             ) END,
                         request_id,
                         created_at,
                         read_at
@@ -1838,6 +2489,10 @@ impl AgentInboxStore {
                  WHERE recipient_member_id = ?1
                    AND org_run_id = ?2
                    AND read_at IS NULL
+                   AND NOT EXISTS (
+                       SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=agent_inbox.id
+                   )
                  ORDER BY id ASC
                  LIMIT ?3",
             )
@@ -1848,6 +2503,7 @@ impl AgentInboxStore {
                     recipient_member_id,
                     org_run_id,
                     (MAX_INBOX_DRAIN_ROWS + 1) as i64,
+                    limits::AGENT_INBOX_PAYLOAD_MAX_BYTES as i64,
                 ],
                 row_to_record,
             )
@@ -1922,18 +2578,23 @@ impl AgentInboxStore {
                                         FROM agent_inbox_materializations receipt
                                         WHERE receipt.inbox_id=agent_inbox.id
                                           AND receipt.session_id=?2
+                                    ),
+                                    EXISTS(
+                                        SELECT 1
+                                        FROM agent_inbox_delivery_resolutions resolution
+                                        WHERE resolution.inbox_id=agent_inbox.id
                                     )
                              FROM agent_inbox WHERE id=?1",
                             )
                             .map_err(|err| err.to_string())?;
                         for id in ids {
-                            let state: Option<(Option<String>, bool)> = preflight
+                            let state: Option<(Option<String>, bool, bool)> = preflight
                                 .query_row(params![id, session_id], |row| {
-                                    Ok((row.get(0)?, row.get(1)?))
+                                    Ok((row.get(0)?, row.get(1)?, row.get(2)?))
                                 })
                                 .optional()
                                 .map_err(|err| err.to_string())?;
-                            if matches!(state, Some((None, false))) {
+                            if matches!(state, Some((None, false, false))) {
                                 return Err(format!(
                                 "Agent Org Inbox row {id} has no materialization receipt owned by session {session_id}; refusing partial acknowledgement"
                             ));
@@ -1944,6 +2605,10 @@ impl AgentInboxStore {
                                 "UPDATE agent_inbox
                              SET read_at=?1
                              WHERE id=?2 AND read_at IS NULL
+                               AND NOT EXISTS (
+                                   SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                                   WHERE resolution.inbox_id=agent_inbox.id
+                               )
                                AND EXISTS (
                                    SELECT 1 FROM agent_inbox_materializations receipt
                                    WHERE receipt.inbox_id=agent_inbox.id
@@ -1976,7 +2641,11 @@ impl AgentInboxStore {
                             .prepare(
                                 "UPDATE agent_inbox
                              SET read_at=?1
-                             WHERE id=?2 AND read_at IS NULL",
+                             WHERE id=?2 AND read_at IS NULL
+                               AND NOT EXISTS (
+                                   SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                                   WHERE resolution.inbox_id=agent_inbox.id
+                               )",
                             )
                             .map_err(|err| err.to_string())?;
                         for id in ids {
@@ -2043,6 +2712,7 @@ impl AgentInboxStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID;
 
     fn sandbox_with_inbox_schema() -> test_helpers::test_env::SandboxGuard {
         let sandbox = test_helpers::test_env::sandbox();
@@ -2051,38 +2721,218 @@ mod tests {
         sandbox
     }
 
-    #[test]
-    fn init_schema_adds_group_chat_display_text_to_legacy_inbox() {
-        let conn = rusqlite::Connection::open_in_memory().expect("open in-memory database");
+    fn seed_minimal_running_run_for_delivery_resolution(run_id: &str) {
+        let conn = get_connection().expect("open sandbox database");
         conn.execute_batch(
-            "CREATE TABLE agent_inbox (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                recipient_agent_id TEXT NOT NULL,
-                recipient_member_id TEXT,
-                sender_agent_id TEXT NOT NULL,
-                sender_member_id TEXT,
-                org_run_id TEXT,
-                payload_kind TEXT NOT NULL,
-                payload_json TEXT NOT NULL,
-                request_id TEXT,
-                created_at TEXT NOT NULL,
-                read_at TEXT
-            );",
+            "CREATE TABLE IF NOT EXISTS agent_org_runs (
+                 id TEXT PRIMARY KEY,
+                 status TEXT NOT NULL,
+                 org_snapshot_json TEXT,
+                 root_session_id TEXT
+             );
+             CREATE TABLE IF NOT EXISTS agent_sessions (
+                 session_id TEXT PRIMARY KEY,
+                 status TEXT NOT NULL,
+                 updated_at TEXT NOT NULL,
+                 parent_session_id TEXT,
+                 agent_definition_id TEXT,
+                 org_member_id TEXT
+             );
+             CREATE TABLE IF NOT EXISTS code_sessions (
+                 session_id TEXT PRIMARY KEY,
+                 cli_agent_type TEXT NOT NULL,
+                 status TEXT NOT NULL,
+                 parent_session_id TEXT,
+                 org_member_id TEXT,
+                 updated_at TEXT NOT NULL
+             );
+             CREATE TABLE IF NOT EXISTS agent_org_tasks (
+                 id TEXT PRIMARY KEY,
+                 org_run_id TEXT NOT NULL
+             );",
         )
-        .expect("create legacy inbox table");
+        .expect("initialize minimal delivery-repair dependencies");
+        crate::coordination::agent_member_interventions::init_schema(&conn)
+            .expect("initialize intervention lookup for delivery repair");
+        let root_session_id = format!("root-{run_id}");
+        conn.execute(
+            "INSERT INTO agent_sessions (session_id, status, updated_at)
+             VALUES (?1, 'idle', ?2)",
+            params![&root_session_id, chrono::Utc::now().to_rfc3339()],
+        )
+        .expect("seed coordinator session");
+        conn.execute(
+            "INSERT INTO agent_org_runs (id, status, org_snapshot_json, root_session_id)
+             VALUES (?1, 'running', NULL, ?2)",
+            params![run_id, &root_session_id],
+        )
+        .expect("seed running run");
+    }
 
-        init_schema(&conn).expect("upgrade legacy inbox schema");
+    /// Simulate a historical pre-member-identity Inbox row. Production
+    /// insertion correctly rejects new Agent Org rows without a canonical
+    /// `recipient_member_id`; only a raw fixture may represent this legacy
+    /// corruption for recovery tests.
+    fn seed_legacy_orphan_inbox_row(run_id: &str, summary: &str, text: &str) -> AgentInboxRecord {
+        let message = AgentMessage::Plain {
+            summary: summary.to_string(),
+            text: text.to_string(),
+        };
+        let payload_json = serde_json::to_string(&message).expect("serialize legacy payload");
+        let conn = get_connection().expect("open sandbox database");
+        conn.execute(
+            "INSERT INTO agent_inbox (
+                 recipient_agent_id, recipient_member_id,
+                 sender_agent_id, sender_member_id, org_run_id,
+                 payload_kind, payload_json, request_id,
+                 created_at, read_at, causation_inbox_id
+             ) VALUES (?1, NULL, ?2, ?3, ?4, 'plain', ?5, NULL, ?6, NULL, NULL)",
+            params![
+                "missing-agent",
+                "coordinator-agent",
+                "coordinator",
+                run_id,
+                payload_json,
+                chrono::Utc::now().to_rfc3339(),
+            ],
+        )
+        .expect("seed historical orphan Inbox row");
+        let inbox_id = conn.last_insert_rowid();
+        AgentInboxStore::get_by_id_for_run(run_id, inbox_id)
+            .expect("load historical orphan row")
+            .expect("historical orphan row exists")
+    }
 
-        let mut stmt = conn
-            .prepare("PRAGMA table_info(agent_inbox)")
-            .expect("inspect inbox schema");
-        let columns = stmt
-            .query_map([], |row| row.get::<_, String>(1))
-            .expect("query inbox columns")
-            .collect::<rusqlite::Result<Vec<_>>>()
-            .expect("collect inbox columns");
-        assert!(columns.iter().any(|column| column == "causation_inbox_id"));
-        assert!(columns.iter().any(|column| column == "display_text"));
+    fn messages_for_each_task_identifier_position(
+        task_id: &str,
+    ) -> Vec<(&'static str, AgentMessage)> {
+        vec![
+            (
+                "PlanApprovalRequest.source_task_id",
+                AgentMessage::PlanApprovalRequest {
+                    request_id: RequestId("request-task-id-boundary".into()),
+                    approval_id: "approval-task-id-boundary".into(),
+                    plan_revision_id: "revision-task-id-boundary".into(),
+                    source_task_id: task_id.into(),
+                    plan_title: "Task identifier boundary".into(),
+                    plan_path: "/tmp/task-id-boundary.plan.md".into(),
+                    plan_content: "# Plan".into(),
+                },
+            ),
+            (
+                "MemberIdle.unfinished_task_ids[]",
+                AgentMessage::MemberIdle {
+                    member_id: "worker".into(),
+                    member_name: "Worker".into(),
+                    reason: MemberIdleReason::Available,
+                    current_mode: Some(AgentExecMode::Build),
+                    summary: None,
+                    failure_reason: None,
+                    unfinished_task_ids: vec![task_id.into()],
+                },
+            ),
+            (
+                "TaskAssigned.task_id",
+                AgentMessage::TaskAssigned {
+                    task_id: task_id.into(),
+                    subject: "Assigned task".into(),
+                    description: "Validate the task identifier boundary".into(),
+                    assigned_by: "Coordinator".into(),
+                    execution_mode: crate::coordination::agent_org_tasks::TaskExecutionMode::Build,
+                    dependency_outputs: Vec::new(),
+                },
+            ),
+            (
+                "TaskAssigned.dependency_outputs[].task_id",
+                AgentMessage::TaskAssigned {
+                    task_id: "dependent-task".into(),
+                    subject: "Dependent task".into(),
+                    description: "Consume a completed dependency".into(),
+                    assigned_by: "Coordinator".into(),
+                    execution_mode: crate::coordination::agent_org_tasks::TaskExecutionMode::Build,
+                    dependency_outputs: vec![TaskDependencyOutput {
+                        task_id: task_id.into(),
+                        subject: "Dependency".into(),
+                        summary: "Dependency completed".into(),
+                        content: None,
+                        artifact_ids: Vec::new(),
+                        produced_by_member_id: "producer".into(),
+                    }],
+                },
+            ),
+            (
+                "TaskAssigned.dependency_outputs[].produced_by_member_id",
+                AgentMessage::TaskAssigned {
+                    task_id: "dependent-producer-task".into(),
+                    subject: "Dependent task".into(),
+                    description: "Consume a completed dependency".into(),
+                    assigned_by: "Coordinator".into(),
+                    execution_mode: crate::coordination::agent_org_tasks::TaskExecutionMode::Build,
+                    dependency_outputs: vec![TaskDependencyOutput {
+                        task_id: "dependency-task".into(),
+                        subject: "Dependency".into(),
+                        summary: "Dependency completed".into(),
+                        content: None,
+                        artifact_ids: Vec::new(),
+                        produced_by_member_id: task_id.into(),
+                    }],
+                },
+            ),
+            (
+                "MemberTerminated.member_id",
+                AgentMessage::MemberTerminated {
+                    member_id: task_id.into(),
+                    member_name: "Worker".into(),
+                    reason: MemberTerminationReason::Shutdown,
+                },
+            ),
+            (
+                "MemberIdle.member_id",
+                AgentMessage::MemberIdle {
+                    member_id: task_id.into(),
+                    member_name: "Worker".into(),
+                    reason: MemberIdleReason::Available,
+                    current_mode: Some(AgentExecMode::Build),
+                    summary: None,
+                    failure_reason: None,
+                    unfinished_task_ids: Vec::new(),
+                },
+            ),
+            (
+                "TaskCompleted.task_id",
+                AgentMessage::TaskCompleted {
+                    task_id: task_id.into(),
+                    subject: "Completed task".into(),
+                    completed_by_member_id: "worker".into(),
+                    output_summary: Some("Done".into()),
+                    remaining_open_task_count: 0,
+                },
+            ),
+            (
+                "TaskCompleted.completed_by_member_id",
+                AgentMessage::TaskCompleted {
+                    task_id: "completed-member-boundary".into(),
+                    subject: "Completed task".into(),
+                    completed_by_member_id: task_id.into(),
+                    output_summary: Some("Done".into()),
+                    remaining_open_task_count: 0,
+                },
+            ),
+        ]
+    }
+
+    fn insert_boundary_message(
+        run_id: &str,
+        message: AgentMessage,
+    ) -> Result<AgentInboxRecord, String> {
+        AgentInboxStore::insert(InsertInboxParams {
+            recipient_agent_id: "recipient-agent".into(),
+            recipient_member_id: Some("recipient-member".into()),
+            sender_agent_id: SYSTEM_SENDER_ID.into(),
+            sender_member_id: None,
+            org_run_id: Some(run_id.into()),
+            message,
+        })
     }
 
     #[test]
@@ -2563,6 +3413,59 @@ mod tests {
     }
 
     #[test]
+    fn preview_and_assignment_scan_tolerate_corrupt_historical_payloads() {
+        let _sandbox = sandbox_with_inbox_schema();
+        let run_id = format!("run-{}", uuid::Uuid::new_v4());
+        let conn = get_connection().expect("test database");
+        for (kind, payload) in [
+            ("plain", "{not valid json"),
+            ("task_assigned", "also-not-json"),
+        ] {
+            conn.execute(
+                "INSERT INTO agent_inbox (
+                     recipient_agent_id, recipient_member_id, sender_agent_id,
+                     org_run_id, payload_kind, payload_json, created_at
+                 ) VALUES ('worker', 'member-worker', 'sender', ?1, ?2, ?3, ?4)",
+                params![&run_id, kind, payload, chrono::Utc::now().to_rfc3339()],
+            )
+            .expect("seed corrupt historical inbox row");
+        }
+        conn.execute_batch("DROP INDEX idx_agent_inbox_run_task_assignment_v4")
+            .expect("drop assignment index to simulate upgrade");
+        init_schema(&conn).expect("schema upgrade tolerates corrupt historical payloads");
+        AgentInboxStore::insert(InsertInboxParams {
+            recipient_agent_id: "worker".into(),
+            recipient_member_id: Some("member-worker".into()),
+            sender_agent_id: "sender".into(),
+            sender_member_id: None,
+            org_run_id: Some(run_id.clone()),
+            message: AgentMessage::TaskAssigned {
+                task_id: "valid-task".into(),
+                subject: "Valid assignment".into(),
+                description: String::new(),
+                assigned_by: "Coordinator".into(),
+                dependency_outputs: Vec::new(),
+                execution_mode: crate::coordination::agent_org_tasks::TaskExecutionMode::Build,
+            },
+        })
+        .expect("insert valid assignment");
+
+        let previews = AgentInboxStore::list_recent_previews_by_run(&run_id, 10)
+            .expect("corrupt rows degrade to empty previews");
+        assert_eq!(previews.len(), 3);
+        assert!(previews[0].display_preview.is_none());
+        assert!(previews[1].display_preview.is_none());
+        assert_eq!(
+            previews[2].display_preview.as_deref(),
+            Some("Valid assignment")
+        );
+
+        let assigned = AgentInboxStore::task_assignment_ids_by_run(&run_id)
+            .expect("corrupt assignment payload is skipped");
+        assert_eq!(assigned, HashSet::from(["valid-task".to_string()]));
+    }
+
+    #[test]
     fn open_assignment_snapshot_uses_current_tasks_and_expression_index() {
         let _sandbox = sandbox_with_inbox_schema();
         let conn = get_connection().expect("test database");
@@ -2842,6 +3745,53 @@ mod tests {
         assert!(bytes <= MAX_INBOX_DRAIN_PAYLOAD_BYTES);
         assert!(batch.rows.len() < 20);
         assert!(batch.has_more);
+    }
+
+    #[test]
+    fn oversized_historical_first_row_is_projected_as_bounded_diagnostic() {
+        let _sandbox = sandbox_with_inbox_schema();
+        let conn = get_connection().expect("db");
+        let run_id = format!("run-{}", uuid::Uuid::new_v4());
+        let oversized = format!(
+            "{{\"kind\":\"plain\",\"summary\":\"legacy\",\"text\":\"{}\"}}",
+            "x".repeat(limits::AGENT_INBOX_PAYLOAD_MAX_BYTES + 8_192)
+        );
+        conn.execute(
+            "INSERT INTO agent_inbox (
+                recipient_agent_id, recipient_member_id, sender_agent_id,
+                sender_member_id, org_run_id, payload_kind, payload_json, created_at
+             ) VALUES ('worker','member-worker','coordinator','coordinator',?1,'plain',?2,?3)",
+            params![&run_id, &oversized, chrono::Utc::now().to_rfc3339()],
+        )
+        .expect("seed oversized historical row");
+
+        let batch = AgentInboxStore::list_unread_batch_for_member("member-worker", &run_id)
+            .expect("bounded drain projection");
+        assert_eq!(batch.rows.len(), 1);
+        assert_eq!(batch.rows[0].payload_kind, "oversized_payload");
+        assert!(batch.rows[0].payload_json.len() < 16 * 1024);
+        let AgentMessage::Plain { summary, text } = batch.rows[0]
+            .decode_payload()
+            .expect("diagnostic remains a valid typed message")
+        else {
+            panic!("oversized row must become a plain diagnostic projection");
+        };
+        assert_eq!(summary, "Oversized historical inbox payload");
+        assert!(text.contains("above the supported delivery limit"));
+
+        let (stored_bytes, read_at): (i64, Option<String>) = conn
+            .query_row(
+                "SELECT length(CAST(payload_json AS BLOB)), read_at
+                 FROM agent_inbox WHERE org_run_id=?1",
+                params![&run_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("inspect durable source");
+        assert_eq!(stored_bytes as usize, oversized.len());
+        assert!(
+            read_at.is_none(),
+            "projection must not fake acknowledgement"
+        );
     }
 
     #[test]
@@ -3179,6 +4129,71 @@ mod tests {
     }
 
     #[test]
+    fn every_task_identifier_position_accepts_the_exact_char_and_byte_limit() {
+        let _sandbox = sandbox_with_inbox_schema();
+        let run_id = format!("run-task-id-exact-{}", uuid::Uuid::new_v4());
+        // One emoji is four UTF-8 bytes, so this value simultaneously reaches
+        // the exact character and byte ceilings (1000 chars / 4000 bytes).
+        let exact_limit = "😀".repeat(limits::TASK_IDENTIFIER_MAX_CHARS);
+
+        for (position, message) in messages_for_each_task_identifier_position(&exact_limit) {
+            insert_boundary_message(&run_id, message)
+                .unwrap_or_else(|error| panic!("{position} rejected the exact limit: {error}"));
+        }
+
+        assert_eq!(
+            AgentInboxStore::list_by_run(&run_id)
+                .expect("list exact-limit inbox rows")
+                .len(),
+            9
+        );
+    }
+
+    #[test]
+    fn every_task_identifier_position_rejects_over_char_limit_before_persistence() {
+        let _sandbox = sandbox_with_inbox_schema();
+        let run_id = format!("run-task-id-char-over-{}", uuid::Uuid::new_v4());
+        let over_char_limit = "x".repeat(limits::TASK_IDENTIFIER_MAX_CHARS + 1);
+
+        for (position, message) in messages_for_each_task_identifier_position(&over_char_limit) {
+            let error = match insert_boundary_message(&run_id, message) {
+                Ok(_) => panic!("{position} accepted an oversized task id"),
+                Err(error) => error,
+            };
+            assert!(error.contains("chars"), "{position}: {error}");
+        }
+
+        assert!(
+            AgentInboxStore::list_by_run(&run_id)
+                .expect("list rejected char-limit rows")
+                .is_empty(),
+            "invalid task identifiers must not reach durable inbox storage"
+        );
+    }
+
+    #[test]
+    fn every_task_identifier_position_rejects_over_byte_limit_before_persistence() {
+        let _sandbox = sandbox_with_inbox_schema();
+        let run_id = format!("run-task-id-byte-over-{}", uuid::Uuid::new_v4());
+        let over_byte_limit = "😀".repeat(limits::TASK_IDENTIFIER_MAX_CHARS + 1);
+
+        for (position, message) in messages_for_each_task_identifier_position(&over_byte_limit) {
+            let error = match insert_boundary_message(&run_id, message) {
+                Ok(_) => panic!("{position} accepted an oversized task id"),
+                Err(error) => error,
+            };
+            assert!(error.contains("bytes"), "{position}: {error}");
+        }
+
+        assert!(
+            AgentInboxStore::list_by_run(&run_id)
+                .expect("list rejected byte-limit rows")
+                .is_empty(),
+            "byte-oversized task identifiers must not reach durable inbox storage"
+        );
+    }
+
+    #[test]
     fn task_assigned_rejects_blank_required_fields() {
         let bad_id = AgentMessage::TaskAssigned {
             task_id: "  ".into(),
@@ -3232,6 +4247,347 @@ mod tests {
             execution_mode: crate::coordination::agent_org_tasks::TaskExecutionMode::Build,
         };
         assert!(bad_description.validate().is_err());
+    }
+
+    #[test]
+    fn cancelled_delivery_stays_unread_as_evidence_but_leaves_pending_queries() {
+        let _sandbox = sandbox_with_inbox_schema();
+        let run_id = "run-delivery-cancel";
+        seed_minimal_running_run_for_delivery_resolution(run_id);
+        let row =
+            seed_legacy_orphan_inbox_row(run_id, "Undeliverable", "Preserve this exact message");
+
+        let resolution = AgentInboxStore::resolve_delivery(ResolveInboxDeliveryParams {
+            inbox_id: row.id,
+            org_run_id: run_id.into(),
+            resolved_by_member_id: "coordinator".into(),
+            resolution_kind: AgentInboxDeliveryResolutionKind::Cancelled,
+            reason: "Member was removed and the work is no longer required".into(),
+            replacement_inbox_id: None,
+            replacement_task_id: None,
+        })
+        .expect("cancel delivery");
+        assert_eq!(
+            resolution.resolution_kind,
+            AgentInboxDeliveryResolutionKind::Cancelled
+        );
+        let conn = get_connection().expect("open sandbox database");
+        assert!(
+            AgentInboxStore::unread_counts_by_recipient_with_connection(&conn, run_id)
+                .expect("pending delivery snapshot")
+                .is_empty()
+        );
+        let stored = AgentInboxStore::get_by_id_for_run(run_id, row.id)
+            .expect("load evidence")
+            .expect("source row remains");
+        assert!(
+            stored.read_at.is_none(),
+            "resolution must not fake a read receipt"
+        );
+
+        let same = AgentInboxStore::resolve_delivery(ResolveInboxDeliveryParams {
+            inbox_id: row.id,
+            org_run_id: run_id.into(),
+            resolved_by_member_id: "coordinator".into(),
+            resolution_kind: AgentInboxDeliveryResolutionKind::Cancelled,
+            reason: "Member was removed and the work is no longer required".into(),
+            replacement_inbox_id: None,
+            replacement_task_id: None,
+        })
+        .expect("exact retry is idempotent");
+        assert_eq!(same, resolution);
+        let conflict = AgentInboxStore::resolve_delivery(ResolveInboxDeliveryParams {
+            inbox_id: row.id,
+            org_run_id: run_id.into(),
+            resolved_by_member_id: "coordinator".into(),
+            resolution_kind: AgentInboxDeliveryResolutionKind::Cancelled,
+            reason: "A different decision".into(),
+            replacement_inbox_id: None,
+            replacement_task_id: None,
+        })
+        .expect_err("different retry must conflict");
+        assert!(conflict
+            .to_string()
+            .contains("different delivery resolution"));
+    }
+
+    #[test]
+    fn delivery_resolution_invalidates_stale_materialization_guard() {
+        let _sandbox = sandbox_with_inbox_schema();
+        let run_id = "run-delivery-stale-guard";
+        seed_minimal_running_run_for_delivery_resolution(run_id);
+        let row = seed_legacy_orphan_inbox_row(
+            run_id,
+            "Stale receipt",
+            "Do not acknowledge after repair",
+        );
+        let conn = get_connection().expect("open sandbox database");
+        conn.execute(
+            "INSERT INTO agent_inbox_materializations (
+                 inbox_id, session_id, transcript_message_id,
+                 transcript_intent_id, materialized_at
+             ) VALUES (?1, 'old-session', 'message-1', 'intent-1', ?2)",
+            params![row.id, chrono::Utc::now().to_rfc3339()],
+        )
+        .expect("seed stale receipt");
+
+        AgentInboxStore::resolve_delivery(ResolveInboxDeliveryParams {
+            inbox_id: row.id,
+            org_run_id: run_id.into(),
+            resolved_by_member_id: "coordinator".into(),
+            resolution_kind: AgentInboxDeliveryResolutionKind::Cancelled,
+            reason: "Recipient permanently unavailable".into(),
+            replacement_inbox_id: None,
+            replacement_task_id: None,
+        })
+        .expect("resolve delivery");
+        assert_eq!(
+            AgentInboxStore::mark_many_read_for_session(&[row.id], "old-session")
+                .expect("resolved row is an acknowledgement no-op"),
+            0
+        );
+        let stored = AgentInboxStore::get_by_id_for_run(run_id, row.id)
+            .expect("load source")
+            .expect("source remains");
+        assert!(stored.read_at.is_none());
+    }
+
+    #[test]
+    fn delivery_resolution_rejects_a_healthy_canonical_recipient() {
+        let _sandbox = sandbox_with_inbox_schema();
+        let run_id = "run-delivery-healthy";
+        seed_minimal_running_run_for_delivery_resolution(run_id);
+        let row = AgentInboxStore::insert(InsertInboxParams {
+            recipient_agent_id: "coordinator-agent".into(),
+            recipient_member_id: Some("coordinator".into()),
+            sender_agent_id: "worker-agent".into(),
+            sender_member_id: Some("worker".into()),
+            org_run_id: Some(run_id.into()),
+            message: AgentMessage::Plain {
+                summary: "Healthy delivery".into(),
+                text: "This must reach the coordinator".into(),
+            },
+        })
+        .expect("insert healthy row");
+        let error = AgentInboxStore::resolve_delivery(ResolveInboxDeliveryParams {
+            inbox_id: row.id,
+            org_run_id: run_id.into(),
+            resolved_by_member_id: "coordinator".into(),
+            resolution_kind: AgentInboxDeliveryResolutionKind::Cancelled,
+            reason: "The model changed its mind".into(),
+            replacement_inbox_id: None,
+            replacement_task_id: None,
+        })
+        .expect_err("healthy recipient cannot be discarded by the model");
+        assert!(error
+            .to_string()
+            .contains("recoverable canonical recipient"));
+        assert!(
+            AgentInboxStore::has_unread_for_member("coordinator", run_id)
+                .expect("healthy delivery remains pending")
+        );
+    }
+
+    #[test]
+    fn superseded_delivery_requires_an_existing_same_run_replacement() {
+        let _sandbox = sandbox_with_inbox_schema();
+        let run_id = "run-delivery-supersede";
+        seed_minimal_running_run_for_delivery_resolution(run_id);
+        let source = seed_legacy_orphan_inbox_row(run_id, "Original", "Original work");
+        let conn = get_connection().expect("open sandbox database");
+        conn.execute(
+            "INSERT INTO agent_org_tasks (id, org_run_id) VALUES ('replacement-task', ?1)",
+            params![run_id],
+        )
+        .expect("seed replacement task");
+
+        let missing = AgentInboxStore::resolve_delivery(ResolveInboxDeliveryParams {
+            inbox_id: source.id,
+            org_run_id: run_id.into(),
+            resolved_by_member_id: "coordinator".into(),
+            resolution_kind: AgentInboxDeliveryResolutionKind::Superseded,
+            reason: "Moved to a durable replacement".into(),
+            replacement_inbox_id: None,
+            replacement_task_id: Some("missing-task".into()),
+        })
+        .expect_err("missing replacement rejected");
+        assert!(missing.to_string().contains("does not exist"));
+
+        let resolution = AgentInboxStore::resolve_delivery(ResolveInboxDeliveryParams {
+            inbox_id: source.id,
+            org_run_id: run_id.into(),
+            resolved_by_member_id: "coordinator".into(),
+            resolution_kind: AgentInboxDeliveryResolutionKind::Superseded,
+            reason: "Moved to a durable replacement".into(),
+            replacement_inbox_id: None,
+            replacement_task_id: Some("replacement-task".into()),
+        })
+        .expect("supersede delivery");
+        assert_eq!(
+            resolution.replacement_task_id.as_deref(),
+            Some("replacement-task")
+        );
+    }
+
+    #[test]
+    fn superseded_delivery_can_follow_a_real_replacement_chain_but_not_cycle() {
+        use crate::definitions::orgs::{
+            HierarchyMode, OrgDefinition, OrgMember, PlanApprovalPolicy,
+        };
+
+        let _sandbox = sandbox_with_inbox_schema();
+        let run_id = "run-delivery-chain";
+        seed_minimal_running_run_for_delivery_resolution(run_id);
+        let org = OrgDefinition {
+            id: "org-delivery-chain".into(),
+            name: "Delivery Chain".into(),
+            role: "Coordinator".into(),
+            agent_id: "coordinator-agent".into(),
+            description: None,
+            hierarchy_mode: HierarchyMode::Soft,
+            plan_approval_policy: PlanApprovalPolicy::Coordinator,
+            children: vec![
+                OrgMember {
+                    id: "member-a".into(),
+                    name: "Member A".into(),
+                    role: "worker".into(),
+                    agent_id: "agent-a".into(),
+                    runtime_config: None,
+                    children: Vec::new(),
+                },
+                OrgMember {
+                    id: "member-b".into(),
+                    name: "Member B".into(),
+                    role: "worker".into(),
+                    agent_id: "agent-b".into(),
+                    runtime_config: None,
+                    children: Vec::new(),
+                },
+                OrgMember {
+                    id: "member-c".into(),
+                    name: "Member C".into(),
+                    role: "worker".into(),
+                    agent_id: "agent-c".into(),
+                    runtime_config: None,
+                    children: Vec::new(),
+                },
+            ],
+        };
+        let conn = get_connection().expect("open sandbox database");
+        conn.execute(
+            "UPDATE agent_org_runs SET org_snapshot_json=?1 WHERE id=?2",
+            params![serde_json::to_string(&org).unwrap(), run_id],
+        )
+        .expect("seed roster snapshot");
+        let now = chrono::Utc::now().to_rfc3339();
+        for (session_id, member_id, agent_id) in [
+            ("session-a", "member-a", "agent-a"),
+            ("session-b", "member-b", "agent-b"),
+            ("session-c", "member-c", "agent-c"),
+        ] {
+            conn.execute(
+                "INSERT INTO agent_sessions (
+                     session_id, status, updated_at, parent_session_id,
+                     agent_definition_id, org_member_id
+                 ) VALUES (?1, 'idle', ?2, ?3, ?4, ?5)",
+                params![
+                    session_id,
+                    &now,
+                    format!("root-{run_id}"),
+                    agent_id,
+                    member_id
+                ],
+            )
+            .expect("seed healthy replacement member");
+        }
+
+        let row_a = AgentInboxStore::insert(InsertInboxParams {
+            recipient_agent_id: "agent-a".into(),
+            recipient_member_id: Some("member-a".into()),
+            sender_agent_id: "coordinator-agent".into(),
+            sender_member_id: Some(COORDINATOR_MEMBER_ID.into()),
+            org_run_id: Some(run_id.into()),
+            message: AgentMessage::Plain {
+                summary: "A".into(),
+                text: "Original delivery".into(),
+            },
+        })
+        .expect("insert original delivery");
+        let row_b = AgentInboxStore::insert(InsertInboxParams {
+            recipient_agent_id: "agent-b".into(),
+            recipient_member_id: Some("member-b".into()),
+            sender_agent_id: "coordinator-agent".into(),
+            sender_member_id: Some(COORDINATOR_MEMBER_ID.into()),
+            org_run_id: Some(run_id.into()),
+            message: AgentMessage::Plain {
+                summary: "B".into(),
+                text: "First replacement".into(),
+            },
+        })
+        .expect("insert first replacement");
+        let row_c = AgentInboxStore::insert(InsertInboxParams {
+            recipient_agent_id: "agent-c".into(),
+            recipient_member_id: Some("member-c".into()),
+            sender_agent_id: "coordinator-agent".into(),
+            sender_member_id: Some(COORDINATOR_MEMBER_ID.into()),
+            org_run_id: Some(run_id.into()),
+            message: AgentMessage::Plain {
+                summary: "C".into(),
+                text: "Second replacement".into(),
+            },
+        })
+        .expect("insert second replacement");
+
+        conn.execute(
+            "UPDATE agent_sessions SET status='archived' WHERE session_id='session-a'",
+            [],
+        )
+        .expect("archive original recipient");
+        AgentInboxStore::resolve_delivery(ResolveInboxDeliveryParams {
+            inbox_id: row_a.id,
+            org_run_id: run_id.into(),
+            resolved_by_member_id: COORDINATOR_MEMBER_ID.into(),
+            resolution_kind: AgentInboxDeliveryResolutionKind::Superseded,
+            reason: "Moved from A to B".into(),
+            replacement_inbox_id: Some(row_b.id),
+            replacement_task_id: None,
+        })
+        .expect("supersede A with B");
+
+        conn.execute(
+            "UPDATE agent_sessions SET status='archived' WHERE session_id='session-b'",
+            [],
+        )
+        .expect("archive first replacement recipient");
+        AgentInboxStore::resolve_delivery(ResolveInboxDeliveryParams {
+            inbox_id: row_b.id,
+            org_run_id: run_id.into(),
+            resolved_by_member_id: COORDINATOR_MEMBER_ID.into(),
+            resolution_kind: AgentInboxDeliveryResolutionKind::Superseded,
+            reason: "Moved from B to C after B became unavailable".into(),
+            replacement_inbox_id: Some(row_c.id),
+            replacement_task_id: None,
+        })
+        .expect("supersede unavailable B with C");
+
+        conn.execute(
+            "UPDATE agent_sessions SET status='archived' WHERE session_id='session-c'",
+            [],
+        )
+        .expect("archive second replacement recipient");
+        let cycle = AgentInboxStore::resolve_delivery(ResolveInboxDeliveryParams {
+            inbox_id: row_c.id,
+            org_run_id: run_id.into(),
+            resolved_by_member_id: COORDINATOR_MEMBER_ID.into(),
+            resolution_kind: AgentInboxDeliveryResolutionKind::Superseded,
+            reason: "Attempt to cycle back to A".into(),
+            replacement_inbox_id: Some(row_a.id),
+            replacement_task_id: None,
+        })
+        .expect_err("a replacement chain must not cycle into an already resolved row");
+        assert!(cycle
+            .to_string()
+            .contains("already has a delivery resolution"));
     }
 
     #[test]

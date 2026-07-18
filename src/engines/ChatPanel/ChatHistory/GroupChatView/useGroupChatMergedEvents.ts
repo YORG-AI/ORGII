@@ -48,6 +48,7 @@ function inboxRowToGroupChatUserEvent(
     actionType: "raw",
     args: {
       recipientMemberId: row.targetMemberId,
+      deliveryResolution: row.deliveryResolution ?? null,
       agentOrgGroupChatMessage: true,
     },
     result: {

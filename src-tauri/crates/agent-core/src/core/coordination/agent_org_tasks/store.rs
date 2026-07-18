@@ -1,19 +1,23 @@
 use std::collections::HashSet;
 
-use database::db::{get_connection, with_sessions_writer};
 use rusqlite::{params, OptionalExtension};
+use tracing::warn;
+
+use database::db::{get_connection, with_sessions_writer};
 
 use crate::coordination::agent_org_payload_limits::{
-    validate_optional_text, validate_required_text, validate_text_len, TASK_ACTIVE_FORM_MAX_BYTES,
-    TASK_ACTIVE_FORM_MAX_CHARS, TASK_DESCRIPTION_MAX_BYTES, TASK_DESCRIPTION_MAX_CHARS,
-    TASK_OUTPUT_CONTENT_MAX_BYTES, TASK_OUTPUT_CONTENT_MAX_CHARS, TASK_OUTPUT_SUMMARY_MAX_BYTES,
-    TASK_OUTPUT_SUMMARY_MAX_CHARS, TASK_SUBJECT_MAX_BYTES, TASK_SUBJECT_MAX_CHARS,
-    TASK_SUMMARY_ARTIFACT_PREVIEW_MAX_COUNT, TASK_SUMMARY_DEPENDENCY_PREVIEW_MAX_COUNT,
-    TASK_SUMMARY_DESCRIPTION_MAX_CHARS, TASK_SUMMARY_ELIGIBILITY_PREVIEW_MAX_COUNT,
-    TASK_SUMMARY_PAGE_MAX_BYTES,
+    validate_optional_text, validate_required_text, validate_task_dependency_ids,
+    validate_task_eligible_member_ids, validate_task_identifier, validate_text_len,
+    TASK_ACTIVE_FORM_MAX_BYTES, TASK_ACTIVE_FORM_MAX_CHARS, TASK_DESCRIPTION_MAX_BYTES,
+    TASK_DESCRIPTION_MAX_CHARS, TASK_OUTPUT_CONTENT_MAX_BYTES, TASK_OUTPUT_CONTENT_MAX_CHARS,
+    TASK_OUTPUT_SUMMARY_MAX_BYTES, TASK_OUTPUT_SUMMARY_MAX_CHARS, TASK_RUN_MAX_TASKS,
+    TASK_SUBJECT_MAX_BYTES, TASK_SUBJECT_MAX_CHARS, TASK_SUMMARY_ARTIFACT_PREVIEW_MAX_COUNT,
+    TASK_SUMMARY_DEPENDENCY_PREVIEW_MAX_COUNT, TASK_SUMMARY_DESCRIPTION_MAX_CHARS,
+    TASK_SUMMARY_ELIGIBILITY_PREVIEW_MAX_COUNT, TASK_SUMMARY_PAGE_MAX_BYTES,
 };
 
 use super::graph::validate_dependency_graph;
+#[cfg(test)]
 #[cfg(test)]
 use super::helpers::row_to_task_history_event;
 use super::helpers::{
@@ -26,9 +30,10 @@ use super::{
     task_dependency_closure, task_execution_mode, CreateTaskParams, Task,
     TaskCreateSchedulingPolicy, TaskExecutionMode, TaskGraphIndex, TaskMutationOutcome, TaskOutput,
     TaskOutputSummary, TaskStatus, TaskSummary, TaskSummaryPage, UpdateTaskPatch,
-    TASK_DELETE_HAS_DEPENDENTS_ERROR, TASK_EVENT_CREATED, TASK_EVENT_DELETED,
-    TASK_EVENT_ESCALATED_TO_COORDINATOR, TASK_EVENT_RELEASED, TASK_EVENT_UPDATED,
-    TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR, TASK_METADATA_ELIGIBLE_MEMBER_IDS, TASK_METADATA_OUTPUT,
+    TASK_DELETE_HAS_DEPENDENTS_ERROR, TASK_DELETE_IS_DELIVERY_REPLACEMENT_ERROR,
+    TASK_EVENT_CREATED, TASK_EVENT_DELETED, TASK_EVENT_ESCALATED_TO_COORDINATOR,
+    TASK_EVENT_RELEASED, TASK_EVENT_UPDATED, TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR,
+    TASK_METADATA_ELIGIBLE_MEMBER_IDS, TASK_METADATA_OUTPUT, TASK_RUN_TASK_LIMIT_ERROR,
 };
 
 pub struct AgentOrgTaskStore;
@@ -40,9 +45,24 @@ fn decode_summary_array(raw: String, column: usize) -> rusqlite::Result<Vec<Stri
 }
 
 fn task_summary_scalar_predicate_sql(alias: &str) -> String {
+    use crate::coordination::agent_org_payload_limits as limits;
+
     format!(
         "{alias}.status IN ('pending','in_progress','completed')
-         AND trim({alias}.id)<>''"
+         AND trim({alias}.id)<>''
+         AND {alias}.id=trim({alias}.id)
+         AND length({alias}.id)<={}
+         AND length(CAST({alias}.id AS BLOB))<={}
+         AND length({alias}.created_at)<={}
+         AND length(CAST({alias}.created_at AS BLOB))<={}
+         AND length({alias}.updated_at)<={}
+         AND length(CAST({alias}.updated_at AS BLOB))<={}",
+        limits::TASK_IDENTIFIER_MAX_CHARS,
+        limits::TASK_IDENTIFIER_MAX_BYTES,
+        limits::RFC3339_TIMESTAMP_MAX_CHARS,
+        limits::RFC3339_TIMESTAMP_MAX_BYTES,
+        limits::RFC3339_TIMESTAMP_MAX_CHARS,
+        limits::RFC3339_TIMESTAMP_MAX_BYTES,
     )
 }
 
@@ -55,6 +75,10 @@ fn canonicalize_dependencies(tasks: &mut [Task], org_run_id: &str) -> Result<(),
     }
     let graph = TaskGraphIndex::new(tasks);
     graph.apply_projection(tasks);
+    for task in tasks.iter() {
+        validate_task_dependency_ids("blocked_by", &task.blocked_by)?;
+        validate_task_dependency_ids("derived blocks", &task.blocks)?;
+    }
     validate_dependency_graph(tasks, org_run_id)
 }
 
@@ -84,6 +108,165 @@ fn persist_dependency_projection(
     Ok(())
 }
 
+/// One-time migration for the historical dual-write dependency fields.
+/// Legacy `blocks`-only edges are folded into canonical `blocked_by`, then
+/// both stored columns are rewritten as a consistent forward/reverse pair.
+pub(super) fn normalize_legacy_dependency_rows(
+    conn: &rusqlite::Connection,
+) -> rusqlite::Result<()> {
+    const MIGRATION_NAME: &str = "canonical_blocked_by_v1";
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS agent_org_task_run_schema_migrations (
+            name TEXT NOT NULL,
+            org_run_id TEXT NOT NULL,
+            applied_at TEXT NOT NULL,
+            PRIMARY KEY (name, org_run_id)
+        );",
+    )?;
+
+    // Discover candidates in bounded keyset pages. A large historical DB
+    // must not collect every run id in memory merely to initialize schema.
+    let mut after_run_id: Option<String> = None;
+    loop {
+        let run_ids = {
+            let mut stmt = conn.prepare(
+                "SELECT task.org_run_id
+                 FROM agent_org_tasks task
+                 WHERE NOT EXISTS (
+                     SELECT 1 FROM agent_org_task_run_schema_migrations migration
+                     WHERE migration.name=?1
+                       AND migration.org_run_id=task.org_run_id
+                 )
+                   AND (?2 IS NULL OR task.org_run_id>?2)
+                 GROUP BY task.org_run_id
+                 ORDER BY task.org_run_id
+                 LIMIT 256",
+            )?;
+            let rows = stmt.query_map(params![MIGRATION_NAME, after_run_id.as_deref()], |row| {
+                row.get::<_, String>(0)
+            })?;
+            rows.collect::<Result<Vec<_>, _>>()?
+        };
+        if run_ids.is_empty() {
+            break;
+        }
+        after_run_id = run_ids.last().cloned();
+
+        for run_id in run_ids {
+            conn.execute_batch("BEGIN IMMEDIATE")?;
+            let normalized = (|| -> Result<(), String> {
+                // Schema initialization can race across app surfaces. Recheck the
+                // marker under the run's writer transaction before doing work.
+                let already_applied: bool = conn
+                    .query_row(
+                        "SELECT EXISTS(
+                         SELECT 1 FROM agent_org_task_run_schema_migrations
+                         WHERE name=?1 AND org_run_id=?2
+                     )",
+                        params![MIGRATION_NAME, &run_id],
+                        |row| row.get(0),
+                    )
+                    .map_err(|err| err.to_string())?;
+                if already_applied {
+                    return Ok(());
+                }
+
+                if !run_is_safe_for_dependency_normalization(conn, &run_id)? {
+                    return Err(
+                    "task board exceeds current resource/integrity limits; repair is required before dependency normalization"
+                        .to_string(),
+                );
+                }
+
+                let mut tasks = list_tasks_with_conn(conn, &run_id)?;
+                canonicalize_dependencies(&mut tasks, &run_id)?;
+                persist_dependency_projection(conn, &tasks)?;
+                conn.execute(
+                    "INSERT INTO agent_org_task_run_schema_migrations(
+                     name, org_run_id, applied_at
+                 ) VALUES (?1, ?2, ?3)",
+                    params![MIGRATION_NAME, &run_id, now_rfc3339()],
+                )
+                .map_err(|err| err.to_string())?;
+                Ok(())
+            })();
+
+            match normalized {
+                Ok(()) => conn.execute_batch("COMMIT")?,
+                Err(error) => {
+                    let _ = conn.execute_batch("ROLLBACK");
+                    // Historical data is allowed to be imperfect. Leave this
+                    // run unmarked so a later startup can retry after the row is
+                    // repaired, while healthy runs retain their success marker.
+                    warn!(
+                        org_run_id = %run_id,
+                        error = %error,
+                        "deferring corrupt Agent Org task board dependency normalization"
+                    );
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Preflight historical rows without deserializing their JSON. Oversized
+/// values are replaced by invalid one-byte sentinels inside SQLite before the
+/// shared predicate examines shape, so startup never parses a giant legacy
+/// payload just to decide that it is unsafe.
+fn run_is_safe_for_dependency_normalization(
+    conn: &rusqlite::Connection,
+    run_id: &str,
+) -> Result<bool, String> {
+    let count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_tasks WHERE org_run_id=?1",
+            params![run_id],
+            |row| row.get(0),
+        )
+        .map_err(|err| err.to_string())?;
+    if count > TASK_RUN_MAX_TASKS as i64 {
+        return Ok(false);
+    }
+    let predicate = super::corrupt_task_row_predicate_sql();
+    let dependency_json_max =
+        crate::coordination::agent_org_payload_limits::TASK_DEPENDENCY_JSON_MAX_BYTES;
+    let metadata_max = crate::coordination::agent_org_payload_limits::TASK_METADATA_MAX_BYTES;
+    let sql = format!(
+        "SELECT COALESCE(SUM(CASE WHEN {predicate} THEN 1 ELSE 0 END),0)
+         FROM (
+             SELECT id, subject, description, active_form, owner, status,
+                    created_at, updated_at,
+                    CASE WHEN length(CAST(blocks_json AS BLOB))<={dependency_json_max}
+                         THEN blocks_json ELSE '!' END AS blocks_json,
+                    CASE WHEN length(CAST(blocked_by_json AS BLOB))<={dependency_json_max}
+                         THEN blocked_by_json ELSE '!' END AS blocked_by_json,
+                    CASE WHEN metadata_json IS NULL
+                              OR length(CAST(metadata_json AS BLOB))<={metadata_max}
+                         THEN metadata_json ELSE '!' END AS metadata_json
+             FROM agent_org_tasks WHERE org_run_id=?1
+         ) AS bounded_tasks"
+    );
+    let corrupt: i64 = conn
+        .query_row(&sql, params![run_id], |row| row.get(0))
+        .map_err(|err| err.to_string())?;
+    Ok(corrupt == 0)
+}
+
+fn ensure_task_rows_safe_for_operational_projection(
+    conn: &rusqlite::Connection,
+    run_id: &str,
+) -> Result<(), String> {
+    if run_is_safe_for_dependency_normalization(conn, run_id)? {
+        Ok(())
+    } else {
+        Err(
+            "Agent Org task board contains oversized or corrupt rows; operational projection refused"
+                .to_string(),
+        )
+    }
+}
+
 fn reject_writable_blocks(blocks: &[String]) -> Result<(), String> {
     if blocks.is_empty() {
         Ok(())
@@ -93,6 +276,20 @@ fn reject_writable_blocks(blocks: &[String]) -> Result<(), String> {
                 .to_string(),
         )
     }
+}
+
+fn ensure_task_run_capacity(existing_count: usize, incoming_count: usize) -> Result<(), String> {
+    let projected_count = existing_count.checked_add(incoming_count).ok_or_else(|| {
+        format!(
+            "{TASK_RUN_TASK_LIMIT_ERROR}: task count overflow while checking the Agent Org run capacity"
+        )
+    })?;
+    if projected_count <= TASK_RUN_MAX_TASKS {
+        return Ok(());
+    }
+    Err(format!(
+        "{TASK_RUN_TASK_LIMIT_ERROR}: run retains {existing_count} tasks and this mutation would add {incoming_count}; maximum total is {TASK_RUN_MAX_TASKS}"
+    ))
 }
 
 fn task_persisted_state_equal(left: &Task, right: &Task) -> bool {
@@ -171,6 +368,9 @@ fn validate_task_persistence_invariants(
     status: TaskStatus,
     metadata: Option<&serde_json::Value>,
 ) -> Result<(), String> {
+    if let Some(owner) = owner {
+        validate_task_identifier("task owner_member_id", owner)?;
+    }
     let metadata_object = match metadata {
         None => None,
         Some(serde_json::Value::Object(object)) => Some(object),
@@ -184,6 +384,15 @@ fn validate_task_persistence_invariants(
         let values = value.as_array().ok_or_else(|| {
             "eligible_member_ids must be an array of member_id strings".to_string()
         })?;
+        let raw_member_ids = values
+            .iter()
+            .map(|value| {
+                value.as_str().map(str::to_string).ok_or_else(|| {
+                    "eligible_member_ids must contain only non-empty member_id strings".to_string()
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        validate_task_eligible_member_ids("eligible_member_ids", &raw_member_ids)?;
         let mut seen = HashSet::new();
         for value in values {
             let member_id = value
@@ -251,12 +460,17 @@ fn validate_task_persistence_invariants(
             TASK_OUTPUT_CONTENT_MAX_CHARS,
             TASK_OUTPUT_CONTENT_MAX_BYTES,
         )?;
-        if output.produced_by_member_id.trim().is_empty() {
-            return Err("task output produced_by_member_id must not be empty".to_string());
-        }
+        validate_task_identifier(
+            "task output produced_by_member_id",
+            &output.produced_by_member_id,
+        )?;
         if chrono::DateTime::parse_from_rfc3339(&output.produced_at).is_err() {
             return Err("task output produced_at must be a valid RFC3339 timestamp".to_string());
         }
+        crate::coordination::agent_org_payload_limits::validate_task_artifact_ids(
+            "task output artifact_ids",
+            &output.artifact_ids,
+        )?;
     }
 
     let snapshot_json: Option<String> = conn
@@ -454,9 +668,8 @@ impl AgentOrgTaskStore {
         scheduling_policy: Option<TaskCreateSchedulingPolicy>,
         effects: impl FnOnce(&rusqlite::Connection, &Task, &[Task]) -> Result<T, String>,
     ) -> Result<(Task, T), String> {
-        if params.id.trim().is_empty() {
-            return Err("task id must be non-empty".into());
-        }
+        validate_task_identifier("task id", &params.id)?;
+        validate_task_dependency_ids("blocked_by", &params.blocked_by)?;
         if params.org_run_id.trim().is_empty() {
             return Err("org_run_id must be non-empty".into());
         }
@@ -488,6 +701,7 @@ impl AgentOrgTaskStore {
             )?;
             let mut candidate_tasks = list_tasks_with_conn(&tx, &params.org_run_id)?;
             let existing_task_count = candidate_tasks.len();
+            ensure_task_run_capacity(existing_task_count, 1)?;
             candidate_tasks.push(Task {
                 id: params.id.clone(),
                 org_run_id: params.org_run_id.clone(),
@@ -596,6 +810,7 @@ impl AgentOrgTaskStore {
         if params_list.is_empty() {
             return Err("task graph must contain at least one task".to_string());
         }
+        ensure_task_run_capacity(0, params_list.len())?;
         let org_run_id = params_list[0].org_run_id.clone();
         if org_run_id.trim().is_empty() {
             return Err("org_run_id must be non-empty".to_string());
@@ -604,9 +819,8 @@ impl AgentOrgTaskStore {
             if params.org_run_id != org_run_id {
                 return Err("every task in a graph must belong to the same org run".to_string());
             }
-            if params.id.trim().is_empty() {
-                return Err("task id must be non-empty".to_string());
-            }
+            validate_task_identifier("task id", &params.id)?;
+            validate_task_dependency_ids("blocked_by", &params.blocked_by)?;
             validate_task_text_fields(
                 &params.subject,
                 &params.description,
@@ -626,6 +840,7 @@ impl AgentOrgTaskStore {
             ensure_run_allows_task_mutation(&tx, &org_run_id)?;
 
             let existing_tasks = list_tasks_with_conn(&tx, &org_run_id)?;
+            ensure_task_run_capacity(existing_tasks.len(), params_list.len())?;
             if !allow_parallel_with_existing_open_tasks {
                 let existing_ids = existing_tasks
                     .iter()
@@ -779,6 +994,7 @@ impl AgentOrgTaskStore {
         conn: &rusqlite::Connection,
         org_run_id: &str,
     ) -> Result<Vec<Task>, String> {
+        ensure_task_rows_safe_for_operational_projection(conn, org_run_id)?;
         Self::list_operational_after_validated_with_connection(conn, org_run_id)
     }
 
@@ -806,38 +1022,58 @@ impl AgentOrgTaskStore {
                              ELSE '[]' END,
                         task.created_at,
                         task.updated_at
-                 FROM agent_org_tasks task
+                 FROM (
+                     SELECT id, org_run_id, subject, description, active_form,
+                            owner, status, created_at, updated_at,
+                            CASE WHEN length(CAST(blocks_json AS BLOB))<=?2
+                                 THEN blocks_json ELSE '!' END AS blocks_json,
+                            CASE WHEN length(CAST(blocked_by_json AS BLOB))<=?2
+                                 THEN blocked_by_json ELSE '!' END AS blocked_by_json,
+                            CASE WHEN metadata_json IS NULL
+                                      OR length(CAST(metadata_json AS BLOB))<=?3
+                                 THEN metadata_json ELSE '!' END AS metadata_json
+                     FROM agent_org_tasks
+                 ) task
                  WHERE task.org_run_id=?1
                  ORDER BY task.created_at ASC, task.id ASC",
             )
             .map_err(|err| err.to_string())?;
         let rows = stmt
-            .query_map(params![org_run_id], |row| {
-                let status_raw: String = row.get(4)?;
-                let eligible = decode_summary_array(row.get(7)?, 7)?;
-                let metadata = (!eligible.is_empty())
-                    .then(|| serde_json::json!({ (TASK_METADATA_ELIGIBLE_MEMBER_IDS): eligible }));
-                Ok(Task {
-                    id: row.get(0)?,
-                    org_run_id: row.get(1)?,
-                    subject: row.get(2)?,
-                    description: String::new(),
-                    active_form: None,
-                    owner: row.get(3)?,
-                    status: TaskStatus::from_wire(&status_raw).map_err(|error| {
-                        rusqlite::Error::FromSqlConversionFailure(
-                            4,
-                            rusqlite::types::Type::Text,
-                            error.into(),
-                        )
-                    })?,
-                    blocks: decode_summary_array(row.get(5)?, 5)?,
-                    blocked_by: decode_summary_array(row.get(6)?, 6)?,
-                    metadata,
-                    created_at: row.get(8)?,
-                    updated_at: row.get(9)?,
-                })
-            })
+            .query_map(
+                params![
+                    org_run_id,
+                    crate::coordination::agent_org_payload_limits::TASK_DEPENDENCY_JSON_MAX_BYTES
+                        as i64,
+                    crate::coordination::agent_org_payload_limits::TASK_METADATA_MAX_BYTES as i64,
+                ],
+                |row| {
+                    let status_raw: String = row.get(4)?;
+                    let eligible = decode_summary_array(row.get(7)?, 7)?;
+                    let metadata = (!eligible.is_empty()).then(
+                        || serde_json::json!({ (TASK_METADATA_ELIGIBLE_MEMBER_IDS): eligible }),
+                    );
+                    Ok(Task {
+                        id: row.get(0)?,
+                        org_run_id: row.get(1)?,
+                        subject: row.get(2)?,
+                        description: String::new(),
+                        active_form: None,
+                        owner: row.get(3)?,
+                        status: TaskStatus::from_wire(&status_raw).map_err(|error| {
+                            rusqlite::Error::FromSqlConversionFailure(
+                                4,
+                                rusqlite::types::Type::Text,
+                                error.into(),
+                            )
+                        })?,
+                        blocks: decode_summary_array(row.get(5)?, 5)?,
+                        blocked_by: decode_summary_array(row.get(6)?, 6)?,
+                        metadata,
+                        created_at: row.get(8)?,
+                        updated_at: row.get(9)?,
+                    })
+                },
+            )
             .map_err(|err| err.to_string())?;
         let mut tasks = rows
             .map(|row| row.map_err(|err| err.to_string()))
@@ -880,14 +1116,30 @@ impl AgentOrgTaskStore {
             .map(|task_id| {
                 conn.query_row(
                     "SELECT created_at, id FROM agent_org_tasks
-                     WHERE org_run_id=?1 AND id=?2",
-                    params![org_run_id, task_id],
+                     WHERE org_run_id=?1 AND id=?2
+                       AND length(id)<=?3 AND length(CAST(id AS BLOB))<=?4
+                       AND length(created_at)<=?5
+                       AND length(CAST(created_at AS BLOB))<=?6",
+                    params![
+                        org_run_id,
+                        task_id,
+                        crate::coordination::agent_org_payload_limits::TASK_IDENTIFIER_MAX_CHARS
+                            as i64,
+                        crate::coordination::agent_org_payload_limits::TASK_IDENTIFIER_MAX_BYTES
+                            as i64,
+                        crate::coordination::agent_org_payload_limits::RFC3339_TIMESTAMP_MAX_CHARS
+                            as i64,
+                        crate::coordination::agent_org_payload_limits::RFC3339_TIMESTAMP_MAX_BYTES
+                            as i64,
+                    ],
                     |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
                 )
                 .optional()
                 .map_err(|err| err.to_string())?
                 .ok_or_else(|| {
-                    format!("task_list after_task_id '{task_id}' does not exist in this run")
+                    format!(
+                        "task_list after_task_id '{task_id}' does not exist or is corrupt in this run"
+                    )
                 })
             })
             .transpose()?;
@@ -1004,7 +1256,23 @@ impl AgentOrgTaskStore {
                                AND json_type(task.metadata_json, '$.output.artifactIds')='array'
                           THEN (SELECT COUNT(*) FROM json_each(task.metadata_json, '$.output.artifactIds') WHERE type='text')
                           ELSE 0 END
-                 FROM agent_org_tasks task
+                 FROM (
+                     SELECT id, org_run_id, subject, description, active_form,
+                            CASE WHEN owner IS NULL THEN NULL
+                                 WHEN trim(owner)<>''
+                                      AND length(owner)<={id_chars}
+                                      AND length(CAST(owner AS BLOB))<={id_bytes}
+                                 THEN owner ELSE NULL END AS owner,
+                            status, created_at, updated_at,
+                            CASE WHEN length(CAST(blocks_json AS BLOB))<=?11
+                                 THEN blocks_json ELSE '!' END AS blocks_json,
+                            CASE WHEN length(CAST(blocked_by_json AS BLOB))<=?11
+                                 THEN blocked_by_json ELSE '!' END AS blocked_by_json,
+                            CASE WHEN metadata_json IS NULL
+                                      OR length(CAST(metadata_json AS BLOB))<=?12
+                                 THEN metadata_json ELSE '!' END AS metadata_json
+                     FROM agent_org_tasks
+                 ) task
                  WHERE task.org_run_id=?1
                    AND {summary_scalar_predicate}
                    AND (?2 IS NULL OR task.status=?2)
@@ -1016,6 +1284,10 @@ impl AgentOrgTaskStore {
                    )
                  ORDER BY task.created_at ASC, task.id ASC
                  LIMIT ?7"
+            .replace("{id_chars}", &crate::coordination::agent_org_payload_limits::TASK_IDENTIFIER_MAX_CHARS.to_string())
+            .replace("{id_bytes}", &crate::coordination::agent_org_payload_limits::TASK_IDENTIFIER_MAX_BYTES.to_string())
+            .replace("{timestamp_chars}", &crate::coordination::agent_org_payload_limits::RFC3339_TIMESTAMP_MAX_CHARS.to_string())
+            .replace("{timestamp_bytes}", &crate::coordination::agent_org_payload_limits::RFC3339_TIMESTAMP_MAX_BYTES.to_string())
             .replace("{summary_scalar_predicate}", &summary_scalar_predicate);
         let mut stmt = conn.prepare(&summary_sql).map_err(|err| err.to_string())?;
         let rows = stmt
@@ -1031,6 +1303,9 @@ impl AgentOrgTaskStore {
                     TASK_SUMMARY_DEPENDENCY_PREVIEW_MAX_COUNT as i64,
                     TASK_SUMMARY_ELIGIBILITY_PREVIEW_MAX_COUNT as i64,
                     TASK_SUMMARY_ARTIFACT_PREVIEW_MAX_COUNT as i64,
+                    crate::coordination::agent_org_payload_limits::TASK_DEPENDENCY_JSON_MAX_BYTES
+                        as i64,
+                    crate::coordination::agent_org_payload_limits::TASK_METADATA_MAX_BYTES as i64,
                 ],
                 |row| {
                     let status_raw: String = row.get(6)?;
@@ -1140,14 +1415,22 @@ impl AgentOrgTaskStore {
                 "SELECT id FROM agent_org_tasks
                  WHERE org_run_id=?1 AND status<>'completed'
                    AND trim(id)<>''
+                   AND length(id)<=?3
+                   AND length(CAST(id AS BLOB))<=?4
                  ORDER BY created_at ASC, id ASC
                  LIMIT ?2",
             )
             .map_err(|err| err.to_string())?;
         let rows = stmt
-            .query_map(params![org_run_id, (bounded_limit + 1) as i64], |row| {
-                row.get::<_, String>(0)
-            })
+            .query_map(
+                params![
+                    org_run_id,
+                    (bounded_limit + 1) as i64,
+                    crate::coordination::agent_org_payload_limits::TASK_IDENTIFIER_MAX_CHARS as i64,
+                    crate::coordination::agent_org_payload_limits::TASK_IDENTIFIER_MAX_BYTES as i64,
+                ],
+                |row| row.get::<_, String>(0),
+            )
             .map_err(|err| err.to_string())?;
         let mut ids = Vec::new();
         let mut bytes = 2usize; // surrounding JSON array
@@ -1277,6 +1560,9 @@ impl AgentOrgTaskStore {
         expected_updated_at: Option<&str>,
         effects: impl FnOnce(&rusqlite::Connection, &TaskMutationOutcome, &[Task]) -> Result<T, String>,
     ) -> Result<(TaskMutationOutcome, T), String> {
+        if let Some(blocked_by) = patch.blocked_by.as_ref() {
+            validate_task_dependency_ids("blocked_by", blocked_by)?;
+        }
         let mut conn = get_connection().map_err(|err| err.to_string())?;
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
@@ -1500,6 +1786,25 @@ impl AgentOrgTaskStore {
             return Err(format!(
                 "{TASK_DELETE_HAS_DEPENDENTS_ERROR}: task {task_id} is still referenced by blocked_by on [{}]; update or delete those dependent tasks first",
                 dependent_task_ids.join(",")
+            ));
+        }
+        // Fail closed if the delivery-resolution schema is missing or
+        // unreadable. Treating a schema failure as "not referenced" could
+        // permanently delete the only durable replacement for an Inbox row.
+        let is_delivery_replacement: bool = tx
+            .query_row(
+                "SELECT EXISTS(
+                     SELECT 1
+                     FROM agent_inbox_delivery_resolutions
+                     WHERE org_run_id=?1 AND replacement_task_id=?2
+                 )",
+                params![org_run_id, task_id],
+                |row| row.get(0),
+            )
+            .map_err(|err| err.to_string())?;
+        if is_delivery_replacement {
+            return Err(format!(
+                "{TASK_DELETE_IS_DELIVERY_REPLACEMENT_ERROR}: task {task_id} is durable replacement evidence for a resolved Inbox delivery and cannot be deleted"
             ));
         }
         let n = tx
@@ -1740,5 +2045,116 @@ impl AgentOrgTaskStore {
 
         tx.commit().map_err(|err| err.to_string())?;
         Ok(updated_rows)
+    }
+}
+
+#[cfg(test)]
+mod migration_tests {
+    use super::*;
+
+    #[test]
+    fn dependency_migration_skips_corrupt_run_and_normalizes_valid_run() {
+        let conn = rusqlite::Connection::open_in_memory().expect("open in-memory database");
+        super::super::init_schema(&conn).expect("create task schema");
+
+        let now = now_rfc3339();
+        for (id, blocks_json, blocked_by_json) in
+            [("task-a", r#"["task-b"]"#, "[]"), ("task-b", "[]", "[]")]
+        {
+            conn.execute(
+                "INSERT INTO agent_org_tasks (
+                     id, org_run_id, subject, description, status,
+                     blocks_json, blocked_by_json, created_at, updated_at
+                 ) VALUES (?1, 'valid-run', ?1, '', 'pending', ?2, ?3, ?4, ?4)",
+                params![id, blocks_json, blocked_by_json, &now],
+            )
+            .expect("seed valid legacy task");
+        }
+        conn.execute(
+            "INSERT INTO agent_org_tasks (
+                 id, org_run_id, subject, description, status,
+                 blocks_json, blocked_by_json, created_at, updated_at
+             ) VALUES (
+                 'corrupt-task', 'corrupt-run', 'corrupt', '', 'pending',
+                 'not-json', '[]', ?1, ?1
+             )",
+            params![&now],
+        )
+        .expect("seed corrupt historical task");
+
+        super::super::init_schema(&conn)
+            .expect("schema init must survive one corrupt historical run");
+
+        let (a_blocks, b_blocked_by): (String, String) = conn
+            .query_row(
+                "SELECT a.blocks_json, b.blocked_by_json
+                 FROM agent_org_tasks a
+                 JOIN agent_org_tasks b
+                   ON b.org_run_id=a.org_run_id AND b.id='task-b'
+                 WHERE a.org_run_id='valid-run' AND a.id='task-a'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("read normalized valid board");
+        assert_eq!(a_blocks, r#"["task-b"]"#);
+        assert_eq!(b_blocked_by, r#"["task-a"]"#);
+
+        let corrupt_blocks: String = conn
+            .query_row(
+                "SELECT blocks_json FROM agent_org_tasks
+                 WHERE org_run_id='corrupt-run' AND id='corrupt-task'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("corrupt row remains available for runtime repair");
+        assert_eq!(corrupt_blocks, "not-json");
+
+        let valid_marked: bool = conn
+            .query_row(
+                "SELECT EXISTS(
+                     SELECT 1 FROM agent_org_task_run_schema_migrations
+                     WHERE name='canonical_blocked_by_v1' AND org_run_id='valid-run'
+                 )",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read valid marker");
+        let corrupt_marked: bool = conn
+            .query_row(
+                "SELECT EXISTS(
+                     SELECT 1 FROM agent_org_task_run_schema_migrations
+                     WHERE name='canonical_blocked_by_v1' AND org_run_id='corrupt-run'
+                 )",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read corrupt marker");
+        assert!(valid_marked, "healthy run receives its own success marker");
+        assert!(
+            !corrupt_marked,
+            "corrupt run remains unmarked so a later startup can retry"
+        );
+
+        conn.execute(
+            "UPDATE agent_org_tasks SET blocks_json='[]'
+             WHERE org_run_id='corrupt-run' AND id='corrupt-task'",
+            [],
+        )
+        .expect("repair corrupt historical row");
+        super::super::init_schema(&conn).expect("retry repaired run");
+        let corrupt_marked_after_retry: bool = conn
+            .query_row(
+                "SELECT EXISTS(
+                     SELECT 1 FROM agent_org_task_run_schema_migrations
+                     WHERE name='canonical_blocked_by_v1' AND org_run_id='corrupt-run'
+                 )",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read retry marker");
+        assert!(
+            corrupt_marked_after_retry,
+            "a repaired run is retried and marked independently"
+        );
     }
 }

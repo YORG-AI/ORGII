@@ -884,6 +884,7 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
       );
     }
 
+    await openRenderedGroupChatView();
     await waitForGroupChatPausedBanner(
       "historical paused run after reopening from sidebar"
     );

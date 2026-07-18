@@ -858,6 +858,8 @@ pub async fn execute_turn(
                 tools,
                 policy,
                 session_id,
+                &config.turn_intent_id,
+                &config.projected_inbox_ids,
                 handler,
                 permission_provider,
                 cancel_flag,

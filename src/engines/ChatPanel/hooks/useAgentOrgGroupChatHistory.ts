@@ -2,8 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   type AgentOrgGroupChatHistoryRow,
+  type AgentOrgInboxPreviewRow,
   getAgentOrgGroupChatHistoryPage,
 } from "@src/api/tauri/agent";
+
+const MAX_HISTORY_GAP_FRONTIERS = 32;
 
 interface AgentOrgGroupChatHistoryState {
   rows: AgentOrgGroupChatHistoryRow[];
@@ -26,6 +29,7 @@ interface HistoryModel {
   error: string | null;
   errorKind: "refresh" | "older" | null;
   continuationFrontiers: HistoryFrontier[];
+  scanThroughLoadedRows: boolean;
 }
 
 interface HistoryFrontier {
@@ -54,6 +58,7 @@ function createHistoryModel(
     error: null,
     errorKind: null,
     continuationFrontiers: [],
+    scanThroughLoadedRows: false,
   };
 }
 
@@ -82,6 +87,8 @@ function mergeRows(
             ...existing,
             ...row,
             readAt: row.readAt ?? existing.readAt,
+            deliveryResolution:
+              row.deliveryResolution ?? existing.deliveryResolution,
           }
         : row
     );
@@ -130,15 +137,24 @@ function applyRefreshPage(
   // before the gap once an older request overlaps already-loaded rows.
   const adoptsPageFrontier =
     !model.initialized || model.rows.length === 0 || opensNewGap;
-  const continuationFrontiers = opensNewGap
-    ? [
-        ...model.continuationFrontiers,
-        {
-          hasMore: model.hasMore,
-          nextBeforeId: model.nextBeforeId,
-        },
-      ]
-    : model.continuationFrontiers;
+  const frontierLimitReached =
+    opensNewGap &&
+    !model.scanThroughLoadedRows &&
+    model.continuationFrontiers.length >= MAX_HISTORY_GAP_FRONTIERS;
+  // Extremely fragmented histories fall back to walking the server cursor to
+  // the end. That may refetch bounded pages, but cannot skip rows or grow this
+  // client-side continuation stack without limit.
+  const continuationFrontiers = frontierLimitReached
+    ? []
+    : opensNewGap && !model.scanThroughLoadedRows
+      ? [
+          ...model.continuationFrontiers,
+          {
+            hasMore: model.hasMore,
+            nextBeforeId: model.nextBeforeId,
+          },
+        ]
+      : model.continuationFrontiers;
   return {
     ...model,
     rows: mergeRows(model.rows, page.rows),
@@ -151,6 +167,7 @@ function applyRefreshPage(
     error: model.errorKind === "refresh" ? null : model.error,
     errorKind: model.errorKind === "refresh" ? null : model.errorKind,
     continuationFrontiers,
+    scanThroughLoadedRows: model.scanThroughLoadedRows || frontierLimitReached,
   };
 }
 
@@ -183,7 +200,9 @@ function applyOlderPage(
   );
   const continuationFrontiers = [...model.continuationFrontiers];
   const resumedFrontier =
-    overlapsLoadedRows && continuationFrontiers.length > 0
+    !model.scanThroughLoadedRows &&
+    overlapsLoadedRows &&
+    continuationFrontiers.length > 0
       ? continuationFrontiers.pop()
       : undefined;
   return {
@@ -198,6 +217,7 @@ function applyOlderPage(
     error: model.errorKind === "older" ? null : model.error,
     errorKind: model.errorKind === "older" ? null : model.errorKind,
     continuationFrontiers,
+    scanThroughLoadedRows: model.scanThroughLoadedRows && page.hasMore,
   };
 }
 
@@ -215,6 +235,27 @@ function applyRequestFailure(
     error,
     errorKind: requestKind,
   };
+}
+
+export function isGroupChatDeliveryResolved(
+  inboxId: number,
+  historyRows: ReadonlyArray<AgentOrgGroupChatHistoryRow>
+): boolean {
+  return historyRows.some(
+    (row) => row.inboxId === inboxId && Boolean(row.deliveryResolution)
+  );
+}
+
+export function isGroupChatPendingDeliverySettled(
+  inboxId: number,
+  previewRow: AgentOrgInboxPreviewRow | undefined,
+  historyRows: ReadonlyArray<AgentOrgGroupChatHistoryRow>
+): boolean {
+  return Boolean(
+    (previewRow?.readAt && previewRow.readAt.trim()) ||
+    previewRow?.deliveryResolution ||
+    isGroupChatDeliveryResolved(inboxId, historyRows)
+  );
 }
 
 /**
@@ -370,4 +411,6 @@ export const agentOrgGroupChatHistoryTestApi = {
   beginLoadOlder,
   applyOlderPage,
   applyRequestFailure,
+  isGroupChatDeliveryResolved,
+  isGroupChatPendingDeliverySettled,
 };

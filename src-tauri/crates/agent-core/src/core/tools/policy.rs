@@ -68,6 +68,7 @@ pub const TOOL_GROUPS: &[(&str, &[&str])] = &[
             tool_names::TASK_LIST,
             tool_names::TASK_GET,
             tool_names::ORG_RUN_COMPLETE,
+            tool_names::ORG_INBOX_REPAIR,
         ],
     ),
     (

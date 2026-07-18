@@ -22,7 +22,10 @@ import {
   mainPaneTabsAtom,
 } from "@src/store/workstation/tabs";
 
-import { getOpenedTabMentionOptions } from "../openedTabMentionOptions";
+import {
+  getOpenedTabMentionOptions,
+  mergeCustomMentionOptions,
+} from "../openedTabMentionOptions";
 import type { FloatingPlacementStrategy } from "./floatingPlacement";
 import { useFloatingPortalPosition } from "./useFloatingPortalPosition";
 
@@ -61,27 +64,6 @@ function getOpenedTabRecentFiles(
       name: tab.title,
       type: "file" as const,
     }));
-}
-
-function getMentionOptionTargetKey(
-  option: ContextMenuCustomMentionOption
-): string {
-  return `${option.selectType}:${option.selectValue}`;
-}
-
-function mergeCustomMentionOptions(
-  primaryOptions: ReadonlyArray<ContextMenuCustomMentionOption>,
-  secondaryOptions: ReadonlyArray<ContextMenuCustomMentionOption> = []
-): ContextMenuCustomMentionOption[] {
-  const merged: ContextMenuCustomMentionOption[] = [];
-  const seenTargets = new Set<string>();
-  for (const option of [...primaryOptions, ...secondaryOptions]) {
-    const targetKey = getMentionOptionTargetKey(option);
-    if (seenTargets.has(targetKey)) continue;
-    seenTargets.add(targetKey);
-    merged.push(option);
-  }
-  return merged;
 }
 
 const VisibleContextMenuPortal: React.FC<

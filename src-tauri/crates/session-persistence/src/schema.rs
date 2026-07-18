@@ -160,6 +160,7 @@ pub fn init_session_tables(conn: &Connection) -> SqliteResult<()> {
             session_id        TEXT NOT NULL,
             turn_intent_id    TEXT NOT NULL,
             client_message_id TEXT,
+            org_run_id        TEXT,
             source            TEXT NOT NULL,
             status            TEXT NOT NULL,
             created_at        TEXT NOT NULL,
@@ -168,9 +169,24 @@ pub fn init_session_tables(conn: &Connection) -> SqliteResult<()> {
         )",
         [],
     )?;
+    // Existing databases predate explicit Agent Org ownership. The column is
+    // nullable because ordinary session turns do not belong to an Org run.
+    // In-flight legacy rows are reconciled to terminal state on restart, so
+    // no unsafe session-tree backfill is attempted here.
+    conn.execute(
+        "ALTER TABLE session_turn_intents ADD COLUMN org_run_id TEXT",
+        [],
+    )
+    .ok();
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_session_turn_intents_session_status
          ON session_turn_intents(session_id, status)",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_session_turn_intents_org_run_status
+         ON session_turn_intents(org_run_id, status)
+         WHERE org_run_id IS NOT NULL",
         [],
     )?;
 
@@ -480,6 +496,18 @@ mod tests {
         .expect("query table existence")
     }
 
+    fn column_exists(conn: &Connection, table_name: &str, column_name: &str) -> bool {
+        let mut stmt = conn
+            .prepare(&format!("PRAGMA table_info({table_name})"))
+            .expect("prepare table info");
+        let exists = stmt
+            .query_map([], |row| row.get::<_, String>(1))
+            .expect("query table info")
+            .filter_map(Result::ok)
+            .any(|name| name == column_name);
+        exists
+    }
+
     #[test]
     fn init_session_tables_creates_usage_telemetry_tables_and_indexes() {
         let conn = Connection::open_in_memory().expect("open in-memory sqlite");
@@ -492,6 +520,46 @@ mod tests {
         assert!(index_exists(&conn, "idx_stool_session_turn"));
         assert!(index_exists(&conn, "idx_stool_session_call"));
         assert!(index_exists(&conn, "idx_stool_session_iteration"));
+        assert!(column_exists(&conn, "session_turn_intents", "org_run_id"));
+        assert!(index_exists(
+            &conn,
+            "idx_session_turn_intents_org_run_status"
+        ));
+    }
+
+    #[test]
+    fn init_session_tables_adds_org_run_id_to_existing_turn_intents() {
+        let conn = Connection::open_in_memory().expect("open in-memory sqlite");
+        conn.execute_batch(
+            "CREATE TABLE session_turn_intents (
+                 session_id TEXT NOT NULL,
+                 turn_intent_id TEXT NOT NULL,
+                 client_message_id TEXT,
+                 source TEXT NOT NULL,
+                 status TEXT NOT NULL,
+                 created_at TEXT NOT NULL,
+                 updated_at TEXT NOT NULL,
+                 PRIMARY KEY (session_id, turn_intent_id)
+             );
+             INSERT INTO session_turn_intents (
+                 session_id, turn_intent_id, source, status, created_at, updated_at
+             ) VALUES ('legacy-session', 'legacy-intent', 'agent_org', 'queued',
+                       '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');",
+        )
+        .expect("seed legacy turn-intent schema");
+
+        init_session_tables(&conn).expect("upgrade session schema");
+
+        assert!(column_exists(&conn, "session_turn_intents", "org_run_id"));
+        let legacy_owner: Option<String> = conn
+            .query_row(
+                "SELECT org_run_id FROM session_turn_intents
+                 WHERE session_id='legacy-session' AND turn_intent_id='legacy-intent'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("legacy row remains readable");
+        assert_eq!(legacy_owner, None, "legacy ownership must not be guessed");
     }
 
     fn trigger_exists(conn: &Connection, trigger_name: &str) -> bool {
