@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import { getToolClassifierRegistrySnapshot } from "@src/engines/SessionCore/rendering/registry/toolClassifierRegistry";
 
 import { buildProjectionDelta } from "../delta";
 import { CHAT_PROJECTION_PROTOCOL_VERSION } from "../protocol";
@@ -29,6 +30,8 @@ const envelope = {
   generation: 1,
 };
 
+const toolRegistry = getToolClassifierRegistrySnapshot();
+
 describe("ChatProjectionRuntime", () => {
   it("keeps snapshot and incremental delta projections equivalent", () => {
     const runtime = new ChatProjectionRuntime();
@@ -40,6 +43,7 @@ describe("ChatProjectionRuntime", () => {
       sourceVersion: 10,
       requestId: 1,
       events: initial,
+      toolRegistry,
       options: { groups: { turnGrouping: { mode: "standard" } } },
     });
     expect(snapshot.type).toBe("projection");
@@ -58,6 +62,7 @@ describe("ChatProjectionRuntime", () => {
       sourceVersion: 11,
       requestId: 3,
       events: next,
+      toolRegistry,
       options: { groups: { turnGrouping: { mode: "standard" } } },
     });
     expect(incremental.type).toBe("projection");
@@ -78,6 +83,7 @@ describe("ChatProjectionRuntime", () => {
       sourceVersion: 4,
       requestId: 1,
       events: [event("1")],
+      toolRegistry,
       options: {},
     });
     const staleGeneration = runtime.handle({
@@ -124,6 +130,7 @@ describe("ChatProjectionRuntime", () => {
       sourceVersion: 20,
       requestId: 1,
       events: initial,
+      toolRegistry,
       options: {
         groups: {
           turnGrouping: { mode: "standard" },
@@ -163,6 +170,7 @@ describe("ChatProjectionRuntime", () => {
         sourceVersion: 1,
         requestId: sessionId === "a" ? 1 : 2,
         events: [{ ...event("1"), sessionId }],
+        toolRegistry,
         options: {},
       });
     }

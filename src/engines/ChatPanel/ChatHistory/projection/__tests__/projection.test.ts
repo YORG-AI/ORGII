@@ -78,7 +78,7 @@ describe("chat projection core", () => {
       },
     };
     expect(() => structuredClone(options)).not.toThrow();
-    expect(CHAT_PROJECTION_PROTOCOL_VERSION).toBe(1);
+    expect(CHAT_PROJECTION_PROTOCOL_VERSION).toBe(2);
   });
 
   it("keeps errors pinned when a completed turn is collapsed", () => {

@@ -1,11 +1,12 @@
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import type { ToolClassifierRegistrySnapshot } from "@src/engines/SessionCore/rendering/registry/toolClassifierRegistry";
 
 import type {
   ChatHistoryProjectionOptions,
   ChatHistoryProjectionResult,
 } from "./core";
 
-export const CHAT_PROJECTION_PROTOCOL_VERSION = 1 as const;
+export const CHAT_PROJECTION_PROTOCOL_VERSION = 2 as const;
 
 export interface ProjectionEnvelope {
   protocolVersion: typeof CHAT_PROJECTION_PROTOCOL_VERSION;
@@ -19,6 +20,7 @@ export interface InitSnapshotMessage extends ProjectionEnvelope {
   type: "initSnapshot";
   events: SessionEvent[];
   options: ChatHistoryProjectionOptions;
+  toolRegistry: ToolClassifierRegistrySnapshot;
 }
 
 export interface ApplyDeltaMessage extends ProjectionEnvelope {

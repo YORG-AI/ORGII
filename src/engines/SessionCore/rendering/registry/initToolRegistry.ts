@@ -13,6 +13,7 @@ import type { AppType } from "@src/engines/Simulator/types/appTypes";
 import { createLogger } from "@src/hooks/logger";
 import { invokeTauri } from "@src/util/platform/tauri/init";
 
+import { configureToolClassifierRegistry } from "./toolClassifierRegistry";
 // Types from types.ts (source of truth for AppSubtool / ChatBlock)
 import {
   type AliasEntry,
@@ -148,6 +149,25 @@ let cliAliasMap: Map<string, AliasEntry> | null = null;
 /** Whether initialization has been attempted. */
 let initAttempted = false;
 
+function publishToolClassifierRegistry(): void {
+  const uiCanonicalByName: Record<string, string> = {};
+  const simulatorAppByName: Record<string, string> = {};
+
+  for (const [name, simulatorApp] of builtinSimulatorAppMap ?? []) {
+    simulatorAppByName[name] = simulatorApp;
+  }
+  for (const [name, entry] of cliAliasMap ?? []) {
+    uiCanonicalByName[name] = entry.ui;
+    simulatorAppByName[name] = entry.simulatorApp;
+    simulatorAppByName[entry.ui] ??= entry.simulatorApp;
+  }
+
+  configureToolClassifierRegistry({
+    uiCanonicalByName,
+    simulatorAppByName,
+  });
+}
+
 // ============================================
 // Initialization
 // ============================================
@@ -235,6 +255,7 @@ export async function initToolRegistry(): Promise<void> {
         ]
       )
     );
+    publishToolClassifierRegistry();
   } catch (err) {
     log.error("[initToolRegistry] Failed to fetch from Rust:", err);
     builtinSimulatorAppMap = new Map();
@@ -248,6 +269,7 @@ export async function initToolRegistry(): Promise<void> {
     builtinLabelsMap = new Map();
     builtinStatusLabelsMap = new Map();
     cliAliasMap = new Map();
+    publishToolClassifierRegistry();
   }
 }
 
@@ -579,12 +601,14 @@ export function _resetToolRegistry(): void {
   builtinStatusLabelsMap = null;
   cliAliasMap = null;
   initAttempted = false;
+  publishToolClassifierRegistry();
 }
 
 /** @internal - for tests: set builtin simulator app map. */
 export function _setBuiltinSimulatorMap(map: Map<string, AppType>): void {
   builtinSimulatorAppMap = map;
   initAttempted = true;
+  publishToolClassifierRegistry();
 }
 
 /** @internal - for tests: set builtin icon ID map. */
@@ -634,4 +658,5 @@ export function _setBuiltinActionIconsMap(
 export function _setCliToolAliasMap(map: Map<string, AliasEntry>): void {
   cliAliasMap = map;
   initAttempted = true;
+  publishToolClassifierRegistry();
 }

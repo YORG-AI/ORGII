@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import { getToolClassifierRegistrySnapshot } from "@src/engines/SessionCore/rendering/registry/toolClassifierRegistry";
 
 import { projectChatHistory } from "../core";
 import type {
@@ -37,6 +38,7 @@ describe("chat projection protocol", () => {
       sourceVersion: 11,
       requestId: 19,
       events: [baseEvent("1")],
+      toolRegistry: getToolClassifierRegistrySnapshot(),
       options: {},
     };
     const response: ProjectionResponse = {

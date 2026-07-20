@@ -9,23 +9,10 @@
  */
 import { readAwaitMetaFromResult } from "@src/engines/ChatPanel/rendering/adapters/awaitMeta";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
-
-const UI_CANONICAL_ALIASES: Readonly<Record<string, string>> = {
-  read: "read_file",
-  cat: "read_file",
-  file_read: "read_file",
-  list_directory: "list_dir",
-  file_search: "glob_file_search",
-  todowrite: "manage_todo",
-  todo_write: "manage_todo",
-  browser: "browser_navigate",
-  browser_act: "browser_navigate",
-};
-
-function normalizeCanonical(value: string): string {
-  const normalized = value.trim().toLowerCase();
-  return UI_CANONICAL_ALIASES[normalized] ?? normalized;
-}
+import {
+  resolveToolSimulatorApp,
+  resolveToolUiCanonical,
+} from "@src/engines/SessionCore/rendering/registry/toolClassifierRegistry";
 
 /**
  * Get UI canonical name from a SessionEvent.
@@ -33,7 +20,7 @@ function normalizeCanonical(value: string): string {
  */
 function getUiCanonical(event: SessionEvent): string {
   if (event.uiCanonical) return event.uiCanonical;
-  return normalizeCanonical(event.functionName || event.actionType || "");
+  return resolveToolUiCanonical(event.functionName || event.actionType || "");
 }
 
 // ============================================
@@ -85,28 +72,12 @@ export const isFileModificationEvent = (event: SessionEvent): boolean => {
   return isEditFileEvent(event) || isDeleteFileEvent(event);
 };
 
-const SIMULATOR_APP_BY_CANONICAL: Readonly<Record<string, string>> = {
-  read_file: "CODE_EDITOR",
-  edit_file: "CODE_EDITOR",
-  edit_file_by_replace: "CODE_EDITOR",
-  delete_file: "CODE_EDITOR",
-  apply_patch: "CODE_EDITOR",
-  manage_todo: "CHANNELS",
-  control_browser_with_agent_browser: "BROWSER",
-  control_browser_with_playwright: "BROWSER",
-  control_external_browser: "BROWSER",
-  control_internal_browser: "BROWSER",
-  browser_navigate: "BROWSER",
-  browser_act: "BROWSER",
-};
-
 /** Serializable simulator classification shared by main-thread and Worker paths. */
 export function getToolSimulatorApp(
   rawName: string,
   normalizedName?: string
 ): string | null {
-  const canonical = normalizeCanonical(normalizedName ?? rawName);
-  return SIMULATOR_APP_BY_CANONICAL[canonical] ?? null;
+  return resolveToolSimulatorApp(rawName, normalizedName);
 }
 
 export function isEventInSimulatorApp(
