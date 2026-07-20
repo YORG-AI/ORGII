@@ -464,6 +464,69 @@ impl PlanApprovalManager {
         self.pending.lock().await.clone()
     }
 
+    /// Durably update the body of the current pending plan without resolving it.
+    ///
+    /// The pending mutex serializes Save against Build/Skip/supersede. The plan
+    /// file is written before the SQLite row, and restored to its prior bytes if
+    /// the row update fails, so the two durable representations cannot silently
+    /// diverge. `plan_revision_id` prevents a stale card from editing a newer
+    /// pending revision for the same session.
+    pub async fn update_pending_content(
+        &self,
+        session_id: &str,
+        plan_revision_id: Option<&str>,
+        content: String,
+    ) -> Result<PendingPlanApproval, String> {
+        let mut guard = self.pending.lock().await;
+        let current = guard
+            .as_ref()
+            .ok_or_else(|| format!("No pending plan approval for session {session_id}"))?;
+
+        if current.session_id != session_id {
+            return Err(format!(
+                "Pending plan belongs to session {}, not {session_id}",
+                current.session_id
+            ));
+        }
+        if let Some(expected_revision) = plan_revision_id {
+            if current.plan_revision_id != expected_revision {
+                return Err(format!(
+                    "Pending plan revision changed (expected {expected_revision}, current {})",
+                    current.plan_revision_id
+                ));
+            }
+        }
+
+        let mut updated = current.clone();
+        updated.plan_content = content;
+        let row = updated.to_row();
+        let plan_path = updated.plan_path.clone();
+
+        tokio::task::spawn_blocking(move || {
+            let previous_bytes = std::fs::read(&plan_path).map_err(|err| {
+                format!("Failed to read pending plan before Save ({plan_path}): {err}")
+            })?;
+            std::fs::write(&plan_path, row.plan_content.as_bytes()).map_err(|err| {
+                format!("Failed to write pending plan ({plan_path}): {err}")
+            })?;
+
+            if let Err(err) = PlanApprovalStore::upsert(&row) {
+                if let Err(rollback_err) = std::fs::write(&plan_path, previous_bytes) {
+                    return Err(format!(
+                        "Failed to persist pending plan snapshot: {err}; file rollback also failed: {rollback_err}"
+                    ));
+                }
+                return Err(format!("Failed to persist pending plan snapshot: {err}"));
+            }
+            Ok::<(), String>(())
+        })
+        .await
+        .map_err(|err| format!("Pending plan Save task failed: {err}"))??;
+
+        *guard = Some(updated.clone());
+        Ok(updated)
+    }
+
     /// Synchronous best-effort pending snapshot for LLM schema rendering.
     ///
     /// Tool descriptions are built through a synchronous trait method, so they
@@ -1131,6 +1194,69 @@ mod tests {
             .await;
         let snap = mgr.pending_snapshot().await.unwrap();
         assert_eq!(snap.plan_path, plan_b.to_str().unwrap());
+    }
+
+    #[tokio::test]
+    async fn update_pending_content_persists_file_memory_and_rehydrate() {
+        let _lock = lock_and_prepare();
+        let plan_path = temp_home().join("saved.plan.md");
+        std::fs::write(&plan_path, "original").unwrap();
+        let session_id = "s_save";
+        let mgr = PlanApprovalManager::new();
+        mgr.mark_ready(
+            session_id,
+            plan_path.to_str().unwrap(),
+            "Title",
+            "original",
+            Some("call_save"),
+        )
+        .await;
+        wait_for_pending_row(session_id).await;
+        let revision = mgr.pending_snapshot().await.unwrap().plan_revision_id;
+
+        let updated = mgr
+            .update_pending_content(session_id, Some(&revision), "edited".into())
+            .await
+            .unwrap();
+        assert_eq!(updated.plan_content, "edited");
+        assert_eq!(std::fs::read_to_string(&plan_path).unwrap(), "edited");
+        assert_eq!(
+            PlanApprovalStore::load_by_session(session_id)
+                .unwrap()
+                .unwrap()
+                .plan_content,
+            "edited"
+        );
+
+        let fresh = PlanApprovalManager::new();
+        fresh.rehydrate_from_db(session_id).await.unwrap();
+        assert_eq!(
+            fresh.pending_snapshot().await.unwrap().plan_content,
+            "edited"
+        );
+    }
+
+    #[tokio::test]
+    async fn update_pending_content_rejects_stale_revision() {
+        let _lock = lock_and_prepare();
+        let plan_path = temp_home().join("stale-save.plan.md");
+        std::fs::write(&plan_path, "original").unwrap();
+        let mgr = PlanApprovalManager::new();
+        mgr.mark_ready(
+            "s_stale",
+            plan_path.to_str().unwrap(),
+            "T",
+            "original",
+            None,
+        )
+        .await;
+
+        let error = mgr
+            .update_pending_content("s_stale", Some("old-revision"), "edited".into())
+            .await
+            .unwrap_err();
+        assert!(error.contains("revision changed"));
+        assert_eq!(std::fs::read_to_string(&plan_path).unwrap(), "original");
     }
 
     #[test]

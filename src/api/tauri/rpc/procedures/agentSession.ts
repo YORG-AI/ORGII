@@ -112,6 +112,10 @@ export const agentSession = {
     .input(schemas.agentSession.SessionIdInput)
     .output(schemas.agentSession.PendingPlanApprovalSchema)
     .build(),
+  updatePendingPlanContent: defineProcedure("agent_update_pending_plan_content")
+    .input(schemas.agentSession.UpdatePendingPlanContentInput)
+    .output(schemas.agentSession.PendingPlanApprovalSchema.unwrap())
+    .build(),
   respondPlanApproval: defineProcedure("agent_plan_approval_response")
     .input(schemas.agentSession.PlanApprovalResponseInput)
     .build(),

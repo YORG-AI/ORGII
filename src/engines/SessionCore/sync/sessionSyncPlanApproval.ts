@@ -1,6 +1,7 @@
 import { getPendingPlanApproval } from "@src/api/tauri/agent";
 import {
   type PlanApprovalStateMap,
+  clearPendingPlanApproval,
   rehydratePendingPlanApprovalIfNewer,
 } from "@src/store/session/planApprovalAtom";
 
@@ -15,11 +16,13 @@ export function rehydratePendingPlanApproval(
     try {
       const snapshot = await getPendingPlanApproval(sessionId);
       // Guard: abort signal may have fired while the RPC was in flight.
-      if (abortController.signal.aborted || !snapshot) return;
-      // Use the revision-aware merge to avoid clobbering a live
-      // plan_ready_for_approval push that arrived before this RPC resolved.
+      if (abortController.signal.aborted) return;
+      // Keep the revision-aware merge for a live push racing this RPC, but
+      // treat an authoritative null response as removal of stale local state.
       setPendingPlanApprovals((prev) =>
-        rehydratePendingPlanApprovalIfNewer(prev, snapshot)
+        snapshot
+          ? rehydratePendingPlanApprovalIfNewer(prev, snapshot)
+          : clearPendingPlanApproval(prev, sessionId)
       );
     } catch {
       // Non-critical: the Build button stays disabled until Rust broadcasts
