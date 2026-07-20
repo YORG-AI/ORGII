@@ -126,8 +126,12 @@ export function updatePendingPlanContent(
 }
 
 export interface PersistPlanEditIO {
-  /** Write the plan markdown file (no-op skipped when no path is known). */
-  saveFile: (path: string, content: string) => Promise<unknown>;
+  /** Atomically update the backend pending snapshot and its backing plan file. */
+  persistPendingContent: (
+    sessionId: string,
+    content: string,
+    planRevisionId?: string
+  ) => Promise<unknown>;
   /** Read the current events for a session from the event store. */
   getEvents: (sessionId: string) => Promise<SessionEvent[]>;
   /** Patch a single event's args in the event store. */
@@ -147,16 +151,14 @@ export interface PersistPlanEditIO {
  */
 export async function persistEditedPlanContent(params: {
   sessionId: string;
-  planPath: string | null;
+  planRevisionId?: string;
   pendingAliases: readonly string[];
   content: string;
   io: PersistPlanEditIO;
 }): Promise<void> {
-  const { sessionId, planPath, pendingAliases, content, io } = params;
+  const { sessionId, planRevisionId, pendingAliases, content, io } = params;
 
-  if (planPath) {
-    await io.saveFile(planPath, content);
-  }
+  await io.persistPendingContent(sessionId, content, planRevisionId);
 
   const events = await io.getEvents(sessionId);
   const patches = buildPlanContentPatches(events, pendingAliases, content);
