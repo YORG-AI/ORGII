@@ -208,18 +208,18 @@ describe("updatePendingPlanContent", () => {
 describe("persistEditedPlanContent", () => {
   function createIO(events: SessionEvent[]) {
     return {
-      saveFile: vi.fn().mockResolvedValue(true),
+      persistPendingContent: vi.fn().mockResolvedValue(true),
       getEvents: vi.fn().mockResolvedValue(events),
       patchEvent: vi.fn().mockResolvedValue(undefined),
       saveCache: vi.fn().mockResolvedValue(0),
     };
   }
 
-  it("writes the plan file then patches every matching event, then flushes cache", async () => {
+  it("persists the backend snapshot before patching matching events and cache", async () => {
     const io = createIO([createPlanEvent()]);
     const order: string[] = [];
-    io.saveFile.mockImplementation(async () => {
-      order.push("file");
+    io.persistPendingContent.mockImplementation(async () => {
+      order.push("backend");
     });
     io.patchEvent.mockImplementation(async () => {
       order.push("patch");
@@ -230,32 +230,39 @@ describe("persistEditedPlanContent", () => {
 
     await persistEditedPlanContent({
       sessionId: "s1",
-      planPath: "/tmp/plan.md",
+      planRevisionId: "rev-1",
       pendingAliases: ["rev-1"],
       content: "edited body",
       io,
     });
 
-    expect(io.saveFile).toHaveBeenCalledWith("/tmp/plan.md", "edited body");
+    expect(io.persistPendingContent).toHaveBeenCalledWith(
+      "s1",
+      "edited body",
+      "rev-1"
+    );
     expect(io.patchEvent).toHaveBeenCalledTimes(1);
     expect(io.patchEvent).toHaveBeenCalledWith(
       "rev-1",
       expect.objectContaining({ content: "edited body" }),
       "s1"
     );
-    expect(order).toEqual(["file", "patch", "cache"]);
+    expect(order).toEqual(["backend", "patch", "cache"]);
   });
 
-  it("skips the file write when no plan path is known", async () => {
+  it("persists through the backend even when no revision id is available", async () => {
     const io = createIO([createPlanEvent()]);
     await persistEditedPlanContent({
       sessionId: "s1",
-      planPath: null,
       pendingAliases: ["rev-1"],
       content: "edited",
       io,
     });
-    expect(io.saveFile).not.toHaveBeenCalled();
+    expect(io.persistPendingContent).toHaveBeenCalledWith(
+      "s1",
+      "edited",
+      undefined
+    );
     expect(io.patchEvent).toHaveBeenCalledTimes(1);
   });
 
@@ -263,7 +270,7 @@ describe("persistEditedPlanContent", () => {
     const io = createIO([createPlanEvent()]);
     await persistEditedPlanContent({
       sessionId: "s1",
-      planPath: "/tmp/plan.md",
+      planRevisionId: "rev-1",
       pendingAliases: ["does-not-match"],
       content: "edited",
       io,
@@ -278,7 +285,7 @@ describe("persistEditedPlanContent", () => {
     await expect(
       persistEditedPlanContent({
         sessionId: "s1",
-        planPath: "/tmp/plan.md",
+        planRevisionId: "rev-1",
         pendingAliases: ["rev-1"],
         content: "edited",
         io,

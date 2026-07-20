@@ -74,7 +74,12 @@ export function convertToFileOperation(
 
   if (type === FILE_OPERATION_TYPE.DELETE) {
     const args = event.args || {};
+    const extractedPath =
+      event.extracted?.kind === "deleteFile"
+        ? event.extracted.filePath
+        : undefined;
     const filePath =
+      extractedPath ||
       (typeof args.path === "string" && args.path) ||
       (typeof args.file_path === "string" && args.file_path) ||
       (typeof args.target_file === "string" && args.target_file) ||

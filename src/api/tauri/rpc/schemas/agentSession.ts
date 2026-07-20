@@ -239,6 +239,12 @@ export const PendingPlanApprovalSchema = z
   })
   .nullable();
 
+export const UpdatePendingPlanContentInput = z.object({
+  sessionId: z.string(),
+  planRevisionId: z.string().optional(),
+  content: z.string(),
+});
+
 export const PlanApprovalResponseInput = z.object({
   sessionId: z.string(),
   choice: z.enum(["approve", "approve_with_edits", "reject"]),

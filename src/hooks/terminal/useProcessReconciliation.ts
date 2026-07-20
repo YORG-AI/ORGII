@@ -17,6 +17,7 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useRef } from "react";
 
+import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import { createLogger } from "@src/hooks/logger";
 import {
   type ShellProcessMap,
@@ -152,6 +153,13 @@ export function useProcessReconciliation(): void {
               pid: process.pid,
               killed: false,
             });
+            eventStoreProxy.updateLastShellProcess(
+              process.pid,
+              "exited",
+              undefined,
+              undefined,
+              process.sessionId
+            );
           }
 
           for (const job of runningJobs) {
@@ -170,6 +178,13 @@ export function useProcessReconciliation(): void {
                 command: job.command,
                 logPath: job.log_path ?? undefined,
               });
+              eventStoreProxy.updateLastShellProcess(
+                job.pid,
+                "running",
+                undefined,
+                job.log_path ?? undefined,
+                job.session_id
+              );
             }
           }
         } catch (err) {

@@ -15,6 +15,10 @@ import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { sanitizeTodoDisplayText } from "@src/engines/SessionCore/hooks/session/todoNormalization";
 import { createLogger } from "@src/hooks/logger";
 import {
+  pendingPermissionRequestsAtom,
+  upsertPendingPermissionRequest,
+} from "@src/store/session/permissionRequestAtom";
+import {
   clearPendingPlanApproval,
   pendingPlanApprovalsAtom,
   upsertPendingPlanApproval,
@@ -123,24 +127,23 @@ export function handlePermissionRequest(
   ctx: EventHandlerContext
 ): void {
   const reqId = event.requestId;
-  if (reqId && eventSessionId && ctx.onPermissionRequestRef) {
-    const agentType = getRustAgentType(eventSessionId);
+  if (!reqId || !eventSessionId) return;
 
-    const permEvent: PermissionRequestEvent = {
-      requestId: reqId,
-      sessionId: eventSessionId,
-      tool: event.toolName || event.tool || "unknown",
-      toolCallId: getToolCallId(event),
-      args: event.toolArgs ?? event.args ?? {},
-      agentType,
-    };
-    ctx.onPermissionRequestRef.current?.(permEvent);
+  const agentType = getRustAgentType(eventSessionId);
+  const permEvent: PermissionRequestEvent = {
+    requestId: reqId,
+    sessionId: eventSessionId,
+    tool: event.toolName || event.tool || "unknown",
+    toolCallId: getToolCallId(event),
+    args: event.toolArgs ?? event.args ?? {},
+    agentType,
+  };
 
-    // Dispatch unified event for PermissionCard
-    window.dispatchEvent(
-      new CustomEvent("agent-permission-request", { detail: permEvent })
-    );
-  }
+  const store = ctx.getDefaultStore();
+  store?.set(pendingPermissionRequestsAtom, (prev) =>
+    upsertPendingPermissionRequest(prev, permEvent)
+  );
+  ctx.onPermissionRequestRef?.current?.(permEvent);
 }
 
 // ============================================================================

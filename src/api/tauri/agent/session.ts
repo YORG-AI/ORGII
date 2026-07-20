@@ -242,7 +242,7 @@ export async function respondModeSwitch(
  * Used on session mount/switch to rehydrate `pendingPlanApprovalsAtom`
  * after a page refresh or window re-focus.
  */
-export async function getPendingPlanApproval(sessionId: string): Promise<{
+export interface PendingPlanApprovalSnapshot {
   sessionId: string;
   planPath: string;
   planTitle: string;
@@ -252,8 +252,24 @@ export async function getPendingPlanApproval(sessionId: string): Promise<{
   planRevisionId?: string;
   originToolCallId?: string;
   autoApproveAt?: number | null;
-} | null> {
+}
+
+export async function getPendingPlanApproval(
+  sessionId: string
+): Promise<PendingPlanApprovalSnapshot | null> {
   return rpc.agentSession.getPendingPlanApproval({ sessionId });
+}
+
+export async function updatePendingPlanContent(
+  sessionId: string,
+  content: string,
+  planRevisionId?: string
+): Promise<PendingPlanApprovalSnapshot> {
+  return rpc.agentSession.updatePendingPlanContent({
+    sessionId,
+    content,
+    planRevisionId,
+  });
 }
 
 /**

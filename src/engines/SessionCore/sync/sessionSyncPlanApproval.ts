@@ -1,6 +1,7 @@
 import { getPendingPlanApproval } from "@src/api/tauri/agent";
 import {
   type PlanApprovalStateMap,
+  clearPendingPlanApproval,
   upsertPendingPlanApproval,
 } from "@src/store/session/planApprovalAtom";
 
@@ -14,9 +15,11 @@ export function rehydratePendingPlanApproval(
   const rehydrate = async () => {
     try {
       const snapshot = await getPendingPlanApproval(sessionId);
-      if (abortController.signal.aborted || !snapshot) return;
+      if (abortController.signal.aborted) return;
       setPendingPlanApprovals((prev) =>
-        upsertPendingPlanApproval(prev, snapshot)
+        snapshot
+          ? upsertPendingPlanApproval(prev, snapshot)
+          : clearPendingPlanApproval(prev, sessionId)
       );
     } catch {
       // Non-critical: the Build button stays disabled until Rust broadcasts

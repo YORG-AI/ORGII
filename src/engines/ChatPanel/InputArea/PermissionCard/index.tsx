@@ -3,17 +3,23 @@
  *
  * Displays pending permission requests from OS Agent, SDE Agent, and Custom Agents.
  * Allows the user to Approve, Deny, or Always Allow tool executions.
- * Listens for "agent-permission-request" CustomEvents from the WebSocket handler.
+ * Renders the session-scoped pending permission store populated by the agent
+ * event handler, so requests survive component remounts and session switches.
  *
  * Delegates all rendering to PermissionCardBody (shared with ApprovalPreview).
  */
-import React, { useCallback, useEffect, useState } from "react";
+import { useAtomValue, useSetAtom } from "jotai";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { respondPermission } from "@src/api/tauri/agent";
 import Message from "@src/components/Message";
-import type { PermissionRequestEvent } from "@src/engines/SessionCore/sync/adapters/shared";
 import { createLogger } from "@src/hooks/logger";
+import {
+  clearPendingPermissionRequest,
+  getPendingPermissionRequests,
+  pendingPermissionRequestsAtom,
+} from "@src/store/session/permissionRequestAtom";
 
 import { PermissionCardBody } from "./PermissionCardBody";
 
@@ -45,32 +51,15 @@ const PermissionCard: React.FC<PermissionCardProps> = ({
   onHasDataChange,
 }) => {
   const { t } = useTranslation("sessions");
-  const [queue, setQueue] = useState<PermissionRequestEvent[]>([]);
+  const permissionMap = useAtomValue(pendingPermissionRequestsAtom);
+  const setPermissionMap = useSetAtom(pendingPermissionRequestsAtom);
+  const queue = useMemo(
+    () => getPendingPermissionRequests(permissionMap, sessionId),
+    [permissionMap, sessionId]
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const pending = queue.length > 0 ? queue[0] : null;
-
-  useEffect(() => {
-    const handler = (evt: Event) => {
-      const detail = (evt as CustomEvent<PermissionRequestEvent>).detail;
-      // Only accept events for the session this card belongs to.
-      // Without this filter, a permission request from session B would
-      // appear in the card rendered for session A.
-      if (sessionId && detail?.sessionId && detail.sessionId !== sessionId)
-        return;
-      if (detail?.requestId) {
-        setQueue((prev) => {
-          if (prev.some((req) => req.requestId === detail.requestId))
-            return prev;
-          return [...prev, detail];
-        });
-      }
-    };
-    window.addEventListener("agent-permission-request", handler);
-    return () => {
-      window.removeEventListener("agent-permission-request", handler);
-    };
-  }, [sessionId]);
 
   const respond = useCallback(
     async (response: "allow" | "deny" | "always_allow") => {
@@ -85,8 +74,8 @@ const PermissionCard: React.FC<PermissionCardProps> = ({
           pending.tool,
           pending.args
         );
-        setQueue((prev) =>
-          prev.filter((req) => req.requestId !== respondingId)
+        setPermissionMap((prev) =>
+          clearPendingPermissionRequest(prev, pending.sessionId, respondingId)
         );
       } catch (err) {
         log.error("[PermissionCard] Failed to respond:", err);
@@ -95,7 +84,7 @@ const PermissionCard: React.FC<PermissionCardProps> = ({
         setIsSubmitting(false);
       }
     },
-    [pending, t]
+    [pending, setPermissionMap, t]
   );
 
   useEffect(() => {
