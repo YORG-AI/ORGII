@@ -531,6 +531,10 @@
     "failedToRenderEvent": "Olay oluşturulamadı",
     "unknown": "Bilinmeyen hata",
     "agentRequestFailed": "Agent isteği başarısız oldu",
+    "codexLoginExpired": "Codex oturumunun süresi doldu",
+    "codexLoginExpiredDescription": "Bu hesabı onarmak için Codex'e yeniden bağlanın. Yeni oturum kaydedildiğinde bu oturuma geri döneceksiniz.",
+    "reconnectCodex": "Codex'e yeniden bağlan",
+    "technicalDetails": "Teknik ayrıntılar",
     "failedToCopy": "Kopyalanamadı",
     "api": {
       "titles": {

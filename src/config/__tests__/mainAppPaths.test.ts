@@ -1,7 +1,9 @@
 import {
   SETTINGS_ROUTE_ROOT,
+  buildCodexReauthPath,
   classifySettingsRouteRoot,
   deriveRouteCacheKey,
+  parseCodexReauthIntent,
 } from "../mainAppPaths";
 
 describe("classifySettingsRouteRoot", () => {
@@ -24,6 +26,27 @@ describe("classifySettingsRouteRoot", () => {
     expect(
       classifySettingsRouteRoot("/orgii/app/settings/agent-orgs/orgs")
     ).toBe(SETTINGS_ROUTE_ROOT.AGENT_ORGS);
+  });
+});
+
+describe("Codex reauthentication route", () => {
+  it("opens the Key Vault wizard for the failed account and auto-starts OAuth", () => {
+    const path = buildCodexReauthPath("account-123");
+
+    expect(path).toBe(
+      "/orgii/app/settings/integrations/models?wizard=key-add&id=account-123&reauth=codex&autoStart=true"
+    );
+    expect(parseCodexReauthIntent(path.split("?")[1])).toEqual({
+      active: true,
+      autoStart: true,
+    });
+  });
+
+  it("does not activate for an ordinary Key Vault wizard", () => {
+    expect(parseCodexReauthIntent("?wizard=key-add")).toEqual({
+      active: false,
+      autoStart: false,
+    });
   });
 });
 

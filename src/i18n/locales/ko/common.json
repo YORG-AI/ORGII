@@ -531,6 +531,10 @@
     "failedToRenderEvent": "이벤트 렌더링 실패",
     "unknown": "알 수 없는 오류",
     "agentRequestFailed": "Agent 요청 실패",
+    "codexLoginExpired": "Codex 로그인 만료",
+    "codexLoginExpiredDescription": "이 계정을 복구하려면 Codex에 다시 연결하세요. 새 로그인이 저장되면 이 세션으로 돌아옵니다.",
+    "reconnectCodex": "Codex 다시 연결",
+    "technicalDetails": "기술 세부 정보",
     "failedToCopy": "복사에 실패했습니다",
     "api": {
       "titles": {

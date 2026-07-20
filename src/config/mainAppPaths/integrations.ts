@@ -1,4 +1,5 @@
 import { SETTINGS_BASE, settingsPathParts } from "./shared";
+import { WIZARD_IDS, buildWizardPath } from "./wizards";
 
 export const EXTERNAL_SKILLSETS_URL_SEGMENT = "skills-mcps-plugins";
 
@@ -73,11 +74,43 @@ export interface IntegrationsPathOptions {
   category?: IntegrationsCategorySegment;
 }
 
+const CODEX_REAUTH_PARAM = "reauth";
+const CODEX_REAUTH_VALUE = "codex";
+const CODEX_REAUTH_AUTO_START_PARAM = "autoStart";
+
+export const CODEX_REAUTH_RETURN_TO_STATE_KEY = "codexReauthReturnTo";
+
 export function buildIntegrationsPath(
   options: IntegrationsPathOptions = {}
 ): string {
   const category = options.category ?? "models";
   return `${SETTINGS_BASE}/integrations/${toCategoryUrlSegment(category)}`;
+}
+
+/** Build the direct Key Vault route used to repair a Codex OAuth account. */
+export function buildCodexReauthPath(accountId?: string): string {
+  const wizardPath = buildWizardPath(
+    buildIntegrationsPath({ category: "models" }),
+    WIZARD_IDS.KEY_ADD,
+    accountId
+  );
+  const [pathname, search = ""] = wizardPath.split("?");
+  const params = new URLSearchParams(search);
+  params.set(CODEX_REAUTH_PARAM, CODEX_REAUTH_VALUE);
+  params.set(CODEX_REAUTH_AUTO_START_PARAM, "true");
+  return `${pathname}?${params.toString()}`;
+}
+
+export function parseCodexReauthIntent(search: string): {
+  active: boolean;
+  autoStart: boolean;
+} {
+  const params = new URLSearchParams(search);
+  const active = params.get(CODEX_REAUTH_PARAM) === CODEX_REAUTH_VALUE;
+  return {
+    active,
+    autoStart: active && params.get(CODEX_REAUTH_AUTO_START_PARAM) === "true",
+  };
 }
 
 export function parseIntegrationsPath(pathname: string): {

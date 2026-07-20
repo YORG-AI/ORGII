@@ -545,6 +545,10 @@
     "failedToRenderEvent": "渲染事件失败",
     "unknown": "未知错误",
     "agentRequestFailed": "Agent 请求失败",
+    "codexLoginExpired": "Codex 登录已失效",
+    "codexLoginExpiredDescription": "重新连接 Codex 即可修复此账号；登录并保存后会返回当前会话。",
+    "reconnectCodex": "重新连接 Codex",
+    "technicalDetails": "技术详情",
     "failedToCopy": "复制失败",
     "api": {
       "titles": {

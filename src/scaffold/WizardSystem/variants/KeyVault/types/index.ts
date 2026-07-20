@@ -139,6 +139,8 @@ export interface KeyVaultWizardProps {
   title?: string;
   /** Initial data to pre-fill the wizard */
   initialData?: Partial<WizardData>;
+  /** Open the embedded Codex OAuth browser immediately for a repair flow. */
+  autoStartCodexLogin?: boolean;
   /** Limit displayed providers to primary ones with region restrictions (Cursor, OpenAI, Anthropic, Google, OpenRouter) */
   primaryProvidersOnly?: boolean;
   /** Existing account names — used to generate default names and reject duplicate custom names. */
@@ -161,4 +163,5 @@ export interface ApiSetupProps {
   existingAccountNames?: string[];
   browserCloseSignal?: number;
   onBrowserStateChange?: (isOpen: boolean) => void;
+  autoStartCodexLogin?: boolean;
 }
