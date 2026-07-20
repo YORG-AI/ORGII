@@ -156,13 +156,14 @@ function impactFileChanges(input: {
           { length: filesChanged },
           (_unused, fileIndex) => `Changed file ${fileIndex + 1}`
         );
-  const files = displayPaths.map((path, fileIndex) => ({
+  const files = displayPaths.map((path) => ({
     path,
     fileName: getFileName(path),
     status: "M",
-    additions: fileIndex === 0 ? totalAdditions : 0,
-    deletions: fileIndex === 0 ? totalDeletions : 0,
-    lineCount: fileIndex === 0 ? totalAdditions + totalDeletions : 0,
+    // Impact summaries know aggregate totals, not their per-file breakdown.
+    additions: 0,
+    deletions: 0,
+    lineCount: 0,
   }));
 
   return {

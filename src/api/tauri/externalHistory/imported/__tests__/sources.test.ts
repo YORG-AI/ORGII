@@ -17,6 +17,9 @@ describe("imported history source registry", () => {
       "windsurf",
       "workbuddy",
       "trae",
+      "cline",
+      "warp",
+      "qoder",
     ]);
     expect(
       IMPORTED_HISTORY_SOURCES.map((source) => source.listCategory)
@@ -28,6 +31,9 @@ describe("imported history source registry", () => {
       "external_history:windsurf",
       "external_history:workbuddy",
       "external_history:trae",
+      "external_history:cline",
+      "external_history:warp",
+      "external_history:qoder",
     ]);
   });
 
@@ -50,6 +56,12 @@ describe("imported history source registry", () => {
     expect(
       getImportedHistorySourceBySessionId("workbuddyapp-session-1")?.sourceId
     ).toBe("workbuddy");
+    expect(
+      getImportedHistorySourceBySessionId("warpapp-session-1")?.sourceId
+    ).toBe("warp");
+    expect(
+      getImportedHistorySourceBySessionId("qoderapp-session-1")?.sourceId
+    ).toBe("qoder");
   });
 
   it("resolves source metadata by list category", () => {
@@ -77,6 +89,14 @@ describe("imported history source registry", () => {
       getImportedHistorySourceByListCategory("external_history:workbuddy")
         ?.groupLabel
     ).toBe("WorkBuddy");
+    expect(
+      getImportedHistorySourceByListCategory("external_history:warp")
+        ?.groupLabel
+    ).toBe("Warp");
+    expect(
+      getImportedHistorySourceByListCategory("external_history:qoder")
+        ?.groupLabel
+    ).toBe("Qoder");
   });
 
   it("narrows source-aware list categories", () => {
@@ -98,6 +118,8 @@ describe("imported history source registry", () => {
     expect(isImportedHistoryListCategory("external_history:workbuddy")).toBe(
       true
     );
+    expect(isImportedHistoryListCategory("external_history:warp")).toBe(true);
+    expect(isImportedHistoryListCategory("external_history:qoder")).toBe(true);
     expect(isImportedHistoryListCategory("external_history")).toBe(false);
   });
 });

@@ -4,7 +4,9 @@ import {
   CODEX_APP_SESSION_PREFIX,
   OPENCODE_HISTORY_SESSION_PREFIX,
   OS_AGENT_SESSION_PREFIX,
+  QODER_HISTORY_SESSION_PREFIX,
   SDE_AGENT_SESSION_PREFIX,
+  WARP_HISTORY_SESSION_PREFIX,
   WINDSURF_HISTORY_SESSION_PREFIX,
   getDispatchCategory,
   getExternalHistorySourceId,
@@ -15,6 +17,8 @@ import {
   isCodexAppSession,
   isExternalHistorySession,
   isOpenCodeHistorySession,
+  isQoderHistorySession,
+  isWarpHistorySession,
   isWindsurfHistorySession,
 } from "../sessionDispatch";
 
@@ -27,6 +31,8 @@ describe("sessionDispatch constants", () => {
     expect(CLAUDE_CODE_HISTORY_SESSION_PREFIX).toBe("claudecodeapp-");
     expect(OPENCODE_HISTORY_SESSION_PREFIX).toBe("opencodeapp-");
     expect(WINDSURF_HISTORY_SESSION_PREFIX).toBe("windsurfapp-");
+    expect(WARP_HISTORY_SESSION_PREFIX).toBe("warpapp-");
+    expect(QODER_HISTORY_SESSION_PREFIX).toBe("qoderapp-");
   });
 });
 
@@ -74,6 +80,8 @@ describe("getDispatchCategory", () => {
     expect(getDispatchCategory("claudecodeapp-x")).toBe("external_history");
     expect(getDispatchCategory("opencodeapp-x")).toBe("external_history");
     expect(getDispatchCategory("windsurfapp-x")).toBe("external_history");
+    expect(getDispatchCategory("warpapp-x")).toBe("external_history");
+    expect(getDispatchCategory("qoderapp-x")).toBe("external_history");
   });
 
   it("returns rust_agent for unknown id (default)", () => {
@@ -112,6 +120,18 @@ describe("external history source detection", () => {
     expect(getExternalHistorySourceId("windsurfapp-session-1")).toBe(
       "windsurf"
     );
+  });
+
+  it("recognizes Warp imported history sessions", () => {
+    expect(isExternalHistorySession("warpapp-session-1")).toBe(true);
+    expect(isWarpHistorySession("warpapp-session-1")).toBe(true);
+    expect(getExternalHistorySourceId("warpapp-session-1")).toBe("warp");
+  });
+
+  it("recognizes Qoder imported history sessions", () => {
+    expect(isExternalHistorySession("qoderapp-session-1")).toBe(true);
+    expect(isQoderHistorySession("qoderapp-session-1")).toBe(true);
+    expect(getExternalHistorySourceId("qoderapp-session-1")).toBe("qoder");
   });
 
   it("routes Cursor App history through the Cursor IDE category", () => {

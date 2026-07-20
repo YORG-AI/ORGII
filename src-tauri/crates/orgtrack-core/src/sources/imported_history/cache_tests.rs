@@ -3,7 +3,7 @@ use rusqlite::Connection;
 use super::*;
 use crate::sources::imported_history::metadata::{
     ImportedHistoryCacheInput, ImportedHistoryImpactStats, ImportedHistoryRecordSignature,
-    SOURCE_CODEX_APP, SOURCE_OPENCODE,
+    SOURCE_CODEX_APP, SOURCE_OPENCODE, SOURCE_QODER,
 };
 
 fn fixture_conn() -> Connection {
@@ -146,6 +146,30 @@ fn cache_pruning_is_source_scoped() {
     assert_eq!(codex.sessions[0].session_id, "codex_app-keep");
     assert_eq!(opencode.sessions.len(), 1);
     assert_eq!(opencode.sessions[0].session_id, "opencode-other");
+}
+
+#[test]
+fn qoder_clear_and_rescan_pruning_does_not_touch_other_sources() {
+    let mut conn = fixture_conn();
+    upsert_imported_session_cache_from_conn(
+        &mut conn,
+        &[
+            input(SOURCE_QODER, "qoder-session", 300),
+            input(SOURCE_OPENCODE, "other-session", 200),
+        ],
+    )
+    .expect("upsert");
+
+    prune_missing_records_from_conn(&conn, SOURCE_QODER, &[]).expect("clear Qoder");
+
+    let qoder =
+        query_imported_session_page_from_conn(&conn, SOURCE_QODER, 10, 0).expect("qoder page");
+    let other =
+        query_imported_session_page_from_conn(&conn, SOURCE_OPENCODE, 10, 0).expect("other page");
+
+    assert!(qoder.sessions.is_empty());
+    assert_eq!(other.sessions.len(), 1);
+    assert_eq!(other.sessions[0].session_id, "opencode-other-session");
 }
 
 #[test]

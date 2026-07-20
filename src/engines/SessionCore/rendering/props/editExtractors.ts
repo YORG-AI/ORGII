@@ -44,6 +44,10 @@ function parseDiffLineMeta(diff: string | undefined): DiffLineMeta {
   };
 }
 
+function optionalNumber(value: unknown): number | undefined {
+  return typeof value === "number" ? value : undefined;
+}
+
 // ============================================
 // Main extractor
 // ============================================
@@ -158,11 +162,14 @@ export function extractEditData(props: UniversalEventProps): ExtractedEditData {
   const diffMeta = parseDiffLineMeta(diff);
 
   const linesAdded =
-    (successData?.linesAdded as number) || (result?.linesAdded as number);
+    optionalNumber(successData?.linesAdded) ??
+    optionalNumber(result?.linesAdded);
   const linesRemoved =
-    (successData?.linesRemoved as number) || (result?.linesRemoved as number);
+    optionalNumber(successData?.linesRemoved) ??
+    optionalNumber(result?.linesRemoved);
 
-  const isFullWrite = !diff && !oldContent && newContent && !linesAdded;
+  const isFullWrite =
+    !diff && !oldContent && newContent && linesAdded === undefined;
   const computedLinesAdded = isFullWrite
     ? newContent.split("\n").length
     : linesAdded;

@@ -244,6 +244,24 @@ merge them into a single event preserving both args and result.
 | `blocks/` | Reusable UI blocks (TodoBlock, etc.) |
 | `shared/` | Shared utilities and hooks           |
 
+## Chat History Projection Worker
+
+Chat history has three explicit data owners:
+
+| Layer                               | Owns                                                                         | Must not own                                           |
+| ----------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Rust EventStore / `DerivedSnapshot` | Durable events, event order, visibility, source version                      | React state, turn-collapse preferences                 |
+| `ChatHistory/projection/` Worker    | Rebuildable display projection, turn grouping/collapse, stable shape digests | Persistence, turn lifecycle/FSM, send/cancel semantics |
+| React main thread                   | Jotai/React state, DOM, virtualization, scroll and user interaction          | Full-history CPU projection for large sessions         |
+
+The main entry point is `projectChatHistory()`. Both small-history main-thread execution and the module Worker call this same pure implementation. `projectChatGroups()` and `projectChatTurnPagination()` are also pure functions; their React hooks are adapters only.
+
+Worker messages use protocol version 1 and always carry `sessionId`, `generation`, `sourceVersion`, and `requestId`. The runtime accepts a snapshot followed by contiguous deltas. A missing session, generation mismatch, or source-version gap produces `resyncRequired`; stale responses are rejected by the client before React state is committed. The Worker caches at most four sessions and explicit disposal occurs on session unmount.
+
+Histories below 2,000 events stay on the main thread to avoid structured-clone and scheduling overhead. Larger histories use the Worker. If Worker construction, execution, or response validation fails, the UI falls back to the same pure core and records a warning without mutating EventStore state. Streaming token text remains in the existing leaf-renderer path and does not trigger a full projection for every token.
+
+`queueWaitMs`, `computeMs`, and `inputEvents` are response telemetry. These counters contain no message text, tool arguments, or other user content. Stable group/item digests replace render-time full-array `join()` keys.
+
 ## lib/activityData vs ingestion (Rust)
 
 These are **different layers** with different purposes:

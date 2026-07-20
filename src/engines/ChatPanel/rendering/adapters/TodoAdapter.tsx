@@ -13,7 +13,7 @@ import {
 } from "@src/engines/SessionCore/rendering/registry";
 import type { UniversalEventProps } from "@src/engines/SessionCore/rendering/types/universalProps";
 import { getTodosForSession, sessionTodoMapAtom } from "@src/store/ui/todoAtom";
-import { preserveTodoContent } from "@src/store/ui/todoMerge";
+import { reconcileTodoSnapshot } from "@src/store/ui/todoMerge";
 
 import TodoBlock from "../../blocks/TodoBlock";
 
@@ -22,7 +22,7 @@ export const TodoAdapter: React.FC<UniversalEventProps> = (props) => {
   const { todos: eventTodos, wasMerge } = extractTodoData(props);
   const todoMap = useAtomValue(sessionTodoMapAtom);
   const sessionTodos = getTodosForSession(todoMap, props.sessionId);
-  const todos = preserveTodoContent(sessionTodos, eventTodos);
+  const todos = reconcileTodoSnapshot(eventTodos, sessionTodos);
   const labels = useLifecycleLabels(props.eventType, action);
   const state = statusToLifecycle(props.status);
 

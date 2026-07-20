@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { preserveTodoContent } from "../todoMerge";
+import { preserveTodoContent, reconcileTodoSnapshot } from "../todoMerge";
 
 describe("preserveTodoContent", () => {
   it("keeps incoming non-empty content unchanged", () => {
@@ -45,5 +45,36 @@ describe("preserveTodoContent", () => {
     );
 
     expect(result[0].content).toBe("");
+  });
+});
+
+describe("reconcileTodoSnapshot", () => {
+  it("takes statuses from the current snapshot for the same todo batch", () => {
+    const result = reconcileTodoSnapshot(
+      [
+        { id: "0", content: "Inspect state", status: "in_progress" },
+        { id: "1", content: "Fix routing", status: "pending" },
+      ],
+      [
+        { id: "0", content: "Inspect state", status: "completed" },
+        { id: "1", content: "Fix routing", status: "cancelled" },
+      ]
+    );
+
+    expect(result.map((todo) => todo.status)).toEqual([
+      "completed",
+      "cancelled",
+    ]);
+  });
+
+  it("keeps the event snapshot for a different historical batch", () => {
+    const result = reconcileTodoSnapshot(
+      [{ id: "0", content: "Old task", status: "pending" }],
+      [{ id: "0", content: "New task", status: "completed" }]
+    );
+
+    expect(result).toEqual([
+      { id: "0", content: "Old task", status: "pending" },
+    ]);
   });
 });

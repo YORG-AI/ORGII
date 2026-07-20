@@ -3,6 +3,7 @@
  */
 import { X } from "lucide-react";
 import React, { memo, useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import ImagePreviewOverlay from "@src/components/ImagePreviewOverlay";
 
@@ -11,6 +12,7 @@ const EditModeImageThumbnail: React.FC<{
   alt: string;
   onRemove?: () => void;
 }> = memo(({ dataUrl, alt, onRemove }) => {
+  const { t } = useTranslation("common");
   const [showOverlay, setShowOverlay] = useState(false);
 
   const handleClick = useCallback(() => setShowOverlay(true), []);
@@ -41,7 +43,7 @@ const EditModeImageThumbnail: React.FC<{
             type="button"
             onClick={handleRemove}
             className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-bg-3 text-text-2 opacity-0 shadow-sm transition-opacity hover:bg-fill-2 hover:text-text-1 group-hover:opacity-100"
-            aria-label={`Remove ${alt}`}
+            aria-label={`${t("actions.remove")}: ${alt}`}
             data-testid="edit-mode-image-remove"
           >
             <X size={10} strokeWidth={2.5} />

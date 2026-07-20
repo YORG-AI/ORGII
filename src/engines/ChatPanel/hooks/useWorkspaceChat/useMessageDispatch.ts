@@ -38,25 +38,20 @@ import { resolveModelForMessage } from "@src/util/session/resolveModelForMessage
 import { selectionFromSession } from "@src/util/session/selectionFromSession";
 import { isCursorIdeSession } from "@src/util/session/sessionDispatch";
 
-interface UseMessageDispatchOptions {
-  getSessionId: () => string | null;
-}
-
-export function useMessageDispatch(options: UseMessageDispatchOptions) {
-  const { getSessionId } = options;
+export function useMessageDispatch() {
   const setSessionRuntimeStatus = useSetAtom(setSessionRuntimeStatusAtom);
   const setLastUserMessage = useSetAtom(lastUserMessageAtom);
 
   const addUserMessage = useCallback(
     async (
+      sessionId: string,
       content: string,
       imageDataUrls?: string[],
       turnIntentId?: string
     ): Promise<void> => {
-      const sessionId = getSessionId();
       if (!sessionId) {
         throw new Error(
-          "[useMessageDispatch] addUserMessage: no active sessionId"
+          "[useMessageDispatch] addUserMessage: no target sessionId"
         );
       }
       const userEvent = createSyntheticUserEvent(sessionId, content, {
@@ -74,7 +69,7 @@ export function useMessageDispatch(options: UseMessageDispatchOptions) {
         imageDataUrls,
       });
     },
-    [getSessionId, setLastUserMessage]
+    [setLastUserMessage]
   );
 
   const dispatchMessageBySessionType = useCallback(

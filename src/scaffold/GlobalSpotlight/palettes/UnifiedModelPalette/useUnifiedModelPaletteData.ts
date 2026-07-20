@@ -26,7 +26,6 @@ import { buildAccountLookup } from "@src/hooks/models/useModelAccountLookup";
 import { useOrgiiPoolCategories } from "@src/hooks/models/useOrgiiPoolCategories";
 import {
   formatRefreshSummary,
-  refreshAllAccountModels,
   refreshSummaryTone,
 } from "@src/modules/MainApp/Integrations/KeyVault/hooks/refreshAccountModels";
 import {
@@ -38,6 +37,8 @@ import {
   recentModelEntriesAtom,
   recordRecentEntry,
 } from "@src/store/session/recentModelEntriesAtom";
+
+import { refreshModelAccounts } from "./modelAccountRefresh";
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
@@ -78,6 +79,10 @@ export interface UnifiedModelPaletteData {
    * that never refreshes until the palette is reopened.
    */
   saveKey: UseKeyVaultReturn["saveKey"];
+  /** True while the persisted Key Vault account list is loading. */
+  accountsLoading: boolean;
+  /** Account-list load failure, if the last attempt failed. */
+  accountsError: string | null;
   /** Refresh available models for every loaded account. */
   refreshAllModels: () => Promise<void>;
   /** True while {@link refreshAllModels} is running. */
@@ -108,6 +113,8 @@ export function useUnifiedModelPaletteData({
     accounts: allAccounts,
     saveKey,
     refresh,
+    loading: accountsLoading,
+    error: accountsError,
   } = useKeyVault({ autoLoad: isOpen });
 
   const [refreshingAllModels, setRefreshingAllModels] = useState(false);
@@ -136,15 +143,15 @@ export function useUnifiedModelPaletteData({
   );
 
   const refreshAllModels = useCallback(async () => {
-    if (allAccounts.length === 0) return;
     setRefreshingAllModels(true);
     try {
-      const summary = await refreshAllAccountModels(allAccounts);
-      await refresh();
-      Message[refreshSummaryTone(summary)](
-        formatRefreshSummary(summary, t),
-        5000
-      );
+      const summary = await refreshModelAccounts(allAccounts, refresh);
+      if (summary) {
+        Message[refreshSummaryTone(summary)](
+          formatRefreshSummary(summary, t),
+          5000
+        );
+      }
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       Message.error(
@@ -168,6 +175,8 @@ export function useUnifiedModelPaletteData({
     recentEntries,
     recordRecent,
     saveKey,
+    accountsLoading,
+    accountsError,
     refreshAllModels,
     refreshingAllModels,
   };

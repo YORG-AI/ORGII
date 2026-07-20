@@ -99,9 +99,7 @@ export function useUserIntentSubmit({
   const setQueueFlushRequest = useSetAtom(queueFlushRequestAtom);
   const setLastUserMessage = useSetAtom(lastUserMessageAtom);
   const setUserInitiatedCancel = useSetAtom(userInitiatedCancelAtom);
-  const { addUserMessage, dispatchMessageBySessionType } = useMessageDispatch({
-    getSessionId,
-  });
+  const { addUserMessage, dispatchMessageBySessionType } = useMessageDispatch();
 
   useEffect(() => {
     if (!isSessionActive) {
@@ -236,7 +234,12 @@ export function useUserIntentSubmit({
       let dispatchStarted = false;
       try {
         onBeforeDirectDispatch?.();
-        await addUserMessage(displayContent, imageDataUrls, turnIntentId);
+        await addUserMessage(
+          sessionId,
+          displayContent,
+          imageDataUrls,
+          turnIntentId
+        );
         userEventAppended = true;
         void enterAgentOrgSessionIntervention(sessionId).catch((error) => {
           log.warn("[useUserIntentSubmit] intervention failed:", error);

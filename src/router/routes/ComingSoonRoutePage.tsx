@@ -12,7 +12,7 @@ const ComingSoonRoutePage: React.FC = () => {
       placement="detail-panel"
       fillParentHeight
       title={t("navigation:routes.ideaArea")}
-      subtitle={t("common:actions.comingSoon")}
+      subtitle={t("common:common.comingSoon")}
     />
   );
 };

@@ -24,7 +24,6 @@ import Button from "@src/components/Button";
 import { SIMULATOR_PRIMARY_SIDEBAR } from "@src/config/simulatorPrimarySidebar";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { simulatorEventsAtom } from "@src/engines/SessionCore/derived/simulatorEvents";
-import { parseUnifiedDiffToOldNew } from "@src/engines/SessionCore/rendering/props/propsDataExtractors";
 import type { SimulatorAppProps } from "@src/engines/Simulator/apps/core/types";
 import { useFileReviewBatchActions } from "@src/hooks/fileReview/useFileReview";
 import { createLogger } from "@src/hooks/logger";
@@ -62,6 +61,7 @@ import {
 } from "@src/store/ui/simulatorAtom";
 import type { SourceControlHistorySelection } from "@src/store/workstation/tabs";
 import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
+import { parseUnifiedDiffToOldNew } from "@src/util/diff/unifiedDiff";
 
 import {
   type SubmissionCommit,

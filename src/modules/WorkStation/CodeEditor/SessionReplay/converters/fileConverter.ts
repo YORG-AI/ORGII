@@ -14,6 +14,8 @@ import { getAppSubtool } from "@src/engines/SessionCore/rendering/registry/initT
 import { isDeleteTool } from "@src/engines/SessionCore/rendering/registry/toolRegistryDomain";
 import type { EventStatus } from "@src/engines/SessionCore/rendering/types/universalProps";
 import { getEventStatus } from "@src/util/data/converters/eventStatus";
+import { shouldTrustDiffStartLines } from "@src/util/diff/startLines";
+import { parseUnifiedDiff } from "@src/util/diff/unifiedDiff";
 
 import {
   FILE_OPERATION_TYPE,
@@ -21,123 +23,7 @@ import {
   type FileOperationType,
 } from "../types";
 
-const HUNK_HEADER_REGEX = /^@@\s+-(\d+)(?:,\d+)?\s+\+(\d+)(?:,\d+)?\s+@@/;
-const PATCH_HUNK_HEADER_REGEX =
-  /^@@\s+-(\d+)(?:,\d+)?\s+\+(\d+)(?:,\d+)?\s+@@/m;
-
-interface ParsedUnifiedDiffPayload {
-  oldContent: string;
-  newContent: string;
-  oldStartLine?: number;
-  newStartLine?: number;
-}
-
-/**
- * Convert a unified diff string into separate old/new content strings.
- *
- * Gap placeholder lines are inserted between hunks so that each hunk's
- * absolute line numbers (from the @@ header) are preserved in the output.
- * Without this, multi-hunk diffs produce wrong line offsets when the diff
- * viewer re-computes its diff from the reconstructed old/new values.
- */
-function parseUnifiedDiffPayload(
-  diff: string | undefined
-): ParsedUnifiedDiffPayload | null {
-  if (!diff) return null;
-  const oldLines: string[] = [];
-  const newLines: string[] = [];
-  let oldStartLine: number | undefined;
-  let newStartLine: number | undefined;
-  let oldCursor = 0;
-  let newCursor = 0;
-
-  for (const line of diff.split("\n")) {
-    const hunkMatch = HUNK_HEADER_REGEX.exec(line);
-    if (hunkMatch) {
-      const hunkOldStart = Number.parseInt(hunkMatch[1], 10);
-      const hunkNewStart = Number.parseInt(hunkMatch[2], 10);
-      if (oldStartLine === undefined) {
-        oldStartLine = hunkOldStart;
-        newStartLine = hunkNewStart;
-      } else {
-        const oldGap = hunkOldStart - oldCursor;
-        const newGap = hunkNewStart - newCursor;
-        const gapCount = Math.max(oldGap, newGap, 0);
-        for (let i = 0; i < gapCount; i++) {
-          if (i < oldGap) oldLines.push("");
-          if (i < newGap) newLines.push("");
-        }
-      }
-      oldCursor = hunkOldStart;
-      newCursor = hunkNewStart;
-      continue;
-    }
-
-    if (
-      line.startsWith("diff ") ||
-      line.startsWith("index ") ||
-      line.startsWith("---") ||
-      line.startsWith("+++")
-    ) {
-      continue;
-    }
-
-    if (line.startsWith("-")) {
-      oldLines.push(line.slice(1));
-      oldCursor++;
-    } else if (line.startsWith("+")) {
-      newLines.push(line.slice(1));
-      newCursor++;
-    } else if (line.startsWith(" ") || line === "") {
-      const content = line.startsWith(" ") ? line.slice(1) : line;
-      oldLines.push(content);
-      newLines.push(content);
-      oldCursor++;
-      newCursor++;
-    }
-  }
-
-  if (oldLines.length === 0 && newLines.length === 0) return null;
-
-  return {
-    oldContent: oldLines.join("\n"),
-    newContent: newLines.join("\n"),
-    oldStartLine,
-    newStartLine,
-  };
-}
-
-function patchTextFromArgs(args: SessionEvent["args"]): string | undefined {
-  if (typeof args?.patch_text === "string") return args.patch_text;
-  if (typeof args?.patch === "string") return args.patch;
-  if (typeof args?.input === "string") return args.input;
-  return undefined;
-}
-
-function resultHasRealDiff(result: SessionEvent["result"]): boolean {
-  if (!result) return false;
-  if (
-    typeof result.diffString === "string" ||
-    typeof result.diff === "string"
-  ) {
-    return true;
-  }
-  if (Array.isArray(result.segments) && result.segments.length > 0) {
-    return true;
-  }
-  const output = result.output as Record<string, unknown> | undefined;
-  const success = output?.success as Record<string, unknown> | undefined;
-  return Boolean(
-    typeof success?.diffString === "string" || typeof success?.diff === "string"
-  );
-}
-
-export function shouldTrustDiffStartLines(event: SessionEvent): boolean {
-  const patchText = patchTextFromArgs(event.args);
-  if (!patchText) return true;
-  if (PATCH_HUNK_HEADER_REGEX.test(patchText)) return true;
-  return resultHasRealDiff(event.result);
-}
+export { shouldTrustDiffStartLines } from "@src/util/diff/startLines";
 
 export function parseFilePath(path: string): {
   fileName: string;
@@ -278,9 +164,9 @@ export function convertToFileOperation(
     const { fileName, directory } = parseFilePath(data.filePath);
     const trustDiffStartLines = shouldTrustDiffStartLines(event);
 
-    const parsedDiff = parseUnifiedDiffPayload(data.diff);
-    let oldContent = parsedDiff?.oldContent ?? data.oldContent;
-    let newContent = parsedDiff?.newContent ?? data.newContent;
+    const parsedDiff = data.diff ? parseUnifiedDiff(data.diff) : null;
+    let oldContent = parsedDiff?.oldValue ?? data.oldContent;
+    let newContent = parsedDiff?.newValue ?? data.newContent;
     const oldStartLine = trustDiffStartLines
       ? (parsedDiff?.oldStartLine ?? data.oldStartLine)
       : undefined;

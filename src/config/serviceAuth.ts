@@ -5,7 +5,14 @@
  * This file keeps the app-level hosted-service token cache that existing
  * API clients and guards consume.
  */
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@tauri-apps/api/core";
+
+/**
+ * True whenever the frontend is hosted by Tauri, including `tauri dev` where
+ * the page origin is HTTP. OAuth uses this signal so development and release
+ * builds both leave the app WebView and authenticate in the system browser.
+ */
+export const isTauriRuntime = (): boolean => isTauri();
 
 export const isTauriProduction = (): boolean => {
   if (typeof window === "undefined") return false;
@@ -13,7 +20,7 @@ export const isTauriProduction = (): boolean => {
 };
 
 export const getCallbackUrl = (): string => {
-  if (isTauriProduction()) {
+  if (isTauriRuntime()) {
     return "yorgai://marketplace/callback";
   }
   return `${window.location.origin}/orgii/marketplace/callback`;

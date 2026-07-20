@@ -555,6 +555,10 @@
     "failedToRenderEvent": "Échec du rendu de l'événement",
     "unknown": "Erreur inconnue",
     "agentRequestFailed": "Échec de la requête Agent",
+    "codexLoginExpired": "La connexion à Codex a expiré",
+    "codexLoginExpiredDescription": "Reconnectez Codex pour réparer ce compte. Vous reviendrez à cette session une fois la nouvelle connexion enregistrée.",
+    "reconnectCodex": "Reconnecter Codex",
+    "technicalDetails": "Détails techniques",
     "failedToCopy": "Échec de la copie",
     "api": {
       "titles": {

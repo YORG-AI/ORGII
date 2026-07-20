@@ -61,11 +61,13 @@ import OpenRouterIcon from "@src/assets/modelIcons/openrouter.svg";
 import OrgiiIcon from "@src/assets/modelIcons/orgii.svg";
 import PerplexityIcon from "@src/assets/modelIcons/perplexity.svg";
 import PiIcon from "@src/assets/modelIcons/pi.svg";
+import QoderIcon from "@src/assets/modelIcons/qoder.svg";
 import QwenIcon from "@src/assets/modelIcons/qwen.svg";
 import RovoIcon from "@src/assets/modelIcons/rovo.svg";
 import SiliconFlowIcon from "@src/assets/modelIcons/siliconflow.svg";
 import VllmIcon from "@src/assets/modelIcons/vllm.svg";
 import VolcengineIcon from "@src/assets/modelIcons/volcengine.svg";
+import WarpIcon from "@src/assets/modelIcons/warp.svg";
 import WorkBuddyIcon from "@src/assets/modelIcons/workbuddy.svg";
 import XaiIcon from "@src/assets/modelIcons/xai.svg";
 import XiaomiIcon from "@src/assets/modelIcons/xiaomi.svg";
@@ -98,6 +100,8 @@ export type IconProvider =
   | "windsurf"
   | "trae"
   | "workbuddy"
+  | "warp"
+  | "qoder"
   | "amp"
   | "devin"
   | "rovo"
@@ -172,6 +176,8 @@ export const ICON_MAP: Record<
   windsurf: WindsurfIcon,
   trae: TraeIcon,
   workbuddy: WorkBuddyIcon,
+  warp: WarpIcon,
+  qoder: QoderIcon,
   claude_code: ClaudeCodeIcon,
   copilot: CopilotIcon,
   gemini: GeminiIcon,

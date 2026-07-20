@@ -34,3 +34,6 @@ rusqlite = { workspace = true, optional = true }
 sha2 = { version = "0.10", optional = true }
 dirs = "6.0"
 similar = "2.6"
+prost = "0.14.3"
+prost-reflect = { version = "0.16.3", features = ["serde"] }
+warp_multi_agent_api = { git = "https://github.com/warpdotdev/warp-proto-apis.git", rev = "2d0e8ddf5a946a663f7e0952144ccbced0068a81" }

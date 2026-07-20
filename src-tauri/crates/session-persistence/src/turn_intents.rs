@@ -30,7 +30,7 @@ use chrono::Utc;
 use rusqlite::{params, Connection, OptionalExtension, Result as SqliteResult};
 use serde::{Deserialize, Serialize};
 
-use super::connection::get_connection;
+use super::connection::{begin_immediate, get_connection, with_sessions_writer};
 
 // ============================================
 // Source / status enums (wire-stable strings)
@@ -245,67 +245,102 @@ pub fn upsert_initial(
     source: TurnIntentSource,
     status: TurnIntentStatus,
 ) -> Result<TurnIntentRow, IntentError> {
-    let conn = get_connection()?;
-    let now = Utc::now().to_rfc3339();
-    let inserted = conn.execute(
-        "INSERT OR IGNORE INTO session_turn_intents
-            (session_id, turn_intent_id, client_message_id, source, status,
-             created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
-        params![
-            session_id,
-            turn_intent_id,
-            client_message_id,
-            source.as_str(),
-            status.as_str(),
-            now,
-        ],
-    )?;
-    if inserted == 1 {
-        return Ok(TurnIntentRow {
-            session_id: session_id.to_string(),
-            turn_intent_id: turn_intent_id.to_string(),
-            client_message_id: client_message_id.map(str::to_string),
-            source,
-            status,
-            created_at: now.clone(),
-            updated_at: now,
-        });
-    }
-    get_intent(&conn, session_id, turn_intent_id)?
-        .ok_or_else(|| IntentError::NotFound(turn_intent_id.to_string(), session_id.to_string()))
+    with_sessions_writer(|| {
+        let conn = get_connection()?;
+        let tx = begin_immediate(&conn)?;
+        let now = Utc::now().to_rfc3339();
+        let inserted = tx.execute(
+            "INSERT OR IGNORE INTO session_turn_intents
+                (session_id, turn_intent_id, client_message_id, source, status,
+                 created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
+            params![
+                session_id,
+                turn_intent_id,
+                client_message_id,
+                source.as_str(),
+                status.as_str(),
+                now,
+            ],
+        )?;
+        let row = if inserted == 1 {
+            TurnIntentRow {
+                session_id: session_id.to_string(),
+                turn_intent_id: turn_intent_id.to_string(),
+                client_message_id: client_message_id.map(str::to_string),
+                source,
+                status,
+                created_at: now.clone(),
+                updated_at: now,
+            }
+        } else {
+            get_intent(&tx, session_id, turn_intent_id)?.ok_or_else(|| {
+                IntentError::NotFound(turn_intent_id.to_string(), session_id.to_string())
+            })?
+        };
+        tx.commit()?;
+        Ok(row)
+    })
 }
 
-/// Patch the status of an existing intent. Transition must be in the
-/// whitelist; otherwise the row is left untouched and an error is returned.
+/// Patch the status of an existing intent. Transition validation and mutation
+/// run under one `BEGIN IMMEDIATE` transaction, and the UPDATE includes the
+/// observed old status as a compare-and-swap predicate. This prevents a stale
+/// worker from resurrecting an intent that another writer already marked
+/// terminal or stale.
 pub fn update_status(
     session_id: &str,
     turn_intent_id: &str,
     new_status: TurnIntentStatus,
 ) -> Result<TurnIntentRow, IntentError> {
-    let conn = get_connection()?;
-    let existing = get_intent(&conn, session_id, turn_intent_id)?
-        .ok_or_else(|| IntentError::NotFound(turn_intent_id.to_string(), session_id.to_string()))?;
-    if !transition_allowed(existing.status, new_status) {
-        return Err(IntentError::IllegalTransition {
-            from: existing.status,
-            to: new_status,
-        });
-    }
-    if existing.status == new_status {
-        return Ok(existing);
-    }
-    let now = Utc::now().to_rfc3339();
-    conn.execute(
-        "UPDATE session_turn_intents
-            SET status = ?3, updated_at = ?4
-          WHERE session_id = ?1 AND turn_intent_id = ?2",
-        params![session_id, turn_intent_id, new_status.as_str(), now],
-    )?;
-    let mut row = existing;
-    row.status = new_status;
-    row.updated_at = now;
-    Ok(row)
+    with_sessions_writer(|| {
+        let conn = get_connection()?;
+        let tx = begin_immediate(&conn)?;
+        let existing = get_intent(&tx, session_id, turn_intent_id)?.ok_or_else(|| {
+            IntentError::NotFound(turn_intent_id.to_string(), session_id.to_string())
+        })?;
+        if !transition_allowed(existing.status, new_status) {
+            return Err(IntentError::IllegalTransition {
+                from: existing.status,
+                to: new_status,
+            });
+        }
+        if existing.status == new_status {
+            tx.commit()?;
+            return Ok(existing);
+        }
+
+        let now = Utc::now().to_rfc3339();
+        let affected = tx.execute(
+            "UPDATE session_turn_intents
+                SET status = ?3, updated_at = ?4
+              WHERE session_id = ?1
+                AND turn_intent_id = ?2
+                AND status = ?5",
+            params![
+                session_id,
+                turn_intent_id,
+                new_status.as_str(),
+                now,
+                existing.status.as_str(),
+            ],
+        )?;
+        if affected != 1 {
+            let current = get_intent(&tx, session_id, turn_intent_id)?.ok_or_else(|| {
+                IntentError::NotFound(turn_intent_id.to_string(), session_id.to_string())
+            })?;
+            return Err(IntentError::IllegalTransition {
+                from: current.status,
+                to: new_status,
+            });
+        }
+
+        let mut row = existing;
+        row.status = new_status;
+        row.updated_at = now;
+        tx.commit()?;
+        Ok(row)
+    })
 }
 
 /// Bulk-mark every still-pending (`Optimistic` / `Queued`) intent for the
@@ -314,15 +349,19 @@ pub fn update_status(
 ///
 /// Returns the number of rows transitioned.
 pub fn mark_pending_stale(session_id: &str) -> Result<usize, IntentError> {
-    let conn = get_connection()?;
-    let now = Utc::now().to_rfc3339();
-    let affected = conn.execute(
-        "UPDATE session_turn_intents
-            SET status = 'stale', updated_at = ?2
-          WHERE session_id = ?1 AND status IN ('optimistic', 'queued')",
-        params![session_id, now],
-    )?;
-    Ok(affected)
+    with_sessions_writer(|| {
+        let conn = get_connection()?;
+        let tx = begin_immediate(&conn)?;
+        let now = Utc::now().to_rfc3339();
+        let affected = tx.execute(
+            "UPDATE session_turn_intents
+                SET status = 'stale', updated_at = ?2
+              WHERE session_id = ?1 AND status IN ('optimistic', 'queued')",
+            params![session_id, now],
+        )?;
+        tx.commit()?;
+        Ok(affected)
+    })
 }
 
 /// Lookup a single intent row.

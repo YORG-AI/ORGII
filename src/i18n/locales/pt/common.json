@@ -556,6 +556,10 @@
     "failedToRenderEvent": "Falha ao renderizar evento",
     "unknown": "Erro desconhecido",
     "agentRequestFailed": "A requisição ao Agent falhou",
+    "codexLoginExpired": "A sessão do Codex expirou",
+    "codexLoginExpiredDescription": "Reconecte o Codex para reparar esta conta. Você retornará a esta sessão quando o novo login for salvo.",
+    "reconnectCodex": "Reconectar o Codex",
+    "technicalDetails": "Detalhes técnicos",
     "failedToCopy": "Falha ao copiar",
     "api": {
       "titles": {

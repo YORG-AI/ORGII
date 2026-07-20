@@ -1,7 +1,6 @@
 import { useAtomValue } from "jotai";
 import { useMemo } from "react";
 
-import type { ImportedHistorySourceId } from "@src/api/tauri/externalHistory";
 import { DISPATCH_CATEGORY } from "@src/api/tauri/session";
 import type { KanbanTask } from "@src/features/KanbanBoard";
 import { type Session, sessionMapAtom } from "@src/store/session";
@@ -12,24 +11,11 @@ import {
 
 import type { KanbanAgentTypeFilter, KanbanSidebarFilter } from "../config";
 import {
+  EXTERNAL_HISTORY_FILTER_BY_SOURCE,
   KANBAN_AGENT_TYPE_FILTER,
   KANBAN_COLUMNS,
   KANBAN_SIDEBAR_FILTER,
 } from "../config";
-
-const EXTERNAL_HISTORY_FILTER_BY_SOURCE: Record<
-  ImportedHistorySourceId,
-  KanbanAgentTypeFilter
-> = {
-  [DISPATCH_CATEGORY.CURSOR_IDE]: KANBAN_AGENT_TYPE_FILTER.CURSOR_APP,
-  codex_app: KANBAN_AGENT_TYPE_FILTER.CODEX_APP,
-  claude_code: KANBAN_AGENT_TYPE_FILTER.CLAUDE_APP,
-  opencode: KANBAN_AGENT_TYPE_FILTER.OPENCODE_HISTORY,
-  windsurf: KANBAN_AGENT_TYPE_FILTER.WINDSURF_APP,
-  workbuddy: KANBAN_AGENT_TYPE_FILTER.WORKBUDDY_APP,
-  trae: KANBAN_AGENT_TYPE_FILTER.TRAE_APP,
-  cline: KANBAN_AGENT_TYPE_FILTER.CLINE_APP,
-};
 
 function matchesAgentTypeFilter(
   session: Session | undefined,

@@ -1,7 +1,7 @@
 /**
  * Deep Link Handler Hook
  *
- * Handles deep link URLs (yorgai:// and orgii://) in Tauri production mode.
+ * Handles deep link URLs (yorgai:// and orgii://) in the Tauri desktop app.
  * This is critical for:
  *   - OAuth callbacks where Supabase redirects to yorgai://marketplace/callback
  *     after authentication.

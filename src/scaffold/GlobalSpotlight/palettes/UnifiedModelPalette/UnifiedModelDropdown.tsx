@@ -32,14 +32,13 @@ import {
 } from "@src/hooks/dropdown";
 import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
 import { useFilteredItems } from "@src/hooks/search";
+import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
 import type { SpotlightItem } from "../../shared";
+import { MODEL_SECTION, findCurrentSelectionIndex } from "./modelSection";
 import type { UnifiedModelPaletteProps } from "./types";
-import {
-  MODEL_SECTION,
-  useUnifiedModelPalette,
-} from "./useUnifiedModelPalette";
+import { useUnifiedModelPalette } from "./useUnifiedModelPalette";
 
 const DROPDOWN_WIDTH = 380;
 const SUBMENU_WIDTH = 260;
@@ -184,6 +183,10 @@ export const UnifiedModelDropdown: React.FC<UnifiedModelDropdownProps> = ({
     allHeader,
     sourceItems,
     selectedModelId,
+    accountsLoading,
+    accountsError,
+    refreshAllModels,
+    refreshingAllModels,
     tCommon,
   } = useUnifiedModelPalette({
     isOpen,
@@ -246,6 +249,15 @@ export const UnifiedModelDropdown: React.FC<UnifiedModelDropdownProps> = ({
     return items;
   }, [filteredRecentItems, recentHeader, filteredAllModelItems, allHeader]);
 
+  const currentSelectionIndex = useMemo(
+    () => findCurrentSelectionIndex(filteredItems),
+    [filteredItems]
+  );
+  const currentSelectionItemId =
+    currentSelectionIndex >= 0
+      ? (filteredItems[currentSelectionIndex]?.id ?? null)
+      : null;
+
   useEffect(() => {
     if (!isOpen) return;
     const frame = requestAnimationFrame(() => {
@@ -302,9 +314,42 @@ export const UnifiedModelDropdown: React.FC<UnifiedModelDropdownProps> = ({
       items: filteredItems,
       onSelect: handleSelect,
       isItemSelectable: (item) => !isHeaderItem(item),
-      initialSelectedIndex: -1,
+      initialSelectedIndex:
+        currentSelectionIndex >= 0 ? currentSelectionIndex : -1,
     },
   });
+
+  // Account-backed rows can arrive after the dropdown opens. Restore the
+  // persisted row once without taking the cursor back after user navigation.
+  const setKeyboardSelectedIndex = keyboard.setSelectedIndex;
+  const restoredSelectionItemIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isOpen) {
+      restoredSelectionItemIdRef.current = null;
+      return;
+    }
+    if (
+      currentSelectionIndex < 0 ||
+      !currentSelectionItemId ||
+      restoredSelectionItemIdRef.current === currentSelectionItemId
+    ) {
+      return;
+    }
+
+    restoredSelectionItemIdRef.current = currentSelectionItemId;
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (!cancelled) setKeyboardSelectedIndex(currentSelectionIndex);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    currentSelectionIndex,
+    currentSelectionItemId,
+    isOpen,
+    setKeyboardSelectedIndex,
+  ]);
 
   useEffect(() => {
     if (!isOpen || !isPositioned) return;
@@ -490,7 +535,30 @@ export const UnifiedModelDropdown: React.FC<UnifiedModelDropdownProps> = ({
           className={DROPDOWN_CLASSES.optionsContainerOverlay}
           style={{ maxHeight: LIST_MAX_HEIGHT }}
         >
-          {filteredItems.length === 0 ? (
+          {filteredItems.length === 0 &&
+          (accountsLoading || refreshingAllModels || accountsError) ? (
+            <div className="min-h-24">
+              <Placeholder
+                variant={
+                  accountsLoading || refreshingAllModels ? "loading" : "error"
+                }
+                title={
+                  accountsLoading || refreshingAllModels
+                    ? tCommon("placeholders.loading")
+                    : tCommon("placeholders.failedToLoad")
+                }
+                subtitle={accountsError ?? undefined}
+                onRetry={
+                  accountsError
+                    ? () => {
+                        void refreshAllModels();
+                      }
+                    : undefined
+                }
+                placement="sidebar"
+              />
+            </div>
+          ) : filteredItems.length === 0 ? (
             <div className={DROPDOWN_CLASSES.listMessage}>
               {tCommon("selectors.modelSelector.noResults")}
             </div>

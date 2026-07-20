@@ -1,6 +1,7 @@
 /**
  * Type definitions for ModernSplitDiff component
  */
+import type { LineDiffStats } from "@src/util/diff/types";
 
 export interface ModernSplitDiffProps {
   /** Original/old content */
@@ -66,10 +67,7 @@ export interface ChangeRange {
   lineIndices: number[];
 }
 
-export interface DiffStats {
-  additions: number;
-  deletions: number;
-}
+export type DiffStats = LineDiffStats;
 
 export interface ChangeableIndices {
   oldIndices: number[];

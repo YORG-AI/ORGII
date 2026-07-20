@@ -414,6 +414,7 @@ export function createRustAgentAdapter(
       const ALWAYS_TRAILING_EVENTS = new Set([
         "agent:turn_summary",
         "agent:warning",
+        "agent:subagent_job_changed",
         "agent:goal_loop",
         "agent:ade_action",
         "agent:shell_process_started",

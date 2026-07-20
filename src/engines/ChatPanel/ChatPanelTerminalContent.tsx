@@ -38,6 +38,7 @@ import {
 import {
   getHermesApprovalNotificationBody,
   isHermesApprovalNotificationFor,
+  isHermesTerminalBackground,
   shouldNotifyHermesApproval,
 } from "@src/engines/ChatPanel/components/TerminalAgentHoverCard/presentation";
 import { TerminalCore } from "@src/engines/TerminalCore";
@@ -48,6 +49,7 @@ import {
   type TerminalAgentStatus,
   type UseTerminalStateReturn,
   getTerminalDisplayTitle,
+  isTerminalAgentStatus,
 } from "@src/engines/TerminalCore/types";
 import { createLogger } from "@src/hooks/logger";
 import {
@@ -66,24 +68,6 @@ import { invokeTauri, listenTauri } from "@src/util/platform/tauri/init";
 import { toBackendPtySessionId } from "@src/util/ui/terminal/ptySessionId";
 
 const logger = createLogger("ChatPanelTerminalContent");
-
-const TERMINAL_AGENT_STATUSES = new Set<string>(
-  Object.values(TERMINAL_AGENT_STATUS)
-);
-
-interface HermesTerminalStatusMessage {
-  type: "terminal_agent.status_changed";
-  terminal_session_id?: string;
-  cli_agent_type?: string;
-  agent_status?: string;
-  hook_event_name?: string;
-  tool_name?: string;
-  tool_input_preview?: string;
-  model?: string;
-  cwd?: string;
-  duration_ms?: number;
-  timestamp?: number;
-}
 
 // ─── Props ─────────────────────────────────────────────────────────────────
 
@@ -217,17 +201,15 @@ export function ChatPanelTerminalContent({
     const websocket = getCodeEditorWebSocket();
     if (!websocket) return;
 
-    return websocket.on("terminal_agent.status_changed", (raw) => {
-      const message = raw as unknown as HermesTerminalStatusMessage;
+    return websocket.on("terminal_agent.status_changed", (message) => {
       if (
         message.terminal_session_id !== terminalSessionId ||
         message.cli_agent_type !== "hermes" ||
-        !message.agent_status ||
-        !TERMINAL_AGENT_STATUSES.has(message.agent_status)
+        !isTerminalAgentStatus(message.agent_status)
       ) {
         return;
       }
-      const nextStatus = message.agent_status as TerminalAgentStatus;
+      const nextStatus = message.agent_status;
       const previousStatus = lastHermesStatusRef.current;
       const previousActivity = lastHermesActivityRef.current;
       const nextActivity: TerminalAgentActivity = {
@@ -256,8 +238,11 @@ export function ChatPanelTerminalContent({
         shouldNotifyHermesApproval(
           previousStatus,
           nextStatus,
-          document.hidden,
-          document.hasFocus()
+          isHermesTerminalBackground(
+            visible,
+            document.hidden,
+            document.hasFocus()
+          )
         )
       ) {
         void notifyAgentApproval(
@@ -277,6 +262,7 @@ export function ChatPanelTerminalContent({
     terminalSessionId,
     notificationSettings,
     dispatchUpdateInfo,
+    visible,
   ]);
 
   // Track whether we've already injected the CLI command to avoid double-write

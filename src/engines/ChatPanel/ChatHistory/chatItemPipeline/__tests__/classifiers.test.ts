@@ -6,6 +6,7 @@ import {
   getActionSummaryCategory,
   getToolSimulatorApp,
   isBrowserEvent,
+  isEditFileEvent,
   isEventInSimulatorApp,
   isManageTodoEvent,
   isReadFileEvent,
@@ -19,6 +20,11 @@ describe("getActionSummaryCategory", () => {
 
   it('returns "search" for code_search', () => {
     const event = makeSessionEvent({ function: "code_search" });
+    expect(getActionSummaryCategory(event)).toBe("search");
+  });
+
+  it('resolves the Rust registry alias "Grep" without uiCanonical', () => {
+    const event = makeSessionEvent({ function: "Grep", uiCanonical: "" });
     expect(getActionSummaryCategory(event)).toBe("search");
   });
 
@@ -88,6 +94,19 @@ describe("isReadFileEvent", () => {
     const event = makeSessionEvent({ function: "run_shell" });
     expect(isReadFileEvent(event)).toBe(false);
   });
+});
+
+describe("isEditFileEvent", () => {
+  it.each(["Edit", "Write"])(
+    "resolves the Rust registry alias %s without uiCanonical",
+    (functionName) => {
+      const event = makeSessionEvent({
+        function: functionName,
+        uiCanonical: "",
+      });
+      expect(isEditFileEvent(event)).toBe(true);
+    }
+  );
 });
 
 describe("isBrowserEvent", () => {

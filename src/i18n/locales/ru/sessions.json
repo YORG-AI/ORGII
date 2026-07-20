@@ -2758,7 +2758,15 @@
       "type": "Тип",
       "directory": "Каталог",
       "file": "Файл",
-      "emptyDirectory": "Пустой каталог"
+      "emptyDirectory": "Пустой каталог",
+      "openFailedHint": "Check that the path still exists and is readable, then try again.",
+      "directoryNotFound": "Directory not found",
+      "directoryNotFoundHint": "It may have been moved, deleted, or created in another workspace.",
+      "notDirectory": "This path is not a directory",
+      "notDirectoryHint": "The path points to a file. Open it as a file instead.",
+      "permissionDenied": "Permission denied",
+      "permissionDeniedHint": "ORGII cannot read this directory. Check its access permissions.",
+      "openAsFile": "Open as file"
     }
   },
   "codePreview": {

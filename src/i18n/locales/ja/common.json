@@ -529,6 +529,10 @@
     "failedToRenderEvent": "イベントのレンダリングに失敗しました",
     "unknown": "不明なエラー",
     "agentRequestFailed": "Agent リクエスト失敗",
+    "codexLoginExpired": "Codex のサインイン期限が切れました",
+    "codexLoginExpiredDescription": "このアカウントを修復するには Codex に再接続してください。新しいサインインを保存すると、このセッションに戻ります。",
+    "reconnectCodex": "Codex に再接続",
+    "technicalDetails": "技術的な詳細",
     "failedToCopy": "コピーに失敗しました",
     "api": {
       "titles": {

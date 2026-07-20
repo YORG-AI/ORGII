@@ -12,6 +12,7 @@
 // Syntax highlighting is handled by react-syntax-highlighter in SplitRow
 import { Check } from "lucide-react";
 import React, { useRef } from "react";
+import { useTranslation } from "react-i18next";
 
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 
@@ -34,6 +35,7 @@ const ModernSplitDiffComponent: React.FC<ModernSplitDiffProps> = ({
   contextLines = 3,
   collapseUnchanged = true,
 }) => {
+  const { t } = useTranslation("common");
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Use hook for all business logic
@@ -78,7 +80,7 @@ const ModernSplitDiffComponent: React.FC<ModernSplitDiffProps> = ({
       {!noWrapper && (
         <div className="split-diff-header">
           <div className="split-diff-header-left">
-            <span className="header-label">Original</span>
+            <span className="header-label">{t("codeViewer.original")}</span>
             <DiffStatsBadge
               deletions={stats.deletions}
               variant="plain"
@@ -89,19 +91,27 @@ const ModernSplitDiffComponent: React.FC<ModernSplitDiffProps> = ({
           </div>
           <div className="split-diff-header-center">
             {cherrypicking && (
-              <div
+              <button
+                type="button"
                 className={`cherry-pick-all ${allSelected ? "cherry-pick-all-checked" : ""}`}
                 onClick={toggleAllSelection}
                 title={
-                  allSelected ? "Deselect all changes" : "Select all changes"
+                  allSelected
+                    ? t("actions.unselectAll")
+                    : t("actions.selectAll")
+                }
+                aria-label={
+                  allSelected
+                    ? t("actions.unselectAll")
+                    : t("actions.selectAll")
                 }
               >
                 {allSelected && <Check size={12} strokeWidth={3} />}
-              </div>
+              </button>
             )}
           </div>
           <div className="split-diff-header-right">
-            <span className="header-label">Modified</span>
+            <span className="header-label">{t("codeViewer.modified")}</span>
             <DiffStatsBadge
               additions={stats.additions}
               variant="plain"

@@ -147,7 +147,10 @@ fn expands_batched_cline_tools_into_single_op_chunks() {
     assert_eq!(tools[1].result["output"], "fn b() {}");
 
     // run_commands → one run_command_line card per command.
-    assert_eq!(tools[2].function, imported_history::FUNCTION_RUN_COMMAND_LINE);
+    assert_eq!(
+        tools[2].function,
+        imported_history::FUNCTION_RUN_COMMAND_LINE
+    );
     assert_eq!(tools[2].args["command"], "echo hi");
     assert_eq!(tools[2].result["output"], "hi");
     assert_eq!(tools[3].args["command"], "ls");

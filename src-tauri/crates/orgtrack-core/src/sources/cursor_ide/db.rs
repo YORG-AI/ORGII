@@ -73,7 +73,8 @@ struct RawComposerData {
     #[serde(default)]
     workspace_identifier: Option<super::models::RawWorkspaceIdentifier>,
     #[serde(default)]
-    original_file_states: std::collections::BTreeMap<String, super::models::RawCursorOriginalFileState>,
+    original_file_states:
+        std::collections::BTreeMap<String, super::models::RawCursorOriginalFileState>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -776,7 +777,10 @@ mod tests {
         let mut touched = input.impact.touched_files.clone();
         touched.sort();
         // Edited (contentKey) + newly-created files, but not the untouched one.
-        assert_eq!(touched, vec!["/repo/orgii/src/a.ts", "/repo/orgii/src/b.ts"]);
+        assert_eq!(
+            touched,
+            vec!["/repo/orgii/src/a.ts", "/repo/orgii/src/b.ts"]
+        );
         // …while recency + change-signature come from the index row.
         assert_eq!(input.updated_at_ms, 3000);
         assert_eq!(input.source_mtime_ms, 3000);

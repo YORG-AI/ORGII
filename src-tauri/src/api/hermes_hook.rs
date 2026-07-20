@@ -8,9 +8,12 @@
 //! endpoint and are broadcast to the frontend.
 
 use std::collections::HashMap;
+use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Output, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use axum::extract::Json;
 use axum::http::{HeaderMap, StatusCode};
@@ -26,11 +29,15 @@ const PLUGIN_NAME: &str = "orgii-status";
 const PLUGIN_MANIFEST: &str = include_str!("hermes_hook/plugin.yaml");
 const PLUGIN_CODE: &str = include_str!("hermes_hook/__init__.py");
 const TOKEN_HEADER: &str = "x-orgii-hermes-hook-token";
+const PLUGIN_ENABLE_TIMEOUT: Duration = Duration::from_secs(10);
+const PLUGIN_ENABLE_POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 static INSTALL_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 static INSTALL_COMPLETE: OnceLock<()> = OnceLock::new();
 static TERMINAL_TOKENS: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
 static GLOBAL_TOKEN: OnceLock<String> = OnceLock::new();
+static SHUTTING_DOWN: AtomicBool = AtomicBool::new(false);
+static GLOBAL_CONFIG_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -58,6 +65,10 @@ pub fn router() -> Router {
 
 fn terminal_tokens() -> &'static Mutex<HashMap<String, String>> {
     TERMINAL_TOKENS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn global_config_lock() -> &'static Mutex<()> {
+    GLOBAL_CONFIG_LOCK.get_or_init(|| Mutex::new(()))
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -269,6 +280,62 @@ fn write_private_file(path: &Path, content: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn enable_plugin_with_timeout(hermes: &str) -> Result<Output, String> {
+    let mut child = Command::new(hermes)
+        .args(["plugins", "enable", PLUGIN_NAME])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|err| format!("Failed to run `{hermes} plugins enable {PLUGIN_NAME}`: {err}"))?;
+    let deadline = Instant::now() + PLUGIN_ENABLE_TIMEOUT;
+
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                let mut stdout = Vec::new();
+                let mut stderr = Vec::new();
+                if let Some(mut pipe) = child.stdout.take() {
+                    pipe.read_to_end(&mut stdout).map_err(|err| {
+                        format!(
+                            "Failed to read `{hermes} plugins enable {PLUGIN_NAME}` stdout: {err}"
+                        )
+                    })?;
+                }
+                if let Some(mut pipe) = child.stderr.take() {
+                    pipe.read_to_end(&mut stderr).map_err(|err| {
+                        format!(
+                            "Failed to read `{hermes} plugins enable {PLUGIN_NAME}` stderr: {err}"
+                        )
+                    })?;
+                }
+                return Ok(Output {
+                    status,
+                    stdout,
+                    stderr,
+                });
+            }
+            Ok(None) if Instant::now() < deadline => {
+                std::thread::sleep(PLUGIN_ENABLE_POLL_INTERVAL);
+            }
+            Ok(None) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!(
+                    "`{hermes} plugins enable {PLUGIN_NAME}` timed out after {} seconds",
+                    PLUGIN_ENABLE_TIMEOUT.as_secs()
+                ));
+            }
+            Err(err) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!(
+                    "Failed while waiting for `{hermes} plugins enable {PLUGIN_NAME}`: {err}"
+                ));
+            }
+        }
+    }
+}
+
 fn ensure_plugin_installed() -> Result<(), String> {
     if INSTALL_COMPLETE.get().is_some() {
         return Ok(());
@@ -287,10 +354,7 @@ fn ensure_plugin_installed() -> Result<(), String> {
     write_if_changed(&plugin_dir.join("__init__.py"), PLUGIN_CODE)?;
 
     let hermes = resolve_cli_binary_command(CliBinaryId::Hermes);
-    let output = Command::new(&hermes)
-        .args(["plugins", "enable", PLUGIN_NAME])
-        .output()
-        .map_err(|err| format!("Failed to run `{hermes} plugins enable {PLUGIN_NAME}`: {err}"))?;
+    let output = enable_plugin_with_timeout(&hermes)?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -308,8 +372,53 @@ fn ensure_plugin_installed() -> Result<(), String> {
 
 fn initialize_global_hook_sync() -> Result<(), String> {
     ensure_plugin_installed()?;
+
+    let _config_guard = global_config_lock()
+        .lock()
+        .map_err(|error| format!("Hermes global hook config lock poisoned: {error}"))?;
+
+    if SHUTTING_DOWN.load(Ordering::Acquire) {
+        return Ok(());
+    }
     let path = global_hook_config_path()?;
     write_private_file(&path, &global_hook_config_content(global_token()))
+}
+
+fn remove_owned_global_hook_config(path: &Path, expected_content: &str) -> Result<(), String> {
+    let existing = match std::fs::read_to_string(path) {
+        Ok(existing) => existing,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(format!("Failed to read {}: {err}", path.display())),
+    };
+    if existing != expected_content {
+        return Ok(());
+    }
+    std::fs::remove_file(path).map_err(|err| format!("Failed to remove {}: {err}", path.display()))
+}
+
+/// Remove this process's external-session descriptor during an actual app
+/// shutdown. Ownership is verified so one ORGII process cannot delete a newer
+/// process's descriptor.
+pub fn cleanup_global_hook() {
+    SHUTTING_DOWN.store(true, Ordering::Release);
+
+    let _config_guard = match global_config_lock().lock() {
+        Ok(guard) => guard,
+        Err(error) => {
+            tracing::warn!("Hermes global hook config lock poisoned during cleanup: {error}");
+            return;
+        }
+    };
+
+    let Some(token) = GLOBAL_TOKEN.get() else {
+        return;
+    };
+    let result = global_hook_config_path().and_then(|path| {
+        remove_owned_global_hook_config(&path, &global_hook_config_content(token))
+    });
+    if let Err(error) = result {
+        tracing::warn!(%error, "[Hermes Hook] Failed to clean up global descriptor");
+    }
 }
 
 /// Install the globally enabled plugin and publish the current process's
@@ -405,6 +514,21 @@ mod tests {
         assert!(content.contains("ORGII_HERMES_HOOK_ENDPOINT=http://127.0.0.1:"));
         assert!(content.contains("ORGII_HERMES_HOOK_TOKEN=test-token"));
         assert!(!content.contains("ORGII_TERMINAL_SESSION_ID"));
+    }
+
+    #[test]
+    fn cleanup_only_removes_the_descriptor_owned_by_this_process() {
+        let directory = tempfile::tempdir().expect("temp directory");
+        let path = directory.path().join("hermes-hook.env");
+        let owned = global_hook_config_content("owned-token");
+        write_private_file(&path, &owned).expect("write owned descriptor");
+
+        remove_owned_global_hook_config(&path, "different descriptor")
+            .expect("ignore descriptor from another process");
+        assert!(path.exists());
+
+        remove_owned_global_hook_config(&path, &owned).expect("remove owned descriptor");
+        assert!(!path.exists());
     }
 
     #[test]

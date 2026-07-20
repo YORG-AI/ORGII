@@ -8,7 +8,7 @@ import { getLanguageFromPath } from "@src/config/languageMap";
 import { getLanguageFromFilePath } from "@src/util/editor/extension";
 
 import { computeDiffProgressive } from "./progressiveDiff";
-import type { DiffLine } from "./types";
+import type { DiffLine, DiffStats } from "./types";
 
 export interface UseDiffLinesOptions {
   oldValue: string;
@@ -18,11 +18,6 @@ export interface UseDiffLinesOptions {
   collapseUnchanged: boolean;
   oldStartLine: number;
   newStartLine: number;
-}
-
-export interface DiffStats {
-  additions: number;
-  deletions: number;
 }
 
 export interface UseDiffLinesResult {

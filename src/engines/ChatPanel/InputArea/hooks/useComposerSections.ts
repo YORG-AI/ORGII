@@ -23,17 +23,16 @@ import {
 } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 
+import DiffStatsBadge from "@src/components/DiffStatsBadge";
+
 import type { InlineSection } from "../components/CollapsedInlineRow";
+import type { FileChangeSummary } from "../components/compactFileChangesHelpers";
 import {
   type ComposerActiveSection,
   resolveComposerSectionForSessionSwitch,
 } from "./composerSectionState";
 
-export interface FileChangeStats {
-  count: number;
-  additions: number;
-  deletions: number;
-}
+export type FileChangeStats = FileChangeSummary;
 
 export interface GitArtifactStats {
   commitCount: number;
@@ -80,25 +79,8 @@ export function createFileInlineSection({
 }): InlineSection | null {
   if (fileChangeStats.count <= 0) return null;
 
-  const diffStatNodes: React.ReactNode[] = [];
-  if (fileChangeStats.additions > 0) {
-    diffStatNodes.push(
-      React.createElement(
-        "span",
-        { key: "additions", className: "font-normal text-green-500" },
-        `+${fileChangeStats.additions}`
-      )
-    );
-  }
-  if (fileChangeStats.deletions > 0) {
-    diffStatNodes.push(
-      React.createElement(
-        "span",
-        { key: "deletions", className: "font-normal text-red-500" },
-        `-${fileChangeStats.deletions}`
-      )
-    );
-  }
+  const hasDiffStats =
+    fileChangeStats.additions > 0 || fileChangeStats.deletions > 0;
 
   return {
     key: "files",
@@ -108,14 +90,23 @@ export function createFileInlineSection({
       "span",
       { className: "inline-flex items-center gap-2" },
       React.createElement("span", null, fileChangeStats.count),
-      diffStatNodes.length > 0
+      hasDiffStats
         ? React.createElement("span", {
             className:
               "inline-block h-0.5 w-0.5 shrink-0 rounded-full bg-text-4",
             "aria-hidden": true,
           })
         : null,
-      ...diffStatNodes
+      hasDiffStats
+        ? React.createElement(DiffStatsBadge, {
+            additions: fileChangeStats.additions,
+            deletions: fileChangeStats.deletions,
+            variant: "plain",
+            reserveValueWidth: false,
+            gapClassName: "gap-2",
+            className: "!font-normal",
+          })
+        : null
     ),
     active: false,
     onExpand: filesMenu ? NOOP : onFilesExpand,

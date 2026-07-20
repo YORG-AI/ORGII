@@ -5,7 +5,7 @@ import type { CursorIdeTurnSummary } from "@src/api/tauri/externalHistory";
 import type { OptimizedChatItem } from "../chatItemPipeline/types";
 import type { ChatGroupMeta } from "./useChatGroups";
 
-interface ChatTurnPage {
+export interface ChatTurnPage {
   startGroupIndex: number;
   endGroupIndex: number;
   flatStartIndex: number;
@@ -13,7 +13,7 @@ interface ChatTurnPage {
   cursorIdeSummary: CursorIdeTurnSummary | null;
 }
 
-interface UseChatTurnPaginationOptions {
+export interface ChatTurnPaginationOptions {
   enabled: boolean;
   activePageIndex: number;
   groupCounts: number[];
@@ -49,7 +49,7 @@ export interface UseChatTurnPaginationReturn {
   displayLastGroupFirstFlatIndex: number | null;
 }
 
-export function useChatTurnPagination({
+export function projectChatTurnPagination({
   enabled,
   activePageIndex,
   groupCounts,
@@ -59,108 +59,132 @@ export function useChatTurnPagination({
   lastAssistantFlatIndexPerItem,
   cursorIdeTurnSummaries = [],
   mergeUserOnlyPages = false,
-}: UseChatTurnPaginationOptions): UseChatTurnPaginationReturn {
-  return useMemo(() => {
-    const pages = buildTurnPages(
-      groupCounts,
-      groupHeaders,
-      cursorIdeTurnSummaries,
-      mergeUserOnlyPages
-    );
-    const pageCount = pages.length;
-    const currentPageIndex = clampPageIndex(activePageIndex, pageCount);
+}: ChatTurnPaginationOptions): UseChatTurnPaginationReturn {
+  const pages = buildTurnPages(
+    groupCounts,
+    groupHeaders,
+    cursorIdeTurnSummaries,
+    mergeUserOnlyPages
+  );
+  const pageCount = pages.length;
+  const currentPageIndex = clampPageIndex(activePageIndex, pageCount);
 
-    if (!enabled || pageCount === 0) {
-      return {
-        pageCount,
-        currentPageIndex,
-        pages,
-        displayGroupCounts: groupCounts,
-        displayGroupHeaders: groupHeaders,
-        displayGroupMeta: groupMeta,
-        displayFlatItems: flatItems,
-        displayTotalFlatItems: flatItems.length,
-        displayLastAssistantFlatIndexPerItem: lastAssistantFlatIndexPerItem,
-        displaySourceGroupIndices: groupCounts.map(
-          (_, groupIndex) => groupIndex
-        ),
-        displayLastGroupFirstFlatIndex: computeLastGroupFirstFlatIndex(
-          groupCounts,
-          flatItems.length
-        ),
-      };
-    }
-
-    const page = pages[currentPageIndex];
-    if (!page) {
-      return {
-        pageCount,
-        currentPageIndex,
-        pages,
-        displayGroupCounts: [],
-        displayGroupHeaders: [],
-        displayGroupMeta: [],
-        displayFlatItems: [],
-        displayTotalFlatItems: 0,
-        displayLastAssistantFlatIndexPerItem: [],
-        displaySourceGroupIndices: [],
-        displayLastGroupFirstFlatIndex: null,
-      };
-    }
-
-    const displayGroupCounts = groupCounts.slice(
-      page.startGroupIndex,
-      page.endGroupIndex + 1
-    );
-    const displayFlatItems = flatItems.slice(
-      page.flatStartIndex,
-      page.flatEndIndex
-    );
-    const displayLastAssistantFlatIndexPerItem = lastAssistantFlatIndexPerItem
-      .slice(page.flatStartIndex, page.flatEndIndex)
-      .map((flatIndex) => {
-        if (flatIndex === null) return null;
-        if (flatIndex < page.flatStartIndex || flatIndex >= page.flatEndIndex) {
-          return null;
-        }
-        return flatIndex - page.flatStartIndex;
-      });
-
+  if (!enabled || pageCount === 0) {
     return {
       pageCount,
       currentPageIndex,
       pages,
-      displayGroupCounts,
-      displayGroupHeaders: groupHeaders.slice(
-        page.startGroupIndex,
-        page.endGroupIndex + 1
-      ),
-      displayGroupMeta: groupMeta.slice(
-        page.startGroupIndex,
-        page.endGroupIndex + 1
-      ),
-      displayFlatItems,
-      displayTotalFlatItems: displayFlatItems.length,
-      displayLastAssistantFlatIndexPerItem,
-      displaySourceGroupIndices: displayGroupCounts.map(
-        (_, offset) => page.startGroupIndex + offset
-      ),
+      displayGroupCounts: groupCounts,
+      displayGroupHeaders: groupHeaders,
+      displayGroupMeta: groupMeta,
+      displayFlatItems: flatItems,
+      displayTotalFlatItems: flatItems.length,
+      displayLastAssistantFlatIndexPerItem: lastAssistantFlatIndexPerItem,
+      displaySourceGroupIndices: groupCounts.map((_, groupIndex) => groupIndex),
       displayLastGroupFirstFlatIndex: computeLastGroupFirstFlatIndex(
-        displayGroupCounts,
-        displayFlatItems.length
+        groupCounts,
+        flatItems.length
       ),
     };
-  }, [
-    enabled,
-    activePageIndex,
-    groupCounts,
-    groupHeaders,
-    groupMeta,
-    flatItems,
-    lastAssistantFlatIndexPerItem,
-    cursorIdeTurnSummaries,
-    mergeUserOnlyPages,
-  ]);
+  }
+
+  const page = pages[currentPageIndex];
+  if (!page) {
+    return {
+      pageCount,
+      currentPageIndex,
+      pages,
+      displayGroupCounts: [],
+      displayGroupHeaders: [],
+      displayGroupMeta: [],
+      displayFlatItems: [],
+      displayTotalFlatItems: 0,
+      displayLastAssistantFlatIndexPerItem: [],
+      displaySourceGroupIndices: [],
+      displayLastGroupFirstFlatIndex: null,
+    };
+  }
+
+  const displayGroupCounts = groupCounts.slice(
+    page.startGroupIndex,
+    page.endGroupIndex + 1
+  );
+  const displayFlatItems = flatItems.slice(
+    page.flatStartIndex,
+    page.flatEndIndex
+  );
+  const displayLastAssistantFlatIndexPerItem = lastAssistantFlatIndexPerItem
+    .slice(page.flatStartIndex, page.flatEndIndex)
+    .map((flatIndex) => {
+      if (flatIndex === null) return null;
+      if (flatIndex < page.flatStartIndex || flatIndex >= page.flatEndIndex) {
+        return null;
+      }
+      return flatIndex - page.flatStartIndex;
+    });
+
+  return {
+    pageCount,
+    currentPageIndex,
+    pages,
+    displayGroupCounts,
+    displayGroupHeaders: groupHeaders.slice(
+      page.startGroupIndex,
+      page.endGroupIndex + 1
+    ),
+    displayGroupMeta: groupMeta.slice(
+      page.startGroupIndex,
+      page.endGroupIndex + 1
+    ),
+    displayFlatItems,
+    displayTotalFlatItems: displayFlatItems.length,
+    displayLastAssistantFlatIndexPerItem,
+    displaySourceGroupIndices: displayGroupCounts.map(
+      (_, offset) => page.startGroupIndex + offset
+    ),
+    displayLastGroupFirstFlatIndex: computeLastGroupFirstFlatIndex(
+      displayGroupCounts,
+      displayFlatItems.length
+    ),
+  };
+}
+
+export function useChatTurnPagination({
+  enabled,
+  activePageIndex,
+  groupCounts,
+  groupHeaders,
+  groupMeta,
+  flatItems,
+  lastAssistantFlatIndexPerItem,
+  cursorIdeTurnSummaries,
+  mergeUserOnlyPages,
+}: ChatTurnPaginationOptions): UseChatTurnPaginationReturn {
+  return useMemo(
+    () =>
+      projectChatTurnPagination({
+        enabled,
+        activePageIndex,
+        groupCounts,
+        groupHeaders,
+        groupMeta,
+        flatItems,
+        lastAssistantFlatIndexPerItem,
+        cursorIdeTurnSummaries,
+        mergeUserOnlyPages,
+      }),
+    [
+      enabled,
+      activePageIndex,
+      groupCounts,
+      groupHeaders,
+      groupMeta,
+      flatItems,
+      lastAssistantFlatIndexPerItem,
+      cursorIdeTurnSummaries,
+      mergeUserOnlyPages,
+    ]
+  );
 }
 
 function buildTurnPages(

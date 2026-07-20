@@ -8,12 +8,13 @@ import type { SessionValidationResult } from "../useSessionValidation";
 const MIN_INPUT_LENGTH = 15;
 
 export function showValidationErrors(
-  validation: SessionValidationResult
+  validation: SessionValidationResult,
+  t: TFunction
 ): void {
   Message.error({
     content: (
       <div>
-        <div className="font-medium">Cannot create session:</div>
+        <div className="font-medium">{t("common:errors.validation")}:</div>
         <ul className="mt-1 list-inside list-disc text-[12px]">
           {validation.errors.map((errorMessage, index) => (
             <li key={index}>{errorMessage}</li>

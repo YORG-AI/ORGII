@@ -5,7 +5,7 @@
  * stripped from `FileOperationEntry` to save memory; this rehydrates from the
  * original `SessionEvent` via the same conversion path as initial ingest.
  */
-import { parseUnifiedDiffToOldNew } from "@src/engines/SessionCore/rendering/props";
+import { parseUnifiedDiffToOldNew } from "@src/util/diff/unifiedDiff";
 
 import {
   convertToFileOperation,

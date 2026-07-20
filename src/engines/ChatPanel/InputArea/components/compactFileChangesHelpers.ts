@@ -1,3 +1,4 @@
+import type { LineDiffStats } from "@src/util/diff/types";
 import { getFileName, normalizeDiffFilePath } from "@src/util/file/pathUtils";
 
 export interface FileChangeInfo {
@@ -14,6 +15,40 @@ export interface FileChangesResult {
   totalAdditions: number;
   totalDeletions: number;
   stats: { added: number; modified: number; deleted: number };
+}
+
+export interface FileChangeSummary extends LineDiffStats {
+  count: number;
+}
+
+export const EMPTY_FILE_CHANGE_SUMMARY: Readonly<FileChangeSummary> =
+  Object.freeze({ count: 0, additions: 0, deletions: 0 });
+
+export function summarizeFileChanges(
+  files: ReadonlyArray<FileChangeInfo>
+): FileChangeSummary {
+  return files.reduce<FileChangeSummary>(
+    (summary, file) => ({
+      count: summary.count + 1,
+      additions: summary.additions + file.additions,
+      deletions: summary.deletions + file.deletions,
+    }),
+    EMPTY_FILE_CHANGE_SUMMARY
+  );
+}
+
+export function resolveFileChangeSummary(
+  files: ReadonlyArray<FileChangeInfo>,
+  aggregate?: Pick<FileChangesResult, "totalAdditions" | "totalDeletions">
+): FileChangeSummary {
+  if (aggregate) {
+    return {
+      count: files.length,
+      additions: aggregate.totalAdditions,
+      deletions: aggregate.totalDeletions,
+    };
+  }
+  return summarizeFileChanges(files);
 }
 
 /** Minimal shape of an orgtrack final-diff record consumed by the pill. */

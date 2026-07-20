@@ -10,7 +10,12 @@ import React, { memo, useEffect, useMemo } from "react";
 import { useChatSessionId } from "@src/engines/ChatPanel/ChatSessionContext";
 import { sessionIdAtom } from "@src/engines/SessionCore";
 
-import type { FileChangesResult } from "./compactFileChangesHelpers";
+import {
+  EMPTY_FILE_CHANGE_SUMMARY,
+  type FileChangeSummary,
+  type FileChangesResult,
+  resolveFileChangeSummary,
+} from "./compactFileChangesHelpers";
 import { useCompactFileData } from "./useCompactFileData";
 
 export type {
@@ -18,11 +23,7 @@ export type {
   FileChangesResult,
 } from "./compactFileChangesHelpers";
 
-export interface FileChangeVisibleStats {
-  count: number;
-  additions: number;
-  deletions: number;
-}
+export type FileChangeVisibleStats = FileChangeSummary;
 
 interface CompactFileChangesProps {
   /** Explicit session owner for composer surfaces that may render under a different chat context. */
@@ -39,12 +40,6 @@ interface CompactFileChangesProps {
   onVisibleStatsChange?: (stats: FileChangeVisibleStats) => void;
 }
 
-const EMPTY_STATS: FileChangeVisibleStats = {
-  count: 0,
-  additions: 0,
-  deletions: 0,
-};
-
 const CompactFileChanges: React.FC<CompactFileChangesProps> = memo(
   ({ sessionIdOverride, initialData, reloadKey, onVisibleStatsChange }) => {
     const contextSessionId = useChatSessionId();
@@ -58,16 +53,9 @@ const CompactFileChanges: React.FC<CompactFileChangesProps> = memo(
     });
 
     const visibleStats = useMemo<FileChangeVisibleStats>(() => {
-      if (allFiles.length === 0) return EMPTY_STATS;
-      return allFiles.reduce<FileChangeVisibleStats>(
-        (stats, file) => ({
-          count: stats.count + 1,
-          additions: stats.additions + file.additions,
-          deletions: stats.deletions + file.deletions,
-        }),
-        EMPTY_STATS
-      );
-    }, [allFiles]);
+      if (allFiles.length === 0) return EMPTY_FILE_CHANGE_SUMMARY;
+      return resolveFileChangeSummary(allFiles, initialData);
+    }, [allFiles, initialData]);
 
     useEffect(() => {
       onVisibleStatsChange?.(visibleStats);

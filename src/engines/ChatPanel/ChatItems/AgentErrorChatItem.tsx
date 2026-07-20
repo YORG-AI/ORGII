@@ -10,12 +10,23 @@
  * Subscribing here creates a nested Jotai listener chain that overflows the
  * call stack when the session snapshot changes (e.g. on tab switch).
  */
+import { useAtomValue } from "jotai";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import InlineAlert from "@src/components/InlineAlert";
+import {
+  CODEX_REAUTH_RETURN_TO_STATE_KEY,
+  buildCodexReauthPath,
+} from "@src/config/mainAppPaths";
+import { sessionIdAtom } from "@src/engines/SessionCore/core/atoms";
+import { sessionByIdAtom } from "@src/store/session";
 
-import { sanitizeAgentErrorMessage } from "./sanitizeAgentErrorMessage";
+import {
+  requiresCodexReauthentication,
+  sanitizeAgentErrorMessage,
+} from "./sanitizeAgentErrorMessage";
 
 export interface AgentErrorChatItemProps {
   errorMessage: string;
@@ -24,13 +35,52 @@ export interface AgentErrorChatItemProps {
 const AgentErrorChatItem: React.FC<AgentErrorChatItemProps> = memo(
   ({ errorMessage }) => {
     const { t } = useTranslation();
+    const navigate = useNavigate();
+    const location = useLocation();
+    const sessionId = useAtomValue(sessionIdAtom);
+    const session = useAtomValue(sessionByIdAtom(sessionId ?? ""));
 
     const cleanMessage = sanitizeAgentErrorMessage(errorMessage);
+    const needsCodexReauthentication =
+      requiresCodexReauthentication(errorMessage);
+
+    const title = needsCodexReauthentication
+      ? t("errors.codexLoginExpired")
+      : t("errors.agentRequestFailed");
+    const action = needsCodexReauthentication
+      ? {
+          label: t("errors.reconnectCodex"),
+          onClick: () => {
+            const returnTo = `${location.pathname}${location.search}${location.hash}`;
+            navigate(buildCodexReauthPath(session?.accountId), {
+              state: {
+                [CODEX_REAUTH_RETURN_TO_STATE_KEY]: returnTo,
+              },
+            });
+          },
+        }
+      : undefined;
 
     return (
       <div className="animate-fade-in">
-        <InlineAlert type="danger" title={t("errors.agentRequestFailed")}>
-          <div className="whitespace-pre-wrap break-words">{cleanMessage}</div>
+        <InlineAlert type="danger" title={title} action={action}>
+          {needsCodexReauthentication ? (
+            <>
+              <div>{t("errors.codexLoginExpiredDescription")}</div>
+              <details className="mt-2 opacity-70">
+                <summary className="cursor-pointer select-none">
+                  {t("errors.technicalDetails")}
+                </summary>
+                <div className="mt-1 whitespace-pre-wrap break-words">
+                  {cleanMessage}
+                </div>
+              </details>
+            </>
+          ) : (
+            <div className="whitespace-pre-wrap break-words">
+              {cleanMessage}
+            </div>
+          )}
         </InlineAlert>
       </div>
     );

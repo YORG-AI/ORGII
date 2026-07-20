@@ -6,6 +6,7 @@
  */
 import { X } from "lucide-react";
 import React, { memo, useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import ImagePreviewOverlay from "@src/components/ImagePreviewOverlay";
 import type { ChatImageAttachment } from "@src/store/ui/chatImageAtom";
@@ -20,6 +21,7 @@ interface ThumbnailProps {
 }
 
 const Thumbnail: React.FC<ThumbnailProps> = memo(({ image, onRemove }) => {
+  const { t } = useTranslation("common");
   const [showOverlay, setShowOverlay] = useState(false);
 
   const handleRemove = useCallback(
@@ -49,7 +51,7 @@ const Thumbnail: React.FC<ThumbnailProps> = memo(({ image, onRemove }) => {
           type="button"
           onClick={handleRemove}
           className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-bg-3 text-text-2 opacity-0 shadow-sm transition-opacity hover:bg-fill-2 hover:text-text-1 group-hover:opacity-100"
-          aria-label={`Remove ${image.fileName}`}
+          aria-label={`${t("actions.remove")}: ${image.fileName}`}
           data-testid="chat-image-attachment-remove"
         >
           <X size={10} strokeWidth={2.5} />

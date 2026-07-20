@@ -160,26 +160,32 @@ fn persist_and_emit_terminal_turn(
     app_handle: Option<&tauri::AppHandle>,
 ) {
     let session_status: crate::session::SessionStatus = final_status.into();
-    match session_persistence::finalize_terminal_turn_status(
+    let persisted = match session_persistence::finalize_terminal_turn_status(
         session_id,
         &terminal_turn.turn_id,
         terminal_turn.status.as_str(),
         session_status,
         &terminal_turn.completed_at,
     ) {
-        Ok(true) => {}
-        Ok(false) => tracing::warn!(
-            session_id = %session_id,
-            turn_id = %terminal_turn.turn_id,
-            "[lifecycle] terminal turn marker was not persisted because the session row was missing"
-        ),
-        Err(err) => tracing::warn!(
-            session_id = %session_id,
-            turn_id = %terminal_turn.turn_id,
-            error = %err,
-            "[lifecycle] failed to persist terminal turn marker"
-        ),
-    }
+        Ok(true) => true,
+        Ok(false) => {
+            tracing::warn!(
+                session_id = %session_id,
+                turn_id = %terminal_turn.turn_id,
+                "[lifecycle] terminal turn marker was not persisted because the session row was missing"
+            );
+            false
+        }
+        Err(err) => {
+            tracing::warn!(
+                session_id = %session_id,
+                turn_id = %terminal_turn.turn_id,
+                error = %err,
+                "[lifecycle] failed to persist terminal turn marker"
+            );
+            false
+        }
+    };
 
     emit_session_status_changed(app_handle, session_id, final_status);
 
@@ -191,7 +197,7 @@ fn persist_and_emit_terminal_turn(
             "turnStatus": terminal_turn.status.as_str(),
             "sessionStatus": final_status.as_ref(),
             "completedAt": terminal_turn.completed_at,
-            "persisted": true,
+            "persisted": persisted,
         }),
     );
 }

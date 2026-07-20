@@ -1,6 +1,7 @@
 export interface TodoContentLike {
   id?: string;
   content?: string;
+  status?: string;
 }
 
 function meaningfulContent(value: string | null | undefined): string {
@@ -40,4 +41,41 @@ export function preserveTodoContent<T extends TodoContentLike>(
       content: previousContent,
     };
   });
+}
+
+function isSameTodoBatch(
+  eventTodos: readonly TodoContentLike[],
+  currentTodos: readonly TodoContentLike[]
+): boolean {
+  if (eventTodos.length === 0 || eventTodos.length !== currentTodos.length) {
+    return false;
+  }
+
+  return eventTodos.every((eventTodo, index) => {
+    const currentTodo = currentTodos[index];
+    if (!currentTodo) return false;
+
+    const eventContent = meaningfulContent(eventTodo.content);
+    const currentContent = meaningfulContent(currentTodo.content);
+    if (eventContent && currentContent) return eventContent === currentContent;
+
+    return Boolean(eventTodo.id && eventTodo.id === currentTodo.id);
+  });
+}
+
+/**
+ * Render an old manage_todo event with the latest status snapshot when both
+ * lists describe the same batch. This keeps a 1/4 write card live as later
+ * update calls complete rows, without rewriting unrelated historical batches.
+ */
+export function reconcileTodoSnapshot<T extends TodoContentLike>(
+  eventTodos: readonly T[],
+  currentTodos: readonly T[]
+): T[] {
+  const eventWithTitles = preserveTodoContent(currentTodos, eventTodos);
+  if (!isSameTodoBatch(eventWithTitles, currentTodos)) {
+    return eventWithTitles;
+  }
+
+  return preserveTodoContent(eventWithTitles, currentTodos);
 }

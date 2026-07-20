@@ -11,11 +11,7 @@ export {
   extractSuccessData,
   extractFailureData,
   stripLineNumberPrefixes,
-  mergeUnifiedDiffStrings,
-  parseUnifiedDiffToOldNew,
-  parseUnifiedDiffToHunks,
 } from "./extractorShared";
-export type { ParsedDiffHunk } from "./extractorShared";
 
 // Domain extractors
 export { extractThinkingData } from "./thinkingExtractors";

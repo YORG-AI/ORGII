@@ -14,6 +14,7 @@
  */
 import { Image, X } from "lucide-react";
 import React, { createElement, useCallback, useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 
 import { createLogger } from "@src/hooks/logger";
 import { getPreviewType } from "@src/util/file/previewTypes";
@@ -45,6 +46,7 @@ const ImagePill: React.FC<ImagePillProps> = ({
   onRemove,
   className = "",
 }) => {
+  const { t } = useTranslation("common");
   // Create preview URL - prioritize optimized dataUrl from path, fall back to File object
   // Using useMemo to derive URL from file, avoiding setState in effect
   const { previewUrl, isObjectUrl } = useMemo(() => {
@@ -108,7 +110,7 @@ const ImagePill: React.FC<ImagePillProps> = ({
       {previewUrl ? (
         <img
           src={previewUrl}
-          alt={file.name || "Image"}
+          alt={file.name || t("contextList.image")}
           className="h-full w-full object-cover"
           onError={(event) => {
             // Hide broken image, show placeholder instead
@@ -125,7 +127,7 @@ const ImagePill: React.FC<ImagePillProps> = ({
       <button
         className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-bg-overlay text-text-white opacity-0 transition-all hover:bg-bg-overlay-heavy group-hover:opacity-100"
         onClick={handleRemove}
-        aria-label={`Remove ${file.name || "image"}`}
+        aria-label={`${t("actions.remove")}: ${file.name || t("contextList.image")}`}
       >
         <X size={12} strokeWidth={2} />
       </button>
@@ -134,9 +136,9 @@ const ImagePill: React.FC<ImagePillProps> = ({
       <div className="absolute bottom-0 left-0 right-0 bg-bg-overlay px-1 py-0.5 opacity-0 transition-opacity group-hover:opacity-100">
         <span
           className="block truncate text-[10px] text-text-white"
-          title={file.name || "Image"}
+          title={file.name || t("contextList.image")}
         >
-          {file.name || "Image"}
+          {file.name || t("contextList.image")}
         </span>
       </div>
     </div>
@@ -152,6 +154,7 @@ const UploadPill: React.FC<UploadPillProps> = ({
   onRemove,
   className = "",
 }) => {
+  const { t } = useTranslation("common");
   const handleRemove = useCallback(
     (event: React.MouseEvent) => {
       event.stopPropagation();
@@ -181,14 +184,14 @@ const UploadPill: React.FC<UploadPillProps> = ({
         >
           {file.name}
         </span>
-        <span className="text-[11px] text-text-3">File</span>
+        <span className="text-[11px] text-text-3">{t("labels.files")}</span>
       </div>
 
       {/* Remove Button */}
       <button
         className="hover:bg-bg-4 absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-bg-3 text-text-3 opacity-0 transition-all hover:text-text-1 group-hover:opacity-100"
         onClick={handleRemove}
-        aria-label={`Remove ${file.name}`}
+        aria-label={`${t("actions.remove")}: ${file.name}`}
       >
         <X size={10} strokeWidth={2} />
       </button>

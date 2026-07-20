@@ -18,6 +18,7 @@ import {
   getStatusColor,
   getStatusLetterForFile,
 } from "@src/config/gitStatus";
+import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
 import { CodeMirrorDiff } from "@src/features/CodeMirror";
 import { FileHeader } from "@src/modules/shared/components/FileHeader";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
@@ -26,6 +27,7 @@ import {
   useTextSelectionDropdown,
 } from "@src/scaffold/ContextMenu/exports";
 import { addToAgentAtom } from "@src/store/ui/addToAgentAtom";
+import { resolveLineDiffStats } from "@src/util/diff/lineStats";
 import { isBinaryByExtension } from "@src/util/file/binaryDetection";
 import {
   getPreviewType,
@@ -195,17 +197,24 @@ const DiffFileSection: React.FC<DiffFileSectionProps> = ({
     setManualExpanded({ signal: expansionSignal, value: !expanded });
   }, [expanded, expansionSignal]);
 
-  const { additions, deletions } = useMemo(() => {
-    if (file.additions !== undefined && file.deletions !== undefined) {
-      return { additions: file.additions, deletions: file.deletions };
-    }
-    const oldLines = (file.oldContent || "").split("\n");
-    const newLines = (file.newContent || "").split("\n");
-    return {
-      additions: Math.max(0, newLines.length - oldLines.length),
-      deletions: Math.max(0, oldLines.length - newLines.length),
-    };
-  }, [file]);
+  const { additions, deletions } = useMemo(
+    () =>
+      resolveLineDiffStats({
+        additions: file.additions,
+        deletions: file.deletions,
+        unifiedDiff: file.unifiedDiff,
+        addedContent: file.status === "added" ? file.newContent : undefined,
+        deletedContent: file.status === "deleted" ? file.oldContent : undefined,
+      }),
+    [
+      file.additions,
+      file.deletions,
+      file.newContent,
+      file.oldContent,
+      file.status,
+      file.unifiedDiff,
+    ]
+  );
 
   const resolvedDiff = useMemo(
     () => ({
@@ -377,7 +386,7 @@ const DiffFileSection: React.FC<DiffFileSectionProps> = ({
         data-diff-section-path={dataPath}
       >
         <button
-          className="sticky top-0 z-10 flex w-full min-w-0 items-center gap-2 bg-[var(--cm-editor-background)] px-3 py-2 text-left hover:bg-fill-2 disabled:cursor-default disabled:hover:bg-transparent"
+          className={`sticky top-0 z-10 flex w-full min-w-0 items-center gap-2 px-3 py-2 text-left hover:bg-fill-2 disabled:cursor-default disabled:hover:bg-transparent ${EDITOR_TAB_CANVAS_BG_CLASS}`}
           onClick={toggleExpanded}
           disabled={isDeleted}
         >

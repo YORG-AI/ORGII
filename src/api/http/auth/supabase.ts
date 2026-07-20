@@ -8,7 +8,7 @@ import {
   SERVICE_AUTH_CONFIG,
   clearHostedToken,
   getCallbackUrl,
-  isTauriProduction,
+  isTauriRuntime,
   storeHostedToken,
   storeHostedUserId,
 } from "@src/config/serviceAuth";
@@ -73,12 +73,13 @@ export function syncHostedTokenFromSession(session: Session): TokenResponse {
 
 export async function signInWithSupabase(): Promise<void> {
   const supabase = getSupabaseAuthClient();
+  const tauriRuntime = isTauriRuntime();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: SERVICE_AUTH_CONFIG.oauthProvider,
     options: {
       redirectTo: getCallbackUrl(),
       scopes: SERVICE_AUTH_CONFIG.oauthScopes,
-      skipBrowserRedirect: isTauriProduction(),
+      skipBrowserRedirect: tauriRuntime,
     },
   });
 
@@ -86,7 +87,7 @@ export async function signInWithSupabase(): Promise<void> {
     throw error;
   }
 
-  if (isTauriProduction() && data.url) {
+  if (tauriRuntime && data.url) {
     const { open } = await import("@tauri-apps/plugin-shell");
     await open(data.url);
   }

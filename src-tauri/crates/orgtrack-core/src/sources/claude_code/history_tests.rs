@@ -378,7 +378,10 @@ fn edit_replay_chunk_carries_structured_patch_as_diff() {
     assert_eq!(edit.function, imported_history::FUNCTION_EDIT_FILE);
     // Args no longer bury fields under `payload`; old/new stay off so the
     // context-rich diff (below) is what the frontend renders.
-    assert_eq!(edit.args.get("action").and_then(Value::as_str), Some("edit"));
+    assert_eq!(
+        edit.args.get("action").and_then(Value::as_str),
+        Some("edit")
+    );
     assert_eq!(
         edit.args.get("file_path").and_then(Value::as_str),
         Some("/tmp/p/a.rs")
@@ -386,13 +389,20 @@ fn edit_replay_chunk_carries_structured_patch_as_diff() {
     assert!(edit.args.get("payload").is_none());
     assert!(edit.args.get("old_string").is_none());
 
-    let diff = edit.result.get("diff").and_then(Value::as_str).expect("diff");
+    let diff = edit
+        .result
+        .get("diff")
+        .and_then(Value::as_str)
+        .expect("diff");
     assert!(diff.contains("--- /tmp/p/a.rs"));
     assert!(diff.contains("@@ -1,2 +1,3 @@"));
     assert!(diff.contains("-old line"));
     assert!(diff.contains("+new line one"));
     assert!(diff.contains(" ctx"));
-    assert_eq!(edit.result.get("linesAdded").and_then(Value::as_i64), Some(2));
+    assert_eq!(
+        edit.result.get("linesAdded").and_then(Value::as_i64),
+        Some(2)
+    );
     assert_eq!(
         edit.result.get("linesRemoved").and_then(Value::as_i64),
         Some(1)
@@ -423,7 +433,11 @@ fn write_replay_chunk_is_tagged_create_and_diffs_from_patch() {
         write.args.get("action").and_then(Value::as_str),
         Some("create")
     );
-    let diff = write.result.get("diff").and_then(Value::as_str).expect("diff");
+    let diff = write
+        .result
+        .get("diff")
+        .and_then(Value::as_str)
+        .expect("diff");
     assert!(diff.contains("@@ -0,0 +1,1 @@"));
     assert!(diff.contains("+fn main() {}"));
     assert_eq!(
@@ -454,8 +468,14 @@ fn edit_without_structured_patch_falls_back_to_old_new_on_args() {
     let chunks = load_claude_code_history_from_path("claudecodeapp-abc", &path).expect("parse");
     assert_eq!(chunks.len(), 1);
     let edit = &chunks[0];
-    assert_eq!(edit.args.get("old_string").and_then(Value::as_str), Some("foo"));
-    assert_eq!(edit.args.get("new_string").and_then(Value::as_str), Some("bar"));
+    assert_eq!(
+        edit.args.get("old_string").and_then(Value::as_str),
+        Some("foo")
+    );
+    assert_eq!(
+        edit.args.get("new_string").and_then(Value::as_str),
+        Some("bar")
+    );
     assert!(edit.result.get("diff").is_none());
 
     std::fs::remove_file(&path).expect("remove fixture");

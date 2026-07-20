@@ -118,7 +118,10 @@ pub(super) fn cache_row_to_session_row(
 /// The files a session edited, from the composer's `originalFileStates` map
 /// (a key is present for every file whose before-state was captured for a diff).
 pub(super) fn cursor_touched_files_from_states(
-    original_file_states: &std::collections::BTreeMap<String, super::models::RawCursorOriginalFileState>,
+    original_file_states: &std::collections::BTreeMap<
+        String,
+        super::models::RawCursorOriginalFileState,
+    >,
 ) -> Vec<String> {
     original_file_states
         .iter()

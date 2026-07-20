@@ -7,8 +7,8 @@
 import React, { Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import { getToolIcon } from "@src/config/toolIcons";
-import { DIFF_STATS } from "@src/config/workstation/tokens";
 import ToolUsageBadge from "@src/engines/ChatPanel/blocks/ToolCallBlock/ToolUsageBadge";
 import { StackedBlock } from "@src/engines/ChatPanel/blocks/primitives";
 import {
@@ -221,18 +221,13 @@ const EditActivityGroup: React.FC<EditActivityGroupProps> = ({
                 <span className="mr-1.5 text-text-3" aria-hidden="true">
                   ·
                 </span>
-                {diffStats.additions > 0 && (
-                  <span className={DIFF_STATS.additions}>
-                    +{diffStats.additions}
-                  </span>
-                )}
-                {diffStats.deletions > 0 && (
-                  <span
-                    className={`${diffStats.additions > 0 ? "ml-1" : ""} ${DIFF_STATS.deletions}`.trim()}
-                  >
-                    -{diffStats.deletions}
-                  </span>
-                )}
+                <DiffStatsBadge
+                  additions={diffStats.additions}
+                  deletions={diffStats.deletions}
+                  variant="plain"
+                  reserveValueWidth={false}
+                  className="!font-normal"
+                />
               </span>
             )}
           </span>

@@ -17,6 +17,16 @@ export const TERMINAL_AGENT_STATUS = {
 export type TerminalAgentStatus =
   (typeof TERMINAL_AGENT_STATUS)[keyof typeof TERMINAL_AGENT_STATUS];
 
+const TERMINAL_AGENT_STATUS_VALUES = new Set<string>(
+  Object.values(TERMINAL_AGENT_STATUS)
+);
+
+export function isTerminalAgentStatus(
+  value: unknown
+): value is TerminalAgentStatus {
+  return typeof value === "string" && TERMINAL_AGENT_STATUS_VALUES.has(value);
+}
+
 export type TerminalAgentStatusSource = "process" | "hook";
 
 /** Privacy-safe activity metadata emitted by a CLI agent hook. */

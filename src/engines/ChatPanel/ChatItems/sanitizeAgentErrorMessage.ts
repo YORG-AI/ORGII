@@ -37,6 +37,26 @@ const HTML_HINT =
 const HTTP_STATUS = /\bHTTP\s+(\d{3})\b/i;
 
 /**
+ * Codex OAuth refresh tokens rotate after use. A stale/reused refresh token
+ * cannot recover through retrying the agent request; the user must reconnect
+ * the Codex account instead.
+ */
+export function requiresCodexReauthentication(raw: string): boolean {
+  const message = raw.toLowerCase();
+  if (!message) return false;
+
+  const hasCodexContext =
+    message.includes("codex oauth") || message.includes("refresh_token_reused");
+  const hasReauthenticationSignal =
+    message.includes("refresh_token_reused") ||
+    message.includes("refresh token has already been used") ||
+    message.includes("try signing in again") ||
+    message.includes("invalid_grant");
+
+  return hasCodexContext && hasReauthenticationSignal;
+}
+
+/**
  * Convert a raw error message into a clean, bounded, single-block string safe
  * for `whitespace-pre-wrap` rendering.
  */

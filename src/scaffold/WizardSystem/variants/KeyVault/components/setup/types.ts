@@ -121,6 +121,7 @@ export interface CodexSetupProps extends AgentSetupProps {
   onClearTokenError?: () => void;
   onSessionCaptured?: (values: CodexSessionValues) => void;
   preselectedMethod?: string;
+  autoStartLogin?: boolean;
 }
 
 export interface KiroSetupProps extends AgentSetupProps {

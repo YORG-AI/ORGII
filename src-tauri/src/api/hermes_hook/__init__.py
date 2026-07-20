@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -32,6 +33,7 @@ EVENTS = (
 )
 
 MAX_PREVIEW_LENGTH = 160
+CALLBACK_FAILURE_COOLDOWN_SECONDS = 5.0
 SAFE_ARG_KEYS = (
     "file_path",
     "path",
@@ -49,6 +51,8 @@ BEARER_TOKEN = re.compile(r"(?i)\b(bearer)\s+[^\s]+")
 KNOWN_TOKEN = re.compile(r"\b(?:sk|ghp|github_pat|xox[baprs])[-_][A-Za-z0-9_-]{12,}\b")
 URL_CREDENTIALS = re.compile(r"(?<=://)[^/@\s:]+:[^/@\s]+@")
 _CURRENT_SESSION_ID = ""
+_RUNTIME_PLATFORM = ""
+_CALLBACK_COOLDOWN_UNTIL = 0.0
 
 
 def _safe_text(value: Any, limit: int = MAX_PREVIEW_LENGTH) -> str:
@@ -140,49 +144,72 @@ def _session_identity(kwargs: dict[str, Any]) -> str:
     )
 
 
+def _should_forward_event(kwargs: dict[str, Any]) -> bool:
+    """Limit the globally enabled plugin to interactive CLI/TUI sessions."""
+
+    global _RUNTIME_PLATFORM
+
+    platform = _safe_text(kwargs.get("platform"), 24).lower()
+    if platform:
+        _RUNTIME_PLATFORM = platform
+    approval_surface = _safe_text(kwargs.get("surface"), 24).lower()
+    return approval_surface != "gateway" and _RUNTIME_PLATFORM in {"", "cli"}
+
+
 def _post_event(event_name: str, kwargs: dict[str, Any]) -> None:
-    global _CURRENT_SESSION_ID
+    global _CALLBACK_COOLDOWN_UNTIL, _CURRENT_SESSION_ID
 
-    endpoint, token, terminal_session_id = _hook_target()
-    if not endpoint or not token:
-        return
-
-    args = kwargs.get("args") if isinstance(kwargs.get("args"), dict) else {}
-    session_id = _session_identity(kwargs)
-    tool_name = kwargs.get("tool_name")
-    if not tool_name and event_name in {
-        "pre_approval_request",
-        "post_approval_response",
-    }:
-        tool_name = "terminal"
-    payload = {
-        "payload": {
-            "hookEventName": event_name,
-            "sessionId": _safe_text(session_id),
-            "toolName": _safe_text(tool_name, 80),
-            "toolInputPreview": _tool_input_preview(event_name, kwargs),
-            "model": _safe_text(kwargs.get("model"), 120),
-            "cwd": _safe_text(kwargs.get("cwd") or args.get("cwd") or os.getcwd()),
-            "durationMs": _optional_number(kwargs.get("duration_ms")),
-            "approvalSurface": _safe_text(kwargs.get("surface"), 24),
-        },
-    }
-    if terminal_session_id:
-        payload["terminalSessionId"] = terminal_session_id
-    request = urllib.request.Request(
-        endpoint,
-        data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
-        method="POST",
-        headers={
-            "Content-Type": "application/json",
-            "X-ORGII-Hermes-Hook-Token": token,
-        },
-    )
     try:
-        with urllib.request.urlopen(request, timeout=0.5):
-            pass
-    except (OSError, urllib.error.URLError):
-        return
+        if not _should_forward_event(kwargs):
+            return
+        if time.monotonic() < _CALLBACK_COOLDOWN_UNTIL:
+            return
+
+        endpoint, token, terminal_session_id = _hook_target()
+        if not endpoint or not token:
+            return
+
+        args = kwargs.get("args") if isinstance(kwargs.get("args"), dict) else {}
+        session_id = _session_identity(kwargs)
+        tool_name = kwargs.get("tool_name")
+        if not tool_name and event_name in {
+            "pre_approval_request",
+            "post_approval_response",
+        }:
+            tool_name = "terminal"
+        payload = {
+            "payload": {
+                "hookEventName": event_name,
+                "sessionId": _safe_text(session_id),
+                "toolName": _safe_text(tool_name, 80),
+                "toolInputPreview": _tool_input_preview(event_name, kwargs),
+                "model": _safe_text(kwargs.get("model"), 120),
+                "cwd": _safe_text(
+                    kwargs.get("cwd") or args.get("cwd") or os.getcwd()
+                ),
+                "durationMs": _optional_number(kwargs.get("duration_ms")),
+                "approvalSurface": _safe_text(kwargs.get("surface"), 24),
+            },
+        }
+        if terminal_session_id:
+            payload["terminalSessionId"] = terminal_session_id
+        request = urllib.request.Request(
+            endpoint,
+            data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
+            method="POST",
+            headers={
+                "Content-Type": "application/json",
+                "X-ORGII-Hermes-Hook-Token": token,
+            },
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=0.5):
+                pass
+            _CALLBACK_COOLDOWN_UNTIL = 0.0
+        except (OSError, urllib.error.URLError):
+            _CALLBACK_COOLDOWN_UNTIL = (
+                time.monotonic() + CALLBACK_FAILURE_COOLDOWN_SECONDS
+            )
     finally:
         if event_name == "on_session_finalize":
             _CURRENT_SESSION_ID = ""

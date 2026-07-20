@@ -2,10 +2,7 @@ import { useAtom, useAtomValue } from "jotai";
 import React, { memo, useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  IMPORTED_HISTORY_SOURCES,
-  type ImportedHistorySourceId,
-} from "@src/api/tauri/externalHistory";
+import { IMPORTED_HISTORY_SOURCES } from "@src/api/tauri/externalHistory";
 import { DISPATCH_CATEGORY } from "@src/api/tauri/session";
 import { CLI_AGENT, type CliAgentType } from "@src/api/types/keys";
 import { formatAgentType } from "@src/assets/providers";
@@ -20,6 +17,7 @@ import {
 import { isPrimarySessionListSession } from "@src/util/session/sessionVisibility";
 
 import {
+  EXTERNAL_HISTORY_FILTER_BY_SOURCE,
   KANBAN_AGENT_TYPE_FILTER,
   type KanbanAgentTypeFilter,
 } from "../../config";
@@ -91,20 +89,6 @@ const CLI_AGENT_FILTER_ITEMS = new Map<
     },
   ])
 );
-
-const EXTERNAL_HISTORY_FILTER_BY_SOURCE: Record<
-  ImportedHistorySourceId,
-  KanbanAgentTypeFilter
-> = {
-  [DISPATCH_CATEGORY.CURSOR_IDE]: KANBAN_AGENT_TYPE_FILTER.CURSOR_APP,
-  codex_app: KANBAN_AGENT_TYPE_FILTER.CODEX_APP,
-  claude_code: KANBAN_AGENT_TYPE_FILTER.CLAUDE_APP,
-  opencode: KANBAN_AGENT_TYPE_FILTER.OPENCODE_HISTORY,
-  windsurf: KANBAN_AGENT_TYPE_FILTER.WINDSURF_APP,
-  workbuddy: KANBAN_AGENT_TYPE_FILTER.WORKBUDDY_APP,
-  trae: KANBAN_AGENT_TYPE_FILTER.TRAE_APP,
-  cline: KANBAN_AGENT_TYPE_FILTER.CLINE_APP,
-};
 
 const EXTERNAL_HISTORY_FILTER_ITEMS = new Map<
   KanbanAgentTypeFilter,

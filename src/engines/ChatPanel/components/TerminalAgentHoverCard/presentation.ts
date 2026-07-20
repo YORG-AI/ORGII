@@ -50,14 +50,27 @@ export const TERMINAL_AGENT_STATUS_PRESENTATION: Record<
 export function shouldNotifyHermesApproval(
   previousStatus: TerminalAgentStatus | undefined,
   nextStatus: TerminalAgentStatus,
-  documentHidden: boolean,
-  windowHasFocus: boolean
+  isBackground: boolean
 ): boolean {
   return (
     nextStatus === TERMINAL_AGENT_STATUS.BLOCKED &&
     previousStatus !== TERMINAL_AGENT_STATUS.BLOCKED &&
-    (documentHidden || !windowHasFocus)
+    isBackground
   );
+}
+
+export function isHermesTerminalBackground(
+  terminalVisible: boolean,
+  documentHidden: boolean,
+  windowHasFocus: boolean
+): boolean {
+  return !terminalVisible || documentHidden || !windowHasFocus;
+}
+
+export function isExternalHermesNotificationOwner(
+  windowLabel: string
+): boolean {
+  return windowLabel === "main";
 }
 
 export function getHermesApprovalNotificationBody(

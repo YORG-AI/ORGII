@@ -9,6 +9,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import { createLogger } from "@src/hooks/logger";
+import i18n from "@src/i18n";
 import { getGlobalCommonHeaders } from "@src/util/config/headers";
 import { captureApiCallStack } from "@src/util/monitoring/apiTracker";
 
@@ -73,8 +74,8 @@ function handleServiceAuthError(
     return {
       status: 1,
       data: {
-        title: "Authentication Required",
-        message: detail || "Please log in to the hosted service first",
+        title: i18n.t("common:errors.unauthorized"),
+        message: detail || i18n.t("common:errors.api.messages.signIn"),
       },
     } as DataField<never>;
   }
@@ -87,8 +88,8 @@ function handleServiceAuthError(
     return {
       status: 1,
       data: {
-        title: "Access Denied",
-        message: detail || "You don't have permission to perform this action",
+        title: i18n.t("common:errors.forbidden"),
+        message: detail || i18n.t("common:errors.api.messages.forbidden"),
       },
     } as DataField<never>;
   }
@@ -172,8 +173,8 @@ async function hostedServiceRequest<T>(
       return {
         status: 1,
         data: {
-          title: "Validation Error",
-          message: detail || "Bad request",
+          title: i18n.t("common:errors.validation"),
+          message: detail || i18n.t("common:errors.api.messages.validation"),
         },
       } as DataField<T>;
     }
@@ -182,8 +183,8 @@ async function hostedServiceRequest<T>(
       return {
         status: 1,
         data: {
-          title: "Not Found",
-          message: detail || "Resource not found",
+          title: i18n.t("common:errors.notFound"),
+          message: detail || i18n.t("common:errors.api.messages.notFound"),
         },
       } as DataField<T>;
     }

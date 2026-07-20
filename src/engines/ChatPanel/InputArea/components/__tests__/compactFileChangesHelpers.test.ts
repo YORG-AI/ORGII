@@ -8,6 +8,8 @@ import {
   countChatRounds,
   mapEditArtifactsToFileChangeInfo,
   mapFinalDiffToFileChangeInfo,
+  resolveFileChangeSummary,
+  summarizeFileChanges,
 } from "../compactFileChangesHelpers";
 
 function createFinalDiff(overrides?: Partial<FinalDiffLike>): FinalDiffLike {
@@ -125,6 +127,42 @@ describe("mapEditArtifactsToFileChangeInfo", () => {
       createEditArtifact({ editKind: "delete", sequenceIndex: 2 }),
     ]);
     expect(result[0]?.status).toBe("D");
+  });
+});
+
+describe("summarizeFileChanges", () => {
+  it("sums actual per-file stats", () => {
+    expect(
+      summarizeFileChanges([
+        mapFinalDiffToFileChangeInfo(createFinalDiff()),
+        mapFinalDiffToFileChangeInfo(
+          createFinalDiff({ filePath: "src/other.ts", linesAdded: 2 })
+        ),
+      ])
+    ).toEqual({ count: 2, additions: 5, deletions: 2 });
+  });
+
+  it("returns a zero summary for no files", () => {
+    expect(summarizeFileChanges([])).toEqual({
+      count: 0,
+      additions: 0,
+      deletions: 0,
+    });
+  });
+
+  it("uses explicit aggregate totals when per-file breakdown is unavailable", () => {
+    const files = [
+      mapFinalDiffToFileChangeInfo(
+        createFinalDiff({ linesAdded: 0, linesRemoved: 0 })
+      ),
+    ];
+
+    expect(
+      resolveFileChangeSummary(files, {
+        totalAdditions: 12,
+        totalDeletions: 4,
+      })
+    ).toEqual({ count: 1, additions: 12, deletions: 4 });
   });
 });
 

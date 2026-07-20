@@ -25,6 +25,13 @@ export function buildSectionHeader(
   };
 }
 
+export function findCurrentSelectionIndex(items: SpotlightItem[]): number {
+  return items.findIndex((item) => {
+    const data = item.data as Record<string, unknown> | undefined;
+    return data?.isCurrentSelection === true;
+  });
+}
+
 export function getActiveModelId(
   config: Pick<AdvancedConfig, "model" | "listingModel">
 ): string | undefined {

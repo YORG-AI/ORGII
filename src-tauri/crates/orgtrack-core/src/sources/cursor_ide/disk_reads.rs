@@ -99,10 +99,12 @@ pub fn cursor_composer_last_updated_at(composer_id: &str) -> Result<Option<i64>,
     };
     let parsed: ComposerTimestamps = serde_json::from_str(&json_text)
         .map_err(|err| format!("parse Cursor {key} blob: {err}"))?;
-    Ok(match (parsed.last_updated_at, parsed.checkpoint_last_updated_at) {
-        (Some(a), Some(b)) => Some(a.max(b)),
-        (a, b) => a.or(b),
-    })
+    Ok(
+        match (parsed.last_updated_at, parsed.checkpoint_last_updated_at) {
+            (Some(a), Some(b)) => Some(a.max(b)),
+            (a, b) => a.or(b),
+        },
+    )
 }
 
 #[cfg(test)]
@@ -139,7 +141,10 @@ mod tests {
                 (a, b) => a.or(b),
             }
         };
-        assert_eq!(mk(r#"{"lastUpdatedAt": 100, "conversationCheckpointLastUpdatedAt": 200}"#), Some(200));
+        assert_eq!(
+            mk(r#"{"lastUpdatedAt": 100, "conversationCheckpointLastUpdatedAt": 200}"#),
+            Some(200)
+        );
         assert_eq!(mk(r#"{"lastUpdatedAt": 300}"#), Some(300));
         assert_eq!(mk(r#"{}"#), None);
     }

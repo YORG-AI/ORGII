@@ -39,6 +39,12 @@ export interface TwoColumnModelBodyProps {
   selectedSourceIndex: number;
   /** Whether a model row currently owns the left-column cursor. */
   hasFocusedModel: boolean;
+  /** Whether the Key Vault account list is currently loading. */
+  accountsLoading: boolean;
+  /** Key Vault account-list load error. */
+  accountsError: string | null;
+  /** Retry loading Key Vault accounts after an error. */
+  onRetryAccounts: () => void;
   onSourceSelect: (index: number) => void;
   onSourceHover: (index: number) => void;
 }
@@ -117,6 +123,9 @@ export const TwoColumnModelBody: React.FC<TwoColumnModelBodyProps> = ({
   sourceItems,
   selectedSourceIndex,
   hasFocusedModel,
+  accountsLoading,
+  accountsError,
+  onRetryAccounts,
   onSourceSelect,
   onSourceHover,
 }) => {
@@ -210,12 +219,26 @@ export const TwoColumnModelBody: React.FC<TwoColumnModelBodyProps> = ({
               style={{ height: COLUMN_HEIGHT }}
             >
               <Placeholder
-                variant={searchQuery.trim() ? "no-results" : "empty"}
+                variant={
+                  searchQuery.trim()
+                    ? "no-results"
+                    : accountsLoading
+                      ? "loading"
+                      : accountsError
+                        ? "error"
+                        : "empty"
+                }
                 title={
                   searchQuery.trim()
                     ? t("common:common.noResults")
-                    : t("placeholders.noItemsAvailable")
+                    : accountsLoading
+                      ? t("placeholders.loading")
+                      : accountsError
+                        ? t("placeholders.failedToLoad")
+                        : t("placeholders.noItemsAvailable")
                 }
+                subtitle={accountsError ?? undefined}
+                onRetry={accountsError ? onRetryAccounts : undefined}
                 placement="sidebar"
               />
             </div>

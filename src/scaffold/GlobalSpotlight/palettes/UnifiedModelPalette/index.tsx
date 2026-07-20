@@ -36,11 +36,9 @@ import type { SpotlightItem } from "../../types";
 import { buildPathSegment } from "../config";
 import { useSelectorKernel } from "../core";
 import { TwoColumnModelBody } from "./TwoColumnModelBody";
+import { MODEL_SECTION, findCurrentSelectionIndex } from "./modelSection";
 import type { UnifiedModelPaletteProps } from "./types";
-import {
-  MODEL_SECTION,
-  useUnifiedModelPalette,
-} from "./useUnifiedModelPalette";
+import { useUnifiedModelPalette } from "./useUnifiedModelPalette";
 
 export type { UnifiedModelPaletteProps } from "./types";
 export { UnifiedModelDropdown } from "./UnifiedModelDropdown";
@@ -72,6 +70,8 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
     sourceItems,
     previewModel,
     handleBack,
+    accountsLoading,
+    accountsError,
     refreshAllModels,
     refreshingAllModels,
     tCommon: tCommonHook,
@@ -140,6 +140,15 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
     recentHeader,
     allHeader,
   ]);
+
+  const currentSelectionIndex = useMemo(
+    () => findCurrentSelectionIndex(filteredItems),
+    [filteredItems]
+  );
+  const currentSelectionItemId =
+    currentSelectionIndex >= 0
+      ? (filteredItems[currentSelectionIndex]?.id ?? null)
+      : null;
 
   // ============ RIGHT-COLUMN NAVIGATION ============
   const activateSource = useCallback(() => {
@@ -236,10 +245,45 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
     hasModalState: activeColumn !== "models",
     onGoBack: handleBack,
     isItemSelectable,
+    initialSelectedIndex:
+      currentSelectionIndex >= 0 ? currentSelectionIndex : undefined,
     externalSearchQuery: searchQuery,
     externalSetSearchQuery: setSearchQuery,
     externalHandleKeyDown,
   });
+
+  // The model/account list arrives asynchronously after the palette opens.
+  // Restore the cursor when the persisted selection first becomes available;
+  // tracking the item id avoids overriding later keyboard or pointer movement.
+  const setKernelSelectedIndex = kernel.setSelectedIndex;
+  const restoredSelectionItemIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isOpen) {
+      restoredSelectionItemIdRef.current = null;
+      return;
+    }
+    if (
+      currentSelectionIndex < 0 ||
+      !currentSelectionItemId ||
+      restoredSelectionItemIdRef.current === currentSelectionItemId
+    ) {
+      return;
+    }
+
+    restoredSelectionItemIdRef.current = currentSelectionItemId;
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (!cancelled) setKernelSelectedIndex(currentSelectionIndex);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    currentSelectionIndex,
+    currentSelectionItemId,
+    isOpen,
+    setKernelSelectedIndex,
+  ]);
 
   // Keep the keyboard-focused model previewed in the right column. The ref
   // gate ensures previewModel (which resets the source cursor) only fires
@@ -356,6 +400,11 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
       sourceItems={sourceItems}
       selectedSourceIndex={selectedSourceIndex}
       hasFocusedModel={selectedModelId !== null}
+      accountsLoading={accountsLoading || refreshingAllModels}
+      accountsError={accountsError}
+      onRetryAccounts={() => {
+        void refreshAllModels();
+      }}
       onSourceSelect={(index) => {
         const source = sourceItems[index];
         source?.action?.();

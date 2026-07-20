@@ -119,7 +119,6 @@ pub struct CursorIdeSessionRow {
     pub branch: Option<String>,
 }
 
-
 /// Paginated response for the sidebar's Cursor IDE history loader.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

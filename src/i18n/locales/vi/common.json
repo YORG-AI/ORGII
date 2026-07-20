@@ -529,6 +529,10 @@
     "failedToRenderEvent": "Không thể hiển thị sự kiện",
     "unknown": "Lỗi không xác định",
     "agentRequestFailed": "Yêu cầu Agent thất bại",
+    "codexLoginExpired": "Phiên đăng nhập Codex đã hết hạn",
+    "codexLoginExpiredDescription": "Kết nối lại Codex để khôi phục tài khoản này. Bạn sẽ quay lại phiên này sau khi thông tin đăng nhập mới được lưu.",
+    "reconnectCodex": "Kết nối lại Codex",
+    "technicalDetails": "Chi tiết kỹ thuật",
     "failedToCopy": "Sao chép thất bại",
     "api": {
       "titles": {

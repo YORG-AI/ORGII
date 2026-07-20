@@ -21,8 +21,11 @@ export {
 export type { ExternalSkillsetsTab } from "./mainAppPaths/externalSkillsets";
 
 export {
+  buildCodexReauthPath,
   buildIntegrationsPath,
+  CODEX_REAUTH_RETURN_TO_STATE_KEY,
   INTEGRATIONS_CATEGORIES,
+  parseCodexReauthIntent,
   parseIntegrationsPath,
 } from "./mainAppPaths/integrations";
 export type {

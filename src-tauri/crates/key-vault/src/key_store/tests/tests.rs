@@ -76,7 +76,7 @@ fn retired_gemini_cli_credentials_do_not_corrupt_the_vault() {
         .unwrap();
     let mut retired = credentials.get(&codex_id).unwrap().clone();
     retired["id"] = serde_json::Value::String("retired-gemini-cli".to_string());
-    retired["model_type"] = serde_json::Value::String("gemini_cli".to_string());
+    retired["agent_type"] = serde_json::Value::String("gemini_cli".to_string());
     credentials.insert("retired-gemini-cli".to_string(), retired);
     std::fs::write(&storage_file, serde_json::to_vec_pretty(&stored).unwrap()).unwrap();
 
@@ -89,6 +89,82 @@ fn retired_gemini_cli_credentials_do_not_corrupt_the_vault() {
         .unwrap();
     let persisted = std::fs::read_to_string(storage_file).unwrap();
     assert!(!persisted.contains("gemini_cli"));
+}
+
+#[test]
+fn invalid_credential_does_not_hide_valid_siblings_and_survives_writes() {
+    let temp_dir = tempdir().unwrap();
+    let service = KeyService::new(Some(temp_dir.path().to_path_buf()));
+
+    let codex_key = ModelKey::new(ModelType::Codex);
+    let codex_id = codex_key.id.clone();
+    service.save_key(codex_key).unwrap();
+
+    let storage_file = temp_dir.path().join("credentials.json");
+    let mut stored: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&storage_file).unwrap()).unwrap();
+    let credentials = stored
+        .get_mut("credentials")
+        .and_then(serde_json::Value::as_object_mut)
+        .unwrap();
+    let mut future_credential = credentials.get(&codex_id).unwrap().clone();
+    future_credential["id"] = serde_json::Value::String("future-account".to_string());
+    future_credential["agent_type"] = serde_json::Value::String("future_provider".to_string());
+    credentials.insert("future-account".to_string(), future_credential.clone());
+    std::fs::write(&storage_file, serde_json::to_vec_pretty(&stored).unwrap()).unwrap();
+
+    let keys = service.list_keys_checked().unwrap();
+    assert_eq!(keys.len(), 1);
+    assert_eq!(keys[0].model_type, ModelType::Codex);
+    assert!(service
+        .get_key_checked(&ModelType::Codex, Some(&codex_id))
+        .unwrap()
+        .is_some());
+    let invalid_error = service.get_key_by_id_checked("future-account").unwrap_err();
+    assert!(invalid_error.contains("is invalid and was preserved"));
+
+    service
+        .save_key(ModelKey::new(ModelType::AnthropicApi))
+        .unwrap();
+    let persisted: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(storage_file).unwrap()).unwrap();
+    assert_eq!(
+        persisted["credentials"]["future-account"],
+        future_credential
+    );
+    assert_eq!(
+        persisted["credentials"].as_object().unwrap().len(),
+        3,
+        "two valid credentials plus the preserved future credential"
+    );
+}
+
+#[test]
+fn checked_list_reports_when_every_credential_is_invalid() {
+    let temp_dir = tempdir().unwrap();
+    let service = KeyService::new(Some(temp_dir.path().to_path_buf()));
+
+    let key = service.save_key(ModelKey::new(ModelType::Codex)).unwrap();
+    let storage_file = temp_dir.path().join("credentials.json");
+    let mut stored: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&storage_file).unwrap()).unwrap();
+    stored["credentials"][&key.id]["agent_type"] =
+        serde_json::Value::String("future_provider".to_string());
+    std::fs::write(&storage_file, serde_json::to_vec_pretty(&stored).unwrap()).unwrap();
+
+    let error = service.list_keys_checked().unwrap_err();
+    assert!(error.contains("No valid credentials could be loaded"));
+    assert!(error.contains("1 invalid credential(s) were preserved"));
+}
+
+#[test]
+fn checked_list_reports_malformed_root_json() {
+    let temp_dir = tempdir().unwrap();
+    let service = KeyService::new(Some(temp_dir.path().to_path_buf()));
+    std::fs::write(temp_dir.path().join("credentials.json"), "{").unwrap();
+
+    let error = service.list_keys_checked().unwrap_err();
+    assert!(error.contains("Corrupted credentials file"));
 }
 
 #[test]
@@ -357,11 +433,10 @@ fn test_update_key_health_preserves_context_window_without_model_refresh() {
     );
 }
 
-/// Debug test to check parsing of real credentials file
+/// E2E coverage for the same tolerant loader used by the Tauri `list_keys`
+/// command. Never print raw file contents: they contain live secrets.
 #[test]
 fn test_parse_real_credentials_file() {
-    use std::fs;
-
     let creds_path = app_paths::keys();
 
     if !creds_path.exists() {
@@ -372,31 +447,10 @@ fn test_parse_real_credentials_file() {
     println!("\n=== Parsing Real Credentials File ===\n");
     println!("Path: {:?}", creds_path);
 
-    let contents = fs::read_to_string(&creds_path).expect("Failed to read file");
-    println!("File size: {} bytes", contents.len());
-
-    // Try to parse
-    match serde_json::from_str::<KeyStore>(&contents) {
-        Ok(store) => {
-            println!("SUCCESS: Parsed {} keys", store.keys.len());
-            for (id, cred) in &store.keys {
-                println!(
-                    "  - [{}] {} ({:?})",
-                    id,
-                    cred.name.as_deref().unwrap_or("unnamed"),
-                    cred.model_type
-                );
-            }
-        }
-        Err(e) => {
-            println!("PARSE ERROR: {}", e);
-            // Try to identify the issue
-            println!(
-                "\nFirst 1000 chars of file:\n{}",
-                &contents[..contents.len().min(1000)]
-            );
-        }
-    }
+    let keys = KEY_SERVICE
+        .list_keys_checked()
+        .expect("production Key Vault loader should read real credentials");
+    println!("SUCCESS: Parsed {} valid keys", keys.len());
 
     println!("\n=== Parse Test Complete ===\n");
 }

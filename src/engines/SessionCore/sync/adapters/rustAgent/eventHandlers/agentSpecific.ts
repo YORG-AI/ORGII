@@ -105,13 +105,16 @@ export function handleTodosUpdated(
     };
   });
 
-  if (todos.length > 0) {
-    store.set(updateTodosForSessionAtom, {
-      sessionId: eventSessionId,
-      todos,
-      merge: false,
-    });
+  if (todos.length === 0) {
+    store.set(clearTodosForSessionAtom, eventSessionId);
+    return;
   }
+
+  store.set(updateTodosForSessionAtom, {
+    sessionId: eventSessionId,
+    todos,
+    merge: false,
+  });
 }
 
 export function handlePermissionRequest(

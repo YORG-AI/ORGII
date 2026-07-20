@@ -5,7 +5,9 @@ import { claudeCodeRecentPaths } from "./sources/claudeCode";
 import { clineRecentPaths } from "./sources/cline";
 import { codexAppRecentPaths } from "./sources/codexApp";
 import { opencodeRecentPaths } from "./sources/opencode";
+import { qoderRecentPaths } from "./sources/qoder";
 import { traeRecentPaths } from "./sources/trae";
+import { warpRecentPaths } from "./sources/warp";
 import { windsurfRecentPaths } from "./sources/windsurf";
 import { workBuddyRecentPaths } from "./sources/workbuddy";
 
@@ -37,6 +39,8 @@ const RECENT_PATH_FETCHERS: Partial<
   workbuddy: () => workBuddyRecentPaths(),
   trae: () => traeRecentPaths(),
   cline: () => clineRecentPaths(),
+  warp: () => warpRecentPaths(),
+  qoder: () => qoderRecentPaths(),
 };
 
 function statsFromRecentPaths(rows: RecentPathLike[]): ExternalSourceStats {

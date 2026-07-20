@@ -72,3 +72,13 @@ on every streamed tick.
 - [ ] No additional `getOrgtrackSessionFinalDiffs` calls fire on each streaming tick.
 - [ ] `reloadKey` derivation and final-diff mapping covered by Vitest.
 - [ ] No new TypeScript errors in touched files; relevant Vitest file passes.
+
+## Diff-stat unification addendum
+
+- Impact summaries keep aggregate additions/deletions as aggregate data; they
+  are not assigned to a synthetic first file.
+- Static `initialData` uses `totalAdditions` / `totalDeletions` as the source of
+  truth, while orgtrack file data continues to sum real per-file values.
+- The visible composer pill uses `DiffStatsBadge`; when both values are zero,
+  it omits both the dot separator and the badge.
+- Pure helper tests cover per-file summation and aggregate-total resolution.

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { IMPORTED_HISTORY_SOURCES } from "@src/api/tauri/externalHistory";
 
+import { dataSourceConfigAtom } from "../../dataSourceConfigAtom";
 import { sessionsAtom } from "../atoms";
 import { loadMoreCategory, loadSidebarSessions } from "../loaders";
 import { sessionPaginationAtom } from "../paginationAtoms";
@@ -157,5 +158,43 @@ describe("loadSidebarSessions", () => {
     expect(lastRequest.buckets).toEqual([
       expect.objectContaining({ bucket: "today", offset: 1, limit: 10 }),
     ]);
+  });
+
+  it("gates a disabled Warp source out of sidebar loading", async () => {
+    mocks.store?.set(dataSourceConfigAtom, {
+      warp: { enabled: false, frequency: "default", lastScannedAt: null },
+    });
+    mocks.sessionAggregateList.mockResolvedValue({ sessions: [] });
+    mocks.externalHistorySidebarList.mockResolvedValue({
+      source: "unused",
+      buckets: [],
+    });
+
+    await loadSidebarSessions({ forceRefresh: true, pageSize: 10 });
+
+    const requestedSources = mocks.externalHistorySidebarList.mock.calls.map(
+      ([request]) => request.source
+    );
+    expect(requestedSources).not.toContain("warp");
+    expect(requestedSources).toHaveLength(IMPORTED_HISTORY_SOURCES.length - 1);
+  });
+
+  it("gates a disabled Qoder source out of sidebar loading", async () => {
+    mocks.store?.set(dataSourceConfigAtom, {
+      qoder: { enabled: false, frequency: "default", lastScannedAt: null },
+    });
+    mocks.sessionAggregateList.mockResolvedValue({ sessions: [] });
+    mocks.externalHistorySidebarList.mockResolvedValue({
+      source: "unused",
+      buckets: [],
+    });
+
+    await loadSidebarSessions({ forceRefresh: true, pageSize: 10 });
+
+    const requestedSources = mocks.externalHistorySidebarList.mock.calls.map(
+      ([request]) => request.source
+    );
+    expect(requestedSources).not.toContain("qoder");
+    expect(requestedSources).toHaveLength(IMPORTED_HISTORY_SOURCES.length - 1);
   });
 });

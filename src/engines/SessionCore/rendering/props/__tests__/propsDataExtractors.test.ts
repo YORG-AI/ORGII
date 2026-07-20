@@ -711,6 +711,26 @@ describe("extractEditData", () => {
       expect(data.linesRemoved).toBe(3);
     });
 
+    it("preserves authoritative zero line stats from successData", () => {
+      const props = makeUniversalProps({
+        args: { file_path: "src/app.ts" },
+        result: {
+          linesAdded: 9,
+          linesRemoved: 7,
+          output: {
+            success: {
+              linesAdded: 0,
+              linesRemoved: 0,
+              diffString: "some diff",
+            },
+          },
+        },
+      });
+      const data = extractEditData(props);
+      expect(data.linesAdded).toBe(0);
+      expect(data.linesRemoved).toBe(0);
+    });
+
     it("extracts beforeFullFileContent and afterFullFileContent from successData", () => {
       const props = makeUniversalProps({
         args: { file_path: "src/app.ts" },

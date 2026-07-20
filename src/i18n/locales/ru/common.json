@@ -555,6 +555,10 @@
     "failedToRenderEvent": "Не удалось отобразить событие",
     "unknown": "Неизвестная ошибка",
     "agentRequestFailed": "Ошибка запроса Agent",
+    "codexLoginExpired": "Срок входа в Codex истёк",
+    "codexLoginExpiredDescription": "Повторно подключите Codex, чтобы восстановить эту учётную запись. После сохранения нового входа вы вернётесь к этому сеансу.",
+    "reconnectCodex": "Повторно подключить Codex",
+    "technicalDetails": "Технические сведения",
     "failedToCopy": "Не удалось скопировать",
     "api": {
       "titles": {

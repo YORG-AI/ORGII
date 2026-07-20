@@ -158,7 +158,7 @@ export function useSessionLaunch(
 
     const validation = validateSessionConfig();
     if (!validation.valid) {
-      showValidationErrors(validation);
+      showValidationErrors(validation, t);
       return false;
     }
 

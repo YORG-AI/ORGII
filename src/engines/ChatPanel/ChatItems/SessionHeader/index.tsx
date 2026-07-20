@@ -19,9 +19,8 @@ interface SessionHeaderProps {
 }
 
 // memo: rendered once at the top of `ChatHistory`, which re-renders on
-// every event tick. `sessionInfo` is produced by `useChatHistoryOptimization`
-// via `useMemo`, so its reference is stable until the underlying
-// `session_start` event changes.
+// every event tick. `sessionInfo` is memoized from the authoritative
+// `session_start` event, so its reference remains stable until that input changes.
 const SessionHeader: React.FC<SessionHeaderProps> = memo(({ sessionInfo }) => {
   const { t } = useTranslation("sessions");
   const model = sessionInfo?.model;

@@ -1,4 +1,3 @@
-import { readDir } from "@tauri-apps/plugin-fs";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -16,8 +15,14 @@ import {
   workstationLayoutAtom,
 } from "@src/store/workstation/tabs";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
-import { toFsPluginPath } from "@src/util/file/pathUtils";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
+
+import {
+  type DirectoryEntryRow,
+  type DirectoryOpenError,
+  classifyDirectoryOpenError,
+  loadDirectoryEntries,
+} from "./directoryExplorerUtils";
 
 const MAX_GIT_META_ENTRIES = 80;
 
@@ -25,12 +30,6 @@ interface DirectoryExplorerContentProps {
   directoryPath: string;
   repoPath: string;
   onFileSelect: (path: string) => void;
-}
-
-interface DirectoryEntryRow {
-  name: string;
-  path: string;
-  type: "directory" | "file";
 }
 
 interface DirectoryEntryGitMeta {
@@ -55,29 +54,6 @@ function getParentPath(path: string): string | null {
   const separatorIndex = normalized.lastIndexOf("/");
   if (separatorIndex <= 0) return null;
   return normalized.slice(0, separatorIndex);
-}
-
-async function loadDirectoryEntries(
-  directoryPath: string
-): Promise<DirectoryEntryRow[]> {
-  // On Windows the repo path arrives canonicalized as `\\?\C:\…`, which the
-  // Tauri fs plugin can't read (readDir returns nothing → "top level but no
-  // children"). Strip the verbatim prefix before reading, and build child
-  // paths from the cleaned dir so they're usable too.
-  const dir = toFsPluginPath(directoryPath).replace(/\/+$/, "");
-  const entries = await readDir(dir);
-  return entries
-    .map((entry) => ({
-      name: entry.name,
-      path: `${dir}/${entry.name}`,
-      type: entry.isDirectory ? ("directory" as const) : ("file" as const),
-    }))
-    .sort((left, right) => {
-      if (left.type !== right.type) {
-        return left.type === "directory" ? -1 : 1;
-      }
-      return left.name.localeCompare(right.name);
-    });
 }
 
 async function loadEntryGitMeta(
@@ -138,7 +114,8 @@ const DirectoryExplorerContent: React.FC<DirectoryExplorerContentProps> = memo(
       Map<string, DirectoryEntryGitMeta>
     >(new Map());
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState<DirectoryOpenError | null>(null);
+    const [reloadToken, setReloadToken] = useState(0);
 
     const relativePath = useMemo(
       () => toRelativePath(directoryPath, repoPath),
@@ -182,11 +159,7 @@ const DirectoryExplorerContent: React.FC<DirectoryExplorerContentProps> = memo(
         })
         .catch((loadError: unknown) => {
           if (cancelled) return;
-          const message =
-            loadError instanceof Error
-              ? loadError.message
-              : t("cards.path.openFailed");
-          setError(message);
+          setError(classifyDirectoryOpenError(loadError));
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
@@ -195,7 +168,13 @@ const DirectoryExplorerContent: React.FC<DirectoryExplorerContentProps> = memo(
       return () => {
         cancelled = true;
       };
-    }, [directoryPath, repoPath, t]);
+    }, [directoryPath, reloadToken, repoPath]);
+
+    const handleRetry = useCallback(() => {
+      setLoading(true);
+      setError(null);
+      setReloadToken((value) => value + 1);
+    }, []);
 
     const handleOpenItem = useCallback(
       (item: DirectoryListItem) => {
@@ -281,6 +260,37 @@ const DirectoryExplorerContent: React.FC<DirectoryExplorerContentProps> = memo(
     }
 
     if (error) {
+      const genericMessages = new Set([
+        "failed to open path",
+        t("cards.path.openFailed").toLowerCase(),
+      ]);
+      const errorPresentation = (() => {
+        switch (error.kind) {
+          case "not_found":
+            return {
+              title: t("cards.path.directoryNotFound"),
+              subtitle: t("cards.path.directoryNotFoundHint"),
+            };
+          case "not_directory":
+            return {
+              title: t("cards.path.notDirectory"),
+              subtitle: t("cards.path.notDirectoryHint"),
+            };
+          case "permission":
+            return {
+              title: t("cards.path.permissionDenied"),
+              subtitle: t("cards.path.permissionDeniedHint"),
+            };
+          default:
+            return {
+              title: t("cards.path.openFailed"),
+              subtitle: genericMessages.has(error.message.toLowerCase())
+                ? t("cards.path.openFailedHint")
+                : error.message,
+            };
+        }
+      })();
+
       return (
         <>
           <FileHeader
@@ -296,8 +306,17 @@ const DirectoryExplorerContent: React.FC<DirectoryExplorerContentProps> = memo(
           <Placeholder
             variant="error"
             placement="detail-panel"
-            title={t("cards.path.openFailed")}
-            subtitle={error}
+            title={errorPresentation.title}
+            subtitle={errorPresentation.subtitle}
+            action={
+              error.kind === "not_directory"
+                ? {
+                    label: t("cards.path.openAsFile"),
+                    onClick: () => onFileSelect(directoryPath),
+                  }
+                : undefined
+            }
+            onRetry={error.kind === "not_directory" ? undefined : handleRetry}
             fillParentHeight
           />
         </>

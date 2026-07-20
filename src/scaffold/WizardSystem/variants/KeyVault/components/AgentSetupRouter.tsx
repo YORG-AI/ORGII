@@ -52,6 +52,7 @@ interface AgentSetupRouterProps extends AgentSetupProps {
   handleSessionTokenCaptured: (sessionToken: string) => void;
   handleUrlChange: (url: string) => void;
   hasSessionToken: boolean;
+  autoStartCodexLogin?: boolean;
 }
 
 /**
@@ -77,6 +78,7 @@ export const AgentSetupRouter: React.FC<AgentSetupRouterProps> = ({
   handleSessionTokenCaptured,
   handleUrlChange,
   hasSessionToken,
+  autoStartCodexLogin,
   ...sharedProps
 }) => {
   const { onChange } = sharedProps;
@@ -121,6 +123,7 @@ export const AgentSetupRouter: React.FC<AgentSetupRouterProps> = ({
           onDetectToken={sharedProps.onAutoDetect ?? (() => {})}
           onClearTokenError={clearTokenError}
           preselectedMethod={isComplex ? setupMethod : undefined}
+          autoStartLogin={autoStartCodexLogin}
           onSessionCaptured={async (values: CodexSessionValues) => {
             const catalog = await getOAuthModelCatalog(CLI_AGENT.CODEX);
             let discoveredModels: string[] = [];
@@ -145,7 +148,7 @@ export const AgentSetupRouter: React.FC<AgentSetupRouterProps> = ({
                 ? defaultEnabledModels
                 : codexModels.slice(0, 1);
             onChange({
-              name: "OpenAI",
+              name: sharedProps.data.name || "OpenAI",
               auth_method: "oauth",
               oauth_session_token: values.accessToken,
               raw_key_input: "",

@@ -48,6 +48,8 @@ export interface UseLocalKeysReturn {
   keysByAgentType: Map<ModelType, KeyInfo>;
   /** Loading state */
   loading: boolean;
+  /** Whether the initial key-store load has completed at least once. */
+  hasLoaded: boolean;
   /** Error message */
   error: string | null;
   /** Reload keys from the store */
@@ -94,6 +96,7 @@ export function useLocalKeys(
   // State
   const [allKeys, setAllKeys] = useState<KeyInfo[]>(sharedAllKeys);
   const [loading, setLoading] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(sharedAllKeys.length > 0);
   const [error, setError] = useState<string | null>(null);
 
   // Track in-flight validations to prevent duplicates
@@ -129,6 +132,7 @@ export function useLocalKeys(
       const keys = await listKeys();
       publishAllKeys(keys);
       replaceModelAliasesFromKeys(keys);
+      setHasLoaded(true);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
@@ -412,6 +416,7 @@ export function useLocalKeys(
     allKeys,
     keysByAgentType,
     loading,
+    hasLoaded,
     error,
     refreshAgents,
     saveKey: saveKeyFn,

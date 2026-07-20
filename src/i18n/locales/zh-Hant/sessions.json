@@ -2717,7 +2717,15 @@
       "type": "類型",
       "directory": "目錄",
       "file": "檔案",
-      "emptyDirectory": "空目錄"
+      "emptyDirectory": "空目錄",
+      "openFailedHint": "Check that the path still exists and is readable, then try again.",
+      "directoryNotFound": "Directory not found",
+      "directoryNotFoundHint": "It may have been moved, deleted, or created in another workspace.",
+      "notDirectory": "This path is not a directory",
+      "notDirectoryHint": "The path points to a file. Open it as a file instead.",
+      "permissionDenied": "Permission denied",
+      "permissionDeniedHint": "ORGII cannot read this directory. Check its access permissions.",
+      "openAsFile": "Open as file"
     }
   },
   "codePreview": {

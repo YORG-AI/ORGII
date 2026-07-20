@@ -27,7 +27,7 @@
     "clean:cache": "rm -rf node_modules/.cache",
     "clean:cargo": "./scripts/maintenance/cargo-cleanup.sh",
     "clean:cargo:full": "./scripts/maintenance/cargo-cleanup.sh --full",
-    "analyze": "webpack --mode production --profile --json > build/stats.json && webpack-bundle-analyzer build/stats.json",
+    "analyze": "ORGII_ANALYZE=true webpack --mode production",
     "typecheck": "tsc --noEmit --pretty false",
     "lint": "eslint src/ --ext .ts,.tsx,.js,.jsx",
     "lint:fix": "eslint src/ --ext .ts,.tsx,.js,.jsx --fix",

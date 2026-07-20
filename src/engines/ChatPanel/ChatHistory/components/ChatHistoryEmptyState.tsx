@@ -25,6 +25,8 @@ interface ChatHistoryEmptyStateProps {
   shouldShowEmpty: boolean;
   /** True if the session view was rolled back (cancel-before-output). */
   isRolledBack: boolean;
+  /** True while a large history is being projected in the Web Worker. */
+  projectionPending?: boolean;
   /** Called when the user clicks the "Reload" action. */
   onReload: () => void;
 }
@@ -36,9 +38,14 @@ const ChatHistoryEmptyState: React.FC<ChatHistoryEmptyStateProps> = memo(
     emptyConfirmed,
     shouldShowEmpty,
     isRolledBack,
+    projectionPending = false,
     onReload,
   }) => {
     const { t } = useTranslation();
+
+    if (projectionPending) {
+      return <Placeholder variant="loading" placement="sidebar" />;
+    }
 
     if (sessionLoadStatus === "error") {
       return (

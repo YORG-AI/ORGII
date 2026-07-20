@@ -12,7 +12,6 @@ export {
   extractShellData,
   extractSearchData,
   extractTodoData,
-  parseUnifiedDiffToOldNew,
   stripLineNumberPrefixes,
 } from "./propsDataExtractors";
 

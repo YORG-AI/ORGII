@@ -17,9 +17,11 @@ export * from "./imported";
 export * from "./sources/claudeCode";
 export * from "./sources/codexApp";
 export * from "./sources/opencode";
+export * from "./sources/qoder";
 export * from "./sources/trae";
 export * from "./sources/windsurf";
 export * from "./sources/workbuddy";
+export * from "./sources/warp";
 
 export interface ExternalHistoryImportedRepo {
   repoId: string;

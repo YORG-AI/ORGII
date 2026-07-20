@@ -69,7 +69,7 @@
     "updater": {
       "active": true,
       "endpoints": [
-        "https://github.com/YORG-AI/ORGII/releases/latest/download/latest.json"
+        "https://github.com/yorgai/ORG2/releases/latest/download/latest.json"
       ],
       "dialog": false,
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDExNEQ5NjIzMjA1ODI5OUMKUldTY0tWZ2dJNVpORWFiWXB3NW5UaWwyOHVxRXhzVmRVbXl2WktZNnhiN2tqcXlVY3gxTTlPV3EK"

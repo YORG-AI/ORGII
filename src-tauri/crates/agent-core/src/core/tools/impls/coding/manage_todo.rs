@@ -291,15 +291,16 @@ Skip this tool when:\n\
     async fn execute_text(
         &self,
         params: Value,
-        _ctx: &crate::tools::traits::CallContext,
+        ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
         let action = required_string(&params, "action")?;
+        let session_id = self.session_id(ctx).await?;
 
         match action.as_str() {
-            "write" => self.exec_write(&params).await,
-            "update" => self.exec_update(&params).await,
-            "read" => self.exec_read().await,
-            "list_ready" => self.exec_list_ready().await,
+            "write" => self.exec_write(&session_id, &params).await,
+            "update" => self.exec_update(&session_id, &params).await,
+            "read" => self.exec_read(&session_id).await,
+            "list_ready" => self.exec_list_ready(&session_id).await,
             other => Err(ToolError::InvalidParams(format!(
                 "Unknown todo action: \"{}\". Use \"write\", \"update\", \"read\", or \"list_ready\".",
                 other
@@ -338,7 +339,17 @@ fn parse_embedded_todo_array(result: &str) -> Option<Vec<Value>> {
 }
 
 impl TodoTool {
-    async fn session_id(&self) -> Result<String, ToolError> {
+    /// Resolve attribution from the per-call context first. Production dispatch
+    /// always populates it, so concurrent child sessions cannot overwrite the
+    /// parent through the legacy registry-wide `set_session_key` slot.
+    async fn session_id(
+        &self,
+        ctx: &crate::tools::traits::CallContext,
+    ) -> Result<String, ToolError> {
+        if !ctx.session_id.is_empty() {
+            return Ok(ctx.session_id.clone());
+        }
+
         self.context
             .session_id
             .lock()
@@ -347,9 +358,7 @@ impl TodoTool {
             .ok_or_else(|| ToolError::ExecutionFailed("No session context set".into()))
     }
 
-    async fn exec_write(&self, params: &Value) -> Result<String, ToolError> {
-        let session_id = self.session_id().await?;
-
+    async fn exec_write(&self, session_id: &str, params: &Value) -> Result<String, ToolError> {
         let todos_raw = params
             .get("todos")
             .and_then(|v| v.as_array())
@@ -398,7 +407,7 @@ impl TodoTool {
             });
         }
 
-        let sid = session_id.clone();
+        let sid = session_id.to_string();
         let records_clone = records.clone();
         tokio::task::spawn_blocking(move || todo_persistence::save_todos(&sid, &records_clone))
             .await
@@ -410,9 +419,7 @@ impl TodoTool {
         Ok(render_result(&records, TodoAction::Wrote))
     }
 
-    async fn exec_update(&self, params: &Value) -> Result<String, ToolError> {
-        let session_id = self.session_id().await?;
-
+    async fn exec_update(&self, session_id: &str, params: &Value) -> Result<String, ToolError> {
         let index = params
             .get("index")
             .and_then(|v| v.as_u64())
@@ -454,7 +461,7 @@ impl TodoTool {
                 }),
         };
 
-        let sid = session_id.clone();
+        let sid = session_id.to_string();
         let patch_clone = patch.clone();
         let existed = tokio::task::spawn_blocking(move || {
             todo_persistence::update_todo(&sid, index, &patch_clone)
@@ -473,7 +480,7 @@ impl TodoTool {
         // Refetch the full list so the broadcast + nudge reflect the new
         // state without racing a separate read. Cheap: session todo lists
         // are small (rarely over ~20 rows).
-        let sid2 = session_id.clone();
+        let sid2 = session_id.to_string();
         let records = tokio::task::spawn_blocking(move || todo_persistence::get_todos(&sid2))
             .await
             .map_err(|err| ToolError::ExecutionFailed(format!("Join error: {}", err)))?
@@ -484,10 +491,9 @@ impl TodoTool {
         Ok(render_result(&records, TodoAction::Updated(index)))
     }
 
-    async fn exec_read(&self) -> Result<String, ToolError> {
-        let session_id = self.session_id().await?;
-
-        let records = tokio::task::spawn_blocking(move || todo_persistence::get_todos(&session_id))
+    async fn exec_read(&self, session_id: &str) -> Result<String, ToolError> {
+        let sid = session_id.to_string();
+        let records = tokio::task::spawn_blocking(move || todo_persistence::get_todos(&sid))
             .await
             .map_err(|err| ToolError::ExecutionFailed(format!("Join error: {}", err)))?
             .map_err(|err| ToolError::ExecutionFailed(format!("DB error: {}", err)))?;
@@ -499,14 +505,12 @@ impl TodoTool {
         Ok(render_result(&records, TodoAction::Read))
     }
 
-    async fn exec_list_ready(&self) -> Result<String, ToolError> {
-        let session_id = self.session_id().await?;
-
-        let all_records =
-            tokio::task::spawn_blocking(move || todo_persistence::get_todos(&session_id))
-                .await
-                .map_err(|err| ToolError::ExecutionFailed(format!("Join error: {}", err)))?
-                .map_err(|err| ToolError::ExecutionFailed(format!("DB error: {}", err)))?;
+    async fn exec_list_ready(&self, session_id: &str) -> Result<String, ToolError> {
+        let sid = session_id.to_string();
+        let all_records = tokio::task::spawn_blocking(move || todo_persistence::get_todos(&sid))
+            .await
+            .map_err(|err| ToolError::ExecutionFailed(format!("Join error: {}", err)))?
+            .map_err(|err| ToolError::ExecutionFailed(format!("DB error: {}", err)))?;
 
         if all_records.is_empty() {
             return Ok("No todos for this session.".to_string());
@@ -675,6 +679,35 @@ mod tests {
         assert_eq!(
             sanitize_optional_todo_content(" Update docs "),
             Some("Update docs".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn call_context_session_wins_over_shared_registry_session() {
+        let context = std::sync::Arc::new(super::TodoSessionContext::new());
+        let tool = super::TodoTool::new(std::sync::Arc::clone(&context));
+        *context.session_id.lock().await = Some("child-session".to_string());
+
+        let call_ctx =
+            crate::tools::call_context::CallContext::new("call-parent", "parent-session");
+
+        assert_eq!(
+            tool.session_id(&call_ctx).await.expect("session id"),
+            "parent-session"
+        );
+    }
+
+    #[tokio::test]
+    async fn stored_session_remains_fallback_for_direct_callers() {
+        let context = std::sync::Arc::new(super::TodoSessionContext::new());
+        let tool = super::TodoTool::new(std::sync::Arc::clone(&context));
+        *context.session_id.lock().await = Some("direct-session".to_string());
+
+        assert_eq!(
+            tool.session_id(&crate::tools::call_context::CallContext::default())
+                .await
+                .expect("fallback session id"),
+            "direct-session"
         );
     }
 

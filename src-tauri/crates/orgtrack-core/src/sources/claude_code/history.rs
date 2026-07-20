@@ -816,7 +816,11 @@ fn normalize_edit_args(raw_name: &str, args: Value) -> Value {
     // result-pairing time (see `apply_claude_edit_diff`), and keeping old/new off
     // the args lets the frontend render that context-rich diff rather than a bare
     // old_string→new_string snippet.
-    let action = if raw_name == "Write" { "create" } else { "edit" };
+    let action = if raw_name == "Write" {
+        "create"
+    } else {
+        "edit"
+    };
     json!({
         "action": action,
         "file_path": file_path,

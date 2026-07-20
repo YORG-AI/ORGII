@@ -10,6 +10,7 @@ const TerserPlugin = require("terser-webpack-plugin");
 const CssMinimizerPlugin = require("css-minimizer-webpack-plugin");
 const { EsbuildPlugin } = require("esbuild-loader");
 const { CleanWebpackPlugin } = require("clean-webpack-plugin");
+const { BundleAnalyzerPlugin } = require("webpack-bundle-analyzer");
 
 // ForkTsCheckerWebpackPlugin removed - causes memory issues with large codebase
 // Type checking handled by IDE; transpileOnly: true provides fast builds
@@ -517,6 +518,13 @@ module.exports = (env, argv) => {
       // CleanWebpackPlugin: only needed for production builds.
       // Dev server uses in-memory FS; output.clean handles the rest.
       isProduction && new CleanWebpackPlugin(),
+      process.env.ORGII_ANALYZE === "true" &&
+        new BundleAnalyzerPlugin({
+          analyzerMode: "static",
+          reportFilename: "bundle-report.html",
+          defaultSizes: "parsed",
+          openAnalyzer: false,
+        }),
       // Main app HTML
       new HtmlWebpackPlugin({
         template: "./public/index.html",

@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import unittest
+import urllib.error
 from pathlib import Path
 from unittest.mock import patch
 
@@ -58,6 +59,8 @@ class HookPluginPrivacyTest(unittest.TestCase):
 class HookPluginEndpointTest(unittest.TestCase):
     def setUp(self) -> None:
         hook._CURRENT_SESSION_ID = ""
+        hook._RUNTIME_PLATFORM = ""
+        hook._CALLBACK_COOLDOWN_UNTIL = 0.0
 
     def test_integrated_environment_takes_priority(self) -> None:
         env = {
@@ -123,6 +126,52 @@ class HookPluginEndpointTest(unittest.TestCase):
             _session_identity({"task_id": "tool-task"}),
             "session-a",
         )
+
+    def test_gateway_process_events_are_not_forwarded(self) -> None:
+        with patch.object(
+            hook, "_hook_target", return_value=("http://orgii", "token", "")
+        ), patch.object(hook.urllib.request, "urlopen") as urlopen:
+            hook._post_event(
+                "on_session_start",
+                {"session_id": "gateway-session", "platform": "telegram"},
+            )
+            hook._post_event(
+                "pre_tool_call",
+                {"session_id": "gateway-session", "tool_name": "terminal"},
+            )
+
+        urlopen.assert_not_called()
+
+    def test_gateway_approval_surface_is_not_forwarded(self) -> None:
+        with patch.object(
+            hook, "_hook_target", return_value=("http://orgii", "token", "")
+        ), patch.object(hook.urllib.request, "urlopen") as urlopen:
+            hook._post_event(
+                "pre_approval_request",
+                {"session_key": "gateway-session", "surface": "gateway"},
+            )
+
+        urlopen.assert_not_called()
+
+    def test_failed_callback_temporarily_suppresses_retries(self) -> None:
+        with patch.object(
+            hook, "_hook_target", return_value=("http://orgii", "token", "")
+        ), patch.object(
+            hook.urllib.request,
+            "urlopen",
+            side_effect=urllib.error.URLError("offline"),
+        ) as urlopen:
+            hook._post_event("on_session_start", {"session_id": "session-a"})
+            hook._post_event("pre_llm_call", {"session_id": "session-a"})
+
+        self.assertEqual(urlopen.call_count, 1)
+
+    def test_finalize_clears_identity_without_a_callback_target(self) -> None:
+        hook._CURRENT_SESSION_ID = "session-a"
+        with patch.object(hook, "_hook_target", return_value=("", "", "")):
+            hook._post_event("on_session_finalize", {})
+
+        self.assertEqual(hook._CURRENT_SESSION_ID, "")
 
 
 if __name__ == "__main__":

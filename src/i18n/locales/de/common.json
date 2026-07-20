@@ -529,6 +529,10 @@
     "failedToRenderEvent": "Ereignis konnte nicht gerendert werden",
     "unknown": "Unbekannter Fehler",
     "agentRequestFailed": "Agent-Anfrage fehlgeschlagen",
+    "codexLoginExpired": "Codex-Anmeldung abgelaufen",
+    "codexLoginExpiredDescription": "Verbinde Codex erneut, um dieses Konto zu reparieren. Nach dem Speichern der neuen Anmeldung kehrst du zu dieser Sitzung zurück.",
+    "reconnectCodex": "Codex erneut verbinden",
+    "technicalDetails": "Technische Details",
     "failedToCopy": "Kopieren fehlgeschlagen",
     "api": {
       "titles": {
