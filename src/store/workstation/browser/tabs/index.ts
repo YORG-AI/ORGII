@@ -5,11 +5,13 @@
  * - Browser sessions (webview tabs)
  * - Token categories (design tokens)
  *
- * All workstation tabs live in the single `workstationLayoutAtom.mainPane`
- * pool. The atoms exported from this module are **derived views / writers**
- * that slice that single source of truth down to the browser-family tabs,
- * keeping their public names and signatures stable so existing consumers
- * do not need to change.
+ * Browser-session and token-category tabs are shared WorkStation resources.
+ * `workstationLayoutAtom` is the compatibility projection for the currently
+ * presented agent workspace; its split writer routes browser-family changes
+ * back to the canonical shared partition. Consequently, changing the
+ * presented agent workspace changes only that workspace's active selection —
+ * it never removes browser resources or makes a workspace switch look like a
+ * browser-tab close.
  */
 import { atom } from "jotai";
 

@@ -24,8 +24,8 @@ import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { dockFilterAtom } from "@src/store/workstation";
 import {
   createFileTab,
-  openTab,
-  workstationLayoutAtom,
+  openWorkstationTabAtom,
+  presentedWorkstationWorkspaceKeyAtom,
 } from "@src/store/workstation/tabs";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
@@ -61,8 +61,6 @@ export function openFileInWorkStation(
     targetLine: options?.line,
     defaultPreviewMode: options?.defaultPreviewMode,
   });
-  store.set(workstationLayoutAtom, (prev) => ({
-    ...prev,
-    mainPane: openTab(prev?.mainPane ?? { tabs: [], activeTabId: null }, tab),
-  }));
+  const workspace = store.get(presentedWorkstationWorkspaceKeyAtom);
+  store.set(openWorkstationTabAtom, { workspace, tab });
 }

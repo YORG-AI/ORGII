@@ -1,64 +1,91 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { consumePendingFileOpens, queueFileOpens } from "../pendingFileOpens";
+import {
+  clearPendingFileOpensForSession,
+  consumePendingFileOpens,
+  queueFileOpens,
+} from "../pendingFileOpens";
+
+const GLOBAL = { kind: "global" } as const;
+const SESSION_A = { kind: "session", sessionId: "session-a" } as const;
+const SESSION_B = { kind: "session", sessionId: "session-b" } as const;
 
 afterEach(() => {
-  // Always drain the queue so test isolation is preserved.
-  consumePendingFileOpens();
+  consumePendingFileOpens(GLOBAL);
+  consumePendingFileOpens(SESSION_A);
+  consumePendingFileOpens(SESSION_B);
 });
 
-describe("queueFileOpens / consumePendingFileOpens", () => {
+describe("workspace-scoped pending file opens", () => {
   it("returns an empty array when nothing was queued", () => {
-    expect(consumePendingFileOpens()).toEqual([]);
+    expect(consumePendingFileOpens(GLOBAL)).toEqual([]);
   });
 
-  it("returns queued files and empties the queue", () => {
-    queueFileOpens([
+  it("captures a workspace with the queued files", () => {
+    queueFileOpens(SESSION_A, [
       { path: "/foo/bar.ts" },
       { path: "/foo/baz.ts", line: 10 },
     ]);
-    const result = consumePendingFileOpens();
-    expect(result).toEqual([
+
+    expect(consumePendingFileOpens(SESSION_B)).toEqual([]);
+    expect(consumePendingFileOpens(SESSION_A)).toEqual([
       { path: "/foo/bar.ts" },
       { path: "/foo/baz.ts", line: 10 },
     ]);
   });
 
-  it("clears the queue after consume so a second consume returns empty", () => {
-    queueFileOpens([{ path: "/a.ts" }]);
-    consumePendingFileOpens();
-    expect(consumePendingFileOpens()).toEqual([]);
+  it("empties only the consumed workspace queue", () => {
+    queueFileOpens(SESSION_A, [{ path: "/a.ts" }]);
+    queueFileOpens(SESSION_B, [{ path: "/b.ts" }]);
+
+    expect(consumePendingFileOpens(SESSION_A)).toEqual([{ path: "/a.ts" }]);
+    expect(consumePendingFileOpens(SESSION_A)).toEqual([]);
+    expect(consumePendingFileOpens(SESSION_B)).toEqual([{ path: "/b.ts" }]);
   });
 
-  it("replaces the queue on successive calls to queueFileOpens", () => {
-    queueFileOpens([{ path: "/first.ts" }]);
-    queueFileOpens([{ path: "/second.ts" }]);
-    const result = consumePendingFileOpens();
-    expect(result).toHaveLength(1);
-    expect(result[0].path).toBe("/second.ts");
+  it("replaces successive queues only within the same workspace", () => {
+    queueFileOpens(SESSION_A, [{ path: "/first.ts" }]);
+    queueFileOpens(SESSION_B, [{ path: "/other.ts" }]);
+    queueFileOpens(SESSION_A, [{ path: "/second.ts" }]);
+
+    expect(consumePendingFileOpens(SESSION_A)).toEqual([
+      { path: "/second.ts" },
+    ]);
+    expect(consumePendingFileOpens(SESSION_B)).toEqual([{ path: "/other.ts" }]);
   });
 
-  it("handles a single file with no line number", () => {
-    queueFileOpens([{ path: "/only.ts" }]);
-    const [file] = consumePendingFileOpens();
-    expect(file.path).toBe("/only.ts");
-    expect(file.line).toBeUndefined();
+  it("clears only pending requests owned by a disposed session", () => {
+    queueFileOpens(SESSION_A, [{ path: "/a.ts" }]);
+    queueFileOpens(SESSION_B, [{ path: "/b.ts" }]);
+    queueFileOpens(GLOBAL, [{ path: "/global.ts" }]);
+
+    clearPendingFileOpensForSession("session-a");
+
+    expect(consumePendingFileOpens(SESSION_A)).toEqual([]);
+    expect(consumePendingFileOpens(SESSION_B)).toEqual([{ path: "/b.ts" }]);
+    expect(consumePendingFileOpens(GLOBAL)).toEqual([{ path: "/global.ts" }]);
   });
 
-  it("handles a large queue without data loss", () => {
-    const files = Array.from({ length: 100 }, (_, idx) => ({
-      path: `/file-${idx}.ts`,
-      line: idx + 1,
+  it("queueing an empty list clears only that workspace", () => {
+    queueFileOpens(SESSION_A, [{ path: "/a.ts" }]);
+    queueFileOpens(SESSION_B, [{ path: "/b.ts" }]);
+
+    queueFileOpens(SESSION_A, []);
+
+    expect(consumePendingFileOpens(SESSION_A)).toEqual([]);
+    expect(consumePendingFileOpens(SESSION_B)).toEqual([{ path: "/b.ts" }]);
+  });
+
+  it("handles a large workspace queue without data loss", () => {
+    const files = Array.from({ length: 100 }, (_, index) => ({
+      path: `/file-${index}.ts`,
+      line: index + 1,
     }));
-    queueFileOpens(files);
-    const result = consumePendingFileOpens();
-    expect(result).toHaveLength(100);
-    expect(result[99].path).toBe("/file-99.ts");
-    expect(result[99].line).toBe(100);
-  });
 
-  it("handles queueing an empty array", () => {
-    queueFileOpens([]);
-    expect(consumePendingFileOpens()).toEqual([]);
+    queueFileOpens(SESSION_A, files);
+    const result = consumePendingFileOpens(SESSION_A);
+
+    expect(result).toHaveLength(100);
+    expect(result[99]).toEqual({ path: "/file-99.ts", line: 100 });
   });
 });
