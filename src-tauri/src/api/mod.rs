@@ -9,6 +9,7 @@
 pub mod agent;
 pub mod agent_approval_ingest;
 pub mod agent_status_ingest;
+pub mod hermes_hook;
 mod server;
 pub mod websocket_handler;
 
