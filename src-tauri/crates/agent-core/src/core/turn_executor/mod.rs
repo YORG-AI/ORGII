@@ -390,8 +390,7 @@ pub async fn execute_turn(
             session_id
         );
 
-        let stream_normalizer = Arc::new(std::sync::Mutex::new(TurnStreamNormalizer::new()));
-        let stream_normalizer_for_cb = stream_normalizer.clone();
+        let stream_normalizer_for_cb = std::sync::Mutex::new(TurnStreamNormalizer::new());
 
         provider.set_session_context(session_id);
 

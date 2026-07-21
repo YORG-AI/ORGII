@@ -43,7 +43,7 @@ impl TurnStreamNormalizer {
     }
 
     pub(crate) fn ingest_delta(&mut self, delta: StreamDelta) -> Vec<NormalizedStreamEvent> {
-        let mut events = Vec::new();
+        let mut events = Vec::with_capacity(1);
         if let Some(text) = delta.content {
             events.extend(self.ingest_event(ProviderStreamEvent::MessageDelta { text }));
         }
@@ -68,7 +68,7 @@ impl TurnStreamNormalizer {
         &mut self,
         event: ProviderStreamEvent,
     ) -> Vec<NormalizedStreamEvent> {
-        let mut events = Vec::new();
+        let mut events = Vec::with_capacity(2);
         match event {
             ProviderStreamEvent::MessageDelta { text } => {
                 if !text.is_empty() {
@@ -178,6 +178,7 @@ mod tests {
         });
 
         assert_eq!(events.len(), 2);
+        assert!(events.capacity() >= 2);
         assert!(matches!(
             events[0],
             NormalizedStreamEvent::FlushSegment(FlushReason::BeforeTool)

@@ -320,9 +320,11 @@ pub(super) async fn run_chat_streaming(
 
         buffer.push_str(&String::from_utf8_lossy(&chunk));
 
-        while let Some(line_end) = buffer.find('\n') {
-            let line = buffer[..line_end].trim().to_string();
-            buffer = buffer[line_end + 1..].to_string();
+        let mut consumed = 0usize;
+        while let Some(relative_end) = buffer[consumed..].find('\n') {
+            let line_end = consumed + relative_end;
+            let line = buffer[consumed..line_end].trim();
+            consumed = line_end + 1;
 
             if line.is_empty() || line.starts_with(':') {
                 continue;
@@ -522,6 +524,9 @@ pub(super) async fn run_chat_streaming(
                 final_usage.insert("completion_tokens".to_string(), usage.completion_tokens);
                 final_usage.insert("total_tokens".to_string(), usage.total_tokens);
             }
+        }
+        if consumed > 0 {
+            buffer.drain(..consumed);
         }
         if stream_done {
             break;
