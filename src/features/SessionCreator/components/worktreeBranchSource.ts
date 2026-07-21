@@ -55,6 +55,15 @@ export interface RawGitBranch {
   last_commit_date?: string;
 }
 
+export function sourceKey(source: WorktreeLaunchSource): string {
+  return [
+    source.kind,
+    source.sourceRef ?? "",
+    source.baseBranch ?? "",
+    source.label,
+  ].join(":");
+}
+
 /**
  * Map raw `getGitBranches` rows to `WorktreeBranchOption`s. Drops entries
  * without a usable name and de-duplicates by name (keeping the first, which —

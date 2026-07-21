@@ -9,6 +9,7 @@ import {
   groupBranchOptions,
   shouldOfferCustomRef,
   sortBranchOptions,
+  sourceKey,
   toBranchOptions,
 } from "../worktreeBranchSource";
 
@@ -31,6 +32,19 @@ describe("compactText", () => {
   it("truncates to (limit - 1) chars plus an ellipsis beyond the limit", () => {
     expect(compactText("x".repeat(60), 10)).toBe(`${"x".repeat(9)}...`);
     expect(compactText("x".repeat(60), 10).endsWith("...")).toBe(true);
+  });
+});
+
+describe("sourceKey", () => {
+  it("includes every field that distinguishes a launch source", () => {
+    expect(
+      sourceKey({
+        kind: "branch",
+        label: "main",
+        sourceRef: "branch:main",
+        baseBranch: "main",
+      })
+    ).toBe("branch:branch:main:main:main");
   });
 });
 

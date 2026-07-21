@@ -95,8 +95,6 @@ export interface WorkItemsPageProps {
   onSetUnsaved?: (unsaved: boolean) => void;
   /** Notify parent tab system when the project title changes */
   onProjectNameUpdated?: (projectName: string) => void;
-  /** Navigate to the repo-level Projects list. */
-  onOpenProjects?: () => void;
   /** Navigate to repo-level settings (Projects > Settings tab) */
   onOpenRepoSettings?: () => void;
   /** Open a work item in its own dedicated tab (carries unsaved changes) */
@@ -144,7 +142,6 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
   onProjectDeleted,
   onSetUnsaved,
   onProjectNameUpdated,
-  onOpenProjects,
   onOpenRepoSettings,
   onExpandWorkItemToTab,
   onEmbeddedWorkItemNameUpdated,
@@ -520,10 +517,8 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
         <WorkItemsPageHeader
           projectName={headerTitle}
           breadcrumbSegments={breadcrumbSegments}
-          onOpenProjects={onOpenProjects}
           activeTab={state.activeTab}
           leadingControls={projectSurfaceControls}
-          onTabChange={handleHeaderTabChange}
           statusFilter={isWorkItemsSurface ? state.statusFilter : undefined}
           onStatusFilterChange={
             isWorkItemsSurface

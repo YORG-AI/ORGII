@@ -6,7 +6,10 @@ import {
   type KanbanColumnConfig,
   type KanbanTask,
 } from "@src/features/KanbanBoard";
-import type { StatusCounts } from "@src/modules/ProjectManager/WorkItems/components/WorkItemsPageHeader";
+import type {
+  StatusCounts,
+  StatusFilterType,
+} from "@src/modules/ProjectManager/WorkItems/types";
 import {
   GITHUB_ISSUE_STATUS_OPTIONS,
   WORK_ITEM_STATUS_OPTIONS,
@@ -24,7 +27,6 @@ import {
   STATUS_FILTER_KEYS,
   WORK_ITEMS_DEFAULT_STATUS,
 } from "./types";
-import type { StatusFilterType } from "./types";
 
 export type WorkItemGroupStatus = WorkItemStatus | "deleted";
 

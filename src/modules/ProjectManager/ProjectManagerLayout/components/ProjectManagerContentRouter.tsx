@@ -58,7 +58,6 @@ export function ProjectManagerContentRouter({
   onSelectProject,
   onCreateProject,
   onCreateWorkItem,
-  onOpenProjects,
   onOpenLinearProjects,
   onOpenRepoSettings,
   onExpandWorkItemToTab,
@@ -159,7 +158,6 @@ export function ProjectManagerContentRouter({
                       getProjectWorkItemsTabChrome(projectName)
                     );
                   }}
-                  onOpenProjects={onOpenProjects}
                   onCreateProject={onCreateProject}
                   onEmbeddedWorkItemDetailStateChange={(tabId, state) =>
                     onEmbeddedWorkItemDetailStateChange(

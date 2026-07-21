@@ -25,7 +25,6 @@ import type { ProjectDraft } from "./types";
 import type { LinearProjectGroup } from "./useLinearIndexData";
 
 const EMPTY_WORK_ITEM_ID_SET = new Set<string>();
-const LINEAR_WORK_ITEMS_VISIBLE_TABS = ["List"] as const;
 const SECTION_BASE_CONFIG = getProjectStatusConfig("planned");
 
 interface LinearProjectsIndexProjectsViewProps {
@@ -197,7 +196,6 @@ export function LinearProjectsIndexWorkItemsView({
         onCollapseAll={onCollapseAll}
         onRefresh={onRefresh}
         refreshLoading={indexLoading}
-        visibleTabs={LINEAR_WORK_ITEMS_VISIBLE_TABS}
         leadingControls={headerLeadingControls}
         publishToWorkstationHeader={isActive}
         workstationHeaderHost={workstationHeaderHost}

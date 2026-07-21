@@ -28,8 +28,10 @@ import type { LinearProjectSelection } from "@src/modules/ProjectManager/Panels/
 import { MultiSelectBar } from "@src/modules/ProjectManager/WorkItems/components/WorkItemsFooterBars";
 import WorkItemsListSurface from "@src/modules/ProjectManager/WorkItems/components/WorkItemsListSurface";
 import WorkItemsPageHeader from "@src/modules/ProjectManager/WorkItems/components/WorkItemsPageHeader";
-import type { StatusCounts } from "@src/modules/ProjectManager/WorkItems/components/WorkItemsPageHeader";
-import type { StatusFilterType } from "@src/modules/ProjectManager/WorkItems/types";
+import type {
+  StatusCounts,
+  StatusFilterType,
+} from "@src/modules/ProjectManager/WorkItems/types";
 import {
   WORK_ITEMS_KANBAN_GROUP,
   type WorkItemsKanbanGroup,
@@ -674,11 +676,6 @@ export const ProjectWorkItemsTabContent: React.FC<
         projectName={t("projects.columns.workItems")}
         breadcrumbSegments={breadcrumbSegments}
         activeTab={activeViewTab}
-        onTabChange={(tab) => {
-          if (tab === "List" || tab === "Kanban") {
-            setActiveViewTab(tab);
-          }
-        }}
         statusFilter={statusFilter}
         onStatusFilterChange={(value) =>
           setStatusFilter(value as StatusFilterType)
@@ -690,7 +687,6 @@ export const ProjectWorkItemsTabContent: React.FC<
         onAddWorkItem={onCreateWorkItem}
         onRefresh={handleRefresh}
         refreshLoading={loading}
-        visibleTabs={STORY_WORK_ITEMS_VISIBLE_TABS}
         leadingControls={headerLeadingControls}
         publishToWorkstationHeader={!!workStationTabId}
         workstationHeaderHost={workstationHeaderHost}

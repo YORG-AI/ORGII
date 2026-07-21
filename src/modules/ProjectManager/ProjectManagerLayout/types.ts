@@ -53,7 +53,6 @@ export interface ProjectManagerContentRouterProps {
   onSelectProject: SelectProjectHandler;
   onCreateProject: () => void;
   onCreateWorkItem: CreateWorkItemHandler;
-  onOpenProjects: () => void;
   onOpenLinearProjects: (selection?: LinearProjectSelection) => void;
   onOpenRepoSettings: (section?: string) => void;
   onExpandWorkItemToTab: ExpandWorkItemToTabHandler;

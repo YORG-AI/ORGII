@@ -266,7 +266,6 @@ export const ProjectManagerLayout: React.FC<ProjectManagerLayoutProps> = memo(
         onSelectProject={handleSelectProject}
         onCreateProject={handleCreateProject}
         onCreateWorkItem={handleCreateWorkItem}
-        onOpenProjects={handleOpenProjects}
         onOpenLinearProjects={handleOpenLinearProjects}
         onOpenRepoSettings={handleOpenRepoSettings}
         onExpandWorkItemToTab={handleExpandWorkItemToTab}
