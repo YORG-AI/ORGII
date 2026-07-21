@@ -2,7 +2,11 @@ import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { ROUTES } from "@src/config/routes";
-import { queueFileOpens } from "@src/store/workstation/tabs";
+import {
+  presentedWorkstationWorkspaceKeyAtom,
+  queueFileOpens,
+} from "@src/store/workstation/tabs";
+import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 import { openFileInEditor } from "@src/util/ui/openFileInEditor";
 
 export function useWorkItemFileActions(repoPath?: string | null) {
@@ -24,7 +28,10 @@ export function useWorkItemFileActions(repoPath?: string | null) {
         line: file.line,
       }));
 
-      queueFileOpens(resolved);
+      const workspace = getInstrumentedStore().get(
+        presentedWorkstationWorkspaceKeyAtom
+      );
+      queueFileOpens(workspace, resolved);
 
       for (const { path, line } of resolved) {
         openFileInEditor(path, { line });

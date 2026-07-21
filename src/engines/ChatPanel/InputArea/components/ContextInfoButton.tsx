@@ -464,9 +464,11 @@ const ContextInfoButton: React.FC<ContextInfoButtonProps> = memo(
                         : t("contextInfo.manualCompactAction")}
                     </Button>
 
-                    {housekeeperEnabled && contextCompactEnabled && (
-                      <ConfiguredMiniCpmCompactCard sessionId={sessionId} />
-                    )}
+                    {housekeeperEnabled &&
+                      contextCompactEnabled &&
+                      sessionId && (
+                        <ConfiguredMiniCpmCompactCard sessionId={sessionId} />
+                      )}
                   </div>
                 )}
               </div>
