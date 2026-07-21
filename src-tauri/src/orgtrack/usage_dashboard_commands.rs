@@ -9,8 +9,8 @@
 use database::db::get_connection;
 use orgtrack_core::pricing;
 use orgtrack_core::usage_dashboard::{
-    self, SessionSort, TrendBucket, UsageFilter, UsageOverview, UsageRoundRow, UsageSessionRow,
-    UsageSummary, UsageTrendPoint,
+    self, SessionSort, TrendBucket, UsageFilter, UsageOverview, UsageRoundQuery, UsageRoundRow,
+    UsageSessionRow, UsageSummary, UsageTrendPoint,
 };
 
 /// Per-Mtok list rates for one model, resolved from the bundled pricing catalog.
@@ -131,6 +131,9 @@ pub async fn usage_dashboard_overview(
     sort: Option<String>,
     offset: Option<usize>,
     limit: Option<usize>,
+    model: Option<String>,
+    unknown_model: Option<bool>,
+    search: Option<String>,
     bucket_unit: Option<String>,
 ) -> Result<UsageOverview, String> {
     tokio::task::spawn_blocking(move || {
@@ -138,9 +141,10 @@ pub async fn usage_dashboard_overview(
         let filter = build_filter(bucket, start_ms, end_ms, session_id);
         let unit = resolve_trend_bucket(bucket_unit.as_deref(), start_ms, end_ms);
         let sort = SessionSort::parse(sort.as_deref());
+        let round_query = UsageRoundQuery::from_wire(model, unknown_model.unwrap_or(false), search);
         let offset = offset.unwrap_or(0);
         let limit = limit.unwrap_or(MAX_ROUND_ROWS).min(MAX_ROUND_ROWS);
-        usage_dashboard::usage_overview(&conn, &filter, sort, offset, limit, unit)
+        usage_dashboard::usage_overview(&conn, &filter, &round_query, sort, offset, limit, unit)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?

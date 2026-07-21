@@ -10,14 +10,16 @@ import {
 } from "./hotspotRates";
 
 function getCallTarget(call: ApiCall): string {
-  return call.backend === "rust" ? call.tauriCommand || call.url : call.fullUrl;
+  return call.transport === "tauri"
+    ? call.tauriCommand || call.url
+    : call.fullUrl;
 }
 
 function getHotspotKey(call: ApiCall): string {
   const source = call.filePath
     ? `${call.filePath}:${call.lineNumber ?? 0}`
     : call.componentName || call.functionName || "unknown-source";
-  return `${call.backend}:${call.method}:${getCallTarget(call)}:${source}`;
+  return `${call.transport}:${call.method}:${getCallTarget(call)}:${source}`;
 }
 
 export const getApiCalls = (): ApiCall[] => [...getApiCallRecords()];
@@ -69,7 +71,7 @@ export function getApiCallHotspots(windowMs = 120_000): ApiCallHotspot[] {
 
       return {
         key,
-        backend: latestCall.backend,
+        transport: latestCall.transport,
         method: latestCall.method,
         target: getCallTarget(latestCall),
         count: calls.length,

@@ -80,12 +80,6 @@ pub fn init_learnings_table(conn: &Connection) -> SqliteResult<()> {
             ON learnings(agent_scope);
         CREATE INDEX IF NOT EXISTS idx_learnings_category
             ON learnings(agent_scope, category);
-        DROP INDEX IF EXISTS idx_learnings_active;
-        CREATE INDEX idx_learnings_active
-            ON learnings(agent_scope, status)
-            WHERE status NOT IN ('deprecated', 'abandoned');
-        CREATE INDEX IF NOT EXISTS idx_learnings_parent
-            ON learnings(parent_id);
         ",
     )?;
 
@@ -143,6 +137,25 @@ pub fn init_learnings_table(conn: &Connection) -> SqliteResult<()> {
         "CREATE INDEX IF NOT EXISTS idx_learnings_account ON learnings(account_id, status)",
         [],
     )?;
+    // The filtered "active" index and the evolution-DAG parent index reference
+    // `status` / `parent_id`, both of which are added by the ALTER TABLE
+    // migrations above on legacy DBs. They must be created here — after those
+    // migrations — not inside the initial CREATE TABLE batch: on a pre-lifecycle
+    // `learnings` table the batch form failed with "no such column: status" and
+    // aborted schema init. `idx_learnings_active` is re-created on every init
+    // (its predicate has changed across versions), so drop-then-create rather
+    // than IF NOT EXISTS.
+    conn.execute("DROP INDEX IF EXISTS idx_learnings_active", [])?;
+    conn.execute(
+        "CREATE INDEX idx_learnings_active
+            ON learnings(agent_scope, status)
+            WHERE status NOT IN ('deprecated', 'abandoned')",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_learnings_parent ON learnings(parent_id)",
+        [],
+    )?;
 
     // Consolidation bookkeeping for the consolidation engine — one row per run.
     // Used by (a) the "lazy" trigger (last run was > 24h ago?) and (b) the
@@ -178,4 +191,63 @@ pub fn init_learnings_table(conn: &Connection) -> SqliteResult<()> {
     super::super::reflection::blacklist::init_reflection_blacklist_table(conn)?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn table_has_column(conn: &Connection, column: &str) -> bool {
+        let mut stmt = conn
+            .prepare("PRAGMA table_info(learnings)")
+            .expect("prepare table_info");
+        let mut rows = stmt.query([]).expect("query table_info");
+        while let Some(row) = rows.next().expect("row") {
+            if row.get::<_, String>(1).expect("name") == column {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn index_exists(conn: &Connection, name: &str) -> bool {
+        conn.query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = ?1",
+            [name],
+            |row| Ok(row.get::<_, i64>(0)? == 1),
+        )
+        .expect("query index presence")
+    }
+
+    // Regression: a `learnings` table created before the lifecycle / evolution
+    // columns existed must still upgrade cleanly. `idx_learnings_active` filters
+    // on `status` and `idx_learnings_parent` indexes `parent_id`; creating them
+    // in the initial CREATE TABLE batch failed with "no such column: status" on
+    // any legacy table, aborting init before the ALTER TABLE migrations ran.
+    #[test]
+    fn init_learnings_table_upgrades_legacy_table_missing_lifecycle_columns() {
+        let conn = Connection::open_in_memory().expect("open in-memory db");
+        // Pre-lifecycle schema: base columns only, none of the ALTER-added ones.
+        conn.execute_batch(
+            "CREATE TABLE learnings (
+                id           TEXT PRIMARY KEY,
+                agent_scope  TEXT NOT NULL DEFAULT '_global',
+                content      TEXT NOT NULL,
+                category     TEXT NOT NULL DEFAULT 'pattern',
+                created_at   TEXT NOT NULL,
+                updated_at   TEXT NOT NULL
+            );",
+        )
+        .expect("create legacy learnings table");
+        assert!(!table_has_column(&conn, "status"));
+        assert!(!table_has_column(&conn, "parent_id"));
+
+        // This previously errored with "no such column: status".
+        init_learnings_table(&conn).expect("upgrade legacy learnings schema");
+
+        assert!(table_has_column(&conn, "status"));
+        assert!(table_has_column(&conn, "parent_id"));
+        assert!(index_exists(&conn, "idx_learnings_active"));
+        assert!(index_exists(&conn, "idx_learnings_parent"));
+    }
 }

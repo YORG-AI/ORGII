@@ -137,7 +137,9 @@
       "views": {
         "scanning": "Escaneamento",
         "hooks": "Hooks",
-        "usage": "Uso"
+        "usage": "Uso",
+        "quota": "Cota",
+        "assets": "Recursos"
       },
       "usage": {
         "title": "Uso e custo",
@@ -156,7 +158,7 @@
           "claude": "Claude",
           "codex": "Codex",
           "cursor": "Cursor",
-          "org2": "Agentes ORGII",
+          "org2": "ORG2",
           "other": "Outros"
         },
         "cards": {
@@ -886,6 +888,9 @@
         "title": "Agents"
       },
       "tabs": {
+        "session": "Sessão",
+        "workItem": "Item de trabalho",
+        "more": "Mais",
         "work": "Trabalho",
         "manage": "Gerenciar",
         "heatmap": "Tendências",
@@ -982,6 +987,28 @@
     "copyEventJson": "Copiar JSON de eventos",
     "copyEventJsonCopied": "Copiado!",
     "copyEventJsonFailed": "Falha ao copiar",
+    "moveToWorkstation": "Mover para a minha Workstation",
+    "moveToChatPanel": "Mover para o painel de chat",
+    "rawTranscript": {
+      "title": "Transcrição bruta da sessão",
+      "menuItem": "Ver transcrição bruta",
+      "guiTab": "GUI",
+      "rawTab": "Dados brutos",
+      "entryCount_one": "{{count}} entrada",
+      "entryCount_other": "{{count}} entradas",
+      "copySuccess": "Transcrição bruta copiada",
+      "copyFailed": "Não foi possível copiar a transcrição bruta"
+    },
+    "linkWorkItem": {
+      "menuItem": "Vincular a um Work Item…",
+      "title": "Vincular sessão a um Work Item",
+      "description": "Selecione o Work Item no qual esta sessão deve aparecer.",
+      "searchPlaceholder": "Pesquisar por ID, título, status ou projeto do Work Item",
+      "loading": "Carregando Work Items…",
+      "empty": "Nenhum Work Item encontrado.",
+      "linking": "Vinculando…",
+      "link": "Vincular"
+    },
     "historyTitle": "Histórico",
     "historyEmpty": "Ainda sem sessões",
     "historyGroupTime": "Tempo",
@@ -1111,6 +1138,8 @@
     "turnMetadata": {
       "noChanges": "Nenhuma alteração de arquivo nesta rodada",
       "earlierRound": "Rodada anterior",
+      "editsTab": "Edições",
+      "readsTab": "Leituras",
       "files_one": "{{count}} arquivo",
       "files_other": "{{count}} arquivos",
       "reads_one": "{{count}} leitura",

@@ -8,8 +8,8 @@ import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreP
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { AppType } from "@src/engines/Simulator/types/appTypes";
 import {
-  openKanbanChatPanelTabAtom,
   openOrFocusSessionInChatPanelTabAtom,
+  openWorkManagementChatPanelTabAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
 import {
   isPendingCancelAtom,
@@ -198,7 +198,7 @@ export function createSessionSeederHelpers(store: E2EStore) {
     Result<{ tabId: string }>
   > => {
     try {
-      const tabId = store.set(openKanbanChatPanelTabAtom, {});
+      const tabId = store.set(openWorkManagementChatPanelTabAtom, {});
       return { ok: true, tabId };
     } catch (err) {
       return asError(err);

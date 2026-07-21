@@ -23,6 +23,7 @@ import {
 } from "@src/config/workstation/tokens";
 import { useResizeHandle } from "@src/hooks/ui/useResizeHandle";
 import { usePublishWorkstationTabHeader } from "@src/hooks/workStation";
+import ProjectManagerBreadcrumb from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 import { PANEL_FOOTER_TOKENS } from "@src/modules/shared/layouts/blocks";
 import { VerticalResizeHandle } from "@src/scaffold/Resize";
 
@@ -110,92 +111,86 @@ const DetailSplitLayout: React.FC<DetailSplitLayoutProps> = ({
       isReversed: true,
     });
 
-  const headerContent = (
-    <>
-      <div className="flex min-w-0 flex-1 items-center gap-0.5">
-        {breadcrumb && breadcrumb.length > 0 ? (
-          breadcrumb.map((segment, index) => {
-            const isLeaf = index === breadcrumb.length - 1;
-            return (
-              <React.Fragment key={index}>
-                {index > 0 && (
-                  <ChevronRight
-                    size={14}
-                    strokeWidth={1.75}
-                    className="mx-1 flex-shrink-0 text-fill-4"
-                  />
-                )}
-                {typeof segment === "string" || typeof segment === "number" ? (
-                  <span
-                    className={
-                      isLeaf
-                        ? "min-w-0 truncate text-[12px] font-medium text-text-1"
-                        : "whitespace-nowrap text-[12px] text-text-2"
-                    }
-                  >
-                    {segment}
-                  </span>
-                ) : (
-                  <div
-                    className={
-                      breadcrumb.length === 1 && isLeaf
-                        ? "min-w-0 flex-1"
-                        : "min-w-0 shrink-0"
-                    }
-                  >
-                    {segment}
-                  </div>
-                )}
-              </React.Fragment>
-            );
-          })
-        ) : (
-          <span className="min-w-0 truncate text-[12px] font-medium text-text-1">
-            {title}
-          </span>
-        )}
-      </div>
+  const primitiveBreadcrumb =
+    breadcrumb &&
+    breadcrumb.length > 0 &&
+    breadcrumb.every(
+      (segment) => typeof segment === "string" || typeof segment === "number"
+    )
+      ? breadcrumb.map((segment) => ({ label: String(segment) }))
+      : null;
+  const headerContent = primitiveBreadcrumb ? (
+    <ProjectManagerBreadcrumb segments={primitiveBreadcrumb} />
+  ) : breadcrumb && breadcrumb.length > 0 ? (
+    <div className="flex min-w-0 flex-1 items-center gap-0.5">
+      {breadcrumb.map((segment, index) => {
+        const isLeaf = index === breadcrumb.length - 1;
+        return (
+          <React.Fragment key={index}>
+            {index > 0 && (
+              <ChevronRight
+                size={14}
+                strokeWidth={1.75}
+                className="mx-1 flex-shrink-0 text-fill-4"
+              />
+            )}
+            <div
+              className={
+                breadcrumb.length === 1 && isLeaf
+                  ? "min-w-0 flex-1 text-[13px]"
+                  : "min-w-0 shrink-0 text-[13px]"
+              }
+            >
+              {segment}
+            </div>
+          </React.Fragment>
+        );
+      })}
+    </div>
+  ) : (
+    <ProjectManagerBreadcrumb segments={[{ label: title }]} />
+  );
 
-      <div className="flex flex-shrink-0 items-center gap-px">
-        {headerActions}
-        {headerActions && onNavigate && (
-          <div
-            className="pointer-events-none mx-1.5 h-4 w-px shrink-0 bg-border-2"
-            role="separator"
-            aria-hidden
+  const headerTrailing = (
+    <div className="flex flex-shrink-0 items-center gap-px">
+      {headerActions}
+      {headerActions && onNavigate && (
+        <div
+          className="pointer-events-none mx-1.5 h-4 w-px shrink-0 bg-border-2"
+          role="separator"
+          aria-hidden
+        />
+      )}
+      {onNavigate && (
+        <>
+          <Button
+            htmlType="button"
+            variant="tertiary"
+            size="small"
+            iconOnly
+            onClick={() => onNavigate("prev")}
+            disabled={!hasPrev}
+            title={t("actions.previous")}
+            icon={<ChevronUp size={HEADER_ICON_SIZE.sm} />}
           />
-        )}
-        {onNavigate && (
-          <>
-            <Button
-              htmlType="button"
-              variant="tertiary"
-              size="small"
-              iconOnly
-              onClick={() => onNavigate("prev")}
-              disabled={!hasPrev}
-              title={t("actions.previous")}
-              icon={<ChevronUp size={HEADER_ICON_SIZE.sm} />}
-            />
-            <Button
-              htmlType="button"
-              variant="tertiary"
-              size="small"
-              iconOnly
-              onClick={() => onNavigate("next")}
-              disabled={!hasNext}
-              title={t("actions.next")}
-              icon={<ChevronDown size={HEADER_ICON_SIZE.sm} />}
-            />
-          </>
-        )}
-      </div>
-    </>
+          <Button
+            htmlType="button"
+            variant="tertiary"
+            size="small"
+            iconOnly
+            onClick={() => onNavigate("next")}
+            disabled={!hasNext}
+            title={t("actions.next")}
+            icon={<ChevronDown size={HEADER_ICON_SIZE.sm} />}
+          />
+        </>
+      )}
+    </div>
   );
 
   usePublishWorkstationTabHeader({
     host: "project",
-    content: headerContent,
+    content: { content: headerContent, trailing: headerTrailing },
     enabled: publishHeaderToWorkstation,
   });
 
@@ -213,6 +208,7 @@ const DetailSplitLayout: React.FC<DetailSplitLayoutProps> = ({
           }
         >
           {headerContent}
+          {headerTrailing}
         </div>
       )}
 

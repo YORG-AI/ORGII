@@ -12,6 +12,7 @@
     "drafts": "Taslaklar",
     "browser": "Tarayıcı",
     "editor": "Düzenleyici",
+    "environment": "Ortam",
     "workspace": "Çalışma Alanı",
     "codeEditor": "Kod Düzenleyici",
     "databaseManager": "Veritabanı Yöneticisi",
@@ -372,7 +373,7 @@
     "createOrg": "Oluştur",
     "joinOrg": "Katıl",
     "orgSource": "Org kaynağı",
-    "localOrg": "Local",
+    "localOrg": "Yerel",
     "orgName": "ORG adı",
     "orgNamePlaceholder": "Team Alpha",
     "inviteCode": "Davet bağlantısı veya kodu",
@@ -595,7 +596,7 @@
         "joinedFallbackToast": "Bulut organizasyonuna katıldın"
       },
       "create": {
-        "sourceCloud": "ORG2 Cloud (yönetilen)",
+        "sourceCloud": "Bulut",
         "signInFirst": "Yönetilen bir organizasyon oluşturmak veya katılmak için ORG2 Cloud'da oturum aç.",
         "openSettings": "Oturum açma ayarlarını aç",
         "createdToast": "Bulut organizasyonu oluşturuldu"

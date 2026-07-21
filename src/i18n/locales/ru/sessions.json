@@ -137,7 +137,9 @@
       "views": {
         "scanning": "Сканирование",
         "hooks": "Хуки",
-        "usage": "Использование"
+        "usage": "Использование",
+        "quota": "Квота",
+        "assets": "Ресурсы"
       },
       "usage": {
         "title": "Использование и стоимость",
@@ -156,7 +158,7 @@
           "claude": "Claude",
           "codex": "Codex",
           "cursor": "Cursor",
-          "org2": "Агенты ORGII",
+          "org2": "ORG2",
           "other": "Другие"
         },
         "cards": {
@@ -891,6 +893,9 @@
         "title": "Agents"
       },
       "tabs": {
+        "session": "Сеанс",
+        "workItem": "Рабочий элемент",
+        "more": "Ещё",
         "work": "Работа",
         "manage": "Управление",
         "heatmap": "Тренды",
@@ -987,6 +992,28 @@
     "copyEventJson": "Скопировать JSON событий",
     "copyEventJsonCopied": "Скопировано!",
     "copyEventJsonFailed": "Ошибка копирования",
+    "moveToWorkstation": "Переместить в мою Workstation",
+    "moveToChatPanel": "Переместить на панель чата",
+    "rawTranscript": {
+      "title": "Необработанная расшифровка сеанса",
+      "menuItem": "Показать необработанную расшифровку",
+      "guiTab": "GUI",
+      "rawTab": "Исходные данные",
+      "entryCount_one": "{{count}} запись",
+      "entryCount_other": "{{count}} записей",
+      "copySuccess": "Необработанная расшифровка скопирована",
+      "copyFailed": "Не удалось скопировать необработанную расшифровку"
+    },
+    "linkWorkItem": {
+      "menuItem": "Связать с Work Item…",
+      "title": "Связать сеанс с Work Item",
+      "description": "Выберите Work Item, в котором должен отображаться этот сеанс.",
+      "searchPlaceholder": "Поиск по ID, названию, статусу или проекту Work Item",
+      "loading": "Загрузка Work Items…",
+      "empty": "Work Items не найдены.",
+      "linking": "Связываем…",
+      "link": "Связать"
+    },
     "historyTitle": "История",
     "historyEmpty": "Пока нет сессий",
     "historyGroupTime": "Время",
@@ -1116,6 +1143,8 @@
     "turnMetadata": {
       "noChanges": "В этом раунде файлы не изменялись",
       "earlierRound": "Предыдущий раунд",
+      "editsTab": "Правки",
+      "readsTab": "Чтения",
       "files_one": "{{count}} файл",
       "files_few": "{{count}} файла",
       "files_many": "{{count}} файлов",

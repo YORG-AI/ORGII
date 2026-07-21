@@ -169,6 +169,7 @@ export function useDropdownEngine<
     latestTriggerRef.current = triggerRef;
   }, [triggerRef]);
   const panelRef = useRef<HTMLDivElement>(null!);
+  const positionFrameRef = useRef<number | null>(null);
   const [panelPosition, setPanelPosition] = useState<DropdownEnginePosition>({
     left: 0,
     width: 0,
@@ -224,6 +225,24 @@ export function useDropdownEngine<
     setIsPositioned(true);
   }, [gap, placement, align]);
 
+  const schedulePositionUpdate = useCallback(() => {
+    if (positionFrameRef.current !== null) return;
+
+    positionFrameRef.current = window.requestAnimationFrame(() => {
+      positionFrameRef.current = null;
+      updatePosition();
+    });
+  }, [updatePosition]);
+
+  useEffect(() => {
+    return () => {
+      if (positionFrameRef.current !== null) {
+        window.cancelAnimationFrame(positionFrameRef.current);
+        positionFrameRef.current = null;
+      }
+    };
+  }, []);
+
   const setIsOpen = useCallback(
     (newOpen: boolean) => {
       if (disabled && newOpen) return;
@@ -276,18 +295,23 @@ export function useDropdownEngine<
     };
   }, [isOpen, updatePosition]);
 
-  // Scroll/resize listeners
+  // Scroll/resize listeners are frame-coalesced to avoid repeated layout reads
+  // and React state writes when nested scroll containers emit in one frame.
   useEffect(() => {
     if (!isOpen) return;
 
-    window.addEventListener("scroll", updatePosition, true);
-    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", schedulePositionUpdate, true);
+    window.addEventListener("resize", schedulePositionUpdate);
 
     return () => {
-      window.removeEventListener("scroll", updatePosition, true);
-      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", schedulePositionUpdate, true);
+      window.removeEventListener("resize", schedulePositionUpdate);
+      if (positionFrameRef.current !== null) {
+        window.cancelAnimationFrame(positionFrameRef.current);
+        positionFrameRef.current = null;
+      }
     };
-  }, [isOpen, updatePosition]);
+  }, [isOpen, schedulePositionUpdate]);
 
   // Re-position when trigger/panel dimensions change (search/filter/content updates).
   useEffect(() => {

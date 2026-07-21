@@ -16,7 +16,7 @@ import TabPill from "@src/components/TabPill";
 import { useReloadSession } from "@src/engines/ChatPanel/ChatHistory/hooks/useReloadSession";
 import ChatView from "@src/engines/ChatPanel/ChatView";
 import { SessionHeaderActionsMenu } from "@src/engines/ChatPanel/components/SessionHeaderActionsMenu";
-import SessionIdentityIcon from "@src/engines/ChatPanel/components/SessionIdentityIcon";
+import SessionHeaderBreadcrumb from "@src/engines/ChatPanel/components/SessionHeaderBreadcrumb";
 import { useSessionRawTranscript } from "@src/engines/ChatPanel/components/SessionRawTranscriptDialog/useSessionRawTranscript";
 import SessionRawTranscriptView from "@src/engines/ChatPanel/components/SessionRawTranscriptView";
 import { useSessionActionModals } from "@src/engines/ChatPanel/hooks/useSessionActionModals";
@@ -120,16 +120,13 @@ const ChatSessionTabRenderer: React.FC<UnifiedTabContentProps> = memo(
     ]);
     const headerContent = useMemo(
       () => (
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 px-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <SessionIdentityIcon session={session} sessionId={sessionId} />
-            <span
-              className="min-w-0 truncate text-[13px] font-medium text-text-1"
-              title={sessionName}
-            >
-              {sessionName}
-            </span>
-          </div>
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+          <SessionHeaderBreadcrumb
+            session={session}
+            sessionId={sessionId}
+            fallbackName={sessionName}
+            onParentSessionClick={handleSessionContinuation}
+          />
           <span
             className="pointer-events-none mx-1.5 h-4 w-px shrink-0 bg-border-2"
             aria-hidden
@@ -147,6 +144,7 @@ const ChatSessionTabRenderer: React.FC<UnifiedTabContentProps> = memo(
       ),
       [
         handleSessionViewChange,
+        handleSessionContinuation,
         session,
         sessionId,
         sessionName,

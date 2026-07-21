@@ -44,6 +44,8 @@ pub fn load_codex_app_from_path(
     let mut chunks = Vec::new();
     let mut pending_tool_calls: HashMap<String, Vec<ImportedToolCall>> = HashMap::new();
     let mut background_tool_calls: HashMap<String, PendingBackgroundToolCall> = HashMap::new();
+    let mut pending_task_turn_id: Option<String> = None;
+    let mut active_task_turn_id: Option<String> = None;
     let mut sequence = 0usize;
 
     for line in reader.lines() {
@@ -66,6 +68,16 @@ pub fn load_codex_app_from_path(
         };
 
         match payload_type {
+            // Codex writes task_started immediately before its user_message.
+            // Hold it until the user chunk exists so the projector can attach
+            // the lifecycle marker to the correct conversational turn.
+            "task_started" => {
+                pending_task_turn_id = parsed
+                    .payload
+                    .get("turn_id")
+                    .and_then(Value::as_str)
+                    .map(str::to_string);
+            }
             "user_message" => {
                 if let Some(message) = user_message_from_payload(&parsed.payload) {
                     chunks.push(imported_history::user_message_chunk(
@@ -76,6 +88,18 @@ pub fn load_codex_app_from_path(
                         &message,
                     ));
                     sequence += 1;
+                    if let Some(turn_id) = pending_task_turn_id.take() {
+                        chunks.push(imported_history::task_lifecycle_chunk(
+                            session_id,
+                            CODEX_PROVIDER_SLUG,
+                            sequence,
+                            &created_at,
+                            imported_history::ACTION_TYPE_TASK_START,
+                            &turn_id,
+                        ));
+                        sequence += 1;
+                        active_task_turn_id = Some(turn_id);
+                    }
                 }
             }
             "agent_message" => {
@@ -190,6 +214,38 @@ pub fn load_codex_app_from_path(
                     }
                 }
             }
+            "task_complete" => {
+                if let Some(turn_id) =
+                    lifecycle_turn_id(&parsed.payload, active_task_turn_id.as_deref())
+                {
+                    chunks.push(imported_history::task_lifecycle_chunk(
+                        session_id,
+                        CODEX_PROVIDER_SLUG,
+                        sequence,
+                        &created_at,
+                        imported_history::ACTION_TYPE_TASK_COMPLETED,
+                        turn_id,
+                    ));
+                    sequence += 1;
+                    active_task_turn_id = None;
+                }
+            }
+            "turn_aborted" => {
+                if let Some(turn_id) =
+                    lifecycle_turn_id(&parsed.payload, active_task_turn_id.as_deref())
+                {
+                    chunks.push(imported_history::task_lifecycle_chunk(
+                        session_id,
+                        CODEX_PROVIDER_SLUG,
+                        sequence,
+                        &created_at,
+                        imported_history::ACTION_TYPE_TASK_FAILED,
+                        turn_id,
+                    ));
+                    sequence += 1;
+                    active_task_turn_id = None;
+                }
+            }
             _ => {}
         }
     }
@@ -218,6 +274,13 @@ pub fn load_codex_app_from_path(
     }
 
     Ok(chunks)
+}
+
+fn lifecycle_turn_id<'a>(payload: &'a Value, active_turn_id: Option<&'a str>) -> Option<&'a str> {
+    payload
+        .get("turn_id")
+        .and_then(Value::as_str)
+        .or(active_turn_id)
 }
 
 fn resolve_codex_tool_outputs(
@@ -767,4 +830,3 @@ fn reasoning_text_from_payload(payload: &Value) -> Option<String> {
         Some(parts.join("\n"))
     }
 }
-

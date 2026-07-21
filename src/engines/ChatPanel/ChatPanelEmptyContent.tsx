@@ -2,6 +2,7 @@ import type { TFunction } from "i18next";
 import { useAtomValue } from "jotai";
 import React, { Suspense } from "react";
 
+import type { SelectOption } from "@src/components/Select";
 import type { SessionLaunchSuccessInfo } from "@src/engines/SessionCore/hooks/session/useSessionCreator/useSessionLaunch/types";
 import { SESSION_CREATOR_LAUNCH_MODE } from "@src/features/SessionCreator/types";
 import type { CreatedOrgResult } from "@src/features/TeamCollaboration/components/CreateCollabOrgView";
@@ -72,6 +73,7 @@ function WorkspaceScopedContent({
 interface ChatPanelEmptyContentProps {
   createProjectContext: ChatPanelCreateProjectContext | null;
   createTarget: ChatPanelCreateTarget;
+  createTargetOptions: SelectOption[];
   creatorClassName: string;
   showStartPage: boolean;
   creatorVariant: "default" | "fullScreen";
@@ -81,6 +83,7 @@ interface ChatPanelEmptyContentProps {
   >;
   handleCancelWorkItemCreate: () => void;
   handleCancelCollabOrgCreate: () => void;
+  handleCancelProjectCreate: () => void;
   handleChatPanelProjectCreated: (options?: { keepOpen?: boolean }) => void;
   handleChatPanelCollabOrgCreated: (result: CreatedOrgResult) => void;
   handleChatPanelWorkItemCreated: (result?: CreatedWorkItemResult) => void;
@@ -89,9 +92,9 @@ interface ChatPanelEmptyContentProps {
   >;
   handleRegionNoticeChange: (notice: ChatPanelRegionNotice | null) => void;
   handleStartPageAddApiKey: () => void;
+  handleCreateTargetChange: (target: ChatPanelCreateTarget) => void;
   handleStartPageInstallLatestUpdate: () => void;
   handleStartPageSessionStart: (info: SessionLaunchSuccessInfo) => void;
-  handleStartPageNewWorkItem: () => void;
   handleWorkItemAgentCreatorToggle: (enabled: boolean) => void;
   resolveAiWorkItemContext: NonNullable<
     React.ComponentProps<SessionCreatorSlot>["resolveWorkItemContext"]
@@ -106,6 +109,7 @@ interface ChatPanelEmptyContentProps {
 export function ChatPanelEmptyContent({
   createProjectContext,
   createTarget,
+  createTargetOptions,
   creatorClassName,
   showStartPage,
   creatorVariant,
@@ -113,15 +117,16 @@ export function ChatPanelEmptyContent({
   handleAiWorkItemSessionStart,
   handleCancelWorkItemCreate,
   handleCancelCollabOrgCreate,
+  handleCancelProjectCreate,
   handleChatPanelProjectCreated,
   handleChatPanelCollabOrgCreated,
   handleChatPanelWorkItemCreated,
   handleOpenCliTerminal,
   handleRegionNoticeChange,
   handleStartPageAddApiKey,
+  handleCreateTargetChange,
   handleStartPageInstallLatestUpdate,
   handleStartPageSessionStart,
-  handleStartPageNewWorkItem,
   handleWorkItemAgentCreatorToggle,
   resolveAiWorkItemContext,
   SessionCreatorSlot,
@@ -132,11 +137,75 @@ export function ChatPanelEmptyContent({
 }: ChatPanelEmptyContentProps): React.ReactNode {
   const projectDrafts = useAtomValue(projectDraftsAtom);
   const projectDraftOrgId = projectDrafts.get(PROJECT_CREATOR_DRAFT_ID)?.orgId;
+  const renderWorkItemCreator = (showInlineAiModePanel: boolean) => {
+    return (
+      <WorkspaceScopedContent>
+        {({ workspacePath }) => {
+          return (
+            <div
+              className={`flex w-full min-w-0 overflow-hidden ${creatorClassName}`}
+            >
+              <Suspense fallback={null}>
+                <CreateWorkItemView
+                  orgId={createProjectContext?.orgId}
+                  scopeBreadcrumbLabel={
+                    createProjectContext?.scopeBreadcrumbLabel
+                  }
+                  repoPath={workspacePath}
+                  onCancel={handleCancelWorkItemCreate}
+                  onSetUnsaved={() => undefined}
+                  onWorkItemCreated={handleChatPanelWorkItemCreated}
+                  onDraftChange={setWorkItemCreateDraft}
+                  showCloseAction={false}
+                  propertiesOpen={false}
+                  showPropertiesAction={false}
+                  aiGenerateMode={showWorkItemAgentCreator}
+                  onAiGenerateModeChange={handleWorkItemAgentCreatorToggle}
+                  showAiModePanel={false}
+                  centerLauncherContent={showInlineAiModePanel}
+                  showFooter
+                  chatPanelFooter
+                  renderAgentComposer={
+                    SessionCreatorSlot
+                      ? (headerContent) => (
+                          <SessionCreatorSlot
+                            className={
+                              showInlineAiModePanel
+                                ? "shrink-0"
+                                : "min-h-0 flex-1"
+                            }
+                            variant={creatorVariant}
+                            centerFullScreenContent
+                            composerHeaderContent={headerContent}
+                            innerClassName={
+                              showInlineAiModePanel ? "pb-2 pt-1" : undefined
+                            }
+                            hidePresenceButton
+                            launchMode={
+                              SESSION_CREATOR_LAUNCH_MODE.START_BACKGROUND
+                            }
+                            onOpenCliTerminal={handleOpenCliTerminal}
+                            onRegionNoticeChange={handleRegionNoticeChange}
+                            onSessionStart={handleAiWorkItemSessionStart}
+                            resolveWorkItemContext={resolveAiWorkItemContext}
+                          />
+                        )
+                      : undefined
+                  }
+                  defaultAiAssignee={defaultAiWorkItemAssignee}
+                />
+              </Suspense>
+            </div>
+          );
+        }}
+      </WorkspaceScopedContent>
+    );
+  };
 
-  if (showStartPage) {
-    const sessionLauncher = SessionCreatorSlot ? (
+  const renderSessionLauncher = (className: string) =>
+    SessionCreatorSlot ? (
       <SessionCreatorSlot
-        className="shrink-0"
+        className={className}
         variant={creatorVariant}
         innerClassName="pb-2 pt-1"
         hidePresenceButton
@@ -146,19 +215,7 @@ export function ChatPanelEmptyContent({
       />
     ) : null;
 
-    return (
-      <ChatPanelStartPage
-        className={creatorClassName}
-        onAddApiKey={handleStartPageAddApiKey}
-        onInstallLatestUpdate={handleStartPageInstallLatestUpdate}
-        onNewWorkItem={handleStartPageNewWorkItem}
-        sessionLauncher={sessionLauncher}
-        t={t}
-      />
-    );
-  }
-
-  if (createTarget === CHAT_PANEL_CREATE_TARGET.PROJECT) {
+  const renderProjectCreator = () => {
     const sessionCreatorContent =
       showProjectAgentCreator && SessionCreatorSlot ? (
         <SessionCreatorSlot
@@ -212,116 +269,91 @@ export function ChatPanelEmptyContent({
         )}
       </WorkspaceScopedContent>
     );
+  };
+
+  const renderGithubIssuesCreator = () => (
+    <WorkspaceScopedContent>
+      {({ workspaceName, workspacePath }) => (
+        <div
+          className={`flex w-full min-w-0 overflow-hidden ${creatorClassName}`}
+        >
+          <Suspense fallback={null}>
+            <GitHubIssuesImportWizard
+              repoPath={workspacePath}
+              repoName={workspaceName}
+              orgId={
+                createProjectContext?.orgId ?? STORY_PERSONAL_ORG_FILTER_ID
+              }
+              onCancel={handleCancelProjectCreate}
+              onProjectCreated={handleChatPanelProjectCreated}
+            />
+          </Suspense>
+        </div>
+      )}
+    </WorkspaceScopedContent>
+  );
+
+  const renderCollabOrgCreator = () => (
+    <div className={`flex w-full min-w-0 overflow-hidden ${creatorClassName}`}>
+      <Suspense fallback={null}>
+        <CreateCollabOrgView
+          onCancel={handleCancelCollabOrgCreate}
+          onCreated={handleChatPanelCollabOrgCreated}
+        />
+      </Suspense>
+    </div>
+  );
+
+  if (showStartPage) {
+    const sessionLauncher = renderSessionLauncher("shrink-0");
+    const moreCreateTarget =
+      createTarget === CHAT_PANEL_CREATE_TARGET.PROJECT ||
+      createTarget === CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT ||
+      createTarget === CHAT_PANEL_CREATE_TARGET.MANAGE_AGENTS ||
+      createTarget === CHAT_PANEL_CREATE_TARGET.COLLAB_ORG
+        ? createTarget
+        : CHAT_PANEL_CREATE_TARGET.PROJECT;
+    const moreLauncher =
+      moreCreateTarget === CHAT_PANEL_CREATE_TARGET.PROJECT
+        ? renderProjectCreator()
+        : moreCreateTarget === CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT
+          ? renderGithubIssuesCreator()
+          : moreCreateTarget === CHAT_PANEL_CREATE_TARGET.COLLAB_ORG
+            ? renderCollabOrgCreator()
+            : renderSessionLauncher("min-h-0 flex-1");
+
+    return (
+      <ChatPanelStartPage
+        className={creatorClassName}
+        createTarget={createTarget}
+        createTargetOptions={createTargetOptions}
+        onAddApiKey={handleStartPageAddApiKey}
+        onCreateTarget={handleCreateTargetChange}
+        onInstallLatestUpdate={handleStartPageInstallLatestUpdate}
+        onWorkItemAgentModeChange={handleWorkItemAgentCreatorToggle}
+        moreLauncher={moreLauncher}
+        sessionLauncher={sessionLauncher}
+        t={t}
+        workItemAgentMode={showWorkItemAgentCreator}
+        workItemLauncher={renderWorkItemCreator(true)}
+      />
+    );
+  }
+
+  if (createTarget === CHAT_PANEL_CREATE_TARGET.PROJECT) {
+    return renderProjectCreator();
   }
 
   if (createTarget === CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT) {
-    return (
-      <WorkspaceScopedContent>
-        {({ workspaceName, workspacePath }) => (
-          <div
-            className={`flex w-full min-w-0 overflow-hidden ${creatorClassName}`}
-          >
-            <Suspense fallback={null}>
-              <GitHubIssuesImportWizard
-                repoPath={workspacePath}
-                repoName={workspaceName}
-                orgId={
-                  createProjectContext?.orgId ?? STORY_PERSONAL_ORG_FILTER_ID
-                }
-                onCancel={() => handleChatPanelProjectCreated()}
-                onProjectCreated={handleChatPanelProjectCreated}
-              />
-            </Suspense>
-          </div>
-        )}
-      </WorkspaceScopedContent>
-    );
+    return renderGithubIssuesCreator();
   }
 
   if (createTarget === CHAT_PANEL_CREATE_TARGET.WORK_ITEM) {
-    const sessionCreatorContent =
-      showWorkItemAgentCreator && SessionCreatorSlot ? (
-        <SessionCreatorSlot
-          className="min-h-0 flex-1"
-          variant={creatorVariant}
-          centerFullScreenContent
-          hidePresenceButton
-          launchMode={SESSION_CREATOR_LAUNCH_MODE.START_BACKGROUND}
-          onOpenCliTerminal={handleOpenCliTerminal}
-          onRegionNoticeChange={handleRegionNoticeChange}
-          onSessionStart={handleAiWorkItemSessionStart}
-          resolveWorkItemContext={resolveAiWorkItemContext}
-        />
-      ) : null;
-
-    return (
-      <WorkspaceScopedContent>
-        {({ workspacePath }) => {
-          const workItemCreator = (
-            <Suspense fallback={null}>
-              <CreateWorkItemView
-                orgId={createProjectContext?.orgId}
-                scopeBreadcrumbLabel={
-                  createProjectContext?.scopeBreadcrumbLabel
-                }
-                repoPath={workspacePath}
-                onCancel={handleCancelWorkItemCreate}
-                onSetUnsaved={() => undefined}
-                onWorkItemCreated={handleChatPanelWorkItemCreated}
-                onDraftChange={setWorkItemCreateDraft}
-                showCloseAction={false}
-                propertiesOpen={false}
-                showPropertiesAction={false}
-                aiGenerateMode={showWorkItemAgentCreator}
-                onAiGenerateModeChange={handleWorkItemAgentCreatorToggle}
-                showAiModePanel={false}
-                showFooter
-                chatPanelFooter
-                defaultAiAssignee={defaultAiWorkItemAssignee}
-              />
-            </Suspense>
-          );
-
-          if (sessionCreatorContent) {
-            return (
-              <div
-                className={`flex w-full min-w-0 flex-col overflow-hidden ${creatorClassName}`}
-              >
-                <div className="shrink-0 overflow-hidden">
-                  {workItemCreator}
-                </div>
-                <div className="min-h-0 flex-1 overflow-hidden pt-6">
-                  {sessionCreatorContent}
-                </div>
-              </div>
-            );
-          }
-
-          return (
-            <div
-              className={`flex w-full min-w-0 overflow-hidden ${creatorClassName}`}
-            >
-              {workItemCreator}
-            </div>
-          );
-        }}
-      </WorkspaceScopedContent>
-    );
+    return renderWorkItemCreator(false);
   }
 
   if (createTarget === CHAT_PANEL_CREATE_TARGET.COLLAB_ORG) {
-    return (
-      <div
-        className={`flex w-full min-w-0 overflow-hidden ${creatorClassName}`}
-      >
-        <Suspense fallback={null}>
-          <CreateCollabOrgView
-            onCancel={handleCancelCollabOrgCreate}
-            onCreated={handleChatPanelCollabOrgCreated}
-          />
-        </Suspense>
-      </div>
-    );
+    return renderCollabOrgCreator();
   }
 
   if (createTarget === CHAT_PANEL_CREATE_TARGET.BENCHMARK) {

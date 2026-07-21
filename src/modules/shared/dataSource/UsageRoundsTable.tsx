@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
@@ -7,9 +7,11 @@ import type {
 } from "@src/api/tauri/usageDashboard";
 import SettingsTable, {
   type SettingsTableColumn,
+  SettingsTablePagination,
   type SettingsTableSelectFilter,
 } from "@src/components/SettingsTable";
 import Tooltip from "@src/components/Tooltip";
+import { SECTION_SUBHEADING_CLASSES } from "@src/modules/shared/layouts/SectionLayout";
 import { CollapsibleSection } from "@src/modules/shared/layouts/blocks";
 import { formatRelativeElapsedShort } from "@src/util/data/formatters/date";
 
@@ -19,12 +21,25 @@ import { formatCacheRW, formatTokensShort, formatUsd } from "./usageFormat";
 
 const MODEL_ALL = "__all_models__";
 const MODEL_UNKNOWN = "__unknown_model__";
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+export const USAGE_ROUNDS_DEFAULT_PAGE_SIZE = 10;
 
 interface UsageRoundsTableProps {
   rows: UsageRoundRow[];
   total: number;
+  availableModels: string[];
+  hasUnknownModel: boolean;
+  modelFilter: string | null | undefined;
+  onModelFilterChange: (model: string | null | undefined) => void;
+  searchQuery: string;
+  onSearchQueryChange: (query: string) => void;
   sort: UsageSessionSort;
   onSortChange: (sort: UsageSessionSort) => void;
+  pageIndex: number;
+  pageSize: number;
+  onPageChange: (pageIndex: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
+  loading?: boolean;
   /** Click a round's session to scope the whole dashboard to it. */
   onSelectSession: (sessionId: string) => void;
 }
@@ -37,14 +52,23 @@ function costLabel(value: number): string {
 export default function UsageRoundsTable({
   rows,
   total,
+  availableModels,
+  hasUnknownModel,
+  modelFilter,
+  onModelFilterChange,
+  searchQuery,
+  onSearchQueryChange,
   sort,
   onSortChange,
+  pageIndex,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+  loading = false,
   onSelectSession,
 }: UsageRoundsTableProps) {
   const { t } = useTranslation("sessions", { keyPrefix: "kanban.dataSource" });
   const { t: tCommon } = useTranslation("common");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [modelFilter, setModelFilter] = useState(MODEL_ALL);
 
   const columns = useMemo<SettingsTableColumn<UsageRoundRow>[]>(
     () => [
@@ -165,17 +189,12 @@ export default function UsageRoundsTable({
   );
 
   const modelFilterOptions = useMemo(() => {
-    const models = Array.from(
-      new Set(rows.map((row) => row.model).filter((model) => model != null))
-    ).sort((modelA, modelB) => modelA.localeCompare(modelB));
-    const hasUnknownModel = rows.some((row) => row.model == null);
-
     return [
       {
         value: MODEL_ALL,
         label: tCommon("selectors.modelSelector.allModels"),
       },
-      ...models.map((model) => ({ value: model, label: model })),
+      ...availableModels.map((model) => ({ value: model, label: model })),
       ...(hasUnknownModel
         ? [
             {
@@ -185,16 +204,32 @@ export default function UsageRoundsTable({
           ]
         : []),
     ];
-  }, [rows, tCommon]);
+  }, [availableModels, hasUnknownModel, tCommon]);
+
+  const modelFilterValue =
+    modelFilter === undefined
+      ? MODEL_ALL
+      : modelFilter === null
+        ? MODEL_UNKNOWN
+        : modelFilter;
 
   const selectFilters = useMemo<SettingsTableSelectFilter[]>(
     () => [
       {
         key: "model",
-        value: modelFilter,
+        value: modelFilterValue,
         defaultValue: MODEL_ALL,
         options: modelFilterOptions,
-        onChange: (value) => setModelFilter(String(value)),
+        onChange: (value) => {
+          const next = String(value);
+          onModelFilterChange(
+            next === MODEL_ALL
+              ? undefined
+              : next === MODEL_UNKNOWN
+                ? null
+                : next
+          );
+        },
       },
       {
         key: "sort",
@@ -204,41 +239,55 @@ export default function UsageRoundsTable({
         onChange: (value) => onSortChange(value as UsageSessionSort),
       },
     ],
-    [modelFilter, modelFilterOptions, onSortChange, sort, sortOptions]
+    [
+      modelFilterOptions,
+      modelFilterValue,
+      onModelFilterChange,
+      onSortChange,
+      sort,
+      sortOptions,
+    ]
   );
 
-  const filteredRows = useMemo(() => {
-    const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
-
-    return rows.filter((row) => {
-      const matchesModel =
-        modelFilter === MODEL_ALL ||
-        (modelFilter === MODEL_UNKNOWN
-          ? row.model == null
-          : row.model === modelFilter);
-      if (!matchesModel) return false;
-      if (!normalizedQuery) return true;
-
-      return [row.sessionName, row.model, row.source].some((value) =>
-        value?.toLocaleLowerCase().includes(normalizedQuery)
-      );
-    });
-  }, [modelFilter, rows, searchQuery]);
-
-  const isFiltered = searchQuery.trim().length > 0 || modelFilter !== MODEL_ALL;
+  const isFiltered =
+    searchQuery.trim().length > 0 || modelFilterValue !== MODEL_ALL;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const showPagination = total > Math.min(...PAGE_SIZE_OPTIONS);
 
   return (
-    <CollapsibleSection title={`${t("usage.roundsTable.title")} (${total})`}>
+    <CollapsibleSection
+      title={`${t("usage.roundsTable.title")} (${total})`}
+      compact
+      titleClassName={SECTION_SUBHEADING_CLASSES}
+    >
       <SettingsTable<UsageRoundRow>
         columns={columns}
-        rows={filteredRows}
+        rows={rows}
         getRowKey={(row) => row.roundId}
+        loading={loading}
+        footer={
+          showPagination ? (
+            <div className="flex h-12 w-full items-center border-t border-border-1 px-4">
+              <SettingsTablePagination
+                pageIndex={pageIndex}
+                pageSize={pageSize}
+                total={total}
+                pageCount={pageCount}
+                canPreviousPage={pageIndex > 0}
+                canNextPage={pageIndex + 1 < pageCount}
+                onPageChange={onPageChange}
+                onPageSizeChange={onPageSizeChange}
+                pageSizeOptions={PAGE_SIZE_OPTIONS}
+              />
+            </div>
+          ) : undefined
+        }
         inlineHeaderToolbar
         searchBar={{
           searchValue: searchQuery,
           searchPlaceholder: tCommon("common.searchPlaceholder"),
-          onSearchChange: setSearchQuery,
-          onSearchClear: () => setSearchQuery(""),
+          onSearchChange: onSearchQueryChange,
+          onSearchClear: () => onSearchQueryChange(""),
           searchInputSize: "default",
         }}
         selectFilters={selectFilters}

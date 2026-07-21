@@ -16,14 +16,20 @@ import {
 interface StatTileProps {
   label: string;
   value: string;
-  sub?: string;
+  secondaryValue?: string;
   emphasis?: boolean;
   /** When set, the value shows a dotted-underline and reveals this on hover. */
   tooltip?: ReactNode;
 }
 
 /** One KPI tile — mirrors the AIImpactContent StatItem card surface. */
-function StatTile({ label, value, sub, emphasis, tooltip }: StatTileProps) {
+function StatTile({
+  label,
+  value,
+  secondaryValue,
+  emphasis,
+  tooltip,
+}: StatTileProps) {
   const valueClass = emphasis
     ? "text-2xl font-semibold text-text-1"
     : "text-lg font-semibold text-text-1";
@@ -39,10 +45,16 @@ function StatTile({ label, value, sub, emphasis, tooltip }: StatTileProps) {
     <span className={valueClass}>{value}</span>
   );
   return (
-    <div className="flex flex-col gap-1.5 rounded-xl border border-border-1 bg-fill-2 p-4">
+    <div className="flex flex-col gap-1.5 rounded-xl border border-border-1 bg-primary-container p-4">
       <span className="text-[12px] text-text-2">{label}</span>
-      {valueNode}
-      {sub ? <span className="text-[11px] text-text-3">{sub}</span> : null}
+      <div className="flex items-baseline gap-2">
+        {valueNode}
+        {secondaryValue ? (
+          <span className="text-sm font-medium text-text-3">
+            {secondaryValue}
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -73,24 +85,18 @@ export default function UsageStatCards({
         <StatTile
           label={t("usage.cards.realTokens")}
           value={tokens(summary.realTotalTokens)}
-          sub={formatInt(summary.realTotalTokens, language)}
           emphasis
         />
         <StatTile
           label={t("usage.cards.cost")}
           value={formatUsd(summary.costUsd, 2)}
-          sub={formatUsd(summary.costUsd, 4)}
           emphasis
           tooltip={<UsagePricingHint />}
         />
         <StatTile
-          label={t("usage.cards.sessions")}
+          label={`${t("usage.cards.sessions")} & ${t("usage.cards.requests")}`}
           value={formatInt(summary.sessionCount, language)}
-          sub={
-            t("usage.cards.requests") +
-            ": " +
-            formatInt(summary.requestCount, language)
-          }
+          secondaryValue={formatInt(summary.requestCount, language)}
           emphasis
         />
         <StatTile

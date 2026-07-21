@@ -167,22 +167,32 @@ export function useSpotlight(
         "create-project": () => {
           void WorkStationViewService.openStationMode("my-station").then(
             async () => {
-              const { chatPanelNavigateAtom, CHAT_PANEL_SURFACE_KIND } =
+              const { openCreateTargetInChatPanelStartPageAtom } =
+                await import("@src/store/chatPanel/chatPanelTabsAtom");
+              const { CHAT_PANEL_CREATE_TARGET } =
                 await import("@src/store/ui/chatPanelAtom");
-              getInstrumentedStore().set(chatPanelNavigateAtom, {
-                kind: CHAT_PANEL_SURFACE_KIND.NEW_PROJECT,
-              });
+              getInstrumentedStore().set(
+                openCreateTargetInChatPanelStartPageAtom,
+                {
+                  target: CHAT_PANEL_CREATE_TARGET.PROJECT,
+                }
+              );
             }
           );
         },
         "create-work-item": () => {
           void WorkStationViewService.openStationMode("my-station").then(
             async () => {
-              const { chatPanelNavigateAtom, CHAT_PANEL_SURFACE_KIND } =
+              const { openCreateTargetInChatPanelStartPageAtom } =
+                await import("@src/store/chatPanel/chatPanelTabsAtom");
+              const { CHAT_PANEL_CREATE_TARGET } =
                 await import("@src/store/ui/chatPanelAtom");
-              getInstrumentedStore().set(chatPanelNavigateAtom, {
-                kind: CHAT_PANEL_SURFACE_KIND.NEW_WORK_ITEM,
-              });
+              getInstrumentedStore().set(
+                openCreateTargetInChatPanelStartPageAtom,
+                {
+                  target: CHAT_PANEL_CREATE_TARGET.WORK_ITEM,
+                }
+              );
             }
           );
         },

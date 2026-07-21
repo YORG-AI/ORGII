@@ -12,6 +12,7 @@
     "drafts": "下書き",
     "browser": "ブラウザ",
     "editor": "エディタ",
+    "environment": "環境",
     "workspace": "ワークスペース",
     "codeEditor": "コードエディター",
     "databaseManager": "データベースマネージャー",
@@ -372,7 +373,7 @@
     "createOrg": "作成",
     "joinOrg": "参加",
     "orgSource": "Org ソース",
-    "localOrg": "Local",
+    "localOrg": "ローカル",
     "orgName": "ORG 名",
     "orgNamePlaceholder": "Team Alpha",
     "inviteCode": "招待リンクまたはコード",
@@ -595,7 +596,7 @@
         "joinedFallbackToast": "クラウド組織に参加しました"
       },
       "create": {
-        "sourceCloud": "ORG2 Cloud（マネージド）",
+        "sourceCloud": "クラウド",
         "signInFirst": "マネージド組織を作成・参加するには ORG2 Cloud にサインインしてください。",
         "openSettings": "サインイン設定を開く",
         "createdToast": "クラウド組織を作成しました"

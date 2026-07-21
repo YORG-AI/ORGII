@@ -12,6 +12,7 @@
     "drafts": "草稿",
     "browser": "瀏覽器",
     "editor": "編輯器",
+    "environment": "環境",
     "workspace": "工作區",
     "codeEditor": "代碼編輯器",
     "databaseManager": "數據庫管理器",
@@ -464,7 +465,7 @@
     "createOrg": "建立",
     "joinOrg": "加入",
     "orgSource": "組織來源",
-    "localOrg": "Local",
+    "localOrg": "本地",
     "orgName": "ORG 名稱",
     "orgNamePlaceholder": "Team Alpha",
     "inviteCode": "邀請連結或代碼",
@@ -687,7 +688,7 @@
         "joinedFallbackToast": "已加入雲端組織"
       },
       "create": {
-        "sourceCloud": "ORG2 Cloud（託管）",
+        "sourceCloud": "雲端",
         "signInFirst": "登入 ORG2 Cloud 以建立或加入託管組織。",
         "openSettings": "開啟登入設定",
         "createdToast": "雲端組織已建立"

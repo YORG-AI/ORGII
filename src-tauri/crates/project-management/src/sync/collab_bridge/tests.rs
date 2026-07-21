@@ -88,8 +88,7 @@ fn work_item_frontmatter(short_id: &str, title: &str) -> WorkItemFrontmatter {
 }
 
 fn seed_project(slug: &str) -> ProjectData {
-    write_project(slug, &project_meta(&format!("p-{slug}"), slug), "", true)
-        .expect("seed project");
+    write_project(slug, &project_meta(&format!("p-{slug}"), slug), "", true).expect("seed project");
     read_project(slug).expect("read seeded project")
 }
 

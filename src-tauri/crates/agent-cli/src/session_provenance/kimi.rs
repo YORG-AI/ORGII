@@ -90,7 +90,10 @@ pub(super) fn kimi_apply_managed_hook(
             entry.insert("timeout".to_string(), toml::Value::Integer(5));
             toml::Value::Table(entry)
         };
-        hooks.push(managed_entry("PostToolUse", Some(KIMI_POST_TOOL_USE_MATCHER)));
+        hooks.push(managed_entry(
+            "PostToolUse",
+            Some(KIMI_POST_TOOL_USE_MATCHER),
+        ));
         if live_status {
             for event in KIMI_LIFECYCLE_EVENTS {
                 // PreToolUse carries no matcher: every tool (including

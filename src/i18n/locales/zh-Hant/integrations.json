@@ -1690,6 +1690,8 @@
     "sessionProvenance": {
       "masterToggle": "溯源 Hooks",
       "masterToggleDesc": "關閉後將解除安裝所有受管理的 hook，並停止擷取任何訊號；各平台的選擇會保留，重新開啟時恢復。",
+      "liveStatusToggle": "即時 Agent 狀態",
+      "liveStatusToggleDesc": "顯示執行中 CLI Agent 的工作或等待狀態；關閉後仍會擷取溯源記錄。",
       "title": "Session 來源追蹤",
       "capture": "擷取檔案互動",
       "description": "以中繼資料記錄檔案讀取與寫入。不會儲存提示詞、工具輸出或檔案內容。",

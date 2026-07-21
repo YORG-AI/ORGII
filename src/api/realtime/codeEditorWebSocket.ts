@@ -63,7 +63,7 @@ export class CodeEditorWebSocketClient {
           try {
             const data = maybeParseCodeEditorWebSocketMessage(event.data);
             if (data === null) return;
-            recordPushEvent("ws", data.type ?? "message");
+            recordPushEvent("ws", `in · ${data.type ?? "message"}`);
             this.handleMessage(data);
           } catch (err) {
             log.error("[CodeEditorWS] Failed to parse message:", err);

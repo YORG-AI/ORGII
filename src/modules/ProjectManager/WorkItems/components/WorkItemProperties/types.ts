@@ -57,6 +57,10 @@ export interface WorkItemPropertiesProps {
   availableMembers?: Person[];
   availableAgents?: AgentDefinition[];
   availableOrgs?: OrgMember[];
+  /** Brand integration icon for the selected project (for example, GitHub). */
+  projectIconType?: string;
+  /** Show the current project without allowing it to be changed or cleared. */
+  projectReadonly?: boolean;
   showTime?: boolean;
   fieldVariant?: FieldRowVariant;
   visibleFields?: WorkItemPropertyFieldKey[];

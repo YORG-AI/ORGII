@@ -61,6 +61,7 @@ export interface ChatPanelProps {
     className?: string;
     variant?: "default" | "fullScreen";
     centerFullScreenContent?: boolean;
+    composerHeaderContent?: ReactNode;
     footerSlot?: ReactNode;
     innerClassName?: string;
     leadingActionSlot?: ReactNode;

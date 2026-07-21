@@ -55,6 +55,7 @@ interface SessionCreatorChatPanelViewProps {
   cliLaunchModeSwitch: React.ReactNode;
   cliVersionAlert?: CliVersionAlert;
   compactHeaderIcon: React.ReactNode;
+  composerHeaderContent?: React.ReactNode;
   composerInputRef: React.RefObject<ComposerInputRef | null>;
   editorAreaProps: React.ComponentProps<typeof EditorArea>;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
@@ -102,6 +103,7 @@ const SessionCreatorChatPanelView: React.FC<
   cliLaunchModeSwitch,
   cliVersionAlert,
   compactHeaderIcon,
+  composerHeaderContent,
   composerInputRef,
   editorAreaProps,
   fileInputRef,
@@ -164,6 +166,11 @@ const SessionCreatorChatPanelView: React.FC<
       </div>
     </div>
   );
+  const composerHeader = composerHeaderContent ? (
+    <div className="session-creator-chat-panel-fullscreen-header-row px-1 pb-3 pt-2">
+      {composerHeaderContent}
+    </div>
+  ) : null;
   const browserElementRowContent = useMemo(
     () =>
       browserElementScrollNav.showAddToConversation ? (
@@ -209,6 +216,7 @@ const SessionCreatorChatPanelView: React.FC<
                 }`}
               >
                 {compactHeader}
+                {composerHeader}
                 <div className="rounded-xl bg-chat-container p-3">
                   <button
                     type="button"
@@ -259,6 +267,7 @@ const SessionCreatorChatPanelView: React.FC<
                 }`}
               >
                 {compactHeader}
+                {composerHeader}
                 <EditorArea {...editorAreaProps} />
                 {!hideRepoLine && headerLayout !== "compact" && (
                   <div className="session-creator-chat-panel-fullscreen-repo-row px-1 pb-2 pt-3">

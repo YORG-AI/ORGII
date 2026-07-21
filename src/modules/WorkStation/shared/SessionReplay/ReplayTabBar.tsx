@@ -24,10 +24,10 @@ import { FileText, Globe, Search, Terminal, Wrench } from "lucide-react";
 import React, { Fragment, memo, useEffect, useRef } from "react";
 
 import FileTypeIcon from "@src/components/FileTypeIcon";
+import { NoDragRegion } from "@src/components/WindowChrome";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { EVENT_LOADING_SHIMMER_TEXT_CLASSES } from "@src/engines/ChatPanel/blocks/primitives";
 
-import { NoDragRegion } from "../NoDragRegion";
 import { WorkStationTabPillSurface } from "../TabBar/components";
 import {
   TAB_BAR_HEIGHT,

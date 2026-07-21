@@ -20,6 +20,9 @@ pub const ACTION_TYPE_RAW: &str = "raw";
 pub const ACTION_TYPE_ASSISTANT: &str = "assistant";
 pub const ACTION_TYPE_THINKING: &str = "thinking";
 pub const ACTION_TYPE_TOOL_CALL: &str = "tool_call";
+pub const ACTION_TYPE_TASK_START: &str = "task_start";
+pub const ACTION_TYPE_TASK_COMPLETED: &str = "task_completed";
+pub const ACTION_TYPE_TASK_FAILED: &str = "task_failed";
 pub const FUNCTION_USER_MESSAGE: &str = "user_message";
 pub const FUNCTION_ASSISTANT: &str = "assistant";
 pub const FUNCTION_THINKING: &str = "thinking";
@@ -479,6 +482,24 @@ pub fn thinking_chunk(
         "observation": thought,
         "is_delta": false,
     });
+    chunk
+}
+
+/// Hidden lifecycle marker used by imported providers that expose explicit
+/// turn boundaries. The chat filters these action types, while metadata
+/// projection uses them to distinguish an active tail from a finished turn.
+pub fn task_lifecycle_chunk(
+    session_id: &str,
+    provider_slug: &str,
+    sequence: usize,
+    created_at: &str,
+    action_type: &str,
+    provider_turn_id: &str,
+) -> ActivityChunk {
+    let mut chunk = ActivityChunk::new(session_id, action_type, action_type);
+    chunk.chunk_id = format!("{provider_slug}-lifecycle-{sequence}-{action_type}");
+    chunk.created_at = created_at.to_string();
+    chunk.args = json!({ "providerTurnId": provider_turn_id });
     chunk
 }
 

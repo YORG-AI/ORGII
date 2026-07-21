@@ -53,7 +53,7 @@ function getComponentDisplay(call: ApiCall): string | null {
 
 const ApiCallDetails: React.FC<ApiCallDetailsProps> = ({ call }) => {
   const componentDisplay = getComponentDisplay(call);
-  const isRust = call.backend === "rust";
+  const isTauri = call.transport === "tauri";
 
   const responseContent = call.error
     ? formatJson(call.error)
@@ -65,7 +65,7 @@ const ApiCallDetails: React.FC<ApiCallDetailsProps> = ({ call }) => {
 
   return (
     <div className="flex flex-col gap-3">
-      {isRust ? (
+      {isTauri ? (
         <div className="flex items-start gap-3">
           <span className="w-20 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-text-3">
             Command
@@ -85,7 +85,7 @@ const ApiCallDetails: React.FC<ApiCallDetailsProps> = ({ call }) => {
         </div>
       )}
 
-      {isRust && !!call.tauriArgs && (
+      {isTauri && !!call.tauriArgs && (
         <div className="flex items-start gap-3">
           <span className="w-20 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-text-3">
             Args

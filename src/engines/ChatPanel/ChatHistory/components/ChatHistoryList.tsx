@@ -897,7 +897,7 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
       return (
         <div
           ref={staticScrollerRef}
-          className="h-full overflow-y-auto overscroll-contain scrollbar-hide"
+          className="h-full overflow-y-auto overscroll-contain pt-2 scrollbar-hide"
           onScroll={(event) => {
             const element = event.currentTarget;
             onAtBottomStateChange(
@@ -976,7 +976,7 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
         ref={(node) => {
           virtualScrollerRef.current = node;
         }}
-        className="h-full w-full overflow-y-auto overscroll-contain scrollbar-hide"
+        className="h-full w-full overflow-y-auto overscroll-contain pt-2 scrollbar-hide"
         onScroll={(event) => {
           const element = event.currentTarget;
           const isAtBottom = isScrolledToContentBottom({

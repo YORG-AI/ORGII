@@ -12,6 +12,7 @@
     "drafts": "초안",
     "browser": "브라우저",
     "editor": "편집기",
+    "environment": "환경",
     "workspace": "작업 공간",
     "codeEditor": "코드 편집기",
     "databaseManager": "DB 관리자",
@@ -372,7 +373,7 @@
     "createOrg": "만들기",
     "joinOrg": "참여",
     "orgSource": "Org source",
-    "localOrg": "Local",
+    "localOrg": "로컬",
     "orgName": "ORG 이름",
     "orgNamePlaceholder": "Team Alpha",
     "inviteCode": "초대 링크 또는 코드",
@@ -595,7 +596,7 @@
         "joinedFallbackToast": "클라우드 조직에 참여했습니다"
       },
       "create": {
-        "sourceCloud": "ORG2 Cloud (관리형)",
+        "sourceCloud": "클라우드",
         "signInFirst": "관리형 조직을 만들거나 참여하려면 ORG2 Cloud에 로그인하세요.",
         "openSettings": "로그인 설정 열기",
         "createdToast": "클라우드 조직이 생성되었습니다"

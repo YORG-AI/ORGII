@@ -153,14 +153,14 @@ export const WorkStationViewService = {
       ]);
 
     const store = getStore();
-    const { openKanbanChatPanelTabAtom } =
+    const { openWorkManagementChatPanelTabAtom } =
       await import("@src/store/chatPanel/chatPanelTabsAtom");
     const currentMode = store.get(stationModeAtom);
     const chatStationMode =
       currentMode === "agent-station" ? "agent-station" : "my-station";
     store.set(stationModeAtom, chatStationMode);
     store.set(activeStationChatVisibleAtom, chatStationMode, true);
-    store.set(openKanbanChatPanelTabAtom, {});
+    store.set(openWorkManagementChatPanelTabAtom, {});
     if (!isWorkStationRoute()) {
       dispatchNavigate(ROUTES.workStation.base.path);
     }

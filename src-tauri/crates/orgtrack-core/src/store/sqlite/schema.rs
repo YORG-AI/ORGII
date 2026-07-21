@@ -465,14 +465,6 @@ impl SqliteRecordStore<'_> {
             );
             CREATE INDEX IF NOT EXISTS idx_imported_history_source_updated
                 ON imported_history_session_cache(source, updated_at_ms DESC);
-            CREATE INDEX IF NOT EXISTS idx_imported_history_sidebar_order
-                ON imported_history_session_cache(
-                    source,
-                    updated_at_ms DESC,
-                    created_at_ms DESC,
-                    source_session_id ASC
-                )
-                WHERE listable = 1 AND parent_session_id = '';
             CREATE INDEX IF NOT EXISTS idx_imported_history_source_repo
                 ON imported_history_session_cache(source, repo_path);
             CREATE INDEX IF NOT EXISTS idx_imported_history_source_path
@@ -531,6 +523,29 @@ impl SqliteRecordStore<'_> {
             "imported_history_session_cache",
             "cache_write_tokens",
             "INTEGER NOT NULL DEFAULT 0",
+        )?;
+        ensure_column(
+            conn,
+            "imported_history_session_cache",
+            "listable",
+            "INTEGER NOT NULL DEFAULT 1",
+        )?;
+
+        // The sidebar-order partial index filters on `listable` and
+        // `parent_session_id`, both of which are added by the migrations above on
+        // databases that predate them. It must therefore be created *after* the
+        // `ensure_column` calls — creating it inside the initial `CREATE TABLE`
+        // batch fails with "no such column: parent_session_id" on any existing
+        // cache table, aborting the whole batch (and blocking session_launch).
+        conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_imported_history_sidebar_order
+                ON imported_history_session_cache(
+                    source,
+                    updated_at_ms DESC,
+                    created_at_ms DESC,
+                    source_session_id ASC
+                )
+                WHERE listable = 1 AND parent_session_id = '';",
         )?;
 
         // Per-round token usage for imported sessions (one row per assistant

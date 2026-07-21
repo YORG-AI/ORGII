@@ -10,12 +10,14 @@ interface SessionIdentityIconProps {
   className?: string;
 }
 
+export const SESSION_IDENTITY_ICON_SIZE = 14;
+
 export function resolveSessionIdentityIconColorClass(
   isSelected: boolean,
   isMonochromeBrandIcon: boolean
 ): string {
-  if (!isSelected) return "text-text-2";
-  return isMonochromeBrandIcon ? "text-text-1" : "text-primary-6";
+  if (!isSelected || !isMonochromeBrandIcon) return "text-text-2";
+  return "text-text-1";
 }
 
 /** The canonical session icon treatment used by Chat Panel session tabs. */
@@ -29,12 +31,18 @@ const SessionIdentityIcon: React.FC<SessionIdentityIconProps> = memo(
       isMonochromeBrandIcon
     );
 
-    return React.createElement(Icon, {
-      size: 16,
-      strokeWidth: 2,
-      className: `shrink-0 ${colorClass} ${className}`.trim(),
-      "aria-hidden": true,
-    });
+    return (
+      <span
+        className={`inline-flex h-4 w-4 shrink-0 items-center justify-center ${colorClass} ${className}`.trim()}
+        aria-hidden
+      >
+        {React.createElement(Icon, {
+          size: SESSION_IDENTITY_ICON_SIZE,
+          strokeWidth: 2,
+          className: "shrink-0",
+        })}
+      </span>
+    );
   }
 );
 

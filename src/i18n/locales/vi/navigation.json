@@ -12,6 +12,7 @@
     "drafts": "Bản nháp",
     "browser": "Trình duyệt",
     "editor": "Trình soạn thảo",
+    "environment": "Môi trường",
     "workspace": "Không gian làm việc",
     "codeEditor": "Trình soạn thảo mã",
     "databaseManager": "Quản lý CSDL",
@@ -372,7 +373,7 @@
     "createOrg": "Tạo",
     "joinOrg": "Tham gia",
     "orgSource": "Nguồn Org",
-    "localOrg": "Local",
+    "localOrg": "Cục bộ",
     "orgName": "Tên ORG",
     "orgNamePlaceholder": "Team Alpha",
     "inviteCode": "Liên kết hoặc mã mời",
@@ -595,7 +596,7 @@
         "joinedFallbackToast": "Đã tham gia tổ chức đám mây"
       },
       "create": {
-        "sourceCloud": "ORG2 Cloud (được quản lý)",
+        "sourceCloud": "Đám mây",
         "signInFirst": "Đăng nhập ORG2 Cloud để tạo hoặc tham gia tổ chức được quản lý.",
         "openSettings": "Mở cài đặt đăng nhập",
         "createdToast": "Đã tạo tổ chức đám mây"

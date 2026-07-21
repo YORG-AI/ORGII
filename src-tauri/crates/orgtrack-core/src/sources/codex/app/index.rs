@@ -163,7 +163,10 @@ fn discover_codex_app_records() -> Result<Vec<ImportedHistoryDiscoveredRecord>, 
     Ok(sessions)
 }
 
-pub(super) fn collect_codex_session_files(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
+pub(super) fn collect_codex_session_files(
+    dir: &Path,
+    out: &mut Vec<PathBuf>,
+) -> Result<(), String> {
     for entry in fs::read_dir(dir).map_err(|err| format!("Failed to read Codex dir: {err}"))? {
         let entry = entry.map_err(|err| format!("Failed to read Codex dir entry: {err}"))?;
         let path = entry.path();

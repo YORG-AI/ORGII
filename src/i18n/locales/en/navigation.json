@@ -12,6 +12,7 @@
     "drafts": "Drafts",
     "browser": "Browser",
     "editor": "Editor",
+    "environment": "Environment",
     "workspace": "Workspace",
     "codeEditor": "Code Editor",
     "databaseManager": "Database Manager",
@@ -624,7 +625,7 @@
         "joinedFallbackToast": "Joined the cloud org"
       },
       "create": {
-        "sourceCloud": "ORG2 Cloud (managed)",
+        "sourceCloud": "Cloud",
         "signInFirst": "Sign in to ORG2 Cloud to create or join a managed org.",
         "openSettings": "Open sign-in settings",
         "createdToast": "Cloud org created"

@@ -27,8 +27,8 @@ pub use index::{
     load_codex_app_for_session,
 };
 pub use meta::{resolve_codex_transcript_for_thread_id_near_path, CodexTranscriptLocator};
-pub use transcript::load_codex_app_from_path;
 pub(crate) use normalize::normalize_codex_tool_calls;
+pub use transcript::load_codex_app_from_path;
 
 // Internal re-exports so the sibling `app_tests.rs` (`use super::*`) resolves.
 #[cfg(test)]

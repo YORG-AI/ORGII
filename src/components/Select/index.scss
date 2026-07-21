@@ -79,15 +79,14 @@
   padding: 0 16px;
 }
 
-// Ghost variant - rounded trigger with background hover/open states, no border.
+// Ghost variant - text-only trigger with no border or background.
 .select-ghost .select-selector {
   border: none !important;
   box-shadow: none !important;
-  color: var(--color-text-1);
+  color: var(--color-text-2);
+  font-weight: 400;
   background: transparent;
-  transition:
-    background-color 0.15s ease,
-    color 0.15s ease;
+  transition: color 0.15s ease;
 }
 
 .select-ghost.select-size-mini .select-selector {
@@ -100,12 +99,15 @@
   font-size: 13px;
 }
 
-.select-ghost:hover:not(.select-disabled) .select-selector {
-  background: var(--select-ghost-hover-bg, var(--color-surface-hover));
+.select-ghost:hover:not(.select-disabled) .select-selector,
+.select-ghost.select-open .select-selector {
+  color: var(--color-text-1);
+  background: transparent;
 }
 
-.select-ghost.select-open .select-selector {
-  background: var(--select-ghost-open-bg, var(--color-fill-2));
+.select-ghost:hover:not(.select-disabled) .select-arrow,
+.select-ghost.select-open .select-arrow {
+  color: currentColor;
 }
 
 .select-ghost .select-suffix {

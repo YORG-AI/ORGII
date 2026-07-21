@@ -56,7 +56,6 @@ import {
 import { chatImageAttachmentsAtom } from "@src/store/ui/chatImageAtom";
 import {
   CHAT_PANEL_CONTENT_MODE,
-  CHAT_PANEL_START_PAGE_TAB,
   DEFAULT_CHAT_PANEL_CREATE_TARGET,
   chatPanelContentModeAtom,
   chatPanelCreateTargetAtom,
@@ -284,9 +283,7 @@ export function createSessionHelpers(store: E2EStore) {
       // New-session creation now lives inside the singleton Launchpad's Work
       // tab. Focus that canonical tab instead of forcing the legacy bare
       // session surface, which no longer mounts SessionCreator by itself.
-      store.set(openOrFocusChatPanelStartPageTabAtom, {
-        section: CHAT_PANEL_START_PAGE_TAB.WORK,
-      });
+      store.set(openOrFocusChatPanelStartPageTabAtom, {});
       store.set(chatPanelCreateTargetAtom, DEFAULT_CHAT_PANEL_CREATE_TARGET);
       store.set(chatPanelSelectedWorkItemAtom, null);
       store.set(chatPanelMaximizedAtom, true);

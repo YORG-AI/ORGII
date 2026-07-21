@@ -1,10 +1,13 @@
-import { ChevronRight } from "lucide-react";
 import React from "react";
 
 import BreadcrumbFileHeader from "@src/modules/shared/components/FileHeader/BreadcrumbFileHeader";
 
 export interface ProjectManagerBreadcrumbSegment {
   label: string;
+  icon?: React.ReactNode;
+  onClick?: () => void;
+  title?: string;
+  maxCharacters?: number;
 }
 
 interface ProjectManagerBreadcrumbProps {
@@ -12,37 +15,63 @@ interface ProjectManagerBreadcrumbProps {
   trailingNode?: React.ReactNode;
 }
 
-const STORY_MANAGER_BREADCRUMB_SEPARATOR = "/";
+const PROJECT_MANAGER_SINGLE_LEVEL_MAX_CHARACTERS = 40;
+const PROJECT_MANAGER_PARENT_MAX_CHARACTERS = 24;
+const PROJECT_MANAGER_LEAF_MAX_CHARACTERS = 36;
 
-function escapeBreadcrumbSegment(label: string): string {
-  return label.split(STORY_MANAGER_BREADCRUMB_SEPARATOR).join("∕");
+export function truncateProjectManagerHeaderLabel(
+  label: string,
+  maxCharacters: number
+): string {
+  const characters = Array.from(label);
+  if (characters.length <= maxCharacters) return label;
+  if (maxCharacters <= 1) return "…";
+  return `${characters.slice(0, maxCharacters - 1).join("")}…`;
 }
 
 export const ProjectManagerBreadcrumb: React.FC<
   ProjectManagerBreadcrumbProps
 > = ({ segments, trailingNode }) => {
-  const displaySegments = segments.filter((segment) => segment.label.trim());
-  const filePath = displaySegments
-    .map((segment) => escapeBreadcrumbSegment(segment.label))
-    .join(STORY_MANAGER_BREADCRUMB_SEPARATOR);
+  const visibleSegments = segments.filter((segment) => segment.label.trim());
+  const breadcrumbIcon = visibleSegments.find((segment) => segment.icon)?.icon;
+  const displaySegments = visibleSegments.map((segment, index) => {
+    const isLeaf = index === visibleSegments.length - 1;
+    const defaultMaxCharacters =
+      visibleSegments.length === 1
+        ? PROJECT_MANAGER_SINGLE_LEVEL_MAX_CHARACTERS
+        : isLeaf
+          ? PROJECT_MANAGER_LEAF_MAX_CHARACTERS
+          : PROJECT_MANAGER_PARENT_MAX_CHARACTERS;
+
+    return {
+      ...segment,
+      icon: index === 0 ? breadcrumbIcon : undefined,
+      label: truncateProjectManagerHeaderLabel(
+        segment.label,
+        segment.maxCharacters ?? defaultMaxCharacters
+      ),
+      title: segment.title ?? segment.label,
+    };
+  });
+  const filePath = visibleSegments.map((segment) => segment.label).join("/");
 
   if (!filePath && !trailingNode) return null;
 
   return (
-    <div className="flex min-w-0 flex-none items-center gap-0.5">
+    <div className="flex min-w-0 flex-1 items-center gap-1.5">
       {filePath && (
         <BreadcrumbFileHeader
           filePath={filePath}
+          displaySegments={displaySegments}
           disableNavigation
-          textSizeClassName="text-[12px]"
-          className="!flex-none"
+          className="!flex-1"
         />
       )}
       {trailingNode && filePath && (
-        <ChevronRight
-          size={14}
-          strokeWidth={1.75}
-          className="flex-shrink-0 text-fill-4"
+        <span
+          className="pointer-events-none mx-1 h-4 w-px flex-shrink-0 bg-border-2"
+          role="separator"
+          aria-hidden
         />
       )}
       {trailingNode && (

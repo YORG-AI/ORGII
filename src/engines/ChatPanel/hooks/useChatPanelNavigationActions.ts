@@ -2,12 +2,16 @@ import { useSetAtom } from "jotai";
 import { useCallback } from "react";
 
 import { clearSessionAtom } from "@src/engines/SessionCore/core/atoms";
-import { openExploreInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
+import {
+  openCreateTargetInChatPanelStartPageAtom,
+  openExploreInChatPanelTabAtom,
+} from "@src/store/chatPanel/chatPanelTabsAtom";
 import {
   activeSessionIdAtom,
   workstationActiveSessionIdAtom,
 } from "@src/store/session";
 import {
+  CHAT_PANEL_CREATE_TARGET,
   CHAT_PANEL_SURFACE_KIND,
   chatPanelNavigateAtom,
   chatPanelStartPageOpenAtom,
@@ -17,6 +21,9 @@ export function useChatPanelNavigationActions() {
   const setStartPageOpen = useSetAtom(chatPanelStartPageOpenAtom);
   const navigateChatPanel = useSetAtom(chatPanelNavigateAtom);
   const openExploreTab = useSetAtom(openExploreInChatPanelTabAtom);
+  const openCreateTargetInStartPage = useSetAtom(
+    openCreateTargetInChatPanelStartPageAtom
+  );
   const dispatchClearSession = useSetAtom(clearSessionAtom);
   const setWorkstationActiveSessionId = useSetAtom(
     workstationActiveSessionIdAtom
@@ -40,10 +47,11 @@ export function useChatPanelNavigationActions() {
   }, [resetActiveSession, showSessionSurface]);
 
   const openWorkItemCreate = useCallback(() => {
-    setStartPageOpen(false);
-    navigateChatPanel({ kind: CHAT_PANEL_SURFACE_KIND.NEW_WORK_ITEM });
+    openCreateTargetInStartPage({
+      target: CHAT_PANEL_CREATE_TARGET.WORK_ITEM,
+    });
     resetActiveSession();
-  }, [navigateChatPanel, resetActiveSession, setStartPageOpen]);
+  }, [openCreateTargetInStartPage, resetActiveSession]);
 
   const openWorkspaceExplore = useCallback(() => {
     openExploreTab();

@@ -39,6 +39,7 @@ struct CodexModelInfo {
 #[serde(rename_all = "camelCase")]
 struct CodexRateLimitWindow {
     used_percent: Option<f64>,
+    window_duration_mins: Option<i64>,
     resets_at: Option<i64>,
 }
 
@@ -406,14 +407,53 @@ fn parse_usage_window_percent(window: &serde_json::Value) -> Option<f64> {
         .and_then(|value| value.as_f64())
 }
 
+fn parse_usage_window_duration_minutes(window: &serde_json::Value) -> Option<i64> {
+    window
+        .get("window_duration_mins")
+        .or_else(|| window.get("windowDurationMins"))
+        .or_else(|| window.get("window_minutes"))
+        .or_else(|| window.get("windowMinutes"))
+        .and_then(|value| value.as_i64())
+        .filter(|minutes| *minutes > 0)
+        .or_else(|| {
+            window
+                .get("limit_window_seconds")
+                .or_else(|| window.get("limitWindowSeconds"))
+                .and_then(|value| value.as_i64())
+                .filter(|seconds| *seconds > 0)
+                .map(|seconds| seconds.saturating_add(59) / 60)
+        })
+}
+
+fn codex_quota_window(
+    used_percent: f64,
+    reset_time: Option<String>,
+    window_duration_mins: Option<i64>,
+    fallback: fn(f64, Option<String>) -> QuotaWindow,
+) -> QuotaWindow {
+    match window_duration_mins {
+        // Codex currently reports a 300-minute session window and a
+        // 10,080-minute weekly window. Classify by the supplied duration so a
+        // temporarily absent 5-hour limit cannot relabel the weekly window.
+        Some(minutes) if minutes >= 24 * 60 => QuotaWindow::weekly(used_percent, reset_time),
+        Some(_) => QuotaWindow::session(used_percent, reset_time),
+        None => fallback(used_percent, reset_time),
+    }
+}
+
 fn push_usage_window(
     windows: &mut Vec<QuotaWindow>,
-    usage_type: fn(f64, Option<String>) -> QuotaWindow,
+    fallback_usage_type: fn(f64, Option<String>) -> QuotaWindow,
     window: Option<&serde_json::Value>,
 ) {
     if let Some(window) = window {
         if let Some(used_percent) = parse_usage_window_percent(window) {
-            windows.push(usage_type(used_percent, parse_usage_window_reset(window)));
+            windows.push(codex_quota_window(
+                used_percent,
+                parse_usage_window_reset(window),
+                parse_usage_window_duration_minutes(window),
+                fallback_usage_type,
+            ));
         }
     }
 }
@@ -425,24 +465,33 @@ fn quota_from_usage_json(data: &serde_json::Value) -> Option<QuotaInfo> {
         .unwrap_or(data);
     let mut windows = Vec::new();
 
-    push_usage_window(
-        &mut windows,
-        QuotaWindow::session,
-        rate_limit
-            .get("primary_window")
-            .or_else(|| rate_limit.get("primary"))
-            .or_else(|| rate_limit.get("five_hour"))
-            .or_else(|| data.get("five_hour")),
-    );
-    push_usage_window(
-        &mut windows,
-        QuotaWindow::weekly,
-        rate_limit
-            .get("secondary_window")
-            .or_else(|| rate_limit.get("secondary"))
-            .or_else(|| rate_limit.get("seven_day"))
-            .or_else(|| data.get("seven_day")),
-    );
+    let primary_window = rate_limit
+        .get("primary_window")
+        .or_else(|| rate_limit.get("primary"));
+    let five_hour_window = rate_limit
+        .get("five_hour")
+        .or_else(|| data.get("five_hour"));
+    let weekly_window = rate_limit
+        .get("secondary_window")
+        .or_else(|| rate_limit.get("secondary"))
+        .or_else(|| rate_limit.get("seven_day"))
+        .or_else(|| data.get("seven_day"));
+
+    if primary_window.is_some() {
+        // Older payloads did not include the window duration. When OpenAI
+        // returns only a generic primary window, it is the surviving weekly
+        // limit; when a secondary window is also present, primary is the 5h
+        // limit. Explicit duration metadata always wins in codex_quota_window.
+        let fallback: fn(f64, Option<String>) -> QuotaWindow = if weekly_window.is_some() {
+            QuotaWindow::session
+        } else {
+            QuotaWindow::weekly
+        };
+        push_usage_window(&mut windows, fallback, primary_window);
+    } else {
+        push_usage_window(&mut windows, QuotaWindow::session, five_hour_window);
+    }
+    push_usage_window(&mut windows, QuotaWindow::weekly, weekly_window);
 
     if windows.is_empty() {
         return None;
@@ -698,19 +747,29 @@ async fn wait_for_rpc_id<T: for<'de> Deserialize<'de>>(
 fn quota_from_codex_rate_limits_response(response: CodexRateLimitsResponse) -> QuotaInfo {
     let mut windows = Vec::new();
     if let Some(rate_limits) = response.rate_limits {
+        let primary_fallback: fn(f64, Option<String>) -> QuotaWindow =
+            if rate_limits.secondary.is_some() {
+                QuotaWindow::session
+            } else {
+                QuotaWindow::weekly
+            };
         if let Some(primary) = rate_limits.primary {
             if let Some(used_percent) = primary.used_percent {
-                windows.push(QuotaWindow::session(
+                windows.push(codex_quota_window(
                     used_percent,
                     primary.resets_at.and_then(unix_seconds_to_rfc3339),
+                    primary.window_duration_mins,
+                    primary_fallback,
                 ));
             }
         }
         if let Some(secondary) = rate_limits.secondary {
             if let Some(used_percent) = secondary.used_percent {
-                windows.push(QuotaWindow::weekly(
+                windows.push(codex_quota_window(
                     used_percent,
                     secondary.resets_at.and_then(unix_seconds_to_rfc3339),
+                    secondary.window_duration_mins,
+                    QuotaWindow::weekly,
                 ));
             }
         }
@@ -825,10 +884,12 @@ mod model_discovery_tests {
             rate_limits: Some(CodexRateLimitsPayload {
                 primary: Some(CodexRateLimitWindow {
                     used_percent: Some(30.0),
+                    window_duration_mins: Some(300),
                     resets_at: Some(1_783_418_400),
                 }),
                 secondary: Some(CodexRateLimitWindow {
                     used_percent: Some(65.0),
+                    window_duration_mins: Some(10_080),
                     resets_at: Some(1_783_938_000),
                 }),
             }),
@@ -846,10 +907,69 @@ mod model_discovery_tests {
         assert_eq!(quota.reset_time.as_deref(), Some("2026-07-07T10:00:00Z"));
         assert!((quota.remaining_percentage - 35.0).abs() < 0.01);
         assert_eq!(quota.usage_items.len(), 2);
+        assert_eq!(quota.usage_items[0].usage_type, "session");
+        assert_eq!(quota.usage_items[1].usage_type, "weekly");
         assert_eq!(
             quota.named_message.as_deref(),
             Some("Reset credits: 2/3, next expires 2026-07-07T10:00:00Z")
         );
+    }
+
+    #[test]
+    fn codex_rate_limits_response_classifies_lone_weekly_primary_by_duration() {
+        let quota = quota_from_codex_rate_limits_response(CodexRateLimitsResponse {
+            rate_limits: Some(CodexRateLimitsPayload {
+                primary: Some(CodexRateLimitWindow {
+                    used_percent: Some(44.0),
+                    window_duration_mins: Some(10_080),
+                    resets_at: Some(1_783_938_000),
+                }),
+                secondary: None,
+            }),
+            rate_limit_reset_credits: None,
+        });
+
+        assert_eq!(quota.usage_items.len(), 1);
+        assert_eq!(quota.usage_items[0].usage_type, "weekly");
+        assert!((quota.usage_items[0].remaining_percentage - 56.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn codex_usage_api_classifies_primary_window_by_duration() {
+        let payload = serde_json::json!({
+            "plan_type": "pro",
+            "rate_limit": {
+                "primary_window": {
+                    "used_percent": 44.0,
+                    "window_duration_mins": 10_080,
+                    "reset_at": 1_783_938_000
+                }
+            }
+        });
+
+        let quota = quota_from_usage_json(&payload).expect("weekly window");
+
+        assert_eq!(quota.usage_items.len(), 1);
+        assert_eq!(quota.usage_items[0].usage_type, "weekly");
+        assert!((quota.usage_items[0].remaining_percentage - 56.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn codex_usage_api_treats_legacy_lone_primary_as_weekly() {
+        let payload = serde_json::json!({
+            "plan_type": "pro",
+            "rate_limit": {
+                "primary_window": {
+                    "used_percent": 44.0,
+                    "reset_at": 1_783_938_000
+                }
+            }
+        });
+
+        let quota = quota_from_usage_json(&payload).expect("weekly window");
+
+        assert_eq!(quota.usage_items.len(), 1);
+        assert_eq!(quota.usage_items[0].usage_type, "weekly");
     }
 
     #[test]

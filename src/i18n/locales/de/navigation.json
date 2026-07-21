@@ -12,6 +12,7 @@
     "drafts": "Entwürfe",
     "browser": "Browser",
     "editor": "Editor",
+    "environment": "Umgebung",
     "workspace": "Arbeitsbereich",
     "codeEditor": "Code-Editor",
     "databaseManager": "Datenbank-Manager",
@@ -374,7 +375,7 @@
     "createOrg": "Erstellen",
     "joinOrg": "Beitreten",
     "orgSource": "Org-Quelle",
-    "localOrg": "Local",
+    "localOrg": "Lokal",
     "orgName": "ORG-Name",
     "orgNamePlaceholder": "Team Alpha",
     "inviteCode": "Einladungslink oder -code",
@@ -597,7 +598,7 @@
         "joinedFallbackToast": "Der Cloud-Organisation beigetreten"
       },
       "create": {
-        "sourceCloud": "ORG2 Cloud (verwaltet)",
+        "sourceCloud": "Cloud",
         "signInFirst": "Melde dich bei ORG2 Cloud an, um eine verwaltete Organisation zu erstellen oder ihr beizutreten.",
         "openSettings": "Anmeldeeinstellungen öffnen",
         "createdToast": "Cloud-Organisation erstellt"

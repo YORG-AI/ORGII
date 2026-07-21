@@ -141,7 +141,9 @@
       "views": {
         "scanning": "扫描",
         "hooks": "钩子",
-        "usage": "用量"
+        "usage": "用量",
+        "quota": "配额",
+        "assets": "资产"
       },
       "usage": {
         "title": "用量与成本",
@@ -160,7 +162,7 @@
           "claude": "Claude",
           "codex": "Codex",
           "cursor": "Cursor",
-          "org2": "ORGII 智能体",
+          "org2": "ORG2",
           "other": "其他"
         },
         "cards": {
@@ -921,6 +923,9 @@
         "title": "Agents"
       },
       "tabs": {
+        "session": "会话",
+        "workItem": "工作项",
+        "more": "更多",
         "work": "工作",
         "manage": "管理",
         "heatmap": "趋势",
@@ -1017,6 +1022,28 @@
     "copyEventJson": "复制事件 JSON",
     "copyEventJsonCopied": "复制！",
     "copyEventJsonFailed": "复制失败",
+    "moveToWorkstation": "移动到我的工作站",
+    "moveToChatPanel": "移动到聊天面板",
+    "rawTranscript": {
+      "title": "原始会话记录",
+      "menuItem": "查看原始记录",
+      "guiTab": "图形界面",
+      "rawTab": "原始数据",
+      "entryCount_one": "{{count}} 条记录",
+      "entryCount_other": "{{count}} 条记录",
+      "copySuccess": "已复制原始记录",
+      "copyFailed": "无法复制原始记录"
+    },
+    "linkWorkItem": {
+      "menuItem": "关联到工作项…",
+      "title": "将会话关联到工作项",
+      "description": "选择要显示此会话的工作项。",
+      "searchPlaceholder": "按工作项 ID、标题、状态或项目搜索",
+      "loading": "正在加载工作项…",
+      "empty": "未找到工作项。",
+      "linking": "正在关联…",
+      "link": "关联"
+    },
     "historyTitle": "历史",
     "historyEmpty": "暂无会话",
     "historyGroupTime": "时间",
@@ -1146,6 +1173,8 @@
     "turnMetadata": {
       "noChanges": "本轮没有文件改动",
       "earlierRound": "历史轮次",
+      "editsTab": "编辑",
+      "readsTab": "读取",
       "files_one": "{{count}} 个文件",
       "files_other": "{{count}} 个文件",
       "reads_one": "读取 {{count}} 次",

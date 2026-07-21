@@ -6,6 +6,7 @@ import { stripPillReferences } from "@src/util/session/stripPillReferences";
 
 export interface ChatPanelTabDisplayLabels {
   launchpad: string;
+  runtime: string;
   cloudOrg: string;
   workManagement: {
     kanban: string;
@@ -42,6 +43,8 @@ export function resolveChatPanelTabDisplayTitle(
   switch (tab.type) {
     case "start-page":
       return labels.launchpad;
+    case "runtime":
+      return labels.runtime;
     case "work-management":
       return resolveWorkManagementTabTitle(tab, labels.workManagement);
     case "session": {

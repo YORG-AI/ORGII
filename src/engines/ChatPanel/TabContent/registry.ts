@@ -17,6 +17,7 @@ import {
   ExploreSurfaceRenderer,
   ProjectOrgSurfaceRenderer,
   ProjectSurfaceRenderer,
+  RuntimeSurfaceRenderer,
   WorkItemSurfaceRenderer,
   WorkspaceSurfaceRenderer,
 } from "./surfaceRenderers";
@@ -28,6 +29,11 @@ import type {
 export const CHAT_PANEL_TAB_SURFACE_REGISTRY: ChatPanelTabSurfaceRegistry = {
   session: { render: "chat-column", debugLabel: "session" },
   "start-page": { render: "chat-column", debugLabel: "start-page" },
+  runtime: {
+    render: "component",
+    Component: RuntimeSurfaceRenderer,
+    debugLabel: "runtime",
+  },
   "work-management": {
     render: "work-management",
     debugLabel: "work-management",

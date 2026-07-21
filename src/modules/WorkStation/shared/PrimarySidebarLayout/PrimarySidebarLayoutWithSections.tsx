@@ -35,10 +35,10 @@ import {
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
 import TabPill from "@src/components/TabPill";
+import { NoDragRegion } from "@src/components/WindowChrome";
 import { useDropdownEngine } from "@src/hooks/dropdown";
 import { SIDEBAR_MEMORY_KIND, useSidebarMemoryEntry } from "@src/hooks/perf";
 
-import { NoDragRegion } from "../NoDragRegion";
 import { usePrimarySidebarSurface } from "../hooks/usePrimarySidebarSurface";
 import CollapsibleSection from "./CollapsibleSection";
 

@@ -15,13 +15,11 @@ const ADE_MANAGER_DEF_ID = "builtin:agent-architect";
 
 interface UseChatPanelCreateTargetOptions {
   allAgentDefs: AgentDefinition[];
-  handleNewSession: () => void;
   sessionCreatorAvailable: boolean;
   setCreateTarget: (target: ChatPanelCreateTarget) => void;
   setCreatorState: (
     updater: (previous: SessionCreatorState) => SessionCreatorState
   ) => void;
-  setStartPageOpen: (open: boolean) => void;
   setShowProjectAgentCreator: (enabled: boolean) => void;
   setShowWorkItemAgentCreator: (enabled: boolean) => void;
   setWorkItemCreateDraft: (draft: WorkItemDraft | null) => void;
@@ -30,11 +28,9 @@ interface UseChatPanelCreateTargetOptions {
 
 export function useChatPanelCreateTarget({
   allAgentDefs,
-  handleNewSession,
   sessionCreatorAvailable,
   setCreateTarget,
   setCreatorState,
-  setStartPageOpen,
   setShowProjectAgentCreator,
   setShowWorkItemAgentCreator,
   setWorkItemCreateDraft,
@@ -43,9 +39,9 @@ export function useChatPanelCreateTarget({
   const createTargetOptions = useMemo<SelectOption[]>(
     () => [
       {
-        value: CHAT_PANEL_CREATE_TARGET.AGENT_SESSION,
-        label: t("creator.createTarget.agentSession"),
-        dataTestId: "chat-panel-create-target-agent-session-option",
+        value: CHAT_PANEL_CREATE_TARGET.PROJECT,
+        label: t("creator.createTarget.project"),
+        dataTestId: "chat-panel-create-target-project-option",
       },
       {
         value: CHAT_PANEL_CREATE_TARGET.MANAGE_AGENTS,
@@ -53,19 +49,14 @@ export function useChatPanelCreateTarget({
         dataTestId: "chat-panel-create-target-manage-agents-option",
       },
       {
-        value: CHAT_PANEL_CREATE_TARGET.PROJECT,
-        label: t("creator.createTarget.project"),
-        dataTestId: "chat-panel-create-target-project-option",
-      },
-      {
         value: CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT,
         label: t("projects:githubIssuesImport.createTarget"),
         dataTestId: "chat-panel-create-target-github-issues-project-option",
       },
       {
-        value: CHAT_PANEL_CREATE_TARGET.WORK_ITEM,
-        label: t("creator.createTarget.workItem"),
-        dataTestId: "chat-panel-create-target-work-item-option",
+        value: CHAT_PANEL_CREATE_TARGET.COLLAB_ORG,
+        label: t("navigation:collaboration.addOrg"),
+        dataTestId: "chat-panel-create-target-collab-org-option",
       },
     ],
     [t]
@@ -75,7 +66,6 @@ export function useChatPanelCreateTarget({
     (value: string | number | (string | number)[]) => {
       if (Array.isArray(value)) return;
       const nextTarget = value as ChatPanelCreateTarget;
-      setStartPageOpen(false);
 
       if (nextTarget === CHAT_PANEL_CREATE_TARGET.MANAGE_AGENTS) {
         const adeManagerDef = allAgentDefs.find(
@@ -91,7 +81,6 @@ export function useChatPanelCreateTarget({
           agentIconId: adeManagerDef?.iconId ?? null,
           cliAgentType: null,
         }));
-        handleNewSession();
         setCreateTarget(CHAT_PANEL_CREATE_TARGET.MANAGE_AGENTS);
         setWorkItemCreateDraft(null);
         setShowWorkItemAgentCreator(sessionCreatorAvailable);
@@ -109,17 +98,12 @@ export function useChatPanelCreateTarget({
         setShowProjectAgentCreator(sessionCreatorAvailable);
       }
       setCreateTarget(nextTarget);
-      if (nextTarget === CHAT_PANEL_CREATE_TARGET.AGENT_SESSION) {
-        handleNewSession();
-      }
     },
     [
       allAgentDefs,
-      handleNewSession,
       sessionCreatorAvailable,
       setCreateTarget,
       setCreatorState,
-      setStartPageOpen,
       setShowProjectAgentCreator,
       setShowWorkItemAgentCreator,
       setWorkItemCreateDraft,

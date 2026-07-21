@@ -137,7 +137,9 @@
       "views": {
         "scanning": "掃描",
         "hooks": "掛鉤",
-        "usage": "用量"
+        "usage": "用量",
+        "quota": "配額",
+        "assets": "資產"
       },
       "usage": {
         "title": "用量與成本",
@@ -156,7 +158,7 @@
           "claude": "Claude",
           "codex": "Codex",
           "cursor": "Cursor",
-          "org2": "ORGII Agent",
+          "org2": "ORG2",
           "other": "其他"
         },
         "cards": {
@@ -890,6 +892,9 @@
         "title": "Agents"
       },
       "tabs": {
+        "session": "工作階段",
+        "workItem": "工作項目",
+        "more": "更多",
         "work": "工作",
         "manage": "管理",
         "heatmap": "趨勢",
@@ -986,6 +991,28 @@
     "copyEventJson": "複製事件 JSON",
     "copyEventJsonCopied": "複製！",
     "copyEventJsonFailed": "複製失敗",
+    "moveToWorkstation": "移動到我的工作站",
+    "moveToChatPanel": "移動到聊天面板",
+    "rawTranscript": {
+      "title": "原始會話記錄",
+      "menuItem": "查看原始記錄",
+      "guiTab": "圖形介面",
+      "rawTab": "原始資料",
+      "entryCount_one": "{{count}} 條記錄",
+      "entryCount_other": "{{count}} 條記錄",
+      "copySuccess": "已複製原始記錄",
+      "copyFailed": "無法複製原始記錄"
+    },
+    "linkWorkItem": {
+      "menuItem": "連結到工作項…",
+      "title": "將會話連結到工作項",
+      "description": "選擇要顯示此會話的工作項。",
+      "searchPlaceholder": "按工作項 ID、標題、狀態或專案搜尋",
+      "loading": "正在載入工作項…",
+      "empty": "找不到工作項。",
+      "linking": "正在連結…",
+      "link": "連結"
+    },
     "historyTitle": "歷史",
     "historyEmpty": "暫無會話",
     "historyGroupTime": "時間",
@@ -1115,6 +1142,8 @@
     "turnMetadata": {
       "noChanges": "本輪沒有檔案改動",
       "earlierRound": "較早輪次",
+      "editsTab": "編輯",
+      "readsTab": "讀取",
       "files_one": "{{count}} 個檔案",
       "files_other": "{{count}} 個檔案",
       "reads_one": "讀取 {{count}} 次",

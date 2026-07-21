@@ -1,4 +1,5 @@
 import { detectInteractionType } from "./apiTrackerInteractions";
+import { recordPushEvent } from "./apiTrackerPush";
 import {
   addApiCall,
   dispatchApiCallUpdatedIfTracing,
@@ -16,6 +17,7 @@ import {
 
 interface TauriInternals {
   invoke?: (cmd: string, args?: unknown) => Promise<unknown>;
+  runCallback?: (callbackId: number, data: unknown) => void;
 }
 
 type TauriInternalsHost = {
@@ -24,6 +26,64 @@ type TauriInternalsHost = {
 
 let directTauriInvokePatched = false;
 let directTauriInvokeSuppressionDepth = 0;
+let tauriCallbackTrackingPatched = false;
+
+function getTauriEventName(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const event = (data as { event?: unknown }).event;
+  return typeof event === "string" ? event : null;
+}
+
+/** Capture all Tauri events, including listeners registered before the panel
+ * was opened and listeners that bypass the shared React hook. */
+export function installTauriCallbackTracking(): (() => void) | undefined {
+  if (tauriCallbackTrackingPatched || typeof window === "undefined") {
+    return undefined;
+  }
+
+  const tauriInternals = (window as TauriInternalsHost).__TAURI_INTERNALS__;
+  const originalRunCallback = tauriInternals?.runCallback;
+  if (!tauriInternals || !originalRunCallback) return undefined;
+
+  const patchedRunCallback = (callbackId: number, data: unknown): void => {
+    const eventName = getTauriEventName(data);
+    if (eventName) recordPushEvent("tauri-event", eventName);
+    originalRunCallback(callbackId, data);
+  };
+
+  const originalDescriptor = Object.getOwnPropertyDescriptor(
+    tauriInternals,
+    "runCallback"
+  );
+
+  try {
+    Object.defineProperty(tauriInternals, "runCallback", {
+      configurable: true,
+      value: patchedRunCallback,
+      writable: true,
+    });
+  } catch {
+    return undefined;
+  }
+
+  tauriCallbackTrackingPatched = true;
+
+  return () => {
+    try {
+      if (originalDescriptor) {
+        Object.defineProperty(
+          tauriInternals,
+          "runCallback",
+          originalDescriptor
+        );
+      } else {
+        delete tauriInternals.runCallback;
+      }
+    } finally {
+      tauriCallbackTrackingPatched = false;
+    }
+  };
+}
 
 export async function withDirectTauriInvokeTrackingSuppressed<T>(
   operation: () => Promise<T>
@@ -118,7 +178,7 @@ export function trackTauriInvoke(
     method: "INVOKE",
     url: cmd,
     fullUrl: `tauri://${cmd}`,
-    backend: "rust",
+    transport: "tauri",
     tauriCommand: cmd,
     tauriArgs: args,
     data: args,

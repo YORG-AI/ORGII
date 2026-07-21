@@ -8,6 +8,7 @@ import {
   useImperativeHandle,
   useMemo,
   useRef,
+  useState,
 } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -25,6 +26,9 @@ export interface ProjectContentEditorRef {
   getDescriptionJSON: () => undefined;
   getMarkdown: () => string;
   insertImage: (src: string, alt?: string) => void;
+  insertFilePill: (filePath: string, displayName?: string) => void;
+  triggerAtMention: () => void;
+  triggerSlashContext: () => void;
   focusTitle: () => void;
   focusDescription: () => void;
 }
@@ -145,6 +149,8 @@ const ProjectContentEditor = forwardRef<
     const titleRef = useRef<HTMLInputElement>(null);
     const editorContainerRef = useRef<HTMLDivElement>(null);
     const descriptionValueRef = useRef(initialDescription);
+    const [slashOpenedFromToolbar, setSlashOpenedFromToolbar] = useState(false);
+    const slashOpenedFromToolbarRef = useRef(false);
     const contextMenuKeyboardHandlerRef = useRef<
       ((event: ReactKeyboardEvent) => boolean) | null
     >(null);
@@ -159,6 +165,7 @@ const ProjectContentEditor = forwardRef<
       contextMenuKeyboardOpened,
       showSlashMenu,
       slashQuery,
+      setSlashQuery,
       slashCommandKeyboardHandlerRef,
       handleSlashCommand,
       handleSlashCommandClose,
@@ -200,6 +207,16 @@ const ProjectContentEditor = forwardRef<
           .insertContent(`\n![${label}](${src})\n`)
           .run();
       },
+      insertFilePill: (filePath: string, displayName?: string) => {
+        editorRef.current?.insertFilePill(filePath, false, "file", displayName);
+      },
+      triggerAtMention: () => editorRef.current?.triggerAtMention(),
+      triggerSlashContext: () => {
+        slashOpenedFromToolbarRef.current = true;
+        setSlashOpenedFromToolbar(true);
+        setSlashQuery("");
+        editorRef.current?.triggerSlashContext();
+      },
       focusTitle: () => titleRef.current?.focus(),
       focusDescription: () => editorRef.current?.focus(),
     }));
@@ -226,6 +243,8 @@ const ProjectContentEditor = forwardRef<
 
     const handleProjectSlashSelect = useCallback(
       (item: SlashItem) => {
+        slashOpenedFromToolbarRef.current = false;
+        setSlashOpenedFromToolbar(false);
         if (item.category === "skill") {
           const skillToken = `/${item.skillName ?? item.name}`;
           editorRef.current?.insertFilePill(
@@ -243,6 +262,22 @@ const ProjectContentEditor = forwardRef<
       },
       [editorRef, handleSlashCommandClose, handleSlashSelect]
     );
+
+    const handleProjectSlashCommand = useCallback(
+      (query: string) => {
+        if (!slashOpenedFromToolbarRef.current) {
+          setSlashOpenedFromToolbar(false);
+        }
+        handleSlashCommand(query);
+      },
+      [handleSlashCommand]
+    );
+
+    const handleProjectSlashClose = useCallback(() => {
+      slashOpenedFromToolbarRef.current = false;
+      setSlashOpenedFromToolbar(false);
+      handleSlashCommandClose();
+    }, [handleSlashCommandClose]);
 
     const showSummary = onSummaryChange !== undefined || Boolean(summary);
 
@@ -302,9 +337,9 @@ const ProjectContentEditor = forwardRef<
               onContentChange={handleDescriptionChange}
               onAtMention={editable ? handleAtMention : undefined}
               onAtMentionClose={editable ? handleAtMentionClose : undefined}
-              onSlashCommand={editable ? handleSlashCommand : undefined}
+              onSlashCommand={editable ? handleProjectSlashCommand : undefined}
               onSlashCommandClose={
-                editable ? handleSlashCommandClose : undefined
+                editable ? handleProjectSlashClose : undefined
               }
               contextMenuVisible={showContextMenu}
               contextMenuKeyboardHandlerRef={contextMenuKeyboardHandlerRef}
@@ -317,7 +352,7 @@ const ProjectContentEditor = forwardRef<
               editable={editable}
               requireCmdEnter
               slashTriggerMode="context"
-              className={`project-content-composer noDrag w-full py-2 text-[13px] [&_.composer-input-content]:px-0 [&_.composer-input-content]:pb-0 [&_.composer-input-content]:text-[13px] [&_.composer-input-content]:leading-[1.6] ${descriptionClassName}`.trim()}
+              className={`session-editor noDrag flex-1 cursor-text overflow-y-auto rounded-md text-[14px] text-text-1 ${descriptionClassName}`.trim()}
             />
             <ContextMenuPortal
               visible={showContextMenu}
@@ -339,10 +374,13 @@ const ProjectContentEditor = forwardRef<
               loading={slashLoading}
               currentMode={currentMode}
               searchQuery={slashQuery}
-              onClose={handleSlashCommandClose}
+              onClose={handleProjectSlashClose}
               onSelect={handleProjectSlashSelect}
               onModeSelect={handleModeSelect}
               keyboardHandlerRef={slashCommandKeyboardHandlerRef}
+              searchMode={slashOpenedFromToolbar ? "header" : "inline"}
+              onSearchQueryChange={setSlashQuery}
+              showActionFlyouts={slashOpenedFromToolbar}
               showModeRows={false}
             />
           </div>

@@ -235,8 +235,7 @@ fn session_activation_matches(
     receipt: Option<HookSessionActivationReceipt>,
 ) -> bool {
     receipt.is_some_and(|receipt| {
-        receipt.source_session_id == source_session_id
-            && receipt.hook_fingerprint == fingerprint
+        receipt.source_session_id == source_session_id && receipt.hook_fingerprint == fingerprint
     })
 }
 
@@ -422,13 +421,15 @@ fn config_has_complete_managed_hooks(
                 && cursor_event_has_managed_hook(config, "subagentStart", None)
                 && cursor_event_has_managed_hook(config, "subagentStop", None)
                 && (!live_status
-                    || CURSOR_LIFECYCLE_EVENTS.iter().all(|(event_name, needs_matcher)| {
-                        cursor_event_has_managed_hook(
-                            config,
-                            event_name,
-                            needs_matcher.then_some(".*"),
-                        )
-                    }))
+                    || CURSOR_LIFECYCLE_EVENTS
+                        .iter()
+                        .all(|(event_name, needs_matcher)| {
+                            cursor_event_has_managed_hook(
+                                config,
+                                event_name,
+                                needs_matcher.then_some(".*"),
+                            )
+                        }))
         }
         SessionProvenanceHookPlatform::QwenCode => nested_event_has_managed_hook(
             config,
@@ -498,7 +499,9 @@ fn config_has_managed_hooks(platform: SessionProvenanceHookPlatform) -> Result<b
         .map(|preferences| preferences.live_status_enabled)
         .unwrap_or(true);
     Ok(config_has_complete_managed_hooks(
-        &config, platform, live_status,
+        &config,
+        platform,
+        live_status,
     ))
 }
 

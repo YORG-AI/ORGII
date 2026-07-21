@@ -26,6 +26,23 @@ describe("resolveSelectedMenuItemIds", () => {
     ).toBe("kanban");
   });
 
+  it("selects Runtime from the active runtime tab", () => {
+    expect(
+      resolveSelectedMenuItemIds({
+        activeSessionCreatorDraftId: null,
+        activeSessionId: "session-1",
+        activeSidebarKey: "workstation",
+        activeChatPanelTabType: "runtime",
+        chatPanelContentMode: CHAT_PANEL_CONTENT_MODE.SESSION,
+        chatPanelCreateTarget: CHAT_PANEL_CREATE_TARGET.AGENT_SESSION,
+        chatPanelSelectedProject: null,
+        chatPanelSelectedWorkItem: null,
+        projectsSelectedMenuItemId: "",
+        sessionCreatorDrafts: [],
+      }).selectedMenuItemId
+    ).toBe("runtime");
+  });
+
   it("selects Add Org by default on the projects sidebar for the collab org create target", () => {
     expect(
       resolveSelectedMenuItemIds({

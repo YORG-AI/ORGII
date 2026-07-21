@@ -379,3 +379,91 @@ fn continuation_group_metadata_json_shapes() {
         Some("uuid-1")
     );
 }
+
+fn table_has_column(conn: &Connection, table: &str, column: &str) -> bool {
+    let mut stmt = conn
+        .prepare(&format!("PRAGMA table_info({table})"))
+        .expect("prepare table_info");
+    let mut rows = stmt.query([]).expect("query table_info");
+    while let Some(row) = rows.next().expect("row") {
+        if row.get::<_, String>(1).expect("name") == column {
+            return true;
+        }
+    }
+    false
+}
+
+// Regression: a database created before `parent_session_id` / `listable` were
+// added to `imported_history_session_cache` must still upgrade cleanly. The
+// sidebar-order partial index filters on both columns, so creating it inside the
+// initial `CREATE TABLE` batch used to abort with "no such column:
+// parent_session_id" on every existing cache table, blocking session_launch.
+#[test]
+fn init_source_cache_tables_upgrades_legacy_table_missing_columns() {
+    let conn = Connection::open_in_memory().expect("open in-memory db");
+    // Simulate the real legacy on-disk schema: every base/older column is
+    // present (so the plain `source_repo` / `source_path` indexes in the initial
+    // batch resolve), but the two most-recently-added partial-index predicate
+    // columns — `listable` and `parent_session_id` — are absent.
+    conn.execute_batch(
+        "CREATE TABLE imported_history_session_cache (
+            source              TEXT NOT NULL,
+            source_session_id   TEXT NOT NULL,
+            session_id          TEXT NOT NULL,
+            source_path         TEXT NOT NULL DEFAULT '',
+            source_record_key   TEXT NOT NULL DEFAULT '',
+            source_mtime_ms     INTEGER NOT NULL DEFAULT 0,
+            source_size_bytes   INTEGER NOT NULL DEFAULT 0,
+            source_fingerprint  TEXT NOT NULL DEFAULT '',
+            parser_version      INTEGER NOT NULL DEFAULT 0,
+            name                TEXT NOT NULL DEFAULT '',
+            created_at_ms       INTEGER NOT NULL DEFAULT 0,
+            updated_at_ms       INTEGER NOT NULL DEFAULT 0,
+            model               TEXT NOT NULL DEFAULT '',
+            input_tokens        INTEGER NOT NULL DEFAULT 0,
+            output_tokens       INTEGER NOT NULL DEFAULT 0,
+            repo_path           TEXT NOT NULL DEFAULT '',
+            branch              TEXT NOT NULL DEFAULT '',
+            updated_at          TEXT NOT NULL DEFAULT '',
+            PRIMARY KEY (source, source_session_id)
+        );",
+    )
+    .expect("create legacy table");
+    assert!(!table_has_column(
+        &conn,
+        "imported_history_session_cache",
+        "parent_session_id"
+    ));
+    assert!(!table_has_column(
+        &conn,
+        "imported_history_session_cache",
+        "listable"
+    ));
+
+    // This previously errored with "no such column: parent_session_id".
+    crate::store::sqlite::SqliteRecordStore::init_source_cache_tables(&conn)
+        .expect("init source cache tables on legacy schema");
+
+    assert!(table_has_column(
+        &conn,
+        "imported_history_session_cache",
+        "parent_session_id"
+    ));
+    assert!(table_has_column(
+        &conn,
+        "imported_history_session_cache",
+        "listable"
+    ));
+    let index_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master
+             WHERE type = 'index' AND name = 'idx_imported_history_sidebar_order'",
+            [],
+            |row| Ok(row.get::<_, i64>(0)? == 1),
+        )
+        .expect("query index presence");
+    assert!(
+        index_exists,
+        "sidebar-order partial index should be created"
+    );
+}

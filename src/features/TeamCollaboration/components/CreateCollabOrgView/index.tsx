@@ -1,4 +1,5 @@
 import { useAtom, useSetAtom } from "jotai";
+import { Cloud, Laptop, LogIn, Plus } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -26,10 +27,10 @@ import {
 import { useRefetchOrg2CloudOrgs } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { ensureProjectOrgForCloudOrg } from "@src/features/Org2Cloud/org2CloudProjectOrgAlias";
 import {
+  SECTION_ACTION_GAP_CLASSES,
   SectionContainer,
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
-import { PANEL_FOOTER_TOKENS } from "@src/modules/shared/layouts/blocks";
 import SelectionGrid from "@src/scaffold/WizardSystem/primitives/SelectionGrid";
 import type { SelectionGridOption } from "@src/scaffold/WizardSystem/primitives/SelectionGrid";
 import { openCloudOrgManagementInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
@@ -92,10 +93,12 @@ const CreateCollabOrgView: React.FC<CreateCollabOrgViewProps> = ({
       {
         key: LOCAL_SOURCE,
         label: t("navigation:collaboration.localOrg"),
+        icon: Laptop,
       },
       {
         key: CLOUD_SOURCE,
         label: t("navigation:cloud.orgManagement.create.sourceCloud"),
+        icon: Cloud,
         dataTestId: "create-collab-org-source-cloud",
       },
     ],
@@ -107,11 +110,13 @@ const CreateCollabOrgView: React.FC<CreateCollabOrgViewProps> = ({
       {
         key: CREATE_MODE,
         label: t("navigation:collaboration.createOrg"),
+        icon: Plus,
         dataTestId: "create-collab-org-mode-create",
       },
       {
         key: JOIN_MODE,
         label: t("navigation:collaboration.joinOrg"),
+        icon: LogIn,
         dataTestId: "create-collab-org-mode-join",
       },
     ],
@@ -266,44 +271,40 @@ const CreateCollabOrgView: React.FC<CreateCollabOrgViewProps> = ({
           className="mx-auto flex h-full w-full max-w-[932px] flex-col gap-4 overflow-y-auto px-4"
           data-testid="create-collab-org-body"
         >
-          <>
-            <SectionContainer bare>
+          <SectionContainer>
+            <SectionRow
+              label={t("navigation:collaboration.orgSource")}
+              required
+              equalColumns
+            >
+              <SelectionGrid
+                options={sourceOptions}
+                selected={source}
+                columns={2}
+                cardVariant="subtle"
+                compactCards
+                onSelect={setSource}
+              />
+            </SectionRow>
+
+            {source === CLOUD_SOURCE && (
               <SectionRow
-                label={t("navigation:collaboration.orgSource")}
-                layout="vertical"
-                required
+                label={t("navigation:collaboration.setupMode")}
+                equalColumns
               >
                 <SelectionGrid
-                  options={sourceOptions}
-                  selected={source}
+                  options={modeOptions}
+                  selected={mode}
                   columns={2}
                   cardVariant="subtle"
                   compactCards
-                  onSelect={setSource}
+                  onSelect={setMode}
                 />
               </SectionRow>
-            </SectionContainer>
-
-            {source === CLOUD_SOURCE && (
-              <SectionContainer bare>
-                <SectionRow
-                  label={t("navigation:collaboration.setupMode")}
-                  layout="vertical"
-                >
-                  <SelectionGrid
-                    options={modeOptions}
-                    selected={mode}
-                    columns={2}
-                    cardVariant="subtle"
-                    compactCards
-                    onSelect={setMode}
-                  />
-                </SectionRow>
-              </SectionContainer>
             )}
 
             {source === CLOUD_SOURCE && !cloudAuth && (
-              <SectionContainer bare>
+              <SectionRow showHeader={false}>
                 <div
                   className="flex flex-wrap items-center gap-2 rounded-md border border-border-1 bg-fill-2 px-3 py-2"
                   data-testid="create-cloud-org-sign-in-hint"
@@ -315,70 +316,72 @@ const CreateCollabOrgView: React.FC<CreateCollabOrgViewProps> = ({
                     {t("navigation:cloud.orgManagement.create.openSettings")}
                   </Button>
                 </div>
-              </SectionContainer>
+              </SectionRow>
             )}
 
-            {source !== null && (
-              <SectionContainer bare>
-                {mode === CREATE_MODE || source === LOCAL_SOURCE ? (
-                  <SectionRow
-                    label={t("navigation:collaboration.orgName")}
-                    layout="vertical"
-                    required
-                  >
-                    <Input
-                      data-testid="create-collab-org-name"
-                      value={orgName}
-                      onChange={setOrgName}
-                      placeholder={t(
-                        "navigation:collaboration.orgNamePlaceholder"
-                      )}
-                      style={COLLAB_FORM_CONTROL_STYLE}
-                    />
-                  </SectionRow>
-                ) : (
-                  <SectionRow
-                    label={t("navigation:collaboration.inviteCode")}
-                    layout="vertical"
-                    required
-                  >
-                    <Input
-                      data-testid="create-collab-org-invite"
-                      value={inviteInput}
-                      onChange={setInviteInput}
-                      placeholder={t(
-                        "navigation:collaboration.inviteCodePlaceholder"
-                      )}
-                      style={COLLAB_FORM_CONTROL_STYLE}
-                    />
-                  </SectionRow>
-                )}
-              </SectionContainer>
-            )}
-          </>
+            {source !== null &&
+              (mode === CREATE_MODE || source === LOCAL_SOURCE ? (
+                <SectionRow
+                  label={t("navigation:collaboration.orgName")}
+                  layout="vertical"
+                  required
+                >
+                  <Input
+                    data-testid="create-collab-org-name"
+                    value={orgName}
+                    onChange={setOrgName}
+                    placeholder={t(
+                      "navigation:collaboration.orgNamePlaceholder"
+                    )}
+                    style={COLLAB_FORM_CONTROL_STYLE}
+                  />
+                </SectionRow>
+              ) : (
+                <SectionRow
+                  label={t("navigation:collaboration.inviteCode")}
+                  layout="vertical"
+                  required
+                >
+                  <Input
+                    data-testid="create-collab-org-invite"
+                    value={inviteInput}
+                    onChange={setInviteInput}
+                    placeholder={t(
+                      "navigation:collaboration.inviteCodePlaceholder"
+                    )}
+                    style={COLLAB_FORM_CONTROL_STYLE}
+                  />
+                </SectionRow>
+              ))}
 
-          {error && <p className="text-sm text-danger-6">{error}</p>}
+            {error && (
+              <SectionRow showHeader={false}>
+                <p className="text-sm text-danger-6">{error}</p>
+              </SectionRow>
+            )}
+
+            <SectionRow
+              showHeader={false}
+              className={`${SECTION_ACTION_GAP_CLASSES} justify-end`}
+            >
+              <Button variant="secondary" size="small" onClick={onCancel}>
+                {t("common:actions.cancel")}
+              </Button>
+              <Button
+                variant="primary"
+                size="small"
+                onClick={() => void handleSubmit()}
+                disabled={!canSubmit}
+                loading={loading}
+                data-testid="create-collab-org-submit"
+              >
+                {source === LOCAL_SOURCE || mode === CREATE_MODE
+                  ? t("navigation:collaboration.createOrg")
+                  : t("navigation:collaboration.joinOrg")}
+              </Button>
+            </SectionRow>
+          </SectionContainer>
         </div>
-      </div>
-
-      <div className={`${PANEL_FOOTER_TOKENS.container} justify-end`}>
-        <>
-          <Button variant="secondary" size="small" onClick={onCancel}>
-            {t("common:actions.cancel")}
-          </Button>
-          <Button
-            variant="primary"
-            size="small"
-            onClick={() => void handleSubmit()}
-            disabled={!canSubmit}
-            loading={loading}
-            data-testid="create-collab-org-submit"
-          >
-            {source === LOCAL_SOURCE || mode === CREATE_MODE
-              ? t("navigation:collaboration.createOrg")
-              : t("navigation:collaboration.joinOrg")}
-          </Button>
-        </>
       </div>
     </div>
   );

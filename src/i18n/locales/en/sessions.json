@@ -143,7 +143,9 @@
       "views": {
         "scanning": "Scanning",
         "hooks": "Hooks",
-        "usage": "Usage"
+        "usage": "Usage",
+        "quota": "Quota",
+        "assets": "Assets"
       },
       "usage": {
         "title": "Usage & cost",
@@ -162,7 +164,7 @@
           "claude": "Claude",
           "codex": "Codex",
           "cursor": "Cursor",
-          "org2": "ORGII agents",
+          "org2": "ORG2",
           "other": "Other"
         },
         "cards": {
@@ -925,6 +927,9 @@
         "title": "Agents"
       },
       "tabs": {
+        "session": "Session",
+        "workItem": "Work Item",
+        "more": "More",
         "work": "Work",
         "manage": "Manage",
         "heatmap": "Trends",
@@ -1032,6 +1037,16 @@
       "entryCount_other": "{{count}} entries",
       "copySuccess": "Raw transcript copied",
       "copyFailed": "Could not copy the raw transcript"
+    },
+    "linkWorkItem": {
+      "menuItem": "Link to Work Item…",
+      "title": "Link session to Work Item",
+      "description": "Select the Work Item that should show this session.",
+      "searchPlaceholder": "Search by Work Item ID, title, status, or project",
+      "loading": "Loading Work Items…",
+      "empty": "No Work Items found.",
+      "linking": "Linking…",
+      "link": "Link"
     },
     "historyTitle": "History",
     "historyEmpty": "No sessions yet",
@@ -1162,6 +1177,8 @@
     "turnMetadata": {
       "noChanges": "No file changes this round",
       "earlierRound": "Earlier round",
+      "editsTab": "Edits",
+      "readsTab": "Reads",
       "files_one": "{{count}} file",
       "files_other": "{{count}} files",
       "reads_one": "{{count}} read",

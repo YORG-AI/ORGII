@@ -1690,6 +1690,8 @@
     "sessionProvenance": {
       "masterToggle": "Provenienz-Hooks",
       "masterToggleDesc": "Wenn deaktiviert, werden alle verwalteten Hooks deinstalliert und keine Signale erfasst; die Auswahl pro Plattform bleibt erhalten und wird beim erneuten Aktivieren wiederhergestellt.",
+      "liveStatusToggle": "Live-Agent-Status",
+      "liveStatusToggleDesc": "Zeigt, ob laufende CLI-Agenten arbeiten oder warten. Aus lässt die Provenienzerfassung aktiv.",
       "title": "Sitzungsherkunft",
       "capture": "Dateiinteraktionen erfassen",
       "description": "Erfasst Lese- und Schreibzugriffe auf Dateien als Metadaten. Prompts, Werkzeugausgaben und Dateiinhalte werden nicht gespeichert.",

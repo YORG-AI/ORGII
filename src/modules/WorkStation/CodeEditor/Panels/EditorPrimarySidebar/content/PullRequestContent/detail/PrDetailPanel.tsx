@@ -14,6 +14,10 @@ import { ArrowUpRight, GitPullRequest } from "lucide-react";
 import React, { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import IntegrationIcon from "@src/components/IntegrationIcon";
+import TabPill from "@src/components/TabPill";
+import type { TabPillItem } from "@src/components/TabPill";
+import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { getPrStatusVariant } from "@src/shared/pr/prStatus";
 import {
@@ -43,13 +47,6 @@ interface PrDetailPanelProps {
   onFileSelect?: (path: string) => void;
 }
 
-interface TabDef {
-  key: PrDetailTab;
-  label: string;
-  count?: number;
-  badge?: React.ReactNode;
-}
-
 /**
  * The inner status pill · #number · title · base←head content of the PR detail
  * header. Extracted so both the panel's own header and the My Station PR tab's
@@ -67,6 +64,11 @@ export function PrDetailHeaderContent({
 
   return (
     <>
+      <IntegrationIcon
+        type="github"
+        size={HEADER_ICON_SIZE.sm}
+        className="shrink-0"
+      />
       <span
         className={`inline-flex h-5 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] font-medium ${statusVariant.badgeClass}`}
       >
@@ -124,22 +126,37 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
   const baseBranch =
     state.baseRef ?? identity.baseBranch ?? t("git.pr.baseBranch", "base");
 
-  const tabs: TabDef[] = useMemo(
+  const tabs: TabPillItem[] = useMemo(
     () => [
       {
         key: "conversation",
         label: t("git.pr.tabs.conversation", "Conversation"),
-        count: state.conversation.length + state.reviews.length,
+        badge:
+          state.conversation.length + state.reviews.length > 0 ? (
+            <span className="rounded-full bg-fill-2 px-1.5 text-[10px] tabular-nums text-text-3">
+              {state.conversation.length + state.reviews.length}
+            </span>
+          ) : undefined,
       },
       {
         key: "changes",
         label: t("git.pr.tabs.changes", "Changes"),
-        count: state.files.length,
+        badge:
+          state.files.length > 0 ? (
+            <span className="rounded-full bg-fill-2 px-1.5 text-[10px] tabular-nums text-text-3">
+              {state.files.length}
+            </span>
+          ) : undefined,
       },
       {
         key: "commits",
         label: t("git.pr.tabs.commits", "Commits"),
-        count: state.commits.length,
+        badge:
+          state.commits.length > 0 ? (
+            <span className="rounded-full bg-fill-2 px-1.5 text-[10px] tabular-nums text-text-3">
+              {state.commits.length}
+            </span>
+          ) : undefined,
       },
       {
         key: "checks",
@@ -175,32 +192,17 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
       ) : null}
 
       {/* Sub-tab bar */}
-      <div className="flex shrink-0 items-center gap-1 border-b border-border-1 pl-3 pr-2">
-        {tabs.map((tab) => {
-          const isActive = tab.key === activeTab;
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setActiveTab(tab.key)}
-              aria-label={tab.label}
-              title={tab.label}
-              className={`flex items-center gap-1.5 border-b-2 px-2.5 py-2 text-[12px] transition-colors ${
-                isActive
-                  ? "border-primary-6 font-medium text-text-1"
-                  : "border-transparent text-text-3 hover:text-text-1"
-              }`}
-            >
-              <span>{tab.label}</span>
-              {tab.badge}
-              {tab.count != null && tab.count > 0 ? (
-                <span className="rounded-full bg-fill-2 px-1.5 text-[10px] tabular-nums text-text-3">
-                  {tab.count}
-                </span>
-              ) : null}
-            </button>
-          );
-        })}
+      <div className="flex shrink-0 items-center gap-1 border-b border-border-1 py-1 pl-3 pr-2">
+        <TabPill
+          tabs={tabs}
+          activeTab={activeTab}
+          onChange={(key) => setActiveTab(key as PrDetailTab)}
+          variant="pill"
+          fillWidth={false}
+          size="small"
+          buttonStyle
+          height={28}
+        />
         <a
           href={identity.url}
           target="_blank"

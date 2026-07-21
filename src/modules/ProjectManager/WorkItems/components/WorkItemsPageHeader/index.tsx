@@ -81,6 +81,8 @@ export interface WorkItemsPageHeaderProps {
   /** Current project name to display in breadcrumb */
   projectName: string;
   breadcrumbSegments?: readonly ProjectManagerBreadcrumbSegment[];
+  /** Provider/type icon rendered before the first breadcrumb segment. */
+  identityIcon?: React.ReactNode;
   /** Navigate back to the Projects list from the breadcrumb */
   onOpenProjects?: () => void;
   /** Currently selected view tab */
@@ -268,7 +270,8 @@ const AddActionsButton: React.FC<AddActionsButtonProps> = ({
 const WorkItemsPageHeader: React.FC<WorkItemsPageHeaderProps> = ({
   projectName,
   breadcrumbSegments,
-  onOpenProjects: _onOpenProjects,
+  identityIcon,
+  onOpenProjects,
   activeTab,
   onTabChange: _onTabChange,
   statusFilter,
@@ -293,14 +296,26 @@ const WorkItemsPageHeader: React.FC<WorkItemsPageHeaderProps> = ({
   const { t } = useTranslation("projects");
   const { spinClass: refreshSpinClass, handleClick: handleRefreshClick } =
     useRefreshSpin(onRefresh ?? (() => {}), refreshLoading);
-  const resolvedBreadcrumbSegments = useMemo(
-    () =>
-      breadcrumbSegments ?? [
-        { label: t("projects.dashboardTitle") },
-        { label: projectName },
-      ],
-    [breadcrumbSegments, projectName, t]
-  );
+  const resolvedBreadcrumbSegments = useMemo(() => {
+    const segments = breadcrumbSegments ?? [
+      { label: t("projects.dashboardTitle") },
+      { label: projectName },
+    ];
+    return segments.map((segment, index) => {
+      if (index === segments.length - 1) {
+        return {
+          ...segment,
+          icon: segment.icon ?? identityIcon ?? (
+            <Box size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
+          ),
+        };
+      }
+      if (index === 0 && onOpenProjects && !segment.onClick) {
+        return { ...segment, onClick: onOpenProjects };
+      }
+      return segment;
+    });
+  }, [breadcrumbSegments, identityIcon, onOpenProjects, projectName, t]);
 
   const activeTabSupportsStatusFilter =
     activeTab === "List" || activeTab === "Kanban";
@@ -349,93 +364,89 @@ const WorkItemsPageHeader: React.FC<WorkItemsPageHeaderProps> = ({
     </WorkstationToolbarTooltip>
   );
 
-  const renderHeaderContent = (includeRefresh: boolean) => (
-    <>
-      <div className="flex min-w-0 flex-1 items-center gap-1">
-        <ProjectManagerBreadcrumb
-          segments={resolvedBreadcrumbSegments}
-          trailingNode={leadingControls}
-        />
-      </div>
-
-      <div className="flex flex-shrink-0 items-center gap-1">
-        {trailingControls}
-        {trailingControls && (searchControl || showStatusFilter) && (
-          <WorkstationHeaderSectionSeparator className="mx-0.5" />
-        )}
-        {searchControl}
-
-        {showStatusFilter && (
-          <WorkItemsStatusFilterSelect
-            value={statusFilter as StatusFilterType}
-            onChange={(value) => onStatusFilterChange(value)}
-            statusCounts={statusCounts}
-            filterKeys={statusFilterKeys}
-          />
-        )}
-
-        {showStatusFilter && (
-          <WorkstationHeaderSectionSeparator className="mx-1" />
-        )}
-
-        {(showCollapseAll || (includeRefresh && onRefresh) || addControls) && (
-          <div className="flex flex-shrink-0 items-center gap-px">
-            {showCollapseAll && (
-              <WorkstationToolbarTooltip
-                label={t("common:actions.collapseAll")}
-              >
-                <Button
-                  htmlType="button"
-                  variant="tertiary"
-                  size="small"
-                  iconOnly
-                  onClick={onCollapseAll}
-                  aria-label={t("common:actions.collapseAll")}
-                  icon={<ListChevronsDownUp size={HEADER_ICON_SIZE.md} />}
-                />
-              </WorkstationToolbarTooltip>
-            )}
-
-            {includeRefresh && onRefresh && (
-              <WorkstationToolbarTooltip label={t("common:actions.refresh")}>
-                <Button
-                  htmlType="button"
-                  variant="tertiary"
-                  size="small"
-                  iconOnly
-                  onClick={handleRefreshClick}
-                  aria-label={t("common:actions.refresh")}
-                  icon={
-                    <RefreshCw
-                      size={HEADER_ICON_SIZE.sm}
-                      strokeWidth={2}
-                      className={refreshSpinClass}
-                    />
-                  }
-                />
-              </WorkstationToolbarTooltip>
-            )}
-            {addControls}
-          </div>
-        )}
-
-        {propertiesControl && (
-          <>
-            <WorkstationHeaderSectionSeparator className="mx-0.5" />
-            {propertiesControl}
-          </>
-        )}
-      </div>
-    </>
+  const headerContent = (
+    <div className="flex min-w-0 flex-1 items-center gap-1.5">
+      <ProjectManagerBreadcrumb
+        segments={resolvedBreadcrumbSegments}
+        trailingNode={leadingControls}
+      />
+    </div>
   );
 
-  const publishedHeaderContent = renderHeaderContent(true);
-  const inlineHeaderContent = renderHeaderContent(true);
+  const headerTrailing = (
+    <div className="flex flex-shrink-0 items-center gap-px">
+      {trailingControls}
+      {trailingControls && (searchControl || showStatusFilter) && (
+        <WorkstationHeaderSectionSeparator className="mx-0.5" />
+      )}
+      {searchControl}
+
+      {showStatusFilter && (
+        <WorkItemsStatusFilterSelect
+          value={statusFilter as StatusFilterType}
+          onChange={(value) => onStatusFilterChange(value)}
+          statusCounts={statusCounts}
+          filterKeys={statusFilterKeys}
+        />
+      )}
+
+      {showStatusFilter && (
+        <WorkstationHeaderSectionSeparator className="mx-1" />
+      )}
+
+      {(showCollapseAll || onRefresh || addControls) && (
+        <div className="flex flex-shrink-0 items-center gap-px">
+          {showCollapseAll && (
+            <WorkstationToolbarTooltip label={t("common:actions.collapseAll")}>
+              <Button
+                htmlType="button"
+                variant="tertiary"
+                size="small"
+                iconOnly
+                onClick={onCollapseAll}
+                aria-label={t("common:actions.collapseAll")}
+                icon={<ListChevronsDownUp size={HEADER_ICON_SIZE.md} />}
+              />
+            </WorkstationToolbarTooltip>
+          )}
+
+          {onRefresh && (
+            <WorkstationToolbarTooltip label={t("common:actions.refresh")}>
+              <Button
+                htmlType="button"
+                variant="tertiary"
+                size="small"
+                iconOnly
+                onClick={handleRefreshClick}
+                aria-label={t("common:actions.refresh")}
+                icon={
+                  <RefreshCw
+                    size={HEADER_ICON_SIZE.sm}
+                    strokeWidth={2}
+                    className={refreshSpinClass}
+                  />
+                }
+              />
+            </WorkstationToolbarTooltip>
+          )}
+          {addControls}
+        </div>
+      )}
+
+      {propertiesControl && (
+        <>
+          <WorkstationHeaderSectionSeparator className="mx-0.5" />
+          {propertiesControl}
+        </>
+      )}
+    </div>
+  );
 
   usePublishWorkstationTabHeader({
     host: workstationHeaderHost,
     content: {
-      content: publishedHeaderContent,
+      content: headerContent,
+      trailing: headerTrailing,
     },
     enabled: publishToWorkstationHeader,
   });
@@ -444,7 +455,8 @@ const WorkItemsPageHeader: React.FC<WorkItemsPageHeaderProps> = ({
 
   return (
     <div className={`${HEADER_CLASSES.pageHeader} ${className}`}>
-      {inlineHeaderContent}
+      {headerContent}
+      {headerTrailing}
     </div>
   );
 };

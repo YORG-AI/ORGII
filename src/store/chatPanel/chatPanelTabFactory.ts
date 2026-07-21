@@ -7,7 +7,7 @@
  * instead of hand-rolling the literal at each call site.
  *
  * ## ID strategies
- * 1. **fixed**  — a constant id (e.g. "chat-work-management"); the tab is a
+ * 1. **fixed**  — a constant id (e.g. "chat-runtime"); the tab is a
  *                 singleton and openers dedupe by searching `tab.type`.
  * 2. **uuid**   — `"<prefix>-<uuid>"`; a fresh instance every time.
  * 3. **keyed**  — `"<prefix>:<key>"`; deterministic from the payload so the

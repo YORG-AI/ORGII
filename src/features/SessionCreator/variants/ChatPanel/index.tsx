@@ -94,6 +94,7 @@ const SessionCreatorChatPanelSingle: React.FC<
 > = ({
   centerFullScreenContent = false,
   className = "",
+  composerHeaderContent,
   innerClassName,
   footerSlot,
   leadingActionSlot,
@@ -587,6 +588,7 @@ const SessionCreatorChatPanelSingle: React.FC<
           : undefined
       }
       compactHeaderIcon={compactHeaderIcon}
+      composerHeaderContent={composerHeaderContent}
       composerInputRef={composerInputRef}
       editorAreaProps={{
         variant: "chatPanelFullScreen",

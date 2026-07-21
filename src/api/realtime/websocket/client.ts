@@ -14,6 +14,7 @@
  * - Global debug mode via window.__ORGII_WS_DEBUG__
  */
 import { createLogger } from "@src/hooks/logger";
+import { recordPushEvent } from "@src/util/monitoring/apiTracker";
 
 import { parseWSMessage } from "./schemas";
 import type { WSEventType, WSMessage } from "./types";
@@ -307,6 +308,7 @@ export class OrgiiaiWSClient {
 
   private handleMessage(data: WSMessage): void {
     const eventType = data.type as WSEventType;
+    recordPushEvent("ws", `in · ${eventType}`);
     addDebugLog("in", eventType, data);
     this.emit(eventType, data);
     this.emit("*", data);

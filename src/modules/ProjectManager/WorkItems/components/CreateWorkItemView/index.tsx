@@ -1,11 +1,15 @@
 import { emit } from "@tauri-apps/api/event";
 import { Info, X } from "lucide-react";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import ComposerBar from "@src/components/ComposerBar";
+import ComposerShell from "@src/components/ComposerShell";
 import Message from "@src/components/Message";
 import Switch from "@src/components/Switch";
+import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import LaunchButton from "@src/features/SessionCreator/components/LaunchButton";
 import { useKeyboardSave } from "@src/hooks/keyboard";
 import { createLogger } from "@src/hooks/logger";
 import { DetailSplitLayout } from "@src/modules/ProjectManager/shared";
@@ -69,6 +73,10 @@ export interface CreateWorkItemViewProps {
   showFooter?: boolean;
   showSubmitAction?: boolean;
   chatPanelFooter?: boolean;
+  /** Center the Launchpad toggle and composer as one stack. */
+  centerLauncherContent?: boolean;
+  /** Render Session Creator in Agent mode with Work Item fields attached above it. */
+  renderAgentComposer?: (headerContent: React.ReactNode) => React.ReactNode;
   defaultAiAssignee?: {
     id: string;
     name: string;
@@ -105,6 +113,8 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
   showFooter = true,
   showSubmitAction = true,
   chatPanelFooter = false,
+  centerLauncherContent = false,
+  renderAgentComposer,
   defaultAiAssignee = null,
 }) => {
   const { t } = useTranslation("projects");
@@ -112,6 +122,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
   const [createMore, setCreateMore] = useState(false);
   const [localAiGenerateMode, setLocalAiGenerateMode] = useState(true);
   const [localPropertiesOpen, setLocalPropertiesOpen] = useState(false);
+  const manualFileInputRef = useRef<HTMLInputElement>(null);
 
   const resolvedPropertiesOpen = propertiesOpen ?? localPropertiesOpen;
   const resolvedAiGenerateMode =
@@ -136,7 +147,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
     scopeBreadcrumbLabel,
   });
 
-  const { draft } = inlineFields;
+  const { draft, editorRef } = inlineFields;
   const canAutoExecuteWithAssignee =
     draft.assigneeType === "agent" || draft.assigneeType === "org";
   const autoExecuteBlocked =
@@ -201,40 +212,68 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
     setLocalPropertiesOpen((current) => !current);
   }, [onToggleProperties]);
 
-  const handleCreate = useCallback(async () => {
-    if (!draft.name.trim() || saving) return;
-
-    setSaving(true);
-    try {
-      const rawMarkdown =
-        inlineFields.editorRef.current?.getMarkdown()?.trim() ??
-        draft.description;
-      const result = await createWorkItemFromDraft({
-        createMore,
-        description: rawMarkdown,
-        draft,
-        orgId,
-        selectedProjectSlug: inlineFields.selectedProjectSlug,
+  const handleManualFileUpload = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      Array.from(event.target.files ?? []).forEach((file) => {
+        editorRef.current?.insertFilePill(file.name, file.name);
       });
+      event.target.value = "";
+    },
+    [editorRef]
+  );
 
-      await emit("orgii-data-changed");
-      if (createMore) {
-        inlineFields.resetDraftForCreateMore();
-        onWorkItemCreated(result);
-      } else {
-        inlineFields.clearDraft();
-        onWorkItemCreated(result);
+  const handleCreate = useCallback(
+    async (descriptionOverride?: string) => {
+      if (!draft.name.trim() || saving) return;
+
+      setSaving(true);
+      try {
+        const rawMarkdown =
+          descriptionOverride?.trim() ??
+          inlineFields.editorRef.current?.getMarkdown()?.trim() ??
+          draft.description;
+        const result = await createWorkItemFromDraft({
+          createMore,
+          description: rawMarkdown,
+          draft,
+          orgId,
+          selectedProjectSlug: inlineFields.selectedProjectSlug,
+        });
+
+        await emit("orgii-data-changed");
+        if (createMore) {
+          inlineFields.resetDraftForCreateMore();
+          onWorkItemCreated(result);
+        } else {
+          inlineFields.clearDraft();
+          onWorkItemCreated(result);
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.error("Failed to create work item", err);
+        Message.error(msg);
+      } finally {
+        setSaving(false);
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      logger.error("Failed to create work item", err);
-      Message.error(msg);
-    } finally {
-      setSaving(false);
-    }
-  }, [createMore, draft, inlineFields, onWorkItemCreated, orgId, saving]);
+    },
+    [createMore, draft, inlineFields, onWorkItemCreated, orgId, saving]
+  );
 
-  useKeyboardSave(handleCreate, !saving && !!draft.name.trim());
+  useKeyboardSave(
+    handleCreate,
+    !resolvedAiGenerateMode && !saving && !!draft.name.trim()
+  );
+
+  const composerHeaderContent = (
+    <div className="px-1" data-testid="create-work-item-composer-header">
+      <InlineCreateWorkItemFields
+        className="w-full"
+        showDescription={false}
+        showDividers={false}
+        state={inlineFields}
+      />
+    </div>
+  );
 
   return (
     <DetailSplitLayout
@@ -296,28 +335,111 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
         </>
       }
       leftContent={
-        <div className="flex h-full min-h-0 flex-col overflow-hidden">
-          {showAiModePanel ? (
-            <div className="border-b border-solid border-border-1 px-4 py-2">
-              <div
-                className="flex items-center justify-between gap-3 rounded-xl bg-primary-container px-3 py-2"
-                data-testid="create-work-item-mode-panel"
-              >
-                <span className="text-[12px] font-medium text-text-1">
-                  Agent
-                </span>
-                <Switch
-                  size="small"
-                  checked={resolvedAiGenerateMode}
-                  onChange={handleAiGenerateModeChange}
-                  ariaLabel="Agent"
-                  dataTestId="create-work-item-mode-ai-switch"
-                />
+        <div
+          className={`flex h-full min-h-0 flex-col ${
+            centerLauncherContent ? "overflow-y-auto" : "overflow-hidden"
+          }`}
+        >
+          <div
+            className={
+              centerLauncherContent
+                ? "my-auto flex w-full shrink-0 flex-col"
+                : "contents"
+            }
+            data-testid={
+              centerLauncherContent
+                ? "create-work-item-centered-launcher"
+                : undefined
+            }
+          >
+            {showAiModePanel ? (
+              <div className={`${DETAIL_PANEL_TOKENS.headerWidth} px-4 py-2`}>
+                <div
+                  className="flex items-center justify-center gap-2 px-3 py-2"
+                  data-testid="create-work-item-mode-panel"
+                >
+                  <span className="text-[12px] font-medium text-text-1">
+                    Agent
+                  </span>
+                  <Switch
+                    size="small"
+                    checked={resolvedAiGenerateMode}
+                    onChange={handleAiGenerateModeChange}
+                    ariaLabel="Agent"
+                    dataTestId="create-work-item-mode-ai-switch"
+                  />
+                </div>
               </div>
-            </div>
-          ) : null}
-          <div className="mx-auto h-full w-full max-w-[932px] px-4">
-            <InlineCreateWorkItemFields state={inlineFields} />
+            ) : null}
+            {resolvedAiGenerateMode && renderAgentComposer ? (
+              <div
+                className={
+                  centerLauncherContent
+                    ? "shrink-0 pt-6"
+                    : "min-h-0 flex-1 overflow-hidden pt-6"
+                }
+              >
+                {renderAgentComposer(composerHeaderContent)}
+              </div>
+            ) : renderAgentComposer ? (
+              <div
+                className={`session-creator-chat-panel-wrapper pt-6 ${
+                  centerLauncherContent
+                    ? `${DETAIL_PANEL_TOKENS.headerWidth} shrink-0 px-4`
+                    : "min-h-0 flex-1 overflow-hidden"
+                }`}
+              >
+                <div
+                  className={`mx-auto flex min-h-0 w-full flex-col ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
+                >
+                  <div className="session-creator-chat-panel-fullscreen-composer relative w-full">
+                    <div className="session-creator-chat-panel-fullscreen-header-row px-1 pb-3 pt-2">
+                      {composerHeaderContent}
+                    </div>
+                    <ComposerShell className="session-creator-chat-panel-fullscreen-input-shell relative z-10">
+                      <div className="min-h-0 px-1">
+                        {inlineFields.descriptionSection}
+                      </div>
+                      <ComposerBar
+                        onAddContent={() =>
+                          editorRef.current?.triggerAtMention()
+                        }
+                        onUpload={() => manualFileInputRef.current?.click()}
+                        onOpenSkillsTools={() =>
+                          editorRef.current?.triggerSlashContext()
+                        }
+                        dropdownDirection="down"
+                        toolbarItemGap={false}
+                        showContextInfo={false}
+                        submitButton={
+                          <LaunchButton
+                            ariaLabel={t("common:actions.save")}
+                            disabled={!draft.name.trim() || saving}
+                            loading={saving}
+                            onClick={() => {
+                              void handleCreate();
+                            }}
+                          />
+                        }
+                      />
+                      <input
+                        ref={manualFileInputRef}
+                        type="file"
+                        multiple
+                        className="hidden"
+                        onChange={handleManualFileUpload}
+                        tabIndex={-1}
+                        aria-hidden
+                      />
+                    </ComposerShell>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className={`${DETAIL_PANEL_TOKENS.headerWidth} h-full px-4`}>
+                <InlineCreateWorkItemFields state={inlineFields} />
+              </div>
+            )}
           </div>
         </div>
       }
@@ -338,7 +460,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
       }
       resizableRightPanel={resolvedPropertiesOpen}
       footer={
-        showFooter && inlineFields.showManualInputs ? (
+        showFooter && inlineFields.showManualInputs && !renderAgentComposer ? (
           chatPanelFooter ? (
             <>
               <Button
@@ -351,7 +473,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
               <Button
                 variant="primary"
                 size="small"
-                onClick={handleCreate}
+                onClick={() => handleCreate()}
                 disabled={!draft.name.trim() || saving}
                 data-testid="create-work-item-submit"
               >
@@ -378,7 +500,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
                 <Button
                   variant="primary"
                   size="small"
-                  onClick={handleCreate}
+                  onClick={() => handleCreate()}
                   disabled={!draft.name.trim() || saving}
                   data-testid="create-work-item-submit"
                 >

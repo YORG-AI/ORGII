@@ -14,10 +14,10 @@ import { useTranslation } from "react-i18next";
 
 import type { ProjectOrg } from "@src/api/http/project";
 import type { QuickAction } from "@src/modules/WorkStation/shared";
+import { openCreateTargetInChatPanelStartPageAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import {
-  CHAT_PANEL_SURFACE_KIND,
+  CHAT_PANEL_CREATE_TARGET,
   activeStationChatVisibleAtom,
-  chatPanelNavigateAtom,
 } from "@src/store/ui/chatPanelAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { workStationPrimarySidebarCollapsedPersistAtom } from "@src/store/ui/workStationAtom";
@@ -102,7 +102,9 @@ export function useProjectTabActions({
 
   const stationMode = useAtomValue(stationModeAtom);
   const setStationChatVisible = useSetAtom(activeStationChatVisibleAtom);
-  const navigateChatPanel = useSetAtom(chatPanelNavigateAtom);
+  const openCreateTargetInStartPage = useSetAtom(
+    openCreateTargetInChatPanelStartPageAtom
+  );
   const setLayout = useSetAtom(workstationLayoutAtom);
 
   /**
@@ -206,8 +208,8 @@ export function useProjectTabActions({
   );
 
   const handleCreateProject = useCallback(() => {
-    navigateChatPanel({
-      kind: CHAT_PANEL_SURFACE_KIND.NEW_PROJECT,
+    openCreateTargetInStartPage({
+      target: CHAT_PANEL_CREATE_TARGET.PROJECT,
       createProjectContext: {
         orgId: activeProjectOrg?.orgId ?? STORY_PERSONAL_ORG_FILTER_ID,
         scopeBreadcrumbLabel:
@@ -219,7 +221,7 @@ export function useProjectTabActions({
     }
   }, [
     activeProjectOrg,
-    navigateChatPanel,
+    openCreateTargetInStartPage,
     setStationChatVisible,
     stationMode,
     t,
@@ -227,12 +229,14 @@ export function useProjectTabActions({
 
   const handleCreateWorkItem = useCallback(
     (_projectId?: string, _projectName?: string, _projectSlug?: string) => {
-      navigateChatPanel({ kind: CHAT_PANEL_SURFACE_KIND.NEW_WORK_ITEM });
+      openCreateTargetInStartPage({
+        target: CHAT_PANEL_CREATE_TARGET.WORK_ITEM,
+      });
       if (stationMode === "my-station" || stationMode === "agent-station") {
         setStationChatVisible(stationMode, true);
       }
     },
-    [navigateChatPanel, setStationChatVisible, stationMode]
+    [openCreateTargetInStartPage, setStationChatVisible, stationMode]
   );
 
   const handleOpenProjects = useCallback(() => {

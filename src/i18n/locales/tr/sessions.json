@@ -137,7 +137,9 @@
       "views": {
         "scanning": "Tarama",
         "hooks": "Hooks",
-        "usage": "Kullanım"
+        "usage": "Kullanım",
+        "quota": "Kota",
+        "assets": "Varlıklar"
       },
       "usage": {
         "title": "Kullanım ve maliyet",
@@ -156,7 +158,7 @@
           "claude": "Claude",
           "codex": "Codex",
           "cursor": "Cursor",
-          "org2": "ORGII agent'ları",
+          "org2": "ORG2",
           "other": "Diğer"
         },
         "cards": {
@@ -887,6 +889,9 @@
         "title": "Agents"
       },
       "tabs": {
+        "session": "Oturum",
+        "workItem": "İş öğesi",
+        "more": "Daha fazla",
         "work": "Çalışma",
         "manage": "Yönet",
         "heatmap": "Trendler",
@@ -983,6 +988,28 @@
     "copyEventJson": "Olay JSON'unu kopyala",
     "copyEventJsonCopied": "Kopyalandı!",
     "copyEventJsonFailed": "Kopyalama başarısız",
+    "moveToWorkstation": "Workstation'ıma taşı",
+    "moveToChatPanel": "Sohbet paneline taşı",
+    "rawTranscript": {
+      "title": "Ham oturum dökümü",
+      "menuItem": "Ham dökümü görüntüle",
+      "guiTab": "GUI",
+      "rawTab": "Ham veri",
+      "entryCount_one": "{{count}} girdi",
+      "entryCount_other": "{{count}} girdi",
+      "copySuccess": "Ham döküm kopyalandı",
+      "copyFailed": "Ham döküm kopyalanamadı"
+    },
+    "linkWorkItem": {
+      "menuItem": "Work Item'a bağla…",
+      "title": "Oturumu Work Item'a bağla",
+      "description": "Bu oturumun gösterileceği Work Item'ı seçin.",
+      "searchPlaceholder": "Work Item kimliği, başlığı, durumu veya projesine göre ara",
+      "loading": "Work Items yükleniyor…",
+      "empty": "Work Item bulunamadı.",
+      "linking": "Bağlanıyor…",
+      "link": "Bağla"
+    },
     "historyTitle": "Geçmiş",
     "historyEmpty": "Henüz oturum yok",
     "historyGroupTime": "Zaman",
@@ -1112,6 +1139,8 @@
     "turnMetadata": {
       "noChanges": "Bu turda dosya değişikliği yok",
       "earlierRound": "Önceki tur",
+      "editsTab": "Düzenlemeler",
+      "readsTab": "Okumalar",
       "files_one": "{{count}} dosya",
       "files_other": "{{count}} dosya",
       "reads_one": "{{count}} okuma",

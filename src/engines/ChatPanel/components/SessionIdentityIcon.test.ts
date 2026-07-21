@@ -1,6 +1,27 @@
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { resolveSessionIdentityIconColorClass } from "./SessionIdentityIcon";
+import SessionIdentityIcon, {
+  SESSION_IDENTITY_ICON_SIZE,
+  resolveSessionIdentityIconColorClass,
+} from "./SessionIdentityIcon";
+
+describe("SessionIdentityIcon", () => {
+  it("centers the compact glyph in the shared tab and header icon box", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(SessionIdentityIcon, {
+        session: null,
+        sessionId: "session-icon-test",
+      })
+    );
+
+    expect(SESSION_IDENTITY_ICON_SIZE).toBe(14);
+    expect(markup).toContain("inline-flex h-4 w-4");
+    expect(markup).toContain('width="14"');
+    expect(markup).toContain('height="14"');
+  });
+});
 
 describe("resolveSessionIdentityIconColorClass", () => {
   it("keeps selected monochrome model icons on the foreground color", () => {
@@ -9,9 +30,9 @@ describe("resolveSessionIdentityIconColorClass", () => {
     );
   });
 
-  it("keeps selected generic session glyphs on the primary color", () => {
+  it("keeps selected generic Rust agent glyphs on the secondary text color", () => {
     expect(resolveSessionIdentityIconColorClass(true, false)).toBe(
-      "text-primary-6"
+      "text-text-2"
     );
   });
 

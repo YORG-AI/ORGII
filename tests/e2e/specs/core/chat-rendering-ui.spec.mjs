@@ -2402,15 +2402,11 @@ async function assertTurnMetadataFooterRendered() {
       execJS(`
         const footer = document.querySelector('[data-testid="turn-metadata-footer"]');
         return !!footer &&
-          !!footer.querySelector('[data-testid="turn-metadata-files-count"]') &&
+          !!footer.querySelector('[data-testid="turn-metadata-edits-tab"][data-active="true"]') &&
           !!footer.querySelector('[data-testid="turn-metadata-reads-count"]') &&
-          !!footer.querySelector('[data-testid="turn-metadata-searches-count"]') &&
-          !!footer.querySelector('[data-testid="turn-metadata-commits-count"]') &&
-          !!footer.querySelector('[data-testid="turn-metadata-prs-count"]') &&
           footer.querySelectorAll('[data-testid="turn-metadata-commit"]').length === 1 &&
           footer.querySelectorAll('[data-testid="turn-metadata-pr"]').length === 1 &&
-          footer.querySelectorAll('[data-testid="turn-metadata-read"]').length === 1 &&
-          footer.querySelectorAll('[data-testid="turn-metadata-search"]').length === 2 &&
+          footer.querySelectorAll('[data-testid="turn-metadata-read"]').length === 0 &&
           (footer.innerText || '').includes('sessionMetadata.ts') &&
           (footer.innerText || '').includes('abc1234') &&
           (footer.innerText || '').includes('#387');
@@ -2420,6 +2416,25 @@ async function assertTurnMetadataFooterRendered() {
       timeoutMsg: `turn metadata footer did not render: ${JSON.stringify(
         await execJS(`return (document.body.innerText || '').slice(-5000);`)
       )}`,
+    }
+  );
+
+  await execJS(`
+    document.querySelector('[data-testid="turn-metadata-reads-tab"]')?.click();
+  `);
+  await browser.waitUntil(
+    async () =>
+      execJS(`
+        const footer = document.querySelector('[data-testid="turn-metadata-footer"]');
+        return !!footer &&
+          !!footer.querySelector('[data-testid="turn-metadata-reads-tab"][data-active="true"]') &&
+          footer.querySelectorAll('[data-testid="turn-metadata-read"]').length === 1 &&
+          footer.querySelectorAll('[data-testid="turn-metadata-commit"]').length === 0 &&
+          footer.querySelectorAll('[data-testid="turn-metadata-pr"]').length === 0;
+      `),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: "read rows did not lazy-render after selecting Reads",
     }
   );
 

@@ -12,6 +12,11 @@ import FileDropdown from "./FileDropdown";
 export interface BreadcrumbFileHeaderProps {
   /** Full file path to display */
   filePath: string;
+  /**
+   * Explicit display segments for non-file breadcrumbs. When provided, labels
+   * are not split on `/`, so titles containing slashes remain one segment.
+   */
+  displaySegments?: readonly BreadcrumbFileHeaderDisplaySegment[];
   /** Root repository path for navigation */
   repoPath?: string;
   /** Optional icon shown before the final segment (file name) */
@@ -36,10 +41,20 @@ export interface BreadcrumbFileHeaderProps {
   lastSegmentClassName?: string;
 }
 
+export interface BreadcrumbFileHeaderDisplaySegment {
+  label: string;
+  icon?: React.ReactNode;
+  onClick?: () => void;
+  title?: string;
+}
+
 interface PathSegment {
   label: string;
   fullPath: string;
   isLast: boolean;
+  icon?: React.ReactNode;
+  onClick?: () => void;
+  title?: string;
 }
 
 /**
@@ -56,6 +71,7 @@ function isVirtualFile(filePath: string): boolean {
 
 const BreadcrumbFileHeader: React.FC<BreadcrumbFileHeaderProps> = ({
   filePath,
+  displaySegments,
   repoPath,
   lastSegmentIcon,
   onFileSelect,
@@ -75,7 +91,11 @@ const BreadcrumbFileHeader: React.FC<BreadcrumbFileHeaderProps> = ({
   const pathSegments = useMemo(() => {
     if (!filePath) return [];
 
-    if (plainTitle || isVirtualFile(filePath)) {
+    if (
+      plainTitle ||
+      ((!displaySegments || displaySegments.length === 0) &&
+        isVirtualFile(filePath))
+    ) {
       return [
         {
           label: filePath,
@@ -85,20 +105,29 @@ const BreadcrumbFileHeader: React.FC<BreadcrumbFileHeaderProps> = ({
       ];
     }
 
-    const parts = filePath.split("/").filter(Boolean);
+    const parts =
+      displaySegments && displaySegments.length > 0
+        ? [...displaySegments]
+        : filePath
+            .split("/")
+            .filter(Boolean)
+            .map((label) => ({ label }));
     const segments: PathSegment[] = [];
 
     parts.forEach((part, index) => {
-      const fullPath = parts.slice(0, index + 1).join("/");
+      const fullPath = parts
+        .slice(0, index + 1)
+        .map((segment) => segment.label)
+        .join("/");
       segments.push({
-        label: part,
+        ...part,
         fullPath: repoPath ? `${repoPath}/${fullPath}` : fullPath,
         isLast: index === parts.length - 1,
       });
     });
 
     return segments;
-  }, [filePath, repoPath, plainTitle]);
+  }, [displaySegments, filePath, repoPath, plainTitle]);
 
   const scrollToRight = useCallback(() => {
     if (containerRef.current) {
@@ -108,7 +137,7 @@ const BreadcrumbFileHeader: React.FC<BreadcrumbFileHeaderProps> = ({
 
   React.useEffect(() => {
     scrollToRight();
-  }, [filePath, scrollToRight]);
+  }, [pathSegments, scrollToRight]);
 
   React.useEffect(() => {
     const container = containerRef.current;
@@ -119,14 +148,19 @@ const BreadcrumbFileHeader: React.FC<BreadcrumbFileHeaderProps> = ({
   }, [scrollToRight]);
 
   const handleSegmentClick = useCallback(
-    (segmentPath: string, isLast: boolean) => {
-      if (disableNavigation || isLast) {
+    (segment: PathSegment) => {
+      if (segment.onClick) {
+        setActiveSegmentPath(null);
+        segment.onClick();
+        return;
+      }
+      if (disableNavigation || segment.isLast) {
         setActiveSegmentPath(null);
         return;
       }
 
       setActiveSegmentPath((prev) => {
-        return prev === segmentPath ? null : segmentPath;
+        return prev === segment.fullPath ? null : segment.fullPath;
       });
     },
     [disableNavigation]
@@ -166,6 +200,10 @@ const BreadcrumbFileHeader: React.FC<BreadcrumbFileHeaderProps> = ({
         const isActive = activeSegmentPath === segment.fullPath;
         const isLast = segment.isLast;
         const singleLineTitle = plainTitle && isLast;
+        const isClickable =
+          Boolean(segment.onClick) || (!disableNavigation && !isLast);
+        const segmentIcon =
+          segment.icon ?? (isLast ? lastSegmentIcon : undefined);
 
         return (
           <React.Fragment key={segment.fullPath}>
@@ -183,27 +221,41 @@ const BreadcrumbFileHeader: React.FC<BreadcrumbFileHeaderProps> = ({
                   }
                 }
               }}
-              title={singleLineTitle ? filePath : undefined}
+              title={
+                segment.title ??
+                (singleLineTitle || (displaySegments && isLast)
+                  ? filePath
+                  : undefined)
+              }
               className={`h-6 min-w-0 items-center px-1 ${textSizeClassName} leading-6 transition-colors ${
                 singleLineTitle
                   ? "flex flex-1 truncate font-medium text-text-1"
                   : `inline-flex flex-shrink-0 whitespace-nowrap ${
-                      isLast
+                      isLast && !segment.onClick
                         ? "font-medium text-text-1"
-                        : disableNavigation
-                          ? "text-text-2"
-                          : "cursor-pointer text-text-2 hover:text-text-1"
+                        : isClickable
+                          ? "cursor-pointer text-text-2 hover:text-text-1"
+                          : "text-text-2"
                     }`
               } ${isActive && !disableNavigation ? "text-text-1 underline decoration-text-1" : ""} ${
                 isLast && lastSegmentClassName ? lastSegmentClassName : ""
               }`.trim()}
-              onClick={() =>
-                handleSegmentClick(segment.fullPath, segment.isLast)
+              role={isClickable ? "button" : undefined}
+              tabIndex={isClickable ? 0 : undefined}
+              onClick={() => handleSegmentClick(segment)}
+              onKeyDown={
+                isClickable
+                  ? (event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      handleSegmentClick(segment);
+                    }
+                  : undefined
               }
             >
-              {isLast && lastSegmentIcon ? (
+              {segmentIcon ? (
                 <span className="mr-1.5 inline-flex shrink-0 items-center text-text-2">
-                  {lastSegmentIcon}
+                  {segmentIcon}
                 </span>
               ) : null}
               {singleLineTitle ? (

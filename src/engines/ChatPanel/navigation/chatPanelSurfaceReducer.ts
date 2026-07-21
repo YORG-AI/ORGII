@@ -100,11 +100,6 @@ export function reduceChatPanelSurfaceCommand(
         ...next,
         selectedWorkItem: command.workItem,
       };
-    case CHAT_PANEL_SURFACE_KIND.WORKSPACE_DASHBOARD:
-      return {
-        ...next,
-        contentMode: CHAT_PANEL_CONTENT_MODE.SESSION,
-      };
     case CHAT_PANEL_SURFACE_KIND.WORKSPACE_EXPLORE:
       return {
         ...next,

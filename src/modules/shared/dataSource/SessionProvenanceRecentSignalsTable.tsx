@@ -20,6 +20,10 @@ import Tag, { type TagProps } from "@src/components/Tag";
 import { parseUnifiedDiffToOldNew } from "@src/engines/SessionCore/rendering/props/extractorShared";
 import { CodeMirrorDiff } from "@src/features/CodeMirror/Diff";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
+import {
+  SECTION_GAP_CLASSES,
+  SECTION_SUBHEADING_CLASSES,
+} from "@src/modules/shared/layouts/SectionLayout";
 import InlineInfoCard from "@src/modules/shared/layouts/blocks/InlineInfoCard";
 import { formatRelativeElapsedShort } from "@src/util/data/formatters/date";
 
@@ -390,16 +394,14 @@ const SessionProvenanceRecentSignalsTable: React.FC = () => {
 
   return (
     <div
-      className="flex flex-col gap-2"
+      className={SECTION_GAP_CLASSES}
       data-testid="session-provenance-recent-signals"
     >
-      <div className="flex items-center gap-2 px-1">
-        <h3 className="text-[13px] font-semibold text-text-1">
-          {t("agentOrgs.sessionProvenance.signals.title", {
-            defaultValue: "Recent signals",
-          })}
-        </h3>
-      </div>
+      <h3 className={SECTION_SUBHEADING_CLASSES}>
+        {t("agentOrgs.sessionProvenance.signals.title", {
+          defaultValue: "Recent signals",
+        })}
+      </h3>
       <SettingsTable<SessionProvenanceRecentSignal>
         columns={columns}
         rows={rows}

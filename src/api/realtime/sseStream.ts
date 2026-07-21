@@ -54,6 +54,7 @@ export function createSSEStream(options: SSEStreamOptions): () => void {
   // Handle start event
   eventSource.addEventListener("start", (event) => {
     try {
+      recordPushEvent("sse", "start");
       const data = parseSSEStartData(event.data);
       onStart?.(data);
     } catch (parseError) {
@@ -75,6 +76,7 @@ export function createSSEStream(options: SSEStreamOptions): () => void {
   // Handle end event
   eventSource.addEventListener("end", (event) => {
     try {
+      recordPushEvent("sse", "end");
       const data = parseSSEEndData(event.data);
       onEnd?.(data);
       eventSource.close();
@@ -87,6 +89,7 @@ export function createSSEStream(options: SSEStreamOptions): () => void {
   // Handle error event
   eventSource.addEventListener("error", (event: Event) => {
     try {
+      recordPushEvent("sse", "error");
       // Check if error event has data
       const messageEvent = event as MessageEvent;
       if (messageEvent.data) {

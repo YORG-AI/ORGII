@@ -134,6 +134,11 @@ export interface UsageOverview {
   summary: UsageSummary;
   trends: UsageTrendPoint[];
   rounds: UsageRoundRow[];
+  /** Total request-log rows after table-only model/search filtering. */
+  roundTotal: number;
+  /** Known models in the dashboard scope, before table-only filtering. */
+  roundModels: string[];
+  hasUnknownRoundModel: boolean;
 }
 
 /** Common scope shared by every dashboard query. `bucket: null` = all four. */
@@ -171,7 +176,14 @@ export async function usageDashboardTrends(
 
 export async function usageDashboardOverview(
   scope: UsageScope = {},
-  options?: { sort?: UsageSessionSort; offset?: number; limit?: number }
+  options?: {
+    sort?: UsageSessionSort;
+    offset?: number;
+    limit?: number;
+    model?: string;
+    unknownModel?: boolean;
+    search?: string;
+  }
 ): Promise<UsageOverview> {
   return invoke("usage_dashboard_overview", {
     bucket: scope.bucket ?? null,
@@ -181,6 +193,9 @@ export async function usageDashboardOverview(
     sort: options?.sort ?? "recent",
     offset: options?.offset ?? 0,
     limit: options?.limit ?? null,
+    model: options?.model ?? null,
+    unknownModel: options?.unknownModel ?? false,
+    search: options?.search ?? null,
     bucketUnit: null,
   });
 }

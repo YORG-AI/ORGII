@@ -105,7 +105,7 @@ export const SourceControlHeaderContent: React.FC<
       ) : null}
       {sourceControlHeaderTrailingSlot}
       {showIssueHeader && (
-        <div className="flex min-w-0 flex-1 items-center gap-2 pl-1">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <span
             className={`shrink-0 ${selectedIssue.state === "open" ? "text-success-6" : "text-text-3"}`}
           >

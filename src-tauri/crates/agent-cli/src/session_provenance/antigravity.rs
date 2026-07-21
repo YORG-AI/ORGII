@@ -8,7 +8,8 @@ use super::config::command_is_managed_for_platform;
 use super::SessionProvenanceHookPlatform;
 
 // Antigravity lifecycle event arrays added to the owned hook group.
-pub(super) const ANTIGRAVITY_LIFECYCLE_EVENTS: &[&str] = &["PreInvocation", "PostInvocation", "Stop"];
+pub(super) const ANTIGRAVITY_LIFECYCLE_EVENTS: &[&str] =
+    &["PreInvocation", "PostInvocation", "Stop"];
 // Antigravity uses the Claude-Code-style nested `PostToolUse` shape; its
 // matcher convention is the literal `*` (see the on-disk `hooks.json`).
 const ANTIGRAVITY_POST_TOOL_USE_MATCHER: &str = "*";

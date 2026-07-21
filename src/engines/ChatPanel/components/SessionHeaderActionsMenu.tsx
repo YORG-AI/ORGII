@@ -204,7 +204,9 @@ export const SessionHeaderActionsMenu: React.FC<
               data-testid="session-link-work-item-button"
             >
               <Link2 size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
-              <span className="flex-1 truncate">Link to Work Item…</span>
+              <span className="flex-1 truncate">
+                {t("chat.linkWorkItem.menuItem")}
+              </span>
             </button>
             {showCloudShareSettings && (
               <button

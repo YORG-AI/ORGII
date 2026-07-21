@@ -1,6 +1,8 @@
 use serde_json::{json, Value};
 
-use super::normalize::{is_codex_shell_tool_key, normalize_codex_tool_calls, normalize_tool_name_key};
+use super::normalize::{
+    is_codex_shell_tool_key, normalize_codex_tool_calls, normalize_tool_name_key,
+};
 
 /// Codex Desktop records a custom `exec` call whose input is a generated
 /// JavaScript wrapper. Extract its real `tools.<name>(...)` operations without

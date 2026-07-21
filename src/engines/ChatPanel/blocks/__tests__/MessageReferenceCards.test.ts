@@ -123,44 +123,12 @@ staged file lint stats
     });
   });
 
-  it("keeps non-GitHub URLs as generic web URL cards", () => {
+  it("leaves ordinary web URLs inline instead of creating reference cards", () => {
     const references = extractMessageReferences(
       "Docs: https://example.com/docs"
     );
 
-    expect(references).toHaveLength(1);
-    expect(references[0]).toMatchObject({
-      kind: "web_url",
-      value: "https://example.com/docs",
-    });
-  });
-
-  it("strips trailing markdown emphasis markers from URL cards", () => {
-    const references = extractMessageReferences(
-      [
-        "Docs: **https://example.com/docs.**",
-        "Mirror: *https://mirror.example.com/path*",
-        "Old: ~~https://old.example.com/docs~~",
-      ].join("\n")
-    );
-
-    expect(references.map((item) => item.value)).toEqual([
-      "https://example.com/docs",
-      "https://mirror.example.com/path",
-      "https://old.example.com/docs",
-    ]);
-  });
-
-  it("does not extract template placeholder hosts as URL cards", () => {
-    const references = extractMessageReferences(
-      "The server logs http://localhost:1998 and http://${host}/"
-    );
-
-    expect(references).toHaveLength(1);
-    expect(references[0]).toMatchObject({
-      kind: "web_url",
-      value: "http://localhost:1998/",
-    });
+    expect(references).toHaveLength(0);
   });
 
   it("does not extract local filesystem paths as reference cards", () => {

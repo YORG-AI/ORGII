@@ -1,3 +1,4 @@
+import { useAtomValue } from "jotai";
 import {
   ChevronRight,
   Circle,
@@ -39,6 +40,7 @@ import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
 import { openAgentControlSpotlight } from "@src/scaffold/GlobalSpotlight/openSpotlight";
 import { ADE_MANAGER_TOGGLE_SHORTCUT_ID } from "@src/scaffold/GlobalSpotlight/palettes/AgentControlPalette/constants";
 import { TUTORIALS_OPEN_EVENT } from "@src/scaffold/Tutorials/tutorialRegistry";
+import { devModeEnabledAtom } from "@src/store/platform/devModeAtom";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
 import HoverAnimatedIcon, {
@@ -78,6 +80,7 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
   const { t } = useTranslation("navigation");
   const { t: tSettings } = useTranslation("settings");
   const { goToSettings, goToStartPage } = useAppNavigation();
+  const devModeEnabled = useAtomValue(devModeEnabledAtom);
   const ramPanelRef = useRef<HTMLDivElement | null>(null);
   const submenuPanelRef = useRef<HTMLDivElement | null>(null);
   const preserveRamPanelOnMenuCloseRef = useRef(false);
@@ -318,19 +321,21 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
                 />
               </button>
               <div className={DROPDOWN_CLASSES.menuSeparator} />
-              <button
-                type="button"
-                className={`${DROPDOWN_CLASSES.menuActionItem} gap-2`}
-                onMouseEnter={() => setActiveSubmenu(null)}
-                onFocus={() => setActiveSubmenu(null)}
-                onClick={handleViewRam}
-              >
-                <Gauge
-                  size={DROPDOWN_ITEM.iconSize}
-                  className={MENU_ICON_CLASS_NAME}
-                />
-                <span>{t("sidebar.settingsMenu.viewRam")}</span>
-              </button>
+              {devModeEnabled && (
+                <button
+                  type="button"
+                  className={`${DROPDOWN_CLASSES.menuActionItem} gap-2`}
+                  onMouseEnter={() => setActiveSubmenu(null)}
+                  onFocus={() => setActiveSubmenu(null)}
+                  onClick={handleViewRam}
+                >
+                  <Gauge
+                    size={DROPDOWN_ITEM.iconSize}
+                    className={MENU_ICON_CLASS_NAME}
+                  />
+                  <span>{t("sidebar.settingsMenu.viewRam")}</span>
+                </button>
+              )}
               <button
                 type="button"
                 className={`${DROPDOWN_CLASSES.menuActionItem} gap-2`}
@@ -483,7 +488,7 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
         onSubmenuMouseDown={handleSubmenuMouseDown}
         onSubmenuPointerDown={handleSubmenuPointerDown}
       />
-      {ramPanelPosition && (
+      {devModeEnabled && ramPanelPosition && (
         <SidebarRamMonitorPanel
           isOpen={ramPanelOpen}
           panelRef={ramPanelRef}

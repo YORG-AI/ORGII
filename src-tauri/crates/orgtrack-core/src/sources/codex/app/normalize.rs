@@ -1067,4 +1067,3 @@ fn first_apply_patch_file_path(patch: &str) -> Option<String> {
     }
     None
 }
-

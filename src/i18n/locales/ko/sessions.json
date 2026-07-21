@@ -137,7 +137,9 @@
       "views": {
         "scanning": "스캔",
         "hooks": "훅",
-        "usage": "사용량"
+        "usage": "사용량",
+        "quota": "할당량",
+        "assets": "자산"
       },
       "usage": {
         "title": "사용량 및 비용",
@@ -156,7 +158,7 @@
           "claude": "Claude",
           "codex": "Codex",
           "cursor": "Cursor",
-          "org2": "ORGII 에이전트",
+          "org2": "ORG2",
           "other": "기타"
         },
         "cards": {
@@ -886,6 +888,9 @@
         "title": "Agents"
       },
       "tabs": {
+        "session": "세션",
+        "workItem": "작업 항목",
+        "more": "더 보기",
         "work": "작업",
         "manage": "관리",
         "heatmap": "추세",
@@ -982,6 +987,28 @@
     "copyEventJson": "이벤트 JSON 복사",
     "copyEventJsonCopied": "복사됨!",
     "copyEventJsonFailed": "복사 실패",
+    "moveToWorkstation": "내 Workstation으로 이동",
+    "moveToChatPanel": "채팅 패널로 이동",
+    "rawTranscript": {
+      "title": "원시 세션 트랜스크립트",
+      "menuItem": "원시 트랜스크립트 보기",
+      "guiTab": "GUI",
+      "rawTab": "원시 데이터",
+      "entryCount_one": "항목 {{count}}개",
+      "entryCount_other": "항목 {{count}}개",
+      "copySuccess": "원시 트랜스크립트를 복사했습니다",
+      "copyFailed": "원시 트랜스크립트를 복사할 수 없습니다"
+    },
+    "linkWorkItem": {
+      "menuItem": "Work Item에 연결…",
+      "title": "세션을 Work Item에 연결",
+      "description": "이 세션을 표시할 Work Item을 선택하세요.",
+      "searchPlaceholder": "Work Item ID, 제목, 상태 또는 프로젝트로 검색",
+      "loading": "Work Item 불러오는 중…",
+      "empty": "Work Item을 찾을 수 없습니다.",
+      "linking": "연결 중…",
+      "link": "연결"
+    },
     "historyTitle": "기록",
     "historyEmpty": "아직 세션이 없습니다",
     "historyGroupTime": "시간",
@@ -1111,6 +1138,8 @@
     "turnMetadata": {
       "noChanges": "이번 라운드에는 파일 변경 없음",
       "earlierRound": "이전 라운드",
+      "editsTab": "편집",
+      "readsTab": "읽기",
       "files_one": "파일 {{count}}개",
       "files_other": "파일 {{count}}개",
       "reads_one": "읽기 {{count}}회",
