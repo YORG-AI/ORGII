@@ -9,7 +9,13 @@
  */
 import { useAtomValue } from "jotai";
 import { ChevronDown, ChevronRight, Filter as FilterIcon } from "lucide-react";
-import React, { memo, useCallback, useMemo, useState } from "react";
+import React, {
+  memo,
+  useCallback,
+  useDeferredValue,
+  useMemo,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import { useActionSystem } from "@src/ActionSystem";
@@ -100,6 +106,7 @@ export const TestingContent: React.FC<TestingContentProps> = memo(
     // Dispatch for actions (unified with AI)
     const { dispatch } = useActionSystem();
     const [filterQuery, setFilterQuery] = useState("");
+    const deferredFilterQuery = useDeferredValue(filterQuery);
 
     // Hook for state only (no action calls)
     const { isDiscovering, counts } = useTestRunner({
@@ -110,8 +117,8 @@ export const TestingContent: React.FC<TestingContentProps> = memo(
 
     const testItems = useAtomValue(testItemsWithStatusAtom);
     const filteredItems = useMemo(
-      () => filterTestItems(testItems, filterQuery),
-      [testItems, filterQuery]
+      () => filterTestItems(testItems, deferredFilterQuery),
+      [testItems, deferredFilterQuery]
     );
 
     // Track user-toggled paths (collapsed by user)

@@ -23,6 +23,7 @@ use super::types::{
 };
 
 use agent_core::bus::event_pipeline_bridge as bridge;
+use core_types::session_event::ShellReplayState;
 
 fn push_events_adapter(handle: &AppHandle, session_id: &str, events: Vec<SessionEvent>) {
     let state = handle.state::<EventStoreState>();
@@ -52,6 +53,89 @@ fn update_tool_args_by_call_id_adapter(
 ) -> Option<String> {
     let state = handle.state::<EventStoreState>();
     update_tool_args_by_call_id_with_persist(handle, &state, session_id, call_id, merge_args)
+}
+
+fn update_shell_replay_by_call_id_adapter(
+    handle: &AppHandle,
+    session_id: &str,
+    call_id: &str,
+    replay: ShellReplayState,
+    seed_bookmark: bool,
+) -> Result<Option<String>, String> {
+    let state = handle.state::<EventStoreState>();
+    let (found_id, patched): (Option<String>, Vec<SessionEvent>) =
+        state.with_store_mut(session_id, |store| {
+            let found_id =
+                store.update_shell_replay_by_call_id(call_id, replay.clone(), seed_bookmark);
+            let patched = if found_id.is_some() {
+                store
+                    .events()
+                    .iter()
+                    .filter(|event| {
+                        event.action_type == "tool_call"
+                            && event.call_id.as_deref() == Some(call_id)
+                    })
+                    .cloned()
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            (found_id, patched)
+        });
+
+    let (found_id, patched) = if found_id.is_none() {
+        // LRU/cold-store fallback: resolve only the Rust-authoritative exact
+        // tool-call id. Never guess "last shell". Hydrate a temporary store
+        // so the same monotonic/bookmark rules apply, then repopulate the live
+        // cache and synchronously write the row back.
+        let event_id = format!("tool-call-{call_id}");
+        let cold =
+            session_persistence::get_event(session_id, &event_id).map_err(|err| err.to_string())?;
+        if let Some(cached) = cold {
+            let event = cached_event_to_session_event(&cached);
+            if event.session_id == session_id
+                && event.call_id.as_deref() == Some(call_id)
+                && event.action_type == "tool_call"
+            {
+                let mut temporary = super::store::EventStore::new();
+                temporary.set(vec![event]);
+                let cold_id =
+                    temporary.update_shell_replay_by_call_id(call_id, replay, seed_bookmark);
+                let cold_patched: Vec<_> = temporary.events().to_vec();
+                state.with_store_mut(session_id, |store| {
+                    if store.event_count() == 0 {
+                        store.set(cold_patched.clone());
+                    } else {
+                        store.merge_round_window_events(cold_patched.clone());
+                    }
+                });
+                (cold_id, cold_patched)
+            } else {
+                (None, Vec::new())
+            }
+        } else {
+            (None, Vec::new())
+        }
+    } else {
+        (found_id, patched)
+    };
+
+    if !patched.is_empty() {
+        schedule_notify(handle, &state, session_id);
+        let cached: Vec<_> = patched.iter().map(session_event_to_cached_event).collect();
+        // This bridge is part of the shell completion barrier: final replay
+        // state must be durable before `agent:shell_process_exited` can fire.
+        // Running-state calls use the same synchronous path for deterministic
+        // ordering; they are already throttled by the writer (64 KiB/50 ms).
+        save_events_retry(
+            "update_shell_replay_by_call_id",
+            session_id,
+            &cached,
+            BULK_WRITE_MAX_RETRIES,
+        )?;
+    }
+
+    Ok(found_id)
 }
 
 fn complete_tool_call_by_call_id_adapter(
@@ -408,6 +492,8 @@ fn persist_user_message_event_adapter(
         repo_path: None,
         extracted: None,
         payload_refs: Vec::new(),
+        shell_replay: None,
+        shell_replay_bookmarks: None,
         last_extract_at: None,
     };
     event.recompute_extracted();
@@ -526,6 +612,7 @@ pub fn register() {
         schedule_notify_adapter,
         update_spawning_tool_args_adapter,
         update_tool_args_by_call_id_adapter,
+        update_shell_replay_by_call_id_adapter,
         complete_tool_call_by_call_id_adapter,
         finalize_streaming_adapter,
         set_session_streaming_adapter,

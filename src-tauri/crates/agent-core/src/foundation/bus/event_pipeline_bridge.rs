@@ -23,6 +23,7 @@ use serde_json::Value;
 use tauri::AppHandle;
 
 use core_types::session_event::SessionEvent;
+use core_types::session_event::ShellReplayState;
 
 // ============================================================================
 // Slot signatures
@@ -50,6 +51,17 @@ pub type UpdateSpawningToolArgsFn = fn(
 /// Like [`UpdateSpawningToolArgsFn`] but matches by LLM-assigned `call_id`.
 pub type UpdateToolArgsByCallIdFn =
     fn(handle: &AppHandle, session_id: &str, call_id: &str, merge_args: Value) -> Option<String>;
+
+/// Update the canonical shell tool-call's bounded latest replay state by exact
+/// call identity. `seed_bookmark` inserts the immutable initial watermark only
+/// when that call has no bookmark on the event yet.
+pub type UpdateShellReplayByCallIdFn = fn(
+    handle: &AppHandle,
+    session_id: &str,
+    call_id: &str,
+    state: ShellReplayState,
+    seed_bookmark: bool,
+) -> Result<Option<String>, String>;
 
 /// Flip a still-running spawning tool_call (matched by `call_id`) to a
 /// terminal `display_status` and write-through to SQLite. Used when a
@@ -151,6 +163,7 @@ static PUSH_EVENTS: OnceLock<PushEventsFn> = OnceLock::new();
 static SCHEDULE_NOTIFY: OnceLock<ScheduleNotifyFn> = OnceLock::new();
 static UPDATE_SPAWNING_TOOL_ARGS: OnceLock<UpdateSpawningToolArgsFn> = OnceLock::new();
 static UPDATE_TOOL_ARGS_BY_CALL_ID: OnceLock<UpdateToolArgsByCallIdFn> = OnceLock::new();
+static UPDATE_SHELL_REPLAY_BY_CALL_ID: OnceLock<UpdateShellReplayByCallIdFn> = OnceLock::new();
 static COMPLETE_TOOL_CALL_BY_CALL_ID: OnceLock<CompleteToolCallByCallIdFn> = OnceLock::new();
 static FINALIZE_STREAMING: OnceLock<FinalizeStreamingFn> = OnceLock::new();
 static SET_SESSION_STREAMING: OnceLock<SetSessionStreamingFn> = OnceLock::new();
@@ -177,6 +190,7 @@ pub fn register(
     schedule_notify: ScheduleNotifyFn,
     update_spawning_tool_args: UpdateSpawningToolArgsFn,
     update_tool_args_by_call_id: UpdateToolArgsByCallIdFn,
+    update_shell_replay_by_call_id: UpdateShellReplayByCallIdFn,
     complete_tool_call_by_call_id: CompleteToolCallByCallIdFn,
     finalize_streaming: FinalizeStreamingFn,
     set_session_streaming: SetSessionStreamingFn,
@@ -194,6 +208,7 @@ pub fn register(
     let _ = SCHEDULE_NOTIFY.set(schedule_notify);
     let _ = UPDATE_SPAWNING_TOOL_ARGS.set(update_spawning_tool_args);
     let _ = UPDATE_TOOL_ARGS_BY_CALL_ID.set(update_tool_args_by_call_id);
+    let _ = UPDATE_SHELL_REPLAY_BY_CALL_ID.set(update_shell_replay_by_call_id);
     let _ = COMPLETE_TOOL_CALL_BY_CALL_ID.set(complete_tool_call_by_call_id);
     let _ = FINALIZE_STREAMING.set(finalize_streaming);
     let _ = SET_SESSION_STREAMING.set(set_session_streaming);
@@ -272,6 +287,25 @@ pub fn update_tool_args_by_call_id(
                 session_id
             );
             None
+        }
+    }
+}
+
+pub fn update_shell_replay_by_call_id(
+    handle: &AppHandle,
+    session_id: &str,
+    call_id: &str,
+    state: ShellReplayState,
+    seed_bookmark: bool,
+) -> Result<Option<String>, String> {
+    match UPDATE_SHELL_REPLAY_BY_CALL_ID.get() {
+        Some(f) => f(handle, session_id, call_id, state, seed_bookmark),
+        None => {
+            tracing::warn!(
+                "[event-pipeline-bridge] update_shell_replay_by_call_id called before register for {}",
+                session_id
+            );
+            Ok(None)
         }
     }
 }

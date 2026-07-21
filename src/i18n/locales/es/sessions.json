@@ -137,7 +137,9 @@
       "views": {
         "scanning": "Escaneo",
         "hooks": "Hooks",
-        "usage": "Uso"
+        "usage": "Uso",
+        "quota": "Cuota",
+        "assets": "Activos"
       },
       "usage": {
         "title": "Uso y coste",
@@ -156,7 +158,7 @@
           "claude": "Claude",
           "codex": "Codex",
           "cursor": "Cursor",
-          "org2": "Agentes de ORGII",
+          "org2": "ORG2",
           "other": "Otros"
         },
         "cards": {
@@ -887,6 +889,9 @@
         "title": "Agents"
       },
       "tabs": {
+        "session": "Sesión",
+        "workItem": "Elemento de trabajo",
+        "more": "Más",
         "work": "Trabajo",
         "manage": "Gestionar",
         "heatmap": "Tendencias",
@@ -938,7 +943,6 @@
     "defaultTitle": "Chat",
     "hideChatPanel": "Ocultar panel de chat",
     "showTokenUsage": "Mostrar Token",
-    "showStatusBar": "Mostrar barra de estado",
     "compactDisplayMode": "Modo compacto",
     "replay": {
       "follow": "Seguir"
@@ -984,6 +988,28 @@
     "copyEventJson": "Copiar JSON de eventos",
     "copyEventJsonCopied": "¡Copiado!",
     "copyEventJsonFailed": "Error al copiar",
+    "moveToWorkstation": "Mover a Mi Workstation",
+    "moveToChatPanel": "Mover al panel de chat",
+    "rawTranscript": {
+      "title": "Transcripción sin procesar de la sesión",
+      "menuItem": "Ver transcripción sin procesar",
+      "guiTab": "GUI",
+      "rawTab": "Sin procesar",
+      "entryCount_one": "{{count}} entrada",
+      "entryCount_other": "{{count}} entradas",
+      "copySuccess": "Transcripción sin procesar copiada",
+      "copyFailed": "No se pudo copiar la transcripción sin procesar"
+    },
+    "linkWorkItem": {
+      "menuItem": "Vincular a un Work Item…",
+      "title": "Vincular sesión a un Work Item",
+      "description": "Selecciona el Work Item en el que debe aparecer esta sesión.",
+      "searchPlaceholder": "Buscar por ID, título, estado o proyecto del Work Item",
+      "loading": "Cargando Work Items…",
+      "empty": "No se encontraron Work Items.",
+      "linking": "Vinculando…",
+      "link": "Vincular"
+    },
     "historyTitle": "Historial",
     "historyEmpty": "Aún no hay sesiones",
     "historyGroupTime": "Tiempo",
@@ -1113,6 +1139,8 @@
     "turnMetadata": {
       "noChanges": "No hubo cambios de archivos en esta ronda",
       "earlierRound": "Ronda anterior",
+      "editsTab": "Ediciones",
+      "readsTab": "Lecturas",
       "files_one": "{{count}} archivo",
       "files_other": "{{count}} archivos",
       "reads_one": "{{count}} lectura",

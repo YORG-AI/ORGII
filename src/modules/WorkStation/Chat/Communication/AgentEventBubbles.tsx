@@ -117,12 +117,12 @@ interface FramedProps {
 }
 
 /**
- * Local copy of `AgentFramedBubble` from `ChatBubble.tsx` — the framing
- * is small enough to inline here and avoid an import cycle. Both files
- * use the same `ChatBubbleLayout` + `ChatBubbleAvatar` + header pattern,
- * so the visual result is identical. Accepts an explicit `senderName`
- * (e.g. a verb phrase like "Planner updated task") so callers can
- * specialize the title row per event type.
+ * Local counterpart to `AgentFramedBubble` in `./ChatBubble/AgentFramedBubble`.
+ * That component derives `senderName` internally; this one accepts it as an
+ * explicit prop (e.g. a verb phrase like "Planner updated task") so callers can
+ * specialize the title row per event type. Both use the same
+ * `ChatBubbleLayout` + `ChatBubbleAvatar` + header pattern, so the visual
+ * result is identical.
  */
 const Framed: React.FC<{
   message: MessageEntry;

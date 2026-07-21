@@ -31,7 +31,6 @@ import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import { useFileSelection } from "../../hooks/useFileSelection";
 import { useSourceControlShortcuts } from "../../hooks/useSourceControlShortcuts";
-import StashContent from "../StashContent";
 import { CommitSection } from "./components";
 import { SourceControlStickyHeader } from "./components/SourceControlStickyHeader";
 import SourceControlTreeRow from "./components/SourceControlTreeRow";
@@ -48,6 +47,8 @@ import {
 } from "./utils/virtualizedTreeUtils";
 
 export type { SourceControlContentProps } from "./types";
+
+const StashContent = React.lazy(() => import("../StashContent"));
 
 // Section header row height matches file row height (28px)
 
@@ -420,15 +421,25 @@ export const SourceControlContent: React.FC<SourceControlContentProps> = memo(
       return (
         <div className={rootClassName}>
           {!error && onStashApply && onStashPop && onStashDrop && (
-            <StashContent
-              stashes={stashes}
-              operationLoading={stashOperationLoading}
-              initialCollapsed={false}
-              onStashApply={onStashApply}
-              onStashPop={onStashPop}
-              onStashDrop={onStashDrop}
-              onHistorySelectionChange={onHistorySelectionChange}
-            />
+            <React.Suspense
+              fallback={
+                <Placeholder
+                  variant="loading"
+                  placement="sidebar"
+                  fillParentHeight
+                />
+              }
+            >
+              <StashContent
+                stashes={stashes}
+                operationLoading={stashOperationLoading}
+                initialCollapsed={false}
+                onStashApply={onStashApply}
+                onStashPop={onStashPop}
+                onStashDrop={onStashDrop}
+                onHistorySelectionChange={onHistorySelectionChange}
+              />
+            </React.Suspense>
           )}
         </div>
       );

@@ -19,9 +19,16 @@ import {
 
 type FileContentLoadState = "idle" | "loading" | "ready" | "error";
 
-const CONTENT_CACHE_MAX = 128;
-const contentCache = new Map<string, GitHubFileContent>();
+const CONTENT_CACHE_MAX_ENTRIES = 16;
+const CONTENT_CACHE_MAX_BYTES = 8 * 1024 * 1024;
+const CONTENT_CACHE_MAX_ENTRY_BYTES = 4 * 1024 * 1024;
+interface ContentCacheEntry {
+  value: GitHubFileContent;
+  byteSize: number;
+}
+const contentCache = new Map<string, ContentCacheEntry>();
 const contentInFlight = new Map<string, Promise<GitHubFileContent>>();
+let contentCacheBytes = 0;
 
 function cacheKey(repoFullName: string, ref: string, path: string): string {
   return `${repoFullName}@${ref}:${path}`;
@@ -33,12 +40,12 @@ async function fetchContent(
   ref: string
 ): Promise<GitHubFileContent> {
   const key = cacheKey(repoFullName, ref, path);
-  const cached = contentCache.get(key);
-  if (cached) {
+  const cachedEntry = contentCache.get(key);
+  if (cachedEntry) {
     // LRU promote
     contentCache.delete(key);
-    contentCache.set(key, cached);
-    return cached;
+    contentCache.set(key, cachedEntry);
+    return cachedEntry.value;
   }
   const existing = contentInFlight.get(key);
   if (existing) return existing;
@@ -46,10 +53,28 @@ async function fetchContent(
   const promise = getContentLocal(repoFullName, path, ref)
     .then((result) => {
       contentInFlight.delete(key);
-      if (contentCache.size >= CONTENT_CACHE_MAX) {
-        contentCache.delete(contentCache.keys().next().value as string);
+      const byteSize = result.content.length * 2 + 64;
+      if (byteSize <= CONTENT_CACHE_MAX_ENTRY_BYTES) {
+        const previous = contentCache.get(key);
+        if (previous) {
+          contentCacheBytes -= previous.byteSize;
+          contentCache.delete(key);
+        }
+        while (
+          contentCache.size >= CONTENT_CACHE_MAX_ENTRIES ||
+          contentCacheBytes + byteSize > CONTENT_CACHE_MAX_BYTES
+        ) {
+          const oldestKey = contentCache.keys().next().value as
+            | string
+            | undefined;
+          if (!oldestKey) break;
+          const oldest = contentCache.get(oldestKey);
+          if (oldest) contentCacheBytes -= oldest.byteSize;
+          contentCache.delete(oldestKey);
+        }
+        contentCache.set(key, { value: result, byteSize });
+        contentCacheBytes += byteSize;
       }
-      contentCache.set(key, result);
       return result;
     })
     .catch((err) => {

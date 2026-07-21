@@ -5,11 +5,8 @@ import { useTranslation } from "react-i18next";
 
 import Select from "@src/components/Select";
 import TabPill, { type TabPillItem } from "@src/components/TabPill";
+import { usePublishChatPanelHeader } from "@src/engines/ChatPanel/header";
 import { org2CloudOrgsAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
-import {
-  DETAIL_PANEL_TOKENS,
-  InternalHeader,
-} from "@src/modules/shared/layouts/blocks";
 import {
   openCloudOrgManagementInChatPanelTabAtom,
   openWorkspaceOverviewInChatPanelTabAtom,
@@ -164,40 +161,52 @@ export function CloudOrgPanelHeader({
     ]
   );
 
-  return (
-    <InternalHeader
-      noPanelHeader
-      contentPadding
-      className={DETAIL_PANEL_TOKENS.headerWidth}
-      dataTestId="cloud-org-management-header"
-      tabs={
-        <div className="flex w-full min-w-0 flex-col items-start gap-2">
-          <Select
-            value={buildCloudOrgSelectorValue(orgId)}
-            options={managementTargetOptions}
-            onChange={handleOrgChange}
-            showSearch={managementTargetOptions.length > 8}
-            variant="ghost"
-            size="large"
-            radius="pill"
-            className="-ml-4 !w-fit shrink-0 [&_.select-value>span:last-child]:!overflow-visible [&_.select-value]:!overflow-visible"
-            selectorClassName="whitespace-nowrap font-medium"
-            dataTestId="cloud-org-switcher"
+  const headerContent = useMemo(
+    () => (
+      <div
+        className="flex min-w-0 flex-1 items-center gap-2"
+        data-testid="cloud-org-management-header"
+      >
+        <Select
+          value={buildCloudOrgSelectorValue(orgId)}
+          options={managementTargetOptions}
+          onChange={handleOrgChange}
+          showSearch={managementTargetOptions.length > 8}
+          variant="default"
+          size="small"
+          radius="lg"
+          className="w-48 shrink-0"
+          selectorClassName="h-7 whitespace-nowrap"
+          dataTestId="cloud-org-switcher"
+        />
+        <div className="min-w-0 overflow-x-auto scrollbar-hide">
+          <TabPill
+            tabs={managementTabs}
+            activeTab={activeTab}
+            onChange={(key) => onTabChange(key as CloudOrgManagementTab)}
+            variant="simple"
+            fillWidth={false}
+            size="small"
           />
-          <div className="max-w-full overflow-x-auto scrollbar-hide">
-            <TabPill
-              tabs={managementTabs}
-              activeTab={activeTab}
-              onChange={(key) => onTabChange(key as CloudOrgManagementTab)}
-              variant="simple"
-              fillWidth={false}
-              size="large"
-            />
-          </div>
         </div>
-      }
-    />
+      </div>
+    ),
+    [
+      activeTab,
+      handleOrgChange,
+      managementTabs,
+      managementTargetOptions,
+      onTabChange,
+      orgId,
+    ]
   );
+  const headerContribution = useMemo(
+    () => ({ content: headerContent }),
+    [headerContent]
+  );
+  usePublishChatPanelHeader({ content: headerContribution });
+
+  return null;
 }
 
 export default CloudOrgPanelHeader;

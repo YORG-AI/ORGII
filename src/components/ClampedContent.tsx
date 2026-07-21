@@ -102,7 +102,6 @@ const ClampedContent: React.FC<ClampedContentProps> = ({
           expandedLabel={t("actions.collapse")}
           fadeFrom={fadeFrom}
           showLabel
-          alwaysShowControl
         />
       )}
     </div>

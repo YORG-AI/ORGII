@@ -12,6 +12,7 @@ import type {
   ExtractedData,
   LlmUsageMetadata,
   PayloadRef,
+  ShellReplayState,
   ToolUsageMetadata,
 } from "@src/engines/SessionCore/core/types";
 import type { PlanSurface } from "@src/engines/SessionCore/derived/planDisplayEvents";
@@ -126,6 +127,8 @@ export interface UniversalEventProps {
   shellExitCode?: number;
   /** Shell process log path attached by shell process lifecycle events. */
   shellLogPath?: string;
+  /** Latest bounded shell replay state (chat/live edge only). */
+  shellReplay?: ShellReplayState;
 
   // ─────────────────────────────────────────
   // Rendering Control

@@ -15,6 +15,7 @@ import InputActions from "./InputActions";
 import InputEditor from "./InputEditor";
 import PromptPolishButton from "./PromptPolishButton";
 import ReplyInfoDisplay from "./ReplyInfoDisplay";
+import WorktreeBranchPill from "./WorktreeBranchPill";
 
 interface SharedComposerBarProps {
   composerInputRef: React.RefObject<ComposerInputRef | null>;
@@ -412,6 +413,7 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
             >
               {modePill}
               {modelPill}
+              <WorktreeBranchPill />
             </div>
           }
           submitButton={

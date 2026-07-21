@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   KANBAN_MENU_ITEM_ID,
+  RUNTIME_MENU_ITEM_ID,
   WORK_ITEMS_MENU_ITEM_ID,
   WORK_ITEMS_PROJECTS_MENU_ITEM_ID,
 } from "./sidebarConnectorUtils";
@@ -25,17 +26,23 @@ describe("buildPinnedMenuItems", () => {
       ],
       kanbanLabel: "Kanban",
       kanbanShortcut: "⌘O",
+      runtimeLabel: "Runtime",
     });
 
     expect(items.map((item) => item.id)).toEqual([
       "new-session",
       KANBAN_MENU_ITEM_ID,
+      RUNTIME_MENU_ITEM_ID,
       WORK_ITEMS_MENU_ITEM_ID,
     ]);
-    expect(items[2]?.children?.map((item) => item.id)).toEqual([
+    expect(items[3]?.children?.map((item) => item.id)).toEqual([
       WORK_ITEMS_PROJECTS_MENU_ITEM_ID,
     ]);
-    expect(items[2]?.routePath).toBeUndefined();
+    expect(items[3]?.routePath).toBeUndefined();
+    expect(items[2]).toMatchObject({
+      label: "Runtime",
+      dataTestId: "sidebar-runtime",
+    });
     expect(items[0]?.openContextMenuOnSelectedClick).toBeUndefined();
   });
 

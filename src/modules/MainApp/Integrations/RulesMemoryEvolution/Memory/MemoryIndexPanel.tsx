@@ -12,7 +12,7 @@ export interface MemoryIndexPanelProps {
 }
 
 const MemoryIndexPanel = ({ indexText }: MemoryIndexPanelProps) => (
-  <div className="rounded-lg bg-surface-container px-3 py-2">
+  <div className="rounded-lg bg-primary-container px-3 py-2">
     <div className="flex items-center gap-2 pb-2">
       <BookOpen size={14} className="text-text-3" />
       <span className="text-sm font-medium text-text-1">MEMORY.md</span>

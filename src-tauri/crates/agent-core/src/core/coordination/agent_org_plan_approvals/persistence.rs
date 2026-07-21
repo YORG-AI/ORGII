@@ -4,7 +4,10 @@ use crate::definitions::orgs::PlanApprovalPolicy;
 
 use super::{AgentOrgPlanApproval, AgentOrgPlanApprovalStatus, AgentOrgPlanApprovalSummary};
 
-pub(super) fn insert_record(conn: &Connection, approval: &AgentOrgPlanApproval) -> Result<(), String> {
+pub(super) fn insert_record(
+    conn: &Connection,
+    approval: &AgentOrgPlanApproval,
+) -> Result<(), String> {
     conn.execute(
         "INSERT INTO agent_org_plan_approvals (
             approval_id, plan_revision_id, request_id, org_run_id,
@@ -81,7 +84,9 @@ pub(super) fn row_to_record(row: &rusqlite::Row<'_>) -> rusqlite::Result<AgentOr
     })
 }
 
-pub(super) fn row_to_summary(row: &rusqlite::Row<'_>) -> rusqlite::Result<AgentOrgPlanApprovalSummary> {
+pub(super) fn row_to_summary(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<AgentOrgPlanApprovalSummary> {
     let policy_raw: String = row.get(8)?;
     let status_raw: String = row.get(9)?;
     let plan_content_bytes_raw: i64 = row.get(11)?;

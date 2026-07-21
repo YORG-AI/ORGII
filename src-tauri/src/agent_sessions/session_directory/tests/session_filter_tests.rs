@@ -15,7 +15,9 @@
 //! - Pagination: limit, offset, combined
 //! - Text query on empty session list
 
-use crate::agent_sessions::session_directory::display::{generate_display_label, matches_text_query};
+use crate::agent_sessions::session_directory::display::{
+    generate_display_label, matches_text_query,
+};
 use crate::agent_sessions::session_directory::status::is_active_status;
 use crate::agent_sessions::session_directory::types::{SessionAggregateRecord, SessionCategory};
 use core_types::key_source::KeySource;

@@ -1,4 +1,8 @@
-use std::{collections::HashSet, path::Path};
+use std::{
+    collections::{HashSet, VecDeque},
+    path::Path,
+    sync::{Mutex, OnceLock},
+};
 
 use database::db::get_connection;
 use orgtrack_core::pricing;
@@ -26,6 +30,132 @@ use super::external_cli_detection::{self, ExternalCliSourceProbe};
 
 fn open_cache_conn() -> Result<rusqlite::Connection, String> {
     get_connection().map_err(|err| format!("Failed to open orgtrack source cache DB: {err}"))
+}
+
+const CODEX_TURN_PROJECTION_CACHE_CAPACITY: usize = 8;
+
+#[derive(Debug)]
+struct CodexTurnProjectionCacheEntry {
+    session_id: String,
+    signature: (i64, u64),
+    projected: Vec<orgtrack_core::projectors::turn_metadata::ProjectedTurnMetadata>,
+}
+
+#[derive(Debug, Default)]
+struct CodexTurnProjectionCache {
+    entries: VecDeque<CodexTurnProjectionCacheEntry>,
+}
+
+impl CodexTurnProjectionCache {
+    fn get(
+        &mut self,
+        session_id: &str,
+        signature: (i64, u64),
+    ) -> Option<Vec<orgtrack_core::projectors::turn_metadata::ProjectedTurnMetadata>> {
+        let index = self
+            .entries
+            .iter()
+            .position(|entry| entry.session_id == session_id)?;
+        let entry = self.entries.remove(index)?;
+        if entry.signature != signature {
+            return None;
+        }
+        let projected = entry.projected.clone();
+        self.entries.push_back(entry);
+        Some(projected)
+    }
+
+    fn insert(
+        &mut self,
+        session_id: String,
+        signature: (i64, u64),
+        projected: Vec<orgtrack_core::projectors::turn_metadata::ProjectedTurnMetadata>,
+    ) {
+        if let Some(index) = self
+            .entries
+            .iter()
+            .position(|entry| entry.session_id == session_id)
+        {
+            self.entries.remove(index);
+        }
+        self.entries.push_back(CodexTurnProjectionCacheEntry {
+            session_id,
+            signature,
+            projected,
+        });
+        while self.entries.len() > CODEX_TURN_PROJECTION_CACHE_CAPACITY {
+            self.entries.pop_front();
+        }
+    }
+}
+
+fn codex_turn_projection_cache() -> &'static Mutex<CodexTurnProjectionCache> {
+    static CACHE: OnceLock<Mutex<CodexTurnProjectionCache>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(CodexTurnProjectionCache::default()))
+}
+
+fn codex_transcript_signature(
+    conn: &rusqlite::Connection,
+    session_id: &str,
+) -> Result<Option<(i64, u64)>, String> {
+    if !session_id.starts_with(orgtrack_core::sources::codex::SESSION_PREFIX) {
+        return Ok(None);
+    }
+    imported_history::cache::stat_imported_transcript_by_session_id_from_conn(
+        conn,
+        imported_history::metadata::SOURCE_CODEX_APP,
+        session_id,
+    )
+}
+
+fn remember_codex_turn_projection(
+    session_id: &str,
+    signature_before: Option<(i64, u64)>,
+    signature_after: Option<(i64, u64)>,
+    projected: Vec<orgtrack_core::projectors::turn_metadata::ProjectedTurnMetadata>,
+) {
+    let (Some(before), Some(after)) = (signature_before, signature_after) else {
+        return;
+    };
+    // Do not cache a parse that raced a transcript append. The next read will
+    // parse the now-stable file instead of treating an incomplete projection
+    // as current.
+    if before != after {
+        return;
+    }
+    codex_turn_projection_cache()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .insert(session_id.to_string(), after, projected);
+}
+
+fn load_projected_turn_metadata(
+    conn: &rusqlite::Connection,
+    session_id: &str,
+) -> Result<Option<Vec<orgtrack_core::projectors::turn_metadata::ProjectedTurnMetadata>>, String> {
+    let signature_before = codex_transcript_signature(conn, session_id)?;
+    if let Some(signature) = signature_before {
+        if let Some(projected) = codex_turn_projection_cache()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .get(session_id, signature)
+        {
+            return Ok(Some(projected));
+        }
+    }
+
+    let Some(chunks) = imported_history::load_activity_chunks_for_session(conn, session_id)? else {
+        return Ok(None);
+    };
+    let projected = orgtrack_core::projectors::turn_metadata::project_activity_chunks(&chunks);
+    let signature_after = codex_transcript_signature(conn, session_id)?;
+    remember_codex_turn_projection(
+        session_id,
+        signature_before,
+        signature_after,
+        projected.clone(),
+    );
+    Ok(Some(projected))
 }
 
 fn projected_rounds_to_cached_turns(
@@ -56,8 +186,8 @@ fn projected_rounds_to_cached_turns(
             user_preview: round.user_preview,
             event_count: round.event_count,
             body_event_count: round.body_event_count,
-            status: "completed".to_string(),
-            interrupted: false,
+            interrupted: round.status == "interrupted",
+            status: round.status,
             modified_files: round.modified_files,
             resource_interactions: round.resource_interactions,
             git_artifacts: round.git_artifacts,
@@ -89,11 +219,7 @@ pub async fn orgtrack_session_turn_metadata_index(
                 &session_id,
             )
             .unwrap_or_else(|| session_id.clone());
-        if let Some(chunks) =
-            imported_history::load_activity_chunks_for_session(&conn, &transcript_session_id)?
-        {
-            let projected =
-                orgtrack_core::projectors::turn_metadata::project_activity_chunks(&chunks);
+        if let Some(projected) = load_projected_turn_metadata(&conn, &transcript_session_id)? {
             let mut turns = projected_rounds_to_cached_turns(&session_id, projected);
             if let Some(turn_ids) = turn_ids.as_ref() {
                 let requested = turn_ids.iter().collect::<std::collections::HashSet<_>>();
@@ -297,7 +423,12 @@ pub async fn codex_app_chunks(
 ) -> Result<Vec<core_types::activity::ActivityChunk>, String> {
     tokio::task::spawn_blocking(move || {
         let conn = open_cache_conn()?;
-        codex_app::load_codex_app_for_session(&conn, &session_id)
+        let signature_before = codex_transcript_signature(&conn, &session_id)?;
+        let chunks = codex_app::load_codex_app_for_session(&conn, &session_id)?;
+        let projected = orgtrack_core::projectors::turn_metadata::project_activity_chunks(&chunks);
+        let signature_after = codex_transcript_signature(&conn, &session_id)?;
+        remember_codex_turn_projection(&session_id, signature_before, signature_after, projected);
+        Ok(chunks)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?
@@ -781,6 +912,7 @@ mod tests {
             start_sequence,
             started_at: format!("2026-07-15T00:00:0{start_sequence}Z"),
             ended_at: None,
+            status: "completed".to_string(),
             user_preview: turn_id.to_string(),
             event_count: 2,
             body_event_count: 1,
@@ -804,5 +936,33 @@ mod tests {
         assert_eq!(turns[1].turn_id, "user-2");
         assert_eq!(turns[1].end_sequence, None);
         assert_eq!(turns[1].next_turn_id, None);
+    }
+
+    #[test]
+    fn projected_round_mapping_preserves_non_terminal_status() {
+        let mut active = projected("user-active", 0);
+        active.status = "pending".to_string();
+
+        let turns = projected_rounds_to_cached_turns("codexapp-session", vec![active]);
+
+        assert_eq!(turns[0].status, "pending");
+        assert!(!turns[0].interrupted);
+    }
+
+    #[test]
+    fn codex_projection_cache_is_bounded_and_rejects_stale_signatures() {
+        let mut cache = CodexTurnProjectionCache::default();
+        for index in 0..=CODEX_TURN_PROJECTION_CACHE_CAPACITY {
+            cache.insert(
+                format!("codexapp-{index}"),
+                (index as i64, index as u64),
+                vec![projected(&format!("user-{index}"), index as i64)],
+            );
+        }
+
+        assert_eq!(cache.entries.len(), CODEX_TURN_PROJECTION_CACHE_CAPACITY);
+        assert!(cache.get("codexapp-0", (0, 0)).is_none());
+        assert!(cache.get("codexapp-1", (999, 999)).is_none());
+        assert!(cache.get("codexapp-2", (2, 2)).is_some());
     }
 }

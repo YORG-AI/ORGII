@@ -57,6 +57,14 @@ pub fn list_codex_app_recent_paths(
     imported_cache::query_imported_recent_paths_from_conn(conn, SOURCE_CODEX_APP, limit)
 }
 
+pub fn list_codex_app_reconciliation_sessions(
+    conn: &mut Connection,
+    limit: usize,
+) -> Result<Vec<imported_cache::ImportedHistoryCachedSession>, String> {
+    sync_codex_app_cache(conn)?;
+    imported_cache::query_recent_cached_sessions_for_source_from_conn(conn, SOURCE_CODEX_APP, limit)
+}
+
 pub fn load_codex_app_for_session(
     conn: &Connection,
     session_id: &str,
@@ -155,7 +163,10 @@ fn discover_codex_app_records() -> Result<Vec<ImportedHistoryDiscoveredRecord>, 
     Ok(sessions)
 }
 
-pub(super) fn collect_codex_session_files(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
+pub(super) fn collect_codex_session_files(
+    dir: &Path,
+    out: &mut Vec<PathBuf>,
+) -> Result<(), String> {
     for entry in fs::read_dir(dir).map_err(|err| format!("Failed to read Codex dir: {err}"))? {
         let entry = entry.map_err(|err| format!("Failed to read Codex dir entry: {err}"))?;
         let path = entry.path();
@@ -279,7 +290,7 @@ fn codex_title_entry_for_file_stem<'a>(
     codex_thread_id_from_file_stem(file_stem).and_then(|thread_id| title_index.get(thread_id))
 }
 
-pub(super) fn codex_thread_id_from_file_stem(file_stem: &str) -> Option<&str> {
+pub fn codex_thread_id_from_file_stem(file_stem: &str) -> Option<&str> {
     if is_uuid_like(file_stem) {
         return Some(file_stem);
     }
@@ -441,4 +452,3 @@ pub(crate) fn codex_sessions_dir_candidates(home: &Path) -> Vec<PathBuf> {
         .map(|root| root.join("sessions"))
         .collect()
 }
-

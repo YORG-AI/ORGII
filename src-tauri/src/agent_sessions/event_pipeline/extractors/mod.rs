@@ -29,7 +29,9 @@ mod shell_extractor;
 pub mod extractors;
 pub mod types;
 
-pub use extractors::{extract_batch, extract_event_data};
+pub use extractors::{
+    extract_batch, extract_event_data, extract_event_data_with_bounded_shell_output,
+};
 pub use types::ExtractedData;
 
 /// Register `extract_event_data` against the inversion-of-control slot

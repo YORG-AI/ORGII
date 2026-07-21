@@ -68,6 +68,11 @@ pub fn init_session_tables(conn: &Connection) -> SqliteResult<()> {
         [],
     )?;
 
+    // Complete shell transcripts live in append-only artifacts. The leaf
+    // database crate owns this cross-layer storage schema so the app startup
+    // path and lower-level replay tests use the exact same DDL.
+    database::init_shell_replay_tables(conn)?;
+
     conn.execute(
         "CREATE TABLE IF NOT EXISTS session_turns (
             session_id TEXT NOT NULL,

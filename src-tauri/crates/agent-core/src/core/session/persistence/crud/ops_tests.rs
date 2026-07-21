@@ -20,8 +20,8 @@
 //! `list_sessions` pair without inventing a parallel test fixture.
 
 use super::ops::{
-    finalize_terminal_turn_status, list_sessions, reconcile_sessions_with_terminal_turn_markers,
-    upsert_session,
+    delete_session, finalize_terminal_turn_status, list_sessions,
+    reconcile_sessions_with_terminal_turn_markers, upsert_session,
 };
 use super::record::UnifiedSessionRecord;
 use crate::session::persistence;
@@ -106,6 +106,41 @@ fn seed_session(session_id: &str, status: SessionStatus) {
         ..Default::default()
     };
     upsert_session(&record).expect("seed upsert");
+}
+
+#[test]
+#[serial_test::serial]
+fn delete_session_refuses_active_shell_before_removing_session_row() {
+    let _sandbox = test_env::sandbox();
+    let session_id = "sid-active-shell-delete";
+    seed_session(session_id, SessionStatus::Running);
+    let replay_root = crate::tools::impls::coding::exec::shell_replay::resolve_replay_root();
+    let mut writer = crate::tools::impls::coding::exec::shell_replay::ShellReplayWriter::create(
+        &replay_root,
+        crate::tools::impls::coding::exec::shell_replay::ShellReplayTarget::new(
+            session_id,
+            "call-active-delete",
+        ),
+        "sleep",
+        std::path::Path::new("/tmp"),
+        None,
+    )
+    .unwrap();
+    writer
+        .append(
+            crate::tools::impls::coding::exec::shell_replay::ShellReplayStream::Stdout,
+            b"running",
+        )
+        .unwrap();
+
+    let error = delete_session(session_id).unwrap_err().to_string();
+    assert!(error.contains("cannot delete session"), "{error}");
+    assert!(super::ops::get_session(session_id).unwrap().is_some());
+
+    writer
+        .finalize(core_types::session_event::ShellReplayStatus::Complete, None)
+        .unwrap();
+    crate::tools::impls::coding::exec::shell_replay::remove_session_replays(session_id).unwrap();
 }
 
 /// `list_sessions(&SessionListFilter::default())` must hide archived

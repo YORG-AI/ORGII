@@ -7,11 +7,10 @@ import type { CSSProperties } from "react";
 import React, { memo, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
+import "@src/components/ShellReplayOutput/index.scss";
 import { TerminalCommand } from "@src/components/TerminalDisplay";
 import { stripAnsiCodes } from "@src/components/TerminalDisplay/utils/ansiProcessor";
 import { useTerminalSurfaceStyle } from "@src/hooks/terminal/useTerminalSurfaceStyle";
-
-import "./ShellCssOutput.scss";
 
 export interface SimulatorShellCssOutputProps {
   command: string;

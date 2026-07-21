@@ -96,8 +96,8 @@ fn inbox_history_pages_are_cursor_bounded_without_gaps() {
     }
     tx.commit().expect("commit history fixture");
 
-    let first = AgentInboxStore::list_page_by_run(&run_id, None, usize::MAX)
-        .expect("first bounded page");
+    let first =
+        AgentInboxStore::list_page_by_run(&run_id, None, usize::MAX).expect("first bounded page");
     assert_eq!(first.rows.len(), MAX_INBOX_HISTORY_PAGE_ROWS);
     assert!(first.has_more);
     let second = AgentInboxStore::list_page_by_run(&run_id, first.next_cursor, usize::MAX)
@@ -191,9 +191,8 @@ fn recent_run_snapshot_is_bounded_and_counts_do_not_load_payloads() {
     assert_eq!(legacy_coordinator.unread_count, 1);
 
     let conn = get_connection().expect("open inbox database");
-    let unread_counts =
-        AgentInboxStore::unread_counts_by_recipient_with_connection(&conn, &run_id)
-            .expect("unread-only recipient counts");
+    let unread_counts = AgentInboxStore::unread_counts_by_recipient_with_connection(&conn, &run_id)
+        .expect("unread-only recipient counts");
     let unread_worker = unread_counts
         .iter()
         .find(|count| count.recipient_member_id.as_deref() == Some("worker-member"))
@@ -228,8 +227,8 @@ fn recent_run_snapshot_is_bounded_and_counts_do_not_load_payloads() {
         "unread aggregation order must stream from its covering index: {details:?}"
     );
 
-    let previews = AgentInboxStore::list_recent_previews_by_run(&run_id, 4)
-        .expect("run activity previews");
+    let previews =
+        AgentInboxStore::list_recent_previews_by_run(&run_id, 4).expect("run activity previews");
     assert_eq!(previews[0].display_preview.as_deref(), Some("body-0"));
     assert_ne!(
         previews[0].display_preview.as_deref(),
@@ -708,8 +707,8 @@ fn list_unread_filters_by_recipient_run_and_unread() {
     })
     .expect("member-scoped");
 
-    let unread = AgentInboxStore::list_unread_for_member("member-worker-1", &run_id)
-        .expect("list_unread");
+    let unread =
+        AgentInboxStore::list_unread_for_member("member-worker-1", &run_id).expect("list_unread");
     assert_eq!(unread.len(), 1);
     assert_eq!(unread[0].id, in_scope.id);
     assert!(unread[0].read_at.is_none());
@@ -752,8 +751,8 @@ fn mark_many_read_is_idempotent_and_advances_watermark() {
     let again = AgentInboxStore::mark_many_read(&[one.id, two.id]).expect("second mark");
     assert_eq!(again, 0);
 
-    let still_unread = AgentInboxStore::list_unread_for_member("member-worker-1", &run_id)
-        .expect("list_unread");
+    let still_unread =
+        AgentInboxStore::list_unread_for_member("member-worker-1", &run_id).expect("list_unread");
     assert!(
         still_unread.is_empty(),
         "marked rows must vanish from the unread list"
@@ -797,8 +796,7 @@ fn stale_session_cannot_ack_another_sessions_materialization() {
         1
     );
     assert_eq!(
-        AgentInboxStore::mark_many_read_for_session(&[row.id], "new-session")
-            .expect("owner ack"),
+        AgentInboxStore::mark_many_read_for_session(&[row.id], "new-session").expect("owner ack"),
         1
     );
 }

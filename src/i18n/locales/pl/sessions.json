@@ -137,7 +137,9 @@
       "views": {
         "scanning": "Skanowanie",
         "hooks": "Hooks",
-        "usage": "Użycie"
+        "usage": "Użycie",
+        "quota": "Limit",
+        "assets": "Zasoby"
       },
       "usage": {
         "title": "Użycie i koszt",
@@ -156,7 +158,7 @@
           "claude": "Claude",
           "codex": "Codex",
           "cursor": "Cursor",
-          "org2": "Agenci ORGII",
+          "org2": "ORG2",
           "other": "Inne"
         },
         "cards": {
@@ -888,6 +890,9 @@
         "title": "Agents"
       },
       "tabs": {
+        "session": "Sesja",
+        "workItem": "Element pracy",
+        "more": "Więcej",
         "work": "Praca",
         "manage": "Zarządzaj",
         "heatmap": "Trendy",
@@ -939,7 +944,6 @@
     "defaultTitle": "Czat",
     "hideChatPanel": "Ukryj panel czatu",
     "showTokenUsage": "Pokaż Token",
-    "showStatusBar": "Pokaż pasek stanu",
     "compactDisplayMode": "Tryb kompaktowy",
     "replay": {
       "follow": "Śledź"
@@ -985,6 +989,28 @@
     "copyEventJson": "Kopiuj JSON zdarzeń",
     "copyEventJsonCopied": "Skopiowano!",
     "copyEventJsonFailed": "Błąd kopiowania",
+    "moveToWorkstation": "Przenieś do mojej Workstation",
+    "moveToChatPanel": "Przenieś do panelu czatu",
+    "rawTranscript": {
+      "title": "Surowy zapis sesji",
+      "menuItem": "Wyświetl surowy zapis",
+      "guiTab": "GUI",
+      "rawTab": "Surowe dane",
+      "entryCount_one": "{{count}} wpis",
+      "entryCount_other": "{{count}} wpisów",
+      "copySuccess": "Skopiowano surowy zapis",
+      "copyFailed": "Nie udało się skopiować surowego zapisu"
+    },
+    "linkWorkItem": {
+      "menuItem": "Połącz z Work Item…",
+      "title": "Połącz sesję z Work Item",
+      "description": "Wybierz Work Item, w którym ma być widoczna ta sesja.",
+      "searchPlaceholder": "Szukaj według ID, tytułu, statusu lub projektu Work Item",
+      "loading": "Wczytywanie Work Items…",
+      "empty": "Nie znaleziono Work Items.",
+      "linking": "Łączenie…",
+      "link": "Połącz"
+    },
     "historyTitle": "Historia",
     "historyEmpty": "Brak sesji",
     "historyGroupTime": "Czas",
@@ -1114,6 +1140,8 @@
     "turnMetadata": {
       "noChanges": "Brak zmian plików w tej rundzie",
       "earlierRound": "Wcześniejsza runda",
+      "editsTab": "Edycje",
+      "readsTab": "Odczyty",
       "files_one": "{{count}} plik",
       "files_few": "{{count}} pliki",
       "files_many": "{{count}} plików",

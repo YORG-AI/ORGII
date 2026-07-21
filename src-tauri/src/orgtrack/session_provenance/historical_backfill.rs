@@ -17,6 +17,7 @@ use orgtrack_core::sources::claude_code::history::{
     list_claude_code_history_sessions_paginated, load_claude_code_history_for_session,
 };
 use orgtrack_core::sources::codex::app::{
+    codex_thread_id_from_file_stem, list_codex_app_reconciliation_sessions,
     list_codex_app_sessions_paginated, load_codex_app_for_session,
 };
 use orgtrack_core::sources::cursor_ide::history::{
@@ -67,6 +68,12 @@ enum HistoricalBackfillStatus {
     Complete,
     Partial,
     Failed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ActiveSessionPolicy {
+    QuiescentOnly,
+    AllowActive,
 }
 
 impl HistoricalBackfillStatus {
@@ -160,12 +167,7 @@ pub(in crate::orgtrack) fn request_historical_backfill(
                 < BACKFILL_RECHECK_TTL_MS;
             if is_terminal
                 && is_fresh
-                && !priority_file_needs_backfill(
-                    &conn,
-                    repo_path,
-                    &canonical_repo,
-                    priority_file,
-                )
+                && !priority_file_needs_backfill(&conn, repo_path, &canonical_repo, priority_file)
             {
                 return job.snapshot();
             }
@@ -449,11 +451,8 @@ fn reconcile_historical_interactions(
         imported_sessions.into_iter().partition(|(_, session)| {
             session_touches_priority_file(session, &canonical_repo, priority_file)
         });
-    let backlog_pending = backlog_sessions_needing_work(
-        conn,
-        backlog_sessions,
-        BACKFILL_BACKLOG_BATCH_PER_RUN,
-    );
+    let backlog_pending =
+        backlog_sessions_needing_work(conn, backlog_sessions, BACKFILL_BACKLOG_BATCH_PER_RUN);
     let imported_sessions: Vec<_> = priority_sessions
         .into_iter()
         .chain(backlog_pending)
@@ -465,8 +464,14 @@ fn reconcile_historical_interactions(
     progress(indexed_sessions, total_sessions, failed_sessions);
 
     for (source, session) in imported_sessions {
-        match reconcile_imported_session(conn, source, &canonical_repo, &session) {
-            Ok(()) => indexed_sessions += 1,
+        match reconcile_imported_session(
+            conn,
+            source,
+            &canonical_repo,
+            &session,
+            ActiveSessionPolicy::QuiescentOnly,
+        ) {
+            Ok(_) => indexed_sessions += 1,
             Err(err) => {
                 failed_sessions += 1;
                 tracing::warn!(
@@ -659,7 +664,8 @@ fn reconcile_imported_session(
     source: &str,
     canonical_repo: &Path,
     session: &ImportedHistoryCachedSession,
-) -> Result<(), String> {
+    active_session_policy: ActiveSessionPolicy,
+) -> Result<bool, String> {
     let store = SqliteRecordStore::new(conn);
     let fingerprint = imported_session_fingerprint(session);
     if store.interaction_import_is_current(
@@ -668,12 +674,14 @@ fn reconcile_imported_session(
         &fingerprint,
         HISTORICAL_INTERACTION_PARSER_VERSION,
     )? {
-        return Ok(());
+        return Ok(false);
     }
-    if !session_is_quiescent(session, Utc::now().timestamp_millis()) {
+    if active_session_policy == ActiveSessionPolicy::QuiescentOnly
+        && !session_is_quiescent(session, Utc::now().timestamp_millis())
+    {
         // Not marked as imported: the next backfill after the session goes
         // quiet will index it.
-        return Ok(());
+        return Ok(false);
     }
     let chunks = match source {
         SOURCE_CLAUDE_CODE => load_claude_code_history_for_session(conn, &session.session_id),
@@ -711,7 +719,8 @@ fn reconcile_imported_session(
         &fingerprint,
         HISTORICAL_INTERACTION_PARSER_VERSION,
         &Utc::now().to_rfc3339(),
-    )
+    )?;
+    Ok(true)
 }
 
 fn imported_session_fingerprint(session: &ImportedHistoryCachedSession) -> String {
@@ -722,6 +731,81 @@ fn imported_session_fingerprint(session: &ImportedHistoryCachedSession) -> Strin
         session.source_fingerprint,
         session.parser_version
     )
+}
+
+/// Periodically reconcile recent Codex tasks whose own SessionStart was not
+/// observed. Source fingerprints make this incremental: unchanged rollouts
+/// are checkpoint hits, while an appended rollout replaces only prior
+/// reconciled facts and preserves live hook facts. Healthy task-scoped
+/// activation keeps the established low-CPU live-hook path; missing activation
+/// opts only that task into active-transcript recovery.
+pub(crate) fn spawn_codex_write_reconciliation_loop(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        loop {
+            let result =
+                tauri::async_runtime::spawn_blocking(reconcile_recent_codex_sessions).await;
+            match result {
+                Ok(Ok(reconciled)) if reconciled > 0 => {
+                    let _ =
+                        tauri::Emitter::emit(&app, super::RESOURCE_INTERACTIONS_CHANGED_EVENT, ());
+                }
+                Ok(Ok(_)) => {}
+                Ok(Err(err)) => tracing::warn!(
+                    error = %err,
+                    "[SessionProvenance] Codex write reconciliation failed"
+                ),
+                Err(err) => tracing::warn!(
+                    error = %err,
+                    "[SessionProvenance] Codex write reconciliation task failed"
+                ),
+            }
+            tokio::time::sleep(Duration::from_secs(30)).await;
+        }
+    });
+}
+
+fn reconcile_recent_codex_sessions() -> Result<usize, String> {
+    const RECENT_SESSION_LIMIT: usize = 12;
+
+    let mut conn = get_connection().map_err(|err| err.to_string())?;
+    let sessions = list_codex_app_reconciliation_sessions(&mut conn, RECENT_SESSION_LIMIT)?;
+    let mut reconciled = 0;
+    for session in sessions {
+        let hook_session_id = codex_thread_id_from_file_stem(&session.source_session_id)
+            .unwrap_or(&session.source_session_id);
+        let session_start_active =
+            agent_cli::session_provenance::codex_session_start_is_active(hook_session_id)
+                .unwrap_or(false);
+        if session_start_active {
+            continue;
+        }
+        let repo = session.repo_path.as_deref().unwrap_or(".");
+        let canonical_repo = canonicalize_existing_prefix(Path::new(repo));
+        match reconcile_imported_session(
+            &conn,
+            SOURCE_CODEX_APP,
+            &canonical_repo,
+            &session,
+            ActiveSessionPolicy::AllowActive,
+        ) {
+            Ok(true) => {
+                reconciled += 1;
+                tracing::debug!(
+                    session_id = %session.session_id,
+                    session_start_active,
+                    "[SessionProvenance] Reconciled changed Codex rollout"
+                );
+            }
+            Ok(false) => {}
+            Err(err) => tracing::warn!(
+                session_id = %session.session_id,
+                session_start_active,
+                error = %err,
+                "[SessionProvenance] Codex session reconciliation failed"
+            ),
+        }
+    }
+    Ok(reconciled)
 }
 
 fn native_sessions_for_repo(

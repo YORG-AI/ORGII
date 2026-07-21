@@ -3,6 +3,7 @@
 //! Provides both async (for Tauri commands) and sync (for the event processor)
 //! variants. All subprocess calls go through `crate::util` for
 //! pre-exec FD safety.
+use std::collections::HashSet;
 use std::path::Path;
 use std::process::Output;
 use std::time::Duration;
@@ -448,6 +449,39 @@ fn detect_git_operation_states(repo_path: &Path) -> (bool, bool, bool, bool, boo
 // Detailed File Status (for API responses)
 // ============================================
 
+/// Collapse a `GitStatus` file list into the one-entry-per-path form the HTTP
+/// API returns, without spawning git again.
+///
+/// `refresh_git_status_sync` emits TWO entries for a file with both staged and
+/// unstaged changes (`XY` where neither is `.`) — a staged entry carrying `X`
+/// followed by an unstaged entry carrying `Y`. `get_detailed_file_status_sync`
+/// instead emits ONE, preferring the staged side. Because the staged entry is
+/// always pushed first, taking the first entry per path reproduces that
+/// preference exactly.
+///
+/// NOTE: the two representations genuinely differ, and both are live — the
+/// WebSocket `repo:status_updated` payload carries the two-entry form while
+/// this HTTP route returns the one-entry form. This helper preserves the
+/// existing HTTP shape; it does not reconcile the two.
+pub fn collapse_to_working_directory_files(files: &[GitStatusFile]) -> Vec<WorkingDirectoryFile> {
+    let mut seen: HashSet<&str> = HashSet::new();
+    let mut collapsed = Vec::with_capacity(files.len());
+
+    for file in files {
+        if !seen.insert(file.path.as_str()) {
+            continue;
+        }
+        collapsed.push(WorkingDirectoryFile {
+            path: file.path.clone(),
+            status: file.status.clone(),
+            staged: file.staged,
+            original_path: file.original_path.clone(),
+        });
+    }
+
+    collapsed
+}
+
 /// Get detailed file status with individual file entries
 /// This is used by the HTTP API to return the full file list
 pub fn get_detailed_file_status_sync(
@@ -667,7 +701,9 @@ pub fn get_upstream_branch(repo_path: &Path) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{get_detailed_file_status_sync, refresh_git_status_sync};
+    use super::{
+        collapse_to_working_directory_files, get_detailed_file_status_sync, refresh_git_status_sync,
+    };
     use git2::{Repository, Signature};
     use std::fs;
     use std::path::Path;
@@ -731,5 +767,56 @@ mod tests {
         assert_eq!(detailed[0].status, "R");
         assert_eq!(detailed[0].path, "new/icon.svg");
         assert_eq!(detailed[0].original_path.as_deref(), Some("old/icon.svg"));
+
+        // The HTTP status route derives its file list this way instead of
+        // spawning a second `git status`.
+        assert_eq!(collapse_to_working_directory_files(&status.files), detailed);
+    }
+
+    /// The one case where the two parsers genuinely disagree: a file with BOTH
+    /// staged and unstaged changes. `refresh_git_status_sync` emits two entries,
+    /// `get_detailed_file_status_sync` emits one (staged side). The collapse
+    /// helper must reproduce the latter, since the HTTP route now uses it.
+    #[test]
+    fn collapse_matches_detailed_status_for_partially_staged_file() {
+        let temp_repo = TempRepo::new();
+        let repo = Repository::init(&temp_repo.0).expect("initialize repository");
+        let tracked = temp_repo.0.join("tracked.txt");
+
+        fs::write(&tracked, "original\n").expect("write original file");
+        let mut index = repo.index().expect("open index");
+        index
+            .add_path(Path::new("tracked.txt"))
+            .expect("add tracked file");
+        index.write().expect("write index");
+        let tree_id = index.write_tree().expect("write tree");
+        let tree = repo.find_tree(tree_id).expect("find tree");
+        let signature = Signature::now("ORGII Test", "test@orgii.local").expect("signature");
+        repo.commit(Some("HEAD"), &signature, &signature, "initial", &tree, &[])
+            .expect("create initial commit");
+        drop(tree);
+
+        // Stage one modification, then modify again without staging → "MM".
+        fs::write(&tracked, "staged change\n").expect("write staged change");
+        let mut index = repo.index().expect("reopen index");
+        index
+            .add_path(Path::new("tracked.txt"))
+            .expect("stage modification");
+        index.write().expect("write index");
+        drop(index);
+        drop(repo);
+        fs::write(&tracked, "unstaged change\n").expect("write unstaged change");
+
+        let status = refresh_git_status_sync(&temp_repo.0).expect("get watcher status");
+        let detailed = get_detailed_file_status_sync(&temp_repo.0).expect("get detailed status");
+
+        // Two entries on the watcher/WebSocket side, one on the HTTP side.
+        assert_eq!(status.files.len(), 2);
+        assert!(status.files[0].staged);
+        assert!(!status.files[1].staged);
+        assert_eq!(detailed.len(), 1);
+        assert!(detailed[0].staged);
+
+        assert_eq!(collapse_to_working_directory_files(&status.files), detailed);
     }
 }

@@ -11,9 +11,6 @@ export type {
   UseCommitFormResult,
 } from "./useCommitForm";
 
-export { useDiffCache } from "./useDiffCache";
-export type { UseDiffCacheOptions, UseDiffCacheResult } from "./useDiffCache";
-
 export { useFileSelection } from "./useFileSelection";
 export type {
   UseFileSelectionOptions,

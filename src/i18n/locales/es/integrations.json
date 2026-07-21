@@ -1687,6 +1687,8 @@
     "sessionProvenance": {
       "masterToggle": "Hooks de procedencia",
       "masterToggleDesc": "Al desactivarlos, se desinstalan todos los hooks administrados y no se captura ninguna señal; las selecciones por plataforma se conservan y se restauran al volver a activarlos.",
+      "liveStatusToggle": "Estado del agente en vivo",
+      "liveStatusToggleDesc": "Muestra si los agentes CLI están trabajando o esperando. Desactivarlo mantiene la captura de procedencia.",
       "title": "Procedencia de sesiones",
       "capture": "Registrar interacciones con archivos",
       "description": "Registra lecturas y escrituras de archivos como metadatos. No se guardan prompts, salidas de herramientas ni contenido de archivos.",

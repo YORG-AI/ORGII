@@ -7,6 +7,7 @@
 
 use std::collections::HashMap;
 
+use crate::agent_sessions::event_pipeline::store::monotonic_shell_replay_state;
 use crate::agent_sessions::event_pipeline::types::SessionEvent;
 
 // ============================================================================
@@ -182,6 +183,15 @@ fn merge_start_end(start: &SessionEvent, end: &SessionEvent) -> SessionEvent {
 
     // Mark as non-delta
     merged.is_delta = None;
+
+    // The start event owns the immutable timeline bookmark, while the end
+    // event may carry a newer mutable/final replay state.
+    if let Some(end_state) = end.shell_replay.clone() {
+        merged.shell_replay = Some(monotonic_shell_replay_state(
+            merged.shell_replay.as_ref(),
+            end_state,
+        ));
+    }
 
     merged
 }

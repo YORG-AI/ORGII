@@ -112,7 +112,7 @@ pub async fn es_append(
     // only resurface as duplicate user bubbles on the next replay merge.
     // Their edit path (`cli_agent_truncate_after_chunk`) truncates chunks by
     // timestamp and does not consult the `events` table.
-    let user_events: Vec<_> = if session_providers::skips_event_cache_save(&sid) {
+    let user_event_ids: Vec<_> = if session_providers::skips_event_cache_save(&sid) {
         Vec::new()
     } else {
         events
@@ -122,11 +122,18 @@ pub async fn es_append(
                     && !is_ts_placeholder_id(&event.id)
                     && !is_synthetic_user_input(event)
             })
-            .map(session_event_to_cached_event)
+            .map(|event| event.id.clone())
             .collect()
     };
 
-    state.with_store_mut(&sid, |store| store.append(events));
+    let user_events = state.with_store_mut(&sid, |store| {
+        store.append(events);
+        user_event_ids
+            .iter()
+            .filter_map(|id| store.get_by_id(id))
+            .map(session_event_to_cached_event)
+            .collect::<Vec<_>>()
+    });
     schedule_notify(&app, &state, &sid);
 
     if !user_events.is_empty() {

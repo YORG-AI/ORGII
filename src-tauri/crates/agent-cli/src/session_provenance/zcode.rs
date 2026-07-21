@@ -128,10 +128,7 @@ pub(super) fn zcode_registry_has_plugin(config: &Value) -> bool {
 
 /// Pure transform: remove our plugin's entry from a registry value.
 pub(super) fn zcode_remove_plugin_from_registry_value(config: &mut Value) {
-    if let Some(map) = config
-        .get_mut("plugins")
-        .and_then(Value::as_object_mut)
-    {
+    if let Some(map) = config.get_mut("plugins").and_then(Value::as_object_mut) {
         map.remove(zcode_plugin_id());
     }
 }
@@ -225,7 +222,10 @@ pub(super) fn zcode_set_plugin_enabled_at(path: &Path, enabled: bool) -> Result<
 }
 
 /// Pure transform: set our plugin's enablement flag in a ZCode config value.
-pub(super) fn set_plugin_enabled_in_config(config: &mut Value, enabled: bool) -> Result<(), String> {
+pub(super) fn set_plugin_enabled_in_config(
+    config: &mut Value,
+    enabled: bool,
+) -> Result<(), String> {
     let root = config
         .as_object_mut()
         .ok_or_else(|| "ZCode config.json root must be a JSON object".to_string())?;

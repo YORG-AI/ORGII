@@ -88,9 +88,11 @@ fn discover_git_repo(start: &Path) -> Option<DiscoveredGitRepo> {
             fs::read_to_string(&dot_git)
                 .ok()
                 .and_then(|content| {
-                    content
-                        .lines()
-                        .find_map(|line| line.strip_prefix("gitdir:").map(str::trim).map(String::from))
+                    content.lines().find_map(|line| {
+                        line.strip_prefix("gitdir:")
+                            .map(str::trim)
+                            .map(String::from)
+                    })
                 })
                 .map(|pointer| absolute_lexical_path(Path::new(&pointer), Some(dir)))
         } else {
@@ -140,8 +142,7 @@ pub(crate) fn resolve_file_resource(cwd: &str, file_path: &str) -> ResolvedFileR
     let resolution = resolve_repo_for_cwd(&cwd_path);
     let workspace = resolution.workspace;
     let within_workspace = file_path.strip_prefix(&workspace).ok();
-    let repository_id =
-        within_workspace.and_then(|_| resolution.repository_record_id.clone());
+    let repository_id = within_workspace.and_then(|_| resolution.repository_record_id.clone());
     let relative = within_workspace
         .unwrap_or(&file_path)
         .to_string_lossy()

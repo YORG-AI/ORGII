@@ -10,7 +10,10 @@ import { useTranslation } from "react-i18next";
 import { getToolIcon } from "@src/config/toolIcons";
 import { DIFF_STATS } from "@src/config/workstation/tokens";
 import ToolUsageBadge from "@src/engines/ChatPanel/blocks/ToolCallBlock/ToolUsageBadge";
-import { StackedBlock } from "@src/engines/ChatPanel/blocks/primitives";
+import {
+  ChatLoadingBlock,
+  StackedBlock,
+} from "@src/engines/ChatPanel/blocks/primitives";
 import {
   type SessionEvent,
   TOOL_USAGE_ARGS_KEY,
@@ -85,17 +88,13 @@ export function sumEditDiffStats(events: readonly SessionEvent[]): {
   );
 }
 
-const ActivityBlockFallback: React.FC = () => (
-  <div className="h-6 animate-pulse rounded bg-fill-2" />
-);
-
 function ActivityBlock({ event }: { event: SessionEvent }) {
   const eventType = getRegistryEventType(
     event as unknown as Record<string, unknown>
   );
   const EventComponent = getChatLazyComponent(eventType);
   return (
-    <Suspense fallback={<ActivityBlockFallback />}>
+    <Suspense fallback={<ChatLoadingBlock />}>
       {React.createElement(EventComponent, { event })}
     </Suspense>
   );

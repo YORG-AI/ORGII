@@ -307,11 +307,12 @@ pub async fn await_callback_with_timeout(
         .with_state(shared_state.clone());
 
     let server_cancel = cancel.clone();
-    let server_handle = tokio::spawn(async move {
-        tokio::select! {
-            _ = axum::serve(listener, app) => {}
-            _ = server_cancel.cancelled() => {}
-        }
+    let mut server_handle = tokio::spawn(async move {
+        let _ = axum::serve(listener, app)
+            .with_graceful_shutdown(async move {
+                server_cancel.cancelled().await;
+            })
+            .await;
     });
 
     let outcome = tokio::select! {
@@ -326,10 +327,17 @@ pub async fn await_callback_with_timeout(
         },
     };
 
-    // Always tear the listener down — even on cancel, error, timeout.
+    // Always stop accepting new callbacks, but let the in-flight browser
+    // response finish before tearing the server down. Aborting immediately
+    // can cut off the success/error page after the handler settles `rx`.
     cancel.cancel();
-    server_handle.abort();
-    let _ = server_handle.await;
+    if tokio::time::timeout(Duration::from_secs(1), &mut server_handle)
+        .await
+        .is_err()
+    {
+        server_handle.abort();
+        let _ = server_handle.await;
+    }
 
     outcome
 }

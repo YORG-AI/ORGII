@@ -20,7 +20,10 @@ import { getContextMenuItems } from "../../config";
 import { useWorkItemOrchestrator } from "../../hooks/useWorkItemOrchestrator";
 import WorkItemContextMenu from "../WorkItemContextMenu";
 import { WorkItemDetailBody } from "./WorkItemDetailBody";
-import { WorkItemDetailHeader } from "./WorkItemDetailHeader";
+import {
+  WorkItemDetailHeaderActions,
+  WorkItemDetailHeaderBreadcrumb,
+} from "./WorkItemDetailHeader";
 import { usePendingWorkItemUpdates } from "./hooks/usePendingWorkItemUpdates";
 import { usePrCreation } from "./hooks/usePrCreation";
 import { useWorkItemFileActions } from "./hooks/useWorkItemFileActions";
@@ -67,6 +70,7 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
   initialPendingUpdates,
   surface = WORK_ITEM_DETAIL_SURFACE.main,
   breadcrumbProjectName,
+  breadcrumbIcon,
   propertiesOpen: controlledPropertiesOpen,
   onToggleProperties,
   publishHeaderToWorkstation = false,
@@ -282,15 +286,26 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
 
   const headerContent = useMemo(
     () => (
-      <WorkItemDetailHeader
+      <WorkItemDetailHeaderBreadcrumb
+        workItem={workItem}
+        breadcrumbProjectName={breadcrumbProjectName}
+        breadcrumbIcon={breadcrumbIcon}
+        shortId={shortId}
+        onClose={_onClose}
+        t={t}
+      />
+    ),
+    [workItem, breadcrumbProjectName, breadcrumbIcon, shortId, _onClose, t]
+  );
+
+  const headerTrailing = useMemo(
+    () => (
+      <WorkItemDetailHeaderActions
         workItem={workItem}
         pendingUpdates={pendingUpdates}
-        breadcrumbProjectName={breadcrumbProjectName}
-        shortId={shortId}
         propertiesOpen={propertiesOpen}
         hasPrev={hasPrev}
         hasNext={hasNext}
-        onClose={_onClose}
         onNavigate={onNavigate}
         onDeleteWorkItem={onDeleteWorkItem}
         onExpandToTab={onExpandToTab}
@@ -301,12 +316,9 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
     [
       workItem,
       pendingUpdates,
-      breadcrumbProjectName,
-      shortId,
       propertiesOpen,
       hasPrev,
       hasNext,
-      _onClose,
       onNavigate,
       onDeleteWorkItem,
       onExpandToTab,
@@ -319,6 +331,7 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
     host: workstationHeaderHost,
     content: {
       content: headerContent,
+      trailing: headerTrailing,
     },
     enabled: publishHeaderToWorkstation,
   });
@@ -334,7 +347,10 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
       onContextMenu={handleContextMenu}
     >
       {!publishHeaderToWorkstation && (
-        <div className={HEADER_CLASSES.pageHeader}>{headerContent}</div>
+        <div className={HEADER_CLASSES.pageHeader}>
+          {headerContent}
+          {headerTrailing}
+        </div>
       )}
 
       <WorkItemDetailBody

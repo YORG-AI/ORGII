@@ -689,15 +689,27 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
 
     const staticGroups = useMemo(() => {
       if (!useStaticRendering) return [];
+      const seenGroupKeys = new Set<string>();
+      let nextGroupStartFlatIndex = 0;
       return effectiveGroupCounts.map((groupItemCount, groupIndex) => {
-        const groupStartFlatIndex = effectiveGroupCounts
-          .slice(0, groupIndex)
-          .reduce((sum, count) => sum + count, 0);
-        const firstItem = flatItems[groupStartFlatIndex];
-        const groupKey =
+        const groupStartFlatIndex = nextGroupStartFlatIndex;
+        nextGroupStartFlatIndex += groupItemCount;
+        // Only a group that owns at least one item may borrow its identity from
+        // one. A zero-count group's start index points at the *next* group's
+        // first item, so reading it unconditionally makes both groups emit the
+        // same key ("Encountered two children with the same key"). Empty groups
+        // are produced by useChatGroupsProjection when a collapsed turn has no
+        // structural source.
+        const firstItem =
+          groupItemCount > 0 ? flatItems[groupStartFlatIndex] : undefined;
+        let groupKey =
           firstItem?.event?.id ??
           firstItem?.chunk_id ??
           `static-group-${groupIndex}`;
+        if (seenGroupKeys.has(groupKey)) {
+          groupKey = `${groupKey}#${groupIndex}`;
+        }
+        seenGroupKeys.add(groupKey);
         return {
           groupIndex,
           groupKey,
@@ -885,7 +897,7 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
       return (
         <div
           ref={staticScrollerRef}
-          className="h-full overflow-y-auto overscroll-contain scrollbar-hide"
+          className="h-full overflow-y-auto overscroll-contain pt-2 scrollbar-hide"
           onScroll={(event) => {
             const element = event.currentTarget;
             onAtBottomStateChange(
@@ -964,7 +976,7 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
         ref={(node) => {
           virtualScrollerRef.current = node;
         }}
-        className="h-full w-full overflow-y-auto overscroll-contain scrollbar-hide"
+        className="h-full w-full overflow-y-auto overscroll-contain pt-2 scrollbar-hide"
         onScroll={(event) => {
           const element = event.currentTarget;
           const isAtBottom = isScrolledToContentBottom({

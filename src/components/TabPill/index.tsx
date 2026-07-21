@@ -39,6 +39,7 @@ const TabPill: React.FC<TabPillProps> = ({
   size = "default",
   colorScheme = "default",
   buttonStyle = false,
+  height,
   onDropdownRef,
 }) => {
   const isMulti = activeTabs !== undefined;
@@ -363,6 +364,7 @@ const TabPill: React.FC<TabPillProps> = ({
                   : size === "chatPanel"
                     ? "h-7 px-3 py-[3px]"
                     : "h-[28px] px-3 py-[3px]",
+          height !== undefined && "!h-full",
           "border-0 outline-none",
           buttonStyle
             ? isActive || isDropdownOpen
@@ -442,6 +444,7 @@ const TabPill: React.FC<TabPillProps> = ({
   return (
     <div
       ref={containerRef}
+      style={height === undefined ? undefined : { height }}
       className={cn(
         "relative z-10 items-stretch",
         usePillWrapGrid

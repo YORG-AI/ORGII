@@ -16,7 +16,10 @@ fn extracts_user_query_and_strips_reminders() {
     );
     assert_eq!(extract_user_query("  plain text  "), "plain text");
     // Unterminated query tag → inner text after the opening tag.
-    assert_eq!(extract_user_query("<user_query>unterminated"), "unterminated");
+    assert_eq!(
+        extract_user_query("<user_query>unterminated"),
+        "unterminated"
+    );
 }
 
 #[test]
@@ -48,7 +51,10 @@ fn parses_quest_snapshot_tasks_from_folder_map() {
     assert_eq!(tasks[0].title, "Spawn RAM investigation agent");
     assert_eq!(tasks[0].create_time, 1784202123440);
     assert_eq!(tasks[0].updated_at_timestamp, 1784202191140);
-    assert_eq!(tasks[0].file_path, "/Users/u/Documents/Qoder/2026-07-16/chat-1");
+    assert_eq!(
+        tasks[0].file_path,
+        "/Users/u/Documents/Qoder/2026-07-16/chat-1"
+    );
 
     assert!(parse_quest_snapshot_tasks("not json").is_empty());
     assert!(parse_quest_snapshot_tasks("{}").is_empty());
@@ -71,7 +77,10 @@ fn matches_snapshot_task_by_id_prefix_and_workspace_basename() {
     // Wrong task prefix → no match.
     assert!(match_snapshot_task(&tasks, "chat-1-fdad7ab4", "task-9ff").is_none());
     // A basename that only partially overlaps must not match (`chat-1` vs `chat-10`).
-    assert!(!project_dir_matches_workspace("chat-10-fdad7ab4", "/w/chat-1"));
+    assert!(!project_dir_matches_workspace(
+        "chat-10-fdad7ab4",
+        "/w/chat-1"
+    ));
     assert!(!project_dir_matches_workspace("chat-1-fdad7ab4", ""));
 }
 
@@ -115,7 +124,10 @@ fn transcript_to_chunks_unwraps_query_and_pairs_tools() {
     assert_eq!(chunks[0].function, imported_history::FUNCTION_USER_MESSAGE);
     assert_eq!(chunks[0].result["message"]["content"], "check RAM");
 
-    assert_eq!(chunks[1].action_type, imported_history::ACTION_TYPE_THINKING);
+    assert_eq!(
+        chunks[1].action_type,
+        imported_history::ACTION_TYPE_THINKING
+    );
     assert_eq!(chunks[1].result["thought"], "look at vm_stat");
 
     let tool = &chunks[2];
@@ -219,7 +231,10 @@ fn unmatched_transcript_falls_back_to_first_user_text_and_mtime() {
     assert_eq!(input.name, "fix the login bug");
     assert!(input.repo_path.is_none());
     // Dates fall back to the file mtime (the signature carries nanoseconds).
-    assert_eq!(input.created_at_ms, records[0].record.source_mtime_ms / 1_000_000);
+    assert_eq!(
+        input.created_at_ms,
+        records[0].record.source_mtime_ms / 1_000_000
+    );
     assert_eq!(input.updated_at_ms, input.created_at_ms);
 
     std::fs::remove_dir_all(&projects_dir).expect("remove temp dir");

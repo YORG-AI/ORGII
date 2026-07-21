@@ -11,9 +11,8 @@
  * - Accept/reject changes
  * - Collapse unchanged regions
  *
- * Performance: unified and split editors are each created once and kept alive.
- * Switching viewMode is instant — only CSS visibility changes, no rebuild.
- * Content updates are dispatched into the live editor without recreation.
+ * Performance: only the active view mode is constructed. Switching modes
+ * destroys the previous editor before creating the requested one.
  */
 import { history } from "@codemirror/commands";
 import { bracketMatching, indentUnit } from "@codemirror/language";
@@ -197,7 +196,8 @@ export const CodeMirrorDiff: React.FC<CodeMirrorDiffProps> = ({
   const unifiedDocumentValue = isFullDeletion ? "" : newValue;
   const unifiedOriginalValue = oldValue;
 
-  // Two separate DOM containers — one per view mode, kept alive simultaneously
+  // Separate refs are retained for each implementation, but only the active
+  // mode has a mounted DOM container or live editor instance.
   const unifiedContainerRef = useRef<HTMLDivElement>(null);
   const splitContainerRef = useRef<HTMLDivElement>(null);
 
@@ -295,17 +295,21 @@ export const CodeMirrorDiff: React.FC<CodeMirrorDiffProps> = ({
 
     exts.push(customFoldGutter());
     exts.push(foldPlaceholderTheme());
-    exts.push(history());
-    exts.push(editorHistoryKeymapExtension());
-    exts.push(bracketMatching());
+    if (!readOnly) {
+      exts.push(history());
+      exts.push(editorHistoryKeymapExtension());
+      exts.push(bracketMatching());
+    }
     if (appearanceSettings.wordWrap) {
       exts.push(EditorView.lineWrapping);
     }
     exts.push(goToLineExtension());
 
-    const tabSizeSpaces = " ".repeat(appearanceSettings.tabSize);
-    exts.push(indentUnit.of(tabSizeSpaces));
-    exts.push(EditorState.tabSize.of(appearanceSettings.tabSize));
+    if (!readOnly) {
+      const tabSizeSpaces = " ".repeat(appearanceSettings.tabSize);
+      exts.push(indentUnit.of(tabSizeSpaces));
+      exts.push(EditorState.tabSize.of(appearanceSettings.tabSize));
+    }
 
     const langExt = getLanguageExtension(filePath, language);
     if (langExt) exts.push(langExt);
@@ -323,47 +327,9 @@ export const CodeMirrorDiff: React.FC<CodeMirrorDiffProps> = ({
   // ── Unified view lifecycle ────────────────────────────────────────────────
 
   useEffect(() => {
+    if (viewMode !== "unified") return;
     if (!unifiedContainerRef.current) return;
 
-    // `unifiedMergeView` binds `original` at creation time. Rebuild when
-    // the original side changes; dispatch is only safe for modified content.
-    if (unifiedViewRef.current && unifiedContentRef.current) {
-      const prev = unifiedContentRef.current;
-      if (
-        prev.old !== oldValue ||
-        prev.changeType !== changeType ||
-        prev.startLine !== newStartLine ||
-        prev.showLineNumbers !== showLineNumbers
-      ) {
-        unifiedViewRef.current.destroy();
-        unifiedViewRef.current = null;
-        unifiedContentRef.current = null;
-      } else if (prev.new === newValue) {
-        return;
-      }
-    }
-
-    if (unifiedViewRef.current && unifiedContentRef.current) {
-      const view = unifiedViewRef.current;
-      const currentDoc = view.state.doc.toString();
-      const doc = unifiedDocumentValue;
-      if (currentDoc !== doc) {
-        view.dispatch({
-          changes: { from: 0, to: currentDoc.length, insert: doc },
-        });
-      }
-      unifiedContentRef.current = {
-        old: oldValue,
-        new: newValue,
-        changeType,
-        startLine: newStartLine,
-        showLineNumbers,
-      };
-      setUnifiedLines(view.state.doc.lines);
-      return;
-    }
-
-    // First creation
     const container = unifiedContainerRef.current;
     container.innerHTML = "";
 
@@ -418,22 +384,28 @@ export const CodeMirrorDiff: React.FC<CodeMirrorDiffProps> = ({
       };
       setUnifiedScrollEl(view.scrollDOM);
       setUnifiedLines(view.state.doc.lines);
+      EditorService.setEditorView(view);
     } catch (err) {
       log.error("[CodeMirrorDiff] Error creating unified view:", err);
     }
 
     return () => {
-      unifiedViewRef.current?.destroy();
+      const view = unifiedViewRef.current;
+      if (view && EditorService.getEditorView() === view) {
+        EditorService.clearEditorView();
+      }
+      view?.destroy();
       unifiedViewRef.current = null;
       unifiedContentRef.current = null;
     };
-    // Rebuild when content, settings, or theme changes.
-    // viewMode is intentionally excluded — visibility is handled by CSS only.
+    // `unifiedMergeView` binds the original side at construction. Modified
+    // content is updated by the effect below without destroying the editor.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    viewMode,
     oldValue,
-    newValue,
     changeType,
+    isFullDeletion,
     newStartLine,
     showLineNumbers,
     readOnly,
@@ -450,70 +422,29 @@ export const CodeMirrorDiff: React.FC<CodeMirrorDiffProps> = ({
   ]);
 
   useEffect(() => {
-    const activeView =
-      viewMode === "unified"
-        ? unifiedViewRef.current
-        : splitMergeViewRef.current?.b;
-
-    if (!activeView) return;
-
-    EditorService.setEditorView(activeView);
-
-    return () => {
-      if (EditorService.getEditorView() === activeView) {
-        EditorService.clearEditorView();
-      }
-    };
-  }, [viewMode, oldValue, newValue, changeType, newStartLine]);
+    if (viewMode !== "unified") return;
+    const view = unifiedViewRef.current;
+    if (!view || !unifiedContentRef.current) return;
+    const currentDoc = view.state.doc.toString();
+    if (currentDoc !== unifiedDocumentValue) {
+      view.dispatch({
+        changes: {
+          from: 0,
+          to: currentDoc.length,
+          insert: unifiedDocumentValue,
+        },
+      });
+    }
+    unifiedContentRef.current.new = newValue;
+    setUnifiedLines(view.state.doc.lines);
+  }, [newValue, unifiedDocumentValue, viewMode]);
 
   // ── Split view lifecycle ──────────────────────────────────────────────────
 
   useEffect(() => {
+    if (viewMode !== "split") return;
     if (!splitContainerRef.current) return;
 
-    // If the instance already exists, dispatch content updates
-    if (splitMergeViewRef.current && splitContentRef.current) {
-      const prev = splitContentRef.current;
-      if (
-        prev.oldStartLine !== oldStartLine ||
-        prev.newStartLine !== newStartLine ||
-        prev.showLineNumbers !== showLineNumbers
-      ) {
-        splitMergeViewRef.current.destroy();
-        splitMergeViewRef.current = null;
-        splitContentRef.current = null;
-      } else if (prev.old === oldValue && prev.new === newValue) {
-        return;
-      }
-    }
-
-    if (splitMergeViewRef.current && splitContentRef.current) {
-      const mv = splitMergeViewRef.current;
-
-      const oldDoc = mv.a.state.doc.toString();
-      if (oldDoc !== oldValue) {
-        mv.a.dispatch({
-          changes: { from: 0, to: oldDoc.length, insert: oldValue },
-        });
-      }
-      const newDoc = mv.b.state.doc.toString();
-      if (newDoc !== newValue) {
-        mv.b.dispatch({
-          changes: { from: 0, to: newDoc.length, insert: newValue },
-        });
-      }
-      splitContentRef.current = {
-        old: oldValue,
-        new: newValue,
-        oldStartLine,
-        newStartLine,
-        showLineNumbers,
-      };
-      setSplitLines(mv.b.state.doc.lines);
-      return;
-    }
-
-    // First creation
     const container = splitContainerRef.current;
     container.innerHTML = "";
 
@@ -550,13 +481,16 @@ export const CodeMirrorDiff: React.FC<CodeMirrorDiffProps> = ({
       };
       setSplitScrollEl(splitContainerRef.current);
       setSplitLines(mergeView.b.state.doc.lines);
+      EditorService.setEditorView(mergeView.b);
 
-      if (onChange && !readOnly) {
+      if (!readOnly) {
         mergeView.b.dispatch({
           effects: [
             StateEffect.appendConfig.of(
               EditorView.updateListener.of((update) => {
-                if (update.docChanged) onChange(update.state.doc.toString());
+                if (update.docChanged && onChangeRef.current) {
+                  onChangeRef.current(update.state.doc.toString());
+                }
               })
             ),
           ],
@@ -567,14 +501,17 @@ export const CodeMirrorDiff: React.FC<CodeMirrorDiffProps> = ({
     }
 
     return () => {
-      splitMergeViewRef.current?.destroy();
+      const mergeView = splitMergeViewRef.current;
+      if (mergeView && EditorService.getEditorView() === mergeView.b) {
+        EditorService.clearEditorView();
+      }
+      mergeView?.destroy();
       splitMergeViewRef.current = null;
       splitContentRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    oldValue,
-    newValue,
+    viewMode,
     oldStartLine,
     newStartLine,
     showLineNumbers,
@@ -590,9 +527,30 @@ export const CodeMirrorDiff: React.FC<CodeMirrorDiffProps> = ({
     selectionExtension,
   ]);
 
+  useEffect(() => {
+    if (viewMode !== "split") return;
+    const mergeView = splitMergeViewRef.current;
+    if (!mergeView || !splitContentRef.current) return;
+
+    const oldDoc = mergeView.a.state.doc.toString();
+    if (oldDoc !== oldValue) {
+      mergeView.a.dispatch({
+        changes: { from: 0, to: oldDoc.length, insert: oldValue },
+      });
+    }
+    const newDoc = mergeView.b.state.doc.toString();
+    if (newDoc !== newValue) {
+      mergeView.b.dispatch({
+        changes: { from: 0, to: newDoc.length, insert: newValue },
+      });
+    }
+    splitContentRef.current.old = oldValue;
+    splitContentRef.current.new = newValue;
+    setSplitLines(mergeView.b.state.doc.lines);
+  }, [newValue, oldValue, viewMode]);
+
   // ── Render ────────────────────────────────────────────────────────────────
 
-  const unifiedVisible = viewMode === "unified";
   const isUnifiedFullDeletion = isFullDeletion;
   const wrapperStyle: React.CSSProperties = autoHeight
     ? { position: "relative" }
@@ -600,36 +558,32 @@ export const CodeMirrorDiff: React.FC<CodeMirrorDiffProps> = ({
   const visiblePaneStyle: React.CSSProperties = autoHeight
     ? { position: "relative" }
     : { position: "absolute", inset: 0 };
-  const hiddenPaneStyle: React.CSSProperties = {
-    position: "absolute",
-    inset: 0,
-    visibility: "hidden",
-    pointerEvents: "none",
-  };
-
   return (
     <div
       className={`codemirror-diff-wrapper ${autoHeight ? "codemirror-diff-wrapper--auto-height" : ""} ${isUnifiedFullDeletion ? "codemirror-diff-wrapper--full-deletion" : ""} ${className}`}
       style={wrapperStyle}
     >
-      {/* Unified view — always mounted, hidden when split is active */}
-      <div
-        ref={unifiedContainerRef}
-        className="codemirror-diff codemirror-diff--unified"
-        spellCheck={false}
-        style={unifiedVisible ? visiblePaneStyle : hiddenPaneStyle}
-      />
-      {/* Split view — always mounted, hidden when unified is active */}
-      <div
-        ref={splitContainerRef}
-        className={`codemirror-diff codemirror-diff--split${noBottomPadding ? "codemirror-diff--no-bottom-padding" : ""}`}
-        spellCheck={false}
-        style={!unifiedVisible ? visiblePaneStyle : hiddenPaneStyle}
-      />
+      {viewMode === "unified" ? (
+        <div
+          ref={unifiedContainerRef}
+          className="codemirror-diff codemirror-diff--unified"
+          spellCheck={false}
+          style={visiblePaneStyle}
+        />
+      ) : (
+        <div
+          ref={splitContainerRef}
+          className={`codemirror-diff codemirror-diff--split${noBottomPadding ? "codemirror-diff--no-bottom-padding" : ""}`}
+          spellCheck={false}
+          style={visiblePaneStyle}
+        />
+      )}
       {!autoHeight && (
         <CustomScrollbar
-          scrollElement={unifiedVisible ? unifiedScrollEl : splitScrollEl}
-          totalLines={unifiedVisible ? unifiedLines : splitLines}
+          scrollElement={
+            viewMode === "unified" ? unifiedScrollEl : splitScrollEl
+          }
+          totalLines={viewMode === "unified" ? unifiedLines : splitLines}
         />
       )}
     </div>

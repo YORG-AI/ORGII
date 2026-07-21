@@ -2,8 +2,8 @@
  * DataSourcePanel
  *
  * Shared data-source inventory panel, rendered both as the Kanban station's
- * "Data Sources" view and as the chat-panel start page's "Runtime" tab. A
- * single inventory of every
+ * "Data Sources" view and as the first-class Runtime chat surface. A single
+ * inventory of every
  * external coding tool ORGII detects, driven by the one shared detect pipeline
  * (`external_cli_sources_detect`). Importable apps (Cursor, Codex, Claude,
  * OpenCode, Windsurf, WorkBuddy) show their imported-session count and can be
@@ -19,6 +19,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useAtom } from "jotai";
 import { RefreshCw, Terminal } from "lucide-react";
 import React, {
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -49,13 +50,23 @@ import SettingsTable, {
   type SettingsTableColumn,
 } from "@src/components/SettingsTable";
 import Switch from "@src/components/Switch";
-import TabPill, { type TabPillItem } from "@src/components/TabPill";
+import TabPill, {
+  type TabPillItem,
+  type TabPillProps,
+} from "@src/components/TabPill";
 import Tag, { type TagProps } from "@src/components/Tag";
 import {
   SECTION_CONTROL_STYLE,
+  SECTION_GAP_CLASSES,
+  SECTION_SUBHEADING_CLASSES,
   SectionContainer,
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
+import {
+  DETAIL_PANEL_TOKENS,
+  InternalHeader,
+  ScrollPreservation,
+} from "@src/modules/shared/layouts/blocks";
 import { loadSidebarSessions } from "@src/store/session";
 import {
   ACTIVE_EXTERNAL_SESSION_REFRESH_FREQUENCIES,
@@ -79,6 +90,12 @@ import SessionProvenanceHooksPanel from "./SessionProvenanceHooksPanel";
 import SessionUsagePanel from "./SessionUsagePanel";
 
 type DataSourceTab = "all" | "apps" | "clis";
+export type DataSourcePanelView =
+  | "scanning"
+  | "hooks"
+  | "usage"
+  | "quota"
+  | "assets";
 
 // The sources ORGII imports history from (have a cache + support Rescan).
 const IMPORTABLE_SOURCE_IDS = new Set<ImportedHistorySourceId>(
@@ -107,13 +124,88 @@ const SourceIcon: React.FC<{ probe: ExternalCliSourceProbe }> = ({ probe }) => (
 );
 
 interface DataSourcePanelProps {
-  /** Optional content rendered above the sources title, inside the panel's
-   *  scroll container and centered 932px column (e.g. an activity summary).
-   *  It scrolls away with the page while the table's search header sticks. */
-  headerContent?: React.ReactNode;
+  /** Optional Runtime-only content appended as the final Assets view. */
+  assetsContent?: React.ReactNode;
+  /** Optional Runtime-only content rendered in a dedicated Quota view. */
+  quotaContent?: React.ReactNode;
+  activePanelView?: DataSourcePanelView;
+  onPanelViewChange?: (view: DataSourcePanelView) => void;
+  hideHeader?: boolean;
 }
 
-const DataSourcePanel: React.FC<DataSourcePanelProps> = ({ headerContent }) => {
+interface DataSourcePanelViewTabsProps {
+  activeView: DataSourcePanelView;
+  showAssets: boolean;
+  showQuota: boolean;
+  size?: TabPillProps["size"];
+  onChange: (view: DataSourcePanelView) => void;
+}
+
+export const DataSourcePanelViewTabs: React.FC<DataSourcePanelViewTabsProps> =
+  memo(({ activeView, showAssets, showQuota, size = "large", onChange }) => {
+    const { t } = useTranslation("sessions", {
+      keyPrefix: "kanban.dataSource",
+    });
+    const viewTabs = useMemo<TabPillItem[]>(
+      () => [
+        {
+          key: "usage",
+          label: t("views.usage"),
+          dataTestId: "data-source-view-usage",
+        },
+        ...(showQuota
+          ? [
+              {
+                key: "quota",
+                label: t("views.quota"),
+                dataTestId: "data-source-view-quota",
+              },
+            ]
+          : []),
+        {
+          key: "scanning",
+          label: t("views.scanning"),
+          dataTestId: "data-source-view-scanning",
+        },
+        {
+          key: "hooks",
+          label: t("views.hooks"),
+          dataTestId: "data-source-view-hooks",
+        },
+        ...(showAssets
+          ? [
+              {
+                key: "assets",
+                label: t("views.assets"),
+                dataTestId: "data-source-view-assets",
+              },
+            ]
+          : []),
+      ],
+      [showAssets, showQuota, t]
+    );
+
+    return (
+      <TabPill
+        activeTab={activeView}
+        tabs={viewTabs}
+        onChange={(key) => onChange(key as DataSourcePanelView)}
+        variant="simple"
+        size={size}
+        fillWidth={false}
+      />
+    );
+  });
+
+DataSourcePanelViewTabs.displayName = "DataSourcePanelViewTabs";
+
+const DataSourcePanel: React.FC<DataSourcePanelProps> = ({
+  assetsContent,
+  quotaContent,
+  activePanelView,
+  onPanelViewChange,
+  hideHeader = false,
+}) => {
   const { t } = useTranslation("sessions", {
     keyPrefix: "kanban.dataSource",
   });
@@ -123,9 +215,20 @@ const DataSourcePanel: React.FC<DataSourcePanelProps> = ({ headerContent }) => {
   // sourceId whose rescan split-menu is open (null = none).
   const [openRescanMenu, setOpenRescanMenu] = useState<string | null>(null);
   const [tab, setTab] = useState<DataSourceTab>("all");
-  // Top-level panel view: scan/import inventory, hook capture, or usage stats.
-  const [panelView, setPanelView] = useState<"scanning" | "hooks" | "usage">(
-    "scanning"
+  // Top-level panel view: usage stats, Runtime quota, scan/import inventory,
+  // hook capture, and (only in Runtime) the consolidated assets dashboard.
+  const [internalPanelView, setInternalPanelView] =
+    useState<DataSourcePanelView>("usage");
+  const panelView = activePanelView ?? internalPanelView;
+  const handlePanelViewChange = useCallback(
+    (nextView: DataSourcePanelView) => {
+      if (onPanelViewChange) {
+        onPanelViewChange(nextView);
+        return;
+      }
+      setInternalPanelView(nextView);
+    },
+    [onPanelViewChange]
   );
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -138,9 +241,19 @@ const DataSourcePanel: React.FC<DataSourcePanelProps> = ({ headerContent }) => {
   const [externalSessionsEnabled, setExternalSessionsEnabled] = useAtom(
     externalSessionsEnabledAtom
   );
+  const panelMountedRef = useRef(false);
+  const scanningLoadStartedRef = useRef(false);
+
+  useEffect(() => {
+    panelMountedRef.current = true;
+    return () => {
+      panelMountedRef.current = false;
+    };
+  }, []);
 
   const patchRow = useCallback(
     (sourceId: string, patch: Partial<SourceRow>) => {
+      if (!panelMountedRef.current) return;
       setRows((prev) =>
         prev
           ? prev.map((row) =>
@@ -179,59 +292,61 @@ const DataSourcePanel: React.FC<DataSourcePanelProps> = ({ headerContent }) => {
   const configRef = useRef(configMap);
   configRef.current = configMap;
 
-  // Initial load: detect the full inventory, then fetch stats for enabled
-  // importable sources.
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      let probes: ExternalCliSourceProbe[] = [];
-      try {
-        probes = await externalCliSourcesDetect();
-      } catch {
-        if (!cancelled) setRows([]);
-        return;
-      }
-      if (cancelled) return;
-      const built: SourceRow[] = probes
-        .map((probe) => {
-          const importable = probe.importable && isImportableId(probe.sourceId);
-          const enabled = getSourceConfig(
-            configRef.current,
-            probe.sourceId
-          ).enabled;
-          return {
-            probe,
-            importable,
-            stats: null,
-            statsLoading: importable && enabled,
-            rescanning: false,
-            error: false,
-          };
-        })
-        .sort((a, b) => {
-          const rank = (r: SourceRow) =>
-            r.importable ? 0 : r.probe.installed ? 1 : 2;
-          return (
-            rank(a) - rank(b) ||
-            a.probe.displayName.localeCompare(b.probe.displayName)
-          );
-        });
-      setRows(built);
-      await Promise.all(
-        built
-          .filter(
-            (r) =>
-              r.importable &&
-              isImportableId(r.probe.sourceId) &&
-              getSourceConfig(configRef.current, r.probe.sourceId).enabled
-          )
-          .map((r) => loadStats(r.probe.sourceId as ImportedHistorySourceId))
-      );
-    })();
-    return () => {
-      cancelled = true;
-    };
+  // The Usage view is the default. Defer the comparatively expensive source
+  // detection/stat fan-out until Scanning is actually opened, then retain the
+  // result in this parent so internal tab switches do not re-scan.
+  const loadScanningInventory = useCallback(async () => {
+    let probes: ExternalCliSourceProbe[] = [];
+    try {
+      probes = await externalCliSourcesDetect();
+    } catch {
+      if (panelMountedRef.current) setRows([]);
+      return;
+    }
+    if (!panelMountedRef.current) return;
+
+    const built: SourceRow[] = probes
+      .map((probe) => {
+        const importable = probe.importable && isImportableId(probe.sourceId);
+        const enabled = getSourceConfig(
+          configRef.current,
+          probe.sourceId
+        ).enabled;
+        return {
+          probe,
+          importable,
+          stats: null,
+          statsLoading: importable && enabled,
+          rescanning: false,
+          error: false,
+        };
+      })
+      .sort((a, b) => {
+        const rank = (r: SourceRow) =>
+          r.importable ? 0 : r.probe.installed ? 1 : 2;
+        return (
+          rank(a) - rank(b) ||
+          a.probe.displayName.localeCompare(b.probe.displayName)
+        );
+      });
+    setRows(built);
+    await Promise.all(
+      built
+        .filter(
+          (row) =>
+            row.importable &&
+            isImportableId(row.probe.sourceId) &&
+            getSourceConfig(configRef.current, row.probe.sourceId).enabled
+        )
+        .map((row) => loadStats(row.probe.sourceId as ImportedHistorySourceId))
+    );
   }, [loadStats]);
+
+  useEffect(() => {
+    if (panelView !== "scanning" || scanningLoadStartedRef.current) return;
+    scanningLoadStartedRef.current = true;
+    void loadScanningInventory();
+  }, [loadScanningInventory, panelView]);
 
   // Re-run detection for one source (install status, path, store kind).
   const reprobe = useCallback(
@@ -604,174 +719,174 @@ const DataSourcePanel: React.FC<DataSourcePanelProps> = ({ headerContent }) => {
 
   return (
     <div className="absolute inset-0 flex min-h-0 flex-col overflow-hidden">
-      {/* Keep the view tabs outside the scrolling content, matching Settings.
-          `bg-chat-pane` resolves to the correct Chat Panel or My Station
-          surface color in each host. */}
-      <div className="shrink-0 bg-chat-pane">
-        <div className="mx-auto flex h-full w-full max-w-[932px] px-4 pb-3 pt-4">
-          <TabPill
-            activeTab={panelView}
-            tabs={[
-              {
-                key: "scanning",
-                label: t("views.scanning"),
-                dataTestId: "data-source-view-scanning",
-              },
-              {
-                key: "hooks",
-                label: t("views.hooks"),
-                dataTestId: "data-source-view-hooks",
-              },
-              {
-                key: "usage",
-                label: t("views.usage"),
-                dataTestId: "data-source-view-usage",
-              },
-            ]}
-            onChange={(key) =>
-              setPanelView(key as "scanning" | "hooks" | "usage")
-            }
-            variant="simple"
-            size="large"
-            fillWidth={false}
-          />
-        </div>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
-        <div className="mx-auto flex w-full max-w-[932px] flex-col gap-3 px-4 pb-4">
-          {headerContent}
-
-          {panelView === "scanning" ? (
-            <>
-              {importableCount > 0 && (
-                <SectionContainer>
-                  <SectionRow
-                    label={t("externalSessionsToggle")}
-                    description={t("externalSessionsToggleDesc")}
-                  >
-                    <Switch
-                      checked={externalSessionsEnabled}
-                      onChange={(checked) =>
-                        setExternalSessionsEnabled(checked)
-                      }
-                      ariaLabel={t("externalSessionsToggle")}
-                    />
-                  </SectionRow>
-                  <SectionRow
-                    label={t("globalFrequency")}
-                    description={t("globalFrequencyDesc")}
-                  >
-                    <Select
-                      value={globalFrequency}
-                      onChange={(v) => {
-                        if (typeof v === "string") {
-                          setGlobalFrequency(v as ScanFrequency);
-                        }
-                      }}
-                      options={globalFrequencyOptions}
-                      size="default"
-                      style={SECTION_CONTROL_STYLE}
-                      aria-label={t("globalFrequency")}
-                      disabled={!externalSessionsEnabled}
-                    />
-                  </SectionRow>
-                  <SectionRow
-                    label={t("activeSessionRefresh")}
-                    description={t("activeSessionRefreshDesc")}
-                  >
-                    <Select
-                      value={activeSessionRefreshFrequency}
-                      onChange={(value) => {
-                        if (typeof value === "string") {
-                          setActiveSessionRefreshFrequency(
-                            value as ActiveExternalSessionRefreshFrequency
-                          );
-                        }
-                      }}
-                      options={activeSessionRefreshFrequencyOptions}
-                      size="default"
-                      style={SECTION_CONTROL_STYLE}
-                      aria-label={t("activeSessionRefresh")}
-                      disabled={!externalSessionsEnabled}
-                    />
-                  </SectionRow>
-                </SectionContainer>
-              )}
-
-              <SettingsTable<SourceRow>
-                columns={columns}
-                rows={searchedRows}
-                getRowKey={(row) => row.probe.sourceId}
-                headerHeight="tall"
-                // Keep search + tabs + rescan inline when space allows; the shared
-                // toolbar stacks search/actions above the tabs in narrow panels.
-                inlineHeaderToolbar
-                className="table-expanded-no-hover table-settings-expanded-compact"
-                hover
-                loading={rows === null}
-                emptyTitle={
-                  searchTerm ? tCommon("status.noResults") : undefined
-                }
-                searchBar={{
-                  searchValue: searchQuery,
-                  searchPlaceholder: tCommon("common.searchPlaceholder"),
-                  onSearchChange: setSearchQuery,
-                  onSearchClear: () => setSearchQuery(""),
-                  rightContent:
-                    (rows ?? []).length > 0 ? (
-                      <Button
-                        variant="secondary"
-                        size="default"
-                        loading={rescanningAll}
-                        disabled={!externalSessionsEnabled}
-                        icon={<RefreshCw size={14} />}
-                        onClick={() => void handleRescanAll()}
-                      >
-                        {t("rescanAll")}
-                      </Button>
-                    ) : undefined,
-                  tabPills: (
-                    <TabPill
-                      activeTab={tab}
-                      tabs={tabs}
-                      onChange={(key) => setTab(key as DataSourceTab)}
-                      variant="pill"
-                      color="fill"
-                      className="h-8 [&>button]:!h-full"
-                      fillWidth={false}
-                      size="small"
-                      buttonStyle
-                    />
-                  ),
-                  searchInputSize: "default",
-                  searchCountText:
-                    searchTerm && searchedRows.length !== visibleRows.length
-                      ? `${searchedRows.length} / ${visibleRows.length}`
-                      : undefined,
-                }}
-                expandable={{
-                  expandedRowRender: (row) => (
-                    <DataSourceDetailsCard
-                      probe={row.probe}
-                      stats={row.stats}
-                      onOpenFolder={openFolder}
-                      onCopyPath={(path) => void copyText(path)}
-                    />
-                  ),
-                  rowExpandable: (row) => row.probe.historyPaths.length > 0,
-                  expandedRowKeys,
-                  onExpandedRowsChange: setExpandedRowKeys,
-                }}
+      {/* Inline hosts match the Settings header geometry. Runtime hides this
+          row and publishes the same controlled tabs into the chat header. */}
+      {!hideHeader ? (
+        <InternalHeader
+          noPanelHeader
+          contentPadding
+          className={DETAIL_PANEL_TOKENS.headerWidth}
+          tabs={
+            <div className="flex w-full justify-center">
+              <DataSourcePanelViewTabs
+                activeView={panelView}
+                showQuota={Boolean(quotaContent)}
+                showAssets={Boolean(assetsContent)}
+                onChange={handlePanelViewChange}
               />
-            </>
-          ) : panelView === "hooks" ? (
-            <SessionProvenanceHooksPanel />
-          ) : (
-            <SessionUsagePanel />
-          )}
-        </div>
-      </div>
+            </div>
+          }
+        />
+      ) : null}
+
+      <ScrollPreservation
+        data-testid="data-source-scroll-region"
+        className={
+          panelView === "assets"
+            ? "min-h-0 flex-1 overflow-hidden scrollbar-hide"
+            : DETAIL_PANEL_TOKENS.scrollContentNoTop
+        }
+      >
+        {panelView === "assets" ? (
+          assetsContent
+        ) : (
+          <div
+            className={`${DETAIL_PANEL_TOKENS.contentWidthWithPaddingNoTop} ${SECTION_GAP_CLASSES}`}
+          >
+            {panelView === "scanning" ? (
+              <>
+                <h3 className={SECTION_SUBHEADING_CLASSES}>{t("title")}</h3>
+                {importableCount > 0 && (
+                  <SectionContainer>
+                    <SectionRow
+                      label={t("externalSessionsToggle")}
+                      description={t("externalSessionsToggleDesc")}
+                    >
+                      <Switch
+                        checked={externalSessionsEnabled}
+                        onChange={(checked) =>
+                          setExternalSessionsEnabled(checked)
+                        }
+                        ariaLabel={t("externalSessionsToggle")}
+                      />
+                    </SectionRow>
+                    <SectionRow
+                      label={t("globalFrequency")}
+                      description={t("globalFrequencyDesc")}
+                    >
+                      <Select
+                        value={globalFrequency}
+                        onChange={(v) => {
+                          if (typeof v === "string") {
+                            setGlobalFrequency(v as ScanFrequency);
+                          }
+                        }}
+                        options={globalFrequencyOptions}
+                        size="default"
+                        style={SECTION_CONTROL_STYLE}
+                        aria-label={t("globalFrequency")}
+                        disabled={!externalSessionsEnabled}
+                      />
+                    </SectionRow>
+                    <SectionRow
+                      label={t("activeSessionRefresh")}
+                      description={t("activeSessionRefreshDesc")}
+                    >
+                      <Select
+                        value={activeSessionRefreshFrequency}
+                        onChange={(value) => {
+                          if (typeof value === "string") {
+                            setActiveSessionRefreshFrequency(
+                              value as ActiveExternalSessionRefreshFrequency
+                            );
+                          }
+                        }}
+                        options={activeSessionRefreshFrequencyOptions}
+                        size="default"
+                        style={SECTION_CONTROL_STYLE}
+                        aria-label={t("activeSessionRefresh")}
+                        disabled={!externalSessionsEnabled}
+                      />
+                    </SectionRow>
+                  </SectionContainer>
+                )}
+
+                <SettingsTable<SourceRow>
+                  columns={columns}
+                  rows={searchedRows}
+                  getRowKey={(row) => row.probe.sourceId}
+                  headerHeight="tall"
+                  // Keep search + tabs + rescan inline when space allows; the shared
+                  // toolbar stacks search/actions above the tabs in narrow panels.
+                  inlineHeaderToolbar
+                  className="table-expanded-no-hover table-settings-expanded-compact"
+                  hover
+                  loading={rows === null}
+                  emptyTitle={
+                    searchTerm ? tCommon("status.noResults") : undefined
+                  }
+                  searchBar={{
+                    searchValue: searchQuery,
+                    searchPlaceholder: tCommon("common.searchPlaceholder"),
+                    onSearchChange: setSearchQuery,
+                    onSearchClear: () => setSearchQuery(""),
+                    rightContent:
+                      (rows ?? []).length > 0 ? (
+                        <Button
+                          variant="secondary"
+                          size="default"
+                          loading={rescanningAll}
+                          disabled={!externalSessionsEnabled}
+                          icon={<RefreshCw size={14} />}
+                          onClick={() => void handleRescanAll()}
+                        >
+                          {t("rescanAll")}
+                        </Button>
+                      ) : undefined,
+                    tabPills: (
+                      <TabPill
+                        activeTab={tab}
+                        tabs={tabs}
+                        onChange={(key) => setTab(key as DataSourceTab)}
+                        variant="pill"
+                        color="fill"
+                        className="h-8 [&>button]:!h-full"
+                        fillWidth={false}
+                        size="small"
+                        buttonStyle
+                      />
+                    ),
+                    searchInputSize: "default",
+                    searchCountText:
+                      searchTerm && searchedRows.length !== visibleRows.length
+                        ? `${searchedRows.length} / ${visibleRows.length}`
+                        : undefined,
+                  }}
+                  expandable={{
+                    expandedRowRender: (row) => (
+                      <DataSourceDetailsCard
+                        probe={row.probe}
+                        stats={row.stats}
+                        onOpenFolder={openFolder}
+                        onCopyPath={(path) => void copyText(path)}
+                      />
+                    ),
+                    rowExpandable: (row) => row.probe.historyPaths.length > 0,
+                    expandedRowKeys,
+                    onExpandedRowsChange: setExpandedRowKeys,
+                  }}
+                />
+              </>
+            ) : panelView === "hooks" ? (
+              <SessionProvenanceHooksPanel />
+            ) : panelView === "quota" ? (
+              quotaContent
+            ) : (
+              <SessionUsagePanel />
+            )}
+          </div>
+        )}
+      </ScrollPreservation>
     </div>
   );
 };

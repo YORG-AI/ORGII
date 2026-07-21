@@ -71,7 +71,11 @@ enum LogEvent {
         prompt: String,
     },
     /// A tool invocation with name + args — carries NO session id.
-    ToolInvoke { ts_ms: i64, name: String, args: Value },
+    ToolInvoke {
+        ts_ms: i64,
+        name: String,
+        args: Value,
+    },
     /// `[FileChangeTracking] <path> | source=agent | session=<taskDir>, … | Agent <op>` —
     /// an agent file edit, carrying the session as the truncated dir name.
     FileEdit {
@@ -326,13 +330,8 @@ fn enrich_chunks_with_events(
             args: normalized_args(&tool.name, &tool.args),
             created_at: imported_history::epoch_ms_to_iso(tool.ts_ms),
         };
-        let mut chunk = imported_history::tool_call_chunk(
-            session_id,
-            "qoder-log",
-            index,
-            &call,
-            &tool.output,
-        );
+        let mut chunk =
+            imported_history::tool_call_chunk(session_id, "qoder-log", index, &call, &tool.output);
         if let Some(result) = chunk.result.as_object_mut() {
             // Flag the provenance so consumers can tell recovered trajectory
             // from the durable transcript.
@@ -476,10 +475,7 @@ fn parse_launch_log(content: &str, events: &mut Vec<LogEvent>) {
             let mut tool_call_id = "";
             for (index, part) in rest.split(", ").enumerate() {
                 if index == 0 {
-                    session_task_id = part
-                        .trim()
-                        .trim_end_matches(SESSION_ID_SUFFIX)
-                        .to_string();
+                    session_task_id = part.trim().trim_end_matches(SESSION_ID_SUFFIX).to_string();
                 } else if let Some(value) = part.trim().strip_prefix("type=") {
                     event_type = value;
                 } else if let Some(value) = part.trim().strip_prefix("toolCallId=") {
@@ -604,11 +600,7 @@ fn edit_snapshots(
     full_task_id: Option<&str>,
 ) -> HashMap<String, (String, String)> {
     let mut snapshots = HashMap::new();
-    for dir in edit_store_paths(
-        &qoder_workspace_storage_dirs(),
-        task_dir_name,
-        full_task_id,
-    ) {
+    for dir in edit_store_paths(&qoder_workspace_storage_dirs(), task_dir_name, full_task_id) {
         for (path, contents) in edit_snapshots_from_session_dir(&dir) {
             snapshots.entry(path).or_insert(contents);
         }
@@ -661,24 +653,20 @@ fn numstat_between(old_content: &str, new_content: &str) -> (i64, i64) {
 /// workspace). Folded into the discovery fingerprint so edits that land after
 /// a sync re-parse the session even when the transcript itself is unchanged.
 pub(super) fn edit_store_signature(task_dir_name: &str, full_task_id: Option<&str>) -> String {
-    edit_store_paths(
-        &qoder_workspace_storage_dirs(),
-        task_dir_name,
-        full_task_id,
-    )
-    .iter()
-    .filter_map(|dir| {
-        let metadata = fs::metadata(dir.join("state.json")).ok()?;
-        let mtime_ns = metadata
-            .modified()
-            .ok()
-            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
-            .map(|since| since.as_nanos() as i64)
-            .unwrap_or_default();
-        Some(format!("{mtime_ns}:{}", metadata.len()))
-    })
-    .collect::<Vec<_>>()
-    .join("|")
+    edit_store_paths(&qoder_workspace_storage_dirs(), task_dir_name, full_task_id)
+        .iter()
+        .filter_map(|dir| {
+            let metadata = fs::metadata(dir.join("state.json")).ok()?;
+            let mtime_ns = metadata
+                .modified()
+                .ok()
+                .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|since| since.as_nanos() as i64)
+                .unwrap_or_default();
+            Some(format!("{mtime_ns}:{}", metadata.len()))
+        })
+        .collect::<Vec<_>>()
+        .join("|")
 }
 
 /// The session's chat-editing store dirs across every workspace. With only a

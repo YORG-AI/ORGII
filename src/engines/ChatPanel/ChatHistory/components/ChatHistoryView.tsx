@@ -1,12 +1,10 @@
-import { Loader2 } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { useTranslation } from "react-i18next";
 
 import type { AgentOrgRunMemberView } from "@src/api/tauri/agent";
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
-import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
+import { ChatLoadingBlock } from "@src/engines/ChatPanel/blocks/primitives";
 import type { ChatHistoryDisplayMode } from "@src/store/ui/chatPanelAtom";
 
 import SessionHeader from "../../ChatItems/SessionHeader";
@@ -110,7 +108,6 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
   turnPaginationEnabled,
   viewport,
 }) => {
-  const { t } = useTranslation();
   const {
     chatHistory,
     chatContainerRef,
@@ -413,15 +410,9 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
 
             {isLoadingMore && (
               <div
-                className={`absolute left-0 right-0 top-0 z-20 flex items-center justify-center ${surfaceBgClass} py-2 ${DETAIL_PANEL_TOKENS.contentMaxWidth} mx-auto`}
+                className={`absolute left-0 right-0 top-0 z-20 mx-auto ${surfaceBgClass} p-2 ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
               >
-                <Loader2
-                  size={SPINNER_TOKENS.default}
-                  className="animate-spin text-text-3"
-                />
-                <span className="ml-2 text-xs text-text-3">
-                  {t("placeholders.loadingHistory")}
-                </span>
+                <ChatLoadingBlock />
               </div>
             )}
 

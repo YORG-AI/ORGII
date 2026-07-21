@@ -9,6 +9,7 @@ import {
   clearPendingHttpTrackingState,
   initializeApiTracking,
   installFetchTracking,
+  installXmlHttpRequestTracking,
 } from "./apiTrackerHttp";
 import {
   cleanupInteractionTracking,
@@ -31,6 +32,7 @@ import {
 } from "./apiTrackerState";
 import {
   installDirectTauriInvokeTracking,
+  installTauriCallbackTracking,
   trackTauriInvoke,
   trackTauriInvokeResult,
   withDirectTauriInvokeTrackingSuppressed,
@@ -45,7 +47,7 @@ import {
 export type {
   ApiCall,
   ApiCallHotspot,
-  BackendType,
+  ApiTransport,
   InteractionType,
   PushHotspot,
   PushKind,
@@ -73,15 +75,19 @@ export {
 
 let cleanupInterceptors: (() => void) | undefined;
 let cleanupDirectTauriInvokeTracking: (() => void) | undefined;
+let cleanupTauriCallbackTracking: (() => void) | undefined;
 let cleanupTimerTracking: (() => void) | undefined;
 let cleanupFetchTracking: (() => void) | undefined;
+let cleanupXmlHttpRequestTracking: (() => void) | undefined;
 
 export const enableApiTracking = (): void => {
   enableTrackingState();
   cleanupInterceptors = initializeApiTracking();
   cleanupDirectTauriInvokeTracking = installDirectTauriInvokeTracking();
+  cleanupTauriCallbackTracking = installTauriCallbackTracking();
   cleanupTimerTracking = installTimerTracking();
   cleanupFetchTracking = installFetchTracking();
+  cleanupXmlHttpRequestTracking = installXmlHttpRequestTracking();
   installInteractionTracking();
 };
 
@@ -91,10 +97,14 @@ export const disableApiTracking = (): void => {
   cleanupInterceptors = undefined;
   cleanupDirectTauriInvokeTracking?.();
   cleanupDirectTauriInvokeTracking = undefined;
+  cleanupTauriCallbackTracking?.();
+  cleanupTauriCallbackTracking = undefined;
   cleanupTimerTracking?.();
   cleanupTimerTracking = undefined;
   cleanupFetchTracking?.();
   cleanupFetchTracking = undefined;
+  cleanupXmlHttpRequestTracking?.();
+  cleanupXmlHttpRequestTracking = undefined;
   cleanupInteractionTracking();
 
   // Result-side handlers return early while disabled, so discard in-flight

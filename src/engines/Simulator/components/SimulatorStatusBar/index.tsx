@@ -165,6 +165,7 @@ export const SimulatorStatusBar: React.FC<SimulatorStatusBarProps> = memo(
             <>
               {/* Prev / Play / Next — then speed, then follow controls. */}
               <button
+                data-testid="session-replay-previous"
                 onClick={() => navigatePrev()}
                 disabled={eventCount === 0}
                 className={`ml-0.5 ${STATUS_BAR_ICON_BTN_20}`}
@@ -176,6 +177,7 @@ export const SimulatorStatusBar: React.FC<SimulatorStatusBarProps> = memo(
                 })}
               </button>
               <button
+                data-testid="session-replay-play-pause"
                 onClick={onPlayPause}
                 disabled={eventCount === 0}
                 className={
@@ -196,6 +198,7 @@ export const SimulatorStatusBar: React.FC<SimulatorStatusBarProps> = memo(
                 })}
               </button>
               <button
+                data-testid="session-replay-next"
                 onClick={() => navigateNext()}
                 disabled={eventCount === 0}
                 className={STATUS_BAR_ICON_BTN_20}

@@ -130,6 +130,7 @@ export function useInlineCreateWorkItemFields({
   scopeBreadcrumbLabel,
 }: UseInlineCreateWorkItemFieldsOptions): InlineCreateWorkItemFieldsState {
   const { t } = useTranslation("projects");
+  const { t: tSessions } = useTranslation("sessions");
   const [editorResetKey, setEditorResetKey] = useState(0);
   const { agents: customAgents } = useAgentDefinitions();
   const { orgs: availableOrgs } = useAgentOrgs();
@@ -492,7 +493,7 @@ export function useInlineCreateWorkItemFields({
       onDescriptionChange={handleDescriptionChange}
       titleVisible={false}
       separatorVisible={false}
-      descriptionPlaceholder={t("workItems.descriptionPlaceholder")}
+      descriptionPlaceholder={tSessions("creator.placeholderDefault")}
       onImageInsert={handleImageInsert}
       descriptionClassName="no-bottom-border"
       descriptionMaxHeight="100%"
@@ -534,6 +535,7 @@ export function useInlineCreateWorkItemFields({
 export interface InlineCreateWorkItemFieldsProps {
   className?: string;
   descriptionClassName?: string;
+  showDividers?: boolean;
   showDescription?: boolean;
   state: InlineCreateWorkItemFieldsState;
 }
@@ -543,6 +545,7 @@ export const InlineCreateWorkItemFields: React.FC<
 > = ({
   className = "h-full w-full",
   descriptionClassName = "min-h-0 overflow-hidden",
+  showDividers = true,
   showDescription,
   state,
 }) => {
@@ -562,6 +565,7 @@ export const InlineCreateWorkItemFields: React.FC<
       titleClassName="flex h-10 items-center py-0"
       descriptionClassName={descriptionClassName}
       separatorClassName=""
+      showDividers={showDividers}
     />
   );
 };

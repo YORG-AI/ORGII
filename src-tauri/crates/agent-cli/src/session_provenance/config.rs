@@ -172,6 +172,13 @@ pub(super) fn write_config(path: &Path, config: &Value) -> Result<(), String> {
 }
 
 pub(super) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    // Startup reconciliation runs on every desktop launch. Avoid atomically
+    // replacing provider configs (and their inode/mtime) when their rendered
+    // bytes are already current: some providers watch these files and reload
+    // hooks on replacement.
+    if std::fs::read(path).is_ok_and(|existing| existing == bytes) {
+        return Ok(());
+    }
     let parent = path
         .parent()
         .ok_or_else(|| format!("Hook config has no parent directory: {}", path.display()))?;

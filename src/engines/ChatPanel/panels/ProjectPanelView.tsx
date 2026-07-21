@@ -1,4 +1,5 @@
 import { useSetAtom } from "jotai";
+import { Box } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -8,18 +9,19 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import { STORY_SYNC_ADAPTER } from "@src/api/http/integrations/syncConnections";
 import {
   type MemberEntry,
   type WorkItemFrontmatter,
   enrichedWorkItemToUI,
   projectApi,
 } from "@src/api/http/project";
+import { projectSyncApi } from "@src/api/http/project/sync";
+import IntegrationIcon from "@src/components/IntegrationIcon";
 import TabPill from "@src/components/TabPill";
 import type { TabPillItem } from "@src/components/TabPill";
-import {
-  ChatPanelHeaderBreadcrumb,
-  usePublishChatPanelHeader,
-} from "@src/engines/ChatPanel/header";
+import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
+import { usePublishChatPanelHeader } from "@src/engines/ChatPanel/header";
 import KanbanBoard from "@src/features/KanbanBoard";
 import type { KanbanTask, TaskStatus } from "@src/features/KanbanBoard";
 import { allocateCloudAwareWorkItemId } from "@src/features/Org2Cloud/cloudShortId";
@@ -53,19 +55,13 @@ import {
   type ProjectData,
   ProjectPropertyFields,
 } from "@src/modules/ProjectManager/shared";
+import ProjectManagerBreadcrumb from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 import {
   DetailPanelContainer,
   Placeholder,
 } from "@src/modules/shared/layouts/blocks";
-import {
-  openProjectOrgInChatPanelTabAtom,
-  openWorkItemInChatPanelTabAtom,
-} from "@src/store/chatPanel/chatPanelTabsAtom";
+import { openWorkItemInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { type ChatPanelSelectedProject } from "@src/store/ui/chatPanelAtom";
-import {
-  STORY_ORG_SCOPE,
-  STORY_PERSONAL_ORG_FILTER_ID,
-} from "@src/store/workstation";
 import type { WorkItem } from "@src/types/core/workItem";
 
 const logger = createLogger("ProjectPanelView");
@@ -90,7 +86,6 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
 }) => {
   const { t } = useTranslation(["projects", "common"]);
   const openWorkItemTab = useSetAtom(openWorkItemInChatPanelTabAtom);
-  const openProjectOrgTab = useSetAtom(openProjectOrgInChatPanelTabAtom);
   const sidebarProjectDescription = getProjectOverviewDescription(
     selectedProject.project
   );
@@ -111,10 +106,12 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
   );
   const [workItemsLoading, setWorkItemsLoading] = useState(false);
   const [workItemsError, setWorkItemsError] = useState<string | null>(null);
+  const [projectSyncAdapter, setProjectSyncAdapter] = useState<{
+    projectSlug: string;
+    adapterId: string | null;
+  } | null>(null);
   const propertiesRef = useRef<HTMLDivElement>(null);
 
-  const orgPathLabel =
-    selectedProject.orgName || t("projects:orgs.personalOrg");
   const projectProperties = useMemo<ProjectData>(
     () => ({
       id: selectedProject.project.id,
@@ -144,6 +141,68 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
   const projectSlug =
     selectedProject.projectSlug || selectedProject.project.slug;
   const repoPath = selectedProject.project.linkedRepos?.[0]?.path ?? null;
+  const projectSyncAdapterId =
+    projectSyncAdapter && projectSyncAdapter.projectSlug === projectSlug
+      ? projectSyncAdapter.adapterId
+      : selectedProject.projectSyncAdapterId;
+  const isGitHubSyncedProject =
+    projectSyncAdapterId === STORY_SYNC_ADAPTER.GITHUB;
+  const headerContent = useMemo(
+    () => (
+      <ProjectManagerBreadcrumb
+        segments={[
+          ...(selectedProject.orgName
+            ? [{ label: selectedProject.orgName }]
+            : []),
+          {
+            label: selectedProject.project.name,
+            icon: isGitHubSyncedProject ? (
+              <IntegrationIcon
+                type={STORY_SYNC_ADAPTER.GITHUB}
+                size={HEADER_ICON_SIZE.sm}
+              />
+            ) : (
+              <Box size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
+            ),
+          },
+        ]}
+      />
+    ),
+    [
+      isGitHubSyncedProject,
+      selectedProject.orgName,
+      selectedProject.project.name,
+    ]
+  );
+
+  usePublishChatPanelHeader({
+    content: { content: headerContent },
+  });
+
+  useEffect(() => {
+    if (!projectSlug) return;
+
+    let cancelled = false;
+    void projectSyncApi
+      .status(projectSlug)
+      .then((status) => {
+        if (!cancelled) {
+          setProjectSyncAdapter({
+            projectSlug,
+            adapterId: status.adapter_id,
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProjectSyncAdapter({ projectSlug, adapterId: null });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectSlug]);
 
   useEffect(() => {
     let cancelled = false;
@@ -340,58 +399,6 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
     projectSlug,
     getShortId: getWorkItemShortId,
     onBatchDeleteComplete: loadProjectWorkItems,
-  });
-
-  const handleOpenOrg = useCallback(
-    (event: React.MouseEvent<HTMLButtonElement>) => {
-      event.stopPropagation();
-      openProjectOrgTab({
-        orgId: selectedProject.orgId,
-        orgName: orgPathLabel,
-        orgScope:
-          selectedProject.orgId === STORY_PERSONAL_ORG_FILTER_ID
-            ? STORY_ORG_SCOPE.PERSONAL_ORG
-            : STORY_ORG_SCOPE.PROJECT_ORG,
-      });
-    },
-    [openProjectOrgTab, orgPathLabel, selectedProject.orgId]
-  );
-
-  const handleOpenProjectOverview = useCallback(
-    (event: React.MouseEvent<HTMLButtonElement>) => {
-      event.stopPropagation();
-      setActivePanelTab("overview");
-    },
-    []
-  );
-
-  const headerBreadcrumbContent = useMemo(
-    () => (
-      <ChatPanelHeaderBreadcrumb
-        items={[
-          {
-            key: "org",
-            label: orgPathLabel,
-            onClick: handleOpenOrg,
-          },
-          {
-            key: "project",
-            label: selectedProject.project.name,
-            onClick: handleOpenProjectOverview,
-          },
-        ]}
-      />
-    ),
-    [
-      handleOpenOrg,
-      handleOpenProjectOverview,
-      orgPathLabel,
-      selectedProject.project.name,
-    ]
-  );
-
-  usePublishChatPanelHeader({
-    content: { content: headerBreadcrumbContent },
   });
 
   const inlineProperties = (
@@ -674,7 +681,9 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
     >
       <DetailPanelContainer className="relative">
         <WorkItemContentStack
-          propertiesContent={inlineProperties}
+          propertiesContent={
+            isGitHubSyncedProject ? undefined : inlineProperties
+          }
           descriptionContent={descriptionContent}
           descriptionFlexible
           descriptionClassName="min-h-0 flex flex-1 flex-col px-4 py-4"

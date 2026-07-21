@@ -35,7 +35,7 @@ const LinkSessionToWorkItemModal: React.FC<LinkSessionToWorkItemModalProps> = ({
   onClose,
   onLinked,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(["sessions", "common"]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [linkingId, setLinkingId] = useState<string | null>(null);
@@ -110,7 +110,7 @@ const LinkSessionToWorkItemModal: React.FC<LinkSessionToWorkItemModalProps> = ({
         workItemId: option.item.shortId,
         agentRole: "custom",
       });
-      Message.success(t("toasts.sessionLinkedToWorkItem"));
+      Message.success(t("common:toasts.sessionLinkedToWorkItem"));
       onLinked?.({
         projectSlug: option.project.slug,
         workItemId: option.item.shortId,
@@ -119,7 +119,7 @@ const LinkSessionToWorkItemModal: React.FC<LinkSessionToWorkItemModalProps> = ({
       onClose();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      Message.error(t("toasts.sessionLinkFailed", { message }));
+      Message.error(t("common:toasts.sessionLinkFailed", { message }));
     } finally {
       setLinkingId(null);
     }
@@ -140,10 +140,10 @@ const LinkSessionToWorkItemModal: React.FC<LinkSessionToWorkItemModalProps> = ({
             </div>
             <div className="min-w-0">
               <h3 className="m-0 truncate text-[14px] font-semibold text-text-1">
-                Link session to Work Item
+                {t("chat.linkWorkItem.title")}
               </h3>
               <p className="m-0 mt-0.5 truncate text-[11px] text-text-3">
-                Select the Work Item that should show this session.
+                {t("chat.linkWorkItem.description")}
               </p>
             </div>
           </div>
@@ -154,7 +154,7 @@ const LinkSessionToWorkItemModal: React.FC<LinkSessionToWorkItemModalProps> = ({
             htmlType="button"
             icon={<X size={15} />}
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t("common:actions.close")}
             data-testid="session-link-work-item-close"
           />
         </div>
@@ -163,7 +163,7 @@ const LinkSessionToWorkItemModal: React.FC<LinkSessionToWorkItemModalProps> = ({
           <Input
             value={query}
             onChange={(value) => setQuery(value)}
-            placeholder="Search by Work Item ID, title, status, or project"
+            placeholder={t("chat.linkWorkItem.searchPlaceholder")}
             prefix={<Search size={14} />}
             data-testid="session-link-work-item-search"
           />
@@ -172,7 +172,7 @@ const LinkSessionToWorkItemModal: React.FC<LinkSessionToWorkItemModalProps> = ({
         <div className="min-h-[260px] overflow-y-auto p-3">
           {loading ? (
             <div className="rounded-xl border border-dashed border-border-2 bg-fill-1 px-4 py-8 text-center text-[12px] text-text-3">
-              Loading Work Items…
+              {t("chat.linkWorkItem.loading")}
             </div>
           ) : error ? (
             <div className="border-danger/30 bg-danger/10 text-danger rounded-xl border border-solid px-4 py-3 text-[12px]">
@@ -180,7 +180,7 @@ const LinkSessionToWorkItemModal: React.FC<LinkSessionToWorkItemModalProps> = ({
             </div>
           ) : filteredItems.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border-2 bg-fill-1 px-4 py-8 text-center text-[12px] text-text-3">
-              No Work Items found.
+              {t("chat.linkWorkItem.empty")}
             </div>
           ) : (
             <div className="flex flex-col gap-2">
@@ -209,7 +209,9 @@ const LinkSessionToWorkItemModal: React.FC<LinkSessionToWorkItemModalProps> = ({
                       </div>
                     </div>
                     <span className="shrink-0 text-[11px] text-text-3">
-                      {isLinking ? "Linking…" : "Link"}
+                      {isLinking
+                        ? t("chat.linkWorkItem.linking")
+                        : t("chat.linkWorkItem.link")}
                     </span>
                   </button>
                 );

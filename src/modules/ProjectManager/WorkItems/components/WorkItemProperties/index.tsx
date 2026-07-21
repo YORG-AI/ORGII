@@ -97,6 +97,8 @@ const WorkItemProperties: React.FC<WorkItemPropertiesProps> = ({
   availableMembers = [],
   availableAgents = [],
   availableOrgs = [],
+  projectIconType,
+  projectReadonly = false,
   showTime = true,
   externalStatusConfig,
   fieldVariant = "row",
@@ -260,6 +262,8 @@ const WorkItemProperties: React.FC<WorkItemPropertiesProps> = ({
             availableMilestones={availableMilestones}
             handlers={handlers}
             t={t}
+            projectIconType={projectIconType}
+            projectReadonly={projectReadonly}
             fieldVariant={fieldVariant}
             visibleFields={visibleFieldSet}
           />
@@ -346,6 +350,8 @@ const WorkItemProperties: React.FC<WorkItemPropertiesProps> = ({
               availableMilestones={availableMilestones}
               handlers={handlers}
               t={t}
+              projectIconType={projectIconType}
+              projectReadonly={projectReadonly}
               visibleFields={visibleFieldSet}
             />
             <StatusPrioritySection

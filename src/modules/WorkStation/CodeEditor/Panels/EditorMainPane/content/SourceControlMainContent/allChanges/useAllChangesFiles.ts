@@ -7,8 +7,12 @@ import React, {
   useState,
 } from "react";
 
-import { gitApi } from "@src/api/http/git";
+import { fetchNumstatMap } from "@src/api/http/git/diff";
 import { createLogger } from "@src/hooks/logger";
+import {
+  loadWorkingTreeDiff,
+  releaseWorkingTreeDiff,
+} from "@src/services/git/workingTreeDiffResource";
 import type { GitFile } from "@src/types/git/types";
 import { decodeOctalPath } from "@src/util/file/pathUtils";
 
@@ -32,6 +36,7 @@ interface UseAllChangesFilesResult {
   filesWithDiffs: GitFile[];
   sortedFiles: GitFile[];
   loadContentForFile: (file: GitFile) => Promise<void>;
+  releaseContentForFile: (path: string) => void;
   getSectionRef: (path: string) => React.RefObject<HTMLDivElement | null>;
 }
 
@@ -45,6 +50,7 @@ export function useAllChangesFiles({
   const statsLoadedPathsRef = useRef<Set<string>>(new Set());
   const contentLoadedPathsRef = useRef<Set<string>>(new Set());
   const inFlightContentRef = useRef<Set<string>>(new Set());
+  const activeContentPathsRef = useRef<Set<string>>(new Set());
   const previousFilesKeyRef = useRef("");
   const isLoadingStatsRef = useRef(false);
   const sectionRefs = useRef(
@@ -89,116 +95,51 @@ export function useAllChangesFiles({
           groups.set(effectivePath, group);
         }
 
-        // NOTE: we request `include_content: true` even though only the
-        // header stats are needed for collapsed rows. The Rust batch
-        // endpoint computes `insertions / deletions` lazily from the diff
-        // body itself — when called with `include_content: false` it
-        // returns `0 / 0` for every file, so the headers would all read
-        // "no changes". Holding the diff strings in memory is cheap; the
-        // RAM-heavy work is rendering CodeMirror, which still happens
-        // lazily when a section expands.
-        const allResponses = await Promise.all(
+        // Header badges only need numstat. Full old/new content is fetched
+        // separately when a section expands.
+        const allStats = await Promise.all(
           Array.from(groups.entries()).map(([groupRepoPath, groupFiles]) => {
             const resolvedRepoId = repoId ?? groupRepoPath;
-            const filesInput = groupFiles.map((file) => ({
-              path: getRelativePath(file.path, groupRepoPath),
-              original_path: file.original_path ?? undefined,
-            }));
-            return gitApi
-              .getGitBatchFileDiffs({
-                repo_id: resolvedRepoId,
-                repo_path: groupRepoPath,
-                files: filesInput,
-                from_ref: "HEAD",
-                include_content: true,
-                context_lines: 3,
-              })
-              .then((response) => ({ groupRepoPath, response }));
+            return fetchNumstatMap(resolvedRepoId, groupRepoPath).then(
+              (stats) => ({ groupRepoPath, groupFiles, stats })
+            );
           })
         );
 
-        type DiffEntry = NonNullable<
-          Awaited<ReturnType<typeof gitApi.getGitBatchFileDiffs>>
-        >["files"][0];
-        const diffMap = new Map<string, DiffEntry>();
-        for (const { groupRepoPath, response } of allResponses) {
-          for (const diff of response?.files ?? []) {
-            const decodedPath = decodeOctalPath(diff.file_path);
-            diffMap.set(diff.file_path, diff);
-            diffMap.set(decodedPath, diff);
-            diffMap.set(getRelativePath(decodedPath, groupRepoPath), diff);
+        const statsMap = new Map<
+          string,
+          { additions: number; deletions: number }
+        >();
+        for (const { groupRepoPath, groupFiles, stats } of allStats) {
+          for (const [rawPath, value] of stats) {
+            const decodedPath = decodeOctalPath(rawPath);
+            statsMap.set(`${groupRepoPath}\0${rawPath}`, value);
+            statsMap.set(`${groupRepoPath}\0${decodedPath}`, value);
+            statsMap.set(
+              `${groupRepoPath}\0${getRelativePath(decodedPath, groupRepoPath)}`,
+              value
+            );
+          }
+          for (const file of groupFiles) {
+            statsLoadedPathsRef.current.add(file.path);
           }
         }
-
-        const unmatchedUntracked: GitFile[] = [];
 
         setFilesWithDiffs((prev) =>
           prev.map((file) => {
             const effectivePath = getEffectiveRepoPath(file, repoPath);
-            const diff = getDiffLookupKeys(file.path, effectivePath)
-              .map((key) => diffMap.get(key))
+            const stats = getDiffLookupKeys(file.path, effectivePath)
+              .map((key) => statsMap.get(`${effectivePath}\0${key}`))
               .find((value) => value !== undefined);
-            if (!diff) {
-              if (
-                file.status === "added" &&
-                !statsLoadedPathsRef.current.has(file.path)
-              ) {
-                unmatchedUntracked.push(file);
-              }
-              return file;
-            }
-            statsLoadedPathsRef.current.add(file.path);
-            contentLoadedPathsRef.current.add(file.path);
-            const oldContent = diff.old_content || "";
-            const newContent = diff.new_content || "";
-            const { additions, deletions } = getEffectiveDiffStats(
-              file,
-              diff,
-              oldContent,
-              newContent
-            );
-            return { ...file, additions, deletions, oldContent, newContent };
+            return stats
+              ? {
+                  ...file,
+                  additions: stats.additions,
+                  deletions: stats.deletions,
+                }
+              : file;
           })
         );
-
-        if (unmatchedUntracked.length > 0) {
-          await Promise.all(
-            unmatchedUntracked.map(async (untrackedFile) => {
-              try {
-                const effectivePath = getEffectiveRepoPath(
-                  untrackedFile,
-                  repoPath
-                );
-                const absolutePath = untrackedFile.path.startsWith("/")
-                  ? untrackedFile.path
-                  : `${effectivePath}/${untrackedFile.path}`;
-                const content = await readTextFile(absolutePath);
-                statsLoadedPathsRef.current.add(untrackedFile.path);
-                contentLoadedPathsRef.current.add(untrackedFile.path);
-                const additions = countContentLines(content);
-                setFilesWithDiffs((prev) =>
-                  prev.map((entry) =>
-                    entry.path === untrackedFile.path
-                      ? {
-                          ...entry,
-                          oldContent: "",
-                          newContent: content,
-                          additions,
-                          deletions: 0,
-                        }
-                      : entry
-                  )
-                );
-              } catch (error) {
-                log.error(
-                  "[AllChangesView] Untracked disk read failed:",
-                  untrackedFile.path,
-                  error
-                );
-              }
-            })
-          );
-        }
       } catch (error) {
         log.error("[AllChangesView] Failed to load stats:", error);
       } finally {
@@ -214,6 +155,7 @@ export function useAllChangesFiles({
   const loadContentForFile = useCallback(
     async (file: GitFile) => {
       if (!repoPath) return;
+      activeContentPathsRef.current.add(file.path);
       if (file.oldContent !== undefined || file.newContent !== undefined)
         return;
       if (contentLoadedPathsRef.current.has(file.path)) return;
@@ -225,85 +167,60 @@ export function useAllChangesFiles({
       inFlightContentRef.current.add(file.path);
 
       try {
-        const filesInput = [
-          {
-            path: getRelativePath(file.path, effectivePath),
-            original_path: file.original_path ?? undefined,
-          },
-        ];
-        const response = await gitApi.getGitBatchFileDiffs({
-          repo_id: resolvedRepoId,
-          repo_path: effectivePath,
-          files: filesInput,
-          from_ref: "HEAD",
-          include_content: true,
-          context_lines: 3,
+        const diff = await loadWorkingTreeDiff({
+          repoId: resolvedRepoId,
+          repoPath: effectivePath,
+          file,
         });
 
-        if (response?.files) {
-          const diffMap = new Map(
-            response.files.flatMap((diff) => {
-              const decodedPath = decodeOctalPath(diff.file_path);
-              return [
-                [diff.file_path, diff] as const,
-                [decodedPath, diff] as const,
-                [getRelativePath(decodedPath, effectivePath), diff] as const,
-              ];
-            })
+        if (diff) {
+          if (!activeContentPathsRef.current.has(file.path)) return;
+          contentLoadedPathsRef.current.add(file.path);
+          statsLoadedPathsRef.current.add(file.path);
+          const { oldContent, newContent } = diff;
+          const { additions, deletions } = getEffectiveDiffStats(
+            file,
+            { insertions: diff.additions, deletions: diff.deletions },
+            oldContent,
+            newContent
           );
-
-          const diff = getDiffLookupKeys(file.path, effectivePath)
-            .map((key) => diffMap.get(key))
-            .find((value) => value !== undefined);
-
-          if (diff) {
+          setFilesWithDiffs((prev) =>
+            prev.map((entry) =>
+              entry.path === file.path
+                ? { ...entry, oldContent, newContent, additions, deletions }
+                : entry
+            )
+          );
+        } else if (file.status === "added") {
+          const absolutePath = file.path.startsWith("/")
+            ? file.path
+            : `${effectivePath}/${file.path}`;
+          try {
+            const content = await readTextFile(absolutePath);
+            if (!activeContentPathsRef.current.has(file.path)) return;
             contentLoadedPathsRef.current.add(file.path);
             statsLoadedPathsRef.current.add(file.path);
-            const newContent = diff.new_content || "";
-            const oldContent = diff.old_content || "";
-            const { additions, deletions } = getEffectiveDiffStats(
-              file,
-              diff,
-              oldContent,
-              newContent
-            );
+            const additions = countContentLines(content);
             setFilesWithDiffs((prev) =>
               prev.map((entry) =>
                 entry.path === file.path
-                  ? { ...entry, oldContent, newContent, additions, deletions }
+                  ? {
+                      ...entry,
+                      oldContent: "",
+                      newContent: content,
+                      additions,
+                      deletions: 0,
+                    }
                   : entry
               )
             );
-          } else if (file.status === "added") {
-            const absolutePath = file.path.startsWith("/")
-              ? file.path
-              : `${effectivePath}/${file.path}`;
-            try {
-              const content = await readTextFile(absolutePath);
-              contentLoadedPathsRef.current.add(file.path);
-              statsLoadedPathsRef.current.add(file.path);
-              const additions = countContentLines(content);
-              setFilesWithDiffs((prev) =>
-                prev.map((entry) =>
-                  entry.path === file.path
-                    ? {
-                        ...entry,
-                        oldContent: "",
-                        newContent: content,
-                        additions,
-                        deletions: 0,
-                      }
-                    : entry
-                )
-              );
-            } catch (error) {
-              log.error(
-                "[AllChangesView] Untracked-file disk read failed:",
-                file.path,
-                absolutePath,
-                error
-              );
-            }
+          } catch (error) {
+            log.error(
+              "[AllChangesView] Untracked-file disk read failed:",
+              file.path,
+              absolutePath,
+              error
+            );
           }
         }
       } catch (error) {
@@ -315,6 +232,30 @@ export function useAllChangesFiles({
     [repoId, repoPath]
   );
 
+  const releaseContentForFile = useCallback(
+    (path: string) => {
+      activeContentPathsRef.current.delete(path);
+      contentLoadedPathsRef.current.delete(path);
+      const file = filesWithDiffs.find((entry) => entry.path === path);
+      if (file && repoPath) {
+        const effectivePath = getEffectiveRepoPath(file, repoPath);
+        releaseWorkingTreeDiff({
+          repoId: repoId ?? effectivePath,
+          repoPath: effectivePath,
+          file,
+        });
+      }
+      setFilesWithDiffs((prev) =>
+        prev.map((file) =>
+          file.path === path
+            ? { ...file, oldContent: undefined, newContent: undefined }
+            : file
+        )
+      );
+    },
+    [filesWithDiffs, repoId, repoPath]
+  );
+
   // Sync files state — preserve loaded diffs on polling updates
   useEffect(() => {
     if (previousFilesKeyRef.current !== filesKey) {
@@ -322,6 +263,7 @@ export function useAllChangesFiles({
       statsLoadedPathsRef.current.clear();
       contentLoadedPathsRef.current.clear();
       inFlightContentRef.current.clear();
+      activeContentPathsRef.current.clear();
       setFilesWithDiffs(files);
     } else {
       setFilesWithDiffs((prev) => {
@@ -377,5 +319,11 @@ export function useAllChangesFiles({
     return nextRef;
   }, []);
 
-  return { filesWithDiffs, sortedFiles, loadContentForFile, getSectionRef };
+  return {
+    filesWithDiffs,
+    sortedFiles,
+    loadContentForFile,
+    releaseContentForFile,
+    getSectionRef,
+  };
 }

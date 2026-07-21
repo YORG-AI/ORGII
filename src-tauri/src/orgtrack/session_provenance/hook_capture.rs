@@ -71,9 +71,11 @@ pub fn capture_hook_stdin(source: &str) -> Result<usize, String> {
     if let Some(lifecycle) = lifecycle.as_ref() {
         spool_actor_lifecycle(lifecycle)?;
     }
-    if let Err(error) =
-        agent_cli::session_provenance::record_session_provenance_hook_activation(source_arg)
-    {
+    let session_start_source_session_id = codex_session_start_source_session_id(source, &payload);
+    if let Err(error) = agent_cli::session_provenance::record_session_provenance_hook_activation(
+        source_arg,
+        session_start_source_session_id,
+    ) {
         tracing::warn!(
             error = %error,
             source = source_arg,
@@ -94,6 +96,29 @@ pub fn capture_hook_stdin(source: &str) -> Result<usize, String> {
         let _ = stdout.flush();
     }
     Ok(envelopes.len() + usize::from(lifecycle.is_some()))
+}
+
+fn codex_session_start_source_session_id<'a>(
+    source: HookSource,
+    payload: &'a serde_json::Value,
+) -> Option<&'a str> {
+    if source != HookSource::Codex {
+        return None;
+    }
+    let event = payload
+        .get("hook_event_name")
+        .or_else(|| payload.get("hookEventName"))
+        .or_else(|| payload.get("event"))
+        .and_then(serde_json::Value::as_str)?;
+    if !event.eq_ignore_ascii_case("SessionStart") {
+        return None;
+    }
+    payload
+        .get("session_id")
+        .or_else(|| payload.get("sessionId"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
 }
 
 pub(crate) async fn recent_signals(limit: Option<usize>) -> Result<Vec<RecentHookSignal>, String> {
@@ -272,4 +297,31 @@ pub(crate) fn spawn_hook_inbox_drain_loop(app: tauri::AppHandle) {
             tokio::time::sleep(Duration::from_secs(15)).await;
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn codex_task_activation_requires_its_own_session_start() {
+        let post_tool = json!({
+            "hook_event_name": "PostToolUse",
+            "session_id": "task-without-start"
+        });
+        let session_start = json!({
+            "hook_event_name": "SessionStart",
+            "session_id": "task-with-start"
+        });
+
+        assert_eq!(
+            codex_session_start_source_session_id(HookSource::Codex, &post_tool),
+            None
+        );
+        assert_eq!(
+            codex_session_start_source_session_id(HookSource::Codex, &session_start),
+            Some("task-with-start")
+        );
+    }
 }

@@ -14,8 +14,6 @@ export { default as SourceControlMainContent } from "./SourceControlMainContent"
 export { AllChangesView } from "./SourceControlMainContent";
 export type { AllChangesViewProps } from "./SourceControlMainContent";
 
-export { preloadSourceControlTabContent } from "./preloadSourceControl";
-
 export { default as SearchEditorContent } from "./SearchEditorContent";
 export type { SearchEditorContentProps } from "./SearchEditorContent/types";
 

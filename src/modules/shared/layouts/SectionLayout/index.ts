@@ -73,7 +73,6 @@ export {
   /** 480 — container-query breakpoint value */
   SECTION_LAYOUT_BREAKPOINT,
   SECTION_CONTAINER_BASE_CLASSES,
-  SECTION_CONTAINER_COLOR_CLASSES,
   /** "px-4" | "px-4 py-2" | "px-4 py-3" — padding variants for SectionContainer content */
   SECTION_PADDING,
   /** "pl-6" — left indent for sub-settings */

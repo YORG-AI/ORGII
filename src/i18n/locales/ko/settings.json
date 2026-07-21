@@ -803,6 +803,23 @@
     "currentVersion": "현재 버전"
   },
   "monitor": {
+    "appMemory": "App memory",
+    "appBackend": "ORG2 backend",
+    "appWebviewHelpers": "Owned WebView helpers",
+    "rssMappedDiagnostic": "RSS / mapped memory (diagnostic)",
+    "measurement": "Measurement",
+    "measurementKinds": {
+      "native": "Native effective memory",
+      "compatibility": "Compatibility metric",
+      "mixed": "Mixed native / fallback metrics",
+      "rss_fallback": "RSS fallback",
+      "unavailable": "Unavailable"
+    },
+    "toolProcessDiagnostics": "Terminal, CLI & tool processes (RSS diagnostic)",
+    "excludedFromAppMemory": "excluded from App memory",
+    "noToolProcesses": "No terminal, CLI, MCP, or tool processes detected",
+    "categoryAgentCli": "CLI agent",
+    "categoryMcpOrTool": "MCP / tool process",
     "categoryTerminal": "터미널/도구 프로세스",
     "categoryWebview": "WebView 렌더러",
     "categoryGpu": "WebKit GPU",

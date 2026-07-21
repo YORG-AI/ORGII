@@ -14,6 +14,7 @@ export type ChatPanelTabType =
   | "session"
   | "terminal"
   | "start-page"
+  | "runtime"
   | "work-management"
   | "workspace"
   | "cloud-org"
@@ -27,7 +28,7 @@ export interface ChatPanelTab {
   type: ChatPanelTabType;
   /** Display label */
   title: string;
-  /** Active inner section for the singleton Kanban tab. */
+  /** Sidebar section owned by this Work Management tab. */
   managementSection?: WorkManagementSection;
   createdAt?: string;
   updatedAt?: string;
@@ -153,10 +154,27 @@ export function normalizePersistedChatPanelTabsState(
   const activeMappedTab = mappedTabs.find(
     (tab) => tab.id === candidate.activeTabId
   );
-  const preferredWorkManagementTabId =
-    activeMappedTab?.type === "work-management"
+  const preferredWorkManagementTabIds = new Map<
+    WorkManagementSection,
+    string
+  >();
+  for (const tab of mappedTabs) {
+    if (tab.type !== "work-management" || !tab.managementSection) continue;
+    const preferredTabId = preferredWorkManagementTabIds.get(
+      tab.managementSection
+    );
+    if (
+      preferredTabId === undefined ||
+      (activeMappedTab?.type === "work-management" &&
+        activeMappedTab.id === tab.id)
+    ) {
+      preferredWorkManagementTabIds.set(tab.managementSection, tab.id);
+    }
+  }
+  const preferredRuntimeTabId =
+    activeMappedTab?.type === "runtime"
       ? activeMappedTab.id
-      : mappedTabs.find((tab) => tab.type === "work-management")?.id;
+      : mappedTabs.find((tab) => tab.type === "runtime")?.id;
   const preferredCloudOrgTabId =
     activeMappedTab?.type === "cloud-org"
       ? activeMappedTab.id
@@ -171,7 +189,10 @@ export function normalizePersistedChatPanelTabsState(
   const survivingTabs = mappedTabs.filter(
     (tab) =>
       (tab.type !== "work-management" ||
-        tab.id === preferredWorkManagementTabId) &&
+        (tab.managementSection !== undefined &&
+          tab.id ===
+            preferredWorkManagementTabIds.get(tab.managementSection))) &&
+      (tab.type !== "runtime" || tab.id === preferredRuntimeTabId) &&
       (tab.type !== "cloud-org" || tab.id === preferredCloudOrgTabId) &&
       (tab.type !== "start-page" || tab.id === preferredStartPageTabId)
   );

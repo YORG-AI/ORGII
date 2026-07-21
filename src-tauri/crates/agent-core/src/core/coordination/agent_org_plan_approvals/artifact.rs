@@ -350,7 +350,9 @@ fn stage_owned_plan_artifact(
 /// Install only the already-fsynced bytes. Callers invoke this after SQLite
 /// commits while holding the dedicated artifact lock so two revisions cannot
 /// install out of commit order and unrelated database writes are not blocked.
-pub(super) fn install_staged_plan_artifact(staged: Option<&StagedPlanArtifact>) -> Result<(), String> {
+pub(super) fn install_staged_plan_artifact(
+    staged: Option<&StagedPlanArtifact>,
+) -> Result<(), String> {
     let Some(staged) = staged else {
         return Ok(());
     };

@@ -40,6 +40,8 @@ fn make_event(
         repo_path: None,
         extracted: None,
         payload_refs: Vec::new(),
+        shell_replay: None,
+        shell_replay_bookmarks: None,
         last_extract_at: None,
     }
 }
@@ -317,6 +319,32 @@ fn test_extract_shell_failure() {
         ExtractedData::Shell(s) => {
             assert!(s.is_failure);
             assert_eq!(s.exit_code, Some(127));
+        }
+        _ => panic!("Expected Shell variant"),
+    }
+}
+
+#[test]
+fn test_extract_shell_uses_exact_process_exit_code_without_result_payload() {
+    let event = make_event(
+        "run_shell",
+        EventDisplayVariant::ToolCall,
+        serde_json::json!({
+            "command": "false",
+            "shellProcessStatus": "exited",
+            "shellExitCode": 1
+        }),
+        serde_json::json!({}),
+    );
+
+    let data = extract_event_data(&event).unwrap();
+    match data {
+        ExtractedData::Shell(shell) => {
+            assert_eq!(shell.command, "false");
+            assert_eq!(shell.exit_code, Some(1));
+            assert_eq!(shell.shell_process_status.as_deref(), Some("exited"));
+            assert!(shell.output.is_none());
+            assert!(shell.is_failure);
         }
         _ => panic!("Expected Shell variant"),
     }

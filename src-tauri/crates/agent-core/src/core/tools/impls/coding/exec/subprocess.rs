@@ -1,74 +1,75 @@
-//! Subprocess execution: fast `tokio::process::Command` path with real-time streaming.
+//! Subprocess execution with bounded memory and durable shell replay.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::sync::Mutex as StdMutex;
 use std::time::{Duration, Instant};
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tracing::{info, warn};
 
-use crate::core::tools::impls::coding::terminal_log::{LogProcessStatus, TerminalLogWriter};
+use core_types::session_event::ShellReplayStatus;
+use tauri::AppHandle;
+use tokio::io::{AsyncRead, AsyncReadExt};
+use tokio::sync::{mpsc, watch};
+use tracing::warn;
+
+use crate::bus::event_pipeline_bridge;
 use crate::tools::traits::ToolError;
 
-use std::process::Stdio;
-
 use super::registry;
+use super::shell_replay::{
+    active_state, complete_terminal_prefix_len, mark_writer_task_failure, ShellReplayStream,
+    ShellReplayTarget, ShellReplayWriter, SHELL_REPLAY_FRAME_MAX_BYTES,
+};
 
-/// Broadcast a single `agent:exec_output` event to the frontend.
-pub fn broadcast_exec_output(session_id: &str, chunk: &str, stream: &str) {
-    crate::bus::broadcast_event(
-        "agent:exec_output",
-        serde_json::json!({
-            "sessionId": session_id,
-            "chunk": chunk,
-            "stream": stream,
-        }),
-    );
+pub(super) const OUTPUT_READ_BUFFER_BYTES: usize = 16 * 1024;
+pub(super) const OUTPUT_CHANNEL_CAPACITY: usize = 16;
+/// Two reader buffers + UTF-8 carries, the bounded channel, writer/active
+/// previews, 30 KiB summary, one in-flight frame, and BufWriter capacity.
+#[cfg(test)]
+pub(super) const ESTIMATED_RETAINED_OUTPUT_BYTES: usize = (2
+    * (OUTPUT_READ_BUFFER_BYTES + OUTPUT_READ_BUFFER_BYTES + 4))
+    + (OUTPUT_CHANNEL_CAPACITY * OUTPUT_READ_BUFFER_BYTES)
+    + (2 * super::shell_replay::SHELL_REPLAY_PREVIEW_BYTES)
+    + super::shell_replay::SHELL_REPLAY_SUMMARY_HEAD_BYTES
+    + super::shell_replay::SHELL_REPLAY_SUMMARY_TAIL_BYTES
+    + OUTPUT_READ_BUFFER_BYTES
+    + (8 * 1024);
+const BACKGROUND_SAFETY_TIMEOUT_SECS: u64 = 3600;
+const SHELL_TOOL_RESULT_MAX_BYTES: usize = 30 * 1024;
+
+#[derive(Debug, Clone)]
+pub struct ExecIdentity {
+    pub session_id: String,
+    pub call_id: String,
 }
 
-/// Broadcast shell process started event (for frontend Stop button / status).
-pub fn broadcast_process_started(
-    session_id: &str,
-    pid: u32,
-    command: &str,
-    log_path: Option<&str>,
-) {
-    crate::bus::broadcast_event(
-        "agent:shell_process_started",
-        serde_json::json!({
-            "sessionId": session_id,
-            "pid": pid,
-            "command": command,
-            "logPath": log_path,
-        }),
-    );
+impl ExecIdentity {
+    pub fn new(session_id: impl Into<String>, call_id: impl Into<String>) -> Self {
+        Self {
+            session_id: session_id.into(),
+            call_id: call_id.into(),
+        }
+    }
+
+    fn replay_target(&self) -> ShellReplayTarget {
+        ShellReplayTarget::new(self.session_id.clone(), self.call_id.clone())
+    }
 }
 
-/// Broadcast shell process exited event.
-pub fn broadcast_process_exited(session_id: &str, pid: u32, exit_code: Option<i32>, killed: bool) {
-    crate::bus::broadcast_event(
-        "agent:shell_process_exited",
-        serde_json::json!({
-            "sessionId": session_id,
-            "pid": pid,
-            "exitCode": exit_code,
-            "killed": killed,
-        }),
-    );
+/// Execution mode for `execute_via_command`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExecMode {
+    Blocking,
+    Background,
 }
 
-/// Reason a shell process entered backgrounded state.
 #[derive(Clone, Copy, Debug)]
 pub enum BackgroundReason {
-    /// Agent requested `mode: "background"` up-front; process never blocked.
     Explicit,
-    /// Blocking run hit `wait_secs` without completing; auto-backgrounded as a safety net.
     Timeout,
 }
 
 impl BackgroundReason {
-    fn as_wire_str(&self) -> &'static str {
+    fn as_wire_str(self) -> &'static str {
         match self {
             Self::Explicit => "explicit",
             Self::Timeout => "timeout",
@@ -76,84 +77,170 @@ impl BackgroundReason {
     }
 }
 
-/// Broadcast shell process backgrounded event.
-///
-/// Emitted exactly once per backgrounded process — either immediately after spawn
-/// (explicit `mode="background"`) or when a blocking run's `wait_secs` elapses
-/// (timeout auto-background). The frontend uses this to keep the chat's terminal
-/// block expanded with a "backgrounded · PID N" chip while the process continues
-/// running detached.
-pub fn broadcast_process_backgrounded(
-    session_id: &str,
-    pid: u32,
-    log_path: Option<&str>,
-    reason: BackgroundReason,
+enum ReplayInput {
+    Chunk {
+        stream: ShellReplayStream,
+        bytes: Vec<u8>,
+    },
+    ReaderError {
+        stream: ShellReplayStream,
+        error: String,
+    },
+}
+
+struct OutputRuntime {
+    stdout_task: tokio::task::JoinHandle<()>,
+    stderr_task: tokio::task::JoinHandle<()>,
+    writer_task: tokio::task::JoinHandle<ReplayDrain>,
+    failure_rx: watch::Receiver<Option<String>>,
+    log_path: Option<PathBuf>,
+    replay_target: ShellReplayTarget,
+    app_handle: Option<AppHandle>,
+}
+
+struct ReplayDrain {
+    replay: ShellReplayWriter,
+    write_error: Option<String>,
+}
+
+pub(super) fn broadcast_exec_output(
+    identity: &ExecIdentity,
+    chunk: &str,
+    stream: &str,
+    sequence: u64,
+    persisted_bytes: u64,
 ) {
+    crate::bus::broadcast_event(
+        "agent:exec_output",
+        serde_json::json!({
+            "sessionId": identity.session_id,
+            "toolCallId": identity.call_id,
+            "chunk": chunk,
+            "stream": stream,
+            "sequence": sequence,
+            "persistedBytes": persisted_bytes,
+        }),
+    );
+}
+
+pub(super) fn broadcast_system_output(identity: &ExecIdentity, chunk: &str) {
+    let state = active_state(&identity.session_id, &identity.call_id);
+    broadcast_exec_output(
+        identity,
+        chunk,
+        "system",
+        state
+            .as_ref()
+            .map_or(0, |value| value.bookmark.visible_through_sequence),
+        state
+            .as_ref()
+            .map_or(0, |value| value.bookmark.visible_bytes),
+    );
+}
+
+fn patch_process_state(
+    app_handle: Option<&AppHandle>,
+    identity: &ExecIdentity,
+    merge_args: serde_json::Value,
+) {
+    if let Some(handle) = app_handle {
+        event_pipeline_bridge::update_tool_args_by_call_id(
+            handle,
+            &identity.session_id,
+            &identity.call_id,
+            merge_args,
+        );
+    }
+}
+
+fn broadcast_process_started(
+    identity: &ExecIdentity,
+    pid: u32,
+    command: &str,
+    app_handle: Option<&AppHandle>,
+) {
+    patch_process_state(
+        app_handle,
+        identity,
+        serde_json::json!({
+            "shellPid": pid,
+            "shellProcessStatus": "running",
+        }),
+    );
+    crate::bus::broadcast_event(
+        "agent:shell_process_started",
+        serde_json::json!({
+            "sessionId": identity.session_id,
+            "toolCallId": identity.call_id,
+            "pid": pid,
+            "command": command,
+        }),
+    );
+}
+
+fn broadcast_process_backgrounded(
+    identity: &ExecIdentity,
+    pid: u32,
+    reason: BackgroundReason,
+    app_handle: Option<&AppHandle>,
+) {
+    patch_process_state(
+        app_handle,
+        identity,
+        serde_json::json!({
+            "shellPid": pid,
+            "shellProcessStatus": "background",
+        }),
+    );
     crate::bus::broadcast_event(
         "agent:shell_process_backgrounded",
         serde_json::json!({
-            "sessionId": session_id,
+            "sessionId": identity.session_id,
+            "toolCallId": identity.call_id,
             "pid": pid,
-            "logPath": log_path,
             "reason": reason.as_wire_str(),
         }),
     );
 }
 
-/// Execution mode for `execute_via_command`. Maps 1:1 to the `run_shell` tool's
-/// `mode` parameter — see `ExecTool::parameters()` in `mod.rs`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ExecMode {
-    /// Default: wait up to `wait_secs` for completion, auto-background on timeout.
-    Blocking,
-    /// Spawn-and-return: emit `shell_process_backgrounded` immediately, let the
-    /// detached monitor task deliver `shell_process_exited` when it eventually ends.
-    Background,
-}
-
-/// Format stdout + stderr + exit code into the standard tool result string.
-pub fn format_command_result(
-    stdout: &str,
-    stderr: &str,
-    exit_code: i32,
-) -> Result<String, ToolError> {
-    let mut result_parts = Vec::new();
-    if !stdout.is_empty() {
-        result_parts.push(crate::tool_infra::terminal::truncate_output(stdout));
-    }
-    if !stderr.is_empty() {
-        result_parts.push(format!(
-            "[stderr]\n{}",
-            crate::tool_infra::terminal::truncate_output(stderr),
-        ));
-    }
-    let combined = if result_parts.is_empty() {
-        "(no output)".to_string()
-    } else {
-        result_parts.join("\n")
-    };
-
-    if exit_code != 0 {
-        Ok(format!("{}\n[exit code: {}]", combined, exit_code))
-    } else {
-        Ok(combined)
-    }
+fn broadcast_process_exited(
+    identity: &ExecIdentity,
+    pid: u32,
+    exit_code: Option<i32>,
+    killed: bool,
+    app_handle: Option<&AppHandle>,
+) {
+    patch_process_state(
+        app_handle,
+        identity,
+        serde_json::json!({
+            "shellPid": pid,
+            "shellProcessStatus": if killed { "killed" } else { "exited" },
+            "shellExitCode": exit_code,
+        }),
+    );
+    crate::bus::broadcast_event(
+        "agent:shell_process_exited",
+        serde_json::json!({
+            "sessionId": identity.session_id,
+            "toolCallId": identity.call_id,
+            "pid": pid,
+            "exitCode": exit_code,
+            "killed": killed,
+        }),
+    );
 }
 
 #[cfg(unix)]
 fn signal_process_group(pid: u32, signal: libc::c_int) -> std::io::Result<()> {
-    let process_group = -(pid as libc::pid_t);
-    let group_result = unsafe { libc::kill(process_group, signal) };
+    let group_result = unsafe { libc::kill(-(pid as libc::pid_t), signal) };
     if group_result == 0 {
         return Ok(());
     }
-
     let group_error = std::io::Error::last_os_error();
-    let process_result = unsafe { libc::kill(pid as libc::pid_t, signal) };
-    if process_result == 0 {
+    if unsafe { libc::kill(pid as libc::pid_t, signal) } == 0 {
         return Ok(());
     }
-
     let process_error = std::io::Error::last_os_error();
     if group_error.raw_os_error() == Some(libc::ESRCH) {
         Err(process_error)
@@ -167,50 +254,30 @@ async fn terminate_child_tree(pid: u32, child: &mut tokio::process::Child) {
     if pid != 0 {
         if let Err(err) = signal_process_group(pid, libc::SIGTERM) {
             if err.raw_os_error() != Some(libc::ESRCH) {
-                warn!(
-                    "[subprocess] Failed to SIGTERM process group {}: {}",
-                    pid, err
-                );
+                warn!("[subprocess] failed to SIGTERM process group {pid}: {err}");
             }
         }
         tokio::time::sleep(Duration::from_millis(250)).await;
-        match child.try_wait() {
-            Ok(Some(_)) => return,
-            Ok(None) => {}
-            Err(err) => {
-                warn!(
-                    "[subprocess] Failed to inspect child after SIGTERM: {}",
-                    err
-                );
-            }
+        if matches!(child.try_wait(), Ok(Some(_))) {
+            return;
         }
         if let Err(err) = signal_process_group(pid, libc::SIGKILL) {
             if err.raw_os_error() != Some(libc::ESRCH) {
-                warn!(
-                    "[subprocess] Failed to SIGKILL process group {}: {}",
-                    pid, err
-                );
+                warn!("[subprocess] failed to SIGKILL process group {pid}: {err}");
             }
         }
     }
     if let Err(err) = child.kill().await {
-        warn!("[subprocess] Failed to kill child process: {}", err);
+        if err.kind() != std::io::ErrorKind::InvalidInput {
+            warn!("[subprocess] failed to kill child process: {err}");
+        }
     }
 }
 
 #[cfg(windows)]
 async fn terminate_child_tree(_pid: u32, child: &mut tokio::process::Child) {
     if let Err(err) = child.kill().await {
-        warn!("[subprocess] Failed to kill child process: {}", err);
-    }
-}
-
-async fn join_reader_task(task: tokio::task::JoinHandle<()>, stream: &str) {
-    if tokio::time::timeout(Duration::from_secs(5), task)
-        .await
-        .is_err()
-    {
-        warn!("[subprocess] {} reader did not finish within 5s", stream);
+        warn!("[subprocess] failed to kill child process: {err}");
     }
 }
 
@@ -218,11 +285,10 @@ fn configure_git_environment(cmd: &mut tokio::process::Command) {
     let resolved = match git::resolved_git_executable_details() {
         Ok(resolved) => resolved,
         Err(err) => {
-            warn!("[subprocess] Git executable resolution failed: {}", err);
+            warn!("[subprocess] Git executable resolution failed: {err}");
             return;
         }
     };
-
     if let Some(git_bin_dir) = resolved.path.parent() {
         let mut paths = vec![git_bin_dir.to_path_buf()];
         if let Some(existing_path) = std::env::var_os("PATH") {
@@ -232,300 +298,450 @@ fn configure_git_environment(cmd: &mut tokio::process::Command) {
             Ok(joined_path) => {
                 cmd.env("PATH", joined_path);
             }
+            Err(err) => warn!("[subprocess] failed to join PATH with Git directory: {err}"),
+        }
+    }
+}
+
+async fn pump_output<R>(mut reader: R, stream: ShellReplayStream, tx: mpsc::Sender<ReplayInput>)
+where
+    R: AsyncRead + Unpin,
+{
+    let mut buffer = vec![0u8; OUTPUT_READ_BUFFER_BYTES];
+    let mut pending = Vec::with_capacity(OUTPUT_READ_BUFFER_BYTES + 4);
+    loop {
+        debug_assert!(pending.len() < SHELL_REPLAY_FRAME_MAX_BYTES);
+        let read_capacity = SHELL_REPLAY_FRAME_MAX_BYTES.saturating_sub(pending.len());
+        match reader.read(&mut buffer[..read_capacity]).await {
+            Ok(0) => {
+                if !pending.is_empty() {
+                    let _ = tx
+                        .send(ReplayInput::Chunk {
+                            stream,
+                            bytes: std::mem::take(&mut pending),
+                        })
+                        .await;
+                }
+                break;
+            }
+            Ok(read) => {
+                pending.extend_from_slice(&buffer[..read]);
+                let prefix = complete_terminal_prefix_len(&pending);
+                if prefix == 0 {
+                    continue;
+                }
+                let bytes: Vec<u8> = pending.drain(..prefix).collect();
+                if tx.send(ReplayInput::Chunk { stream, bytes }).await.is_err() {
+                    break;
+                }
+            }
             Err(err) => {
-                warn!(
-                    "[subprocess] Failed to join PATH with Git directory: {}",
-                    err
-                );
+                let _ = tx
+                    .send(ReplayInput::ReaderError {
+                        stream,
+                        error: err.to_string(),
+                    })
+                    .await;
+                break;
             }
         }
     }
 }
 
-fn finish_cancelled_process(
-    pid: u32,
-    session_key: Option<&str>,
-    log_writer: Option<&Arc<StdMutex<TerminalLogWriter>>>,
-) -> Result<String, ToolError> {
-    if let Some(log) = log_writer {
-        if let Ok(mut writer) = log.lock() {
-            let _ = writer.finalize(LogProcessStatus::Killed, None);
+fn spawn_output_runtime(
+    identity: ExecIdentity,
+    stdout: Option<tokio::process::ChildStdout>,
+    stderr: Option<tokio::process::ChildStderr>,
+    replay: ShellReplayWriter,
+) -> OutputRuntime {
+    let log_path = Some(replay.path().to_path_buf());
+    let replay_target = replay.target();
+    let app_handle = replay.app_handle();
+    let (tx, mut rx) = mpsc::channel::<ReplayInput>(OUTPUT_CHANNEL_CAPACITY);
+    let (failure_tx, failure_rx) = watch::channel::<Option<String>>(None);
+
+    let stdout_tx = tx.clone();
+    let stdout_task = tokio::spawn(async move {
+        if let Some(stdout) = stdout {
+            pump_output(stdout, ShellReplayStream::Stdout, stdout_tx).await;
         }
-    }
+    });
+    let stderr_tx = tx.clone();
+    let stderr_task = tokio::spawn(async move {
+        if let Some(stderr) = stderr {
+            pump_output(stderr, ShellReplayStream::Stderr, stderr_tx).await;
+        }
+    });
+    drop(tx);
 
-    if let Some(session_id) = session_key {
-        broadcast_exec_output(
-            session_id,
-            &format!("[process {} cancelled by user]", pid),
-            "system",
-        );
-        broadcast_process_exited(session_id, pid, None, true);
-    }
+    let writer_task = tokio::spawn(async move {
+        let mut replay = replay;
+        let mut write_error = None;
+        let mut flush_interval = tokio::time::interval(Duration::from_millis(50));
+        flush_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            let input = tokio::select! {
+                input = rx.recv() => input,
+                _ = flush_interval.tick() => {
+                    if let Err(err) = replay.flush_due_state() {
+                        replay.mark_incomplete(err.clone());
+                        let _ = failure_tx.send(Some(err.clone()));
+                        write_error = Some(err);
+                        break;
+                    }
+                    continue;
+                }
+            };
+            let Some(input) = input else {
+                break;
+            };
+            let (stream, bytes) = match input {
+                ReplayInput::Chunk { stream, bytes } => (stream, bytes),
+                ReplayInput::ReaderError { stream, error } => {
+                    let message = format!("{} reader failed: {error}", stream.as_wire_str());
+                    replay.mark_incomplete(message.clone());
+                    let _ = failure_tx.send(Some(message.clone()));
+                    write_error = Some(message);
+                    break;
+                }
+            };
 
-    Err(ToolError::ExecutionFailed(
-        "Command cancelled by user".to_string(),
-    ))
+            let append = match replay.append(stream, &bytes) {
+                Ok(append) => append,
+                Err(err) => {
+                    replay.mark_incomplete(err.clone());
+                    let _ = failure_tx.send(Some(err.clone()));
+                    write_error = Some(err);
+                    break;
+                }
+            };
+
+            broadcast_exec_output(
+                &identity,
+                &String::from_utf8_lossy(&bytes),
+                stream.as_wire_str(),
+                append.sequence,
+                append.persisted_bytes,
+            );
+        }
+
+        if write_error.is_none() {
+            if let Err(err) = replay.flush_running_state() {
+                replay.mark_incomplete(err.clone());
+                let _ = failure_tx.send(Some(err.clone()));
+                write_error = Some(err);
+            }
+        }
+        ReplayDrain {
+            replay,
+            write_error,
+        }
+    });
+
+    OutputRuntime {
+        stdout_task,
+        stderr_task,
+        writer_task,
+        failure_rx,
+        log_path,
+        replay_target,
+        app_handle,
+    }
 }
 
-/// Execute a command via `tokio::process::Command` with real-time streaming.
-///
-/// Streams stdout/stderr line-by-line via `agent:exec_output` events
-/// (delivered to the frontend over the Tauri IPC Channel) so the UI can
-/// display output in real-time. Still collects and returns the full output
-/// string for the LLM.
-///
-/// The `mode` parameter decides whether this call blocks for completion:
-/// - `ExecMode::Blocking` — wait up to `wait_secs` for the process to exit. If
-///   it does not, auto-background as a safety net (emits
-///   `agent:shell_process_backgrounded` with `reason: "timeout"`) and return
-///   partial output + PID handle so the agent can poll via `await_output`.
-/// - `ExecMode::Background` — return immediately after spawn with the PID and
-///   log path (emits `agent:shell_process_backgrounded` with
-///   `reason: "explicit"`). `wait_secs` is ignored. Intended for dev servers,
-///   watchers, and other long-running processes.
+async fn join_reader(mut task: tokio::task::JoinHandle<()>, stream: &str) -> Result<(), String> {
+    match tokio::time::timeout(Duration::from_secs(5), &mut task).await {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(err)) => Err(format!("{stream} reader task failed: {err}")),
+        Err(_) => {
+            warn!("[subprocess] {stream} reader did not finish within 5s; aborting");
+            task.abort();
+            let _ = task.await;
+            Err(format!(
+                "{stream} reader did not drain within the 5s completion barrier"
+            ))
+        }
+    }
+}
+
+async fn drain_output(runtime: OutputRuntime) -> Result<ReplayDrain, String> {
+    let stdout_error = join_reader(runtime.stdout_task, "stdout").await.err();
+    let stderr_error = join_reader(runtime.stderr_task, "stderr").await.err();
+    let mut drain = match runtime.writer_task.await {
+        Ok(drain) => drain,
+        Err(err) => {
+            let message = format!("shell replay writer task failed: {err}");
+            let mark_result = mark_writer_task_failure(
+                &runtime.replay_target,
+                runtime.log_path.as_deref(),
+                runtime.app_handle.as_ref(),
+                message.clone(),
+            );
+            return Err(match mark_result {
+                Ok(()) => message,
+                Err(mark_err) => format!("{message}; failed to mark replay incomplete: {mark_err}"),
+            });
+        }
+    };
+    if drain.write_error.is_none() {
+        drain.write_error = stdout_error.or(stderr_error);
+    }
+    Ok(drain)
+}
+
+fn format_summary(summary: String, exit_code: i32) -> String {
+    let summary = if summary.is_empty() {
+        "(no output)".to_string()
+    } else {
+        summary
+    };
+    if exit_code == 0 {
+        summary
+    } else {
+        format!("{summary}\n[exit code: {exit_code}]")
+    }
+}
+
+fn bounded_background_result(mut preview: String, header: &str, log_info: &str) -> String {
+    let suffix = format!("\n\n{header}{log_info}");
+    let preview_budget = SHELL_TOOL_RESULT_MAX_BYTES.saturating_sub(suffix.len());
+    if preview.len() > preview_budget {
+        let mut start = preview.len() - preview_budget;
+        while start < preview.len() && !preview.is_char_boundary(start) {
+            start += 1;
+        }
+        preview.drain(..start);
+    }
+    let result = format!("{preview}{suffix}");
+    debug_assert!(result.len() <= SHELL_TOOL_RESULT_MAX_BYTES);
+    result
+}
+
+/// Execute a command with O(1) process memory regardless of output size.
+#[allow(clippy::too_many_arguments)]
 pub async fn execute_via_command(
     command: &str,
     work_dir: PathBuf,
     timeout_secs: u64,
     wait_secs: Option<u64>,
     mode: ExecMode,
-    session_key: Option<&str>,
-    terminal_logs_root: Option<&PathBuf>,
+    identity: &ExecIdentity,
+    shell_replays_root: &Path,
+    app_handle: Option<AppHandle>,
     cancel_flag: Option<&AtomicBool>,
 ) -> Result<String, ToolError> {
-    if let Some(session_id) = session_key {
-        let header = format!("$ {}", command);
-        broadcast_exec_output(session_id, &header, "system");
-    }
+    let mut replay = ShellReplayWriter::create(
+        shell_replays_root,
+        identity.replay_target(),
+        command,
+        &work_dir,
+        app_handle.clone(),
+    )
+    .map_err(|err| {
+        ToolError::ExecutionFailed(format!(
+            "Command was not started because complete shell replay could not be created: {err}"
+        ))
+    })?;
+    broadcast_system_output(identity, &format!("$ {command}"));
 
     #[cfg(unix)]
     let mut cmd = {
-        let mut c = tokio::process::Command::new("sh");
-        c.arg("-c");
-        c
+        let mut command = tokio::process::Command::new("sh");
+        command.arg("-c");
+        command
     };
-
     #[cfg(windows)]
     let mut cmd = {
-        let mut c = tokio::process::Command::new("cmd");
-        c.arg("/C");
-        c
+        let mut command = tokio::process::Command::new("cmd");
+        command.arg("/C");
+        command
     };
-
     configure_git_environment(&mut cmd);
-
-    // Forward the augmented PATH (set by app_paths::augment_path_from_shell at
-    // startup) so tools like pnpm/npm/node installed via nvm or Homebrew are
-    // visible to agent shell commands. Without this, `sh -c` only sees the
-    // minimal macOS app PATH (/usr/bin:/bin:/usr/sbin:/sbin).
     if let Ok(path) = std::env::var("PATH") {
         cmd.env("PATH", path);
     }
-
     cmd.arg(command)
         .current_dir(&work_dir)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-
     #[cfg(unix)]
-    {
-        cmd.process_group(0);
-    }
-
-    // Windows: `cmd /C …` would otherwise flash a console window for every
-    // agent shell command. The GUI binary has no console, so suppress it.
+    cmd.process_group(0);
     #[cfg(windows)]
     cmd.creation_flags(app_platform::CREATE_NO_WINDOW);
 
-    let mut child = cmd
-        .spawn()
-        .map_err(|err| ToolError::ExecutionFailed(format!("Failed to spawn command: {}", err)))?;
-
+    let mut child = match cmd.spawn() {
+        Ok(child) => child,
+        Err(err) => {
+            let message = format!("Failed to spawn command: {err}");
+            replay.mark_incomplete(message.clone());
+            return Err(ToolError::ExecutionFailed(message));
+        }
+    };
     let pid = child.id().unwrap_or(0);
     if pid == 0 {
-        warn!("[subprocess] child.id() returned None — PID tracking disabled for this command");
+        warn!("[subprocess] child.id() returned None; PID tracking disabled");
     }
+
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+    let runtime = spawn_output_runtime(identity.clone(), stdout, stderr, replay);
+    broadcast_process_started(identity, pid, command, app_handle.as_ref());
+
     let effective_wait = wait_secs.unwrap_or(timeout_secs);
-
-    let stdout_handle = child.stdout.take();
-    let stderr_handle = child.stderr.take();
-
-    let session_for_stdout = session_key.map(|s| s.to_string());
-    let session_for_stderr = session_key.map(|s| s.to_string());
-
-    let stdout_buf = Arc::new(StdMutex::new(String::new()));
-    let stderr_buf = Arc::new(StdMutex::new(String::new()));
-
-    let log_writer: Option<Arc<StdMutex<TerminalLogWriter>>> =
-        if let Some(logs_root) = terminal_logs_root {
-            match TerminalLogWriter::create(logs_root, pid, &work_dir.to_string_lossy(), command) {
-                Ok(writer) => {
-                    if let Some(session_id) = session_key {
-                        broadcast_process_started(
-                            session_id,
-                            pid,
-                            command,
-                            Some(writer.path.to_string_lossy().as_ref()),
-                        );
-                    }
-                    Some(Arc::new(StdMutex::new(writer)))
-                }
-                Err(err) => {
-                    info!("[ExecTool] Failed to create terminal log: {}", err);
-                    if let Some(session_id) = session_key {
-                        broadcast_process_started(session_id, pid, command, None);
-                    }
-                    None
-                }
-            }
-        } else {
-            if let Some(session_id) = session_key {
-                broadcast_process_started(session_id, pid, command, None);
-            }
-            None
-        };
-
-    let stdout_buf_w = stdout_buf.clone();
-    let log_for_stdout = log_writer.clone();
-    let stdout_task = tokio::spawn(async move {
-        if let Some(stdout) = stdout_handle {
-            let mut reader = BufReader::new(stdout);
-            let mut line = String::new();
-            loop {
-                line.clear();
-                match reader.read_line(&mut line).await {
-                    Ok(0) => break,
-                    Ok(_) => {
-                        if let Some(ref session_id) = session_for_stdout {
-                            broadcast_exec_output(session_id, &line, "stdout");
-                        }
-                        if let Ok(mut buf) = stdout_buf_w.lock() {
-                            buf.push_str(&line);
-                        }
-                        if let Some(ref log) = log_for_stdout {
-                            if let Ok(mut writer) = log.lock() {
-                                let _ = writer.append(&line);
-                            }
-                        }
-                    }
-                    Err(_) => break,
-                }
-            }
-        }
-    });
-
-    let stderr_buf_w = stderr_buf.clone();
-    let log_for_stderr = log_writer.clone();
-    let stderr_task = tokio::spawn(async move {
-        if let Some(stderr) = stderr_handle {
-            let mut reader = BufReader::new(stderr);
-            let mut line = String::new();
-            loop {
-                line.clear();
-                match reader.read_line(&mut line).await {
-                    Ok(0) => break,
-                    Ok(_) => {
-                        if let Some(ref session_id) = session_for_stderr {
-                            broadcast_exec_output(session_id, &line, "stderr");
-                        }
-                        if let Ok(mut buf) = stderr_buf_w.lock() {
-                            buf.push_str(&line);
-                        }
-                        if let Some(ref log) = log_for_stderr {
-                            if let Ok(mut writer) = log.lock() {
-                                let _ = writer.append(&format!("[stderr] {}", line));
-                            }
-                        }
-                    }
-                    Err(_) => break,
-                }
-            }
-        }
-    });
-
-    let log_path: Option<PathBuf> = log_writer
-        .as_ref()
-        .and_then(|w: &Arc<StdMutex<TerminalLogWriter>>| w.lock().ok().map(|w| w.path.clone()));
-
-    // Explicit-background mode: spawn the detached monitor immediately and
-    // return a lightweight ack. `wait_secs` is intentionally ignored here —
-    // the agent asked to run detached from the start. The monitor will emit
-    // `shell_process_exited` when the process eventually terminates.
-    if matches!(mode, ExecMode::Background) {
+    if mode == ExecMode::Background {
         return handle_backgrounded(
             command,
             pid,
             effective_wait,
             BackgroundReason::Explicit,
             child,
-            log_writer.clone(),
-            log_path.clone(),
-            stdout_task,
-            stderr_task,
-            stdout_buf.clone(),
-            stderr_buf.clone(),
-            session_key,
+            runtime,
+            identity.clone(),
+            app_handle,
         );
     }
 
     let wait_started_at = Instant::now();
+    let mut runtime = Some(runtime);
     loop {
         if cancel_flag.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
             terminate_child_tree(pid, &mut child).await;
-            join_reader_task(stdout_task, "stdout").await;
-            join_reader_task(stderr_task, "stderr").await;
-            return finish_cancelled_process(pid, session_key, log_writer.as_ref());
+            let drain = match drain_output(runtime.take().expect("output runtime present")).await {
+                Ok(drain) => drain,
+                Err(err) => {
+                    broadcast_process_exited(identity, pid, None, true, app_handle.as_ref());
+                    return Err(ToolError::ExecutionFailed(format!(
+                        "Command cancelled; shell replay writer failed: {err}"
+                    )));
+                }
+            };
+            let replay_result = if let Some(err) = drain.write_error {
+                drain
+                    .replay
+                    .finalize(ShellReplayStatus::Incomplete, Some(err))
+            } else {
+                drain.replay.finalize(ShellReplayStatus::Complete, None)
+            };
+            broadcast_system_output(identity, &format!("[process {pid} cancelled by user]"));
+            broadcast_process_exited(identity, pid, None, true, app_handle.as_ref());
+            if let Err(err) = replay_result {
+                return Err(ToolError::ExecutionFailed(format!(
+                    "Command cancelled; shell replay is incomplete: {err}"
+                )));
+            }
+            return Err(ToolError::ExecutionFailed(
+                "Command cancelled by user".to_string(),
+            ));
+        }
+
+        if let Some(err) = runtime
+            .as_ref()
+            .and_then(|runtime| runtime.failure_rx.borrow().clone())
+        {
+            terminate_child_tree(pid, &mut child).await;
+            let drain = match drain_output(runtime.take().expect("output runtime present")).await {
+                Ok(drain) => drain,
+                Err(writer_err) => {
+                    broadcast_process_exited(identity, pid, None, true, app_handle.as_ref());
+                    return Err(ToolError::ExecutionFailed(format!(
+                        "Command stopped because shell replay writer failed: {writer_err}"
+                    )));
+                }
+            };
+            let _ = drain
+                .replay
+                .finalize(ShellReplayStatus::Incomplete, Some(err.clone()));
+            broadcast_process_exited(identity, pid, None, true, app_handle.as_ref());
+            return Err(ToolError::ExecutionFailed(format!(
+                "Command stopped because complete shell replay failed: {err}"
+            )));
         }
 
         match child.try_wait() {
-            Ok(Some(exit_status)) => {
-                let was_signaled = exit_status.code().is_none();
-                let exit_code = exit_status.code().unwrap_or(-1);
-
-                join_reader_task(stdout_task, "stdout").await;
-                join_reader_task(stderr_task, "stderr").await;
-
-                if let Some(ref log) = log_writer {
-                    if let Ok(mut writer) = log.lock() {
-                        let log_status = if was_signaled {
-                            LogProcessStatus::Killed
-                        } else {
-                            LogProcessStatus::Exited(exit_code)
-                        };
-                        let log_exit = if was_signaled { None } else { Some(exit_code) };
-                        let _ = writer.finalize(log_status, log_exit);
-                    }
+            Ok(Some(status)) => {
+                let was_signaled = status.code().is_none();
+                let exit_code = status.code().unwrap_or(-1);
+                let drain =
+                    match drain_output(runtime.take().expect("output runtime present")).await {
+                        Ok(drain) => drain,
+                        Err(err) => {
+                            broadcast_process_exited(
+                                identity,
+                                pid,
+                                status.code(),
+                                was_signaled,
+                                app_handle.as_ref(),
+                            );
+                            return Err(ToolError::ExecutionFailed(format!(
+                                "Command finished but shell replay writer failed: {err}"
+                            )));
+                        }
+                    };
+                if let Some(err) = drain.write_error {
+                    let _ = drain
+                        .replay
+                        .finalize(ShellReplayStatus::Incomplete, Some(err.clone()));
+                    broadcast_process_exited(
+                        identity,
+                        pid,
+                        status.code(),
+                        was_signaled,
+                        app_handle.as_ref(),
+                    );
+                    return Err(ToolError::ExecutionFailed(format!(
+                        "Command output replay is incomplete: {err}"
+                    )));
                 }
-
-                let stdout = stdout_buf.lock().map(|b| b.clone()).unwrap_or_default();
-                let stderr = stderr_buf.lock().map(|b| b.clone()).unwrap_or_default();
-
-                if let Some(session_id) = session_key {
-                    if was_signaled {
-                        broadcast_exec_output(
-                            session_id,
-                            &format!("[process {} killed by signal]", pid),
-                            "system",
-                        );
-                    } else {
-                        broadcast_exec_output(
-                            session_id,
-                            &format!("[exit code: {}]", exit_code),
-                            "system",
-                        );
-                    }
-                    broadcast_process_exited(session_id, pid, Some(exit_code), was_signaled);
+                if was_signaled {
+                    broadcast_system_output(identity, &format!("[process {pid} killed by signal]"));
+                } else {
+                    broadcast_system_output(identity, &format!("[exit code: {exit_code}]"));
                 }
-
-                return format_command_result(&stdout, &stderr, exit_code);
+                let summary = match drain.replay.finalize(ShellReplayStatus::Complete, None) {
+                    Ok(summary) => summary,
+                    Err(err) => {
+                        broadcast_process_exited(
+                            identity,
+                            pid,
+                            status.code(),
+                            was_signaled,
+                            app_handle.as_ref(),
+                        );
+                        return Err(ToolError::ExecutionFailed(format!(
+                            "Command finished but complete shell replay failed: {err}"
+                        )));
+                    }
+                };
+                broadcast_process_exited(
+                    identity,
+                    pid,
+                    status.code(),
+                    was_signaled,
+                    app_handle.as_ref(),
+                );
+                return Ok(format_summary(summary, exit_code));
             }
             Ok(None) => {}
             Err(err) => {
-                return Err(ToolError::ExecutionFailed(format!(
-                    "Failed to wait for process: {}",
-                    err
-                )));
+                terminate_child_tree(pid, &mut child).await;
+                let drain = match drain_output(runtime.take().expect("output runtime present"))
+                    .await
+                {
+                    Ok(drain) => drain,
+                    Err(writer_err) => {
+                        broadcast_process_exited(identity, pid, None, true, app_handle.as_ref());
+                        return Err(ToolError::ExecutionFailed(format!(
+                            "Failed to wait for process; shell replay writer failed: {writer_err}"
+                        )));
+                    }
+                };
+                let message = format!("Failed to wait for process: {err}");
+                let _ = drain
+                    .replay
+                    .finalize(ShellReplayStatus::Incomplete, Some(message.clone()));
+                broadcast_process_exited(identity, pid, None, true, app_handle.as_ref());
+                return Err(ToolError::ExecutionFailed(message));
             }
         }
 
@@ -536,28 +752,15 @@ pub async fn execute_via_command(
                 effective_wait,
                 BackgroundReason::Timeout,
                 child,
-                log_writer.clone(),
-                log_path.clone(),
-                stdout_task,
-                stderr_task,
-                stdout_buf.clone(),
-                stderr_buf.clone(),
-                session_key,
+                runtime.take().expect("output runtime present"),
+                identity.clone(),
+                app_handle,
             );
         }
-
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
 }
 
-/// Finalize a backgrounded process: emit the lifecycle event, register with
-/// the `BackgroundTaskRegistry` so `await_output` can subscribe, spawn the
-/// detached monitor task (same body for both explicit and timeout paths),
-/// and return the string result the tool surfaces to the agent.
-///
-/// Called from two places:
-/// - `ExecMode::Background` early-return (right after spawn, zero partial output).
-/// - Blocking path's `Err(_)` timeout branch (may carry partial stdout/stderr).
 #[allow(clippy::too_many_arguments)]
 fn handle_backgrounded(
     command: &str,
@@ -565,175 +768,334 @@ fn handle_backgrounded(
     effective_wait: u64,
     reason: BackgroundReason,
     mut child: tokio::process::Child,
-    log_writer: Option<Arc<StdMutex<TerminalLogWriter>>>,
-    log_path: Option<PathBuf>,
-    stdout_task: tokio::task::JoinHandle<()>,
-    stderr_task: tokio::task::JoinHandle<()>,
-    stdout_buf: Arc<StdMutex<String>>,
-    stderr_buf: Arc<StdMutex<String>>,
-    session_key: Option<&str>,
+    runtime: OutputRuntime,
+    identity: ExecIdentity,
+    app_handle: Option<AppHandle>,
 ) -> Result<String, ToolError> {
-    let stdout_partial = stdout_buf.lock().map(|b| b.clone()).unwrap_or_default();
-    let stderr_partial = stderr_buf.lock().map(|b| b.clone()).unwrap_or_default();
+    let log_path = runtime.log_path.clone();
+    let human_line = match reason {
+        BackgroundReason::Explicit => format!("[process {pid} running in background]"),
+        BackgroundReason::Timeout => {
+            format!("[process {pid} backgrounded after {effective_wait}s]")
+        }
+    };
+    broadcast_system_output(&identity, &human_line);
+    broadcast_process_backgrounded(&identity, pid, reason, app_handle.as_ref());
 
-    if let Some(session_id) = session_key {
-        let human_line = match reason {
-            BackgroundReason::Explicit => {
-                format!("[process {} running in background]", pid)
-            }
-            BackgroundReason::Timeout => {
-                format!("[process {} backgrounded after {}s]", pid, effective_wait)
-            }
-        };
-        broadcast_exec_output(session_id, &human_line, "system");
-        broadcast_process_backgrounded(
-            session_id,
+    if pid != 0 {
+        let registry_path = log_path.clone().unwrap_or_default();
+        let _ = registry::register_shell_replay(
             pid,
-            log_path.as_ref().map(|p| p.to_string_lossy()).as_deref(),
-            reason,
+            command.to_string(),
+            registry_path,
+            identity.session_id.clone(),
+            identity.call_id.clone(),
         );
     }
 
-    // Register in BackgroundTaskRegistry so AwaitTool can subscribe
-    if pid != 0 {
-        let reg_log = log_path.clone().unwrap_or_default();
-        let reg_session = session_key.unwrap_or("").to_string();
-        let _reg_tx = registry::register_shell(pid, command.to_string(), reg_log, reg_session);
-    }
-
-    let session_key_bg = session_key.map(|s| s.to_string());
-    let log_writer_bg = log_writer.clone();
-    let bg_safety_timeout = 3600u64;
-    let bg_pid = pid;
-    tokio::spawn(async move {
-        let result =
-            tokio::time::timeout(Duration::from_secs(bg_safety_timeout), child.wait()).await;
-
-        match result {
-            Ok(Ok(status)) => {
-                let was_signaled = status.code().is_none();
-                let code = status.code().unwrap_or(-1);
-                if let Some(ref log) = log_writer_bg {
-                    if let Ok(mut writer) = log.lock() {
-                        let log_status = if was_signaled {
-                            LogProcessStatus::Killed
-                        } else {
-                            LogProcessStatus::Exited(code)
-                        };
-                        let exit_code = if was_signaled { None } else { Some(code) };
-                        let _ = writer.finalize(log_status, exit_code);
-                    }
-                }
-                if bg_pid != 0 {
-                    let job_status = if was_signaled {
-                        registry::JobStatus::Killed
-                    } else {
-                        registry::JobStatus::Exited(code)
-                    };
-                    registry::mark_exited(&bg_pid.to_string(), job_status);
-                }
-                if let Some(ref sid) = session_key_bg {
-                    if was_signaled {
-                        broadcast_exec_output(
-                            sid,
-                            &format!("[background process {} killed by signal]", pid),
-                            "system",
-                        );
-                    } else {
-                        broadcast_exec_output(
-                            sid,
-                            &format!("[background process {} exited with code {}]", pid, code),
-                            "system",
-                        );
-                    }
-                    broadcast_process_exited(sid, pid, Some(code), was_signaled);
-                }
-            }
-            _ => {
-                if let Err(err) = child.kill().await {
-                    warn!(
-                        "[subprocess] Failed to kill background child process: {}",
-                        err
-                    );
-                }
-                if let Some(ref log) = log_writer_bg {
-                    if let Ok(mut writer) = log.lock() {
-                        let _ = writer.finalize(LogProcessStatus::Killed, None);
-                    }
-                }
-                if bg_pid != 0 {
-                    registry::mark_exited(&bg_pid.to_string(), registry::JobStatus::Killed);
-                }
-                if let Some(ref sid) = session_key_bg {
-                    broadcast_exec_output(
-                        sid,
-                        &format!("[background process {} killed after safety timeout]", pid),
-                        "system",
-                    );
-                    broadcast_process_exited(sid, pid, None, true);
-                }
-            }
-        }
-
-        if let Err(err) = stdout_task.await {
-            warn!("[subprocess] Background stdout reader panicked: {}", err);
-        }
-        if let Err(err) = stderr_task.await {
-            warn!("[subprocess] Background stderr reader panicked: {}", err);
-        }
-
-        if bg_pid != 0 {
-            tokio::time::sleep(Duration::from_secs(60)).await;
-            registry::remove(&bg_pid.to_string());
-        }
-    });
-
-    let mut result_parts = Vec::new();
-    if !stdout_partial.is_empty() {
-        result_parts.push(crate::tool_infra::terminal::truncate_output(
-            &stdout_partial,
-        ));
-    }
-    if !stderr_partial.is_empty() {
-        result_parts.push(format!(
-            "[stderr]\n{}",
-            crate::tool_infra::terminal::truncate_output(&stderr_partial),
-        ));
-    }
-
-    let partial = if result_parts.is_empty() {
-        match reason {
+    let preview = active_state(&identity.session_id, &identity.call_id)
+        .map(|state| state.terminal_preview)
+        .filter(|preview| !preview.is_empty())
+        .unwrap_or_else(|| match reason {
             BackgroundReason::Explicit => "(running in background)".to_string(),
             BackgroundReason::Timeout => "(no output yet)".to_string(),
-        }
-    } else {
-        result_parts.join("\n")
-    };
-
-    let log_info = if let Some(ref path) = log_path {
-        let path_str = path.to_string_lossy();
+        });
+    let log_info = if log_path.is_some() {
         format!(
-            "\nLog file: {path_str}\n\n\
-            To wait for output: await_output(command=\"wait_for\", handles=[\"{pid}\"], pattern=\"your_regex\", block_until_ms=30000)\n\
-            To check status:    await_output(command=\"monitor\", handles=[\"{pid}\"])\n\
-            To read tail:       await_output(command=\"monitor\", handles=[\"{pid}\"], tail_lines=100)\n\
-            To kill:            run_shell(kill_handle=\"{pid}\")"
+            "\nComplete output: Session Replay\n\n\
+             To wait for output: await_output(command=\"wait_for\", handles=[\"{pid}\"], pattern=\"your_regex\", block_until_ms=30000)\n\
+             To check status:    await_output(command=\"monitor\", handles=[\"{pid}\"])\n\
+             To read tail:       await_output(command=\"monitor\", handles=[\"{pid}\"], tail_lines=100)\n\
+             To kill:            run_shell(kill_handle=\"{pid}\")"
         )
     } else {
         format!("\nTo kill: run_shell(kill_handle=\"{pid}\")")
     };
-
     let header = match reason {
-        BackgroundReason::Explicit => {
-            format!("[process started in background as PID {}]", pid)
-        }
+        BackgroundReason::Explicit => format!("[process started in background as PID {pid}]"),
         BackgroundReason::Timeout => {
-            format!(
-                "[process still running after {}s — backgrounded as PID {}]",
-                effective_wait, pid
-            )
+            format!("[process still running after {effective_wait}s — backgrounded as PID {pid}]")
         }
     };
 
-    Ok(format!("{}\n\n{}{}", partial, header, log_info))
+    tokio::spawn(async move {
+        let mut runtime = Some(runtime);
+        let started = Instant::now();
+        let (exit_code, killed, replay_failure) = loop {
+            if let Some(err) = runtime
+                .as_ref()
+                .and_then(|runtime| runtime.failure_rx.borrow().clone())
+            {
+                terminate_child_tree(pid, &mut child).await;
+                break (None, true, Some(err));
+            }
+            match child.try_wait() {
+                Ok(Some(status)) => break (status.code(), status.code().is_none(), None),
+                Ok(None) => {}
+                Err(err) => {
+                    terminate_child_tree(pid, &mut child).await;
+                    break (
+                        None,
+                        true,
+                        Some(format!("wait for background process: {err}")),
+                    );
+                }
+            }
+            if started.elapsed() >= Duration::from_secs(BACKGROUND_SAFETY_TIMEOUT_SECS) {
+                terminate_child_tree(pid, &mut child).await;
+                break (
+                    None,
+                    true,
+                    Some("background process exceeded 1h safety timeout".to_string()),
+                );
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        };
+
+        let drain = match drain_output(runtime.take().expect("output runtime present")).await {
+            Ok(drain) => drain,
+            Err(writer_err) => {
+                if pid != 0 {
+                    let job_status = if killed {
+                        registry::JobStatus::Killed
+                    } else {
+                        registry::JobStatus::Exited(exit_code.unwrap_or(-1))
+                    };
+                    registry::mark_exited(&pid.to_string(), job_status);
+                }
+                broadcast_system_output(
+                    &identity,
+                    &format!("[background shell replay writer failed: {writer_err}]"),
+                );
+                broadcast_process_exited(&identity, pid, exit_code, killed, app_handle.as_ref());
+                return;
+            }
+        };
+        let replay_error = replay_failure.or(drain.write_error);
+        let replay_result = if let Some(err) = replay_error.clone() {
+            drain
+                .replay
+                .finalize(ShellReplayStatus::Incomplete, Some(err))
+        } else {
+            drain.replay.finalize(ShellReplayStatus::Complete, None)
+        };
+        let replay_incomplete = replay_result.is_err();
+
+        if pid != 0 {
+            let job_status = if killed {
+                registry::JobStatus::Killed
+            } else {
+                registry::JobStatus::Exited(exit_code.unwrap_or(-1))
+            };
+            registry::mark_exited(&pid.to_string(), job_status);
+        }
+        if killed {
+            broadcast_system_output(&identity, &format!("[background process {pid} stopped]"));
+        } else {
+            broadcast_system_output(
+                &identity,
+                &format!(
+                    "[background process {pid} exited with code {}]",
+                    exit_code.unwrap_or(-1)
+                ),
+            );
+        }
+        if replay_incomplete {
+            broadcast_system_output(
+                &identity,
+                "[Session Replay is incomplete even though process termination status is known]",
+            );
+        }
+        broadcast_process_exited(&identity, pid, exit_code, killed, app_handle.as_ref());
+        if pid != 0 {
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            registry::remove(&pid.to_string());
+        }
+    });
+
+    Ok(bounded_background_result(preview, &header, &log_info))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    #[test]
+    fn background_tool_result_stays_inside_model_budget() {
+        let preview = "中🙂ansi\x1b[31m".repeat(8_000);
+        let result = bounded_background_result(
+            preview,
+            "[process started in background as PID 42]",
+            "\nComplete output: Session Replay",
+        );
+        assert!(result.len() <= SHELL_TOOL_RESULT_MAX_BYTES);
+        assert!(result.contains("Session Replay"));
+        assert!(!result.contains('\u{fffd}'));
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn writer_join_failure_marks_exact_replay_incomplete_without_panicking() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let root = super::super::shell_replay::resolve_replay_root();
+        let target = ShellReplayTarget::new("join-failure-session", "join-failure-call");
+        let mut writer =
+            ShellReplayWriter::create(&root, target.clone(), "emit", Path::new("/tmp"), None)
+                .unwrap();
+        writer
+            .append(ShellReplayStream::Stdout, b"before panic")
+            .unwrap();
+        let log_path = Some(writer.path().to_path_buf());
+        let (_failure_tx, failure_rx) = watch::channel(None);
+        let runtime = OutputRuntime {
+            stdout_task: tokio::spawn(async {}),
+            stderr_task: tokio::spawn(async {}),
+            writer_task: tokio::spawn(async move {
+                let _owned_writer = writer;
+                panic!("injected writer failure");
+            }),
+            failure_rx,
+            log_path,
+            replay_target: target.clone(),
+            app_handle: None,
+        };
+
+        let error = match drain_output(runtime).await {
+            Ok(_) => panic!("injected writer failure unexpectedly succeeded"),
+            Err(error) => error,
+        };
+        assert!(error.contains("writer task failed"));
+        let state =
+            super::super::shell_replay::load_replay_state(&target.session_id, &target.call_id)
+                .unwrap()
+                .unwrap();
+        assert_eq!(state.status, ShellReplayStatus::Incomplete);
+        assert!(state.error.unwrap().contains("writer task failed"));
+        assert!(active_state(&target.session_id, &target.call_id).is_none());
+    }
+
+    async fn wait_for_terminal_replay(session_id: &str, call_id: &str) -> ShellReplayStatus {
+        for _ in 0..100 {
+            if let Some(state) =
+                super::super::shell_replay::load_replay_state(session_id, call_id).unwrap()
+            {
+                if state.status != ShellReplayStatus::Running {
+                    return state.status;
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        panic!("replay {session_id}/{call_id} did not cross its completion barrier");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn real_subprocess_background_timeout_and_cancel_cross_completion_barrier() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let root = super::super::shell_replay::resolve_replay_root();
+        let cwd = std::env::temp_dir();
+        let session_id = "subprocess-lifecycle-session";
+
+        let explicit = ExecIdentity::new(session_id, "call-explicit-background");
+        let launch = execute_via_command(
+            "printf explicit-background",
+            cwd.clone(),
+            10,
+            None,
+            ExecMode::Background,
+            &explicit,
+            &root,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert!(launch.len() <= SHELL_TOOL_RESULT_MAX_BYTES);
+        assert_eq!(
+            wait_for_terminal_replay(session_id, "call-explicit-background").await,
+            ShellReplayStatus::Complete
+        );
+
+        let timed = ExecIdentity::new(session_id, "call-wait-timeout-background");
+        let launch = execute_via_command(
+            "printf timeout-background",
+            cwd.clone(),
+            10,
+            Some(0),
+            ExecMode::Blocking,
+            &timed,
+            &root,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert!(launch.len() <= SHELL_TOOL_RESULT_MAX_BYTES);
+        assert_eq!(
+            wait_for_terminal_replay(session_id, "call-wait-timeout-background").await,
+            ShellReplayStatus::Complete
+        );
+
+        let cancelled = ExecIdentity::new(session_id, "call-cancelled");
+        let cancel_flag = Arc::new(AtomicBool::new(false));
+        let set_cancel = {
+            let cancel_flag = cancel_flag.clone();
+            async move {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                cancel_flag.store(true, Ordering::Relaxed);
+            }
+        };
+        let execute = execute_via_command(
+            "printf before-cancel; sleep 10",
+            cwd,
+            20,
+            None,
+            ExecMode::Blocking,
+            &cancelled,
+            &root,
+            None,
+            Some(cancel_flag.as_ref()),
+        );
+        let (result, ()) = tokio::join!(execute, set_cancel);
+        assert!(result.is_err());
+        assert_ne!(
+            wait_for_terminal_replay(session_id, "call-cancelled").await,
+            ShellReplayStatus::Running
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    #[serial_test::serial]
+    #[ignore = "real 10 MiB subprocess/RSS-adjacent acceptance"]
+    async fn real_subprocess_ten_megabytes_is_complete_and_bounded() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let root = super::super::shell_replay::resolve_replay_root();
+        let identity = ExecIdentity::new("subprocess-10m-session", "subprocess-10m-call");
+        let result = execute_via_command(
+            "yes x | head -c 10485760",
+            std::env::temp_dir(),
+            30,
+            None,
+            ExecMode::Blocking,
+            &identity,
+            &root,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert!(result.len() <= super::super::shell_replay::SHELL_REPLAY_SUMMARY_MAX_BYTES);
+        let state =
+            super::super::shell_replay::load_replay_state(&identity.session_id, &identity.call_id)
+                .unwrap()
+                .unwrap();
+        assert_eq!(state.status, ShellReplayStatus::Complete);
+        assert_eq!(state.bookmark.visible_bytes, 10 * 1024 * 1024);
+        assert!(
+            state.terminal_preview.len() <= super::super::shell_replay::SHELL_REPLAY_PREVIEW_BYTES
+        );
+    }
 }

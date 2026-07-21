@@ -249,11 +249,10 @@ impl PtySession {
 /// This closes the most direct PID-reuse mis-kill path; it is NOT a complete
 /// proof — see [`shutdown_kill_all`] for the residual window.
 #[cfg(unix)]
-fn pending_exit_session_leaders()
-    -> &'static std::sync::Mutex<std::collections::HashMap<u32, u64>> {
-    static REGISTRY: std::sync::OnceLock<
-        std::sync::Mutex<std::collections::HashMap<u32, u64>>,
-    > = std::sync::OnceLock::new();
+fn pending_exit_session_leaders() -> &'static std::sync::Mutex<std::collections::HashMap<u32, u64>>
+{
+    static REGISTRY: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<u32, u64>>> =
+        std::sync::OnceLock::new();
     REGISTRY.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
 }
 
@@ -414,7 +413,10 @@ impl PtyState {
                 drained
                     .iter()
                     .filter_map(|s| s.pid.map(|p| (p, s.start_time))),
-                |pid| sys.process(sysinfo::Pid::from_u32(pid)).map(|p| p.start_time()),
+                |pid| {
+                    sys.process(sysinfo::Pid::from_u32(pid))
+                        .map(|p| p.start_time())
+                },
             );
             if !sids.is_empty() {
                 let own_pid = std::process::id();
@@ -1075,9 +1077,7 @@ pub async fn get_pty_memory_usage(
 
 #[cfg(all(test, unix))]
 mod tests {
-    use super::{
-        collect_sweep_sids, leader_is_sweep_candidate, pending_exit_session_leaders,
-    };
+    use super::{collect_sweep_sids, leader_is_sweep_candidate, pending_exit_session_leaders};
     use std::collections::HashMap;
 
     // The session-leader registry is a process-global static shared across

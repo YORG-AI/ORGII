@@ -9,7 +9,10 @@ use super::helpers::{
     is_authoritative_transcript_message, is_turn_placeholder, loaded_turn_ids_from_events,
     placeholder_turn_id, reconcile_loaded_synthetic_transcript_placeholders, timeline_source_order,
 };
-use super::EventStore;
+use super::{
+    active_shell_replays_for_session, capture_shell_replay_bookmarks, hydrate_shell_event_bounded,
+    monotonic_shell_replay_state, preserve_first_insert_replay, EventStore,
+};
 use crate::agent_sessions::event_pipeline::store::HydrationMode;
 use crate::agent_sessions::event_pipeline::types::{ActivityStatus, EventDisplayStatus};
 
@@ -40,6 +43,9 @@ impl EventStore {
         hydration_mode: HydrationMode,
     ) {
         reconcile_loaded_synthetic_transcript_placeholders(&mut events);
+        for event in &mut events {
+            hydrate_shell_event_bounded(event);
+        }
         self.events = events;
         self.hydration_mode = hydration_mode;
         self.cap_events();
@@ -60,8 +66,10 @@ impl EventStore {
             return;
         }
         self.mark_live_partial_if_windowed();
+        let active = active_shell_replays_for_session(&new_events[0].session_id);
         let mut changed = false;
         for mut event in new_events {
+            capture_shell_replay_bookmarks(&mut event, &active);
             if self.id_index.contains_key(&event.id) {
                 continue;
             }
@@ -120,9 +128,15 @@ impl EventStore {
         if mark_live {
             self.mark_live_partial_if_windowed();
         }
+        let active = mark_live.then(|| active_shell_replays_for_session(&incoming[0].session_id));
         let mut changed = false;
         for mut event in incoming {
             self.stamp_repo(&mut event);
+            if let Some(active) = active.as_ref() {
+                capture_shell_replay_bookmarks(&mut event, active);
+            } else {
+                hydrate_shell_event_bounded(&mut event);
+            }
             if event.action_type == "tool_result" {
                 if let Some(ref call_id) = event.call_id {
                     if let Some(&call_idx) = self.call_id_index.get(call_id) {
@@ -154,6 +168,12 @@ impl EventStore {
                                 };
                             target.activity_status = ActivityStatus::Processed;
                             target.display_status = EventDisplayStatus::Completed;
+                            if let Some(next) = event.shell_replay.take() {
+                                target.shell_replay = Some(monotonic_shell_replay_state(
+                                    target.shell_replay.as_ref(),
+                                    next,
+                                ));
+                            }
 
                             // Preserve args from tool_call, but merge in any additional
                             // fields from tool_result's args (rare, but may contain metadata).
@@ -171,21 +191,16 @@ impl EventStore {
                                 }
                                 target_args.remove("streamOutput");
 
-                                // A completed tool_call must not carry an
-                                // active shellProcessStatus. The status was
-                                // patched in-memory by
-                                // update_last_shell_process (broadcast path)
-                                // but tool_result merge preserves existing
-                                // args keys — so a race (or missed broadcast)
-                                // leaves "running"/"background" frozen
-                                // forever. Normalise to "exited" on merge so
-                                // no zombie survives.
+                                // A blocking tool result means a foreground
+                                // `running` status can no longer be active.
+                                // A background shell is different: the tool
+                                // deliberately returns before the process and
+                                // its exact call-id lifecycle callback will
+                                // later write `exited`/`killed`. Preserve that
+                                // state instead of briefly lying that the
+                                // process already ended.
                                 if let Some(sps) = target_args.get("shellProcessStatus") {
-                                    let is_active = matches!(
-                                        sps.as_str(),
-                                        Some("running") | Some("background")
-                                    );
-                                    if is_active {
+                                    if sps.as_str() == Some("running") {
                                         target_args.insert(
                                             "shellProcessStatus".to_string(),
                                             serde_json::Value::String("exited".to_string()),
@@ -220,6 +235,7 @@ impl EventStore {
                 if Self::would_downgrade_terminal_tool_call(&self.events[idx], &event) {
                     continue;
                 }
+                preserve_first_insert_replay(&self.events[idx], &mut event);
                 if let Some(ref old_cid) = self.events[idx].call_id {
                     self.call_id_index.remove(old_cid);
                 }

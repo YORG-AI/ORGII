@@ -19,7 +19,7 @@ export const SectionSidebarSplit: React.FC<SectionSidebarSplitProps> = memo(
     >
       <aside
         className={cn(
-          "border-b border-border-2 p-2 @[720px]:border-b-0 @[720px]:border-r",
+          "border-b border-border-1 p-2 @[720px]:border-b-0 @[720px]:border-r",
           sidebarClassName
         )}
       >

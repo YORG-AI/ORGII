@@ -64,6 +64,7 @@ pub struct ProjectedTurnMetadata {
     pub start_sequence: i64,
     pub started_at: String,
     pub ended_at: Option<String>,
+    pub status: String,
     pub user_preview: String,
     pub event_count: i64,
     pub body_event_count: i64,
@@ -224,6 +225,7 @@ struct ImportedTurnDraft {
     start_sequence: i64,
     started_at: String,
     ended_at: Option<String>,
+    status: String,
     user_preview: String,
     event_count: i64,
     body_event_count: i64,
@@ -237,6 +239,7 @@ impl ImportedTurnDraft {
             start_sequence: self.start_sequence,
             started_at: self.started_at,
             ended_at: self.ended_at,
+            status: self.status,
             user_preview: self.user_preview,
             event_count: self.event_count,
             body_event_count: self.body_event_count,
@@ -256,7 +259,11 @@ pub fn project_activity_chunks(chunks: &[ActivityChunk]) -> Vec<ProjectedTurnMet
 
     for (sequence, chunk) in chunks.iter().enumerate() {
         if chunk.function == crate::sources::imported_history::FUNCTION_USER_MESSAGE {
-            if let Some(completed) = current.take() {
+            if let Some(mut completed) = current.take() {
+                if completed.status == "pending" {
+                    completed.status = "interrupted".to_string();
+                    completed.ended_at = Some(chunk.created_at.clone());
+                }
                 rounds.push(completed.finish());
             }
             if chunk.chunk_id.trim().is_empty() {
@@ -267,6 +274,11 @@ pub fn project_activity_chunks(chunks: &[ActivityChunk]) -> Vec<ProjectedTurnMet
                 start_sequence: sequence as i64,
                 started_at: chunk.created_at.clone(),
                 ended_at: Some(chunk.created_at.clone()),
+                // Imported providers without explicit lifecycle events are
+                // historical snapshots, so preserve their settled behavior.
+                // Providers such as Codex immediately override this with the
+                // hidden task_start marker emitted after the user message.
+                status: "completed".to_string(),
                 user_preview: activity_chunk_text(chunk),
                 event_count: 1,
                 body_event_count: 0,
@@ -278,9 +290,30 @@ pub fn project_activity_chunks(chunks: &[ActivityChunk]) -> Vec<ProjectedTurnMet
         let Some(turn) = current.as_mut() else {
             continue;
         };
+
+        match chunk.action_type.as_str() {
+            crate::sources::imported_history::ACTION_TYPE_TASK_START => {
+                turn.status = "pending".to_string();
+                turn.ended_at = None;
+                continue;
+            }
+            crate::sources::imported_history::ACTION_TYPE_TASK_COMPLETED => {
+                turn.status = "completed".to_string();
+                turn.ended_at = Some(chunk.created_at.clone());
+                continue;
+            }
+            crate::sources::imported_history::ACTION_TYPE_TASK_FAILED => {
+                turn.status = "failed".to_string();
+                turn.ended_at = Some(chunk.created_at.clone());
+                continue;
+            }
+            _ => {}
+        }
+
         turn.event_count = turn.event_count.saturating_add(1);
         turn.body_event_count = turn.body_event_count.saturating_add(1);
-        if !chunk.created_at.is_empty()
+        if turn.status != "pending"
+            && !chunk.created_at.is_empty()
             && turn
                 .ended_at
                 .as_deref()
@@ -390,7 +423,14 @@ fn fallback_line_stats(
 }
 
 fn extract_event_files(function_name: &str, args: &Value, result: &Value) -> Vec<TurnModifiedFile> {
-    if function_name.to_ascii_lowercase().contains("patch") {
+    let is_patch = function_name.to_ascii_lowercase().contains("patch")
+        || args
+            .get("action")
+            .and_then(Value::as_str)
+            .is_some_and(|action| action.to_ascii_lowercase().contains("patch"))
+        || args.get("patch_text").is_some()
+        || args.get("patch").is_some();
+    if is_patch {
         return extract_patch_files(args, result);
     }
 
@@ -738,6 +778,22 @@ mod tests {
     }
 
     #[test]
+    fn normalized_codex_edit_file_keeps_apply_patch_line_stats() {
+        let mut acc = TurnMetadataAccumulator::new();
+        acc.add_event(
+            Some("edit_file_by_replace"),
+            r#"{"action":"apply_patch","patch_text":"*** Update File: src/app.ts\n-old\n+new\n+extra\n"}"#,
+            r#"{"filePaths":["src/app.ts"]}"#,
+        );
+
+        let files = acc.files();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].path, "src/app.ts");
+        assert_eq!(files[0].additions, 2);
+        assert_eq!(files[0].deletions, 1);
+    }
+
+    #[test]
     fn malformed_json_is_tolerated() {
         let mut acc = TurnMetadataAccumulator::new();
         acc.add_event(Some("edit_file"), "{not json", "{also not json");
@@ -840,5 +896,32 @@ mod tests {
             ResourceAction::Read
         );
         assert_eq!(rounds[1].modified_files[0].path, "src/lib.rs");
+    }
+
+    #[test]
+    fn lifecycle_markers_keep_active_tail_pending_until_completion() {
+        let mut user = ActivityChunk::new("session-1", "raw", "user_message");
+        user.chunk_id = "user-1".to_string();
+        user.created_at = "2026-07-15T00:00:00Z".to_string();
+        user.args = serde_json::json!({"content": "edit it"});
+        let mut start = ActivityChunk::new("session-1", "task_start", "task_start");
+        start.created_at = "2026-07-15T00:00:00Z".to_string();
+        let mut edit = ActivityChunk::new("session-1", "tool_call", "edit_file");
+        edit.created_at = "2026-07-15T00:00:01Z".to_string();
+        edit.args = serde_json::json!({"file_path": "src/lib.rs", "content": "new"});
+
+        let active = project_activity_chunks(&[user.clone(), start.clone(), edit.clone()]);
+        assert_eq!(active[0].status, "pending");
+        assert_eq!(active[0].ended_at, None);
+
+        let mut complete = ActivityChunk::new("session-1", "task_completed", "task_completed");
+        complete.created_at = "2026-07-15T00:00:02Z".to_string();
+        let completed = project_activity_chunks(&[user, start, edit, complete]);
+        assert_eq!(completed[0].status, "completed");
+        assert_eq!(
+            completed[0].ended_at.as_deref(),
+            Some("2026-07-15T00:00:02Z")
+        );
+        assert_eq!(completed[0].event_count, 2);
     }
 }

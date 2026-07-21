@@ -1687,6 +1687,8 @@
     "sessionProvenance": {
       "masterToggle": "출처 추적 hooks",
       "masterToggleDesc": "끄면 관리되는 모든 hooks가 제거되고 신호를 수집하지 않습니다. 플랫폼별 선택은 유지되며 다시 켜면 복원됩니다.",
+      "liveStatusToggle": "실시간 에이전트 상태",
+      "liveStatusToggleDesc": "실행 중인 CLI 에이전트의 작업 또는 대기 상태를 표시합니다. 꺼도 출처 기록은 유지됩니다.",
       "title": "세션 출처",
       "capture": "파일 상호작용 기록",
       "description": "파일 읽기와 쓰기를 메타데이터로 기록합니다. 프롬프트, 도구 출력 및 파일 내용은 저장하지 않습니다.",

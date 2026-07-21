@@ -77,6 +77,51 @@ fn parses_codex_jsonl_into_replay_chunks() {
 }
 
 #[test]
+fn codex_task_lifecycle_projects_only_finished_turns_as_completed() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-history-lifecycle-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-lifecycle.jsonl");
+    let active_content = r#"{"timestamp":"2026-07-21T01:00:00.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-1"}}
+{"timestamp":"2026-07-21T01:00:00.100Z","type":"event_msg","payload":{"type":"user_message","message":"inspect this"}}
+{"timestamp":"2026-07-21T01:00:01.000Z","type":"event_msg","payload":{"type":"agent_message","message":"working"}}
+"#;
+    std::fs::write(&path, active_content).expect("write active fixture");
+
+    let active_chunks =
+        load_codex_app_from_path("codexapp-lifecycle", &path).expect("parse active turn");
+    assert_eq!(
+        active_chunks[1].action_type,
+        imported_history::ACTION_TYPE_TASK_START
+    );
+    let active_rounds = crate::projectors::turn_metadata::project_activity_chunks(&active_chunks);
+    assert_eq!(active_rounds.len(), 1);
+    assert_eq!(active_rounds[0].status, "pending");
+
+    let completed_content = format!(
+        "{active_content}{}\n",
+        r#"{"timestamp":"2026-07-21T01:00:02.000Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"turn-1"}}"#
+    );
+    std::fs::write(&path, completed_content).expect("write completed fixture");
+    let completed_chunks =
+        load_codex_app_from_path("codexapp-lifecycle", &path).expect("parse completed turn");
+    assert_eq!(
+        completed_chunks
+            .last()
+            .map(|chunk| chunk.action_type.as_str()),
+        Some(imported_history::ACTION_TYPE_TASK_COMPLETED)
+    );
+    let completed_rounds =
+        crate::projectors::turn_metadata::project_activity_chunks(&completed_chunks);
+    assert_eq!(completed_rounds[0].status, "completed");
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
 fn codex_desktop_exec_decomposes_exploration_chain_and_typed_output() {
     let temp_dir = std::env::temp_dir().join(format!(
         "orgii-codex-desktop-exec-test-{}",
@@ -679,6 +724,55 @@ fn codex_desktop_exec_unwraps_apply_patch_variable() {
     );
     assert_eq!(calls[0].args["file_path"], "src/app.ts");
     assert_eq!(calls[0].args["patch_text"], patch);
+}
+
+#[test]
+fn codex_rollout_without_session_start_still_recovers_exec_apply_patch() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-missing-session-start-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-missing-session-start.jsonl");
+    let patch = "*** Begin Patch\n*** Update File: src/app.ts\n@@\n-old\n+new\n*** End Patch";
+    let script = format!(
+        "const patch = {}; const r = await tools.apply_patch(patch); text(r)",
+        serde_json::to_string(patch).expect("encode patch")
+    );
+    let content = format!(
+        "{}\n{}\n",
+        json!({
+            "timestamp": "2026-07-20T12:49:00.000Z",
+            "type": "response_item",
+            "payload": {
+                "type": "custom_tool_call",
+                "name": "exec",
+                "call_id": "call_missed_hook_patch",
+                "input": script,
+            }
+        }),
+        json!({
+            "timestamp": "2026-07-20T12:49:00.100Z",
+            "type": "response_item",
+            "payload": {
+                "type": "custom_tool_call_output",
+                "call_id": "call_missed_hook_patch",
+                "output": "Success",
+            }
+        })
+    );
+    std::fs::write(&path, content).expect("write fixture");
+
+    let chunks = load_codex_app_from_path("codexapp-missing-session-start", &path)
+        .expect("parse rollout without lifecycle hooks");
+
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(chunks[0].function, imported_history::FUNCTION_EDIT_FILE);
+    assert_eq!(chunks[0].args["file_path"], "src/app.ts");
+    assert_eq!(chunks[0].args["patch_text"], patch);
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
 }
 
 #[test]
@@ -1478,7 +1572,8 @@ fn strips_orgii_exec_mode_bridge_from_codex_user_text() {
     );
 
     // Bridge-only message → empty.
-    let bridge_only = "<orgii_cli_exec_mode_bridge>\ninternal briefing\n</orgii_cli_exec_mode_bridge>";
+    let bridge_only =
+        "<orgii_cli_exec_mode_bridge>\ninternal briefing\n</orgii_cli_exec_mode_bridge>";
     assert_eq!(strip_orgii_exec_mode_bridge(bridge_only), "");
 
     // No bridge → unchanged.

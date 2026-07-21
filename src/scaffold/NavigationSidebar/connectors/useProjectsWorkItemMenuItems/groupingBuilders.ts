@@ -15,9 +15,11 @@ import {
   WORK_ITEM_STATUS_ORDER,
 } from "./constants";
 import {
+  buildLinkedSessionRows,
   buildProjectOverviewRow,
   buildProjectRow,
   buildWorkItemRow,
+  getNavigableLinkedSessions,
   groupLoadMoreRow,
   separator,
 } from "./menuRows";
@@ -39,6 +41,8 @@ interface GroupingBuilderContext {
   searchQuery: string;
   t: TFunction;
   pendingSync?: PendingSyncSets;
+  expandedLinkedSessionWorkItemIds?: ReadonlySet<string>;
+  onToggleLinkedSessionExpansion?: (workItemId: string) => void;
 }
 
 export interface PendingSyncSets {
@@ -79,16 +83,38 @@ function appendGroupItems(
     context.groupVisibleCounts.get(groupId) ?? SESSION_SIDEBAR_PAGE_SIZE;
   const visibleItems = groupItems.slice(0, visibleCount);
   for (const workItem of visibleItems) {
-    items.push(
-      buildWorkItemRow(
-        context.t,
-        workItem,
-        isWorkItemPendingSync(context, workItem)
-      )
-    );
+    appendWorkItem(items, workItem, context);
   }
   if (groupItems.length > visibleItems.length) {
     items.push(groupLoadMoreRow(groupId, context.t("common:actions.loadMore")));
+  }
+}
+
+function appendWorkItem(
+  items: NavigationMenuItem[],
+  workItem: SidebarAnyWorkItem,
+  context: GroupingBuilderContext
+): void {
+  const linkedSessions = getNavigableLinkedSessions(workItem);
+  const expanded =
+    linkedSessions.length > 0 &&
+    (context.expandedLinkedSessionWorkItemIds?.has(workItem.id) ?? false);
+  const onToggle = context.onToggleLinkedSessionExpansion;
+  items.push(
+    buildWorkItemRow(
+      context.t,
+      workItem,
+      isWorkItemPendingSync(context, workItem),
+      linkedSessions.length > 0 && onToggle
+        ? {
+            expanded,
+            onToggle: () => onToggle(workItem.id),
+          }
+        : undefined
+    )
+  );
+  if (expanded) {
+    items.push(...buildLinkedSessionRows(context.t, workItem));
   }
 }
 
@@ -116,7 +142,8 @@ export function buildByOrgMenuItems(
           context.t,
           project.projectData.slug,
           project.projectData.meta.name,
-          isProjectPendingSync(context, project)
+          isProjectPendingSync(context, project),
+          project.projectSyncAdapterId
         )
       );
     }
@@ -141,7 +168,8 @@ export function buildByOrgMenuItems(
           context.t,
           project.projectData.slug,
           projectName,
-          isProjectPendingSync(context, project)
+          isProjectPendingSync(context, project),
+          project.projectSyncAdapterId
         )
       );
     }
@@ -157,13 +185,7 @@ export function buildByOrgMenuItems(
       .join(" ")
       .toLowerCase();
     if (searchableText.includes(query)) {
-      items.push(
-        buildWorkItemRow(
-          context.t,
-          workItem,
-          isWorkItemPendingSync(context, workItem)
-        )
-      );
+      appendWorkItem(items, workItem, context);
     }
   }
   return items;
@@ -194,13 +216,22 @@ export function buildByProjectMenuItems(
     const groupItems = groups.get(key) ?? [];
     if (groupItems.length === 0) continue;
     const groupId = `${PROJECTS_WORK_ITEM_GROUP_PREFIX}project:${key}`;
-    const projectSlug = groupItems.find(
+    const localProjectItem = groupItems.find(
       (item): item is SidebarWorkItem => item.source === "local"
-    )?.projectSlug;
+    );
+    const projectSlug = localProjectItem?.projectSlug;
+    const projectSyncAdapterId = localProjectItem?.projectSyncAdapterId;
     items.push(separator(groupId, groupItems[0]?.projectName ?? key));
     if (projectSlug) {
       const projectName = groupItems[0]?.projectName ?? undefined;
-      items.push(buildProjectOverviewRow(context.t, projectSlug, projectName));
+      items.push(
+        buildProjectOverviewRow(
+          context.t,
+          projectSlug,
+          projectName,
+          projectSyncAdapterId
+        )
+      );
     }
     appendGroupItems(items, groupId, groupItems, context);
   }

@@ -128,7 +128,9 @@ pub(super) fn row_to_record(row: &rusqlite::Row<'_>) -> SqliteResult<AgentInboxR
     })
 }
 
-pub(super) fn row_to_preview_record(row: &rusqlite::Row<'_>) -> SqliteResult<AgentInboxPreviewRecord> {
+pub(super) fn row_to_preview_record(
+    row: &rusqlite::Row<'_>,
+) -> SqliteResult<AgentInboxPreviewRecord> {
     Ok(AgentInboxPreviewRecord {
         id: row.get(0)?,
         recipient_agent_id: row.get(1)?,

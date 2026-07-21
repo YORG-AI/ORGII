@@ -129,6 +129,10 @@ export interface AgentWSEvent {
   success?: boolean;
   chunk?: string;
   stream?: string;
+  /** Monotonic per-shell replay sequence assigned by the Rust writer. */
+  sequence?: number;
+  /** Durable replay byte watermark after this chunk was persisted. */
+  persistedBytes?: number;
   files?: string[];
   workspacePath?: string;
   todos?: unknown[];
@@ -216,8 +220,6 @@ export interface AgentWSEvent {
   exitCode?: number;
   /** Whether the process was killed (vs normal exit) */
   killed?: boolean;
-  /** Path to the terminal log file */
-  logPath?: string;
   /** Shell command (explicit for shell process events) */
   command?: string;
   /**

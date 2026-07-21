@@ -99,7 +99,10 @@ fn apply_event(orgii_session_id: &str, event: &AgentStatusEventV1) {
         return;
     }
 
-    let agent = session.cli_agent_type.as_deref().and_then(ModelType::from_str);
+    let agent = session
+        .cli_agent_type
+        .as_deref()
+        .and_then(ModelType::from_str);
     let native_id = native_id_for_binding(event, agent.as_ref());
     let next_status = status_for_state(event.state);
 

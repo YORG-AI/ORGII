@@ -27,6 +27,7 @@ import { getChatPanelBackgroundStyle } from "@src/modules/shared/layouts/viewCon
 import { installAvailableAppUpdate } from "@src/scaffold/AppUpdater";
 import {
   closeCloudOrgManagementChatPanelTabAtom,
+  openRuntimeInChatPanelTabAtom,
   openSessionInNewChatTabAtom,
   patchChatPanelWorkItemTabAtom,
   syncActiveChatPanelTabStateAtom,
@@ -40,6 +41,7 @@ import {
 import { tuiModeAtom } from "@src/store/session/tuiModeAtom";
 import { resolvedBackgroundConfigAtom } from "@src/store/ui/backgroundConfigAtom";
 import {
+  CHAT_PANEL_CREATE_TARGET,
   chatPanelContentModeAtom,
   chatPanelCreateProjectContextAtom,
   chatPanelCreateTargetAtom,
@@ -54,7 +56,6 @@ import {
   chatWidthAtom,
   toggleChatPanelMaximizedAtom,
 } from "@src/store/ui/chatPanelAtom";
-import { sidebarCollapsedAtom } from "@src/store/ui/sidebarAtom";
 import type { WorkItemDraft } from "@src/store/workstation/projectManager";
 
 import { useReloadSession } from "./ChatHistory/hooks/useReloadSession";
@@ -67,7 +68,7 @@ import {
   ChatPanelTabBar,
   useChatPanelTabShortcuts,
 } from "./ChatPanelTabBar";
-import { ChatPanelSurfaceHeaderPublisher } from "./header";
+import SessionHeaderBreadcrumb from "./components/SessionHeaderBreadcrumb";
 import { useAiWorkItemCreator } from "./hooks/useAiWorkItemCreator";
 import { useChatPanelContentState } from "./hooks/useChatPanelContentState";
 import { useChatPanelCreateTarget } from "./hooks/useChatPanelCreateTarget";
@@ -84,7 +85,6 @@ import type { ChatPanelProps, ChatPanelRegionNotice } from "./types";
 const ChatPanel: React.FC<ChatPanelProps> = memo(
   ({
     useExternalWidth = false,
-    sessionSidebarWidth = 0,
     embedded = false,
     active = true,
     position = "right",
@@ -101,7 +101,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       useShouldOffsetChatPanelHeader({ position, useExternalWidth });
     const navigate = useNavigate();
     const viewMode = useRouteViewMode();
-    const { currentSessionId, panelTitle, currentSession } = usePanelTitle();
+    const { currentSessionId, currentSession, panelTitle } = usePanelTitle();
     const activeSession = currentSession ?? undefined;
     const handleReloadSession = useReloadSession(currentSessionId ?? null);
 
@@ -132,6 +132,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       chatPanelCreateProjectContextAtom
     );
     const patchWorkItemTab = useSetAtom(patchChatPanelWorkItemTabAtom);
+    const openRuntimeTab = useSetAtom(openRuntimeInChatPanelTabAtom);
 
     // Work-item edits flow through `chatPanelSelectedWorkItemAtom`; mirror them
     // back onto the owning work-item tab so re-activating the tab does not
@@ -206,9 +207,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       dispatchClearSession,
       openWorkItemCreate,
       resetActiveSession,
-      resetToSessionSurface,
       setActiveSessionId,
-      setStartPageOpen,
       setWorkstationActiveSessionId,
       showSessionSurface,
     } = useChatPanelNavigationActions();
@@ -227,7 +226,8 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       kanbanTitle: t("sessions:simulator.tabs.kanban"),
       showSessionSurface,
     });
-    const isManagementTabActive = activeTab?.type === "work-management";
+    const isStandaloneToolTabActive =
+      activeTab?.type === "work-management" || activeTab?.type === "runtime";
     const retargetChatPanelSession = useSetAtom(
       retargetChatPanelSessionTabAtom
     );
@@ -259,24 +259,18 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     const setCreatorState = useSetAtom(sessionCreatorStateAtom);
     const bumpProjectListRefresh = useSetAtom(projectListRefreshAtom);
     const allAgentDefs = useAtomValue(allAgentDefsAtom);
-    const sidebarCollapsed = useAtomValue(sidebarCollapsedAtom);
 
     const {
-      allBlocksCollapsed,
       closeHeaderActionsMenu,
       copyEventJsonLabel,
       displayMode,
       eventCount,
-      exploreAgentSearchEnabled,
       handleCompactDisplayModeToggle,
       handleCopyEventJson,
-      handleExploreAgentSearchToggle,
       handleOpenSearch,
       handlePaginationToggle,
       handleRegisterSearchOpen,
       handleReloadFromMenu,
-      handleStatusBarVisibleToggle,
-      handleToggleAllBlocksCollapsed,
       handleTokenUsageVisibleToggle,
       headerActionsDropdownRef,
       headerActionsPosition,
@@ -284,16 +278,15 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       isHeaderActionsOpen,
       isHeaderActionsPositioned,
       paginationEnabled,
-      statusBarVisible,
       tokenUsageVisible,
       toggleHeaderActionsMenu,
     } = useChatPanelHeaderActions({ handleReloadSession });
 
-    const collapseToggleLabel = allBlocksCollapsed
-      ? t("common:actions.expandAll")
-      : t("common:actions.collapseAll");
-
-    const handleNewSession = resetToSessionSurface;
+    const handleReturnToSessionCreator = useCallback(() => {
+      handleOpenLaunchpadTab();
+      setCreateTarget(CHAT_PANEL_CREATE_TARGET.AGENT_SESSION);
+      resetActiveSession();
+    }, [handleOpenLaunchpadTab, resetActiveSession, setCreateTarget]);
     const handleStartPageNewWorkItem = openWorkItemCreate;
     const openLaunchedSessionTab = useSetAtom(openSessionInNewChatTabAtom);
     const handleStartPageSessionStart = useCallback(
@@ -306,10 +299,9 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     const handleChatPanelCollabOrgCreated = useCallback(
       (_result: CreatedOrgResult) => {
         bumpProjectListRefresh((previous) => previous + 1);
-        showSessionSurface();
-        resetActiveSession();
+        handleReturnToSessionCreator();
       },
-      [bumpProjectListRefresh, resetActiveSession, showSessionSurface]
+      [bumpProjectListRefresh, handleReturnToSessionCreator]
     );
 
     const handleStartPageAddApiKey = useCallback(() => {
@@ -321,25 +313,28 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       void installAvailableAppUpdate();
     }, []);
 
-    const sessionSidebarVisible = sessionSidebarWidth > 0;
+    const { createTargetOptions, handleCreateTargetChange } =
+      useChatPanelCreateTarget({
+        allAgentDefs,
+        sessionCreatorAvailable: Boolean(SessionCreatorSlot),
+        setCreateTarget,
+        setCreatorState,
+        setShowProjectAgentCreator,
+        setShowWorkItemAgentCreator,
+        setWorkItemCreateDraft,
+        t,
+      });
+
     const contentState = useChatPanelContentState({
       active,
       contentMode,
-      createTarget,
       currentSessionId: currentSessionId ?? null,
       exploreOpen,
-      panelTitle,
-      cloudOrgHeaderTitle: selectedCloudOrg
-        ? cloudOrgs.find((org) => org.orgId === selectedCloudOrg.orgId)?.name
-        : undefined,
       selectedCloudOrg,
       selectedProject,
       selectedProjectOrg,
       selectedWorkItem,
       selectedWorkspace,
-      sidebarCollapsed,
-      sessionCreatorAvailable: Boolean(SessionCreatorSlot),
-      sessionSidebarVisible,
       viewMode,
     });
 
@@ -347,20 +342,16 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     const setSelectedWorkItem = useSetAtom(chatPanelSelectedWorkItemAtom);
     const {
       handleCancelCollabOrgCreate,
+      handleCancelProjectCreate,
       handleCancelWorkItemCreate,
       handleChatPanelProjectCreated,
       handleChatPanelWorkItemCreated,
-      handleProjectAgentCreatorToggle,
-      handleProjectTitleChange,
       handleWorkItemAgentCreatorToggle,
-      handleWorkItemTitleChange,
     } = useProjectWorkItemHandlers({
       bumpProjectListRefresh,
       createProjectContext,
       dispatchClearSession,
-      handleNewSession,
-      selectedProject,
-      selectedWorkItem,
+      handleReturnToSessionCreator,
       sessionCreatorAvailable: Boolean(SessionCreatorSlot),
       setActiveSessionId,
       setContentMode,
@@ -425,12 +416,15 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       <ChatPanelEmptyContent
         createProjectContext={createProjectContext}
         createTarget={createTarget}
+        createTargetOptions={createTargetOptions}
         creatorClassName={creatorClassName}
         creatorVariant={creatorVariant}
         defaultAiWorkItemAssignee={defaultAiWorkItemAssignee}
         handleAiWorkItemSessionStart={handleAiWorkItemSessionStart}
         handleCancelWorkItemCreate={handleCancelWorkItemCreate}
         handleCancelCollabOrgCreate={handleCancelCollabOrgCreate}
+        handleCancelProjectCreate={handleCancelProjectCreate}
+        handleCreateTargetChange={handleCreateTargetChange}
         handleChatPanelProjectCreated={handleChatPanelProjectCreated}
         handleChatPanelCollabOrgCreated={handleChatPanelCollabOrgCreated}
         handleChatPanelWorkItemCreated={handleChatPanelWorkItemCreated}
@@ -439,7 +433,6 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         handleStartPageAddApiKey={handleStartPageAddApiKey}
         handleStartPageInstallLatestUpdate={handleStartPageInstallLatestUpdate}
         handleStartPageSessionStart={handleStartPageSessionStart}
-        handleStartPageNewWorkItem={handleStartPageNewWorkItem}
         handleWorkItemAgentCreatorToggle={handleWorkItemAgentCreatorToggle}
         resolveAiWorkItemContext={resolveAiWorkItemContext}
         SessionCreatorSlot={SessionCreatorSlot}
@@ -451,151 +444,84 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       />
     );
 
-    const publishSurfaceHeader =
-      !isManagementTabActive &&
-      (startPageOpen ||
-        contentState.showBenchmarkSessionGroupContent ||
-        contentState.showExploreContent ||
-        contentState.showCloudOrgContent ||
-        contentState.showWorkspaceOverviewContent);
-
     const tabStrip = <ChatPanelTabBar />;
 
     const tabStripPlus = (
       <ChatPanelPlusMenu
         onOpenLaunchpad={handleOpenLaunchpadTab}
         onOpenKanban={handleOpenKanbanTab}
+        onOpenRuntime={() =>
+          openRuntimeTab(t("sessions:chat.startPage.tabs.runtime"))
+        }
         onNewWorkItem={handleStartPageNewWorkItem}
       />
     );
 
-    // Terminal / work-management tabs are not creator surfaces: the create
-    // target select and presence button would be launcher noise there. Real
-    // creator surfaces (new work item / project / collab org) keep them.
-    const showCreatorHeaderControls =
-      contentState.showNonSessionContent &&
-      !isTerminalTabActive &&
-      !isManagementTabActive;
-
-    const { createTargetOptions, handleCreateTargetChange } =
-      useChatPanelCreateTarget({
-        allAgentDefs,
-        handleNewSession,
-        sessionCreatorAvailable: Boolean(SessionCreatorSlot),
-        setCreateTarget,
-        setCreatorState,
-        setStartPageOpen,
-        setShowProjectAgentCreator,
-        setShowWorkItemAgentCreator,
-        setWorkItemCreateDraft,
-        t,
-      });
-
     const headerSection = (
-      <>
-        <ChatPanelSurfaceHeaderPublisher
-          enabled={publishSurfaceHeader}
-          title={contentState.headerTitle}
-          titleContent={contentState.headerTitleContent}
-          showAgentSwitch={contentState.showExploreContent}
-          agentSwitchLabel={t("navigation:labels.agent", {
-            defaultValue: "Agent",
-          })}
-          agentSwitchChecked={exploreAgentSearchEnabled}
-          onAgentSwitchChange={handleExploreAgentSearchToggle}
-        />
-        <ChatPanelHeader
-          activeSessionExists={Boolean(activeSession)}
-          allBlocksCollapsed={allBlocksCollapsed}
-          collapseToggleLabel={collapseToggleLabel}
-          copyEventJsonLabel={copyEventJsonLabel}
-          createTarget={createTarget}
-          createTargetOptions={createTargetOptions}
-          currentSessionId={currentSessionId ?? null}
-          displayMode={displayMode}
-          eventsLength={eventCount}
-          exploreAgentSearchEnabled={exploreAgentSearchEnabled}
-          handleChatFocusToggle={handleChatFocusToggle}
-          handleCompactDisplayModeToggle={handleCompactDisplayModeToggle}
-          handleCopyEventJson={handleCopyEventJson}
-          handleCreateTargetChange={handleCreateTargetChange}
-          handleExploreAgentSearchToggle={handleExploreAgentSearchToggle}
-          handleOpenExportSessionJson={handleOpenExportSessionJson}
-          handleOpenLinkWorkItem={handleOpenLinkWorkItem}
-          handleOpenCloudShareSettings={handleOpenCloudShareSettings}
-          handleOpenRawTranscript={handleOpenRawTranscript}
-          handleMoveToWorkstation={handleMoveToWorkstation}
-          handleOpenSearch={handleOpenSearch}
-          handleNewSession={handleNewSession}
-          handlePaginationToggle={handlePaginationToggle}
-          handleProjectAgentCreatorToggle={handleProjectAgentCreatorToggle}
-          handleProjectTitleChange={handleProjectTitleChange}
-          handleReloadFromMenu={handleReloadFromMenu}
-          handleStatusBarVisibleToggle={handleStatusBarVisibleToggle}
-          handleToggleAllBlocksCollapsed={handleToggleAllBlocksCollapsed}
-          handleTokenUsageVisibleToggle={handleTokenUsageVisibleToggle}
-          handleWorkItemAgentCreatorToggle={handleWorkItemAgentCreatorToggle}
-          handleWorkItemTitleChange={handleWorkItemTitleChange}
-          headerActionsDropdownRef={headerActionsDropdownRef}
-          headerActionsPosition={headerActionsPosition}
-          headerActionsTriggerRef={headerActionsTriggerRef}
-          headerTitle={contentState.headerTitle}
-          headerTitleContent={contentState.headerTitleContent}
-          isChatFocus={isChatFocus}
-          isHeaderActionsOpen={isHeaderActionsOpen}
-          isHeaderActionsPositioned={isHeaderActionsPositioned}
-          isProjectTarget={contentState.isProjectTarget}
-          paginationEnabled={paginationEnabled}
-          statusBarVisible={statusBarVisible}
-          tokenUsageVisible={tokenUsageVisible}
-          showStartPageBackButton={
-            !startPageOpen && !contentState.showSessionContent
-          }
-          selectedProjectVisible={Boolean(selectedProject)}
-          selectedWorkItemVisible={Boolean(selectedWorkItem)}
-          shouldOffsetHeaderForCollapsedSidebar={
-            shouldOffsetHeaderForCollapsedSidebar
-          }
-          showBenchmarkSessionGroupContent={
-            contentState.showBenchmarkSessionGroupContent
-          }
-          showChatFocusToggle={showChatFocusToggle}
-          showCreatorPresenceInHeader={contentState.showCreatorPresenceInHeader}
-          showHeader={contentState.showHeader || isManagementTabActive}
-          showExploreAgentSwitchInHeader={contentState.showExploreContent}
-          showNewSessionButton={contentState.showNewSessionButton}
-          showNonSessionContent={showCreatorHeaderControls}
-          showProjectAgentCreator={showProjectAgentCreator}
-          showProjectAgentSwitchInHeader={
-            contentState.showProjectAgentSwitchInHeader
-          }
-          showSessionContent={
-            contentState.showSessionContent && !isManagementTabActive
-          }
-          showCloudShareSettings={showCloudShareSettings}
-          showStartPage={startPageOpen}
-          showWorkItemAgentCreator={showWorkItemAgentCreator}
-          showTuiModeToggle={showTuiModeToggle}
-          tuiMode={tuiMode}
-          handleTuiModeToggle={handleTuiModeToggle}
-          tabStrip={tabStrip}
-          tabStripPlus={tabStripPlus}
-          sessionHeaderExtras={
-            <>
-              {/* Session-level cloud notes (Phase F) — renders null for
+      <ChatPanelHeader
+        activeSessionExists={Boolean(activeSession)}
+        copyEventJsonLabel={copyEventJsonLabel}
+        currentSessionId={currentSessionId ?? null}
+        displayMode={displayMode}
+        eventsLength={eventCount}
+        handleChatFocusToggle={handleChatFocusToggle}
+        handleCompactDisplayModeToggle={handleCompactDisplayModeToggle}
+        handleCopyEventJson={handleCopyEventJson}
+        handleOpenExportSessionJson={handleOpenExportSessionJson}
+        handleOpenLinkWorkItem={handleOpenLinkWorkItem}
+        handleOpenCloudShareSettings={handleOpenCloudShareSettings}
+        handleOpenRawTranscript={handleOpenRawTranscript}
+        handleMoveToWorkstation={handleMoveToWorkstation}
+        handleOpenSearch={handleOpenSearch}
+        handlePaginationToggle={handlePaginationToggle}
+        handleReloadFromMenu={handleReloadFromMenu}
+        handleTokenUsageVisibleToggle={handleTokenUsageVisibleToggle}
+        headerActionsDropdownRef={headerActionsDropdownRef}
+        headerActionsPosition={headerActionsPosition}
+        headerActionsTriggerRef={headerActionsTriggerRef}
+        isChatFocus={isChatFocus}
+        isHeaderActionsOpen={isHeaderActionsOpen}
+        isHeaderActionsPositioned={isHeaderActionsPositioned}
+        paginationEnabled={paginationEnabled}
+        tokenUsageVisible={tokenUsageVisible}
+        shouldOffsetHeaderForCollapsedSidebar={
+          shouldOffsetHeaderForCollapsedSidebar
+        }
+        showChatFocusToggle={showChatFocusToggle}
+        showHeader={contentState.showHeader || isStandaloneToolTabActive}
+        showSessionContent={
+          contentState.showSessionContent && !isStandaloneToolTabActive
+        }
+        showCloudShareSettings={showCloudShareSettings}
+        showTuiModeToggle={showTuiModeToggle}
+        tuiMode={tuiMode}
+        handleTuiModeToggle={handleTuiModeToggle}
+        tabStrip={tabStrip}
+        tabStripPlus={tabStripPlus}
+        sessionHeaderExtras={
+          <>
+            {/* Session-level cloud notes (Phase F) — renders null for
                   non-cloud sessions, exactly like the fork extras. */}
-              <SessionCommentsHeaderExtras session={currentSession ?? null} />
-              <SessionForkHeaderExtras session={currentSession ?? null} />
-            </>
-          }
-          showWorkItemAgentSwitchInHeader={
-            contentState.showWorkItemAgentSwitchInHeader
-          }
-          t={t}
-          toggleHeaderActionsMenu={toggleHeaderActionsMenu}
-          visibleRegionNotice={regionNotice}
-        />
-      </>
+            <SessionCommentsHeaderExtras session={currentSession ?? null} />
+            <SessionForkHeaderExtras session={currentSession ?? null} />
+          </>
+        }
+        sessionHeaderContent={
+          contentState.showSessionContent &&
+          !isStandaloneToolTabActive &&
+          currentSessionId ? (
+            <SessionHeaderBreadcrumb
+              session={currentSession}
+              sessionId={currentSessionId}
+              fallbackName={panelTitle}
+              onParentSessionClick={handleSessionContinuation}
+            />
+          ) : null
+        }
+        t={t}
+        toggleHeaderActionsMenu={toggleHeaderActionsMenu}
+        visibleRegionNotice={regionNotice}
+      />
     );
 
     const chatColumn = (

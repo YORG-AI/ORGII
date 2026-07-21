@@ -15,6 +15,7 @@ import {
   turnCollapseOverrideAtom,
 } from "@src/store/ui/collapseStateAtom";
 import { selectedExecutionThreadAtom } from "@src/store/ui/sessionPaginationAtom";
+import { isImportedHistorySession } from "@src/util/session/sessionDispatch";
 
 import type { GroupChatContextValue } from "../GroupChatView/GroupChatContext";
 import { resolveChatHistoryProjectionSource } from "../projection/source";
@@ -245,8 +246,10 @@ export function useChatHistoryProjectionModel({
   );
   const turnMetadataReloadKey = [
     activeId ?? "",
-    displayTurnIds.length,
     isAgentWorking ? "working" : "idle",
+    activeId && isImportedHistorySession(activeId)
+      ? chatHistorySourceVersion
+      : "native",
   ].join(":");
   const tailFollowKey = useMemo(() => {
     const tailItem =

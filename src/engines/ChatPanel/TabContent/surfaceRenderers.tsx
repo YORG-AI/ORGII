@@ -35,6 +35,7 @@ const CloudOrgPanelView = React.lazy(
 const WorkspaceExplorePanelView = React.lazy(
   () => import("../panels/WorkspaceExplorePanelView")
 );
+const RuntimePanelView = React.lazy(() => import("../panels/RuntimePanelView"));
 
 export interface ChatPanelSurfaceRendererProps {
   tab: ChatPanelTab;
@@ -99,6 +100,14 @@ export function ExploreSurfaceRenderer(): React.ReactNode {
   return (
     <Suspense fallback={null}>
       <WorkspaceExplorePanelView />
+    </Suspense>
+  );
+}
+
+export function RuntimeSurfaceRenderer(): React.ReactNode {
+  return (
+    <Suspense fallback={null}>
+      <RuntimePanelView />
     </Suspense>
   );
 }

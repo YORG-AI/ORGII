@@ -25,7 +25,6 @@ export const MemoryBreakdownSection: React.FC<MemoryBreakdownSectionProps> = ({
       const isAttributionDetail =
         !isAttributionHeader &&
         row.key !== "backendGroup" &&
-        row.key !== "backendFileCache" &&
         row.key !== "webkitGroup";
 
       if (isAttributionHeader) return null;

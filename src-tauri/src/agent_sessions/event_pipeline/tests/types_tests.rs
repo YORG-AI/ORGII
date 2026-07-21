@@ -26,6 +26,8 @@ fn make_event(id: &str, action_type: &str) -> SessionEvent {
         repo_path: None,
         extracted: None,
         payload_refs: Vec::new(),
+        shell_replay: None,
+        shell_replay_bookmarks: None,
         last_extract_at: None,
     }
 }

@@ -6,9 +6,7 @@
 use database::db::{get_connection, with_sessions_writer};
 use rusqlite::params;
 
-use super::super::helpers::{
-    insert_task_history_event, now_rfc3339, row_to_task, SELECT_COLUMNS,
-};
+use super::super::helpers::{insert_task_history_event, now_rfc3339, row_to_task, SELECT_COLUMNS};
 use super::super::{Task, TaskStatus, TASK_EVENT_ESCALATED_TO_COORDINATOR, TASK_EVENT_RELEASED};
 use super::validation::{ensure_run_allows_task_mutation, validate_task_persistence_invariants};
 use super::AgentOrgTaskStore;

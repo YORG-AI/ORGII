@@ -393,10 +393,7 @@ pub fn session_persists_chunks(session_id: &str) -> bool {
 
 /// Latest native transcript id bound to this managed session for `source`
 /// (account switches / message-edit forks append; replay follows the newest).
-pub fn latest_native_transcript_id(
-    session_id: &str,
-    source: &str,
-) -> SqliteResult<Option<String>> {
+pub fn latest_native_transcript_id(session_id: &str, source: &str) -> SqliteResult<Option<String>> {
     let conn = get_connection()?;
     conn.query_row(
         "SELECT source_session_id
@@ -683,6 +680,19 @@ pub fn update_proxy_credentials(
 
 /// Delete a session and all its chunks (CASCADE) + per-round token usage records.
 pub fn delete_session(session_id: &str) -> SqliteResult<bool> {
+    if let Err(error) =
+        agent_core::tools::impls::coding::exec::shell_replay::ensure_session_replays_deletable(
+            session_id,
+        )
+    {
+        return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
+            std::io::Error::other(error),
+        )));
+    }
+    agent_core::tools::impls::coding::exec::shell_replay::queue_session_replay_cleanup(session_id)
+        .map_err(|error| {
+            rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::other(error)))
+        })?;
     let conn = get_connection()?;
     conn.execute(
         "DELETE FROM code_session_chunks WHERE session_id = ?1",
@@ -708,6 +718,11 @@ pub fn delete_session(session_id: &str) -> SqliteResult<bool> {
         [session_id],
     )?;
     if affected > 0 {
+        if let Err(err) =
+            agent_core::tools::impls::coding::exec::shell_replay::remove_session_replays(session_id)
+        {
+            tracing::warn!(session_id, error = %err, "[cli-persistence] shell replay delete failed");
+        }
         if let Err(err) =
             crate::agent_sessions::session_directory::orgtrack_adapter::remove_mirrored_session(
                 session_id,

@@ -108,6 +108,52 @@ pub struct PayloadRef {
     pub truncated: bool,
 }
 
+/// Stable reference to one append-only shell replay artifact.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShellReplayRef {
+    pub session_id: String,
+    pub call_id: String,
+    pub format_version: u32,
+}
+
+/// Immutable as-of watermark captured for one Session Replay timeline event.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ShellReplayBookmark {
+    pub visible_through_sequence: u64,
+    pub visible_bytes: u64,
+}
+
+/// Whether the replay artifact is still being appended, fully durable, or
+/// only partially available after an I/O failure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ShellReplayStatus {
+    Running,
+    Complete,
+    Incomplete,
+}
+
+/// Bounded shell state carried by live shell rows and immutable playback
+/// cursors. The complete transcript itself always lives in the artifact.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShellReplayState {
+    #[serde(rename = "ref")]
+    pub replay_ref: ShellReplayRef,
+    pub bookmark: ShellReplayBookmark,
+    pub terminal_preview: String,
+    pub status: ShellReplayStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// ISO-8601 timestamp written only after the file and manifest have been
+    /// finalized. Historical replay may use a terminal state only when this
+    /// timestamp is not later than the selected timeline event.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub completed_at: Option<String>,
+}
+
 /// Mirrors the frontend `SessionEvent` interface exactly.
 /// All fields use camelCase serialization to match the JS/TS convention.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -162,6 +208,17 @@ pub struct SessionEvent {
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub payload_refs: Vec<PayloadRef>,
+
+    /// Mutable latest state on the canonical shell tool-call row. Safe for
+    /// live-tail rendering; historical replay must use
+    /// `shell_replay_bookmarks` from the selected playback event instead.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shell_replay: Option<ShellReplayState>,
+
+    /// Immutable active-shell watermarks captured when this event first
+    /// enters the timeline. Same-ID merges must preserve this map unchanged.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shell_replay_bookmarks: Option<HashMap<String, ShellReplayState>>,
 
     /// Last time `extracted` was re-computed (monotonic clock). Used by
     /// streaming ingestion to debounce recomputation. Not serialized.
@@ -556,6 +613,8 @@ mod tests {
             repo_path: None,
             extracted: None,
             payload_refs: Vec::new(),
+            shell_replay: None,
+            shell_replay_bookmarks: None,
             last_extract_at: None,
         }
     }

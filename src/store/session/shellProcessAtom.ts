@@ -21,8 +21,8 @@ export type ShellProcessStatus = "running" | "background" | "exited" | "killed";
 
 export interface ShellProcessState {
   pid: number;
+  callId: string;
   command: string;
-  logPath?: string;
   status: ShellProcessStatus;
   exitCode?: number;
   startedAt: number;
@@ -70,13 +70,14 @@ export const updateShellProcessAtom = atom(
           type: "start";
           sessionId: string;
           pid: number;
+          callId: string;
           command: string;
-          logPath?: string;
         }
       | {
           type: "exit";
           sessionId: string;
           pid: number;
+          callId: string;
           exitCode?: number;
           killed: boolean;
         }
@@ -84,6 +85,7 @@ export const updateShellProcessAtom = atom(
           type: "background";
           sessionId: string;
           pid: number;
+          callId: string;
         }
   ) => {
     const currentMap = get(shellProcessMapAtom);
@@ -104,8 +106,8 @@ export const updateShellProcessAtom = atom(
 
         sessionProcesses.set(action.pid, {
           pid: action.pid,
+          callId: action.callId,
           command: action.command,
-          logPath: action.logPath,
           status: "running",
           startedAt: Date.now(),
         });
@@ -116,7 +118,7 @@ export const updateShellProcessAtom = atom(
         const sessionProcesses = newMap.get(action.sessionId);
         if (sessionProcesses) {
           const process = sessionProcesses.get(action.pid);
-          if (process) {
+          if (process && process.callId === action.callId) {
             const newSessionProcesses = new Map(sessionProcesses);
             newSessionProcesses.set(action.pid, {
               ...process,
@@ -138,7 +140,11 @@ export const updateShellProcessAtom = atom(
         const sessionProcesses = newMap.get(action.sessionId);
         if (sessionProcesses) {
           const process = sessionProcesses.get(action.pid);
-          if (process && process.status === "running") {
+          if (
+            process &&
+            process.status === "running" &&
+            process.callId === action.callId
+          ) {
             // Clone session map and update process
             const newSessionProcesses = new Map(sessionProcesses);
             newSessionProcesses.set(action.pid, {

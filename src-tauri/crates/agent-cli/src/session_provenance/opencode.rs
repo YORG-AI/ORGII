@@ -9,7 +9,8 @@ use super::config::{write_atomic, HOOK_MARKER};
 // The managed OpenCode plugin file. `__ORGII_BINARY__` is replaced with the
 // JS-escaped absolute ORGII executable path at install time. The marker string
 // (`HOOK_MARKER`) must appear so the installer can recognize its own file.
-pub(super) const OPENCODE_PLUGIN_TEMPLATE: &str = include_str!("session_provenance_opencode_plugin.js");
+pub(super) const OPENCODE_PLUGIN_TEMPLATE: &str =
+    include_str!("session_provenance_opencode_plugin.js");
 
 /// Absolute path of the managed OpenCode plugin file
 /// (`$XDG_CONFIG_HOME/opencode/plugin/orgii-session-provenance.js`, defaulting
@@ -58,6 +59,7 @@ pub(super) fn update_opencode_plugin(enabled: bool, executable: &Path) -> Result
         }
         return Ok(());
     }
-    let contents = OPENCODE_PLUGIN_TEMPLATE.replace("__ORGII_BINARY__", &js_escaped_path(executable));
+    let contents =
+        OPENCODE_PLUGIN_TEMPLATE.replace("__ORGII_BINARY__", &js_escaped_path(executable));
     write_atomic(&path, contents.as_bytes())
 }

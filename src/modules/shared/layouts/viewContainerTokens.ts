@@ -103,14 +103,15 @@ export const LAYOUT_CONTAIN_STYLE: CSSProperties = {
  * Build the inline style for the page panel surface. Always emits a
  * `backgroundColor` (via `color-mix`) so callers can drop the redundant
  * `bg-bg-2` Tailwind class — there's a single source of truth for the
- * surface paint. At 100% opacity the mix collapses to `var(--color-bg-2)`.
+ * surface paint. At 100% opacity the mix collapses to
+ * `var(--color-primary-pane-bg)`.
  */
 export function getPagePanelBackgroundStyle(
   pageOpacity: number | undefined
 ): CSSProperties {
   const opacity = IS_MACOS_HOST ? 100 : sanitizePageOpacity(pageOpacity);
   return {
-    backgroundColor: `color-mix(in srgb, var(--color-bg-2) ${opacity}%, transparent)`,
+    backgroundColor: `color-mix(in srgb, var(--color-primary-pane-bg) ${opacity}%, transparent)`,
   };
 }
 
@@ -136,16 +137,16 @@ export function getSidebarSurfaceBackgroundStyle(
  * pop-out cards, inline tool blocks). Those should read as solid surfaces
  * over the wallpaper-tinted chat pane, not also bleed through.
  *
- * The mix reads `--color-chat-pane-base` (not `--color-chat-pane`) to
- * avoid a circular var reference once we overwrite the unsuffixed name.
- * Theme files declare both: `*-base` holds the literal color, the
- * unsuffixed name is the consumable alias.
+ * The mix reads the shared `--color-primary-pane-bg` token so chat and
+ * settings page roots always use the same base color. `--color-chat-pane`
+ * remains a consumable alias for descendants and is rebound to the mixed
+ * value on this subtree.
  */
 export function getChatPanelBackgroundStyle(
   pageOpacity: number | undefined
 ): CSSProperties {
   const opacity = IS_MACOS_HOST ? 100 : sanitizePageOpacity(pageOpacity);
-  const chatPaneMix = `color-mix(in srgb, var(--color-chat-pane-base) ${opacity}%, transparent)`;
+  const chatPaneMix = `color-mix(in srgb, var(--color-primary-pane-bg) ${opacity}%, transparent)`;
   return {
     backgroundColor: chatPaneMix,
     "--color-chat-pane": chatPaneMix,

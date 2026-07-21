@@ -27,6 +27,8 @@ export interface LaunchButtonProps {
   loading: boolean;
   /** Click handler */
   onClick: () => void;
+  /** Accessible action name when the icon-only button performs a custom submit. */
+  ariaLabel?: string;
   /** Optional visible label for non-icon launch actions */
   label?: string;
 }
@@ -52,6 +54,7 @@ const LaunchButton: React.FC<LaunchButtonProps> = ({
   disabled,
   loading,
   onClick,
+  ariaLabel: customAriaLabel,
   label,
 }) => {
   const { t } = useTranslation();
@@ -61,7 +64,7 @@ const LaunchButton: React.FC<LaunchButtonProps> = ({
     ? INPUT_AREA_BUTTONS.iconButtonActive
     : INPUT_AREA_BUTTONS.iconButtonInactive;
   const baseClass = label ? LABEL_BASE_CLASS : ICON_BASE_CLASS;
-  const ariaLabel = label ?? t("common:actions.send");
+  const ariaLabel = customAriaLabel ?? label ?? t("common:actions.send");
 
   // `leading-none` + explicit `block` on the SVG kill the baseline gap
   // that `lucide-react` icons inherit from their default inline-block
@@ -107,7 +110,7 @@ const LaunchButton: React.FC<LaunchButtonProps> = ({
     <Tooltip
       content={
         <KeyboardShortcutTooltipContent
-          label={label ?? t("common:actions.send")}
+          label={ariaLabel}
           shortcut={getShortcutKeys("chat_send", {
             chatSendOnEnter: sendOnEnter,
           })}

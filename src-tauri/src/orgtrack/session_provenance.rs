@@ -18,6 +18,7 @@ mod status_post;
 
 pub(crate) use collaboration_replay::{delete_collaboration_replay, index_collaboration_replay};
 pub(super) use historical_backfill::request_historical_backfill;
+pub(crate) use historical_backfill::spawn_codex_write_reconciliation_loop;
 pub use hook_capture::capture_hook_stdin;
 pub(super) use hook_capture::drain_hook_inbox;
 #[cfg(test)]

@@ -134,14 +134,11 @@ pub fn load_qoder_history_for_session(
     let (project_dir_name, task_dir_name) = source_session_id
         .split_once('/')
         .unwrap_or(("", source_session_id));
-    let workspace_path = imported_cache::query_cached_session_from_conn(
-        conn,
-        SOURCE_QODER,
-        source_session_id,
-    )
-    .ok()
-    .flatten()
-    .and_then(|cached| cached.repo_path);
+    let workspace_path =
+        imported_cache::query_cached_session_from_conn(conn, SOURCE_QODER, source_session_id)
+            .ok()
+            .flatten()
+            .and_then(|cached| cached.repo_path);
     Ok(super::log_enrichment::enrich_with_agent_log(
         session_id,
         task_dir_name,
@@ -198,8 +195,7 @@ fn discover_records_in_projects_dir(
     };
     for project_entry in project_entries.flatten() {
         let project_dir = project_entry.path();
-        let Some(project_dir_name) = project_dir.file_name().and_then(|name| name.to_str())
-        else {
+        let Some(project_dir_name) = project_dir.file_name().and_then(|name| name.to_str()) else {
             continue;
         };
         let history_dir = project_dir.join(CONVERSATION_HISTORY_DIR);
@@ -392,7 +388,10 @@ fn session_meta_to_cache_input(meta: QoderHistoryMeta) -> ImportedHistoryCacheIn
     }
 }
 
-fn transcript_to_chunks(session_id: &str, transcript: &[QoderTranscriptLine]) -> Vec<ActivityChunk> {
+fn transcript_to_chunks(
+    session_id: &str,
+    transcript: &[QoderTranscriptLine],
+) -> Vec<ActivityChunk> {
     // Pass 1: collect tool results so each `tool_use` can be paired with the
     // matching `tool_result` regardless of which later line carried it.
     let mut tool_outputs: HashMap<String, Value> = HashMap::new();

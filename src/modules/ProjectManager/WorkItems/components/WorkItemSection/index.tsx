@@ -57,19 +57,13 @@ const WorkItemSection: React.FC<WorkItemSectionProps> = ({
         }}
       >
         {/* Chevron — actionCompactTreeRow inside 28×28 container to align with checkbox column */}
-        <Tooltip
-          content={t(isExpanded ? "common:collapse" : "common:expand")}
-          position="top"
-          mouseEnterDelay={300}
-        >
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center">
-            <div
-              className={`${HEADER_BUTTON.actionMdTreeRow} [&>svg]:transition-transform [&>svg]:duration-150 ${isExpanded ? "[&>svg]:rotate-90" : ""}`}
-            >
-              <ChevronRight size={HEADER_ICON_SIZE.sm} />
-            </div>
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center">
+          <div
+            className={`${HEADER_BUTTON.actionMdTreeRow} [&>svg]:transition-transform [&>svg]:duration-150 ${isExpanded ? "[&>svg]:rotate-90" : ""}`}
+          >
+            <ChevronRight size={HEADER_ICON_SIZE.sm} />
           </div>
-        </Tooltip>
+        </div>
 
         {/* Status icon - aligned with priority column */}
         <Tooltip content={sectionLabel} position="top" mouseEnterDelay={300}>

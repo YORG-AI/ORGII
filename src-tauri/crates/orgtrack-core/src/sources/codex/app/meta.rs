@@ -378,4 +378,3 @@ fn session_title_from_payload(payload: &Value) -> Option<String> {
     .find(|value| !value.is_empty())
     .map(ToString::to_string)
 }
-

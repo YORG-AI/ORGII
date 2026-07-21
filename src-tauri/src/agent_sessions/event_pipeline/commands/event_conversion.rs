@@ -3,6 +3,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use crate::agent_sessions::event_pipeline::extractors::extract_event_data_with_bounded_shell_output;
 use crate::agent_sessions::event_pipeline::ingestion::function_map::resolve_ui_canonical;
 use crate::agent_sessions::event_pipeline::payload_compaction::is_compacted_event;
 use crate::agent_sessions::event_pipeline::types::{
@@ -12,8 +13,20 @@ use session_persistence as sqlite_cache;
 
 const ACTION_TYPE_TOOL_CALL: &str = "tool_call";
 const ACTION_TYPE_TOOL_RESULT: &str = "tool_result";
+const CACHED_SHELL_OUTPUT_PREVIEW_BYTES: usize = 32 * 1024;
 
 const FILE_PATH_KEYS: &[&str] = &["file_path", "path", "fileName", "file_name", "target_file"];
+
+/// Cache rows predate the durable replay format and may still hold a complete
+/// shell transcript in `args` or `result`. Keep extraction fresh for every
+/// tool, but cap only shell output before allocating the derived envelope.
+/// The subsequent legacy migration/EventStore hydration pass consumes this
+/// tail preview and removes the raw duplicate payload.
+fn recompute_cached_extracted(event: &mut SessionEvent) {
+    event.extracted =
+        extract_event_data_with_bounded_shell_output(event, CACHED_SHELL_OUTPUT_PREVIEW_BYTES);
+    event.last_extract_at = Some(std::time::Instant::now());
+}
 
 // ============================================================================
 // Post-load dedup: call_id collision + agent description collision
@@ -68,7 +81,7 @@ fn merge_loser_into_winner(winner: &mut SessionEvent, loser: SessionEvent) {
 
     // Recompute extractors so derived fields (e.g. subagent result content)
     // reflect the merged payload.
-    winner.recompute_extracted();
+    recompute_cached_extracted(winner);
 }
 
 pub(crate) fn dedup_by_call_id(events: Vec<SessionEvent>) -> Vec<SessionEvent> {
@@ -317,7 +330,7 @@ fn merge_missing_args_from_tool_input(event: &mut SessionEvent, tool_input: &ser
             .or_else(|| extract_file_path_from_json(tool_input));
     }
 
-    event.recompute_extracted();
+    recompute_cached_extracted(event);
 }
 
 pub(crate) fn backfill_tool_inputs_from_messages(session_id: &str, events: &mut [SessionEvent]) {
@@ -466,7 +479,7 @@ pub(crate) fn backfill_subagent_links(session_id: &str, events: &mut [SessionEve
         );
         obj.entry("action")
             .or_insert_with(|| serde_json::Value::String("delegate".to_string()));
-        events[*candidate_idx].recompute_extracted();
+        recompute_cached_extracted(&mut events[*candidate_idx]);
         stamped += 1;
     }
 
@@ -637,6 +650,8 @@ pub(crate) fn compact_boundary_row_to_event(
         repo_path: None,
         extracted: None,
         payload_refs: Vec::new(),
+        shell_replay: None,
+        shell_replay_bookmarks: None,
         last_extract_at: None,
     }
 }
@@ -811,6 +826,36 @@ pub(crate) fn cached_event_to_session_event(cached: &sqlite_cache::CachedEvent) 
         .and_then(|v| v.as_str())
         .map(String::from);
 
+    let shell_replay = meta_obj
+        .and_then(|m| m.get("shellReplay"))
+        .filter(|value| !value.is_null())
+        .and_then(|value| match serde_json::from_value(value.clone()) {
+            Ok(state) => Some(state),
+            Err(err) => {
+                tracing::warn!(
+                    "[cache_bridge] failed to parse shellReplay for event {:?}: {}",
+                    cached.id,
+                    err
+                );
+                None
+            }
+        });
+
+    let shell_replay_bookmarks = meta_obj
+        .and_then(|m| m.get("shellReplayBookmarks"))
+        .filter(|value| !value.is_null())
+        .and_then(|value| match serde_json::from_value(value.clone()) {
+            Ok(bookmarks) => Some(bookmarks),
+            Err(err) => {
+                tracing::warn!(
+                    "[cache_bridge] failed to parse shellReplayBookmarks for event {:?}: {}",
+                    cached.id,
+                    err
+                );
+                None
+            }
+        });
+
     let function_name = cached.function_name.clone().unwrap_or_default();
     let ui_canonical = meta_obj
         .and_then(|m| m.get("uiCanonical"))
@@ -843,10 +888,14 @@ pub(crate) fn cached_event_to_session_event(cached: &sqlite_cache::CachedEvent) 
         repo_path,
         extracted: None,
         payload_refs: Vec::new(),
+        shell_replay,
+        shell_replay_bookmarks,
         last_extract_at: None,
     };
-    // Restore from SQLite cache — always compute a fresh extraction.
-    event.recompute_extracted();
+    // Restore from SQLite cache — always compute a fresh extraction. Legacy
+    // shell payloads are tailed before copying so a 10 MiB stdout does not
+    // become a second 10 MiB `extracted.shell.output` allocation.
+    recompute_cached_extracted(&mut event);
     event
 }
 
@@ -869,6 +918,8 @@ pub fn session_event_to_cached_event(event: &SessionEvent) -> sqlite_cache::Cach
         "processId": event.process_id,
         "repoId": event.repo_id,
         "repoPath": event.repo_path,
+        "shellReplay": event.shell_replay,
+        "shellReplayBookmarks": event.shell_replay_bookmarks,
     });
 
     let content = build_searchable_content(event);
@@ -960,6 +1011,8 @@ mod tests {
             repo_path: None,
             extracted: None,
             payload_refs: Vec::new(),
+            shell_replay: None,
+            shell_replay_bookmarks: None,
             last_extract_at: None,
         }
     }
@@ -974,6 +1027,88 @@ mod tests {
 
     fn ids(events: Vec<SessionEvent>) -> Vec<String> {
         events.into_iter().map(|event| event.id).collect()
+    }
+
+    #[test]
+    fn shell_replay_state_and_bookmarks_round_trip_through_cached_meta() {
+        use std::collections::HashMap;
+
+        use crate::agent_sessions::event_pipeline::types::{
+            ShellReplayBookmark, ShellReplayRef, ShellReplayState, ShellReplayStatus,
+        };
+
+        let state = ShellReplayState {
+            replay_ref: ShellReplayRef {
+                session_id: "test-session".to_string(),
+                call_id: "call-shell-1".to_string(),
+                format_version: 1,
+            },
+            bookmark: ShellReplayBookmark {
+                visible_through_sequence: 42,
+                visible_bytes: 4096,
+            },
+            terminal_preview: "bounded preview".to_string(),
+            status: ShellReplayStatus::Running,
+            error: None,
+            completed_at: None,
+        };
+        let mut event = make_tool_event("shell-event");
+        event.session_id = "test-session".to_string();
+        event.call_id = Some("call-shell-1".to_string());
+        event.shell_replay = Some(state.clone());
+        event.shell_replay_bookmarks =
+            Some(HashMap::from([("call-shell-1".to_string(), state.clone())]));
+
+        let cached = session_event_to_cached_event(&event);
+        let restored = cached_event_to_session_event(&cached);
+
+        assert_eq!(restored.shell_replay, Some(state.clone()));
+        assert_eq!(
+            restored.shell_replay_bookmarks,
+            Some(HashMap::from([("call-shell-1".to_string(), state)]))
+        );
+    }
+
+    #[test]
+    fn cached_shell_extraction_bounds_ten_megabyte_legacy_payload() {
+        use crate::agent_sessions::event_pipeline::extractors::ExtractedData;
+
+        const FIVE_MIB: usize = 5 * 1024 * 1024;
+        let stdout = format!("{}\nSTDOUT-尾部🙂", "x".repeat(FIVE_MIB));
+        let stream_output = format!("{}\nSTREAM-尾部🚀", "y".repeat(FIVE_MIB));
+
+        let mut event = make_tool_event("legacy-large-shell");
+        event.function_name = "run_shell".to_string();
+        event.ui_canonical = core_types::tool_names::RUN_SHELL.to_string();
+        event.call_id = Some("legacy-large-call".to_string());
+        event.args = serde_json::json!({
+            "command": "emit a large historical transcript",
+            "streamOutput": stream_output,
+        });
+        event.result = serde_json::json!({
+            "output": {
+                "success": {
+                    "stdout": stdout,
+                    "exitCode": 0,
+                }
+            }
+        });
+
+        let cached = session_event_to_cached_event(&event);
+        let restored = cached_event_to_session_event(&cached);
+        let ExtractedData::Shell(shell) = restored.extracted.expect("bounded shell extraction")
+        else {
+            panic!("expected shell extraction");
+        };
+
+        let output = shell.output.expect("bounded stdout preview");
+        let stream = shell.stream_output.expect("bounded stream preview");
+        assert!(output.len() <= CACHED_SHELL_OUTPUT_PREVIEW_BYTES);
+        assert!(stream.len() <= CACHED_SHELL_OUTPUT_PREVIEW_BYTES);
+        assert!(output.ends_with("STDOUT-尾部🙂"));
+        assert!(stream.ends_with("STREAM-尾部🚀"));
+        assert!(!output.starts_with('\u{fffd}'));
+        assert!(!stream.starts_with('\u{fffd}'));
     }
 
     #[test]

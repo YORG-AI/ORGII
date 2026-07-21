@@ -5,8 +5,8 @@ import {
   activeChatPanelTabAtom,
   addChatPanelTerminalTabAtom,
   chatPanelTabsAtom,
-  openKanbanChatPanelTabAtom,
   openOrFocusChatPanelStartPageTabAtom,
+  openWorkManagementChatPanelTabAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { createChatPanelTerminalAtom } from "@src/store/chatPanel/chatPanelTerminalAtom";
 import { WORK_MANAGEMENT_SECTION } from "@src/store/workstation";
@@ -28,7 +28,7 @@ export function useChatPanelTabsController({
   const allTabs = useAtomValue(chatPanelTabsAtom).tabs;
   const openStartPageTab = useSetAtom(openOrFocusChatPanelStartPageTabAtom);
   const addTerminalTab = useSetAtom(addChatPanelTerminalTabAtom);
-  const openKanbanTab = useSetAtom(openKanbanChatPanelTabAtom);
+  const openKanbanTab = useSetAtom(openWorkManagementChatPanelTabAtom);
   const createTerminalSession = useSetAtom(createChatPanelTerminalAtom);
 
   const handleNewTerminalTab = useCallback(() => {

@@ -417,9 +417,7 @@ pub fn compute_session_analytics(events: &[SessionEvent]) -> SessionAnalytics {
             failure_count: fails,
         })
         .collect();
-    by_tool_errors.sort_by_key(|tool| {
-        std::cmp::Reverse(tool.error_count + tool.failure_count)
-    });
+    by_tool_errors.sort_by_key(|tool| std::cmp::Reverse(tool.error_count + tool.failure_count));
 
     let error_stats = ErrorStats {
         total_errors,

@@ -17,12 +17,15 @@ import SettingsTable, {
   SETTINGS_TABLE_COL,
   type SettingsTableColumn,
 } from "@src/components/SettingsTable";
+import {
+  type ToolProcessMemoryDiagnostic,
+  getAppMemoryTotals,
+} from "@src/hooks/perf";
 
 import NetworkSection from "./NetworkSection";
 import StorageSection from "./StorageSection";
 import {
   type BreakdownRow,
-  type ChildProcessInfo,
   formatMemory,
   useMonitorMetrics,
 } from "./useMonitorMetrics";
@@ -46,107 +49,66 @@ const MonitorSection: React.FC<MonitorSectionProps> = ({
   const { t } = useTranslation("settings");
 
   const {
-    processMetrics,
     systemMemory,
-    memoryBreakdown,
-    childProcesses,
+    appMemoryState,
+    toolProcesses,
     systemInfo,
     containerRef,
   } = useMonitorMetrics(activeTab);
 
-  const backendMemoryMb = processMetrics?.memory_rss_mb ?? 0;
-  const webviewMemoryMb = childProcesses
-    .filter((proc) => ["webview", "gpu", "network"].includes(proc.category))
-    .reduce((sum, child) => sum + child.memory_mb, 0);
-  const toolProcessMemoryMb = childProcesses
-    .filter((proc) => !["webview", "gpu", "network"].includes(proc.category))
-    .reduce((sum, child) => sum + child.memory_mb, 0);
-  const totalMemoryMb = backendMemoryMb + webviewMemoryMb + toolProcessMemoryMb;
+  const appMemorySnapshot = appMemoryState.snapshot;
+  const appMemoryTotals = getAppMemoryTotals(appMemorySnapshot);
+  const totalMemoryMb = appMemoryTotals.totalBytes / (1024 * 1024);
+  const backendMemoryMb = appMemoryTotals.backendBytes / (1024 * 1024);
+  const webviewMemoryMb = appMemoryTotals.webviewHelperBytes / (1024 * 1024);
+  const toolProcessMemoryMb =
+    toolProcesses.reduce((sum, process) => sum + process.rss_bytes, 0) /
+    (1024 * 1024);
   const systemTotalMb = systemMemory?.total_mb ?? 1;
   const totalMemoryPercent = (totalMemoryMb / systemTotalMb) * 100;
 
-  const terminalCount = childProcesses.filter(
-    (proc) => proc.category === "terminal"
-  ).length;
-  const webviewCount = childProcesses.filter(
-    (proc) => proc.category === "webview"
-  ).length;
-
-  function buildChildProcessDescription(): string {
-    const helperMemoryMb = webviewMemoryMb + toolProcessMemoryMb;
-    if (childProcesses.length === 0) {
-      return "No WebKit or tool helper processes";
+  function buildToolProcessDescription(): string {
+    if (toolProcesses.length === 0) {
+      return t("monitor.noToolProcesses");
     }
-    const parts: string[] = [formatMemory(helperMemoryMb)];
-    if (terminalCount > 0 && terminalCount === childProcesses.length) {
-      parts.unshift(
-        terminalCount +
-          " " +
-          (terminalCount > 1
-            ? t("monitor.terminalProcesses")
-            : t("monitor.terminalProcess"))
-      );
-    } else if (webviewCount > 0 && webviewCount === childProcesses.length) {
-      parts.unshift(
-        webviewCount +
-          " " +
-          (webviewCount > 1
-            ? t("monitor.webviewProcesses")
-            : t("monitor.webviewProcess"))
-      );
-    } else {
-      parts.unshift(childProcesses.length + " " + t("monitor.processes"));
-    }
-    return parts.join(" \u00b7 ");
+    return `${toolProcesses.length} ${t("monitor.processes")} · ${formatMemory(
+      toolProcessMemoryMb
+    )} · ${t("monitor.excludedFromAppMemory")}`;
   }
 
   const categoryLabels: Record<string, string> = useMemo(
     () => ({
       terminal: t("monitor.categoryTerminal"),
-      webview: t("monitor.categoryWebview"),
-      gpu: t("monitor.categoryGpu"),
-      network: t("monitor.categoryNetwork"),
-      other: t("monitor.categoryOther"),
+      agent_cli: t("monitor.categoryAgentCli"),
+      mcp_or_tool: t("monitor.categoryMcpOrTool"),
     }),
     [t]
   );
 
   const breakdownRows = useMemo<BreakdownRow[]>(() => {
-    if (!memoryBreakdown) return [];
-    return [
+    if (!appMemorySnapshot) return [];
+    const rows: BreakdownRow[] = [
       {
-        key: "backendRss",
-        label: t("monitor.breakdownBackendRss"),
-        megabytes: memoryBreakdown.backend_rss_mb,
+        key: "backendEffective",
+        label: t("monitor.appBackend"),
+        megabytes: backendMemoryMb,
         totalMb: totalMemoryMb,
       },
       {
         key: "webkitHelpers",
-        label: t("monitor.breakdownWebkitHelpers"),
+        label: t("monitor.appWebviewHelpers"),
         megabytes: webviewMemoryMb,
         totalMb: totalMemoryMb,
       },
       {
-        key: "toolHelpers",
-        label: t("monitor.breakdownToolHelpers"),
-        megabytes: toolProcessMemoryMb,
+        key: "rssMappedDiagnostic",
+        label: t("monitor.rssMappedDiagnostic"),
+        megabytes: appMemorySnapshot.rss_mapped_total_bytes / (1024 * 1024),
         totalMb: totalMemoryMb,
       },
-      {
-        key: "backendFileCache",
-        label: t("monitor.breakdownFileCache"),
-        megabytes: memoryBreakdown.file_cache_mb,
-        totalMb: backendMemoryMb,
-      },
-    ].sort((rowA, rowB) => rowB.megabytes - rowA.megabytes);
-  }, [
-    memoryBreakdown,
-    backendMemoryMb,
-    totalMemoryMb,
-    webviewMemoryMb,
-    toolProcessMemoryMb,
-    t,
-  ]);
+    ];
+    return rows;
+  }, [appMemorySnapshot, backendMemoryMb, totalMemoryMb, webviewMemoryMb, t]);
 
   const breakdownColumns = useMemo<SettingsTableColumn<BreakdownRow>[]>(
     () => [
@@ -175,6 +137,9 @@ const MonitorSection: React.FC<MonitorSectionProps> = ({
         width: SETTINGS_TABLE_COL.valueMd,
         align: "right" as const,
         renderCell: (row) => {
+          if (row.key === "rssMappedDiagnostic") {
+            return <span className={SETTINGS_TABLE_CELL.muted}>—</span>;
+          }
           const pct =
             row.totalMb > 0
               ? ((row.megabytes / row.totalMb) * 100).toFixed(1)
@@ -190,16 +155,18 @@ const MonitorSection: React.FC<MonitorSectionProps> = ({
     [t]
   );
 
-  const childColumns = useMemo<SettingsTableColumn<ChildProcessInfo>[]>(
+  const toolColumns = useMemo<
+    SettingsTableColumn<ToolProcessMemoryDiagnostic>[]
+  >(
     () => [
       {
         key: "name",
         label: t("monitor.tableName"),
         width: SETTINGS_TABLE_COL.valueSm,
         sorter: (rowA, rowB) => rowA.name.localeCompare(rowB.name),
-        renderCell: (child) => (
+        renderCell: (process) => (
           <span className={`${SETTINGS_TABLE_CELL.primary} whitespace-nowrap`}>
-            {child.name}
+            {process.name}
           </span>
         ),
       },
@@ -207,20 +174,21 @@ const MonitorSection: React.FC<MonitorSectionProps> = ({
         key: "detail",
         label: t("monitor.tableDetail"),
         width: SETTINGS_TABLE_COL.fill,
-        renderCell: (child) => (
+        renderCell: (process) => (
           <span className={SETTINGS_TABLE_CELL.muted}>
-            {categoryLabels[child.category] || child.category} · PID {child.pid}
+            {categoryLabels[process.category] || process.category} · PID{" "}
+            {process.pid}
           </span>
         ),
       },
       {
         key: "memory",
-        label: t("monitor.tableMemory"),
+        label: `${t("monitor.tableMemory")} (RSS)`,
         width: SETTINGS_TABLE_COL.valueMd,
-        sorter: (rowA, rowB) => rowA.memory_mb - rowB.memory_mb,
-        renderCell: (child) => (
+        sorter: (rowA, rowB) => rowA.rss_bytes - rowB.rss_bytes,
+        renderCell: (process) => (
           <span className={`${SETTINGS_TABLE_CELL.value} whitespace-nowrap`}>
-            {formatMemory(child.memory_mb)}
+            {formatMemory(process.rss_bytes / (1024 * 1024))}
           </span>
         ),
       },
@@ -229,13 +197,15 @@ const MonitorSection: React.FC<MonitorSectionProps> = ({
         label: t("monitor.tablePercent"),
         width: SETTINGS_TABLE_COL.valueMd,
         align: "right" as const,
-        renderCell: (child) => {
-          const totalMb = childProcesses.reduce(
-            (sum, cp) => sum + cp.memory_mb,
+        renderCell: (process) => {
+          const totalBytes = toolProcesses.reduce(
+            (sum, item) => sum + item.rss_bytes,
             0
           );
           const pct =
-            totalMb > 0 ? ((child.memory_mb / totalMb) * 100).toFixed(1) : "0";
+            totalBytes > 0
+              ? ((process.rss_bytes / totalBytes) * 100).toFixed(1)
+              : "0";
           return (
             <span className={`${SETTINGS_TABLE_CELL.value} whitespace-nowrap`}>
               {pct}%
@@ -244,7 +214,7 @@ const MonitorSection: React.FC<MonitorSectionProps> = ({
         },
       },
     ],
-    [t, categoryLabels, childProcesses]
+    [t, categoryLabels, toolProcesses]
   );
 
   function getProgressColor(percent: number): string {
@@ -264,12 +234,10 @@ const MonitorSection: React.FC<MonitorSectionProps> = ({
     formatMemory(totalMemoryMb) +
     " / " +
     formatMemory(systemTotalMb) +
-    " (backend " +
+    ` (${t("monitor.appBackend")} ` +
     formatMemory(backendMemoryMb) +
-    ", WebKit " +
+    `, ${t("monitor.appWebviewHelpers")} ` +
     formatMemory(webviewMemoryMb) +
-    ", tools " +
-    formatMemory(toolProcessMemoryMb) +
     ")";
 
   return (
@@ -294,6 +262,19 @@ const MonitorSection: React.FC<MonitorSectionProps> = ({
                     percent={totalMemoryPercent}
                     color={getProgressColor(totalMemoryPercent)}
                   />
+                  <div className="flex items-center justify-between gap-3 text-xs text-text-3">
+                    <span>{t("monitor.measurement")}</span>
+                    <span>
+                      {t(
+                        `monitor.measurementKinds.${appMemorySnapshot?.measurement ?? "unavailable"}`
+                      )}
+                    </span>
+                  </div>
+                  {appMemoryState.errorMessage && (
+                    <div className="text-danger-7 rounded-md border border-solid border-danger-3 bg-danger-1 px-3 py-2 text-xs">
+                      {appMemoryState.errorMessage}
+                    </div>
+                  )}
                 </div>
               </div>
             </SectionRow>
@@ -301,7 +282,7 @@ const MonitorSection: React.FC<MonitorSectionProps> = ({
           <SectionContainer>
             <SectionRow
               label={t("monitor.memoryBreakdown")}
-              description={t("monitor.allocationBySubsystem")}
+              description={t("monitor.measurement")}
             />
             <SectionRow label="" indent showHeader={false}>
               {breakdownRows.length > 0 ? (
@@ -322,15 +303,15 @@ const MonitorSection: React.FC<MonitorSectionProps> = ({
 
           <SectionContainer>
             <SectionRow
-              label="WebKit & tool helper processes"
-              description={buildChildProcessDescription()}
+              label={t("monitor.toolProcessDiagnostics")}
+              description={buildToolProcessDescription()}
             />
-            {childProcesses.length > 0 && (
+            {toolProcesses.length > 0 && (
               <SectionRow label="" indent showHeader={false}>
-                <SettingsTable<ChildProcessInfo>
-                  columns={childColumns}
-                  rows={childProcesses}
-                  getRowKey={(child) => String(child.pid)}
+                <SettingsTable<ToolProcessMemoryDiagnostic>
+                  columns={toolColumns}
+                  rows={toolProcesses}
+                  getRowKey={(process) => process.process_instance_id}
                   showHeader={false}
                   noPx
                 />

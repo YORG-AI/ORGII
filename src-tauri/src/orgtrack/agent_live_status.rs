@@ -135,9 +135,7 @@ pub fn ingest(event: AgentStatusEventV1) {
             map.insert(orgii_id, entry.clone());
         }
         // Opportunistic GC keeps the map bounded without a dedicated timer.
-        map.retain(|_, existing| {
-            received_at_ms - existing.received_at_ms < ENTRY_TTL_SECS * 1_000
-        });
+        map.retain(|_, existing| received_at_ms - existing.received_at_ms < ENTRY_TTL_SECS * 1_000);
     }
 
     if entry.event.state.is_terminal() {
@@ -163,10 +161,7 @@ pub fn ingest(event: AgentStatusEventV1) {
                 return;
             }
         }
-        last.insert(
-            entry.event.session_id.clone(),
-            (fanout_key, received_at_ms),
-        );
+        last.insert(entry.event.session_id.clone(), (fanout_key, received_at_ms));
         last.retain(|_, (_, at_ms)| received_at_ms - *at_ms < ENTRY_TTL_SECS * 1_000);
     }
 

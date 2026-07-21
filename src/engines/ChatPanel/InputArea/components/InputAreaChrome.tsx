@@ -144,19 +144,15 @@ export const getComposerShellClassName = ({
   isDragOver,
   isEditMode,
   quietEditSurface,
-  disableBreathing,
 }: {
   isDragOver: boolean;
   isEditMode: boolean;
   quietEditSurface: boolean;
-  /** Suppress the pulsing primary-6 breathing glow (e.g. when the chat status
-   * bar is shown and the input should read as a flat, flush surface). */
-  disableBreathing?: boolean;
 }): string | undefined => {
   if (isDragOver) {
     return "!border-primary-6 !bg-[color-mix(in_srgb,var(--color-primary-6)_5%,var(--color-chat-input))] !shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_20%,transparent)]";
   }
-  if (!isEditMode) return disableBreathing ? undefined : "composer-breathing";
+  if (!isEditMode) return "composer-breathing";
   if (quietEditSurface) {
     return "!border-warning-6 !shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-warning-6)_15%,transparent)]";
   }

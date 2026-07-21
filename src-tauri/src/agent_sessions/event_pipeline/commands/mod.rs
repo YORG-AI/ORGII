@@ -58,6 +58,13 @@ pub(crate) fn prepare_loaded_events(
     event_conversion::backfill_tool_inputs_from_messages(session_id, &mut events);
     event_conversion::backfill_subagent_links(session_id, &mut events);
     backfill_provider_subagent_prompts(&mut events);
+    // Old terminal `.txt` files have no Snapshot watermarks. Import the body
+    // once into the append-only replay artifact and attach only the mutable
+    // final shell state; the migration deliberately never seeds historical
+    // event bookmarks, so an early playback cursor cannot see future output.
+    agent_core::tools::impls::coding::exec::legacy_replay::hydrate_legacy_shell_replays(
+        &mut events,
+    );
     // Compaction boundaries live only in `agent_messages` (never in the
     // event cache) — merge them in so the chat shows the compacted marker.
     event_conversion::merge_compact_boundary_events(session_id, &mut events);
@@ -168,6 +175,25 @@ const NOTIFY_EVENT_NAME: &str = "es:changed";
 const STREAMING_BATCH_MS: u64 = 33;
 const ACTION_TYPE_TOOL_CALL: &str = "tool_call";
 const ACTION_TYPE_TOOL_RESULT: &str = "tool_result";
+
+fn collect_post_merge_persistable_events(
+    events: &[SessionEvent],
+    incoming_event_ids: &HashSet<String>,
+    result_call_ids: &HashSet<String>,
+) -> Vec<SessionEvent> {
+    events
+        .iter()
+        .filter(|event| {
+            incoming_event_ids.contains(&event.id)
+                || event.call_id.as_ref().is_some_and(|call_id| {
+                    event.action_type == ACTION_TYPE_TOOL_CALL && result_call_ids.contains(call_id)
+                })
+        })
+        // Preserve EventStore timeline order. SQLite assigns missing
+        // history_sequence values in this exact iteration order.
+        .cloned()
+        .collect()
+}
 
 /// Tauri `es:changed` payload wrapper. The `sessionId` is always present so
 /// frontend listeners can route to the correct per-session subscriber.
@@ -874,18 +900,14 @@ pub fn push_events_to_session(
         .filter(|event| event.action_type == ACTION_TYPE_TOOL_RESULT)
         .filter_map(|event| event.call_id.clone())
         .collect();
-
-    let mut persistable: Vec<_> = events
+    let incoming_event_ids: HashSet<String> = events
         .iter()
-        .filter(|e| !event_conversion::is_ts_placeholder_id(&e.id))
-        .map(event_conversion::session_event_to_cached_event)
+        .filter(|event| !event_conversion::is_ts_placeholder_id(&event.id))
+        .map(|event| event.id.clone())
         .collect();
 
-    let merged_tool_calls = state.with_store_mut(session_id, |store| {
+    let (persistable_events, merged_tool_calls) = state.with_store_mut(session_id, |store| {
         store.merge_events(events);
-        if result_call_ids.is_empty() {
-            return Vec::new();
-        }
         let mut current_turn_id: Option<String> = None;
         let mut matched = Vec::new();
         for (sequence_index, event) in store.events().iter().enumerate() {
@@ -907,8 +929,23 @@ pub fn push_events_to_session(
                 matched.push((sequence_index, current_turn_id.clone(), event.clone()));
             }
         }
-        matched
+
+        // Persist the canonical post-merge rows, not the raw incoming values.
+        // This is what makes first-insert replay bookmarks survive same-ID
+        // updates and avoids writing a second shell-output copy on the raw
+        // tool_result row.
+        let persistable = collect_post_merge_persistable_events(
+            store.events(),
+            &incoming_event_ids,
+            &result_call_ids,
+        );
+        (persistable, matched)
     });
+
+    let persistable = persistable_events
+        .iter()
+        .map(event_conversion::session_event_to_cached_event)
+        .collect::<Vec<_>>();
 
     let mut runtime_artifact_events = Vec::new();
     for (sequence_index, turn_id, event) in merged_tool_calls {
@@ -926,7 +963,6 @@ pub fn push_events_to_session(
         ) {
             runtime_artifact_events.push((sequence_index, turn_id, event.clone()));
         }
-        persistable.push(event_conversion::session_event_to_cached_event(&event));
     }
 
     if !runtime_artifact_events.is_empty() {
@@ -1032,6 +1068,49 @@ mod runtime_artifact_tests {
     use core_types::extracted::ExtractedEditData;
     use orgtrack_core::edit_extraction::artifacts_from_extracted_edit;
     use orgtrack_core::repo_sync::paths::record_id;
+
+    fn test_event(id: &str, call_id: Option<&str>) -> SessionEvent {
+        serde_json::from_value(serde_json::json!({
+            "id": id,
+            "chunk_id": null,
+            "sessionId": "test-session",
+            "createdAt": "2026-07-19T00:00:00Z",
+            "functionName": "run_shell",
+            "uiCanonical": "run_shell",
+            "actionType": "tool_call",
+            "args": {},
+            "result": {},
+            "source": "assistant",
+            "displayText": id,
+            "displayStatus": "running",
+            "displayVariant": "tool_call",
+            "activityStatus": "agent",
+            "callId": call_id
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn post_merge_persistence_preserves_timeline_order() {
+        let events = vec![
+            test_event("event-c", Some("call-c")),
+            test_event("event-a", Some("call-a")),
+            test_event("event-b", Some("call-b")),
+        ];
+        let incoming_ids = HashSet::from(["event-b".to_string(), "event-c".to_string()]);
+        let result_call_ids = HashSet::from(["call-a".to_string()]);
+
+        let selected =
+            collect_post_merge_persistable_events(&events, &incoming_ids, &result_call_ids);
+
+        assert_eq!(
+            selected
+                .into_iter()
+                .map(|event| event.id)
+                .collect::<Vec<_>>(),
+            vec!["event-c", "event-a", "event-b"]
+        );
+    }
 
     #[test]
     fn runtime_projection_uses_backfill_record_id_shape() {

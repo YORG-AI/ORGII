@@ -28,12 +28,14 @@ import ModelIcon from "@src/components/ModelIcon";
 import { resolveAgentIcon } from "@src/config/agentIcons";
 import TaskImpactLine from "@src/features/KanbanBoard/components/TaskImpactLine";
 import type { KanbanTask } from "@src/features/KanbanBoard/types";
+import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
 import { createLogger } from "@src/hooks/logger";
 import { useResolvedModelLabel } from "@src/hooks/models";
 import { useValidatedLastPair } from "@src/hooks/models/useValidatedLastPair";
 import { workspaceGitStatusMapAtom } from "@src/store/git/gitStatusAtom";
 import type { LastModelSelection } from "@src/store/session/creatorDefaultModelAtom";
 import { sessionByIdAtom } from "@src/store/session/sessionAtom/atoms";
+import { activeWorkspaceRootPathAtom } from "@src/store/workspace/derived";
 import { copyText } from "@src/util/data/clipboard";
 import {
   formatReplayDateLabel,
@@ -185,6 +187,10 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
     const { t, i18n } = useTranslation(["sessions", "common"]);
     const session = useAtomValue(sessionByIdAtom(sessionId));
     const workspaceGitStatusMap = useAtomValue(workspaceGitStatusMapAtom);
+    const activeWorkspaceRootPath = useAtomValue(activeWorkspaceRootPathAtom);
+    const { currentBranch: activeWorkspaceBranch } = useRepoSelection({
+      autoLoad: false,
+    });
     const creatorDefaultLastModel = useValidatedLastPair();
     const turnOverview: SessionTurnOverview | null =
       useSessionTurnOverview(sessionId);
@@ -415,12 +421,19 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
       : undefined;
     const worktreePathLabel = worktreePath ? basename(worktreePath) : "";
     const effectiveBranch = session.branch;
+    const sessionRepoMatchesActive =
+      !!normalizedRepoPath &&
+      !!activeWorkspaceRootPath &&
+      normalizedRepoPath === normalizePath(activeWorkspaceRootPath);
     const branchLabel =
       formatBranchLabel(session.worktreeBranch) ||
       (worktreePath ? worktreePathLabel : "") ||
       formatBranchLabel(effectiveBranch) ||
       formatBranchLabel(session.baseBranch) ||
-      formatBranchLabel(workspaceGitStatus?.current_branch);
+      formatBranchLabel(workspaceGitStatus?.current_branch) ||
+      (sessionRepoMatchesActive
+        ? formatBranchLabel(activeWorkspaceBranch)
+        : "");
     const modelIconName =
       lastModel?.listingModel || lastModel?.model || undefined;
     const modelIconAgent = lastModel?.listingModelType || undefined;
@@ -453,6 +466,17 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
 
     return (
       <HoverCardPanel title={session.name || session.session_id}>
+        {(repoName || branchLabel) && (
+          <HoverCardRow icon={<GitBranch size={13} strokeWidth={1.75} />}>
+            <div className="truncate text-text-2">
+              {repoName && <span>{repoName}</span>}
+              {repoName && branchLabel && (
+                <span className="mx-1 text-text-4">·</span>
+              )}
+              {branchLabel && <span>{branchLabel}</span>}
+            </div>
+          </HoverCardRow>
+        )}
         <HoverCardRow
           icon={agentSessionInfo.icon}
           iconClassName={agentSessionInfo.textClassName}
@@ -485,17 +509,6 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
             )}
           </div>
         </HoverCardRow>
-        {(repoName || branchLabel) && (
-          <HoverCardRow icon={<GitBranch size={13} strokeWidth={1.75} />}>
-            <div className="truncate text-text-2">
-              {repoName && <span>{repoName}</span>}
-              {repoName && branchLabel && (
-                <span className="mx-1 text-text-4">·</span>
-              )}
-              {branchLabel && <span>{branchLabel}</span>}
-            </div>
-          </HoverCardRow>
-        )}
         {repoPath && (
           <HoverCardRow icon={<Folder size={13} strokeWidth={1.75} />}>
             <button

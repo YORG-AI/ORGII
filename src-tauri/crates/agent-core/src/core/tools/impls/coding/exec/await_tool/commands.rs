@@ -20,6 +20,31 @@ use super::AwaitTool;
 use crate::tools::traits::ToolError;
 use serde_json::Value;
 
+const MAX_ACCUMULATED_OUTPUT_BYTES: usize = 256 * 1024;
+
+fn replay_body_is_authoritative(kind: &registry::JobKind) -> bool {
+    matches!(
+        kind,
+        registry::JobKind::Shell {
+            replay_session_id: Some(_),
+            replay_call_id: Some(_),
+            ..
+        }
+    )
+}
+
+fn append_bounded_output_tail(output: &mut String, chunk: &str) {
+    output.push_str(chunk);
+    if output.len() <= MAX_ACCUMULATED_OUTPUT_BYTES {
+        return;
+    }
+    let mut remove = output.len().saturating_sub(MAX_ACCUMULATED_OUTPUT_BYTES);
+    while remove < output.len() && !output.is_char_boundary(remove) {
+        remove += 1;
+    }
+    output.drain(..remove);
+}
+
 impl AwaitTool {
     /// `command=wait_for` — block until some termination / pattern-match condition
     /// is met across one or many handles, or the block timeout elapses.
@@ -87,8 +112,16 @@ impl AwaitTool {
         // Subscribe to every handle before we start checking so we don't miss
         // output chunks emitted between the initial `read_body` and the poll
         // loop.
-        let mut receivers: Vec<Option<tokio::sync::broadcast::Receiver<String>>> =
-            jobs.iter().map(|(h, _)| registry::subscribe(h)).collect();
+        let mut receivers: Vec<Option<tokio::sync::broadcast::Receiver<String>>> = jobs
+            .iter()
+            .map(|(h, kind)| {
+                if replay_body_is_authoritative(kind) {
+                    None
+                } else {
+                    registry::subscribe(h)
+                }
+            })
+            .collect();
         let mut accumulated: Vec<String> =
             jobs.iter().map(|(h, kind)| read_body(h, kind)).collect();
         let start = Instant::now();
@@ -135,7 +168,10 @@ impl AwaitTool {
 
                 if let Some(receiver) = receivers[idx].as_mut() {
                     while let Ok(chunk) = receiver.try_recv() {
-                        accumulated[idx].push_str(&chunk);
+                        // Pattern matching intentionally operates on the most
+                        // recent 256 KiB window; complete shell history lives
+                        // in Session Replay and is never accumulated here.
+                        append_bounded_output_tail(&mut accumulated[idx], &chunk);
                     }
                 } else {
                     accumulated[idx] = read_body(h, kind);

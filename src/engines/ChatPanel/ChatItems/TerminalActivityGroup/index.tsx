@@ -10,7 +10,10 @@ import { useTranslation } from "react-i18next";
 
 import { getToolIcon } from "@src/config/toolIcons";
 import ToolUsageBadge from "@src/engines/ChatPanel/blocks/ToolCallBlock/ToolUsageBadge";
-import { StackedBlock } from "@src/engines/ChatPanel/blocks/primitives";
+import {
+  ChatLoadingBlock,
+  StackedBlock,
+} from "@src/engines/ChatPanel/blocks/primitives";
 import {
   type SessionEvent,
   TOOL_USAGE_ARGS_KEY,
@@ -61,19 +64,13 @@ function buildGroupSummary(
   return parts.join(t("tools.terminalSummary.separator"));
 }
 
-const ActivityBlockFallback: React.FC = () => (
-  <div className="h-6 animate-pulse rounded bg-fill-2" />
-);
-
 function ActivityBlock({ event }: { event: SessionEvent }) {
   const eventType = getRegistryEventType(
     event as unknown as Record<string, unknown>
   );
   const EventComponent = getChatLazyComponent(eventType);
   const renderedEvent = React.createElement(EventComponent, { event });
-  return (
-    <Suspense fallback={<ActivityBlockFallback />}>{renderedEvent}</Suspense>
-  );
+  return <Suspense fallback={<ChatLoadingBlock />}>{renderedEvent}</Suspense>;
 }
 
 function suppressLoadingForNonLastRunningEvent(

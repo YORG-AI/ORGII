@@ -13,7 +13,8 @@ pub(super) const CODEX_POST_TOOL_USE_MATCHER: &str = "Bash|apply_patch|Edit|Writ
 // Codex events required whenever provenance capture is enabled. SessionStart
 // proves that Codex accepted and executed the current managed definitions;
 // the subagent events preserve exact actor attribution.
-pub(super) const CODEX_REQUIRED_EVENTS: &[&str] = &["SessionStart", "SubagentStart", "SubagentStop"];
+pub(super) const CODEX_REQUIRED_EVENTS: &[&str] =
+    &["SessionStart", "SubagentStart", "SubagentStop"];
 // Optional Codex lifecycle events (all matcher-less). SessionStart remains
 // installed when live status is off because it also drives hook activation;
 // PreToolUse is the per-tool working heartbeat when live status is on.

@@ -462,8 +462,8 @@ pub async fn prompt_polish(request: PromptPolishRequest) -> Result<PromptPolishR
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::client::{ChatCompletionChoice, ChatCompletionResponseMessage};
+    use super::*;
 
     #[test]
     fn strips_think_blocks_from_polished_text() {

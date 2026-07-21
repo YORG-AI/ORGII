@@ -23,7 +23,6 @@ fn write_file(path: &Path, contents: &str) {
 
 #[test]
 fn detects_cursor_rules_in_project() {
-    let _env_lock = test_helpers::test_env::lock_home();
     let tmp = TempDir::new().unwrap();
     let repo = tmp.path();
 
@@ -119,7 +118,6 @@ fn detects_kiro_steering_files() {
 
 #[test]
 fn skips_extension_bundles() {
-    let _env_lock = test_helpers::test_env::lock_home();
     let tmp = TempDir::new().unwrap();
     let repo = tmp.path();
     write_file(
@@ -192,7 +190,6 @@ async fn detect_then_apply_policy_round_trip() {
 
 #[tokio::test]
 async fn user_global_policy_import_lands_in_personal_rules() {
-    let _env_lock = test_helpers::test_env::lock_home();
     let tmp = TempDir::new().unwrap();
     let orgii_home = tmp.path().join("orgii-home");
     fs::create_dir_all(&orgii_home).unwrap();
@@ -266,7 +263,6 @@ async fn apply_rejects_unsafe_target_names() {
 
 #[test]
 fn detects_claude_code_subagents_in_project() {
-    let _env_lock = test_helpers::test_env::lock_home();
     let tmp = TempDir::new().unwrap();
     let repo = tmp.path().join("repo");
     fs::create_dir_all(&repo).unwrap();
@@ -302,7 +298,6 @@ fn detects_claude_code_subagents_in_project() {
 
 #[test]
 fn detects_cursor_subagents_in_project_and_user_home() {
-    let _env_lock = test_helpers::test_env::lock_home();
     // Cursor's own subagents docs (https://cursor.com/docs/subagents.md)
     // describe `<repo>/.cursor/agents/<name>.md` for workspace-scoped
     // subagents and `~/.cursor/agents/<name>.md` for user-global ones,
@@ -370,7 +365,6 @@ fn detects_cursor_subagents_in_project_and_user_home() {
 
 #[test]
 fn detects_copilot_agent_and_chatmode_files() {
-    let _env_lock = test_helpers::test_env::lock_home();
     // Copilot: `<repo>/.github/agents/<name>.agent.md` (new) and
     // `<repo>/.github/chatmodes/<name>.chatmode.md` (back-compat).
     // Composite suffix must be stripped to recover the stem.
@@ -419,7 +413,6 @@ fn detects_copilot_agent_and_chatmode_files() {
 
 #[test]
 fn detects_codex_subagents_in_project_and_user_home() {
-    let _env_lock = test_helpers::test_env::lock_home();
     // Cursor's subagents docs explicitly call out `.codex/agents/`
     // alongside `.claude/agents/` and `.cursor/agents/` as a recognized
     // subagent layout — same on-disk shape, different brand.
@@ -469,7 +462,6 @@ fn detects_codex_subagents_in_project_and_user_home() {
 
 #[test]
 fn detects_claude_code_skills_dir_and_commands_file() {
-    let _env_lock = test_helpers::test_env::lock_home();
     let tmp = TempDir::new().unwrap();
     let repo = tmp.path();
     write_file(
@@ -494,7 +486,6 @@ fn detects_claude_code_skills_dir_and_commands_file() {
 
 #[test]
 fn skips_workspace_local_claude_skill_import_without_copying_to_orgii() {
-    let _env_lock = test_helpers::test_env::lock_home();
     let tmp = TempDir::new().unwrap();
     let orgii_home = tmp.path().join("home");
     fs::create_dir_all(&orgii_home).unwrap();
@@ -542,7 +533,6 @@ fn skips_workspace_local_claude_skill_import_without_copying_to_orgii() {
 
 #[test]
 fn applies_claude_code_agent_definition_via_store() {
-    let _env_lock = test_helpers::test_env::lock_home();
     let tmp = TempDir::new().unwrap();
     let orgii_home = tmp.path().join("home");
     fs::create_dir_all(&orgii_home).unwrap();
@@ -604,7 +594,6 @@ fn applies_claude_code_agent_definition_via_store() {
 
 #[test]
 fn agent_definition_import_rejects_collision_without_overwrite() {
-    let _env_lock = test_helpers::test_env::lock_home();
     let tmp = TempDir::new().unwrap();
     let orgii_home = tmp.path().join("home");
     fs::create_dir_all(&orgii_home).unwrap();
@@ -651,7 +640,6 @@ fn agent_definition_import_rejects_collision_without_overwrite() {
 
 #[test]
 fn readonly_subagent_emits_downgrade_warning_in_detect() {
-    let _env_lock = test_helpers::test_env::lock_home();
     // Cursor / Codex subagents use a coarse-grained `readonly: true`
     // frontmatter flag instead of an explicit allowed-tools list. ORGII
     // has no top-level read-only switch on AgentDefinition, so detect
@@ -690,7 +678,6 @@ fn readonly_subagent_emits_downgrade_warning_in_detect() {
 
 #[test]
 fn readonly_apply_excludes_write_tools_on_imported_agent() {
-    let _env_lock = test_helpers::test_env::lock_home();
     // The complement of the detect test: when the apply pipeline sees
     // `readonly: true`, the persisted AgentDefinition must carry the
     // exact same `excluded_tools` list. Both detect and apply consume
@@ -783,7 +770,6 @@ fn readonly_apply_excludes_write_tools_on_imported_agent() {
 
 #[test]
 fn detects_cursor_skills_in_project() {
-    let _env_lock = test_helpers::test_env::lock_home();
     let tmp = TempDir::new().unwrap();
     let repo = tmp.path();
     write_file(
@@ -840,7 +826,6 @@ fn detects_cursor_skills_in_project() {
 
 #[test]
 fn cursor_skill_loose_md_in_skills_dir_is_ignored() {
-    let _env_lock = test_helpers::test_env::lock_home();
     // Cursor skills MUST live in a `<name>/SKILL.md` bundle. A loose
     // `.cursor/skills/foo.md` file is not a valid skill and must not
     // be surfaced (otherwise we'd accidentally import random notes).
@@ -870,7 +855,6 @@ fn cursor_skill_loose_md_in_skills_dir_is_ignored() {
 
 #[test]
 fn skips_workspace_local_cursor_skill_import_without_copying_to_orgii() {
-    let _env_lock = test_helpers::test_env::lock_home();
     let tmp = TempDir::new().unwrap();
     let orgii_home = tmp.path().join("home");
     fs::create_dir_all(&orgii_home).unwrap();
@@ -953,7 +937,6 @@ fn detects_workspace_mcp_config_servers() {
 
 #[test]
 fn apply_workspace_mcp_import_writes_workspace_config() {
-    let _env_lock = test_helpers::test_env::lock_home();
     let tmp = TempDir::new().unwrap();
     let repo = tmp.path().join("repo");
     fs::create_dir_all(&repo).unwrap();

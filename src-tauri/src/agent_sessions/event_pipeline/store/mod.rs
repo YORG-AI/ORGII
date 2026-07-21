@@ -16,7 +16,9 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::agent_sessions::event_pipeline::types::SessionEvent;
+use crate::agent_sessions::event_pipeline::types::{
+    SessionEvent, ShellReplayState, ShellReplayStatus,
+};
 
 mod event_ops;
 mod helpers;
@@ -24,6 +26,342 @@ mod hydration;
 mod repair;
 mod tool_ops;
 mod turn_ops;
+
+/// Snapshot/EventStore terminal previews are deliberately bounded. The full
+/// transcript lives in the append-only shell replay artifact.
+pub(super) const MAX_SHELL_REPLAY_PREVIEW_BYTES: usize = 32 * 1024;
+
+fn utf8_tail(value: &str, max_bytes: usize) -> &str {
+    if value.len() <= max_bytes {
+        return value;
+    }
+    let mut start = value.len() - max_bytes;
+    while start < value.len() && !value.is_char_boundary(start) {
+        start += 1;
+    }
+    &value[start..]
+}
+
+fn truncate_utf8_tail(value: &mut String, max_bytes: usize) {
+    if value.len() > max_bytes {
+        *value = utf8_tail(value, max_bytes).to_string();
+    }
+}
+
+pub(super) fn bound_shell_replay_state(mut state: ShellReplayState) -> ShellReplayState {
+    truncate_utf8_tail(&mut state.terminal_preview, MAX_SHELL_REPLAY_PREVIEW_BYTES);
+    state
+}
+
+/// Merge a mutable live replay state without allowing a stale callback to
+/// move the visible watermark or terminal status backwards.
+pub(super) fn monotonic_shell_replay_state(
+    existing: Option<&ShellReplayState>,
+    incoming: ShellReplayState,
+) -> ShellReplayState {
+    let incoming = bound_shell_replay_state(incoming);
+    let Some(existing) = existing else {
+        return incoming;
+    };
+    if existing.replay_ref != incoming.replay_ref {
+        return existing.clone();
+    }
+
+    // A durability failure can legitimately lower the visible watermark: for
+    // example, crash recovery may discard a torn frame that an in-memory
+    // running preview had already advertised. Incomplete is therefore
+    // stronger than monotonic progress and must win before the watermark
+    // comparison. Once incomplete, later running/complete callbacks remain
+    // unable to revive the replay.
+    if existing.status != ShellReplayStatus::Incomplete
+        && incoming.status == ShellReplayStatus::Incomplete
+    {
+        return incoming;
+    }
+    if existing.status == ShellReplayStatus::Incomplete
+        && incoming.status != ShellReplayStatus::Incomplete
+    {
+        return existing.clone();
+    }
+
+    let old_mark = existing.bookmark;
+    let new_mark = incoming.bookmark;
+    if new_mark.visible_through_sequence < old_mark.visible_through_sequence
+        || new_mark.visible_bytes < old_mark.visible_bytes
+    {
+        return existing.clone();
+    }
+
+    // Incomplete is the strongest terminal state: once durability is known to
+    // have failed it must never be replaced by running or complete. Complete
+    // may still be corrected to incomplete when the final persistence barrier
+    // fails after the in-memory state was tentatively updated.
+    if existing.status == ShellReplayStatus::Complete
+        && incoming.status == ShellReplayStatus::Running
+    {
+        return existing.clone();
+    }
+
+    incoming
+}
+
+/// Remove legacy whole-output copies from a new shell timeline event. This is
+/// defense in depth: the executor's event factory already emits metadata-only
+/// shell results, but EventStore must never become a second transcript store.
+fn is_shell_event(event: &SessionEvent) -> bool {
+    event.ui_canonical == core_types::tool_names::RUN_SHELL
+        || matches!(
+            event.function_name.as_str(),
+            "run_shell"
+                | "bash"
+                | "shell"
+                | "execute_command"
+                | "run_terminal_command"
+                | "terminal"
+                | "terminal_command"
+        )
+        || event.shell_replay.is_some()
+}
+
+pub(super) fn sanitize_live_shell_event(event: &mut SessionEvent) {
+    // A display alias such as `run_shell` is not proof that a durable replay
+    // exists. External CLI providers share the alias but enter through a
+    // different execution path. Only a concrete replay state authorizes
+    // removal of their inline payload.
+    if !is_shell_event(event) || event.shell_replay.is_none() {
+        return;
+    }
+
+    if let serde_json::Value::Object(args) = &mut event.args {
+        args.remove("streamOutput");
+    }
+    event.result = serde_json::json!({});
+    if let Some(core_types::extracted::ExtractedData::Shell(shell)) = event.extracted.as_mut() {
+        shell.output = None;
+        shell.stream_output = None;
+    }
+}
+
+/// Keep an external/unrecognized live shell bounded without ever turning it
+/// into an empty card. Terminal events receive an explicit incomplete preview
+/// state; running events keep only a bounded `streamOutput` until their final
+/// provider payload is imported into a durable replay.
+fn bound_unbacked_live_shell_event(event: &mut SessionEvent) {
+    if !is_shell_event(event) || event.shell_replay.is_some() {
+        return;
+    }
+    let preview = legacy_shell_text(event)
+        .map(|text| utf8_tail(text, MAX_SHELL_REPLAY_PREVIEW_BYTES).to_string())
+        .unwrap_or_default();
+    if preview.is_empty() {
+        return;
+    }
+
+    if event.display_status
+        == crate::agent_sessions::event_pipeline::types::EventDisplayStatus::Running
+    {
+        event.result = serde_json::json!({});
+        if let serde_json::Value::Object(args) = &mut event.args {
+            args.insert(
+                "streamOutput".to_string(),
+                serde_json::Value::String(preview.clone()),
+            );
+        }
+        if let Some(core_types::extracted::ExtractedData::Shell(shell)) = event.extracted.as_mut() {
+            shell.output = None;
+            shell.stream_output = Some(preview);
+        }
+        return;
+    }
+
+    let call_id = event.call_id.clone().unwrap_or_else(|| event.id.clone());
+    event.shell_replay = Some(ShellReplayState {
+        replay_ref: crate::agent_sessions::event_pipeline::types::ShellReplayRef {
+            session_id: event.session_id.clone(),
+            call_id,
+            format_version: 1,
+        },
+        bookmark: Default::default(),
+        terminal_preview: preview,
+        status: ShellReplayStatus::Incomplete,
+        error: Some("完整回放未建立，仅显示有界预览".to_string()),
+        completed_at: Some(event.created_at.clone()),
+    });
+}
+
+/// Borrow a legacy shell payload in place so hydration can copy only the
+/// bounded preview. Returning an owned `String` here would briefly duplicate
+/// an arbitrarily large historical transcript before it is truncated.
+fn legacy_shell_text(event: &SessionEvent) -> Option<&str> {
+    if let Some(core_types::extracted::ExtractedData::Shell(shell)) = event.extracted.as_ref() {
+        if let Some(text) = shell.stream_output.as_ref().or(shell.output.as_ref()) {
+            return Some(text.as_str());
+        }
+    }
+    for path in [
+        &["content"][..],
+        &["observation"][..],
+        &["output"][..],
+        &["stdout"][..],
+        &["stderr"][..],
+        &["interleavedOutput"][..],
+        &["output", "success", "interleavedOutput"][..],
+        &["output", "success", "stdout"][..],
+        &["output", "success", "stderr"][..],
+        &["failure", "stderr"][..],
+    ] {
+        let mut value = &event.result;
+        for key in path {
+            let Some(next) = value.get(*key) else {
+                value = &serde_json::Value::Null;
+                break;
+            };
+            value = next;
+        }
+        if let Some(text) = value.as_str() {
+            return Some(text);
+        }
+    }
+    if let Some(text) = event
+        .args
+        .get("streamOutput")
+        .and_then(|value| value.as_str())
+    {
+        return Some(text);
+    }
+    None
+}
+
+fn legacy_shell_exit_code(event: &SessionEvent) -> Option<i64> {
+    if let Some(core_types::extracted::ExtractedData::Shell(shell)) = event.extracted.as_ref() {
+        if shell.exit_code.is_some() {
+            return shell.exit_code;
+        }
+    }
+    for path in [
+        &["exitCode"][..],
+        &["exit_code"][..],
+        &["output", "success", "exitCode"][..],
+        &["failure", "exitCode"][..],
+    ] {
+        let mut value = &event.result;
+        for key in path {
+            let Some(next) = value.get(*key) else {
+                value = &serde_json::Value::Null;
+                break;
+            };
+            value = next;
+        }
+        if let Some(code) = value.as_i64() {
+            return Some(code);
+        }
+    }
+    None
+}
+
+/// Bound legacy cached shell payloads during hydration. Old sessions have no
+/// durable replay bookmark, so we retain only a tail preview and explicitly
+/// mark the synthetic ref incomplete; no readable byte watermark is forged.
+pub(super) fn hydrate_shell_event_bounded(event: &mut SessionEvent) {
+    if let Some(bookmarks) = event.shell_replay_bookmarks.as_mut() {
+        for state in bookmarks.values_mut() {
+            *state = bound_shell_replay_state(state.clone());
+        }
+    }
+    if !is_shell_event(event) {
+        return;
+    }
+
+    let legacy_preview = legacy_shell_text(event)
+        .map(|text| utf8_tail(text, MAX_SHELL_REPLAY_PREVIEW_BYTES).to_string())
+        .unwrap_or_default();
+    let exit_code = legacy_shell_exit_code(event);
+
+    if event.shell_replay.is_none() && !legacy_preview.is_empty() {
+        let call_id = event.call_id.clone().unwrap_or_else(|| event.id.clone());
+        event.shell_replay = Some(ShellReplayState {
+            replay_ref: crate::agent_sessions::event_pipeline::types::ShellReplayRef {
+                session_id: event.session_id.clone(),
+                call_id,
+                format_version: 1,
+            },
+            bookmark: Default::default(),
+            terminal_preview: legacy_preview,
+            status: ShellReplayStatus::Incomplete,
+            error: Some("历史预览，完整输出不可恢复".to_string()),
+            // Unknown legacy completion time must not be used as a historical
+            // cursor fallback: doing so could reveal future output.
+            completed_at: None,
+        });
+    } else if let Some(state) = event.shell_replay.take() {
+        event.shell_replay = Some(bound_shell_replay_state(state));
+    }
+
+    if let (Some(code), serde_json::Value::Object(args)) = (exit_code, &mut event.args) {
+        args.entry("shellExitCode".to_string())
+            .or_insert_with(|| code.into());
+    }
+    sanitize_live_shell_event(event);
+}
+
+/// Capture active replay watermarks exactly once for a newly inserted live
+/// timeline event. Upstream-provided entries win; the active registry only
+/// fills missing calls. `Some(empty)` is intentional and distinguishes a new
+/// event captured while no shell was active from a legacy row with no cursor.
+pub(super) fn capture_shell_replay_bookmarks(
+    event: &mut SessionEvent,
+    active: &HashMap<String, ShellReplayState>,
+) {
+    let bookmarks = event
+        .shell_replay_bookmarks
+        .get_or_insert_with(HashMap::new);
+    for (call_id, state) in active {
+        if state.replay_ref.session_id != event.session_id || state.replay_ref.call_id != *call_id {
+            continue;
+        }
+        bookmarks
+            .entry(call_id.clone())
+            .or_insert_with(|| bound_shell_replay_state(state.clone()));
+    }
+    for state in bookmarks.values_mut() {
+        *state = bound_shell_replay_state(state.clone());
+    }
+
+    if event.action_type == "tool_call" {
+        if let Some(call_id) = event.call_id.as_deref() {
+            if let Some(active_state) = active.get(call_id) {
+                event.shell_replay = Some(monotonic_shell_replay_state(
+                    event.shell_replay.as_ref(),
+                    active_state.clone(),
+                ));
+            }
+        }
+    }
+    if let Some(state) = event.shell_replay.take() {
+        event.shell_replay = Some(bound_shell_replay_state(state));
+    }
+    bound_unbacked_live_shell_event(event);
+    sanitize_live_shell_event(event);
+}
+
+/// Same-ID updates may refresh mutable shell state, but the playback cursor
+/// belongs to the timeline event's first insertion and is never replaced.
+pub(super) fn preserve_first_insert_replay(existing: &SessionEvent, incoming: &mut SessionEvent) {
+    incoming.shell_replay_bookmarks = existing.shell_replay_bookmarks.clone();
+    incoming.shell_replay = match incoming.shell_replay.take() {
+        Some(next) => Some(monotonic_shell_replay_state(
+            existing.shell_replay.as_ref(),
+            next,
+        )),
+        None => existing.shell_replay.clone(),
+    };
+}
+
+pub(super) fn active_shell_replays_for_session(
+    session_id: &str,
+) -> HashMap<String, ShellReplayState> {
+    agent_core::tools::impls::coding::exec::shell_replay::active_states_for_session(session_id)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HydrationMode {

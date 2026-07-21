@@ -8,7 +8,7 @@ use crate::tools::impls::coding::{
     action_router::ActionRouter,
     code_search::SearchTool,
     edit_file::EditTool,
-    exec::{await_tool::AwaitTool, ExecTool},
+    exec::{await_tool::AwaitTool, shell_replay::resolve_replay_root, ExecTool},
     files::{DeleteFileTool, ListDirTool, ReadFileTool, WriteEnvFileTool},
     inspect_terminals::InspectTerminalsTool,
     manage_file_history::ManageFileHistoryTool,
@@ -19,7 +19,6 @@ use crate::tools::impls::coding::{
     render_inline_canvas::RenderInlineCanvasTool,
     setup_repo::RepoSetupTool,
     skill::SkillTool,
-    terminal_log::resolve_logs_root,
     worktree::WorktreeTool,
 };
 use crate::tools::registry::ToolRegistry;
@@ -35,7 +34,7 @@ use super::{register_if_enabled, ToolDeps};
 pub fn register(registry: &mut ToolRegistry, deps: &ToolDeps, disabled: &HashSet<String>) {
     // Snapshot the current `working_dir()` once — used ONLY for
     // construction-time plumbing that needs a concrete path now
-    // (terminal_logs_root, LSP roots, constructor fallbacks). Path
+    // (replay roots, LSP roots, constructor fallbacks). Path
     // authorization is NOT derived from this snapshot: every file tool
     // takes `deps.workspace` as an `Arc` clone and reads the live
     // `working_dir()` / `effective_roots()` on each call.
@@ -55,15 +54,7 @@ pub fn register(registry: &mut ToolRegistry, deps: &ToolDeps, disabled: &HashSet
             .map(|bridge| ActionRouter::new(Arc::clone(bridge), deps.execution_mode))
     };
 
-    // Resolve terminal logs root directory for file-backed process logs.
-    // Priority: app_data_dir > workspace/.orgii/terminals/
-    let terminal_logs_root = deps.app_handle.as_ref().and_then(|handle| {
-        handle
-            .path()
-            .app_data_dir()
-            .ok()
-            .map(|app_data| resolve_logs_root(Some(&app_data), &working_dir))
-    });
+    let shell_replays_root = resolve_replay_root();
 
     // ── File tools ──
     let mut read = ReadFileTool::new(restricted_dir.clone());
@@ -99,14 +90,9 @@ pub fn register(registry: &mut ToolRegistry, deps: &ToolDeps, disabled: &HashSet
             handle.clone(),
         );
         exec = exec.with_workspace_state(Arc::clone(&deps.workspace));
-        if let Some(ref logs_root) = terminal_logs_root {
-            exec = exec.with_terminal_logs_root(logs_root.clone());
-        }
+        exec = exec.with_shell_replays_root(shell_replays_root.clone());
         if let Some(ref policy) = deps.security_policy {
             exec = exec.with_security_policy(Arc::clone(policy));
-        }
-        if let Some(router) = make_router() {
-            exec = exec.with_router(router);
         }
         register_if_enabled(registry, Box::new(exec), disabled);
     } else {
@@ -115,15 +101,11 @@ pub fn register(registry: &mut ToolRegistry, deps: &ToolDeps, disabled: &HashSet
             deps.exec_timeout,
             deps.restrict_to_workspace,
         );
+        exec = exec.with_app_handle(deps.app_handle.clone());
         exec = exec.with_workspace_state(Arc::clone(&deps.workspace));
-        if let Some(ref logs_root) = terminal_logs_root {
-            exec = exec.with_terminal_logs_root(logs_root.clone());
-        }
+        exec = exec.with_shell_replays_root(shell_replays_root.clone());
         if let Some(ref policy) = deps.security_policy {
             exec = exec.with_security_policy(Arc::clone(policy));
-        }
-        if let Some(router) = make_router() {
-            exec = exec.with_router(router);
         }
         register_if_enabled(registry, Box::new(exec), disabled);
     }

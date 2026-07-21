@@ -12,6 +12,7 @@
     "drafts": "Rascunhos",
     "browser": "Navegador",
     "editor": "Editor",
+    "environment": "Ambiente",
     "workspace": "Workspace",
     "codeEditor": "Editor de Código",
     "databaseManager": "Gerenciador de Banco",
@@ -597,7 +598,7 @@
         "joinedFallbackToast": "Você entrou na organização na nuvem"
       },
       "create": {
-        "sourceCloud": "ORG2 Cloud (gerenciado)",
+        "sourceCloud": "Nuvem",
         "signInFirst": "Entre no ORG2 Cloud para criar ou entrar em uma organização gerenciada.",
         "openSettings": "Abrir configurações de login",
         "createdToast": "Organização na nuvem criada"

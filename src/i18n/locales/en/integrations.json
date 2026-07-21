@@ -2413,6 +2413,8 @@
       },
       "masterToggle": "Provenance hooks",
       "masterToggleDesc": "When off, all managed hooks are uninstalled and no signals are captured; per-platform choices are kept and restored on re-enable",
+      "liveStatusToggle": "Live agent status",
+      "liveStatusToggleDesc": "Shows when running CLI agents are working or waiting. Off keeps provenance capture on.",
       "codexApproval": {
         "title": "Verify ORG2 hooks in Codex",
         "description": "Waiting for Codex to approve and execute the current ORG2 hooks.",

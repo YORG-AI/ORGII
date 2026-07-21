@@ -322,7 +322,7 @@ export const WorkspaceToolsReadiness: React.FC<
       title={t("controlTower.workspaceTools.title")}
       defaultOpen={false}
     >
-      <div className={DETAIL_PANEL_TOKENS.chatPanelInfoContainer}>
+      <div className={DETAIL_PANEL_TOKENS.primaryContainer}>
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 flex-1">

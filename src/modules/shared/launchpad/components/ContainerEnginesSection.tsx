@@ -135,7 +135,7 @@ const ContainerEnginesSection: React.FC<ContainerEnginesSectionProps> = ({
       }
     >
       {error ? (
-        <div className={DETAIL_PANEL_TOKENS.chatPanelInfoContainer}>
+        <div className={DETAIL_PANEL_TOKENS.primaryContainer}>
           <Placeholder
             variant="error"
             title={t("navigation:launchpad.containerEngines.errorTitle")}
@@ -147,11 +147,11 @@ const ContainerEnginesSection: React.FC<ContainerEnginesSectionProps> = ({
           />
         </div>
       ) : loading ? (
-        <div className={DETAIL_PANEL_TOKENS.chatPanelInfoContainer}>
+        <div className={DETAIL_PANEL_TOKENS.primaryContainer}>
           <Placeholder variant="loading" />
         </div>
       ) : engines.length === 0 ? (
-        <div className={DETAIL_PANEL_TOKENS.chatPanelInfoContainer}>
+        <div className={DETAIL_PANEL_TOKENS.primaryContainer}>
           <Placeholder
             variant="empty"
             title={t("navigation:launchpad.containerEngines.emptyTitle")}

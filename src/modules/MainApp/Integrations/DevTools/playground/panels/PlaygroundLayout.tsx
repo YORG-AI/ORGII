@@ -29,7 +29,7 @@ export function PlaygroundSidebarShell({
   children,
 }: PlaygroundSidebarShellProps) {
   return (
-    <aside className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg bg-surface-container p-2">
+    <aside className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-lg bg-primary-container p-2">
       {children}
     </aside>
   );

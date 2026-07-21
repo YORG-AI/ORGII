@@ -129,7 +129,7 @@ interface RetargetChatPanelSessionTabOptions extends SessionContinuation {
   tabId: string;
 }
 
-/** Keep an imported-session continuation in the same Chat Panel pill. */
+/** Retarget the current Chat Panel session pill without opening another tab. */
 export const retargetChatPanelSessionTabAtom = atom(
   null,
   (get, set, options: RetargetChatPanelSessionTabOptions): boolean => {
@@ -171,7 +171,7 @@ interface RetargetWorkstationSessionTabOptions extends SessionContinuation {
   tabId: string;
 }
 
-/** Keep an imported-session continuation in the same Workstation pill. */
+/** Retarget the current Workstation session pill without opening another tab. */
 export const retargetWorkstationSessionTabAtom = atom(
   null,
   (get, set, options: RetargetWorkstationSessionTabOptions): boolean => {

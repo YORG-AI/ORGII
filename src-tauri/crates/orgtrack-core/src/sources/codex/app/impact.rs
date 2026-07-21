@@ -134,4 +134,3 @@ fn normalize_patch_path(path: &str) -> Option<String> {
         Some(normalized.to_string())
     }
 }
-

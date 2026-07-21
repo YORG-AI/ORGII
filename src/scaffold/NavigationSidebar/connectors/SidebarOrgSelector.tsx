@@ -107,13 +107,7 @@ const SidebarOrgSelector: React.FC<SidebarOrgSelectorProps> = React.memo(
               dropdownWidth={250}
               dropdownAlign="left"
               className="h-7 w-full"
-              style={
-                {
-                  "--select-ghost-hover-bg": "var(--sidebar-selected-row-bg)",
-                  "--select-ghost-open-bg": "var(--sidebar-selected-row-bg)",
-                } as React.CSSProperties
-              }
-              selectorClassName="h-7 !px-2 text-[12px] font-normal [&_.select-suffix]:ml-1 [&_.select-value]:text-[12px]"
+              selectorClassName="h-7 !px-2 text-[12px] [&_.select-suffix]:ml-1 [&_.select-value]:text-[12px]"
               dataTestId="sidebar-org-selector"
             />
           </div>

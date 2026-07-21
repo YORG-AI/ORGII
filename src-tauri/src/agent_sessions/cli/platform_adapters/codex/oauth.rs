@@ -157,6 +157,8 @@ pub async fn create_codex_oauth_webview(
             let app_for_popup_close = app_for_new_window.clone();
             let label_for_popup_navigation = label_for_new_window.clone();
             let popup_label_for_navigation = popup_label.clone();
+            let ownership_observation =
+                perf_utils::begin_webview_ownership_observation(popup_label.clone());
             let builder = WebviewWindowBuilder::new(
                 &app_for_new_window,
                 popup_label,
@@ -191,6 +193,7 @@ pub async fn create_codex_oauth_webview(
 
             match builder.build() {
                 Ok(window) => {
+                    ownership_observation.commit();
                     tracing::info!(url = %url_value, "[codex-oauth] created OAuth popup");
                     return tauri::webview::NewWindowResponse::Create { window };
                 }
@@ -222,6 +225,7 @@ pub async fn create_codex_oauth_webview(
         true
     });
 
+    let ownership_observation = perf_utils::begin_webview_ownership_observation(label.clone());
     window
         .add_child(
             builder,
@@ -229,6 +233,7 @@ pub async fn create_codex_oauth_webview(
             tauri::LogicalSize::new(width, height),
         )
         .map_err(|err| format!("Failed to create webview: {err}"))?;
+    ownership_observation.commit();
 
     Ok(())
 }

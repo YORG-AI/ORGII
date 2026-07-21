@@ -803,6 +803,23 @@
     "currentVersion": "Aktuelle Version"
   },
   "monitor": {
+    "appMemory": "App memory",
+    "appBackend": "ORG2 backend",
+    "appWebviewHelpers": "Owned WebView helpers",
+    "rssMappedDiagnostic": "RSS / mapped memory (diagnostic)",
+    "measurement": "Measurement",
+    "measurementKinds": {
+      "native": "Native effective memory",
+      "compatibility": "Compatibility metric",
+      "mixed": "Mixed native / fallback metrics",
+      "rss_fallback": "RSS fallback",
+      "unavailable": "Unavailable"
+    },
+    "toolProcessDiagnostics": "Terminal, CLI & tool processes (RSS diagnostic)",
+    "excludedFromAppMemory": "excluded from App memory",
+    "noToolProcesses": "No terminal, CLI, MCP, or tool processes detected",
+    "categoryAgentCli": "CLI agent",
+    "categoryMcpOrTool": "MCP / tool process",
     "categoryTerminal": "Terminal-/Tool-Prozess",
     "categoryWebview": "WebView-Renderer",
     "categoryGpu": "WebKit-GPU",

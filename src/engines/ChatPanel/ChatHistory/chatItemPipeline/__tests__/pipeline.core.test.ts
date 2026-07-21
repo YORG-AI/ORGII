@@ -329,4 +329,60 @@ describe("processChatItems", () => {
       expect(items.map((item) => item.event?.id)).toEqual([resultEvent.id]);
     });
   });
+
+  describe("chunk_id uniqueness", () => {
+    it("disambiguates two tool_call events that share a callId", () => {
+      // Imported transcripts can re-emit the same call_id (see the
+      // `pending_tool_calls` re-insert in the Rust claude_code history
+      // reader). buildDedupMaps only collapses a tool_call/tool_result *pair*,
+      // so both events survive and getStableActivityItemId maps them onto the
+      // same `tool:<sessionId>:<callId>` id — a duplicate React key.
+      const first = makeSessionEvent({
+        id: "tool-call-dup-a",
+        action_type: "tool_call",
+        function: "read_file",
+        args: { path: "/repo/a.ts" },
+        result: { content: "a" },
+        callId: "toolu_duplicated",
+      });
+      const second = makeSessionEvent({
+        id: "tool-call-dup-b",
+        action_type: "tool_call",
+        function: "read_file",
+        args: { path: "/repo/b.ts" },
+        result: { content: "b" },
+        callId: "toolu_duplicated",
+      });
+
+      const { items } = processChatItems([first, second], {
+        preFilterEmptyActivities: false,
+        groupActionSummaries: false,
+        groupReadFileActivities: false,
+      });
+
+      // Neither event is dropped, and the keys are unique.
+      expect(items.map((item) => item.event?.id)).toEqual([
+        first.id,
+        second.id,
+      ]);
+      const chunkIds = items.map((item) => item.chunk_id);
+      expect(new Set(chunkIds).size).toBe(chunkIds.length);
+    });
+
+    it("leaves chunk_ids untouched when they are already unique", () => {
+      const events = [
+        makeShellItem("echo one"),
+        makeShellItem("echo two"),
+        makeShellItem("echo three"),
+      ];
+
+      const { items } = processChatItems(events, {
+        preFilterEmptyActivities: false,
+        groupActionSummaries: false,
+        groupReadFileActivities: false,
+      });
+
+      expect(items.every((item) => !item.chunk_id.includes("#"))).toBe(true);
+    });
+  });
 });

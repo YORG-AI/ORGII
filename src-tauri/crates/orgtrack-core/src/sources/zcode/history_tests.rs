@@ -170,7 +170,9 @@ fn maps_zcode_session_metadata_to_cache_input() {
     )
     .expect("list session metadata");
     assert_eq!(metas.len(), 1);
-    let row = to_row(&session_meta_to_cache_input(metas.into_iter().next().unwrap()));
+    let row = to_row(&session_meta_to_cache_input(
+        metas.into_iter().next().unwrap(),
+    ));
 
     assert_eq!(row.session_id, "zcodeapp-sess_1");
     assert_eq!(row.name, "Check npm status");
@@ -202,7 +204,10 @@ fn parses_zcode_parts_into_replay_chunks() {
         chunks[1].result.get("output").and_then(Value::as_str),
         Some("11.15.0\n")
     );
-    assert_eq!(chunks[2].action_type, imported_history::ACTION_TYPE_THINKING);
+    assert_eq!(
+        chunks[2].action_type,
+        imported_history::ACTION_TYPE_THINKING
+    );
     assert_eq!(chunks[3].function, imported_history::FUNCTION_ASSISTANT);
 }
 
@@ -216,16 +221,12 @@ fn subagent_child_is_hidden_and_linked_to_parent() {
     )
     .expect("insert subagent session");
 
-    let inputs: Vec<ImportedHistoryCacheInput> = list_all_zcode_session_meta_from_conn(
-        &conn,
-        std::path::Path::new("/tmp/db.sqlite"),
-        0,
-        0,
-    )
-    .expect("list sessions")
-    .into_iter()
-    .map(session_meta_to_cache_input)
-    .collect();
+    let inputs: Vec<ImportedHistoryCacheInput> =
+        list_all_zcode_session_meta_from_conn(&conn, std::path::Path::new("/tmp/db.sqlite"), 0, 0)
+            .expect("list sessions")
+            .into_iter()
+            .map(session_meta_to_cache_input)
+            .collect();
 
     let parent = inputs
         .iter()

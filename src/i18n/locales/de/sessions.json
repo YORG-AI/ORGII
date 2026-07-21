@@ -137,7 +137,9 @@
       "views": {
         "scanning": "Scannen",
         "hooks": "Hooks",
-        "usage": "Nutzung"
+        "usage": "Nutzung",
+        "quota": "Kontingent",
+        "assets": "Ressourcen"
       },
       "usage": {
         "title": "Nutzung & Kosten",
@@ -156,7 +158,7 @@
           "claude": "Claude",
           "codex": "Codex",
           "cursor": "Cursor",
-          "org2": "ORGII-Agenten",
+          "org2": "ORG2",
           "other": "Sonstige"
         },
         "cards": {
@@ -885,6 +887,9 @@
         "title": "Agents"
       },
       "tabs": {
+        "session": "Sitzung",
+        "workItem": "Arbeitselement",
+        "more": "Mehr",
         "work": "Arbeit",
         "manage": "Verwalten",
         "heatmap": "Trends",
@@ -936,7 +941,6 @@
     "defaultTitle": "Chat",
     "hideChatPanel": "Chat-Panel ausblenden",
     "showTokenUsage": "Token anzeigen",
-    "showStatusBar": "Statusleiste anzeigen",
     "compactDisplayMode": "Kompakter Modus",
     "replay": {
       "follow": "Folgen"
@@ -982,6 +986,28 @@
     "copyEventJson": "Event-JSON kopieren",
     "copyEventJsonCopied": "Kopiert!",
     "copyEventJsonFailed": "Kopieren fehlgeschlagen",
+    "moveToWorkstation": "In meine Workstation verschieben",
+    "moveToChatPanel": "In das Chat-Panel verschieben",
+    "rawTranscript": {
+      "title": "Rohtranskript der Sitzung",
+      "menuItem": "Rohtranskript anzeigen",
+      "guiTab": "GUI",
+      "rawTab": "Rohdaten",
+      "entryCount_one": "{{count}} Eintrag",
+      "entryCount_other": "{{count}} Einträge",
+      "copySuccess": "Rohtranskript kopiert",
+      "copyFailed": "Rohtranskript konnte nicht kopiert werden"
+    },
+    "linkWorkItem": {
+      "menuItem": "Mit Work Item verknüpfen…",
+      "title": "Sitzung mit Work Item verknüpfen",
+      "description": "Wähle das Work Item aus, in dem diese Sitzung angezeigt werden soll.",
+      "searchPlaceholder": "Nach Work-Item-ID, Titel, Status oder Projekt suchen",
+      "loading": "Work Items werden geladen…",
+      "empty": "Keine Work Items gefunden.",
+      "linking": "Wird verknüpft…",
+      "link": "Verknüpfen"
+    },
     "historyTitle": "Verlauf",
     "historyEmpty": "Noch keine Sitzungen",
     "historyGroupTime": "Zeit",
@@ -1111,6 +1137,8 @@
     "turnMetadata": {
       "noChanges": "Keine Dateiänderungen in dieser Runde",
       "earlierRound": "Frühere Runde",
+      "editsTab": "Änderungen",
+      "readsTab": "Lesezugriffe",
       "files_one": "{{count}} Datei",
       "files_other": "{{count}} Dateien",
       "reads_one": "{{count}} Lesezugriff",

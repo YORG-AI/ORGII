@@ -1,23 +1,19 @@
 /**
  * Self-fetch fallback for missing diff content.
  *
- * When the user opens a single-file `git-diff` tab via Source Control and
- * then switches the sidebar away (Search, Extensions, etc.),
- * `useSourceControlState` unmounts. Its `useDiffCache` effect — the only
- * wiring that turns `oldContent: undefined` into real content for working-
- * tree diffs — stops running. The diff tab in the editor pane is then stuck
- * with `gitFile.oldContent === undefined` forever.
+ * Working-tree file selection intentionally carries metadata only. The
+ * rendered diff turns `oldContent: undefined` into real content and remains
+ * self-sufficient if the Source Control sidebar unmounts.
  *
- * This hook makes `GitDiffContent` self-sufficient: if it sees a non-timeline
- * diff whose content is missing, it issues its own batch-diff fetch and caches
- * the result locally, keyed by file path.
+ * This hook makes `GitDiffContent` self-sufficient. It is the sole owner of
+ * loading a focused working-tree diff body; the shared resource de-duplicates
+ * any overlapping consumer at the request boundary.
  */
 import { useEffect, useMemo, useState } from "react";
 
-import { getGitBatchFileDiffs } from "@src/api/http/git";
 import { createLogger } from "@src/hooks/logger";
+import { loadWorkingTreeDiff } from "@src/services/git/workingTreeDiffResource";
 import type { GitFile } from "@src/types/git/types";
-import { diffBaseRefForFile } from "@src/util/git/diffBaseRef";
 
 const log = createLogger("GitDiffContent");
 
@@ -27,7 +23,6 @@ interface FetchedDiff {
   newContent: string;
   additions: number;
   deletions: number;
-  isBinarySentinel: boolean;
 }
 
 interface UseGitDiffLoaderOptions {
@@ -64,31 +59,12 @@ export function useGitDiffLoader({
 
     let cancelled = false;
     setSelfFetching(true);
-    const selfFetchRepoPath = gitFile.repoRoot ?? repoPath;
-    const selfFetchRelPath = gitFile.path.startsWith(selfFetchRepoPath + "/")
-      ? gitFile.path.slice(selfFetchRepoPath.length + 1)
-      : gitFile.path;
-
-    getGitBatchFileDiffs({
-      repo_id: selfFetchRepoPath,
-      repo_path: selfFetchRepoPath,
-      files: [
-        {
-          path: selfFetchRelPath,
-          original_path: gitFile.original_path ?? undefined,
-        },
-      ],
-      // Untracked files (status="added" + !staged) have no HEAD baseline;
-      // `diffBaseRefForFile` returns "EMPTY" so the backend flips
-      // include_untracked(true) — without this, content stays blank for
-      // newly created files even though numstat reports +N additions.
-      from_ref: diffBaseRefForFile(gitFile),
-      include_content: true,
-      context_lines: 3,
+    loadWorkingTreeDiff({
+      repoPath,
+      file: gitFile,
     })
-      .then((response) => {
+      .then((diff) => {
         if (cancelled) return;
-        const diff = response?.files?.[0];
         if (!diff) {
           setFetchedDiff({
             path: gitFile.path,
@@ -96,28 +72,15 @@ export function useGitDiffLoader({
             newContent: "",
             additions: 0,
             deletions: 0,
-            isBinarySentinel: false,
-          });
-          return;
-        }
-        if (diff.binary) {
-          setFetchedDiff({
-            path: gitFile.path,
-            oldContent: "Binary file - content not displayed",
-            newContent: "Binary file - content not displayed",
-            additions: 0,
-            deletions: 0,
-            isBinarySentinel: true,
           });
           return;
         }
         setFetchedDiff({
           path: gitFile.path,
-          oldContent: diff.old_content ?? "",
-          newContent: diff.new_content ?? "",
-          additions: diff.insertions ?? 0,
-          deletions: diff.deletions ?? 0,
-          isBinarySentinel: false,
+          oldContent: diff.oldContent,
+          newContent: diff.newContent,
+          additions: diff.additions,
+          deletions: diff.deletions,
         });
       })
       .catch((error) => {
@@ -129,7 +92,6 @@ export function useGitDiffLoader({
           newContent: "",
           additions: 0,
           deletions: 0,
-          isBinarySentinel: false,
         });
       })
       .finally(() => {

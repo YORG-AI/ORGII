@@ -217,8 +217,8 @@ pub async fn session_step_explain(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::client::{ChatCompletionChoice, ChatCompletionResponseMessage};
+    use super::*;
 
     #[test]
     fn strips_think_blocks_from_step_explanation() {

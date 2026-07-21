@@ -40,7 +40,6 @@ function createCtx(): EventHandlerContext {
     filterSessionIdRef: ref("session-1"),
     assistantStreamRef: ref({ idRef: ref(""), contentRef: ref("") }),
     thinkingStreamRef: ref({ idRef: ref(""), contentRef: ref("") }),
-    execOutputBufferRef: ref(""),
     streamingInfoRef: ref({
       isStreaming: false,
       isThinking: false,

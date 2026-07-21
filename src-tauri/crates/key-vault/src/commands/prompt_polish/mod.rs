@@ -13,7 +13,6 @@ mod text;
 /// Shared HTTP timeout for the polish/step-explain/context-summary requests.
 const POLISH_REQUEST_TIMEOUT_SECONDS: u64 = 60;
 
-
 const PROMPT_POLISH_SYSTEM_PROMPT: &str = r#"你是一个发给代码智能体前的 prompt 润色器。
 你的唯一任务：把【用户原始输入】改写成一条更清晰、更具体、更适合继续发送给另一个强代码模型的“用户请求”。
 目标风格：把模糊、口语化、过短的需求扩写成可执行的任务说明，尽量包含执行步骤、检查维度、验收标准和期望交付物。
@@ -116,7 +115,6 @@ const _LEGACY_PROMPT_REFERENCES: &[&str] = &[
     HOUSEKEEPER_UI_INTENT_SYSTEM_PROMPT,
     SESSION_STEP_EXPLAIN_SYSTEM_PROMPT,
 ];
-
 
 pub use explain::{session_step_explain, SessionStepExplainRequest, SessionStepExplainResponse};
 pub use housekeeper::{

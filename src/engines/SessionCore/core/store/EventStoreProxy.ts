@@ -14,11 +14,13 @@
  *    and lifecycle transitions force-flush, so only pure-render consumers
  *    can observe the ≤1-frame staleness window.
  *
+ * (2)–(4) — the snapshot caches, listener registry, coalescing queue and
+ * release timers — live in `SnapshotCacheManager`; this file owns the RPC
+ * surface and delegates every cache/notify concern to it.
+ *
  * Components continue using Jotai atoms (eventsAtom, chatEventsAtom, etc.)
  * which are fed from the derived snapshot pushed by Rust.
  */
-import { type UnlistenFn, listen } from "@tauri-apps/api/event";
-
 import { rpc } from "@src/api/tauri/rpc";
 import { createLogger } from "@src/hooks/logger";
 
@@ -27,24 +29,11 @@ import type {
   DerivedSnapshot,
   EventStoreMemoryStats,
   GlobalListener,
-  NormalizedSnapshotCache,
   SessionListener,
   Snapshot,
-  SnapshotEnvelope,
-  SnapshotPayload,
 } from "./EventStoreProxyTypes";
 import { inferSessionId, isRealUserEvent } from "./eventStoreEvents";
-import { estimateObjectBytes } from "./memoryEstimation";
-import {
-  applyDeltaEnvelope,
-  flushPendingDelta,
-  rememberSnapshot,
-} from "./snapshotCache";
-import {
-  type PendingDeltaState,
-  isSnapshotDelta,
-  isStreamingSnapshot,
-} from "./snapshotMaterialization";
+import { SnapshotCacheManager } from "./snapshotCacheManager";
 
 export type {
   DerivedSnapshot,
@@ -57,272 +46,42 @@ export type {
 } from "./EventStoreProxyTypes";
 export { isStreamingSnapshot } from "./snapshotMaterialization";
 
-const SNAPSHOT_CACHE_MAX = 5;
-
-// Total cached events across all retained snapshots. The count cap alone let
-// "20 sessions" quietly mean hundreds of MB once transcripts got long; this
-// bounds the cache by its dominant cost driver instead. Switch-back to an
-// evicted session refetches its snapshot from Rust (one IPC round trip).
-const SNAPSHOT_CACHE_EVENT_BUDGET = 15_000;
-/**
- * Grace window before a switched-away session's snapshot is released.
- * Rapid ping-ponging between sessions keeps the instant JS-cache prime and
- * the delta path; anything not revisited within the window is freed.
- */
-const SNAPSHOT_RELEASE_GRACE_MS = 3 * 60 * 1000;
 const log = createLogger("EventStoreProxy");
 
-/**
- * Schedule a callback for the next animation frame; falls back to a 16ms
- * timeout in non-DOM environments (tests). Returns a canceller.
- */
-function scheduleFrameCallback(callback: () => void): () => void {
-  if (typeof requestAnimationFrame === "function") {
-    const handle = requestAnimationFrame(() => callback());
-    return () => cancelAnimationFrame(handle);
-  }
-  const timer = setTimeout(callback, 16);
-  return () => clearTimeout(timer);
-}
-
-interface PendingSessionFlush {
-  /**
-   * Un-materialized delta state already applied to the normalized cache;
-   * null when only the notify for an already-remembered snapshot is pending.
-   */
-  delta: PendingDeltaState | null;
-  cancelSchedule: () => void;
-}
-
 class EventStoreProxyImpl {
-  private _globalListeners = new Set<GlobalListener>();
-  private _sessionListeners = new Map<string, Set<SessionListener>>();
-  private _latestSnapshots = new Map<string, Snapshot>();
-  private _normalizedSnapshots = new Map<string, NormalizedSnapshotCache>();
-  private _unlistenTauri: UnlistenFn | null = null;
-  private _initialized = false;
-  private _initGeneration = 0;
   /**
-   * Per-session promise chains serializing envelope processing.
-   * `_handleSnapshotEnvelope` awaits `getSnapshot` for delta-base misses;
-   * without serialization, two envelopes for the same session can interleave
-   * and apply out of order (older snapshot remembered after a newer one).
+   * JS-side snapshot cache, listener registry and coalescing queue. The
+   * delta base-miss fallback routes back through `getSnapshot` so the fetch
+   * takes the same RPC + remember path as a caller-initiated read.
    */
-  private _envelopeChains = new Map<string, Promise<void>>();
-  /** Pending deferred snapshot releases, keyed by sessionId. */
-  private _snapshotReleaseTimers = new Map<
-    string,
-    ReturnType<typeof setTimeout>
-  >();
-  /**
-   * Per-session coalescing state: cache updates are applied per envelope
-   * (ordered, lossless), while materialize + notify runs at most once per
-   * animation frame per session. Pure-render consumers may therefore see
-   * state up to one frame stale; every synchronous read path
-   * (getLatestSessionSnapshot, latestSnapshot, getMemoryStats) and lifecycle
-   * transition (switch / release / evict, streaming end) force-flushes
-   * first, so no correctness-sensitive path observes the window.
-   */
-  private _pendingFlushes = new Map<string, PendingSessionFlush>();
+  private readonly _cache = new SnapshotCacheManager((sessionId) =>
+    this.getSnapshot(sessionId)
+  );
+
+  // =========================================================================
+  // Lifecycle
+  // =========================================================================
 
   /**
    * Initialize the Tauri event listener. Call once at app startup.
    * Idempotent — safe to call multiple times.
    */
   async init(): Promise<void> {
-    // Only short-circuit if a listener is actually registered; otherwise allow
-    // re-init after a prior destroy().
-    if (this._initialized && this._unlistenTauri !== null) return;
-    this._initialized = true;
-
-    // Generation token: if destroy() bumps the counter while we await
-    // listen(...), the resumed init() must drop the orphaned unlisten handle
-    // instead of stashing it on top of a fresh one.
-    const myGen = ++this._initGeneration;
-
-    const unlisten = await listen<SnapshotEnvelope>("es:changed", (event) => {
-      void this._handleSnapshotEnvelope(event.payload);
-    });
-
-    if (myGen !== this._initGeneration) {
-      unlisten();
-      return;
-    }
-    this._unlistenTauri = unlisten;
-  }
-
-  private async _handleSnapshotEnvelope(
-    envelope: SnapshotEnvelope
-  ): Promise<void> {
-    const { sessionId } = envelope;
-    // Serialize per session: chain this envelope after the previous one so
-    // async delta resolution can't interleave snapshots out of order.
-    const previous = this._envelopeChains.get(sessionId) ?? Promise.resolve();
-    const current = previous
-      .catch(() => {
-        // Previous envelope failures must not poison the chain.
-      })
-      .then(() => this._processSnapshotEnvelope(envelope));
-    this._envelopeChains.set(sessionId, current);
-    try {
-      await current;
-    } finally {
-      // Drop the chain entry once the tail settles to avoid leaking sessions.
-      if (this._envelopeChains.get(sessionId) === current) {
-        this._envelopeChains.delete(sessionId);
-      }
-    }
-  }
-
-  private async _processSnapshotEnvelope(
-    envelope: SnapshotEnvelope
-  ): Promise<void> {
-    const { sessionId, ...payload } = envelope;
-    const snapshotPayload = payload as SnapshotPayload;
-
-    if (isSnapshotDelta(snapshotPayload)) {
-      const pendingDelta = applyDeltaEnvelope(
-        sessionId,
-        snapshotPayload,
-        this._latestSnapshots,
-        this._normalizedSnapshots,
-        this._pendingFlushes.get(sessionId)?.delta ?? null
-      );
-      if (pendingDelta) {
-        this._schedulePendingFlush(sessionId, pendingDelta);
-        return;
-      }
-      // Delta base miss (no cache or version gap): fetch + remember the full
-      // snapshot, then notify on the coalesced schedule like any envelope.
-      await this.getSnapshot(sessionId);
-      this._schedulePendingFlush(sessionId, null);
-      return;
-    }
-
-    this._rememberSnapshot(sessionId, snapshotPayload);
-    this._schedulePendingFlush(sessionId, null);
-  }
-
-  private _rememberSnapshot(sessionId: string, snapshot: Snapshot): Snapshot {
-    const pending = this._pendingFlushes.get(sessionId);
-    if (pending?.delta) {
-      if (snapshot.version < pending.delta.version) {
-        // Un-materialized deltas are already newer than this slow-resolving
-        // full snapshot; surface them instead of clobbering the cache.
-        return this._flushPendingSnapshot(sessionId) ?? snapshot;
-      }
-      // The full snapshot supersedes everything accumulated so far.
-      pending.delta = null;
-    }
-    return rememberSnapshot(
-      sessionId,
-      snapshot,
-      this._latestSnapshots,
-      this._normalizedSnapshots,
-      SNAPSHOT_CACHE_MAX,
-      SNAPSHOT_CACHE_EVENT_BUDGET,
-      (evicted) => this._dropPendingFlush(evicted)
-    );
+    await this._cache.init();
   }
 
   /**
-   * Schedule the per-frame materialize + notify for a session. Passing a
-   * delta records it as the (single, mutated-in-place) accumulator; passing
-   * null keeps an existing accumulator and merely ensures a notify fires.
-   */
-  private _schedulePendingFlush(
-    sessionId: string,
-    delta: PendingDeltaState | null
-  ): void {
-    const existing = this._pendingFlushes.get(sessionId);
-    if (existing) {
-      if (delta) existing.delta = delta;
-      return;
-    }
-    this._pendingFlushes.set(sessionId, {
-      delta,
-      cancelSchedule: scheduleFrameCallback(() => {
-        this._flushPendingSnapshot(sessionId);
-      }),
-    });
-  }
-
-  /**
-   * Force-materialize and notify a session's pending state now. Returns the
-   * notified snapshot, or null when nothing was pending or the session's
-   * cache is gone (released / evicted before the flush).
-   */
-  private _flushPendingSnapshot(sessionId: string): Snapshot | null {
-    const pending = this._pendingFlushes.get(sessionId);
-    if (!pending) return null;
-    pending.cancelSchedule();
-    this._pendingFlushes.delete(sessionId);
-    const snapshot = pending.delta
-      ? flushPendingDelta(
-          sessionId,
-          pending.delta,
-          this._latestSnapshots,
-          this._normalizedSnapshots,
-          SNAPSHOT_CACHE_MAX,
-          SNAPSHOT_CACHE_EVENT_BUDGET,
-          (evicted) => this._dropPendingFlush(evicted)
-        )
-      : (this._latestSnapshots.get(sessionId) ?? null);
-    if (snapshot) {
-      this._notifyListeners(snapshot, sessionId);
-    }
-    return snapshot;
-  }
-
-  private _flushAllPendingSnapshots(): void {
-    for (const sessionId of [...this._pendingFlushes.keys()]) {
-      this._flushPendingSnapshot(sessionId);
-    }
-  }
-
-  /** Drop pending state without materializing (session evicted from LRU). */
-  private _dropPendingFlush(sessionId: string): void {
-    const pending = this._pendingFlushes.get(sessionId);
-    if (!pending) return;
-    pending.cancelSchedule();
-    this._pendingFlushes.delete(sessionId);
-  }
-
-  /**
-   * Detach only the Tauri `es:changed` listener.
-   *
-   * Used by the bridge hook's unmount cleanup (StrictMode double-mount, fast
-   * navigation, HMR): the IPC listener must be torn down so it isn't
-   * orphaned, but per-session subscribers (`_sessionListeners`) and the
-   * snapshot caches (`_latestSnapshots` / `_normalizedSnapshots`) must
-   * survive so other live consumers (e.g. subagent grids) keep their data
-   * and the next `init()` can resume without a cold cache.
+   * Detach only the Tauri `es:changed` listener, keeping subscribers and the
+   * snapshot caches alive. Used by the bridge hook's unmount cleanup.
    */
   detachTauri(): void {
-    this._initGeneration++;
-    if (this._unlistenTauri) {
-      this._unlistenTauri();
-      this._unlistenTauri = null;
-    }
-    this._initialized = false;
+    this._cache.detachTauri();
   }
 
   /** Full clean-up: Tauri listener, all listeners, and all snapshot caches.
    * Use on app exit or in tests; bridge unmounts should call detachTauri(). */
   destroy(): void {
-    this.detachTauri();
-    this._globalListeners.clear();
-    this._sessionListeners.clear();
-    this._latestSnapshots.clear();
-    this._normalizedSnapshots.clear();
-    for (const pending of this._pendingFlushes.values()) {
-      pending.cancelSchedule();
-    }
-    this._pendingFlushes.clear();
-    for (const timer of this._snapshotReleaseTimers.values()) {
-      clearTimeout(timer);
-    }
-    this._snapshotReleaseTimers.clear();
+    this._cache.destroy();
   }
 
   // =========================================================================
@@ -335,10 +94,7 @@ class EventStoreProxyImpl {
    * Returns an unsubscribe function.
    */
   subscribe(listener: GlobalListener): () => void {
-    this._globalListeners.add(listener);
-    return () => {
-      this._globalListeners.delete(listener);
-    };
+    return this._cache.subscribe(listener);
   }
 
   /**
@@ -347,25 +103,12 @@ class EventStoreProxyImpl {
    * Returns an unsubscribe function.
    */
   subscribeSession(sessionId: string, listener: SessionListener): () => void {
-    let listeners = this._sessionListeners.get(sessionId);
-    if (!listeners) {
-      listeners = new Set();
-      this._sessionListeners.set(sessionId, listeners);
-    }
-    listeners.add(listener);
-    return () => {
-      listeners!.delete(listener);
-      if (listeners!.size === 0) {
-        this._sessionListeners.delete(sessionId);
-      }
-    };
+    return this._cache.subscribeSession(sessionId, listener);
   }
 
   /** Get the latest snapshot for a specific session (may be null). */
   getLatestSessionSnapshot(sessionId: string): Snapshot | null {
-    // Synchronous readers must never observe the one-frame coalescing window.
-    this._flushPendingSnapshot(sessionId);
-    return this._latestSnapshots.get(sessionId) ?? null;
+    return this._cache.getLatestSessionSnapshot(sessionId);
   }
 
   /**
@@ -375,101 +118,46 @@ class EventStoreProxyImpl {
    * cache stays in sync and doesn't hold large event arrays for idle sessions.
    */
   evictSessionCache(sessionId: string): void {
-    // Surface the final coalesced state to listeners before they are dropped.
-    this._flushPendingSnapshot(sessionId);
-    this._latestSnapshots.delete(sessionId);
-    this._normalizedSnapshots.delete(sessionId);
-    this._sessionListeners.delete(sessionId);
+    this._cache.evictSessionCache(sessionId);
   }
 
   /**
    * Drop only the cached snapshot data (materialized + normalized) for a
-   * session, keeping `_sessionListeners` intact so still-mounted consumers
-   * keep receiving future pushes — the next envelope re-primes the cache
-   * (via a full snapshot fetch if it arrives as a delta).
-   *
-   * Use on session switch-away and when Rust idle-evicts a session: the full
-   * event arrays are the dominant per-session JS-heap cost, and without this
-   * every visited session stays resident until SNAPSHOT_CACHE_MAX pushes it
-   * out.
+   * session, keeping per-session listeners intact so still-mounted consumers
+   * keep receiving future pushes.
    */
   releaseSessionSnapshot(sessionId: string): void {
-    this.cancelScheduledSnapshotRelease(sessionId);
-    // Deliver the final coalesced state before dropping it — a delta applied
-    // this frame must reach subscribers even though its cache is released.
-    this._flushPendingSnapshot(sessionId);
-    this._latestSnapshots.delete(sessionId);
-    this._normalizedSnapshots.delete(sessionId);
+    this._cache.releaseSessionSnapshot(sessionId);
   }
 
   /**
    * `releaseSessionSnapshot`, but skipped while the session's latest snapshot
-   * is still streaming — an active background session keeps pushing
-   * envelopes, so evicting it would only force a full-snapshot refetch on its
-   * next delta.
+   * is still streaming.
    */
   releaseSessionSnapshotIfIdle(sessionId: string): void {
-    this._flushPendingSnapshot(sessionId);
-    const cached = this._latestSnapshots.get(sessionId);
-    if (cached && isStreamingSnapshot(cached)) return;
-    this.releaseSessionSnapshot(sessionId);
+    this._cache.releaseSessionSnapshotIfIdle(sessionId);
   }
 
   /**
    * Deferred `releaseSessionSnapshotIfIdle` for a session the UI just
-   * switched away from. The grace window keeps rapid switch-backs warm
-   * (instant cache prime, delta application stays valid); becoming active
-   * again cancels the release via `cancelScheduledSnapshotRelease`.
-   * Streaming is re-checked when the timer fires.
+   * switched away from; the grace window keeps rapid switch-backs warm.
    */
   scheduleSessionSnapshotRelease(sessionId: string): void {
-    this.cancelScheduledSnapshotRelease(sessionId);
-    const timer = setTimeout(() => {
-      this._snapshotReleaseTimers.delete(sessionId);
-      this.releaseSessionSnapshotIfIdle(sessionId);
-    }, SNAPSHOT_RELEASE_GRACE_MS);
-    this._snapshotReleaseTimers.set(sessionId, timer);
+    this._cache.scheduleSessionSnapshotRelease(sessionId);
   }
 
   /** Cancel a pending deferred release (the session is active again). */
   cancelScheduledSnapshotRelease(sessionId: string): void {
-    const timer = this._snapshotReleaseTimers.get(sessionId);
-    if (timer === undefined) return;
-    clearTimeout(timer);
-    this._snapshotReleaseTimers.delete(sessionId);
+    this._cache.cancelScheduledSnapshotRelease(sessionId);
   }
 
   getMemoryStats(): EventStoreMemoryStats {
-    // Materialize pending state first so the reported sizes are current.
-    this._flushAllPendingSnapshots();
-    let cachedEvents = 0;
-    let bytes = 0;
-    for (const snapshot of this._latestSnapshots.values()) {
-      bytes += estimateObjectBytes(snapshot);
-    }
-    for (const cache of this._normalizedSnapshots.values()) {
-      cachedEvents += cache.eventsById.size;
-      bytes += estimateObjectBytes(cache);
-    }
-    return {
-      cachedSessions: this._latestSnapshots.size,
-      normalizedSessions: this._normalizedSnapshots.size,
-      cachedEvents,
-      bytes,
-    };
+    return this._cache.getMemoryStats();
   }
 
   /** Get the latest snapshot (any session — last received). */
   get latestSnapshot(): Snapshot | null {
-    this._flushAllPendingSnapshots();
-    if (this._latestSnapshots.size === 0) return null;
-    let latest: Snapshot | null = null;
-    for (const snap of this._latestSnapshots.values()) {
-      if (!latest || snap.version > latest.version) {
-        latest = snap;
-      }
-    }
-    return latest;
+    return this._cache.latestSnapshot;
   }
 
   // =========================================================================
@@ -565,7 +253,7 @@ class EventStoreProxyImpl {
     // Stream completion must surface the final coalesced state immediately —
     // completion handlers read snapshot-derived state right after this call.
     if (!streaming && sessionId) {
-      this._flushPendingSnapshot(sessionId);
+      this._cache.flushPendingSnapshot(sessionId);
     }
     await rpc.sessionCore.eventStore.setStreaming({
       streaming,
@@ -599,10 +287,10 @@ class EventStoreProxyImpl {
   async switchSession(sessionId: string): Promise<boolean> {
     // Becoming active again rescues the snapshot from a pending deferred
     // release scheduled when the user previously switched away.
-    this.cancelScheduledSnapshotRelease(sessionId);
+    this._cache.cancelScheduledSnapshotRelease(sessionId);
     // The bridge primes the incoming session from the JS cache — it must not
     // read state that is stale by a frame of un-materialized deltas.
-    this._flushPendingSnapshot(sessionId);
+    this._cache.flushPendingSnapshot(sessionId);
     return rpc.sessionCore.eventStore.switchSession({ sessionId });
   }
 
@@ -641,7 +329,10 @@ class EventStoreProxyImpl {
       sessionId: sessionId ?? null,
     })) as DerivedSnapshot;
     if (sessionId) {
-      return this._rememberSnapshot(sessionId, snapshot) as DerivedSnapshot;
+      return this._cache.rememberSnapshot(
+        sessionId,
+        snapshot
+      ) as DerivedSnapshot;
     }
     return snapshot;
   }
@@ -798,36 +489,6 @@ class EventStoreProxyImpl {
     });
   }
 
-  /** Update streamOutput on the last shell tool_call. Returns event ID if found. */
-  async updateLastShellOutput(
-    streamOutput: string,
-    sessionId?: string
-  ): Promise<string | null> {
-    return rpc.sessionCore.eventStore.updateLastShellOutput({
-      streamOutput,
-      sessionId: sessionId ?? null,
-    });
-  }
-
-  /**
-   * Update shell process info (pid, status, exit_code, log_path) on the last shell tool_call.
-   */
-  updateLastShellProcess(
-    pid: number,
-    status: "running" | "background" | "exited" | "killed",
-    exitCode?: number,
-    logPath?: string,
-    sessionId?: string
-  ): void {
-    void rpc.sessionCore.eventStore.updateLastShellProcess({
-      pid,
-      status,
-      exitCode: exitCode ?? null,
-      logPath: logPath ?? null,
-      sessionId: sessionId ?? null,
-    });
-  }
-
   /** Check if there is an active spawning tool_call in the store. */
   async hasActiveTask(
     functionNames?: string[],
@@ -837,23 +498,6 @@ class EventStoreProxyImpl {
       functionNames: functionNames ?? null,
       sessionId: sessionId ?? null,
     });
-  }
-
-  // =========================================================================
-  // Internal
-  // =========================================================================
-
-  private _notifyListeners(snapshot: Snapshot, sessionId: string): void {
-    for (const listener of this._globalListeners) {
-      listener(snapshot, sessionId);
-    }
-
-    const sessionListeners = this._sessionListeners.get(sessionId);
-    if (sessionListeners) {
-      for (const listener of sessionListeners) {
-        listener(snapshot);
-      }
-    }
   }
 }
 

@@ -21,6 +21,21 @@ export {
   type WebViewRuntimeDiagnostics,
 } from "./runtimeMemoryStats";
 export { useSidebarMemoryEntry } from "./useSidebarMemoryEntry";
+export {
+  refreshAppMemorySnapshot,
+  getAppMemoryTotals,
+  useAppMemorySnapshot,
+  type AppMemoryProcess,
+  type AppMemoryProcessRole,
+  type AppMemorySnapshotState,
+  type AppMemoryTotals,
+  type AppMemorySnapshotV1,
+  type AttributionStatus,
+  type EffectiveMeasurement,
+  type MemoryMetricKind,
+  type ToolProcessCategory,
+  type ToolProcessMemoryDiagnostic,
+} from "./appMemorySnapshot";
 export type {
   ConnectionStatus,
   GeoInfo,

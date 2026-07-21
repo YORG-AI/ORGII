@@ -8,10 +8,10 @@ use rusqlite::{params, OptionalExtension};
 
 use database::db::{get_connection, with_sessions_writer};
 
-use super::record::{row_to_record, AgentInboxBatch};
-use super::{AgentInboxStore, MAX_INBOX_DRAIN_PAYLOAD_BYTES, MAX_INBOX_DRAIN_ROWS};
 #[cfg(test)]
 use super::record::AgentInboxRecord;
+use super::record::{row_to_record, AgentInboxBatch};
+use super::{AgentInboxStore, MAX_INBOX_DRAIN_PAYLOAD_BYTES, MAX_INBOX_DRAIN_ROWS};
 
 impl AgentInboxStore {
     /// `EXISTS`-style unread probe. Periodic scanners (watchdog) only

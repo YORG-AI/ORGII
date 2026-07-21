@@ -44,11 +44,11 @@ pub use message::{
     is_supported_agent_org_remote_mode, AgentMessage, MemberIdleReason, MemberTerminationReason,
     RequestId, TaskDependencyOutput,
 };
+pub(crate) use record::AgentInboxUnreadRecipientCounts;
 pub use record::{
     AgentInboxBatch, AgentInboxPage, AgentInboxPreviewRecord, AgentInboxRecipientCounts,
     AgentInboxRecord, InsertInboxParams,
 };
-pub(crate) use record::AgentInboxUnreadRecipientCounts;
 pub use schema::init_schema;
 
 /// Reserved sender id for system-generated agent inbox rows.

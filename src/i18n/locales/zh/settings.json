@@ -814,7 +814,24 @@
     "skipVersion": "跳过此版本"
   },
   "monitor": {
-    "categoryTerminal": "终端/工具进程",
+    "appMemory": "应用内存",
+    "appBackend": "ORG2 后端",
+    "appWebviewHelpers": "已确认归属的 WebView 辅助进程",
+    "rssMappedDiagnostic": "RSS / 映射内存（诊断）",
+    "measurement": "统计口径",
+    "measurementKinds": {
+      "native": "系统原生有效内存",
+      "compatibility": "兼容口径",
+      "mixed": "原生与回退口径混合",
+      "rss_fallback": "RSS 回退口径",
+      "unavailable": "暂不可用"
+    },
+    "toolProcessDiagnostics": "终端、CLI 与工具进程（RSS 诊断）",
+    "excludedFromAppMemory": "不计入应用内存",
+    "noToolProcesses": "未检测到终端、CLI、MCP 或工具进程",
+    "categoryAgentCli": "CLI Agent",
+    "categoryMcpOrTool": "MCP / 工具进程",
+    "categoryTerminal": "终端进程",
     "categoryWebview": "WebView 渲染器",
     "categoryGpu": "WebKit GPU",
     "categoryNetwork": "WebKit 网络",

@@ -21,7 +21,7 @@ use crate::agent_sessions::event_pipeline::types::{
 };
 
 /// Background-shell process states stamped onto tool_call args as
-/// `shellProcessStatus` (see `EventStore::update_last_shell_process`).
+/// `shellProcessStatus` (stamped by the exact call-id lifecycle bridge).
 /// Terminal states mean the shell is no longer a live runtime resource even
 /// if the event's display_status is still "running".
 const TERMINAL_SHELL_PROCESS_STATUSES: &[&str] = &["exited", "killed"];

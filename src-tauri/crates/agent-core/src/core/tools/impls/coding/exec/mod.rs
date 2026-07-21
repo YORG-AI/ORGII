@@ -8,15 +8,19 @@
 //! sudo, SSH, and other interactive use cases. The user can see the
 //! terminal and take over at any time.
 //!
-//! Background processes are logged to files under `{app_data}/agent-terminal-logs/`.
+//! Integrated subprocess output is persisted to bounded-memory Session Replay
+//! artifacts. Background jobs can be monitored without loading the artifact.
 //! The agent can follow up using `await_output` subcommands
 //! (wait/status/tail/list) to monitor progress, or `run_shell(kill_handle=...)`
 //! to terminate.
 
 pub mod await_tool;
 mod external;
+pub mod external_replay;
+pub mod legacy_replay;
 mod pty;
 pub mod registry;
+pub mod shell_replay;
 mod subprocess;
 
 use async_trait::async_trait;
@@ -31,7 +35,6 @@ use tracing::{info, warn};
 
 use tokio::sync::Mutex as TokioMutex;
 
-use super::action_router::ActionRouter;
 use crate::security::{self, SecurityPolicy, ValidationResult};
 use crate::session::workspace::SessionWorkspace;
 use crate::tools::names as tool_names;
@@ -74,12 +77,12 @@ pub struct ExecTool {
     restrict_to_workspace: bool,
     pty: Option<PtyResources>,
     active_repo: TokioMutex<Option<PathBuf>>,
-    router: Option<ActionRouter>,
     session_key: TokioMutex<Option<String>>,
     cancel_flag: TokioMutex<Option<Arc<AtomicBool>>>,
     security_policy: Option<Arc<SecurityPolicy>>,
     permission_provider: TokioMutex<Option<Arc<dyn PermissionProvider>>>,
-    terminal_logs_root: Option<PathBuf>,
+    shell_replays_root: Option<PathBuf>,
+    app_handle: Option<AppHandle>,
 }
 
 impl ExecTool {
@@ -92,12 +95,12 @@ impl ExecTool {
             restrict_to_workspace,
             pty: None,
             active_repo: TokioMutex::new(None),
-            router: None,
             session_key: TokioMutex::new(None),
             cancel_flag: TokioMutex::new(None),
             security_policy: None,
             permission_provider: TokioMutex::new(None),
-            terminal_logs_root: None,
+            shell_replays_root: None,
+            app_handle: None,
         }
     }
 
@@ -114,20 +117,15 @@ impl ExecTool {
             workspace_state: None,
             timeout_secs,
             restrict_to_workspace,
-            router: None,
             session_key: TokioMutex::new(None),
             cancel_flag: TokioMutex::new(None),
-            pty: Some(PtyResources::new(pty_sessions, app_handle)),
+            pty: Some(PtyResources::new(pty_sessions, app_handle.clone())),
             active_repo: TokioMutex::new(None),
             security_policy: None,
             permission_provider: TokioMutex::new(None),
-            terminal_logs_root: None,
+            shell_replays_root: None,
+            app_handle: Some(app_handle.clone()),
         }
-    }
-
-    pub fn with_router(mut self, router: ActionRouter) -> Self {
-        self.router = Some(router);
-        self
     }
 
     pub fn with_workspace_state(
@@ -143,8 +141,13 @@ impl ExecTool {
         self
     }
 
-    pub fn with_terminal_logs_root(mut self, path: PathBuf) -> Self {
-        self.terminal_logs_root = Some(path);
+    pub fn with_shell_replays_root(mut self, path: PathBuf) -> Self {
+        self.shell_replays_root = Some(path);
+        self
+    }
+
+    pub fn with_app_handle(mut self, app_handle: Option<AppHandle>) -> Self {
+        self.app_handle = app_handle;
         self
     }
 
@@ -268,7 +271,7 @@ impl Tool for ExecTool {
         external terminal output cannot be captured like integrated stdout/stderr. \
         Set interactive: true ONLY for commands that require user input (passwords, sudo, SSH key passphrases). \
         Set mode: \"background\" up-front for long-running processes (dev servers, watchers, builds \
-        you want to spawn then poll). Background mode returns {pid, logPath} as soon as the process \
+        you want to spawn then poll). Background mode returns a PID/await_output handle as soon as the process \
         is spawned; use await_output(command=\"wait_for\", handles=[pid]) to monitor until the process exits.\n\
         In the default blocking mode, commands that exceed the timeout are automatically backgrounded \
         (never killed) as a safety net — you get partial output plus a PID handle.\n\
@@ -293,10 +296,10 @@ impl Tool for ExecTool {
             external terminal output cannot be captured like integrated stdout/stderr. \
             Set interactive: true ONLY for commands that require user input (passwords, sudo, SSH key passphrases). \
             Set mode: \"background\" up-front for long-running processes (dev servers, watchers, builds \
-            you want to spawn then poll). Background mode returns {{pid, logPath}} immediately after spawn; \
+            you want to spawn then poll). Background mode returns a PID/await_output handle immediately after spawn; \
             use await_output(command=\"wait_for\", handles=[pid]) to monitor until the process exits.\n\
             In the default blocking mode, commands that exceed the timeout ({timeout}s) are automatically \
-            backgrounded (never killed) as a safety net. You get partial output, a PID handle, and a log file path.\n\
+            backgrounded (never killed) as a safety net. You get bounded partial output, a PID handle, and durable Session Replay access.\n\
             Kill: set kill_handle to the PID of a backgrounded process to terminate it \
             (SIGTERM → 2s grace → SIGKILL).\n\
             For long-running commands (builds, installs, tests, git clone), prefer mode=\"background\" from the start, \
@@ -367,7 +370,7 @@ impl Tool for ExecTool {
                 "mode": {
                     "type": "string",
                     "enum": ["blocking", "background"],
-                    "description": "Execution mode. 'blocking' (default): wait for completion up to `wait` seconds, then auto-background on timeout. 'background': spawn and return immediately with {pid, logPath}; intended for dev servers, watchers, and other long-running processes you want to poll with await_output."
+                    "description": "Execution mode. 'blocking' (default): wait for completion up to `wait` seconds, then auto-background on timeout. 'background': spawn and return immediately with a PID/await_output handle while complete output continues into Session Replay; intended for dev servers, watchers, and other long-running processes."
                 },
                 "wait": {
                     "type": "integer",
@@ -404,7 +407,7 @@ impl Tool for ExecTool {
     async fn execute_text(
         &self,
         params: Value,
-        _ctx: &crate::tools::traits::CallContext,
+        ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
         let command = optional_string(&params, "command");
         let kill_handle = params
@@ -582,20 +585,18 @@ impl Tool for ExecTool {
             return Ok(external::format_launch_result(&command, &launch));
         }
 
-        if !interactive {
-            if let Some(ref router) = self.router {
-                if router.should_route() {
-                    let exec_params = serde_json::json!({
-                        "command": command,
-                        "cwd": effective_dir.to_string_lossy(),
-                    });
-                    if let Some(result) = router.try_execute("terminal.exec", exec_params).await? {
-                        return Ok(result);
-                    }
-                }
-            }
+        if ctx.session_id.trim().is_empty() || ctx.call_id.trim().is_empty() {
+            return Err(ToolError::ExecutionFailed(
+                "Integrated run_shell requires exact CallContext session_id and call_id."
+                    .to_string(),
+            ));
         }
+        let identity = subprocess::ExecIdentity::new(&ctx.session_id, &ctx.call_id);
+        let replay_root = self.shell_replays_root.as_ref().ok_or_else(|| {
+            ToolError::ExecutionFailed("Shell replay storage root is not configured.".to_string())
+        })?;
 
+        let cancel_flag = self.cancel_flag.lock().await.clone();
         if interactive {
             if matches!(mode, subprocess::ExecMode::Background) {
                 return Err(ToolError::InvalidParams(
@@ -612,28 +613,32 @@ impl Tool for ExecTool {
                 };
                 return pty::execute_via_pty(
                     pty_res,
-                    &command,
-                    work_dir.as_ref(),
-                    self.timeout_secs,
-                    wait_secs,
-                    &current_workspace_dir,
-                    &session_key,
+                    pty::PtyExecutionRequest {
+                        command: &command,
+                        work_dir: work_dir.as_ref(),
+                        timeout_secs: self.timeout_secs,
+                        wait_secs,
+                        working_dir: &current_workspace_dir,
+                        agent_session_id: &session_key,
+                        identity: &identity,
+                        replay_root,
+                        cancel_flag: cancel_flag.clone(),
+                    },
                 )
                 .await;
             }
             info!("[ExecTool] interactive=true requested but PTY not available, using subprocess");
         }
 
-        let session_key = self.session_key.lock().await.clone();
-        let cancel_flag = self.cancel_flag.lock().await.clone();
         subprocess::execute_via_command(
             &command,
             effective_dir,
             self.timeout_secs,
             wait_secs,
             mode,
-            session_key.as_deref(),
-            self.terminal_logs_root.as_ref(),
+            &identity,
+            replay_root,
+            self.app_handle.clone(),
             cancel_flag.as_deref(),
         )
         .await
@@ -648,10 +653,24 @@ mod tests {
 
     fn fresh_tool(workspace: &Path) -> ExecTool {
         ExecTool::new(workspace.to_path_buf(), 5, false)
+            .with_shell_replays_root(workspace.join("shell-replays"))
+    }
+
+    fn test_call_context() -> crate::tools::call_context::CallContext {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static NEXT_CALL: AtomicU64 = AtomicU64::new(1);
+        crate::tools::call_context::CallContext::new(
+            format!(
+                "exec-test-call-{}",
+                NEXT_CALL.fetch_add(1, Ordering::Relaxed)
+            ),
+            "exec-test-session",
+        )
     }
 
     #[tokio::test]
     async fn execute_falls_back_to_workspace_when_cached_repo_was_deleted() {
+        let _sandbox = test_helpers::test_env::sandbox();
         let workspace = tempfile::tempdir().expect("workspace tmpdir");
         let stale_repo = workspace.path().join("worktree-deleted");
         std::fs::create_dir_all(&stale_repo).unwrap();
@@ -663,10 +682,7 @@ mod tests {
         assert!(!stale_repo.exists());
 
         let result = tool
-            .execute_text(
-                json!({"command": "/bin/echo hello"}),
-                &crate::tools::call_context::CallContext::default(),
-            )
+            .execute_text(json!({"command": "/bin/echo hello"}), &test_call_context())
             .await
             .expect("run_shell should succeed after fallback");
 
@@ -688,7 +704,7 @@ mod tests {
                     "command": "/bin/echo nope",
                     "working_dir": bogus.to_string_lossy(),
                 }),
-                &crate::tools::call_context::CallContext::default(),
+                &test_call_context(),
             )
             .await;
 
@@ -705,6 +721,7 @@ mod tests {
 
     #[tokio::test]
     async fn empty_working_directory_uses_default_workspace() {
+        let _sandbox = test_helpers::test_env::sandbox();
         let workspace = tempfile::tempdir().expect("workspace tmpdir");
         let tool = fresh_tool(workspace.path());
 
@@ -714,7 +731,7 @@ mod tests {
                     "command": "/bin/echo hello",
                     "working_dir": "",
                 }),
-                &crate::tools::call_context::CallContext::default(),
+                &test_call_context(),
             )
             .await
             .expect("empty working_dir should fall back to default workspace");
@@ -724,6 +741,7 @@ mod tests {
 
     #[tokio::test]
     async fn empty_kill_handle_is_ignored() {
+        let _sandbox = test_helpers::test_env::sandbox();
         let workspace = tempfile::tempdir().expect("workspace tmpdir");
         let tool = fresh_tool(workspace.path());
 
@@ -733,7 +751,7 @@ mod tests {
                     "command": "/bin/echo hello",
                     "kill_handle": "",
                 }),
-                &crate::tools::call_context::CallContext::default(),
+                &test_call_context(),
             )
             .await
             .expect("empty kill_handle should not take the kill path");
@@ -743,6 +761,7 @@ mod tests {
 
     #[tokio::test]
     async fn path_like_kill_handle_is_ignored_when_command_is_present() {
+        let _sandbox = test_helpers::test_env::sandbox();
         let workspace = tempfile::tempdir().expect("workspace tmpdir");
         let tool = fresh_tool(workspace.path());
 
@@ -752,7 +771,7 @@ mod tests {
                     "command": "/bin/echo hello",
                     "kill_handle": "/dev/null",
                 }),
-                &crate::tools::call_context::CallContext::default(),
+                &test_call_context(),
             )
             .await
             .expect("path-like kill_handle should not take the kill path when command is present");
@@ -770,7 +789,7 @@ mod tests {
                 json!({
                     "kill_handle": "/dev/null",
                 }),
-                &crate::tools::call_context::CallContext::default(),
+                &test_call_context(),
             )
             .await;
 
@@ -810,7 +829,7 @@ mod tests {
                     "terminal_target": "external",
                     "mode": "background",
                 }),
-                &crate::tools::call_context::CallContext::default(),
+                &test_call_context(),
             )
             .await;
 
@@ -836,7 +855,7 @@ mod tests {
                     "command": "/bin/echo hello",
                     "terminal_target": "space",
                 }),
-                &crate::tools::call_context::CallContext::default(),
+                &test_call_context(),
             )
             .await;
 
@@ -853,13 +872,14 @@ mod tests {
 
     #[tokio::test]
     async fn blocking_command_returns_promptly_when_turn_is_cancelled() {
+        let _sandbox = test_helpers::test_env::sandbox();
         let workspace = tempfile::tempdir().expect("workspace tmpdir");
         let tool = fresh_tool(workspace.path());
         let cancel_flag = Arc::new(AtomicBool::new(false));
         tool.set_cancel_flag(Arc::clone(&cancel_flag)).await;
 
         let started = std::time::Instant::now();
-        let ctx = crate::tools::call_context::CallContext::default();
+        let ctx = test_call_context();
         let run = tool.execute_text(
             json!({
                 "command": "sleep 5",

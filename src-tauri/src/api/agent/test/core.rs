@@ -570,6 +570,8 @@ pub async fn test_event_store_complete_last_running(
             repo_path: None,
             extracted: None,
             payload_refs: Vec::new(),
+            shell_replay: None,
+            shell_replay_bookmarks: None,
             last_extract_at: None,
         });
     }

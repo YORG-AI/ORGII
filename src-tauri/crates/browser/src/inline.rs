@@ -318,6 +318,7 @@ pub async fn create_inline_webview(
         height.max(OFFSCREEN_MIN_SIZE),
     ));
 
+    let ownership_observation = perf_utils::begin_webview_ownership_observation(label.clone());
     let webview = window.add_child(builder, position, size).map_err(|e| {
         // Roll back the ref increment — this caller never successfully opened the webview.
         decrement_ref(&label);
@@ -338,6 +339,8 @@ pub async fn create_inline_webview(
             return Ok(());
         }
     }
+
+    ownership_observation.commit();
 
     debug!(
         label = %webview.label(),

@@ -260,7 +260,7 @@ export function ChatPanelTerminalContent({
       <TerminalCore
         terminalState={terminalState}
         className="terminal-core chat-panel-terminal-core min-h-0 flex-1 bg-chat-pane"
-        backgroundColor={resolvedBg ?? "var(--color-chat-pane-base)"}
+        backgroundColor={resolvedBg ?? "var(--color-primary-pane-bg)"}
         visible={visible}
       />
     </div>

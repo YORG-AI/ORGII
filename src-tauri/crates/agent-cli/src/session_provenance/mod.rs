@@ -187,11 +187,56 @@ struct HookActivationReceipt {
     activated_at: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct HookSessionActivationReceipt {
+    schema_version: u32,
+    platform: SessionProvenanceHookPlatform,
+    source_session_id: String,
+    hook_fingerprint: String,
+    activated_at: String,
+}
+
 fn activation_receipt_path(platform: SessionProvenanceHookPlatform) -> PathBuf {
     app_paths::orgii_root()
         .join("session-provenance")
         .join("activations")
         .join(format!("{}.json", platform.source_arg()))
+}
+
+fn session_activation_receipt_path(
+    platform: SessionProvenanceHookPlatform,
+    source_session_id: &str,
+) -> PathBuf {
+    let digest = Sha256::digest(source_session_id.as_bytes());
+    app_paths::orgii_root()
+        .join("session-provenance")
+        .join("activations")
+        .join(platform.source_arg())
+        .join("sessions")
+        .join(format!("{digest:x}.json"))
+}
+
+fn read_session_activation_receipt(
+    platform: SessionProvenanceHookPlatform,
+    source_session_id: &str,
+) -> Option<HookSessionActivationReceipt> {
+    let bytes = std::fs::read(session_activation_receipt_path(platform, source_session_id)).ok()?;
+    let receipt: HookSessionActivationReceipt = serde_json::from_slice(&bytes).ok()?;
+    (receipt.schema_version == ACTIVATION_RECEIPT_SCHEMA_VERSION
+        && receipt.platform == platform
+        && receipt.source_session_id == source_session_id)
+        .then_some(receipt)
+}
+
+fn session_activation_matches(
+    fingerprint: &str,
+    source_session_id: &str,
+    receipt: Option<HookSessionActivationReceipt>,
+) -> bool {
+    receipt.is_some_and(|receipt| {
+        receipt.source_session_id == source_session_id && receipt.hook_fingerprint == fingerprint
+    })
 }
 
 fn update_platform(
@@ -219,6 +264,7 @@ fn update_platform(
         return Ok(());
     }
     let mut config = read_config(&path)?;
+    let original_config = config.clone();
     let (unix_command, windows_command) = hook_commands(executable, platform.source_arg());
     match platform {
         SessionProvenanceHookPlatform::ClaudeCode => {
@@ -309,7 +355,11 @@ fn update_platform(
             unreachable!("OpenCode/Kimi/ZCode are handled before the JSON path")
         }
     }
-    write_config(&path, &config)
+    if config == original_config {
+        Ok(())
+    } else {
+        write_config(&path, &config)
+    }
 }
 
 fn config_has_complete_managed_hooks(
@@ -371,13 +421,15 @@ fn config_has_complete_managed_hooks(
                 && cursor_event_has_managed_hook(config, "subagentStart", None)
                 && cursor_event_has_managed_hook(config, "subagentStop", None)
                 && (!live_status
-                    || CURSOR_LIFECYCLE_EVENTS.iter().all(|(event_name, needs_matcher)| {
-                        cursor_event_has_managed_hook(
-                            config,
-                            event_name,
-                            needs_matcher.then_some(".*"),
-                        )
-                    }))
+                    || CURSOR_LIFECYCLE_EVENTS
+                        .iter()
+                        .all(|(event_name, needs_matcher)| {
+                            cursor_event_has_managed_hook(
+                                config,
+                                event_name,
+                                needs_matcher.then_some(".*"),
+                            )
+                        }))
         }
         SessionProvenanceHookPlatform::QwenCode => nested_event_has_managed_hook(
             config,
@@ -447,7 +499,9 @@ fn config_has_managed_hooks(platform: SessionProvenanceHookPlatform) -> Result<b
         .map(|preferences| preferences.live_status_enabled)
         .unwrap_or(true);
     Ok(config_has_complete_managed_hooks(
-        &config, platform, live_status,
+        &config,
+        platform,
+        live_status,
     ))
 }
 
@@ -597,9 +651,14 @@ fn build_hook_status(
 }
 
 /// Record proof that Codex invoked the current ORG2-managed hook definition.
-/// A matching receipt is the only state that upgrades the UI from
-/// `awaiting_verification` to `active`.
-pub fn record_session_provenance_hook_activation(source: &str) -> Result<bool, String> {
+/// Record global Codex hook activation and, for a SessionStart event, task-
+/// scoped evidence. The global receipt drives the settings UI; the task
+/// receipt lets transcript reconciliation distinguish a healthy live hook
+/// path from a task whose hooks never activated.
+pub fn record_session_provenance_hook_activation(
+    source: &str,
+    session_start_source_session_id: Option<&str>,
+) -> Result<bool, String> {
     if source != SessionProvenanceHookPlatform::Codex.source_arg() {
         return Ok(false);
     }
@@ -611,21 +670,65 @@ pub fn record_session_provenance_hook_activation(source: &str) -> Result<bool, S
     let fingerprint = current_managed_hook_fingerprint(platform)?.ok_or_else(|| {
         "Cannot record Codex activation without managed hook definitions".to_string()
     })?;
+    let activated_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+    let mut changed = false;
     if read_activation_receipt(platform)
-        .is_some_and(|receipt| receipt.hook_fingerprint == fingerprint)
+        .is_none_or(|receipt| receipt.hook_fingerprint != fingerprint)
     {
-        return Ok(false);
+        let receipt = HookActivationReceipt {
+            schema_version: ACTIVATION_RECEIPT_SCHEMA_VERSION,
+            platform,
+            hook_fingerprint: fingerprint.clone(),
+            activated_at: activated_at.clone(),
+        };
+        let bytes = serde_json::to_vec_pretty(&receipt)
+            .map_err(|err| format!("Failed to serialize hook activation receipt: {err}"))?;
+        write_atomic(&activation_receipt_path(platform), &bytes)?;
+        changed = true;
     }
-    let receipt = HookActivationReceipt {
-        schema_version: ACTIVATION_RECEIPT_SCHEMA_VERSION,
-        platform,
-        hook_fingerprint: fingerprint,
-        activated_at: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+    if let Some(source_session_id) = session_start_source_session_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        let current = session_activation_matches(
+            &fingerprint,
+            source_session_id,
+            read_session_activation_receipt(platform, source_session_id),
+        );
+        if !current {
+            let receipt = HookSessionActivationReceipt {
+                schema_version: ACTIVATION_RECEIPT_SCHEMA_VERSION,
+                platform,
+                source_session_id: source_session_id.to_string(),
+                hook_fingerprint: fingerprint.clone(),
+                activated_at: activated_at.clone(),
+            };
+            let bytes = serde_json::to_vec_pretty(&receipt).map_err(|err| {
+                format!("Failed to serialize hook session activation receipt: {err}")
+            })?;
+            write_atomic(
+                &session_activation_receipt_path(platform, source_session_id),
+                &bytes,
+            )?;
+            changed = true;
+        }
+    }
+    Ok(changed)
+}
+
+/// Whether this Codex task emitted SessionStart under the currently installed
+/// managed hook definition. Missing, stale, or malformed receipts are false.
+pub fn codex_session_start_is_active(source_session_id: &str) -> Result<bool, String> {
+    let _guard = operation_guard()?;
+    let platform = SessionProvenanceHookPlatform::Codex;
+    let Some(fingerprint) = current_managed_hook_fingerprint(platform)? else {
+        return Ok(false);
     };
-    let bytes = serde_json::to_vec_pretty(&receipt)
-        .map_err(|err| format!("Failed to serialize hook activation receipt: {err}"))?;
-    write_atomic(&activation_receipt_path(platform), &bytes)?;
-    Ok(true)
+    Ok(session_activation_matches(
+        &fingerprint,
+        source_session_id,
+        read_session_activation_receipt(platform, source_session_id),
+    ))
 }
 
 /// Reconcile hook files with ORG2 preferences. On first launch preferences

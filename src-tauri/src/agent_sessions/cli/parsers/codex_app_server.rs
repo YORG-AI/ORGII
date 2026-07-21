@@ -307,8 +307,7 @@ impl CodexAppServerEventParser {
                 if text.is_empty() {
                     return vec![];
                 }
-                let mut chunk =
-                    ActivityChunk::new(&self.session_id, "assistant_delta", "message");
+                let mut chunk = ActivityChunk::new(&self.session_id, "assistant_delta", "message");
                 chunk.result = serde_json::json!({
                     "observation": text, "content": text, "role": "assistant", "is_delta": true,
                 });
@@ -512,8 +511,7 @@ impl CodexAppServerEventParser {
                         .unwrap_or("");
                     let exit_code = item.get("exitCode").and_then(|v| v.as_i64()).unwrap_or(-1);
                     let status = item.get("status").and_then(|v| v.as_str()).unwrap_or("");
-                    let is_error =
-                        status == "failed" || status == "declined" || exit_code != 0;
+                    let is_error = status == "failed" || status == "declined" || exit_code != 0;
                     chunk.args = serde_json::json!({"command": actual_cmd});
                     chunk.result = if is_error {
                         serde_json::json!({"error": {"exitCode": exit_code, "stdout": output, "stderr": ""}})
@@ -699,8 +697,7 @@ async fn await_response(
 ) -> Result<Result<Value, Value>, String> {
     loop {
         let msg = read_message(reader, buf).await?;
-        if msg.get("id").and_then(|v| v.as_u64()) == Some(request_id)
-            && msg.get("method").is_none()
+        if msg.get("id").and_then(|v| v.as_u64()) == Some(request_id) && msg.get("method").is_none()
         {
             if let Some(err) = msg.get("error") {
                 return Ok(Err(err.clone()));
@@ -789,11 +786,8 @@ async fn emit_approval_chunk(
     } else {
         "unknown_tool"
     };
-    let mut chunk = ActivityChunk::new(
-        &parser.session_id,
-        "approval_response",
-        "approval_response",
-    );
+    let mut chunk =
+        ActivityChunk::new(&parser.session_id, "approval_response", "approval_response");
     chunk.result = serde_json::json!({
         "approved": approved,
         "always_allow": false,
@@ -1007,7 +1001,8 @@ pub async fn run_app_server_turn(
         };
 
         // turn/start response: contains the turn id (turn/started also carries it).
-        if msg.get("id").and_then(|v| v.as_u64()) == Some(turn_req_id) && msg.get("method").is_none()
+        if msg.get("id").and_then(|v| v.as_u64()) == Some(turn_req_id)
+            && msg.get("method").is_none()
         {
             if let Some(err) = msg.get("error") {
                 return Err(format!("app-server turn/start error: {}", err));

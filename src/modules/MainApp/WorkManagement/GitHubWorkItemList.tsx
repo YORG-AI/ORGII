@@ -1,7 +1,6 @@
 import {
   ChevronLeft,
   ChevronRight,
-  ExternalLink,
   Loader2,
   Plus,
   RefreshCw,
@@ -10,17 +9,14 @@ import type { ReactNode } from "react";
 
 import Button from "@src/components/Button";
 import { PAGE_ICON_BUTTON } from "@src/components/SettingsTable/SettingsTablePagination";
+import TabPill, { type TabPillItem } from "@src/components/TabPill";
 
 export function GitHubWorkItemToolbarActions({
-  openHref,
-  openLabel,
   refreshLabel,
   refreshing,
   createAction,
   onRefresh,
 }: {
-  openHref: string | null;
-  openLabel: string;
   refreshLabel: string;
   refreshing: boolean;
   createAction?: {
@@ -32,25 +28,10 @@ export function GitHubWorkItemToolbarActions({
 }): ReactNode {
   return (
     <>
-      <Button
-        htmlType="button"
-        variant="secondary"
-        appearance="outline"
-        size="small"
-        icon={<ExternalLink size={13} />}
-        iconOnly
-        className="h-7 w-7"
-        aria-label={openLabel}
-        disabled={!openHref}
-        href={openHref ?? undefined}
-        target="_blank"
-        rel="noreferrer"
-      />
       {createAction ? (
         <Button
           htmlType="button"
-          variant="secondary"
-          appearance="outline"
+          variant="tertiary"
           size="small"
           icon={<Plus size={13} />}
           iconOnly
@@ -62,8 +43,7 @@ export function GitHubWorkItemToolbarActions({
       ) : null}
       <Button
         htmlType="button"
-        variant="secondary"
-        appearance="outline"
+        variant="tertiary"
         size="small"
         icon={<RefreshCw size={13} />}
         iconOnly
@@ -77,63 +57,54 @@ export function GitHubWorkItemToolbarActions({
   );
 }
 
-export interface GitHubWorkItemSummaryTab {
+export interface GitHubWorkItemStateTab {
   key: string;
   label: string;
-  count: number | null;
-  icon: ReactNode;
-  active?: boolean;
-  onSelect?: () => void;
 }
 
-export function GitHubWorkItemSummary({
+export function GitHubWorkItemStateTabs({
   tabs,
-  actions,
+  activeTab,
+  onChange,
 }: {
-  tabs: GitHubWorkItemSummaryTab[];
-  actions?: ReactNode;
+  tabs: GitHubWorkItemStateTab[];
+  activeTab: string;
+  onChange: (key: string) => void;
 }): ReactNode {
+  const tabItems: TabPillItem[] = tabs.map((tab) => ({
+    key: tab.key,
+    label: tab.label,
+    dataTestId: `github-work-items-state-${tab.key}`,
+  }));
+
   return (
-    <div className="flex h-10 items-center gap-4 border-b border-border-2 bg-bg-1 px-3">
-      {tabs.map((tab) => (
-        <button
-          key={tab.key}
-          type="button"
-          className={`flex items-center gap-1.5 text-[12px] font-medium ${
-            tab.active === false
-              ? "text-text-3 hover:text-text-1"
-              : "text-text-1"
-          }`}
-          onClick={tab.onSelect}
-          aria-pressed={tab.onSelect ? tab.active : undefined}
-        >
-          {tab.icon}
-          {tab.label}
-          {tab.count !== null ? (
-            <span className="rounded-full bg-fill-2 px-1.5 py-0.5 text-[10px] text-text-2">
-              {tab.count}
-            </span>
-          ) : null}
-        </button>
-      ))}
-      {actions ? <div className="ml-auto shrink-0">{actions}</div> : null}
-    </div>
+    <TabPill
+      tabs={tabItems}
+      activeTab={activeTab}
+      onChange={onChange}
+      variant="pill"
+      color="fill"
+      fillWidth={false}
+      size="small"
+      buttonStyle
+      height={28}
+    />
   );
 }
 
 export function GitHubWorkItemListFrame({
-  summary,
   height,
   children,
 }: {
-  summary?: ReactNode;
-  height: number;
+  height?: number;
   children: ReactNode;
 }): ReactNode {
   return (
     <div className="bg-bg-0 overflow-hidden rounded-lg border border-border-2">
-      {summary}
-      <div className="relative w-full" style={{ height }}>
+      <div
+        className="w-full"
+        style={height === undefined ? undefined : { height }}
+      >
         {children}
       </div>
     </div>

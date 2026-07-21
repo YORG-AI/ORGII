@@ -14,7 +14,9 @@ pub(super) fn validate_delivery(delivery: &AgentOrgPlanInboxDelivery) -> Result<
     }
 }
 
-pub(super) fn validate_create_params(params: &CreateAgentOrgPlanApprovalParams) -> Result<(), String> {
+pub(super) fn validate_create_params(
+    params: &CreateAgentOrgPlanApprovalParams,
+) -> Result<(), String> {
     if params.request_id.trim().is_empty()
         || params.org_run_id.trim().is_empty()
         || params.source_task_id.trim().is_empty()

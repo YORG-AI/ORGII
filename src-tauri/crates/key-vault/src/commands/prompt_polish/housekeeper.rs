@@ -801,8 +801,8 @@ pub async fn housekeeper_ui_intent(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::client::{ChatCompletionChoice, ChatCompletionResponseMessage};
+    use super::*;
 
     fn ui_intent_response(content: &str) -> ChatCompletionResponse {
         ChatCompletionResponse {

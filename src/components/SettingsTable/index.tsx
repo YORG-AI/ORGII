@@ -123,10 +123,7 @@ export interface SettingsTablePaginationContext {
   onPageSizeChange: (pageSize: number) => void;
 }
 
-export type SettingsTableSurfaceVariant =
-  | "default"
-  | "chatPanel"
-  | "transparent";
+export type SettingsTableSurfaceVariant = "default" | "transparent";
 
 export interface SettingsTableProps<RowData> {
   columns: SettingsTableColumn<RowData>[];
@@ -548,11 +545,9 @@ export default function SettingsTable<RowData>({
 
   const hasHeader = !!searchBar || hasSelectFilterRow;
   const surfaceClassName =
-    surfaceVariant === "chatPanel"
-      ? "settings-table-root-chat-panel bg-chat-panel-info-container"
-      : surfaceVariant === "transparent"
-        ? "settings-table-root-transparent"
-        : "settings-table-root-default bg-surface-container";
+    surfaceVariant === "transparent"
+      ? "settings-table-root-transparent"
+      : "settings-table-root-default bg-primary-container";
   // Standalone tables get an outer border. Tables flagged `noPx` are embedded
   // inside a SectionContainer that already draws the border — skip it there to
   // avoid a double border.
@@ -570,8 +565,8 @@ export default function SettingsTable<RowData>({
     surfaceVariant !== "transparent" && "rounded-xl",
     hasOuterBorder &&
       (stickyBordered
-        ? "border-x border-b border-border-2"
-        : "border border-border-2"),
+        ? "border-x border-b border-border-1"
+        : "border border-border-1"),
     fillHeight && "flex h-full min-h-0 flex-col overflow-hidden",
     maxHeight != null && "flex min-h-0 flex-col overflow-hidden",
     surfaceClassName,
@@ -596,7 +591,7 @@ export default function SettingsTable<RowData>({
           className={`${containedScroll ? "shrink-0" : "sticky top-0 z-[21]"} ${stickyBordered ? "settings-table-sticky-mask bg-bg-2" : ""}`.trim()}
         >
           <div
-            className={`${stickyBordered ? "settings-table-sticky-surface -mx-px border-x border-t border-border-2" : ""} border-b border-border-2 px-4 ${surfaceVariant !== "transparent" ? "rounded-t-xl" : ""} ${surfaceClassName} ${searchHeaderClassName}`.trim()}
+            className={`${stickyBordered ? "settings-table-sticky-surface -mx-px border-x border-t border-border-1" : ""} border-b border-border-1 px-4 ${surfaceVariant !== "transparent" ? "rounded-t-xl" : ""} ${surfaceClassName} ${searchHeaderClassName}`.trim()}
           >
             {inlineHeaderToolbar ? (
               <SettingsTableToolbar

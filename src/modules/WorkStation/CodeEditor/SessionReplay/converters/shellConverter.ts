@@ -71,6 +71,7 @@ export function convertToShellOperation(
       description: data.description,
       output: data.output,
       streamOutput: isLoading ? rawStreamOutput : undefined,
+      replayRef: event.shellReplay?.ref,
       exitCode: data.exitCode,
       executionTime: data.executionTime,
       isLoading,

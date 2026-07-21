@@ -34,10 +34,13 @@ export const closeChatPanelTabAtom = atom(null, (get, set, tabId: string) => {
   const idx = state.tabs.findIndex((tab) => tab.id === tabId);
   if (idx === -1) return;
   const tab = state.tabs[idx];
-  if (tab.type === "work-management") {
+  const nextTabs = state.tabs.filter((candidate) => candidate.id !== tabId);
+  if (
+    tab.type === "work-management" &&
+    !nextTabs.some((candidate) => candidate.type === "work-management")
+  ) {
     set(disposeWorkManagementStateAtom);
   }
-  const nextTabs = state.tabs.filter((candidate) => candidate.id !== tabId);
   let nextActiveId = state.activeTabId;
 
   if (nextTabs.length === 0) {
@@ -216,3 +219,37 @@ export const closeAndDestroyChatPanelTabAtom = atom(
   }
 );
 closeAndDestroyChatPanelTabAtom.debugLabel = "closeAndDestroyChatPanelTab";
+
+/**
+ * Close every tab except the requested one, activating the retained tab.
+ * Terminal resources are destroyed before their tab records are removed.
+ */
+export const closeOtherChatPanelTabsAtom = atom(
+  null,
+  async (get, set, keepTabId: string): Promise<void> => {
+    const state = get(chatPanelTabsAtom);
+    if (!state.tabs.some((tab) => tab.id === keepTabId)) return;
+
+    const tabsToClose = state.tabs.filter((tab) => tab.id !== keepTabId);
+    await Promise.all(
+      tabsToClose.map((tab) =>
+        tab.type === "terminal" && tab.terminalSessionId
+          ? set(destroyChatPanelTerminalAtom, tab.terminalSessionId)
+          : Promise.resolve()
+      )
+    );
+
+    for (const tab of tabsToClose) {
+      set(closeChatPanelTabAtom, tab.id);
+    }
+
+    if (
+      get(chatPanelTabsAtom).tabs.some(
+        (candidate) => candidate.id === keepTabId
+      )
+    ) {
+      set(activateChatPanelTabAtom, keepTabId);
+    }
+  }
+);
+closeOtherChatPanelTabsAtom.debugLabel = "closeOtherChatPanelTabs";

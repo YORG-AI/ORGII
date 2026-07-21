@@ -38,6 +38,7 @@ import { createPortal } from "react-dom";
 
 import { useActionSystemOptional } from "@src/ActionSystem";
 import FileTypeIcon from "@src/components/FileTypeIcon";
+import { NoDragRegion } from "@src/components/WindowChrome";
 import SessionRawTranscriptDialog from "@src/engines/ChatPanel/components/SessionRawTranscriptDialog";
 import {
   COLLAPSED_SIDEBAR_CHROME_OFFSET,
@@ -57,7 +58,6 @@ import {
 } from "@src/store/session/sessionTabPlacementAtom";
 import { tabScrollRevealAtom } from "@src/store/workstation/tabs";
 
-import { NoDragRegion } from "../NoDragRegion";
 import TabContextMenu from "./TabContextMenu";
 import {
   SortableTab,

@@ -1,6 +1,7 @@
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import React, {
   useCallback,
+  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -31,7 +32,6 @@ import {
   EMPTY_REPO_PRS,
   GITHUB_FILTER_PRESET,
   GITHUB_QUERY_SCOPE,
-  GITHUB_QUERY_STATE,
   type GitHubQueryScope,
   type GitHubRepoSource,
   ISSUE_PAGE_SIZE,
@@ -105,6 +105,7 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
     query.scope = scope;
     return query;
   }, [scope, searchQuery]);
+  const deferredParsedSearchQuery = useDeferredValue(parsedSearchQuery);
   const selectedIssueListStates = useMemo(
     () => getIssuePageStatesForQuery(parsedSearchQuery),
     [parsedSearchQuery]
@@ -415,9 +416,9 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
     () =>
       allItems.filter((item) => {
         if (!itemMatchesRepo(item, effectiveSelectedRepo)) return false;
-        return itemMatchesParsedQuery(item, parsedSearchQuery);
+        return itemMatchesParsedQuery(item, deferredParsedSearchQuery);
       }),
-    [allItems, effectiveSelectedRepo, parsedSearchQuery]
+    [allItems, deferredParsedSearchQuery, effectiveSelectedRepo]
   );
 
   const pageStates = useMemo(
@@ -449,72 +450,6 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
     () => getGitHubWorkItemsPage(filteredItems, currentPage),
     [currentPage, filteredItems]
   );
-  const issueStateCounts = useMemo(
-    () =>
-      issues.reduce(
-        (counts, issue) => {
-          if (!itemMatchesRepo(issue, effectiveSelectedRepo)) return counts;
-          counts[issue.state] += 1;
-          return counts;
-        },
-        { open: 0, closed: 0 }
-      ),
-    [effectiveSelectedRepo, issues]
-  );
-  const openIssuesLoaded = useMemo(
-    () =>
-      paginatedSources.length > 0 &&
-      paginatedSources.every(
-        (source) =>
-          repoIssueMap[getRepoIssueMapKey(source)]?.openLoaded === true
-      ),
-    [paginatedSources, repoIssueMap]
-  );
-  const closedIssuesLoaded = useMemo(
-    () =>
-      paginatedSources.length > 0 &&
-      paginatedSources.every(
-        (source) =>
-          repoIssueMap[getRepoIssueMapKey(source)]?.closedLoaded === true
-      ),
-    [paginatedSources, repoIssueMap]
-  );
-  const openPrCount = useMemo(
-    () =>
-      pullRequests.filter(
-        (pr) =>
-          pr.state === GITHUB_QUERY_STATE.OPEN &&
-          itemMatchesRepo(pr, effectiveSelectedRepo)
-      ).length,
-    [effectiveSelectedRepo, pullRequests]
-  );
-  const openPrLoaded = useMemo(
-    () =>
-      paginatedSources.length > 0 &&
-      paginatedSources.every(
-        (source) => repoPrMap[getRepoIssueMapKey(source)]?.openLoaded === true
-      ),
-    [paginatedSources, repoPrMap]
-  );
-  const closedPrCount = useMemo(
-    () =>
-      pullRequests.filter(
-        (pr) =>
-          (pr.state === GITHUB_QUERY_STATE.CLOSED ||
-            pr.state === GITHUB_QUERY_STATE.MERGED) &&
-          itemMatchesRepo(pr, effectiveSelectedRepo)
-      ).length,
-    [effectiveSelectedRepo, pullRequests]
-  );
-  const closedPrLoaded = useMemo(
-    () =>
-      paginatedSources.length > 0 &&
-      paginatedSources.every(
-        (source) => repoPrMap[getRepoIssueMapKey(source)]?.closedLoaded === true
-      ),
-    [paginatedSources, repoPrMap]
-  );
-
   useEffect(() => {
     if (!loading && currentPage > totalLoadedPages) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Remote result shrinkage requires clamping the controlled page.
@@ -749,13 +684,6 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
       parsedSearchQuery={parsedSearchQuery}
       issuePersonalFilterOptions={issuePersonalFilterOptions}
       selectedIssuePersonalFilters={selectedIssuePersonalFilters}
-      issueStateCounts={issueStateCounts}
-      openIssuesLoaded={openIssuesLoaded}
-      closedIssuesLoaded={closedIssuesLoaded}
-      openPrCount={openPrCount}
-      closedPrCount={closedPrCount}
-      openPrLoaded={openPrLoaded}
-      closedPrLoaded={closedPrLoaded}
       currentPage={currentPage}
       totalLoadedPages={totalLoadedPages}
       hasMoreFilteredIssues={hasMoreFilteredIssues}

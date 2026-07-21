@@ -58,7 +58,7 @@ export function extractShellData(
       description: s.description,
       output: s.output,
       streamOutput: s.streamOutput,
-      exitCode: s.exitCode,
+      exitCode: props.shellExitCode ?? s.exitCode,
       cwd: s.cwd,
       executionTime: s.executionTime,
       isFailure: s.isFailure,
@@ -109,6 +109,8 @@ export function extractShellData(
   const exitCode =
     (commandData?.exitCode as number) ??
     (commandData?.exit_code as number) ??
+    (args?.shellExitCode as number) ??
+    (args?.shell_exit_code as number) ??
     (result?.exit_code as number) ??
     undefined;
 

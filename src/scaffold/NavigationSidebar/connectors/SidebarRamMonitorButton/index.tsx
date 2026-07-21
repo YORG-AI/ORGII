@@ -8,16 +8,15 @@ import {
   DROPDOWN_PANEL,
 } from "@src/components/Dropdown/tokens";
 import { useDropdownEngine } from "@src/hooks/dropdown";
-import { formatRuntimeBytes } from "@src/hooks/perf";
+import { formatRuntimeBytes, getAppMemoryTotals } from "@src/hooks/perf";
 
 import HoverAnimatedIcon, {
   triggerIconAnimation,
 } from "../../components/HoverAnimatedIcon";
 import { MemoryBreakdownSection } from "./MemoryBreakdownSection";
 import { MemoryStatRow } from "./MemoryStatRow";
-import { CHILD_PROCESS_CATEGORY } from "./constants";
 import { SUCCESS_FPS_THRESHOLD, SUCCESS_RAM_THRESHOLD_MB } from "./constants";
-import { formatMegabytes, getAppMemoryTotal } from "./formatters";
+import { formatMegabytes } from "./formatters";
 import type { MemoryBreakdownRow, SidebarRamMonitorPanelProps } from "./types";
 import { useRamMonitorMetrics } from "./useRamMonitorMetrics";
 
@@ -30,15 +29,26 @@ export const SidebarRamMonitorPanel: React.FC<SidebarRamMonitorPanelProps> = ({
   const { t: tCommon } = useTranslation("common");
   const { t } = useTranslation();
   const [showAttributionHints, setShowAttributionHints] = useState(false);
-  const { snapshot, runtimeRows, fpsSample, fpsValue, isSamplingFps } =
-    useRamMonitorMetrics(isOpen);
+  const {
+    snapshot,
+    appMemoryState,
+    runtimeRows,
+    fpsSample,
+    fpsValue,
+    isSamplingFps,
+  } = useRamMonitorMetrics(isOpen);
 
   const handleToggleAttributionHints = useCallback(() => {
     setShowAttributionHints((previousValue) => !previousValue);
   }, []);
 
-  const appMemoryMb = getAppMemoryTotal(snapshot);
-  const backendRssMb = snapshot.memoryBreakdown?.backend_rss_mb ?? appMemoryMb;
+  const appMemorySnapshot = appMemoryState.snapshot;
+  const {
+    totalBytes: totalAppMemoryBytes,
+    backendBytes: backendEffectiveBytes,
+    webviewHelperBytes: webviewEffectiveBytes,
+  } = getAppMemoryTotals(appMemorySnapshot);
+  const totalAppRamMb = totalAppMemoryBytes / (1024 * 1024);
   const fileCacheMb = snapshot.memoryBreakdown?.file_cache_mb ?? 0;
   const terminalPtyBufferBytes = snapshot.ptyMemory.reduce(
     (sum, ptyInfo) => sum + ptyInfo.buffer_bytes,
@@ -46,24 +56,6 @@ export const SidebarRamMonitorPanel: React.FC<SidebarRamMonitorPanelProps> = ({
   );
   const totalTerminalBufferBytes =
     snapshot.terminalBufferBytes + terminalPtyBufferBytes;
-  const tauriWebViewRendererMemoryMb = snapshot.childProcesses
-    .filter(
-      (childProcess) => childProcess.category === CHILD_PROCESS_CATEGORY.WEBVIEW
-    )
-    .reduce((sum, childProcess) => sum + childProcess.memory_mb, 0);
-  const tauriGpuMemoryMb = snapshot.childProcesses
-    .filter(
-      (childProcess) => childProcess.category === CHILD_PROCESS_CATEGORY.GPU
-    )
-    .reduce((sum, childProcess) => sum + childProcess.memory_mb, 0);
-  const tauriNetworkMemoryMb = snapshot.childProcesses
-    .filter(
-      (childProcess) => childProcess.category === CHILD_PROCESS_CATEGORY.NETWORK
-    )
-    .reduce((sum, childProcess) => sum + childProcess.memory_mb, 0);
-  const webkitProcessMemoryMb =
-    tauriWebViewRendererMemoryMb + tauriGpuMemoryMb + tauriNetworkMemoryMb;
-  const totalAppRamMb = appMemoryMb + webkitProcessMemoryMb;
   const webViewDiagnostics = snapshot.webViewDiagnostics;
   const webViewEstimateBytes =
     (webViewDiagnostics?.decodedImageBytes ?? 0) +
@@ -77,22 +69,28 @@ export const SidebarRamMonitorPanel: React.FC<SidebarRamMonitorPanelProps> = ({
   const ramBreakdownRows: MemoryBreakdownRow[] = [
     {
       key: "backendGroup",
-      label: "Backend process",
-      value: formatMegabytes(backendRssMb),
-      bytes: backendRssMb * 1024 * 1024,
+      label: tSettings("monitor.appBackend"),
+      value: formatRuntimeBytes(backendEffectiveBytes),
+      bytes: backendEffectiveBytes,
     },
     {
       key: "backendFileCache",
-      label: "File cache",
+      label: tSettings("monitor.breakdownFileCache"),
       value: formatMegabytes(fileCacheMb),
       bytes: fileCacheMb * 1024 * 1024,
       indentLevel: 1,
     },
     {
       key: "webkitGroup",
-      label: "WebKit / WebView helpers",
-      value: formatMegabytes(webkitProcessMemoryMb),
-      bytes: webkitProcessMemoryMb * 1024 * 1024,
+      label: tSettings("monitor.appWebviewHelpers"),
+      value: formatRuntimeBytes(webviewEffectiveBytes),
+      bytes: webviewEffectiveBytes,
+    },
+    {
+      key: "rssMappedTotal",
+      label: tSettings("monitor.rssMappedDiagnostic"),
+      value: formatRuntimeBytes(appMemorySnapshot?.rss_mapped_total_bytes ?? 0),
+      bytes: appMemorySnapshot?.rss_mapped_total_bytes ?? 0,
     },
     {
       key: "attributionHintsGroup",
@@ -192,7 +190,7 @@ export const SidebarRamMonitorPanel: React.FC<SidebarRamMonitorPanelProps> = ({
                 }
               />
               <MemoryStatRow
-                label="Total app RAM"
+                label={tSettings("monitor.appMemory")}
                 value={formatMegabytes(totalAppRamMb)}
                 emphasized
                 tone={
@@ -200,6 +198,12 @@ export const SidebarRamMonitorPanel: React.FC<SidebarRamMonitorPanelProps> = ({
                     ? "success"
                     : undefined
                 }
+              />
+              <MemoryStatRow
+                label={tSettings("monitor.measurement")}
+                value={tSettings(
+                  `monitor.measurementKinds.${appMemorySnapshot?.measurement ?? "unavailable"}`
+                )}
               />
               <MemoryStatRow
                 label={tSettings("monitor.webViewDomNodes")}
@@ -227,9 +231,10 @@ export const SidebarRamMonitorPanel: React.FC<SidebarRamMonitorPanelProps> = ({
                 onToggleAttributionHints={handleToggleAttributionHints}
               />
 
-              {snapshot.errorMessage && (
+              {(snapshot.errorMessage || appMemoryState.errorMessage) && (
                 <div className="text-danger-7 rounded-md border border-danger-3 bg-danger-1 px-2 py-1.5 text-[11px] leading-snug">
-                  {tCommon("status.error")} · {snapshot.errorMessage}
+                  {tCommon("status.error")} ·{" "}
+                  {snapshot.errorMessage || appMemoryState.errorMessage}
                 </div>
               )}
             </div>

@@ -35,7 +35,6 @@ fn text_chunks(session_id: &str) -> Vec<ActivityChunk> {
     ]
 }
 
-
 fn no_snapshots(_task_id: &str) -> HashMap<String, (String, String)> {
     HashMap::new()
 }

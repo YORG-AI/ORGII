@@ -22,18 +22,71 @@ use git::watch::git_status::refresh_git_status_sync;
 /// the frontend polls rapidly while the tab is visible.
 const STATUS_CACHE_TTL: Duration = Duration::from_secs(2);
 
+/// Hard cap on cached repos. The key includes a SHA and an index fingerprint,
+/// so without a bound the map gained a permanent entry per commit and per
+/// staging operation for the lifetime of the process.
+const STATUS_CACHE_MAX_ENTRIES: usize = 64;
+
 struct StatusCacheEntry {
     cached_at: Instant,
     response: GitStatusResponse,
 }
 
-/// `(repo_path_string, head_sha)` → cached status response.
-/// Keyed on HEAD SHA so a commit or branch switch always yields a fresh result.
-static STATUS_CACHE: std::sync::OnceLock<Mutex<HashMap<(String, String), StatusCacheEntry>>> =
+/// `(repo_path_string, head_sha, index_fingerprint)` → cached status response.
+///
+/// HEAD SHA alone is NOT sufficient: staging, unstaging and discarding all
+/// leave HEAD untouched, so a key of `(path, sha)` served pre-mutation status
+/// for the whole TTL window after any of them. The index fingerprint
+/// (`.git/index` mtime + size) changes on those operations and restores
+/// correctness for them.
+type StatusCacheKey = (String, String, String);
+
+static STATUS_CACHE: std::sync::OnceLock<Mutex<HashMap<StatusCacheKey, StatusCacheEntry>>> =
     std::sync::OnceLock::new();
 
-fn status_cache() -> &'static Mutex<HashMap<(String, String), StatusCacheEntry>> {
+fn status_cache() -> &'static Mutex<HashMap<StatusCacheKey, StatusCacheEntry>> {
     STATUS_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Fingerprint `.git/index` without spawning a process. Returns an empty
+/// string when the index is unreadable, which simply makes the key stable.
+fn read_index_fingerprint(git_dir: &std::path::Path) -> String {
+    let Ok(meta) = std::fs::metadata(git_dir.join("index")) else {
+        return String::new();
+    };
+    let mtime = meta
+        .modified()
+        .ok()
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|delta| delta.as_nanos())
+        .unwrap_or(0);
+    format!("{}:{}", mtime, meta.len())
+}
+
+/// Build the cache key for a repo, or `None` when HEAD cannot be resolved.
+fn status_cache_key(repo_path_str: &str, git_dir: &std::path::Path) -> Option<StatusCacheKey> {
+    let head_sha = read_head_sha_cheap(git_dir)?;
+    Some((
+        repo_path_str.to_string(),
+        head_sha,
+        read_index_fingerprint(git_dir),
+    ))
+}
+
+/// Drop expired entries, then trim to the size cap if still over.
+fn prune_status_cache(cache: &mut HashMap<StatusCacheKey, StatusCacheEntry>) {
+    cache.retain(|_, entry| entry.cached_at.elapsed() < STATUS_CACHE_TTL);
+
+    while cache.len() > STATUS_CACHE_MAX_ENTRIES {
+        let Some(oldest) = cache
+            .iter()
+            .min_by_key(|(_, entry)| entry.cached_at)
+            .map(|(key, _)| key.clone())
+        else {
+            break;
+        };
+        cache.remove(&oldest);
+    }
 }
 
 /// Read `.git/HEAD` and resolve it to the commit SHA without spawning any
@@ -166,11 +219,11 @@ pub async fn get_status(
         }));
     }
 
-    // Cache lookup: read HEAD SHA cheaply (no subprocess) and skip the full
-    // git-status computation if nothing has changed within the TTL window.
+    // Cache lookup: fingerprint HEAD and the index cheaply (no subprocess) and
+    // skip the full git-status computation if nothing has changed within the
+    // TTL window.
     let repo_path_str = repo_path.to_string_lossy().to_string();
-    if let Some(head_sha) = read_head_sha_cheap(&git_dir) {
-        let cache_key = (repo_path_str.clone(), head_sha);
+    if let Some(cache_key) = status_cache_key(&repo_path_str, &git_dir) {
         if let Ok(cache) = status_cache().lock() {
             if let Some(entry) = cache.get(&cache_key) {
                 if entry.cached_at.elapsed() < STATUS_CACHE_TTL {
@@ -182,26 +235,24 @@ pub async fn get_status(
 
     let rust_status = refresh_git_status_sync(&repo_path).map_err(GitApiError::from_git_error)?;
 
-    // A silent empty-Vec fallback would render a "no changes"
-    // file list while `rust_status` (which succeeded above) might
-    // report dirty counts — confusing the UI panel. Warn on the
-    // Err branch so the inconsistency between `rust_status` and
-    // `files` is visible while still rendering the rest of the
-    // status snapshot.
+    // `refresh_git_status_sync` already ran `git status --porcelain=v2 -b` and
+    // parsed the branch header, the counts, AND the full file list — see its
+    // own "ONE git call to get everything" comment. Deriving the remaining
+    // fields from that result instead of re-querying drops three subprocesses
+    // per uncached request:
+    //   - `git status --porcelain=v2` (get_detailed_file_status_sync)
+    //   - `git rev-parse --abbrev-ref HEAD`      \ get_upstream_branch, whose
+    //   - `git rev-parse --abbrev-ref <b>@{u}`   / result is the `# branch.upstream`
+    //                                              header we already parsed.
+    // It also avoids a second `git ls-files` sweep per untracked directory and
+    // a second libgit2 rename-detection pass over untracked content.
     let files: Vec<crate::types::WorkingDirectoryFile> =
-        match git::watch::git_status::get_detailed_file_status_sync(&repo_path) {
-            Ok(f) => f.into_iter().map(Into::into).collect(),
-            Err(err) => {
-                tracing::warn!(
-                    repo = %repo_path.display(),
-                    error = %err,
-                    "git::status: get_detailed_file_status failed; rendering with empty file list"
-                );
-                Vec::new()
-            }
-        };
+        git::watch::git_status::collapse_to_working_directory_files(&rust_status.files)
+            .into_iter()
+            .map(Into::into)
+            .collect();
 
-    let current_upstream_branch = git::watch::git_status::get_upstream_branch(&repo_path);
+    let current_upstream_branch = rust_status.current_upstream_branch.clone();
 
     // Check for merge/rebase/cherry-pick state
     let merge_head_found = git_dir.join("MERGE_HEAD").exists();
@@ -240,8 +291,7 @@ pub async fn get_status(
     };
 
     // Populate the cache so rapid back-to-back polls within the TTL window are free.
-    if let Some(head_sha) = read_head_sha_cheap(&git_dir) {
-        let cache_key = (repo_path_str, head_sha);
+    if let Some(cache_key) = status_cache_key(&repo_path_str, &git_dir) {
         if let Ok(mut cache) = status_cache().lock() {
             cache.insert(
                 cache_key,
@@ -250,6 +300,7 @@ pub async fn get_status(
                     response: response.clone(),
                 },
             );
+            prune_status_cache(&mut cache);
         }
     }
 

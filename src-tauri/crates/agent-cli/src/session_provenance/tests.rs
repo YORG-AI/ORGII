@@ -345,8 +345,13 @@ fn cursor_config_preserves_user_events() {
         "version": 1,
         "hooks": {"postToolUse": [{"command": "user-hook"}]}
     });
-    update_cursor_platform(&mut config, true, false, "orgii --session-provenance-hook cursor")
-        .expect("enable Cursor hook");
+    update_cursor_platform(
+        &mut config,
+        true,
+        false,
+        "orgii --session-provenance-hook cursor",
+    )
+    .expect("enable Cursor hook");
     assert_eq!(config["hooks"]["postToolUse"].as_array().unwrap().len(), 2);
     assert_eq!(
         config["hooks"]["subagentStart"].as_array().unwrap().len(),
@@ -399,8 +404,14 @@ fn qwen_config_installs_scoped_post_tool_use_and_preserves_user_hooks() {
         SessionProvenanceHookPlatform::ClaudeCode,
         false
     ));
-    update_nested_platform(&mut config, false, QWEN_CODE_POST_TOOL_USE_MATCHER, "x", "x")
-        .expect("disable Qwen hook");
+    update_nested_platform(
+        &mut config,
+        false,
+        QWEN_CODE_POST_TOOL_USE_MATCHER,
+        "x",
+        "x",
+    )
+    .expect("disable Qwen hook");
     assert!(config.to_string().contains("user-hook"));
     assert!(!config.to_string().contains(HOOK_MARKER));
 }
@@ -524,8 +535,7 @@ fn antigravity_config_installs_own_group_and_preserves_others() {
         SessionProvenanceHookPlatform::Antigravity,
         false
     ));
-    update_antigravity_platform(&mut config, false, false, "x")
-        .expect("disable Antigravity hook");
+    update_antigravity_platform(&mut config, false, false, "x").expect("disable Antigravity hook");
     assert!(config.get(ANTIGRAVITY_HOOK_GROUP).is_none());
     assert!(config.get("orca-status").is_some());
     assert!(!config.to_string().contains(HOOK_MARKER));
@@ -537,8 +547,13 @@ fn kimi_toml_install_preserves_user_hooks_and_removes_only_ours() {
         "model = \"kimi-k2\"\n\n[[hooks]]\nevent = \"Stop\"\ncommand = \"user-hook\"\n",
     )
     .expect("parse base config");
-    kimi_apply_managed_hook(&mut root, true, false, "orgii --session-provenance-hook kimi")
-        .expect("enable Kimi hook");
+    kimi_apply_managed_hook(
+        &mut root,
+        true,
+        false,
+        "orgii --session-provenance-hook kimi",
+    )
+    .expect("enable Kimi hook");
     let serialized = toml::to_string_pretty(&root).expect("serialize");
     assert!(serialized.contains("model = \"kimi-k2\""));
     assert!(serialized.contains("user-hook"));
@@ -570,8 +585,10 @@ fn kimi_managed_detection_reads_the_toml_hooks_array() {
 
 #[test]
 fn opencode_plugin_template_embeds_binary_and_marker() {
-    let rendered = OPENCODE_PLUGIN_TEMPLATE
-        .replace("__ORGII_BINARY__", &js_escaped_path(Path::new("/Apps/ORG2/orgii")));
+    let rendered = OPENCODE_PLUGIN_TEMPLATE.replace(
+        "__ORGII_BINARY__",
+        &js_escaped_path(Path::new("/Apps/ORG2/orgii")),
+    );
     assert!(rendered.contains("/Apps/ORG2/orgii"));
     assert!(rendered.contains(HOOK_MARKER));
     assert!(rendered.contains("tool.execute.after"));
@@ -590,8 +607,11 @@ fn js_escaped_path_escapes_backslashes_and_quotes() {
 fn opencode_managed_detection_only_matches_our_plugin() {
     let temp = tempfile::tempdir().expect("temp dir");
     let managed = temp.path().join("orgii-session-provenance.js");
-    std::fs::write(&managed, format!("// {HOOK_MARKER} opencode\nexport const X = 1;"))
-        .expect("write managed plugin");
+    std::fs::write(
+        &managed,
+        format!("// {HOOK_MARKER} opencode\nexport const X = 1;"),
+    )
+    .expect("write managed plugin");
     assert!(opencode_plugin_is_managed(&managed));
 
     let user = temp.path().join("user-plugin.js");
@@ -705,7 +725,10 @@ fn zcode_set_plugin_enabled_writes_config_entry_and_preserves_user_keys() {
         serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
     assert_eq!(written["model"], "glm-5");
     assert_eq!(written["plugins"]["enabledPlugins"]["other-plugin"], true);
-    assert_eq!(written["plugins"]["enabledPlugins"][zcode_plugin_id()], true);
+    assert_eq!(
+        written["plugins"]["enabledPlugins"][zcode_plugin_id()],
+        true
+    );
 
     // Disabling leaves the unrelated plugin and top-level keys intact.
     zcode_set_plugin_enabled_at(&config_path, false).expect("disable on disk");
@@ -735,7 +758,11 @@ fn zcode_set_plugin_enabled_creates_missing_config_file() {
 fn zcode_registry_round_trip_adds_and_removes_entry() {
     let temp = tempfile::tempdir().expect("temp registry dir");
     let registry_path = temp.path().join("installed_plugins.json");
-    let cache_path = temp.path().join("cache").join("session-provenance").join("0.1.0");
+    let cache_path = temp
+        .path()
+        .join("cache")
+        .join("session-provenance")
+        .join("0.1.0");
 
     // Start from a registry that already lists an unrelated plugin.
     let seed = json!({
@@ -846,4 +873,48 @@ fn atomic_write_replaces_an_existing_config() {
     write_atomic(&path, b"new").expect("replace config");
 
     assert_eq!(std::fs::read(&path).unwrap(), b"new");
+}
+
+#[cfg(unix)]
+#[test]
+fn atomic_write_leaves_an_unchanged_config_in_place() {
+    use std::os::unix::fs::MetadataExt;
+
+    let temp = tempfile::tempdir().expect("temporary config dir");
+    let path = temp.path().join("hooks.json");
+    std::fs::write(&path, b"same").expect("existing config");
+    let inode_before = std::fs::metadata(&path).expect("metadata before").ino();
+
+    write_atomic(&path, b"same").expect("unchanged config is a no-op");
+
+    let inode_after = std::fs::metadata(&path).expect("metadata after").ino();
+    assert_eq!(inode_after, inode_before);
+    assert_eq!(std::fs::read(&path).unwrap(), b"same");
+}
+
+#[test]
+fn codex_session_activation_is_scoped_to_task_and_hook_fingerprint() {
+    let receipt = HookSessionActivationReceipt {
+        schema_version: ACTIVATION_RECEIPT_SCHEMA_VERSION,
+        platform: SessionProvenanceHookPlatform::Codex,
+        source_session_id: "task-a".to_string(),
+        hook_fingerprint: "fingerprint-a".to_string(),
+        activated_at: "2026-07-20T12:00:00.000Z".to_string(),
+    };
+
+    assert!(session_activation_matches(
+        "fingerprint-a",
+        "task-a",
+        Some(receipt.clone())
+    ));
+    assert!(!session_activation_matches(
+        "fingerprint-a",
+        "task-b",
+        Some(receipt.clone())
+    ));
+    assert!(!session_activation_matches(
+        "fingerprint-b",
+        "task-a",
+        Some(receipt)
+    ));
 }

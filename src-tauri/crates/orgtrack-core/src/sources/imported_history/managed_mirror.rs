@@ -136,10 +136,7 @@ mod tests {
             "rollout-2026-07-17T13-24-09-019f6e88-3bc8-77b3"
         ));
         // No '-' boundary or partial overlap must NOT match.
-        assert!(!is_managed_source_session_id(
-            &ids,
-            "xx019f6e88-3bc8-77b3"
-        ));
+        assert!(!is_managed_source_session_id(&ids, "xx019f6e88-3bc8-77b3"));
         assert!(!is_managed_source_session_id(&ids, "019f6e88"));
         assert!(!is_managed_source_session_id(&HashSet::new(), "anything"));
     }

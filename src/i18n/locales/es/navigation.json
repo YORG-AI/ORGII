@@ -12,6 +12,7 @@
     "drafts": "Borradores",
     "browser": "Navegador",
     "editor": "Editor",
+    "environment": "Entorno",
     "workspace": "Espacio de trabajo",
     "codeEditor": "Editor de código",
     "databaseManager": "Gestor de BD",
@@ -597,7 +598,7 @@
         "joinedFallbackToast": "Te uniste a la organización en la nube"
       },
       "create": {
-        "sourceCloud": "ORG2 Cloud (gestionado)",
+        "sourceCloud": "Nube",
         "signInFirst": "Inicia sesión en ORG2 Cloud para crear o unirte a una organización gestionada.",
         "openSettings": "Abrir ajustes de inicio de sesión",
         "createdToast": "Organización en la nube creada"

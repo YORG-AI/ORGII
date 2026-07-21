@@ -146,30 +146,3 @@ pub(super) fn get_success_data(
     }
     empty
 }
-
-/// Extract failure data from nested or flat result formats.
-pub(super) fn get_failure_data(
-    result: &serde_json::Map<String, serde_json::Value>,
-) -> serde_json::Map<String, serde_json::Value> {
-    let empty = serde_json::Map::new();
-
-    let nested = result
-        .get("output")
-        .and_then(|v| v.as_object())
-        .and_then(|o| o.get("failure"))
-        .and_then(|v| v.as_object());
-
-    let direct = result.get("failure").and_then(|v| v.as_object());
-
-    if let Some(n) = nested {
-        if !n.is_empty() {
-            return n.clone();
-        }
-    }
-    if let Some(d) = direct {
-        if !d.is_empty() {
-            return d.clone();
-        }
-    }
-    empty
-}

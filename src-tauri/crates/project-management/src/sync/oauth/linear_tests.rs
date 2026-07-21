@@ -6,6 +6,18 @@ use std::time::Duration;
 use wiremock::matchers::{body_string_contains, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
+async fn loopback_get(url: &str) -> reqwest::Response {
+    crate::test_support::install_crypto_provider_for_tests();
+    reqwest::Client::builder()
+        .no_proxy()
+        .build()
+        .expect("loopback test client")
+        .get(url)
+        .send()
+        .await
+        .expect("redirect get")
+}
+
 /// PKCE challenge derivation must match RFC 7636: the URL-safe-no-pad
 /// base64 of the SHA-256 of the verifier ASCII bytes. This vector
 /// pins one verifier to its expected challenge so a future careless
@@ -93,7 +105,7 @@ async fn await_callback_resolves_with_code_on_state_match() {
         port,
         urlencoding::encode(&state)
     );
-    let resp = reqwest::get(&url).await.expect("redirect get");
+    let resp = loopback_get(&url).await;
     assert_eq!(resp.status().as_u16(), 200);
 
     let outcome = listener_handle.await.expect("listener join");
@@ -121,7 +133,7 @@ async fn await_callback_returns_state_mismatch_when_state_differs() {
         "http://localhost:{}/callback?code=AUTHCODE&state=ATTACKER",
         port
     );
-    let _ = reqwest::get(&url).await.expect("redirect get");
+    let _ = loopback_get(&url).await;
 
     let outcome = listener_handle.await.expect("listener join");
     match outcome {
@@ -196,7 +208,7 @@ async fn await_callback_returns_access_denied_on_authorize_error() {
         "http://localhost:{}/callback?error=access_denied&error_description=user+denied",
         port
     );
-    let _ = reqwest::get(&url).await.expect("redirect get");
+    let _ = loopback_get(&url).await;
     let outcome = listener_handle.await.expect("listener join");
     assert!(
         matches!(outcome, Err(PollOutcome::AccessDenied)),

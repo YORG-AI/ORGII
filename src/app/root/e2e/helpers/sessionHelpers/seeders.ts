@@ -7,7 +7,10 @@ import { derivedSnapshotAtom } from "@src/engines/SessionCore/core/atoms/events"
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { AppType } from "@src/engines/Simulator/types/appTypes";
-import { openKanbanChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
+import {
+  openOrFocusSessionInChatPanelTabAtom,
+  openWorkManagementChatPanelTabAtom,
+} from "@src/store/chatPanel/chatPanelTabsAtom";
 import {
   isPendingCancelAtom,
   lastUserMessageAtom,
@@ -87,6 +90,13 @@ export function createSessionSeederHelpers(store: E2EStore) {
 
       const snapshot = await eventStoreProxy.getSnapshot(sessionId);
       store.set(derivedSnapshotAtom, snapshot);
+      // Session hydration may restore its persisted layout while the seed is
+      // being applied. Re-apply the requested deterministic layout after the
+      // final load so rendered E2E assertions never inspect a zero-width
+      // Agent Station hidden behind a maximized chat panel.
+      store.set(stationModeAtom, options?.stationMode ?? "my-station");
+      store.set(chatPanelMaximizedAtom, options?.chatPanelMaximized ?? true);
+      store.set(chatWidthAtom, options?.chatWidth ?? 560);
       if (options?.runtimeStatus) {
         store.set(sessionRuntimeStatusAtom, options.runtimeStatus);
       }
@@ -110,6 +120,21 @@ export function createSessionSeederHelpers(store: E2EStore) {
       if (options?.currentEventId) {
         store.set(navigateToEventAtom, options.currentEventId);
       }
+      // resetToNewSession leaves the Launchpad/Work Management pill active.
+      // Seeded transcript scenarios need the canonical session pill active;
+      // otherwise that fullscreen tab immediately re-maximizes ChatPanel and
+      // makes Agent Station zero-width after this helper returns.
+      store.set(openOrFocusSessionInChatPanelTabAtom, {
+        sessionId,
+        sessionName: sessionId,
+      });
+      // `loadSessionAtom` fans out through React effects that can finish one
+      // or two frames after the synchronous atom write. Let those settle,
+      // then make the requested E2E layout authoritative one final time.
+      await new Promise((resolve) => window.setTimeout(resolve, 100));
+      store.set(stationModeAtom, options?.stationMode ?? "my-station");
+      store.set(chatPanelMaximizedAtom, options?.chatPanelMaximized ?? true);
+      store.set(chatWidthAtom, options?.chatWidth ?? 560);
       return {
         ok: true,
         eventCount: snapshot.eventCount,
@@ -173,7 +198,7 @@ export function createSessionSeederHelpers(store: E2EStore) {
     Result<{ tabId: string }>
   > => {
     try {
-      const tabId = store.set(openKanbanChatPanelTabAtom, {});
+      const tabId = store.set(openWorkManagementChatPanelTabAtom, {});
       return { ok: true, tabId };
     } catch (err) {
       return asError(err);
@@ -344,8 +369,8 @@ export function createSessionSeederHelpers(store: E2EStore) {
   const seedShellProcess = async (input: {
     sessionId: string;
     pid: number;
+    callId?: string;
     command: string;
-    logPath?: string;
     status?: "running" | "background";
   }): Promise<Result<{ sessionId: string; pid: number }>> => {
     try {
@@ -365,14 +390,15 @@ export function createSessionSeederHelpers(store: E2EStore) {
         type: "start",
         sessionId: input.sessionId,
         pid: input.pid,
+        callId: input.callId ?? `e2e-shell-${input.pid}`,
         command: input.command,
-        logPath: input.logPath,
       });
       if (input.status === "background") {
         store.set(updateShellProcessAtom, {
           type: "background",
           sessionId: input.sessionId,
           pid: input.pid,
+          callId: input.callId ?? `e2e-shell-${input.pid}`,
         });
       }
       return { ok: true, sessionId: input.sessionId, pid: input.pid };

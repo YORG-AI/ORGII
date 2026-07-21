@@ -137,7 +137,9 @@
       "views": {
         "scanning": "Analyse",
         "hooks": "Hooks",
-        "usage": "Utilisation"
+        "usage": "Utilisation",
+        "quota": "Quota",
+        "assets": "Ressources"
       },
       "usage": {
         "title": "Utilisation et coût",
@@ -156,7 +158,7 @@
           "claude": "Claude",
           "codex": "Codex",
           "cursor": "Cursor",
-          "org2": "Agents ORGII",
+          "org2": "ORG2",
           "other": "Autres"
         },
         "cards": {
@@ -887,6 +889,9 @@
         "title": "Agents"
       },
       "tabs": {
+        "session": "Session",
+        "workItem": "Élément de travail",
+        "more": "Plus",
         "work": "Travail",
         "manage": "Gérer",
         "heatmap": "Tendances",
@@ -938,7 +943,6 @@
     "defaultTitle": "Chat",
     "hideChatPanel": "Masquer le panneau de chat",
     "showTokenUsage": "Afficher les Token",
-    "showStatusBar": "Afficher la barre d’état",
     "compactDisplayMode": "Mode compact",
     "replay": {
       "follow": "Suivre"
@@ -984,6 +988,28 @@
     "copyEventJson": "Copier le JSON des événements",
     "copyEventJsonCopied": "Copié !",
     "copyEventJsonFailed": "Échec de la copie",
+    "moveToWorkstation": "Déplacer vers mon Workstation",
+    "moveToChatPanel": "Déplacer vers le panneau de chat",
+    "rawTranscript": {
+      "title": "Transcription brute de la session",
+      "menuItem": "Afficher la transcription brute",
+      "guiTab": "GUI",
+      "rawTab": "Brut",
+      "entryCount_one": "{{count}} entrée",
+      "entryCount_other": "{{count}} entrées",
+      "copySuccess": "Transcription brute copiée",
+      "copyFailed": "Impossible de copier la transcription brute"
+    },
+    "linkWorkItem": {
+      "menuItem": "Lier à un Work Item…",
+      "title": "Lier la session à un Work Item",
+      "description": "Sélectionnez le Work Item dans lequel cette session doit apparaître.",
+      "searchPlaceholder": "Rechercher par ID, titre, statut ou projet du Work Item",
+      "loading": "Chargement des Work Items…",
+      "empty": "Aucun Work Item trouvé.",
+      "linking": "Liaison…",
+      "link": "Lier"
+    },
     "historyTitle": "Historique",
     "historyEmpty": "Aucune session pour l'instant",
     "historyGroupTime": "Temps",
@@ -1113,6 +1139,8 @@
     "turnMetadata": {
       "noChanges": "Aucun fichier modifié pendant ce tour",
       "earlierRound": "Tour précédent",
+      "editsTab": "Modifications",
+      "readsTab": "Lectures",
       "files_one": "{{count}} fichier",
       "files_other": "{{count}} fichiers",
       "reads_one": "{{count}} lecture",

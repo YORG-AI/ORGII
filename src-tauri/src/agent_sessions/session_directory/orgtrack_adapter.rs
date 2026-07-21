@@ -109,9 +109,7 @@ pub fn upsert_cli_session(session_id: &str) -> Result<(), String> {
     else {
         return Ok(());
     };
-    upsert_aggregate_sessions(&[super::conversion::cli_session_to_aggregate_record(
-        session,
-    )])
+    upsert_aggregate_sessions(&[super::conversion::cli_session_to_aggregate_record(session)])
 }
 
 /// Mirror one Rust-agent session into orgtrack's canonical session store.

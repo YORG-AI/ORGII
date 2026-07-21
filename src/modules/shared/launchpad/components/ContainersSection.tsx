@@ -267,7 +267,7 @@ const ContainersSection: React.FC<ContainersSectionProps> = ({
       }
     >
       {error ? (
-        <div className={DETAIL_PANEL_TOKENS.chatPanelInfoContainer}>
+        <div className={DETAIL_PANEL_TOKENS.primaryContainer}>
           <Placeholder
             variant="error"
             title={t("navigation:launchpad.containers.dockerUnavailable")}
@@ -279,11 +279,11 @@ const ContainersSection: React.FC<ContainersSectionProps> = ({
           />
         </div>
       ) : loading ? (
-        <div className={DETAIL_PANEL_TOKENS.chatPanelInfoContainer}>
+        <div className={DETAIL_PANEL_TOKENS.primaryContainer}>
           <Placeholder variant="loading" />
         </div>
       ) : containers.length === 0 ? (
-        <div className={DETAIL_PANEL_TOKENS.chatPanelInfoContainer}>
+        <div className={DETAIL_PANEL_TOKENS.primaryContainer}>
           <Placeholder
             variant="empty"
             title={emptyTitle}
@@ -300,7 +300,7 @@ const ContainersSection: React.FC<ContainersSectionProps> = ({
             emptyTitle={emptyTitle}
           />
           {selectedInspect ? (
-            <div className="mt-3 rounded-lg border border-border-2 bg-surface-container p-3">
+            <div className="mt-3 rounded-lg border border-border-2 bg-primary-container p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <div className="truncate text-[13px] font-medium text-text-1">

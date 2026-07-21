@@ -4,7 +4,7 @@
  * Header for the Projects page with breadcrumb and action buttons.
  * Uses shared WorkStation header tokens for consistent styling.
  */
-import { ListChevronsDownUp, Plus, RefreshCw, Search } from "lucide-react";
+import { Box, ListChevronsDownUp, Plus, RefreshCw, Search } from "lucide-react";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -72,99 +72,102 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
   const { t } = useTranslation("projects");
   const { spinClass: refreshSpinClass, handleClick: handleRefreshClick } =
     useRefreshSpin(onRefresh ?? (() => {}), refreshLoading);
-  const resolvedBreadcrumbSegments = useMemo(
-    () => breadcrumbSegments ?? [{ label: title }],
-    [breadcrumbSegments, title]
+  const resolvedBreadcrumbSegments = useMemo(() => {
+    const segments = breadcrumbSegments ?? [{ label: title }];
+    return segments.map((segment, index) =>
+      index === segments.length - 1
+        ? {
+            ...segment,
+            icon: segment.icon ?? (
+              <Box size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
+            ),
+          }
+        : segment
+    );
+  }, [breadcrumbSegments, title]);
+
+  const headerContent = (
+    <div className="flex min-w-0 flex-1 items-center gap-1.5">
+      <ProjectManagerBreadcrumb
+        segments={resolvedBreadcrumbSegments}
+        trailingNode={leadingControls}
+      />
+    </div>
   );
 
-  const renderHeaderContent = (includeRefresh: boolean) => (
-    <>
-      <div className="flex min-w-0 flex-1 items-center gap-1.5">
-        <ProjectManagerBreadcrumb
-          segments={resolvedBreadcrumbSegments}
-          trailingNode={leadingControls}
+  const headerTrailing = (
+    <div className="flex flex-shrink-0 items-center gap-px">
+      {trailingControls}
+      {trailingControls &&
+        (onSearch || onCollapseAll || onRefresh || onAddProject) && (
+          <WorkstationHeaderSectionSeparator className="mx-1" />
+        )}
+      {onSearch && (
+        <Button
+          htmlType="button"
+          variant="tertiary"
+          size="small"
+          iconOnly
+          onClick={onSearch}
+          title={t("common:actions.search")}
+          icon={<Search size={HEADER_ICON_SIZE.sm} strokeWidth={2} />}
         />
-      </div>
-
-      <div className="flex flex-shrink-0 items-center gap-px">
-        {trailingControls}
-        {trailingControls &&
-          (onSearch ||
-            onCollapseAll ||
-            (includeRefresh && onRefresh) ||
-            onAddProject) && (
-            <WorkstationHeaderSectionSeparator className="mx-1" />
+      )}
+      {(onCollapseAll || onRefresh || onAddProject) && (
+        <div className="flex flex-shrink-0 items-center gap-px">
+          {onCollapseAll && (
+            <Button
+              htmlType="button"
+              variant="tertiary"
+              size="small"
+              iconOnly
+              onClick={onCollapseAll}
+              title={t("common:actions.collapseAll")}
+              icon={
+                <ListChevronsDownUp
+                  size={HEADER_ICON_SIZE.md}
+                  strokeWidth={2}
+                />
+              }
+            />
           )}
-        {onSearch && (
-          <Button
-            htmlType="button"
-            variant="tertiary"
-            size="small"
-            iconOnly
-            onClick={onSearch}
-            title={t("common:actions.search")}
-            icon={<Search size={HEADER_ICON_SIZE.sm} strokeWidth={2} />}
-          />
-        )}
-        {(onCollapseAll || (includeRefresh && onRefresh) || onAddProject) && (
-          <div className="flex flex-shrink-0 items-center gap-px">
-            {onCollapseAll && (
-              <Button
-                htmlType="button"
-                variant="tertiary"
-                size="small"
-                iconOnly
-                onClick={onCollapseAll}
-                title={t("common:actions.collapseAll")}
-                icon={
-                  <ListChevronsDownUp
-                    size={HEADER_ICON_SIZE.md}
-                    strokeWidth={2}
-                  />
-                }
-              />
-            )}
-            {includeRefresh && onRefresh && (
-              <Button
-                htmlType="button"
-                variant="tertiary"
-                size="small"
-                iconOnly
-                onClick={handleRefreshClick}
-                title={t("common:actions.refresh")}
-                icon={
-                  <RefreshCw
-                    size={HEADER_ICON_SIZE.sm}
-                    strokeWidth={2}
-                    className={refreshSpinClass}
-                  />
-                }
-              />
-            )}
-            {onAddProject && (
-              <Button
-                htmlType="button"
-                variant="tertiary"
-                size="small"
-                iconOnly
-                onClick={onAddProject}
-                title={t("projects.createProject")}
-                data-testid="projects-create-project"
-                icon={<Plus size={HEADER_ICON_SIZE.md} strokeWidth={2} />}
-              />
-            )}
-          </div>
-        )}
-      </div>
-    </>
+          {onRefresh && (
+            <Button
+              htmlType="button"
+              variant="tertiary"
+              size="small"
+              iconOnly
+              onClick={handleRefreshClick}
+              title={t("common:actions.refresh")}
+              icon={
+                <RefreshCw
+                  size={HEADER_ICON_SIZE.sm}
+                  strokeWidth={2}
+                  className={refreshSpinClass}
+                />
+              }
+            />
+          )}
+          {onAddProject && (
+            <Button
+              htmlType="button"
+              variant="tertiary"
+              size="small"
+              iconOnly
+              onClick={onAddProject}
+              title={t("projects.createProject")}
+              data-testid="projects-create-project"
+              icon={<Plus size={HEADER_ICON_SIZE.md} strokeWidth={2} />}
+            />
+          )}
+        </div>
+      )}
+    </div>
   );
-
-  const publishedHeaderContent = renderHeaderContent(true);
-  const inlineHeaderContent = renderHeaderContent(true);
 
   usePublishWorkstationTabHeader({
     host: workstationHeaderHost,
-    content: { content: publishedHeaderContent },
+    content: { content: headerContent, trailing: headerTrailing },
     enabled: publishToWorkstationHeader,
   });
 
@@ -172,7 +175,8 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
 
   return (
     <div className={`${HEADER_CLASSES.pageHeader} ${className}`}>
-      {inlineHeaderContent}
+      {headerContent}
+      {headerTrailing}
     </div>
   );
 };

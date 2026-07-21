@@ -126,7 +126,6 @@ const RecentSessionsPanelView: React.FC<RecentSessionsPanelViewProps> = memo(
       <SessionTable
         items={tableItems}
         onSelect={handleSelectSession}
-        surfaceVariant="chatPanel"
         showSearch
         maxHeight={520}
         pageSize={10}

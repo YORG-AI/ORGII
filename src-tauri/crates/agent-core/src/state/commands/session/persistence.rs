@@ -458,6 +458,7 @@ mod tests {
         crate::interaction::plan_approval::persistence::init_schema(&conn)
             .expect("plan approval schema");
         crate::coordination::init_agent_org_schemas(&conn).expect("Agent Org schemas");
+        database::init_shell_replay_tables(&conn).expect("shell replay schema");
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS events (
                 id TEXT PRIMARY KEY,

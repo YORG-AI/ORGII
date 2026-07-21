@@ -137,7 +137,9 @@
       "views": {
         "scanning": "スキャン",
         "hooks": "フック",
-        "usage": "使用量"
+        "usage": "使用量",
+        "quota": "クォータ",
+        "assets": "アセット"
       },
       "usage": {
         "title": "使用量とコスト",
@@ -156,7 +158,7 @@
           "claude": "Claude",
           "codex": "Codex",
           "cursor": "Cursor",
-          "org2": "ORGII エージェント",
+          "org2": "ORG2",
           "other": "その他"
         },
         "cards": {
@@ -886,6 +888,9 @@
         "title": "Agents"
       },
       "tabs": {
+        "session": "セッション",
+        "workItem": "作業項目",
+        "more": "その他",
         "work": "作業",
         "manage": "管理",
         "heatmap": "トレンド",
@@ -937,7 +942,6 @@
     "defaultTitle": "チャット",
     "hideChatPanel": "チャットパネルを非表示",
     "showTokenUsage": "Token を表示",
-    "showStatusBar": "ステータスバーを表示",
     "compactDisplayMode": "コンパクトモード",
     "replay": {
       "follow": "フォロー"
@@ -983,6 +987,28 @@
     "copyEventJson": "イベント JSON をコピー",
     "copyEventJsonCopied": "コピーしました！",
     "copyEventJsonFailed": "コピー失敗",
+    "moveToWorkstation": "マイ Workstation に移動",
+    "moveToChatPanel": "チャットパネルに移動",
+    "rawTranscript": {
+      "title": "セッションの生トランスクリプト",
+      "menuItem": "生トランスクリプトを表示",
+      "guiTab": "GUI",
+      "rawTab": "生データ",
+      "entryCount_one": "{{count}} 件",
+      "entryCount_other": "{{count}} 件",
+      "copySuccess": "生トランスクリプトをコピーしました",
+      "copyFailed": "生トランスクリプトをコピーできませんでした"
+    },
+    "linkWorkItem": {
+      "menuItem": "Work Item にリンク…",
+      "title": "セッションを Work Item にリンク",
+      "description": "このセッションを表示する Work Item を選択してください。",
+      "searchPlaceholder": "Work Item ID、タイトル、ステータス、プロジェクトで検索",
+      "loading": "Work Item を読み込み中…",
+      "empty": "Work Item が見つかりません。",
+      "linking": "リンク中…",
+      "link": "リンク"
+    },
     "historyTitle": "履歴",
     "historyEmpty": "セッションがありません",
     "historyGroupTime": "時間",
@@ -1112,6 +1138,8 @@
     "turnMetadata": {
       "noChanges": "このラウンドではファイル変更なし",
       "earlierRound": "以前のラウンド",
+      "editsTab": "編集",
+      "readsTab": "読み取り",
       "files_one": "{{count}} ファイル",
       "files_other": "{{count}} ファイル",
       "reads_one": "{{count}} 回読み取り",

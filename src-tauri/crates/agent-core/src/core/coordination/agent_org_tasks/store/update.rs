@@ -16,7 +16,8 @@ use super::super::{
 };
 use super::dependencies::{canonicalize_dependencies, persist_dependency_projection};
 use super::validation::{
-    ensure_run_allows_task_mutation, validate_task_persistence_invariants, validate_task_text_fields,
+    ensure_run_allows_task_mutation, validate_task_persistence_invariants,
+    validate_task_text_fields,
 };
 use super::AgentOrgTaskStore;
 

@@ -118,7 +118,13 @@ async function killShellProcessesForBoundary(
           ? process.status === "running" || process.status === "background"
           : process.status === "running"
       )
-      .map((process) => killAgentShellProcess({ pid: process.pid, sessionId }))
+      .map((process) =>
+        killAgentShellProcess({
+          pid: process.pid,
+          sessionId,
+          callId: process.callId,
+        })
+      )
   );
 }
 

@@ -165,7 +165,7 @@
 // ==========================================
 
 .table-settings {
-  --settings-table-surface: var(--color-surface-container);
+  --settings-table-surface: var(--color-primary-container);
 
   .table-container {
     position: relative;
@@ -264,6 +264,7 @@
     font-weight: 500;
     color: var(--color-text-2);
     vertical-align: middle;
+    border-bottom-color: var(--color-border-1);
     /*
      * Paint a 1px upward extension over the search bar so subpixel
      * rounding between `--search-bar-h` and the actual search bar
@@ -285,7 +286,7 @@
 
   .table-td {
     padding: 0;
-    border-bottom: 1px solid var(--border-2);
+    border-bottom: none;
     font-size: 13px;
     vertical-align: middle;
     height: 40px;
@@ -312,10 +313,6 @@
 
   .table-td-align-center .table-td-inner {
     justify-content: center;
-  }
-
-  .table-row:last-child .table-td {
-    border-bottom: none;
   }
 
   .table-th,
@@ -351,7 +348,7 @@
   }
 
   &.table-settings-header-border .table-th {
-    border-bottom: 1px solid var(--color-border-2);
+    border-bottom: 1px solid var(--color-border-1);
   }
 
   &.table-settings-no-sticky .table-fixed-header,
@@ -524,14 +521,6 @@
     background: var(--settings-table-surface);
   }
 
-  .settings-table-root-chat-panel &,
-  .settings-table-root-chat-panel .table-wrapper,
-  .settings-table-root-chat-panel .table-container,
-  .settings-table-root-chat-panel .table-scroll,
-  .settings-table-root-chat-panel .table-pagination-wrapper {
-    background: var(--settings-table-surface);
-  }
-
   &.table-policy-fixed-layout .table {
     table-layout: fixed;
   }
@@ -630,7 +619,7 @@
 }
 
 .settings-table-root-default .table-settings {
-  --settings-table-surface: var(--color-surface-container);
+  --settings-table-surface: var(--color-primary-container);
 }
 
 .settings-table-root-transparent,
@@ -707,19 +696,6 @@
 
 .settings-table-root-transparent .table-settings.table-dark .table-tbody {
   background: transparent;
-}
-
-.settings-table-root-chat-panel,
-.settings-table-root-chat-panel .table-settings {
-  --settings-table-surface: var(--color-chat-panel-info-container);
-}
-
-.settings-table-root-chat-panel .table-settings .table-row,
-.settings-table-root-chat-panel .table-settings .table-expanded-row,
-.settings-table-root-chat-panel .table-settings .table-row > .table-td,
-.settings-table-root-chat-panel .table-settings .table-expanded-row > .table-td,
-.settings-table-root-chat-panel .table-settings .table-td-inner {
-  background: var(--settings-table-surface);
 }
 
 .table-settings.table-settings-fill-height {

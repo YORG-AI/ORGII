@@ -61,14 +61,14 @@ export interface ActiveProcessesProps {
 
 interface ProcessRowProps {
   process: ShellProcessState;
-  onStop: (pid: number) => void;
+  onStop: (pid: number, callId: string) => void;
 }
 
 const ProcessRow: React.FC<ProcessRowProps> = memo(({ process, onStop }) => {
   const { t } = useTranslation("common");
   const handleStop = useCallback(
-    () => onStop(process.pid),
-    [onStop, process.pid]
+    () => onStop(process.pid, process.callId),
+    [onStop, process.callId, process.pid]
   );
 
   return (
@@ -202,11 +202,12 @@ const ActiveProcesses: React.FC<ActiveProcessesProps> = memo(
     }, [hasSubagents]);
 
     const handleStop = useCallback(
-      async (pid: number) => {
+      async (pid: number, callId: string) => {
         try {
           await killAgentShellProcess({
             pid,
             sessionId: sessionId ?? undefined,
+            callId,
           });
         } catch (err: unknown) {
           logger.warn("kill failed:", err);

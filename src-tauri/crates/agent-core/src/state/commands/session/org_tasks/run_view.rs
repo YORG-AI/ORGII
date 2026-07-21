@@ -26,7 +26,9 @@ use crate::coordination::agent_org_runs::{
     AgentOrgContextMember, AgentOrgRunContext, AgentOrgRunStatus, AgentOrgRunStore,
     WorkerSessionRuntime, COORDINATOR_MEMBER_ID,
 };
-use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, Task, TaskExecutionMode, TaskSummary};
+use crate::coordination::agent_org_tasks::{
+    AgentOrgTaskStore, Task, TaskExecutionMode, TaskSummary,
+};
 use crate::state::AgentAppState;
 
 use super::context::{require_session_member_id, session_org_read_context};

@@ -6,14 +6,17 @@ export type InteractionType =
   | "focus"
   | "unknown";
 
-export type BackendType = "python" | "rust";
+/** How a request crosses the frontend boundary. This is deliberately not a
+ * backend identity: ORGII has one Rust backend, exposed through both HTTP and
+ * Tauri IPC. */
+export type ApiTransport = "http" | "tauri";
 
 export interface ApiCall {
   id: string;
   method: string;
   url: string;
   fullUrl: string;
-  backend: BackendType;
+  transport: ApiTransport;
   headers?: Record<string, string>;
   params?: Record<string, unknown>;
   data?: unknown;
@@ -80,7 +83,7 @@ export interface PushHotspot {
 
 export interface ApiCallHotspot {
   key: string;
-  backend: BackendType;
+  transport: ApiTransport;
   method: string;
   target: string;
   count: number;

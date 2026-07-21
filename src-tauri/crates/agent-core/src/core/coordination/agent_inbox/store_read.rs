@@ -13,12 +13,12 @@ use super::record::{
     row_to_preview_record, row_to_record, AgentInboxPage, AgentInboxPreviewRecord,
     AgentInboxUnreadRecipientCounts,
 };
+#[cfg(test)]
+use super::record::{AgentInboxRecipientCounts, AgentInboxRecord};
 use super::{
     AgentInboxStore, MAX_INBOX_HISTORY_PAGE_BYTES, MAX_INBOX_HISTORY_PAGE_ROWS,
     MAX_RUN_INBOX_PREVIEW_CHARS, MAX_RUN_INBOX_SNAPSHOT_ROWS,
 };
-#[cfg(test)]
-use super::record::{AgentInboxRecipientCounts, AgentInboxRecord};
 
 pub(super) const UNREAD_COUNTS_BY_RECIPIENT_SQL: &str = "SELECT recipient_agent_id,
             recipient_member_id,

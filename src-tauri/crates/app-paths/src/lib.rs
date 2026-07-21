@@ -64,6 +64,15 @@ pub fn sessions_db() -> PathBuf {
     orgii_root().join("sessions.db")
 }
 
+/// Durable append-only shell replay artifacts: `~/.orgii/shell-replays/`.
+///
+/// Kept under the same `ORGII_HOME`-aware root as `sessions.db` so desktop,
+/// headless/API execution, range reads, tests, and session deletion always
+/// resolve the identical lifecycle-owned directory.
+pub fn shell_replays_dir() -> PathBuf {
+    orgii_root().join("shell-replays")
+}
+
 /// Privacy-filtered session-provenance hook inbox:
 /// `~/.orgii/session-provenance/inbox/`.
 ///
@@ -82,7 +91,9 @@ pub fn session_provenance_inbox_dir() -> PathBuf {
 /// sessions that outlive an Orgii restart reach the new server/token. Never
 /// deleted on shutdown — a dead server just refuses the TCP connect.
 pub fn agent_status_endpoint_path() -> PathBuf {
-    orgii_root().join("session-provenance").join("status-endpoint.json")
+    orgii_root()
+        .join("session-provenance")
+        .join("status-endpoint.json")
 }
 
 /// Live agent-status last-status cache:
@@ -92,7 +103,9 @@ pub fn agent_status_endpoint_path() -> PathBuf {
 /// (TTL-filtered) for UI continuity across restarts. Owner-only permissions;
 /// never mirrored into `sessions.db`.
 pub fn agent_status_cache_path() -> PathBuf {
-    orgii_root().join("session-provenance").join("last-status.json")
+    orgii_root()
+        .join("session-provenance")
+        .join("last-status.json")
 }
 
 /// Project & work-item SQLite database: `~/.orgii/projects/projects.db`.

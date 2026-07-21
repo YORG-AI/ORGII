@@ -30,6 +30,7 @@ import {
 import { ROUTES } from "@src/config/routes";
 import { SIDEBAR_MEMORY_KIND, useSidebarMemoryEntry } from "@src/hooks/perf";
 import { APP_SECTIONS } from "@src/modules/MainApp/Settings/config";
+import { devModeEnabledAtom } from "@src/store/platform/devModeAtom";
 import { spotlightOpenAtom } from "@src/store/ui/uiAtom";
 import { settingsReturnRouteAtom } from "@src/store/ui/viewModeAtom";
 
@@ -141,6 +142,7 @@ const SettingsSidebar: React.FC = () => {
   const { t } = useTranslation("navigation");
   const navigate = useNavigate();
   const settingsReturnRoute = useAtomValue(settingsReturnRouteAtom);
+  const devModeEnabled = useAtomValue(devModeEnabledAtom);
   const setSpotlightOpen = useSetAtom(spotlightOpenAtom);
 
   const handleBack = useCallback(() => {
@@ -178,7 +180,7 @@ const SettingsSidebar: React.FC = () => {
       <SidebarBottomBar
         rightActions={
           <>
-            <SidebarRamMonitorButton />
+            {devModeEnabled && <SidebarRamMonitorButton />}
             <SettingsFooterBackButton
               label={t("sidebar.bottomBar.settings")}
               onClick={handleBack}

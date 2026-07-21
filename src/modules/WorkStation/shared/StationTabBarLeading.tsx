@@ -1,6 +1,7 @@
 import React from "react";
 
-import { NoDragRegion } from "./NoDragRegion";
+import { NoDragRegion } from "@src/components/WindowChrome";
+
 import { StationModeChip } from "./StationModeChip";
 import { TabBarLeadingLayout } from "./TabBarLeadingLayout";
 

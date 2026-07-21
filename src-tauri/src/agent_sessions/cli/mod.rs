@@ -16,12 +16,12 @@ pub mod commands;
 pub mod hook_approvals;
 pub mod launch_profile_store;
 pub mod native_transcript;
-pub mod tui_bridge;
 pub mod parsers;
 pub mod persistence;
 pub mod platform_adapters;
 pub mod session_runner;
 pub mod skill_sync;
+pub mod tui_bridge;
 pub mod types;
 
 use rusqlite::{Connection, Result as SqliteResult};

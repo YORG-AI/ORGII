@@ -1,7 +1,7 @@
 //! Coding tool implementations.
 //!
 //! One file (or subfolder) per tool — the file/folder name matches the tool
-//! name. Helper-only modules (`action_router`, `terminal_log`) are kept flat.
+//! name. Helper-only modules such as `action_router` are kept flat.
 //!
 //! - [`code_search`]   — `code_search` tool
 //! - [`edit_file`]     — `edit_file` tool (subfolder: strategies + tests)
@@ -16,7 +16,6 @@
 //!
 //! Helpers:
 //! - [`action_router`] — `ActionRouter` (per-tool routing layer over `ActionBridge`)
-//! - [`terminal_log`]  — terminal session log helpers
 
 pub mod action_router;
 pub mod code_search;
@@ -32,5 +31,4 @@ pub mod query_lsp;
 pub mod render_inline_canvas;
 pub mod setup_repo;
 pub mod skill;
-pub mod terminal_log;
 pub mod worktree;

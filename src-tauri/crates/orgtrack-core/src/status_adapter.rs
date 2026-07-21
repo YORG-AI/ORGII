@@ -149,10 +149,17 @@ fn event_key(event_name: &str) -> String {
 }
 
 fn is_subagent_event(event_name: &str) -> bool {
-    matches!(event_key(event_name).as_str(), "subagentstart" | "subagentstop")
+    matches!(
+        event_key(event_name).as_str(),
+        "subagentstart" | "subagentstop"
+    )
 }
 
-fn state_for_event(source: HookSource, event_name: &str, payload: &Value) -> Option<AgentLiveState> {
+fn state_for_event(
+    source: HookSource,
+    event_name: &str,
+    payload: &Value,
+) -> Option<AgentLiveState> {
     use AgentLiveState::*;
     let key = event_key(event_name);
     match source {
@@ -277,7 +284,9 @@ fn tool_snapshot(source: HookSource, payload: &Value) -> (Option<String>, Option
     } else {
         (
             string_field(payload, &["tool_name", "toolName", "tool"]),
-            payload.get("tool_input").or_else(|| payload.get("toolInput")),
+            payload
+                .get("tool_input")
+                .or_else(|| payload.get("toolInput")),
         )
     };
 
@@ -300,8 +309,11 @@ fn tool_snapshot(source: HookSource, payload: &Value) -> (Option<String>, Option
 }
 
 fn interactive_prompt(payload: &Value, tool_name: Option<&str>) -> Option<String> {
-    let text = string_field(payload, &["message", "prompt", "question", "permission_prompt"])
-        .or_else(|| tool_name.map(|name| format!("Permission requested: {name}")))?;
+    let text = string_field(
+        payload,
+        &["message", "prompt", "question", "permission_prompt"],
+    )
+    .or_else(|| tool_name.map(|name| format!("Permission requested: {name}")))?;
     Some(truncate_chars(&text, MAX_INTERACTIVE_PROMPT_CHARS))
 }
 
@@ -342,11 +354,8 @@ mod tests {
             ("Notification", None),
         ];
         for (event, expected) in cases {
-            let normalized = normalize_status_payload(
-                HookSource::ClaudeCode,
-                &claude_payload(event),
-                None,
-            );
+            let normalized =
+                normalize_status_payload(HookSource::ClaudeCode, &claude_payload(event), None);
             assert_eq!(
                 normalized.as_ref().map(|status| status.state),
                 expected,
@@ -374,7 +383,11 @@ mod tests {
         );
         assert_eq!(status.source, "claude_code");
         assert_eq!(status.tool_name.as_deref(), Some("Bash"));
-        assert!(status.tool_input_preview.as_deref().unwrap().contains("npm test"));
+        assert!(status
+            .tool_input_preview
+            .as_deref()
+            .unwrap()
+            .contains("npm test"));
         assert_eq!(status.orgii_session_id.as_deref(), Some("orgii-session-1"));
         assert_eq!(status.occurred_at, "2026-07-17T10:00:00.000Z");
         assert_eq!(status.cwd.as_deref(), Some("/repo"));

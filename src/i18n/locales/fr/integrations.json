@@ -1690,6 +1690,8 @@
     "sessionProvenance": {
       "masterToggle": "Hooks de provenance",
       "masterToggleDesc": "Lorsque cette option est désactivée, tous les hooks gérés sont désinstallés et aucun signal n’est collecté ; les choix par plateforme sont conservés et restaurés à la réactivation.",
+      "liveStatusToggle": "Statut des agents en direct",
+      "liveStatusToggleDesc": "Indique si les agents CLI actifs travaillent ou attendent. La désactivation conserve la capture de provenance.",
       "title": "Traçabilité des sessions",
       "capture": "Enregistrer les interactions avec les fichiers",
       "description": "Enregistre les lectures et écritures de fichiers sous forme de métadonnées. Les prompts, les sorties d’outils et le contenu des fichiers ne sont pas stockés.",

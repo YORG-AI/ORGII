@@ -81,6 +81,30 @@ export interface EventPayloadBody {
   fullSizeBytes: number;
 }
 
+export type ShellReplayStatus = "running" | "complete" | "incomplete";
+
+export interface ShellReplayRef {
+  sessionId: string;
+  callId: string;
+  formatVersion: number;
+}
+
+export interface ShellReplayBookmark {
+  visibleThroughSequence: number;
+  visibleBytes: number;
+}
+
+/** Immutable shell visibility state captured by one Session replay snapshot. */
+export interface ShellReplayState {
+  ref: ShellReplayRef;
+  bookmark: ShellReplayBookmark;
+  terminalPreview: string;
+  status: ShellReplayStatus;
+  /** ISO timestamp set only after the durable completion barrier succeeds/fails. */
+  completedAt?: string | null;
+  error?: string | null;
+}
+
 export type SimulatorEventFilterValue =
   | "key_interactions"
   | "file_changes"
@@ -238,6 +262,15 @@ export interface SessionEvent {
 
   /** Path to the terminal log file */
   shellLogPath?: string;
+
+  /** Snapshot-owned shell replay reference, watermark, and bounded preview. */
+  shellReplay?: ShellReplayState;
+
+  /**
+   * Immutable replay watermarks for every shell visible at this event cursor.
+   * Stamped when the event is first inserted and preserved across later merges.
+   */
+  shellReplayBookmarks?: Record<string, ShellReplayState>;
 
   /**
    * Rust-computed typed payload for block rendering.

@@ -360,10 +360,10 @@ fn candidate_paths_include_home_chats_root() {
     // profile dirs exist on the machine, so they can't be asserted here —
     // but any that do appear must use the CLI's real `<config-dir>/chats`
     // layout, never a `.cursor` component under a profile dir.
-    assert!(!paths
-        .iter()
-        .any(|path| path.to_string_lossy().contains("cursor-cli-profiles")
-            && path.to_string_lossy().contains(".cursor")));
+    assert!(!paths.iter().any(
+        |path| path.to_string_lossy().contains("cursor-cli-profiles")
+            && path.to_string_lossy().contains(".cursor")
+    ));
 }
 
 #[test]

@@ -10,9 +10,13 @@ use super::helpers::{
     is_synthetic_transcript_placeholder, normalized_event_text,
     stream_placeholder_prefix_for_authoritative, transcript_message_key,
 };
-use super::EventStore;
+use super::{
+    active_shell_replays_for_session, bound_shell_replay_state, capture_shell_replay_bookmarks,
+    monotonic_shell_replay_state, preserve_first_insert_replay, sanitize_live_shell_event,
+    EventStore,
+};
 use crate::agent_sessions::event_pipeline::types::{
-    ActivityStatus, EventDisplayStatus, EventSource, SessionEvent, SessionEventPatch,
+    EventDisplayStatus, EventSource, SessionEvent, SessionEventPatch, ShellReplayState,
 };
 
 impl EventStore {
@@ -36,6 +40,8 @@ impl EventStore {
     pub fn upsert(&mut self, mut event: SessionEvent) {
         self.mark_live_partial_if_windowed();
         self.stamp_repo(&mut event);
+        let active = active_shell_replays_for_session(&event.session_id);
+        capture_shell_replay_bookmarks(&mut event, &active);
         if self.replace_matching_stream_placeholder(&mut event) {
             self.version += 1;
             return;
@@ -49,6 +55,7 @@ impl EventStore {
             if Self::would_downgrade_terminal_tool_call(&self.events[idx], &event) {
                 return;
             }
+            preserve_first_insert_replay(&self.events[idx], &mut event);
             if let Some(ref old_cid) = self.events[idx].call_id {
                 self.call_id_index.remove(old_cid);
             }
@@ -238,6 +245,8 @@ impl EventStore {
         mut new_event: SessionEvent,
     ) -> bool {
         self.stamp_repo(&mut new_event);
+        let active = active_shell_replays_for_session(&new_event.session_id);
+        capture_shell_replay_bookmarks(&mut new_event, &active);
         if let Some(rid) = remove_id {
             if let Some(&remove_idx) = self.id_index.get(rid) {
                 let placeholder_created_at = self.events[remove_idx].created_at.clone();
@@ -252,6 +261,7 @@ impl EventStore {
                         } else {
                             existing_new_idx
                         };
+                        preserve_first_insert_replay(&self.events[target_idx], &mut new_event);
                         let new_id = new_event.id.clone();
                         self.events[target_idx] = new_event;
                         self.mark_removed(removed_id);
@@ -262,6 +272,7 @@ impl EventStore {
                     }
                 }
 
+                preserve_first_insert_replay(&self.events[remove_idx], &mut new_event);
                 if let Some(ref old_cid) = self.events[remove_idx].call_id {
                     self.call_id_index.remove(old_cid);
                 }
@@ -282,107 +293,72 @@ impl EventStore {
         true
     }
 
-    /// Find the last shell tool_call event (scanning from end, stopping at processed shell).
-    /// Update its args with the given streamOutput content.
-    pub fn update_last_shell_output(
-        &mut self,
-        stream_output: String,
-        shell_tools: &[&str],
-    ) -> Option<String> {
-        for idx in (0..self.events.len()).rev() {
-            if self.events[idx].activity_status == ActivityStatus::Processed
-                && shell_tools.contains(&self.events[idx].function_name.as_str())
-            {
-                break;
-            }
-            if self.events[idx].action_type == "tool_call"
-                && shell_tools.contains(&self.events[idx].function_name.as_str())
-            {
-                if let serde_json::Value::Object(ref mut args_map) = self.events[idx].args {
-                    args_map.insert(
-                        "streamOutput".to_string(),
-                        serde_json::Value::String(stream_output),
-                    );
-                }
-                let event_id = self.events[idx].id.clone();
-                self.mark_changed(event_id.clone());
-                self.version += 1;
-                return Some(event_id);
-            }
-        }
-        None
-    }
-
-    /// Find the last shell tool_call event and update its process info (pid, status, exit code, log path).
-    /// Used by ShellProcessStarted/Backgrounded/Exited events to populate TerminalBlock UI.
+    /// Update the bounded mutable replay state by exact LLM call identity.
     ///
-    /// Matching logic:
-    /// - For "running" status (process started): find the last unprocessed shell tool_call
-    ///   that has not yet been stamped with a `shellPid`.
-    /// - For "background"/"exited"/"killed" status: match by PID (the event may already
-    ///   carry `shellPid` from an earlier `running` event, and may be Processed for exits).
-    pub fn update_last_shell_process(
+    /// The initial preflight callback may seed this call's immutable bookmark
+    /// if it was not present when the shell row first entered the timeline.
+    /// Later callbacks never overwrite any timeline bookmark. Duplicate
+    /// tool-call siblings receive the same monotonic live state so hydration
+    /// artifacts cannot show different terminal tails for one call.
+    pub fn update_shell_replay_by_call_id(
         &mut self,
-        pid: u32,
-        status: &str,
-        exit_code: Option<i32>,
-        log_path: Option<&str>,
-        shell_tools: &[&str],
+        call_id: &str,
+        state: ShellReplayState,
+        seed_bookmark: bool,
     ) -> Option<String> {
-        let match_by_pid = matches!(status, "background" | "exited" | "killed");
+        if state.replay_ref.call_id != call_id {
+            return None;
+        }
 
-        for idx in (0..self.events.len()).rev() {
-            if self.events[idx].action_type != "tool_call"
-                || !shell_tools.contains(&self.events[idx].function_name.as_str())
+        let seed_state = bound_shell_replay_state(state.clone());
+        let preferred_id = self
+            .call_id_index
+            .get(call_id)
+            .and_then(|idx| self.events.get(*idx))
+            .filter(|event| event.session_id == state.replay_ref.session_id)
+            .map(|event| event.id.clone());
+        let mut found_id = None;
+        let mut changed_ids = Vec::new();
+
+        for event in &mut self.events {
+            if event.action_type != "tool_call"
+                || event.call_id.as_deref() != Some(call_id)
+                || event.session_id != state.replay_ref.session_id
             {
                 continue;
             }
-
-            // For PID-bound updates (background, exit), match by PID — the event
-            // already carries `shellPid` from the prior `running` update and may
-            // already be Processed for exits.
-            // For "running" updates, find the first unprocessed shell tool_call.
-            if match_by_pid {
-                let event_pid = self.events[idx]
-                    .args
-                    .get("shellPid")
-                    .and_then(|v| v.as_u64())
-                    .map(|p| p as u32);
-                if event_pid != Some(pid) {
-                    continue;
-                }
-            } else if self.events[idx].activity_status == ActivityStatus::Processed {
-                break;
+            if found_id.is_none() {
+                found_id = Some(event.id.clone());
             }
 
-            if let serde_json::Value::Object(ref mut args_map) = self.events[idx].args {
-                args_map.insert(
-                    "shellPid".to_string(),
-                    serde_json::Value::Number(pid.into()),
-                );
-                args_map.insert(
-                    "shellProcessStatus".to_string(),
-                    serde_json::Value::String(status.to_string()),
-                );
-                if let Some(code) = exit_code {
-                    args_map.insert(
-                        "shellExitCode".to_string(),
-                        serde_json::Value::Number(code.into()),
-                    );
-                }
-                if let Some(path) = log_path {
-                    args_map.insert(
-                        "shellLogPath".to_string(),
-                        serde_json::Value::String(path.to_string()),
-                    );
+            let next = monotonic_shell_replay_state(event.shell_replay.as_ref(), state.clone());
+            let mut changed = event.shell_replay.as_ref() != Some(&next);
+            event.shell_replay = Some(next);
+
+            if seed_bookmark {
+                let bookmarks = event
+                    .shell_replay_bookmarks
+                    .get_or_insert_with(Default::default);
+                if !bookmarks.contains_key(call_id) {
+                    bookmarks.insert(call_id.to_string(), seed_state.clone());
+                    changed = true;
                 }
             }
-            let event_id = self.events[idx].id.clone();
-            self.mark_changed(event_id.clone());
-            self.version += 1;
-            return Some(event_id);
+
+            sanitize_live_shell_event(event);
+            if changed {
+                changed_ids.push(event.id.clone());
+            }
         }
-        None
+
+        if !changed_ids.is_empty() {
+            for id in changed_ids {
+                self.mark_changed(id);
+            }
+            self.version += 1;
+        }
+
+        preferred_id.or(found_id)
     }
 
     /// Update args on the last event matching a predicate (scanning from end).
@@ -517,6 +493,7 @@ impl EventStore {
         if let Some(ref new_cid) = new_event.call_id {
             self.call_id_index.insert(new_cid.clone(), existing_idx);
         }
+        preserve_first_insert_replay(&self.events[existing_idx], new_event);
         let old_id = self.events[existing_idx].id.clone();
         let new_id = new_event.id.clone();
         self.events[existing_idx] = new_event.clone();
@@ -562,6 +539,7 @@ impl EventStore {
                 } else {
                     existing_new_idx
                 };
+                preserve_first_insert_replay(&self.events[target_idx], new_event);
                 let new_id = new_event.id.clone();
                 self.events[target_idx] = new_event.clone();
                 self.mark_removed(removed_id);
@@ -571,6 +549,7 @@ impl EventStore {
             }
         }
 
+        preserve_first_insert_replay(&self.events[idx], new_event);
         if let Some(ref old_cid) = self.events[idx].call_id {
             self.call_id_index.remove(old_cid);
         }

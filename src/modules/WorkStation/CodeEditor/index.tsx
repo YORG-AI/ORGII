@@ -47,7 +47,6 @@ import { EditorIntegrations } from "./EditorLayout/components/EditorIntegrations
 import FileSearchPanel from "./EditorLayout/overlays/FileSearchPanel";
 import EditorBottomPanel from "./Panels/EditorBottomPanel";
 import EditorContent from "./Panels/EditorMainPane";
-import { preloadSourceControlTabContent } from "./Panels/EditorMainPane/content";
 import { EditorPrimarySidebar } from "./Panels/EditorPrimarySidebar";
 import { useCodeEditorLocalState } from "./useCodeEditorLocalState";
 import { useSourceControlSetup } from "./useSourceControlSetup";
@@ -147,11 +146,6 @@ export const CodeEditor: React.FC<CodeEditorProps> = memo(
       setSearchPanelVisible,
       gitDiffState,
     });
-
-    useEffect(() => {
-      const preloadTimer = window.setTimeout(preloadSourceControlTabContent, 0);
-      return () => window.clearTimeout(preloadTimer);
-    }, []);
 
     useEffect(() => {
       if (!tabs.some((tab) => String(tab.type) === "launchpad-dashboard"))

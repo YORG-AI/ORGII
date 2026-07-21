@@ -52,7 +52,10 @@ const MAX_REDACTED_SNAPSHOT_CHARS: usize = 80_000;
 /// Default PTY dimensions for agent sessions (no visible terminal yet).
 const DEFAULT_AGENT_ROWS: u16 = 40;
 const DEFAULT_AGENT_COLS: u16 = 120;
-const AGENT_OUTPUT_TAP_CAPACITY: usize = 8192;
+// Replay is a mandatory subscriber for agent-owned PTYs. Sixteen 16 KiB
+// chunks bound the shared broadcast backlog to 256 KiB; lag is surfaced as
+// an incomplete replay rather than silently retaining or dropping output.
+const AGENT_OUTPUT_TAP_CAPACITY: usize = 16;
 
 /// npm injects these into any process it spawns (e.g. when ORGII is launched via
 /// `npm run tauri:dev`). They leak into PTY shells through env inheritance and
@@ -591,7 +594,11 @@ pub async fn create_session(params: CreateSessionParams) -> Result<(), String> {
                         // frontend scheduler's adaptive chunk sizing has room to work.
                         // At render_ms == 0 (no telemetry yet) we use the full buffer.
                         let render_ms = frontend_render_ms.load(Ordering::Relaxed);
-                        let emit_cap: usize = if render_ms > 8 {
+                        let emit_cap: usize = if output_tap.is_some() {
+                            // Keep each replay/tap slot within its 16 KiB
+                            // writer budget regardless of frontend speed.
+                            16 * 1024
+                        } else if render_ms > 8 {
                             // Slow renderer — cap at 16 KB per PTY read
                             16 * 1024
                         } else if render_ms > 4 {

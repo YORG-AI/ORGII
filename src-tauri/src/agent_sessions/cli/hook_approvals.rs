@@ -222,9 +222,8 @@ pub fn resolve_hook_approval(
                 .find(|(_, entry)| entry.session_id == session_id)
                 .map(|(key, _)| key.clone()),
         };
-        let key = key.ok_or_else(|| {
-            format!("No pending hook approval for session {session_id}")
-        })?;
+        let key =
+            key.ok_or_else(|| format!("No pending hook approval for session {session_id}"))?;
         pending.remove(&key).expect("key was just found")
     };
 

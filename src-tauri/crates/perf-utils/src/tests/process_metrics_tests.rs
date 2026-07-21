@@ -35,30 +35,3 @@ fn test_get_memory_breakdown() {
     assert!(breakdown.tracked_backend_mb >= 0.0);
     assert!(breakdown.file_cache_mb >= 0.0);
 }
-
-#[cfg(target_os = "macos")]
-#[test]
-fn test_macos_webkit_xpc_first_group_window() {
-    let first_webkit_start_time = 1_000;
-
-    assert!(is_macos_webkit_xpc_in_first_group(
-        first_webkit_start_time,
-        first_webkit_start_time
-    ));
-    assert!(is_macos_webkit_xpc_in_first_group(
-        first_webkit_start_time,
-        first_webkit_start_time + MACOS_WEBKIT_XPC_GROUP_WINDOW_SECS
-    ));
-    assert!(!is_macos_webkit_xpc_in_first_group(
-        first_webkit_start_time,
-        first_webkit_start_time - 1
-    ));
-    assert!(!is_macos_webkit_xpc_in_first_group(
-        first_webkit_start_time,
-        first_webkit_start_time + MACOS_WEBKIT_XPC_GROUP_WINDOW_SECS + 1
-    ));
-    assert!(!is_macos_webkit_xpc_in_first_group(
-        0,
-        first_webkit_start_time
-    ));
-}

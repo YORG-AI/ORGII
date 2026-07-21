@@ -592,6 +592,17 @@ fn query_cached_sessions_from_conn(
     )
 }
 
+/// Most recently updated cached sessions for a source, including managed
+/// mirrors and child sessions that are intentionally hidden from sidebar
+/// listings. Background provenance reconciliation needs the complete set.
+pub fn query_recent_cached_sessions_for_source_from_conn(
+    conn: &Connection,
+    source: &str,
+    limit: usize,
+) -> Result<Vec<ImportedHistoryCachedSession>, String> {
+    query_cached_sessions_by_filter_from_conn(conn, source, "1 = 1", &[], limit, 0)
+}
+
 fn query_cached_sessions_by_filter_from_conn(
     conn: &Connection,
     source: &str,

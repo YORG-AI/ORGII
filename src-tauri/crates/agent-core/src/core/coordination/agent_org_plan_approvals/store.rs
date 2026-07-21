@@ -8,8 +8,8 @@ use crate::coordination::agent_inbox::{
     AgentInboxRecord, AgentInboxStore, AgentMessage, InsertInboxParams, RequestId,
 };
 use crate::coordination::agent_org_payload_limits::{
-    validate_required_text, PLAN_CONTENT_MAX_BYTES, PLAN_CONTENT_MAX_CHARS, PLAN_FEEDBACK_MAX_BYTES,
-    PLAN_FEEDBACK_MAX_CHARS,
+    validate_required_text, PLAN_CONTENT_MAX_BYTES, PLAN_CONTENT_MAX_CHARS,
+    PLAN_FEEDBACK_MAX_BYTES, PLAN_FEEDBACK_MAX_CHARS,
 };
 use crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID;
 use crate::definitions::orgs::PlanApprovalPolicy;

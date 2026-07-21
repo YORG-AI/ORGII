@@ -25,7 +25,7 @@
 //! - Cost mirrors the projection: `cost_usd` is recorded metered spend when
 //!   known, else the list-price estimate (see [`crate::session_usage`]).
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use rusqlite::{Connection, OptionalExtension};
 use serde::Serialize;
@@ -187,6 +187,66 @@ impl SessionSort {
             "tokens" => SessionSort::Tokens,
             _ => SessionSort::Recent,
         }
+    }
+}
+
+/// Optional model constraint for the request-log table. Kept separate from
+/// [`UsageFilter`] because it narrows only the table; headline totals and the
+/// trend chart continue to describe the whole dashboard scope.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum UsageRoundModelFilter {
+    #[default]
+    All,
+    Unknown,
+    Exact(String),
+}
+
+/// Search/model constraints applied only to the paginated request log.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct UsageRoundQuery {
+    model: UsageRoundModelFilter,
+    search: Option<String>,
+}
+
+impl UsageRoundQuery {
+    /// Build the typed query from the Tauri wire fields. `unknown_model` wins
+    /// over `model` so malformed callers cannot create contradictory filters.
+    pub fn from_wire(model: Option<String>, unknown_model: bool, search: Option<String>) -> Self {
+        let model = if unknown_model {
+            UsageRoundModelFilter::Unknown
+        } else if let Some(model) = model
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+        {
+            UsageRoundModelFilter::Exact(model)
+        } else {
+            UsageRoundModelFilter::All
+        };
+        let search = search
+            .map(|value| value.trim().to_lowercase())
+            .filter(|value| !value.is_empty());
+        Self { model, search }
+    }
+
+    fn matches(&self, row: &UsageRoundRow) -> bool {
+        let matches_model = match &self.model {
+            UsageRoundModelFilter::All => true,
+            UsageRoundModelFilter::Unknown => row.model.is_none(),
+            UsageRoundModelFilter::Exact(model) => row.model.as_ref() == Some(model),
+        };
+        if !matches_model {
+            return false;
+        }
+
+        let Some(search) = self.search.as_deref() else {
+            return true;
+        };
+        row.session_name.to_lowercase().contains(search)
+            || row.source.to_lowercase().contains(search)
+            || row
+                .model
+                .as_deref()
+                .is_some_and(|model| model.to_lowercase().contains(search))
     }
 }
 
@@ -835,11 +895,17 @@ pub struct UsageOverview {
     pub summary: UsageSummary,
     pub trends: Vec<UsageTrendPoint>,
     pub rounds: Vec<UsageRoundRow>,
+    /// Total request-log rows after table-only search/model filtering.
+    pub round_total: usize,
+    /// Known models in the dashboard scope, before table-only filtering.
+    pub round_models: Vec<String>,
+    pub has_unknown_round_model: bool,
 }
 
 pub fn usage_overview(
     conn: &Connection,
     filter: &UsageFilter,
+    round_query: &UsageRoundQuery,
     sort: SessionSort,
     offset: usize,
     limit: usize,
@@ -848,12 +914,24 @@ pub fn usage_overview(
     let mut all = collect_rounds(conn, filter)?;
     let summary = summarize_rounds(&all);
     let trends = bucket_rounds(&all, bucket_unit);
+    let round_models = all
+        .iter()
+        .filter_map(|row| row.model.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let has_unknown_round_model = all.iter().any(|row| row.model.is_none());
+    all.retain(|row| round_query.matches(row));
+    let round_total = all.len();
     sort_rounds(&mut all, sort);
     let rounds = all.into_iter().skip(offset).take(limit).collect();
     Ok(UsageOverview {
         summary,
         trends,
         rounds,
+        round_total,
+        round_models,
+        has_unknown_round_model,
     })
 }
 
@@ -1073,6 +1151,70 @@ mod tests {
         let only = usage_rounds(&conn, &filter, SessionSort::Recent, 0, 100).expect("filtered");
         assert_eq!(only.len(), 2);
         assert!(only.iter().all(|r| r.session_id == "ext-codex"));
+    }
+
+    #[test]
+    fn overview_filters_and_pages_rounds_without_narrowing_summary() {
+        let conn = seeded_conn();
+        let query = UsageRoundQuery::from_wire(
+            Some("claude-sonnet-4-5".to_string()),
+            false,
+            Some("claude".to_string()),
+        );
+
+        let first = usage_overview(
+            &conn,
+            &UsageFilter::default(),
+            &query,
+            SessionSort::Recent,
+            0,
+            1,
+            TrendBucket::Hour,
+        )
+        .expect("overview");
+
+        // Summary/trends remain scoped to the whole dashboard, while the
+        // request log is filtered and transfers one server-side page.
+        assert_eq!(first.summary.request_count, 4);
+        assert_eq!(first.round_total, 2);
+        assert_eq!(first.rounds.len(), 1);
+        assert_eq!(first.rounds[0].session_id, "cli-claude");
+        assert_eq!(
+            first.round_models,
+            vec![
+                "claude-opus-4-5".to_string(),
+                "claude-sonnet-4-5".to_string(),
+                "gpt-5".to_string(),
+            ]
+        );
+        assert!(!first.has_unknown_round_model);
+
+        let second = usage_overview(
+            &conn,
+            &UsageFilter::default(),
+            &query,
+            SessionSort::Recent,
+            1,
+            1,
+            TrendBucket::Hour,
+        )
+        .expect("second page");
+        assert_eq!(second.round_total, 2);
+        assert_eq!(second.rounds.len(), 1);
+        assert_ne!(first.rounds[0].round_id, second.rounds[0].round_id);
+    }
+
+    #[test]
+    fn round_query_distinguishes_unknown_models() {
+        let known = UsageRoundRow {
+            model: Some("gpt-5".to_string()),
+            ..UsageRoundRow::default()
+        };
+        let unknown = UsageRoundRow::default();
+        let query = UsageRoundQuery::from_wire(Some("gpt-5".to_string()), true, None);
+
+        assert!(!query.matches(&known));
+        assert!(query.matches(&unknown));
     }
 
     /// Build a small realistic DB: one native claude session (2 turns), one

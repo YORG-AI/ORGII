@@ -32,6 +32,7 @@ import {
   resolveSelectedShellOperation,
   resolveSelectedToolOperation,
 } from "./resolveSelectedOperations";
+import { bindShellOperationToCursor } from "./shellReplayState";
 import type {
   ExploreOperationEntry,
   FileOperationEntry,
@@ -338,16 +339,17 @@ export function useCodeEditorReplay(
       cwd: currentShellData.cwd,
       description: currentShellData.description,
       output: currentShellData.output,
+      replayRef: currentEvent?.shellReplay?.ref,
       exitCode: currentShellData.exitCode,
       executionTime: currentShellData.executionTime,
       isLoading: currentShellData.isLoading,
       isError: currentShellData.isError,
       customOutputComponent: currentShellData.customOutputComponent,
-      event: {} as SessionEvent,
+      event: currentEvent ?? ({} as SessionEvent),
       eventId: currentEventId,
       isCurrent: true,
     };
-  }, [currentShellData, currentEventId]);
+  }, [currentShellData, currentEventId, currentEvent]);
 
   // ============================================
   // Merge Operations with Live Current Event
@@ -410,7 +412,7 @@ export function useCodeEditorReplay(
     ]
   );
 
-  const selectedShellOperation = useMemo(
+  const selectedShellOperationBase = useMemo(
     () =>
       resolveSelectedShellOperation(
         allShellOperations,
@@ -418,6 +420,20 @@ export function useCodeEditorReplay(
         userSelectedShellEventId
       ),
     [allShellOperations, currentShellOperation, userSelectedShellEventId]
+  );
+
+  const atTimelineLiveEdge =
+    currentIndex === allSimulatorEvents.length - 1 &&
+    barValue === REPLAY_CONFIG.MAX_VALUE;
+
+  const selectedShellOperation = useMemo(
+    () =>
+      bindShellOperationToCursor(
+        selectedShellOperationBase,
+        currentEvent,
+        atTimelineLiveEdge
+      ),
+    [selectedShellOperationBase, currentEvent, atTimelineLiveEdge]
   );
 
   const selectedExploreOperation = useMemo(

@@ -16,10 +16,13 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import { ShellReplayOutput } from "@src/components/ShellReplayOutput";
 import "@src/components/TerminalDisplay/index.scss";
 import { getToolIcon } from "@src/config/toolIcons";
 import type {
   PayloadRef,
+  ShellReplayRef,
+  ShellReplayState,
   ToolUsageMetadata,
 } from "@src/engines/SessionCore/core/types";
 
@@ -61,6 +64,9 @@ export interface TerminalBlockProps {
   eventId?: string;
   sessionId?: string;
   payloadRef?: PayloadRef;
+  /** Durable replay identity and bounded latest state for shell cards. */
+  replayRef?: ShellReplayRef;
+  replayState?: ShellReplayState;
   /** When true, shows animated icon and streaming-friendly layout */
   isLoading?: boolean;
   /** Live streaming output (shown during loading before final output) */
@@ -97,6 +103,8 @@ const TerminalBlock: React.FC<TerminalBlockProps> = memo(
     eventId,
     sessionId,
     payloadRef,
+    replayRef,
+    replayState,
     isLoading = false,
     streamOutput,
     pid,
@@ -156,7 +164,9 @@ const TerminalBlock: React.FC<TerminalBlockProps> = memo(
       () => getCommandSymbolList(command),
       [command]
     );
-    const hasOutput = Boolean(displayOutput && displayOutput.trim().length > 0);
+    const hasOutput =
+      Boolean(displayOutput && displayOutput.trim().length > 0) ||
+      Boolean(replayRef && replayState);
 
     const formattedCommand = useMemo(
       () => (command ? formatCommandForDisplay(command) : ""),
@@ -207,7 +217,7 @@ const TerminalBlock: React.FC<TerminalBlockProps> = memo(
       return null;
     }, [processStatus, pid, t]);
 
-    if (!command && !output && !streamOutput) return null;
+    if (!command && !output && !streamOutput && !replayState) return null;
 
     const hasContent = Boolean(command || displayOutput);
 
@@ -340,27 +350,42 @@ const TerminalBlock: React.FC<TerminalBlockProps> = memo(
                       : undefined
                   }
                 >
-                  <BlockOutput
-                    output={displayOutput!}
-                    isError={
-                      !isLoading && exitCode !== undefined && exitCode !== 0
-                    }
-                    status={
-                      isLoading || exitCode === undefined
-                        ? "default"
-                        : exitCode === 0
-                          ? "success"
-                          : "error"
-                    }
-                    withBorder={false}
-                    sessionId={sessionId}
-                    eventId={eventId}
-                    payloadRef={payloadRef}
-                    collapsedMaxHeight={TERMINAL_OUTPUT_PREVIEW_MAX_HEIGHT}
-                    defaultScrollToBottom
-                    expandLineThreshold={TERMINAL_OUTPUT_EXPAND_LINE_THRESHOLD}
-                    tuiRendering={tuiRendering}
-                  />
+                  {replayRef && replayState ? (
+                    <ShellReplayOutput
+                      command={command ?? ""}
+                      replayRef={replayRef}
+                      replayState={replayState}
+                      cursorEventId={eventId}
+                      exitCode={exitCode}
+                      hideCommandLine
+                      variant="chat"
+                      showStatus={false}
+                    />
+                  ) : (
+                    <BlockOutput
+                      output={displayOutput!}
+                      isError={
+                        !isLoading && exitCode !== undefined && exitCode !== 0
+                      }
+                      status={
+                        isLoading || exitCode === undefined
+                          ? "default"
+                          : exitCode === 0
+                            ? "success"
+                            : "error"
+                      }
+                      withBorder={false}
+                      sessionId={sessionId}
+                      eventId={eventId}
+                      payloadRef={payloadRef}
+                      collapsedMaxHeight={TERMINAL_OUTPUT_PREVIEW_MAX_HEIGHT}
+                      defaultScrollToBottom
+                      expandLineThreshold={
+                        TERMINAL_OUTPUT_EXPAND_LINE_THRESHOLD
+                      }
+                      tuiRendering={tuiRendering}
+                    />
+                  )}
                 </div>
               )}
             </div>

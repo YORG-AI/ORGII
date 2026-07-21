@@ -27,8 +27,8 @@ interface UnifiedChatPanelTabContentProps {
  *  - the chat column stays mounted (hidden when another surface is active) so
  *    session state survives tab switches;
  *  - Work Management mounts only while its tab is active;
- *  - dedicated surface components (workspace / cloud-org / work-item / project /
- *    project-org / explore) render from their tab payload;
+ *  - dedicated surface components (Runtime / workspace / cloud-org / work-item /
+ *    project / project-org / explore) render from their tab payload;
  *  - every terminal tab stays mounted (hidden unless active) so PTY output is
  *    never lost.
  * A tab whose type is not in the registry renders an explicit placeholder

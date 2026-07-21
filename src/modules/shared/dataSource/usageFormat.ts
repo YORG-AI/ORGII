@@ -32,6 +32,13 @@ export function formatInt(value: number, locale?: string): string {
   return new Intl.NumberFormat(locale).format(Math.trunc(value));
 }
 
+/** Compact hour label for Today / 24h chart axes: `2AM`, `12PM`. */
+export function formatCompactHour(date: Date): string {
+  const hour = date.getHours();
+  const hour12 = hour % 12 || 12;
+  return `${hour12}${hour < 12 ? "AM" : "PM"}`;
+}
+
 /**
  * cc-switch-style cache breakdown shown under a fresh-input value:
  * `R777,380·W40` (read · write), full comma integers. Empty when no cache.

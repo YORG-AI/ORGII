@@ -711,7 +711,9 @@ pub fn backfill_agent_definition_id(session_id: &str, definition_id: &str) -> Re
 ///    produced it; we keep the row and only drop the back-pointer so it
 ///    never dangles to a dead session.
 /// 5. **Per-session file-history directory** under `~/.orgii/file-history/`.
-/// 6. **Agent worktree** (git worktree + `agent/<sid>` branch) under
+/// 6. **Append-only shell replay artifacts and manifest rows** under the
+///    global `app_paths::shell_replays_dir()` root.
+/// 7. **Agent worktree** (git worktree + `agent/<sid>` branch) under
 ///    `~/.orgii/agent-worktrees/<repo_hash>/<sid>/`. Only attempted when
 ///    the session had a `workspace_path` (worktree is rooted under the
 ///    project repo). The CLI-agent path cleans up via
@@ -725,6 +727,19 @@ pub fn backfill_agent_definition_id(session_id: &str, definition_id: &str) -> Re
 /// run_deferred_cleanup` instead, which can delete DB rows without
 /// racing the runtime because the cache rehydrates from DB at startup.
 pub fn delete_session(session_id: &str) -> SqliteResult<()> {
+    if let Err(error) =
+        crate::tools::impls::coding::exec::shell_replay::ensure_session_replays_deletable(
+            session_id,
+        )
+    {
+        return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
+            std::io::Error::other(error),
+        )));
+    }
+    crate::tools::impls::coding::exec::shell_replay::queue_session_replay_cleanup(session_id)
+        .map_err(|error| {
+            rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::other(error)))
+        })?;
     let workspace_path = {
         let conn = get_connection()?;
         let row: SqliteResult<Option<String>> = conn.query_row(
@@ -797,6 +812,17 @@ pub fn delete_session(session_id: &str) -> SqliteResult<()> {
     if let Err(err) = crate::tools::file_history::remove_session(session_id) {
         warn!(
             "Failed to remove file-history for deleted session {}: {}",
+            session_id, err
+        );
+    }
+
+    // Replays deliberately outlive EventStore/cache TTL eviction. They are
+    // removed only on this explicit durable Session deletion path.
+    if let Err(err) =
+        crate::tools::impls::coding::exec::shell_replay::remove_session_replays(session_id)
+    {
+        warn!(
+            "Failed to remove shell replays for deleted session {}: {}",
             session_id, err
         );
     }

@@ -93,7 +93,7 @@ const UrlPreviewContent: React.FC<UrlPreviewContentProps> = memo(
     // area below; in non-Tauri dev a placeholder is rendered instead.
     const toolbarContent = useMemo(
       () => (
-        <div className="flex min-w-0 flex-1 items-center gap-2 px-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           {isTauri && (
             <Button
               variant="tertiary"

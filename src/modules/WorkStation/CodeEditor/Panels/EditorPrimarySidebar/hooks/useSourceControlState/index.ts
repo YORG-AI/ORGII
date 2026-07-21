@@ -15,7 +15,6 @@ import { DetachedHeadDialog } from "@src/components/GitDialogs";
 import { useGitStatus } from "@src/contexts/git";
 import {
   useCommitForm,
-  useDiffCache,
   useFileSelection,
   useGitFiles,
 } from "@src/hooks/git/sourceControl";
@@ -50,7 +49,12 @@ export type {
 export function useSourceControlState(
   options: UseSourceControlStateOptions
 ): UseSourceControlStateResult {
-  const { repoPath, repoId, onGitFileSelect } = options;
+  const {
+    repoPath,
+    repoId,
+    onGitFileSelect,
+    autoLoadStashes = false,
+  } = options;
 
   // Local state for file selection
   const [selectedFileId, setSelectedFileId] = useState<string>("");
@@ -102,16 +106,10 @@ export function useSourceControlState(
     setLastRefreshTime(now);
   }, [originalFetchGitStatus]);
 
-  // Hook 2: Diff caching and batch loading
-  useDiffCache({
-    selectedRepoId: selectedRepoId,
-    repoPath,
-    files: gitFiles,
-    setFiles: setGitFiles,
-    selectedFileId,
-  });
+  // Diff content is owned by the rendered Focus or All Changes surface.
+  // Keeping this sidebar hook metadata-only avoids duplicate full-body loads.
 
-  // Hook 3: File selection and filtering
+  // Hook 2: File selection and filtering
   const {
     searchQuery: gitSearchQuery,
     setSearchQuery: setGitSearchQuery,
@@ -214,7 +212,7 @@ export function useSourceControlState(
   } = useStashState({
     repoId: selectedRepoId || "",
     repoPath,
-    autoLoad: true,
+    autoLoad: autoLoadStashes,
     onStashChange: async () => {
       await fetchGitStatus();
     },

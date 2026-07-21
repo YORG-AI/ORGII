@@ -300,8 +300,7 @@ fn run_phase_projects_quiet_user_plan_gate_as_awaiting_approval() {
         source_session_id: "planner-session".to_string(),
         root_session_id: "root-shared-agent".to_string(),
         policy: crate::definitions::orgs::PlanApprovalPolicy::User,
-        status:
-            crate::coordination::agent_org_plan_approvals::AgentOrgPlanApprovalStatus::Pending,
+        status: crate::coordination::agent_org_plan_approvals::AgentOrgPlanApprovalStatus::Pending,
         plan_title: "Plan".to_string(),
         plan_content_bytes: 6,
         created_at: "2026-05-28T00:00:00Z".to_string(),

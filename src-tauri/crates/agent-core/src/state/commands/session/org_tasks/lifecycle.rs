@@ -267,7 +267,10 @@ pub(super) fn wake_agent_org_member(app_handle: tauri::AppHandle, member_id: &st
     AppHandleInboxWakeHook::new(app_handle).wake_member(member_id, run_id);
 }
 
-pub(super) fn schedule_run_progress_wakes(app_handle: tauri::AppHandle, context: &AgentOrgRunContext) {
+pub(super) fn schedule_run_progress_wakes(
+    app_handle: tauri::AppHandle,
+    context: &AgentOrgRunContext,
+) {
     let run_id = context.run_id.clone();
     let member_ids = org_progress_member_ids(context);
 

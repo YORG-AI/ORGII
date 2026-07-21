@@ -33,8 +33,6 @@ export interface AllChangesViewProps {
   collapseAllSignal?: number;
 }
 
-const AUTO_COLLAPSE_THRESHOLD = 10;
-
 const AllChangesView: React.FC<AllChangesViewProps> = ({
   files,
   loading,
@@ -47,9 +45,12 @@ const AllChangesView: React.FC<AllChangesViewProps> = ({
   const { t } = useTranslation();
   const focusTarget = useAtomValue(sourceControlFocusTargetAtom);
 
-  const { sortedFiles, loadContentForFile, getSectionRef } = useAllChangesFiles(
-    { files, repoId, repoPath }
-  );
+  const {
+    sortedFiles,
+    loadContentForFile,
+    releaseContentForFile,
+    getSectionRef,
+  } = useAllChangesFiles({ files, repoId, repoPath });
 
   const previousCollapseAllSignalRef = useRef(collapseAllSignal);
   const lastScrolledFocusNonceRef = useRef<number | null>(null);
@@ -103,6 +104,13 @@ const AllChangesView: React.FC<AllChangesViewProps> = ({
     [loadContentForFile]
   );
 
+  const handleExpansionChange = useCallback(
+    (file: GitFile, expanded: boolean) => {
+      if (!expanded) releaseContentForFile(file.path);
+    },
+    [releaseContentForFile]
+  );
+
   return (
     <DiffSectionList
       sections={sortedFiles.map((file) => ({ key: file.id, file }))}
@@ -111,13 +119,14 @@ const AllChangesView: React.FC<AllChangesViewProps> = ({
         staged ? t("placeholders.noStagedChanges") : t("placeholders.noChanges")
       }
       repoPath={repoPath}
-      collapseThreshold={AUTO_COLLAPSE_THRESHOLD}
+      defaultCollapsed
       collapseSignal={collapseTrigger}
       getSectionRef={getSectionRef}
       focusedPath={focusedFile?.path ?? null}
       focusedNonce={focusTarget?.nonce ?? 0}
       onFileSelect={onFileSelect}
       onRequestContent={handleRequestContent}
+      onExpansionChange={handleExpansionChange}
       showRenamePath
       hideBottomPadding
     />

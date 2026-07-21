@@ -1,11 +1,6 @@
-import { emit } from "@tauri-apps/api/event";
 import { useCallback } from "react";
 
-import {
-  enrichedWorkItemToUI,
-  projectApi,
-  workItemDataToUI,
-} from "@src/api/http/project";
+import { workItemDataToUI } from "@src/api/http/project";
 import type { CreatedWorkItemResult } from "@src/modules/ProjectManager/WorkItems/components/CreateWorkItemView";
 import {
   CHAT_PANEL_CONTENT_MODE,
@@ -29,9 +24,7 @@ interface UseProjectWorkItemHandlersOptions {
    */
   createProjectContext: ChatPanelCreateProjectContext | null;
   dispatchClearSession: () => void;
-  handleNewSession: () => void;
-  selectedProject: ChatPanelSelectedProject | null;
-  selectedWorkItem: ChatPanelSelectedWorkItem | null;
+  handleReturnToSessionCreator: () => void;
   sessionCreatorAvailable: boolean;
   setActiveSessionId: (sessionId: string | null) => void;
   setContentMode: (mode: ChatPanelContentMode) => void;
@@ -48,9 +41,7 @@ export function useProjectWorkItemHandlers({
   bumpProjectListRefresh,
   createProjectContext,
   dispatchClearSession,
-  handleNewSession,
-  selectedProject,
-  selectedWorkItem,
+  handleReturnToSessionCreator,
   sessionCreatorAvailable,
   setActiveSessionId,
   setContentMode,
@@ -67,18 +58,18 @@ export function useProjectWorkItemHandlers({
       bumpProjectListRefresh((previous) => previous + 1);
       if (options?.keepOpen) return;
       setCreateTarget(CHAT_PANEL_CREATE_TARGET.AGENT_SESSION);
-      handleNewSession();
+      handleReturnToSessionCreator();
     },
-    [bumpProjectListRefresh, handleNewSession, setCreateTarget]
+    [bumpProjectListRefresh, handleReturnToSessionCreator, setCreateTarget]
   );
 
   const handleCancelWorkItemCreate = useCallback(() => {
     setWorkItemCreateDraft(null);
     setShowWorkItemAgentCreator(sessionCreatorAvailable);
     setCreateTarget(CHAT_PANEL_CREATE_TARGET.AGENT_SESSION);
-    handleNewSession();
+    handleReturnToSessionCreator();
   }, [
-    handleNewSession,
+    handleReturnToSessionCreator,
     sessionCreatorAvailable,
     setCreateTarget,
     setShowWorkItemAgentCreator,
@@ -87,21 +78,25 @@ export function useProjectWorkItemHandlers({
 
   const handleCancelCollabOrgCreate = useCallback(() => {
     setCreateTarget(CHAT_PANEL_CREATE_TARGET.AGENT_SESSION);
-    handleNewSession();
-  }, [handleNewSession, setCreateTarget]);
+    handleReturnToSessionCreator();
+  }, [handleReturnToSessionCreator, setCreateTarget]);
+
+  const handleCancelProjectCreate = useCallback(() => {
+    setShowProjectAgentCreator(sessionCreatorAvailable);
+    setCreateTarget(CHAT_PANEL_CREATE_TARGET.AGENT_SESSION);
+    handleReturnToSessionCreator();
+  }, [
+    handleReturnToSessionCreator,
+    sessionCreatorAvailable,
+    setCreateTarget,
+    setShowProjectAgentCreator,
+  ]);
 
   const handleWorkItemAgentCreatorToggle = useCallback(
     (enabled: boolean) => {
       setShowWorkItemAgentCreator(sessionCreatorAvailable && enabled);
     },
     [sessionCreatorAvailable, setShowWorkItemAgentCreator]
-  );
-
-  const handleProjectAgentCreatorToggle = useCallback(
-    (enabled: boolean) => {
-      setShowProjectAgentCreator(sessionCreatorAvailable && enabled);
-    },
-    [sessionCreatorAvailable, setShowProjectAgentCreator]
   );
 
   const handleChatPanelWorkItemCreated = useCallback(
@@ -160,128 +155,12 @@ export function useProjectWorkItemHandlers({
     ]
   );
 
-  const handleWorkItemTitleChange = useCallback(
-    (title: string) => {
-      if (!selectedWorkItem || title === selectedWorkItem.workItem.name) {
-        return;
-      }
-
-      const previousSelectedWorkItem = selectedWorkItem;
-      setSelectedWorkItem({
-        ...selectedWorkItem,
-        workItem: {
-          ...selectedWorkItem.workItem,
-          name: title,
-        },
-      });
-
-      projectApi
-        .updateWorkItemPartial(
-          selectedWorkItem.projectSlug,
-          selectedWorkItem.shortId,
-          { title }
-        )
-        .then((updatedWorkItem) => {
-          setSelectedWorkItem((currentSelectedWorkItem) => {
-            if (
-              !currentSelectedWorkItem ||
-              currentSelectedWorkItem.projectSlug !==
-                selectedWorkItem.projectSlug ||
-              currentSelectedWorkItem.shortId !== selectedWorkItem.shortId
-            ) {
-              return currentSelectedWorkItem;
-            }
-
-            return {
-              ...currentSelectedWorkItem,
-              workItem: enrichedWorkItemToUI(updatedWorkItem),
-            };
-          });
-          return emit("orgii-data-changed");
-        })
-        .catch(() => {
-          setSelectedWorkItem((currentSelectedWorkItem) => {
-            if (
-              !currentSelectedWorkItem ||
-              currentSelectedWorkItem.projectSlug !==
-                previousSelectedWorkItem.projectSlug ||
-              currentSelectedWorkItem.shortId !==
-                previousSelectedWorkItem.shortId
-            ) {
-              return currentSelectedWorkItem;
-            }
-            return previousSelectedWorkItem;
-          });
-        });
-    },
-    [selectedWorkItem, setSelectedWorkItem]
-  );
-
-  const handleProjectTitleChange = useCallback(
-    (title: string) => {
-      if (!selectedProject || title === selectedProject.project.name) {
-        return;
-      }
-
-      const projectSlug =
-        selectedProject.projectSlug || selectedProject.project.slug;
-      if (!projectSlug) return;
-
-      const previousSelectedProject = selectedProject;
-      const previousDescription = selectedProject.project.description;
-      setSelectedProject({
-        ...selectedProject,
-        project: {
-          ...selectedProject.project,
-          name: title,
-          description:
-            previousDescription === selectedProject.project.name
-              ? title
-              : previousDescription,
-        },
-      });
-
-      projectApi
-        .readProject(projectSlug)
-        .then((currentProject) =>
-          projectApi.writeProject(
-            projectSlug,
-            {
-              ...currentProject.meta,
-              name: title,
-              updated_at: new Date().toISOString(),
-            },
-            currentProject.description
-          )
-        )
-        .then(() => {
-          bumpProjectListRefresh((previous) => previous + 1);
-          return emit("orgii-data-changed");
-        })
-        .catch(() => {
-          setSelectedProject((currentSelectedProject) => {
-            if (
-              !currentSelectedProject ||
-              currentSelectedProject.project.id !==
-                previousSelectedProject.project.id
-            ) {
-              return currentSelectedProject;
-            }
-            return previousSelectedProject;
-          });
-        });
-    },
-    [bumpProjectListRefresh, selectedProject, setSelectedProject]
-  );
-
   return {
     handleCancelCollabOrgCreate,
+    handleCancelProjectCreate,
     handleCancelWorkItemCreate,
     handleChatPanelProjectCreated,
     handleChatPanelWorkItemCreated,
-    handleProjectAgentCreatorToggle,
-    handleProjectTitleChange,
     handleWorkItemAgentCreatorToggle,
-    handleWorkItemTitleChange,
   };
 }

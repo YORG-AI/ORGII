@@ -377,10 +377,13 @@ pub fn create_window(app: &AppHandle, options: CreateWindowOptions) -> Result<()
         builder = builder.center();
     }
 
-    // Build the window
+    // Observe only helpers born while this ORG2 WebView is successfully created.
+    let ownership_observation =
+        perf_utils::begin_webview_ownership_observation(options.label.clone());
     let window = builder
         .build()
         .map_err(|e| format!("Failed to create window: {}", e))?;
+    ownership_observation.commit();
 
     // Manually set traffic light position (Tauri's builder method doesn't always work)
     #[cfg(target_os = "macos")]
@@ -441,9 +444,11 @@ pub fn recreate_main_window(app: &AppHandle) -> Result<(), String> {
             TRAFFIC_LIGHT_Y,
         )));
 
+    let ownership_observation = perf_utils::begin_webview_ownership_observation("main");
     let window = builder
         .build()
         .map_err(|e| format!("Failed to recreate main window: {}", e))?;
+    ownership_observation.commit();
 
     #[cfg(target_os = "macos")]
     {
@@ -492,9 +497,11 @@ pub fn create_new_app_window(app: &AppHandle) -> Result<(), String> {
             TRAFFIC_LIGHT_Y,
         )));
 
+    let ownership_observation = perf_utils::begin_webview_ownership_observation(label.clone());
     let window = builder
         .build()
         .map_err(|e| format!("Failed to create app window: {}", e))?;
+    ownership_observation.commit();
 
     #[cfg(target_os = "macos")]
     {

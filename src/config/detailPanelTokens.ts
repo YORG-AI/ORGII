@@ -84,9 +84,9 @@ export const DETAIL_PANEL_TOKENS = {
   contentStack: "flex flex-col gap-2",
   /** Info/summary card — wizard steps, config blocks */
   cardInfo: "rounded-lg bg-surface-selected px-4 py-3",
-  /** Chat-panel info container surface matching the chat input */
-  chatPanelInfoContainer:
-    "rounded-xl border border-border-2 bg-chat-panel-info-container p-4",
+  /** Shared primary container surface used by settings and chat-panel content */
+  primaryContainer:
+    "rounded-xl border border-border-1 bg-primary-container p-4",
   /** Raw max-width constraint shared by all content areas and overlays */
   contentMaxWidth: "max-w-[900px]",
   /** Content width wrapper — centered with max-width */

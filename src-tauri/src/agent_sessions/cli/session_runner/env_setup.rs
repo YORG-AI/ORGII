@@ -137,9 +137,12 @@ pub(super) async fn start_session_mitm_proxy(
         .as_deref()
         .ok_or_else(|| "proxy_url is required for MITM proxy sessions".to_string())?;
 
-    let port =
-        integrations::proxy::server::start_session_proxy(session_id, proxy_token_val, proxy_url_val)
-            .await?;
+    let port = integrations::proxy::server::start_session_proxy(
+        session_id,
+        proxy_token_val,
+        proxy_url_val,
+    )
+    .await?;
 
     tracing::info!(
         "[CodeSession] Started per-session MITM proxy on port {} for session {}",
@@ -404,7 +407,10 @@ pub(super) async fn setup_codex_hosted_proxy(
                 };
                 match write_result {
                     Ok(()) => {
-                        tracing::info!("[CodeSession] Wrote codex proxy config to {:?}", config_file)
+                        tracing::info!(
+                            "[CodeSession] Wrote codex proxy config to {:?}",
+                            config_file
+                        )
                     }
                     Err(err) => {
                         tracing::warn!("[CodeSession] Failed to write codex config.toml: {}", err)

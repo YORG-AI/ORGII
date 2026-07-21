@@ -52,7 +52,6 @@ import {
 } from "@src/store/workstation/codeEditor/workstationPrAtom";
 import type { SourceControlHistorySelection } from "@src/store/workstation/tabs";
 
-import { prefetchWorkstationPrDetail } from "../../hooks/useWorkstationPrDetail";
 import { filterPullRequestsByQuery } from "../../hooks/workstationPrHelpers";
 import { getPrStatusIconName, getPrStatusVariant } from "./prCardHelpers";
 
@@ -122,14 +121,6 @@ const PrRow: React.FC<PrRowProps> = memo(
       setPrDragStash(buildPrPayload());
     }, [buildPrPayload]);
 
-    // Warm the PR-detail cache on hover so opening the PR paints instantly.
-    const handlePrefetch = useCallback(() => {
-      const parsed = parsePrUrl(pr.url);
-      if (parsed) {
-        void prefetchWorkstationPrDetail(parsed.repoFullName, pr.number);
-      }
-    }, [pr.url, pr.number]);
-
     const node: TreeRowNode = useMemo(() => {
       const iconName = getPrStatusIconName(statusKey);
       const PrIcon =
@@ -169,7 +160,6 @@ const PrRow: React.FC<PrRowProps> = memo(
             isSelected={isSelected}
             onClick={() => onClick(pr)}
             showIndentGuides={false}
-            onMouseEnter={handlePrefetch}
             onMouseDown={stashPrDrag}
             {...dragHandlers}
             className={

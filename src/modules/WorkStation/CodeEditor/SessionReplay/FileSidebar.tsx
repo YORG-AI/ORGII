@@ -26,6 +26,7 @@ import {
 import { PANEL_CONSTANTS } from "../Panels/EditorPrimarySidebar/config";
 import { getShellStatusBadge } from "./ShellSidebar";
 import SimulatorTreePanel from "./components/SimulatorTreePanel";
+import { buildFileOperationSequenceInfo } from "./fileOperationSequence";
 import type { FileTreeInput } from "./fileTreeUtils";
 import { resolveFileOperationPayload } from "./resolveFilePayload";
 import type {
@@ -131,68 +132,91 @@ const FileSidebarComponent: React.FC<FileSidebarProps> = ({
   // buildFileTree / flattenFileTree only re-run when the actual file set
   // changes, NOT on every currentEventId navigation.
 
+  const readOperations = useMemo(
+    () => fileOperations.filter((op) => op.type === FILE_OPERATION_TYPE.READ),
+    [fileOperations]
+  );
+  const readSequenceInfo = useMemo(
+    () => buildFileOperationSequenceInfo(readOperations),
+    [readOperations]
+  );
+
   const readFileKey = useMemo(
     () =>
-      fileOperations
-        .filter((op) => op.type === FILE_OPERATION_TYPE.READ)
-        .map((op) => op.eventId)
+      readOperations
+        .map((op) => `${op.eventId}:${op.event?.createdAt ?? ""}`)
         .join(","),
-    [fileOperations]
+    [readOperations]
   );
 
   const readItems: FileTreeInput[] = useMemo(
     () =>
-      fileOperations
-        .filter((op) => op.type === FILE_OPERATION_TYPE.READ)
-        .map((op) => ({
+      readOperations.map((op) => {
+        const sequence = readSequenceInfo.get(op.eventId);
+        return {
           id: op.eventId,
           filePath: op.filePath,
           fileName: op.fileName,
-        })),
+          secondaryInfo: sequence
+            ? `${sequence.sequenceLabel} · ${sequence.pathHint}`
+            : undefined,
+        };
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by readFileKey
-    [readFileKey]
+    [readFileKey, readSequenceInfo]
+  );
+
+  const writeOperations = useMemo(
+    () =>
+      fileOperations.filter(
+        (op) =>
+          op.type === FILE_OPERATION_TYPE.WRITE ||
+          op.type === FILE_OPERATION_TYPE.DELETE
+      ),
+    [fileOperations]
+  );
+  const writeSequenceInfo = useMemo(
+    () => buildFileOperationSequenceInfo(writeOperations),
+    [writeOperations]
   );
 
   const writeFileKey = useMemo(
     () =>
-      fileOperations
-        .filter(
-          (op) =>
-            op.type === FILE_OPERATION_TYPE.WRITE ||
-            op.type === FILE_OPERATION_TYPE.DELETE
-        )
+      writeOperations
         .map((op) => {
-          if (op.type === FILE_OPERATION_TYPE.DELETE) return `${op.eventId}:D`;
+          if (op.type === FILE_OPERATION_TYPE.DELETE) {
+            return `${op.eventId}:D:${op.event?.createdAt ?? ""}`;
+          }
           const hasBaseline =
             op.writeHasBaselineContent !== undefined
               ? op.writeHasBaselineContent
               : Boolean(resolveFileOperationPayload(op).oldContent);
-          return `${op.eventId}:${hasBaseline ? "M" : "A"}`;
+          return `${op.eventId}:${hasBaseline ? "M" : "A"}:${op.event?.createdAt ?? ""}:${op.editCount ?? 1}`;
         })
         .join(","),
-    [fileOperations]
+    [writeOperations]
   );
 
   const writeItems: FileTreeInput[] = useMemo(
     () =>
-      fileOperations
-        .filter(
-          (op) =>
-            op.type === FILE_OPERATION_TYPE.WRITE ||
-            op.type === FILE_OPERATION_TYPE.DELETE
-        )
-        .map((op) => {
-          const badge = getWriteStatusBadge(op);
-          return {
-            id: op.eventId,
-            filePath: op.filePath,
-            fileName: op.fileName,
-            statusLabel: badge?.label,
-            statusColorClass: badge?.colorClass,
-          };
-        }),
+      writeOperations.map((op) => {
+        const badge = getWriteStatusBadge(op);
+        const sequence = writeSequenceInfo.get(op.eventId);
+        const editCount =
+          op.editCount && op.editCount > 1 ? ` · ${op.editCount} edits` : "";
+        return {
+          id: op.eventId,
+          filePath: op.filePath,
+          fileName: op.fileName,
+          statusLabel: badge?.label,
+          statusColorClass: badge?.colorClass,
+          secondaryInfo: sequence
+            ? `${sequence.sequenceLabel} · ${sequence.pathHint}${editCount}`
+            : undefined,
+        };
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by writeFileKey
-    [writeFileKey]
+    [writeFileKey, writeSequenceInfo]
   );
 
   const exploreItems: FileTreeInput[] = useMemo(

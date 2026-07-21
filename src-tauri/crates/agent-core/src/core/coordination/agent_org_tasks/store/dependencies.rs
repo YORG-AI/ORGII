@@ -8,7 +8,10 @@ use super::super::graph::validate_dependency_graph;
 use super::super::helpers::encode_json_array;
 use super::super::{Task, TaskGraphIndex};
 
-pub(super) fn canonicalize_dependencies(tasks: &mut [Task], org_run_id: &str) -> Result<(), String> {
+pub(super) fn canonicalize_dependencies(
+    tasks: &mut [Task],
+    org_run_id: &str,
+) -> Result<(), String> {
     // `list_tasks_with_conn` has already folded historical reverse-only
     // `blocks` edges into `blocked_by`. From this point forward blocked_by is
     // authoritative and blocks is a derived read projection.

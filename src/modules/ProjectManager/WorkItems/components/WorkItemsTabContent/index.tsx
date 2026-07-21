@@ -68,6 +68,7 @@ interface WorkItemsTabContentProps {
   projectName: string;
   projectDescription?: string;
   projectProperties?: ProjectData;
+  hideProjectPropertiesRow?: boolean;
   repoPath?: string | null;
   availableMembers: Person[];
   availableTeams?: Team[];
@@ -126,6 +127,7 @@ const WorkItemsTabContent: React.FC<WorkItemsTabContentProps> = ({
   projectName,
   projectDescription,
   projectProperties,
+  hideProjectPropertiesRow = false,
   repoPath,
   availableMembers,
   availableTeams = [],
@@ -228,6 +230,7 @@ const WorkItemsTabContent: React.FC<WorkItemsTabContentProps> = ({
                   availableLabels={projectLabels}
                   availableRepos={availableRepos}
                   projectProperties={projectProperties}
+                  hideProjectPropertiesRow={hideProjectPropertiesRow}
                   onProjectPropertiesChange={onProjectPropertiesChange}
                   precomputedStats={overviewStats}
                   onProjectNameChange={onProjectNameChange}

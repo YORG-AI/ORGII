@@ -7,7 +7,11 @@
  */
 import type { ReactNode } from "react";
 
-import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import type {
+  SessionEvent,
+  ShellReplayRef,
+  ShellReplayState,
+} from "@src/engines/SessionCore/core/types";
 import type { RawEventInput } from "@src/engines/SessionCore/rendering/props";
 import type { SimulatorAppBaseState } from "@src/engines/Simulator/apps/core/types";
 
@@ -111,6 +115,15 @@ export interface ShellOperationEntry {
   output?: string;
   /** Live streaming output while command is running */
   streamOutput?: string;
+  /** Stable identity for the durable shell replay artifact. */
+  replayRef?: ShellReplayRef;
+  /**
+   * Visibility state resolved from the current playback cursor. This must not
+   * be sourced from a mutable latest shell row while replaying history.
+   */
+  replayState?: ShellReplayState;
+  /** Event cursor that supplied replayState; used to invalidate async loads. */
+  replayCursorEventId?: string;
   /** Exit code */
   exitCode?: number;
   /** Execution time in ms */

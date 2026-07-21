@@ -485,7 +485,14 @@ mod tests {
                 cache_read_tokens, cache_write_tokens, total_tokens, context_tokens, created_at
              ) VALUES (?1, 'code', ?2, 'acct-1', ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![
-                session_id, model, input, output, cache_read, cache_write, total, context,
+                session_id,
+                model,
+                input,
+                output,
+                cache_read,
+                cache_write,
+                total,
+                context,
                 created_at
             ],
         )
@@ -686,7 +693,10 @@ mod tests {
             (1_000, 100, 0, 0, 1_100, 500),
             "2026-07-16T00:00:01Z",
         );
-        assert_eq!(recompute_session_usage(&conn, "s-orphan").expect("recompute"), None);
+        assert_eq!(
+            recompute_session_usage(&conn, "s-orphan").expect("recompute"),
+            None
+        );
         assert_eq!(
             SqliteRecordStore::new(&conn)
                 .get_session_usage("s-orphan")
@@ -717,6 +727,9 @@ mod tests {
         assert!(store.get_session_usage("s-b").expect("read s-b").is_some());
 
         store.delete_session_usage("s-a").expect("delete s-a");
-        assert!(store.get_session_usage("s-a").expect("read deleted").is_none());
+        assert!(store
+            .get_session_usage("s-a")
+            .expect("read deleted")
+            .is_none());
     }
 }

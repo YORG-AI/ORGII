@@ -14,7 +14,10 @@ import React, { Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import ToolUsageBadge from "@src/engines/ChatPanel/blocks/ToolCallBlock/ToolUsageBadge";
-import { StackedBlock } from "@src/engines/ChatPanel/blocks/primitives";
+import {
+  ChatLoadingBlock,
+  StackedBlock,
+} from "@src/engines/ChatPanel/blocks/primitives";
 import {
   type SessionEvent,
   TOOL_USAGE_ARGS_KEY,
@@ -46,10 +49,6 @@ interface CategorizedEvent {
 // Activity Block — renders via the registry
 // ============================================
 
-const ActivityBlockFallback: React.FC = () => (
-  <div className="h-6 animate-pulse rounded bg-fill-2" />
-);
-
 function ActivityBlock({ event }: { event: SessionEvent }) {
   const renderEvent = () => {
     const eventType = getRegistryEventType(
@@ -59,9 +58,7 @@ function ActivityBlock({ event }: { event: SessionEvent }) {
     return <EventComponent event={event} />;
   };
 
-  return (
-    <Suspense fallback={<ActivityBlockFallback />}>{renderEvent()}</Suspense>
-  );
+  return <Suspense fallback={<ChatLoadingBlock />}>{renderEvent()}</Suspense>;
 }
 
 function suppressLoadingForNonLastRunningEvent(

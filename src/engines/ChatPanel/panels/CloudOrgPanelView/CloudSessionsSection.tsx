@@ -153,7 +153,6 @@ export function CloudSessionsSection({ orgId }: CloudSessionsSectionProps) {
       <SessionTable
         items={tableItems}
         onSelect={handleSelectSession}
-        surfaceVariant="chatPanel"
         showSearch
         pageSize={25}
         pageSizeOptions={[10, 25, 50]}

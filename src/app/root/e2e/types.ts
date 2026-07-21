@@ -593,8 +593,8 @@ export interface E2EHelpers {
   seedShellProcess: (input: {
     sessionId: string;
     pid: number;
+    callId?: string;
     command: string;
-    logPath?: string;
     status?: "running" | "background";
   }) => Promise<Result<{ sessionId: string; pid: number }>>;
   seedSubagentJob: (input: {

@@ -26,6 +26,7 @@ name = "app_window"
 # locally — see `docs/rust-backend/modularization-plan--0504.md`
 # (latent crate-root path leaks).
 app_utils = { path = "../app-utils" }
+perf_utils = { path = "../perf-utils" }
 
 serde = { version = "1.0", features = ["derive"] }
 tauri = { workspace = true }

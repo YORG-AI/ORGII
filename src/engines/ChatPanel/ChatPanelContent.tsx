@@ -1,12 +1,9 @@
-import { useAtomValue } from "jotai";
 import React, { Suspense } from "react";
 
 import type { SessionContinuation } from "@src/store/session/sessionTabPlacementAtom";
-import { chatStatusBarVisibleAtom } from "@src/store/ui/chatPanelAtom";
 import type { ChatHistoryDisplayMode } from "@src/store/ui/chatPanelAtom";
 
 import ChatView from "./ChatView";
-import ChatStatusBar from "./components/ChatStatusBar";
 
 const BenchmarkPanel = React.lazy(() =>
   import("@src/features/BenchmarkPanel").then((module) => ({
@@ -46,8 +43,6 @@ export function ChatPanelContent({
   showPanelContent,
   showSessionContent,
 }: ChatPanelContentProps): React.ReactNode {
-  const statusBarVisible = useAtomValue(chatStatusBarVisibleAtom);
-
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {!showPanelContent ? null : showBenchmarkSessionGroupContent ? (
@@ -55,19 +50,16 @@ export function ChatPanelContent({
           <BenchmarkPanel surface="runList" />
         </Suspense>
       ) : showSessionContent && currentSessionId ? (
-        <>
-          <div className="flex min-h-0 flex-1 flex-col">
-            <ChatView
-              sessionId={currentSessionId}
-              onRegisterSearchOpen={handleRegisterSearchOpen}
-              displayMode={displayMode}
-              turnPaginationEnabled={paginationEnabled}
-              position={position}
-              onSessionContinuation={onSessionContinuation}
-            />
-          </div>
-          {statusBarVisible && <ChatStatusBar sessionId={currentSessionId} />}
-        </>
+        <div className="flex min-h-0 flex-1 flex-col">
+          <ChatView
+            sessionId={currentSessionId}
+            onRegisterSearchOpen={handleRegisterSearchOpen}
+            displayMode={displayMode}
+            turnPaginationEnabled={paginationEnabled}
+            position={position}
+            onSessionContinuation={onSessionContinuation}
+          />
+        </div>
       ) : (
         emptyChatContent
       )}

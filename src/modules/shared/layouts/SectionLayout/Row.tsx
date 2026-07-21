@@ -39,6 +39,8 @@ export interface SectionRowProps {
   compact?: boolean;
   /** Horizontal layout alignment once the row switches from stacked to side-by-side. */
   align?: "center" | "start";
+  /** Give the label and control cells equal width in horizontal layout. */
+  equalColumns?: boolean;
   /** Left label vertical alignment inside the label cell. Defaults to matching `align`. */
   labelAlign?: "center" | "start";
   headerClassName?: string;
@@ -64,6 +66,7 @@ const SectionRow: React.FC<SectionRowProps> = memo(
     required = false,
     compact = false,
     align = "center",
+    equalColumns = false,
     labelAlign,
     headerClassName = "",
     truncateLabel = false,
@@ -126,6 +129,9 @@ const SectionRow: React.FC<SectionRowProps> = memo(
     const resolvedLabelAlign = labelAlign ?? align;
     const labelAlignClass =
       resolvedLabelAlign === "start" ? "items-start" : "items-center";
+    const controlWidthClass = equalColumns
+      ? "w-full @[480px]:flex-1"
+      : "max-w-full";
 
     return (
       <div
@@ -144,7 +150,9 @@ const SectionRow: React.FC<SectionRowProps> = memo(
         </div>
 
         {/* Controls — below label when narrow, beside when wide. min-w-0 allows path truncation. */}
-        <div className="flex min-w-0 max-w-full items-center">{children}</div>
+        <div className={`flex min-w-0 items-center ${controlWidthClass}`}>
+          {children}
+        </div>
       </div>
     );
   }

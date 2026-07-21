@@ -236,6 +236,14 @@ describe("extractShellData", () => {
   });
 
   describe("shell process state", () => {
+    it("uses exact lifecycle exit code when result output was sanitized", () => {
+      const props = makeUniversalProps({
+        args: { command: "npm test", shellExitCode: 7 },
+        result: {},
+      });
+      expect(extractShellData(props).exitCode).toBe(7);
+    });
+
     it("top-level shell process state overrides stale Rust-extracted state", () => {
       const props = makeUniversalProps({
         rustExtracted: {

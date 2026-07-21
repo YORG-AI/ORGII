@@ -18,6 +18,8 @@ export type SessionCreatorChatPanelHeaderLayout = "hero" | "compact";
 export interface SessionCreatorChatPanelProps {
   centerFullScreenContent?: boolean;
   className?: string;
+  /** Optional content attached above the composer input, matching the session info row below it. */
+  composerHeaderContent?: React.ReactNode;
   /** Override classes on the inner content-padding div (e.g. to reduce bottom padding). */
   innerClassName?: string;
   footerSlot?: React.ReactNode;

@@ -19,10 +19,12 @@ import {
   activeWorkManagementSectionAtom,
   closeAndDestroyChatPanelTabAtom,
   openCloudOrgManagementInChatPanelTabAtom,
-  openKanbanChatPanelTabAtom,
+  openCreateTargetInChatPanelStartPageAtom,
   openOrFocusChatPanelStartPageTabAtom,
   openOrReplaceSessionInChatPanelTabAtom,
+  openRuntimeInChatPanelTabAtom,
   openSessionInNewChatTabAtom,
+  openWorkManagementChatPanelTabAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { repoMapAtom } from "@src/store/repo";
 import {
@@ -40,6 +42,7 @@ import {
 } from "@src/store/session";
 import { openSessionInWorkstationAtom } from "@src/store/session/sessionTabPlacementAtom";
 import {
+  CHAT_PANEL_CREATE_TARGET,
   CHAT_PANEL_SURFACE_KIND,
   activeStationChatVisibleAtom,
   chatPanelContentModeAtom,
@@ -75,6 +78,7 @@ import {
   COLLAB_ADD_ORG_MENU_ITEM_ID,
   KANBAN_MENU_ITEM_ID,
   NEW_SESSION_MENU_ITEM_ID,
+  RUNTIME_MENU_ITEM_ID,
   WORK_ITEMS_GITHUB_ISSUES_MENU_ITEM_ID,
   WORK_ITEMS_GITHUB_PRS_MENU_ITEM_ID,
   WORK_ITEMS_MENU_ITEM_ID,
@@ -178,7 +182,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
   const [workManagementProjectsView, setWorkManagementProjectsView] = useAtom(
     workManagementProjectsViewAtom
   );
-  const openKanbanTab = useSetAtom(openKanbanChatPanelTabAtom);
+  const openWorkManagementTab = useSetAtom(openWorkManagementChatPanelTabAtom);
   const openCloudOrgManagementTab = useSetAtom(
     openCloudOrgManagementInChatPanelTabAtom
   );
@@ -189,6 +193,10 @@ export const WorkstationSidebarConnector: React.FC = () => {
   );
   const activateChatPanelTab = useSetAtom(activateChatPanelTabAtom);
   const openStartPageTab = useSetAtom(openOrFocusChatPanelStartPageTabAtom);
+  const openCreateTargetInStartPage = useSetAtom(
+    openCreateTargetInChatPanelStartPageAtom
+  );
+  const openRuntimeTab = useSetAtom(openRuntimeInChatPanelTabAtom);
   const closeAndDestroyChatPanelTab = useSetAtom(
     closeAndDestroyChatPanelTabAtom
   );
@@ -310,6 +318,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
   const createProjectLabel = tProjects("projects.createProject");
   const createWorkItemLabel = tProjects("workItems.createWorkItem");
   const workItemsLabel = t("labels.workItems");
+  const runtimeLabel = tSessions("chat.startPage.tabs.runtime");
   const importGithubIssuesLabel = tProjects("githubIssuesImport.menuLabel");
   const addOrgLabel = t("collaboration.addOrg");
   const manageOrgLabel = t("collaboration.manageOrg");
@@ -381,6 +390,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     localOrgMap: projectsLocalOrgMap,
     linearOrgMap: projectsLinearOrgMap,
     loading: projectsWorkItemsLoading,
+    linkedSessionIds: projectsLinkedSessionIds,
     getLoadMoreGroupId: getProjectsLoadMoreGroupId,
     loadLinearOrgWorkItems: loadProjectsLinearOrgWorkItems,
     toChatPanelProject,
@@ -426,6 +436,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     importGithubIssuesLabel,
     kanbanLabel: tSessions("simulator.tabs.kanban"),
     newSessionLabel,
+    runtimeLabel,
     workItemDestinations: workItemsSidebarMenuItems,
     t,
   });
@@ -643,6 +654,26 @@ export const WorkstationSidebarConnector: React.FC = () => {
     ]
   );
 
+  const handleOpenLinkedWorkItemSession = useCallback(
+    (item: NavigationMenuItem) => {
+      if (sessionMap.has(item.id)) {
+        handleMenuItemClick(item.key, item);
+        return;
+      }
+      activateMyStationRouteForProjectTabContent();
+      openSessionInWorkstation({
+        sessionId: item.id,
+        title: item.label,
+      });
+    },
+    [
+      activateMyStationRouteForProjectTabContent,
+      handleMenuItemClick,
+      openSessionInWorkstation,
+      sessionMap,
+    ]
+  );
+
   const handleToggleSubagentExpansion = useCallback((sessionId: string) => {
     setExpandedSubagentParentIds((previousIds) => {
       const nextIds = new Set(previousIds);
@@ -714,7 +745,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
     activateMyStationRouteForProjectsContent,
     getProjectsLoadMoreGroupId,
     loadProjectsLinearOrgWorkItems,
-    navigateChatPanel,
     openProjectsLinearOrg,
     openProjectsLinearWorkItem: openProjectsLinearWorkItem,
     projectsLinearOrgMap,
@@ -722,6 +752,8 @@ export const WorkstationSidebarConnector: React.FC = () => {
     projectsLocalOrgMap,
     projectsProjectMap,
     projectsWorkItemMap,
+    linkedSessionIds: projectsLinkedSessionIds,
+    openLinkedSession: handleOpenLinkedWorkItemSession,
     resetWorkManagementStateForProjectsContent,
     setProjectsGroupVisibleCounts,
     setProjectsSelectedMenuItemId,
@@ -734,8 +766,16 @@ export const WorkstationSidebarConnector: React.FC = () => {
   const handleAddOrgFromSelector = useCallback(() => {
     resetWorkManagementStateForProjectsContent();
     setProjectsSelectedMenuItemId(COLLAB_ADD_ORG_MENU_ITEM_ID);
-    navigateChatPanel({ kind: CHAT_PANEL_SURFACE_KIND.NEW_COLLAB_ORG });
-  }, [navigateChatPanel, resetWorkManagementStateForProjectsContent]);
+    openCreateTargetInStartPage({
+      target: CHAT_PANEL_CREATE_TARGET.COLLAB_ORG,
+      title: t("routes.launchpad"),
+    });
+  }, [
+    openCreateTargetInStartPage,
+    resetWorkManagementStateForProjectsContent,
+    setProjectsSelectedMenuItemId,
+    t,
+  ]);
   // UX decision (scope vs. panel): picking an org in the selector ONLY
   // switches the sidebar scope — it never navigates the chat panel. The
   // dropdown's explicit management action remains available from any scope.
@@ -790,15 +830,19 @@ export const WorkstationSidebarConnector: React.FC = () => {
       } else if (item.id !== KANBAN_MENU_ITEM_ID) {
         return;
       }
-      openKanbanTab({ section, title });
+      openWorkManagementTab({ section, title });
     },
-    [openKanbanTab, setWorkManagementProjectsView, t, tSessions]
+    [openWorkManagementTab, setWorkManagementProjectsView, t, tSessions]
   );
 
   const handleSessionMenuItemClick = useCallback(
     (key: string, item: NavigationMenuItem, event: React.MouseEvent) => {
       if (isWorkManagementMenuItemId(item.id)) {
         handleWorkManagementMenuItemClick(key, item);
+        return;
+      }
+      if (item.id === RUNTIME_MENU_ITEM_ID) {
+        openRuntimeTab(runtimeLabel);
         return;
       }
       if (isChatTerminalSidebarItem(item.id)) {
@@ -832,6 +876,8 @@ export const WorkstationSidebarConnector: React.FC = () => {
       handleWorkManagementMenuItemClick,
       handleProjectsMenuItemClick,
       handleOpenInNewTab,
+      openRuntimeTab,
+      runtimeLabel,
       sessionMap,
       workItemsContentVisible,
     ]

@@ -137,7 +137,9 @@
       "views": {
         "scanning": "Quét",
         "hooks": "Hooks",
-        "usage": "Mức sử dụng"
+        "usage": "Mức sử dụng",
+        "quota": "Hạn mức",
+        "assets": "Tài sản"
       },
       "usage": {
         "title": "Mức sử dụng và chi phí",
@@ -156,7 +158,7 @@
           "claude": "Claude",
           "codex": "Codex",
           "cursor": "Cursor",
-          "org2": "Agent ORGII",
+          "org2": "ORG2",
           "other": "Khác"
         },
         "cards": {
@@ -884,6 +886,9 @@
         "title": "Agents"
       },
       "tabs": {
+        "session": "Phiên",
+        "workItem": "Hạng mục công việc",
+        "more": "Thêm",
         "work": "Làm việc",
         "manage": "Quản lý",
         "heatmap": "Xu hướng",
@@ -935,7 +940,6 @@
     "defaultTitle": "Chat",
     "hideChatPanel": "Ẩn bảng trò chuyện",
     "showTokenUsage": "Hiển thị Token",
-    "showStatusBar": "Hiển thị thanh trạng thái",
     "compactDisplayMode": "Chế độ gọn",
     "replay": {
       "follow": "Theo dõi"
@@ -981,6 +985,28 @@
     "copyEventJson": "Sao chép JSON sự kiện",
     "copyEventJsonCopied": "Đã sao chép!",
     "copyEventJsonFailed": "Sao chép thất bại",
+    "moveToWorkstation": "Chuyển sang Workstation của tôi",
+    "moveToChatPanel": "Chuyển sang bảng trò chuyện",
+    "rawTranscript": {
+      "title": "Bản ghi thô của phiên",
+      "menuItem": "Xem bản ghi thô",
+      "guiTab": "GUI",
+      "rawTab": "Dữ liệu thô",
+      "entryCount_one": "{{count}} mục",
+      "entryCount_other": "{{count}} mục",
+      "copySuccess": "Đã sao chép bản ghi thô",
+      "copyFailed": "Không thể sao chép bản ghi thô"
+    },
+    "linkWorkItem": {
+      "menuItem": "Liên kết với Work Item…",
+      "title": "Liên kết phiên với Work Item",
+      "description": "Chọn Work Item sẽ hiển thị phiên này.",
+      "searchPlaceholder": "Tìm theo ID, tiêu đề, trạng thái hoặc dự án của Work Item",
+      "loading": "Đang tải Work Items…",
+      "empty": "Không tìm thấy Work Item.",
+      "linking": "Đang liên kết…",
+      "link": "Liên kết"
+    },
     "historyTitle": "Lịch sử",
     "historyEmpty": "Chưa có phiên nào",
     "historyGroupTime": "Thời gian",
@@ -1110,6 +1136,8 @@
     "turnMetadata": {
       "noChanges": "Không có thay đổi tệp trong vòng này",
       "earlierRound": "Vòng trước",
+      "editsTab": "Chỉnh sửa",
+      "readsTab": "Lượt đọc",
       "files_one": "{{count}} tệp",
       "files_other": "{{count}} tệp",
       "reads_one": "{{count}} lượt đọc",

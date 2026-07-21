@@ -814,7 +814,24 @@
     "skipVersion": "跳過此版本"
   },
   "monitor": {
-    "categoryTerminal": "終端機/工具程序",
+    "appMemory": "應用程式記憶體",
+    "appBackend": "ORG2 後端",
+    "appWebviewHelpers": "已確認歸屬的 WebView 輔助程序",
+    "rssMappedDiagnostic": "RSS / 映射記憶體（診斷）",
+    "measurement": "統計口徑",
+    "measurementKinds": {
+      "native": "系統原生有效記憶體",
+      "compatibility": "相容口徑",
+      "mixed": "原生與回退口徑混合",
+      "rss_fallback": "RSS 回退口徑",
+      "unavailable": "暫不可用"
+    },
+    "toolProcessDiagnostics": "終端、CLI 與工具程序（RSS 診斷）",
+    "excludedFromAppMemory": "不計入應用程式記憶體",
+    "noToolProcesses": "未偵測到終端、CLI、MCP 或工具程序",
+    "categoryAgentCli": "CLI Agent",
+    "categoryMcpOrTool": "MCP / 工具程序",
+    "categoryTerminal": "終端機程序",
     "categoryWebview": "WebView 轉譯器",
     "categoryGpu": "WebKit GPU",
     "categoryNetwork": "WebKit 網路",

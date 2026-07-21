@@ -1,9 +1,10 @@
 import { emit } from "@tauri-apps/api/event";
 import { useAtomValue, useSetAtom } from "jotai";
-import { ExternalLink, Trash2, X } from "lucide-react";
-import React, { useCallback, useMemo, useState } from "react";
+import { ExternalLink, Info, ListChecks, Trash2, X } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { STORY_SYNC_ADAPTER } from "@src/api/http/integrations/syncConnections";
 import {
   type WorkItemFrontmatter,
   type WorkItemPartialUpdate,
@@ -11,35 +12,29 @@ import {
   projectApi,
   standaloneWorkItemDataToEnriched,
 } from "@src/api/http/project";
+import { projectSyncApi } from "@src/api/http/project/sync";
 import Button from "@src/components/Button";
+import IntegrationIcon from "@src/components/IntegrationIcon";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
-import {
-  ChatPanelHeaderBreadcrumb,
-  usePublishChatPanelHeader,
-} from "@src/engines/ChatPanel/header";
+import { usePublishChatPanelHeader } from "@src/engines/ChatPanel/header";
 import { createLogger } from "@src/hooks/logger";
 import { useProjectDataChanged } from "@src/hooks/project";
+import { useResizeHandle } from "@src/hooks/ui/useResizeHandle";
 import {
   WorkItemContent,
   WorkItemProperties,
 } from "@src/modules/ProjectManager/WorkItems/components";
-import { WORK_ITEM_PROPERTY_INLINE_FIELDS } from "@src/modules/ProjectManager/WorkItems/components/WorkItemProperties";
 import { useWorkItemOrchestrator } from "@src/modules/ProjectManager/WorkItems/hooks";
+import { PropertiesRailFrame } from "@src/modules/ProjectManager/shared";
+import ProjectManagerBreadcrumb from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
-import {
-  openProjectInChatPanelTabAtom,
-  openProjectOrgInChatPanelTabAtom,
-} from "@src/store/chatPanel/chatPanelTabsAtom";
+import { VerticalResizeHandle } from "@src/scaffold/Resize";
 import { activeSessionIdAtom } from "@src/store/session";
 import {
   type ChatPanelSelectedWorkItem,
   chatPanelSelectedWorkItemAtom,
 } from "@src/store/ui/chatPanelAtom";
 import { activeWorkspaceRootPathAtom } from "@src/store/workspace";
-import {
-  STORY_ORG_SCOPE,
-  STORY_PERSONAL_ORG_FILTER_ID,
-} from "@src/store/workstation";
 import type { WorkItem } from "@src/types/core/workItem";
 import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
 
@@ -47,6 +42,9 @@ import ChatView from "../ChatView";
 
 const logger = createLogger("WorkItemPanelView");
 const saveNoPendingWorkItemChanges = async (): Promise<void> => undefined;
+const WORK_ITEM_INFO_PANEL_DEFAULT_WIDTH = 240;
+const WORK_ITEM_INFO_PANEL_MIN_WIDTH = 200;
+const WORK_ITEM_INFO_PANEL_MAX_WIDTH = 280;
 
 interface WorkItemPanelViewProps {
   selectedWorkItem: ChatPanelSelectedWorkItem;
@@ -173,14 +171,53 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
   onUpdateWorkItem,
 }) => {
   const { t } = useTranslation(["projects", "common"]);
-  const openProjectTab = useSetAtom(openProjectInChatPanelTabAtom);
-  const openProjectOrgTab = useSetAtom(openProjectOrgInChatPanelTabAtom);
   const setSelectedWorkItem = useSetAtom(chatPanelSelectedWorkItemAtom);
   const setActiveSessionId = useSetAtom(activeSessionIdAtom);
   const activeWorkspaceRootPath = useAtomValue(activeWorkspaceRootPathAtom);
   const [floatingSessionId, setFloatingSessionId] = useState<string | null>(
     null
   );
+  const [propertiesOpen, setPropertiesOpen] = useState(true);
+  const [infoPanelWidth, setInfoPanelWidth] = useState(
+    WORK_ITEM_INFO_PANEL_DEFAULT_WIDTH
+  );
+  const [projectSyncAdapter, setProjectSyncAdapter] = useState<{
+    projectSlug: string;
+    adapterId: string | null;
+  } | null>(null);
+  const { handleMouseDown: handleInfoPanelResize, isResizing } =
+    useResizeHandle(infoPanelWidth, setInfoPanelWidth, {
+      direction: "horizontal",
+      minSize: WORK_ITEM_INFO_PANEL_MIN_WIDTH,
+      maxSize: WORK_ITEM_INFO_PANEL_MAX_WIDTH,
+      isReversed: true,
+    });
+
+  useEffect(() => {
+    const projectSlug = selectedWorkItem.projectSlug;
+    if (!projectSlug) return;
+
+    let cancelled = false;
+    void projectSyncApi
+      .status(projectSlug)
+      .then((status) => {
+        if (!cancelled) {
+          setProjectSyncAdapter({
+            projectSlug,
+            adapterId: status.adapter_id,
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProjectSyncAdapter({ projectSlug, adapterId: null });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedWorkItem.projectSlug]);
 
   const handleUpdateWorkItem = useCallback(
     async (updates: Partial<WorkItem>) => {
@@ -362,72 +399,15 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
   const workItemContentKey = `${selectedWorkItem.projectSlug}:${
     selectedWorkItem.shortId || selectedWorkItem.workItem.session_id
   }`;
-  const orgPathLabel =
-    selectedWorkItem.orgName || t("projects:orgs.personalOrg");
-  const projectPathLabel =
-    selectedWorkItem.projectName ||
-    selectedWorkItem.workItem.project?.name ||
-    t("projects.dashboardTitle");
-  const workItemTitle = selectedWorkItem.workItem.name || "Work item";
-
-  const handleOpenOrg = useCallback(
-    (event: React.MouseEvent<HTMLButtonElement>) => {
-      event.stopPropagation();
-      openProjectOrgTab({
-        orgId: selectedWorkItem.orgId ?? STORY_PERSONAL_ORG_FILTER_ID,
-        orgName: orgPathLabel,
-        orgScope:
-          selectedWorkItem.orgId === STORY_PERSONAL_ORG_FILTER_ID ||
-          !selectedWorkItem.orgId
-            ? STORY_ORG_SCOPE.PERSONAL_ORG
-            : STORY_ORG_SCOPE.PROJECT_ORG,
-      });
-    },
-    [openProjectOrgTab, orgPathLabel, selectedWorkItem.orgId]
-  );
-
-  const handleOpenProject = useCallback(
-    (event: React.MouseEvent<HTMLButtonElement>) => {
-      event.stopPropagation();
-      if (!selectedWorkItem.sourceProject) return;
-      openProjectTab(selectedWorkItem.sourceProject);
-    },
-    [openProjectTab, selectedWorkItem.sourceProject]
-  );
-
-  const headerBreadcrumbContent = useMemo(
-    () => (
-      <ChatPanelHeaderBreadcrumb
-        items={[
-          {
-            key: "org",
-            label: orgPathLabel,
-            onClick: handleOpenOrg,
-          },
-          {
-            key: "project",
-            label: projectPathLabel,
-            onClick: selectedWorkItem.sourceProject
-              ? handleOpenProject
-              : undefined,
-          },
-          {
-            key: "work-item",
-            label: workItemTitle,
-          },
-        ]}
-      />
-    ),
-    [
-      handleOpenOrg,
-      handleOpenProject,
-      orgPathLabel,
-      projectPathLabel,
-      selectedWorkItem.sourceProject,
-      workItemTitle,
-    ]
-  );
-
+  const projectSyncAdapterId =
+    projectSyncAdapter?.projectSlug === selectedWorkItem.projectSlug
+      ? projectSyncAdapter.adapterId
+      : undefined;
+  const isGitHubSyncedProject =
+    projectSyncAdapterId === STORY_SYNC_ADAPTER.GITHUB;
+  const projectSelectionReadonly =
+    Boolean(selectedWorkItem.projectSlug) &&
+    (projectSyncAdapterId === undefined || isGitHubSyncedProject);
   const handleDeleteWorkItem = useCallback(async () => {
     if (!selectedWorkItem.projectSlug) return;
 
@@ -453,41 +433,123 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
     }
   }, [selectedWorkItem, setSelectedWorkItem, t]);
 
-  const headerDeleteAction = useMemo(
-    () =>
-      selectedWorkItem.projectSlug ? (
+  const headerActions = useMemo(
+    () => (
+      <div className="flex items-center gap-px">
+        {selectedWorkItem.projectSlug &&
+        projectSyncAdapterId !== undefined &&
+        !isGitHubSyncedProject ? (
+          <WorkstationToolbarTooltip
+            label={t("projects:workItems.deleteWorkItem")}
+          >
+            <Button
+              htmlType="button"
+              variant="tertiary"
+              size="small"
+              iconOnly
+              onClick={() => void handleDeleteWorkItem()}
+              aria-label={t("projects:workItems.deleteWorkItem")}
+              data-testid="work-item-delete"
+              icon={<Trash2 size={HEADER_ICON_SIZE.sm} />}
+            />
+          </WorkstationToolbarTooltip>
+        ) : null}
         <WorkstationToolbarTooltip
-          label={t("projects:workItems.deleteWorkItem")}
+          label={
+            propertiesOpen
+              ? t("projects:workItems.hideProperties")
+              : t("projects:workItems.showProperties")
+          }
         >
           <Button
             htmlType="button"
             variant="tertiary"
             size="small"
             iconOnly
-            onClick={() => void handleDeleteWorkItem()}
-            aria-label={t("projects:workItems.deleteWorkItem")}
-            data-testid="work-item-delete"
-            icon={<Trash2 size={HEADER_ICON_SIZE.sm} />}
+            className={
+              propertiesOpen ? "!bg-surface-selected !text-primary-6" : ""
+            }
+            onClick={() => setPropertiesOpen((current) => !current)}
+            aria-label={
+              propertiesOpen
+                ? t("projects:workItems.hideProperties")
+                : t("projects:workItems.showProperties")
+            }
+            aria-pressed={propertiesOpen}
+            data-testid="chat-panel-work-item-properties-toggle"
+            icon={<Info size={HEADER_ICON_SIZE.sm} />}
           />
         </WorkstationToolbarTooltip>
-      ) : null,
-    [handleDeleteWorkItem, selectedWorkItem.projectSlug, t]
+      </div>
+    ),
+    [
+      handleDeleteWorkItem,
+      isGitHubSyncedProject,
+      projectSyncAdapterId,
+      propertiesOpen,
+      selectedWorkItem.projectSlug,
+      t,
+    ]
+  );
+
+  const headerContent = useMemo(
+    () => (
+      <ProjectManagerBreadcrumb
+        segments={[
+          { label: selectedWorkItem.projectName },
+          {
+            label: selectedWorkItem.shortId
+              ? `${selectedWorkItem.shortId} · ${selectedWorkItem.workItem.name}`
+              : selectedWorkItem.workItem.name,
+            icon: isGitHubSyncedProject ? (
+              <IntegrationIcon
+                type={STORY_SYNC_ADAPTER.GITHUB}
+                size={HEADER_ICON_SIZE.sm}
+              />
+            ) : (
+              <ListChecks size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
+            ),
+          },
+        ]}
+      />
+    ),
+    [
+      selectedWorkItem.projectName,
+      selectedWorkItem.shortId,
+      selectedWorkItem.workItem.name,
+      isGitHubSyncedProject,
+    ]
   );
 
   usePublishChatPanelHeader({
-    content: {
-      content: headerBreadcrumbContent,
-      trailing: headerDeleteAction,
-    },
+    content: { content: headerContent, trailing: headerActions },
   });
 
-  const inlineProperties = (
+  const propertiesContent = (
     <WorkItemProperties
       workItem={selectedWorkItem.workItem}
       onUpdate={handleUpdateWorkItem}
-      fieldVariant="pill"
-      visibleFields={WORK_ITEM_PROPERTY_INLINE_FIELDS}
-      showMoreMenu
+      availableProjects={
+        selectedWorkItem.workItem.project
+          ? [selectedWorkItem.workItem.project]
+          : []
+      }
+      availableMilestones={
+        selectedWorkItem.workItem.milestone
+          ? [selectedWorkItem.workItem.milestone]
+          : []
+      }
+      availableLabels={selectedWorkItem.workItem.labels ?? []}
+      availableMembers={[
+        ...(selectedWorkItem.sourceProject?.project.members ?? []),
+        ...(selectedWorkItem.workItem.assignee
+          ? [selectedWorkItem.workItem.assignee]
+          : []),
+      ]}
+      projectIconType={
+        isGitHubSyncedProject ? STORY_SYNC_ADAPTER.GITHUB : undefined
+      }
+      projectReadonly={projectSelectionReadonly}
     />
   );
 
@@ -496,29 +558,44 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
       className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden"
       data-testid="chat-panel-work-item-detail"
     >
-      <WorkItemContent
-        key={workItemContentKey}
-        workItem={selectedWorkItem.workItem}
-        onUpdateWorkItem={handleUpdateWorkItem}
-        onUpdateWorkItemImmediate={handleUpdateWorkItem}
-        repoPath={repoPath}
-        projectSlug={selectedWorkItem.projectSlug}
-        shortId={selectedWorkItem.shortId}
-        headerProperties={inlineProperties}
-        titleVisible
-        onStartAgent={handleStartAgent}
-        isStartingAgent={isStartingAgent}
-        onCancelAgent={handleCancelAgent}
-        onRetry={handleRetry}
-        onAcceptAsIs={handleAcceptAsIs}
-        onCreateFollowUp={handleCreateFollowUp}
-        onOpenSession={handleOpenSession}
-        onRefreshWorkflow={refreshSelectedWorkItem}
-        activeAgentSessionId={activeAgentSessionId}
-        activeAgentRole={activeAgentRole}
-        isLockedByOther={isLockedByOther}
-        lockHolderName={lockHolderName}
-      />
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <WorkItemContent
+            key={workItemContentKey}
+            workItem={selectedWorkItem.workItem}
+            onUpdateWorkItem={handleUpdateWorkItem}
+            onUpdateWorkItemImmediate={handleUpdateWorkItem}
+            repoPath={repoPath}
+            projectSlug={selectedWorkItem.projectSlug}
+            shortId={selectedWorkItem.shortId}
+            titleVisible
+            onStartAgent={handleStartAgent}
+            isStartingAgent={isStartingAgent}
+            onCancelAgent={handleCancelAgent}
+            onRetry={handleRetry}
+            onAcceptAsIs={handleAcceptAsIs}
+            onCreateFollowUp={handleCreateFollowUp}
+            onOpenSession={handleOpenSession}
+            onRefreshWorkflow={refreshSelectedWorkItem}
+            activeAgentSessionId={activeAgentSessionId}
+            activeAgentRole={activeAgentRole}
+            isLockedByOther={isLockedByOther}
+            lockHolderName={lockHolderName}
+          />
+        </div>
+        {propertiesOpen ? (
+          <>
+            <VerticalResizeHandle
+              variant="transparent"
+              onMouseDown={handleInfoPanelResize}
+              isResizing={isResizing}
+            />
+            <PropertiesRailFrame width={infoPanelWidth} floatingContent>
+              {propertiesContent}
+            </PropertiesRailFrame>
+          </>
+        ) : null}
+      </div>
       {floatingSessionId && (
         <div
           className="absolute inset-x-3 bottom-3 top-16 z-30 flex min-h-0 flex-col overflow-hidden rounded-2xl border border-border-1 bg-chat-pane shadow-2xl"

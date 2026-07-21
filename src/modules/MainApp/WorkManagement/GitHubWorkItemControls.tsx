@@ -4,6 +4,7 @@ import {
   GitMerge,
   GitPullRequest,
   GitPullRequestClosed,
+  GitPullRequestDraft,
   Link2,
   MessageSquare,
   MoreHorizontal,
@@ -17,7 +18,7 @@ import Input from "@src/components/Input";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
 import Modal from "@src/scaffold/ModalSystem";
-import { getPrStatusVariant } from "@src/shared/pr/prStatus";
+import { getPrStatusVariant, normalizePrStatus } from "@src/shared/pr/prStatus";
 
 import { GitHubWorkItemRow } from "./GitHubWorkItemList";
 import {
@@ -263,13 +264,20 @@ export function ManagedPrRow({
   onOpenPr: (pr: ManagedPrItem) => void;
   onAddPr: (pr: ManagedPrItem) => void;
 }): React.ReactNode {
-  const statusVariant = getPrStatusVariant(pr.state);
+  const status = normalizePrStatus({
+    state: pr.state,
+    merged: pr.state === GITHUB_QUERY_STATE.MERGED,
+    draft: pr.rawPr.draft,
+  });
+  const statusVariant = getPrStatusVariant(status);
   const PrIcon =
-    pr.state === GITHUB_QUERY_STATE.MERGED
-      ? GitMerge
-      : pr.state === GITHUB_QUERY_STATE.CLOSED
-        ? GitPullRequestClosed
-        : GitPullRequest;
+    status === "draft"
+      ? GitPullRequestDraft
+      : status === GITHUB_QUERY_STATE.MERGED
+        ? GitMerge
+        : status === GITHUB_QUERY_STATE.CLOSED
+          ? GitPullRequestClosed
+          : GitPullRequest;
 
   return (
     <GitHubWorkItemRow
@@ -289,11 +297,6 @@ export function ManagedPrRow({
             <h3 className="m-0 min-w-0 text-[13px] font-semibold leading-5 text-text-1 group-hover:text-primary-6">
               {pr.title}
             </h3>
-            {pr.rawPr.draft ? (
-              <span className="rounded-full border border-border-2 bg-fill-1 px-1.5 py-0.5 text-[10px] font-medium text-text-2">
-                Draft
-              </span>
-            ) : null}
           </div>
           <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-text-3">
             <span>#{pr.id}</span>

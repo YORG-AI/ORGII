@@ -28,7 +28,7 @@ const MAX_ISSUES_PER_SECTION = 200;
 const MAX_PRS = 100;
 const MAX_PR_LISTS = 8;
 /** Distinct PR detail snapshots retained (LRU across all repos). */
-const MAX_PR_DETAILS = 20;
+const MAX_PR_DETAILS = 4;
 export const GITHUB_LIST_CACHE_TTL_MS = 10 * 60 * 1000;
 
 export interface CachedIssues {

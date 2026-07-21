@@ -71,10 +71,7 @@ import {
 import { pendingPlanApprovalsAtom } from "@src/store/session/planApprovalAtom";
 import type { SessionContinuation } from "@src/store/session/sessionTabPlacementAtom";
 import type { ChatHistoryDisplayMode } from "@src/store/ui/chatPanelAtom";
-import {
-  chatPanelMaximizedAtom,
-  chatStatusBarVisibleAtom,
-} from "@src/store/ui/chatPanelAtom";
+import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
 import {
   STATION_MODE,
   bumpSimulatorDiffRefreshNonceAtom,
@@ -420,7 +417,6 @@ const ChatView: React.FC<ChatViewProps> = memo(
     const browserAddToConversationNav = useBrowserAddToConversationAction();
     const stationMode = useAtomValue(stationModeAtom);
     const chatPanelMaximized = useAtomValue(chatPanelMaximizedAtom);
-    const statusBarVisible = useAtomValue(chatStatusBarVisibleAtom);
     const agentMessageClampEligible =
       stationMode === STATION_MODE.AGENT_STATION && !chatPanelMaximized;
 
@@ -859,9 +855,7 @@ const ChatView: React.FC<ChatViewProps> = memo(
             <div
               ref={setMeasuredFloatingComposerRef}
               data-testid="external-history-fork-composer"
-              className={`absolute bottom-0 left-0 right-0 z-50 flex w-full flex-shrink-0 flex-col items-center px-2 pt-1 ${
-                statusBarVisible ? "pb-0" : "pb-2"
-              }`}
+              className="absolute bottom-0 left-0 right-0 z-50 flex w-full flex-shrink-0 flex-col items-center px-2 pb-2 pt-1"
             >
               <div className="pointer-events-none absolute inset-x-0 bottom-0 top-[-28px] bg-gradient-to-t from-chat-pane via-chat-pane/90 to-transparent" />
               <div

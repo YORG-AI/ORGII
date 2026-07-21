@@ -2,7 +2,11 @@ use std::path::PathBuf;
 
 use crate::tools::impls::coding::exec::await_tool::AwaitTool;
 use crate::tools::impls::coding::exec::registry;
+use crate::tools::impls::coding::exec::shell_replay::{
+    resolve_replay_root, ShellReplayStream, ShellReplayTarget, ShellReplayWriter,
+};
 use crate::tools::traits::Tool;
+use core_types::session_event::ShellReplayStatus;
 
 /// Extract the `awaitMeta::` JSON line from a tool result string.
 fn extract_meta(result: &str) -> serde_json::Value {
@@ -204,6 +208,67 @@ async fn test_shell_running_has_metadata() {
     let meta = extract_meta(&result);
     assert_eq!(meta["count"].as_u64().unwrap(), 1);
 
+    registry::remove(&handle);
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn durable_shell_monitor_and_pattern_poll_authoritative_replay_tail() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let replay_root = resolve_replay_root();
+    let session_id = "await-replay-session";
+    let call_id = "await-replay-call";
+    let pid = 88991_u32;
+    let handle = pid.to_string();
+    let mut writer = ShellReplayWriter::create(
+        &replay_root,
+        ShellReplayTarget::new(session_id, call_id),
+        "emit ready",
+        std::path::Path::new("/tmp"),
+        None,
+    )
+    .unwrap();
+    writer
+        .append(ShellReplayStream::Stdout, b"READY_FROM_REPLAY\n")
+        .unwrap();
+    let _sender = registry::register_shell_replay(
+        pid,
+        "emit ready".into(),
+        writer.path().to_path_buf(),
+        session_id.into(),
+        call_id.into(),
+    );
+
+    let tool = AwaitTool::new();
+    let monitor = tool
+        .execute(
+            serde_json::json!({
+                "command": "monitor",
+                "handles": [handle.clone()],
+                "tail_lines": 20,
+            }),
+            &crate::tools::call_context::CallContext::default(),
+        )
+        .await
+        .unwrap();
+    assert!(monitor.contains("READY_FROM_REPLAY"), "{monitor}");
+
+    let matched = tool
+        .execute(
+            serde_json::json!({
+                "command": "wait_for",
+                "handles": [handle.clone()],
+                "pattern": "READY_FROM_REPLAY",
+                "block_until_ms": 10,
+            }),
+            &crate::tools::call_context::CallContext::default(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(single_item(&matched)["patternMatched"], true);
+
+    writer.finalize(ShellReplayStatus::Complete, None).unwrap();
+    registry::mark_exited(&handle, registry::JobStatus::Exited(0));
     registry::remove(&handle);
 }
 

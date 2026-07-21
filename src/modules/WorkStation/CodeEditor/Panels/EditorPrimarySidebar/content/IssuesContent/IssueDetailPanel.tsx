@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import type { GitHubIssue, GitHubIssueComment } from "@src/api/tauri/github";
 import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
+import IntegrationIcon from "@src/components/IntegrationIcon";
 import Tag from "@src/components/Tag";
 import Textarea from "@src/components/Textarea";
 import {
@@ -70,14 +71,26 @@ export function IssueDetailHeaderContent({
 }): React.ReactNode {
   if (!issue) {
     return fallbackTitle ? (
-      <span className="min-w-0 select-text truncate text-[13px] font-medium text-text-1">
-        {fallbackTitle}
+      <span className="flex min-w-0 flex-1 items-center gap-2">
+        <IntegrationIcon
+          type="github"
+          size={HEADER_ICON_SIZE.sm}
+          className="shrink-0"
+        />
+        <span className="min-w-0 select-text truncate text-[13px] font-medium text-text-1">
+          {fallbackTitle}
+        </span>
       </span>
     ) : null;
   }
 
   return (
     <span className="flex min-w-0 flex-1 items-center gap-2">
+      <IntegrationIcon
+        type="github"
+        size={HEADER_ICON_SIZE.sm}
+        className="shrink-0"
+      />
       <span className={`shrink-0 ${getIssueStateClassName(issue)}`}>
         <IssueStateIcon isOpen={issue.state === "open"} />
       </span>

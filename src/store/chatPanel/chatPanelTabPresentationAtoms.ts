@@ -142,7 +142,7 @@ const syncChatPanelTabNavigationAtom = atom(
     set(chatPanelStartPageOpenAtom, false);
 
     // Session is the neutral legacy surface underneath tabs whose content is
-    // owned by ChatPanelShell (management and terminal tabs).
+    // owned by ChatPanelShell (Runtime, management, and terminal tabs).
     set(chatPanelNavigateAtom, { kind: CHAT_PANEL_SURFACE_KIND.SESSION });
     if (tab.type !== "session") set(jumpToSessionAtom, null);
   }
@@ -217,6 +217,7 @@ export const activateChatPanelTabAtom = atom(
 
     if (
       tab.type === "terminal" ||
+      tab.type === "runtime" ||
       tab.type === "work-management" ||
       tab.type === "workspace" ||
       tab.type === "cloud-org" ||

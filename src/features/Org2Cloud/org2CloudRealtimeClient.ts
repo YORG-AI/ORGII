@@ -22,6 +22,7 @@ import {
 } from "@supabase/supabase-js";
 
 import { createLogger } from "@src/hooks/logger";
+import { recordPushEvent } from "@src/util/monitoring/apiTracker";
 
 import { getCloudEndpoint } from "./config";
 
@@ -203,6 +204,7 @@ export function createOrg2CloudRealtimeConnection(
         ...(filter ? { filter } : {}),
       },
       (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+        recordPushEvent("ws", `in · org2:${table}:postgres-changes`);
         try {
           onChange(payload);
         } catch (error) {
@@ -321,6 +323,7 @@ export function createOrg2CloudRealtimeConnection(
       }
     };
     const emit = () => {
+      recordPushEvent("ws", `in · org2:${scope}:presence-sync`);
       try {
         onSync(
           channel.presenceState() as Record<
@@ -335,6 +338,7 @@ export function createOrg2CloudRealtimeConnection(
     channel.on("presence", { event: "sync" }, emit);
     if (onBroadcast) {
       channel.on("broadcast", { event: "*" }, (frame) => {
+        recordPushEvent("ws", `in · org2:${scope}:broadcast`);
         try {
           onBroadcast(
             String((frame as { event?: unknown }).event ?? ""),

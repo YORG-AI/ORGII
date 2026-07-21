@@ -5,6 +5,7 @@ import { getTerminalBufferCacheStats } from "@src/components/TerminalInteractive
 import { createLogger } from "@src/hooks/logger";
 import {
   collectWebViewRuntimeDiagnostics,
+  useAppMemorySnapshot,
   useRuntimeRamStats,
 } from "@src/hooks/perf";
 
@@ -13,14 +14,7 @@ import {
   EMPTY_SNAPSHOT,
   EXPENSIVE_METRICS_POLL_INTERVAL_MS,
 } from "./constants";
-import type {
-  ChildProcessInfo,
-  MemoryBreakdown,
-  MetricsSnapshot,
-  ProcessMetrics,
-  PtyMemoryInfo,
-  SystemMemoryMetrics,
-} from "./types";
+import type { MemoryBreakdown, MetricsSnapshot, PtyMemoryInfo } from "./types";
 
 const logger = createLogger("SidebarRamMonitor");
 
@@ -34,6 +28,7 @@ export function useRamMonitorMetrics(isOpen: boolean) {
     isSamplingFps,
     refresh: refreshRuntimeStats,
   } = useRuntimeRamStats(false);
+  const appMemoryState = useAppMemorySnapshot(isOpen);
 
   const fetchExpensiveMetrics = useCallback(async (force = false) => {
     if (document.visibilityState !== "visible") return;
@@ -48,14 +43,12 @@ export function useRamMonitorMetrics(isOpen: boolean) {
     lastExpensiveFetchAtRef.current = now;
 
     try {
-      const [childProcesses, ptyMemory] = await Promise.all([
-        invoke<ChildProcessInfo[]>("get_child_processes_memory"),
-        invoke<PtyMemoryInfo[]>("get_pty_memory_usage").catch(() => []),
-      ]);
+      const ptyMemory = await invoke<PtyMemoryInfo[]>(
+        "get_pty_memory_usage"
+      ).catch(() => []);
 
       setSnapshot((previousSnapshot) => ({
         ...previousSnapshot,
-        childProcesses,
         ptyMemory,
         lastUpdatedAt: Date.now(),
         errorMessage: null,
@@ -75,20 +68,14 @@ export function useRamMonitorMetrics(isOpen: boolean) {
     if (document.visibilityState !== "visible") return;
 
     try {
-      const [processMetrics, systemMemory, memoryBreakdown] = await Promise.all(
-        [
-          invoke<ProcessMetrics>("get_process_metrics"),
-          invoke<SystemMemoryMetrics>("get_system_memory"),
-          invoke<MemoryBreakdown>("get_memory_breakdown"),
-        ]
+      const memoryBreakdown = await invoke<MemoryBreakdown>(
+        "get_memory_breakdown"
       );
       const terminalBufferStats = getTerminalBufferCacheStats();
       const webViewDiagnostics = collectWebViewRuntimeDiagnostics();
 
       setSnapshot((previousSnapshot) => ({
         ...previousSnapshot,
-        processMetrics,
-        systemMemory,
         memoryBreakdown,
         webViewDiagnostics,
         terminalBufferBytes: terminalBufferStats.bytes,
@@ -143,6 +130,7 @@ export function useRamMonitorMetrics(isOpen: boolean) {
 
   return {
     snapshot,
+    appMemoryState,
     runtimeRows,
     fpsSample,
     fpsValue,

@@ -11,6 +11,8 @@ export interface UseSourceControlStateOptions {
   repoId: string;
   /** Callback when a git file is selected (for showing diff in right panel) */
   onGitFileSelect?: (file: GitFile) => void;
+  /** Load stash metadata only when the stash surface is selected. */
+  autoLoadStashes?: boolean;
 }
 
 export interface SourceControlState {

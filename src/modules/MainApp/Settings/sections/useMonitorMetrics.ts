@@ -17,6 +17,12 @@ import {
 
 import { createLogger } from "@src/hooks/logger";
 import {
+  type AppMemorySnapshotState,
+  type ToolProcessMemoryDiagnostic,
+  refreshAppMemorySnapshot,
+  useAppMemorySnapshot,
+} from "@src/hooks/perf";
+import {
   monitorActiveTabAtom,
   monitorRefreshTriggerAtom,
   monitorScanningAtom,
@@ -28,46 +34,12 @@ const log = createLogger("Monitor");
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export interface ProcessMetrics {
-  memory_rss_mb: number;
-  memory_virtual_mb: number;
-  cpu_percent: number;
-  start_time_secs: number;
-  uptime_secs: number;
-  pid: number;
-  name: string;
-}
-
 export interface SystemMemoryMetrics {
   total_mb: number;
   used_mb: number;
   available_mb: number;
   swap_total_mb: number;
   swap_used_mb: number;
-}
-
-export interface MemoryBreakdown {
-  backend_rss_mb: number;
-  tracked_backend_mb: number;
-  file_cache_mb: number;
-}
-
-export const CHILD_MEMORY_METRIC_KIND = {
-  PSS: "pss",
-  RSS: "rss",
-} as const;
-
-export type ChildMemoryMetricKind =
-  (typeof CHILD_MEMORY_METRIC_KIND)[keyof typeof CHILD_MEMORY_METRIC_KIND];
-
-export interface ChildProcessInfo {
-  pid: number;
-  name: string;
-  memory_mb: number;
-  rss_mb: number;
-  virtual_memory_mb: number;
-  memory_metric_kind: ChildMemoryMetricKind;
-  category: string;
 }
 
 export interface SystemInfo {
@@ -98,25 +70,25 @@ const EXPENSIVE_METRICS_POLL_INTERVAL_MS = 60_000;
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 export interface UseMonitorMetricsReturn {
-  processMetrics: ProcessMetrics | null;
   systemMemory: SystemMemoryMetrics | null;
-  memoryBreakdown: MemoryBreakdown | null;
-  childProcesses: ChildProcessInfo[];
+  appMemoryState: AppMemorySnapshotState;
+  toolProcesses: ToolProcessMemoryDiagnostic[];
   systemInfo: SystemInfo | null;
   containerRef: RefObject<HTMLDivElement | null>;
 }
 
 export function useMonitorMetrics(activeTab: string): UseMonitorMetricsReturn {
-  const [processMetrics, setProcessMetrics] = useState<ProcessMetrics | null>(
-    null
-  );
   const [systemMemory, setSystemMemory] = useState<SystemMemoryMetrics | null>(
     null
   );
-  const [memoryBreakdown, setMemoryBreakdown] =
-    useState<MemoryBreakdown | null>(null);
-  const [childProcesses, setChildProcesses] = useState<ChildProcessInfo[]>([]);
+  const [toolProcesses, setToolProcesses] = useState<
+    ToolProcessMemoryDiagnostic[]
+  >([]);
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
+  const [isResourceVisible, setIsResourceVisible] = useState(false);
+  const appMemoryState = useAppMemorySnapshot(
+    activeTab === "resources" && isResourceVisible
+  );
 
   const setMonitorActiveTab = useSetAtom(monitorActiveTabAtom);
   const setScanning = useSetAtom(monitorScanningAtom);
@@ -149,10 +121,10 @@ export function useMonitorMetrics(activeTab: string): UseMonitorMetricsReturn {
     lastExpensiveFetchAtRef.current = now;
 
     try {
-      const children = await invoke<ChildProcessInfo[]>(
-        "get_child_processes_memory"
+      const diagnostics = await invoke<ToolProcessMemoryDiagnostic[]>(
+        "get_tool_process_memory_diagnostics_v1"
       ).catch(() => []);
-      setChildProcesses(children);
+      setToolProcesses(diagnostics);
     } catch (error) {
       log.error("failed to fetch expensive monitor metrics:", error);
     }
@@ -162,15 +134,11 @@ export function useMonitorMetrics(activeTab: string): UseMonitorMetricsReturn {
     if (document.visibilityState !== "visible" || !isVisibleRef.current) return;
 
     try {
-      const [process, system, breakdown, sysInfo] = await Promise.all([
-        invoke<ProcessMetrics>("get_process_metrics"),
+      const [system, sysInfo] = await Promise.all([
         invoke<SystemMemoryMetrics>("get_system_memory"),
-        invoke<MemoryBreakdown>("get_memory_breakdown").catch(() => null),
         invoke<SystemInfo>("get_system_info").catch(() => null),
       ]);
-      setProcessMetrics(process);
       setSystemMemory(system);
-      setMemoryBreakdown(breakdown);
       if (sysInfo) setSystemInfo(sysInfo);
     } catch (error) {
       log.error("failed to fetch monitor metrics:", error);
@@ -190,13 +158,18 @@ export function useMonitorMetrics(activeTab: string): UseMonitorMetricsReturn {
     async (onSuccess?: () => void) => {
       setScanning(true);
       try {
-        await fetchMetrics(true);
+        await Promise.all([
+          fetchMetrics(true),
+          activeTab === "resources"
+            ? refreshAppMemorySnapshot()
+            : Promise.resolve(null),
+        ]);
         onSuccess?.();
       } finally {
         setScanning(false);
       }
     },
-    [fetchMetrics, setScanning]
+    [activeTab, fetchMetrics, setScanning]
   );
 
   useEffect(() => {
@@ -263,6 +236,7 @@ export function useMonitorMetrics(activeTab: string): UseMonitorMetricsReturn {
     const observer = new IntersectionObserver(
       ([entry]) => {
         isVisibleRef.current = entry.isIntersecting;
+        setIsResourceVisible(entry.isIntersecting);
         if (entry.isIntersecting && document.visibilityState === "visible") {
           void fetchMetrics(true);
           startPolling();
@@ -280,10 +254,9 @@ export function useMonitorMetrics(activeTab: string): UseMonitorMetricsReturn {
   }, [fetchMetrics, startPolling, stopPolling]);
 
   return {
-    processMetrics,
     systemMemory,
-    memoryBreakdown,
-    childProcesses,
+    appMemoryState,
+    toolProcesses,
     systemInfo,
     containerRef,
   };

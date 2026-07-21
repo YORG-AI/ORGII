@@ -231,9 +231,11 @@ pub async fn create_cursor_session_webview(
             tauri::webview::NewWindowResponse::Deny
         });
 
+    let ownership_observation = perf_utils::begin_webview_ownership_observation(label.clone());
     window
         .add_child(builder, position, size)
         .map_err(|e| format!("Failed to create webview: {}", e))?;
+    ownership_observation.commit();
     tracing::info!(label = %label, "[cursor-session-webview] created new webview");
 
     // Start polling task

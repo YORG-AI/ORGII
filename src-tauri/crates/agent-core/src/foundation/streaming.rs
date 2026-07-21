@@ -144,6 +144,8 @@ impl StreamState {
                 repo_path: None,
                 extracted: None,
                 payload_refs: Vec::new(),
+                shell_replay: None,
+                shell_replay_bookmarks: None,
                 last_extract_at: None,
             },
             StreamType::Thinking => SessionEvent {
@@ -176,6 +178,8 @@ impl StreamState {
                 repo_path: None,
                 extracted: None,
                 payload_refs: Vec::new(),
+                shell_replay: None,
+                shell_replay_bookmarks: None,
                 last_extract_at: None,
             },
         };

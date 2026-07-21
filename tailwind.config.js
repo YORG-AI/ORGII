@@ -29,7 +29,6 @@ module.exports = {
           pane: colorVariable("chat-pane"),
           input: colorVariable("chat-input"),
           container: colorVariable("chat-container"),
-          "panel-info-container": colorVariable("chat-panel-info-container"),
         },
         button: {
           hover: colorVariable("button-hover"),
@@ -38,7 +37,6 @@ module.exports = {
           hover: colorVariable("surface-hover"),
           selected: colorVariable("surface-selected"),
           "selected-hover": colorVariable("surface-selected-hover"),
-          container: colorVariable("surface-container"),
         },
         sidebar: {
           selected: "var(--sidebar-selected-row-bg)",
@@ -47,7 +45,10 @@ module.exports = {
           block: colorVariable("event-block"),
           "block-fade": colorVariable("event-block-fade"),
         },
-        primary: colorScale("primary", COLOR_STEPS_7),
+        primary: {
+          ...colorScale("primary", COLOR_STEPS_7),
+          container: colorVariable("primary-container"),
+        },
         bg: {
           ...colorScale("bg", COLOR_STEPS_3),
           overlay: "rgba(0, 0, 0, 0.5)",

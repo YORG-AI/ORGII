@@ -17,7 +17,7 @@ use super::misc_extractor::{
     extract_web_search,
 };
 use super::search_extractor::{extract_glob, extract_list_dir, extract_search};
-use super::shell_extractor::{extract_await, extract_shell};
+use super::shell_extractor::{extract_await, extract_shell, extract_shell_bounded};
 
 pub use super::lang::detect_language;
 pub use super::lang::strip_line_number_prefixes_pub;
@@ -29,6 +29,24 @@ pub use super::lang::strip_line_number_prefixes_pub;
 /// Extract structured rendering data from a SessionEvent.
 /// Returns `None` for event types that don't need pre-computation (e.g. approvals).
 pub fn extract_event_data(event: &SessionEvent) -> Option<ExtractedData> {
+    extract_event_data_impl(event, None)
+}
+
+/// Cached historical shell rows can still contain the pre-replay full output
+/// payload. Extract those rows with a bounded tail so cache hydration does not
+/// clone the complete transcript before the migration/sanitization pass. All
+/// non-shell extractors keep their ordinary behavior.
+pub fn extract_event_data_with_bounded_shell_output(
+    event: &SessionEvent,
+    max_output_bytes: usize,
+) -> Option<ExtractedData> {
+    extract_event_data_impl(event, Some(max_output_bytes))
+}
+
+fn extract_event_data_impl(
+    event: &SessionEvent,
+    shell_output_limit: Option<usize>,
+) -> Option<ExtractedData> {
     let args = event.args.as_object();
     let result = event.result.as_object();
 
@@ -41,7 +59,9 @@ pub fn extract_event_data(event: &SessionEvent) -> Option<ExtractedData> {
 
         EventDisplayVariant::Session => None,
 
-        EventDisplayVariant::ToolCall => extract_tool_call_data(event, args, result),
+        EventDisplayVariant::ToolCall => {
+            extract_tool_call_data(event, args, result, shell_output_limit)
+        }
 
         EventDisplayVariant::Error => Some(ExtractedData::Message(ExtractedMessageData {
             content: result.and_then(|r| {
@@ -60,6 +80,7 @@ fn extract_tool_call_data(
     event: &SessionEvent,
     args: Option<&serde_json::Map<String, serde_json::Value>>,
     result: Option<&serde_json::Map<String, serde_json::Value>>,
+    shell_output_limit: Option<usize>,
 ) -> Option<ExtractedData> {
     // Resolve action from args (primary source) then fall back to
     // event.action_type. Some wire formats send action under args.action,
@@ -131,6 +152,12 @@ fn extract_tool_call_data(
             // await_output shares the Shell subtool but has its own payload shape.
             if tool == "await_output" {
                 Some(ExtractedData::Await(extract_await(args, result)))
+            } else if let Some(max_output_bytes) = shell_output_limit {
+                Some(ExtractedData::Shell(extract_shell_bounded(
+                    args,
+                    result,
+                    max_output_bytes,
+                )))
             } else {
                 Some(ExtractedData::Shell(extract_shell(args, result)))
             }

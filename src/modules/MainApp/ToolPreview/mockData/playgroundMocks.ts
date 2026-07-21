@@ -234,12 +234,14 @@ export const MOCK_ACTIVE_PROCESSES: import("@src/store/session/shellProcessAtom"
   [
     {
       pid: 48201,
+      callId: "preview-call-48201",
       command: "npm run dev -- --port 3000",
       status: "running",
       startedAt: Date.now() - 120_000,
     },
     {
       pid: 48315,
+      callId: "preview-call-48315",
       command:
         "cargo build --release --target aarch64-apple-darwin --features full",
       status: "running",
@@ -247,6 +249,7 @@ export const MOCK_ACTIVE_PROCESSES: import("@src/store/session/shellProcessAtom"
     },
     {
       pid: 48402,
+      callId: "preview-call-48402",
       command: "vitest run --reporter=verbose",
       status: "background",
       startedAt: Date.now() - 10_000,
