@@ -298,6 +298,9 @@ pub async fn start_server(
                 ),
             ),
         )
+        // Native Hermes lifecycle callbacks. Authentication and status
+        // fanout reuse the shared hook-ingest pipeline.
+        .merge(super::hermes_hook::router())
         // Interactive tool-approval long-poll: a managed Claude Code
         // `PermissionRequest` hook parks here until the user answers the
         // desktop PermissionCard (see api::agent_approval_ingest). Same
@@ -335,6 +338,11 @@ pub async fn start_server(
     // Publish the live-status endpoint descriptor only once the port is
     // actually bound, so hook posts never race a half-started server.
     super::agent_status_ingest::write_endpoint_file(ide_server_port());
+    tokio::spawn(async {
+        if let Err(error) = super::hermes_hook::initialize().await {
+            tracing::warn!(%error, "[Hermes Hook] Plugin initialization failed");
+        }
+    });
     axum::serve(listener, app).await?;
 
     Ok(())
