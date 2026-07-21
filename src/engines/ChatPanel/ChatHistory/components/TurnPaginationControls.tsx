@@ -22,6 +22,7 @@ import { useTranslation } from "react-i18next";
 
 import type { AgentOrgRunMemberView } from "@src/api/tauri/agent";
 import Button from "@src/components/Button";
+import { DropdownPanel } from "@src/components/Dropdown/exports";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -30,7 +31,6 @@ import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut
 import Tooltip from "@src/components/Tooltip";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
-import SessionViewersIndicator from "@src/features/Org2Cloud/SessionViewersIndicator";
 import { useDropdownEngine } from "@src/hooks/dropdown";
 import { WorkstationHeaderSectionSeparator } from "@src/modules/WorkStation/shared";
 
@@ -251,9 +251,11 @@ const TurnPaginationControls: React.FC<TurnPaginationControlsProps> = memo(
               {isMemberSwitcherOpen &&
                 isMemberSwitcherPositioned &&
                 createPortal(
-                  <div
+                  <DropdownPanel
                     ref={memberSwitcherPanelRef}
-                    className={`${DROPDOWN_CLASSES.panel} min-w-[180px]`}
+                    className="min-w-[180px]"
+                    animated={false}
+                    maxHeight="none"
                     style={{
                       position: "fixed",
                       top: memberSwitcherPanelPosition.top,
@@ -354,7 +356,7 @@ const TurnPaginationControls: React.FC<TurnPaginationControlsProps> = memo(
                         );
                       })}
                     </div>
-                  </div>,
+                  </DropdownPanel>,
                   document.body
                 )}
             </>
@@ -401,7 +403,6 @@ const TurnPaginationControls: React.FC<TurnPaginationControlsProps> = memo(
               )}
             </>
           )}
-          <SessionViewersIndicator />
         </div>
         {turnPaginationEnabled && (
           <div className="flex shrink-0 items-center gap-1.5">

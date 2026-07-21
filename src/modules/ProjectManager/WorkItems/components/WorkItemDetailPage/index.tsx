@@ -21,6 +21,7 @@ import { activeWorkspaceRootPathAtom } from "@src/store/workspace";
 import type { WorkItem as WorkItemExtended } from "@src/types/core/workItem";
 
 import { useWorkItems } from "../../hooks/useWorkItems";
+import { isDeletedWorkItem } from "../../workItemsViewModel";
 import WorkItemDetail, { type WorkItemDetailActions } from "../WorkItemDetail";
 
 interface WorkItemDetailPageProps {
@@ -68,6 +69,7 @@ const ProjectScopedWorkItemDetailPage: React.FC<WorkItemDetailPageProps> = ({
     () => data.workItems.find((item) => item.session_id === workItemId) ?? null,
     [data.workItems, workItemId]
   );
+  const workItemDeleted = workItem ? isDeletedWorkItem(workItem) : false;
 
   const workItemIndex = useMemo(
     () => data.workItems.findIndex((item) => item.session_id === workItemId),
@@ -124,7 +126,11 @@ const ProjectScopedWorkItemDetailPage: React.FC<WorkItemDetailPageProps> = ({
     [handlers, onWorkItemNameUpdated, workItemId]
   );
 
-  if (!workItem) {
+  useEffect(() => {
+    if (workItemDeleted) onClose();
+  }, [onClose, workItemDeleted]);
+
+  if (!workItem || workItemDeleted) {
     if (projectData.loading) {
       return (
         <Placeholder

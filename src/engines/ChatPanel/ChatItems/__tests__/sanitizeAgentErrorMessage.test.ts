@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { sanitizeAgentErrorMessage } from "../sanitizeAgentErrorMessage";
+import {
+  requiresCodexReauthentication,
+  sanitizeAgentErrorMessage,
+} from "../sanitizeAgentErrorMessage";
 
 const HTML_500 = `<!doctype html>
 <html lang=en>
@@ -68,5 +71,35 @@ describe("sanitizeAgentErrorMessage", () => {
     expect(sanitizeAgentErrorMessage("   padded message   ")).toBe(
       "padded message"
     );
+  });
+});
+
+describe("requiresCodexReauthentication", () => {
+  it("recognizes a reused Codex OAuth refresh token", () => {
+    const raw =
+      '[session_launch] Auth error: Codex OAuth refresh failed with HTTP 401: {"code":"refresh_token_reused","message":"Please try signing in again."}';
+    expect(requiresCodexReauthentication(raw)).toBe(true);
+  });
+
+  it("recognizes a Codex invalid_grant response", () => {
+    expect(
+      requiresCodexReauthentication(
+        "Codex OAuth refresh failed: invalid_grant; try signing in again"
+      )
+    ).toBe(true);
+  });
+
+  it("does not turn a generic 401 into a Codex login prompt", () => {
+    expect(
+      requiresCodexReauthentication("HTTP 401 Unauthorized: invalid API key")
+    ).toBe(false);
+  });
+
+  it("does not route another provider's refresh failure to Codex", () => {
+    expect(
+      requiresCodexReauthentication(
+        "OAuth refresh_token_reused; try signing in again"
+      )
+    ).toBe(false);
   });
 });

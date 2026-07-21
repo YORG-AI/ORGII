@@ -180,6 +180,50 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
     await vi.waitFor(() => expect(channel?.untrack).toHaveBeenCalledTimes(1));
   });
 
+  it("queues broadcasts sent while the private channel is reconnecting", async () => {
+    const conn = createOrg2CloudRealtimeConnection("token-abc");
+    const handle = conn.joinPresence({
+      scope: "org:org-123",
+      key: "user-9",
+      payload: null,
+      onSync: () => undefined,
+    });
+    const channel = createdChannels.at(-1);
+
+    handle.send("comments-changed", { sessionId: "session-1" });
+    expect(channel?.send).not.toHaveBeenCalled();
+
+    channel?.emitStatus("SUBSCRIBED");
+    await vi.waitFor(() => expect(channel?.send).toHaveBeenCalledTimes(1));
+    expect(channel?.send).toHaveBeenCalledWith({
+      type: "broadcast",
+      event: "comments-changed",
+      payload: { sessionId: "session-1" },
+    });
+  });
+
+  it("retries a broadcast transport failure without losing its nudge", async () => {
+    vi.useFakeTimers();
+    const conn = createOrg2CloudRealtimeConnection("token-abc");
+    const handle = conn.joinPresence({
+      scope: "org:org-123",
+      key: "user-9",
+      payload: null,
+      onSync: () => undefined,
+    });
+    const channel = createdChannels.at(-1);
+    channel?.send.mockResolvedValueOnce("timed out");
+    channel?.emitStatus("SUBSCRIBED");
+
+    handle.send("comments-changed", { sessionId: "session-1" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(channel?.send).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(channel?.send).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
   it("does not let a timed-out track block a newer presence payload", async () => {
     const conn = createOrg2CloudRealtimeConnection("token-abc");
     const handle = conn.joinPresence({

@@ -169,13 +169,29 @@ export interface CloudOrgCollabState {
  * cloud rows byte-compatibly with self-hosted ones.
  */
 function toChannelRow(row: Record<string, unknown>): Record<string, unknown> {
+  let channelRow = row;
   if (
     typeof row.updatedByUserId === "string" &&
     row.updatedByMemberId === undefined
   ) {
-    return { ...row, updatedByMemberId: row.updatedByUserId };
+    channelRow = { ...channelRow, updatedByMemberId: row.updatedByUserId };
   }
-  return row;
+  if (
+    typeof row.updated_by_user_id === "string" &&
+    channelRow.updatedByMemberId === undefined
+  ) {
+    channelRow = {
+      ...channelRow,
+      updatedByMemberId: row.updated_by_user_id,
+    };
+  }
+  if (
+    typeof row.deleted_at === "string" &&
+    channelRow.deletedAt === undefined
+  ) {
+    channelRow = { ...channelRow, deletedAt: row.deleted_at };
+  }
+  return channelRow;
 }
 
 // ---------------------------------------------------------------------------
@@ -351,8 +367,8 @@ export async function listOrgCollabState(
 export function toCollabOrgState(state: CloudOrgCollabState): CollabOrgState {
   return {
     serverTime: state.serverTime,
-    projects: state.projects,
-    workItems: state.workItems,
+    projects: state.projects.map(toChannelRow),
+    workItems: state.workItems.map(toChannelRow),
   };
 }
 

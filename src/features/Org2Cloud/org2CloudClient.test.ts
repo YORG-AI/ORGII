@@ -175,6 +175,22 @@ describe("ensureFreshSession", () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({}, 401));
     expect(await ensureFreshSession(baseState)).toBeNull();
   });
+
+  it("reports only a credential rejection as a permanent auth failure", async () => {
+    const rejected = vi.fn();
+    fetchMock.mockResolvedValueOnce(jsonResponse({}, 400));
+    await expect(
+      ensureFreshSession(baseState, { onRefreshRejected: rejected })
+    ).resolves.toBeNull();
+    expect(rejected).toHaveBeenCalledTimes(1);
+
+    rejected.mockClear();
+    fetchMock.mockRejectedValueOnce(new Error("offline"));
+    await expect(
+      ensureFreshSession(baseState, { onRefreshRejected: rejected })
+    ).resolves.toBeNull();
+    expect(rejected).not.toHaveBeenCalled();
+  });
 });
 
 describe("org2_cloud RPC calls", () => {

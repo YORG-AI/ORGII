@@ -1,13 +1,10 @@
 import { useAtom, useAtomValue } from "jotai";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  getCloudOrgAccessSettings,
   getOrgSharingFloor,
-  org2CloudAccessSettingsAtom,
   org2CloudSharingFloorAtom,
-  withCloudOrgDefaultMode,
 } from "@src/features/Org2Cloud/org2CloudAccessSettings";
 import {
   commitRefreshedAuth,
@@ -64,7 +61,6 @@ export function useCloudOrgPanelState(orgId: string) {
   const [repoScopesByOrg, setRepoScopesByOrg] = useAtom(
     org2CloudRepoScopesAtom
   );
-  const [accessByOrg, setAccessByOrg] = useAtom(org2CloudAccessSettingsAtom);
   const [floorByOrg, setFloorByOrg] = useAtom(org2CloudSharingFloorAtom);
   const [savingFloor, setSavingFloor] = useState(false);
   const [floorError, setFloorError] = useState<string | null>(null);
@@ -271,24 +267,6 @@ export function useCloudOrgPanelState(orgId: string) {
   };
 
   const orgFloor = getOrgSharingFloor(floorByOrg, orgId);
-  const defaultAccessMode = getCloudOrgAccessSettings(
-    accessByOrg,
-    orgId
-  ).defaultMode;
-  const handleDefaultAccessChange = useCallback(
-    (value: SelectValue) => {
-      setAccessByOrg((current) =>
-        withCloudOrgDefaultMode(
-          current,
-          orgId,
-          value as CollabSessionAccessMode
-        )
-      );
-      void org2CloudSyncEngine.runSyncPassAndWaitForDrain();
-    },
-    [orgId, setAccessByOrg]
-  );
-
   const handleFloorChange = async (value: SelectValue): Promise<void> => {
     const next = value as CollabSessionAccessMode;
     const previous = orgFloor;
@@ -334,10 +312,8 @@ export function useCloudOrgPanelState(orgId: string) {
     scopesError,
     handleSaveScopes,
     orgFloor,
-    defaultAccessMode,
     savingFloor,
     floorError,
-    handleDefaultAccessChange,
     handleFloorChange,
   };
 }

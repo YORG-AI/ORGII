@@ -103,11 +103,9 @@ export const CloudOrgPanelView: React.FC<CloudOrgPanelViewProps> = ({
                   entitlement={panelState.entitlement}
                   isAdmin={isAdmin}
                   orgFloor={panelState.orgFloor}
-                  defaultAccessMode={panelState.defaultAccessMode}
                   savingFloor={panelState.savingFloor}
                   floorError={panelState.floorError}
                   onFloorChange={panelState.handleFloorChange}
-                  onDefaultAccessChange={panelState.handleDefaultAccessChange}
                   openCloudBillingPage={openCloudBillingPage}
                 />
               ) : null}

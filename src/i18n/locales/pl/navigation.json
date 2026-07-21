@@ -616,22 +616,18 @@
         "inviteExhausted": "To zaproszenie nie ma już dostępnych użyć."
       }
     },
-    "defaultAccess": {
-      "label": "Domyślny poziom synchronizacji",
-      "help": "Dotyczy sesji tego urządzenia dopasowanych zakresem repozytorium i bez własnego ustawienia. „Wyłączone” — sesje pozostają lokalne, dopóki nie włączysz udostępniania"
-    },
     "syncLevel": {
       "menuItem": "Poziom synchronizacji w chmurze…",
       "title": "Poziom synchronizacji w chmurze",
       "hint": "Wybierz, co ta sesja udostępnia każdej organizacji w chmurze — nic, same metadane lub pełną powtórkę — oraz kto może ją widzieć.",
-      "orgDefaultOption": "Domyślne organizacji ({{mode}})",
       "modeOff": "Wyłączone",
       "modeMetadata": "Tylko metadane",
       "modeFullReplay": "Pełna powtórka",
       "visibilityOrg": "Wszyscy w organizacji",
       "visibilityRestricted": "Tylko ja",
       "taggedNote": "Ta sesja została przeniesiona do tej organizacji, więc dopóki jest oznaczona, udostępnia co najmniej metadane.",
-      "floorNote": "Administrator organizacji wymaga udostępniania co najmniej {{mode}}."
+      "floorNote": "Administrator organizacji wymaga udostępniania co najmniej {{mode}}.",
+      "orgMinimumOption": "Minimum organizacji ({{mode}})"
     },
     "share": {
       "menuItem": "Udostępnianie w chmurze…",

@@ -165,6 +165,7 @@ agent_sessions::cli::parsers::kiro::list_kiro_sessions_cmd,
 // GitHub local API commands
 integrations::github::commands::github_list_repos,
 integrations::github::commands::github_search_repos,
+integrations::github::commands::github_resolve_repo_network_identity,
 integrations::github::commands::github_list_branches,
 integrations::github::commands::github_create_branch,
 integrations::github::commands::github_get_content,

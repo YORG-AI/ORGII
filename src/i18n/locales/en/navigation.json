@@ -275,7 +275,8 @@
       "agentError": "Choose a local agent before forking.",
       "backendError": "The session history was copied, but the runnable fork could not be registered. Retry.",
       "parentOpenUnavailable": "The source session could not be opened from this fork.",
-      "replayError": "Full replay is not available for this session. Ask the owner to share the replay, then retry."
+      "replayError": "Full replay is not available for this session. Ask the owner to share the replay, then retry.",
+      "openParentButton": "Open source session from {{name}}"
     }
   },
   "myRole": {
@@ -645,22 +646,18 @@
         "inviteExhausted": "This invite has no uses left."
       }
     },
-    "defaultAccess": {
-      "label": "Default sync level",
-      "help": "Applies to this device's sessions matched by repo scope, unless a session has its own override. Off keeps sessions local until you opt in"
-    },
     "syncLevel": {
       "menuItem": "Cloud sync level…",
       "title": "Cloud sync level",
       "hint": "Choose what this session shares to each cloud org — nothing, metadata only, or full replay — and who can see it.",
-      "orgDefaultOption": "Org default ({{mode}})",
       "modeOff": "Off",
       "modeMetadata": "Metadata only",
       "modeFullReplay": "Full replay",
       "visibilityOrg": "Everyone in org",
       "visibilityRestricted": "Only me",
       "taggedNote": "This session was moved into this org, so it always shares at least metadata while tagged.",
-      "floorNote": "Your org admin requires sharing at least {{mode}}."
+      "floorNote": "Your org admin requires sharing at least {{mode}}.",
+      "orgMinimumOption": "Org minimum ({{mode}})"
     },
     "share": {
       "menuItem": "Cloud share…",
@@ -755,6 +752,7 @@
       "help": "Set the least a member may share for sessions in this org's repos. Members can't set sessions below it. \"No minimum\" keeps the current behavior",
       "optionNone": "No minimum",
       "memberNote": "Your org admin requires sharing at least {{mode}}, so you can't set sessions below that"
-    }
+    },
+    "signedInAs": "Signed in as {{name}}"
   }
 }

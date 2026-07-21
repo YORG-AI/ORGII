@@ -22,6 +22,8 @@ export interface CliTuiSessionCreateParams {
   branch?: string;
   /** Reuse an existing worktree checkout (mutually exclusive with isolate). */
   worktreePath?: string;
+  /** Session ownership scope selected in the sidebar. */
+  orgId?: string;
 }
 
 export interface CliTuiSessionInfo {
@@ -81,6 +83,7 @@ export async function cliAgentCreateTuiSession(
       ...(params.isolate ? { isolate: true } : {}),
       ...(params.branch ? { branch: params.branch } : {}),
       ...(params.worktreePath ? { worktreePath: params.worktreePath } : {}),
+      ...(params.orgId ? { orgId: params.orgId } : {}),
     },
   });
 }

@@ -142,8 +142,8 @@ describe("revokeCloudSessionShare", () => {
   });
 });
 
-describe("resolveCloudSessionShare (ticket tier)", () => {
-  it("uses the anon key as bearer — no JWT exists for guests", async () => {
+describe("resolveCloudSessionShare (registered-link tier)", () => {
+  it("uses the registered user's JWT without requiring org membership", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
         id: "org-1:user-a:sess-1",
@@ -158,15 +158,16 @@ describe("resolveCloudSessionShare (ticket tier)", () => {
         eventsCount: 3,
       })
     );
-    const session = await resolveCloudSessionShare("t".repeat(64));
+    const session = await resolveCloudSessionShare(
+      "jwt-non-member",
+      "t".repeat(64)
+    );
     const { url, init } = lastCall();
     expect(url).toBe(
       `${ORG2_CLOUD_OFFICIAL_SUPABASE_URL}/rest/v1/rpc/cloud_resolve_session_share`
     );
     const headers = init.headers as Record<string, string>;
-    expect(headers.authorization).toBe(
-      `Bearer ${ORG2_CLOUD_OFFICIAL_ANON_KEY}`
-    );
+    expect(headers.authorization).toBe("Bearer jwt-non-member");
     expect(lastBody()).toEqual({ p_share_token: "t".repeat(64) });
     expect(session.orgId).toBe("org-1");
     expect(session.sourceSessionId).toBe("sess-1");
@@ -186,7 +187,7 @@ describe("resolveCloudSessionShare (ticket tier)", () => {
         title: "Shared session",
       })
     );
-    await resolveCloudSessionShare("t".repeat(64), {
+    await resolveCloudSessionShare("jwt-custom-user", "t".repeat(64), {
       webOrigin: "https://app.custom.example.com",
       supabaseUrl: "https://db.custom.example.com",
       anonKey: "custom-anon",
@@ -197,7 +198,7 @@ describe("resolveCloudSessionShare (ticket tier)", () => {
       "https://db.custom.example.com/rest/v1/rpc/cloud_resolve_session_share"
     );
     expect((init.headers as Record<string, string>).authorization).toBe(
-      "Bearer custom-anon"
+      "Bearer jwt-custom-user"
     );
   });
 
@@ -205,9 +206,10 @@ describe("resolveCloudSessionShare (ticket tier)", () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({ message: "ORG2_UNAUTHORIZED" }, 400)
     );
-    const error = await resolveCloudSessionShare("x".repeat(64)).catch(
-      (caught: unknown) => caught
-    );
+    const error = await resolveCloudSessionShare(
+      "jwt-non-member",
+      "x".repeat(64)
+    ).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(Org2CloudShareError);
     expect(isOrg2ShareErrorCode(error, "ORG2_UNAUTHORIZED")).toBe(true);
   });

@@ -616,22 +616,18 @@
         "inviteExhausted": "Bu davetin kullanım hakkı kalmamış."
       }
     },
-    "defaultAccess": {
-      "label": "Varsayılan eşitleme düzeyi",
-      "help": "Bu cihazda repo kapsamıyla eşleşen ve kendi ayarı olmayan oturumlara uygulanır. “Kapalı” seçiliyken siz açana kadar oturumlar yerelde kalır"
-    },
     "syncLevel": {
       "menuItem": "Bulut eşitleme düzeyi…",
       "title": "Bulut eşitleme düzeyi",
       "hint": "Bu oturumun her bulut organizasyonuyla neyi paylaşacağını seçin — hiçbir şey, yalnızca meta veriler veya tam tekrar — ve kimlerin görebileceğini.",
-      "orgDefaultOption": "Organizasyon varsayılanı ({{mode}})",
       "modeOff": "Kapalı",
       "modeMetadata": "Yalnızca meta veriler",
       "modeFullReplay": "Tam tekrar",
       "visibilityOrg": "Organizasyondaki herkes",
       "visibilityRestricted": "Yalnızca ben",
       "taggedNote": "Bu oturum bu organizasyona taşındı; etiketli kaldığı sürece en azından meta verileri paylaşır.",
-      "floorNote": "Kuruluş yöneticiniz en az {{mode}} paylaşımı gerektiriyor."
+      "floorNote": "Kuruluş yöneticiniz en az {{mode}} paylaşımı gerektiriyor.",
+      "orgMinimumOption": "Organizasyon minimumu ({{mode}})"
     },
     "share": {
       "menuItem": "Bulut paylaşımı…",

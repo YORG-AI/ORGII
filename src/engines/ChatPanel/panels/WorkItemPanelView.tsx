@@ -29,6 +29,7 @@ import { PropertiesRailFrame } from "@src/modules/ProjectManager/shared";
 import ProjectManagerBreadcrumb from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
 import { VerticalResizeHandle } from "@src/scaffold/Resize";
+import { closeWorkItemChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { activeSessionIdAtom } from "@src/store/session";
 import {
   type ChatPanelSelectedWorkItem,
@@ -171,6 +172,7 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
   onUpdateWorkItem,
 }) => {
   const { t } = useTranslation(["projects", "common"]);
+  const closeWorkItemTab = useSetAtom(closeWorkItemChatPanelTabAtom);
   const setSelectedWorkItem = useSetAtom(chatPanelSelectedWorkItemAtom);
   const setActiveSessionId = useSetAtom(activeSessionIdAtom);
   const activeWorkspaceRootPath = useAtomValue(activeWorkspaceRootPathAtom);
@@ -283,7 +285,9 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
           // Reading the deleted project's items throws before it can return an
           // empty list, so detect the parent tombstone explicitly. The local
           // project store is authoritative even when cloud transport is down.
-          setSelectedWorkItem(null);
+          // Close the owning tab too: its payload, not the legacy selection
+          // atom, is what keeps the detail surface mounted.
+          closeWorkItemTab(selectedWorkItem.shortId);
           return;
         }
         const items = await projectApi.readWorkItemsEnriched(
@@ -293,10 +297,12 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
         const fresh = items.find(
           (item) => item.shortId === selectedWorkItem.shortId
         );
-        if (!fresh) {
+        if (!fresh || fresh.deletedAt) {
           // A collaborator may delete the item itself or its parent project
-          // while this detail is open. Do not leave an editable ghost surface.
-          setSelectedWorkItem(null);
+          // while this detail is open. Enriched reads intentionally retain
+          // soft-deleted rows, so a tombstone must be treated as absent too;
+          // otherwise the sidebar disappears while an editable ghost remains.
+          closeWorkItemTab(selectedWorkItem.shortId);
           return;
         }
         setSelectedWorkItem((current) =>
@@ -327,7 +333,7 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
     } catch (error) {
       logger.warn("Failed to refresh chat panel work item", error);
     }
-  }, [selectedWorkItem, setSelectedWorkItem]);
+  }, [closeWorkItemTab, selectedWorkItem, setSelectedWorkItem]);
 
   useProjectDataChanged(
     useCallback(() => {
@@ -426,12 +432,15 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
         selectedWorkItem.projectSlug,
         selectedWorkItem.shortId
       );
-      setSelectedWorkItem(null);
+      // The tab payload owns this surface. Clearing only the legacy selection
+      // mirror leaves the deleted detail mounted until another data-change
+      // refresh happens, and a later cascade can fall back to that ghost tab.
+      closeWorkItemTab(selectedWorkItem.shortId);
       await emit("orgii-data-changed");
     } catch (error) {
       logger.error("Failed to delete chat panel work item", error);
     }
-  }, [selectedWorkItem, setSelectedWorkItem, t]);
+  }, [closeWorkItemTab, selectedWorkItem, t]);
 
   const headerActions = useMemo(
     () => (

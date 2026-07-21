@@ -12,7 +12,6 @@ describe("cloud replay-share preparation", () => {
   it("promotes only the target session and restores its exact prior override", () => {
     const initial = {
       "org-1": {
-        defaultMode: "off" as const,
         sessionModes: {
           other: "metadata_only" as const,
           target: "off" as const,
@@ -58,10 +57,9 @@ describe("cloud replay-share preparation", () => {
     });
   });
 
-  it("restores org-default inheritance instead of inventing an override", () => {
+  it("restores org-minimum inheritance instead of inventing an override", () => {
     const initial = {
       "org-1": {
-        defaultMode: "metadata_only" as const,
         sessionModes: {},
         sessionVisibility: {},
       },
@@ -81,7 +79,6 @@ describe("cloud replay-share preparation", () => {
   it("does not clobber a newer target-session policy choice", () => {
     const initial = {
       "org-1": {
-        defaultMode: "off" as const,
         sessionModes: { target: "metadata_only" as const },
         sessionVisibility: {},
       },

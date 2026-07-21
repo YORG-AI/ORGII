@@ -220,7 +220,7 @@ describe("cloud_acquire_work_item_lock / cloud_release_work_item_lock", () => {
 });
 
 describe("cloud_list_org_collab_state", () => {
-  it("parses the delta and aliases updatedByUserId to updatedByMemberId", async () => {
+  it("parses the delta and aliases cloud wire keys to channel keys", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
         serverTime: "2026-07-06T00:00:00.000Z",
@@ -231,8 +231,8 @@ describe("cloud_list_org_collab_state", () => {
           {
             id: "w-1",
             version: 5,
-            updatedByUserId: "u-3",
-            deletedAt: "2026-07-05T00:00:00.000Z",
+            updated_by_user_id: "u-3",
+            deleted_at: "2026-07-05T00:00:00.000Z",
           },
         ],
       })
@@ -240,15 +240,17 @@ describe("cloud_list_org_collab_state", () => {
     const state = await listOrgCollabState("jwt-1", "org-1");
     expect(lastBody()).toEqual({ p_org_id: "org-1", since: null });
     expect(state.serverTime).toBe("2026-07-06T00:00:00.000Z");
-    // The channel (and Rust apply) read the self-hosted updatedByMemberId
-    // key; the cloud value is kept alongside it verbatim.
+    // The channel (and Rust apply) read the self-hosted updatedByMemberId /
+    // deletedAt keys; cloud values are kept alongside them verbatim.
     expect(state.projects[0]).toMatchObject({
       updatedByMemberId: "u-2",
       updatedByUserId: "u-2",
     });
     expect(state.workItems[0]).toMatchObject({
       updatedByMemberId: "u-3",
+      updated_by_user_id: "u-3",
       deletedAt: "2026-07-05T00:00:00.000Z",
+      deleted_at: "2026-07-05T00:00:00.000Z",
     });
   });
 

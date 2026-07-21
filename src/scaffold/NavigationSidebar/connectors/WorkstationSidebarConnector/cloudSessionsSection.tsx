@@ -25,7 +25,7 @@
  * hover fork button — no self-duplicate child row is injected.
  */
 import { MenuItem, Menu as TauriMenu } from "@tauri-apps/api/menu";
-import { useAtomValue } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import {
   Bot,
   GitFork,
@@ -56,6 +56,7 @@ import {
 } from "@src/features/Org2Cloud/cloudRemoteItemId";
 import {
   type CloudSessionFilter,
+  buildCloudSessionMemberFilterOptions,
   filterCloudSessionRows,
 } from "@src/features/Org2Cloud/cloudSessionFilter";
 import {
@@ -64,8 +65,17 @@ import {
   collectThreadedLocalSessionIds,
   isCloudThreadRowDisabled,
 } from "@src/features/Org2Cloud/cloudSessionThreads";
-import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
+import {
+  commitRefreshedAuth,
+  org2CloudAuthAtom,
+} from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import { cloudSessionIdFromRowId } from "@src/features/Org2Cloud/org2CloudBackendAdapter";
+import {
+  type CloudOrgMember,
+  ensureFreshSession,
+  listOrgMembers,
+} from "@src/features/Org2Cloud/org2CloudClient";
+import { org2CloudRosterVersionAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import {
   type Org2CloudPresenceEntry,
   org2CloudPresenceAtom,
@@ -159,7 +169,37 @@ export function useCloudSessionsSection({
     useCloudSessionActions(orgId);
   const openBilling = useOpenCloudBilling();
   const presenceMap = useAtomValue(org2CloudPresenceAtom);
-  const selfUserId = useAtomValue(org2CloudAuthAtom)?.userId ?? null;
+  const [auth, setAuth] = useAtom(org2CloudAuthAtom);
+  const selfUserId = auth?.userId ?? null;
+  const rosterVersionByOrg = useAtomValue(org2CloudRosterVersionAtom);
+  const rosterVersion = orgId ? (rosterVersionByOrg[orgId] ?? 0) : 0;
+  const [rosterSnapshot, setRosterSnapshot] = useState<{
+    orgId: string;
+    members: CloudOrgMember[];
+  } | null>(null);
+  const signedIn = Boolean(auth);
+  const rosterMembers =
+    signedIn && rosterSnapshot?.orgId === orgId ? rosterSnapshot.members : null;
+  const authRef = React.useRef(auth);
+  useEffect(() => {
+    authRef.current = auth;
+  }, [auth]);
+  useEffect(() => {
+    if (!orgId || !signedIn) return;
+    let cancelled = false;
+    void (async () => {
+      const current = authRef.current;
+      if (!current) return;
+      const fresh = await ensureFreshSession(current);
+      if (!fresh || cancelled) return;
+      if (!commitRefreshedAuth(setAuth, current, fresh)) return;
+      const members = await listOrgMembers(fresh.accessToken, orgId);
+      if (!cancelled) setRosterSnapshot({ orgId, members });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, rosterVersion, setAuth, signedIn]);
   const [memberMenu, setMemberMenu] = useState<MemberFilterMenuState | null>(
     null
   );
@@ -619,20 +659,12 @@ export function useCloudSessionsSection({
     return map;
   }, [presenceMap, selfUserId, threads]);
 
-  // Everyone + distinct owners of the CURRENT rows (value = ownerUserId).
+  // Everyone + the active roster. Current rows are only a loading/legacy
+  // fallback; a teammate does not need to publish a Session before they can
+  // be selected as a filter.
   const memberOptions = useMemo(() => {
-    const byUserId = new Map<string, string>();
-    for (const row of rows) {
-      if (row.deletedAt) continue;
-      if (!byUserId.has(row.ownerUserId)) {
-        byUserId.set(row.ownerUserId, row.ownerDisplayName);
-      }
-    }
-    return [...byUserId.entries()].map(([userId, displayName]) => ({
-      userId,
-      displayName,
-    }));
-  }, [rows]);
+    return buildCloudSessionMemberFilterOptions(rows, rosterMembers);
+  }, [rosterMembers, rows]);
 
   const closeMemberMenu = useCallback(() => setMemberMenu(null), []);
   // Escape dismisses the member-filter panel. Document-level because the

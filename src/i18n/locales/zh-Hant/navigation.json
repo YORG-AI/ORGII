@@ -519,7 +519,8 @@
       "agentError": "請先選擇本機 Agent 再分叉。",
       "backendError": "歷史已複製，但可執行的分叉工作階段註冊失敗。請重試。",
       "parentOpenUnavailable": "無法從此分叉開啟來源工作階段。",
-      "replayError": "此工作階段尚無完整回放。請讓擁有者共享完整回放後重試。"
+      "replayError": "此工作階段尚無完整回放。請讓擁有者共享完整回放後重試。",
+      "openParentButton": "開啟來自 {{name}} 的來源工作階段"
     }
   },
   "cloud": {
@@ -708,22 +709,18 @@
         "inviteExhausted": "該邀請的使用次數已用完。"
       }
     },
-    "defaultAccess": {
-      "label": "預設同步層級",
-      "help": "套用於此裝置上符合儲存庫範圍、且沒有個別設定的工作階段。選擇「關閉」時，工作階段會保留在本機，直到你主動開啟"
-    },
     "syncLevel": {
       "menuItem": "雲端同步層級…",
       "title": "雲端同步層級",
       "hint": "為每個雲端組織選擇此工作階段要共享的內容——不共享、僅中繼資料或完整重播——以及誰可以看到。",
-      "orgDefaultOption": "組織預設（{{mode}}）",
       "modeOff": "關閉",
       "modeMetadata": "僅中繼資料",
       "modeFullReplay": "完整重播",
       "visibilityOrg": "組織內所有人",
       "visibilityRestricted": "僅自己",
       "taggedNote": "此工作階段已移入此組織，在保持標記期間至少會共享中繼資料。",
-      "floorNote": "組織管理員要求至少分享到{{mode}}。"
+      "floorNote": "組織管理員要求至少分享到{{mode}}。",
+      "orgMinimumOption": "組織最低要求（{{mode}}）"
     },
     "share": {
       "menuItem": "雲端分享…",
@@ -818,6 +815,7 @@
       "help": "設定本組織儲存庫中的工作階段，成員最少必須分享到什麼等級。成員無法設得更低。「無最低要求」維持目前行為",
       "optionNone": "無最低要求",
       "memberNote": "組織管理員要求至少分享到{{mode}}，因此你無法將工作階段設得比這更低"
-    }
+    },
+    "signedInAs": "已登入：{{name}}"
   }
 }

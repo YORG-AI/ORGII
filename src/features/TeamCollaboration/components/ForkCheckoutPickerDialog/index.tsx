@@ -19,6 +19,7 @@ import type { RepoItem } from "@src/scaffold/GlobalSpotlight/types";
 import { normalizeRepoScopeKey } from "../../collabSyncUtils";
 import {
   getShareableScopeKeyVersion,
+  peekMatchingOrgRepoScope,
   peekShareableScopeKeys,
   primeShareableScopeKey,
   subscribeShareableScopeKeys,
@@ -109,9 +110,9 @@ const ForkCheckoutPickerDialog: React.FC = () => {
           ) : (
             repos.map((repo) => {
               const keys = repoScopeKeys(repo);
-              const matches =
-                Array.isArray(keys) &&
-                keys.some((key) => normalizeRepoScopeKey(key) === targetKey);
+              const matches = Boolean(
+                peekMatchingOrgRepoScope(keys, [targetKey])
+              );
               const localPath = repo.fs_uri;
               const selectable = matches && Boolean(localPath);
               return (

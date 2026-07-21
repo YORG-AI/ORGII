@@ -29,6 +29,8 @@ import { getCloudEndpoint } from "./config";
 const log = createLogger("Org2CloudRealtime");
 const PRESENCE_TRACK_TIMEOUT_MS = 5_000;
 const PRESENCE_TRACK_RETRY_MS = 1_000;
+const BROADCAST_RETRY_MS = 1_000;
+const MAX_PENDING_BROADCASTS = 100;
 // Supabase Realtime's self-hosted/default client guard allows five Presence
 // calls per WebSocket connection in a rolling 30-second window. This is
 // separate from `eventsPerSecond` and covers track + untrack across ALL org
@@ -257,6 +259,53 @@ export function createOrg2CloudRealtimeConnection(
     let appliedTrackVersion = 0;
     let tracking = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    const pendingBroadcasts = new Map<
+      string,
+      { event: string; payload: Record<string, unknown> }
+    >();
+    let broadcasting = false;
+    let broadcastRetryTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleBroadcastRetry = () => {
+      if (!subscribed || broadcastRetryTimer !== null) return;
+      broadcastRetryTimer = setTimeout(() => {
+        broadcastRetryTimer = null;
+        void flushPendingBroadcasts();
+      }, BROADCAST_RETRY_MS);
+    };
+    const flushPendingBroadcasts = async (): Promise<void> => {
+      if (!subscribed || broadcasting || pendingBroadcasts.size === 0) return;
+      broadcasting = true;
+      try {
+        while (subscribed && pendingBroadcasts.size > 0) {
+          const first = pendingBroadcasts.entries().next().value as
+            | [string, { event: string; payload: Record<string, unknown> }]
+            | undefined;
+          if (!first) return;
+          const [id, frame] = first;
+          try {
+            const result = await channel.send({
+              type: "broadcast",
+              event: frame.event,
+              payload: frame.payload,
+            });
+            if (result !== "ok") {
+              log.warn(
+                `broadcast ${frame.event} failed for ${scope}: ${String(result)}`
+              );
+              scheduleBroadcastRetry();
+              return;
+            }
+            pendingBroadcasts.delete(id);
+          } catch (error) {
+            log.warn(`broadcast ${frame.event} failed for ${scope}:`, error);
+            scheduleBroadcastRetry();
+            return;
+          }
+        }
+      } finally {
+        broadcasting = false;
+      }
+    };
     const scheduleTrackRetry = () => {
       if (!subscribed || retryTimer !== null) return;
       retryTimer = setTimeout(() => {
@@ -364,6 +413,7 @@ export function createOrg2CloudRealtimeConnection(
         // previously applied, so force the latest payload onto the channel.
         desiredTrackVersion += 1;
         void flushLatestPayload();
+        void flushPendingBroadcasts();
       } else if (status !== "CLOSED") {
         subscribed = false;
         published = false;
@@ -382,7 +432,20 @@ export function createOrg2CloudRealtimeConnection(
         void flushLatestPayload();
       },
       send: (event, sendPayload) => {
-        void channel.send({ type: "broadcast", event, payload: sendPayload });
+        // A comment mutation can land while the private channel is briefly
+        // reconnecting. Supabase accepts `send()` locally in that state but
+        // the frame never reaches peers, so retain invalidation nudges until
+        // SUBSCRIBED and retry transport failures. Duplicate payloads are
+        // coalesced because these frames carry invalidations, not data.
+        const id = JSON.stringify([event, sendPayload]);
+        pendingBroadcasts.set(id, { event, payload: sendPayload });
+        if (pendingBroadcasts.size > MAX_PENDING_BROADCASTS) {
+          const oldest = pendingBroadcasts.keys().next().value as
+            | string
+            | undefined;
+          if (oldest) pendingBroadcasts.delete(oldest);
+        }
+        void flushPendingBroadcasts();
       },
       leave: () => {
         subscribed = false;
@@ -391,6 +454,11 @@ export function createOrg2CloudRealtimeConnection(
           clearTimeout(retryTimer);
           retryTimer = null;
         }
+        if (broadcastRetryTimer !== null) {
+          clearTimeout(broadcastRetryTimer);
+          broadcastRetryTimer = null;
+        }
+        pendingBroadcasts.clear();
         channels.delete(channel);
         // Leaving/removing the channel clears its Presence meta server-side;
         // a separate untrack would waste the shared five-call budget.

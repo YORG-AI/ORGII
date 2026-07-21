@@ -71,6 +71,7 @@ export function useCloudShareOrgSectionModel({
   const [auth, setAuth] = useAtom(org2CloudAuthAtom);
   const [shares, setShares] = useState<CloudSessionShareRecord[]>([]);
   const [members, setMembers] = useState<CloudOrgMember[]>([]);
+  const [membersLoading, setMembersLoading] = useState(true);
   const [sharesError, setSharesError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
@@ -124,11 +125,19 @@ export function useCloudShareOrgSectionModel({
   // swallows errors by design) — the picker just renders empty.
   useEffect(() => {
     let cancelled = false;
+    setMembersLoading(true);
     void (async () => {
       const accessToken = await freshAccessToken();
-      if (!accessToken) return;
-      const roster = await listOrgMembers(accessToken, org.orgId);
-      if (!cancelled) setMembers(roster);
+      if (!accessToken) {
+        if (!cancelled) setMembersLoading(false);
+        return;
+      }
+      try {
+        const roster = await listOrgMembers(accessToken, org.orgId);
+        if (!cancelled) setMembers(roster);
+      } finally {
+        if (!cancelled) setMembersLoading(false);
+      }
     })();
     return () => {
       cancelled = true;
@@ -392,6 +401,7 @@ export function useCloudShareOrgSectionModel({
     shares,
     sharesError,
     busy,
+    membersLoading,
     grantableMembers,
     memberNameById,
     selectedMemberIds,

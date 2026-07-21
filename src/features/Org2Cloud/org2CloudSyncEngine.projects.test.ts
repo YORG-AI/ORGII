@@ -136,6 +136,47 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
     expect(bridge.drainOutbox).not.toHaveBeenCalled();
   });
 
+  it("applies snake_case tombstones from Realtime-scoped project pulls", async () => {
+    await engine.runSyncPass();
+    projectsClient.listOrgCollabState.mockClear();
+    bridge.applyRemote.mockClear();
+    bridge.drainOutbox.mockClear();
+    bridge.applyRemote.mockResolvedValue(1);
+    projectsClient.listOrgCollabState.mockResolvedValueOnce({
+      serverTime: "2026-07-01T12:05:00.000Z",
+      projects: [],
+      workItems: [
+        {
+          id: "AAA-0001",
+          version: 6,
+          updated_by_user_id: "u-2",
+          deleted_at: "2026-07-01T12:04:59.000Z",
+        },
+      ],
+    });
+
+    await engine.invalidateOrgInboundAndWait("corg-1");
+
+    expect(projectsClient.listOrgCollabState).toHaveBeenCalledWith(
+      "jwt-1",
+      "corg-1",
+      "2026-07-01T11:59:58.000Z"
+    );
+    expect(bridge.applyRemote).toHaveBeenCalledWith({
+      orgId: "porg-corg-1",
+      orgName: "Cloud Team",
+      entities: [
+        expect.objectContaining({
+          kind: "work_item",
+          version: 6,
+          updatedBy: "u-2",
+          deletedAt: "2026-07-01T12:04:59.000Z",
+        }),
+      ],
+    });
+    expect(bridge.drainOutbox).not.toHaveBeenCalled();
+  });
+
   it("uses a full listing only for reconnect recovery", async () => {
     await engine.runSyncPass();
     projectsClient.listOrgCollabState.mockClear();
@@ -171,6 +212,36 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
     // No session push targets …
     expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
     // … but work items are org-wide, so the channel still runs.
+    expect(projectsClient.listOrgCollabState).toHaveBeenCalledTimes(1);
+    expect(bridge.drainOutbox).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps project tombstones draining while session replay is over quota", async () => {
+    client.rewriteSessionEvents.mockRejectedValue(
+      new Org2CloudSyncError("ORG2_QUOTA_EXCEEDED", 403)
+    );
+
+    await engine.runSyncPass();
+
+    expect(messageMock.warning).toHaveBeenCalledWith(
+      "navigation:cloud.sync.quotaExceededToast"
+    );
+    expect(projectsClient.listOrgCollabState).toHaveBeenCalledTimes(1);
+    expect(bridge.drainOutbox).toHaveBeenCalledTimes(1);
+
+    // The org remains session-backed-off, but a later local deletion still
+    // schedules and drains the independent projects/work-items control plane.
+    await vi.advanceTimersByTimeAsync(0);
+    await engine.runSyncPassAndWaitForDrain();
+    client.rewriteSessionEvents.mockClear();
+    projectsClient.listOrgCollabState.mockClear();
+    bridge.drainOutbox.mockClear();
+
+    emitDataChanged();
+    await vi.advanceTimersByTimeAsync(DATA_CHANGED_DEBOUNCE_MS);
+    await engine.runSyncPassAndWaitForDrain();
+
+    expect(client.rewriteSessionEvents).not.toHaveBeenCalled();
     expect(projectsClient.listOrgCollabState).toHaveBeenCalledTimes(1);
     expect(bridge.drainOutbox).toHaveBeenCalledTimes(1);
   });
@@ -348,6 +419,11 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
 
   it("drains the projects plane promptly on orgii-data-changed, without the 5-min fallback", async () => {
     await engine.runSyncPass(); // consumes the start-up inbound pull
+    // start() also owns an independent 0 ms bootstrap timer. Drain it before
+    // the event assertion so it cannot overlap the debounce callback and turn
+    // that callback into a fire-and-forget dirty pass under full-suite load.
+    await vi.advanceTimersByTimeAsync(0);
+    await engine.runSyncPassAndWaitForDrain();
     projectsClient.listOrgCollabState.mockClear();
     bridge.drainOutbox.mockClear();
 
@@ -360,6 +436,10 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
     emitDataChanged();
     expect(bridge.drainOutbox).not.toHaveBeenCalled(); // debounce coalesces
     await vi.advanceTimersByTimeAsync(DATA_CHANGED_DEBOUNCE_MS);
+    // Production timer callbacks are intentionally fire-and-forget. Wait for
+    // the pass they started (and any serialized dirty follow-up) before
+    // asserting against its async ProjectSyncChannel work.
+    await engine.runSyncPassAndWaitForDrain();
     expect(bridge.drainOutbox).toHaveBeenCalledTimes(1);
     expect(projectsClient.listOrgCollabState).toHaveBeenCalledTimes(1);
   });
@@ -409,6 +489,48 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
     expect(projectsClient.listOrgCollabState).toHaveBeenCalledTimes(1);
     expect(bridge.drainOutbox).toHaveBeenCalledTimes(1);
     documentStub.visibilityState = "visible";
+  });
+
+  it("forces an outbox-draining recovery pass when the browser comes online", async () => {
+    // This suite normally runs in Vitest's node environment. Install a
+    // minimal browser event target before start() so the production listener
+    // itself (including stop() cleanup) is exercised.
+    engine.stop();
+    const browserWindow = new EventTarget();
+    vi.stubGlobal("window", browserWindow);
+    engine = new Org2CloudSyncEngine(client, projectsClient, bridge);
+    engine.start(store);
+    try {
+      await engine.runSyncPass();
+      projectsClient.listOrgCollabState.mockClear();
+      bridge.drainOutbox.mockClear();
+
+      browserWindow.dispatchEvent(new Event("online"));
+      await engine.runSyncPassAndWaitForDrain();
+
+      expect(projectsClient.listOrgCollabState).toHaveBeenCalledTimes(1);
+      expect(bridge.drainOutbox).toHaveBeenCalledTimes(1);
+    } finally {
+      engine.stop();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("retries when the project listing fails before the outbox can drain", async () => {
+    projectsClient.listOrgCollabState.mockRejectedValueOnce(
+      new TypeError("fetch failed")
+    );
+
+    await engine.runSyncPass();
+    await vi.advanceTimersByTimeAsync(0);
+    projectsClient.listOrgCollabState.mockClear();
+    bridge.drainOutbox.mockClear();
+
+    await vi.advanceTimersByTimeAsync(PROJECT_PUSH_RETRY_DELAY_MS);
+    await engine.runSyncPassAndWaitForDrain();
+
+    expect(projectsClient.listOrgCollabState).toHaveBeenCalledTimes(1);
+    expect(bridge.drainOutbox).toHaveBeenCalledTimes(1);
   });
 
   it("bounds the remote-apply echo emission to one extra cheap pass", async () => {

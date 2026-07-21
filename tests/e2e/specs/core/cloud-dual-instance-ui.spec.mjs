@@ -10,12 +10,15 @@ import {
   cleanupCloudUser,
   clickRendered,
   cloudEnv,
+  confirmAddressCommentsFlyout,
   ensureCloudSchemaReady,
   execJS,
   invokeE2E,
+  openAddressCommentsFlyout,
   openCloudOrgPanelFromSidebar,
   openCreateOrgFormFromSidebar,
   openTurnCommentPanel,
+  postTurnComment,
   pressEscape,
   provisionCloudUser,
   publishCloudSessionMetadata,
@@ -50,6 +53,7 @@ const SESSION_ID = `dual-instance-session-${RUN_ID}`;
 const SESSION_TITLE = `Dual instance restricted share ${RUN_ID}`;
 const SESSION_BLAME_FILE = "package.json";
 const COMMENT_BODY = `@agent dual-instance task ${RUN_ID}`;
+const OWNER_AGENT_COMMENT_BODY = `@agent owner single task ${RUN_ID}`;
 const SESSION_NOTE_BODY = `Dual-instance session note ${RUN_ID}`;
 const EDITED_COMMENT_BODY = `@agent dual-instance edited task ${RUN_ID}`;
 const EDITED_COMMENT_BRIEF = EDITED_COMMENT_BODY.slice("@agent ".length);
@@ -353,15 +357,19 @@ async function openFileTimelineOn(client, absoluteFilePath) {
       timeoutMsg: "secondary blame target file never rendered",
     }
   );
-  const toggle = '[data-testid="code-editor-timeline-section-toggle"]';
-  await waitForRenderedOn(client, toggle, "secondary Timeline section");
+  const toggle = '[data-testid="code-editor-agent-timeline-section-toggle"]';
+  await waitForRenderedOn(client, toggle, "secondary Agent Timeline section");
   const collapsed = await executeOn(
     client,
     `return document.querySelector(arguments[0])?.getAttribute('data-collapsed') === 'true';`,
     [toggle]
   );
   if (collapsed) {
-    await clickRenderedOn(client, toggle, "secondary expand Timeline section");
+    await clickRenderedOn(
+      client,
+      toggle,
+      "secondary expand Agent Timeline section"
+    );
   }
   await waitForRenderedOn(
     client,
@@ -626,6 +634,54 @@ async function postCommentOn(client, body) {
     '[data-testid="session-comment-row"]',
     "secondary posted comment",
     CLOUD_FETCH_TIMEOUT_MS
+  );
+}
+
+async function selectAddressCommentsForBatch() {
+  const selected = await execJS(`
+    const click = (node) => {
+      if (!node) return false;
+      node.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
+      node.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, button: 0 }));
+      node.click();
+      return true;
+    };
+    const all = document.querySelector('[data-testid="address-comments-select-all"]');
+    if (all?.getAttribute('aria-checked') === 'true') click(all);
+    const options = Array.from(document.querySelectorAll('[data-testid="address-comments-thread-option"]'));
+    const session = options.find((option) =>
+      option.getAttribute('data-comment-scope') === 'session' &&
+      option.textContent?.includes(${JSON.stringify(SESSION_NOTE_BODY)})
+    );
+    const round = options.find((option) =>
+      option.getAttribute('data-comment-scope') === 'round' &&
+      option.textContent?.includes(${JSON.stringify(COMMENT_BODY.slice(0, 40))})
+    );
+    return {
+      session: click(session),
+      round: click(round),
+      sessionText: session?.textContent ?? '',
+      roundText: round?.textContent ?? '',
+    };
+  `);
+  if (!selected.session || !selected.round) {
+    throw new Error(
+      `Address Comments did not expose the intended session + round pair: ${JSON.stringify(selected)}`
+    );
+  }
+  await browser.waitUntil(
+    async () =>
+      execJS(`
+        const selected = Array.from(document.querySelectorAll('[data-testid="address-comments-thread-option"]'))
+          .filter((option) => option.getAttribute('aria-checked') === 'true');
+        return selected.length === 2;
+      `),
+    {
+      timeout: 30_000,
+      interval: 100,
+      timeoutMsg:
+        "Address Comments never committed the exact two-thread selection",
+    }
   );
 }
 
@@ -1629,6 +1685,29 @@ describe("Cloud collaboration with two independent rendered app instances", func
       "non-owner @agent execution status"
     );
 
+    // Owner-authored @agent is a single-thread queue action. Drive the
+    // ordinary rendered composer, then prove the production agent/tool bridge
+    // replied only under that new thread (the teammate's literal @agent text
+    // above must remain ordinary comment content).
+    await postTurnComment(OWNER_AGENT_COMMENT_BODY);
+    await browser.waitUntil(
+      async () =>
+        execJS(`
+          const rows = Array.from(document.querySelectorAll('[data-testid="session-comment-row"]'));
+          const ownerRow = rows.find((row) => row.textContent?.includes(${JSON.stringify(OWNER_AGENT_COMMENT_BODY.slice("@agent ".length))}));
+          const teammateRow = rows.find((row) => row.textContent?.includes(${JSON.stringify(COMMENT_BODY.slice("@agent ".length))}));
+          const ownerReplies = ownerRow?.parentElement?.querySelectorAll('[data-testid="comment-agent-affix"]').length ?? 0;
+          const teammateReplies = teammateRow?.parentElement?.querySelectorAll('[data-testid="comment-agent-affix"]').length ?? 0;
+          return ownerReplies === 1 && teammateReplies === 0;
+        `),
+      {
+        timeout: CLOUD_FETCH_TIMEOUT_MS,
+        interval: 250,
+        timeoutMsg:
+          "owner single @agent did not produce exactly one scoped Agent reply",
+      }
+    );
+
     // Session-level notes use the same durable/realtime plane but carry no
     // round event id. Prove the second instance can post one and the owner
     // receives it live, independently from the per-round thread above.
@@ -1662,6 +1741,103 @@ describe("Cloud collaboration with two independent rendered app instances", func
     );
     await pressEscape();
     await pressEscapeOn(second.client);
+
+    // Address Comments is the multi-thread action. Select exactly one
+    // session note plus the teammate's round comment through the rendered
+    // flyout, submit through the normal chat input, and verify one Agent
+    // reply lands in each selected scope while the earlier owner-only thread
+    // remains single-addressed.
+    await clickRendered(
+      `[data-testid="session-comment-toggle-user-${SESSION_ID}"]`,
+      "owner close turn comments before Address Comments"
+    );
+    await waitForGone(
+      '[data-testid="session-comment-composer"] textarea',
+      "owner comment composer before Address Comments"
+    );
+    const batchOptionCount = await openAddressCommentsFlyout();
+    if (batchOptionCount < 3) {
+      throw new Error(
+        `Address Comments should list the session note and both round threads: ${batchOptionCount}`
+      );
+    }
+    await selectAddressCommentsForBatch();
+    await confirmAddressCommentsFlyout();
+    const semanticPillPresent = await execJS(`
+      return Array.from(document.querySelectorAll('[data-composer-pill="true"][data-icon-type="skill"]'))
+        .some((pill) => (pill.getAttribute('data-file-path') || '').startsWith('/address-comments:'));
+    `);
+    if (!semanticPillPresent) {
+      throw new Error(
+        "Address Comments confirmation did not insert its semantic composer pill"
+      );
+    }
+    await clickRendered(
+      '[data-testid="chat-send-button"]',
+      "owner send two-thread Address Comments round"
+    );
+    await browser.waitUntil(
+      async () => {
+        const state = unwrap(
+          await invokeE2E("inspectChatState"),
+          "inspect owner Address Comments round"
+        );
+        const dispatched = (state.chatEvents ?? []).some(
+          (event) =>
+            event.source === "user" &&
+            event.displayText === "@agent Address 2 cloud comment threads"
+        );
+        const terminal =
+          state.runtimeStatus !== "running" &&
+          state.runtimeStatus !== "installing" &&
+          state.turnPhase === "idle" &&
+          !state.isSessionActive;
+        return dispatched && terminal;
+      },
+      {
+        timeout: CLOUD_FETCH_TIMEOUT_MS,
+        interval: 250,
+        timeoutMsg:
+          "two-thread Address Comments round never dispatched and completed in place",
+      }
+    );
+    await clickRendered(
+      '[data-testid="session-notes-button"]',
+      "owner reopen session notes after Address Comments"
+    );
+    await browser.waitUntil(
+      async () =>
+        execJS(`
+          const rows = Array.from(document.querySelectorAll('[data-testid="session-comment-row"]'));
+          const note = rows.find((row) => row.textContent?.includes(${JSON.stringify(SESSION_NOTE_BODY)}));
+          return (note?.parentElement?.querySelectorAll('[data-testid="comment-agent-affix"]').length ?? 0) === 1;
+        `),
+      {
+        timeout: CLOUD_FETCH_TIMEOUT_MS,
+        interval: 250,
+        timeoutMsg:
+          "Address Comments did not post an Agent reply to the selected session note",
+      }
+    );
+    await pressEscape();
+    await openTurnCommentPanel(`user-${SESSION_ID}`);
+    await browser.waitUntil(
+      async () =>
+        execJS(`
+          const rows = Array.from(document.querySelectorAll('[data-testid="session-comment-row"]'));
+          const teammateRow = rows.find((row) => row.textContent?.includes(${JSON.stringify(COMMENT_BODY.slice("@agent ".length))}));
+          const ownerRow = rows.find((row) => row.textContent?.includes(${JSON.stringify(OWNER_AGENT_COMMENT_BODY.slice("@agent ".length))}));
+          const teammateReplies = teammateRow?.parentElement?.querySelectorAll('[data-testid="comment-agent-affix"]').length ?? 0;
+          const ownerReplies = ownerRow?.parentElement?.querySelectorAll('[data-testid="comment-agent-affix"]').length ?? 0;
+          return teammateReplies === 1 && ownerReplies === 1;
+        `),
+      {
+        timeout: CLOUD_FETCH_TIMEOUT_MS,
+        interval: 250,
+        timeoutMsg:
+          "Address Comments did not address exactly the selected round thread",
+      }
+    );
 
     const forkAgentId = `e2e-fork-agent-${RUN_ID}`;
     const forkAgentName = `E2E Fork Agent ${RUN_ID}`;
@@ -2070,6 +2246,94 @@ describe("Cloud collaboration with two independent rendered app instances", func
       }
     );
 
+    const sendForkActive = unwrapOn(
+      await invokeOn(second.client, "getActiveSessionId"),
+      "secondary send-created fork identity"
+    );
+    await second.client.waitUntil(
+      async () => {
+        const state = unwrapOn(
+          await invokeOn(second.client, "inspectChatState"),
+          "secondary send-created fork history"
+        );
+        return (
+          state.activeSessionId === sendForkActive.sessionId &&
+          (state.chatEvents ?? []).some(
+            (event) => event.displayText === SESSION_TITLE
+          ) &&
+          (state.chatEvents ?? []).some(
+            (event) => event.displayText === "Inherited answer 2"
+          ) &&
+          (state.chatEvents ?? []).some(
+            (event) => event.displayText === SEND_BODY
+          )
+        );
+      },
+      {
+        timeout: CLOUD_FETCH_TIMEOUT_MS,
+        interval: 250,
+        timeoutMsg:
+          "sending the first fork message replaced its inherited transcript",
+      }
+    );
+    await clickRenderedOn(
+      second.client,
+      '[data-testid="session-forked-from-chip"]',
+      "secondary open send-created fork parent"
+    );
+    await waitForRenderedOn(
+      second.client,
+      '[data-testid="session-imported-from-chip"]',
+      "secondary send-created fork parent",
+      CLOUD_FETCH_TIMEOUT_MS
+    );
+    const parentAfterForkSend = unwrapOn(
+      await invokeOn(second.client, "inspectChatState"),
+      "secondary parent after fork send"
+    );
+    if (
+      !(parentAfterForkSend.chatEvents ?? []).some(
+        (event) => event.displayText === SESSION_TITLE
+      ) ||
+      !(parentAfterForkSend.chatEvents ?? []).some(
+        (event) => event.displayText === "Inherited answer 2"
+      )
+    ) {
+      throw new Error(
+        `opening the parent after a fork message lost its source transcript: ${JSON.stringify(parentAfterForkSend.chatEvents ?? [])}`
+      );
+    }
+    unwrapOn(
+      await invokeOn(second.client, "openSession", sendForkActive.sessionId),
+      "secondary reopen send-created fork"
+    );
+    await waitForRenderedOn(
+      second.client,
+      '[data-testid="session-forked-from-chip"]',
+      "secondary send-created fork reopened",
+      CLOUD_FETCH_TIMEOUT_MS
+    );
+    const reopenedSendFork = unwrapOn(
+      await invokeOn(second.client, "inspectChatState"),
+      "secondary reopened send-created fork history"
+    );
+    if (
+      reopenedSendFork.activeSessionId !== sendForkActive.sessionId ||
+      !(reopenedSendFork.chatEvents ?? []).some(
+        (event) => event.displayText === SESSION_TITLE
+      ) ||
+      !(reopenedSendFork.chatEvents ?? []).some(
+        (event) => event.displayText === "Inherited answer 2"
+      ) ||
+      !(reopenedSendFork.chatEvents ?? []).some(
+        (event) => event.displayText === SEND_BODY
+      )
+    ) {
+      throw new Error(
+        `reopening the fork after its first message lost inherited or new history: ${JSON.stringify(reopenedSendFork.chatEvents ?? [])}`
+      );
+    }
+
     await clickRendered(
       '[data-testid="chat-panel-header-more-button"]',
       "owner more menu before revoke"
@@ -2121,13 +2385,20 @@ describe("Cloud collaboration with two independent rendered app instances", func
       "owner generated one-shot link",
       CLOUD_FETCH_TIMEOUT_MS
     );
-    const link = String(
-      (await execJS(
-        `return document.querySelector('[data-testid="cloud-session-share-created-link"]')?.textContent?.trim() ?? '';`
-      )) ?? ""
-    );
+    const createdLink = await execJS(`
+      const node = document.querySelector('[data-testid="cloud-session-share-created-link"]');
+      return {
+        link: node?.textContent?.trim() ?? '',
+        shareId: node?.getAttribute('data-share-id') ?? '',
+      };
+    `);
+    const link = String(createdLink?.link ?? "");
+    const linkShareId = String(createdLink?.shareId ?? "");
     if (!link.startsWith("orgii://cloud/session?share=")) {
       throw new Error("generated session ticket is not a valid orgii link");
+    }
+    if (!linkShareId) {
+      throw new Error("generated session ticket has no durable share identity");
     }
     const parsedLink = new URL(link);
     if (parsedLink.searchParams.get("endpoint") !== "official") {
@@ -2144,12 +2415,12 @@ describe("Cloud collaboration with two independent rendered app instances", func
       "owner open New Session before self-import"
     );
     await waitForRendered(
-      '[data-testid="import-session-trigger"]',
+      '[data-testid="chat-panel-start-page-import-session"]',
       "owner Import entry before self-import",
       CLOUD_FETCH_TIMEOUT_MS
     );
     await clickRendered(
-      '[data-testid="import-session-trigger"]',
+      '[data-testid="chat-panel-start-page-import-session"]',
       "owner Import entry for self-import"
     );
     await typeRendered(
@@ -2203,8 +2474,8 @@ describe("Cloud collaboration with two independent rendered app instances", func
       "owner restore share settings after self-import"
     );
     await waitForRendered(
-      '[data-testid="cloud-session-share-created-link"]',
-      "owner retained one-shot link after self-import",
+      `[data-testid="cloud-session-share-link-revoke"][data-share-id="${linkShareId}"]`,
+      "owner retained active link grant after self-import",
       CLOUD_FETCH_TIMEOUT_MS
     );
 
@@ -2220,13 +2491,13 @@ describe("Cloud collaboration with two independent rendered app instances", func
     );
     await waitForRenderedOn(
       second.client,
-      '[data-testid="import-session-trigger"]',
+      '[data-testid="chat-panel-start-page-import-session"]',
       "secondary Import entry after New Session",
       CLOUD_FETCH_TIMEOUT_MS
     );
     await clickRenderedOn(
       second.client,
-      '[data-testid="import-session-trigger"]',
+      '[data-testid="chat-panel-start-page-import-session"]',
       "secondary Import entry"
     );
     await typeRenderedOn(
@@ -2313,12 +2584,12 @@ describe("Cloud collaboration with two independent rendered app instances", func
     );
 
     await clickRendered(
-      '[data-testid="cloud-session-share-created-link-revoke"]',
+      `[data-testid="cloud-session-share-link-revoke"][data-share-id="${linkShareId}"]`,
       "owner revoke one-shot link"
     );
     await waitForGone(
-      '[data-testid="cloud-session-share-created-link"]',
-      "owner one-shot plaintext after revoke"
+      `[data-testid="cloud-session-share-active-row"][data-share-id="${linkShareId}"]`,
+      "owner active link grant after revoke"
     );
 
     await clickRenderedOn(
@@ -2328,13 +2599,13 @@ describe("Cloud collaboration with two independent rendered app instances", func
     );
     await waitForRenderedOn(
       second.client,
-      '[data-testid="import-session-trigger"]',
+      '[data-testid="chat-panel-start-page-import-session"]',
       "secondary Import entry for revoked-link retry",
       CLOUD_FETCH_TIMEOUT_MS
     );
     await clickRenderedOn(
       second.client,
-      '[data-testid="import-session-trigger"]',
+      '[data-testid="chat-panel-start-page-import-session"]',
       "secondary Import entry for revoked link"
     );
     await typeRenderedOn(
@@ -2408,7 +2679,7 @@ describe("Cloud collaboration with two independent rendered app instances", func
     );
     await clickRenderedOn(
       second.client,
-      '[data-testid="import-session-trigger"]',
+      '[data-testid="chat-panel-start-page-import-session"]',
       "secondary Import entry for mismatched custom link"
     );
     await typeRenderedOn(
@@ -2835,6 +3106,11 @@ describe("Cloud collaboration with two independent rendered app instances", func
     }
 
     await selectPrimaryCloudOrgManagementTab("general", "owner general");
+    await selectCloudOrgManagementTabOn(
+      second.client,
+      "general",
+      "secondary general after boundary checks"
+    );
     await typeRendered(
       '[data-testid="cloud-org-rename-input"]',
       RENAMED_TEAM_NAME,
@@ -2906,22 +3182,20 @@ describe("Cloud collaboration with two independent rendered app instances", func
         `${error.message}\nmember floor mirror: ${JSON.stringify(memberDebug?.debug?.sharingFloorByOrg ?? memberDebug)}\nowner floor mirror: ${JSON.stringify(ownerDebug?.debug?.sharingFloorByOrg ?? ownerDebug)}`
       );
     });
-    await clickRenderedOn(
+    const duplicateDefaultControlVisible = await executeOn(
       second.client,
-      '[data-testid="cloud-org-default-access-select"]',
-      "member default sharing level"
+      `return !!document.querySelector('[data-testid="cloud-org-default-access"]');`
     );
-    const belowOrgFloorVisible = await executeOn(
-      second.client,
-      `return !!document.querySelector('[data-testid="cloud-org-default-access-off"]');`
-    );
-    if (belowOrgFloorVisible) {
+    if (duplicateDefaultControlVisible) {
       throw new Error(
-        "member could select a default below the org sharing floor"
+        "member General still rendered a duplicate default sync level"
       );
     }
-    await pressEscapeOn(second.client);
 
+    await selectPrimaryCloudOrgManagementTab(
+      "members",
+      "owner members for teammate floor"
+    );
     await clickRendered(
       `[data-testid="cloud-org-member-floor-${teammate.userId}"]`,
       "owner teammate sharing floor"
@@ -2934,7 +3208,7 @@ describe("Cloud collaboration with two independent rendered app instances", func
       async () =>
         executeOn(
           second.client,
-          `return document.querySelector('[data-testid="cloud-org-default-access-select"]')?.textContent?.includes('Full replay') === true;`
+          `return document.querySelector('[data-testid="cloud-org-sharing-floor-member-note"]')?.parentElement?.textContent?.includes('Full replay') === true;`
         ),
       {
         timeout: CLOUD_FETCH_TIMEOUT_MS,
@@ -2955,7 +3229,7 @@ describe("Cloud collaboration with two independent rendered app instances", func
       async () =>
         executeOn(
           second.client,
-          `return document.querySelector('[data-testid="cloud-org-default-access-select"]')?.textContent?.includes('Metadata') === true;`
+          `return document.querySelector('[data-testid="cloud-org-sharing-floor-member-note"]')?.parentElement?.textContent?.includes('Metadata') === true;`
         ),
       {
         timeout: CLOUD_FETCH_TIMEOUT_MS,
@@ -2982,6 +3256,11 @@ describe("Cloud collaboration with two independent rendered app instances", func
       CLOUD_FETCH_TIMEOUT_MS
     );
 
+    await selectCloudOrgManagementTabOn(
+      second.client,
+      "members",
+      "member leave"
+    );
     await clickRenderedOn(
       second.client,
       '[data-testid="cloud-org-leave"]',
@@ -3008,16 +3287,13 @@ describe("Cloud collaboration with two independent rendered app instances", func
     );
     await browser.waitUntil(
       async () =>
-        execJS(
-          `
-            const row = document.querySelector('[data-testid="cloud-org-member-row"][data-member-id=${JSON.stringify(teammate.userId)}]');
-            return row?.textContent?.includes('removed') === true;
-          `
+        !execJS(
+          `return Boolean(document.querySelector('[data-testid="cloud-org-member-row"][data-member-id=${JSON.stringify(teammate.userId)}]'));`
         ),
       {
         timeout: CLOUD_FETCH_TIMEOUT_MS,
         interval: 250,
-        timeoutMsg: "owner roster did not receive the member leave live",
+        timeoutMsg: "departed member remained in the owner roster",
       }
     );
 
@@ -3653,6 +3929,24 @@ describe("Cloud collaboration with two independent rendered app instances", func
         timeoutMsg: "removed member retained the workspace",
       }
     );
+    await waitForGoneOn(
+      second.client,
+      `[data-testid="sidebar-cloud-org-option-${teamOrgId}"]`,
+      "removed teammate sidebar org",
+      CLOUD_FETCH_TIMEOUT_MS
+    );
+    await waitForGoneOn(
+      second.client,
+      '[data-testid="cloud-org-panel"]',
+      "removed teammate management surface",
+      CLOUD_FETCH_TIMEOUT_MS
+    );
+    await waitForGoneOn(
+      second.client,
+      '[data-testid="cloud-team-sessions-filter"]',
+      "removed teammate team sessions",
+      CLOUD_FETCH_TIMEOUT_MS
+    );
 
     // A removed membership is intentionally reactivatable through a fresh,
     // valid invite; this is distinct from the exhausted-link case in H.
@@ -3679,6 +3973,16 @@ describe("Cloud collaboration with two independent rendered app instances", func
       "removed teammate reactivated",
       CLOUD_FETCH_TIMEOUT_MS
     );
+    await waitForGone(
+      `[data-testid="cloud-org-invite-revoke-${removalRecoveryInvite.inviteId}"]`,
+      "owner recovery invite exhausted after teammate reactivation",
+      CLOUD_FETCH_TIMEOUT_MS
+    );
+    await waitForGone(
+      '[data-testid="cloud-org-invite-link"]',
+      "owner exhausted recovery invite copy window",
+      CLOUD_FETCH_TIMEOUT_MS
+    );
     const rosterDiagnostic = unwrapOn(
       await invokeOn(second.client, "cloudInspectRosterState"),
       "reactivated teammate roster diagnostic"
@@ -3693,6 +3997,10 @@ describe("Cloud collaboration with two independent rendered app instances", func
     this.timeout(240_000);
 
     await openCloudOrgPanelFromSidebar(teamOrgId);
+    await selectPrimaryCloudOrgManagementTab(
+      "general",
+      "owner general for org deletion"
+    );
     await typeRendered(
       '[data-testid="cloud-org-delete-confirm-input"]',
       `${RENAMED_TEAM_NAME} typo`,

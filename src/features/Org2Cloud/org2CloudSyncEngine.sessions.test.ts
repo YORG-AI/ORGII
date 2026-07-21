@@ -191,15 +191,17 @@ describe("Org2CloudSyncEngine session publishing", () => {
     });
     store.set(org2CloudAccessSettingsAtom, {
       "corg-personal": {
-        defaultMode: "full_replay",
         sessionModes: {},
         sessionVisibility: {},
       },
       "corg-team": {
-        defaultMode: "full_replay",
         sessionModes: {},
         sessionVisibility: {},
       },
+    });
+    store.set(org2CloudSharingFloorAtom, {
+      "corg-personal": "full_replay",
+      "corg-team": "full_replay",
     });
 
     await engine.runSyncPass();
@@ -450,7 +452,7 @@ describe("Org2CloudSyncEngine session publishing", () => {
   });
 
   it("retracts a previously-pushed session whose tag fell out of scope", async () => {
-    // Push in scope first (default-ladder full_replay via the org default).
+    // Push in scope first via the org's full-replay minimum.
     await engine.runSyncPass();
     expect(client.upsertSessionMetadata).toHaveBeenCalledTimes(1);
 
@@ -517,21 +519,22 @@ describe("Org2CloudSyncEngine session publishing", () => {
 
   // --- Access ladder (§13.4) ------------------------------------------------
 
-  it("BEHAVIOR CHANGE: a scope-matched session is NOT uploaded under the default-off ladder", async () => {
-    // No access settings at all ⇒ org default OFF (privacy-first §13.4):
+  it("a scope-matched session is NOT uploaded with no org minimum or session override", async () => {
+    // No minimum and no per-session access ⇒ local mode OFF:
     // repo-scope match makes the session a candidate, nothing more.
     store.set(org2CloudAccessSettingsAtom, {});
+    store.set(org2CloudSharingFloorAtom, {});
     await engine.runSyncPass();
     expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
     expect(client.rewriteSessionEvents).not.toHaveBeenCalled();
     expect(client.appendSessionEvents).not.toHaveBeenCalled();
   });
 
-  it("an admin floor never uploads imported history that is only scope-matched", async () => {
+  it("applies the admin floor to scope-matched imported history", async () => {
     const source = getImportedHistorySourceBySessionId("cursoride-thread-1");
-    vi.spyOn(source!, "loadFullTranscriptChunks").mockResolvedValue(
-      [] as never
-    );
+    const loadFullTranscriptChunks = vi
+      .spyOn(source!, "loadFullTranscriptChunks")
+      .mockResolvedValue([] as never);
     store.set(org2CloudAccessSettingsAtom, {});
     store.set(org2CloudSharingFloorAtom, { "corg-1": "full_replay" });
     store.set(sessionsAtom, [
@@ -540,9 +543,11 @@ describe("Org2CloudSyncEngine session publishing", () => {
 
     await engine.runSyncPass();
 
-    expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
-    expect(client.rewriteSessionEvents).not.toHaveBeenCalled();
-    expect(client.appendSessionEvents).not.toHaveBeenCalled();
+    expect(client.upsertSessionMetadata).toHaveBeenCalledTimes(1);
+    expect(client.upsertSessionMetadata.mock.calls[0][3].accessMode).toBe(
+      "full_replay"
+    );
+    expect(loadFullTranscriptChunks).toHaveBeenCalledWith("cursoride-thread-1");
   });
 
   it("the floor still lifts imported history the user explicitly shared", async () => {
@@ -552,7 +557,6 @@ describe("Org2CloudSyncEngine session publishing", () => {
     );
     store.set(org2CloudAccessSettingsAtom, {
       "corg-1": {
-        defaultMode: "off",
         sessionModes: { "cursoride-thread-1": "metadata_only" },
         sessionVisibility: {},
       },
@@ -571,7 +575,8 @@ describe("Org2CloudSyncEngine session publishing", () => {
   });
 
   it("floors a tagged effective-off session to metadata_only (never 'off' on the wire, no segments)", async () => {
-    store.set(org2CloudAccessSettingsAtom, {}); // default OFF
+    store.set(org2CloudAccessSettingsAtom, {});
+    store.set(org2CloudSharingFloorAtom, {});
     // Scope stays matched (tags only work WITHIN scope); the tag is what
     // overrides the effective-off ladder default.
     store.set(sessionOrgTagsAtom, { "session-1": [cloudOrgToken("corg-1")] });
@@ -586,16 +591,14 @@ describe("Org2CloudSyncEngine session publishing", () => {
     expect(client.appendSessionEvents).not.toHaveBeenCalled();
   });
 
-  it("honors a per-session override over the org default (ratchet) incl. restricted visibility", async () => {
-    // Org default full_replay, but THIS session is persisted as
-    // metadata_only + restricted — the override must win on every push.
+  it("honors a per-session mode and restricted visibility on every push", async () => {
     store.set(org2CloudAccessSettingsAtom, {
       "corg-1": {
-        defaultMode: "full_replay",
         sessionModes: { "session-1": "metadata_only" },
         sessionVisibility: { "session-1": "restricted" },
       },
     });
+    store.set(org2CloudSharingFloorAtom, {});
     await engine.runSyncPass();
 
     expect(client.upsertSessionMetadata).toHaveBeenCalledTimes(1);
@@ -605,17 +608,19 @@ describe("Org2CloudSyncEngine session publishing", () => {
     expect(client.rewriteSessionEvents).not.toHaveBeenCalled();
   });
 
-  it("skips a session whose per-session override is off even when the default is full_replay", async () => {
+  it("a full-replay minimum lifts a stale per-session off value", async () => {
     store.set(org2CloudAccessSettingsAtom, {
       "corg-1": {
-        defaultMode: "full_replay",
         sessionModes: { "session-1": "off" },
         sessionVisibility: {},
       },
     });
     await engine.runSyncPass();
-    expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
-    expect(client.rewriteSessionEvents).not.toHaveBeenCalled();
+    expect(client.upsertSessionMetadata).toHaveBeenCalledTimes(1);
+    expect(client.upsertSessionMetadata.mock.calls[0][3].accessMode).toBe(
+      "full_replay"
+    );
+    expect(client.rewriteSessionEvents).toHaveBeenCalledTimes(1);
   });
 
   it("publishes full_replay metadata with the ladder outcome (org visibility)", async () => {
@@ -653,15 +658,17 @@ describe("Org2CloudSyncEngine session publishing", () => {
     });
     store.set(org2CloudAccessSettingsAtom, {
       "corg-1": {
-        defaultMode: "full_replay",
         sessionModes: {},
         sessionVisibility: {},
       },
       "corg-2": {
-        defaultMode: "full_replay",
         sessionModes: {},
         sessionVisibility: {},
       },
+    });
+    store.set(org2CloudSharingFloorAtom, {
+      "corg-1": "full_replay",
+      "corg-2": "full_replay",
     });
     store.set(sessionOrgTagsAtom, {
       "session-1": [cloudOrgToken("corg-1"), cloudOrgToken("corg-2")],
@@ -754,11 +761,11 @@ describe("Org2CloudSyncEngine session publishing", () => {
     // cursor so teammates lose both the listing and replay.
     store.set(org2CloudAccessSettingsAtom, {
       "corg-1": {
-        defaultMode: "full_replay",
         sessionModes: { "session-1": "off" },
         sessionVisibility: {},
       },
     });
+    store.set(org2CloudSharingFloorAtom, {});
     await engine.runSyncPass();
 
     expect(client.deleteSession).toHaveBeenCalledTimes(1);
@@ -779,9 +786,10 @@ describe("Org2CloudSyncEngine session publishing", () => {
   });
 
   it("does NOT delete a never-pushed session that is set to off", async () => {
-    // Default-off ladder, session never published: an 'off' selection is a
+    // No minimum and no override: an Off session is a
     // pure skip — no spurious server delete.
     store.set(org2CloudAccessSettingsAtom, {});
+    store.set(org2CloudSharingFloorAtom, {});
     await engine.runSyncPass();
     expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
     expect(client.deleteSession).not.toHaveBeenCalled();
@@ -790,13 +798,8 @@ describe("Org2CloudSyncEngine session publishing", () => {
   it("retracts a metadata_only session dropped to Off in a LATER run (persisted marker)", async () => {
     // Run 1: metadata_only push leaves NO segments cursor — only the
     // persisted push marker records that a live row exists.
-    store.set(org2CloudAccessSettingsAtom, {
-      "corg-1": {
-        defaultMode: "metadata_only",
-        sessionModes: {},
-        sessionVisibility: {},
-      },
-    });
+    store.set(org2CloudAccessSettingsAtom, {});
+    store.set(org2CloudSharingFloorAtom, { "corg-1": "metadata_only" });
     await engine.runSyncPass();
     expect(client.upsertSessionMetadata).toHaveBeenCalledTimes(1);
     expect(client.rewriteSessionEvents).not.toHaveBeenCalled();
@@ -813,9 +816,10 @@ describe("Org2CloudSyncEngine session publishing", () => {
     engine = new Org2CloudSyncEngine(client, projectsClient, bridge);
     engine.start(store);
 
-    // Downgrade to Off (default off, no tag). The retract must fire off the
+    // Admin lowers the minimum to Off. The retract must fire off the
     // persisted marker even though nothing was pushed in THIS run.
     store.set(org2CloudAccessSettingsAtom, {});
+    store.set(org2CloudSharingFloorAtom, {});
     await engine.runSyncPass();
 
     expect(client.deleteSession).toHaveBeenCalledTimes(1);
@@ -841,6 +845,7 @@ describe("Org2CloudSyncEngine session publishing", () => {
     // retract must treat it as done: clear the marker, don't loop the delete.
     store.set(org2CloudPushedMetadataAtom, { "corg-1:session-1": true });
     store.set(org2CloudAccessSettingsAtom, {});
+    store.set(org2CloudSharingFloorAtom, {});
     client.deleteSession.mockRejectedValueOnce(
       new Org2CloudSyncError("ORG2_SESSION_NOT_FOUND", 404)
     );

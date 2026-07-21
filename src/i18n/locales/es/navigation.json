@@ -618,22 +618,18 @@
         "inviteExhausted": "Esta invitación no tiene usos restantes."
       }
     },
-    "defaultAccess": {
-      "label": "Nivel de sincronización predeterminado",
-      "help": "Se aplica a las sesiones de este dispositivo que coinciden con un ámbito de repositorio y no tienen ajuste propio. Con «Desactivado», las sesiones permanecen locales hasta que lo actives"
-    },
     "syncLevel": {
       "menuItem": "Nivel de sincronización en la nube…",
       "title": "Nivel de sincronización en la nube",
       "hint": "Elige qué comparte esta sesión con cada organización en la nube — nada, solo metadatos o la repetición completa — y quién puede verla.",
-      "orgDefaultOption": "Predeterminado de la organización ({{mode}})",
       "modeOff": "Desactivado",
       "modeMetadata": "Solo metadatos",
       "modeFullReplay": "Repetición completa",
       "visibilityOrg": "Toda la organización",
       "visibilityRestricted": "Solo yo",
       "taggedNote": "Esta sesión se movió a esta organización, así que mientras esté etiquetada comparte al menos sus metadatos.",
-      "floorNote": "El administrador de tu organización exige compartir al menos {{mode}}."
+      "floorNote": "El administrador de tu organización exige compartir al menos {{mode}}.",
+      "orgMinimumOption": "Mínimo de la organización ({{mode}})"
     },
     "share": {
       "menuItem": "Compartir en la nube…",

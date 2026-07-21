@@ -8,6 +8,7 @@ import { type WorkItemData, projectApi } from "@src/api/http/project";
 import Button from "@src/components/Button";
 import Checkbox from "@src/components/Checkbox";
 import DropdownSearch from "@src/components/Dropdown/DropdownSearch";
+import { DropdownPanel } from "@src/components/Dropdown/exports";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -417,9 +418,11 @@ const WorkItemAttachmentControl: React.FC<WorkItemAttachmentControlProps> = ({
       {isOpen &&
         isPositioned &&
         createPortal(
-          <div
+          <DropdownPanel
             ref={panelRef}
-            className={`${DROPDOWN_CLASSES.menuPanelBase} fixed ${DROPDOWN_WIDTHS.menuClass}`}
+            className={`fixed ${DROPDOWN_WIDTHS.menuClass}`}
+            animated={false}
+            maxHeight="none"
             style={{
               ...(panelPosition.top !== undefined
                 ? { top: panelPosition.top }
@@ -472,7 +475,7 @@ const WorkItemAttachmentControl: React.FC<WorkItemAttachmentControlProps> = ({
               />
               <span>{t("common:actions.create")}</span>
             </button>
-          </div>,
+          </DropdownPanel>,
           document.body
         )}
       {panelHostRef?.current && panelContent

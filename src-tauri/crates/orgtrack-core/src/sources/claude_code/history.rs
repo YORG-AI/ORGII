@@ -1120,7 +1120,7 @@ fn resolve_claude_session_path(conn: &Connection, file_stem: &str) -> Result<Pat
 }
 
 fn claude_projects_dirs() -> Result<Vec<PathBuf>, String> {
-    let home = dirs::home_dir().ok_or_else(|| "Home directory not found".to_string())?;
+    let home = app_paths::external_history_home_dir();
     let mut dirs = claude_projects_dir_candidates(&home);
     // ORGII-managed sessions run with CLAUDE_CONFIG_DIR redirected into
     // per-account (own-key) or per-session (hosted-key) profile dirs; in

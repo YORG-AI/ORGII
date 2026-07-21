@@ -2,6 +2,7 @@
 import { atom } from "jotai";
 
 import { getSessionForkedFrom } from "@src/features/TeamCollaboration/forkSession";
+import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import type { Session } from "@src/store/session/sessionAtom/types";
 
 import { parseCloudOrgSelectorValue } from "./org2CloudOrgsAtom";
@@ -76,7 +77,12 @@ export function viewersForSession(
  */
 export function resolveCloudSessionRefs(
   session: Session,
-  taggedCloudOrgIds: readonly string[] = []
+  taggedCloudOrgIds: readonly string[] = [],
+  publishedRows: readonly Pick<
+    RemoteTeammateSessionMetadata,
+    "orgId" | "ownerUserId" | "sourceSessionId"
+  >[] = [],
+  selfUserId: string | null = null
 ): Org2CloudSessionRef[] {
   if (session.importedFrom?.orgId) {
     return [
@@ -100,6 +106,23 @@ export function resolveCloudSessionRefs(
   for (const orgId of taggedCloudOrgIds) {
     if (refs.some((ref) => ref.orgId === orgId)) continue;
     refs.push({ orgId, bareSessionId: session.session_id });
+  }
+  // An org-wide minimum can publish an in-scope session without adding an
+  // explicit local org tag. The server listing is then the authoritative
+  // evidence that this user's local session has a cloud identity. Without
+  // this bridge, the owner publishes no viewingSessionId while a teammate's
+  // imported copy correctly points at the same source session.
+  if (selfUserId) {
+    for (const row of publishedRows) {
+      if (
+        row.ownerUserId !== selfUserId ||
+        row.sourceSessionId !== session.session_id ||
+        refs.some((ref) => ref.orgId === row.orgId)
+      ) {
+        continue;
+      }
+      refs.push({ orgId: row.orgId, bareSessionId: session.session_id });
+    }
   }
   return refs;
 }

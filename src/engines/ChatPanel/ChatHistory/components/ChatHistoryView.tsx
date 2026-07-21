@@ -5,6 +5,7 @@ import type { AgentOrgRunMemberView } from "@src/api/tauri/agent";
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { ChatLoadingBlock } from "@src/engines/ChatPanel/blocks/primitives";
+import SessionViewersIndicator from "@src/features/Org2Cloud/SessionViewersIndicator";
 import type { ChatHistoryDisplayMode } from "@src/store/ui/chatPanelAtom";
 
 import SessionHeader from "../../ChatItems/SessionHeader";
@@ -315,6 +316,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
           className={`flex items-center justify-between ${DETAIL_PANEL_TOKENS.contentWidth}`}
         >
           <SessionHeader sessionInfo={sessionInfo} />
+          <SessionViewersIndicator sessionId={activeId} />
         </div>
 
         <ChatSearchBar

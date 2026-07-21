@@ -239,18 +239,25 @@ struct ApiDoc;
 // High port to avoid conflicts with common apps
 const DEFAULT_IDE_SERVER_PORT: u16 = 13847;
 
-fn ide_server_port() -> u16 {
+fn ide_server_port(default_port: u16) -> u16 {
     std::env::var("ORGII_IDE_SERVER_PORT")
         .ok()
         .and_then(|value| value.parse::<u16>().ok())
-        .unwrap_or(DEFAULT_IDE_SERVER_PORT)
+        .filter(|port| *port > 0)
+        .unwrap_or(default_port)
 }
 
 /// Start the unified IDE server
 pub async fn start_server(
     ws_tx: broadcast::Sender<String>,
+    default_port: u16,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let addr = SocketAddr::from(([127, 0, 0, 1], ide_server_port()));
+    let port = ide_server_port(if default_port > 0 {
+        default_port
+    } else {
+        DEFAULT_IDE_SERVER_PORT
+    });
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
 
     // Create CORS layer (allow frontend on any localhost port)
     let cors = CorsLayer::new()
@@ -337,7 +344,7 @@ pub async fn start_server(
     let listener = tokio::net::TcpListener::bind(addr).await?;
     // Publish the live-status endpoint descriptor only once the port is
     // actually bound, so hook posts never race a half-started server.
-    super::agent_status_ingest::write_endpoint_file(ide_server_port());
+    super::agent_status_ingest::write_endpoint_file(port);
     tokio::spawn(async {
         if let Err(error) = super::hermes_hook::initialize().await {
             tracing::warn!(%error, "[Hermes Hook] Plugin initialization failed");

@@ -11,7 +11,7 @@
  *
  * React/Jotai-free by design — unit-testable in isolation.
  */
-import { pickMatchingOrgScope } from "@src/features/TeamCollaboration/collabSyncUtils";
+import { peekMatchingOrgRepoScope } from "@src/features/TeamCollaboration/repoScopeResolver";
 import {
   type SessionOrgTags,
   cloudOrgIdsForSession,
@@ -39,11 +39,14 @@ export function getCloudShareOrgsForSession(
     : null;
   if (owningCloudOrgId) explicitOrgIds.add(owningCloudOrgId);
 
-  return cloudOrgs.filter(
-    (org) =>
-      explicitOrgIds.has(org.orgId) &&
-      pickMatchingOrgScope(scopeKeys, repoScopesByOrg[org.orgId]) !== null
-  );
+  return cloudOrgs.filter((org) => {
+    if (!explicitOrgIds.has(org.orgId)) return false;
+    const matched = peekMatchingOrgRepoScope(
+      scopeKeys,
+      repoScopesByOrg[org.orgId]
+    );
+    return matched !== null && matched !== undefined;
+  });
 }
 
 /**

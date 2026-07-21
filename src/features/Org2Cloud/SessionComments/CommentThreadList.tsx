@@ -479,7 +479,12 @@ const ThreadBlock: React.FC<ThreadBlockProps> = ({
   const [replying, setReplying] = useState(false);
   const resolution = getThreadResolution(thread);
 
-  const addressing = Boolean(context?.addressRunActive && resolution === null);
+  const addressing = Boolean(
+    context?.addressRunActive &&
+    resolution === null &&
+    (context.addressRunSelectedHeadIds === null ||
+      context.addressRunSelectedHeadIds.has(thread.top.id))
+  );
 
   const setStatus = useCallback(
     (status: CommentThreadStatus): Promise<void> =>

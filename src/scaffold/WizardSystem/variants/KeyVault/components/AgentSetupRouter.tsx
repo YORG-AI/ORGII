@@ -53,6 +53,7 @@ interface AgentSetupRouterProps extends AgentSetupProps {
   handleSessionTokenCaptured: (sessionToken: string) => void;
   handleUrlChange: (url: string) => void;
   hasSessionToken: boolean;
+  autoStartCodexLogin?: boolean;
 }
 
 /**
@@ -78,6 +79,7 @@ export const AgentSetupRouter: React.FC<AgentSetupRouterProps> = ({
   handleSessionTokenCaptured,
   handleUrlChange,
   hasSessionToken,
+  autoStartCodexLogin,
   ...sharedProps
 }) => {
   const { onChange } = sharedProps;
@@ -122,6 +124,7 @@ export const AgentSetupRouter: React.FC<AgentSetupRouterProps> = ({
           onDetectToken={sharedProps.onAutoDetect ?? (() => {})}
           onClearTokenError={clearTokenError}
           preselectedMethod={isComplex ? setupMethod : undefined}
+          autoStartLogin={autoStartCodexLogin}
           onSessionCaptured={async (values: CodexSessionValues) => {
             let catalog: OAuthModelCatalog = {
               models: [],

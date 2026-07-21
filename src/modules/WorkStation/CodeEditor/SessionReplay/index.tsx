@@ -163,26 +163,31 @@ const SessionReplayIDEComponent: React.FC<SimulatorIDEProps> = ({
 
   const handleShellSelect = useCallback(
     (selectedEventId: string) => {
+      setFileViewMode(FILE_PANEL_VIEW_MODE.TERMINAL);
       setUserPickedTool(false);
       selectShellOperation(selectedEventId);
     },
-    [selectShellOperation]
+    [setFileViewMode, selectShellOperation]
   );
 
   const handleSearchSelect = useCallback(
     (selectedEventId: string) => {
+      setFileViewMode(FILE_PANEL_VIEW_MODE.EXPLORE);
       setUserExploreChoice("search");
       selectExploreOperation(selectedEventId);
     },
-    [selectExploreOperation]
+    [setFileViewMode, selectExploreOperation]
   );
 
   const handleToolSelect = useCallback(
     (selectedEventId: string) => {
+      // Shell commands and generic tools share the Terminal sidebar tab, so
+      // selecting either section must also switch the content-panel mode.
+      setFileViewMode(FILE_PANEL_VIEW_MODE.TOOL);
       setUserPickedTool(true);
       selectToolOperation(selectedEventId);
     },
-    [selectToolOperation]
+    [setFileViewMode, selectToolOperation]
   );
 
   // Mixed-kind tab click: the unified replay tab strip renders entries of

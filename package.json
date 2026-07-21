@@ -19,6 +19,7 @@
     "tauri:build": "node scripts/tauri/run-with-features.cjs build",
     "tauri:build:semantic": "node scripts/tauri/run-with-features.cjs build --semantic",
     "tauri:build:fast": "node scripts/tauri/build-fast-parallel.cjs",
+    "tauri:build:fast:dual": "node scripts/tauri/build-fast-dual.cjs",
     "tauri:open:instance": "node scripts/tauri/open-instance.cjs",
     "tauri:build:fast:serial": "node scripts/tauri/run-with-features.cjs build -- --profile dev-build",
     "tauri:build:fast:local": "node scripts/tauri/build-fast-local.cjs",

@@ -616,22 +616,18 @@
         "inviteExhausted": "Lời mời đã hết số lần dùng."
       }
     },
-    "defaultAccess": {
-      "label": "Mức đồng bộ mặc định",
-      "help": "Áp dụng cho các phiên trên thiết bị này khớp phạm vi repo và chưa có cài đặt riêng. Chọn “Tắt” thì phiên chỉ nằm ở máy cho đến khi bạn bật chia sẻ"
-    },
     "syncLevel": {
       "menuItem": "Mức đồng bộ đám mây…",
       "title": "Mức đồng bộ đám mây",
       "hint": "Chọn phiên này chia sẻ gì với từng tổ chức đám mây — không chia sẻ, chỉ siêu dữ liệu hay phát lại đầy đủ — và ai được xem.",
-      "orgDefaultOption": "Mặc định của tổ chức ({{mode}})",
       "modeOff": "Tắt",
       "modeMetadata": "Chỉ siêu dữ liệu",
       "modeFullReplay": "Phát lại đầy đủ",
       "visibilityOrg": "Mọi người trong tổ chức",
       "visibilityRestricted": "Chỉ mình tôi",
       "taggedNote": "Phiên này đã được chuyển vào tổ chức, nên khi còn gắn thẻ nó luôn chia sẻ ít nhất siêu dữ liệu.",
-      "floorNote": "Quản trị viên tổ chức yêu cầu chia sẻ ít nhất {{mode}}."
+      "floorNote": "Quản trị viên tổ chức yêu cầu chia sẻ ít nhất {{mode}}.",
+      "orgMinimumOption": "Mức tối thiểu của tổ chức ({{mode}})"
     },
     "share": {
       "menuItem": "Chia sẻ đám mây…",

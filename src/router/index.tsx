@@ -3,6 +3,7 @@ import { Outlet, createBrowserRouter } from "react-router-dom";
 import { ViewModeSync } from "@src/components/System";
 import { useOrg2CloudOrgs } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { useOrg2CloudRosterReconcile } from "@src/features/Org2Cloud/org2CloudRosterReconcile";
+import { useOrg2CloudGuestShareAccess } from "@src/features/Org2Cloud/useOrg2CloudGuestShareAccess";
 import { useOrg2CloudRealtime } from "@src/features/Org2Cloud/useOrg2CloudRealtime";
 import { useOrg2CloudSyncEngine } from "@src/features/Org2Cloud/useOrg2CloudSyncEngine";
 import { useDeepLinkHandler } from "@src/hooks/platform/useDeepLinkHandler";
@@ -33,6 +34,9 @@ const RootLayout = () => {
   // Inbound Realtime: roster / projects / work-items / comments
   // subscriptions replace 60s polling as the primary inbound trigger.
   useOrg2CloudRealtime();
+  // Registered non-member imports remain readable only while their persisted
+  // share capability is valid; revoked links evict the durable replay.
+  useOrg2CloudGuestShareAccess();
 
   return (
     <>

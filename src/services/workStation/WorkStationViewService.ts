@@ -221,17 +221,20 @@ export const WorkStationViewService = {
   },
 
   async openCodeEditorTab(tabId: string): Promise<boolean> {
-    const [{ stationModeAtom }, { queuePendingCodeEditorTab }] =
-      await Promise.all([
-        import("@src/store/ui/simulatorAtom"),
-        import("@src/store/workstation/tabs"),
-      ]);
+    const [
+      { stationModeAtom },
+      { presentedWorkstationWorkspaceKeyAtom, queuePendingCodeEditorTab },
+    ] = await Promise.all([
+      import("@src/store/ui/simulatorAtom"),
+      import("@src/store/workstation/tabs"),
+    ]);
 
     const store = getStore();
     const isAlreadyOnCodeEditorRoute = isCodeEditorRoute();
     await unmaximizeChatPanel();
     store.set(stationModeAtom, "my-station");
-    queuePendingCodeEditorTab(tabId);
+    const workspace = store.get(presentedWorkstationWorkspaceKeyAtom);
+    queuePendingCodeEditorTab(workspace, tabId);
     dispatchNavigate(ROUTES.workStation.code.path);
     if (isAlreadyOnCodeEditorRoute) {
       dispatchOpenCodeTab(tabId);

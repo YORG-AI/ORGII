@@ -3,6 +3,7 @@ import React, { memo, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
+import { projectApi } from "@src/api/http/project";
 import {
   WIZARD_IDS,
   buildIntegrationsPath,
@@ -27,6 +28,7 @@ import { getChatPanelBackgroundStyle } from "@src/modules/shared/layouts/viewCon
 import { installAvailableAppUpdate } from "@src/scaffold/AppUpdater";
 import {
   closeCloudOrgManagementChatPanelTabAtom,
+  closeProjectOrgChatPanelTabsAtom,
   openRuntimeInChatPanelTabAtom,
   openSessionInNewChatTabAtom,
   patchChatPanelWorkItemTabAtom,
@@ -127,6 +129,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     const closeCloudOrgManagementTab = useSetAtom(
       closeCloudOrgManagementChatPanelTabAtom
     );
+    const closeProjectOrgTabs = useSetAtom(closeProjectOrgChatPanelTabsAtom);
     const exploreOpen = useAtomValue(chatPanelExploreOpenAtom);
     const createProjectContext = useAtomValue(
       chatPanelCreateProjectContextAtom
@@ -176,6 +179,31 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       cloudOrgsLoaded,
       selectedCloudOrg,
     ]);
+
+    // `project_orgs` is a durable local mirror, not an authorization source.
+    // Once the managed-cloud roster is authoritative, close any cached detail
+    // tabs whose alias no longer maps to a live membership. The create pickers
+    // apply the same boundary in projectOrgVisibility.
+    useEffect(() => {
+      if (!cloudOrgsLoaded) return undefined;
+      let cancelled = false;
+      const liveCloudOrgIds = new Set(cloudOrgs.map((org) => org.orgId));
+      void projectApi.readOrgs().then((projectOrgs) => {
+        if (cancelled) return;
+        const revokedProjectOrgIds = projectOrgs
+          .filter(
+            (org) =>
+              org.sync_provider === "orgii_collab" &&
+              Boolean(org.external_org_id) &&
+              !liveCloudOrgIds.has(org.external_org_id as string)
+          )
+          .map((org) => org.id);
+        closeProjectOrgTabs(revokedProjectOrgIds);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [closeProjectOrgTabs, cloudOrgs, cloudOrgsLoaded]);
     const chatWidthStyleValue =
       chatWidth > 0 ? `var(${CHAT_WIDTH_CSS_VAR})` : chatWidth;
     const { isDragging, panelRef, handleMouseDown } = useChatPanelResize({
@@ -354,7 +382,6 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       handleReturnToSessionCreator,
       sessionCreatorAvailable: Boolean(SessionCreatorSlot),
       setActiveSessionId,
-      setContentMode,
       setCreateTarget,
       setSelectedProject,
       setSelectedWorkItem,

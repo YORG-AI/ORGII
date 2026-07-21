@@ -3,10 +3,6 @@ import React, { useMemo } from "react";
 
 import Button from "@src/components/Button";
 import Select from "@src/components/Select";
-import {
-  floorAccessMode,
-  isAccessModeAtLeast,
-} from "@src/features/Org2Cloud/org2CloudAccessSettings";
 import type { CloudEntitlementState } from "@src/features/Org2Cloud/org2CloudClient";
 import {
   SECTION_CONTROL_STYLE,
@@ -25,11 +21,9 @@ interface CloudOrgGeneralTabProps {
   entitlement: CloudEntitlementState | null;
   isAdmin: boolean;
   orgFloor: CollabSessionAccessMode;
-  defaultAccessMode: CollabSessionAccessMode;
   savingFloor: boolean;
   floorError: string | null;
   onFloorChange: (value: SelectValue) => Promise<void>;
-  onDefaultAccessChange: (value: SelectValue) => void;
   openCloudBillingPage: () => void;
 }
 
@@ -39,34 +33,11 @@ export function CloudOrgGeneralTab({
   entitlement,
   isAdmin,
   orgFloor,
-  defaultAccessMode,
   savingFloor,
   floorError,
   onFloorChange,
-  onDefaultAccessChange,
   openCloudBillingPage,
 }: CloudOrgGeneralTabProps) {
-  const accessModeOptions = useMemo(
-    () =>
-      [
-        {
-          value: COLLAB_SESSION_ACCESS_MODE.OFF,
-          label: t("cloud.syncLevel.modeOff"),
-          dataTestId: "cloud-org-default-access-off",
-        },
-        {
-          value: COLLAB_SESSION_ACCESS_MODE.METADATA_ONLY,
-          label: t("cloud.syncLevel.modeMetadata"),
-          dataTestId: "cloud-org-default-access-metadata",
-        },
-        {
-          value: COLLAB_SESSION_ACCESS_MODE.FULL_REPLAY,
-          label: t("cloud.syncLevel.modeFullReplay"),
-          dataTestId: "cloud-org-default-access-full",
-        },
-      ].filter((option) => isAccessModeAtLeast(option.value, orgFloor)),
-    [t, orgFloor]
-  );
   const floorOptions = useMemo(
     () => [
       {
@@ -180,26 +151,6 @@ export function CloudOrgGeneralTab({
             })}
           />
         ) : null}
-
-        <SectionRow
-          label={t("cloud.defaultAccess.label")}
-          description={t("cloud.defaultAccess.help")}
-          align="start"
-        >
-          <div
-            className="flex flex-col gap-2"
-            data-testid="cloud-org-default-access"
-          >
-            <Select
-              value={floorAccessMode(defaultAccessMode, orgFloor)}
-              options={accessModeOptions}
-              onChange={onDefaultAccessChange}
-              size="default"
-              style={SECTION_CONTROL_STYLE}
-              dataTestId="cloud-org-default-access-select"
-            />
-          </div>
-        </SectionRow>
       </SectionContainer>
     </>
   );

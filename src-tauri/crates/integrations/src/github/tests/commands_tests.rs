@@ -1,6 +1,7 @@
 use crate::github::commands::{
     build_clone_argv, clean_git_clone_error, github_repo_full_name_from_remote, parse_branch,
-    parse_check_run, parse_repo, parse_review_comment, parse_status_context, roll_up_checks_state,
+    parse_check_run, parse_repo, parse_repo_network_identity, parse_review_comment,
+    parse_status_context, roll_up_checks_state,
 };
 use serde_json::json;
 use std::path::Path;
@@ -114,6 +115,29 @@ fn github_remote_parser_rejects_non_github_urls() {
         github_repo_full_name_from_remote("https://gitlab.com/octocat/Hello-World.git"),
         None
     );
+}
+
+#[test]
+fn repo_network_identity_uses_source_for_a_fork() {
+    let identity = parse_repo_network_identity(&json!({
+        "full_name": "example-user/ORG2",
+        "fork": true,
+        "parent": { "full_name": "yorgai/ORG2" },
+        "source": { "full_name": "yorgai/ORG2" }
+    }))
+    .expect("identity");
+    assert_eq!(identity.full_name, "example-user/ORG2");
+    assert_eq!(identity.source_full_name, "yorgai/ORG2");
+}
+
+#[test]
+fn repo_network_identity_uses_self_for_the_upstream() {
+    let identity = parse_repo_network_identity(&json!({
+        "full_name": "yorgai/ORG2",
+        "fork": false
+    }))
+    .expect("identity");
+    assert_eq!(identity.source_full_name, "yorgai/ORG2");
 }
 
 // ============================================

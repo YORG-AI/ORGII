@@ -52,6 +52,11 @@ export interface LocalGitHubRepo {
   updated_at: string;
 }
 
+export interface GitHubRepoNetworkIdentity {
+  full_name: string;
+  source_full_name: string;
+}
+
 export interface LocalGitHubBranch {
   name: string;
   sha: string;
@@ -185,6 +190,15 @@ export async function searchReposLocal(
     page: opts?.page ?? null,
     perPage: opts?.perPage ?? null,
   });
+}
+
+export async function resolveGitHubRepoNetworkIdentityLocal(
+  repoFullName: string
+): Promise<GitHubRepoNetworkIdentity> {
+  return invoke<GitHubRepoNetworkIdentity>(
+    "github_resolve_repo_network_identity",
+    { repoFullName }
+  );
 }
 
 export async function listBranchesLocal(

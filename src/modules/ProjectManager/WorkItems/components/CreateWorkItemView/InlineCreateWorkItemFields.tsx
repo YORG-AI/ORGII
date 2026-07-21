@@ -1,3 +1,4 @@
+import { useAtomValue } from "jotai";
 import { BookOpen, Building2, ChevronRight } from "lucide-react";
 import React, {
   useCallback,
@@ -12,6 +13,7 @@ import { type ProjectOrg, projectApi } from "@src/api/http/project";
 import Input from "@src/components/Input";
 import { PropertyDropdownField } from "@src/components/PropertyField/PropertyDropdownField";
 import type { PropertyDropdownOption } from "@src/components/PropertyField/PropertyDropdownField";
+import { org2CloudOrgsAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { createLogger } from "@src/hooks/logger";
 import {
   mapWorkItemUpdatesToDraftPatch,
@@ -40,6 +42,7 @@ import type {
   WorkItemProject,
 } from "@src/types/core/workItem";
 
+import { filterSelectableProjectOrgs } from "../../../projectOrgVisibility";
 import WorkItemContentStack from "../WorkItemContentStack";
 import WorkItemProperties from "../WorkItemProperties";
 import type { WorkItemPropertyFieldKey } from "../WorkItemProperties/types";
@@ -134,6 +137,7 @@ export function useInlineCreateWorkItemFields({
   const [editorResetKey, setEditorResetKey] = useState(0);
   const { agents: customAgents } = useAgentDefinitions();
   const { orgs: availableOrgs } = useAgentOrgs();
+  const cloudOrgs = useAtomValue(org2CloudOrgsAtom);
   const [loadedMembers, setLoadedMembers] = useState<Person[]>([]);
   const [loadedProjects, setLoadedProjects] = useState<
     CreateWorkItemProjectOption[]
@@ -258,10 +262,24 @@ export function useInlineCreateWorkItemFields({
     };
   }, [selectedProjectSlug, availableMembers.length]);
 
+  const selectableProjectOrgs = useMemo(
+    () => filterSelectableProjectOrgs(projectOrgs, cloudOrgs),
+    [cloudOrgs, projectOrgs]
+  );
+  const selectableProjectOrgIds = useMemo(
+    () => new Set(selectableProjectOrgs.map((org) => org.id)),
+    [selectableProjectOrgs]
+  );
+
   const resolvedMembers =
     availableMembers.length > 0 ? availableMembers : loadedMembers;
-  const resolvedProjects: CreateWorkItemProjectOption[] =
-    availableProjects.length > 0 ? availableProjects : loadedProjects;
+  const resolvedProjects = useMemo<CreateWorkItemProjectOption[]>(() => {
+    const projects: CreateWorkItemProjectOption[] =
+      availableProjects.length > 0 ? availableProjects : loadedProjects;
+    return projects.filter(
+      (project) => !project.orgId || selectableProjectOrgIds.has(project.orgId)
+    );
+  }, [availableProjects, loadedProjects, selectableProjectOrgIds]);
   const resolvedLabels =
     availableLabels.length > 0 ? availableLabels : loadedLabels;
 
@@ -295,10 +313,13 @@ export function useInlineCreateWorkItemFields({
   );
   const selectedProjectName = selectedProject?.name ?? projectName ?? "";
   const selectedProjectOrgId = selectedProject?.orgId;
-  const effectiveOrgId =
+  const requestedOrgId =
     selectedProjectOrgId ?? draft.orgId ?? surfaceOrgId ?? "personal-org";
+  const effectiveOrgId = selectableProjectOrgIds.has(requestedOrgId)
+    ? requestedOrgId
+    : "personal-org";
   const selectedProjectOrgLabel =
-    projectOrgs.find((org) => org.id === effectiveOrgId)?.name ??
+    selectableProjectOrgs.find((org) => org.id === effectiveOrgId)?.name ??
     scopeBreadcrumbLabel ??
     t("orgs.personalOrg");
   const projectBreadcrumbLabel =
@@ -317,12 +338,12 @@ export function useInlineCreateWorkItemFields({
 
   const orgOptions = useMemo<PropertyDropdownOption<string>[]>(
     () =>
-      projectOrgs.map((org) => ({
+      selectableProjectOrgs.map((org) => ({
         value: org.id,
         label: org.name,
         icon: <Building2 size={CREATE_WORK_ITEM_BREADCRUMB_ICON_SIZE} />,
       })),
-    [projectOrgs]
+    [selectableProjectOrgs]
   );
 
   const handleProjectBreadcrumbChange = useCallback(

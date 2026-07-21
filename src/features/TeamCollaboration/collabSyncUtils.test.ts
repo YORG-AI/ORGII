@@ -12,10 +12,21 @@ import type { Session } from "@src/store/session/sessionAtom/types";
 
 import {
   createDefaultAccessSettings,
+  isLocalRepoPath,
   isScopeKeyInScopes,
   normalizeRepoScopeKey,
   toRemoteMetadata,
 } from "./collabSyncUtils";
+
+describe("isLocalRepoPath", () => {
+  it("recognizes Windows drive, UNC, and canonical verbatim paths", () => {
+    expect(isLocalRepoPath("C:\\Repos\\ORGII")).toBe(true);
+    expect(isLocalRepoPath("\\\\server\\share\\ORGII")).toBe(true);
+    expect(isLocalRepoPath("\\\\?\\C:\\Repos\\ORGII")).toBe(true);
+    expect(isLocalRepoPath("\\\\?\\UNC\\server\\share\\ORGII")).toBe(true);
+    expect(isLocalRepoPath("github.com/yorgai/ORG2")).toBe(false);
+  });
+});
 
 // Scope keys are normalized git-remote keys (design §8.3) — never paths.
 const SCOPE_KEY = "github.com/acme/shared";

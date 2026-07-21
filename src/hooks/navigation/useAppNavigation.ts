@@ -39,8 +39,10 @@ import { useNavigate } from "react-router-dom";
 import {
   type ExternalSkillsetsTab,
   type IntegrationsCategorySegment,
+  type SettingsPathOptions,
   buildExternalSkillsetsPath,
   buildIntegrationsPath,
+  buildSettingsPath,
 } from "@src/config/mainAppPaths";
 import { ROUTES } from "@src/config/routes";
 import { clearSessionAtom } from "@src/engines/SessionCore/core/atoms";
@@ -118,7 +120,7 @@ export interface UseAppNavigationReturn {
 
   // Convenience methods
   goToStartPage: () => void;
-  goToSettings: () => void;
+  goToSettings: (options?: SettingsPathOptions) => void;
   goToProjects: () => void;
   goToMarket: () => void;
   goToIntegrations: (options?: {
@@ -209,12 +211,15 @@ export function useAppNavigation(): UseAppNavigationReturn {
     });
   }, [navigateToMainApp]);
 
-  const goToSettings = useCallback(() => {
-    navigateToMainApp(ROUTES.app.settings.path, {
-      title: "Settings",
-      icon: "settings",
-    });
-  }, [navigateToMainApp]);
+  const goToSettings = useCallback(
+    (options?: SettingsPathOptions) => {
+      navigateToMainApp(buildSettingsPath(options), {
+        title: "Settings",
+        icon: "settings",
+      });
+    },
+    [navigateToMainApp]
+  );
 
   const goToProjects = useCallback(() => {
     promoteActiveSessionCreatorDraft();

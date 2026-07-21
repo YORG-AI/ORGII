@@ -140,6 +140,7 @@ export function useCloudOrgRemoteSessions(
     authRef.current = auth;
   }, [auth]);
   const signedIn = Boolean(auth);
+  const entrySnapshot = orgId ? entries[orgId] : undefined;
   const fetchOrgSessions = useCallback(
     async (targetOrgId: string): Promise<void> => {
       if (requestState.inFlightOrgIds.has(targetOrgId)) return;
@@ -181,9 +182,11 @@ export function useCloudOrgRemoteSessions(
 
   // Effect re-runs on: scope switch (orgId), sign-in flip, and each Realtime
   // invalidation bump. On a bump the fetch runs regardless of TTL — the
-  // signal means the server HAS newer rows. `lastFetchedVersionRef` keeps a
-  // bump from re-firing after its fetch already ran (entries updates would
-  // otherwise re-trigger via fetchedAt churn).
+  // signal means the server HAS newer rows. `lastFetchedVersionByOrg` keeps a
+  // bump from re-firing after its fetch already ran. `entrySnapshot` is
+  // intentionally a dependency: when a newer invalidation arrives during an
+  // older in-flight request, that request's completion wakes this effect and
+  // lets the queued version fetch instead of stranding it until the 60s TTL.
   useEffect(() => {
     if (!orgId || !signedIn) return;
     const entry = entriesRef.current[orgId];
@@ -199,7 +202,14 @@ export function useCloudOrgRemoteSessions(
     }
     requestState.lastFetchedVersionByOrg.set(orgId, invalidationVersion);
     void fetchOrgSessions(orgId);
-  }, [orgId, signedIn, invalidationVersion, fetchOrgSessions, requestState]);
+  }, [
+    orgId,
+    signedIn,
+    invalidationVersion,
+    entrySnapshot,
+    fetchOrgSessions,
+    requestState,
+  ]);
 
   const refresh = useCallback(() => {
     if (!orgId || !signedIn) return;
@@ -207,6 +217,6 @@ export function useCloudOrgRemoteSessions(
     void fetchOrgSessions(orgId);
   }, [orgId, signedIn, fetchOrgSessions, requestState]);
 
-  const entry = (orgId ? entries[orgId] : undefined) ?? EMPTY_ENTRY;
+  const entry = entrySnapshot ?? EMPTY_ENTRY;
   return { rows: entry.rows, state: entry.state, refresh };
 }

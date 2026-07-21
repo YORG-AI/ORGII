@@ -31,9 +31,12 @@ import { org2CloudOrgsAtom } from "../../../Org2Cloud/org2CloudOrgsAtom";
 import { org2CloudRepoScopesAtom } from "../../../Org2Cloud/org2CloudSyncAtoms";
 import { deleteSession } from "../../../Org2Cloud/org2CloudSyncClient";
 import { org2CloudSyncEngine } from "../../../Org2Cloud/org2CloudSyncEngine";
-import { pickMatchingOrgScope } from "../../collabSyncUtils";
 import { isScopeMatchableImportedSession } from "../../importedSessionScopeMatch";
-import { resolveShareableScopeKeys } from "../../repoScopeResolver";
+import {
+  peekMatchingOrgRepoScope,
+  resolveShareableScopeKeys,
+  useShareableScopeKeyVersion,
+} from "../../repoScopeResolver";
 import {
   PERSONAL_EXCLUDED_TOKEN,
   cloudOrgIdsForSession,
@@ -70,6 +73,9 @@ const MoveToOrgDialog: React.FC<MoveToOrgDialogProps> = ({
   const [scopeKeys, setScopeKeys] = useState<string[] | null | undefined>(
     undefined
   );
+  // Re-render when the provider identity resolver learns that two differently
+  // named GitHub remotes share one fork-network upstream.
+  void useShareableScopeKeyVersion();
 
   const repoPath = session?.repoPath ?? null;
   useEffect(() => {
@@ -229,10 +235,12 @@ const MoveToOrgDialog: React.FC<MoveToOrgDialogProps> = ({
                 // disabled) — the sync engine retracts and drops it on its
                 // next pass. undefined scopeKeys = resolution in flight,
                 // keep the row disabled meanwhile.
+                const matchedScope = peekMatchingOrgRepoScope(
+                  scopeKeys,
+                  scopesByOrg[org.orgId]
+                );
                 const inScope =
-                  scopeKeys !== undefined &&
-                  pickMatchingOrgScope(scopeKeys, scopesByOrg[org.orgId]) !==
-                    null;
+                  matchedScope !== null && matchedScope !== undefined;
                 const disabled = busyOrgId === org.orgId || !inScope;
                 return (
                   <div

@@ -618,22 +618,18 @@
         "inviteExhausted": "Este convite não tem mais usos."
       }
     },
-    "defaultAccess": {
-      "label": "Nível de sincronização padrão",
-      "help": "Aplica-se às sessões deste dispositivo correspondentes a um escopo de repositório e sem ajuste próprio. Em “Desligado”, as sessões ficam locais até você ativar"
-    },
     "syncLevel": {
       "menuItem": "Nível de sincronização na nuvem…",
       "title": "Nível de sincronização na nuvem",
       "hint": "Escolha o que esta sessão compartilha com cada organização na nuvem — nada, apenas metadados ou o replay completo — e quem pode vê-la.",
-      "orgDefaultOption": "Padrão da organização ({{mode}})",
       "modeOff": "Desligado",
       "modeMetadata": "Apenas metadados",
       "modeFullReplay": "Replay completo",
       "visibilityOrg": "Todos na organização",
       "visibilityRestricted": "Somente eu",
       "taggedNote": "Esta sessão foi movida para esta organização; enquanto estiver marcada, compartilha ao menos os metadados.",
-      "floorNote": "O administrador da sua organização exige compartilhar pelo menos {{mode}}."
+      "floorNote": "O administrador da sua organização exige compartilhar pelo menos {{mode}}.",
+      "orgMinimumOption": "Mínimo da organização ({{mode}})"
     },
     "share": {
       "menuItem": "Compartilhamento na nuvem…",

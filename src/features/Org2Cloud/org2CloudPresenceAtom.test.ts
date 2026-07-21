@@ -68,6 +68,30 @@ describe("resolveCloudSessionRefs", () => {
       { orgId: "source-org", bareSessionId: "source-session" },
     ]);
   });
+
+  it("maps an untagged owner session through its server-published cloud row", () => {
+    const session = { session_id: "session-1" } as Session;
+
+    expect(
+      resolveCloudSessionRefs(
+        session,
+        [],
+        [
+          {
+            orgId: "org-a",
+            ownerUserId: "user-owner",
+            sourceSessionId: "session-1",
+          },
+          {
+            orgId: "org-b",
+            ownerUserId: "user-other",
+            sourceSessionId: "session-1",
+          },
+        ],
+        "user-owner"
+      )
+    ).toEqual([{ orgId: "org-a", bareSessionId: "session-1" }]);
+  });
 });
 
 describe("latestPresenceMeta", () => {

@@ -438,154 +438,159 @@ export function CloudMembersSection({
             {memberError}
           </div>
         ) : null}
-        {members.map((member) => {
-          const isSelf = currentUserId === member.userId;
-          const targetIsOwner = member.role === "owner";
-          const canManageMember =
-            isAdmin && !isSelf && !targetIsOwner && member.status === "active";
-          const canLeave = isSelf && !isOwner;
-          return (
-            <div
-              key={member.userId}
-              data-testid="cloud-org-member-row"
-              data-member-id={member.userId}
-            >
-              <SectionRow
-                label={
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span className="min-w-0 truncate">
-                      {member.displayName ?? member.userId}
-                    </span>
-                    {targetIsOwner ? (
-                      <CloudBadge>
-                        {t("cloud.orgManagement.members.ownerTag")}
-                      </CloudBadge>
-                    ) : null}
-                    {isSelf ? (
-                      <CloudBadge>
-                        {t("cloud.orgManagement.members.youTag")}
-                      </CloudBadge>
-                    ) : null}
-                  </span>
-                }
+        {members
+          .filter((member) => member.status === "active")
+          .map((member) => {
+            const isSelf = currentUserId === member.userId;
+            const targetIsOwner = member.role === "owner";
+            const canManageMember =
+              isAdmin &&
+              !isSelf &&
+              !targetIsOwner &&
+              member.status === "active";
+            const canLeave = isSelf && !isOwner;
+            return (
+              <div
+                key={member.userId}
+                data-testid="cloud-org-member-row"
+                data-member-id={member.userId}
               >
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  {canManageMember ? (
-                    <>
-                      {/* Per-member sharing floor: the minimum this member
+                <SectionRow
+                  label={
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="min-w-0 truncate">
+                        {member.displayName ?? member.userId}
+                      </span>
+                      {targetIsOwner ? (
+                        <CloudBadge>
+                          {t("cloud.orgManagement.members.ownerTag")}
+                        </CloudBadge>
+                      ) : null}
+                      {isSelf ? (
+                        <CloudBadge>
+                          {t("cloud.orgManagement.members.youTag")}
+                        </CloudBadge>
+                      ) : null}
+                    </span>
+                  }
+                >
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    {canManageMember ? (
+                      <>
+                        {/* Per-member sharing floor: the minimum this member
                           must share at. The wrapper span carries the hover
                           tooltip (Select has no title prop). */}
-                      <span
-                        title={t("cloud.orgManagement.members.floorTooltip")}
-                      >
+                        <span
+                          title={t("cloud.orgManagement.members.floorTooltip")}
+                        >
+                          <Select
+                            size="default"
+                            value={
+                              // A member override below the org floor is masked
+                              // by it; show the org-minimum sentinel instead of
+                              // a hidden sub-floor option.
+                              member.sharingFloor &&
+                              isAccessModeAtLeast(member.sharingFloor, orgFloor)
+                                ? member.sharingFloor
+                                : COLLAB_SESSION_ACCESS_MODE.OFF
+                            }
+                            options={memberFloorOptions}
+                            style={MEMBER_ROLE_CONTROL_STYLE}
+                            disabled={Boolean(updatingFloorUserId)}
+                            loading={updatingFloorUserId === member.userId}
+                            dataTestId={`cloud-org-member-floor-${member.userId}`}
+                            onChange={(value) =>
+                              void handleUpdateMemberFloor(
+                                member,
+                                value as CollabSessionAccessMode
+                              )
+                            }
+                          />
+                        </span>
                         <Select
                           size="default"
-                          value={
-                            // A member override below the org floor is masked
-                            // by it; show the org-minimum sentinel instead of
-                            // a hidden sub-floor option.
-                            member.sharingFloor &&
-                            isAccessModeAtLeast(member.sharingFloor, orgFloor)
-                              ? member.sharingFloor
-                              : COLLAB_SESSION_ACCESS_MODE.OFF
-                          }
-                          options={memberFloorOptions}
+                          value={member.role}
+                          options={roleOptions}
                           style={MEMBER_ROLE_CONTROL_STYLE}
-                          disabled={Boolean(updatingFloorUserId)}
-                          loading={updatingFloorUserId === member.userId}
-                          dataTestId={`cloud-org-member-floor-${member.userId}`}
-                          onChange={(value) =>
-                            void handleUpdateMemberFloor(
-                              member,
-                              value as CollabSessionAccessMode
-                            )
-                          }
+                          disabled={Boolean(updatingRoleUserId)}
+                          loading={updatingRoleUserId === member.userId}
+                          dataTestId={`cloud-org-member-role-${member.userId}`}
+                          onChange={(value) => {
+                            if (isCloudAssignableRole(value)) {
+                              void handleRoleChange(member, value);
+                            }
+                          }}
                         />
+                        <Button
+                          htmlType="button"
+                          size="default"
+                          variant="secondary"
+                          disabled={Boolean(removingUserId)}
+                          loading={removingUserId === member.userId}
+                          data-testid={`cloud-org-member-remove-${member.userId}`}
+                          onClick={() => void handleRemove(member)}
+                        >
+                          {t("cloud.orgManagement.members.remove")}
+                        </Button>
+                      </>
+                    ) : (
+                      <span className={SECTION_VALUE_SMALL_MUTED_CLASSES}>
+                        {member.role} · {member.status}
                       </span>
-                      <Select
+                    )}
+                    {canLeave ? (
+                      <Button
+                        htmlType="button"
                         size="default"
-                        value={member.role}
-                        options={roleOptions}
-                        style={MEMBER_ROLE_CONTROL_STYLE}
-                        disabled={Boolean(updatingRoleUserId)}
-                        loading={updatingRoleUserId === member.userId}
-                        dataTestId={`cloud-org-member-role-${member.userId}`}
-                        onChange={(value) => {
-                          if (isCloudAssignableRole(value)) {
-                            void handleRoleChange(member, value);
-                          }
-                        }}
-                      />
+                        variant="danger"
+                        appearance="ghost"
+                        disabled={leavingOrg || confirmingLeave}
+                        data-testid="cloud-org-leave"
+                        onClick={() => setConfirmingLeave(true)}
+                      >
+                        {t("cloud.orgManagement.leave.action")}
+                      </Button>
+                    ) : null}
+                  </div>
+                </SectionRow>
+                {isSelf && confirmingLeave ? (
+                  <SectionRow
+                    label={t("cloud.orgManagement.leave.confirmTitle")}
+                    description={t("cloud.orgManagement.leave.warning")}
+                    layout="vertical"
+                  >
+                    <div className={SECTION_ACTION_GAP_CLASSES}>
+                      <Button
+                        htmlType="button"
+                        size="default"
+                        variant="danger"
+                        disabled={leavingOrg}
+                        loading={leavingOrg}
+                        data-testid="cloud-org-leave-confirm"
+                        onClick={() => void handleLeaveOrg()}
+                      >
+                        {t("cloud.orgManagement.leave.confirm")}
+                      </Button>
                       <Button
                         htmlType="button"
                         size="default"
                         variant="secondary"
-                        disabled={Boolean(removingUserId)}
-                        loading={removingUserId === member.userId}
-                        data-testid={`cloud-org-member-remove-${member.userId}`}
-                        onClick={() => void handleRemove(member)}
+                        disabled={leavingOrg}
+                        onClick={() => setConfirmingLeave(false)}
                       >
-                        {t("cloud.orgManagement.members.remove")}
+                        {t("cloud.orgManagement.leave.cancel")}
                       </Button>
-                    </>
-                  ) : (
-                    <span className={SECTION_VALUE_SMALL_MUTED_CLASSES}>
-                      {member.role} · {member.status}
-                    </span>
-                  )}
-                  {canLeave ? (
-                    <Button
-                      htmlType="button"
-                      size="default"
-                      variant="danger"
-                      appearance="ghost"
-                      disabled={leavingOrg || confirmingLeave}
-                      data-testid="cloud-org-leave"
-                      onClick={() => setConfirmingLeave(true)}
-                    >
-                      {t("cloud.orgManagement.leave.action")}
-                    </Button>
-                  ) : null}
-                </div>
-              </SectionRow>
-              {isSelf && confirmingLeave ? (
-                <SectionRow
-                  label={t("cloud.orgManagement.leave.confirmTitle")}
-                  description={t("cloud.orgManagement.leave.warning")}
-                  layout="vertical"
-                >
-                  <div className={SECTION_ACTION_GAP_CLASSES}>
-                    <Button
-                      htmlType="button"
-                      size="default"
-                      variant="danger"
-                      disabled={leavingOrg}
-                      loading={leavingOrg}
-                      data-testid="cloud-org-leave-confirm"
-                      onClick={() => void handleLeaveOrg()}
-                    >
-                      {t("cloud.orgManagement.leave.confirm")}
-                    </Button>
-                    <Button
-                      htmlType="button"
-                      size="default"
-                      variant="secondary"
-                      disabled={leavingOrg}
-                      onClick={() => setConfirmingLeave(false)}
-                    >
-                      {t("cloud.orgManagement.leave.cancel")}
-                    </Button>
+                    </div>
+                  </SectionRow>
+                ) : null}
+                {isSelf && leaveError ? (
+                  <div className="pb-2 text-[12px] text-danger-6">
+                    {leaveError}
                   </div>
-                </SectionRow>
-              ) : null}
-              {isSelf && leaveError ? (
-                <div className="pb-2 text-[12px] text-danger-6">
-                  {leaveError}
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
+                ) : null}
+              </div>
+            );
+          })}
       </div>
     </SectionContainer>
   );

@@ -111,7 +111,7 @@ describe("buildCloudSessionFetchClient", () => {
     expect(snapshot.segments.map((s) => s.isTail)).toEqual([false, true]);
   });
 
-  it("guest path: threads the share token into the RPC options (0012)", async () => {
+  it("registered non-member path threads JWT and share token (0012)", async () => {
     getSessionEventsMock.mockResolvedValue({
       epoch: 1,
       frozenSeq: 0,
@@ -119,8 +119,7 @@ describe("buildCloudSessionFetchClient", () => {
       count: 0,
       segments: [],
     });
-    // Anon fetch client — the token is the whole credential.
-    const client = buildCloudSessionFetchClient(null);
+    const client = buildCloudSessionFetchClient("jwt-non-member");
 
     await client.getSessionEventSegments({
       orgId: "org-1",
@@ -129,14 +128,14 @@ describe("buildCloudSessionFetchClient", () => {
     });
 
     expect(getSessionEventsMock).toHaveBeenCalledWith(
-      null,
+      "jwt-non-member",
       "org-1",
       "agentsession-abc",
       { shareToken: "t".repeat(64) }
     );
   });
 
-  it("pins guest segment reads to the endpoint used for resolve", async () => {
+  it("pins registered-link segment reads to the endpoint used for resolve", async () => {
     getSessionEventsMock.mockResolvedValue({
       epoch: 1,
       frozenSeq: 0,
@@ -150,7 +149,7 @@ describe("buildCloudSessionFetchClient", () => {
       anonKey: "custom-anon",
       isOfficial: false,
     };
-    const client = buildCloudSessionFetchClient(null, endpoint);
+    const client = buildCloudSessionFetchClient("jwt-non-member", endpoint);
 
     await client.getSessionEventSegments({
       orgId: "org-1",
@@ -159,7 +158,7 @@ describe("buildCloudSessionFetchClient", () => {
     });
 
     expect(getSessionEventsMock).toHaveBeenCalledWith(
-      null,
+      "jwt-non-member",
       "org-1",
       "agentsession-abc",
       { shareToken: "t".repeat(64), endpoint }

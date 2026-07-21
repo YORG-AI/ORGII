@@ -26,18 +26,13 @@ import React, {
   useMemo,
 } from "react";
 
-import { useUserIntentSubmit } from "@src/engines/ChatPanel/hooks/useWorkspaceChat/useUserIntentSubmit";
-import { createLogger } from "@src/hooks/logger";
 import { COLLAB_SESSION_ACCESS_MODE } from "@src/store/collaboration/types";
 import type { Session } from "@src/store/session/sessionAtom/types";
 
 import { stripCopyEventNamespace } from "../../TeamCollaboration/copyEventId";
 import { getSessionForkedFrom } from "../../TeamCollaboration/forkSession";
 import { collectAddressableThreads } from "../addressComments";
-import {
-  addressRunActiveAtom,
-  runAddressCommentsRound,
-} from "../addressCommentsRun";
+import { addressRunActiveAtom } from "../addressCommentsRun";
 import { org2CloudAuthAtom } from "../org2CloudAuthAtom";
 import type {
   CloudCommentResolution,
@@ -56,8 +51,7 @@ import {
   type SessionCommentTarget,
   useSessionCommentTarget,
 } from "../sessionCommentTarget";
-
-const log = createLogger("SessionComments");
+import { useOwnedCloudCommentAgentRun } from "../useOwnedCloudCommentAgentRun";
 
 const CLOUD_ADMIN_ROLES = new Set(["owner", "admin"]);
 
@@ -103,13 +97,15 @@ export interface SessionCommentsContextValue {
   refresh: () => void;
   addComment: (input: AddCommentInput) => Promise<CloudSessionComment>;
   /**
-   * Batch follow-up (design 2026-07-11): address every unresolved thread
-   * IN PLACE as one agent round on the open writable session, then post
-   * one parsed reply per thread. Null ⇒ not available here (read-only
-   * replay or nothing unresolved).
+   * Batch follow-up (design 2026-07-11): address every unresolved thread as
+   * one owner-only agent round, then post one parsed reply per thread. A
+   * writable source/fork runs in place; immutable owner history first forks.
+   * Null ⇒ not available here (non-owner/import or nothing unresolved).
    */
   addressAllComments: (() => Promise<void>) | null;
   addressRunActive: boolean;
+  /** Null means every unresolved thread; otherwise only these heads are live. */
+  addressRunSelectedHeadIds: ReadonlySet<string> | null;
   unresolvedThreadCount: number;
   editComment: (commentId: string, body: string) => Promise<void>;
   deleteComment: (commentId: string) => Promise<void>;
@@ -234,38 +230,7 @@ export const SessionCommentsProvider: React.FC<
     originSessionId
   );
   const viewer = useSessionCommentViewer(target);
-  const viewerOwnsCommentSession = Boolean(
-    session &&
-    target &&
-    !session.importedFrom &&
-    !originSessionId &&
-    session.session_id === target.sessionId &&
-    viewerOwnsSession
-  );
   const setPresentRegistry = useSetAtom(sessionCommentPresentEventIdsAtom);
-  const submitUserIntent = useUserIntentSubmit({
-    getSessionId: () => localSessionId,
-  });
-  const dispatchAddressTurn = useCallback(
-    async ({
-      displayContent,
-      agentContent,
-      turnIntentId,
-    }: {
-      displayContent: string;
-      agentContent: string;
-      turnIntentId: string;
-    }): Promise<void> => {
-      if (!localSessionId) throw new Error("no local session for @agent turn");
-      await submitUserIntent({
-        sessionId: localSessionId,
-        displayContent,
-        agentContent,
-        turnIntentId,
-      });
-    },
-    [localSessionId, submitUserIntent]
-  );
 
   // Publish the replay stream's event ids for the header notes dialog —
   // only for cloud targets, so ordinary sessions cause zero registry churn.
@@ -301,53 +266,50 @@ export const SessionCommentsProvider: React.FC<
     [comments, presentEventIds]
   );
 
+  const { available: ownerAgentAvailable, run: runOwnerAgent } =
+    useOwnedCloudCommentAgentRun({
+      session,
+      target,
+      viewerOwnsSession,
+      onFinished: refresh,
+    });
+
   const requestAgent = useCallback(
     async (commentId: string, instruction?: string): Promise<void> => {
-      if (!target || !session || !viewerOwnsCommentSession) return;
-      // Owner-only: use this session's ordinary local account/model and queue.
-      void runAddressCommentsRound({
-        orgId: target.orgId,
-        cloudSessionId: target.sessionId,
-        localSessionId: session.session_id,
-        dispatchTurn: dispatchAddressTurn,
+      await runOwnerAgent({
         selectedHeadIds: [commentId],
         ...(instruction !== undefined ? { instruction } : {}),
-      })
-        .then(() => refresh())
-        .catch((error) => {
-          log.warn(
-            `personal @agent round failed for ${commentId}: ${error instanceof Error ? error.message : String(error)}`
-          );
-        });
+      });
     },
-    [target, session, viewerOwnsCommentSession, dispatchAddressTurn, refresh]
+    [runOwnerAgent]
   );
 
-  // --- Address comments (batch in-place follow-up) ---
+  // --- Address comments (batch owner-only follow-up) ---
   const addressRunActiveMap = useAtomValue(addressRunActiveAtom);
-  const addressRunActive = Boolean(
-    localSessionId && addressRunActiveMap[localSessionId]
+  const addressRunActivity = localSessionId
+    ? addressRunActiveMap[localSessionId]
+    : undefined;
+  const addressRunActive = addressRunActivity !== undefined;
+  const addressRunSelectedHeadIds = useMemo(
+    () =>
+      addressRunActivity?.selectedHeadIds === null ||
+      addressRunActivity === undefined
+        ? null
+        : new Set(addressRunActivity.selectedHeadIds),
+    [addressRunActivity]
   );
   const addressableThreads = useMemo(
     () => collectAddressableThreads(comments),
     [comments]
   );
   const unresolvedThreadCount = addressableThreads.length;
-  // Parent comments shown on imports/forks never spend this viewer's account.
-  const canAddressInPlace = Boolean(
-    session && viewerOwnsCommentSession && target && unresolvedThreadCount > 0
+  const canAddressComments = Boolean(
+    ownerAgentAvailable && unresolvedThreadCount > 0
   );
 
   const addressAllCommentsImpl = useCallback(async (): Promise<void> => {
-    if (!target || !session) return;
-    await runAddressCommentsRound({
-      orgId: target.orgId,
-      cloudSessionId: target.sessionId,
-      localSessionId: session.session_id,
-      dispatchTurn: dispatchAddressTurn,
-    });
-    refresh();
-  }, [target, session, dispatchAddressTurn, refresh]);
+    await runOwnerAgent();
+  }, [runOwnerAgent]);
 
   const value = useMemo<SessionCommentsContextValue | null>(() => {
     if (!target) return null;
@@ -365,10 +327,11 @@ export const SessionCommentsProvider: React.FC<
       editComment,
       deleteComment,
       resolveComment,
-      canRunAgent: viewer.viewerUserId !== null && viewerOwnsCommentSession,
+      canRunAgent: viewer.viewerUserId !== null && ownerAgentAvailable,
       requestAgent,
-      addressAllComments: canAddressInPlace ? addressAllCommentsImpl : null,
+      addressAllComments: canAddressComments ? addressAllCommentsImpl : null,
       addressRunActive,
+      addressRunSelectedHeadIds,
       unresolvedThreadCount,
     };
   }, [
@@ -384,10 +347,11 @@ export const SessionCommentsProvider: React.FC<
     deleteComment,
     resolveComment,
     requestAgent,
-    viewerOwnsCommentSession,
-    canAddressInPlace,
+    ownerAgentAvailable,
+    canAddressComments,
     addressAllCommentsImpl,
     addressRunActive,
+    addressRunSelectedHeadIds,
     unresolvedThreadCount,
   ]);
 

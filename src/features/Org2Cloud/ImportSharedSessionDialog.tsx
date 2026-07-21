@@ -1,4 +1,4 @@
-/** Paste-a-share-link entry point: the parsed link is queued as a unique attempt; `CloudShareImportDialog` owns the resolve → import flow (anon-capable). */
+/** Paste-a-share-link entry point: the parsed link is queued as a unique attempt; `CloudShareImportDialog` owns the registered-user resolve → import flow. */
 import Modal from "@/src/scaffold/ModalSystem";
 import { useSetAtom } from "jotai";
 import React, { useCallback, useState } from "react";

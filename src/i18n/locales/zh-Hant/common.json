@@ -544,6 +544,10 @@
     "failedToRenderEvent": "渲染事件失敗",
     "unknown": "未知錯誤",
     "agentRequestFailed": "Agent 請求失敗",
+    "codexLoginExpired": "Codex 登入已過期",
+    "codexLoginExpiredDescription": "重新連接 Codex 以修復此帳戶。儲存新的登入資訊後，你將返回此工作階段。",
+    "reconnectCodex": "重新連接 Codex",
+    "technicalDetails": "技術詳細資訊",
     "failedToCopy": "複製失敗",
     "api": {
       "titles": {

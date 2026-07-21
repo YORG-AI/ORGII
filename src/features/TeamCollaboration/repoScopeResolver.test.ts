@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getGitRemotes } from "@src/api/http/git/remotes";
+import { resolveGitHubRepoNetworkIdentityLocal } from "@src/api/tauri/github";
 
 import {
   clearShareableScopeKeyCache,
+  peekMatchingOrgRepoScope,
   peekShareableScopeKey,
   resolveLocalCheckoutForScopeKey,
+  resolveMatchingOrgRepoScope,
   resolveShareableScopeKey,
   resolveShareableScopeKeys,
   subscribeShareableScopeKeys,
@@ -14,8 +17,17 @@ import {
 vi.mock("@src/api/http/git/remotes", () => ({
   getGitRemotes: vi.fn(),
 }));
+vi.mock("@src/api/tauri/github", () => ({
+  resolveGitHubRepoNetworkIdentityLocal: vi.fn(),
+}));
 
 const remotesMock = vi.mocked(getGitRemotes);
+const networkIdentityMock = vi.mocked(resolveGitHubRepoNetworkIdentityLocal);
+
+beforeEach(() => {
+  networkIdentityMock.mockRejectedValue(new Error("not configured"));
+  clearShareableScopeKeyCache();
+});
 
 function remoteEntry(name: string, url: string) {
   return { name, url, fetch_url: url, push_url: url };
@@ -182,6 +194,26 @@ describe("resolveLocalCheckoutForScopeKey (fork relay: scope key → local path)
     ).resolves.toBe("/repo/fork");
   });
 
+  it("matches differently named GitHub forks through their common source", async () => {
+    networkIdentityMock.mockImplementation(async (fullName) => ({
+      full_name: fullName,
+      source_full_name: "yorgai/ORG2",
+    }));
+    const resolve = resolverFor({
+      "C:\\Repos\\ORGII": ["github.com/yorgai/org2"],
+    });
+
+    await expect(
+      resolveLocalCheckoutForScopeKey(
+        "github.com/vantanode/org2",
+        ["C:\\Repos\\ORGII"],
+        resolve
+      )
+    ).resolves.toBe("C:\\Repos\\ORGII");
+    expect(networkIdentityMock).toHaveBeenCalledWith("yorgai/org2");
+    expect(networkIdentityMock).toHaveBeenCalledWith("vantanode/org2");
+  });
+
   it("returns null when no local checkout matches (fork opens without a workspace)", async () => {
     await expect(
       resolveLocalCheckoutForScopeKey(
@@ -238,5 +270,40 @@ describe("resolveLocalCheckoutForScopeKey (fork relay: scope key → local path)
         resolve
       )
     ).resolves.toBe("/repo/alpha");
+  });
+});
+
+describe("GitHub fork-network org scope matching", () => {
+  it("returns the original wire scope after canonical upstreams match", async () => {
+    networkIdentityMock.mockImplementation(async (fullName) => ({
+      full_name: fullName,
+      source_full_name: "yorgai/ORG2",
+    }));
+
+    await expect(
+      resolveMatchingOrgRepoScope(
+        ["github.com/yorgai/org2"],
+        ["github.com/vantanode/org2"]
+      )
+    ).resolves.toBe("github.com/vantanode/org2");
+    expect(
+      peekMatchingOrgRepoScope(
+        ["github.com/yorgai/org2"],
+        ["github.com/vantanode/org2"]
+      )
+    ).toBe("github.com/vantanode/org2");
+  });
+
+  it("does not merge repositories from different fork networks", async () => {
+    networkIdentityMock.mockImplementation(async (fullName) => ({
+      full_name: fullName,
+      source_full_name: fullName,
+    }));
+    await expect(
+      resolveMatchingOrgRepoScope(
+        ["github.com/acme/one"],
+        ["github.com/acme/two"]
+      )
+    ).resolves.toBeNull();
   });
 });

@@ -114,12 +114,10 @@ describe("reconcileOrg2CloudPersistedState", () => {
     const store = createStore();
     store.set(org2CloudAccessSettingsAtom, {
       [LIVE]: {
-        defaultMode: "metadata_only",
         sessionModes: {},
         sessionVisibility: {},
       },
       [ZOMBIE]: {
-        defaultMode: "full_replay",
         sessionModes: {},
         sessionVisibility: {},
       },
@@ -136,7 +134,6 @@ describe("reconcileOrg2CloudPersistedState", () => {
       [LIVE, ZOMBIE].sort()
     );
     expect(store.get(org2CloudAccessSettingsAtom)[ZOMBIE]).toEqual({
-      defaultMode: "full_replay",
       sessionModes: {},
       sessionVisibility: {},
     });

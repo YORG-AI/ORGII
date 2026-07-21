@@ -53,8 +53,14 @@ export interface RefreshedTokens {
   expiresAt: number;
 }
 
+interface RefreshAttemptResult {
+  tokens: RefreshedTokens | null;
+  /** GoTrue explicitly rejected the refresh credential (400/401). */
+  permanentlyRejected: boolean;
+}
+
 let inFlightRefresh:
-  | { key: string; promise: Promise<RefreshedTokens | null> }
+  | { key: string; promise: Promise<RefreshAttemptResult> }
   | undefined;
 
 type CloudRpcEndpoint = Pick<
@@ -295,14 +301,14 @@ export async function getEntitlementState(
  * Standard Supabase (GoTrue) refresh-token exchange. Plain apikey header —
  * no PostgREST profile headers. `null` on any failure.
  */
-export async function refreshSession(
+async function refreshSessionAttempt(
   refreshToken: string,
   endpoint: { supabaseUrl: string; anonKey: string } = getCloudEndpoint()
-): Promise<RefreshedTokens | null> {
+): Promise<RefreshAttemptResult> {
   const key = `${endpoint.supabaseUrl}\0${endpoint.anonKey}\0${refreshToken}`;
   if (inFlightRefresh?.key === key) return inFlightRefresh.promise;
 
-  const promise = (async (): Promise<RefreshedTokens | null> => {
+  const promise = (async (): Promise<RefreshAttemptResult> => {
     try {
       const response = await fetch(
         `${endpoint.supabaseUrl}/auth/v1/token?grant_type=refresh_token`,
@@ -317,21 +323,28 @@ export async function refreshSession(
       );
       if (!response.ok) {
         log.warn(`token refresh failed with status ${response.status}`);
-        return null;
+        return {
+          tokens: null,
+          permanentlyRejected:
+            response.status === 400 || response.status === 401,
+        };
       }
       const parsed = RefreshResponseSchema.safeParse(await response.json());
       if (!parsed.success) {
         log.warn("token refresh returned unexpected shape");
-        return null;
+        return { tokens: null, permanentlyRejected: false };
       }
       return {
-        accessToken: parsed.data.access_token,
-        refreshToken: parsed.data.refresh_token,
-        expiresAt: parsed.data.expires_at,
+        tokens: {
+          accessToken: parsed.data.access_token,
+          refreshToken: parsed.data.refresh_token,
+          expiresAt: parsed.data.expires_at,
+        },
+        permanentlyRejected: false,
       };
     } catch (error) {
       log.warn("token refresh request error:", error);
-      return null;
+      return { tokens: null, permanentlyRejected: false };
     }
   })();
   inFlightRefresh = { key, promise };
@@ -342,6 +355,18 @@ export async function refreshSession(
   }
 }
 
+export async function refreshSession(
+  refreshToken: string,
+  endpoint: { supabaseUrl: string; anonKey: string } = getCloudEndpoint()
+): Promise<RefreshedTokens | null> {
+  return (await refreshSessionAttempt(refreshToken, endpoint)).tokens;
+}
+
+export interface EnsureFreshSessionOptions {
+  /** Called only when GoTrue explicitly rejects the refresh credential. */
+  onRefreshRejected?: () => void;
+}
+
 /**
  * Return `state` unchanged while the access token is comfortably valid;
  * otherwise refresh and return the updated state. The CALLER persists the
@@ -349,16 +374,21 @@ export async function refreshSession(
  * refresh failed — the caller decides whether to sign the user out.
  */
 export async function ensureFreshSession(
-  state: Org2CloudAuthState
+  state: Org2CloudAuthState,
+  options?: EnsureFreshSessionOptions
 ): Promise<Org2CloudAuthState | null> {
   const nowSeconds = Date.now() / 1000;
   if (state.expiresAt - nowSeconds > REFRESH_SKEW_SECONDS) {
     return state;
   }
-  const refreshed = await refreshSession(state.refreshToken, {
+  const attempt = await refreshSessionAttempt(state.refreshToken, {
     supabaseUrl: state.supabaseUrl,
     anonKey: state.supabaseAnonKey,
   });
+  const refreshed = attempt.tokens;
+  if (!refreshed && attempt.permanentlyRejected) {
+    options?.onRefreshRejected?.();
+  }
   if (!refreshed) return null;
   return {
     ...state,

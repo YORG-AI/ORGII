@@ -399,7 +399,7 @@ fn resolve_codex_session_path(conn: &Connection, file_stem: &str) -> Result<Path
 }
 
 fn codex_sessions_dirs() -> Result<Vec<PathBuf>, String> {
-    let home = dirs::home_dir().ok_or_else(|| "Home directory not found".to_string())?;
+    let home = app_paths::external_history_home_dir();
     let mut dirs = codex_sessions_dir_candidates(&home);
     // ORGII-managed own-key Codex runs redirect CODEX_HOME into per-account
     // profile dirs; native-transcript mode reads those rollouts back here.

@@ -618,22 +618,18 @@
         "inviteExhausted": "Diese Einladung hat keine Verwendungen mehr."
       }
     },
-    "defaultAccess": {
-      "label": "Standard-Sync-Stufe",
-      "help": "Gilt für Sessions dieses Geräts, die über den Repo-Scope zugeordnet sind und keine eigene Einstellung haben. Mit „Aus“ bleiben Sessions lokal, bis du dich aktiv dafür entscheidest"
-    },
     "syncLevel": {
       "menuItem": "Cloud-Sync-Stufe…",
       "title": "Cloud-Sync-Stufe",
       "hint": "Lege je Cloud-Organisation fest, was diese Session teilt — nichts, nur Metadaten oder das vollständige Replay — und wer sie sehen kann.",
-      "orgDefaultOption": "Organisationsstandard ({{mode}})",
       "modeOff": "Aus",
       "modeMetadata": "Nur Metadaten",
       "modeFullReplay": "Vollständiges Replay",
       "visibilityOrg": "Alle in der Organisation",
       "visibilityRestricted": "Nur ich",
       "taggedNote": "Diese Session wurde in diese Organisation verschoben und teilt daher mindestens Metadaten, solange sie markiert ist.",
-      "floorNote": "Der Administrator deiner Organisation verlangt mindestens {{mode}}."
+      "floorNote": "Der Administrator deiner Organisation verlangt mindestens {{mode}}.",
+      "orgMinimumOption": "Organisationsminimum ({{mode}})"
     },
     "share": {
       "menuItem": "Cloud-Freigabe…",

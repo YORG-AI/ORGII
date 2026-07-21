@@ -16,7 +16,10 @@ import {
   TerminalNewSessionSplitButton,
 } from "@src/modules/WorkStation/shared";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
-import { codeEditorTerminalTargetAtom } from "@src/store/workstation/codeEditor";
+import {
+  clearTerminalTargetReferencesAtom,
+  codeEditorTerminalTargetAtom,
+} from "@src/store/workstation/codeEditor";
 
 const TerminalCore = React.lazy(
   () => import("@/src/engines/TerminalCore/exports")
@@ -41,6 +44,9 @@ const TerminalMainContent: React.FC<TerminalMainContentProps> = ({
   const { t } = useTranslation();
   const terminalTarget = useAtomValue(codeEditorTerminalTargetAtom);
   const setTerminalTarget = useSetAtom(codeEditorTerminalTargetAtom);
+  const clearTerminalTargetReferences = useSetAtom(
+    clearTerminalTargetReferencesAtom
+  );
 
   const activePtySession = terminalState.activeSession;
   const terminalKindLabel =
@@ -77,9 +83,18 @@ const TerminalMainContent: React.FC<TerminalMainContentProps> = ({
       setTerminalTarget(null);
       return;
     }
-    terminalState.closeSession(terminalState.activeSessionId);
-    setTerminalTarget(null);
-  }, [terminalState, terminalTarget, setTerminalTarget]);
+    const ptySessionId =
+      terminalTarget?.kind === "pty"
+        ? terminalTarget.ptySessionId
+        : terminalState.activeSessionId;
+    terminalState.closeSession(ptySessionId);
+    if (ptySessionId) clearTerminalTargetReferences(ptySessionId);
+  }, [
+    clearTerminalTargetReferences,
+    setTerminalTarget,
+    terminalState,
+    terminalTarget,
+  ]);
 
   const handleOpenFileLink = useCallback<
     NonNullable<TerminalCoreProps["onOpenFileLink"]>

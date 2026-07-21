@@ -519,7 +519,8 @@
       "agentError": "请先选择本机 Agent 再分叉。",
       "backendError": "历史已复制，但可运行的分叉会话注册失败。请重试。",
       "parentOpenUnavailable": "无法从此分叉打开源会话。",
-      "replayError": "此会话尚无完整回放。请让所有者共享完整回放后重试。"
+      "replayError": "此会话尚无完整回放。请让所有者共享完整回放后重试。",
+      "openParentButton": "打开来自 {{name}} 的源会话"
     }
   },
   "cloud": {
@@ -708,22 +709,18 @@
         "inviteExhausted": "该邀请的使用次数已用完。"
       }
     },
-    "defaultAccess": {
-      "label": "默认同步级别",
-      "help": "适用于本设备上按仓库范围匹配、且没有单独设置的会话。选择“关闭”时，会话保留在本地，直到你主动开启"
-    },
     "syncLevel": {
       "menuItem": "云同步级别…",
       "title": "云同步级别",
       "hint": "为每个云组织选择这个会话共享什么——不共享、仅元数据或完整回放——以及谁可以看到它。",
-      "orgDefaultOption": "组织默认（{{mode}}）",
       "modeOff": "关闭",
       "modeMetadata": "仅元数据",
       "modeFullReplay": "完整回放",
       "visibilityOrg": "组织内所有人",
       "visibilityRestricted": "仅自己",
       "taggedNote": "该会话已被移入此组织，在保持标记期间至少会共享元数据。",
-      "floorNote": "组织管理员要求至少分享到{{mode}}。"
+      "floorNote": "组织管理员要求至少分享到{{mode}}。",
+      "orgMinimumOption": "组织最低要求（{{mode}}）"
     },
     "share": {
       "menuItem": "云端分享…",
@@ -818,6 +815,7 @@
       "help": "设置本组织仓库中的会话，成员最少必须分享到什么级别。成员不能设得更低。“无最低要求”保持当前行为",
       "optionNone": "无最低要求",
       "memberNote": "组织管理员要求至少分享到{{mode}}，因此你不能把会话设得比这更低"
-    }
+    },
+    "signedInAs": "已登录：{{name}}"
   }
 }

@@ -449,8 +449,12 @@ describe("Cloud org rendered UI (managed ORG2 Cloud)", function () {
       CLOUD_FETCH_TIMEOUT_MS
     );
     await waitForRendered(
+      '[data-testid="cloud-org-sharing-floor"]',
+      "minimum sharing level section"
+    );
+    await waitForGone(
       '[data-testid="cloud-org-default-access"]',
-      "default sync level section"
+      "removed default sync level section"
     );
     await selectCloudOrgManagementTab("members", "members");
     await waitForRendered(

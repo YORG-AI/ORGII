@@ -16,6 +16,8 @@
  */
 import { z } from "zod/v4";
 
+import { runtimeInstanceProfileForIdentifier } from "@src/config/runtimeInstance";
+
 /** Official managed Supabase project (the default endpoint). */
 export const ORG2_CLOUD_OFFICIAL_SUPABASE_URL =
   "https://fpdyejwbiriliuqqcjoy.supabase.co";
@@ -37,7 +39,21 @@ export function buildCloudAuthCallbackUrl(
   return `${scheme}://auth/callback`;
 }
 
-export const ORG2_CLOUD_AUTH_CALLBACK_URL = buildCloudAuthCallbackUrl();
+export let ORG2_CLOUD_AUTH_CALLBACK_URL = buildCloudAuthCallbackUrl();
+
+/**
+ * Derive the OAuth callback from the identifier embedded in the running
+ * Tauri binary. This keeps direct launches isolated; webpack build-time env
+ * is only a fallback for non-Tauri harnesses.
+ */
+export function configureCloudAuthCallbackForIdentifier(
+  identifier: string
+): string {
+  const { authDeepLinkScheme } =
+    runtimeInstanceProfileForIdentifier(identifier);
+  ORG2_CLOUD_AUTH_CALLBACK_URL = buildCloudAuthCallbackUrl(authDeepLinkScheme);
+  return ORG2_CLOUD_AUTH_CALLBACK_URL;
+}
 
 /** PostgREST schema that hosts the cloud RPCs (`Content-Profile` header). */
 export const ORG2_CLOUD_POSTGREST_SCHEMA = "org2_cloud";

@@ -616,22 +616,18 @@
         "inviteExhausted": "사용 횟수를 모두 소진한 초대입니다."
       }
     },
-    "defaultAccess": {
-      "label": "기본 동기화 수준",
-      "help": "리포 범위와 일치하고 개별 설정이 없는 이 기기의 세션에 적용됩니다. '끔'이면 직접 켜기 전까지 세션이 로컬에만 남습니다"
-    },
     "syncLevel": {
       "menuItem": "클라우드 동기화 수준…",
       "title": "클라우드 동기화 수준",
       "hint": "이 세션을 각 클라우드 조직에 어떻게 공유할지(공유 안 함·메타데이터만·전체 리플레이)와 공개 범위를 선택하세요.",
-      "orgDefaultOption": "조직 기본값({{mode}})",
       "modeOff": "끔",
       "modeMetadata": "메타데이터만",
       "modeFullReplay": "전체 리플레이",
       "visibilityOrg": "조직 전체",
       "visibilityRestricted": "나만",
       "taggedNote": "이 세션은 이 조직으로 이동되었으므로 태그가 유지되는 동안 최소한 메타데이터는 공유됩니다.",
-      "floorNote": "조직 관리자가 최소 {{mode}} 이상의 공유를 요구합니다."
+      "floorNote": "조직 관리자가 최소 {{mode}} 이상의 공유를 요구합니다.",
+      "orgMinimumOption": "조직 최소값({{mode}})"
     },
     "share": {
       "menuItem": "클라우드 공유…",

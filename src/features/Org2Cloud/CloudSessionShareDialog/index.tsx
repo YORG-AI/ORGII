@@ -42,7 +42,14 @@ function OrgShareSection({
         <div className="text-[12px] font-medium text-text-2">
           {t("cloud.share.directedTitle")}
         </div>
-        {model.grantableMembers.length === 0 ? (
+        {model.membersLoading ? (
+          <div
+            className="text-[11px] text-text-3"
+            data-testid="cloud-session-share-members-loading"
+          >
+            {t("cloud.orgPanel.loading")}
+          </div>
+        ) : model.grantableMembers.length === 0 ? (
           <div className="text-[11px] text-text-3">
             {t("cloud.share.directedEmpty")}
           </div>
@@ -122,6 +129,7 @@ function OrgShareSection({
             <code
               className="select-text break-all text-[11px] text-text-2"
               data-testid="cloud-session-share-created-link"
+              data-share-id={model.createdLink.shareId}
             >
               {model.createdLink.link}
             </code>
@@ -169,6 +177,8 @@ function OrgShareSection({
               <div
                 key={share.id}
                 className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-[12px]"
+                data-testid="cloud-session-share-active-row"
+                data-share-id={share.id}
               >
                 <span className="min-w-0 truncate text-text-2">
                   {share.granteeUserId
@@ -190,8 +200,9 @@ function OrgShareSection({
                       ? "cloud-session-share-created-link-revoke"
                       : share.granteeUserId
                         ? `cloud-session-share-directed-revoke-${share.granteeUserId}`
-                        : undefined
+                        : "cloud-session-share-link-revoke"
                   }
+                  data-share-id={share.id}
                 >
                   {t("cloud.share.revoke")}
                 </Button>

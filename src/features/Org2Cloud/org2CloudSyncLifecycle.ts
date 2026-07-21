@@ -75,6 +75,23 @@ export abstract class Org2CloudSyncLifecycle {
     this.schedulePass(0);
   };
 
+  /**
+   * A browser reconnect is a production sync trigger, not just a Realtime
+   * transport concern. In particular, Project/Work Item writes can already
+   * be durable in the Rust outbox while the first cloud listing fails. A
+   * reconnect must therefore force both a fresh inbound recovery and an
+   * outbox-draining projects pass immediately instead of waiting for the
+   * minute fallback timer (or an E2E-only manual sync hook).
+   */
+  private readonly onOnline = (): void => {
+    if (!this.started) return;
+    this.clearAllOrgBackoffs();
+    this.forceAllInboundNextPass = true;
+    this.forceProjectsNextPass = true;
+    this.invalidateFullInboundState();
+    void this.runSyncPass();
+  };
+
   /** Idempotent: subsequent calls while running are no-ops. */
   start(store: CloudStore): void {
     if (this.started) return;
@@ -88,6 +105,9 @@ export abstract class Org2CloudSyncLifecycle {
     );
     if (typeof document !== "undefined") {
       document.addEventListener("visibilitychange", this.onVisibilityChange);
+    }
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", this.onOnline);
     }
     this.dataChangedUnlisten = listen("orgii-data-changed", () => {
       this.scheduleProjectsPass();
@@ -115,6 +135,9 @@ export abstract class Org2CloudSyncLifecycle {
     this.eventStoreUnsubscribe = null;
     if (typeof document !== "undefined") {
       document.removeEventListener("visibilitychange", this.onVisibilityChange);
+    }
+    if (typeof window !== "undefined") {
+      window.removeEventListener("online", this.onOnline);
     }
     this.resetSyncState();
     this.passRunning = false;

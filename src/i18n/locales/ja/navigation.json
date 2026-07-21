@@ -616,22 +616,18 @@
         "inviteExhausted": "この招待は使用回数を使い切りました。"
       }
     },
-    "defaultAccess": {
-      "label": "デフォルト同期レベル",
-      "help": "リポジトリスコープに一致した、個別設定のないこの端末のセッションに適用されます。「オフ」の場合、オプトインするまでセッションはローカルに留まります"
-    },
     "syncLevel": {
       "menuItem": "クラウド同期レベル…",
       "title": "クラウド同期レベル",
       "hint": "このセッションを各クラウド組織へ何を共有するか（共有しない・メタデータのみ・フルリプレイ）と、公開範囲を選択します。",
-      "orgDefaultOption": "組織のデフォルト（{{mode}}）",
       "modeOff": "オフ",
       "modeMetadata": "メタデータのみ",
       "modeFullReplay": "フルリプレイ",
       "visibilityOrg": "組織の全員",
       "visibilityRestricted": "自分のみ",
       "taggedNote": "このセッションはこの組織に移動されているため、タグが付いている間は少なくともメタデータが共有されます。",
-      "floorNote": "組織の管理者が少なくとも{{mode}}での共有を必須にしています。"
+      "floorNote": "組織の管理者が少なくとも{{mode}}での共有を必須にしています。",
+      "orgMinimumOption": "組織の最低要件（{{mode}}）"
     },
     "share": {
       "menuItem": "クラウド共有…",

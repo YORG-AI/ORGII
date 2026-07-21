@@ -80,6 +80,44 @@ pub(crate) fn github_repo_full_name_from_remote(remote_url: &str) -> Option<Stri
     None
 }
 
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub struct RepoNetworkIdentity {
+    /// The repository GitHub resolved (canonical casing).
+    pub full_name: String,
+    /// Root repository shared by every member of the GitHub fork network.
+    pub source_full_name: String,
+}
+
+pub(crate) fn parse_repo_network_identity(v: &Value) -> Option<RepoNetworkIdentity> {
+    let full_name = v["full_name"].as_str()?.trim();
+    if full_name.is_empty() {
+        return None;
+    }
+    let source_full_name = v["source"]["full_name"]
+        .as_str()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(full_name);
+    Some(RepoNetworkIdentity {
+        full_name: full_name.to_string(),
+        source_full_name: source_full_name.to_string(),
+    })
+}
+
+fn encoded_repo_api_path(repo_full_name: &str) -> Option<String> {
+    let mut parts = repo_full_name.trim().split('/');
+    let owner = parts.next()?.trim();
+    let repo = parts.next()?.trim().trim_end_matches(".git");
+    if owner.is_empty() || repo.is_empty() || parts.next().is_some() {
+        return None;
+    }
+    Some(format!(
+        "{}/{}",
+        urlencoding::encode(owner),
+        urlencoding::encode(repo)
+    ))
+}
+
 /// Result of `github_search_repos`. `authenticated` reports whether the
 /// caller had a token on file; when `false`, GitHub enforces a strict
 /// 10 req/min unauthenticated rate limit and the frontend surfaces that
@@ -227,6 +265,51 @@ pub async fn github_search_repos(
         items,
         authenticated,
     })
+}
+
+/// Resolve a GitHub repository to the root of its fork network.
+///
+/// A checkout's configured remotes are not a complete identity proof: two
+/// collaborators often clone different forks and neither adds the other's
+/// remote. GitHub's repository payload carries `source.full_name`, which is
+/// the stable common upstream for that network. Reuse the local credential
+/// when present (private fork networks), otherwise public repositories still
+/// work through the unauthenticated metadata endpoint.
+#[command]
+pub async fn github_resolve_repo_network_identity(
+    repo_full_name: String,
+) -> Result<RepoNetworkIdentity, String> {
+    let repo_path = encoded_repo_api_path(&repo_full_name)
+        .ok_or_else(|| "invalid GitHub repository name".to_string())?;
+    let token = find_https_credential().ok().flatten().map(|c| c.token);
+    let http = reqwest::Client::new();
+    let mut req = http
+        .get(format!("https://api.github.com/repos/{repo_path}"))
+        .header("Accept", "application/vnd.github+json")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .header("User-Agent", "ORGII-Desktop/1.0");
+    if let Some(value) = token.as_deref() {
+        req = req.bearer_auth(value);
+    }
+    let response = req
+        .send()
+        .await
+        .map_err(|err| format!("GitHub repository request failed: {err}"))?;
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .map_err(|err| format!("Failed to read GitHub repository response: {err}"))?;
+    if !status.is_success() {
+        return Err(format!(
+            "GitHub repository lookup failed ({})",
+            status.as_u16()
+        ));
+    }
+    let payload: Value = serde_json::from_str(&body)
+        .map_err(|err| format!("Failed to parse GitHub repository JSON: {err}"))?;
+    parse_repo_network_identity(&payload)
+        .ok_or_else(|| "GitHub repository response was missing identity fields".to_string())
 }
 
 #[command]

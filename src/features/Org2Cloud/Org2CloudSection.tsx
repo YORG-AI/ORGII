@@ -47,6 +47,11 @@ const Org2CloudSection: React.FC<Org2CloudSectionProps> = ({
   const { t } = useTranslation("navigation");
   const [auth, setAuth] = useAtom(org2CloudAuthAtom);
   const store = useStore();
+  const signedInIdentity =
+    auth?.profile?.displayName ??
+    auth?.profile?.primaryEmail ??
+    auth?.userId ??
+    "";
 
   const handleSignIn = useCallback(() => {
     openUrl(buildOrg2CloudLoginUrl()).catch((error: unknown) => {
@@ -80,13 +85,22 @@ const Org2CloudSection: React.FC<Org2CloudSectionProps> = ({
         >
           <div className={SECTION_ACTION_GAP_CLASSES}>
             {auth ? (
-              <Button
-                size="default"
-                onClick={handleSignOut}
-                data-testid="org2-cloud-sign-out"
-              >
-                {t("cloud.signOut")}
-              </Button>
+              <div className="flex items-center gap-2">
+                <span
+                  className="max-w-56 truncate text-sm text-text-2"
+                  data-testid="org2-cloud-signed-in-identity"
+                  title={signedInIdentity}
+                >
+                  {t("cloud.signedInAs", { name: signedInIdentity })}
+                </span>
+                <Button
+                  size="default"
+                  onClick={handleSignOut}
+                  data-testid="org2-cloud-sign-out"
+                >
+                  {t("cloud.signOut")}
+                </Button>
+              </div>
             ) : (
               <Button
                 size="default"

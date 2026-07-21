@@ -35,6 +35,7 @@
  * `getSessionForkedFrom` falls back to the registry when the row field is
  * gone — "⑂ taken over from @owner" survives reloads.
  */
+import { exists } from "@tauri-apps/plugin-fs";
 import { z } from "zod/v4";
 
 import { deleteSession, saveSession } from "@src/api/tauri/agent";
@@ -57,6 +58,7 @@ import {
   getInstrumentedStore,
   isStoreInitialized,
 } from "@src/util/core/state/instrumentedStore";
+import { toFsPluginPath } from "@src/util/file/pathUtils";
 
 import { normalizeRepoScopeKey } from "./collabSyncUtils";
 import { forkCheckoutRequestAtom } from "./components/ForkCheckoutPickerDialog";
@@ -73,6 +75,7 @@ import { forkSession } from "./engine/collabSyncEngineHelpers";
 import { ForkOperationError } from "./forkSnapshotIntegrity";
 import {
   resolveLocalCheckoutForScopeKey,
+  resolveMatchingOrgRepoScope,
   resolveShareableScopeKeys,
 } from "./repoScopeResolver";
 import {
@@ -206,9 +209,27 @@ export async function resolveForkWorkspacePath(
     if (session.repoPath) candidates.push(session.repoPath);
   }
 
+  // Repo/session atoms may retain another machine's absolute path after a
+  // cloud import. Only paths that exist on THIS machine may participate in
+  // scope resolution or the same-machine fallback.
+  const existingCandidates: string[] = [];
+  const seenCandidates = new Set<string>();
+  for (const candidate of candidates) {
+    const normalized = normalizeRepoScopeKey(candidate);
+    if (!normalized || seenCandidates.has(normalized)) continue;
+    seenCandidates.add(normalized);
+    try {
+      if (await exists(toFsPluginPath(candidate))) {
+        existingCandidates.push(candidate);
+      }
+    } catch {
+      // Invalid/stale paths fail closed; a later valid checkout can still win.
+    }
+  }
+
   const byScopeKey = await resolveLocalCheckoutForScopeKey(
     remoteSession.repoScopeKey,
-    candidates
+    existingCandidates
   );
   if (byScopeKey) return byScopeKey;
 
@@ -219,7 +240,7 @@ export async function resolveForkWorkspacePath(
     const normalizedOwnerPath = normalizeRepoScopeKey(remoteSession.repoPath);
     if (
       normalizedOwnerPath &&
-      candidates.some(
+      existingCandidates.some(
         (candidate) => normalizeRepoScopeKey(candidate) === normalizedOwnerPath
       )
     ) {
@@ -284,7 +305,10 @@ export async function requestForkSessionSetup(
     if (!selected.workspaceRepoPath) throw new ForkCancelledError();
     const normalizedKey = normalizeRepoScopeKey(source.sourceScopeKey);
     const keys = await resolveShareableScopeKeys(selected.workspaceRepoPath);
-    if (!keys?.includes(normalizedKey)) {
+    const matchingScope = await resolveMatchingOrgRepoScope(keys, [
+      normalizedKey,
+    ]);
+    if (!matchingScope) {
       Message.error(
         i18n.t("navigation:collaboration.session.forkCheckoutMismatch", {
           repo: source.sourceScopeKey,
@@ -382,7 +406,10 @@ async function pickMatchingCheckout(
   // re-pointed since its cache entry).
   const normalizedKey = normalizeRepoScopeKey(sourceScopeKey);
   const keys = await resolveShareableScopeKeys(selected);
-  if (!keys?.includes(normalizedKey)) {
+  const matchingScope = await resolveMatchingOrgRepoScope(keys, [
+    normalizedKey,
+  ]);
+  if (!matchingScope) {
     Message.error(
       i18n.t("navigation:collaboration.session.forkCheckoutMismatch", {
         repo: sourceScopeKey,
@@ -472,6 +499,12 @@ export async function forkTeammateSession(
     workspacePath: workspaceRepoPath ?? undefined,
     model: result.model,
     accountId: result.accountId,
+    // Preserve the collaboration filing in Rust too. Without this, the
+    // backend defaults the durable row to `personal-org`; the next
+    // loadSessions() then moves a cloud fork out of its Team sidebar even
+    // though the optimistic TS row and cloud tag still point at the source
+    // org. Guest-share forks deliberately remain Personal.
+    orgId: options.shareToken ? undefined : orgId,
     // agentsession-* has no builtin prefix mapping in agent-core, so the
     // explicitly confirmed LOCAL definition id is the lazy-init authority.
     // The source's wire id is only a picker hint and is never trusted here.

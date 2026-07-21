@@ -558,6 +558,10 @@
     "failedToRenderEvent": "Failed to render event",
     "unknown": "Unknown error",
     "agentRequestFailed": "Agent request failed",
+    "codexLoginExpired": "Codex sign-in expired",
+    "codexLoginExpiredDescription": "Reconnect Codex to repair this account. You will return to this session after the new sign-in is saved.",
+    "reconnectCodex": "Reconnect Codex",
+    "technicalDetails": "Technical details",
     "failedToCopy": "Failed to copy",
     "api": {
       "titles": {

@@ -60,12 +60,13 @@ export function cloudSessionIdFromRowId(sessionRowId: string): string {
  * expect, bound to one cloud access token (caller refreshes via
  * `ensureFreshSession` first — RPC wrappers do not refresh).
  *
- * `accessToken` may be null for the GUEST path (0012): `input.shareToken`
- * — threaded by the importer from `RemoteSessionFetchOptions` — then rides
- * into the RPC body and authenticates the read on its own (anon bearer).
+ * Link imports still require a registered user's access token. The optional
+ * `input.shareToken` — threaded by the importer from
+ * `RemoteSessionFetchOptions` — grants that signed-in user access without
+ * requiring membership in the source org.
  */
 export function buildCloudSessionFetchClient(
-  accessToken: string | null,
+  accessToken: string,
   endpoint?: CloudEndpoint
 ): CloudSessionFetchClient {
   return {

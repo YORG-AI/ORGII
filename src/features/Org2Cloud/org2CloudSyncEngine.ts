@@ -13,8 +13,8 @@
  * scope key matches a scope is a push CANDIDATE. Whether a candidate is
  * actually uploaded — and at what level — is decided by the per-session
  * access ladder (`org2CloudAccessSettingsAtom`, design §13.4):
- * repo-scope matching SELECTS candidates, the org-default / per-session
- * override ladder GATES the upload (effective 'off' ⇒ skipped entirely,
+ * repo-scope matching SELECTS candidates, while the org minimum plus any
+ * per-session override GATE the upload (effective 'off' ⇒ skipped entirely,
  * 'metadata_only' ⇒ metadata upsert only, 'full_replay' ⇒ metadata +
  * segments). A candidate that passes the ladder is pushed:
  *
@@ -50,7 +50,6 @@ import i18n from "@src/i18n";
 import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
 import type { Session } from "@src/store/session/sessionAtom/types";
 
-import { pickMatchingOrgScope } from "../TeamCollaboration/collabSyncUtils";
 import { ProjectSyncChannel } from "../TeamCollaboration/engine/ProjectSyncChannel";
 import type { ProjectSyncBridge } from "../TeamCollaboration/engine/projectSyncBridge";
 import { tauriProjectSyncBridge } from "../TeamCollaboration/engine/projectSyncBridge";
@@ -59,6 +58,7 @@ import { isScopeMatchableImportedSession } from "../TeamCollaboration/importedSe
 import {
   peekShareableScopeKeys,
   primeShareableScopeKey,
+  resolveMatchingOrgRepoScope,
 } from "../TeamCollaboration/repoScopeResolver";
 import {
   isSessionTaggedToCloudOrg,
@@ -150,6 +150,15 @@ export type Org2CloudSchemaVersionProbe = () => Promise<number | null>;
 export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
   /** Org id → entitlement backoff deadline (epoch ms). */
   private readonly orgBackoffUntilMs = new Map<string, number>();
+  /**
+   * Org id → plane that caused the entitlement backoff. Session replay quota
+   * must not block the projects/work-items control plane: users still need to
+   * delete shared data while replay uploads are over quota.
+   */
+  private readonly orgBackoffKinds = new Map<
+    string,
+    "session_quota" | "sync_disabled"
+  >();
   /** Orgs already warned during the current backoff window. */
   private readonly warnedOrgIds = new Set<string>();
   /** orgId → last repo-scope hydration attempt (TTL-gated per pass). */
@@ -195,6 +204,7 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
 
   protected override resetSyncState(): void {
     this.orgBackoffUntilMs.clear();
+    this.orgBackoffKinds.clear();
     this.warnedOrgIds.clear();
     this.sessionSync.reset();
     this.scopeHydratedAtMs.clear();
@@ -206,6 +216,7 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
 
   protected override clearAllOrgBackoffs(): void {
     this.orgBackoffUntilMs.clear();
+    this.orgBackoffKinds.clear();
     this.warnedOrgIds.clear();
   }
 
@@ -235,7 +246,7 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
     const tags = store.get(sessionOrgTagsAtom);
     // Access ladder (§13.4): read the PERSISTED settings every pass — the
     // ratchet lives here. A per-session override (mode or restricted
-    // visibility) is always honored over the org default, so an automated
+    // visibility) is always honored before applying the org minimum, so an automated
     // re-push can never rebuild metadata "from defaults" and silently flip
     // a session back to org/full_replay.
     const accessByOrg = store.get(org2CloudAccessSettingsAtom);
@@ -411,7 +422,10 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
         // retract the server row if we ever pushed it, then drop the tag so
         // the org falls out of the target set. scopeKeys null (no git
         // remote) is out of scope by definition.
-        const matchedScope = pickMatchingOrgScope(scopeKeys, scopes);
+        const matchedScope = await resolveMatchingOrgRepoScope(
+          scopeKeys,
+          scopes
+        );
         if (matchedScope === null) {
           if (this.sessionSync.wasCloudPushed(org.orgId, session.session_id)) {
             try {
@@ -451,16 +465,22 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
         // BEHAVIOR CHANGE (intended, §13.4): scope matching only made this
         // session a CANDIDATE — adding a repo scope no longer auto-uploads
         // at full replay. The access ladder gates the actual upload: the
-        // org default is OFF until raised, per-session overrides win, and
+        // local mode is OFF until overridden or raised by the org minimum, and
         // an effective-off session is skipped (never uploaded). A TAGGED
         // session still pushes, floored to metadata_only when its effective
         // mode is off ('off' must never reach the server — ORG2_VALIDATION).
-        // The admin sharing floor lifts only ADMITTED sessions (org-owned,
-        // tagged, fork-provenance, or explicit per-session intent). Scope
-        // candidacy alone must never let an org policy turn a merely
-        // repo-matched imported local history into an upload.
+        // The admin sharing floor lifts every ADMITTED session. Imported CLI
+        // history is admitted by repo-scope matching above: the sidebar groups
+        // it into that org automatically, so showing the effective floor in
+        // Settings while withholding the matching cloud push would make the
+        // rendered policy lie. Ordinary Personal sessions still require org
+        // ownership, a tag, fork provenance, or explicit share intent.
         const floorEligible =
-          Boolean(forkedFrom) || tagged || ownedByOrg || shareIntent;
+          Boolean(forkedFrom) ||
+          tagged ||
+          ownedByOrg ||
+          shareIntent ||
+          scopeAutoMatched;
         const access = resolveCloudPushAccess(
           accessByOrg[org.orgId],
           session.session_id,
@@ -527,8 +547,9 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
     // Deliberately over ALL orgs, not the session `targets`: shared work
     // items are org-wide (no repo-scope selection), so an org with neither
     // scopes nor tagged sessions still syncs its project plane. Only the
-    // local toggle and this run's backoff (which the session loop above may
-    // have just set) gate it.
+    // local toggle and entitlement-disable backoff gate it. Session replay
+    // quota backoff deliberately does NOT: project/work-item tombstones are
+    // a control-plane operation and must still drain while uploads are full.
     //
     // Inbound-fallback gate: these planes are Realtime-driven and scoped to
     // the invalidated org. Ordinary signals retain their delta cursors; only
@@ -570,7 +591,7 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
         if (this.generation !== generation) return;
         if (getCloudEndpoint().supabaseUrl !== passSupabaseUrl) return;
         if (enabledByOrg[org.orgId] === false) continue;
-        if (this.isOrgBackedOff(org.orgId)) continue;
+        if (this.isOrgProjectBackedOff(org.orgId)) continue;
         try {
           // Realtime-only pulls do not probe the local outbox. Local mutation
           // requests and periodic safety passes still drain it.
@@ -583,6 +604,13 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
             this.backOffOrg(org.orgId, error);
             continue;
           }
+          // A listing can fail before ProjectSyncChannel gets far enough to
+          // return per-row pushErrors. When this pass was supposed to drain
+          // the durable outbox, keep the same bounded retry guarantee rather
+          // than stranding the write until the minute fallback cadence.
+          if (pushProjects || fallbackInboundOrgIds.has(org.orgId)) {
+            this.scheduleProjectPushRetry();
+          }
           log.warn(`cloud project sync failed for org ${org.orgId}:`, error);
         }
       }
@@ -594,7 +622,7 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
       for (const org of orgs) {
         if (!inboundOrgIds.has(org.orgId)) continue;
         if (enabledByOrg[org.orgId] === false) continue;
-        if (this.isOrgBackedOff(org.orgId)) continue;
+        if (this.isOrgProjectBackedOff(org.orgId)) continue;
         this.lastInboundPassAtMs.set(org.orgId, nowMs);
       }
     }
@@ -819,6 +847,12 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
 
   private backOffOrg(orgId: string, error: unknown): void {
     this.orgBackoffUntilMs.set(orgId, Date.now() + ORG_BACKOFF_COOLDOWN_MS);
+    this.orgBackoffKinds.set(
+      orgId,
+      isOrg2SyncErrorCode(error, "ORG2_QUOTA_EXCEEDED")
+        ? "session_quota"
+        : "sync_disabled"
+    );
     if (this.warnedOrgIds.has(orgId)) return;
     this.warnedOrgIds.add(orgId);
     const key = isOrg2SyncErrorCode(error, "ORG2_QUOTA_EXCEEDED")
@@ -830,6 +864,7 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
 
   protected override clearOrgBackoff(orgId: string): void {
     this.orgBackoffUntilMs.delete(orgId);
+    this.orgBackoffKinds.delete(orgId);
     this.warnedOrgIds.delete(orgId);
   }
 
@@ -839,6 +874,13 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
     if (Date.now() < untilMs) return true;
     this.clearOrgBackoff(orgId);
     return false;
+  }
+
+  /** Session replay quota pauses only the session plane. Sync-disabled is an
+   * org-wide entitlement gate and therefore still pauses project RPCs. */
+  private isOrgProjectBackedOff(orgId: string): boolean {
+    if (!this.isOrgBackedOff(orgId)) return false;
+    return this.orgBackoffKinds.get(orgId) !== "session_quota";
   }
 
   /** Force the next pass to re-upsert one session's metadata row. */

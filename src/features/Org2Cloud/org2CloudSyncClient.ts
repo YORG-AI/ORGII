@@ -87,13 +87,13 @@ function rpcUrl(functionName: string, endpoint: CloudEndpoint): string {
 }
 
 function rpcHeaders(
-  accessToken: string | null,
+  accessToken: string,
   endpoint: CloudEndpoint
 ): Record<string, string> {
   const { anonKey } = endpoint;
   return {
     apikey: anonKey,
-    authorization: `Bearer ${accessToken ?? anonKey}`,
+    authorization: `Bearer ${accessToken}`,
     "content-type": "application/json",
     "content-profile": ORG2_CLOUD_POSTGREST_SCHEMA,
   };
@@ -101,8 +101,7 @@ function rpcHeaders(
 
 async function callSyncRpc(
   functionName: string,
-  // null ⇒ TICKET tier: anon key as bearer (guest share-token reads only).
-  accessToken: string | null,
+  accessToken: string,
   body: Record<string, unknown>,
   endpoint: CloudEndpoint = getCloudEndpoint(),
   signal?: AbortSignal
@@ -376,9 +375,9 @@ export async function listOrgSessions(
 
 export interface GetSessionEventsOptions {
   /**
-   * Link-share ticket (0012): when set, the request rides the guest token
-   * branch — `accessToken` may be null (anon bearer) and the caller is
-   * typically not an org member at all.
+   * Link-share capability (0012): when set, a registered non-member can read
+   * the shared session. The user JWT proves registration; this token grants
+   * access to the one session.
    */
   shareToken?: string;
   /** Server-side incremental fetch (frozen past the cursor + tail always). */
@@ -395,13 +394,13 @@ export interface GetSessionEventsOptions {
  * are returned as WIRE payloads (gzipped base64) — decode with the shared
  * `decodeSegmentEvents` when replay lands in a later cut.
  *
- * With `options.shareToken` this becomes the TICKET-tier guest read
- * (opaque ORG2_UNAUTHORIZED on every failure). The optional params are only
- * put on the wire when set, so member calls stay byte-identical to the
- * pre-0012 shape.
+ * With `options.shareToken` this becomes a registered-link read that does not
+ * require org membership (opaque ORG2_UNAUTHORIZED on every capability
+ * failure). The optional params are only put on the wire when set, so member
+ * calls stay byte-identical to the pre-0012 shape.
  */
 export async function getSessionEvents(
-  accessToken: string | null,
+  accessToken: string,
   orgId: string,
   sessionId: string,
   options?: GetSessionEventsOptions

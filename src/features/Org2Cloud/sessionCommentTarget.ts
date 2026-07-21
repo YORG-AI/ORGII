@@ -18,7 +18,10 @@ import type { Session } from "@src/store/session/sessionAtom/types";
 import { chatPanelSelectedCloudOrgAtom } from "@src/store/ui/chatPanelAtom";
 
 import type { Org2CloudOrg } from "./org2CloudOrgsAtom";
-import { org2CloudOrgsAtom } from "./org2CloudOrgsAtom";
+import {
+  org2CloudOrgsAtom,
+  parseCloudOrgSelectorValue,
+} from "./org2CloudOrgsAtom";
 
 export interface SessionCommentTarget {
   orgId: string;
@@ -28,6 +31,8 @@ export interface SessionCommentTarget {
 
 type CommentTargetSession = {
   session_id: string;
+  /** Canonical launch ownership (`cloud:<orgId>` for managed-cloud runs). */
+  orgId?: string;
   importedFrom?: Session["importedFrom"];
   forkedFrom?: Session["forkedFrom"];
 };
@@ -68,14 +73,21 @@ export function resolveSessionCommentTarget(params: {
     };
   }
 
-  const taggedOrgIds = cloudOrgIdsForSession(tags, session.session_id).filter(
-    (orgId) => memberOrgIds.has(orgId)
+  const ownedCloudOrgId = session.orgId
+    ? parseCloudOrgSelectorValue(session.orgId)
+    : null;
+  const candidateOrgIds = [
+    ...(ownedCloudOrgId ? [ownedCloudOrgId] : []),
+    ...cloudOrgIdsForSession(tags, session.session_id),
+  ].filter(
+    (orgId, index, all) =>
+      memberOrgIds.has(orgId) && all.indexOf(orgId) === index
   );
-  if (taggedOrgIds.length === 0) return null;
+  if (candidateOrgIds.length === 0) return null;
   const orgId =
-    preferredOrgId && taggedOrgIds.includes(preferredOrgId)
+    preferredOrgId && candidateOrgIds.includes(preferredOrgId)
       ? preferredOrgId
-      : taggedOrgIds[0];
+      : candidateOrgIds[0];
   return { orgId, sessionId: session.session_id };
 }
 

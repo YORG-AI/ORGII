@@ -17,6 +17,7 @@ import { createInstrumentedStore } from "@src/util/core/state/instrumentedStore"
 import {
   peekShareableScopeKeys,
   primeShareableScopeKey,
+  resolveMatchingOrgRepoScope,
 } from "../TeamCollaboration/repoScopeResolver";
 import {
   PERSONAL_EXCLUDED_TOKEN,
@@ -97,6 +98,10 @@ vi.mock("@src/engines/SessionCore/ingestion/rustBridge", () => ({
 vi.mock("../TeamCollaboration/repoScopeResolver", () => ({
   peekShareableScopeKeys: vi.fn(),
   primeShareableScopeKey: vi.fn(),
+  resolveMatchingOrgRepoScope: vi.fn(
+    async (keys: string[] | null, scopes: string[] | undefined) =>
+      scopes?.find((scope) => keys?.includes(scope)) ?? null
+  ),
 }));
 
 vi.mock("@src/components/Message", () => ({
@@ -124,6 +129,7 @@ export const eventStoreMock = vi.mocked(eventStoreProxy);
 export const processChunksRustMock = vi.mocked(processChunksRust);
 export const peekMock = vi.mocked(peekShareableScopeKeys);
 export const primeMock = vi.mocked(primeShareableScopeKey);
+export const resolveMatchingScopeMock = vi.mocked(resolveMatchingOrgRepoScope);
 export const messageMock = vi.mocked(Message);
 
 /** Minimal visibility stub for the engine's browser-only cadence paths. */
@@ -289,12 +295,11 @@ export function createEngineFixture() {
   store.set(sessionOrgTagsAtom, {});
   store.set(org2CloudAccessSettingsAtom, {
     "corg-1": {
-      defaultMode: "full_replay",
       sessionModes: {},
       sessionVisibility: {},
     },
   });
-  store.set(org2CloudSharingFloorAtom, {});
+  store.set(org2CloudSharingFloorAtom, { "corg-1": "full_replay" });
   store.set(sessionsAtom, [SESSION]);
   peekMock.mockImplementation((path: string) =>
     path === REPO_PATH ? [SCOPE_KEY] : null

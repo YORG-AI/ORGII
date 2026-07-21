@@ -618,22 +618,18 @@
         "inviteExhausted": "Cette invitation n'a plus d'utilisations."
       }
     },
-    "defaultAccess": {
-      "label": "Niveau de synchro par défaut",
-      "help": "S'applique aux sessions de cet appareil correspondant à une portée de dépôt et sans réglage propre. « Désactivé » garde les sessions en local tant que vous n'activez rien"
-    },
     "syncLevel": {
       "menuItem": "Niveau de synchro cloud…",
       "title": "Niveau de synchro cloud",
       "hint": "Choisissez ce que cette session partage avec chaque organisation cloud — rien, les métadonnées seules ou le replay complet — et qui peut la voir.",
-      "orgDefaultOption": "Défaut de l'organisation ({{mode}})",
       "modeOff": "Désactivé",
       "modeMetadata": "Métadonnées seules",
       "modeFullReplay": "Replay complet",
       "visibilityOrg": "Toute l'organisation",
       "visibilityRestricted": "Moi uniquement",
       "taggedNote": "Cette session a été déplacée dans cette organisation : tant qu'elle y est rattachée, elle partage au moins ses métadonnées.",
-      "floorNote": "L'administrateur de votre organisation exige un partage d'au moins {{mode}}."
+      "floorNote": "L'administrateur de votre organisation exige un partage d'au moins {{mode}}.",
+      "orgMinimumOption": "Minimum de l’organisation ({{mode}})"
     },
     "share": {
       "menuItem": "Partage cloud…",

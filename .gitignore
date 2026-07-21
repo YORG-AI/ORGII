@@ -20,6 +20,7 @@ node-*
 # For windows user
 src-tauri/NSIS
 src-tauri/target
+src-tauri/target-instance*/
 src-tauri/WixTools314
 
 *.exe

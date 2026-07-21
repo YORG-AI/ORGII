@@ -31,6 +31,7 @@ import Input from "@src/components/Input";
 import Message from "@src/components/Message";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
+import { org2CloudOrgsAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { useKeyboardSave } from "@src/hooks/keyboard";
 import { createLogger } from "@src/hooks/logger";
 import { useUndoStackWithRestore } from "@src/hooks/ui";
@@ -54,6 +55,8 @@ import {
   removeProjectDraftAtom,
   setProjectDraftAtom,
 } from "@src/store/workstation/projectManager";
+
+import { filterSelectableProjectOrgs } from "../../../projectOrgVisibility";
 
 // ============================================
 // Types
@@ -108,6 +111,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
   const { t } = useTranslation("projects");
   const [saving, setSaving] = useState(false);
   const [availableOrgs, setAvailableOrgs] = useState<ProjectOrg[]>([]);
+  const cloudOrgs = useAtomValue(org2CloudOrgsAtom);
   const [editorResetKey, setEditorResetKey] = useState(0);
 
   // Read draft from atom (survives tab switches)
@@ -315,15 +319,26 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
 
   useKeyboardSave(handleCreate, !saving && !!draft.name.trim());
 
+  const selectableOrgs = useMemo(
+    () => filterSelectableProjectOrgs(availableOrgs, cloudOrgs),
+    [availableOrgs, cloudOrgs]
+  );
+
+  useEffect(() => {
+    if (availableOrgs.length === 0 || !draft.orgId) return;
+    if (selectableOrgs.some((org) => org.id === draft.orgId)) return;
+    patchDraft({ tabId, patch: { orgId: "personal-org" } });
+  }, [availableOrgs.length, draft.orgId, patchDraft, selectableOrgs, tabId]);
+
   const orgOptions = useMemo<SelectOption[]>(
     () =>
-      availableOrgs.map((org) => ({
+      selectableOrgs.map((org) => ({
         value: org.id,
         label: org.name,
         triggerLabel: org.name,
         dataTestId: `create-project-org-option-${org.id}`,
       })),
-    [availableOrgs]
+    [selectableOrgs]
   );
 
   const selectedOrgLabel =

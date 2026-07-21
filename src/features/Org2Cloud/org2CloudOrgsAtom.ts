@@ -201,8 +201,8 @@ export function useOrg2CloudOrgs(): void {
     // selector AND the sidebar "Team sessions" section (they fall back to
     // plain local-alias entries, no cloud badge), and stay gone until the
     // NEXT sign-in / app start. Retrying lets a blip self-heal on its own.
-    // A persistent failure (e.g. an expired refresh token) still ends
-    // degraded after the last attempt — re-sign-in is the real remedy there.
+    // An explicitly rejected refresh credential signs out immediately;
+    // transient transport/server failures remain degraded and retry here.
     const RETRY_DELAYS_MS = [2000, 5000, 10000, 20000];
     const runAttempt = async (attempt: number): Promise<void> => {
       const current = authRef.current;
@@ -214,13 +214,22 @@ export function useOrg2CloudOrgs(): void {
           void runAttempt(attempt + 1);
         }, RETRY_DELAYS_MS[attempt]);
       };
-      const fresh = await ensureFreshSession(current);
+      let refreshRejected = false;
+      const fresh = await ensureFreshSession(current, {
+        onRefreshRejected: () => {
+          refreshRejected = true;
+          // Compare-and-set: never sign out a newer OAuth callback or a
+          // concurrently refreshed token chain because an older request
+          // finished late.
+          setAuth((latest) => (latest === current ? null : latest));
+        },
+      });
       if (cancelled || !isCurrentOrg2CloudOrgsRequest(store, requestEpoch)) {
         return;
       }
       if (!fresh) {
         log.warn("cloud org fetch skipped: token refresh failed");
-        retry();
+        if (!refreshRejected) retry();
         return;
       }
       commitRefreshedAuth(setAuth, current, fresh);

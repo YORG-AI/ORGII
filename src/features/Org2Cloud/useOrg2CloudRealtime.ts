@@ -37,7 +37,7 @@ import {
 import { createLogger } from "@src/hooks/logger";
 import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
 import type { Session } from "@src/store/session/sessionAtom/types";
-import { workstationActiveSessionIdAtom } from "@src/store/session/viewAtom";
+import { activeSessionIdAtom } from "@src/store/session/viewAtom";
 
 import { commitRefreshedAuth, org2CloudAuthAtom } from "./org2CloudAuthAtom";
 import { ensureFreshSession } from "./org2CloudClient";
@@ -52,6 +52,7 @@ import { refreshOrgEntitlement } from "./org2CloudEntitlementCoordinator";
 import {
   org2CloudOrgsAtom,
   org2CloudRosterVersionAtom,
+  sidebarActiveCloudOrgIdAtom,
   useRefetchOrg2CloudOrgs,
 } from "./org2CloudOrgsAtom";
 import {
@@ -66,7 +67,10 @@ import {
   type Org2CloudRealtimeConnection,
   createOrg2CloudRealtimeConnection,
 } from "./org2CloudRealtimeClient";
-import { org2CloudRemoteSessionsVersionAtom } from "./org2CloudRemoteSessionsAtom";
+import {
+  org2CloudRemoteSessionsAtom,
+  org2CloudRemoteSessionsVersionAtom,
+} from "./org2CloudRemoteSessionsAtom";
 import { org2CloudSyncEngine } from "./org2CloudSyncEngine";
 
 const log = createLogger("Org2CloudRealtime");
@@ -335,9 +339,15 @@ export function useOrg2CloudRealtime(): void {
   // --- Slice C: org-level presence (who is viewing what), one channel per org.
   const setPresence = useSetAtom(org2CloudPresenceAtom);
   const setOutboundPresence = useSetAtom(org2CloudPresenceOutboundAtom);
-  const activeSessionId = useAtomValue(workstationActiveSessionIdAtom) ?? "";
+  // Presence follows the session the shared Chat pipeline is actually
+  // rendering. Secondary/imported tabs intentionally diverge from the
+  // WorkStation's remembered selection, so publishing that remembered id
+  // makes two users viewing the same cloud replay advertise different rows.
+  const activeSessionId = useAtomValue(activeSessionIdAtom) ?? "";
+  const activeCloudOrgId = useAtomValue(sidebarActiveCloudOrgIdAtom);
   const sessions = useAtomValue(sessionsAtom) as Session[];
   const sessionOrgTags = useAtomValue(sessionOrgTagsAtom);
+  const remoteSessions = useAtomValue(org2CloudRemoteSessionsAtom);
   const displayName = auth?.profile?.displayName ?? "";
 
   const viewing = useMemo(() => {
@@ -345,13 +355,21 @@ export function useOrg2CloudRealtime(): void {
     const session = sessions.find(
       (candidate) => candidate.session_id === activeSessionId
     );
-    return session
-      ? resolveCloudSessionRefs(
-          session,
-          cloudOrgIdsForSession(sessionOrgTags, session.session_id)
-        )
-      : [];
-  }, [activeSessionId, sessionOrgTags, sessions]);
+    if (!session || !activeCloudOrgId) return [];
+    return resolveCloudSessionRefs(
+      session,
+      cloudOrgIdsForSession(sessionOrgTags, session.session_id),
+      Object.values(remoteSessions).flatMap((entry) => entry.rows),
+      userId
+    ).filter((ref) => ref.orgId === activeCloudOrgId);
+  }, [
+    activeCloudOrgId,
+    activeSessionId,
+    remoteSessions,
+    sessionOrgTags,
+    sessions,
+    userId,
+  ]);
   const viewingRef = useRef(viewing);
   viewingRef.current = viewing;
 

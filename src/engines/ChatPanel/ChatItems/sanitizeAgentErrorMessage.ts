@@ -36,6 +36,21 @@ const HTML_HINT =
   /<!doctype html|<html[\s>]|<head[\s>]|<body[\s>]|<title[\s>]/i;
 const HTTP_STATUS = /\bHTTP\s+(\d{3})\b/i;
 
+/** Whether retrying cannot recover and the Codex OAuth account must reconnect. */
+export function requiresCodexReauthentication(raw: string): boolean {
+  const message = raw.toLowerCase();
+  if (!message) return false;
+
+  const hasCodexContext = message.includes("codex");
+  const hasReauthenticationSignal =
+    message.includes("refresh_token_reused") ||
+    message.includes("refresh token has already been used") ||
+    message.includes("try signing in again") ||
+    message.includes("invalid_grant");
+
+  return hasCodexContext && hasReauthenticationSignal;
+}
+
 /**
  * Convert a raw error message into a clean, bounded, single-block string safe
  * for `whitespace-pre-wrap` rendering.

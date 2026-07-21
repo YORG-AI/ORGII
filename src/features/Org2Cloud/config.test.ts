@@ -10,6 +10,7 @@ import {
   buildCloudAuthCallbackUrl,
   buildCloudBillingLoginUrl,
   buildOrg2CloudLoginUrl,
+  configureCloudAuthCallbackForIdentifier,
   getCloudEndpoint,
 } from "./config";
 
@@ -28,6 +29,7 @@ function storeOverride(value: unknown): void {
 
 afterEach(() => {
   localStorage.removeItem(ORG2_CLOUD_ENDPOINT_OVERRIDE_STORAGE_KEY);
+  configureCloudAuthCallbackForIdentifier("yorg.orgii");
 });
 
 describe("getCloudEndpoint", () => {
@@ -82,6 +84,28 @@ describe("buildCloudAuthCallbackUrl", () => {
     expect(buildCloudAuthCallbackUrl("not a scheme")).toBe(
       "orgii://auth/callback"
     );
+  });
+
+  it("derives an isolated callback from the runtime Tauri identifier", () => {
+    expect(
+      configureCloudAuthCallbackForIdentifier("yorg.orgii.instance2")
+    ).toBe("orgii-instance2://auth/callback");
+    expect(
+      new URL(buildOrg2CloudLoginUrl()).searchParams.get("return_to")
+    ).toBe("orgii-instance2://auth/callback");
+  });
+
+  it("rejects malformed and unbounded runtime instance identifiers", () => {
+    for (const identifier of [
+      "yorg.orgii.instance1",
+      "yorg.orgii.instance100",
+      "yorg.orgii.instance2.extra",
+      "other.orgii.instance2",
+    ]) {
+      expect(configureCloudAuthCallbackForIdentifier(identifier)).toBe(
+        "orgii://auth/callback"
+      );
+    }
   });
 });
 
