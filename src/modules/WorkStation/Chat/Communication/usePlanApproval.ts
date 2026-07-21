@@ -21,7 +21,6 @@ import {
   planAliasesContain,
 } from "@src/engines/SessionCore/derived/planDisplayEvents";
 import { usePendingPlanApproval } from "@src/hooks/session/usePendingPlanApproval";
-import { FileService } from "@src/services/file";
 import { sessionRuntimeStatusAtom } from "@src/store/session/cliSessionStatusAtom";
 import { creatorDefaultModelSelectionAtom } from "@src/store/session/creatorDefaultModelAtom";
 import {
