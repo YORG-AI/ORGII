@@ -17,3 +17,4 @@ export { terminal } from "./terminal";
 export { tools } from "./tools";
 export { validation } from "./validation";
 export { workspaceMemory } from "./workspaceMemory";
+export { cli } from "./cli";

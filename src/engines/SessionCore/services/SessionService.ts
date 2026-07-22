@@ -20,6 +20,7 @@ import {
   respondQuestion,
   sessionLaunch,
 } from "@src/api/tauri/agent";
+import { rpc } from "@src/api/tauri/rpc";
 import { ROUTES } from "@src/config/routes";
 import { getAdapterForSession } from "@src/engines/SessionCore/sync/types";
 import {
@@ -252,10 +253,7 @@ export const SessionService = {
         };
       }
 
-      const session = await invokeTauri<{
-        sessionId: string;
-        status: string;
-      } | null>("cli_agent_status", { sessionId });
+      const session = await rpc.cli.status({ sessionId });
 
       if (!session) {
         throw new Error(`CLI session not found: ${sessionId}`);

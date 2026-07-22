@@ -29,6 +29,7 @@
 use chrono::Utc;
 use rusqlite::{params, Connection, OptionalExtension, Result as SqliteResult};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use super::connection::get_connection;
 
@@ -266,6 +267,26 @@ pub fn upsert_initial(
     status: TurnIntentStatus,
 ) -> Result<TurnIntentRow, IntentError> {
     let conn = get_connection()?;
+    upsert_initial_on(
+        &conn,
+        session_id,
+        turn_intent_id,
+        client_message_id,
+        source,
+        status,
+    )
+}
+
+/// Connection-scoped variant for callers that atomically update adjacent
+/// session lifecycle state in the same SQLite transaction.
+pub fn upsert_initial_on(
+    conn: &Connection,
+    session_id: &str,
+    turn_intent_id: &str,
+    client_message_id: Option<&str>,
+    source: TurnIntentSource,
+    status: TurnIntentStatus,
+) -> Result<TurnIntentRow, IntentError> {
     let now = Utc::now().to_rfc3339();
     let inserted = conn.execute(
         "INSERT OR IGNORE INTO session_turn_intents
@@ -292,7 +313,7 @@ pub fn upsert_initial(
             updated_at: now,
         });
     }
-    get_intent(&conn, session_id, turn_intent_id)?
+    get_intent(conn, session_id, turn_intent_id)?
         .ok_or_else(|| IntentError::NotFound(turn_intent_id.to_string(), session_id.to_string()))
 }
 
@@ -304,7 +325,17 @@ pub fn update_status(
     new_status: TurnIntentStatus,
 ) -> Result<TurnIntentRow, IntentError> {
     let conn = get_connection()?;
-    let existing = get_intent(&conn, session_id, turn_intent_id)?
+    update_status_on(&conn, session_id, turn_intent_id, new_status)
+}
+
+/// Connection-scoped variant for atomic session + turn-intent transitions.
+pub fn update_status_on(
+    conn: &Connection,
+    session_id: &str,
+    turn_intent_id: &str,
+    new_status: TurnIntentStatus,
+) -> Result<TurnIntentRow, IntentError> {
+    let existing = get_intent(conn, session_id, turn_intent_id)?
         .ok_or_else(|| IntentError::NotFound(turn_intent_id.to_string(), session_id.to_string()))?;
     if !transition_allowed(existing.status, new_status) {
         return Err(IntentError::IllegalTransition {
@@ -398,6 +429,28 @@ pub fn list_for_session(session_id: &str) -> SqliteResult<Vec<TurnIntentRow>> {
         .query_map([session_id], row_from_sql)?
         .collect::<SqliteResult<Vec<_>>>()?;
     Ok(rows)
+}
+
+/// Latest lifecycle row for each requested session, read through one
+/// connection so reconnect/focus reconciliation does not fan out into one
+/// SQLite task per session.
+pub fn latest_for_sessions(session_ids: &[String]) -> SqliteResult<HashMap<String, TurnIntentRow>> {
+    let conn = get_connection()?;
+    let mut stmt = conn.prepare_cached(
+        "SELECT session_id, turn_intent_id, client_message_id, source, status,
+                created_at, updated_at
+           FROM session_turn_intents
+          WHERE session_id = ?1
+          ORDER BY updated_at DESC, created_at DESC
+          LIMIT 1",
+    )?;
+    let mut latest = HashMap::with_capacity(session_ids.len());
+    for session_id in session_ids {
+        if let Some(row) = stmt.query_row([session_id], row_from_sql).optional()? {
+            latest.insert(session_id.clone(), row);
+        }
+    }
+    Ok(latest)
 }
 
 // ============================================
@@ -598,6 +651,35 @@ mod tests {
             assert_eq!(by_id["pending-a"], TurnIntentStatus::Stale);
             assert_eq!(by_id["pending-b"], TurnIntentStatus::Stale);
             assert_eq!(by_id["running-c"], TurnIntentStatus::Running);
+        });
+    }
+
+    #[test]
+    fn latest_for_sessions_returns_one_current_intent_per_requested_session() {
+        with_temp_orgii_home(|| {
+            let first_session = "test-session-batch-a";
+            let second_session = "test-session-batch-b";
+            let _ = fresh_intent(first_session, "intent-a-old");
+            let _ =
+                update_status(first_session, "intent-a-old", TurnIntentStatus::Running).unwrap();
+            let _ =
+                update_status(first_session, "intent-a-old", TurnIntentStatus::Completed).unwrap();
+            let _ = fresh_intent(first_session, "intent-a-current");
+            let _ = update_status(first_session, "intent-a-current", TurnIntentStatus::Running)
+                .unwrap();
+            let _ = fresh_intent(second_session, "intent-b-current");
+
+            let rows = latest_for_sessions(&[
+                first_session.to_string(),
+                second_session.to_string(),
+                "missing-session".to_string(),
+            ])
+            .unwrap();
+
+            assert_eq!(rows.len(), 2);
+            assert_eq!(rows[first_session].turn_intent_id, "intent-a-current");
+            assert_eq!(rows[first_session].status, TurnIntentStatus::Running);
+            assert_eq!(rows[second_session].turn_intent_id, "intent-b-current");
         });
     }
 

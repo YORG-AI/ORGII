@@ -48,6 +48,7 @@ pub(super) async fn finalize_session_run(
     use_codex_app_server: bool,
     is_acp_agent: bool,
     synced_rule_files: &[std::path::PathBuf],
+    turn_intent_id: Option<&str>,
     outcome: SessionRunOutcome,
 ) {
     let SessionRunOutcome {
@@ -62,29 +63,44 @@ pub(super) async fn finalize_session_run(
     let session_id = session.session_id.as_str();
     let account_id = session.account_id.as_deref();
 
-    if *agent == ModelType::Codex && session.key_source == KeySource::OwnKey {
-        let launched_access_token = env_vars.get("OPENAI_API_KEY").map(String::as_str);
-        if let Err(err) = sync_codex_cli_auth_to_key_vault(account_id, launched_access_token) {
-            tracing::warn!(
-                "[CodeSession] Failed to sync Codex CLI auth tokens: {}",
-                err
-            );
-        }
-        if exit_code == 0 {
-            if let Some(account_id) = account_id {
-                if let Err(err) = KEY_SERVICE.reset_oauth_refresh_failures(account_id) {
-                    tracing::warn!(
-                        "[CodeSession] Failed to reset Codex OAuth refresh failures: {}",
-                        err
-                    );
+    let setup_is_codex_own_key =
+        *agent == ModelType::Codex && session.key_source == KeySource::OwnKey;
+    let setup_access_token = env_vars.get("OPENAI_API_KEY").cloned();
+    let setup_account_id = account_id.map(str::to_string);
+    let setup_session_id = session_id.to_string();
+    let setup_cli_session_id = cli_session_id_out.clone();
+    let _ = tokio::task::spawn_blocking(move || {
+        if setup_is_codex_own_key {
+            if let Err(err) = sync_codex_cli_auth_to_key_vault(
+                setup_account_id.as_deref(),
+                setup_access_token.as_deref(),
+            ) {
+                tracing::warn!(
+                    "[CodeSession] Failed to sync Codex CLI auth tokens: {}",
+                    err
+                );
+            }
+            if exit_code == 0 {
+                if let Some(account_id) = setup_account_id.as_deref() {
+                    if let Err(err) = KEY_SERVICE.reset_oauth_refresh_failures(account_id) {
+                        tracing::warn!(
+                            "[CodeSession] Failed to reset Codex OAuth refresh failures: {}",
+                            err
+                        );
+                    }
                 }
             }
         }
-    }
-
-    if let Some(ref cli_sid) = cli_session_id_out {
-        persistence::update_cli_session_id_for_account(session_id, account_id, cli_sid).ok();
-    }
+        if let Some(cli_session_id) = setup_cli_session_id.as_deref() {
+            persistence::update_cli_session_id_for_account(
+                &setup_session_id,
+                setup_account_id.as_deref(),
+                cli_session_id,
+            )
+            .ok();
+        }
+    })
+    .await;
 
     let raw_final_status = if cli_plan_approval_gate_reached {
         SessionStatus::Completed
@@ -162,15 +178,25 @@ pub(super) async fn finalize_session_run(
         None
     };
 
-    if *agent == ModelType::Codex
+    let should_record_oauth_failure = *agent == ModelType::Codex
         && session.key_source == KeySource::OwnKey
         && error_message
             .as_deref()
-            .is_some_and(is_cli_oauth_failure_message)
-    {
-        if let Some(account_id) = account_id {
-            if let Some(ref err_msg) = error_message {
-                if let Err(err) = KEY_SERVICE.record_oauth_refresh_failure(account_id, err_msg) {
+            .is_some_and(is_cli_oauth_failure_message);
+
+    let persist_session_id = session_id.to_string();
+    let persist_error_message = error_message.clone();
+    let persist_turn_intent_id = turn_intent_id.map(str::to_string);
+    let persist_account_id = account_id.map(str::to_string);
+    let persist_result = tokio::task::spawn_blocking(move || {
+        if should_record_oauth_failure {
+            if let (Some(account_id), Some(error_message)) = (
+                persist_account_id.as_deref(),
+                persist_error_message.as_deref(),
+            ) {
+                if let Err(err) =
+                    KEY_SERVICE.record_oauth_refresh_failure(account_id, error_message)
+                {
                     tracing::warn!(
                         "[CodeSession] Failed to record Codex OAuth refresh failure: {}",
                         err
@@ -178,17 +204,29 @@ pub(super) async fn finalize_session_run(
                 }
             }
         }
-    }
-
-    if let Some(ref err_msg) = error_message {
-        if let Err(err) = persistence::update_status_with_error(session_id, final_status, err_msg) {
-            tracing::error!(
-                "[CodeSession] Failed to update final status with error: {}",
-                err
-            );
-        }
-    } else if let Err(err) = persistence::update_status(session_id, final_status) {
-        tracing::error!("[CodeSession] Failed to update final status: {}", err);
+        let intent_status = persist_turn_intent_id.as_deref().map(|turn_intent_id| {
+            (
+                turn_intent_id,
+                if raw_final_status == SessionStatus::Completed {
+                    session_persistence::turn_intents::TurnIntentStatus::Completed
+                } else {
+                    session_persistence::turn_intents::TurnIntentStatus::Failed
+                },
+            )
+        });
+        persistence::update_cli_turn_lifecycle(
+            &persist_session_id,
+            final_status,
+            persist_error_message.as_deref(),
+            intent_status,
+        )
+    })
+    .await;
+    if let Err(err) = persist_result
+        .map_err(|join_err| join_err.to_string())
+        .and_then(|result| result)
+    {
+        tracing::error!("[CodeSession] Failed to persist final lifecycle: {}", err);
     }
 
     if final_status.is_terminal() {
@@ -213,7 +251,7 @@ pub(super) async fn finalize_session_run(
     }
 
     // Flush any pending streaming deltas before signaling session end
-    flush_and_broadcast(session_id);
+    flush_and_broadcast(session_id).await;
 
     let mut status_msg = serde_json::json!({
         "type": "code_session.status_changed",
@@ -225,6 +263,9 @@ pub(super) async fn finalize_session_run(
     });
     if let Some(ref err_msg) = error_message {
         status_msg["error_message"] = serde_json::Value::String(err_msg.clone());
+    }
+    if let Some(turn_intent_id) = turn_intent_id {
+        status_msg["turn_intent_id"] = serde_json::Value::String(turn_intent_id.to_string());
     }
     websocket_handler::broadcast(status_msg.to_string());
 

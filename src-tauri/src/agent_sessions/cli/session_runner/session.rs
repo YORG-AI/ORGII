@@ -39,6 +39,41 @@ const SPAWN_RETRY_ATTEMPTS: usize = 3;
 const SPAWN_RETRY_BASE_DELAY_MS: u64 = 250;
 const CLI_PLAN_GATE_NATURAL_EXIT_GRACE_SECS: u64 = 45;
 
+#[allow(clippy::too_many_arguments)]
+async fn persist_round_token_usage(
+    session_id: String,
+    model: Option<String>,
+    account_id: Option<String>,
+    input_tokens: i64,
+    output_tokens: i64,
+    cache_read_tokens: i64,
+    cache_write_tokens: i64,
+    total_tokens: i64,
+) {
+    let result = tokio::task::spawn_blocking(move || {
+        session_persistence::token_usage::insert_token_usage_record(
+            &session_id,
+            "code",
+            model.as_deref(),
+            account_id.as_deref(),
+            input_tokens,
+            output_tokens,
+            cache_read_tokens,
+            cache_write_tokens,
+            total_tokens,
+            0,
+            None,
+        )
+    })
+    .await;
+    if let Err(err) = result
+        .map_err(|join_err| join_err.to_string())
+        .and_then(|db_result| db_result.map_err(|db_err| db_err.to_string()))
+    {
+        tracing::warn!("[CodeSession] Failed to insert per-round token usage: {err}");
+    }
+}
+
 fn is_transient_spawn_error(err: &io::Error) -> bool {
     matches!(
         err.kind(),
@@ -67,8 +102,12 @@ pub async fn run_session(
     cli_resume_id: Option<String>,
     mode: Option<&str>,
     images: Option<Vec<String>>,
+    turn_intent_id: Option<&str>,
 ) -> Result<(), String> {
-    let session = persistence::get_session(&session_id)
+    let load_session_id = session_id.clone();
+    let session = tokio::task::spawn_blocking(move || persistence::get_session(&load_session_id))
+        .await
+        .map_err(|err| format!("Task error: {err}"))?
         .map_err(|e| format!("DB error: {}", e))?
         .ok_or_else(|| format!("Session not found: {}", session_id))?;
 
@@ -134,15 +173,6 @@ pub async fn run_session(
         }
     }
 
-    // Sync .orgii/agent-rules.md → agent-native rules file
-    let mut synced_rule_files: Vec<std::path::PathBuf> = Vec::new();
-    if let Some(path) = repo_path {
-        let project = std::path::Path::new(path);
-        synced_rule_files.extend(super::super::skill_sync::sync_conventions_for_agent(
-            &agent, project,
-        ));
-    }
-
     // Sync skills to agent-native rules files.
     //
     // Agent resolve contract (design doc §11.4) row 17: resolve the built-in SDE agent (the CLI
@@ -150,68 +180,94 @@ pub async fn run_session(
     // are a host-wide concern carried on the SDE definition) and read
     // `skills.enabled` + `skills.disabled` off `ResolvedAgent`.
     let skills_cfg = resolve_sde_skills();
-    if let Some(path) = repo_path {
-        let project = std::path::Path::new(path);
-        synced_rule_files.extend(super::super::skill_sync::sync_skills_for_agent(
-            &agent,
-            project,
-            skills_cfg.enabled,
-            &skills_cfg.disabled,
-        ));
-    }
+    let setup_agent = agent.clone();
+    let setup_repo_path = repo_path.map(str::to_string);
+    let setup_session_id = session_id.clone();
+    let setup_skills_cfg = skills_cfg.clone();
+    let (synced_rule_files, pre_message_snapshot_id) = tokio::task::spawn_blocking(move || {
+        let mut synced_rule_files = Vec::new();
+        if let Some(path) = setup_repo_path.as_deref() {
+            let project = std::path::Path::new(path);
+            synced_rule_files.extend(super::super::skill_sync::sync_conventions_for_agent(
+                &setup_agent,
+                project,
+            ));
+            synced_rule_files.extend(super::super::skill_sync::sync_skills_for_agent(
+                &setup_agent,
+                project,
+                setup_skills_cfg.enabled,
+                &setup_skills_cfg.disabled,
+            ));
+        }
 
-    // Pre-message anchor snapshot for CLI rollback support.
-    // `snapshot_cli_file_edit` populates this snapshot with git-HEAD bytes of
-    // each file the agent touches, filling the gap that SDE Agent closes via
-    // `UnifiedEventHandler::take_snapshot` (which fires before the tool runs).
-    let pre_message_snapshot_id = match agent_core::tools::file_history::make_snapshot(&session_id)
-    {
-        Ok(snapshot_id) => {
-            tracing::info!(
-                "[code_session] Pre-message anchor snapshot: {}",
-                snapshot_id
-            );
-            if let Err(err) = agent_core::session::persistence::save_snapshot(
-                &session_id,
-                "__pre_message__",
-                &snapshot_id,
-            ) {
-                tracing::warn!(
-                    "[code_session] Failed to persist pre-message snapshot: {}",
-                    err
+        // Pre-message anchor snapshot for CLI rollback support.
+        let snapshot_id = match agent_core::tools::file_history::make_snapshot(&setup_session_id) {
+            Ok(snapshot_id) => {
+                tracing::info!(
+                    "[code_session] Pre-message anchor snapshot: {}",
+                    snapshot_id
                 );
+                if let Err(err) = agent_core::session::persistence::save_snapshot(
+                    &setup_session_id,
+                    "__pre_message__",
+                    &snapshot_id,
+                ) {
+                    tracing::warn!(
+                        "[code_session] Failed to persist pre-message snapshot: {}",
+                        err
+                    );
+                }
+                Some(snapshot_id)
             }
-            Some(snapshot_id)
-        }
-        Err(err) => {
-            tracing::warn!("[code_session] Pre-message snapshot failed: {}", err);
-            None
-        }
-    };
+            Err(err) => {
+                tracing::warn!("[code_session] Pre-message snapshot failed: {}", err);
+                None
+            }
+        };
+        (synced_rule_files, snapshot_id)
+    })
+    .await
+    .map_err(|err| format!("runner setup task failed: {err}"))?;
 
     let run_started_at = chrono::Utc::now();
 
     // Resolved early: the experimental codex app-server transport gate
     // changes prompt assembly (images travel as native localImage inputs)
     // as well as argv and the stdout-processing branch below.
-    let launch_profile = resolve_cli_launch_profile(&agent)?;
+    let launch_profile_agent = agent.clone();
+    let launch_profile =
+        tokio::task::spawn_blocking(move || resolve_cli_launch_profile(&launch_profile_agent))
+            .await
+            .map_err(|err| format!("launch profile task failed: {err}"))??;
     let use_codex_app_server =
         super::launch_profiles::uses_codex_app_server(&agent, &launch_profile);
 
     let image_paths = persist_attached_images(&session_id, images.as_deref()).await;
 
-    let effective_input = super::input_assembly::build_effective_input(
-        &user_input,
-        mode,
-        &session_id,
-        cli_resume_id.is_none(),
-        &agent,
-        &image_paths,
-        use_codex_app_server,
-        repo_path,
-        skills_cfg.enabled,
-        &skills_cfg.disabled,
-    );
+    let prompt_user_input = user_input.clone();
+    let prompt_mode = mode.map(str::to_string);
+    let prompt_session_id = session_id.clone();
+    let prompt_agent = agent.clone();
+    let prompt_image_paths = image_paths.clone();
+    let prompt_repo_path = repo_path.map(str::to_string);
+    let prompt_skills = skills_cfg.clone();
+    let is_fresh_session = cli_resume_id.is_none();
+    let effective_input = tokio::task::spawn_blocking(move || {
+        super::input_assembly::build_effective_input(
+            &prompt_user_input,
+            prompt_mode.as_deref(),
+            &prompt_session_id,
+            is_fresh_session,
+            &prompt_agent,
+            &prompt_image_paths,
+            use_codex_app_server,
+            prompt_repo_path.as_deref(),
+            prompt_skills.enabled,
+            &prompt_skills.disabled,
+        )
+    })
+    .await
+    .map_err(|err| format!("prompt assembly task failed: {err}"))?;
 
     // Build CLI command
     let api_key_for_cli = if session.key_source == KeySource::HostedKey
@@ -342,26 +398,19 @@ pub async fn run_session(
 
     // Store user input (without IDE context)
     let display_input = strip_ide_context(&user_input);
-    {
+    let input_session_id = session_id.clone();
+    let persisted_display_input = display_input.clone();
+    tokio::task::spawn_blocking(move || {
         let conn = session_persistence::get_connection().map_err(|e| format!("DB: {}", e))?;
         conn.execute(
             "UPDATE code_sessions SET user_input = ?2 WHERE session_id = ?1",
-            rusqlite::params![session_id, display_input],
+            rusqlite::params![input_session_id, persisted_display_input],
         )
         .map_err(|e| format!("DB: failed to store user_input: {}", e))?;
-    }
-
-    if let Err(err) = persistence::update_status(&session_id, SessionStatus::Running) {
-        tracing::error!("[CodeSession] Failed to update status to running: {}", err);
-        return Err(format!("DB error updating status: {}", err));
-    }
-
-    let running_msg = serde_json::json!({
-        "type": "code_session.status_changed",
-        "session_id": session_id,
-        "status": "running",
-    });
-    websocket_handler::broadcast(running_msg.to_string());
+        Ok::<(), String>(())
+    })
+    .await
+    .map_err(|err| format!("Task error: {err}"))??;
 
     // Start per-session MITM proxy if needed
     let needs_mitm = session.key_source == KeySource::HostedKey && agent.needs_mitm_proxy();
@@ -370,15 +419,27 @@ pub async fn run_session(
         super::env_setup::start_session_mitm_proxy(&session, &session_id, &mut env_vars).await?;
     }
 
-    super::env_setup::configure_agent_profile(
-        &agent,
-        &session,
-        account_id,
-        selected_key.as_ref(),
-        &session_id,
-        cli_resume_id.as_deref(),
-        &mut env_vars,
-    )?;
+    let profile_agent = agent.clone();
+    let profile_session = session.clone();
+    let profile_account_id = account_id.map(str::to_string);
+    let profile_selected_key = selected_key.clone();
+    let profile_session_id = session_id.clone();
+    let profile_resume_id = cli_resume_id.clone();
+    env_vars = tokio::task::spawn_blocking(move || {
+        let mut profile_env = env_vars;
+        super::env_setup::configure_agent_profile(
+            &profile_agent,
+            &profile_session,
+            profile_account_id.as_deref(),
+            profile_selected_key.as_ref(),
+            &profile_session_id,
+            profile_resume_id.as_deref(),
+            &mut profile_env,
+        )?;
+        Ok::<_, String>(profile_env)
+    })
+    .await
+    .map_err(|err| format!("agent profile setup task failed: {err}"))??;
 
     super::env_setup::apply_system_proxy_passthrough(&mut env_vars);
 
@@ -420,7 +481,12 @@ pub async fn run_session(
     const MAX_OVERLOAD_RETRIES: u32 = 3;
     const OVERLOAD_RETRY_BASE_DELAY_SECS: u64 = 2;
 
-    let base_sequence: i64 = persistence::max_chunk_sequence(&session_id).unwrap_or(-1) + 1;
+    let sequence_session_id = session_id.clone();
+    let base_sequence: i64 = tokio::task::spawn_blocking(move || {
+        persistence::max_chunk_sequence(&sequence_session_id).unwrap_or(-1) + 1
+    })
+    .await
+    .map_err(|err| format!("Task error: {err}"))?;
 
     // Emit user_message chunk
     {
@@ -451,19 +517,34 @@ pub async fn run_session(
         // broadcast: the frontend's synthetic event already renders the user
         // bubble instantly, and the CLI's native store is the transcript of
         // record. Broadcasting here too would render a duplicate bubble.
-        if persistence::session_persists_chunks(&session_id) {
-            if let Err(err) = persistence::insert_chunk(&user_chunk, base_sequence) {
+        let persist_session_id = session_id.clone();
+        let persist_user_chunk = user_chunk.clone();
+        let persisted_user_chunk = tokio::task::spawn_blocking(move || {
+            if !persistence::session_persists_chunks(&persist_session_id) {
+                return Ok(false);
+            }
+            persistence::insert_chunk(&persist_user_chunk, base_sequence)
+                .map_err(|err| err.to_string())?;
+            Ok::<bool, String>(true)
+        })
+        .await
+        .map_err(|err| format!("Task error: {err}"))?;
+        match persisted_user_chunk {
+            Err(err) => {
                 tracing::error!(
                     "[CodeSession] Failed to persist user_message chunk: {}",
                     err
                 );
             }
-            let ws_msg = serde_json::json!({
-                "type": "code_session.activity",
-                "session_id": session_id,
-                "chunk": user_chunk,
-            });
-            websocket_handler::broadcast(ws_msg.to_string());
+            Ok(false) => {}
+            Ok(true) => {
+                let ws_msg = serde_json::json!({
+                    "type": "code_session.activity",
+                    "session_id": session_id,
+                    "chunk": user_chunk,
+                });
+                websocket_handler::broadcast(ws_msg.to_string());
+            }
         }
     }
 
@@ -537,7 +618,14 @@ pub async fn run_session(
         };
 
         if let Some(pid) = child.id() {
-            if let Err(err) = persistence::update_pid(&session_id, pid) {
+            let pid_session_id = session_id.clone();
+            let pid_result =
+                tokio::task::spawn_blocking(move || persistence::update_pid(&pid_session_id, pid))
+                    .await;
+            if let Err(err) = pid_result
+                .map_err(|join_err| join_err.to_string())
+                .and_then(|result| result.map_err(|db_err| db_err.to_string()))
+            {
                 tracing::warn!("[CodeSession] Failed to store PID: {}", err);
             }
         }
@@ -598,11 +686,21 @@ pub async fn run_session(
                     if cli_session_id_out.is_none() {
                         if let Some(ref tid) = chunk.thread_id {
                             cli_session_id_out = Some(tid.clone());
-                            if let Err(err) = persistence::update_cli_session_id_for_account(
-                                &session_id,
-                                account_id,
-                                tid,
-                            ) {
+                            let binding_session_id = session_id.clone();
+                            let binding_account_id = account_id.map(str::to_string);
+                            let binding_thread_id = tid.clone();
+                            let binding_result = tokio::task::spawn_blocking(move || {
+                                persistence::update_cli_session_id_for_account(
+                                    &binding_session_id,
+                                    binding_account_id.as_deref(),
+                                    &binding_thread_id,
+                                )
+                            })
+                            .await;
+                            if let Err(err) = binding_result
+                                .map_err(|join_err| join_err.to_string())
+                                .and_then(|result| result.map_err(|db_err| db_err.to_string()))
+                            {
                                 tracing::warn!(
                                     "[CodeSession] Failed to bind early cli_session_id: {}",
                                     err
@@ -619,9 +717,10 @@ pub async fn run_session(
                         }
                     }
                     if let Some(snap_id) = &pre_message_snapshot_id {
-                        snapshot_cli_file_edit(&session_id, snap_id, &chunk, &snapshot_working_dir);
+                        snapshot_cli_file_edit(&session_id, snap_id, &chunk, &snapshot_working_dir)
+                            .await;
                     }
-                    emit_chunk(&chunk, &session_id, &mut sequence);
+                    emit_chunk(&chunk, &session_id, &mut sequence).await;
                 }
             })
             .await;
@@ -632,27 +731,17 @@ pub async fn run_session(
                     cli_session_id_out = Some(result.thread_id);
                     codex_app_server_turn_ok = result.turn_status != "failed";
                     if let Some(ref usage) = result.usage {
-                        let round_model = usage.model.as_deref().or(model);
-                        if let Err(err) =
-                            session_persistence::token_usage::insert_token_usage_record(
-                                &session_id,
-                                "code",
-                                round_model,
-                                account_id,
-                                usage.input_tokens as i64,
-                                usage.output_tokens as i64,
-                                usage.cache_read_tokens as i64,
-                                usage.cache_write_tokens as i64,
-                                usage.total_tokens as i64,
-                                0,
-                                None,
-                            )
-                        {
-                            tracing::warn!(
-                                "[CodeSession] Failed to insert per-round token usage: {}",
-                                err
-                            );
-                        }
+                        persist_round_token_usage(
+                            session_id.clone(),
+                            usage.model.clone().or_else(|| model.map(str::to_string)),
+                            account_id.map(str::to_string),
+                            usage.input_tokens as i64,
+                            usage.output_tokens as i64,
+                            usage.cache_read_tokens as i64,
+                            usage.cache_write_tokens as i64,
+                            usage.total_tokens as i64,
+                        )
+                        .await;
                     }
                 }
                 Ok(Err(err)) if !timed_out => {
@@ -737,9 +826,10 @@ pub async fn run_session(
             let timeout_result = tokio::time::timeout(session_timeout, async {
                 while let Some(chunk) = chunk_rx.recv().await {
                     if let Some(snap_id) = &pre_message_snapshot_id {
-                        snapshot_cli_file_edit(&session_id, snap_id, &chunk, &snapshot_working_dir);
+                        snapshot_cli_file_edit(&session_id, snap_id, &chunk, &snapshot_working_dir)
+                            .await;
                     }
-                    emit_chunk(&chunk, &session_id, &mut sequence);
+                    emit_chunk(&chunk, &session_id, &mut sequence).await;
                 }
             })
             .await;
@@ -773,13 +863,16 @@ pub async fn run_session(
             if matches!(agent, ModelType::Kiro) {
                 if let Some(home) = env_vars.get("HOME") {
                     let lock_dir = std::path::Path::new(home).join(".kiro/sessions/cli");
-                    if let Ok(entries) = std::fs::read_dir(&lock_dir) {
-                        for entry in entries.flatten() {
-                            if entry.path().extension().is_some_and(|e| e == "lock") {
-                                let _ = std::fs::remove_file(entry.path());
+                    let _ = tokio::task::spawn_blocking(move || {
+                        if let Ok(entries) = std::fs::read_dir(&lock_dir) {
+                            for entry in entries.flatten() {
+                                if entry.path().extension().is_some_and(|e| e == "lock") {
+                                    let _ = std::fs::remove_file(entry.path());
+                                }
                             }
                         }
-                    }
+                    })
+                    .await;
                 }
             }
         } else {
@@ -839,11 +932,21 @@ pub async fn run_session(
                             if cli_session_id_out.is_none() {
                                 if let Some(cli_sid) = parser.cli_session_id() {
                                     cli_session_id_out = Some(cli_sid.clone());
-                                    if let Err(err) = persistence::update_cli_session_id_for_account(
-                                        &session_id,
-                                        account_id,
-                                        &cli_sid,
-                                    ) {
+                                    let binding_session_id = session_id.clone();
+                                    let binding_account_id = account_id.map(str::to_string);
+                                    let binding_cli_session_id = cli_sid.clone();
+                                    let binding_result = tokio::task::spawn_blocking(move || {
+                                        persistence::update_cli_session_id_for_account(
+                                            &binding_session_id,
+                                            binding_account_id.as_deref(),
+                                            &binding_cli_session_id,
+                                        )
+                                    })
+                                    .await;
+                                    if let Err(err) = binding_result
+                                        .map_err(|join_err| join_err.to_string())
+                                        .and_then(|result| result.map_err(|db_err| db_err.to_string()))
+                                    {
                                         tracing::warn!(
                                             "[CodeSession] Failed to bind early cli_session_id: {}",
                                             err
@@ -889,7 +992,8 @@ pub async fn run_session(
                                         snap_id,
                                         &chunk,
                                         &snapshot_working_dir,
-                                    );
+                                    )
+                                    .await;
                                 }
                                 if is_successful_mode_tool(&chunk, "enter_plan_mode") {
                                     cli_plan_active = true;
@@ -913,7 +1017,8 @@ pub async fn run_session(
                                         .await
                                         {
                                             Ok(plan_chunk) => {
-                                                emit_chunk(&plan_chunk, &session_id, &mut sequence);
+                                                emit_chunk(&plan_chunk, &session_id, &mut sequence)
+                                                    .await;
                                                 cli_plan_registered_this_turn = true;
                                                 cli_plan_approval_gate_triggered = true;
                                             }
@@ -942,7 +1047,8 @@ pub async fn run_session(
                                         .await
                                         {
                                             Ok(plan_chunk) => {
-                                                emit_chunk(&plan_chunk, &session_id, &mut sequence);
+                                                emit_chunk(&plan_chunk, &session_id, &mut sequence)
+                                                    .await;
                                                 cli_plan_registered_this_turn = true;
                                                 cli_plan_approval_gate_triggered = true;
                                             }
@@ -967,7 +1073,12 @@ pub async fn run_session(
                                             .await
                                             {
                                                 Ok(plan_chunk) => {
-                                                    emit_chunk(&plan_chunk, &session_id, &mut sequence);
+                                                    emit_chunk(
+                                                        &plan_chunk,
+                                                        &session_id,
+                                                        &mut sequence,
+                                                    )
+                                                    .await;
                                                     cli_plan_registered_this_turn = true;
                                                     cli_plan_approval_gate_triggered = true;
                                                 }
@@ -988,7 +1099,7 @@ pub async fn run_session(
                                     }
                                     cli_plan_active = false;
                                 }
-                                emit_chunk(&chunk, &session_id, &mut sequence);
+                                emit_chunk(&chunk, &session_id, &mut sequence).await;
                                 if cli_plan_approval_gate_triggered && !cli_plan_gate_announced {
                                     cli_plan_gate_announced = true;
                                     tracing::info!(
@@ -1000,7 +1111,7 @@ pub async fn run_session(
                                     // instead of holding Stop for up to the 45s drain window
                                     // while the child process winds down. The final
                                     // status_changed after child exit is idempotent.
-                                    flush_and_broadcast(&session_id);
+                                    flush_and_broadcast(&session_id).await;
                                     // The plan card supersedes any hook-derived
                                     // waiting/working entry for this turn.
                                     clear_live_status(
@@ -1008,25 +1119,43 @@ pub async fn run_session(
                                         &session_id,
                                         cli_session_id_out.as_deref(),
                                     );
-                                    if let Err(err) = persistence::update_status(
-                                        &session_id,
-                                        SessionStatus::Completed,
-                                    ) {
+                                    let plan_session_id = session_id.clone();
+                                    let plan_turn_intent_id = turn_intent_id.map(str::to_string);
+                                    let plan_persist_result = tokio::task::spawn_blocking(move || {
+                                        persistence::update_cli_turn_lifecycle(
+                                            &plan_session_id,
+                                            SessionStatus::Completed,
+                                            None,
+                                            plan_turn_intent_id.as_deref().map(|turn_intent_id| {
+                                                (
+                                                    turn_intent_id,
+                                                session_persistence::turn_intents::TurnIntentStatus::Completed,
+                                                )
+                                            }),
+                                            )
+                                    })
+                                    .await;
+                                    if let Err(err) = plan_persist_result
+                                        .map_err(|join_err| join_err.to_string())
+                                        .and_then(|result| result)
+                                    {
                                         tracing::warn!(
                                             "[CodeSession] Failed to persist plan-gate completed status for {}: {}",
                                             session_id,
                                             err
                                         );
                                     }
-                                    websocket_handler::broadcast(
-                                        serde_json::json!({
+                                    let mut plan_status_message = serde_json::json!({
                                             "type": "code_session.status_changed",
                                             "session_id": session_id,
                                             "status": SessionStatus::Completed.as_ref(),
                                             "plan_gate": true,
-                                        })
-                                        .to_string(),
-                                    );
+                                        });
+                                    if let Some(turn_intent_id) = turn_intent_id {
+                                        plan_status_message["turn_intent_id"] =
+                                            serde_json::Value::String(turn_intent_id.to_string());
+                                    }
+                                    websocket_handler::broadcast(plan_status_message.to_string());
                                 }
                             }
                             if retryable_oauth_message.is_some()
@@ -1141,9 +1270,10 @@ pub async fn run_session(
                         break;
                     }
                     if let Some(snap_id) = &pre_message_snapshot_id {
-                        snapshot_cli_file_edit(&session_id, snap_id, chunk, &snapshot_working_dir);
+                        snapshot_cli_file_edit(&session_id, snap_id, chunk, &snapshot_working_dir)
+                            .await;
                     }
-                    emit_chunk(chunk, &session_id, &mut sequence);
+                    emit_chunk(chunk, &session_id, &mut sequence).await;
                 }
             }
 
@@ -1155,25 +1285,17 @@ pub async fn run_session(
                 }
 
                 if let Some(ref usage) = parser.token_usage() {
-                    let round_model = usage.model.as_deref().or(model);
-                    if let Err(err) = session_persistence::token_usage::insert_token_usage_record(
-                        &session_id,
-                        "code",
-                        round_model,
-                        account_id,
+                    persist_round_token_usage(
+                        session_id.clone(),
+                        usage.model.clone().or_else(|| model.map(str::to_string)),
+                        account_id.map(str::to_string),
                         usage.input_tokens as i64,
                         usage.output_tokens as i64,
                         usage.cache_read_tokens as i64,
                         usage.cache_write_tokens as i64,
                         usage.total_tokens as i64,
-                        0,
-                        None,
-                    ) {
-                        tracing::warn!(
-                            "[CodeSession] Failed to insert per-round token usage: {}",
-                            err
-                        );
-                    }
+                    )
+                    .await;
                 }
             }
         }
@@ -1258,6 +1380,7 @@ pub async fn run_session(
         use_codex_app_server,
         is_acp_agent,
         &synced_rule_files,
+        turn_intent_id,
         super::finalize::SessionRunOutcome {
             exit_code,
             cli_session_id_out,
