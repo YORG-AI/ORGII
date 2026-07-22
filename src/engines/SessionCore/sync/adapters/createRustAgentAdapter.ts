@@ -92,6 +92,27 @@ export interface RustAgentConfig {
 
 const logger = createLogger("RustAgentAdapter");
 
+export interface StreamingEdgeController {
+  readonly value: boolean;
+  set(value: boolean): void;
+}
+
+export function createStreamingEdgeController(
+  write: (value: boolean) => void
+): StreamingEdgeController {
+  let lastValue: boolean | undefined;
+  return {
+    get value(): boolean {
+      return lastValue ?? false;
+    },
+    set(value: boolean): void {
+      if (lastValue === value) return;
+      lastValue = value;
+      write(value);
+    },
+  };
+}
+
 interface TokenUsageRecord {
   inputTokens: number;
   contextTokens: number;
@@ -172,6 +193,17 @@ export function createRustAgentAdapter(
     transformUserText,
     features,
   } = config;
+  const streamingControllers = new Map<string, StreamingEdgeController>();
+
+  const getStreamingController = (sessionId: string) => {
+    const existing = streamingControllers.get(sessionId);
+    if (existing) return existing;
+    const created = createStreamingEdgeController((value) => {
+      void eventStoreProxy.setStreaming(value, sessionId);
+    });
+    streamingControllers.set(sessionId, created);
+    return created;
+  };
 
   return {
     category,
@@ -283,7 +315,7 @@ export function createRustAgentAdapter(
       sessionId: string,
       callbacks: EventHandlerCallbacks
     ): SessionEventHandler {
-      let _streaming = false;
+      const streamingController = getStreamingController(sessionId);
 
       // Two-flag system for status signaling:
       //
@@ -369,8 +401,7 @@ export function createRustAgentAdapter(
             }
           : undefined,
         setStreaming: (value: boolean) => {
-          _streaming = value;
-          eventStoreProxy.setStreaming(value, sessionId);
+          streamingController.set(value);
         },
       });
 
@@ -582,20 +613,22 @@ export function createRustAgentAdapter(
 
           ctx.trackedCodingSessionsRef?.current.clear();
 
-          _streaming = false;
           _runningSignaled = false;
           _turnCompleted = false;
           _consecutiveDispatchFailures = 0;
-          eventStoreProxy.setStreaming(false, sessionId);
+          streamingController.set(false);
         },
 
         get isStreaming(): boolean {
-          return _streaming;
+          return streamingController.value;
         },
 
         dispose(): void {
           _disposed = true;
           this.reset();
+          if (streamingControllers.get(sessionId) === streamingController) {
+            streamingControllers.delete(sessionId);
+          }
         },
       };
     },
@@ -644,7 +677,11 @@ export function createRustAgentAdapter(
 
     async stopSession(sessionId: string, reason: CancelReason): Promise<void> {
       markSessionStreamingStopped(sessionId);
-      void eventStoreProxy.setStreaming(false, sessionId);
+      const existingController = streamingControllers.get(sessionId);
+      const streamingController =
+        existingController ?? getStreamingController(sessionId);
+      streamingController.set(false);
+      if (!existingController) streamingControllers.delete(sessionId);
       await cancel(sessionId, reason);
     },
   };
