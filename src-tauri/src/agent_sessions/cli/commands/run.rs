@@ -6,6 +6,15 @@ use super::super::persistence;
 use super::super::session_runner;
 use super::super::types::{KeySource, SessionStatus};
 use agent_core::session::IdeContext;
+use serde::Serialize;
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CliRunReceipt {
+    pub session_id: String,
+    pub turn_intent_id: String,
+    pub status: SessionStatus,
+}
 
 /// Prepend IDE context (open files, git status, etc.) to the user prompt
 /// so external CLI agents are aware of the user's IDE state.
@@ -46,6 +55,30 @@ pub async fn cli_agent_run(
     mode: Option<String>,
     images: Option<Vec<String>>,
 ) -> Result<(), String> {
+    cli_agent_run_internal(
+        session_id,
+        user_input,
+        cli_resume_id,
+        ide_context,
+        mode,
+        images,
+        uuid::Uuid::new_v4().to_string(),
+        uuid::Uuid::new_v4().to_string(),
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn cli_agent_run_internal(
+    session_id: String,
+    user_input: String,
+    cli_resume_id: Option<String>,
+    ide_context: Option<IdeContext>,
+    mode: Option<String>,
+    images: Option<Vec<String>>,
+    turn_intent_id: String,
+    client_message_id: String,
+) -> Result<(), String> {
     tracing::info!(
         session_id = %session_id,
         has_resume_id = cli_resume_id.is_some(),
@@ -65,9 +98,8 @@ pub async fn cli_agent_run(
         .map_err(|err| format!("Task error: {}", err))??;
     }
 
-    // Hold lock across check + spawn + insert to prevent duplicate agents from
-    // concurrent calls (e.g., double-click). tokio::spawn returns immediately so
-    // the lock is held only briefly.
+    // Hold the registry lock across acceptance persistence + spawn so two
+    // concurrent calls cannot both create a running intent for one session.
     let mut sessions = session_runner::RUNNING_SESSIONS.lock().await;
 
     // Guard: prevent duplicate parallel agents for the same session
@@ -80,10 +112,32 @@ pub async fn cli_agent_run(
         }
     }
 
+    let persist_session_id = session_id.clone();
+    let persist_turn_intent_id = turn_intent_id.clone();
+    tokio::task::spawn_blocking(move || {
+        persistence::accept_cli_turn(
+            &persist_session_id,
+            &persist_turn_intent_id,
+            &client_message_id,
+        )
+        .map_err(|err| format!("failed to accept CLI turn lifecycle: {err}"))
+    })
+    .await
+    .map_err(|err| format!("Task error: {err}"))??;
+
+    let mut running_msg = serde_json::json!({
+        "type": "code_session.status_changed",
+        "session_id": session_id,
+        "status": "running",
+    });
+    running_msg["turn_intent_id"] = serde_json::Value::String(turn_intent_id.clone());
+    crate::api::websocket_handler::broadcast(running_msg.to_string());
+
     let sid = session_id.clone();
     let cli_input = inject_ide_context_into_prompt(&user_input, ide_context.as_ref());
     let resume_id = cli_resume_id.clone();
     let agent_mode = mode.clone();
+    let runner_turn_intent_id = turn_intent_id.clone();
 
     tracing::info!(session_id = %session_id, "cli_agent_run: spawning background runner");
 
@@ -95,17 +149,34 @@ pub async fn cli_agent_run(
             resume_id,
             agent_mode.as_deref(),
             images,
+            Some(&runner_turn_intent_id),
         )
         .await
         {
             tracing::error!("[CodeSession] Session {} failed: {}", sid, e);
-            session_runner::flush_cli_streams_for_session(&sid);
+            session_runner::flush_cli_streams_for_session(&sid).await;
             // Best-effort: if marking the row as Failed itself fails, log
             // it explicitly rather than silently dropping the persistence
             // error — the session row may be left in `Running` until the
             // health checker repairs it on next pass.
-            if let Err(persist_err) =
-                persistence::update_status_with_error(&sid, SessionStatus::Failed, &e)
+            let failed_sid = sid.clone();
+            let failed_error = e.clone();
+            let failed_intent = runner_turn_intent_id.clone();
+            let persist_result = tokio::task::spawn_blocking(move || {
+                persistence::update_cli_turn_lifecycle(
+                    &failed_sid,
+                    SessionStatus::Failed,
+                    Some(&failed_error),
+                    Some((
+                        &failed_intent,
+                        session_persistence::turn_intents::TurnIntentStatus::Failed,
+                    )),
+                )
+            })
+            .await;
+            if let Err(persist_err) = persist_result
+                .map_err(|err| err.to_string())
+                .and_then(|result| result)
             {
                 tracing::error!(
                     "[CodeSession] failed to mark session {} as Failed: {}",
@@ -115,22 +186,23 @@ pub async fn cli_agent_run(
             }
             integrations::proxy::server::stop_session_proxy(&sid).await;
             session_runner::release_proxy_token_for_session_pub(&sid).await;
+            let mut failed_msg = serde_json::json!({
+                "type": "code_session.status_changed",
+                "session_id": sid,
+                "status": "failed",
+                "error_message": e,
+            });
+            failed_msg["turn_intent_id"] =
+                serde_json::Value::String(runner_turn_intent_id.clone());
+            crate::api::websocket_handler::broadcast(failed_msg.to_string());
         }
         // Remove finished entry from RUNNING_SESSIONS to prevent unbounded growth
         session_runner::RUNNING_SESSIONS.lock().await.remove(&sid);
     });
 
     sessions.insert(session_id.clone(), handle);
+    drop(sessions);
     tracing::info!(session_id = %session_id, "cli_agent_run: background runner registered");
-
-    persistence::update_status(&session_id, SessionStatus::Running)
-        .map_err(|err| format!("DB error updating status: {err}"))?;
-    let running_msg = serde_json::json!({
-        "type": "code_session.status_changed",
-        "session_id": session_id,
-        "status": "running",
-    });
-    crate::api::websocket_handler::broadcast(running_msg.to_string());
 
     Ok(())
 }
@@ -144,6 +216,7 @@ pub async fn cli_agent_run(
 /// If `model` or `account_id` is provided, updates the session config before
 /// re-running so the CLI uses the newly selected model/key.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn cli_agent_message(
     session_id: String,
     content: String,
@@ -152,7 +225,11 @@ pub async fn cli_agent_message(
     ide_context: Option<IdeContext>,
     mode: Option<String>,
     images: Option<Vec<String>>,
-) -> Result<(), String> {
+    turn_intent_id: Option<String>,
+    client_message_id: Option<String>,
+) -> Result<CliRunReceipt, String> {
+    let turn_intent_id = turn_intent_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let client_message_id = client_message_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
     tracing::info!(
         session_id = %session_id,
         has_model_override = model.is_some(),
@@ -231,9 +308,18 @@ pub async fn cli_agent_message(
             .map_err(|err| format!("DB error: {}", err))?
             .and_then(|s| s.cli_session_id)
     };
-    let cli_resume_id = persistence::get_cli_session_id_for_account(&session_id, target_account_id)
-        .map_err(|err| format!("DB error: {}", err))?
-        .or_else(|| {
+    let resume_session_id = session_id.clone();
+    let resume_account_id = target_account_id.map(str::to_string);
+    let account_scoped_resume_id = tokio::task::spawn_blocking(move || {
+        persistence::get_cli_session_id_for_account(
+            &resume_session_id,
+            resume_account_id.as_deref(),
+        )
+        .map_err(|err| format!("DB error: {err}"))
+    })
+    .await
+    .map_err(|err| format!("Task error: {err}"))??;
+    let cli_resume_id = account_scoped_resume_id.or_else(|| {
             if account_id
                 .as_deref()
                 .is_some_and(|new_account_id| session.account_id.as_deref() != Some(new_account_id))
@@ -294,15 +380,22 @@ pub async fn cli_agent_message(
 
     // Re-run the session with the new message
     tracing::info!(session_id = %session_id, "cli_agent_message: dispatching rerun");
-    cli_agent_run(
-        session_id,
+    cli_agent_run_internal(
+        session_id.clone(),
         content,
         cli_resume_id,
         ide_context,
         mode,
         images,
+        turn_intent_id.clone(),
+        client_message_id,
     )
-    .await
+    .await?;
+    Ok(CliRunReceipt {
+        session_id,
+        turn_intent_id,
+        status: SessionStatus::Running,
+    })
 }
 
 /// Respond to a pending approval request from a CLI agent.

@@ -82,7 +82,7 @@ pub async fn cli_agent_resume(session_id: String) -> Result<(), String> {
 
     let handle = tokio::spawn(async move {
         if let Err(e) =
-            session_runner::run_session(sid.clone(), input, cli_resume_id, None, None).await
+            session_runner::run_session(sid.clone(), input, cli_resume_id, None, None, None).await
         {
             tracing::error!("[CodeSession] Resume of {} failed: {}", sid, e);
             // Same fail-loud principle as the create path above: log the

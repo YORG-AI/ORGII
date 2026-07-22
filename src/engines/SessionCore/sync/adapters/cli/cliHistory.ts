@@ -1,5 +1,6 @@
-import { convertFileSrc, invoke as tauriInvoke } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@tauri-apps/api/core";
 
+import { rpc } from "@src/api/tauri/rpc";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { processChunksRust } from "@src/engines/SessionCore/ingestion/rustBridge";
 import { createLogger } from "@src/hooks/logger";
@@ -34,9 +35,7 @@ export async function loadCliHistory(
   sessionId: string,
   signal: AbortSignal
 ): Promise<SessionEvent[]> {
-  const chunks = await tauriInvoke<ActivityChunk[]>("cli_agent_chunks", {
-    sessionId,
-  });
+  const chunks = (await rpc.cli.chunks({ sessionId })) as ActivityChunk[];
   if (signal.aborted || !Array.isArray(chunks)) return [];
   const events = await processChunksRust(chunks, sessionId);
   if (signal.aborted) return [];
@@ -49,10 +48,9 @@ export async function postLoadCliSession(
 ): Promise<PostLoadResult> {
   const result: PostLoadResult = {};
   try {
-    const storedSession = await tauriInvoke<StoredSession | null>(
-      "cli_agent_status",
-      { sessionId }
-    );
+    const storedSession = (await rpc.cli.status({
+      sessionId,
+    })) as StoredSession | null;
     if (signal.aborted || !storedSession) return result;
 
     registerSessionTranscriptSource(sessionId, storedSession.transcriptSource);

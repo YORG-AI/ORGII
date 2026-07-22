@@ -184,8 +184,17 @@ export function beginTurnDispatch(sessionId: string): number {
  * turns, org-coordinator dispatches) and confirms a pending dispatch.
  * Never downgrades "stopping" — a late running ack must not cancel a Stop.
  */
-export function markTurnRunning(sessionId: string): void {
+export function markTurnRunning(
+  sessionId: string,
+  options: { generation?: number } = {}
+): void {
   const state = getState(sessionId);
+  if (
+    options.generation !== undefined &&
+    options.generation !== state.generation
+  ) {
+    return;
+  }
   if (state.phase === "working" || state.phase === "stopping") return;
   if (state.phase === "idle") {
     state.generation += 1;
@@ -286,6 +295,15 @@ export function getLastTurnTerminal(
   sessionId: string
 ): { generation: number; status: TurnTerminalStatus; at: number } | null {
   return stateBySession.get(sessionId)?.lastTerminal ?? null;
+}
+
+/** Release all retained lifecycle state when a session is permanently removed. */
+export function clearTurnLifecycleSession(sessionId: string): void {
+  const state = stateBySession.get(sessionId);
+  if (!state) return;
+  clearDeadman(state);
+  stateBySession.delete(sessionId);
+  bumpSignal();
 }
 
 export function resetTurnLifecycleForTests(): void {

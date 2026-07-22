@@ -66,7 +66,6 @@ import {
   queueEditingAtom,
   queueFlushRequestAtom,
 } from "@src/store/ui/messageQueueAtom";
-import { invokeTauri } from "@src/util/platform/tauri/init";
 import { resolveModelForMessage } from "@src/util/session/resolveModelForMessage";
 import { selectionFromSession } from "@src/util/session/selectionFromSession";
 import {
@@ -117,10 +116,9 @@ async function getBackendDispatchVerdict(
 ): Promise<BackendDispatchVerdict> {
   try {
     if (isCliSession(sessionId)) {
-      const status = (await invokeTauri("cli_agent_status", { sessionId })) as {
-        status?: string;
-      } | null;
-      return classifyBackendSessionStatus(status?.status);
+      // CLI finality is push-owned by CliTurnLifecycleCoordinator. Re-reading
+      // status here would reintroduce one polling RPC per queued turn.
+      return "ready";
     }
     if (isAgentSession(sessionId)) {
       const meta = await getSession(sessionId);

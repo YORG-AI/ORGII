@@ -328,6 +328,8 @@ pub async fn test_cursor_cli_account_switch(
         None,
         None,
         None,
+        None,
+        None,
     )
     .await
     {
@@ -447,6 +449,8 @@ pub async fn test_claude_code_cli_account_switch(
         request.followup_content.clone(),
         Some(model.clone()),
         Some(request.followup_account_id.clone()),
+        None,
+        None,
         None,
         None,
         None,
@@ -606,6 +610,8 @@ pub async fn test_codex_cli_account_switch(
         request.followup_content.clone(),
         Some(model.clone()),
         Some(request.followup_account_id.clone()),
+        None,
+        None,
         None,
         None,
         None,
