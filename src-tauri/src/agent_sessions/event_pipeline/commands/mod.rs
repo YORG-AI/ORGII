@@ -13,7 +13,10 @@
 mod analytics;
 mod batch_update;
 mod cache_bridge;
+pub mod collaboration_snapshot_ingest;
 pub(crate) mod event_conversion;
+pub mod external_replay;
+mod external_replay_watcher;
 mod extractors;
 mod history;
 mod ingestion;
@@ -25,6 +28,8 @@ mod store_commands;
 mod turn_window;
 
 use std::collections::{HashMap, HashSet};
+#[cfg(test)]
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 use core_types::extracted::ExtractedData;
@@ -41,6 +46,16 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
 const STREAMING_SIMULATOR_UPSERT_LIMIT: usize = 48;
+/// Generic writes used by managed/imported CLI sessions must obey the same
+/// resident-memory budget as explicit external replay windows. Native SDE
+/// sessions never enter this policy.
+pub(super) const BOUNDED_REPLAY_STORE_MAX_BYTES: usize = 16 * 1024 * 1024;
+/// A generic renderer-originated write must stay small. Larger bodies belong
+/// behind replay/payload locators, not in the resident EventStore.
+const BOUNDED_REPLAY_GENERIC_INPUT_MAX_BYTES: usize = 4 * 1024 * 1024;
+/// Exact compaction leaves headroom so same-ID streaming updates can be
+/// accounted conservatively without rescanning the store for every token.
+const BOUNDED_REPLAY_GENERIC_COMPACT_BYTES: usize = 14 * 1024 * 1024;
 
 fn backfill_provider_subagent_prompts(events: &mut [SessionEvent]) {
     prompt_backfill::backfill_subagent_prompts_with_resolver(
@@ -80,7 +95,7 @@ use crate::agent_sessions::event_pipeline::session_manager::SessionStoreManager;
 use crate::agent_sessions::event_pipeline::session_providers;
 use crate::agent_sessions::event_pipeline::store::EventStore;
 use crate::agent_sessions::event_pipeline::types::{
-    SessionEvent, SnapshotDelta, StreamingSnapshot,
+    SessionEvent, SessionEventPatch, SnapshotDelta, StreamingSnapshot,
 };
 
 // ============================================================================
@@ -101,6 +116,8 @@ pub struct EventStoreState {
     pub session_manager: Mutex<SessionStoreManager>,
     /// Tracks which sessions already have a batched notification pending.
     pub notify_pending: Mutex<HashSet<String>>,
+    #[cfg(test)]
+    bounded_replay_exact_cap_count: AtomicUsize,
 }
 
 impl Default for EventStoreState {
@@ -115,6 +132,8 @@ impl EventStoreState {
             stores: Mutex::new(HashMap::new()),
             session_manager: Mutex::new(SessionStoreManager::new()),
             notify_pending: Mutex::new(HashSet::new()),
+            #[cfg(test)]
+            bounded_replay_exact_cap_count: AtomicUsize::new(0),
         }
     }
 
@@ -149,6 +168,10 @@ impl EventStoreState {
                 .session_manager
                 .lock()
                 .unwrap_or_else(|e| e.into_inner());
+            // Keep the generic/native EventStore write contract unchanged.
+            // Bounded external replay publishes its actual byte footprint and
+            // enforces both count and byte limits after explicit windows,
+            // deltas, and generic managed-CLI live writes.
             mgr.register(session_id);
         }
         let mut stores = self.stores.lock().unwrap_or_else(|e| e.into_inner());
@@ -164,6 +187,246 @@ impl EventStoreState {
     {
         let stores = self.stores.lock().unwrap_or_else(|e| e.into_inner());
         stores.get(session_id).map(f)
+    }
+
+    /// Apply the external-replay-only per-store byte cap, publish its actual
+    /// serialized footprint to the aggregate byte LRU, and remove any idle
+    /// stores evicted by that policy. Native SDE paths never invoke this.
+    pub fn cap_external_replay_store(
+        &self,
+        session_id: &str,
+        max_bytes: usize,
+    ) -> Result<usize, String> {
+        let bytes = {
+            let mut stores = self.stores.lock().unwrap_or_else(|e| e.into_inner());
+            let Some(store) = stores.get_mut(session_id) else {
+                return Ok(0);
+            };
+            #[cfg(test)]
+            self.bounded_replay_exact_cap_count
+                .fetch_add(1, Ordering::Relaxed);
+            store.cap_external_replay_bytes(max_bytes)?
+        };
+        let evicted = {
+            let mut manager = self
+                .session_manager
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            manager.update_estimated_bytes(session_id, bytes)
+        };
+        self.remove_evicted_replay_stores(evicted);
+        Ok(bytes)
+    }
+
+    fn remove_evicted_replay_stores(&self, evicted: Vec<String>) {
+        if evicted.is_empty() {
+            return;
+        }
+        let mut stores = self.stores.lock().unwrap_or_else(|e| e.into_inner());
+        for evicted_session_id in evicted {
+            external_replay::release_session_runtime(&evicted_session_id);
+            stores.remove(&evicted_session_id);
+        }
+    }
+
+    /// Reject a single generic bounded-replay write that could not fit even
+    /// in an otherwise empty store. This runs before mutation so an oversized
+    /// live CLI event cannot replace a valid resident event and then be
+    /// silently discarded by suffix eviction. The source transcript remains
+    /// authoritative and can be reopened through the range/replay APIs.
+    pub(crate) fn validate_bounded_replay_input(
+        &self,
+        session_id: &str,
+        events: &[SessionEvent],
+    ) -> Result<usize, String> {
+        if !session_providers::uses_bounded_replay(session_id) || events.is_empty() {
+            return Ok(0);
+        }
+        let incoming_bytes = serde_json::to_vec(events)
+            .map_err(|error| format!("serialize bounded replay write: {error}"))?
+            .len();
+        if incoming_bytes > BOUNDED_REPLAY_GENERIC_INPUT_MAX_BYTES {
+            return Err(format!(
+                "bounded replay write for {session_id} exceeds the {} byte generic input budget; store large bodies behind a payload locator",
+                BOUNDED_REPLAY_GENERIC_INPUT_MAX_BYTES
+            ));
+        }
+        Ok(incoming_bytes)
+    }
+
+    /// Preflight a partial update before `SessionEventPatch::apply_to` clones
+    /// its payload into every target row. A single Tauri patch object is cheap,
+    /// but applying a multi-megabyte value to hundreds of IDs would create a
+    /// large transient allocation before the post-write suffix cap could run.
+    pub(crate) fn validate_bounded_replay_patch(
+        &self,
+        session_id: &str,
+        ids: &[String],
+        patch: &SessionEventPatch,
+    ) -> Result<(), String> {
+        if !session_providers::uses_bounded_replay(session_id) || ids.is_empty() {
+            return Ok(());
+        }
+
+        let patch_bytes = serde_json::to_vec(patch)
+            .map_err(|error| format!("serialize bounded replay patch: {error}"))?
+            .len();
+        if patch_bytes > BOUNDED_REPLAY_GENERIC_INPUT_MAX_BYTES {
+            return Err(format!(
+                "bounded replay patch for {session_id} exceeds the {} byte generic input budget",
+                BOUNDED_REPLAY_GENERIC_INPUT_MAX_BYTES
+            ));
+        }
+        let unique_ids = ids.iter().map(String::as_str).collect::<HashSet<_>>();
+        self.with_store_opt(session_id, |store| {
+            let target_count = unique_ids
+                .iter()
+                .filter(|id| store.get_by_id(id).is_some())
+                .count();
+            if patch_bytes.saturating_mul(target_count)
+                > BOUNDED_REPLAY_GENERIC_INPUT_MAX_BYTES
+            {
+                return Err(format!(
+                    "bounded replay patch for {session_id} exceeds the {} byte amplification budget across {target_count} events",
+                    BOUNDED_REPLAY_GENERIC_INPUT_MAX_BYTES
+                ));
+            }
+
+            for id in &unique_ids {
+                let Some(existing) = store.get_by_id(id) else {
+                    continue;
+                };
+                let mut projected = existing.clone();
+                patch.apply_to(&mut projected);
+                let projected_bytes = serde_json::to_vec(std::slice::from_ref(&projected))
+                    .map_err(|error| format!("serialize projected bounded replay event: {error}"))?
+                    .len();
+                if projected_bytes > BOUNDED_REPLAY_GENERIC_COMPACT_BYTES {
+                    return Err(format!(
+                        "bounded replay patch would make event {id} exceed the {} byte compacted store budget",
+                        BOUNDED_REPLAY_GENERIC_COMPACT_BYTES
+                    ));
+                }
+            }
+            Ok(())
+        })
+        .unwrap_or(Ok(()))
+    }
+
+    /// Bound the only generic command that can copy one JSON object into
+    /// several sibling tool-call rows without carrying complete replacement
+    /// events on the wire.
+    pub(crate) fn validate_bounded_replay_args_merge(
+        &self,
+        session_id: &str,
+        function_names: &[&str],
+        merge_args: &serde_json::Value,
+    ) -> Result<(), String> {
+        if !session_providers::uses_bounded_replay(session_id) {
+            return Ok(());
+        }
+        let merge_bytes = serde_json::to_vec(merge_args)
+            .map_err(|error| format!("serialize bounded replay args merge: {error}"))?
+            .len();
+        if merge_bytes > BOUNDED_REPLAY_GENERIC_INPUT_MAX_BYTES {
+            return Err(format!(
+                "bounded replay args merge for {session_id} exceeds the {} byte generic input budget",
+                BOUNDED_REPLAY_GENERIC_INPUT_MAX_BYTES
+            ));
+        }
+
+        self.with_store_opt(session_id, |store| {
+            let Some(primary_index) = store.find_last_spawning_tool(function_names) else {
+                return Ok(());
+            };
+            let primary = &store.events()[primary_index];
+            let target_count = primary.call_id.as_deref().map_or(1, |call_id| {
+                store
+                    .events()
+                    .iter()
+                    .filter(|event| {
+                        event.action_type == "tool_call"
+                            && event.call_id.as_deref() == Some(call_id)
+                    })
+                    .count()
+            });
+            if merge_bytes.saturating_mul(target_count)
+                > BOUNDED_REPLAY_GENERIC_INPUT_MAX_BYTES
+            {
+                return Err(format!(
+                    "bounded replay args merge for {session_id} exceeds the {} byte amplification budget across {target_count} events",
+                    BOUNDED_REPLAY_GENERIC_INPUT_MAX_BYTES
+                ));
+            }
+            for event in store.events().iter().filter(|event| {
+                event.id == primary.id
+                    || primary.call_id.as_deref().is_some_and(|call_id| {
+                        event.action_type == "tool_call"
+                            && event.call_id.as_deref() == Some(call_id)
+                    })
+            }) {
+                let existing_bytes = serde_json::to_vec(event)
+                    .map_err(|error| format!("serialize bounded replay merge target: {error}"))?
+                    .len();
+                if existing_bytes.saturating_add(merge_bytes)
+                    > BOUNDED_REPLAY_GENERIC_COMPACT_BYTES
+                {
+                    return Err(format!(
+                        "bounded replay args merge would make event {} exceed the {} byte compacted store budget",
+                        event.id, BOUNDED_REPLAY_GENERIC_COMPACT_BYTES
+                    ));
+                }
+            }
+            Ok(())
+        })
+        .unwrap_or(Ok(()))
+    }
+
+    /// Apply the byte cap and refresh aggregate accounting after a generic
+    /// EventStore mutation. The provider check deliberately precedes the cap:
+    /// native SDE writes retain their existing EventStore semantics and make
+    /// zero calls into external replay cache policy.
+    pub(crate) fn enforce_bounded_replay_store_policy(
+        &self,
+        session_id: &str,
+    ) -> Result<(), String> {
+        if !session_providers::uses_bounded_replay(session_id) {
+            return Ok(());
+        }
+        self.cap_external_replay_store(session_id, BOUNDED_REPLAY_GENERIC_COMPACT_BYTES)?;
+        Ok(())
+    }
+
+    /// Account a generic append/upsert/merge using a conservative upper bound.
+    /// Exact serialization/compaction happens only after the estimate crosses
+    /// 16 MiB; the exact pass compacts to 14 MiB and resets the estimate. This
+    /// keeps resident bytes bounded while avoiding an O(store) scan per token.
+    pub(crate) fn account_bounded_replay_write(
+        &self,
+        session_id: &str,
+        incoming_upper_bound: usize,
+    ) -> Result<(), String> {
+        if !session_providers::uses_bounded_replay(session_id) {
+            return Ok(());
+        }
+        let (estimated_bytes, evicted) = {
+            let mut manager = self
+                .session_manager
+                .lock()
+                .unwrap_or_else(|error| error.into_inner());
+            manager.add_estimated_bytes(session_id, incoming_upper_bound)
+        };
+        let current_was_evicted = evicted.iter().any(|evicted_id| evicted_id == session_id);
+        self.remove_evicted_replay_stores(evicted);
+        if !current_was_evicted && estimated_bytes > BOUNDED_REPLAY_STORE_MAX_BYTES {
+            self.cap_external_replay_store(session_id, BOUNDED_REPLAY_GENERIC_COMPACT_BYTES)?;
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    fn bounded_replay_exact_cap_count(&self) -> usize {
+        self.bounded_replay_exact_cap_count.load(Ordering::Relaxed)
     }
 }
 
@@ -1090,6 +1353,16 @@ mod runtime_artifact_tests {
         .unwrap()
     }
 
+    fn replay_policy_event(session_id: &str, id: &str, body_bytes: usize) -> SessionEvent {
+        let mut event = test_event(id, None);
+        event.session_id = session_id.to_string();
+        event.function_name = "assistant_message".to_string();
+        event.ui_canonical = "assistant_message".to_string();
+        event.action_type = "raw".to_string();
+        event.display_text = "x".repeat(body_bytes);
+        event
+    }
+
     #[test]
     fn post_merge_persistence_preserves_timeline_order() {
         let events = vec![
@@ -1110,6 +1383,174 @@ mod runtime_artifact_tests {
                 .collect::<Vec<_>>(),
             vec!["event-c", "event-a", "event-b"]
         );
+    }
+
+    #[test]
+    fn managed_cli_generic_live_writes_remain_under_resident_budget() {
+        const EVENT_BODY_BYTES: usize = 256 * 1024;
+        let session_id = "cliagent-live-budget";
+        let state = EventStoreState::new();
+        assert!(state
+            .session_manager
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .set_active(session_id)
+            .is_empty());
+
+        for index in 0..80 {
+            let event = replay_policy_event(
+                session_id,
+                &format!("managed-live-{index}"),
+                EVENT_BODY_BYTES,
+            );
+            let incoming_bytes = state
+                .validate_bounded_replay_input(session_id, std::slice::from_ref(&event))
+                .expect("individual live event fits bounded store");
+            state.with_store_mut(session_id, |store| store.append(vec![event]));
+            state
+                .account_bounded_replay_write(session_id, incoming_bytes)
+                .expect("live write policy succeeds");
+        }
+
+        let (bytes, count) = state
+            .with_store_opt(session_id, |store| {
+                (
+                    serde_json::to_vec(store.events())
+                        .expect("serialize managed CLI store")
+                        .len(),
+                    store.event_count(),
+                )
+            })
+            .expect("managed CLI store exists");
+        assert!(bytes <= BOUNDED_REPLAY_STORE_MAX_BYTES);
+        assert!(count < 80, "old live events must be evicted by bytes");
+        assert!(state.bounded_replay_exact_cap_count() > 0);
+    }
+
+    #[test]
+    fn hundreds_of_same_id_stream_updates_do_not_rescan_store_per_token() {
+        const EVENT_BODY_BYTES: usize = 64 * 1024;
+        const UPDATE_COUNT: usize = 400;
+        let session_id = "cliagent-same-id-stream";
+        let state = EventStoreState::new();
+
+        for _ in 0..UPDATE_COUNT {
+            let event = replay_policy_event(session_id, "streaming-message", EVENT_BODY_BYTES);
+            let incoming_bytes = state
+                .validate_bounded_replay_input(session_id, std::slice::from_ref(&event))
+                .expect("stream update fits input budget");
+            state.with_store_mut(session_id, |store| store.upsert(event));
+            state
+                .account_bounded_replay_write(session_id, incoming_bytes)
+                .expect("amortized stream accounting succeeds");
+        }
+
+        let bytes = state
+            .with_store_opt(session_id, |store| {
+                assert_eq!(store.event_count(), 1);
+                serde_json::to_vec(store.events())
+                    .expect("serialize same-ID stream store")
+                    .len()
+            })
+            .expect("same-ID store exists");
+        let exact_scans = state.bounded_replay_exact_cap_count();
+        assert!(bytes <= BOUNDED_REPLAY_STORE_MAX_BYTES);
+        assert!(
+            exact_scans > 0,
+            "conservative debt eventually forces a scan"
+        );
+        assert!(
+            exact_scans < UPDATE_COUNT / 20,
+            "streaming must not rescan the resident store for every token: {exact_scans} scans"
+        );
+    }
+
+    #[test]
+    fn native_sde_generic_writes_do_not_enter_external_store_policy() {
+        const EVENT_BODY_BYTES: usize = 1024 * 1024;
+        let session_id = "sdeagent-native-budget-control";
+        let state = EventStoreState::new();
+
+        for index in 0..17 {
+            let event = replay_policy_event(
+                session_id,
+                &format!("native-live-{index}"),
+                EVENT_BODY_BYTES,
+            );
+            let incoming_bytes = state
+                .validate_bounded_replay_input(session_id, std::slice::from_ref(&event))
+                .expect("native preflight is a no-op");
+            state.with_store_mut(session_id, |store| store.append(vec![event]));
+            state
+                .account_bounded_replay_write(session_id, incoming_bytes)
+                .expect("native policy is a no-op");
+        }
+
+        let (bytes, count) = state
+            .with_store_opt(session_id, |store| {
+                (
+                    serde_json::to_vec(store.events())
+                        .expect("serialize native store")
+                        .len(),
+                    store.event_count(),
+                )
+            })
+            .expect("native store exists");
+        assert!(bytes > BOUNDED_REPLAY_STORE_MAX_BYTES);
+        assert_eq!(count, 17, "native EventStore semantics stay unchanged");
+        assert_eq!(state.bounded_replay_exact_cap_count(), 0);
+    }
+
+    #[test]
+    fn oversized_managed_cli_write_fails_before_mutating_store() {
+        let session_id = "cliagent-oversized-live";
+        let state = EventStoreState::new();
+        let event = replay_policy_event(
+            session_id,
+            "oversized-event",
+            BOUNDED_REPLAY_GENERIC_INPUT_MAX_BYTES,
+        );
+
+        let error = state
+            .validate_bounded_replay_input(session_id, std::slice::from_ref(&event))
+            .expect_err("serialization overhead must push the event over budget");
+        assert!(error.contains("exceeds"));
+        assert!(state.with_store_opt(session_id, |_| ()).is_none());
+    }
+
+    #[test]
+    fn repeated_large_managed_cli_patch_fails_before_payload_amplification() {
+        let session_id = "cliagent-large-patch";
+        let state = EventStoreState::new();
+        let events = (0..17)
+            .map(|index| replay_policy_event(session_id, &format!("patch-{index}"), 32))
+            .collect::<Vec<_>>();
+        let ids = events
+            .iter()
+            .map(|event| event.id.clone())
+            .collect::<Vec<_>>();
+        state.with_store_mut(session_id, |store| store.append(events));
+        let patch = SessionEventPatch {
+            display_text: Some("p".repeat(1024 * 1024)),
+            ..SessionEventPatch::default()
+        };
+
+        let error = state
+            .validate_bounded_replay_patch(session_id, &ids, &patch)
+            .expect_err("repeated patch must be rejected before it is cloned");
+        assert!(error.contains("amplification"));
+        assert!(
+            state.with_store_opt(session_id, |store| {
+                store
+                    .events()
+                    .iter()
+                    .all(|event| event.display_text.len() == 32)
+            }) == Some(true)
+        );
+
+        assert!(state
+            .validate_bounded_replay_patch("sdeagent-native", &ids, &patch)
+            .is_ok());
     }
 
     #[test]

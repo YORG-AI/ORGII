@@ -1,12 +1,10 @@
-use core_types::activity::ActivityChunk;
 use database::db::get_connection;
-use orgtrack_core::sources::opencode::history as opencode_history;
+use orgtrack_core::sources::imported_history::replay::{
+    self, ImportedHistorySourceId, ReplayLimits,
+};
 use rusqlite::{Connection, OptionalExtension};
 
 use crate::agent_sessions::event_pipeline::ingestion::prompt_backfill;
-use crate::agent_sessions::event_pipeline::types::{
-    ActivityStatus, EventDisplayStatus, EventDisplayVariant, EventSource, SessionEvent,
-};
 use crate::agent_sessions::external_cli_adapter::ExternalCliAdapter;
 
 pub const OPENCODE_SOURCE: &str = "opencode";
@@ -18,6 +16,28 @@ pub static OPENCODE_ADAPTER: OpenCodeAdapter = OpenCodeAdapter;
 pub struct OpenCodeAdapter;
 
 impl OpenCodeAdapter {
+    fn resolve_subagent_prompt_from_replay(&self, child_session_id: &str) -> Option<String> {
+        let mut conn = get_connection().ok()?;
+        let batch = replay::scan_window_after(
+            &mut conn,
+            ImportedHistorySourceId::OpenCode,
+            child_session_id,
+            -1,
+            ReplayLimits {
+                max_turns: 1,
+                max_events: 32,
+                max_ipc_bytes: 256 * 1024,
+            },
+        )
+        .ok()?;
+        let chunks = batch
+            .chunks
+            .into_iter()
+            .map(|indexed| indexed.chunk)
+            .collect::<Vec<_>>();
+        prompt_backfill::prompt_from_history_chunks(&chunks)
+    }
+
     fn resolve_subagent_prompt_from_conn(
         &self,
         conn: &Connection,
@@ -98,19 +118,12 @@ impl ExternalCliAdapter for OpenCodeAdapter {
         imported_session_id.strip_prefix(self.imported_session_prefix())
     }
 
-    fn load_history_events(&self, imported_session_id: &str) -> Result<Vec<SessionEvent>, String> {
-        let chunks = opencode_history::load_opencode_history_for_session(imported_session_id)?;
-        Ok(chunks.iter().map(activity_chunk_to_session_event).collect())
-    }
-
     fn resolve_subagent_prompt(&self, child_session_id: &str) -> Option<String> {
         if !self.matches_imported_session(child_session_id) {
             return None;
         }
-        if let Ok(chunks) = opencode_history::load_opencode_history_for_session(child_session_id) {
-            if let Some(prompt) = prompt_backfill::prompt_from_history_chunks(&chunks) {
-                return Some(prompt);
-            }
+        if let Some(prompt) = self.resolve_subagent_prompt_from_replay(child_session_id) {
+            return Some(prompt);
         }
         let conn = get_connection().ok()?;
         self.resolve_subagent_prompt_from_conn(&conn, child_session_id)
@@ -126,51 +139,6 @@ impl ExternalCliAdapter for OpenCodeAdapter {
         let conn =
             get_connection().map_err(|err| format!("Failed to open CLI session DB: {err}"))?;
         self.imported_parent_session_id_from_conn(&conn, managed_parent_session_id)
-    }
-}
-
-fn activity_chunk_to_session_event(chunk: &ActivityChunk) -> SessionEvent {
-    let function_name = if chunk.function.is_empty() {
-        chunk.action_type.clone()
-    } else {
-        chunk.function.clone()
-    };
-    SessionEvent {
-        id: if chunk.chunk_id.is_empty() {
-            uuid::Uuid::new_v4().to_string()
-        } else {
-            chunk.chunk_id.clone()
-        },
-        chunk_id: if chunk.chunk_id.is_empty() {
-            None
-        } else {
-            Some(chunk.chunk_id.clone())
-        },
-        session_id: chunk.session_id.clone(),
-        created_at: chunk.created_at.clone(),
-        function_name: function_name.clone(),
-        ui_canonical: function_name,
-        action_type: chunk.action_type.clone(),
-        args: chunk.args.clone(),
-        result: chunk.result.clone(),
-        source: EventSource::Assistant,
-        display_text: format!("{}: {}", chunk.action_type, chunk.function),
-        display_status: EventDisplayStatus::Completed,
-        display_variant: EventDisplayVariant::ToolCall,
-        activity_status: ActivityStatus::Processed,
-        thread_id: chunk.thread_id.clone(),
-        process_id: chunk.process_id.clone(),
-        call_id: None,
-        file_path: None,
-        command: None,
-        is_delta: None,
-        repo_id: None,
-        repo_path: None,
-        extracted: None,
-        payload_refs: Vec::new(),
-        shell_replay: None,
-        shell_replay_bookmarks: None,
-        last_extract_at: None,
     }
 }
 

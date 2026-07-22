@@ -1446,6 +1446,136 @@ fn test_empty_round_window_on_empty_store_is_noop_set() {
 }
 
 #[test]
+fn external_replay_empty_window_authoritatively_clears_stale_history() {
+    let mut store = EventStore::new();
+    store.set_external_replay_window(vec![
+        make_user_turn_header("turn-1", "2026-01-01T00:00:00Z"),
+        make_event("turn-1-body-1", "message"),
+    ]);
+    assert_eq!(store.events().len(), 2);
+
+    store.set_external_replay_window(Vec::new());
+
+    assert!(store.events().is_empty());
+}
+
+#[test]
+fn external_replay_byte_cap_keeps_a_newest_whole_turn_suffix() {
+    let mut events = Vec::new();
+    for turn in 0..4 {
+        events.push(make_user_turn_header(
+            &format!("turn-{turn}"),
+            &format!("2026-01-01T00:0{turn}:00Z"),
+        ));
+        let mut body = make_event(&format!("turn-{turn}-body"), "assistant");
+        body.display_text = format!("turn {turn} {}", "x".repeat(2 * 1024));
+        events.push(body);
+    }
+    let latest_two_turn_bytes = serde_json::to_vec(&events[4..])
+        .expect("serialize expected suffix")
+        .len();
+    let mut store = EventStore::new();
+    store.set_round_window(events);
+
+    let actual = store
+        .cap_external_replay_bytes(latest_two_turn_bytes)
+        .expect("cap external replay");
+
+    assert!(actual <= latest_two_turn_bytes);
+    assert!(store.get_by_id("turn-0").is_none());
+    assert!(store.get_by_id("turn-1-body").is_none());
+    assert!(store.get_by_id("turn-2").is_some());
+    assert!(store.get_by_id("turn-3-body").is_some());
+    assert_eq!(
+        store.events().first().map(|event| event.source.clone()),
+        Some(EventSource::User),
+        "the byte cut must not leave a detached partial turn"
+    );
+}
+
+#[test]
+fn repeated_external_older_turn_merges_remain_byte_bounded() {
+    const STORE_BUDGET: usize = 32 * 1024;
+    let mut store = EventStore::new();
+    for turn in 0..100 {
+        let mut body = make_event(&format!("turn-{turn}-body"), "assistant");
+        body.display_text = format!("turn {turn} {}", "y".repeat(2 * 1024));
+        let created_at = format!("2026-01-01T{:02}:{:02}:00Z", turn / 60, turn % 60);
+        body.created_at = created_at.clone();
+        store.merge_round_window_events(vec![
+            make_user_turn_header(&format!("turn-{turn}"), &created_at),
+            body,
+        ]);
+        let bytes = store
+            .cap_external_replay_bytes(STORE_BUDGET)
+            .expect("cap merged replay turns");
+        assert!(bytes <= STORE_BUDGET);
+    }
+    assert!(store.get_by_id("turn-99").is_some());
+    assert!(store.get_by_id("turn-99-body").is_some());
+    assert!(store.events().len() < 100);
+}
+
+#[test]
+fn external_replay_resident_budget_keeps_selected_older_turn_and_prefetch_neighbours() {
+    const STORE_BUDGET: usize = 16 * 1024 * 1024;
+    const LARGE_BODY_BYTES: usize = 3 * 1024 * 1024 + 512 * 1024;
+
+    fn large_turn(turn: u32, minute: u32, body_bytes: usize) -> Vec<SessionEvent> {
+        let created_at = format!("2026-01-01T00:{minute:02}:00Z");
+        let mut body = make_event(&format!("turn-{turn}-body"), "assistant");
+        body.created_at = created_at.clone();
+        body.display_text = format!("turn {turn} {}", "z".repeat(body_bytes));
+        vec![
+            make_user_turn_header(&format!("turn-{turn}"), &created_at),
+            body,
+        ]
+    }
+
+    let mut store = EventStore::new();
+    store.set_external_replay_window(large_turn(99, 59, LARGE_BODY_BYTES));
+    store
+        .cap_external_replay_bytes(STORE_BUDGET)
+        .expect("cap latest external turn");
+
+    // The selected historical page and its two prefetch neighbours are each
+    // valid <4 MiB replay windows. They must remain visible alongside the
+    // latest page instead of being discarded by the former 4 MiB suffix cap.
+    for (turn, minute) in [(10, 10), (9, 9), (11, 11)] {
+        store.merge_round_window_events(large_turn(turn, minute, LARGE_BODY_BYTES));
+        let bytes = store
+            .cap_external_replay_bytes(STORE_BUDGET)
+            .expect("cap selected external turn window");
+        assert!(bytes <= STORE_BUDGET);
+    }
+
+    // A normal small live delta must not immediately evict the selected body
+    // while the user is reading it.
+    let mut poll_event = make_event("turn-99-poll", "assistant");
+    poll_event.created_at = "2026-01-01T00:59:30Z".to_string();
+    poll_event.display_text = "p".repeat(256 * 1024);
+    store.merge_round_window_events(vec![poll_event]);
+    let bytes = store
+        .cap_external_replay_bytes(STORE_BUDGET)
+        .expect("cap live external delta");
+
+    assert!(bytes <= STORE_BUDGET);
+    for id in [
+        "turn-9",
+        "turn-9-body",
+        "turn-10",
+        "turn-10-body",
+        "turn-11",
+        "turn-11-body",
+        "turn-99",
+        "turn-99-body",
+        "turn-99-poll",
+    ] {
+        assert!(store.get_by_id(id).is_some(), "{id} must remain resident");
+    }
+}
+
+#[test]
 fn test_unload_turn_body_restores_placeholder_and_preserves_headers() {
     let mut store = EventStore::new();
     store.set_round_window(vec![

@@ -191,62 +191,53 @@ fn truncate_label(s: &str) -> String {
     }
 }
 
-/// Load all chunks for a session, ordered by sequence.
-pub fn load_chunks(session_id: &str) -> SqliteResult<Vec<ActivityChunk>> {
+/// Load only the newest user/assistant text needed by the fresh-process
+/// context bridge. SQLite extracts and tail-bounds the scalar text before it
+/// crosses into Rust, so a large readerless managed-CLI history is never
+/// materialized as `Vec<ActivityChunk>` just to keep 24 short messages.
+pub fn load_recent_context_messages(
+    session_id: &str,
+    max_messages: usize,
+    max_chars_per_message: usize,
+) -> SqliteResult<Vec<(String, String)>> {
     let conn = get_connection()?;
     let mut stmt = conn.prepare(
-        "SELECT chunk_id, session_id, action_type, function,
-                args_json, result_json, thread_id, process_id, created_at
-         FROM code_session_chunks
-         WHERE session_id = ?1
-         ORDER BY sequence ASC",
+        "WITH candidate AS (
+             SELECT sequence,
+                    CASE WHEN function = 'user_message'
+                         THEN 'User' ELSE 'Assistant' END AS role,
+                    CASE
+                        WHEN json_type(result_json, '$.message.content') = 'text'
+                            THEN json_extract(result_json, '$.message.content')
+                        WHEN json_type(result_json, '$.content') = 'text'
+                            THEN json_extract(result_json, '$.content')
+                        WHEN json_type(result_json, '$.observation') = 'text'
+                            THEN json_extract(result_json, '$.observation')
+                        ELSE NULL
+                    END AS text
+             FROM code_session_chunks
+             WHERE session_id = ?1
+               AND (
+                    function = 'user_message'
+                    OR action_type IN (
+                        'assistant', 'assistant_delta', 'message', 'message_delta'
+                    )
+               )
+         )
+         SELECT role, substr(text, -?3)
+         FROM candidate
+         WHERE text IS NOT NULL AND trim(text) <> ''
+         ORDER BY sequence DESC
+         LIMIT ?2",
     )?;
-    let rows = stmt.query_map([session_id], |row| {
-        let args_str: String = row.get(4)?;
-        let result_str: String = row.get(5)?;
-        // The args/result columns are written as serialized JSON by the
-        // chunk writer. Silently rendering a corrupt blob as `{}`
-        // (the previous behaviour) made it impossible to tell whether
-        // a tool call genuinely had no arguments or whether the row
-        // had been corrupted out of band — both look identical to the
-        // frontend, but the second case is a real data-integrity bug
-        // that would have stayed invisible. Surface a typed
-        // `FromSqlConversionFailure` instead so the loader returns
-        // an error and the UI can show a real failure state.
-        let args = serde_json::from_str::<serde_json::Value>(&args_str).map_err(|err| {
-            rusqlite::Error::FromSqlConversionFailure(
-                4,
-                rusqlite::types::Type::Text,
-                format!("invalid args_json for chunk: {err}").into(),
-            )
-        })?;
-        let result = serde_json::from_str::<serde_json::Value>(&result_str).map_err(|err| {
-            rusqlite::Error::FromSqlConversionFailure(
-                5,
-                rusqlite::types::Type::Text,
-                format!("invalid result_json for chunk: {err}").into(),
-            )
-        })?;
-        Ok(ActivityChunk {
-            chunk_id: row.get(0)?,
-            session_id: row.get(1)?,
-            action_type: row.get(2)?,
-            function: row.get(3)?,
-            args,
-            result,
-            thread_id: row.get(6)?,
-            process_id: row.get(7)?,
-            created_at: row.get(8)?,
-            broadcast_only: false,
-        })
+    let max_messages = i64::try_from(max_messages).unwrap_or(i64::MAX).max(1);
+    let max_chars = i64::try_from(max_chars_per_message)
+        .unwrap_or(i64::MAX)
+        .max(1);
+    let rows = stmt.query_map(params![session_id, max_messages, max_chars], |row| {
+        Ok((row.get(0)?, row.get(1)?))
     })?;
-    let chunks: Vec<ActivityChunk> = rows.collect::<SqliteResult<Vec<_>>>()?;
-    tracing::info!(
-        "[load_chunks] session={}, returned {} chunks",
-        session_id,
-        chunks.len()
-    );
-    Ok(chunks)
+    rows.collect()
 }
 
 /// Truncate chunks at and after a specific timestamp.
@@ -284,4 +275,64 @@ pub fn truncate_chunks_after_with_reason(
     tx.commit()?;
 
     Ok(deleted as i64)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn recent_context_query_is_row_and_text_bounded_before_rust() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let conn = get_connection().expect("test database");
+        crate::agent_sessions::cli::init_cli_agent_tables(&conn).expect("CLI schema");
+        conn.execute_batch("PRAGMA foreign_keys=OFF")
+            .expect("standalone chunk fixture");
+
+        for sequence in 0..30_i64 {
+            let function = if sequence % 2 == 0 {
+                "user_message"
+            } else {
+                "assistant_message"
+            };
+            let action = if sequence % 2 == 0 {
+                "message"
+            } else {
+                "assistant"
+            };
+            let content = format!("{}:{sequence}", "x".repeat(20_000));
+            conn.execute(
+                "INSERT INTO code_session_chunks(
+                    chunk_id,session_id,action_type,function,args_json,result_json,
+                    sequence,created_at
+                 ) VALUES(?1,'bounded-context',?2,?3,'{}',?4,?5,'2026-07-22T00:00:00Z')",
+                params![
+                    format!("context-{sequence}"),
+                    action,
+                    function,
+                    serde_json::json!({"content": content}).to_string(),
+                    sequence,
+                ],
+            )
+            .expect("context row");
+        }
+        // A tool payload is outside the projection and must never be parsed.
+        conn.execute(
+            "INSERT INTO code_session_chunks(
+                chunk_id,session_id,action_type,function,args_json,result_json,
+                sequence,created_at
+             ) VALUES('irrelevant-tool','bounded-context','tool_result','Bash','{}',
+                      'not-json',31,'2026-07-22T00:00:00Z')",
+            [],
+        )
+        .expect("irrelevant malformed payload");
+        drop(conn);
+
+        let rows = load_recent_context_messages("bounded-context", 24, 12_000)
+            .expect("bounded context rows");
+        assert_eq!(rows.len(), 24);
+        assert!(rows[0].1.ends_with(":29"));
+        assert!(rows[23].1.ends_with(":6"));
+        assert!(rows.iter().all(|(_, text)| text.chars().count() <= 12_000));
+    }
 }

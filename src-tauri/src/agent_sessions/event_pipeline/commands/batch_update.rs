@@ -22,6 +22,7 @@ pub async fn es_complete_last_running(
     let sid = state.resolve_session_id(session_id)?;
     let result = state.with_store_mut(&sid, |store| store.complete_last_running());
     if result.is_some() {
+        state.enforce_bounded_replay_store_policy(&sid)?;
         schedule_notify(&app, &state, &sid);
     }
     Ok(result)
@@ -37,8 +38,10 @@ pub async fn es_patch_by_ids(
     patch: SessionEventPatch,
 ) -> Result<usize, String> {
     let sid = state.resolve_session_id(session_id)?;
+    state.validate_bounded_replay_patch(&sid, &ids, &patch)?;
     let count = state.with_store_mut(&sid, |store| store.patch_by_ids(&ids, &patch));
     if count > 0 {
+        state.enforce_bounded_replay_store_policy(&sid)?;
         schedule_notify(&app, &state, &sid);
     }
     Ok(count)
@@ -55,6 +58,7 @@ pub async fn es_remove_by_id_prefix(
     let sid = state.resolve_session_id(session_id)?;
     let removed = state.with_store_mut(&sid, |store| store.remove_by_id_prefix(&prefix));
     if removed > 0 {
+        state.enforce_bounded_replay_store_policy(&sid)?;
         schedule_notify(&app, &state, &sid);
     }
     Ok(removed)
@@ -70,6 +74,7 @@ pub async fn es_remove_synthetic_user_inputs(
     let sid = state.resolve_session_id(session_id)?;
     let removed = state.with_store_mut(&sid, |store| store.remove_synthetic_user_inputs());
     if removed > 0 {
+        state.enforce_bounded_replay_store_policy(&sid)?;
         schedule_notify(&app, &state, &sid);
     }
     Ok(removed)
@@ -86,9 +91,12 @@ pub async fn es_replace_and_remove(
     new_event: SessionEvent,
 ) -> Result<bool, String> {
     let sid = state.resolve_session_id(session_id)?;
+    let incoming_bytes =
+        state.validate_bounded_replay_input(&sid, std::slice::from_ref(&new_event))?;
     state.with_store_mut(&sid, |store| {
         store.replace_and_remove(remove_id.as_deref(), new_event);
     });
+    state.account_bounded_replay_write(&sid, incoming_bytes)?;
     schedule_notify(&app, &state, &sid);
     Ok(true)
 }
@@ -106,10 +114,12 @@ pub async fn es_update_active_task_args(
     let default_names = vec!["task".to_string()];
     let names = function_names.unwrap_or(default_names);
     let names_refs: Vec<&str> = names.iter().map(|s| s.as_str()).collect();
+    state.validate_bounded_replay_args_merge(&sid, &names_refs, &merge_args)?;
     let result = state.with_store_mut(&sid, |store| {
         store.update_spawning_tool_args(&names_refs, merge_args)
     });
     if result.is_some() {
+        state.enforce_bounded_replay_store_policy(&sid)?;
         schedule_notify(&app, &state, &sid);
     }
     Ok(result)

@@ -1,5 +1,3 @@
-use crate::agent_sessions::event_pipeline::types::SessionEvent;
-
 pub mod opencode;
 
 pub trait ExternalCliAdapter: Send + Sync {
@@ -9,7 +7,6 @@ pub trait ExternalCliAdapter: Send + Sync {
     fn matches_imported_session(&self, session_id: &str) -> bool;
     fn imported_session_id_from_native(&self, native_session_id: &str) -> String;
     fn native_session_id_from_imported<'a>(&self, imported_session_id: &'a str) -> Option<&'a str>;
-    fn load_history_events(&self, imported_session_id: &str) -> Result<Vec<SessionEvent>, String>;
     fn resolve_subagent_prompt(&self, child_session_id: &str) -> Option<String>;
     fn imported_parent_session_id(
         &self,

@@ -1,51 +1,24 @@
 //! Context bridge building — injects prior ORGII conversation history into CLI
 //! sessions that have no native conversation state.
 
-use core_types::activity::ActivityChunk;
-
 use super::super::persistence;
 
 const CONTEXT_BRIDGE_MAX_CHARS: usize = 12_000;
 const CONTEXT_BRIDGE_MAX_MESSAGES: usize = 24;
 
-pub(super) fn chunk_text(chunk: &ActivityChunk) -> Option<String> {
-    let result = &chunk.result;
-    let text = result
-        .get("message")
-        .and_then(|message| message.get("content"))
-        .and_then(|value| value.as_str())
-        .or_else(|| result.get("content").and_then(|value| value.as_str()))
-        .or_else(|| result.get("observation").and_then(|value| value.as_str()))?;
-    let trimmed = text.trim();
-    if trimmed.is_empty() {
-        return None;
-    }
-    Some(trimmed.to_string())
-}
-
-pub(super) fn chunk_role(chunk: &ActivityChunk) -> Option<&'static str> {
-    if chunk.function == "user_message" {
-        return Some("User");
-    }
-    match chunk.action_type.as_str() {
-        "assistant" | "assistant_delta" | "message" | "message_delta" => Some("Assistant"),
-        _ => None,
-    }
-}
-
 pub(super) fn build_context_bridge(session_id: &str) -> Option<String> {
-    let chunks = persistence::load_chunks(session_id).ok()?;
+    let messages = persistence::load_recent_context_messages(
+        session_id,
+        CONTEXT_BRIDGE_MAX_MESSAGES,
+        CONTEXT_BRIDGE_MAX_CHARS,
+    )
+    .ok()?;
     let mut lines = Vec::new();
-    for chunk in chunks.iter().rev() {
-        if lines.len() >= CONTEXT_BRIDGE_MAX_MESSAGES {
-            break;
+    for (role, text) in messages {
+        let text = text.trim();
+        if text.is_empty() {
+            continue;
         }
-        let Some(role) = chunk_role(chunk) else {
-            continue;
-        };
-        let Some(text) = chunk_text(chunk) else {
-            continue;
-        };
         lines.push(format!("{role}: {text}"));
     }
     if lines.is_empty() {

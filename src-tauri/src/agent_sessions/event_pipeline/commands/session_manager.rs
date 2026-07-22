@@ -10,7 +10,7 @@ use tauri::{AppHandle, State};
 
 use crate::agent_sessions::event_pipeline::types::SessionEvent;
 
-use super::{schedule_notify, EventStoreState};
+use super::{external_replay, schedule_notify, EventStoreState};
 
 /// Set the active session (the default target for commands without an
 /// explicit `session_id`). Returns true if a store for the session already
@@ -23,11 +23,12 @@ pub async fn es_switch_session(
     state: State<'_, EventStoreState>,
     session_id: String,
 ) -> Result<bool, String> {
-    let (hit, event_count, evicted) = {
+    let (previous_active, hit, event_count, evicted) = {
         let mut mgr = state
             .session_manager
             .lock()
             .unwrap_or_else(|e| e.into_inner());
+        let previous_active = mgr.active_id().map(str::to_string);
         let evicted = mgr.set_active(&session_id);
         let event_count = {
             let stores = state.stores.lock().unwrap_or_else(|e| e.into_inner());
@@ -36,12 +37,20 @@ pub async fn es_switch_session(
                 .map(|store| store.events().len())
                 .unwrap_or(0)
         };
-        (event_count > 0, event_count, evicted)
+        (previous_active, event_count > 0, event_count, evicted)
     };
+
+    if let Some(previous_active) = previous_active
+        .as_deref()
+        .filter(|previous_active| *previous_active != session_id)
+    {
+        external_replay::release_session_runtime(previous_active);
+    }
 
     if !evicted.is_empty() {
         let mut stores = state.stores.lock().unwrap_or_else(|e| e.into_inner());
         for sid in &evicted {
+            external_replay::release_session_runtime(sid);
             stores.remove(sid);
         }
     }
@@ -82,6 +91,7 @@ pub async fn es_unpin_session(
     if !evicted.is_empty() {
         let mut stores = state.stores.lock().unwrap_or_else(|e| e.into_inner());
         for sid in &evicted {
+            external_replay::release_session_runtime(sid);
             stores.remove(sid);
         }
     }
@@ -94,6 +104,7 @@ pub async fn es_evict_session(
     state: State<'_, EventStoreState>,
     session_id: String,
 ) -> Result<(), String> {
+    external_replay::release_session_runtime(&session_id);
     {
         let mut mgr = state
             .session_manager
@@ -119,7 +130,9 @@ pub async fn es_buffer_events(
     session_id: String,
     events: Vec<SessionEvent>,
 ) -> Result<(), String> {
+    let incoming_bytes = state.validate_bounded_replay_input(&session_id, &events)?;
     state.with_store_mut(&session_id, |store| store.append(events));
+    state.account_bounded_replay_write(&session_id, incoming_bytes)?;
     schedule_notify(&app, &state, &session_id);
     Ok(())
 }

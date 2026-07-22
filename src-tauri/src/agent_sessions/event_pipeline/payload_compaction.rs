@@ -100,6 +100,9 @@ fn compact_display_text(event: &mut SessionEvent, refs: &mut Vec<PayloadRef>) {
         preview: preview.clone(),
         full_size_bytes: event.display_text.len(),
         truncated: true,
+        replay_source_id: None,
+        replay_generation: None,
+        replay_source_event_id: None,
     });
     event.display_text = preview;
 }
@@ -141,6 +144,9 @@ fn compact_string_value(
         preview: preview.clone(),
         full_size_bytes: value.len(),
         truncated: true,
+        replay_source_id: None,
+        replay_generation: None,
+        replay_source_event_id: None,
     });
     *value = preview;
 }

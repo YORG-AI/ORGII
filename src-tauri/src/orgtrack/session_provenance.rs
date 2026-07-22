@@ -24,11 +24,15 @@ pub(super) use hook_capture::drain_hook_inbox;
 #[cfg(test)]
 use hook_capture::quarantine_invalid_envelope;
 pub(crate) use hook_capture::spawn_hook_inbox_drain_loop;
+#[cfg(test)]
+use interaction_store::persist_activity_chunks;
 use interaction_store::persist_file_interaction;
 pub(crate) use interaction_store::persist_native_event_interactions;
 #[cfg(test)]
 use interaction_store::resource_interaction_id;
-pub(super) use interaction_store::{cached_event_to_activity_chunk, persist_activity_chunks};
+pub(super) use interaction_store::{
+    persist_activity_chunks_with_turn_state, persist_cached_event_interactions_streaming,
+};
 pub(super) use path_resolution::{canonicalize_existing_prefix, resolve_file_resource};
 
 use std::path::Path;
@@ -41,14 +45,21 @@ use orgtrack_core::canonical::{
 };
 use orgtrack_core::privacy::ORGTRACK_SCHEMA_VERSION;
 use orgtrack_core::repo_sync::paths::record_id;
-use orgtrack_core::sources::codex::app::{
-    load_codex_app_from_path, resolve_codex_transcript_for_thread_id_near_path,
-};
+use orgtrack_core::sources::codex::app::resolve_codex_transcript_for_thread_id_near_path;
 use orgtrack_core::sources::imported_history::metadata::SOURCE_CODEX_APP;
+use orgtrack_core::sources::imported_history::replay::{
+    self, ImportedHistorySourceId, ReplayLimits,
+};
 use orgtrack_core::store::{sqlite::SqliteRecordStore, RecentHookSignal, RecordStore};
+use rusqlite::Connection;
 
 pub(crate) const RESOURCE_INTERACTIONS_CHANGED_EVENT: &str =
     "orgtrack:resource-interactions-changed";
+const ACTOR_REPLAY_LIMITS: ReplayLimits = ReplayLimits {
+    max_turns: 10,
+    max_events: 200,
+    max_ipc_bytes: 4 * 1024 * 1024,
+};
 
 #[tauri::command]
 pub async fn session_provenance_recent_signals(
@@ -58,9 +69,10 @@ pub async fn session_provenance_recent_signals(
 }
 
 fn persist_actor_lifecycle(
-    store: &SqliteRecordStore<'_>,
+    conn: &mut Connection,
     envelope: &SessionActorLifecycleEnvelopeV1,
 ) -> Result<(), String> {
+    let store = SqliteRecordStore::new(conn);
     let existing = store.get_session_actor_by_source_identity(
         &envelope.source,
         &envelope.source_session_id,
@@ -235,23 +247,15 @@ fn persist_actor_lifecycle(
         ) {
             let path = Path::new(transcript_path);
             if path.is_file() {
-                match load_codex_app_from_path(transcript_session_id, path) {
-                    Ok(chunks) => {
-                        store.delete_reconciled_resource_interactions(
-                            &envelope.source,
-                            transcript_session_id,
-                        )?;
-                        persist_activity_chunks(
-                            store,
-                            &envelope.source,
-                            Some(source_session_id),
-                            transcript_session_id,
-                            Some(&envelope.actor_id),
-                            &envelope.cwd,
-                            AttributionPrecision::Exact,
-                            &chunks,
-                        )?;
-                    }
+                match reconcile_codex_actor_transcript(
+                    conn,
+                    source_session_id,
+                    transcript_session_id,
+                    path,
+                    &envelope.actor_id,
+                    &envelope.cwd,
+                ) {
+                    Ok(()) => {}
                     Err(err) => tracing::warn!(
                         actor_id = %envelope.actor_id,
                         transcript_path,
@@ -263,6 +267,164 @@ fn persist_actor_lifecycle(
         }
     }
     Ok(())
+}
+
+/// Rebuild one stopped Codex actor's reconciled interactions through the
+/// bounded replay index. The old path decoded the whole JSONL into one
+/// `Vec<ActivityChunk>`; this keeps only a <=200-event page in memory and
+/// atomically publishes one generation/revision snapshot.
+fn reconcile_codex_actor_transcript(
+    conn: &mut Connection,
+    source_session_id: &str,
+    transcript_session_id: &str,
+    transcript_path: &Path,
+    actor_id: &str,
+    workspace_path: &str,
+) -> Result<(), String> {
+    let source = ImportedHistorySourceId::CodexApp;
+    replay::bind_source_path(
+        conn,
+        source,
+        source_session_id,
+        transcript_session_id,
+        transcript_path,
+    )?;
+
+    // Complete a synchronization pass first and pin the exact compact-index
+    // snapshot that the derived interaction table will publish.
+    let mut after_sequence = -1_i64;
+    let mut expected_generation: Option<String> = None;
+    let mut expected_revision: Option<u64> = None;
+    loop {
+        let batch = replay::scan_window_after(
+            conn,
+            source,
+            transcript_session_id,
+            after_sequence,
+            ACTOR_REPLAY_LIMITS,
+        )?;
+        if let Some(generation) = expected_generation.as_deref() {
+            if generation != batch.cursor.generation
+                || expected_revision != Some(batch.cursor.revision)
+            {
+                return Err(format!(
+                    "Codex actor transcript changed during bounded replay scan: {transcript_session_id}"
+                ));
+            }
+        } else {
+            expected_generation = Some(batch.cursor.generation.clone());
+            expected_revision = Some(batch.cursor.revision);
+        }
+        if batch.chunks.is_empty() && batch.has_more {
+            return Err(format!(
+                "Codex actor replay made no progress for {transcript_session_id} after sequence {after_sequence}"
+            ));
+        }
+        if !batch.chunks.is_empty() {
+            after_sequence = batch.cursor.through_sequence;
+        }
+        if !batch.has_more {
+            break;
+        }
+    }
+    let expected_generation = expected_generation.unwrap_or_else(|| "empty".to_string());
+    let expected_revision = expected_revision.unwrap_or_default();
+
+    publish_codex_actor_reconciliation(
+        conn,
+        source_session_id,
+        transcript_session_id,
+        actor_id,
+        workspace_path,
+        &expected_generation,
+        expected_revision,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn publish_codex_actor_reconciliation(
+    conn: &mut Connection,
+    source_session_id: &str,
+    transcript_session_id: &str,
+    actor_id: &str,
+    workspace_path: &str,
+    expected_generation: &str,
+    expected_revision: u64,
+) -> Result<(), String> {
+    let source = ImportedHistorySourceId::CodexApp;
+    conn.execute_batch("BEGIN IMMEDIATE")
+        .map_err(|err| format!("begin Codex actor reconciliation: {err}"))?;
+    let publish = (|| {
+        let store = SqliteRecordStore::new(conn);
+        store.delete_reconciled_resource_interactions(SOURCE_CODEX_APP, transcript_session_id)?;
+        let mut after_sequence = -1_i64;
+        let mut current_turn_id = None;
+        loop {
+            let batch = replay::scan_window_after_generation(
+                conn,
+                source,
+                transcript_session_id,
+                expected_generation,
+                expected_revision,
+                after_sequence,
+                ACTOR_REPLAY_LIMITS,
+            )?;
+            if batch.chunks.is_empty() && batch.has_more {
+                return Err(format!(
+                    "Pinned Codex actor replay made no progress for {transcript_session_id} after sequence {after_sequence}"
+                ));
+            }
+            if !batch.chunks.is_empty() {
+                let chunks = batch
+                    .chunks
+                    .into_iter()
+                    .map(|indexed| indexed.chunk)
+                    .collect::<Vec<_>>();
+                let store = SqliteRecordStore::new(conn);
+                persist_activity_chunks_with_turn_state(
+                    &store,
+                    SOURCE_CODEX_APP,
+                    Some(source_session_id),
+                    transcript_session_id,
+                    Some(actor_id),
+                    workspace_path,
+                    AttributionPrecision::Exact,
+                    &chunks,
+                    &mut current_turn_id,
+                )?;
+                after_sequence = batch.cursor.through_sequence;
+            }
+            if !batch.has_more {
+                break;
+            }
+        }
+        Ok::<(), String>(())
+    })();
+    match publish {
+        Ok(()) => match conn.execute_batch("COMMIT") {
+            Ok(()) => Ok(()),
+            Err(commit_error) => {
+                let rollback = conn.execute_batch("ROLLBACK");
+                match rollback {
+                    Ok(()) => Err(format!(
+                        "commit Codex actor reconciliation: {commit_error}"
+                    )),
+                    Err(rollback_error) => Err(format!(
+                        "commit Codex actor reconciliation: {commit_error}; failed to roll back: {rollback_error}"
+                    )),
+                }
+            }
+        },
+        Err(error) => {
+            let rollback = conn.execute_batch("ROLLBACK");
+            match rollback {
+                Ok(()) => Err(error),
+                Err(rollback_error) => Err(format!(
+                    "{error}; failed to roll back Codex actor reconciliation: {rollback_error}"
+                )),
+            }
+        }
+    }
 }
 
 fn merge_earliest_timestamp(current: Option<String>, incoming: Option<&str>) -> Option<String> {
@@ -414,7 +576,9 @@ fn persist_envelope(
 mod tests {
     use super::*;
     use orgtrack_core::canonical::ResourceAction;
-    use orgtrack_core::sources::codex::app::load_codex_app_for_session;
+    use orgtrack_core::sources::codex::app::{
+        load_codex_app_for_session, load_codex_app_from_path,
+    };
     use orgtrack_core::sources::imported_history::metadata::SOURCE_CLAUDE_CODE;
     use rusqlite::Connection;
     use std::fs;
@@ -490,9 +654,10 @@ mod tests {
 
     #[test]
     fn codex_lifecycle_maps_actor_to_independently_loadable_transcript() {
-        let conn = Connection::open_in_memory().expect("in-memory SQLite");
+        let mut conn = Connection::open_in_memory().expect("in-memory SQLite");
         SqliteRecordStore::init_tables(&conn).expect("initialize orgtrack schema");
-        let store = SqliteRecordStore::new(&conn);
+        SqliteRecordStore::init_source_cache_tables(&conn)
+            .expect("initialize imported replay schema");
         let temp = tempfile::tempdir().expect("Codex session root");
         let sessions_dir = temp
             .path()
@@ -524,7 +689,7 @@ mod tests {
         let child_session_id = orgtrack_core::sources::codex::canonical_session_id(&child_stem);
 
         persist_actor_lifecycle(
-            &store,
+            &mut conn,
             &SessionActorLifecycleEnvelopeV1 {
                 schema_version: SESSION_ACTOR_SCHEMA_VERSION,
                 source: SOURCE_CODEX_APP.to_string(),
@@ -543,7 +708,7 @@ mod tests {
         )
         .expect("persist stop first");
         persist_actor_lifecycle(
-            &store,
+            &mut conn,
             &SessionActorLifecycleEnvelopeV1 {
                 schema_version: SESSION_ACTOR_SCHEMA_VERSION,
                 source: SOURCE_CODEX_APP.to_string(),
@@ -562,6 +727,7 @@ mod tests {
         )
         .expect("persist late start");
 
+        let store = SqliteRecordStore::new(&conn);
         let actor = store
             .get_session_actor(SOURCE_CODEX_APP, &parent_session_id, "agent-1")
             .expect("query actor")
@@ -611,6 +777,160 @@ mod tests {
             chunk.args.to_string().contains("child transcript marker")
                 || chunk.result.to_string().contains("child transcript marker")
         }));
+    }
+
+    #[test]
+    fn bounded_actor_reconciliation_matches_legacy_projection_and_rolls_back_cursor_drift() {
+        let temp = tempfile::tempdir().expect("Codex actor fixture");
+        let source_session_id = "rollout-2026-07-22T10-00-00-differential";
+        let session_id = orgtrack_core::sources::codex::canonical_session_id(source_session_id);
+        let path = temp.path().join(format!("{source_session_id}.jsonl"));
+        let mut fixture = vec![serde_json::json!({
+            "timestamp":"2026-07-22T10:00:00Z",
+            "type":"event_msg",
+            "payload":{"type":"user_message","message":"update the file"}
+        })
+        .to_string()];
+        // 205 edits force at least two compact replay pages while one logical
+        // turn remains open, exercising the carried turn attribution state.
+        for index in 0..205 {
+            let call_id = format!("call_patch_{index}");
+            let patch = format!(
+                "*** Begin Patch\n*** Update File: src/file_{index}.rs\n@@\n-old\n+new\n*** End Patch"
+            );
+            let arguments = serde_json::json!({ "patch": patch }).to_string();
+            fixture.push(
+                serde_json::json!({
+                    "timestamp":format!("2026-07-22T10:{:02}:01Z", index % 60),
+                    "type":"response_item",
+                    "payload":{
+                        "type":"function_call",
+                        "name":"apply_patch",
+                        "arguments":arguments,
+                        "call_id":call_id
+                    }
+                })
+                .to_string(),
+            );
+            fixture.push(
+                serde_json::json!({
+                    "timestamp":format!("2026-07-22T10:{:02}:02Z", index % 60),
+                    "type":"response_item",
+                    "payload":{
+                        "type":"function_call_output",
+                        "call_id":call_id,
+                        "output":"Done"
+                    }
+                })
+                .to_string(),
+            );
+        }
+        fs::write(&path, format!("{}\n", fixture.join("\n"))).expect("write differential fixture");
+
+        let legacy_conn = Connection::open_in_memory().expect("legacy DB");
+        SqliteRecordStore::init_tables(&legacy_conn).expect("legacy schema");
+        SqliteRecordStore::init_source_cache_tables(&legacy_conn).expect("legacy replay schema");
+        let legacy_chunks = load_codex_app_from_path(&session_id, &path).expect("legacy decode");
+        let legacy_store = SqliteRecordStore::new(&legacy_conn);
+        persist_activity_chunks(
+            &legacy_store,
+            SOURCE_CODEX_APP,
+            Some(source_session_id),
+            &session_id,
+            Some("actor-differential"),
+            "/repo",
+            AttributionPrecision::Exact,
+            &legacy_chunks,
+        )
+        .expect("legacy interaction projection");
+
+        let mut bounded_conn = Connection::open_in_memory().expect("bounded DB");
+        SqliteRecordStore::init_tables(&bounded_conn).expect("bounded schema");
+        SqliteRecordStore::init_source_cache_tables(&bounded_conn).expect("bounded replay schema");
+        reconcile_codex_actor_transcript(
+            &mut bounded_conn,
+            source_session_id,
+            &session_id,
+            &path,
+            "actor-differential",
+            "/repo",
+        )
+        .expect("bounded interaction projection");
+
+        let read_interactions = |conn: &Connection| {
+            let mut statement = conn
+                .prepare(
+                    "SELECT interaction.payload_json,resource.repository_id,
+                            resource.workspace_path,resource.repo_relative_path,resource.path_hash
+                       FROM orgtrack_core_resource_interactions AS interaction
+                       JOIN orgtrack_core_file_resources AS resource
+                         ON resource.resource_id=interaction.resource_id
+                      WHERE interaction.source=?1 AND interaction.session_id=?2
+                      ORDER BY interaction.interaction_id",
+                )
+                .expect("prepare interactions");
+            statement
+                .query_map(rusqlite::params![SOURCE_CODEX_APP, session_id], |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, Option<String>>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, String>(4)?,
+                    ))
+                })
+                .expect("query interactions")
+                .map(|row| row.expect("decode interaction"))
+                .collect::<Vec<_>>()
+        };
+        let legacy = read_interactions(&legacy_conn);
+        let bounded = read_interactions(&bounded_conn);
+        assert_eq!(bounded.len(), 205, "fixture must cross one replay page");
+        assert_eq!(
+            bounded, legacy,
+            "bounded projection must preserve semantics"
+        );
+
+        let (generation, revision): (String, i64) = bounded_conn
+            .query_row(
+                "SELECT generation,revision FROM imported_replay_state
+                  WHERE source=?1 AND source_session_id=?2",
+                rusqlite::params![SOURCE_CODEX_APP, source_session_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("read replay cursor");
+        let before_failed_publish = read_interactions(&bounded_conn);
+        let error = publish_codex_actor_reconciliation(
+            &mut bounded_conn,
+            source_session_id,
+            &session_id,
+            "actor-differential",
+            "/repo",
+            &generation,
+            revision.max(0) as u64 + 1,
+        )
+        .expect_err("revision drift must reject the replacement");
+        assert!(error.contains("Replay cursor changed"));
+        assert_eq!(
+            read_interactions(&bounded_conn),
+            before_failed_publish,
+            "failed replacement must roll back the previous valid snapshot"
+        );
+
+        fs::write(&path, b"").expect("truncate actor transcript");
+        reconcile_codex_actor_transcript(
+            &mut bounded_conn,
+            source_session_id,
+            &session_id,
+            &path,
+            "actor-differential",
+            "/repo",
+        )
+        .expect("publish empty replacement generation");
+        assert!(
+            read_interactions(&bounded_conn).is_empty(),
+            "an empty replacement must atomically clear stale reconciled rows"
+        );
     }
 
     #[cfg(unix)]

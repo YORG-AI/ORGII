@@ -64,7 +64,9 @@ pub async fn es_set(
 ) -> Result<(), String> {
     normalize_events(&mut events);
     let sid = state.resolve_session_id(session_id)?;
+    state.validate_bounded_replay_input(&sid, &events)?;
     state.with_store_mut(&sid, |store| store.set(events));
+    state.enforce_bounded_replay_store_policy(&sid)?;
     schedule_notify(&app, &state, &sid);
     Ok(())
 }
@@ -99,6 +101,7 @@ pub async fn es_append(
         normalize_event_records(event);
     }
     let sid = state.resolve_session_id(session_id)?;
+    let incoming_bytes = state.validate_bounded_replay_input(&sid, &events)?;
 
     // Persist user-authored events so the truncate-on-edit path can locate
     // them by ID. Non-user events appended via es_append are UI-only
@@ -134,6 +137,7 @@ pub async fn es_append(
             .map(session_event_to_cached_event)
             .collect::<Vec<_>>()
     });
+    state.account_bounded_replay_write(&sid, incoming_bytes)?;
     schedule_notify(&app, &state, &sid);
 
     if !user_events.is_empty() {
@@ -183,7 +187,9 @@ pub async fn es_upsert(
     }
     normalize_event_records(&mut event);
     let sid = state.resolve_session_id(session_id)?;
+    let incoming_bytes = state.validate_bounded_replay_input(&sid, std::slice::from_ref(&event))?;
     state.with_store_mut(&sid, |store| store.upsert(event));
+    state.account_bounded_replay_write(&sid, incoming_bytes)?;
     schedule_notify(&app, &state, &sid);
     Ok(())
 }
@@ -198,8 +204,10 @@ pub async fn es_update_by_id(
     patch: SessionEventPatch,
 ) -> Result<bool, String> {
     let sid = state.resolve_session_id(session_id)?;
+    state.validate_bounded_replay_patch(&sid, std::slice::from_ref(&id), &patch)?;
     let found = state.with_store_mut(&sid, |store| store.update_by_id(&id, &patch));
     if found {
+        state.enforce_bounded_replay_store_policy(&sid)?;
         schedule_notify(&app, &state, &sid);
     }
     Ok(found)
@@ -250,7 +258,9 @@ pub async fn es_merge_events(
 ) -> Result<(), String> {
     normalize_events(&mut events);
     let sid = state.resolve_session_id(session_id)?;
+    let incoming_bytes = state.validate_bounded_replay_input(&sid, &events)?;
     state.with_store_mut(&sid, |store| store.merge_events(events));
+    state.account_bounded_replay_write(&sid, incoming_bytes)?;
     schedule_notify(&app, &state, &sid);
     Ok(())
 }
@@ -264,7 +274,9 @@ pub async fn es_merge_round_window_events(
 ) -> Result<(), String> {
     normalize_events(&mut events);
     let sid = state.resolve_session_id(session_id)?;
+    let incoming_bytes = state.validate_bounded_replay_input(&sid, &events)?;
     state.with_store_mut(&sid, |store| store.merge_round_window_events(events));
+    state.account_bounded_replay_write(&sid, incoming_bytes)?;
     schedule_notify(&app, &state, &sid);
     Ok(())
 }
@@ -304,6 +316,7 @@ pub async fn es_clear(
 ) -> Result<(), String> {
     let sid = state.resolve_session_id(session_id)?;
     state.with_store_mut(&sid, |store| store.clear());
+    state.enforce_bounded_replay_store_policy(&sid)?;
     schedule_notify(&app, &state, &sid);
     Ok(())
 }
@@ -319,6 +332,7 @@ pub async fn es_truncate_before_id(
     let sid = state.resolve_session_id(session_id)?;
     let found = state.with_store_mut(&sid, |store| store.truncate_before_id(&event_id));
     if found {
+        state.enforce_bounded_replay_store_policy(&sid)?;
         let persist_sid = sid.clone();
         let persist_event_id = event_id.clone();
         tokio::task::spawn_blocking(move || {

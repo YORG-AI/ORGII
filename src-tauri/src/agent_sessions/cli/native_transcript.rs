@@ -3,10 +3,10 @@
 //! A managed session whose agent has a binding here persists NO transcript
 //! chunks of its own (`code_sessions.transcript_source = 'native'`): the CLI
 //! writes its native store (inside the ORGII profile dirs, which the
-//! imported-history readers scan as extra discovery roots) and replay routes
-//! through `imported_history::load_activity_chunks_for_session` keyed by
+//! imported-history readers scan as extra discovery roots) and bounded replay
+//! routes through the source registry keyed by
 //! `<imported_prefix><cli_session_id>`. Agents without a binding keep the
-//! legacy `code_session_chunks` path.
+//! bounded SQL adapter over `code_session_chunks`.
 
 use key_vault::key_store::ModelType;
 use orgtrack_core::sources::imported_history::metadata::{

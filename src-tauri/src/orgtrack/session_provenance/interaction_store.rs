@@ -9,6 +9,7 @@ use orgtrack_core::canonical::{
     ResourceInteractionOutcome, ResourceInteractionRecord, SessionRecord,
     RESOURCE_INTERACTION_SCHEMA_VERSION,
 };
+use orgtrack_core::projectors::turn_metadata::metadata_projection_requirements;
 use orgtrack_core::repo_sync::paths::{path_hash, record_id};
 use orgtrack_core::resource_interaction::{
     activity_chunk_source_event_id, file_interactions_from_activity_chunk,
@@ -16,6 +17,7 @@ use orgtrack_core::resource_interaction::{
 };
 use orgtrack_core::sources::imported_history::FUNCTION_USER_MESSAGE;
 use orgtrack_core::store::RecordStore;
+use rusqlite::Connection;
 use session_persistence::CachedEvent;
 
 use super::path_resolution::resolve_file_resource;
@@ -122,6 +124,7 @@ pub(crate) fn persist_native_event_interactions(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 pub(crate) fn persist_activity_chunks(
     store: &dyn RecordStore,
     source: &str,
@@ -132,11 +135,39 @@ pub(crate) fn persist_activity_chunks(
     precision: AttributionPrecision,
     chunks: &[ActivityChunk],
 ) -> Result<usize, String> {
+    let mut current_turn_id = None;
+    persist_activity_chunks_with_turn_state(
+        store,
+        source,
+        source_session_id,
+        session_id,
+        actor_id,
+        workspace_path,
+        precision,
+        chunks,
+        &mut current_turn_id,
+    )
+}
+
+/// Persist one bounded replay batch while carrying the user-turn boundary
+/// across batches. This prevents backend metadata consumers from rebuilding a
+/// session-sized `Vec<ActivityChunk>` merely to preserve turn attribution.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn persist_activity_chunks_with_turn_state(
+    store: &dyn RecordStore,
+    source: &str,
+    source_session_id: Option<&str>,
+    session_id: &str,
+    actor_id: Option<&str>,
+    workspace_path: &str,
+    precision: AttributionPrecision,
+    chunks: &[ActivityChunk],
+    current_turn_id: &mut Option<String>,
+) -> Result<usize, String> {
     let mut persisted = 0;
-    let mut current_turn_id: Option<&str> = None;
     for chunk in chunks {
         if chunk.function == FUNCTION_USER_MESSAGE {
-            current_turn_id = Some(&chunk.chunk_id);
+            *current_turn_id = Some(chunk.chunk_id.clone());
             continue;
         }
         let outcome = interaction_outcome_from_activity_chunk(chunk);
@@ -148,7 +179,122 @@ pub(crate) fn persist_activity_chunks(
                 source_session_id,
                 session_id,
                 Some(&source_event_id),
-                current_turn_id,
+                current_turn_id.as_deref(),
+                actor_id,
+                workspace_path,
+                &interaction.file_path,
+                interaction.action,
+                outcome,
+                &chunk.created_at,
+                ResourceInteractionCaptureMethod::Reconciled,
+                precision,
+            )?;
+            persisted += 1;
+        }
+    }
+    Ok(persisted)
+}
+
+/// Stream resource metadata out of the session event cache without ever
+/// building a session-sized `Vec<CachedEvent>` or `Vec<ActivityChunk>`.
+///
+/// The projection classifier runs before either JSON column is copied from
+/// SQLite. Known assistant/thinking/REPL rows therefore cost only their small
+/// discriminator fields; Grep reads its compact args but never its potentially
+/// huge result. Unknown tools deliberately keep the conservative old path.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn persist_cached_event_interactions_streaming(
+    conn: &Connection,
+    store: &dyn RecordStore,
+    source: &str,
+    source_session_id: Option<&str>,
+    session_id: &str,
+    actor_id: Option<&str>,
+    workspace_path: &str,
+    precision: AttributionPrecision,
+    mut map_path: impl FnMut(&str) -> Option<String>,
+) -> Result<usize, String> {
+    let mut statement = conn
+        .prepare_cached(
+            "SELECT id, session_id, event_type, function_name, thread_id,
+                    created_at, history_sequence, args_json, result_json
+             FROM events
+             WHERE session_id = ?1
+             ORDER BY COALESCE(history_sequence, rowid) ASC, created_at ASC, id ASC",
+        )
+        .map_err(|err| format!("Prepare cached event projection stream failed: {err}"))?;
+    let mut rows = statement
+        .query([session_id])
+        .map_err(|err| format!("Query cached event projection stream failed: {err}"))?;
+    let mut persisted = 0;
+    let mut current_turn_id: Option<String> = None;
+    while let Some(row) = rows
+        .next()
+        .map_err(|err| format!("Read cached event projection row failed: {err}"))?
+    {
+        let id = row
+            .get::<_, String>(0)
+            .map_err(|err| format!("Read cached event id failed: {err}"))?;
+        let function_name = row
+            .get::<_, Option<String>>(3)
+            .map_err(|err| format!("Read cached event function failed: {err}"))?;
+        if function_name.as_deref() == Some(FUNCTION_USER_MESSAGE) {
+            current_turn_id = Some(id);
+            continue;
+        }
+        let requirements = metadata_projection_requirements(function_name.as_deref());
+        if !requirements.projects_resource_interactions() {
+            continue;
+        }
+
+        let event = CachedEvent {
+            id,
+            session_id: row
+                .get(1)
+                .map_err(|err| format!("Read cached event session id failed: {err}"))?,
+            event_type: row
+                .get(2)
+                .map_err(|err| format!("Read cached event type failed: {err}"))?,
+            function_name,
+            thread_id: row
+                .get(4)
+                .map_err(|err| format!("Read cached event thread id failed: {err}"))?,
+            args_json: if requirements.needs_args_json() {
+                row.get(7)
+                    .map_err(|err| format!("Read cached event args failed: {err}"))?
+            } else {
+                "null".to_string()
+            },
+            result_json: if requirements.needs_result_json() {
+                row.get(8)
+                    .map_err(|err| format!("Read cached event result failed: {err}"))?
+            } else {
+                "null".to_string()
+            },
+            content: String::new(),
+            created_at: row
+                .get(5)
+                .map_err(|err| format!("Read cached event timestamp failed: {err}"))?,
+            meta_json: None,
+            history_sequence: row
+                .get(6)
+                .map_err(|err| format!("Read cached event sequence failed: {err}"))?,
+        };
+        let chunk = cached_event_to_activity_chunk(&event);
+        let outcome = interaction_outcome_from_activity_chunk(&chunk);
+        for mut interaction in file_interactions_from_activity_chunk(&chunk) {
+            let Some(mapped_path) = map_path(&interaction.file_path) else {
+                continue;
+            };
+            interaction.file_path = mapped_path;
+            let source_event_id = activity_chunk_source_event_id(&chunk, &interaction);
+            persist_file_interaction(
+                store,
+                source,
+                source_session_id,
+                session_id,
+                Some(&source_event_id),
+                current_turn_id.as_deref(),
                 actor_id,
                 workspace_path,
                 &interaction.file_path,
@@ -269,4 +415,88 @@ pub(super) fn resource_interaction_id(
         occurred_at,
         capture_method.as_str(),
     ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use orgtrack_core::store::sqlite::SqliteRecordStore;
+    use rusqlite::{params, Connection};
+
+    const INSERT_EVENT: &str = "INSERT INTO events (
+            id, session_id, event_type, function_name, thread_id,
+            args_json, result_json, content, created_at, meta_json, history_sequence
+         ) VALUES (?1, 'snapshot', 'tool_call', ?2, NULL, ?3, ?4, '', ?5, NULL, ?6)";
+
+    #[test]
+    fn cached_projection_stream_skips_unneeded_blob_payloads() {
+        let conn = Connection::open_in_memory().expect("open DB");
+        session_persistence::init_session_tables(&conn).expect("session tables");
+        SqliteRecordStore::init_tables(&conn).expect("orgtrack tables");
+
+        conn.execute(
+            INSERT_EVENT,
+            params![
+                "user-1",
+                FUNCTION_USER_MESSAGE,
+                "null",
+                "null",
+                "2026-07-22T00:00:00Z",
+                0_i64
+            ],
+        )
+        .expect("user row");
+        conn.execute(
+            INSERT_EVENT,
+            params![
+                "assistant-1",
+                "assistant",
+                vec![0xff_u8; 1024 * 1024],
+                vec![0xfe_u8; 1024 * 1024],
+                "2026-07-22T00:00:01Z",
+                1_i64
+            ],
+        )
+        .expect("assistant blob row");
+        conn.execute(
+            INSERT_EVENT,
+            params![
+                "grep-1",
+                "Grep",
+                r#"{"path":"src"}"#,
+                vec![0xfd_u8; 1024 * 1024],
+                "2026-07-22T00:00:02Z",
+                2_i64
+            ],
+        )
+        .expect("grep blob result row");
+        conn.execute(
+            INSERT_EVENT,
+            params![
+                "edit-1",
+                "write_file",
+                r#"{"file_path":"src/main.rs","content":"ok"}"#,
+                r#"{"success":true}"#,
+                "2026-07-22T00:00:03Z",
+                3_i64
+            ],
+        )
+        .expect("edit row");
+
+        let store = SqliteRecordStore::new(&conn);
+        let persisted = persist_cached_event_interactions_streaming(
+            &conn,
+            &store,
+            "test-source",
+            Some("source-session"),
+            "snapshot",
+            Some("actor"),
+            "/repo",
+            AttributionPrecision::Exact,
+            |path| Some(path.to_string()),
+        )
+        .expect("stream projection");
+
+        assert_eq!(persisted, 1);
+    }
 }

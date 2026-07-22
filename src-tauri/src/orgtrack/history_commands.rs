@@ -1,8 +1,4 @@
-use std::{
-    collections::{HashSet, VecDeque},
-    path::Path,
-    sync::{Mutex, OnceLock},
-};
+use std::{collections::HashSet, path::Path};
 
 use database::db::get_connection;
 use orgtrack_core::pricing;
@@ -10,10 +6,9 @@ use orgtrack_core::sources::claude_code::history as claude_code_history;
 use orgtrack_core::sources::cline::history as cline_history;
 use orgtrack_core::sources::codex::app as codex_app;
 use orgtrack_core::sources::cursor_cli::history as cursor_cli_history;
-use orgtrack_core::sources::cursor_ide::{
-    db as cursor_db, disk_reads as cursor_disk_reads, history as cursor_db_history,
-};
+use orgtrack_core::sources::cursor_ide::db as cursor_db;
 use orgtrack_core::sources::imported_history;
+use orgtrack_core::sources::imported_history::replay::{self, ImportedHistorySourceId};
 use orgtrack_core::sources::mimo_code::history as mimo_code_history;
 use orgtrack_core::sources::omp::history as omp_history;
 use orgtrack_core::sources::opencode::history as opencode_history;
@@ -30,132 +25,6 @@ use super::external_cli_detection::{self, ExternalCliSourceProbe};
 
 fn open_cache_conn() -> Result<rusqlite::Connection, String> {
     get_connection().map_err(|err| format!("Failed to open orgtrack source cache DB: {err}"))
-}
-
-const CODEX_TURN_PROJECTION_CACHE_CAPACITY: usize = 8;
-
-#[derive(Debug)]
-struct CodexTurnProjectionCacheEntry {
-    session_id: String,
-    signature: (i64, u64),
-    projected: Vec<orgtrack_core::projectors::turn_metadata::ProjectedTurnMetadata>,
-}
-
-#[derive(Debug, Default)]
-struct CodexTurnProjectionCache {
-    entries: VecDeque<CodexTurnProjectionCacheEntry>,
-}
-
-impl CodexTurnProjectionCache {
-    fn get(
-        &mut self,
-        session_id: &str,
-        signature: (i64, u64),
-    ) -> Option<Vec<orgtrack_core::projectors::turn_metadata::ProjectedTurnMetadata>> {
-        let index = self
-            .entries
-            .iter()
-            .position(|entry| entry.session_id == session_id)?;
-        let entry = self.entries.remove(index)?;
-        if entry.signature != signature {
-            return None;
-        }
-        let projected = entry.projected.clone();
-        self.entries.push_back(entry);
-        Some(projected)
-    }
-
-    fn insert(
-        &mut self,
-        session_id: String,
-        signature: (i64, u64),
-        projected: Vec<orgtrack_core::projectors::turn_metadata::ProjectedTurnMetadata>,
-    ) {
-        if let Some(index) = self
-            .entries
-            .iter()
-            .position(|entry| entry.session_id == session_id)
-        {
-            self.entries.remove(index);
-        }
-        self.entries.push_back(CodexTurnProjectionCacheEntry {
-            session_id,
-            signature,
-            projected,
-        });
-        while self.entries.len() > CODEX_TURN_PROJECTION_CACHE_CAPACITY {
-            self.entries.pop_front();
-        }
-    }
-}
-
-fn codex_turn_projection_cache() -> &'static Mutex<CodexTurnProjectionCache> {
-    static CACHE: OnceLock<Mutex<CodexTurnProjectionCache>> = OnceLock::new();
-    CACHE.get_or_init(|| Mutex::new(CodexTurnProjectionCache::default()))
-}
-
-fn codex_transcript_signature(
-    conn: &rusqlite::Connection,
-    session_id: &str,
-) -> Result<Option<(i64, u64)>, String> {
-    if !session_id.starts_with(orgtrack_core::sources::codex::SESSION_PREFIX) {
-        return Ok(None);
-    }
-    imported_history::cache::stat_imported_transcript_by_session_id_from_conn(
-        conn,
-        imported_history::metadata::SOURCE_CODEX_APP,
-        session_id,
-    )
-}
-
-fn remember_codex_turn_projection(
-    session_id: &str,
-    signature_before: Option<(i64, u64)>,
-    signature_after: Option<(i64, u64)>,
-    projected: Vec<orgtrack_core::projectors::turn_metadata::ProjectedTurnMetadata>,
-) {
-    let (Some(before), Some(after)) = (signature_before, signature_after) else {
-        return;
-    };
-    // Do not cache a parse that raced a transcript append. The next read will
-    // parse the now-stable file instead of treating an incomplete projection
-    // as current.
-    if before != after {
-        return;
-    }
-    codex_turn_projection_cache()
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .insert(session_id.to_string(), after, projected);
-}
-
-fn load_projected_turn_metadata(
-    conn: &rusqlite::Connection,
-    session_id: &str,
-) -> Result<Option<Vec<orgtrack_core::projectors::turn_metadata::ProjectedTurnMetadata>>, String> {
-    let signature_before = codex_transcript_signature(conn, session_id)?;
-    if let Some(signature) = signature_before {
-        if let Some(projected) = codex_turn_projection_cache()
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .get(session_id, signature)
-        {
-            return Ok(Some(projected));
-        }
-    }
-
-    let Some(chunks) = imported_history::load_activity_chunks_for_session(conn, session_id)? else {
-        return Ok(None);
-    };
-    let projected = orgtrack_core::projectors::turn_metadata::project_activity_chunks(&chunks);
-    let signature_after = codex_transcript_signature(conn, session_id)?;
-    remember_codex_turn_projection(
-        session_id,
-        signature_before,
-        signature_after,
-        projected.clone(),
-    );
-    Ok(Some(projected))
 }
 
 fn projected_rounds_to_cached_turns(
@@ -195,10 +64,9 @@ fn projected_rounds_to_cached_turns(
         .collect()
 }
 
-/// Unified per-round metadata read surface. Native/managed sessions use the
-/// versioned local turn cache; read-only imported sessions are projected
-/// directly from their existing provider loader and never copied into
-/// `sessions.db.events`.
+/// Unified per-round metadata read surface. Native SDE sessions keep using the
+/// versioned local turn cache. Imported and managed CLI sessions project only
+/// visible turns from the compact replay index and never hydrate a transcript.
 #[tauri::command]
 pub async fn orgtrack_session_turn_metadata_index(
     session_id: String,
@@ -211,7 +79,7 @@ pub async fn orgtrack_session_turn_metadata_index(
         {
             return Err("At most 500 turn summaries can be loaded at once".to_string());
         }
-        let conn = open_cache_conn()?;
+        let mut conn = open_cache_conn()?;
         // Managed native-transcript sessions project from the CLI's own
         // store: remap the managed id to its imported transcript id first.
         let transcript_session_id =
@@ -219,13 +87,14 @@ pub async fn orgtrack_session_turn_metadata_index(
                 &session_id,
             )
             .unwrap_or_else(|| session_id.clone());
-        if let Some(projected) = load_projected_turn_metadata(&conn, &transcript_session_id)? {
-            let mut turns = projected_rounds_to_cached_turns(&session_id, projected);
-            if let Some(turn_ids) = turn_ids.as_ref() {
-                let requested = turn_ids.iter().collect::<std::collections::HashSet<_>>();
-                turns.retain(|turn| requested.contains(&turn.turn_id));
-            }
-            return Ok(turns);
+        if let Some(source) = ImportedHistorySourceId::from_session_id(&transcript_session_id) {
+            let projected = replay::project_turn_metadata(
+                &mut conn,
+                source,
+                &transcript_session_id,
+                turn_ids.as_deref(),
+            )?;
+            return Ok(projected_rounds_to_cached_turns(&session_id, projected));
         }
         if let Some(turn_ids) = turn_ids.as_ref() {
             return session_persistence::load_turn_summaries(&session_id, turn_ids)
@@ -247,31 +116,17 @@ fn estimate_cost_blended(total_tokens: i64, model: &str) -> f64 {
 }
 
 fn imported_recent_paths() -> Result<Vec<imported_history::ImportedHistoryRecentPath>, String> {
-    let mut conn = open_cache_conn()?;
-    let mut paths = codex_app::list_codex_app_recent_paths(&mut conn, 0)?;
-    paths.extend(claude_code_history::list_claude_code_recent_paths(
-        &mut conn, 0,
-    )?);
-    paths.extend(cursor_cli_history::list_cursor_cli_recent_paths(
-        &mut conn, 0,
-    )?);
-    paths.extend(opencode_history::list_opencode_recent_paths(&mut conn, 0)?);
-    paths.extend(windsurf_history::list_windsurf_recent_paths(&mut conn, 0)?);
-    paths.extend(workbuddy_history::list_workbuddy_recent_paths(
-        &mut conn, 0,
-    )?);
-    paths.extend(trae_history::list_trae_recent_paths(&mut conn, 0)?);
-    paths.extend(cline_history::list_cline_recent_paths(&mut conn, 0)?);
-    paths.extend(warp_history::list_warp_recent_paths(&mut conn, 0)?);
-    paths.extend(zcode_history::list_zcode_recent_paths(&mut conn, 0)?);
-    paths.extend(qoder_history::list_qoder_recent_paths(&mut conn, 0)?);
-    paths.extend(mimo_code_history::list_mimo_code_recent_paths(
-        &mut conn, 0,
-    )?);
-    paths.extend(omp_history::list_omp_recent_paths(&mut conn, 0)?);
-    paths.extend(qoder_cli_history::list_qoder_cli_recent_paths(
-        &mut conn, 0,
-    )?);
+    let conn = open_cache_conn()?;
+    let mut paths = Vec::new();
+    for source in ImportedHistorySourceId::ALL {
+        paths.extend(
+            imported_history::cache::query_imported_recent_paths_from_conn(
+                &conn,
+                source.as_str(),
+                0,
+            )?,
+        );
+    }
     Ok(imported_history::recent_paths_from_paths(&paths))
 }
 
@@ -359,82 +214,6 @@ pub async fn orgtrack_get_cursor_sessions(
 }
 
 #[tauri::command]
-pub async fn cursor_ide_chunks(
-    session_id: String,
-) -> Result<Vec<core_types::activity::ActivityChunk>, String> {
-    tokio::task::spawn_blocking(move || cursor_db_history::load_history_for_session(&session_id))
-        .await
-        .map_err(|err| format!("Task join error: {err}"))?
-}
-
-/// Freshness signal for an open read-only Cursor session — the frontend compares
-/// snapshots to decide whether to reload chunks. Reads Cursor's `state.vscdb`.
-#[tauri::command]
-pub async fn cursor_ide_composer_last_updated_at(
-    composer_id: String,
-) -> Result<Option<i64>, String> {
-    tokio::task::spawn_blocking(move || {
-        cursor_disk_reads::cursor_composer_last_updated_at(&composer_id)
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
-}
-
-#[tauri::command]
-pub async fn cursor_ide_initial_window(
-    session_id: String,
-    recent_limit: Option<usize>,
-) -> Result<cursor_db_history::CursorIdeInitialWindow, String> {
-    tokio::task::spawn_blocking(move || {
-        let mut conn = open_cache_conn()?;
-        cursor_db_history::load_initial_window_for_session(&mut conn, &session_id, recent_limit)
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
-}
-
-#[tauri::command]
-pub async fn cursor_ide_full_refresh(
-    session_id: String,
-) -> Result<cursor_db_history::CursorIdeFullRefresh, String> {
-    tokio::task::spawn_blocking(move || {
-        let mut conn = open_cache_conn()?;
-        cursor_db_history::load_full_refresh_for_session(&mut conn, &session_id)
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
-}
-
-#[tauri::command]
-pub async fn cursor_ide_turn_window(
-    session_id: String,
-    user_bubble_id: String,
-) -> Result<cursor_db_history::CursorIdeTurnWindow, String> {
-    tokio::task::spawn_blocking(move || {
-        cursor_db_history::load_turn_window_for_session(&session_id, &user_bubble_id)
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
-}
-
-#[tauri::command]
-pub async fn codex_app_chunks(
-    session_id: String,
-) -> Result<Vec<core_types::activity::ActivityChunk>, String> {
-    tokio::task::spawn_blocking(move || {
-        let conn = open_cache_conn()?;
-        let signature_before = codex_transcript_signature(&conn, &session_id)?;
-        let chunks = codex_app::load_codex_app_for_session(&conn, &session_id)?;
-        let projected = orgtrack_core::projectors::turn_metadata::project_activity_chunks(&chunks);
-        let signature_after = codex_transcript_signature(&conn, &session_id)?;
-        remember_codex_turn_projection(&session_id, signature_before, signature_after, projected);
-        Ok(chunks)
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
-}
-
-#[tauri::command]
 pub async fn codex_app_recent_paths(
     limit: Option<usize>,
 ) -> Result<Vec<codex_app::CodexAppRecentPath>, String> {
@@ -484,78 +263,6 @@ pub async fn external_history_auto_import_recent_paths(
 }
 
 #[tauri::command]
-pub async fn claude_code_history_chunks(
-    session_id: String,
-) -> Result<Vec<core_types::activity::ActivityChunk>, String> {
-    tokio::task::spawn_blocking(move || {
-        let conn = open_cache_conn()?;
-        claude_code_history::load_claude_code_history_for_session(&conn, &session_id)
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
-}
-
-/// Freshness snapshot of one imported transcript's source file.
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ImportedTranscriptStat {
-    pub mtime_ms: i64,
-    pub size_bytes: u64,
-}
-
-/// Cheap freshness probe for the replay auto-refresh: returns the transcript
-/// file's `(mtime, size)` so the frontend can skip the full
-/// read → parse → merge pipeline when nothing changed. `None` when the
-/// source file is missing.
-#[tauri::command]
-pub async fn claude_code_history_stat(
-    session_id: String,
-) -> Result<Option<ImportedTranscriptStat>, String> {
-    tokio::task::spawn_blocking(move || {
-        let conn = open_cache_conn()?;
-        Ok(
-            claude_code_history::stat_claude_code_history_for_session(&conn, &session_id)?.map(
-                |(mtime_ms, size_bytes)| ImportedTranscriptStat {
-                    mtime_ms,
-                    size_bytes,
-                },
-            ),
-        )
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
-}
-
-/// Source-agnostic freshness probe for the replay auto-refresh: resolves the
-/// session's transcript path from the imported-history cache and stats it
-/// (folding in the SQLite `-wal` sibling for WAL-mode stores, whose main db
-/// mtime doesn't move between checkpoints). `None` when the session is
-/// uncached or the file is missing — the frontend then falls back to the
-/// full refresh, which re-syncs the cache.
-#[tauri::command]
-pub async fn imported_history_stat(
-    source_id: String,
-    session_id: String,
-) -> Result<Option<ImportedTranscriptStat>, String> {
-    tokio::task::spawn_blocking(move || {
-        let conn = open_cache_conn()?;
-        Ok(
-            imported_history::cache::stat_imported_transcript_by_session_id_from_conn(
-                &conn,
-                &source_id,
-                &session_id,
-            )?
-            .map(|(mtime_ms, size_bytes)| ImportedTranscriptStat {
-                mtime_ms,
-                size_bytes,
-            }),
-        )
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
-}
-
-#[tauri::command]
 pub async fn claude_code_recent_paths(
     limit: Option<usize>,
 ) -> Result<Vec<claude_code_history::ClaudeCodeRecentPath>, String> {
@@ -563,39 +270,6 @@ pub async fn claude_code_recent_paths(
     tokio::task::spawn_blocking(move || {
         let mut conn = open_cache_conn()?;
         claude_code_history::list_claude_code_recent_paths(&mut conn, limit)
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
-}
-
-#[tauri::command]
-pub async fn cursor_cli_history_chunks(
-    session_id: String,
-) -> Result<Vec<core_types::activity::ActivityChunk>, String> {
-    tokio::task::spawn_blocking(move || {
-        let conn = open_cache_conn()?;
-        cursor_cli_history::load_cursor_cli_history_for_session(&conn, &session_id)
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
-}
-
-/// Cheap freshness probe for the replay auto-refresh, folding the store's
-/// `-wal` sidecar in (a WAL commit doesn't touch the main file's mtime).
-#[tauri::command]
-pub async fn cursor_cli_history_stat(
-    session_id: String,
-) -> Result<Option<ImportedTranscriptStat>, String> {
-    tokio::task::spawn_blocking(move || {
-        let conn = open_cache_conn()?;
-        Ok(
-            cursor_cli_history::stat_cursor_cli_history_for_session(&conn, &session_id)?.map(
-                |(mtime_ms, size_bytes)| ImportedTranscriptStat {
-                    mtime_ms,
-                    size_bytes,
-                },
-            ),
-        )
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?
@@ -615,17 +289,6 @@ pub async fn cursor_cli_recent_paths(
 }
 
 #[tauri::command]
-pub async fn opencode_history_chunks(
-    session_id: String,
-) -> Result<Vec<core_types::activity::ActivityChunk>, String> {
-    tokio::task::spawn_blocking(move || {
-        opencode_history::load_opencode_history_for_session(&session_id)
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
-}
-
-#[tauri::command]
 pub async fn opencode_recent_paths(
     limit: Option<usize>,
 ) -> Result<Vec<opencode_history::OpenCodeRecentPath>, String> {
@@ -636,15 +299,6 @@ pub async fn opencode_recent_paths(
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?
-}
-
-#[tauri::command]
-pub async fn warp_history_chunks(
-    session_id: String,
-) -> Result<Vec<core_types::activity::ActivityChunk>, String> {
-    tokio::task::spawn_blocking(move || warp_history::load_warp_history_for_session(&session_id))
-        .await
-        .map_err(|err| format!("Task join error: {err}"))?
 }
 
 #[tauri::command]
@@ -661,15 +315,6 @@ pub async fn warp_recent_paths(
 }
 
 #[tauri::command]
-pub async fn zcode_history_chunks(
-    session_id: String,
-) -> Result<Vec<core_types::activity::ActivityChunk>, String> {
-    tokio::task::spawn_blocking(move || zcode_history::load_zcode_history_for_session(&session_id))
-        .await
-        .map_err(|err| format!("Task join error: {err}"))?
-}
-
-#[tauri::command]
 pub async fn zcode_recent_paths(
     limit: Option<usize>,
 ) -> Result<Vec<zcode_history::ZCodeRecentPath>, String> {
@@ -677,18 +322,6 @@ pub async fn zcode_recent_paths(
     tokio::task::spawn_blocking(move || {
         let mut conn = open_cache_conn()?;
         zcode_history::list_zcode_recent_paths(&mut conn, limit)
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
-}
-
-#[tauri::command]
-pub async fn qoder_history_chunks(
-    session_id: String,
-) -> Result<Vec<core_types::activity::ActivityChunk>, String> {
-    tokio::task::spawn_blocking(move || {
-        let conn = open_cache_conn()?;
-        qoder_history::load_qoder_history_for_session(&conn, &session_id)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?
@@ -708,18 +341,6 @@ pub async fn qoder_recent_paths(
 }
 
 #[tauri::command]
-pub async fn mimo_code_history_chunks(
-    session_id: String,
-) -> Result<Vec<core_types::activity::ActivityChunk>, String> {
-    tokio::task::spawn_blocking(move || {
-        let conn = open_cache_conn()?;
-        mimo_code_history::load_mimo_code_history_for_session(&conn, &session_id)
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
-}
-
-#[tauri::command]
 pub async fn mimo_code_recent_paths(
     limit: Option<usize>,
 ) -> Result<Vec<mimo_code_history::MimoCodeRecentPath>, String> {
@@ -727,18 +348,6 @@ pub async fn mimo_code_recent_paths(
     tokio::task::spawn_blocking(move || {
         let mut conn = open_cache_conn()?;
         mimo_code_history::list_mimo_code_recent_paths(&mut conn, limit)
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
-}
-
-#[tauri::command]
-pub async fn omp_history_chunks(
-    session_id: String,
-) -> Result<Vec<core_types::activity::ActivityChunk>, String> {
-    tokio::task::spawn_blocking(move || {
-        let conn = open_cache_conn()?;
-        omp_history::load_omp_history_for_session(&conn, &session_id)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?
@@ -758,18 +367,6 @@ pub async fn omp_recent_paths(
 }
 
 #[tauri::command]
-pub async fn qoder_cli_history_chunks(
-    session_id: String,
-) -> Result<Vec<core_types::activity::ActivityChunk>, String> {
-    tokio::task::spawn_blocking(move || {
-        let conn = open_cache_conn()?;
-        qoder_cli_history::load_qoder_cli_history_for_session(&conn, &session_id)
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
-}
-
-#[tauri::command]
 pub async fn qoder_cli_recent_paths(
     limit: Option<usize>,
 ) -> Result<Vec<qoder_cli_history::QoderCliRecentPath>, String> {
@@ -777,17 +374,6 @@ pub async fn qoder_cli_recent_paths(
     tokio::task::spawn_blocking(move || {
         let mut conn = open_cache_conn()?;
         qoder_cli_history::list_qoder_cli_recent_paths(&mut conn, limit)
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
-}
-
-#[tauri::command]
-pub async fn windsurf_history_chunks(
-    session_id: String,
-) -> Result<Vec<core_types::activity::ActivityChunk>, String> {
-    tokio::task::spawn_blocking(move || {
-        windsurf_history::load_windsurf_history_for_session(&session_id)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?
@@ -807,18 +393,6 @@ pub async fn windsurf_recent_paths(
 }
 
 #[tauri::command]
-pub async fn trae_history_chunks(
-    session_id: String,
-) -> Result<Vec<core_types::activity::ActivityChunk>, String> {
-    tokio::task::spawn_blocking(move || {
-        let conn = open_cache_conn()?;
-        trae_history::load_trae_history_for_session(&conn, &session_id)
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
-}
-
-#[tauri::command]
 pub async fn trae_recent_paths(
     limit: Option<usize>,
 ) -> Result<Vec<trae_history::TraeRecentPath>, String> {
@@ -832,18 +406,6 @@ pub async fn trae_recent_paths(
 }
 
 #[tauri::command]
-pub async fn cline_history_chunks(
-    session_id: String,
-) -> Result<Vec<core_types::activity::ActivityChunk>, String> {
-    tokio::task::spawn_blocking(move || {
-        let conn = open_cache_conn()?;
-        cline_history::load_cline_history_for_session(&conn, &session_id)
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
-}
-
-#[tauri::command]
 pub async fn cline_recent_paths(
     limit: Option<usize>,
 ) -> Result<Vec<cline_history::ClineRecentPath>, String> {
@@ -851,18 +413,6 @@ pub async fn cline_recent_paths(
     tokio::task::spawn_blocking(move || {
         let mut conn = open_cache_conn()?;
         cline_history::list_cline_recent_paths(&mut conn, limit)
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
-}
-
-#[tauri::command]
-pub async fn workbuddy_history_chunks(
-    session_id: String,
-) -> Result<Vec<core_types::activity::ActivityChunk>, String> {
-    tokio::task::spawn_blocking(move || {
-        let conn = open_cache_conn()?;
-        workbuddy_history::load_workbuddy_history_for_session(&conn, &session_id)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?
@@ -947,22 +497,5 @@ mod tests {
 
         assert_eq!(turns[0].status, "pending");
         assert!(!turns[0].interrupted);
-    }
-
-    #[test]
-    fn codex_projection_cache_is_bounded_and_rejects_stale_signatures() {
-        let mut cache = CodexTurnProjectionCache::default();
-        for index in 0..=CODEX_TURN_PROJECTION_CACHE_CAPACITY {
-            cache.insert(
-                format!("codexapp-{index}"),
-                (index as i64, index as u64),
-                vec![projected(&format!("user-{index}"), index as i64)],
-            );
-        }
-
-        assert_eq!(cache.entries.len(), CODEX_TURN_PROJECTION_CACHE_CAPACITY);
-        assert!(cache.get("codexapp-0", (0, 0)).is_none());
-        assert!(cache.get("codexapp-1", (999, 999)).is_none());
-        assert!(cache.get("codexapp-2", (2, 2)).is_some());
     }
 }

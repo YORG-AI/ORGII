@@ -9,6 +9,7 @@ use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 
+use crate::agent_sessions::event_pipeline::session_providers;
 use crate::agent_sessions::event_pipeline::types::{
     ActivityStatus, EventDisplayStatus, EventDisplayVariant, EventSource, SessionEvent,
 };
@@ -178,6 +179,7 @@ pub async fn cache_load_session_turn_body(
     session_id: String,
     turn_id: String,
 ) -> Result<SessionTurnBodyWindow, String> {
+    session_providers::reject_bounded_replay_full_load(&session_id)?;
     let sid = session_id.clone();
     let tid = turn_id.clone();
     let window =
@@ -203,6 +205,7 @@ pub(super) async fn load_initial_turn_window_events(
     session_id: &str,
     recent_turn_count: Option<usize>,
 ) -> Result<SessionInitialTurnWindow, String> {
+    session_providers::reject_bounded_replay_full_load(session_id)?;
     let sid = session_id.to_string();
     let recent_count = recent_turn_count.unwrap_or(DEFAULT_RECENT_TURN_BODY_COUNT);
     let window = tokio::task::spawn_blocking(move || {
@@ -283,6 +286,7 @@ pub async fn es_unload_turn_body(
     session_id: String,
     turn_id: String,
 ) -> Result<usize, String> {
+    session_providers::reject_bounded_replay_full_load(&session_id)?;
     let lookup_sid = session_id.clone();
     let lookup_turn_id = turn_id.clone();
     let turn = tokio::task::spawn_blocking(move || sqlite_cache::load_turn_index(&lookup_sid))
@@ -305,7 +309,7 @@ pub async fn es_unload_turn_body(
 
 #[cfg(test)]
 mod tests {
-    use super::normalize_turn_user_preview;
+    use super::{normalize_turn_user_preview, session_providers};
 
     #[test]
     fn imported_user_alias_is_removed_from_placeholder_preview() {
@@ -314,5 +318,12 @@ mod tests {
             normalize_turn_user_preview("user_message native hello"),
             "native hello"
         );
+    }
+
+    #[test]
+    fn unload_turn_body_rpc_boundary_rejects_bounded_replay_sessions() {
+        assert!(session_providers::reject_bounded_replay_full_load("cliagent-managed").is_err());
+        assert!(session_providers::reject_bounded_replay_full_load("codexapp-fixture").is_err());
+        assert!(session_providers::reject_bounded_replay_full_load("sdeagent-native").is_ok());
     }
 }

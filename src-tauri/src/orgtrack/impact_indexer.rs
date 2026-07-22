@@ -23,22 +23,94 @@ pub fn get_session_impact(session_id: &str) -> Result<Option<SessionImpactStats>
     Ok(summarize_turns(&turns))
 }
 
+/// Read only already-materialized impact metadata.
+///
+/// Unlike `get_session_impact`, this never checks freshness and can therefore
+/// never rebuild a turn index from transcript events. Snapshot-backed native
+/// forks use it for sidebar metadata: snapshot publication deletes stale turn
+/// rows, so no rows means "metadata unavailable" rather than "reparse all
+/// inherited history".
+pub fn get_persisted_session_impact(
+    session_id: &str,
+) -> Result<Option<SessionImpactStats>, String> {
+    let conn = database::db::get_connection()
+        .map_err(|error| format!("open persisted session impact database: {error}"))?;
+    persisted_session_impact_from_connection(&conn, session_id)
+}
+
+fn persisted_session_impact_from_connection(
+    conn: &rusqlite::Connection,
+    session_id: &str,
+) -> Result<Option<SessionImpactStats>, String> {
+    let mut statement = conn
+        .prepare_cached(
+            "SELECT modified_files_json FROM session_turns
+             WHERE session_id=?1 ORDER BY start_sequence ASC",
+        )
+        .map_err(|error| format!("prepare persisted session impact: {error}"))?;
+    let mut rows = statement
+        .query([session_id])
+        .map_err(|error| format!("query persisted session impact: {error}"))?;
+    let mut touched_files = BTreeSet::new();
+    let mut lines_added = 0_i64;
+    let mut lines_removed = 0_i64;
+    while let Some(row) = rows
+        .next()
+        .map_err(|error| format!("read persisted session impact: {error}"))?
+    {
+        let raw: String = row
+            .get(0)
+            .map_err(|error| format!("decode persisted session impact column: {error}"))?;
+        let files = serde_json::from_str::<Vec<session_persistence::TurnModifiedFile>>(&raw)
+            .map_err(|error| format!("decode persisted session impact JSON: {error}"))?;
+        fold_modified_files(
+            &mut touched_files,
+            &mut lines_added,
+            &mut lines_removed,
+            &files,
+        );
+    }
+    Ok(finish_impact(touched_files, lines_added, lines_removed))
+}
+
 fn summarize_turns(turns: &[CachedTurnSummary]) -> Option<SessionImpactStats> {
     let mut touched_files = BTreeSet::new();
     let mut lines_added = 0_i64;
     let mut lines_removed = 0_i64;
 
     for turn in turns {
-        for file in &turn.modified_files {
-            if file.path.trim().is_empty() {
-                continue;
-            }
-            touched_files.insert(file.path.clone());
-            lines_added = lines_added.saturating_add(i64::from(file.additions));
-            lines_removed = lines_removed.saturating_add(i64::from(file.deletions));
-        }
+        fold_modified_files(
+            &mut touched_files,
+            &mut lines_added,
+            &mut lines_removed,
+            &turn.modified_files,
+        );
     }
 
+    finish_impact(touched_files, lines_added, lines_removed)
+}
+
+fn fold_modified_files(
+    touched_files: &mut BTreeSet<String>,
+    lines_added: &mut i64,
+    lines_removed: &mut i64,
+    files: &[session_persistence::TurnModifiedFile],
+) {
+    for file in files {
+        if file.path.trim().is_empty() {
+            continue;
+        }
+        touched_files.insert(file.path.clone());
+        *lines_added = lines_added.saturating_add(i64::from(file.additions));
+        *lines_removed = lines_removed.saturating_add(i64::from(file.deletions));
+    }
+}
+
+fn finish_impact(
+    touched_files: BTreeSet<String>,
+    lines_added: i64,
+    lines_removed: i64,
+) -> Option<SessionImpactStats> {
     if touched_files.is_empty() && lines_added == 0 && lines_removed == 0 {
         return None;
     }
@@ -111,5 +183,46 @@ mod tests {
         assert_eq!(summary.lines_added, 9);
         assert_eq!(summary.lines_removed, 1);
         assert_eq!(summary.touched_files, vec!["src/a.ts", "src/b.ts"]);
+    }
+
+    #[test]
+    fn persisted_impact_streams_materialized_metadata_without_turn_index_refresh() {
+        let conn = rusqlite::Connection::open_in_memory().expect("impact database");
+        session_persistence::init_session_tables(&conn).expect("session schema");
+        let files = serde_json::to_string(&vec![TurnModifiedFile {
+            path: "src/persisted.ts".to_string(),
+            file_name: "persisted.ts".to_string(),
+            status: "modified".to_string(),
+            additions: 7,
+            deletions: 4,
+        }])
+        .expect("serialize materialized files");
+        conn.execute(
+            "INSERT INTO session_turns(
+               session_id,turn_id,start_sequence,started_at,status,updated_at,
+               modified_files_json
+             ) VALUES('agentsession-cloud-fork','turn-1',0,
+                      '2026-07-23T00:00:00Z','completed',
+                      '2026-07-23T00:00:01Z',?1)",
+            [files],
+        )
+        .expect("insert materialized turn metadata");
+
+        let impact = persisted_session_impact_from_connection(&conn, "agentsession-cloud-fork")
+            .expect("load persisted impact")
+            .expect("persisted impact exists");
+        assert_eq!(impact.files_changed, 1);
+        assert_eq!(impact.lines_added, 7);
+        assert_eq!(impact.lines_removed, 4);
+        assert_eq!(impact.touched_files, vec!["src/persisted.ts"]);
+        let index_state_rows: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM session_turn_index_state
+                 WHERE session_id='agentsession-cloud-fork'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("count turn index states");
+        assert_eq!(index_state_rows, 0);
     }
 }

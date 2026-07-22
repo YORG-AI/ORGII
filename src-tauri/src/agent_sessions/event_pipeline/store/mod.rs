@@ -556,6 +556,59 @@ impl EventStore {
         }
     }
 
+    /// External-replay-only byte cap. Repeated bounded older-turn reads must
+    /// not accumulate up to the generic 8,000-event limit (8,000 shell
+    /// previews alone can exceed 250 MiB). Native SDE paths never call this.
+    ///
+    /// The retained set is a contiguous newest suffix. When the byte cut
+    /// lands inside an older turn, advance to the next user row so the store
+    /// drops that partial turn instead of rendering a detached body.
+    pub fn cap_external_replay_bytes(&mut self, max_bytes: usize) -> Result<usize, String> {
+        let mut retained_bytes = 2_usize; // `[]`
+        let mut keep_from = self.events.len();
+        for (index, event) in self.events.iter().enumerate().rev() {
+            let event_bytes = serde_json::to_vec(event)
+                .map_err(|error| format!("serialize external replay store event: {error}"))?
+                .len();
+            let separator = usize::from(keep_from < self.events.len());
+            if retained_bytes
+                .saturating_add(separator)
+                .saturating_add(event_bytes)
+                > max_bytes
+            {
+                break;
+            }
+            retained_bytes = retained_bytes
+                .saturating_add(separator)
+                .saturating_add(event_bytes);
+            keep_from = index;
+        }
+
+        if keep_from > 0 && keep_from < self.events.len() {
+            if let Some(next_turn) = self.events[keep_from..].iter().position(|event| {
+                event.source == crate::agent_sessions::event_pipeline::types::EventSource::User
+            }) {
+                keep_from = keep_from.saturating_add(next_turn);
+            }
+        }
+
+        if keep_from > 0 {
+            let removed_ids = self.events[..keep_from]
+                .iter()
+                .map(|event| event.id.clone())
+                .collect::<Vec<_>>();
+            self.events.drain(..keep_from);
+            for event_id in removed_ids {
+                self.mark_removed(event_id);
+            }
+            self.rebuild_indexes();
+        }
+
+        serde_json::to_vec(&self.events)
+            .map(|bytes| bytes.len())
+            .map_err(|error| format!("serialize capped external replay store: {error}"))
+    }
+
     pub(super) fn stamp_repo(&self, event: &mut SessionEvent) {
         if event.repo_id.is_none() {
             event.repo_id = self.repo_id.clone();

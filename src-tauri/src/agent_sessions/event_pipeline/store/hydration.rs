@@ -37,6 +37,20 @@ impl EventStore {
         self.set_with_hydration(events, HydrationMode::RoundWindow);
     }
 
+    /// Replace an external replay window authoritatively, including with an
+    /// empty window. Imported/managed CLI history has already committed its
+    /// compact generation before delivery, so an empty canonical window means
+    /// that the source is empty and must clear any prior external snapshot.
+    ///
+    /// Native SDE turn-index hydration keeps using `set_round_window`, whose
+    /// empty-window guard protects an index that may still be rebuilding.
+    pub fn set_external_replay_window(
+        &mut self,
+        events: Vec<crate::agent_sessions::event_pipeline::types::SessionEvent>,
+    ) {
+        self.set_with_hydration(events, HydrationMode::RoundWindow);
+    }
+
     pub(super) fn set_with_hydration(
         &mut self,
         mut events: Vec<crate::agent_sessions::event_pipeline::types::SessionEvent>,

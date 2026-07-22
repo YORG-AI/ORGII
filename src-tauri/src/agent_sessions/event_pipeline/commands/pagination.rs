@@ -8,6 +8,7 @@ use tauri::State;
 use crate::agent_sessions::event_pipeline::pagination::{
     self, EventFilters, FunctionUsageCount, PaginatedEvents, PaginationRequest,
 };
+use crate::agent_sessions::event_pipeline::session_providers;
 use crate::agent_sessions::event_pipeline::types::SessionEvent;
 use session_persistence as sqlite_cache;
 
@@ -35,6 +36,7 @@ pub async fn es_paginate_cached_events(
     session_id: String,
     request: PaginationRequest,
 ) -> Result<PaginatedEvents, String> {
+    session_providers::reject_bounded_replay_full_load(&session_id)?;
     let cached = tokio::task::spawn_blocking(move || sqlite_cache::load_events(&session_id))
         .await
         .map_err(|e| e.to_string())?

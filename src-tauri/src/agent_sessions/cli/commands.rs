@@ -9,7 +9,6 @@ use super::session_runner::launch_profiles::{
 use super::types::{KeySource, SessionStatus};
 use agent_core::session::IdeContext;
 use agent_core::state::control_flow::CancelReason;
-use core_types::activity::ActivityChunk;
 use core_types::session::CLI_SESSION_PREFIX;
 use core_types::worktree::{MergeStrategy, WorktreeMergeResult};
 use git::worktree;
@@ -623,49 +622,6 @@ pub async fn cli_agent_list() -> Result<Vec<CodeSession>, String> {
     .map_err(|e| format!("Task error: {}", e))?
 }
 
-/// Resolve and parse a native-mode session's transcript from the CLI's own
-/// store through the imported-history loaders. `None` falls back to legacy
-/// chunks — covering pre-migration sessions, crash-before-native-write, and
-/// a store the reader can't currently open.
-fn load_native_transcript_chunks(session: &CodeSession) -> Option<Vec<ActivityChunk>> {
-    use super::native_transcript;
-    if session.transcript_source != native_transcript::TRANSCRIPT_SOURCE_NATIVE {
-        return None;
-    }
-    let agent = session
-        .cli_agent_type
-        .as_deref()
-        .and_then(key_vault::key_store::ModelType::from_str)?;
-    let binding = native_transcript::native_transcript_binding(&agent)?;
-    let cli_session_id =
-        persistence::latest_native_transcript_id(&session.session_id, binding.source)
-            .ok()
-            .flatten()
-            .or_else(|| session.cli_session_id.clone())?;
-    let imported_id = binding.imported_session_id(&cli_session_id);
-    let conn = database::db::get_connection().ok()?;
-    match orgtrack_core::sources::imported_history::load_activity_chunks_for_session(
-        &conn,
-        &imported_id,
-    ) {
-        Ok(Some(mut chunks)) if !chunks.is_empty() => {
-            // Loaders stamp the imported id; the frontend event store,
-            // WS merge, and snapshot keys all key on the managed id.
-            for chunk in &mut chunks {
-                chunk.session_id = session.session_id.clone();
-            }
-            Some(chunks)
-        }
-        Ok(_) => None,
-        Err(err) => {
-            tracing::warn!(
-                "[cli_agent_chunks] Native transcript load failed for {imported_id}: {err}"
-            );
-            None
-        }
-    }
-}
-
 /// Where a managed session's transcript of record lives, for display
 /// surfaces (session hover card storage row).
 #[derive(Debug, serde::Serialize)]
@@ -729,67 +685,6 @@ pub async fn cli_agent_transcript_path(
     })
     .await
     .map_err(|e| format!("Task error: {}", e))?
-}
-
-/// A failed first turn in native mode may leave no readable transcript at
-/// all; a synthesized user bubble beats a blank chat.
-fn synthesized_user_message_chunk(session: &CodeSession) -> Option<ActivityChunk> {
-    let user_input = session.user_input.as_deref()?.trim();
-    if user_input.is_empty() {
-        return None;
-    }
-    let mut chunk = ActivityChunk::new(&session.session_id, "raw", "user_message");
-    chunk.chunk_id = format!("user-input-{}-synthesized", session.session_id);
-    chunk.created_at = session.created_at.clone();
-    chunk.result = serde_json::json!({
-        "type": "user",
-        "message": { "content": user_input, "role": "user" }
-    });
-    Some(chunk)
-}
-
-/// Load persisted chunks for a session (for resume/session switch).
-/// Native-transcript sessions route through the imported-history loaders;
-/// everything else (and every fallback) reads legacy `code_session_chunks`.
-#[tauri::command]
-pub async fn cli_agent_chunks(session_id: String) -> Result<Vec<ActivityChunk>, String> {
-    tracing::info!(
-        "[cli_agent_chunks] Loading chunks for session: {}",
-        session_id
-    );
-    let result = tokio::task::spawn_blocking(move || {
-        let session =
-            persistence::get_session(&session_id).map_err(|e| format!("DB error: {}", e))?;
-        if let Some(session) = session.as_ref() {
-            if let Some(chunks) = load_native_transcript_chunks(session) {
-                return Ok(chunks);
-            }
-        }
-        let chunks =
-            persistence::load_chunks(&session_id).map_err(|e| format!("DB error: {}", e))?;
-        if chunks.is_empty() {
-            if let Some(chunk) = session
-                .as_ref()
-                .filter(|session| {
-                    session.transcript_source == super::native_transcript::TRANSCRIPT_SOURCE_NATIVE
-                })
-                .and_then(synthesized_user_message_chunk)
-            {
-                return Ok(vec![chunk]);
-            }
-        }
-        Ok(chunks)
-    })
-    .await
-    .map_err(|e| format!("Task error: {}", e))?;
-
-    match &result {
-        Ok(chunks) => {
-            tracing::info!("[cli_agent_chunks] Loaded {} chunks", chunks.len())
-        }
-        Err(ref err) => tracing::error!("[cli_agent_chunks] Failed: {}", err),
-    }
-    result
 }
 
 /// Truncate chunks at and after a specific timestamp.

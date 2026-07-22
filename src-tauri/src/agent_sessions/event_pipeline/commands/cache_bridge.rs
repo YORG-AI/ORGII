@@ -22,10 +22,6 @@ use super::{
     BULK_WRITE_MAX_RETRIES,
 };
 
-fn try_load_provider_history_events(session_id: &str) -> Result<Vec<SessionEvent>, String> {
-    session_providers::load_history_events(session_id)
-}
-
 // ============================================================================
 // SQLite Bridge Commands
 // ============================================================================
@@ -41,6 +37,7 @@ pub async fn es_load_from_cache(
     state: State<'_, EventStoreState>,
     session_id: String,
 ) -> Result<usize, String> {
+    session_providers::reject_bounded_replay_full_load(&session_id)?;
     let existing_count = state
         .with_store_opt(&session_id, |store| store.events().len())
         .unwrap_or(0);
@@ -54,20 +51,10 @@ pub async fn es_load_from_cache(
         .await
         .map_err(|e| e.to_string())?
         .map_err(|e| e.to_string())?;
-    let mut events: Vec<SessionEvent> = cached
+    let events: Vec<SessionEvent> = cached
         .into_iter()
         .map(|ce| cached_event_to_session_event(&ce))
         .collect();
-
-    if events.is_empty() {
-        match try_load_provider_history_events(&session_id) {
-            Ok(loaded) if !loaded.is_empty() => events = loaded,
-            Ok(_) => {}
-            Err(err) => tracing::warn!(
-                "[cache_bridge] failed to load provider history for {session_id}: {err}"
-            ),
-        }
-    }
 
     let events = prepare_loaded_events(&session_id, events);
     let count = events.len();
@@ -179,22 +166,28 @@ pub async fn cache_save_session_events(
 #[tauri::command]
 pub async fn cache_load_session_events(session_id: String) -> Result<Vec<SessionEvent>, String> {
     log::debug!("[cache_bridge] cache_load_session_events called for session_id={session_id}");
+    session_providers::reject_bounded_replay_full_load(&session_id)?;
     let sid = session_id.clone();
     let cached = tokio::task::spawn_blocking(move || sqlite_cache::load_events(&sid))
         .await
         .map_err(|e| e.to_string())?
         .map_err(|e| e.to_string())?;
-    let mut events: Vec<SessionEvent> = cached.iter().map(cached_event_to_session_event).collect();
-    if events.is_empty() {
-        match try_load_provider_history_events(&session_id) {
-            Ok(loaded) if !loaded.is_empty() => events = loaded,
-            Ok(_) => {}
-            Err(err) => tracing::warn!(
-                "[cache_bridge] failed to load provider history for {session_id}: {err}"
-            ),
-        }
-    }
+    let events: Vec<SessionEvent> = cached.iter().map(cached_event_to_session_event).collect();
     Ok(prepare_loaded_events(&session_id, events))
+}
+
+/// Compatibility rows for the dormant hosted-key bridge. Keep the wire shape
+/// while enforcing the same native-only boundary as the SessionEvent loader;
+/// external transcripts must use their bounded replay adapter instead.
+#[tauri::command]
+pub async fn cache_load_native_cached_events(
+    session_id: String,
+) -> Result<Vec<sqlite_cache::CachedEvent>, String> {
+    session_providers::reject_bounded_replay_full_load(&session_id)?;
+    tokio::task::spawn_blocking(move || sqlite_cache::load_events(&session_id))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
 }
 
 /// Search events via LIKE substring matching, returning SessionEvents directly.
@@ -334,6 +327,7 @@ pub async fn cache_save_full_session(payload: FullSessionPayload) -> Result<(), 
 pub async fn cache_load_full_session(
     session_id: String,
 ) -> Result<Option<FullSessionPayload>, String> {
+    session_providers::reject_bounded_replay_full_load(&session_id)?;
     let result = tokio::task::spawn_blocking(move || sqlite_cache::load_session(&session_id))
         .await
         .map_err(|e| e.to_string())?
@@ -525,6 +519,9 @@ mod tests {
             preview: "preview".to_string(),
             full_size_bytes: 128 * 1024,
             truncated: true,
+            replay_source_id: None,
+            replay_generation: None,
+            replay_source_event_id: None,
         });
 
         assert!(is_synthetic_persistence_artifact(&compacted));

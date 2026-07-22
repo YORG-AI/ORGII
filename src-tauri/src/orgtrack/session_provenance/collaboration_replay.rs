@@ -9,19 +9,14 @@ use std::path::{Component, Path};
 use chrono::Utc;
 use database::db::{begin_immediate, get_connection, with_sessions_writer};
 use orgtrack_core::canonical::{
-    AgentMetadata, AttributionPrecision, CollaborationSessionOrigin,
-    ResourceInteractionCaptureMethod, SessionRecord, SOURCE_ORGII_CLOUD_REPLAY,
+    AgentMetadata, AttributionPrecision, CollaborationSessionOrigin, SessionRecord,
+    SOURCE_ORGII_CLOUD_REPLAY,
 };
 use orgtrack_core::privacy::ORGTRACK_SCHEMA_VERSION;
-use orgtrack_core::resource_interaction::{
-    activity_chunk_source_event_id, file_interactions_from_activity_chunk,
-    interaction_outcome_from_activity_chunk,
-};
-use orgtrack_core::sources::imported_history::FUNCTION_USER_MESSAGE;
 use orgtrack_core::store::{sqlite::SqliteRecordStore, RecordStore};
 use sha2::{Digest, Sha256};
 
-use super::interaction_store::{cached_event_to_activity_chunk, persist_file_interaction};
+use super::interaction_store::persist_cached_event_interactions_streaming;
 
 const COLLABORATION_REPLAY_PARSER_VERSION: i64 = 2;
 
@@ -110,24 +105,6 @@ pub(crate) fn index_collaboration_replay(
         },
     };
 
-    let preflight_current = {
-        let conn = get_connection().map_err(|err| err.to_string())?;
-        SqliteRecordStore::new(&conn).interaction_import_is_current(
-            SOURCE_ORGII_CLOUD_REPLAY,
-            local_session_id,
-            &fingerprint,
-            COLLABORATION_REPLAY_PARSER_VERSION,
-        )?
-    };
-    let mut events = if preflight_current {
-        None
-    } else {
-        Some(
-            session_persistence::load_events(local_session_id)
-                .map_err(|err| format!("Failed to load collaboration replay events: {err}"))?,
-        )
-    };
-
     with_sessions_writer(|| {
         let conn = get_connection().map_err(|err| err.to_string())?;
         let tx = begin_immediate(&conn).map_err(|err| err.to_string())?;
@@ -143,52 +120,22 @@ pub(crate) fn index_collaboration_replay(
             return Ok(0);
         }
 
-        let events = match events.take() {
-            Some(events) => events,
-            None => session_persistence::load_events(local_session_id)
-                .map_err(|err| format!("Failed to load collaboration replay events: {err}"))?,
-        };
         store
             .delete_reconciled_resource_interactions(SOURCE_ORGII_CLOUD_REPLAY, local_session_id)?;
 
-        let mut persisted = 0;
-        let mut current_turn_id: Option<String> = None;
-        for event in &events {
-            let chunk = cached_event_to_activity_chunk(event);
-            if chunk.function == FUNCTION_USER_MESSAGE {
-                current_turn_id = Some(chunk.chunk_id);
-                continue;
-            }
-            let outcome = interaction_outcome_from_activity_chunk(&chunk);
-            for mut interaction in file_interactions_from_activity_chunk(&chunk) {
-                let Some(mapped_path) = remap_collaboration_file_path(
-                    &interaction.file_path,
-                    source_workspace_path,
-                    workspace_path,
-                ) else {
-                    continue;
-                };
-                interaction.file_path = mapped_path;
-                let source_event_id = activity_chunk_source_event_id(&chunk, &interaction);
-                persist_file_interaction(
-                    &store,
-                    SOURCE_ORGII_CLOUD_REPLAY,
-                    Some(source_session_id),
-                    local_session_id,
-                    Some(&source_event_id),
-                    current_turn_id.as_deref(),
-                    Some(owner_member_id),
-                    workspace_path,
-                    &interaction.file_path,
-                    interaction.action,
-                    outcome,
-                    &chunk.created_at,
-                    ResourceInteractionCaptureMethod::Reconciled,
-                    AttributionPrecision::Exact,
-                )?;
-                persisted += 1;
-            }
-        }
+        let persisted = persist_cached_event_interactions_streaming(
+            &tx,
+            &store,
+            SOURCE_ORGII_CLOUD_REPLAY,
+            Some(source_session_id),
+            local_session_id,
+            Some(owner_member_id),
+            workspace_path,
+            AttributionPrecision::Exact,
+            |file_path| {
+                remap_collaboration_file_path(file_path, source_workspace_path, workspace_path)
+            },
+        )?;
         store.mark_interaction_imported(
             SOURCE_ORGII_CLOUD_REPLAY,
             local_session_id,

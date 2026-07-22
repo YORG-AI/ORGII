@@ -19,7 +19,10 @@ use orgtrack_core::sources::imported_history::ImportedHistorySessionRow;
 use super::display::generate_display_label;
 use super::status::is_active_status;
 use super::types::{SessionAggregateRecord, SessionCategory};
-use crate::orgtrack::impact_indexer::get_session_impact;
+use crate::agent_sessions::event_pipeline::commands::collaboration_snapshot_ingest::is_snapshot_backed_native_fork;
+use crate::orgtrack::impact_indexer::{
+    get_persisted_session_impact, get_session_impact, SessionImpactStats,
+};
 
 pub struct AgentMetadataResolver {
     store: std::sync::Arc<agent_core::definitions::AgentDefinitionsStore>,
@@ -45,7 +48,30 @@ fn warn_once_for_definition(def_id: &str, err: &str) {
 fn native_impact_fields(
     session_id: &str,
 ) -> (Option<i64>, Option<i64>, Option<i64>, Option<Vec<String>>) {
-    match get_session_impact(session_id) {
+    let snapshot_probe = is_snapshot_backed_native_fork(session_id);
+    native_impact_fields_with(
+        session_id,
+        snapshot_probe,
+        || get_persisted_session_impact(session_id),
+        || get_session_impact(session_id),
+    )
+}
+
+fn native_impact_fields_with(
+    session_id: &str,
+    snapshot_probe: Result<bool, String>,
+    load_persisted_impact: impl FnOnce() -> Result<Option<SessionImpactStats>, String>,
+    load_native_impact: impl FnOnce() -> Result<Option<SessionImpactStats>, String>,
+) -> (Option<i64>, Option<i64>, Option<i64>, Option<Vec<String>>) {
+    let impact = match snapshot_probe {
+        Ok(true) => load_persisted_impact(),
+        Ok(false) => load_native_impact(),
+        Err(err) => {
+            tracing::debug!(session_id = %session_id, error = %err, "[session_directory] snapshot-backed fork probe unavailable");
+            load_native_impact()
+        }
+    };
+    match impact {
         Ok(Some(impact)) => (
             Some(impact.files_changed),
             Some(impact.lines_added),
@@ -434,5 +460,82 @@ pub fn os_session_to_aggregate_record(
         lines_added,
         lines_removed,
         touched_files,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::Cell;
+
+    use super::*;
+
+    #[test]
+    fn snapshot_backed_native_fork_prefers_persisted_impact_without_rebuild() {
+        let load_called = Cell::new(false);
+        let fields = native_impact_fields_with(
+            "agentsession-cloud-fork",
+            Ok(true),
+            || {
+                Ok(Some(SessionImpactStats {
+                    files_changed: 1,
+                    lines_added: 5,
+                    lines_removed: 2,
+                    touched_files: vec!["src/snapshot.rs".to_string()],
+                }))
+            },
+            || -> Result<Option<SessionImpactStats>, String> {
+                load_called.set(true);
+                panic!("snapshot-backed fork must not load native turn impact")
+            },
+        );
+
+        assert_eq!(
+            fields,
+            (
+                Some(1),
+                Some(5),
+                Some(2),
+                Some(vec!["src/snapshot.rs".to_string()]),
+            )
+        );
+        assert!(!load_called.get());
+    }
+
+    #[test]
+    fn snapshot_backed_native_fork_without_persisted_impact_returns_none() {
+        let fields = native_impact_fields_with(
+            "agentsession-cloud-fork",
+            Ok(true),
+            || Ok(None),
+            || panic!("snapshot-backed fork must not rebuild native impact"),
+        );
+        assert_eq!(fields, (None, None, None, None));
+    }
+
+    #[test]
+    fn ordinary_native_session_keeps_existing_impact_projection() {
+        let fields = native_impact_fields_with(
+            "agentsession-native",
+            Ok(false),
+            || panic!("ordinary native session must not use snapshot metadata"),
+            || {
+                Ok(Some(SessionImpactStats {
+                    files_changed: 1,
+                    lines_added: 3,
+                    lines_removed: 2,
+                    touched_files: vec!["src/lib.rs".to_string()],
+                }))
+            },
+        );
+
+        assert_eq!(
+            fields,
+            (
+                Some(1),
+                Some(3),
+                Some(2),
+                Some(vec!["src/lib.rs".to_string()]),
+            )
+        );
     }
 }

@@ -3,18 +3,20 @@
 #![cfg(debug_assertions)]
 
 use axum::Json;
-use core_types::activity::ActivityChunk;
+use core_types::session_event::{EventSource, SessionEvent};
 use serde::Deserialize;
 use serde_json::json;
 use tokio::process::Command;
 
 use crate::agent_sessions::cli::commands::{
-    cli_agent_chunks, cli_agent_create, cli_agent_message, cli_agent_resume, cli_agent_run,
-    cli_agent_status,
+    cli_agent_create, cli_agent_message, cli_agent_resume, cli_agent_run, cli_agent_status,
 };
 use crate::agent_sessions::cli::persistence::{self, CreateCodeSessionParams};
 use crate::agent_sessions::cli::session_runner;
 use crate::agent_sessions::cli::types::{KeySource, SessionStatus};
+use crate::agent_sessions::event_pipeline::commands::external_replay::{
+    test_open_managed_replay_window, ExternalReplayWindow,
+};
 use key_vault::key_store::ModelType;
 
 const DEFAULT_TIMEOUT_SECS: u64 = 240;
@@ -67,14 +69,13 @@ pub struct TestCodexCliAccountSwitchRequest {
     timeout_secs: Option<u64>,
 }
 
-fn assistant_chunk_contains(chunks: &[ActivityChunk], needle: &str) -> bool {
-    chunks.iter().any(|chunk| {
-        matches!(
-            chunk.action_type.as_str(),
-            "assistant" | "assistant_delta" | "llm_response"
-        ) && serde_json::to_string(&chunk.result)
-            .map(|value| value.contains(needle))
-            .unwrap_or(false)
+fn assistant_event_contains(events: &[SessionEvent], needle: &str) -> bool {
+    events.iter().any(|event| {
+        event.source == EventSource::Assistant
+            && (event.display_text.contains(needle)
+                || serde_json::to_string(&event.result)
+                    .map(|value| value.contains(needle))
+                    .unwrap_or(false))
     })
 }
 
@@ -114,27 +115,27 @@ async fn wait_for_terminal_session_after_update(
     Err("CLI session timed out".to_string())
 }
 
-async fn wait_for_chunk_progress(
+async fn wait_for_replay_progress(
     session_id: &str,
-    baseline_count: usize,
+    baseline_count: u64,
     expected_text: Option<&str>,
     timeout_secs: u64,
-) -> Result<Vec<ActivityChunk>, String> {
+) -> Result<ExternalReplayWindow, String> {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(timeout_secs);
     while std::time::Instant::now() < deadline {
-        let chunks = cli_agent_chunks(session_id.to_string())
+        let replay = test_open_managed_replay_window(session_id.to_string())
             .await
-            .map_err(|err| format!("cli_agent_chunks failed: {err}"))?;
+            .map_err(|err| format!("bounded managed replay failed: {err}"))?;
         if expected_text
-            .map(|text| assistant_chunk_contains(&chunks, text))
+            .map(|text| assistant_event_contains(&replay.events, text))
             .unwrap_or(false)
-            || chunks.len() > baseline_count
+            || replay.total_event_count > baseline_count
         {
-            return Ok(chunks);
+            return Ok(replay);
         }
         tokio::time::sleep(std::time::Duration::from_millis(POLL_INTERVAL_MS)).await;
     }
-    Err("CLI session chunk progress timed out".to_string())
+    Err("CLI session bounded replay progress timed out".to_string())
 }
 
 pub async fn test_cursor_cli_runtime(
@@ -223,14 +224,14 @@ pub async fn test_cursor_cli_runtime(
         }
     };
 
-    let chunks = match cli_agent_chunks(session_id.clone()).await {
-        Ok(chunks) => chunks,
-        Err(err) => return Json(json!({ "error": format!("cli_agent_chunks failed: {err}") })),
+    let replay = match test_open_managed_replay_window(session_id.clone()).await {
+        Ok(replay) => replay,
+        Err(err) => return Json(json!({ "error": format!("bounded replay failed: {err}") })),
     };
     let expected_seen = request
         .expected_text
         .as_deref()
-        .map(|expected_text| assistant_chunk_contains(&chunks, expected_text));
+        .map(|expected_text| assistant_event_contains(&replay.events, expected_text));
 
     let expected_cursor_config_file = expected_cursor_config_dir.join("cli-config.json");
 
@@ -239,12 +240,12 @@ pub async fn test_cursor_cli_runtime(
         "status": session.status.as_ref(),
         "error_message": session.error_message,
         "cli_session_id": session.cli_session_id,
-        "chunk_count": chunks.len(),
+        "chunk_count": replay.total_event_count,
         "expected_seen": expected_seen,
         "cursor_config_dir": expected_cursor_config_dir.to_string_lossy(),
         "cursor_config_dir_exists": expected_cursor_config_dir.exists(),
         "cursor_config_file_exists": expected_cursor_config_file.exists(),
-        "chunks": chunks,
+        "chunks": replay.events,
     }))
 }
 
@@ -432,11 +433,11 @@ pub async fn test_claude_code_cli_account_switch(
         Ok(session) => session,
         Err(err) => return Json(json!({ "error": err, "session_id": session_id })),
     };
-    let initial_chunks = match cli_agent_chunks(session_id.clone()).await {
-        Ok(chunks) => chunks,
-        Err(err) => return Json(json!({ "error": format!("cli_agent_chunks failed: {err}") })),
+    let initial_replay = match test_open_managed_replay_window(session_id.clone()).await {
+        Ok(replay) => replay,
+        Err(err) => return Json(json!({ "error": format!("bounded replay failed: {err}") })),
     };
-    let baseline_chunk_count = initial_chunks.len();
+    let baseline_event_count = initial_replay.total_event_count;
     let baseline_updated_at = initial_session.updated_at.clone();
 
     if let Err(err) = cli_agent_message(
@@ -453,15 +454,15 @@ pub async fn test_claude_code_cli_account_switch(
         return Json(json!({ "error": format!("cli_agent_message failed: {err}") }));
     }
 
-    let _followup_chunks = match wait_for_chunk_progress(
+    let _followup_replay = match wait_for_replay_progress(
         &session_id,
-        baseline_chunk_count,
+        baseline_event_count,
         request.followup_expected_text.as_deref(),
         timeout_secs,
     )
     .await
     {
-        Ok(chunks) => chunks,
+        Ok(replay) => replay,
         Err(err) => return Json(json!({ "error": err, "session_id": session_id })),
     };
 
@@ -480,9 +481,9 @@ pub async fn test_claude_code_cli_account_switch(
         Ok(None) => return Json(json!({ "error": "session disappeared after follow-up" })),
         Err(err) => return Json(json!({ "error": format!("DB error: {err}") })),
     };
-    let chunks = match cli_agent_chunks(session_id.clone()).await {
-        Ok(chunks) => chunks,
-        Err(err) => return Json(json!({ "error": format!("cli_agent_chunks failed: {err}") })),
+    let replay = match test_open_managed_replay_window(session_id.clone()).await {
+        Ok(replay) => replay,
+        Err(err) => return Json(json!({ "error": format!("bounded replay failed: {err}") })),
     };
 
     let initial_claude_config_dir =
@@ -492,11 +493,11 @@ pub async fn test_claude_code_cli_account_switch(
     let initial_expected_seen = request
         .initial_expected_text
         .as_deref()
-        .map(|expected_text| assistant_chunk_contains(&chunks, expected_text));
+        .map(|expected_text| assistant_event_contains(&replay.events, expected_text));
     let followup_expected_seen = request
         .followup_expected_text
         .as_deref()
-        .map(|expected_text| assistant_chunk_contains(&chunks, expected_text));
+        .map(|expected_text| assistant_event_contains(&replay.events, expected_text));
 
     Json(json!({
         "session_id": session_id,
@@ -506,7 +507,7 @@ pub async fn test_claude_code_cli_account_switch(
         "followup_error_message": followup_session.error_message,
         "persisted_account_id": persisted_session.account_id,
         "persisted_model": persisted_session.model,
-        "chunk_count": chunks.len(),
+        "chunk_count": replay.total_event_count,
         "initial_expected_seen": initial_expected_seen,
         "followup_expected_seen": followup_expected_seen,
         "initial_claude_config_dir": initial_claude_config_dir.to_string_lossy(),
@@ -590,11 +591,11 @@ pub async fn test_codex_cli_account_switch(
         Err(err) => return Json(json!({ "error": err, "session_id": session_id })),
     };
     let initial_env_ready = initial_codex_home.exists();
-    let initial_chunks = match cli_agent_chunks(session_id.clone()).await {
-        Ok(chunks) => chunks,
-        Err(err) => return Json(json!({ "error": format!("cli_agent_chunks failed: {err}") })),
+    let initial_replay = match test_open_managed_replay_window(session_id.clone()).await {
+        Ok(replay) => replay,
+        Err(err) => return Json(json!({ "error": format!("bounded replay failed: {err}") })),
     };
-    let baseline_chunk_count = initial_chunks.len();
+    let baseline_event_count = initial_replay.total_event_count;
     let baseline_updated_at = initial_session.updated_at.clone();
 
     if let Err(err) = cli_agent_message(
@@ -611,15 +612,15 @@ pub async fn test_codex_cli_account_switch(
         return Json(json!({ "error": format!("cli_agent_message failed: {err}") }));
     }
 
-    let _followup_chunks = match wait_for_chunk_progress(
+    let _followup_replay = match wait_for_replay_progress(
         &session_id,
-        baseline_chunk_count,
+        baseline_event_count,
         request.followup_expected_text.as_deref(),
         timeout_secs,
     )
     .await
     {
-        Ok(chunks) => chunks,
+        Ok(replay) => replay,
         Err(err) => {
             return Json(json!({
                 "error": err,
@@ -641,18 +642,18 @@ pub async fn test_codex_cli_account_switch(
         Ok(session) => session,
         Err(err) => return Json(json!({ "error": err, "session_id": session_id })),
     };
-    let chunks = match cli_agent_chunks(session_id.clone()).await {
-        Ok(chunks) => chunks,
-        Err(err) => return Json(json!({ "error": format!("cli_agent_chunks failed: {err}") })),
+    let replay = match test_open_managed_replay_window(session_id.clone()).await {
+        Ok(replay) => replay,
+        Err(err) => return Json(json!({ "error": format!("bounded replay failed: {err}") })),
     };
     let initial_expected_seen = request
         .initial_expected_text
         .as_deref()
-        .map(|expected_text| assistant_chunk_contains(&chunks, expected_text));
+        .map(|expected_text| assistant_event_contains(&replay.events, expected_text));
     let followup_expected_seen = request
         .followup_expected_text
         .as_deref()
-        .map(|expected_text| assistant_chunk_contains(&chunks, expected_text));
+        .map(|expected_text| assistant_event_contains(&replay.events, expected_text));
 
     let persisted_session = match persistence::get_session(&session_id) {
         Ok(Some(session)) => session,
@@ -669,7 +670,7 @@ pub async fn test_codex_cli_account_switch(
         "followup_error_message": followup_session.error_message,
         "persisted_account_id": persisted_session.account_id,
         "persisted_model": persisted_session.model,
-        "chunk_count": chunks.len(),
+        "chunk_count": replay.total_event_count,
         "initial_expected_seen": initial_expected_seen,
         "followup_expected_seen": followup_expected_seen,
         "initial_codex_home": initial_codex_home.to_string_lossy(),

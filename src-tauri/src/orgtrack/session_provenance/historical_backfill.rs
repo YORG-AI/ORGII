@@ -13,27 +13,23 @@ use database::db::get_connection;
 use orgtrack_core::canonical::{
     AttributionPrecision, SessionRecord, SOURCE_ORGII_CLI_SESSIONS, SOURCE_ORGII_RUST_AGENTS,
 };
-use orgtrack_core::sources::claude_code::history::{
-    list_claude_code_history_sessions_paginated, load_claude_code_history_for_session,
-};
 use orgtrack_core::sources::codex::app::{
     codex_thread_id_from_file_stem, list_codex_app_reconciliation_sessions,
-    list_codex_app_sessions_paginated, load_codex_app_for_session,
-};
-use orgtrack_core::sources::cursor_ide::history::{
-    list_cursor_ide_sessions_paginated, load_history_for_session as load_cursor_history_for_session,
 };
 use orgtrack_core::sources::imported_history::cache::{
     query_cached_sessions_for_repo_from_conn, ImportedHistoryCachedSession,
 };
-use orgtrack_core::sources::imported_history::metadata::{
-    SOURCE_CLAUDE_CODE, SOURCE_CODEX_APP, SOURCE_CURSOR_IDE,
+use orgtrack_core::sources::imported_history::catalog::refresh_source as refresh_imported_catalog;
+use orgtrack_core::sources::imported_history::metadata::SOURCE_CODEX_APP;
+use orgtrack_core::sources::imported_history::replay::{
+    self, ImportedHistorySourceId, ReplayLimits,
 };
 use orgtrack_core::store::{sqlite::SqliteRecordStore, RecordStore};
 use rusqlite::Connection;
 
 use super::{
-    cached_event_to_activity_chunk, canonicalize_existing_prefix, persist_activity_chunks,
+    canonicalize_existing_prefix, persist_activity_chunks_with_turn_state,
+    persist_cached_event_interactions_streaming,
 };
 
 // v3: repository ids now come from filesystem git discovery instead of
@@ -414,6 +410,13 @@ fn failed_backfill_snapshot(error: String) -> crate::orgtrack::types::FileSessio
     }
 }
 
+/// Keep every historical-provenance entry point tied to the authoritative
+/// replay registry. Adding a new imported source must not require finding and
+/// updating another hand-maintained allow-list in this module.
+fn historical_imported_sources() -> impl Iterator<Item = ImportedHistorySourceId> {
+    ImportedHistorySourceId::ALL.into_iter()
+}
+
 fn reconcile_historical_interactions(
     conn: &mut Connection,
     repo_path: &str,
@@ -424,7 +427,8 @@ fn reconcile_historical_interactions(
     let mut discovery_failures = sync_imported_history_caches(conn);
 
     let mut imported_sessions = Vec::new();
-    for source in [SOURCE_CLAUDE_CODE, SOURCE_CODEX_APP, SOURCE_CURSOR_IDE] {
+    for replay_source in historical_imported_sources() {
+        let source = replay_source.as_str();
         match imported_sessions_for_repo(conn, source, repo_path, &canonical_repo) {
             Ok(sessions) => {
                 imported_sessions.extend(sessions.into_iter().map(|session| (source, session)))
@@ -503,17 +507,15 @@ fn reconcile_historical_interactions(
 
 fn sync_imported_history_caches(conn: &mut Connection) -> usize {
     let mut failures = 0;
-    if let Err(err) = list_claude_code_history_sessions_paginated(conn, 1, 0) {
-        failures += 1;
-        tracing::warn!(error = %err, "[SessionProvenance] Claude history discovery failed");
-    }
-    if let Err(err) = list_codex_app_sessions_paginated(conn, 1, 0) {
-        failures += 1;
-        tracing::warn!(error = %err, "[SessionProvenance] Codex history discovery failed");
-    }
-    if let Err(err) = list_cursor_ide_sessions_paginated(conn, 1, 0) {
-        failures += 1;
-        tracing::warn!(error = %err, "[SessionProvenance] Cursor history discovery failed");
+    for source in historical_imported_sources() {
+        if let Err(err) = refresh_imported_catalog(conn, source) {
+            failures += 1;
+            tracing::warn!(
+                source = source.as_str(),
+                error = %err,
+                "[SessionProvenance] Imported history catalog discovery failed"
+            );
+        }
     }
     failures
 }
@@ -598,7 +600,8 @@ fn priority_file_needs_backfill(
 ) -> bool {
     let store = SqliteRecordStore::new(conn);
     let now_ms = Utc::now().timestamp_millis();
-    for source in [SOURCE_CLAUDE_CODE, SOURCE_CODEX_APP, SOURCE_CURSOR_IDE] {
+    for replay_source in historical_imported_sources() {
+        let source = replay_source.as_str();
         let Ok(sessions) = imported_sessions_for_repo(conn, source, repo_path, canonical_repo)
         else {
             return true;
@@ -660,21 +663,23 @@ fn backlog_sessions_needing_work(
 }
 
 fn reconcile_imported_session(
-    conn: &Connection,
+    conn: &mut Connection,
     source: &str,
     canonical_repo: &Path,
     session: &ImportedHistoryCachedSession,
     active_session_policy: ActiveSessionPolicy,
 ) -> Result<bool, String> {
-    let store = SqliteRecordStore::new(conn);
     let fingerprint = imported_session_fingerprint(session);
-    if store.interaction_import_is_current(
-        source,
-        &session.session_id,
-        &fingerprint,
-        HISTORICAL_INTERACTION_PARSER_VERSION,
-    )? {
-        return Ok(false);
+    {
+        let store = SqliteRecordStore::new(conn);
+        if store.interaction_import_is_current(
+            source,
+            &session.session_id,
+            &fingerprint,
+            HISTORICAL_INTERACTION_PARSER_VERSION,
+        )? {
+            return Ok(false);
+        }
     }
     if active_session_policy == ActiveSessionPolicy::QuiescentOnly
         && !session_is_quiescent(session, Utc::now().timestamp_millis())
@@ -683,13 +688,7 @@ fn reconcile_imported_session(
         // quiet will index it.
         return Ok(false);
     }
-    let chunks = match source {
-        SOURCE_CLAUDE_CODE => load_claude_code_history_for_session(conn, &session.session_id),
-        SOURCE_CODEX_APP => load_codex_app_for_session(conn, &session.session_id),
-        SOURCE_CURSOR_IDE => load_cursor_history_for_session(&session.session_id),
-        _ => return Err(format!("Unsupported imported history source: {source}")),
-    }?;
-    store.delete_reconciled_resource_interactions(source, &session.session_id)?;
+    let replay_source = ImportedHistorySourceId::parse(source)?;
     let actor_id = session
         .parent_session_id
         .as_ref()
@@ -699,27 +698,126 @@ fn reconcile_imported_session(
     } else {
         AttributionPrecision::SessionOnly
     };
-    persist_activity_chunks(
-        &store,
-        source,
-        Some(&session.source_session_id),
-        &session.session_id,
-        actor_id,
-        session
-            .repo_path
-            .as_deref()
-            .or_else(|| canonical_repo.to_str())
-            .unwrap_or("."),
-        precision,
-        &chunks,
-    )?;
-    store.mark_interaction_imported(
-        source,
-        &session.session_id,
-        &fingerprint,
-        HISTORICAL_INTERACTION_PARSER_VERSION,
-        &Utc::now().to_rfc3339(),
-    )?;
+    let workspace_path = session
+        .repo_path
+        .as_deref()
+        .or_else(|| canonical_repo.to_str())
+        .unwrap_or(".")
+        .to_string();
+    let limits = ReplayLimits {
+        max_turns: replay::HARD_MAX_TURNS,
+        max_events: replay::HARD_MAX_EVENTS,
+        max_ipc_bytes: replay::HARD_MAX_IPC_BYTES,
+    };
+    // First finish a read-only pass and pin the compact replay generation.
+    // Publishing while scanning used to delete the previous valid read model
+    // up front and could then mix two source generations or leave a partial
+    // replacement after an error.
+    let mut after_sequence = -1_i64;
+    let mut expected_generation: Option<String> = None;
+    let mut expected_revision: Option<u64> = None;
+    loop {
+        let batch = replay::scan_window_after(
+            conn,
+            replay_source,
+            &session.session_id,
+            after_sequence,
+            limits,
+        )?;
+        if let Some(expected) = expected_generation.as_deref() {
+            if expected != batch.cursor.generation
+                || expected_revision != Some(batch.cursor.revision)
+            {
+                return Err(format!(
+                    "Imported transcript changed replay cursor during provenance scan: {}",
+                    session.session_id
+                ));
+            }
+        } else {
+            expected_generation = Some(batch.cursor.generation.clone());
+            expected_revision = Some(batch.cursor.revision);
+        }
+        if batch.chunks.is_empty() && batch.has_more {
+            return Err(format!(
+                "Bounded replay scan made no progress for {} after sequence {}",
+                session.session_id, after_sequence
+            ));
+        }
+        if !batch.chunks.is_empty() {
+            after_sequence = batch.cursor.through_sequence;
+        }
+        if !batch.has_more {
+            break;
+        }
+    }
+    let expected_generation = expected_generation.unwrap_or_else(|| "empty".to_string());
+    let expected_revision = expected_revision.unwrap_or_default();
+
+    conn.execute_batch("BEGIN IMMEDIATE")
+        .map_err(|err| format!("begin provenance snapshot publish: {err}"))?;
+    let publish = (|| {
+        let store = SqliteRecordStore::new(conn);
+        store.delete_reconciled_resource_interactions(source, &session.session_id)?;
+        let mut after_sequence = -1_i64;
+        let mut current_turn_id = None;
+        loop {
+            let batch = replay::scan_window_after_generation(
+                conn,
+                replay_source,
+                &session.session_id,
+                &expected_generation,
+                expected_revision,
+                after_sequence,
+                limits,
+            )?;
+            if batch.chunks.is_empty() && batch.has_more {
+                return Err(format!(
+                    "Pinned replay scan made no progress for {} after sequence {}",
+                    session.session_id, after_sequence
+                ));
+            }
+            if !batch.chunks.is_empty() {
+                let chunks = batch
+                    .chunks
+                    .into_iter()
+                    .map(|indexed| indexed.chunk)
+                    .collect::<Vec<_>>();
+                let store = SqliteRecordStore::new(conn);
+                persist_activity_chunks_with_turn_state(
+                    &store,
+                    source,
+                    Some(&session.source_session_id),
+                    &session.session_id,
+                    actor_id,
+                    &workspace_path,
+                    precision,
+                    &chunks,
+                    &mut current_turn_id,
+                )?;
+                after_sequence = batch.cursor.through_sequence;
+            }
+            if !batch.has_more {
+                break;
+            }
+        }
+        let store = SqliteRecordStore::new(conn);
+        store.mark_interaction_imported(
+            source,
+            &session.session_id,
+            &fingerprint,
+            HISTORICAL_INTERACTION_PARSER_VERSION,
+            &Utc::now().to_rfc3339(),
+        )
+    })();
+    match publish {
+        Ok(()) => conn
+            .execute_batch("COMMIT")
+            .map_err(|err| format!("commit provenance snapshot publish: {err}"))?,
+        Err(error) => {
+            let _ = conn.execute_batch("ROLLBACK");
+            return Err(error);
+        }
+    }
     Ok(true)
 }
 
@@ -782,7 +880,7 @@ fn reconcile_recent_codex_sessions() -> Result<usize, String> {
         let repo = session.repo_path.as_deref().unwrap_or(".");
         let canonical_repo = canonicalize_existing_prefix(Path::new(repo));
         match reconcile_imported_session(
-            &conn,
+            &mut conn,
             SOURCE_CODEX_APP,
             &canonical_repo,
             &session,
@@ -862,12 +960,6 @@ fn reconcile_native_session(
     )? {
         return Ok(());
     }
-    let events =
-        session_persistence::load_events(&session.session_id).map_err(|err| err.to_string())?;
-    let chunks = events
-        .iter()
-        .map(cached_event_to_activity_chunk)
-        .collect::<Vec<_>>();
     let actor_id = session.org_member_id.as_deref().or_else(|| {
         session
             .parent_session_id
@@ -880,19 +972,21 @@ fn reconcile_native_session(
         AttributionPrecision::SessionOnly
     };
     store.delete_reconciled_resource_interactions(&session.source, &session.session_id)?;
-    persist_activity_chunks(
+    let workspace_path = session
+        .workspace_path
+        .as_deref()
+        .or_else(|| canonical_repo.to_str())
+        .unwrap_or(".");
+    persist_cached_event_interactions_streaming(
+        conn,
         &store,
         &session.source,
         Some(&session.source_session_id),
         &session.session_id,
         actor_id,
-        session
-            .workspace_path
-            .as_deref()
-            .or_else(|| canonical_repo.to_str())
-            .unwrap_or("."),
+        workspace_path,
         precision,
-        &chunks,
+        |file_path| Some(file_path.to_string()),
     )?;
     store.mark_interaction_imported(
         &session.source,
@@ -906,7 +1000,63 @@ fn reconcile_native_session(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use orgtrack_core::sources::imported_history::metadata::ImportedHistoryImpactStats;
     use orgtrack_core::store::sqlite::SqliteRecordStore;
+
+    #[test]
+    fn historical_backfill_uses_every_registered_imported_source() {
+        assert_eq!(
+            historical_imported_sources().collect::<Vec<_>>(),
+            ImportedHistorySourceId::ALL
+        );
+    }
+
+    fn imported_session_with_touched_files(
+        touched_files: Vec<String>,
+    ) -> ImportedHistoryCachedSession {
+        ImportedHistoryCachedSession {
+            source_session_id: "source-session".to_string(),
+            session_id: "codexapp-source-session".to_string(),
+            source_path: "/tmp/rollout.jsonl".to_string(),
+            source_record_key: "source-session".to_string(),
+            source_mtime_ms: 1,
+            source_size_bytes: 1,
+            source_fingerprint: "fingerprint".to_string(),
+            parser_version: 1,
+            name: "Imported session".to_string(),
+            created_at_ms: 1,
+            updated_at_ms: 1,
+            model: None,
+            input_tokens: 0,
+            output_tokens: 0,
+            repo_path: Some("/repo".to_string()),
+            branch: None,
+            impact: ImportedHistoryImpactStats {
+                files_changed: touched_files.len() as i64,
+                touched_files,
+                ..ImportedHistoryImpactStats::default()
+            },
+            listable: true,
+            source_metadata_json: None,
+            parent_session_id: None,
+        }
+    }
+
+    #[test]
+    fn priority_file_matching_requires_the_catalog_to_preserve_relative_paths() {
+        let repo = Path::new("/repo");
+        let relative = imported_session_with_touched_files(vec!["src/new.rs".to_string()]);
+        let absolute = imported_session_with_touched_files(vec!["/repo/src/new.rs".to_string()]);
+        let basename_only = imported_session_with_touched_files(vec!["new.rs".to_string()]);
+
+        assert!(session_touches_priority_file(&relative, repo, "src/new.rs"));
+        assert!(session_touches_priority_file(&absolute, repo, "src/new.rs"));
+        assert!(!session_touches_priority_file(
+            &basename_only,
+            repo,
+            "src/new.rs"
+        ));
+    }
 
     #[test]
     fn durable_backfill_claim_joins_current_process_and_reclaims_previous_process() {

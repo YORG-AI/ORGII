@@ -20,7 +20,9 @@ pub async fn es_ingest_chunks(
     chunks: Vec<RawActivityChunk>,
 ) -> Result<IngestionResult, String> {
     let result = process_chunks_with_external_replays(chunks, session_id.clone()).await?;
+    let incoming_bytes = state.validate_bounded_replay_input(&session_id, &result.events)?;
     state.with_store_mut(&session_id, |store| store.append(result.events.clone()));
+    state.account_bounded_replay_write(&session_id, incoming_bytes)?;
     schedule_notify(&app, &state, &session_id);
     Ok(result)
 }

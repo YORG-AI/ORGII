@@ -74,6 +74,21 @@ fn test_register_is_idempotent() {
 }
 
 #[test]
+fn native_registration_keeps_the_existing_non_evicting_write_contract() {
+    let mut mgr = SessionStoreManager::new();
+
+    // Generic EventStore writes (including native SDE traffic) only register
+    // the store.  External replay opts into enforcement later by publishing
+    // its bounded byte estimate; adding that policy must not silently change
+    // when native stores are evicted.
+    for index in 0..30 {
+        mgr.register(&format!("native-{index}"));
+    }
+
+    assert_eq!(mgr.known_count(), 30);
+}
+
+#[test]
 fn test_evict_clears_all_state() {
     let mut mgr = SessionStoreManager::new();
     mgr.register("s1");
@@ -132,4 +147,57 @@ fn test_enforce_limits_evicts_oldest_unpinned() {
     assert!(mgr.has_known("pinned"));
     assert!(mgr.has_known("new-active"));
     assert!(mgr.idle_count() <= 15);
+}
+
+#[test]
+fn tracked_external_bytes_evict_oldest_idle_store() {
+    let mut mgr = SessionStoreManager::new();
+    let per_session = 25 * 1024 * 1024;
+    let mut evicted = Vec::new();
+    for id in ["external-1", "external-2", "external-3", "external-4"] {
+        evicted.extend(mgr.update_estimated_bytes(id, per_session));
+    }
+    assert_eq!(evicted, vec!["external-1".to_string()]);
+    assert!(!mgr.has_known("external-1"));
+    assert!(mgr.has_known("external-4"));
+}
+
+#[test]
+fn tracked_external_bytes_can_drop_pinned_rebuildable_store_but_keep_owner_pin() {
+    let mut mgr = SessionStoreManager::new();
+    let per_session = 16 * 1024 * 1024;
+
+    // Native SDE ownership is deliberately untracked by the external byte
+    // budget and must remain resident even if it is older than every replay.
+    mgr.register("sdeagent-native-running");
+    mgr.pin("sdeagent-native-running");
+
+    mgr.set_active("cliagent-active");
+    mgr.pin("cliagent-active");
+    assert!(mgr
+        .update_estimated_bytes("cliagent-active", per_session)
+        .is_empty());
+
+    let mut evicted = Vec::new();
+    for index in 1..=6 {
+        let session_id = format!("cliagent-pinned-{index}");
+        mgr.pin(&session_id);
+        evicted.extend(mgr.update_estimated_bytes(&session_id, per_session));
+    }
+
+    assert_eq!(evicted, vec!["cliagent-pinned-1".to_string()]);
+    assert!(!mgr.has_known("cliagent-pinned-1"));
+    assert!(
+        mgr.is_pinned("cliagent-pinned-1"),
+        "running ownership survives cache eviction so a rebuild stays pinned"
+    );
+    assert!(mgr.has_known("sdeagent-native-running"));
+    assert!(mgr.is_pinned("sdeagent-native-running"));
+    assert!(mgr.has_known("cliagent-active"));
+
+    // A later event/reopen can materialize the evicted store without losing
+    // its running-owner pin semantics.
+    mgr.register("cliagent-pinned-1");
+    assert!(mgr.has_known("cliagent-pinned-1"));
+    assert!(mgr.is_pinned("cliagent-pinned-1"));
 }

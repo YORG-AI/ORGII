@@ -2,7 +2,9 @@
 //! commits, then materializes records, timelines, the index, and the manifest.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::Path;
+use std::fs::{self, File, OpenOptions};
+use std::io::{BufWriter, Write};
+use std::path::{Path, PathBuf};
 
 use chrono::Utc;
 use database::db::get_connection;
@@ -10,8 +12,8 @@ use database::db::get_connection;
 use super::git::{branch_context_for, reachability_for, short_sha};
 use super::identity::agent_identity_for;
 use super::loaders::{
-    load_commit_links, load_local_edit_rows, load_provenance_rows, load_raw_events,
-    load_session_rows,
+    load_commit_links, load_local_edit_rows, load_provenance_rows, load_session_rows,
+    write_session_trajectory,
 };
 use super::scan::{
     committed_files_count, committed_rate_percent, initial_scan_progress, read_scan_checkpoint,
@@ -27,9 +29,14 @@ use crate::orgtrack::types::{
     OrgtrackChangedFile, OrgtrackCommitRecord, OrgtrackExportResult, OrgtrackFileTimelineEntry,
     OrgtrackIndex, OrgtrackIndexCommit, OrgtrackIndexFile, OrgtrackIndexSession, OrgtrackManifest,
     OrgtrackProvenanceRecord, OrgtrackScanCounts, OrgtrackScanPhase, OrgtrackScanStatus,
-    OrgtrackSessionDetails, OrgtrackSessionMeta, OrgtrackSessionTrajectory, OrgtrackSymbolEntry,
-    OrgtrackTier, OrgtrackTimelineEntryType, OrgtrackTimelineRecord, ORGTRACK_SCHEMA_VERSION,
+    OrgtrackSessionDetails, OrgtrackSessionMeta, OrgtrackSymbolEntry, OrgtrackTier,
+    OrgtrackTimelineEntryType, OrgtrackTimelineRecord, ORGTRACK_SCHEMA_VERSION,
 };
+
+/// The trajectory writer never buffers a transcript-sized value. This buffer
+/// is deliberately far below the 2 MiB export budget; individual SQLite and
+/// replay payload reads are independently capped in `loaders`.
+pub(super) const TRAJECTORY_WRITER_BUFFER_BYTES: usize = 64 * 1024;
 
 pub fn initialize_orgtrack(
     repo_path: &Path,
@@ -49,9 +56,9 @@ pub fn export_orgtrack(
     }
     paths::write_json_pretty(&paths::config_path(repo_path), &config)?;
 
-    let conn = get_connection().map_err(|err| format!("DB error: {}", err))?;
+    let mut conn = get_connection().map_err(|err| format!("DB error: {}", err))?;
     let provenance = load_provenance_rows(&conn, repo_path)?;
-    let local_edits = load_local_edit_rows(&conn, repo_path)?;
+    let local_edits = load_local_edit_rows(&mut conn, repo_path)?;
     let session_ids: BTreeSet<String> = provenance
         .iter()
         .map(|row| row.session_id.clone())
@@ -379,15 +386,11 @@ pub fn export_orgtrack(
         }
 
         if tier.includes_trajectory() {
-            let trajectory = OrgtrackSessionTrajectory {
-                schema_version: ORGTRACK_SCHEMA_VERSION,
-                tier,
-                session_id: session_id.clone(),
-                raw_events: load_raw_events(&conn, session_id)?,
-            };
-            paths::write_json_pretty(
+            write_trajectory_atomic(
+                &mut conn,
                 &paths::session_trajectory_path(repo_path, session_id),
-                &trajectory,
+                tier,
+                session_id,
             )?;
         }
 
@@ -554,4 +557,201 @@ pub fn export_orgtrack(
         records_written: provenance_records.len() + commit_records.len(),
         manifest_version,
     })
+}
+
+fn write_trajectory_atomic(
+    conn: &mut rusqlite::Connection,
+    target: &Path,
+    tier: OrgtrackTier,
+    session_id: &str,
+) -> Result<(), String> {
+    atomic_write_buffered(target, |writer| {
+        write_session_trajectory(conn, writer, ORGTRACK_SCHEMA_VERSION, tier, session_id)
+    })
+}
+
+/// Write beside the destination, durably publish with one rename, and remove
+/// the private UUID temp file on every pre-publication failure. The existing
+/// trajectory is never opened for writing and therefore remains valid unless
+/// the replacement is fully flushed and synced.
+fn atomic_write_buffered(
+    target: &Path,
+    write_value: impl FnOnce(&mut BufWriter<File>) -> Result<(), String>,
+) -> Result<(), String> {
+    let parent = target
+        .parent()
+        .ok_or_else(|| format!("Trajectory path has no parent: {}", target.display()))?;
+    fs::create_dir_all(parent)
+        .map_err(|err| format!("Failed to create {}: {err}", parent.display()))?;
+    let temp = trajectory_temp_path(target)?;
+    let result = (|| {
+        let file = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&temp)
+            .map_err(|err| format!("Failed to create {}: {err}", temp.display()))?;
+        let mut writer = BufWriter::with_capacity(TRAJECTORY_WRITER_BUFFER_BYTES, file);
+        write_value(&mut writer)?;
+        writer
+            .flush()
+            .map_err(|err| format!("Failed to flush {}: {err}", temp.display()))?;
+        writer
+            .get_ref()
+            .sync_all()
+            .map_err(|err| format!("Failed to sync {}: {err}", temp.display()))?;
+        drop(writer);
+        atomic_replace(&temp, target).map_err(|err| {
+            format!(
+                "Failed to atomically replace {} from {}: {err}",
+                target.display(),
+                temp.display()
+            )
+        })?;
+        // The file contents are already durable. Directory sync is best
+        // effort because some supported platforms do not allow opening a
+        // directory as a file descriptor.
+        if let Ok(directory) = File::open(parent) {
+            let _ = directory.sync_all();
+        }
+        Ok(())
+    })();
+    if result.is_err() {
+        match fs::remove_file(&temp) {
+            Ok(()) => {}
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+            Err(err) => tracing::warn!(
+                path = %temp.display(),
+                error = %err,
+                "Failed to clean interrupted trajectory export temp file"
+            ),
+        }
+    }
+    result
+}
+
+#[cfg(not(windows))]
+fn atomic_replace(temp: &Path, target: &Path) -> std::io::Result<()> {
+    fs::rename(temp, target)
+}
+
+/// `std::fs::rename` does not replace an existing destination on Windows.
+/// `MoveFileExW(REPLACE_EXISTING | WRITE_THROUGH)` provides the same-volume
+/// atomic replacement contract needed by repeat trajectory exports, without
+/// first deleting the last valid target.
+#[cfg(windows)]
+fn atomic_replace(temp: &Path, target: &Path) -> std::io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+
+    const MOVEFILE_REPLACE_EXISTING: u32 = 0x0000_0001;
+    const MOVEFILE_WRITE_THROUGH: u32 = 0x0000_0008;
+    #[link(name = "Kernel32")]
+    unsafe extern "system" {
+        fn MoveFileExW(existing: *const u16, replacement: *const u16, flags: u32) -> i32;
+    }
+
+    let existing = temp
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+    let replacement = target
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+    // SAFETY: both pointers reference NUL-terminated UTF-16 buffers that live
+    // for the duration of the call; flags request an in-place same-volume
+    // replacement and do not retain either pointer.
+    let moved = unsafe {
+        MoveFileExW(
+            existing.as_ptr(),
+            replacement.as_ptr(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    };
+    if moved == 0 {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+
+fn trajectory_temp_path(target: &Path) -> Result<PathBuf, String> {
+    let parent = target
+        .parent()
+        .ok_or_else(|| format!("Trajectory path has no parent: {}", target.display()))?;
+    let file_name = target
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| {
+            format!(
+                "Trajectory path has no UTF-8 file name: {}",
+                target.display()
+            )
+        })?;
+    Ok(parent.join(format!(
+        ".{file_name}.{}.tmp",
+        uuid::Uuid::new_v4().simple()
+    )))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn atomic_trajectory_failure_preserves_old_target_and_cleans_temp() {
+        let directory = tempfile::tempdir().expect("trajectory temp directory");
+        let target = directory.path().join("session.trajectory.json");
+        fs::write(&target, b"old-valid-trajectory").expect("old trajectory");
+
+        let error = atomic_write_buffered(&target, |writer| {
+            writer.write_all(b"partial-new-trajectory").unwrap();
+            Err("injected trajectory failure".to_string())
+        })
+        .expect_err("injected writer failure");
+
+        assert!(error.contains("injected trajectory failure"));
+        assert_eq!(
+            fs::read(&target).expect("preserved old trajectory"),
+            b"old-valid-trajectory"
+        );
+        let names = fs::read_dir(directory.path())
+            .expect("trajectory directory")
+            .map(|entry| entry.unwrap().file_name())
+            .collect::<Vec<_>>();
+        assert_eq!(names, vec![target.file_name().unwrap()]);
+    }
+
+    #[test]
+    fn atomic_trajectory_repeat_export_replaces_existing_target() {
+        let directory = tempfile::tempdir().expect("trajectory temp directory");
+        let target = directory.path().join("session.trajectory.json");
+        fs::write(&target, b"old-valid-trajectory").expect("old trajectory");
+
+        atomic_write_buffered(&target, |writer| {
+            writer
+                .write_all(b"new-complete-trajectory")
+                .map_err(|err| format!("test trajectory write failed: {err}"))
+        })
+        .expect("replace existing trajectory");
+
+        assert_eq!(
+            fs::read(&target).expect("replacement trajectory"),
+            b"new-complete-trajectory"
+        );
+        assert_eq!(
+            fs::read_dir(directory.path())
+                .expect("trajectory directory")
+                .count(),
+            1,
+            "UUID temp must be consumed by atomic replace"
+        );
+    }
+
+    #[test]
+    fn trajectory_writer_buffer_is_hard_capped_below_two_mib() {
+        assert!(TRAJECTORY_WRITER_BUFFER_BYTES <= 2 * 1024 * 1024);
+        assert_eq!(TRAJECTORY_WRITER_BUFFER_BYTES, 64 * 1024);
+    }
 }

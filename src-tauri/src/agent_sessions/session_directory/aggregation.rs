@@ -14,293 +14,29 @@ use agent_core::session::persistence::{self as session_persistence, session_type
 use chrono::DateTime;
 use core_types::key_source::KeySource;
 use database::db::get_connection;
-use orgtrack_core::sources::claude_code::history as claude_code_history;
-use orgtrack_core::sources::cline::history as cline_history;
-use orgtrack_core::sources::codex::app as codex_app_history;
-use orgtrack_core::sources::cursor_cli::history as cursor_cli_history;
-use orgtrack_core::sources::cursor_ide::history as cursor_ide_history;
-use orgtrack_core::sources::cursor_ide::history::CursorIdeSessionPage;
 use orgtrack_core::sources::imported_history::cache as imported_history_cache;
-use orgtrack_core::sources::imported_history::metadata::{
-    SOURCE_CLAUDE_CODE, SOURCE_CLINE, SOURCE_CODEX_APP, SOURCE_CURSOR_CLI, SOURCE_CURSOR_IDE,
-    SOURCE_MIMO_CODE, SOURCE_OMP, SOURCE_OPENCODE, SOURCE_QODER, SOURCE_QODER_CLI, SOURCE_TRAE,
-    SOURCE_WARP, SOURCE_WINDSURF, SOURCE_WORKBUDDY, SOURCE_ZCODE,
-};
-use orgtrack_core::sources::imported_history::ImportedHistorySessionPage;
+use orgtrack_core::sources::imported_history::catalog as imported_history_catalog;
+use orgtrack_core::sources::imported_history::replay::ImportedHistorySourceId;
 use orgtrack_core::sources::imported_history::IMPORTED_STATUS_COMPLETED;
-use orgtrack_core::sources::mimo_code::history as mimo_code_history;
-use orgtrack_core::sources::omp::history as omp_history;
-use orgtrack_core::sources::opencode::history as opencode_history;
-use orgtrack_core::sources::qoder::history as qoder_history;
-use orgtrack_core::sources::qoder_cli::history as qoder_cli_history;
-use orgtrack_core::sources::trae::history as trae_history;
-use orgtrack_core::sources::warp::history as warp_history;
-use orgtrack_core::sources::windsurf::history as windsurf_history;
-use orgtrack_core::sources::workbuddy as workbuddy_history;
-use orgtrack_core::sources::zcode::history as zcode_history;
 
 const AGENT_ORG_ICON_ID: &str = "network";
 
 use super::conversion::{
-    cli_session_to_aggregate_record, cursor_ide_history_to_aggregate_record,
-    imported_history_to_aggregate_record, os_session_to_aggregate_record,
-    sde_session_to_aggregate_record, AgentMetadataResolver,
+    cli_session_to_aggregate_record, imported_history_to_aggregate_record,
+    os_session_to_aggregate_record, sde_session_to_aggregate_record, AgentMetadataResolver,
 };
 use super::display::matches_text_query;
 use super::types::{SessionAggregateRecord, SessionFilter, SessionListResponse};
 
 const IMPORTED_HISTORY_PAGE_SIZE: usize = 500;
 
-enum ExternalHistoryPage {
-    Imported(ImportedHistorySessionPage),
-    CursorIde(CursorIdeSessionPage),
-}
-
-struct ExternalHistorySourceLoader {
-    source: &'static str,
-    load_page: fn(&mut rusqlite::Connection, usize, usize) -> Result<ExternalHistoryPage, String>,
-}
-
-fn load_claude_code_external_history_page(
-    conn: &mut rusqlite::Connection,
-    limit: usize,
-    offset: usize,
-) -> Result<ExternalHistoryPage, String> {
-    claude_code_history::list_claude_code_history_sessions_paginated(conn, limit, offset)
-        .map(ExternalHistoryPage::Imported)
-}
-
-fn load_codex_app_external_history_page(
-    conn: &mut rusqlite::Connection,
-    limit: usize,
-    offset: usize,
-) -> Result<ExternalHistoryPage, String> {
-    codex_app_history::list_codex_app_sessions_paginated(conn, limit, offset)
-        .map(ExternalHistoryPage::Imported)
-}
-
-fn load_cursor_ide_external_history_page(
-    conn: &mut rusqlite::Connection,
-    limit: usize,
-    offset: usize,
-) -> Result<ExternalHistoryPage, String> {
-    cursor_ide_history::list_cursor_ide_sessions_paginated(conn, limit, offset)
-        .map(ExternalHistoryPage::CursorIde)
-}
-
-fn load_cursor_cli_external_history_page(
-    conn: &mut rusqlite::Connection,
-    limit: usize,
-    offset: usize,
-) -> Result<ExternalHistoryPage, String> {
-    cursor_cli_history::list_cursor_cli_history_sessions_paginated(conn, limit, offset)
-        .map(ExternalHistoryPage::Imported)
-}
-
-fn load_opencode_external_history_page(
-    conn: &mut rusqlite::Connection,
-    limit: usize,
-    offset: usize,
-) -> Result<ExternalHistoryPage, String> {
-    opencode_history::list_opencode_history_sessions_paginated(conn, limit, offset)
-        .map(ExternalHistoryPage::Imported)
-}
-
-fn load_windsurf_external_history_page(
-    conn: &mut rusqlite::Connection,
-    limit: usize,
-    offset: usize,
-) -> Result<ExternalHistoryPage, String> {
-    windsurf_history::list_windsurf_history_sessions_paginated(conn, limit, offset)
-        .map(ExternalHistoryPage::Imported)
-}
-
-fn load_workbuddy_external_history_page(
-    conn: &mut rusqlite::Connection,
-    limit: usize,
-    offset: usize,
-) -> Result<ExternalHistoryPage, String> {
-    workbuddy_history::list_workbuddy_history_sessions_paginated(conn, limit, offset)
-        .map(ExternalHistoryPage::Imported)
-}
-
-fn load_trae_external_history_page(
-    conn: &mut rusqlite::Connection,
-    limit: usize,
-    offset: usize,
-) -> Result<ExternalHistoryPage, String> {
-    trae_history::list_trae_history_sessions_paginated(conn, limit, offset)
-        .map(ExternalHistoryPage::Imported)
-}
-
-fn load_cline_external_history_page(
-    conn: &mut rusqlite::Connection,
-    limit: usize,
-    offset: usize,
-) -> Result<ExternalHistoryPage, String> {
-    cline_history::list_cline_history_sessions_paginated(conn, limit, offset)
-        .map(ExternalHistoryPage::Imported)
-}
-
-fn load_warp_external_history_page(
-    conn: &mut rusqlite::Connection,
-    limit: usize,
-    offset: usize,
-) -> Result<ExternalHistoryPage, String> {
-    warp_history::list_warp_history_sessions_paginated(conn, limit, offset)
-        .map(ExternalHistoryPage::Imported)
-}
-
-fn load_zcode_external_history_page(
-    conn: &mut rusqlite::Connection,
-    limit: usize,
-    offset: usize,
-) -> Result<ExternalHistoryPage, String> {
-    zcode_history::list_zcode_history_sessions_paginated(conn, limit, offset)
-        .map(ExternalHistoryPage::Imported)
-}
-
-fn load_qoder_external_history_page(
-    conn: &mut rusqlite::Connection,
-    limit: usize,
-    offset: usize,
-) -> Result<ExternalHistoryPage, String> {
-    qoder_history::list_qoder_history_sessions_paginated(conn, limit, offset)
-        .map(ExternalHistoryPage::Imported)
-}
-
-fn load_mimo_code_external_history_page(
-    conn: &mut rusqlite::Connection,
-    limit: usize,
-    offset: usize,
-) -> Result<ExternalHistoryPage, String> {
-    mimo_code_history::list_mimo_code_history_sessions_paginated(conn, limit, offset)
-        .map(ExternalHistoryPage::Imported)
-}
-
-fn load_omp_external_history_page(
-    conn: &mut rusqlite::Connection,
-    limit: usize,
-    offset: usize,
-) -> Result<ExternalHistoryPage, String> {
-    omp_history::list_omp_history_sessions_paginated(conn, limit, offset)
-        .map(ExternalHistoryPage::Imported)
-}
-
-fn load_qoder_cli_external_history_page(
-    conn: &mut rusqlite::Connection,
-    limit: usize,
-    offset: usize,
-) -> Result<ExternalHistoryPage, String> {
-    qoder_cli_history::list_qoder_cli_history_sessions_paginated(conn, limit, offset)
-        .map(ExternalHistoryPage::Imported)
-}
-
-const EXTERNAL_HISTORY_SOURCE_LOADERS: &[ExternalHistorySourceLoader] = &[
-    ExternalHistorySourceLoader {
-        source: SOURCE_CLAUDE_CODE,
-        load_page: load_claude_code_external_history_page,
-    },
-    ExternalHistorySourceLoader {
-        source: SOURCE_CODEX_APP,
-        load_page: load_codex_app_external_history_page,
-    },
-    ExternalHistorySourceLoader {
-        source: SOURCE_CURSOR_IDE,
-        load_page: load_cursor_ide_external_history_page,
-    },
-    ExternalHistorySourceLoader {
-        source: SOURCE_CURSOR_CLI,
-        load_page: load_cursor_cli_external_history_page,
-    },
-    ExternalHistorySourceLoader {
-        source: SOURCE_OPENCODE,
-        load_page: load_opencode_external_history_page,
-    },
-    ExternalHistorySourceLoader {
-        source: SOURCE_WINDSURF,
-        load_page: load_windsurf_external_history_page,
-    },
-    ExternalHistorySourceLoader {
-        source: SOURCE_WORKBUDDY,
-        load_page: load_workbuddy_external_history_page,
-    },
-    ExternalHistorySourceLoader {
-        source: SOURCE_TRAE,
-        load_page: load_trae_external_history_page,
-    },
-    ExternalHistorySourceLoader {
-        source: SOURCE_CLINE,
-        load_page: load_cline_external_history_page,
-    },
-    ExternalHistorySourceLoader {
-        source: SOURCE_WARP,
-        load_page: load_warp_external_history_page,
-    },
-    ExternalHistorySourceLoader {
-        source: SOURCE_ZCODE,
-        load_page: load_zcode_external_history_page,
-    },
-    ExternalHistorySourceLoader {
-        source: SOURCE_QODER,
-        load_page: load_qoder_external_history_page,
-    },
-    ExternalHistorySourceLoader {
-        source: SOURCE_MIMO_CODE,
-        load_page: load_mimo_code_external_history_page,
-    },
-    ExternalHistorySourceLoader {
-        source: SOURCE_OMP,
-        load_page: load_omp_external_history_page,
-    },
-    ExternalHistorySourceLoader {
-        source: SOURCE_QODER_CLI,
-        load_page: load_qoder_cli_external_history_page,
-    },
-];
-
-/// Force a source's on-disk store to be re-read and its metadata cache
-/// re-synced, discarding the returned page. This runs the exact sync the
-/// sidebar/list path performs (re-parsing every record whose signature changed,
-/// e.g. after a parser-version bump), so the manual "Rescan" action can refresh
-/// counts and names immediately instead of waiting for a lazy list load.
+/// Refresh only the compact imported-history catalog. Transcript hydration is
+/// deliberately not part of the directory/listing contract.
 pub fn resync_external_history_source(
     conn: &mut rusqlite::Connection,
     source: &str,
 ) -> Result<(), String> {
-    let loader = EXTERNAL_HISTORY_SOURCE_LOADERS
-        .iter()
-        .find(|loader| loader.source == source)
-        .ok_or_else(|| format!("Unknown external history source: {source}"))?;
-    (loader.load_page)(conn, IMPORTED_HISTORY_PAGE_SIZE, 0)?;
-    Ok(())
-}
-
-fn append_external_history_page(
-    records: &mut Vec<SessionAggregateRecord>,
-    source: &str,
-    page: ExternalHistoryPage,
-) -> usize {
-    match page {
-        ExternalHistoryPage::Imported(page) => {
-            let page_len = page.sessions.len();
-            records.extend(
-                page.sessions
-                    .into_iter()
-                    .map(|row| imported_history_to_aggregate_record(row, source)),
-            );
-            page_len
-        }
-        ExternalHistoryPage::CursorIde(page) => {
-            let page_len = page.sessions.len();
-            records.extend(
-                page.sessions
-                    .into_iter()
-                    .map(|row| cursor_ide_history_to_aggregate_record(row, source)),
-            );
-            page_len
-        }
-    }
+    imported_history_catalog::refresh_source(conn, ImportedHistorySourceId::parse(source)?)
 }
 
 /// How long after the last transcript write a hook-less CLI still counts as
@@ -339,7 +75,7 @@ fn decorate_imported_live_status(records: &mut [SessionAggregateRecord]) {
 fn load_imported_history_sessions(
     filter: Option<&SessionFilter>,
 ) -> Result<Vec<SessionAggregateRecord>, String> {
-    let mut conn =
+    let conn =
         get_connection().map_err(|err| format!("Failed to open orgtrack cache DB: {err}"))?;
     let mut records = Vec::new();
     let source_filter = filter.and_then(|filter| filter.external_history_source.as_deref());
@@ -385,15 +121,25 @@ fn load_imported_history_sessions(
         0
     };
 
-    for loader in EXTERNAL_HISTORY_SOURCE_LOADERS {
-        if source_filter.is_some_and(|source| source != loader.source) {
+    for source in ImportedHistorySourceId::ALL {
+        let source_id = source.as_str();
+        if source_filter.is_some_and(|expected| expected != source_id) {
             continue;
         }
-        if disabled_sources.contains(loader.source) {
+        if disabled_sources.contains(source_id) {
             continue;
         }
-        let page = (loader.load_page)(&mut conn, page_limit, page_offset)?;
-        append_external_history_page(&mut records, loader.source, page);
+        let page = imported_history_cache::query_imported_session_page_from_conn(
+            &conn,
+            source_id,
+            page_limit,
+            page_offset,
+        )?;
+        records.extend(
+            page.sessions
+                .into_iter()
+                .map(|row| imported_history_to_aggregate_record(row, source_id)),
+        );
     }
 
     decorate_imported_live_status(&mut records);
@@ -561,9 +307,9 @@ fn plain_directory_page(
     ];
     if include_external {
         sources.extend(
-            EXTERNAL_HISTORY_SOURCE_LOADERS
+            ImportedHistorySourceId::ALL
                 .iter()
-                .map(|loader| loader.source)
+                .map(|source| source.as_str())
                 .filter(|source| !disabled_sources.contains(source)),
         );
     }

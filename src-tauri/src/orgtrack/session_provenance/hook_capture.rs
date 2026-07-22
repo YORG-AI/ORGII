@@ -217,8 +217,7 @@ pub(crate) fn drain_hook_inbox() -> Result<usize, String> {
     files.sort();
     files.truncate(MAX_DRAIN_BATCH);
 
-    let conn = get_connection().map_err(|err| err.to_string())?;
-    let store = SqliteRecordStore::new(&conn);
+    let mut conn = get_connection().map_err(|err| err.to_string())?;
     let mut drained = 0;
     for path in files {
         let bytes = fs::read(&path).map_err(|err| err.to_string())?;
@@ -227,6 +226,7 @@ pub(crate) fn drain_hook_inbox() -> Result<usize, String> {
                 if envelope.validate().is_err() {
                     false
                 } else {
+                    let store = SqliteRecordStore::new(&conn);
                     persist_envelope(&store, &envelope)?;
                     true
                 }
@@ -236,7 +236,7 @@ pub(crate) fn drain_hook_inbox() -> Result<usize, String> {
                 if envelope.validate().is_err() {
                     false
                 } else {
-                    persist_actor_lifecycle(&store, &envelope)?;
+                    persist_actor_lifecycle(&mut conn, &envelope)?;
                     true
                 }
             } else {

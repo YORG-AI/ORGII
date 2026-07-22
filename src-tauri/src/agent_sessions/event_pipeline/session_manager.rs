@@ -5,7 +5,8 @@
 //!
 //! - tracks which session is currently *active* (default target when commands
 //!   omit `session_id`),
-//! - keeps a pin set so long-running agent sessions are never evicted,
+//! - keeps a pin set for long-running agent ownership; rebuildable bounded
+//!   external stores may still be dropped under aggregate byte pressure,
 //! - maintains an LRU order of "idle" sessions and enforces max cache size.
 //!
 //! All event data lives in the per-session stores. This struct does not touch
@@ -18,6 +19,9 @@ use std::collections::{HashMap, HashSet, VecDeque};
 const MAX_CACHED_IDLE: usize = 15;
 /// Total cap across idle + pinned.
 const MAX_TOTAL_CACHED: usize = 25;
+/// Byte budget for stores whose owners publish an estimate (bounded external
+/// replay does; native SDE stores intentionally keep their existing policy).
+const MAX_TRACKED_CACHED_BYTES: usize = 96 * 1024 * 1024;
 
 /// Metadata about a cached session. Events live in
 /// `EventStoreState::stores[session_id]`; this struct only tracks "when was
@@ -25,6 +29,7 @@ const MAX_TOTAL_CACHED: usize = 25;
 #[derive(Debug, Clone)]
 struct SessionMeta {
     touched_at_ms: u64,
+    estimated_bytes: usize,
 }
 
 /// Session registry + LRU policy engine.
@@ -32,7 +37,9 @@ pub struct SessionStoreManager {
     /// All known sessions (active + idle + pinned). Mirrors the key set of the
     /// outer stores `HashMap` — kept in sync by the `EventStoreState` helpers.
     known: HashMap<String, SessionMeta>,
-    /// Pinned sessions are never LRU-evicted (agent currently running).
+    /// Running-session ownership. Count-based LRU never evicts these entries.
+    /// Aggregate byte pressure may drop a rebuildable external store while
+    /// preserving this pin so the next write/reopen restores it as pinned.
     pinned: HashSet<String>,
     /// FIFO of unpinned sessions in touched order (front = oldest).
     lru_order: VecDeque<String>,
@@ -84,6 +91,7 @@ impl SessionStoreManager {
             .and_modify(|m| m.touched_at_ms = now_ms())
             .or_insert_with(|| SessionMeta {
                 touched_at_ms: now_ms(),
+                estimated_bytes: 0,
             });
         if !self.pinned.contains(session_id)
             && self.active_id.as_deref() != Some(session_id)
@@ -91,6 +99,40 @@ impl SessionStoreManager {
         {
             self.lru_order.push_back(session_id.to_string());
         }
+    }
+
+    /// Publish the current bounded-store footprint and enforce the aggregate
+    /// byte LRU. Native SDE callers never invoke this, so their cache behavior
+    /// remains unchanged.
+    pub fn update_estimated_bytes(
+        &mut self,
+        session_id: &str,
+        estimated_bytes: usize,
+    ) -> Vec<String> {
+        self.register(session_id);
+        if let Some(meta) = self.known.get_mut(session_id) {
+            meta.estimated_bytes = estimated_bytes;
+        }
+        self.enforce_limits()
+    }
+
+    /// Add a conservative upper bound for a generic bounded-replay mutation.
+    /// Same-ID upserts deliberately over-count; an exact compaction pass resets
+    /// the estimate when it reaches the per-store threshold.
+    pub fn add_estimated_bytes(
+        &mut self,
+        session_id: &str,
+        added_bytes: usize,
+    ) -> (usize, Vec<String>) {
+        self.register(session_id);
+        let estimated_bytes = if let Some(meta) = self.known.get_mut(session_id) {
+            meta.estimated_bytes = meta.estimated_bytes.saturating_add(added_bytes);
+            meta.estimated_bytes
+        } else {
+            0
+        };
+        let evicted = self.enforce_limits();
+        (estimated_bytes, evicted)
     }
 
     /// Pin a session (agent started running). Pinned sessions skip LRU eviction.
@@ -194,7 +236,40 @@ impl SessionStoreManager {
                 break;
             }
         }
+        while self.tracked_bytes() > MAX_TRACKED_CACHED_BYTES {
+            // Only owners that explicitly published a positive estimate are
+            // rebuildable bounded-replay stores. Native SDE stores retain the
+            // legacy estimate of zero and must never become collateral damage
+            // of the external byte budget. A non-active running external store
+            // may be removed, but its pin remains as owner state so rebuilding
+            // it does not accidentally make it count-evictable.
+            let oldest_rebuildable = self
+                .known
+                .iter()
+                .filter(|(session_id, meta)| {
+                    meta.estimated_bytes > 0
+                        && self.active_id.as_deref() != Some(session_id.as_str())
+                })
+                .min_by(|(left_id, left), (right_id, right)| {
+                    left.touched_at_ms
+                        .cmp(&right.touched_at_ms)
+                        .then_with(|| left_id.cmp(right_id))
+                })
+                .map(|(session_id, _)| session_id.clone());
+            let Some(oldest) = oldest_rebuildable else {
+                break;
+            };
+            self.known.remove(&oldest);
+            self.remove_lru(&oldest);
+            evicted.push(oldest);
+        }
         evicted
+    }
+
+    fn tracked_bytes(&self) -> usize {
+        self.known.values().fold(0_usize, |total, meta| {
+            total.saturating_add(meta.estimated_bytes)
+        })
     }
 }
 

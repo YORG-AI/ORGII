@@ -7,6 +7,7 @@ use tauri::State;
 use crate::agent_sessions::event_pipeline::analytics::{
     self, MultiSessionSummary, SessionAnalytics,
 };
+use crate::agent_sessions::event_pipeline::session_providers;
 use crate::agent_sessions::event_pipeline::types::SessionEvent;
 use session_persistence as sqlite_cache;
 
@@ -32,6 +33,7 @@ pub async fn es_compute_analytics(
 pub async fn es_compute_cached_session_analytics(
     session_id: String,
 ) -> Result<SessionAnalytics, String> {
+    session_providers::reject_bounded_replay_full_load(&session_id)?;
     let cached = tokio::task::spawn_blocking(move || sqlite_cache::load_events(&session_id))
         .await
         .map_err(|e| e.to_string())?
@@ -46,6 +48,9 @@ pub async fn es_compute_cached_session_analytics(
 pub async fn es_compute_multi_session_analytics(
     session_ids: Vec<String>,
 ) -> Result<MultiSessionSummary, String> {
+    for session_id in &session_ids {
+        session_providers::reject_bounded_replay_full_load(session_id)?;
+    }
     let session_events = tokio::task::spawn_blocking(move || {
         let mut result: Vec<(String, Vec<SessionEvent>)> = Vec::new();
         for session_id in &session_ids {
