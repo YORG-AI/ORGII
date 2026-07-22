@@ -3,11 +3,10 @@
  *
  * `importRemoteSession` is THE consolidated teammate-session import (design
  * §7.4 + M5 dedup) — backend-agnostic, its only backend dependency being
- * `client.getSessionEventSegments` (satisfied on the managed cloud by
- * `org2CloudBackendAdapter`) via `fetchAndAssembleSegments`.
+ * bounded raw wire pages. Rust owns decode, validation and atomic publish;
+ * the renderer never assembles a session-sized event array.
  */
 import { indexOrgtrackCollaborationSession } from "@src/api/tauri/lineage";
-import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import { createLogger } from "@src/hooks/logger";
 import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
 import { recordGuestImportedSession } from "@src/store/session/sessionAtom/guestImportRegistry";
@@ -19,22 +18,26 @@ import type {
 } from "@src/store/session/sessionAtom/types";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
-import { namespaceCopyEventId } from "../copyEventId";
 import {
   deriveImportedSessionId,
   findImportedSession,
   normalizeSourceEndpointUrl,
-  rewriteEventsForImportedSnapshot,
 } from "./collabImportIdentity";
-import type {
-  AssembledSegments,
-  RemoteSessionFetchOptions,
-} from "./collabRemoteFetch";
-import { fetchAndAssembleSegments, throwIfAborted } from "./collabRemoteFetch";
+import {
+  type RemoteSnapshotIngestOptions,
+  ingestRemoteSnapshot,
+} from "./collabSnapshotIngest";
 
 const log = createLogger("collabSyncEngineHelpers");
 
-export interface ImportRemoteSessionOptions extends RemoteSessionFetchOptions {
+export interface ImportRemoteSessionOptions extends Omit<
+  RemoteSnapshotIngestOptions,
+  "localSessionId" | "previous"
+> {
+  /** Deployment identity used to isolate deterministic local imports. */
+  sourceEndpointUrl?: string;
+  /** Non-secret endpoint associated with a guest replay capability. */
+  shareEndpointUrl?: string;
   /**
    * Invoked with the local session id BEFORE any event-store write, so the
    * engine can arm its self-import guard (the eventStore write re-enters the
@@ -148,7 +151,8 @@ async function importRemoteSessionInner(
     remoteSession.sourceSessionId,
     sourceEndpointUrl
   );
-  // Legacy (error_message) imports have no usable cursor → full refetch.
+  // Legacy (error_message) imports have no usable cursor and are rebuilt by
+  // the bounded Rust ingester. No renderer-side full-history fallback exists.
   const cursor = existing?.importedFrom ?? null;
 
   if (
@@ -156,61 +160,6 @@ async function importRemoteSessionInner(
     remoteSession.eventsCount === undefined
   ) {
     // No segments published (or publishing stopped): keep any local copy.
-    return existing
-      ? { localSessionId: existing.session_id, updated: false }
-      : null;
-  }
-
-  if (
-    existing &&
-    cursor &&
-    cursor.epoch === remoteSession.eventsEpoch &&
-    cursor.seq === (remoteSession.eventsFrozenSeq ?? 0) &&
-    cursor.count === remoteSession.eventsCount &&
-    (cursor.tailHash ?? null) === (remoteSession.eventsTailHash ?? null)
-  ) {
-    // Cursor no-op — but only if the local store still HAS the events. A
-    // cache row can outlive its event data (restart/cleanup churn), and
-    // trusting the cursor then pins an unrecoverable empty replay: every
-    // click returns here and Reload re-reads the same empty store. Verify
-    // before short-circuiting; fall through to a full refetch when hollow.
-    const persisted = await eventStoreProxy.getPersistedEvents(
-      existing.session_id
-    );
-    if (persisted.length > 0 || remoteSession.eventsCount === 0) {
-      return { localSessionId: existing.session_id, updated: false };
-    }
-  }
-
-  let assembled: AssembledSegments | null = null;
-  if (
-    existing &&
-    cursor &&
-    cursor.epoch >= 1 &&
-    cursor.epoch === remoteSession.eventsEpoch &&
-    cursor.frozenCount !== undefined &&
-    (remoteSession.eventsFrozenSeq ?? 0) >= cursor.seq
-  ) {
-    // Incremental: verify the local store still holds exactly what the
-    // cursor claims before splicing onto it (design §7.4 last line).
-    const localEvents = await eventStoreProxy.getPersistedEvents(
-      existing.session_id
-    );
-    if (localEvents.length === cursor.count) {
-      assembled = await fetchAndAssembleSegments(
-        options,
-        cursor.seq,
-        localEvents.slice(0, cursor.frozenCount),
-        cursor.epoch
-      );
-    }
-  }
-  if (!assembled) {
-    // Full refetch: epoch change, missing/legacy cursor, or any validation
-    // failure above.
-    assembled = await fetchAndAssembleSegments(options, 0, [], null);
-  }
-  if (!assembled) {
     return existing
       ? { localSessionId: existing.session_id, updated: false }
       : null;
@@ -225,12 +174,35 @@ async function importRemoteSessionInner(
       remoteSession.sourceSessionId,
       sourceEndpointUrl
     ));
+  const previous =
+    cursor && cursor.frozenCount !== undefined
+      ? {
+          epoch: cursor.epoch,
+          frozenSeq: cursor.seq,
+          count: cursor.count,
+          frozenCount: cursor.frozenCount,
+          tailHash: cursor.tailHash ?? null,
+        }
+      : undefined;
+
+  // Arm the push-loop self-import guard before Rust atomically publishes any
+  // rows. Wire pages remain opaque gzip strings in JS throughout this call.
   onBeforeWrite?.(localSessionId);
-  const localEvents = rewriteEventsForImportedSnapshot(
-    assembled.events,
-    localSessionId
-  );
-  throwIfAborted(options.signal);
+  const committed = await ingestRemoteSnapshot({
+    client: options.client,
+    orgId,
+    remoteSession,
+    localSessionId,
+    ...(previous !== undefined ? { previous } : {}),
+    ...(shareToken !== undefined ? { shareToken } : {}),
+    ...(options.signal !== undefined ? { signal: options.signal } : {}),
+  });
+  if (!committed) {
+    return existing
+      ? { localSessionId: existing.session_id, updated: false }
+      : null;
+  }
+
   const now = new Date().toISOString();
   const importedFrom: SessionImportedFrom = {
     orgId,
@@ -242,19 +214,16 @@ async function importRemoteSessionInner(
       remoteSession.origin?.kind === "external_history"
         ? remoteSession.origin.source
         : existing?.importedFrom?.externalHistorySource,
-    epoch: assembled.epoch,
-    seq: assembled.frozenSeq,
-    count: localEvents.length,
-    frozenCount: assembled.frozenCount,
-    tailHash: assembled.tailHash ?? undefined,
+    epoch: committed.epoch,
+    seq: committed.frozenSeq,
+    count: committed.eventCount,
+    frozenCount: committed.frozenEventCount,
+    tailHash: committed.tailHash ?? undefined,
     importedAt: now,
     shareToken: shareToken ?? existing?.importedFrom?.shareToken,
     shareEndpointUrl:
       shareEndpointUrl ?? existing?.importedFrom?.shareEndpointUrl,
   };
-  const priorPersisted = existing
-    ? await eventStoreProxy.getPersistedEvents(localSessionId)
-    : [];
   const importedRow: Session = {
     session_id: localSessionId,
     status: "completed",
@@ -286,54 +255,18 @@ async function importRemoteSessionInner(
     // leftover value on upgraded pre-M3 rows.
     error_message: undefined,
   };
-  let storageMutated = false;
-  try {
-    // A pre-namespacing import left bare rows in SQLite. Purge before the
-    // replacement, but keep the prior snapshot above so cancellation/error
-    // can restore the exact pre-import state.
-    const hasBareRows = priorPersisted.some(
-      (event) => event.id !== namespaceCopyEventId(localSessionId, event.id)
-    );
-    if (hasBareRows) {
-      storageMutated = true;
-      await eventStoreProxy.clearPersistedHistory(localSessionId);
-    }
-    // Durable events first, cursor/session row last. Closing the import modal
-    // after this write but before commit triggers the rollback below.
-    storageMutated = true;
-    await eventStoreProxy.set(localEvents, localSessionId);
-    const savedCount = await eventStoreProxy.saveToCache(localSessionId);
-    if (localEvents.length > 0 && savedCount <= 0) {
-      throw new Error(
-        `Failed to durably persist imported session ${remoteSession.sourceSessionId} (saveToCache returned ${savedCount})`
-      );
-    }
-    throwIfAborted(options.signal);
-    // No await after the final abort check: the session row, guest registry
-    // and persisted list commit synchronously as one local critical section.
-    upsertSession(importedRow);
-    recordGuestImportedSession(importedRow);
-    persistSessions(store.get(sessionsAtom) as Session[]);
-  } catch (error) {
-    if (storageMutated) {
-      await eventStoreProxy
-        .clearPersistedHistory(localSessionId)
-        .catch((rollbackError) =>
-          log.error("failed to clear cancelled import history", rollbackError)
-        );
-      if (priorPersisted.length > 0) {
-        await eventStoreProxy.set(priorPersisted, localSessionId);
-        const restored = await eventStoreProxy.saveToCache(localSessionId);
-        if (restored <= 0) {
-          log.error("failed to restore prior import history", {
-            localSessionId,
-          });
-        }
-      } else {
-        await eventStoreProxy.clear(localSessionId).catch(() => undefined);
-      }
-    }
-    throw error;
-  }
-  return { localSessionId, updated: true };
+  // No await after the Rust transaction: the session row, guest registry and
+  // persisted list commit synchronously as one local critical section.
+  upsertSession(importedRow);
+  recordGuestImportedSession(importedRow);
+  persistSessions(store.get(sessionsAtom) as Session[]);
+
+  const updated =
+    !cursor ||
+    cursor.epoch !== committed.epoch ||
+    cursor.seq !== committed.frozenSeq ||
+    cursor.count !== committed.eventCount ||
+    cursor.frozenCount !== committed.frozenEventCount ||
+    (cursor.tailHash ?? null) !== committed.tailHash;
+  return { localSessionId, updated };
 }

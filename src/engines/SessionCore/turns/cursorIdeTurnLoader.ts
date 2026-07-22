@@ -1,37 +1,4 @@
-import { cursorIdeTurnWindow } from "@src/api/tauri/externalHistory";
-import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
-import { processChunksRust } from "@src/engines/SessionCore/ingestion/rustBridge";
-import { isCursorIdeSession } from "@src/util/session/sessionDispatch";
+import { externalReplayTurnLoader } from "./externalReplayTurnLoader";
 
-import type { SessionTurnLoader } from "./types";
-
-const inFlightTurnLoads = new Map<string, Promise<void>>();
-
-export const cursorIdeTurnLoader: SessionTurnLoader = {
-  async loadTurnBodyIntoStore({ sessionId, turnId }) {
-    if (!isCursorIdeSession(sessionId)) return;
-
-    const loadKey = `${sessionId}:${turnId}`;
-    const inFlight = inFlightTurnLoads.get(loadKey);
-    if (inFlight) return inFlight;
-
-    const work = (async () => {
-      try {
-        const turnWindow = await cursorIdeTurnWindow({
-          sessionId,
-          userBubbleId: turnId,
-        });
-        const { chunks } = turnWindow;
-        if (!Array.isArray(chunks) || chunks.length === 0) return;
-        const events = await processChunksRust(chunks, sessionId);
-        if (events.length === 0) return;
-        await eventStoreProxy.mergeEvents(events, sessionId);
-      } finally {
-        inFlightTurnLoads.delete(loadKey);
-      }
-    })();
-
-    inFlightTurnLoads.set(loadKey, work);
-    return work;
-  },
-};
+/** @deprecated Cursor uses the shared bounded-replay turn loader. */
+export const cursorIdeTurnLoader = externalReplayTurnLoader;

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 
 import { loadPersistedHistory } from "../sessionSyncUtils";
-import type { SessionAdapter } from "../types";
+import type { PersistedDbSessionAdapter } from "../types";
 
 const cacheAdapterMock = vi.hoisted(() => ({
   loadInitialTurnWindow: vi.fn(),
@@ -22,11 +22,12 @@ function makeEvent(id: string): SessionEvent {
 function makeAdapter(
   category: string,
   historyEvents: SessionEvent[]
-): SessionAdapter {
+): PersistedDbSessionAdapter {
   return {
     category,
+    historyMode: "persisted-db",
     loadHistory: vi.fn(async () => historyEvents),
-  } as unknown as SessionAdapter;
+  } as unknown as PersistedDbSessionAdapter;
 }
 
 describe("loadPersistedHistory", () => {

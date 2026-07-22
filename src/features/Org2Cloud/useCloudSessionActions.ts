@@ -6,7 +6,7 @@
  * import/fork/openSession/toast/retention semantics. Replay/fork ride the
  * SAME backend-agnostic machinery as the self-hosted panel
  * (`importRemoteSession` / `forkTeammateSession`); only the segments fetch
- * differs (`buildCloudSessionFetchClient`, JWT-backed).
+ * differs (`buildCloudSessionWirePageClient`, JWT-backed).
  */
 import { useAtom, useSetAtom } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -26,7 +26,7 @@ import { openOrReplaceSessionInChatPanelTabAtom } from "@src/store/chatPanel/cha
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 
 import { commitRefreshedAuth, org2CloudAuthAtom } from "./org2CloudAuthAtom";
-import { buildCloudSessionFetchClient } from "./org2CloudBackendAdapter";
+import { buildCloudSessionWirePageClient } from "./org2CloudBackendAdapter";
 import { ensureFreshSession } from "./org2CloudClient";
 import { isOrg2SyncErrorCode } from "./org2CloudSyncClient";
 
@@ -119,7 +119,7 @@ export function useCloudSessionActions(
         const localRepoPath =
           (await resolveForkWorkspacePath(remoteSession)) ?? undefined;
         const result = await importRemoteSession({
-          client: buildCloudSessionFetchClient(accessToken),
+          client: buildCloudSessionWirePageClient(accessToken),
           orgId,
           remoteSession,
           sourceEndpointUrl,
@@ -186,7 +186,7 @@ export function useCloudSessionActions(
           return "failed";
         }
         const result = await forkTeammateSession({
-          client: buildCloudSessionFetchClient(accessToken),
+          client: buildCloudSessionWirePageClient(accessToken),
           orgId,
           remoteSession,
           promptForExecution: true,

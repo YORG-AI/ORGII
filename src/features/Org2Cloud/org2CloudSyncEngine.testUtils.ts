@@ -2,6 +2,11 @@ import { vi } from "vitest";
 
 import type { CollabOutboxPushItem } from "@src/api/http/project";
 import { getImportedHistorySourceBySessionId } from "@src/api/tauri/externalHistory";
+import type {
+  ExternalReplayCloudBatch,
+  ExternalReplayCloudManifest,
+  ExternalReplayTarget,
+} from "@src/api/tauri/externalHistory/replay";
 import Message from "@src/components/Message";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import type {
@@ -51,8 +56,10 @@ import {
   org2CloudSyncEnabledAtom,
 } from "./org2CloudSyncAtoms";
 import type {
+  CloudAppendSessionEventWiresInput,
   CloudAppendSessionEventsInput,
   CloudOrgScopeState,
+  CloudRewriteSessionEventWiresInput,
   CloudRewriteSessionEventsInput,
   CloudSessionEventsSnapshot,
 } from "./org2CloudSyncClient";
@@ -70,6 +77,63 @@ import {
 const { tauriEventListeners } = vi.hoisted(() => ({
   tauriEventListeners: new Map<string, Set<(event: unknown) => void>>(),
 }));
+
+const externalReplayCloudMocks = vi.hoisted(() => ({
+  prepare: vi.fn(
+    async (sessionId: string): Promise<ExternalReplayCloudManifest> => ({
+      token: `spool-${sessionId}`,
+      generation: "test-generation",
+      totalCount: 0,
+      frozenEventCount: 0,
+      tailEventCount: 0,
+      frozenChainHash:
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      tailHash: null,
+    })
+  ),
+  readBatch: vi.fn(
+    async (options: {
+      token: string;
+      startEventIndex: number;
+      endEventIndex: number;
+      startSegmentIndex?: number;
+      maxBytes?: number;
+    }) => ({
+      segments: [] as ExternalReplayCloudBatch["segments"],
+      startEventIndex: options.startEventIndex,
+      nextEventIndex: options.startEventIndex,
+      startSegmentIndex: options.startSegmentIndex ?? options.startEventIndex,
+      nextSegmentIndex: options.startSegmentIndex ?? options.startEventIndex,
+      eof: true,
+      serializedBytes: 0,
+    })
+  ),
+  prefixHash: vi.fn(async (options: { eventCount: number }) => ({
+    eventCount: options.eventCount,
+    frozenChainHash:
+      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  })),
+  release: vi.fn(async (_token: string) => undefined),
+  resolveSecondary: vi.fn(
+    async (): Promise<ExternalReplayTarget | null> => null
+  ),
+}));
+
+vi.mock("@src/api/tauri/externalHistory/replay", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("@src/api/tauri/externalHistory/replay")
+    >();
+  return {
+    ...actual,
+    externalReplayCloudPrepareForTarget: (target: { sessionId: string }) =>
+      externalReplayCloudMocks.prepare(target.sessionId),
+    externalReplayCloudReadBatch: externalReplayCloudMocks.readBatch,
+    externalReplayCloudPrefixHash: externalReplayCloudMocks.prefixHash,
+    externalReplayCloudRelease: externalReplayCloudMocks.release,
+    resolveSecondaryReplayTarget: externalReplayCloudMocks.resolveSecondary,
+  };
+});
 
 export function getTauriEventListeners() {
   return tauriEventListeners;
@@ -136,6 +200,14 @@ export const peekMock = vi.mocked(peekShareableScopeKeys);
 export const primeMock = vi.mocked(primeShareableScopeKey);
 export const resolveMatchingScopeMock = vi.mocked(resolveMatchingOrgRepoScope);
 export const messageMock = vi.mocked(Message);
+export const externalReplayCloudPrepareMock = externalReplayCloudMocks.prepare;
+export const externalReplayCloudReadBatchMock =
+  externalReplayCloudMocks.readBatch;
+export const externalReplayCloudPrefixHashMock =
+  externalReplayCloudMocks.prefixHash;
+export const externalReplayCloudReleaseMock = externalReplayCloudMocks.release;
+export const resolveSecondaryReplayTargetMock =
+  externalReplayCloudMocks.resolveSecondary;
 
 /** Minimal visibility stub for the engine's browser-only cadence paths. */
 export class DocumentStub extends EventTarget {
@@ -203,8 +275,16 @@ export function makeClient() {
     appendSessionEvents: vi.fn(
       async (_token: string, _input: CloudAppendSessionEventsInput) => undefined
     ),
+    appendSessionEventWires: vi.fn(
+      async (_token: string, _input: CloudAppendSessionEventWiresInput) =>
+        undefined
+    ),
     rewriteSessionEvents: vi.fn(
       async (_token: string, _input: CloudRewriteSessionEventsInput) =>
+        undefined
+    ),
+    rewriteSessionEventWires: vi.fn(
+      async (_token: string, _input: CloudRewriteSessionEventWiresInput) =>
         undefined
     ),
     getSessionEvents: vi.fn(

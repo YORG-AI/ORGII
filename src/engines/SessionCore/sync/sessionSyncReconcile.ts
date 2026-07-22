@@ -1,7 +1,5 @@
-import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import { type SessionStatus, updateSessionStatus } from "@src/store/session";
 
-import { isNativeTranscriptSession } from "./nativeTranscriptReconcile";
 import {
   type SessionLoadStateActions,
   applyPostLoadResult,
@@ -15,7 +13,7 @@ import {
   toCliSessionStatus,
   waitForReconcileDelay,
 } from "./sessionSyncUtils";
-import type { SessionAdapter } from "./types";
+import type { PersistedDbSessionAdapter } from "./types";
 
 type PostLoadStateActions = Pick<
   SessionLoadStateActions,
@@ -33,7 +31,7 @@ type ReconcileStateActions = Pick<
 
 export function reconcileInFlightHistory(
   sessionId: string,
-  adapter: SessionAdapter,
+  adapter: PersistedDbSessionAdapter,
   refs: Pick<SessionSyncRefs, "liveSessionIdRef">,
   actions: ReconcileStateActions
 ): void {
@@ -60,39 +58,13 @@ export function reconcileInFlightHistory(
         continue;
       }
 
-      // Native-transcript CLI sessions: the live turn renders from in-memory
-      // events only (optimistic user bubble + streamed broadcasts). Repeated
-      // replay merges here were the "~5s" duplicate-bubble source — each tick
-      // parked replay rows (synthesized fallback, then the real
-      // `codex-user-N` parse) next to them under never-matching ids. Only an
-      // EMPTY store (switched into a still-running session after a restart or
-      // eviction) is hydrated, with replace semantics so a retry tick stays
-      // idempotent; the terminal reconcile owns the final canonical replace.
-      if (isNativeTranscriptSession(sessionId)) {
-        const existingEvents = await eventStoreProxy.getEvents(sessionId);
-        if (refs.liveSessionIdRef.current !== sessionId) return;
-        if (existingEvents.length === 0) {
-          await hydrateSessionStoreBeforeDisplay(
-            sessionId,
-            persistedEvents,
-            "replace"
-          );
-          if (refs.liveSessionIdRef.current !== sessionId) return;
-          actions.dispatchLoadSession({
-            sessionId,
-            events: persistedEvents,
-            replace: true,
-          });
-        }
-      } else {
-        await hydrateSessionStoreBeforeDisplay(
-          sessionId,
-          persistedEvents,
-          "merge"
-        );
-        if (refs.liveSessionIdRef.current !== sessionId) return;
-        actions.dispatchLoadSession({ sessionId, events: persistedEvents });
-      }
+      await hydrateSessionStoreBeforeDisplay(
+        sessionId,
+        persistedEvents,
+        "merge"
+      );
+      if (refs.liveSessionIdRef.current !== sessionId) return;
+      actions.dispatchLoadSession({ sessionId, events: persistedEvents });
 
       if (postResult?.contextTokens !== undefined) {
         actions.setSessionContextTokens(postResult.contextTokens);

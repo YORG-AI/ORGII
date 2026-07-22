@@ -6,8 +6,9 @@
 import { useAtomValue } from "jotai";
 import React, { useCallback, useEffect, useState } from "react";
 
+import { resolveExternalReplayTarget } from "@src/api/tauri/externalHistory/replay";
 import { isSessionActiveAtom } from "@src/store/session/cliSessionStatusAtom";
-import { cursorIdeTurnSummariesAtomFamily } from "@src/store/session/cursorIdeTurnSummariesAtom";
+import { externalReplayTurnSummariesAtomFamily } from "@src/store/session/cursorIdeTurnSummariesAtom";
 import { isCursorIdeSession } from "@src/util/session/sessionDispatch";
 
 import { useChatSessionId } from "../ChatSessionContext";
@@ -68,11 +69,14 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
   planningIndicatorScope = null,
 }) => {
   const activeId = useChatSessionId() ?? null;
-  const rawCursorIdeTurnSummaries = useAtomValue(
-    cursorIdeTurnSummariesAtomFamily(activeId ?? "")
+  const rawExternalReplayTurnSummaries = useAtomValue(
+    externalReplayTurnSummariesAtomFamily(activeId ?? "")
   );
   const isCursorIde = activeId ? isCursorIdeSession(activeId) : false;
-  const cursorIdeTurnSummaries = isCursorIde ? rawCursorIdeTurnSummaries : [];
+  const cursorIdeTurnSummaries =
+    activeId && resolveExternalReplayTarget(activeId)
+      ? rawExternalReplayTurnSummaries
+      : [];
   const handleReloadSession = useReloadSession(activeId);
   const historyState = useChatHistoryState();
   const isAgentWorking = useAtomValue(isSessionActiveAtom);

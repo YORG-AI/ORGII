@@ -7,6 +7,7 @@ import {
   markTurnTerminal,
   toTurnTerminalStatus,
 } from "@src/engines/SessionCore/control/turnLifecycle";
+import { getActiveExternalReplayLease } from "@src/engines/SessionCore/sync/externalReplayTransport";
 
 import type { AdapterSendInput } from "../../types";
 import {
@@ -35,11 +36,28 @@ export async function sendCliMessage(input: AdapterSendInput): Promise<void> {
   if (!isResume && content.trim()) {
     await enterAgentOrgSessionIntervention(sessionId);
   }
+  // Bind every status/history wait to the exact visible replay episode that
+  // initiated this send. A stale A wait must not resume after A→B→A.
+  const replayLease = getActiveExternalReplayLease(sessionId);
+  const isSendEpisodeActive = (): boolean =>
+    replayLease !== null &&
+    !replayLease.signal.aborted &&
+    getActiveExternalReplayLease(sessionId)?.epoch === replayLease.epoch;
+  const waitOptions = {
+    signal: replayLease?.signal,
+    isSessionActive: isSendEpisodeActive,
+  };
   const previousStatus = await readCliStatus(sessionId);
-  protectedRunningTurnBySession.set(sessionId, {
+  const protectedTurn = {
     content,
     startedAt: Date.now(),
-  });
+  };
+  const clearProtectedTurn = (): void => {
+    if (protectedRunningTurnBySession.get(sessionId) === protectedTurn) {
+      protectedRunningTurnBySession.delete(sessionId);
+    }
+  };
+  protectedRunningTurnBySession.set(sessionId, protectedTurn);
   markCliRuntimeRunning(sessionId);
   try {
     await tauriInvoke("cli_agent_message", {
@@ -54,23 +72,36 @@ export async function sendCliMessage(input: AdapterSendInput): Promise<void> {
       ...(adeContext ? { ideContext: adeContext } : {}),
     });
   } catch (error) {
-    protectedRunningTurnBySession.delete(sessionId);
+    clearProtectedTurn();
     throw error;
   }
-  const acceptedStatus = await waitForCliRunBoundary(sessionId, previousStatus);
+  const acceptedStatus = await waitForCliRunBoundary(
+    sessionId,
+    previousStatus,
+    waitOptions
+  );
+  if (!isSendEpisodeActive()) {
+    clearProtectedTurn();
+    return;
+  }
   markCliRuntimeRunning(sessionId);
   // Capture this dispatch's generation so a late terminal can never close a
   // newer turn.
   const dispatchGeneration = getTurnGeneration(sessionId);
   const persistedEvents = await waitForPersistedCliUserEvent(
     sessionId,
-    content
+    content,
+    waitOptions
   );
+  if (!isSendEpisodeActive()) {
+    clearProtectedTurn();
+    return;
+  }
   const acceptedTerminalIsCurrentTurn =
     isCliTerminalStatus(acceptedStatus?.status) &&
     hasRuntimeOutputAfterUserEvent(persistedEvents, content);
   if (acceptedTerminalIsCurrentTurn) {
-    protectedRunningTurnBySession.delete(sessionId);
+    clearProtectedTurn();
     markObservedCliTerminalStatus(sessionId, acceptedStatus.status);
     markTurnTerminal(
       sessionId,
@@ -82,15 +113,20 @@ export async function sendCliMessage(input: AdapterSendInput): Promise<void> {
 
   void waitForCliTerminalBoundary(
     sessionId,
-    acceptedStatus?.updatedAt ?? previousStatus?.updatedAt
-  ).then((terminalStatus) => {
-    if (!isCliTerminalStatus(terminalStatus?.status)) return;
-    protectedRunningTurnBySession.delete(sessionId);
-    markObservedCliTerminalStatus(sessionId, terminalStatus.status);
-    markTurnTerminal(sessionId, toTurnTerminalStatus(terminalStatus.status), {
-      generation: dispatchGeneration,
+    acceptedStatus?.updatedAt ?? previousStatus?.updatedAt,
+    waitOptions
+  )
+    .then((terminalStatus) => {
+      if (!isSendEpisodeActive()) return;
+      if (!isCliTerminalStatus(terminalStatus?.status)) return;
+      markObservedCliTerminalStatus(sessionId, terminalStatus.status);
+      markTurnTerminal(sessionId, toTurnTerminalStatus(terminalStatus.status), {
+        generation: dispatchGeneration,
+      });
+    })
+    .finally(() => {
+      clearProtectedTurn();
     });
-  });
 }
 
 export async function stopCliSession(

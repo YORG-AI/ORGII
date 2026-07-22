@@ -1,12 +1,16 @@
 import { atom } from "jotai";
 import { atomFamily } from "jotai-family";
 
-import type { CursorIdeTurnSummary } from "@src/api/tauri/externalHistory";
+import type { ExternalReplayTurnSummary } from "@src/api/tauri/externalHistory";
 
-export const cursorIdeTurnSummariesAtomFamily = atomFamily(
+export const externalReplayTurnSummariesAtomFamily = atomFamily(
   (sessionId: string) => {
-    const sessionAtom = atom<CursorIdeTurnSummary[]>([]);
-    sessionAtom.debugLabel = `cursorIdeTurnSummaries(${sessionId})`;
+    const sessionAtom = atom<ExternalReplayTurnSummary[]>([]);
+    sessionAtom.debugLabel = `externalReplayTurnSummaries(${sessionId})`;
     return sessionAtom;
   }
 );
+
+/** @deprecated Use `externalReplayTurnSummariesAtomFamily`. */
+export const cursorIdeTurnSummariesAtomFamily =
+  externalReplayTurnSummariesAtomFamily;

@@ -44,6 +44,8 @@ export abstract class Org2CloudSyncLifecycle {
   private eventStoreUnsubscribe: (() => void) | null = null;
   private passRunning = false;
   private passDirty = false;
+  /** Cancels pass-scoped, multi-request work such as external replay uploads. */
+  private activePassAbortController: AbortController | null = null;
   /** Serialized passes actually started (test seam for pass-count budgets). */
   startedPassCount = 0;
   /** Explicit user-action waiters resolve after the active and dirty passes drain. */
@@ -59,7 +61,10 @@ export abstract class Org2CloudSyncLifecycle {
   /** Set by `orgii-data-changed` so the next pass drains the projects plane. */
   protected forceProjectsNextPass = false;
 
-  protected abstract syncAllOrgs(generation: number): Promise<void>;
+  protected abstract syncAllOrgs(
+    generation: number,
+    signal: AbortSignal
+  ): Promise<void>;
   protected abstract noteSessionEventActivity(sessionId: string): void;
   protected abstract resetSyncState(): void;
   protected abstract clearOrgBackoff(orgId: string): void;
@@ -119,6 +124,8 @@ export abstract class Org2CloudSyncLifecycle {
     if (!this.started) return;
     this.started = false;
     this.generation += 1;
+    this.activePassAbortController?.abort();
+    this.activePassAbortController = null;
     if (this.timer !== null) clearTimeout(this.timer);
     this.timer = null;
     if (this.activityTimer !== null) clearTimeout(this.activityTimer);
@@ -161,11 +168,18 @@ export abstract class Org2CloudSyncLifecycle {
     this.passRunning = true;
     this.startedPassCount += 1;
     const generation = this.generation;
+    const abortController = new AbortController();
+    this.activePassAbortController = abortController;
     try {
-      await this.syncAllOrgs(generation);
+      await this.syncAllOrgs(generation, abortController.signal);
     } catch (error) {
-      log.warn("cloud sync pass failed:", error);
+      if (!abortController.signal.aborted) {
+        log.warn("cloud sync pass failed:", error);
+      }
     } finally {
+      if (this.activePassAbortController === abortController) {
+        this.activePassAbortController = null;
+      }
       this.passRunning = false;
       if (this.started && this.generation === generation && this.passDirty) {
         this.passDirty = false;

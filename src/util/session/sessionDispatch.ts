@@ -31,6 +31,9 @@ import type { DispatchCategory } from "@src/api/tauri/session";
 // Session Prefixes Registry
 // ============================================
 
+/** Prefix for ORGII-owned, read-only collaboration snapshots. */
+export const COLLABORATION_SNAPSHOT_SESSION_PREFIX = "imported-session-";
+
 /**
  * Lifecycle hooks for IDE session types that require a persistent backend
  * watch (e.g. a CDP WebSocket to a running IDE renderer). Both callbacks
@@ -104,6 +107,12 @@ export const SESSION_PREFIX_REGISTRY: readonly SessionPrefixConfig[] = [
     variant: undefined,
     iconId: "terminal",
   },
+  {
+    prefix: COLLABORATION_SNAPSHOT_SESSION_PREFIX,
+    category: "external_history",
+    variant: undefined,
+    iconId: "messages-square",
+  },
   ...IMPORTED_HISTORY_SOURCE_DESCRIPTORS.map(
     (source): SessionPrefixConfig => ({
       prefix: source.prefix,
@@ -132,8 +141,8 @@ export const CLI_SESSION_PREFIX = "cliagent-";
 /**
  * Prefix for Cursor IDE history session IDs. The bare composer UUID from
  * Cursor's `state.vscdb` is wrapped as `${CURSOR_IDE_SESSION_PREFIX}${uuid}`
- * before crossing into our system; the prefix is stripped only inside the
- * `cursor_ide_chunks` Tauri command. Frontend code never sees the bare UUID.
+ * before crossing into our system; the bounded replay adapter resolves the
+ * prefixed ID internally. Frontend code never sees the bare UUID.
  */
 export const CURSOR_IDE_SESSION_PREFIX = "cursoride-";
 
@@ -214,6 +223,12 @@ export function isCursorIdeSession(
 export function isExternalHistorySession(
   sessionId: string | null | undefined
 ): boolean {
+  if (
+    typeof sessionId === "string" &&
+    sessionId.startsWith(COLLABORATION_SNAPSHOT_SESSION_PREFIX)
+  ) {
+    return isCollaborationSnapshotSession(sessionId);
+  }
   const config = findPrefixConfig(sessionId);
   return config?.category === "external_history";
 }
@@ -221,7 +236,21 @@ export function isExternalHistorySession(
 export function isImportedHistorySession(
   sessionId: string | null | undefined
 ): boolean {
-  return isCursorIdeSession(sessionId) || isExternalHistorySession(sessionId);
+  return (
+    isCollaborationSnapshotSession(sessionId) ||
+    isCursorIdeSession(sessionId) ||
+    isExternalHistorySession(sessionId)
+  );
+}
+
+export function isCollaborationSnapshotSession(
+  sessionId: string | null | undefined
+): boolean {
+  return (
+    typeof sessionId === "string" &&
+    sessionId.startsWith(COLLABORATION_SNAPSHOT_SESSION_PREFIX) &&
+    sessionId.length > COLLABORATION_SNAPSHOT_SESSION_PREFIX.length
+  );
 }
 
 export function getExternalHistorySourceId(

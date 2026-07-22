@@ -1,7 +1,6 @@
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 
 import { confirmTurnRunning } from "@src/engines/SessionCore/control/turnLifecycle";
-import { loadSessionAtom } from "@src/engines/SessionCore/core/atoms";
 import { isTurnBlockingRuntimeEvent } from "@src/engines/SessionCore/core/runningEventGate";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
@@ -13,8 +12,10 @@ import {
   isStoreInitialized,
 } from "@src/util/core/state/instrumentedStore";
 
-import { isNativeTranscriptSession } from "../../nativeTranscriptReconcile";
-import { loadCliHistory } from "./cliHistory";
+import {
+  getActiveExternalReplayLease,
+  pollExternalReplaySession,
+} from "../../externalReplayTransport";
 
 const log = createLogger("CliAdapter");
 
@@ -22,6 +23,43 @@ export type CliStatusResponse = {
   status?: CliSessionStatus;
   updatedAt?: string;
 };
+
+export interface CliPollingWaitOptions {
+  signal?: AbortSignal;
+  /** Exact visible replay-episode guard; prevents A→B→A reuse. */
+  isSessionActive?: () => boolean;
+  timeoutMs?: number;
+  pollIntervalMs?: number;
+}
+
+function isPollingCancelled(options: CliPollingWaitOptions): boolean {
+  return Boolean(
+    options.signal?.aborted || options.isSessionActive?.() === false
+  );
+}
+
+function waitForPollingDelay(
+  delayMs: number,
+  options: CliPollingWaitOptions
+): Promise<boolean> {
+  if (isPollingCancelled(options)) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (completed: boolean): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      options.signal?.removeEventListener("abort", onAbort);
+      resolve(completed);
+    };
+    const onAbort = (): void => finish(false);
+    const timer = setTimeout(
+      () => finish(!isPollingCancelled(options)),
+      delayMs
+    );
+    options.signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
 
 const CLI_TERMINAL_STATUSES = new Set<CliSessionStatus>([
   "completed",
@@ -54,14 +92,17 @@ export async function readCliStatus(
 
 export async function waitForCliRunBoundary(
   sessionId: string,
-  previousStatus: CliStatusResponse | null
+  previousStatus: CliStatusResponse | null,
+  options: CliPollingWaitOptions = {}
 ): Promise<CliStatusResponse | null> {
-  const deadline = Date.now() + 15_000;
+  const deadline = Date.now() + (options.timeoutMs ?? 15_000);
+  const pollIntervalMs = options.pollIntervalMs ?? 100;
   const previousUpdatedAt = previousStatus?.updatedAt;
   const previousWasTerminal = isCliTerminalStatus(previousStatus?.status);
   let lastStatus: CliStatusResponse | null = null;
-  while (Date.now() < deadline) {
+  while (Date.now() < deadline && !isPollingCancelled(options)) {
     lastStatus = await readCliStatus(sessionId);
+    if (isPollingCancelled(options)) return lastStatus;
     const hasNewStatus =
       !previousUpdatedAt || lastStatus?.updatedAt !== previousUpdatedAt;
     const hasDurableBoundary =
@@ -75,8 +116,12 @@ export async function waitForCliRunBoundary(
     ) {
       return lastStatus;
     }
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    if (!(await waitForPollingDelay(pollIntervalMs, options))) {
+      return lastStatus;
+    }
   }
+
+  if (isPollingCancelled(options)) return lastStatus;
 
   throw new Error(
     `CLI run boundary was not observed for ${sessionId}; lastStatus=${JSON.stringify(lastStatus)}`
@@ -149,18 +194,22 @@ export function markObservedCliTerminalStatus(
 export async function waitForCliTerminalBoundary(
   sessionId: string,
   previousUpdatedAt: string | null | undefined,
-  timeoutMs = 90_000
+  options: CliPollingWaitOptions = {}
 ): Promise<CliStatusResponse | null> {
-  const deadline = Date.now() + timeoutMs;
+  const deadline = Date.now() + (options.timeoutMs ?? 90_000);
+  const pollIntervalMs = options.pollIntervalMs ?? 250;
   let lastStatus: CliStatusResponse | null = null;
-  while (Date.now() < deadline) {
+  while (Date.now() < deadline && !isPollingCancelled(options)) {
     lastStatus = await readCliStatus(sessionId);
+    if (isPollingCancelled(options)) return lastStatus;
     const hasNewStatus =
       !previousUpdatedAt || lastStatus?.updatedAt !== previousUpdatedAt;
     if (hasNewStatus && isCliTerminalStatus(lastStatus?.status)) {
       return lastStatus;
     }
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    if (!(await waitForPollingDelay(pollIntervalMs, options))) {
+      return lastStatus;
+    }
   }
   return lastStatus;
 }
@@ -169,16 +218,14 @@ async function refreshLoadedCliHistory(
   sessionId: string
 ): Promise<SessionEvent[]> {
   if (!isStoreInitialized()) return [];
-  const events = await loadCliHistory(sessionId, new AbortController().signal);
-  if (events.length === 0) return events;
-  // Native-transcript sessions render the live turn from in-memory events
-  // only. The replay is read here purely to observe persistence for the send
-  // handshake; terminal reconcile remains the single on-screen replacement.
-  if (!isNativeTranscriptSession(sessionId)) {
-    await eventStoreProxy.mergeEvents(events, sessionId);
-    getInstrumentedStore().set(loadSessionAtom, { sessionId, events });
-  }
-  return events;
+  const lease = getActiveExternalReplayLease(sessionId);
+  if (!lease) return [];
+  const delta = await pollExternalReplaySession(lease);
+  if (delta?.events.length) return delta.events;
+  // A focus/watcher refresh may have consumed the same source delta first.
+  // The active EventStore is itself bounded, so this does not rematerialize
+  // the source transcript or cross the Rust → JS → Rust ingestion path.
+  return eventStoreProxy.getEvents(sessionId);
 }
 
 function eventContainsText(event: SessionEvent, text: string): boolean {
@@ -187,18 +234,26 @@ function eventContainsText(event: SessionEvent, text: string): boolean {
 
 export async function waitForPersistedCliUserEvent(
   sessionId: string,
-  content: string
+  content: string,
+  options: CliPollingWaitOptions = {}
 ): Promise<SessionEvent[]> {
-  const deadline = Date.now() + 15_000;
+  const deadline = Date.now() + (options.timeoutMs ?? 15_000);
+  const pollIntervalMs = options.pollIntervalMs ?? 250;
   let lastEventCount = 0;
-  while (Date.now() < deadline) {
+  let lastEvents: SessionEvent[] = [];
+  while (Date.now() < deadline && !isPollingCancelled(options)) {
     const events = await refreshLoadedCliHistory(sessionId);
+    lastEvents = events;
+    if (isPollingCancelled(options)) return lastEvents;
     lastEventCount = events.length;
     if (events.some((event) => eventContainsText(event, content))) {
       return events;
     }
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    if (!(await waitForPollingDelay(pollIntervalMs, options))) {
+      return lastEvents;
+    }
   }
+  if (isPollingCancelled(options)) return lastEvents;
   throw new Error(
     `CLI user event was not persisted for ${sessionId}; eventCount=${lastEventCount}`
   );

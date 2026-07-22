@@ -34,11 +34,19 @@ describe("getAdapterForSession", () => {
     expect(getAdapterForSession("opencodeapp-abc")?.category).toBe(
       "external_history"
     );
+    expect(
+      getAdapterForSession("imported-session-collaboration")?.category
+    ).toBe("external_history");
   });
 
   it("still routes CLI and agent sessions to their own adapters", () => {
-    expect(getAdapterForSession("cliagent-abc")?.category).toBe("cli");
-    expect(getAdapterForSession("osagent-abc")?.category).toBe("agent");
+    const cli = getAdapterForSession("cliagent-abc");
+    const agent = getAdapterForSession("osagent-abc");
+    expect(cli?.category).toBe("cli");
+    expect(cli?.historyMode).toBe("bounded-replay");
+    expect(agent?.category).toBe("agent");
+    expect(agent?.historyMode).toBe("persisted-db");
+    expect(agent && "loadHistory" in agent).toBe(true);
   });
 
   it("returns undefined for unknown session ids", () => {

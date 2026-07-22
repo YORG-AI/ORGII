@@ -15,6 +15,8 @@
  */
 import { describe, expect, it, vi } from "vitest";
 
+import type { CursorIdeTurnSummary } from "@src/api/tauri/externalHistory";
+
 import type { OptimizedChatItem } from "../../chatItemPipeline/types";
 import type { ChatGroupMeta } from "../useChatGroups";
 import { useChatTurnPagination } from "../useChatTurnPagination";
@@ -144,5 +146,42 @@ describe("useChatTurnPagination — mergeUserOnlyPages", () => {
 
     expect(result.pageCount).toBe(3);
     expect(result.displayFlatItems).toHaveLength(3);
+  });
+});
+
+describe("useChatTurnPagination — Cursor bounded replay", () => {
+  it("maps the complete provider-stable user event id to its loaded group", () => {
+    const stableId = "cursoride-user-provider-stable-id";
+    const header = {
+      ...fakeHeader(),
+      event: { id: stableId },
+    } as OptimizedChatItem;
+    const summary: CursorIdeTurnSummary = {
+      turnId: stableId,
+      nextTurnId: null,
+      turnIndex: 0,
+      startedAt: "2026-07-22T00:00:00Z",
+      endedAt: null,
+      durationMs: null,
+      userPreview: "prompt",
+      eventCount: 2,
+      bodyEventCount: 1,
+    };
+
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- useMemo is mocked as a pass-through; this is not a real hook call
+    const result = useChatTurnPagination({
+      enabled: true,
+      activePageIndex: 0,
+      groupCounts: [1],
+      groupHeaders: [header],
+      groupMeta: [{ turnId: stableId } as ChatGroupMeta],
+      flatItems: [fakeItem()],
+      lastAssistantFlatIndexPerItem: [null],
+      cursorIdeTurnSummaries: [summary],
+    });
+
+    expect(result.pages[0]?.startGroupIndex).toBe(0);
+    expect(result.pages[0]?.cursorIdeBodyLoaded).toBe(true);
+    expect(result.pages[0]?.cursorIdeSummary?.turnId).toBe(stableId);
   });
 });

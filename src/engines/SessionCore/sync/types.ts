@@ -173,15 +173,9 @@ export interface AdapterSendInput {
  * Adapter interface for session-type-specific logic.
  * Each session type (SDE Agent, OS Agent, CLI, Cursor IDE) implements this.
  */
-export interface SessionAdapter {
+interface SessionAdapterBase {
   /** Which session category this adapter handles. */
   readonly category: string;
-
-  /**
-   * Load persisted history from Tauri SQLite → SessionEvent[].
-   * Pure async function — no side effects.
-   */
-  loadHistory(sessionId: string, signal: AbortSignal): Promise<SessionEvent[]>;
 
   /**
    * Post-load setup: restore session status, token counts, etc.
@@ -209,6 +203,26 @@ export interface SessionAdapter {
   /** Stop the running agent/session with an explicit control-flow reason. */
   stopSession(sessionId: string, reason: CancelReason): Promise<void>;
 }
+
+/** Native ORGII sessions whose history is persisted in the app database. */
+export interface PersistedDbSessionAdapter extends SessionAdapterBase {
+  readonly historyMode: "persisted-db";
+  /** Pure read; the switch orchestrator owns EventStore hydration. */
+  loadHistory(sessionId: string, signal: AbortSignal): Promise<SessionEvent[]>;
+}
+
+/**
+ * Imported history and managed CLI sessions backed by the source-aware Rust
+ * replay registry. These adapters intentionally expose no full-history
+ * loader: open/read/poll always use the bounded replay RPC contract.
+ */
+export interface BoundedReplaySessionAdapter extends SessionAdapterBase {
+  readonly historyMode: "bounded-replay";
+}
+
+export type SessionAdapter =
+  | PersistedDbSessionAdapter
+  | BoundedReplaySessionAdapter;
 
 // ============================================================================
 // Shared info types (used by callbacks)
@@ -323,7 +337,8 @@ export function getAdapterForSession(
   // Cursor IDE history carries a distinct `cursor_ide` display category (to
   // separate imported IDE history from launched Cursor CLI sessions), but for
   // *loading* it is read-only external history like the rest — route it to the
-  // same adapter. `isImportedHistorySession` = cursor_ide OR external_history.
+  // same adapter. `isImportedHistorySession` covers vendor history, Cursor
+  // IDE, and ORGII-owned read-only collaboration snapshots.
   if (isImportedHistorySession(sessionId)) {
     return adapterRegistry.get("external_history");
   }

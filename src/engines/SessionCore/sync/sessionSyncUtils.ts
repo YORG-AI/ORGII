@@ -16,7 +16,7 @@ import {
 import { createLogger } from "@src/hooks/logger";
 import type { CliSessionStatus } from "@src/types/session/session";
 
-import type { SessionAdapter } from "./types";
+import type { PersistedDbSessionAdapter } from "./types";
 
 const logger = createLogger("SessionSync");
 
@@ -112,7 +112,7 @@ export async function loadOwnSessionInitialEvents(
 }
 
 export async function loadPersistedHistory(
-  adapter: SessionAdapter,
+  adapter: PersistedDbSessionAdapter,
   sessionId: string,
   signal: AbortSignal
 ): Promise<SessionEvent[]> {

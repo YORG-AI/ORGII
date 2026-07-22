@@ -197,6 +197,10 @@ openSessionAtom.debugLabel = "openSessionAtom";
  * Close current session — clears both memory and pipeline.
  */
 export const closeSessionAtom = atom(null, (_get, set) => {
+  // Explicit close owns the same payload/turn/request cleanup as navigation
+  // away. Snapshot data still follows EventStoreProxy's existing three-minute
+  // grace; large on-demand payload bodies are released immediately.
+  set(clearSessionAtom);
   set(sessionViewAtom, {
     activeSessionId: null,
     sessionName: undefined,

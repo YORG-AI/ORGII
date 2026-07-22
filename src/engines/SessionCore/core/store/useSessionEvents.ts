@@ -5,10 +5,8 @@
  * events as nested blocks. The hook:
  *
  * 1. Subscribes to `es:changed` for the session via `subscribeSession`
- * 2. For `cursoride-*` session ids (Cursor IDE history child composers),
- *    pre-warms the EventStore by reading bubbles from Cursor's SQLite via
- *    `ensureCursorIdeEventsInStore`. Live CLI / agent sessions skip this
- *    step — their events are written by the live event handler.
+ * 2. For any bounded external replay session, pre-warms one capped replay
+ *    window. Native agent sessions continue to use their SQLite cache.
  * 3. Lazy-loads events from Rust EventStore via `es_load_from_cache` +
  *    `es_get_snapshot`. If the session is already in memory (live subagent
  *    or freshly pre-warmed cursor history), `es_load_from_cache` triggers a
@@ -23,10 +21,10 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { ensureCursorIdeEventsInStore } from "@src/engines/SessionCore/sync/adapters/cursorIdeAdapter";
+import { resolveExternalReplayTarget } from "@src/api/tauri/externalHistory/replay";
+import { ensureExternalReplayEventsInStore } from "@src/engines/SessionCore/sync/adapters/cursorIdeAdapter";
 import { createLogger } from "@src/hooks/logger";
 import { formatInvokeError } from "@src/util/formatInvokeError";
-import { isCursorIdeSession } from "@src/util/session/sessionDispatch";
 
 import type { SessionEvent } from "../types";
 import {
@@ -152,17 +150,11 @@ export function useSessionEvents(
       }
 
       try {
-        // Cursor IDE history sessions (parent OR child composer) are not in
-        // our SQLite event cache — they live in Cursor's `state.vscdb`.
-        // Pre-warm the EventStore from there before falling through to the
-        // generic load path. After this, `loadFromCache` finds the events
-        // in memory and just schedules a notify, identical to the
-        // already-loaded live subagent case.
-        if (isCursorIdeSession(sessionId!)) {
-          await ensureCursorIdeEventsInStore(sessionId!);
-          if (cancelled) return;
+        if (resolveExternalReplayTarget(sessionId!)) {
+          await ensureExternalReplayEventsInStore(sessionId!);
+        } else {
+          await eventStoreProxy.loadFromCache(sessionId!);
         }
-        await eventStoreProxy.loadFromCache(sessionId!);
         if (cancelled) return;
         loadedRef.current = sessionId!;
 

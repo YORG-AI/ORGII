@@ -72,6 +72,10 @@ export interface PayloadRef {
   preview: string;
   fullSizeBytes: number;
   truncated: boolean;
+  /** Opaque source locator for range-backed external replay payloads. */
+  replaySourceId?: string;
+  replayGeneration?: string;
+  replaySourceEventId?: string;
 }
 
 export interface EventPayloadBody {

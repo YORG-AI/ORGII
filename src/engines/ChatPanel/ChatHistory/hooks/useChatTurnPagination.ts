@@ -11,6 +11,7 @@ export interface ChatTurnPage {
   flatStartIndex: number;
   flatEndIndex: number;
   cursorIdeSummary: CursorIdeTurnSummary | null;
+  cursorIdeBodyLoaded: boolean;
 }
 
 export interface ChatTurnPaginationOptions {
@@ -228,6 +229,7 @@ function buildTurnPages(
         flatStartIndex: pageFlatStartIndex,
         flatEndIndex: nextFlatCursor,
         cursorIdeSummary: null,
+        cursorIdeBodyLoaded: false,
       });
       startGroupIndex = groupIndex + 1;
       pageFlatStartIndex = nextFlatCursor;
@@ -252,6 +254,7 @@ function buildTurnPages(
           flatStartIndex: 0,
           flatEndIndex: flatCursor,
           cursorIdeSummary: null,
+          cursorIdeBodyLoaded: false,
         });
       }
     }
@@ -268,23 +271,51 @@ function buildCursorIdeTurnPages(
   const groupByTurnId = new Map<string, number>();
   for (let groupIndex = 0; groupIndex < groupHeaders.length; groupIndex++) {
     const eventId = groupHeaders[groupIndex]?.event?.id;
-    if (!eventId?.startsWith("cursoride-user-")) continue;
-    groupByTurnId.set(eventId.slice("cursoride-user-".length), groupIndex);
+    if (!eventId) continue;
+    // New bounded replay headers use the complete provider-stable event id.
+    // Keep the stripped legacy Cursor bubble id during migration so cached
+    // summaries from an older build still map to the same group.
+    groupByTurnId.set(eventId, groupIndex);
+    if (eventId.startsWith("cursoride-user-")) {
+      groupByTurnId.set(eventId.slice("cursoride-user-".length), groupIndex);
+    }
   }
 
   const groupFlatStartIndices = computeGroupFlatStartIndices(groupCounts);
   const fallbackGroupIndex = Math.max(0, groupCounts.length - 1);
-  return cursorIdeTurnSummaries.map((summary) => {
-    const groupIndex = groupByTurnId.get(summary.turnId) ?? fallbackGroupIndex;
-    const flatStartIndex = groupFlatStartIndices[groupIndex] ?? 0;
-    const flatEndIndex = flatStartIndex + (groupCounts[groupIndex] ?? 0);
-    return {
-      startGroupIndex: groupIndex,
-      endGroupIndex: groupIndex,
-      flatStartIndex,
-      flatEndIndex,
-      cursorIdeSummary: summary,
-    };
+  const target: ChatTurnPage[] = [];
+  target.length = cursorIdeTurnSummaries.length;
+
+  // Keep page count exact without allocating one page object per turn. The
+  // list is virtualized and navigation reads only current/neighbor indices.
+  return new Proxy(target, {
+    get(pages, property, receiver) {
+      if (typeof property !== "string" || !/^(0|[1-9]\d*)$/.test(property)) {
+        return Reflect.get(pages, property, receiver);
+      }
+      const pageIndex = Number(property);
+      if (
+        !Number.isSafeInteger(pageIndex) ||
+        pageIndex < 0 ||
+        pageIndex >= cursorIdeTurnSummaries.length
+      ) {
+        return undefined;
+      }
+      const summary = cursorIdeTurnSummaries[pageIndex];
+      if (!summary) return undefined;
+      const loadedGroupIndex = groupByTurnId.get(summary.turnId);
+      const groupIndex = loadedGroupIndex ?? fallbackGroupIndex;
+      const flatStartIndex = groupFlatStartIndices[groupIndex] ?? 0;
+      const flatEndIndex = flatStartIndex + (groupCounts[groupIndex] ?? 0);
+      return {
+        startGroupIndex: groupIndex,
+        endGroupIndex: groupIndex,
+        flatStartIndex,
+        flatEndIndex,
+        cursorIdeSummary: summary,
+        cursorIdeBodyLoaded: loadedGroupIndex !== undefined,
+      } satisfies ChatTurnPage;
+    },
   });
 }
 

@@ -1,6 +1,6 @@
-import { isCursorIdeSession } from "@src/util/session/sessionDispatch";
+import { resolveExternalReplayTarget } from "@src/api/tauri/externalHistory/replay";
 
-import { cursorIdeTurnLoader } from "./cursorIdeTurnLoader";
+import { externalReplayTurnLoader } from "./externalReplayTurnLoader";
 import {
   getPendingTurnLoad,
   markTurnBodyLoaded,
@@ -10,8 +10,8 @@ import { ownDbTurnLoader } from "./ownDbTurnLoader";
 import type { LoadTurnBodyIntoStoreArgs, SessionTurnLoader } from "./types";
 
 export function getSessionTurnLoader(sessionId: string): SessionTurnLoader {
-  if (isCursorIdeSession(sessionId)) {
-    return cursorIdeTurnLoader;
+  if (resolveExternalReplayTarget(sessionId)) {
+    return externalReplayTurnLoader;
   }
   return ownDbTurnLoader;
 }

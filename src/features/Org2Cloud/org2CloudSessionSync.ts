@@ -1,7 +1,15 @@
-import { getImportedHistorySourceBySessionId } from "@src/api/tauri/externalHistory";
+import {
+  type ExternalReplayCloudManifest,
+  type ExternalReplayTarget,
+  externalReplayCloudPrefixHash,
+  externalReplayCloudPrepareForTarget,
+  externalReplayCloudReadBatch,
+  externalReplayCloudRelease,
+  resolveExternalReplayTarget,
+  resolveSecondaryReplayTarget,
+} from "@src/api/tauri/externalHistory/replay";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
-import { processChunksRust } from "@src/engines/SessionCore/ingestion/rustBridge";
 import { createLogger } from "@src/hooks/logger";
 import { createCollabAvatarIdentity } from "@src/store/collaboration/protocol";
 import {
@@ -15,7 +23,6 @@ import type {
   RemoteTeammateSessionMetadata,
 } from "@src/store/collaboration/types";
 import type { Session } from "@src/store/session/sessionAtom/types";
-import { isImportedHistorySession } from "@src/util/session/sessionDispatch";
 
 import {
   createDefaultAccessSettings,
@@ -29,6 +36,7 @@ import {
 } from "../TeamCollaboration/engine/collabSyncEngineHelpers";
 import { getSessionForkedFrom } from "../TeamCollaboration/forkSession";
 import { computeSegmentHash } from "../TeamCollaboration/sync/collabGzip";
+import type { SegmentWirePayload } from "../TeamCollaboration/sync/segmentCodec";
 import type { CloudPushAccess } from "./org2CloudAccessSettings";
 import type { Org2CloudAuthState } from "./org2CloudAuthAtom";
 import type { CollabSessionPushCursor } from "./org2CloudSyncAtoms";
@@ -45,19 +53,39 @@ const log = createLogger("Org2CloudSyncEngine");
 /** Safety TTL for rechecking a session whose events plane was verified clean. */
 const EVENTS_CLEAN_TTL_MS = 10 * 60_000;
 
-/** Largest cursor accepted by the backend's int4 `p_after_seq` argument. */
-const HEAD_READ_AFTER_SEQ = 2_147_483_647;
+/** Metadata re-anchor reads at most one small frozen wire and never the tail. */
+const HEAD_READ_MAX_WIRE_BYTES = 64 * 1024;
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw signal.reason ?? new DOMException("Aborted", "AbortError");
+  }
+}
 
 /** Client seam so tests inject fetch-free fakes. */
 export type Org2CloudSyncClientDeps = Pick<
   typeof org2CloudSyncClient,
   | "upsertSessionMetadata"
   | "appendSessionEvents"
+  | "appendSessionEventWires"
   | "rewriteSessionEvents"
-  | "getSessionEvents"
+  | "rewriteSessionEventWires"
   | "getOrgRepoScopes"
   | "deleteSession"
->;
+> & {
+  /** This sync engine only performs a byte-bounded epoch/head read. */
+  getSessionEvents: (
+    accessToken: string,
+    orgId: string,
+    sessionId: string,
+    options?:
+      | org2CloudSyncClient.GetSessionEventsOptions
+      | org2CloudSyncClient.GetSessionEventWirePageOptions
+  ) => Promise<
+    | org2CloudSyncClient.CloudSessionEventsSnapshot
+    | org2CloudSyncClient.CloudSessionEventWirePage
+  >;
+};
 
 interface PreparedPushPlan {
   perEventHashes: string[];
@@ -71,6 +99,11 @@ interface PreparedPushEvents {
   stampAtRead: number;
   events: SessionEvent[];
   plan(): Promise<PreparedPushPlan>;
+}
+
+interface PreparedExternalPush {
+  stampAtRead: number;
+  manifest: ExternalReplayCloudManifest;
 }
 
 /**
@@ -129,6 +162,11 @@ export class Org2CloudSessionSync {
     string,
     Promise<PreparedPushEvents>
   >();
+  /** External replay spools are prepared once and reused across orgs/pass. */
+  private readonly passExternalPrepareCache = new Map<
+    string,
+    Promise<PreparedExternalPush>
+  >();
 
   constructor(
     private readonly getStore: () => CloudStore | null,
@@ -136,15 +174,29 @@ export class Org2CloudSessionSync {
   ) {}
 
   reset(): void {
+    this.releaseExternalPassSpools();
     this.lastPushedMetadataHashes.clear();
     this.cleanEventPlanes.clear();
     this.eventActivityStamps.clear();
     this.passPushPrepareCache.clear();
+    this.passExternalPrepareCache.clear();
   }
 
   /** Start a new engine pass; prepared events must never leak across passes. */
   beginPass(): void {
+    this.releaseExternalPassSpools();
     this.passPushPrepareCache.clear();
+    this.passExternalPrepareCache.clear();
+  }
+
+  private releaseExternalPassSpools(): void {
+    for (const prepared of this.passExternalPrepareCache.values()) {
+      void prepared
+        .then(({ manifest }) => externalReplayCloudRelease(manifest.token))
+        .catch((error: unknown) => {
+          log.warn("failed to release external replay cloud spool", error);
+        });
+    }
   }
 
   /**
@@ -330,16 +382,23 @@ export class Org2CloudSessionSync {
     this.setPushedMetadataMarker(orgId, session.session_id);
   }
 
-  /** Load the complete native or external-history transcript for upload. */
+  /** Native SDE path only; external/managed CLI sessions use Rust spools. */
   async loadPushEvents(sessionId: string): Promise<SessionEvent[]> {
-    if (isImportedHistorySession(sessionId)) {
-      const source = getImportedHistorySourceBySessionId(sessionId);
-      if (!source) return [];
-      const chunks = await source.loadFullTranscriptChunks(sessionId);
-      if (!Array.isArray(chunks) || chunks.length === 0) return [];
-      return processChunksRust(chunks, sessionId);
-    }
     return eventStoreProxy.getPersistedEvents(sessionId);
+  }
+
+  private prepareExternalPushForPass(
+    target: ExternalReplayTarget
+  ): Promise<PreparedExternalPush> {
+    const { sessionId } = target;
+    const cached = this.passExternalPrepareCache.get(sessionId);
+    if (cached) return cached;
+    const prepared = (async (): Promise<PreparedExternalPush> => ({
+      stampAtRead: this.eventActivityStamps.get(sessionId) ?? 0,
+      manifest: await externalReplayCloudPrepareForTarget(target),
+    }))();
+    this.passExternalPrepareCache.set(sessionId, prepared);
+    return prepared;
   }
 
   private preparePushEventsForPass(
@@ -389,7 +448,8 @@ export class Org2CloudSessionSync {
     orgId: string,
     session: Session,
     scopeKey: string | null,
-    access: CloudPushAccess
+    access: CloudPushAccess,
+    signal?: AbortSignal
   ): Promise<void> {
     const sessionId = session.session_id;
     if (access.accessMode === COLLAB_SESSION_ACCESS_MODE.METADATA_ONLY) {
@@ -416,6 +476,24 @@ export class Org2CloudSessionSync {
       );
       return;
     }
+    const primaryReplayTarget = resolveExternalReplayTarget(sessionId);
+    const replayTarget =
+      primaryReplayTarget ??
+      (getSessionForkedFrom(session)
+        ? await resolveSecondaryReplayTarget(sessionId)
+        : null);
+    if (replayTarget) {
+      await this.pushExternalSession(
+        auth,
+        orgId,
+        session,
+        scopeKey,
+        access,
+        replayTarget,
+        signal
+      );
+      return;
+    }
     const { stampAtRead, events, plan } =
       await this.preparePushEventsForPass(sessionId);
     const cursor = this.getCursor(orgId, sessionId);
@@ -427,6 +505,7 @@ export class Org2CloudSessionSync {
         scopeKey,
         access
       );
+      throwIfAborted(signal);
       this.markEventPlaneClean(orgId, sessionId, stampAtRead);
       return;
     }
@@ -551,6 +630,358 @@ export class Org2CloudSessionSync {
     this.markEventPlaneClean(orgId, sessionId, stampAtRead);
   }
 
+  private async pushExternalSession(
+    auth: Org2CloudAuthState,
+    orgId: string,
+    session: Session,
+    scopeKey: string | null,
+    access: CloudPushAccess,
+    replayTarget: ExternalReplayTarget,
+    signal?: AbortSignal
+  ): Promise<void> {
+    throwIfAborted(signal);
+    const sessionId = session.session_id;
+    const { stampAtRead, manifest } =
+      await this.prepareExternalPushForPass(replayTarget);
+    throwIfAborted(signal);
+    const cursor = this.getCursor(orgId, sessionId);
+    if (!cursor && manifest.totalCount === 0) {
+      await this.upsertMetadataIfChanged(
+        auth,
+        orgId,
+        session,
+        scopeKey,
+        access
+      );
+      throwIfAborted(signal);
+      this.markEventPlaneClean(orgId, sessionId, stampAtRead);
+      return;
+    }
+    const sourceShrank =
+      cursor !== undefined && manifest.totalCount < cursor.pushedCount;
+    if (cursor && sourceShrank) {
+      log.warn(
+        `bounded replay spool for ${sessionId} has ${manifest.totalCount} ` +
+          `events but the cloud cursor covers ${cursor.pushedCount}; ` +
+          "rewriting the cloud epoch"
+      );
+    }
+
+    let frozenIntact =
+      !sourceShrank &&
+      cursor !== undefined &&
+      manifest.frozenEventCount >= cursor.frozenEventCount;
+    if (cursor && frozenIntact && cursor.frozenEventCount > 0) {
+      const prefix = await externalReplayCloudPrefixHash({
+        token: manifest.token,
+        eventCount: cursor.frozenEventCount,
+      });
+      throwIfAborted(signal);
+      frozenIntact = prefix.frozenChainHash === cursor.frozenChainHash;
+    }
+    if (
+      cursor &&
+      frozenIntact &&
+      manifest.frozenEventCount === cursor.frozenEventCount &&
+      manifest.tailHash === cursor.tailHash &&
+      manifest.totalCount === cursor.pushedCount
+    ) {
+      await this.upsertMetadataIfChanged(
+        auth,
+        orgId,
+        session,
+        scopeKey,
+        access
+      );
+      throwIfAborted(signal);
+      this.markEventPlaneClean(orgId, sessionId, stampAtRead);
+      return;
+    }
+
+    throwIfAborted(signal);
+    await this.upsertMetadataIfChanged(auth, orgId, session, scopeKey, access);
+    throwIfAborted(signal);
+    if (cursor && frozenIntact) {
+      try {
+        await this.appendExternalSpool(
+          auth,
+          orgId,
+          sessionId,
+          manifest,
+          cursor,
+          signal
+        );
+      } catch (error) {
+        if (!isOrg2SyncErrorCode(error, "ORG2_CONFLICT")) throw error;
+        await this.rewriteExternalSpool(
+          auth,
+          orgId,
+          sessionId,
+          manifest,
+          null,
+          signal
+        );
+      }
+    } else {
+      await this.rewriteExternalSpool(
+        auth,
+        orgId,
+        sessionId,
+        manifest,
+        cursor ? cursor.epoch + 1 : 1,
+        signal
+      );
+    }
+    throwIfAborted(signal);
+    this.markEventPlaneClean(orgId, sessionId, stampAtRead);
+  }
+
+  private async readExternalFrozenBatch(
+    manifest: ExternalReplayCloudManifest,
+    startEventIndex: number,
+    startSegmentIndex?: number,
+    signal?: AbortSignal
+  ) {
+    throwIfAborted(signal);
+    if (startEventIndex >= manifest.frozenEventCount) {
+      return {
+        segments: [],
+        startEventIndex,
+        nextEventIndex: startEventIndex,
+        startSegmentIndex: startSegmentIndex ?? 0,
+        nextSegmentIndex: startSegmentIndex ?? 0,
+        eof: true,
+        serializedBytes: 0,
+      };
+    }
+    const batch = await externalReplayCloudReadBatch({
+      token: manifest.token,
+      startEventIndex,
+      endEventIndex: manifest.frozenEventCount,
+      ...(startSegmentIndex !== undefined ? { startSegmentIndex } : {}),
+      // Leave room for JSON array punctuation in the 256 KiB wire segment.
+      maxBytes: 240 * 1024,
+    });
+    throwIfAborted(signal);
+    if (
+      !batch.eof &&
+      batch.nextEventIndex <= startEventIndex &&
+      batch.nextSegmentIndex <= batch.startSegmentIndex
+    ) {
+      throw new Error("External replay cloud batch cursor did not advance");
+    }
+    return batch;
+  }
+
+  private async readExternalTail(
+    manifest: ExternalReplayCloudManifest,
+    signal?: AbortSignal
+  ): Promise<Omit<SegmentWirePayload, "seq"> | null> {
+    throwIfAborted(signal);
+    if (manifest.tailEventCount === 0) return null;
+    const batch = await externalReplayCloudReadBatch({
+      token: manifest.token,
+      startEventIndex: manifest.frozenEventCount,
+      endEventIndex: manifest.totalCount,
+      maxBytes: 256 * 1024,
+    });
+    throwIfAborted(signal);
+    if (
+      !batch.eof ||
+      batch.serializedBytes > 256 * 1024 ||
+      batch.segments.length !== 1
+    ) {
+      throw new Error(
+        "External replay mutable tail exceeds the 256 KiB cloud wire budget"
+      );
+    }
+    const segment = batch.segments[0];
+    if (!segment) return null;
+    return {
+      payloadGz: segment.payloadGz,
+      eventCount: segment.eventCount,
+      segmentHash: segment.segmentHash,
+    };
+  }
+
+  private async appendExternalSpool(
+    auth: Org2CloudAuthState,
+    orgId: string,
+    sessionId: string,
+    manifest: ExternalReplayCloudManifest,
+    cursor: CollabSessionPushCursor,
+    signal?: AbortSignal
+  ): Promise<void> {
+    throwIfAborted(signal);
+    let eventIndex = cursor.frozenEventCount;
+    let segmentIndex: number | undefined;
+    let frozenSeq = cursor.frozenSeq;
+    let expectedTailHash = cursor.tailHash;
+    do {
+      const batch = await this.readExternalFrozenBatch(
+        manifest,
+        eventIndex,
+        segmentIndex,
+        signal
+      );
+      const finalFrozenBatch = batch.eof;
+      const tail = finalFrozenBatch
+        ? await this.readExternalTail(manifest, signal)
+        : null;
+      const segments = batch.segments.map((segment, index) => ({
+        seq: frozenSeq + index + 1,
+        payloadGz: segment.payloadGz,
+        eventCount: segment.eventCount,
+        segmentHash: segment.segmentHash,
+      }));
+      await this.client.appendSessionEventWires(auth.accessToken, {
+        orgId,
+        sessionId,
+        expectedEpoch: cursor.epoch,
+        expectedFrozenSeq: frozenSeq,
+        expectedTailHash,
+        newFrozenSegments: segments,
+        tail,
+        totalCount: batch.nextEventIndex + (tail?.eventCount ?? 0),
+      });
+      throwIfAborted(signal);
+      eventIndex = batch.nextEventIndex;
+      segmentIndex = batch.nextSegmentIndex;
+      frozenSeq += segments.length;
+      expectedTailHash = finalFrozenBatch ? manifest.tailHash : null;
+      if (finalFrozenBatch) break;
+    } while (eventIndex < manifest.frozenEventCount);
+    throwIfAborted(signal);
+    this.setExternalCursor(orgId, sessionId, manifest, cursor.epoch, frozenSeq);
+  }
+
+  private async rewriteExternalSpool(
+    auth: Org2CloudAuthState,
+    orgId: string,
+    sessionId: string,
+    manifest: ExternalReplayCloudManifest,
+    requestedEpoch: number | null,
+    signal?: AbortSignal
+  ): Promise<void> {
+    throwIfAborted(signal);
+    let epoch =
+      requestedEpoch ??
+      (await this.readServerEpoch(auth, orgId, sessionId, signal)) + 1;
+    let reanchored = requestedEpoch === null;
+    for (;;) {
+      try {
+        await this.rewriteExternalAtEpoch(
+          auth,
+          orgId,
+          sessionId,
+          manifest,
+          epoch,
+          signal
+        );
+        return;
+      } catch (error) {
+        if (!isOrg2SyncErrorCode(error, "ORG2_CONFLICT") || reanchored) {
+          throw error;
+        }
+        reanchored = true;
+        epoch =
+          (await this.readServerEpoch(auth, orgId, sessionId, signal)) + 1;
+      }
+    }
+  }
+
+  private async rewriteExternalAtEpoch(
+    auth: Org2CloudAuthState,
+    orgId: string,
+    sessionId: string,
+    manifest: ExternalReplayCloudManifest,
+    epoch: number,
+    signal?: AbortSignal
+  ): Promise<void> {
+    throwIfAborted(signal);
+    const first = await this.readExternalFrozenBatch(
+      manifest,
+      0,
+      undefined,
+      signal
+    );
+    const firstTail = first.eof
+      ? await this.readExternalTail(manifest, signal)
+      : null;
+    const firstSegments = first.segments.map((segment, index) => ({
+      seq: index + 1,
+      payloadGz: segment.payloadGz,
+      eventCount: segment.eventCount,
+      segmentHash: segment.segmentHash,
+    }));
+    await this.client.rewriteSessionEventWires(auth.accessToken, {
+      orgId,
+      sessionId,
+      newEpoch: epoch,
+      frozenSegments: firstSegments,
+      tail: firstTail,
+      totalCount: first.nextEventIndex + (firstTail?.eventCount ?? 0),
+    });
+    throwIfAborted(signal);
+    let eventIndex = first.nextEventIndex;
+    let segmentIndex = first.nextSegmentIndex;
+    let frozenSeq = firstSegments.length;
+    let expectedTailHash = first.eof ? manifest.tailHash : null;
+    while (eventIndex < manifest.frozenEventCount) {
+      const batch = await this.readExternalFrozenBatch(
+        manifest,
+        eventIndex,
+        segmentIndex,
+        signal
+      );
+      const tail = batch.eof
+        ? await this.readExternalTail(manifest, signal)
+        : null;
+      const segments = batch.segments.map((segment, index) => ({
+        seq: frozenSeq + index + 1,
+        payloadGz: segment.payloadGz,
+        eventCount: segment.eventCount,
+        segmentHash: segment.segmentHash,
+      }));
+      await this.client.appendSessionEventWires(auth.accessToken, {
+        orgId,
+        sessionId,
+        expectedEpoch: epoch,
+        expectedFrozenSeq: frozenSeq,
+        expectedTailHash,
+        newFrozenSegments: segments,
+        tail,
+        totalCount: batch.nextEventIndex + (tail?.eventCount ?? 0),
+      });
+      throwIfAborted(signal);
+      eventIndex = batch.nextEventIndex;
+      segmentIndex = batch.nextSegmentIndex;
+      frozenSeq += segments.length;
+      expectedTailHash = batch.eof ? manifest.tailHash : null;
+    }
+    throwIfAborted(signal);
+    this.setExternalCursor(orgId, sessionId, manifest, epoch, frozenSeq);
+  }
+
+  private setExternalCursor(
+    orgId: string,
+    sessionId: string,
+    manifest: ExternalReplayCloudManifest,
+    epoch: number,
+    frozenSeq: number
+  ): void {
+    this.setCursor({
+      orgId,
+      sessionId,
+      epoch,
+      frozenSeq,
+      pushedCount: manifest.totalCount,
+      frozenEventCount: manifest.frozenEventCount,
+      frozenChainHash: manifest.frozenChainHash,
+      tailHash: manifest.tailHash,
+    });
+  }
+
   /** Full epoch rewrite; conflicts re-anchor on the current server epoch once. */
   private async rewriteSession(
     auth: Org2CloudAuthState,
@@ -612,14 +1043,23 @@ export class Org2CloudSessionSync {
   private async readServerEpoch(
     auth: Org2CloudAuthState,
     orgId: string,
-    sessionId: string
+    sessionId: string,
+    signal?: AbortSignal
   ): Promise<number> {
+    throwIfAborted(signal);
     const snapshot = await this.client.getSessionEvents(
       auth.accessToken,
       orgId,
       sessionId,
-      { afterSeq: HEAD_READ_AFTER_SEQ }
+      {
+        boundedWirePage: true,
+        cursor: { direction: "backward" },
+        includeTail: false,
+        maxSegments: 1,
+        maxWireBytes: HEAD_READ_MAX_WIRE_BYTES,
+      }
     );
+    throwIfAborted(signal);
     return snapshot.epoch ?? 0;
   }
 }

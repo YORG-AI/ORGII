@@ -85,9 +85,6 @@ describe("replaceExternalHistorySourceFirstPage", () => {
     groupLabel: "Codex App",
     listable: true,
     replayable: true,
-    supportsWindowedReplay: false,
-    loadPreviewChunks: async () => [],
-    loadFullTranscriptChunks: async () => [],
   } as const;
 
   it("replaces only rows for the matching imported-history source", () => {

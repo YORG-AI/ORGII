@@ -24,7 +24,7 @@ import {
   commitRefreshedAuth,
   org2CloudAuthAtom,
 } from "../Org2Cloud/org2CloudAuthAtom";
-import { buildCloudSessionFetchClient } from "../Org2Cloud/org2CloudBackendAdapter";
+import { buildCloudSessionWirePageClient } from "../Org2Cloud/org2CloudBackendAdapter";
 import { ensureFreshSession } from "../Org2Cloud/org2CloudClient";
 import type { Org2CloudOrg } from "../Org2Cloud/org2CloudOrgsAtom";
 import { org2CloudOrgsAtom } from "../Org2Cloud/org2CloudOrgsAtom";
@@ -101,7 +101,7 @@ export function resolveImportedSessionForkBackend(
 
 export interface GuestShareForkDeps {
   resolveShare: typeof resolveCloudSessionShare;
-  buildClient: typeof buildCloudSessionFetchClient;
+  buildClient: typeof buildCloudSessionWirePageClient;
   fork: (
     options: ForkTeammateSessionOptions
   ) => Promise<ForkSessionResult | null>;
@@ -109,7 +109,7 @@ export interface GuestShareForkDeps {
 
 const GUEST_SHARE_FORK_DEPS: GuestShareForkDeps = {
   resolveShare: resolveCloudSessionShare,
-  buildClient: buildCloudSessionFetchClient,
+  buildClient: buildCloudSessionWirePageClient,
   fork: forkTeammateSession,
 };
 

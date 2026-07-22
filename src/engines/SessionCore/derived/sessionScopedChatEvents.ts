@@ -28,6 +28,8 @@
 import { atom } from "jotai";
 import { atomFamily } from "jotai-family";
 
+import { resolveExternalReplayTarget } from "@src/api/tauri/externalHistory/replay";
+import { ensureExternalReplayEventsInStore } from "@src/engines/SessionCore/sync/adapters/cursorIdeAdapter";
 import { createLogger } from "@src/hooks/logger";
 
 import { isInteractiveTool } from "../core/interactiveTools";
@@ -127,16 +129,18 @@ const sessionSnapshotAtomFamily = atomFamily((sessionId: string) => {
       }
     );
 
-    // Best-effort hydration. If the session is already in the Rust LRU
-    // cache this triggers a `schedule_notify` and the snapshot lands via
-    // the subscription above; if it is not loaded yet, Rust loads it from
-    // SQLite. We do not await — the subscription handles the push.
-    void eventStoreProxy.loadFromCache(sessionId).catch((err: unknown) => {
+    // Best-effort hydration. Bounded external sessions query/apply only one
+    // capped replay window; native SDE/subagent sessions retain the existing
+    // SQLite cache behavior. We do not await — the subscription handles push.
+    const hydration = resolveExternalReplayTarget(sessionId)
+      ? ensureExternalReplayEventsInStore(sessionId)
+      : eventStoreProxy.loadFromCache(sessionId);
+    void hydration.catch((err: unknown) => {
       // Swallow load errors here: the consumer (ChatHistory) is allowed
       // to render an empty state. `useSessionEvents` already covers
       // explicit error surfacing for callers that need it.
       log.warn(
-        `[sessionScopedChatEvents] loadFromCache(${sessionId}) failed:`,
+        `[sessionScopedChatEvents] bounded/native hydration(${sessionId}) failed:`,
         err
       );
     });

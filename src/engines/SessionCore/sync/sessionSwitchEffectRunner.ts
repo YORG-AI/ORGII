@@ -1,3 +1,7 @@
+import {
+  activateExternalReplaySession,
+  deactivateExternalReplaySession,
+} from "./externalReplayTransport";
 import { runSessionSwitchOrchestrator } from "./sessionSwitchOrchestrator";
 import {
   disposeCurrentHandler,
@@ -58,6 +62,10 @@ export function runSessionSwitchEffect(
   }
 
   refs.adapterRef.current = adapter;
+  const replayLease =
+    adapter.historyMode === "bounded-replay"
+      ? activateExternalReplaySession(sessionId)
+      : undefined;
   refs.handlerRef.current = adapter.createEventHandler(
     sessionId,
     createSessionEventHandlerCallbacks(
@@ -75,10 +83,12 @@ export function runSessionSwitchEffect(
     actions: loadActions,
     setPendingPlanApprovals,
     logger,
+    replayLease,
   });
 
   return () => {
     abortController.abort();
+    if (replayLease) deactivateExternalReplaySession(replayLease);
     resetReloadGuardForSession(sessionId, refs);
   };
 }

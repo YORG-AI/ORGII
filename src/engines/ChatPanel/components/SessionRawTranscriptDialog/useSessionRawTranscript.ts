@@ -2,6 +2,7 @@ import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { externalReplayStreamExportForTarget } from "@src/api/tauri/externalHistory/replay";
 import Message from "@src/components/Message";
 import { eventsAtom } from "@src/engines/SessionCore/core/atoms";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
@@ -9,8 +10,11 @@ import { copyText } from "@src/util/data/clipboard";
 
 import {
   type RawTranscriptSnapshot,
+  canCopyRawTranscript,
+  loadOlderRawSessionTranscript,
   loadRawSessionTranscript,
   mergeRawSessionEvents,
+  stringifyJsonArrayBounded,
 } from "./transcript";
 
 interface SessionRawTranscriptState {
@@ -18,6 +22,8 @@ interface SessionRawTranscriptState {
   sessionId: string;
   snapshot: RawTranscriptSnapshot | null;
 }
+
+const COPY_ALL_MAX_BYTES = 4 * 1024 * 1024;
 
 export function useSessionRawTranscript(
   sessionId: string | null,
@@ -28,6 +34,7 @@ export function useSessionRawTranscript(
   const requestIdRef = useRef(0);
   const [state, setState] = useState<SessionRawTranscriptState | null>(null);
   const [loadingSessionId, setLoadingSessionId] = useState<string | null>(null);
+  const [loadingOlder, setLoadingOlder] = useState(false);
 
   const loadTranscript = useCallback(async () => {
     if (!sessionId) return;
@@ -77,14 +84,53 @@ export function useSessionRawTranscript(
       snapshot.sessionId
     );
   }, [liveEvents, snapshot]);
-  const transcriptJson = useMemo(
-    () => JSON.stringify(entries, null, 2),
-    [entries]
-  );
+  // Never build one session-sized JSON string for external replay. Native
+  // EventStore retains the existing editor behaviour; replay rows are
+  // serialized individually by the virtual list.
+  const transcriptJson = useMemo(() => {
+    if (snapshot?.source.kind === "external-history") return "";
+    return JSON.stringify(entries, null, 2);
+  }, [entries, snapshot?.source.kind]);
+
+  const canCopyAll = canCopyRawTranscript(snapshot, COPY_ALL_MAX_BYTES);
+
+  const loadOlder = useCallback(async () => {
+    if (!snapshot?.replay?.hasOlder || loadingOlder) return;
+    const requestId = requestIdRef.current;
+    setLoadingOlder(true);
+    try {
+      const next = await loadOlderRawSessionTranscript(snapshot);
+      if (requestId !== requestIdRef.current) return;
+      setState({ error: null, sessionId: snapshot.sessionId, snapshot: next });
+    } catch (loadError) {
+      if (requestId !== requestIdRef.current) return;
+      setState({
+        error:
+          loadError instanceof Error ? loadError.message : String(loadError),
+        sessionId: snapshot.sessionId,
+        snapshot,
+      });
+    } finally {
+      if (requestId === requestIdRef.current) setLoadingOlder(false);
+    }
+  }, [loadingOlder, snapshot]);
 
   const copyTranscript = useCallback(async () => {
     try {
-      await copyText(transcriptJson);
+      if (!snapshot || !canCopyAll) {
+        throw new Error("Transcript exceeds the Copy All memory budget");
+      }
+      const copyValue =
+        snapshot.source.kind === "external-history"
+          ? stringifyJsonArrayBounded(entries, COPY_ALL_MAX_BYTES)
+          : transcriptJson;
+      if (copyValue === null) {
+        throw new Error("Transcript exceeds the Copy All memory budget");
+      }
+      if (new TextEncoder().encode(copyValue).byteLength > COPY_ALL_MAX_BYTES) {
+        throw new Error("Transcript exceeds the Copy All memory budget");
+      }
+      await copyText(copyValue);
       Message.success(
         t("chat.rawTranscript.copySuccess", {
           defaultValue: "Raw transcript copied",
@@ -93,17 +139,34 @@ export function useSessionRawTranscript(
     } catch {
       Message.error(
         t("chat.rawTranscript.copyFailed", {
-          defaultValue: "Could not copy the raw transcript",
+          defaultValue:
+            "This transcript is too large to copy safely. Use Export All instead.",
         })
       );
     }
-  }, [t, transcriptJson]);
+  }, [canCopyAll, entries, snapshot, t, transcriptJson]);
+
+  const exportTranscript = useCallback(
+    async (destinationPath: string) => {
+      if (!snapshot || snapshot.source.kind !== "external-history") return null;
+      return externalReplayStreamExportForTarget({
+        target: snapshot.source.target,
+        destinationPath,
+        format: "json",
+      });
+    },
+    [snapshot]
+  );
 
   return {
+    canCopyAll,
     copyTranscript,
     entries,
     error,
+    exportTranscript,
+    loadOlder,
     loadTranscript,
+    loadingOlder,
     loading,
     snapshot,
     sourceLabel: snapshot?.source.displayName ?? "",

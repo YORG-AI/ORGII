@@ -2,6 +2,7 @@ import {
   CLAUDE_CODE_HISTORY_SESSION_PREFIX,
   CLI_SESSION_PREFIX,
   CODEX_APP_SESSION_PREFIX,
+  COLLABORATION_SNAPSHOT_SESSION_PREFIX,
   OPENCODE_HISTORY_SESSION_PREFIX,
   OS_AGENT_SESSION_PREFIX,
   SDE_AGENT_SESSION_PREFIX,
@@ -14,7 +15,9 @@ import {
   isClaudeCodeHistorySession,
   isCliSession,
   isCodexAppSession,
+  isCollaborationSnapshotSession,
   isExternalHistorySession,
+  isImportedHistorySession,
   isOpenCodeHistorySession,
   isWarpHistorySession,
   isWindsurfHistorySession,
@@ -27,6 +30,7 @@ describe("sessionDispatch constants", () => {
     expect(CLI_SESSION_PREFIX).toBe("cliagent-");
     expect(CODEX_APP_SESSION_PREFIX).toBe("codexapp-");
     expect(CLAUDE_CODE_HISTORY_SESSION_PREFIX).toBe("claudecodeapp-");
+    expect(COLLABORATION_SNAPSHOT_SESSION_PREFIX).toBe("imported-session-");
     expect(OPENCODE_HISTORY_SESSION_PREFIX).toBe("opencodeapp-");
     expect(WINDSURF_HISTORY_SESSION_PREFIX).toBe("windsurfapp-");
     expect(WARP_HISTORY_SESSION_PREFIX).toBe("warpapp-");
@@ -78,6 +82,7 @@ describe("getDispatchCategory", () => {
     expect(getDispatchCategory("opencodeapp-x")).toBe("external_history");
     expect(getDispatchCategory("windsurfapp-x")).toBe("external_history");
     expect(getDispatchCategory("warpapp-x")).toBe("external_history");
+    expect(getDispatchCategory("imported-session-x")).toBe("external_history");
   });
 
   it("returns rust_agent for unknown id (default)", () => {
@@ -88,6 +93,22 @@ describe("getDispatchCategory", () => {
 });
 
 describe("external history source detection", () => {
+  it("recognizes ORGII-owned collaboration snapshots without widening native agents", () => {
+    expect(
+      isCollaborationSnapshotSession("imported-session-collaboration")
+    ).toBe(true);
+    expect(isImportedHistorySession("imported-session-collaboration")).toBe(
+      true
+    );
+    expect(isExternalHistorySession("imported-session-collaboration")).toBe(
+      true
+    );
+    expect(isCollaborationSnapshotSession("imported-session-")).toBe(false);
+    expect(isImportedHistorySession("imported-session-")).toBe(false);
+    expect(isImportedHistorySession("sdeagent-native")).toBe(false);
+    expect(isImportedHistorySession("osagent-native")).toBe(false);
+  });
+
   it("recognizes Codex App imported history sessions", () => {
     expect(isExternalHistorySession("codexapp-rollout-1")).toBe(true);
     expect(isCodexAppSession("codexapp-rollout-1")).toBe(true);

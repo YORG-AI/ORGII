@@ -1,8 +1,10 @@
-import { Clipboard, RefreshCw } from "lucide-react";
-import React, { memo } from "react";
+import { save as saveDialog } from "@tauri-apps/plugin-dialog";
+import { Clipboard, FileDown, RefreshCw } from "lucide-react";
+import React, { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import Message from "@src/components/Message";
 import Modal from "@src/scaffold/ModalSystem";
 
 import SessionRawTranscriptContent from "./SessionRawTranscriptContent";
@@ -18,6 +20,36 @@ const SessionRawTranscriptDialog: React.FC<SessionRawTranscriptDialogProps> =
   memo(({ sessionId, visible, onClose }) => {
     const { t } = useTranslation("sessions");
     const transcript = useSessionRawTranscript(sessionId, visible);
+    const [exporting, setExporting] = useState(false);
+    const isExternal = transcript.snapshot?.source.kind === "external-history";
+
+    const handleExportAll = useCallback(async () => {
+      if (!sessionId || !isExternal) return;
+      const safeSessionName =
+        sessionId.replace(/[/\\?%*:|"<>]/g, "-").slice(0, 120) || "session";
+      const destinationPath = await saveDialog({
+        defaultPath: `raw-transcript-${safeSessionName}.json`,
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+      if (!destinationPath) return;
+      setExporting(true);
+      try {
+        await transcript.exportTranscript(destinationPath);
+        Message.success(
+          t("chat.rawTranscript.exportSuccess", {
+            defaultValue: "Raw transcript exported",
+          })
+        );
+      } catch {
+        Message.error(
+          t("chat.rawTranscript.exportFailed", {
+            defaultValue: "Could not export the raw transcript",
+          })
+        );
+      } finally {
+        setExporting(false);
+      }
+    }, [isExternal, sessionId, t, transcript]);
 
     return (
       <Modal
@@ -43,11 +75,35 @@ const SessionRawTranscriptDialog: React.FC<SessionRawTranscriptDialogProps> =
             <Button
               size="small"
               icon={<Clipboard size={14} strokeWidth={1.75} />}
-              disabled={!transcript.snapshot || transcript.loading}
+              disabled={
+                !transcript.snapshot ||
+                transcript.loading ||
+                !transcript.canCopyAll
+              }
+              title={
+                transcript.canCopyAll
+                  ? undefined
+                  : t("chat.rawTranscript.copyTooLarge", {
+                      defaultValue: "Use Export All for large transcripts",
+                    })
+              }
               onClick={() => void transcript.copyTranscript()}
             >
               {t("common:actions.copy", "Copy")}
             </Button>
+            {isExternal ? (
+              <Button
+                size="small"
+                icon={<FileDown size={14} strokeWidth={1.75} />}
+                loading={exporting}
+                disabled={!transcript.snapshot}
+                onClick={() => void handleExportAll()}
+              >
+                {t("chat.rawTranscript.exportAll", {
+                  defaultValue: "Export All",
+                })}
+              </Button>
+            ) : null}
             <Button size="small" variant="primary" onClick={onClose}>
               {t("common:actions.close", "Close")}
             </Button>
@@ -56,12 +112,15 @@ const SessionRawTranscriptDialog: React.FC<SessionRawTranscriptDialogProps> =
       >
         <div className="flex min-h-0 flex-1 flex-col gap-2 px-4 pb-4">
           <SessionRawTranscriptContent
+            entries={transcript.entries}
             error={transcript.error}
             filePath={
               sessionId ? `raw-transcript-${sessionId}.json` : undefined
             }
-            loaded={Boolean(transcript.snapshot)}
             loading={transcript.loading}
+            loadingOlder={transcript.loadingOlder}
+            onLoadOlder={() => void transcript.loadOlder()}
+            snapshot={transcript.snapshot}
             transcriptJson={transcript.transcriptJson}
           />
         </div>

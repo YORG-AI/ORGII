@@ -44,7 +44,7 @@ import {
 } from "./cloudShareImportModel";
 import type { CloudEndpoint } from "./config";
 import { commitRefreshedAuth, org2CloudAuthAtom } from "./org2CloudAuthAtom";
-import { buildCloudSessionFetchClient } from "./org2CloudBackendAdapter";
+import { buildCloudSessionWirePageClient } from "./org2CloudBackendAdapter";
 import { ensureFreshSession } from "./org2CloudClient";
 import {
   consumeOrg2CloudPendingShareAtom,
@@ -243,7 +243,7 @@ const CloudShareImportDialog: React.FC = () => {
       const result = await importRemoteSession({
         // The JWT proves registration; the share token authorizes every
         // segments read without requiring source-org membership.
-        client: buildCloudSessionFetchClient(
+        client: buildCloudSessionWirePageClient(
           fresh.accessToken,
           resolved.endpoint
         ),

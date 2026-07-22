@@ -98,6 +98,14 @@ export async function gzipBytesToBase64(bytes: Uint8Array): Promise<string> {
   return bytesToBase64(compressed);
 }
 
+/** base64 → gunzip bytes without assuming the payload is JSON. */
+export async function gunzipBase64ToBytes(base64: string): Promise<Uint8Array> {
+  return pipeThroughStream(
+    base64ToBytes(base64),
+    new DecompressionStream("gzip")
+  );
+}
+
 /** JSON → gzip → base64 (the client half of `payload_gz`). */
 export async function gzipJsonToBase64(value: unknown): Promise<string> {
   return gzipBytesToBase64(segmentCanonicalBytes(value));
@@ -105,10 +113,6 @@ export async function gzipJsonToBase64(value: unknown): Promise<string> {
 
 /** base64 → gunzip → JSON (the client half of reading `payload_gz`). */
 export async function gunzipBase64ToJson(base64: string): Promise<unknown> {
-  const compressed = base64ToBytes(base64);
-  const bytes = await pipeThroughStream(
-    compressed,
-    new DecompressionStream("gzip")
-  );
+  const bytes = await gunzipBase64ToBytes(base64);
   return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
 }

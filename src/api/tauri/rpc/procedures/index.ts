@@ -1,6 +1,7 @@
 export { agentDef } from "./agentDef";
 export { agentOrgs } from "./agentOrgs";
 export { agentSession } from "./agentSession";
+export { collaborationSnapshotIngest } from "./collaborationSnapshotIngest";
 export { diff } from "./diff";
 export { flow } from "./flow";
 export { gateway } from "./gateway";
@@ -12,6 +13,7 @@ export { searchRegex } from "./searchRegex";
 export { searchSymbol } from "./searchSymbol";
 export { sessionAggregate } from "./sessionAggregate";
 export { sessionCore } from "./sessionCore";
+export { externalReplay } from "./externalReplay";
 export { settings } from "./settings";
 export { terminal } from "./terminal";
 export { tools } from "./tools";

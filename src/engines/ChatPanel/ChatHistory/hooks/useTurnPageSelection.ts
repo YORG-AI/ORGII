@@ -53,7 +53,8 @@ function getTurnIdsToLoadForPage(
 
   const summary = page.cursorIdeSummary;
   if (!summary || summary.bodyEventCount <= 0) return [];
-  const hasLoadedBody = page.flatEndIndex > page.flatStartIndex;
+  const hasLoadedBody =
+    page.cursorIdeBodyLoaded && page.flatEndIndex > page.flatStartIndex;
   return hasLoadedBody ? [] : [summary.turnId];
 }
 
@@ -225,7 +226,26 @@ export function useTurnPageNavigation({
               next.add(turnId);
               return { sessionId: prev.sessionId, turnIds: next };
             });
-            await pruneLoadedTurnBodies(startedForSession, protectedTurnIds);
+            const prunedTurnIds = await pruneLoadedTurnBodies(
+              startedForSession,
+              protectedTurnIds
+            );
+            if (startedForSession !== activeId || prunedTurnIds.length === 0) {
+              return;
+            }
+            for (const prunedTurnId of prunedTurnIds) {
+              autoLoadedTurnKeysRef.current.delete(
+                `${startedForSession}:${prunedTurnId}`
+              );
+            }
+            setLoadedTurnIds((prev) => {
+              if (prev.sessionId !== startedForSession) return prev;
+              const next = new Set(prev.turnIds);
+              for (const prunedTurnId of prunedTurnIds) {
+                next.delete(prunedTurnId);
+              }
+              return { sessionId: prev.sessionId, turnIds: next };
+            });
           })
           .catch((error: unknown) => {
             autoLoadedTurnKeysRef.current.delete(loadKey);

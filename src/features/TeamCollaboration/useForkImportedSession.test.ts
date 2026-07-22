@@ -126,10 +126,11 @@ describe("executeGuestShareFork", () => {
     localSessionId: "agentsession-guest-fork",
     name: "⑂ Remote session",
     eventCount: 4,
+    handoffItems: ["User: continue from the shared session"],
   };
 
   function makeDeps() {
-    const client = { getSessionEventSegments: vi.fn() };
+    const client = { getSessionEventWirePage: vi.fn() };
     const fork = vi.fn<
       (options: ForkTeammateSessionOptions) => Promise<ForkSessionResult | null>
     >(async () => result);
@@ -193,10 +194,11 @@ describe("executeAuthenticatedCloudSessionFork", () => {
     localSessionId: "agentsession-member-fork",
     name: "⑂ Remote session",
     eventCount: 4,
+    handoffItems: ["User: continue from the shared session"],
   };
 
   function makeDeps(rows: RemoteTeammateSessionMetadata[]) {
-    const client = { getSessionEventSegments: vi.fn() };
+    const client = { getSessionEventWirePage: vi.fn() };
     const fork = vi.fn<
       (options: ForkTeammateSessionOptions) => Promise<ForkSessionResult | null>
     >(async () => result);

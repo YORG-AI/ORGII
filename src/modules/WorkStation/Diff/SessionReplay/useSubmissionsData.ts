@@ -23,6 +23,11 @@ import { useEffect, useMemo, useState } from "react";
 
 import { getGitCommitDiff, getGitCommits } from "@src/api/http/git";
 import type { CommitDiffResult, GitCommitInfo } from "@src/api/http/git/types";
+import {
+  externalReplayQueryWindowForTarget,
+  resolveExternalReplayTarget,
+  resolveSecondaryReplayTarget,
+} from "@src/api/tauri/externalHistory/replay";
 import { getPRLocal } from "@src/api/tauri/github";
 import {
   type OrgtrackSessionFinalDiff,
@@ -50,6 +55,24 @@ export type { SubmissionRepoContext } from "./submissionsArtifacts";
 const logger = createLogger("useSubmissionsData");
 
 const SUBMISSION_COMMIT_RESOLVE_LIMIT = 200;
+
+export async function loadSubmissionProjectionEvents(
+  sessionId: string
+): Promise<SessionEvent[]> {
+  const target =
+    resolveExternalReplayTarget(sessionId) ??
+    (await resolveSecondaryReplayTarget(sessionId));
+  if (!target) return loadEvents(sessionId);
+  const window = await externalReplayQueryWindowForTarget({
+    target,
+    limits: {
+      maxTurns: 10,
+      maxEvents: 200,
+      maxIpcBytes: 4 * 1024 * 1024,
+    },
+  });
+  return window.events;
+}
 
 interface UseSubmissionsDataParams {
   sessionId: string | undefined;
@@ -213,13 +236,14 @@ export function useSubmissionsData({
     }
 
     let cancelled = false;
-    void loadEvents(sessionId)
+    setCachedSessionEvents([]);
+    void loadSubmissionProjectionEvents(sessionId)
       .then((events) => {
         if (!cancelled) setCachedSessionEvents(events);
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          logger.warn("failed to load full session events for submissions", {
+          logger.warn("failed to load bounded submission events", {
             err,
             sessionId,
           });

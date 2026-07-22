@@ -4,8 +4,8 @@
  *
  * Post cloud-parity Phase E the only implementation is the managed ORG2
  * Cloud plane (`org2CloudProjectsClient.createCloudProjectSyncClient` for
- * the channel slice, `org2CloudBackendAdapter.buildCloudSessionFetchClient`
- * for the segments read) — the self-hosted Supabase client and its ~30 RPC
+ * the channel slice, `org2CloudBackendAdapter.buildCloudSessionWirePageClient`
+ * for bounded replay reads) — the self-hosted Supabase client and its ~30 RPC
  * input types were deleted with the in-app self-hosted track. What remains
  * is exactly the surface those cloud adapters implement.
  */
@@ -78,37 +78,72 @@ export interface SessionEventsSegmentInput {
   events: SessionEvent[];
 }
 
-export interface GetSessionEventSegmentsInput {
+/**
+ * Hard transport budgets for one raw replay page. These limits apply to the
+ * physical cloud rows, not logical events: one Replay Attachment V2 event may
+ * span several rows whose intermediate `eventCount` is zero.
+ */
+export const SESSION_EVENT_WIRE_MAX_SEGMENT_BYTES = 256 * 1024;
+export const SESSION_EVENT_WIRE_MAX_PAGE_BYTES = 4 * 1024 * 1024;
+export const SESSION_EVENT_WIRE_MAX_PAGE_SEGMENTS = 200;
+
+/**
+ * A physical-row cursor. Forward pages are used for deltas/rebuilds;
+ * backward pages make a cold open start at the newest frozen rows instead of
+ * downloading the complete history. `throughSeq` pins a multi-page forward
+ * read to one frozen high-water mark.
+ */
+export type SessionEventWirePageCursor =
+  | {
+      direction: "forward";
+      afterSeq: number;
+      throughSeq?: number;
+    }
+  | {
+      direction: "backward";
+      beforeSeq?: number;
+    };
+
+export interface GetSessionEventWirePageInput {
   orgId: string;
   sessionRowId: string;
-  /** Return frozen segments with seq strictly greater; tail always included. */
-  afterSeq?: number;
+  cursor: SessionEventWirePageCursor;
   /**
-   * Link-share capability (design §6.4): when set, the call authenticates
-   * with the token alone (member/root credentials are not sent) and can only
-   * read the one session the token is bound to.
+   * Ask the server to include the current mutable tail state. A latest-page
+   * cold open and a forward delta set this; older backward pages do not.
    */
+  includeTail: boolean;
+  maxSegments: number;
+  maxWireBytes: number;
   shareToken?: string;
-  /** Cancels the fetch + decode (dialog close / attempt supersession). */
   signal?: AbortSignal;
 }
 
-export interface SessionEventSegmentRecord {
+/**
+ * Opaque compressed physical row. Consumers must persist/stream these rows
+ * without decoding them into a renderer-sized `SessionEvent[]`.
+ */
+export interface SessionEventSegmentWireRecord {
   seq: number;
-  isTail: boolean;
-  events: SessionEvent[];
+  payloadGz: string;
   eventCount: number;
   segmentHash: string;
 }
 
-/** Single-statement snapshot of the summary + requested segments. */
-export interface SessionEventSegmentsSnapshot {
-  /** null ⇒ the owner has never pushed segments for this session. */
+/** One fail-closed, byte-bounded page from a single epoch snapshot. */
+export interface SessionEventWirePage {
   epoch: number | null;
   frozenSeq: number | null;
   tailHash: string | null;
   count: number | null;
-  segments: SessionEventSegmentRecord[];
+  segments: SessionEventSegmentWireRecord[];
+  /** True only when this response represents the requested current tail. */
+  tailIncluded: boolean;
+  hasMore: boolean;
+  /** Physical-row continuation; never a logical event-count cursor. */
+  nextCursor: SessionEventWirePageCursor | null;
+  /** Sum of compact UTF-8 JSON bytes for `segments`. */
+  returnedWireBytes: number;
 }
 
 export interface CollabSyncBackendClient {
@@ -118,8 +153,8 @@ export interface CollabSyncBackendClient {
   upsertWorkItem(input: UpsertWorkItemInput): Promise<CollabUpsertResult>;
   deleteProjectMetadata(input: DeleteProjectMetadataInput): Promise<void>;
   deleteWorkItemMetadata(input: DeleteWorkItemMetadataInput): Promise<void>;
-  getSessionEventSegments(
-    input: GetSessionEventSegmentsInput
-  ): Promise<SessionEventSegmentsSnapshot>;
+  getSessionEventWirePage(
+    input: GetSessionEventWirePageInput
+  ): Promise<SessionEventWirePage>;
   listOrgState(input: ListOrgStateInput): Promise<CollabOrgState>;
 }

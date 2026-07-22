@@ -26,6 +26,9 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import { externalReplayReadPayloadRange } from "@src/api/tauri/externalHistory/replay";
+import { ReplayRequestGuard } from "@src/api/tauri/externalHistory/replayRequestGuard";
+import Button from "@src/components/Button";
 import ExpandOverlay from "@src/components/ExpandOverlay";
 import {
   hasTuiSequences,
@@ -71,6 +74,15 @@ const COLLAPSED_MAX_HEIGHT = 120;
 const EXPANDED_MAX_HEIGHT_CSS = "min(320px, 30vh)";
 const HIGHLIGHT_MAX_CHARS = 200_000;
 const RENDER_FULL_PAYLOAD_MAX_CHARS = 500_000;
+const EXTERNAL_PAYLOAD_RANGE_BYTES = 256 * 1024;
+
+interface ExternalPayloadRangePage {
+  offset: number;
+  nextOffset: number;
+  eof: boolean;
+  totalBytes: number;
+  text: string;
+}
 
 export type BlockOutputStatus = "default" | "error" | "success";
 
@@ -140,7 +152,13 @@ const BlockOutput: React.FC<BlockOutputProps> = memo(
     const { t } = useTranslation();
     const [isOutputExpanded, setIsOutputExpanded] = useState(false);
     const [fullPayload, setFullPayload] = useState<string | null>(null);
+    const [externalPayloadRange, setExternalPayloadRange] =
+      useState<ExternalPayloadRangePage | null>(null);
+    const [payloadLoadError, setPayloadLoadError] = useState<string | null>(
+      null
+    );
     const [isLoadingPayload, setIsLoadingPayload] = useState(false);
+    const replayPayloadRequestGuard = useRef(new ReplayRequestGuard());
 
     const payloadKey =
       payloadRef && sessionId && eventId
@@ -148,17 +166,32 @@ const BlockOutput: React.FC<BlockOutputProps> = memo(
         : null;
 
     useEffect(() => {
+      const requestGuard = replayPayloadRequestGuard.current;
+      requestGuard.invalidate();
+      setIsLoadingPayload(false);
       if (!payloadKey) {
         setFullPayload(null);
+        setExternalPayloadRange(null);
         return;
       }
       setFullPayload(getLoadedPayload(payloadKey));
-    }, [payloadKey]);
+      setExternalPayloadRange(null);
+      setPayloadLoadError(null);
+      return () => requestGuard.invalidate();
+    }, [payloadKey, payloadRef?.replayGeneration]);
+
+    const isExternalReplayPayload = Boolean(
+      payloadRef?.replayGeneration && payloadRef.replaySourceEventId
+    );
 
     const shouldRenderFullPayload =
       fullPayload !== null &&
       fullPayload.length <= RENDER_FULL_PAYLOAD_MAX_CHARS;
-    const displayOutput = shouldRenderFullPayload ? fullPayload : output;
+    const displayOutput = externalPayloadRange
+      ? externalPayloadRange.text
+      : shouldRenderFullPayload
+        ? fullPayload
+        : output;
 
     const useTuiRenderer = useMemo(
       () => tuiRendering ?? hasTuiSequences(displayOutput),
@@ -250,10 +283,58 @@ const BlockOutput: React.FC<BlockOutputProps> = memo(
     ]);
 
     const canLoadFullPayload = Boolean(
-      payloadRef && sessionId && eventId && fullPayload === null
+      payloadRef &&
+      sessionId &&
+      eventId &&
+      (isExternalReplayPayload
+        ? externalPayloadRange === null
+        : fullPayload === null)
+    );
+    const loadExternalPayloadRange = useCallback(
+      async (offset: number) => {
+        if (
+          !payloadRef?.replayGeneration ||
+          !payloadRef.replaySourceEventId ||
+          !sessionId
+        ) {
+          return;
+        }
+        const requestEpoch = replayPayloadRequestGuard.current.begin();
+        setIsLoadingPayload(true);
+        setPayloadLoadError(null);
+        try {
+          const range = await externalReplayReadPayloadRange({
+            sessionId,
+            generation: payloadRef.replayGeneration,
+            eventId: payloadRef.replaySourceEventId,
+            fieldPath: payloadRef.fieldPath,
+            offset,
+            maxBytes: EXTERNAL_PAYLOAD_RANGE_BYTES,
+          });
+          if (!replayPayloadRequestGuard.current.isCurrent(requestEpoch))
+            return;
+          setExternalPayloadRange(range);
+          setIsOutputExpanded(true);
+        } catch (error) {
+          if (!replayPayloadRequestGuard.current.isCurrent(requestEpoch))
+            return;
+          setPayloadLoadError(
+            error instanceof Error ? error.message : String(error)
+          );
+        } finally {
+          if (replayPayloadRequestGuard.current.isCurrent(requestEpoch)) {
+            setIsLoadingPayload(false);
+          }
+        }
+      },
+      [payloadRef, sessionId]
     );
     const handleLoadFullPayload = useCallback(async () => {
       if (!payloadRef || !sessionId || !eventId || !payloadKey) return;
+      if (isExternalReplayPayload) {
+        await loadExternalPayloadRange(0);
+        return;
+      }
       const loaded = getLoadedPayload(payloadKey);
       if (loaded !== null) {
         setFullPayload(loaded);
@@ -280,7 +361,15 @@ const BlockOutput: React.FC<BlockOutputProps> = memo(
       } finally {
         setIsLoadingPayload(false);
       }
-    }, [eventId, onFullPayloadLoaded, payloadKey, payloadRef, sessionId]);
+    }, [
+      eventId,
+      isExternalReplayPayload,
+      loadExternalPayloadRange,
+      onFullPayloadLoaded,
+      payloadKey,
+      payloadRef,
+      sessionId,
+    ]);
 
     const preClassesShared = `block-output__pre m-0 whitespace-pre ${EVENT_SNIPPET_INNER_PADDING_CLASS} leading-normal`;
     const useTopCollapsedOverlay = defaultScrollToBottom && !isOutputExpanded;
@@ -351,7 +440,57 @@ const BlockOutput: React.FC<BlockOutputProps> = memo(
           )}
         </div>
 
-        {fullPayload !== null && payloadKey && (
+        {externalPayloadRange && payloadRef ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border-2 bg-fill-1/60 px-3 py-2 text-xs text-text-3">
+            <span>
+              {externalPayloadRange.offset.toLocaleString()}–
+              {externalPayloadRange.nextOffset.toLocaleString()} /{" "}
+              {externalPayloadRange.totalBytes.toLocaleString()} bytes
+            </span>
+            <div className="flex gap-2">
+              <Button
+                size="mini"
+                variant="tertiary"
+                appearance="outline"
+                disabled={isLoadingPayload || externalPayloadRange.offset === 0}
+                onClick={() =>
+                  void loadExternalPayloadRange(
+                    Math.max(
+                      0,
+                      externalPayloadRange.offset - EXTERNAL_PAYLOAD_RANGE_BYTES
+                    )
+                  )
+                }
+              >
+                {t("common:actions.previous", { defaultValue: "Previous" })}
+              </Button>
+              <Button
+                size="mini"
+                variant="tertiary"
+                appearance="outline"
+                disabled={isLoadingPayload || externalPayloadRange.eof}
+                onClick={() =>
+                  void loadExternalPayloadRange(externalPayloadRange.nextOffset)
+                }
+              >
+                {t("common:actions.next", { defaultValue: "Next" })}
+              </Button>
+              <Button
+                size="mini"
+                variant="tertiary"
+                appearance="outline"
+                onClick={() => {
+                  setExternalPayloadRange(null);
+                  setIsOutputExpanded(false);
+                }}
+              >
+                {t("common:showLess")}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {!isExternalReplayPayload && fullPayload !== null && payloadKey && (
           <div className="flex items-center justify-between border-t border-border-2 bg-fill-1/60 px-3 py-2 text-xs text-text-3">
             <span>
               {fullPayload.length.toLocaleString()} bytes loaded
@@ -390,6 +529,15 @@ const BlockOutput: React.FC<BlockOutputProps> = memo(
             </button>
           </div>
         )}
+
+        {payloadLoadError ? (
+          <div
+            role="alert"
+            className="border-t border-border-2 px-3 py-2 text-xs text-danger-6"
+          >
+            {payloadLoadError}
+          </div>
+        ) : null}
 
         {!useTopCollapsedOverlay ? expandOverlay : null}
       </div>

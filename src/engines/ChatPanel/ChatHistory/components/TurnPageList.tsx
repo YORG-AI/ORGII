@@ -6,7 +6,7 @@
  */
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ClockArrowDown, ClockArrowUp, X } from "lucide-react";
-import React, { memo, useMemo, useRef } from "react";
+import React, { memo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
@@ -37,12 +37,6 @@ interface TurnPageListProps {
   onClose?: () => void;
 }
 
-interface TurnPageItem {
-  pageIndex: number;
-  text: string;
-  time: string;
-}
-
 // memo: parallels `TurnPaginationControls` (its sibling toolbar) so
 // the dropdown overlay doesn't re-mount on every chat-history tick
 // while it is open. All props are primitives or stable references
@@ -62,38 +56,10 @@ const TurnPageList: React.FC<TurnPageListProps> = memo(
   }) => {
     const { t } = useTranslation();
 
-    const turnPageItems = useMemo<TurnPageItem[]>(() => {
-      const items: TurnPageItem[] = pages.map((page, pageIndex) => {
-        const header = groupHeaders[page.startGroupIndex];
-        const meta = groupMeta[page.startGroupIndex];
-        const rawPreviewText =
-          page.cursorIdeSummary?.userPreview ??
-          (header?.event?.displayText
-            ? stripExpandedPillContent(String(header.event.displayText))
-            : undefined) ??
-          meta?.previewText;
-        const text = getRoundPreviewText(rawPreviewText);
-        return {
-          pageIndex,
-          text:
-            text ||
-            t("common:pagination.round", {
-              current: pageIndex + 1,
-            }),
-          time: page.cursorIdeSummary
-            ? formatCursorIdeTurnPageTimeLabel(page.cursorIdeSummary)
-            : formatTurnPageTimeLabel(
-                groupMeta.slice(page.startGroupIndex, page.endGroupIndex + 1)
-              ),
-        };
-      });
-      return turnPageSortAscending ? items : [...items].reverse();
-    }, [groupHeaders, groupMeta, pages, t, turnPageSortAscending]);
-
     const scrollParentRef = useRef<HTMLDivElement>(null);
     // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual exposes stable imperative helpers that are intentionally used by this virtualized overlay.
     const rowVirtualizer = useVirtualizer({
-      count: turnPageItems.length,
+      count: pages.length,
       getScrollElement: () => scrollParentRef.current,
       estimateSize: () => 36,
       overscan: 12,
@@ -143,9 +109,35 @@ const TurnPageList: React.FC<TurnPageListProps> = memo(
                 style={{ height: rowVirtualizer.getTotalSize() }}
               >
                 {rowVirtualizer.getVirtualItems().map((virtualItem) => {
-                  const item = turnPageItems[virtualItem.index];
-                  if (!item) return null;
-                  const { pageIndex, text, time } = item;
+                  const pageIndex = turnPageSortAscending
+                    ? virtualItem.index
+                    : pages.length - virtualItem.index - 1;
+                  const page = pages[pageIndex];
+                  if (!page) return null;
+                  const header = groupHeaders[page.startGroupIndex];
+                  const meta = groupMeta[page.startGroupIndex];
+                  const rawPreviewText =
+                    page.cursorIdeSummary?.userPreview ??
+                    (header?.event?.displayText
+                      ? stripExpandedPillContent(
+                          String(header.event.displayText)
+                        )
+                      : undefined) ??
+                    meta?.previewText;
+                  const previewText = getRoundPreviewText(rawPreviewText);
+                  const text =
+                    previewText ||
+                    t("common:pagination.round", {
+                      current: pageIndex + 1,
+                    });
+                  const time = page.cursorIdeSummary
+                    ? formatCursorIdeTurnPageTimeLabel(page.cursorIdeSummary)
+                    : formatTurnPageTimeLabel(
+                        groupMeta.slice(
+                          page.startGroupIndex,
+                          page.endGroupIndex + 1
+                        )
+                      );
                   const isCurrent = pageIndex === currentPageIndex;
                   return (
                     <div

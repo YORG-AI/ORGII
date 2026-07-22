@@ -1,15 +1,17 @@
-import { cursorIdeComposerLastUpdatedAt } from "@src/api/tauri/externalHistory/cursorIde";
 import { Message } from "@src/components/Message";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import { isVisibleInChat } from "@src/engines/SessionCore/ingestion/visibilityFilters";
-import type { Logger } from "@src/hooks/logger";
 import {
-  composerIdFromSessionId,
-  isImportedHistorySession,
-} from "@src/util/session/sessionDispatch";
+  mergeExternalReplayTurnWindow,
+  startExternalReplayTurnEpisode,
+} from "@src/engines/SessionCore/sync/externalReplayTurnState";
+import type { Logger } from "@src/hooks/logger";
+import { isImportedHistorySession } from "@src/util/session/sessionDispatch";
 
-import { getCursorIdeSnapshotLastUpdatedAt } from "./adapters/cursorIdeAdapter";
-import { isCursorIdeSessionId } from "./sessionSyncDerivedState";
+import {
+  type ExternalReplaySessionLease,
+  openExternalReplaySession,
+} from "./externalReplayTransport";
 import { rehydratePendingPlanApproval } from "./sessionSyncPlanApproval";
 import { reconcileInFlightHistory } from "./sessionSyncReconcile";
 import {
@@ -32,6 +34,7 @@ interface SessionSwitchOrchestratorOptions {
   actions: SessionLoadStateActions;
   setPendingPlanApprovals: Parameters<typeof rehydratePendingPlanApproval>[2];
   logger: Logger;
+  replayLease?: ExternalReplaySessionLease;
 }
 
 export function runSessionSwitchOrchestrator(
@@ -50,6 +53,20 @@ export function runSessionSwitchOrchestrator(
     try {
       const cacheHit = await eventStoreProxy.switchSession(sessionId);
       if (abortController.signal.aborted) return;
+      if (adapter.historyMode === "bounded-replay") {
+        if (!options.replayLease) {
+          throw new Error(`Missing bounded replay lease for ${sessionId}`);
+        }
+        await handleBoundedReplaySession({
+          sessionId,
+          adapter,
+          abortController,
+          actions,
+          setPendingPlanApprovals,
+          replayLease: options.replayLease,
+        });
+        return;
+      }
       if (cacheHit) {
         await handleCacheHit({
           sessionId,
@@ -89,6 +106,63 @@ export function runSessionSwitchOrchestrator(
   void switchSession();
 }
 
+async function handleBoundedReplaySession(
+  options: Pick<
+    SessionSwitchOrchestratorOptions,
+    | "sessionId"
+    | "adapter"
+    | "abortController"
+    | "actions"
+    | "setPendingPlanApprovals"
+    | "replayLease"
+  >
+): Promise<void> {
+  const {
+    sessionId,
+    adapter,
+    abortController,
+    actions,
+    setPendingPlanApprovals,
+    replayLease,
+  } = options;
+  if (!replayLease) return;
+
+  actions.setLoadStatus("loading");
+  const postResult = adapter.postLoad
+    ? await adapter.postLoad(sessionId, abortController.signal)
+    : null;
+  if (abortController.signal.aborted) return;
+
+  const window = await openExternalReplaySession(
+    replayLease,
+    abortController.signal
+  );
+  if (!window || abortController.signal.aborted) return;
+  startExternalReplayTurnEpisode(sessionId, window.cursor.generation);
+  mergeExternalReplayTurnWindow(sessionId, window);
+
+  // A just-launched managed native CLI may not have emitted its vendor id
+  // yet. Rust leaves the existing live EventStore untouched in that state.
+  const displayEvents = window.stats.notReady
+    ? await eventStoreProxy.getEvents(sessionId)
+    : window.events;
+  if (abortController.signal.aborted) return;
+
+  actions.dispatchLoadSession({
+    sessionId,
+    events: displayEvents,
+    // The replay generation is canonical. Do not retain rows from a previous
+    // source generation or a wider cached window in the Jotai projection.
+    replace: !window.stats.notReady,
+  });
+  rehydratePendingPlanApproval(
+    sessionId,
+    abortController,
+    setPendingPlanApprovals
+  );
+  applyPostLoadResult(sessionId, postResult, actions);
+}
+
 async function handleCacheHit(
   options: Pick<
     SessionSwitchOrchestratorOptions,
@@ -109,14 +183,10 @@ async function handleCacheHit(
     setPendingPlanApprovals,
   } = options;
 
-  if (isCursorIdeSessionId(sessionId)) {
-    const handled = await handleCursorIdeCacheHit(
-      sessionId,
-      adapter,
-      abortController,
-      actions
-    );
-    if (handled) return;
+  // Bounded replay is handled before this function. Keeping the assertion
+  // here prevents a future caller from silently reintroducing loadHistory.
+  if (adapter.historyMode !== "persisted-db") {
+    throw new Error(`Unexpected bounded replay cache path for ${sessionId}`);
   }
 
   actions.setLoadStatus("loading");
@@ -186,37 +256,6 @@ async function handleCacheHit(
   applyPostLoadResult(sessionId, postResult, actions);
 }
 
-async function handleCursorIdeCacheHit(
-  sessionId: string,
-  adapter: SessionAdapter,
-  abortController: AbortController,
-  actions: Pick<
-    SessionLoadStateActions,
-    "dispatchLoadSession" | "setLoadStatus"
-  >
-): Promise<boolean> {
-  actions.setLoadStatus("loading");
-  const composerId = composerIdFromSessionId(sessionId);
-  const currentUpdatedAt = composerId
-    ? await cursorIdeComposerLastUpdatedAt(composerId)
-    : null;
-  if (abortController.signal.aborted) return true;
-  const cachedUpdatedAt = getCursorIdeSnapshotLastUpdatedAt(sessionId);
-  if (currentUpdatedAt !== null && cachedUpdatedAt === currentUpdatedAt) {
-    const cachedEvents = await eventStoreProxy.getEvents();
-    if (abortController.signal.aborted) return true;
-    actions.dispatchLoadSession({ sessionId, events: cachedEvents });
-    return true;
-  }
-
-  const events = await adapter.loadHistory(sessionId, abortController.signal);
-  if (abortController.signal.aborted) return true;
-  await eventStoreProxy.set(events, sessionId);
-  if (abortController.signal.aborted) return true;
-  actions.dispatchLoadSession({ sessionId, events });
-  return true;
-}
-
 async function handleCacheMiss(
   options: Pick<
     SessionSwitchOrchestratorOptions,
@@ -236,6 +275,10 @@ async function handleCacheMiss(
     actions,
     setPendingPlanApprovals,
   } = options;
+
+  if (adapter.historyMode !== "persisted-db") {
+    throw new Error(`Unexpected bounded replay miss path for ${sessionId}`);
+  }
 
   actions.setLoadStatus("loading");
 

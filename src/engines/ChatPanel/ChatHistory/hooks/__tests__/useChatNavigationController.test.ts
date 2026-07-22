@@ -9,6 +9,7 @@ const pages = [
     flatStartIndex: 0,
     flatEndIndex: 3,
     cursorIdeSummary: null,
+    cursorIdeBodyLoaded: false,
   },
   {
     startGroupIndex: 2,
@@ -16,6 +17,7 @@ const pages = [
     flatStartIndex: 3,
     flatEndIndex: 8,
     cursorIdeSummary: null,
+    cursorIdeBodyLoaded: false,
   },
 ];
 

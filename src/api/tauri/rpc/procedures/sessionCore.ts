@@ -18,7 +18,7 @@ const cache = {
     .input(schemas.sessionCore.SaveCachedEventsInput)
     .build(),
 
-  loadCachedEvents: defineProcedure("cache_load_events")
+  loadCachedEvents: defineProcedure("cache_load_native_cached_events")
     .input(schemas.sessionCore.SessionIdInput)
     .output(schemas.sessionCore.CachedEventRowsSchema)
     .build(),

@@ -1,5 +1,6 @@
 const MAX_LOADED_PAYLOADS = 6;
 const MAX_LOADED_PAYLOAD_BYTES = 8 * 1024 * 1024;
+const LOADED_PAYLOAD_TTL_MS = 3 * 60 * 1000;
 
 interface LoadedPayloadEntry {
   key: string;
@@ -9,7 +10,16 @@ interface LoadedPayloadEntry {
 }
 
 const loadedPayloads = new Map<string, LoadedPayloadEntry>();
-const pendingLoads = new Map<string, Promise<string | null>>();
+interface PendingPayloadLoad {
+  promise: Promise<string | null>;
+  registryEpoch: number;
+}
+
+const pendingLoads = new Map<string, PendingPayloadLoad>();
+// Clearing on switch/close invalidates completions that are already across
+// the async boundary. Without this epoch, a late range response could
+// repopulate the cache after its owning replay episode was released.
+let registryEpoch = 0;
 
 function estimateStringBytes(value: string): number {
   return value.length * 2;
@@ -24,6 +34,7 @@ export function getPayloadRegistryKey(
 }
 
 export function getLoadedPayload(key: string): string | null {
+  pruneLoadedPayloads();
   const entry = loadedPayloads.get(key);
   if (!entry) return null;
   entry.lastAccessedAt = Date.now();
@@ -33,22 +44,29 @@ export function getLoadedPayload(key: string): string | null {
 export function getPendingPayloadLoad(
   key: string
 ): Promise<string | null> | null {
-  return pendingLoads.get(key) ?? null;
+  return pendingLoads.get(key)?.promise ?? null;
 }
 
 export async function trackPendingPayloadLoad(
   key: string,
   load: Promise<string | null>
 ): Promise<string | null> {
-  pendingLoads.set(key, load);
+  const pending = { promise: load, registryEpoch };
+  pendingLoads.set(key, pending);
   try {
     const body = await load;
-    if (body !== null) {
+    if (
+      body !== null &&
+      registryEpoch === pending.registryEpoch &&
+      pendingLoads.get(key) === pending
+    ) {
       markPayloadLoaded(key, body);
     }
     return body;
   } finally {
-    pendingLoads.delete(key);
+    if (pendingLoads.get(key) === pending) {
+      pendingLoads.delete(key);
+    }
   }
 }
 
@@ -67,11 +85,13 @@ export function unloadPayload(key: string): void {
 }
 
 export function clearLoadedPayloads(): void {
+  registryEpoch += 1;
   loadedPayloads.clear();
   pendingLoads.clear();
 }
 
 export function getLoadedPayloadStats(): { entries: number; bytes: number } {
+  pruneLoadedPayloads();
   return {
     entries: loadedPayloads.size,
     bytes: loadedPayloadBytes(),
@@ -97,6 +117,12 @@ function oldestLoadedPayloadEntry(): LoadedPayloadEntry | null {
 }
 
 function pruneLoadedPayloads(): void {
+  const now = Date.now();
+  for (const [key, entry] of loadedPayloads) {
+    if (now - entry.lastAccessedAt >= LOADED_PAYLOAD_TTL_MS) {
+      loadedPayloads.delete(key);
+    }
+  }
   let totalBytes = loadedPayloadBytes();
   while (
     loadedPayloads.size > MAX_LOADED_PAYLOADS ||

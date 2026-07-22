@@ -9,12 +9,15 @@ import {
   ORG2_CLOUD_POSTGREST_SCHEMA,
 } from "./config";
 import {
+  CloudSessionWirePageContractError,
   Org2CloudSyncError,
+  appendSessionEventWires,
   appendSessionEvents,
   getOrgRepoScopes,
   getSessionEvents,
   isOrg2SyncErrorCode,
   listOrgSessions,
+  rewriteSessionEventWires,
   rewriteSessionEvents,
   setOrgRepoScopes,
   upsertSessionMetadata,
@@ -135,6 +138,49 @@ describe("cloud_upsert_session_metadata", () => {
 });
 
 describe("cloud_append_session_events", () => {
+  it("forwards Rust-prepared segment wires without decoding them", async () => {
+    const wire = {
+      seq: 9,
+      payloadGz: "opaque-rust-gzip",
+      eventCount: 1,
+      segmentHash: "rust-hash",
+    };
+    await appendSessionEventWires("jwt-1", {
+      orgId: "org-1",
+      sessionId: "s-1",
+      expectedEpoch: 2,
+      expectedFrozenSeq: 8,
+      expectedTailHash: null,
+      newFrozenSegments: [wire],
+      tail: null,
+      totalCount: 9,
+    });
+    expect(lastBody().new_frozen_segments).toEqual([wire]);
+  });
+
+  it("fails closed before fetch when any encoded segment exceeds 256 KiB", async () => {
+    await expect(
+      appendSessionEventWires("jwt-1", {
+        orgId: "org-1",
+        sessionId: "s-1",
+        expectedEpoch: 1,
+        expectedFrozenSeq: 0,
+        expectedTailHash: null,
+        newFrozenSegments: [
+          {
+            seq: 1,
+            payloadGz: "x".repeat(256 * 1024),
+            eventCount: 1,
+            segmentHash: "oversized",
+          },
+        ],
+        tail: null,
+        totalCount: 1,
+      })
+    ).rejects.toThrow("versioned attachment wire is required");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("builds shared-codec segment wire payloads with OCC anchors", async () => {
     const frozen = [makeEvent("f1")];
     const tail = [makeEvent("t1")];
@@ -196,6 +242,24 @@ describe("cloud_append_session_events", () => {
 });
 
 describe("cloud_rewrite_session_events", () => {
+  it("forwards a bounded Rust rewrite wire unchanged", async () => {
+    const wire = {
+      seq: 1,
+      payloadGz: "opaque-rust-gzip",
+      eventCount: 1,
+      segmentHash: "rust-hash",
+    };
+    await rewriteSessionEventWires("jwt-1", {
+      orgId: "org-1",
+      sessionId: "s-1",
+      newEpoch: 4,
+      frozenSegments: [wire],
+      tail: null,
+      totalCount: 1,
+    });
+    expect(lastBody().frozen_segments).toEqual([wire]);
+  });
+
   it("ships the rewrite body with new_epoch", async () => {
     await rewriteSessionEvents("jwt-1", {
       orgId: "org-1",
@@ -392,5 +456,250 @@ describe("cloud_get_session_events", () => {
       "https://db.custom.example.com/rest/v1/rpc/cloud_get_session_events"
     );
     expect(lastBody()).toEqual({ p_org_id: "org-1", p_session_id: "s-1" });
+  });
+
+  it("requests a byte-bounded latest page without decoding its wires", async () => {
+    const frozen = {
+      seq: 7,
+      payloadGz: "frozen-wire",
+      eventCount: 1,
+      segmentHash: "frozen-hash",
+    };
+    const tail = {
+      seq: 0,
+      payloadGz: "tail-wire",
+      eventCount: 2,
+      segmentHash: "tail-hash",
+    };
+    const returnedWireBytes = [frozen, tail].reduce(
+      (total, segment) =>
+        total + new TextEncoder().encode(JSON.stringify(segment)).byteLength,
+      0
+    );
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        epoch: 4,
+        frozenSeq: 9,
+        tailHash: "tail-hash",
+        count: 12,
+        segments: [frozen, tail],
+        direction: "backward",
+        tailIncluded: true,
+        hasMore: true,
+        nextCursor: { direction: "backward", beforeSeq: 7 },
+        returnedWireBytes,
+      })
+    );
+
+    const page = await getSessionEvents("jwt-1", "org-1", "s-1", {
+      boundedWirePage: true,
+      cursor: { direction: "backward" },
+      includeTail: true,
+      maxSegments: 16,
+      maxWireBytes: 1024 * 1024,
+    });
+
+    expect(lastBody()).toEqual({
+      p_org_id: "org-1",
+      p_session_id: "s-1",
+      p_direction: "backward",
+      p_include_tail: true,
+      p_max_segments: 16,
+      p_max_wire_bytes: 1024 * 1024,
+    });
+    expect(page.segments).toEqual([frozen, tail]);
+    expect(page.nextCursor).toEqual({
+      direction: "backward",
+      beforeSeq: 7,
+    });
+  });
+
+  it("passes the backward continuation cursor for older frozen rows", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        epoch: 4,
+        frozenSeq: 9,
+        tailHash: null,
+        count: 12,
+        segments: [],
+        direction: "backward",
+        tailIncluded: false,
+        hasMore: false,
+        nextCursor: null,
+        returnedWireBytes: 0,
+      })
+    );
+
+    await getSessionEvents("jwt-1", "org-1", "s-1", {
+      boundedWirePage: true,
+      cursor: { direction: "backward", beforeSeq: 7 },
+      includeTail: false,
+      maxSegments: 16,
+      maxWireBytes: 1024,
+    });
+
+    expect(lastBody()).toMatchObject({
+      p_direction: "backward",
+      p_before_seq: 7,
+      p_include_tail: false,
+      p_max_segments: 16,
+      p_max_wire_bytes: 1024,
+    });
+  });
+
+  it("pins a multi-page forward cursor while accepting V2 eventCount zero rows", async () => {
+    const continuation = {
+      seq: 1,
+      payloadGz: "v2-part-1",
+      eventCount: 0,
+      segmentHash: "part-1-hash",
+    };
+    const finalPart = {
+      seq: 2,
+      payloadGz: "v2-part-2",
+      eventCount: 1,
+      segmentHash: "part-2-hash",
+    };
+    const bytes = (segment: typeof continuation): number =>
+      new TextEncoder().encode(JSON.stringify(segment)).byteLength;
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          epoch: 8,
+          frozenSeq: 2,
+          tailHash: null,
+          count: 1,
+          segments: [continuation],
+          direction: "forward",
+          tailIncluded: false,
+          hasMore: true,
+          nextCursor: {
+            direction: "forward",
+            afterSeq: 1,
+            throughSeq: 2,
+          },
+          returnedWireBytes: bytes(continuation),
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          epoch: 8,
+          frozenSeq: 2,
+          tailHash: null,
+          count: 1,
+          segments: [finalPart],
+          direction: "forward",
+          tailIncluded: false,
+          hasMore: false,
+          nextCursor: null,
+          returnedWireBytes: bytes(finalPart),
+        })
+      );
+
+    const first = await getSessionEvents("jwt-1", "org-1", "s-1", {
+      boundedWirePage: true,
+      cursor: { direction: "forward", afterSeq: 0 },
+      includeTail: false,
+      maxSegments: 1,
+      maxWireBytes: 1024,
+    });
+    expect(first.segments[0].eventCount).toBe(0);
+    expect(first.nextCursor).toEqual({
+      direction: "forward",
+      afterSeq: 1,
+      throughSeq: 2,
+    });
+
+    await getSessionEvents("jwt-1", "org-1", "s-1", {
+      boundedWirePage: true,
+      cursor: first.nextCursor!,
+      includeTail: false,
+      maxSegments: 1,
+      maxWireBytes: 1024,
+    });
+    expect(lastBody()).toMatchObject({
+      p_direction: "forward",
+      p_after_seq: 1,
+      p_through_seq: 2,
+      p_max_segments: 1,
+      p_max_wire_bytes: 1024,
+    });
+  });
+
+  it("fails closed when an old server omits bounded pagination metadata", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ epoch: 1, frozenSeq: 0, segments: [] })
+    );
+
+    await expect(
+      getSessionEvents("jwt-1", "org-1", "s-1", {
+        boundedWirePage: true,
+        cursor: { direction: "backward" },
+        includeTail: true,
+        maxSegments: 16,
+        maxWireBytes: 1024,
+      })
+    ).rejects.toThrow();
+  });
+
+  it("stops reading when a legacy/full response exceeds the HTTP body cap", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        epoch: 1,
+        frozenSeq: 1,
+        segments: [
+          {
+            seq: 1,
+            payloadGz: "x".repeat(100 * 1024),
+            eventCount: 1,
+            segmentHash: "legacy-full-response",
+          },
+        ],
+      })
+    );
+
+    await expect(
+      getSessionEvents("jwt-1", "org-1", "s-1", {
+        boundedWirePage: true,
+        cursor: { direction: "backward" },
+        includeTail: true,
+        maxSegments: 1,
+        maxWireBytes: 1024,
+      })
+    ).rejects.toThrow(/response exceeded/);
+  });
+
+  it("fails closed when the server exceeds the physical wire budget", async () => {
+    const oversized = {
+      seq: 1,
+      payloadGz: "x".repeat(257 * 1024),
+      eventCount: 0,
+      segmentHash: "oversized",
+    };
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        epoch: 1,
+        frozenSeq: 1,
+        tailHash: null,
+        count: 0,
+        segments: [oversized],
+        direction: "forward",
+        tailIncluded: false,
+        hasMore: false,
+        nextCursor: null,
+        returnedWireBytes: new TextEncoder().encode(JSON.stringify(oversized))
+          .byteLength,
+      })
+    );
+
+    await expect(
+      getSessionEvents("jwt-1", "org-1", "s-1", {
+        boundedWirePage: true,
+        cursor: { direction: "forward", afterSeq: 0 },
+        includeTail: false,
+        maxSegments: 16,
+        maxWireBytes: 1024 * 1024,
+      })
+    ).rejects.toBeInstanceOf(CloudSessionWirePageContractError);
   });
 });

@@ -1,39 +1,93 @@
-import { describe, expect, it, vi } from "vitest";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
 
 import {
   IMPORTED_HISTORY_SOURCES,
   getImportedHistorySourceByListCategory,
   getImportedHistorySourceBySessionId,
   isImportedHistoryListCategory,
+  resolveExternalReplayTarget,
 } from "@src/api/tauri/externalHistory";
 
-const cursorLoaders = vi.hoisted(() => ({
-  preview: vi.fn(),
-  full: vi.fn(),
-}));
+function loadRustReplayRegistry(): Map<string, string> {
+  const rustRoot = resolve(
+    process.cwd(),
+    "src-tauri/crates/orgtrack-core/src/sources"
+  );
+  const metadata = readFileSync(
+    resolve(rustRoot, "imported_history/metadata.rs"),
+    "utf8"
+  );
+  const sourceConstants = new Map<string, string>();
+  for (const match of metadata.matchAll(
+    /pub const (SOURCE_[A-Z0-9_]+):\s*&str\s*=\s*"([^"]+)"\s*;/g
+  )) {
+    sourceConstants.set(match[1], match[2]);
+  }
 
-vi.mock("../../cursorIde", () => ({
-  cursorIdeInitialWindow: cursorLoaders.preview,
-  cursorIdeChunks: cursorLoaders.full,
-}));
+  const registry = readFileSync(
+    resolve(rustRoot, "imported_history/replay/registry.rs"),
+    "utf8"
+  );
+  const descriptors = new Map<string, string>();
+  for (const match of registry.matchAll(
+    /source_id:\s*(SOURCE_[A-Z0-9_]+),\s*session_prefix:\s*(sources::[A-Za-z0-9_:]+),/g
+  )) {
+    const sourceId = sourceConstants.get(match[1]);
+    if (!sourceId) throw new Error(`Unknown Rust source constant ${match[1]}`);
+
+    const pathParts = match[2].split("::").slice(1);
+    const constantName = pathParts.pop();
+    if (!constantName) throw new Error(`Invalid Rust prefix path ${match[2]}`);
+    const base = resolve(rustRoot, ...pathParts);
+    const candidateFiles = [`${base}.rs`, resolve(base, "mod.rs")];
+    const sourceFile = candidateFiles.find(existsSync);
+    if (!sourceFile) {
+      throw new Error(`Cannot resolve Rust prefix module ${match[2]}`);
+    }
+    const moduleSource = readFileSync(sourceFile, "utf8");
+    const constantMatch = moduleSource.match(
+      new RegExp(
+        `(?:pub\\s+)?const\\s+${constantName}:\\s*&str\\s*=\\s*"([^"]+)"\\s*;`
+      )
+    );
+    if (!constantMatch) {
+      throw new Error(`Cannot resolve Rust prefix constant ${match[2]}`);
+    }
+    descriptors.set(sourceId, constantMatch[1]);
+  }
+  return descriptors;
+}
 
 describe("imported history source registry", () => {
-  it("keeps Cursor's local preview window separate from cloud's full transcript", async () => {
-    cursorLoaders.preview.mockResolvedValue({ chunks: [{ id: "preview" }] });
-    cursorLoaders.full.mockResolvedValue([{ id: "full" }]);
-    const cursor = getImportedHistorySourceBySessionId("cursoride-session-1");
-
-    await expect(
-      cursor?.loadPreviewChunks("cursoride-session-1")
-    ).resolves.toEqual([{ id: "preview" }]);
-    await expect(
-      cursor?.loadFullTranscriptChunks("cursoride-session-1")
-    ).resolves.toEqual([{ id: "full" }]);
-    expect(cursorLoaders.preview).toHaveBeenCalledWith({
-      sessionId: "cursoride-session-1",
-      recentLimit: 100,
+  it("routes ORGII collaboration snapshots without adding a sixteenth vendor source", () => {
+    expect(
+      resolveExternalReplayTarget("imported-session-0123456789abcdef")
+    ).toEqual({
+      sourceId: "collaboration_snapshot",
+      sessionId: "imported-session-0123456789abcdef",
     });
-    expect(cursorLoaders.full).toHaveBeenCalledWith("cursoride-session-1");
+    expect(resolveExternalReplayTarget("sdeagent-native-1")).toBeNull();
+    expect(resolveExternalReplayTarget("agentsession-cloud-fork-1")).toBeNull();
+  });
+
+  it("keeps the renderer metadata mirror exhaustive with the Rust authority", () => {
+    const rust = loadRustReplayRegistry();
+    const renderer = new Map(
+      IMPORTED_HISTORY_SOURCES.map((source) => [source.sourceId, source.prefix])
+    );
+
+    expect(rust.size).toBe(15);
+    expect([...renderer.entries()].sort()).toEqual([...rust.entries()].sort());
+  });
+
+  it("does not expose a renderer-side full transcript fallback", () => {
+    const cursor = getImportedHistorySourceBySessionId("cursoride-session-1");
+    expect(cursor).toBeDefined();
+    expect(cursor).not.toHaveProperty("loadPreviewChunks");
+    expect(cursor).not.toHaveProperty("loadFullTranscriptChunks");
+    expect(cursor).not.toHaveProperty("statTranscript");
   });
 
   it("registers source-specific external history providers", () => {
@@ -74,8 +128,8 @@ describe("imported history source registry", () => {
       "external_history:qoder_cli",
     ]);
     for (const source of IMPORTED_HISTORY_SOURCES) {
-      expect(source.loadPreviewChunks).toBeTypeOf("function");
-      expect(source.loadFullTranscriptChunks).toBeTypeOf("function");
+      expect(source).not.toHaveProperty("loadPreviewChunks");
+      expect(source).not.toHaveProperty("loadFullTranscriptChunks");
     }
   });
 

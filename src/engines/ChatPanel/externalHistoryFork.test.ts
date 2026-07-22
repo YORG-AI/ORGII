@@ -4,18 +4,21 @@ import {
   type ImportedHistorySource,
   getImportedHistorySourceBySessionId,
 } from "@src/api/tauri/externalHistory";
+import { externalReplayHandoff } from "@src/api/tauri/externalHistory/replay";
 import { SessionService } from "@src/engines/SessionCore/services/SessionService";
 import { requestForkSessionSetup } from "@src/features/TeamCollaboration/forkSession";
 import { resolveShareableScopeKeys } from "@src/features/TeamCollaboration/repoScopeResolver";
-import type { ActivityChunk } from "@src/types/session/session";
 
 import {
-  buildExternalHistoryHandoffPrompt,
+  buildExternalHistoryHandoffPromptFromItems,
   forkExternalHistoryIntoOrgiiSession,
 } from "./externalHistoryFork";
 
 vi.mock("@src/api/tauri/externalHistory", () => ({
   getImportedHistorySourceBySessionId: vi.fn(),
+}));
+vi.mock("@src/api/tauri/externalHistory/replay", () => ({
+  externalReplayHandoff: vi.fn(),
 }));
 vi.mock("@src/engines/SessionCore/services/SessionService", () => ({
   SessionService: { create: vi.fn() },
@@ -27,37 +30,13 @@ vi.mock("@src/features/TeamCollaboration/repoScopeResolver", () => ({
   resolveShareableScopeKeys: vi.fn(),
 }));
 
-function chunk(
-  id: string,
-  actionType: string,
-  functionName: string,
-  result: Record<string, unknown>
-): ActivityChunk {
-  return {
-    chunk_id: id,
-    action_type: actionType,
-    function: functionName,
-    args: {},
-    result,
-    created_at: "2026-07-13T00:00:00.000Z",
-  };
-}
-
 describe("buildExternalHistoryHandoffPrompt", () => {
-  it("works for every registered source label and excludes private reasoning", () => {
-    const prompt = buildExternalHistoryHandoffPrompt(
+  it("wraps backend-folded semantic items in the existing safety prompt", () => {
+    const prompt = buildExternalHistoryHandoffPromptFromItems(
       [
-        chunk("u1", "raw", "user_message", { message: "fix the sync" }),
-        chunk("r1", "reasoning", "thinking", {
-          content: "private chain of thought",
-        }),
-        {
-          ...chunk("t1", "tool_call", "read_file", { output: "old file" }),
-          args: { path: "src/sync.ts" },
-        },
-        chunk("a1", "assistant_message", "assistant_message", {
-          content: "I found the issue",
-        }),
+        "User: fix the sync",
+        "[Imported Claude App action]\nTool: read_file\nResult at that time: old file",
+        "Assistant: I found the issue",
       ],
       "continue and verify it",
       "Claude App"
@@ -69,12 +48,13 @@ describe("buildExternalHistoryHandoffPrompt", () => {
     expect(prompt).toContain("Tool: read_file");
     expect(prompt).toContain("Assistant: I found the issue");
     expect(prompt).toContain("continue and verify it");
-    expect(prompt).not.toContain("private chain of thought");
+    expect(prompt).toContain(
+      "Reasoning/thinking chunks were intentionally skipped."
+    );
   });
 });
 
 describe("forkExternalHistoryIntoOrgiiSession", () => {
-  const loadFullTranscriptChunks = vi.fn();
   const source: ImportedHistorySource = {
     sourceId: "codex_app",
     listCategory: "external_history:codex_app",
@@ -84,10 +64,7 @@ describe("forkExternalHistoryIntoOrgiiSession", () => {
     groupLabel: "Codex App",
     listable: true,
     replayable: true,
-    supportsWindowedReplay: false,
     dispatchCategory: "external_history",
-    loadPreviewChunks: vi.fn(),
-    loadFullTranscriptChunks,
   };
 
   beforeEach(() => {
@@ -104,9 +81,12 @@ describe("forkExternalHistoryIntoOrgiiSession", () => {
         model: "gpt-test",
       },
     });
-    loadFullTranscriptChunks.mockResolvedValue([
-      chunk("u1", "user_message", "user_message", { message: "old ask" }),
-    ]);
+    vi.mocked(externalReplayHandoff).mockResolvedValue({
+      items: ["User: old ask"],
+      generation: "generation-1",
+      scannedBytes: 1024,
+      scannedEvents: 1,
+    });
     vi.mocked(SessionService.create).mockResolvedValue({
       sessionId: "agentsession-forked",
     });
@@ -125,13 +105,14 @@ describe("forkExternalHistoryIntoOrgiiSession", () => {
         },
       };
     });
-    loadFullTranscriptChunks.mockImplementation(async () => {
+    vi.mocked(externalReplayHandoff).mockImplementation(async () => {
       callOrder.push("transcript");
-      return [
-        chunk("u1", "user_message", "user_message", {
-          message: "old ask",
-        }),
-      ];
+      return {
+        items: ["User: old ask"],
+        generation: "generation-1",
+        scannedBytes: 1024,
+        scannedEvents: 1,
+      };
     });
 
     const sessionId = await forkExternalHistoryIntoOrgiiSession({
@@ -156,6 +137,10 @@ describe("forkExternalHistoryIntoOrgiiSession", () => {
       sourceTitle: "Imported review",
       sourceScopeKey: "github.com/org/repo",
       sourceModel: "gpt-source",
+    });
+    expect(externalReplayHandoff).toHaveBeenCalledWith({
+      sessionId: "codexapp-source-1",
+      sourceName: "Codex App",
     });
     expect(SessionService.create).toHaveBeenCalledTimes(1);
     expect(SessionService.create).toHaveBeenCalledWith(
@@ -187,7 +172,28 @@ describe("forkExternalHistoryIntoOrgiiSession", () => {
         userMessage: "continue",
       })
     ).rejects.toThrow("cancelled");
-    expect(loadFullTranscriptChunks).not.toHaveBeenCalled();
+    expect(externalReplayHandoff).not.toHaveBeenCalled();
     expect(SessionService.create).not.toHaveBeenCalled();
+  });
+
+  it("uses the backend's already-paged handoff items without receiving SessionEvents", async () => {
+    vi.mocked(externalReplayHandoff).mockResolvedValueOnce({
+      items: ["User: usable older ask", "Assistant: current answer"],
+      generation: "generation-1",
+      scannedBytes: 4096,
+      scannedEvents: 12,
+    });
+
+    await forkExternalHistoryIntoOrgiiSession({
+      sourceSessionId: "codexapp-source-1",
+      userMessage: "continue",
+    });
+
+    expect(externalReplayHandoff).toHaveBeenCalledTimes(1);
+    expect(SessionService.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        task: expect.stringContaining("usable older ask"),
+      })
+    );
   });
 });

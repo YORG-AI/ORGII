@@ -1,7 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
 
-import type { ActivityChunk } from "@src/types/session/session";
-
 export interface WindsurfRecentPath {
   path: string;
   name?: string;
@@ -15,10 +13,4 @@ export async function windsurfRecentPaths(args?: {
   return invoke<WindsurfRecentPath[]>("windsurf_recent_paths", {
     limit: args?.limit,
   });
-}
-
-export async function windsurfHistoryChunks(
-  sessionId: string
-): Promise<ActivityChunk[]> {
-  return invoke<ActivityChunk[]>("windsurf_history_chunks", { sessionId });
 }

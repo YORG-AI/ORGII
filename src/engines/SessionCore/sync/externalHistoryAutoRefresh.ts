@@ -1,142 +1,176 @@
+import { type UnlistenFn, listen } from "@tauri-apps/api/event";
 import { useAtomValue } from "jotai";
 import { useEffect } from "react";
 
-import { getImportedHistorySourceBySessionId } from "@src/api/tauri/externalHistory";
-import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import {
+  EXTERNAL_REPLAY_INVALIDATED_EVENT,
+  type ExternalReplayInvalidation,
+} from "@src/api/tauri/externalHistory/replay";
+import { ExternalReplayInvalidationSchema } from "@src/api/tauri/rpc/schemas/externalReplay";
 import { createLogger } from "@src/hooks/logger";
 import { externalSessionsEnabledAtom } from "@src/store/session/dataSourceConfigAtom";
 import {
   isWindowFocused,
   onWindowFocusRegained,
 } from "@src/util/core/windowFocus";
-import { isImportedHistorySession } from "@src/util/session/sessionDispatch";
+import { getExternalHistorySourceId } from "@src/util/session/sessionDispatch";
 
+import {
+  getActiveExternalReplayLease,
+  getExternalReplayWatcherAvailable,
+  pollExternalReplaySession,
+} from "./externalReplayTransport";
 import { getAdapterForSession } from "./types";
 
 const logger = createLogger("ExternalHistoryAutoRefresh");
+const REPLAY_WATCHER_SAFETY_INTERVAL_MS = 60_000;
 
-// Refresh floor while the window is unfocused; the configured 3s-1m cadence
-// only applies to a chat someone is looking at.
-const UNFOCUSED_REFRESH_INTERVAL_MS = 60_000;
-
-type DispatchSessionLoad = (payload: {
-  sessionId: string;
-  events: SessionEvent[];
-}) => void;
-
-// Last observed transcript signature (`mtime:size`) per session. Refresh
-// ticks compare a cheap backend `stat` against this and skip the full
-// read → parse → merge pipeline while the file is unchanged — which is
-// every tick for a finished session. Bounded: replays touch few sessions.
-const transcriptSignatures = new Map<string, string>();
-const MAX_TRANSCRIPT_SIGNATURES = 64;
-
-function rememberTranscriptSignature(sessionId: string, signature: string) {
-  if (
-    !transcriptSignatures.has(sessionId) &&
-    transcriptSignatures.size >= MAX_TRANSCRIPT_SIGNATURES
-  ) {
-    transcriptSignatures.clear();
-  }
-  transcriptSignatures.set(sessionId, signature);
+function isReplayForeground(): boolean {
+  return document.visibilityState !== "hidden" && isWindowFocused();
 }
 
-/**
- * Incremental guard: probe the transcript's (mtime, size) and report whether
- * a full reload is needed. Errs on the side of reloading (stat unsupported
- * for the source, file missing, probe failed).
- */
-async function transcriptChanged(
+/** Poll exactly one bounded delta for the currently visible replay episode. */
+export async function refreshBoundedReplaySession(
   sessionId: string,
   signal: AbortSignal
-): Promise<{ changed: boolean; signature: string | null }> {
-  const source = getImportedHistorySourceBySessionId(sessionId);
-  if (!source?.statTranscript) return { changed: true, signature: null };
-  try {
-    const stat = await source.statTranscript(sessionId);
-    if (signal.aborted || !stat) return { changed: true, signature: null };
-    const signature = `${stat.mtimeMs}:${stat.sizeBytes}`;
-    return {
-      changed: transcriptSignatures.get(sessionId) !== signature,
-      signature,
-    };
-  } catch {
-    return { changed: true, signature: null };
-  }
-}
-
-/** Re-read one imported transcript without rescanning every provider cache. */
-export async function refreshImportedHistorySession(
-  sessionId: string,
-  signal: AbortSignal,
-  dispatchLoadSession: DispatchSessionLoad
 ): Promise<boolean> {
-  if (!isImportedHistorySession(sessionId)) return false;
   const adapter = getAdapterForSession(sessionId);
-  if (!adapter || adapter.category !== "external_history") return false;
+  if (adapter?.historyMode !== "bounded-replay") return false;
+  const lease = getActiveExternalReplayLease(sessionId);
+  if (!lease || signal.aborted) return false;
 
-  const { changed, signature } = await transcriptChanged(sessionId, signal);
-  if (!changed || signal.aborted) return false;
-
-  const events = await adapter.loadHistory(sessionId, signal);
-  if (signal.aborted || events.length === 0) return false;
-  dispatchLoadSession({ sessionId, events });
-  if (signature) rememberTranscriptSignature(sessionId, signature);
-  return true;
+  const delta = await pollExternalReplaySession(lease, signal);
+  if (!delta || signal.aborted || delta.stats.notReady) return false;
+  return (
+    delta.resetRequired ||
+    delta.events.length > 0 ||
+    delta.removedEventIds.length > 0
+  );
 }
 
 export function useExternalHistoryAutoRefresh(options: {
   sessionId: string | null;
   intervalMs: number;
-  dispatchLoadSession: DispatchSessionLoad;
 }): void {
-  const { sessionId, intervalMs, dispatchLoadSession } = options;
+  const { sessionId, intervalMs } = options;
   const externalSessionsEnabled = useAtomValue(externalSessionsEnabledAtom);
 
   useEffect(() => {
-    if (!externalSessionsEnabled) return;
-    if (!sessionId || !isImportedHistorySession(sessionId)) return;
+    if (!sessionId) return;
+    const adapter = getAdapterForSession(sessionId);
+    if (adapter?.historyMode !== "bounded-replay") return;
+    // The preference controls local vendor-history discovery only. ORGII-owned
+    // collaboration snapshots remain replayable even when that discovery is
+    // disabled, matching their pre-bounded-replay lifecycle.
+    if (getExternalHistorySourceId(sessionId) && !externalSessionsEnabled) {
+      return;
+    }
 
-    let refreshRunning = false;
+    let disposed = false;
+    let timerId: number | null = null;
     let activeController: AbortController | null = null;
-    let lastAttemptAt = 0;
-    const refresh = async () => {
-      if (refreshRunning) return;
-      // The configured cadence (3s-1m) is for a chat the user is actually
-      // watching. While the window is unfocused, hold refreshes to one per
-      // minute (mirrors the backend git poller's focus-adaptive polling);
-      // regaining focus refreshes immediately via the listener below.
-      if (
-        !isWindowFocused() &&
-        Date.now() - lastAttemptAt < UNFOCUSED_REFRESH_INTERVAL_MS
-      ) {
+    let unlistenInvalidation: UnlistenFn | null = null;
+
+    const clearTimer = (): void => {
+      if (timerId === null) return;
+      window.clearTimeout(timerId);
+      timerId = null;
+    };
+
+    const schedule = (): void => {
+      clearTimer();
+      if (disposed || !isReplayForeground()) return;
+      const lease = getActiveExternalReplayLease(sessionId);
+      const watcherAvailable = lease
+        ? getExternalReplayWatcherAvailable(lease)
+        : false;
+      const delayMs = watcherAvailable
+        ? REPLAY_WATCHER_SAFETY_INTERVAL_MS
+        : Math.max(intervalMs, 1_000);
+      timerId = window.setTimeout(() => {
+        timerId = null;
+        const currentLease = getActiveExternalReplayLease(sessionId);
+        if (
+          !watcherAvailable &&
+          currentLease &&
+          getExternalReplayWatcherAvailable(currentLease)
+        ) {
+          // `open_window` completed after the fallback timer was armed and
+          // confirmed a real backend watcher. Upgrade without doing the
+          // otherwise-due short poll.
+          schedule();
+          return;
+        }
+        void refresh();
+      }, delayMs);
+    };
+
+    const refresh = async (): Promise<void> => {
+      if (disposed || !isReplayForeground()) {
+        schedule();
         return;
       }
-      lastAttemptAt = Date.now();
-      refreshRunning = true;
-      activeController = new AbortController();
+      // The transport coordinator is the authoritative single-flight gate.
+      // This controller only invalidates this hook episode on hide/unmount.
+      const controller = new AbortController();
+      activeController = controller;
       try {
-        await refreshImportedHistorySession(
-          sessionId,
-          activeController.signal,
-          dispatchLoadSession
-        );
+        await refreshBoundedReplaySession(sessionId, controller.signal);
       } catch (error) {
-        if (!activeController.signal.aborted) {
+        if (!controller.signal.aborted) {
           logger.warn(`Failed to refresh ${sessionId}:`, error);
         }
       } finally {
-        refreshRunning = false;
-        activeController = null;
+        if (activeController === controller) activeController = null;
+        schedule();
       }
     };
 
-    const intervalId = window.setInterval(() => void refresh(), intervalMs);
-    const unsubscribeFocus = onWindowFocusRegained(() => void refresh());
-    return () => {
-      window.clearInterval(intervalId);
-      unsubscribeFocus();
-      activeController?.abort();
+    const refreshOnForeground = (): void => {
+      if (!isReplayForeground()) {
+        clearTimer();
+        activeController?.abort();
+        return;
+      }
+      clearTimer();
+      void refresh();
     };
-  }, [dispatchLoadSession, externalSessionsEnabled, intervalMs, sessionId]);
+
+    const onVisibilityChange = (): void => refreshOnForeground();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    const unsubscribeFocus = onWindowFocusRegained(refreshOnForeground);
+
+    void listen<ExternalReplayInvalidation>(
+      EXTERNAL_REPLAY_INVALIDATED_EVENT,
+      (event) => {
+        const parsed = ExternalReplayInvalidationSchema.safeParse(
+          event.payload
+        );
+        if (!parsed.success || parsed.data.sessionId !== sessionId) return;
+        refreshOnForeground();
+      }
+    )
+      .then((unlisten) => {
+        if (disposed) {
+          unlisten();
+        } else {
+          unlistenInvalidation = unlisten;
+        }
+      })
+      .catch((error) => {
+        if (!disposed) {
+          logger.warn("Failed to subscribe to replay invalidation:", error);
+        }
+      });
+
+    schedule();
+    return () => {
+      disposed = true;
+      clearTimer();
+      activeController?.abort();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      unsubscribeFocus();
+      unlistenInvalidation?.();
+    };
+  }, [externalSessionsEnabled, intervalMs, sessionId]);
 }

@@ -175,6 +175,7 @@ export function createRustAgentAdapter(
 
   return {
     category,
+    historyMode: "persisted-db",
 
     async loadHistory(
       sessionId: string,

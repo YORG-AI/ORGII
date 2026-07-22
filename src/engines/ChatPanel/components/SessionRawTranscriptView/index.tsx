@@ -16,10 +16,13 @@ const SessionRawTranscriptView: React.FC<SessionRawTranscriptViewProps> = memo(
         className="flex min-h-0 flex-1 flex-col"
       >
         <SessionRawTranscriptContent
+          entries={transcript.entries}
           error={transcript.error}
           filePath={`raw-transcript-${sessionId}.json`}
-          loaded={Boolean(transcript.snapshot)}
           loading={transcript.loading}
+          loadingOlder={transcript.loadingOlder}
+          onLoadOlder={() => void transcript.loadOlder()}
+          snapshot={transcript.snapshot}
           transcriptJson={transcript.transcriptJson}
         />
       </div>

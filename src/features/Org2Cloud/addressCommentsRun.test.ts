@@ -33,8 +33,22 @@ import {
 } from "./org2CloudCommentsClient";
 import type { CloudSessionComment } from "./org2CloudCommentsClient";
 
+const replayMocks = vi.hoisted(() => ({
+  resolveExternalReplayTarget: vi.fn(),
+  resolveSecondaryReplayTarget: vi.fn(),
+  queryWindowForTarget: vi.fn(),
+}));
+const eventStoreMocks = vi.hoisted(() => ({
+  getPersistedEvents: vi.fn(),
+}));
+
+vi.mock("@src/api/tauri/externalHistory/replay", () => ({
+  resolveExternalReplayTarget: replayMocks.resolveExternalReplayTarget,
+  resolveSecondaryReplayTarget: replayMocks.resolveSecondaryReplayTarget,
+  externalReplayQueryWindowForTarget: replayMocks.queryWindowForTarget,
+}));
 vi.mock("@src/engines/SessionCore/core/store/EventStoreProxy", () => ({
-  eventStoreProxy: { getPersistedEvents: vi.fn(async () => []) },
+  eventStoreProxy: { getPersistedEvents: eventStoreMocks.getPersistedEvents },
 }));
 vi.mock("./org2CloudClient", () => ({
   ensureFreshSession: vi.fn(async (state: unknown) => state),
@@ -84,6 +98,9 @@ const AUTH: Org2CloudAuthState = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  eventStoreMocks.getPersistedEvents.mockResolvedValue([]);
+  replayMocks.resolveExternalReplayTarget.mockReturnValue(null);
+  replayMocks.resolveSecondaryReplayTarget.mockResolvedValue(null);
   if (!isStoreInitialized()) createInstrumentedStore();
   getInstrumentedStore().set(org2CloudAuthAtom, AUTH);
   resetTurnLifecycleForTests();
@@ -198,10 +215,78 @@ describe("runAddressCommentsRound", () => {
       },
     });
     expect(dispatchedAgentContent).toContain("id: c-1");
+    expect(replayMocks.resolveExternalReplayTarget).toHaveBeenCalledWith(
+      "local-1"
+    );
+    expect(eventStoreMocks.getPersistedEvents).toHaveBeenCalledWith("local-1");
+    expect(replayMocks.resolveSecondaryReplayTarget).not.toHaveBeenCalled();
     expect(result).toEqual({ status: "ran", threadCount: 1, replyCount: 0 });
     expect(
       getInstrumentedStore().get(addressRunActiveAtom)["local-1"]
     ).toBeUndefined();
+  });
+
+  it("loads managed owner anchors from bounded replay instead of persisted history", async () => {
+    vi.mocked(listSessionComments).mockResolvedValue({
+      comments: [comment({ id: "c-1", eventId: "turn-7" })],
+      viewerOwnsSession: true,
+    });
+    const replayTarget = {
+      sourceId: "managed_cli" as const,
+      sessionId: "cliagent-owner",
+    };
+    replayMocks.resolveExternalReplayTarget.mockReturnValue(replayTarget);
+    replayMocks.queryWindowForTarget.mockResolvedValue({
+      cursor: {
+        ...replayTarget,
+        generation: "managed-g1",
+        revision: 4,
+        throughSequence: 9,
+      },
+      events: [
+        {
+          id: "turn-7",
+          source: "user",
+          displayText: "bounded managed anchor",
+        },
+      ],
+      turnHeaders: [],
+      totalEventCount: 10_000,
+      totalTurnCount: 2_000,
+      hasOlder: true,
+      watcherAvailable: false,
+      stats: { ipcBytes: 1_024 },
+    });
+
+    await expect(
+      runAddressCommentsRound({
+        orgId: "org-1",
+        cloudSessionId: "cliagent-owner",
+        localSessionId: "cliagent-owner",
+        dispatchTurn: async ({ turnIntentId }) => {
+          const generation = beginTurnDispatch("cliagent-owner");
+          publishTurnIntentDispatch(turnIntentId, {
+            sessionId: "cliagent-owner",
+            generation,
+          });
+          markTurnTerminal("cliagent-owner", "completed", { generation });
+        },
+      })
+    ).resolves.toEqual({ status: "ran", threadCount: 1, replyCount: 0 });
+
+    expect(replayMocks.queryWindowForTarget).toHaveBeenCalledWith({
+      target: replayTarget,
+      // Primary managed replay ids are already source ids; only copied
+      // collaboration snapshots carry the local-session namespace.
+      turnId: "turn-7",
+      limits: {
+        maxTurns: 1,
+        maxEvents: 4,
+        maxIpcBytes: 64 * 1024,
+      },
+    });
+    expect(replayMocks.resolveSecondaryReplayTarget).not.toHaveBeenCalled();
+    expect(eventStoreMocks.getPersistedEvents).not.toHaveBeenCalled();
   });
 
   it("registers the run before dispatch so an immediate tool reply succeeds", async () => {
@@ -281,8 +366,34 @@ describe("runAddressCommentsRound", () => {
 
   it("allows a verified local fork to address its owner's source comments", async () => {
     vi.mocked(listSessionComments).mockResolvedValue({
-      comments: [comment({ id: "c-1" })],
+      comments: [comment({ id: "c-1", eventId: "evt-a" })],
       viewerOwnsSession: true,
+    });
+    const replayTarget = {
+      sourceId: "collaboration_snapshot" as const,
+      sessionId: "agentsession-cloud-fork",
+    };
+    replayMocks.resolveSecondaryReplayTarget.mockResolvedValue(replayTarget);
+    replayMocks.queryWindowForTarget.mockResolvedValue({
+      cursor: {
+        ...replayTarget,
+        generation: "snapshot-g1",
+        revision: 3,
+        throughSequence: 10,
+      },
+      events: [
+        {
+          id: "agentsession-cloud-fork~evt-a",
+          source: "assistant",
+          displayText: "bounded anchor",
+        },
+      ],
+      turnHeaders: [],
+      totalEventCount: 500,
+      totalTurnCount: 50,
+      hasOlder: true,
+      watcherAvailable: false,
+      stats: { ipcBytes: 1_024 },
     });
     const provenance = vi
       .spyOn(forkSession, "getSessionForkedFrom")
@@ -299,14 +410,16 @@ describe("runAddressCommentsRound", () => {
         runAddressCommentsRound({
           orgId: "org-1",
           cloudSessionId: "cloud-session-1",
-          localSessionId: "fork-session-1",
+          localSessionId: "agentsession-cloud-fork",
           dispatchTurn: async ({ turnIntentId }) => {
-            const generation = beginTurnDispatch("fork-session-1");
+            const generation = beginTurnDispatch("agentsession-cloud-fork");
             publishTurnIntentDispatch(turnIntentId, {
-              sessionId: "fork-session-1",
+              sessionId: "agentsession-cloud-fork",
               generation,
             });
-            markTurnTerminal("fork-session-1", "completed", { generation });
+            markTurnTerminal("agentsession-cloud-fork", "completed", {
+              generation,
+            });
           },
         })
       ).resolves.toEqual({
@@ -314,6 +427,19 @@ describe("runAddressCommentsRound", () => {
         threadCount: 1,
         replyCount: 0,
       });
+      expect(replayMocks.resolveSecondaryReplayTarget).toHaveBeenCalledWith(
+        "agentsession-cloud-fork"
+      );
+      expect(replayMocks.queryWindowForTarget).toHaveBeenCalledWith({
+        target: replayTarget,
+        turnId: "agentsession-cloud-fork~evt-a",
+        limits: {
+          maxTurns: 1,
+          maxEvents: 4,
+          maxIpcBytes: 64 * 1024,
+        },
+      });
+      expect(eventStoreMocks.getPersistedEvents).not.toHaveBeenCalled();
     } finally {
       provenance.mockRestore();
     }

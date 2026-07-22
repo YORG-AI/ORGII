@@ -1,18 +1,21 @@
-import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import type { TFunction } from "i18next";
 import { z } from "zod/v4";
 
-import { cursorIdeFullRefresh } from "@src/api/tauri/externalHistory";
+import {
+  type ExternalReplayOrgiiEnvelope,
+  type ExternalReplayTarget,
+  externalReplayQueryWindowForTarget,
+  resolveExternalReplayTarget,
+  resolveSecondaryReplayTarget,
+} from "@src/api/tauri/externalHistory/replay";
 import type { DispatchCategory } from "@src/api/tauri/session";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
-import { processChunksRust } from "@src/engines/SessionCore/ingestion/rustBridge";
 import { cacheAdapter } from "@src/engines/SessionCore/storage/cacheAdapter";
 import { loadOwnSessionInitialEvents } from "@src/engines/SessionCore/sync/sessionSyncUtils";
 import { createLogger } from "@src/hooks/logger";
 import type { Session } from "@src/store/session";
 import { sessionsAtom, upsertSession } from "@src/store/session";
 import { persistSessions } from "@src/store/session/sessionAtom/persistence";
-import type { ActivityChunk } from "@src/types/session/session";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 import {
   isAgentSession,
@@ -96,10 +99,23 @@ export interface SessionExportPreview {
   exportedAt: string;
 }
 
-export interface SessionExportDraft {
+export interface MaterializedSessionExportDraft {
+  mode: "materialized";
   file: SessionExportFile;
   preview: SessionExportPreview;
 }
+
+export interface BoundedReplaySessionExportDraft {
+  mode: "bounded-replay";
+  sessionId: string;
+  replayTarget: ExternalReplayTarget;
+  orgiiEnvelope: ExternalReplayOrgiiEnvelope;
+  preview: SessionExportPreview;
+}
+
+export type SessionExportDraft =
+  | MaterializedSessionExportDraft
+  | BoundedReplaySessionExportDraft;
 
 export interface SessionImportPreview {
   originalSessionId: string;
@@ -127,6 +143,9 @@ function inferCategory(
     explicit === "cursor_ide"
   )
     return explicit;
+  if (explicit === "external_history") {
+    return isCursorIdeSession(sessionId) ? "cursor_ide" : "cli_agent";
+  }
   if (isCursorIdeSession(sessionId)) return "cursor_ide";
   if (isCliSession(sessionId)) return "cli_agent";
   return "rust_agent";
@@ -234,18 +253,6 @@ async function loadSessionEventsForExport(
   session: Session
 ): Promise<SessionEvent[]> {
   const sessionId = session.session_id;
-  if (isCursorIdeSession(sessionId)) {
-    const refresh = await cursorIdeFullRefresh(sessionId);
-    return processChunksRust(refresh.chunks, sessionId);
-  }
-
-  if (isCliSession(sessionId)) {
-    const chunks = await tauriInvoke<ActivityChunk[]>("cli_agent_chunks", {
-      sessionId,
-    });
-    return processChunksRust(chunks, sessionId);
-  }
-
   if (isAgentSession(sessionId)) {
     return loadOwnSessionInitialEvents(sessionId);
   }
@@ -259,10 +266,51 @@ export async function buildSessionExportDraft(
   session: Session,
   fallback: string
 ): Promise<SessionExportDraft> {
-  const events = await loadSessionEventsForExport(session);
   const exportedAt = new Date().toISOString();
   const category = inferCategory(session.session_id, session.category);
   const fileName = buildExportFileName(session, fallback);
+  const previewBase = {
+    sessionId: session.session_id,
+    displayName: getSessionListDisplayName(session, fallback),
+    category,
+    fileName,
+    exportedAt,
+  };
+
+  const primaryReplayTarget = resolveExternalReplayTarget(session.session_id);
+  const replayTarget =
+    primaryReplayTarget ??
+    (await resolveSecondaryReplayTarget(session.session_id));
+  if (replayTarget) {
+    // Export preview reads only the compact index plus at most one event. The
+    // confirmation path streams the compatible envelope in Rust and never
+    // builds the transcript or the final JSON string in the renderer.
+    const window = await externalReplayQueryWindowForTarget({
+      target: replayTarget,
+      limits: {
+        maxTurns: 1,
+        maxEvents: 1,
+        maxIpcBytes: 128 * 1024,
+      },
+    });
+    return {
+      mode: "bounded-replay",
+      sessionId: session.session_id,
+      replayTarget,
+      orgiiEnvelope: {
+        exportedAt,
+        session: cloneSessionForExport(session),
+        originalCategory: category,
+        specs: [],
+      },
+      preview: {
+        ...previewBase,
+        eventCount: window.totalEventCount,
+      },
+    };
+  }
+
+  const events = await loadSessionEventsForExport(session);
   const file: SessionExportFile = {
     format: EXPORT_FORMAT,
     version: EXPORT_VERSION,
@@ -279,14 +327,11 @@ export async function buildSessionExportDraft(
     },
   };
   return {
+    mode: "materialized",
     file,
     preview: {
-      sessionId: session.session_id,
-      displayName: getSessionListDisplayName(session, fallback),
-      category,
+      ...previewBase,
       eventCount: events.length,
-      fileName,
-      exportedAt,
     },
   };
 }
@@ -304,6 +349,11 @@ export async function buildSessionExportFile(
   fallback: string
 ): Promise<SessionExportFile> {
   const draft = await buildSessionExportDraft(session, fallback);
+  if (draft.mode === "bounded-replay") {
+    throw new Error(
+      "External session exports must be streamed to a destination path"
+    );
+  }
   return draft.file;
 }
 

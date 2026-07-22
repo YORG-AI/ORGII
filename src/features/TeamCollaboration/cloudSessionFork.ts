@@ -1,4 +1,4 @@
-import { buildCloudSessionFetchClient } from "@src/features/Org2Cloud/org2CloudBackendAdapter";
+import { buildCloudSessionWirePageClient } from "@src/features/Org2Cloud/org2CloudBackendAdapter";
 import { listOrgSessions } from "@src/features/Org2Cloud/org2CloudSyncClient";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 
@@ -28,7 +28,7 @@ export function pickCloudRemoteSession(
 
 export interface AuthenticatedCloudSessionForkDeps {
   listSessions: typeof listOrgSessions;
-  buildClient: typeof buildCloudSessionFetchClient;
+  buildClient: typeof buildCloudSessionWirePageClient;
   fork: (
     options: ForkTeammateSessionOptions
   ) => Promise<ForkSessionResult | null>;
@@ -36,7 +36,7 @@ export interface AuthenticatedCloudSessionForkDeps {
 
 const DEFAULT_DEPS: AuthenticatedCloudSessionForkDeps = {
   listSessions: listOrgSessions,
-  buildClient: buildCloudSessionFetchClient,
+  buildClient: buildCloudSessionWirePageClient,
   fork: forkTeammateSession,
 };
 

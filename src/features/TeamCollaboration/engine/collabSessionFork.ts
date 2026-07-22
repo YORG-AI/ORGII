@@ -2,9 +2,9 @@
  * Fork & continue (design §16.11 — session relay).
  *
  * `forkSession` is the WRITABLE sibling of `importRemoteSession`
- * (`collabSessionImport.ts`): backend-agnostic, sharing the exact
- * fetch/assembly path (`fetchAndAssembleSegments`) and durable-write ordering,
- * differing only in the kind of local session the assembled events land in.
+ * (`collabSessionImport.ts`): backend-agnostic, sharing the bounded wire-page
+ * ingest path, and differing only in the kind of local session the committed
+ * snapshot lands in.
  */
 import { DISPATCH_CATEGORY } from "@src/api/tauri/session/dispatchTypes";
 import type { KeyInfo } from "@src/api/types/keys";
@@ -29,9 +29,10 @@ import {
   ForkOperationError,
   ForkSnapshotIntegrityError,
 } from "../forkSnapshotIntegrity";
-import { rewriteEventsForImportedSnapshot } from "./collabImportIdentity";
-import type { RemoteSessionFetchOptions } from "./collabRemoteFetch";
-import { fetchAndAssembleSegments } from "./collabRemoteFetch";
+import {
+  type RemoteSnapshotIngestOptions,
+  ingestRemoteSnapshot,
+} from "./collabSnapshotIngest";
 
 /**
  * Fresh id for a forked session. The `agentsession-` prefix maps to the
@@ -69,6 +70,8 @@ export interface ForkSessionResult {
   accountId?: string;
   agentDefinitionId?: string;
   modelFallback?: { inheritedModel: string; fallbackModel?: string };
+  /** Rust-folded handoff context; never derived from a full renderer array. */
+  handoffItems: string[];
 }
 
 export interface ForkExecutionSelection {
@@ -77,7 +80,10 @@ export interface ForkExecutionSelection {
   model: string;
 }
 
-export interface ForkSessionOptions extends RemoteSessionFetchOptions {
+export interface ForkSessionOptions extends Omit<
+  RemoteSnapshotIngestOptions,
+  "localSessionId" | "previous"
+> {
   /** Explicit local credentials/model chosen by the member continuing it. */
   execution?: ForkExecutionSelection;
   /**
@@ -94,17 +100,18 @@ export interface ForkSessionOptions extends RemoteSessionFetchOptions {
 
 /**
  * "Fork & continue" (design §16.11): land a replay-capable teammate session's
- * FULL event history as a new WRITABLE local session, so an agent can run on
- * this machine, with this member's key, continuing from the teammate's
- * context. NOT multi-writer — the fork is an ordinary single-writer session
- * that merely records its origin in `forkedFrom`.
+ * authoritative event history as a new WRITABLE local session, so an agent
+ * can run on this machine, with this member's key, continuing from the
+ * teammate's context. The history is streamed as bounded opaque wire pages
+ * into Rust; the renderer never assembles a session-sized event array. NOT
+ * multi-writer — the fork is an ordinary single-writer session that merely
+ * records its origin in `forkedFrom`.
  *
- * Shares the exact fetch/assembly path with `importRemoteSession`
- * (`fetchAndAssembleSegments`, always a full refetch from seq 0 — a fork has
- * no incremental cursor to splice onto) and mirrors its durable-write
- * ordering: events are cached BEFORE the session record is persisted, so a
- * failed cache write can never leave a forked record with no events (fix P7's
- * ordering, same rationale as the importer).
+ * Shares the exact staged-ingest path with `importRemoteSession`. A fork has
+ * no incremental cursor, so Rust rebuilds its local snapshot from bounded
+ * backward pages and atomically publishes it before the session record is
+ * persisted. A failed ingest therefore cannot leave a runnable fork record
+ * with partial history.
  *
  * Unlike an import, the created session:
  * - gets a fresh NORMAL id (`agentsession-*`, category `rust_agent`) so it is
@@ -171,51 +178,42 @@ export async function forkSession(
     ? { model: options.execution.model, fellBack: false }
     : resolveForkModel(remoteSession.model, localKeys, defaultModel);
 
-  // Full fetch from seq 0, same assembly + validation as the importer. Forks
-  // additionally fail closed against the list-row summary: an internally
-  // valid tail-only response must not materialize when the row promised a
-  // larger frozen history.
-  const assembled = await fetchAndAssembleSegments(options, 0, [], null);
-  const summaryMatches =
-    assembled !== null &&
-    assembled.epoch === remoteSession.eventsEpoch &&
-    assembled.frozenSeq === (remoteSession.eventsFrozenSeq ?? 0) &&
-    assembled.events.length === remoteSession.eventsCount &&
-    assembled.tailHash === (remoteSession.eventsTailHash ?? null);
-  if (!summaryMatches) {
+  const localSessionId = createForkedSessionId();
+  const committed = await ingestRemoteSnapshot({
+    client: options.client,
+    orgId,
+    remoteSession,
+    localSessionId,
+    ...(shareToken !== undefined ? { shareToken } : {}),
+    ...(options.signal !== undefined ? { signal: options.signal } : {}),
+  });
+  // Forks fail closed against the list-row summary. Unlike the old path, the
+  // comparison is against Rust's atomically committed counters rather than a
+  // renderer-sized `assembled.events` array.
+  if (
+    committed === null ||
+    committed.epoch !== remoteSession.eventsEpoch ||
+    committed.frozenSeq !== (remoteSession.eventsFrozenSeq ?? 0) ||
+    committed.eventCount !== remoteSession.eventsCount ||
+    committed.tailHash !== (remoteSession.eventsTailHash ?? null)
+  ) {
+    await eventStoreProxy
+      .clearPersistedHistory(localSessionId)
+      .catch(() => undefined);
     throw new ForkSnapshotIntegrityError(
       FORK_SNAPSHOT_ERROR_KIND.SNAPSHOT_INCOMPLETE,
       `Fork snapshot does not match source summary for ${remoteSession.sourceSessionId}`
     );
   }
 
-  const localSessionId = createForkedSessionId();
-  const localEvents = rewriteEventsForImportedSnapshot(
-    assembled.events,
-    localSessionId
-  );
   const now = new Date().toISOString();
-
-  // Durable events first, session record second (mirror importRemoteSession):
-  // if the cache write fails, no record must claim the fork exists.
-  await eventStoreProxy.set(localEvents, localSessionId);
-  const savedCount = await eventStoreProxy.saveToCache(localSessionId);
-  if (localEvents.length > 0 && savedCount <= 0) {
-    // Drop the just-set events again — no session record points at them, and
-    // a fork id is random, so (unlike the importer's deterministic id) a
-    // retry would not overwrite this orphan.
-    await eventStoreProxy.clear(localSessionId);
-    throw new Error(
-      `Failed to durably persist forked session ${remoteSession.sourceSessionId} (saveToCache returned ${savedCount})`
-    );
-  }
 
   const forkedFrom: SessionForkedFrom = {
     orgId,
     sourceSessionId: remoteSession.sourceSessionId,
     ownerMemberId: remoteSession.ownerMemberId,
     ownerDisplayName: remoteSession.ownerDisplayName,
-    atCount: localEvents.length,
+    atCount: committed.eventCount,
     forkedAt: now,
     // Root inheritance: forking a fork keeps pointing at the ORIGINAL
     // session, so the whole relay chain groups under one thread even when
@@ -259,11 +257,12 @@ export async function forkSession(
   return {
     localSessionId,
     name,
-    eventCount: localEvents.length,
+    eventCount: committed.eventCount,
     repoPath,
     model: resolvedModel.model,
     accountId: options.execution?.accountId,
     agentDefinitionId: options.execution?.agentDefinitionId,
+    handoffItems: committed.handoffItems,
     ...(resolvedModel.fellBack && remoteSession.model
       ? {
           modelFallback: {

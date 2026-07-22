@@ -249,7 +249,10 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
     this.sessionSync.noteSessionEventActivity(sessionId);
   }
 
-  protected override async syncAllOrgs(generation: number): Promise<void> {
+  protected override async syncAllOrgs(
+    generation: number,
+    signal: AbortSignal
+  ): Promise<void> {
     this.sessionSync.beginPass();
     const store = this.store;
     if (!store) return;
@@ -260,7 +263,7 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
     this.pruneRemovedOrgState(orgs, sessionsAtPassStart);
     if (orgs.length === 0) return;
     for (const org of orgs) {
-      if (this.generation !== generation) return;
+      if (signal.aborted || this.generation !== generation) return;
       await this.ensureProjectOrgAlias(org);
     }
     if (!(await this.passesSchemaGate(generation))) return;
@@ -329,7 +332,7 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
       if (getCloudEndpoint().supabaseUrl !== passSupabaseUrl) return;
       const scopes = scopesByOrg[org.orgId] ?? [];
       for (const session of store.get(sessionsAtom)) {
-        if (this.generation !== generation) return;
+        if (signal.aborted || this.generation !== generation) return;
         if (!isCloudPushCandidate(session)) continue;
         // A fork is a continuation inside the source collaboration boundary,
         // not a new ordinary repo session. Repo scopes may overlap across a
@@ -549,10 +552,11 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
             org.orgId,
             session,
             matchedScope,
-            access
+            access,
+            signal
           );
         } catch (error) {
-          if (this.generation !== generation) return;
+          if (signal.aborted || this.generation !== generation) return;
           if (this.isBackoffError(error)) {
             this.backOffOrg(org.orgId, error);
             break; // Stop touching this org for the rest of the run.

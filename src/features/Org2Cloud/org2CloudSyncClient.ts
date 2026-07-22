@@ -22,7 +22,14 @@ import type {
   RemoteTeammateSessionMetadata,
 } from "@src/store/collaboration/types";
 
-import type { SessionEventsSegmentInput } from "../TeamCollaboration/sync/CollabSyncBackend";
+import {
+  SESSION_EVENT_WIRE_MAX_PAGE_BYTES,
+  SESSION_EVENT_WIRE_MAX_PAGE_SEGMENTS,
+  SESSION_EVENT_WIRE_MAX_SEGMENT_BYTES,
+  type SessionEventWirePage,
+  type SessionEventWirePageCursor,
+  type SessionEventsSegmentInput,
+} from "../TeamCollaboration/sync/CollabSyncBackend";
 import {
   type SegmentWirePayload,
   mapSegmentsBounded,
@@ -34,6 +41,28 @@ import {
   ORG2_CLOUD_POSTGREST_SCHEMA,
   getCloudEndpoint,
 } from "./config";
+
+const cloudSegmentWireEncoder = new TextEncoder();
+/** JSON envelope/cursors in addition to the server-counted segment bytes. */
+const CLOUD_WIRE_PAGE_RESPONSE_OVERHEAD_BYTES = 64 * 1024;
+
+function cloudSegmentWireBytes(
+  segment: SegmentWirePayload | Omit<SegmentWirePayload, "seq">
+): number {
+  return cloudSegmentWireEncoder.encode(JSON.stringify(segment)).byteLength;
+}
+
+function assertCloudSegmentWireBudget(
+  segment: SegmentWirePayload | Omit<SegmentWirePayload, "seq">
+): void {
+  const wireBytes = cloudSegmentWireBytes(segment);
+  if (wireBytes > SESSION_EVENT_WIRE_MAX_SEGMENT_BYTES) {
+    throw new Error(
+      `Cloud segment wire is ${wireBytes} bytes (limit ${SESSION_EVENT_WIRE_MAX_SEGMENT_BYTES}); ` +
+        "the current SessionEvent[] RPC cannot split one event, so a versioned attachment wire is required"
+    );
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Error model
@@ -104,7 +133,8 @@ async function callSyncRpc(
   accessToken: string,
   body: Record<string, unknown>,
   endpoint: CloudEndpoint = getCloudEndpoint(),
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  responseByteLimit?: number
 ): Promise<unknown> {
   const response = await fetch(rpcUrl(functionName, endpoint), {
     method: "POST",
@@ -112,7 +142,7 @@ async function callSyncRpc(
     body: JSON.stringify(body),
     signal,
   });
-  const text = await response.text();
+  const text = await readSyncRpcResponseText(response, responseByteLimit);
   let payload: unknown = null;
   try {
     payload = text ? JSON.parse(text) : null;
@@ -129,16 +159,82 @@ async function callSyncRpc(
   return payload;
 }
 
+async function readSyncRpcResponseText(
+  response: Response,
+  byteLimit?: number
+): Promise<string> {
+  if (byteLimit === undefined) return response.text();
+
+  const declaredBytes = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declaredBytes) && declaredBytes > byteLimit) {
+    throw new CloudSessionWirePageContractError(
+      `cloud_get_session_events response declares ${declaredBytes} bytes (limit ${byteLimit})`
+    );
+  }
+  if (!response.body) {
+    const text = await response.text();
+    const bytes = cloudSegmentWireEncoder.encode(text).byteLength;
+    if (bytes > byteLimit) {
+      throw new CloudSessionWirePageContractError(
+        `cloud_get_session_events response is ${bytes} bytes (limit ${byteLimit})`
+      );
+    }
+    return text;
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > byteLimit) {
+        await reader.cancel("bounded cloud response exceeded byte limit");
+        throw new CloudSessionWirePageContractError(
+          `cloud_get_session_events response exceeded ${byteLimit} bytes`
+        );
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const body = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(body);
+}
+
 // ---------------------------------------------------------------------------
 // Wire schemas
 // ---------------------------------------------------------------------------
 
 const CloudSegmentWireSchema = z.object({
-  seq: z.number(),
+  seq: z.number().int().nonnegative(),
   payloadGz: z.string(),
-  eventCount: z.number(),
+  eventCount: z.number().int().nonnegative(),
   segmentHash: z.string(),
 });
+
+const CloudSessionEventWirePageCursorSchema = z.discriminatedUnion(
+  "direction",
+  [
+    z.object({
+      direction: z.literal("forward"),
+      afterSeq: z.number().int().nonnegative(),
+      throughSeq: z.number().int().nonnegative().optional(),
+    }),
+    z.object({
+      direction: z.literal("backward"),
+      beforeSeq: z.number().int().positive().optional(),
+    }),
+  ]
+);
 
 const CloudSessionEventsSchema = z.object({
   epoch: z.number().nullish().default(null),
@@ -146,6 +242,24 @@ const CloudSessionEventsSchema = z.object({
   tailHash: z.string().nullish().default(null),
   count: z.number().nullish().default(null),
   segments: z.array(CloudSegmentWireSchema).default([]),
+});
+
+/**
+ * New bounded reads deliberately require every pagination field. Parsing an
+ * old server's full-snapshot response with this schema fails closed instead
+ * of silently recreating the #443 full-history path.
+ */
+const CloudSessionEventWirePageSchema = z.object({
+  epoch: z.number().nullish().default(null),
+  frozenSeq: z.number().int().nonnegative().nullish().default(null),
+  tailHash: z.string().nullish().default(null),
+  count: z.number().int().nonnegative().nullish().default(null),
+  segments: z.array(CloudSegmentWireSchema),
+  direction: z.enum(["forward", "backward"]),
+  tailIncluded: z.boolean(),
+  hasMore: z.boolean(),
+  nextCursor: CloudSessionEventWirePageCursorSchema.nullable(),
+  returnedWireBytes: z.number().int().nonnegative(),
 });
 
 const CloudCoolingScopeSchema = z.object({
@@ -182,6 +296,16 @@ export interface CloudSessionEventsSnapshot {
   /** Total event count (frozen + tail); null ⇒ nothing published yet. */
   count: number | null;
   segments: SegmentWirePayload[];
+}
+
+export type CloudSessionEventWirePage = SessionEventWirePage;
+
+/** A server/client contract failure; callers must not retry via full fetch. */
+export class CloudSessionWirePageContractError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CloudSessionWirePageContractError";
+  }
 }
 
 export interface CloudOrgSessions {
@@ -287,23 +411,51 @@ export interface CloudRewriteSessionEventsInput {
   totalCount: number;
 }
 
+export interface CloudRewriteSessionEventWiresInput {
+  orgId: string;
+  sessionId: string;
+  newEpoch: number;
+  frozenSegments: SegmentWirePayload[];
+  tail: Omit<SegmentWirePayload, "seq"> | null;
+  totalCount: number;
+}
+
+/** Owner: forward Rust-prepared bounded wires without decoding/re-encoding. */
+export async function rewriteSessionEventWires(
+  accessToken: string,
+  input: CloudRewriteSessionEventWiresInput
+): Promise<void> {
+  for (const segment of input.frozenSegments) {
+    assertCloudSegmentWireBudget(segment);
+  }
+  if (input.tail) assertCloudSegmentWireBudget(input.tail);
+  await callSyncRpc("cloud_rewrite_session_events", accessToken, {
+    p_org_id: input.orgId,
+    p_session_id: input.sessionId,
+    new_epoch: input.newEpoch,
+    frozen_segments: input.frozenSegments,
+    tail: input.tail,
+    total_count: input.totalCount,
+  });
+}
+
 /** Owner: epoch-bumped full rewrite of the session's segments. */
 export async function rewriteSessionEvents(
   accessToken: string,
   input: CloudRewriteSessionEventsInput
 ): Promise<void> {
-  await callSyncRpc("cloud_rewrite_session_events", accessToken, {
-    p_org_id: input.orgId,
-    p_session_id: input.sessionId,
-    new_epoch: input.newEpoch,
+  await rewriteSessionEventWires(accessToken, {
+    orgId: input.orgId,
+    sessionId: input.sessionId,
+    newEpoch: input.newEpoch,
     // Bounded encode: `Promise.all` over every segment materializes all
     // canonical/gzip/base64 buffers simultaneously and multiplies RSS.
-    frozen_segments: await mapSegmentsBounded(
+    frozenSegments: await mapSegmentsBounded(
       input.frozenSegments,
       toFrozenSegmentWire
     ),
     tail: await toTailWire(input.tail),
-    total_count: input.totalCount,
+    totalCount: input.totalCount,
   });
 }
 
@@ -319,23 +471,55 @@ export interface CloudAppendSessionEventsInput {
   totalCount: number;
 }
 
-/** Owner: incremental append (new frozen segments + tail replace). */
-export async function appendSessionEvents(
+export interface CloudAppendSessionEventWiresInput {
+  orgId: string;
+  sessionId: string;
+  expectedEpoch: number;
+  expectedFrozenSeq: number;
+  expectedTailHash: string | null;
+  newFrozenSegments: SegmentWirePayload[];
+  tail: Omit<SegmentWirePayload, "seq"> | null;
+  totalCount: number;
+}
+
+/** Owner: forward Rust-prepared bounded wires without renderer hydration. */
+export async function appendSessionEventWires(
   accessToken: string,
-  input: CloudAppendSessionEventsInput
+  input: CloudAppendSessionEventWiresInput
 ): Promise<void> {
+  for (const segment of input.newFrozenSegments) {
+    assertCloudSegmentWireBudget(segment);
+  }
+  if (input.tail) assertCloudSegmentWireBudget(input.tail);
   await callSyncRpc("cloud_append_session_events", accessToken, {
     p_org_id: input.orgId,
     p_session_id: input.sessionId,
     expected_epoch: input.expectedEpoch,
     expected_frozen_seq: input.expectedFrozenSeq,
     expected_tail_hash: input.expectedTailHash,
-    new_frozen_segments: await mapSegmentsBounded(
+    new_frozen_segments: input.newFrozenSegments,
+    tail: input.tail,
+    total_count: input.totalCount,
+  });
+}
+
+/** Owner: incremental append (new frozen segments + tail replace). */
+export async function appendSessionEvents(
+  accessToken: string,
+  input: CloudAppendSessionEventsInput
+): Promise<void> {
+  await appendSessionEventWires(accessToken, {
+    orgId: input.orgId,
+    sessionId: input.sessionId,
+    expectedEpoch: input.expectedEpoch,
+    expectedFrozenSeq: input.expectedFrozenSeq,
+    expectedTailHash: input.expectedTailHash,
+    newFrozenSegments: await mapSegmentsBounded(
       input.newFrozenSegments,
       toFrozenSegmentWire
     ),
     tail: await toTailWire(input.tail),
-    total_count: input.totalCount,
+    totalCount: input.totalCount,
   });
 }
 
@@ -373,38 +557,270 @@ export async function listOrgSessions(
   };
 }
 
-export interface GetSessionEventsOptions {
+interface GetSessionEventsTransportOptions {
   /**
    * Link-share capability (0012): when set, a registered non-member can read
    * the shared session. The user JWT proves registration; this token grants
    * access to the one session.
    */
   shareToken?: string;
-  /** Server-side incremental fetch (frozen past the cursor + tail always). */
-  afterSeq?: number;
   /** Endpoint snapshot shared with a preceding share-token resolve. */
   endpoint?: CloudEndpoint;
   /** Cancels the network read (dialog close / attempt supersession). */
   signal?: AbortSignal;
 }
 
+/** Legacy decoded-snapshot callers. New imports must use the bounded shape. */
+export interface GetSessionEventsOptions extends GetSessionEventsTransportOptions {
+  /** Server-side incremental fetch (frozen past the cursor + tail always). */
+  afterSeq?: number;
+}
+
 /**
- * Member: full segments snapshot for one shared session. Raises
- * ORG2_RETENTION_EXPIRED when the session left the plan's window. Segments
- * are returned as WIRE payloads (gzipped base64) — decode with the shared
- * `decodeSegmentEvents` when replay lands in a later cut.
+ * Raw bounded physical-row request. The discriminant prevents a caller from
+ * accidentally supplying limits while still receiving the permissive legacy
+ * response schema.
+ */
+export interface GetSessionEventWirePageOptions extends GetSessionEventsTransportOptions {
+  boundedWirePage: true;
+  cursor: SessionEventWirePageCursor;
+  includeTail: boolean;
+  maxSegments: number;
+  maxWireBytes: number;
+}
+
+function assertSafeSequence(value: number, field: string): void {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new CloudSessionWirePageContractError(
+      `${field} must be a non-negative safe integer`
+    );
+  }
+}
+
+function assertWirePageRequest(options: GetSessionEventWirePageOptions): void {
+  if (
+    !Number.isSafeInteger(options.maxSegments) ||
+    options.maxSegments < 1 ||
+    options.maxSegments > SESSION_EVENT_WIRE_MAX_PAGE_SEGMENTS
+  ) {
+    throw new CloudSessionWirePageContractError(
+      `maxSegments must be between 1 and ${SESSION_EVENT_WIRE_MAX_PAGE_SEGMENTS}`
+    );
+  }
+  if (
+    !Number.isSafeInteger(options.maxWireBytes) ||
+    options.maxWireBytes < 1 ||
+    options.maxWireBytes > SESSION_EVENT_WIRE_MAX_PAGE_BYTES
+  ) {
+    throw new CloudSessionWirePageContractError(
+      `maxWireBytes must be between 1 and ${SESSION_EVENT_WIRE_MAX_PAGE_BYTES}`
+    );
+  }
+  if (options.cursor.direction === "forward") {
+    assertSafeSequence(options.cursor.afterSeq, "afterSeq");
+    if (options.cursor.throughSeq !== undefined) {
+      assertSafeSequence(options.cursor.throughSeq, "throughSeq");
+      if (options.cursor.throughSeq < options.cursor.afterSeq) {
+        throw new CloudSessionWirePageContractError(
+          "throughSeq must not precede afterSeq"
+        );
+      }
+    }
+  } else if (options.cursor.beforeSeq !== undefined) {
+    assertSafeSequence(options.cursor.beforeSeq, "beforeSeq");
+    if (options.cursor.beforeSeq === 0) {
+      throw new CloudSessionWirePageContractError(
+        "beforeSeq must be positive because seq 0 is the mutable tail"
+      );
+    }
+  }
+}
+
+function failWirePage(message: string): never {
+  throw new CloudSessionWirePageContractError(message);
+}
+
+function validateWirePageResponse(
+  page: z.output<typeof CloudSessionEventWirePageSchema>,
+  options: GetSessionEventWirePageOptions
+): CloudSessionEventWirePage {
+  if (page.direction !== options.cursor.direction) {
+    failWirePage(
+      `server returned ${page.direction} page for a ${options.cursor.direction} request`
+    );
+  }
+  if (page.tailIncluded !== options.includeTail) {
+    failWirePage("server did not honor the requested tail inclusion state");
+  }
+  if (page.segments.length > options.maxSegments) {
+    failWirePage(
+      `server returned ${page.segments.length} segments (requested at most ${options.maxSegments})`
+    );
+  }
+
+  const seenSeq = new Set<number>();
+  const frozenSeqs: number[] = [];
+  let tailSegment: (typeof page.segments)[number] | null = null;
+  let actualWireBytes = 0;
+  for (const [index, segment] of page.segments.entries()) {
+    if (seenSeq.has(segment.seq)) {
+      failWirePage(`server returned duplicate physical seq ${segment.seq}`);
+    }
+    seenSeq.add(segment.seq);
+    const segmentBytes = cloudSegmentWireBytes(segment);
+    if (segmentBytes > SESSION_EVENT_WIRE_MAX_SEGMENT_BYTES) {
+      failWirePage(
+        `server returned ${segmentBytes}-byte segment ${segment.seq} (hard limit ${SESSION_EVENT_WIRE_MAX_SEGMENT_BYTES})`
+      );
+    }
+    actualWireBytes += segmentBytes;
+    if (segment.seq === 0) {
+      if (index !== page.segments.length - 1) {
+        failWirePage("server returned the mutable tail before frozen rows");
+      }
+      tailSegment = segment;
+    } else {
+      const previousFrozenSeq = frozenSeqs.at(-1);
+      if (previousFrozenSeq !== undefined && segment.seq <= previousFrozenSeq) {
+        failWirePage("server returned frozen rows out of physical-seq order");
+      }
+      frozenSeqs.push(segment.seq);
+    }
+  }
+  if (
+    actualWireBytes > options.maxWireBytes ||
+    actualWireBytes > SESSION_EVENT_WIRE_MAX_PAGE_BYTES
+  ) {
+    failWirePage(
+      `server returned ${actualWireBytes} wire bytes (requested at most ${options.maxWireBytes})`
+    );
+  }
+  if (page.returnedWireBytes !== actualWireBytes) {
+    failWirePage(
+      `server reported ${page.returnedWireBytes} wire bytes but returned ${actualWireBytes}`
+    );
+  }
+  if (tailSegment && !page.tailIncluded) {
+    failWirePage("server returned a mutable tail on a tail-free page");
+  }
+  if (page.tailIncluded && page.tailHash !== null && !tailSegment) {
+    failWirePage("server omitted the requested non-empty mutable tail");
+  }
+  if (tailSegment && tailSegment.segmentHash !== page.tailHash) {
+    failWirePage("server tail row does not match the snapshot tailHash");
+  }
+  if (page.hasMore !== (page.nextCursor !== null)) {
+    failWirePage("hasMore and nextCursor disagree");
+  }
+  if (page.nextCursor && page.nextCursor.direction !== page.direction) {
+    failWirePage("nextCursor changes pagination direction");
+  }
+
+  const firstFrozenSeq = frozenSeqs[0];
+  const lastFrozenSeq = frozenSeqs.at(-1);
+  if (options.cursor.direction === "forward") {
+    const requestedThrough = options.cursor.throughSeq;
+    const effectiveThrough = requestedThrough ?? page.frozenSeq;
+    for (const seq of frozenSeqs) {
+      if (
+        seq <= options.cursor.afterSeq ||
+        (effectiveThrough !== null && seq > effectiveThrough)
+      ) {
+        failWirePage(`forward page returned out-of-range physical seq ${seq}`);
+      }
+    }
+    if (page.nextCursor) {
+      if (page.nextCursor.direction !== "forward") {
+        failWirePage("forward page returned a backward continuation");
+      }
+      if (
+        lastFrozenSeq === undefined ||
+        page.nextCursor.afterSeq !== lastFrozenSeq ||
+        page.nextCursor.afterSeq <= options.cursor.afterSeq
+      ) {
+        failWirePage("forward nextCursor does not advance to the last row");
+      }
+      if (
+        page.nextCursor.throughSeq === undefined ||
+        effectiveThrough === null ||
+        page.nextCursor.throughSeq !== effectiveThrough
+      ) {
+        failWirePage(
+          "forward nextCursor did not preserve the snapshot high-water mark"
+        );
+      }
+    }
+  } else {
+    const exclusiveUpper =
+      options.cursor.beforeSeq ??
+      (page.frozenSeq === null ? null : page.frozenSeq + 1);
+    for (const seq of frozenSeqs) {
+      if (exclusiveUpper !== null && seq >= exclusiveUpper) {
+        failWirePage(`backward page returned out-of-range physical seq ${seq}`);
+      }
+    }
+    if (page.nextCursor) {
+      if (page.nextCursor.direction !== "backward") {
+        failWirePage("backward page returned a forward continuation");
+      }
+      if (
+        firstFrozenSeq === undefined ||
+        page.nextCursor.beforeSeq !== firstFrozenSeq
+      ) {
+        failWirePage(
+          "backward nextCursor does not continue before the first row"
+        );
+      }
+    }
+  }
+
+  return {
+    epoch: page.epoch,
+    frozenSeq: page.frozenSeq,
+    tailHash: page.tailHash,
+    count: page.count,
+    segments: page.segments,
+    tailIncluded: page.tailIncluded,
+    hasMore: page.hasMore,
+    nextCursor: page.nextCursor,
+    returnedWireBytes: page.returnedWireBytes,
+  };
+}
+
+/**
+ * Read physical segment wires for one shared session. Legacy callers may
+ * still request the decoded/full-snapshot-compatible response. New imports
+ * pass `boundedWirePage: true`; that overload requires server pagination
+ * metadata and enforces the requested row/byte budgets before returning raw
+ * wires to the Rust ingester.
  *
  * With `options.shareToken` this becomes a registered-link read that does not
  * require org membership (opaque ORG2_UNAUTHORIZED on every capability
- * failure). The optional params are only put on the wire when set, so member
- * calls stay byte-identical to the pre-0012 shape.
+ * failure). The bounded contract requires a deployed
+ * `cloud_get_session_events` that accepts direction/after/before/through and
+ * max-segment/max-byte parameters; an older response fails closed.
  */
-export async function getSessionEvents(
+export function getSessionEvents(
+  accessToken: string,
+  orgId: string,
+  sessionId: string,
+  options: GetSessionEventWirePageOptions
+): Promise<CloudSessionEventWirePage>;
+export function getSessionEvents(
   accessToken: string,
   orgId: string,
   sessionId: string,
   options?: GetSessionEventsOptions
-): Promise<CloudSessionEventsSnapshot> {
+): Promise<CloudSessionEventsSnapshot>;
+export async function getSessionEvents(
+  accessToken: string,
+  orgId: string,
+  sessionId: string,
+  options?: GetSessionEventsOptions | GetSessionEventWirePageOptions
+): Promise<CloudSessionEventsSnapshot | CloudSessionEventWirePage> {
+  const boundedOptions =
+    options && "boundedWirePage" in options ? options : null;
+  if (boundedOptions) assertWirePageRequest(boundedOptions);
   const payload = await callSyncRpc(
     "cloud_get_session_events",
     accessToken,
@@ -414,13 +830,39 @@ export async function getSessionEvents(
       ...(options?.shareToken !== undefined
         ? { p_share_token: options.shareToken }
         : {}),
-      ...(options?.afterSeq !== undefined
-        ? { p_after_seq: options.afterSeq }
-        : {}),
+      ...(boundedOptions
+        ? {
+            p_direction: boundedOptions.cursor.direction,
+            ...(boundedOptions.cursor.direction === "forward"
+              ? {
+                  p_after_seq: boundedOptions.cursor.afterSeq,
+                  ...(boundedOptions.cursor.throughSeq !== undefined
+                    ? { p_through_seq: boundedOptions.cursor.throughSeq }
+                    : {}),
+                }
+              : boundedOptions.cursor.beforeSeq !== undefined
+                ? { p_before_seq: boundedOptions.cursor.beforeSeq }
+                : {}),
+            p_include_tail: boundedOptions.includeTail,
+            p_max_segments: boundedOptions.maxSegments,
+            p_max_wire_bytes: boundedOptions.maxWireBytes,
+          }
+        : options && "afterSeq" in options && options.afterSeq !== undefined
+          ? { p_after_seq: options.afterSeq }
+          : {}),
     },
     options?.endpoint,
-    options?.signal
+    options?.signal,
+    boundedOptions
+      ? boundedOptions.maxWireBytes + CLOUD_WIRE_PAGE_RESPONSE_OVERHEAD_BYTES
+      : undefined
   );
+  if (boundedOptions) {
+    return validateWirePageResponse(
+      CloudSessionEventWirePageSchema.parse(payload),
+      boundedOptions
+    );
+  }
   const parsed = CloudSessionEventsSchema.parse(payload);
   return {
     epoch: parsed.epoch,

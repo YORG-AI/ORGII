@@ -9,6 +9,12 @@
 import { atom } from "jotai";
 
 import {
+  type ExternalReplayTarget,
+  externalReplayQueryWindowForTarget,
+  resolveExternalReplayTarget,
+  resolveSecondaryReplayTarget,
+} from "@src/api/tauri/externalHistory/replay";
+import {
   type TurnIntentDispatch,
   waitForTurnIntentDispatch,
 } from "@src/engines/SessionCore/control/turnIntentDispatchLifecycle";
@@ -23,7 +29,10 @@ import { createLogger } from "@src/hooks/logger";
 import { sessionByIdAtom } from "@src/store/session/sessionAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
-import { stripCopyEventNamespace } from "../TeamCollaboration/copyEventId";
+import {
+  namespaceCopyEventId,
+  stripCopyEventNamespace,
+} from "../TeamCollaboration/copyEventId";
 import {
   type AddressableThread,
   buildAddressCommentsBriefing,
@@ -280,6 +289,34 @@ export function attachAnchorExcerpts(
   });
 }
 
+async function loadBoundedAnchorEvents(
+  target: ExternalReplayTarget,
+  threads: readonly AddressableThread[],
+  copyNamespaced: boolean
+): Promise<AddressRoundEventLike[]> {
+  const anchors = [
+    ...new Set(
+      threads
+        .map((thread) => thread.anchorEventId)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+  const events = new Map<string, AddressRoundEventLike>();
+  for (const anchorId of anchors) {
+    const window = await externalReplayQueryWindowForTarget({
+      target,
+      turnId: copyNamespaced
+        ? namespaceCopyEventId(target.sessionId, anchorId)
+        : anchorId,
+      limits: { maxTurns: 1, maxEvents: 4, maxIpcBytes: 64 * 1024 },
+    });
+    for (const event of window.events) {
+      events.set(event.id, event);
+    }
+  }
+  return [...events.values()];
+}
+
 export function seedActiveAddressRunForTest(run: ActiveAddressRun): () => void {
   activeAddressRuns.set(run.localSessionId, run);
   return () => {
@@ -333,6 +370,7 @@ export async function runAddressCommentsRound(
   } = input;
   const finishRunActivity = beginRunActivity(localSessionId, selectedHeadIds);
   let run: ActiveAddressRun | null = null;
+  let verifiedLocalFork = false;
   try {
     const listToken = await freshAccessToken();
     const { comments, viewerOwnsSession } = await listSessionComments(
@@ -362,6 +400,7 @@ export async function runAddressCommentsRound(
           "@agent may use only a verified local fork of the owner's cloud source"
         );
       }
+      verifiedLocalFork = true;
     }
     let threads = collectAddressableThreads(comments);
     if (selectedHeadIds !== undefined) {
@@ -369,9 +408,18 @@ export async function runAddressCommentsRound(
       threads = threads.filter((thread) => selected.has(thread.headId));
     }
     if (threads.length === 0) return { status: "no_threads" };
-    const anchorEvents = await eventStoreProxy
-      .getPersistedEvents(localSessionId)
-      .catch(() => []);
+    const replayTarget = verifiedLocalFork
+      ? await resolveSecondaryReplayTarget(localSessionId)
+      : resolveExternalReplayTarget(localSessionId);
+    const anchorEvents = replayTarget
+      ? await loadBoundedAnchorEvents(
+          replayTarget,
+          threads,
+          verifiedLocalFork
+        ).catch(() => [])
+      : await eventStoreProxy
+          .getPersistedEvents(localSessionId)
+          .catch(() => []);
     threads = attachAnchorExcerpts(threads, anchorEvents, localSessionId);
 
     const turnIntentId = mintTurnIntentId();

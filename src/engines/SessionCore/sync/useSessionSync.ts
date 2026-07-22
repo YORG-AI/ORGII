@@ -41,6 +41,10 @@ import { wpReadOnlyAtom } from "@src/store/ui/chatPanelAtom";
 
 import "./adapters";
 import { useExternalHistoryAutoRefresh } from "./externalHistoryAutoRefresh";
+import {
+  getActiveExternalReplayLease,
+  pollExternalReplaySession,
+} from "./externalReplayTransport";
 import { scheduleNativeTranscriptReconcile } from "./nativeTranscriptReconcile";
 import {
   resetEmptySessionRefs,
@@ -190,21 +194,19 @@ export function useSessionSync(
     ]
   );
 
-  const scheduleReconcile = useCallback(
-    (sid: string) => {
-      scheduleNativeTranscriptReconcile(sid, {
-        loadHistory: async (target) => {
-          const adapter = getAdapterForSession(target);
-          if (!adapter) return [];
-          const controller = new AbortController();
-          return adapter.loadHistory(target, controller.signal);
-        },
-        dispatchLoadSession,
-        isSessionLive: (target) => liveSessionIdRef.current === target,
-      });
-    },
-    [dispatchLoadSession]
-  );
+  const scheduleReconcile = useCallback((sid: string) => {
+    scheduleNativeTranscriptReconcile(sid, {
+      pollReplay: async (target) => {
+        const adapter = getAdapterForSession(target);
+        if (adapter?.historyMode !== "bounded-replay") return;
+        const lease = getActiveExternalReplayLease(target);
+        if (!lease) return;
+        const controller = new AbortController();
+        await pollExternalReplaySession(lease, controller.signal);
+      },
+      isSessionLive: (target) => liveSessionIdRef.current === target,
+    });
+  }, []);
 
   const handlerActions = useMemo(
     () => ({
@@ -303,7 +305,6 @@ export function useSessionSync(
       ACTIVE_EXTERNAL_SESSION_REFRESH_INTERVAL_MS[
         activeExternalSessionRefreshFrequency
       ],
-    dispatchLoadSession,
   });
 
   useEventStoreCacheSync(sessionId);

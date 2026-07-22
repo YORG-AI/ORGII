@@ -99,6 +99,15 @@ const FORK_RESULT: ForkSessionResult = {
   localSessionId: "agentsession-fork-1",
   name: "⑂ Remote session",
   eventCount: 2,
+  handoffItems: [
+    "User: please fix the login bug",
+    [
+      "[Inherited session action]",
+      "Tool: edit_file",
+      "Input: patch auth.ts",
+      "Result at that time: file updated",
+    ].join("\n"),
+  ],
 };
 
 function makeRemote(
@@ -127,7 +136,7 @@ function makeForkOptions(
   overrides: Partial<RemoteTeammateSessionMetadata> = {}
 ) {
   return {
-    client: { getSessionEventSegments: vi.fn() },
+    client: { getSessionEventWirePage: vi.fn() },
     orgId: "org-1",
     remoteSession: makeRemote(overrides),
     execution: {
@@ -177,7 +186,6 @@ beforeEach(() => {
   saveSessionMock.mockResolvedValue(undefined);
   deleteSessionMock.mockResolvedValue(undefined);
   eventStoreMock.clear.mockResolvedValue(undefined);
-  eventStoreMock.getPersistedEvents.mockResolvedValue([]);
   store.set(sessionsAtom, []);
   store.set(reposAtom, []);
   store.set(org2CloudOrgsAtom, []);
@@ -618,24 +626,8 @@ describe("forkTeammateSession workspaceRepoPath key-presence (agent-pickup desig
 });
 
 describe("first-send handoff (LLM context continuity)", () => {
-  it("wraps the first send with the inherited digest and keeps the user's words as displayText", async () => {
+  it("wraps the first send from the bounded ingest digest without hydrating history", async () => {
     await forkTeammateSession(makeForkOptions());
-    eventStoreMock.getPersistedEvents.mockResolvedValue([
-      makeEvent({
-        id: "u1",
-        source: "user",
-        actionType: "user_message",
-        displayText: "please fix the login bug",
-      }),
-      makeEvent({
-        id: "t1",
-        actionType: "tool_call",
-        functionName: "edit_file",
-        displayText: "",
-        args: { text: "patch auth.ts" },
-        result: { content: "file updated" },
-      }),
-    ]);
 
     const handoff = await buildPendingForkHandoff(
       "agentsession-fork-1",
@@ -651,6 +643,36 @@ describe("first-send handoff (LLM context continuity)", () => {
     expect(handoff!.content).toContain("Input: patch auth.ts");
     expect(handoff!.content).toContain("Result at that time: file updated");
     expect(handoff!.content).toContain("continue where Bob left off");
+    expect(eventStoreMock.getPersistedEvents).not.toHaveBeenCalled();
+  });
+
+  it("bounds relay storage to 80 items and 1200 characters per item", async () => {
+    forkSessionMock.mockResolvedValueOnce({
+      ...FORK_RESULT,
+      handoffItems: Array.from(
+        { length: __FORK_RELAY_INTERNALS.MAX_HANDOFF_ITEMS + 10 },
+        (_unused, index) => `${index}:${"x".repeat(1300)}`
+      ),
+    });
+
+    await forkTeammateSession(makeForkOptions());
+
+    const raw = localStorage.getItem(
+      __FORK_RELAY_INTERNALS.FORK_RELAY_STORAGE_KEY
+    );
+    const registry = JSON.parse(raw ?? "{}") as Record<
+      string,
+      { handoffItems?: string[] }
+    >;
+    const items = registry["agentsession-fork-1"]?.handoffItems ?? [];
+    expect(items).toHaveLength(__FORK_RELAY_INTERNALS.MAX_HANDOFF_ITEMS);
+    expect(items[0]).toMatch(/^10:/);
+    expect(items.at(-1)).toMatch(/^89:/);
+    expect(
+      items.every(
+        (item) => item.length <= __FORK_RELAY_INTERNALS.MAX_ITEM_TEXT_LENGTH
+      )
+    ).toBe(true);
   });
 
   it("is one-shot: consumed after a successful send, durable until then", async () => {
@@ -681,19 +703,12 @@ describe("first-send handoff (LLM context continuity)", () => {
     expect(eventStoreMock.getPersistedEvents).not.toHaveBeenCalled();
   });
 
-  it("slices to the fork point so the just-typed user event is not doubled into the digest", async () => {
-    await forkTeammateSession(makeForkOptions()); // atCount = 2
-    eventStoreMock.getPersistedEvents.mockResolvedValue([
-      makeEvent({ id: "e1", displayText: "inherited one" }),
-      makeEvent({ id: "e2", displayText: "inherited two" }),
-      // Appended by the composer before dispatch — NOT inherited history.
-      makeEvent({
-        id: "e3",
-        source: "user",
-        actionType: "user_message",
-        displayText: "my brand new message",
-      }),
-    ]);
+  it("does not re-read composer-appended events before the first send", async () => {
+    forkSessionMock.mockResolvedValueOnce({
+      ...FORK_RESULT,
+      handoffItems: ["Assistant: inherited one", "Assistant: inherited two"],
+    });
+    await forkTeammateSession(makeForkOptions());
 
     const handoff = await buildPendingForkHandoff(
       "agentsession-fork-1",
@@ -701,8 +716,33 @@ describe("first-send handoff (LLM context continuity)", () => {
     );
     expect(handoff!.content).toContain("inherited one");
     expect(handoff!.content).toContain("inherited two");
-    // Present once as the continuation request, not also as transcript.
+    // The new text is present once as the continuation request, not also as
+    // transcript, because the handoff never re-opens the event store.
     expect(handoff!.content).not.toContain("User: my brand new message");
+    expect(eventStoreMock.getPersistedEvents).not.toHaveBeenCalled();
+  });
+
+  it("keeps legacy relay entries readable without falling back to full history", async () => {
+    localStorage.setItem(
+      __FORK_RELAY_INTERNALS.FORK_RELAY_STORAGE_KEY,
+      JSON.stringify({
+        "agentsession-legacy": {
+          forkedFrom: FORKED_FROM,
+          handoffPending: true,
+        },
+      })
+    );
+
+    const handoff = await buildPendingForkHandoff(
+      "agentsession-legacy",
+      "continue safely"
+    );
+
+    expect(handoff?.content).toContain(
+      "No usable transcript items were found."
+    );
+    expect(handoff?.content).toContain("continue safely");
+    expect(eventStoreMock.getPersistedEvents).not.toHaveBeenCalled();
   });
 });
 

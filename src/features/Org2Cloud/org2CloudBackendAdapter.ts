@@ -1,23 +1,10 @@
 /**
  * Cloud → collab backend adapter (replay/fork wiring for managed orgs).
  *
- * `importRemoteSession` / `forkTeammateSession` are backend-agnostic: they
- * only ever call `client.getSessionEventSegments(...)`. This module gives
- * the managed ORG2 Cloud backend that one capability by wrapping
- * `cloud_get_session_events` (org2CloudSyncClient) in the EXACT
- * canonical `SessionEventSegmentsSnapshot` shape:
- *
- * - cloud `seq = 0` is the mutable tail row → canonical `isTail: true`;
- * - cloud `payloadGz` (gzipped base64 event array) → decoded `events` via
- *   the SHARED `decodeSegmentEvents` codec (byte-identical wire format —
- *   both backends push through `segmentCodec`);
- * - cloud `{epoch, frozenSeq, tailHash, count}` map 1:1 to the snapshot
- *   summary fields (`cloud_get_session_events` was built as a mirror of
- *   `orgii_get_session_event_segments`);
- * - the cloud RPC has no `after_seq` parameter (always returns the full
- *   epoch), so the importer's incremental contract ("frozen segments with
- *   seq strictly greater than afterSeq; tail always included") is applied
- *   client-side by filtering.
+ * `importRemoteSession` / `forkTeammateSession` are backend-agnostic and only
+ * consume raw, byte-bounded physical-row pages. A cold read starts from the
+ * newest page; deltas advance from a physical cursor. Opaque gzip payloads
+ * cross the renderer once and are decoded by the Rust staged ingester.
  *
  * Errors are NOT swallowed: `Org2CloudSyncError` (notably code
  * ORG2_RETENTION_EXPIRED, raised when a replay click races past the
@@ -26,20 +13,16 @@
  */
 import type {
   CollabSyncBackendClient,
-  GetSessionEventSegmentsInput,
-  SessionEventSegmentsSnapshot,
+  GetSessionEventWirePageInput,
+  SessionEventWirePage,
 } from "../TeamCollaboration/sync/CollabSyncBackend";
-import {
-  decodeSegmentEvents,
-  mapSegmentsBounded,
-} from "../TeamCollaboration/sync/segmentCodec";
 import type { CloudEndpoint } from "./config";
 import { getSessionEvents } from "./org2CloudSyncClient";
 
-/** The one capability replay/fork need from a backend. */
-export type CloudSessionFetchClient = Pick<
+/** Raw bounded client used by the new Rust-backed import path. */
+export type CloudSessionWirePageClient = Pick<
   CollabSyncBackendClient,
-  "getSessionEventSegments"
+  "getSessionEventWirePage"
 >;
 
 /**
@@ -56,72 +39,33 @@ export function cloudSessionIdFromRowId(sessionRowId: string): string {
 }
 
 /**
- * Build the segments-fetch client `importRemoteSession` / `forkSession`
- * expect, bound to one cloud access token (caller refreshes via
- * `ensureFreshSession` first — RPC wrappers do not refresh).
- *
- * Link imports still require a registered user's access token. The optional
- * `input.shareToken` — threaded by the importer from
- * `RemoteSessionFetchOptions` — grants that signed-in user access without
- * requiring membership in the source org.
+ * Build the only replay/fork read capability: bounded opaque wire pages.
  */
-export function buildCloudSessionFetchClient(
+export function buildCloudSessionWirePageClient(
   accessToken: string,
   endpoint?: CloudEndpoint
-): CloudSessionFetchClient {
+): CloudSessionWirePageClient {
   return {
-    async getSessionEventSegments(
-      input: GetSessionEventSegmentsInput
-    ): Promise<SessionEventSegmentsSnapshot> {
-      const afterSeq = input.afterSeq ?? 0;
-      const snapshot = await getSessionEvents(
+    async getSessionEventWirePage(
+      input: GetSessionEventWirePageInput
+    ): Promise<SessionEventWirePage> {
+      return getSessionEvents(
         accessToken,
         input.orgId,
         cloudSessionIdFromRowId(input.sessionRowId),
-        input.shareToken !== undefined ||
-          endpoint !== undefined ||
-          afterSeq > 0 ||
-          input.signal !== undefined
-          ? {
-              ...(input.shareToken !== undefined
-                ? { shareToken: input.shareToken }
-                : {}),
-              ...(endpoint !== undefined ? { endpoint } : {}),
-              // Server-side range read (p_after_seq): an incremental pull
-              // must not download the frozen prefix it already holds.
-              ...(afterSeq > 0 ? { afterSeq } : {}),
-              ...(input.signal !== undefined ? { signal: input.signal } : {}),
-            }
-          : undefined
+        {
+          boundedWirePage: true,
+          cursor: input.cursor,
+          includeTail: input.includeTail,
+          maxSegments: input.maxSegments,
+          maxWireBytes: input.maxWireBytes,
+          ...(input.shareToken !== undefined
+            ? { shareToken: input.shareToken }
+            : {}),
+          ...(endpoint !== undefined ? { endpoint } : {}),
+          ...(input.signal !== undefined ? { signal: input.signal } : {}),
+        }
       );
-      const segments = await mapSegmentsBounded(
-        snapshot.segments
-          // Defense in depth: the server contract already excludes frozen
-          // seqs ≤ afterSeq, but a legacy/full response must not smuggle an
-          // already-held prefix back into the incremental splice.
-          .filter((segment) => {
-            const seq = segment.seq ?? 0;
-            return seq === 0 || seq > afterSeq;
-          }),
-        async (segment) => {
-          const seq = segment.seq ?? 0;
-          return {
-            seq,
-            isTail: seq === 0,
-            events: await decodeSegmentEvents(segment.payloadGz),
-            eventCount: segment.eventCount,
-            segmentHash: segment.segmentHash,
-          };
-        },
-        input.signal
-      );
-      return {
-        epoch: snapshot.epoch,
-        frozenSeq: snapshot.frozenSeq,
-        tailHash: snapshot.tailHash,
-        count: snapshot.count,
-        segments,
-      };
     },
   };
 }

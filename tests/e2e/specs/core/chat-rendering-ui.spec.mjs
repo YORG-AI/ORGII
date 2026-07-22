@@ -408,7 +408,10 @@ const ORDER_TEXTS = {
   answerB: "ORDER_ANSWER_B_after_second_thinking",
 };
 
-const OPENCODE_RELOAD_SESSION_ID = `opencodeapp-e2e-reload-${Date.now()}`;
+// This fixture validates the normalized chat renderer and persisted-cache
+// reload only. A native id keeps it from pretending to exercise OpenCode's
+// provider database or bounded-replay adapter.
+const OPENCODE_RELOAD_SESSION_ID = `sdeagent-e2e-opencode-render-reload-${Date.now()}`;
 const OPENCODE_RELOAD_USER_PROMPT =
   "启动一个（subagent），让它帮我分析当前项目里有多少个 .rs 文件，并生成一份报告。必须要用subagent，然后要让我看到过程";
 const OPENCODE_RELOAD_ASSIGNMENT_PROMPT =
@@ -2221,7 +2224,7 @@ async function assertOpenCodeSubagentReloadKeepsAnswerAndAssignment() {
     sessionId: OPENCODE_RELOAD_SESSION_ID,
     name: OPENCODE_RELOAD_USER_PROMPT,
     userInput: OPENCODE_RELOAD_USER_PROMPT,
-    category: "cli_agent",
+    category: "rust_agent",
     events,
   });
   if (!seed || seed.ok !== true) {
@@ -2254,7 +2257,22 @@ async function assertOpenCodeSubagentReloadKeepsAnswerAndAssignment() {
 
   await browser.refresh();
   await waitForApp();
-  const reopened = await invokeE2E("openSession", OPENCODE_RELOAD_SESSION_ID);
+  const navigation = await invokeE2E("navigateTo", "/orgii/workstation/code");
+  if (!navigation || navigation.ok !== true) {
+    throw new Error(
+      `navigateTo after reload failed: ${navigation?.error ?? "unknown"}`
+    );
+  }
+  // `openSession` may legitimately wait for the post-reload session surface
+  // for up to 20 seconds. Temporarily widen `waitForApp`'s short script timeout
+  // for this one async helper, then restore the fail-fast default.
+  let reopened;
+  await browser.setTimeout({ script: 30_000 });
+  try {
+    reopened = await invokeE2E("openSession", OPENCODE_RELOAD_SESSION_ID);
+  } finally {
+    await browser.setTimeout({ script: 5_000 });
+  }
   if (!reopened || reopened.ok !== true) {
     throw new Error(
       `openSession after reload failed: ${reopened?.error ?? "unknown"}`
@@ -2799,7 +2817,7 @@ describe("Core chat rendering UI", () => {
     await assertDedupRenderedOnce();
   });
 
-  it("preserves OpenCode subagent assignment and assistant answer after reload", async function () {
+  it("preserves normalized OpenCode subagent rows after a native cache reload", async function () {
     if (!shouldRunScenario("opencode-subagent-reload")) {
       this.skip();
       return;

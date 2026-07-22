@@ -23,11 +23,12 @@
  *    cache the fork inherited — a fork starts with an empty message table, so
  *    without help the agent is blind to the teammate's context. There is no
  *    Tauri command to seed `agent_messages`, so the handoff rides the FIRST
- *    message instead: `buildPendingForkHandoff` wraps the user's first send
- *    with a bounded digest of the inherited events (same technique as the
- *    imported-history handoff in `externalHistoryFork.ts`), while `displayText`
- *    keeps the user's own words in the transcript. The handoff is one-shot
- *    and durable across restarts (localStorage registry), consumed by
+ *    message instead: the bounded Rust snapshot ingest returns at most 80
+ *    compact handoff items, which are stored with the relay marker.
+ *    `buildPendingForkHandoff` wraps the user's first send from those items
+ *    without re-reading the inherited event cache, while `displayText` keeps
+ *    the user's own words in the transcript. The handoff is one-shot and
+ *    durable across restarts (localStorage registry), consumed by
  *    `markForkHandoffConsumed` only after the send succeeds.
  *
  * The registry doubles as durable provenance: backend list reloads rebuild
@@ -68,8 +69,8 @@ import {
 } from "./components/ForkSessionSetupDialog";
 import type {
   ForkExecutionSelection,
+  ForkSessionOptions,
   ForkSessionResult,
-  RemoteSessionFetchOptions,
 } from "./engine/collabSyncEngineHelpers";
 import { forkSession } from "./engine/collabSyncEngineHelpers";
 import { ForkOperationError } from "./forkSnapshotIntegrity";
@@ -84,7 +85,7 @@ import {
   withTag,
 } from "./sessionOrgTagsAtom";
 
-export type { ForkSessionResult, RemoteSessionFetchOptions };
+export type { ForkSessionResult };
 
 // ============================================================================
 // Durable fork-relay registry (provenance + one-shot handoff marker)
@@ -94,6 +95,8 @@ const FORK_RELAY_STORAGE_KEY = "orgii:collabForkRelay:v1";
 
 /** Registry size cap — evicts the oldest fork (by forkedAt) past this. */
 const MAX_REGISTRY_ENTRIES = 100;
+const MAX_HANDOFF_ITEMS = 80;
+const MAX_ITEM_TEXT_LENGTH = 1200;
 
 const SessionForkedFromSchema = z.object({
   orgId: z.string(),
@@ -109,6 +112,11 @@ const ForkRelayEntrySchema = z.object({
   forkedFrom: SessionForkedFromSchema,
   /** True until the first successful message send consumes the handoff. */
   handoffPending: z.boolean(),
+  /** Bounded, pre-folded context produced while the remote snapshot streams. */
+  handoffItems: z
+    .array(z.string().max(MAX_ITEM_TEXT_LENGTH))
+    .max(MAX_HANDOFF_ITEMS)
+    .optional(),
 });
 
 type ForkRelayEntry = z.output<typeof ForkRelayEntrySchema>;
@@ -250,7 +258,7 @@ export async function resolveForkWorkspacePath(
   return null;
 }
 
-export interface ForkTeammateSessionOptions extends RemoteSessionFetchOptions {
+export interface ForkTeammateSessionOptions extends ForkSessionOptions {
   /** User-initiated forks open one setup dialog before any remote fetch. */
   promptForExecution?: boolean;
   /** Pre-resolved execution choice for headless/programmatic callers. */
@@ -550,6 +558,9 @@ export async function forkTeammateSession(
         remoteSession.sourceSessionId,
     },
     handoffPending: true,
+    handoffItems: result.handoffItems
+      .slice(-MAX_HANDOFF_ITEMS)
+      .map(truncateText),
   });
 
   if (isStoreInitialized()) {
@@ -583,9 +594,6 @@ export async function forkTeammateSession(
 // First-send handoff (LLM context continuity)
 // ============================================================================
 
-const MAX_HANDOFF_ITEMS = 80;
-const MAX_ITEM_TEXT_LENGTH = 1200;
-
 function textValue(value: unknown): string | undefined {
   if (typeof value === "string") {
     const trimmed = value.trim();
@@ -611,7 +619,7 @@ function textValue(value: unknown): string | undefined {
 
 function truncateText(text: string): string {
   return text.length > MAX_ITEM_TEXT_LENGTH
-    ? `${text.slice(0, MAX_ITEM_TEXT_LENGTH)}…`
+    ? `${text.slice(0, MAX_ITEM_TEXT_LENGTH - 1)}…`
     : text;
 }
 
@@ -646,16 +654,12 @@ function eventToHandoffItem(event: SessionEvent): string | undefined {
   return primary ? `Assistant: ${truncateText(primary)}` : undefined;
 }
 
-/** Exported for tests; assembles the wrapped first-send content. */
-export function buildForkHandoffPrompt(
-  events: SessionEvent[],
+function buildForkHandoffPromptFromItems(
+  handoffItems: readonly string[],
   forkedFrom: SessionForkedFrom,
   userText: string
 ): string {
-  const items = events
-    .map(eventToHandoffItem)
-    .filter((item): item is string => Boolean(item))
-    .slice(-MAX_HANDOFF_ITEMS);
+  const items = handoffItems.slice(-MAX_HANDOFF_ITEMS).map(truncateText);
 
   return [
     "You are taking over a teammate's shared ORGII session and continuing it as your own session.",
@@ -673,6 +677,18 @@ export function buildForkHandoffPrompt(
   ].join("\n");
 }
 
+/** Exported for tests; assembles the wrapped first-send content. */
+export function buildForkHandoffPrompt(
+  events: SessionEvent[],
+  forkedFrom: SessionForkedFrom,
+  userText: string
+): string {
+  const items = events
+    .map(eventToHandoffItem)
+    .filter((item): item is string => Boolean(item));
+  return buildForkHandoffPromptFromItems(items, forkedFrom, userText);
+}
+
 export interface ForkHandoffContent {
   /** Wire content for the LLM: handoff digest + the user's message. */
   content: string;
@@ -682,10 +698,11 @@ export interface ForkHandoffContent {
 
 /**
  * When `sessionId` is a fork whose handoff has not been consumed yet, build
- * the wrapped first-send content from the inherited events (bounded digest).
- * Pure read — call `markForkHandoffConsumed` after the send SUCCEEDS so a
- * failed send retries with the handoff intact. Returns null for every
- * non-fork session and for forks that already relayed their context.
+ * the wrapped first-send content from the bounded digest saved at fork time.
+ * It deliberately never hydrates the inherited event cache. Pure read — call
+ * `markForkHandoffConsumed` after the send SUCCEEDS so a failed send retries
+ * with the handoff intact. Returns null for every non-fork session and for
+ * forks that already relayed their context.
  */
 export async function buildPendingForkHandoff(
   sessionId: string,
@@ -694,13 +711,12 @@ export async function buildPendingForkHandoff(
   const entry = readRegistry()[sessionId];
   if (!entry?.handoffPending) return null;
 
-  const events = await eventStoreProxy.getPersistedEvents(sessionId);
-  // Slice to the fork point: by first-send time the composer may already have
-  // appended the new user's own message to the store — inherited history is
-  // exactly the first `atCount` events.
-  const inherited = events.slice(0, entry.forkedFrom.atCount);
   return {
-    content: buildForkHandoffPrompt(inherited, entry.forkedFrom, userText),
+    content: buildForkHandoffPromptFromItems(
+      entry.handoffItems ?? [],
+      entry.forkedFrom,
+      userText
+    ),
     displayText: userText,
   };
 }
@@ -710,7 +726,13 @@ export function markForkHandoffConsumed(sessionId: string): void {
   const registry = readRegistry();
   const entry = registry[sessionId];
   if (!entry?.handoffPending) return;
-  registry[sessionId] = { ...entry, handoffPending: false };
+  // Once consumed, drop the digest as well: provenance remains durable while
+  // bounded context no longer spends localStorage quota indefinitely.
+  registry[sessionId] = {
+    ...entry,
+    handoffPending: false,
+    handoffItems: undefined,
+  };
   writeRegistry(registry);
 }
 

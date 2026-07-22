@@ -1,33 +1,11 @@
-import type { ActivityChunk } from "@src/types/session/session";
-
 import type { DispatchCategory } from "../../session";
-import { cursorIdeChunks, cursorIdeInitialWindow } from "../cursorIde";
 import type { ExternalCliSourceProbe } from "../detection";
-import {
-  type ImportedTranscriptStat,
-  claudeCodeHistoryChunks,
-  claudeCodeHistoryStat,
-} from "../sources/claudeCode";
-import { clineHistoryChunks } from "../sources/cline";
-import { codexAppChunks } from "../sources/codexApp";
-import { cursorCliHistoryChunks } from "../sources/cursorCli";
-import { mimoCodeHistoryChunks } from "../sources/mimoCode";
-import { ompHistoryChunks } from "../sources/omp";
-import { opencodeHistoryChunks } from "../sources/opencode";
-import { qoderHistoryChunks } from "../sources/qoder";
-import { qoderCliHistoryChunks } from "../sources/qoderCli";
-import { traeHistoryChunks } from "../sources/trae";
-import { warpHistoryChunks } from "../sources/warp";
-import { windsurfHistoryChunks } from "../sources/windsurf";
-import { workBuddyHistoryChunks } from "../sources/workbuddy";
-import { zcodeHistoryChunks } from "../sources/zcode";
 import {
   IMPORTED_HISTORY_SOURCE_DESCRIPTORS,
   type ImportedHistoryListCategory,
   type ImportedHistorySourceDescriptor,
   type ImportedHistorySourceId,
 } from "./descriptors";
-import { importedHistoryStat } from "./stat";
 
 export type {
   ImportedHistoryListCategory,
@@ -36,151 +14,20 @@ export type {
 };
 export { IMPORTED_HISTORY_SOURCE_DESCRIPTORS };
 
-export type { ImportedTranscriptStat };
-
 export interface ImportedHistorySource extends ImportedHistorySourceDescriptor {
   dispatchCategory: Extract<DispatchCategory, "external_history">;
-  /** Fast/windowed transcript used when the user opens the local history. */
-  loadPreviewChunks(sessionId: string): Promise<ActivityChunk[]>;
-  /** Complete source transcript used for cloud replay/fork publication. */
-  loadFullTranscriptChunks(sessionId: string): Promise<ActivityChunk[]>;
-  /**
-   * Optional freshness probe (one backend `stat`). When present, the replay
-   * auto-refresh compares it against the previous tick and skips the full
-   * read/parse/merge pipeline while the transcript is unchanged. Sources
-   * without it simply refresh unconditionally.
-   */
-  statTranscript?(sessionId: string): Promise<ImportedTranscriptStat | null>;
 }
 
-const CURSOR_IDE_INITIAL_RECENT_BUBBLE_LIMIT = 100;
-
-function descriptorFor(
-  sourceId: ImportedHistorySourceId
-): ImportedHistorySourceDescriptor {
-  const descriptor = IMPORTED_HISTORY_SOURCE_DESCRIPTORS.find(
-    (entry) => entry.sourceId === sourceId
-  );
-  if (!descriptor) {
-    throw new Error(`Missing imported history source descriptor: ${sourceId}`);
-  }
-  return descriptor;
-}
-
-export const IMPORTED_HISTORY_SOURCES: readonly ImportedHistorySource[] = [
-  {
-    ...descriptorFor("cursor_ide"),
-    dispatchCategory: "external_history",
-    statTranscript: (sessionId) => importedHistoryStat("cursor_ide", sessionId),
-    async loadPreviewChunks(sessionId) {
-      return (
-        await cursorIdeInitialWindow({
-          sessionId,
-          recentLimit: CURSOR_IDE_INITIAL_RECENT_BUBBLE_LIMIT,
-        })
-      ).chunks;
-    },
-    loadFullTranscriptChunks: cursorIdeChunks,
-  },
-  {
-    ...descriptorFor("cursor_cli"),
-    dispatchCategory: "external_history",
-    statTranscript: (sessionId) => importedHistoryStat("cursor_cli", sessionId),
-    loadPreviewChunks: cursorCliHistoryChunks,
-    loadFullTranscriptChunks: cursorCliHistoryChunks,
-  },
-  {
-    ...descriptorFor("codex_app"),
-    dispatchCategory: "external_history",
-    statTranscript: (sessionId) => importedHistoryStat("codex_app", sessionId),
-    loadPreviewChunks: codexAppChunks,
-    loadFullTranscriptChunks: codexAppChunks,
-  },
-  {
-    ...descriptorFor("claude_code"),
-    dispatchCategory: "external_history",
-    loadPreviewChunks: claudeCodeHistoryChunks,
-    loadFullTranscriptChunks: claudeCodeHistoryChunks,
-    statTranscript: claudeCodeHistoryStat,
-  },
-  {
-    ...descriptorFor("opencode"),
-    dispatchCategory: "external_history",
-    statTranscript: (sessionId) => importedHistoryStat("opencode", sessionId),
-    loadPreviewChunks: opencodeHistoryChunks,
-    loadFullTranscriptChunks: opencodeHistoryChunks,
-  },
-  {
-    ...descriptorFor("windsurf"),
-    dispatchCategory: "external_history",
-    statTranscript: (sessionId) => importedHistoryStat("windsurf", sessionId),
-    loadPreviewChunks: windsurfHistoryChunks,
-    loadFullTranscriptChunks: windsurfHistoryChunks,
-  },
-  {
-    ...descriptorFor("workbuddy"),
-    dispatchCategory: "external_history",
-    statTranscript: (sessionId) => importedHistoryStat("workbuddy", sessionId),
-    loadPreviewChunks: workBuddyHistoryChunks,
-    loadFullTranscriptChunks: workBuddyHistoryChunks,
-  },
-  {
-    ...descriptorFor("trae"),
-    dispatchCategory: "external_history",
-    statTranscript: (sessionId) => importedHistoryStat("trae", sessionId),
-    loadPreviewChunks: traeHistoryChunks,
-    loadFullTranscriptChunks: traeHistoryChunks,
-  },
-  {
-    ...descriptorFor("cline"),
-    dispatchCategory: "external_history",
-    statTranscript: (sessionId) => importedHistoryStat("cline", sessionId),
-    loadPreviewChunks: clineHistoryChunks,
-    loadFullTranscriptChunks: clineHistoryChunks,
-  },
-  {
-    ...descriptorFor("warp"),
-    dispatchCategory: "external_history",
-    statTranscript: (sessionId) => importedHistoryStat("warp", sessionId),
-    loadPreviewChunks: warpHistoryChunks,
-    loadFullTranscriptChunks: warpHistoryChunks,
-  },
-  {
-    ...descriptorFor("zcode"),
-    dispatchCategory: "external_history",
-    statTranscript: (sessionId) => importedHistoryStat("zcode", sessionId),
-    loadPreviewChunks: zcodeHistoryChunks,
-    loadFullTranscriptChunks: zcodeHistoryChunks,
-  },
-  {
-    ...descriptorFor("qoder"),
-    dispatchCategory: "external_history",
-    statTranscript: (sessionId) => importedHistoryStat("qoder", sessionId),
-    loadPreviewChunks: qoderHistoryChunks,
-    loadFullTranscriptChunks: qoderHistoryChunks,
-  },
-  {
-    ...descriptorFor("mimo_code"),
-    dispatchCategory: "external_history",
-    statTranscript: (sessionId) => importedHistoryStat("mimo_code", sessionId),
-    loadPreviewChunks: mimoCodeHistoryChunks,
-    loadFullTranscriptChunks: mimoCodeHistoryChunks,
-  },
-  {
-    ...descriptorFor("omp"),
-    dispatchCategory: "external_history",
-    statTranscript: (sessionId) => importedHistoryStat("omp", sessionId),
-    loadPreviewChunks: ompHistoryChunks,
-    loadFullTranscriptChunks: ompHistoryChunks,
-  },
-  {
-    ...descriptorFor("qoder_cli"),
-    dispatchCategory: "external_history",
-    statTranscript: (sessionId) => importedHistoryStat("qoder_cli", sessionId),
-    loadPreviewChunks: qoderCliHistoryChunks,
-    loadFullTranscriptChunks: qoderCliHistoryChunks,
-  },
-];
+/**
+ * Metadata-only source registry. Transcript access is deliberately absent:
+ * every renderer consumer must use the source-neutral bounded replay API.
+ * This makes an accidental JS full-history fallback a type error.
+ */
+export const IMPORTED_HISTORY_SOURCES: readonly ImportedHistorySource[] =
+  IMPORTED_HISTORY_SOURCE_DESCRIPTORS.map((descriptor) => ({
+    ...descriptor,
+    dispatchCategory: "external_history" as const,
+  }));
 
 export function getImportedHistorySourceBySessionId(
   sessionId: string | null | undefined

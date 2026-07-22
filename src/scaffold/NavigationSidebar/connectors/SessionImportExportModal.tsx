@@ -7,6 +7,7 @@ import { FileJson, FolderInput, FolderOutput } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { externalReplayStreamExportForTarget } from "@src/api/tauri/externalHistory/replay";
 import Message from "@src/components/Message";
 import { createLogger } from "@src/hooks/logger";
 import Modal from "@src/scaffold/ModalSystem";
@@ -135,10 +136,19 @@ export function SessionImportExportModal({
       });
       if (!filePath) return;
       setLoading(true);
-      await writeTextFile(
-        filePath,
-        stringifySessionExportFile(exportDraft.file)
-      );
+      if (exportDraft.mode === "bounded-replay") {
+        await externalReplayStreamExportForTarget({
+          target: exportDraft.replayTarget,
+          destinationPath: filePath,
+          format: "orgii_session_json",
+          orgiiEnvelope: exportDraft.orgiiEnvelope,
+        });
+      } else {
+        await writeTextFile(
+          filePath,
+          stringifySessionExportFile(exportDraft.file)
+        );
+      }
       Message.success(t("chat.importExport.exportSuccess"));
       onClose();
     } catch (error) {

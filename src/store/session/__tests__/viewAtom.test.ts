@@ -63,6 +63,7 @@ async function loadAtoms() {
     jumpToSessionAtom: mod.jumpToSessionAtom,
     openSessionAtom: mod.openSessionAtom,
     closeSessionAtom: mod.closeSessionAtom,
+    sessionIdAtom: sessionCoreMetadata.sessionIdAtom,
     sessionReloadEpochMapAtom: sessionCoreMetadata.sessionReloadEpochMapAtom,
     loadStatusAtom: sessionCoreMetadata.loadStatusAtom,
     reposAtom: repoAtoms.reposAtom,
@@ -428,8 +429,11 @@ describe("closeSessionAtom", () => {
       sessionViewAtom,
       activeSessionIdAtom,
       workstationActiveSessionIdAtom,
+      sessionIdAtom,
     } = await loadAtoms();
     const store = createStore();
+    const payloadRegistry =
+      await import("@src/engines/SessionCore/payloads/loadedPayloadRegistry");
 
     store.set(sessionViewAtom, {
       activeSessionId: "to-be-closed",
@@ -437,11 +441,18 @@ describe("closeSessionAtom", () => {
       repoPath: "/repos/x",
     });
     store.set(activeSessionIdAtom, "to-be-closed");
+    store.set(sessionIdAtom, "to-be-closed");
+    payloadRegistry.markPayloadLoaded("to-be-closed:event:result", "body");
 
     store.set(closeSessionAtom);
 
     expect(store.get(workstationActiveSessionIdAtom)).toBeNull();
     expect(store.get(activeSessionIdAtom)).toBeNull();
+    expect(store.get(sessionIdAtom)).toBeNull();
+    expect(payloadRegistry.getLoadedPayloadStats()).toEqual({
+      entries: 0,
+      bytes: 0,
+    });
     const view = store.get(sessionViewAtom);
     expect(view.sessionName).toBeUndefined();
     expect(view.repoPath).toBeUndefined();

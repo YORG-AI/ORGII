@@ -56,6 +56,9 @@ export const PayloadRefSchema = z.object({
   preview: z.string(),
   fullSizeBytes: z.number(),
   truncated: z.boolean(),
+  replaySourceId: z.string().optional(),
+  replayGeneration: z.string().optional(),
+  replaySourceEventId: z.string().optional(),
 });
 
 export const EventPayloadBodySchema = z.object({

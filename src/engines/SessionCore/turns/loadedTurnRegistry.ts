@@ -1,5 +1,5 @@
+import { resolveExternalReplayTarget } from "@src/api/tauri/externalHistory/replay";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
-import { isCursorIdeSession } from "@src/util/session/sessionDispatch";
 
 import { MAX_LOADED_HISTORICAL_TURN_BODIES } from "./turnWindowConfig";
 
@@ -47,18 +47,18 @@ export function markTurnBodyLoaded(sessionId: string, turnId: string): void {
 export async function pruneLoadedTurnBodies(
   sessionId: string,
   protectedTurnIds: Iterable<string>
-): Promise<void> {
-  if (isCursorIdeSession(sessionId)) return;
-
+): Promise<string[]> {
+  const boundedReplay = Boolean(resolveExternalReplayTarget(sessionId));
   const loadedTurns = loadedTurnsBySession.get(sessionId);
   if (!loadedTurns || loadedTurns.size <= MAX_LOADED_HISTORICAL_TURN_BODIES) {
-    return;
+    return [];
   }
 
   const protectedSet = new Set(protectedTurnIds);
   const unloadCandidates = [...loadedTurns.entries()]
     .filter(([turnId]) => !protectedSet.has(turnId))
     .sort((left, right) => left[1] - right[1]);
+  const prunedTurnIds: string[] = [];
 
   while (
     loadedTurns.size > MAX_LOADED_HISTORICAL_TURN_BODIES &&
@@ -68,8 +68,15 @@ export async function pruneLoadedTurnBodies(
     if (!candidate) break;
     const [turnId] = candidate;
     loadedTurns.delete(turnId);
-    await eventStoreProxy.unloadTurnBody(sessionId, turnId);
+    prunedTurnIds.push(turnId);
+    // External replay already evicts bodies under its byte cap. Calling the
+    // native unload command would cross storage modes; dropping the small JS
+    // bookkeeping entry is enough and lets a revisit fetch the turn again.
+    if (!boundedReplay) {
+      await eventStoreProxy.unloadTurnBody(sessionId, turnId);
+    }
   }
+  return prunedTurnIds;
 }
 
 export function clearLoadedTurnRegistry(sessionId: string): void {

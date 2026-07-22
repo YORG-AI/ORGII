@@ -20,7 +20,10 @@ import {
   loadInitialTurnWindow,
   saveEvents,
 } from "@src/engines/SessionCore/storage/cacheAdapter";
-import { cliAdapter } from "@src/engines/SessionCore/sync/adapters";
+import {
+  type ExternalReplaySessionLease,
+  deactivateExternalReplaySession,
+} from "@src/engines/SessionCore/sync/externalReplayTransport";
 import { getAdapterForSession } from "@src/engines/SessionCore/sync/types";
 import {
   chatPanelTabsAtom,
@@ -81,11 +84,11 @@ import {
   workstationLayoutAtom,
 } from "@src/store/workstation/tabs";
 import { LAYOUT_STORAGE_KEY } from "@src/store/workstation/tabs/storage";
-import { isCliSession } from "@src/util/session/sessionDispatch";
 
 import { asError } from "../result";
 import type { E2EStore, Json, Result } from "../types";
 import { createInspectChatStateHelper } from "./sessionHelpers/inspectChatState";
+import { openBoundedReplaySessionForE2E } from "./sessionHelpers/openBoundedReplaySession";
 import { createSessionSeederHelpers } from "./sessionHelpers/seeders";
 import { waitForSessionSurface } from "./sessionHelpers/waitForSessionSurface";
 
@@ -157,6 +160,13 @@ function toStoreSession(record: {
 }
 
 export function createSessionHelpers(store: E2EStore) {
+  let activeE2EReplayLease: ExternalReplaySessionLease | null = null;
+  const releaseActiveE2EReplayLease = () => {
+    if (!activeE2EReplayLease) return;
+    deactivateExternalReplaySession(activeE2EReplayLease);
+    activeE2EReplayLease = null;
+  };
+
   const promptDumpHelper = async (sessionId: string) => {
     try {
       if (!sessionId) {
@@ -271,6 +281,7 @@ export function createSessionHelpers(store: E2EStore) {
   };
 
   const resetToNewSession = async (): Promise<{ ok: true } | Result<never>> => {
+    releaseActiveE2EReplayLease();
     try {
       store.set(clearSessionAtom);
       store.set(activeSessionIdAtom, null);
@@ -429,6 +440,7 @@ export function createSessionHelpers(store: E2EStore) {
   const openSession = async (
     sessionId: string
   ): Promise<Result<{ sessionId: string }>> => {
+    releaseActiveE2EReplayLease();
     try {
       if (!sessionId) {
         return { ok: false, error: "openSession: `sessionId` is required" };
@@ -465,33 +477,16 @@ export function createSessionHelpers(store: E2EStore) {
       store.set(sessionRuntimeStatusAtom, "idle");
       await eventStoreProxy.switchSession(sessionId);
 
-      // CLI sessions: the authoritative post-restore history lives in
-      // `code_session_chunks`, read via the adapter. The session-persistence
-      // turn-index / events cache can survive a restore-to-checkpoint in an
-      // inconsistent state (a turn_count that no longer matches the truncated
-      // chunks, e.g. cursor-cli's double session_end inflating the count), so
-      // `loadInitialTurnWindow` may return a window that renders nothing even
-      // though stale rows are present. Always reload CLI history straight from
-      // the adapter (the chunk read can briefly lag the post-restore DB commit
-      // on a fresh page load, so retry a few times) rather than trusting the
-      // cached turn window.
+      // Every replay source restores through the real foreground transport.
+      // Its backend open owns EventStore application, watcher setup and request
+      // epochs; the E2E helper only mirrors the returned bounded projection.
       let events: SessionEvent[] = [];
-      if (isCliSession(sessionId)) {
-        const ADAPTER_LOAD_ATTEMPTS = 5;
-        for (let attempt = 1; attempt <= ADAPTER_LOAD_ATTEMPTS; attempt++) {
-          const controller = new AbortController();
-          const loaded = await cliAdapter.loadHistory(
-            sessionId,
-            controller.signal
-          );
-          if (loaded.length > 0) {
-            events = loaded;
-            break;
-          }
-          if (attempt < ADAPTER_LOAD_ATTEMPTS) {
-            await new Promise((resolve) => window.setTimeout(resolve, 400));
-          }
-        }
+      let replayAppliedByBackend = false;
+      const openedReplay = await openBoundedReplaySessionForE2E(sessionId);
+      if (openedReplay) {
+        activeE2EReplayLease = openedReplay.lease;
+        events = openedReplay.events;
+        replayAppliedByBackend = true;
       } else {
         const initialWindow = await loadInitialTurnWindow(sessionId);
         events =
@@ -506,7 +501,7 @@ export function createSessionHelpers(store: E2EStore) {
           events.length > 0 && events.some(isVisibleInChat);
         if (!cachedEventsRenderable) {
           const adapter = getAdapterForSession(sessionId);
-          if (adapter) {
+          if (adapter?.historyMode === "persisted-db") {
             const ADAPTER_LOAD_ATTEMPTS = 5;
             for (let attempt = 1; attempt <= ADAPTER_LOAD_ATTEMPTS; attempt++) {
               const controller = new AbortController();
@@ -525,7 +520,7 @@ export function createSessionHelpers(store: E2EStore) {
           }
         }
       }
-      if (events.length > 0) {
+      if (events.length > 0 && !replayAppliedByBackend) {
         await eventStoreProxy.set(events, sessionId);
       }
       store.set(loadSessionAtom, { sessionId, events, isFromCache: true });
@@ -544,6 +539,7 @@ export function createSessionHelpers(store: E2EStore) {
       store.set(workstationActiveSessionIdAtom, sessionId);
       return { ok: true, sessionId };
     } catch (err) {
+      releaseActiveE2EReplayLease();
       return asError(err);
     }
   };
