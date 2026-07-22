@@ -64,6 +64,30 @@ describe("sessionToKanbanTask agent label", () => {
 
     expect(task.agentLabel).toBe(expected);
   });
+
+  it("uses the ORG2 mark for built-in Rust agents", () => {
+    const task = toTask(
+      makeSession({
+        session_id: "sdeagent-session-1",
+        agentDefinitionId: "builtin:sde",
+        agentIconId: "code",
+      })
+    );
+
+    expect(task.agentIconId).toBe("orgii");
+  });
+
+  it("keeps the configured icon for custom Rust agents", () => {
+    const task = toTask(
+      makeSession({
+        session_id: "agent-custom-session-1",
+        agentDefinitionId: "custom-agent-1",
+        agentIconId: "brain",
+      })
+    );
+
+    expect(task.agentIconId).toBe("brain");
+  });
 });
 
 describe("sessionToKanbanTask card copy", () => {

@@ -98,6 +98,7 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
   function ComposerInput(props, ref) {
     const {
       placeholder = "Type your message...",
+      ariaLabel,
       trailingHint = null,
       initialContent = "",
       onContentChange,
@@ -853,6 +854,7 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
               hostIsEmpty ? "is-empty" : ""
             } ${trailingHint && !hostIsEmpty ? "has-trailing-hint" : ""}`}
             contentEditable={editable}
+            aria-label={ariaLabel}
             suppressContentEditableWarning
             data-placeholder={placeholder}
             data-trailing-hint={

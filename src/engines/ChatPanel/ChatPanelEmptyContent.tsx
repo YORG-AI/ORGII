@@ -181,6 +181,7 @@ export function ChatPanelEmptyContent({
                               showInlineAiModePanel ? "pb-2 pt-1" : undefined
                             }
                             hidePresenceButton
+                            includeHumanSession={false}
                             launchMode={
                               SESSION_CREATOR_LAUNCH_MODE.START_BACKGROUND
                             }

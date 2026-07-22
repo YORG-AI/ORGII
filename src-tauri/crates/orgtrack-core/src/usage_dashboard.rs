@@ -58,6 +58,11 @@ pub struct UsageFilter {
     pub end_ms: Option<i64>,
     /// Restrict to a single session (for the request-log session filter).
     pub session_id: Option<String>,
+    /// When `true` and no `bucket` is set, include every source — the long-tail
+    /// providers and plugin sources that map to the `other` bucket — instead of
+    /// only the four [`SCOPED_BUCKETS`]. The desktop dashboard leaves this
+    /// `false` (its default); the CLI opts in so `usage` covers all tools.
+    pub all_sources: bool,
 }
 
 impl UsageFilter {
@@ -335,10 +340,14 @@ fn iso_to_ms(value: &str) -> Option<i64> {
 fn fetch_scoped_sessions(
     conn: &Connection,
     bucket: Option<&str>,
+    all_sources: bool,
 ) -> Result<Vec<ScopedSession>, String> {
     // The bucket predicate is the only structural difference, so build it once.
     let bucket_predicate = if bucket.is_some() {
         "outer_bucket = ?1".to_string()
+    } else if all_sources {
+        // Every source, including the `other` bucket (long-tail + plugins).
+        "1 = 1".to_string()
     } else {
         // Default "all" = the four scoped buckets (never `other`).
         let list = SCOPED_BUCKETS
@@ -515,7 +524,7 @@ pub fn usage_sessions(
     offset: usize,
     limit: usize,
 ) -> Result<Vec<UsageSessionRow>, String> {
-    let sessions = fetch_scoped_sessions(conn, filter.bucket.as_deref())?;
+    let sessions = fetch_scoped_sessions(conn, filter.bucket.as_deref(), filter.all_sources)?;
     let mut rows: Vec<UsageSessionRow> = sessions
         .into_iter()
         .filter(|session| filter.contains(session.last_active_ms))
@@ -743,7 +752,7 @@ fn build_round_row(
 /// round from the session totals for imported sources that have none
 /// (cursor/opencode/…). Rounds outside the time window are dropped.
 fn collect_rounds(conn: &Connection, filter: &UsageFilter) -> Result<Vec<UsageRoundRow>, String> {
-    let mut sessions = fetch_scoped_sessions(conn, filter.bucket.as_deref())?;
+    let mut sessions = fetch_scoped_sessions(conn, filter.bucket.as_deref(), filter.all_sources)?;
     if let Some(session_id) = filter.session_id.as_deref() {
         sessions.retain(|session| session.session_id == session_id);
     }
@@ -885,10 +894,9 @@ pub fn usage_trends(
     Ok(bucket_rounds(&collect_rounds(conn, filter)?, bucket_unit))
 }
 
-/// Everything the dashboard needs in one shot: summary + trends + the request
-/// log page, all from a SINGLE `collect_rounds` pass. The frontend calls this
-/// instead of three separate commands, so a refresh scans the round store once
-/// (not three times).
+/// Optional headline aggregates and request-log page from a single
+/// `collect_rounds` pass. Callers can request only the part of the dashboard
+/// they are updating without retaining the raw round set between calls.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UsageOverview {
@@ -910,21 +918,33 @@ pub fn usage_overview(
     offset: usize,
     limit: usize,
     bucket_unit: TrendBucket,
+    include_headline: bool,
+    include_rounds: bool,
 ) -> Result<UsageOverview, String> {
     let mut all = collect_rounds(conn, filter)?;
-    let summary = summarize_rounds(&all);
-    let trends = bucket_rounds(&all, bucket_unit);
-    let round_models = all
-        .iter()
-        .filter_map(|row| row.model.clone())
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect();
-    let has_unknown_round_model = all.iter().any(|row| row.model.is_none());
-    all.retain(|row| round_query.matches(row));
-    let round_total = all.len();
-    sort_rounds(&mut all, sort);
-    let rounds = all.into_iter().skip(offset).take(limit).collect();
+    let (summary, trends) = if include_headline {
+        (summarize_rounds(&all), bucket_rounds(&all, bucket_unit))
+    } else {
+        (UsageSummary::default(), Vec::new())
+    };
+    let (rounds, round_total, round_models, has_unknown_round_model) = if include_rounds {
+        let round_models = all
+            .iter()
+            .filter_map(|row| row.model.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        let has_unknown_round_model = all.iter().any(|row| row.model.is_none());
+        all.retain(|row| round_query.matches(row));
+        let round_total = all.len();
+        sort_rounds(&mut all, sort);
+        let rounds = all.into_iter().skip(offset).take(limit).collect();
+        (rounds, round_total, round_models, has_unknown_round_model)
+    } else {
+        // Headline-only loads deliberately avoid request-table facets, sort,
+        // pagination, and row transfer until the collapsed table is opened.
+        (Vec::new(), 0, Vec::new(), false)
+    };
     Ok(UsageOverview {
         summary,
         trends,
@@ -1170,6 +1190,8 @@ mod tests {
             0,
             1,
             TrendBucket::Hour,
+            true,
+            true,
         )
         .expect("overview");
 
@@ -1197,11 +1219,60 @@ mod tests {
             1,
             1,
             TrendBucket::Hour,
+            true,
+            true,
         )
         .expect("second page");
         assert_eq!(second.round_total, 2);
         assert_eq!(second.rounds.len(), 1);
         assert_ne!(first.rounds[0].round_id, second.rounds[0].round_id);
+    }
+
+    #[test]
+    fn overview_skips_request_page_work_when_rounds_are_not_requested() {
+        let conn = seeded_conn();
+        let overview = usage_overview(
+            &conn,
+            &UsageFilter::default(),
+            &UsageRoundQuery::default(),
+            SessionSort::Recent,
+            0,
+            10,
+            TrendBucket::Hour,
+            true,
+            false,
+        )
+        .expect("headline overview");
+
+        assert_eq!(overview.summary.request_count, 4);
+        assert!(!overview.trends.is_empty());
+        assert!(overview.rounds.is_empty());
+        assert_eq!(overview.round_total, 0);
+        assert!(overview.round_models.is_empty());
+        assert!(!overview.has_unknown_round_model);
+    }
+
+    #[test]
+    fn overview_skips_headline_work_for_a_request_page_load() {
+        let conn = seeded_conn();
+        let overview = usage_overview(
+            &conn,
+            &UsageFilter::default(),
+            &UsageRoundQuery::default(),
+            SessionSort::Recent,
+            0,
+            10,
+            TrendBucket::Hour,
+            false,
+            true,
+        )
+        .expect("request-page overview");
+
+        assert_eq!(overview.summary, UsageSummary::default());
+        assert!(overview.trends.is_empty());
+        assert_eq!(overview.round_total, 4);
+        assert_eq!(overview.rounds.len(), 4);
+        assert!(!overview.round_models.is_empty());
     }
 
     #[test]
@@ -1371,6 +1442,37 @@ mod tests {
         assert_eq!(summary.session_count, 1);
         assert_eq!(summary.input_tokens, 1_500_000);
         assert_eq!(summary.request_count, 2);
+    }
+
+    #[test]
+    fn all_sources_includes_other_bucket() {
+        let conn = seeded_conn();
+        insert_imported(
+            &conn,
+            "opencode",
+            "ext-opencode",
+            "gpt-5",
+            (50_000, 5_000),
+            ms("2026-07-18T06:00:00Z"),
+            1,
+        );
+        recompute_session_usage(&conn, "ext-opencode")
+            .unwrap()
+            .expect("opencode projected");
+
+        let scoped = usage_summary(&conn, &UsageFilter::default()).expect("scoped summary");
+        assert_eq!(scoped.session_count, 3);
+
+        let all = usage_summary(
+            &conn,
+            &UsageFilter {
+                all_sources: true,
+                ..UsageFilter::default()
+            },
+        )
+        .expect("all-sources summary");
+        assert_eq!(all.session_count, 4);
+        assert!(all.by_bucket.iter().any(|bucket| bucket.bucket == "other"));
     }
 
     #[test]

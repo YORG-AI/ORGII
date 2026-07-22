@@ -434,7 +434,9 @@
     "title": "ORG2 クラウド",
     "signIn": "ログイン",
     "signOut": "ログアウト",
+    "signedInAs": "{{name}} としてログイン中",
     "signedInToast": "ORG2 クラウドにサインインしました",
+    "sessionExpired": "ORG2 Cloud のセッションが期限切れです。続行するには再度サインインしてください。",
     "recommendedBadge": "おすすめ",
     "recommendedDesc": "マネージドなセッション共有、リプレイ保存、チーム権限、安全な共有リンク。Supabase のセットアップは不要です。Auth、データベースマイグレーション、RLS ポリシー、課金、保持期間、クォータ、バックエンドのアップグレードは ORG2 が管理します",
     "customEndpoint": {
@@ -474,7 +476,8 @@
       "retentionUpgrade": "このセッションはプランのリプレイ期間外です — 表示するにはアップグレードしてください",
       "importError": "セッションをインポートできませんでした",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "自分について"
     },
     "sidebar": {
       "teamSessions": "チームセッション",
@@ -613,7 +616,8 @@
         "inviteInvalid": "この招待コードは無効です。",
         "inviteRevoked": "この招待は取り消されています。",
         "inviteExpired": "この招待は期限切れです。",
-        "inviteExhausted": "この招待は使用回数を使い切りました。"
+        "inviteExhausted": "この招待は使用回数を使い切りました。",
+        "network": "クラウドサービスに接続できません。ネットワークを確認して再試行してください。"
       }
     },
     "syncLevel": {

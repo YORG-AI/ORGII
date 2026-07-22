@@ -8,12 +8,14 @@
 use serde::Deserialize;
 use serde_json::Value;
 
+#[cfg(test)]
+use crate::sources::imported_history::metadata::{ImportedHistoryImpactStats, RoundUsage};
 use crate::sources::imported_history::{
-    metadata::{ImportedHistoryImpactStats, RoundUsage},
     ImportedHistoryRecentPath, ImportedHistorySessionPage, ImportedHistorySessionRow,
 };
 
 pub(crate) mod desktop_exec;
+#[cfg(test)]
 mod impact;
 mod index;
 mod meta;
@@ -69,6 +71,7 @@ pub(crate) struct CodexJsonlLine {
     pub(crate) payload: Value,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone)]
 pub(crate) struct CodexAppSessionMeta {
     source_session_id: String,

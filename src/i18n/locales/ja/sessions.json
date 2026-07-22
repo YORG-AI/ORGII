@@ -5,6 +5,9 @@
     "decision": "{{tokenCount}} Token 判断",
     "tooltip": "推定ツール属性。方法: {{method}}。入力: {{inputBytes}} bytes。出力: {{outputBytes}} bytes。判断: {{decisionTokens}} Token。コンテキスト: {{contextTokens}} Token。Follow-up: {{followupTokens}} Token。関連 LLM cache read: {{cacheReadTokens}} Token。関連 LLM cache write: {{cacheWriteTokens}} Token。"
   },
+  "humanSession": {
+    "titlePlaceholder": "タイトル（任意）"
+  },
   "history": {
     "untitledSession": "無題のSession",
     "prStatus": {
@@ -1314,6 +1317,8 @@
     "terminalSummary": {
       "command_one": "{{count}} 件のコマンド",
       "command_other": "{{count}} 件のコマンド",
+      "mcp_one": "{{count}} 件の MCP 呼び出し",
+      "mcp_other": "{{count}} 件の MCP 呼び出し",
       "wait_one": "{{count}} 件の待機",
       "wait_other": "{{count}} 件の待機",
       "check_one": "{{count}} 件の確認",
@@ -2091,7 +2096,10 @@
     "categoryLabel": "セッションカテゴリ",
     "categoryTemplate": "{category} を選択",
     "categoryPlaceholder": "Agent",
-    "builtInAgents": "組み込み Agent",
+    "builtIns": "組み込み",
+    "humanSession": {
+      "name": "作業ログ"
+    },
     "cliAgents": "CLI Agent",
     "customAgents": "カスタム Agent",
     "agentOrgs": "Agent チーム",

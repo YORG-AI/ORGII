@@ -15,7 +15,7 @@ import {
   useSetAtom,
   useStore,
 } from "jotai";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { createLogger } from "@src/hooks/logger";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
@@ -31,6 +31,7 @@ import { listOrgSessions } from "./org2CloudSyncClient";
 const log = createLogger("Org2CloudRemoteSessions");
 
 const REMOTE_SESSIONS_TTL_MS = 60_000;
+const REMOTE_SESSIONS_CURSOR_OVERLAP_MS = 2_000;
 export const MAX_REMOTE_SESSION_CACHE_ENTRIES = 64;
 export const MAX_REMOTE_SESSIONS_VERSION_KEYS = 64;
 
@@ -101,6 +102,8 @@ export interface CloudOrgRemoteSessionsEntry {
   state: CloudRemoteSessionsFetchState;
   /** Epoch ms of the last completed fetch attempt (0 ⇒ never fetched). */
   fetchedAt: number;
+  /** Server-clock delta cursor; absent forces a complete listing. */
+  serverCursor?: string;
 }
 
 const EMPTY_ENTRY: CloudOrgRemoteSessionsEntry = {
@@ -108,6 +111,31 @@ const EMPTY_ENTRY: CloudOrgRemoteSessionsEntry = {
   state: "idle",
   fetchedAt: 0,
 };
+
+/** Merge a server delta and apply soft-tombstones without duplicating rows. */
+export function mergeRemoteSessionDelta(
+  previous: readonly RemoteTeammateSessionMetadata[],
+  delta: readonly RemoteTeammateSessionMetadata[]
+): RemoteTeammateSessionMetadata[] {
+  const byId = new Map(previous.map((row) => [row.id, row]));
+  for (const row of delta) {
+    if (row.deletedAt) byId.delete(row.id);
+    else byId.set(row.id, row);
+  }
+  return [...byId.values()].sort((left, right) =>
+    (right.lastActivityAt ?? "").localeCompare(left.lastActivityAt ?? "")
+  );
+}
+
+function cursorFromServerTime(
+  serverTime: string | undefined,
+  fallback: string | undefined
+): string | undefined {
+  if (!serverTime) return fallback;
+  const serverMs = new Date(serverTime).getTime();
+  if (!Number.isFinite(serverMs)) return fallback;
+  return new Date(serverMs - REMOTE_SESSIONS_CURSOR_OVERLAP_MS).toISOString();
+}
 
 export function beginRemoteSessionsFetch(
   entry: CloudOrgRemoteSessionsEntry | undefined,
@@ -156,11 +184,10 @@ export const org2CloudRemoteSessionsAtom = atom<
 org2CloudRemoteSessionsAtom.debugLabel = "org2CloudRemoteSessionsAtom";
 
 /**
- * Per-org invalidation counter for the remote-sessions list, bumped by the
- * Realtime `org_change_signals` subscription (useOrg2CloudRealtime) whenever
- * a teammate's session push / access change / delete lands. The fetch effect
- * keys on it, so the TEAM SESSIONS section refreshes live instead of only on
- * scope switches past the 60s TTL.
+ * Per-org invalidation counter for the remote-sessions list. Plane-specific
+ * Presence nudges provide the live path; the bounded durable signal fallback
+ * and reconnect recovery cover missed broadcasts. Fetches after the first
+ * snapshot use the server cursor and merge deltas/tombstones.
  */
 export const org2CloudRemoteSessionsVersionAtom = atom<Record<string, number>>(
   {}
@@ -190,6 +217,18 @@ export function useCloudOrgRemoteSessions(
   const versionByOrg = useAtomValue(org2CloudRemoteSessionsVersionAtom);
   const setVersionByOrg = useSetAtom(org2CloudRemoteSessionsVersionAtom);
   const invalidationVersion = orgId ? (versionByOrg[orgId] ?? 0) : 0;
+  const [visibilityVersion, setVisibilityVersion] = useState(0);
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "hidden") {
+        setVisibilityVersion((version) => version + 1);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, []);
   const entriesRef = useRef(entries);
   useEffect(() => {
     entriesRef.current = entries;
@@ -215,13 +254,21 @@ export function useCloudOrgRemoteSessions(
     ? remoteSessionsEntryForIdentity(entries[orgId], authIdentityKey)
     : undefined;
   const fetchOrgSessions = useCallback(
-    async (targetOrgId: string): Promise<void> => {
+    async (
+      targetOrgId: string,
+      options: { full?: boolean } = {}
+    ): Promise<void> => {
       const current = authRef.current;
       if (!current) return;
       const identityKey = org2CloudAuthIdentityKey(current);
       const requestKey = `${identityKey}|${targetOrgId}`;
       if (requestState.inFlightKeys.has(requestKey)) return;
       requestState.inFlightKeys.add(requestKey);
+      const entryAtStart = remoteSessionsEntryForIdentity(
+        entriesRef.current[targetOrgId],
+        identityKey
+      );
+      const since = options.full ? undefined : entryAtStart?.serverCursor;
       setEntries((previous) =>
         writeRemoteSessionsEntry(
           previous,
@@ -233,19 +280,47 @@ export function useCloudOrgRemoteSessions(
         const fresh = await ensureFreshSession(current);
         if (!fresh) throw new Error("token refresh failed");
         commitRefreshedAuth(setAuth, current, fresh);
-        const result = await listOrgSessions(fresh.accessToken, targetOrgId);
+        const result = await listOrgSessions(
+          fresh.accessToken,
+          targetOrgId,
+          since
+        );
         const latest = authRef.current;
         if (!latest || org2CloudAuthIdentityKey(latest) !== identityKey) {
           return;
         }
-        setEntries((previous) =>
-          writeRemoteSessionsEntry(previous, targetOrgId, {
+        setEntries((previous) => {
+          const current = remoteSessionsEntryForIdentity(
+            previous[targetOrgId],
+            identityKey
+          );
+          // A reconnect/full-refresh invalidation removes the cached entry. If
+          // an older delta request was already in flight, never let its partial
+          // response recreate that entry and turn the required full reload back
+          // into another delta. Writing an idle sentinel wakes the effect after
+          // the request leaves the single-flight set, so the next call is full.
+          if (since && !current) {
+            return writeRemoteSessionsEntry(previous, targetOrgId, {
+              identityKey,
+              rows: [],
+              state: "idle",
+              fetchedAt: 0,
+            });
+          }
+          const rows = since
+            ? mergeRemoteSessionDelta(current?.rows ?? [], result.sessions)
+            : result.sessions.filter((row) => !row.deletedAt);
+          return writeRemoteSessionsEntry(previous, targetOrgId, {
             identityKey,
-            rows: result.sessions,
+            rows,
             state: "ready",
             fetchedAt: Date.now(),
-          })
-        );
+            serverCursor: cursorFromServerTime(
+              result.serverTime,
+              current?.serverCursor
+            ),
+          });
+        });
       } catch (error) {
         log.warn("cloud_list_org_sessions failed:", error);
         setEntries((previous) =>
@@ -273,6 +348,11 @@ export function useCloudOrgRemoteSessions(
   // lets the queued version fetch instead of stranding it until the 60s TTL.
   useEffect(() => {
     if (!orgId || !signedIn || !authIdentityKey) return;
+    if (
+      typeof document !== "undefined" &&
+      document.visibilityState === "hidden"
+    )
+      return;
     const entry = remoteSessionsEntryForIdentity(
       entriesRef.current[orgId],
       authIdentityKey
@@ -302,12 +382,18 @@ export function useCloudOrgRemoteSessions(
     authIdentityKey,
     fetchOrgSessions,
     requestState,
+    visibilityVersion,
   ]);
 
   const refresh = useCallback(() => {
     if (!orgId || !signedIn || !authIdentityKey) return;
+    if (
+      typeof document !== "undefined" &&
+      document.visibilityState === "hidden"
+    )
+      return;
     if (requestState.inFlightKeys.has(`${authIdentityKey}|${orgId}`)) return;
-    void fetchOrgSessions(orgId);
+    void fetchOrgSessions(orgId, { full: true });
   }, [orgId, signedIn, authIdentityKey, fetchOrgSessions, requestState]);
 
   const entry = entrySnapshot ?? EMPTY_ENTRY;

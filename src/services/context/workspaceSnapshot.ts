@@ -12,13 +12,12 @@ import type {
 import type { CliAgentType } from "@src/api/types/keys";
 import type { TechSavvyLevel } from "@src/config/profile/userProfile";
 import type { ViewModeType } from "@src/config/viewModeTypes";
-import type { ChatPanelSurfaceKind } from "@src/store/ui/chatPanelAtom";
-import type { StationMode } from "@src/store/ui/simulatorAtom";
-import type { StatusBarAppType } from "@src/store/ui/workStationLayout/statusBarAtoms";
 import type {
   WorkStationTabCategory,
   WorkStationTabType,
-} from "@src/store/workstation/tabs";
+} from "@src/store/workstation/tabs/types";
+import type { ChatPanelSurfaceKind } from "@src/types/ui/chatPanel";
+import type { StationMode, StatusBarAppType } from "@src/types/ui/workstation";
 import type { UserPresenceWire } from "@src/types/userPresence";
 
 export interface UserProfileWire {

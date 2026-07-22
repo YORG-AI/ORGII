@@ -1,10 +1,23 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { GitHubIssueTimelineItem } from "@src/api/tauri/github";
 
 import { IssueTimelineEventRow } from "../IssueTimelineEvent";
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string, fallback?: string | Record<string, unknown>) =>
+      typeof fallback === "string"
+        ? fallback
+        : typeof fallback?.defaultValue === "string"
+          ? fallback.defaultValue.replace(/{{(\w+)}}/g, (_, name: string) =>
+              String(fallback[name] ?? "")
+            )
+          : key,
+  }),
+}));
 
 function timelineItem(
   overrides: Partial<GitHubIssueTimelineItem>
@@ -74,6 +87,25 @@ describe("IssueTimelineEventRow", () => {
     expect(markup).toContain("max-w-full");
     expect(markup).toContain("overflow-hidden");
     expect(markup).toContain("min-w-0 truncate");
+  });
+
+  it("shows only the new title for rename events", () => {
+    const markup = renderToStaticMarkup(
+      createElement(IssueTimelineEventRow, {
+        item: timelineItem({
+          event: "renamed",
+          rename: {
+            from: "Old issue title",
+            to: "New issue title",
+          },
+        }),
+      })
+    );
+
+    expect(markup).toContain("renamed this issue to");
+    expect(markup).toContain("New issue title");
+    expect(markup).not.toContain("Old issue title");
+    expect(markup).not.toContain("renamed this issue from");
   });
 
   it("keeps future event types visible through a readable fallback", () => {

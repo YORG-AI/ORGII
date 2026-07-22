@@ -175,6 +175,7 @@ export function useInputArea(
     sessionId: propSessionId,
     sessionScope = "active",
     submitDisabled = false,
+    enableAgentInterceptors = true,
   } = options;
 
   // ============================================
@@ -604,6 +605,7 @@ export function useInputArea(
     handleSessChatSubmit,
     onSubmitOverride,
     submitDisabled,
+    enableAgentInterceptors,
   });
 
   // ============================================

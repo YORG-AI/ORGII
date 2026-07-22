@@ -1,3 +1,5 @@
+import { invoke } from "@tauri-apps/api/core";
+
 import type { DispatchCategory } from "../../session";
 import type { ExternalCliSourceProbe } from "../detection";
 import {
@@ -16,6 +18,24 @@ export { IMPORTED_HISTORY_SOURCE_DESCRIPTORS };
 
 export interface ImportedHistorySource extends ImportedHistorySourceDescriptor {
   dispatchCategory: Extract<DispatchCategory, "external_history">;
+}
+
+export interface ImportedHistoryRecentPath {
+  path: string;
+  name?: string;
+  lastUsedAt: string;
+  sessionCount: number;
+}
+
+/** Read grouped paths from the source's compact catalog, never its transcript. */
+export async function importedHistoryRecentPaths(
+  source: ImportedHistorySourceId,
+  options?: { limit?: number }
+): Promise<ImportedHistoryRecentPath[]> {
+  return invoke<ImportedHistoryRecentPath[]>("external_history_recent_paths", {
+    source,
+    limit: options?.limit,
+  });
 }
 
 /**

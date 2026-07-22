@@ -7,7 +7,8 @@
  */
 import { ROUTES } from "@src/config/routes";
 
-const CHAT_DROP_TARGET_SELECTOR = "[data-chat-drop-target]";
+const CHAT_DROP_TARGET_SELECTOR =
+  "[data-chat-drop-target]:not([data-chat-file-drop-disabled])";
 
 export function hasVisibleChatDropTarget(): boolean {
   const dropTargets = document.querySelectorAll(CHAT_DROP_TARGET_SELECTOR);

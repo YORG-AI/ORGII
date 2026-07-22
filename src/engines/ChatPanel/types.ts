@@ -66,6 +66,7 @@ export interface ChatPanelProps {
     innerClassName?: string;
     leadingActionSlot?: ReactNode;
     hideRepoLine?: boolean;
+    includeHumanSession?: boolean;
     onRegionNoticeChange?: (notice: ChatPanelRegionNotice | null) => void;
     hidePresenceButton?: boolean;
     initialContent?: string;

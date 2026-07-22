@@ -46,6 +46,7 @@ import { basename } from "@src/util/path";
 import {
   getDispatchCategory,
   isCliSession,
+  isHumanSession,
   resolveSessionIconId,
 } from "@src/util/session/sessionDispatch";
 import { formatDuration } from "@src/util/time/formatDuration";
@@ -186,6 +187,7 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
   memo(({ sessionId }) => {
     const { t, i18n } = useTranslation(["sessions", "common"]);
     const session = useAtomValue(sessionByIdAtom(sessionId));
+    const humanSession = isHumanSession(sessionId);
     const workspaceGitStatusMap = useAtomValue(workspaceGitStatusMapAtom);
     const activeWorkspaceRootPath = useAtomValue(activeWorkspaceRootPathAtom);
     const { currentBranch: activeWorkspaceBranch } = useRepoSelection({
@@ -312,6 +314,7 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
     }, [boundCliIdState, sessionId]);
 
     const lastModel: LastModelSelection | null = useMemo(() => {
+      if (humanSession) return null;
       if (!session) return creatorDefaultLastModel;
       const keySource = session.keySource ?? creatorDefaultLastModel?.keySource;
       const hosted = isHostedKey(keySource);
@@ -330,12 +333,12 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
         selectedAccountId:
           session.accountId ?? creatorDefaultLastModel?.selectedAccountId,
       };
-    }, [session, creatorDefaultLastModel]);
+    }, [creatorDefaultLastModel, humanSession, session]);
 
-    const { label: modelLabel, title: modelTitle } = useResolvedModelLabel(
-      lastModel,
-      []
-    );
+    const { label: resolvedModelLabel, title: resolvedModelTitle } =
+      useResolvedModelLabel(lastModel, []);
+    const modelLabel = humanSession ? null : resolvedModelLabel;
+    const modelTitle = humanSession ? null : resolvedModelTitle;
 
     const impactTask = useMemo<KanbanTask | null>(() => {
       if (!session) return null;
@@ -466,17 +469,6 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
 
     return (
       <HoverCardPanel title={session.name || session.session_id}>
-        {(repoName || branchLabel) && (
-          <HoverCardRow icon={<GitBranch size={13} strokeWidth={1.75} />}>
-            <div className="truncate text-text-2">
-              {repoName && <span>{repoName}</span>}
-              {repoName && branchLabel && (
-                <span className="mx-1 text-text-4">·</span>
-              )}
-              {branchLabel && <span>{branchLabel}</span>}
-            </div>
-          </HoverCardRow>
-        )}
         <HoverCardRow
           icon={agentSessionInfo.icon}
           iconClassName={agentSessionInfo.textClassName}
@@ -509,6 +501,17 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
             )}
           </div>
         </HoverCardRow>
+        {(repoName || branchLabel) && (
+          <HoverCardRow icon={<GitBranch size={13} strokeWidth={1.75} />}>
+            <div className="truncate text-text-2">
+              {repoName && <span>{repoName}</span>}
+              {repoName && branchLabel && (
+                <span className="mx-1 text-text-4">·</span>
+              )}
+              {branchLabel && <span>{branchLabel}</span>}
+            </div>
+          </HoverCardRow>
+        )}
         {repoPath && (
           <HoverCardRow icon={<Folder size={13} strokeWidth={1.75} />}>
             <button
@@ -551,9 +554,7 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
                 {t("history.detail.sessionId")}
               </span>
               <span className="mx-1 text-text-4">·</span>
-              <span className="font-mono">
-                {formatCompactSessionId(underlyingSessionId)}
-              </span>
+              <span>{formatCompactSessionId(underlyingSessionId)}</span>
               {copiedForSessionId === sessionId && (
                 <Check
                   size={12}

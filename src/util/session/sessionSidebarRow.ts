@@ -46,11 +46,13 @@ type SessionRowIconInput =
  *     CLI sessions (Cursor CLI, Claude Code, Codex, Gemini, Copilot,
  *     Kiro, Kimi, OpenCode, Qwen) and prevents stale `agentIconId` values
  *     from overriding the CLI provider identity.
- *  3. **`agentIconId`** — explicit per-session brand assignment. Used by
+ *  3. **Collaboration import provenance** — preserves the source brand for
+ *     imported external-app history and uses the ORGII session mark for a
+ *     native org replay. This intentionally wins over the importer's legacy
+ *     `agentIconId: "archive"` marker, which is not a registered icon.
+ *  4. **`agentIconId`** — explicit per-session brand assignment. Used by
  *     Rust agent definitions (built-in + custom), where the definition
  *     carries an `iconId`.
- *  4. **Imported app metadata** — preserves the source brand on cloud copies
- *     whose local session ID no longer carries the original app prefix.
  *  5. **Prefix-based** fallback (`resolveSessionIconId`) — last resort
  *     for sessions where neither of the above applies. Maps prefix →
  *     generic Lucide slug (e.g. `cursoride-` → `cursor`, `osagent-` →
@@ -93,14 +95,6 @@ export function resolveSessionRowIconPresentation(
           iconId !== "unknown" && THEMEABLE_ICONS.has(iconId),
       };
     }
-    if (input.agentIconId) {
-      const provider = getIconProviderFromType(input.agentIconId);
-      return {
-        Icon: resolveAgentIcon(input.agentIconId),
-        isMonochromeBrandIcon:
-          provider !== "unknown" && THEMEABLE_ICONS.has(provider),
-      };
-    }
     const externalHistorySource = input.importedFrom?.externalHistorySource;
     if (externalHistorySource) {
       const descriptor = IMPORTED_HISTORY_SOURCE_DESCRIPTORS.find(
@@ -114,6 +108,20 @@ export function resolveSessionRowIconPresentation(
             provider !== "unknown" && THEMEABLE_ICONS.has(provider),
         };
       }
+    }
+    if (input.importedFrom) {
+      return {
+        Icon: resolveAgentIcon("orgii"),
+        isMonochromeBrandIcon: true,
+      };
+    }
+    if (input.agentIconId) {
+      const provider = getIconProviderFromType(input.agentIconId);
+      return {
+        Icon: resolveAgentIcon(input.agentIconId),
+        isMonochromeBrandIcon:
+          provider !== "unknown" && THEMEABLE_ICONS.has(provider),
+      };
     }
   }
 

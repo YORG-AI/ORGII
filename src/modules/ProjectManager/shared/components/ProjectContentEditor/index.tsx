@@ -15,10 +15,10 @@ import { useTranslation } from "react-i18next";
 
 import type { PillIconType } from "@src/components/ComposerInput";
 import Input from "@src/components/Input";
+import { GHOST_INPUT_PLACEHOLDER_CLASS } from "@src/components/Input/tokens";
 import ContextMenuPortal from "@src/engines/ChatPanel/InputArea/components/ContextMenuPortal";
 import SlashCommandPortal from "@src/engines/ChatPanel/InputArea/components/SlashCommandPortal";
 import { useComposerInput } from "@src/hooks/input";
-import { PROJECT_MANAGER_TEXT_PLACEHOLDER_CLASS } from "@src/modules/ProjectManager/shared/placeholderTokens";
 import RichMarkdownEditor from "@src/modules/shared/components/RichMarkdownEditor";
 import type {
   RichMarkdownEditorMode,
@@ -102,7 +102,7 @@ export const ProjectContentTitleInput = forwardRef<
         bgless
         autoHeight
         className="mb-1 min-w-0 flex-1"
-        inputClassName={`text-[22px] font-semibold text-text-2 ${PROJECT_MANAGER_TEXT_PLACEHOLDER_CLASS}`}
+        inputClassName={`text-[22px] font-semibold text-text-2 ${GHOST_INPUT_PLACEHOLDER_CLASS}`}
       />
       {titleActions && (
         <div className="flex shrink-0 items-center gap-1 pt-0.5">
@@ -358,7 +358,7 @@ const ProjectContentEditor = forwardRef<
             bgless
             autoHeight
             className="mb-5 w-full"
-            inputClassName={`text-[13px] text-text-2 ${PROJECT_MANAGER_TEXT_PLACEHOLDER_CLASS}`}
+            inputClassName={`text-[13px] text-text-2 ${GHOST_INPUT_PLACEHOLDER_CLASS}`}
           />
         )}
 

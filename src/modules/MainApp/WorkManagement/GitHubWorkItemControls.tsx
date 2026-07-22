@@ -117,7 +117,7 @@ export function RepoFilterPill({
       placeholder={allReposLabel}
       size="small"
       showSearch
-      variant="default"
+      variant="ghost"
       radius="lg"
       dropdownWidthMode="auto"
       dropdownMinWidth={190}

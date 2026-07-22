@@ -184,17 +184,21 @@ describe("session sync state callbacks", () => {
     expect(updateSessionStatus).not.toHaveBeenCalled();
   });
 
-  it("opens the FSM turn on running status", () => {
-    const actions = createActions();
-    const callbacks = createSessionEventHandlerCallbacks(
-      "session-1",
-      actions,
-      vi.fn()
-    );
+  it("opens the FSM turn on running and installing statuses", () => {
+    for (const status of ["running", "installing"] as const) {
+      const actions = createActions();
+      const callbacks = createSessionEventHandlerCallbacks(
+        "session-1",
+        actions,
+        vi.fn()
+      );
 
-    callbacks.onStatusChange?.("running");
+      callbacks.onStatusChange?.(status);
+    }
 
-    expect(markTurnRunning).toHaveBeenCalledWith("session-1");
+    expect(markTurnRunning).toHaveBeenCalledTimes(2);
+    expect(markTurnRunning).toHaveBeenNthCalledWith(1, "session-1");
+    expect(markTurnRunning).toHaveBeenNthCalledWith(2, "session-1");
   });
 
   it("calls dismissCanvasAtNewTurn with the session id when status is 'running'", () => {

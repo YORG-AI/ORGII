@@ -8,6 +8,7 @@ import { ChevronsDownUp, ChevronsUpDown, Plus } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { NavigationMenuRowActionButton } from "../components/NavigationMenu/NavigationMenu/RowActionButton";
 import type { SidebarGroupProps, SidebarItemData } from "../types";
 import { renderSidebarIcon } from "../utils/renderIcon";
 import SidebarItem from "./SidebarItem";
@@ -114,19 +115,11 @@ function SidebarGroupInner<T extends SidebarItemData = SidebarItemData>({
               </button>
             )}
             {/* Chevron */}
-            {isCollapsed ? (
-              <ChevronsUpDown
-                size={12}
-                strokeWidth={2}
-                className="text-text-2"
-              />
-            ) : (
-              <ChevronsDownUp
-                size={12}
-                strokeWidth={2}
-                className="text-text-2"
-              />
-            )}
+            <NavigationMenuRowActionButton
+              icon={isCollapsed ? ChevronsUpDown : ChevronsDownUp}
+              label={t("actions.toggle")}
+              onClick={handleToggle}
+            />
           </div>
         </div>
       )}

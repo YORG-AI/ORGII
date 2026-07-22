@@ -33,6 +33,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import React from "react";
+import { useTranslation } from "react-i18next";
 
 import type {
   GitHubIssueTimelineItem,
@@ -186,28 +187,34 @@ export function IssueTimelineEventDescription({
 }: {
   item: GitHubIssueTimelineItem;
 }): React.ReactNode {
+  const { t } = useTranslation("common");
+
   switch (item.event) {
     case "assigned":
       return item.assignee ? (
         <>
-          assigned <TimelineUser login={item.assignee.login} />
+          {t("git.issues.activity.assigned", "assigned")}{" "}
+          <TimelineUser login={item.assignee.login} />
         </>
       ) : (
-        <>assigned this issue</>
+        <>{t("git.issues.activity.assignedIssue", "assigned this issue")}</>
       );
     case "unassigned":
       return item.assignee ? (
         <>
-          unassigned <TimelineUser login={item.assignee.login} />
+          {t("git.issues.activity.unassigned", "unassigned")}{" "}
+          <TimelineUser login={item.assignee.login} />
         </>
       ) : (
-        <>removed an assignee</>
+        <>{t("git.issues.activity.removedAssignee", "removed an assignee")}</>
       );
     case "labeled":
     case "unlabeled":
       return (
         <>
-          {item.event === "labeled" ? "added" : "removed"}{" "}
+          {item.event === "labeled"
+            ? t("git.issues.activity.added", "added")
+            : t("git.issues.activity.removed", "removed")}{" "}
           {item.label ? (
             <Tag
               size="mini"
@@ -218,72 +225,141 @@ export function IssueTimelineEventDescription({
               {item.label.name}
             </Tag>
           ) : (
-            "a label"
+            t("git.issues.activity.label", "a label")
           )}
         </>
       );
     case "milestoned":
-      return <>added this issue to milestone {item.milestone ?? ""}</>;
+      return (
+        <>
+          {t("git.issues.activity.milestoned", {
+            milestone: item.milestone ?? "",
+            defaultValue: "added this issue to milestone {{milestone}}",
+          })}
+        </>
+      );
     case "demilestoned":
-      return <>removed this issue from milestone {item.milestone ?? ""}</>;
+      return (
+        <>
+          {t("git.issues.activity.demilestoned", {
+            milestone: item.milestone ?? "",
+            defaultValue: "removed this issue from milestone {{milestone}}",
+          })}
+        </>
+      );
     case "closed":
       return item.commit_id ? (
-        <>closed this issue via commit {item.commit_id.slice(0, 7)}</>
+        <>
+          {t("git.issues.activity.closedViaCommit", {
+            commit: item.commit_id.slice(0, 7),
+            defaultValue: "closed this issue via commit {{commit}}",
+          })}
+        </>
       ) : (
-        <>closed this issue</>
+        <>{t("git.issues.activity.closed", "closed this issue")}</>
       );
     case "reopened":
-      return <>reopened this issue</>;
+      return <>{t("git.issues.activity.reopened", "reopened this issue")}</>;
     case "renamed":
       return item.rename ? (
         <>
-          renamed this issue from <q>{item.rename.from}</q> to{" "}
+          {t("git.issues.activity.renamedTo", "renamed this issue to")}{" "}
           <q>{item.rename.to}</q>
         </>
       ) : (
-        <>renamed this issue</>
+        <>{t("git.issues.activity.renamed", "renamed this issue")}</>
       );
     case "locked":
-      return (
+      return item.lock_reason ? (
         <>
-          locked this conversation
-          {item.lock_reason ? ` as ${item.lock_reason}` : ""}
+          {t("git.issues.activity.lockedAs", {
+            reason: item.lock_reason,
+            defaultValue: "locked this conversation as {{reason}}",
+          })}
         </>
+      ) : (
+        <>{t("git.issues.activity.locked", "locked this conversation")}</>
       );
     case "unlocked":
-      return <>unlocked this conversation</>;
+      return (
+        <>{t("git.issues.activity.unlocked", "unlocked this conversation")}</>
+      );
     case "cross-referenced":
       return item.source ? (
         <>
-          referenced this issue from <CrossReferenceLink source={item.source} />
+          {t(
+            "git.issues.activity.crossReferencedFrom",
+            "referenced this issue from"
+          )}{" "}
+          <CrossReferenceLink source={item.source} />
         </>
       ) : (
-        <>cross-referenced this issue</>
+        <>
+          {t(
+            "git.issues.activity.crossReferenced",
+            "cross-referenced this issue"
+          )}
+        </>
       );
     case "referenced":
       return item.commit_id ? (
-        <>referenced this issue in commit {item.commit_id.slice(0, 7)}</>
+        <>
+          {t("git.issues.activity.referencedInCommit", {
+            commit: item.commit_id.slice(0, 7),
+            defaultValue: "referenced this issue in commit {{commit}}",
+          })}
+        </>
       ) : (
-        <>referenced this issue in a commit</>
+        <>
+          {t(
+            "git.issues.activity.referencedInACommit",
+            "referenced this issue in a commit"
+          )}
+        </>
       );
     case "connected":
-      return <>linked this issue</>;
+      return <>{t("git.issues.activity.connected", "linked this issue")}</>;
     case "disconnected":
-      return <>unlinked this issue</>;
+      return (
+        <>{t("git.issues.activity.disconnected", "unlinked this issue")}</>
+      );
     case "marked_as_duplicate":
-      return <>marked this issue as a duplicate</>;
+      return (
+        <>
+          {t(
+            "git.issues.activity.markedAsDuplicate",
+            "marked this issue as a duplicate"
+          )}
+        </>
+      );
     case "unmarked_as_duplicate":
-      return <>removed the duplicate marking</>;
+      return (
+        <>
+          {t(
+            "git.issues.activity.unmarkedAsDuplicate",
+            "removed the duplicate marking"
+          )}
+        </>
+      );
     case "pinned":
-      return <>pinned this issue</>;
+      return <>{t("git.issues.activity.pinned", "pinned this issue")}</>;
     case "unpinned":
-      return <>unpinned this issue</>;
+      return <>{t("git.issues.activity.unpinned", "unpinned this issue")}</>;
     case "transferred":
-      return <>transferred this issue</>;
+      return (
+        <>{t("git.issues.activity.transferred", "transferred this issue")}</>
+      );
     case "converted_to_discussion":
-      return <>converted this issue to a discussion</>;
+      return (
+        <>
+          {t(
+            "git.issues.activity.convertedToDiscussion",
+            "converted this issue to a discussion"
+          )}
+        </>
+      );
     case "mentioned":
-      return <>mentioned this issue</>;
+      return <>{t("git.issues.activity.mentioned", "mentioned this issue")}</>;
     default:
       return <>{humanizeEventName(item.event)}</>;
   }

@@ -48,6 +48,7 @@ import Message from "@src/components/Message";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { createLogger } from "@src/hooks/logger";
 import i18n from "@src/i18n";
+import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
 import type { Session } from "@src/store/session/sessionAtom/types";
 import { chatPanelSelectedCloudOrgAtom } from "@src/store/ui/chatPanelAtom";
@@ -108,6 +109,7 @@ import { Org2CloudSyncLifecycle } from "./org2CloudSyncLifecycle";
 
 export {
   DATA_CHANGED_DEBOUNCE_MS,
+  EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS,
   HIDDEN_PASS_INTERVAL_MS,
   PASS_INTERVAL_MS,
   PROJECT_PUSH_RETRY_DELAY_MS,
@@ -122,6 +124,9 @@ const log = createLogger("Org2CloudSyncEngine");
 
 /** Repo-scope mirror refresh cadence (server truth changes rarely). */
 const SCOPE_HYDRATE_TTL_MS = 10 * 60_000;
+/** Inactive orgs heal on a quiet disaster-recovery cadence; selecting the
+ * org subscribes Realtime and immediately forces a fresh pull. */
+const INACTIVE_ORG_FALLBACK_INTERVAL_MS = 30 * 60_000;
 /** Re-probe a schema-mismatched custom endpoint after this long (an
  * in-place backend upgrade must heal without an app relaunch). */
 const SCHEMA_MISMATCH_REPROBE_MS = 5 * 60_000;
@@ -185,6 +190,8 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
   private readonly projectOrgAliasIds = new Map<string, string>();
   /** Orgs whose CURRENT start already pulled one COMPLETE collab-state listing. */
   private readonly fullCollabStateOrgIds = new Set<string>();
+  /** Orgs whose owner-session summaries seeded the cold-start push caches. */
+  private readonly sessionSummariesHydratedOrgIds = new Set<string>();
   /**
    * Custom-endpoint schema gate (Phase C), KEYED BY the probed supabaseUrl:
    * the engine singleton is never stopped in production, so an endpoint
@@ -229,6 +236,7 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
     this.scopeHydratedAtMs.clear();
     this.projectOrgAliasIds.clear();
     this.fullCollabStateOrgIds.clear();
+    this.sessionSummariesHydratedOrgIds.clear();
     this.schemaGate = null;
     this.schemaMismatchToastedUrls.clear();
   }
@@ -251,9 +259,10 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
 
   protected override async syncAllOrgs(
     generation: number,
-    signal: AbortSignal
+    options: { pushSessions: boolean; signal: AbortSignal }
   ): Promise<void> {
-    this.sessionSync.beginPass();
+    if (options.pushSessions) this.sessionSync.beginPass();
+    const { signal } = options;
     const store = this.store;
     if (!store) return;
     const auth = store.get(org2CloudAuthAtom);
@@ -311,26 +320,35 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
       fresh
     );
 
-    // Refresh the local scope mirror from server truth BEFORE picking
-    // targets — a second device has no locally-set scopes at all until
-    // hydration lands.
-    await this.hydrateRepoScopes(fresh, orgs, generation);
+    // The session plane follows visible-org demand. Hydrating every org here
+    // made one open workspace scan/replay sessions across every matching team
+    // and kept inactive-org scope RPCs alive. Switching/opening an org causes
+    // its Realtime subscription to request an immediate full session pass.
+    const activeSessionOrgs = orgs.filter((org) => this.isActiveOrg(org.orgId));
+    await this.hydrateRepoScopes(fresh, activeSessionOrgs, generation);
     if (this.generation !== generation) return;
 
     const scopesByOrg = store.get(org2CloudRepoScopesAtom);
-    const targets = orgs.filter(
-      (org) =>
-        ((scopesByOrg[org.orgId]?.length ?? 0) > 0 ||
-          orgsWithTaggedSessions.has(org.orgId)) &&
-        enabledByOrg[org.orgId] !== false &&
-        !this.isOrgBackedOff(org.orgId)
-    );
+    const targets = options.pushSessions
+      ? activeSessionOrgs.filter(
+          (org) =>
+            ((scopesByOrg[org.orgId]?.length ?? 0) > 0 ||
+              orgsWithTaggedSessions.has(org.orgId)) &&
+            enabledByOrg[org.orgId] !== false &&
+            !this.isOrgBackedOff(org.orgId)
+        )
+      : [];
 
     for (const org of targets) {
       // Bail the whole pass if the endpoint changed under us (see
       // passSupabaseUrl) — never push this backend's sessions elsewhere.
       if (getCloudEndpoint().supabaseUrl !== passSupabaseUrl) return;
       const scopes = scopesByOrg[org.orgId] ?? [];
+      const remoteSummaries = await this.loadSessionSummariesForColdStart(
+        fresh,
+        org.orgId,
+        generation
+      );
       for (const session of store.get(sessionsAtom)) {
         if (signal.aborted || this.generation !== generation) return;
         if (!isCloudPushCandidate(session)) continue;
@@ -546,6 +564,18 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
           }
           continue;
         }
+        const remoteSummary = remoteSummaries?.get(session.session_id);
+        if (remoteSummary) {
+          await this.sessionSync.seedFromRemoteSummary(
+            fresh,
+            org.orgId,
+            session,
+            matchedScope,
+            access,
+            remoteSummary
+          );
+          if (this.generation !== generation) return;
+        }
         try {
           await this.sessionSync.pushSession(
             fresh,
@@ -601,7 +631,10 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
     const fallbackInboundOrgIds = new Set<string>();
     for (const org of orgs) {
       const lastInbound = this.lastInboundPassAtMs.get(org.orgId) ?? 0;
-      if (nowMs - lastInbound >= INBOUND_FALLBACK_INTERVAL_MS) {
+      const fallbackInterval = this.isActiveOrg(org.orgId)
+        ? INBOUND_FALLBACK_INTERVAL_MS
+        : INACTIVE_ORG_FALLBACK_INTERVAL_MS;
+      if (nowMs - lastInbound >= fallbackInterval) {
         inboundOrgIds.add(org.orgId);
         fallbackInboundOrgIds.add(org.orgId);
       }
@@ -742,6 +775,37 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
   }
 
   /**
+   * Read one server summary page per org/start so a restart can prove that
+   * already-published imported transcripts are unchanged without reopening
+   * and normalizing every CLI history file. The map is pass-local: keeping a
+   * second copy of every remote session for the app lifetime would trade I/O
+   * pressure for RAM pressure.
+   */
+  private async loadSessionSummariesForColdStart(
+    auth: Org2CloudAuthState,
+    orgId: string,
+    generation: number
+  ): Promise<Map<string, RemoteTeammateSessionMetadata> | undefined> {
+    if (this.sessionSummariesHydratedOrgIds.has(orgId)) return undefined;
+    try {
+      const result = await this.client.listOrgSessions(auth.accessToken, orgId);
+      if (this.generation !== generation) return undefined;
+      this.sessionSummariesHydratedOrgIds.add(orgId);
+      return new Map(
+        result.sessions
+          .filter((row) => row.ownerUserId === auth.userId && !row.deletedAt)
+          .map((row) => [row.sourceSessionId, row])
+      );
+    } catch (error) {
+      log.warn(
+        `cloud session summary hydration failed for org ${orgId}:`,
+        error
+      );
+      return undefined;
+    }
+  }
+
+  /**
    * One org's projects/work-items cycle: pull the collab-state delta, hand
    * it to the shared ProjectSyncChannel (apply + outbox drain/push/ack),
    * then advance the persisted cursor. Once per engine start the cursor is
@@ -834,7 +898,10 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
   ): Promise<void> {
     for (const org of orgs) {
       const lastAttempt = this.scopeHydratedAtMs.get(org.orgId) ?? 0;
-      if (Date.now() - lastAttempt < SCOPE_HYDRATE_TTL_MS) continue;
+      const hydrateInterval = this.isActiveOrg(org.orgId)
+        ? SCOPE_HYDRATE_TTL_MS
+        : INACTIVE_ORG_FALLBACK_INTERVAL_MS;
+      if (Date.now() - lastAttempt < hydrateInterval) continue;
       this.scopeHydratedAtMs.set(org.orgId, Date.now());
       try {
         const state = await this.client.getOrgRepoScopes(
@@ -948,6 +1015,11 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
     }
     for (const orgId of this.fullCollabStateOrgIds) {
       if (!currentOrgIds.has(orgId)) this.fullCollabStateOrgIds.delete(orgId);
+    }
+    for (const orgId of this.sessionSummariesHydratedOrgIds) {
+      if (!currentOrgIds.has(orgId)) {
+        this.sessionSummariesHydratedOrgIds.delete(orgId);
+      }
     }
     for (const orgId of this.lastInboundPassAtMs.keys()) {
       if (!currentOrgIds.has(orgId)) this.lastInboundPassAtMs.delete(orgId);

@@ -127,7 +127,14 @@ data.json
 # IDE / tool artifacts
 .eslintcache
 .cursor/
-.orgii/
+# Keep local ORGII state ignored while allowing explicitly vendored workspace skills.
+.orgii/*
+!.orgii/skills/
+.orgii/skills/*
+!.orgii/skills/org2-performance-guard/
+!.orgii/skills/org2-performance-guard/**
+!.orgii/skills/react-best-practices/
+!.orgii/skills/react-best-practices/**
 .soyd/
 
 # macOS copy-conflict duplicates (e.g. "file 2.rs", "file 3.rs")

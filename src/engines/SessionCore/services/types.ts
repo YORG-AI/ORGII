@@ -9,6 +9,7 @@
 import type { AgentRole } from "@src/api/http/project";
 import type { CancelReason } from "@src/api/tauri/agent/session";
 import type { DispatchCategory } from "@src/api/tauri/session";
+import type { TurnIntentSource } from "@src/engines/SessionCore/control/turnIntentSource";
 
 // ============================================
 // Action Params
@@ -19,10 +20,12 @@ export interface SessionCreateParams {
   task: string;
   /** Base64 image data URLs attached to the initial user task. */
   imageDataUrls?: string[];
-  /** Repository path for the SDE agent to work in (agent_session_message's workspacePath) */
+  /** Repository or working-directory path where the agent executes. */
   repoPath?: string;
-  /** Project repo path where Work Items live (stored in session DB for orchestration notifications) */
+  /** Project repo path used only as a fallback when no execution path is supplied. */
   projectRepoPath?: string;
+  /** Registered linked worktree to reuse; distinct from the project repo root. */
+  worktreePath?: string;
   /** Override LLM model (defaults to OS agent's model) */
   model?: string;
   /** Override account ID (defaults to OS agent's account) */
@@ -100,6 +103,11 @@ export interface SessionSendMessageParams {
    * row all observe the same logical identity.
    */
   turnIntentId?: string;
+  /**
+   * Origin of this logical turn. Force-send must remain distinct from a plain
+   * submit so a still-cancelling backend turn cannot absorb it as steering.
+   */
+  turnIntentSource: TurnIntentSource;
   /**
    * When `true`, this is a user-initiated Resume after a failed turn.
    * Backend runs deletion-based orphan tool-use filter.

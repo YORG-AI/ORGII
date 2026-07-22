@@ -130,6 +130,7 @@ describe("GitHub work-item header controls", () => {
     expect(markup).toContain("lucide-code-xml");
     expect(markup).toContain(">ORG2<");
     expect(markup).not.toContain("yorgai/ORG2");
+    expect(markup).toContain("select-ghost");
     expect(markup).toContain("!w-fit shrink-0");
     expect(markup).toContain('style="width:fit-content"');
   });

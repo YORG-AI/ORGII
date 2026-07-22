@@ -34,7 +34,11 @@ const FactoryViewPill: React.FC = () => {
   const tabs = useMemo<TabPillItem[]>(
     () => [
       { key: "kanban", label: t("simulator.tabs.kanban") },
-      { key: "list", label: t("kanban.view.list") },
+      {
+        key: "list",
+        label: t("kanban.view.list"),
+        dataTestId: "kanban-view-list",
+      },
       { key: "diary", label: t("kanban.view.diary") },
       { key: "datasource", label: t("kanban.view.dataSource") },
     ],

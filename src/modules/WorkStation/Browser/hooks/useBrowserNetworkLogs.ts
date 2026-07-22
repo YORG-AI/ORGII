@@ -9,6 +9,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { createLogger } from "@src/hooks/logger";
+import { startVisibilityAwarePoller } from "@src/hooks/workStation/browser/visibilityAwarePoller";
 
 const log = createLogger("useBrowserNetworkLogs");
 
@@ -102,8 +103,6 @@ export function useBrowserNetworkLogs(
 
   // Current session's entries (state)
   const [entries, setEntries] = useState<NetworkEntry[]>([]);
-
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Get or create cache entry for a session
   const getSessionCache = useCallback((sid: string): SessionNetworkCache => {
@@ -213,27 +212,17 @@ export function useBrowserNetworkLogs(
 
   // Start/stop polling
   useEffect(() => {
-    if (!enabled || !webviewLabel || !sessionId || pollInterval <= 0) {
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
+    if (
+      !enabled ||
+      !webviewLabel ||
+      !sessionId ||
+      pollInterval <= 0 ||
+      typeof document === "undefined"
+    ) {
       return;
     }
 
-    // Start polling
-    pollTimerRef.current = setInterval(pollNow, pollInterval);
-
-    // Initial poll - defer to next tick to avoid setState in effect
-    const timer = setTimeout(() => pollNow(), 0);
-
-    return () => {
-      clearTimeout(timer);
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
-    };
+    return startVisibilityAwarePoller(document, pollNow, pollInterval);
   }, [enabled, webviewLabel, sessionId, pollInterval, pollNow]);
 
   // Compute error count from current entries

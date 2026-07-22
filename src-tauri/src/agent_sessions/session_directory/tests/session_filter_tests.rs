@@ -207,10 +207,12 @@ fn session_category_variants_are_distinct() {
     let cli = make_session("c1", "running", SessionCategory::Cli, "CLI S");
     let agent = make_session("a1", "running", SessionCategory::Agent, "Agent S");
     let os = make_session("o1", "running", SessionCategory::Os, "OS S");
+    let human = make_session("h1", "completed", SessionCategory::Human, "Human S");
 
     assert!(matches!(cli.category, SessionCategory::Cli));
     assert!(matches!(agent.category, SessionCategory::Agent));
     assert!(matches!(os.category, SessionCategory::Os));
+    assert!(matches!(human.category, SessionCategory::Human));
 }
 
 // ============================================================================

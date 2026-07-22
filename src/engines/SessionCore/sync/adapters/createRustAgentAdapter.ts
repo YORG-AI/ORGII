@@ -30,6 +30,7 @@ import { createLogger } from "@src/hooks/logger";
 import type { ContextUsageSnapshot } from "@src/store/session/cliSessionStatusAtom";
 import { invokeTauri } from "@src/util/platform/tauri/init";
 import { retryInvokeTauri } from "@src/util/platform/tauri/retryInvoke";
+import { isSessionEngineActiveStatus } from "@src/util/session/sessionRuntimeExecuting";
 
 import { noteSessionChannelActivity } from "../sessionChannelActivity";
 import type {
@@ -58,6 +59,7 @@ import {
   applyToolUsageToEvents,
   loadUsageTelemetry,
 } from "./rustAgent/toolUsageCache";
+import { buildRustAgentSendMessageArgs } from "./rustAgentSendPayload";
 import type {
   AgentTokenUsage,
   AgentWSEvent,
@@ -220,10 +222,7 @@ export function createRustAgentAdapter(
         const record = await getSession(sessionId);
         if (signal.aborted) return result;
         if (record?.status && record.status !== "idle") {
-          const isInFlight =
-            record.status === "running" ||
-            record.status === "waiting_for_user" ||
-            record.status === "waiting_for_funds";
+          const isInFlight = isSessionEngineActiveStatus(record.status);
 
           if (isInFlight) {
             // DB says in-flight — verify against the Rust runtime HashMap.
@@ -602,43 +601,11 @@ export function createRustAgentAdapter(
     },
 
     async sendMessage(input: AdapterSendInput): Promise<void> {
-      const {
-        sessionId,
-        content,
-        displayText,
-        model,
-        accountId,
-        mode,
-        adeContext,
-        imageDataUrls,
-        isResume,
-        clientMessageId,
-        turnIntentId,
-        sessionRepoPath,
-      } = input;
-      // The session row's persisted repo is the source of truth for
-      // workspace_root. Using the global repo selection atom would collide
-      // when two sessions on different repos are open simultaneously.
-      const activePath = sessionRepoPath ?? undefined;
+      const { sessionId } = input;
       clearSessionStreamingStopped(sessionId);
       await retryInvokeTauri(
         "agent_send_message",
-        {
-          sessionId,
-          content,
-          ...(displayText && displayText !== content ? { displayText } : {}),
-          ...(model ? { model } : {}),
-          ...(accountId ? { accountId } : {}),
-          ...(mode ? { mode } : {}),
-          ...(activePath ? { workspacePath: activePath } : {}),
-          ...(imageDataUrls && imageDataUrls.length > 0
-            ? { images: imageDataUrls }
-            : {}),
-          ...(adeContext ? { ideContext: adeContext } : {}),
-          ...(isResume ? { isResume: true } : {}),
-          ...(clientMessageId ? { clientMessageId } : {}),
-          ...(turnIntentId ? { turnIntentId } : {}),
-        },
+        buildRustAgentSendMessageArgs(input),
         sessionId
       );
     },

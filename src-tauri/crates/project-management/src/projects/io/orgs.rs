@@ -2,12 +2,12 @@
 
 use std::path::Path;
 
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{params, OptionalExtension, TransactionBehavior};
 use serde::Serialize;
 
 use super::helpers::{conn, map_db, now_ms, to_iso8601};
 use crate::projects::types::{
-    ConfigureProjectOrgGitFolderSyncRequest, CreateProjectOrgRequest, ProjectOrg,
+    ConfigureProjectOrgGitFolderSyncRequest, CreateProjectOrgRequest, ProjectOrg, PERSONAL_ORG_ID,
 };
 
 const LOCAL_ORG_SOURCE: &str = "local";
@@ -120,6 +120,68 @@ pub fn create_project_org(request: &CreateProjectOrgRequest) -> Result<ProjectOr
     ))?;
 
     Ok(org)
+}
+
+/// Delete a local project org and all data owned by it.
+///
+/// The personal org is a permanent schema root. Collab-backed rows are also
+/// rejected here because their lifecycle must go through the cloud leave/delete
+/// flow so remote membership and tombstones stay authoritative.
+pub fn delete_project_org(org_id: &str) -> Result<(), String> {
+    let org_id = org_id.trim();
+    if org_id.is_empty() {
+        return Err("Org ID is required".to_string());
+    }
+    if org_id == PERSONAL_ORG_ID {
+        return Err("The default personal org cannot be deleted".to_string());
+    }
+
+    let mut connection = conn()?;
+    let tx = map_db(connection.transaction_with_behavior(TransactionBehavior::Immediate))?;
+    let org: Option<(String, String, Option<String>)> = map_db(
+        tx.query_row(
+            "SELECT source, sync_provider, external_org_id
+               FROM project_orgs
+              WHERE id = ?1",
+            params![org_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .optional(),
+    )?;
+    let Some((source, sync_provider, external_org_id)) = org else {
+        return Err(format!("org not found: {}", org_id));
+    };
+    if source != LOCAL_ORG_SOURCE
+        || sync_provider == crate::sync::collab_bridge::COLLAB_SYNC_PROVIDER
+        || external_org_id.is_some()
+    {
+        return Err(
+            "Cloud-backed orgs must be managed through cloud organization settings".to_string(),
+        );
+    }
+
+    // Adapter tables have no foreign keys to `projects`; clean them before the
+    // project rows disappear. The outbox predicate also removes standalone
+    // collab-shaped rows that were explicitly tagged with this org.
+    for table in ["webhook_secrets", "import_progress", "outbox_conflicts"] {
+        map_db(tx.execute(
+            &format!(
+                "DELETE FROM {table}
+                  WHERE project_slug IN (SELECT slug FROM projects WHERE org_id = ?1)"
+            ),
+            params![org_id],
+        ))?;
+    }
+    map_db(tx.execute(
+        "DELETE FROM outbox_entries
+          WHERE org_id = ?1
+             OR project_slug IN (SELECT slug FROM projects WHERE org_id = ?1)",
+        params![org_id],
+    ))?;
+    map_db(tx.execute("DELETE FROM workitems WHERE org_id = ?1", params![org_id]))?;
+    map_db(tx.execute("DELETE FROM projects WHERE org_id = ?1", params![org_id]))?;
+    map_db(tx.execute("DELETE FROM project_orgs WHERE id = ?1", params![org_id]))?;
+    map_db(tx.commit())
 }
 
 #[derive(Debug, Serialize)]
@@ -360,6 +422,105 @@ mod tests {
 
         let read_back = read_project_org(&org.id).expect("read org");
         assert_eq!(read_back.name, "Supabase Team");
+    }
+
+    #[test]
+    fn delete_project_org_rejects_default_personal_org() {
+        let _sandbox = test_env::sandbox();
+
+        let error = delete_project_org(PERSONAL_ORG_ID).expect_err("personal org is protected");
+
+        assert!(error.contains("cannot be deleted"));
+        assert!(read_project_org(PERSONAL_ORG_ID).is_ok());
+    }
+
+    #[test]
+    fn delete_project_org_rejects_collab_backed_alias() {
+        let _sandbox = test_env::sandbox();
+        let org = create_project_org(&CreateProjectOrgRequest {
+            name: "Cloud Alias".to_string(),
+            id: None,
+        })
+        .expect("create org");
+        configure_project_org_collab_sync(&org.id, Some("cloud-org-id"))
+            .expect("configure collab org");
+
+        let error = delete_project_org(&org.id).expect_err("collab org is protected");
+
+        assert!(error.contains("cloud organization settings"));
+        assert!(read_project_org(&org.id).is_ok());
+    }
+
+    #[test]
+    fn delete_project_org_removes_owned_rows_and_sync_metadata() {
+        let _sandbox = test_env::sandbox();
+        let org = create_project_org(&CreateProjectOrgRequest {
+            name: "Disposable Team".to_string(),
+            id: None,
+        })
+        .expect("create org");
+        let connection = conn().expect("open project database");
+        let now = now_ms();
+        connection
+            .execute(
+                "INSERT INTO projects (
+                    id, org_id, name, slug, short_id_prefix, created_at, updated_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params!["project-1", &org.id, "Project", "project", "PRJ", now, now],
+            )
+            .expect("insert project");
+        connection
+            .execute(
+                "INSERT INTO workitems (
+                    id, org_id, project_id, short_id, title, created_at, updated_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![
+                    "work-item-1",
+                    &org.id,
+                    "project-1",
+                    "PRJ-1",
+                    "Work item",
+                    now,
+                    now
+                ],
+            )
+            .expect("insert work item");
+        connection
+            .execute(
+                "INSERT INTO outbox_entries (
+                    project_slug, entity_type, entity_id, op, payload_json, created_at, org_id
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![
+                    "project",
+                    "project",
+                    "project-1",
+                    "update",
+                    "{}",
+                    now,
+                    &org.id
+                ],
+            )
+            .expect("insert outbox row");
+        drop(connection);
+
+        delete_project_org(&org.id).expect("delete local org");
+
+        let connection = conn().expect("reopen project database");
+        for (table, predicate) in [
+            ("project_orgs", "id"),
+            ("projects", "org_id"),
+            ("workitems", "org_id"),
+            ("outbox_entries", "org_id"),
+        ] {
+            let count: i64 = connection
+                .query_row(
+                    &format!("SELECT COUNT(*) FROM {table} WHERE {predicate} = ?1"),
+                    params![&org.id],
+                    |row| row.get(0),
+                )
+                .expect("count remaining rows");
+            assert_eq!(count, 0, "{table} rows should be deleted");
+        }
     }
 
     #[test]

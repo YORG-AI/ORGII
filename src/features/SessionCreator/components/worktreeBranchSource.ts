@@ -179,6 +179,16 @@ export function shouldOfferCustomRef(
 export function branchToLaunchSource(
   option: WorktreeBranchOption
 ): WorktreeLaunchSource {
+  if (option.worktreePath) {
+    return {
+      kind: "worktree",
+      label: `Worktree: ${compactText(option.name, 34)}`,
+      baseBranch: option.name,
+      sourceRef: `worktree:${option.worktreePath}`,
+      title: option.name,
+      existingWorktreePath: option.worktreePath,
+    };
+  }
   return refToLaunchSource(option.name);
 }
 

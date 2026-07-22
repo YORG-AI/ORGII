@@ -1323,6 +1323,8 @@ describe("Cloud collaboration with two independent rendered app instances", func
       await invokeE2E("ensureRepoSelected", { repoPath: E2E_REPO_PATH }),
       "primary ensure shared repository"
     );
+    // Repo selection only seeds inventory; the primary Add, option click, and
+    // Save below remain the production rendered governance path.
     unwrapOn(
       await invokeOn(second.client, "ensureRepoSelected", {
         repoPath: SECONDARY_E2E_REPO_PATH,
@@ -1349,13 +1351,17 @@ describe("Cloud collaboration with two independent rendered app instances", func
 
     await openCloudOrgPanelFromSidebar(teamOrgId);
     await selectPrimaryCloudOrgManagementTab(
-      "repo-scope",
-      "primary team repo scope"
+      "general",
+      "primary team repo scope in General"
     );
     await waitForRendered(
       '[data-testid="cloud-org-repo-scope"]',
       "primary team repo scope",
       CLOUD_FETCH_TIMEOUT_MS
+    );
+    await clickRendered(
+      '[data-testid="cloud-org-add-repo-scope"]',
+      "show primary repository scope picker"
     );
     const primaryScopeResolution = unwrap(
       await invokeE2E("cloudResolveRepoScopeKeys", {
@@ -1417,8 +1423,10 @@ describe("Cloud collaboration with two independent rendered app instances", func
       async () =>
         execJS(
           `
-            const button = document.querySelector('[data-testid="cloud-org-save-repo-scopes"]');
-            return !!button && !button.disabled;
+            const save = document.querySelector('[data-testid="cloud-org-save-repo-scopes"]');
+            const cancel = document.querySelector('[data-testid="cloud-org-cancel-repo-scopes"]');
+            const add = document.querySelector('[data-testid="cloud-org-add-repo-scope"]');
+            return !!save && !save.disabled && !!cancel && save.closest('.section-layout-row') === add?.closest('.section-layout-row');
           `
         ),
       {
@@ -1436,7 +1444,8 @@ describe("Cloud collaboration with two independent rendered app instances", func
           `
             const section = document.querySelector('[data-testid="cloud-org-repo-scope"]');
             const save = document.querySelector('[data-testid="cloud-org-save-repo-scopes"]');
-            return !!section && !!save && save.disabled && section.textContent.includes(${JSON.stringify(repoScopeKey)});
+            const cancel = document.querySelector('[data-testid="cloud-org-cancel-repo-scopes"]');
+            return !!section && !save && !cancel && section.textContent.includes(${JSON.stringify(repoScopeKey)});
           `
         ),
       {
@@ -3378,6 +3387,9 @@ describe("Cloud collaboration with two independent rendered app instances", func
       execJS(`
         return {
           plan: !!document.querySelector('[data-testid="cloud-org-plan-section"]'),
+          repoScope: !!document.querySelector('[data-testid="cloud-org-repo-scope"]'),
+          scopeAdd: !!document.querySelector('[data-testid="cloud-org-add-repo-scope"]'),
+          scopeSave: !!document.querySelector('[data-testid="cloud-org-save-repo-scopes"]'),
           settings: !!document.querySelector('[data-testid="cloud-org-settings"]'),
           danger: !!document.querySelector('[data-testid="cloud-org-danger-zone"]'),
         };
@@ -3387,6 +3399,9 @@ describe("Cloud collaboration with two independent rendered app instances", func
         `
           return {
             plan: !!document.querySelector('[data-testid="cloud-org-plan-section"]'),
+            repoScope: !!document.querySelector('[data-testid="cloud-org-repo-scope"]'),
+            scopeAdd: !!document.querySelector('[data-testid="cloud-org-add-repo-scope"]'),
+            scopeSave: !!document.querySelector('[data-testid="cloud-org-save-repo-scopes"]'),
             settings: !!document.querySelector('[data-testid="cloud-org-settings"]'),
             danger: !!document.querySelector('[data-testid="cloud-org-danger-zone"]'),
           };
@@ -3420,15 +3435,6 @@ describe("Cloud collaboration with two independent rendered app instances", func
         `
       ),
     ]);
-    await selectCloudOrgManagementTabOn(
-      second.client,
-      "repo-scope",
-      "secondary repo scope"
-    );
-    const memberScopeControls = await executeOn(
-      second.client,
-      `return { scopeSave: !!document.querySelector('[data-testid="cloud-org-save-repo-scopes"]') };`
-    );
     const ownerControls = {
       ...ownerGeneralControls,
       ...ownerMemberControls,
@@ -3436,10 +3442,12 @@ describe("Cloud collaboration with two independent rendered app instances", func
     const memberControls = {
       ...memberGeneralControls,
       ...memberMemberControls,
-      ...memberScopeControls,
     };
     if (
       !ownerControls.plan ||
+      !ownerControls.repoScope ||
+      !ownerControls.scopeAdd ||
+      ownerControls.scopeSave ||
       !ownerControls.invites ||
       !ownerControls.settings ||
       !ownerControls.danger
@@ -3450,6 +3458,8 @@ describe("Cloud collaboration with two independent rendered app instances", func
     }
     if (
       !memberControls.plan ||
+      !memberControls.repoScope ||
+      memberControls.scopeAdd ||
       memberControls.invites ||
       memberControls.settings ||
       memberControls.danger ||

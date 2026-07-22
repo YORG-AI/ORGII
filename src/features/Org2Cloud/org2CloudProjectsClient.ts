@@ -39,6 +39,7 @@ import type {
   UpsertWorkItemInput,
 } from "../TeamCollaboration/sync/CollabSyncBackend";
 import { ORG2_CLOUD_POSTGREST_SCHEMA, getCloudEndpoint } from "./config";
+import { fetchWithTransportRetry } from "./org2CloudFetchRetry";
 
 // ---------------------------------------------------------------------------
 // Error model
@@ -100,7 +101,7 @@ async function callProjectsRpc(
   body: Record<string, unknown>
 ): Promise<unknown> {
   const endpoint = getCloudEndpoint();
-  const response = await fetch(
+  const response = await fetchWithTransportRetry(
     `${endpoint.supabaseUrl}/rest/v1/rpc/${functionName}`,
     {
       method: "POST",

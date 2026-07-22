@@ -1,5 +1,7 @@
+import { useAtomValue } from "jotai";
 import React, { memo } from "react";
 
+import { sessionHydrationByIdAtom } from "@src/engines/SessionCore";
 import type { Session } from "@src/store/session";
 import { resolveSessionRowIconPresentation } from "@src/util/session/sessionSidebarRow";
 
@@ -23,8 +25,12 @@ export function resolveSessionIdentityIconColorClass(
 /** The canonical session icon treatment used by Chat Panel session tabs. */
 const SessionIdentityIcon: React.FC<SessionIdentityIconProps> = memo(
   ({ session, sessionId, isSelected = true, className = "" }) => {
+    const hydration = useAtomValue(sessionHydrationByIdAtom(sessionId));
     const { Icon, isMonochromeBrandIcon } = resolveSessionRowIconPresentation(
-      session ?? sessionId
+      session ??
+        (hydration?.iconId
+          ? { session_id: sessionId, agentIconId: hydration.iconId }
+          : sessionId)
     );
     const colorClass = resolveSessionIdentityIconColorClass(
       isSelected,

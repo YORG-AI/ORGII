@@ -37,7 +37,7 @@ pub trait SourceAdapter {
 }
 
 pub mod activity;
-mod anthropic_jsonl;
+pub mod anthropic_jsonl;
 pub mod claude_code;
 pub mod cline;
 pub mod codex;
@@ -51,6 +51,7 @@ pub mod orgii_cli;
 pub mod orgii_rust_agents;
 pub mod qoder;
 pub mod qoder_cli;
+pub mod registry;
 pub mod trae;
 pub mod warp;
 pub mod windsurf;

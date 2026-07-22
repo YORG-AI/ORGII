@@ -1,5 +1,6 @@
 //! Codex session-meta parsing and parent-thread resolution.
 
+#[cfg(test)]
 use std::collections::BTreeSet;
 use std::fs;
 use std::io::{BufRead, BufReader, Read};
@@ -9,21 +10,26 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::sources::codex::canonical_session_id;
+#[cfg(test)]
+use crate::sources::imported_history::metadata::RoundUsage;
 use crate::sources::imported_history::{
     self,
     metadata::{
         ImportedHistoryCacheInput, ImportedHistoryDiscoveredRecord, ImportedHistoryImpactStats,
-        RoundUsage, SOURCE_CODEX_APP,
+        SOURCE_CODEX_APP,
     },
 };
 
+#[cfg(test)]
 use super::impact::{collect_codex_impact_from_patch_apply_end, collect_codex_impact_from_payload};
 use super::index::{
     codex_session_index_title_for_record, codex_sessions_dir_for_session_path,
     codex_thread_id_from_file_stem, collect_codex_session_files,
 };
 use super::transcript::user_message_from_payload;
-use super::{CodexAppSessionMeta, CodexJsonlLine, CODEX_APP_METADATA_PARSER_VERSION};
+#[cfg(test)]
+use super::CodexAppSessionMeta;
+use super::{CodexJsonlLine, CODEX_APP_METADATA_PARSER_VERSION};
 
 /// Catalog discovery only needs stable card metadata.  Capping the prefix is
 /// intentional: an appended 300 MiB rollout must not make a sidebar rescan
@@ -46,6 +52,7 @@ struct CodexTurnContextPayload {
     model: String,
 }
 
+#[cfg(test)]
 pub(crate) fn parse_codex_session_meta(
     record: &ImportedHistoryDiscoveredRecord,
 ) -> Result<Option<CodexAppSessionMeta>, String> {
@@ -357,34 +364,6 @@ pub(super) fn parse_codex_catalog_input(
             .as_deref()
             .and_then(|thread_id| codex_parent_session_id_for_record(record, thread_id)),
     }))
-}
-
-pub(super) fn session_meta_to_cache_input(meta: CodexAppSessionMeta) -> ImportedHistoryCacheInput {
-    ImportedHistoryCacheInput {
-        source: SOURCE_CODEX_APP,
-        source_session_id: meta.source_session_id,
-        session_id: meta.session_id,
-        source_path: meta.source_path,
-        source_record_key: meta.source_record_key,
-        source_mtime_ms: meta.source_mtime_ms,
-        source_size_bytes: meta.source_size_bytes,
-        source_fingerprint: meta.source_fingerprint,
-        parser_version: CODEX_APP_METADATA_PARSER_VERSION,
-        name: meta.name,
-        created_at_ms: meta.created_at_ms,
-        updated_at_ms: meta.updated_at_ms,
-        model: meta.model,
-        input_tokens: meta.input_tokens,
-        output_tokens: meta.output_tokens,
-        cache_read_tokens: meta.cache_read_tokens,
-        cache_write_tokens: meta.cache_write_tokens,
-        repo_path: meta.repo_path,
-        branch: None,
-        impact: meta.impact,
-        listable: true,
-        source_metadata_json: None,
-        parent_session_id: meta.parent_session_id,
-    }
 }
 
 fn parent_thread_id_from_session_meta_payload(

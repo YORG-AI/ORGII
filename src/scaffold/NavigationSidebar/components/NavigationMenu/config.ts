@@ -74,6 +74,8 @@ export interface NavigationMenuItem {
    * Work Items list) keeps body-click = toggle.
    */
   navigableParent?: boolean;
+  /** Keep a parent row's disclosure control beside its label instead of right-aligning it. */
+  disclosureFollowsLabel?: boolean;
   shortcut?: string;
   disabled?: boolean;
   dataTestId?: string;

@@ -6,9 +6,12 @@ import {
   type ProjectOrg,
   type SyncProjectOrgGitFolderResult,
 } from "@src/api/http/project";
-import type { MemberEntry } from "@src/api/http/project";
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
+import {
+  DEFAULT_PERSONAL_PROJECT_ORG_ID,
+  canDeleteLocalProjectOrg,
+} from "@src/modules/ProjectManager/projectOrgVisibility";
 import {
   SECTION_ACTION_GAP_CLASSES,
   SECTION_DESCRIPTION_CLASSES,
@@ -23,7 +26,6 @@ import {
 } from "@src/modules/shared/layouts/blocks";
 import type { Label } from "@src/types/core/shared";
 
-import { RepoMembersSection } from "../../Projects/components/RepoSettings/sections";
 import { LabelsSection } from "../../WorkItems/components/WorkItemsSettings/subpages";
 
 const SyncMethodsSection: React.FC<{
@@ -159,42 +161,106 @@ const EmptyOrgCatalogHint: React.FC = () => {
   );
 };
 
+export const OrgDangerZone: React.FC<{
+  org: ProjectOrg | null;
+  onDeleteOrg: () => Promise<void>;
+}> = ({ org, onDeleteOrg }) => {
+  const { t } = useTranslation(["projects", "common"]);
+  const [confirmText, setConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const canDelete = Boolean(org && canDeleteLocalProjectOrg(org));
+  const isConfirmed = Boolean(org && confirmText.trim() === org.name);
+  const isPersonalOrg = org?.id === DEFAULT_PERSONAL_PROJECT_ORG_ID;
+
+  const handleDelete = useCallback(async () => {
+    if (!canDelete || !isConfirmed) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await onDeleteOrg();
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setDeleting(false);
+    }
+  }, [canDelete, isConfirmed, onDeleteOrg]);
+
+  return (
+    <SectionContainer title={t("projects:orgs.management.dangerZone")}>
+      <div data-testid="local-org-danger-zone">
+        <SectionRow
+          label={t("projects:orgs.management.deleteOrg")}
+          description={
+            isPersonalOrg
+              ? t("projects:orgs.management.personalOrgDeleteDisabled")
+              : t("projects:orgs.management.deleteOrgDescription", {
+                  org: org?.name ?? "",
+                })
+          }
+          layout="vertical"
+          align="start"
+        >
+          <div className={`${SECTION_ACTION_GAP_CLASSES} w-full`}>
+            <Input
+              size="default"
+              value={confirmText}
+              onChange={setConfirmText}
+              placeholder={t("projects:orgs.management.deleteTypeToConfirm", {
+                org: org?.name ?? "",
+              })}
+              className="min-w-0 flex-1"
+              disabled={!canDelete || deleting}
+              data-testid="local-org-delete-confirm-input"
+              onKeyDown={(event) => {
+                if (event.key === "Enter") void handleDelete();
+              }}
+            />
+            <Button
+              htmlType="button"
+              size="default"
+              variant="danger"
+              disabled={!canDelete || !isConfirmed || deleting}
+              loading={deleting}
+              data-testid="local-org-delete-confirm"
+              onClick={() => void handleDelete()}
+            >
+              {t("projects:orgs.management.deleteOrgAction")}
+            </Button>
+          </div>
+        </SectionRow>
+        {deleteError ? (
+          <div className="pb-2 text-[12px] text-danger-6">{deleteError}</div>
+        ) : null}
+      </div>
+    </SectionContainer>
+  );
+};
+
 export interface ProjectOrgSettingsPaneProps {
   org: ProjectOrg | null;
   projectCount: number;
-  members: MemberEntry[];
   labels: Label[];
   folderPath: string;
   onFolderPathChange: (value: string) => void;
   onConfigureGitFolder: () => Promise<void>;
   onSyncGitFolder: () => Promise<SyncProjectOrgGitFolderResult | null>;
-  onUpdateMembers: (members: MemberEntry[]) => Promise<void>;
   onUpdateLabels: (labels: Label[]) => Promise<void>;
+  onDeleteOrg: () => Promise<void>;
 }
 
 export const ProjectOrgSettingsPane: React.FC<ProjectOrgSettingsPaneProps> = ({
   org,
   projectCount,
-  members,
   labels,
   folderPath,
   onFolderPathChange,
   onConfigureGitFolder,
   onSyncGitFolder,
-  onUpdateMembers,
   onUpdateLabels,
+  onDeleteOrg,
 }) => {
   const { t } = useTranslation("projects");
-  const membersContent =
-    projectCount > 0 ? (
-      <RepoMembersSection
-        members={members}
-        onUpdateMembers={onUpdateMembers}
-        showTitle={false}
-      />
-    ) : (
-      <EmptyOrgCatalogHint />
-    );
   const labelsContent =
     projectCount > 0 ? (
       <LabelsSection
@@ -219,12 +285,10 @@ export const ProjectOrgSettingsPane: React.FC<ProjectOrgSettingsPaneProps> = ({
               onSyncNow={onSyncGitFolder}
             />
           </CollapsibleSection>
-          <CollapsibleSection title={t("properties.members")}>
-            {membersContent}
-          </CollapsibleSection>
           <CollapsibleSection title={t("properties.labels")}>
             {labelsContent}
           </CollapsibleSection>
+          <OrgDangerZone org={org} onDeleteOrg={onDeleteOrg} />
         </div>
       </div>
     </div>

@@ -193,6 +193,21 @@ describe("branchToLaunchSource", () => {
     expect(source.baseBranch).toBe("origin/develop");
     expect(source.sourceRef).toBe("branch:origin/develop");
   });
+
+  it("preserves an existing worktree path as an explicit reuse source", () => {
+    expect(
+      branchToLaunchSource(
+        option({ name: "feature/reuse", worktreePath: "/worktrees/reuse" })
+      )
+    ).toEqual({
+      kind: "worktree",
+      label: "Worktree: feature/reuse",
+      baseBranch: "feature/reuse",
+      sourceRef: "worktree:/worktrees/reuse",
+      title: "feature/reuse",
+      existingWorktreePath: "/worktrees/reuse",
+    });
+  });
 });
 
 describe("groupBranchOptions", () => {

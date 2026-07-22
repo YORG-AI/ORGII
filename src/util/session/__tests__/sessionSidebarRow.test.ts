@@ -83,8 +83,25 @@ describe("resolveSessionRowIcon", () => {
       resolveSessionRowIcon({
         session_id: "collab-import-1",
         importedFrom: { externalHistorySource: "codex_app" },
+        agentIconId: "archive",
       })
     ).toBe(resolveAgentIcon("codex"));
+  });
+
+  it("uses the sidebar ORGII icon for imported native org sessions", () => {
+    expect(
+      resolveSessionRowIcon({
+        session_id: "collab-import-1",
+        importedFrom: {},
+        agentIconId: "archive",
+      })
+    ).toBe(resolveAgentIcon("orgii"));
+  });
+
+  it("uses the ORGII icon before an imported session row has hydrated", () => {
+    expect(resolveSessionRowIcon("imported-session-pending")).toBe(
+      resolveAgentIcon("orgii")
+    );
   });
 
   it("identifies current-color provider marks as monochrome brand icons", () => {

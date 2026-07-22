@@ -63,7 +63,7 @@
 
 .kanban-task-card__title {
   flex: 1;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--color-text-1);
   line-height: 1.4;
@@ -167,6 +167,27 @@
   }
 }
 
+.kanban-task-card__creator-row {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: 6px;
+}
+
+.kanban-task-card__creator {
+  flex: 0 1 auto;
+  max-width: 100%;
+  font-size: 11px;
+}
+
+.kanban-task-card__updated-at {
+  flex: 0 0 auto;
+  color: var(--color-text-3);
+  font-size: 11px;
+  line-height: 1;
+}
+
 .kanban-task-card__impact-line {
   display: inline-flex;
   min-width: 0;
@@ -212,8 +233,8 @@
 }
 
 .kanban-task-card__impact-diff {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 400;
 }
 
 .kanban-task-card__impact-item,

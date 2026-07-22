@@ -10,6 +10,7 @@ import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/typ
 
 import {
   buildCloudSessionThreads,
+  collectCloudFlatListExcludedSessionIds,
   collectThreadedLocalSessionIds,
   isCloudThreadRowDisabled,
 } from "./cloudSessionThreads";
@@ -293,6 +294,36 @@ describe("collectThreadedLocalSessionIds", () => {
     expect(collectThreadedLocalSessionIds(allThreads)).toEqual(
       new Set(["fork-mine"])
     );
+  });
+});
+
+describe("collectCloudFlatListExcludedSessionIds", () => {
+  it("keeps teammate replay caches out of My Sessions when their Team row is filtered out", () => {
+    const importedSession = {
+      session_id: "imported-cache-1",
+      importedFrom: {
+        orgId: ORG,
+        sourceSessionId: "shared-by-teammate",
+      },
+    };
+
+    expect(
+      collectCloudFlatListExcludedSessionIds([], [importedSession], ORG)
+    ).toEqual(new Set(["imported-cache-1"]));
+  });
+
+  it("does not hide replay caches belonging to a different org", () => {
+    const importedSession = {
+      session_id: "other-org-cache",
+      importedFrom: {
+        orgId: "other-org",
+        sourceSessionId: "shared-by-teammate",
+      },
+    };
+
+    expect(
+      collectCloudFlatListExcludedSessionIds([], [importedSession], ORG)
+    ).toEqual(new Set());
   });
 });
 

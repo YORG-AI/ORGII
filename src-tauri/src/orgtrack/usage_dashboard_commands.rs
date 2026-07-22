@@ -63,6 +63,8 @@ fn build_filter(
         start_ms,
         end_ms,
         session_id: session_id.filter(|value| !value.is_empty()),
+        // The desktop dashboard scopes to the four primary buckets.
+        all_sources: false,
     }
 }
 
@@ -121,7 +123,7 @@ pub async fn usage_dashboard_trends(
     .map_err(|err| format!("Task join error: {err}"))?
 }
 
-/// Summary + trends + request-log page in one call (one round-store scan).
+/// Optional summary/trends and request-log page from one round-store scan.
 #[tauri::command]
 pub async fn usage_dashboard_overview(
     bucket: Option<String>,
@@ -135,6 +137,8 @@ pub async fn usage_dashboard_overview(
     unknown_model: Option<bool>,
     search: Option<String>,
     bucket_unit: Option<String>,
+    include_headline: Option<bool>,
+    include_rounds: Option<bool>,
 ) -> Result<UsageOverview, String> {
     tokio::task::spawn_blocking(move || {
         let conn = open_conn()?;
@@ -144,7 +148,17 @@ pub async fn usage_dashboard_overview(
         let round_query = UsageRoundQuery::from_wire(model, unknown_model.unwrap_or(false), search);
         let offset = offset.unwrap_or(0);
         let limit = limit.unwrap_or(MAX_ROUND_ROWS).min(MAX_ROUND_ROWS);
-        usage_dashboard::usage_overview(&conn, &filter, &round_query, sort, offset, limit, unit)
+        usage_dashboard::usage_overview(
+            &conn,
+            &filter,
+            &round_query,
+            sort,
+            offset,
+            limit,
+            unit,
+            include_headline.unwrap_or(true),
+            include_rounds.unwrap_or(true),
+        )
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?

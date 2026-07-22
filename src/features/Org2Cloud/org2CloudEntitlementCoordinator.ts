@@ -24,10 +24,9 @@ const log = createLogger("Org2CloudEntitlement");
 type JotaiStore = ReturnType<typeof createStore>;
 
 /**
- * Short on purpose: `org_change_signals` cannot say WHICH plane changed, and
- * an admin floor flip must reach members promptly (it gates uploads). The
- * single-flight entry still bounds a signal burst to one entitlement RPC per
- * org per window.
+ * Short on purpose: a burst of explicit floor-change broadcasts and
+ * reconnect recovery must still collapse to one request. Generic session /
+ * project / comment signals no longer enter this coordinator.
  */
 export const ENTITLEMENT_REFRESH_TTL_MS = 10_000;
 

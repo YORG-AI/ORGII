@@ -35,7 +35,9 @@ interface InputAreaPortalsProps {
   slashCommandKeyboardHandlerRef: React.MutableRefObject<
     ((event: KeyboardEvent) => boolean) | null
   >;
-  onImageUpload: () => void;
+  onImageUpload?: () => void;
+  showActionFlyouts?: boolean;
+  showModeRows?: boolean;
   showPlusSlashMenu: boolean;
   plusSlashQuery: string;
   onPlusSlashClose: () => void;
@@ -77,6 +79,8 @@ export const InputAreaPortals: React.FC<InputAreaPortalsProps> = ({
   onModeSelect,
   slashCommandKeyboardHandlerRef,
   onImageUpload,
+  showActionFlyouts = true,
+  showModeRows = true,
   showPlusSlashMenu,
   plusSlashQuery,
   onPlusSlashClose,
@@ -123,7 +127,8 @@ export const InputAreaPortals: React.FC<InputAreaPortalsProps> = ({
         onSelect={onSlashSelect}
         onModeSelect={onModeSelect}
         keyboardHandlerRef={slashCommandKeyboardHandlerRef}
-        showActionFlyouts
+        showActionFlyouts={showActionFlyouts}
+        showModeRows={showModeRows}
         onImageUpload={onImageUpload}
         addressComments={addressCommentsFlyout}
       />
@@ -148,13 +153,18 @@ export const InputAreaPortals: React.FC<InputAreaPortalsProps> = ({
         }}
         keyboardHandlerRef={plusSlashCommandKeyboardHandlerRef}
         searchMode="header"
-        showActionFlyouts
+        showActionFlyouts={showActionFlyouts}
+        showModeRows={showModeRows}
         addressComments={addressCommentsFlyout}
         onSearchQueryChange={onPlusSlashQueryChange}
-        onImageUpload={() => {
-          onPlusSlashClose();
-          onImageUpload();
-        }}
+        onImageUpload={
+          onImageUpload
+            ? () => {
+                onPlusSlashClose();
+                onImageUpload();
+              }
+            : undefined
+        }
       />
     </>
   );

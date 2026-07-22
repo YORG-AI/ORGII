@@ -528,6 +528,7 @@
     "signIn": "登入",
     "signOut": "登出",
     "signedInToast": "已登入 ORG2 雲端",
+    "sessionExpired": "ORG2 雲端登入已過期，請重新登入後繼續。",
     "recommendedBadge": "推薦",
     "recommendedDesc": "託管式工作階段共享、重播儲存、團隊權限與安全分享連結，無需自行架設 Supabase。ORG2 為你管理 Auth、資料庫遷移、RLS 政策、計費、資料保留、配額與後端升級",
     "customEndpoint": {
@@ -567,7 +568,8 @@
       "retentionUpgrade": "此工作階段已超出目前方案的重播期限 — 升級後即可檢視",
       "importError": "無法匯入工作階段",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "關於我"
     },
     "sidebar": {
       "teamSessions": "團隊工作階段",
@@ -706,7 +708,8 @@
         "inviteInvalid": "邀請碼無效。",
         "inviteRevoked": "該邀請已被撤銷。",
         "inviteExpired": "該邀請已過期。",
-        "inviteExhausted": "該邀請的使用次數已用完。"
+        "inviteExhausted": "該邀請的使用次數已用完。",
+        "network": "無法連線雲端服務。請檢查網路後重試。"
       }
     },
     "syncLevel": {

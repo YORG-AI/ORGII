@@ -23,6 +23,7 @@ import type {
   RemoteTeammateSessionMetadata,
 } from "@src/store/collaboration/types";
 import type { Session } from "@src/store/session/sessionAtom/types";
+import { isImportedHistorySession } from "@src/util/session/sessionDispatch";
 
 import {
   createDefaultAccessSettings,
@@ -39,6 +40,7 @@ import { computeSegmentHash } from "../TeamCollaboration/sync/collabGzip";
 import type { SegmentWirePayload } from "../TeamCollaboration/sync/segmentCodec";
 import type { CloudPushAccess } from "./org2CloudAccessSettings";
 import type { Org2CloudAuthState } from "./org2CloudAuthAtom";
+import { broadcastOrgControlChangedToPeers } from "./org2CloudControlBus";
 import type { CollabSessionPushCursor } from "./org2CloudSyncAtoms";
 import {
   org2CloudPushCursorsAtom,
@@ -46,7 +48,10 @@ import {
 } from "./org2CloudSyncAtoms";
 import * as org2CloudSyncClient from "./org2CloudSyncClient";
 import { isOrg2SyncErrorCode } from "./org2CloudSyncClient";
-import type { CloudStore } from "./org2CloudSyncLifecycle";
+import {
+  type CloudStore,
+  EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS,
+} from "./org2CloudSyncLifecycle";
 
 const log = createLogger("Org2CloudSyncEngine");
 
@@ -71,6 +76,7 @@ export type Org2CloudSyncClientDeps = Pick<
   | "rewriteSessionEvents"
   | "rewriteSessionEventWires"
   | "getOrgRepoScopes"
+  | "listOrgSessions"
   | "deleteSession"
 > & {
   /** This sync engine only performs a byte-bounded epoch/head read. */
@@ -106,6 +112,40 @@ interface PreparedExternalPush {
   manifest: ExternalReplayCloudManifest;
 }
 
+interface CleanEventPlaneStamp {
+  verifiedAt: number;
+  /** Imported transcript version used for this proof. */
+  sourceUpdatedAt?: string;
+}
+
+interface ExternalHistoryVersionObservation {
+  sourceUpdatedAt: string;
+  observedAt: number;
+}
+
+function metadataPayloadForHash(
+  metadata: RemoteTeammateSessionMetadata
+): Partial<RemoteTeammateSessionMetadata> {
+  const payload: Partial<RemoteTeammateSessionMetadata> = { ...metadata };
+  // These fields are derived by the listing RPC, not authored by
+  // cloud_upsert_session_metadata. Excluding them makes a server summary
+  // comparable to the exact payload this client would upload.
+  // ownerMemberId is also server-authoritative: the synthetic local member
+  // uses auth.userId, while the listing returns the org-membership row id.
+  // The row id embeds that membership id, so it is server-derived too.
+  delete payload.id;
+  delete payload.ownerMemberId;
+  delete payload.directlySharedWithMe;
+  delete payload.eventsEpoch;
+  delete payload.eventsFrozenSeq;
+  delete payload.eventsCount;
+  delete payload.eventsTailHash;
+  delete payload.deletedAt;
+  delete payload.commentCount;
+  delete payload.unresolvedCommentCount;
+  return payload;
+}
+
 /**
  * Build cloud metadata while restoring fork lineage stripped from Session rows.
  */
@@ -115,7 +155,8 @@ export function buildCloudSessionMetadata(
   userId: string,
   displayName: string,
   scopeKey: string | null,
-  access: CloudPushAccess
+  access: CloudPushAccess,
+  avatarUrl?: string
 ): RemoteTeammateSessionMetadata {
   const org: CollabOrgRecord = { id: orgId, name: "", createdAt: "" };
   const member: CollabMemberRecord = {
@@ -136,7 +177,10 @@ export function buildCloudSessionMetadata(
     ...session,
     forkedFrom: getSessionForkedFrom(session),
   };
-  return toRemoteMetadata(withLineage, org, member, settings, scopeKey);
+  return {
+    ...toRemoteMetadata(withLineage, org, member, settings, scopeKey),
+    ...(avatarUrl ? { ownerAvatarUrl: avatarUrl } : {}),
+  };
 }
 
 /** True for local sessions that may ever be pushed to the cloud. */
@@ -154,9 +198,21 @@ export class Org2CloudSessionSync {
   /** `${orgId}:${sessionId}` to hash of the last upserted metadata. */
   private readonly lastPushedMetadataHashes = new Map<string, string>();
   /** sessionId to orgId to time when the event plane was verified clean. */
-  private readonly cleanEventPlanes = new Map<string, Map<string, number>>();
+  private readonly cleanEventPlanes = new Map<
+    string,
+    Map<string, CleanEventPlaneStamp>
+  >();
+  /** A cold-start remote summary may seed each (org, session) only once. */
+  private readonly remoteSeedAttemptedKeys = new Set<string>();
   /** Session activity stamp prevents a mid-push write from being marked clean. */
   private readonly eventActivityStamps = new Map<string, number>();
+  /** Last write time for quiet-window gating of mutable external histories. */
+  private readonly eventActivityAtMs = new Map<string, number>();
+  /** Last imported-source version observed from sessionsAtom. */
+  private readonly externalHistoryVersions = new Map<
+    string,
+    ExternalHistoryVersionObservation
+  >();
   /** Org-independent event reads and hashing shared across orgs in one pass. */
   private readonly passPushPrepareCache = new Map<
     string,
@@ -178,8 +234,11 @@ export class Org2CloudSessionSync {
     this.lastPushedMetadataHashes.clear();
     this.cleanEventPlanes.clear();
     this.eventActivityStamps.clear();
+    this.eventActivityAtMs.clear();
+    this.externalHistoryVersions.clear();
     this.passPushPrepareCache.clear();
     this.passExternalPrepareCache.clear();
+    this.remoteSeedAttemptedKeys.clear();
   }
 
   /** Start a new engine pass; prepared events must never leak across passes. */
@@ -218,6 +277,15 @@ export class Org2CloudSessionSync {
         this.lastPushedMetadataHashes.delete(key);
       }
     }
+    for (const key of this.remoteSeedAttemptedKeys) {
+      const separatorIndex = key.indexOf(":");
+      const orgId = separatorIndex === -1 ? key : key.slice(0, separatorIndex);
+      const sessionId =
+        separatorIndex === -1 ? "" : key.slice(separatorIndex + 1);
+      if (!liveOrgIds.has(orgId) || !liveSessionIds.has(sessionId)) {
+        this.remoteSeedAttemptedKeys.delete(key);
+      }
+    }
     for (const [sessionId, byOrg] of this.cleanEventPlanes) {
       if (!liveSessionIds.has(sessionId)) {
         this.cleanEventPlanes.delete(sessionId);
@@ -233,6 +301,16 @@ export class Org2CloudSessionSync {
         this.eventActivityStamps.delete(sessionId);
       }
     }
+    for (const sessionId of this.eventActivityAtMs.keys()) {
+      if (!liveSessionIds.has(sessionId)) {
+        this.eventActivityAtMs.delete(sessionId);
+      }
+    }
+    for (const sessionId of this.externalHistoryVersions.keys()) {
+      if (!liveSessionIds.has(sessionId)) {
+        this.externalHistoryVersions.delete(sessionId);
+      }
+    }
   }
 
   /** Drop clean markers and stamp a local event-store write. */
@@ -241,26 +319,126 @@ export class Org2CloudSessionSync {
       sessionId,
       (this.eventActivityStamps.get(sessionId) ?? 0) + 1
     );
+    this.eventActivityAtMs.set(sessionId, Date.now());
     this.cleanEventPlanes.delete(sessionId);
   }
 
-  private isEventPlaneClean(orgId: string, sessionId: string): boolean {
-    const cleanAt = this.cleanEventPlanes.get(sessionId)?.get(orgId);
-    return cleanAt !== undefined && Date.now() - cleanAt < EVENTS_CLEAN_TTL_MS;
+  /**
+   * Imported CLI files are mutable snapshots, not append-only EventStore
+   * streams. During a live turn older normalized records can still change;
+   * wait for the same quiet window as the lifecycle timer before doing the
+   * expensive full read/normalize/rewrite. Metadata remains live.
+   */
+  private isExternalHistorySettled(session: Session): boolean {
+    const sessionId = session.session_id;
+    if (!isImportedHistorySession(sessionId)) return true;
+    const now = Date.now();
+    const observed = this.externalHistoryVersions.get(sessionId);
+    if (!observed || observed.sourceUpdatedAt !== session.updated_at) {
+      this.externalHistoryVersions.set(sessionId, {
+        sourceUpdatedAt: session.updated_at,
+        observedAt: now,
+      });
+      return false;
+    }
+    const changedAt = Math.max(
+      observed.observedAt,
+      this.eventActivityAtMs.get(sessionId) ?? 0
+    );
+    return now - changedAt >= EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS;
+  }
+
+  private isEventPlaneClean(orgId: string, session: Session): boolean {
+    const clean = this.cleanEventPlanes.get(session.session_id)?.get(orgId);
+    if (!clean || Date.now() - clean.verifiedAt >= EVENTS_CLEAN_TTL_MS) {
+      return false;
+    }
+    return (
+      !isImportedHistorySession(session.session_id) ||
+      clean.sourceUpdatedAt === session.updated_at
+    );
   }
 
   private markEventPlaneClean(
     orgId: string,
-    sessionId: string,
-    stampAtRead: number
+    session: Session,
+    stampAtRead: number,
+    verifiedAt = Date.now()
   ): void {
+    const sessionId = session.session_id;
     if ((this.eventActivityStamps.get(sessionId) ?? 0) !== stampAtRead) return;
     let byOrg = this.cleanEventPlanes.get(sessionId);
     if (!byOrg) {
       byOrg = new Map();
       this.cleanEventPlanes.set(sessionId, byOrg);
     }
-    byOrg.set(orgId, Date.now());
+    byOrg.set(orgId, {
+      verifiedAt,
+      sourceUpdatedAt: isImportedHistorySession(sessionId)
+        ? session.updated_at
+        : undefined,
+    });
+  }
+
+  /**
+   * Seed the volatile cold-start caches from a server-authoritative listing.
+   * For imported CLI sessions the local `updated_at` comes from the source
+   * transcript and is part of the uploaded metadata. When that payload and
+   * the persisted cursor both match the server summary, a restart does not
+   * need to read/normalize/hash the entire transcript again.
+   */
+  async seedFromRemoteSummary(
+    auth: Org2CloudAuthState,
+    orgId: string,
+    session: Session,
+    scopeKey: string | null,
+    access: CloudPushAccess,
+    remote: RemoteTeammateSessionMetadata
+  ): Promise<void> {
+    const key = `${orgId}:${session.session_id}`;
+    if (this.remoteSeedAttemptedKeys.has(key)) return;
+    this.remoteSeedAttemptedKeys.add(key);
+    if (
+      remote.deletedAt ||
+      remote.ownerUserId !== auth.userId ||
+      remote.sourceSessionId !== session.session_id
+    ) {
+      return;
+    }
+    const displayName =
+      auth.profile?.displayName ?? auth.profile?.primaryEmail ?? auth.userId;
+    const localMetadata = buildCloudSessionMetadata(
+      session,
+      orgId,
+      auth.userId,
+      displayName,
+      scopeKey,
+      access
+    );
+    const [localHash, remoteHash] = await Promise.all([
+      sha256Hex(stableStringify(metadataPayloadForHash(localMetadata))),
+      sha256Hex(stableStringify(metadataPayloadForHash(remote))),
+    ]);
+    if (localHash !== remoteHash) return;
+
+    this.lastPushedMetadataHashes.set(key, localHash);
+    this.setPushedMetadataMarker(orgId, session.session_id);
+    if (!isImportedHistorySession(session.session_id)) return;
+    const cursor = this.getCursor(orgId, session.session_id);
+    if (
+      !cursor ||
+      remote.eventsEpoch !== cursor.epoch ||
+      remote.eventsFrozenSeq !== cursor.frozenSeq ||
+      remote.eventsCount !== cursor.pushedCount ||
+      (remote.eventsTailHash ?? null) !== cursor.tailHash
+    ) {
+      return;
+    }
+    this.markEventPlaneClean(
+      orgId,
+      session,
+      this.eventActivityStamps.get(session.session_id) ?? 0
+    );
   }
 
   private getCursor(
@@ -310,10 +488,10 @@ export class Org2CloudSessionSync {
   }
 
   private setPushedMetadataMarker(orgId: string, sessionId: string): void {
-    this.getStore()?.set(org2CloudPushedMetadataAtom, (current) => ({
-      ...current,
-      [`${orgId}:${sessionId}`]: true,
-    }));
+    const key = `${orgId}:${sessionId}`;
+    this.getStore()?.set(org2CloudPushedMetadataAtom, (current) =>
+      current[key] ? current : { ...current, [key]: true }
+    );
   }
 
   private clearPushedMetadataMarker(orgId: string, sessionId: string): void {
@@ -350,6 +528,7 @@ export class Org2CloudSessionSync {
     this.invalidatePushedMetadataHash(orgId, sessionId);
     this.clearPushedMetadataMarker(orgId, sessionId);
     this.clearCursor(orgId, sessionId);
+    broadcastOrgControlChangedToPeers(orgId, "sessions");
   }
 
   private async upsertMetadataIfChanged(
@@ -367,7 +546,8 @@ export class Org2CloudSessionSync {
       auth.userId,
       displayName,
       scopeKey,
-      access
+      access,
+      auth.profile?.avatarUrl
     );
     const key = `${orgId}:${session.session_id}`;
     const hash = await sha256Hex(stableStringify(metadata));
@@ -380,6 +560,7 @@ export class Org2CloudSessionSync {
     );
     this.lastPushedMetadataHashes.set(key, hash);
     this.setPushedMetadataMarker(orgId, session.session_id);
+    broadcastOrgControlChangedToPeers(orgId, "sessions");
   }
 
   /** Native SDE path only; external/managed CLI sessions use Rust spools. */
@@ -466,7 +647,12 @@ export class Org2CloudSessionSync {
       this.clearCursor(orgId, sessionId);
       return;
     }
-    if (this.isEventPlaneClean(orgId, sessionId)) {
+    // The external-history scanner updates sessionsAtom directly, without an
+    // EventStore notification. Gate on the source's updated_at as well as the
+    // event-store stamp, and defer metadata together with replay so a live CLI
+    // turn does not produce one cloud upsert per scanner refresh.
+    if (!this.isExternalHistorySettled(session)) return;
+    if (this.isEventPlaneClean(orgId, session)) {
       await this.upsertMetadataIfChanged(
         auth,
         orgId,
@@ -506,7 +692,7 @@ export class Org2CloudSessionSync {
         access
       );
       throwIfAborted(signal);
-      this.markEventPlaneClean(orgId, sessionId, stampAtRead);
+      this.markEventPlaneClean(orgId, session, stampAtRead);
       return;
     }
     if (cursor && events.length < cursor.pushedCount) {
@@ -555,7 +741,7 @@ export class Org2CloudSessionSync {
             scopeKey,
             access
           );
-          this.markEventPlaneClean(orgId, sessionId, stampAtRead);
+          this.markEventPlaneClean(orgId, session, stampAtRead);
           return;
         }
         await this.upsertMetadataIfChanged(
@@ -590,7 +776,8 @@ export class Org2CloudSessionSync {
             frozenChainHash,
             tailHash,
           });
-          this.markEventPlaneClean(orgId, sessionId, stampAtRead);
+          broadcastOrgControlChangedToPeers(orgId, "sessions");
+          this.markEventPlaneClean(orgId, session, stampAtRead);
           return;
         } catch (error) {
           if (!isOrg2SyncErrorCode(error, "ORG2_CONFLICT")) throw error;
@@ -602,7 +789,7 @@ export class Org2CloudSessionSync {
             tailHash,
             newEpoch: null,
           });
-          this.markEventPlaneClean(orgId, sessionId, stampAtRead);
+          this.markEventPlaneClean(orgId, session, stampAtRead);
           return;
         }
       }
@@ -615,7 +802,7 @@ export class Org2CloudSessionSync {
         tailHash,
         newEpoch: cursor.epoch + 1,
       });
-      this.markEventPlaneClean(orgId, sessionId, stampAtRead);
+      this.markEventPlaneClean(orgId, session, stampAtRead);
       return;
     }
 
@@ -627,7 +814,7 @@ export class Org2CloudSessionSync {
       tailHash,
       newEpoch: 1,
     });
-    this.markEventPlaneClean(orgId, sessionId, stampAtRead);
+    this.markEventPlaneClean(orgId, session, stampAtRead);
   }
 
   private async pushExternalSession(
@@ -654,7 +841,7 @@ export class Org2CloudSessionSync {
         access
       );
       throwIfAborted(signal);
-      this.markEventPlaneClean(orgId, sessionId, stampAtRead);
+      this.markEventPlaneClean(orgId, session, stampAtRead);
       return;
     }
     const sourceShrank =
@@ -694,7 +881,7 @@ export class Org2CloudSessionSync {
         access
       );
       throwIfAborted(signal);
-      this.markEventPlaneClean(orgId, sessionId, stampAtRead);
+      this.markEventPlaneClean(orgId, session, stampAtRead);
       return;
     }
 
@@ -733,7 +920,7 @@ export class Org2CloudSessionSync {
       );
     }
     throwIfAborted(signal);
-    this.markEventPlaneClean(orgId, sessionId, stampAtRead);
+    this.markEventPlaneClean(orgId, session, stampAtRead);
   }
 
   private async readExternalFrozenBatch(
@@ -853,6 +1040,7 @@ export class Org2CloudSessionSync {
     } while (eventIndex < manifest.frozenEventCount);
     throwIfAborted(signal);
     this.setExternalCursor(orgId, sessionId, manifest, cursor.epoch, frozenSeq);
+    broadcastOrgControlChangedToPeers(orgId, "sessions");
   }
 
   private async rewriteExternalSpool(
@@ -961,6 +1149,7 @@ export class Org2CloudSessionSync {
     }
     throwIfAborted(signal);
     this.setExternalCursor(orgId, sessionId, manifest, epoch, frozenSeq);
+    broadcastOrgControlChangedToPeers(orgId, "sessions");
   }
 
   private setExternalCursor(
@@ -1029,6 +1218,7 @@ export class Org2CloudSessionSync {
           frozenChainHash: plan.frozenChainHash,
           tailHash: plan.tailHash,
         });
+        broadcastOrgControlChangedToPeers(orgId, "sessions");
         return;
       } catch (error) {
         if (!isOrg2SyncErrorCode(error, "ORG2_CONFLICT") || reanchored) {

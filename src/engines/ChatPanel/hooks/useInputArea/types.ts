@@ -44,6 +44,7 @@ export interface UseInputAreaOptions {
   sessionId?: string;
   sessionScope?: "active" | "none";
   submitDisabled?: boolean;
+  enableAgentInterceptors?: boolean;
   onSubmitOverride?: (input: SubmitOverrideInput) => Promise<boolean>;
   customMentionOptions?: ReadonlyArray<CustomMentionOption>;
 }

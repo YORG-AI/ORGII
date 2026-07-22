@@ -234,3 +234,29 @@ export function collectThreadedLocalSessionIds(
   }
   return ids;
 }
+
+/**
+ * Local rows that must not render in the cloud scope's flat "My Sessions"
+ * section.
+ *
+ * A writable session owned by the viewer is excluded only while it actually
+ * renders inside a visible team thread. A teammate replay is different: its
+ * local `Session` is a read-only cache, not an owned session, so provenance
+ * excludes it regardless of Team-section filters or pagination.
+ */
+export function collectCloudFlatListExcludedSessionIds(
+  threads: readonly CloudSessionThread[],
+  sessions: readonly {
+    session_id: string;
+    importedFrom?: { orgId: string };
+  }[],
+  orgId: string
+): Set<string> {
+  const ids = collectThreadedLocalSessionIds(threads);
+  for (const session of sessions) {
+    if (session.importedFrom?.orgId === orgId) {
+      ids.add(session.session_id);
+    }
+  }
+  return ids;
+}

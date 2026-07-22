@@ -23,6 +23,7 @@ import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 
 import {
+  DEFAULT_KANBAN_TIME_FILTER,
   KANBAN_AGENT_TYPE_FILTER,
   KANBAN_SIDEBAR_FILTER,
   type KanbanAgentTypeFilter,
@@ -230,7 +231,7 @@ kanbanSidebarFilterAtom.debugLabel = "kanban/sidebarFilter";
 /** Persisted user preference — the active time-window pill. */
 export const kanbanTimeFilterAtom = atomWithStorage<KanbanTimeFilter>(
   TIME_FILTER_STORAGE_KEY,
-  "12h",
+  DEFAULT_KANBAN_TIME_FILTER,
   timeFilterStorage
 );
 kanbanTimeFilterAtom.debugLabel = "kanban/timeFilter";

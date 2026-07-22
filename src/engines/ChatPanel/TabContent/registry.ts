@@ -13,9 +13,8 @@
  * a dedicated, self-sufficient component that reads its tab payload directly.
  */
 import {
-  CloudOrgSurfaceRenderer,
   ExploreSurfaceRenderer,
-  ProjectOrgSurfaceRenderer,
+  OrganizationSurfaceRenderer,
   ProjectSurfaceRenderer,
   RuntimeSurfaceRenderer,
   WorkItemSurfaceRenderer,
@@ -44,10 +43,10 @@ export const CHAT_PANEL_TAB_SURFACE_REGISTRY: ChatPanelTabSurfaceRegistry = {
     Component: WorkspaceSurfaceRenderer,
     debugLabel: "workspace",
   },
-  "cloud-org": {
+  organization: {
     render: "component",
-    Component: CloudOrgSurfaceRenderer,
-    debugLabel: "cloud-org",
+    Component: OrganizationSurfaceRenderer,
+    debugLabel: "organization",
   },
   "work-item": {
     render: "component",
@@ -58,11 +57,6 @@ export const CHAT_PANEL_TAB_SURFACE_REGISTRY: ChatPanelTabSurfaceRegistry = {
     render: "component",
     Component: ProjectSurfaceRenderer,
     debugLabel: "project",
-  },
-  "project-org": {
-    render: "component",
-    Component: ProjectOrgSurfaceRenderer,
-    debugLabel: "project-org",
   },
   explore: {
     render: "component",

@@ -15,6 +15,7 @@ import {
   mapSessionToKanbanColumn,
 } from "../../config";
 import type { KanbanResultStatus, KanbanTask } from "../../types";
+import { resolveKanbanAgentIconId } from "./kanbanAgentBranding";
 
 function getResultStatus(
   session: Session,
@@ -102,7 +103,10 @@ export function sessionToKanbanTask(
     assignee: agentLabel,
     tags,
     agentLabel,
-    agentIconId: session.agentIconId,
+    agentIconId: resolveKanbanAgentIconId(
+      session.agentDefinitionId,
+      session.agentIconId
+    ),
     cliAgentType: session.cliAgentType,
     modelName: session.model,
     totalTokens: session.totalTokens,

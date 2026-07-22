@@ -11,7 +11,7 @@ import {
 } from "./GitHubWorkItemList";
 
 describe("shouldUseSingleRowGitHubWorkItemsHeader", () => {
-  it("uses the combined controls and search row only when the surface is wide", () => {
+  it("combines controls and search only when the surface is wide enough", () => {
     expect(shouldUseSingleRowGitHubWorkItemsHeader(649)).toBe(false);
     expect(shouldUseSingleRowGitHubWorkItemsHeader(650)).toBe(true);
   });
@@ -28,7 +28,7 @@ describe("GitHubWorkItemTableSurface", () => {
 });
 
 describe("GitHubWorkItemSearch", () => {
-  it("fills the available published-header width", () => {
+  it("fills the available width in either responsive header row", () => {
     const markup = renderToStaticMarkup(
       createElement(GitHubWorkItemSearch, {
         value: "is:issue is:open",

@@ -1,0 +1,24 @@
+# Example orgtrack processor plugin (chunk stage): redact secrets from a
+# session's conversation before it is shown.
+#
+# A processor transforms the read/display path — it never changes the persisted
+# index. Like exec loaders it runs code, so it is inert until trusted:
+#   orgtrack plugins list
+#   orgtrack plugins trust redact-secrets
+#   orgtrack show <id>            # chunks pass through redact.py first
+#
+# stage = "session"  transforms the `list`/`search` rows (drop/rename/annotate).
+# stage = "chunk"    transforms one `show`'s chunks (redact/enrich/filter).
+# scope = ["*"]      applies to every source; or list specific source ids.
+
+[plugin]
+id     = "redact-secrets"
+label  = "Redact secrets"
+kind   = "processor"
+format = "exec"
+exec   = "./redact.py"
+protocol = 1
+
+[processor]
+stage = "chunk"
+scope = ["*"]

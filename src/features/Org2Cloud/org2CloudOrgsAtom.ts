@@ -147,6 +147,13 @@ export function commitOrg2CloudOrgsRequest(
 export const org2CloudRosterVersionAtom = atom<Record<string, number>>({});
 org2CloudRosterVersionAtom.debugLabel = "org2CloudRosterVersionAtom";
 
+/** Active orgs whose member-roster Postgres Changes channel is subscribed. */
+export const org2CloudRosterRealtimeConnectedAtom = atom<
+  Record<string, boolean>
+>({});
+org2CloudRosterRealtimeConnectedAtom.debugLabel =
+  "org2CloudRosterRealtimeConnectedAtom";
+
 /** Cloud org id currently selected in the sidebar workspace scope selector (null = a local scope). */
 export const sidebarActiveCloudOrgIdAtom = atom<string | null>(null);
 sidebarActiveCloudOrgIdAtom.debugLabel = "sidebarActiveCloudOrgIdAtom";

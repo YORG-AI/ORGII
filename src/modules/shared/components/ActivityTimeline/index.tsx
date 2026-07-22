@@ -1,4 +1,4 @@
-/** Shared activity timeline primitives used by work items, issues, and PRs. */
+/** Shared activity timeline primitives used by work items, work logs, issues, and PRs. */
 import { Check, Clipboard } from "lucide-react";
 import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";

@@ -434,7 +434,9 @@
     "title": "ORG2 Cloud",
     "signIn": "Войти",
     "signOut": "Выйти",
+    "signedInAs": "Выполнен вход как {{name}}",
     "signedInToast": "Выполнен вход в ORG2 Cloud",
+    "sessionExpired": "Сеанс ORG2 Cloud истёк. Войдите снова, чтобы продолжить.",
     "recommendedBadge": "Рекомендуется",
     "recommendedDesc": "Управляемое совместное использование сессий, хранение реплеев, командные права и безопасные ссылки. Настройка Supabase не нужна. ORG2 берёт на себя Auth, миграции базы данных, политики RLS, оплату, сроки хранения, квоты и обновления бэкенда",
     "customEndpoint": {
@@ -474,7 +476,8 @@
       "retentionUpgrade": "Эта сессия вне окна реплея вашего плана — обновите план, чтобы её открыть",
       "importError": "Не удалось импортировать сессию",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "Обо мне"
     },
     "sidebar": {
       "teamSessions": "Сессии команды",
@@ -613,7 +616,8 @@
         "inviteInvalid": "Этот код приглашения недействителен.",
         "inviteRevoked": "Это приглашение отозвано.",
         "inviteExpired": "Срок действия приглашения истёк.",
-        "inviteExhausted": "У этого приглашения не осталось использований."
+        "inviteExhausted": "У этого приглашения не осталось использований.",
+        "network": "Не удалось подключиться к облачному сервису. Проверьте сеть и повторите попытку."
       }
     },
     "syncLevel": {

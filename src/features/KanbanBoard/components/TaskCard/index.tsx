@@ -14,8 +14,10 @@ import { formatModelNameFull } from "@src/util/formatModelName";
 
 import { type KanbanTask } from "../../types";
 import { PriorityIndicator } from "../../utils/priority";
+import { TaskCreatorIdentity } from "../TaskCreator";
 import TaskImpactLine from "../TaskImpactLine";
 import "./index.scss";
+import { formatTaskCardLastUpdated } from "./taskCardTime";
 
 export interface TaskCardProps {
   task: KanbanTask;
@@ -28,22 +30,41 @@ export interface TaskCardProps {
   isSelected?: boolean;
 }
 
+const KANBAN_MONOCHROME_ICON_CLASS = "text-text-1";
+
 function renderAgentIcon(task: KanbanTask) {
   if (task.cliAgentType) {
-    return <ModelIcon agentType={task.cliAgentType} size={12} />;
+    return (
+      <ModelIcon
+        agentType={task.cliAgentType}
+        size={12}
+        className={KANBAN_MONOCHROME_ICON_CLASS}
+      />
+    );
   }
 
   // Cursor IDE history sessions don't carry a `cliAgentType` (they're not
   // launched through our CLI dispatch) but they stamp `agentIconId: "cursor"`
   // in the session loader. Route them through `ModelIcon` so the brand mark
-  // matches the Session Creator's hero icon (themeable `text-text-1`) instead
-  // of the dim `text-text-3` brand wrapper used for generic Lucide icons.
+  // matches the Session Creator and the other monochrome Kanban icons.
   if (task.agentIconId === "cursor") {
-    return <ModelIcon agentType="cursor_cli" size={12} />;
+    return (
+      <ModelIcon
+        agentType="cursor_cli"
+        size={12}
+        className={KANBAN_MONOCHROME_ICON_CLASS}
+      />
+    );
   }
 
   const AgentIcon = resolveAgentIcon(task.agentIconId);
-  return <AgentIcon size={12} strokeWidth={1.75} className="text-text-3" />;
+  return (
+    <AgentIcon
+      size={12}
+      strokeWidth={1.75}
+      className={KANBAN_MONOCHROME_ICON_CLASS}
+    />
+  );
 }
 
 const TaskCard: React.FC<TaskCardProps> = ({
@@ -57,6 +78,10 @@ const TaskCard: React.FC<TaskCardProps> = ({
   };
 
   const isInteractive = Boolean(onClick);
+  const updatedAt = task.updated_at ?? task.completed_at ?? task.created_at;
+  const lastUpdatedLabel = task.createdBy
+    ? formatTaskCardLastUpdated(updatedAt)
+    : "";
   const cardClasses = [
     "kanban-task-card",
     isInteractive && "kanban-task-card--interactive",
@@ -134,6 +159,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
                   modelName={task.modelName}
                   agentType={task.cliAgentType}
                   size={12}
+                  className={KANBAN_MONOCHROME_ICON_CLASS}
                 />
                 <span>{formatModelNameFull(task.modelName)}</span>
               </div>
@@ -152,6 +178,27 @@ const TaskCard: React.FC<TaskCardProps> = ({
               );
             })}
           </div>
+          {task.createdBy && (
+            <div className="kanban-task-card__creator-row">
+              <TaskCreatorIdentity
+                creator={task.createdBy}
+                size={12}
+                maxNameCharacters={12}
+                className="kanban-task-card__creator"
+              />
+              {lastUpdatedLabel && (
+                <>
+                  <span className="kanban-task-card__impact-dot" />
+                  <span
+                    className="kanban-task-card__updated-at"
+                    title={updatedAt}
+                  >
+                    {lastUpdatedLabel}
+                  </span>
+                </>
+              )}
+            </div>
+          )}
         </div>
         {/* Chevron is purely an affordance for "click to open detail" —
          * only render it when there's actually an onClick handler.

@@ -25,7 +25,7 @@ pub use members::{
 pub use milestones::{read_milestones, write_milestones};
 pub use orgs::{
     configure_project_org_collab_sync, configure_project_org_git_folder_sync, create_project_org,
-    read_project_org, read_project_orgs,
+    delete_project_org, read_project_org, read_project_orgs,
 };
 pub use projects::{
     delete_project, derive_work_item_prefix, normalize_custom_work_item_prefix, read_all_projects,

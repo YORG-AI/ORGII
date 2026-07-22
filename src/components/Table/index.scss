@@ -585,13 +585,27 @@
   container-type: inline-size;
 }
 
+// Keep the search/filter toolbar pinned above the table's fixed column header.
+// This lives in the component stylesheet so decorative classes cannot silently
+// override the positioning contract through stylesheet load order.
+.settings-table-sticky-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 21;
+}
+
+// Compact one-line search/filter bars to the 42px settings-table rhythm.
+// The toolbar's default search input is 32px tall, leaving 5px above and below.
+.settings-table-toolbar-compact > div {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
 // A page-scrolled SettingsTable keeps its body side borders on the root while
 // the rounded toolbar sticks independently. Mask the first 12px of those
 // straight root borders, then paint the rounded toolbar above the mask so the
 // parent border cannot protrude past the corner arc during scroll.
 .settings-table-sticky-mask {
-  position: relative;
-
   &::before,
   &::after {
     position: absolute;

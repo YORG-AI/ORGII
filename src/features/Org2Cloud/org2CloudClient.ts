@@ -18,6 +18,7 @@ import type { CollabSessionAccessMode } from "@src/store/collaboration/types";
 
 import { ORG2_CLOUD_POSTGREST_SCHEMA, getCloudEndpoint } from "./config";
 import type { Org2CloudAuthState, Org2CloudProfile } from "./org2CloudAuthAtom";
+import { fetchWithTransportRetry } from "./org2CloudFetchRetry";
 import { CLOUD_ORG_ROLES, type CloudOrgRole } from "./org2CloudOrgManagement";
 
 const log = createLogger("Org2CloudClient");
@@ -95,11 +96,14 @@ async function callRpc(
   endpoint: CloudRpcEndpoint = getCloudEndpoint()
 ): Promise<unknown | null> {
   try {
-    const response = await fetch(rpcUrl(functionName, endpoint), {
-      method: "POST",
-      headers: rpcHeaders(accessToken, endpoint),
-      body: JSON.stringify(body ?? {}),
-    });
+    const response = await fetchWithTransportRetry(
+      rpcUrl(functionName, endpoint),
+      {
+        method: "POST",
+        headers: rpcHeaders(accessToken, endpoint),
+        body: JSON.stringify(body ?? {}),
+      }
+    );
     if (!response.ok) {
       log.warn(`rpc ${functionName} failed with status ${response.status}`);
       return null;
@@ -310,7 +314,11 @@ async function refreshSessionAttempt(
 
   const promise = (async (): Promise<RefreshAttemptResult> => {
     try {
-      const response = await fetch(
+      // Transport retry is safe here too: a lost-response race re-sends the
+      // previous refresh token, which GoTrue's reuse interval tolerates
+      // (same rotated session), and the in-flight dedupe above already
+      // serializes concurrent refreshes.
+      const response = await fetchWithTransportRetry(
         `${endpoint.supabaseUrl}/auth/v1/token?grant_type=refresh_token`,
         {
           method: "POST",

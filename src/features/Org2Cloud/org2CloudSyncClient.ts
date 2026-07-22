@@ -41,6 +41,7 @@ import {
   ORG2_CLOUD_POSTGREST_SCHEMA,
   getCloudEndpoint,
 } from "./config";
+import { fetchWithTransportRetry } from "./org2CloudFetchRetry";
 
 const cloudSegmentWireEncoder = new TextEncoder();
 /** JSON envelope/cursors in addition to the server-counted segment bytes. */
@@ -136,12 +137,15 @@ async function callSyncRpc(
   signal?: AbortSignal,
   responseByteLimit?: number
 ): Promise<unknown> {
-  const response = await fetch(rpcUrl(functionName, endpoint), {
-    method: "POST",
-    headers: rpcHeaders(accessToken, endpoint),
-    body: JSON.stringify(body),
-    signal,
-  });
+  const response = await fetchWithTransportRetry(
+    rpcUrl(functionName, endpoint),
+    {
+      method: "POST",
+      headers: rpcHeaders(accessToken, endpoint),
+      body: JSON.stringify(body),
+      signal,
+    }
+  );
   const text = await readSyncRpcResponseText(response, responseByteLimit);
   let payload: unknown = null;
   try {

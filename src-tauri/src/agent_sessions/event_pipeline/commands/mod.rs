@@ -1101,13 +1101,19 @@ pub(crate) fn runtime_artifact_session_record(session_id: &str) -> Result<Sessio
     };
 
     let rust_agent_type = match record.session_type.as_str() {
+        agent_core::session::persistence::session_type::HUMAN => None,
         agent_core::session::persistence::session_type::DESKTOP => Some("os".to_string()),
         agent_core::session::persistence::session_type::CODING
         | agent_core::session::persistence::session_type::ORG_MEMBER => Some("sde".to_string()),
         agent_core::session::persistence::session_type::GATEWAY => Some("gateway".to_string()),
         _ => Some("custom".to_string()),
     };
-
+    let dispatch_category =
+        if record.session_type == agent_core::session::persistence::session_type::HUMAN {
+            "human_session"
+        } else {
+            "rust_agent"
+        };
     Ok(SessionRecord {
         schema_version: ORGTRACK_SCHEMA_VERSION,
         source: SOURCE_ORGII_RUST_AGENTS.to_string(),
@@ -1127,7 +1133,7 @@ pub(crate) fn runtime_artifact_session_record(session_id: &str) -> Result<Sessio
         org_member_id: record.org_member_id,
         collaboration_origin: None,
         metadata: AgentMetadata {
-            dispatch_category: Some("rust_agent".to_string()),
+            dispatch_category: Some(dispatch_category.to_string()),
             rust_agent_type,
             agent_exec_mode: record.agent_exec_mode,
             model: record.model,

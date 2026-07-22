@@ -81,6 +81,7 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
       onFocus,
       onBlur,
       prefix,
+      showTriggerIcon = true,
       placement = SELECT_DEFAULTS.placement,
       dropdownAlign,
       dropdownMinWidth,
@@ -263,7 +264,7 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
           );
         }
         const displayLabel = selected.triggerLabel ?? selected.label;
-        if (!selected.icon) {
+        if (!showTriggerIcon || !selected.icon) {
           return <span className="select-value">{displayLabel}</span>;
         }
         return (

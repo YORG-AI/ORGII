@@ -436,7 +436,9 @@
     "title": "ORG2 Cloud",
     "signIn": "Anmelden",
     "signOut": "Abmelden",
+    "signedInAs": "Angemeldet als {{name}}",
     "signedInToast": "Bei ORG2 Cloud angemeldet",
+    "sessionExpired": "Deine ORG2-Cloud-Sitzung ist abgelaufen. Melde dich erneut an, um fortzufahren.",
     "recommendedBadge": "Empfohlen",
     "recommendedDesc": "Verwaltetes Session-Sharing, Replay-Speicher, Team-Berechtigungen und sichere Share-Links. Kein Supabase-Setup nötig. ORG2 übernimmt Auth, Datenbank-Migrationen, RLS-Richtlinien, Abrechnung, Aufbewahrung, Kontingente und Backend-Upgrades für dich",
     "customEndpoint": {
@@ -476,7 +478,8 @@
       "retentionUpgrade": "Diese Session liegt außerhalb des Replay-Fensters deines Plans — upgrade, um sie zu sehen",
       "importError": "Session konnte nicht importiert werden",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "Über mich"
     },
     "sidebar": {
       "teamSessions": "Team-Sessions",
@@ -615,7 +618,8 @@
         "inviteInvalid": "Dieser Einladungscode ist ungültig.",
         "inviteRevoked": "Diese Einladung wurde widerrufen.",
         "inviteExpired": "Diese Einladung ist abgelaufen.",
-        "inviteExhausted": "Diese Einladung hat keine Verwendungen mehr."
+        "inviteExhausted": "Diese Einladung hat keine Verwendungen mehr.",
+        "network": "Verbindung zum Cloud-Dienst fehlgeschlagen. Prüfe das Netzwerk und versuche es erneut."
       }
     },
     "syncLevel": {

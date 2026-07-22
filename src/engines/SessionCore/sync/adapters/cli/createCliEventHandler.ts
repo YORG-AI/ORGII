@@ -26,6 +26,7 @@ import {
   getInstrumentedStore,
   isStoreInitialized,
 } from "@src/util/core/state/instrumentedStore";
+import { isSessionRuntimeExecuting } from "@src/util/session/sessionRuntimeExecuting";
 
 import type {
   EventHandlerCallbacks,
@@ -488,7 +489,7 @@ export function createCliEventHandler(
       callbacks.onAgentComplete?.();
     }
 
-    if (status === "running") {
+    if (isSessionRuntimeExecuting(status)) {
       observedTerminalStatus = undefined;
       protectedRunningTurnBySession.delete(sessionId);
       cancelled = false;

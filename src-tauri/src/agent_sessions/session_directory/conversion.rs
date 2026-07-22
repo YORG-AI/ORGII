@@ -463,6 +463,72 @@ pub fn os_session_to_aggregate_record(
     }
 }
 
+// ============================================================================
+// Human session conversion
+// ============================================================================
+
+/// Convert a user-authored proof-of-work session into the unified directory row.
+pub fn human_session_to_aggregate_record(
+    session: session_persistence::UnifiedSessionRecord,
+) -> SessionAggregateRecord {
+    let repo_name = session
+        .workspace_path
+        .as_ref()
+        .and_then(|path| std::path::Path::new(path).file_name())
+        .and_then(|name| name.to_str())
+        .map(String::from);
+    let display_label = generate_display_label(&session.name, session.user_input.as_deref());
+    SessionAggregateRecord {
+        session_id: session.session_id,
+        name: session.name,
+        status: session.status,
+        created_at: session.created_at,
+        updated_at: session.updated_at,
+        category: SessionCategory::Human,
+        external_history_source: None,
+        user_input: session.user_input,
+        repo_path: session.workspace_path,
+        storage_path: Some(app_paths::sessions_db().to_string_lossy().to_string()),
+        repo_name,
+        branch: None,
+        model: session.model,
+        account_id: session.account_id,
+        cli_agent_type: None,
+        key_source: session.key_source,
+        tier: None,
+        pid: None,
+        total_tokens: session.total_tokens,
+        worktree_path: None,
+        worktree_branch: None,
+        base_branch: None,
+        merge_status: None,
+        background: false,
+        org_id: session.org_id,
+        project_id: session.project_id,
+        project_name: session.project_name,
+        project_slug: session.project_slug,
+        work_item_id: session.work_item_id,
+        agent_role: session.agent_role,
+        is_active: false,
+        display_label,
+        parent_session_id: None,
+        org_member_id: None,
+        agent_org_id: None,
+        agent_org_name: None,
+        agent_definition_id: None,
+        agent_icon_id: Some("clipboard-list".to_string()),
+        agent_display_name: Some("Human".to_string()),
+        agent_exec_mode: None,
+        draft_text: None,
+        reply_target_event_id: None,
+        pinned: session.pinned,
+        files_changed: None,
+        lines_added: None,
+        lines_removed: None,
+        touched_files: None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::cell::Cell;

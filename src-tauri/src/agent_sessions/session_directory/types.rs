@@ -21,7 +21,7 @@ pub struct SessionAggregateRecord {
     pub status: String,
     pub created_at: String,
     pub updated_at: String,
-    /// Session category: "cli", "agent" (Coding), or "os"
+    /// Session category: "cli", "agent" (Coding), "os", or "human"
     pub category: SessionCategory,
     /// Imported external-history source subtype, when this row comes from an external DB.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -167,6 +167,8 @@ pub enum SessionCategory {
     Agent,
     /// OS Agent session (external channels)
     Os,
+    /// User-authored proof-of-work session
+    Human,
 }
 
 impl SessionCategory {
@@ -175,6 +177,7 @@ impl SessionCategory {
             Self::Cli => "cli",
             Self::Agent => "agent",
             Self::Os => "os",
+            Self::Human => "human",
         }
     }
 
@@ -183,6 +186,7 @@ impl SessionCategory {
             "cli" => Ok(Self::Cli),
             "agent" => Ok(Self::Agent),
             "os" => Ok(Self::Os),
+            "human" => Ok(Self::Human),
             other => Err(format!("Unknown session category: {other}")),
         }
     }
@@ -200,7 +204,7 @@ pub struct SessionFilter {
     /// that must hydrate an older row without walking sidebar pagination.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_ids: Option<Vec<String>>,
-    /// Filter by category: "cli", "agent", "os"
+    /// Filter by category: "cli", "agent", "os", "human"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
     /// Filter by status (comma-separated for multiple)

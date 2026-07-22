@@ -17,10 +17,7 @@ use crate::sources::imported_history::{
 };
 use crate::store::{sqlite::SqliteRecordStore, RecordStore};
 
-use super::meta::{
-    parse_codex_catalog_input, parse_codex_session_meta,
-    resolve_codex_transcript_for_thread_id_near_path, session_meta_to_cache_input,
-};
+use super::meta::{parse_codex_catalog_input, resolve_codex_transcript_for_thread_id_near_path};
 use super::transcript::load_codex_app_from_path;
 use super::{CodexAppRecentPath, CodexAppSessionPage, CODEX_APP_METADATA_PARSER_VERSION};
 
@@ -45,7 +42,7 @@ pub fn list_codex_app_sessions_paginated(
     limit: usize,
     offset: usize,
 ) -> Result<CodexAppSessionPage, String> {
-    sync_codex_app_cache(conn)?;
+    refresh_codex_app_catalog(conn)?;
     imported_cache::query_imported_session_page_from_conn(conn, SOURCE_CODEX_APP, limit, offset)
 }
 
@@ -53,7 +50,7 @@ pub fn list_codex_app_recent_paths(
     conn: &mut Connection,
     limit: usize,
 ) -> Result<Vec<CodexAppRecentPath>, String> {
-    sync_codex_app_cache(conn)?;
+    refresh_codex_app_catalog(conn)?;
     imported_cache::query_imported_recent_paths_from_conn(conn, SOURCE_CODEX_APP, limit)
 }
 
@@ -61,7 +58,7 @@ pub fn list_codex_app_reconciliation_sessions(
     conn: &mut Connection,
     limit: usize,
 ) -> Result<Vec<imported_cache::ImportedHistoryCachedSession>, String> {
-    sync_codex_app_cache(conn)?;
+    refresh_codex_app_catalog(conn)?;
     imported_cache::query_recent_cached_sessions_for_source_from_conn(conn, SOURCE_CODEX_APP, limit)
 }
 
@@ -132,62 +129,6 @@ fn refresh_codex_app_catalog(conn: &mut Connection) -> Result<(), String> {
         imported_cache::live_ids_from_signatures(&signatures),
         inputs,
     )
-}
-
-fn sync_codex_app_cache(conn: &mut Connection) -> Result<(), String> {
-    let mut discovered = discover_codex_app_records()?;
-    // Managed (GUI-launched) Codex sessions surface through their
-    // code_sessions row (`cli_agent_type = 'codex'`); the imported twin goes
-    // unlistable. Same pattern as the OpenCode/Claude readers.
-    let managed_ids =
-        crate::sources::imported_history::managed_mirror::managed_source_session_ids_from_conn(
-            conn,
-            "codex",
-            SOURCE_CODEX_APP,
-        )?;
-    for record in &mut discovered {
-        crate::sources::imported_history::managed_mirror::append_managed_fingerprint(
-            &mut record.source_fingerprint,
-            // Suffix match: the imported key is the rollout stem while the
-            // runner binds the bare thread uuid.
-            crate::sources::imported_history::managed_mirror::is_managed_source_session_id(
-                &managed_ids,
-                &record.source_session_id,
-            ),
-        );
-    }
-    let signatures = discovered
-        .iter()
-        .map(ImportedHistoryDiscoveredRecord::signature)
-        .collect::<Vec<_>>();
-    let changed =
-        imported_cache::changed_records_from_conn(conn, SOURCE_CODEX_APP, &discovered, |record| {
-            record.signature()
-        })?;
-    let mut inputs = Vec::new();
-    let mut rounds = Vec::new();
-    let mut reparsed_ids = Vec::new();
-    for record in changed {
-        if let Some(mut meta) = parse_codex_session_meta(record)? {
-            let is_managed_history_mirror =
-                crate::sources::imported_history::managed_mirror::is_managed_source_session_id(
-                    &managed_ids,
-                    &meta.source_session_id,
-                );
-            reparsed_ids.push(meta.session_id.clone());
-            rounds.append(&mut meta.rounds);
-            let mut input = session_meta_to_cache_input(meta);
-            input.listable = input.listable && !is_managed_history_mirror;
-            inputs.push(input);
-        }
-    }
-    imported_cache::sync_source_cache_from_conn(
-        conn,
-        SOURCE_CODEX_APP,
-        imported_cache::live_ids_from_signatures(&signatures),
-        inputs,
-    )?;
-    imported_cache::write_session_rounds_from_conn(conn, &reparsed_ids, &rounds)
 }
 
 fn discover_codex_app_records() -> Result<Vec<ImportedHistoryDiscoveredRecord>, String> {

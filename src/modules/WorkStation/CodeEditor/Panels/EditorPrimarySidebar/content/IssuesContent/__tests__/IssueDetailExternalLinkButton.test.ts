@@ -12,7 +12,18 @@ import {
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string, fallback?: string) => fallback ?? key,
+    t: (key: string, fallback?: string | Record<string, unknown>) => {
+      if (typeof fallback === "string") return fallback;
+      if (typeof fallback?.defaultValue !== "string") return key;
+
+      const template =
+        fallback.count === 1 || typeof fallback.defaultValue_other !== "string"
+          ? fallback.defaultValue
+          : fallback.defaultValue_other;
+      return template.replace(/{{(\w+)}}/g, (_, name: string) =>
+        String(fallback[name] ?? "")
+      );
+    },
   }),
 }));
 

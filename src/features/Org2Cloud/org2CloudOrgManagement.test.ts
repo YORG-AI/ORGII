@@ -360,4 +360,21 @@ describe("management error codes", () => {
       "plain failure"
     );
   });
+
+  it("maps fetch transport failures to the network message (not raw 'Load failed')", () => {
+    const translate = (key: string) => `T(${key})`;
+    expect(
+      cloudManagementErrorMessage(new TypeError("Load failed"), translate)
+    ).toBe("T(cloud.orgManagement.errors.network)");
+    expect(
+      cloudManagementErrorMessage(new TypeError("Failed to fetch"), translate)
+    ).toBe("T(cloud.orgManagement.errors.network)");
+    // A programming TypeError keeps its raw message.
+    expect(
+      cloudManagementErrorMessage(
+        new TypeError("x is not a function"),
+        translate
+      )
+    ).toBe("x is not a function");
+  });
 });

@@ -16,14 +16,17 @@ import {
   type SessionDateBucket,
 } from "@src/util/session/sessionDateBuckets";
 
-export type BaseSessionListCategory = "cli_agent" | "rust_agent";
+export type BaseSessionListCategory =
+  | "cli_agent"
+  | "rust_agent"
+  | "human_session";
 
 export type SessionListCategory =
   | BaseSessionListCategory
   | ImportedHistoryListCategory;
 
 export const BASE_SESSION_LIST_CATEGORIES: readonly BaseSessionListCategory[] =
-  ["cli_agent", "rust_agent"];
+  ["cli_agent", "rust_agent", "human_session"];
 
 export const SESSION_LIST_CATEGORIES: readonly SessionListCategory[] = [
   ...BASE_SESSION_LIST_CATEGORIES,

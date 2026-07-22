@@ -528,6 +528,7 @@
     "signIn": "登录",
     "signOut": "退出登录",
     "signedInToast": "已登录 ORG2 云",
+    "sessionExpired": "ORG2 云登录已过期，请重新登录后继续。",
     "recommendedBadge": "推荐",
     "recommendedDesc": "托管式会话共享、回放存储、团队权限和安全分享链接，无需自行搭建 Supabase。ORG2 为你管理 Auth 认证、数据库迁移、RLS 策略、计费、数据保留、配额以及后端升级",
     "customEndpoint": {
@@ -567,7 +568,8 @@
       "retentionUpgrade": "该会话已超出当前套餐的回放窗口 — 升级后可查看",
       "importError": "会话导入失败",
       "manageBilling": "管理订阅",
-      "manageBillingNote": "在账单门户中取消或更改套餐"
+      "manageBillingNote": "在账单门户中取消或更改套餐",
+      "aboutMeTitle": "关于我"
     },
     "sidebar": {
       "teamSessions": "团队会话",
@@ -706,7 +708,8 @@
         "inviteInvalid": "邀请码无效。",
         "inviteRevoked": "该邀请已被撤销。",
         "inviteExpired": "该邀请已过期。",
-        "inviteExhausted": "该邀请的使用次数已用完。"
+        "inviteExhausted": "该邀请的使用次数已用完。",
+        "network": "无法连接云服务。请检查网络后重试。"
       }
     },
     "syncLevel": {

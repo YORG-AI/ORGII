@@ -24,6 +24,7 @@
 import { z } from "zod/v4";
 
 import { ORG2_CLOUD_POSTGREST_SCHEMA, getCloudEndpoint } from "./config";
+import { fetchWithTransportRetry } from "./org2CloudFetchRetry";
 
 /** RPC-enforced body bound (0014 SIZE note) — mirrored in composers. */
 export const CLOUD_COMMENT_MAX_BODY_LENGTH = 4000;
@@ -83,7 +84,7 @@ async function callCommentRpc(
   body: Record<string, unknown>
 ): Promise<unknown> {
   const endpoint = getCloudEndpoint();
-  const response = await fetch(
+  const response = await fetchWithTransportRetry(
     `${endpoint.supabaseUrl}/rest/v1/rpc/${functionName}`,
     {
       method: "POST",

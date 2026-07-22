@@ -51,7 +51,27 @@ describe("usageDashboardOverview", () => {
       unknownModel: false,
       search: "refactor",
       bucketUnit: null,
+      includeHeadline: true,
+      includeRounds: true,
     });
+  });
+
+  it("can omit request-table work for a headline-only load", async () => {
+    await usageDashboardOverview({}, { includeRounds: false });
+
+    expect(invokeMock).toHaveBeenCalledWith(
+      "usage_dashboard_overview",
+      expect.objectContaining({ includeRounds: false })
+    );
+  });
+
+  it("can omit headline aggregation for a request-page load", async () => {
+    await usageDashboardOverview({}, { includeHeadline: false });
+
+    expect(invokeMock).toHaveBeenCalledWith(
+      "usage_dashboard_overview",
+      expect.objectContaining({ includeHeadline: false })
+    );
   });
 
   it("encodes the unknown-model filter without a contradictory model", async () => {

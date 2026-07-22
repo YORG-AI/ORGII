@@ -183,6 +183,10 @@ export async function usageDashboardOverview(
     model?: string;
     unknownModel?: boolean;
     search?: string;
+    /** Include summary and trend aggregation. Default: true. */
+    includeHeadline?: boolean;
+    /** Include request-table facets and the requested page. Default: true. */
+    includeRounds?: boolean;
   }
 ): Promise<UsageOverview> {
   return invoke("usage_dashboard_overview", {
@@ -197,6 +201,8 @@ export async function usageDashboardOverview(
     unknownModel: options?.unknownModel ?? false,
     search: options?.search ?? null,
     bucketUnit: null,
+    includeHeadline: options?.includeHeadline ?? true,
+    includeRounds: options?.includeRounds ?? true,
   });
 }
 

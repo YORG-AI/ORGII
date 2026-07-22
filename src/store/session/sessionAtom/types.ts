@@ -60,6 +60,8 @@ export interface SessionImportedFrom {
   tailHash?: string;
   /** Display convenience carried over from the remote metadata. */
   ownerDisplayName?: string;
+  /** Optional profile image carried over from the remote metadata. */
+  ownerAvatarUrl?: string;
   /** Original read-only adapter when the shared source came from another app. */
   externalHistorySource?: ImportedHistorySourceId;
   importedAt?: string;

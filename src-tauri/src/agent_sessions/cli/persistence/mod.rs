@@ -29,6 +29,8 @@ mod resume_state_tests {
                 account_id: Some(account_id.to_string()),
                 repo_path: Some("/tmp".to_string()),
                 branch: None,
+                worktree_path: None,
+                worktree_base_ref: None,
                 proxy_token: None,
                 proxy_url: None,
                 hosted_token: None,

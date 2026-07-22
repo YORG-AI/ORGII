@@ -1,14 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 
 import {
-  claudeCodeRecentPaths,
-  codexAppRecentPaths,
-  cursorCliRecentPaths,
-  opencodeRecentPaths,
-  qoderRecentPaths,
-  warpRecentPaths,
-  windsurfRecentPaths,
-  zcodeRecentPaths,
+  IMPORTED_HISTORY_SOURCES,
+  importedHistoryRecentPaths,
 } from "@src/api/tauri/externalHistory";
 import type { RepoItem } from "@src/scaffold/GlobalSpotlight/types";
 import { REPO_KIND } from "@src/store/repo";
@@ -83,42 +77,17 @@ export function useExternalRecentPaths({
 
     let cancelled = false;
 
-    Promise.all([
-      codexAppRecentPaths({ limit: EXTERNAL_RECENT_PATH_LIMIT }),
-      claudeCodeRecentPaths({ limit: EXTERNAL_RECENT_PATH_LIMIT }),
-      cursorCliRecentPaths({ limit: EXTERNAL_RECENT_PATH_LIMIT }),
-      opencodeRecentPaths({ limit: EXTERNAL_RECENT_PATH_LIMIT }),
-      windsurfRecentPaths({ limit: EXTERNAL_RECENT_PATH_LIMIT }),
-      warpRecentPaths({ limit: EXTERNAL_RECENT_PATH_LIMIT }),
-      zcodeRecentPaths({ limit: EXTERNAL_RECENT_PATH_LIMIT }),
-      qoderRecentPaths({ limit: EXTERNAL_RECENT_PATH_LIMIT }),
-    ]).then(
-      ([
-        codexPaths,
-        claudePaths,
-        cursorCliPaths,
-        opencodePaths,
-        windsurfPaths,
-        warpPaths,
-        zcodePaths,
-        qoderPaths,
-      ]) => {
-        if (!cancelled) {
-          setPaths(
-            mergeRecentPaths([
-              ...codexPaths,
-              ...claudePaths,
-              ...cursorCliPaths,
-              ...opencodePaths,
-              ...windsurfPaths,
-              ...warpPaths,
-              ...zcodePaths,
-              ...qoderPaths,
-            ])
-          );
-        }
+    Promise.all(
+      IMPORTED_HISTORY_SOURCES.map((source) =>
+        importedHistoryRecentPaths(source.sourceId, {
+          limit: EXTERNAL_RECENT_PATH_LIMIT,
+        })
+      )
+    ).then((sourcePaths) => {
+      if (!cancelled) {
+        setPaths(mergeRecentPaths(sourcePaths.flat()));
       }
-    );
+    });
 
     return () => {
       cancelled = true;

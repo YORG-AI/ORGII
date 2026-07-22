@@ -5,7 +5,7 @@
  * active scope is a cloud org, teammates' shared sessions render as
  * collapsible fork-threaded groups under a separator-headed section.
  * Threads come from the pure `buildCloudSessionThreads` helper; replay/fork
- * ride `useCloudSessionActions` (the exact panel semantics, extracted).
+ * ride the same canonical `useCloudSessionActions` used by Kanban List.
  *
  * Row identity:
  * - rows that are MINE (bare id matches a local session) use the LOCAL
@@ -47,7 +47,6 @@ import {
   DROPDOWN_PANEL,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
-import Message from "@src/components/Message";
 import { resolveAgentIcon } from "@src/config/agentIcons";
 import {
   buildCloudRemoteItemId,
@@ -62,7 +61,7 @@ import {
 import {
   type CloudSessionThreadRow,
   buildCloudSessionThreads,
-  collectThreadedLocalSessionIds,
+  collectCloudFlatListExcludedSessionIds,
   isCloudThreadRowDisabled,
 } from "@src/features/Org2Cloud/cloudSessionThreads";
 import {
@@ -81,7 +80,6 @@ import {
 } from "@src/features/Org2Cloud/org2CloudPresenceAtom";
 import { useCloudOrgRemoteSessions } from "@src/features/Org2Cloud/org2CloudRemoteSessionsAtom";
 import { useCloudSessionActions } from "@src/features/Org2Cloud/useCloudSessionActions";
-import { useOpenCloudBilling } from "@src/features/Org2Cloud/useOpenCloudBilling";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import type { Session } from "@src/store/session";
@@ -90,6 +88,13 @@ import { resolveSessionRowIcon } from "@src/util/session/sessionSidebarRow";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 import { separator } from "../useSessionMenuItems/menuItemBuilders";
+import {
+  CLOUD_SESSION_SECTION_PAGE_SIZE,
+  CLOUD_TEAM_SESSIONS_LOAD_MORE_ID,
+  CLOUD_TEAM_SESSIONS_SECTION_ID,
+  buildCloudSectionLoadMoreItem,
+} from "./cloudScopedMenuItems";
+import { resetScopedSectionPagination } from "./sectionPagination";
 
 interface UseCloudSessionsSectionParams {
   /** Active cloud org id (bare, not `cloud:`-prefixed); null ⇒ no section. */
@@ -107,12 +112,14 @@ interface UseCloudSessionsSectionParams {
 interface UseCloudSessionsSectionResult {
   /** Separator + thread rows; empty when no cloud scope is active. */
   cloudMenuItems: NavigationMenuItem[];
-  /** Local session ids to hide from the flat list (threaded position wins). */
-  cloudThreadedLocalSessionIds: ReadonlySet<string>;
+  /** Local session ids to hide from the flat "My Sessions" list. */
+  cloudFlatListExcludedSessionIds: ReadonlySet<string>;
   /** Cloud row key corresponding to the active local replay/import session. */
   selectedCloudMenuItemId: string | null;
-  /** Click resolver for `cloudremote-` rows (wired into the handlers hook). */
-  handleCloudRemoteItemClick: (item: NavigationMenuItem) => boolean;
+  /** Click resolver for Team rows and the Team section's pagination row. */
+  handleCloudSessionItemClick: (item: NavigationMenuItem) => boolean;
+  /** Forget any extra Team rows revealed with Load more. */
+  resetCloudTeamPagination: () => void;
   /** Locally hide a teammate cloud row and discard its replay cache. */
   handleCloudRemoteItemRemove: (item: NavigationMenuItem) => boolean;
   /** Member-filter dropdown portal — render once next to the sidebar. */
@@ -166,7 +173,6 @@ export function useCloudSessionsSection({
   const { rows, state, refresh } = useCloudOrgRemoteSessions(orgId);
   const { replaySession, forkSession, busySessionRowId } =
     useCloudSessionActions(orgId);
-  const openBilling = useOpenCloudBilling();
   const presenceMap = useAtomValue(org2CloudPresenceAtom);
   const [auth, setAuth] = useAtom(org2CloudAuthAtom);
   const selfUserId = auth?.userId ?? null;
@@ -264,43 +270,59 @@ export function useCloudSessionsSection({
         : [],
     [orgId, visibleRows, localOwnSessionIds, selfUserId]
   );
+  const teamPaginationScopeKey = useMemo(() => {
+    if (!orgId) return "";
+    const memberKey = filter.kind === "member" ? filter.ownerUserId : "";
+    return `${orgId}\u001f${filter.kind}\u001f${memberKey}`;
+  }, [filter, orgId]);
+  const [teamPagination, setTeamPagination] = useState({
+    scopeKey: "",
+    visibleCount: CLOUD_SESSION_SECTION_PAGE_SIZE,
+  });
+  const requestedTeamVisibleCount =
+    teamPagination.scopeKey === teamPaginationScopeKey
+      ? teamPagination.visibleCount
+      : CLOUD_SESSION_SECTION_PAGE_SIZE;
+  const revealedThreadIndex = useMemo(() => {
+    if (!revealedMenuItemId) return -1;
+    return threads.findIndex((thread) =>
+      [thread.root, ...thread.descendants].some((threadRow) => {
+        const itemId = threadRow.isMine
+          ? threadRow.bareSessionId
+          : buildCloudRemoteItemId(threadRow.row.orgId, threadRow.row.id);
+        return itemId === revealedMenuItemId;
+      })
+    );
+  }, [revealedMenuItemId, threads]);
+  const teamVisibleCount = Math.max(
+    requestedTeamVisibleCount,
+    revealedThreadIndex + 1
+  );
+  const visibleThreads = useMemo(
+    () => threads.slice(0, teamVisibleCount),
+    [teamVisibleCount, threads]
+  );
+  const resetCloudTeamPagination = useCallback(() => {
+    setTeamPagination((current) =>
+      resetScopedSectionPagination(current, CLOUD_SESSION_SECTION_PAGE_SIZE)
+    );
+  }, []);
 
-  // Local sessions that already render at their threaded position — hidden
-  // from the flat local list so they never appear twice. Invariant: a session
-  // is excluded from the flat list only if it is actually VISIBLE in the team
-  // section, so this derives from the FILTERED threads — a member filter that
-  // drops a thread returns the viewer's own sessions to the flat list instead
-  // of vanishing them from both lists.
+  // Local sessions that must stay out of the flat "My Sessions" list.
   //
   // Two kinds of exclusions:
   // 1. MINE rows (bare id = a local session) — the thread row IS the entry.
   // 2. IMPORTED TEAMMATE COPIES (`importedFrom`): a replay click materializes
-  //    the transcript as a local `imported-session-…` cache row. That cache
-  //    must not ALSO list under TODAY while its team row renders — clicking
-  //    the team row re-opens the same import (deterministic id + cursor
-  //    no-op), so hiding it removes the "I just looked at it and it
-  //    duplicated" effect without losing anything.
-  const cloudThreadedLocalSessionIds = useMemo(() => {
+  //    the transcript as a local cache row. It is never the viewer's own
+  //    session, even when its Team row is outside the current filter/page.
+  const cloudFlatListExcludedSessionIds = useMemo(() => {
     if (!orgId) return new Set<string>();
-    const ids = collectThreadedLocalSessionIds(threads);
-    const visibleBareIds = new Set<string>();
-    for (const thread of threads) {
-      for (const threadRow of [thread.root, ...thread.descendants]) {
-        visibleBareIds.add(threadRow.bareSessionId);
-      }
-    }
-    for (const session of sessions) {
-      const imported = session.importedFrom;
-      if (
-        imported &&
-        imported.orgId === orgId &&
-        visibleBareIds.has(imported.sourceSessionId)
-      ) {
-        ids.add(session.session_id);
-      }
-    }
-    return ids;
-  }, [orgId, threads, sessions]);
+    return collectCloudFlatListExcludedSessionIds(
+      visibleThreads,
+      sessions,
+      orgId
+    );
+  }, [orgId, sessions, visibleThreads]);
 
   const selectedCloudMenuItemId = useMemo(() => {
     if (!orgId || !activeSessionId) return null;
@@ -309,13 +331,16 @@ export function useCloudSessionsSection({
     );
     const imported = active?.importedFrom;
     if (!imported || imported.orgId !== orgId) return null;
-    const sourceRow = visibleRows.find(
-      (row) =>
-        !row.deletedAt &&
-        cloudSessionIdFromRowId(row.id) === imported.sourceSessionId
-    );
+    const sourceRow = visibleThreads
+      .flatMap((thread) => [thread.root, ...thread.descendants])
+      .map((threadRow) => threadRow.row)
+      .find(
+        (row) =>
+          !row.deletedAt &&
+          cloudSessionIdFromRowId(row.id) === imported.sourceSessionId
+      );
     return sourceRow ? buildCloudRemoteItemId(orgId, sourceRow.id) : null;
-  }, [activeSessionId, orgId, sessions, visibleRows]);
+  }, [activeSessionId, orgId, sessions, visibleThreads]);
 
   const findRow = useCallback(
     (rowId: string): RemoteTeammateSessionMetadata | undefined =>
@@ -325,38 +350,31 @@ export function useCloudSessionsSection({
 
   const runReplay = useCallback(
     (row: RemoteTeammateSessionMetadata) => {
-      void replaySession(row).then((outcome) => {
-        if (outcome === "retention-expired") {
-          Message.error(t("cloud.orgPanel.retentionUpgrade"), {
-            cancel: {
-              label: t("cloud.orgPanel.upgrade"),
-              onClick: openBilling,
-            },
-          });
-        }
-      });
+      void replaySession(row);
     },
-    [replaySession, t, openBilling]
+    [replaySession]
   );
 
   const runFork = useCallback(
     (row: RemoteTeammateSessionMetadata) => {
-      void forkSession(row).then((outcome) => {
-        if (outcome === "retention-expired") {
-          Message.error(t("cloud.orgPanel.retentionUpgrade"), {
-            cancel: {
-              label: t("cloud.orgPanel.upgrade"),
-              onClick: openBilling,
-            },
-          });
-        }
-      });
+      void forkSession(row);
     },
-    [forkSession, t, openBilling]
+    [forkSession]
   );
 
-  const handleCloudRemoteItemClick = useCallback(
+  const handleCloudSessionItemClick = useCallback(
     (item: NavigationMenuItem): boolean => {
+      if (item.id === CLOUD_TEAM_SESSIONS_LOAD_MORE_ID) {
+        setTeamPagination((current) => ({
+          scopeKey: teamPaginationScopeKey,
+          visibleCount:
+            (current.scopeKey === teamPaginationScopeKey
+              ? current.visibleCount
+              : CLOUD_SESSION_SECTION_PAGE_SIZE) +
+            CLOUD_SESSION_SECTION_PAGE_SIZE,
+        }));
+        return true;
+      }
       const parsed = parseCloudRemoteItemId(item.id);
       if (!parsed) return false;
       const row = findRow(parsed.rowId);
@@ -367,7 +385,7 @@ export function useCloudSessionsSection({
       runReplay(row);
       return true;
     },
-    [busySessionRowId, findRow, runReplay]
+    [busySessionRowId, findRow, runReplay, teamPaginationScopeKey]
   );
 
   const hideRemoteSession = useCallback(
@@ -582,7 +600,7 @@ export function useCloudSessionsSection({
   const cloudMenuItems = useMemo<NavigationMenuItem[]>(() => {
     if (!orgId) return [];
     const header = separator(
-      "cloud-team-sessions",
+      CLOUD_TEAM_SESSIONS_SECTION_ID,
       t("cloud.sidebar.teamSessions")
     );
     header.rowActions = [
@@ -595,7 +613,7 @@ export function useCloudSessionsSection({
       {
         icon: ListFilter,
         label: t("cloud.sidebar.sessionFilter"),
-        active: filter.kind !== "all",
+        active: memberMenu !== null || filter.kind !== "all",
         dataTestId: "cloud-team-sessions-filter",
         onClick: (event) => {
           const rect = event.currentTarget.getBoundingClientRect();
@@ -606,7 +624,7 @@ export function useCloudSessionsSection({
       },
     ];
     const items: NavigationMenuItem[] = [header];
-    for (const thread of threads) {
+    for (const thread of visibleThreads) {
       if (thread.descendants.length === 0) {
         items.push(buildRowItem(thread.root));
       } else {
@@ -617,6 +635,14 @@ export function useCloudSessionsSection({
           )
         );
       }
+    }
+    if (visibleThreads.length < threads.length) {
+      items.push(
+        buildCloudSectionLoadMoreItem({
+          id: CLOUD_TEAM_SESSIONS_LOAD_MORE_ID,
+          label: tCommon("actions.loadMore"),
+        })
+      );
     }
     if (threads.length === 0) {
       const emptyLabel =
@@ -639,14 +665,25 @@ export function useCloudSessionsSection({
       });
     }
     return items;
-  }, [orgId, threads, state, filter.kind, refresh, buildRowItem, t, tCommon]);
+  }, [
+    orgId,
+    threads.length,
+    visibleThreads,
+    state,
+    filter.kind,
+    memberMenu,
+    refresh,
+    buildRowItem,
+    t,
+    tCommon,
+  ]);
 
   // Hover-card lookup: every VISIBLE teammate thread row, keyed by the same
   // `cloudremote-` id the menu item carries. Mine rows are intentionally
   // absent — they resolve through the local session store.
   const cloudRemoteRowMap = useMemo(() => {
     const map = new Map<string, RemoteTeammateSessionMetadata>();
-    for (const thread of threads) {
+    for (const thread of visibleThreads) {
       for (const threadRow of [thread.root, ...thread.descendants]) {
         if (threadRow.isMine) continue;
         map.set(
@@ -656,11 +693,11 @@ export function useCloudSessionsSection({
       }
     }
     return map;
-  }, [threads]);
+  }, [visibleThreads]);
 
   const cloudRemoteViewerMap = useMemo(() => {
     const map = new Map<string, readonly Org2CloudPresenceEntry[]>();
-    for (const thread of threads) {
+    for (const thread of visibleThreads) {
       for (const threadRow of [thread.root, ...thread.descendants]) {
         if (threadRow.isMine) continue;
         map.set(
@@ -675,7 +712,7 @@ export function useCloudSessionsSection({
       }
     }
     return map;
-  }, [presenceMap, selfUserId, threads]);
+  }, [presenceMap, selfUserId, visibleThreads]);
 
   // Everyone + the active roster. Current rows are only a loading/legacy
   // fallback; a teammate does not need to publish a Session before they can
@@ -861,9 +898,10 @@ export function useCloudSessionsSection({
 
   return {
     cloudMenuItems,
-    cloudThreadedLocalSessionIds,
+    cloudFlatListExcludedSessionIds,
     selectedCloudMenuItemId,
-    handleCloudRemoteItemClick,
+    handleCloudSessionItemClick,
+    resetCloudTeamPagination,
     handleCloudRemoteItemRemove,
     cloudMemberFilterDropdown,
     cloudRemoteRowMap,

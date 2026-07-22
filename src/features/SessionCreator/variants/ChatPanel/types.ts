@@ -26,6 +26,8 @@ export interface SessionCreatorChatPanelProps {
   leadingActionSlot?: React.ReactNode;
   headerLayout?: SessionCreatorChatPanelHeaderLayout;
   hideRepoLine?: boolean;
+  /** Whether the category picker may select Work log. Agent-only embedded creators disable it. */
+  includeHumanSession?: boolean;
   initialContent?: string;
   dropdownDirection?: DropdownDirection;
   onOpenCliTerminal?: (options: ChatPanelCliTerminalLaunchOptions) => void;

@@ -43,8 +43,8 @@
 }
 
 .task-impact-line__diff {
-  // font-size now supplied by DiffStatsBadge `size="sm"` (12px).
-  font-weight: 600;
+  // Font size is supplied by DiffStatsBadge `size="xs"` (11px).
+  font-weight: 400;
 }
 
 .task-impact-line__item,

@@ -6,7 +6,10 @@ import { SIMULATOR_PRIMARY_SIDEBAR } from "@src/config/simulatorPrimarySidebar";
 import type { SimulatorEventFilterValue } from "@src/engines/SessionCore/core/types";
 import type { SubagentSession } from "@src/engines/Simulator/hooks/useSubagentSessions";
 import type { AppType } from "@src/engines/Simulator/types/appTypes";
+import { STATION_MODES, type StationMode } from "@src/types/ui/workstation";
 import { createZodJsonStorage } from "@src/util/core/storage/zodStorage";
+
+export { STATION_MODE, type StationMode } from "@src/types/ui/workstation";
 
 // ============================================
 // Activity Simulator Settings Atoms
@@ -246,12 +249,6 @@ simulatorAutoScrollAtom.debugLabel = "simulatorAutoScrollAtom";
 // tools and the agent simulator. Chat-panel maximization is a separate axis.
 // ============================================
 
-const STATION_MODES = ["my-station", "agent-station"] as const;
-export type StationMode = (typeof STATION_MODES)[number];
-export const STATION_MODE = {
-  MY_STATION: "my-station",
-  AGENT_STATION: "agent-station",
-} as const satisfies Record<string, StationMode>;
 const StationModeSchema = z.enum(STATION_MODES);
 
 export const stationModeAtom = atomWithStorage<StationMode>(

@@ -42,6 +42,7 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
   beforeEach(() => {
     fixture = createEngineFixture();
     ({ store, client, projectsClient, bridge, engine } = fixture);
+    documentStub.visibilityState = "visible";
   });
 
   afterEach(() => {
@@ -65,6 +66,7 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
   }
 
   it("drives the ProjectSyncChannel per org: full listing first, cursor delta after", async () => {
+    store.set(sidebarActiveCloudOrgIdAtom, "corg-1");
     projectsClient.listOrgCollabState.mockResolvedValue({
       serverTime: "2026-07-01T12:00:00.000Z",
       projects: [
@@ -116,6 +118,24 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
     );
   });
 
+  it("keeps inactive project inbound on 30 minutes and scope hydration demand-driven", async () => {
+    store.set(sidebarActiveCloudOrgIdAtom, null);
+    const startedAt = Date.now();
+    await engine.runSyncPass();
+    projectsClient.listOrgCollabState.mockClear();
+    client.getOrgRepoScopes.mockClear();
+
+    vi.setSystemTime(startedAt + 10 * 60_000 + 1);
+    await engine.runSyncPass();
+    expect(projectsClient.listOrgCollabState).not.toHaveBeenCalled();
+    expect(client.getOrgRepoScopes).not.toHaveBeenCalled();
+
+    vi.setSystemTime(startedAt + 30 * 60_000 + 1);
+    await engine.runSyncPass();
+    expect(projectsClient.listOrgCollabState).toHaveBeenCalledTimes(1);
+    expect(client.getOrgRepoScopes).not.toHaveBeenCalled();
+  });
+
   it("scopes Realtime pulls to one org, preserves delta cursors, and skips the outbox probe", async () => {
     store.set(org2CloudOrgsAtom, [
       { orgId: "corg-1", name: "Cloud Team", role: "member" },
@@ -135,6 +155,36 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
       "2026-07-01T11:59:58.000Z"
     );
     expect(bridge.drainOutbox).not.toHaveBeenCalled();
+  });
+
+  it("defers Realtime inbound pulls while hidden", async () => {
+    await engine.runSyncPass();
+    projectsClient.listOrgCollabState.mockClear();
+    // Ignore the engine.start() zero-delay bootstrap; this assertion targets
+    // only the explicit hidden Realtime invalidation below.
+    vi.clearAllTimers();
+    documentStub.visibilityState = "hidden";
+
+    engine.invalidateOrgInbound("corg-1");
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    documentStub.visibilityState = "visible";
+    expect(projectsClient.listOrgCollabState).not.toHaveBeenCalled();
+  });
+
+  it("does not feed a Realtime inbound nudge back into session uploads", async () => {
+    await engine.runSyncPass();
+    client.upsertSessionMetadata.mockClear();
+    client.appendSessionEvents.mockClear();
+    client.rewriteSessionEvents.mockClear();
+    engine.invalidatePushedMetadataHash("corg-1", "session-1");
+
+    await engine.invalidateOrgInboundAndWait("corg-1");
+
+    expect(projectsClient.listOrgCollabState).toHaveBeenCalled();
+    expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
+    expect(client.appendSessionEvents).not.toHaveBeenCalled();
+    expect(client.rewriteSessionEvents).not.toHaveBeenCalled();
   });
 
   it("applies snake_case tombstones from Realtime-scoped project pulls", async () => {

@@ -10,6 +10,7 @@
 import { type Atom, atom } from "jotai";
 
 import type { CliSessionStatus } from "@src/types/session/session";
+import { isSessionEngineActiveStatus } from "@src/util/session/sessionRuntimeExecuting";
 
 // Single source of truth: @src/types/session/session
 export type { CliSessionStatus } from "@src/types/session/session";
@@ -286,15 +287,9 @@ sessionRolledBackAtom.debugLabel = "sessionRolledBack";
 // ============================================
 
 /** Whether the session engine is actively running or blocked on user input/funds. */
-export const isSessionEngineActiveAtom = atom<boolean>((get) => {
-  const status = get(sessionRuntimeStatusAtom);
-  return (
-    status === "running" ||
-    status === "installing" ||
-    status === "waiting_for_user" ||
-    status === "waiting_for_funds"
-  );
-});
+export const isSessionEngineActiveAtom = atom<boolean>((get) =>
+  isSessionEngineActiveStatus(get(sessionRuntimeStatusAtom))
+);
 isSessionEngineActiveAtom.debugLabel = "isSessionEngineActive";
 
 /**

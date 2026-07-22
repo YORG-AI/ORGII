@@ -465,6 +465,7 @@
     "signIn": "Login",
     "signOut": "Logout",
     "signedInToast": "Signed in to ORG2 Cloud",
+    "sessionExpired": "Your ORG2 Cloud session expired. Sign in again to continue.",
     "recommendedBadge": "Recommended",
     "recommendedDesc": "Managed session sharing, replay storage, team permissions, and secure share links. No Supabase setup required. ORG2 manages Auth, database migrations, RLS policies, billing, retention, quota, and backend upgrades for you",
     "customEndpoint": {
@@ -504,7 +505,8 @@
       "retentionUpgrade": "This session is outside your plan's replay window — upgrade to view it",
       "importError": "Couldn't import the session",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "About me"
     },
     "sidebar": {
       "teamSessions": "Team sessions",
@@ -643,7 +645,8 @@
         "inviteInvalid": "This invite code isn't valid.",
         "inviteRevoked": "This invite has been revoked.",
         "inviteExpired": "This invite has expired.",
-        "inviteExhausted": "This invite has no uses left."
+        "inviteExhausted": "This invite has no uses left.",
+        "network": "Couldn't connect to the cloud service. Check your network and try again."
       }
     },
     "syncLevel": {

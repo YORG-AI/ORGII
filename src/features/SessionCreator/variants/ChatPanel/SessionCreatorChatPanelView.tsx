@@ -34,6 +34,7 @@ interface CategoryPickerProps {
   currentAgentOrgId?: string;
   currentCategory: DispatchCategory;
   currentCliAgentType?: CliAgentType;
+  includeHumanSession: boolean;
   modelPickerStyle: string;
   onClose: () => void;
   onSelect: (selection: AgentSelection) => void;
@@ -70,6 +71,7 @@ interface SessionCreatorChatPanelViewProps {
   isCliTuiMode: boolean;
   isFullScreenVariant: boolean;
   isLoading: boolean;
+  hideSessionSetupControls: boolean;
   isOrgMembersPanelOpen: boolean;
   isWingmanMode: boolean;
   leadingActionSlot?: React.ReactNode;
@@ -118,6 +120,7 @@ const SessionCreatorChatPanelView: React.FC<
   isCliTuiMode,
   isFullScreenVariant,
   isLoading,
+  hideSessionSetupControls,
   isOrgMembersPanelOpen,
   isWingmanMode,
   leadingActionSlot,
@@ -278,7 +281,7 @@ const SessionCreatorChatPanelView: React.FC<
             </>
           )}
 
-          {showMissingGitAlert && (
+          {!hideSessionSetupControls && showMissingGitAlert && (
             <div
               className={`mx-auto w-full ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
             >
@@ -288,58 +291,60 @@ const SessionCreatorChatPanelView: React.FC<
             </div>
           )}
 
-          <div
-            className={`mx-auto flex w-full items-center ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
-          >
-            <PinnedActionsBar
-              composerInputRef={composerInputRef}
-              manageButtonPlacement="after-leading"
-              managePanelAlign="left"
-              leadingContent={
-                <>
-                  {browserElementRowContent}
-                  {leadingActionSlot}
-                  {cliLaunchModeSwitch}
-                  {cliLaunchModeSwitch && (
-                    <div
-                      aria-hidden
-                      className="mx-1 h-4 w-px shrink-0 bg-border-2"
+          {!hideSessionSetupControls && (
+            <div
+              className={`mx-auto flex w-full items-center ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
+            >
+              <PinnedActionsBar
+                composerInputRef={composerInputRef}
+                manageButtonPlacement="after-leading"
+                managePanelAlign="left"
+                leadingContent={
+                  <>
+                    {browserElementRowContent}
+                    {leadingActionSlot}
+                    {cliLaunchModeSwitch}
+                    {cliLaunchModeSwitch && (
+                      <div
+                        aria-hidden
+                        className="mx-1 h-4 w-px shrink-0 bg-border-2"
+                      />
+                    )}
+                    <WorkItemAttachmentControl
+                      currentWorkItemContext={workItemContext}
+                      panelHostRef={workItemPanelHostRef}
+                      repoPath={sessionInfoProps.repoPath}
+                      onWorkItemContextChange={onAttachedWorkItemContextChange}
                     />
-                  )}
-                  <WorkItemAttachmentControl
-                    currentWorkItemContext={workItemContext}
-                    panelHostRef={workItemPanelHostRef}
-                    repoPath={sessionInfoProps.repoPath}
-                    onWorkItemContextChange={onAttachedWorkItemContextChange}
-                  />
-                  {orgMembersPanelProps && (
-                    <Button
-                      variant="secondary"
-                      appearance="outline"
-                      size="small"
-                      shape="round"
-                      icon={<Network size={14} strokeWidth={1.75} />}
-                      title={t("creator.orgMembers.configButton")}
-                      aria-label={t("creator.orgMembers.configButton")}
-                      aria-expanded={isOrgMembersPanelOpen}
-                      aria-controls="session-creator-org-members-panel"
-                      onClick={onToggleOrgMembers}
-                      className={
-                        isOrgMembersPanelOpen
-                          ? "shrink-0 !bg-fill-1 !text-primary-6"
-                          : "shrink-0"
-                      }
-                      data-testid="session-creator-org-members-toggle"
-                    >
-                      {t("creator.orgMembers.configButton")}
-                    </Button>
-                  )}
-                </>
-              }
-            />
-          </div>
+                    {orgMembersPanelProps && (
+                      <Button
+                        variant="secondary"
+                        appearance="outline"
+                        size="small"
+                        shape="round"
+                        icon={<Network size={14} strokeWidth={1.75} />}
+                        title={t("creator.orgMembers.configButton")}
+                        aria-label={t("creator.orgMembers.configButton")}
+                        aria-expanded={isOrgMembersPanelOpen}
+                        aria-controls="session-creator-org-members-panel"
+                        onClick={onToggleOrgMembers}
+                        className={
+                          isOrgMembersPanelOpen
+                            ? "shrink-0 !bg-fill-1 !text-primary-6"
+                            : "shrink-0"
+                        }
+                        data-testid="session-creator-org-members-toggle"
+                      >
+                        {t("creator.orgMembers.configButton")}
+                      </Button>
+                    )}
+                  </>
+                }
+              />
+            </div>
+          )}
 
-          {cliVersionAlert && (
+          {!hideSessionSetupControls && cliVersionAlert && (
             <div
               className={`mx-auto w-full ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
             >
@@ -363,18 +368,22 @@ const SessionCreatorChatPanelView: React.FC<
             </div>
           )}
 
-          <div
-            ref={workItemPanelHostRef}
-            className={`mx-auto w-full ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
-          />
-
-          {orgMembersPanelProps && isOrgMembersPanelOpen && (
-            <div id="session-creator-org-members-panel">
-              <SessionCreatorOrgMembersPanel {...orgMembersPanelProps} />
-            </div>
+          {!hideSessionSetupControls && (
+            <div
+              ref={workItemPanelHostRef}
+              className={`mx-auto w-full ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
+            />
           )}
 
-          {!hidePresenceButton && (
+          {!hideSessionSetupControls &&
+            orgMembersPanelProps &&
+            isOrgMembersPanelOpen && (
+              <div id="session-creator-org-members-panel">
+                <SessionCreatorOrgMembersPanel {...orgMembersPanelProps} />
+              </div>
+            )}
+
+          {!hideSessionSetupControls && !hidePresenceButton && (
             <div className="flex w-full items-center justify-center gap-2 pt-1">
               <PresenceMenuButton
                 variant="detailed"
@@ -382,22 +391,25 @@ const SessionCreatorChatPanelView: React.FC<
               />
             </div>
           )}
-          {footerSlot}
+          {!hideSessionSetupControls && footerSlot}
         </div>
       </div>
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        className="hidden"
-        data-testid="chat-file-upload-input"
-        onChange={onFileUpload}
-        accept="*/*"
-      />
+      {!hideSessionSetupControls && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          data-testid="chat-file-upload-input"
+          onChange={onFileUpload}
+          accept="*/*"
+        />
+      )}
 
       {categoryPickerProps.modelPickerStyle === "dropdown" ? (
         <DispatchCategoryDropdown
+          includeHumanSession={categoryPickerProps.includeHumanSession}
           isOpen={isCategorySelectorOpen}
           onClose={categoryPickerProps.onClose}
           onSelect={categoryPickerProps.onSelect}
@@ -411,6 +423,7 @@ const SessionCreatorChatPanelView: React.FC<
         />
       ) : (
         <DispatchCategoryPalette
+          includeHumanSession={categoryPickerProps.includeHumanSession}
           isOpen={isCategorySelectorOpen}
           onClose={categoryPickerProps.onClose}
           onSelect={categoryPickerProps.onSelect}

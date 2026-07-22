@@ -383,7 +383,7 @@ interface FetchPageResult {
 }
 
 async function fetchAggregatePage(
-  wireCategory: "cli" | "agent",
+  wireCategory: "cli" | "agent" | "human",
   offset: number,
   pageSize: number
 ): Promise<FetchPageResult> {
@@ -421,6 +421,8 @@ async function loadCategoryPage(
       return fetchAggregatePage("cli", offset, pageSize);
     case "rust_agent":
       return fetchAggregatePage("agent", offset, pageSize);
+    case "human_session":
+      return fetchAggregatePage("human", offset, pageSize);
   }
 }
 

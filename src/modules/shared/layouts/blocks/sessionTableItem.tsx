@@ -22,6 +22,7 @@ interface MapKanbanTaskToSessionTableItemInput {
   dateTimeLabelOptions?: SessionTableDateTimeLabelOptions;
   active?: boolean;
   testId?: string;
+  rowAction?: React.ReactNode;
 }
 
 const WORKSPACE_LABEL_MAX_LENGTH = 15;
@@ -42,14 +43,14 @@ function truncateWorkspaceLabel(label: string | undefined): string | undefined {
 }
 
 function renderAgentIcon(task: KanbanTask): React.ReactNode {
-  // Match the sidebar: a monochrome, text-colored Lucide-style glyph (via the
-  // shared resolver) rather than the full-color brand logo.
+  // Use the primary text color for the Agent and Model marks in Kanban while
+  // retaining the shared monochrome, Lucide-style session icon resolver.
   const AgentIcon = resolveSessionRowIcon({
     session_id: task.id,
     agentIconId: task.agentIconId ?? undefined,
     cliAgentType: task.cliAgentType ?? undefined,
   });
-  return <AgentIcon size={14} strokeWidth={1.75} className="text-text-3" />;
+  return <AgentIcon size={14} strokeWidth={1.75} className="text-text-1" />;
 }
 
 function getStatusColor(task: KanbanTask): string | undefined {
@@ -80,6 +81,7 @@ export function mapKanbanTaskToSessionTableItem({
   dateTimeLabelOptions,
   active,
   testId,
+  rowAction,
 }: MapKanbanTaskToSessionTableItemInput): SessionTableItem {
   const impact = task.impact;
   const committedRateValue = impact?.committedRatePercent;
@@ -93,6 +95,7 @@ export function mapKanbanTaskToSessionTableItem({
     description: task.description,
     statusLabel,
     statusColor: getStatusColor(task),
+    ownerLabel: task.createdBy?.name,
     agentIcon: renderAgentIcon(task),
     agentLabel: task.agentLabel ?? task.assignee,
     modelIcon: task.modelName ? (
@@ -141,7 +144,9 @@ export function mapKanbanTaskToSessionTableItem({
       task.updated_at ?? task.completed_at,
       dateTimeLabelOptions
     ),
+    disabled: task.canOpen === false,
     active,
     testId,
+    rowAction,
   };
 }

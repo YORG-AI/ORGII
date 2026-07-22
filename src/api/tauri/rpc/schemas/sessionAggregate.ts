@@ -18,14 +18,15 @@ import {
 // ── Enums ──
 
 /**
- * Wire category from Rust (cli | agent | os).
+ * Wire category from Rust (cli | agent | os | human).
  * Transformed at parse time to `DispatchCategory` so consumers never see the
  * wire value — only the routing value used by the frontend.
  */
 const WireCategorySchema = z
-  .enum(["cli", "agent", "os"])
-  .transform((cat): "cli_agent" | "rust_agent" => {
+  .enum(["cli", "agent", "os", "human"])
+  .transform((cat): "cli_agent" | "rust_agent" | "human_session" => {
     if (cat === "cli") return "cli_agent";
+    if (cat === "human") return "human_session";
     return "rust_agent";
   });
 

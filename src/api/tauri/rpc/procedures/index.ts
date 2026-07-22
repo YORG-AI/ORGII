@@ -4,6 +4,7 @@ export { agentSession } from "./agentSession";
 export { collaborationSnapshotIngest } from "./collaborationSnapshotIngest";
 export { diff } from "./diff";
 export { flow } from "./flow";
+export { humanSession } from "./humanSession";
 export { gateway } from "./gateway";
 export { integrations } from "./integrations";
 export { learning } from "./learning";

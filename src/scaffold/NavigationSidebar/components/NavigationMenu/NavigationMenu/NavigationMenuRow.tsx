@@ -114,7 +114,9 @@ export const NavigationMenuParentRow = React.forwardRef<
         tabIndex={item.disabled ? -1 : 0}
         aria-expanded={isOpen}
         aria-disabled={item.disabled || undefined}
-        className={`group/parent flex ${rowHeightClass} items-center justify-between rounded-lg transition-colors duration-150 ${
+        className={`group/parent flex ${rowHeightClass} items-center ${
+          item.disclosureFollowsLabel ? "justify-start" : "justify-between"
+        } rounded-lg transition-colors duration-150 ${
           isChild ? "pl-5 pr-2" : "px-2"
         } ${submenuSelected ? "bg-sidebar-selected text-text-1" : "text-text-1"} ${
           item.disabled
@@ -150,14 +152,22 @@ export const NavigationMenuParentRow = React.forwardRef<
           onRowMouseEnter(event, item.routePath)
         }
       >
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div
+          className={`flex min-w-0 items-center gap-3 ${
+            item.disclosureFollowsLabel ? "" : "flex-1"
+          }`}
+        >
           {renderLeadingIcon({
             item,
             iconColor,
             renderIcon,
           })}
           {!collapsed && (
-            <div className="flex min-w-0 flex-1 flex-col gap-0">
+            <div
+              className={`flex min-w-0 flex-col gap-0 ${
+                item.disclosureFollowsLabel ? "" : "flex-1"
+              }`}
+            >
               <span className="truncate text-[13px] text-text-1">
                 {item.label}
               </span>
@@ -170,7 +180,9 @@ export const NavigationMenuParentRow = React.forwardRef<
           )}
         </div>
         {!collapsed && (
-          <span className="ml-1 inline-flex flex-shrink-0 items-center gap-1.5 leading-none">
+          <span
+            className={`${item.disclosureFollowsLabel ? "ml-2" : "ml-1"} inline-flex flex-shrink-0 items-center gap-1.5 leading-none`}
+          >
             {/* Cloud thread roots carry hover metadata (owner · time) and
                 Fork/More actions; parentHoverGroup keys the reveal on the
                 named group so nested child rows can't capture it. */}
@@ -195,36 +207,30 @@ export const NavigationMenuParentRow = React.forwardRef<
                   : undefined
               }
             />
-            {(() => {
-              const Chevron = isOpen ? ChevronsDownUp : ChevronsUpDown;
-              const chevron = (
-                <Chevron
+            {item.disclosureFollowsLabel ? (
+              isOpen ? (
+                <ChevronsDownUp
                   size={12}
                   strokeWidth={2}
                   className="shrink-0 text-text-2"
                 />
-              );
-              // On a navigable parent the body click NAVIGATES, so the
-              // chevron becomes the dedicated expand/collapse control.
-              return navigable ? (
-                <button
-                  type="button"
-                  aria-label={t("actions.toggle")}
-                  data-testid={
-                    item.dataTestId ? `${item.dataTestId}-toggle` : undefined
-                  }
-                  className="inline-flex shrink-0 items-center justify-center rounded p-0.5 hover:bg-fill-3"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onToggleSubmenu(item.key);
-                  }}
-                >
-                  {chevron}
-                </button>
               ) : (
-                chevron
-              );
-            })()}
+                <ChevronsUpDown
+                  size={12}
+                  strokeWidth={2}
+                  className="shrink-0 text-text-2"
+                />
+              )
+            ) : (
+              <NavigationMenuRowActionButton
+                icon={isOpen ? ChevronsDownUp : ChevronsUpDown}
+                label={t("actions.toggle")}
+                dataTestId={
+                  item.dataTestId ? `${item.dataTestId}-toggle` : undefined
+                }
+                onClick={() => onToggleSubmenu(item.key)}
+              />
+            )}
           </span>
         )}
       </div>

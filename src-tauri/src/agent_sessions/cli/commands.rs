@@ -65,6 +65,57 @@ fn inject_ide_context_into_prompt(user_input: &str, ide_context: Option<&IdeCont
     )
 }
 
+async fn rollback_cli_session_after_launch_failure(session_id: &str) -> Result<(), String> {
+    // The proxy release lookup needs the persisted row, so release before the
+    // rollback deletes it. Release is best-effort and server TTL remains the
+    // final fallback if the market cannot be reached.
+    session_runner::release_proxy_token_for_session_pub(session_id).await;
+
+    let sid = session_id.to_string();
+    tokio::task::spawn_blocking(move || {
+        persistence::delete_session(&sid)
+            .map(|_| ())
+            .map_err(|error| format!("Failed to roll back CLI session {sid}: {error}"))
+    })
+    .await
+    .map_err(|error| format!("CLI session rollback task failed: {error}"))?
+}
+
+async fn release_unpersisted_proxy_allocation(params: &CreateCodeSessionParams) {
+    let (Some(proxy_token), Some(hosted_token)) = (
+        params.proxy_token.as_deref(),
+        params.hosted_token.as_deref(),
+    ) else {
+        return;
+    };
+
+    match integrations::proxy::release_proxy_token_internal(
+        proxy_token,
+        params.proxy_session_id.as_deref(),
+        hosted_token,
+    )
+    .await
+    {
+        Ok(true) => tracing::info!("[CodeSession] Released unpersisted proxy allocation"),
+        Ok(false) => tracing::warn!("[CodeSession] Market rejected unpersisted proxy release"),
+        Err(error) => tracing::warn!(
+            "[CodeSession] Failed to release unpersisted proxy allocation: {}",
+            error
+        ),
+    }
+}
+
+async fn remove_cli_session_worktree(
+    repo_path: &std::path::Path,
+    session_id: &str,
+) -> Result<(), String> {
+    let repo = repo_path.to_path_buf();
+    let sid = session_id.to_string();
+    tokio::task::spawn_blocking(move || worktree::remove_session_worktree(&repo, &sid, true))
+        .await
+        .map_err(|error| format!("Worktree cleanup task failed: {error}"))?
+}
+
 /// Create a new code session.
 ///
 /// When `params.isolate` is true and `repo_path` is set, creates a git worktree
@@ -80,6 +131,52 @@ pub async fn cli_agent_create(mut params: CreateCodeSessionParams) -> Result<Cod
         chrono::Utc::now().timestamp_millis(),
         uuid::Uuid::new_v4().simple()
     );
+
+    let isolate = params.isolate.unwrap_or(false);
+    let requested_worktree_path = params
+        .worktree_path
+        .clone()
+        .filter(|path| !path.trim().is_empty());
+    if isolate && requested_worktree_path.is_some() {
+        return Err("isolate and worktreePath are mutually exclusive".to_string());
+    }
+    if params
+        .worktree_base_ref
+        .as_deref()
+        .is_some_and(|base| !base.trim().is_empty())
+        && !isolate
+    {
+        return Err("worktreeBaseRef requires isolate=true".to_string());
+    }
+
+    let repo_path = params.repo_path.clone();
+    if isolate
+        && !repo_path
+            .as_deref()
+            .is_some_and(|path| !path.trim().is_empty())
+    {
+        return Err("Worktree mode requires a workspace path".to_string());
+    }
+    let existing_worktree = match (repo_path.as_deref(), requested_worktree_path.as_deref()) {
+        (Some(repo), Some(path)) => {
+            if repo.trim().is_empty() {
+                return Err("Worktree mode requires a workspace path".to_string());
+            }
+            let repo = std::path::PathBuf::from(repo);
+            let path = std::path::PathBuf::from(path);
+            Some(
+                tokio::task::spawn_blocking(move || {
+                    worktree::validate_existing_worktree(&repo, &path)
+                })
+                .await
+                .map_err(|err| format!("Worktree validation task failed: {err}"))??,
+            )
+        }
+        (None, Some(_)) => {
+            return Err("Worktree mode requires a workspace path".to_string());
+        }
+        _ => None,
+    };
 
     // Parse key_source from params.
     //
@@ -128,20 +225,70 @@ pub async fn cli_agent_create(mut params: CreateCodeSessionParams) -> Result<Cod
         }
     }
 
-    let isolate = params.isolate.unwrap_or(false);
-    let repo_path = params.repo_path.clone();
-    let branch_for_worktree = params.branch.clone();
-    let reuse_worktree_path = params.worktree_path.clone();
+    // `branch` is session/display metadata. Only the dedicated base-ref field
+    // is allowed to influence fresh worktree creation.
+    let branch_for_worktree = params.worktree_base_ref.clone();
 
-    let session = tokio::task::spawn_blocking({
+    let create_result = tokio::task::spawn_blocking({
         let sid = session_id.clone();
+        let create_params = params.clone();
         move || {
-            persistence::create_session(&sid, &params)
+            persistence::create_session(&sid, &create_params)
                 .map_err(|e| format!("Failed to create session: {}", e))
         }
     })
     .await
-    .map_err(|e| format!("Task error: {}", e))??;
+    .map_err(|e| format!("Task error: {}", e))
+    .and_then(|result| result);
+    let session = match create_result {
+        Ok(session) => session,
+        Err(error) => {
+            if key_source == KeySource::HostedKey {
+                release_unpersisted_proxy_allocation(&params).await;
+            }
+            return Err(error);
+        }
+    };
+
+    if let Some(existing) = existing_worktree {
+        let updated_result = tokio::task::spawn_blocking({
+            let sid = session_id.clone();
+            let path = existing.path;
+            let branch = existing.branch;
+            move || {
+                let updated = persistence::update_existing_worktree_info(&sid, &path, &branch)
+                    .map_err(|err| format!("Failed to store existing worktree info: {err}"))?;
+                if !updated {
+                    return Err(format!(
+                        "CLI session {sid} disappeared before worktree persistence"
+                    ));
+                }
+                persistence::get_session(&sid).map_err(|err| format!("DB error: {err}"))
+            }
+        })
+        .await
+        .map_err(|err| format!("Task error: {err}"))
+        .and_then(|result| result);
+
+        return match updated_result {
+            Ok(Some(updated)) => Ok(updated),
+            Ok(None) => {
+                let message =
+                    format!("CLI session {session_id} disappeared after worktree persistence");
+                let _ = rollback_cli_session_after_launch_failure(&session_id).await;
+                Err(message)
+            }
+            Err(error) => {
+                let rollback_error = rollback_cli_session_after_launch_failure(&session_id)
+                    .await
+                    .err();
+                Err(match rollback_error {
+                    Some(rollback_error) => format!("{error}; {rollback_error}"),
+                    None => error,
+                })
+            }
+        };
+    }
 
     // Set up worktree isolation if requested
     if isolate {
@@ -158,7 +305,7 @@ pub async fn cli_agent_create(mut params: CreateCodeSessionParams) -> Result<Cod
                     .map(|count| count as usize);
 
                 let repo = std::path::Path::new(rp);
-                let wt_info = tokio::task::spawn_blocking({
+                let worktree_result = tokio::task::spawn_blocking({
                     let repo = repo.to_path_buf();
                     let sid = session_id.clone();
                     let base = branch_for_worktree.clone();
@@ -167,7 +314,20 @@ pub async fn cli_agent_create(mut params: CreateCodeSessionParams) -> Result<Cod
                     }
                 })
                 .await
-                .map_err(|e| format!("Task error: {}", e))??;
+                .map_err(|e| format!("Task error: {}", e))
+                .and_then(|result| result);
+                let wt_info = match worktree_result {
+                    Ok(info) => info,
+                    Err(error) => {
+                        let rollback_error = rollback_cli_session_after_launch_failure(&session_id)
+                            .await
+                            .err();
+                        return Err(match rollback_error {
+                            Some(rollback_error) => format!("{error}; {rollback_error}"),
+                            None => error,
+                        });
+                    }
+                };
 
                 let wt_path = wt_info.path.clone();
                 let wt_branch = wt_info.branch.clone();
@@ -186,17 +346,29 @@ pub async fn cli_agent_create(mut params: CreateCodeSessionParams) -> Result<Cod
                     }
                 })
                 .await
-                .map_err(|e| format!("Task error: {}", e))?;
+                .map_err(|e| format!("Task error: {}", e))
+                .and_then(|result| result);
 
                 // If DB update fails, clean up the orphaned worktree
-                if let Err(ref err) = db_result {
+                if let Err(error) = db_result {
                     tracing::error!(
                         "[CodeSession] DB update failed, cleaning up worktree: {}",
-                        err
+                        error
                     );
-                    let _ = worktree::remove_session_worktree(repo, &session_id, true);
+                    let cleanup_error = remove_cli_session_worktree(repo, &session_id).await.err();
+                    let rollback_error = rollback_cli_session_after_launch_failure(&session_id)
+                        .await
+                        .err();
+                    return Err(format!(
+                        "{error}{}{}",
+                        cleanup_error
+                            .map(|error| format!("; worktree cleanup failed: {error}"))
+                            .unwrap_or_default(),
+                        rollback_error
+                            .map(|error| format!("; {error}"))
+                            .unwrap_or_default()
+                    ));
                 }
-                db_result?;
 
                 // Broadcast worktree creation event
                 let ws_msg = serde_json::json!({
@@ -209,56 +381,39 @@ pub async fn cli_agent_create(mut params: CreateCodeSessionParams) -> Result<Cod
                 crate::api::websocket_handler::broadcast(ws_msg.to_string());
 
                 // Return the updated session with worktree info
-                let updated = tokio::task::spawn_blocking({
+                let updated_result = tokio::task::spawn_blocking({
                     let sid = session_id.clone();
                     move || persistence::get_session(&sid).map_err(|e| format!("DB error: {}", e))
                 })
                 .await
-                .map_err(|e| format!("Task error: {}", e))??;
+                .map_err(|e| format!("Task error: {}", e))
+                .and_then(|result| result);
 
-                if let Some(updated_session) = updated {
-                    return Ok(updated_session);
-                }
-            }
-        }
-    } else if let Some(worktree_path) = reuse_worktree_path
-        .as_deref()
-        .map(str::trim)
-        .filter(|path| !path.is_empty())
-    {
-        // Reuse an existing worktree checkout: pin the session's cwd and
-        // merge flow to it. The base ref is already baked into the checkout.
-        if !std::path::Path::new(worktree_path).is_dir() {
-            return Err(format!(
-                "Selected worktree path does not exist: {worktree_path}"
-            ));
-        }
-        let updated = tokio::task::spawn_blocking({
-            let sid = session_id.clone();
-            let path = worktree_path.to_string();
-            let repo = repo_path.clone();
-            move || -> Result<Option<CodeSession>, String> {
-                let worktree_branch = repo
-                    .as_deref()
-                    .filter(|repo| !repo.is_empty())
-                    .and_then(|repo| worktree::list_all_worktrees(std::path::Path::new(repo)).ok())
-                    .and_then(|entries| {
-                        entries
-                            .into_iter()
-                            .find(|entry| entry.path == path)
-                            .map(|entry| entry.branch)
-                    })
-                    .unwrap_or_default();
-                persistence::update_worktree_info(&sid, &path, &worktree_branch, "")
-                    .map_err(|e| format!("Failed to store worktree info: {}", e))?;
-                persistence::get_session(&sid).map_err(|e| format!("DB error: {}", e))
-            }
-        })
-        .await
-        .map_err(|e| format!("Task error: {}", e))??;
+                let launch_error = match updated_result {
+                    Ok(Some(updated_session)) => return Ok(updated_session),
+                    Ok(None) => {
+                        format!("CLI session {session_id} disappeared after worktree persistence")
+                    }
+                    Err(error) => error,
+                };
 
-        if let Some(updated_session) = updated {
-            return Ok(updated_session);
+                let cleanup_error = remove_cli_session_worktree(repo, &session_id)
+                    .await
+                    .err()
+                    .map(|error| error.to_string());
+                let rollback_error = rollback_cli_session_after_launch_failure(&session_id)
+                    .await
+                    .err();
+                return Err(format!(
+                    "{launch_error}{}{}",
+                    cleanup_error
+                        .map(|error| format!("; worktree cleanup failed: {error}"))
+                        .unwrap_or_default(),
+                    rollback_error
+                        .map(|error| format!("; {error}"))
+                        .unwrap_or_default()
+                ));
+            }
         }
     }
 
@@ -886,7 +1041,9 @@ pub async fn cli_agent_delete(session_id: String) -> Result<bool, String> {
     .map_err(|e| format!("Task error: {}", e))??;
 
     if let Some(ref session) = session {
-        if session.worktree_path.is_some() {
+        // Only `base_branch`-bearing worktrees are session-owned isolation.
+        // A reused linked worktree is borrowed and must survive deletion.
+        if session.base_branch.is_some() {
             if let Some(ref rp) = session.repo_path {
                 let repo = std::path::Path::new(rp).to_path_buf();
                 let sid = session.session_id.clone();
@@ -897,13 +1054,14 @@ pub async fn cli_agent_delete(session_id: String) -> Result<bool, String> {
                 {
                     Ok(Ok(())) => {}
                     Ok(Err(err)) => {
-                        tracing::warn!("[CodeSession] worktree cleanup failed on delete: {}", err);
+                        return Err(format!(
+                            "Worktree cleanup failed; session was kept for retry: {err}"
+                        ))
                     }
                     Err(join_err) => {
-                        tracing::warn!(
-                            "[CodeSession] worktree cleanup task panicked on delete: {}",
-                            join_err
-                        );
+                        return Err(format!(
+                            "Worktree cleanup task failed; session was kept for retry: {join_err}"
+                        ))
                     }
                 }
             }
@@ -937,8 +1095,8 @@ pub async fn cli_agent_merge(
         .as_deref()
         .ok_or("Session has no repo_path")?;
 
-    if session.worktree_path.is_none() {
-        return Err("Session does not use worktree isolation".to_string());
+    if session.worktree_path.is_none() || session.base_branch.is_none() {
+        return Err("Session does not own an isolated worktree".to_string());
     }
 
     let base_branch = session
@@ -1053,8 +1211,8 @@ pub async fn cli_agent_worktree_discard(session_id: String) -> Result<bool, Stri
         .as_deref()
         .ok_or("Session has no repo_path")?;
 
-    if session.worktree_path.is_none() {
-        return Err("Session does not use worktree isolation".to_string());
+    if session.worktree_path.is_none() || session.base_branch.is_none() {
+        return Err("Session does not own an isolated worktree".to_string());
     }
 
     let repo = std::path::Path::new(repo_path).to_path_buf();

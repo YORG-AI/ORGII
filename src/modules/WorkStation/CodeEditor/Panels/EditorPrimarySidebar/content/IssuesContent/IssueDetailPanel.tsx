@@ -194,7 +194,7 @@ export function IssueTimelineItems({
                 ) : null
               }
               actor={actorName}
-              action="commented"
+              action={t("git.issues.activity.commented", "commented")}
               timestamp={item.created_at}
             />
           }
@@ -224,7 +224,9 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
     const { t } = useTranslation("common");
     const [commentBody, setCommentBody] = useState("");
     const isOpen = issue.state === "open";
-    const stateLabel = isOpen ? "Open" : "Closed";
+    const stateLabel = isOpen
+      ? t("git.issues.status.open")
+      : t("git.issues.status.closed");
     const timelineItemCount = 1 + timeline.length;
     const horizontalPaddingClass =
       contentPadding === "default" ? "px-4" : "px-0";
@@ -284,11 +286,17 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
                   <span className="font-medium text-text-2">
                     {issue.user.login}
                   </span>{" "}
-                  opened this issue{" "}
+                  {t("git.issues.activity.opened", "opened this issue")}{" "}
                   <ActivityTimestamp timestamp={issue.created_at} />
                 </span>
                 <span>·</span>
-                <span>{timelineItemCount} timeline item(s)</span>
+                <span>
+                  {t("git.issues.activity.timelineItemCount", {
+                    count: timelineItemCount,
+                    defaultValue: "{{count}} timeline item",
+                    defaultValue_other: "{{count}} timeline items",
+                  })}
+                </span>
               </div>
 
               {issue.labels.length > 0 || issue.assignees.length > 0 ? (
@@ -319,14 +327,20 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
                     <TimelineCardHeader
                       avatar={<Avatar size={18} src={issue.user.avatar_url} />}
                       actor={issue.user.login}
-                      action="opened this issue"
+                      action={t(
+                        "git.issues.activity.opened",
+                        "opened this issue"
+                      )}
                       timestamp={issue.created_at}
                     />
                   }
                 >
                   <MarkdownContent
                     body={issue.body ?? ""}
-                    emptyText="No description provided."
+                    emptyText={t(
+                      "git.issues.activity.noDescription",
+                      "No description provided."
+                    )}
                   />
                 </TimelineCard>
               </ConnectedTimelineItem>

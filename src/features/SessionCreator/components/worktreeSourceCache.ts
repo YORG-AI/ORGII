@@ -51,6 +51,39 @@ export function resolveWorktreeRepoKey(
   return null;
 }
 
+/**
+ * GitHub cache identity includes endpoint + authenticated connection + repo.
+ * This prevents private PR/issue rows from surviving an account switch under
+ * the same local repository key.
+ */
+export function resolveWorktreeGithubCacheKey(
+  repoKey: string,
+  authScope: string
+): string {
+  return `${authScope}|${repoKey}`;
+}
+
+/**
+ * Drop cached GitHub data for previous identities of the same repository.
+ * Other repositories remain warm, while an account switch cannot retain the
+ * previous account's private rows in memory under a sibling cache key.
+ */
+export function evictOtherWorktreeGithubIdentities<E>(
+  map: Map<string, E>,
+  repoKey: string,
+  activeKey: string
+): Map<string, E> {
+  const suffix = `|${repoKey}`;
+  const staleKeys = [...map.keys()].filter(
+    (key) => key !== activeKey && key.endsWith(suffix)
+  );
+  if (staleKeys.length === 0) return map;
+
+  const next = new Map(map);
+  for (const key of staleKeys) next.delete(key);
+  return next;
+}
+
 /** Classify an entry as fresh (within TTL), stale (past TTL), or missing. */
 export function getWorktreeCacheFreshness(
   entry: WorktreeCacheEntryBase | undefined,

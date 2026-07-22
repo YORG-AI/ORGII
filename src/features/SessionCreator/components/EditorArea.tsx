@@ -122,8 +122,8 @@ export interface EditorAreaProps {
   onRemoveImage?: (id: string) => void;
   /** Whether the launch button should be disabled */
   launchDisabled?: boolean;
-  /** Optional visible launch button label */
-  launchLabel?: string;
+  /** Optional accessible label for the icon-only launch button. */
+  launchAriaLabel?: string;
   /** Optional extra className for the outer composer shell */
   shellClassName?: string;
   /** Optional minimum height for the ComposerInput editor region. */
@@ -203,7 +203,7 @@ const EditorArea: React.FC<EditorAreaProps> = ({
   attachedImages,
   onRemoveImage,
   launchDisabled,
-  launchLabel,
+  launchAriaLabel,
   shellClassName,
   editorMinHeight,
   editorMaxHeight,
@@ -695,10 +695,10 @@ const EditorArea: React.FC<EditorAreaProps> = ({
                     />
                   )}
                   <LaunchButton
+                    ariaLabel={launchAriaLabel}
                     disabled={launchDisabled ?? false}
                     loading={isLoading}
                     onClick={onLaunch}
-                    label={launchLabel}
                   />
                 </>
               ) : undefined

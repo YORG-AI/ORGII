@@ -302,6 +302,46 @@ describe("processChatItems", () => {
       expect(items[0].activityStackGroup?.closedByBoundary).toBe(false);
     });
 
+    it("groups consecutive MCP calls into the command stack", () => {
+      const mcpCalls = [
+        makeSessionEvent({
+          action_type: "tool_call",
+          function: "mcp_node_repl_js",
+          result: { success: true },
+        }),
+        makeSessionEvent({
+          action_type: "tool_call",
+          function: "codex_app__read_thread_terminal",
+          result: { success: true },
+        }),
+      ];
+
+      const { items } = processChatItems(mcpCalls, {
+        preFilterEmptyActivities: false,
+      });
+
+      expect(items).toHaveLength(1);
+      expect(items[0].type).toBe("activityStackGroup");
+      expect(items[0].activityStackGroup?.category).toBe("terminal");
+      expect(items[0].activityStackGroup?.events).toEqual(mcpCalls);
+    });
+
+    it("groups shell commands and MCP calls in their original order", () => {
+      const command = makeShellItem("git status");
+      const mcpCall = makeSessionEvent({
+        action_type: "tool_call",
+        function: "codex_app__read_thread_terminal",
+        result: { success: true },
+      });
+
+      const { items } = processChatItems([command, mcpCall], {
+        preFilterEmptyActivities: false,
+      });
+
+      expect(items).toHaveLength(1);
+      expect(items[0].activityStackGroup?.events).toEqual([command, mcpCall]);
+    });
+
     it("keeps subagent-only waits outside terminal stacks", () => {
       const first = makeShellItem("git status");
       const subagentWait = makeAwaitItem(

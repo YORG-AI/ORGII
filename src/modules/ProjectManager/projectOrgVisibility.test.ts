@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import type { ProjectOrg } from "@src/api/http/project";
 
-import { filterSelectableProjectOrgs } from "./projectOrgVisibility";
+import {
+  canDeleteLocalProjectOrg,
+  filterSelectableProjectOrgs,
+} from "./projectOrgVisibility";
 
 function projectOrg(
   id: string,
@@ -55,5 +58,32 @@ describe("filterSelectableProjectOrgs", () => {
     });
 
     expect(filterSelectableProjectOrgs([selfHosted], [])).toEqual([selfHosted]);
+  });
+});
+
+describe("canDeleteLocalProjectOrg", () => {
+  it("allows a non-default local org", () => {
+    expect(canDeleteLocalProjectOrg(projectOrg("local-team"))).toBe(true);
+  });
+
+  it("protects the default personal org", () => {
+    expect(canDeleteLocalProjectOrg(projectOrg("personal-org"))).toBe(false);
+  });
+
+  it("rejects cloud and collab-backed aliases", () => {
+    expect(
+      canDeleteLocalProjectOrg(
+        projectOrg("cloud", {
+          source: "collab",
+          sync_provider: "orgii_collab",
+          external_org_id: "cloud-id",
+        })
+      )
+    ).toBe(false);
+    expect(
+      canDeleteLocalProjectOrg(
+        projectOrg("marked-local", { sync_provider: "orgii_collab" })
+      )
+    ).toBe(false);
   });
 });

@@ -5,6 +5,9 @@
     "decision": "{{tokenCount}} Token decision",
     "tooltip": "Estimated tool attribution. Method: {{method}}. Input: {{inputBytes}} bytes. Output: {{outputBytes}} bytes. Decision: {{decisionTokens}} Token. Context: {{contextTokens}} Token. Follow-up: {{followupTokens}} Token. 관련 LLM cache read: {{cacheReadTokens}} Token. 관련 LLM cache write: {{cacheWriteTokens}} Token."
   },
+  "humanSession": {
+    "titlePlaceholder": "제목(선택 사항)"
+  },
   "history": {
     "untitledSession": "제목 없는 Session",
     "prStatus": {
@@ -1314,6 +1317,8 @@
     "terminalSummary": {
       "command_one": "명령 {{count}}개",
       "command_other": "명령 {{count}}개",
+      "mcp_one": "MCP 호출 {{count}}회",
+      "mcp_other": "MCP 호출 {{count}}회",
       "wait_one": "대기 {{count}}회",
       "wait_other": "대기 {{count}}회",
       "check_one": "확인 {{count}}회",
@@ -2091,7 +2096,10 @@
     "categoryLabel": "세션 카테고리",
     "categoryTemplate": "{category} 선택",
     "categoryPlaceholder": "Agent",
-    "builtInAgents": "내장 Agent",
+    "builtIns": "기본 제공",
+    "humanSession": {
+      "name": "작업 기록"
+    },
     "cliAgents": "CLI Agent",
     "customAgents": "사용자 지정 Agent",
     "agentOrgs": "Agent 팀",

@@ -24,5 +24,6 @@ export * as searchSymbol from "./searchSymbol";
 export * as tools from "./tools";
 export * as mcp from "./mcp";
 export * as flow from "./flow";
+export * as humanSession from "./humanSession";
 export * as sessionCore from "./sessionCore";
 export * as externalReplay from "./externalReplay";

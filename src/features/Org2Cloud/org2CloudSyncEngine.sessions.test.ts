@@ -25,7 +25,7 @@ import {
 import type { EngineFixture } from "./org2CloudSyncEngine.testUtils";
 
 const {
-  INACTIVE_ORG_BACKOFF_COOLDOWN_MS,
+  EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS,
   ORG_BACKOFF_COOLDOWN_MS,
   PERSONAL_EXCLUDED_TOKEN,
   Org2CloudSyncEngine,
@@ -68,6 +68,11 @@ describe("Org2CloudSyncEngine session publishing", () => {
       { ...SESSION, session_id: "cursoride-thread-1", orgId: "personal-org" },
     ]);
 
+    await engine.runSyncPass();
+
+    expect(externalReplayCloudPrepareMock).not.toHaveBeenCalled();
+
+    vi.setSystemTime(Date.now() + EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS + 1);
     await engine.runSyncPass();
 
     expect(externalReplayCloudPrepareMock).toHaveBeenCalledTimes(1);
@@ -200,6 +205,7 @@ describe("Org2CloudSyncEngine session publishing", () => {
       "corg-personal": "full_replay",
       "corg-team": "full_replay",
     });
+    store.set(sidebarActiveCloudOrgIdAtom, "corg-team");
 
     await engine.runSyncPass();
 
@@ -435,25 +441,20 @@ describe("Org2CloudSyncEngine session publishing", () => {
     expect(messageMock.warning).toHaveBeenCalledTimes(1);
   });
 
-  it("silently slows quota retries for an inactive org", async () => {
+  it("does not publish sessions for an inactive org", async () => {
     store.set(sidebarActiveCloudOrgIdAtom, null);
     client.upsertSessionMetadata.mockRejectedValue(
       new Org2CloudSyncError("ORG2_QUOTA_EXCEEDED", 403)
     );
-    const failedAt = Date.now();
 
     await engine.runSyncPass();
     expect(messageMock.warning).not.toHaveBeenCalled();
-
-    client.upsertSessionMetadata.mockClear();
-    vi.setSystemTime(failedAt + ORG_BACKOFF_COOLDOWN_MS + 1);
-    await engine.runSyncPass();
     expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
 
-    vi.setSystemTime(failedAt + INACTIVE_ORG_BACKOFF_COOLDOWN_MS + 1);
+    store.set(sidebarActiveCloudOrgIdAtom, "corg-1");
     await engine.runSyncPass();
     expect(client.upsertSessionMetadata).toHaveBeenCalledTimes(1);
-    expect(messageMock.warning).not.toHaveBeenCalled();
+    expect(messageMock.warning).toHaveBeenCalledTimes(1);
   });
 
   it("treats the visible management org as active for retry and toast policy", async () => {
@@ -471,7 +472,7 @@ describe("Org2CloudSyncEngine session publishing", () => {
     );
   });
 
-  it("resumes and warns once when a backed-off inactive org becomes active", async () => {
+  it("starts publishing and warns when an inactive org becomes active", async () => {
     store.set(sidebarActiveCloudOrgIdAtom, null);
     client.upsertSessionMetadata.mockRejectedValue(
       new Org2CloudSyncError("ORG2_QUOTA_EXCEEDED", 403)
@@ -479,6 +480,7 @@ describe("Org2CloudSyncEngine session publishing", () => {
 
     await engine.runSyncPass();
     expect(messageMock.warning).not.toHaveBeenCalled();
+    expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
 
     client.upsertSessionMetadata.mockClear();
     store.set(sidebarActiveCloudOrgIdAtom, "corg-1");
@@ -654,6 +656,24 @@ describe("Org2CloudSyncEngine session publishing", () => {
     expect(client.getOrgRepoScopes).toHaveBeenCalledTimes(1);
   });
 
+  it("hydrates and publishes the session plane only for the active org", async () => {
+    store.set(org2CloudOrgsAtom, [
+      { orgId: "corg-1", name: "Active Team", role: "member" },
+      { orgId: "corg-2", name: "Inactive Team", role: "member" },
+    ]);
+    store.set(org2CloudRepoScopesAtom, {
+      "corg-1": [SCOPE_KEY],
+      "corg-2": [SCOPE_KEY],
+    });
+
+    await engine.runSyncPass();
+
+    expect(client.listOrgSessions).toHaveBeenCalledTimes(1);
+    expect(client.listOrgSessions).toHaveBeenCalledWith("jwt-1", "corg-1");
+    expect(client.upsertSessionMetadata).toHaveBeenCalledTimes(1);
+    expect(client.upsertSessionMetadata.mock.calls[0][1]).toBe("corg-1");
+  });
+
   // --- Access ladder (§13.4) ------------------------------------------------
 
   it("a scope-matched session is NOT uploaded with no org minimum or session override", async () => {
@@ -676,12 +696,139 @@ describe("Org2CloudSyncEngine session publishing", () => {
 
     await engine.runSyncPass();
 
+    expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
+    expect(externalReplayCloudPrepareMock).not.toHaveBeenCalled();
+
+    vi.setSystemTime(Date.now() + EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS + 1);
+    await engine.runSyncPass();
+
     expect(client.upsertSessionMetadata).toHaveBeenCalledTimes(1);
     expect(client.upsertSessionMetadata.mock.calls[0][3].accessMode).toBe(
       "full_replay"
     );
     expect(externalReplayCloudPrepareMock).toHaveBeenCalledWith(
       "cursoride-thread-1"
+    );
+  });
+
+  it("waits for a quiet window before preparing a changing external replay", async () => {
+    store.set(sessionsAtom, [
+      { ...SESSION, session_id: "cursoride-thread-1", orgId: "personal-org" },
+    ]);
+    notifySessionEvents("cursoride-thread-1");
+
+    await engine.runSyncPass();
+
+    expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
+    expect(externalReplayCloudPrepareMock).not.toHaveBeenCalled();
+    expect(eventStoreMock.getPersistedEvents).not.toHaveBeenCalledWith(
+      "cursoride-thread-1"
+    );
+
+    vi.setSystemTime(Date.now() + EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS + 1);
+    await engine.runSyncPass();
+
+    expect(client.upsertSessionMetadata).toHaveBeenCalledTimes(1);
+    expect(externalReplayCloudPrepareMock).toHaveBeenCalledTimes(1);
+    expect(eventStoreMock.getPersistedEvents).not.toHaveBeenCalledWith(
+      "cursoride-thread-1"
+    );
+  });
+
+  it("seeds unchanged external replay state from the server after restart", async () => {
+    const sessionId = "cursoride-thread-1";
+    externalReplayCloudPrepareMock.mockResolvedValue({
+      token: "restart-external-spool",
+      generation: "g1",
+      totalCount: 1,
+      frozenEventCount: 1,
+      tailEventCount: 0,
+      frozenChainHash: "restart-chain",
+      tailHash: null,
+    });
+    externalReplayCloudReadBatchMock.mockResolvedValue({
+      segments: [
+        {
+          payloadGz: "restart-wire",
+          eventCount: 1,
+          segmentHash: "restart-segment",
+          wireBytes: 100,
+        },
+      ],
+      startEventIndex: 0,
+      nextEventIndex: 1,
+      startSegmentIndex: 0,
+      nextSegmentIndex: 1,
+      eof: true,
+      serializedBytes: 100,
+    });
+    store.set(sessionsAtom, [
+      { ...SESSION, session_id: sessionId, orgId: "personal-org" },
+    ]);
+
+    await engine.runSyncPass();
+    vi.setSystemTime(Date.now() + EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS + 1);
+    await engine.runSyncPass();
+
+    const metadata = client.upsertSessionMetadata.mock.calls[0][3];
+    const cursor = store.get(org2CloudPushCursorsAtom)[`corg-1:${sessionId}`];
+    expect(cursor).toBeDefined();
+
+    engine.stop();
+    client.listOrgSessions.mockResolvedValue({
+      serverTime: "2026-07-01T12:01:00.000Z",
+      sessions: [
+        {
+          ...metadata,
+          eventsEpoch: cursor.epoch,
+          eventsFrozenSeq: cursor.frozenSeq,
+          eventsCount: cursor.pushedCount,
+          eventsTailHash: cursor.tailHash ?? undefined,
+        },
+      ],
+    });
+    client.upsertSessionMetadata.mockClear();
+    client.rewriteSessionEventWires.mockClear();
+    client.appendSessionEventWires.mockClear();
+    externalReplayCloudPrepareMock.mockClear();
+    externalReplayCloudReadBatchMock.mockClear();
+    externalReplayCloudPrefixHashMock.mockClear();
+    eventStoreMock.getPersistedEvents.mockClear();
+
+    engine = new Org2CloudSyncEngine(client, projectsClient, bridge);
+    engine.start(store);
+    await engine.runSyncPass();
+
+    expect(client.listOrgSessions).toHaveBeenCalledWith("jwt-1", "corg-1");
+    expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
+    expect(externalReplayCloudPrepareMock).not.toHaveBeenCalled();
+    expect(eventStoreMock.getPersistedEvents).not.toHaveBeenCalledWith(
+      sessionId
+    );
+    expect(client.rewriteSessionEventWires).not.toHaveBeenCalled();
+    expect(client.appendSessionEventWires).not.toHaveBeenCalled();
+
+    store.set(sessionsAtom, [
+      {
+        ...SESSION,
+        session_id: sessionId,
+        orgId: "personal-org",
+        updated_at: "2026-07-01T12:02:00.000Z",
+      },
+    ]);
+    await engine.runSyncPass();
+    expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
+    expect(externalReplayCloudPrepareMock).not.toHaveBeenCalled();
+    expect(eventStoreMock.getPersistedEvents).not.toHaveBeenCalledWith(
+      sessionId
+    );
+
+    vi.setSystemTime(Date.now() + EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS + 1);
+    await engine.runSyncPass();
+    expect(client.upsertSessionMetadata).toHaveBeenCalledTimes(1);
+    expect(externalReplayCloudPrepareMock).toHaveBeenCalledTimes(1);
+    expect(eventStoreMock.getPersistedEvents).not.toHaveBeenCalledWith(
+      sessionId
     );
   });
 
@@ -697,6 +844,11 @@ describe("Org2CloudSyncEngine session publishing", () => {
       { ...SESSION, session_id: "cursoride-thread-1", orgId: "personal-org" },
     ]);
 
+    await engine.runSyncPass();
+
+    expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
+
+    vi.setSystemTime(Date.now() + EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS + 1);
     await engine.runSyncPass();
 
     expect(client.upsertSessionMetadata).toHaveBeenCalledTimes(1);
@@ -781,7 +933,7 @@ describe("Org2CloudSyncEngine session publishing", () => {
     });
   });
 
-  it("prepares a multi-org session once per pass (single read + hash)", async () => {
+  it("publishes a multi-tagged session only to the active org", async () => {
     store.set(org2CloudOrgsAtom, [
       { orgId: "corg-1", name: "Cloud Team", role: "member" },
       { orgId: "corg-2", name: "Other Team", role: "member" },
@@ -810,11 +962,12 @@ describe("Org2CloudSyncEngine session publishing", () => {
 
     await engine.runSyncPass();
 
-    expect(client.rewriteSessionEvents).toHaveBeenCalledTimes(2);
+    expect(client.rewriteSessionEvents).toHaveBeenCalledTimes(1);
+    expect(client.rewriteSessionEvents.mock.calls[0][1].orgId).toBe("corg-1");
     expect(eventStoreMock.getPersistedEvents).toHaveBeenCalledTimes(1);
   });
 
-  it("prepares one external spool for multiple orgs and uploads bounded batches", async () => {
+  it("uploads one bounded external spool only to the active org", async () => {
     const events = [makeEvent("x1"), makeEvent("x2"), makeEvent("x3")];
     externalReplayCloudPrepareMock.mockResolvedValueOnce({
       token: "shared-external-spool",
@@ -871,12 +1024,24 @@ describe("Org2CloudSyncEngine session publishing", () => {
 
     await engine.runSyncPass();
 
+    expect(externalReplayCloudPrepareMock).not.toHaveBeenCalled();
+
+    vi.setSystemTime(Date.now() + EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS + 1);
+    await engine.runSyncPass();
+
     expect(externalReplayCloudPrepareMock).toHaveBeenCalledTimes(1);
-    expect(client.rewriteSessionEventWires).toHaveBeenCalledTimes(2);
-    expect(client.appendSessionEventWires).toHaveBeenCalledTimes(4);
+    expect(externalReplayCloudReadBatchMock).toHaveBeenCalledTimes(3);
+    expect(client.rewriteSessionEventWires).toHaveBeenCalledTimes(1);
+    expect(client.appendSessionEventWires).toHaveBeenCalledTimes(2);
     expect(eventStoreMock.getPersistedEvents).not.toHaveBeenCalledWith(
       "cursoride-thread-1"
     );
+    expect(client.rewriteSessionEventWires.mock.calls[0]?.[1].orgId).toBe(
+      "corg-1"
+    );
+    for (const [, input] of client.appendSessionEventWires.mock.calls) {
+      expect(input.orgId).toBe("corg-1");
+    }
     for (const [, input] of client.rewriteSessionEventWires.mock.calls) {
       expect(input.frozenSegments).toHaveLength(1);
     }
@@ -885,7 +1050,7 @@ describe("Org2CloudSyncEngine session publishing", () => {
     }
   });
 
-  it("keeps nine external session spools reusable across two orgs", async () => {
+  it("keeps nine active-org external session spools independently bounded", async () => {
     const sessionIds = Array.from(
       { length: 9 },
       (_, index) => `cursoride-thread-${index + 1}`
@@ -953,16 +1118,26 @@ describe("Org2CloudSyncEngine session publishing", () => {
 
     await engine.runSyncPass();
 
+    expect(externalReplayCloudPrepareMock).not.toHaveBeenCalled();
+
+    vi.setSystemTime(Date.now() + EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS + 1);
+    await engine.runSyncPass();
+
     expect(externalReplayCloudPrepareMock).toHaveBeenCalledTimes(9);
-    expect(externalReplayCloudReadBatchMock).toHaveBeenCalledTimes(18);
-    expect(client.rewriteSessionEventWires).toHaveBeenCalledTimes(18);
+    expect(externalReplayCloudReadBatchMock).toHaveBeenCalledTimes(9);
+    expect(client.rewriteSessionEventWires).toHaveBeenCalledTimes(9);
+    expect(
+      client.rewriteSessionEventWires.mock.calls.every(
+        ([, input]) => input.orgId === "corg-1"
+      )
+    ).toBe(true);
     for (const sessionId of sessionIds) {
       const token = `nine-spool-${sessionId}`;
       expect(
         externalReplayCloudReadBatchMock.mock.calls.filter(
           ([options]) => options.token === token
         )
-      ).toHaveLength(2);
+      ).toHaveLength(1);
     }
 
     engine.stop();
@@ -1008,6 +1183,8 @@ describe("Org2CloudSyncEngine session publishing", () => {
       { ...SESSION, session_id: "cursoride-thread-1", orgId: "personal-org" },
     ]);
 
+    await engine.runSyncPass();
+    vi.setSystemTime(Date.now() + EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS + 1);
     await engine.runSyncPass();
 
     const rewrite = client.rewriteSessionEventWires.mock.calls[0]?.[1];
@@ -1064,6 +1241,8 @@ describe("Org2CloudSyncEngine session publishing", () => {
       { ...SESSION, session_id: "cursoride-thread-1", orgId: "personal-org" },
     ]);
 
+    await engine.runSyncPass();
+    vi.setSystemTime(Date.now() + EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS + 1);
     await engine.runSyncPass();
 
     expect(client.getSessionEvents).toHaveBeenCalledWith(
@@ -1134,6 +1313,8 @@ describe("Org2CloudSyncEngine session publishing", () => {
     ]);
 
     await engine.runSyncPass();
+    vi.setSystemTime(Date.now() + EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS + 1);
+    await engine.runSyncPass();
 
     expect(externalReplayCloudPrefixHashMock).not.toHaveBeenCalled();
     expect(client.appendSessionEventWires).not.toHaveBeenCalled();
@@ -1184,6 +1365,8 @@ describe("Org2CloudSyncEngine session publishing", () => {
       { ...SESSION, session_id: "cursoride-thread-1", orgId: "personal-org" },
     ]);
 
+    await engine.runSyncPass();
+    vi.setSystemTime(Date.now() + EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS + 1);
     await engine.runSyncPass();
 
     expect(externalReplayCloudPrefixHashMock).not.toHaveBeenCalled();
@@ -1243,6 +1426,8 @@ describe("Org2CloudSyncEngine session publishing", () => {
       { ...SESSION, session_id: "cursoride-thread-1", orgId: "personal-org" },
     ]);
 
+    await engine.runSyncPass();
+    vi.setSystemTime(Date.now() + EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS + 1);
     await engine.runSyncPass();
     await Promise.resolve();
     await Promise.resolve();

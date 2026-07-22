@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 
 import { type ProjectOrg, projectApi } from "@src/api/http/project";
 import Input from "@src/components/Input";
+import { GHOST_INPUT_PLACEHOLDER_CLASS } from "@src/components/Input/tokens";
 import { PropertyDropdownField } from "@src/components/PropertyField/PropertyDropdownField";
 import type { PropertyDropdownOption } from "@src/components/PropertyField/PropertyDropdownField";
 import { org2CloudOrgsAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
@@ -32,7 +33,6 @@ import {
   ProjectContentEditor,
   type ProjectContentEditorRef,
 } from "@src/modules/ProjectManager/shared";
-import { PROJECT_MANAGER_TEXT_PLACEHOLDER_CLASS } from "@src/modules/ProjectManager/shared/placeholderTokens";
 import type { WorkItemDraft } from "@src/store/workstation/projectManager";
 import type { Person } from "@src/types/core/shared";
 import type {
@@ -497,7 +497,7 @@ export function useInlineCreateWorkItemFields({
       fieldVariant="ghost"
       size="small"
       className="flex-1"
-      inputClassName={PROJECT_MANAGER_TEXT_PLACEHOLDER_CLASS}
+      inputClassName={GHOST_INPUT_PLACEHOLDER_CLASS}
       data-testid="create-work-item-title-input"
     />
   );

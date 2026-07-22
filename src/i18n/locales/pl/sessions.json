@@ -5,6 +5,9 @@
     "decision": "{{tokenCount}} Token decyzji",
     "tooltip": "Szacowana atrybucja narzędzia. Metoda: {{method}}. Wejście: {{inputBytes}} bytes. Wyjście: {{outputBytes}} bytes. Decyzja: {{decisionTokens}} Token. Kontekst: {{contextTokens}} Token. Follow-up: {{followupTokens}} Token. Powiązany LLM cache read: {{cacheReadTokens}} Token. Powiązany LLM cache write: {{cacheWriteTokens}} Token."
   },
+  "humanSession": {
+    "titlePlaceholder": "Tytuł (opcjonalnie)"
+  },
   "history": {
     "untitledSession": "Sesja bez tytułu",
     "prStatus": {
@@ -1350,6 +1353,10 @@
       "command_few": "{{count}} polecenia",
       "command_many": "{{count}} poleceń",
       "command_other": "{{count}} polecenia",
+      "mcp_one": "{{count}} wywołanie MCP",
+      "mcp_few": "{{count}} wywołania MCP",
+      "mcp_many": "{{count}} wywołań MCP",
+      "mcp_other": "{{count}} wywołania MCP",
       "wait_one": "{{count}} oczekiwanie",
       "wait_few": "{{count}} oczekiwania",
       "wait_many": "{{count}} oczekiwań",
@@ -2143,7 +2150,10 @@
     "categoryLabel": "Kategoria sesji",
     "categoryTemplate": "Wybierz {category}",
     "categoryPlaceholder": "Agent",
-    "builtInAgents": "Wbudowane Agenty",
+    "builtIns": "Wbudowane",
+    "humanSession": {
+      "name": "Dziennik pracy"
+    },
     "cliAgents": "CLI Agenty",
     "customAgents": "Niestandardowe Agenty",
     "agentOrgs": "Zespoły Agent",

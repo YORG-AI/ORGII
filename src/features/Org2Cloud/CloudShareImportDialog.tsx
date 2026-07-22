@@ -31,7 +31,6 @@ import Button from "@src/components/Button";
 import { ROUTES } from "@src/config/routes";
 import { importRemoteSession } from "@src/features/TeamCollaboration/engine/collabSyncEngineHelpers";
 import { resolveForkWorkspacePath } from "@src/features/TeamCollaboration/forkSession";
-import { useAppNavigation } from "@src/hooks/navigation";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
 import { openOrReplaceSessionInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
@@ -55,6 +54,7 @@ import {
   resolveCloudShareEndpoint,
 } from "./org2CloudShareEndpoint";
 import { resolveCloudSessionShare } from "./org2CloudSharesClient";
+import { useOrg2CloudSignIn } from "./useOrg2CloudSignIn";
 
 interface ResolveState {
   attemptId: number;
@@ -71,7 +71,7 @@ interface ImportState {
 
 const CloudShareImportDialog: React.FC = () => {
   const { t } = useTranslation("navigation");
-  const { goToSettings } = useAppNavigation();
+  const openCloudSignIn = useOrg2CloudSignIn();
   const location = useLocation();
   const { openSession } = useSessionView();
   const openOrReplaceSessionTab = useSetAtom(
@@ -201,13 +201,6 @@ const CloudShareImportDialog: React.FC = () => {
     // One-shot consume: clears the atom so nothing can replay this link.
     consumePendingShare();
   }, [consumePendingShare]);
-
-  // Preserve the pending share during the sign-in detour. The dialog is
-  // hidden off the Workstation route and re-opens with the same one-shot
-  // capability after authentication completes.
-  const handleOpenSettings = useCallback(() => {
-    goToSettings({ section: "collaboration" });
-  }, [goToSettings]);
 
   const handleImport = useCallback(async () => {
     if (
@@ -434,10 +427,10 @@ const CloudShareImportDialog: React.FC = () => {
             <Button
               htmlType="button"
               variant="primary"
-              onClick={handleOpenSettings}
+              onClick={openCloudSignIn}
               data-testid="cloud-share-import-sign-in"
             >
-              {t("cloud.orgManagement.join.openSettings")}
+              {t("cloud.signIn")}
             </Button>
           ) : !resolveFailed ? (
             <Button

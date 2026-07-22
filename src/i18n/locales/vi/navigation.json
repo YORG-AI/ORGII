@@ -434,7 +434,9 @@
     "title": "ORG2 Cloud",
     "signIn": "Đăng nhập",
     "signOut": "Đăng xuất",
+    "signedInAs": "Đã đăng nhập: {{name}}",
     "signedInToast": "Đã đăng nhập ORG2 Cloud",
+    "sessionExpired": "Phiên ORG2 Cloud đã hết hạn. Hãy đăng nhập lại để tiếp tục.",
     "recommendedBadge": "Khuyên dùng",
     "recommendedDesc": "Chia sẻ phiên được quản lý, lưu trữ phát lại, phân quyền nhóm và liên kết chia sẻ an toàn. Không cần cài đặt Supabase. ORG2 quản lý giúp bạn Auth, di trú cơ sở dữ liệu, chính sách RLS, thanh toán, thời gian lưu trữ, hạn mức và nâng cấp backend",
     "customEndpoint": {
@@ -474,7 +476,8 @@
       "retentionUpgrade": "Phiên này nằm ngoài cửa sổ phát lại của gói — nâng cấp để xem",
       "importError": "Không nhập được phiên",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "Giới thiệu về tôi"
     },
     "sidebar": {
       "teamSessions": "Phiên của nhóm",
@@ -613,7 +616,8 @@
         "inviteInvalid": "Mã mời không hợp lệ.",
         "inviteRevoked": "Lời mời đã bị thu hồi.",
         "inviteExpired": "Lời mời đã hết hạn.",
-        "inviteExhausted": "Lời mời đã hết số lần dùng."
+        "inviteExhausted": "Lời mời đã hết số lần dùng.",
+        "network": "Không thể kết nối dịch vụ đám mây. Hãy kiểm tra mạng và thử lại."
       }
     },
     "syncLevel": {

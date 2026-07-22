@@ -3,6 +3,8 @@
 | Case                                              | Expected result                                                                                      | Coverage                                                     |
 | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | A completed round edits one or more files         | The footer shows the unique file count, paths, and additions/deletions                               | `turnFilesMapping.test.ts`; `chat-rendering-ui.spec.mjs`     |
+| A completed round only edits files                | Only the Edits pill renders; the empty Reads pill is omitted                                         | `TurnMetadataFooter.test.ts`                                 |
+| A completed round only reads files                | Only the Reads pill renders; the empty Edits pill is omitted                                         | `TurnMetadataFooter.test.ts`                                 |
 | A round edits and reads files                     | Edits is the default pill; read rows stay unmounted until the Reads pill is selected                 | `chat-rendering-ui.spec.mjs`                                 |
 | A read/search/write attempt fails                 | The failed observation remains visible, while failed writes do not enter the modified-file review    | Orgtrack projector tests                                     |
 | A round commits and creates a GitHub PR           | Commit and PR rows render under Edits alongside changed files                                        | Rust Git-artifact tests; `chat-rendering-ui.spec.mjs`        |

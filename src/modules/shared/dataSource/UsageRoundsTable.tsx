@@ -1,3 +1,4 @@
+import { RefreshCw } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -5,6 +6,7 @@ import type {
   UsageRoundRow,
   UsageSessionSort,
 } from "@src/api/tauri/usageDashboard";
+import Button from "@src/components/Button";
 import SettingsTable, {
   type SettingsTableColumn,
   SettingsTablePagination,
@@ -12,7 +14,10 @@ import SettingsTable, {
 } from "@src/components/SettingsTable";
 import Tooltip from "@src/components/Tooltip";
 import { SECTION_SUBHEADING_CLASSES } from "@src/modules/shared/layouts/SectionLayout";
-import { CollapsibleSection } from "@src/modules/shared/layouts/blocks";
+import {
+  CollapsibleSection,
+  Placeholder,
+} from "@src/modules/shared/layouts/blocks";
 import { formatRelativeElapsedShort } from "@src/util/data/formatters/date";
 
 import UsagePricingHint from "./UsagePricingHint";
@@ -39,6 +44,10 @@ interface UsageRoundsTableProps {
   pageSize: number;
   onPageChange: (pageIndex: number) => void;
   onPageSizeChange: (pageSize: number) => void;
+  loaded: boolean;
+  error?: string | null;
+  onOpenChange: (open: boolean) => void;
+  onRefresh: () => void;
   loading?: boolean;
   /** Click a round's session to scope the whole dashboard to it. */
   onSelectSession: (sessionId: string) => void;
@@ -64,6 +73,10 @@ export default function UsageRoundsTable({
   pageSize,
   onPageChange,
   onPageSizeChange,
+  loaded,
+  error,
+  onOpenChange,
+  onRefresh,
   loading = false,
   onSelectSession,
 }: UsageRoundsTableProps) {
@@ -256,7 +269,14 @@ export default function UsageRoundsTable({
 
   return (
     <CollapsibleSection
-      title={`${t("usage.roundsTable.title")} (${total})`}
+      title={
+        loaded
+          ? `${t("usage.roundsTable.title")} (${total})`
+          : t("usage.roundsTable.title")
+      }
+      defaultOpen={false}
+      onOpenChange={onOpenChange}
+      titleButtonTestId="usage-rounds-toggle"
       compact
       titleClassName={SECTION_SUBHEADING_CLASSES}
     >
@@ -283,16 +303,44 @@ export default function UsageRoundsTable({
           ) : undefined
         }
         inlineHeaderToolbar
+        searchHeaderClassName="settings-table-toolbar-compact"
         searchBar={{
           searchValue: searchQuery,
           searchPlaceholder: tCommon("common.searchPlaceholder"),
           onSearchChange: onSearchQueryChange,
           onSearchClear: () => onSearchQueryChange(""),
           searchInputSize: "default",
+          rightContent: (
+            <Button
+              variant="secondary"
+              size="default"
+              iconOnly
+              loading={loading}
+              loadingSpinIcon
+              disabled={loading}
+              icon={<RefreshCw size={14} />}
+              aria-label={t("usage.refresh")}
+              title={t("usage.refresh")}
+              data-testid="usage-rounds-refresh"
+              onClick={onRefresh}
+            />
+          ),
         }}
         selectFilters={selectFilters}
         hover
         headerHeight="tall"
+        noDataElement={
+          error ? (
+            <Placeholder
+              variant="error"
+              title={t("usage.loadError")}
+              subtitle={error}
+              onRetry={onRefresh}
+            />
+          ) : !loaded && !loading ? (
+            <Placeholder variant="loading" />
+          ) : undefined
+        }
         emptyTitle={isFiltered ? tCommon("status.noResults") : undefined}
       />
     </CollapsibleSection>

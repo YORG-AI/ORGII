@@ -60,10 +60,25 @@ describe("StartPageQuotaGrid", () => {
     expect(markup).toContain(
       'class="sticky top-0 z-20 -mx-4 bg-chat-pane px-4 pb-1"'
     );
-    expect(markup).toContain("flex flex-col gap-3");
+    expect(markup).toContain("flex flex-col gap-3 @container/quota");
     expect(markup).toContain("kanban.dataSource.views.quota");
-    expect(markup).toContain("flex min-h-9 items-center justify-end");
+    expect(markup).toContain("flex min-h-9 items-center justify-between gap-3");
     expect(markup).toContain("border-0 bg-transparent text-text-2");
+    expect(markup).toContain(
+      "truncate text-xs font-semibold leading-4 text-text-1"
+    );
+    expect(markup).toContain("truncate text-[11px] leading-4 text-text-3");
+    expect(markup).toContain("min-w-0 p-3 rounded-lg");
+    expect(markup).toContain("mb-2 flex min-w-0 items-center gap-2");
+    expect(markup).toContain("space-y-2.5");
+    expect(markup).toContain('class="space-y-1"');
+    expect(markup).toContain(
+      "grid grid-cols-1 gap-3 @[640px]/quota:grid-cols-2"
+    );
+    expect(markup).not.toContain("grid gap-2");
+    expect(markup).toContain(
+      "flex items-center justify-between gap-2 text-[11px] leading-4"
+    );
   });
 
   it("renders every quota card without pagination", () => {

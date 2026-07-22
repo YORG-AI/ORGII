@@ -12,6 +12,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { createLogger } from "@src/hooks/logger";
+import { startVisibilityAwarePoller } from "@src/hooks/workStation/browser/visibilityAwarePoller";
 
 const log = createLogger("useBrowserConsole");
 
@@ -116,8 +117,6 @@ export function useBrowserConsole(
   const [entries, setEntries] = useState<ConsoleEntry[]>([]);
 
   const entryIdCounter = useRef(0);
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
   // Generate unique ID
   const generateId = useCallback(() => {
     entryIdCounter.current += 1;
@@ -335,27 +334,17 @@ export function useBrowserConsole(
 
   // Start/stop polling
   useEffect(() => {
-    if (!enabled || !webviewLabel || !sessionId || pollInterval <= 0) {
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
+    if (
+      !enabled ||
+      !webviewLabel ||
+      !sessionId ||
+      pollInterval <= 0 ||
+      typeof document === "undefined"
+    ) {
       return;
     }
 
-    // Start polling
-    pollTimerRef.current = setInterval(pollNow, pollInterval);
-
-    // Initial poll - defer to next tick to avoid setState in effect
-    const timer = setTimeout(() => pollNow(), 0);
-
-    return () => {
-      clearTimeout(timer);
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
-    };
+    return startVisibilityAwarePoller(document, pollNow, pollInterval);
   }, [enabled, webviewLabel, sessionId, pollInterval, pollNow]);
 
   // Compute counts from current entries

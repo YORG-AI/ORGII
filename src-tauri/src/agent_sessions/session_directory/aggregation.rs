@@ -22,8 +22,9 @@ use orgtrack_core::sources::imported_history::IMPORTED_STATUS_COMPLETED;
 const AGENT_ORG_ICON_ID: &str = "network";
 
 use super::conversion::{
-    cli_session_to_aggregate_record, imported_history_to_aggregate_record,
-    os_session_to_aggregate_record, sde_session_to_aggregate_record, AgentMetadataResolver,
+    cli_session_to_aggregate_record, human_session_to_aggregate_record,
+    imported_history_to_aggregate_record, os_session_to_aggregate_record,
+    sde_session_to_aggregate_record, AgentMetadataResolver,
 };
 use super::display::matches_text_query;
 use super::types::{SessionAggregateRecord, SessionFilter, SessionListResponse};
@@ -261,6 +262,19 @@ fn plain_native_page(
                 .map(|session| os_session_to_aggregate_record(session, &mut resolver))
                 .collect::<Vec<_>>()
         }
+        Some("human") => {
+            let human_filter = agent_core::session::SessionListFilter {
+                type_name: Some(session_type::HUMAN.to_string()),
+                limit: Some(limit),
+                offset: Some(offset),
+                ..Default::default()
+            };
+            session_persistence::list_sessions(&human_filter)
+                .map_err(|err| format!("Failed to load Human session page: {err}"))?
+                .into_iter()
+                .map(human_session_to_aggregate_record)
+                .collect::<Vec<_>>()
+        }
         None => return plain_directory_page(filter, limit, offset),
         _ => return Ok(None),
     };
@@ -381,6 +395,9 @@ fn plain_directory_page(
                         t if t == session_type::DESKTOP => {
                             sessions.push(os_session_to_aggregate_record(record, &mut resolver));
                         }
+                        t if t == session_type::HUMAN => {
+                            sessions.push(human_session_to_aggregate_record(record));
+                        }
                         // Gateway/subagent/custom sessions are infrastructure
                         // the merge path never lists either.
                         _ => continue,
@@ -431,6 +448,7 @@ pub fn list_all_sessions(filter: Option<&SessionFilter>) -> Result<SessionListRe
             .is_some();
     let load_agent = wants_category("agent");
     let load_os = wants_category("os");
+    let load_human = wants_category("human");
     let mut all_sessions: Vec<SessionAggregateRecord> = Vec::new();
     let mut metadata_resolver = (load_agent || load_os).then(AgentMetadataResolver::new);
 
@@ -501,6 +519,19 @@ pub fn list_all_sessions(filter: Option<&SessionFilter>) -> Result<SessionListRe
         for session in os_sessions {
             all_sessions.push(os_session_to_aggregate_record(session, resolver));
         }
+    }
+    if load_human {
+        let human_filter = agent_core::session::SessionListFilter {
+            type_name: Some(session_type::HUMAN.to_string()),
+            ..Default::default()
+        };
+        let human_sessions = session_persistence::list_sessions(&human_filter)
+            .map_err(|err| format!("Failed to load Human sessions: {err}"))?;
+        all_sessions.extend(
+            human_sessions
+                .into_iter()
+                .map(human_session_to_aggregate_record),
+        );
     }
     // Apply filters
     if let Some(filter) = filter {

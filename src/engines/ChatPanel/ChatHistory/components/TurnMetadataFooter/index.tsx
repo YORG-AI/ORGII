@@ -107,9 +107,10 @@ const TurnMetadataFooter: React.FC<TurnMetadataFooterProps> = memo(
     const editCount = files.length + commits.length + pullRequests.length;
     const hasEdits = editCount > 0;
     const hasReads = observedResources.length > 0;
-    const tabs = useMemo<TabPillItem[]>(
-      () => [
-        {
+    const tabs = useMemo<TabPillItem[]>(() => {
+      const visibleTabs: TabPillItem[] = [];
+      if (hasEdits) {
+        visibleTabs.push({
           key: "edits",
           label: t("chat.turnMetadata.editsTab"),
           icon: <FileCode2 size={13} />,
@@ -121,10 +122,11 @@ const TurnMetadataFooter: React.FC<TurnMetadataFooterProps> = memo(
               {editCount}
             </span>
           ),
-          disabled: !hasEdits,
           dataTestId: "turn-metadata-edits-tab",
-        },
-        {
+        });
+      }
+      if (hasReads) {
+        visibleTabs.push({
           key: "reads",
           label: t("chat.turnMetadata.readsTab"),
           icon: <BookOpenText size={13} />,
@@ -136,12 +138,11 @@ const TurnMetadataFooter: React.FC<TurnMetadataFooterProps> = memo(
               {readCount}
             </span>
           ),
-          disabled: !hasReads,
           dataTestId: "turn-metadata-reads-tab",
-        },
-      ],
-      [editCount, hasEdits, hasReads, readCount, t]
-    );
+        });
+      }
+      return visibleTabs;
+    }, [editCount, hasEdits, hasReads, readCount, t]);
 
     useEffect(() => {
       if (activeTab === "edits" && !hasEdits && hasReads) {

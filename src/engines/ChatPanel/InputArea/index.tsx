@@ -12,6 +12,7 @@ import { useSessionDiscovery } from "@src/engines/SessionCore";
 import { useSessionId } from "@src/engines/SessionCore/hooks/session";
 import { voiceInputEnabledAtom } from "@src/store/platform/voiceInputAtom";
 import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
+import type { SlashItemCategory } from "@src/types/extensions";
 import { isCursorIdeSession } from "@src/util/session/sessionDispatch";
 
 import EditModeHeader from "./components/EditModeHeader";
@@ -63,6 +64,14 @@ interface InputAreaProps {
   disableStopWhenEmpty?: boolean;
   submitDisabled?: boolean;
   sessionScope?: "active" | "none";
+  /** Hide controls that only affect agent execution (model, mode, polish, voice). */
+  showAgentControls?: boolean;
+  /** Enable pasted, uploaded, and externally dropped file attachments. */
+  allowFileAttachments?: boolean;
+  /** Enable agent-only submit interceptors such as /compact and MCP tools. */
+  enableAgentInterceptors?: boolean;
+  /** Limit the slash menu to the supplied item categories. */
+  slashItemCategories?: ReadonlyArray<SlashItemCategory>;
   /**
    * Set by the bottom-anchored floating composer so its + / slash / @ menus
    * open upward even in queue-edit mode (there is no room beneath it).
@@ -119,6 +128,10 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
     disableStopWhenEmpty = false,
     submitDisabled = false,
     sessionScope = "active",
+    showAgentControls = true,
+    allowFileAttachments = true,
+    enableAgentInterceptors = true,
+    slashItemCategories,
     bottomAnchored = false,
   }) => {
     const { t } = useTranslation("sessions");
@@ -200,6 +213,7 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
       submitDisabled,
       onSubmitOverride,
       customMentionOptions: mergedCustomMentionOptions,
+      enableAgentInterceptors,
     });
 
     const currentTextEmpty = isInputEmpty();
@@ -282,9 +296,19 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
     const { voice, showVoiceUi } = useInputAreaVoice({
       composerInputRef,
       containerRef,
-      enabled: voiceFeatureEnabled,
+      enabled: showAgentControls && voiceFeatureEnabled,
       isEditMode,
     });
+
+    const visibleSlashItems = useMemo(
+      () =>
+        slashItemCategories
+          ? filteredSlashItems.filter((item) =>
+              slashItemCategories.includes(item.category)
+            )
+          : filteredSlashItems,
+      [filteredSlashItems, slashItemCategories]
+    );
 
     const isCursorCompactRow = useMemo(
       () =>
@@ -320,9 +344,10 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
     }, [isCursorCompactRow, observeCompact]);
 
     // Cursor IDE sessions are read-only; no interactive model/mode pill.
-    const modelPill = isCursorIde && sessionId ? null : <ModelPill />;
+    const modelPill =
+      !showAgentControls || (isCursorIde && sessionId) ? null : <ModelPill />;
     const modePill =
-      isCursorIde && sessionId ? null : (
+      !showAgentControls || (isCursorIde && sessionId) ? null : (
         <ModePill hideWhenDefault resetToDefaultOnClick />
       );
     const clearReplyInfo = useCallback(
@@ -343,7 +368,7 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
         ref={containerRef}
         data-chat-input-shell
         data-testid="chat-input"
-        data-image-owner-id={dropTargetId}
+        data-image-owner-id={allowFileAttachments ? dropTargetId : undefined}
         className="flex w-full flex-col"
         onKeyDown={isEditMode ? handleEditKeyDown : undefined}
         onDragOver={handleContainerDragOver}
@@ -373,6 +398,9 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
             data-composer-menu-anchor
             data-chat-drop-target
             data-chat-drop-target-id={dropTargetId}
+            data-chat-file-drop-disabled={
+              allowFileAttachments ? undefined : true
+            }
             data-testid={isEditMode ? "chat-message-edit-composer" : undefined}
             variant={getComposerShellVariant({
               compactShell,
@@ -425,7 +453,9 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                onImagePaste={handleImagePaste}
+                onImagePaste={
+                  allowFileAttachments ? handleImagePaste : undefined
+                }
                 onAddContent={handleOpenContextMenu}
                 onUpload={handleUploadClick}
                 onOpenSkillsTools={handleOpenSkillsTools}
@@ -472,7 +502,9 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                onImagePaste={handleImagePaste}
+                onImagePaste={
+                  allowFileAttachments ? handleImagePaste : undefined
+                }
                 onAddContent={handleOpenContextMenu}
                 onUpload={handleUploadClick}
                 onOpenSkillsTools={handleOpenSkillsTools}
@@ -509,6 +541,8 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
                 promptPolish={promptPolish}
                 promptPolishDisabled={currentTextEmpty}
                 submitDisabled={submitDisabled}
+                showAgentControls={showAgentControls}
+                showImageAttachments={allowFileAttachments}
               />
             )}
           </ComposerShell>
@@ -528,7 +562,7 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
           mentionTreePosition={mentionTreePosition}
           isEditMode={isEditMode}
           showSlashMenu={showSlashMenu}
-          filteredSlashItems={filteredSlashItems}
+          filteredSlashItems={visibleSlashItems}
           slashLoading={slashLoading}
           addressCommentsFlyout={addressCommentsFlyout}
           currentMode={currentMode}
@@ -537,7 +571,9 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
           onSlashSelect={handleSlashSelect}
           onModeSelect={handleModeSelect}
           slashCommandKeyboardHandlerRef={slashCommandKeyboardHandlerRef}
-          onImageUpload={handleUploadClick}
+          onImageUpload={allowFileAttachments ? handleUploadClick : undefined}
+          showActionFlyouts={showAgentControls}
+          showModeRows={showAgentControls}
           showPlusSlashMenu={showPlusSlashMenu}
           plusSlashQuery={plusSlashQuery}
           onPlusSlashClose={handlePlusSlashClose}
@@ -549,14 +585,16 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
           bottomAnchored={bottomAnchored}
         />
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          className="hidden"
-          data-testid="chat-file-upload-input"
-          onChange={handleFileUpload}
-        />
+        {allowFileAttachments && (
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            data-testid="chat-file-upload-input"
+            onChange={handleFileUpload}
+          />
+        )}
       </div>
     );
   }

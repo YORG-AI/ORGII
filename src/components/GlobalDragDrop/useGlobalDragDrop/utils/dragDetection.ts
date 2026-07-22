@@ -96,7 +96,8 @@ export function isInternalDrag(
   return false;
 }
 
-const CHAT_DROP_TARGET_SELECTOR = "[data-chat-drop-target]";
+const CHAT_DROP_TARGET_SELECTOR =
+  "[data-chat-drop-target]:not([data-chat-file-drop-disabled])";
 const CHAT_DROP_TARGET_HIT_SLOP_PX = 240;
 
 function getExpandedChatDropTarget(

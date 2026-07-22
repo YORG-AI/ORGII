@@ -28,6 +28,7 @@ import { useTranslation } from "react-i18next";
 import { type ProjectOrg, projectApi } from "@src/api/http/project";
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
+import { GHOST_INPUT_PLACEHOLDER_CLASS } from "@src/components/Input/tokens";
 import Message from "@src/components/Message";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
@@ -46,7 +47,6 @@ import {
   type ProjectData,
   ProjectPropertyFields,
 } from "@src/modules/ProjectManager/shared";
-import { PROJECT_MANAGER_TEXT_PLACEHOLDER_CLASS } from "@src/modules/ProjectManager/shared/placeholderTokens";
 import { reposAtom } from "@src/store/repo";
 import {
   type ProjectDraft,
@@ -396,7 +396,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
       fieldVariant="ghost"
       size="small"
       className="flex-1"
-      inputClassName={PROJECT_MANAGER_TEXT_PLACEHOLDER_CLASS}
+      inputClassName={GHOST_INPUT_PLACEHOLDER_CLASS}
       data-testid="create-project-title-input"
     />
   );

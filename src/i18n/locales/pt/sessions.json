@@ -5,6 +5,9 @@
     "decision": "{{tokenCount}} Token de decisão",
     "tooltip": "Atribuição estimada da ferramenta. Método: {{method}}. Entrada: {{inputBytes}} bytes. Saída: {{outputBytes}} bytes. Decisão: {{decisionTokens}} Token. Contexto: {{contextTokens}} Token. Follow-up: {{followupTokens}} Token. Leitura de cache LLM relacionada: {{cacheReadTokens}} Token. Escrita de cache LLM relacionada: {{cacheWriteTokens}} Token."
   },
+  "humanSession": {
+    "titlePlaceholder": "Título (opcional)"
+  },
   "history": {
     "untitledSession": "Sessão sem título",
     "prStatus": {
@@ -1330,6 +1333,8 @@
     "terminalSummary": {
       "command_one": "{{count}} comando",
       "command_other": "{{count}} comandos",
+      "mcp_one": "{{count}} chamada MCP",
+      "mcp_other": "{{count}} chamadas MCP",
       "wait_one": "{{count}} espera",
       "wait_other": "{{count}} esperas",
       "check_one": "{{count}} verificação",
@@ -2107,7 +2112,10 @@
     "categoryLabel": "Categoria da sessão",
     "categoryTemplate": "Selecionar {category}",
     "categoryPlaceholder": "Agent",
-    "builtInAgents": "Agents nativos",
+    "builtIns": "Integrados",
+    "humanSession": {
+      "name": "Registro de trabalho"
+    },
     "cliAgents": "CLI Agents",
     "customAgents": "Agents personalizados",
     "agentOrgs": "Equipes Agent",

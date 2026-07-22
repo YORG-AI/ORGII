@@ -214,6 +214,13 @@ describe("buildOrg2CloudLoginUrl", () => {
     expect(url.searchParams.get("return_to")).toBe("orgii://auth/callback");
   });
 
+  it("accepts an ephemeral loopback return for tauri dev", () => {
+    const callback =
+      "http://localhost:43123/org2-cloud/auth/callback?state=b8c71b7e-7ac6-4ebd-aeab-c1976bb01e9d";
+    const url = new URL(buildOrg2CloudLoginUrl(callback));
+    expect(url.searchParams.get("return_to")).toBe(callback);
+  });
+
   it("follows a custom endpoint's web origin", () => {
     storeOverride(OVERRIDE);
     const url = new URL(buildOrg2CloudLoginUrl());

@@ -35,11 +35,21 @@ export interface SessionImpactStats {
   touchedFiles?: string[];
 }
 
+export interface KanbanTaskCreator {
+  id: string;
+  name: string;
+  avatarUrl?: string;
+}
+
 export interface KanbanTask {
   id: string;
   title: string;
   description?: string;
   status: TaskStatus;
+  /** Whether this card can be moved between columns. Defaults to true. */
+  canMove?: boolean;
+  /** Whether this card/row has an open action. Defaults to true. */
+  canOpen?: boolean;
   priority?: TaskPriority;
   assignee?: string;
   tags?: string[];
@@ -75,6 +85,8 @@ export interface KanbanTask {
   impact?: SessionImpactStats;
   /** Display label for the workspace root associated with the session. */
   workspaceName?: string;
+  /** Human who created an organization-scoped task/session. */
+  createdBy?: KanbanTaskCreator;
   /**
    * Owning Agent Team's display name when the session was launched as
    * part of an Agent Team run (Inbox or any other entry point). Left

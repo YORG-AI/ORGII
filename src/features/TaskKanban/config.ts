@@ -252,7 +252,31 @@ export function mapSessionToKanbanColumn(
     nowMs?: number;
   } = {}
 ): AgentKanbanColumnId {
-  const status = session.status;
+  const statusColumn = mapSessionStatusToKanbanColumn(session.status);
+  if (statusColumn !== "turn_finished") return statusColumn;
+
+  if (options.manualArchivedSessionIds?.has(session.session_id)) {
+    return "archived";
+  }
+
+  if (
+    isKanbanActivityAutoArchived(
+      session.status,
+      session.updated_at || session.completed_at || session.created_at,
+      options.autoArchiveTtl,
+      options.nowMs
+    )
+  ) {
+    return "archived";
+  }
+
+  return "turn_finished";
+}
+
+/** Status-only routing shared by local sessions and cloud roster rows. */
+export function mapSessionStatusToKanbanColumn(
+  status: string
+): Exclude<AgentKanbanColumnId, "archived"> {
   if (TODO_SESSION_STATUSES.has(status)) {
     return "todo";
   }
@@ -265,14 +289,6 @@ export function mapSessionToKanbanColumn(
     return "blocking";
   }
 
-  if (options.manualArchivedSessionIds?.has(session.session_id)) {
-    return "archived";
-  }
-
-  if (isSessionAutoArchived(session, options.autoArchiveTtl, options.nowMs)) {
-    return "archived";
-  }
-
   return "turn_finished";
 }
 
@@ -282,6 +298,8 @@ export function mapSessionToKanbanColumn(
 
 export type KanbanTimeFilter = "12h" | "24h" | "3d" | "7d";
 export type KanbanAutoArchiveTtl = "never" | "12h" | "24h" | "3d" | "7d";
+
+export const DEFAULT_KANBAN_TIME_FILTER: KanbanTimeFilter = "3d";
 
 export const KANBAN_TIME_FILTERS: {
   key: KanbanTimeFilter;
@@ -329,22 +347,21 @@ export function getTimeFilterCutoff(filter: KanbanTimeFilter): number {
   return Date.now() - TIME_FILTER_MS[filter];
 }
 
-function getSessionActivityTimestampMs(session: Session): number {
-  const timestamp =
-    session.updated_at || session.completed_at || session.created_at;
+function getActivityTimestampMs(timestamp: string | undefined): number {
   if (!timestamp) return 0;
   const parsed = new Date(timestamp).getTime();
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function isSessionAutoArchived(
-  session: Session,
+export function isKanbanActivityAutoArchived(
+  status: string,
+  lastActivityAt: string | undefined,
   ttl: KanbanAutoArchiveTtl = "24h",
   nowMs: number = Date.now()
 ): boolean {
   if (ttl === "never") return false;
-  if (ACTIVE_SESSION_STATUSES.has(session.status)) return false;
-  const lastActivityMs = getSessionActivityTimestampMs(session);
+  if (ACTIVE_SESSION_STATUSES.has(status)) return false;
+  const lastActivityMs = getActivityTimestampMs(lastActivityAt);
   if (lastActivityMs <= 0) return false;
   return nowMs - lastActivityMs >= AUTO_ARCHIVE_TTL_MS[ttl];
 }

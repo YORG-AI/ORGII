@@ -116,9 +116,10 @@ fn estimate_cost_blended(total_tokens: i64, model: &str) -> f64 {
 }
 
 fn imported_recent_paths() -> Result<Vec<imported_history::ImportedHistoryRecentPath>, String> {
-    let conn = open_cache_conn()?;
+    let mut conn = open_cache_conn()?;
     let mut paths = Vec::new();
     for source in ImportedHistorySourceId::ALL {
+        imported_history::catalog::refresh_source(&mut conn, source)?;
         paths.extend(
             imported_history::cache::query_imported_recent_paths_from_conn(
                 &conn,
@@ -128,6 +129,20 @@ fn imported_recent_paths() -> Result<Vec<imported_history::ImportedHistoryRecent
         );
     }
     Ok(imported_history::recent_paths_from_paths(&paths))
+}
+
+/// Refresh one source's compact catalog and return only grouped path rows.
+/// Source-specific legacy `list_*_recent_paths` functions historically
+/// rebuilt changed transcripts before answering this lightweight request;
+/// routing every command through the replay registry prevents a settings or
+/// spotlight view from re-reading a growing JSONL/SQLite history in full.
+fn compact_recent_paths(
+    source: ImportedHistorySourceId,
+    limit: usize,
+) -> Result<Vec<imported_history::ImportedHistoryRecentPath>, String> {
+    let mut conn = open_cache_conn()?;
+    imported_history::catalog::refresh_source(&mut conn, source)?;
+    imported_history::cache::query_imported_recent_paths_from_conn(&conn, source.as_str(), limit)
 }
 
 /// Force a full rescan of a single external history source.
@@ -196,6 +211,22 @@ pub async fn external_history_rescan_sources(
     .map_err(|err| format!("Task join error: {err}"))?
 }
 
+/// Source-neutral compact recent-path query used by settings and workspace
+/// discovery. The source registry owns refresh semantics for all 15 adapters;
+/// adding a source without a catalog adapter fails in the exhaustive Rust
+/// match instead of silently falling back to a transcript loader.
+#[tauri::command]
+pub async fn external_history_recent_paths(
+    source: String,
+    limit: Option<usize>,
+) -> Result<Vec<imported_history::ImportedHistoryRecentPath>, String> {
+    let source = ImportedHistorySourceId::parse(&source)?;
+    let limit = limit.unwrap_or(20);
+    tokio::task::spawn_blocking(move || compact_recent_paths(source, limit))
+        .await
+        .map_err(|err| format!("Task join error: {err}"))?
+}
+
 #[tauri::command]
 pub async fn orgtrack_get_cursor_sessions(
     start_date: String,
@@ -219,8 +250,7 @@ pub async fn codex_app_recent_paths(
 ) -> Result<Vec<codex_app::CodexAppRecentPath>, String> {
     let limit = limit.unwrap_or(20);
     tokio::task::spawn_blocking(move || {
-        let mut conn = open_cache_conn()?;
-        codex_app::list_codex_app_recent_paths(&mut conn, limit)
+        compact_recent_paths(ImportedHistorySourceId::CodexApp, limit)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?
@@ -268,8 +298,7 @@ pub async fn claude_code_recent_paths(
 ) -> Result<Vec<claude_code_history::ClaudeCodeRecentPath>, String> {
     let limit = limit.unwrap_or(20);
     tokio::task::spawn_blocking(move || {
-        let mut conn = open_cache_conn()?;
-        claude_code_history::list_claude_code_recent_paths(&mut conn, limit)
+        compact_recent_paths(ImportedHistorySourceId::ClaudeCode, limit)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?
@@ -281,8 +310,7 @@ pub async fn cursor_cli_recent_paths(
 ) -> Result<Vec<cursor_cli_history::CursorCliRecentPath>, String> {
     let limit = limit.unwrap_or(20);
     tokio::task::spawn_blocking(move || {
-        let mut conn = open_cache_conn()?;
-        cursor_cli_history::list_cursor_cli_recent_paths(&mut conn, limit)
+        compact_recent_paths(ImportedHistorySourceId::CursorCli, limit)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?
@@ -294,8 +322,7 @@ pub async fn opencode_recent_paths(
 ) -> Result<Vec<opencode_history::OpenCodeRecentPath>, String> {
     let limit = limit.unwrap_or(20);
     tokio::task::spawn_blocking(move || {
-        let mut conn = open_cache_conn()?;
-        opencode_history::list_opencode_recent_paths(&mut conn, limit)
+        compact_recent_paths(ImportedHistorySourceId::OpenCode, limit)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?
@@ -306,12 +333,9 @@ pub async fn warp_recent_paths(
     limit: Option<usize>,
 ) -> Result<Vec<warp_history::WarpRecentPath>, String> {
     let limit = limit.unwrap_or(20);
-    tokio::task::spawn_blocking(move || {
-        let mut conn = open_cache_conn()?;
-        warp_history::list_warp_recent_paths(&mut conn, limit)
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
+    tokio::task::spawn_blocking(move || compact_recent_paths(ImportedHistorySourceId::Warp, limit))
+        .await
+        .map_err(|err| format!("Task join error: {err}"))?
 }
 
 #[tauri::command]
@@ -319,12 +343,9 @@ pub async fn zcode_recent_paths(
     limit: Option<usize>,
 ) -> Result<Vec<zcode_history::ZCodeRecentPath>, String> {
     let limit = limit.unwrap_or(20);
-    tokio::task::spawn_blocking(move || {
-        let mut conn = open_cache_conn()?;
-        zcode_history::list_zcode_recent_paths(&mut conn, limit)
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
+    tokio::task::spawn_blocking(move || compact_recent_paths(ImportedHistorySourceId::ZCode, limit))
+        .await
+        .map_err(|err| format!("Task join error: {err}"))?
 }
 
 #[tauri::command]
@@ -332,12 +353,9 @@ pub async fn qoder_recent_paths(
     limit: Option<usize>,
 ) -> Result<Vec<qoder_history::QoderRecentPath>, String> {
     let limit = limit.unwrap_or(20);
-    tokio::task::spawn_blocking(move || {
-        let mut conn = open_cache_conn()?;
-        qoder_history::list_qoder_recent_paths(&mut conn, limit)
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
+    tokio::task::spawn_blocking(move || compact_recent_paths(ImportedHistorySourceId::Qoder, limit))
+        .await
+        .map_err(|err| format!("Task join error: {err}"))?
 }
 
 #[tauri::command]
@@ -346,8 +364,7 @@ pub async fn mimo_code_recent_paths(
 ) -> Result<Vec<mimo_code_history::MimoCodeRecentPath>, String> {
     let limit = limit.unwrap_or(20);
     tokio::task::spawn_blocking(move || {
-        let mut conn = open_cache_conn()?;
-        mimo_code_history::list_mimo_code_recent_paths(&mut conn, limit)
+        compact_recent_paths(ImportedHistorySourceId::MimoCode, limit)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?
@@ -358,12 +375,9 @@ pub async fn omp_recent_paths(
     limit: Option<usize>,
 ) -> Result<Vec<omp_history::OmpRecentPath>, String> {
     let limit = limit.unwrap_or(20);
-    tokio::task::spawn_blocking(move || {
-        let mut conn = open_cache_conn()?;
-        omp_history::list_omp_recent_paths(&mut conn, limit)
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
+    tokio::task::spawn_blocking(move || compact_recent_paths(ImportedHistorySourceId::Omp, limit))
+        .await
+        .map_err(|err| format!("Task join error: {err}"))?
 }
 
 #[tauri::command]
@@ -372,8 +386,7 @@ pub async fn qoder_cli_recent_paths(
 ) -> Result<Vec<qoder_cli_history::QoderCliRecentPath>, String> {
     let limit = limit.unwrap_or(20);
     tokio::task::spawn_blocking(move || {
-        let mut conn = open_cache_conn()?;
-        qoder_cli_history::list_qoder_cli_recent_paths(&mut conn, limit)
+        compact_recent_paths(ImportedHistorySourceId::QoderCli, limit)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?
@@ -385,8 +398,7 @@ pub async fn windsurf_recent_paths(
 ) -> Result<Vec<windsurf_history::WindsurfRecentPath>, String> {
     let limit = limit.unwrap_or(20);
     tokio::task::spawn_blocking(move || {
-        let mut conn = open_cache_conn()?;
-        windsurf_history::list_windsurf_recent_paths(&mut conn, limit)
+        compact_recent_paths(ImportedHistorySourceId::Windsurf, limit)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?
@@ -397,12 +409,9 @@ pub async fn trae_recent_paths(
     limit: Option<usize>,
 ) -> Result<Vec<trae_history::TraeRecentPath>, String> {
     let limit = limit.unwrap_or(20);
-    tokio::task::spawn_blocking(move || {
-        let mut conn = open_cache_conn()?;
-        trae_history::list_trae_recent_paths(&mut conn, limit)
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
+    tokio::task::spawn_blocking(move || compact_recent_paths(ImportedHistorySourceId::Trae, limit))
+        .await
+        .map_err(|err| format!("Task join error: {err}"))?
 }
 
 #[tauri::command]
@@ -410,12 +419,9 @@ pub async fn cline_recent_paths(
     limit: Option<usize>,
 ) -> Result<Vec<cline_history::ClineRecentPath>, String> {
     let limit = limit.unwrap_or(20);
-    tokio::task::spawn_blocking(move || {
-        let mut conn = open_cache_conn()?;
-        cline_history::list_cline_recent_paths(&mut conn, limit)
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
+    tokio::task::spawn_blocking(move || compact_recent_paths(ImportedHistorySourceId::Cline, limit))
+        .await
+        .map_err(|err| format!("Task join error: {err}"))?
 }
 
 #[tauri::command]
@@ -424,8 +430,7 @@ pub async fn workbuddy_recent_paths(
 ) -> Result<Vec<workbuddy_history::WorkBuddyRecentPath>, String> {
     let limit = limit.unwrap_or(20);
     tokio::task::spawn_blocking(move || {
-        let mut conn = open_cache_conn()?;
-        workbuddy_history::list_workbuddy_recent_paths(&mut conn, limit)
+        compact_recent_paths(ImportedHistorySourceId::WorkBuddy, limit)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?

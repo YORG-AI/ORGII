@@ -5,6 +5,9 @@
     "decision": "{{tokenCount}} Token karar",
     "tooltip": "Tahmini araç atfı. Yöntem: {{method}}. Girdi: {{inputBytes}} bytes. Çıktı: {{outputBytes}} bytes. Karar: {{decisionTokens}} Token. Bağlam: {{contextTokens}} Token. Follow-up: {{followupTokens}} Token. İlgili LLM cache read: {{cacheReadTokens}} Token. İlgili LLM cache write: {{cacheWriteTokens}} Token."
   },
+  "humanSession": {
+    "titlePlaceholder": "Başlık (isteğe bağlı)"
+  },
   "history": {
     "untitledSession": "Adsız Session",
     "prStatus": {
@@ -1315,6 +1318,8 @@
     "terminalSummary": {
       "command_one": "{{count}} komut",
       "command_other": "{{count}} komut",
+      "mcp_one": "{{count}} MCP çağrısı",
+      "mcp_other": "{{count}} MCP çağrısı",
       "wait_one": "{{count}} bekleme",
       "wait_other": "{{count}} bekleme",
       "check_one": "{{count}} kontrol",
@@ -2092,7 +2097,10 @@
     "categoryLabel": "Oturum kategorisi",
     "categoryTemplate": "{category} seçin",
     "categoryPlaceholder": "Agent",
-    "builtInAgents": "Yerleşik Agent'lar",
+    "builtIns": "Yerleşik",
+    "humanSession": {
+      "name": "Çalışma günlüğü"
+    },
     "cliAgents": "CLI Agent'lar",
     "customAgents": "Özel Agent'lar",
     "agentOrgs": "Agent Ekipleri",

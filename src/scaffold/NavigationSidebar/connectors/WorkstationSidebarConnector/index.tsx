@@ -1,3 +1,4 @@
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { ChevronLeft, Search } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -7,6 +8,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { ROUTES } from "@src/config/routes";
 import { useCloudSessionShareDialog } from "@src/features/Org2Cloud/CloudSessionShareDialog/useCloudSessionShareDialog";
 import { useCloudSyncLevelDialog } from "@src/features/Org2Cloud/CloudSyncLevelDialog/useCloudSyncLevelDialog";
+import { buildOrg2CloudLoginUrl } from "@src/features/Org2Cloud/config";
+import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import { useMoveToOrgDialog } from "@src/features/TeamCollaboration/components/MoveToOrgDialog/useMoveToOrgDialog";
 import { createLogger } from "@src/hooks/logger";
 import { useAppNavigation } from "@src/hooks/navigation/useAppNavigation";
@@ -18,10 +21,10 @@ import {
   activeChatPanelTabAtom,
   activeWorkManagementSectionAtom,
   closeAndDestroyChatPanelTabAtom,
-  openCloudOrgManagementInChatPanelTabAtom,
   openCreateTargetInChatPanelStartPageAtom,
   openOrFocusChatPanelStartPageTabAtom,
   openOrReplaceSessionInChatPanelTabAtom,
+  openOrganizationInChatPanelTabAtom,
   openRuntimeInChatPanelTabAtom,
   openSessionInNewChatTabAtom,
   openWorkManagementChatPanelTabAtom,
@@ -30,12 +33,14 @@ import { repoMapAtom } from "@src/store/repo";
 import {
   activeSessionCreatorDraftIdAtom,
   deleteSessionCreatorDraftAtom,
+  loadMoreCategory,
   loadSidebarSessionById,
   loadSidebarSessions,
   markAllSessionsVisited,
   promoteActiveSessionCreatorDraftAtom,
   sessionCreatorDraftListAtom,
   sessionLoadingAtom,
+  sessionPaginationAtom,
   sessionsAtom,
   visitedSessionsAtom,
   workstationActiveSessionIdAtom,
@@ -59,6 +64,8 @@ import {
 import { type StationMode, stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { spotlightOpenAtom } from "@src/store/ui/uiAtom";
 import {
+  PROJECT_ORG_SURFACE_VIEW,
+  STORY_ORG_SCOPE,
   WORK_MANAGEMENT_PROJECTS_VIEW,
   WORK_MANAGEMENT_SECTION,
   type WorkManagementSection,
@@ -70,7 +77,11 @@ import {
   toChatPanelTuiSessionId,
 } from "@src/util/ui/terminal/chatPanelTuiSessionId";
 
-import { SidebarBottomBar, SidebarHeaderNavButton } from "../../blocks";
+import {
+  SidebarBottomBar,
+  SidebarHeaderNavButton,
+  SidebarMenuSearchInput,
+} from "../../blocks";
 import SidebarSettingsMenuButton from "../../blocks/SidebarSettingsMenuButton";
 import NavigationSidebar from "../../variants/NavigationSidebar";
 import SidebarOrgSelector from "../SidebarOrgSelector";
@@ -93,6 +104,7 @@ import {
 import { useProjectsWorkItemMenuItems } from "../useProjectsWorkItemMenuItems";
 import { useRenameSessionModal } from "../useRenameSessionModal";
 import { useSessionMenuItems } from "../useSessionMenuItems";
+import { loadUnifiedReadyCategories } from "../useSessionMenuItems/paginationHelpers";
 import { useWorkstationSidebarContextMenu } from "../useWorkstationSidebarContextMenu";
 import { useWorkstationSidebarHandlers } from "../useWorkstationSidebarHandlers";
 import {
@@ -104,7 +116,14 @@ import {
 } from "../workstationSidebarData";
 import { SidebarDialogs } from "./SidebarDialogs";
 import { useSidebarBottomRightActions } from "./bottomActions";
-import { buildCloudScopedMenuItems } from "./cloudScopedMenuItems";
+import {
+  CLOUD_MY_SESSIONS_LOAD_MORE_ID,
+  CLOUD_MY_SESSIONS_SECTION_ID,
+  CLOUD_SESSION_SECTION_PAGE_SIZE,
+  CLOUD_TEAM_SESSIONS_SECTION_ID,
+  buildCloudScopedMenuItems,
+  isCloudScopedLocalRow,
+} from "./cloudScopedMenuItems";
 import { useCloudSessionsSection } from "./cloudSessionsSection";
 import {
   useRenderProjectsMenuItemWrapper,
@@ -112,6 +131,12 @@ import {
   useRenderWorkstationMenuItemWrapper,
 } from "./menuItemWrappers";
 import { resolveSelectedMenuItemIds } from "./menuSelection";
+import {
+  getProjectsSectionVisibleCountKey,
+  getSessionSectionVisibleCountKey,
+  resetNewlyCollapsedSectionVisibleCounts,
+  resetScopedSectionPagination,
+} from "./sectionPagination";
 import { useSessionEntryActions } from "./sessionEntryActions";
 import { useDecorateSessionRowActions } from "./sessionRowActions";
 import { useWorkstationSidebarMemory } from "./sidebarMemory";
@@ -153,6 +178,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
   const navigate = useNavigate();
   const sessions = useAtomValue(sessionsAtom);
   const sessionsLoading = useAtomValue(sessionLoadingAtom);
+  const sessionPagination = useAtomValue(sessionPaginationAtom);
   const sessionSidebarRevealRequest = useAtomValue(
     sessionSidebarRevealRequestAtom
   );
@@ -183,9 +209,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     workManagementProjectsViewAtom
   );
   const openWorkManagementTab = useSetAtom(openWorkManagementChatPanelTabAtom);
-  const openCloudOrgManagementTab = useSetAtom(
-    openCloudOrgManagementInChatPanelTabAtom
-  );
+  const openOrganizationTab = useSetAtom(openOrganizationInChatPanelTabAtom);
   const openSessionInNewChatTab = useSetAtom(openSessionInNewChatTabAtom);
   const openSessionInWorkstation = useSetAtom(openSessionInWorkstationAtom);
   const openOrReplaceSessionInChatPanelTab = useSetAtom(
@@ -205,6 +229,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
   const { goToNewSession, navigateTo } = useAppNavigation();
   const [activeSidebarKey, setActiveSidebarKey] =
     useState<WorkstationSidebarKey>("workstation");
+  const localOrgManagementRequestIdRef = React.useRef(0);
   const [activeSessionMoreMenuId, setActiveSessionMoreMenuId] = useState("");
   const [projectsSelectedMenuItemId, setProjectsSelectedMenuItemId] =
     useState("");
@@ -251,6 +276,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     cloudTaggedSessionIds,
     handleCloudSessionFilterChange,
     manageableCloudOrg,
+    manageableLocalOrg,
     orgSelectorOptions,
     personalHiddenCloudTaggedIds,
     sessionFilterOrgIds,
@@ -263,6 +289,38 @@ export const WorkstationSidebarConnector: React.FC = () => {
   const [includeExternal, setIncludeExternal] = useAtom(
     sidebarIncludeExternalAtom
   );
+  const cloudMyPaginationScopeKey = activeCloudOrgId
+    ? [
+        activeCloudOrgId,
+        sidebarSearchQueries.workstation,
+        groupByMode,
+        includeExternal ? "external" : "native",
+      ].join("\u001f")
+    : "";
+  const [cloudMyPagination, setCloudMyPagination] = useState({
+    scopeKey: "",
+    visibleCount: CLOUD_SESSION_SECTION_PAGE_SIZE,
+  });
+  const resetCloudMyPagination = useCallback(() => {
+    setCloudMyPagination((current) =>
+      resetScopedSectionPagination(current, CLOUD_SESSION_SECTION_PAGE_SIZE)
+    );
+  }, []);
+  const cloudMySessionsVisibleCount =
+    cloudMyPagination.scopeKey === cloudMyPaginationScopeKey
+      ? cloudMyPagination.visibleCount
+      : CLOUD_SESSION_SECTION_PAGE_SIZE;
+  const cloudAuth = useAtomValue(org2CloudAuthAtom);
+  const cloudSignedInIdentity = cloudAuth
+    ? (cloudAuth.profile?.displayName ??
+      cloudAuth.profile?.primaryEmail ??
+      cloudAuth.userId)
+    : null;
+  const handleCloudSignIn = useCallback(() => {
+    openUrl(buildOrg2CloudLoginUrl()).catch((error: unknown) => {
+      logger.error("failed to open ORG2 Cloud login in system browser", error);
+    });
+  }, []);
   const [groupVisibleCounts, setGroupVisibleCounts] = useState<
     Map<string, number>
   >(new Map());
@@ -322,16 +380,14 @@ export const WorkstationSidebarConnector: React.FC = () => {
   const importGithubIssuesLabel = tProjects("githubIssuesImport.menuLabel");
   const addOrgLabel = t("collaboration.addOrg");
   const manageOrgLabel = t("collaboration.manageOrg");
-  const searchPlaceholder =
-    activeSidebarKey === "projects" || workItemsContentVisible
-      ? t("sidebar.search.projects")
-      : t("sidebar.search.sessions");
+  const searchPlaceholder = tCommon("common.searchPlaceholder", "Search...");
   const noSearchResultsTitle = t("sidebar.empty.noSearchResults");
   const {
     cloudMenuItems,
-    cloudThreadedLocalSessionIds,
+    cloudFlatListExcludedSessionIds,
     selectedCloudMenuItemId,
-    handleCloudRemoteItemClick,
+    handleCloudSessionItemClick,
+    resetCloudTeamPagination,
     handleCloudRemoteItemRemove,
     cloudMemberFilterDropdown,
     cloudRemoteRowMap,
@@ -349,17 +405,18 @@ export const WorkstationSidebarConnector: React.FC = () => {
   });
 
   // Threaded position wins: mine-rows shown inside a fork thread leave the
-  // flat local list (sessionMap keeps them for click routing).
+  // flat local list, and imported teammate caches never count as "mine"
+  // (sessionMap keeps every excluded row available for click routing).
   const sessionListExcludedIds = useMemo(() => {
-    if (!personalHiddenCloudTaggedIds) return cloudThreadedLocalSessionIds;
-    if (cloudThreadedLocalSessionIds.size === 0) {
+    if (!personalHiddenCloudTaggedIds) return cloudFlatListExcludedSessionIds;
+    if (cloudFlatListExcludedSessionIds.size === 0) {
       return personalHiddenCloudTaggedIds;
     }
     return new Set([
-      ...cloudThreadedLocalSessionIds,
+      ...cloudFlatListExcludedSessionIds,
       ...personalHiddenCloudTaggedIds,
     ]);
-  }, [cloudThreadedLocalSessionIds, personalHiddenCloudTaggedIds]);
+  }, [cloudFlatListExcludedSessionIds, personalHiddenCloudTaggedIds]);
 
   const {
     menuItems,
@@ -379,6 +436,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     excludedSessionIds: sessionListExcludedIds,
     includeExternal,
     groupVisibleCounts,
+    showAllLoadedGroupSessions: Boolean(activeCloudOrgId),
     expandedSubagentParentIds,
     revealedSessionIds,
   });
@@ -445,6 +503,10 @@ export const WorkstationSidebarConnector: React.FC = () => {
     sessionCreatorDrafts,
     t,
   });
+  const loadedCloudMySessionRowCount = useMemo(
+    () => sessionSidebarMenuItems.filter(isCloudScopedLocalRow).length,
+    [sessionSidebarMenuItems]
+  );
   const revealCandidateMenuItems = useMemo(
     () => [...cloudMenuItems, ...sessionSidebarMenuItems],
     [cloudMenuItems, sessionSidebarMenuItems]
@@ -557,14 +619,62 @@ export const WorkstationSidebarConnector: React.FC = () => {
             projectsView: workManagementProjectsView,
           })
         : baseSelectedMenuItemId;
+  const handleSessionCollapsedSectionIdsChange = useCallback(
+    (nextCollapsedSectionIds: Set<string>) => {
+      setGroupVisibleCounts((currentVisibleCounts) =>
+        resetNewlyCollapsedSectionVisibleCounts({
+          currentVisibleCounts,
+          previousCollapsedSectionIds: collapsedSectionIds,
+          nextCollapsedSectionIds,
+          resolveVisibleCountKey: (sectionId) =>
+            getSessionSectionVisibleCountKey(sectionId, groupByMode),
+        })
+      );
+
+      if (
+        !collapsedSectionIds.has(CLOUD_TEAM_SESSIONS_SECTION_ID) &&
+        nextCollapsedSectionIds.has(CLOUD_TEAM_SESSIONS_SECTION_ID)
+      ) {
+        resetCloudTeamPagination();
+      }
+      if (
+        !collapsedSectionIds.has(CLOUD_MY_SESSIONS_SECTION_ID) &&
+        nextCollapsedSectionIds.has(CLOUD_MY_SESSIONS_SECTION_ID)
+      ) {
+        resetCloudMyPagination();
+      }
+
+      setCollapsedSectionIds(nextCollapsedSectionIds);
+    },
+    [
+      collapsedSectionIds,
+      groupByMode,
+      resetCloudMyPagination,
+      resetCloudTeamPagination,
+    ]
+  );
+  const handleProjectsCollapsedSectionIdsChange = useCallback(
+    (nextCollapsedSectionIds: Set<string>) => {
+      setProjectsGroupVisibleCounts((currentVisibleCounts) =>
+        resetNewlyCollapsedSectionVisibleCounts({
+          currentVisibleCounts,
+          previousCollapsedSectionIds: projectsCollapsedSectionIds,
+          nextCollapsedSectionIds,
+          resolveVisibleCountKey: getProjectsSectionVisibleCountKey,
+        })
+      );
+      setProjectsCollapsedSectionIds(nextCollapsedSectionIds);
+    },
+    [projectsCollapsedSectionIds]
+  );
   const resolvedCollapsedSectionIds =
     activeSidebarKey === "projects" || workItemsContentVisible
       ? projectsCollapsedSectionIds
       : collapsedSectionIds;
-  const resolvedSetCollapsedSectionIds =
+  const resolvedOnCollapsedSectionIdsChange =
     activeSidebarKey === "projects" || workItemsContentVisible
-      ? setProjectsCollapsedSectionIds
-      : setCollapsedSectionIds;
+      ? handleProjectsCollapsedSectionIdsChange
+      : handleSessionCollapsedSectionIdsChange;
 
   const activateMyStationRouteForProjectsContent = useCallback(() => {
     const targetRoute = ROUTES.workStation.code.path;
@@ -591,6 +701,34 @@ export const WorkstationSidebarConnector: React.FC = () => {
     setChatPanelCreateTarget,
   });
 
+  const handleCloudSidebarItemClick = useCallback(
+    (item: NavigationMenuItem): boolean => {
+      if (handleCloudSessionItemClick(item)) return true;
+      if (item.id !== CLOUD_MY_SESSIONS_LOAD_MORE_ID) return false;
+
+      const nextVisibleCount =
+        cloudMySessionsVisibleCount + CLOUD_SESSION_SECTION_PAGE_SIZE;
+      setCloudMyPagination({
+        scopeKey: cloudMyPaginationScopeKey,
+        visibleCount: nextVisibleCount,
+      });
+      if (nextVisibleCount >= loadedCloudMySessionRowCount) {
+        void loadUnifiedReadyCategories({
+          pagination: sessionPagination,
+          loadCategory: loadMoreCategory,
+        });
+      }
+      return true;
+    },
+    [
+      cloudMyPaginationScopeKey,
+      cloudMySessionsVisibleCount,
+      handleCloudSessionItemClick,
+      loadedCloudMySessionRowCount,
+      sessionPagination,
+    ]
+  );
+
   const {
     handleDeleteSession,
     handleExportMarkdown,
@@ -611,7 +749,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     onOpenChatPanelTab: activateChatPanelTab,
     onOpenSessionChatPanelTab: openOrReplaceSessionInChatPanelTab,
     onCloseChatPanelTab: closeAndDestroyChatPanelTab,
-    onCloudRemoteItemClick: handleCloudRemoteItemClick,
+    onCloudSidebarItemClick: handleCloudSidebarItemClick,
   });
   const handleOpenInNewTab = useCallback(
     (sessionId: string) => {
@@ -733,8 +871,17 @@ export const WorkstationSidebarConnector: React.FC = () => {
         // use the regular session action decoration.
         sessionMenuItems: decorateSessionRowActions(sessionSidebarMenuItems),
         mySessionsLabel: t("cloud.sidebar.mySessions"),
+        mySessionsVisibleCount: cloudMySessionsVisibleCount,
+        loadMoreLabel: tCommon("common:actions.loadMore", "Load more"),
       }),
-    [cloudMenuItems, decorateSessionRowActions, sessionSidebarMenuItems, t]
+    [
+      cloudMenuItems,
+      cloudMySessionsVisibleCount,
+      decorateSessionRowActions,
+      sessionSidebarMenuItems,
+      t,
+      tCommon,
+    ]
   );
   const sidebarMenuItems =
     activeSidebarKey === "projects" || workItemsContentVisible
@@ -789,15 +936,52 @@ export const WorkstationSidebarConnector: React.FC = () => {
     [setSelectedOrgId]
   );
   const handleManageOrg = useCallback(() => {
-    if (!manageableCloudOrg) return;
     resetWorkManagementStateForProjectsContent();
-    openCloudOrgManagementTab({
-      cloudOrg: { orgId: manageableCloudOrg.orgId },
-      title: t("collaboration.manageOrg"),
-    });
+    if (activeCloudOrgId && manageableCloudOrg) {
+      openOrganizationTab({
+        organization: {
+          kind: "cloud",
+          cloudOrg: { orgId: manageableCloudOrg.orgId },
+        },
+        title: t("collaboration.manageOrg"),
+      });
+      return;
+    }
+    if (manageableLocalOrg) {
+      localOrgManagementRequestIdRef.current += 1;
+      openOrganizationTab({
+        organization: {
+          kind: "local",
+          projectOrg: {
+            orgId: manageableLocalOrg.id,
+            orgName: manageableLocalOrg.name,
+            orgScope: STORY_ORG_SCOPE.PROJECT_ORG,
+            orgSyncProvider: manageableLocalOrg.sync_provider,
+            initialView: PROJECT_ORG_SURFACE_VIEW.SETTINGS,
+            initialViewRequestId: localOrgManagementRequestIdRef.current,
+          },
+        },
+        title: t("collaboration.manageOrg"),
+      });
+      return;
+    }
+    if (manageableCloudOrg) {
+      openOrganizationTab({
+        organization: {
+          kind: "cloud",
+          cloudOrg: { orgId: manageableCloudOrg.orgId },
+        },
+        title: t("collaboration.manageOrg"),
+      });
+      return;
+    }
+    handleAddOrgFromSelector();
   }, [
+    activeCloudOrgId,
+    handleAddOrgFromSelector,
     manageableCloudOrg,
-    openCloudOrgManagementTab,
+    manageableLocalOrg,
+    openOrganizationTab,
     resetWorkManagementStateForProjectsContent,
     t,
   ]);
@@ -906,6 +1090,20 @@ export const WorkstationSidebarConnector: React.FC = () => {
     </div>
   );
 
+  const sidebarOrgSelector = (
+    <SidebarOrgSelector
+      value={activeOrgId}
+      options={orgSelectorOptions}
+      addOrgLabel={addOrgLabel}
+      cloudSignedInIdentity={cloudSignedInIdentity}
+      manageLabel={manageOrgLabel}
+      onChange={handleOrgSelectorChange}
+      onAddOrg={handleAddOrgFromSelector}
+      onCloudSignIn={handleCloudSignIn}
+      onManageOrg={handleManageOrg}
+    />
+  );
+
   const resolvedMenuItemClick =
     activeSidebarKey === "projects"
       ? handleProjectsMenuItemClick
@@ -924,8 +1122,8 @@ export const WorkstationSidebarConnector: React.FC = () => {
     [sidebarMenuItems]
   );
   const handleCollapseAll = useCallback(() => {
-    setCollapsedSectionIds(new Set(allSectionIds));
-  }, [allSectionIds]);
+    resolvedOnCollapsedSectionIdsChange(new Set(allSectionIds));
+  }, [allSectionIds, resolvedOnCollapsedSectionIdsChange]);
   const handleMarkAllRead = useCallback(() => {
     markAllSessionsVisited(sessions.map((session) => session.session_id));
   }, [sessions]);
@@ -979,7 +1177,12 @@ export const WorkstationSidebarConnector: React.FC = () => {
         onSubmenuOpenChange={handleSubmenuOpenChange}
         onMenuItemContextMenu={resolvedMenuItemContextMenu}
         renderMenuItemWrapper={resolvedRenderMenuItemWrapper}
-        preListContent={sidebarLayerHeader}
+        preListContent={
+          <>
+            <div className="shrink-0 px-3 pt-1">{sidebarOrgSelector}</div>
+            {sidebarLayerHeader}
+          </>
+        }
         compactRows
         onAddNew={handleOpenSpotlight}
         addIcon={Search}
@@ -998,19 +1201,17 @@ export const WorkstationSidebarConnector: React.FC = () => {
           onChange: handleSidebarSearchChange,
           placeholder: searchPlaceholder,
           noResultsTitle: noSearchResultsTitle,
+          showInput: false,
         }}
         listTopPadding={!workItemsContentVisible}
         bottomContent={
           <SidebarBottomBar
             leftContent={
-              <SidebarOrgSelector
-                value={activeOrgId}
-                options={orgSelectorOptions}
-                addOrgLabel={addOrgLabel}
-                manageLabel={manageOrgLabel}
-                onChange={handleOrgSelectorChange}
-                onAddOrg={handleAddOrgFromSelector}
-                onManageOrg={manageableCloudOrg ? handleManageOrg : undefined}
+              <SidebarMenuSearchInput
+                value={sidebarSearchQueries[activeSidebarSearchKey]}
+                onChange={handleSidebarSearchChange}
+                placeholder={searchPlaceholder}
+                compact
               />
             }
             rightActions={sidebarBottomRightActions}
@@ -1020,7 +1221,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
         isLoading={isLoading}
         collapsibleSections
         collapsedSectionIds={resolvedCollapsedSectionIds}
-        onCollapsedSectionsChange={resolvedSetCollapsedSectionIds}
+        onCollapsedSectionsChange={resolvedOnCollapsedSectionIdsChange}
         revealMenuItemRequest={
           activeSessionSidebarRevealRequest
             ? {

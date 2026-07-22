@@ -13,6 +13,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { createLogger } from "@src/hooks/logger";
+import { shouldEnableBrowserLogPolling } from "@src/hooks/workStation/browser/browserDiagnosticsPolicy";
 import { useWorkStationPanels } from "@src/hooks/workStation/panels/useWorkStationPanels";
 import { useBrowserConsole } from "@src/modules/WorkStation/Browser/hooks/useBrowserConsole";
 import { useBrowserNetworkLogs } from "@src/modules/WorkStation/Browser/hooks/useBrowserNetworkLogs";
@@ -150,6 +151,10 @@ export function useBrowserSessions(
   }, [enabled]);
 
   const effectivePollingEnabled = enabled && pollingEnabled;
+  const logPollingEnabled = shouldEnableBrowserLogPolling(
+    effectivePollingEnabled,
+    process.env.NODE_ENV
+  );
 
   // Compute active session info
   const activeSessionId = browserState.activeSessionId || "";
@@ -170,7 +175,7 @@ export function useBrowserSessions(
     sessionId: activeSessionId,
     webviewLabel: activeWebviewLabel,
     pollInterval: 1000,
-    enabled: effectivePollingEnabled,
+    enabled: logPollingEnabled,
   });
 
   // Network log management - delayed start
@@ -183,7 +188,7 @@ export function useBrowserSessions(
     sessionId: activeSessionId,
     webviewLabel: activeWebviewLabel,
     pollInterval: 1000,
-    enabled: effectivePollingEnabled,
+    enabled: logPollingEnabled,
   });
 
   // Element inspector - delayed start
