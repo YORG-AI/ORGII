@@ -36,7 +36,7 @@ import type {
   DiagnosticsUsageSnapshot,
 } from "./types";
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 const MAX_TOP_MODELS = 10;
 const MAX_RUST_AGENT_TOP_SESSIONS_PER_DAY = 10;
 const EXTERNAL_HISTORY_LIMIT = 200;
