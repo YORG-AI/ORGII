@@ -129,9 +129,10 @@ const sessionSnapshotAtomFamily = atomFamily((sessionId: string) => {
       }
     );
 
-    // Best-effort hydration. Bounded external sessions query/apply only one
-    // capped replay window; native SDE/subagent sessions retain the existing
-    // SQLite cache behavior. We do not await — the subscription handles push.
+    // Best-effort hydration. Rust prewarms and applies one capped replay
+    // window for bounded external sessions; native SDE/subagent sessions keep
+    // the existing SQLite cache behavior. We do not await — the subscription
+    // handles push.
     const hydration = resolveExternalReplayTarget(sessionId)
       ? ensureExternalReplayEventsInStore(sessionId)
       : eventStoreProxy.loadFromCache(sessionId);

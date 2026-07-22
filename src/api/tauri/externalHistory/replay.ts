@@ -179,6 +179,22 @@ export function externalReplayQueryWindowForTarget(options: {
 }
 
 /**
+ * Load and apply one latest bounded window entirely in Rust. The episode id
+ * belongs to the independent prewarm lifecycle, not the foreground watcher.
+ */
+export function externalReplayPrewarmWindow(
+  sessionId: string,
+  episodeId: number,
+  limits?: ExternalReplayLimits
+): Promise<ExternalReplayWindow> {
+  return rpc.externalReplay.prewarmWindow({
+    ...requireExternalReplayTarget(sessionId),
+    episodeId,
+    limits,
+  });
+}
+
+/**
  * Pure backend handoff fold for Fork. Rust pages the compact replay index and
  * returns at most 80 prompt-ready strings; no SessionEvent[] crosses IPC.
  */
@@ -200,23 +216,6 @@ export function externalReplayRelease(
   return rpc.externalReplay.release({
     ...requireExternalReplayTarget(sessionId),
     episodeId,
-  });
-}
-
-export function externalReplayApplyQueryWindow(options: {
-  sessionId: string;
-  generation: string;
-  revision: number;
-  replace: boolean;
-  events: ExternalReplayWindow["events"];
-}): Promise<number> {
-  const { sessionId, generation, revision, replace, events } = options;
-  return rpc.externalReplay.applyQueryWindow({
-    ...requireExternalReplayTarget(sessionId),
-    generation,
-    revision,
-    replace,
-    events,
   });
 }
 

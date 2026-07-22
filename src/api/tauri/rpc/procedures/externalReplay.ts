@@ -24,9 +24,9 @@ export const externalReplay = {
     .input(schemas.ExternalReplayHandoffInput)
     .output(schemas.ExternalReplayHandoffSchema)
     .build(),
-  applyQueryWindow: defineProcedure("external_replay_apply_query_window")
-    .input(schemas.ExternalReplayApplyQueryWindowInput)
-    .output(z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER))
+  prewarmWindow: defineProcedure("external_replay_prewarm_window")
+    .input(schemas.ExternalReplayPrewarmWindowInput)
+    .output(schemas.ExternalReplayWindowSchema)
     .build(),
   release: defineProcedure("external_replay_release")
     .input(schemas.ExternalReplayReleaseInput)

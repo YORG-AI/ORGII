@@ -7,6 +7,7 @@ import {
   ExternalReplayHandoffInput,
   ExternalReplayHandoffSchema,
   ExternalReplayOpenWindowInput,
+  ExternalReplayPrewarmWindowInput,
   ExternalReplayQueryWindowInput,
   ExternalReplayReadPayloadRangeInput,
   ExternalReplayReadWindowInput,
@@ -75,6 +76,22 @@ describe("external replay wire schemas", () => {
         limits: { maxEvents: 1 },
       })
     ).not.toHaveProperty("episodeId");
+    expect(
+      ExternalReplayPrewarmWindowInput.parse({
+        sourceId: "codex_app",
+        sessionId: "codexapp-1",
+        episodeId: 2,
+        limits: { maxTurns: 1, maxEvents: 200 },
+      }).episodeId
+    ).toBe(2);
+    expect(() =>
+      ExternalReplayPrewarmWindowInput.parse({
+        sourceId: "codex_app",
+        sessionId: "codexapp-1",
+        episodeId: 2,
+        limits: { maxIpcBytes: 4 * 1024 * 1024 + 1 },
+      })
+    ).toThrow();
   });
 
   it("validates bounded windows containing normalized SessionEvents", () => {

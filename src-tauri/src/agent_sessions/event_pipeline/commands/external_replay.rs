@@ -806,10 +806,10 @@ pub async fn external_replay_read_window(
 }
 
 /// Side-effect-free bounded replay query for hover cards, export previews,
-/// raw transcript virtualization, Fork handoff collection and explicit
-/// consumer-owned prewarming. It may advance the persistent compact source
-/// index, but it never acquires a foreground watcher, touches EventStore,
-/// schedules `es:changed`, or participates in the foreground request epoch.
+/// raw transcript virtualization and other read-only consumers. It may advance
+/// the persistent compact source index, but it never acquires a foreground
+/// watcher, touches EventStore, schedules `es:changed`, or participates in a
+/// delivery request epoch.
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn external_replay_query_window(
@@ -871,131 +871,89 @@ pub async fn external_replay_handoff(
     .map_err(|err| format!("join pure replay handoff task: {err}"))?
 }
 
-/// Explicit consumer-owned delivery for a previously returned pure query.
-/// Keeping this separate from `query_window` makes read-only callers unable
-/// to mutate EventStore accidentally, while Cursor prewarm/turn loading can
-/// request exactly one capped write and one notification.
+/// Prewarm one bounded external-history window and publish it directly into
+/// EventStore. Source parsing, normalization, Shell replay persistence and the
+/// authoritative replace all remain in Rust; the renderer receives the window
+/// only once and never sends its `SessionEvent[]` back over IPC.
+///
+/// Prewarm episodes are deliberately independent from foreground watcher
+/// episodes. A session switch/close clears both registries, while a newer
+/// prewarm episode invalidates any late completion from an earlier A visit.
 #[tauri::command]
-#[allow(clippy::too_many_arguments)]
-pub async fn external_replay_apply_query_window(
+pub async fn external_replay_prewarm_window(
     app: AppHandle,
     state: State<'_, EventStoreState>,
     source_id: String,
     session_id: String,
-    generation: String,
-    revision: u64,
-    replace: bool,
-    events: Vec<SessionEvent>,
-) -> Result<u64, String> {
-    validate_query_apply_cursor(&source_id, &session_id, &generation, revision)?;
-    if generation.is_empty() {
-        return Err("external replay query generation is required".to_string());
-    }
-    if events.iter().any(|event| event.session_id != session_id) {
-        return Err("external replay query events belong to another session".to_string());
-    }
-    if events
-        .iter()
-        .flat_map(|event| &event.payload_refs)
-        .any(|reference| {
-            reference
-                .replay_generation
-                .as_deref()
-                .is_some_and(|value| value != generation)
-        })
-    {
-        return Err("external replay query events mix source generations".to_string());
-    }
-    let incoming_bytes = serde_json::to_vec(&events)
-        .map_err(|error| format!("serialize explicit replay query apply: {error}"))?
-        .len();
-    if incoming_bytes > super::BOUNDED_REPLAY_STORE_MAX_BYTES {
-        return Err(format!(
-            "external replay query apply exceeds the {} byte store budget",
-            super::BOUNDED_REPLAY_STORE_MAX_BYTES
-        ));
-    }
-    state.with_store_mut(&session_id, |store| {
-        if replace {
-            store.set_external_replay_window(events);
-        } else {
-            store.merge_round_window_events(events);
-        }
-    });
-    let bytes =
-        state.cap_external_replay_store(&session_id, super::BOUNDED_REPLAY_STORE_MAX_BYTES)?;
-    schedule_notify(&app, &state, &session_id);
-    Ok(bytes as u64)
-}
+    episode_id: u64,
+    limits: Option<ReplayLimits>,
+) -> Result<ExternalReplayWindow, String> {
+    // This cheap identity check runs before registering an episode, so a
+    // native SDE session can neither call replay nor leave retained guard
+    // state, even if a caller spoofs an external source id.
+    validate_prewarm_target_identity(&source_id, &session_id)?;
+    let request_epoch = begin_prewarm_request(&session_id, episode_id)?;
+    let requested_limits = limits.unwrap_or_default().bounded();
+    let display_session_id = session_id.clone();
+    let requested_source_id = source_id.clone();
+    let window = tokio::task::spawn_blocking(move || {
+        load_replay_query_window(&source_id, &session_id, None, None, None, requested_limits)
+    })
+    .await
+    .map_err(|err| format!("join replay prewarm task: {err}"))??;
 
-fn validate_query_apply_cursor(
-    source_id: &str,
-    session_id: &str,
-    generation: &str,
-    revision: u64,
-) -> Result<(), String> {
-    match resolve_target(source_id, session_id)? {
-        ResolvedTarget::Imported {
-            source,
-            imported_session_id,
-        } => {
-            let mut conn = database::db::get_connection()
-                .map_err(|error| format!("open replay generation guard DB: {error}"))?;
-            let current = replay::scan_window_after_generation(
-                &mut conn,
-                source,
-                &imported_session_id,
-                generation,
-                revision,
-                -1,
-                ReplayLimits {
-                    max_turns: 1,
-                    max_events: 1,
-                    max_ipc_bytes: replay::HARD_MAX_IPC_BYTES,
-                },
-            )?;
-            validate_query_apply_version(
-                generation,
-                revision,
-                &current.cursor.generation,
-                current.cursor.revision,
-            )
+    let mut response = match window {
+        BackendWindow::Imported(window) | BackendWindow::Legacy(window) => {
+            normalize_window(window, &display_session_id)
         }
-        ResolvedTarget::CollaborationSnapshot => {
-            let conn = database::db::get_connection().map_err(|error| {
-                format!("open collaboration replay generation guard DB: {error}")
-            })?;
-            let current = collaboration_snapshot_state(&conn, session_id)?;
-            validate_query_apply_version(
-                generation,
-                revision,
-                &current.generation,
-                current.revision,
-            )
-        }
-        ResolvedTarget::LegacyChunks => {
-            let conn = database::db::get_connection()
-                .map_err(|error| format!("open managed replay generation guard DB: {error}"))?;
-            let current_generation = legacy_generation(&conn, session_id)?;
-            let current_revision = conn
-                .query_row(
-                    "SELECT COALESCE(MAX(sequence), 0) FROM code_session_chunks WHERE session_id=?1",
-                    [session_id],
-                    |row| row.get::<_, i64>(0),
-                )
-                .map_err(|error| format!("read managed replay current revision: {error}"))?
-                .max(0) as u64;
-            validate_query_apply_version(
-                generation,
-                revision,
-                &current_generation,
-                current_revision,
-            )
-        }
-        ResolvedTarget::NotReady => {
-            Err("managed native transcript is not ready for EventStore apply".to_string())
-        }
+        BackendWindow::CollaborationSnapshot(window) => window,
+        BackendWindow::NotReady => not_ready_window(&requested_source_id, &display_session_id),
+    };
+    remap_cursor(
+        &mut response.cursor,
+        &requested_source_id,
+        &display_session_id,
+    );
+
+    if response.stats.not_ready {
+        finalize_window_wire_budget(&mut response, requested_limits.max_ipc_bytes)?;
+        return Ok(response);
     }
+    if !is_current_prewarm_request(&display_session_id, episode_id, request_epoch) {
+        finalize_window_wire_budget(&mut response, requested_limits.max_ipc_bytes)?;
+        return Ok(response);
+    }
+
+    let generation = response.cursor.generation.clone();
+    persist_shell_replays_for_delivery(
+        &requested_source_id,
+        &display_session_id,
+        &generation,
+        &mut response.events,
+    )
+    .await?;
+    if !is_current_prewarm_request(&display_session_id, episode_id, request_epoch) {
+        finalize_window_wire_budget(&mut response, requested_limits.max_ipc_bytes)?;
+        return Ok(response);
+    }
+
+    // Prewarming is demand-driven and never owns a foreground watcher.
+    response.watcher_available = false;
+    finalize_window_wire_budget(&mut response, requested_limits.max_ipc_bytes)?;
+    if !apply_prewarm_window_if_current(
+        &state,
+        &display_session_id,
+        episode_id,
+        request_epoch,
+        &response.events,
+    ) {
+        return Ok(response);
+    }
+    state.cap_external_replay_store(&display_session_id, super::BOUNDED_REPLAY_STORE_MAX_BYTES)?;
+    if is_current_prewarm_request(&display_session_id, episode_id, request_epoch) {
+        schedule_notify(&app, &state, &display_session_id);
+    }
+    Ok(response)
 }
 
 fn validate_query_apply_version(
@@ -3002,6 +2960,29 @@ fn resolve_target(source_id: &str, session_id: &str) -> Result<ResolvedTarget, S
     })
 }
 
+/// Validate only identities admitted to the primary bounded-replay registry.
+/// This intentionally excludes snapshot-backed native `agentsession-*` forks,
+/// whose compact index is available solely to read-only secondary consumers.
+fn validate_prewarm_target_identity(source_id: &str, session_id: &str) -> Result<(), String> {
+    if session_id.starts_with(COLLABORATION_SNAPSHOT_SESSION_PREFIX) {
+        if source_id != COLLABORATION_SNAPSHOT_REPLAY_SOURCE_ID {
+            return Err(format!(
+                "Collaboration snapshot replay requires sourceId={COLLABORATION_SNAPSHOT_REPLAY_SOURCE_ID}"
+            ));
+        }
+        return validate_collaboration_snapshot_session_id(session_id);
+    }
+    if session_id.starts_with("cliagent-") {
+        return (source_id == MANAGED_CLI_REPLAY_SOURCE_ID)
+            .then_some(())
+            .ok_or_else(|| {
+                format!("Managed prewarm requires sourceId={MANAGED_CLI_REPLAY_SOURCE_ID}")
+            });
+    }
+    let source = ImportedHistorySourceId::parse(source_id)?;
+    source.validate_session_id(session_id)
+}
+
 /// Resolve only the read-only/background consumers that are allowed to reuse
 /// a Cloud fork's inherited snapshot index. Foreground open/poll/read/release
 /// continue to call `resolve_target`, so a native Agent session can never
@@ -3883,6 +3864,8 @@ fn session_events_equal(left: &SessionEvent, right: &SessionEvent) -> bool {
 
 const REPLAY_REQUEST_EPOCH_TTL: Duration = Duration::from_secs(5 * 60);
 const MAX_REPLAY_REQUEST_EPOCHS: usize = 64;
+const PREWARM_REQUEST_EPOCH_TTL: Duration = Duration::from_secs(5 * 60);
+const MAX_PREWARM_REQUEST_EPOCHS: usize = 64;
 
 #[derive(Debug, Clone, Copy)]
 struct ReplayRequestEpoch {
@@ -3891,9 +3874,120 @@ struct ReplayRequestEpoch {
     touched_at: Instant,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct PrewarmRequestEpoch {
+    value: u64,
+    episode_id: u64,
+    active: bool,
+    touched_at: Instant,
+}
+
 fn replay_request_epochs() -> &'static Mutex<HashMap<String, ReplayRequestEpoch>> {
     static EPOCHS: OnceLock<Mutex<HashMap<String, ReplayRequestEpoch>>> = OnceLock::new();
     EPOCHS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn prewarm_request_epochs() -> &'static Mutex<HashMap<String, PrewarmRequestEpoch>> {
+    static EPOCHS: OnceLock<Mutex<HashMap<String, PrewarmRequestEpoch>>> = OnceLock::new();
+    EPOCHS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn begin_prewarm_request(session_id: &str, episode_id: u64) -> Result<u64, String> {
+    static NEXT_EPOCH: AtomicU64 = AtomicU64::new(0);
+    let now = Instant::now();
+    let mut epochs = prewarm_request_epochs()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    epochs.retain(|_, entry| now.duration_since(entry.touched_at) < PREWARM_REQUEST_EPOCH_TTL);
+    if let Some(current) = epochs.get(session_id) {
+        if current.episode_id > episode_id || (!current.active && current.episode_id >= episode_id)
+        {
+            return Err(format!(
+                "stale external replay prewarm episode {episode_id}; current episode is {}",
+                current.episode_id
+            ));
+        }
+    }
+    if !epochs.contains_key(session_id) && epochs.len() >= MAX_PREWARM_REQUEST_EPOCHS {
+        if let Some(oldest) = epochs
+            .iter()
+            .min_by_key(|(_, entry)| entry.touched_at)
+            .map(|(session_id, _)| session_id.clone())
+        {
+            epochs.remove(&oldest);
+        }
+    }
+    let value = NEXT_EPOCH.fetch_add(1, Ordering::Relaxed).saturating_add(1);
+    epochs.insert(
+        session_id.to_string(),
+        PrewarmRequestEpoch {
+            value,
+            episode_id,
+            active: true,
+            touched_at: now,
+        },
+    );
+    Ok(value)
+}
+
+fn is_current_prewarm_request(session_id: &str, episode_id: u64, epoch: u64) -> bool {
+    prewarm_request_epochs()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .get(session_id)
+        .is_some_and(|current| {
+            current.active && current.episode_id == episode_id && current.value == epoch
+        })
+}
+
+/// Mark the latest prewarm episode as cancelled without dropping its episode
+/// floor. Keeping a short-lived tombstone prevents a delayed IPC invocation
+/// from recreating the just-closed A episode after an A -> B switch.
+pub(super) fn cancel_prewarm_requests(session_id: &str) {
+    let mut epochs = prewarm_request_epochs()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some(current) = epochs.get_mut(session_id) {
+        current.active = false;
+        current.touched_at = Instant::now();
+    }
+}
+
+/// Validate the independent prewarm ticket and publish its bounded window as
+/// one linearizable operation. The lock order is session manager -> stores ->
+/// prewarm registry; `es_switch_session` cancels the old prewarm while holding
+/// the manager lock, so either this commit wins before the switch or it cannot
+/// write after the switch.
+fn apply_prewarm_window_if_current(
+    state: &EventStoreState,
+    session_id: &str,
+    episode_id: u64,
+    epoch: u64,
+    events: &[SessionEvent],
+) -> bool {
+    let mut manager = state
+        .session_manager
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut stores = state
+        .stores
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let epochs = prewarm_request_epochs()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let is_current = epochs.get(session_id).is_some_and(|current| {
+        current.active && current.episode_id == episode_id && current.value == epoch
+    });
+    if !is_current {
+        return false;
+    }
+    manager.register(session_id);
+    stores
+        .entry(session_id.to_string())
+        .or_default()
+        .set_external_replay_window(events.to_vec());
+    true
 }
 
 fn begin_replay_request(
@@ -3980,6 +4074,7 @@ fn release_session_runtime_if_episode(session_id: &str, episode_id: u64) {
         }
     };
     if released {
+        cancel_prewarm_requests(session_id);
         external_replay_watcher::release_session_if_episode(session_id, episode_id);
     }
 }
@@ -3992,6 +4087,7 @@ pub(super) fn release_session_runtime(session_id: &str) {
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .remove(session_id);
+    cancel_prewarm_requests(session_id);
     external_replay_watcher::release_session(session_id);
 }
 
@@ -6575,6 +6671,82 @@ mod tests {
         assert!(!is_current_replay_request(session_a, 100, stale_a));
         assert!(is_current_replay_request(session_a, 101, reopened_a));
         release_session_runtime(session_a);
+    }
+
+    #[test]
+    fn prewarm_episode_is_independent_and_release_rejects_late_a_completion() {
+        let session_a = "codexapp-prewarm-episode-a";
+        let first = begin_prewarm_request(session_a, 40).expect("first prewarm");
+        assert!(is_current_prewarm_request(session_a, 40, first));
+        assert!(!replay_request_epochs()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .contains_key(session_a));
+
+        let current = begin_prewarm_request(session_a, 41).expect("newer prewarm");
+        assert!(!is_current_prewarm_request(session_a, 40, first));
+        assert!(is_current_prewarm_request(session_a, 41, current));
+        assert!(begin_prewarm_request(session_a, 40).is_err());
+
+        release_session_runtime(session_a);
+        assert!(!is_current_prewarm_request(session_a, 41, current));
+        assert!(begin_prewarm_request(session_a, 41).is_err());
+        let reopened = begin_prewarm_request(session_a, 42).expect("reopened prewarm");
+        assert_ne!(reopened, first);
+        assert!(is_current_prewarm_request(session_a, 42, reopened));
+        release_session_runtime(session_a);
+    }
+
+    #[test]
+    fn foreground_release_cancels_current_prewarm_without_touching_native_state() {
+        let external_session = "codexapp-prewarm-release";
+        let foreground = begin_replay_request(external_session, 500, true).expect("foreground");
+        let prewarm = begin_prewarm_request(external_session, 12).expect("prewarm");
+        assert!(is_current_replay_request(external_session, 500, foreground));
+        assert!(is_current_prewarm_request(external_session, 12, prewarm));
+        release_session_runtime_if_episode(external_session, 500);
+        assert!(!is_current_prewarm_request(external_session, 12, prewarm));
+
+        let native_session = "sdeagent-native-prewarm-boundary";
+        assert!(validate_prewarm_target_identity("codex_app", native_session).is_err());
+        assert!(!prewarm_request_epochs()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .contains_key(native_session));
+    }
+
+    #[test]
+    fn cancelled_prewarm_cannot_commit_or_reopen_the_same_episode() {
+        let session_id = "codexapp-prewarm-atomic-commit";
+        let state = EventStoreState::new();
+        let stale_epoch = begin_prewarm_request(session_id, 70).expect("first prewarm");
+        cancel_prewarm_requests(session_id);
+
+        assert!(!apply_prewarm_window_if_current(
+            &state,
+            session_id,
+            70,
+            stale_epoch,
+            &[event("stale", session_id, "must not publish")],
+        ));
+        assert!(state
+            .with_store_opt(session_id, |store| store.events().len())
+            .is_none());
+        assert!(begin_prewarm_request(session_id, 70).is_err());
+
+        let current_epoch = begin_prewarm_request(session_id, 71).expect("next visit");
+        assert!(apply_prewarm_window_if_current(
+            &state,
+            session_id,
+            71,
+            current_epoch,
+            &[event("current", session_id, "publish")],
+        ));
+        assert_eq!(
+            state.with_store_opt(session_id, |store| store.events().len()),
+            Some(1)
+        );
+        release_session_runtime(session_id);
     }
 
     #[test]

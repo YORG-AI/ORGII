@@ -1029,14 +1029,14 @@ orgtrack::history_commands::cline_recent_paths,
 orgtrack::history_commands::workbuddy_recent_paths,
 orgtrack::history_commands::imported_history_subagent_count,
 // Bounded external/managed CLI replay (#443). Foreground open/poll/read own
-// EventStore delivery; query_window is explicitly side-effect-free for hover,
-// raw/export previews and consumer-owned prewarming.
+// EventStore delivery; query_window is explicitly side-effect-free for hover
+// and raw/export previews, while prewarm_window owns one guarded Rust apply.
 agent_sessions::event_pipeline::commands::external_replay::external_replay_open_window,
 agent_sessions::event_pipeline::commands::external_replay::external_replay_poll_delta,
 agent_sessions::event_pipeline::commands::external_replay::external_replay_read_window,
 agent_sessions::event_pipeline::commands::external_replay::external_replay_query_window,
 agent_sessions::event_pipeline::commands::external_replay::external_replay_handoff,
-agent_sessions::event_pipeline::commands::external_replay::external_replay_apply_query_window,
+agent_sessions::event_pipeline::commands::external_replay::external_replay_prewarm_window,
 agent_sessions::event_pipeline::commands::external_replay::external_replay_release,
 agent_sessions::event_pipeline::commands::external_replay::external_replay_read_payload_range,
 agent_sessions::event_pipeline::commands::external_replay::external_replay_stream_export,

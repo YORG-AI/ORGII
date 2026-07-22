@@ -125,6 +125,12 @@ export const ExternalReplayQueryWindowInput = ExternalReplayTargetInput.extend({
   { message: "Choose only one replay window locator" }
 );
 
+export const ExternalReplayPrewarmWindowInput =
+  ExternalReplayTargetInput.extend({
+    episodeId: SafeU64Schema,
+    limits: ExternalReplayLimitsSchema,
+  });
+
 export const ExternalReplayHandoffInput = ExternalReplayTargetInput.extend({
   sourceName: z.string().trim().min(1).max(200),
 });
@@ -139,16 +145,6 @@ export const ExternalReplayHandoffSchema = z.object({
 export const ExternalReplayReleaseInput = ExternalReplayTargetInput.extend({
   episodeId: SafeU64Schema,
 });
-
-export const ExternalReplayApplyQueryWindowInput =
-  ExternalReplayTargetInput.extend({
-    generation: z.string().min(1),
-    revision: SafeU64Schema,
-    replace: z.boolean(),
-    events: SessionEventArraySchema.refine((events) => events.length <= 200, {
-      message: "A bounded replay apply accepts at most 200 events",
-    }),
-  });
 
 export const ExternalReplayReadPayloadRangeInput =
   ExternalReplayTargetInput.extend({

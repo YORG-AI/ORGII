@@ -1,7 +1,6 @@
 /** Cursor IDE prewarming on top of the source-neutral bounded replay state. */
 import {
-  externalReplayApplyQueryWindow,
-  externalReplayQueryWindow,
+  externalReplayPrewarmWindow,
   resolveExternalReplayTarget,
 } from "@src/api/tauri/externalHistory/replay";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
@@ -18,7 +17,7 @@ const inFlightLoads = new Map<string, Promise<void>>();
 /**
  * Pre-warm a parent or nested Cursor composer without a full-bubble fallback.
  * Repeated and concurrent calls are coalesced; the Rust command owns the
- * EventStore write, so no ActivityChunk array crosses back into Rust.
+ * EventStore write, so the bounded SessionEvent window crosses IPC only once.
  */
 export async function ensureExternalReplayEventsInStore(
   sessionId: string,
@@ -35,18 +34,17 @@ export async function ensureExternalReplayEventsInStore(
   const episode = options?.forceReload
     ? startExternalReplayTurnEpisode(sessionId)
     : captureExternalReplayTurnEpisode(sessionId);
-  const work: Promise<void> = externalReplayQueryWindow({ sessionId })
-    .then(async (window) => {
-      if (!isCurrentExternalReplayTurnEpisode(sessionId, episode)) return;
-      await externalReplayApplyQueryWindow({
-        sessionId,
-        generation: window.cursor.generation,
-        revision: window.cursor.revision,
-        replace: true,
-        events: window.events,
-      });
+  const work: Promise<void> = externalReplayPrewarmWindow(sessionId, episode.id)
+    .then((window) => {
       if (!isCurrentExternalReplayTurnEpisode(sessionId, episode)) return;
       mergeExternalReplayTurnWindow(sessionId, window);
+    })
+    .catch((error: unknown) => {
+      // A newer prewarm may reach Rust before an older queued IPC request.
+      // That old request is expected to fail its monotonic episode guard and
+      // must not surface as a load error for the now-current session.
+      if (!isCurrentExternalReplayTurnEpisode(sessionId, episode)) return;
+      throw error;
     })
     .finally(() => {
       if (inFlightLoads.get(sessionId) === work) {

@@ -23,7 +23,7 @@ export interface OpenedE2EBoundedReplaySession {
 /**
  * Open the same foreground bounded-replay episode used by the product.
  *
- * This intentionally does not use the pure query/apply debug RPCs: the
+ * This intentionally does not use the demand-driven prewarm RPC: the
  * foreground open owns EventStore application, watcher creation and request
  * epochs. The caller owns the returned lease and must deactivate it when the
  * E2E session is switched, reset or fails to finish opening.

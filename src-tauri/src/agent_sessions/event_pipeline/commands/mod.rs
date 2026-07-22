@@ -197,7 +197,14 @@ impl EventStoreState {
         session_id: &str,
         max_bytes: usize,
     ) -> Result<usize, String> {
-        let bytes = {
+        // Match the EventStore write/switch lock order: manager -> stores.
+        // Reversing it here can deadlock a prewarm cap against A -> B switch,
+        // which holds the manager while inspecting the target store.
+        let (bytes, evicted) = {
+            let mut manager = self
+                .session_manager
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
             let mut stores = self.stores.lock().unwrap_or_else(|e| e.into_inner());
             let Some(store) = stores.get_mut(session_id) else {
                 return Ok(0);
@@ -205,14 +212,9 @@ impl EventStoreState {
             #[cfg(test)]
             self.bounded_replay_exact_cap_count
                 .fetch_add(1, Ordering::Relaxed);
-            store.cap_external_replay_bytes(max_bytes)?
-        };
-        let evicted = {
-            let mut manager = self
-                .session_manager
-                .lock()
-                .unwrap_or_else(|e| e.into_inner());
-            manager.update_estimated_bytes(session_id, bytes)
+            let bytes = store.cap_external_replay_bytes(max_bytes)?;
+            let evicted = manager.update_estimated_bytes(session_id, bytes);
+            (bytes, evicted)
         };
         self.remove_evicted_replay_stores(evicted);
         Ok(bytes)

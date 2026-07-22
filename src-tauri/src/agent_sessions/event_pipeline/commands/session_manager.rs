@@ -29,7 +29,20 @@ pub async fn es_switch_session(
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         let previous_active = mgr.active_id().map(str::to_string);
+        // Serialize old-session prewarm cancellation with its EventStore
+        // commit. The commit takes the same manager lock before checking its
+        // independent episode ticket, so a late A request cannot write after
+        // the active session has switched to B.
+        if let Some(previous_active) = previous_active
+            .as_deref()
+            .filter(|previous_active| *previous_active != session_id)
+        {
+            external_replay::cancel_prewarm_requests(previous_active);
+        }
         let evicted = mgr.set_active(&session_id);
+        for evicted_session_id in &evicted {
+            external_replay::cancel_prewarm_requests(evicted_session_id);
+        }
         let event_count = {
             let stores = state.stores.lock().unwrap_or_else(|e| e.into_inner());
             stores

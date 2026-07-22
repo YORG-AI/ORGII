@@ -8,8 +8,7 @@ import {
 } from "../cursorIdeAdapter";
 
 const mocks = vi.hoisted(() => ({
-  queryWindow: vi.fn(),
-  applyQueryWindow: vi.fn(async () => 0),
+  prewarmWindow: vi.fn(),
   getLatestSessionSnapshot: vi.fn(() => null),
   setAtom: vi.fn(),
   foregroundOpen: vi.fn(),
@@ -25,8 +24,7 @@ vi.mock("@src/api/tauri/externalHistory/replay", () => ({
             : "codex_app",
           sessionId,
         },
-  externalReplayQueryWindow: mocks.queryWindow,
-  externalReplayApplyQueryWindow: mocks.applyQueryWindow,
+  externalReplayPrewarmWindow: mocks.prewarmWindow,
   externalReplayOpenWindow: mocks.foregroundOpen,
 }));
 
@@ -79,36 +77,30 @@ function windowResult(
   };
 }
 
-describe("Cursor IDE pure-query delivery guards", () => {
+describe("Cursor IDE Rust-owned prewarm guards", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getLatestSessionSnapshot.mockReturnValue(null);
   });
 
-  it("prewarms through the pure query and one explicit capped apply", async () => {
-    mocks.queryWindow.mockResolvedValue(windowResult("g1", 7));
+  it("prewarms through one Rust-owned bounded request", async () => {
+    mocks.prewarmWindow.mockResolvedValue(windowResult("g1", 7));
 
     await ensureCursorIdeEventsInStore("cursoride-guard-test", {
       forceReload: true,
     });
 
-    expect(mocks.queryWindow).toHaveBeenCalledWith({
-      sessionId: "cursoride-guard-test",
-    });
-    expect(mocks.applyQueryWindow).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sessionId: "cursoride-guard-test",
-        generation: "g1",
-        revision: 7,
-        replace: true,
-      })
+    expect(mocks.prewarmWindow).toHaveBeenCalledWith(
+      "cursoride-guard-test",
+      expect.any(Number)
     );
+    expect(mocks.setAtom).toHaveBeenCalledTimes(1);
     expect(mocks.foregroundOpen).not.toHaveBeenCalled();
   });
 
-  it("drops an A query that resolves after a newer A episode", async () => {
+  it("drops an A prewarm result after a newer A episode", async () => {
     const oldA = deferred<ExternalReplayWindow>();
-    mocks.queryWindow
+    mocks.prewarmWindow
       .mockReturnValueOnce(oldA.promise)
       .mockResolvedValueOnce(windowResult("g2", 2));
 
@@ -122,36 +114,29 @@ describe("Cursor IDE pure-query delivery guards", () => {
     oldA.resolve(windowResult("g1", 1));
     await stale;
 
-    expect(mocks.applyQueryWindow).toHaveBeenCalledTimes(1);
-    expect(mocks.applyQueryWindow).toHaveBeenCalledWith(
-      expect.objectContaining({ generation: "g2", revision: 2 })
-    );
+    expect(mocks.setAtom).toHaveBeenCalledTimes(1);
+    const firstEpisode = mocks.prewarmWindow.mock.calls[0]?.[1] as number;
+    const secondEpisode = mocks.prewarmWindow.mock.calls[1]?.[1] as number;
+    expect(secondEpisode).toBeGreaterThan(firstEpisode);
   });
 
   it("uses the same bounded prewarm for non-Cursor external sessions", async () => {
     const window = windowResult("codex-generation", 9);
     window.cursor.sourceId = "codex_app";
     window.cursor.sessionId = "codexapp-nested";
-    mocks.queryWindow.mockResolvedValue(window);
+    mocks.prewarmWindow.mockResolvedValue(window);
 
     await ensureExternalReplayEventsInStore("codexapp-nested");
 
-    expect(mocks.queryWindow).toHaveBeenCalledWith({
-      sessionId: "codexapp-nested",
-    });
-    expect(mocks.applyQueryWindow).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sessionId: "codexapp-nested",
-        generation: "codex-generation",
-        replace: true,
-      })
+    expect(mocks.prewarmWindow).toHaveBeenCalledWith(
+      "codexapp-nested",
+      expect.any(Number)
     );
   });
 
   it("never sends a native SDE session through external replay", async () => {
     await ensureExternalReplayEventsInStore("sdeagent-native");
 
-    expect(mocks.queryWindow).not.toHaveBeenCalled();
-    expect(mocks.applyQueryWindow).not.toHaveBeenCalled();
+    expect(mocks.prewarmWindow).not.toHaveBeenCalled();
   });
 });
