@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::canonical::{ResourceAction, ResourceInteractionOutcome};
-use crate::development_artifact::parse_git_artifacts_from_tool_payload;
+use crate::development_artifact::{parse_git_artifacts_from_tool_payload, replay_git_artifacts};
 use crate::resource_interaction::{
     action_for_tool_name, file_interactions_from_tool, interaction_outcome_from_tool_result,
 };
@@ -26,6 +26,153 @@ use crate::resource_interaction::{
 const STATUS_CREATED: &str = "created";
 const STATUS_DELETED: &str = "deleted";
 const STATUS_MODIFIED: &str = "modified";
+
+/// The payload and projection work required to derive compact turn metadata
+/// from one normalized event.
+///
+/// This type deliberately describes projection capabilities rather than a
+/// denylist of event names. Callers such as the SQLite turn-index rebuild use
+/// it before calling `Row::get` so large JSON columns that cannot contribute
+/// metadata never become Rust `String`s in the first place. Unknown tools use
+/// the conservative all-enabled shape so adding a provider tool cannot
+/// silently drop metadata.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MetadataProjectionRequirements {
+    load_args_json: bool,
+    load_result_json: bool,
+    project_resource_interactions: bool,
+    project_modified_files: bool,
+    project_git_artifacts: bool,
+}
+
+impl MetadataProjectionRequirements {
+    const NONE: Self = Self {
+        load_args_json: false,
+        load_result_json: false,
+        project_resource_interactions: false,
+        project_modified_files: false,
+        project_git_artifacts: false,
+    };
+
+    const CONSERVATIVE: Self = Self {
+        load_args_json: true,
+        load_result_json: true,
+        project_resource_interactions: true,
+        project_modified_files: true,
+        project_git_artifacts: true,
+    };
+
+    pub const fn needs_args_json(self) -> bool {
+        self.load_args_json
+    }
+
+    pub const fn needs_result_json(self) -> bool {
+        self.load_result_json
+    }
+
+    pub const fn projects_resource_interactions(self) -> bool {
+        self.project_resource_interactions
+    }
+
+    pub const fn projects_modified_files(self) -> bool {
+        self.project_modified_files
+    }
+
+    pub const fn projects_git_artifacts(self) -> bool {
+        self.project_git_artifacts
+    }
+
+    pub const fn is_empty(self) -> bool {
+        !self.load_args_json
+            && !self.load_result_json
+            && !self.project_resource_interactions
+            && !self.project_modified_files
+            && !self.project_git_artifacts
+    }
+}
+
+/// Classify the minimum work needed to project one normalized event.
+///
+/// Exact known-no-metadata names are intentionally kept narrow. Broad
+/// substring matching here would make a future provider tool disappear from
+/// historical metadata merely because its display name happened to contain
+/// words such as `message` or `node`.
+pub fn metadata_projection_requirements(
+    function_name: Option<&str>,
+) -> MetadataProjectionRequirements {
+    let Some(function_name) = function_name else {
+        return MetadataProjectionRequirements::NONE;
+    };
+    let normalized = function_name.trim().to_ascii_lowercase();
+
+    if matches!(
+        normalized.as_str(),
+        "user"
+            | "user_message"
+            | "assistant"
+            | "assistant_message"
+            | "agent_message"
+            | "thinking"
+            | "think"
+            | "llm_thinking"
+            | "llm_thinking_delta"
+            | "thinking_delta"
+            | "reasoning"
+            | "internal_monologue"
+            | "reflection"
+            | "node_repl"
+            | "node-repl"
+            | "node repl"
+    ) {
+        return MetadataProjectionRequirements::NONE;
+    }
+
+    // Search result bodies can be enormous. The turn projection's existing
+    // search policy only needs the compact input side (for example `path`)
+    // and deliberately does not harvest paths from result matches.
+    if matches!(normalized.as_str(), "grep" | "ripgrep" | "code_search") {
+        return MetadataProjectionRequirements {
+            load_args_json: true,
+            load_result_json: false,
+            project_resource_interactions: true,
+            project_modified_files: false,
+            project_git_artifacts: false,
+        };
+    }
+
+    if let Some(action) = action_for_tool_name(function_name) {
+        return MetadataProjectionRequirements {
+            load_args_json: true,
+            // Results carry failure status, provider-returned paths, patch
+            // segments, and exact line statistics.
+            load_result_json: true,
+            project_resource_interactions: true,
+            project_modified_files: is_modifying_action(action),
+            project_git_artifacts: false,
+        };
+    }
+
+    if matches!(
+        normalized.as_str(),
+        "bash"
+            | "shell"
+            | "run_command"
+            | "run_command_line"
+            | "terminal"
+            | "terminal_command"
+            | "execute_command"
+    ) {
+        return MetadataProjectionRequirements {
+            load_args_json: true,
+            load_result_json: true,
+            project_resource_interactions: false,
+            project_modified_files: false,
+            project_git_artifacts: true,
+        };
+    }
+
+    MetadataProjectionRequirements::CONSERVATIVE
+}
 
 /// One file the round wrote to, with summed line stats. Serialized as the
 /// camelCase shape the frontend `FileChangeInfo` expects.
@@ -106,27 +253,112 @@ impl TurnMetadataAccumulator {
         let Some(function_name) = function_name else {
             return;
         };
-        let args = serde_json::from_str::<Value>(args_json).unwrap_or(Value::Null);
-        let result = serde_json::from_str::<Value>(result_json).unwrap_or(Value::Null);
-        let outcome = interaction_outcome_from_tool_result(&result);
-
-        for interaction in file_interactions_from_tool(function_name, &args, Some(&result)) {
-            self.merge_resource_interaction(
-                interaction.file_path,
-                interaction.action,
-                outcome,
-                occurred_at,
-            );
+        let requirements = metadata_projection_requirements(Some(function_name));
+        if requirements.is_empty() {
+            return;
         }
 
-        if outcome != ResourceInteractionOutcome::Failed {
-            for change in extract_event_files(function_name, &args, &result) {
-                self.merge_modified_file(change);
+        let args = requirements
+            .needs_args_json()
+            .then(|| serde_json::from_str::<Value>(args_json).unwrap_or(Value::Null));
+        let result = requirements
+            .needs_result_json()
+            .then(|| serde_json::from_str::<Value>(result_json).unwrap_or(Value::Null));
+        self.add_parsed_event_at(
+            function_name,
+            args.as_ref().unwrap_or(&Value::Null),
+            result.as_ref().unwrap_or(&Value::Null),
+            occurred_at,
+            requirements,
+        );
+
+        if requirements.projects_git_artifacts() {
+            for artifact in parse_git_artifacts_from_tool_payload(args_json, result_json) {
+                self.merge_artifact(artifact);
+            }
+            if let Some(result) = result.as_ref() {
+                for artifact in replay_git_artifacts(result) {
+                    self.merge_artifact(artifact);
+                }
+            }
+        }
+    }
+
+    /// Fold an event whose normalized payloads are already parsed.
+    ///
+    /// Imported-history adapters use this path to avoid serializing a
+    /// `serde_json::Value` to text only for the projector to parse it again.
+    pub fn add_event_values_at(
+        &mut self,
+        function_name: Option<&str>,
+        args: &Value,
+        result: &Value,
+        occurred_at: &str,
+    ) {
+        let Some(function_name) = function_name else {
+            return;
+        };
+        let requirements = metadata_projection_requirements(Some(function_name));
+        if requirements.is_empty() {
+            return;
+        }
+
+        self.add_parsed_event_at(
+            function_name,
+            if requirements.needs_args_json() {
+                args
+            } else {
+                &Value::Null
+            },
+            if requirements.needs_result_json() {
+                result
+            } else {
+                &Value::Null
+            },
+            occurred_at,
+            requirements,
+        );
+
+        if requirements.projects_git_artifacts() {
+            // Git artifact parsing intentionally keeps one canonical parser
+            // for persisted JSON and imported Values. Serialization happens
+            // only for tool classes that can actually produce Git metadata.
+            let args_json = serde_json::to_string(args).unwrap_or_else(|_| "null".to_string());
+            let result_json = serde_json::to_string(result).unwrap_or_else(|_| "null".to_string());
+            for artifact in parse_git_artifacts_from_tool_payload(&args_json, &result_json) {
+                self.merge_artifact(artifact);
+            }
+            for artifact in replay_git_artifacts(result) {
+                self.merge_artifact(artifact);
+            }
+        }
+    }
+
+    fn add_parsed_event_at(
+        &mut self,
+        function_name: &str,
+        args: &Value,
+        result: &Value,
+        occurred_at: &str,
+        requirements: MetadataProjectionRequirements,
+    ) {
+        let outcome = interaction_outcome_from_tool_result(result);
+
+        if requirements.projects_resource_interactions() {
+            for interaction in file_interactions_from_tool(function_name, args, Some(result)) {
+                self.merge_resource_interaction(
+                    interaction.file_path,
+                    interaction.action,
+                    outcome,
+                    occurred_at,
+                );
             }
         }
 
-        for artifact in parse_git_artifacts_from_tool_payload(args_json, result_json) {
-            self.merge_artifact(artifact);
+        if requirements.projects_modified_files() && outcome != ResourceInteractionOutcome::Failed {
+            for change in extract_event_files(function_name, args, result) {
+                self.merge_modified_file(change);
+            }
         }
     }
 
@@ -321,13 +553,10 @@ pub fn project_activity_chunks(chunks: &[ActivityChunk]) -> Vec<ProjectedTurnMet
         {
             turn.ended_at = Some(chunk.created_at.clone());
         }
-        let args_json = serde_json::to_string(&chunk.args).unwrap_or_else(|_| "null".to_string());
-        let result_json =
-            serde_json::to_string(&chunk.result).unwrap_or_else(|_| "null".to_string());
-        turn.metadata.add_event_at(
+        turn.metadata.add_event_values_at(
             Some(&chunk.function),
-            &args_json,
-            &result_json,
+            &chunk.args,
+            &chunk.result,
             &chunk.created_at,
         );
     }
@@ -343,6 +572,17 @@ fn activity_chunk_text(chunk: &ActivityChunk) -> String {
         .into_iter()
         .find_map(|field| chunk.args.get(field).and_then(Value::as_str))
         .or_else(|| chunk.args.as_str())
+        // Imported providers normalize user bubbles through
+        // `user_message_chunk`, whose canonical text lives in
+        // `result.message.content`. Keep metadata previews aligned with the
+        // rendered replay instead of silently returning an empty string.
+        .or_else(|| {
+            chunk
+                .result
+                .pointer("/message/content")
+                .and_then(Value::as_str)
+        })
+        .or_else(|| chunk.result.get("content").and_then(Value::as_str))
         .unwrap_or_default()
         .to_string()
 }
@@ -639,6 +879,138 @@ fn merge_missing_artifact_fields(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn add_event_with_legacy_projection(
+        acc: &mut TurnMetadataAccumulator,
+        function_name: Option<&str>,
+        args_json: &str,
+        result_json: &str,
+        occurred_at: &str,
+    ) {
+        let Some(function_name) = function_name else {
+            return;
+        };
+        let args = serde_json::from_str::<Value>(args_json).unwrap_or(Value::Null);
+        let result = serde_json::from_str::<Value>(result_json).unwrap_or(Value::Null);
+        let outcome = interaction_outcome_from_tool_result(&result);
+
+        for interaction in file_interactions_from_tool(function_name, &args, Some(&result)) {
+            acc.merge_resource_interaction(
+                interaction.file_path,
+                interaction.action,
+                outcome,
+                occurred_at,
+            );
+        }
+        if outcome != ResourceInteractionOutcome::Failed {
+            for change in extract_event_files(function_name, &args, &result) {
+                acc.merge_modified_file(change);
+            }
+        }
+        for artifact in parse_git_artifacts_from_tool_payload(args_json, result_json) {
+            acc.merge_artifact(artifact);
+        }
+    }
+
+    #[test]
+    fn projection_requirements_short_circuit_only_known_safe_tool_classes() {
+        for name in [
+            "user_message",
+            "assistant",
+            "assistant_message",
+            "thinking",
+            "reasoning",
+            "node_repl",
+        ] {
+            assert!(
+                metadata_projection_requirements(Some(name)).is_empty(),
+                "{name} should not load metadata payloads"
+            );
+        }
+
+        let grep = metadata_projection_requirements(Some("Grep"));
+        assert!(grep.needs_args_json());
+        assert!(!grep.needs_result_json());
+        assert!(grep.projects_resource_interactions());
+        assert!(!grep.projects_modified_files());
+        assert!(!grep.projects_git_artifacts());
+
+        let read = metadata_projection_requirements(Some("Read"));
+        assert!(read.needs_args_json());
+        assert!(read.needs_result_json());
+        assert!(read.projects_resource_interactions());
+        assert!(!read.projects_modified_files());
+        assert!(!read.projects_git_artifacts());
+
+        let edit = metadata_projection_requirements(Some("edit_file"));
+        assert!(edit.projects_resource_interactions());
+        assert!(edit.projects_modified_files());
+        assert!(!edit.projects_git_artifacts());
+
+        let bash = metadata_projection_requirements(Some("Bash"));
+        assert!(!bash.projects_resource_interactions());
+        assert!(!bash.projects_modified_files());
+        assert!(bash.projects_git_artifacts());
+
+        let future_tool = metadata_projection_requirements(Some("future_provider_tool"));
+        assert!(future_tool.needs_args_json());
+        assert!(future_tool.needs_result_json());
+        assert!(future_tool.projects_resource_interactions());
+        assert!(future_tool.projects_modified_files());
+        assert!(future_tool.projects_git_artifacts());
+    }
+
+    #[test]
+    fn typed_projection_matches_legacy_metadata_for_representative_events() {
+        let events = [
+            (
+                "Read",
+                r#"{"file_path":"src/lib.rs"}"#,
+                "{}",
+                "2026-07-15T00:00:01Z",
+            ),
+            (
+                "edit_file",
+                r#"{"file_path":"src/lib.rs","new_string":"one\ntwo"}"#,
+                r#"{"success":{"linesAdded":2,"linesRemoved":1}}"#,
+                "2026-07-15T00:00:02Z",
+            ),
+            (
+                "Grep",
+                r#"{"path":"src"}"#,
+                r#"{"matches":[{"file":"src/main.rs"}]}"#,
+                "2026-07-15T00:00:03Z",
+            ),
+            (
+                "Bash",
+                r#"{"command":"git commit -m metadata"}"#,
+                r#"{"success":{"command":"git commit -m metadata","stdout":"[feature abc1234] metadata","exitCode":0}}"#,
+                "2026-07-15T00:00:04Z",
+            ),
+            (
+                "future_provider_tool",
+                r#"{"command":"gh pr create"}"#,
+                r#"{"output":"https://github.com/acme/repo/pull/42"}"#,
+                "2026-07-15T00:00:05Z",
+            ),
+        ];
+        let mut legacy = TurnMetadataAccumulator::new();
+        let mut typed = TurnMetadataAccumulator::new();
+        for (name, args, result, occurred_at) in events {
+            add_event_with_legacy_projection(&mut legacy, Some(name), args, result, occurred_at);
+            typed.add_event_at(Some(name), args, result, occurred_at);
+        }
+
+        assert_eq!(typed.modified_files(), legacy.modified_files());
+        assert_eq!(
+            typed.resource_interactions(),
+            legacy.resource_interactions()
+        );
+        assert_eq!(
+            serde_json::to_value(typed.git_artifacts()).unwrap(),
+            serde_json::to_value(legacy.git_artifacts()).unwrap()
+        );
+    }
 
     #[test]
     fn ignores_read_only_and_unknown_tools() {

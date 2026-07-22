@@ -3,7 +3,8 @@
 use chrono::{DateTime, Utc};
 use core_types::extracted::ExtractedGitArtifactData;
 use orgtrack_core::projectors::turn_metadata::{
-    TurnMetadataAccumulator, TurnModifiedFile, TurnResourceInteraction,
+    metadata_projection_requirements, TurnMetadataAccumulator, TurnModifiedFile,
+    TurnResourceInteraction,
 };
 use rusqlite::{params, Connection, OptionalExtension, Result as SqliteResult};
 use serde::{Deserialize, Serialize};
@@ -29,7 +30,9 @@ const TURN_STATUS_FAILED: &str = "failed";
 /// Orgtrack instead of interpreting ORG2 tool names in this host crate.
 /// v11: treat the normalized imported-history `user` function as the same
 /// turn boundary as the native `user_message` function.
-const TURN_INDEX_VERSION: i64 = 11;
+/// v12: stream event rows into turn summaries and skip payload columns that
+/// cannot contribute projected resource/edit/Git metadata.
+const TURN_INDEX_VERSION: i64 = 12;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -103,31 +106,6 @@ struct UserMessageRow {
     images: Option<String>,
 }
 
-fn load_index_rows(conn: &Connection, session_id: &str) -> SqliteResult<Vec<IndexEventRow>> {
-    let mut stmt = conn.prepare_cached(
-        "SELECT id, function_name, args_json, result_json, content, created_at, history_sequence AS order_sequence
-         FROM events
-         WHERE session_id = ?1
-         ORDER BY history_sequence ASC, created_at ASC, id ASC",
-    )?;
-
-    let rows = stmt
-        .query_map([session_id], |row| {
-            Ok(IndexEventRow {
-                id: row.get(0)?,
-                function_name: row.get(1)?,
-                args_json: row.get(2)?,
-                result_json: row.get(3)?,
-                content: row.get(4)?,
-                created_at: row.get(5)?,
-                order_sequence: row.get(6)?,
-            })
-        })?
-        .collect::<SqliteResult<Vec<_>>>()?;
-
-    Ok(rows)
-}
-
 fn event_state(conn: &Connection, session_id: &str) -> SqliteResult<(i64, Option<i64>)> {
     conn.query_row(
         "SELECT COUNT(*), MAX(COALESCE(history_sequence, rowid))
@@ -138,8 +116,8 @@ fn event_state(conn: &Connection, session_id: &str) -> SqliteResult<(i64, Option
     )
 }
 
-fn is_synthetic_user_input(row: &IndexEventRow) -> bool {
-    serde_json::from_str::<serde_json::Value>(&row.result_json)
+fn is_synthetic_user_input(result_json: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(result_json)
         .ok()
         .and_then(|result| {
             result
@@ -152,8 +130,8 @@ fn is_synthetic_user_input(row: &IndexEventRow) -> bool {
 /// Extract the canonical user-intent id from a user_message row's
 /// `result_json`. Returns `None` for legacy rows (no id was minted) and
 /// for malformed JSON.
-fn turn_intent_id_for_row(row: &IndexEventRow) -> Option<String> {
-    serde_json::from_str::<serde_json::Value>(&row.result_json)
+fn turn_intent_id_for_result(result_json: &str) -> Option<String> {
+    serde_json::from_str::<serde_json::Value>(result_json)
         .ok()
         .and_then(|result| {
             result
@@ -168,7 +146,7 @@ fn is_user_message(row: &IndexEventRow) -> bool {
     matches!(
         row.function_name.as_deref(),
         Some(USER_MESSAGE_FUNCTION | IMPORTED_USER_MESSAGE_FUNCTION)
-    ) && !is_synthetic_user_input(row)
+    ) && !is_synthetic_user_input(&row.result_json)
 }
 
 /// Lookup of intent ids that the indexer must treat as not yielding a
@@ -184,26 +162,20 @@ type StaleIntentIds = std::collections::HashSet<String>;
 /// when no body events landed.
 type IntentStatusOverlay = std::collections::HashMap<String, String>;
 
-fn load_stale_intent_ids(session_id: &str) -> StaleIntentIds {
-    super::turn_intents::list_for_session(session_id)
-        .map(|rows| {
-            rows.into_iter()
-                .filter(|row| row.status.is_pre_durable_terminal())
-                .map(|row| row.turn_intent_id)
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-fn load_intent_status_overlay(session_id: &str) -> IntentStatusOverlay {
-    super::turn_intents::list_for_session(session_id)
-        .map(|rows| {
-            rows.into_iter()
-                .filter(|row| !row.status.is_pre_durable_terminal())
-                .map(|row| (row.turn_intent_id, row.status.as_str().to_string()))
-                .collect()
-        })
-        .unwrap_or_default()
+fn load_intent_overlays(session_id: &str) -> (StaleIntentIds, IntentStatusOverlay) {
+    let mut stale = StaleIntentIds::new();
+    let mut statuses = IntentStatusOverlay::new();
+    let Ok(rows) = super::turn_intents::list_for_session(session_id) else {
+        return (stale, statuses);
+    };
+    for row in rows {
+        if row.status.is_pre_durable_terminal() {
+            stale.insert(row.turn_intent_id);
+        } else {
+            statuses.insert(row.turn_intent_id, row.status.as_str().to_string());
+        }
+    }
+    (stale, statuses)
 }
 
 fn user_event_id_for_message(message_id: &str) -> String {
@@ -227,28 +199,6 @@ fn user_content_dedup_key(content: &str) -> String {
         end -= 1;
     }
     content[..end].to_string()
-}
-
-fn load_user_messages(conn: &Connection, session_id: &str) -> SqliteResult<Vec<UserMessageRow>> {
-    let mut stmt = conn.prepare_cached(
-        "SELECT id, content, sequence, created_at, images
-         FROM agent_messages
-         WHERE session_id = ?1 AND role = 'user'
-         ORDER BY sequence ASC, created_at ASC, id ASC",
-    )?;
-
-    let rows = stmt
-        .query_map([session_id], |row| {
-            Ok(UserMessageRow {
-                id: row.get(0)?,
-                content: row.get(1)?,
-                sequence: row.get(2)?,
-                created_at: row.get(3)?,
-                images: row.get(4)?,
-            })
-        })?
-        .collect::<SqliteResult<Vec<_>>>()?;
-    Ok(rows)
 }
 
 fn load_existing_user_event_keys(
@@ -275,16 +225,7 @@ fn load_existing_user_event_keys(
     })?;
     for row in rows {
         let (id, content, result_json) = row?;
-        let event_row = IndexEventRow {
-            id: id.clone(),
-            function_name: Some(USER_MESSAGE_FUNCTION.to_string()),
-            args_json: String::new(),
-            result_json,
-            content: content.clone(),
-            created_at: String::new(),
-            order_sequence: 0,
-        };
-        if is_synthetic_user_input(&event_row) {
+        if is_synthetic_user_input(&result_json) {
             continue;
         }
         ids.insert(id);
@@ -301,15 +242,30 @@ fn load_existing_user_event_keys(
 }
 
 fn backfill_missing_user_events(conn: &Connection, session_id: &str) -> SqliteResult<usize> {
-    let messages = load_user_messages(conn, session_id)?;
-    if messages.is_empty() {
-        return Ok(0);
-    }
-
     let (existing_ids, mut existing_content_counts) =
         load_existing_user_event_keys(conn, session_id)?;
+    let mut messages_stmt = conn.prepare_cached(
+        "SELECT id, content, sequence, created_at, images
+         FROM agent_messages
+         WHERE session_id = ?1 AND role = 'user'
+         ORDER BY sequence ASC, created_at ASC, id ASC",
+    )?;
+    let mut insert_stmt = conn.prepare_cached(
+        "INSERT OR IGNORE INTO events
+         (id, session_id, event_type, function_name, thread_id, args_json, result_json,
+          content, created_at, meta_json, history_sequence)
+         VALUES (?1, ?2, 'raw', 'user_message', NULL, '{}', ?3, ?4, ?5, ?6, ?7)",
+    )?;
+    let mut messages = messages_stmt.query([session_id])?;
     let mut inserted = 0;
-    for message in messages {
+    while let Some(row) = messages.next()? {
+        let message = UserMessageRow {
+            id: row.get(0)?,
+            content: row.get(1)?,
+            sequence: row.get(2)?,
+            created_at: row.get(3)?,
+            images: row.get(4)?,
+        };
         let event_id = user_event_id_for_message(&message.id);
         if existing_ids.contains(&event_id) {
             continue;
@@ -362,21 +318,15 @@ fn backfill_missing_user_events(conn: &Connection, session_id: &str) -> SqliteRe
         });
         let content = format!("user_message {}", message.content);
 
-        let affected = conn.execute(
-            "INSERT OR IGNORE INTO events
-             (id, session_id, event_type, function_name, thread_id, args_json, result_json,
-              content, created_at, meta_json, history_sequence)
-             VALUES (?1, ?2, 'raw', 'user_message', NULL, '{}', ?3, ?4, ?5, ?6, ?7)",
-            params![
-                event_id,
-                session_id,
-                serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string()),
-                content,
-                message.created_at,
-                serde_json::to_string(&meta).unwrap_or_else(|_| "{}".to_string()),
-                message.sequence,
-            ],
-        )?;
+        let affected = insert_stmt.execute(params![
+            event_id,
+            session_id,
+            serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string()),
+            content,
+            message.created_at,
+            serde_json::to_string(&meta).unwrap_or_else(|_| "{}".to_string()),
+            message.sequence,
+        ])?;
         inserted += affected;
     }
 
@@ -402,20 +352,32 @@ fn max_timestamp(left: &str, right: &str) -> String {
     }
 }
 
-fn build_turn_drafts(rows: &[IndexEventRow], stale_intent_ids: &StaleIntentIds) -> Vec<TurnDraft> {
-    let mut drafts: Vec<TurnDraft> = Vec::new();
-    let mut current: Option<TurnDraft> = None;
+struct TurnDraftFolder<'a> {
+    current: Option<TurnDraft>,
+    stale_intent_ids: &'a StaleIntentIds,
+}
 
-    for row in rows {
+impl<'a> TurnDraftFolder<'a> {
+    fn new(stale_intent_ids: &'a StaleIntentIds) -> Self {
+        Self {
+            current: None,
+            stale_intent_ids,
+        }
+    }
+
+    /// Fold one row and return a completed materialized turn, if this row
+    /// closes one. At most the open turn is retained, so memory is bounded by
+    /// one turn's compact metadata rather than the session's event payloads.
+    fn push(&mut self, row: &IndexEventRow) -> Option<TurnDraft> {
         if is_user_message(row) {
-            let row_intent_id = turn_intent_id_for_row(row);
+            let row_intent_id = turn_intent_id_for_result(&row.result_json);
 
             // Lifecycle-pre-durable terminal: this intent will never yield
             // a durable round (Stale = invalidated). Drop the row entirely
             // so the indexer does not paint a phantom turn.
             if let Some(ref intent_id) = row_intent_id {
-                if stale_intent_ids.contains(intent_id) {
-                    continue;
+                if self.stale_intent_ids.contains(intent_id) {
+                    return None;
                 }
             }
 
@@ -424,22 +386,22 @@ fn build_turn_drafts(rows: &[IndexEventRow], stale_intent_ids: &StaleIntentIds) 
             // first; the durable backend row arrives later with the same
             // id). Adds the new event id so user_event_ids tracks both,
             // but does not open a new round.
-            if let (Some(intent_id), Some(turn)) = (row_intent_id.as_ref(), current.as_mut()) {
+            if let (Some(intent_id), Some(turn)) = (row_intent_id.as_ref(), self.current.as_mut()) {
                 if turn.turn_intent_id.as_ref() == Some(intent_id) {
                     turn.user_event_ids.push(row.id.clone());
                     turn.event_count += 1;
                     turn.ended_at = Some(max_timestamp(&turn.started_at, &row.created_at));
-                    continue;
+                    return None;
                 }
             }
 
-            if let Some(mut completed) = current.take() {
+            let completed = self.current.take().and_then(|mut completed| {
                 completed.end_sequence = Some(row.order_sequence);
                 completed.next_turn_id = Some(row.id.clone());
-                drafts.push(completed);
-            }
+                (completed.body_event_count > 0).then_some(completed)
+            });
 
-            current = Some(TurnDraft {
+            self.current = Some(TurnDraft {
                 turn_id: row.id.clone(),
                 start_sequence: row.order_sequence,
                 end_sequence: None,
@@ -453,10 +415,10 @@ fn build_turn_drafts(rows: &[IndexEventRow], stale_intent_ids: &StaleIntentIds) 
                 turn_intent_id: row_intent_id,
                 metadata_accumulator: TurnMetadataAccumulator::new(),
             });
-            continue;
+            return completed;
         }
 
-        if let Some(ref mut turn) = current {
+        if let Some(ref mut turn) = self.current {
             turn.ended_at = Some(max_timestamp(&turn.started_at, &row.created_at));
             turn.event_count += 1;
             turn.body_event_count += 1;
@@ -467,28 +429,69 @@ fn build_turn_drafts(rows: &[IndexEventRow], stale_intent_ids: &StaleIntentIds) 
                 &row.created_at,
             );
         }
+        None
     }
 
-    if let Some(turn) = current {
-        drafts.push(turn);
+    /// The newest user-only turn remains visible as pending, matching the
+    /// previous `materialized_turn_drafts` last-item rule.
+    fn finish(self) -> Option<TurnDraft> {
+        self.current
     }
-
-    materialized_turn_drafts(drafts)
 }
 
-fn materialized_turn_drafts(drafts: Vec<TurnDraft>) -> Vec<TurnDraft> {
-    let last_index = drafts.len().saturating_sub(1);
+#[cfg(test)]
+fn build_turn_drafts(rows: &[IndexEventRow], stale_intent_ids: &StaleIntentIds) -> Vec<TurnDraft> {
+    let mut folder = TurnDraftFolder::new(stale_intent_ids);
+    let mut drafts = Vec::new();
+    for row in rows {
+        if let Some(completed) = folder.push(row) {
+            drafts.push(completed);
+        }
+    }
+    if let Some(current) = folder.finish() {
+        drafts.push(current);
+    }
     drafts
-        .into_iter()
-        .enumerate()
-        .filter_map(|(index, draft)| {
-            if draft.body_event_count > 0 || index == last_index {
-                Some(draft)
-            } else {
-                None
-            }
-        })
-        .collect()
+}
+
+fn load_index_event(row: &rusqlite::Row<'_>) -> SqliteResult<IndexEventRow> {
+    let function_name: Option<String> = row.get(1)?;
+    let requirements = metadata_projection_requirements(function_name.as_deref());
+    let is_user_boundary = matches!(
+        function_name.as_deref(),
+        Some(USER_MESSAGE_FUNCTION | IMPORTED_USER_MESSAGE_FUNCTION)
+    );
+    // Boundary metadata is always needed to distinguish optimistic synthetic
+    // rows and collapse canonical turn-intent ids. Other result bodies are
+    // materialized only when their typed projection requires them.
+    let result_json = if is_user_boundary || requirements.needs_result_json() {
+        row.get(3)?
+    } else {
+        String::new()
+    };
+    let starts_turn = is_user_boundary && !is_synthetic_user_input(&result_json);
+
+    Ok(IndexEventRow {
+        id: if starts_turn {
+            row.get(0)?
+        } else {
+            String::new()
+        },
+        function_name,
+        args_json: if requirements.needs_args_json() {
+            row.get(2)?
+        } else {
+            String::new()
+        },
+        result_json,
+        content: if starts_turn {
+            row.get(4)?
+        } else {
+            String::new()
+        },
+        created_at: row.get(5)?,
+        order_sequence: row.get(6)?,
+    })
 }
 
 fn turn_summary_from_row(row: &rusqlite::Row<'_>) -> SqliteResult<CachedTurnSummary> {
@@ -524,33 +527,101 @@ fn turn_summary_from_row(row: &rusqlite::Row<'_>) -> SqliteResult<CachedTurnSumm
     })
 }
 
-pub fn rebuild_turn_index(session_id: &str) -> SqliteResult<Vec<CachedTurnSummary>> {
+pub fn rebuild_turn_index(session_id: &str) -> SqliteResult<()> {
     with_sessions_writer(|| rebuild_turn_index_inner(session_id))
 }
 
-fn rebuild_turn_index_inner(session_id: &str) -> SqliteResult<Vec<CachedTurnSummary>> {
+fn rebuild_turn_index_inner(session_id: &str) -> SqliteResult<()> {
     let conn = get_connection()?;
-    backfill_missing_user_events(&conn, session_id)?;
-    normalize_session_sequences(&conn, session_id)?;
-    let rows = load_index_rows(&conn, session_id)?;
     // Consult the lifecycle store so the indexer can drop rows whose
     // intent was retired before it ran (Stale). Read failure
     // falls back to an empty set, which preserves the legacy behaviour of
     // building rounds purely from events.
-    let stale_intent_ids = load_stale_intent_ids(session_id);
-    let intent_status_overlay = load_intent_status_overlay(session_id);
-    let drafts = build_turn_drafts(&rows, &stale_intent_ids);
-    let (event_count, max_sequence) = event_state(&conn, session_id)?;
+    let (stale_intent_ids, intent_status_overlay) = load_intent_overlays(session_id);
+    rebuild_turn_index_on_connection(&conn, session_id, &stale_intent_ids, &intent_status_overlay)
+}
+
+fn insert_turn_draft(
+    stmt: &mut rusqlite::CachedStatement<'_>,
+    session_id: &str,
+    draft: &TurnDraft,
+    intent_status_overlay: &IntentStatusOverlay,
+    rebuilt_at: &str,
+) -> SqliteResult<()> {
+    let user_event_ids_json =
+        serde_json::to_string(&draft.user_event_ids).unwrap_or_else(|_| "[]".to_string());
+    let modified_files_json = serde_json::to_string(draft.metadata_accumulator.files())
+        .unwrap_or_else(|_| "[]".to_string());
+    let resource_interactions_json =
+        serde_json::to_string(draft.metadata_accumulator.resource_interactions())
+            .unwrap_or_else(|_| "[]".to_string());
+    let git_artifacts_json = serde_json::to_string(draft.metadata_accumulator.git_artifacts())
+        .unwrap_or_else(|_| "[]".to_string());
+    // Status derivation: lifecycle store wins when available. Falls back to
+    // the legacy body-event heuristic for rows without a canonical intent.
+    let status = draft
+        .turn_intent_id
+        .as_ref()
+        .and_then(|intent_id| intent_status_overlay.get(intent_id))
+        .map(|status| match status.as_str() {
+            "completed" => TURN_STATUS_COMPLETED,
+            "failed" | "cancelled" => TURN_STATUS_FAILED,
+            // Running / queued / optimistic all surface as pending.
+            _ => TURN_STATUS_PENDING,
+        })
+        .unwrap_or_else(|| {
+            if draft.body_event_count > 0 {
+                TURN_STATUS_COMPLETED
+            } else {
+                TURN_STATUS_PENDING
+            }
+        });
+    stmt.execute(params![
+        session_id,
+        draft.turn_id,
+        draft.start_sequence,
+        draft.end_sequence,
+        draft.next_turn_id,
+        draft.started_at,
+        draft.ended_at,
+        duration_ms(&draft.started_at, draft.ended_at.as_deref()),
+        user_event_ids_json,
+        draft.user_preview,
+        draft.event_count,
+        draft.body_event_count,
+        status,
+        0_i64,
+        rebuilt_at,
+        modified_files_json,
+        resource_interactions_json,
+        git_artifacts_json,
+    ])?;
+    Ok(())
+}
+
+fn rebuild_turn_index_on_connection(
+    conn: &Connection,
+    session_id: &str,
+    stale_intent_ids: &StaleIntentIds,
+    intent_status_overlay: &IntentStatusOverlay,
+) -> SqliteResult<()> {
+    // Keep the old materialized index visible to other connections until the
+    // complete replacement and its state row can commit together. Any parse,
+    // projection, or insertion error drops this transaction and restores the
+    // previous generation.
+    let tx = begin_immediate(conn)?;
+    backfill_missing_user_events(&tx, session_id)?;
+    normalize_session_sequences(&tx, session_id)?;
+    let (event_count, max_sequence) = event_state(&tx, session_id)?;
     let rebuilt_at = Utc::now().to_rfc3339();
 
-    let tx = begin_immediate(&conn)?;
     tx.execute(
         "DELETE FROM session_turns WHERE session_id = ?1",
         [session_id],
     )?;
 
     {
-        let mut stmt = tx.prepare_cached(
+        let mut insert_stmt = tx.prepare_cached(
             "INSERT INTO session_turns
              (session_id, turn_id, start_sequence, end_sequence, next_turn_id, started_at, ended_at,
               duration_ms, user_event_ids_json, user_preview, event_count, body_event_count,
@@ -558,63 +629,35 @@ fn rebuild_turn_index_inner(session_id: &str) -> SqliteResult<Vec<CachedTurnSumm
               git_artifacts_json)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
         )?;
-
-        for draft in &drafts {
-            let user_event_ids_json =
-                serde_json::to_string(&draft.user_event_ids).unwrap_or_else(|_| "[]".to_string());
-            let modified_files_json = serde_json::to_string(draft.metadata_accumulator.files())
-                .unwrap_or_else(|_| "[]".to_string());
-            let resource_interactions_json =
-                serde_json::to_string(draft.metadata_accumulator.resource_interactions())
-                    .unwrap_or_else(|_| "[]".to_string());
-            let git_artifacts_json =
-                serde_json::to_string(draft.metadata_accumulator.git_artifacts())
-                    .unwrap_or_else(|_| "[]".to_string());
-            // Status derivation: lifecycle store wins when available.
-            // Falls back to the legacy `body_event_count > 0` heuristic for
-            // rows that predate the canonical intent id (no row in
-            // `session_turn_intents`). The lifecycle store is the
-            // authoritative source for cancelled turns that had zero body
-            // events and for turns interrupted mid-stream.
-            let status = draft
-                .turn_intent_id
-                .as_ref()
-                .and_then(|intent_id| intent_status_overlay.get(intent_id))
-                .map(|status| match status.as_str() {
-                    "completed" => TURN_STATUS_COMPLETED,
-                    "failed" | "cancelled" => TURN_STATUS_FAILED,
-                    // Running / queued / optimistic all surface as pending
-                    // — the round is open and we don't yet know the
-                    // terminal outcome.
-                    _ => TURN_STATUS_PENDING,
-                })
-                .unwrap_or_else(|| {
-                    if draft.body_event_count > 0 {
-                        TURN_STATUS_COMPLETED
-                    } else {
-                        TURN_STATUS_PENDING
-                    }
-                });
-            stmt.execute(params![
+        let mut events_stmt = tx.prepare_cached(
+            "SELECT id, function_name, args_json, result_json, content, created_at,
+                    history_sequence AS order_sequence
+             FROM events
+             WHERE session_id = ?1
+             ORDER BY history_sequence ASC, created_at ASC, id ASC",
+        )?;
+        let mut rows = events_stmt.query([session_id])?;
+        let mut folder = TurnDraftFolder::new(stale_intent_ids);
+        while let Some(row) = rows.next()? {
+            let event = load_index_event(row)?;
+            if let Some(completed) = folder.push(&event) {
+                insert_turn_draft(
+                    &mut insert_stmt,
+                    session_id,
+                    &completed,
+                    intent_status_overlay,
+                    &rebuilt_at,
+                )?;
+            }
+        }
+        if let Some(current) = folder.finish() {
+            insert_turn_draft(
+                &mut insert_stmt,
                 session_id,
-                draft.turn_id,
-                draft.start_sequence,
-                draft.end_sequence,
-                draft.next_turn_id,
-                draft.started_at,
-                draft.ended_at,
-                duration_ms(&draft.started_at, draft.ended_at.as_deref()),
-                user_event_ids_json,
-                draft.user_preview,
-                draft.event_count,
-                draft.body_event_count,
-                status,
-                0_i64,
-                rebuilt_at,
-                modified_files_json,
-                resource_interactions_json,
-                git_artifacts_json,
-            ])?;
+                &current,
+                intent_status_overlay,
+                &rebuilt_at,
+            )?;
         }
     }
 
@@ -636,8 +679,7 @@ fn rebuild_turn_index_inner(session_id: &str) -> SqliteResult<Vec<CachedTurnSumm
         ],
     )?;
     tx.commit()?;
-
-    load_turn_index(session_id)
+    Ok(())
 }
 
 pub fn ensure_turn_index_fresh(session_id: &str) -> SqliteResult<()> {
@@ -759,6 +801,7 @@ pub fn get_turn_summary(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rusqlite::types::Value as SqlValue;
 
     fn row(
         id: &str,
@@ -789,6 +832,33 @@ mod tests {
                 created_at TEXT NOT NULL,
                 images TEXT
             );",
+        )
+        .unwrap();
+    }
+
+    fn insert_index_test_event(
+        conn: &Connection,
+        id: &str,
+        function_name: &str,
+        args_json: SqlValue,
+        result_json: SqlValue,
+        content: SqlValue,
+        sequence: i64,
+    ) {
+        conn.execute(
+            "INSERT INTO events
+             (id, session_id, event_type, function_name, thread_id, args_json, result_json,
+              content, created_at, meta_json, history_sequence)
+             VALUES (?1, 'session-1', 'raw', ?2, NULL, ?3, ?4, ?5, ?6, '{}', ?7)",
+            params![
+                id,
+                function_name,
+                args_json,
+                result_json,
+                content,
+                format!("2026-07-20T00:00:{sequence:02}Z"),
+                sequence,
+            ],
         )
         .unwrap();
     }
@@ -871,6 +941,138 @@ mod tests {
         .unwrap();
 
         assert_eq!(backfill_missing_user_events(&conn, "session-1").unwrap(), 0);
+    }
+
+    #[test]
+    fn rebuild_skips_large_columns_for_known_no_metadata_rows() {
+        let conn = Connection::open_in_memory().unwrap();
+        create_backfill_test_tables(&conn);
+        insert_index_test_event(
+            &conn,
+            "user-1",
+            USER_MESSAGE_FUNCTION,
+            SqlValue::Text("{}".to_string()),
+            SqlValue::Text(r#"{"backendPersisted":true}"#.to_string()),
+            SqlValue::Text("user_message inspect memory".to_string()),
+            1,
+        );
+
+        // SQLite's dynamic typing lets this fixture use BLOBs in TEXT
+        // columns. `Row::get::<String>` would fail, so a successful rebuild
+        // proves these large columns were not materialized by Rust.
+        let large_blob = vec![b'x'; 2 * 1024 * 1024];
+        for (sequence, id, function_name) in [
+            (2, "assistant-1", "assistant"),
+            (3, "thinking-1", "thinking"),
+            (4, "node-1", "node_repl"),
+        ] {
+            insert_index_test_event(
+                &conn,
+                id,
+                function_name,
+                SqlValue::Blob(large_blob.clone()),
+                SqlValue::Blob(large_blob.clone()),
+                SqlValue::Blob(large_blob.clone()),
+                sequence,
+            );
+        }
+        insert_index_test_event(
+            &conn,
+            "grep-1",
+            "Grep",
+            SqlValue::Text(r#"{"path":"src"}"#.to_string()),
+            SqlValue::Blob(large_blob),
+            SqlValue::Blob(vec![b'y'; 1024 * 1024]),
+            5,
+        );
+
+        rebuild_turn_index_on_connection(
+            &conn,
+            "session-1",
+            &StaleIntentIds::new(),
+            &IntentStatusOverlay::new(),
+        )
+        .unwrap();
+
+        let (event_count, body_event_count): (i64, i64) = conn
+            .query_row(
+                "SELECT event_count, body_event_count FROM session_turns
+                 WHERE session_id = 'session-1' AND turn_id = 'user-1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(event_count, 5);
+        assert_eq!(body_event_count, 4);
+    }
+
+    #[test]
+    fn rebuild_rolls_back_old_index_when_conservative_payload_read_fails() {
+        let conn = Connection::open_in_memory().unwrap();
+        create_backfill_test_tables(&conn);
+        conn.execute(
+            "INSERT INTO session_turns
+             (session_id, turn_id, start_sequence, started_at, status, updated_at)
+             VALUES ('session-1', 'old-turn', 0, '2026-07-19T00:00:00Z', 'completed',
+                     '2026-07-19T00:00:01Z')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO session_turn_index_state
+             (session_id, indexed_event_count, indexed_max_sequence, rebuilt_at, index_version)
+             VALUES ('session-1', 99, 98, '2026-07-19T00:00:01Z', 11)",
+            [],
+        )
+        .unwrap();
+        insert_index_test_event(
+            &conn,
+            "user-1",
+            USER_MESSAGE_FUNCTION,
+            SqlValue::Text("{}".to_string()),
+            SqlValue::Text(r#"{"backendPersisted":true}"#.to_string()),
+            SqlValue::Text("user_message trigger rebuild".to_string()),
+            1,
+        );
+        insert_index_test_event(
+            &conn,
+            "future-1",
+            "future_provider_tool",
+            SqlValue::Blob(vec![b'x'; 1024]),
+            SqlValue::Text("{}".to_string()),
+            SqlValue::Text(String::new()),
+            2,
+        );
+
+        let error = rebuild_turn_index_on_connection(
+            &conn,
+            "session-1",
+            &StaleIntentIds::new(),
+            &IntentStatusOverlay::new(),
+        )
+        .unwrap_err();
+        assert!(matches!(error, rusqlite::Error::InvalidColumnType(..)));
+
+        let turn_ids: Vec<String> = conn
+            .prepare(
+                "SELECT turn_id FROM session_turns WHERE session_id = 'session-1'
+                 ORDER BY turn_id",
+            )
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<SqliteResult<Vec<_>>>()
+            .unwrap();
+        assert_eq!(turn_ids, vec!["old-turn"]);
+        let index_version: i64 = conn
+            .query_row(
+                "SELECT index_version FROM session_turn_index_state
+                 WHERE session_id = 'session-1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(index_version, 11);
     }
 
     #[test]

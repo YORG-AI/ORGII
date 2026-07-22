@@ -10,6 +10,13 @@ use std::sync::LazyLock;
 
 use core_types::extracted::{ExtractedGitArtifactData, GitArtifactKind};
 use regex::Regex;
+use serde_json::Value;
+
+/// Compact replay rows keep pre-extracted Git artifacts here when the source
+/// output itself is range-backed. This prevents a SHA near the head of a huge
+/// output (or a PR URL in its middle) from disappearing when the renderer
+/// preview keeps only a bounded head/tail slice.
+pub const REPLAY_GIT_ARTIFACTS_FIELD: &str = "_replayGitArtifacts";
 
 static GIT_COMMAND_CONTEXT_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)(^|[;&|()\s])(git|gh)(\s|$)").expect("valid git command context regex")
@@ -56,6 +63,28 @@ pub fn parse_git_artifacts(input: GitArtifactParseInput<'_>) -> Vec<ExtractedGit
     collect_push_output(output, &mut artifacts, &mut seen);
 
     artifacts
+}
+
+/// Attach a bounded, typed Git summary to an otherwise compact tool result.
+pub fn attach_replay_git_artifacts(result: &mut Value, artifacts: &[ExtractedGitArtifactData]) {
+    if artifacts.is_empty() {
+        return;
+    }
+    let Some(result) = result.as_object_mut() else {
+        return;
+    };
+    if let Ok(value) = serde_json::to_value(artifacts) {
+        result.insert(REPLAY_GIT_ARTIFACTS_FIELD.to_string(), value);
+    }
+}
+
+/// Read a pre-extracted compact replay Git summary, if present.
+pub fn replay_git_artifacts(result: &Value) -> Vec<ExtractedGitArtifactData> {
+    result
+        .get(REPLAY_GIT_ARTIFACTS_FIELD)
+        .cloned()
+        .and_then(|value| serde_json::from_value(value).ok())
+        .unwrap_or_default()
 }
 
 /// Parse the raw args/result JSON stored in `sessions.db.events`.
