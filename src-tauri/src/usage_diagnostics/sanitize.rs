@@ -6,7 +6,7 @@ use super::types::{
 };
 
 const UNKNOWN_BUCKET: &str = "unknown";
-const MAX_RUNTIME_OPERATIONS: usize = 100;
+const MAX_RUNTIME_OPERATIONS: usize = 128;
 const MAX_LIST_ENTRIES: usize = 25;
 
 pub fn bucket_duration_ms(duration_ms: f64) -> &'static str {
@@ -146,10 +146,24 @@ fn sanitize_runtime_summary(summary: DiagnosticsRuntimeSummary) -> DiagnosticsRu
         item.insert("total".into(), Value::from(total));
         item.insert("success".into(), Value::from(success));
         item.insert("failure".into(), Value::from(failure));
-        item.insert(
-            "durationBucket".into(),
-            Value::from(bucket_string_field(&value, "durationBucket")),
-        );
+        if value.get("averageDurationBucket").is_some() || value.get("p95DurationBucket").is_some()
+        {
+            item.insert(
+                "averageDurationBucket".into(),
+                Value::from(bucket_string_field(&value, "averageDurationBucket")),
+            );
+            item.insert(
+                "p95DurationBucket".into(),
+                Value::from(bucket_string_field(&value, "p95DurationBucket")),
+            );
+        } else {
+            // Queue records produced by diagnostics schema v1 used one coarse
+            // duration bucket. Keep accepting them while emitting v2 snapshots.
+            item.insert(
+                "durationBucket".into(),
+                Value::from(bucket_string_field(&value, "durationBucket")),
+            );
+        }
         by_operation.insert(sanitize_operation_name(&operation), Value::Object(item));
     }
 

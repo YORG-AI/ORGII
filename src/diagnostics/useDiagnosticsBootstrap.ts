@@ -10,6 +10,7 @@ import { workspaceFoldersAtom } from "@src/store/ui/workspaceFoldersAtom";
 import type { WorkspaceFolder } from "@src/types/workspace";
 
 import { createDiagnosticsUsageSnapshot } from "./aggregate";
+import { discardRuntimeDiagnosticsCounters } from "./runtimeCounters";
 import {
   diagnosticsConfigure,
   diagnosticsFlushNow,
@@ -23,6 +24,10 @@ const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 const LAST_FLUSH_STORAGE_KEY = "orgii:diagnostics:lastFlushAt";
 const logger = createLogger("DiagnosticsBootstrap");
+
+function discardRuntimeDiagnostics(): void {
+  discardRuntimeDiagnosticsCounters();
+}
 
 function reportDiagnosticsFailure(operation: string, error: unknown): void {
   logger.warn(`${operation} failed`, error);
@@ -114,7 +119,11 @@ export function useDiagnosticsBootstrap(): void {
   const collectAndSendSnapshot = useCallback(
     async (force = false) => {
       if (runningRef.current) return;
-      if (!settingsLoaded || offlineMode) {
+      if (!settingsLoaded) {
+        return;
+      }
+      if (offlineMode) {
+        discardRuntimeDiagnostics();
         return;
       }
 

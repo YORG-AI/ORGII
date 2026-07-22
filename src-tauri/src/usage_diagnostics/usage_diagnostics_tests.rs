@@ -110,7 +110,7 @@ fn performance_only_strips_usage_aggregates() {
         snapshot(DiagnosticsLevel::Default),
         DiagnosticsLevel::PerformanceOnly,
     );
-    assert_eq!(sanitized.schema_version, 1);
+    assert_eq!(sanitized.schema_version, 2);
     assert_eq!(sanitized.app_version.as_deref(), Some("1.0.1+test"));
     assert!(sanitized.app_usage_duration_bucket.is_some());
     assert!(sanitized.system_profile.is_some());
@@ -126,7 +126,7 @@ fn performance_only_strips_usage_aggregates() {
 #[test]
 fn off_keeps_minimal_existence_usage_only() {
     let sanitized = sanitize_snapshot(snapshot(DiagnosticsLevel::Default), DiagnosticsLevel::Off);
-    assert_eq!(sanitized.schema_version, 1);
+    assert_eq!(sanitized.schema_version, 2);
     assert_eq!(sanitized.diagnostics_level, DiagnosticsLevel::Off);
     assert_eq!(sanitized.app_version.as_deref(), Some("1.0.1+test"));
     assert!(sanitized.app_usage_duration_bucket.is_some());
@@ -157,6 +157,31 @@ fn default_sanitization_drops_raw_or_path_fields() {
     assert!(!serialized.contains("payload"));
     assert!(serialized.contains("cli_agent"));
     assert!(serialized.contains("agent_send_message"));
+}
+
+#[test]
+fn runtime_sanitizer_accepts_v1_and_v2_duration_shapes() {
+    let mut legacy = snapshot(DiagnosticsLevel::PerformanceOnly);
+    let sanitized_legacy = sanitize_snapshot(legacy.clone(), DiagnosticsLevel::PerformanceOnly);
+    let legacy_operation = &sanitized_legacy.rpc.unwrap().by_operation["agent_send_message"];
+    assert_eq!(legacy_operation["durationBucket"], "lt_1m");
+
+    legacy.rpc.as_mut().unwrap().by_operation.insert(
+        "cli_agent_message".to_string(),
+        json!({
+            "total": 2,
+            "success": 1,
+            "failure": 1,
+            "averageDurationBucket": "20_100ms",
+            "p95DurationBucket": "500ms_2s",
+            "payload": "drop"
+        }),
+    );
+    let sanitized_v2 = sanitize_snapshot(legacy, DiagnosticsLevel::PerformanceOnly);
+    let v2_operation = &sanitized_v2.rpc.unwrap().by_operation["cli_agent_message"];
+    assert_eq!(v2_operation["averageDurationBucket"], "20_100ms");
+    assert_eq!(v2_operation["p95DurationBucket"], "500ms_2s");
+    assert!(v2_operation.get("payload").is_none());
 }
 
 #[test]

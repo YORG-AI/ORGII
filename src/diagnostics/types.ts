@@ -16,7 +16,8 @@ export interface DiagnosticsRuntimeOperationSummary {
   total: number;
   success: number;
   failure: number;
-  durationBucket: string;
+  averageDurationBucket: string;
+  p95DurationBucket: string;
 }
 
 export interface DiagnosticsRuntimeSummary {

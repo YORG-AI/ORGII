@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-pub const DIAGNOSTICS_SCHEMA_VERSION: u32 = 1;
+pub const DIAGNOSTICS_SCHEMA_VERSION: u32 = 2;
 pub const DEFAULT_UPLOAD_INTERVAL_HOURS: u64 = 12;
 pub const MIN_UPLOAD_INTERVAL_HOURS: u64 = 1;
 pub const MAX_UPLOAD_INTERVAL_HOURS: u64 = 24;
