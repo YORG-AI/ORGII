@@ -49,12 +49,27 @@ pub(super) struct ResolvedSource {
     pub(super) path: PathBuf,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct SourceSnapshot {
     identity: String,
     size_bytes: u64,
     mtime_ns: i64,
     sample_fingerprint: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RejectedSnapshotKind {
+    ClineInvalidDocument,
+    CursorCliLineageChanged,
+}
+
+impl RejectedSnapshotKind {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::ClineInvalidDocument => "cline_invalid_document",
+            Self::CursorCliLineageChanged => "cursor_cli_lineage_changed",
+        }
+    }
 }
 
 struct DriverSyncOutcome {
@@ -101,6 +116,20 @@ pub(super) fn sync_index(
     } else {
         sampled_file_fingerprint(&resolved.path, snapshot.size_bytes)?
     };
+    if let Some(rejection_kind) = rejected_snapshot_kind(source) {
+        if old_state.is_some()
+            && rejected_snapshot_matches(
+                conn,
+                source,
+                &resolved.source_session_id,
+                parser_version,
+                &snapshot,
+                rejection_kind,
+            )?
+        {
+            return Ok(not_ready_sync_result());
+        }
+    }
     let cursor_fingerprint = old_state.as_ref().and_then(|state| match source {
         ImportedHistorySourceId::CodexApp => {
             codex_jsonl::cursor_fingerprint(&state.driver_cursor_json)
@@ -316,13 +345,15 @@ pub(super) fn sync_index(
                         ) =>
                 {
                     drop(tx);
-                    return Ok(ReplaySyncResult {
-                        stats: ReplayStats {
-                            not_ready: true,
-                            ..ReplayStats::default()
-                        },
-                        generation_changed: false,
-                    });
+                    record_rejected_snapshot(
+                        conn,
+                        source,
+                        &resolved.source_session_id,
+                        parser_version,
+                        &snapshot,
+                        RejectedSnapshotKind::CursorCliLineageChanged,
+                    )?;
+                    return Ok(not_ready_sync_result());
                 }
                 Err(error) => return Err(error),
             };
@@ -356,13 +387,15 @@ pub(super) fn sync_index(
                     if old_state.is_some() && error.starts_with("parse Cline replay source") =>
                 {
                     drop(tx);
-                    return Ok(ReplaySyncResult {
-                        stats: ReplayStats {
-                            not_ready: true,
-                            ..ReplayStats::default()
-                        },
-                        generation_changed: false,
-                    });
+                    record_rejected_snapshot(
+                        conn,
+                        source,
+                        &resolved.source_session_id,
+                        parser_version,
+                        &snapshot,
+                        RejectedSnapshotKind::ClineInvalidDocument,
+                    )?;
+                    return Ok(not_ready_sync_result());
                 }
                 Err(error) => return Err(error),
             };
@@ -458,6 +491,7 @@ pub(super) fn sync_index(
         ],
     )
     .map_err(|err| format!("publish imported replay state: {err}"))?;
+    clear_rejected_snapshot(&tx, source, &resolved.source_session_id)?;
 
     super::super::catalog::publish_from_replay_tx(
         &tx,
@@ -566,6 +600,115 @@ pub(super) fn sync_index(
         stats: outcome.stats,
         generation_changed,
     })
+}
+
+const fn rejected_snapshot_kind(source: ImportedHistorySourceId) -> Option<RejectedSnapshotKind> {
+    match source {
+        ImportedHistorySourceId::Cline => Some(RejectedSnapshotKind::ClineInvalidDocument),
+        ImportedHistorySourceId::CursorCli => Some(RejectedSnapshotKind::CursorCliLineageChanged),
+        _ => None,
+    }
+}
+
+fn not_ready_sync_result() -> ReplaySyncResult {
+    ReplaySyncResult {
+        stats: ReplayStats {
+            not_ready: true,
+            ..ReplayStats::default()
+        },
+        generation_changed: false,
+    }
+}
+
+fn rejected_snapshot_matches(
+    conn: &Connection,
+    source: ImportedHistorySourceId,
+    source_session_id: &str,
+    parser_version: u32,
+    snapshot: &SourceSnapshot,
+    rejection_kind: RejectedSnapshotKind,
+) -> Result<bool, String> {
+    conn.query_row(
+        "SELECT EXISTS(
+             SELECT 1 FROM imported_replay_rejected_snapshots
+             WHERE source=?1 AND source_session_id=?2 AND parser_version=?3
+               AND source_identity=?4 AND source_size_bytes=?5
+               AND source_mtime_ns=?6 AND sample_fingerprint=?7
+               AND rejection_kind=?8
+         )",
+        params![
+            source.as_str(),
+            source_session_id,
+            i64::from(parser_version),
+            snapshot.identity,
+            snapshot.size_bytes.min(i64::MAX as u64) as i64,
+            snapshot.mtime_ns,
+            snapshot.sample_fingerprint,
+            rejection_kind.as_str(),
+        ],
+        |row| row.get::<_, i64>(0),
+    )
+    .map(|exists| exists != 0)
+    .map_err(|err| format!("query rejected replay snapshot: {err}"))
+}
+
+fn record_rejected_snapshot(
+    conn: &mut Connection,
+    source: ImportedHistorySourceId,
+    source_session_id: &str,
+    parser_version: u32,
+    snapshot: &SourceSnapshot,
+    rejection_kind: RejectedSnapshotKind,
+) -> Result<(), String> {
+    // The failed generation transaction has already rolled back. Publish the
+    // physical rejection watermark in a separate short transaction so a crash
+    // can never make it visible by partially overwriting the last valid state.
+    let tx = conn
+        .transaction()
+        .map_err(|err| format!("start rejected replay snapshot transaction: {err}"))?;
+    tx.execute(
+        "INSERT INTO imported_replay_rejected_snapshots(
+             source,source_session_id,parser_version,source_identity,
+             source_size_bytes,source_mtime_ns,sample_fingerprint,
+             rejection_kind,rejected_at
+         ) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)
+         ON CONFLICT(source,source_session_id) DO UPDATE SET
+             parser_version=excluded.parser_version,
+             source_identity=excluded.source_identity,
+             source_size_bytes=excluded.source_size_bytes,
+             source_mtime_ns=excluded.source_mtime_ns,
+             sample_fingerprint=excluded.sample_fingerprint,
+             rejection_kind=excluded.rejection_kind,
+             rejected_at=excluded.rejected_at",
+        params![
+            source.as_str(),
+            source_session_id,
+            i64::from(parser_version),
+            snapshot.identity,
+            snapshot.size_bytes.min(i64::MAX as u64) as i64,
+            snapshot.mtime_ns,
+            snapshot.sample_fingerprint,
+            rejection_kind.as_str(),
+            Utc::now().to_rfc3339(),
+        ],
+    )
+    .map_err(|err| format!("record rejected replay snapshot: {err}"))?;
+    tx.commit()
+        .map_err(|err| format!("commit rejected replay snapshot: {err}"))
+}
+
+fn clear_rejected_snapshot(
+    tx: &rusqlite::Transaction<'_>,
+    source: ImportedHistorySourceId,
+    source_session_id: &str,
+) -> Result<(), String> {
+    tx.execute(
+        "DELETE FROM imported_replay_rejected_snapshots
+         WHERE source=?1 AND source_session_id=?2",
+        params![source.as_str(), source_session_id],
+    )
+    .map(|_| ())
+    .map_err(|err| format!("clear rejected replay snapshot: {err}"))
 }
 
 fn publish_change_log(
@@ -1905,6 +2048,95 @@ impl Fnv64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn replay_schema() -> Connection {
+        use crate::store::sqlite::SqliteRecordStore;
+
+        let conn = Connection::open_in_memory().expect("replay schema");
+        SqliteRecordStore::init_tables(&conn).expect("initialize replay schema");
+        SqliteRecordStore::init_source_cache_tables(&conn)
+            .expect("initialize replay source-cache schema");
+        conn
+    }
+
+    #[test]
+    fn cursor_cli_lineage_rejection_watermark_matches_only_the_same_snapshot() {
+        let mut conn = replay_schema();
+        let source = ImportedHistorySourceId::CursorCli;
+        let parser_version = source.descriptor().parser_version;
+        let snapshot = SourceSnapshot {
+            identity: "/tmp/cursor-state.vscdb:1:2".to_string(),
+            size_bytes: 42_000,
+            mtime_ns: 1_700_000_000_000_000_000,
+            sample_fingerprint: "db-and-wal-sample-a".to_string(),
+        };
+        conn.execute(
+            "INSERT INTO imported_replay_state(
+                 source,source_session_id,generation,revision,parser_version,
+                 source_identity,driver_cursor_json,indexed_size_bytes,
+                 indexed_mtime_ns,total_events,total_turns,valid,updated_at
+             ) VALUES('cursor_cli','cursor-1','valid-generation',7,?1,
+                      'old-identity','{}',10,20,3,1,1,?2)",
+            params![i64::from(parser_version), Utc::now().to_rfc3339()],
+        )
+        .expect("seed last valid Cursor CLI generation");
+
+        record_rejected_snapshot(
+            &mut conn,
+            source,
+            "cursor-1",
+            parser_version,
+            &snapshot,
+            RejectedSnapshotKind::CursorCliLineageChanged,
+        )
+        .expect("record Cursor CLI lineage rejection");
+
+        for _ in 0..20 {
+            assert!(rejected_snapshot_matches(
+                &conn,
+                source,
+                "cursor-1",
+                parser_version,
+                &snapshot,
+                RejectedSnapshotKind::CursorCliLineageChanged,
+            )
+            .expect("match unchanged Cursor CLI rejected snapshot"));
+        }
+        let valid = load_state(&conn, source, "cursor-1")
+            .expect("load last valid Cursor CLI state")
+            .expect("last valid Cursor CLI state remains visible");
+        assert_eq!(valid.generation, "valid-generation");
+        assert_eq!(valid.revision, 7);
+
+        let mut changed = snapshot.clone();
+        changed.sample_fingerprint = "db-and-wal-sample-b".to_string();
+        assert!(!rejected_snapshot_matches(
+            &conn,
+            source,
+            "cursor-1",
+            parser_version,
+            &changed,
+            RejectedSnapshotKind::CursorCliLineageChanged,
+        )
+        .expect("changed Cursor CLI snapshot is retryable"));
+
+        let tx = conn
+            .transaction()
+            .expect("start successful Cursor CLI publish transaction");
+        clear_rejected_snapshot(&tx, source, "cursor-1")
+            .expect("clear successful Cursor CLI rejection");
+        tx.commit()
+            .expect("commit successful Cursor CLI rejection clear");
+        assert!(!rejected_snapshot_matches(
+            &conn,
+            source,
+            "cursor-1",
+            parser_version,
+            &snapshot,
+            RejectedSnapshotKind::CursorCliLineageChanged,
+        )
+        .expect("cleared Cursor CLI snapshot is retryable"));
+    }
 
     #[test]
     fn fingerprint_reads_a_bounded_sample() {

@@ -1,15 +1,19 @@
 //! Patch/impact extraction from Codex events and tool calls.
 
+#[cfg(test)]
 use std::collections::BTreeSet;
 
+#[cfg(test)]
 use serde_json::Value;
 
+#[cfg(test)]
 use crate::sources::imported_history::{self, metadata::ImportedHistoryImpactStats};
 
 /// Tally impact from a `patch_apply_end` event — Codex's authoritative record
 /// of a successfully applied patch. `changes` maps each touched path to a
 /// `{ type, unified_diff }` object; the diff's `+`/`-` lines give exact
 /// add/remove counts regardless of how the edit was requested.
+#[cfg(test)]
 pub(super) fn collect_codex_impact_from_patch_apply_end(
     payload: &Value,
     impact: &mut ImportedHistoryImpactStats,
@@ -43,6 +47,7 @@ pub(super) fn collect_codex_impact_from_patch_apply_end(
     }
 }
 
+#[cfg(test)]
 pub(super) fn collect_codex_impact_from_payload(
     payload: &Value,
     impact: &mut ImportedHistoryImpactStats,
@@ -74,6 +79,7 @@ pub(super) fn collect_codex_impact_from_payload(
     }
 }
 
+#[cfg(test)]
 fn patch_from_codex_args(args: &Value) -> Option<String> {
     args.get("patch")
         .and_then(Value::as_str)
@@ -81,6 +87,7 @@ fn patch_from_codex_args(args: &Value) -> Option<String> {
         .map(str::to_string)
 }
 
+#[cfg(test)]
 fn accumulate_patch_impact(
     patch: &str,
     impact: &mut ImportedHistoryImpactStats,

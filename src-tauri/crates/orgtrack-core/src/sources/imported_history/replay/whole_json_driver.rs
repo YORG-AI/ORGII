@@ -25,6 +25,11 @@ use super::{ImportedHistorySourceId, ReplayPayloadDescriptor, ReplayPayloadRange
 
 const CLINE_PROVIDER: &str = "cline";
 
+#[cfg(test)]
+thread_local! {
+    static SYNC_ATTEMPTS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
 #[derive(Debug, Clone)]
 pub(super) struct WholeJsonSyncOutcome {
     pub stats: ReplayStats,
@@ -118,6 +123,8 @@ pub(super) fn sync(
     _previous_state: Option<&ReplayIndexState>,
     sample_fingerprint: &str,
 ) -> Result<WholeJsonSyncOutcome, String> {
+    #[cfg(test)]
+    SYNC_ATTEMPTS.with(|attempts| attempts.set(attempts.get().saturating_add(1)));
     let source_bytes = std::fs::metadata(source_path)
         .map_err(|err| format!("stat Cline replay source {}: {err}", source_path.display()))?
         .len();
@@ -155,6 +162,11 @@ pub(super) fn sync(
         total_turns,
         stats: fold.stats,
     })
+}
+
+#[cfg(test)]
+fn take_sync_attempts() -> u64 {
+    SYNC_ATTEMPTS.with(|attempts| attempts.replace(0))
 }
 
 fn fold_message(fold: &mut IndexFold<'_, '_, '_>, message: ClineMessage) -> Result<(), String> {
@@ -593,9 +605,27 @@ fn visit_messages(
     let file = File::open(path)
         .map_err(|err| format!("open Cline replay source {}: {err}", path.display()))?;
     let mut deserializer = serde_json::Deserializer::from_reader(BufReader::new(file));
-    TranscriptSeed { visit: &mut visit }
+    let mut sink_error = None;
+    let parse_result = {
+        let mut capture_sink_error = |message| match visit(message) {
+            Ok(()) => Ok(()),
+            Err(error) => {
+                sink_error = Some(error);
+                Err("Cline replay sink rejected a message".to_string())
+            }
+        };
+        TranscriptSeed {
+            visit: &mut capture_sink_error,
+        }
         .deserialize(&mut deserializer)
-        .map_err(|err| format!("parse Cline replay source {}: {err}", path.display()))?;
+    };
+    if let Some(error) = sink_error {
+        return Err(format!(
+            "process Cline replay source {}: {error}",
+            path.display()
+        ));
+    }
+    parse_result.map_err(|err| format!("parse Cline replay source {}: {err}", path.display()))?;
     deserializer
         .end()
         .map_err(|err| format!("parse Cline replay source {}: {err}", path.display()))
@@ -998,6 +1028,22 @@ mod tests {
     }
 
     #[test]
+    fn sink_failures_are_not_misclassified_as_invalid_source_snapshots() {
+        let path = temp_path("sink-error");
+        std::fs::write(
+            &path,
+            br#"{"messages":[{"role":"user","content":[{"type":"text","text":"ok"}]}]}"#,
+        )
+        .expect("valid Cline fixture");
+        let error = visit_messages(&path, |_| Err("replay index write failed".to_string()))
+            .expect_err("sink failure must propagate");
+        assert!(error.starts_with("process Cline replay source"));
+        assert!(error.contains("replay index write failed"));
+        assert!(!error.starts_with("parse Cline replay source"));
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
     fn thirty_mib_document_streams_one_message_at_a_time() {
         let path = temp_path("30mib");
         let file = File::create(&path).expect("fixture file");
@@ -1126,6 +1172,7 @@ mod tests {
         )
         .expect("open Cline bounded replay");
         assert_eq!(opened.chunks.len(), 2);
+        assert_eq!(take_sync_attempts(), 1, "initial document indexed once");
         let assistant = opened
             .chunks
             .iter()
@@ -1178,6 +1225,45 @@ mod tests {
         assert!(partial.stats.not_ready);
         assert!(!partial.reset_required);
         assert_eq!(partial.cursor.generation, opened.cursor.generation);
+        assert_eq!(partial.stats.parsed_bytes, 0);
+        assert_eq!(partial.stats.parsed_rows, 0);
+        assert_eq!(partial.stats.upserted_events, 0);
+        assert_eq!(take_sync_attempts(), 1, "invalid snapshot parsed once");
+        let rejected_rows = cache
+            .query_row(
+                "SELECT COUNT(*) FROM imported_replay_rejected_snapshots
+                 WHERE source='cline' AND source_session_id='cline-1'
+                   AND rejection_kind='cline_invalid_document'",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("count rejected Cline snapshot");
+        assert_eq!(rejected_rows, 1);
+
+        for _ in 0..20 {
+            let unchanged_invalid = super::super::poll_delta(
+                &mut cache,
+                ImportedHistorySourceId::Cline,
+                &session_id,
+                &opened.cursor,
+                super::super::ReplayLimits::default(),
+            )
+            .expect("serve unchanged rejected Cline snapshot");
+            assert!(unchanged_invalid.stats.not_ready);
+            assert!(!unchanged_invalid.reset_required);
+            assert_eq!(
+                unchanged_invalid.cursor.generation,
+                opened.cursor.generation
+            );
+            assert_eq!(unchanged_invalid.stats.parsed_bytes, 0);
+            assert_eq!(unchanged_invalid.stats.parsed_rows, 0);
+            assert_eq!(unchanged_invalid.stats.upserted_events, 0);
+        }
+        assert_eq!(
+            take_sync_attempts(),
+            0,
+            "unchanged rejected snapshot must not be reparsed"
+        );
         let old_range = super::super::read_payload_range(
             &mut cache,
             ImportedHistorySourceId::Cline,
@@ -1211,6 +1297,16 @@ mod tests {
         assert!(reset.reset_required);
         assert_ne!(reset.cursor.generation, opened.cursor.generation);
         assert_eq!(reset.chunks.len(), 2);
+        assert_eq!(take_sync_attempts(), 1, "changed snapshot retried once");
+        let rejected_rows = cache
+            .query_row(
+                "SELECT COUNT(*) FROM imported_replay_rejected_snapshots
+                 WHERE source='cline' AND source_session_id='cline-1'",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("count cleared Cline rejection watermark");
+        assert_eq!(rejected_rows, 0, "successful publish clears watermark");
 
         let unchanged = super::super::poll_delta(
             &mut cache,

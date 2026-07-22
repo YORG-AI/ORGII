@@ -602,6 +602,23 @@ impl SqliteRecordStore<'_> {
             CREATE INDEX IF NOT EXISTS idx_imported_replay_state_generation
                 ON imported_replay_state(source, source_session_id, generation);
 
+            -- A failed whole-document/manifest read must not replace the last
+            -- valid generation. Keep its physical snapshot separately so an
+            -- unchanged, still-invalid source can be served from the previous
+            -- generation without repeating the expensive parse on every poll.
+            CREATE TABLE IF NOT EXISTS imported_replay_rejected_snapshots (
+                source              TEXT NOT NULL,
+                source_session_id   TEXT NOT NULL,
+                parser_version      INTEGER NOT NULL,
+                source_identity     TEXT NOT NULL,
+                source_size_bytes   INTEGER NOT NULL,
+                source_mtime_ns     INTEGER NOT NULL,
+                sample_fingerprint  TEXT NOT NULL,
+                rejection_kind      TEXT NOT NULL,
+                rejected_at         TEXT NOT NULL,
+                PRIMARY KEY (source, source_session_id)
+            );
+
             CREATE TABLE IF NOT EXISTS imported_replay_turns (
                 source              TEXT NOT NULL,
                 source_session_id   TEXT NOT NULL,

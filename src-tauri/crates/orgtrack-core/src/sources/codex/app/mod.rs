@@ -15,7 +15,6 @@ use crate::sources::imported_history::{
 };
 
 pub(crate) mod desktop_exec;
-#[cfg(test)]
 mod impact;
 mod index;
 mod meta;
