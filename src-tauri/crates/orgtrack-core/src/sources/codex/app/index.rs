@@ -18,8 +18,8 @@ use crate::sources::imported_history::{
 use crate::store::{sqlite::SqliteRecordStore, RecordStore};
 
 use super::meta::{
-    parse_codex_session_meta, resolve_codex_transcript_for_thread_id_near_path,
-    session_meta_to_cache_input,
+    parse_codex_catalog_input, parse_codex_session_meta,
+    resolve_codex_transcript_for_thread_id_near_path, session_meta_to_cache_input,
 };
 use super::transcript::load_codex_app_from_path;
 use super::{CodexAppRecentPath, CodexAppSessionPage, CODEX_APP_METADATA_PARSER_VERSION};
@@ -72,6 +72,66 @@ pub fn load_codex_app_for_session(
     let file_stem = codex_file_stem_from_session_id(session_id)?;
     let path = resolve_codex_session_path(conn, file_stem)?;
     load_codex_app_from_path(session_id, &path)
+}
+
+pub(crate) fn refresh_catalog(conn: &mut Connection) -> Result<(), String> {
+    refresh_codex_app_catalog(conn)
+}
+
+fn refresh_codex_app_catalog(conn: &mut Connection) -> Result<(), String> {
+    let mut discovered = discover_codex_app_records()?;
+    let managed_ids =
+        crate::sources::imported_history::managed_mirror::managed_source_session_ids_from_conn(
+            conn,
+            "codex",
+            SOURCE_CODEX_APP,
+        )?;
+    for record in &mut discovered {
+        crate::sources::imported_history::managed_mirror::append_managed_fingerprint(
+            &mut record.source_fingerprint,
+            crate::sources::imported_history::managed_mirror::is_managed_source_session_id(
+                &managed_ids,
+                &record.source_session_id,
+            ),
+        );
+    }
+    let signatures = discovered
+        .iter()
+        .map(ImportedHistoryDiscoveredRecord::signature)
+        .collect::<Vec<_>>();
+    let changed =
+        imported_cache::changed_records_from_conn(conn, SOURCE_CODEX_APP, &discovered, |record| {
+            record.signature()
+        })?;
+    let mut inputs = Vec::new();
+    for record in changed {
+        let is_managed =
+            crate::sources::imported_history::managed_mirror::is_managed_source_session_id(
+                &managed_ids,
+                &record.source_session_id,
+            );
+        // Growth of an existing rollout only advances the compact catalog
+        // signature. Its body is indexed incrementally by bounded replay when
+        // the session is visible/active; sidebar refresh never starts over.
+        if imported_cache::advance_cached_catalog_record_from_conn(
+            conn,
+            SOURCE_CODEX_APP,
+            record,
+            Some(!is_managed),
+        )? {
+            continue;
+        }
+        if let Some(mut input) = parse_codex_catalog_input(record)? {
+            input.listable = !is_managed;
+            inputs.push(input);
+        }
+    }
+    imported_cache::sync_source_cache_from_conn(
+        conn,
+        SOURCE_CODEX_APP,
+        imported_cache::live_ids_from_signatures(&signatures),
+        inputs,
+    )
 }
 
 fn sync_codex_app_cache(conn: &mut Connection) -> Result<(), String> {

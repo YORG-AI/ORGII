@@ -135,7 +135,18 @@ pub fn load_zcode_history_for_session(session_id: &str) -> Result<Vec<ActivityCh
     load_zcode_history_from_conn(&conn, session_id, source_session_id)
 }
 
+pub(crate) fn refresh_catalog(cache_conn: &mut Connection) -> Result<(), String> {
+    sync_zcode_history_cache_inner(cache_conn, false)
+}
+
 fn sync_zcode_history_cache(cache_conn: &mut Connection) -> Result<(), String> {
+    sync_zcode_history_cache_inner(cache_conn, true)
+}
+
+fn sync_zcode_history_cache_inner(
+    cache_conn: &mut Connection,
+    include_legacy_impact: bool,
+) -> Result<(), String> {
     let Some((conn, db_path)) = open_zcode_db()? else {
         imported_cache::sync_source_cache_from_conn(
             cache_conn,
@@ -167,9 +178,16 @@ fn sync_zcode_history_cache(cache_conn: &mut Connection) -> Result<(), String> {
         .into_iter()
         .filter(|meta| changed_ids.contains(&meta.source_session_id))
     {
-        let session_id = format!("{ZCODE_SESSION_PREFIX}{}", meta.source_session_id);
-        let chunks = load_zcode_history_from_conn(&conn, &session_id, &meta.source_session_id)?;
-        meta.impact = imported_history::impact_from_edit_chunks(&chunks);
+        if include_legacy_impact {
+            let session_id = format!("{ZCODE_SESSION_PREFIX}{}", meta.source_session_id);
+            meta.impact = load_zcode_impact_from_conn(&conn, &session_id, &meta.source_session_id)?;
+        } else if let Some(cached) = imported_cache::query_cached_session_from_conn(
+            cache_conn,
+            SOURCE_ZCODE,
+            &meta.source_session_id,
+        )? {
+            meta.impact = cached.impact;
+        }
         inputs.push(session_meta_to_cache_input(meta));
     }
     imported_cache::sync_source_cache_from_conn(cache_conn, SOURCE_ZCODE, live_ids, inputs)
@@ -344,6 +362,68 @@ fn load_zcode_history_from_conn(
     Ok(chunks)
 }
 
+fn load_zcode_impact_from_conn(
+    conn: &Connection,
+    session_id: &str,
+    source_session_id: &str,
+) -> Result<ImportedHistoryImpactStats, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT p.id, p.message_id, json_extract(m.data, '$.role'), p.data, p.time_created
+             FROM part p
+             JOIN message m ON m.id = p.message_id
+             WHERE p.session_id = ?1
+               AND json_extract(p.data, '$.type') = 'tool'
+               AND lower(COALESCE(json_extract(p.data, '$.tool'), ''))
+                   IN ('write', 'edit', 'patch', 'apply_patch')
+             ORDER BY p.time_created ASC, p.id ASC",
+        )
+        .map_err(|err| format!("Failed to prepare ZCode compact impact query: {err}"))?;
+    let mut rows = stmt
+        .query([source_session_id])
+        .map_err(|err| format!("Failed to query ZCode compact impact rows: {err}"))?;
+    let mut touched = std::collections::BTreeSet::new();
+    let mut impact = ImportedHistoryImpactStats::default();
+    let mut sequence = 0usize;
+    while let Some(row) = rows
+        .next()
+        .map_err(|err| format!("Failed to read ZCode compact impact row: {err}"))?
+    {
+        let Some(raw_data) = row
+            .get::<_, Option<String>>(3)
+            .map_err(|err| format!("Failed to read ZCode compact tool payload: {err}"))?
+        else {
+            continue;
+        };
+        let chunk = replay_chunk_from_part_json(
+            session_id,
+            sequence,
+            row.get::<_, Option<String>>(0)
+                .map_err(|err| err.to_string())?
+                .unwrap_or_default(),
+            row.get::<_, Option<String>>(1)
+                .map_err(|err| err.to_string())?
+                .unwrap_or_default(),
+            row.get::<_, Option<String>>(2)
+                .map_err(|err| err.to_string())?
+                .unwrap_or_default(),
+            &raw_data,
+            row.get::<_, Option<i64>>(4)
+                .map_err(|err| err.to_string())?
+                .unwrap_or_default(),
+        )?;
+        sequence = sequence.saturating_add(1);
+        let Some(chunk) = chunk else { continue };
+        let one = imported_history::impact_from_edit_chunks(std::slice::from_ref(&chunk));
+        impact.lines_added = impact.lines_added.saturating_add(one.lines_added);
+        impact.lines_removed = impact.lines_removed.saturating_add(one.lines_removed);
+        touched.extend(one.touched_files);
+    }
+    impact.touched_files = touched.into_iter().collect();
+    impact.files_changed = impact.touched_files.len() as i64;
+    Ok(impact)
+}
+
 fn load_ordered_parts(
     conn: &Connection,
     source_session_id: &str,
@@ -402,6 +482,30 @@ fn part_row_to_chunk(
         "tool" => tool_to_chunk(session_id, sequence, row),
         _ => None,
     }
+}
+
+/// Normalize one ZCode `part` row for the bounded SQLite replay driver.
+/// The caller streams rows and invokes this only for new or changed hashes.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn replay_chunk_from_part_json(
+    session_id: &str,
+    sequence: usize,
+    part_id: String,
+    message_id: String,
+    role: String,
+    raw_data: &str,
+    time_created: i64,
+) -> Result<Option<ActivityChunk>, String> {
+    let part = serde_json::from_str::<ZCodePart>(raw_data)
+        .map_err(|err| format!("Failed to parse ZCode replay part {part_id}: {err}"))?;
+    let row = ZCodePartRow {
+        part_id,
+        message_id,
+        role,
+        part,
+        time_created,
+    };
+    Ok(part_row_to_chunk(session_id, sequence, &row))
 }
 
 fn text_to_user_chunk(

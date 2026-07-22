@@ -35,6 +35,58 @@ fn includes_claude_project_dir_candidates() {
 }
 
 #[test]
+fn catalog_prefix_is_bounded_for_a_thirty_mib_claude_transcript() {
+    use std::io::Write;
+
+    let path = std::env::temp_dir().join(format!(
+        "orgii-claude-catalog-{}-{}.jsonl",
+        std::process::id(),
+        chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+    ));
+    let mut file = std::fs::File::create(&path).expect("create Claude catalog fixture");
+    writeln!(
+        file,
+        "{}",
+        serde_json::json!({
+            "type":"user",
+            "uuid":"first-user-id",
+            "sessionId":"large-claude",
+            "cwd":"/work/claude",
+            "gitBranch":"develop",
+            "timestamp":"2026-07-22T00:00:00Z",
+            "message":{"role":"user","content":"bounded Claude catalog","model":"claude-sonnet-4"}
+        })
+    )
+    .expect("write Claude metadata line");
+    let block = vec![b'x'; 64 * 1024];
+    for _ in 0..(30 * 1024 / 64) {
+        file.write_all(&block).expect("extend Claude transcript");
+    }
+    file.flush().expect("flush Claude fixture");
+    let size = file.metadata().expect("Claude fixture metadata").len();
+    drop(file);
+
+    let record = ImportedHistoryDiscoveredRecord {
+        source_session_id: "large-claude".to_string(),
+        source_path: path.clone(),
+        source_record_key: "large-claude".to_string(),
+        source_mtime_ms: 1_774_137_600_000_000_000,
+        source_size_bytes: size as i64,
+        source_fingerprint: String::new(),
+        parser_version: CLAUDE_CODE_METADATA_PARSER_VERSION,
+    };
+    let input = parse_claude_catalog_input(&record)
+        .expect("parse bounded Claude catalog")
+        .expect("Claude catalog row");
+    assert_eq!(input.name, "bounded Claude catalog");
+    assert_eq!(input.repo_path.as_deref(), Some("/work/claude"));
+    assert_eq!(input.model.as_deref(), Some("claude-sonnet-4"));
+    assert!(CLAUDE_CATALOG_PREFIX_BYTES < size);
+
+    std::fs::remove_file(path).expect("remove Claude fixture");
+}
+
+#[test]
 fn parses_claude_jsonl_into_replay_chunks() {
     let temp_dir =
         std::env::temp_dir().join(format!("orgii-claude-history-test-{}", std::process::id()));

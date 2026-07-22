@@ -668,3 +668,45 @@ fn ignores_mutual_parent_cycle() {
     assert!(inputs.iter().all(|input| input.listable));
     assert!(inputs.iter().all(|input| input.parent_session_id.is_none()));
 }
+
+#[test]
+fn catalog_refresh_does_not_query_thirty_mib_part_bodies() {
+    use crate::store::sqlite::SqliteRecordStore;
+
+    let source = Connection::open_in_memory().expect("source DB");
+    source
+        .execute_batch(
+            "CREATE TABLE part (data BLOB);
+             INSERT INTO part(data) VALUES (zeroblob(31457280));",
+        )
+        .expect("create large body fixture");
+    // Deliberately omit the message/session schema required by the legacy
+    // impact loader. A catalog-only projection succeeds only if it never
+    // touches the source's historical part rows.
+    let cache = Connection::open_in_memory().expect("cache DB");
+    SqliteRecordStore::init_tables(&cache).expect("cache schema");
+    SqliteRecordStore::init_source_cache_tables(&cache).expect("source-cache schema");
+    let mut meta = OpenCodeSessionMeta {
+        source_session_id: "large-session".to_string(),
+        source_path: "/tmp/opencode.db".to_string(),
+        source_record_key: "large-session".to_string(),
+        source_mtime_ms: 1,
+        source_size_bytes: 30 * 1024 * 1024,
+        source_fingerprint: "large".to_string(),
+        title: "Large session".to_string(),
+        directory: "/work/opencode".to_string(),
+        model: Some("gpt-5".to_string()),
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_read_tokens: 0,
+        cache_write_tokens: 0,
+        time_created: 1,
+        time_updated: 2,
+        parent_id: None,
+        impact: ImportedHistoryImpactStats::default(),
+    };
+
+    populate_opencode_impact(&source, &cache, &mut meta, false)
+        .expect("catalog projection must not query part bodies");
+    assert_eq!(meta.impact.files_changed, 0);
+}

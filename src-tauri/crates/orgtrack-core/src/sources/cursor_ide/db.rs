@@ -256,6 +256,10 @@ where
 /// file-based sources use, and no per-restart scan of the multi-GB `state.vscdb`.
 /// If Cursor's conversation index is absent (very old builds), there's simply
 /// nothing to sync.
+pub(crate) fn refresh_catalog(cache_conn: &mut Connection) -> Result<(), String> {
+    delta_sync(cache_conn)
+}
+
 fn delta_sync(cache_conn: &mut Connection) -> Result<(), String> {
     let Some(index_conn) = open_cursor_conversation_index_db() else {
         return Ok(());

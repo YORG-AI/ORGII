@@ -23,6 +23,26 @@ pub const SOURCE_QODER: &str = "qoder";
 pub const SOURCE_MIMO_CODE: &str = "mimo_code";
 pub const SOURCE_OMP: &str = "omp";
 pub const SOURCE_QODER_CLI: &str = "qoder_cli";
+/// Transcript-bearing sources that must each have a bounded replay adapter.
+/// The replay registry contract test compares against this inventory, so a
+/// newly imported source cannot silently inherit a full-history fallback.
+pub const IMPORTED_HISTORY_SOURCES: [&str; 15] = [
+    SOURCE_CLAUDE_CODE,
+    SOURCE_CODEX_APP,
+    SOURCE_CURSOR_IDE,
+    SOURCE_CURSOR_CLI,
+    SOURCE_OPENCODE,
+    SOURCE_WINDSURF,
+    SOURCE_WORKBUDDY,
+    SOURCE_TRAE,
+    SOURCE_CLINE,
+    SOURCE_WARP,
+    SOURCE_ZCODE,
+    SOURCE_QODER,
+    SOURCE_MIMO_CODE,
+    SOURCE_OMP,
+    SOURCE_QODER_CLI,
+];
 // Hook-only sources: ORGII installs a managed PostToolUse command hook for
 // these CLIs and records their file-interaction provenance, but does not yet
 // import their session transcripts. Kept out of `is_imported_history_source`
@@ -33,24 +53,7 @@ pub const SOURCE_KIMI: &str = "kimi";
 pub const SOURCE_ANTIGRAVITY: &str = "antigravity";
 
 pub fn is_imported_history_source(source: &str) -> bool {
-    matches!(
-        source,
-        SOURCE_CLAUDE_CODE
-            | SOURCE_CODEX_APP
-            | SOURCE_CURSOR_IDE
-            | SOURCE_CURSOR_CLI
-            | SOURCE_OPENCODE
-            | SOURCE_WINDSURF
-            | SOURCE_WORKBUDDY
-            | SOURCE_TRAE
-            | SOURCE_CLINE
-            | SOURCE_WARP
-            | SOURCE_ZCODE
-            | SOURCE_QODER
-            | SOURCE_MIMO_CODE
-            | SOURCE_OMP
-            | SOURCE_QODER_CLI
-    )
+    IMPORTED_HISTORY_SOURCES.contains(&source)
 }
 
 #[derive(Debug, Clone)]

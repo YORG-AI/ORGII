@@ -66,7 +66,58 @@ fn db_candidate_points_at_cline_session_index() {
 }
 
 #[test]
-fn imports_db_indexed_subagent_with_its_own_impact() {
+fn catalog_metadata_does_not_read_a_thirty_mib_messages_document() {
+    use std::io::Write;
+
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock")
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!("orgii-cline-catalog-{unique}.messages.json"));
+    let mut file = std::fs::File::create(&path).expect("create Cline fixture");
+    let block = vec![b'x'; 64 * 1024];
+    for _ in 0..(30 * 1024 / 64) {
+        file.write_all(&block).expect("extend Cline document");
+    }
+    file.flush().expect("flush Cline fixture");
+    let size = file.metadata().expect("Cline fixture metadata").len();
+    drop(file);
+
+    let discovered = ClineDiscoveredRecord {
+        record: ImportedHistoryDiscoveredRecord {
+            source_session_id: "large-cline".to_string(),
+            source_path: path.clone(),
+            source_record_key: "large-cline".to_string(),
+            source_mtime_ms: 1_774_137_600_000_000_000,
+            source_size_bytes: size as i64,
+            source_fingerprint: "db-index-only".to_string(),
+            parser_version: CLINE_METADATA_PARSER_VERSION,
+        },
+        db_meta: Some(ClineDbSessionMeta {
+            session_id: "large-cline".to_string(),
+            updated_at: "2026-07-22T00:00:01Z".to_string(),
+            prompt: Some("Cline compact catalog".to_string()),
+            model: Some("claude-sonnet-4".to_string()),
+            workspace_root: Some("/work/cline".to_string()),
+            messages_path: path.to_string_lossy().to_string(),
+            ..ClineDbSessionMeta::default()
+        }),
+    };
+    let input = session_meta_to_cache_input(
+        parse_cline_session_meta(&discovered)
+            .expect("parse compact Cline metadata")
+            .expect("Cline catalog row"),
+    );
+    assert_eq!(input.name, "Cline compact catalog");
+    assert_eq!(input.repo_path.as_deref(), Some("/work/cline"));
+    assert_eq!(input.model.as_deref(), Some("claude-sonnet-4"));
+    assert_eq!(input.impact.files_changed, 0);
+
+    std::fs::remove_file(path).expect("remove Cline fixture");
+}
+
+#[test]
+fn imports_db_indexed_subagent_without_hydrating_its_transcript() {
     let unique = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .expect("clock")
@@ -128,9 +179,9 @@ fn imports_db_indexed_subagent_with_its_own_impact() {
     assert_eq!(input.source_session_id, "root__agent_child");
     assert_eq!(input.parent_session_id.as_deref(), Some("clineapp-root"));
     assert_eq!(input.name, "Child task");
-    assert_eq!(input.impact.touched_files, vec!["src/child.rs"]);
-    assert_eq!(input.impact.lines_added, 2);
-    assert_eq!(input.impact.lines_removed, 1);
+    assert!(input.impact.touched_files.is_empty());
+    assert_eq!(input.impact.lines_added, 0);
+    assert_eq!(input.impact.lines_removed, 0);
 
     std::fs::remove_dir_all(dir).expect("remove temp dir");
 }

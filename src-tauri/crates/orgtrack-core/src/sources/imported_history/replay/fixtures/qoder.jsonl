@@ -1,0 +1,4 @@
+{"role":"user","message":{"content":[{"type":"text","text":"<user_query>first Qoder question</user_query>"}]}}
+{"role":"assistant","message":{"content":[{"type":"text","text":"first Qoder answer"}]}}
+{"role":"user","message":{"content":[{"type":"text","text":"<user_query>second Qoder question</user_query>"}]}}
+{"role":"assistant","message":{"content":[{"type":"text","text":"second Qoder answer"}]}}

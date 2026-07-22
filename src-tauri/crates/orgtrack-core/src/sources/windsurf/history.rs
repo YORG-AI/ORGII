@@ -166,7 +166,18 @@ pub fn load_windsurf_history_for_session(session_id: &str) -> Result<Vec<Activit
     load_windsurf_history_from_conn(&conn, session_id, composer_id)
 }
 
+pub(crate) fn refresh_catalog(cache_conn: &mut Connection) -> Result<(), String> {
+    sync_windsurf_history_cache_inner(cache_conn, false)
+}
+
 fn sync_windsurf_history_cache(cache_conn: &mut Connection) -> Result<(), String> {
+    sync_windsurf_history_cache_inner(cache_conn, true)
+}
+
+fn sync_windsurf_history_cache_inner(
+    cache_conn: &mut Connection,
+    include_legacy_impact: bool,
+) -> Result<(), String> {
     let Some((conn, db_path)) = open_windsurf_db() else {
         imported_cache::sync_source_cache_from_conn(
             cache_conn,
@@ -178,8 +189,24 @@ fn sync_windsurf_history_cache(cache_conn: &mut Connection) -> Result<(), String
     };
     let (source_mtime_ms, source_size_bytes) =
         imported_paths::file_metadata_signature(&db_path, "Windsurf")?;
-    let metas =
-        list_windsurf_composer_meta_from_conn(&conn, &db_path, source_mtime_ms, source_size_bytes)?;
+    let mut metas = list_windsurf_composer_meta_from_conn_inner(
+        &conn,
+        &db_path,
+        source_mtime_ms,
+        source_size_bytes,
+        include_legacy_impact,
+    )?;
+    if !include_legacy_impact {
+        for meta in &mut metas {
+            if let Some(cached) = imported_cache::query_cached_session_from_conn(
+                cache_conn,
+                SOURCE_WINDSURF,
+                &meta.source_session_id,
+            )? {
+                meta.impact = cached.impact;
+            }
+        }
+    }
     let live_ids = metas
         .iter()
         .map(|meta| meta.source_session_id.clone())
@@ -191,11 +218,28 @@ fn sync_windsurf_history_cache(cache_conn: &mut Connection) -> Result<(), String
     imported_cache::sync_source_cache_from_conn(cache_conn, SOURCE_WINDSURF, live_ids, inputs)
 }
 
+#[cfg(test)]
 fn list_windsurf_composer_meta_from_conn(
     conn: &Connection,
     db_path: &Path,
     source_mtime_ms: i64,
     source_size_bytes: i64,
+) -> Result<Vec<WindsurfComposerMeta>, String> {
+    list_windsurf_composer_meta_from_conn_inner(
+        conn,
+        db_path,
+        source_mtime_ms,
+        source_size_bytes,
+        true,
+    )
+}
+
+fn list_windsurf_composer_meta_from_conn_inner(
+    conn: &Connection,
+    db_path: &Path,
+    source_mtime_ms: i64,
+    source_size_bytes: i64,
+    include_legacy_impact: bool,
 ) -> Result<Vec<WindsurfComposerMeta>, String> {
     let mut stmt = conn
         .prepare("SELECT value FROM cursorDiskKV WHERE key LIKE 'composerData:%'")
@@ -220,18 +264,12 @@ fn list_windsurf_composer_meta_from_conn(
         if composer.composer_id.trim().is_empty() {
             continue;
         }
-        let bubbles = load_bubbles_by_id(
-            conn,
-            &composer.composer_id,
-            &composer.full_conversation_headers_only,
-        )?;
-        let chunks = bubbles_to_chunks(
-            conn,
-            &format!("{WINDSURF_SESSION_PREFIX}{}", composer.composer_id),
-            &bubbles,
-        );
-        let listable = is_listable_composer(&composer, &chunks);
-        let impact = imported_history::impact_from_edit_chunks(&chunks);
+        let listable = is_listable_composer(&composer);
+        let impact = if include_legacy_impact {
+            composer_impact(conn, &composer)?
+        } else {
+            ImportedHistoryImpactStats::default()
+        };
         let source_fingerprint = windsurf_source_fingerprint(&composer, &sidecar_signature);
         metas.push(WindsurfComposerMeta {
             source_session_id: composer.composer_id.clone(),
@@ -272,14 +310,74 @@ fn windsurf_source_fingerprint(composer: &RawComposerData, sidecar_signature: &s
     .join("|")
 }
 
-fn is_listable_composer(composer: &RawComposerData, chunks: &[ActivityChunk]) -> bool {
+fn is_listable_composer(composer: &RawComposerData) -> bool {
     if composer.composer_id.trim().is_empty() || composer.name.trim().is_empty() {
         return false;
     }
     if composer.subagent_info.is_some() || composer.full_conversation_headers_only.is_empty() {
         return false;
     }
-    !chunks.is_empty()
+    true
+}
+
+fn composer_impact(
+    conn: &Connection,
+    composer: &RawComposerData,
+) -> Result<ImportedHistoryImpactStats, String> {
+    let key_prefix = format!("bubbleId:{}:", composer.composer_id);
+    let mut stmt = conn
+        .prepare(
+            "SELECT
+                json_extract(value, '$.toolFormerData.name'),
+                json_extract(value, '$.toolFormerData.params')
+             FROM cursorDiskKV
+             WHERE substr(key, 1, length(?1)) = ?1
+               AND json_valid(value)
+               AND lower(COALESCE(json_extract(value, '$.toolFormerData.name'), ''))
+                   IN ('edit_file', 'edit_file_v2', 'write_file', 'apply_patch')",
+        )
+        .map_err(|err| format!("Failed to prepare Windsurf compact impact query: {err}"))?;
+    let mut rows = stmt
+        .query([key_prefix])
+        .map_err(|err| format!("Failed to query Windsurf compact edit rows: {err}"))?;
+    let mut touched_files = std::collections::BTreeSet::new();
+    let mut impact = ImportedHistoryImpactStats::default();
+    while let Some(row) = rows
+        .next()
+        .map_err(|err| format!("Failed to read Windsurf compact edit row: {err}"))?
+    {
+        let raw_name = row
+            .get::<_, Option<String>>(0)
+            .map_err(|err| format!("Failed to read Windsurf compact tool name: {err}"))?
+            .unwrap_or_default();
+        let raw_args = row
+            .get::<_, Option<String>>(1)
+            .map_err(|err| format!("Failed to read Windsurf compact tool args: {err}"))?
+            .unwrap_or_default();
+        let (canonical_name, args) =
+            normalize_windsurf_tool_call(&raw_name, imported_history::parse_inner_json(&raw_args));
+        let call = ImportedToolCall {
+            call_id: String::new(),
+            raw_name,
+            canonical_name,
+            args,
+            created_at: String::new(),
+        };
+        let chunk = imported_history::tool_call_chunk(
+            "windsurfapp-catalog",
+            WINDSURF_PROVIDER_SLUG,
+            0,
+            &call,
+            "",
+        );
+        let one = imported_history::impact_from_edit_chunks(&[chunk]);
+        impact.lines_added = impact.lines_added.saturating_add(one.lines_added);
+        impact.lines_removed = impact.lines_removed.saturating_add(one.lines_removed);
+        touched_files.extend(one.touched_files);
+    }
+    impact.touched_files = touched_files.into_iter().collect();
+    impact.files_changed = impact.touched_files.len() as i64;
+    Ok(impact)
 }
 
 fn composer_meta_to_cache_input(meta: WindsurfComposerMeta) -> ImportedHistoryCacheInput {
@@ -492,6 +590,28 @@ fn bubbles_to_chunks(
         }
     }
     chunks
+}
+
+/// Normalize a single Windsurf KV bubble without hydrating the composer.
+/// Bounded replay passes rows here only after their stable-key hash changes.
+pub(crate) fn replay_chunk_from_bubble_json(
+    conn: &Connection,
+    session_id: &str,
+    _sequence: usize,
+    bubble_id: &str,
+    header_type: i64,
+    raw_json: &str,
+) -> Result<Option<ActivityChunk>, String> {
+    let raw = serde_json::from_str::<RawBubble>(raw_json)
+        .map_err(|err| format!("Failed to parse Windsurf replay bubble {bubble_id}: {err}"))?;
+    let bubble = OrderedBubble {
+        bubble_id: bubble_id.to_string(),
+        bubble_type: header_type,
+        raw,
+    };
+    Ok(bubbles_to_chunks(conn, session_id, &[bubble])
+        .into_iter()
+        .next())
 }
 
 fn user_bubble_to_chunk(

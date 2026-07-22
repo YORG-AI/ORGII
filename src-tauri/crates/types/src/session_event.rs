@@ -106,6 +106,14 @@ pub struct PayloadRef {
     pub preview: String,
     pub full_size_bytes: usize,
     pub truncated: bool,
+    /// External replay locators point into provider-owned storage rather than
+    /// the sessions.db event cache. Optional fields preserve native refs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replay_source_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replay_generation: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replay_source_event_id: Option<String>,
 }
 
 /// Stable reference to one append-only shell replay artifact.

@@ -1,0 +1,4 @@
+{"type":"user","timestamp":1753142400000,"message":{"role":"user","content":[{"type":"text","text":"first Qoder CLI question"}]}}
+{"type":"assistant","timestamp":1753142401000,"message":{"role":"assistant","content":[{"type":"text","text":"first Qoder CLI answer"}]}}
+{"type":"user","timestamp":1753142402000,"message":{"role":"user","content":[{"type":"text","text":"second Qoder CLI question"}]}}
+{"type":"assistant","timestamp":1753142403000,"message":{"role":"assistant","content":[{"type":"text","text":"second Qoder CLI answer"}]}}

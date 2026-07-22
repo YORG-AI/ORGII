@@ -13,14 +13,15 @@ use crate::sources::imported_history::{
     ImportedHistoryRecentPath, ImportedHistorySessionPage, ImportedHistorySessionRow,
 };
 
-mod desktop_exec;
+pub(crate) mod desktop_exec;
 mod impact;
 mod index;
 mod meta;
 mod normalize;
-mod transcript;
+pub(crate) mod transcript;
 
 // Public API — preserved at `...::sources::codex::app::*`.
+pub(crate) use index::refresh_catalog;
 pub use index::{
     codex_thread_id_from_file_stem, list_codex_app_recent_paths,
     list_codex_app_reconciliation_sessions, list_codex_app_sessions_paginated,
@@ -59,13 +60,13 @@ pub type CodexAppSessionPage = ImportedHistorySessionPage;
 pub type CodexAppRecentPath = ImportedHistoryRecentPath;
 
 #[derive(Debug, Deserialize)]
-struct CodexJsonlLine {
+pub(crate) struct CodexJsonlLine {
     #[serde(default)]
-    timestamp: Option<String>,
+    pub(crate) timestamp: Option<String>,
     #[serde(default, rename = "type")]
-    line_type: String,
+    pub(crate) line_type: String,
     #[serde(default)]
-    payload: Value,
+    pub(crate) payload: Value,
 }
 
 #[derive(Debug, Clone)]

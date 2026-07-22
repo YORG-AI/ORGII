@@ -1,0 +1,39 @@
+{
+  "composer": {
+    "composerId": "fixture-cursor-ide",
+    "createdAt": 1753142400000,
+    "lastUpdatedAt": 1753142403000,
+    "fullConversationHeadersOnly": [
+      { "bubbleId": "cursor-ide-u1", "type": 1 },
+      { "bubbleId": "cursor-ide-a1", "type": 2 },
+      { "bubbleId": "cursor-ide-u2", "type": 1 },
+      { "bubbleId": "cursor-ide-a2", "type": 2 }
+    ]
+  },
+  "bubbles": [
+    {
+      "bubbleId": "cursor-ide-u1",
+      "type": 1,
+      "createdAt": "2026-07-22T00:00:00Z",
+      "text": "first Cursor IDE question"
+    },
+    {
+      "bubbleId": "cursor-ide-a1",
+      "type": 2,
+      "createdAt": "2026-07-22T00:00:01Z",
+      "text": "first Cursor IDE answer"
+    },
+    {
+      "bubbleId": "cursor-ide-u2",
+      "type": 1,
+      "createdAt": "2026-07-22T00:00:02Z",
+      "text": "second Cursor IDE question"
+    },
+    {
+      "bubbleId": "cursor-ide-a2",
+      "type": 2,
+      "createdAt": "2026-07-22T00:00:03Z",
+      "text": "second Cursor IDE answer"
+    }
+  ]
+}

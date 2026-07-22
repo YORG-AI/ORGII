@@ -11,7 +11,7 @@
 
 use std::collections::HashSet;
 use std::fs;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 
 use core_types::activity::ActivityChunk;
@@ -28,6 +28,8 @@ use crate::sources::imported_history::{
     paths as imported_paths, ImportedHistoryRecentPath, ImportedHistorySessionPage,
     ImportedHistorySessionRow,
 };
+
+const CATALOG_PREFIX_BYTES: u64 = 1024 * 1024;
 
 pub const TRAE_SESSION_PREFIX: &str = "traeapp-";
 const TRAE_PROVIDER_SLUG: &str = "trae";
@@ -110,6 +112,43 @@ pub fn load_trae_history_for_session(
     let source_session_id = trae_source_id_from_session_id(session_id)?;
     let path = resolve_trae_session_path(conn, source_session_id)?;
     load_trae_history_from_path(session_id, &path)
+}
+
+pub(crate) fn refresh_catalog(conn: &mut Connection) -> Result<(), String> {
+    refresh_trae_catalog(conn)
+}
+
+fn refresh_trae_catalog(conn: &mut Connection) -> Result<(), String> {
+    let discovered = discover_trae_history_records()?;
+    let signatures = discovered
+        .iter()
+        .map(ImportedHistoryDiscoveredRecord::signature)
+        .collect::<Vec<_>>();
+    let changed =
+        imported_cache::changed_records_from_conn(conn, SOURCE_TRAE, &discovered, |record| {
+            record.signature()
+        })?;
+    let session_index = if changed.is_empty() {
+        index::TraeSessionIndex::new()
+    } else {
+        index::load_trae_session_index()
+    };
+    let mut inputs = Vec::new();
+    for record in changed {
+        if imported_cache::advance_cached_catalog_record_from_conn(conn, SOURCE_TRAE, record, None)?
+        {
+            continue;
+        }
+        if let Some(meta) = parse_trae_session_meta(record, &session_index)? {
+            inputs.push(session_meta_to_cache_input(meta));
+        }
+    }
+    imported_cache::sync_source_cache_from_conn(
+        conn,
+        SOURCE_TRAE,
+        imported_cache::live_ids_from_signatures(&signatures),
+        inputs,
+    )
 }
 
 fn sync_trae_history_cache(conn: &mut Connection) -> Result<(), String> {
@@ -226,7 +265,7 @@ fn parse_trae_session_meta(
             record.source_path.display()
         )
     })?;
-    let reader = BufReader::new(file);
+    let reader = BufReader::new(file.take(CATALOG_PREFIX_BYTES));
 
     let mut created_at_ms = 0;
     let mut updated_at_ms = 0;

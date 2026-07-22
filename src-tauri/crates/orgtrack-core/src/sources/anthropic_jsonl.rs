@@ -6,7 +6,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 
 use core_types::activity::ActivityChunk;
@@ -22,6 +22,8 @@ use crate::sources::imported_history::{
     paths as imported_paths, ImportedHistoryRecentPath, ImportedHistorySessionPage,
     ImportedToolCall,
 };
+
+const CATALOG_PREFIX_BYTES: u64 = 1024 * 1024;
 
 const MAX_TOOL_OUTPUT_CHARS: usize = 50_000;
 
@@ -145,6 +147,47 @@ fn sync_cache(config: &AnthropicJsonlSource, conn: &mut Connection) -> Result<()
     )
 }
 
+pub(crate) fn refresh_catalog(
+    config: &AnthropicJsonlSource,
+    conn: &mut Connection,
+) -> Result<(), String> {
+    let discovered = discover_records(config)?;
+    let signatures = discovered
+        .iter()
+        .map(ImportedHistoryDiscoveredRecord::signature)
+        .collect::<Vec<_>>();
+    let changed = imported_cache::changed_records_from_conn(
+        conn,
+        config.source,
+        &discovered,
+        ImportedHistoryDiscoveredRecord::signature,
+    )?;
+    let mut inputs = Vec::new();
+    for record in changed {
+        if imported_cache::advance_cached_catalog_record_from_conn(
+            conn,
+            config.source,
+            record,
+            None,
+        )? {
+            continue;
+        }
+        // Cold discovery streams one JSONL record at a time. Subsequent
+        // appends only advance the persisted catalog signature above; body
+        // deltas belong to the replay adapter.
+        inputs.push(meta_to_cache_input(
+            config,
+            parse_session_meta(config, record)?,
+        ));
+    }
+    imported_cache::sync_source_cache_from_conn(
+        conn,
+        config.source,
+        imported_cache::live_ids_from_signatures(&signatures),
+        inputs,
+    )
+}
+
 fn discover_records(
     config: &AnthropicJsonlSource,
 ) -> Result<Vec<ImportedHistoryDiscoveredRecord>, String> {
@@ -219,7 +262,6 @@ fn parse_session_meta(
     config: &AnthropicJsonlSource,
     record: &ImportedHistoryDiscoveredRecord,
 ) -> Result<SessionMeta, String> {
-    let turns = read_turns(config, &record.source_path)?;
     let mut created_at_ms = 0;
     let mut updated_at_ms = 0;
     let mut repo_path = None;
@@ -230,6 +272,9 @@ fn parse_session_meta(
     let mut cache_read_tokens = 0;
     let mut cache_write_tokens = 0;
     let mut first_user_text = None;
+    let mut impact = ImportedHistoryImpactStats::default();
+    let mut touched_files = std::collections::BTreeSet::new();
+    let session_id = format!("{}{}", config.session_prefix, record.source_session_id);
 
     let file = fs::File::open(&record.source_path).map_err(|err| {
         format!(
@@ -238,7 +283,7 @@ fn parse_session_meta(
             record.source_path.display()
         )
     })?;
-    for line in BufReader::new(file).lines() {
+    for line in BufReader::new(file.take(CATALOG_PREFIX_BYTES)).lines() {
         let Ok(line) = line else { continue };
         let Ok(parsed) = serde_json::from_str::<JsonlLine>(line.trim()) else {
             continue;
@@ -259,6 +304,14 @@ fn parse_session_meta(
             model = Some(parsed.model_id.trim().to_string());
         }
         if let Some(message) = parsed.message {
+            collect_catalog_edit_impact(
+                config,
+                &session_id,
+                &message,
+                &normalized_timestamp(&parsed.timestamp),
+                &mut impact,
+                &mut touched_files,
+            );
             if model.is_none() && !message.model.trim().is_empty() {
                 model = Some(message.model.trim().to_string());
             }
@@ -275,9 +328,8 @@ fn parse_session_meta(
     }
 
     let fallback_ms = record.source_mtime_ms / 1_000_000;
-    let session_id = format!("{}{}", config.session_prefix, record.source_session_id);
-    let impact =
-        imported_history::impact_from_edit_chunks(&messages_to_chunks(config, &session_id, &turns));
+    impact.touched_files = touched_files.into_iter().collect();
+    impact.files_changed = impact.touched_files.len() as i64;
     Ok(SessionMeta {
         source_session_id: record.source_session_id.clone(),
         session_id,
@@ -307,6 +359,44 @@ fn parse_session_meta(
         branch,
         impact,
     })
+}
+
+fn collect_catalog_edit_impact(
+    config: &AnthropicJsonlSource,
+    session_id: &str,
+    message: &JsonlMessage,
+    created_at: &str,
+    impact: &mut ImportedHistoryImpactStats,
+    touched_files: &mut std::collections::BTreeSet<String>,
+) {
+    for block in content_blocks(&message.content) {
+        if block_type(&block) != "tool_use" {
+            continue;
+        }
+        let raw_name = block.get("name").and_then(Value::as_str).unwrap_or("tool");
+        let (canonical_name, args) =
+            normalize_tool_call(raw_name, block.get("input").cloned().unwrap_or(Value::Null));
+        if canonical_name != imported_history::FUNCTION_EDIT_FILE {
+            continue;
+        }
+        let call = ImportedToolCall {
+            call_id: block
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+            raw_name: raw_name.to_string(),
+            canonical_name,
+            args,
+            created_at: created_at.to_string(),
+        };
+        let chunk =
+            imported_history::tool_call_chunk(session_id, config.provider_slug, 0, &call, "");
+        let one = imported_history::impact_from_edit_chunks(std::slice::from_ref(&chunk));
+        impact.lines_added = impact.lines_added.saturating_add(one.lines_added);
+        impact.lines_removed = impact.lines_removed.saturating_add(one.lines_removed);
+        touched_files.extend(one.touched_files);
+    }
 }
 
 fn meta_to_cache_input(

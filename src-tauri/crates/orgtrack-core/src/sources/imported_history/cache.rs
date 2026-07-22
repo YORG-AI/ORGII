@@ -832,6 +832,51 @@ where
         .collect())
 }
 
+/// Advance only the discovery signature for an already-cached catalog row.
+///
+/// Sidebar rescans must notice that an external transcript grew without
+/// re-reading its body merely to rebuild metadata we already persisted.  The
+/// bounded replay index owns body/token/impact updates; this helper preserves
+/// those fields and updates only source identity, freshness, and the optional
+/// listability decision derived from cheap source indexes.
+pub fn advance_cached_catalog_record_from_conn(
+    conn: &Connection,
+    source: &str,
+    record: &super::metadata::ImportedHistoryDiscoveredRecord,
+    listable: Option<bool>,
+) -> Result<bool, String> {
+    let updated_at_ms = record.source_mtime_ms.saturating_div(1_000_000);
+    let changed = conn
+        .execute(
+            "UPDATE imported_history_session_cache
+             SET source_path = ?3,
+                 source_record_key = ?4,
+                 source_mtime_ms = ?5,
+                 source_size_bytes = ?6,
+                 source_fingerprint = ?7,
+                 parser_version = ?8,
+                 updated_at_ms = MAX(updated_at_ms, ?9),
+                 listable = CASE WHEN ?10 IS NULL THEN listable ELSE ?10 END,
+                 updated_at = ?11
+             WHERE source = ?1 AND source_session_id = ?2",
+            params![
+                source,
+                record.source_session_id,
+                record.source_path.to_string_lossy(),
+                record.source_record_key,
+                record.source_mtime_ms,
+                record.source_size_bytes,
+                record.source_fingerprint,
+                record.parser_version,
+                updated_at_ms,
+                listable.map(i64::from),
+                Utc::now().to_rfc3339(),
+            ],
+        )
+        .map_err(|err| format!("Failed to advance imported catalog record: {err}"))?;
+    Ok(changed > 0)
+}
+
 pub fn live_ids_from_signatures(signatures: &[ImportedHistoryRecordSignature]) -> Vec<String> {
     let mut seen = HashSet::new();
     signatures

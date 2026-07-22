@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 use std::fs;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
@@ -24,6 +24,12 @@ use super::index::{
 };
 use super::transcript::user_message_from_payload;
 use super::{CodexAppSessionMeta, CodexJsonlLine, CODEX_APP_METADATA_PARSER_VERSION};
+
+/// Catalog discovery only needs stable card metadata.  Capping the prefix is
+/// intentional: an appended 300 MiB rollout must not make a sidebar rescan
+/// walk 300 MiB again. Exact turns, tokens, and impact come from the persistent
+/// bounded replay index.
+const CODEX_CATALOG_PREFIX_BYTES: u64 = 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CodexTranscriptLocator {
@@ -243,6 +249,116 @@ pub(crate) fn parse_codex_session_meta(
     }))
 }
 
+pub(super) fn parse_codex_catalog_input(
+    record: &ImportedHistoryDiscoveredRecord,
+) -> Result<Option<ImportedHistoryCacheInput>, String> {
+    let file = fs::File::open(&record.source_path).map_err(|err| {
+        format!(
+            "Failed to open Codex catalog prefix {}: {err}",
+            record.source_path.display()
+        )
+    })?;
+    let reader = BufReader::new(file.take(CODEX_CATALOG_PREFIX_BYTES));
+    let mut created_at_ms = 0;
+    let mut external_title = codex_session_index_title_for_record(record)?;
+    let mut first_prompt = String::new();
+    let mut model = None;
+    let mut repo_path = None;
+    let mut parent_thread_id = None;
+
+    for line in reader.lines() {
+        let line = line.map_err(|err| format!("Failed to read Codex catalog prefix: {err}"))?;
+        let Ok(parsed) = serde_json::from_str::<CodexJsonlLine>(line.trim()) else {
+            continue;
+        };
+        if created_at_ms == 0 {
+            created_at_ms = parsed
+                .timestamp
+                .as_deref()
+                .and_then(imported_history::parse_iso_to_epoch_ms_opt)
+                .unwrap_or_default();
+        }
+        if first_prompt.is_empty() {
+            if let Some(message) = user_message_from_payload(&parsed.payload) {
+                first_prompt = imported_history::truncate_name(&message, 200);
+            }
+        }
+        if external_title.is_empty() && parsed.line_type == "session_meta" {
+            if let Some(title) = session_title_from_payload(&parsed.payload) {
+                external_title = imported_history::truncate_name(&title, 200);
+            }
+        }
+        if parent_thread_id.is_none() && parsed.line_type == "session_meta" {
+            parent_thread_id = parent_thread_id_from_session_meta_payload(
+                &parsed.payload,
+                codex_thread_id_from_file_stem(&record.source_record_key),
+            );
+        }
+        if model.is_none() || repo_path.is_none() {
+            if let Ok(turn_context) =
+                serde_json::from_value::<CodexTurnContextPayload>(parsed.payload)
+            {
+                if model.is_none() && !turn_context.model.trim().is_empty() {
+                    model = Some(turn_context.model);
+                }
+                if repo_path.is_none() && !turn_context.cwd.trim().is_empty() {
+                    repo_path = Some(turn_context.cwd);
+                }
+            }
+        }
+        if !first_prompt.is_empty()
+            && model.is_some()
+            && repo_path.is_some()
+            && parent_thread_id.is_some()
+        {
+            break;
+        }
+    }
+
+    let source_time_ms = record.source_mtime_ms.saturating_div(1_000_000);
+    if created_at_ms == 0 && source_time_ms == 0 {
+        return Ok(None);
+    }
+    let name = if !external_title.is_empty() {
+        external_title
+    } else if !first_prompt.is_empty() {
+        first_prompt
+    } else {
+        record.source_record_key.clone()
+    };
+    Ok(Some(ImportedHistoryCacheInput {
+        source: SOURCE_CODEX_APP,
+        source_session_id: record.source_session_id.clone(),
+        session_id: canonical_session_id(&record.source_session_id),
+        source_path: record.source_path.to_string_lossy().to_string(),
+        source_record_key: record.source_record_key.clone(),
+        source_mtime_ms: record.source_mtime_ms,
+        source_size_bytes: record.source_size_bytes,
+        source_fingerprint: record.source_fingerprint.clone(),
+        parser_version: CODEX_APP_METADATA_PARSER_VERSION,
+        name,
+        created_at_ms: if created_at_ms > 0 {
+            created_at_ms
+        } else {
+            source_time_ms
+        },
+        updated_at_ms: source_time_ms.max(created_at_ms),
+        model,
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_read_tokens: 0,
+        cache_write_tokens: 0,
+        repo_path,
+        branch: None,
+        impact: ImportedHistoryImpactStats::default(),
+        listable: true,
+        source_metadata_json: None,
+        parent_session_id: parent_thread_id
+            .as_deref()
+            .and_then(|thread_id| codex_parent_session_id_for_record(record, thread_id)),
+    }))
+}
+
 pub(super) fn session_meta_to_cache_input(meta: CodexAppSessionMeta) -> ImportedHistoryCacheInput {
     ImportedHistoryCacheInput {
         source: SOURCE_CODEX_APP,
@@ -377,4 +493,69 @@ fn session_title_from_payload(payload: &Value) -> Option<String> {
     .map(str::trim)
     .find(|value| !value.is_empty())
     .map(ToString::to_string)
+}
+
+#[cfg(test)]
+mod catalog_tests {
+    use std::io::Write;
+
+    use super::*;
+
+    #[test]
+    fn catalog_prefix_is_bounded_for_a_thirty_mib_rollout() {
+        let path = std::env::temp_dir().join(format!(
+            "orgii-codex-catalog-{}-{}.jsonl",
+            std::process::id(),
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        let mut file = fs::File::create(&path).expect("create Codex catalog fixture");
+        writeln!(
+            file,
+            "{}",
+            serde_json::json!({
+                "timestamp":"2026-07-22T00:00:00Z",
+                "type":"session_meta",
+                "payload":{"title":"bounded catalog","cwd":"/work/orgii","model":"gpt-5"}
+            })
+        )
+        .expect("write metadata line");
+        writeln!(
+            file,
+            "{}",
+            serde_json::json!({
+                "timestamp":"2026-07-22T00:00:01Z",
+                "type":"event_msg",
+                "payload":{"type":"user_message","message":"first prompt"}
+            })
+        )
+        .expect("write prompt line");
+        let block = vec![b'x'; 64 * 1024];
+        for _ in 0..(30 * 1024 / 64) {
+            file.write_all(&block).expect("extend large rollout");
+        }
+        file.flush().expect("flush fixture");
+        let size = file.metadata().expect("fixture metadata").len();
+        drop(file);
+        assert!(size > 30 * 1024 * 1024 - 1024);
+
+        let record = ImportedHistoryDiscoveredRecord {
+            source_session_id: "catalog-large".to_string(),
+            source_path: path.clone(),
+            source_record_key: "catalog-large".to_string(),
+            source_mtime_ms: 1_774_137_600_000_000_000,
+            source_size_bytes: size as i64,
+            source_fingerprint: String::new(),
+            parser_version: CODEX_APP_METADATA_PARSER_VERSION,
+        };
+        let input = parse_codex_catalog_input(&record)
+            .expect("parse bounded catalog")
+            .expect("catalog row");
+        assert_eq!(input.name, "bounded catalog");
+        assert_eq!(input.repo_path.as_deref(), Some("/work/orgii"));
+        assert_eq!(input.model.as_deref(), Some("gpt-5"));
+        assert_eq!(input.input_tokens, 0);
+        assert!(CODEX_CATALOG_PREFIX_BYTES < size);
+
+        fs::remove_file(path).expect("remove fixture");
+    }
 }

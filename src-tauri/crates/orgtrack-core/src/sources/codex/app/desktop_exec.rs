@@ -303,7 +303,7 @@ fn parse_string(value: &str) -> Option<String> {
     None
 }
 
-pub(super) fn codex_tool_output_text(output: Option<&Value>) -> String {
+pub(crate) fn codex_tool_output_text(output: Option<&Value>) -> String {
     match output {
         Some(Value::String(text)) => text.clone(),
         Some(Value::Array(parts)) => parts

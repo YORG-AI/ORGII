@@ -6,7 +6,7 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 
 use core_types::activity::ActivityChunk;
@@ -33,6 +33,7 @@ const CLAUDE_CODE_PROVIDER_SLUG: &str = "claudecode";
 // v8: emit per-round usage rows (imported_history_round_usage).
 // v9: dedup usage by message.id (one API response spans repeated JSONL lines).
 const CLAUDE_CODE_METADATA_PARSER_VERSION: i64 = 9;
+const CLAUDE_CATALOG_PREFIX_BYTES: u64 = 1024 * 1024;
 
 pub type ClaudeCodeHistorySessionRow = ImportedHistorySessionRow;
 pub type ClaudeCodeHistorySessionPage = ImportedHistorySessionPage;
@@ -209,6 +210,58 @@ pub fn stat_claude_code_history_for_session(
         }
         Err(_) => Ok(None),
     }
+}
+
+pub(crate) fn refresh_catalog(conn: &mut Connection) -> Result<(), String> {
+    refresh_claude_code_catalog(conn)
+}
+
+fn refresh_claude_code_catalog(conn: &mut Connection) -> Result<(), String> {
+    let mut discovered = discover_claude_code_history_records()?;
+    let managed_ids = managed_mirror::managed_source_session_ids_from_conn(
+        conn,
+        SOURCE_CLAUDE_CODE,
+        SOURCE_CLAUDE_CODE,
+    )?;
+    for record in &mut discovered {
+        managed_mirror::append_managed_fingerprint(
+            &mut record.source_fingerprint,
+            managed_ids.contains(&record.source_session_id),
+        );
+    }
+    let signatures = discovered
+        .iter()
+        .map(ImportedHistoryDiscoveredRecord::signature)
+        .collect::<Vec<_>>();
+    let changed = imported_cache::changed_records_from_conn(
+        conn,
+        SOURCE_CLAUDE_CODE,
+        &discovered,
+        |record| record.signature(),
+    )?;
+    let mut inputs = Vec::new();
+    for record in changed {
+        let is_managed = managed_ids.contains(&record.source_session_id);
+        if imported_cache::advance_cached_catalog_record_from_conn(
+            conn,
+            SOURCE_CLAUDE_CODE,
+            record,
+            Some(!is_managed),
+        )? {
+            continue;
+        }
+        if let Some(mut input) = parse_claude_catalog_input(record)? {
+            input.listable = !is_managed;
+            inputs.push(input);
+        }
+    }
+    imported_cache::sync_source_cache_from_conn(
+        conn,
+        SOURCE_CLAUDE_CODE,
+        imported_cache::live_ids_from_signatures(&signatures),
+        inputs,
+    )?;
+    imported_cache::demote_superseded_continuations_from_conn(conn, SOURCE_CLAUDE_CODE).map(|_| ())
 }
 
 fn sync_claude_code_history_cache(conn: &mut Connection) -> Result<(), String> {
@@ -639,6 +692,124 @@ fn parse_claude_session_meta(
         parent_session_id: parent_source_session_id
             .map(|uuid| format!("{CLAUDE_CODE_SESSION_PREFIX}{uuid}")),
         first_user_uuid,
+    }))
+}
+
+fn parse_claude_catalog_input(
+    record: &ImportedHistoryDiscoveredRecord,
+) -> Result<Option<ImportedHistoryCacheInput>, String> {
+    let file = fs::File::open(&record.source_path).map_err(|err| {
+        format!(
+            "Failed to open Claude catalog prefix {}: {err}",
+            record.source_path.display()
+        )
+    })?;
+    let reader = BufReader::new(file.take(CLAUDE_CATALOG_PREFIX_BYTES));
+    let mut created_at_ms = 0;
+    let external_title = claude_session_title_for_record(record)?;
+    let mut summary_title = String::new();
+    let mut first_prompt = String::new();
+    let mut model = None;
+    let mut repo_path = None;
+    let mut branch = None;
+    let mut parent_source_session_id = None;
+    let mut first_user_uuid = None;
+
+    for line in reader.lines() {
+        let line = line.map_err(|err| format!("Failed to read Claude catalog prefix: {err}"))?;
+        let Ok(parsed) = serde_json::from_str::<ClaudeJsonlLine>(line.trim()) else {
+            continue;
+        };
+        if created_at_ms == 0 {
+            created_at_ms = parsed
+                .timestamp
+                .as_deref()
+                .and_then(imported_history::parse_iso_to_epoch_ms_opt)
+                .unwrap_or_default();
+        }
+        if repo_path.is_none() && !parsed.cwd.trim().is_empty() {
+            repo_path = Some(parsed.cwd.clone());
+        }
+        if branch.is_none() && !parsed.git_branch.trim().is_empty() {
+            branch = Some(parsed.git_branch.clone());
+        }
+        if parent_source_session_id.is_none() && parsed.is_sidechain {
+            let candidate = parsed.session_id.trim();
+            if !candidate.is_empty() && candidate != record.source_session_id {
+                parent_source_session_id = Some(candidate.to_string());
+            }
+        }
+        if first_user_uuid.is_none() && parsed.r#type == "user" && !parsed.uuid.trim().is_empty() {
+            first_user_uuid = Some(parsed.uuid.trim().to_string());
+        }
+        if summary_title.is_empty() && parsed.r#type == "summary" {
+            let title = parsed.summary.trim();
+            if !title.is_empty() {
+                summary_title = imported_history::truncate_name(title, 200);
+            }
+        }
+        if let Some(message) = parsed.message {
+            if first_prompt.is_empty() && parsed.r#type == "user" {
+                if let Some(text) = claude_content_text(&message.content) {
+                    let text = imported_history::strip_orgii_exec_mode_bridge(&text);
+                    if !text.trim().is_empty() {
+                        first_prompt = imported_history::truncate_name(text, 200);
+                    }
+                }
+            }
+            if model.is_none()
+                && !message.model.trim().is_empty()
+                && !message.model.starts_with('<')
+            {
+                model = Some(message.model);
+            }
+        }
+    }
+
+    let source_time_ms = record.source_mtime_ms.saturating_div(1_000_000);
+    if created_at_ms == 0 && source_time_ms == 0 {
+        return Ok(None);
+    }
+    let name = if !external_title.is_empty() {
+        external_title
+    } else if !summary_title.is_empty() {
+        summary_title
+    } else if !first_prompt.is_empty() {
+        first_prompt
+    } else {
+        record.source_record_key.clone()
+    };
+    Ok(Some(ImportedHistoryCacheInput {
+        source: SOURCE_CLAUDE_CODE,
+        source_session_id: record.source_session_id.clone(),
+        session_id: super::canonical_session_id(&record.source_session_id),
+        source_path: record.source_path.to_string_lossy().to_string(),
+        source_record_key: record.source_record_key.clone(),
+        source_mtime_ms: record.source_mtime_ms,
+        source_size_bytes: record.source_size_bytes,
+        source_fingerprint: record.source_fingerprint.clone(),
+        parser_version: CLAUDE_CODE_METADATA_PARSER_VERSION,
+        name,
+        created_at_ms: if created_at_ms > 0 {
+            created_at_ms
+        } else {
+            source_time_ms
+        },
+        updated_at_ms: source_time_ms.max(created_at_ms),
+        model,
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_read_tokens: 0,
+        cache_write_tokens: 0,
+        repo_path,
+        branch,
+        impact: ImportedHistoryImpactStats::default(),
+        listable: true,
+        source_metadata_json: imported_cache::continuation_group_metadata_json(
+            first_user_uuid.as_deref(),
+        ),
+        parent_session_id: parent_source_session_id
+            .map(|uuid| format!("{CLAUDE_CODE_SESSION_PREFIX}{uuid}")),
     }))
 }
 

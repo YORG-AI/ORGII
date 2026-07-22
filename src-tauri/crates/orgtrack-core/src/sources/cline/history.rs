@@ -171,6 +171,10 @@ pub fn load_cline_history_for_session(
     load_cline_history_from_path(session_id, &path)
 }
 
+pub(crate) fn refresh_catalog(conn: &mut Connection) -> Result<(), String> {
+    sync_cline_history_cache(conn)
+}
+
 fn sync_cline_history_cache(conn: &mut Connection) -> Result<(), String> {
     let discovered = discover_cline_history_records()?;
     let signatures = discovered
@@ -184,7 +188,18 @@ fn sync_cline_history_cache(conn: &mut Connection) -> Result<(), String> {
     let mut inputs = Vec::new();
     for record in changed {
         if let Some(meta) = parse_cline_session_meta(record)? {
-            inputs.push(session_meta_to_cache_input(meta));
+            let mut input = session_meta_to_cache_input(meta);
+            if let Some(cached) = imported_cache::query_cached_session_from_conn(
+                conn,
+                SOURCE_CLINE,
+                &input.source_session_id,
+            )? {
+                // Message traversal belongs to whole-document replay. A
+                // sidecar/DB catalog refresh must never erase the last valid
+                // compact impact merely because it did not read messages.
+                input.impact = cached.impact;
+            }
+            inputs.push(input);
         }
     }
     imported_cache::sync_source_cache_from_conn(
@@ -345,7 +360,6 @@ fn parse_cline_session_meta(
         .and_then(|raw| serde_json::from_str(&raw).ok())
         .unwrap_or_default();
 
-    let transcript = read_transcript(messages_path).unwrap_or_default();
     let db_metadata = db_meta
         .and_then(|meta| meta.metadata_json.as_deref())
         .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
@@ -360,22 +374,13 @@ fn parse_cline_session_meta(
                 .map(|meta| meta.started_at.as_str())
                 .and_then(imported_history::parse_iso_to_epoch_ms_opt)
         })
-        .or_else(|| transcript.messages.iter().find_map(|m| m.ts))
         .filter(|ms| *ms > 0)
-        .unwrap_or(record.source_mtime_ms);
+        .unwrap_or(record.source_mtime_ms / 1_000_000);
 
-    let updated_at_ms = transcript
-        .messages
-        .iter()
-        .rev()
-        .find_map(|m| m.ts)
+    let updated_at_ms = db_meta
+        .and_then(|meta| imported_history::parse_iso_to_epoch_ms_opt(meta.updated_at.as_str()))
         .filter(|ms| *ms > 0)
-        .or_else(|| {
-            db_meta
-                .map(|meta| meta.updated_at.as_str())
-                .and_then(imported_history::parse_iso_to_epoch_ms_opt)
-        })
-        .unwrap_or(record.source_mtime_ms);
+        .unwrap_or(record.source_mtime_ms / 1_000_000);
 
     let title = session_json
         .metadata
@@ -402,7 +407,6 @@ fn parse_cline_session_meta(
                 .filter(|value| !value.is_empty())
                 .map(str::to_string)
         })
-        .or_else(|| first_user_text(&transcript))
         .map(|value| imported_history::truncate_name(&value, 200))
         .unwrap_or_else(|| record.source_record_key.clone());
 
@@ -451,8 +455,11 @@ fn parse_cline_session_meta(
         .unwrap_or_default()
     });
     let session_id = format!("{CLINE_SESSION_PREFIX}{}", record.source_session_id);
-    let impact =
-        imported_history::impact_from_edit_chunks(&transcript_to_chunks(&session_id, &transcript));
+    // The whole-document replay adapter owns message traversal. Catalog
+    // refresh deliberately avoids deserializing the messages array merely to
+    // populate a sidebar card; exact impact is projected from the compact
+    // replay index when that metadata is requested.
+    let impact = ImportedHistoryImpactStats::default();
     let parent_session_id = db_meta
         .filter(|meta| meta.is_subagent)
         .and_then(|meta| meta.parent_session_id.as_deref())
@@ -800,25 +807,6 @@ fn content_blocks(content: &Value) -> Vec<&Value> {
 
 fn block_type(block: &Value) -> &str {
     block.get("type").and_then(Value::as_str).unwrap_or("")
-}
-
-fn first_user_text(transcript: &ClineTranscript) -> Option<String> {
-    for message in &transcript.messages {
-        if message.role != "user" {
-            continue;
-        }
-        for block in content_blocks(&message.content) {
-            if block_type(block) == "text" {
-                let text = strip_user_input_wrapper(
-                    block.get("text").and_then(Value::as_str).unwrap_or(""),
-                );
-                if !text.is_empty() {
-                    return Some(text.to_string());
-                }
-            }
-        }
-    }
-    None
 }
 
 fn json_nonempty_string(value: &Value, path: &[&str]) -> Option<String> {

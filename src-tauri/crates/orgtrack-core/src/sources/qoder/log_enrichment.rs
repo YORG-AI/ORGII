@@ -28,6 +28,7 @@
 
 use std::collections::HashMap;
 use std::fs;
+use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 
 use chrono::{Local, NaiveDateTime, TimeZone};
@@ -40,6 +41,17 @@ use crate::sources::imported_history::{
 
 use super::history::MAX_TOOL_OUTPUT_CHARS;
 
+#[cfg(test)]
+thread_local! {
+    static QODER_LOG_PATH_OVERRIDE: std::cell::RefCell<Option<Vec<PathBuf>>> = const {
+        std::cell::RefCell::new(None)
+    };
+}
+
+type SnapshotContents = (String, String);
+type EditSnapshots = HashMap<String, SnapshotContents>;
+type EditSnapshotLoader<'a> = dyn Fn(&str) -> EditSnapshots + 'a;
+
 const ACP_PROGRESS_MARKER: &str = "[ChatSessionService] ACP progress: ";
 const SUBAGENT_MARKER: &str = "[SubAgentService] Registered SubAgent: ";
 const TOOL_INVOKE_MARKER: &str = "[ToolInvokeHandlerContribution] Tool invoke request: ";
@@ -48,13 +60,13 @@ const FILE_CHANGE_MARKER: &str = "[FileChangeTracking] ";
 const SESSION_ID_SUFFIX: &str = ".session.execution";
 /// Pad around a session's first/last ACP event when window-attributing
 /// invoke lines with no content signal.
-const WINDOW_PAD_MS: i64 = 2_000;
+pub(crate) const WINDOW_PAD_MS: i64 = 2_000;
 /// An invoke usually trails its ACP `tool_call` event by well under a second;
 /// pair them within this window to recover the call id.
-const CALL_ID_PAIR_MS: i64 = 2_500;
+pub(crate) const CALL_ID_PAIR_MS: i64 = 2_500;
 
 #[derive(Debug, Clone)]
-enum LogEvent {
+pub(crate) enum LogEvent {
     /// Any ACP progress line; `tool_call_id` set only for `type=tool_call`.
     Acp {
         ts_ms: i64,
@@ -88,7 +100,7 @@ enum LogEvent {
 
 /// Which session an invoke's args point at, judged purely by its paths.
 #[derive(Debug, PartialEq)]
-enum ContentSignal {
+pub(crate) enum ContentSignal {
     Ours,
     Theirs,
     Silent,
@@ -107,8 +119,8 @@ pub(super) fn enrich_with_agent_log(
 ) -> Vec<ActivityChunk> {
     let mut events = Vec::new();
     for log_path in qoder_launch_log_paths() {
-        if let Ok(content) = fs::read_to_string(&log_path) {
-            parse_launch_log(&content, &mut events);
+        if let Ok(file) = fs::File::open(&log_path) {
+            parse_launch_log_reader(BufReader::new(file), &mut events);
         }
     }
     enrich_chunks_with_events(
@@ -129,7 +141,7 @@ fn enrich_chunks_with_events(
     workspace_path: Option<&str>,
     chunks: Vec<ActivityChunk>,
     events: &[LogEvent],
-    edit_snapshots: &dyn Fn(&str) -> HashMap<String, (String, String)>,
+    edit_snapshots: &EditSnapshotLoader<'_>,
 ) -> Vec<ActivityChunk> {
     // Resolve the truncated dir name to the full task id seen in the logs.
     // Two distinct matches would mean we cannot tell the sessions apart —
@@ -357,7 +369,7 @@ fn enrich_chunks_with_events(
 /// Judge which session an invoke belongs to from the paths in its args.
 /// `file_path` under a project cache dir or `cwd` inside the workspace are
 /// decisive; paths that name a *different* project cache dir disown it.
-fn invoke_content_signal(
+pub(crate) fn invoke_content_signal(
     args: &Value,
     project_dir_name: &str,
     workspace_path: Option<&str>,
@@ -397,7 +409,7 @@ fn paired_call_id(our_acp_calls: &[(i64, &str)], ts_ms: i64) -> Option<String> {
 
 /// Map Qoder tool names onto the canonical functions the replay UI has typed
 /// cards for; unknown names pass through as generic cards.
-fn canonical_tool_name(name: &str) -> String {
+pub(crate) fn canonical_tool_name(name: &str) -> String {
     match name {
         "read_file" => imported_history::FUNCTION_READ_FILE.to_string(),
         "run_in_terminal" => imported_history::FUNCTION_RUN_COMMAND_LINE.to_string(),
@@ -410,7 +422,7 @@ fn canonical_tool_name(name: &str) -> String {
 }
 
 /// Reshape args into the keys the frontend extractors read.
-fn normalized_args(name: &str, args: &Value) -> Value {
+pub(crate) fn normalized_args(name: &str, args: &Value) -> Value {
     if name == "run_in_terminal" {
         if let Some(command) = args.get("command") {
             let mut merged = args.clone();
@@ -442,19 +454,19 @@ fn normalized_args(name: &str, args: &Value) -> Value {
 /// When a `read_file` targets an `agent-tools` spill file, its content is the
 /// missing tool OUTPUT — attach it (capped). Other paths are live workspace
 /// files that may have changed since; leave those empty.
-fn spill_file_output(args: &Value) -> String {
+pub(crate) fn spill_file_output(args: &Value) -> String {
     let Some(path) = args.get("file_path").and_then(Value::as_str) else {
         return String::new();
     };
     if !path.contains("/agent-tools/") {
         return String::new();
     }
-    let Ok(content) = fs::read_to_string(Path::new(path)) else {
+    let Some((content, truncated)) = read_text_prefix(Path::new(path), MAX_TOOL_OUTPUT_CHARS)
+    else {
         return String::new();
     };
-    if content.chars().count() > MAX_TOOL_OUTPUT_CHARS {
-        let truncated: String = content.chars().take(MAX_TOOL_OUTPUT_CHARS).collect();
-        format!("{truncated}\n… (truncated)")
+    if truncated {
+        format!("{content}\n… (truncated)")
     } else {
         content.trim_end().to_string()
     }
@@ -462,127 +474,159 @@ fn spill_file_output(args: &Value) -> String {
 
 /// Parse one launch log (agent.log or an exthost output log — the markers are
 /// disjoint, so one parser handles both).
+#[cfg(test)]
 fn parse_launch_log(content: &str, events: &mut Vec<LogEvent>) {
-    let mut lines = content.lines().peekable();
+    parse_launch_log_reader(std::io::Cursor::new(content.as_bytes()), events);
+}
+
+fn parse_launch_log_reader(reader: impl BufRead, events: &mut Vec<LogEvent>) {
+    let mut lines = reader.lines().peekable();
     while let Some(line) = lines.next() {
-        let Some(ts_ms) = parse_line_timestamp_ms(line) else {
-            continue;
+        let Ok(line) = line else {
+            break;
         };
-        if let Some(rest) = substring_after(line, ACP_PROGRESS_MARKER) {
-            // `<sessionId>, rid=<rid>, type=<type>[, toolCallId=<id>]`
-            let mut session_task_id = String::new();
-            let mut event_type = "";
-            let mut tool_call_id = "";
-            for (index, part) in rest.split(", ").enumerate() {
-                if index == 0 {
-                    session_task_id = part.trim().trim_end_matches(SESSION_ID_SUFFIX).to_string();
-                } else if let Some(value) = part.trim().strip_prefix("type=") {
-                    event_type = value;
-                } else if let Some(value) = part.trim().strip_prefix("toolCallId=") {
-                    tool_call_id = value;
-                }
-            }
-            if session_task_id.is_empty() {
-                continue;
-            }
-            let tool_call_id = (event_type == "tool_call" && !tool_call_id.is_empty())
-                .then(|| tool_call_id.to_string());
-            events.push(LogEvent::Acp {
-                ts_ms,
-                session_task_id,
-                tool_call_id,
-            });
-        } else if let Some(rest) = substring_after(line, SUBAGENT_MARKER) {
-            let Ok(payload) = serde_json::from_str::<Value>(rest.trim()) else {
-                continue;
-            };
-            let field = |key: &str| {
-                payload
-                    .get(key)
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_string()
-            };
-            let session_task_id = field("parentSessionId")
-                .trim_end_matches(SESSION_ID_SUFFIX)
-                .to_string();
-            let tool_call_id = field("parentToolCallId");
-            if session_task_id.is_empty() || tool_call_id.is_empty() {
-                continue;
-            }
-            events.push(LogEvent::Subagent {
-                ts_ms,
-                session_task_id,
-                tool_call_id,
-                agent_type: field("agentType"),
-                description: field("rawInputDescription"),
-                prompt: field("prompt"),
-            });
-        } else if let Some(rest) = substring_after(line, TOOL_INVOKE_MARKER) {
-            // agent.log: `<rid>, <name>, {args json}` — args may contain
-            // ", " so split only the first two fields.
-            let Some((_rid, rest)) = rest.split_once(", ") else {
-                continue;
-            };
-            let Some((name, args_raw)) = rest.split_once(", ") else {
-                continue;
-            };
-            push_invoke(events, ts_ms, name, args_raw);
-        } else if let Some(rest) = substring_after(line, FILE_CHANGE_MARKER) {
-            // `<path> | source=agent | session=<taskDir>, request=<rid> | Agent <op>`
-            // (the marker also logs a pipe-less "Agent file tracked:" shape —
-            // the parts count filters that out).
-            let parts: Vec<&str> = rest.split(" | ").collect();
-            if parts.len() < 4 || !parts.contains(&"source=agent") {
-                continue;
-            }
-            let path = parts[0].trim();
-            let session_dir_name = parts
-                .iter()
-                .flat_map(|part| part.split(", "))
-                .find_map(|field| field.trim().strip_prefix("session="));
-            let operation = parts
-                .last()
-                .and_then(|part| part.trim().strip_prefix("Agent "))
-                .map(str::trim)
-                .filter(|op| !op.is_empty());
-            let (Some(session_dir_name), Some(operation)) = (session_dir_name, operation) else {
-                continue;
-            };
-            if path.is_empty() {
-                continue;
-            }
-            events.push(LogEvent::FileEdit {
-                ts_ms,
-                session_dir_name: session_dir_name.to_string(),
-                path: path.to_string(),
-                operation: operation.to_string(),
-            });
-        } else if let Some(name) = substring_after(line, EXTHOST_INVOKE_MARKER) {
-            // exthost log: `<ts> [info] ToolInvoke : <name>` with the args
-            // JSON on the following line.
-            let Some(args_line) = lines.peek() else {
-                continue;
-            };
-            if args_line.trim_start().starts_with('{') {
-                let args_raw = lines.next().unwrap_or_default();
-                push_invoke(events, ts_ms, name, args_raw);
-            }
+        let next_line = lines
+            .peek()
+            .and_then(|line| line.as_ref().ok())
+            .map(String::as_str);
+        let (event, consumed_following) = parse_launch_log_record(&line, next_line);
+        if consumed_following {
+            let _ = lines.next();
+        }
+        if let Some(event) = event {
+            events.push(event);
         }
     }
 }
 
-fn push_invoke(events: &mut Vec<LogEvent>, ts_ms: i64, name: &str, args_raw: &str) {
+/// Parse one complete Qoder log record. Exthost tool invokes span two lines;
+/// callers must leave the first line unacknowledged when the second line is a
+/// torn tail. The returned boolean tells a streaming caller whether the second
+/// complete line belongs to this record.
+pub(crate) fn parse_launch_log_record(
+    line: &str,
+    following_line: Option<&str>,
+) -> (Option<LogEvent>, bool) {
+    let Some(ts_ms) = parse_line_timestamp_ms(line) else {
+        return (None, false);
+    };
+    let event = if let Some(rest) = substring_after(line, ACP_PROGRESS_MARKER) {
+        // `<sessionId>, rid=<rid>, type=<type>[, toolCallId=<id>]`
+        let mut session_task_id = String::new();
+        let mut event_type = "";
+        let mut tool_call_id = "";
+        for (index, part) in rest.split(", ").enumerate() {
+            if index == 0 {
+                session_task_id = part.trim().trim_end_matches(SESSION_ID_SUFFIX).to_string();
+            } else if let Some(value) = part.trim().strip_prefix("type=") {
+                event_type = value;
+            } else if let Some(value) = part.trim().strip_prefix("toolCallId=") {
+                tool_call_id = value;
+            }
+        }
+        if session_task_id.is_empty() {
+            return (None, false);
+        }
+        let tool_call_id = (event_type == "tool_call" && !tool_call_id.is_empty())
+            .then(|| tool_call_id.to_string());
+        Some(LogEvent::Acp {
+            ts_ms,
+            session_task_id,
+            tool_call_id,
+        })
+    } else if let Some(rest) = substring_after(line, SUBAGENT_MARKER) {
+        let Ok(payload) = serde_json::from_str::<Value>(rest.trim()) else {
+            return (None, false);
+        };
+        let field = |key: &str| {
+            payload
+                .get(key)
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string()
+        };
+        let session_task_id = field("parentSessionId")
+            .trim_end_matches(SESSION_ID_SUFFIX)
+            .to_string();
+        let tool_call_id = field("parentToolCallId");
+        if session_task_id.is_empty() || tool_call_id.is_empty() {
+            return (None, false);
+        }
+        Some(LogEvent::Subagent {
+            ts_ms,
+            session_task_id,
+            tool_call_id,
+            agent_type: field("agentType"),
+            description: field("rawInputDescription"),
+            prompt: field("prompt"),
+        })
+    } else if let Some(rest) = substring_after(line, TOOL_INVOKE_MARKER) {
+        // agent.log: `<rid>, <name>, {args json}` — args may contain
+        // ", " so split only the first two fields.
+        let Some((_rid, rest)) = rest.split_once(", ") else {
+            return (None, false);
+        };
+        let Some((name, args_raw)) = rest.split_once(", ") else {
+            return (None, false);
+        };
+        parse_invoke(ts_ms, name, args_raw)
+    } else if let Some(rest) = substring_after(line, FILE_CHANGE_MARKER) {
+        // `<path> | source=agent | session=<taskDir>, request=<rid> | Agent <op>`
+        // (the marker also logs a pipe-less "Agent file tracked:" shape —
+        // the parts count filters that out).
+        let parts: Vec<&str> = rest.split(" | ").collect();
+        if parts.len() < 4 || !parts.contains(&"source=agent") {
+            return (None, false);
+        }
+        let path = parts[0].trim();
+        let session_dir_name = parts
+            .iter()
+            .flat_map(|part| part.split(", "))
+            .find_map(|field| field.trim().strip_prefix("session="));
+        let operation = parts
+            .last()
+            .and_then(|part| part.trim().strip_prefix("Agent "))
+            .map(str::trim)
+            .filter(|op| !op.is_empty());
+        let (Some(session_dir_name), Some(operation)) = (session_dir_name, operation) else {
+            return (None, false);
+        };
+        if path.is_empty() {
+            return (None, false);
+        }
+        Some(LogEvent::FileEdit {
+            ts_ms,
+            session_dir_name: session_dir_name.to_string(),
+            path: path.to_string(),
+            operation: operation.to_string(),
+        })
+    } else if let Some(name) = substring_after(line, EXTHOST_INVOKE_MARKER) {
+        // exthost log: `<ts> [info] ToolInvoke : <name>` with the args
+        // JSON on the following line.
+        let Some(args_line) = following_line else {
+            return (None, false);
+        };
+        if args_line.trim_start().starts_with('{') {
+            return (parse_invoke(ts_ms, name, args_line), true);
+        }
+        None
+    } else {
+        None
+    };
+    (event, false)
+}
+
+fn parse_invoke(ts_ms: i64, name: &str, args_raw: &str) -> Option<LogEvent> {
     let name = name.trim();
     if name.is_empty() {
-        return;
+        return None;
     }
     let args = serde_json::from_str(args_raw.trim()).unwrap_or(Value::Null);
-    events.push(LogEvent::ToolInvoke {
+    Some(LogEvent::ToolInvoke {
         ts_ms,
         name: name.to_string(),
         args,
-    });
+    })
 }
 
 /// Real before/after contents for the files a session edited, from VS Code's
@@ -591,7 +635,7 @@ fn push_invoke(events: &mut Vec<LogEvent>, ts_ms: i64, name: &str, args_raw: &st
 /// holds a `state.json` mapping each resource to `originalHash`/`currentHash`,
 /// with the content-addressed snapshot bodies under `contents/<hash>`.
 /// Returns `path → (old_content, new_content)`.
-fn edit_snapshots_for_task(task_id: &str) -> HashMap<String, (String, String)> {
+pub(crate) fn edit_snapshots_for_task(task_id: &str) -> EditSnapshots {
     edit_snapshots(task_id, Some(task_id))
 }
 
@@ -652,7 +696,7 @@ fn numstat_between(old_content: &str, new_content: &str) -> (i64, i64) {
 /// Change-signature of the session's edit store (`state.json` mtime+size per
 /// workspace). Folded into the discovery fingerprint so edits that land after
 /// a sync re-parse the session even when the transcript itself is unchanged.
-pub(super) fn edit_store_signature(task_dir_name: &str, full_task_id: Option<&str>) -> String {
+pub(crate) fn edit_store_signature(task_dir_name: &str, full_task_id: Option<&str>) -> String {
     edit_store_paths(&qoder_workspace_storage_dirs(), task_dir_name, full_task_id)
         .iter()
         .filter_map(|dir| {
@@ -773,14 +817,30 @@ fn read_snapshot_content(session_dir: &Path, hash: &str) -> String {
     if hash.is_empty() {
         return String::new();
     }
-    let Ok(content) = fs::read_to_string(session_dir.join("contents").join(hash)) else {
+    let Some((content, _truncated)) = read_text_prefix(
+        &session_dir.join("contents").join(hash),
+        MAX_TOOL_OUTPUT_CHARS,
+    ) else {
         return String::new();
     };
-    if content.chars().count() > MAX_TOOL_OUTPUT_CHARS {
-        content.chars().take(MAX_TOOL_OUTPUT_CHARS).collect()
-    } else {
-        content
-    }
+    content
+}
+
+/// Read at most enough bytes to recover `max_chars` UTF-8 characters. Qoder
+/// spill/snapshot files can be arbitrarily large; enrichment needs only the
+/// compatibility preview and must never allocate the complete body.
+fn read_text_prefix(path: &Path, max_chars: usize) -> Option<(String, bool)> {
+    let file = fs::File::open(path).ok()?;
+    let total_bytes = file.metadata().ok()?.len();
+    let max_bytes = max_chars.saturating_mul(4).saturating_add(1);
+    let known_bytes = usize::try_from(total_bytes).unwrap_or(usize::MAX);
+    let mut bytes = Vec::with_capacity(max_bytes.min(known_bytes));
+    file.take(max_bytes as u64).read_to_end(&mut bytes).ok()?;
+    let decoded = String::from_utf8_lossy(&bytes);
+    let mut chars = decoded.chars();
+    let content = chars.by_ref().take(max_chars).collect::<String>();
+    let truncated = chars.next().is_some() || total_bytes > bytes.len() as u64;
+    Some((content, truncated))
 }
 
 /// `file:///a/b%20c.py` → `/a/b c.py`.
@@ -829,19 +889,13 @@ fn substring_after<'a>(line: &'a str, marker: &str) -> Option<&'a str> {
 /// Every trajectory-bearing log across launch folders:
 /// `<data>/Qoder/logs/<ts>/questWindow/agent.log` and
 /// `<data>/Qoder/logs/<ts>/questWindow/exthost/output_logging_*/1-Qoder.log`.
-fn qoder_launch_log_paths() -> Vec<PathBuf> {
-    let mut roots = Vec::new();
-    if let Some(data) = dirs::data_dir() {
-        roots.push(data);
+pub(crate) fn qoder_launch_log_paths() -> Vec<PathBuf> {
+    #[cfg(test)]
+    if let Some(paths) = QODER_LOG_PATH_OVERRIDE.with(|slot| slot.borrow().clone()) {
+        return paths;
     }
-    if let Some(config) = dirs::config_dir() {
-        roots.push(config);
-    }
-    roots.sort();
-    roots.dedup();
-
     let mut logs = Vec::new();
-    for root in roots {
+    for root in qoder_data_roots() {
         let logs_dir = root.join("Qoder").join("logs");
         let Ok(entries) = fs::read_dir(&logs_dir) else {
             continue;
@@ -871,7 +925,79 @@ fn qoder_launch_log_paths() -> Vec<PathBuf> {
             }
         }
     }
+    logs.sort();
+    logs.dedup();
     logs
+}
+
+/// Existing directories whose mutations can change Qoder replay enrichment.
+/// These paths stay backend-only; the renderer sees only source-neutral replay
+/// invalidations.
+pub(crate) fn replay_sidecar_watch_paths(task_dir_name: &str) -> Vec<PathBuf> {
+    let mut paths = qoder_data_roots()
+        .into_iter()
+        .map(|root| root.join("Qoder").join("logs"))
+        .filter(|path| path.is_dir())
+        .collect::<Vec<_>>();
+    paths.extend(edit_store_paths(
+        &qoder_workspace_storage_dirs(),
+        task_dir_name,
+        None,
+    ));
+    paths.sort();
+    paths.dedup();
+    paths
+}
+
+fn qoder_data_roots() -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    if let Some(data) = dirs::data_dir() {
+        roots.push(data);
+    }
+    if let Some(config) = dirs::config_dir() {
+        roots.push(config);
+    }
+    roots.sort();
+    roots.dedup();
+    roots
+}
+
+#[cfg(test)]
+pub(crate) fn with_qoder_log_paths_for_test<T>(paths: Vec<PathBuf>, run: impl FnOnce() -> T) -> T {
+    struct Reset;
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            QODER_LOG_PATH_OVERRIDE.with(|slot| *slot.borrow_mut() = None);
+        }
+    }
+
+    QODER_LOG_PATH_OVERRIDE.with(|slot| *slot.borrow_mut() = Some(paths));
+    let reset = Reset;
+    let output = run();
+    drop(reset);
+    output
+}
+
+#[cfg(test)]
+pub(crate) fn enrich_chunks_from_log_fixture(
+    session_id: &str,
+    task_dir_name: &str,
+    project_dir_name: &str,
+    workspace_path: Option<&str>,
+    chunks: Vec<ActivityChunk>,
+    content: &str,
+) -> Vec<ActivityChunk> {
+    let mut events = Vec::new();
+    parse_launch_log(content, &mut events);
+    enrich_chunks_with_events(
+        session_id,
+        task_dir_name,
+        project_dir_name,
+        workspace_path,
+        chunks,
+        &events,
+        &|_| HashMap::new(),
+    )
 }
 
 #[cfg(test)]

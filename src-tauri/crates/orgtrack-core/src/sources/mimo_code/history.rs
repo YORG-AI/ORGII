@@ -21,7 +21,9 @@ use crate::sources::imported_history::{
     paths as imported_paths, ImportedHistoryRecentPath, ImportedHistorySessionPage,
     ImportedHistorySessionRow,
 };
-use crate::sources::opencode::history::load_opencode_compatible_history_from_conn;
+use crate::sources::opencode::history::{
+    load_opencode_compatible_history_from_conn, load_opencode_compatible_impact_from_conn,
+};
 
 pub const MIMO_CODE_SESSION_PREFIX: &str = "mimocodeapp-";
 const MIMO_CODE_PROVIDER_SLUG: &str = "mimo_code";
@@ -92,7 +94,18 @@ pub fn load_mimo_code_history_for_session(
     )
 }
 
+pub(crate) fn refresh_catalog(cache_conn: &mut Connection) -> Result<(), String> {
+    sync_mimo_code_history_cache_inner(cache_conn, false)
+}
+
 fn sync_mimo_code_history_cache(cache_conn: &mut Connection) -> Result<(), String> {
+    sync_mimo_code_history_cache_inner(cache_conn, true)
+}
+
+fn sync_mimo_code_history_cache_inner(
+    cache_conn: &mut Connection,
+    include_legacy_impact: bool,
+) -> Result<(), String> {
     let mut metas = Vec::new();
     for db_path in mimo_code_history_candidate_paths() {
         if !db_path.is_file() {
@@ -123,15 +136,22 @@ fn sync_mimo_code_history_cache(cache_conn: &mut Connection) -> Result<(), Strin
         .into_iter()
         .filter(|meta| changed_ids.contains(&meta.source_session_id))
     {
-        let session_id = format!("{MIMO_CODE_SESSION_PREFIX}{}", meta.source_session_id);
-        let conn = open_mimo_code_db_at(Path::new(&meta.source_path))?;
-        let chunks = load_opencode_compatible_history_from_conn(
-            &conn,
-            &session_id,
+        if include_legacy_impact {
+            let session_id = format!("{MIMO_CODE_SESSION_PREFIX}{}", meta.source_session_id);
+            let conn = open_mimo_code_db_at(Path::new(&meta.source_path))?;
+            meta.impact = load_opencode_compatible_impact_from_conn(
+                &conn,
+                &session_id,
+                &meta.source_session_id,
+                MIMO_CODE_PROVIDER_SLUG,
+            )?;
+        } else if let Some(cached) = imported_cache::query_cached_session_from_conn(
+            cache_conn,
+            SOURCE_MIMO_CODE,
             &meta.source_session_id,
-            MIMO_CODE_PROVIDER_SLUG,
-        )?;
-        meta.impact = imported_history::impact_from_edit_chunks(&chunks);
+        )? {
+            meta.impact = cached.impact;
+        }
         inputs.push(meta_to_cache_input(meta, &container_parent_ids));
     }
 

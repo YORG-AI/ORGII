@@ -1,0 +1,37 @@
+{
+  "conversationId": "fixture-warp",
+  "tasks": [
+    {
+      "id": "fixture-warp-task-1",
+      "description": "First fixture turn",
+      "messages": [
+        {
+          "id": "warp-u1",
+          "timestamp": "2026-07-22T00:00:00Z",
+          "userQuery": { "query": "first Warp question" }
+        },
+        {
+          "id": "warp-a1",
+          "timestamp": "2026-07-22T00:00:01Z",
+          "agentOutput": { "text": "first Warp answer" }
+        }
+      ]
+    },
+    {
+      "id": "fixture-warp-task-2",
+      "description": "Second fixture turn",
+      "messages": [
+        {
+          "id": "warp-u2",
+          "timestamp": "2026-07-22T00:00:02Z",
+          "userQuery": { "query": "second Warp question" }
+        },
+        {
+          "id": "warp-a2",
+          "timestamp": "2026-07-22T00:00:03Z",
+          "agentOutput": { "text": "second Warp answer" }
+        }
+      ]
+    }
+  ]
+}

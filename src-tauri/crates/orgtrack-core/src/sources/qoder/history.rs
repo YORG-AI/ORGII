@@ -13,6 +13,7 @@
 
 use std::collections::HashMap;
 use std::fs;
+use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 
 use core_types::activity::ActivityChunk;
@@ -29,6 +30,8 @@ use crate::sources::imported_history::{
     paths as imported_paths, ImportedHistoryRecentPath, ImportedHistorySessionPage,
     ImportedHistorySessionRow, ImportedToolCall,
 };
+
+const CATALOG_PREFIX_BYTES: u64 = 1024 * 1024;
 
 pub const QODER_SESSION_PREFIX: &str = "qoderapp-";
 const QODER_PROVIDER_SLUG: &str = "qoder";
@@ -148,6 +151,10 @@ pub fn load_qoder_history_for_session(
     ))
 }
 
+pub(crate) fn refresh_catalog(conn: &mut Connection) -> Result<(), String> {
+    sync_qoder_history_cache(conn)
+}
+
 fn sync_qoder_history_cache(conn: &mut Connection) -> Result<(), String> {
     let discovered = discover_qoder_history_records()?;
     let signatures = discovered
@@ -158,10 +165,20 @@ fn sync_qoder_history_cache(conn: &mut Connection) -> Result<(), String> {
         imported_cache::changed_records_from_conn(conn, SOURCE_QODER, &discovered, |record| {
             record.signature()
         })?;
-    let inputs = changed
-        .into_iter()
-        .map(|record| session_meta_to_cache_input(parse_qoder_session_meta(record)))
-        .collect();
+    let mut inputs = Vec::new();
+    for discovered in changed {
+        if imported_cache::advance_cached_catalog_record_from_conn(
+            conn,
+            SOURCE_QODER,
+            &discovered.record,
+            None,
+        )? {
+            continue;
+        }
+        inputs.push(session_meta_to_cache_input(parse_qoder_session_meta(
+            discovered,
+        )));
+    }
     imported_cache::sync_source_cache_from_conn(
         conn,
         SOURCE_QODER,
@@ -293,7 +310,6 @@ fn quest_task_fingerprint(task: &QoderQuestTask) -> String {
 fn parse_qoder_session_meta(discovered: &QoderDiscoveredRecord) -> QoderHistoryMeta {
     let record = &discovered.record;
     let snapshot = discovered.snapshot.as_ref();
-    let transcript = read_qoder_transcript(&record.source_path).unwrap_or_default();
 
     // The signature mtime is nanoseconds (see `file_metadata_signature`);
     // scale it down where a real epoch-ms value is needed.
@@ -315,7 +331,7 @@ fn parse_qoder_session_meta(discovered: &QoderDiscoveredRecord) -> QoderHistoryM
                 .find(|value| !value.is_empty())
                 .map(str::to_string)
         })
-        .or_else(|| first_user_text(&transcript))
+        .or_else(|| first_user_text_from_path(&record.source_path))
         .map(|value| imported_history::truncate_name(&value, 200))
         .unwrap_or_else(|| record.source_session_id.clone());
 
@@ -325,9 +341,9 @@ fn parse_qoder_session_meta(discovered: &QoderDiscoveredRecord) -> QoderHistoryM
         .map(str::to_string);
 
     let session_id = format!("{QODER_SESSION_PREFIX}{}", record.source_session_id);
-    // Edits never appear in the transcript, so the +/- stats come from the
-    // chat-editing snapshot store; the transcript-derived impact is kept as a
-    // fallback in case a future Qoder version starts persisting tool blocks.
+    // Edits live in Qoder's compact snapshot store. Catalog refresh must not
+    // deserialize the whole JSONL merely to search for a hypothetical
+    // fallback edit block; the bounded replay adapter owns transcript bodies.
     let task_dir_name = record
         .source_session_id
         .split_once('/')
@@ -337,11 +353,7 @@ fn parse_qoder_session_meta(discovered: &QoderDiscoveredRecord) -> QoderHistoryM
         task_dir_name,
         snapshot.map(|task| task.id.as_str()),
     );
-    let impact = if edit_impact.files_changed > 0 {
-        edit_impact
-    } else {
-        imported_history::impact_from_edit_chunks(&transcript_to_chunks(&session_id, &transcript))
-    };
+    let impact = edit_impact;
 
     QoderHistoryMeta {
         source_session_id: record.source_session_id.clone(),
@@ -592,6 +604,20 @@ fn first_user_text(transcript: &[QoderTranscriptLine]) -> Option<String> {
                     return Some(text);
                 }
             }
+        }
+    }
+    None
+}
+
+fn first_user_text_from_path(path: &Path) -> Option<String> {
+    let file = fs::File::open(path).ok()?;
+    for line in BufReader::new(file.take(CATALOG_PREFIX_BYTES)).lines() {
+        let Ok(line) = line else { continue };
+        let Ok(parsed) = serde_json::from_str::<QoderTranscriptLine>(line.trim()) else {
+            continue;
+        };
+        if let Some(text) = first_user_text(std::slice::from_ref(&parsed)) {
+            return Some(text);
         }
     }
     None

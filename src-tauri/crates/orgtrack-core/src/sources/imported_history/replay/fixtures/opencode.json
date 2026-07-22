@@ -1,0 +1,21 @@
+{
+  "sessionId": "fixture-opencode",
+  "parts": [
+    {
+      "role": "user",
+      "data": { "type": "text", "text": "first OpenCode question" }
+    },
+    {
+      "role": "assistant",
+      "data": { "type": "text", "text": "first OpenCode answer" }
+    },
+    {
+      "role": "user",
+      "data": { "type": "text", "text": "second OpenCode question" }
+    },
+    {
+      "role": "assistant",
+      "data": { "type": "text", "text": "second OpenCode answer" }
+    }
+  ]
+}

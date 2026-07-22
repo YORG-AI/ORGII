@@ -1,0 +1,34 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "<user_input mode=\"act\">first Cline question</user_input>"
+        }
+      ],
+      "ts": 1753142400000
+    },
+    {
+      "role": "assistant",
+      "content": [{ "type": "text", "text": "first Cline answer" }],
+      "ts": 1753142401000
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "<user_input mode=\"act\">second Cline question</user_input>"
+        }
+      ],
+      "ts": 1753142402000
+    },
+    {
+      "role": "assistant",
+      "content": [{ "type": "text", "text": "second Cline answer" }],
+      "ts": 1753142403000
+    }
+  ]
+}

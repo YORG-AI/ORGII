@@ -23,6 +23,10 @@ fn config() -> AnthropicJsonlSource {
     }
 }
 
+pub(crate) fn refresh_catalog(conn: &mut Connection) -> Result<(), String> {
+    anthropic_jsonl::refresh_catalog(&config(), conn)
+}
+
 pub fn list_omp_history_sessions_paginated(
     conn: &mut Connection,
     limit: usize,

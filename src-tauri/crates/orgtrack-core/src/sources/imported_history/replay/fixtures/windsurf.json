@@ -1,0 +1,39 @@
+{
+  "composer": {
+    "composerId": "fixture-windsurf",
+    "createdAt": 1753142400000,
+    "lastUpdatedAt": 1753142403000,
+    "fullConversationHeadersOnly": [
+      { "bubbleId": "windsurf-u1", "type": 1 },
+      { "bubbleId": "windsurf-a1", "type": 2 },
+      { "bubbleId": "windsurf-u2", "type": 1 },
+      { "bubbleId": "windsurf-a2", "type": 2 }
+    ]
+  },
+  "bubbles": [
+    {
+      "bubbleId": "windsurf-u1",
+      "type": 1,
+      "createdAt": "2026-07-22T00:00:00Z",
+      "text": "first Windsurf question"
+    },
+    {
+      "bubbleId": "windsurf-a1",
+      "type": 2,
+      "createdAt": "2026-07-22T00:00:01Z",
+      "text": "first Windsurf answer"
+    },
+    {
+      "bubbleId": "windsurf-u2",
+      "type": 1,
+      "createdAt": "2026-07-22T00:00:02Z",
+      "text": "second Windsurf question"
+    },
+    {
+      "bubbleId": "windsurf-a2",
+      "type": 2,
+      "createdAt": "2026-07-22T00:00:03Z",
+      "text": "second Windsurf answer"
+    }
+  ]
+}

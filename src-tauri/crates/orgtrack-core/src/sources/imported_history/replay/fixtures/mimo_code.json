@@ -1,0 +1,21 @@
+{
+  "sessionId": "fixture-mimo",
+  "parts": [
+    {
+      "role": "user",
+      "data": { "type": "text", "text": "first Mimo Code question" }
+    },
+    {
+      "role": "assistant",
+      "data": { "type": "text", "text": "first Mimo Code answer" }
+    },
+    {
+      "role": "user",
+      "data": { "type": "text", "text": "second Mimo Code question" }
+    },
+    {
+      "role": "assistant",
+      "data": { "type": "text", "text": "second Mimo Code answer" }
+    }
+  ]
+}

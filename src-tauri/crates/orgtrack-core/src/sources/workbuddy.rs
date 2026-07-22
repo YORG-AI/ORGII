@@ -7,7 +7,7 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 
 use core_types::activity::ActivityChunk;
@@ -24,6 +24,8 @@ use crate::sources::imported_history::{
     paths as imported_paths, ImportedHistoryRecentPath, ImportedHistorySessionPage,
     ImportedHistorySessionRow, ImportedToolCall,
 };
+
+const CATALOG_PREFIX_BYTES: u64 = 1024 * 1024;
 
 pub const WORKBUDDY_SESSION_PREFIX: &str = "workbuddyapp-";
 const WORKBUDDY_PROVIDER_SLUG: &str = "workbuddy";
@@ -182,6 +184,42 @@ pub fn load_workbuddy_history_for_session(
     load_workbuddy_history_from_path(session_id, &path)
 }
 
+pub(crate) fn refresh_catalog(conn: &mut Connection) -> Result<(), String> {
+    refresh_workbuddy_catalog(conn)
+}
+
+fn refresh_workbuddy_catalog(conn: &mut Connection) -> Result<(), String> {
+    let discovered = discover_workbuddy_history_records()?;
+    let signatures = discovered
+        .iter()
+        .map(ImportedHistoryDiscoveredRecord::signature)
+        .collect::<Vec<_>>();
+    let changed =
+        imported_cache::changed_records_from_conn(conn, SOURCE_WORKBUDDY, &discovered, |record| {
+            record.signature()
+        })?;
+    let mut inputs = Vec::new();
+    for record in changed {
+        if imported_cache::advance_cached_catalog_record_from_conn(
+            conn,
+            SOURCE_WORKBUDDY,
+            record,
+            None,
+        )? {
+            continue;
+        }
+        if let Some(meta) = parse_workbuddy_session_meta(record)? {
+            inputs.push(session_meta_to_cache_input(meta));
+        }
+    }
+    imported_cache::sync_source_cache_from_conn(
+        conn,
+        SOURCE_WORKBUDDY,
+        imported_cache::live_ids_from_signatures(&signatures),
+        inputs,
+    )
+}
+
 fn sync_workbuddy_history_cache(conn: &mut Connection) -> Result<(), String> {
     let discovered = discover_workbuddy_history_records()?;
     let signatures = discovered
@@ -278,7 +316,7 @@ fn parse_workbuddy_session_meta(
             record.source_path.display()
         )
     })?;
-    let reader = BufReader::new(file);
+    let reader = BufReader::new(file.take(CATALOG_PREFIX_BYTES));
 
     let mut created_at_ms = 0;
     let mut updated_at_ms = 0;

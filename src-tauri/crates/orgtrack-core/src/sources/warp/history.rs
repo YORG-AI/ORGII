@@ -111,6 +111,7 @@ impl WarpConversationRecord {
 struct WarpTaskAnalysis {
     chunks: Vec<ActivityChunk>,
     initial_query: Option<String>,
+    #[cfg(test)]
     root_description: Option<String>,
     model: Option<String>,
     created_at_ms: Option<i64>,
@@ -154,6 +155,10 @@ pub fn load_warp_history_for_session(session_id: &str) -> Result<Vec<ActivityChu
     Ok(analyze_task_blobs(session_id, &records, fallback_ms).chunks)
 }
 
+pub(crate) fn refresh_catalog(cache_conn: &mut Connection) -> Result<(), String> {
+    sync_warp_history_cache(cache_conn)
+}
+
 fn sync_warp_history_cache(cache_conn: &mut Connection) -> Result<(), String> {
     let Some((source_conn, db_path)) = open_warp_db()? else {
         imported_cache::sync_source_cache_from_conn(
@@ -177,18 +182,7 @@ fn sync_warp_history_cache(cache_conn: &mut Connection) -> Result<(), String> {
     let mut inputs = Vec::with_capacity(changed.len());
 
     for record in changed {
-        let fallback_ms = parse_warp_timestamp_ms(&record.last_modified_at).unwrap_or(0);
-        let task_blobs = load_task_blobs(&source_conn, &record.conversation_id)?;
-        let analysis = analyze_task_blobs(
-            &format!("{WARP_SESSION_PREFIX}{}", record.conversation_id),
-            &task_blobs,
-            fallback_ms,
-        );
-        inputs.push(conversation_to_cache_input(
-            record.clone(),
-            analysis,
-            &db_path,
-        ));
+        inputs.push(conversation_to_catalog_input(record.clone(), &db_path));
     }
 
     imported_cache::sync_source_cache_from_conn(
@@ -197,6 +191,81 @@ fn sync_warp_history_cache(cache_conn: &mut Connection) -> Result<(), String> {
         imported_cache::live_ids_from_signatures(&signatures),
         inputs,
     )
+}
+
+/// Build sidebar metadata from Warp's compact conversation/summary rows.
+/// `agent_tasks.task` can contain an entire encoded transcript, so catalog
+/// refresh never copies or decodes those BLOBs; the task-blob replay adapter
+/// owns incremental body indexing.
+fn conversation_to_catalog_input(
+    record: WarpConversationRecord,
+    db_path: &Path,
+) -> ImportedHistoryCacheInput {
+    let signature = record.signature(db_path);
+    let summary = record
+        .summary_json
+        .as_deref()
+        .and_then(|raw| serde_json::from_str::<WarpConversationSummary>(raw).ok())
+        .unwrap_or_default();
+    let data = serde_json::from_str::<WarpConversationData>(&record.conversation_data_json)
+        .unwrap_or_default();
+    let usage = data.conversation_usage_metadata.clone().unwrap_or_default();
+    let total_tokens = usage
+        .token_usage
+        .iter()
+        .map(|item| {
+            i64::from(item.warp_tokens)
+                + i64::from(item.byok_tokens)
+                + i64::from(item.custom_endpoint_tokens)
+        })
+        .sum();
+    let model = usage
+        .token_usage
+        .iter()
+        .rev()
+        .map(|item| item.model_id.trim())
+        .find(|model| !model.is_empty())
+        .map(str::to_string);
+    let title = non_empty(Some(&summary.title))
+        .or_else(|| non_empty(Some(&summary.initial_query)))
+        .or_else(|| non_empty(data.agent_name.as_deref()))
+        .unwrap_or_else(|| "Warp conversation".to_string());
+    let updated_at_ms = parse_warp_timestamp_ms(&record.last_modified_at).unwrap_or(0);
+    let parent_session_id = non_empty(data.parent_conversation_id.as_deref())
+        .map(|parent| format!("{WARP_SESSION_PREFIX}{parent}"));
+    let listable =
+        !data.is_remote_child && !summary.is_unlisted_auto_code_diff && record.task_count > 0;
+    let source_metadata_json = serde_json::to_string(&json!({
+        "initialQuery": non_empty(Some(&summary.initial_query)),
+        "taskCount": record.task_count,
+    }))
+    .ok();
+
+    ImportedHistoryCacheInput {
+        source: SOURCE_WARP,
+        source_session_id: record.conversation_id.clone(),
+        session_id: format!("{WARP_SESSION_PREFIX}{}", record.conversation_id),
+        source_path: signature.source_path,
+        source_record_key: record.conversation_id,
+        source_mtime_ms: signature.source_mtime_ms,
+        source_size_bytes: signature.source_size_bytes,
+        source_fingerprint: signature.source_fingerprint,
+        parser_version: signature.parser_version,
+        name: imported_history::truncate_name(&title, 200),
+        created_at_ms: updated_at_ms,
+        updated_at_ms,
+        model,
+        input_tokens: total_tokens,
+        output_tokens: 0,
+        cache_read_tokens: 0,
+        cache_write_tokens: 0,
+        repo_path: non_empty(summary.initial_working_directory.as_deref()),
+        branch: None,
+        impact: ImportedHistoryImpactStats::default(),
+        listable,
+        source_metadata_json,
+        parent_session_id,
+    }
 }
 
 fn list_conversation_records(conn: &Connection) -> Result<Vec<WarpConversationRecord>, String> {
@@ -243,6 +312,7 @@ fn list_conversation_records(conn: &Connection) -> Result<Vec<WarpConversationRe
     Ok(records)
 }
 
+#[cfg(test)]
 fn conversation_to_cache_input(
     record: WarpConversationRecord,
     analysis: WarpTaskAnalysis,
@@ -347,6 +417,7 @@ fn analyze_task_blobs(
     }
 
     let mut analysis = WarpTaskAnalysis {
+        #[cfg(test)]
         root_description: task_values
             .iter()
             .find(|task| is_root_task(task))
@@ -647,6 +718,7 @@ fn first_edited_file_path(payload: &Value) -> Option<String> {
     })
 }
 
+#[cfg(test)]
 fn is_root_task(task: &Value) -> bool {
     field(task, &["dependencies"])
         .and_then(|dependencies| field_str(dependencies, &["parentTaskId", "parent_task_id"]))

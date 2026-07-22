@@ -1,0 +1,94 @@
+{
+  "fixtures": [
+    {
+      "sourceId": "claude_code",
+      "storageFamily": "json_lines",
+      "sourceSessionId": "fixture-claude",
+      "file": "claude_code.jsonl"
+    },
+    {
+      "sourceId": "codex_app",
+      "storageFamily": "json_lines",
+      "sourceSessionId": "fixture-codex",
+      "file": "codex_app.jsonl"
+    },
+    {
+      "sourceId": "cursor_ide",
+      "storageFamily": "sqlite_key_value",
+      "sourceSessionId": "fixture-cursor-ide",
+      "file": "cursor_ide.json"
+    },
+    {
+      "sourceId": "cursor_cli",
+      "storageFamily": "sqlite_manifest_blob",
+      "sourceSessionId": "fixture-cursor-cli",
+      "file": "cursor_cli.json"
+    },
+    {
+      "sourceId": "opencode",
+      "storageFamily": "sqlite_wal",
+      "sourceSessionId": "fixture-opencode",
+      "file": "opencode.json"
+    },
+    {
+      "sourceId": "windsurf",
+      "storageFamily": "sqlite_key_value",
+      "sourceSessionId": "fixture-windsurf",
+      "file": "windsurf.json"
+    },
+    {
+      "sourceId": "workbuddy",
+      "storageFamily": "json_lines",
+      "sourceSessionId": "fixture-workbuddy",
+      "file": "workbuddy.jsonl"
+    },
+    {
+      "sourceId": "trae",
+      "storageFamily": "json_lines",
+      "sourceSessionId": "fixture-trae",
+      "file": "trae.jsonl"
+    },
+    {
+      "sourceId": "cline",
+      "storageFamily": "whole_json",
+      "sourceSessionId": "fixture-cline",
+      "file": "cline.json"
+    },
+    {
+      "sourceId": "warp",
+      "storageFamily": "sqlite_task_blob",
+      "sourceSessionId": "fixture-warp",
+      "file": "warp.json"
+    },
+    {
+      "sourceId": "zcode",
+      "storageFamily": "sqlite_wal",
+      "sourceSessionId": "fixture-zcode",
+      "file": "zcode.json"
+    },
+    {
+      "sourceId": "qoder",
+      "storageFamily": "json_lines",
+      "sourceSessionId": "fixture-project/fixture-qoder",
+      "file": "qoder.jsonl"
+    },
+    {
+      "sourceId": "mimo_code",
+      "storageFamily": "sqlite_wal",
+      "sourceSessionId": "fixture-mimo",
+      "file": "mimo_code.json"
+    },
+    {
+      "sourceId": "omp",
+      "storageFamily": "json_lines",
+      "sourceSessionId": "fixture-omp",
+      "file": "omp.jsonl"
+    },
+    {
+      "sourceId": "qoder_cli",
+      "storageFamily": "json_lines",
+      "sourceSessionId": "fixture-qoder-cli",
+      "file": "qoder_cli.jsonl"
+    }
+  ]
+}

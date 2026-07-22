@@ -1,0 +1,4 @@
+{"type":"user","timestamp":"2026-07-22T00:00:00Z","message":{"role":"user","content":"first Claude Code question"}}
+{"type":"assistant","timestamp":"2026-07-22T00:00:01Z","message":{"role":"assistant","content":[{"type":"text","text":"first Claude Code answer"}]}}
+{"type":"user","timestamp":"2026-07-22T00:00:02Z","message":{"role":"user","content":"second Claude Code question"}}
+{"type":"assistant","timestamp":"2026-07-22T00:00:03Z","message":{"role":"assistant","content":[{"type":"text","text":"second Claude Code answer"}]}}

@@ -1,0 +1,22 @@
+{
+  "agentId": "fixture-cursor-cli",
+  "createdAt": 1753142400000,
+  "messages": [
+    {
+      "role": "user",
+      "content": "<user_query>first Cursor CLI question</user_query>"
+    },
+    {
+      "role": "assistant",
+      "content": [{ "type": "text", "text": "first Cursor CLI answer" }]
+    },
+    {
+      "role": "user",
+      "content": "<user_query>second Cursor CLI question</user_query>"
+    },
+    {
+      "role": "assistant",
+      "content": [{ "type": "text", "text": "second Cursor CLI answer" }]
+    }
+  ]
+}

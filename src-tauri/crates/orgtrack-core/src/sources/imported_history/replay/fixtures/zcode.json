@@ -1,0 +1,21 @@
+{
+  "sessionId": "fixture-zcode",
+  "parts": [
+    {
+      "role": "user",
+      "data": { "type": "text", "text": "first ZCode question" }
+    },
+    {
+      "role": "assistant",
+      "data": { "type": "text", "text": "first ZCode answer" }
+    },
+    {
+      "role": "user",
+      "data": { "type": "text", "text": "second ZCode question" }
+    },
+    {
+      "role": "assistant",
+      "data": { "type": "text", "text": "second ZCode answer" }
+    }
+  ]
+}

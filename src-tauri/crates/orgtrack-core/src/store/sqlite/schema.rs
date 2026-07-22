@@ -572,6 +572,161 @@ impl SqliteRecordStore<'_> {
                 ON imported_history_round_usage(created_at_ms DESC);
             CREATE INDEX IF NOT EXISTS idx_imported_round_source
                 ON imported_history_round_usage(source);",
+        )?;
+
+        // #443: compact, rebuildable replay index for external CLI histories.
+        //
+        // These tables intentionally live in ORGII's sessions.db rather than
+        // in any provider-owned JSONL/SQLite store.  Event rows contain only
+        // bounded previews and locators. Payloads that cannot be truly range
+        // read (JSONL/manifest/protobuf) may have one generation-scoped,
+        // rebuildable artifact; the provider transcript remains the source
+        // of truth and directly addressable bodies are still read on demand.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS imported_replay_state (
+                source              TEXT NOT NULL,
+                source_session_id   TEXT NOT NULL,
+                generation          TEXT NOT NULL,
+                revision            INTEGER NOT NULL DEFAULT 0,
+                parser_version      INTEGER NOT NULL,
+                source_identity     TEXT NOT NULL,
+                driver_cursor_json  TEXT NOT NULL DEFAULT '{}',
+                indexed_size_bytes  INTEGER NOT NULL DEFAULT 0,
+                indexed_mtime_ns    INTEGER NOT NULL DEFAULT 0,
+                total_events        INTEGER NOT NULL DEFAULT 0,
+                total_turns         INTEGER NOT NULL DEFAULT 0,
+                valid               INTEGER NOT NULL DEFAULT 1,
+                updated_at          TEXT NOT NULL,
+                PRIMARY KEY (source, source_session_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_imported_replay_state_generation
+                ON imported_replay_state(source, source_session_id, generation);
+
+            CREATE TABLE IF NOT EXISTS imported_replay_turns (
+                source              TEXT NOT NULL,
+                source_session_id   TEXT NOT NULL,
+                generation          TEXT NOT NULL,
+                turn_index          INTEGER NOT NULL,
+                turn_id             TEXT NOT NULL,
+                start_sequence      INTEGER NOT NULL,
+                end_sequence        INTEGER,
+                started_at          TEXT NOT NULL,
+                ended_at            TEXT,
+                event_count         INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (source, source_session_id, generation, turn_index)
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_imported_replay_turn_id
+                ON imported_replay_turns(source, source_session_id, generation, turn_id);
+
+            CREATE TABLE IF NOT EXISTS imported_replay_events (
+                source              TEXT NOT NULL,
+                source_session_id   TEXT NOT NULL,
+                generation          TEXT NOT NULL,
+                sequence            INTEGER NOT NULL,
+                event_id            TEXT NOT NULL,
+                turn_index          INTEGER NOT NULL,
+                action_type         TEXT NOT NULL,
+                function_name       TEXT NOT NULL,
+                created_at          TEXT NOT NULL,
+                args_preview_json   TEXT NOT NULL DEFAULT '{}',
+                result_preview_json TEXT NOT NULL DEFAULT '{}',
+                args_size_bytes     INTEGER NOT NULL DEFAULT 0,
+                result_size_bytes   INTEGER NOT NULL DEFAULT 0,
+                thread_id           TEXT,
+                process_id          TEXT,
+                source_start        INTEGER NOT NULL DEFAULT 0,
+                source_end          INTEGER NOT NULL DEFAULT 0,
+                payloads_json       TEXT NOT NULL DEFAULT '[]',
+                content_hash        TEXT NOT NULL,
+                event_revision      INTEGER NOT NULL DEFAULT 1,
+                PRIMARY KEY (source, source_session_id, generation, sequence),
+                UNIQUE (source, source_session_id, generation, event_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_imported_replay_events_turn
+                ON imported_replay_events(
+                    source, source_session_id, generation, turn_index, sequence
+                );
+
+            CREATE TABLE IF NOT EXISTS imported_replay_source_rows (
+                source              TEXT NOT NULL,
+                source_session_id   TEXT NOT NULL,
+                generation          TEXT NOT NULL,
+                source_key          TEXT NOT NULL,
+                content_hash        TEXT NOT NULL,
+                event_id            TEXT,
+                sequence            INTEGER,
+                source_order        INTEGER NOT NULL,
+                seen_revision       INTEGER NOT NULL,
+                PRIMARY KEY (source, source_session_id, generation, source_key)
+            );
+            CREATE INDEX IF NOT EXISTS idx_imported_replay_source_rows_seen
+                ON imported_replay_source_rows(
+                    source, source_session_id, generation, seen_revision
+                );
+
+            CREATE TABLE IF NOT EXISTS imported_replay_structured_rows (
+                source              TEXT NOT NULL,
+                source_session_id   TEXT NOT NULL,
+                generation          TEXT NOT NULL,
+                source_key          TEXT NOT NULL,
+                content_hash        TEXT NOT NULL,
+                seen_revision       INTEGER NOT NULL,
+                PRIMARY KEY (source, source_session_id, generation, source_key)
+            );
+            CREATE TABLE IF NOT EXISTS imported_replay_structured_events (
+                source              TEXT NOT NULL,
+                source_session_id   TEXT NOT NULL,
+                generation          TEXT NOT NULL,
+                source_key          TEXT NOT NULL,
+                local_key           TEXT NOT NULL,
+                event_id            TEXT NOT NULL,
+                sequence            INTEGER NOT NULL,
+                PRIMARY KEY (
+                    source, source_session_id, generation, source_key, local_key
+                )
+            );
+            CREATE TABLE IF NOT EXISTS imported_replay_payload_artifacts (
+                source              TEXT NOT NULL,
+                source_session_id   TEXT NOT NULL,
+                generation          TEXT NOT NULL,
+                content_hash        TEXT NOT NULL,
+                payload             BLOB NOT NULL,
+                PRIMARY KEY (
+                    source, source_session_id, generation, content_hash
+                )
+            );
+            CREATE TABLE IF NOT EXISTS imported_replay_payload_artifact_refs (
+                source              TEXT NOT NULL,
+                source_session_id   TEXT NOT NULL,
+                generation          TEXT NOT NULL,
+                event_id            TEXT NOT NULL,
+                field_path          TEXT NOT NULL,
+                content_hash        TEXT NOT NULL,
+                PRIMARY KEY (
+                    source, source_session_id, generation, event_id, field_path
+                )
+            );
+
+            CREATE TABLE IF NOT EXISTS imported_replay_changes (
+                source              TEXT NOT NULL,
+                source_session_id   TEXT NOT NULL,
+                generation          TEXT NOT NULL,
+                change_revision     INTEGER NOT NULL,
+                event_id            TEXT NOT NULL,
+                change_kind         TEXT NOT NULL,
+                sequence            INTEGER,
+                PRIMARY KEY(source, source_session_id, generation, change_revision)
+            );
+            CREATE INDEX IF NOT EXISTS idx_imported_replay_changes_event
+                ON imported_replay_changes(
+                    source, source_session_id, generation, event_id
+                );",
+        )?;
+        ensure_column(
+            conn,
+            "imported_replay_events",
+            "event_revision",
+            "INTEGER NOT NULL DEFAULT 1",
         )
     }
 }

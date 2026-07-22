@@ -418,7 +418,7 @@ fn resolve_write_stdin_call(
     );
 }
 
-fn record_stdin_event(calls: &mut [ImportedToolCall], continuation: &ImportedToolCall) {
+pub(crate) fn record_stdin_event(calls: &mut [ImportedToolCall], continuation: &ImportedToolCall) {
     let chars = continuation
         .args
         .get("chars")
@@ -549,15 +549,15 @@ fn is_codex_script_wrapper_text(text: &str) -> bool {
         || trimmed.starts_with("Script error")
 }
 
-fn background_cell_key(cell_id: &str) -> String {
+pub(crate) fn background_cell_key(cell_id: &str) -> String {
     format!("cell:{cell_id}")
 }
 
-fn background_session_key(session_id: &str) -> String {
+pub(crate) fn background_session_key(session_id: &str) -> String {
     format!("session:{session_id}")
 }
 
-fn background_cell_id(output: &str) -> Option<String> {
+pub(crate) fn background_cell_id(output: &str) -> Option<String> {
     output.lines().find_map(|line| {
         line.trim()
             .strip_prefix("Script running with cell ID ")
@@ -567,7 +567,7 @@ fn background_cell_id(output: &str) -> Option<String> {
     })
 }
 
-fn wait_cell_id(calls: &[ImportedToolCall]) -> Option<&str> {
+pub(crate) fn wait_cell_id(calls: &[ImportedToolCall]) -> Option<&str> {
     let [call] = calls else {
         return None;
     };
@@ -577,7 +577,7 @@ fn wait_cell_id(calls: &[ImportedToolCall]) -> Option<&str> {
     call.args.get("cell_id").and_then(Value::as_str)
 }
 
-fn codex_tool_call_chunk(
+pub(crate) fn codex_tool_call_chunk(
     session_id: &str,
     sequence: usize,
     call: &ImportedToolCall,
@@ -672,7 +672,7 @@ fn read_line_limit_from_call(call: &ImportedToolCall) -> Option<usize> {
         .and_then(|value| usize::try_from(value).ok())
 }
 
-fn pending_tool_calls_from_payload(
+pub(crate) fn pending_tool_calls_from_payload(
     payload: &Value,
     created_at: &str,
 ) -> Option<(String, Vec<ImportedToolCall>)> {
@@ -740,7 +740,10 @@ pub(crate) fn pending_custom_tool_calls_from_payload(
     Some((call_id, calls))
 }
 
-fn web_search_call_from_payload(payload: &Value, created_at: &str) -> Option<ImportedToolCall> {
+pub(crate) fn web_search_call_from_payload(
+    payload: &Value,
+    created_at: &str,
+) -> Option<ImportedToolCall> {
     let call_id = payload.get("id")?.as_str()?.to_string();
     let action = payload.get("action").cloned().unwrap_or_else(|| json!({}));
     Some(ImportedToolCall {
@@ -787,7 +790,7 @@ pub(crate) fn user_message_from_payload(payload: &Value) -> Option<String> {
     Some(stripped.to_string())
 }
 
-fn content_text_from_payload(payload: &Value) -> Option<String> {
+pub(crate) fn content_text_from_payload(payload: &Value) -> Option<String> {
     let content = payload.get("content")?;
     match content {
         Value::String(text) => Some(text.clone()),
@@ -813,7 +816,7 @@ fn content_part_text(part: &Value) -> Option<String> {
         .map(ToString::to_string)
 }
 
-fn reasoning_text_from_payload(payload: &Value) -> Option<String> {
+pub(crate) fn reasoning_text_from_payload(payload: &Value) -> Option<String> {
     if let Some(text) = payload.get("content").and_then(Value::as_str) {
         if !text.trim().is_empty() {
             return Some(text.to_string());

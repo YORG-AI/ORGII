@@ -65,6 +65,7 @@ const CURSOR_CLI_PROVIDER_SLUG: &str = "cursorcli";
 const CURSOR_CLI_AGENT_TYPE: &str = "cursor_cli";
 const CURSOR_CLI_METADATA_PARSER_VERSION: i64 = 1;
 const STORE_FILENAME: &str = "store.db";
+const CURSOR_CLI_CATALOG_BLOB_BYTES: i64 = 1024 * 1024;
 /// The store's placeholder session name; real titles only exist when the user
 /// renames the agent, so the placeholder yields to the first prompt.
 const DEFAULT_SESSION_NAME: &str = "New Agent";
@@ -193,6 +194,10 @@ pub fn cursor_cli_history_candidate_paths() -> Vec<PathBuf> {
     imported_paths::dedupe_paths(roots)
 }
 
+pub(crate) fn refresh_catalog(conn: &mut Connection) -> Result<(), String> {
+    sync_cursor_cli_history_cache(conn)
+}
+
 fn sync_cursor_cli_history_cache(conn: &mut Connection) -> Result<(), String> {
     let mut discovered = discover_cursor_cli_history_records()?;
     // Managed (GUI-launched) sessions surface through their code_sessions
@@ -221,6 +226,15 @@ fn sync_cursor_cli_history_cache(conn: &mut Connection) -> Result<(), String> {
     )?;
     let mut inputs = Vec::new();
     for record in changed {
+        let is_managed = managed_ids.contains(&record.source_session_id);
+        if imported_cache::advance_cached_catalog_record_from_conn(
+            conn,
+            SOURCE_CURSOR_CLI,
+            record,
+            Some(!is_managed),
+        )? {
+            continue;
+        }
         // A single locked/corrupt per-session store must not hide every other
         // session, so unreadable stores are skipped rather than failing the
         // whole source sync; the unchanged signature retries them next scan.
@@ -307,9 +321,8 @@ fn session_meta_from_store_conn(
     let manifest =
         read_store_manifest(store_conn, &store_meta.latest_root_blob_id)?.unwrap_or_default();
     let session_id = super::canonical_session_id(&record.source_session_id);
-    let chunks = load_history_from_store_conn(store_conn, &session_id)?;
-    let impact = imported_history::impact_from_edit_chunks(&chunks);
-    let first_prompt = first_user_prompt_from_chunks(&chunks);
+    let (first_prompt, impact) =
+        scan_manifest_catalog(store_conn, &session_id, &manifest, store_meta.created_at)?;
 
     // A user-set agent name wins; the store's "New Agent" placeholder yields
     // to the first prompt, then to the raw session uuid.
@@ -348,6 +361,59 @@ fn session_meta_from_store_conn(
     }))
 }
 
+fn scan_manifest_catalog(
+    store_conn: &Connection,
+    session_id: &str,
+    manifest: &CursorStoreManifest,
+    created_at_ms: i64,
+) -> Result<(Option<String>, ImportedHistoryImpactStats), String> {
+    let created_at = imported_history::epoch_ms_to_iso(created_at_ms);
+    let mut first_prompt = None;
+    let mut touched_files = std::collections::BTreeSet::new();
+    let mut impact = ImportedHistoryImpactStats::default();
+    for blob_id in &manifest.message_blob_ids {
+        let Some(data) = read_catalog_blob(store_conn, blob_id)? else {
+            continue;
+        };
+        let Ok(message) = serde_json::from_slice::<Value>(&data) else {
+            continue;
+        };
+        match message.get("role").and_then(Value::as_str) {
+            Some("user") if first_prompt.is_none() => {
+                first_prompt = clean_user_text(&message_content_text(message.get("content")));
+            }
+            Some("assistant") => {
+                for item in message_content_items(message.get("content")) {
+                    if item.get("type").and_then(Value::as_str) != Some("tool-call") {
+                        continue;
+                    }
+                    let Some(call) = tool_call_from_item(item, &created_at) else {
+                        continue;
+                    };
+                    if call.canonical_name != imported_history::FUNCTION_EDIT_FILE {
+                        continue;
+                    }
+                    let chunk = imported_history::tool_call_chunk(
+                        session_id,
+                        CURSOR_CLI_PROVIDER_SLUG,
+                        0,
+                        &call,
+                        "",
+                    );
+                    let one = imported_history::impact_from_edit_chunks(&[chunk]);
+                    impact.lines_added = impact.lines_added.saturating_add(one.lines_added);
+                    impact.lines_removed = impact.lines_removed.saturating_add(one.lines_removed);
+                    touched_files.extend(one.touched_files);
+                }
+            }
+            _ => {}
+        }
+    }
+    impact.touched_files = touched_files.into_iter().collect();
+    impact.files_changed = impact.touched_files.len() as i64;
+    Ok((first_prompt, impact))
+}
+
 fn session_meta_to_cache_input(meta: CursorCliHistoryMeta) -> ImportedHistoryCacheInput {
     ImportedHistoryCacheInput {
         source: SOURCE_CURSOR_CLI,
@@ -376,22 +442,6 @@ fn session_meta_to_cache_input(meta: CursorCliHistoryMeta) -> ImportedHistoryCac
         source_metadata_json: None,
         parent_session_id: None,
     }
-}
-
-fn first_user_prompt_from_chunks(chunks: &[ActivityChunk]) -> Option<String> {
-    chunks
-        .iter()
-        .find(|chunk| chunk.function == imported_history::FUNCTION_USER_MESSAGE)
-        .and_then(|chunk| {
-            chunk
-                .result
-                .get("message")
-                .and_then(|message| message.get("content"))
-                .and_then(Value::as_str)
-        })
-        .map(str::trim)
-        .filter(|text| !text.is_empty())
-        .map(str::to_string)
 }
 
 // ---------------------------------------------------------------------------
@@ -483,6 +533,18 @@ fn read_blob(conn: &Connection, blob_id: &str) -> Result<Option<Vec<u8>>, String
     })
     .optional()
     .map_err(|err| format!("Failed to read Cursor CLI blob {blob_id}: {err}"))
+}
+
+fn read_catalog_blob(conn: &Connection, blob_id: &str) -> Result<Option<Vec<u8>>, String> {
+    conn.query_row(
+        "SELECT CASE WHEN length(data) <= ?2 THEN data ELSE NULL END
+         FROM blobs WHERE id = ?1",
+        rusqlite::params![blob_id, CURSOR_CLI_CATALOG_BLOB_BYTES],
+        |row| row.get::<_, Option<Vec<u8>>>(0),
+    )
+    .optional()
+    .map(|value| value.flatten())
+    .map_err(|err| format!("Failed to read compact Cursor CLI blob {blob_id}: {err}"))
 }
 
 fn read_store_manifest(

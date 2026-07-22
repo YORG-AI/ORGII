@@ -10,4 +10,4 @@
 //! matched to a transcript by task-id prefix + workspace basename; the snapshot
 //! is enrichment only — discovery works from the JSONL store alone.
 pub mod history;
-mod log_enrichment;
+pub(crate) mod log_enrichment;

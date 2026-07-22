@@ -15,9 +15,10 @@ use core_types::session_event::{
 };
 
 use super::shell_replay::{
-    load_complete_replay_state_if_matches, load_replay_state, resolve_replay_root,
-    ShellReplayStream, ShellReplayTarget, ShellReplayWriter, SHELL_REPLAY_FORMAT_VERSION,
-    SHELL_REPLAY_FRAME_MAX_BYTES, SHELL_REPLAY_PREVIEW_BYTES,
+    complete_terminal_prefix_len, load_complete_replay_state_if_matches, load_replay_state,
+    resolve_replay_root, ShellReplayStream, ShellReplayTarget, ShellReplayWriter,
+    SHELL_REPLAY_FORMAT_VERSION, SHELL_REPLAY_FRAME_MAX_BYTES, SHELL_REPLAY_PREVIEW_BYTES,
+    SHELL_REPLAY_RANGE_MAX_BYTES,
 };
 
 #[derive(Clone, Copy)]
@@ -26,40 +27,223 @@ struct OutputPart<'a> {
     text: &'a str,
 }
 
+/// One externally-addressable stdout/stderr payload that belongs in a shell
+/// replay. `locator` is deliberately opaque to `agent-core`: JSONL byte spans,
+/// SQLite row keys and replay-artifact references remain owned by their source
+/// adapters.
+#[derive(Debug, Clone)]
+pub struct ExternalShellReplaySegment<L> {
+    pub stream: ShellReplayStream,
+    pub locator: L,
+    pub expected_bytes: u64,
+    /// A bounded source-provided tail used only when range hydration fails
+    /// before the durable replay can be completed.
+    pub preview: String,
+}
+
+impl<L> ExternalShellReplaySegment<L> {
+    pub fn new(
+        stream: ShellReplayStream,
+        locator: L,
+        expected_bytes: u64,
+        preview: impl Into<String>,
+    ) -> Self {
+        Self {
+            stream,
+            locator,
+            expected_bytes,
+            preview: preview.into(),
+        }
+    }
+}
+
 /// Persist completed, replay-less shell events produced by external provider
 /// parsers. Events that already own a replay are left untouched.
 pub fn persist_external_shell_replays(events: &mut [SessionEvent]) {
     for event in events {
-        if event.ui_canonical != core_types::tool_names::RUN_SHELL
-            || event.shell_replay.is_some()
-            || event.display_status == EventDisplayStatus::Running
-        {
-            continue;
-        }
-        let parts = output_parts(event);
-        if parts.is_empty() {
-            continue;
-        }
-        let expected_bytes = parts.iter().fold(0u64, |total, part| {
-            total.saturating_add(part.text.len() as u64)
-        });
         let call_id = event.call_id.clone().unwrap_or_else(|| event.id.clone());
-        let replay_root = resolve_replay_root();
-        match persist_one(event, &call_id, &replay_root, &parts, expected_bytes) {
-            Ok(state) => event.shell_replay = Some(state),
-            Err(error) => {
-                // The source transcript remains authoritative, but EventStore
-                // still needs a bounded visible result instead of an empty
-                // card when durable import fails.
-                event.shell_replay = Some(incomplete_preview_state(
-                    event,
-                    &call_id,
-                    &parts,
-                    format!("外部 CLI 完整输出保存失败：{error}"),
-                ));
-            }
+        persist_external_shell_replay_inline(event, &call_id);
+    }
+}
+
+/// Inline counterpart with an explicit durable artifact key. Imported replay
+/// callers include their source generation in this key so a same-sized output
+/// after transcript replacement can never reuse a stale `.slog`.
+pub fn persist_external_shell_replay_inline(event: &mut SessionEvent, artifact_call_id: &str) {
+    if event.ui_canonical != core_types::tool_names::RUN_SHELL
+        || event.shell_replay.is_some()
+        || event.display_status == EventDisplayStatus::Running
+    {
+        return;
+    }
+    let parts = output_parts(event);
+    if parts.is_empty() {
+        return;
+    }
+    let expected_bytes = parts.iter().fold(0u64, |total, part| {
+        total.saturating_add(part.text.len() as u64)
+    });
+    let replay_root = resolve_replay_root();
+    match persist_one(
+        event,
+        artifact_call_id,
+        &replay_root,
+        &parts,
+        expected_bytes,
+    ) {
+        Ok(state) => event.shell_replay = Some(state),
+        Err(error) => {
+            // The source transcript remains authoritative, but EventStore
+            // still needs a bounded visible result instead of an empty card
+            // when durable import fails.
+            event.shell_replay = Some(incomplete_preview_state(
+                event,
+                artifact_call_id,
+                &parts,
+                format!("外部 CLI 完整输出保存失败：{error}"),
+            ));
         }
     }
+}
+
+/// Persist one external shell event from storage-specific payload locators.
+///
+/// The callback is never asked for more than
+/// [`SHELL_REPLAY_RANGE_MAX_BYTES`] and each returned buffer is immediately
+/// split into `.slog` frames. No complete stdout/stderr `String` is assembled.
+/// The sum of `expected_bytes` is also the cache key used to reuse an existing
+/// complete artifact for the same session/call.
+///
+/// A callback may return fewer bytes than requested, but returning an empty
+/// buffer before the segment's declared length or returning more than the
+/// requested range makes the event explicitly incomplete.
+pub fn persist_external_shell_replay_segments<L, ReadRange>(
+    event: &mut SessionEvent,
+    segments: &[ExternalShellReplaySegment<L>],
+    read_range: ReadRange,
+) where
+    ReadRange: FnMut(&L, u64, usize) -> Result<Vec<u8>, String>,
+{
+    let call_id = event.call_id.clone().unwrap_or_else(|| event.id.clone());
+    persist_external_shell_replay_segments_with_call_id(event, &call_id, segments, read_range);
+}
+
+/// Range-backed counterpart with an explicit generation-scoped artifact key.
+pub fn persist_external_shell_replay_segments_with_call_id<L, ReadRange>(
+    event: &mut SessionEvent,
+    artifact_call_id: &str,
+    segments: &[ExternalShellReplaySegment<L>],
+    mut read_range: ReadRange,
+) where
+    ReadRange: FnMut(&L, u64, usize) -> Result<Vec<u8>, String>,
+{
+    if event.ui_canonical != core_types::tool_names::RUN_SHELL
+        || event.shell_replay.is_some()
+        || event.display_status == EventDisplayStatus::Running
+        || segments.is_empty()
+    {
+        return;
+    }
+
+    let replay_root = resolve_replay_root();
+    let expected_bytes = segments.iter().try_fold(0u64, |total, segment| {
+        total.checked_add(segment.expected_bytes)
+    });
+    let result = match expected_bytes {
+        Some(expected_bytes) => persist_one_from_segments(
+            event,
+            artifact_call_id,
+            &replay_root,
+            segments,
+            expected_bytes,
+            &mut read_range,
+        ),
+        None => Err("external shell replay byte count overflow".to_string()),
+    };
+    match result {
+        Ok(state) => event.shell_replay = Some(state),
+        Err(error) => {
+            event.shell_replay = Some(incomplete_segment_preview_state(
+                event,
+                artifact_call_id,
+                segments,
+                format!("外部 CLI Shell 完整输出保存失败：{error}"),
+            ));
+        }
+    }
+}
+
+fn persist_one_from_segments<L, ReadRange>(
+    event: &SessionEvent,
+    call_id: &str,
+    replay_root: &Path,
+    segments: &[ExternalShellReplaySegment<L>],
+    expected_bytes: u64,
+    read_range: &mut ReadRange,
+) -> Result<ShellReplayState, String>
+where
+    ReadRange: FnMut(&L, u64, usize) -> Result<Vec<u8>, String>,
+{
+    if let Some(state) = load_complete_replay_state_if_matches(
+        replay_root,
+        &event.session_id,
+        call_id,
+        expected_bytes,
+    )? {
+        return Ok(state);
+    }
+
+    let command = event
+        .command
+        .as_deref()
+        .or_else(|| event.args.get("command").and_then(|value| value.as_str()))
+        .unwrap_or("external shell command");
+    let cwd = event
+        .args
+        .get("cwd")
+        .and_then(|value| value.as_str())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."));
+    let target = ShellReplayTarget::new(&event.session_id, call_id);
+    let mut writer = ShellReplayWriter::create_detached(replay_root, target, command, &cwd)?;
+
+    let write_result = (|| {
+        for segment in segments {
+            let mut offset = 0u64;
+            let mut frame_buffer = ExternalFrameBuffer::default();
+            while offset < segment.expected_bytes {
+                let remaining = segment.expected_bytes - offset;
+                let requested = remaining.min(SHELL_REPLAY_RANGE_MAX_BYTES as u64) as usize;
+                let bytes = read_range(&segment.locator, offset, requested)?;
+                if bytes.is_empty() {
+                    return Err(format!(
+                        "{} payload ended at byte {offset}, expected {} bytes",
+                        segment.stream.as_wire_str(),
+                        segment.expected_bytes
+                    ));
+                }
+                if bytes.len() > requested {
+                    return Err(format!(
+                        "{} payload range returned {} bytes for a {requested}-byte request",
+                        segment.stream.as_wire_str(),
+                        bytes.len()
+                    ));
+                }
+                frame_buffer.push(&mut writer, segment.stream, &bytes)?;
+                offset = offset.saturating_add(bytes.len() as u64);
+            }
+            frame_buffer.finish(&mut writer, segment.stream)?;
+        }
+        Ok(())
+    })();
+    if let Err(error) = write_result {
+        writer.mark_incomplete(error.clone());
+        return Err(error);
+    }
+
+    writer.finalize_at(ShellReplayStatus::Complete, None, event.created_at.clone())?;
+    load_replay_state(&event.session_id, call_id)?
+        .ok_or_else(|| "external shell replay manifest missing after finalize".to_string())
 }
 
 fn persist_one(
@@ -117,6 +301,53 @@ fn append_text_bounded(
         start = end;
     }
     Ok(())
+}
+
+#[derive(Default)]
+struct ExternalFrameBuffer {
+    pending: Vec<u8>,
+}
+
+impl ExternalFrameBuffer {
+    fn push(
+        &mut self,
+        writer: &mut ShellReplayWriter,
+        stream: ShellReplayStream,
+        mut bytes: &[u8],
+    ) -> Result<(), String> {
+        while !bytes.is_empty() {
+            let available = SHELL_REPLAY_FRAME_MAX_BYTES.saturating_sub(self.pending.len());
+            let take = available.min(bytes.len());
+            self.pending.extend_from_slice(&bytes[..take]);
+            bytes = &bytes[take..];
+            if self.pending.len() < SHELL_REPLAY_FRAME_MAX_BYTES {
+                continue;
+            }
+
+            // Source adapters range over decoded strings, so a range or frame
+            // boundary may bisect a UTF-8 scalar/ANSI sequence. Keep only that
+            // tiny suffix for the next frame; never retain the payload body.
+            let ready = complete_terminal_prefix_len(&self.pending);
+            if ready == 0 {
+                return Err("external shell output has no complete terminal prefix".to_string());
+            }
+            writer.append(stream, &self.pending[..ready])?;
+            self.pending.drain(..ready);
+        }
+        Ok(())
+    }
+
+    fn finish(
+        mut self,
+        writer: &mut ShellReplayWriter,
+        stream: ShellReplayStream,
+    ) -> Result<(), String> {
+        if !self.pending.is_empty() {
+            writer.append(stream, &self.pending)?;
+            self.pending.clear();
+        }
+        Ok(())
+    }
 }
 
 fn output_parts(event: &SessionEvent) -> Vec<OutputPart<'_>> {
@@ -238,10 +469,97 @@ fn incomplete_preview_state(
     }
 }
 
+fn incomplete_segment_preview_state<L>(
+    event: &SessionEvent,
+    call_id: &str,
+    segments: &[ExternalShellReplaySegment<L>],
+    error: String,
+) -> ShellReplayState {
+    const MARKER: &str = "[external CLI shell replay incomplete]\n";
+    let content_budget = SHELL_REPLAY_PREVIEW_BYTES.saturating_sub(MARKER.len());
+    let mut content = String::new();
+    for segment in segments {
+        if segment.stream == ShellReplayStream::Stderr {
+            append_string_tail_bounded(&mut content, "[stderr] ", content_budget);
+        }
+        append_string_tail_bounded(&mut content, &segment.preview, content_budget);
+    }
+    let mut preview = String::with_capacity(MARKER.len() + content.len());
+    preview.push_str(MARKER);
+    preview.push_str(&content);
+    ShellReplayState {
+        replay_ref: ShellReplayRef {
+            session_id: event.session_id.clone(),
+            call_id: call_id.to_string(),
+            format_version: SHELL_REPLAY_FORMAT_VERSION,
+        },
+        bookmark: ShellReplayBookmark::default(),
+        terminal_preview: preview,
+        status: ShellReplayStatus::Incomplete,
+        error: Some(error),
+        completed_at: Some(event.created_at.clone()),
+    }
+}
+
+fn append_string_tail_bounded(target: &mut String, value: &str, max_bytes: usize) {
+    if max_bytes == 0 {
+        target.clear();
+        return;
+    }
+    let mut value_start = value.len().saturating_sub(max_bytes);
+    while value_start < value.len() && !value.is_char_boundary(value_start) {
+        value_start += 1;
+    }
+    let value = &value[value_start..];
+    let overflow = target
+        .len()
+        .saturating_add(value.len())
+        .saturating_sub(max_bytes);
+    if overflow > 0 {
+        let mut remove_through = overflow.min(target.len());
+        while remove_through < target.len() && !target.is_char_boundary(remove_through) {
+            remove_through += 1;
+        }
+        target.drain(..remove_through);
+    }
+    target.push_str(value);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use core_types::session_event::{ActivityStatus, EventDisplayVariant, EventSource};
+
+    #[derive(Debug, Clone)]
+    struct GeneratedPayload {
+        seed: u8,
+    }
+
+    fn generated_payload_range(locator: &GeneratedPayload, offset: u64, length: usize) -> Vec<u8> {
+        (0..length)
+            .map(|index| b'a' + ((offset + index as u64 + locator.seed as u64) % 26) as u8)
+            .collect()
+    }
+
+    fn hash_generated_segments(
+        segments: &[ExternalShellReplaySegment<GeneratedPayload>],
+    ) -> blake3::Hash {
+        let mut hasher = blake3::Hasher::new();
+        let mut buffer = Vec::with_capacity(64 * 1024);
+        for segment in segments {
+            let mut offset = 0u64;
+            while offset < segment.expected_bytes {
+                let length = (segment.expected_bytes - offset).min(64 * 1024) as usize;
+                buffer.clear();
+                buffer.extend((0..length).map(|index| {
+                    b'a' + ((offset + index as u64 + segment.locator.seed as u64) % 26) as u8
+                }));
+                hasher.update(&buffer);
+                offset += length as u64;
+            }
+        }
+        hasher.finalize()
+    }
 
     fn external_shell_event(output: String) -> SessionEvent {
         SessionEvent {
@@ -292,5 +610,133 @@ mod tests {
         assert_eq!(state.bookmark.visible_bytes, expected_bytes);
         assert!(state.terminal_preview.ends_with("TAIL"));
         assert!(state.terminal_preview.len() <= SHELL_REPLAY_PREVIEW_BYTES);
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn ten_mib_locator_segments_stream_into_one_bounded_replay() {
+        const SIX_MIB: u64 = 6 * 1024 * 1024;
+        const FOUR_MIB: u64 = 4 * 1024 * 1024;
+        const TEN_MIB: u64 = SIX_MIB + FOUR_MIB;
+
+        let _sandbox = test_helpers::test_env::sandbox();
+        let conn = database::db::get_connection().unwrap();
+        database::init_shell_replay_tables(&conn).unwrap();
+        let segments = vec![
+            ExternalShellReplaySegment::new(
+                ShellReplayStream::Stdout,
+                GeneratedPayload { seed: 3 },
+                SIX_MIB,
+                "stdout tail",
+            ),
+            ExternalShellReplaySegment::new(
+                ShellReplayStream::Stderr,
+                GeneratedPayload { seed: 19 },
+                FOUR_MIB,
+                "stderr tail",
+            ),
+        ];
+        let expected_hash = hash_generated_segments(&segments);
+        let mut max_requested = 0usize;
+        let mut max_returned = 0usize;
+        let mut event = external_shell_event(String::new());
+
+        persist_external_shell_replay_segments(
+            &mut event,
+            &segments,
+            |locator, offset, requested| {
+                assert!(requested <= SHELL_REPLAY_RANGE_MAX_BYTES);
+                max_requested = max_requested.max(requested);
+                let bytes = generated_payload_range(locator, offset, requested);
+                max_returned = max_returned.max(bytes.len());
+                Ok(bytes)
+            },
+        );
+
+        let state = event.shell_replay.as_ref().expect("streamed replay state");
+        assert_eq!(state.status, ShellReplayStatus::Complete);
+        assert_eq!(state.bookmark.visible_bytes, TEN_MIB);
+        assert_eq!(max_requested, SHELL_REPLAY_RANGE_MAX_BYTES);
+        assert!(max_returned <= SHELL_REPLAY_RANGE_MAX_BYTES);
+
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let mut actual_hash = blake3::Hasher::new();
+        let mut offset = 0u64;
+        while offset < TEN_MIB {
+            let range = runtime
+                .block_on(super::super::shell_replay::shell_replay_read_range(
+                    event.session_id.clone(),
+                    event.call_id.clone().unwrap(),
+                    state.bookmark.visible_through_sequence,
+                    state.bookmark.visible_bytes,
+                    offset,
+                    SHELL_REPLAY_RANGE_MAX_BYTES as u64,
+                ))
+                .unwrap();
+            assert!(range.next_offset_bytes > offset);
+            for frame in range.frames {
+                actual_hash.update(frame.text.as_bytes());
+            }
+            offset = range.next_offset_bytes;
+            if range.eof {
+                break;
+            }
+        }
+        assert_eq!(offset, TEN_MIB);
+        assert_eq!(actual_hash.finalize(), expected_hash);
+
+        // A complete artifact with the same expected byte count is reused;
+        // the source locators are not read a second time.
+        let mut reopened = external_shell_event(String::new());
+        persist_external_shell_replay_segments(
+            &mut reopened,
+            &segments,
+            |_locator, _offset, _requested| {
+                panic!("matching complete replay should bypass source reads")
+            },
+        );
+        assert_eq!(
+            reopened.shell_replay.unwrap().status,
+            ShellReplayStatus::Complete
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn truncated_locator_sets_an_explicit_incomplete_preview() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let conn = database::db::get_connection().unwrap();
+        database::init_shell_replay_tables(&conn).unwrap();
+        let segments = vec![ExternalShellReplaySegment::new(
+            ShellReplayStream::Stdout,
+            "stdout-locator",
+            10,
+            "source-provided tail",
+        )];
+        let mut event = external_shell_event(String::new());
+
+        persist_external_shell_replay_segments(
+            &mut event,
+            &segments,
+            |_locator, offset, _requested| {
+                if offset == 0 {
+                    Ok(b"abc".to_vec())
+                } else {
+                    Ok(Vec::new())
+                }
+            },
+        );
+
+        let state = event.shell_replay.expect("incomplete replay state");
+        assert_eq!(state.status, ShellReplayStatus::Incomplete);
+        assert!(state
+            .terminal_preview
+            .starts_with("[external CLI shell replay incomplete]"));
+        assert!(state.terminal_preview.contains("source-provided tail"));
+        assert!(state.terminal_preview.len() <= SHELL_REPLAY_PREVIEW_BYTES);
+        assert!(state.error.unwrap().contains("ended at byte 3"));
     }
 }

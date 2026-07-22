@@ -1,0 +1,4 @@
+{"timestamp":"2026-07-22T00:00:00Z","type":"event_msg","payload":{"type":"user_message","message":"first Codex question"}}
+{"timestamp":"2026-07-22T00:00:01Z","type":"event_msg","payload":{"type":"agent_message","message":"first Codex answer"}}
+{"timestamp":"2026-07-22T00:00:02Z","type":"event_msg","payload":{"type":"user_message","message":"second Codex question"}}
+{"timestamp":"2026-07-22T00:00:03Z","type":"event_msg","payload":{"type":"agent_message","message":"second Codex answer"}}

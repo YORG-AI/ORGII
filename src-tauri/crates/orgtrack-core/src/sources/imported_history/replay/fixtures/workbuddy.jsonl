@@ -1,0 +1,4 @@
+{"type":"message","timestamp":"2026-07-22T00:00:00Z","role":"user","content":"first WorkBuddy question"}
+{"type":"message","timestamp":"2026-07-22T00:00:01Z","role":"assistant","content":"first WorkBuddy answer"}
+{"type":"message","timestamp":"2026-07-22T00:00:02Z","role":"user","content":"second WorkBuddy question"}
+{"type":"message","timestamp":"2026-07-22T00:00:03Z","role":"assistant","content":"second WorkBuddy answer"}

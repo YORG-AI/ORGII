@@ -39,7 +39,9 @@ use super::helpers::{
 use super::io::{
     load_bubbles_by_id, load_complete_bubble_order, load_composer_for_order, open_cursor_db,
 };
-use super::models::{CursorComposerContext, OrderedBubble, RawComposerHeader};
+use super::models::{
+    CursorComposerContext, OrderedBubble, RawBubble, RawComposerForOrder, RawComposerHeader,
+};
 use super::summaries::{
     build_cursor_ide_turn_summaries, cursor_ide_summary_source_fingerprint,
     load_cached_cursor_ide_turn_summaries, upsert_cursor_ide_turn_summaries,
@@ -56,7 +58,7 @@ use super::helpers::{
 #[cfg(test)]
 use super::io::load_content_blob;
 #[cfg(test)]
-use super::models::{RawBubble, RawComposerForOrder, RawCursorSubagentInfo, RawToolFormerData};
+use super::models::{RawCursorSubagentInfo, RawToolFormerData};
 #[cfg(test)]
 use serde_json::{json, Value};
 
@@ -224,6 +226,33 @@ pub fn load_history_for_session(session_id: &str) -> Result<Vec<ActivityChunk>, 
     let mut chunks = bubbles_to_chunks(&cursor_conn, session_id, &bubbles, &composer_context);
     enforce_monotonic_created_at(&mut chunks);
     Ok(chunks)
+}
+
+/// Normalize a single Cursor KV bubble for bounded replay.
+///
+/// The replay driver owns ordering/diffing and calls this only for a new or
+/// changed bubble, so this wrapper does not allocate a full bubble list.
+pub(crate) fn replay_chunk_from_bubble_json(
+    conn: &Connection,
+    session_id: &str,
+    bubble_id: &str,
+    header_type: i64,
+    raw_json: &str,
+    composer_json: &str,
+) -> Result<Option<ActivityChunk>, String> {
+    let raw = serde_json::from_str::<RawBubble>(raw_json)
+        .map_err(|err| format!("Failed to parse Cursor replay bubble {bubble_id}: {err}"))?;
+    let composer = serde_json::from_str::<RawComposerForOrder>(composer_json)
+        .map_err(|err| format!("Failed to parse Cursor replay composer: {err}"))?;
+    let context = CursorComposerContext::from_composer(&composer);
+    let bubble = OrderedBubble {
+        bubble_id: bubble_id.to_string(),
+        bubble_type: header_type,
+        raw,
+    };
+    Ok(bubbles_to_chunks(conn, session_id, &[bubble], &context)
+        .into_iter()
+        .next())
 }
 
 pub fn load_full_refresh_for_session(

@@ -141,7 +141,18 @@ pub fn load_opencode_history_for_session(session_id: &str) -> Result<Vec<Activit
     )
 }
 
+pub(crate) fn refresh_catalog(cache_conn: &mut Connection) -> Result<(), String> {
+    sync_opencode_history_cache_inner(cache_conn, false)
+}
+
 fn sync_opencode_history_cache(cache_conn: &mut Connection) -> Result<(), String> {
+    sync_opencode_history_cache_inner(cache_conn, true)
+}
+
+fn sync_opencode_history_cache_inner(
+    cache_conn: &mut Connection,
+    include_legacy_impact: bool,
+) -> Result<(), String> {
     let Some((conn, db_path)) = open_opencode_db()? else {
         imported_cache::sync_source_cache_from_conn(
             cache_conn,
@@ -188,14 +199,7 @@ fn sync_opencode_history_cache(cache_conn: &mut Connection) -> Result<(), String
         .into_iter()
         .filter(|meta| changed_ids.contains(&meta.source_session_id))
     {
-        let session_id = format!("{OPENCODE_SESSION_PREFIX}{}", meta.source_session_id);
-        let chunks = load_opencode_compatible_history_from_conn(
-            &conn,
-            &session_id,
-            &meta.source_session_id,
-            OPENCODE_PROVIDER_SLUG,
-        )?;
-        meta.impact = imported_history::impact_from_edit_chunks(&chunks);
+        populate_opencode_impact(&conn, cache_conn, &mut meta, include_legacy_impact)?;
         inputs.push(session_meta_to_cache_input(
             meta,
             &container_parent_ids,
@@ -203,6 +207,33 @@ fn sync_opencode_history_cache(cache_conn: &mut Connection) -> Result<(), String
         ));
     }
     imported_cache::sync_source_cache_from_conn(cache_conn, SOURCE_OPENCODE, live_ids, inputs)
+}
+
+fn populate_opencode_impact(
+    source_conn: &Connection,
+    cache_conn: &Connection,
+    meta: &mut OpenCodeSessionMeta,
+    include_legacy_impact: bool,
+) -> Result<(), String> {
+    if include_legacy_impact {
+        let session_id = format!("{OPENCODE_SESSION_PREFIX}{}", meta.source_session_id);
+        meta.impact = load_opencode_compatible_impact_from_conn(
+            source_conn,
+            &session_id,
+            &meta.source_session_id,
+            OPENCODE_PROVIDER_SLUG,
+        )?;
+    } else if let Some(cached) = imported_cache::query_cached_session_from_conn(
+        cache_conn,
+        SOURCE_OPENCODE,
+        &meta.source_session_id,
+    )? {
+        // Catalog refresh preserves the compact projection already published
+        // for this session. It never replays historical tool rows merely
+        // because the shared DB/WAL changed.
+        meta.impact = cached.impact;
+    }
+    Ok(())
 }
 
 fn opencode_meta_signature(meta: &OpenCodeSessionMeta) -> ImportedHistoryRecordSignature {
@@ -437,6 +468,74 @@ pub(crate) fn load_opencode_compatible_history_from_conn(
     Ok(chunks)
 }
 
+/// Fold edit impact directly from SQLite rows without constructing a
+/// session-sized part or `ActivityChunk` vector. Only edit-capable tool rows
+/// are copied out of SQLite; assistant/reasoning/shell output never enters the
+/// catalog refresh path.
+pub(crate) fn load_opencode_compatible_impact_from_conn(
+    conn: &Connection,
+    session_id: &str,
+    source_session_id: &str,
+    provider_slug: &str,
+) -> Result<ImportedHistoryImpactStats, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT p.id, p.message_id, json_extract(m.data, '$.role'), p.data, p.time_created
+             FROM part p
+             JOIN message m ON m.id = p.message_id
+             WHERE p.session_id = ?1
+               AND json_extract(p.data, '$.type') = 'tool'
+               AND lower(COALESCE(json_extract(p.data, '$.tool'), ''))
+                   IN ('write', 'edit', 'patch', 'apply_patch')
+             ORDER BY p.time_created ASC, p.id ASC",
+        )
+        .map_err(|err| format!("Failed to prepare OpenCode compact impact query: {err}"))?;
+    let mut rows = stmt
+        .query([source_session_id])
+        .map_err(|err| format!("Failed to query OpenCode compact impact rows: {err}"))?;
+    let mut touched = std::collections::BTreeSet::new();
+    let mut impact = ImportedHistoryImpactStats::default();
+    let mut sequence = 0usize;
+    while let Some(row) = rows
+        .next()
+        .map_err(|err| format!("Failed to read OpenCode compact impact row: {err}"))?
+    {
+        let Some(raw_data) = row
+            .get::<_, Option<String>>(3)
+            .map_err(|err| format!("Failed to read OpenCode compact tool payload: {err}"))?
+        else {
+            continue;
+        };
+        let chunk = replay_chunk_from_part_json(
+            session_id,
+            provider_slug,
+            sequence,
+            row.get::<_, Option<String>>(0)
+                .map_err(|err| err.to_string())?
+                .unwrap_or_default(),
+            row.get::<_, Option<String>>(1)
+                .map_err(|err| err.to_string())?
+                .unwrap_or_default(),
+            row.get::<_, Option<String>>(2)
+                .map_err(|err| err.to_string())?
+                .unwrap_or_default(),
+            &raw_data,
+            row.get::<_, Option<i64>>(4)
+                .map_err(|err| err.to_string())?
+                .unwrap_or_default(),
+        )?;
+        sequence = sequence.saturating_add(1);
+        let Some(chunk) = chunk else { continue };
+        let one = imported_history::impact_from_edit_chunks(std::slice::from_ref(&chunk));
+        impact.lines_added = impact.lines_added.saturating_add(one.lines_added);
+        impact.lines_removed = impact.lines_removed.saturating_add(one.lines_removed);
+        touched.extend(one.touched_files);
+    }
+    impact.touched_files = touched.into_iter().collect();
+    impact.files_changed = impact.touched_files.len() as i64;
+    Ok(impact)
+}
+
 #[cfg(test)]
 fn load_opencode_history_from_conn(
     conn: &Connection,
@@ -512,6 +611,34 @@ fn part_row_to_chunk(
         "tool" => tool_to_chunk(session_id, provider_slug, sequence, row),
         _ => None,
     }
+}
+
+/// Normalize one OpenCode-compatible `part` row for bounded replay.
+///
+/// Unlike [`load_opencode_compatible_history_from_conn`], this entry point
+/// never collects a session-sized part vector. Replay drivers call it only
+/// after the row's compact content hash changed.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn replay_chunk_from_part_json(
+    session_id: &str,
+    provider_slug: &str,
+    sequence: usize,
+    part_id: String,
+    message_id: String,
+    role: String,
+    raw_data: &str,
+    time_created: i64,
+) -> Result<Option<ActivityChunk>, String> {
+    let part = serde_json::from_str::<OpenCodePart>(raw_data)
+        .map_err(|err| format!("Failed to parse {provider_slug} replay part {part_id}: {err}"))?;
+    let row = OpenCodePartRow {
+        part_id,
+        message_id,
+        role,
+        part,
+        time_created,
+    };
+    Ok(part_row_to_chunk(session_id, provider_slug, sequence, &row))
 }
 
 fn text_to_user_chunk_with_provider(
