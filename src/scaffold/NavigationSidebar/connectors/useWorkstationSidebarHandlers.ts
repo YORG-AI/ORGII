@@ -30,6 +30,7 @@ import {
   isSessionTaggedToCloudOrg,
   sessionOrgTagsAtom,
 } from "@src/features/TeamCollaboration/sessionOrgTagsAtom";
+import { clearCliTurnLifecycleSession } from "@src/hooks/cliSession/cliTurnLifecycleCoordinator";
 import { createLogger } from "@src/hooks/logger";
 import type { GoToNewSessionOptions } from "@src/hooks/navigation/useAppNavigation";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
@@ -198,6 +199,7 @@ export function useWorkstationSidebarHandlers({
         }
         if (isCliSession(sessionId)) {
           await invokeTauri("cli_agent_delete", { sessionId });
+          clearCliTurnLifecycleSession(sessionId);
         } else if (isHumanSession(sessionId)) {
           await deleteHumanSession(sessionId);
         } else {

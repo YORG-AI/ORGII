@@ -355,21 +355,8 @@ pub(super) fn apply_system_proxy_passthrough(env_vars: &mut HashMap<String, Stri
     }
 }
 
-/// For a Codex hosted-key session: ensure `~/.codex/config.toml` has the proxy
-/// `model_providers.proxy` section, then run `codex login --with-api-key` with
-/// the proxy token. No-op for any other agent/key-source. Failures are logged
-/// and the session continues.
-pub(super) async fn setup_codex_hosted_proxy(
-    agent: &ModelType,
-    session: &CodeSession,
-    env_vars: &HashMap<String, String>,
-) {
-    if !(matches!(agent, ModelType::Codex) && session.key_source == KeySource::HostedKey) {
-        return;
-    }
-
+fn ensure_codex_hosted_proxy_config(proxy_url_val: &str) {
     if let Some(home) = dirs::home_dir() {
-        let proxy_url_val = session.proxy_url.as_deref().unwrap_or("");
         let codex_dir = home.join(".codex");
         let config_file = codex_dir.join("config.toml");
 
@@ -418,6 +405,29 @@ pub(super) async fn setup_codex_hosted_proxy(
                 }
             }
         }
+    }
+}
+
+/// For a Codex hosted-key session: ensure `~/.codex/config.toml` has the proxy
+/// `model_providers.proxy` section, then run `codex login --with-api-key` with
+/// the proxy token. No-op for any other agent/key-source. Failures are logged
+/// and the session continues.
+pub(super) async fn setup_codex_hosted_proxy(
+    agent: &ModelType,
+    session: &CodeSession,
+    env_vars: &HashMap<String, String>,
+) {
+    if !(matches!(agent, ModelType::Codex) && session.key_source == KeySource::HostedKey) {
+        return;
+    }
+
+    let proxy_url = session.proxy_url.clone().unwrap_or_default();
+    if let Err(err) = tokio::task::spawn_blocking(move || {
+        ensure_codex_hosted_proxy_config(&proxy_url);
+    })
+    .await
+    {
+        tracing::warn!("[CodeSession] Codex proxy config task failed: {err}");
     }
 
     let api_key_val = session.proxy_token.as_deref().unwrap_or("");
@@ -484,37 +494,43 @@ pub(super) async fn setup_opencode_sse_sanitizer(
         return;
     }
 
-    if let Ok(config_text) = std::fs::read_to_string(
-        dirs::config_dir()
-            .unwrap_or_default()
-            .join("opencode")
-            .join("opencode.json"),
-    ) {
-        if let Ok(config) = serde_json::from_str::<serde_json::Value>(&config_text) {
-            let base_url = config
-                .get("provider")
-                .and_then(|p| p.get("anthropic"))
-                .and_then(|a| a.get("options"))
-                .and_then(|o| o.get("baseURL"))
-                .and_then(|v| v.as_str());
-            if let Some(upstream) = base_url {
-                if !upstream.contains("127.0.0.1") && !upstream.contains("localhost") {
-                    match integrations::proxy::sse_sanitizer::ensure_running(upstream).await {
-                        Ok(local_url) => {
-                            tracing::info!(
-                                "[CodeSession] SSE sanitizer active: {} → {}",
-                                local_url,
-                                upstream
-                            );
-                            env_vars.insert("ANTHROPIC_BASE_URL".to_string(), local_url);
-                        }
-                        Err(err) => {
-                            tracing::warn!(
-                                "[CodeSession] SSE sanitizer failed: {} — using direct connection",
-                                err
-                            );
-                        }
-                    }
+    let upstream = tokio::task::spawn_blocking(|| {
+        let config_text = std::fs::read_to_string(
+            dirs::config_dir()
+                .unwrap_or_default()
+                .join("opencode")
+                .join("opencode.json"),
+        )
+        .ok()?;
+        let config = serde_json::from_str::<serde_json::Value>(&config_text).ok()?;
+        config
+            .get("provider")?
+            .get("anthropic")?
+            .get("options")?
+            .get("baseURL")?
+            .as_str()
+            .map(str::to_string)
+    })
+    .await
+    .ok()
+    .flatten();
+
+    if let Some(upstream) = upstream {
+        if !upstream.contains("127.0.0.1") && !upstream.contains("localhost") {
+            match integrations::proxy::sse_sanitizer::ensure_running(&upstream).await {
+                Ok(local_url) => {
+                    tracing::info!(
+                        "[CodeSession] SSE sanitizer active: {} → {}",
+                        local_url,
+                        upstream
+                    );
+                    env_vars.insert("ANTHROPIC_BASE_URL".to_string(), local_url);
+                }
+                Err(err) => {
+                    tracing::warn!(
+                        "[CodeSession] SSE sanitizer failed: {} — using direct connection",
+                        err
+                    );
                 }
             }
         }

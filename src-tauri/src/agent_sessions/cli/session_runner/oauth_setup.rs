@@ -232,7 +232,13 @@ pub(super) async fn refresh_cli_oauth_for_retry(
         env_vars.insert(key, value);
     }
     if matches!(agent, ModelType::Codex) {
-        write_codex_cli_auth_file(account_id, env_vars);
+        let auth_account_id = account_id.to_string();
+        let auth_env = env_vars.clone();
+        tokio::task::spawn_blocking(move || {
+            write_codex_cli_auth_file(&auth_account_id, &auth_env);
+        })
+        .await
+        .map_err(|err| format!("Codex auth persistence task failed: {err}"))?;
     }
     sanitize_cli_oauth_env_for_child(agent, env_vars);
     Ok(true)

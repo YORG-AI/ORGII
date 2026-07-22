@@ -1,15 +1,15 @@
 /**
  * useBackgroundSessionMonitor Hook
  *
- * Listens for WebSocket status changes on background ("fire and forget")
- * CLI sessions and delivers system notifications + in-app toasts when
- * they complete or fail.
+ * Owns the single window-level CLI lifecycle status subscription. It routes
+ * every CLI status through the global coordinator and additionally delivers
+ * notifications for background ("fire and forget") sessions.
  *
  * This hook runs at the app root level (via GlobalSessionSync) so it is
  * always active, regardless of which view the user is on.
  *
- * It complements the cliAdapter sync, which only tracks the *active* session.
- * This hook watches ALL background sessions globally.
+ * Active adapters remain responsible for transcript/UI mirroring only; turn
+ * finality for active and background sessions is owned here.
  */
 import { useAtomValue } from "jotai";
 import { useEffect, useRef } from "react";
@@ -20,13 +20,10 @@ import {
   notifyTaskCompletion,
 } from "@src/api/services/notification";
 import Message from "@src/components/Message";
-import {
-  markTurnTerminal,
-  toTurnTerminalStatus,
-} from "@src/engines/SessionCore/control/turnLifecycle";
-import { type SessionStatus, updateSessionStatus } from "@src/store/session";
 import { notificationSettingsAtom } from "@src/store/ui/notificationAtom";
 import { isTerminalStatus } from "@src/types/session/session";
+
+import { cliTurnLifecycleCoordinator } from "./cliTurnLifecycleCoordinator";
 
 interface BackgroundStatusMessage {
   type: "code_session.status_changed";
@@ -36,6 +33,7 @@ interface BackgroundStatusMessage {
   session_name?: string;
   error_message?: string;
   exit_code?: number;
+  turn_intent_id?: string;
 }
 
 export function useBackgroundSessionMonitor(): void {
@@ -52,14 +50,17 @@ export function useBackgroundSessionMonitor(): void {
 
     const unsubscribe = wsClient.on("code_session.status_changed", (raw) => {
       const msg = raw as unknown as BackgroundStatusMessage;
+      const applied = cliTurnLifecycleCoordinator.handleStatus({
+        sessionId: msg.session_id,
+        status: msg.status,
+        turnIntentId: msg.turn_intent_id,
+      });
 
       if (!msg.background) return;
       if (!isTerminalStatus(msg.status)) return;
+      if (!applied) return;
 
       const sessionName = msg.session_name || "Background session";
-
-      markTurnTerminal(msg.session_id, toTurnTerminalStatus(msg.status));
-      updateSessionStatus(msg.session_id, msg.status as SessionStatus);
 
       if (msg.status === "completed") {
         notifyTaskCompletion(
@@ -95,6 +96,21 @@ export function useBackgroundSessionMonitor(): void {
       }
     });
 
-    return unsubscribe;
+    const reconcile = () => {
+      void cliTurnLifecycleCoordinator.reconcile();
+    };
+    const unsubscribeConnected = wsClient.on("connected", reconcile);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") reconcile();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", reconcile);
+
+    return () => {
+      unsubscribe();
+      unsubscribeConnected();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", reconcile);
+    };
   }, []);
 }

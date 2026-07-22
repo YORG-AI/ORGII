@@ -1,8 +1,4 @@
 import type { MergeStatus } from "@src/api/tauri/rpc/schemas/validation";
-import {
-  markTurnTerminal,
-  toTurnTerminalStatus,
-} from "@src/engines/SessionCore/control/turnLifecycle";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { normalizeChunkRust } from "@src/engines/SessionCore/ingestion/rustBridge";
@@ -47,11 +43,7 @@ import { capStreamContent } from "../shared/subagentTracking";
 import type { AgentWSEvent, PermissionRequestEvent } from "../shared/types";
 import {
   isCliTerminalStatus,
-  isProtectedCliTurnTerminal,
-  markCliRuntimeRunning,
   markObservedCliTerminalStatus,
-  protectedRunningTurnBySession,
-  readCliStatus,
 } from "./cliLifecycle";
 import { buildCliStreamingEvent } from "./streamingEvent";
 
@@ -75,7 +67,6 @@ export function createCliEventHandler(
   let thinkStreamId = "";
   let thinkStartedAt = "";
   let observedTerminalStatus: CliSessionStatus | undefined;
-  let finalAssistantSettleTimer: ReturnType<typeof setTimeout> | undefined;
   const finalizedStreamEventIds = new Set<string>();
   const toolCallDeltaBuffers = new Map<
     number,
@@ -123,47 +114,7 @@ export function createCliEventHandler(
 
   function reconcileTerminalEventsIfNeeded(): void {
     if (!observedTerminalStatus) return;
-    clearFinalAssistantSettleTimer();
     markObservedCliTerminalStatus(sessionId, observedTerminalStatus);
-  }
-
-  function scheduleFinalAssistantSettleFallback(): void {
-    if (observedTerminalStatus) return;
-    const protectedTurn = protectedRunningTurnBySession.get(sessionId);
-    if (!protectedTurn) return;
-    clearFinalAssistantSettleTimer();
-    finalAssistantSettleTimer = setTimeout(() => {
-      if (observedTerminalStatus) return;
-      if (protectedRunningTurnBySession.get(sessionId) !== protectedTurn) {
-        return;
-      }
-      void readCliStatus(sessionId)
-        .then((statusResponse) => {
-          if (observedTerminalStatus) return;
-          if (protectedRunningTurnBySession.get(sessionId) !== protectedTurn) {
-            return;
-          }
-          const terminalStatus = isCliTerminalStatus(statusResponse?.status)
-            ? statusResponse.status
-            : "completed";
-          observedTerminalStatus = terminalStatus;
-          protectedRunningTurnBySession.delete(sessionId);
-          callbacks.onStatusChange?.(terminalStatus);
-          markObservedCliTerminalStatus(sessionId, terminalStatus);
-          markTurnTerminal(sessionId, toTurnTerminalStatus(terminalStatus));
-          clearMessageStream();
-          clearThinkingStream();
-          clearToolCallDeltaBuffers();
-          setStreamingMode(false);
-          callbacks.onAgentComplete?.();
-        })
-        .catch((error) => {
-          log.warn(
-            "[CliAdapter] final assistant settle fallback failed:",
-            error
-          );
-        });
-    }, 1_500);
   }
 
   function asString(value: unknown): string | undefined {
@@ -303,10 +254,6 @@ export function createCliEventHandler(
   }
 
   function handleActivity(chunk: ActivityChunk): void {
-    if (!observedTerminalStatus) {
-      callbacks.onStatusChange?.("running");
-    }
-
     if (
       chunk.function === "user_message" &&
       (chunk.action_type === "raw" || chunk.action_type === "raw_event")
@@ -388,11 +335,8 @@ export function createCliEventHandler(
     // Final message/thinking chunks replace any TS typewriter placeholder.
     if (isMessageType || isThinkingType) {
       const tempId = isMessageType ? msgStreamId : thinkStreamId;
-      const isFinalAssistantMessage =
-        isMessageType && chunk.result?.is_full_content === true;
       const reconcileAfterFinalEvent = () => {
         reconcileTerminalEventsIfNeeded();
-        if (isFinalAssistantMessage) scheduleFinalAssistantSettleFallback();
       };
       normalizeChunkRust(chunk, sessionId)
         .then((event) => {
@@ -455,7 +399,6 @@ export function createCliEventHandler(
       clearMessageStream();
       const reconcileAfterCompleteMessage = () => {
         reconcileTerminalEventsIfNeeded();
-        scheduleFinalAssistantSettleFallback();
       };
       if (tsTempId && tsTempId !== completeEvent.id) {
         eventStoreProxy
@@ -485,20 +428,12 @@ export function createCliEventHandler(
     }
   }
 
-  function handleStatusChange(status: string, errorMessage?: string): void {
+  function handleStatusChange(status: string): void {
     const terminalStatus = isCliTerminalStatus(status as CliSessionStatus)
       ? (status as CliSessionStatus)
       : undefined;
-    if (isProtectedCliTurnTerminal(sessionId, terminalStatus)) {
-      markCliRuntimeRunning(sessionId);
-      return;
-    }
-
-    callbacks.onStatusChange?.(status, errorMessage);
-
     if (terminalStatus) {
       observedTerminalStatus = terminalStatus;
-      clearFinalAssistantSettleTimer();
       clearMessageStream();
       clearThinkingStream();
       clearToolCallDeltaBuffers();
@@ -510,7 +445,6 @@ export function createCliEventHandler(
 
     if (isSessionRuntimeExecuting(status)) {
       observedTerminalStatus = undefined;
-      protectedRunningTurnBySession.delete(sessionId);
       cancelled = false;
     }
   }
@@ -557,10 +491,7 @@ export function createCliEventHandler(
       } else if (raw.type === "agent:streaming_complete") {
         handleStreamingComplete(raw);
       } else if (raw.type === "code_session.status_changed") {
-        handleStatusChange(
-          raw.status as string,
-          raw.error_message as string | undefined
-        );
+        handleStatusChange(raw.status as string);
       } else if (raw.type === "code_session.token_usage_updated") {
         const total = raw.total_tokens;
         if (typeof total === "number") callbacks.onTokenUpdate?.(total);
@@ -590,14 +521,12 @@ export function createCliEventHandler(
     },
 
     reset(): void {
-      clearFinalAssistantSettleTimer();
       clearMessageStream();
       clearThinkingStream();
       clearToolCallDeltaBuffers();
       observedTerminalStatus = undefined;
       cancelled = false;
-      streaming = false;
-      eventStoreProxy.setStreaming(false, sessionId);
+      setStreamingMode(false);
     },
 
     get isStreaming(): boolean {

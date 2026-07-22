@@ -48,6 +48,7 @@ pub async fn run_session(
     cli_resume_id: Option<String>,
     mode: Option<&str>,
     images: Option<Vec<String>>,
+    turn_intent_id: Option<&str>,
 ) -> Result<(), String> {
     let session = persistence::get_session(&session_id)
         .map_err(|e| format!("DB error: {}", e))?
@@ -331,18 +332,6 @@ pub async fn run_session(
         )
         .map_err(|e| format!("DB: failed to store user_input: {}", e))?;
     }
-
-    if let Err(err) = persistence::update_status(&session_id, SessionStatus::Running) {
-        tracing::error!("[CodeSession] Failed to update status to running: {}", err);
-        return Err(format!("DB error updating status: {}", err));
-    }
-
-    let running_msg = serde_json::json!({
-        "type": "code_session.status_changed",
-        "session_id": session_id,
-        "status": "running",
-    });
-    websocket_handler::broadcast(running_msg.to_string());
 
     // Start per-session MITM proxy if needed
     let needs_mitm = session.key_source == KeySource::HostedKey && agent.needs_mitm_proxy();
@@ -694,6 +683,7 @@ pub async fn run_session(
         use_codex_app_server,
         is_acp_agent,
         &synced_rule_files,
+        turn_intent_id,
         super::finalize::SessionRunOutcome {
             exit_code,
             cli_session_id_out,
