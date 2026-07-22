@@ -105,7 +105,7 @@ tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", default-features = false }
 petgraph = { version = "0.6.4", default-features = false, features = ["serde-1"] }
 chrono = { version = "0.4", features = ["serde"] }
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.32", features = ["bundled", "blob"] }
 axum = { version = "0.8", features = ["ws"] }
 
 # Modern Objective-C bindings (replaces the unmaintained `objc 0.2` /
@@ -201,6 +201,7 @@ tauri-plugin-notification = "2"
 tauri-plugin-webdriver-automation = { version = "0.1", optional = true }
 portable-pty = "0.9"
 tokio = { workspace = true }
+notify = { workspace = true }
 uuid = { version = "1", features = ["v4"] }
 
 # Shared cross-crate type definitions (Phase 1 of workspace migration).
@@ -444,6 +445,7 @@ dirs = "6.0"             # Get user directories (~/.orgii/data)
 chrono = { workspace = true }  # Date/time handling
 zip = { workspace = true }
 base64 = { workspace = true }
+flate2 = "1.1"
 
 # AWS SDK for SSO OIDC archived alongside `crates/cursor-bridge` notes.
 # `aws-config` + `aws-sdk-ssooidc` (and the transitive `aws-lc-sys` BoringSSL
