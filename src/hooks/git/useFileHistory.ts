@@ -3,9 +3,13 @@
  *
  * Fetches Git commit history for a specific file using the Rust Git API.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { type GitCommitInfo, getGitCommits } from "@src/api/http/git";
+import {
+  type AsyncResourceFetchContext,
+  useAsyncResource,
+} from "@src/hooks/async";
 
 export interface UseFileHistoryOptions {
   /** Repository ID */
@@ -35,6 +39,16 @@ export interface UseFileHistoryResult {
   totalCount: number | null;
 }
 
+interface FileHistoryData {
+  commits: GitCommitInfo[];
+  totalCount: number | null;
+}
+
+const EMPTY_FILE_HISTORY: FileHistoryData = {
+  commits: [],
+  totalCount: null,
+};
+
 /**
  * Hook to fetch and manage file commit history
  */
@@ -46,69 +60,63 @@ export function useFileHistory({
   onSuccess,
   onError,
 }: UseFileHistoryOptions): UseFileHistoryResult {
-  const [commits, setCommits] = useState<GitCommitInfo[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [totalCount, setTotalCount] = useState<number | null>(null);
-
-  // Callback props are mirrored into refs so `refresh` stays stable. Keeping
-  // them in the dep array meant any caller passing an inline arrow rebuilt
-  // `refresh` every render, and the autoLoad effect below — keyed on
-  // `refresh` — would then re-issue GET /commits on every render.
   const onSuccessRef = useRef(onSuccess);
-  onSuccessRef.current = onSuccess;
   const onErrorRef = useRef(onError);
-  onErrorRef.current = onError;
-
-  const refresh = useCallback(async () => {
-    // Don't fetch if no file is selected
-    if (!filePath) {
-      setCommits([]);
-      setTotalCount(null);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const result = await getGitCommits({
-        repo_id: repoId,
-        file_path: filePath,
-        limit,
-      });
-
-      if (result) {
-        setCommits(result.commits);
-        setTotalCount(result.total_count);
-        onSuccessRef.current?.(result.commits);
-      } else {
-        setCommits([]);
-        setTotalCount(null);
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      setError(errorMessage);
-      setCommits([]);
-      setTotalCount(null);
-      onErrorRef.current?.(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  }, [repoId, filePath, limit]);
-
-  // Auto-load on mount or when dependencies change
   useEffect(() => {
-    if (autoLoad) {
-      refresh();
-    }
-  }, [autoLoad, refresh]);
+    onSuccessRef.current = onSuccess;
+    onErrorRef.current = onError;
+  }, [onError, onSuccess]);
+
+  const fetchHistory = useCallback(
+    async (
+      serializedScope: string,
+      context: AsyncResourceFetchContext<FileHistoryData>
+    ): Promise<FileHistoryData> => {
+      const scope = JSON.parse(serializedScope) as {
+        filePath: string;
+        limit: number;
+        repoId: string;
+      };
+      try {
+        const result = await getGitCommits({
+          repo_id: scope.repoId,
+          file_path: scope.filePath,
+          limit: scope.limit,
+        });
+        const data = result
+          ? { commits: result.commits, totalCount: result.total_count }
+          : EMPTY_FILE_HISTORY;
+        if (context.isCurrent()) {
+          onSuccessRef.current?.(data.commits);
+        }
+        return data;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (context.isCurrent()) {
+          context.publish(EMPTY_FILE_HISTORY);
+          onErrorRef.current?.(message);
+        }
+        throw error;
+      }
+    },
+    []
+  );
+  const scopeKey = filePath
+    ? JSON.stringify({ filePath, limit, repoId })
+    : null;
+  const resource = useAsyncResource({
+    autoLoad,
+    enabled: Boolean(scopeKey),
+    fetcher: fetchHistory,
+    initialData: EMPTY_FILE_HISTORY,
+    scopeKey,
+  });
 
   return {
-    commits,
-    loading,
-    error,
-    refresh,
-    totalCount,
+    commits: resource.data.commits,
+    loading: resource.loading,
+    error: resource.error,
+    refresh: resource.refresh,
+    totalCount: resource.data.totalCount,
   };
 }
