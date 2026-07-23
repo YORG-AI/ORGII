@@ -3,13 +3,14 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import { useSetAtom } from "jotai";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { autoDetectKey } from "@src/api/services/keyValidation";
 import type { ModelType } from "@src/api/types/keys";
 import Message from "@src/components/Message";
 import type { AgentAction, AvailableAgent } from "@src/config/cliAgents";
+import { useAsyncResource } from "@src/hooks/async";
 import { TerminalService } from "@src/services/terminal/TerminalService";
 import { invalidateDepsAtom } from "@src/store/platform/systemDepsAtom";
 
@@ -18,41 +19,29 @@ export interface UseCliAgentsOptions {
   enabled?: boolean;
 }
 
+const EMPTY_CLI_AGENTS: AvailableAgent[] = [];
+
 export function useCliAgents({ enabled = true }: UseCliAgentsOptions = {}) {
   const { t } = useTranslation("settings");
-  const [agents, setAgents] = useState<AvailableAgent[]>([]);
-  // Start false so remounts triggered by `enabled` flips (e.g. the
-  // Integrations models tab toggling on navigation) don't paint a
-  // spinner before the IPC begins. `fetchAgents` below flips it true
-  // for the actual fetch window.
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [actionMap, setActionMap] = useState<Record<string, AgentAction>>({});
   const executeInTerminal = TerminalService.execute;
   const invalidateDeps = useSetAtom(invalidateDepsAtom);
 
-  const fetchAgents = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const raw = await invoke<AvailableAgent[]>("get_available_agents");
-      const sorted = [...raw].sort((agentA, agentB) => {
-        const installedDiff =
-          Number(agentB.installed) - Number(agentA.installed);
-        if (installedDiff !== 0) return installedDiff;
-        return agentA.displayName.localeCompare(agentB.displayName);
-      });
-      setAgents(sorted);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
+  const loadAgents = useCallback(async () => {
+    const raw = await invoke<AvailableAgent[]>("get_available_agents");
+    return [...raw].sort((agentA, agentB) => {
+      const installedDiff = Number(agentB.installed) - Number(agentA.installed);
+      if (installedDiff !== 0) return installedDiff;
+      return agentA.displayName.localeCompare(agentB.displayName);
+    });
   }, []);
-
-  useEffect(() => {
-    if (enabled) fetchAgents();
-  }, [enabled, fetchAgents]);
+  const resource = useAsyncResource({
+    enabled,
+    fetcher: loadAgents,
+    initialData: EMPTY_CLI_AGENTS,
+    scopeKey: enabled ? "cli-agents" : null,
+  });
+  const fetchAgents = resource.refresh;
 
   const handleInstall = useCallback(
     async (agentName: string, installCmd?: string) => {
@@ -130,9 +119,9 @@ export function useCliAgents({ enabled = true }: UseCliAgentsOptions = {}) {
   );
 
   return {
-    agents,
-    loading,
-    error,
+    agents: resource.data,
+    loading: resource.loading,
+    error: resource.error,
     actionMap,
     fetchAgents,
     handleInstall,
