@@ -13,11 +13,13 @@
  * realtime tailing we can reuse the existing code-editor WebSocket;
  * for now this is the simplest correct path.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback } from "react";
 
+import { useVisibilityPolledData } from "@src/hooks/async";
 import type { LspLogLine } from "@src/modules/MainApp/Integrations/DevTools/LanguageServersPage/types";
 
 const POLL_INTERVAL_MS = 1500;
+const EMPTY_LOG: LspLogLine[] = [];
 
 async function tauriInvoke<T>(
   command: string,
@@ -43,46 +45,18 @@ export function useLspServerLog({
   language,
   enabled,
 }: UseLspServerLogOptions): UseLspServerLogResult {
-  const [log, setLog] = useState<LspLogLine[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const cancelledRef = useRef(false);
+  const fetchLog = useCallback(
+    (scope: string) =>
+      tauriInvoke<LspLogLine[]>("lsp_get_server_log", { language: scope }),
+    []
+  );
+  const { data, loading, error, refresh } = useVisibilityPolledData({
+    enabled: enabled && Boolean(language),
+    fetcher: fetchLog,
+    initialData: EMPTY_LOG,
+    intervalMs: POLL_INTERVAL_MS,
+    scopeKey: language,
+  });
 
-  const fetchOnce = useCallback(async () => {
-    if (!language) {
-      setLog([]);
-      return;
-    }
-    setIsLoading(true);
-    try {
-      const next = await tauriInvoke<LspLogLine[]>("lsp_get_server_log", {
-        language,
-      });
-      if (cancelledRef.current) return;
-      setLog(next);
-      setError(null);
-    } catch (err) {
-      if (cancelledRef.current) return;
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      if (!cancelledRef.current) setIsLoading(false);
-    }
-  }, [language]);
-
-  useEffect(() => {
-    cancelledRef.current = false;
-    if (!enabled || !language) {
-      setLog([]);
-      return undefined;
-    }
-
-    fetchOnce();
-    const handle = window.setInterval(fetchOnce, POLL_INTERVAL_MS);
-    return () => {
-      cancelledRef.current = true;
-      window.clearInterval(handle);
-    };
-  }, [enabled, language, fetchOnce]);
-
-  return { log, isLoading, error, refresh: fetchOnce };
+  return { log: data, isLoading: loading, error, refresh };
 }

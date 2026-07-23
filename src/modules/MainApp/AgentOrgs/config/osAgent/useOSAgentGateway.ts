@@ -4,13 +4,14 @@
  * Manages gateway status polling and start/stop actions.
  * Polls every 10s when loaded so live connection status stays fresh.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 
 import {
   getGatewayStatus,
   startGateway,
   stopGateway,
 } from "@src/api/tauri/agent";
+import { useVisibilityPolledData } from "@src/hooks/async";
 import { createLogger } from "@src/hooks/logger";
 
 import type { GatewayStatusInfo } from "./types";
@@ -28,36 +29,27 @@ export interface UseOSAgentGatewayReturn {
 }
 
 export function useOSAgentGateway(loaded: boolean): UseOSAgentGatewayReturn {
-  const [gatewayStatus, setGatewayStatus] = useState<GatewayStatusInfo | null>(
-    null
-  );
   const [gatewayLoading, setGatewayLoading] = useState(false);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const refreshGatewayStatus = useCallback(() => {
-    getGatewayStatus()
-      .then((status) =>
-        setGatewayStatus(status as unknown as GatewayStatusInfo)
-      )
-      .catch((err) => {
-        log.warn("Failed to fetch OS agent gateway status:", err);
-        setGatewayStatus(null);
-      });
+  const fetchGatewayStatus = useCallback(async () => {
+    try {
+      return (await getGatewayStatus()) as unknown as GatewayStatusInfo;
+    } catch (err) {
+      log.warn("Failed to fetch OS agent gateway status:", err);
+      return null;
+    }
   }, []);
-
-  useEffect(() => {
-    if (!loaded) return;
-
-    refreshGatewayStatus();
-    pollRef.current = setInterval(refreshGatewayStatus, POLL_INTERVAL_MS);
-
-    return () => {
-      if (pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-    };
-  }, [loaded, refreshGatewayStatus]);
+  const gatewayResource = useVisibilityPolledData<GatewayStatusInfo | null>({
+    enabled: loaded,
+    fetcher: fetchGatewayStatus,
+    initialData: null,
+    intervalMs: POLL_INTERVAL_MS,
+    scopeKey: loaded ? "os-agent-gateway" : null,
+  });
+  const refreshGateway = gatewayResource.refresh;
+  const refreshGatewayStatus = useCallback(() => {
+    void refreshGateway();
+  }, [refreshGateway]);
 
   const handleStartGateway = useCallback(async () => {
     setGatewayLoading(true);
@@ -86,7 +78,7 @@ export function useOSAgentGateway(loaded: boolean): UseOSAgentGatewayReturn {
   }, [refreshGatewayStatus]);
 
   return {
-    gatewayStatus,
+    gatewayStatus: gatewayResource.data,
     gatewayLoading,
     refreshGatewayStatus,
     handleStartGateway,

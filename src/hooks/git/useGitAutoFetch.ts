@@ -10,7 +10,7 @@
  * a no-op.
  */
 import { useAtomValue } from "jotai";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 import { gitApi } from "@src/api/http/git";
 import { useGitStatus } from "@src/contexts/git";
@@ -20,6 +20,7 @@ import {
   gitAutoFetchAtom,
   gitAutoFetchIntervalAtom,
 } from "@src/store/ui/editorSettingsAtom";
+import { startVisibilityAwarePoll } from "@src/util/core/visibilityAwarePoll";
 
 const MIN_INTERVAL_MS = 30_000;
 const DEFAULT_REMOTE_NAME = "origin";
@@ -32,19 +33,15 @@ export function useGitAutoFetch(): void {
   const selectedRepo = useAtomValue(selectedRepoAtom);
   const { forceRefresh, hasActiveRepo } = useGitStatus();
 
-  const activeFetchKeyRef = useRef<string | null>(null);
   const repoPath = selectedRepo?.path || selectedRepo?.fs_uri;
 
   useEffect(() => {
     if (!autoFetch || !hasActiveRepo || !selectedRepoId || !repoPath) return;
 
     let cancelled = false;
-    const fetchKey = `${selectedRepoId}:${repoPath}`;
     const intervalMs = Math.max(intervalSeconds * 1000, MIN_INTERVAL_MS);
 
     const tick = async () => {
-      if (activeFetchKeyRef.current === fetchKey) return;
-      activeFetchKeyRef.current = fetchKey;
       try {
         await gitApi.gitFetch({
           repo_id: selectedRepoId,
@@ -57,20 +54,17 @@ export function useGitAutoFetch(): void {
         }
       } catch (error) {
         logger.warn("background fetch failed:", error);
-      } finally {
-        if (activeFetchKeyRef.current === fetchKey) {
-          activeFetchKeyRef.current = null;
-        }
       }
     };
 
-    void tick();
-    const id = setInterval(() => {
-      void tick();
-    }, intervalMs);
+    const poll = startVisibilityAwarePoll({
+      intervalMs,
+      runImmediately: true,
+      task: tick,
+    });
     return () => {
       cancelled = true;
-      clearInterval(id);
+      poll.stop();
     };
   }, [
     autoFetch,

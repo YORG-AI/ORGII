@@ -9,6 +9,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { createLogger } from "@src/hooks/logger";
+import { LatestScopedTask } from "@src/util/core/latestScopedTask";
+import { startVisibilityAwarePoll } from "@src/util/core/visibilityAwarePoll";
 
 const log = createLogger("useBrowserNetworkLogs");
 
@@ -103,7 +105,7 @@ export function useBrowserNetworkLogs(
   // Current session's entries (state)
   const [entries, setEntries] = useState<NetworkEntry[]>([]);
 
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollCoordinator = useMemo(() => new LatestScopedTask(), []);
 
   // Get or create cache entry for a session
   const getSessionCache = useCallback((sid: string): SessionNetworkCache => {
@@ -165,47 +167,52 @@ export function useBrowserNetworkLogs(
   const pollNow = useCallback(async () => {
     if (!webviewLabel || !sessionId) return;
 
-    try {
-      const rustEntries = await invoke<RustNetworkEntry[]>(
-        "get_webview_network_logs",
-        { label: webviewLabel }
-      );
+    const scopeKey = JSON.stringify({ sessionId, webviewLabel });
+    await pollCoordinator.run(scopeKey, async (context) => {
+      try {
+        const rustEntries = await invoke<RustNetworkEntry[]>(
+          "get_webview_network_logs",
+          { label: webviewLabel }
+        );
+        if (!context.isCurrent()) return;
 
-      if (rustEntries && rustEntries.length > 0) {
-        const cache = getSessionCache(sessionId);
+        if (rustEntries && rustEntries.length > 0) {
+          const cache = getSessionCache(sessionId);
 
-        // Transform entries
-        const newEntries: NetworkEntry[] = rustEntries.map((entry) => ({
-          id: entry.id,
-          type: (entry.type as "fetch" | "xhr") || "fetch",
-          method: entry.method || "GET",
-          url: entry.url || "",
-          startTime: entry.startTime || Date.now(),
-          status: entry.status,
-          duration: entry.duration,
-          size: entry.size,
-          error: entry.error,
-        }));
+          // Transform entries
+          const newEntries: NetworkEntry[] = rustEntries.map((entry) => ({
+            id: entry.id,
+            type: (entry.type as "fetch" | "xhr") || "fetch",
+            method: entry.method || "GET",
+            url: entry.url || "",
+            startTime: entry.startTime || Date.now(),
+            status: entry.status,
+            duration: entry.duration,
+            size: entry.size,
+            error: entry.error,
+          }));
 
-        let combined = [...cache.entries, ...newEntries];
-        if (combined.length > maxEntries) {
-          combined = combined.slice(-maxEntries);
+          let combined = [...cache.entries, ...newEntries];
+          if (combined.length > maxEntries) {
+            combined = combined.slice(-maxEntries);
+          }
+
+          updateSessionEntries(sessionId, combined);
         }
-
-        updateSessionEntries(sessionId, combined);
+      } catch (error) {
+        // Silently ignore - webview might not exist yet or be closing
+        if (
+          process.env.NODE_ENV === "development" &&
+          !String(error).includes("not found")
+        ) {
+          log.debug("[useBrowserNetworkLogs] Poll error:", error);
+        }
       }
-    } catch (error) {
-      // Silently ignore - webview might not exist yet or be closing
-      if (
-        process.env.NODE_ENV === "development" &&
-        !String(error).includes("not found")
-      ) {
-        log.debug("[useBrowserNetworkLogs] Poll error:", error);
-      }
-    }
+    });
   }, [
     webviewLabel,
     sessionId,
+    pollCoordinator,
     maxEntries,
     getSessionCache,
     updateSessionEntries,
@@ -214,27 +221,26 @@ export function useBrowserNetworkLogs(
   // Start/stop polling
   useEffect(() => {
     if (!enabled || !webviewLabel || !sessionId || pollInterval <= 0) {
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
       return;
     }
 
-    // Start polling
-    pollTimerRef.current = setInterval(pollNow, pollInterval);
-
-    // Initial poll - defer to next tick to avoid setState in effect
-    const timer = setTimeout(() => pollNow(), 0);
-
+    const poll = startVisibilityAwarePoll({
+      intervalMs: pollInterval,
+      runImmediately: true,
+      task: pollNow,
+    });
     return () => {
-      clearTimeout(timer);
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
+      poll.stop();
+      pollCoordinator.supersede();
     };
-  }, [enabled, webviewLabel, sessionId, pollInterval, pollNow]);
+  }, [
+    enabled,
+    pollCoordinator,
+    pollInterval,
+    pollNow,
+    sessionId,
+    webviewLabel,
+  ]);
 
   // Compute error count from current entries
   const errorCount = useMemo(() => {
