@@ -7,10 +7,11 @@
  * - Clear selection
  */
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { createLogger } from "@src/hooks/logger";
-import { startVisibilityAwarePoller } from "@src/shared/scheduling/visibilityAwarePoller";
+import { LatestScopedTask } from "@src/util/core/latestScopedTask";
+import { startVisibilityAwarePoll } from "@src/util/core/visibilityAwarePoll";
 
 const log = createLogger("useWebviewInspector");
 
@@ -135,6 +136,7 @@ export function useWebviewInspector(
     null
   );
   const [isLoading, setIsLoading] = useState(false);
+  const selectionCoordinator = useMemo(() => new LatestScopedTask(), []);
 
   // Track previous selection to detect changes
   const prevSelectionRef = useRef<string | null>(null);
@@ -200,28 +202,31 @@ export function useWebviewInspector(
   const refreshSelection = useCallback(async () => {
     if (!webviewLabel) return;
 
-    try {
-      const element = await invoke<ElementInfo | null>(
-        "get_selected_element_info",
-        { label: webviewLabel }
-      );
+    await selectionCoordinator.run(webviewLabel, async (context) => {
+      try {
+        const element = await invoke<ElementInfo | null>(
+          "get_selected_element_info",
+          { label: webviewLabel }
+        );
+        if (!context.isCurrent()) return;
 
-      if (element) {
-        // Check if selection changed
-        const selectionKey = element.xpath || element.selector;
-        if (selectionKey !== prevSelectionRef.current) {
-          prevSelectionRef.current = selectionKey;
-          setSelectedElement(element);
-          onElementSelectedRef.current?.(element);
+        if (element) {
+          // Check if selection changed
+          const selectionKey = element.xpath || element.selector;
+          if (selectionKey !== prevSelectionRef.current) {
+            prevSelectionRef.current = selectionKey;
+            setSelectedElement(element);
+            onElementSelectedRef.current?.(element);
+          }
         }
+      } catch (error) {
+        log.warn(
+          "[useWebviewInspector] Polling error:",
+          error instanceof Error ? error.message : String(error)
+        );
       }
-    } catch (error) {
-      log.warn(
-        "[useWebviewInspector] Polling error:",
-        error instanceof Error ? error.message : String(error)
-      );
-    }
-  }, [webviewLabel]);
+    });
+  }, [selectionCoordinator, webviewLabel]);
 
   // Clear selection
   const clearSelection = useCallback(async () => {
@@ -242,8 +247,23 @@ export function useWebviewInspector(
       return;
     }
 
-    return startVisibilityAwarePoller(document, refreshSelection, pollInterval);
-  }, [isInspectMode, webviewLabel, enabled, pollInterval, refreshSelection]);
+    const poll = startVisibilityAwarePoll({
+      intervalMs: pollInterval,
+      runImmediately: true,
+      task: refreshSelection,
+    });
+    return () => {
+      poll.stop();
+      selectionCoordinator.supersede();
+    };
+  }, [
+    enabled,
+    isInspectMode,
+    pollInterval,
+    refreshSelection,
+    selectionCoordinator,
+    webviewLabel,
+  ]);
 
   // Cleanup on unmount or webview change
   useEffect(() => {
