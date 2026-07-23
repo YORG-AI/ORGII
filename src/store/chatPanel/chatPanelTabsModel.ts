@@ -16,6 +16,7 @@ export type ChatPanelTabType =
   | "terminal"
   | "start-page"
   | "runtime"
+  | "changelog"
   | "work-management"
   | "workspace"
   | "organization"
@@ -84,6 +85,8 @@ export interface ChatPanelTabsState {
 
 /** Fixed id of the shared cloud/local organization management tab. */
 export const ORGANIZATION_TAB_ID = "chat-organization-management";
+/** Fixed id of the singleton release changelog tab. */
+export const CHANGELOG_TAB_ID = "chat-changelog";
 
 const DEFAULT_FULLSCREEN_CHAT_PANEL_TAB_TYPES = new Set<ChatPanelTabType>([
   "work-management",
@@ -193,6 +196,10 @@ export function normalizePersistedChatPanelTabsState(
     activeMappedTab?.type === "runtime"
       ? activeMappedTab.id
       : mappedTabs.find((tab) => tab.type === "runtime")?.id;
+  const preferredChangelogTabId =
+    activeMappedTab?.type === "changelog"
+      ? activeMappedTab.id
+      : mappedTabs.find((tab) => tab.type === "changelog")?.id;
   const preferredOrganizationTab =
     activeMappedTab?.type === "organization"
       ? activeMappedTab
@@ -212,6 +219,7 @@ export function normalizePersistedChatPanelTabsState(
             tab.id ===
               preferredWorkManagementTabIds.get(tab.managementSection))) &&
         (tab.type !== "runtime" || tab.id === preferredRuntimeTabId) &&
+        (tab.type !== "changelog" || tab.id === preferredChangelogTabId) &&
         (tab.type !== "organization" || tab === preferredOrganizationTab) &&
         (tab.type !== "start-page" || tab.id === preferredStartPageTabId)
     )

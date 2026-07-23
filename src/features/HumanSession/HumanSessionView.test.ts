@@ -18,6 +18,24 @@ const mocks = vi.hoisted(() => ({
   appendHumanSessionEntry: vi.fn(),
   getHumanSession: vi.fn(),
   loadSessions: vi.fn(),
+  scrollToIndex: vi.fn(),
+}));
+
+vi.mock("@tanstack/react-virtual", () => ({
+  useVirtualizer: ({ count }: { count: number }) => ({
+    getTotalSize: () => count * 140,
+    getVirtualItems: () =>
+      Array.from({ length: Math.min(4, count) }, (_, index) => ({
+        key: index,
+        index,
+        start: index * 140,
+        end: (index + 1) * 140,
+        size: 140,
+        lane: 0,
+      })),
+    measureElement: vi.fn(),
+    scrollToIndex: mocks.scrollToIndex,
+  }),
 }));
 
 vi.mock("react-i18next", () => {
@@ -144,5 +162,35 @@ describe("HumanSessionView", () => {
     expect(
       container.querySelector('[data-testid="human-session-input-area"]')
     ).not.toBeNull();
+  });
+
+  it("mounts only the virtual row window for a long work log", async () => {
+    const session = {
+      sessionId: "humansession-long",
+      title: "Long release log",
+      createdAt: "2026-07-22T10:00:00.000Z",
+      updatedAt: "2026-07-22T12:00:00.000Z",
+      entries: Array.from({ length: 100 }, (_, index) => ({
+        id: `humanentry-${index}`,
+        body: `Entry ${index}`,
+        createdAt: "2026-07-22T10:00:00.000Z",
+      })),
+    };
+    const request = Promise.resolve(session);
+    mocks.getHumanSession.mockReturnValue(request);
+
+    act(() => {
+      root.render(
+        createElement(HumanSessionView, { sessionId: session.sessionId })
+      );
+    });
+    await act(async () => {
+      await request;
+    });
+
+    expect(
+      container.querySelectorAll('[data-testid="human-session-entry-body"]')
+    ).toHaveLength(4);
+    expect(mocks.scrollToIndex).toHaveBeenCalledWith(99, { align: "end" });
   });
 });

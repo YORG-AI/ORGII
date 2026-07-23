@@ -221,6 +221,7 @@ export const activateChatPanelTabAtom = atom(
     if (
       tab.type === "terminal" ||
       tab.type === "runtime" ||
+      tab.type === "changelog" ||
       tab.type === "work-management" ||
       tab.type === "workspace" ||
       tab.type === "organization" ||

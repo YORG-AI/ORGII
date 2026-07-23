@@ -9,11 +9,7 @@ usage_diagnostics::commands::diagnostics_initialize,
 usage_diagnostics::commands::diagnostics_submit_usage_snapshot,
 // Dev-only ORG2 Cloud auth import from the installed app's WebKit origin
 infrastructure::dev_bundled_auth::debug_import_bundled_org2_cloud_auth,
-// Window commands - Centralized window management
-app_window::commands::create_app_window,
-app_window::commands::show_or_create_app_window,
-app_window::commands::close_app_window,
-app_window::commands::focus_app_window,
+// Main-window appearance commands
 app_window::commands::set_window_vibrancy,
 app_window::commands::set_main_webview_zoom,
 app_window::commands::remove_window_background,

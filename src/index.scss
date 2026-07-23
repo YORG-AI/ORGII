@@ -350,26 +350,6 @@ img {
   background: var(--color-bg-2);
 }
 
-// KeepAlive wraps each cached route in its own DOM node. The wrapper must
-// fill MainAppShell; otherwise cached pages can shrink to their intrinsic
-// table width and expose the gray parent surface after route clicks.
-.keepalive-cache-div {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  overflow: hidden;
-}
-
-// Hide inactive keepalive cache nodes immediately to prevent
-// previous page "shadow" from showing during route transitions.
-// keepalive-for-react swaps active/inactive classes on its cache divs
-// but doesn't apply display:none — the old page remains visible for
-// one frame between the class swap and DOM removal.
-.keepalive-cache-div.inactive {
-  display: none;
-}
-
 // Remove border radius in fullscreen mode
 html.fullscreen,
 html.fullscreen body,
@@ -742,19 +722,6 @@ body.drag-over::after {
 /* Sidebar-specific adaptive text */
 .sidebar-adaptive-text {
   @extend .adaptive-text;
-}
-
-/* Home page adaptive elements */
-.home-greeting-adaptive {
-  transition: color 0.2s ease;
-}
-
-.home-button-adaptive {
-  transition: color 0.2s ease;
-}
-
-.home-tab-toggle-adaptive {
-  transition: color 0.2s ease;
 }
 
 /* Dark mode icon invert - for monochrome black icons */

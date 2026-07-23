@@ -90,15 +90,9 @@
     "startSession": "Start session",
     "sessions": "Sessions",
     "selectProject": "Select Project",
-    "startPage": "Start Page",
     "inbox": "Inbox",
     "login": "Login",
     "setup": "Setup",
-    "devJourney": "Dev Journey",
-    "devRecord": "Dev Record",
-    "gitDashboard": "Git Dashboard",
-    "devActivity": "Dev Activity",
-    "usageHistory": "Usage History",
     "tokenMarket": "Token Market",
     "taskMarket": "Task Market",
     "channels": "Channels",
@@ -114,20 +108,8 @@
     "ideaArea": "Idea Area",
     "changelog": "Changelog"
   },
-  "appGrid": {
-    "customizeGrid": "Customize Grid",
-    "horizontalGap": "Horizontal Gap",
-    "verticalGap": "Vertical Gap",
-    "resetToDefault": "Reset to Default"
-  },
-  "greetings": {
-    "morning": "Good morning",
-    "afternoon": "Good afternoon",
-    "evening": "Good evening"
-  },
   "sidebar": {
     "tabs": {
-      "build": "Home",
       "workstation": "Workstation",
       "manage": "Manage",
       "core": "Core",
@@ -163,9 +145,7 @@
     "actions": {
       "addNew": "Add New",
       "collapseAll": "Collapse All",
-      "markAllRead": "Mark All Read",
-      "openHome": "Open Home",
-      "openWorkstation": "Open Workstation"
+      "markAllRead": "Mark All Read"
     },
     "search": {
       "folders": "Search Workspace...",
@@ -452,13 +432,14 @@
     }
   },
   "changelog": {
-    "title": "Changelog",
-    "subtitle": "Product updates",
-    "commitCount": "{{count}} commits",
-    "commitCount_one": "{{count}} commit",
-    "details": "Details",
-    "frontend": "Frontend",
-    "backend": "Backend"
+    "latest": "Latest",
+    "newerVersion": "Newer version",
+    "olderVersion": "Older version",
+    "sections": {
+      "highlights": "Highlights",
+      "improvements": "Improvements",
+      "fixes": "Fixes"
+    }
   },
   "cloud": {
     "title": "ORG2 Cloud",

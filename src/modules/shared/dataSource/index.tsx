@@ -1,14 +1,12 @@
 /**
- * DataSourcePanel
+ * RuntimeDataSourcePanel
  *
- * Shared data-source inventory panel, rendered both as the Kanban station's
- * "Data Sources" view and as the first-class Runtime chat surface. A single
- * inventory of every
- * external coding tool ORGII detects, driven by the one shared detect pipeline
- * (`external_cli_sources_detect`). Importable apps (Cursor, Codex, Claude,
- * OpenCode, Windsurf, WorkBuddy) show their imported-session count and can be
- * enabled/disabled, auto-scanned on a schedule, and rescanned on demand; the
- * rest show install status. Every row shows the on-disk path + file type.
+ * Runtime-owned inventory of every external coding tool ORGII detects, driven
+ * by the one shared detect pipeline (`external_cli_sources_detect`). Importable
+ * apps (Cursor, Codex, Claude, OpenCode, Windsurf, WorkBuddy) show their
+ * imported-session count and can be enabled/disabled, auto-scanned on a
+ * schedule, and rescanned on demand; the rest show install status. Every row
+ * shows the on-disk path + file type.
  *
  * Per-source config (enabled / frequency / lastScannedAt) is persisted via
  * `dataSourceConfigAtom`. A disabled source is gated out of `loadSidebarSessions`
@@ -50,15 +48,11 @@ import SettingsTable, {
   type SettingsTableColumn,
 } from "@src/components/SettingsTable";
 import Switch from "@src/components/Switch";
-import TabPill, {
-  type TabPillItem,
-  type TabPillProps,
-} from "@src/components/TabPill";
+import TabPill, { type TabPillItem } from "@src/components/TabPill";
 import Tag, { type TagProps } from "@src/components/Tag";
 import {
   SECTION_CONTROL_STYLE,
   SECTION_GAP_CLASSES,
-  SECTION_SUBHEADING_CLASSES,
   SectionContainer,
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
@@ -90,12 +84,7 @@ import SessionProvenanceHooksPanel from "./SessionProvenanceHooksPanel";
 import SessionUsagePanel from "./SessionUsagePanel";
 
 type DataSourceTab = "all" | "apps" | "clis";
-export type DataSourcePanelView =
-  | "scanning"
-  | "hooks"
-  | "usage"
-  | "quota"
-  | "assets";
+type RuntimeSection = "scanning" | "hooks" | "usage" | "quota" | "assets";
 
 // The sources ORGII imports history from (have a cache + support Rescan).
 const IMPORTABLE_SOURCE_IDS = new Set<ImportedHistorySourceId>(
@@ -123,28 +112,18 @@ const SourceIcon: React.FC<{ probe: ExternalCliSourceProbe }> = ({ probe }) => (
   />
 );
 
-interface DataSourcePanelProps {
-  /** Optional Runtime-only content appended as the final Assets view. */
-  assetsContent?: React.ReactNode;
-  /** Optional Runtime-only content rendered in a dedicated Quota view. */
-  quotaContent?: React.ReactNode;
-  activePanelView?: DataSourcePanelView;
-  onPanelViewChange?: (view: DataSourcePanelView) => void;
-  hideHeader?: boolean;
-  /** Hide scroll chrome while preserving scrolling in compact host surfaces. */
-  hideScrollbars?: boolean;
+interface RuntimeDataSourcePanelProps {
+  assetsContent: React.ReactNode;
+  quotaContent: React.ReactNode;
 }
 
-interface DataSourcePanelViewTabsProps {
-  activeView: DataSourcePanelView;
-  showAssets: boolean;
-  showQuota: boolean;
-  size?: TabPillProps["size"];
-  onChange: (view: DataSourcePanelView) => void;
+interface RuntimeSectionTabsProps {
+  activeView: RuntimeSection;
+  onChange: (view: RuntimeSection) => void;
 }
 
-export const DataSourcePanelViewTabs: React.FC<DataSourcePanelViewTabsProps> =
-  memo(({ activeView, showAssets, showQuota, size = "large", onChange }) => {
+const RuntimeSectionTabs: React.FC<RuntimeSectionTabsProps> = memo(
+  ({ activeView, onChange }) => {
     const { t } = useTranslation("sessions", {
       keyPrefix: "kanban.dataSource",
     });
@@ -155,15 +134,11 @@ export const DataSourcePanelViewTabs: React.FC<DataSourcePanelViewTabsProps> =
           label: t("views.usage"),
           dataTestId: "data-source-view-usage",
         },
-        ...(showQuota
-          ? [
-              {
-                key: "quota",
-                label: t("views.quota"),
-                dataTestId: "data-source-view-quota",
-              },
-            ]
-          : []),
+        {
+          key: "quota",
+          label: t("views.quota"),
+          dataTestId: "data-source-view-quota",
+        },
         {
           key: "scanning",
           label: t("views.scanning"),
@@ -174,40 +149,33 @@ export const DataSourcePanelViewTabs: React.FC<DataSourcePanelViewTabsProps> =
           label: t("views.hooks"),
           dataTestId: "data-source-view-hooks",
         },
-        ...(showAssets
-          ? [
-              {
-                key: "assets",
-                label: t("views.assets"),
-                dataTestId: "data-source-view-assets",
-              },
-            ]
-          : []),
+        {
+          key: "assets",
+          label: t("views.assets"),
+          dataTestId: "data-source-view-assets",
+        },
       ],
-      [showAssets, showQuota, t]
+      [t]
     );
 
     return (
       <TabPill
         activeTab={activeView}
         tabs={viewTabs}
-        onChange={(key) => onChange(key as DataSourcePanelView)}
+        onChange={(key) => onChange(key as RuntimeSection)}
         variant="simple"
-        size={size}
+        size="large"
         fillWidth={false}
       />
     );
-  });
+  }
+);
 
-DataSourcePanelViewTabs.displayName = "DataSourcePanelViewTabs";
+RuntimeSectionTabs.displayName = "RuntimeSectionTabs";
 
-const DataSourcePanel: React.FC<DataSourcePanelProps> = ({
+const RuntimeDataSourcePanel: React.FC<RuntimeDataSourcePanelProps> = ({
   assetsContent,
   quotaContent,
-  activePanelView,
-  onPanelViewChange,
-  hideHeader = false,
-  hideScrollbars = false,
 }) => {
   const { t } = useTranslation("sessions", {
     keyPrefix: "kanban.dataSource",
@@ -218,22 +186,7 @@ const DataSourcePanel: React.FC<DataSourcePanelProps> = ({
   // sourceId whose rescan split-menu is open (null = none).
   const [openRescanMenu, setOpenRescanMenu] = useState<string | null>(null);
   const [tab, setTab] = useState<DataSourceTab>("all");
-  // Top-level panel view: usage stats, Runtime quota, scan/import inventory,
-  // hook capture, and (only in Runtime) the consolidated assets dashboard.
-  const [internalPanelView, setInternalPanelView] =
-    useState<DataSourcePanelView>("usage");
-  const panelView = activePanelView ?? internalPanelView;
-  const isRuntimeSurface = Boolean(quotaContent || assetsContent);
-  const handlePanelViewChange = useCallback(
-    (nextView: DataSourcePanelView) => {
-      if (onPanelViewChange) {
-        onPanelViewChange(nextView);
-        return;
-      }
-      setInternalPanelView(nextView);
-    },
-    [onPanelViewChange]
-  );
+  const [panelView, setPanelView] = useState<RuntimeSection>("usage");
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [configMap, setConfigMap] = useAtom(dataSourceConfigAtom);
@@ -724,32 +677,26 @@ const DataSourcePanel: React.FC<DataSourcePanelProps> = ({
   return (
     <div className="absolute inset-0 flex min-h-0 flex-col overflow-hidden">
       {/* Keep the section tabs pinned above the panel's own scroll region. */}
-      {!hideHeader ? (
-        <InternalHeader
-          noPanelHeader
-          contentPadding
-          className={DETAIL_PANEL_TOKENS.headerWidth}
-          tabs={
-            <div className="flex w-full justify-center">
-              <DataSourcePanelViewTabs
-                activeView={panelView}
-                showQuota={Boolean(quotaContent)}
-                showAssets={Boolean(assetsContent)}
-                onChange={handlePanelViewChange}
-              />
-            </div>
-          }
-        />
-      ) : null}
+      <InternalHeader
+        noPanelHeader
+        contentPadding
+        className={DETAIL_PANEL_TOKENS.headerWidth}
+        tabs={
+          <div className="flex w-full justify-center">
+            <RuntimeSectionTabs
+              activeView={panelView}
+              onChange={setPanelView}
+            />
+          </div>
+        }
+      />
 
       <ScrollPreservation
         data-testid="data-source-scroll-region"
         className={
           panelView === "assets"
             ? "min-h-0 flex-1 overflow-hidden scrollbar-hide"
-            : hideScrollbars
-              ? "min-h-0 flex-1 overflow-y-auto px-4 scrollbar-hide @container"
-              : DETAIL_PANEL_TOKENS.scrollContentNoTop
+            : "min-h-0 flex-1 overflow-y-auto px-4 scrollbar-hide @container"
         }
       >
         {panelView === "assets" ? (
@@ -760,14 +707,6 @@ const DataSourcePanel: React.FC<DataSourcePanelProps> = ({
           >
             {panelView === "scanning" ? (
               <>
-                {!isRuntimeSurface ? (
-                  <h3
-                    className={SECTION_SUBHEADING_CLASSES}
-                    data-testid="data-source-section-title"
-                  >
-                    {t("title")}
-                  </h3>
-                ) : null}
                 {importableCount > 0 && (
                   <SectionContainer>
                     <SectionRow
@@ -891,7 +830,7 @@ const DataSourcePanel: React.FC<DataSourcePanelProps> = ({
                 />
               </>
             ) : panelView === "hooks" ? (
-              <SessionProvenanceHooksPanel showTitle={!isRuntimeSurface} />
+              <SessionProvenanceHooksPanel showTitle={false} />
             ) : panelView === "quota" ? (
               quotaContent
             ) : (
@@ -904,4 +843,4 @@ const DataSourcePanel: React.FC<DataSourcePanelProps> = ({
   );
 };
 
-export default DataSourcePanel;
+export default RuntimeDataSourcePanel;

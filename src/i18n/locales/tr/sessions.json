@@ -127,9 +127,10 @@
         "default": "Varsayılan",
         "manual": "Manuel",
         "60s": "60 saniyede bir",
-        "5m": "5 dakikada bir",
-        "1h": "Saatlik",
-        "1d": "Günlük"
+        "120s": "120 saniyede bir",
+        "10m": "10 dakikada bir",
+        "30m": "30 dakikada bir",
+        "1h": "Saatlik"
       },
       "openFolder": "Klasörü aç",
       "tabs": {

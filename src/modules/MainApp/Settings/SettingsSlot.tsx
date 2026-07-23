@@ -66,8 +66,8 @@ import { VerticalResizeHandle } from "@src/scaffold/Resize";
 import { devModeEnabledAtom } from "@src/store/platform/devModeAtom";
 import { resolvedBackgroundConfigAtom } from "@src/store/ui/backgroundConfigAtom";
 import { toggleChatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
+import { settingsReturnPathAtom } from "@src/store/ui/settingsNavigationAtom";
 import { sidebarCollapsedAtom } from "@src/store/ui/sidebarAtom";
-import { settingsReturnRouteAtom } from "@src/store/ui/viewModeAtom";
 import type { ChatPanelPosition } from "@src/store/ui/workStationLayout/chatPositionAtoms";
 
 import SettingsHeaderActions from "./components/SettingsHeaderActions";
@@ -253,7 +253,7 @@ const SettingsSlot: React.FC<SettingsSlotProps> = ({
   const toggleMaximized = useSetAtom(toggleChatPanelMaximizedAtom);
   const location = useLocation();
   const navigate = useNavigate();
-  const settingsReturnRoute = useAtomValue(settingsReturnRouteAtom);
+  const settingsReturnPath = useAtomValue(settingsReturnPathAtom);
   const sidebarCollapsed = useAtomValue(sidebarCollapsedAtom);
   const devModeEnabled = useAtomValue(devModeEnabledAtom);
   const backgroundConfig = useAtomValue(resolvedBackgroundConfigAtom);
@@ -284,8 +284,8 @@ const SettingsSlot: React.FC<SettingsSlotProps> = ({
       navigate(buildSettingsPath());
       return;
     }
-    navigate(settingsReturnRoute || ROUTES.app.home.start.path);
-  }, [location.pathname, navigate, settingsReturnRoute]);
+    navigate(settingsReturnPath || ROUTES.workStation.base.path);
+  }, [location.pathname, navigate, settingsReturnPath]);
 
   // Mirror ChatPanel's tooltip: same shortcut, same restore copy
   // (`sessions:chat.restoreSplitView` = "Show Workstation") — only the

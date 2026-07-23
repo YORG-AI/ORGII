@@ -1,6 +1,6 @@
 import React from "react";
 
-import DataSourcePanel from "@src/modules/shared/dataSource";
+import RuntimeDataSourcePanel from "@src/modules/shared/dataSource";
 
 import { StartPageQuotaGrid } from "../StartPageQuotaGrid";
 import WorkspaceDashboardPanelView from "./WorkspaceDashboardPanelView";
@@ -9,10 +9,9 @@ import WorkspaceDashboardPanelView from "./WorkspaceDashboardPanelView";
 export default function RuntimePanelView(): React.ReactElement {
   return (
     <div className="relative flex min-h-0 flex-1 overflow-hidden">
-      <DataSourcePanel
+      <RuntimeDataSourcePanel
         quotaContent={<StartPageQuotaGrid />}
         assetsContent={<WorkspaceDashboardPanelView />}
-        hideScrollbars
       />
     </div>
   );

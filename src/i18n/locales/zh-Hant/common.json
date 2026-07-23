@@ -973,7 +973,6 @@
     "addCssVariables": "向項目添加 CSS 變量",
     "loadingAccountStatus": "正在加載賬戶狀態...",
     "noRepositorySelected": "未選擇倉庫",
-    "selectRepositoryFromHome": "請從首頁選擇一個倉庫以打開。",
     "noWorkspaceExplorerTitle": "未開啟 Workspace",
     "noWorkspaceExplorerSubtitle": "開啟工作區以查看檔案",
     "cannotFindRepo": "找不到 {{repoName}}",
@@ -1004,7 +1003,8 @@
     "scanningFileExtensions": "Scanning file extensions...",
     "startBrowsingMarket": "Start browsing the marketplace",
     "previewUnavailable": "預覽不可用",
-    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff."
+    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff.",
+    "selectRepositoryFromWorkspace": "請從工作區選擇一個倉庫以開啟。"
   },
   "inbox": {
     "searchPlaceholder": "搜索消息...",
@@ -1164,8 +1164,6 @@
       "tryVerifyUrl": "確認網址是否正確",
       "tryAgainLater": "稍後再試"
     },
-    "selectRepoFromHome": "請從首頁選擇一個倉庫",
-    "cloneRepoAgain": "請從首頁重新克隆倉庫",
     "unsavedChangesTitle": "未保存的更改",
     "prkPlaceholder": "PRJ",
     "gitSyncMenuTitle": "Git 同步操作"
@@ -1753,7 +1751,6 @@
     "ramCurrentSession": "目前會話",
     "ramChatRenderedTree": "Chat 渲染樹",
     "ramSessionStore": "Session store",
-    "ramStartSidebar": "Start 側欄",
     "ramSessionSidebar": "Session 側欄",
     "ramSecondLevelSidebars": "二級側欄",
     "ramSettingsSidebar": "Settings 側欄",
@@ -2200,20 +2197,7 @@
     }
   },
   "dragDrop": {
-    "dropFilesToUpload": "拖放文件以上傳",
-    "dropFileToChat": "拖放文件以添加到聊天",
-    "dropFolderToAdd": "拖放文件夾以添加倉庫",
-    "releaseToAddFiles": "釋放以將文件添加到您的 Session",
-    "releaseToAddFileToChat": "釋放以將文件添加到聊天（類似 ⌘L）",
-    "releaseToOpenFolder": "釋放以打開文件夾",
-    "folderDetected": "檢測到文件夾",
-    "openSpotlightToAdd": "打開 Spotlight 以將此文件夾添加爲倉庫",
-    "openSpotlight": "打開 Spotlight",
-    "addedToChat": "已將 \"{{name}}\" 添加到聊天",
-    "couldNotExtractPath": "無法從拖放中提取文件路徑",
-    "couldNotExtractPathFromItem": "無法從拖放項中提取文件路徑",
-    "dropFilesHere": "將文件拖放到這裏",
-    "dragFilesFromIde": "從 VS Code 拖動文件或標籤頁以添加到聊天"
+    "couldNotExtractPathFromItem": "無法從拖放項中提取文件路徑"
   },
   "contextList": {
     "task": "任務",

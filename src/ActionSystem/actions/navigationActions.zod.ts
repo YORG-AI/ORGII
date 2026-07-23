@@ -1,7 +1,7 @@
 /**
  * App Navigation Actions
  *
- * App-level routing and view mode switching.
+ * App-level routing.
  * Uses React Router navigate() under the hood via the global Jotai store.
  *
  * Category: "app"
@@ -82,7 +82,7 @@ const appNavigateAction = defineZodAction(
     examples: [
       "navigate to settings",
       "go to the market",
-      "open the start page",
+      "open the workstation",
     ],
   },
   async ({ path, replace }) => {
@@ -123,14 +123,6 @@ const appGoToChat = defineRouteNavigationAction(
   ["open chat", "switch to chat", "show chat"]
 );
 
-const appGoToStartPage = defineRouteNavigationAction(
-  ACTION_ID.APP_GO_TO_START_PAGE,
-  "Navigate to the Start Page",
-  ROUTES.app.home.start.path,
-  "Opened Start Page",
-  ["go home", "open start page"]
-);
-
 const appGoToMarket = defineRouteNavigationAction(
   ACTION_ID.APP_GO_TO_MARKET,
   "Open the Token Market page",
@@ -149,10 +141,10 @@ const appGoToProjects = defineRouteNavigationAction(
 
 const appGoToChangelog = defineRouteNavigationAction(
   ACTION_ID.APP_GO_TO_CHANGELOG,
-  "Open the Changelog",
-  ROUTES.app.home.changelog.path,
+  "Open the Changelog in the ChatPanel",
+  ROUTES.app.changelog.path,
   "Opened Changelog",
-  ["open changelog", "show changes"]
+  ["open changelog", "show changes", "show release notes"]
 );
 
 const appGoToKanban = defineZodAction(
@@ -177,7 +169,7 @@ const appGoToKanban = defineZodAction(
 const appGoToAgentOrgs = defineRouteNavigationAction(
   ACTION_ID.APP_GO_TO_AGENT_ORGS,
   "Open Agent Teams",
-  ROUTES.app.home.agentOrgs.path,
+  ROUTES.app.agentOrgs.path,
   "Opened Agent Teams",
   ["open agent teams", "show agents"]
 );
@@ -265,7 +257,6 @@ export const appNavigationZodActions = [
   appGoToBrowser,
   appGoToChat,
   appGoToMarket,
-  appGoToStartPage,
   appGoToProjects,
   appGoToChangelog,
   appGoToKanban,

@@ -12,7 +12,7 @@
  *   - `kanbanSelectedTaskIdAtom` and `kanbanDetailPanelVisibleAtom` are
  *     transient session state. Module-level Jotai atoms are enough to
  *     survive remounts during navigation while still resetting on reload,
- *     matching the rationale documented on `viewModeAtom`.
+ *     so route transitions do not discard the user's board preferences.
  *
  * Selection is stored as the task **id**, not the `KanbanTask` object:
  * the task list is rebuilt every render from live session data, so

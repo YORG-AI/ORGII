@@ -136,9 +136,12 @@ export function useBrowserSessions(
   const pollingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || devToolsCollapsed) {
+      return;
+    }
 
     pollingTimerRef.current = setTimeout(() => {
+      pollingTimerRef.current = null;
       setPollingEnabled(true);
     }, POLLING_START_DELAY_MS);
 
@@ -148,9 +151,10 @@ export function useBrowserSessions(
         pollingTimerRef.current = null;
       }
     };
-  }, [enabled]);
+  }, [devToolsCollapsed, enabled]);
 
-  const effectivePollingEnabled = enabled && pollingEnabled;
+  const effectivePollingEnabled =
+    enabled && pollingEnabled && !devToolsCollapsed;
   const logPollingEnabled = shouldEnableBrowserLogPolling(
     effectivePollingEnabled,
     process.env.NODE_ENV
@@ -169,6 +173,7 @@ export function useBrowserSessions(
     errorCount,
     warningCount,
     clearEntries,
+    clearSessionEntries: clearConsoleSessionEntries,
     setWebviewLabel,
     setSessionId,
   } = useBrowserConsole({
@@ -182,6 +187,7 @@ export function useBrowserSessions(
   const {
     entries: networkEntries,
     clearEntries: clearNetworkEntries,
+    clearSessionEntries: clearNetworkSessionEntries,
     setWebviewLabel: setNetworkWebviewLabel,
     setSessionId: setNetworkSessionId,
   } = useBrowserNetworkLogs({
@@ -297,12 +303,16 @@ export function useBrowserSessions(
       } else if (selectedElement) {
         await clearSelection();
       }
+      clearConsoleSessionEntries(sessionId);
+      clearNetworkSessionEntries(sessionId);
       browserState.closeSession(sessionId);
     },
     [
       activeSessionId,
       browserState,
       clearSelection,
+      clearConsoleSessionEntries,
+      clearNetworkSessionEntries,
       disableInspectMode,
       selectedElement,
     ]

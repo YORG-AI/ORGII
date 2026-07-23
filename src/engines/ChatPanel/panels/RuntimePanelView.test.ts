@@ -6,16 +6,16 @@ import RuntimePanelView from "./RuntimePanelView";
 
 vi.mock("@src/modules/shared/dataSource", () => ({
   default: ({
-    hideHeader,
-    hideScrollbars,
+    assetsContent,
+    quotaContent,
   }: {
-    hideHeader?: boolean;
-    hideScrollbars?: boolean;
+    assetsContent: React.ReactNode;
+    quotaContent: React.ReactNode;
   }) =>
     React.createElement("div", {
       "data-testid": "runtime-sections",
-      "data-header-mode": hideHeader ? "hidden" : "pinned-tabs",
-      "data-scrollbars": hideScrollbars ? "hidden" : "visible",
+      "data-has-assets": Boolean(assetsContent),
+      "data-has-quota": Boolean(quotaContent),
     }),
 }));
 
@@ -28,14 +28,14 @@ vi.mock("./WorkspaceDashboardPanelView", () => ({
 }));
 
 describe("RuntimePanelView", () => {
-  it("keeps the section tabs pinned inside the Runtime panel", () => {
+  it("composes the canonical Runtime data-source sections", () => {
     const markup = renderToStaticMarkup(React.createElement(RuntimePanelView));
 
     expect(markup).toContain(
       'class="relative flex min-h-0 flex-1 overflow-hidden"'
     );
     expect(markup).toContain('data-testid="runtime-sections"');
-    expect(markup).toContain('data-header-mode="pinned-tabs"');
-    expect(markup).toContain('data-scrollbars="hidden"');
+    expect(markup).toContain('data-has-assets="true"');
+    expect(markup).toContain('data-has-quota="true"');
   });
 });

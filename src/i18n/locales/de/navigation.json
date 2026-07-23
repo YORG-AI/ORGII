@@ -61,15 +61,9 @@
     "startSession": "Sitzung starten",
     "sessions": "Session",
     "selectProject": "Project auswählen",
-    "startPage": "Startseite",
     "inbox": "Posteingang",
     "login": "Anmelden",
     "setup": "Einrichtung",
-    "devJourney": "Dev Journey",
-    "devRecord": "Entwicklungsprotokoll",
-    "gitDashboard": "Git Dashboard",
-    "devActivity": "Dev Aktivität",
-    "usageHistory": "Nutzungsverlauf",
     "tokenMarket": "Token-Markt",
     "taskMarket": "Aufgabenmarkt",
     "channels": "Kanäle",
@@ -85,20 +79,8 @@
     "ideaArea": "Ideen-Bereich",
     "changelog": "Changelog"
   },
-  "appGrid": {
-    "customizeGrid": "Raster anpassen",
-    "horizontalGap": "Horizontaler Abstand",
-    "verticalGap": "Vertikaler Abstand",
-    "resetToDefault": "Auf Standard zurücksetzen"
-  },
-  "greetings": {
-    "morning": "Guten Morgen",
-    "afternoon": "Guten Tag",
-    "evening": "Guten Abend"
-  },
   "sidebar": {
     "tabs": {
-      "build": "Startseite",
       "workstation": "Workstation",
       "manage": "Verwalten",
       "core": "Kern",
@@ -134,9 +116,7 @@
     "actions": {
       "addNew": "Neu hinzufügen",
       "collapseAll": "Alle einklappen",
-      "markAllRead": "Alle als gelesen markieren",
-      "openHome": "Home öffnen",
-      "openWorkstation": "Workstation öffnen"
+      "markAllRead": "Alle als gelesen markieren"
     },
     "search": {
       "folders": "Workspace suchen...",
@@ -359,15 +339,6 @@
       "workItems": "Arbeitsaufgaben",
       "projects": "Projekte"
     }
-  },
-  "changelog": {
-    "title": "Changelog",
-    "subtitle": "Produktupdates",
-    "commitCount": "{{count}} Commits",
-    "commitCount_one": "{{count}} Commit",
-    "details": "Details",
-    "frontend": "Frontend",
-    "backend": "Backend"
   },
   "collaboration": {
     "switchOrg": "ORG wechseln",

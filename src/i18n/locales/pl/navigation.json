@@ -61,15 +61,9 @@
     "startSession": "Rozpocznij sesję",
     "sessions": "Sesje",
     "selectProject": "Wybierz historię",
-    "startPage": "Strona startowa",
     "inbox": "Skrzynka",
     "login": "Logowanie",
     "setup": "Konfiguracja",
-    "devJourney": "Ścieżka dewelopera",
-    "devRecord": "Dziennik dewelopera",
-    "gitDashboard": "Panel Git",
-    "devActivity": "Aktywność dewelopera",
-    "usageHistory": "Historia użycia",
     "tokenMarket": "Rynek Tokenów",
     "taskMarket": "Rynek zadań",
     "channels": "Kanały",
@@ -85,20 +79,8 @@
     "ideaArea": "Strefa pomysłów",
     "changelog": "Changelog"
   },
-  "appGrid": {
-    "customizeGrid": "Dostosuj siatkę",
-    "horizontalGap": "Odstęp poziomy",
-    "verticalGap": "Odstęp pionowy",
-    "resetToDefault": "Przywróć domyślne"
-  },
-  "greetings": {
-    "morning": "Dzień dobry",
-    "afternoon": "Dzień dobry",
-    "evening": "Dobry wieczór"
-  },
   "sidebar": {
     "tabs": {
-      "build": "Start",
       "workstation": "Workstation",
       "manage": "Zarządzaj",
       "core": "Rdzeń",
@@ -134,9 +116,7 @@
     "actions": {
       "addNew": "Dodaj nowy",
       "collapseAll": "Zwiń wszystko",
-      "markAllRead": "Oznacz wszystkie jako przeczytane",
-      "openHome": "Otwórz Home",
-      "openWorkstation": "Otwórz Workstation"
+      "markAllRead": "Oznacz wszystkie jako przeczytane"
     },
     "search": {
       "folders": "Szukaj w Workspace...",
@@ -357,15 +337,6 @@
       "workItems": "Elementy pracy",
       "projects": "Projekty"
     }
-  },
-  "changelog": {
-    "title": "Changelog",
-    "subtitle": "Aktualizacje produktu",
-    "commitCount": "{{count}} commitów",
-    "commitCount_one": "{{count}} commit",
-    "details": "Szczegóły",
-    "frontend": "Frontend",
-    "backend": "Backend"
   },
   "collaboration": {
     "switchOrg": "Zmień ORG",

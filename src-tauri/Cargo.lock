@@ -262,18 +262,15 @@ dependencies = [
 name = "app_window"
 version = "0.1.0"
 dependencies = [
- "app_utils",
  "base64 0.22.1",
  "dispatch2",
  "objc2",
  "objc2-app-kit",
  "objc2-foundation",
  "perf_utils",
- "serde",
  "tauri",
  "tauri-plugin-liquid-glass",
  "tracing",
- "url",
  "windows 0.61.3",
 ]
 

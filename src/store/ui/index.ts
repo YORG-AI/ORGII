@@ -10,7 +10,7 @@
  * - Editor: editorSettingsAtom, fileTreeSelectionAtom, searchResultSelectionAtom
  * - Settings: settingsPanelAtoms (panel-internal side-channel state),
  *   settingsSyncAtom
- * - Tabs: navigationSidebarTabsAtom, globalSelectorAtom, homeTabAtom
+ * - Tabs: navigationSidebarTabsAtom, globalSelectorAtom
  */
 
 // Sidebar
@@ -32,7 +32,6 @@ export * from "./languageAtom";
 export * from "./navigationSidebarTabsAtom";
 export * from "./globalTabsActions";
 export * from "./globalSelectorAtom";
-export * from "./homeTabAtom";
 
 // Other UI state
 export * from "./uiAtom";
@@ -44,7 +43,6 @@ export * from "./inboxAtom";
 export * from "./workStationAtom";
 export * from "./routeToolbarAtom";
 export * from "./dragDropAtom";
-export * from "./appGridAtom";
 export * from "./todoAtom";
 export * from "./workflowEditorAtom";
 export * from "./addToAgentAtom";
@@ -58,7 +56,6 @@ export * from "./globalTabsTypes";
 export * from "./guideHighlightAtom";
 
 // WorkStation / Chat / Simulator / Workspace Folders (formerly workspaceAtom barrel)
-export * from "./viewModeAtom";
 export * from "./simulatorAtom";
 export * from "./overlayAtom";
 export * from "./chatPanelAtom";

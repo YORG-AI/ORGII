@@ -3,7 +3,7 @@
  *
  * Top-level shell component mounted immediately after AppProviders.
  * Owns all app-wide hook calls that must run once per window lifetime:
- * - Window registration and settings sync
+ * - Settings sync
  * - Shell appearance (scale, font, fullscreen, animations)
  * - Deferred initialization gate (SessionCore, tool registry, cache preload)
  * - First-paint splash removal
@@ -37,10 +37,6 @@ import { hydrateCreatorDefaultModelAtom } from "@src/store/session/creatorDefaul
 import { useDataSourceAutoScan } from "@src/store/session/useDataSourceAutoScan";
 import { useSettingsSync } from "@src/store/settings";
 import { settingsLoadedAtom } from "@src/store/settings/settingsAtom";
-import {
-  getWindowType,
-  useWindowRegistration,
-} from "@src/util/core/state/windowScopedState";
 
 import { AppDeferredServices } from "./AppDeferredServices";
 import { AppGlobalRecovery } from "./AppGlobalRecovery";
@@ -54,7 +50,6 @@ export const AppBootstrap: FC = () => {
   const hydrateLastModel = useSetAtom(hydrateCreatorDefaultModelAtom);
   const settingsLoaded = useAtomValue(settingsLoadedAtom);
 
-  useWindowRegistration(getWindowType());
   useSettingsSync();
 
   // Run after settings are loaded from disk so the atom read inside

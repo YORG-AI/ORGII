@@ -16,6 +16,7 @@ import {
   groupWorkItemsForStatusFilter,
 } from "@src/modules/ProjectManager/WorkItems/workItemsViewModel";
 import { getProjectStatusConfig } from "@src/modules/ProjectManager/config/manage";
+import VirtualizedGroupedList from "@src/modules/ProjectManager/shared/components/VirtualizedGroupedList";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { DropdownOption } from "@src/types/core/shared";
 import type { WorkItem, WorkItemStatus } from "@src/types/core/workItem";
@@ -61,6 +62,19 @@ export function LinearProjectsIndexProjectsView({
   onSelectProject,
 }: LinearProjectsIndexProjectsViewProps) {
   const { t } = useTranslation(["projects", "common"]);
+  const virtualProjectGroups = React.useMemo(
+    () =>
+      groupedIndexProjects.map((group) => ({
+        key: group.key,
+        group,
+        items: group.projects,
+      })),
+    [groupedIndexProjects]
+  );
+  const defaultGroupExpanded = React.useCallback(
+    () => collapseAllSignal === 0,
+    [collapseAllSignal]
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden text-text-1">
@@ -99,11 +113,16 @@ export function LinearProjectsIndexProjectsView({
           fillParentHeight
         />
       ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide">
-          <div className="flex flex-col pb-3">
-            {groupedIndexProjects.map((group) => (
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <VirtualizedGroupedList
+            key={collapseAllSignal}
+            className="pb-3 scrollbar-hide"
+            testId="linear-projects-virtual-list"
+            groups={virtualProjectGroups}
+            defaultExpanded={defaultGroupExpanded}
+            getItemKey={(project) => project.id}
+            renderGroupHeader={(group, expanded, onExpandedChange) => (
               <WorkItemSection
-                key={`${group.key}:${collapseAllSignal}`}
                 status={group.key}
                 statusConfig={{
                   ...SECTION_BASE_CONFIG,
@@ -113,19 +132,21 @@ export function LinearProjectsIndexProjectsView({
                 }}
                 label={group.label}
                 count={group.projects.length}
-                defaultExpanded={collapseAllSignal === 0}
-              >
-                {group.projects.map((project) => (
-                  <ProjectRow
-                    key={project.id}
-                    project={project}
-                    isSelected={false}
-                    onSelect={onSelectProject}
-                  />
-                ))}
-              </WorkItemSection>
-            ))}
-          </div>
+                expanded={expanded}
+                onExpandedChange={onExpandedChange}
+                virtualizedHeader
+              />
+            )}
+            renderItem={(project, _group, isLastInGroup) => (
+              <div className={`px-2 ${isLastInGroup ? "pb-3" : "pb-1"}`}>
+                <ProjectRow
+                  project={project}
+                  isSelected={false}
+                  onSelect={onSelectProject}
+                />
+              </div>
+            )}
+          />
         </div>
       )}
     </div>

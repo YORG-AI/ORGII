@@ -127,9 +127,10 @@
         "default": "Domyślnie",
         "manual": "Ręcznie",
         "60s": "Co 60 s",
-        "5m": "Co 5 min",
-        "1h": "Co godzinę",
-        "1d": "Codziennie"
+        "120s": "Co 120 s",
+        "10m": "Co 10 min",
+        "30m": "Co 30 min",
+        "1h": "Co godzinę"
       },
       "openFolder": "Otwórz folder",
       "tabs": {

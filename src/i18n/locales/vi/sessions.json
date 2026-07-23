@@ -127,9 +127,10 @@
         "default": "Mặc định",
         "manual": "Thủ công",
         "60s": "Mỗi 60 giây",
-        "5m": "Mỗi 5 phút",
-        "1h": "Hàng giờ",
-        "1d": "Hàng ngày"
+        "120s": "Mỗi 120 giây",
+        "10m": "Mỗi 10 phút",
+        "30m": "Mỗi 30 phút",
+        "1h": "Hàng giờ"
       },
       "openFolder": "Mở thư mục",
       "tabs": {

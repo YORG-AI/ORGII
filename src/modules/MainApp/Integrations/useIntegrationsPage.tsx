@@ -228,8 +228,8 @@ export function useIntegrationsPage() {
   // Consume add-action signals dispatched by route-local header controls.
   // The header writes an AddAction to the dispatch atom; we consume it here
   // where all hooks and useState setters are guaranteed alive (same component).
-  // This avoids the stale-callback problem when KeepAlive evicts or deactivates
-  // the component — Jotai atoms are lifecycle-independent.
+  // This avoids stale callbacks across route unmount/remount cycles because
+  // the Jotai signal is lifecycle-independent.
   const [addSignal, setAddSignal] = useAtom(integrationsAddSignalAtom);
   useEffect(() => {
     if (!addSignal) return;

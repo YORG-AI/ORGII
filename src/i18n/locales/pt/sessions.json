@@ -126,10 +126,11 @@
       "freq": {
         "default": "Padrão",
         "manual": "Manual",
-        "60s": "A cada 60s",
-        "5m": "A cada 5 min",
-        "1h": "A cada hora",
-        "1d": "Diário"
+        "60s": "A cada 60 s",
+        "120s": "A cada 120 s",
+        "10m": "A cada 10 min",
+        "30m": "A cada 30 min",
+        "1h": "A cada hora"
       },
       "openFolder": "Abrir pasta",
       "tabs": {

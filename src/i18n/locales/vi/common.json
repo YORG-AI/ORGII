@@ -961,7 +961,6 @@
     "addCssVariables": "Thêm biến CSS vào dự án của bạn",
     "loadingAccountStatus": "Đang tải trạng thái tài khoản...",
     "noRepositorySelected": "Chưa chọn kho lưu trữ",
-    "selectRepositoryFromHome": "Vui lòng chọn một kho lưu trữ từ trang chủ để mở.",
     "noWorkspaceExplorerTitle": "Chưa mở Workspace",
     "noWorkspaceExplorerSubtitle": "Mở Workspace để xem tệp",
     "cannotFindRepo": "Không tìm thấy {{repoName}}",
@@ -992,7 +991,8 @@
     "scanningFileExtensions": "Scanning file extensions...",
     "startBrowsingMarket": "Start browsing the marketplace",
     "previewUnavailable": "Không thể xem trước",
-    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff."
+    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff.",
+    "selectRepositoryFromWorkspace": "Chọn một kho lưu trữ từ không gian làm việc để mở."
   },
   "inbox": {
     "searchPlaceholder": "Tìm kiếm tin nhắn...",
@@ -1152,8 +1152,6 @@
       "tryVerifyUrl": "Xác minh URL đúng",
       "tryAgainLater": "Thử lại sau"
     },
-    "selectRepoFromHome": "Please select a repo from the home page",
-    "cloneRepoAgain": "Please clone the repo again from the home page",
     "unsavedChangesTitle": "Unsaved Changes",
     "prkPlaceholder": "PRJ",
     "gitSyncMenuTitle": "Git sync actions"
@@ -1736,7 +1734,6 @@
     "ramCurrentSession": "Phiên hiện tại",
     "ramChatRenderedTree": "Cây render Chat",
     "ramSessionStore": "Session store",
-    "ramStartSidebar": "Thanh bên Start",
     "ramSessionSidebar": "Thanh bên Session",
     "ramSecondLevelSidebars": "Thanh bên cấp hai",
     "ramSettingsSidebar": "Thanh bên Settings",
@@ -2170,20 +2167,7 @@
     }
   },
   "dragDrop": {
-    "dropFilesToUpload": "Drop files to upload",
-    "dropFileToChat": "Drop file to add to chat",
-    "dropFolderToAdd": "Drop folder to add repo",
-    "releaseToAddFiles": "Release to add files to your session",
-    "releaseToAddFileToChat": "Release to add file to chat (like ⌘L)",
-    "releaseToOpenFolder": "Release to open the folder",
-    "folderDetected": "Folder Detected",
-    "openSpotlightToAdd": "Open Spotlight to add this folder as a repo",
-    "openSpotlight": "Open Spotlight",
-    "addedToChat": "Added \"{{name}}\" to chat",
-    "couldNotExtractPath": "Could not extract file path from drop",
-    "couldNotExtractPathFromItem": "Could not extract file path from dropped item",
-    "dropFilesHere": "Drop files here",
-    "dragFilesFromIde": "Drag files or tabs from VS Code to add them to chat"
+    "couldNotExtractPathFromItem": "Could not extract file path from dropped item"
   },
   "contextList": {
     "task": "Task",

@@ -5,39 +5,39 @@
  * Each route includes:
  * - path: The actual route path
  * - label: Display label (static or dynamic)
- * - viewMode: Which view mode this route belongs to
- * - tabType: Associated tab type for singleton/behavior rules
  * - icon: Icon name for this route
  *
  * Structure:
- * - /orgii/workstation/*   - Workstation View Mode (Code Editor, Database Manager, Browser)
- * - /orgii/app/*          - App View Mode (organized by functional domains)
+ * - /orgii/workstation/*   - Workbench surfaces
+ * - /orgii/app/settings/*  - Settings inside the Workbench shell
+ * - /orgii/app/*           - Standalone application pages
  */
 import type { LucideIcon } from "lucide-react";
 
 import { ICON_NAME_MAP } from "./iconMapping";
 // Route group constants — imported for use below and re-exported for consumers
 import {
-  APP_HOME_ROUTES,
+  APP_AGENT_ORGS_ROUTE,
+  APP_CHANGELOG_ROUTE,
   APP_IDEA_ROUTES,
-  APP_JOURNEY_ROUTES,
   APP_MARKET_ROUTES,
+  APP_SELECT_REPO_ROUTE,
   APP_SETTINGS_ROUTE,
   AUTH_ROUTES,
   WORK_STATION_ROUTES,
 } from "./routeGroups";
-// Import shared types from mapping module (breaks circular dependency)
-import type { RouteInfo, RouteLabelContext } from "./routeTabMapping";
-import type { ViewModeType } from "./viewModeTypes";
+// Shared route-display metadata stays independent from router state.
+import type { RouteInfo, RouteLabelContext } from "./routeTypes";
 
 // Re-export for convenience
 export type { RouteLabelContext, RouteInfo };
 
 export {
-  APP_HOME_ROUTES,
+  APP_AGENT_ORGS_ROUTE,
+  APP_CHANGELOG_ROUTE,
   APP_IDEA_ROUTES,
-  APP_JOURNEY_ROUTES,
   APP_MARKET_ROUTES,
+  APP_SELECT_REPO_ROUTE,
   APP_SETTINGS_ROUTE,
   AUTH_ROUTES,
   WORK_STATION_ROUTES,
@@ -52,9 +52,10 @@ export const ROUTES = {
   workStation: WORK_STATION_ROUTES,
   auth: AUTH_ROUTES,
   app: {
-    home: APP_HOME_ROUTES,
+    selectRepo: APP_SELECT_REPO_ROUTE,
+    changelog: APP_CHANGELOG_ROUTE,
+    agentOrgs: APP_AGENT_ORGS_ROUTE,
     settings: APP_SETTINGS_ROUTE,
-    journey: APP_JOURNEY_ROUTES,
     ideas: APP_IDEA_ROUTES,
     market: APP_MARKET_ROUTES,
   },
@@ -63,15 +64,6 @@ export const ROUTES = {
 // ============================================================================
 // ROUTE LOOKUP HELPERS
 // ============================================================================
-
-/**
- * Get the path from a RouteInfo object
- * Handles both static routes and dynamic route functions
- */
-export function getRoutePath(routeInfo: RouteInfo | string): string {
-  if (typeof routeInfo === "string") return routeInfo;
-  return routeInfo.path;
-}
 
 /**
  * Get label from a RouteInfo, resolving dynamic labels
@@ -155,44 +147,6 @@ export function matchRoutePath(path: string, pattern: string): boolean {
 }
 
 /**
- * Extract params from a path using a pattern
- */
-export function extractRouteParams(
-  path: string,
-  pattern: string
-): Record<string, string> {
-  const params: Record<string, string> = {};
-  const patternParts = pattern.split("/");
-  const pathParts = path.split("/");
-
-  for (let index = 0; index < patternParts.length; index++) {
-    const patternPart = patternParts[index];
-    if (patternPart.startsWith(":")) {
-      const paramName = patternPart.slice(1);
-      params[paramName] = pathParts[index] || "";
-    }
-  }
-
-  return params;
-}
-
-/**
- * Get view mode for a path
- */
-export function getViewModeForPath(path: string): ViewModeType {
-  const routeInfo = findRouteByPath(path);
-  return routeInfo?.viewMode ?? "mainApp";
-}
-
-/**
- * Get tab type for a path
- */
-export function getTabTypeForPath(path: string): string {
-  const routeInfo = findRouteByPath(path);
-  return routeInfo?.tabType ?? "app";
-}
-
-/**
  * Get label for a path (with optional context for dynamic labels)
  */
 export function getLabelForPath(
@@ -221,24 +175,13 @@ export function getIconComponentForPath(path: string): LucideIcon | null {
   return ICON_NAME_MAP[iconName] ?? null;
 }
 
-// ============================================================================
-// TAB TYPE HELPERS
-// Derive info from routes for tab types
-// ============================================================================
-
-// Note: getViewModeForTabType and getCategoryForTabType are imported from routeTabMapping.ts
-
-/**
- * Get primary route path for a tab type (non-pattern preferred)
- */
-export function getPrimaryRouteForTabType(tabType: string): string | undefined {
-  const routes = ALL_ROUTES.filter((route) => route.tabType === tabType);
-  const staticRoute = routes.find((route) => !route.path.includes(":"));
-  return staticRoute?.path ?? routes[0]?.path;
+/** Whether a pathname is owned by the persistent Workbench shell. */
+export function isWorkbenchPath(pathname: string): boolean {
+  const isWithin = (routePath: string) =>
+    pathname === routePath || pathname.startsWith(`${routePath}/`);
+  return (
+    isWithin(ROUTES.workStation.base.path) ||
+    isWithin(ROUTES.app.settings.path) ||
+    pathname === ROUTES.app.changelog.path
+  );
 }
-
-// ============================================================================
-// VIEW MODE MAPPING - Import from mapping module
-// ============================================================================
-
-export { getViewModeForTabType } from "./routeTabMapping";

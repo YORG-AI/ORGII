@@ -62,10 +62,9 @@ export type {
 
 export {
   classifySettingsRouteRoot,
-  deriveRouteCacheKey,
   SETTINGS_ROUTE_ROOT,
-} from "./mainAppPaths/routeCache";
-export type { SettingsRouteRoot } from "./mainAppPaths/routeCache";
+} from "./mainAppPaths/settingsRouteRoot";
+export type { SettingsRouteRoot } from "./mainAppPaths/settingsRouteRoot";
 
 export {
   buildWizardPath,

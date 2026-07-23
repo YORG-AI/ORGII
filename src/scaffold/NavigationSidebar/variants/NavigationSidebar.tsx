@@ -2,7 +2,7 @@
  * NavigationSidebar
  *
  * Main navigation sidebar with tabs and menu items.
- * Used for: Home page, Config page navigation
+ * Used by Settings and Workstation navigation surfaces.
  */
 import { ChevronDown, ChevronRight, type LucideIcon } from "lucide-react";
 import React, {

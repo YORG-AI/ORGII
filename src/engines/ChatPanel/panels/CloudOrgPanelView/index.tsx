@@ -10,6 +10,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { ChatLoadingBlock } from "@src/engines/ChatPanel/blocks/primitives";
 import {
   buildCloudOrgSelectorValue,
   org2CloudOrgsAtom,
@@ -24,7 +25,6 @@ import {
   DETAIL_PANEL_TOKENS,
   ScrollFadeContainer,
 } from "@src/modules/shared/layouts/blocks";
-import { Placeholder } from "@src/modules/shared/layouts/blocks/Placeholder";
 import { openWorkManagementChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import type { ChatPanelSelectedCloudOrg } from "@src/store/ui/chatPanelAtom";
 import { WORK_MANAGEMENT_SECTION } from "@src/store/workstation";
@@ -93,7 +93,9 @@ export const CloudOrgPanelView: React.FC<CloudOrgPanelViewProps> = ({
       >
         <div className={DETAIL_PANEL_TOKENS.contentWidthWithPaddingNoTop}>
           {panelState.viewState === "loading" ? (
-            <Placeholder variant="loading" />
+            <div className="py-2">
+              <ChatLoadingBlock />
+            </div>
           ) : panelState.viewState === "error" ? (
             <p className="text-[12px] text-text-3">
               {t("cloud.orgPanel.loadError")}

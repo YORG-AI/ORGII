@@ -1,4 +1,5 @@
-import React, { Suspense } from "react";
+import { useSetAtom } from "jotai";
+import React, { Suspense, useLayoutEffect } from "react";
 import {
   Navigate,
   Outlet,
@@ -13,24 +14,23 @@ import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
   AgentStudioPage,
   AuthCallback,
-  ChangelogPage,
   ConsumerWallet,
   DelegationHistoryPage,
   FlowAwarenessTestPage,
   LoginPage,
-  ModeSelectionWindow,
   Profile,
   ProviderBoost,
   ProviderEarnings,
   PublicProfilePage,
   SelectRepoPage,
   SetupWalkthrough,
-  SuggestionsPage,
-  TabWindow,
 } from "@src/router/lazy/pages";
 import ComingSoonRoutePage from "@src/router/routes/ComingSoonRoutePage";
 import OpenSourceMarketUnavailablePage from "@src/router/routes/OpenSourceMarketUnavailablePage";
 import { WorkStationRoutePlaceholder } from "@src/router/routes/placeholders";
+import { openChangelogInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
+import { activeStationChatVisibleAtom } from "@src/store/ui/chatPanelAtom";
+import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 
 const Loading = () => <Placeholder variant="loading" />;
 
@@ -56,6 +56,24 @@ const lazy = (element: React.ReactNode, withLoader = true) => (
  * resolve and so the URL drives the slot's body via `useLocation()`.
  */
 const UnifiedSettingsPage: React.FC = () => null;
+
+/**
+ * Route-level launcher for Changelog bookmarks, Spotlight, and app actions.
+ * Changelog is no longer a full page: opening this URL focuses its singleton
+ * ChatPanel tab and returns the router to the Workstation.
+ */
+const ChangelogTabLauncher: React.FC = () => {
+  const openChangelogTab = useSetAtom(openChangelogInChatPanelTabAtom);
+  const setStationMode = useSetAtom(stationModeAtom);
+  const setStationChatVisible = useSetAtom(activeStationChatVisibleAtom);
+  useLayoutEffect(() => {
+    setStationMode("my-station");
+    setStationChatVisible("my-station", true);
+    openChangelogTab("Changelog");
+  }, [openChangelogTab, setStationChatVisible, setStationMode]);
+
+  return <Navigate to={ROUTES.workStation.base.path} replace />;
+};
 
 /**
  * Redirect legacy `/orgii/app/agent-orgs/<tab>[/<category>]` URLs to their
@@ -120,7 +138,6 @@ export const appStandaloneRouteGroup: RouteObject[] = [
     ),
   },
   { path: "app/select-repo", element: lazy(<SelectRepoPage />, false) },
-  { path: "app/start-page", element: lazy(<SuggestionsPage />, false) },
   {
     path: "app/walkthrough",
     element: lazy(
@@ -132,6 +149,64 @@ export const appStandaloneRouteGroup: RouteObject[] = [
   { path: "marketplace/callback", element: lazy(<AuthCallback />) },
 ];
 
+export const workbenchAppRouteGroup: RouteObject[] = [
+  {
+    path: "app/changelog",
+    element: <ChangelogTabLauncher />,
+  },
+  // Unified Settings surface. Every `/settings/*` path is owned by
+  // `SettingsSlot` (mounted by `AppShell` in the chat-panel slot);
+  // these outlet entries just keep the URL deeplinkable. The slot
+  // dispatches to APP / AGENT_ORGS / MY_ROLE bodies based on
+  // `classifySettingsRouteRoot(pathname)`.
+  //
+  { path: "app/settings/*", element: <UnifiedSettingsPage /> },
+  // Legacy Core URLs redirect to the simplified /settings[/<id>] shape.
+  {
+    path: "app/settings/core-settings",
+    element: <LegacyCoreSettingsRedirect />,
+  },
+  {
+    path: "app/settings/core-settings/:item",
+    element: <LegacyCoreSettingsRedirect />,
+  },
+  {
+    path: "app/settings/core-settings/:item/:tab",
+    element: <LegacyCoreSettingsRedirect />,
+  },
+  // Legacy `/settings/app-settings` and `/settings/integrations` URLs
+  // redirect to the unified Settings tab so old deep links keep working.
+  {
+    path: "app/settings/app-settings",
+    element: <LegacyCoreSettingsRedirect />,
+  },
+  {
+    path: "app/settings/app-settings/:section",
+    element: <LegacyCoreSettingsRedirect />,
+  },
+  {
+    path: "app/settings/integrations",
+    element: <LegacyCoreSettingsRedirect />,
+  },
+  {
+    path: "app/settings/integrations/:category",
+    element: <LegacyCoreSettingsRedirect />,
+  },
+  // Legacy `/agent-orgs/*` URLs redirect to the unified settings surface.
+  {
+    path: "app/agent-orgs",
+    element: <Navigate to={ROUTES.app.settings.path} replace />,
+  },
+  {
+    path: "app/agent-orgs/:tab",
+    element: <LegacyAgentOrgsRedirect />,
+  },
+  {
+    path: "app/agent-orgs/:tab/:category",
+    element: <LegacyAgentOrgsRedirect />,
+  },
+];
+
 export const mainAppRouteGroup: RouteObject = {
   path: "app",
   element: <MainAppShell />,
@@ -139,54 +214,6 @@ export const mainAppRouteGroup: RouteObject = {
     {
       path: "dev-tools/flow-awareness-test",
       element: lazy(<FlowAwarenessTestPage />),
-    },
-    // Unified Settings surface. Every `/settings/*` path is owned by
-    // `SettingsSlot` (mounted by `AppShell` in the chat-panel slot);
-    // these outlet entries just keep the URL deeplinkable. The slot
-    // dispatches to APP / AGENT_ORGS / MY_ROLE bodies based on
-    // `classifySettingsRouteRoot(pathname)`.
-    //
-    { path: "settings/*", element: <UnifiedSettingsPage /> },
-    // Legacy Core URLs redirect to the simplified /settings[/<id>] shape.
-    { path: "settings/core-settings", element: <LegacyCoreSettingsRedirect /> },
-    {
-      path: "settings/core-settings/:item",
-      element: <LegacyCoreSettingsRedirect />,
-    },
-    {
-      path: "settings/core-settings/:item/:tab",
-      element: <LegacyCoreSettingsRedirect />,
-    },
-    // Legacy `/settings/app-settings` and `/settings/integrations` URLs
-    // redirect to the unified Settings tab so old deep links keep working.
-    {
-      path: "settings/app-settings",
-      element: <LegacyCoreSettingsRedirect />,
-    },
-    {
-      path: "settings/app-settings/:section",
-      element: <LegacyCoreSettingsRedirect />,
-    },
-    {
-      path: "settings/integrations",
-      element: <LegacyCoreSettingsRedirect />,
-    },
-    {
-      path: "settings/integrations/:category",
-      element: <LegacyCoreSettingsRedirect />,
-    },
-    // Legacy `/agent-orgs/*` URLs redirect to the unified settings surface.
-    {
-      path: "agent-orgs",
-      element: <Navigate to={ROUTES.app.settings.path} replace />,
-    },
-    {
-      path: "agent-orgs/:tab",
-      element: <LegacyAgentOrgsRedirect />,
-    },
-    {
-      path: "agent-orgs/:tab/:category",
-      element: <LegacyAgentOrgsRedirect />,
     },
     {
       path: "market",
@@ -221,23 +248,6 @@ export const mainAppRouteGroup: RouteObject = {
         { path: "delegation-history", element: <DelegationHistoryPage /> },
       ],
     },
-    {
-      // Legacy `/orgii/app/launchpad` URL — the standalone Launchpad host
-      // was retired in favour of a pinned dashboard tab inside the Code
-      // Editor surface. Redirect external deep links there.
-      path: "launchpad",
-      element: <Navigate to={ROUTES.workStation.code.path} replace />,
-    },
-    { path: "changelog", element: lazy(<ChangelogPage />) },
     { path: "ideas", element: <ComingSoonRoutePage /> },
-  ],
-};
-
-export const windowRouteGroup: RouteObject = {
-  path: "windows",
-  element: <Outlet />,
-  children: [
-    { path: "welcome", element: lazy(<ModeSelectionWindow />) },
-    { path: "tab", element: lazy(<TabWindow />) },
   ],
 };

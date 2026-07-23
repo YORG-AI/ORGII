@@ -61,15 +61,9 @@
     "startSession": "Начать сессию",
     "sessions": "Session",
     "selectProject": "Выбрать Project",
-    "startPage": "Главная страница",
     "inbox": "Входящие",
     "login": "Вход",
     "setup": "Настройка",
-    "devJourney": "Dev Journey",
-    "devRecord": "Журнал разработки",
-    "gitDashboard": "Git Панель",
-    "devActivity": "Dev Активность",
-    "usageHistory": "История использования",
     "tokenMarket": "Token маркет",
     "taskMarket": "Рынок задач",
     "channels": "Каналы",
@@ -85,20 +79,8 @@
     "ideaArea": "Пространство идей",
     "changelog": "Журнал изменений"
   },
-  "appGrid": {
-    "customizeGrid": "Настроить сетку",
-    "horizontalGap": "Горизонтальный интервал",
-    "verticalGap": "Вертикальный интервал",
-    "resetToDefault": "Сбросить по умолчанию"
-  },
-  "greetings": {
-    "morning": "Доброе утро",
-    "afternoon": "Добрый день",
-    "evening": "Добрый вечер"
-  },
   "sidebar": {
     "tabs": {
-      "build": "Главная",
       "workstation": "Workstation",
       "manage": "Управление",
       "core": "Ядро",
@@ -134,9 +116,7 @@
     "actions": {
       "addNew": "Добавить новое",
       "collapseAll": "Свернуть все",
-      "markAllRead": "Отметить все как прочитанные",
-      "openHome": "Открыть Home",
-      "openWorkstation": "Открыть Workstation"
+      "markAllRead": "Отметить все как прочитанные"
     },
     "search": {
       "folders": "Искать в рабочей области...",
@@ -357,15 +337,6 @@
       "workItems": "Рабочие задачи",
       "projects": "Проекты"
     }
-  },
-  "changelog": {
-    "title": "Журнал изменений",
-    "subtitle": "Обновления продукта",
-    "commitCount": "{{count}} коммитов",
-    "commitCount_one": "{{count}} коммит",
-    "details": "Подробности",
-    "frontend": "Frontend",
-    "backend": "Backend"
   },
   "collaboration": {
     "switchOrg": "Сменить ORG",

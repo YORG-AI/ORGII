@@ -59,11 +59,6 @@ export function useTaskKanbanHeader({
   ]);
 
   const headerContent = useMemo(() => {
-    // Data Source tab manages its own actions (per-source + "Rescan all"),
-    // so the Kanban time/archive filters don't apply here.
-    if (viewMode === "datasource") {
-      return { trailing: null };
-    }
     if (viewMode === "diary") {
       return {
         trailing: diaryControls,

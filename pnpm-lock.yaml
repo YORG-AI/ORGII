@@ -257,12 +257,6 @@ importers:
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
-      keepalive-for-react:
-        specifier: 4.0.3
-        version: 4.0.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      keepalive-for-react-router:
-        specifier: 1.0.1
-        version: 1.0.1(keepalive-for-react@4.0.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-dom@19.2.6(react@19.2.6))(react-router-dom@6.30.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)
       lodash:
         specifier: ^4.17.21
         version: 4.17.23
@@ -5519,20 +5513,6 @@ packages:
   katex@0.16.38:
     resolution: {integrity: sha512-cjHooZUmIAUmDsHBN+1n8LaZdpmbj03LtYeYPyuYB7OuloiaeaV6N4LcfjcnHVzGWjVQmKrxxTrpDcmSzEZQwQ==}
     hasBin: true
-
-  keepalive-for-react-router@1.0.1:
-    resolution: {integrity: sha512-OxfBdjIZoVdrbOegaIZZ/1Ra2JPNVgnaPPMmS0A5obuIjvlplJyJ6KYhJsYbeiSoViJNWIvi30imO0nb/y0Oig==}
-    peerDependencies:
-      keepalive-for-react: workspace:^
-      react: '>=16.8.0'
-      react-dom: '>=16.8.0'
-      react-router-dom: '>=6.0.0'
-
-  keepalive-for-react@4.0.3:
-    resolution: {integrity: sha512-tN4Dt+ohlMDw4ycp1HWtJmoJR6G01AurSToKOJIuUwDV8xSGcUwcsshNnfncocx2J1aoDv5IYttmXInuuWuwGw==}
-    peerDependencies:
-      react: '>=16.8.0'
-      react-dom: '>=16.8.0'
 
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
@@ -13937,18 +13917,6 @@ snapshots:
   katex@0.16.38:
     dependencies:
       commander: 8.3.0
-
-  keepalive-for-react-router@1.0.1(keepalive-for-react@4.0.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-dom@19.2.6(react@19.2.6))(react-router-dom@6.30.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6):
-    dependencies:
-      keepalive-for-react: 4.0.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      react: 19.2.6
-      react-dom: 19.2.6(react@19.2.6)
-      react-router-dom: 6.30.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-
-  keepalive-for-react@4.0.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6):
-    dependencies:
-      react: 19.2.6
-      react-dom: 19.2.6(react@19.2.6)
 
   keyv@4.5.4:
     dependencies:

@@ -13,7 +13,8 @@
  * are never auto-scanned or presence-probed, including at startup.
  *
  * Config is read straight from the shared store on each tick, so the interval is
- * armed once and always sees the latest values without re-arming.
+ * armed once and always sees the latest values without re-arming. The timer is
+ * paused while the document is hidden and catches up immediately on return.
  */
 import { useEffect } from "react";
 
@@ -23,10 +24,7 @@ import {
   externalHistoryRescanSources,
 } from "@src/api/tauri/externalHistory";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
-import {
-  isWindowFocused,
-  onWindowFocusRegained,
-} from "@src/util/core/windowFocus";
+import { isWindowFocused } from "@src/util/core/windowFocus";
 
 import {
   FREQUENCY_INTERVAL_MS,
@@ -179,36 +177,84 @@ export async function runDataSourceAutoScan(force = false): Promise<void> {
   }
 }
 
+interface DataSourceAutoScanVisibilitySource {
+  readonly visibilityState: DocumentVisibilityState;
+  addEventListener(type: "visibilitychange", listener: () => void): void;
+  removeEventListener(type: "visibilitychange", listener: () => void): void;
+}
+
+interface DataSourceAutoScanScheduler {
+  trigger(force?: boolean): void;
+  stop(): void;
+}
+
+/**
+ * Own the scheduler's one recursive timeout. Hidden documents clear the timer;
+ * becoming visible triggers one immediate catch-up pass and re-arms the chain.
+ */
+export function startDataSourceAutoScanScheduler(
+  source: DataSourceAutoScanVisibilitySource,
+  scan: (force?: boolean) => Promise<void>,
+  intervalMs = TICK_MS
+): DataSourceAutoScanScheduler {
+  let stopped = false;
+  let startupPending = true;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  const clearTimer = () => {
+    if (timeoutId === undefined) return;
+    clearTimeout(timeoutId);
+    timeoutId = undefined;
+  };
+  const schedule = () => {
+    clearTimer();
+    if (stopped || source.visibilityState === "hidden") return;
+    timeoutId = setTimeout(() => {
+      timeoutId = undefined;
+      trigger();
+    }, intervalMs);
+  };
+  const trigger = (force = false) => {
+    clearTimer();
+    if (stopped || source.visibilityState === "hidden") return;
+    const shouldForce = startupPending || force;
+    startupPending = false;
+    void scan(shouldForce)
+      .catch(() => {
+        /* transient; next tick retries */
+      })
+      .finally(schedule);
+  };
+  const onVisibilityChange = () => {
+    clearTimer();
+    if (source.visibilityState !== "hidden") trigger();
+  };
+
+  source.addEventListener("visibilitychange", onVisibilityChange);
+  trigger(true);
+  return {
+    trigger,
+    stop: () => {
+      stopped = true;
+      clearTimer();
+      source.removeEventListener("visibilitychange", onVisibilityChange);
+    },
+  };
+}
+
 export function useDataSourceAutoScan(): void {
   useEffect(() => {
-    let cancelled = false;
-    let timeoutId: number | undefined;
-
-    const scan = async (force = false) => {
-      try {
-        await runDataSourceAutoScan(force);
-      } catch {
-        /* transient; next tick retries */
-      } finally {
-        if (!cancelled) {
-          timeoutId = window.setTimeout(() => void scan(), TICK_MS);
-        }
-      }
-    };
-
-    void scan(true);
-    // Catch-up pass the moment focus returns: the tick itself keeps running
-    // while unfocused (cheap due-check), but sources are held to the 10-minute
-    // background floor — this runs anything that came due at its normal
-    // cadence immediately. Runs outside the timer chain so it never re-arms
-    // a second timeout loop; runDataSourceAutoScan dedupes concurrent passes.
-    const unsubscribeFocus = onWindowFocusRegained(() => {
-      if (!cancelled) void runDataSourceAutoScan(false);
-    });
+    const scheduler = startDataSourceAutoScanScheduler(
+      document,
+      runDataSourceAutoScan
+    );
+    // A visible but unfocused window retains the low-frequency background
+    // safety floor. Regaining focus immediately checks foreground cadences.
+    const onFocus = () => scheduler.trigger();
+    window.addEventListener("focus", onFocus);
     return () => {
-      cancelled = true;
-      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
-      unsubscribeFocus();
+      window.removeEventListener("focus", onFocus);
+      scheduler.stop();
     };
   }, []);
 }

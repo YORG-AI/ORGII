@@ -110,9 +110,10 @@ describe("ChatPanelTabBar", () => {
     expect(markup).not.toContain("max-w-none");
   });
 
-  it("offers Runtime in the new-tab menu", () => {
+  it("offers Runtime and Changelog in the new-tab menu", () => {
     const markup = renderToStaticMarkup(
       createElement(PlusMenuContent, {
+        onOpenChangelog: vi.fn(),
         onOpenLaunchpad: vi.fn(),
         onOpenKanban: vi.fn(),
         onOpenRuntime: vi.fn(),
@@ -122,6 +123,7 @@ describe("ChatPanelTabBar", () => {
     );
 
     expect(markup).toContain("sessions:chat.startPage.tabs.runtime");
+    expect(markup).toContain("navigation:routes.changelog");
     expect(markup).toContain("chat.startPage.newWorkItem.title");
   });
 });

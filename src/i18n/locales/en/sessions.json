@@ -145,9 +145,10 @@
         "default": "Default",
         "manual": "Manual",
         "60s": "Every 60s",
-        "5m": "Every 5 min",
-        "1h": "Hourly",
-        "1d": "Daily"
+        "120s": "Every 120s",
+        "10m": "Every 10 min",
+        "30m": "Every 30 min",
+        "1h": "Hourly"
       },
       "tabs": {
         "all": "All",

@@ -18,9 +18,19 @@ Manual acceptance: import at least one Warp conversation, open Agent Kanban, cho
 | Enter a partial path with Windows separators or uppercase letters | Separators and case normalize before substring matching                     | `fileSearch.test.ts`; `chat-rendering-ui.spec.mjs`                      |
 | Enter a query with no match                                       | A translated empty state replaces the board/list                            | `chat-rendering-ui.spec.mjs`                                            |
 | Clear the query                                                   | The original unfiltered task set returns                                    | `chat-rendering-ui.spec.mjs`                                            |
-| Switch to Diary/Data Source or use a headerless embed             | A hidden stale search does not filter that view                             | `TaskKanban` applies the query only where the search control is visible |
+| Switch to Diary or use a headerless embed                         | A hidden stale search does not filter that view                             | `TaskKanban` applies the query only where the search control is visible |
 
 Manual acceptance: open **Work Management → Kanban**, search for part of a file path shown under a session's Touched Files detail, verify only matching sessions remain, then clear the field and verify all cards return.
+
+## Runtime data-source navigation
+
+| Case                                       | Expected result                                                                         | Coverage                                                        |
+| ------------------------------------------ | --------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Hover the Data Sources header affordance   | A trailing arrow-up-right icon appears without changing the control width               | `FactoryViewPill/index.test.ts`; shared `TabPill.hoverBadge`    |
+| Activate Data Sources from any Kanban view | Runtime opens or focuses as a singleton tab; the current Kanban view URL is not changed | `FactoryViewPill/index.test.ts`; `chatPanelTabsAtom.test.ts`    |
+| Load a stale `?view=datasource` URL        | Kanban renders instead of mounting a second copy of the Runtime data-source panel       | `FactoryViewPill/index.test.ts`; closed `FactoryViewMode` union |
+
+Manual acceptance: open **Work Management → Kanban**, hover **Data Sources** and confirm the arrow-up-right icon appears to its right without shifting the tabs. Click it and confirm **Runtime** opens or focuses; return to Kanban and confirm the previous board/List/Diary selection remains intact.
 
 ## List impact summary
 

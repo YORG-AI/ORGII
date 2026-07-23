@@ -10,7 +10,10 @@ import {
   dataSourcePresenceAtom,
   externalSessionsEnabledAtom,
 } from "../dataSourceConfigAtom";
-import { runDataSourceAutoScan } from "../useDataSourceAutoScan";
+import {
+  runDataSourceAutoScan,
+  startDataSourceAutoScanScheduler,
+} from "../useDataSourceAutoScan";
 
 const mocks = vi.hoisted(() => ({
   externalCliSourceProbe: vi.fn(),
@@ -39,6 +42,24 @@ vi.mock("@src/util/core/state/instrumentedStore", () => ({
 const NOW = 1_750_000_000_000;
 const SOURCE_PRESENCE_PROBE_INTERVAL_MS = 30 * 60_000;
 
+class VisibilitySourceStub {
+  visibilityState: DocumentVisibilityState = "visible";
+  private listener: (() => void) | undefined;
+
+  addEventListener(_type: "visibilitychange", listener: () => void): void {
+    this.listener = listener;
+  }
+
+  removeEventListener(_type: "visibilitychange", listener: () => void): void {
+    if (this.listener === listener) this.listener = undefined;
+  }
+
+  setVisibility(visibilityState: DocumentVisibilityState): void {
+    this.visibilityState = visibilityState;
+    this.listener?.();
+  }
+}
+
 describe("runDataSourceAutoScan", () => {
   beforeEach(() => {
     vi.spyOn(Date, "now").mockReturnValue(NOW);
@@ -53,7 +74,11 @@ describe("runDataSourceAutoScan", () => {
     mocks.loadSidebarSessions.mockReset().mockResolvedValue(undefined);
   });
 
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
 
   it("scans enabled non-manual sources immediately at startup", async () => {
     mocks.store?.set(dataSourceGlobalFrequencyAtom, "60s");
@@ -101,7 +126,7 @@ describe("runDataSourceAutoScan", () => {
     );
     config.cursor_ide = {
       enabled: true,
-      frequency: "60s",
+      frequency: "120s",
       lastScannedAt: null,
     };
     mocks.store?.set(dataSourceConfigAtom, config);
@@ -134,8 +159,8 @@ describe("runDataSourceAutoScan", () => {
     );
     config.cursor_ide = {
       enabled: true,
-      frequency: "60s",
-      lastScannedAt: NOW - 60_000,
+      frequency: "120s",
+      lastScannedAt: NOW - 120_000,
     };
     mocks.store?.set(dataSourceConfigAtom, config);
     mocks.store?.set(dataSourcePresenceAtom, {
@@ -160,8 +185,8 @@ describe("runDataSourceAutoScan", () => {
     );
     config.cursor_ide = {
       enabled: true,
-      frequency: "60s",
-      lastScannedAt: NOW - 60_000,
+      frequency: "120s",
+      lastScannedAt: NOW - 120_000,
     };
     mocks.store?.set(dataSourceConfigAtom, config);
     mocks.store?.set(dataSourcePresenceAtom, {
@@ -193,7 +218,7 @@ describe("runDataSourceAutoScan", () => {
     );
     config.cursor_ide = {
       enabled: true,
-      frequency: "1d",
+      frequency: "1h",
       lastScannedAt: NOW - 60_000,
     };
     mocks.store?.set(dataSourceConfigAtom, config);
@@ -226,8 +251,8 @@ describe("runDataSourceAutoScan", () => {
     );
     config.cursor_ide = {
       enabled: true,
-      frequency: "60s",
-      lastScannedAt: NOW - 60_000,
+      frequency: "120s",
+      lastScannedAt: NOW - 120_000,
     };
     mocks.store?.set(dataSourceConfigAtom, config);
     mocks.externalCliSourceProbe.mockRejectedValue(new Error("probe failed"));
@@ -258,13 +283,13 @@ describe("runDataSourceAutoScan", () => {
     );
     config.codex_app = {
       enabled: true,
-      frequency: "60s",
+      frequency: "120s",
       lastScannedAt: NOW - 1_000,
     };
     config.cline = {
       enabled: true,
-      frequency: "60s",
-      lastScannedAt: NOW - 60_000,
+      frequency: "120s",
+      lastScannedAt: NOW - 120_000,
     };
     mocks.store?.set(dataSourceConfigAtom, config);
 
@@ -283,7 +308,7 @@ describe("runDataSourceAutoScan", () => {
     );
     config.codex_app = {
       enabled: true,
-      frequency: "60s",
+      frequency: "120s",
       lastScannedAt: null,
     };
     mocks.store?.set(dataSourceConfigAtom, config);
@@ -320,16 +345,16 @@ describe("runDataSourceAutoScan", () => {
         { enabled: false, frequency: "default" as const, lastScannedAt: null },
       ])
     );
-    // Overdue at its 60s cadence but well inside the 10-minute floor.
+    // Overdue at its 120s cadence but well inside the 10-minute floor.
     config.codex_app = {
       enabled: true,
-      frequency: "60s",
+      frequency: "120s",
       lastScannedAt: NOW - 5 * 60_000,
     };
     // Past the 10-minute floor — scans even unfocused.
     config.cline = {
       enabled: true,
-      frequency: "60s",
+      frequency: "120s",
       lastScannedAt: NOW - 11 * 60_000,
     };
     mocks.store?.set(dataSourceConfigAtom, config);
@@ -337,6 +362,59 @@ describe("runDataSourceAutoScan", () => {
     await runDataSourceAutoScan(false);
 
     expect(mocks.externalHistoryRescanSources).toHaveBeenCalledWith(["cline"]);
-    vi.unstubAllGlobals();
+  });
+});
+
+describe("startDataSourceAutoScanScheduler", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("pauses while hidden, catches up on return, and disposes its timer", async () => {
+    vi.useFakeTimers();
+    const source = new VisibilitySourceStub();
+    const scan = vi.fn().mockResolvedValue(undefined);
+    const scheduler = startDataSourceAutoScanScheduler(source, scan, 30_000);
+
+    expect(scan).toHaveBeenCalledWith(true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(vi.getTimerCount()).toBe(1);
+
+    source.setVisibility("hidden");
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(scan).toHaveBeenCalledTimes(1);
+
+    source.setVisibility("visible");
+    expect(scan).toHaveBeenLastCalledWith(false);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(vi.getTimerCount()).toBe(1);
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(scan).toHaveBeenCalledTimes(3);
+    expect(vi.getTimerCount()).toBe(1);
+
+    scheduler.stop();
+    expect(vi.getTimerCount()).toBe(0);
+    source.setVisibility("visible");
+    expect(scan).toHaveBeenCalledTimes(3);
+  });
+
+  it("defers the forced startup pass until an initially hidden app is visible", async () => {
+    vi.useFakeTimers();
+    const source = new VisibilitySourceStub();
+    source.visibilityState = "hidden";
+    const scan = vi.fn().mockResolvedValue(undefined);
+    const scheduler = startDataSourceAutoScanScheduler(source, scan, 30_000);
+
+    expect(scan).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+
+    source.setVisibility("visible");
+    expect(scan).toHaveBeenCalledWith(true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(vi.getTimerCount()).toBe(1);
+
+    scheduler.stop();
   });
 });

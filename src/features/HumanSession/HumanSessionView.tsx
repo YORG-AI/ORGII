@@ -1,3 +1,4 @@
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Loader2 } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -31,6 +32,8 @@ interface HumanSessionViewProps {
 }
 
 const WORK_LOG_SLASH_ITEM_CATEGORIES = ["skill"] as const;
+const HUMAN_SESSION_VIRTUALIZATION_THRESHOLD = 20;
+const HUMAN_SESSION_ESTIMATED_ENTRY_HEIGHT = 140;
 
 const HumanSessionEntryBody: React.FC<{ entry: HumanSessionEntry }> = ({
   entry,
@@ -64,20 +67,26 @@ const HumanSessionView: React.FC<HumanSessionViewProps> = ({ sessionId }) => {
   const [humanSession, setHumanSession] = useState<HumanSession | null>(null);
   const [loading, setLoading] = useState(true);
   const appendingRef = useRef(false);
+  const appendGenerationRef = useRef(0);
+  const loadGenerationRef = useRef(0);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [appending, setAppending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
+    const generation = ++loadGenerationRef.current;
+    appendGenerationRef.current += 1;
+    appendingRef.current = false;
+    setAppending(false);
+    setHumanSession(null);
     setLoading(true);
     setError(null);
     getHumanSession(sessionId)
       .then((next) => {
-        if (!cancelled) setHumanSession(next);
+        if (generation === loadGenerationRef.current) setHumanSession(next);
       })
       .catch((loadError) => {
-        if (!cancelled) {
+        if (generation === loadGenerationRef.current) {
           setError(
             loadError instanceof Error
               ? loadError.message
@@ -86,10 +95,14 @@ const HumanSessionView: React.FC<HumanSessionViewProps> = ({ sessionId }) => {
         }
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (generation === loadGenerationRef.current) setLoading(false);
       });
     return () => {
-      cancelled = true;
+      if (generation === loadGenerationRef.current) {
+        loadGenerationRef.current += 1;
+      }
+      appendGenerationRef.current += 1;
+      appendingRef.current = false;
     };
   }, [sessionId, t]);
 
@@ -98,37 +111,92 @@ const HumanSessionView: React.FC<HumanSessionViewProps> = ({ sessionId }) => {
       const note = displayText.trim();
       if (!note || appendingRef.current) return true;
 
+      const appendGeneration = ++appendGenerationRef.current;
+      const loadGeneration = loadGenerationRef.current;
       appendingRef.current = true;
       setAppending(true);
       setError(null);
       try {
         const next = await appendHumanSessionEntry(sessionId, note);
+        if (
+          appendGeneration !== appendGenerationRef.current ||
+          loadGeneration !== loadGenerationRef.current
+        ) {
+          return true;
+        }
         setHumanSession(next);
         await loadSessions({ forceRefresh: true }).catch(() => undefined);
         return true;
       } catch (appendError) {
+        if (
+          appendGeneration !== appendGenerationRef.current ||
+          loadGeneration !== loadGenerationRef.current
+        ) {
+          return true;
+        }
         const message =
           appendError instanceof Error
             ? appendError.message
             : t("humanSession.appendFailed");
-        setError(message);
+        if (
+          appendGeneration === appendGenerationRef.current &&
+          loadGeneration === loadGenerationRef.current
+        ) {
+          setError(message);
+        }
         throw appendError instanceof Error ? appendError : new Error(message);
       } finally {
-        appendingRef.current = false;
-        setAppending(false);
+        if (
+          appendGeneration === appendGenerationRef.current &&
+          loadGeneration === loadGenerationRef.current
+        ) {
+          appendingRef.current = false;
+          setAppending(false);
+        }
       }
     },
     [sessionId, t]
   );
 
-  const entryCount = humanSession?.entries.length ?? 0;
+  const entries = humanSession?.entries ?? [];
+  const entryCount = entries.length;
+  const shouldVirtualize = entryCount > HUMAN_SESSION_VIRTUALIZATION_THRESHOLD;
+  const entryVirtualizer = useVirtualizer({
+    count: shouldVirtualize ? entryCount : 0,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => HUMAN_SESSION_ESTIMATED_ENTRY_HEIGHT,
+    getItemKey: (index) => entries[index]?.id ?? index,
+    overscan: 5,
+  });
+
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
+      if (shouldVirtualize && entryCount > 0) {
+        entryVirtualizer.scrollToIndex(entryCount - 1, { align: "end" });
+        return;
+      }
       const container = scrollContainerRef.current;
       if (container) container.scrollTop = container.scrollHeight;
     });
     return () => cancelAnimationFrame(frame);
-  }, [entryCount, sessionId]);
+  }, [entryCount, entryVirtualizer, sessionId, shouldVirtualize]);
+
+  const renderEntry = (entry: HumanSessionEntry, entryIndex: number) => (
+    <ConnectedTimelineItem isLast={entryIndex === entries.length - 1}>
+      <TimelineCard
+        copyBody={entry.body}
+        header={
+          <TimelineCardHeader
+            actor={t("humanSession.entryLabel")}
+            action={null}
+            timestamp={entry.createdAt}
+          />
+        }
+      >
+        <HumanSessionEntryBody entry={entry} />
+      </TimelineCard>
+    </ConnectedTimelineItem>
+  );
 
   if (loading) {
     return (
@@ -159,27 +227,37 @@ const HumanSessionView: React.FC<HumanSessionViewProps> = ({ sessionId }) => {
         <main
           className={`mx-auto min-h-full w-full px-2 pb-36 pt-6 ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
         >
-          <TimelineStack>
-            {humanSession.entries.map((entry, entryIndex) => (
-              <ConnectedTimelineItem
-                key={entry.id}
-                isLast={entryIndex === humanSession.entries.length - 1}
-              >
-                <TimelineCard
-                  copyBody={entry.body}
-                  header={
-                    <TimelineCardHeader
-                      actor={t("humanSession.entryLabel")}
-                      action={null}
-                      timestamp={entry.createdAt}
-                    />
-                  }
-                >
-                  <HumanSessionEntryBody entry={entry} />
-                </TimelineCard>
-              </ConnectedTimelineItem>
-            ))}
-          </TimelineStack>
+          {shouldVirtualize ? (
+            <div
+              className="relative min-w-0"
+              style={{ height: entryVirtualizer.getTotalSize() }}
+            >
+              {entryVirtualizer.getVirtualItems().map((virtualEntry) => {
+                const entry = entries[virtualEntry.index];
+                return (
+                  <div
+                    key={entry.id}
+                    ref={entryVirtualizer.measureElement}
+                    data-index={virtualEntry.index}
+                    className="absolute left-0 top-0 w-full"
+                    style={{
+                      transform: `translateY(${virtualEntry.start}px)`,
+                    }}
+                  >
+                    {renderEntry(entry, virtualEntry.index)}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <TimelineStack>
+              {entries.map((entry, entryIndex) => (
+                <React.Fragment key={entry.id}>
+                  {renderEntry(entry, entryIndex)}
+                </React.Fragment>
+              ))}
+            </TimelineStack>
+          )}
         </main>
       </div>
 

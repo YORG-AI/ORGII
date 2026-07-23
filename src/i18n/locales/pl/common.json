@@ -961,7 +961,6 @@
     "addCssVariables": "Dodaj zmienne CSS do swojego projektu",
     "loadingAccountStatus": "Ładowanie statusu konta...",
     "noRepositorySelected": "Nie wybrano Repo",
-    "selectRepositoryFromHome": "Wybierz Repo ze strony głównej, aby otworzyć.",
     "noWorkspaceExplorerTitle": "Brak otwartego Workspace",
     "noWorkspaceExplorerSubtitle": "Otwórz Workspace, aby wyświetlić pliki",
     "cannotFindRepo": "Nie można znaleźć {{repoName}}",
@@ -992,7 +991,8 @@
     "scanningFileExtensions": "Skanowanie rozszerzeń plików...",
     "startBrowsingMarket": "Rozpocznij przeglądanie marketplace",
     "previewUnavailable": "Podgląd niedostępny",
-    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff."
+    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff.",
+    "selectRepositoryFromWorkspace": "Wybierz repozytorium z obszaru roboczego, aby je otworzyć."
   },
   "inbox": {
     "searchPlaceholder": "Szukaj wiadomości...",
@@ -1151,8 +1151,6 @@
       "tryVerifyUrl": "Zweryfikować poprawność URL",
       "tryAgainLater": "Spróbować ponownie później"
     },
-    "selectRepoFromHome": "Wybierz Repo ze strony głównej",
-    "cloneRepoAgain": "Sklonuj Repo ponownie ze strony głównej",
     "unsavedChangesTitle": "Niezapisane zmiany",
     "prkPlaceholder": "PRJ",
     "gitSyncMenuTitle": "Akcje synchronizacji Git"
@@ -1737,7 +1735,6 @@
     "ramCurrentSession": "Bieżąca sesja",
     "ramChatRenderedTree": "Renderowane drzewo Chat",
     "ramSessionStore": "Store sesji",
-    "ramStartSidebar": "Pasek boczny Start",
     "ramSessionSidebar": "Pasek boczny Session",
     "ramSecondLevelSidebars": "Paski boczne drugiego poziomu",
     "ramSettingsSidebar": "Pasek boczny Settings",
@@ -2174,20 +2171,7 @@
     }
   },
   "dragDrop": {
-    "dropFilesToUpload": "Upuść pliki do przesłania",
-    "dropFileToChat": "Upuść plik, aby dodać do czatu",
-    "dropFolderToAdd": "Upuść folder, aby dodać Repo",
-    "releaseToAddFiles": "Zwolnij, aby dodać pliki do swojej sesji",
-    "releaseToAddFileToChat": "Zwolnij, aby dodać plik do czatu (jak ⌘L)",
-    "releaseToOpenFolder": "Zwolnij, aby otworzyć folder",
-    "folderDetected": "Wykryto folder",
-    "openSpotlightToAdd": "Otwórz Spotlight, aby dodać ten folder jako Repo",
-    "openSpotlight": "Otwórz Spotlight",
-    "addedToChat": "Dodano \"{{name}}\" do czatu",
-    "couldNotExtractPath": "Nie udało się wyodrębnić ścieżki pliku z upuszczonego elementu",
-    "couldNotExtractPathFromItem": "Nie udało się wyodrębnić ścieżki pliku z upuszczonego elementu",
-    "dropFilesHere": "Upuść pliki tutaj",
-    "dragFilesFromIde": "Przeciągnij pliki lub karty z VS Code, aby dodać je do czatu"
+    "couldNotExtractPathFromItem": "Nie udało się wyodrębnić ścieżki pliku z upuszczonego elementu"
   },
   "contextList": {
     "task": "Zadanie",

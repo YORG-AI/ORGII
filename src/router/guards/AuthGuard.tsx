@@ -22,7 +22,7 @@ import {
  * Check if current path should bypass auth check
  */
 function isPublicPath(pathname: string): boolean {
-  // Login page itself (now inside AppShell at /orgii/app/login)
+  // Standalone login route.
   if (pathname === AUTH_ROUTES.login.path) return true;
   // OAuth callback routes (must process auth code first)
   if (pathname.includes("/marketplace/callback")) return true;

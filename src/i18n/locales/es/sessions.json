@@ -126,10 +126,11 @@
       "freq": {
         "default": "Predeterminado",
         "manual": "Manual",
-        "60s": "Cada 60s",
-        "5m": "Cada 5 min",
-        "1h": "Cada hora",
-        "1d": "Diario"
+        "60s": "Cada 60 s",
+        "120s": "Cada 120 s",
+        "10m": "Cada 10 min",
+        "30m": "Cada 30 min",
+        "1h": "Cada hora"
       },
       "openFolder": "Abrir carpeta",
       "tabs": {

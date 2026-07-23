@@ -144,8 +144,6 @@
     "jotai": "^2.8.2",
     "jotai-family": "^1.0.2",
     "jszip": "^3.10.1",
-    "keepalive-for-react": "4.0.3",
-    "keepalive-for-react-router": "1.0.1",
     "lodash": "^4.17.21",
     "lowlight": "^3.3.0",
     "lucide-react": "0.563.0",

@@ -5,7 +5,7 @@ import {
 } from "@/src/engines/TerminalCore/exports";
 import { useAtomValue, useSetAtom } from "jotai";
 import { Trash2 } from "lucide-react";
-import React, { Suspense, memo, useCallback, useMemo } from "react";
+import React, { Suspense, memo, useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
@@ -20,6 +20,8 @@ import {
   clearTerminalTargetReferencesAtom,
   codeEditorTerminalTargetAtom,
 } from "@src/store/workstation/codeEditor";
+
+import { resolveRestoredPtySessionId } from "./restorePtySelection";
 
 const TerminalCore = React.lazy(
   () => import("@/src/engines/TerminalCore/exports")
@@ -63,6 +65,17 @@ const TerminalMainContent: React.FC<TerminalMainContentProps> = ({
   const isAgentTerminal = terminalTarget?.kind === "agent";
   const terminalPid = activePtySession?.pid;
   const terminalShell = activePtySession?.shell ?? "zsh";
+
+  useEffect(() => {
+    const restoredSessionId = resolveRestoredPtySessionId(
+      terminalTarget,
+      terminalState.sessions,
+      terminalState.activeSessionId
+    );
+    if (restoredSessionId) {
+      terminalState.setActiveSession(restoredSessionId);
+    }
+  }, [terminalState, terminalTarget]);
 
   const handleNewTerminal = useCallback(
     (options?: {

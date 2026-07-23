@@ -34,7 +34,7 @@ import { useLaunchpadTab } from "./hooks/useLaunchpadTab";
 import { useTerminalTabTeardown } from "./hooks/useTerminalTabTeardown";
 
 interface AppShellProps {
-  /** Whether WorkStation is currently visible (code view mode is active) */
+  /** Whether the routed WorkStation surface is currently visible */
   isActive?: boolean;
   /** Whether the chat panel is taking over the WorkStation surface */
   chatPanelFocused?: boolean;

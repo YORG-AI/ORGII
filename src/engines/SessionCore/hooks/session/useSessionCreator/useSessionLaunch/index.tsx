@@ -40,11 +40,6 @@ import { runningLocationAtom } from "@src/store/session/runningLocationAtom";
 import { worktreeLaunchSelectionAtom } from "@src/store/session/worktreeLaunchSourceAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { triggerSessionExpired } from "@src/store/ui/uiAtom";
-import type { ViewModeType } from "@src/store/ui/viewModeAtom";
-import {
-  viewModeAtom,
-  viewModeSwitchingAtom,
-} from "@src/store/ui/viewModeAtom";
 import { workspaceFoldersAtom } from "@src/store/ui/workspaceFoldersAtom";
 import { emitOpenWorkspace } from "@src/util/ui/window/windowManager";
 
@@ -109,8 +104,6 @@ export function useSessionLaunch(
   const runningLocation = useAtomValue(runningLocationAtom);
   const worktreeLaunchSelection = useAtomValue(worktreeLaunchSelectionAtom);
   const workspaceFolders = useAtomValue(workspaceFoldersAtom);
-  const setViewMode = useSetAtom(viewModeAtom);
-  const setIsSwitching = useSetAtom(viewModeSwitchingAtom);
   const clearDraft = useSetAtom(sessionCreatorDraftAtom);
   const dispatchLoadSession = useSetAtom(loadSessionAtom);
   const setPendingSyntheticEvent = useSetAtom(pendingSyntheticEventAtom);
@@ -133,8 +126,6 @@ export function useSessionLaunch(
         navigate,
         setActiveSessionId,
         setWorkstationActiveSessionId,
-        setViewMode: (viewMode: ViewModeType) => setViewMode(viewMode),
-        setIsSwitching,
         clearDraft,
         setStationMode,
         forceNavigate,
@@ -147,9 +138,7 @@ export function useSessionLaunch(
       navigate,
       onLaunchSuccess,
       setActiveSessionId,
-      setIsSwitching,
       setStationMode,
-      setViewMode,
       setWorkstationActiveSessionId,
     ]
   );

@@ -14,7 +14,7 @@ import { atomWithStorage, createJSONStorage } from "jotai/utils";
 
 import type { WorkspaceRecord } from "@src/api/tauri/workspace";
 import type { WorkspaceFolder } from "@src/types/workspace";
-import { getWindowId } from "@src/util/core/state/windowScopedState";
+import { getWindowId } from "@src/util/core/state/windowId";
 
 // ============================================
 // Core Atom (window-scoped session storage)

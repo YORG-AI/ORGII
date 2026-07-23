@@ -61,15 +61,9 @@
     "startSession": "세션 시작",
     "sessions": "Session 목록",
     "selectProject": "Project 선택",
-    "startPage": "시작 페이지",
     "inbox": "받은 편지함",
     "login": "로그인",
     "setup": "설정",
-    "devJourney": "개발 여정",
-    "devRecord": "개발 기록",
-    "gitDashboard": "Git 대시보드",
-    "devActivity": "Dev 활동",
-    "usageHistory": "사용 내역",
     "tokenMarket": "Token 마켓",
     "taskMarket": "작업 마켓",
     "channels": "Channel",
@@ -85,20 +79,8 @@
     "ideaArea": "아이디어 공간",
     "changelog": "Changelog"
   },
-  "appGrid": {
-    "customizeGrid": "그리드 사용자 지정",
-    "horizontalGap": "수평 간격",
-    "verticalGap": "수직 간격",
-    "resetToDefault": "기본값으로 재설정"
-  },
-  "greetings": {
-    "morning": "좋은 아침입니다",
-    "afternoon": "좋은 오후입니다",
-    "evening": "좋은 저녁입니다"
-  },
   "sidebar": {
     "tabs": {
-      "build": "홈",
       "workstation": "Workstation",
       "manage": "관리",
       "core": "코어",
@@ -134,9 +116,7 @@
     "actions": {
       "addNew": "새로 추가",
       "collapseAll": "모두 접기",
-      "markAllRead": "모두 읽음으로 표시",
-      "openHome": "홈 열기",
-      "openWorkstation": "Workstation 열기"
+      "markAllRead": "모두 읽음으로 표시"
     },
     "search": {
       "folders": "워크스페이스 검색...",
@@ -357,15 +337,6 @@
       "workItems": "작업 항목",
       "projects": "프로젝트"
     }
-  },
-  "changelog": {
-    "title": "Changelog",
-    "subtitle": "제품 업데이트",
-    "commitCount": "{{count}} commits",
-    "commitCount_one": "{{count}} commit",
-    "details": "세부 정보",
-    "frontend": "Frontend",
-    "backend": "Backend"
   },
   "collaboration": {
     "switchOrg": "ORG 전환",

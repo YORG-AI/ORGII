@@ -10,12 +10,11 @@ import type {
 
 import type { FactoryViewMode } from "../FactoryViewPill";
 
-// The three secondary views are code-split and only fetched the first time
+// The two secondary views are code-split and only fetched the first time
 // the user switches to them. Because the `switch` below renders exactly one
 // branch, navigating away also unmounts (offloads) the previous view — its
 // DOM, virtualizers, and any in-flight data effects are torn down. Kanban is
 // the default view, so it stays eagerly imported to avoid a first-paint flash.
-const DataSourcePanel = lazy(() => import("@src/modules/shared/dataSource"));
 const DiaryView = lazy(() => import("../DiaryView"));
 const ListView = lazy(() => import("../ListView"));
 
@@ -70,12 +69,6 @@ const TaskKanbanContent: React.FC<TaskKanbanContentProps> = ({
   // boundary while their chunk loads. The fallback is an empty full-bleed
   // surface so the layout doesn't jump during the brief fetch.
   switch (viewMode) {
-    case "datasource":
-      return (
-        <Suspense fallback={<ViewFallback />}>
-          <DataSourcePanel />
-        </Suspense>
-      );
     case "diary":
       return (
         <Suspense fallback={<ViewFallback />}>

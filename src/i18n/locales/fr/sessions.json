@@ -126,10 +126,11 @@
       "freq": {
         "default": "Par défaut",
         "manual": "Manuel",
-        "60s": "Toutes les 60s",
-        "5m": "Toutes les 5 min",
-        "1h": "Toutes les heures",
-        "1d": "Quotidien"
+        "60s": "Toutes les 60 s",
+        "120s": "Toutes les 120 s",
+        "10m": "Toutes les 10 min",
+        "30m": "Toutes les 30 min",
+        "1h": "Toutes les heures"
       },
       "openFolder": "Ouvrir le dossier",
       "tabs": {

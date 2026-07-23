@@ -975,7 +975,6 @@
     "addCssVariables": "向项目添加 CSS 变量",
     "loadingAccountStatus": "正在加载账户状态...",
     "noRepositorySelected": "未选择仓库",
-    "selectRepositoryFromHome": "请从首页选择一个仓库以打开。",
     "noWorkspaceExplorerTitle": "未打开 Workspace",
     "noWorkspaceExplorerSubtitle": "打开工作区以查看文件",
     "cannotFindRepo": "找不到 {{repoName}}",
@@ -1006,7 +1005,8 @@
     "scanningFileExtensions": "Scanning file extensions...",
     "startBrowsingMarket": "Start browsing the marketplace",
     "previewUnavailable": "预览不可用",
-    "selectPrCommitToViewDiff": "从顶部选择一个 PR 提交来查看 diff。"
+    "selectPrCommitToViewDiff": "从顶部选择一个 PR 提交来查看 diff。",
+    "selectRepositoryFromWorkspace": "请从工作区选择一个仓库以打开。"
   },
   "inbox": {
     "searchPlaceholder": "搜索消息...",
@@ -1169,8 +1169,6 @@
       "tryVerifyUrl": "确认网址是否正确",
       "tryAgainLater": "稍后再试"
     },
-    "selectRepoFromHome": "请从首页选择一个仓库",
-    "cloneRepoAgain": "请从首页重新克隆仓库",
     "unsavedChangesTitle": "未保存的更改",
     "prkPlaceholder": "PRJ",
     "gitSyncMenuTitle": "Git 同步操作"
@@ -1760,7 +1758,6 @@
     "ramCurrentSession": "当前会话",
     "ramChatRenderedTree": "Chat 渲染树",
     "ramSessionStore": "Session store",
-    "ramStartSidebar": "Start 侧栏",
     "ramSessionSidebar": "Session 侧栏",
     "ramSecondLevelSidebars": "二级侧栏",
     "ramSettingsSidebar": "Settings 侧栏",
@@ -2221,20 +2218,7 @@
     }
   },
   "dragDrop": {
-    "dropFilesToUpload": "拖放文件以上传",
-    "dropFileToChat": "拖放文件以添加到聊天",
-    "dropFolderToAdd": "拖放文件夹以添加仓库",
-    "releaseToAddFiles": "释放以将文件添加到您的 Session",
-    "releaseToAddFileToChat": "释放以将文件添加到聊天（类似 ⌘L）",
-    "releaseToOpenFolder": "释放以打开文件夹",
-    "folderDetected": "检测到文件夹",
-    "openSpotlightToAdd": "打开 Spotlight 以将此文件夹添加为仓库",
-    "openSpotlight": "打开 Spotlight",
-    "addedToChat": "已将 \"{{name}}\" 添加到聊天",
-    "couldNotExtractPath": "无法从拖放中提取文件路径",
-    "couldNotExtractPathFromItem": "无法从拖放项中提取文件路径",
-    "dropFilesHere": "将文件拖放到这里",
-    "dragFilesFromIde": "从 VS Code 拖动文件或标签页以添加到聊天"
+    "couldNotExtractPathFromItem": "无法从拖放项中提取文件路径"
   },
   "contextList": {
     "task": "任务",

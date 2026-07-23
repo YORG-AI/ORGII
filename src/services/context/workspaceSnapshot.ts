@@ -11,7 +11,6 @@ import type {
 } from "@src/api/tauri/session/dispatchTypes";
 import type { CliAgentType } from "@src/api/types/keys";
 import type { TechSavvyLevel } from "@src/config/profile/userProfile";
-import type { ViewModeType } from "@src/config/viewModeTypes";
 import type {
   WorkStationTabCategory,
   WorkStationTabType,
@@ -45,7 +44,6 @@ export interface AppUiSnapshot {
     search: string;
     hash: string;
     href: string;
-    viewMode: ViewModeType;
   };
   workstation?: {
     stationMode: StationMode;

@@ -9,7 +9,6 @@ import {
   buildIntegrationsPath,
   buildWizardPath,
 } from "@src/config/mainAppPaths";
-import { useRouteViewMode } from "@src/config/routeViewModeConfig";
 import {
   CHAT_WIDTH_CSS_VAR,
   clampChatWidth,
@@ -104,7 +103,6 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     const shouldOffsetHeaderForCollapsedSidebar =
       useShouldOffsetChatPanelHeader({ position, useExternalWidth });
     const navigate = useNavigate();
-    const viewMode = useRouteViewMode();
     const { currentSessionId, currentSession, panelTitle } = usePanelTitle();
     const activeSession = currentSession ?? undefined;
     const humanSessionActive =
@@ -151,7 +149,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     const isChatFocus = useAtomValue(chatPanelMaximizedAtom);
     const syncActiveTabState = useSetAtom(syncActiveChatPanelTabStateAtom);
     const toggleChatFocus = useSetAtom(toggleChatPanelMaximizedAtom);
-    const showChatFocusToggle = viewMode === "workStation";
+    const showChatFocusToggle = true;
     const rawChatWidth = useAtomValue(chatWidthAtom);
     const viewportWidth = useViewportWidth();
     const chatMaxWidth = getChatMaxWidth(viewportWidth);
@@ -245,15 +243,19 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       handleOpenCliTerminal,
       handleOpenLaunchpadTab,
       handleOpenKanbanTab,
+      handleOpenChangelogTab,
       isTerminalTabActive,
       terminalTabs,
     } = useChatPanelTabsController({
       launchpadTitle: t("navigation:routes.launchpad"),
       kanbanTitle: t("sessions:simulator.tabs.kanban"),
+      changelogTitle: t("navigation:routes.changelog"),
       showSessionSurface,
     });
     const isStandaloneToolTabActive =
-      activeTab?.type === "work-management" || activeTab?.type === "runtime";
+      activeTab?.type === "work-management" ||
+      activeTab?.type === "runtime" ||
+      activeTab?.type === "changelog";
     const retargetChatPanelSession = useSetAtom(
       retargetChatPanelSessionTabAtom
     );
@@ -361,7 +363,6 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       selectedProjectOrg,
       selectedWorkItem,
       selectedWorkspace,
-      viewMode,
     });
 
     const setSelectedProject = useSetAtom(chatPanelSelectedProjectAtom);
@@ -473,6 +474,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
 
     const tabStripPlus = (
       <ChatPanelPlusMenu
+        onOpenChangelog={handleOpenChangelogTab}
         onOpenLaunchpad={handleOpenLaunchpadTab}
         onOpenKanban={handleOpenKanbanTab}
         onOpenRuntime={() =>

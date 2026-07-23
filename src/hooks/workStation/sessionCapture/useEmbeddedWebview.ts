@@ -6,7 +6,7 @@
  * - Open / close / updatePosition
  * - isOpen / isLoading / currentUrl state
  * - URL-change event listener with isMounted guard
- * - KeepAlive visibility polling (auto-close when host container is hidden)
+ * - Host visibility polling (auto-close while its mounted slot is hidden)
  * - Unmount cleanup
  *
  * Consumers supply the Tauri command names and the URL-change event name
@@ -205,11 +205,14 @@ export function useEmbeddedWebview({
     };
   }, [commands.urlChangedEvent, ignoreAboutBlank, log]);
 
-  // KeepAlive visibility polling — auto-close when host container is hidden
+  // The Workbench keeps inactive hosts mounted. Poll only while this webview is
+  // open or while waiting for a previously hidden host to become visible again.
   const wasHiddenWhileOpen = useRef(false);
 
   useEffect(() => {
-    if (!containerRef?.current) return;
+    if (!containerRef?.current || (!isOpen && !wasHiddenWhileOpen.current)) {
+      return;
+    }
 
     const checkVisibility = () => {
       const container = containerRef.current;

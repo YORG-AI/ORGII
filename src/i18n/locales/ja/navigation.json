@@ -61,15 +61,9 @@
     "startSession": "セッションを開始",
     "sessions": "Session一覧",
     "selectProject": "Projectを選択",
-    "startPage": "スタートページ",
     "inbox": "受信トレイ",
     "login": "ログイン",
     "setup": "セットアップ",
-    "devJourney": "Dev Journey",
-    "devRecord": "開発記録",
-    "gitDashboard": "Git ダッシュボード",
-    "devActivity": "Dev アクティビティ",
-    "usageHistory": "利用履歴",
     "tokenMarket": "Token マーケット",
     "taskMarket": "タスクマーケット",
     "channels": "Channel",
@@ -85,20 +79,8 @@
     "ideaArea": "アイデアエリア",
     "changelog": "Changelog"
   },
-  "appGrid": {
-    "customizeGrid": "グリッドのカスタマイズ",
-    "horizontalGap": "水平間隔",
-    "verticalGap": "垂直間隔",
-    "resetToDefault": "デフォルトにリセット"
-  },
-  "greetings": {
-    "morning": "おはようございます",
-    "afternoon": "こんにちは",
-    "evening": "こんばんは"
-  },
   "sidebar": {
     "tabs": {
-      "build": "ホーム",
       "workstation": "Workstation",
       "manage": "管理",
       "core": "コア",
@@ -134,9 +116,7 @@
     "actions": {
       "addNew": "新規追加",
       "collapseAll": "すべて折りたたむ",
-      "markAllRead": "すべて既読にする",
-      "openHome": "ホームを開く",
-      "openWorkstation": "Workstation を開く"
+      "markAllRead": "すべて既読にする"
     },
     "search": {
       "folders": "ワークスペースを検索...",
@@ -357,15 +337,6 @@
       "workItems": "作業項目",
       "projects": "プロジェクト"
     }
-  },
-  "changelog": {
-    "title": "Changelog",
-    "subtitle": "製品アップデート",
-    "commitCount": "{{count}} 件のコミット",
-    "commitCount_one": "{{count}} 件のコミット",
-    "details": "詳細",
-    "frontend": "Frontend",
-    "backend": "Backend"
   },
   "collaboration": {
     "switchOrg": "ORG を切り替え",

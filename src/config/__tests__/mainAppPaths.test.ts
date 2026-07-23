@@ -2,7 +2,6 @@ import {
   SETTINGS_ROUTE_ROOT,
   buildCodexReauthPath,
   classifySettingsRouteRoot,
-  deriveRouteCacheKey,
   filterDevModeIntegrationItems,
   getDevOnlyIntegrationRedirect,
   isIntegrationCategoryAvailable,
@@ -83,31 +82,5 @@ describe("dev-only Settings integrations", () => {
         false
       )
     ).toBeNull();
-  });
-});
-
-describe("deriveRouteCacheKey", () => {
-  it("keeps Settings cache keys split by React route root", () => {
-    expect(deriveRouteCacheKey("/orgii/app/settings")).toBe("settings/app");
-    expect(deriveRouteCacheKey("/orgii/app/settings/appearance")).toBe(
-      "settings/app"
-    );
-    expect(deriveRouteCacheKey("/orgii/app/settings/integrations/tools")).toBe(
-      "settings/integrations"
-    );
-    expect(deriveRouteCacheKey("/orgii/app/settings/agent-orgs/agents")).toBe(
-      "settings/agent-orgs"
-    );
-    expect(deriveRouteCacheKey("/orgii/app/settings/agent-orgs/orgs")).toBe(
-      "settings/agent-orgs"
-    );
-  });
-
-  it("ignores query strings inside the same Settings route root", () => {
-    expect(
-      deriveRouteCacheKey(
-        "/orgii/app/settings/integrations/tools?wizard=mcp-add"
-      )
-    ).toBe("settings/integrations");
   });
 });

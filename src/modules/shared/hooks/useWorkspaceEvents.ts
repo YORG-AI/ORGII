@@ -1,38 +1,29 @@
 /**
  * useWorkspaceEvents Hook
  *
- * Listens for Tauri workspace events and handles navigation
- * Extracted from index.tsx (lines 784-838)
+ * Listens for the Tauri workspace-open event and handles navigation.
  */
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef } from "react";
 
-import { useAppNavigation } from "@src/hooks/navigation/useAppNavigation";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
 import { isTauriDesktop } from "@src/util/platform/tauri";
 
-/**
- * Hook to handle Tauri workspace events
- * Listens for:
- * - open-workspace: Navigate to session workspace
- * - open-workflow-workspace: Navigate to create session with workflow params
- */
+/** Navigate to the session referenced by an `open-workspace` event. */
 export function useWorkspaceEvents(): void {
   const { openSession } = useSessionView();
-  const { goToNewSession } = useAppNavigation();
   const isTauri = isTauriDesktop();
 
-  const navRef = useRef({ openSession, goToNewSession });
+  const openSessionRef = useRef(openSession);
   useEffect(() => {
-    navRef.current = { openSession, goToNewSession };
-  }, [openSession, goToNewSession]);
+    openSessionRef.current = openSession;
+  }, [openSession]);
 
   useEffect(() => {
     if (!isTauri) return;
 
     let cancelled = false;
     let unlistenWorkspaceFn: (() => void) | null = null;
-    let unlistenWorkflowFn: (() => void) | null = null;
 
     listen("open-workspace", async (event) => {
       if (cancelled) return;
@@ -43,7 +34,7 @@ export function useWorkspaceEvents(): void {
       };
 
       if (sessionId && projectId) {
-        navRef.current.openSession(sessionId);
+        openSessionRef.current(sessionId);
       }
     }).then((unlisten) => {
       if (cancelled) {
@@ -53,28 +44,9 @@ export function useWorkspaceEvents(): void {
       }
     });
 
-    listen("open-workflow-workspace", async (event) => {
-      if (cancelled) return;
-      const { workflowId, projectId } = event.payload as {
-        workflowId: string;
-        projectId: string;
-      };
-
-      if (workflowId && projectId) {
-        navRef.current.goToNewSession({ workflowId, projectId });
-      }
-    }).then((unlisten) => {
-      if (cancelled) {
-        unlisten();
-      } else {
-        unlistenWorkflowFn = unlisten;
-      }
-    });
-
     return () => {
       cancelled = true;
       unlistenWorkspaceFn?.();
-      unlistenWorkflowFn?.();
     };
   }, [isTauri]);
 }

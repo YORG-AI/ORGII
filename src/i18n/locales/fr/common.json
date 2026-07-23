@@ -961,7 +961,6 @@
     "addCssVariables": "Ajoutez des variables CSS à votre projet",
     "loadingAccountStatus": "Chargement du statut du compte...",
     "noRepositorySelected": "Aucun dépôt sélectionné",
-    "selectRepositoryFromHome": "Choisissez un dépôt depuis l’accueil.",
     "noWorkspaceExplorerTitle": "Aucun workspace ouvert",
     "noWorkspaceExplorerSubtitle": "Ouvrir le workspace pour voir les fichiers",
     "cannotFindRepo": "Impossible de trouver {{repoName}}",
@@ -992,7 +991,8 @@
     "scanningFileExtensions": "Scanning file extensions...",
     "startBrowsingMarket": "Start browsing the marketplace",
     "previewUnavailable": "Aperçu indisponible",
-    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff."
+    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff.",
+    "selectRepositoryFromWorkspace": "Sélectionnez un dépôt dans votre espace de travail pour l’ouvrir."
   },
   "inbox": {
     "searchPlaceholder": "Rechercher des messages...",
@@ -1151,8 +1151,6 @@
       "tryVerifyUrl": "Vérifier que l’URL est correcte",
       "tryAgainLater": "Réessayer plus tard"
     },
-    "selectRepoFromHome": "Please select a repo from the home page",
-    "cloneRepoAgain": "Please clone the repo again from the home page",
     "unsavedChangesTitle": "Unsaved Changes",
     "prkPlaceholder": "PRJ",
     "gitSyncMenuTitle": "Actions de synchronisation Git"
@@ -1738,7 +1736,6 @@
     "ramCurrentSession": "Session actuelle",
     "ramChatRenderedTree": "Arbre Chat rendu",
     "ramSessionStore": "Store de sessions",
-    "ramStartSidebar": "Barre latérale Start",
     "ramSessionSidebar": "Barre latérale Session",
     "ramSecondLevelSidebars": "Barres latérales de second niveau",
     "ramSettingsSidebar": "Barre latérale Settings",
@@ -2173,20 +2170,7 @@
     }
   },
   "dragDrop": {
-    "dropFilesToUpload": "Drop files to upload",
-    "dropFileToChat": "Drop file to add to chat",
-    "dropFolderToAdd": "Drop folder to add repo",
-    "releaseToAddFiles": "Release to add files to your session",
-    "releaseToAddFileToChat": "Release to add file to chat (like ⌘L)",
-    "releaseToOpenFolder": "Release to open the folder",
-    "folderDetected": "Folder Detected",
-    "openSpotlightToAdd": "Open Spotlight to add this folder as a repo",
-    "openSpotlight": "Open Spotlight",
-    "addedToChat": "Added \"{{name}}\" to chat",
-    "couldNotExtractPath": "Could not extract file path from drop",
-    "couldNotExtractPathFromItem": "Could not extract file path from dropped item",
-    "dropFilesHere": "Drop files here",
-    "dragFilesFromIde": "Drag files or tabs from VS Code to add them to chat"
+    "couldNotExtractPathFromItem": "Could not extract file path from dropped item"
   },
   "contextList": {
     "task": "Task",

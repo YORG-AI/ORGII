@@ -434,6 +434,15 @@ export function processChatItems(
       continue;
     }
 
+    // Initial hydration may inject one synthetic placeholder event. Keep it
+    // standalone so ActivityRouter can render the shared loading block instead
+    // of letting tool classification fold it into an activity group.
+    if (event.id === "loading") {
+      flushAllBuffers();
+      result.push(eventToItem(event));
+      continue;
+    }
+
     // Merge args from running event into result events with empty args
     if (
       event.actionType === "tool_call" &&

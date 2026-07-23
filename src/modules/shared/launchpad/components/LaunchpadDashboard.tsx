@@ -558,7 +558,7 @@ const LaunchpadDashboard: React.FC<LaunchpadDashboardProps> = memo(
 
     const handleAddAgent = useCallback(() => {
       navigateTo(
-        buildWizardPath(ROUTES.app.home.agentOrgs.path, WIZARD_IDS.AGENT_ADD)
+        buildWizardPath(ROUTES.app.agentOrgs.path, WIZARD_IDS.AGENT_ADD)
       );
     }, [navigateTo]);
 

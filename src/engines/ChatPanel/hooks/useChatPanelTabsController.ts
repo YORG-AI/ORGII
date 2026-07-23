@@ -5,6 +5,7 @@ import {
   activeChatPanelTabAtom,
   addChatPanelTerminalTabAtom,
   chatPanelTabsAtom,
+  openChangelogInChatPanelTabAtom,
   openOrFocusChatPanelStartPageTabAtom,
   openWorkManagementChatPanelTabAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
@@ -16,12 +17,14 @@ import type { ChatPanelCliTerminalLaunchOptions } from "../types";
 interface UseChatPanelTabsControllerOptions {
   launchpadTitle: string;
   kanbanTitle: string;
+  changelogTitle: string;
   showSessionSurface: () => void;
 }
 
 export function useChatPanelTabsController({
   launchpadTitle,
   kanbanTitle,
+  changelogTitle,
   showSessionSurface,
 }: UseChatPanelTabsControllerOptions) {
   const activeTab = useAtomValue(activeChatPanelTabAtom);
@@ -29,6 +32,7 @@ export function useChatPanelTabsController({
   const openStartPageTab = useSetAtom(openOrFocusChatPanelStartPageTabAtom);
   const addTerminalTab = useSetAtom(addChatPanelTerminalTabAtom);
   const openKanbanTab = useSetAtom(openWorkManagementChatPanelTabAtom);
+  const openChangelogTab = useSetAtom(openChangelogInChatPanelTabAtom);
   const createTerminalSession = useSetAtom(createChatPanelTerminalAtom);
 
   const handleNewTerminalTab = useCallback(() => {
@@ -73,6 +77,10 @@ export function useChatPanelTabsController({
     });
   }, [kanbanTitle, openKanbanTab]);
 
+  const handleOpenChangelogTab = useCallback(() => {
+    openChangelogTab(changelogTitle);
+  }, [changelogTitle, openChangelogTab]);
+
   const isTerminalTabActive = activeTab?.type === "terminal";
   const terminalTabs = allTabs.filter(
     (tab) => tab.type === "terminal" && tab.terminalSessionId
@@ -85,6 +93,7 @@ export function useChatPanelTabsController({
     handleOpenCliTerminal,
     handleOpenLaunchpadTab,
     handleOpenKanbanTab,
+    handleOpenChangelogTab,
     isTerminalTabActive,
     terminalTabs,
   };
