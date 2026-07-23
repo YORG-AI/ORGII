@@ -8,7 +8,7 @@
  *   - Expose groupMode state and derived Project groupings for the projects list
  */
 import { CalendarClock, Circle, Flag } from "lucide-react";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -18,6 +18,10 @@ import {
 } from "@src/api/http/integrations";
 import type { LinearProjectSummary } from "@src/api/http/integrations";
 import type { SelectOption } from "@src/components/Select";
+import {
+  type AsyncResourceFetchContext,
+  useAsyncResource,
+} from "@src/hooks/async";
 import type { StatusFilterType } from "@src/modules/ProjectManager/WorkItems/types";
 import {
   countWorkItemsByStatus,
@@ -74,6 +78,22 @@ const TARGET_DATE_GROUPS = [
 ] as const;
 
 type TargetDateGroup = (typeof TARGET_DATE_GROUPS)[number];
+
+interface LinearIndexResource {
+  projects: LinearProjectSummary[];
+  workItems: WorkItem[];
+}
+
+interface LinearIndexScope {
+  connectionId: string;
+  surface: "projects" | "work-items";
+  teamId?: string;
+}
+
+const EMPTY_LINEAR_INDEX: LinearIndexResource = {
+  projects: [],
+  workItems: [],
+};
 
 // ============================================
 // Helpers (pure)
@@ -164,132 +184,108 @@ export function useLinearIndexData({
   const { t } = useTranslation(["projects", "common"]);
 
   // ---- Connection discovery ----
-  const [defaultConnectionId, setDefaultConnectionId] = useState<string | null>(
-    null
-  );
-  const [loadingConnections, setLoadingConnections] = useState(false);
-  const [connectionLoadError, setConnectionLoadError] = useState<string | null>(
-    null
-  );
-
-  useEffect(() => {
-    if (connectionId) return;
-
-    let cancelled = false;
-    setLoadingConnections(true);
-    setConnectionLoadError(null);
-    syncConnectionsApi
-      .list()
-      .then((connections) => {
-        if (cancelled) return;
-        const linearConnection = connections.find(
-          (connection) => connection.adapter_id === STORY_SYNC_ADAPTER.LINEAR
-        );
-        setDefaultConnectionId(linearConnection?.id ?? null);
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        const message = error instanceof Error ? error.message : String(error);
-        setDefaultConnectionId(null);
-        setConnectionLoadError(message);
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingConnections(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [connectionId]);
+  const discoverDefaultConnection = useCallback(async () => {
+    const connections = await syncConnectionsApi.list();
+    return (
+      connections.find(
+        (connection) => connection.adapter_id === STORY_SYNC_ADAPTER.LINEAR
+      )?.id ?? null
+    );
+  }, []);
+  const connectionResource = useAsyncResource<string | null>({
+    enabled: !connectionId,
+    fetcher: discoverDefaultConnection,
+    initialData: null,
+    scopeKey: connectionId ? null : "linear-default-connection",
+  });
+  const defaultConnectionId = connectionResource.data;
+  const loadingConnections = connectionResource.loading;
+  const connectionLoadError = connectionResource.error;
 
   const effectiveConnectionId =
     connectionId ?? defaultConnectionId ?? undefined;
 
   // ---- Index data (projects + optional issues) ----
-  const [indexProjects, setIndexProjects] = useState<LinearProjectSummary[]>(
-    []
-  );
-  const [indexWorkItems, setIndexWorkItems] = useState<WorkItem[]>([]);
-  const [indexLoading, setIndexLoading] = useState(false);
-  const [indexLoaded, setIndexLoaded] = useState(false);
-  const [indexError, setIndexError] = useState<string | null>(null);
   const [indexStatusFilter, setIndexStatusFilter] =
     useState<StatusFilterType>("all");
 
-  const loadIndexData = useCallback(
+  const fetchIndexData = useCallback(
     async (
-      cancelled?: () => boolean,
-      options: { forceRefresh?: boolean } = {}
+      serializedScope: string,
+      context: AsyncResourceFetchContext<LinearIndexResource>
     ) => {
-      if (!effectiveConnectionId || projectId) return;
-
-      setIndexLoading(true);
-      setIndexLoaded(false);
-      setIndexError(null);
+      const scope = JSON.parse(serializedScope) as LinearIndexScope;
+      const forceRefresh = context.cause === "refresh";
       try {
         const projectsResult = await cachedLinearProjectsApi.listProjects(
-          effectiveConnectionId,
-          { forceRefresh: options.forceRefresh }
+          scope.connectionId,
+          { forceRefresh }
         );
-        if (cancelled?.()) return;
-        const visibleProjects = teamId
+        const projects = scope.teamId
           ? projectsResult.projects.filter((linearProject) =>
-              linearProject.teams.some((team) => team.id === teamId)
+              linearProject.teams.some((team) => team.id === scope.teamId)
             )
           : projectsResult.projects;
-        setIndexProjects(visibleProjects);
 
-        if (surface === "work-items") {
+        if (scope.surface === "work-items") {
           const issueResults = await Promise.all(
-            visibleProjects.map((linearProject) =>
+            projects.map((linearProject) =>
               cachedLinearProjectsApi.listProjectIssues(
-                effectiveConnectionId,
+                scope.connectionId,
                 linearProject.id,
-                { forceRefresh: options.forceRefresh }
+                { forceRefresh }
               )
             )
           );
-          if (cancelled?.()) return;
-          setIndexWorkItems(
-            issueResults.flatMap((result, resultIndex) => {
-              const linearProject = visibleProjects[resultIndex];
+          return {
+            projects,
+            workItems: issueResults.flatMap((result, resultIndex) => {
+              const linearProject = projects[resultIndex];
               return result.issues.map((issue) =>
                 linearIssueToWorkItem(issue, linearProject)
               );
-            })
-          );
-          return;
+            }),
+          };
         }
 
-        setIndexWorkItems([]);
+        return { projects, workItems: [] };
       } catch (error: unknown) {
-        if (cancelled?.()) return;
-        setIndexProjects([]);
-        setIndexWorkItems([]);
-        setIndexError(
+        throw new Error(
           errorMessage(error, t("linearProjects.errors.loadProjects"))
         );
-      } finally {
-        if (!cancelled?.()) {
-          setIndexLoaded(true);
-          setIndexLoading(false);
-        }
       }
     },
-    [effectiveConnectionId, projectId, surface, teamId, t]
+    [t]
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    void loadIndexData(() => cancelled);
-    return () => {
-      cancelled = true;
-    };
-  }, [loadIndexData]);
-
+  const indexScopeKey = useMemo(
+    () =>
+      effectiveConnectionId && !projectId
+        ? JSON.stringify({
+            connectionId: effectiveConnectionId,
+            surface,
+            teamId,
+          } satisfies LinearIndexScope)
+        : null,
+    [effectiveConnectionId, projectId, surface, teamId]
+  );
+  const indexResource = useAsyncResource({
+    enabled: Boolean(indexScopeKey),
+    fetcher: fetchIndexData,
+    initialData: EMPTY_LINEAR_INDEX,
+    scopeKey: indexScopeKey,
+  });
+  const indexProjects = indexResource.data.projects;
+  const indexWorkItems = indexResource.data.workItems;
+  const indexLoading = indexResource.loading;
+  const indexLoaded =
+    indexResource.status === "ready" || indexResource.status === "error";
+  const indexError = indexResource.error;
+  const refreshIndex = indexResource.refresh;
+  const setIndexData = indexResource.setData;
   const handleIndexRefresh = useCallback(() => {
-    void loadIndexData(undefined, { forceRefresh: true });
-  }, [loadIndexData]);
+    void refreshIndex();
+  }, [refreshIndex]);
 
   const [indexUpdateError, setIndexUpdateError] = useState<string | null>(null);
 
@@ -314,23 +310,24 @@ export function useLinearIndexData({
             updatedIssue.project.id
           );
         }
-        setIndexWorkItems((currentItems) =>
-          currentItems.map((currentItem) => {
+        setIndexData((current) => ({
+          ...current,
+          workItems: current.workItems.map((currentItem) => {
             if (currentItem.session_id !== workItemId) return currentItem;
             const parentProject = indexProjects.find(
               (linearProject) => linearProject.id === currentItem.project?.id
             );
             if (!parentProject) return currentItem;
             return linearIssueToWorkItem(updatedIssue, parentProject);
-          })
-        );
+          }),
+        }));
       } catch (err) {
         setIndexUpdateError(
           errorMessage(err, t("linearProjects.errors.updateIssue"))
         );
       }
     },
-    [effectiveConnectionId, indexProjects, t]
+    [effectiveConnectionId, indexProjects, setIndexData, t]
   );
 
   // ---- Index work item derived views ----

@@ -10,6 +10,10 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getGitRemotes } from "@src/api/http/git/remotes";
+import {
+  type AsyncResourceFetchContext,
+  useAsyncResource,
+} from "@src/hooks/async";
 import { createLogger } from "@src/hooks/logger";
 import {
   getCachedIssues,
@@ -42,6 +46,7 @@ import {
 } from "@src/store/workstation/codeEditor/workstationIssueAtom";
 import type { IssueFilterState } from "@src/store/workstation/codeEditor/workstationIssueAtom";
 import { workstationRepoScopeKey } from "@src/store/workstation/codeEditor/workstationPrAtom";
+import { LatestScopedTask } from "@src/util/core/latestScopedTask";
 
 import { filterIssuesByQuery } from "./workstationIssueHelpers";
 
@@ -75,6 +80,39 @@ function mergeUniqueIssues(
   ];
 }
 
+interface IssueSectionData {
+  hasMore: boolean;
+  issues: GitHubIssue[];
+  nextPage: number | null;
+}
+
+interface IssueSectionScope {
+  remoteUrl: string;
+  repoKey: string;
+  state: "closed" | "open";
+}
+
+interface PaginationState {
+  error: string | null;
+  scopeKey: string | null;
+  status: "error" | "idle" | "loading";
+}
+
+interface IssueRepoMetadata {
+  collaborators: GitHubIssueUser[];
+  labels: GitHubIssueLabel[];
+}
+
+const EMPTY_PAGINATION_STATE: PaginationState = {
+  error: null,
+  scopeKey: null,
+  status: "idle",
+};
+const EMPTY_ISSUE_REPO_METADATA: IssueRepoMetadata = {
+  collaborators: [],
+  labels: [],
+};
+
 export function useWorkstationIssues({
   repoPath,
   repoId,
@@ -103,66 +141,59 @@ export function useWorkstationIssues({
 
   // ── Auth / remote URL resolution ──────────────────────────────────────────
 
-  const [resolvedRemoteUrl, setResolvedRemoteUrl] = useState<string | null>(
-    null
-  );
   // Optimistic auth flag: true when the remote is a GitHub URL.
   // Credentials are resolved Rust-side from connection_token_store — no
   // pre-flight token ping needed. Real auth failures from API calls will
   // flip this to false, matching the trust model used by the PR panel.
   // Track whether we're still waiting for the remote URL to resolve so the
   // panel shows a spinner instead of the empty-state placeholder.
-  const [remoteUrlLoading, setRemoteUrlLoading] = useState(true);
   // Set to true when the API returns a re-authorization error so the UI can
   // show a targeted prompt instead of a generic error or empty state.
-  const [needsReAuth, setNeedsReAuth] = useState(false);
+  const [reAuthScopeKey, setReAuthScopeKey] = useState<string | null>(null);
 
-  const [repoLabels, setRepoLabels] = useState<GitHubIssueLabel[]>([]);
-  const [collaborators, setCollaborators] = useState<GitHubIssueUser[]>([]);
-
-  // Resolve origin remote URL if not provided via props
-  useEffect(() => {
-    let cancelled = false;
-
-    void (async () => {
-      if (remoteUrlProp) {
-        logger.debug("remote URL from prop", remoteUrlProp);
-        if (!cancelled) {
-          setResolvedRemoteUrl(remoteUrlProp);
-          setRemoteUrlLoading(false);
-        }
-        return;
-      }
-      if (!repoPath) {
-        if (!cancelled) setRemoteUrlLoading(false);
-        return;
-      }
-
-      logger.debug("fetching remotes", { repoPath, repoId: apiRepoId });
-      try {
-        const remotesData = await getGitRemotes({
-          repo_id: apiRepoId,
-          repo_path: repoPath,
-        });
-        logger.debug("getGitRemotes result", remotesData);
-        const origin = remotesData?.remotes?.find((r) => r.name === "origin");
-        logger.debug("origin remote", origin);
-        if (!cancelled) {
-          if (origin?.url) {
-            setResolvedRemoteUrl(origin.url);
-          }
-          setRemoteUrlLoading(false);
-        }
-      } catch (err) {
-        logger.warn("getGitRemotes failed", err);
-        if (!cancelled) setRemoteUrlLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
+  const remoteScopeKey = JSON.stringify({
+    apiRepoId,
+    remoteUrl: remoteUrlProp ?? null,
+    repoPath,
+  });
+  const resolveRemoteUrl = useCallback(async (serializedScope: string) => {
+    const scope = JSON.parse(serializedScope) as {
+      apiRepoId: string;
+      remoteUrl: string | null;
+      repoPath: string;
     };
-  }, [repoPath, apiRepoId, remoteUrlProp]);
+    if (scope.remoteUrl) {
+      logger.debug("remote URL from prop", scope.remoteUrl);
+      return scope.remoteUrl;
+    }
+    if (!scope.repoPath) return null;
+
+    logger.debug("fetching remotes", {
+      repoPath: scope.repoPath,
+      repoId: scope.apiRepoId,
+    });
+    try {
+      const remotesData = await getGitRemotes({
+        repo_id: scope.apiRepoId,
+        repo_path: scope.repoPath,
+      });
+      const origin = remotesData?.remotes?.find(
+        (remote) => remote.name === "origin"
+      );
+      logger.debug("origin remote", origin);
+      return origin?.url ?? null;
+    } catch (error) {
+      logger.warn("getGitRemotes failed", error);
+      return null;
+    }
+  }, []);
+  const remoteResource = useAsyncResource<string | null>({
+    fetcher: resolveRemoteUrl,
+    initialData: null,
+    scopeKey: remoteScopeKey,
+  });
+  const resolvedRemoteUrl = remoteResource.data;
+  const remoteUrlLoading = remoteResource.loading;
 
   // Optimistically true when the remote resolves to a GitHub URL.
   // A valid GitHub URL means credentials should be available via
@@ -202,179 +233,261 @@ export function useWorkstationIssues({
   type SectionLoadState = "idle" | "loading" | "ready" | "error";
 
   // Seed from cache immediately so the list shows on re-entry without a spinner
-  const cached = getCachedIssues(repoKey);
-  const [openLoadState, setOpenLoadState] = useState<SectionLoadState>(
-    cached ? "ready" : "idle"
+  const cached = useMemo(() => getCachedIssues(repoKey), [repoKey]);
+  const openCacheStale = useMemo(() => isIssueCacheStale(repoKey), [repoKey]);
+  const closedCacheReady = useMemo(
+    () =>
+      Boolean(cached?.closedIssues.length) &&
+      !isIssueCacheStale(repoKey, "closed"),
+    [cached, repoKey]
   );
-  const [closedLoadState, setClosedLoadState] = useState<SectionLoadState>(
-    cached?.closedIssues.length && !isIssueCacheStale(repoKey, "closed")
-      ? "ready"
-      : "idle"
+  const openInitialData = useMemo<IssueSectionData>(
+    () => ({
+      hasMore: (cached?.openIssues.length ?? 0) >= ISSUE_PAGE_SIZE,
+      issues: cached?.openIssues ?? [],
+      nextPage: (cached?.openIssues.length ?? 0) >= ISSUE_PAGE_SIZE ? 2 : null,
+    }),
+    [cached]
   );
-  const [openIssues, setOpenIssues] = useState<GitHubIssue[]>(
-    cached?.openIssues ?? []
+  const closedInitialData = useMemo<IssueSectionData>(
+    () => ({
+      hasMore: (cached?.closedIssues.length ?? 0) >= ISSUE_PAGE_SIZE,
+      issues: cached?.closedIssues ?? [],
+      nextPage:
+        (cached?.closedIssues.length ?? 0) >= ISSUE_PAGE_SIZE ? 2 : null,
+    }),
+    [cached]
   );
-  const [closedIssues, setClosedIssues] = useState<GitHubIssue[]>(
-    cached?.closedIssues ?? []
-  );
-  const [openHasMore, setOpenHasMore] = useState(
-    (cached?.openIssues.length ?? 0) >= ISSUE_PAGE_SIZE
-  );
-  const [closedHasMore, setClosedHasMore] = useState(
-    (cached?.closedIssues.length ?? 0) >= ISSUE_PAGE_SIZE
-  );
-  const [openNextPage, setOpenNextPage] = useState<number | null>(
-    (cached?.openIssues.length ?? 0) >= ISSUE_PAGE_SIZE ? 2 : null
-  );
-  const [closedNextPage, setClosedNextPage] = useState<number | null>(
-    (cached?.closedIssues.length ?? 0) >= ISSUE_PAGE_SIZE ? 2 : null
-  );
-  const [openLoadingMore, setOpenLoadingMore] = useState(false);
-  const [closedLoadingMore, setClosedLoadingMore] = useState(false);
-  const [openError, setOpenError] = useState<string | null>(null);
-  const [closedError, setClosedError] = useState<string | null>(null);
 
-  const handleFetchError = useCallback(
-    (
-      error: string,
-      setError: (e: string | null) => void,
-      setLoad: (s: SectionLoadState) => void
+  const openScopeKey = useMemo(
+    () =>
+      resolvedRemoteUrl && hasGitHubAuth
+        ? JSON.stringify({
+            remoteUrl: resolvedRemoteUrl,
+            repoKey,
+            state: "open",
+          } satisfies IssueSectionScope)
+        : null,
+    [hasGitHubAuth, repoKey, resolvedRemoteUrl]
+  );
+  const closedScopeKey = useMemo(
+    () =>
+      resolvedRemoteUrl && hasGitHubAuth
+        ? JSON.stringify({
+            remoteUrl: resolvedRemoteUrl,
+            repoKey,
+            state: "closed",
+          } satisfies IssueSectionScope)
+        : null,
+    [hasGitHubAuth, repoKey, resolvedRemoteUrl]
+  );
+  const needsReAuth =
+    reAuthScopeKey === openScopeKey || reAuthScopeKey === closedScopeKey;
+
+  const fetchIssueSection = useCallback(
+    async (
+      serializedScope: string,
+      context: AsyncResourceFetchContext<IssueSectionData>
     ) => {
-      const isReAuth =
-        /ReAuthError/i.test(error) || /re-authorization required/i.test(error);
-      if (isReAuth) {
-        setNeedsReAuth(true);
-      } else {
-        setError(error);
+      const scope = JSON.parse(serializedScope) as IssueSectionScope;
+      const result = await fetchIssues(scope.remoteUrl, {
+        state: scope.state,
+        page: 1,
+        perPage: ISSUE_PAGE_SIZE,
+      });
+      if (result.error) {
+        const isReAuth =
+          /ReAuthError/i.test(result.error) ||
+          /re-authorization required/i.test(result.error);
+        if (isReAuth && context.isCurrent()) {
+          setReAuthScopeKey(serializedScope);
+        }
+        throw new Error(result.error);
       }
-      setLoad("error");
+      const data = {
+        hasMore: result.data!.has_more,
+        issues: result.data!.issues,
+        nextPage: result.data!.next_page,
+      };
+      if (context.isCurrent()) {
+        if (scope.state === "open") {
+          updateCachedOpenIssues(scope.repoKey, data.issues);
+        } else {
+          updateCachedClosedIssues(scope.repoKey, data.issues);
+        }
+      }
+      return data;
     },
-    [setNeedsReAuth]
+    []
   );
 
-  const fetchOpen = useCallback(async () => {
-    if (!resolvedRemoteUrl || !hasGitHubAuth) return;
-    setOpenLoadState("loading");
-    setOpenError(null);
-    const result = await fetchIssues(resolvedRemoteUrl, {
-      state: "open",
-      page: 1,
-      perPage: ISSUE_PAGE_SIZE,
-    });
-    if (!mountedRef.current) return;
-    if (result.error) {
-      handleFetchError(result.error, setOpenError, setOpenLoadState);
-      return;
-    }
-    const issues = result.data!.issues;
-    setOpenIssues(issues);
-    setOpenHasMore(result.data!.has_more);
-    setOpenNextPage(result.data!.next_page);
-    setOpenLoadState("ready");
-    updateCachedOpenIssues(repoKey, issues);
-  }, [resolvedRemoteUrl, hasGitHubAuth, handleFetchError, repoKey]);
+  const openResource = useAsyncResource({
+    autoLoad: Boolean(openScopeKey) && openCacheStale,
+    enabled: Boolean(openScopeKey),
+    fetcher: fetchIssueSection,
+    initialData: openInitialData,
+    initialStatus: cached ? "ready" : "idle",
+    scopeKey: openScopeKey,
+  });
+  const closedResource = useAsyncResource({
+    autoLoad: false,
+    enabled: Boolean(closedScopeKey),
+    fetcher: fetchIssueSection,
+    initialData: closedInitialData,
+    initialStatus: closedCacheReady ? "ready" : "idle",
+    scopeKey: closedScopeKey,
+  });
 
-  const fetchClosed = useCallback(async () => {
-    if (!resolvedRemoteUrl || !hasGitHubAuth) return;
-    setClosedLoadState("loading");
-    setClosedError(null);
-    const result = await fetchIssues(resolvedRemoteUrl, {
-      state: "closed",
-      page: 1,
-      perPage: ISSUE_PAGE_SIZE,
-    });
-    if (!mountedRef.current) return;
-    if (result.error) {
-      handleFetchError(result.error, setClosedError, setClosedLoadState);
-      return;
-    }
-    const issues = result.data!.issues;
-    setClosedIssues(issues);
-    setClosedHasMore(result.data!.has_more);
-    setClosedNextPage(result.data!.next_page);
-    setClosedLoadState("ready");
-    updateCachedClosedIssues(repoKey, issues);
-  }, [resolvedRemoteUrl, hasGitHubAuth, handleFetchError, repoKey]);
+  const {
+    data: openData,
+    error: openResourceError,
+    refresh: fetchOpen,
+    setData: setOpenData,
+    status: openResourceStatus,
+  } = openResource;
+  const {
+    data: closedData,
+    error: closedResourceError,
+    refresh: fetchClosed,
+    setData: setClosedData,
+    status: closedResourceStatus,
+  } = closedResource;
+  const [openPagination, setOpenPagination] = useState<PaginationState>(
+    EMPTY_PAGINATION_STATE
+  );
+  const [closedPagination, setClosedPagination] = useState<PaginationState>(
+    EMPTY_PAGINATION_STATE
+  );
+  const openPageCoordinator = useMemo(() => new LatestScopedTask(), []);
+  const closedPageCoordinator = useMemo(() => new LatestScopedTask(), []);
+
+  useEffect(() => {
+    openPageCoordinator.supersede();
+    return () => openPageCoordinator.supersede();
+  }, [openPageCoordinator, openScopeKey]);
+  useEffect(() => {
+    closedPageCoordinator.supersede();
+    return () => closedPageCoordinator.supersede();
+  }, [closedPageCoordinator, closedScopeKey]);
 
   const loadMoreOpen = useCallback(async () => {
-    if (!resolvedRemoteUrl || !hasGitHubAuth || !openHasMore || !openNextPage)
-      return;
-    setOpenLoadingMore(true);
-    setOpenError(null);
-    const result = await fetchIssues(resolvedRemoteUrl, {
-      state: "open",
-      page: openNextPage,
-      perPage: ISSUE_PAGE_SIZE,
-    });
-    if (!mountedRef.current) return;
-    setOpenLoadingMore(false);
-    if (result.error) {
-      handleFetchError(result.error, setOpenError, setOpenLoadState);
-      return;
-    }
-    setOpenIssues((current) => {
-      const issues = mergeUniqueIssues(current, result.data!.issues);
-      updateCachedOpenIssues(repoKey, issues);
-      return issues;
-    });
-    setOpenHasMore(result.data!.has_more);
-    setOpenNextPage(result.data!.next_page);
-  }, [
-    resolvedRemoteUrl,
-    hasGitHubAuth,
-    openHasMore,
-    openNextPage,
-    handleFetchError,
-    repoKey,
-  ]);
+    if (!openScopeKey || !openData.hasMore || !openData.nextPage) return;
+    const scope = JSON.parse(openScopeKey) as IssueSectionScope;
+    await openPageCoordinator.run(
+      `${openScopeKey}:${openData.nextPage}`,
+      async (context) => {
+        setOpenPagination({
+          error: null,
+          scopeKey: openScopeKey,
+          status: "loading",
+        });
+        const result = await fetchIssues(scope.remoteUrl, {
+          state: "open",
+          page: openData.nextPage!,
+          perPage: ISSUE_PAGE_SIZE,
+        });
+        if (!context.isCurrent()) return;
+        if (result.error) {
+          const isReAuth =
+            /ReAuthError/i.test(result.error) ||
+            /re-authorization required/i.test(result.error);
+          if (isReAuth) setReAuthScopeKey(openScopeKey);
+          setOpenPagination({
+            error: isReAuth ? null : result.error,
+            scopeKey: openScopeKey,
+            status: "error",
+          });
+          return;
+        }
+        setOpenData((current) => {
+          const issues = mergeUniqueIssues(current.issues, result.data!.issues);
+          updateCachedOpenIssues(scope.repoKey, issues);
+          return {
+            hasMore: result.data!.has_more,
+            issues,
+            nextPage: result.data!.next_page,
+          };
+        });
+        setOpenPagination({
+          error: null,
+          scopeKey: openScopeKey,
+          status: "idle",
+        });
+      }
+    );
+  }, [openData, openPageCoordinator, openScopeKey, setOpenData]);
 
   const loadMoreClosed = useCallback(async () => {
-    if (
-      !resolvedRemoteUrl ||
-      !hasGitHubAuth ||
-      !closedHasMore ||
-      !closedNextPage
-    )
-      return;
-    setClosedLoadingMore(true);
-    setClosedError(null);
-    const result = await fetchIssues(resolvedRemoteUrl, {
-      state: "closed",
-      page: closedNextPage,
-      perPage: ISSUE_PAGE_SIZE,
-    });
-    if (!mountedRef.current) return;
-    setClosedLoadingMore(false);
-    if (result.error) {
-      handleFetchError(result.error, setClosedError, setClosedLoadState);
-      return;
-    }
-    setClosedIssues((current) => {
-      const issues = mergeUniqueIssues(current, result.data!.issues);
-      updateCachedClosedIssues(repoKey, issues);
-      return issues;
-    });
-    setClosedHasMore(result.data!.has_more);
-    setClosedNextPage(result.data!.next_page);
-  }, [
-    resolvedRemoteUrl,
-    hasGitHubAuth,
-    closedHasMore,
-    closedNextPage,
-    handleFetchError,
-    repoKey,
-  ]);
+    if (!closedScopeKey || !closedData.hasMore || !closedData.nextPage) return;
+    const scope = JSON.parse(closedScopeKey) as IssueSectionScope;
+    await closedPageCoordinator.run(
+      `${closedScopeKey}:${closedData.nextPage}`,
+      async (context) => {
+        setClosedPagination({
+          error: null,
+          scopeKey: closedScopeKey,
+          status: "loading",
+        });
+        const result = await fetchIssues(scope.remoteUrl, {
+          state: "closed",
+          page: closedData.nextPage!,
+          perPage: ISSUE_PAGE_SIZE,
+        });
+        if (!context.isCurrent()) return;
+        if (result.error) {
+          const isReAuth =
+            /ReAuthError/i.test(result.error) ||
+            /re-authorization required/i.test(result.error);
+          if (isReAuth) setReAuthScopeKey(closedScopeKey);
+          setClosedPagination({
+            error: isReAuth ? null : result.error,
+            scopeKey: closedScopeKey,
+            status: "error",
+          });
+          return;
+        }
+        setClosedData((current) => {
+          const issues = mergeUniqueIssues(current.issues, result.data!.issues);
+          updateCachedClosedIssues(scope.repoKey, issues);
+          return {
+            hasMore: result.data!.has_more,
+            issues,
+            nextPage: result.data!.next_page,
+          };
+        });
+        setClosedPagination({
+          error: null,
+          scopeKey: closedScopeKey,
+          status: "idle",
+        });
+      }
+    );
+  }, [closedData, closedPageCoordinator, closedScopeKey, setClosedData]);
 
-  // Fetch open issues on mount / auth ready.
-  // Skip the network hit when the cache is still fresh (< 10 min) — the UI
-  // already shows cached rows so there's no spinner flash on re-entry.
-  // Deferred via setTimeout to avoid synchronous setState inside effect body.
-  useEffect(() => {
-    if (!resolvedRemoteUrl || !hasGitHubAuth) return;
-    if (!isIssueCacheStale(repoKey)) return;
-    const timer = setTimeout(() => void fetchOpen(), 0);
-    return () => clearTimeout(timer);
-  }, [resolvedRemoteUrl, hasGitHubAuth, fetchOpen, repoKey]);
+  const openLoadState: SectionLoadState =
+    openResourceStatus === "refreshing" ? "loading" : openResourceStatus;
+  const closedLoadState: SectionLoadState =
+    closedResourceStatus === "refreshing" ? "loading" : closedResourceStatus;
+  const openIssues = openData.issues;
+  const closedIssues = closedData.issues;
+  const openHasMore = openData.hasMore;
+  const closedHasMore = closedData.hasMore;
+  const openLoadingMore =
+    openPagination.scopeKey === openScopeKey &&
+    openPagination.status === "loading";
+  const closedLoadingMore =
+    closedPagination.scopeKey === closedScopeKey &&
+    closedPagination.status === "loading";
+  const openError = needsReAuth
+    ? null
+    : (openResourceError ??
+      (openPagination.scopeKey === openScopeKey ? openPagination.error : null));
+  const closedError = needsReAuth
+    ? null
+    : (closedResourceError ??
+      (closedPagination.scopeKey === closedScopeKey
+        ? closedPagination.error
+        : null));
 
   const refresh = useCallback(() => {
     void fetchOpen();
@@ -401,25 +514,24 @@ export function useWorkstationIssues({
   // Refetch on debounced search change (client-side filter applied in UI)
   // Search filtering is done client-side via filterIssuesByQuery helper
 
-  // Fetch repo labels + collaborators once auth is available
-  useEffect(() => {
-    if (!resolvedRemoteUrl || !hasGitHubAuth) return;
-    let cancelled = false;
-
-    void (async () => {
-      const [labelsResult, collabResult] = await Promise.all([
-        fetchRepoLabels(resolvedRemoteUrl),
-        fetchRepoCollaborators(resolvedRemoteUrl),
-      ]);
-      if (cancelled) return;
-      if (labelsResult.data) setRepoLabels(labelsResult.data);
-      if (collabResult.data) setCollaborators(collabResult.data);
-    })();
-
-    return () => {
-      cancelled = true;
+  const fetchRepoMetadata = useCallback(async (remoteUrl: string) => {
+    const [labelsResult, collaboratorsResult] = await Promise.all([
+      fetchRepoLabels(remoteUrl),
+      fetchRepoCollaborators(remoteUrl),
+    ]);
+    return {
+      collaborators: collaboratorsResult.data ?? [],
+      labels: labelsResult.data ?? [],
     };
-  }, [resolvedRemoteUrl, hasGitHubAuth]);
+  }, []);
+  const repoMetadataResource = useAsyncResource({
+    enabled: Boolean(resolvedRemoteUrl && hasGitHubAuth),
+    fetcher: fetchRepoMetadata,
+    initialData: EMPTY_ISSUE_REPO_METADATA,
+    scopeKey: resolvedRemoteUrl && hasGitHubAuth ? resolvedRemoteUrl : null,
+  });
+  const repoLabels = repoMetadataResource.data.labels;
+  const collaborators = repoMetadataResource.data.collaborators;
 
   // ── Issue selection ───────────────────────────────────────────────────────
 

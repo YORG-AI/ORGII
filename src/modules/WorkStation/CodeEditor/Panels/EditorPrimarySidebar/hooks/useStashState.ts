@@ -15,6 +15,10 @@ import { useTranslation } from "react-i18next";
 import { useActionSystemOptional } from "@src/ActionSystem";
 import { gitApi } from "@src/api/http/git";
 import type { StashEntry } from "@src/api/http/git/types";
+import {
+  type AsyncResourceFetchContext,
+  useAsyncResource,
+} from "@src/hooks/async";
 import { createLogger } from "@src/hooks/logger";
 import { showGitActionDialogSafely } from "@src/util/dialogs/gitActionDialog";
 
@@ -69,37 +73,54 @@ export function useStashState(
   const actionSystem = useActionSystemOptional();
   const dispatch = actionSystem?.dispatch;
 
-  const [stashes, setStashes] = useState<StashEntry[]>([]);
-  const [loading, setLoading] = useState(false);
   const [operationLoading, setOperationLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch stash list (data fetching, not an action - remains gitApi)
-  const refresh = useCallback(async () => {
-    if (!repoId) return;
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const result = await gitApi.gitStashList({
-        repo_id: repoId,
-        repo_path: repoPath,
-      });
-
-      if (result) {
-        setStashes(result.stashes);
-      } else {
-        setStashes([]);
+  const fetchStashes = useCallback(
+    async (
+      serializedScope: string,
+      context: AsyncResourceFetchContext<StashEntry[]>
+    ) => {
+      const scope = JSON.parse(serializedScope) as {
+        repoId: string;
+        repoPath: string;
+      };
+      try {
+        const result = await gitApi.gitStashList({
+          repo_id: scope.repoId,
+          repo_path: scope.repoPath,
+        });
+        return result?.stashes ?? [];
+      } catch (caughtError) {
+        log.error("[useStashState] Failed to fetch stash list:", caughtError);
+        if (context.isCurrent()) context.publish([]);
+        throw caughtError;
       }
-    } catch (err) {
-      log.error("[useStashState] Failed to fetch stash list:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch stashes");
-      setStashes([]);
-    } finally {
-      setLoading(false);
-    }
+    },
+    []
+  );
+  const scopeKey = repoId ? JSON.stringify({ repoId, repoPath }) : null;
+  const stashResource = useAsyncResource<StashEntry[]>({
+    autoLoad,
+    enabled: Boolean(scopeKey),
+    fetcher: fetchStashes,
+    initialData: [],
+    scopeKey,
+  });
+  const refreshResource = stashResource.refresh;
+  const refresh = useCallback(async () => {
+    setError(null);
+    await refreshResource();
+  }, [refreshResource]);
+
+  useEffect(() => {
+    setError(null);
   }, [repoId, repoPath]);
+
+  /*
+   * Operation state remains local: it represents an explicit user mutation,
+   * while the list resource above owns only read/refresh lifecycle.
+   */
 
   // Create a new stash - uses dispatch
   const stashPush = useCallback(
@@ -390,18 +411,11 @@ export function useStashState(
     [repoId, repoPath, refresh, dispatch, t]
   );
 
-  // Auto-load on mount
-  useEffect(() => {
-    if (autoLoad && repoId) {
-      refresh();
-    }
-  }, [autoLoad, repoId, refresh]);
-
   return {
-    stashes,
-    loading,
-    error,
-    stashCount: stashes.length,
+    stashes: stashResource.data,
+    loading: stashResource.loading,
+    error: error ?? stashResource.error,
+    stashCount: stashResource.data.length,
     refresh,
     stashPush,
     stashApply,
