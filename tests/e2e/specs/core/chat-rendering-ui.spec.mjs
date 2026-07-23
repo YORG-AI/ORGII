@@ -2520,8 +2520,29 @@ async function assertIssue443RealCodexSessionStaysBounded() {
   const firstGrowth = Math.max(0, samples[0].openBytes - baselineBytes);
   const steadyReference = samples[warmupCycles - 1].releasedBytes;
   const measuredTail = samples.slice(warmupCycles);
+  // A one-second post-switch sample proves the foreground lifecycle released
+  // its owners, but WebKit may return allocator pages to macOS later. Keep the
+  // hard 250 MiB threshold and give the renderer one bounded idle window to
+  // demonstrate that the high-water mark is reclaimable rather than live.
+  const idleReleaseSamples = [];
+  for (let sampleIndex = 0; sampleIndex < 6; sampleIndex += 1) {
+    await browser.pause(5_000);
+    const memoryIdle = await invokeTauriCommand("get_app_memory_snapshot_v1");
+    idleReleaseSamples.push({
+      elapsedMs: (sampleIndex + 1) * 5_000,
+      releasedBytes: Number(memoryIdle?.effective_total_bytes ?? 0),
+      releasedProcesses: (memoryIdle?.processes ?? []).map((processRow) => ({
+        pid: processRow.pid,
+        role: processRow.role,
+        mib: Number(
+          (Number(processRow.effective_memory_bytes ?? 0) / MIB).toFixed(1)
+        ),
+      })),
+    });
+  }
+  const settledCandidates = [...measuredTail, ...idleReleaseSamples];
   const settledBytes = Math.min(
-    ...measuredTail.map((sample) => sample.releasedBytes)
+    ...settledCandidates.map((sample) => sample.releasedBytes)
   );
   const settledGrowth = Math.max(0, settledBytes - baselineBytes);
   const stepGrowth = Math.max(0, settledBytes - steadyReference);
@@ -2530,11 +2551,11 @@ async function assertIssue443RealCodexSessionStaysBounded() {
       ?.mib ?? 0;
   const backendStepGrowthMib = Math.max(
     0,
-    Math.min(...measuredTail.map(backendMib)) -
+    Math.min(...settledCandidates.map(backendMib)) -
       backendMib(samples[warmupCycles - 1])
   );
   console.log(
-    `[issue-443-real-codex] baseline=${(baselineBytes / MIB).toFixed(1)} MiB firstGrowth=${(firstGrowth / MIB).toFixed(1)} MiB settledGrowth=${(settledGrowth / MIB).toFixed(1)} MiB measuredStepGrowth=${(stepGrowth / MIB).toFixed(1)} MiB backendStepGrowth=${backendStepGrowthMib.toFixed(1)} MiB samples=${JSON.stringify(samples)}`
+    `[issue-443-real-codex] baseline=${(baselineBytes / MIB).toFixed(1)} MiB firstGrowth=${(firstGrowth / MIB).toFixed(1)} MiB settledGrowth=${(settledGrowth / MIB).toFixed(1)} MiB measuredStepGrowth=${(stepGrowth / MIB).toFixed(1)} MiB backendStepGrowth=${backendStepGrowthMib.toFixed(1)} MiB samples=${JSON.stringify(samples)} idleSamples=${JSON.stringify(idleReleaseSamples)}`
   );
   if (firstGrowth > 400 * MIB) {
     throw new Error(

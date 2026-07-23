@@ -3753,7 +3753,7 @@ fn persist_imported_shell_manifest(
             tx,
             event,
             source.as_str(),
-            &source_session_id,
+            source_session_id,
             generation,
         );
     }
@@ -4488,8 +4488,7 @@ fn read_external_shell_frames(
                 .ok_or_else(|| "external Shell frame offset overflow".to_string())?;
             let candidate_end = frame_index
                 .saturating_add(1)
-                .checked_mul(SHELL_REPLAY_FRAME_MAX_BYTES as u64)
-                .unwrap_or(u64::MAX)
+                .saturating_mul(SHELL_REPLAY_FRAME_MAX_BYTES as u64)
                 .min(segment.total_bytes);
             let local_frame_start =
                 external_shell_utf8_boundary(&blob, candidate_start, segment.total_bytes)?;
