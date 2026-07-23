@@ -26,21 +26,13 @@
  */
 import { MenuItem, Menu as TauriMenu } from "@tauri-apps/api/menu";
 import { useAtom, useAtomValue, useStore } from "jotai";
-import {
-  Bot,
-  GitFork,
-  ListFilter,
-  MoreHorizontal,
-  RefreshCw,
-} from "lucide-react";
+import { GitFork, ListFilter, MoreHorizontal, RefreshCw } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { deleteSession as deleteLocalSession } from "@src/api/tauri/agent";
-import { IMPORTED_HISTORY_SOURCE_DESCRIPTORS } from "@src/api/tauri/externalHistory";
 import { deleteOrgtrackCollaborationSession } from "@src/api/tauri/lineage";
-import Org2SessionIcon from "@src/assets/modelIcons/org2-session.svg";
 import DropdownItem from "@src/components/Dropdown/DropdownItem";
 import {
   DROPDOWN_CLASSES,
@@ -84,7 +76,7 @@ import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/compone
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import type { Session } from "@src/store/session";
 import { removeSession } from "@src/store/session";
-import { resolveSessionRowIcon } from "@src/util/session/sessionSidebarRow";
+import { resolveSessionDisplayMetadata } from "@src/util/session/sessionDisplayMetadata";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 import { separator } from "../useSessionMenuItems/menuItemBuilders";
@@ -451,19 +443,14 @@ export function useCloudSessionsSection({
       const relativeTime = row.lastActivityAt
         ? formatRelativeTime(row.lastActivityAt, "nano")
         : "";
-      const externalSourceId =
-        row.origin?.kind === "external_history" ? row.origin.source : undefined;
-      const externalSource = IMPORTED_HISTORY_SOURCE_DESCRIPTORS.find(
-        (source) => source.sourceId === externalSourceId
-      );
-      const sessionIcon = externalSource
-        ? resolveSessionRowIcon(externalSource.prefix)
-        : row.cliAgentType
-          ? resolveAgentIcon(row.cliAgentType)
-          : isFork
-            ? GitFork
-            : Bot;
-      const isOrg2Session = !externalSource && !row.cliAgentType;
+      const display = resolveSessionDisplayMetadata({
+        kind: "remote",
+        session: row,
+      });
+      const sessionIcon =
+        isFork && !display.externalSource && !display.agentType
+          ? GitFork
+          : resolveAgentIcon(display.agentIconId);
       // Unresolved session-comment threads (0014 listing counters): a small
       // count chip in the trailing accessory slot. On LEAF rows the slot
       // fades on hover to reveal the Replay/Fork actions (platform
@@ -546,9 +533,6 @@ export function useCloudSessionsSection({
         // Prefer the source/agent brand used by regular sessions. Cloud
         // scope is context, not the session's icon identity.
         icon: sessionIcon,
-        iconElement: isOrg2Session ? (
-          <Org2SessionIcon className="size-3.5" aria-hidden="true" />
-        ) : undefined,
         shortcut: relativeTime,
         trailingElement,
         disabled,

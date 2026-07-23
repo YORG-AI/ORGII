@@ -563,35 +563,46 @@ fn metadata_mtime_epoch_ms(metadata: &std::fs::Metadata) -> i64 {
         .unwrap_or(0)
 }
 
-/// Cached session counts for a source, split into top-level sessions and child
-/// sub-agent sessions. A session is a sub-agent when it has a parent — either a
-/// non-empty `parent_session_id` or a `:subagent:` id segment — which is exactly
-/// the signal the sidebar uses to collapse a session under its parent
-/// (`isPrimarySessionListSession`), independent of `listable`. This matters
-/// because sub-agents are represented two ways: Cursor hides them
-/// (`listable = 0`) while Claude Code / Codex / Cline keep them listable but
-/// collapsed. Returns `(sessions, subagents)`; the two sum to the source total.
-pub fn source_session_counts_from_conn(
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportedHistorySourceStats {
+    pub source: String,
+    pub session_count: usize,
+    pub subagent_count: usize,
+    pub last_used_at_ms: Option<i64>,
+}
+
+/// Aggregate every cached source in one indexed GROUP BY. Runtime's Scanning
+/// inventory previously issued two commands per source (and Cursor loaded its
+/// entire external database); this keeps the inventory read inside ORGII's
+/// incremental cache and transfers one compact row per source.
+pub fn all_source_stats_from_conn(
     conn: &Connection,
-    source: &str,
-) -> Result<(usize, usize), String> {
-    // Keep this predicate in sync with `isPrimarySessionListSession`
-    // (src/util/session/sessionVisibility.ts): a child = has a parent id.
+) -> Result<Vec<ImportedHistorySourceStats>, String> {
     const IS_SUBAGENT: &str =
         "(COALESCE(parent_session_id, '') != '' OR source_session_id LIKE '%:subagent:%')";
     let sql = format!(
-        "SELECT \
+        "SELECT source, \
             COALESCE(SUM(CASE WHEN {IS_SUBAGENT} THEN 0 ELSE 1 END), 0), \
-            COALESCE(SUM(CASE WHEN {IS_SUBAGENT} THEN 1 ELSE 0 END), 0) \
-         FROM imported_history_session_cache WHERE source = ?1"
+            COALESCE(SUM(CASE WHEN {IS_SUBAGENT} THEN 1 ELSE 0 END), 0), \
+            MAX(updated_at_ms) \
+         FROM imported_history_session_cache \
+         GROUP BY source"
     );
-    conn.query_row(&sql, [source], |row| {
-        Ok((
-            row.get::<_, i64>(0)? as usize,
-            row.get::<_, i64>(1)? as usize,
-        ))
-    })
-    .map_err(|err| format!("Failed to count imported history sessions: {err}"))
+    let mut statement = conn
+        .prepare(&sql)
+        .map_err(|err| format!("Failed to prepare imported history stats query: {err}"))?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok(ImportedHistorySourceStats {
+                source: row.get(0)?,
+                session_count: row.get::<_, i64>(1)? as usize,
+                subagent_count: row.get::<_, i64>(2)? as usize,
+                last_used_at_ms: row.get(3)?,
+            })
+        })
+        .map_err(|err| format!("Failed to query imported history stats: {err}"))?;
+    rows.collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(|err| format!("Failed to read imported history stats: {err}"))
 }
 
 fn query_cached_sessions_from_conn(

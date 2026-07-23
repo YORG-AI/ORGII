@@ -500,7 +500,6 @@ pub(crate) fn cmd_usage(
     let sort = parse_sort(opts.sort.as_deref())?;
     let limit = opts.limit.unwrap_or(50);
 
-    let summary = usage_dashboard::usage_summary(&conn, &filter)?;
     let sessions = usage_dashboard::usage_sessions(&conn, &filter, sort, 0, limit)?;
     // Trend series (daily) is computed for JSON consumers; the table view
     // shows the headline + per-session rows.
@@ -513,15 +512,18 @@ pub(crate) fn cmd_usage(
         limit,
         TrendBucket::Day,
         true,
+        true,
         false,
     )?;
+    let summary = overview.summary;
+    let trends = overview.trends;
 
     if let Some(formatter) = formatter_for(opts, formatters) {
         let context = serde_json::json!({
             "command": "usage",
             "summary": summary,
             "sessions": sessions,
-            "trends": overview.trends,
+            "trends": trends,
         });
         return render_template(formatter, &context);
     }
@@ -531,7 +533,7 @@ pub(crate) fn cmd_usage(
             to_json(&serde_json::json!({
                 "summary": summary,
                 "sessions": sessions,
-                "trends": overview.trends,
+                "trends": trends,
             }))?
         ),
         Format::Md => print!("{}", render_usage_md(&summary, &sessions)),

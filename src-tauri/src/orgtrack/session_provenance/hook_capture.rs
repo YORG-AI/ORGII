@@ -21,7 +21,13 @@ const DEFAULT_RECENT_HOOK_SIGNALS: usize = 50;
 const MAX_RECENT_HOOK_SIGNALS: usize = 500;
 const MAX_HOOK_PAYLOAD_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_DRAIN_BATCH: usize = 1_000;
+const MAX_SPOOL_FILES: usize = 10_000;
+const MAX_SPOOL_BYTES: u64 = 64 * 1024 * 1024;
+const IDLE_DRAIN_SAFETY_RESCAN: Duration = Duration::from_secs(5 * 60);
+const FAILED_DRAIN_RETRY: Duration = Duration::from_secs(30);
+const SPOOL_OVERFLOW_MARKER: &str = ".overflow";
 static INBOX_DRAIN_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+static INBOX_DRAIN_WAKE: OnceLock<tokio::sync::Notify> = OnceLock::new();
 
 /// Entry point used by `orgii --session-provenance-hook <source>`.
 /// Provenance failures are diagnostic only and never block the provider tool.
@@ -70,6 +76,12 @@ pub fn capture_hook_stdin(source: &str) -> Result<usize, String> {
     }
     if let Some(lifecycle) = lifecycle.as_ref() {
         spool_actor_lifecycle(lifecycle)?;
+    }
+    if !envelopes.is_empty() || lifecycle.is_some() {
+        // Wake the desktop's demand-driven drain. The durable files above are
+        // the source of truth, so a closed/restarting desktop merely falls
+        // back to its low-frequency safety rescan.
+        super::status_post::post_provenance_ready();
     }
     let session_start_source_session_id = codex_session_start_source_session_id(source, &payload);
     if let Err(error) = agent_cli::session_provenance::record_session_provenance_hook_activation(
@@ -182,6 +194,12 @@ fn spool_bytes(prefix: &str, identity: String, bytes: Vec<u8>) -> Result<(), Str
     if path.exists() {
         return Ok(());
     }
+    if !spool_has_capacity(&inbox, bytes.len() as u64)? {
+        // Explicit overflow policy: preserve the already-durable backlog and
+        // drop new diagnostic envelopes until the desktop drains it. This
+        // hook is observational and must never block the provider tool.
+        return Ok(());
+    }
     let temp_path = inbox.join(format!(".{prefix}{identity}.{}.tmp", std::process::id()));
     fs::write(&temp_path, bytes)
         .map_err(|err| format!("Failed to write {}: {err}", temp_path.display()))?;
@@ -199,6 +217,84 @@ fn spool_bytes(prefix: &str, identity: String, bytes: Vec<u8>) -> Result<(), Str
     }
 }
 
+fn spool_has_capacity(inbox: &Path, incoming_bytes: u64) -> Result<bool, String> {
+    let overflow_marker = inbox.join(SPOOL_OVERFLOW_MARKER);
+    if overflow_marker.exists() {
+        return Ok(false);
+    }
+
+    let mut file_count = 0usize;
+    let mut total_bytes = 0u64;
+    for entry in
+        fs::read_dir(inbox).map_err(|err| format!("Failed to read {}: {err}", inbox.display()))?
+    {
+        let Ok(entry) = entry else {
+            continue;
+        };
+        let path = entry.path();
+        if !path
+            .extension()
+            .is_some_and(|extension| extension == "json")
+        {
+            continue;
+        }
+        file_count = file_count.saturating_add(1);
+        total_bytes = total_bytes.saturating_add(
+            entry
+                .metadata()
+                .map(|metadata| metadata.len())
+                .unwrap_or_default(),
+        );
+        if spool_quota_exceeded(file_count, total_bytes, incoming_bytes) {
+            publish_overflow_marker(&overflow_marker);
+            return Ok(false);
+        }
+    }
+    if spool_quota_exceeded(file_count, total_bytes, incoming_bytes) {
+        publish_overflow_marker(&overflow_marker);
+        return Ok(false);
+    }
+    Ok(true)
+}
+
+fn spool_quota_exceeded(file_count: usize, total_bytes: u64, incoming_bytes: u64) -> bool {
+    file_count >= MAX_SPOOL_FILES || total_bytes.saturating_add(incoming_bytes) > MAX_SPOOL_BYTES
+}
+
+fn publish_overflow_marker(path: &Path) {
+    let payload = format!(
+        "Session-provenance spool reached its {} file / {} byte quota at {}. New envelopes are dropped until the desktop drains the backlog.\n",
+        MAX_SPOOL_FILES,
+        MAX_SPOOL_BYTES,
+        chrono::Utc::now().to_rfc3339()
+    );
+    if fs::write(path, payload).is_ok() {
+        app_paths::set_sensitive_file_permissions(path).ok();
+    }
+}
+
+fn collect_drain_batch(inbox: &Path) -> Result<Vec<std::path::PathBuf>, String> {
+    let mut files = Vec::with_capacity(MAX_DRAIN_BATCH);
+    for entry in
+        fs::read_dir(inbox).map_err(|err| format!("Failed to read {}: {err}", inbox.display()))?
+    {
+        let Ok(entry) = entry else {
+            continue;
+        };
+        let path = entry.path();
+        if path
+            .extension()
+            .is_some_and(|extension| extension == "json")
+        {
+            files.push(path);
+            if files.len() == MAX_DRAIN_BATCH {
+                break;
+            }
+        }
+    }
+    Ok(files)
+}
+
 pub(crate) fn drain_hook_inbox() -> Result<usize, String> {
     let _guard = INBOX_DRAIN_LOCK
         .get_or_init(|| Mutex::new(()))
@@ -208,14 +304,7 @@ pub(crate) fn drain_hook_inbox() -> Result<usize, String> {
     if !inbox.exists() {
         return Ok(0);
     }
-    let mut files = fs::read_dir(&inbox)
-        .map_err(|err| format!("Failed to read {}: {err}", inbox.display()))?
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| path.extension().is_some_and(|ext| ext == "json"))
-        .collect::<Vec<_>>();
-    files.sort();
-    files.truncate(MAX_DRAIN_BATCH);
+    let files = collect_drain_batch(&inbox)?;
 
     let mut conn = get_connection().map_err(|err| err.to_string())?;
     let mut drained = 0;
@@ -254,6 +343,12 @@ pub(crate) fn drain_hook_inbox() -> Result<usize, String> {
         })?;
         drained += 1;
     }
+    if drained > 0 {
+        // Producers that observed a full spool stop rescanning immediately.
+        // Clearing the marker after progress lets the next producer re-check
+        // the real bounded usage and resume only when capacity exists.
+        let _ = fs::remove_file(inbox.join(SPOOL_OVERFLOW_MARKER));
+    }
     Ok(drained)
 }
 
@@ -282,21 +377,42 @@ pub(crate) fn spawn_hook_inbox_drain_loop(app: tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
         loop {
             let result = tauri::async_runtime::spawn_blocking(drain_hook_inbox).await;
-            match result {
+            let next_wait = match result {
                 Ok(Ok(drained)) if drained > 0 => {
                     let _ = app.emit(super::RESOURCE_INTERACTIONS_CHANGED_EVENT, ());
+                    if drained == MAX_DRAIN_BATCH {
+                        Duration::ZERO
+                    } else {
+                        IDLE_DRAIN_SAFETY_RESCAN
+                    }
                 }
-                Ok(Ok(_)) => {}
+                Ok(Ok(_)) => IDLE_DRAIN_SAFETY_RESCAN,
                 Ok(Err(err)) => {
                     tracing::warn!(error = %err, "[SessionProvenance] Hook inbox drain failed");
+                    FAILED_DRAIN_RETRY
                 }
                 Err(err) => {
                     tracing::warn!(error = %err, "[SessionProvenance] Hook inbox drain task failed");
+                    FAILED_DRAIN_RETRY
                 }
+            };
+            if next_wait.is_zero() {
+                continue;
             }
-            tokio::time::sleep(Duration::from_secs(15)).await;
+            tokio::select! {
+                _ = tokio::time::sleep(next_wait) => {}
+                _ = inbox_drain_wake().notified() => {}
+            }
         }
     });
+}
+
+fn inbox_drain_wake() -> &'static tokio::sync::Notify {
+    INBOX_DRAIN_WAKE.get_or_init(tokio::sync::Notify::new)
+}
+
+pub(crate) fn notify_hook_inbox_ready() {
+    inbox_drain_wake().notify_one();
 }
 
 #[cfg(test)]
@@ -323,5 +439,17 @@ mod tests {
             codex_session_start_source_session_id(HookSource::Codex, &session_start),
             Some("task-with-start")
         );
+    }
+
+    #[test]
+    fn spool_quota_has_count_and_byte_hard_bounds() {
+        assert!(!spool_quota_exceeded(
+            MAX_SPOOL_FILES - 1,
+            MAX_SPOOL_BYTES - 1,
+            1,
+        ));
+        assert!(spool_quota_exceeded(MAX_SPOOL_FILES, 0, 1));
+        assert!(spool_quota_exceeded(0, MAX_SPOOL_BYTES, 1));
+        assert!(spool_quota_exceeded(0, u64::MAX, u64::MAX));
     }
 }

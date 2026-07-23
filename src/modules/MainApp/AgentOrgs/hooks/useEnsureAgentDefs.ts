@@ -39,7 +39,7 @@ const log = createLogger("useEnsureAgentDefs");
  * May return `false` for a brief period on first render if the atoms
  * haven't been loaded yet.
  */
-export function useEnsureAgentDefs(): boolean {
+export function useEnsureAgentDefs(enabled = true): boolean {
   const loaded = useAtomValue(agentDefsLoadedAtom);
   const setAllDefs = useSetAtom(allAgentDefsAtom);
   const setBuiltInAgents = useSetAtom(builtInAgentsAtom);
@@ -47,7 +47,7 @@ export function useEnsureAgentDefs(): boolean {
   const setLoaded = useSetAtom(agentDefsLoadedAtom);
 
   useEffect(() => {
-    if (loaded) return;
+    if (!enabled || loaded) return;
 
     let cancelled = false;
 
@@ -73,7 +73,7 @@ export function useEnsureAgentDefs(): boolean {
     };
     // Only run when `loaded` transitions from false to true (first time)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded]);
+  }, [enabled, loaded]);
 
   return loaded;
 }

@@ -53,6 +53,15 @@ const log = createLogger("useSessionChannel");
 
 const readySessionChannels = new Set<string>();
 const readySessionChannelWaiters = new Map<string, Set<() => void>>();
+type SessionEventListener = (raw: string) => void;
+
+interface SharedSessionChannel {
+  channel: Channel<string>;
+  lifecycle: SessionChannelLifecycle;
+  listeners: Set<SessionEventListener>;
+}
+
+const sharedSessionChannels = new Map<string, SharedSessionChannel>();
 
 function markSessionChannelReady(sessionId: string): void {
   readySessionChannels.add(sessionId);
@@ -230,6 +239,85 @@ export class SessionChannelLifecycle {
 }
 
 /**
+ * Share one backend IPC channel among every mounted consumer of a session.
+ *
+ * Work-item previews, file lists, and the full SessionCore can coexist. A
+ * subscriber adds only a callback; the first subscriber owns the backend
+ * registration and the last subscriber tears it down.
+ */
+export function subscribeToSessionEvents(
+  sessionId: string,
+  listener: SessionEventListener
+): () => void {
+  let shared = sharedSessionChannels.get(sessionId);
+  if (!shared) {
+    const channel = new Channel<string>();
+    const listeners = new Set<SessionEventListener>();
+    const lifecycle = new SessionChannelLifecycle(
+      sessionId,
+      {
+        subscribe: () =>
+          invoke<number>("subscribe_session_events", {
+            sessionId,
+            onEvent: channel,
+          }),
+        unsubscribe: (channelId) =>
+          invoke("unsubscribe_session_events", {
+            sessionId,
+            channelId,
+          }) as Promise<void>,
+        warn: (message, error) => log.warn(message, error),
+      },
+      (raw) => {
+        for (const subscriber of [...listeners]) {
+          try {
+            subscriber(raw);
+          } catch (error) {
+            log.warn(
+              `[SessionChannel] Subscriber failed (session=${sessionId}):`,
+              error
+            );
+          }
+        }
+      }
+    );
+    shared = { channel, lifecycle, listeners };
+    listeners.add(listener);
+    sharedSessionChannels.set(sessionId, shared);
+
+    channel.onmessage = (message: string) => {
+      recordPushEvent("channel", "session-events");
+      lifecycle.onMessage(message);
+    };
+    void lifecycle.start().then((channelId) => {
+      if (
+        channelId !== null &&
+        !lifecycle.isDestroyed() &&
+        sharedSessionChannels.get(sessionId)?.lifecycle === lifecycle
+      ) {
+        markSessionChannelReady(sessionId);
+      }
+    });
+  }
+
+  shared.listeners.add(listener);
+  let disposed = false;
+  return () => {
+    if (disposed) return;
+    disposed = true;
+    const current = sharedSessionChannels.get(sessionId);
+    if (!current) return;
+    current.listeners.delete(listener);
+    if (current.listeners.size > 0) return;
+
+    sharedSessionChannels.delete(sessionId);
+    readySessionChannels.delete(sessionId);
+    current.channel.onmessage = () => undefined;
+    void current.lifecycle.dispose();
+  };
+}
+
+/**
  * Subscribe to Tauri IPC Channel events for a specific session.
  *
  * @param sessionId - Session to subscribe to (null = no subscription)
@@ -249,44 +337,8 @@ export function useSessionChannel(
 
   useEffect(() => {
     if (!sessionId) return;
-
-    const channel = new Channel<string>();
-    const lifecycle = new SessionChannelLifecycle(
-      sessionId,
-      {
-        subscribe: () =>
-          invoke<number>("subscribe_session_events", {
-            sessionId,
-            onEvent: channel,
-          }),
-        unsubscribe: (channelId) =>
-          invoke("unsubscribe_session_events", {
-            sessionId,
-            channelId,
-          }) as Promise<void>,
-        warn: (message, error) => log.warn(message, error),
-      },
-      (raw) => onEventRef.current(raw)
+    return subscribeToSessionEvents(sessionId, (raw) =>
+      onEventRef.current(raw)
     );
-
-    channel.onmessage = (message: string) => {
-      recordPushEvent("channel", "session-events");
-      lifecycle.onMessage(message);
-    };
-
-    const subscription = lifecycle.start();
-    void subscription.then((channelId) => {
-      if (channelId !== null && !lifecycle.isDestroyed()) {
-        markSessionChannelReady(sessionId);
-      }
-    });
-
-    return () => {
-      readySessionChannels.delete(sessionId);
-      // Sever the callback eagerly; lifecycle.dispose() guards late messages,
-      // and replacing the Tauri handler also releases the React closure.
-      channel.onmessage = () => undefined;
-      void lifecycle.dispose();
-    };
   }, [sessionId]);
 }

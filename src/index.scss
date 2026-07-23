@@ -21,6 +21,16 @@
 @import "./features/CodeMirror/styles/diff-tokens";
 @import "./features/CodeMirror/styles/editor-tokens";
 
+// A desktop window that is hidden or unfocused must not keep WebView2's GPU
+// compositor awake for decorative pulses, progress bars, cursors, or skeletons.
+// Animations resume from their current phase as soon as the window regains
+// focus; transitions and application state are unaffected.
+html[data-window-focused="false"] *,
+html[data-window-focused="false"] *::before,
+html[data-window-focused="false"] *::after {
+  animation-play-state: paused !important;
+}
+
 * {
   margin: 0;
   padding: 0;

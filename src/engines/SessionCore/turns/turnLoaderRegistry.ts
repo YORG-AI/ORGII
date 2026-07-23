@@ -2,6 +2,7 @@ import { resolveExternalReplayTarget } from "@src/api/tauri/externalHistory/repl
 
 import { externalReplayTurnLoader } from "./externalReplayTurnLoader";
 import {
+  captureLoadedTurnRegistryGeneration,
   getPendingTurnLoad,
   markTurnBodyLoaded,
   trackPendingTurnLoad,
@@ -26,8 +27,9 @@ export async function loadSessionTurnBodyIntoStore(
   }
 
   const loader = getSessionTurnLoader(args.sessionId);
+  const generation = captureLoadedTurnRegistryGeneration(args.sessionId);
   const load = loader.loadTurnBodyIntoStore(args).then(() => {
-    markTurnBodyLoaded(args.sessionId, args.turnId);
+    markTurnBodyLoaded(args.sessionId, args.turnId, generation);
   });
   await trackPendingTurnLoad(args.sessionId, args.turnId, load);
 }

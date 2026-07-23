@@ -87,11 +87,19 @@ const AccountInlineDetails = React.lazy(
 interface LaunchpadCollapsibleSectionProps {
   title: string;
   children: React.ReactNode;
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const LaunchpadCollapsibleSection: React.FC<LaunchpadCollapsibleSectionProps> =
-  memo(({ title, children }) => (
-    <CollapsibleSection title={title} compact chevronStrokeWidth={1.75}>
+  memo(({ title, children, defaultOpen = true, onOpenChange }) => (
+    <CollapsibleSection
+      title={title}
+      defaultOpen={defaultOpen}
+      onOpenChange={onOpenChange}
+      compact
+      chevronStrokeWidth={1.75}
+    >
       {children}
     </CollapsibleSection>
   ));
@@ -359,32 +367,36 @@ const LaunchpadDashboard: React.FC<LaunchpadDashboardProps> = memo(
     const [refreshingAccountId, setRefreshingAccountId] = useState<
       string | null
     >(null);
+    const [accountsOpen, setAccountsOpen] = useState(false);
+    const [agentsOpen, setAgentsOpen] = useState(false);
+    const [containerEnginesOpen, setContainerEnginesOpen] = useState(false);
+    const [containersOpen, setContainersOpen] = useState(false);
 
     const {
       installedCliAgents,
       builtInRustAgents,
       customRustAgents,
       ready: catalogReady,
-    } = useLaunchpadAgentCatalog();
+    } = useLaunchpadAgentCatalog(agentsOpen);
 
     const {
       localAccounts,
       loading: keysLoading,
       refreshAccount,
-    } = useKeyVault({ autoLoad: true });
+    } = useKeyVault({ autoLoad: accountsOpen });
 
     const {
       containers,
       loading: containersLoading,
       error: containersError,
       refresh: refreshContainers,
-    } = useContainers();
+    } = useContainers(containersOpen);
     const {
       remoteEngines,
       loading: enginesLoading,
       error: enginesError,
       refresh: refreshEngines,
-    } = useContainerEngines();
+    } = useContainerEngines(containerEnginesOpen);
 
     const rankedAgents = useMemo<LaunchpadAgentAction[]>(() => {
       const cliRows = installedCliAgents
@@ -623,6 +635,8 @@ const LaunchpadDashboard: React.FC<LaunchpadDashboardProps> = memo(
               title={t("sessions:controlTower.myApiKeys", {
                 count: localAccounts.length,
               })}
+              defaultOpen={false}
+              onOpenChange={setAccountsOpen}
             >
               {keysLoading ? (
                 <Placeholder variant="loading" />
@@ -698,6 +712,8 @@ const LaunchpadDashboard: React.FC<LaunchpadDashboardProps> = memo(
                 title={t("sessions:controlTower.myAgents", {
                   count: rankedAgents.length,
                 })}
+                defaultOpen={false}
+                onOpenChange={setAgentsOpen}
               >
                 {!catalogReady ? (
                   <Placeholder variant="loading" />
@@ -744,6 +760,7 @@ const LaunchpadDashboard: React.FC<LaunchpadDashboardProps> = memo(
               error={enginesError}
               onRefresh={refreshEngines}
               defaultOpen={false}
+              onOpenChange={setContainerEnginesOpen}
               compact
             />
 
@@ -756,6 +773,7 @@ const LaunchpadDashboard: React.FC<LaunchpadDashboardProps> = memo(
               emptyTitle={t("navigation:launchpad.containers.emptyTitle")}
               emptySubtitle={t("navigation:launchpad.containers.emptySubtitle")}
               defaultOpen={false}
+              onOpenChange={setContainersOpen}
               compact
             />
           </div>

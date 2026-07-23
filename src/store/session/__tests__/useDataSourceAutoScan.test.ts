@@ -11,6 +11,7 @@ import {
   externalSessionsEnabledAtom,
 } from "../dataSourceConfigAtom";
 import {
+  nextDataSourceAutoScanDelay,
   runDataSourceAutoScan,
   startDataSourceAutoScanScheduler,
 } from "../useDataSourceAutoScan";
@@ -18,7 +19,7 @@ import {
 const mocks = vi.hoisted(() => ({
   externalCliSourceProbe: vi.fn(),
   externalHistoryRescanSources: vi.fn(),
-  loadSidebarSessions: vi.fn(),
+  loadExternalHistorySidebarSessions: vi.fn(),
   store: undefined as ReturnType<typeof createStore> | undefined,
 }));
 
@@ -29,7 +30,7 @@ vi.mock("@src/api/tauri/externalHistory", async (importOriginal) => ({
 }));
 
 vi.mock("../sessionAtom/loaders", () => ({
-  loadSidebarSessions: mocks.loadSidebarSessions,
+  loadExternalHistorySidebarSessions: mocks.loadExternalHistorySidebarSessions,
 }));
 
 vi.mock("@src/util/core/state/instrumentedStore", () => ({
@@ -70,8 +71,14 @@ describe("runDataSourceAutoScan", () => {
         sourceId,
         historyFound: true,
       }));
-    mocks.externalHistoryRescanSources.mockReset().mockResolvedValue(undefined);
-    mocks.loadSidebarSessions.mockReset().mockResolvedValue(undefined);
+    mocks.externalHistoryRescanSources
+      .mockReset()
+      .mockImplementation(async (sourceIds: string[]) => ({
+        changedSources: sourceIds,
+      }));
+    mocks.loadExternalHistorySidebarSessions
+      .mockReset()
+      .mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -80,7 +87,70 @@ describe("runDataSourceAutoScan", () => {
     vi.unstubAllGlobals();
   });
 
-  it("scans enabled non-manual sources immediately at startup", async () => {
+  it("defaults global provider discovery to a ten-minute cadence", () => {
+    expect(mocks.store?.get(dataSourceGlobalFrequencyAtom)).toBe("10m");
+  });
+
+  it("schedules directly at the next scan or presence deadline", () => {
+    const config: DataSourceConfigMap = Object.fromEntries(
+      IMPORTED_HISTORY_SOURCE_DESCRIPTORS.map(({ sourceId }) => [
+        sourceId,
+        { enabled: false, frequency: "default" as const, lastScannedAt: null },
+      ])
+    );
+    config.codex_app = {
+      enabled: true,
+      frequency: "60s",
+      lastScannedAt: NOW,
+    };
+
+    expect(
+      nextDataSourceAutoScanDelay(
+        NOW,
+        true,
+        true,
+        config,
+        { codex_app: { historyFound: true, checkedAt: NOW } },
+        "10m"
+      )
+    ).toBe(60_000);
+    expect(
+      nextDataSourceAutoScanDelay(
+        NOW,
+        false,
+        true,
+        config,
+        { codex_app: { historyFound: true, checkedAt: NOW } },
+        "10m"
+      )
+    ).toBe(10 * 60_000);
+  });
+
+  it("parks disabled scheduling and waits for the probe of an absent store", () => {
+    const config: DataSourceConfigMap = Object.fromEntries(
+      IMPORTED_HISTORY_SOURCE_DESCRIPTORS.map(({ sourceId }) => [
+        sourceId,
+        { enabled: false, frequency: "default" as const, lastScannedAt: null },
+      ])
+    );
+    config.cursor_ide = {
+      enabled: true,
+      frequency: "60s",
+      lastScannedAt: NOW - 60_000,
+    };
+    const presence = {
+      cursor_ide: { historyFound: false, checkedAt: NOW },
+    };
+
+    expect(
+      nextDataSourceAutoScanDelay(NOW, true, true, config, presence, "10m")
+    ).toBe(SOURCE_PRESENCE_PROBE_INTERVAL_MS);
+    expect(
+      nextDataSourceAutoScanDelay(NOW, true, false, config, presence, "10m")
+    ).toBeNull();
+  });
+
+  it("force scans enabled non-manual sources for explicit refreshes", async () => {
     mocks.store?.set(dataSourceGlobalFrequencyAtom, "60s");
     mocks.store?.set(dataSourceConfigAtom, {
       codex_app: {
@@ -101,12 +171,12 @@ describe("runDataSourceAutoScan", () => {
     expect(mocks.externalHistoryRescanSources).toHaveBeenCalledWith(
       expectedSources
     );
-    expect(mocks.loadSidebarSessions).toHaveBeenCalledWith({
-      forceRefresh: true,
-    });
+    expect(mocks.loadExternalHistorySidebarSessions).toHaveBeenCalledOnce();
     expect(
       mocks.externalHistoryRescanSources.mock.invocationCallOrder[0]
-    ).toBeLessThan(mocks.loadSidebarSessions.mock.invocationCallOrder[0]);
+    ).toBeLessThan(
+      mocks.loadExternalHistorySidebarSessions.mock.invocationCallOrder[0]
+    );
     expect(mocks.store?.get(dataSourceConfigAtom).codex_app.lastScannedAt).toBe(
       NOW
     );
@@ -140,7 +210,7 @@ describe("runDataSourceAutoScan", () => {
     expect(mocks.externalCliSourceProbe).toHaveBeenCalledOnce();
     expect(mocks.externalCliSourceProbe).toHaveBeenCalledWith("cursor_ide");
     expect(mocks.externalHistoryRescanSources).not.toHaveBeenCalled();
-    expect(mocks.loadSidebarSessions).not.toHaveBeenCalled();
+    expect(mocks.loadExternalHistorySidebarSessions).not.toHaveBeenCalled();
     expect(mocks.store?.get(dataSourcePresenceAtom).cursor_ide).toEqual({
       historyFound: false,
       checkedAt: NOW,
@@ -235,7 +305,7 @@ describe("runDataSourceAutoScan", () => {
     expect(mocks.externalHistoryRescanSources).toHaveBeenCalledWith([
       "cursor_ide",
     ]);
-    expect(mocks.loadSidebarSessions).toHaveBeenCalledOnce();
+    expect(mocks.loadExternalHistorySidebarSessions).toHaveBeenCalledOnce();
     expect(mocks.store?.get(dataSourcePresenceAtom).cursor_ide).toEqual({
       historyFound: true,
       checkedAt: NOW,
@@ -296,7 +366,35 @@ describe("runDataSourceAutoScan", () => {
     await runDataSourceAutoScan();
 
     expect(mocks.externalHistoryRescanSources).toHaveBeenCalledWith(["cline"]);
-    expect(mocks.loadSidebarSessions).toHaveBeenCalledOnce();
+    expect(mocks.loadExternalHistorySidebarSessions).toHaveBeenCalledOnce();
+  });
+
+  it("does not reload sidebar pages when an incremental scan changed nothing", async () => {
+    const config: DataSourceConfigMap = Object.fromEntries(
+      IMPORTED_HISTORY_SOURCE_DESCRIPTORS.map(({ sourceId }) => [
+        sourceId,
+        { enabled: false, frequency: "default" as const, lastScannedAt: null },
+      ])
+    );
+    config.codex_app = {
+      enabled: true,
+      frequency: "120s",
+      lastScannedAt: NOW - 120_000,
+    };
+    mocks.store?.set(dataSourceConfigAtom, config);
+    mocks.externalHistoryRescanSources.mockResolvedValueOnce({
+      changedSources: [],
+    });
+
+    await runDataSourceAutoScan();
+
+    expect(mocks.externalHistoryRescanSources).toHaveBeenCalledWith([
+      "codex_app",
+    ]);
+    expect(mocks.loadExternalHistorySidebarSessions).not.toHaveBeenCalled();
+    expect(mocks.store?.get(dataSourceConfigAtom).codex_app.lastScannedAt).toBe(
+      NOW
+    );
   });
 
   it("deduplicates overlapping startup passes", async () => {
@@ -315,9 +413,9 @@ describe("runDataSourceAutoScan", () => {
 
     let finishScan: (() => void) | undefined;
     mocks.externalHistoryRescanSources.mockImplementation(
-      () =>
-        new Promise<void>((resolve) => {
-          finishScan = resolve;
+      (sourceIds: string[]) =>
+        new Promise<{ changedSources: string[] }>((resolve) => {
+          finishScan = () => resolve({ changedSources: sourceIds });
         })
     );
 
@@ -329,7 +427,7 @@ describe("runDataSourceAutoScan", () => {
 
     finishScan?.();
     await Promise.all([first, second]);
-    expect(mocks.loadSidebarSessions).toHaveBeenCalledOnce();
+    expect(mocks.loadExternalHistorySidebarSessions).toHaveBeenCalledOnce();
   });
 
   it("holds unfocused sources to the 10-minute background floor", async () => {
@@ -374,9 +472,13 @@ describe("startDataSourceAutoScanScheduler", () => {
     vi.useFakeTimers();
     const source = new VisibilitySourceStub();
     const scan = vi.fn().mockResolvedValue(undefined);
-    const scheduler = startDataSourceAutoScanScheduler(source, scan, 30_000);
+    const scheduler = startDataSourceAutoScanScheduler(
+      source,
+      scan,
+      () => 30_000
+    );
 
-    expect(scan).toHaveBeenCalledWith(true);
+    expect(scan).toHaveBeenCalledWith(false);
     await vi.advanceTimersByTimeAsync(0);
     expect(vi.getTimerCount()).toBe(1);
 
@@ -400,18 +502,22 @@ describe("startDataSourceAutoScanScheduler", () => {
     expect(scan).toHaveBeenCalledTimes(3);
   });
 
-  it("defers the forced startup pass until an initially hidden app is visible", async () => {
+  it("defers the cadence-respecting startup pass until an initially hidden app is visible", async () => {
     vi.useFakeTimers();
     const source = new VisibilitySourceStub();
     source.visibilityState = "hidden";
     const scan = vi.fn().mockResolvedValue(undefined);
-    const scheduler = startDataSourceAutoScanScheduler(source, scan, 30_000);
+    const scheduler = startDataSourceAutoScanScheduler(
+      source,
+      scan,
+      () => 30_000
+    );
 
     expect(scan).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
 
     source.setVisibility("visible");
-    expect(scan).toHaveBeenCalledWith(true);
+    expect(scan).toHaveBeenCalledWith(false);
     await vi.advanceTimersByTimeAsync(0);
     expect(vi.getTimerCount()).toBe(1);
 

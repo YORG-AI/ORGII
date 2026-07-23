@@ -1,5 +1,4 @@
 import {
-  Bot,
   Clock,
   Eye,
   GitBranch,
@@ -11,9 +10,8 @@ import {
 import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
-import { IMPORTED_HISTORY_SOURCE_DESCRIPTORS } from "@src/api/tauri/externalHistory";
-import { formatAgentType } from "@src/assets/providers";
 import ModelIcon from "@src/components/ModelIcon";
+import { resolveAgentIcon } from "@src/config/agentIcons";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import {
   formatReplayDateLabel,
@@ -21,6 +19,10 @@ import {
 } from "@src/util/data/formatters/date";
 import { formatBranchLabel } from "@src/util/git/branchLabel";
 import { basename } from "@src/util/path";
+import {
+  type SessionDisplayMetadata,
+  resolveSessionDisplayMetadata,
+} from "@src/util/session/sessionDisplayMetadata";
 
 import HoverCardBase, {
   HoverCardPanel,
@@ -39,9 +41,18 @@ interface CloudSessionHoverCardContentProps {
   viewers?: readonly { displayName: string }[];
 }
 
+function renderAgentIcon(display: SessionDisplayMetadata) {
+  const AgentIcon = resolveAgentIcon(display.agentIconId);
+  return <AgentIcon size={13} strokeWidth={1.75} />;
+}
+
 export const CloudSessionHoverCardContent: React.FC<CloudSessionHoverCardContentProps> =
   memo(({ row, viewers = [] }) => {
     const { t, i18n } = useTranslation(["navigation", "sessions", "common"]);
+    const display = resolveSessionDisplayMetadata({
+      kind: "remote",
+      session: row,
+    });
     const repoName = row.repoScopeKey
       ? basename(row.repoScopeKey)
       : row.repoPath
@@ -58,11 +69,6 @@ export const CloudSessionHoverCardContent: React.FC<CloudSessionHoverCardContent
         })
       : "";
     const unresolvedComments = row.unresolvedCommentCount ?? 0;
-    const externalSourceId =
-      row.origin?.kind === "external_history" ? row.origin.source : undefined;
-    const externalSource = IMPORTED_HISTORY_SOURCE_DESCRIPTORS.find(
-      (source) => source.sourceId === externalSourceId
-    );
     const viewerNames = viewers
       .map((viewer) => viewer.displayName)
       .filter(Boolean)
@@ -84,7 +90,7 @@ export const CloudSessionHoverCardContent: React.FC<CloudSessionHoverCardContent
             <span>@{row.ownerDisplayName}</span>
           </div>
         </HoverCardRow>
-        {externalSource && (
+        {display.externalSource && (
           <HoverCardRow icon={<Pin size={13} strokeWidth={1.75} />}>
             <div className="truncate text-text-2">
               <span className="text-text-3">
@@ -93,33 +99,24 @@ export const CloudSessionHoverCardContent: React.FC<CloudSessionHoverCardContent
                 })}
               </span>
               <span className="mx-1 text-text-4">·</span>
-              <span>{externalSource.displayName}</span>
+              <span>{display.externalSource.displayName}</span>
             </div>
           </HoverCardRow>
         )}
-        {(row.cliAgentType || row.agentDisplayName || row.model) && (
-          <HoverCardRow
-            icon={
-              row.cliAgentType ? (
-                <ModelIcon agentType={row.cliAgentType} size={13} />
-              ) : (
-                <Bot size={13} strokeWidth={1.75} />
-              )
-            }
-          >
+        {(display.agentType ||
+          row.agentDisplayName ||
+          display.modelName ||
+          display.externalSource) && (
+          <HoverCardRow icon={renderAgentIcon(display)}>
             <div className="flex min-w-0 items-center truncate text-text-2">
-              <span className="truncate">
-                {row.cliAgentType
-                  ? formatAgentType(row.cliAgentType)
-                  : row.agentDisplayName || "Agent"}
-              </span>
-              {row.model && (
+              <span className="truncate">{display.agentLabel}</span>
+              {display.modelName && (
                 <>
                   <span className="mx-1 text-text-4">·</span>
                   <span className="mr-1 flex shrink-0 items-center">
-                    <ModelIcon modelName={row.model} size={13} />
+                    <ModelIcon modelName={display.modelName} size={13} />
                   </span>
-                  <span className="truncate">{row.model}</span>
+                  <span className="truncate">{display.modelName}</span>
                 </>
               )}
             </div>

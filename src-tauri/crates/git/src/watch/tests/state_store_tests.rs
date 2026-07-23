@@ -152,6 +152,17 @@ fn update_status_resets_failures() {
 }
 
 #[test]
+fn lightweight_poll_health_does_not_require_status_snapshot() {
+    let store = RepoStateStore::new();
+    store.add_repo(test_repo_info("r1"));
+    store.increment_failures("r1");
+    store.increment_failures("r1");
+
+    assert_eq!(store.get_poll_health("r1"), Some((true, 2)));
+    assert_eq!(store.get_poll_health("missing"), None);
+}
+
+#[test]
 fn is_cache_valid_returns_false_for_unknown() {
     let store = RepoStateStore::new();
     assert!(!store.is_cache_valid("unknown"));

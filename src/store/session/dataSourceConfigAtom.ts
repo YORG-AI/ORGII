@@ -50,8 +50,17 @@ export const DEFAULT_DATA_SOURCE_CONFIG: DataSourceConfig = {
   lastScannedAt: null,
 };
 
-/** Default global cadence when the user hasn't changed it. */
-export const DEFAULT_GLOBAL_FREQUENCY: ScanFrequency = "60s";
+/**
+ * Default global cadence when the user hasn't changed it.
+ *
+ * The open external session has its own cheap 5-second transcript-signature
+ * probe, so rescanning every provider once a minute does not improve the chat
+ * someone is watching. On a populated machine that global pass also reloads
+ * the sidebar and rechecks children for changed parent sessions, producing a
+ * visible CPU/allocation spike. Ten minutes keeps discovery reasonably fresh
+ * while leaving the explicit 60-second option available to users who need it.
+ */
+export const DEFAULT_GLOBAL_FREQUENCY: ScanFrequency = "10m";
 
 export type DataSourceConfigMap = Record<string, DataSourceConfig>;
 

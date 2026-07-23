@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import { VirtuosoMockContext } from "react-virtuoso";
 import { describe, expect, it } from "vitest";
 
-import VirtualizedGroupedList from ".";
+import VirtualizedGroupedList, { type VirtualizedGroup } from ".";
 
 (
   globalThis as typeof globalThis & {
@@ -26,18 +26,21 @@ describe("VirtualizedGroupedList", () => {
         React.createElement(
           VirtuosoMockContext.Provider,
           { value: { viewportHeight: 60, itemHeight: 20 } },
-          React.createElement(VirtualizedGroupedList<string, string>, {
-            groups,
-            defaultExpanded: (group) => group.key === "open",
-            getItemKey: (value) => value,
-            renderGroupHeader: (group, expanded, onExpandedChange) =>
-              React.createElement(
-                "button",
-                { onClick: () => onExpandedChange(!expanded) },
-                group
-              ),
-            renderItem: (value) => React.createElement("div", null, value),
-          })
+          React.createElement(
+            VirtualizedGroupedList<VirtualizedGroup<string, string>>,
+            {
+              groups,
+              defaultExpanded: (group) => group.key === "open",
+              getItemKey: (value) => value,
+              renderGroupHeader: (group, expanded, onExpandedChange) =>
+                React.createElement(
+                  "button",
+                  { onClick: () => onExpandedChange(!expanded) },
+                  group
+                ),
+              renderItem: (value) => React.createElement("div", null, value),
+            }
+          )
         )
       );
     });
@@ -67,14 +70,17 @@ describe("VirtualizedGroupedList", () => {
         React.createElement(
           VirtuosoMockContext.Provider,
           { value: { viewportHeight: 60, itemHeight: 20 } },
-          React.createElement(VirtualizedGroupedList<string, string>, {
-            groups: [{ key: "all", group: "All", items }],
-            defaultExpanded: () => true,
-            getItemKey: (value) => value,
-            renderGroupHeader: (group) =>
-              React.createElement("h2", null, group),
-            renderItem: (value) => React.createElement("div", null, value),
-          })
+          React.createElement(
+            VirtualizedGroupedList<VirtualizedGroup<string, string>>,
+            {
+              groups: [{ key: "all", group: "All", items }],
+              defaultExpanded: () => true,
+              getItemKey: (value) => value,
+              renderGroupHeader: (group) =>
+                React.createElement("h2", null, group),
+              renderItem: (value) => React.createElement("div", null, value),
+            }
+          )
         )
       );
     });

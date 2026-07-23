@@ -7,7 +7,6 @@
 import { ChevronRight, MessagesSquare } from "lucide-react";
 import React from "react";
 
-import ModelIcon from "@src/components/ModelIcon";
 import Tag from "@src/components/Tag";
 import { resolveAgentIcon } from "@src/config/agentIcons";
 import { formatModelNameFull } from "@src/util/formatModelName";
@@ -33,31 +32,9 @@ export interface TaskCardProps {
 const KANBAN_MONOCHROME_ICON_CLASS = "text-text-1";
 
 function renderAgentIcon(task: KanbanTask) {
-  if (task.cliAgentType) {
-    return (
-      <ModelIcon
-        agentType={task.cliAgentType}
-        size={12}
-        className={KANBAN_MONOCHROME_ICON_CLASS}
-      />
-    );
-  }
-
-  // Cursor IDE history sessions don't carry a `cliAgentType` (they're not
-  // launched through our CLI dispatch) but they stamp `agentIconId: "cursor"`
-  // in the session loader. Route them through `ModelIcon` so the brand mark
-  // matches the Session Creator and the other monochrome Kanban icons.
-  if (task.agentIconId === "cursor") {
-    return (
-      <ModelIcon
-        agentType="cursor_cli"
-        size={12}
-        className={KANBAN_MONOCHROME_ICON_CLASS}
-      />
-    );
-  }
-
-  const AgentIcon = resolveAgentIcon(task.agentIconId);
+  // Session tasks already carry the canonical projection's final icon id.
+  // `cliAgentType` remains a compatibility fallback for non-session tasks.
+  const AgentIcon = resolveAgentIcon(task.agentIconId ?? task.cliAgentType);
   return (
     <AgentIcon
       size={12}
@@ -107,7 +84,18 @@ const TaskCard: React.FC<TaskCardProps> = ({
 
       {/* Header */}
       <div className="kanban-task-card__header">
-        <div className="kanban-task-card__title">{task.title}</div>
+        <div className="kanban-task-card__title-row">
+          {task.agentLabel && (
+            <span
+              className="kanban-task-card__agent-icon"
+              role="img"
+              aria-label={task.agentLabel}
+            >
+              {renderAgentIcon(task)}
+            </span>
+          )}
+          <div className="kanban-task-card__title">{task.title}</div>
+        </div>
         {task.attempt_count && task.attempt_count > 1 && (
           <div className="kanban-task-card__header-badges">
             <div className="kanban-task-card__badge">
@@ -141,29 +129,18 @@ const TaskCard: React.FC<TaskCardProps> = ({
       {/* Footer */}
       <div className="kanban-task-card__footer">
         <div className="kanban-task-card__footer-left">
-          <TaskImpactLine task={task} />
+          {!task.agentLabel && <TaskImpactLine task={task} />}
           <div className="kanban-task-card__meta-row">
             <PriorityIndicator priority={task.priority} />
-            {task.agentLabel && (
+            {task.modelName && (
               <div className="kanban-task-card__meta-pill">
-                {renderAgentIcon(task)}
-                <span>{task.agentLabel}</span>
+                <span>{formatModelNameFull(task.modelName)}</span>
               </div>
             )}
             {task.agentLabel && task.modelName && (
               <span className="kanban-task-card__impact-dot" />
             )}
-            {task.modelName && (
-              <div className="kanban-task-card__meta-pill">
-                <ModelIcon
-                  modelName={task.modelName}
-                  agentType={task.cliAgentType}
-                  size={12}
-                  className={KANBAN_MONOCHROME_ICON_CLASS}
-                />
-                <span>{formatModelNameFull(task.modelName)}</span>
-              </div>
-            )}
+            {task.agentLabel && <TaskImpactLine task={task} />}
             {task.metaLines?.map((entry, idx) => {
               const Icon = entry.icon;
               return (

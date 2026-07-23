@@ -24,6 +24,7 @@ import {
 } from "@src/engines/SessionCore/turns";
 import { TURN_PAGE_PREFETCH_RADIUS } from "@src/engines/SessionCore/turns/turnWindowConfig";
 import { createLogger } from "@src/hooks/logger";
+import { isCodexAppSession } from "@src/util/session/sessionDispatch";
 
 import {
   formatCursorIdeTurnPageTimeLabel,
@@ -172,11 +173,14 @@ export function useTurnPageNavigation({
     }
 
     const pageIndexes: number[] = [];
-    for (
-      let offset = -TURN_PAGE_PREFETCH_RADIUS;
-      offset <= TURN_PAGE_PREFETCH_RADIUS;
-      offset++
-    ) {
+    // Codex rollout files can approach a GiB. Its source loader has a byte
+    // offset index, but fetching an adjacent body is still real file I/O;
+    // wait until that round is selected instead of speculatively loading it
+    // just because the latest round opened.
+    const prefetchRadius = isCodexAppSession(activeId)
+      ? 0
+      : TURN_PAGE_PREFETCH_RADIUS;
+    for (let offset = -prefetchRadius; offset <= prefetchRadius; offset++) {
       pageIndexes.push(currentPageIndex + offset);
     }
     const protectedTurnIds = new Set<string>();

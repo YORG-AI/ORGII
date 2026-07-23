@@ -20,12 +20,15 @@ export interface VirtualizedGroupModel<TGroup, TItem> {
  * Build GroupedVirtuoso's compact data model. Collapsed groups keep their
  * header entry while their row references are omitted.
  */
-export function buildVirtualizedGroupModel<TGroup, TItem>(
-  groups: readonly VirtualizedGroup<TGroup, TItem>[],
-  isExpanded: (group: VirtualizedGroup<TGroup, TItem>) => boolean
-): VirtualizedGroupModel<TGroup, TItem> {
+export function buildVirtualizedGroupModel<
+  const TEntry extends VirtualizedGroup<unknown, unknown>,
+>(
+  groups: readonly TEntry[],
+  isExpanded: (group: TEntry) => boolean
+): VirtualizedGroupModel<TEntry["group"], TEntry["items"][number]> {
   const groupCounts: number[] = [];
-  const rows: VirtualizedGroupRow<TGroup, TItem>[] = [];
+  const rows: VirtualizedGroupRow<TEntry["group"], TEntry["items"][number]>[] =
+    [];
 
   for (const group of groups) {
     const count = isExpanded(group) ? group.items.length : 0;

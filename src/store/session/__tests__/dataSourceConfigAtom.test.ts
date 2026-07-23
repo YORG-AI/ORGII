@@ -10,7 +10,7 @@ import {
 
 describe("external source scan frequencies", () => {
   it("offers only the requested automatic cadences plus manual", () => {
-    expect(DEFAULT_GLOBAL_FREQUENCY).toBe("60s");
+    expect(DEFAULT_GLOBAL_FREQUENCY).toBe("10m");
     expect(GLOBAL_FREQUENCIES).toEqual([
       "manual",
       "60s",

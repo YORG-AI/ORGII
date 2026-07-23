@@ -108,6 +108,7 @@ export interface ModelPricing {
   cacheWritePerMtok: number;
 }
 
+const MODEL_PRICING_CACHE_CAPACITY = 100;
 const modelPricingCache = new Map<string, Promise<ModelPricing>>();
 
 /**
@@ -120,12 +121,64 @@ export async function usageDashboardModelPricing(
 ): Promise<ModelPricing> {
   const key = model ?? "";
   let pending = modelPricingCache.get(key);
-  if (!pending) {
-    pending = invoke<ModelPricing>("usage_dashboard_model_pricing", {
-      model: model ?? null,
-    });
+  if (pending) {
+    // Refresh insertion order so the capacity bound behaves as a tiny LRU.
+    modelPricingCache.delete(key);
     modelPricingCache.set(key, pending);
+    return pending;
   }
+
+  pending = invoke<ModelPricing>("usage_dashboard_model_pricing", {
+    model: model ?? null,
+  });
+  modelPricingCache.set(key, pending);
+  if (modelPricingCache.size > MODEL_PRICING_CACHE_CAPACITY) {
+    const oldestKey = modelPricingCache.keys().next().value;
+    if (oldestKey !== undefined) modelPricingCache.delete(oldestKey);
+  }
+  pending.catch(() => {
+    // Transient failures must not become permanent cached failures.
+    if (modelPricingCache.get(key) === pending) modelPricingCache.delete(key);
+  });
+  return pending;
+}
+
+const USAGE_OVERVIEW_IN_FLIGHT_CAPACITY = 8;
+const USAGE_SCOPE_TIME_KEY_MS = 5_000;
+const usageOverviewInFlight = new Map<string, Promise<UsageOverview>>();
+
+function overviewInFlightKey(args: Record<string, unknown>): string {
+  return JSON.stringify({
+    ...args,
+    // Adjacent remounts resolve "today"/"24h" a few milliseconds apart. The
+    // key alone is bucketed so those callers join the same active native scan;
+    // the first caller's exact boundary is still sent to SQLite.
+    endMs:
+      typeof args.endMs === "number"
+        ? Math.floor(args.endMs / USAGE_SCOPE_TIME_KEY_MS)
+        : args.endMs,
+  });
+}
+
+function invokeUsageOverview(
+  args: Record<string, unknown>
+): Promise<UsageOverview> {
+  const key = overviewInFlightKey(args);
+  const existing = usageOverviewInFlight.get(key);
+  if (existing) return existing;
+
+  const pending = invoke<UsageOverview>("usage_dashboard_overview", args);
+  usageOverviewInFlight.set(key, pending);
+  if (usageOverviewInFlight.size > USAGE_OVERVIEW_IN_FLIGHT_CAPACITY) {
+    const oldestKey = usageOverviewInFlight.keys().next().value;
+    if (oldestKey !== undefined) usageOverviewInFlight.delete(oldestKey);
+  }
+  const cleanup = () => {
+    if (usageOverviewInFlight.get(key) === pending) {
+      usageOverviewInFlight.delete(key);
+    }
+  };
+  void pending.then(cleanup, cleanup);
   return pending;
 }
 
@@ -183,13 +236,15 @@ export async function usageDashboardOverview(
     model?: string;
     unknownModel?: boolean;
     search?: string;
-    /** Include summary and trend aggregation. Default: true. */
+    /** Include headline summary aggregation. Default: true. */
     includeHeadline?: boolean;
+    /** Include time-bucket trend aggregation. Default: true. */
+    includeTrends?: boolean;
     /** Include request-table facets and the requested page. Default: true. */
     includeRounds?: boolean;
   }
 ): Promise<UsageOverview> {
-  return invoke("usage_dashboard_overview", {
+  return invokeUsageOverview({
     bucket: scope.bucket ?? null,
     startMs: scope.startMs ?? null,
     endMs: scope.endMs ?? null,
@@ -202,6 +257,7 @@ export async function usageDashboardOverview(
     search: options?.search ?? null,
     bucketUnit: null,
     includeHeadline: options?.includeHeadline ?? true,
+    includeTrends: options?.includeTrends ?? true,
     includeRounds: options?.includeRounds ?? true,
   });
 }

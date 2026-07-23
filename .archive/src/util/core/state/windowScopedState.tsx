@@ -321,34 +321,72 @@ class WindowRegistryClass {
     }
   }
 
-  private heartbeatInterval?: ReturnType<typeof setInterval>;
+  private heartbeatStarted = false;
+  private lastHeartbeatAt = 0;
+
+  private touchCurrentWindow = (force = false): void => {
+    if (document.visibilityState !== "visible") return;
+
+    const now = Date.now();
+    if (!force && now - this.lastHeartbeatAt < 30_000) return;
+
+    const windowId = getWindowId();
+    const registry = this.getAll();
+    const entry = registry[windowId];
+    if (!entry) return;
+
+    entry.lastActive = now;
+    this.lastHeartbeatAt = now;
+
+    const ONE_HOUR = 60 * 60 * 1000;
+    for (const [registeredWindowId, registeredEntry] of Object.entries(
+      registry
+    )) {
+      if (now - registeredEntry.lastActive > ONE_HOUR) {
+        delete registry[registeredWindowId];
+      }
+    }
+
+    this.save(registry);
+  };
+
+  private handleVisibilityChange = (): void => {
+    if (document.visibilityState === "visible") {
+      this.touchCurrentWindow(true);
+    }
+  };
+
+  private handleWindowActivity = (): void => {
+    this.touchCurrentWindow();
+  };
+
+  private handleWindowFocus = (): void => {
+    this.touchCurrentWindow(true);
+  };
 
   private startHeartbeat(): void {
-    if (this.heartbeatInterval) return;
-
-    // Update last active every 30 seconds
-    this.heartbeatInterval = setInterval(() => {
-      const windowId = getWindowId();
-      const registry = this.getAll();
-
-      if (registry[windowId]) {
-        registry[windowId].lastActive = Date.now();
-        this.save(registry);
-      }
-
-      // Also cleanup stale entries
-      this.cleanup();
-    }, 30000);
+    if (this.heartbeatStarted) return;
+    this.heartbeatStarted = true;
+    this.lastHeartbeatAt = Date.now();
+    window.addEventListener("focus", this.handleWindowFocus);
+    window.addEventListener("pointerdown", this.handleWindowActivity);
+    window.addEventListener("keydown", this.handleWindowActivity);
+    document.addEventListener("visibilitychange", this.handleVisibilityChange);
   }
 
   /**
    * Stop heartbeat (call on window unload)
    */
   stopHeartbeat(): void {
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval);
-      this.heartbeatInterval = undefined;
-    }
+    if (!this.heartbeatStarted) return;
+    this.heartbeatStarted = false;
+    window.removeEventListener("focus", this.handleWindowFocus);
+    window.removeEventListener("pointerdown", this.handleWindowActivity);
+    window.removeEventListener("keydown", this.handleWindowActivity);
+    document.removeEventListener(
+      "visibilitychange",
+      this.handleVisibilityChange
+    );
   }
 }
 

@@ -73,6 +73,12 @@ export interface KanbanTask {
   agentIconId?: string;
   /** CLI agent type for branded CLI icons. */
   cliAgentType?: CliAgentType;
+  /** Canonical Task Kanban filter key projected with the session identity. */
+  agentTypeFilter?: string;
+  /** Source family for ordering and labeling the projected filter. */
+  agentTypeFilterKind?: "external" | "cli" | "rust";
+  /** Display label paired with `agentTypeFilter`, used for custom agents. */
+  agentTypeFilterLabel?: string;
   /** Raw LLM model id used by the session. */
   modelName?: string;
   /** Total token usage (input + output) reported by the source, when known. */

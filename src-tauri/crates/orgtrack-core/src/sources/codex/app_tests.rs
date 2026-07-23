@@ -6,7 +6,7 @@ fn includes_codex_session_dir_candidates() {
     let paths = codex_sessions_dir_candidates(home);
     let rendered = paths
         .iter()
-        .map(|path| path.to_string_lossy().to_string())
+        .map(|path| path.to_string_lossy().replace('\\', "/"))
         .collect::<Vec<_>>();
 
     assert!(rendered.iter().any(|path| path.contains(".codex/sessions")));
@@ -74,6 +74,159 @@ fn parses_codex_jsonl_into_replay_chunks() {
 
     std::fs::remove_file(&path).expect("remove fixture");
     std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn codex_initial_window_compacts_old_turns_and_loads_one_turn_on_demand() {
+    let temp_dir =
+        std::env::temp_dir().join(format!("orgii-codex-window-test-{}", std::process::id()));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-window.jsonl");
+    let content = r#"{"timestamp":"2026-07-21T01:00:00.000Z","type":"event_msg","payload":{"type":"user_message","message":"first"}}
+{"timestamp":"2026-07-21T01:00:01.000Z","type":"event_msg","payload":{"type":"agent_message","message":"first reply"}}
+{"timestamp":"2026-07-21T01:01:00.000Z","type":"event_msg","payload":{"type":"user_message","message":"second"}}
+{"timestamp":"2026-07-21T01:01:01.000Z","type":"event_msg","payload":{"type":"agent_message","message":"second reply"}}
+{"timestamp":"2026-07-21T01:02:00.000Z","type":"event_msg","payload":{"type":"user_message","message":"third"}}
+{"timestamp":"2026-07-21T01:02:01.000Z","type":"event_msg","payload":{"type":"agent_message","message":"third reply"}}
+"#;
+    std::fs::write(&path, content).expect("write fixture");
+
+    let window =
+        load_codex_app_initial_window_from_path("codexapp-window", &path, 1).expect("window");
+    let wire = serde_json::to_value(&window).expect("serialize window");
+    assert!(wire.get("turns").is_none());
+    assert_eq!(window.turns.len(), 2);
+    assert_eq!(window.chunks.len(), 4);
+    assert_eq!(
+        window.chunks[0]
+            .result
+            .pointer("/message/content")
+            .and_then(Value::as_str),
+        Some("second")
+    );
+    assert_eq!(
+        window.chunks[1]
+            .result
+            .get("unloadedTurn")
+            .and_then(|value| value.get("nextTurnId"))
+            .and_then(Value::as_str),
+        Some(window.chunks[2].chunk_id.as_str())
+    );
+    assert_eq!(
+        window.chunks[2]
+            .result
+            .pointer("/message/content")
+            .and_then(Value::as_str),
+        Some("third")
+    );
+
+    let turn = load_codex_app_turn_from_path("codexapp-window", &path, &window.chunks[0].chunk_id)
+        .expect("turn");
+    assert_eq!(turn.loaded_event_count, 2);
+    assert_eq!(
+        turn.chunks
+            .iter()
+            .filter(|chunk| chunk.function == imported_history::FUNCTION_USER_MESSAGE)
+            .filter_map(|chunk| chunk.result.pointer("/message/content"))
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>(),
+        vec!["first", "second"]
+    );
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn codex_current_rollout_reads_latest_turn_and_pages_backward_from_tail() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-tail-window-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-tail-window.jsonl");
+    let content = r#"{"timestamp":"2026-07-21T01:00:00.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-1"}}
+{"timestamp":"2026-07-21T01:00:00.100Z","type":"event_msg","payload":{"type":"user_message","message":"first"}}
+{"timestamp":"2026-07-21T01:00:01.000Z","type":"event_msg","payload":{"type":"agent_message","message":"first reply"}}
+{"timestamp":"2026-07-21T01:01:00.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-2"}}
+{"timestamp":"2026-07-21T01:01:00.100Z","type":"event_msg","payload":{"type":"user_message","message":"second"}}
+{"timestamp":"2026-07-21T01:01:01.000Z","type":"event_msg","payload":{"type":"agent_message","message":"second reply"}}
+{"timestamp":"2026-07-21T01:02:00.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-3"}}
+{"timestamp":"2026-07-21T01:02:00.100Z","type":"event_msg","payload":{"type":"user_message","message":"third"}}
+{"timestamp":"2026-07-21T01:02:01.000Z","type":"event_msg","payload":{"type":"agent_message","message":"third reply"}}
+"#;
+    std::fs::write(&path, content).expect("write fixture");
+
+    let window =
+        load_codex_app_initial_window_from_path("codexapp-tail-window", &path, 1).expect("window");
+    assert_eq!(
+        window.turns.len(),
+        2,
+        "only the previous and latest turns are indexed"
+    );
+    assert_eq!(window.chunks.len(), 4);
+    assert_eq!(
+        window.chunks[0]
+            .result
+            .pointer("/message/content")
+            .and_then(Value::as_str),
+        Some("second")
+    );
+    assert!(window.chunks[1].result.get("unloadedTurn").is_some());
+    assert_eq!(
+        window.chunks[2]
+            .result
+            .pointer("/message/content")
+            .and_then(Value::as_str),
+        Some("third")
+    );
+    let second_turn_id = window.chunks[0].chunk_id.clone();
+    let second = load_codex_app_turn_from_path("codexapp-tail-window", &path, &second_turn_id)
+        .expect("load previous turn");
+    assert_eq!(second.loaded_event_count, 2);
+    assert_eq!(second.chunks.len(), 4);
+    assert_eq!(
+        second.chunks[0]
+            .result
+            .pointer("/message/content")
+            .and_then(Value::as_str),
+        Some("first")
+    );
+    assert!(second.chunks[1].result.get("unloadedTurn").is_some());
+    assert_eq!(
+        second.chunks[2]
+            .result
+            .pointer("/message/content")
+            .and_then(Value::as_str),
+        Some("second")
+    );
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn codex_embedded_tool_images_are_removed_before_json_deserialization() {
+    let mut line = format!(
+        r#"{{"payload":{{"output":[{{"type":"input_text","text":"kept"}},{{"type":"input_image","image_url":"data:image/png;base64,{}"}}]}}}}"#,
+        "A".repeat(1024 * 1024)
+    );
+
+    strip_ignored_embedded_images(&mut line);
+
+    assert!(line.len() < 256);
+    assert!(!line.contains("base64"));
+    let parsed: Value = serde_json::from_str(&line).expect("valid compacted JSON");
+    assert_eq!(
+        parsed
+            .get("payload")
+            .and_then(|payload| payload.get("output"))
+            .and_then(Value::as_array)
+            .and_then(|parts| parts.first())
+            .and_then(|part| part.get("text"))
+            .and_then(Value::as_str),
+        Some("kept")
+    );
 }
 
 #[test]

@@ -1,5 +1,3 @@
-import { getImportedHistorySourceBySessionId } from "@src/api/tauri/externalHistory";
-import { formatAgentType } from "@src/assets/providers";
 import { KANBAN_RESULT_STATUS } from "@src/features/KanbanBoard/types";
 import type { Session } from "@src/store/session";
 import {
@@ -7,6 +5,7 @@ import {
   isCliSession,
   isCursorIdeSession,
 } from "@src/util/session/sessionDispatch";
+import { resolveSessionDisplayMetadata } from "@src/util/session/sessionDisplayMetadata";
 import { stripPillReferences } from "@src/util/session/stripPillReferences";
 
 import {
@@ -15,7 +14,7 @@ import {
   mapSessionToKanbanColumn,
 } from "../../config";
 import type { KanbanResultStatus, KanbanTask } from "../../types";
-import { resolveKanbanAgentIconId } from "./kanbanAgentBranding";
+import { resolveKanbanAgentFilter } from "./kanbanAgentFilter";
 
 function getResultStatus(
   session: Session,
@@ -41,16 +40,6 @@ function getCategoryTag(session: Session): string {
   return "Other";
 }
 
-function getAgentLabel(session: Session, categoryTag: string): string {
-  const importedSource = getImportedHistorySourceBySessionId(
-    session.session_id
-  );
-  if (importedSource) return importedSource.displayName;
-  if (session.cliAgentType === "claude_code") return "Claude CLI";
-  if (session.cliAgentType) return formatAgentType(session.cliAgentType);
-  return session.agentDisplayName || categoryTag;
-}
-
 function getWorkspaceName(session: Session): string | undefined {
   const repoName = session.repo_name?.trim();
   if (repoName) return repoName;
@@ -72,8 +61,16 @@ export function sessionToKanbanTask(
   nowMs: number
 ): KanbanTask {
   const categoryTag = getCategoryTag(session);
+  const display = resolveSessionDisplayMetadata({
+    kind: "local",
+    session,
+  });
+  const agentFilter = resolveKanbanAgentFilter(
+    display,
+    session.agentDefinitionId
+  );
   const tags: string[] = [categoryTag];
-  if (session.cliAgentType) tags.push(session.cliAgentType);
+  if (display.cliAgentType) tags.push(display.cliAgentType);
   if (session.repo_name) tags.push(session.repo_name);
   if (session.worktreeBranch) tags.push(session.worktreeBranch);
   if (session.mergeStatus && session.mergeStatus !== "pending") {
@@ -89,7 +86,6 @@ export function sessionToKanbanTask(
   const isCompleted = session.status === "completed";
   const isUnread = isCompleted && !visitedSessions.has(session.session_id);
   const resultStatus = getResultStatus(session, columnId);
-  const agentLabel = getAgentLabel(session, categoryTag);
 
   return {
     id: session.session_id,
@@ -100,15 +96,13 @@ export function sessionToKanbanTask(
     // repeating `user_input` as a description produces duplicate card copy.
     description: undefined,
     status: columnId as KanbanTask["status"],
-    assignee: agentLabel,
+    assignee: display.agentLabel,
     tags,
-    agentLabel,
-    agentIconId: resolveKanbanAgentIconId(
-      session.agentDefinitionId,
-      session.agentIconId
-    ),
-    cliAgentType: session.cliAgentType,
-    modelName: session.model,
+    agentLabel: display.agentLabel,
+    agentIconId: display.agentIconId,
+    cliAgentType: display.cliAgentType,
+    ...agentFilter,
+    modelName: display.modelName,
     totalTokens: session.totalTokens,
     workspaceName: getWorkspaceName(session),
     created_at: session.created_at,

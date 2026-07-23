@@ -5,6 +5,8 @@ import { MAX_LOADED_HISTORICAL_TURN_BODIES } from "./turnWindowConfig";
 
 const loadedTurnsBySession = new Map<string, Map<string, number>>();
 const pendingLoads = new Map<string, Promise<void>>();
+const registryGenerationBySession = new Map<string, number>();
+let nextRegistryGeneration = 1;
 
 function loadKey(sessionId: string, turnId: string): string {
   return `${sessionId}:${turnId}`;
@@ -16,6 +18,14 @@ function getSessionLoadedTurns(sessionId: string): Map<string, number> {
   const created = new Map<string, number>();
   loadedTurnsBySession.set(sessionId, created);
   return created;
+}
+
+export function captureLoadedTurnRegistryGeneration(sessionId: string): number {
+  const existing = registryGenerationBySession.get(sessionId);
+  if (existing !== undefined) return existing;
+  const generation = nextRegistryGeneration++;
+  registryGenerationBySession.set(sessionId, generation);
+  return generation;
 }
 
 export function getPendingTurnLoad(
@@ -40,7 +50,12 @@ export function trackPendingTurnLoad(
   return load;
 }
 
-export function markTurnBodyLoaded(sessionId: string, turnId: string): void {
+export function markTurnBodyLoaded(
+  sessionId: string,
+  turnId: string,
+  generation: number
+): void {
+  if (registryGenerationBySession.get(sessionId) !== generation) return;
   getSessionLoadedTurns(sessionId).set(turnId, Date.now());
 }
 
@@ -81,6 +96,7 @@ export async function pruneLoadedTurnBodies(
 
 export function clearLoadedTurnRegistry(sessionId: string): void {
   loadedTurnsBySession.delete(sessionId);
+  registryGenerationBySession.delete(sessionId);
   for (const key of pendingLoads.keys()) {
     if (key.startsWith(`${sessionId}:`)) {
       pendingLoads.delete(key);

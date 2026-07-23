@@ -61,7 +61,23 @@
   margin-bottom: 8px;
 }
 
+.kanban-task-card__title-row {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+}
+
+.kanban-task-card__agent-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  color: var(--color-text-1);
+}
+
 .kanban-task-card__title {
+  min-width: 0;
   flex: 1;
   font-size: 13px;
   font-weight: 500;

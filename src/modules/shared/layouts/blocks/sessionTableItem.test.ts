@@ -1,5 +1,6 @@
 import { isValidElement } from "react";
 
+import { resolveAgentIcon } from "@src/config/agentIcons";
 import type { KanbanTask } from "@src/features/KanbanBoard";
 
 import { truncateSessionOwnerLabel } from "./SessionTable";
@@ -125,6 +126,23 @@ describe("mapKanbanTaskToSessionTableItem", () => {
     }
     expect(item.agentIcon.props.className).toBe("text-text-1");
     expect(item.modelIcon.props.className).toBe("text-text-1");
+  });
+
+  it("uses the canonical task icon without a second identity projection", () => {
+    const item = mapKanbanTaskToSessionTableItem({
+      task: {
+        ...makeTask(),
+        agentIconId: "network",
+        cliAgentType: "opencode",
+      },
+      statusLabel: "In progress",
+    });
+
+    expect(isValidElement(item.agentIcon)).toBe(true);
+    if (!isValidElement(item.agentIcon)) {
+      throw new Error("missing agent icon");
+    }
+    expect(item.agentIcon.type).toBe(resolveAgentIcon("network"));
   });
 });
 

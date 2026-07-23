@@ -69,51 +69,46 @@ impl RepoWatchManager {
                 loop {
                     std::thread::sleep(Duration::from_secs(60));
 
-                    let states = state_store.get_all_states();
+                    for (repo_id, consecutive_failures) in state_store.get_unhealthy_watcher_ids() {
+                        log::warn!(
+                            "[HealthMonitor] Repo {} has {} failures, attempting restart",
+                            repo_id,
+                            consecutive_failures
+                        );
 
-                    for (repo_id, state) in states.iter() {
-                        // Check if watcher is unhealthy (multiple consecutive failures)
-                        if state.consecutive_failures >= 3 && state.watch_enabled {
-                            log::warn!(
-                                "[HealthMonitor] Repo {} has {} failures, attempting restart",
-                                repo_id,
-                                state.consecutive_failures
-                            );
+                        // Try to restart the watcher
+                        match watcher.restart_watcher(&repo_id) {
+                            Ok(()) => {
+                                log::info!(
+                                    "[HealthMonitor] Successfully restarted watcher for {}",
+                                    repo_id
+                                );
+                                state_store.mark_healthy(&repo_id);
 
-                            // Try to restart the watcher
-                            match watcher.restart_watcher(repo_id) {
-                                Ok(()) => {
-                                    log::info!(
-                                        "[HealthMonitor] Successfully restarted watcher for {}",
-                                        repo_id
-                                    );
-                                    state_store.mark_healthy(repo_id);
+                                event_emitter.emit_watcher_health(
+                                    repo_id,
+                                    types::HealthStatus::Healthy,
+                                    Some("Watcher recovered".to_string()),
+                                );
+                            }
+                            Err(e) => {
+                                log::error!(
+                                    "[HealthMonitor] Failed to restart watcher for {}: {}",
+                                    repo_id,
+                                    e
+                                );
 
-                                    event_emitter.emit_watcher_health(
-                                        repo_id.clone(),
-                                        types::HealthStatus::Healthy,
-                                        Some("Watcher recovered".to_string()),
-                                    );
-                                }
-                                Err(e) => {
-                                    log::error!(
-                                        "[HealthMonitor] Failed to restart watcher for {}: {}",
-                                        repo_id,
-                                        e
-                                    );
+                                // Mark as degraded but keep polling active
+                                state_store.mark_degraded(
+                                    &repo_id,
+                                    Some(format!("Watcher restart failed: {}", e)),
+                                );
 
-                                    // Mark as degraded but keep polling active
-                                    state_store.mark_degraded(
-                                        repo_id,
-                                        Some(format!("Watcher restart failed: {}", e)),
-                                    );
-
-                                    event_emitter.emit_watcher_health(
-                                        repo_id.clone(),
-                                        types::HealthStatus::Degraded,
-                                        Some("Watcher failed, using polling only".to_string()),
-                                    );
-                                }
+                                event_emitter.emit_watcher_health(
+                                    repo_id,
+                                    types::HealthStatus::Degraded,
+                                    Some("Watcher failed, using polling only".to_string()),
+                                );
                             }
                         }
                     }

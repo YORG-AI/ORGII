@@ -22,9 +22,11 @@ struct ReplayCachePruneGate {
 
 impl ReplayCachePruneGate {
     fn claim(&mut self, identity: PathBuf, now: Instant) -> bool {
-        if self.last_started.get(&identity).is_some_and(|last| {
-            now.saturating_duration_since(*last) < REPLAY_CACHE_PRUNE_INTERVAL
-        }) {
+        if self
+            .last_started
+            .get(&identity)
+            .is_some_and(|last| now.saturating_duration_since(*last) < REPLAY_CACHE_PRUNE_INTERVAL)
+        {
             return false;
         }
 

@@ -297,6 +297,22 @@ pub struct WorkItemData {
     pub filename: String,
 }
 
+/// Narrow database projection consumed by the background schedule executor.
+///
+/// Keeping this separate from [`WorkItemData`] prevents an idle scheduling
+/// pass from loading bodies, labels, history, comments, or runtime state for
+/// every work item.
+#[derive(Debug, Clone)]
+pub struct ScheduledWorkItemCandidate {
+    pub project_slug: String,
+    pub short_id: String,
+    pub title: String,
+    pub status: String,
+    pub start_date: Option<String>,
+    pub orchestrator_config: Option<OrchestratorConfig>,
+    pub schedule: Option<WorkItemSchedule>,
+}
+
 /// Optional read partition used by aggregate views that defer terminal items.
 /// GitHub `closed` and native `completed` share the completed partition.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]

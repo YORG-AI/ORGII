@@ -1,7 +1,7 @@
 //! Work item schedule executor.
 //!
-//! Background task that polls every project + work item in the global
-//! store and auto-starts items when:
+//! Background task that reads a narrow candidate projection and auto-starts
+//! items when:
 //! - `start_date` is in the past and status is `backlog` / `planned` / `todo`
 //! - `schedule.at` is in the past (one-shot)
 //!
@@ -11,135 +11,188 @@
 //! On failure, writes a notification to the user's inbox.
 
 use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::Duration;
 
+use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
 use tracing::{debug, info, warn};
 
 use project_management::projects::io;
+use project_management::projects::types::ScheduledWorkItemCandidate;
+#[cfg(test)]
 use project_management::projects::types::{WorkItemFrontmatter, WorkItemSchedule};
 
-const POLL_INTERVAL_SECS: u64 = 30;
+const MAX_IDLE_RESCAN_SECS: u64 = 30 * 60;
+const FAILED_START_RETRY_SECS: u64 = 5 * 60;
 const BLOCKED_NOTIFICATION_COOLDOWN_SECS: i64 = 60 * 60;
+const BLOCKED_NOTIFICATION_RETENTION_SECS: i64 = 2 * BLOCKED_NOTIFICATION_COOLDOWN_SECS;
+const BLOCKED_NOTIFICATION_CACHE_MAX_ENTRIES: usize = 512;
 
 static BLOCKED_NOTIFICATION_LAST_SENT: OnceLock<Mutex<HashMap<String, i64>>> = OnceLock::new();
 
 /// Spawn the scheduler background task.
 ///
-/// Polls every 30 seconds.
+/// The first candidate check happens immediately. Afterwards the task sleeps
+/// until the next due item or a committed work-item mutation wakes it. A
+/// low-frequency safety rescan covers out-of-process database writes.
 pub fn spawn(app_handle: tauri::AppHandle) {
+    let wake = Arc::new(tokio::sync::Notify::new());
+    let notifier = Arc::clone(&wake);
+    project_management::projects::events::register_work_item_schedule_changed_notifier(Box::new(
+        move || notifier.notify_one(),
+    ));
+
     tauri::async_runtime::spawn(async move {
         info!(
-            "[scheduler] Work item scheduler started (poll={}s)",
-            POLL_INTERVAL_SECS
+            "[scheduler] Work item scheduler started (event-driven, safety_rescan={}s)",
+            MAX_IDLE_RESCAN_SECS
         );
+        let mut wait = Duration::ZERO;
         loop {
-            tokio::time::sleep(std::time::Duration::from_secs(POLL_INTERVAL_SECS)).await;
-            if let Err(err) = check_and_trigger(&app_handle).await {
-                warn!("[scheduler] Poll error: {}", err);
+            if !wait.is_zero() {
+                tokio::select! {
+                    _ = tokio::time::sleep(wait) => {}
+                    _ = wake.notified() => {
+                        debug!("[scheduler] Work-item mutation woke schedule evaluation");
+                    }
+                }
+            }
+
+            wait = match check_and_trigger(&app_handle).await {
+                Ok(next_wait) => next_wait,
+                Err(err) => {
+                    warn!("[scheduler] Evaluation error: {}", err);
+                    Duration::from_secs(FAILED_START_RETRY_SECS)
+                }
+            };
+            if wait.is_zero() {
+                // Never spin if a malformed candidate accidentally calculates
+                // a zero deadline.
+                wait = Duration::from_secs(1);
             }
         }
     });
 }
 
 pub async fn debug_run_once(app: &tauri::AppHandle) -> Result<(), String> {
-    check_and_trigger(app).await
+    check_and_trigger(app).await.map(|_| ())
 }
 
-async fn check_and_trigger(app: &tauri::AppHandle) -> Result<(), String> {
-    let projects = match io::read_all_projects() {
-        Ok(projects) => projects,
-        Err(_) => return Ok(()),
-    };
+async fn check_and_trigger(app: &tauri::AppHandle) -> Result<Duration, String> {
+    let candidates = tokio::task::spawn_blocking(io::read_scheduled_work_item_candidates)
+        .await
+        .map_err(|err| format!("scheduler candidate reader join error: {err}"))??;
+    let now = Utc::now();
+    let mut next_wait = Duration::from_secs(MAX_IDLE_RESCAN_SECS);
 
-    let now = chrono::Utc::now();
-
-    for project in &projects {
-        let slug = &project.slug;
-        let items = match io::read_all_work_items(slug) {
-            Ok(items) => items,
-            Err(_) => continue,
-        };
-
-        for item in &items {
-            let fm = &item.frontmatter;
-            let short_id = &fm.short_id;
-
-            if should_trigger_by_start_date(fm) {
-                let config = fm.orchestrator_config.clone().unwrap_or_default();
-                if config.selected_account_id.is_none() {
-                    notify_inbox_blocked(
-                        short_id,
-                        &fm.title,
-                        "No code account configured (selected_account_id is empty)",
-                    );
-                    continue;
-                }
-
-                info!(
-                    "[scheduler] Triggering work item {} (start_date reached) in project {}",
-                    short_id, slug
-                );
-
-                match crate::tool_infra::start_work_item_with_reason(
-                    slug,
-                    short_id,
-                    app,
-                    None,
-                    None,
-                    project_management::projects::types::WorkItemExecutionLockReason::RoutineAutoStart,
-                )
-                .await
-                {
-                    Ok(msg) => {
-                        info!("[scheduler] Started: {}", msg);
-                        update_status_in_progress(slug, short_id);
-                    }
-                    Err(err) => {
-                        warn!("[scheduler] Failed to start {}: {}", short_id, err);
-                        notify_inbox_blocked(short_id, &fm.title, &err);
-                    }
-                }
+    for candidate in candidates {
+        if let Some(start_at) =
+            eligible_start_date(&candidate.status, candidate.start_date.as_deref())
+        {
+            if start_at <= now {
+                let retry = trigger_candidate(&candidate, "start_date reached", app).await;
+                next_wait = next_wait.min(retry);
                 continue;
             }
+            next_wait = next_wait.min(duration_until(start_at, now));
+        }
 
-            let schedule = match &fm.schedule {
-                Some(sched) if sched.enabled => sched,
-                _ => continue,
-            };
-
-            if should_trigger_at(schedule, &now) {
-                handle_schedule_trigger(slug, short_id, fm, app).await;
-                disable_one_shot_schedule(slug, short_id);
-            }
+        let Some(schedule) = candidate
+            .schedule
+            .as_ref()
+            .filter(|schedule| schedule.enabled)
+        else {
+            continue;
+        };
+        let Some(schedule_at) = schedule.at.as_deref().and_then(parse_schedule_datetime) else {
+            continue;
+        };
+        if schedule_at <= now {
+            let _ = trigger_candidate(&candidate, "one-shot schedule reached", app).await;
+            disable_one_shot_schedule(&candidate.project_slug, &candidate.short_id).await;
+        } else {
+            next_wait = next_wait.min(duration_until(schedule_at, now));
         }
     }
-    Ok(())
+
+    Ok(next_wait)
 }
 
-async fn handle_schedule_trigger(
-    slug: &str,
-    short_id: &str,
-    fm: &WorkItemFrontmatter,
+/// Check if work item should auto-start based on its `start_date`.
+#[cfg(test)]
+fn should_trigger_by_start_date(fm: &WorkItemFrontmatter) -> bool {
+    eligible_start_date(&fm.status, fm.start_date.as_deref())
+        .is_some_and(|start_at| Utc::now() >= start_at)
+}
+
+/// Check if a one-shot schedule should fire.
+#[cfg(test)]
+fn should_trigger_at(schedule: &WorkItemSchedule, now: &chrono::DateTime<chrono::Utc>) -> bool {
+    schedule
+        .at
+        .as_deref()
+        .and_then(parse_schedule_datetime)
+        .is_some_and(|at| *now >= at)
+}
+
+fn eligible_start_date(status: &str, start_date: Option<&str>) -> Option<DateTime<Utc>> {
+    if !matches!(status, "backlog" | "planned" | "todo") {
+        return None;
+    }
+    start_date.and_then(parse_start_datetime)
+}
+
+fn parse_start_datetime(value: &str) -> Option<DateTime<Utc>> {
+    parse_schedule_datetime(value).or_else(|| {
+        NaiveDate::parse_from_str(value, "%Y-%m-%d")
+            .ok()?
+            .and_hms_opt(0, 0, 0)
+            .map(|value| value.and_utc())
+    })
+}
+
+fn parse_schedule_datetime(value: &str) -> Option<DateTime<Utc>> {
+    DateTime::parse_from_rfc3339(value)
+        .map(|value| value.with_timezone(&Utc))
+        .ok()
+        .or_else(|| {
+            NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M:%S")
+                .ok()
+                .map(|value| value.and_utc())
+        })
+}
+
+fn duration_until(deadline: DateTime<Utc>, now: DateTime<Utc>) -> Duration {
+    deadline
+        .signed_duration_since(now)
+        .to_std()
+        .unwrap_or(Duration::ZERO)
+}
+
+async fn trigger_candidate(
+    candidate: &ScheduledWorkItemCandidate,
+    reason: &str,
     app: &tauri::AppHandle,
-) {
-    let config = fm.orchestrator_config.clone().unwrap_or_default();
+) -> Duration {
+    let config = candidate.orchestrator_config.clone().unwrap_or_default();
     if config.selected_account_id.is_none() {
         notify_inbox_blocked(
-            short_id,
-            &fm.title,
+            &candidate.project_slug,
+            &candidate.short_id,
+            &candidate.title,
             "No code account configured (selected_account_id is empty)",
-        );
-        return;
+        )
+        .await;
+        return Duration::from_secs(BLOCKED_NOTIFICATION_COOLDOWN_SECS as u64);
     }
 
     info!(
-        "[scheduler] Triggering scheduled work item {} in project {}",
-        short_id, slug
+        "[scheduler] Triggering work item {} ({}) in project {}",
+        candidate.short_id, reason, candidate.project_slug
     );
-
     match crate::tool_infra::start_work_item_with_reason(
-        slug,
-        short_id,
+        &candidate.project_slug,
+        &candidate.short_id,
         app,
         None,
         None,
@@ -149,72 +202,63 @@ async fn handle_schedule_trigger(
     {
         Ok(msg) => {
             info!("[scheduler] Started: {}", msg);
-            update_status_in_progress(slug, short_id);
+            update_status_in_progress(&candidate.project_slug, &candidate.short_id).await;
+            Duration::from_secs(MAX_IDLE_RESCAN_SECS)
         }
         Err(err) => {
-            warn!("[scheduler] Failed to start {}: {}", short_id, err);
-            notify_inbox_blocked(short_id, &fm.title, &err);
+            warn!(
+                "[scheduler] Failed to start {}: {}",
+                candidate.short_id, err
+            );
+            notify_inbox_blocked(
+                &candidate.project_slug,
+                &candidate.short_id,
+                &candidate.title,
+                &err,
+            )
+            .await;
+            Duration::from_secs(FAILED_START_RETRY_SECS)
         }
     }
 }
 
-/// Check if work item should auto-start based on its `start_date`.
-fn should_trigger_by_start_date(fm: &WorkItemFrontmatter) -> bool {
-    let start_str = match &fm.start_date {
-        Some(s) if !s.is_empty() => s,
-        _ => return false,
-    };
-
-    let status = fm.status.as_str();
-    if status != "backlog" && status != "planned" && status != "todo" {
-        return false;
+async fn update_status_in_progress(slug: &str, short_id: &str) {
+    let slug = slug.to_string();
+    let short_id = short_id.to_string();
+    match tokio::task::spawn_blocking(move || {
+        io::update_work_item_atomic(&slug, &short_id, |fm, _body| {
+            fm.status = "in_progress".to_string();
+            fm.updated_at = Utc::now().to_rfc3339();
+            Ok(fm.title.clone())
+        })
+    })
+    .await
+    {
+        Ok(Ok(_)) => {}
+        Ok(Err(err)) => warn!("[scheduler] Status update failed: {}", err),
+        Err(err) => warn!("[scheduler] Status update worker failed: {}", err),
     }
-
-    let now = chrono::Utc::now();
-    if let Ok(start_time) = chrono::DateTime::parse_from_rfc3339(start_str) {
-        return now >= start_time;
-    }
-    if let Ok(start_time) = chrono::NaiveDateTime::parse_from_str(start_str, "%Y-%m-%dT%H:%M:%S") {
-        return now >= start_time.and_utc();
-    }
-    if let Ok(start_date) = chrono::NaiveDate::parse_from_str(start_str, "%Y-%m-%d") {
-        if let Some(start_dt) = start_date.and_hms_opt(0, 0, 0) {
-            return now >= start_dt.and_utc();
-        }
-    }
-    false
 }
 
-/// Check if a one-shot schedule should fire.
-fn should_trigger_at(schedule: &WorkItemSchedule, now: &chrono::DateTime<chrono::Utc>) -> bool {
-    if let Some(ref at_str) = schedule.at {
-        if let Ok(at_time) = chrono::DateTime::parse_from_rfc3339(at_str) {
-            return *now >= at_time;
-        }
-        if let Ok(at_time) = chrono::NaiveDateTime::parse_from_str(at_str, "%Y-%m-%dT%H:%M:%S") {
-            return *now >= at_time.and_utc();
-        }
-    }
-    false
-}
-
-fn update_status_in_progress(slug: &str, short_id: &str) {
-    let _ = io::update_work_item_atomic(slug, short_id, |fm, _body| {
-        fm.status = "in_progress".to_string();
-        fm.updated_at = chrono::Utc::now().to_rfc3339();
-        Ok(fm.title.clone())
-    });
-}
-
-fn disable_one_shot_schedule(slug: &str, short_id: &str) {
-    let _ = io::update_work_item_atomic(slug, short_id, |fm, _body| {
-        if let Some(ref mut sched) = fm.schedule {
-            if sched.at.is_some() {
-                sched.enabled = false;
+async fn disable_one_shot_schedule(slug: &str, short_id: &str) {
+    let slug = slug.to_string();
+    let short_id = short_id.to_string();
+    match tokio::task::spawn_blocking(move || {
+        io::update_work_item_atomic(&slug, &short_id, |fm, _body| {
+            if let Some(ref mut schedule) = fm.schedule {
+                if schedule.at.is_some() {
+                    schedule.enabled = false;
+                }
             }
-        }
-        Ok(fm.title.clone())
-    });
+            Ok(fm.title.clone())
+        })
+    })
+    .await
+    {
+        Ok(Ok(_)) => {}
+        Ok(Err(err)) => warn!("[scheduler] Schedule disable failed: {}", err),
+        Err(err) => warn!("[scheduler] Schedule disable worker failed: {}", err),
+    }
 }
 
 /// One-time startup migration: work items carrying a recurring
@@ -304,8 +348,8 @@ pub fn migrate_cron_schedules() -> Result<usize, String> {
     Ok(migrated)
 }
 
-fn blocked_notification_key(short_id: &str, reason: &str) -> String {
-    format!("{short_id}:{}", truncate(reason, 160))
+fn blocked_notification_key(project_slug: &str, short_id: &str, reason: &str) -> String {
+    format!("{project_slug}:{short_id}:{}", truncate(reason, 160))
 }
 
 fn should_emit_blocked_notification(key: &str, now_ts: i64) -> bool {
@@ -314,20 +358,55 @@ fn should_emit_blocked_notification(key: &str, now_ts: i64) -> bool {
         return true;
     };
 
+    should_emit_blocked_notification_in(&mut cache, key, now_ts)
+}
+
+fn should_emit_blocked_notification_in(
+    cache: &mut HashMap<String, i64>,
+    key: &str,
+    now_ts: i64,
+) -> bool {
+    cache.retain(|_, last_sent_at| {
+        now_ts.saturating_sub(*last_sent_at) < BLOCKED_NOTIFICATION_RETENTION_SECS
+    });
+
     if let Some(last_sent_at) = cache.get(key) {
         if now_ts.saturating_sub(*last_sent_at) < BLOCKED_NOTIFICATION_COOLDOWN_SECS {
             return false;
         }
     }
 
+    if !cache.contains_key(key) && cache.len() >= BLOCKED_NOTIFICATION_CACHE_MAX_ENTRIES {
+        if let Some(oldest_key) = cache
+            .iter()
+            .min_by_key(|(_, last_sent_at)| *last_sent_at)
+            .map(|(key, _)| key.clone())
+        {
+            cache.remove(&oldest_key);
+        }
+    }
     cache.insert(key.to_string(), now_ts);
     true
 }
 
 /// Write a "blocked" notification to the user's inbox.
-fn notify_inbox_blocked(short_id: &str, title: &str, reason: &str) {
+async fn notify_inbox_blocked(project_slug: &str, short_id: &str, title: &str, reason: &str) {
+    let project_slug = project_slug.to_string();
+    let short_id = short_id.to_string();
+    let title = title.to_string();
+    let reason = reason.to_string();
+    if let Err(err) = tokio::task::spawn_blocking(move || {
+        notify_inbox_blocked_sync(&project_slug, &short_id, &title, &reason)
+    })
+    .await
+    {
+        warn!("[scheduler] Inbox notification worker failed: {}", err);
+    }
+}
+
+fn notify_inbox_blocked_sync(project_slug: &str, short_id: &str, title: &str, reason: &str) {
     let now = chrono::Utc::now();
-    let key = blocked_notification_key(short_id, reason);
+    let key = blocked_notification_key(project_slug, short_id, reason);
     if !should_emit_blocked_notification(&key, now.timestamp()) {
         debug!(
             "[scheduler] Suppressed duplicate blocked notification for {}",
@@ -338,7 +417,7 @@ fn notify_inbox_blocked(short_id: &str, title: &str, reason: &str) {
 
     let now_rfc3339 = now.to_rfc3339();
     let msg = inbox::persistence::InboxMessage {
-        id: format!("schedule-blocked-{}", short_id),
+        id: format!("schedule-blocked-{}-{}", project_slug, short_id),
         title: format!("[Scheduled Task Blocked] {} \"{}\"", short_id, title),
         preview: format!("Reason: {}", truncate(reason, 100)),
         content: format!(
@@ -584,5 +663,40 @@ mod tests {
             last_run: None,
         };
         assert!(should_trigger_at(&schedule, &moment));
+    }
+
+    #[test]
+    fn blocked_notification_cache_enforces_hard_entry_limit() {
+        let mut cache = HashMap::new();
+        for index in 0..(BLOCKED_NOTIFICATION_CACHE_MAX_ENTRIES + 25) {
+            assert!(should_emit_blocked_notification_in(
+                &mut cache,
+                &format!("project:item-{index}:reason"),
+                10_000 + index as i64,
+            ));
+        }
+        assert_eq!(cache.len(), BLOCKED_NOTIFICATION_CACHE_MAX_ENTRIES);
+    }
+
+    #[test]
+    fn blocked_notification_cache_prunes_expired_entries() {
+        let mut cache = HashMap::from([
+            ("expired".to_string(), 1),
+            ("recent".to_string(), BLOCKED_NOTIFICATION_RETENTION_SECS),
+        ]);
+        let now = BLOCKED_NOTIFICATION_RETENTION_SECS + 2;
+
+        assert!(should_emit_blocked_notification_in(&mut cache, "new", now,));
+        assert!(!cache.contains_key("expired"));
+        assert!(cache.contains_key("recent"));
+        assert!(cache.contains_key("new"));
+    }
+
+    #[test]
+    fn blocked_notification_identity_includes_project_scope() {
+        assert_ne!(
+            blocked_notification_key("alpha", "WI-0001", "missing account"),
+            blocked_notification_key("beta", "WI-0001", "missing account"),
+        );
     }
 }

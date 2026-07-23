@@ -81,19 +81,60 @@ export function useWebviewUrlPolling(
       INITIAL_POLL_DELAY
     );
 
-    const startupTimer = setTimeout(() => {
-      void pollUrl();
-      pollIntervalRef.current = setInterval(() => {
-        void pollUrl();
-      }, pollInterval);
-    }, INITIAL_POLL_DELAY);
+    let cancelled = false;
+    let inFlight = false;
+
+    const clearTimer = () => {
+      if (!pollIntervalRef.current) return;
+      clearTimeout(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    };
+
+    const schedule = (delay: number) => {
+      clearTimer();
+      if (
+        cancelled ||
+        document.visibilityState !== "visible" ||
+        isDestroyedRef.current ||
+        isUnmountedRef.current
+      ) {
+        return;
+      }
+
+      pollIntervalRef.current = setTimeout(() => {
+        pollIntervalRef.current = null;
+        void run();
+      }, delay);
+    };
+
+    const run = async () => {
+      if (cancelled || inFlight || document.visibilityState !== "visible") {
+        return;
+      }
+
+      inFlight = true;
+      try {
+        await pollUrl();
+      } finally {
+        inFlight = false;
+        schedule(pollInterval);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      clearTimer();
+      if (document.visibilityState === "visible") {
+        void run();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    schedule(INITIAL_POLL_DELAY);
 
     return () => {
-      clearTimeout(startupTimer);
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
+      cancelled = true;
+      clearTimer();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [
     isWebviewCreated,

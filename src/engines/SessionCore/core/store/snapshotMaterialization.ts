@@ -9,6 +9,7 @@ import type {
   NormalizedSnapshotCache,
   Snapshot,
   SnapshotDelta,
+  SnapshotEventMembership,
   SnapshotPayload,
   StreamingSnapshot,
 } from "./EventStoreProxyTypes";
@@ -16,6 +17,15 @@ import type {
 export function isStreamingSnapshot(
   snapshot: Snapshot
 ): snapshot is StreamingSnapshot {
+  return (
+    "streaming" in snapshot &&
+    snapshot.streaming === true &&
+    !("events" in snapshot)
+  );
+}
+
+/** Active turn state, independent of the legacy StreamingSnapshot wire shape. */
+export function isSnapshotActivelyStreaming(snapshot: Snapshot): boolean {
   return "streaming" in snapshot && snapshot.streaming === true;
 }
 
@@ -224,6 +234,11 @@ export function buildNormalizedCache(
   for (const event of events) {
     eventsById.set(event.id, event);
   }
+  const orderMembershipById = buildOrderMembership(
+    chatEvents.map((event) => event.id),
+    messagesEvents.map((event) => event.id),
+    sortedSimulatorEvents.map((event) => event.id)
+  );
   const cache: NormalizedSnapshotCache = {
     eventsById,
     eventIds: events.map((event) => event.id),
@@ -236,6 +251,13 @@ export function buildNormalizedCache(
     functionNameById: {},
     displayStatusById: {},
     displayVariantById: {},
+    orderMembershipById,
+    runningEventIds: new Set(
+      events
+        .filter((event) => event.displayStatus === "running")
+        .map((event) => event.id)
+    ),
+    latestCanvasPreview: snapshot.latestCanvasPreview,
   };
   rebuildSimulatorPreviewIndexes(cache, sortedSimulatorEvents);
   return cache;
@@ -296,6 +318,7 @@ export interface PendingDeltaState {
   chatEventCount: number;
   hasRunningEvent: boolean;
   latestCanvasPreview?: LatestCanvasPreview;
+  streaming: boolean;
   lastEventId: string | null;
   /** Ids whose event object identity changed (upserted) since last flush. */
   changedEventIds: Set<string>;
@@ -314,6 +337,249 @@ function sameIdList(previous: string[], next: string[]): boolean {
   return true;
 }
 
+const ORDER_MEMBER_CHAT = 1;
+const ORDER_MEMBER_MESSAGES = 2;
+const ORDER_MEMBER_SIMULATOR = 4;
+
+function buildOrderMembership(
+  chatEventIds: string[],
+  messagesEventIds: string[],
+  simulatorEventIds: string[]
+): Map<string, number> {
+  const result = new Map<string, number>();
+  const add = (ids: string[], flag: number) => {
+    for (const id of ids) result.set(id, (result.get(id) ?? 0) | flag);
+  };
+  add(chatEventIds, ORDER_MEMBER_CHAT);
+  add(messagesEventIds, ORDER_MEMBER_MESSAGES);
+  add(simulatorEventIds, ORDER_MEMBER_SIMULATOR);
+  return result;
+}
+
+function membershipBits(membership: SnapshotEventMembership): number {
+  return (
+    (membership.chat ? ORDER_MEMBER_CHAT : 0) |
+    (membership.messages ? ORDER_MEMBER_MESSAGES : 0) |
+    (membership.simulator ? ORDER_MEMBER_SIMULATOR : 0)
+  );
+}
+
+function removeId(ids: string[], id: string): number {
+  const index = ids.indexOf(id);
+  if (index >= 0) ids.splice(index, 1);
+  return index;
+}
+
+function placeIdAtIndex(
+  ids: string[],
+  id: string,
+  targetIndex: number
+): boolean {
+  if (ids[targetIndex] === id) return false;
+  const previousIndex = removeId(ids, id);
+  const nextIndex = Math.max(0, Math.min(targetIndex, ids.length));
+  ids.splice(nextIndex, 0, id);
+  return previousIndex !== nextIndex;
+}
+
+function chatSortRank(event: SessionEvent): number {
+  return event.displayVariant === "summary" ||
+    event.functionName === "turn_summary" ||
+    event.uiCanonical === "turn_summary"
+    ? 1
+    : 0;
+}
+
+function compareChatEvents(left: SessionEvent, right: SessionEvent): number {
+  return (
+    left.createdAt.localeCompare(right.createdAt) ||
+    chatSortRank(left) - chatSortRank(right) ||
+    left.id.localeCompare(right.id)
+  );
+}
+
+function compareSimulatorEvents(
+  left: SessionEvent,
+  right: SessionEvent
+): number {
+  return (
+    left.createdAt.localeCompare(right.createdAt) ||
+    left.id.localeCompare(right.id)
+  );
+}
+
+function placeSortedId(
+  ids: string[],
+  id: string,
+  visible: boolean,
+  eventsById: Map<string, SessionEvent>,
+  compare: (left: SessionEvent, right: SessionEvent) => number
+): boolean {
+  const previousIndex = removeId(ids, id);
+  if (!visible) return previousIndex >= 0;
+  const event = eventsById.get(id);
+  if (!event) return previousIndex >= 0;
+  const nextIndex = ids.findIndex((otherId) => {
+    const other = eventsById.get(otherId);
+    return other ? compare(event, other) < 0 : false;
+  });
+  const insertionIndex = nextIndex < 0 ? ids.length : nextIndex;
+  ids.splice(insertionIndex, 0, id);
+  return previousIndex !== insertionIndex;
+}
+
+function placeMessageId(
+  cache: NormalizedSnapshotCache,
+  id: string,
+  visible: boolean,
+  eventIndex: number
+): boolean {
+  const previousIndex = removeId(cache.messagesEventIds, id);
+  if (!visible) return previousIndex >= 0;
+  const eventPositionById = new Map(
+    cache.eventIds.map((eventId, index) => [eventId, index])
+  );
+  const nextIndex = cache.messagesEventIds.findIndex((otherId) => {
+    const otherIndex = eventPositionById.get(otherId);
+    return otherIndex !== undefined && otherIndex > eventIndex;
+  });
+  const insertionIndex =
+    nextIndex < 0 ? cache.messagesEventIds.length : nextIndex;
+  cache.messagesEventIds.splice(insertionIndex, 0, id);
+  return previousIndex !== insertionIndex;
+}
+
+function isCanvasEvent(event: SessionEvent | undefined): boolean {
+  return Boolean(
+    event &&
+    (event.uiCanonical === "canvas_inline" ||
+      event.functionName === "render_inline_canvas")
+  );
+}
+
+function canvasPreviewForEvent(
+  event: SessionEvent | undefined
+): LatestCanvasPreview | undefined {
+  if (!event || !isCanvasEvent(event)) return undefined;
+  const args = event.args as Record<string, unknown>;
+  return {
+    eventId: event.id,
+    mode: typeof args.mode === "string" ? args.mode : "html",
+    url: typeof args.url === "string" ? args.url : undefined,
+    title: typeof args.title === "string" ? args.title : undefined,
+    streaming: typeof args.streaming === "boolean" ? args.streaming : undefined,
+  } as LatestCanvasPreview;
+}
+
+function recomputeLatestCanvasPreview(cache: NormalizedSnapshotCache): void {
+  cache.latestCanvasPreview = undefined;
+  for (let index = cache.eventIds.length - 1; index >= 0; index--) {
+    const preview = canvasPreviewForEvent(
+      cache.eventsById.get(cache.eventIds[index])
+    );
+    if (preview) {
+      cache.latestCanvasPreview = preview;
+      return;
+    }
+  }
+}
+
+function applyIncrementalOrders(
+  delta: SnapshotDelta,
+  cache: NormalizedSnapshotCache,
+  sortKeyChangedIds: Set<string>
+): {
+  eventOrderChanged: boolean;
+  chatOrderChanged: boolean;
+  messagesOrderChanged: boolean;
+  simulatorOrderChanged: boolean;
+} {
+  let eventOrderChanged = false;
+  let chatOrderChanged = false;
+  let messagesOrderChanged = false;
+  let simulatorOrderChanged = false;
+
+  for (const id of delta.removedIds) {
+    const currentMembership = cache.orderMembershipById.get(id) ?? 0;
+    eventOrderChanged = removeId(cache.eventIds, id) >= 0 || eventOrderChanged;
+    if (currentMembership & ORDER_MEMBER_CHAT) {
+      chatOrderChanged =
+        removeId(cache.chatEventIds, id) >= 0 || chatOrderChanged;
+    }
+    if (currentMembership & ORDER_MEMBER_MESSAGES) {
+      messagesOrderChanged =
+        removeId(cache.messagesEventIds, id) >= 0 || messagesOrderChanged;
+    }
+    if (currentMembership & ORDER_MEMBER_SIMULATOR) {
+      simulatorOrderChanged =
+        removeId(cache.sortedSimulatorEventIds, id) >= 0 ||
+        simulatorOrderChanged;
+    }
+    cache.orderMembershipById.delete(id);
+  }
+
+  for (const membership of delta.memberships ?? []) {
+    const previousMembership =
+      cache.orderMembershipById.get(membership.id) ?? 0;
+    const nextMembership = membershipBits(membership);
+    const sortKeyChanged = sortKeyChangedIds.has(membership.id);
+    eventOrderChanged =
+      placeIdAtIndex(cache.eventIds, membership.id, membership.eventIndex) ||
+      eventOrderChanged;
+    if (
+      Boolean(previousMembership & ORDER_MEMBER_CHAT) !== membership.chat ||
+      (membership.chat && sortKeyChanged)
+    ) {
+      chatOrderChanged =
+        placeSortedId(
+          cache.chatEventIds,
+          membership.id,
+          membership.chat,
+          cache.eventsById,
+          compareChatEvents
+        ) || chatOrderChanged;
+    }
+    if (
+      Boolean(previousMembership & ORDER_MEMBER_SIMULATOR) !==
+        membership.simulator ||
+      (membership.simulator && sortKeyChanged)
+    ) {
+      simulatorOrderChanged =
+        placeSortedId(
+          cache.sortedSimulatorEventIds,
+          membership.id,
+          membership.simulator,
+          cache.eventsById,
+          compareSimulatorEvents
+        ) || simulatorOrderChanged;
+    }
+    if (
+      Boolean(previousMembership & ORDER_MEMBER_MESSAGES) !==
+      membership.messages
+    ) {
+      messagesOrderChanged =
+        placeMessageId(
+          cache,
+          membership.id,
+          membership.messages,
+          membership.eventIndex
+        ) || messagesOrderChanged;
+    }
+    if (nextMembership === 0) {
+      cache.orderMembershipById.delete(membership.id);
+    } else {
+      cache.orderMembershipById.set(membership.id, nextMembership);
+    }
+  }
+
+  return {
+    eventOrderChanged,
+    chatOrderChanged,
+    messagesOrderChanged,
+    simulatorOrderChanged,
+  };
+}
+
 /**
  * Apply one delta envelope to the cache. Must be called exactly once per
  * envelope, in arrival order — envelopes are never dropped; only their
@@ -330,6 +596,7 @@ export function applyDeltaToCache(
     chatEventCount: delta.chatEventCount,
     hasRunningEvent: delta.hasRunningEvent,
     latestCanvasPreview: delta.latestCanvasPreview,
+    streaming: delta.streaming === true,
     lastEventId: delta.lastEventId,
     changedEventIds: new Set<string>(),
     eventOrderChanged: false,
@@ -338,41 +605,83 @@ export function applyDeltaToCache(
     simulatorOrderChanged: false,
   };
 
-  state.eventOrderChanged =
-    state.eventOrderChanged || !sameIdList(cache.eventIds, delta.eventIds);
-  state.chatOrderChanged =
-    state.chatOrderChanged ||
-    !sameIdList(cache.chatEventIds, delta.chatEventIds);
-  state.messagesOrderChanged =
-    state.messagesOrderChanged ||
-    !sameIdList(cache.messagesEventIds, delta.messagesEventIds);
-  state.simulatorOrderChanged =
-    state.simulatorOrderChanged ||
-    !sameIdList(cache.sortedSimulatorEventIds, delta.sortedSimulatorEventIds);
+  let canvasMayHaveChanged = delta.removedIds.some(
+    (id) => id === cache.latestCanvasPreview?.eventId
+  );
+  const sortKeyChangedIds = new Set<string>();
 
   for (const removedId of delta.removedIds) {
     cache.eventsById.delete(removedId);
+    cache.runningEventIds.delete(removedId);
     state.changedEventIds.delete(removedId);
   }
   for (const event of delta.upserts) {
     if (!isSessionEvent(event)) continue;
-    if (cache.eventsById.get(event.id) !== event) {
+    const previousEvent = cache.eventsById.get(event.id);
+    canvasMayHaveChanged ||=
+      isCanvasEvent(previousEvent) || isCanvasEvent(event);
+    if (previousEvent !== event) {
       state.changedEventIds.add(event.id);
     }
+    if (
+      !previousEvent ||
+      previousEvent.createdAt !== event.createdAt ||
+      chatSortRank(previousEvent) !== chatSortRank(event)
+    ) {
+      sortKeyChangedIds.add(event.id);
+    }
     cache.eventsById.set(event.id, event);
+    if (event.displayStatus === "running") {
+      cache.runningEventIds.add(event.id);
+    } else {
+      cache.runningEventIds.delete(event.id);
+    }
   }
 
-  cache.eventIds = delta.eventIds;
-  cache.chatEventIds = delta.chatEventIds;
-  cache.messagesEventIds = delta.messagesEventIds;
-  cache.sortedSimulatorEventIds = delta.sortedSimulatorEventIds;
+  if (delta.incrementalOrders) {
+    const changes = applyIncrementalOrders(delta, cache, sortKeyChangedIds);
+    state.eventOrderChanged ||= changes.eventOrderChanged;
+    state.chatOrderChanged ||= changes.chatOrderChanged;
+    state.messagesOrderChanged ||= changes.messagesOrderChanged;
+    state.simulatorOrderChanged ||= changes.simulatorOrderChanged;
+    if (canvasMayHaveChanged) recomputeLatestCanvasPreview(cache);
+  } else {
+    state.eventOrderChanged ||= !sameIdList(cache.eventIds, delta.eventIds);
+    state.chatOrderChanged ||= !sameIdList(
+      cache.chatEventIds,
+      delta.chatEventIds
+    );
+    state.messagesOrderChanged ||= !sameIdList(
+      cache.messagesEventIds,
+      delta.messagesEventIds
+    );
+    state.simulatorOrderChanged ||= !sameIdList(
+      cache.sortedSimulatorEventIds,
+      delta.sortedSimulatorEventIds
+    );
+    cache.eventIds = delta.eventIds;
+    cache.chatEventIds = delta.chatEventIds;
+    cache.messagesEventIds = delta.messagesEventIds;
+    cache.sortedSimulatorEventIds = delta.sortedSimulatorEventIds;
+    cache.orderMembershipById = buildOrderMembership(
+      delta.chatEventIds,
+      delta.messagesEventIds,
+      delta.sortedSimulatorEventIds
+    );
+    cache.latestCanvasPreview = delta.latestCanvasPreview;
+  }
 
   state.version = delta.version;
   state.eventCount = delta.eventCount;
-  state.chatEventCount = delta.chatEventCount;
-  state.hasRunningEvent = delta.hasRunningEvent;
-  state.latestCanvasPreview = delta.latestCanvasPreview;
+  state.chatEventCount = delta.incrementalOrders
+    ? cache.chatEventIds.length
+    : delta.chatEventCount;
+  state.hasRunningEvent = delta.incrementalOrders
+    ? cache.runningEventIds.size > 0
+    : delta.hasRunningEvent;
+  state.latestCanvasPreview = cache.latestCanvasPreview;
   state.lastEventId = delta.lastEventId;
+  state.streaming = delta.streaming === true;
   return state;
 }
 
@@ -466,6 +775,7 @@ export function materializePendingDelta(
       chatEventCount: pending.chatEventCount,
       hasRunningEvent: pending.hasRunningEvent,
       latestCanvasPreview: pending.latestCanvasPreview,
+      streaming: pending.streaming,
     },
     cache
   );
@@ -505,6 +815,17 @@ export function materializeStreamingSnapshot(
     functionNameById: {},
     displayStatusById: {},
     displayVariantById: {},
+    orderMembershipById: buildOrderMembership(
+      chatEvents.map((event) => event.id),
+      [],
+      sortedSimulatorEvents.map((event) => event.id)
+    ),
+    runningEventIds: new Set(
+      [...chatEvents, ...sortedSimulatorEvents]
+        .filter((event) => event.displayStatus === "running")
+        .map((event) => event.id)
+    ),
+    latestCanvasPreview: snapshot.latestCanvasPreview,
   };
   rebuildSimulatorPreviewIndexes(cache, sortedSimulatorEvents);
   return attachSimulatorPreviewFields(

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { mergeStreamingText } from "../streamTextAccumulator";
+import {
+  MAX_TOOL_CALL_DELTA_BUFFERS,
+  MAX_TOOL_CALL_DELTA_CHARS,
+  appendBoundedToolCallArgs,
+  makeRoomForToolCallDelta,
+  mergeStreamingText,
+} from "../streamTextAccumulator";
 
 describe("mergeStreamingText", () => {
   it("appends normal delta fragments", () => {
@@ -68,5 +74,27 @@ describe("mergeStreamingText", () => {
     expect(mergeStreamingText(current, incoming)).toBe(
       `${current}${"b".repeat(20_000)}`
     );
+  });
+});
+
+describe("tool-call delta bounds", () => {
+  it("caps accumulated JSON arguments", () => {
+    const current = "a".repeat(MAX_TOOL_CALL_DELTA_CHARS - 2);
+    const result = appendBoundedToolCallArgs(current, "bcdef");
+
+    expect(result).toHaveLength(MAX_TOOL_CALL_DELTA_CHARS);
+    expect(result.endsWith("bc")).toBe(true);
+  });
+
+  it("evicts the oldest incomplete tool call at the map cap", () => {
+    const buffers = new Map<number, string>();
+    for (let index = 0; index < MAX_TOOL_CALL_DELTA_BUFFERS; index++) {
+      buffers.set(index, String(index));
+    }
+
+    makeRoomForToolCallDelta(buffers, MAX_TOOL_CALL_DELTA_BUFFERS);
+
+    expect(buffers.size).toBe(MAX_TOOL_CALL_DELTA_BUFFERS - 1);
+    expect(buffers.has(0)).toBe(false);
   });
 });

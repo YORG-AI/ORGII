@@ -117,7 +117,16 @@ const AppShell = React.memo(
       workStationPanels,
     });
 
-    const portsEnabled = isCodeMode && isActive && !isAgentStation;
+    // The WorkStation host stays mounted behind the Launchpad / maximized chat
+    // surface. Port discovery is useful only while an actual code-host tab is
+    // visible; keeping it alive behind those overlays causes an idle 60s scan.
+    const portsEnabled =
+      isCodeMode &&
+      isActive &&
+      !chatPanelFocused &&
+      activeWorkStationTab != null &&
+      activeWorkStationTab.type !== "start" &&
+      !isAgentStation;
     useWorkspacePortAdvertisedUrls(portsEnabled);
 
     const showStatusBar = !statusBarHidden && !isAgentStation;

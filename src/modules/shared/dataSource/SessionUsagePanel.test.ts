@@ -67,7 +67,13 @@ vi.mock("./UsageRoundsTable", () => ({
 }));
 
 vi.mock("./UsageStatCards", () => ({ default: () => null }));
-vi.mock("./UsageTrendChart", () => ({ default: () => null }));
+vi.mock("./UsageTrendChart", () => ({
+  default: ({ points }: { points: unknown[] }) =>
+    createElement("div", {
+      "data-testid": "usage-trend-chart",
+      "data-point-count": String(points.length),
+    }),
+}));
 
 const reactActEnvironment = globalThis as typeof globalThis & {
   IS_REACT_ACT_ENVIRONMENT?: boolean;
@@ -161,10 +167,12 @@ describe("SessionUsagePanel", () => {
     await act(async () => refresh?.click());
     expect(mocks.usageDashboardOverview).toHaveBeenCalledTimes(4);
     expect(mocks.usageDashboardOverview.mock.calls[2]?.[1]).toMatchObject({
+      includeTrends: false,
       includeRounds: false,
     });
     expect(mocks.usageDashboardOverview.mock.calls[3]?.[1]).toMatchObject({
       includeHeadline: false,
+      includeTrends: false,
       includeRounds: true,
     });
   });
@@ -183,6 +191,7 @@ describe("SessionUsagePanel", () => {
 
     expect(mocks.usageDashboardOverview).toHaveBeenCalledTimes(1);
     expect(mocks.usageDashboardOverview.mock.calls[0]?.[1]).toMatchObject({
+      includeTrends: false,
       includeRounds: false,
     });
 
@@ -200,6 +209,7 @@ describe("SessionUsagePanel", () => {
     expect(mocks.usageDashboardOverview).toHaveBeenCalledTimes(2);
     expect(mocks.usageDashboardOverview.mock.calls[1]?.[1]).toMatchObject({
       includeHeadline: false,
+      includeTrends: false,
       includeRounds: true,
       limit: 10,
       offset: 0,
@@ -260,5 +270,45 @@ describe("SessionUsagePanel", () => {
     expect(mocks.usageDashboardOverview).toHaveBeenCalledTimes(2);
 
     await act(async () => resolveRounds(createOverview()));
+  });
+
+  it("loads trend data and the chart module only while Trends is expanded", async () => {
+    mocks.usageDashboardOverview.mockImplementation(
+      (_scope: unknown, options?: { includeTrends?: boolean }) =>
+        Promise.resolve({
+          ...createOverview(),
+          trends: options?.includeTrends ? [{ bucketMs: 1 }] : [],
+        })
+    );
+
+    await act(async () => {
+      root.render(createElement(SessionUsagePanel));
+    });
+    expect(mocks.usageDashboardOverview).toHaveBeenCalledTimes(1);
+    expect(
+      container.querySelector('[data-testid="usage-trend-chart"]')
+    ).toBeNull();
+
+    const toggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="usage-trends-toggle"]'
+    );
+    await act(async () => toggle?.click());
+
+    expect(mocks.usageDashboardOverview).toHaveBeenCalledTimes(2);
+    expect(mocks.usageDashboardOverview.mock.calls[1]?.[1]).toMatchObject({
+      includeHeadline: false,
+      includeTrends: true,
+      includeRounds: false,
+    });
+    expect(
+      container
+        .querySelector('[data-testid="usage-trend-chart"]')
+        ?.getAttribute("data-point-count")
+    ).toBe("1");
+
+    act(() => toggle?.click());
+    expect(
+      container.querySelector('[data-testid="usage-trend-chart"]')
+    ).toBeNull();
   });
 });

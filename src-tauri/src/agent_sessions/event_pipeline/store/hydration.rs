@@ -316,5 +316,9 @@ impl EventStore {
                 .then_with(|| left.id.cmp(&right.id))
         });
         self.rebuild_indexes();
+        // Incremental streaming order patches describe only changed ids.
+        // A round-window merge may move untouched historical ids as well, so
+        // the next notification must replace the normalized baseline once.
+        self.last_full_snapshot_version = 0;
     }
 }

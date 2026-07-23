@@ -2,11 +2,11 @@ import React from "react";
 
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import ModelIcon from "@src/components/ModelIcon";
+import { resolveAgentIcon } from "@src/config/agentIcons";
 import type { KanbanTask } from "@src/features/KanbanBoard";
 import { KANBAN_RESULT_STATUS } from "@src/features/KanbanBoard/types";
 import { formatSmartDateTime } from "@src/util/data/formatters/date";
 import { formatModelNameFull } from "@src/util/formatModelName";
-import { resolveSessionRowIcon } from "@src/util/session/sessionSidebarRow";
 
 import type { SessionTableItem } from "./SessionTable";
 
@@ -45,11 +45,7 @@ function truncateWorkspaceLabel(label: string | undefined): string | undefined {
 function renderAgentIcon(task: KanbanTask): React.ReactNode {
   // Use the primary text color for the Agent and Model marks in Kanban while
   // retaining the shared monochrome, Lucide-style session icon resolver.
-  const AgentIcon = resolveSessionRowIcon({
-    session_id: task.id,
-    agentIconId: task.agentIconId ?? undefined,
-    cliAgentType: task.cliAgentType ?? undefined,
-  });
+  const AgentIcon = resolveAgentIcon(task.agentIconId ?? task.cliAgentType);
   return <AgentIcon size={14} strokeWidth={1.75} className="text-text-1" />;
 }
 

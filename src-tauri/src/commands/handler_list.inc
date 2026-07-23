@@ -1021,7 +1021,7 @@ orgtrack::history_commands::windsurf_recent_paths,
 orgtrack::history_commands::trae_recent_paths,
 orgtrack::history_commands::cline_recent_paths,
 orgtrack::history_commands::workbuddy_recent_paths,
-orgtrack::history_commands::imported_history_subagent_count,
+orgtrack::history_commands::external_history_source_stats,
 // Bounded external/managed CLI replay (#443). Foreground open/poll/read own
 // EventStore delivery; query_window is explicitly side-effect-free for hover
 // and raw/export previews, while prewarm_window owns one guarded Rust apply.

@@ -3,6 +3,7 @@ import { act, createElement } from "react";
 import { type Root, createRoot } from "react-dom/client";
 import {
   afterAll,
+  afterEach,
   beforeAll,
   beforeEach,
   describe,
@@ -12,7 +13,9 @@ import {
 } from "vitest";
 
 import {
+  type ExternalHistoryRefreshSchedulerEnvironment,
   refreshBoundedReplaySession,
+  startExternalHistoryRefreshScheduler,
   useExternalHistoryAutoRefresh,
 } from "./externalHistoryAutoRefresh";
 
@@ -61,6 +64,59 @@ vi.mock("./externalReplayTransport", () => ({
   getExternalReplayWatcherAvailable: mocks.getExternalReplayWatcherAvailable,
   pollExternalReplaySession: mocks.pollExternalReplaySession,
 }));
+
+class RefreshSchedulerEnvironment implements ExternalHistoryRefreshSchedulerEnvironment {
+  hidden = false;
+  focused = true;
+  private readonly focusListeners = new Set<() => void>();
+  private readonly blurListeners = new Set<() => void>();
+  private readonly visibilityListeners = new Set<() => void>();
+
+  isHidden(): boolean {
+    return this.hidden;
+  }
+
+  isFocused(): boolean {
+    return this.focused && !this.hidden;
+  }
+
+  setTimer(
+    callback: () => void,
+    delayMs: number
+  ): ReturnType<typeof setTimeout> {
+    return setTimeout(callback, delayMs);
+  }
+
+  clearTimer(timer: ReturnType<typeof setTimeout>): void {
+    clearTimeout(timer);
+  }
+
+  subscribeFocus(callback: () => void): () => void {
+    this.focusListeners.add(callback);
+    return () => this.focusListeners.delete(callback);
+  }
+
+  subscribeBlur(callback: () => void): () => void {
+    this.blurListeners.add(callback);
+    return () => this.blurListeners.delete(callback);
+  }
+
+  subscribeVisibility(callback: () => void): () => void {
+    this.visibilityListeners.add(callback);
+    return () => this.visibilityListeners.delete(callback);
+  }
+
+  setFocused(focused: boolean): void {
+    this.focused = focused;
+    const listeners = focused ? this.focusListeners : this.blurListeners;
+    for (const listener of listeners) listener();
+  }
+
+  setHidden(hidden: boolean): void {
+    this.hidden = hidden;
+    for (const listener of this.visibilityListeners) listener();
+  }
+}
 
 describe("refreshBoundedReplaySession", () => {
   beforeEach(() => {
@@ -320,12 +376,14 @@ describe("bounded replay refresh lifecycle", () => {
     expect(mocks.pollExternalReplaySession).not.toHaveBeenCalled();
   });
 
-  it("owns no refresh timer while the application window is unfocused", async () => {
+  it("uses only the 60s integrity cadence while the window is unfocused", async () => {
     mocks.isWindowFocused.mockReturnValue(false);
     await renderHarness("codexapp-active");
 
-    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+    await act(async () => vi.advanceTimersByTimeAsync(59_999));
     expect(mocks.pollExternalReplaySession).not.toHaveBeenCalled();
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(mocks.pollExternalReplaySession).toHaveBeenCalledTimes(1);
   });
 
   it("aborts in-flight refresh work and removes the watcher listener on session switch", async () => {
@@ -377,5 +435,96 @@ describe("bounded replay refresh lifecycle", () => {
       sessionId: "codexapp-b",
       epoch: 2,
     });
+  });
+});
+
+describe("startExternalHistoryRefreshScheduler", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("schedules the actual background cadence instead of foreground wakeups", async () => {
+    const environment = new RefreshSchedulerEnvironment();
+    environment.focused = false;
+    const poll = vi.fn(() => Promise.resolve());
+    const scheduler = startExternalHistoryRefreshScheduler({
+      poll,
+      foregroundIntervalMs: 3_000,
+      environment,
+    });
+
+    await vi.advanceTimersByTimeAsync(59_999);
+    expect(poll).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(poll).toHaveBeenCalledTimes(1);
+
+    scheduler.stop();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("owns no hidden timer and refreshes once when visible or focused", async () => {
+    const environment = new RefreshSchedulerEnvironment();
+    const poll = vi.fn(() => Promise.resolve());
+    const onHidden = vi.fn();
+    const scheduler = startExternalHistoryRefreshScheduler({
+      poll,
+      foregroundIntervalMs: 3_000,
+      onHidden,
+      environment,
+    });
+
+    expect(vi.getTimerCount()).toBe(1);
+    environment.setHidden(true);
+    expect(onHidden).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(poll).not.toHaveBeenCalled();
+
+    environment.setHidden(false);
+    expect(poll).toHaveBeenCalledTimes(1);
+    await Promise.resolve();
+    expect(vi.getTimerCount()).toBe(1);
+    environment.setFocused(true);
+    expect(poll).toHaveBeenCalledTimes(1);
+
+    environment.setFocused(false);
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(poll).toHaveBeenCalledTimes(1);
+    environment.setFocused(true);
+    expect(poll).toHaveBeenCalledTimes(2);
+
+    scheduler.stop();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("never overlaps and does not reschedule after disposal", async () => {
+    const environment = new RefreshSchedulerEnvironment();
+    let resolvePoll!: () => void;
+    const poll = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolvePoll = resolve;
+        })
+    );
+    const scheduler = startExternalHistoryRefreshScheduler({
+      poll,
+      foregroundIntervalMs: 1_000,
+      environment,
+    });
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(poll).toHaveBeenCalledTimes(1);
+    environment.setFocused(false);
+    environment.setFocused(true);
+    expect(poll).toHaveBeenCalledTimes(1);
+
+    scheduler.stop();
+    resolvePoll();
+    await Promise.resolve();
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

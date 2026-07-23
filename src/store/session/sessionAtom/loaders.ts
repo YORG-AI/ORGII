@@ -7,10 +7,11 @@
  *    used by panels that want a single flat list across all categories
  *    (Chat history panel, Simulator panel, useSessionManager).
  *
- *  - `loadSidebarSessions()` / `loadMoreCategory()` — sidebar-specific
- *    paginated loaders. Native categories fetch one top-N page; imported
- *    sources fetch lightweight, independent date-bucket pages from ORGII's
- *    cache so a busy Today bucket cannot hide Yesterday.
+ *  - `loadSessionRoster()` / `loadMoreCategory()` — the shared incremental
+ *    roster consumed by Sidebar and every session Kanban mode. Native
+ *    categories fetch one top-N page; imported sources fetch lightweight,
+ *    independent date-bucket pages from ORGII's cache so a busy Today bucket
+ *    cannot hide Yesterday.
  */
 import {
   type ImportedHistorySource,
@@ -446,10 +447,12 @@ function replaceFirstPageForCategory(
   return mergeSessions(prev, incoming);
 }
 
-export const loadSidebarSessions = async (options?: {
+interface SidebarLoadOptions {
   pageSize?: number;
   forceRefresh?: boolean;
-}) => {
+}
+
+const performSidebarSessionLoad = async (options?: SidebarLoadOptions) => {
   const store = getStore();
   const pageSize = options?.pageSize ?? SESSION_SIDEBAR_PAGE_SIZE;
   const { forceRefresh = false } = options ?? {};
@@ -465,9 +468,28 @@ export const loadSidebarSessions = async (options?: {
     return;
   }
 
+  await loadSidebarSessionCategories(SESSION_LIST_CATEGORIES, pageSize, true);
+  store.set(sessionLastLoadedAtom, now);
+};
+
+async function loadSidebarSessionCategories(
+  categories: readonly SessionListCategory[],
+  pageSize: number,
+  isFullSidebarLoad: boolean
+): Promise<void> {
+  const store = getStore();
   store.set(sessionLoadingAtom, true);
   store.set(sessionErrorAtom, null);
-  store.set(sessionPaginationAtom, resetPaginationState());
+
+  const resetPagination = resetPaginationState();
+  store.set(sessionPaginationAtom, (previous) => {
+    if (isFullSidebarLoad) return resetPagination;
+    const next = { ...previous };
+    for (const category of categories) {
+      next[category] = resetPagination[category];
+    }
+    return next;
+  });
 
   // Sources the user has disabled in the Data Sources panel must not load;
   // the master external-sessions switch disables all of them at once.
@@ -480,11 +502,11 @@ export const loadSidebarSessions = async (options?: {
     return source ? isSourceDisabled(dataSourceConfig, source.sourceId) : false;
   };
 
-  for (const category of SESSION_LIST_CATEGORIES) {
+  for (const category of categories) {
     setPaginationFor(category, { loading: true });
   }
 
-  const enabledCategories = SESSION_LIST_CATEGORIES.filter((category) => {
+  const enabledCategories = categories.filter((category) => {
     if (!isCategoryDisabled(category)) return true;
     store.set(sessionsAtom, (prev) =>
       replaceFirstPageForCategory(category, prev, [], false)
@@ -557,9 +579,103 @@ export const loadSidebarSessions = async (options?: {
 
   const merged = store.get(sessionsAtom);
   persistSessions(merged);
-  store.set(sessionLastLoadedAtom, now);
   store.set(sessionLoadingAtom, false);
+}
+
+/**
+ * Refresh only imported-history sidebar pages after an external-source scan.
+ * Native CLI / agent / human categories are unaffected by that scan, so a full
+ * sidebar reload would issue three unrelated aggregate queries every cadence.
+ */
+export const loadExternalHistorySidebarSessions = async (options?: {
+  pageSize?: number;
+}) => {
+  const categories = SESSION_LIST_CATEGORIES.filter(
+    isImportedHistoryListCategory
+  );
+  await loadSidebarSessionCategories(
+    categories,
+    options?.pageSize ?? SESSION_SIDEBAR_PAGE_SIZE,
+    false
+  );
 };
+
+function mergeSidebarLoadOptions(
+  current: SidebarLoadOptions | null,
+  requested: SidebarLoadOptions
+): SidebarLoadOptions {
+  return {
+    pageSize: Math.max(
+      current?.pageSize ?? SESSION_SIDEBAR_PAGE_SIZE,
+      requested.pageSize ?? SESSION_SIDEBAR_PAGE_SIZE
+    ),
+    forceRefresh:
+      (current?.forceRefresh ?? false) || (requested.forceRefresh ?? false),
+  };
+}
+
+function sidebarLoadCovers(
+  active: SidebarLoadOptions | null,
+  requested: SidebarLoadOptions
+): boolean {
+  if (!active) return false;
+  const activePageSize = active.pageSize ?? SESSION_SIDEBAR_PAGE_SIZE;
+  const requestedPageSize = requested.pageSize ?? SESSION_SIDEBAR_PAGE_SIZE;
+  return (
+    activePageSize >= requestedPageSize &&
+    ((active.forceRefresh ?? false) || !(requested.forceRefresh ?? false))
+  );
+}
+
+/**
+ * Build a single-flight coordinator around the sidebar read. Kept as a small
+ * injectable unit so queue coverage, escalation, and failure recovery can be
+ * tested without exercising every session provider.
+ */
+function createSidebarLoadCoordinator(
+  load: (options?: SidebarLoadOptions) => Promise<void>
+): (options?: SidebarLoadOptions) => Promise<void> {
+  let inFlight: Promise<void> | null = null;
+  let active: SidebarLoadOptions | null = null;
+  let pending: SidebarLoadOptions | null = null;
+
+  return (options: SidebarLoadOptions = {}): Promise<void> => {
+    if (inFlight && sidebarLoadCovers(active, options)) {
+      return inFlight;
+    }
+    pending = mergeSidebarLoadOptions(pending, options);
+    if (inFlight) return inFlight;
+
+    const run = async () => {
+      while (pending) {
+        const next = pending;
+        pending = null;
+        active = next;
+        await load(next);
+      }
+    };
+    inFlight = run().finally(() => {
+      active = null;
+      inFlight = null;
+    });
+    return inFlight;
+  };
+}
+
+/**
+ * One process-wide session-roster loader. Overlapping mounts/refreshes join the
+ * active read; a stronger request (forced or larger page) is merged into one
+ * follow-up pass instead of starting a parallel category fan-out.
+ */
+export const loadSessionRoster = createSidebarLoadCoordinator(
+  performSidebarSessionLoad
+);
+
+/**
+ * Compatibility alias for callers outside the roster surfaces. New Sidebar
+ * and Kanban code should use `loadSessionRoster` so ownership is unambiguous.
+ */
+export const loadSidebarSessions = loadSessionRoster;
 
 /**
  * Hydrate one canonical session row for sidebar deep-link navigation.
@@ -628,6 +744,7 @@ export const loadMoreCategory = async (
 };
 
 export const __TESTS_ONLY = {
+  createSidebarLoadCoordinator,
   mergeSessions,
   replaceExternalHistorySourceFirstPage,
 };

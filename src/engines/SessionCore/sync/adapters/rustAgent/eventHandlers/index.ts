@@ -312,9 +312,13 @@ export async function dispatchAgentEvent(
     // `agent:queue_status` is consumed by the adapter's status state machine
     // (createRustAgentAdapter), not here — it carries no transcript content.
     // `agent:computer_use_entered/exited/aborted` are CU-lock lifecycle
-    // signals also tracked by the adapter as ALWAYS_TRAILING_EVENTS; they
+    // signals also tracked by the adapter as turn-neutral events; they
     // intentionally produce no EventStore row.
+    // `agent:snapshot_created` only invalidates snapshot consumers through
+    // its dedicated bus listener. It is not transcript content and must not
+    // resurrect a completed turn as running.
     case "agent:queue_status":
+    case "agent:snapshot_created":
     case "agent:computer_use_entered":
     case "agent:computer_use_exited":
     case "agent:computer_use_aborted":

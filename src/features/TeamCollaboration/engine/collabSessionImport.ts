@@ -55,7 +55,10 @@ export interface ImportRemoteSessionOptions extends Omit<
 
 export interface ImportRemoteSessionResult {
   localSessionId: string;
-  /** false ⇒ the local cursor already matched the remote summary. */
+  /**
+   * false ⇒ replay events were unchanged. Display-only source metadata may
+   * still have been refreshed on the existing local row.
+   */
   updated: boolean;
 }
 
@@ -64,6 +67,72 @@ export interface ImportRemoteSessionResult {
  * concurrent attempts cannot interleave durable writes or cancel one another.
  */
 const remoteSessionImportTails = new Map<string, Promise<void>>();
+
+function resolveImportedSourceDisplay(
+  remoteSession: ImportRemoteSessionOptions["remoteSession"],
+  existing: Session | undefined
+): NonNullable<SessionImportedFrom["sourceDisplay"]> {
+  return {
+    cliAgentType:
+      remoteSession.cliAgentType ??
+      existing?.importedFrom?.sourceDisplay?.cliAgentType,
+    agentDisplayName:
+      remoteSession.agentDisplayName ??
+      existing?.importedFrom?.sourceDisplay?.agentDisplayName,
+    agentDefinitionId:
+      remoteSession.agentDefinitionId ??
+      existing?.importedFrom?.sourceDisplay?.agentDefinitionId,
+    model: remoteSession.model ?? existing?.importedFrom?.sourceDisplay?.model,
+  };
+}
+
+function refreshImportedSessionPresentation(
+  existing: Session,
+  remoteSession: ImportRemoteSessionOptions["remoteSession"]
+): void {
+  const importedFrom = existing.importedFrom;
+  if (!importedFrom) return;
+
+  const externalHistorySource =
+    remoteSession.origin?.kind === "external_history"
+      ? remoteSession.origin.source
+      : importedFrom.externalHistorySource;
+  const sourceDisplay = resolveImportedSourceDisplay(remoteSession, existing);
+  const ownerAvatarUrl =
+    remoteSession.ownerAvatarUrl ?? importedFrom.ownerAvatarUrl;
+  const repoPath = remoteSession.repoPath ?? existing.repoPath;
+  const unchanged =
+    existing.name === remoteSession.title &&
+    existing.repoPath === repoPath &&
+    importedFrom.ownerMemberId === remoteSession.ownerMemberId &&
+    importedFrom.ownerDisplayName === remoteSession.ownerDisplayName &&
+    importedFrom.ownerAvatarUrl === ownerAvatarUrl &&
+    importedFrom.externalHistorySource === externalHistorySource &&
+    importedFrom.sourceDisplay?.cliAgentType === sourceDisplay.cliAgentType &&
+    importedFrom.sourceDisplay?.agentDisplayName ===
+      sourceDisplay.agentDisplayName &&
+    importedFrom.sourceDisplay?.agentDefinitionId ===
+      sourceDisplay.agentDefinitionId &&
+    importedFrom.sourceDisplay?.model === sourceDisplay.model;
+  if (unchanged) return;
+
+  const refreshed: Session = {
+    ...existing,
+    name: remoteSession.title,
+    repoPath,
+    importedFrom: {
+      ...importedFrom,
+      ownerMemberId: remoteSession.ownerMemberId,
+      ownerDisplayName: remoteSession.ownerDisplayName,
+      ownerAvatarUrl,
+      externalHistorySource,
+      sourceDisplay,
+    },
+  };
+  upsertSession(refreshed);
+  recordGuestImportedSession(refreshed);
+  persistSessions(getInstrumentedStore().get(sessionsAtom) as Session[]);
+}
 
 /**
  * THE import path for teammate sessions — used by both the engine PullLoop
@@ -160,9 +229,9 @@ async function importRemoteSessionInner(
     remoteSession.eventsCount === undefined
   ) {
     // No segments published (or publishing stopped): keep any local copy.
-    return existing
-      ? { localSessionId: existing.session_id, updated: false }
-      : null;
+    if (!existing) return null;
+    refreshImportedSessionPresentation(existing, remoteSession);
+    return { localSessionId: existing.session_id, updated: false };
   }
 
   // Deterministic id (not random): a retry after a failed durable write must
@@ -215,6 +284,7 @@ async function importRemoteSessionInner(
       remoteSession.origin?.kind === "external_history"
         ? remoteSession.origin.source
         : existing?.importedFrom?.externalHistorySource,
+    sourceDisplay: resolveImportedSourceDisplay(remoteSession, existing),
     epoch: committed.epoch,
     seq: committed.frozenSeq,
     count: committed.eventCount,
@@ -234,11 +304,11 @@ async function importRemoteSessionInner(
     name: remoteSession.title,
     repoPath: remoteSession.repoPath,
     category: "external_history",
-    // No stored model: the imported copy's composer is a FORK ENTRY, not a
-    // live agent — leaving model unset makes the composer show the normal
-    // "Select model" picker over the viewer's OWN local models/keys (the
-    // model the fork will actually run with), instead of a dead
-    // "Collaboration Snapshot" label the viewer can't run.
+    // No runnable model: the imported copy's composer is a FORK ENTRY, not a
+    // live agent. The source model is retained under importedFrom.sourceDisplay
+    // for read-only presentation, while leaving this field unset makes the
+    // composer ask which of the viewer's OWN local models/keys the fork should
+    // actually use.
     model: undefined,
     agentIconId: "archive",
     agentDisplayName: "Collaboration Snapshot",

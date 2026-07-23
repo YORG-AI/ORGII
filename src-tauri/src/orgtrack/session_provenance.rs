@@ -21,6 +21,7 @@ pub(super) use historical_backfill::request_historical_backfill;
 pub(crate) use historical_backfill::spawn_codex_write_reconciliation_loop;
 pub use hook_capture::capture_hook_stdin;
 pub(super) use hook_capture::drain_hook_inbox;
+pub(crate) use hook_capture::notify_hook_inbox_ready;
 #[cfg(test)]
 use hook_capture::quarantine_invalid_envelope;
 pub(crate) use hook_capture::spawn_hook_inbox_drain_loop;

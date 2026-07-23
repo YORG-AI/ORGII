@@ -181,7 +181,9 @@ pub fn delete_project_org(org_id: &str) -> Result<(), String> {
     map_db(tx.execute("DELETE FROM workitems WHERE org_id = ?1", params![org_id]))?;
     map_db(tx.execute("DELETE FROM projects WHERE org_id = ?1", params![org_id]))?;
     map_db(tx.execute("DELETE FROM project_orgs WHERE id = ?1", params![org_id]))?;
-    map_db(tx.commit())
+    map_db(tx.commit())?;
+    crate::projects::events::notify_work_item_schedule_changed();
+    Ok(())
 }
 
 #[derive(Debug, Serialize)]

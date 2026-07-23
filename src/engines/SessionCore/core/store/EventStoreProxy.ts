@@ -42,10 +42,14 @@ export type {
   Snapshot,
   SnapshotDelta,
   SnapshotEnvelope,
+  SnapshotEventMembership,
   SnapshotPayload,
   StreamingSnapshot,
 } from "./EventStoreProxyTypes";
-export { isStreamingSnapshot } from "./snapshotMaterialization";
+export {
+  isSnapshotActivelyStreaming,
+  isStreamingSnapshot,
+} from "./snapshotMaterialization";
 
 const log = createLogger("EventStoreProxy");
 

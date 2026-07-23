@@ -46,7 +46,6 @@ use orgtrack_core::store::{sqlite::SqliteRecordStore, RecordStore};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
-const STREAMING_SIMULATOR_UPSERT_LIMIT: usize = 48;
 /// Generic writes used by managed/imported CLI sessions must obey the same
 /// resident-memory budget as explicit external replay windows. Native SDE
 /// sessions never enter this policy.
@@ -96,7 +95,7 @@ use crate::agent_sessions::event_pipeline::session_manager::SessionStoreManager;
 use crate::agent_sessions::event_pipeline::session_providers;
 use crate::agent_sessions::event_pipeline::store::EventStore;
 use crate::agent_sessions::event_pipeline::types::{
-    SessionEvent, SessionEventPatch, SnapshotDelta, StreamingSnapshot,
+    SessionEvent, SessionEventPatch, SnapshotDelta, SnapshotEventMembership,
 };
 
 // ============================================================================
@@ -438,7 +437,9 @@ impl EventStoreState {
 // ============================================================================
 
 const NOTIFY_EVENT_NAME: &str = "es:changed";
-const STREAMING_BATCH_MS: u64 = 33;
+/// Ten incremental updates per second keeps text/tool streaming responsive
+/// without waking Rust, WebView serialization and React ~30 times a second.
+const STREAMING_BATCH_MS: u64 = 100;
 const ACTION_TYPE_TOOL_CALL: &str = "tool_call";
 const ACTION_TYPE_TOOL_RESULT: &str = "tool_result";
 
@@ -491,24 +492,85 @@ pub(crate) fn schedule_notify(app: &AppHandle, state: &EventStoreState, session_
         tokio::spawn(async move {
             tokio::time::sleep(tokio::time::Duration::from_millis(STREAMING_BATCH_MS)).await;
             let state = app_handle.state::<EventStoreState>();
-            {
+            let should_emit = {
                 let mut pending = state
                     .notify_pending
                     .lock()
                     .unwrap_or_else(|e| e.into_inner());
-                pending.remove(&sid);
+                pending.remove(&sid)
+            };
+            if should_emit {
+                emit_snapshot(&app_handle, &state, &sid);
             }
-            emit_snapshot(&app_handle, &state, &sid);
         });
     } else {
+        // A terminal/non-streaming update is a flush barrier. Cancel the
+        // delayed streaming callback before emitting the final state so the
+        // old timer cannot wake and serialize a redundant no-op delta later.
+        state
+            .notify_pending
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(session_id);
         emit_snapshot(app, state, session_id);
+    }
+}
+
+/// Build the live-turn wire update from EventStore's change journal only.
+///
+/// A full baseline is emitted once before this path is used. Each subsequent
+/// batch compacts only the changed events and tells the frontend how those
+/// events participate in the four ordered projections. The frontend already
+/// owns a normalized baseline, so serializing every historical event/id/map
+/// again would be pure duplicate work.
+fn build_streaming_snapshot_delta(store: &mut EventStore) -> SnapshotDelta {
+    use crate::agent_sessions::event_pipeline::derived::{
+        is_visible_in_chat, is_visible_in_messages, is_visible_in_simulator,
+    };
+
+    let version = store.version();
+    let event_count = store.event_count();
+    let (base_version, mut changed_ids, removed_ids) = store.take_delta_tracking();
+    changed_ids.sort_by_key(|id| store.event_position(id).unwrap_or(usize::MAX));
+
+    let mut upserts = Vec::with_capacity(changed_ids.len());
+    let mut memberships = Vec::with_capacity(changed_ids.len());
+    for id in changed_ids {
+        let Some(event_index) = store.event_position(&id) else {
+            continue;
+        };
+        let Some(event) = store.get_by_id(&id) else {
+            continue;
+        };
+        memberships.push(SnapshotEventMembership {
+            id: id.clone(),
+            event_index,
+            chat: is_visible_in_chat(event),
+            messages: is_visible_in_messages(event),
+            simulator: is_visible_in_simulator(event),
+        });
+        upserts.push(compact_event_for_snapshot(event));
+    }
+
+    SnapshotDelta {
+        version,
+        base_version,
+        event_count,
+        upserts,
+        removed_ids,
+        last_event_id: store.last_event().map(|event| event.id.clone()),
+        snapshot_delta: true,
+        incremental_orders: true,
+        memberships,
+        streaming: true,
+        ..SnapshotDelta::default()
     }
 }
 
 fn emit_snapshot(app: &AppHandle, state: &EventStoreState, session_id: &str) {
     use crate::agent_sessions::event_pipeline::derived::{
         build_simulator_preview_indexes, is_visible_in_chat, is_visible_in_messages,
-        is_visible_in_simulator, latest_canvas_preview, sort_if_unsorted, sort_simulator_events,
+        is_visible_in_simulator, latest_canvas_preview, sort_simulator_events,
     };
     use crate::agent_sessions::event_pipeline::types::EventDisplayStatus;
 
@@ -516,60 +578,6 @@ fn emit_snapshot(app: &AppHandle, state: &EventStoreState, session_id: &str) {
     let Some(store) = stores.get_mut(session_id) else {
         return;
     };
-    if store.is_streaming() {
-        let events = store.events();
-        let mut chat_events = Vec::with_capacity(events.len() / 2);
-        let mut sorted_simulator_events = Vec::with_capacity(events.len() / 2);
-        let mut has_running_event = false;
-
-        for e in events.iter() {
-            if e.display_status == EventDisplayStatus::Running {
-                has_running_event = true;
-            }
-            if is_visible_in_chat(e) {
-                chat_events.push(compact_event_for_snapshot(e));
-            }
-            if is_visible_in_simulator(e) {
-                sorted_simulator_events.push(compact_event_for_snapshot(e));
-            }
-        }
-
-        sort_if_unsorted(&mut chat_events);
-        sort_simulator_events(&mut sorted_simulator_events);
-        let simulator_upsert_start = sorted_simulator_events
-            .len()
-            .saturating_sub(STREAMING_SIMULATOR_UPSERT_LIMIT);
-        let simulator_event_upserts = sorted_simulator_events[simulator_upsert_start..].to_vec();
-        let preview_indexes = build_simulator_preview_indexes(&sorted_simulator_events);
-        let latest_canvas_preview = latest_canvas_preview(events);
-
-        let snapshot = StreamingSnapshot {
-            version: store.version(),
-            event_count: store.event_count(),
-            chat_events,
-            sorted_simulator_events: Vec::new(),
-            simulator_event_upserts,
-            sorted_simulator_event_ids: preview_indexes.sorted_simulator_event_ids,
-            event_preview_by_id: preview_indexes.event_preview_by_id,
-            created_at_by_id: preview_indexes.created_at_by_id,
-            thread_id_by_id: preview_indexes.thread_id_by_id,
-            function_name_by_id: preview_indexes.function_name_by_id,
-            display_status_by_id: preview_indexes.display_status_by_id,
-            display_variant_by_id: preview_indexes.display_variant_by_id,
-            last_event: store.last_event().map(compact_event_for_snapshot),
-            streaming: true,
-            has_running_event,
-            latest_canvas_preview,
-        };
-        let envelope = SnapshotEnvelope {
-            session_id: session_id.to_string(),
-            snapshot,
-        };
-        app.emit(NOTIFY_EVENT_NAME, &envelope).ok();
-        crate::infrastructure::main_runloop::wake_main_runloop();
-        return;
-    }
-
     if store.should_emit_full_snapshot() {
         let derived = compute_derived(store.events(), store.version());
         let envelope = SnapshotEnvelope {
@@ -582,6 +590,17 @@ fn emit_snapshot(app: &AppHandle, state: &EventStoreState, session_id: &str) {
         if app.emit(NOTIFY_EVENT_NAME, &envelope).is_ok() {
             store.mark_full_snapshot_emitted();
         }
+        crate::infrastructure::main_runloop::wake_main_runloop();
+        return;
+    }
+
+    if store.is_streaming() {
+        let snapshot = build_streaming_snapshot_delta(store);
+        let envelope = SnapshotEnvelope {
+            session_id: session_id.to_string(),
+            snapshot,
+        };
+        app.emit(NOTIFY_EVENT_NAME, &envelope).ok();
         crate::infrastructure::main_runloop::wake_main_runloop();
         return;
     }
@@ -643,6 +662,9 @@ fn emit_snapshot(app: &AppHandle, state: &EventStoreState, session_id: &str) {
         has_running_event,
         latest_canvas_preview,
         snapshot_delta: true,
+        incremental_orders: false,
+        memberships: Vec::new(),
+        streaming: false,
     };
     let envelope = SnapshotEnvelope {
         session_id: session_id.to_string(),
@@ -1332,6 +1354,81 @@ pub fn update_tool_args_by_call_id_with_persist(
     }
 
     Some(event_id)
+}
+
+#[cfg(test)]
+mod streaming_snapshot_delta_tests {
+    use super::*;
+
+    fn test_event(id: &str, created_at: &str) -> SessionEvent {
+        serde_json::from_value(serde_json::json!({
+            "id": id,
+            "chunk_id": null,
+            "sessionId": "streaming-delta-test",
+            "createdAt": created_at,
+            "functionName": "assistant_message",
+            "uiCanonical": "message",
+            "actionType": "assistant",
+            "args": {},
+            "result": { "content": id },
+            "source": "assistant",
+            "displayText": id,
+            "displayStatus": "running",
+            "displayVariant": "message",
+            "activityStatus": "agent"
+        }))
+        .expect("valid test event")
+    }
+
+    #[test]
+    fn streaming_delta_compacts_only_changed_events_and_tracks_positions() {
+        let mut store = EventStore::new();
+        let baseline = (0..100)
+            .map(|index| {
+                test_event(
+                    &format!("event-{index:03}"),
+                    &format!("2026-07-22T00:00:{index:02}.000Z"),
+                )
+            })
+            .collect();
+        store.set(baseline);
+        store.mark_full_snapshot_emitted();
+        store.set_streaming(true);
+
+        store.upsert(test_event("event-050", "2026-07-22T00:00:50.000Z"));
+        store.append(vec![test_event("event-100", "2026-07-22T00:01:40.000Z")]);
+
+        let delta = build_streaming_snapshot_delta(&mut store);
+        assert!(delta.incremental_orders);
+        assert!(delta.streaming);
+        assert_eq!(delta.upserts.len(), 2);
+        assert_eq!(delta.memberships.len(), 2);
+        assert_eq!(delta.memberships[0].id, "event-050");
+        assert_eq!(delta.memberships[0].event_index, 50);
+        assert_eq!(delta.memberships[1].id, "event-100");
+        assert_eq!(delta.memberships[1].event_index, 100);
+        assert!(delta.event_ids.is_empty());
+        assert!(delta.chat_event_ids.is_empty());
+        assert!(delta.sorted_simulator_event_ids.is_empty());
+
+        let no_op = build_streaming_snapshot_delta(&mut store);
+        assert_eq!(no_op.base_version, delta.version);
+        assert!(no_op.upserts.is_empty());
+        assert!(no_op.memberships.is_empty());
+    }
+
+    #[test]
+    fn round_window_reorder_requires_a_new_full_baseline() {
+        let mut store = EventStore::new();
+        store.set(vec![test_event("event-newer", "2026-07-22T00:01:00.000Z")]);
+        store.mark_full_snapshot_emitted();
+        store.set_streaming(true);
+
+        store
+            .merge_round_window_events(vec![test_event("event-older", "2026-07-22T00:00:00.000Z")]);
+
+        assert!(store.should_emit_full_snapshot());
+    }
 }
 
 #[cfg(test)]

@@ -94,6 +94,55 @@ export interface RustAgentConfig {
 
 const logger = createLogger("RustAgentAdapter");
 
+// Terminal event types — signal turn completion and lock out further
+// "running" signals. Module-scoped because every open Rust session shares
+// the same wire contract; rebuilding these sets per handler retains needless
+// allocations across repeated session switches.
+const TERMINAL_EVENTS = new Set([
+  "agent:complete",
+  "agent:turn_completed",
+  "agent:error",
+  "agent:stream_error_exhausted",
+  "agent:session_evicted",
+]);
+
+// Events that may arrive while a turn is running or after it has completed,
+// but never start a new LLM turn by themselves. In particular,
+// `agent:snapshot_created` is emitted asynchronously after snapshot
+// persistence. Treating it as a new-turn signal resurrected a completed
+// session as `running`, leaving a permanent green sidebar indicator even
+// though the composer had already returned to Send.
+const TURN_NEUTRAL_EVENTS = new Set([
+  "agent:turn_summary",
+  "agent:warning",
+  "agent:goal_loop",
+  "agent:ade_action",
+  "agent:shell_process_started",
+  "agent:shell_process_backgrounded",
+  "agent:shell_process_exited",
+  "agent:exec_output",
+  "agent:context_usage",
+  "agent:file_change",
+  "agent:setup_repo_update",
+  "agent:heartbeat",
+  "agent:snapshot_created",
+  "agent:computer_use_entered",
+  "agent:computer_use_exited",
+  "agent:computer_use_aborted",
+]);
+
+export function isRustAgentTurnNeutralEvent(eventType: string): boolean {
+  return TURN_NEUTRAL_EVENTS.has(eventType);
+}
+
+const PLAN_SUBMITTED_END_TURN_PREFIX = "PLAN_SUBMITTED_END_TURN:";
+const LIVE_STREAM_EVENTS_IGNORED_AFTER_STOP = new Set([
+  "agent:message_delta",
+  "agent:thinking_delta",
+  "agent:tool_call_delta",
+  "agent:streaming_complete",
+]);
+
 interface TokenUsageRecord {
   inputTokens: number;
   contextTokens: number;
@@ -369,68 +418,14 @@ export function createRustAgentAdapter(
             }
           : undefined,
         setStreaming: (value: boolean) => {
+          // Token/thinking deltas all assert the same active state. Crossing the
+          // Tauri boundary for every chunk only rewrites one bool, yet it can
+          // generate hundreds of IPC calls per minute during a long reply.
+          if (_streaming === value) return;
           _streaming = value;
-          eventStoreProxy.setStreaming(value, sessionId);
+          void eventStoreProxy.setStreaming(value, sessionId);
         },
       });
-
-      // Terminal event types — signal turn completion and lock out further "running" signals.
-      // `agent:turn_completed` is a lifecycle terminal marker, not transcript content.
-      const TERMINAL_EVENTS = new Set([
-        "agent:complete",
-        "agent:turn_completed",
-        "agent:error",
-        "agent:stream_error_exhausted",
-        "agent:session_evicted",
-      ]);
-
-      // Pure post-complete trailing events: these ONLY appear after agent:complete and
-      // are never part of an active turn. Safe to ignore for "running" signaling
-      // regardless of _turnCompleted state.
-      //
-      // - agent:turn_summary — legacy summary events from older sessions
-      // - agent:warning — from async background task failures (memory extraction, etc.)
-      // - agent:queue_status — scheduler idle broadcasts; active queue status is
-      //   handled separately as a real running-state signal
-      // - agent:shell_process_started/backgrounded/exited — background process
-      //   lifecycle from subprocess monitor task; they update EventStore args
-      //   but never represent a new LLM turn. They can arrive during or after a
-      //   turn (backgrounded/exited especially can fire long after agent:complete).
-      // - agent:exec_output — streaming output from background processes; can arrive
-      //   after agent:complete when a backgrounded command is still running.
-      // - agent:context_usage — context-ring bookkeeping (token counts after a
-      //   turn or a manual compaction). The manual-compact pipeline broadcasts
-      //   it with no turn running at all; treating it as a turn signal leaves
-      //   the composer stuck on Stop with no terminal event ever coming.
-      // - agent:computer_use_entered / agent:computer_use_exited — desktop/Wingman
-      //   CU-lock lifecycle. `exited` is broadcast by the processor immediately
-      //   after `agent:complete` (see processor.rs §9a½), so if it were treated
-      //   as a "new turn" event the adapter would flip the input bar back to
-      //   "running" and the Stop button would get stuck. These events carry no
-      //   turn semantics — they only signal process-wide lock state.
-      //
-      // NOTE: agent:subagent_* were retired — Rust owns that path now.
-      const ALWAYS_TRAILING_EVENTS = new Set([
-        "agent:turn_summary",
-        "agent:warning",
-        "agent:goal_loop",
-        "agent:ade_action",
-        "agent:shell_process_started",
-        "agent:shell_process_backgrounded",
-        "agent:shell_process_exited",
-        "agent:exec_output",
-        "agent:context_usage",
-        "agent:computer_use_entered",
-        "agent:computer_use_exited",
-      ]);
-
-      const PLAN_SUBMITTED_END_TURN_PREFIX = "PLAN_SUBMITTED_END_TURN:";
-      const LIVE_STREAM_EVENTS_IGNORED_AFTER_STOP = new Set([
-        "agent:message_delta",
-        "agent:thinking_delta",
-        "agent:tool_call_delta",
-        "agent:streaming_complete",
-      ]);
 
       return {
         handleEvent(raw: RawSessionEvent): void {
@@ -475,7 +470,7 @@ export function createRustAgentAdapter(
           const queueIsProcessing = event.isProcessing === true;
           const isActiveQueueStatus = isQueueStatus && queueIsProcessing;
           const isTrailing =
-            ALWAYS_TRAILING_EVENTS.has(event.type) ||
+            isRustAgentTurnNeutralEvent(event.type) ||
             isPlanSubmittedToolResult ||
             (isQueueStatus && !isActiveQueueStatus);
 

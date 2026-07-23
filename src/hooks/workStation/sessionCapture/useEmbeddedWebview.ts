@@ -6,7 +6,7 @@
  * - Open / close / updatePosition
  * - isOpen / isLoading / currentUrl state
  * - URL-change event listener with isMounted guard
- * - Host visibility polling (auto-close while its mounted slot is hidden)
+ * - Observer-driven KeepAlive visibility (auto-close when host container is hidden)
  * - Unmount cleanup
  *
  * Consumers supply the Tauri command names and the URL-change event name
@@ -205,32 +205,52 @@ export function useEmbeddedWebview({
     };
   }, [commands.urlChangedEvent, ignoreAboutBlank, log]);
 
-  // The Workbench keeps inactive hosts mounted. Poll only while this webview is
-  // open or while waiting for a previously hidden host to become visible again.
+  // KeepAlive visibility observation — auto-close when host container is hidden
   const wasHiddenWhileOpen = useRef(false);
 
   useEffect(() => {
-    if (!containerRef?.current || (!isOpen && !wasHiddenWhileOpen.current)) {
-      return;
-    }
+    const container = containerRef?.current;
+    if (!container) return;
+    let transitioning = false;
 
     const checkVisibility = () => {
-      const container = containerRef.current;
-      if (!container) return;
-      const isHidden = container.offsetParent === null;
+      if (transitioning) return;
+      const isHidden =
+        document.visibilityState !== "visible" ||
+        container.offsetParent === null;
 
       if (isHidden && isOpen) {
-        invoke(commands.close, { label: labelRef.current }).catch(() => {});
+        transitioning = true;
+        invoke(commands.close, { label: labelRef.current })
+          .catch(() => {})
+          .finally(() => {
+            transitioning = false;
+          });
         setIsOpen(false);
         wasHiddenWhileOpen.current = true;
       } else if (!isHidden && wasHiddenWhileOpen.current) {
+        transitioning = true;
         wasHiddenWhileOpen.current = false;
-        openWebview(currentUrl || undefined).catch(() => {});
+        openWebview(currentUrl || undefined)
+          .catch(() => {})
+          .finally(() => {
+            transitioning = false;
+          });
       }
     };
 
-    const intervalId = setInterval(checkVisibility, 500);
-    return () => clearInterval(intervalId);
+    const intersectionObserver = new IntersectionObserver(checkVisibility);
+    intersectionObserver.observe(container);
+    const resizeObserver = new ResizeObserver(checkVisibility);
+    resizeObserver.observe(container);
+    document.addEventListener("visibilitychange", checkVisibility);
+    checkVisibility();
+
+    return () => {
+      intersectionObserver.disconnect();
+      resizeObserver.disconnect();
+      document.removeEventListener("visibilitychange", checkVisibility);
+    };
   }, [isOpen, containerRef, commands.close, currentUrl, openWebview]);
 
   // Cleanup on unmount

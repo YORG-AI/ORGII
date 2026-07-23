@@ -68,6 +68,33 @@ fn cache_query_paginates_newest_first() {
 }
 
 #[test]
+fn source_stats_batch_counts_roots_children_and_last_activity() {
+    let mut conn = fixture_conn();
+    let root = input(SOURCE_CODEX_APP, "root", 100);
+    let mut child = input(SOURCE_CODEX_APP, "child", 300);
+    child.parent_session_id = Some(root.session_id.clone());
+    let other = input(SOURCE_OPENCODE, "other", 200);
+    upsert_imported_session_cache_from_conn(&mut conn, &[root, child, other]).expect("upsert");
+
+    let stats = all_source_stats_from_conn(&conn).expect("source stats");
+    let codex = stats
+        .iter()
+        .find(|row| row.source == SOURCE_CODEX_APP)
+        .expect("codex stats");
+    assert_eq!(codex.session_count, 1);
+    assert_eq!(codex.subagent_count, 1);
+    assert_eq!(codex.last_used_at_ms, Some(300));
+
+    let opencode = stats
+        .iter()
+        .find(|row| row.source == SOURCE_OPENCODE)
+        .expect("opencode stats");
+    assert_eq!(opencode.session_count, 1);
+    assert_eq!(opencode.subagent_count, 0);
+    assert_eq!(opencode.last_used_at_ms, Some(200));
+}
+
+#[test]
 fn sidebar_query_is_date_bounded_and_carries_impact_metadata() {
     let mut conn = fixture_conn();
     let mut inside = input(SOURCE_CODEX_APP, "inside", 250);

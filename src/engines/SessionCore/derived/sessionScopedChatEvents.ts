@@ -39,6 +39,7 @@ import {
 import type { Snapshot } from "../core/store/EventStoreProxy";
 import {
   eventStoreProxy,
+  isSnapshotActivelyStreaming,
   isStreamingSnapshot,
 } from "../core/store/EventStoreProxy";
 import type { SessionEvent } from "../core/types";
@@ -204,7 +205,9 @@ export const chatEventsForSessionAtomFamily = atomFamily(
     const a = atom((get) => {
       const { snapshot } = get(sessionSnapshotAtomFamily(sessionId));
       const next = derivePlanDisplayEvents(extractChatEvents(snapshot));
-      const streaming = snapshot ? isStreamingSnapshot(snapshot) : false;
+      const streaming = snapshot
+        ? isSnapshotActivelyStreaming(snapshot)
+        : false;
       if (chatEventsStable(next, prevChatEvents, streaming)) {
         return prevChatEvents;
       }

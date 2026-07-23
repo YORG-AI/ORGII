@@ -4,13 +4,13 @@
  * App-wide scheduler that keeps external-history sources fresh. Mounted once in
  * AppBootstrap so it runs regardless of whether the Data Sources panel is open.
  *
- * On app startup it immediately scans each enabled, non-manual importable source
- * with an on-disk history store once, regardless of the persisted last-scan
- * timestamp. Sources without a store receive only a cheap presence probe every
- * 30 minutes; when a store appears, its importer runs immediately. Subsequent
- * full scans use the effective per-source/global cadence. Each successful full
- * scan is followed by one unified sidebar cache reload. Sources set to "manual"
- * are never auto-scanned or presence-probed, including at startup.
+ * On app startup it scans only enabled, non-manual importable sources whose
+ * persisted cadence is due (including sources that have never been scanned).
+ * Sources without a store receive only a cheap presence probe every 30 minutes;
+ * when a store appears, its importer runs immediately. A successful full scan
+ * reloads the external-history sidebar cache only when source data changed.
+ * Sources set to "manual" are never auto-scanned or presence-probed, including
+ * at startup.
  *
  * Config is read straight from the shared store on each tick, so the interval is
  * armed once and always sees the latest values without re-arming. The timer is
@@ -24,10 +24,16 @@ import {
   externalHistoryRescanSources,
 } from "@src/api/tauri/externalHistory";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
-import { isWindowFocused } from "@src/util/core/windowFocus";
+import {
+  isWindowFocused,
+  onWindowFocusRegained,
+} from "@src/util/core/windowFocus";
 
 import {
+  type DataSourceConfigMap,
+  type DataSourcePresence,
   FREQUENCY_INTERVAL_MS,
+  type ScanFrequency,
   dataSourceConfigAtom,
   dataSourceGlobalFrequencyAtom,
   dataSourcePresenceAtom,
@@ -35,11 +41,7 @@ import {
   externalSessionsEnabledAtom,
   getSourceConfig,
 } from "./dataSourceConfigAtom";
-import { loadSidebarSessions } from "./sessionAtom/loaders";
-
-// Base cadence of the scheduler's own tick. The shortest source cadence is 60s,
-// so a 30s tick keeps drift small without frequent wakeups.
-const TICK_MS = 30_000;
+import { loadExternalHistorySidebarSessions } from "./sessionAtom/loaders";
 
 // While the window is unfocused, every source's effective cadence is stretched
 // to at least this floor (mirrors the backend git poller's focus-adaptive
@@ -50,8 +52,76 @@ const UNFOCUSED_SCAN_INTERVAL_MS = 10 * 60_000;
 
 /** Cadence for refreshing the lightweight store-presence snapshot. */
 const SOURCE_PRESENCE_PROBE_INTERVAL_MS = 30 * 60_000;
+const FAILED_SCAN_RETRY_MS = 30_000;
 
 let autoScanInFlight: Promise<void> | null = null;
+
+async function mapSettledWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<R>
+): Promise<PromiseSettledResult<R>[]> {
+  const results = new Array<PromiseSettledResult<R>>(items.length);
+  let nextIndex = 0;
+  const worker = async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      try {
+        results[index] = {
+          status: "fulfilled",
+          value: await mapper(items[index]!),
+        };
+      } catch (reason) {
+        results[index] = { status: "rejected", reason };
+      }
+    }
+  };
+  await Promise.all(
+    Array.from(
+      { length: Math.min(Math.max(1, concurrency), items.length) },
+      worker
+    )
+  );
+  return results;
+}
+
+export function nextDataSourceAutoScanDelay(
+  now: number,
+  focused: boolean,
+  enabled: boolean,
+  cfgMap: DataSourceConfigMap,
+  previousPresence: Record<string, DataSourcePresence>,
+  global: ScanFrequency
+): number | null {
+  if (!enabled) return null;
+  let earliestDeadline: number | null = null;
+  for (const { sourceId } of IMPORTED_HISTORY_SOURCE_DESCRIPTORS) {
+    const cfg = getSourceConfig(cfgMap, sourceId);
+    if (!cfg.enabled) continue;
+    const interval = FREQUENCY_INTERVAL_MS[effectiveFrequency(cfg, global)];
+    if (interval == null) continue;
+
+    const presence = previousPresence[sourceId];
+    const probeDeadline =
+      presence == null
+        ? now
+        : presence.checkedAt + SOURCE_PRESENCE_PROBE_INTERVAL_MS;
+    const effectiveInterval = focused
+      ? interval
+      : Math.max(interval, UNFOCUSED_SCAN_INTERVAL_MS);
+    const scanDeadline =
+      cfg.lastScannedAt == null ? now : cfg.lastScannedAt + effectiveInterval;
+    const deadline =
+      presence?.historyFound === false
+        ? probeDeadline
+        : Math.min(scanDeadline, probeDeadline);
+    earliestDeadline =
+      earliestDeadline == null
+        ? deadline
+        : Math.min(earliestDeadline, deadline);
+  }
+  return earliestDeadline == null ? null : Math.max(0, earliestDeadline - now);
+}
 
 async function performDataSourceAutoScan(force: boolean): Promise<void> {
   const store = getInstrumentedStore();
@@ -92,11 +162,13 @@ async function performDataSourceAutoScan(force: boolean): Promise<void> {
       now - presence.checkedAt >= SOURCE_PRESENCE_PROBE_INTERVAL_MS;
     return probeDue ? [sourceId] : [];
   });
-  const probeResults = await Promise.allSettled(
-    probeSourceIds.map(async (sourceId) => ({
+  const probeResults = await mapSettledWithConcurrency(
+    probeSourceIds,
+    2,
+    async (sourceId) => ({
       sourceId,
       probe: await externalCliSourceProbe(sourceId),
-    }))
+    })
   );
   const successfulProbes = new Map<string, boolean>();
   for (const result of probeResults) {
@@ -148,8 +220,10 @@ async function performDataSourceAutoScan(force: boolean): Promise<void> {
   }
 
   if (dueSourceIds.length === 0) return;
-  await externalHistoryRescanSources(dueSourceIds);
-  await loadSidebarSessions({ forceRefresh: true });
+  const scanResult = await externalHistoryRescanSources(dueSourceIds);
+  if (scanResult.changedSources.length > 0) {
+    await loadExternalHistorySidebarSessions();
+  }
 
   const scannedAt = Date.now();
   store.set(dataSourceConfigAtom, (prev) => {
@@ -164,7 +238,7 @@ async function performDataSourceAutoScan(force: boolean): Promise<void> {
   });
 }
 
-/** Run one deduplicated auto-scan pass. `force` is reserved for app startup. */
+/** Run one deduplicated auto-scan pass. `force` is reserved for explicit refreshes. */
 export async function runDataSourceAutoScan(force = false): Promise<void> {
   if (autoScanInFlight) return autoScanInFlight;
 
@@ -185,20 +259,25 @@ interface DataSourceAutoScanVisibilitySource {
 
 interface DataSourceAutoScanScheduler {
   trigger(force?: boolean): void;
+  schedule(): void;
   stop(): void;
 }
 
 /**
- * Own the scheduler's one recursive timeout. Hidden documents clear the timer;
- * becoming visible triggers one immediate catch-up pass and re-arms the chain.
+ * Own the scheduler's one exact-deadline timeout. Hidden documents clear the
+ * timer; becoming visible triggers one immediate due-check and re-arms the
+ * chain. Failed scans retry after a bounded delay without creating a second
+ * timer or overlapping an active scan.
  */
 export function startDataSourceAutoScanScheduler(
   source: DataSourceAutoScanVisibilitySource,
   scan: (force?: boolean) => Promise<void>,
-  intervalMs = TICK_MS
+  nextDelay: () => number | null,
+  failedScanRetryMs = FAILED_SCAN_RETRY_MS
 ): DataSourceAutoScanScheduler {
   let stopped = false;
-  let startupPending = true;
+  let running = false;
+  let retryNotBefore = 0;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
   const clearTimer = () => {
@@ -208,22 +287,34 @@ export function startDataSourceAutoScanScheduler(
   };
   const schedule = () => {
     clearTimer();
-    if (stopped || source.visibilityState === "hidden") return;
-    timeoutId = setTimeout(() => {
-      timeoutId = undefined;
-      trigger();
-    }, intervalMs);
+    if (stopped || running || source.visibilityState === "hidden") return;
+    const delay = nextDelay();
+    if (delay == null) return;
+    timeoutId = setTimeout(
+      () => {
+        timeoutId = undefined;
+        trigger();
+      },
+      Math.max(1, delay, retryNotBefore - Date.now())
+    );
   };
   const trigger = (force = false) => {
     clearTimer();
-    if (stopped || source.visibilityState === "hidden") return;
-    const shouldForce = startupPending || force;
-    startupPending = false;
-    void scan(shouldForce)
-      .catch(() => {
-        /* transient; next tick retries */
-      })
-      .finally(schedule);
+    if (stopped || running || source.visibilityState === "hidden") return;
+    running = true;
+    void scan(force)
+      .then(
+        () => {
+          retryNotBefore = 0;
+        },
+        () => {
+          retryNotBefore = Date.now() + failedScanRetryMs;
+        }
+      )
+      .finally(() => {
+        running = false;
+        schedule();
+      });
   };
   const onVisibilityChange = () => {
     clearTimer();
@@ -231,9 +322,12 @@ export function startDataSourceAutoScanScheduler(
   };
 
   source.addEventListener("visibilitychange", onVisibilityChange);
-  trigger(true);
+  // Respect persisted per-source cadences on relaunch. Explicit refreshes can
+  // still request a forced pass through trigger(true).
+  trigger();
   return {
     trigger,
+    schedule,
     stop: () => {
       stopped = true;
       clearTimer();
@@ -244,17 +338,35 @@ export function startDataSourceAutoScanScheduler(
 
 export function useDataSourceAutoScan(): void {
   useEffect(() => {
+    const store = getInstrumentedStore();
     const scheduler = startDataSourceAutoScanScheduler(
       document,
-      runDataSourceAutoScan
+      runDataSourceAutoScan,
+      () =>
+        nextDataSourceAutoScanDelay(
+          Date.now(),
+          isWindowFocused(),
+          store.get(externalSessionsEnabledAtom),
+          store.get(dataSourceConfigAtom),
+          store.get(dataSourcePresenceAtom),
+          store.get(dataSourceGlobalFrequencyAtom)
+        )
     );
     // A visible but unfocused window retains the low-frequency background
     // safety floor. Regaining focus immediately checks foreground cadences.
-    const onFocus = () => scheduler.trigger();
-    window.addEventListener("focus", onFocus);
+    const unsubscribeFocus = onWindowFocusRegained(() => {
+      scheduler.trigger();
+    });
+    const unsubscribers = [
+      store.sub(dataSourceConfigAtom, scheduler.schedule),
+      store.sub(dataSourcePresenceAtom, scheduler.schedule),
+      store.sub(dataSourceGlobalFrequencyAtom, scheduler.schedule),
+      store.sub(externalSessionsEnabledAtom, scheduler.schedule),
+    ];
     return () => {
-      window.removeEventListener("focus", onFocus);
+      unsubscribeFocus();
       scheduler.stop();
+      for (const unsubscribe of unsubscribers) unsubscribe();
     };
   }, []);
 }

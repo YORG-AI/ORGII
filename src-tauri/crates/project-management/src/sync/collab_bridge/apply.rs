@@ -725,6 +725,7 @@ fn apply_work_item(org_id: &str, entity: &CollabRemoteEntity) -> Result<bool, St
             params![deleted_ms, now_ms(), entity.version, &work_item_id, org_id],
         )
         .map_err(|err| format!("DB error (apply work item delete): {}", err))?;
+        crate::projects::events::notify_work_item_schedule_changed();
         return Ok(true);
     }
 

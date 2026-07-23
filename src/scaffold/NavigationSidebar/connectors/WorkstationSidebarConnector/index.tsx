@@ -34,8 +34,8 @@ import {
   activeSessionCreatorDraftIdAtom,
   deleteSessionCreatorDraftAtom,
   loadMoreCategory,
+  loadSessionRoster,
   loadSidebarSessionById,
-  loadSidebarSessions,
   markAllSessionsVisited,
   promoteActiveSessionCreatorDraftAtom,
   sessionCreatorDraftListAtom,
@@ -255,7 +255,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
         [activeSidebarSearchKey]: value,
       }));
       if (activeSidebarSearchKey === "workstation") {
-        void loadSidebarSessions();
+        void loadSessionRoster();
       }
     },
     [activeSidebarSearchKey]

@@ -72,13 +72,10 @@ const WORKBENCH_SELECTOR = "[data-workbench-surface]";
 const MAIN_CONTENT_SELECTOR = "[data-main-content]";
 
 /**
- * Polling interval (ms) used while we wait for the workbench element
- * to mount. ResizeObserver can only attach to an existing element,
- * and the AppShell mounts before the WorkStation tree on the first
- * render that sets `enabled = true`. The retry stops as soon as both
- * elements exist.
+ * ResizeObserver can only attach to existing elements. The AppShell can mount
+ * before the WorkStation tree, so a short-lived MutationObserver waits for
+ * those two selectors without a recurring timer.
  */
-const SURFACE_LOOKUP_INTERVAL_MS = 120;
 
 interface UseNarrowChatFocusOptions {
   /** Only run while a WorkStation / Agent Station route is active. */
@@ -169,7 +166,7 @@ export function useNarrowChatFocus({
     let mainObserver: ResizeObserver | null = null;
     let observedWorkbench: Element | null = null;
     let observedMain: Element | null = null;
-    let lookupTimer: ReturnType<typeof setInterval> | null = null;
+    let lookupObserver: MutationObserver | null = null;
 
     const computeWorkbenchWidth = (): number => {
       return resolveWorkbenchEvaluationWidth({
@@ -240,16 +237,20 @@ export function useNarrowChatFocus({
     };
 
     if (!tryAttach()) {
-      lookupTimer = setInterval(() => {
-        if (tryAttach() && lookupTimer) {
-          clearInterval(lookupTimer);
-          lookupTimer = null;
+      lookupObserver = new MutationObserver(() => {
+        if (tryAttach()) {
+          lookupObserver?.disconnect();
+          lookupObserver = null;
         }
-      }, SURFACE_LOOKUP_INTERVAL_MS);
+      });
+      lookupObserver.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+      });
     }
 
     return () => {
-      if (lookupTimer) clearInterval(lookupTimer);
+      lookupObserver?.disconnect();
       if (workbenchObserver && observedWorkbench) {
         workbenchObserver.unobserve(observedWorkbench);
       }

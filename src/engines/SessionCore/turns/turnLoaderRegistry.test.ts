@@ -9,7 +9,10 @@ import {
   pruneLoadedTurnBodies,
 } from ".";
 import { externalReplayTurnLoader } from "./externalReplayTurnLoader";
-import { markTurnBodyLoaded } from "./loadedTurnRegistry";
+import {
+  captureLoadedTurnRegistryGeneration,
+  markTurnBodyLoaded,
+} from "./loadedTurnRegistry";
 import { ownDbTurnLoader } from "./ownDbTurnLoader";
 
 const mocks = vi.hoisted(() => {
@@ -193,8 +196,9 @@ describe("session turn loader routing", () => {
   it("bounds external loaded-turn bookkeeping without native unload RPCs", async () => {
     const sessionId = "codexapp-registry-bound";
     clearLoadedTurnRegistry(sessionId);
+    const generation = captureLoadedTurnRegistryGeneration(sessionId);
     for (let index = 0; index < 12; index += 1) {
-      markTurnBodyLoaded(sessionId, `turn-${index}`);
+      markTurnBodyLoaded(sessionId, `turn-${index}`, generation);
     }
 
     const pruned = await pruneLoadedTurnBodies(sessionId, [

@@ -1,5 +1,11 @@
 import { RefreshCw } from "lucide-react";
-import React, { useCallback, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
@@ -114,6 +120,24 @@ export function StartPageQuotaGrid({
     autoLoad: true,
   });
   const [refreshing, setRefreshing] = useState(false);
+  const refreshRunRef = useRef(0);
+  const refreshWaitRef = useRef<{
+    timeoutId: number;
+    resolve: () => void;
+  } | null>(null);
+
+  useEffect(
+    () => () => {
+      refreshRunRef.current += 1;
+      const pendingWait = refreshWaitRef.current;
+      if (pendingWait) {
+        window.clearTimeout(pendingWait.timeoutId);
+        refreshWaitRef.current = null;
+        pendingWait.resolve();
+      }
+    },
+    []
+  );
 
   const gridClassName = "grid grid-cols-1 gap-3 @[640px]/quota:grid-cols-2";
 
@@ -123,23 +147,33 @@ export function StartPageQuotaGrid({
   );
 
   const handleRefreshAll = useCallback(async () => {
+    const refreshRun = refreshRunRef.current + 1;
+    refreshRunRef.current = refreshRun;
     setRefreshing(true);
     let refreshedCount = 0;
     try {
       for (let index = 0; index < entries.length; index += 1) {
+        if (refreshRunRef.current !== refreshRun) return;
         const entry = entries[index];
         if (index > 0) {
           await new Promise<void>((resolve) => {
-            window.setTimeout(resolve, QUOTA_REFRESH_GAP_MS);
+            const timeoutId = window.setTimeout(() => {
+              refreshWaitRef.current = null;
+              resolve();
+            }, QUOTA_REFRESH_GAP_MS);
+            refreshWaitRef.current = { timeoutId, resolve };
           });
+          if (refreshRunRef.current !== refreshRun) return;
         }
         try {
           const refreshed = await refreshAccount(entry.id, true);
+          if (refreshRunRef.current !== refreshRun) return;
           if (!refreshed) {
             throw new Error("Usage refresh failed");
           }
           refreshedCount += 1;
         } catch (err) {
+          if (refreshRunRef.current !== refreshRun) return;
           const name = getAccount(entry.id)?.name || entry.accountName;
           const detail = err instanceof Error ? err.message : String(err);
           Message.error(
@@ -152,11 +186,13 @@ export function StartPageQuotaGrid({
           logger.error("[RefreshUsage] Error:", err);
         }
       }
-      if (refreshedCount > 0) {
+      if (refreshedCount > 0 && refreshRunRef.current === refreshRun) {
         await refresh();
       }
     } finally {
-      setRefreshing(false);
+      if (refreshRunRef.current === refreshRun) {
+        setRefreshing(false);
+      }
     }
   }, [entries, getAccount, refresh, refreshAccount, tIntegrations]);
 

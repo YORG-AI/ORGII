@@ -30,7 +30,10 @@ pub use index::{
 };
 pub use meta::{resolve_codex_transcript_for_thread_id_near_path, CodexTranscriptLocator};
 pub(crate) use normalize::normalize_codex_tool_calls;
-pub use transcript::load_codex_app_from_path;
+pub use transcript::{
+    load_codex_app_from_path, load_codex_app_initial_window_from_path,
+    load_codex_app_turn_from_path, CodexAppInitialWindow, CodexAppTurnWindow,
+};
 
 // Internal re-exports so the sibling `app_tests.rs` (`use super::*`) resolves.
 #[cfg(test)]
@@ -46,7 +49,8 @@ pub(crate) use meta::parse_codex_session_meta;
 pub(crate) use serde_json::json;
 #[cfg(test)]
 pub(crate) use transcript::{
-    output_parts_for_tool_calls, pending_custom_tool_calls_from_payload, user_message_from_payload,
+    output_parts_for_tool_calls, pending_custom_tool_calls_from_payload,
+    strip_ignored_embedded_images, user_message_from_payload,
 };
 
 // v9: derive impact from authoritative `patch_apply_end` events (structured

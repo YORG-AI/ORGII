@@ -3,18 +3,23 @@ import { GroupedVirtuoso } from "react-virtuoso";
 
 import { type VirtualizedGroup, buildVirtualizedGroupModel } from "./model";
 
-interface VirtualizedGroupedListProps<TGroup, TItem> {
-  groups: readonly VirtualizedGroup<TGroup, TItem>[];
-  defaultExpanded: (group: VirtualizedGroup<TGroup, TItem>) => boolean;
-  getItemKey: (item: TItem, group: TGroup) => React.Key;
+interface VirtualizedGroupedListProps<
+  TEntry extends VirtualizedGroup<unknown, unknown>,
+> {
+  groups: readonly TEntry[];
+  defaultExpanded: (group: TEntry) => boolean;
+  getItemKey: (
+    item: TEntry["items"][number],
+    group: TEntry["group"]
+  ) => React.Key;
   renderGroupHeader: (
-    group: TGroup,
+    group: TEntry["group"],
     expanded: boolean,
     onExpandedChange: (expanded: boolean) => void
   ) => React.ReactNode;
   renderItem: (
-    item: TItem,
-    group: TGroup,
+    item: TEntry["items"][number],
+    group: TEntry["group"],
     isLastInGroup: boolean
   ) => React.ReactNode;
   className?: string;
@@ -26,7 +31,9 @@ interface VirtualizedGroupedListProps<TGroup, TItem> {
  * arrays remain parent-owned; only the visible expanded rows are referenced by
  * the virtualizer's derived data model.
  */
-export default function VirtualizedGroupedList<TGroup, TItem>({
+export default function VirtualizedGroupedList<
+  const TEntry extends VirtualizedGroup<unknown, unknown>,
+>({
   groups,
   defaultExpanded,
   getItemKey,
@@ -34,13 +41,13 @@ export default function VirtualizedGroupedList<TGroup, TItem>({
   renderItem,
   className,
   testId,
-}: VirtualizedGroupedListProps<TGroup, TItem>) {
+}: VirtualizedGroupedListProps<TEntry>) {
   const [expandedOverrides, setExpandedOverrides] = useState<
     ReadonlyMap<string, boolean>
   >(() => new Map());
 
   const isExpanded = useCallback(
-    (group: VirtualizedGroup<TGroup, TItem>) =>
+    (group: TEntry) =>
       expandedOverrides.get(group.key) ?? defaultExpanded(group),
     [defaultExpanded, expandedOverrides]
   );

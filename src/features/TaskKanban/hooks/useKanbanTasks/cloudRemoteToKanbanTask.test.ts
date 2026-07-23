@@ -60,6 +60,8 @@ describe("buildCloudRemoteKanbanProjection", () => {
       canMove: false,
       canOpen: true,
       cliAgentType: "codex",
+      agentTypeFilter: "codex",
+      agentTypeFilterKind: "cli",
       modelName: "gpt-5.6",
       createdBy: { id: "member-2", name: "Teammate" },
     });
@@ -105,6 +107,29 @@ describe("buildCloudRemoteKanbanProjection", () => {
     );
 
     expect(result.tasks[0]?.agentIconId).toBe("orgii");
+  });
+
+  it("uses external source branding even when legacy metadata omits agent fields", () => {
+    const result = buildCloudRemoteKanbanProjection(
+      [
+        remoteRow({
+          sourceSessionId: "external-codex-session",
+          cliAgentType: undefined,
+          agentDisplayName: undefined,
+          model: undefined,
+          origin: { kind: "external_history", source: "codex_app" },
+        }),
+      ],
+      [],
+      options
+    );
+
+    expect(result.tasks[0]).toMatchObject({
+      agentLabel: "Codex App",
+      agentIconId: "codex",
+      agentTypeFilter: "codex_app",
+      agentTypeFilterKind: "external",
+    });
   });
 
   it("deduplicates the viewer's own local source session", () => {

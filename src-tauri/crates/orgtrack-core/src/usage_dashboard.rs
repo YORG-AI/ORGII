@@ -19,9 +19,9 @@
 //!   `code_sessions.cli_agent_type`.
 //! - **One trend source per session.** Trends split by the projection's
 //!   `tokens_source`: native sessions contribute their per-turn
-//!   `session_token_usage` rows (a real curve); imported sessions contribute a
-//!   single lumped point at their last-activity time. A session is never in
-//!   both halves.
+//!   `session_token_usage` rows. Imported sessions use their stored round rows
+//!   when available and otherwise contribute one fallback point at their
+//!   last-activity time. A session is never in both halves.
 //! - Cost mirrors the projection: `cost_usd` is recorded metered spend when
 //!   known, else the list-price estimate (see [`crate::session_usage`]).
 
@@ -174,6 +174,108 @@ pub struct UsageTrendPoint {
     pub cache_read_tokens: i64,
     pub cache_write_tokens: i64,
     pub cost_usd: f64,
+}
+
+/// Incremental headline + trend aggregation. The dashboard used to build a
+/// complete `Vec<UsageRoundRow>` and then fold it twice; keeping only session
+/// ids, bucket ids, and time buckets makes headline memory proportional to the
+/// number of sessions/buckets rather than the number of requests.
+struct UsageHeadlineAccumulator {
+    summary: UsageSummary,
+    per_bucket: BTreeMap<String, BucketSummary>,
+    sessions_seen: HashSet<String>,
+    bucket_sessions: HashMap<String, HashSet<String>>,
+    trend_points: HashMap<i64, UsageTrendPoint>,
+    trend_bucket: TrendBucket,
+    collect_summary: bool,
+    collect_trends: bool,
+}
+
+impl UsageHeadlineAccumulator {
+    fn new(trend_bucket: TrendBucket, collect_summary: bool, collect_trends: bool) -> Self {
+        Self {
+            summary: UsageSummary::default(),
+            per_bucket: BTreeMap::new(),
+            sessions_seen: HashSet::new(),
+            bucket_sessions: HashMap::new(),
+            trend_points: HashMap::new(),
+            trend_bucket,
+            collect_summary,
+            collect_trends,
+        }
+    }
+
+    fn observe(&mut self, round: &UsageRoundRow) {
+        if self.collect_summary {
+            self.summary.request_count += 1;
+            if !self.sessions_seen.contains(&round.session_id) {
+                self.sessions_seen.insert(round.session_id.clone());
+                self.summary.session_count += 1;
+            }
+            self.summary.input_tokens += round.input_tokens;
+            self.summary.output_tokens += round.output_tokens;
+            self.summary.cache_read_tokens += round.cache_read_tokens;
+            self.summary.cache_write_tokens += round.cache_write_tokens;
+            self.summary.cost_usd += round.cost_usd;
+
+            let entry = self
+                .per_bucket
+                .entry(round.bucket.clone())
+                .or_insert_with(|| BucketSummary {
+                    bucket: round.bucket.clone(),
+                    ..BucketSummary::default()
+                });
+            entry.real_total_tokens += round.real_total_tokens;
+            entry.cost_usd += round.cost_usd;
+            let bucket_sessions = self
+                .bucket_sessions
+                .entry(round.bucket.clone())
+                .or_default();
+            if !bucket_sessions.contains(&round.session_id) {
+                bucket_sessions.insert(round.session_id.clone());
+                entry.session_count += 1;
+            }
+        }
+
+        if self.collect_trends && round.created_at_ms > 0 {
+            let key = self.trend_bucket.floor(round.created_at_ms);
+            let point = self
+                .trend_points
+                .entry(key)
+                .or_insert_with(|| UsageTrendPoint {
+                    bucket_ms: key,
+                    ..UsageTrendPoint::default()
+                });
+            point.input_tokens += round.input_tokens;
+            point.output_tokens += round.output_tokens;
+            point.cache_write_tokens += round.cache_write_tokens;
+            point.cache_read_tokens += round.cache_read_tokens;
+            point.cost_usd += round.cost_usd;
+        }
+    }
+
+    fn finish(mut self) -> (UsageSummary, Vec<UsageTrendPoint>) {
+        self.summary.real_total_tokens = self
+            .summary
+            .input_tokens
+            .saturating_add(self.summary.output_tokens)
+            .saturating_add(self.summary.cache_read_tokens)
+            .saturating_add(self.summary.cache_write_tokens);
+        self.summary.total_tokens = self.summary.real_total_tokens;
+        // Rounds carry list-price estimates; recorded metered spend isn't
+        // tracked per round, so the headline == estimated here.
+        self.summary.estimated_cost_usd = self.summary.cost_usd;
+        self.summary.cache_hit_rate = cache_hit_rate(
+            self.summary.input_tokens,
+            self.summary.cache_write_tokens,
+            self.summary.cache_read_tokens,
+        );
+        self.summary.by_bucket = self.per_bucket.into_values().collect();
+
+        let mut trends: Vec<UsageTrendPoint> = self.trend_points.into_values().collect();
+        trends.sort_by_key(|point| point.bucket_ms);
+        (self.summary, trends)
+    }
 }
 
 /// Sort key for the per-session table.
@@ -460,60 +562,12 @@ fn cache_hit_rate(input: i64, cache_write: i64, cache_read: i64) -> f64 {
 /// summary could disagree with the round table's time filter and blank the
 /// panel even when rounds exist).
 pub fn usage_summary(conn: &Connection, filter: &UsageFilter) -> Result<UsageSummary, String> {
-    Ok(summarize_rounds(&collect_rounds(conn, filter)?))
-}
-
-/// Fold a per-round set into the headline [`UsageSummary`].
-fn summarize_rounds(rounds: &[UsageRoundRow]) -> UsageSummary {
-    let mut summary = UsageSummary::default();
-    let mut per_bucket: BTreeMap<String, BucketSummary> = BTreeMap::new();
-    let mut sessions_seen: HashSet<String> = HashSet::new();
-    let mut bucket_sessions: HashMap<String, HashSet<String>> = HashMap::new();
-
-    for round in rounds {
-        summary.request_count += 1;
-        if sessions_seen.insert(round.session_id.clone()) {
-            summary.session_count += 1;
-        }
-        summary.input_tokens += round.input_tokens;
-        summary.output_tokens += round.output_tokens;
-        summary.cache_read_tokens += round.cache_read_tokens;
-        summary.cache_write_tokens += round.cache_write_tokens;
-        summary.cost_usd += round.cost_usd;
-
-        let entry = per_bucket
-            .entry(round.bucket.clone())
-            .or_insert_with(|| BucketSummary {
-                bucket: round.bucket.clone(),
-                ..BucketSummary::default()
-            });
-        entry.real_total_tokens += round.real_total_tokens;
-        entry.cost_usd += round.cost_usd;
-        if bucket_sessions
-            .entry(round.bucket.clone())
-            .or_default()
-            .insert(round.session_id.clone())
-        {
-            entry.session_count += 1;
-        }
-    }
-
-    summary.real_total_tokens = summary
-        .input_tokens
-        .saturating_add(summary.output_tokens)
-        .saturating_add(summary.cache_read_tokens)
-        .saturating_add(summary.cache_write_tokens);
-    summary.total_tokens = summary.real_total_tokens;
-    // Rounds carry list-price estimates; recorded metered spend isn't tracked
-    // per round, so the headline == estimated here.
-    summary.estimated_cost_usd = summary.cost_usd;
-    summary.cache_hit_rate = cache_hit_rate(
-        summary.input_tokens,
-        summary.cache_write_tokens,
-        summary.cache_read_tokens,
-    );
-    summary.by_bucket = per_bucket.into_values().collect();
-    summary
+    let mut accumulator = UsageHeadlineAccumulator::new(TrendBucket::Day, true, false);
+    visit_rounds(conn, filter, |round| {
+        accumulator.observe(&round);
+        Ok(())
+    })?;
+    Ok(accumulator.finish().0)
 }
 
 /// Per-session table rows for the filter's scope, sorted and paginated.
@@ -640,17 +694,6 @@ pub struct UsageRoundRow {
     pub created_at_ms: i64,
 }
 
-/// One per-round row read from `imported_history_round_usage`.
-struct ImportedRound {
-    session_id: String,
-    model: Option<String>,
-    input_tokens: i64,
-    output_tokens: i64,
-    cache_read_tokens: i64,
-    cache_write_tokens: i64,
-    created_at_ms: i64,
-}
-
 fn table_exists(conn: &Connection, name: &str) -> bool {
     conn.query_row(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1 LIMIT 1",
@@ -661,56 +704,6 @@ fn table_exists(conn: &Connection, name: &str) -> bool {
     .ok()
     .flatten()
     .is_some()
-}
-
-fn fetch_imported_rounds(
-    conn: &Connection,
-    start_ms: Option<i64>,
-    end_ms: Option<i64>,
-) -> Result<Vec<ImportedRound>, String> {
-    if !table_exists(conn, "imported_history_round_usage") {
-        return Ok(Vec::new());
-    }
-    // Bound the scan to the time window (created_at_ms is indexed) so a large
-    // all-time round table isn't loaded on every refresh.
-    let mut clauses: Vec<String> = Vec::new();
-    let mut params: Vec<i64> = Vec::new();
-    if let Some(start) = start_ms {
-        clauses.push(format!("created_at_ms >= ?{}", params.len() + 1));
-        params.push(start);
-    }
-    if let Some(end) = end_ms {
-        clauses.push(format!("created_at_ms <= ?{}", params.len() + 1));
-        params.push(end);
-    }
-    let where_sql = if clauses.is_empty() {
-        String::new()
-    } else {
-        format!(" WHERE {}", clauses.join(" AND "))
-    };
-    let sql = format!(
-        "SELECT session_id, model, input_tokens, output_tokens,
-                cache_read_tokens, cache_write_tokens, created_at_ms
-         FROM imported_history_round_usage{where_sql}"
-    );
-    let mut statement = conn.prepare(&sql).map_err(|err| err.to_string())?;
-    let rows = statement
-        .query_map(rusqlite::params_from_iter(params), |row| {
-            Ok(ImportedRound {
-                session_id: row.get(0)?,
-                model: row
-                    .get::<_, String>(1)
-                    .map(|model| Some(model).filter(|value| !value.is_empty()))?,
-                input_tokens: row.get(2)?,
-                output_tokens: row.get(3)?,
-                cache_read_tokens: row.get(4)?,
-                cache_write_tokens: row.get(5)?,
-                created_at_ms: row.get(6)?,
-            })
-        })
-        .map_err(|err| err.to_string())?;
-    rows.collect::<rusqlite::Result<Vec<_>>>()
-        .map_err(|err| err.to_string())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -746,52 +739,104 @@ fn build_round_row(
     }
 }
 
-/// The unified per-round request log for the filter's scope: real per-round
-/// rows where a source emits them (codex/claude in `imported_history_round_usage`,
-/// native org2 turns in `session_token_usage`), and one synthesized fallback
-/// round from the session totals for imported sources that have none
-/// (cursor/opencode/…). Rounds outside the time window are dropped.
-fn collect_rounds(conn: &Connection, filter: &UsageFilter) -> Result<Vec<UsageRoundRow>, String> {
+/// Visit the unified per-round request log without retaining it. Real
+/// imported rounds are streamed directly from SQLite; native rows remain a
+/// small per-session buffer because their mixed timestamp formats must be
+/// parsed before ordering. A synthesized fallback row is emitted for imported
+/// sources that do not provide round-level history.
+fn visit_rounds(
+    conn: &Connection,
+    filter: &UsageFilter,
+    mut visit: impl FnMut(UsageRoundRow) -> Result<(), String>,
+) -> Result<(), String> {
     let mut sessions = fetch_scoped_sessions(conn, filter.bucket.as_deref(), filter.all_sources)?;
     if let Some(session_id) = filter.session_id.as_deref() {
         sessions.retain(|session| session.session_id == session_id);
     }
 
-    let mut imported_by: HashMap<String, Vec<ImportedRound>> = HashMap::new();
-    for round in fetch_imported_rounds(conn, filter.start_ms, filter.end_ms)? {
-        imported_by
-            .entry(round.session_id.clone())
-            .or_default()
-            .push(round);
+    let session_indexes: HashMap<String, usize> = sessions
+        .iter()
+        .enumerate()
+        .map(|(index, session)| (session.session_id.clone(), index))
+        .collect();
+    let mut imported_session_ids = HashSet::new();
+    if table_exists(conn, "imported_history_round_usage") {
+        let mut clauses: Vec<String> = Vec::new();
+        let mut params: Vec<i64> = Vec::new();
+        if let Some(start) = filter.start_ms {
+            clauses.push(format!("created_at_ms >= ?{}", params.len() + 1));
+            params.push(start);
+        }
+        if let Some(end) = filter.end_ms {
+            clauses.push(format!("created_at_ms <= ?{}", params.len() + 1));
+            params.push(end);
+        }
+        let where_sql = if clauses.is_empty() {
+            String::new()
+        } else {
+            format!(" WHERE {}", clauses.join(" AND "))
+        };
+        let sql = format!(
+            "SELECT session_id, model, input_tokens, output_tokens,
+                    cache_read_tokens, cache_write_tokens, created_at_ms
+             FROM imported_history_round_usage{where_sql}
+             ORDER BY session_id, created_at_ms, seq"
+        );
+        let mut statement = conn.prepare(&sql).map_err(|err| err.to_string())?;
+        let mut rows = statement
+            .query(rusqlite::params_from_iter(params))
+            .map_err(|err| err.to_string())?;
+        let mut current_session_id = String::new();
+        let mut current_index = 0usize;
+        while let Some(row) = rows.next().map_err(|err| err.to_string())? {
+            let session_id: String = row.get(0).map_err(|err| err.to_string())?;
+            let Some(&session_index) = session_indexes.get(&session_id) else {
+                continue;
+            };
+            if current_session_id != session_id {
+                current_session_id.clone_from(&session_id);
+                current_index = 0;
+            }
+            if !imported_session_ids.contains(&session_id) {
+                imported_session_ids.insert(session_id.clone());
+            }
+            let model = row
+                .get::<_, Option<String>>(1)
+                .map_err(|err| err.to_string())?
+                .filter(|value| !value.is_empty());
+            let round = build_round_row(
+                &sessions[session_index],
+                current_index,
+                model,
+                row.get(2).map_err(|err| err.to_string())?,
+                row.get(3).map_err(|err| err.to_string())?,
+                row.get(4).map_err(|err| err.to_string())?,
+                row.get(5).map_err(|err| err.to_string())?,
+                row.get(6).map_err(|err| err.to_string())?,
+            );
+            current_index += 1;
+            visit(round)?;
+        }
     }
+
     let mut native_by: HashMap<String, Vec<NativeTurn>> = HashMap::new();
     for turn in fetch_native_turns(conn)? {
+        if !session_indexes.contains_key(&turn.session_id)
+            || imported_session_ids.contains(&turn.session_id)
+        {
+            continue;
+        }
         native_by
             .entry(turn.session_id.clone())
             .or_default()
             .push(turn);
     }
 
-    let mut rows = Vec::new();
     for session in &sessions {
-        if let Some(mut imported) = imported_by.remove(&session.session_id) {
-            imported.sort_by_key(|round| round.created_at_ms);
-            for (index, round) in imported.into_iter().enumerate() {
-                if !filter.contains(round.created_at_ms) {
-                    continue;
-                }
-                rows.push(build_round_row(
-                    session,
-                    index,
-                    round.model,
-                    round.input_tokens,
-                    round.output_tokens,
-                    round.cache_read_tokens,
-                    round.cache_write_tokens,
-                    round.created_at_ms,
-                ));
-            }
-        } else if session.tokens_source == crate::session_usage::TOKENS_SOURCE_NATIVE {
+        if imported_session_ids.contains(&session.session_id) {
+            continue;
+        }
+        if session.tokens_source == crate::session_usage::TOKENS_SOURCE_NATIVE {
             let mut turns: Vec<(i64, NativeTurn)> = native_by
                 .remove(&session.session_id)
                 .unwrap_or_default()
@@ -803,7 +848,7 @@ fn collect_rounds(conn: &Connection, filter: &UsageFilter) -> Result<Vec<UsageRo
                 if !filter.contains(ms) {
                     continue;
                 }
-                rows.push(build_round_row(
+                visit(build_round_row(
                     session,
                     index,
                     turn.model,
@@ -812,7 +857,7 @@ fn collect_rounds(conn: &Connection, filter: &UsageFilter) -> Result<Vec<UsageRo
                     turn.cache_read_tokens,
                     turn.cache_write_tokens,
                     ms,
-                ));
+                ))?;
             }
         } else if session.last_active_ms > 0
             && filter.contains(session.last_active_ms)
@@ -820,7 +865,7 @@ fn collect_rounds(conn: &Connection, filter: &UsageFilter) -> Result<Vec<UsageRo
         {
             // Fallback: one synthesized round from the session totals (the
             // projection's input is already fresh).
-            rows.push(build_round_row(
+            visit(build_round_row(
                 session,
                 0,
                 session.model.clone(),
@@ -829,46 +874,94 @@ fn collect_rounds(conn: &Connection, filter: &UsageFilter) -> Result<Vec<UsageRo
                 session.cache_read_tokens,
                 session.cache_write_tokens,
                 session.last_active_ms,
-            ));
+            ))?;
         }
     }
-    Ok(rows)
+    Ok(())
 }
 
-/// Sort a per-round set in place by the chosen key (descending).
-fn sort_rounds(rows: &mut [UsageRoundRow], sort: SessionSort) {
-    match sort {
-        SessionSort::Cost => rows.sort_by(|a, b| {
-            b.cost_usd
-                .partial_cmp(&a.cost_usd)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        }),
-        SessionSort::Tokens => rows.sort_by_key(|row| std::cmp::Reverse(row.real_total_tokens)),
-        SessionSort::Recent => rows.sort_by_key(|row| std::cmp::Reverse(row.created_at_ms)),
-    }
+const ROUND_PAGE_TABLE: &str = "usage_dashboard_round_page";
+
+fn prepare_round_page_table(conn: &Connection) -> Result<(), String> {
+    conn.execute_batch(
+        "CREATE TEMP TABLE IF NOT EXISTS usage_dashboard_round_page (
+            row_sequence       INTEGER PRIMARY KEY AUTOINCREMENT,
+            round_id           TEXT NOT NULL,
+            session_id         TEXT NOT NULL,
+            session_name       TEXT NOT NULL,
+            bucket             TEXT NOT NULL,
+            source             TEXT NOT NULL,
+            model              TEXT,
+            input_tokens       INTEGER NOT NULL,
+            output_tokens      INTEGER NOT NULL,
+            cache_read_tokens  INTEGER NOT NULL,
+            cache_write_tokens INTEGER NOT NULL,
+            real_total_tokens  INTEGER NOT NULL,
+            cost_usd           REAL NOT NULL,
+            created_at_ms      INTEGER NOT NULL
+         );
+         CREATE INDEX IF NOT EXISTS usage_dashboard_round_page_recent_idx
+             ON usage_dashboard_round_page(created_at_ms DESC, row_sequence ASC);
+         CREATE INDEX IF NOT EXISTS usage_dashboard_round_page_tokens_idx
+             ON usage_dashboard_round_page(real_total_tokens DESC, row_sequence ASC);
+         CREATE INDEX IF NOT EXISTS usage_dashboard_round_page_cost_idx
+             ON usage_dashboard_round_page(cost_usd DESC, row_sequence ASC);
+         DELETE FROM usage_dashboard_round_page;",
+    )
+    .map_err(|err| err.to_string())
 }
 
-/// Bucket a per-round set into a time series.
-fn bucket_rounds(rounds: &[UsageRoundRow], bucket_unit: TrendBucket) -> Vec<UsageTrendPoint> {
-    let mut points: HashMap<i64, UsageTrendPoint> = HashMap::new();
-    for round in rounds {
-        if round.created_at_ms <= 0 {
-            continue;
-        }
-        let key = bucket_unit.floor(round.created_at_ms);
-        let point = points.entry(key).or_insert_with(|| UsageTrendPoint {
-            bucket_ms: key,
-            ..UsageTrendPoint::default()
-        });
-        point.input_tokens += round.input_tokens;
-        point.output_tokens += round.output_tokens;
-        point.cache_write_tokens += round.cache_write_tokens;
-        point.cache_read_tokens += round.cache_read_tokens;
-        point.cost_usd += round.cost_usd;
-    }
-    let mut series: Vec<UsageTrendPoint> = points.into_values().collect();
-    series.sort_by_key(|point| point.bucket_ms);
-    series
+fn clear_round_page_table(conn: &Connection) {
+    let _ = conn.execute(&format!("DELETE FROM {ROUND_PAGE_TABLE}"), []);
+}
+
+fn read_round_page(
+    conn: &Connection,
+    sort: SessionSort,
+    offset: usize,
+    limit: usize,
+) -> Result<Vec<UsageRoundRow>, String> {
+    let order_by = match sort {
+        SessionSort::Cost => "cost_usd DESC, row_sequence ASC",
+        SessionSort::Tokens => "real_total_tokens DESC, row_sequence ASC",
+        SessionSort::Recent => "created_at_ms DESC, row_sequence ASC",
+    };
+    let sql = format!(
+        "SELECT round_id, session_id, session_name, bucket, source, model,
+                input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+                real_total_tokens, cost_usd, created_at_ms
+         FROM {ROUND_PAGE_TABLE}
+         ORDER BY {order_by}
+         LIMIT ?1 OFFSET ?2"
+    );
+    let mut statement = conn.prepare(&sql).map_err(|err| err.to_string())?;
+    let rows = statement
+        .query_map(
+            [
+                i64::try_from(limit).unwrap_or(i64::MAX),
+                i64::try_from(offset).unwrap_or(i64::MAX),
+            ],
+            |row| {
+                Ok(UsageRoundRow {
+                    round_id: row.get(0)?,
+                    session_id: row.get(1)?,
+                    session_name: row.get(2)?,
+                    bucket: row.get(3)?,
+                    source: row.get(4)?,
+                    model: row.get(5)?,
+                    input_tokens: row.get(6)?,
+                    output_tokens: row.get(7)?,
+                    cache_read_tokens: row.get(8)?,
+                    cache_write_tokens: row.get(9)?,
+                    real_total_tokens: row.get(10)?,
+                    cost_usd: row.get(11)?,
+                    created_at_ms: row.get(12)?,
+                })
+            },
+        )
+        .map_err(|err| err.to_string())?;
+    rows.collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(|err| err.to_string())
 }
 
 /// Per-round request-log rows for the filter's scope, sorted and paginated.
@@ -879,9 +972,19 @@ pub fn usage_rounds(
     offset: usize,
     limit: usize,
 ) -> Result<Vec<UsageRoundRow>, String> {
-    let mut rows = collect_rounds(conn, filter)?;
-    sort_rounds(&mut rows, sort);
-    Ok(rows.into_iter().skip(offset).take(limit).collect())
+    Ok(usage_overview(
+        conn,
+        filter,
+        &UsageRoundQuery::default(),
+        sort,
+        offset,
+        limit,
+        TrendBucket::Day,
+        false,
+        false,
+        true,
+    )?
+    .rounds)
 }
 
 /// Time-bucketed token + cost series, aggregated from the same per-round set as
@@ -891,11 +994,16 @@ pub fn usage_trends(
     filter: &UsageFilter,
     bucket_unit: TrendBucket,
 ) -> Result<Vec<UsageTrendPoint>, String> {
-    Ok(bucket_rounds(&collect_rounds(conn, filter)?, bucket_unit))
+    let mut accumulator = UsageHeadlineAccumulator::new(bucket_unit, false, true);
+    visit_rounds(conn, filter, |round| {
+        accumulator.observe(&round);
+        Ok(())
+    })?;
+    Ok(accumulator.finish().1)
 }
 
 /// Optional headline aggregates and request-log page from a single
-/// `collect_rounds` pass. Callers can request only the part of the dashboard
+/// streaming pass. Callers can request only the part of the dashboard
 /// they are updating without retaining the raw round set between calls.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -919,38 +1027,124 @@ pub fn usage_overview(
     limit: usize,
     bucket_unit: TrendBucket,
     include_headline: bool,
+    include_trends: bool,
     include_rounds: bool,
 ) -> Result<UsageOverview, String> {
-    let mut all = collect_rounds(conn, filter)?;
-    let (summary, trends) = if include_headline {
-        (summarize_rounds(&all), bucket_rounds(&all, bucket_unit))
+    if !include_headline && !include_trends && !include_rounds {
+        return Ok(UsageOverview::default());
+    }
+
+    if include_rounds {
+        prepare_round_page_table(conn)?;
+    }
+    let mut insert = if include_rounds {
+        Some(
+            conn.prepare(
+                "INSERT INTO usage_dashboard_round_page (
+                    round_id, session_id, session_name, bucket, source, model,
+                    input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+                    real_total_tokens, cost_usd, created_at_ms
+                 ) VALUES (
+                    ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13
+                 )",
+            )
+            .map_err(|err| err.to_string())?,
+        )
     } else {
-        (UsageSummary::default(), Vec::new())
+        None
     };
-    let (rounds, round_total, round_models, has_unknown_round_model) = if include_rounds {
-        let round_models = all
-            .iter()
-            .filter_map(|row| row.model.clone())
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect();
-        let has_unknown_round_model = all.iter().any(|row| row.model.is_none());
-        all.retain(|row| round_query.matches(row));
-        let round_total = all.len();
-        sort_rounds(&mut all, sort);
-        let rounds = all.into_iter().skip(offset).take(limit).collect();
-        (rounds, round_total, round_models, has_unknown_round_model)
+    if include_rounds {
+        conn.execute_batch("SAVEPOINT usage_dashboard_round_page_load;")
+            .map_err(|err| err.to_string())?;
+    }
+    let mut accumulator = (include_headline || include_trends)
+        .then(|| UsageHeadlineAccumulator::new(bucket_unit, include_headline, include_trends));
+    let mut round_total = 0usize;
+    let mut round_models = BTreeSet::new();
+    let mut has_unknown_round_model = false;
+
+    let visit_result = visit_rounds(conn, filter, |round| {
+        if let Some(accumulator) = accumulator.as_mut() {
+            accumulator.observe(&round);
+        }
+        if !include_rounds {
+            return Ok(());
+        }
+
+        if let Some(model) = round.model.as_ref() {
+            if !round_models.contains(model) {
+                round_models.insert(model.clone());
+            }
+        } else {
+            has_unknown_round_model = true;
+        }
+        if !round_query.matches(&round) {
+            return Ok(());
+        }
+        round_total += 1;
+        insert
+            .as_mut()
+            .expect("round-page statement exists when rounds are included")
+            .execute(rusqlite::params![
+                round.round_id,
+                round.session_id,
+                round.session_name,
+                round.bucket,
+                round.source,
+                round.model,
+                round.input_tokens,
+                round.output_tokens,
+                round.cache_read_tokens,
+                round.cache_write_tokens,
+                round.real_total_tokens,
+                round.cost_usd,
+                round.created_at_ms,
+            ])
+            .map(|_| ())
+            .map_err(|err| err.to_string())
+    });
+    drop(insert);
+    if let Err(err) = visit_result {
+        let _ = conn.execute_batch(
+            "ROLLBACK TO usage_dashboard_round_page_load;
+             RELEASE usage_dashboard_round_page_load;",
+        );
+        clear_round_page_table(conn);
+        return Err(err);
+    }
+    if include_rounds {
+        if let Err(err) = conn.execute_batch("RELEASE usage_dashboard_round_page_load;") {
+            clear_round_page_table(conn);
+            return Err(err.to_string());
+        }
+    }
+
+    let (aggregated_summary, aggregated_trends) = accumulator
+        .map(UsageHeadlineAccumulator::finish)
+        .unwrap_or_default();
+    let summary = if include_headline {
+        aggregated_summary
     } else {
-        // Headline-only loads deliberately avoid request-table facets, sort,
-        // pagination, and row transfer until the collapsed table is opened.
-        (Vec::new(), 0, Vec::new(), false)
+        UsageSummary::default()
+    };
+    let trends = if include_trends {
+        aggregated_trends
+    } else {
+        Vec::new()
+    };
+    let rounds = if include_rounds {
+        let result = read_round_page(conn, sort, offset, limit);
+        clear_round_page_table(conn);
+        result?
+    } else {
+        Vec::new()
     };
     Ok(UsageOverview {
         summary,
         trends,
         rounds,
         round_total,
-        round_models,
+        round_models: round_models.into_iter().collect(),
         has_unknown_round_model,
     })
 }
@@ -1192,6 +1386,7 @@ mod tests {
             TrendBucket::Hour,
             true,
             true,
+            true,
         )
         .expect("overview");
 
@@ -1221,6 +1416,7 @@ mod tests {
             TrendBucket::Hour,
             true,
             true,
+            true,
         )
         .expect("second page");
         assert_eq!(second.round_total, 2);
@@ -1240,6 +1436,7 @@ mod tests {
             10,
             TrendBucket::Hour,
             true,
+            true,
             false,
         )
         .expect("headline overview");
@@ -1253,6 +1450,28 @@ mod tests {
     }
 
     #[test]
+    fn overview_skips_trend_buckets_when_trends_are_not_requested() {
+        let conn = seeded_conn();
+        let overview = usage_overview(
+            &conn,
+            &UsageFilter::default(),
+            &UsageRoundQuery::default(),
+            SessionSort::Recent,
+            0,
+            10,
+            TrendBucket::Hour,
+            true,
+            false,
+            false,
+        )
+        .expect("summary-only overview");
+
+        assert_eq!(overview.summary.request_count, 4);
+        assert!(overview.trends.is_empty());
+        assert!(overview.rounds.is_empty());
+    }
+
+    #[test]
     fn overview_skips_headline_work_for_a_request_page_load() {
         let conn = seeded_conn();
         let overview = usage_overview(
@@ -1263,6 +1482,7 @@ mod tests {
             0,
             10,
             TrendBucket::Hour,
+            false,
             false,
             true,
         )

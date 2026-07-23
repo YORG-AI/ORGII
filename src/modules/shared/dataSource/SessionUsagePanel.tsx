@@ -1,5 +1,13 @@
 import { RefreshCw, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -21,13 +29,15 @@ import {
   SECTION_GAP_CLASSES,
   SECTION_SUBHEADING_CLASSES,
 } from "@src/modules/shared/layouts/SectionLayout";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import {
+  CollapsibleSection,
+  Placeholder,
+} from "@src/modules/shared/layouts/blocks";
 
 import UsageRoundsTable, {
   USAGE_ROUNDS_DEFAULT_PAGE_SIZE,
 } from "./UsageRoundsTable";
 import UsageStatCards from "./UsageStatCards";
-import UsageTrendChart from "./UsageTrendChart";
 import { bucketLabelKey } from "./usageBuckets";
 import {
   USAGE_RANGE_PRESETS,
@@ -36,6 +46,7 @@ import {
 } from "./usageRange";
 
 const SOURCE_ALL = "all";
+const UsageTrendChart = lazy(() => import("./UsageTrendChart"));
 
 interface SelectedSession {
   id: string;
@@ -70,13 +81,19 @@ export default function SessionUsagePanel() {
   const [roundPageSize, setRoundPageSize] = useState(
     USAGE_ROUNDS_DEFAULT_PAGE_SIZE
   );
+  const [trendsOpen, setTrendsOpen] = useState(false);
   const [roundsOpen, setRoundsOpen] = useState(false);
+  const [loadedTrendQueryKey, setLoadedTrendQueryKey] = useState<string | null>(
+    null
+  );
   const [loadedRoundQueryKey, setLoadedRoundQueryKey] = useState<string | null>(
     null
   );
   const [headlineLoading, setHeadlineLoading] = useState(true);
+  const [trendLoading, setTrendLoading] = useState(false);
   const [roundLoading, setRoundLoading] = useState(false);
   const [headlineError, setHeadlineError] = useState<string | null>(null);
+  const [trendError, setTrendError] = useState<string | null>(null);
   const [roundError, setRoundError] = useState<string | null>(null);
 
   const scope = useMemo<UsageScope>(() => {
@@ -101,6 +118,7 @@ export default function SessionUsagePanel() {
   // overwrite a newer one. setState lives in this callback (not the effect
   // body) to satisfy react-hooks/set-state-in-effect.
   const headlineRequestRef = useRef(0);
+  const trendRequestRef = useRef(0);
   const roundRequestRef = useRef(0);
   const roundInFlightRef = useRef<{
     queryKey: string;
@@ -111,6 +129,7 @@ export default function SessionUsagePanel() {
       // Tauri invokes are not abortable, so invalidate their generation. Late
       // completions cannot apply state after this tab unmounts.
       headlineRequestRef.current += 1;
+      trendRequestRef.current += 1;
       roundRequestRef.current += 1;
     },
     []
@@ -145,6 +164,13 @@ export default function SessionUsagePanel() {
     sort,
     startMs: scope.startMs ?? null,
   });
+  const trendQueryKey = JSON.stringify({
+    bucket: scope.bucket ?? null,
+    endMs: scope.endMs ?? null,
+    sessionId: scope.sessionId ?? null,
+    startMs: scope.startMs ?? null,
+  });
+  const trendDataLoaded = loadedTrendQueryKey === trendQueryKey;
   const roundDataLoaded = loadedRoundQueryKey === roundQueryKey;
 
   const loadHeadline = useCallback(async () => {
@@ -155,11 +181,11 @@ export default function SessionUsagePanel() {
       // Headline-only mode skips request-table facets, sorting, pagination,
       // and row transfer until the collapsed Requests section is opened.
       const overview = await usageDashboardOverview(scope, {
+        includeTrends: false,
         includeRounds: false,
       });
       if (requestId !== headlineRequestRef.current) return;
       setSummary(overview.summary);
-      setTrends(overview.trends);
     } catch (err) {
       if (requestId === headlineRequestRef.current) {
         setHeadlineError(String(err));
@@ -168,6 +194,27 @@ export default function SessionUsagePanel() {
       if (requestId === headlineRequestRef.current) setHeadlineLoading(false);
     }
   }, [scope]);
+
+  const loadTrends = useCallback(async () => {
+    const requestId = ++trendRequestRef.current;
+    const requestedQueryKey = trendQueryKey;
+    setTrendLoading(true);
+    setTrendError(null);
+    try {
+      const overview = await usageDashboardOverview(scope, {
+        includeHeadline: false,
+        includeTrends: true,
+        includeRounds: false,
+      });
+      if (requestId !== trendRequestRef.current) return;
+      setTrends(overview.trends);
+      setLoadedTrendQueryKey(requestedQueryKey);
+    } catch (err) {
+      if (requestId === trendRequestRef.current) setTrendError(String(err));
+    } finally {
+      if (requestId === trendRequestRef.current) setTrendLoading(false);
+    }
+  }, [scope, trendQueryKey]);
 
   const loadRounds = useCallback(async () => {
     const requestId = ++roundRequestRef.current;
@@ -187,6 +234,7 @@ export default function SessionUsagePanel() {
           unknownModel: roundModelFilter === null,
           search: appliedRoundSearchQuery.trim() || undefined,
           includeHeadline: false,
+          includeTrends: false,
           includeRounds: true,
         }),
       };
@@ -233,8 +281,23 @@ export default function SessionUsagePanel() {
   }, [loadHeadline]);
 
   useEffect(() => {
+    if (trendsOpen && !trendDataLoaded) void loadTrends();
+  }, [loadTrends, trendDataLoaded, trendsOpen]);
+
+  useEffect(() => {
     if (roundsOpen && !roundDataLoaded) void loadRounds();
   }, [loadRounds, roundDataLoaded, roundsOpen]);
+
+  const handleTrendsOpenChange = useCallback((open: boolean) => {
+    setTrendsOpen(open);
+    if (open) return;
+
+    trendRequestRef.current += 1;
+    setTrends([]);
+    setLoadedTrendQueryKey(null);
+    setTrendLoading(false);
+    setTrendError(null);
+  }, []);
 
   const handleRoundsOpenChange = useCallback((open: boolean) => {
     setRoundsOpen(open);
@@ -259,9 +322,13 @@ export default function SessionUsagePanel() {
 
   const handleUsageRefresh = useCallback(() => {
     void loadHeadline();
+    if (trendsOpen) void loadTrends();
     if (roundsOpen) void loadRounds();
-  }, [loadHeadline, loadRounds, roundsOpen]);
-  const usageRefreshing = headlineLoading || (roundsOpen && roundLoading);
+  }, [loadHeadline, loadRounds, loadTrends, roundsOpen, trendsOpen]);
+  const usageRefreshing =
+    headlineLoading ||
+    (trendsOpen && trendLoading) ||
+    (roundsOpen && roundLoading);
   const { spinClass, handleClick: handleUsageRefreshClick } = useRefreshSpin(
     handleUsageRefresh,
     usageRefreshing
@@ -389,14 +456,41 @@ export default function SessionUsagePanel() {
       ) : summary ? (
         <>
           <UsageStatCards summary={summary} language={language} />
-          <UsageTrendChart
-            points={trends}
-            hourly={hourly}
-            startMs={scope.startMs ?? null}
-            endMs={trendEndMs}
-            dataEndMs={scope.endMs ?? null}
-            language={language}
-          />
+          <CollapsibleSection
+            title={t("usage.trends.title")}
+            defaultOpen={false}
+            compact
+            onOpenChange={handleTrendsOpenChange}
+            titleButtonTestId="usage-trends-toggle"
+            titleClassName={SECTION_SUBHEADING_CLASSES}
+          >
+            {trendError ? (
+              <Placeholder
+                variant="error"
+                placement="detail-panel"
+                title={t("usage.loadError")}
+                subtitle={trendError}
+                onRetry={loadTrends}
+              />
+            ) : trendLoading || !trendDataLoaded ? (
+              <Placeholder variant="loading" placement="detail-panel" />
+            ) : (
+              <Suspense
+                fallback={
+                  <Placeholder variant="loading" placement="detail-panel" />
+                }
+              >
+                <UsageTrendChart
+                  points={trends}
+                  hourly={hourly}
+                  startMs={scope.startMs ?? null}
+                  endMs={trendEndMs}
+                  dataEndMs={scope.endMs ?? null}
+                  language={language}
+                />
+              </Suspense>
+            )}
+          </CollapsibleSection>
           <UsageRoundsTable
             rows={rows}
             total={roundTotal}

@@ -221,6 +221,10 @@ describe("importRemoteSession bounded snapshot publication", () => {
       client,
       orgId: "org-1",
       remoteSession: makeRemote({
+        cliAgentType: "codex",
+        agentDisplayName: "Codex App",
+        agentDefinitionId: "codex-app",
+        model: "gpt-5.6-sol",
         origin: { kind: "external_history", source: "codex_app" },
       }),
       sourceEndpointUrl: "https://cloud.example.com/",
@@ -243,11 +247,18 @@ describe("importRemoteSession bounded snapshot publication", () => {
       sourceSessionId: "remote-1",
       sourceEndpointUrl: "https://cloud.example.com",
       externalHistorySource: "codex_app",
+      sourceDisplay: {
+        cliAgentType: "codex",
+        agentDisplayName: "Codex App",
+        agentDefinitionId: "codex-app",
+        model: "gpt-5.6-sol",
+      },
       epoch: 3,
       seq: 2,
       count: 5,
       frozenCount: 4,
     });
+    expect(row.model).toBeUndefined();
     expect(eventStoreMock.getPersistedEvents).not.toHaveBeenCalled();
   });
 

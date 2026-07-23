@@ -1,8 +1,24 @@
-import { createElement } from "react";
+// @vitest-environment jsdom
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import { StartPageQuotaGrid } from "./StartPageQuotaGrid";
+
+const keyVaultMocks = vi.hoisted(() => ({
+  getAccount: vi.fn(),
+  refresh: vi.fn(),
+  refreshAccount: vi.fn(),
+}));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -16,9 +32,7 @@ vi.mock("react-i18next", () => ({
 vi.mock("@src/hooks/keyVault", () => ({
   useKeyVault: () => ({
     accounts: [],
-    getAccount: vi.fn(),
-    refresh: vi.fn(),
-    refreshAccount: vi.fn(),
+    ...keyVaultMocks,
   }),
 }));
 
@@ -44,6 +58,24 @@ vi.mock("@src/hooks/keyVault/accountQuotaDisplay", () => ({
     })),
   formatQuotaResetHint: () => null,
 }));
+
+const reactActEnvironment = globalThis as typeof globalThis & {
+  IS_REACT_ACT_ENVIRONMENT?: boolean;
+};
+
+beforeAll(() => {
+  reactActEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+  vi.clearAllMocks();
+});
+
+afterAll(() => {
+  Reflect.deleteProperty(reactActEnvironment, "IS_REACT_ACT_ENVIRONMENT");
+});
 
 describe("StartPageQuotaGrid", () => {
   it("renders a flat quota grid with a labeled refresh action", () => {
@@ -88,5 +120,43 @@ describe("StartPageQuotaGrid", () => {
     expect(markup).not.toContain("chat.startPage.hints.previous");
     expect(markup).not.toContain("chat.startPage.hints.next");
     expect(markup).not.toContain("1 / 2");
+  });
+
+  it("stops a queued account refresh when the section unmounts", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) =>
+      window.setTimeout(() => callback(performance.now()), 0)
+    );
+    vi.stubGlobal("cancelAnimationFrame", (handle: number) =>
+      window.clearTimeout(handle)
+    );
+    keyVaultMocks.refreshAccount.mockResolvedValue(true);
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(createElement(StartPageQuotaGrid));
+    });
+    const refreshButton = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Refresh"]'
+    );
+    expect(refreshButton).not.toBeNull();
+
+    await act(async () => {
+      refreshButton?.click();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(keyVaultMocks.refreshAccount).toHaveBeenCalledTimes(1);
+
+    act(() => root.unmount());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+
+    expect(keyVaultMocks.refreshAccount).toHaveBeenCalledTimes(1);
+    expect(keyVaultMocks.refresh).not.toHaveBeenCalled();
+    container.remove();
   });
 });

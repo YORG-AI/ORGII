@@ -13,6 +13,7 @@ import { createLogger } from "@src/hooks/logger";
 import { messageQueueAtom } from "@src/store/ui/messageQueueAtom";
 import { isImportedHistorySession } from "@src/util/session/sessionDispatch";
 
+import { resetChatEventsMemoCaches } from "../../derived/chatEvents";
 import { isVisibleInChat } from "../../ingestion/visibilityFilters";
 import {
   isBackendUserMessageEvent,
@@ -32,10 +33,12 @@ import {
   resetRunningArgsCache,
   resetSessionUIState,
 } from "./actionsUtils";
+import { resetContextAtomMemoCaches } from "./context";
 import {
   derivedSnapshotAtom,
   eventIndexAtom,
   eventsAtom,
+  resetEventAtomMemoCaches,
   sortedEventsAtom,
 } from "./events";
 import {
@@ -56,6 +59,28 @@ import {
 } from "./replay";
 
 const log = createLogger("loadSession");
+
+function releaseDepartingSessionSnapshot(sessionId: string): void {
+  // Module-level selector memoization is intentionally reference-stable while
+  // active, but must not become an accidental transcript cache after the UI
+  // leaves the session. Clear it synchronously even for live sessions whose
+  // Rust/bridge snapshot keeps the normal warm-switch grace period.
+  resetEventAtomMemoCaches();
+  resetContextAtomMemoCaches();
+  resetChatEventsMemoCaches(sessionId);
+
+  if (isImportedHistorySession(sessionId)) {
+    // Imported transcripts are read-only and reloadable. They can contain
+    // large tool payloads, so retaining them for the normal warm-switch grace
+    // period multiplies JS heap after visiting several external sessions.
+    // Release unconditionally: these sessions have no live agent stream to
+    // preserve, and their active-only refresh hook has already stopped.
+    eventStoreProxy.releaseSessionSnapshot(sessionId);
+    return;
+  }
+
+  eventStoreProxy.scheduleSessionSnapshotRelease(sessionId);
+}
 
 function normalizeUserText(value: string | undefined): string {
   return (value ?? "").replace(/\s+/g, " ").trim();
@@ -258,10 +283,10 @@ export const clearSessionAtom = atom(null, (get, set) => {
   if (currentSessionId) {
     clearLoadedTurnRegistry(currentSessionId);
     // Free the departing session's JS snapshot mirror (full event arrays,
-    // inflated further by any replay-loaded turn bodies) after a grace
-    // window, so rapid switch-backs stay warm. Skipped while it is still
-    // streaming; Rust remains the source of truth either way.
-    eventStoreProxy.scheduleSessionSnapshotRelease(currentSessionId);
+    // inflated further by any replay-loaded turn bodies). Read-only imported
+    // history is released immediately; live sessions retain the normal grace
+    // window and streaming guard. Rust remains the source of truth either way.
+    releaseDepartingSessionSnapshot(currentSessionId);
   }
   // NOTE: Do NOT call set(eventsAtom, []) here. eventsAtom's write handler
   // fires eventStoreProxy.set([]) which is an async fire-and-forget IPC to
@@ -378,9 +403,10 @@ export const loadSessionAtom = atom(
         set(pendingSyntheticEventAtom, null);
       }
       resetSessionUIState(set, currentSessionId);
+      clearLoadedTurnRegistry(currentSessionId);
       // Direct A→B switches come through here without clearSessionAtom —
-      // schedule the outgoing session's snapshot release here too.
-      eventStoreProxy.scheduleSessionSnapshotRelease(currentSessionId);
+      // apply the same imported-immediate/live-deferred release policy.
+      releaseDepartingSessionSnapshot(currentSessionId);
     }
 
     set(sessionIdAtom, sessionId);

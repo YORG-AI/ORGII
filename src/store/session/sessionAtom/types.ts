@@ -26,6 +26,19 @@ import type {
 export type { SessionStatus, PendingQuestion };
 
 /**
+ * Source-owned identity retained for display after a teammate session is
+ * imported as a read-only replay. This is intentionally separate from the
+ * imported Session's runnable configuration: `Session.model` remains unset so
+ * the fork composer asks the viewer which local model/account to use.
+ */
+export interface SessionSourceDisplayMetadata {
+  cliAgentType?: string;
+  agentDisplayName?: string;
+  agentDefinitionId?: string;
+  model?: string;
+}
+
+/**
  * Provenance + consumer-side sync cursor for sessions imported from a
  * collaboration org (design §7.4 / §16.7). Lives on the Session record as a
  * first-class field — it replaces the legacy collab idiom of JSON-encoding
@@ -64,6 +77,8 @@ export interface SessionImportedFrom {
   ownerAvatarUrl?: string;
   /** Original read-only adapter when the shared source came from another app. */
   externalHistorySource?: ImportedHistorySourceId;
+  /** Display-only source identity; never used as fork execution authority. */
+  sourceDisplay?: SessionSourceDisplayMetadata;
   importedAt?: string;
   /** Share-link capability used for a later guest fork; absent for member imports. */
   shareToken?: string;

@@ -31,7 +31,7 @@ import {
 import type { KanbanTask, TaskStatus } from "@src/features/KanbanBoard";
 import { useCloudSessionActions } from "@src/features/Org2Cloud/useCloudSessionActions";
 import { sidebarSelectedOrgIdAtom } from "@src/features/Organizations/sidebarOrgScopeAtom";
-import { loadSidebarSessions } from "@src/store/session";
+import { loadSessionRoster } from "@src/store/session";
 import { kanbanReplayModeAtom } from "@src/store/ui/kanbanReplayAtom";
 import {
   kanbanAgentTypeFilterAtom,
@@ -160,7 +160,7 @@ const Kanban: React.FC<TaskKanbanProps> = ({
   ].join(":");
 
   useEffect(() => {
-    void loadSidebarSessions({ forceRefresh: true });
+    void loadSessionRoster();
   }, []);
 
   const { tasks, allTasks, cloudOrgId, remoteSessionsByTaskId } =
@@ -323,6 +323,7 @@ const Kanban: React.FC<TaskKanbanProps> = ({
     onAutoArchiveTtlChange: setAutoArchiveTtl,
     timeFilter,
     onTimeFilterChange: setTimeFilter,
+    tasks: allTasks,
     hidden: hideHeader,
   });
 

@@ -1,11 +1,8 @@
-import { IMPORTED_HISTORY_SOURCE_DESCRIPTORS } from "@src/api/tauri/externalHistory";
-import type { CliAgentType } from "@src/api/types/keys";
-import { CLI_AGENT } from "@src/api/types/keys";
-import { formatAgentType } from "@src/assets/providers";
 import { KANBAN_RESULT_STATUS } from "@src/features/KanbanBoard/types";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import type { Session } from "@src/store/session";
 import { basename } from "@src/util/path";
+import { resolveSessionDisplayMetadata } from "@src/util/session/sessionDisplayMetadata";
 import { stripPillReferences } from "@src/util/session/stripPillReferences";
 
 import {
@@ -14,10 +11,9 @@ import {
   mapSessionStatusToKanbanColumn,
 } from "../../config";
 import type { KanbanTask } from "../../types";
-import { resolveKanbanAgentIconId } from "./kanbanAgentBranding";
+import { resolveKanbanAgentFilter } from "./kanbanAgentFilter";
 
 const CLOUD_REMOTE_TASK_PREFIX = "cloud-remote:";
-const CLI_AGENT_TYPES = new Set<string>(Object.values(CLI_AGENT));
 const FAILED_STATUSES = new Set(["failed", "error", "timeout", "killed"]);
 
 export interface CloudRemoteKanbanProjection {
@@ -32,44 +28,12 @@ export interface BuildCloudRemoteKanbanProjectionOptions {
   nowMs: number;
 }
 
-function parseCliAgentType(
-  value: string | undefined
-): CliAgentType | undefined {
-  return value && CLI_AGENT_TYPES.has(value)
-    ? (value as CliAgentType)
-    : undefined;
-}
-
 function importedSessionKey(
   orgId: string,
   sourceSessionId: string,
   ownerMemberId: string
 ): string {
   return `${orgId}\u0000${sourceSessionId}\u0000${ownerMemberId}`;
-}
-
-function resolveRemoteAgentMetadata(
-  remote: RemoteTeammateSessionMetadata
-): Pick<KanbanTask, "agentIconId" | "agentLabel" | "cliAgentType"> {
-  const cliAgentType = parseCliAgentType(remote.cliAgentType);
-  const externalOrigin =
-    remote.origin?.kind === "external_history" ? remote.origin : undefined;
-  const externalSource = externalOrigin
-    ? IMPORTED_HISTORY_SOURCE_DESCRIPTORS.find(
-        (candidate) => candidate.sourceId === externalOrigin.source
-      )
-    : undefined;
-
-  return {
-    agentIconId:
-      externalSource?.iconId ??
-      resolveKanbanAgentIconId(remote.agentDefinitionId, undefined),
-    agentLabel:
-      remote.agentDisplayName ||
-      externalSource?.displayName ||
-      (remote.cliAgentType ? formatAgentType(remote.cliAgentType) : "Agent"),
-    cliAgentType,
-  };
 }
 
 function remoteSessionToKanbanTask(
@@ -88,7 +52,14 @@ function remoteSessionToKanbanTask(
     )
       ? "archived"
       : statusColumn;
-  const agent = resolveRemoteAgentMetadata(remote);
+  const display = resolveSessionDisplayMetadata({
+    kind: "remote",
+    session: remote,
+  });
+  const agentFilter = resolveKanbanAgentFilter(
+    display,
+    remote.agentDefinitionId
+  );
   const workspacePath = remote.repoScopeKey ?? remote.repoPath;
 
   return {
@@ -100,9 +71,12 @@ function remoteSessionToKanbanTask(
     tags: [remote.cliAgentType, remote.branch].filter(
       (value): value is string => Boolean(value)
     ),
-    assignee: agent.agentLabel,
-    ...agent,
-    modelName: remote.model,
+    assignee: display.agentLabel,
+    agentLabel: display.agentLabel,
+    agentIconId: display.agentIconId,
+    cliAgentType: display.cliAgentType,
+    ...agentFilter,
+    modelName: display.modelName,
     workspaceName: workspacePath ? basename(workspacePath) : undefined,
     // Cloud session metadata currently carries last activity but not a
     // separate creation timestamp. Using it for both keeps filtering and the
