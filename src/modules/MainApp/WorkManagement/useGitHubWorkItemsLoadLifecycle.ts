@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo } from "react";
 
 import { getGitRemotes } from "@src/api/http/git/remotes";
 import {
@@ -10,6 +10,10 @@ import type {
   OpenPRItem,
   PullRequestListState,
 } from "@src/api/tauri/github";
+import {
+  type AsyncResourceFetchContext,
+  useAsyncResource,
+} from "@src/hooks/async";
 import {
   coalesceGitHubListRequest,
   getCachedIssues,
@@ -85,6 +89,28 @@ export const EMPTY_REPO_PRS: RepoPrState = {
   closedLoaded: false,
   openError: null,
   closedError: null,
+};
+
+interface GitHubWorkItemsLoadData {
+  loadError: string | null;
+  repoIssueMap: Record<string, RepoIssueState>;
+  repoPrMap: Record<string, RepoPrState>;
+  repoSources: GitHubRepoSource[];
+}
+
+interface GitHubWorkItemsLoadRequest {
+  issueStates: GitHubIssuePageState[];
+  prStates: PullRequestListState[];
+  refreshNonce: number;
+  repos: Repo[];
+  scope: Extract<GitHubQueryScope, "issue" | "pr">;
+}
+
+const EMPTY_GITHUB_WORK_ITEMS_LOAD_DATA: GitHubWorkItemsLoadData = {
+  loadError: null,
+  repoIssueMap: {},
+  repoPrMap: {},
+  repoSources: [],
 };
 
 export function getRepoIssueMapKey(source: GitHubRepoSource): string {
@@ -242,137 +268,148 @@ export function useGitHubWorkItemsLoadLifecycle({
   prStates: PullRequestListState[];
   refreshNonce: number;
 }) {
-  const [repoSources, setRepoSources] = useState<GitHubRepoSource[]>([]);
-  const [repoIssueMap, setRepoIssueMap] = useState<
-    Record<string, RepoIssueState>
-  >({});
-  const [repoPrMap, setRepoPrMap] = useState<Record<string, RepoPrState>>({});
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const handledRefreshNonceRef = useRef(0);
   const gitRepos = useMemo(
     () => repos.filter((repo) => repo.kind === REPO_KIND.GIT && repo.path),
     [repos]
   );
-
-  useEffect(() => {
-    let cancelled = false;
-    const forceRefresh = refreshNonce !== handledRefreshNonceRef.current;
-    handledRefreshNonceRef.current = refreshNonce;
-    void (async () => {
-      setLoading(true);
-      setLoadError(null);
+  const scopeKey = JSON.stringify({
+    issueStates,
+    prStates,
+    refreshNonce,
+    repos: gitRepos,
+    scope,
+  } satisfies GitHubWorkItemsLoadRequest);
+  const loadWorkItems = useCallback(
+    async (
+      serializedRequest: string,
+      context: AsyncResourceFetchContext<GitHubWorkItemsLoadData>
+    ) => {
+      const request = JSON.parse(
+        serializedRequest
+      ) as GitHubWorkItemsLoadRequest;
       const resolvedSources = (
-        await Promise.all(gitRepos.map(resolveGitHubRepoSource))
+        await Promise.all(request.repos.map(resolveGitHubRepoSource))
       ).filter((source): source is GitHubRepoSource => Boolean(source));
-      if (cancelled) return;
-      setRepoSources(resolvedSources);
-      setRepoIssueMap(
-        scope === "issue"
-          ? Object.fromEntries(
-              resolvedSources.map((source) => [
-                getRepoIssueMapKey(source),
-                getCachedRepoIssues(source),
-              ])
-            )
-          : {}
-      );
-      setRepoPrMap(
-        scope === "pr"
-          ? Object.fromEntries(
-              resolvedSources.map((source) => [
-                getRepoIssueMapKey(source),
-                getCachedRepoPrs(source),
-              ])
-            )
-          : {}
-      );
-      if (resolvedSources.length === 0) {
-        setLoading(false);
-        return;
-      }
+      const cachedData: GitHubWorkItemsLoadData = {
+        loadError: null,
+        repoIssueMap:
+          request.scope === "issue"
+            ? Object.fromEntries(
+                resolvedSources.map((source) => [
+                  getRepoIssueMapKey(source),
+                  getCachedRepoIssues(source),
+                ])
+              )
+            : {},
+        repoPrMap:
+          request.scope === "pr"
+            ? Object.fromEntries(
+                resolvedSources.map((source) => [
+                  getRepoIssueMapKey(source),
+                  getCachedRepoPrs(source),
+                ])
+              )
+            : {},
+        repoSources: resolvedSources,
+      };
+      context.publish(cachedData, { keepLoading: true });
+      if (resolvedSources.length === 0) return cachedData;
+
+      const forceRefresh =
+        context.cause === "refresh" || request.refreshNonce > 0;
       const [issueResults, prResults] = await Promise.all([
-        scope === "issue"
+        request.scope === "issue"
           ? Promise.all(
               resolvedSources.map((source) =>
-                loadRepoIssues(source, issueStates, forceRefresh)
+                loadRepoIssues(source, request.issueStates, forceRefresh)
               )
             )
           : Promise.resolve([]),
-        scope === "pr"
+        request.scope === "pr"
           ? Promise.all(
               resolvedSources.flatMap((source) =>
-                prStates.map((state) =>
+                request.prStates.map((state) =>
                   loadRepoPrs(source, state, forceRefresh)
                 )
               )
             )
           : Promise.resolve([]),
       ]);
-      if (cancelled) return;
-      if (scope === "issue") {
-        setRepoIssueMap(
-          Object.fromEntries(
-            issueResults.map(({ source, error: _error, ...state }) => [
-              getRepoIssueMapKey(source),
-              state,
-            ])
-          )
-        );
-      } else {
-        setRepoPrMap((current) => {
-          const next = { ...current };
-          for (const result of prResults) {
-            const key = getRepoIssueMapKey(result.source);
-            const currentState = next[key] ?? EMPTY_REPO_PRS;
-            next[key] =
-              result.state === "open"
-                ? {
-                    ...currentState,
-                    openPrs: result.prs,
-                    openLoaded: result.loaded,
-                    openError: result.error,
-                  }
-                : {
-                    ...currentState,
-                    closedPrs: result.prs,
-                    closedLoaded: result.loaded,
-                    closedError: result.error,
-                  };
-          }
-          return next;
-        });
+
+      const repoIssueMap =
+        request.scope === "issue"
+          ? Object.fromEntries(
+              issueResults.map(({ source, error: _error, ...state }) => [
+                getRepoIssueMapKey(source),
+                state,
+              ])
+            )
+          : {};
+      const repoPrMap: Record<string, RepoPrState> = {};
+      if (request.scope === "pr") {
+        for (const result of prResults) {
+          const key = getRepoIssueMapKey(result.source);
+          const currentState = repoPrMap[key] ?? EMPTY_REPO_PRS;
+          repoPrMap[key] =
+            result.state === "open"
+              ? {
+                  ...currentState,
+                  openPrs: result.prs,
+                  openLoaded: result.loaded,
+                  openError: result.error,
+                }
+              : {
+                  ...currentState,
+                  closedPrs: result.prs,
+                  closedLoaded: result.loaded,
+                  closedError: result.error,
+                };
+        }
       }
-      setLoadError(
-        issueResults.find((result) => result.error)?.error ??
+      return {
+        loadError:
+          issueResults.find((result) => result.error)?.error ??
           prResults.find((result) => result.error)?.error ??
-          null
-      );
-      setLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [gitRepos, issueStates, prStates, refreshNonce, scope]);
+          null,
+        repoIssueMap,
+        repoPrMap,
+        repoSources: resolvedSources,
+      };
+    },
+    []
+  );
+  const resource = useAsyncResource({
+    fetcher: loadWorkItems,
+    initialData: EMPTY_GITHUB_WORK_ITEMS_LOAD_DATA,
+    scopeKey,
+  });
+  const setLoadData = resource.setData;
 
   const updateIssueMap = useCallback(
     (
       update: (
         current: Record<string, RepoIssueState>
       ) => Record<string, RepoIssueState>
-    ) => setRepoIssueMap(update),
-    []
+    ) =>
+      setLoadData((current) => ({
+        ...current,
+        repoIssueMap: update(current.repoIssueMap),
+      })),
+    [setLoadData]
   );
-  const setListError = useCallback((error: string | null) => {
-    setLoadError(error);
-  }, []);
+  const setListError = useCallback(
+    (error: string | null) => {
+      setLoadData((current) => ({ ...current, loadError: error }));
+    },
+    [setLoadData]
+  );
 
   return {
-    repoSources,
-    repoIssueMap,
-    repoPrMap,
-    loading,
-    loadError,
+    repoSources: resource.data.repoSources,
+    repoIssueMap: resource.data.repoIssueMap,
+    repoPrMap: resource.data.repoPrMap,
+    loading: resource.loading,
+    loadError: resource.error ?? resource.data.loadError,
     updateIssueMap,
     setListError,
   };
