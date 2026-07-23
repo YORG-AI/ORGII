@@ -488,7 +488,9 @@ export interface E2EHelpers {
     sessionId: string
   ) => Promise<Result<{ mutation: Json | null }>>;
   resetToNewSession: () => Promise<{ ok: true } | Err>;
-  openSession: (sessionId: string) => Promise<Result<{ sessionId: string }>>;
+  openSession: (
+    sessionId: string
+  ) => Promise<Result<{ sessionId: string; eventCount: number }>>;
   debugSessionSecuritySnapshot: (
     sessionId: string
   ) => Promise<Result<{ snapshot: Json }>>;

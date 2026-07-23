@@ -439,7 +439,7 @@ export function createSessionHelpers(store: E2EStore) {
 
   const openSession = async (
     sessionId: string
-  ): Promise<Result<{ sessionId: string }>> => {
+  ): Promise<Result<{ sessionId: string; eventCount: number }>> => {
     releaseActiveE2EReplayLease();
     try {
       if (!sessionId) {
@@ -537,7 +537,7 @@ export function createSessionHelpers(store: E2EStore) {
       await new Promise((resolve) => window.setTimeout(resolve, 150));
       store.set(activeSessionIdAtom, sessionId);
       store.set(workstationActiveSessionIdAtom, sessionId);
-      return { ok: true, sessionId };
+      return { ok: true, sessionId, eventCount: events.length };
     } catch (err) {
       releaseActiveE2EReplayLease();
       return asError(err);

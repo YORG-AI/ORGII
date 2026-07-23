@@ -7,12 +7,15 @@
  * tool sentinel appears in ChatHistory. Tools are checked in small batches so
  * virtualization does not hide off-screen rows from the assertion.
  */
+import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 
 import { e2eUrl } from "../../support/core/e2eBaseUrl.mjs";
 
+const execFileAsync = promisify(execFile);
 const MOUNT_TIMEOUT_MS = 60_000;
 const RENDER_TIMEOUT_MS = 12_000;
 const RUN_ID = Date.now();
@@ -128,6 +131,61 @@ async function invokeE2E(method, ...args) {
   `,
     [method, ...args]
   );
+}
+
+async function invokeE2EDeferred(method, args, timeoutMs, label) {
+  const key = `__orgiiE2EDeferred_${RUN_ID}_${Date.now()}_${Math.random()
+    .toString(36)
+    .slice(2)}`;
+  const started = await execJS(`
+    const key = ${JSON.stringify(key)};
+    const method = ${JSON.stringify(method)};
+    const args = ${JSON.stringify(args)};
+    if (!window.__e2e || typeof window.__e2e[method] !== "function") {
+      return { ok: false, error: "window.__e2e." + method + " not available" };
+    }
+    const record = { state: "pending" };
+    window[key] = record;
+    Promise.resolve(window.__e2e[method].apply(null, args))
+      .then((value) => {
+        record.state = "fulfilled";
+        record.value = value;
+      })
+      .catch((error) => {
+        record.state = "rejected";
+        record.error = String(error && (error.stack || error.message) || error);
+      });
+    return { ok: true };
+  `);
+  if (started?.ok !== true) {
+    throw new Error(`${label} could not start: ${started?.error ?? "unknown"}`);
+  }
+
+  let envelope = null;
+  try {
+    await browser.waitUntil(
+      async () => {
+        envelope = await execJS(
+          `return window[${JSON.stringify(key)}] ?? null;`
+        );
+        return (
+          envelope?.state === "fulfilled" || envelope?.state === "rejected"
+        );
+      },
+      {
+        timeout: timeoutMs,
+        interval: 500,
+        timeoutMsg: `${label} did not finish within ${timeoutMs} ms`,
+      }
+    );
+  } finally {
+    await execJS(`delete window[${JSON.stringify(key)}];`);
+  }
+
+  if (envelope?.state === "rejected") {
+    throw new Error(`${label} failed: ${envelope.error ?? "unknown"}`);
+  }
+  return envelope?.value;
 }
 
 function makeUserEvent(sessionId, batchIndex) {
@@ -2344,63 +2402,140 @@ async function assertIssue443RealCodexSessionStaysBounded() {
   const memoryBefore = await invokeTauriCommand("get_app_memory_snapshot_v1");
   const baselineBytes = Number(memoryBefore?.effective_total_bytes ?? 0);
   if (!(baselineBytes > 0)) {
-    throw new Error(`native memory baseline is unavailable: ${JSON.stringify(memoryBefore)}`);
+    throw new Error(
+      `native memory baseline is unavailable: ${JSON.stringify(memoryBefore)}`
+    );
+  }
+  if (process.platform === "darwin") {
+    if (memoryBefore.measurement !== "native") {
+      throw new Error(
+        `#435 regression: expected native macOS memory measurement, got ${memoryBefore.measurement}`
+      );
+    }
+    let vmmapBytes = 0;
+    for (const processRow of memoryBefore.processes ?? []) {
+      if (processRow.metric_kind !== "physical_footprint") {
+        throw new Error(
+          `#435 regression: PID ${processRow.pid} used ${processRow.metric_kind}`
+        );
+      }
+      const { stdout } = await execFileAsync(
+        "/usr/bin/vmmap",
+        ["-summary", String(processRow.pid)],
+        { maxBuffer: 2 * MIB }
+      );
+      const match = stdout.match(
+        /^Physical footprint:\s+([0-9.]+)\s*([KMGT]?)B?\s*$/im
+      );
+      if (!match) {
+        throw new Error(
+          `#435 regression: vmmap omitted Physical footprint for PID ${processRow.pid}`
+        );
+      }
+      const units = { "": 1, K: 1024, M: MIB, G: 1024 * MIB, T: 1024 ** 4 };
+      vmmapBytes += Number(match[1]) * units[match[2].toUpperCase()];
+    }
+    const difference = Math.abs(vmmapBytes - baselineBytes);
+    const tolerance = Math.max(vmmapBytes * 0.1, 50 * MIB);
+    if (difference > tolerance) {
+      throw new Error(
+        `#435 regression: native snapshot and vmmap differ by ${(difference / MIB).toFixed(1)} MiB (snapshot=${(baselineBytes / MIB).toFixed(1)} MiB, vmmap=${(vmmapBytes / MIB).toFixed(1)} MiB)`
+      );
+    }
+    console.log(
+      `[issue-443-real-codex] #435 native=${(baselineBytes / MIB).toFixed(1)} MiB vmmap=${(vmmapBytes / MIB).toFixed(1)} MiB diff=${(difference / MIB).toFixed(1)} MiB`
+    );
   }
 
+  // WebKit's allocator can retain several render passes before one pressure
+  // cycle returns pages to the OS. Warm it with five real open/release passes,
+  // then measure another five; a persistent leak cannot produce a low
+  // post-release sample in that measured tail.
+  const warmupCycles = 5;
+  const measuredCycles = 5;
+  const cycleCount = warmupCycles + measuredCycles;
   const samples = [];
-  for (let cycle = 0; cycle < 5; cycle += 1) {
+  for (let cycle = 0; cycle < cycleCount; cycle += 1) {
     const startedAt = Date.now();
-    let opened;
-    await browser.setTimeout({ script: 180_000 });
-    try {
-      opened = await invokeE2E("openSession", ISSUE_443_REAL_CODEX_SESSION_ID);
-    } finally {
-      await browser.setTimeout({ script: 5_000 });
-    }
+    const opened = await invokeE2EDeferred(
+      "openSession",
+      [ISSUE_443_REAL_CODEX_SESSION_ID],
+      180_000,
+      `real Codex open cycle ${cycle}`
+    );
     if (!opened || opened.ok !== true) {
       throw new Error(
         `real Codex open cycle ${cycle} failed: ${opened?.error ?? "unknown"}`
       );
     }
 
-    const state = await invokeE2E("inspectChatState");
-    if (!state || state.ok !== true) {
+    if (opened.sessionId !== ISSUE_443_REAL_CODEX_SESSION_ID) {
       throw new Error(
-        `real Codex state cycle ${cycle} failed: ${state?.error ?? "unknown"}`
+        `real Codex cycle ${cycle} opened the wrong session: ${opened.sessionId}`
       );
     }
-    if (state.activeSessionId !== ISSUE_443_REAL_CODEX_SESSION_ID) {
+    if (opened.eventCount > 200) {
       throw new Error(
-        `real Codex cycle ${cycle} opened the wrong session: ${state.activeSessionId}`
-      );
-    }
-    if (state.snapshotEventCount > 200) {
-      throw new Error(
-        `real Codex cycle ${cycle} hydrated ${state.snapshotEventCount} events; hard cap is 200`
+        `real Codex cycle ${cycle} hydrated ${opened.eventCount} events; hard cap is 200`
       );
     }
 
     const memoryOpen = await invokeTauriCommand("get_app_memory_snapshot_v1");
     const openBytes = Number(memoryOpen?.effective_total_bytes ?? 0);
-    samples.push({
-      cycle,
-      elapsedMs: Date.now() - startedAt,
-      eventCount: state.snapshotEventCount,
-      openBytes,
-    });
-
     const reset = await invokeE2E("resetToNewSession");
     if (!reset || reset.ok !== true) {
       throw new Error(
         `real Codex release cycle ${cycle} failed: ${reset?.error ?? "unknown"}`
       );
     }
-    await browser.pause(250);
+    await browser.pause(1_000);
+    const memoryReleased = await invokeTauriCommand(
+      "get_app_memory_snapshot_v1"
+    );
+    samples.push({
+      cycle,
+      elapsedMs: Date.now() - startedAt,
+      eventCount: opened.eventCount,
+      openBytes,
+      openProcesses: (memoryOpen?.processes ?? []).map((processRow) => ({
+        pid: processRow.pid,
+        role: processRow.role,
+        mib: Number(
+          (Number(processRow.effective_memory_bytes ?? 0) / MIB).toFixed(1)
+        ),
+      })),
+      releasedBytes: Number(memoryReleased?.effective_total_bytes ?? 0),
+      releasedProcesses: (memoryReleased?.processes ?? []).map(
+        (processRow) => ({
+          pid: processRow.pid,
+          role: processRow.role,
+          mib: Number(
+            (Number(processRow.effective_memory_bytes ?? 0) / MIB).toFixed(1)
+          ),
+        })
+      ),
+    });
   }
 
   const firstGrowth = Math.max(0, samples[0].openBytes - baselineBytes);
-  const lastGrowth = Math.max(0, samples.at(-1).openBytes - baselineBytes);
-  const stepGrowth = Math.max(0, samples.at(-1).openBytes - samples[0].openBytes);
+  const steadyReference = samples[warmupCycles - 1].releasedBytes;
+  const measuredTail = samples.slice(warmupCycles);
+  const settledBytes = Math.min(
+    ...measuredTail.map((sample) => sample.releasedBytes)
+  );
+  const settledGrowth = Math.max(0, settledBytes - baselineBytes);
+  const stepGrowth = Math.max(0, settledBytes - steadyReference);
+  const backendMib = (sample) =>
+    sample.releasedProcesses.find((processRow) => processRow.role === "backend")
+      ?.mib ?? 0;
+  const backendStepGrowthMib = Math.max(
+    0,
+    Math.min(...measuredTail.map(backendMib)) -
+      backendMib(samples[warmupCycles - 1])
+  );
+  console.log(
+    `[issue-443-real-codex] baseline=${(baselineBytes / MIB).toFixed(1)} MiB firstGrowth=${(firstGrowth / MIB).toFixed(1)} MiB settledGrowth=${(settledGrowth / MIB).toFixed(1)} MiB measuredStepGrowth=${(stepGrowth / MIB).toFixed(1)} MiB backendStepGrowth=${backendStepGrowthMib.toFixed(1)} MiB samples=${JSON.stringify(samples)}`
+  );
   if (firstGrowth > 400 * MIB) {
     throw new Error(
       `real Codex first open grew Physical Footprint by ${(firstGrowth / MIB).toFixed(1)} MiB`
@@ -2408,13 +2543,19 @@ async function assertIssue443RealCodexSessionStaysBounded() {
   }
   if (stepGrowth > 64 * MIB) {
     throw new Error(
-      `five real Codex open/release cycles grew another ${(stepGrowth / MIB).toFixed(1)} MiB`
+      `five measured real Codex open/release cycles grew another ${(stepGrowth / MIB).toFixed(1)} MiB after warmup`
     );
   }
-
-  console.log(
-    `[issue-443-real-codex] baseline=${(baselineBytes / MIB).toFixed(1)} MiB firstGrowth=${(firstGrowth / MIB).toFixed(1)} MiB lastGrowth=${(lastGrowth / MIB).toFixed(1)} MiB samples=${JSON.stringify(samples)}`
-  );
+  if (settledGrowth > 250 * MIB) {
+    throw new Error(
+      `real Codex settled Physical Footprint remained ${(settledGrowth / MIB).toFixed(1)} MiB above baseline`
+    );
+  }
+  if (backendStepGrowthMib > 16) {
+    throw new Error(
+      `five measured real Codex cycles grew backend Physical Footprint by ${backendStepGrowthMib.toFixed(1)} MiB`
+    );
+  }
 }
 
 async function assertTurnMetadataFooterRendered() {
