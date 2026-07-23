@@ -455,6 +455,7 @@
       "mySessions": "自分のセッション",
       "memberFilter": "メンバーで絞り込み",
       "sessionFilter": "セッションを絞り込み",
+      "copyId": "IDをコピー",
       "directlySharedWithMe": "自分に直接共有",
       "everyone": "全員",
       "forkedFrom": "@{{name}} からフォーク",

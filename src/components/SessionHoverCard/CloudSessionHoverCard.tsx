@@ -1,18 +1,22 @@
 import {
+  Check,
   Clock,
   Eye,
+  Fingerprint,
   GitBranch,
   GitFork,
   MessageSquare,
   Pin,
   Users,
 } from "lucide-react";
-import React, { memo, useCallback } from "react";
+import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import ModelIcon from "@src/components/ModelIcon";
 import { resolveAgentIcon } from "@src/config/agentIcons";
+import { createLogger } from "@src/hooks/logger";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
+import { copyText } from "@src/util/data/clipboard";
 import {
   formatReplayDateLabel,
   toIntlLocaleTag,
@@ -29,6 +33,17 @@ import HoverCardBase, {
   type HoverCardPosition,
   HoverCardRow,
 } from "./HoverCardBase";
+
+const logger = createLogger("CloudSessionHoverCard");
+const COPIED_FLASH_MS = 1500;
+const COMPACT_ID_EDGE_CHARS = 8;
+const SESSION_ID_BUTTON_CLASS_NAME =
+  "block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-left text-text-2 underline-offset-2 transition-colors hover:text-accent-9 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent-8";
+
+function formatCompactSessionId(id: string): string {
+  if (id.length <= COMPACT_ID_EDGE_CHARS * 2 + 2) return id;
+  return `${id.slice(0, COMPACT_ID_EDGE_CHARS)}…${id.slice(-COMPACT_ID_EDGE_CHARS)}`;
+}
 
 /**
  * Hover metadata card for "Team sessions" rows (cloudremote-* sidebar ids).
@@ -49,6 +64,8 @@ function renderAgentIcon(display: SessionDisplayMetadata) {
 export const CloudSessionHoverCardContent: React.FC<CloudSessionHoverCardContentProps> =
   memo(({ row, viewers = [] }) => {
     const { t, i18n } = useTranslation(["navigation", "sessions", "common"]);
+    const [copiedSessionId, setCopiedSessionId] = useState<string | null>(null);
+    const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const display = resolveSessionDisplayMetadata({
       kind: "remote",
       session: row,
@@ -73,6 +90,35 @@ export const CloudSessionHoverCardContent: React.FC<CloudSessionHoverCardContent
       .map((viewer) => viewer.displayName)
       .filter(Boolean)
       .join(", ");
+
+    useEffect(
+      () => () => {
+        if (copiedTimerRef.current !== null) {
+          clearTimeout(copiedTimerRef.current);
+        }
+      },
+      []
+    );
+
+    const handleCopySessionId = useCallback(() => {
+      void copyText(row.sourceSessionId)
+        .then(() => {
+          setCopiedSessionId(row.sourceSessionId);
+          if (copiedTimerRef.current !== null) {
+            clearTimeout(copiedTimerRef.current);
+          }
+          copiedTimerRef.current = setTimeout(() => {
+            copiedTimerRef.current = null;
+            setCopiedSessionId(null);
+          }, COPIED_FLASH_MS);
+        })
+        .catch((error: unknown) => {
+          logger.warn("failed to copy shared session id", {
+            error,
+            sessionId: row.sourceSessionId,
+          });
+        });
+    }, [row.sourceSessionId]);
 
     return (
       // Fork provenance renders as the lineage row below — drop the fork
@@ -154,6 +200,31 @@ export const CloudSessionHoverCardContent: React.FC<CloudSessionHoverCardContent
             </div>
           </HoverCardRow>
         )}
+        <HoverCardRow icon={<Fingerprint size={13} strokeWidth={1.75} />}>
+          <button
+            type="button"
+            className={SESSION_ID_BUTTON_CLASS_NAME}
+            title={row.sourceSessionId}
+            aria-label={`${t("common:actions.copy")} ${t(
+              "sessions:history.detail.sessionId"
+            )}`}
+            onClick={handleCopySessionId}
+          >
+            <span className="text-text-3">
+              {t("sessions:history.detail.sessionId")}
+            </span>
+            <span className="mx-1 text-text-4">·</span>
+            <span>{formatCompactSessionId(row.sourceSessionId)}</span>
+            {copiedSessionId === row.sourceSessionId && (
+              <Check
+                size={12}
+                strokeWidth={2}
+                className="ml-1 inline-block align-[-1px] text-success-6"
+                aria-hidden="true"
+              />
+            )}
+          </button>
+        </HoverCardRow>
         {unresolvedComments > 0 && (
           <HoverCardRow icon={<MessageSquare size={13} strokeWidth={1.75} />}>
             <div className="truncate text-text-2">

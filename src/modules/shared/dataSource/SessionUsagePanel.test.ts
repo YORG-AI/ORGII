@@ -157,7 +157,7 @@ describe("SessionUsagePanel", () => {
       '[data-testid="usage-rounds-toggle"]'
     );
     await act(async () => open?.click());
-    expect(mocks.usageDashboardOverview).toHaveBeenCalledTimes(2);
+    expect(mocks.usageDashboardOverview).toHaveBeenCalledTimes(3);
 
     const refresh = container.querySelector<HTMLButtonElement>(
       '[data-testid="usage-refresh"]'
@@ -165,12 +165,17 @@ describe("SessionUsagePanel", () => {
     expect(refresh).not.toBeNull();
 
     await act(async () => refresh?.click());
-    expect(mocks.usageDashboardOverview).toHaveBeenCalledTimes(4);
-    expect(mocks.usageDashboardOverview.mock.calls[2]?.[1]).toMatchObject({
+    expect(mocks.usageDashboardOverview).toHaveBeenCalledTimes(6);
+    expect(mocks.usageDashboardOverview.mock.calls[3]?.[1]).toMatchObject({
       includeTrends: false,
       includeRounds: false,
     });
-    expect(mocks.usageDashboardOverview.mock.calls[3]?.[1]).toMatchObject({
+    expect(mocks.usageDashboardOverview.mock.calls[4]?.[1]).toMatchObject({
+      includeHeadline: false,
+      includeTrends: true,
+      includeRounds: false,
+    });
+    expect(mocks.usageDashboardOverview.mock.calls[5]?.[1]).toMatchObject({
       includeHeadline: false,
       includeTrends: false,
       includeRounds: true,
@@ -189,7 +194,7 @@ describe("SessionUsagePanel", () => {
       root.render(createElement(SessionUsagePanel));
     });
 
-    expect(mocks.usageDashboardOverview).toHaveBeenCalledTimes(1);
+    expect(mocks.usageDashboardOverview).toHaveBeenCalledTimes(2);
     expect(mocks.usageDashboardOverview.mock.calls[0]?.[1]).toMatchObject({
       includeTrends: false,
       includeRounds: false,
@@ -197,7 +202,7 @@ describe("SessionUsagePanel", () => {
 
     vi.useFakeTimers();
     act(() => vi.advanceTimersByTime(5 * 60 * 1_000));
-    expect(mocks.usageDashboardOverview).toHaveBeenCalledTimes(1);
+    expect(mocks.usageDashboardOverview).toHaveBeenCalledTimes(2);
     vi.useRealTimers();
 
     const toggle = container.querySelector<HTMLButtonElement>(
@@ -206,8 +211,8 @@ describe("SessionUsagePanel", () => {
     expect(toggle).not.toBeNull();
 
     await act(async () => toggle?.click());
-    expect(mocks.usageDashboardOverview).toHaveBeenCalledTimes(2);
-    expect(mocks.usageDashboardOverview.mock.calls[1]?.[1]).toMatchObject({
+    expect(mocks.usageDashboardOverview).toHaveBeenCalledTimes(3);
+    expect(mocks.usageDashboardOverview.mock.calls[2]?.[1]).toMatchObject({
       includeHeadline: false,
       includeTrends: false,
       includeRounds: true,
@@ -226,7 +231,7 @@ describe("SessionUsagePanel", () => {
     expect(refresh).not.toBeNull();
 
     await act(async () => refresh?.click());
-    expect(mocks.usageDashboardOverview).toHaveBeenCalledTimes(3);
+    expect(mocks.usageDashboardOverview).toHaveBeenCalledTimes(4);
 
     const close = container.querySelector<HTMLButtonElement>(
       '[data-testid="usage-rounds-close"]'
@@ -263,16 +268,16 @@ describe("SessionUsagePanel", () => {
     );
 
     await act(async () => open?.click());
-    expect(mocks.usageDashboardOverview).toHaveBeenCalledTimes(2);
+    expect(mocks.usageDashboardOverview).toHaveBeenCalledTimes(3);
 
     act(() => close?.click());
     await act(async () => open?.click());
-    expect(mocks.usageDashboardOverview).toHaveBeenCalledTimes(2);
+    expect(mocks.usageDashboardOverview).toHaveBeenCalledTimes(3);
 
     await act(async () => resolveRounds(createOverview()));
   });
 
-  it("loads trend data and the chart module only while Trends is expanded", async () => {
+  it("loads trend data by default and releases it when Trends is collapsed", async () => {
     mocks.usageDashboardOverview.mockImplementation(
       (_scope: unknown, options?: { includeTrends?: boolean }) =>
         Promise.resolve({
@@ -284,16 +289,6 @@ describe("SessionUsagePanel", () => {
     await act(async () => {
       root.render(createElement(SessionUsagePanel));
     });
-    expect(mocks.usageDashboardOverview).toHaveBeenCalledTimes(1);
-    expect(
-      container.querySelector('[data-testid="usage-trend-chart"]')
-    ).toBeNull();
-
-    const toggle = container.querySelector<HTMLButtonElement>(
-      '[data-testid="usage-trends-toggle"]'
-    );
-    await act(async () => toggle?.click());
-
     expect(mocks.usageDashboardOverview).toHaveBeenCalledTimes(2);
     expect(mocks.usageDashboardOverview.mock.calls[1]?.[1]).toMatchObject({
       includeHeadline: false,
@@ -306,7 +301,11 @@ describe("SessionUsagePanel", () => {
         ?.getAttribute("data-point-count")
     ).toBe("1");
 
-    act(() => toggle?.click());
+    const toggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="usage-trends-toggle"]'
+    );
+    await act(async () => toggle?.click());
+
     expect(
       container.querySelector('[data-testid="usage-trend-chart"]')
     ).toBeNull();

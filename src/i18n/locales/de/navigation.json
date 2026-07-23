@@ -457,6 +457,7 @@
       "mySessions": "Meine Sessions",
       "memberFilter": "Nach Mitglied filtern",
       "sessionFilter": "Sitzungen filtern",
+      "copyId": "ID kopieren",
       "directlySharedWithMe": "Direkt mit mir geteilt",
       "everyone": "Alle",
       "forkedFrom": "geforkt von @{{name}}",

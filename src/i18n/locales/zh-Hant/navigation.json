@@ -557,6 +557,7 @@
       "mySessions": "我的工作階段",
       "memberFilter": "依成員篩選",
       "sessionFilter": "篩選工作階段",
+      "copyId": "複製 ID",
       "directlySharedWithMe": "指定分享給我的",
       "everyone": "所有人",
       "forkedFrom": "接力自 @{{name}}",

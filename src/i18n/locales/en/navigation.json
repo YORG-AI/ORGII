@@ -494,6 +494,7 @@
       "mySessions": "My sessions",
       "memberFilter": "Filter by member",
       "sessionFilter": "Filter sessions",
+      "copyId": "Copy ID",
       "directlySharedWithMe": "Shared directly with me",
       "everyone": "Everyone",
       "forkedFrom": "forked from @{{name}}",

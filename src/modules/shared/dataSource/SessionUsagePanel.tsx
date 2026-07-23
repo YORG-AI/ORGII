@@ -81,7 +81,7 @@ export default function SessionUsagePanel() {
   const [roundPageSize, setRoundPageSize] = useState(
     USAGE_ROUNDS_DEFAULT_PAGE_SIZE
   );
-  const [trendsOpen, setTrendsOpen] = useState(false);
+  const [trendsOpen, setTrendsOpen] = useState(true);
   const [roundsOpen, setRoundsOpen] = useState(false);
   const [loadedTrendQueryKey, setLoadedTrendQueryKey] = useState<string | null>(
     null
@@ -458,7 +458,7 @@ export default function SessionUsagePanel() {
           <UsageStatCards summary={summary} language={language} />
           <CollapsibleSection
             title={t("usage.trends.title")}
-            defaultOpen={false}
+            defaultOpen
             compact
             onOpenChange={handleTrendsOpenChange}
             titleButtonTestId="usage-trends-toggle"

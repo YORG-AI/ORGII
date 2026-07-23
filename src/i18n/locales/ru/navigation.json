@@ -455,6 +455,7 @@
       "mySessions": "Мои сессии",
       "memberFilter": "Фильтр по участнику",
       "sessionFilter": "Фильтр сеансов",
+      "copyId": "Копировать ID",
       "directlySharedWithMe": "Доступ предоставлен лично мне",
       "everyone": "Все",
       "forkedFrom": "форк от @{{name}}",

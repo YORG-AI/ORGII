@@ -455,6 +455,7 @@
       "mySessions": "Oturumlarım",
       "memberFilter": "Üyeye göre filtrele",
       "sessionFilter": "Oturumları filtrele",
+      "copyId": "ID'yi kopyala",
       "directlySharedWithMe": "Doğrudan benimle paylaşılanlar",
       "everyone": "Herkes",
       "forkedFrom": "@{{name}} oturumundan çatallandı",

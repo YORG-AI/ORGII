@@ -27,6 +27,14 @@ vi.mock("@src/components/ModelIcon", () => ({
   }) => createElement("i", { "data-model-icon": modelName ?? agentType ?? "" }),
 }));
 
+vi.mock("@src/config/agentIcons", () => ({
+  resolveAgentIcon: () => (props: { size?: number }) =>
+    createElement("i", {
+      "data-agent-icon": "stub",
+      "data-size": props.size,
+    }),
+}));
+
 const ORG = "11111111-1111-1111-1111-111111111111";
 const USER_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const USER_B = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
@@ -440,5 +448,21 @@ describe("cloud teammate hover card", () => {
 
     expect(markup).toContain('data-testid="cloud-session-watchers"');
     expect(markup).toContain("Bob, Carol");
+  });
+
+  it("shows the canonical shared session id as a copyable hover-card row", () => {
+    const sessionId = "agentsession-12345678-1234-1234-1234-123456789abc";
+    const markup = renderToStaticMarkup(
+      createElement(CloudSessionHoverCardContent, {
+        row: makeRow(sessionId),
+      })
+    );
+
+    expect(markup).toContain("sessions:history.detail.sessionId");
+    expect(markup).toContain(`title="${sessionId}"`);
+    expect(markup).toContain("agentses…56789abc");
+    expect(markup).toContain(
+      'aria-label="common:actions.copy sessions:history.detail.sessionId"'
+    );
   });
 });

@@ -24,7 +24,11 @@
  * as leaves); a multi-row thread's root keeps click-to-replay but has no
  * hover fork button — no self-duplicate child row is injected.
  */
-import { MenuItem, Menu as TauriMenu } from "@tauri-apps/api/menu";
+import {
+  MenuItem,
+  PredefinedMenuItem,
+  Menu as TauriMenu,
+} from "@tauri-apps/api/menu";
 import { useAtom, useAtomValue, useStore } from "jotai";
 import { GitFork, ListFilter, MoreHorizontal, RefreshCw } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -39,6 +43,7 @@ import {
   DROPDOWN_PANEL,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
+import Message from "@src/components/Message";
 import { resolveAgentIcon } from "@src/config/agentIcons";
 import {
   buildCloudRemoteItemId,
@@ -50,6 +55,7 @@ import {
   buildCloudSessionMemberFilterOptions,
   filterCloudSessionRows,
 } from "@src/features/Org2Cloud/cloudSessionFilter";
+import { buildCloudSessionReference } from "@src/features/Org2Cloud/cloudSessionReference";
 import {
   type CloudSessionThreadRow,
   buildCloudSessionThreads,
@@ -76,6 +82,7 @@ import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/compone
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import type { Session } from "@src/store/session";
 import { removeSession } from "@src/store/session";
+import { copyText } from "@src/util/data/clipboard";
 import { resolveSessionDisplayMetadata } from "@src/util/session/sessionDisplayMetadata";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
@@ -565,11 +572,30 @@ export function useCloudSessionsSection({
             icon: MoreHorizontal,
             label: tCommon("actions.more"),
             onClick: () => {
-              void MenuItem.new({
-                text: tCommon("actions.remove", "Remove"),
-                action: () => hideRemoteSession(row),
-              }).then(async (removeItem) => {
-                const menu = await TauriMenu.new({ items: [removeItem] });
+              void Promise.all([
+                MenuItem.new({
+                  text: t("cloud.sidebar.copyId"),
+                  action: () => {
+                    void copyText(buildCloudSessionReference(row))
+                      .then(() => {
+                        Message.success(tCommon("actions.copied", "Copied"));
+                      })
+                      .catch(() => {
+                        Message.error(
+                          tCommon("actions.copyFailed", "Copy failed")
+                        );
+                      });
+                  },
+                }),
+                PredefinedMenuItem.new({ item: "Separator" }),
+                MenuItem.new({
+                  text: tCommon("actions.remove", "Remove"),
+                  action: () => hideRemoteSession(row),
+                }),
+              ]).then(async ([copyItem, menuSeparator, removeItem]) => {
+                const menu = await TauriMenu.new({
+                  items: [copyItem, menuSeparator, removeItem],
+                });
                 await menu.popup();
               });
             },

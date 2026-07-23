@@ -8,6 +8,9 @@
  *   - ORG2 Cloud invite links (orgii://cloud/join?invite=…) and session
  *     share links (orgii://cloud/session?share=…) which route into their
  *     confirmation dialogs.
+ *   - Non-secret ORG2 session references
+ *     (orgii://cloud/session/ref?v=1&org=…&owner=…&session=…) copied into
+ *     issue trackers and pull requests, which reveal the exact Team row.
  *   - ORG2 Cloud login callbacks orgii://auth/callback#access_token=… whose
  *     tokens ride in the URL FRAGMENT (design §8). Intercepted on the RAW
  *     url BEFORE the generic route conversion (which would otherwise strip
@@ -30,6 +33,11 @@ import {
   parseAuthCallbackFragment,
 } from "@src/features/Org2Cloud/authCallback";
 import { isBillingCompleteDeepLink } from "@src/features/Org2Cloud/billingComplete";
+import { buildCloudRemoteItemId } from "@src/features/Org2Cloud/cloudRemoteItemId";
+import {
+  type CloudSessionReference,
+  parseCloudSessionReference,
+} from "@src/features/Org2Cloud/cloudSessionReference";
 import { completeOrg2CloudSignIn } from "@src/features/Org2Cloud/completeSignIn";
 import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import {
@@ -51,6 +59,7 @@ import {
 } from "@src/features/Org2Cloud/org2CloudPendingShareAtom";
 import { log, logDebug, logError, logWarn } from "@src/hooks/logger";
 import { activeStationChatVisibleAtom } from "@src/store/ui/chatPanelAtom";
+import { requestSessionSidebarRevealAtom } from "@src/store/ui/sidebarAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { isTauriReady } from "@src/util/platform/tauri/init";
 
@@ -146,6 +155,9 @@ export function useDeepLinkHandler(): void {
   const navigate = useNavigate();
   const setPendingCloudInvite = useSetAtom(org2CloudPendingInviteAtom);
   const queuePendingCloudShare = useSetAtom(queueOrg2CloudPendingShareAtom);
+  const requestSessionSidebarReveal = useSetAtom(
+    requestSessionSidebarRevealAtom
+  );
   const pendingCloudShare = useAtomValue(org2CloudPendingShareAtom);
   const setStationMode = useSetAtom(stationModeAtom);
   const setStationChatVisible = useSetAtom(activeStationChatVisibleAtom);
@@ -208,6 +220,28 @@ export function useDeepLinkHandler(): void {
       }
     },
     [navigate, setPendingCloudInvite, setStationChatVisible, setStationMode]
+  );
+
+  const routeToCloudSessionReference = useCallback(
+    (reference: CloudSessionReference) => {
+      const sessionRowId = `${reference.orgId}:${reference.ownerUserId}:${reference.sourceSessionId}`;
+      requestSessionSidebarReveal({
+        sessionId: reference.sourceSessionId,
+        sidebarItemId: buildCloudRemoteItemId(reference.orgId, sessionRowId),
+        cloudOrgId: reference.orgId,
+      });
+      setStationMode("my-station");
+      setStationChatVisible("my-station", true);
+      if (window.location.pathname !== ROUTES.workStation.code.path) {
+        navigate(ROUTES.workStation.code.path);
+      }
+    },
+    [
+      navigate,
+      requestSessionSidebarReveal,
+      setStationChatVisible,
+      setStationMode,
+    ]
   );
 
   // Complete an ORG2 Cloud browser login (design §8): tokens are parsed from
@@ -349,6 +383,14 @@ export function useDeepLinkHandler(): void {
               break;
             }
 
+            const cloudSessionReference = parseCloudSessionReference(url);
+            if (cloudSessionReference) {
+              processedDeepLinks.current.add(url);
+              log("DeepLinkHandler", "Revealing ORG2 Cloud session reference");
+              routeToCloudSessionReference(cloudSessionReference);
+              break;
+            }
+
             const parsed = parseDeepLink(url);
             if (!parsed) {
               logWarn("DeepLinkHandler", "Could not parse deep link:", url);
@@ -391,6 +433,7 @@ export function useDeepLinkHandler(): void {
   }, [
     navigate,
     routeToCloudJoin,
+    routeToCloudSessionReference,
     routeToCloudShare,
     handleOrg2CloudAuthUrl,
     handleBillingCompleteUrl,
@@ -454,6 +497,17 @@ export function useDeepLinkHandler(): void {
                 "Routing initial ORG2 Cloud invite into join confirmation"
               );
               routeToCloudJoin(cloudInvite);
+              break;
+            }
+
+            const cloudSessionReference = parseCloudSessionReference(url);
+            if (cloudSessionReference) {
+              processedDeepLinks.current.add(url);
+              log(
+                "DeepLinkHandler",
+                "Revealing initial ORG2 Cloud session reference"
+              );
+              routeToCloudSessionReference(cloudSessionReference);
               break;
             }
 
