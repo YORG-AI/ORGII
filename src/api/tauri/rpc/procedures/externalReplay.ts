@@ -3,6 +3,11 @@ import { z } from "zod/v4";
 import { defineProcedure } from "../invoke";
 import * as schemas from "../schemas/externalReplay";
 
+// Tauri serializes Rust `()` as JSON `null`. Normalize that wire value back
+// to TypeScript `void` so best-effort release calls do not report a false
+// validation failure after the backend has already released the resources.
+const TauriUnit = z.null().transform(() => undefined);
+
 export const externalReplay = {
   openWindow: defineProcedure("external_replay_open_window")
     .input(schemas.ExternalReplayOpenWindowInput)
@@ -30,7 +35,7 @@ export const externalReplay = {
     .build(),
   release: defineProcedure("external_replay_release")
     .input(schemas.ExternalReplayReleaseInput)
-    .output(z.void())
+    .output(TauriUnit)
     .build(),
   readPayloadRange: defineProcedure("external_replay_read_payload_range")
     .input(schemas.ExternalReplayReadPayloadRangeInput)
@@ -54,6 +59,6 @@ export const externalReplay = {
     .build(),
   cloudRelease: defineProcedure("external_replay_cloud_release")
     .input(schemas.ExternalReplayCloudReleaseInput)
-    .output(z.void())
+    .output(TauriUnit)
     .build(),
 } as const;

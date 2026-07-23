@@ -584,8 +584,33 @@ const BACKFILL_BACKLOG_BATCH_PER_RUN: usize = 25;
 /// short-circuit can never delay a reconciliation that would have happened.
 const BACKFILL_RECHECK_TTL_MS: i64 = 5 * 60 * 1000;
 
+fn source_mtime_epoch_ms(source_mtime: i64) -> i64 {
+    // The legacy field name says `ms`, but file-backed adapters now persist
+    // nanoseconds so same-millisecond replacements invalidate their cache.
+    // Keep accepting old millisecond rows while normalizing current rows for
+    // lifecycle comparisons.
+    const NANOSECOND_EPOCH_THRESHOLD: i64 = 100_000_000_000_000;
+    if source_mtime >= NANOSECOND_EPOCH_THRESHOLD {
+        source_mtime / 1_000_000
+    } else {
+        source_mtime
+    }
+}
+
 fn session_is_quiescent(session: &ImportedHistoryCachedSession, now_ms: i64) -> bool {
-    now_ms.saturating_sub(session.source_mtime_ms) >= SESSION_QUIESCENCE_MS
+    now_ms.saturating_sub(source_mtime_epoch_ms(session.source_mtime_ms))
+        >= SESSION_QUIESCENCE_MS
+}
+
+fn periodic_codex_reconciliation_needed(
+    session: &ImportedHistoryCachedSession,
+    session_start_active: bool,
+    now_ms: i64,
+) -> bool {
+    // This loop is live-hook recovery, not historical migration. Completed
+    // transcripts stay compact-catalog-only until a provenance/file-history
+    // request explicitly asks the bounded backfill worker to index them.
+    !session_start_active && !session_is_quiescent(session, now_ms)
 }
 
 /// Cheap pre-claim probe: does any already-discovered session that touched
@@ -669,6 +694,7 @@ fn reconcile_imported_session(
     session: &ImportedHistoryCachedSession,
     active_session_policy: ActiveSessionPolicy,
 ) -> Result<bool, String> {
+    let _writer = database::db::sessions_writer_guard();
     let fingerprint = imported_session_fingerprint(session);
     {
         let store = SqliteRecordStore::new(conn);
@@ -833,6 +859,7 @@ fn reconcile_recent_codex_sessions() -> Result<usize, String> {
 
     let mut conn = get_connection().map_err(|err| err.to_string())?;
     let sessions = list_codex_app_reconciliation_sessions(&mut conn, RECENT_SESSION_LIMIT)?;
+    let now_ms = Utc::now().timestamp_millis();
     let mut reconciled = 0;
     for session in sessions {
         let hook_session_id = codex_thread_id_from_file_stem(&session.source_session_id)
@@ -840,7 +867,7 @@ fn reconcile_recent_codex_sessions() -> Result<usize, String> {
         let session_start_active =
             agent_cli::session_provenance::codex_session_start_is_active(hook_session_id)
                 .unwrap_or(false);
-        if session_start_active {
+        if !periodic_codex_reconciliation_needed(&session, session_start_active, now_ms) {
             continue;
         }
         let repo = session.repo_path.as_deref().unwrap_or(".");
@@ -1006,6 +1033,43 @@ mod tests {
             source_metadata_json: None,
             parent_session_id: None,
         }
+    }
+
+    #[test]
+    fn quiescence_normalizes_current_nanoseconds_and_legacy_milliseconds() {
+        let now_ms = 1_800_000_000_000_i64;
+        let quiet_ms = now_ms - SESSION_QUIESCENCE_MS - 1;
+        let active_ms = now_ms - SESSION_QUIESCENCE_MS + 1;
+        let mut session = imported_session_with_touched_files(Vec::new());
+
+        session.source_mtime_ms = quiet_ms;
+        assert!(session_is_quiescent(&session, now_ms));
+        session.source_mtime_ms = quiet_ms * 1_000_000;
+        assert!(session_is_quiescent(&session, now_ms));
+
+        session.source_mtime_ms = active_ms;
+        assert!(!session_is_quiescent(&session, now_ms));
+        session.source_mtime_ms = active_ms * 1_000_000;
+        assert!(!session_is_quiescent(&session, now_ms));
+    }
+
+    #[test]
+    fn periodic_codex_recovery_skips_hooked_and_completed_sessions() {
+        let now_ms = 1_800_000_000_000_i64;
+        let mut session = imported_session_with_touched_files(Vec::new());
+        session.source_mtime_ms = (now_ms - 60_000) * 1_000_000;
+
+        assert!(periodic_codex_reconciliation_needed(
+            &session, false, now_ms
+        ));
+        assert!(!periodic_codex_reconciliation_needed(
+            &session, true, now_ms
+        ));
+
+        session.source_mtime_ms = (now_ms - SESSION_QUIESCENCE_MS - 1) * 1_000_000;
+        assert!(!periodic_codex_reconciliation_needed(
+            &session, false, now_ms
+        ));
     }
 
     #[test]

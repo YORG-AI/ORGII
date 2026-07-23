@@ -29,7 +29,6 @@ import { atom } from "jotai";
 import { atomFamily } from "jotai-family";
 
 import { resolveExternalReplayTarget } from "@src/api/tauri/externalHistory/replay";
-import { ensureExternalReplayEventsInStore } from "@src/engines/SessionCore/sync/adapters/cursorIdeAdapter";
 import { createLogger } from "@src/hooks/logger";
 
 import { isInteractiveTool } from "../core/interactiveTools";
@@ -129,22 +128,23 @@ const sessionSnapshotAtomFamily = atomFamily((sessionId: string) => {
       }
     );
 
-    // Best-effort hydration. Rust prewarms and applies one capped replay
-    // window for bounded external sessions; native SDE/subagent sessions keep
-    // the existing SQLite cache behavior. We do not await — the subscription
-    // handles push.
-    const hydration = resolveExternalReplayTarget(sessionId)
-      ? ensureExternalReplayEventsInStore(sessionId)
-      : eventStoreProxy.loadFromCache(sessionId);
-    void hydration.catch((err: unknown) => {
-      // Swallow load errors here: the consumer (ChatHistory) is allowed
-      // to render an empty state. `useSessionEvents` already covers
-      // explicit error surfacing for callers that need it.
-      log.warn(
-        `[sessionScopedChatEvents] bounded/native hydration(${sessionId}) failed:`,
-        err
-      );
-    });
+    // A mounted session-scoped atom is not proof that the session is visible:
+    // sidebar planning indicators, hover surfaces and merged group views also
+    // mount this family. Cold-indexing an external transcript here can
+    // therefore hydrate a huge inactive session during app startup. Foreground
+    // external sessions are opened by the bounded-replay transport; this
+    // fallback remains native-only.
+    if (!resolveExternalReplayTarget(sessionId)) {
+      void eventStoreProxy.loadFromCache(sessionId).catch((err: unknown) => {
+        // Swallow load errors here: the consumer (ChatHistory) is allowed
+        // to render an empty state. `useSessionEvents` already covers
+        // explicit error surfacing for callers that need it.
+        log.warn(
+          `[sessionScopedChatEvents] native hydration(${sessionId}) failed:`,
+          err
+        );
+      });
+    }
 
     return () => {
       disposed = true;

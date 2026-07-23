@@ -79,7 +79,6 @@ pub async fn orgtrack_session_turn_metadata_index(
         {
             return Err("At most 500 turn summaries can be loaded at once".to_string());
         }
-        let mut conn = open_cache_conn()?;
         // Managed native-transcript sessions project from the CLI's own
         // store: remap the managed id to its imported transcript id first.
         let transcript_session_id =
@@ -88,12 +87,15 @@ pub async fn orgtrack_session_turn_metadata_index(
             )
             .unwrap_or_else(|| session_id.clone());
         if let Some(source) = ImportedHistorySourceId::from_session_id(&transcript_session_id) {
-            let projected = replay::project_turn_metadata(
-                &mut conn,
-                source,
-                &transcript_session_id,
-                turn_ids.as_deref(),
-            )?;
+            let projected = database::db::with_sessions_writer(|| {
+                let mut conn = open_cache_conn()?;
+                replay::project_turn_metadata(
+                    &mut conn,
+                    source,
+                    &transcript_session_id,
+                    turn_ids.as_deref(),
+                )
+            })?;
             return Ok(projected_rounds_to_cached_turns(&session_id, projected));
         }
         if let Some(turn_ids) = turn_ids.as_ref() {
@@ -116,19 +118,21 @@ fn estimate_cost_blended(total_tokens: i64, model: &str) -> f64 {
 }
 
 fn imported_recent_paths() -> Result<Vec<imported_history::ImportedHistoryRecentPath>, String> {
-    let mut conn = open_cache_conn()?;
-    let mut paths = Vec::new();
-    for source in ImportedHistorySourceId::ALL {
-        imported_history::catalog::refresh_source(&mut conn, source)?;
-        paths.extend(
-            imported_history::cache::query_imported_recent_paths_from_conn(
-                &conn,
-                source.as_str(),
-                0,
-            )?,
-        );
-    }
-    Ok(imported_history::recent_paths_from_paths(&paths))
+    database::db::with_sessions_writer(|| {
+        let mut conn = open_cache_conn()?;
+        let mut paths = Vec::new();
+        for source in ImportedHistorySourceId::ALL {
+            imported_history::catalog::refresh_source(&mut conn, source)?;
+            paths.extend(
+                imported_history::cache::query_imported_recent_paths_from_conn(
+                    &conn,
+                    source.as_str(),
+                    0,
+                )?,
+            );
+        }
+        Ok(imported_history::recent_paths_from_paths(&paths))
+    })
 }
 
 /// Refresh one source's compact catalog and return only grouped path rows.
@@ -140,9 +144,15 @@ fn compact_recent_paths(
     source: ImportedHistorySourceId,
     limit: usize,
 ) -> Result<Vec<imported_history::ImportedHistoryRecentPath>, String> {
-    let mut conn = open_cache_conn()?;
-    imported_history::catalog::refresh_source(&mut conn, source)?;
-    imported_history::cache::query_imported_recent_paths_from_conn(&conn, source.as_str(), limit)
+    database::db::with_sessions_writer(|| {
+        let mut conn = open_cache_conn()?;
+        imported_history::catalog::refresh_source(&mut conn, source)?;
+        imported_history::cache::query_imported_recent_paths_from_conn(
+            &conn,
+            source.as_str(),
+            limit,
+        )
+    })
 }
 
 /// Force a full rescan of a single external history source.
@@ -157,19 +167,21 @@ pub async fn external_history_rescan_source(source: String, clear: bool) -> Resu
         return Err(format!("Unknown external history source: {source}"));
     }
     tokio::task::spawn_blocking(move || {
-        let mut conn = open_cache_conn()?;
-        // `clear`: wipe the source's cached rows so every session is re-parsed
-        // from scratch (drops stale rows / forces a full re-parse even when
-        // file signatures are unchanged). Otherwise this is an incremental
-        // "update" — only sessions whose signature changed are re-parsed.
-        if clear {
-            imported_history::cache::prune_missing_records_from_conn(&conn, &source, &[])?;
-        }
-        // Always re-read the on-disk store and repopulate the cache. The old
-        // behavior only pruned, leaving the count at 0 until a later lazy load.
-        crate::agent_sessions::session_directory::aggregation::resync_external_history_source(
-            &mut conn, &source,
-        )
+        database::db::with_sessions_writer(|| {
+            let mut conn = open_cache_conn()?;
+            // `clear`: wipe the source's cached rows so every session is re-parsed
+            // from scratch (drops stale rows / forces a full re-parse even when
+            // file signatures are unchanged). Otherwise this is an incremental
+            // "update" — only sessions whose signature changed are re-parsed.
+            if clear {
+                imported_history::cache::prune_missing_records_from_conn(&conn, &source, &[])?;
+            }
+            // Always re-read the on-disk store and repopulate the cache. The old
+            // behavior only pruned, leaving the count at 0 until a later lazy load.
+            crate::agent_sessions::session_directory::aggregation::resync_external_history_source(
+                &mut conn, &source,
+            )
+        })
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?
@@ -196,16 +208,22 @@ pub async fn external_history_rescan_sources(
     }
 
     tokio::task::spawn_blocking(move || {
-        let mut conn = open_cache_conn()?;
-        for source in sources {
-            if clear {
-                imported_history::cache::prune_missing_records_from_conn(&conn, &source, &[])?;
+        database::db::with_sessions_writer(|| {
+            let mut conn = open_cache_conn()?;
+            for source in sources {
+                if clear {
+                    imported_history::cache::prune_missing_records_from_conn(
+                        &conn,
+                        &source,
+                        &[],
+                    )?;
+                }
+                crate::agent_sessions::session_directory::aggregation::resync_external_history_source(
+                    &mut conn, &source,
+                )?;
             }
-            crate::agent_sessions::session_directory::aggregation::resync_external_history_source(
-                &mut conn, &source,
-            )?;
-        }
-        Ok(())
+            Ok(())
+        })
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?

@@ -18,6 +18,9 @@ import {
 } from "@src/engines/SessionCore/derived/sessionScopedChatEvents";
 
 const subscribers = new Map<string, (snapshot: unknown) => void>();
+const { loadFromCache } = vi.hoisted(() => ({
+  loadFromCache: vi.fn(() => Promise.resolve()),
+}));
 
 vi.mock("@src/engines/SessionCore/core/store/EventStoreProxy", () => ({
   eventStoreProxy: {
@@ -29,7 +32,7 @@ vi.mock("@src/engines/SessionCore/core/store/EventStoreProxy", () => ({
       subscribers.set(sessionId, listener);
       return () => subscribers.delete(sessionId);
     },
-    loadFromCache: () => Promise.resolve(),
+    loadFromCache,
   },
   isStreamingSnapshot: (snapshot: unknown) =>
     Boolean((snapshot as { streaming?: boolean })?.streaming),
@@ -40,6 +43,7 @@ describe("session-scoped atom family retention", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    loadFromCache.mockClear();
     store = createStore();
   });
 
@@ -111,5 +115,26 @@ describe("session-scoped atom family retention", () => {
 
     vi.advanceTimersByTime(2);
     expect(chatEventsForSessionAtomFamily(sessionId)).not.toBe(chatAtomBefore);
+  });
+
+  it("does not hydrate an inactive external session when a derived surface mounts it", () => {
+    const unsub = store.sub(
+      chatEventsForSessionAtomFamily("codexapp-inactive-large-session"),
+      () => {}
+    );
+
+    expect(loadFromCache).not.toHaveBeenCalled();
+    unsub();
+  });
+
+  it("keeps native session-scoped cache hydration unchanged", () => {
+    const unsub = store.sub(
+      chatEventsForSessionAtomFamily("sdeagent-native-session"),
+      () => {}
+    );
+
+    expect(loadFromCache).toHaveBeenCalledOnce();
+    expect(loadFromCache).toHaveBeenCalledWith("sdeagent-native-session");
+    unsub();
   });
 });

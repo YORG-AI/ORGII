@@ -281,6 +281,7 @@ fn reconcile_codex_actor_transcript(
     actor_id: &str,
     workspace_path: &str,
 ) -> Result<(), String> {
+    let _writer = database::db::sessions_writer_guard();
     let source = ImportedHistorySourceId::CodexApp;
     replay::bind_source_path(
         conn,

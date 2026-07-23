@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use chrono::Utc;
 use core_types::activity::ActivityChunk;
-use rusqlite::{params, Connection, OptionalExtension, Row, Transaction};
+use rusqlite::{params, Connection, OptionalExtension, Row, Transaction, TransactionBehavior};
 
 use super::{
     codex_jsonl, jsonl_driver, payload_artifact, qoder_sidecar, sqlite_driver, structured_driver,
@@ -23,6 +23,14 @@ use super::{
 /// growth budget. This connection-local cap keeps the atomic transaction but
 /// makes its resident cache explicitly byte-bounded.
 const REPLAY_INDEX_CACHE_KIB: i64 = 16 * 1024;
+
+fn begin_replay_write_transaction<'conn>(
+    conn: &'conn mut Connection,
+    context: &str,
+) -> Result<Transaction<'conn>, String> {
+    conn.transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(|err| format!("start {context} transaction: {err}"))
+}
 
 #[derive(Debug, Clone)]
 pub(super) struct ReplayIndexState {
@@ -246,9 +254,12 @@ pub(super) fn sync_index(
     };
     conn.pragma_update(None, "cache_size", -REPLAY_INDEX_CACHE_KIB)
         .map_err(|err| format!("bound imported replay SQLite page cache: {err}"))?;
-    let tx = conn
-        .transaction()
-        .map_err(|err| format!("start imported replay transaction: {err}"))?;
+    // Reserve the SQLite writer before streaming/parsing the external source.
+    // A deferred transaction can hold an old read snapshot for many seconds
+    // and then fail with SQLITE_BUSY_SNAPSHOT on its first artifact/index
+    // write if another startup writer committed in the meantime. IMMEDIATE
+    // makes that contention wait at the transaction boundary instead.
+    let tx = begin_replay_write_transaction(conn, "imported replay")?;
     let previous = (!generation_changed)
         .then_some(old_state.as_ref())
         .flatten();
@@ -665,9 +676,7 @@ fn record_rejected_snapshot(
     // The failed generation transaction has already rolled back. Publish the
     // physical rejection watermark in a separate short transaction so a crash
     // can never make it visible by partially overwriting the last valid state.
-    let tx = conn
-        .transaction()
-        .map_err(|err| format!("start rejected replay snapshot transaction: {err}"))?;
+    let tx = begin_replay_write_transaction(conn, "rejected replay snapshot")?;
     tx.execute(
         "INSERT INTO imported_replay_rejected_snapshots(
              source,source_session_id,parser_version,source_identity,
@@ -1032,9 +1041,7 @@ pub(super) fn hydrate_turn_if_needed(
     }
     let resolved = resolve_source(conn, source, display_session_id)?;
     let write_revision = state.revision.saturating_add(1);
-    let tx = conn
-        .transaction()
-        .map_err(|err| format!("start lazy replay turn transaction: {err}"))?;
+    let tx = begin_replay_write_transaction(conn, "lazy replay turn")?;
     let stats = sqlite_driver::hydrate_kv_turn(
         &tx,
         source,
@@ -2240,6 +2247,58 @@ mod tests {
         SqliteRecordStore::init_source_cache_tables(&conn)
             .expect("initialize replay source-cache schema");
         conn
+    }
+
+    #[test]
+    fn replay_write_transaction_reserves_writer_before_streaming_reads() {
+        let path = std::env::temp_dir().join(format!(
+            "orgii-replay-immediate-{}-{}.sqlite",
+            std::process::id(),
+            Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        let mut replay_conn = Connection::open(&path).expect("open replay writer");
+        replay_conn
+            .execute_batch("PRAGMA journal_mode=WAL; CREATE TABLE probe(value INTEGER);")
+            .expect("initialize writer probe");
+        replay_conn
+            .busy_timeout(std::time::Duration::from_secs(1))
+            .expect("configure replay busy timeout");
+        let tx = begin_replay_write_transaction(&mut replay_conn, "test replay")
+            .expect("reserve replay writer");
+        tx.query_row("SELECT COUNT(*) FROM probe", [], |row| row.get::<_, i64>(0))
+            .expect("streaming read before first replay write");
+
+        let peer = Connection::open(&path).expect("open peer writer");
+        peer.busy_timeout(std::time::Duration::from_millis(25))
+            .expect("configure peer timeout");
+        let error = peer
+            .execute("INSERT INTO probe(value) VALUES (1)", [])
+            .expect_err("IMMEDIATE replay transaction must already own the writer slot");
+        assert!(
+            matches!(
+                error,
+                rusqlite::Error::SqliteFailure(ref details, _)
+                    if matches!(
+                        details.code,
+                        rusqlite::ErrorCode::DatabaseBusy
+                            | rusqlite::ErrorCode::DatabaseLocked
+                    )
+            ),
+            "unexpected peer error: {error}"
+        );
+
+        tx.execute("INSERT INTO probe(value) VALUES (2)", [])
+            .expect("first replay write cannot hit a stale snapshot");
+        tx.commit().expect("commit replay write");
+        peer.busy_timeout(std::time::Duration::from_secs(1))
+            .expect("extend peer timeout");
+        peer.execute("INSERT INTO probe(value) VALUES (3)", [])
+            .expect("writer slot released after replay commit");
+        drop(peer);
+        drop(replay_conn);
+        let _ = std::fs::remove_file(path.with_extension("sqlite-shm"));
+        let _ = std::fs::remove_file(path.with_extension("sqlite-wal"));
+        let _ = std::fs::remove_file(path);
     }
 
     #[test]

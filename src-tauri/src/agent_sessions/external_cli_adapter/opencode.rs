@@ -17,6 +17,7 @@ pub struct OpenCodeAdapter;
 
 impl OpenCodeAdapter {
     fn resolve_subagent_prompt_from_replay(&self, child_session_id: &str) -> Option<String> {
+        let _writer = database::db::sessions_writer_guard();
         let mut conn = get_connection().ok()?;
         let batch = replay::scan_window_after(
             &mut conn,

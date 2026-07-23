@@ -1251,6 +1251,7 @@ fn for_each_imported_replay_chunk(
     imported_session_id: &str,
     mut visit: impl FnMut(&mut rusqlite::Connection, &str, ReplayIndexedChunk) -> Result<(), String>,
 ) -> Result<(), String> {
+    let _writer = database::db::sessions_writer_guard();
     let source = ImportedHistorySourceId::from_session_id(imported_session_id)
         .ok_or_else(|| format!("Unknown imported transcript id: {imported_session_id}"))?;
     let limits = ReplayLimits {

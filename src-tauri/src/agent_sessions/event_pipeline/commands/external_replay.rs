@@ -75,6 +75,17 @@ const LEGACY_JSON_PROJECTION_MAX_NODES: usize = 256;
 const LEGACY_JSON_KEY_MAX_BYTES: usize = 1024;
 const LEGACY_UTF8_BOUNDARY_BYTES: usize = 4;
 
+fn with_sessions_replay_writer<T>(
+    context: &str,
+    operation: impl FnOnce(&mut Connection) -> Result<T, String>,
+) -> Result<T, String> {
+    database::db::with_sessions_writer(|| {
+        let mut conn = database::db::get_connection()
+            .map_err(|error| format!("open {context} DB: {error}"))?;
+        operation(&mut conn)
+    })
+}
+
 #[cfg(test)]
 static LEGACY_MAX_DB_JSON_FIELD_BYTES: AtomicUsize = AtomicUsize::new(0);
 #[cfg(test)]
@@ -143,12 +154,10 @@ pub(crate) async fn test_open_managed_replay_window(
             ResolvedTarget::Imported {
                 source,
                 imported_session_id,
-            } => {
-                let mut conn = database::db::get_connection()
-                    .map_err(|err| format!("open replay index DB: {err}"))?;
-                replay::open_window(&mut conn, source, &imported_session_id, TEST_REPLAY_LIMITS)
-                    .map(BackendWindow::Imported)?
-            }
+            } => with_sessions_replay_writer("replay index", |conn| {
+                replay::open_window(conn, source, &imported_session_id, TEST_REPLAY_LIMITS)
+                    .map(BackendWindow::Imported)
+            })?,
             ResolvedTarget::CollaborationSnapshot => {
                 BackendWindow::CollaborationSnapshot(collaboration_snapshot_read_window_from_conn(
                     &database::db::get_connection()
@@ -344,12 +353,10 @@ pub async fn external_replay_open_window(
             ResolvedTarget::Imported {
                 source,
                 imported_session_id,
-            } => {
-                let mut conn = database::db::get_connection()
-                    .map_err(|err| format!("open replay index DB: {err}"))?;
-                replay::open_window(&mut conn, source, &imported_session_id, requested_limits)
+            } => with_sessions_replay_writer("replay index", |conn| {
+                replay::open_window(conn, source, &imported_session_id, requested_limits)
                     .map(BackendWindow::Imported)
-            }
+            }),
             ResolvedTarget::CollaborationSnapshot => {
                 let conn = database::db::get_connection()
                     .map_err(|err| format!("open collaboration replay DB: {err}"))?;
@@ -579,16 +586,16 @@ pub async fn external_replay_poll_delta(
                 let mut underlying_cursor = cursor;
                 underlying_cursor.source_id = source.as_str().to_string();
                 underlying_cursor.session_id = imported_session_id.clone();
-                let mut conn = database::db::get_connection()
-                    .map_err(|err| format!("open replay index DB: {err}"))?;
-                replay::poll_delta(
-                    &mut conn,
-                    source,
-                    &imported_session_id,
-                    &underlying_cursor,
-                    requested_limits,
-                )
-                .map(BackendDelta::Imported)
+                with_sessions_replay_writer("replay index", |conn| {
+                    replay::poll_delta(
+                        conn,
+                        source,
+                        &imported_session_id,
+                        &underlying_cursor,
+                        requested_limits,
+                    )
+                    .map(BackendDelta::Imported)
+                })
             }
             ResolvedTarget::CollaborationSnapshot => {
                 let conn = database::db::get_connection()
@@ -729,12 +736,10 @@ pub async fn external_replay_read_window(
             ResolvedTarget::Imported {
                 source,
                 imported_session_id,
-            } => {
-                let mut conn = database::db::get_connection()
-                    .map_err(|err| format!("open replay index DB: {err}"))?;
+            } => with_sessions_replay_writer("replay index", |conn| {
                 if let Some(turn_id) = turn_id.as_deref() {
                     replay::read_turn_window(
-                        &mut conn,
+                        conn,
                         source,
                         &imported_session_id,
                         turn_id,
@@ -742,7 +747,7 @@ pub async fn external_replay_read_window(
                     )
                 } else if let Some(turn_index) = turn_index {
                     replay::read_turn_window_at_index(
-                        &mut conn,
+                        conn,
                         source,
                         &imported_session_id,
                         turn_index,
@@ -750,7 +755,7 @@ pub async fn external_replay_read_window(
                     )
                 } else {
                     replay::read_window(
-                        &mut conn,
+                        conn,
                         source,
                         &imported_session_id,
                         before_sequence,
@@ -758,7 +763,7 @@ pub async fn external_replay_read_window(
                     )
                 }
                 .map(BackendWindow::Imported)
-            }
+            }),
             ResolvedTarget::CollaborationSnapshot => {
                 let conn = database::db::get_connection()
                     .map_err(|err| format!("open collaboration replay DB: {err}"))?;
@@ -2053,6 +2058,16 @@ fn prepare_stream_replay_snapshot(
     replay::prepare_pinned_scan(conn, source, imported_session_id, limits)
 }
 
+fn prepare_sessions_stream_replay_snapshot(
+    source: ImportedHistorySourceId,
+    imported_session_id: &str,
+    limits: ReplayLimits,
+) -> Result<ReplayCursor, String> {
+    with_sessions_replay_writer("replay stream preparation", |conn| {
+        prepare_stream_replay_snapshot(conn, source, imported_session_id, limits)
+    })
+}
+
 /// Export-only source scan. Unlike the cloud spool iterator, this deliberately
 /// keeps events compact and gives the writer a range reader for each deferred
 /// payload. A single 10 MiB output therefore never becomes a 10 MiB `String`.
@@ -2068,28 +2083,30 @@ fn stream_replay_export_events(
             source,
             imported_session_id,
         } => {
-            let mut conn = database::db::get_connection()
-                .map_err(|err| format!("open replay export DB: {err}"))?;
             let limits = ReplayLimits {
                 max_turns: 10,
                 max_events: STREAM_BATCH_MAX_EVENTS,
                 max_ipc_bytes: STREAM_BATCH_MAX_BYTES,
             };
             let prepared =
-                prepare_stream_replay_snapshot(&mut conn, source, &imported_session_id, limits)?;
+                prepare_sessions_stream_replay_snapshot(source, &imported_session_id, limits)?;
             let expected_generation = prepared.generation;
             let expected_revision = prepared.revision;
+            let mut payload_conn = database::db::get_connection()
+                .map_err(|err| format!("open replay export payload DB: {err}"))?;
             let mut after_sequence = -1_i64;
             loop {
-                let scan = replay::scan_window_after_generation(
-                    &mut conn,
-                    source,
-                    &imported_session_id,
-                    &expected_generation,
-                    expected_revision,
-                    after_sequence,
-                    limits,
-                )?;
+                let scan = with_sessions_replay_writer("replay export scan", |conn| {
+                    replay::scan_window_after_generation(
+                        conn,
+                        source,
+                        &imported_session_id,
+                        &expected_generation,
+                        expected_revision,
+                        after_sequence,
+                        limits,
+                    )
+                })?;
                 let next_sequence = scan.cursor.through_sequence;
                 let has_more = scan.has_more;
                 let (events, _) = normalize_indexed_chunks(
@@ -2106,7 +2123,7 @@ fn stream_replay_export_events(
                         summary.event_count,
                         |payload_ref, offset| {
                             replay::read_payload_range(
-                                &mut conn,
+                                &mut payload_conn,
                                 source,
                                 &imported_session_id,
                                 &scan.cursor.generation,
@@ -2130,17 +2147,19 @@ fn stream_replay_export_events(
                 }
                 after_sequence = next_sequence;
             }
-            let final_scan = replay::scan_window_after(
-                &mut conn,
-                source,
-                &imported_session_id,
-                after_sequence,
-                ReplayLimits {
-                    max_turns: 1,
-                    max_events: 1,
-                    max_ipc_bytes: STREAM_BATCH_MAX_BYTES,
-                },
-            )?;
+            let final_scan = with_sessions_replay_writer("replay export finalization", |conn| {
+                replay::scan_window_after(
+                    conn,
+                    source,
+                    &imported_session_id,
+                    after_sequence,
+                    ReplayLimits {
+                        max_turns: 1,
+                        max_events: 1,
+                        max_ipc_bytes: STREAM_BATCH_MAX_BYTES,
+                    },
+                )
+            })?;
             validate_stream_replay_cursor(
                 &expected_generation,
                 expected_revision,
@@ -2893,30 +2912,22 @@ fn load_replay_query_window(
         ResolvedTarget::Imported {
             source,
             imported_session_id,
-        } => {
-            let mut conn = database::db::get_connection()
-                .map_err(|err| format!("open replay query index DB: {err}"))?;
+        } => with_sessions_replay_writer("replay query index", |conn| {
             if let Some(turn_id) = turn_id {
-                replay::read_turn_window(&mut conn, source, &imported_session_id, turn_id, limits)
+                replay::read_turn_window(conn, source, &imported_session_id, turn_id, limits)
             } else if let Some(turn_index) = turn_index {
                 replay::read_turn_window_at_index(
-                    &mut conn,
+                    conn,
                     source,
                     &imported_session_id,
                     turn_index,
                     limits,
                 )
             } else {
-                replay::read_window(
-                    &mut conn,
-                    source,
-                    &imported_session_id,
-                    before_sequence,
-                    limits,
-                )
+                replay::read_window(conn, source, &imported_session_id, before_sequence, limits)
             }
             .map(BackendWindow::Imported)
-        }
+        }),
         ResolvedTarget::CollaborationSnapshot => {
             let conn = database::db::get_connection()
                 .map_err(|err| format!("open collaboration replay query DB: {err}"))?;
@@ -3153,28 +3164,30 @@ fn stream_replay_cloud_events(
             source,
             imported_session_id,
         } => {
-            let mut conn = database::db::get_connection()
-                .map_err(|err| format!("open replay stream DB: {err}"))?;
             let limits = ReplayLimits {
                 max_turns: 10,
                 max_events: STREAM_BATCH_MAX_EVENTS,
                 max_ipc_bytes: STREAM_BATCH_MAX_BYTES,
             };
             let prepared =
-                prepare_stream_replay_snapshot(&mut conn, source, &imported_session_id, limits)?;
+                prepare_sessions_stream_replay_snapshot(source, &imported_session_id, limits)?;
             let expected_generation = prepared.generation;
             let expected_revision = prepared.revision;
+            let mut payload_conn = database::db::get_connection()
+                .map_err(|err| format!("open replay stream payload DB: {err}"))?;
             let mut after_sequence = -1_i64;
             loop {
-                let scan = replay::scan_window_after_generation(
-                    &mut conn,
-                    source,
-                    &imported_session_id,
-                    &expected_generation,
-                    expected_revision,
-                    after_sequence,
-                    limits,
-                )?;
+                let scan = with_sessions_replay_writer("replay cloud scan", |conn| {
+                    replay::scan_window_after_generation(
+                        conn,
+                        source,
+                        &imported_session_id,
+                        &expected_generation,
+                        expected_revision,
+                        after_sequence,
+                        limits,
+                    )
+                })?;
                 let next_sequence = scan.cursor.through_sequence;
                 let has_more = scan.has_more;
                 let (events, _) = normalize_indexed_chunks(
@@ -3186,7 +3199,7 @@ fn stream_replay_cloud_events(
                 for event in &events {
                     let mut read_payload = |payload_ref: &PayloadRef, offset: u64| {
                         replay::read_payload_range(
-                            &mut conn,
+                            &mut payload_conn,
                             source,
                             &imported_session_id,
                             &scan.cursor.generation,
@@ -3209,17 +3222,19 @@ fn stream_replay_cloud_events(
                 }
                 after_sequence = next_sequence;
             }
-            let final_scan = replay::scan_window_after(
-                &mut conn,
-                source,
-                &imported_session_id,
-                after_sequence,
-                ReplayLimits {
-                    max_turns: 1,
-                    max_events: 1,
-                    max_ipc_bytes: STREAM_BATCH_MAX_BYTES,
-                },
-            )?;
+            let final_scan = with_sessions_replay_writer("replay cloud finalization", |conn| {
+                replay::scan_window_after(
+                    conn,
+                    source,
+                    &imported_session_id,
+                    after_sequence,
+                    ReplayLimits {
+                        max_turns: 1,
+                        max_events: 1,
+                        max_ipc_bytes: STREAM_BATCH_MAX_BYTES,
+                    },
+                )
+            })?;
             validate_stream_replay_cursor(
                 &expected_generation,
                 expected_revision,
@@ -3536,20 +3551,20 @@ fn persist_shell_replays_bounded(
                 event.ui_canonical == core_types::tool_names::RUN_SHELL
                     && event.shell_replay.is_none()
             }) {
-                let mut conn = database::db::get_connection()
-                    .map_err(|error| format!("open external Shell replay DB: {error}"))?;
-                let tx = conn.transaction().map_err(|error| {
-                    format!("begin external Shell manifest transaction: {error}")
+                with_sessions_replay_writer("external Shell replay", |conn| {
+                    let tx = database::db::begin_immediate(conn).map_err(|error| {
+                        format!("begin external Shell manifest transaction: {error}")
+                    })?;
+                    persist_imported_shell_manifest(
+                        &tx,
+                        event,
+                        source,
+                        &imported_session_id,
+                        generation,
+                    )?;
+                    tx.commit()
+                        .map_err(|error| format!("publish external Shell manifest: {error}"))
                 })?;
-                persist_imported_shell_manifest(
-                    &tx,
-                    event,
-                    source,
-                    &imported_session_id,
-                    generation,
-                )?;
-                tx.commit()
-                    .map_err(|error| format!("publish external Shell manifest: {error}"))?;
             }
             validate_imported_shell_snapshot(source, &imported_session_id, generation, revision)?;
         }
@@ -3562,35 +3577,35 @@ fn persist_shell_replays_bounded(
                 event.ui_canonical == core_types::tool_names::RUN_SHELL
                     && event.shell_replay.is_none()
             }) {
-                let mut conn = database::db::get_connection()
-                    .map_err(|error| format!("open collaboration Shell replay DB: {error}"))?;
-                let tx = conn.transaction().map_err(|error| {
-                    format!("begin collaboration Shell manifest transaction: {error}")
+                with_sessions_replay_writer("collaboration Shell replay", |conn| {
+                    let tx = database::db::begin_immediate(conn).map_err(|error| {
+                        format!("begin collaboration Shell manifest transaction: {error}")
+                    })?;
+                    persist_scoped_shell_manifest(
+                        &tx,
+                        event,
+                        source_id,
+                        session_id,
+                        &artifact_generation,
+                        |payload_ref, offset, max| {
+                            collaboration_snapshot_payload_range_from_conn(
+                                &tx,
+                                session_id,
+                                generation,
+                                payload_ref
+                                    .replay_source_event_id
+                                    .as_deref()
+                                    .unwrap_or(&payload_ref.event_id),
+                                &payload_ref.field_path,
+                                offset,
+                                max,
+                            )
+                            .map(|range| range.text.into_bytes())
+                        },
+                    )?;
+                    tx.commit()
+                        .map_err(|error| format!("publish collaboration Shell manifest: {error}"))
                 })?;
-                persist_scoped_shell_manifest(
-                    &tx,
-                    event,
-                    source_id,
-                    session_id,
-                    &artifact_generation,
-                    |payload_ref, offset, max| {
-                        collaboration_snapshot_payload_range_from_conn(
-                            &tx,
-                            session_id,
-                            generation,
-                            payload_ref
-                                .replay_source_event_id
-                                .as_deref()
-                                .unwrap_or(&payload_ref.event_id),
-                            &payload_ref.field_path,
-                            offset,
-                            max,
-                        )
-                        .map(|range| range.text.into_bytes())
-                    },
-                )?;
-                tx.commit()
-                    .map_err(|error| format!("publish collaboration Shell manifest: {error}"))?;
             }
             validate_collaboration_shell_snapshot(session_id, generation, revision)?;
         }
@@ -3599,34 +3614,34 @@ fn persist_shell_replays_bounded(
                 event.ui_canonical == core_types::tool_names::RUN_SHELL
                     && event.shell_replay.is_none()
             }) {
-                let mut conn = database::db::get_connection()
-                    .map_err(|error| format!("open managed Shell replay DB: {error}"))?;
-                let tx = conn.transaction().map_err(|error| {
-                    format!("begin managed Shell manifest transaction: {error}")
+                with_sessions_replay_writer("managed Shell replay", |conn| {
+                    let tx = database::db::begin_immediate(conn).map_err(|error| {
+                        format!("begin managed Shell manifest transaction: {error}")
+                    })?;
+                    persist_scoped_shell_manifest(
+                        &tx,
+                        event,
+                        source_id,
+                        session_id,
+                        generation,
+                        |payload_ref, offset, max| {
+                            legacy_payload_range_from_conn(
+                                &tx,
+                                session_id,
+                                payload_ref
+                                    .replay_source_event_id
+                                    .as_deref()
+                                    .unwrap_or(&payload_ref.event_id),
+                                &payload_ref.field_path,
+                                offset,
+                                max,
+                            )
+                            .map(|range| range.text.into_bytes())
+                        },
+                    )?;
+                    tx.commit()
+                        .map_err(|error| format!("publish managed Shell manifest: {error}"))
                 })?;
-                persist_scoped_shell_manifest(
-                    &tx,
-                    event,
-                    source_id,
-                    session_id,
-                    generation,
-                    |payload_ref, offset, max| {
-                        legacy_payload_range_from_conn(
-                            &tx,
-                            session_id,
-                            payload_ref
-                                .replay_source_event_id
-                                .as_deref()
-                                .unwrap_or(&payload_ref.event_id),
-                            &payload_ref.field_path,
-                            offset,
-                            max,
-                        )
-                        .map(|range| range.text.into_bytes())
-                    },
-                )?;
-                tx.commit()
-                    .map_err(|error| format!("publish managed Shell manifest: {error}"))?;
             }
             validate_legacy_shell_snapshot(session_id, generation, revision)?;
         }
@@ -3645,9 +3660,9 @@ fn validate_imported_shell_snapshot(
     generation: &str,
     revision: u64,
 ) -> Result<(), String> {
-    let mut conn = database::db::get_connection()
-        .map_err(|error| format!("open imported Shell validation DB: {error}"))?;
-    validate_imported_shell_snapshot_from_conn(&mut conn, source, session_id, generation, revision)
+    with_sessions_replay_writer("imported Shell validation", |conn| {
+        validate_imported_shell_snapshot_from_conn(conn, source, session_id, generation, revision)
+    })
 }
 
 fn validate_imported_shell_snapshot_from_conn(
