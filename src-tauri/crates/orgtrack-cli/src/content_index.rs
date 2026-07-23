@@ -19,13 +19,24 @@
 use core_types::activity::ActivityChunk;
 use rusqlite::{params, Connection};
 
-use crate::plugin_exec::load_session_chunks;
+use orgtrack_core::sources::imported_history::{
+    replay::{
+        self, ImportedHistorySourceId, ReplayIndexedChunk, ReplayLimits, ReplayPayloadDescriptor,
+        ReplayPayloadRange,
+    },
+    router as replay_router,
+};
+
+use crate::plugin_exec::load_plugin_session_chunks;
 use crate::plugins::LoaderPlugin;
 use crate::scan::target_source_ids;
 use crate::Options;
 
 /// Max characters of transcript text indexed per session.
 const MAX_BODY_CHARS: usize = 256 * 1024;
+/// Compact-index rows read per FTS page. The byte limit is the second bound.
+const CONTENT_PAGE_EVENTS: usize = 32;
+const CONTENT_PAGE_IPC_BYTES: usize = 512 * 1024;
 /// Sessions re-indexed per write transaction.
 const BATCH: usize = 64;
 
@@ -119,11 +130,20 @@ pub(crate) fn update(
 
     let mut indexed = 0usize;
     for batch in stale.chunks(BATCH) {
+        // Replay synchronization needs the writable connection and may create
+        // its own transaction. Build bounded bodies before opening the FTS
+        // transaction; at most BATCH * MAX_BODY_CHARS are retained here.
+        let bodies = batch
+            .iter()
+            .map(|(session_id, _, _, _)| session_body(conn, session_id, plugins, timeout))
+            .collect::<Result<Vec<_>, _>>()?;
         let tx = conn.transaction().map_err(|err| err.to_string())?;
-        for (session_id, source, name, fingerprint) in batch {
-            let body = session_body(&tx, session_id, plugins, timeout);
-            tx.execute("DELETE FROM orgtrack_fts WHERE session_id = ?1", [session_id])
-                .map_err(|err| err.to_string())?;
+        for ((session_id, source, name, fingerprint), body) in batch.iter().zip(bodies) {
+            tx.execute(
+                "DELETE FROM orgtrack_fts WHERE session_id = ?1",
+                [session_id],
+            )
+            .map_err(|err| err.to_string())?;
             tx.execute(
                 "INSERT INTO orgtrack_fts (session_id, source, name, body)
                  VALUES (?1, ?2, ?3, ?4)",
@@ -181,34 +201,258 @@ pub(crate) fn search(
 
 /// Flatten a session's chunks into a bounded plain-text body for indexing.
 fn session_body(
-    conn: &Connection,
+    conn: &mut Connection,
     session_id: &str,
     plugins: &[LoaderPlugin],
     timeout: std::time::Duration,
-) -> String {
-    let chunks = load_session_chunks(conn, session_id, plugins, timeout)
-        .ok()
-        .flatten()
-        .unwrap_or_default();
+) -> Result<String, String> {
+    if let Some(source) = replay_router::source_for_session(session_id) {
+        return replay_session_body(conn, source, session_id);
+    }
+
+    // The full-vector protocol is confined to third-party loaders. Built-in
+    // prefixes are handled above and can never fall through to it.
+    let chunks =
+        load_plugin_session_chunks(conn, session_id, plugins, timeout)?.unwrap_or_default();
+    Ok(body_from_chunks(chunks, MAX_BODY_CHARS))
+}
+
+fn replay_session_body(
+    conn: &mut Connection,
+    source: ImportedHistorySourceId,
+    session_id: &str,
+) -> Result<String, String> {
     let mut body = String::new();
-    for chunk in &chunks {
-        if body.len() >= MAX_BODY_CHARS {
+    let mut remaining_chars = MAX_BODY_CHARS;
+    let mut cursor = None;
+    while remaining_chars > 0 {
+        let previous_sequence = cursor
+            .as_ref()
+            .map_or(-1, |cursor: &replay::ReplayCursor| cursor.through_sequence);
+        let scan = replay_router::scan_activity_chunks_for_session(
+            conn,
+            session_id,
+            cursor.as_ref(),
+            ReplayLimits {
+                max_turns: replay::HARD_MAX_TURNS,
+                max_events: CONTENT_PAGE_EVENTS,
+                max_ipc_bytes: CONTENT_PAGE_IPC_BYTES,
+            },
+        )?
+        .ok_or_else(|| format!("Unknown built-in imported session id: {session_id}"))?;
+        if scan.chunks.is_empty()
+            && scan.has_more
+            && scan.cursor.through_sequence <= previous_sequence
+        {
+            return Err(format!(
+                "Bounded replay content scan made no progress for {session_id} after sequence {}",
+                scan.cursor.through_sequence
+            ));
+        }
+        let scan_has_more = scan.has_more;
+        let scan_cursor = scan.cursor;
+        for indexed in &scan.chunks {
+            append_indexed_chunk_text(
+                conn,
+                source,
+                session_id,
+                &scan_cursor.generation,
+                &mut body,
+                &mut remaining_chars,
+                indexed,
+            )?;
+            if remaining_chars == 0 {
+                return Ok(body);
+            }
+        }
+        cursor = Some(scan_cursor);
+        if !scan_has_more {
             break;
         }
-        append_chunk_text(&mut body, chunk);
     }
-    body.truncate(MAX_BODY_CHARS);
+    Ok(body)
+}
+
+fn body_from_chunks(chunks: impl IntoIterator<Item = ActivityChunk>, max_chars: usize) -> String {
+    let mut body = String::new();
+    let mut remaining_chars = max_chars;
+    for chunk in chunks {
+        append_chunk_text(&mut body, &mut remaining_chars, &chunk);
+        if remaining_chars == 0 {
+            break;
+        }
+    }
     body
 }
 
 /// Pull the human-readable text out of a chunk (message content, tool command,
 /// tool output) into `body`.
-fn append_chunk_text(body: &mut String, chunk: &ActivityChunk) {
+fn append_chunk_text(body: &mut String, remaining_chars: &mut usize, chunk: &ActivityChunk) {
     for value in [&chunk.result, &chunk.args] {
         if let Some(text) = text_of(value) {
-            body.push_str(&text);
-            body.push('\n');
+            append_text_with_budget(body, remaining_chars, &text);
+            if *remaining_chars == 0 {
+                return;
+            }
         }
+    }
+}
+
+fn append_indexed_chunk_text(
+    conn: &mut Connection,
+    source: ImportedHistorySourceId,
+    session_id: &str,
+    generation: &str,
+    body: &mut String,
+    remaining_chars: &mut usize,
+    indexed: &ReplayIndexedChunk,
+) -> Result<(), String> {
+    append_indexed_chunk_text_with_reader(
+        body,
+        remaining_chars,
+        indexed,
+        |payload, offset, max_bytes| {
+            replay::read_payload_range(
+                conn,
+                source,
+                session_id,
+                generation,
+                &indexed.chunk.chunk_id,
+                &payload.field_path,
+                offset,
+                Some(max_bytes),
+            )
+        },
+    )
+}
+
+fn append_indexed_chunk_text_with_reader(
+    body: &mut String,
+    remaining_chars: &mut usize,
+    indexed: &ReplayIndexedChunk,
+    mut read_range: impl FnMut(
+        &ReplayPayloadDescriptor,
+        u64,
+        usize,
+    ) -> Result<ReplayPayloadRange, String>,
+) -> Result<(), String> {
+    // Preserve the old transcript root order (result, then args), but remove
+    // every deferred path from the compact projection before indexing it.
+    // A preview can be a head or a Shell tail, so it must never be treated as
+    // an already-consumed prefix of the canonical payload.
+    for (root, value) in [
+        ("result", &indexed.chunk.result),
+        ("args", &indexed.chunk.args),
+    ] {
+        let root_payloads = indexed
+            .payloads
+            .iter()
+            .filter(|payload| payload_belongs_to_root(&payload.field_path, root))
+            .collect::<Vec<_>>();
+        let mut projected = value.clone();
+        for payload in &root_payloads {
+            remove_deferred_path(&mut projected, root, &payload.field_path);
+        }
+        if let Some(text) = text_of(&projected) {
+            append_text_with_budget(body, remaining_chars, &text);
+        }
+        for payload in root_payloads {
+            if *remaining_chars == 0 {
+                return Ok(());
+            }
+            let mut offset = 0u64;
+            loop {
+                let max_bytes = remaining_chars
+                    .saturating_mul(4)
+                    .clamp(1, replay::HARD_MAX_PAYLOAD_RANGE_BYTES);
+                let range = read_range(payload, offset, max_bytes)?;
+                if range.offset != offset {
+                    return Err(format!(
+                        "Replay payload {}:{} skipped from {offset} to {}",
+                        indexed.chunk.chunk_id, payload.field_path, range.offset
+                    ));
+                }
+                append_text_with_budget(body, remaining_chars, &range.text);
+                if *remaining_chars == 0 || range.eof {
+                    break;
+                }
+                if range.next_offset <= offset {
+                    return Err(format!(
+                        "Replay payload {}:{} made no progress at {offset}",
+                        indexed.chunk.chunk_id, payload.field_path
+                    ));
+                }
+                offset = range.next_offset;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn payload_belongs_to_root(field_path: &str, root: &str) -> bool {
+    field_path == root
+        || field_path
+            .strip_prefix(root)
+            .is_some_and(|suffix| suffix.starts_with('.'))
+}
+
+fn remove_deferred_path(value: &mut serde_json::Value, root: &str, field_path: &str) {
+    let Some(relative) = field_path.strip_prefix(root) else {
+        return;
+    };
+    if relative.is_empty() {
+        *value = serde_json::Value::Null;
+        return;
+    }
+    let keys = relative
+        .trim_start_matches('.')
+        .split('.')
+        .collect::<Vec<_>>();
+    remove_json_path(value, &keys);
+}
+
+fn remove_json_path(value: &mut serde_json::Value, keys: &[&str]) {
+    let Some((key, rest)) = keys.split_first() else {
+        return;
+    };
+    match value {
+        serde_json::Value::Object(object) => {
+            if rest.is_empty() {
+                object.remove(*key);
+            } else if let Some(child) = object.get_mut(*key) {
+                remove_json_path(child, rest);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            let Some(index) = key.parse::<usize>().ok() else {
+                return;
+            };
+            let Some(child) = items.get_mut(index) else {
+                return;
+            };
+            if rest.is_empty() {
+                *child = serde_json::Value::Null;
+            } else {
+                remove_json_path(child, rest);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn append_text_with_budget(body: &mut String, remaining_chars: &mut usize, text: &str) {
+    if *remaining_chars == 0 {
+        return;
+    }
+    let mut written = 0usize;
+    for ch in text.chars().take(*remaining_chars) {
+        body.push(ch);
+        written += 1;
+    }
+    *remaining_chars = (*remaining_chars).saturating_sub(written);
+    if *remaining_chars > 0 {
+        body.push('\n');
+        *remaining_chars -= 1;
     }
 }
 
@@ -223,7 +467,14 @@ fn text_of(value: &serde_json::Value) -> Option<String> {
             {
                 return non_blank(text);
             }
-            for key in ["content", "text", "observation", "cmd", "command", "summary"] {
+            for key in [
+                "content",
+                "text",
+                "observation",
+                "cmd",
+                "command",
+                "summary",
+            ] {
                 if let Some(text) = map.get(key).and_then(|value| value.as_str()) {
                     if let Some(found) = non_blank(text) {
                         return Some(found);
@@ -257,6 +508,8 @@ fn sanitize_query(query: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::Cell;
+
     use super::*;
 
     #[test]
@@ -278,5 +531,216 @@ mod tests {
         );
         assert!(text_of(&serde_json::json!({})).is_none());
         assert!(text_of(&serde_json::json!("")).is_none());
+    }
+
+    #[test]
+    fn virtual_three_hundred_mib_transcript_stops_at_the_character_budget() {
+        const ONE_MIB: usize = 1024 * 1024;
+        let generated = Cell::new(0usize);
+        let chunks = (0..300).map(|_| {
+            generated.set(generated.get() + 1);
+            ActivityChunk::new("plugin-session", "assistant", "assistant")
+                .with_result(serde_json::Value::String("x".repeat(ONE_MIB)))
+        });
+
+        let body = body_from_chunks(chunks, MAX_BODY_CHARS);
+
+        assert_eq!(body.chars().count(), MAX_BODY_CHARS);
+        assert_eq!(
+            generated.get(),
+            1,
+            "the lazy 300 MiB generator must stop after the first bounded chunk"
+        );
+    }
+
+    #[test]
+    fn character_budget_never_splits_utf8() {
+        let mut body = String::new();
+        let mut remaining = 3usize;
+        append_text_with_budget(&mut body, &mut remaining, "é你🙂tail");
+        assert_eq!(body, "é你🙂");
+        assert_eq!(remaining, 0);
+        assert!(std::str::from_utf8(body.as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn compact_content_pages_are_stricter_than_replay_hard_limits() {
+        assert!(CONTENT_PAGE_EVENTS <= replay::HARD_MAX_EVENTS);
+        assert!(CONTENT_PAGE_IPC_BYTES <= replay::HARD_MAX_IPC_BYTES);
+    }
+
+    #[test]
+    fn deferred_payload_replaces_tail_preview_and_keeps_legacy_root_order() {
+        let canonical = "FULL_START-full-result-FULL_END";
+        let indexed = ReplayIndexedChunk {
+            sequence: 0,
+            turn_index: 0,
+            chunk: ActivityChunk::new("codex-test", "tool_call", "shell")
+                .with_args(serde_json::json!({"command": "later-command"}))
+                .with_result(serde_json::json!({"observation": "TAIL_PREVIEW"})),
+            payloads: vec![ReplayPayloadDescriptor {
+                field_path: "result.observation".to_string(),
+                kind: replay::ReplayPayloadKind::ToolOutput,
+                encoding: replay::ReplayPayloadEncoding::Utf8Text,
+                body_projection: None,
+                spans: Vec::new(),
+                total_bytes: canonical.len() as u64,
+                source_ordinal: None,
+                source_key: None,
+            }],
+        };
+        let mut body = String::new();
+        let mut remaining = canonical.chars().count() + "later-command".chars().count() + 2;
+        let mut offsets = Vec::new();
+
+        append_indexed_chunk_text_with_reader(
+            &mut body,
+            &mut remaining,
+            &indexed,
+            |payload, offset, max_bytes| {
+                assert_eq!(payload.field_path, "result.observation");
+                offsets.push(offset);
+                let start = offset as usize;
+                let end = (start + max_bytes).min(canonical.len());
+                Ok(ReplayPayloadRange {
+                    event_id: indexed.chunk.chunk_id.clone(),
+                    field_path: payload.field_path.clone(),
+                    offset,
+                    next_offset: end as u64,
+                    eof: end == canonical.len(),
+                    total_bytes: canonical.len() as u64,
+                    text: canonical[start..end].to_string(),
+                })
+            },
+        )
+        .expect("deferred payload should stream");
+
+        assert_eq!(offsets.first(), Some(&0), "a tail preview is not a prefix");
+        assert_eq!(body.matches(canonical).count(), 1);
+        assert!(!body.contains("TAIL_PREVIEW"));
+        assert!(
+            body.find(canonical).expect("canonical result")
+                < body.find("later-command").expect("later args")
+        );
+    }
+
+    #[test]
+    fn deferred_payload_gets_the_body_budget_before_later_roots() {
+        let canonical = "canonical-result";
+        let indexed = ReplayIndexedChunk {
+            sequence: 0,
+            turn_index: 0,
+            chunk: ActivityChunk::new("codex-test", "tool_call", "shell")
+                .with_args(serde_json::json!({"command": "must-not-starve-result"}))
+                .with_result(serde_json::json!({"observation": "preview-must-not-count"})),
+            payloads: vec![ReplayPayloadDescriptor {
+                field_path: "result.observation".to_string(),
+                kind: replay::ReplayPayloadKind::ToolOutput,
+                encoding: replay::ReplayPayloadEncoding::Utf8Text,
+                body_projection: None,
+                spans: Vec::new(),
+                total_bytes: canonical.len() as u64,
+                source_ordinal: None,
+                source_key: None,
+            }],
+        };
+        let mut body = String::new();
+        let mut remaining = canonical.len();
+
+        append_indexed_chunk_text_with_reader(
+            &mut body,
+            &mut remaining,
+            &indexed,
+            |_payload, offset, max_bytes| {
+                let start = offset as usize;
+                let end = (start + max_bytes).min(canonical.len());
+                Ok(ReplayPayloadRange {
+                    event_id: indexed.chunk.chunk_id.clone(),
+                    field_path: "result.observation".to_string(),
+                    offset,
+                    next_offset: end as u64,
+                    eof: end == canonical.len(),
+                    total_bytes: canonical.len() as u64,
+                    text: canonical[start..end].to_string(),
+                })
+            },
+        )
+        .expect("deferred payload should stream");
+
+        assert_eq!(body, canonical);
+        assert_eq!(remaining, 0);
+    }
+
+    #[test]
+    fn deferred_path_removal_descends_numeric_array_segments() {
+        let mut result = serde_json::json!({
+            "content": [
+                {"text": "ARRAY_TAIL_PREVIEW", "kind": "text"},
+                {"text": "keep-me"}
+            ]
+        });
+
+        remove_deferred_path(&mut result, "result", "result.content.0.text");
+
+        assert_eq!(result["content"][0]["text"], serde_json::Value::Null);
+        assert_eq!(result["content"][0]["kind"], "text");
+        assert_eq!(result["content"][1]["text"], "keep-me");
+
+        // Bad or out-of-range indices are a no-op, not a panic or an
+        // accidental deletion of an adjacent array item.
+        let unchanged = result.clone();
+        remove_deferred_path(&mut result, "result", "result.content.99.text");
+        remove_deferred_path(&mut result, "result", "result.content.nope.text");
+        assert_eq!(result, unchanged);
+    }
+
+    #[test]
+    fn nested_array_deferred_payload_indexes_only_the_canonical_body() {
+        let canonical = "FULL_ARRAY_BODY";
+        let indexed = ReplayIndexedChunk {
+            sequence: 0,
+            turn_index: 0,
+            chunk: ActivityChunk::new("codex-test", "assistant", "assistant").with_result(
+                serde_json::json!({
+                    "content": [{"text": "ARRAY_TAIL_PREVIEW", "kind": "text"}]
+                }),
+            ),
+            payloads: vec![ReplayPayloadDescriptor {
+                field_path: "result.content.0.text".to_string(),
+                kind: replay::ReplayPayloadKind::AssistantContent,
+                encoding: replay::ReplayPayloadEncoding::Utf8Text,
+                body_projection: None,
+                spans: Vec::new(),
+                total_bytes: canonical.len() as u64,
+                source_ordinal: None,
+                source_key: None,
+            }],
+        };
+        let mut body = String::new();
+        let mut remaining = 128;
+
+        append_indexed_chunk_text_with_reader(
+            &mut body,
+            &mut remaining,
+            &indexed,
+            |payload, offset, max_bytes| {
+                assert_eq!(payload.field_path, "result.content.0.text");
+                let start = offset as usize;
+                let end = (start + max_bytes).min(canonical.len());
+                Ok(ReplayPayloadRange {
+                    event_id: indexed.chunk.chunk_id.clone(),
+                    field_path: payload.field_path.clone(),
+                    offset,
+                    next_offset: end as u64,
+                    eof: end == canonical.len(),
+                    total_bytes: canonical.len() as u64,
+                    text: canonical[start..end].to_string(),
+                })
+            },
+        )
+        .expect("nested deferred payload should stream");
+
+        assert!(body.contains(canonical));
+        assert!(!body.contains("ARRAY_TAIL_PREVIEW"));
     }
 }

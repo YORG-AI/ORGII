@@ -1272,4 +1272,124 @@ mod tests {
             .iter()
             .any(|item| item.path == "src/main.rs"));
     }
+
+    #[cfg(unix)]
+    fn peak_rss_bytes() -> usize {
+        let mut usage = std::mem::MaybeUninit::<libc::rusage>::zeroed();
+        let result = unsafe { libc::getrusage(libc::RUSAGE_SELF, usage.as_mut_ptr()) };
+        assert_eq!(result, 0, "getrusage failed");
+        let peak = unsafe { usage.assume_init() }.ru_maxrss as usize;
+        #[cfg(target_os = "macos")]
+        {
+            peak
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            peak.saturating_mul(1024)
+        }
+    }
+
+    /// Real-machine acceptance harness for the v10/v11 -> current turn-index
+    /// migration that originally exposed #443's multi-gigabyte peak. The
+    /// caller must point `ORGII_HOME` at a disposable copy under the operating
+    /// system temp directory; the safety assertion runs before opening SQLite.
+    #[cfg(unix)]
+    #[test]
+    #[ignore = "#443 real DB migration/RSS acceptance; requires a disposable ORGII_HOME copy"]
+    fn real_db_turn_index_migrates_and_reopens_with_bounded_rss() {
+        let session_id = std::env::var("ORGII_ISSUE_443_REAL_SESSION_ID")
+            .expect("set ORGII_ISSUE_443_REAL_SESSION_ID to the large copied session");
+        let orgii_home = std::env::var_os("ORGII_HOME")
+            .map(std::path::PathBuf::from)
+            .expect("set ORGII_HOME to a disposable real-DB copy");
+        let canonical_home =
+            std::fs::canonicalize(&orgii_home).expect("canonicalize disposable real-DB copy home");
+        let canonical_temp = std::fs::canonicalize(std::env::temp_dir())
+            .expect("canonicalize operating system temp directory");
+        #[cfg(target_os = "macos")]
+        let is_macos_private_tmp = canonical_home.starts_with("/private/tmp");
+        #[cfg(not(target_os = "macos"))]
+        let is_macos_private_tmp = false;
+        assert!(
+            canonical_home.starts_with(&canonical_temp) || is_macos_private_tmp,
+            "refusing to mutate a real DB outside the temp directory: {}",
+            canonical_home.display()
+        );
+        let db_path = canonical_home.join("sessions.db");
+        assert!(
+            db_path.is_file(),
+            "missing copied DB: {}",
+            db_path.display()
+        );
+
+        let read_only = Connection::open_with_flags(
+            &db_path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .expect("open copied DB read-only for the pre-migration state");
+        let before_version: i64 = read_only
+            .query_row(
+                "SELECT index_version FROM session_turn_index_state WHERE session_id = ?1",
+                [&session_id],
+                |row| row.get(0),
+            )
+            .expect("read pre-migration turn-index version");
+        let event_count: i64 = read_only
+            .query_row(
+                "SELECT COUNT(*) FROM events WHERE session_id = ?1",
+                [&session_id],
+                |row| row.get(0),
+            )
+            .expect("count copied session events");
+        drop(read_only);
+
+        let baseline_peak = peak_rss_bytes();
+        let first_started = std::time::Instant::now();
+        let first = load_turn_index(&session_id).expect("migrate and load copied turn index");
+        let first_elapsed = first_started.elapsed();
+        let first_peak = peak_rss_bytes();
+        let first_growth = first_peak.saturating_sub(baseline_peak);
+        assert!(!first.is_empty(), "copied large session must contain turns");
+
+        let conn = get_connection().expect("reopen copied sessions DB after migration");
+        let (indexed_event_count, after_version): (i64, i64) = conn
+            .query_row(
+                "SELECT indexed_event_count, index_version
+                   FROM session_turn_index_state
+                  WHERE session_id = ?1",
+                [&session_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("read migrated turn-index state");
+        drop(conn);
+        assert_eq!(indexed_event_count, event_count);
+        assert_eq!(after_version, TURN_INDEX_VERSION);
+
+        let reopen_started = std::time::Instant::now();
+        let reopened = load_turn_index(&session_id).expect("reopen current copied turn index");
+        let reopen_elapsed = reopen_started.elapsed();
+        let reopened_peak = peak_rss_bytes();
+        assert_eq!(reopened.len(), first.len());
+        assert_eq!(
+            reopened.first().map(|turn| &turn.turn_id),
+            first.first().map(|turn| &turn.turn_id)
+        );
+        assert_eq!(
+            reopened.last().map(|turn| &turn.turn_id),
+            first.last().map(|turn| &turn.turn_id)
+        );
+        assert!(
+            first_growth <= 400 * 1024 * 1024,
+            "real DB first open grew peak RSS by {first_growth} bytes"
+        );
+
+        eprintln!(
+            "#443 real DB: session={session_id}, events={event_count}, turns={}, index v{before_version}->v{after_version}, first_open={first_elapsed:?}, reopen={reopen_elapsed:?}, baseline_peak={:.1} MiB, first_peak={:.1} MiB, reopened_peak={:.1} MiB, first_growth={:.1} MiB",
+            first.len(),
+            baseline_peak as f64 / (1024.0 * 1024.0),
+            first_peak as f64 / (1024.0 * 1024.0),
+            reopened_peak as f64 / (1024.0 * 1024.0),
+            first_growth as f64 / (1024.0 * 1024.0),
+        );
+    }
 }

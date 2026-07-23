@@ -6,6 +6,7 @@
 //! tables.  No API in this module falls back to a provider's full-history
 //! loader.
 
+mod cache_policy;
 mod codex_jsonl;
 #[cfg(test)]
 mod conformance_tests;
@@ -24,9 +25,14 @@ mod whole_json_driver;
 use std::path::{Path, PathBuf};
 
 use core_types::activity::ActivityChunk;
-use rusqlite::Connection;
+use rusqlite::{Connection, Transaction};
 use serde::{Deserialize, Serialize};
 
+pub use cache_policy::{
+    prune_cache, ReplayCacheEviction, ReplayCacheEvictionReason, ReplayCachePolicy,
+    ReplayCachePruneReport, DEFAULT_REPLAY_CACHE_MAX_BYTES, DEFAULT_REPLAY_CACHE_PROTECT_RECENT,
+    DEFAULT_REPLAY_CACHE_TARGET_BYTES, DEFAULT_REPLAY_CACHE_TTL,
+};
 pub use registry::{
     ImportedHistorySourceId, ImportedReplayDescriptor, ReplayAdapterSupport, ReplayStorageFamily,
 };
@@ -123,6 +129,15 @@ pub struct ReplayStats {
 pub struct ReplayPayloadDescriptor {
     pub field_path: String,
     pub kind: ReplayPayloadKind,
+    /// Encoding of bytes returned by payload range reads. New adapters must
+    /// set this explicitly; the legacy value exists only so replay rows
+    /// written before this field was introduced remain readable.
+    #[serde(default)]
+    pub encoding: ReplayPayloadEncoding,
+    /// Bounded semantic body selected before a root JSON value is compacted.
+    /// Markdown/CSV consumers use this instead of hydrating the whole root.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body_projection: Option<ReplayPayloadBodyProjection>,
     pub spans: Vec<ReplaySourceSpan>,
     pub total_bytes: u64,
     /// Ordinal of the normalized payload-bearing item within one JSONL line.
@@ -134,6 +149,128 @@ pub struct ReplayPayloadDescriptor {
     /// It is an internal locator and is never exposed in [`ReplayCursor`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_key: Option<String>,
+}
+
+impl ReplayPayloadDescriptor {
+    /// Resolve rows written before `encoding` became explicit without
+    /// preserving path-shape inference in new production call sites.
+    pub fn resolved_encoding(&self) -> ReplayPayloadEncoding {
+        match self.encoding {
+            ReplayPayloadEncoding::LegacyPathInferred => {
+                if self.field_path.contains('.') {
+                    ReplayPayloadEncoding::Utf8Text
+                } else {
+                    ReplayPayloadEncoding::JsonValue
+                }
+            }
+            encoding => encoding,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ReplayPayloadEncoding {
+    /// Compatibility-only value for cached descriptors that predate this
+    /// field. Newly constructed descriptors must never use it.
+    #[default]
+    LegacyPathInferred,
+    /// Payload ranges form one complete serialized JSON value.
+    JsonValue,
+    /// Payload ranges form decoded UTF-8 string content.
+    Utf8Text,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ReplayPayloadBodyProjection {
+    pub field_path: String,
+    pub text: String,
+    pub truncated: bool,
+}
+
+/// Select and bound the same semantic body used by transcript renderers
+/// before a canonical root JSON payload is replaced by a compact preview.
+/// `fallback_json` should be the already-serialized root when the root has no
+/// well-known text field, avoiding a second session-sized serialization.
+pub fn replay_payload_body_projection(
+    root: &str,
+    value: &serde_json::Value,
+    fallback_json: Option<&str>,
+    max_bytes: usize,
+    tail: bool,
+) -> Option<ReplayPayloadBodyProjection> {
+    let (field_path, text) = replay_body_candidate(root, value)
+        .or_else(|| fallback_json.map(|text| (root.to_string(), text)))?;
+    let text = text.trim();
+    if text.is_empty() {
+        return None;
+    }
+    let (text, truncated) = bounded_body_preview(text, max_bytes, tail);
+    Some(ReplayPayloadBodyProjection {
+        field_path,
+        text: text.to_string(),
+        truncated,
+    })
+}
+
+fn replay_body_candidate<'a>(
+    root: &str,
+    value: &'a serde_json::Value,
+) -> Option<(String, &'a str)> {
+    match value {
+        serde_json::Value::String(text) => Some((root.to_string(), text)),
+        serde_json::Value::Object(map) => {
+            if let Some(text) = map
+                .get("message")
+                .and_then(|message| message.get("content"))
+                .and_then(serde_json::Value::as_str)
+            {
+                if !text.trim().is_empty() {
+                    return Some((format!("{root}.message.content"), text));
+                }
+            }
+            for key in [
+                "content",
+                "text",
+                "observation",
+                "cmd",
+                "command",
+                "body",
+                "summary",
+                "prompt",
+                "description",
+            ] {
+                let Some(text) = map.get(key).and_then(serde_json::Value::as_str) else {
+                    continue;
+                };
+                if !text.trim().is_empty() {
+                    return Some((format!("{root}.{key}"), text));
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+fn bounded_body_preview(text: &str, max_bytes: usize, tail: bool) -> (&str, bool) {
+    if text.len() <= max_bytes {
+        return (text, false);
+    }
+    if tail {
+        let mut start = text.len().saturating_sub(max_bytes);
+        while start < text.len() && !text.is_char_boundary(start) {
+            start += 1;
+        }
+        (&text[start..], true)
+    } else {
+        let mut end = text.len().min(max_bytes);
+        while end > 0 && !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        (&text[..end], true)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -206,6 +343,18 @@ pub struct ReplayPayloadRange {
     pub eof: bool,
     pub total_bytes: u64,
     pub text: String,
+}
+
+/// Immutable locator for one content-addressed payload body in ORGII's replay
+/// cache. This type is backend-only: renderer wire types continue to expose
+/// only source-neutral event/field payload references.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReplayPayloadArtifactLocator {
+    pub source_id: String,
+    pub source_session_id: String,
+    pub generation: String,
+    pub content_hash: String,
+    pub total_bytes: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -435,6 +584,120 @@ pub fn scan_window_after_generation(
     Ok(scan)
 }
 
+const MAX_PINNED_SCAN_RESTARTS: usize = 2;
+
+/// Materialize every compact turn through bounded pages, then return one
+/// stable generation/revision that strict snapshot readers can replay.
+///
+/// This first pass deliberately retains no chunks. It is required for lazy
+/// SQLite/KV sources, whose older turns legitimately advance the replay
+/// revision when materialized. Once all turns are present, a fresh source sync
+/// verifies that the transcript did not change during preparation. A changing
+/// source restarts at most twice; it can never keep a caller in an endless
+/// chase of a live transcript.
+pub fn prepare_pinned_scan(
+    conn: &mut Connection,
+    source: ImportedHistorySourceId,
+    session_id: &str,
+    limits: ReplayLimits,
+) -> Result<ReplayCursor, String> {
+    source.validate_session_id(session_id)?;
+    ensure_supported(source)?;
+    let limits = limits.bounded();
+
+    retry_pinned_scan_preparation(session_id, || {
+        prepare_pinned_scan_attempt(conn, source, session_id, limits)
+    })
+}
+
+fn retry_pinned_scan_preparation(
+    session_id: &str,
+    mut attempt: impl FnMut() -> Result<Option<ReplayCursor>, String>,
+) -> Result<ReplayCursor, String> {
+    for restart in 0..=MAX_PINNED_SCAN_RESTARTS {
+        if let Some(cursor) = attempt()? {
+            return Ok(cursor);
+        }
+        if restart == MAX_PINNED_SCAN_RESTARTS {
+            break;
+        }
+    }
+    Err(format!(
+        "Imported replay source {session_id} kept changing while preparing a pinned scan after {MAX_PINNED_SCAN_RESTARTS} restarts"
+    ))
+}
+
+fn prepare_pinned_scan_attempt(
+    conn: &mut Connection,
+    source: ImportedHistorySourceId,
+    session_id: &str,
+    limits: ReplayLimits,
+) -> Result<Option<ReplayCursor>, String> {
+    let mut previous_sequence = -1_i64;
+    let mut scan = scan_window_after(conn, source, session_id, previous_sequence, limits)?;
+    loop {
+        if scan.has_more && scan.cursor.through_sequence <= previous_sequence {
+            return Err(format!(
+                "Bounded replay preparation made no progress for {session_id} after sequence {previous_sequence}"
+            ));
+        }
+        previous_sequence = scan.cursor.through_sequence;
+        if !scan.has_more {
+            break;
+        }
+        let Some(next) =
+            continue_pinned_scan_preparation(conn, source, session_id, &scan.cursor, limits)?
+        else {
+            return Ok(None);
+        };
+        scan = next;
+    }
+
+    let prepared = scan.cursor;
+    let verification =
+        scan_window_after(conn, source, session_id, prepared.through_sequence, limits)?;
+    if verification.cursor.generation != prepared.generation
+        || verification.cursor.revision != prepared.revision
+        || verification.has_more
+        || !verification.chunks.is_empty()
+    {
+        return Ok(None);
+    }
+    Ok(Some(verification.cursor))
+}
+
+/// Continue only the discard-only preparation pass without observing the
+/// external source again. Revision growth here can only come from lazy turn
+/// materialization on this connection. A concurrent index change requests a
+/// bounded restart instead of weakening the final strict snapshot.
+fn continue_pinned_scan_preparation(
+    conn: &mut Connection,
+    source: ImportedHistorySourceId,
+    session_id: &str,
+    cursor: &ReplayCursor,
+    limits: ReplayLimits,
+) -> Result<Option<ReplayChunkScan>, String> {
+    validate_cursor_identity(source, session_id, cursor)?;
+    let resolved = index::resolve_source(conn, source, session_id)?;
+    let state = index::load_state(conn, source, &resolved.source_session_id)?
+        .ok_or_else(|| "Replay index state disappeared before continuation".to_string())?;
+    if state.generation != cursor.generation || state.revision != cursor.revision {
+        return Ok(None);
+    }
+    let scan = index::read_scan_after(
+        conn,
+        source,
+        session_id,
+        cursor.through_sequence,
+        limits.bounded(),
+        index::ReplaySyncResult::default(),
+    )?;
+    if scan.cursor.generation != cursor.generation || scan.cursor.revision < cursor.revision {
+        return Ok(None);
+    }
+    Ok(Some(scan))
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn read_payload_range(
     conn: &mut Connection,
@@ -454,6 +717,102 @@ pub fn read_payload_range(
     index::read_payload_range(
         conn, source, session_id, generation, event_id, field_path, offset, max_bytes,
     )
+}
+
+/// Ensure one deferred payload has an immutable content-addressed artifact.
+///
+/// The caller owns `tx` so publishing a derived Shell manifest can occur in
+/// the same transaction as the content hash. Direct provider ranges are read
+/// in bounded pages and streamed into SQLite incremental BLOB I/O; no complete
+/// payload is assembled in Rust.
+#[allow(clippy::too_many_arguments)]
+pub fn materialize_payload_artifact(
+    tx: &Transaction<'_>,
+    source: ImportedHistorySourceId,
+    session_id: &str,
+    generation: &str,
+    event_id: &str,
+    field_path: &str,
+) -> Result<ReplayPayloadArtifactLocator, String> {
+    source.validate_session_id(session_id)?;
+    ensure_supported(source)?;
+    index::materialize_payload_artifact(tx, source, session_id, generation, event_id, field_path)
+}
+
+/// Store a payload produced by an ORGII-owned replay adapter (managed CLI or
+/// collaboration snapshot) in the same content-addressed artifact store.
+/// The caller keeps manifest publication in this transaction.
+#[allow(clippy::too_many_arguments)]
+pub fn store_scoped_payload_artifact_streamed<F>(
+    tx: &Transaction<'_>,
+    source_id: &str,
+    source_session_id: &str,
+    generation: &str,
+    event_id: &str,
+    field_path: &str,
+    total_bytes: u64,
+    produce: F,
+) -> Result<ReplayPayloadArtifactLocator, String>
+where
+    F: FnOnce(&mut dyn std::io::Write) -> Result<(), String>,
+{
+    if source_id.is_empty() || source_session_id.is_empty() || generation.is_empty() {
+        return Err("Replay payload artifact scope must be non-empty".to_string());
+    }
+    let content_hash = payload_artifact::store_streamed_for_scope(
+        tx,
+        source_id,
+        source_session_id,
+        generation,
+        event_id,
+        field_path,
+        total_bytes,
+        produce,
+    )?;
+    Ok(ReplayPayloadArtifactLocator {
+        source_id: source_id.to_string(),
+        source_session_id: source_session_id.to_string(),
+        generation: generation.to_string(),
+        content_hash,
+        total_bytes,
+    })
+}
+
+/// Reuse a body only inside an immutable ORGII-owned managed/snapshot epoch.
+/// Vendor adapters intentionally do not call this API because their rows may
+/// update in place while the surrounding replay generation remains stable.
+#[allow(clippy::too_many_arguments)]
+pub fn find_scoped_payload_artifact(
+    tx: &Transaction<'_>,
+    source_id: &str,
+    source_session_id: &str,
+    generation: &str,
+    event_id: &str,
+    field_path: &str,
+    expected_bytes: u64,
+) -> Result<Option<ReplayPayloadArtifactLocator>, String> {
+    if source_id.is_empty() || source_session_id.is_empty() || generation.is_empty() {
+        return Err("Replay payload artifact scope must be non-empty".to_string());
+    }
+    let Some(content_hash) = payload_artifact::find_for_immutable_scope(
+        tx,
+        source_id,
+        source_session_id,
+        generation,
+        event_id,
+        field_path,
+        expected_bytes,
+    )?
+    else {
+        return Ok(None);
+    };
+    Ok(Some(ReplayPayloadArtifactLocator {
+        source_id: source_id.to_string(),
+        source_session_id: source_session_id.to_string(),
+        generation: generation.to_string(),
+        content_hash,
+        total_bytes: expected_bytes,
+    }))
 }
 
 /// Return whether a JSON object field exists only in a compact replay row.
@@ -557,6 +916,66 @@ mod tests {
         }
         assert!(!is_compact_only_replay_field("output"));
         assert!(!is_compact_only_replay_field("path"));
+    }
+
+    #[test]
+    fn payload_encoding_is_explicit_on_new_wire_rows_and_inferred_only_for_legacy_rows() {
+        let legacy_root: ReplayPayloadDescriptor = serde_json::from_value(serde_json::json!({
+            "fieldPath":"args",
+            "kind":"tool_arguments",
+            "spans":[],
+            "totalBytes":12
+        }))
+        .expect("legacy root descriptor");
+        let legacy_nested: ReplayPayloadDescriptor = serde_json::from_value(serde_json::json!({
+            "fieldPath":"result.content.0.text",
+            "kind":"assistant_content",
+            "spans":[],
+            "totalBytes":12
+        }))
+        .expect("legacy nested descriptor");
+        assert_eq!(
+            legacy_root.resolved_encoding(),
+            ReplayPayloadEncoding::JsonValue
+        );
+        assert_eq!(
+            legacy_nested.resolved_encoding(),
+            ReplayPayloadEncoding::Utf8Text
+        );
+
+        let descriptor = ReplayPayloadDescriptor {
+            field_path: "args".to_string(),
+            kind: ReplayPayloadKind::ToolArguments,
+            encoding: ReplayPayloadEncoding::JsonValue,
+            body_projection: Some(ReplayPayloadBodyProjection {
+                field_path: "args.command".to_string(),
+                text: "cargo test".to_string(),
+                truncated: false,
+            }),
+            spans: Vec::new(),
+            total_bytes: 12,
+            source_ordinal: None,
+            source_key: None,
+        };
+        let wire = serde_json::to_value(descriptor).expect("descriptor wire JSON");
+        assert_eq!(wire["encoding"], "json_value");
+        assert_eq!(wire["bodyProjection"]["fieldPath"], "args.command");
+        assert_eq!(wire["bodyProjection"]["text"], "cargo test");
+    }
+
+    #[test]
+    fn root_body_projection_uses_semantic_priority_and_utf8_byte_limit() {
+        let value = serde_json::json!({
+            "description":"lower-priority",
+            "command":format!("BEGIN{}END", "你".repeat(20))
+        });
+        let projection = replay_payload_body_projection("args", &value, None, 20, false)
+            .expect("semantic body projection");
+        assert_eq!(projection.field_path, "args.command");
+        assert!(projection.text.starts_with("BEGIN"));
+        assert!(projection.text.len() <= 20);
+        assert!(projection.truncated);
+        assert!(std::str::from_utf8(projection.text.as_bytes()).is_ok());
     }
 
     #[test]
@@ -1175,5 +1594,18 @@ mod tests {
         .expect("scan pinned generation");
         assert_eq!(pinned.cursor.generation, opened.cursor.generation);
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn pinned_scan_preparation_restarts_only_twice() {
+        let attempts = std::cell::Cell::new(0usize);
+        let error = retry_pinned_scan_preparation("codexapp-changing", || {
+            attempts.set(attempts.get().saturating_add(1));
+            Ok(None)
+        })
+        .expect_err("continuously changing source must stop");
+        assert_eq!(attempts.get(), MAX_PINNED_SCAN_RESTARTS + 1);
+        assert!(error.contains("kept changing"));
+        assert!(error.contains("after 2 restarts"));
     }
 }

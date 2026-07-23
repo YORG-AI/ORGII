@@ -14,9 +14,9 @@ use super::metadata::{
     RoundUsage,
 };
 use super::{
-    effective_limit, recent_paths_from_rows, row_from_input, ImportedHistoryRecentPath,
-    ImportedHistoryRowInput, ImportedHistorySessionPage, ImportedHistorySessionRow,
-    ImportedHistorySidebarPage, ImportedHistorySidebarRow,
+    effective_limit, epoch_ms_to_iso, repo_name_from_path, row_from_input,
+    ImportedHistoryRecentPath, ImportedHistoryRowInput, ImportedHistorySessionPage,
+    ImportedHistorySessionRow, ImportedHistorySidebarPage, ImportedHistorySidebarRow,
 };
 
 #[derive(Debug, Clone)]
@@ -448,16 +448,34 @@ pub fn query_imported_recent_paths_from_conn(
     source: &str,
     limit: usize,
 ) -> Result<Vec<ImportedHistoryRecentPath>, String> {
-    let rows = query_cached_sessions_from_conn(conn, source, i64::MAX as usize, 0)?;
-    Ok(recent_paths_from_rows(
-        &rows
-            .into_iter()
-            .map(|session| session.to_row())
-            .collect::<Vec<_>>(),
-    )
-    .into_iter()
-    .take(effective_limit(limit))
-    .collect())
+    // Group and bound inside SQLite. The old implementation decoded every
+    // cached session (including touched-files JSON) into two Rust vectors and
+    // only then truncated to `limit`, so a lightweight Spotlight/settings
+    // query still grew with the number of historical sessions.
+    let mut statement = conn
+        .prepare(
+            "SELECT TRIM(repo_path) AS path, MAX(updated_at_ms), COUNT(*)
+             FROM imported_history_session_cache
+             WHERE source=?1 AND listable=1 AND parent_session_id=''
+               AND TRIM(repo_path)!=''
+             GROUP BY TRIM(repo_path)
+             ORDER BY MAX(updated_at_ms) DESC, path ASC
+             LIMIT ?2",
+        )
+        .map_err(|err| format!("Failed to prepare imported recent-path query: {err}"))?;
+    let rows = statement
+        .query_map(params![source, effective_limit(limit) as i64], |row| {
+            let path = row.get::<_, String>(0)?;
+            Ok(ImportedHistoryRecentPath {
+                name: repo_name_from_path(&path),
+                path,
+                last_used_at: epoch_ms_to_iso(row.get::<_, i64>(1)?),
+                session_count: row.get::<_, i64>(2)?.max(0) as usize,
+            })
+        })
+        .map_err(|err| format!("Failed to query imported recent paths: {err}"))?;
+    rows.map(|row| row.map_err(|err| format!("Failed to read imported recent path: {err}")))
+        .collect()
 }
 
 pub fn get_cached_source_path_from_conn(

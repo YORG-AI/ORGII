@@ -5,6 +5,7 @@ pub mod managed_roots;
 pub mod metadata;
 pub mod paths;
 pub mod replay;
+pub mod router;
 
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;

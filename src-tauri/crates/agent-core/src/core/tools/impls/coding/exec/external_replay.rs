@@ -13,6 +13,7 @@ use core_types::session_event::{
     EventDisplayStatus, SessionEvent, ShellReplayBookmark, ShellReplayRef, ShellReplayState,
     ShellReplayStatus,
 };
+use sha2::{Digest, Sha256};
 
 use super::shell_replay::{
     complete_terminal_prefix_len, load_complete_replay_state_if_matches, load_replay_state,
@@ -22,9 +23,9 @@ use super::shell_replay::{
 };
 
 #[derive(Clone, Copy)]
-struct OutputPart<'a> {
-    stream: ShellReplayStream,
-    text: &'a str,
+pub struct ExternalShellInlineSegment<'a> {
+    pub stream: ShellReplayStream,
+    pub text: &'a str,
 }
 
 /// One externally-addressable stdout/stderr payload that belongs in a shell
@@ -61,14 +62,17 @@ impl<L> ExternalShellReplaySegment<L> {
 /// parsers. Events that already own a replay are left untouched.
 pub fn persist_external_shell_replays(events: &mut [SessionEvent]) {
     for event in events {
-        let call_id = event.call_id.clone().unwrap_or_else(|| event.id.clone());
+        let base = event.call_id.as_deref().unwrap_or(&event.id);
+        let call_id = external_shell_inline_identity(event)
+            .map(|identity| format!("{base}-external-{identity}"))
+            .unwrap_or_else(|| base.to_string());
         persist_external_shell_replay_inline(event, &call_id);
     }
 }
 
 /// Inline counterpart with an explicit durable artifact key. Imported replay
-/// callers include their source generation in this key so a same-sized output
-/// after transcript replacement can never reuse a stale `.slog`.
+/// callers provide a content-addressed key. Length alone is never accepted as
+/// identity, so a same-sized output update cannot reuse a stale `.slog`.
 pub fn persist_external_shell_replay_inline(event: &mut SessionEvent, artifact_call_id: &str) {
     if event.ui_canonical != core_types::tool_names::RUN_SHELL
         || event.shell_replay.is_some()
@@ -76,7 +80,7 @@ pub fn persist_external_shell_replay_inline(event: &mut SessionEvent, artifact_c
     {
         return;
     }
-    let parts = output_parts(event);
+    let parts = external_shell_inline_segments(event);
     if parts.is_empty() {
         return;
     }
@@ -111,9 +115,6 @@ pub fn persist_external_shell_replay_inline(event: &mut SessionEvent, artifact_c
 /// The callback is never asked for more than
 /// [`SHELL_REPLAY_RANGE_MAX_BYTES`] and each returned buffer is immediately
 /// split into `.slog` frames. No complete stdout/stderr `String` is assembled.
-/// The sum of `expected_bytes` is also the cache key used to reuse an existing
-/// complete artifact for the same session/call.
-///
 /// A callback may return fewer bytes than requested, but returning an empty
 /// buffer before the segment's declared length or returning more than the
 /// requested range makes the event explicitly incomplete.
@@ -150,12 +151,11 @@ pub fn persist_external_shell_replay_segments_with_call_id<L, ReadRange>(
         total.checked_add(segment.expected_bytes)
     });
     let result = match expected_bytes {
-        Some(expected_bytes) => persist_one_from_segments(
+        Some(_) => persist_one_from_segments(
             event,
             artifact_call_id,
             &replay_root,
             segments,
-            expected_bytes,
             &mut read_range,
         ),
         None => Err("external shell replay byte count overflow".to_string()),
@@ -178,21 +178,11 @@ fn persist_one_from_segments<L, ReadRange>(
     call_id: &str,
     replay_root: &Path,
     segments: &[ExternalShellReplaySegment<L>],
-    expected_bytes: u64,
     read_range: &mut ReadRange,
 ) -> Result<ShellReplayState, String>
 where
     ReadRange: FnMut(&L, u64, usize) -> Result<Vec<u8>, String>,
 {
-    if let Some(state) = load_complete_replay_state_if_matches(
-        replay_root,
-        &event.session_id,
-        call_id,
-        expected_bytes,
-    )? {
-        return Ok(state);
-    }
-
     let command = event
         .command
         .as_deref()
@@ -250,7 +240,7 @@ fn persist_one(
     event: &SessionEvent,
     call_id: &str,
     replay_root: &Path,
-    parts: &[OutputPart<'_>],
+    parts: &[ExternalShellInlineSegment<'_>],
     expected_bytes: u64,
 ) -> Result<ShellReplayState, String> {
     if let Some(state) = load_complete_replay_state_if_matches(
@@ -350,7 +340,9 @@ impl ExternalFrameBuffer {
     }
 }
 
-fn output_parts(event: &SessionEvent) -> Vec<OutputPart<'_>> {
+pub fn external_shell_inline_segments(
+    event: &SessionEvent,
+) -> Vec<ExternalShellInlineSegment<'_>> {
     for path in [
         &["interleavedOutput"][..],
         &["aggregated_output"][..],
@@ -358,7 +350,7 @@ fn output_parts(event: &SessionEvent) -> Vec<OutputPart<'_>> {
     ] {
         if let Some(text) = string_at_path(&event.result, path) {
             if !text.is_empty() {
-                return vec![OutputPart {
+                return vec![ExternalShellInlineSegment {
                     stream: ShellReplayStream::Stdout,
                     text,
                 }];
@@ -381,13 +373,13 @@ fn output_parts(event: &SessionEvent) -> Vec<OutputPart<'_>> {
     if stdout.is_some() || stderr.is_some() {
         let mut parts = Vec::with_capacity(2);
         if let Some(text) = stdout.filter(|text| !text.is_empty()) {
-            parts.push(OutputPart {
+            parts.push(ExternalShellInlineSegment {
                 stream: ShellReplayStream::Stdout,
                 text,
             });
         }
         if let Some(text) = stderr.filter(|text| !text.is_empty()) {
-            parts.push(OutputPart {
+            parts.push(ExternalShellInlineSegment {
                 stream: ShellReplayStream::Stderr,
                 text,
             });
@@ -398,7 +390,7 @@ fn output_parts(event: &SessionEvent) -> Vec<OutputPart<'_>> {
     if let Some(ExtractedData::Shell(shell)) = event.extracted.as_ref() {
         if let Some(text) = shell.stream_output.as_deref().or(shell.output.as_deref()) {
             if !text.is_empty() {
-                return vec![OutputPart {
+                return vec![ExternalShellInlineSegment {
                     stream: ShellReplayStream::Stdout,
                     text,
                 }];
@@ -413,7 +405,7 @@ fn output_parts(event: &SessionEvent) -> Vec<OutputPart<'_>> {
     ] {
         if let Some(text) = string_at_path(&event.result, path) {
             if !text.is_empty() {
-                return vec![OutputPart {
+                return vec![ExternalShellInlineSegment {
                     stream: ShellReplayStream::Stdout,
                     text,
                 }];
@@ -421,6 +413,32 @@ fn output_parts(event: &SessionEvent) -> Vec<OutputPart<'_>> {
         }
     }
     Vec::new()
+}
+
+/// SHA-256 over ordered `(stream, byte-length, bytes)` tuples. Stream tags and
+/// tuple boundaries are part of the digest, so `stdout=A, stderr=B` cannot
+/// alias `stdout=AB` or the reversed stream order.
+pub fn external_shell_inline_identity(event: &SessionEvent) -> Option<String> {
+    let parts = external_shell_inline_segments(event);
+    if parts.is_empty() {
+        return None;
+    }
+    let mut hash = Sha256::new();
+    hash.update(b"orgii-external-shell-inline-v1\0");
+    for part in parts {
+        hash.update([match part.stream {
+            ShellReplayStream::Stdout => 1,
+            ShellReplayStream::Stderr => 2,
+        }]);
+        hash.update((part.text.len() as u64).to_le_bytes());
+        hash.update(part.text.as_bytes());
+    }
+    Some(
+        hash.finalize()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect(),
+    )
 }
 
 fn first_string_at_paths<'a>(value: &'a serde_json::Value, paths: &[&[&str]]) -> Option<&'a str> {
@@ -438,7 +456,7 @@ fn string_at_path<'a>(value: &'a serde_json::Value, path: &[&str]) -> Option<&'a
 fn incomplete_preview_state(
     event: &SessionEvent,
     call_id: &str,
-    parts: &[OutputPart<'_>],
+    parts: &[ExternalShellInlineSegment<'_>],
     error: String,
 ) -> ShellReplayState {
     let mut preview = String::new();
@@ -688,19 +706,97 @@ mod tests {
         assert_eq!(offset, TEN_MIB);
         assert_eq!(actual_hash.finalize(), expected_hash);
 
-        // A complete artifact with the same expected byte count is reused;
-        // the source locators are not read a second time.
+        // Same call id and byte length are not content identity. A provider
+        // update must read the source again and replace the stale `.slog`.
+        let changed_segments = vec![
+            ExternalShellReplaySegment::new(
+                ShellReplayStream::Stdout,
+                GeneratedPayload { seed: 29 },
+                SIX_MIB,
+                "changed stdout tail",
+            ),
+            ExternalShellReplaySegment::new(
+                ShellReplayStream::Stderr,
+                GeneratedPayload { seed: 47 },
+                FOUR_MIB,
+                "changed stderr tail",
+            ),
+        ];
+        let changed_expected_hash = hash_generated_segments(&changed_segments);
+        assert_ne!(changed_expected_hash, expected_hash);
         let mut reopened = external_shell_event(String::new());
+        let mut changed_source_reads = 0_usize;
         persist_external_shell_replay_segments(
             &mut reopened,
-            &segments,
-            |_locator, _offset, _requested| {
-                panic!("matching complete replay should bypass source reads")
+            &changed_segments,
+            |locator, offset, requested| {
+                changed_source_reads += 1;
+                Ok(generated_payload_range(locator, offset, requested))
             },
         );
+        let changed_state = reopened
+            .shell_replay
+            .as_ref()
+            .expect("updated replay state");
+        assert_eq!(changed_state.status, ShellReplayStatus::Complete);
+        assert!(changed_source_reads > 1);
+
+        let mut changed_actual_hash = blake3::Hasher::new();
+        let mut changed_offset = 0_u64;
+        while changed_offset < TEN_MIB {
+            let range = runtime
+                .block_on(super::super::shell_replay::shell_replay_read_range(
+                    reopened.session_id.clone(),
+                    reopened.call_id.clone().unwrap(),
+                    changed_state.bookmark.visible_through_sequence,
+                    changed_state.bookmark.visible_bytes,
+                    changed_offset,
+                    SHELL_REPLAY_RANGE_MAX_BYTES as u64,
+                ))
+                .unwrap();
+            assert!(range.next_offset_bytes > changed_offset);
+            for frame in range.frames {
+                changed_actual_hash.update(frame.text.as_bytes());
+            }
+            changed_offset = range.next_offset_bytes;
+            if range.eof {
+                break;
+            }
+        }
+        assert_eq!(changed_offset, TEN_MIB);
+        assert_eq!(changed_actual_hash.finalize(), changed_expected_hash);
+    }
+
+    #[test]
+    fn inline_identity_includes_content_stream_and_segment_boundaries() {
+        let mut split = external_shell_event(String::new());
+        split.result = serde_json::json!({"stdout":"ab","stderr":"c","exit_code":0});
+        let split_identity = external_shell_inline_identity(&split).expect("split identity");
+
+        let mut moved_boundary = external_shell_event(String::new());
+        moved_boundary.result = serde_json::json!({"stdout":"a","stderr":"bc","exit_code":0});
+        let moved_identity =
+            external_shell_inline_identity(&moved_boundary).expect("moved boundary identity");
+
+        let combined = external_shell_event("abc".to_string());
+        let combined_identity =
+            external_shell_inline_identity(&combined).expect("combined identity");
+        assert_ne!(split_identity, moved_identity);
+        assert_ne!(split_identity, combined_identity);
+        assert_ne!(moved_identity, combined_identity);
+
+        let mut same_length_update = external_shell_event(String::new());
+        same_length_update.result = serde_json::json!({"stdout":"ax","stderr":"c","exit_code":0});
         assert_eq!(
-            reopened.shell_replay.unwrap().status,
-            ShellReplayStatus::Complete
+            external_shell_inline_segments(&same_length_update)
+                .iter()
+                .map(|part| part.text.len())
+                .sum::<usize>(),
+            3
+        );
+        assert_ne!(
+            split_identity,
+            external_shell_inline_identity(&same_length_update).expect("updated identity")
         );
     }
 

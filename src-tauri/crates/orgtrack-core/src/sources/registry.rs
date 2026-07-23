@@ -5,11 +5,11 @@
 //! only the catalog refresher, then page ORGII's compact cache; they never call
 //! the legacy transcript loaders that materialize complete histories.
 //!
-//! The read side already has its router:
-//! [`super::imported_history::load_activity_chunks_for_session`] takes a
-//! `session_id` and returns the session's [`core_types::activity::ActivityChunk`]
-//! stream regardless of which provider owns it. This module is the write/scan
-//! twin — enumerate the providers, scan one (or all) of them into a
+//! The read side already has its bounded router:
+//! [`super::imported_history::router::scan_activity_chunks_for_session`] takes
+//! a `session_id` and returns compact replay pages regardless of which provider
+//! owns it. This module is the write/scan twin — enumerate the providers, scan
+//! one (or all) of them into a
 //! connection, and let the analytics layer ([`crate::usage_dashboard`],
 //! [`crate::session_usage`]) read the result. Hosts that want a bare,
 //! app-independent store (tests, the `orgtrack` CLI) get the whole loading
@@ -179,6 +179,14 @@ mod tests {
             assert!(!source.label.is_empty(), "empty label for {}", source.id);
             assert!(seen.insert(source.id), "duplicate source id {}", source.id);
         }
+        let authoritative = ImportedHistorySourceId::ALL
+            .into_iter()
+            .map(ImportedHistorySourceId::as_str)
+            .collect::<std::collections::HashSet<_>>();
+        assert_eq!(
+            seen, authoritative,
+            "the scan registry and bounded replay registry must contain exactly the same sources"
+        );
     }
 
     #[test]

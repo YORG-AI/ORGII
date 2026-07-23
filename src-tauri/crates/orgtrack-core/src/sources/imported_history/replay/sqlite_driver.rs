@@ -21,7 +21,8 @@ use crate::sources::imported_history::{self, replay::ImportedHistorySourceId};
 use super::index::ReplayIndexState;
 use super::payload_artifact;
 use super::{
-    ReplayPayloadDescriptor, ReplayPayloadKind, ReplayPayloadRange, ReplayStats,
+    replay_payload_body_projection, ReplayPayloadBodyProjection, ReplayPayloadDescriptor,
+    ReplayPayloadEncoding, ReplayPayloadKind, ReplayPayloadRange, ReplayStats,
     NORMAL_PAYLOAD_PREVIEW_BYTES, SHELL_PAYLOAD_PREVIEW_BYTES,
 };
 
@@ -1211,6 +1212,15 @@ fn compact_chunk_with_bodies(
     } else {
         NORMAL_PAYLOAD_PREVIEW_BYTES
     };
+    let result_body_projection = exact_result_body.as_deref().and_then(|encoded| {
+        replay_payload_body_projection(
+            "result",
+            &chunk.result,
+            Some(encoded),
+            result_limit,
+            chunk.function == imported_history::FUNCTION_RUN_COMMAND_LINE,
+        )
+    });
     let result_fields: &[(&str, ReplayPayloadKind)] = match chunk.function.as_str() {
         imported_history::FUNCTION_USER_MESSAGE => {
             &[("result.message.content", ReplayPayloadKind::UserMessage)]
@@ -1240,6 +1250,8 @@ fn compact_chunk_with_bodies(
                 payloads.push(sqlite_payload_descriptor(
                     path,
                     kind,
+                    ReplayPayloadEncoding::Utf8Text,
+                    None,
                     source_key,
                     total_bytes,
                 ));
@@ -1247,7 +1259,19 @@ fn compact_chunk_with_bodies(
         }
     }
     let args_size = encoded_args.len();
-    if args_size > NORMAL_PAYLOAD_PREVIEW_BYTES {
+    let args_limit = if chunk.function == imported_history::FUNCTION_RUN_COMMAND_LINE {
+        SHELL_PAYLOAD_PREVIEW_BYTES
+    } else {
+        NORMAL_PAYLOAD_PREVIEW_BYTES
+    };
+    if args_size > args_limit {
+        let args_body_projection = replay_payload_body_projection(
+            "args",
+            &chunk.args,
+            Some(&encoded_args),
+            args_limit,
+            false,
+        );
         let mut original = std::mem::take(&mut chunk.args);
         let mut compact = serde_json::Map::new();
         compact.insert("_replayTruncated".to_string(), Value::Bool(true));
@@ -1268,11 +1292,11 @@ fn compact_chunk_with_bodies(
                 continue;
             };
             if let Value::String(text) = value {
-                if text.len() > NORMAL_PAYLOAD_PREVIEW_BYTES {
+                if text.len() > args_limit {
                     let full_text = std::mem::take(text);
                     compact.insert(
                         key.to_string(),
-                        Value::String(head_preview(&full_text, NORMAL_PAYLOAD_PREVIEW_BYTES)),
+                        Value::String(head_preview(&full_text, args_limit)),
                     );
                 } else {
                     compact.insert(key.to_string(), Value::String(text.clone()));
@@ -1284,7 +1308,7 @@ fn compact_chunk_with_bodies(
         if compact.len() == 1 {
             compact.insert(
                 "_preview".to_string(),
-                Value::String(head_preview(&encoded_args, NORMAL_PAYLOAD_PREVIEW_BYTES)),
+                Value::String(head_preview(&encoded_args, args_limit)),
             );
         }
         chunk.args = Value::Object(compact);
@@ -1296,6 +1320,7 @@ fn compact_chunk_with_bodies(
         payloads.push(sqlite_artifact_payload_descriptor(
             "args",
             ReplayPayloadKind::ToolArguments,
+            args_body_projection,
             args_size as u64,
         ));
         deferred_bodies.push(DeferredPayloadBody {
@@ -1312,6 +1337,7 @@ fn compact_chunk_with_bodies(
         payloads.push(sqlite_artifact_payload_descriptor(
             "result",
             ReplayPayloadKind::ToolOutput,
+            result_body_projection,
             exact_result_body.len() as u64,
         ));
         deferred_bodies.retain(|body| !field_path_is_under(&body.field_path, "result"));
@@ -1333,12 +1359,16 @@ fn field_path_is_under(field_path: &str, root: &str) -> bool {
 fn sqlite_payload_descriptor(
     field_path: &str,
     kind: ReplayPayloadKind,
+    encoding: ReplayPayloadEncoding,
+    body_projection: Option<ReplayPayloadBodyProjection>,
     source_key: &str,
     total_bytes: u64,
 ) -> ReplayPayloadDescriptor {
     ReplayPayloadDescriptor {
         field_path: field_path.to_string(),
         kind,
+        encoding,
+        body_projection,
         spans: Vec::new(),
         total_bytes,
         source_ordinal: None,
@@ -1349,11 +1379,14 @@ fn sqlite_payload_descriptor(
 fn sqlite_artifact_payload_descriptor(
     field_path: &str,
     kind: ReplayPayloadKind,
+    body_projection: Option<ReplayPayloadBodyProjection>,
     total_bytes: u64,
 ) -> ReplayPayloadDescriptor {
     ReplayPayloadDescriptor {
         field_path: field_path.to_string(),
         kind,
+        encoding: ReplayPayloadEncoding::JsonValue,
+        body_projection,
         spans: Vec::new(),
         total_bytes,
         source_ordinal: None,
@@ -1727,7 +1760,8 @@ mod tests {
     use super::*;
     use crate::projectors::turn_metadata::TurnMetadataAccumulator;
     use crate::sources::imported_history::replay::{
-        open_window, poll_delta, read_payload_range, scan_window_after, ReplayLimits,
+        materialize_payload_artifact, open_window, poll_delta, prepare_pinned_scan,
+        read_payload_range, scan_window_after, scan_window_after_generation, ReplayLimits,
     };
     use crate::store::sqlite::SqliteRecordStore;
 
@@ -2313,6 +2347,56 @@ mod tests {
     }
 
     #[test]
+    fn kv_prepare_then_strict_scan_crosses_three_lazy_turns() {
+        for source in [
+            ImportedHistorySourceId::CursorIde,
+            ImportedHistorySourceId::Windsurf,
+        ] {
+            let path = temp_db(&format!("{}-cursor-continuation", source.as_str()));
+            let writer = create_kv_db(&path, "c1");
+            write_kv_transcript(&writer, "c1", &[1, 2, 1, 2, 1, 2]);
+            let (mut cache, session_id) = cache_conn(source, "c1", &path);
+            open_window(&mut cache, source, &session_id, ReplayLimits::default())
+                .expect("cold bounded KV replay");
+
+            let limits = ReplayLimits {
+                max_turns: 1,
+                max_events: 1,
+                max_ipc_bytes: 4 * 1024 * 1024,
+            };
+            let prepared = prepare_pinned_scan(&mut cache, source, &session_id, limits)
+                .expect("prepare stable lazy KV scan");
+            let pinned_generation = prepared.generation.clone();
+            let pinned_revision = prepared.revision;
+            let mut after_sequence = -1;
+            let mut sequences = Vec::new();
+            for _ in 0..10 {
+                let scan = scan_window_after_generation(
+                    &mut cache,
+                    source,
+                    &session_id,
+                    &pinned_generation,
+                    pinned_revision,
+                    after_sequence,
+                    limits,
+                )
+                .expect("strict scan across prepared KV turns");
+                sequences.extend(scan.chunks.iter().map(|chunk| chunk.sequence));
+                assert_eq!(scan.cursor.generation, pinned_generation);
+                assert_eq!(scan.cursor.revision, pinned_revision);
+                assert!(scan.cursor.through_sequence > after_sequence || !scan.has_more);
+                after_sequence = scan.cursor.through_sequence;
+                if !scan.has_more {
+                    break;
+                }
+            }
+            assert_eq!(sequences, vec![0, 1, 2, 3, 4, 5], "{}", source.as_str());
+            drop(writer);
+            let _ = std::fs::remove_file(path);
+        }
+    }
+
+    #[test]
     fn kv_reorder_rebuilds_stable_events_without_sequence_collisions() {
         for source in [
             ImportedHistorySourceId::CursorIde,
@@ -2464,6 +2548,115 @@ mod tests {
     }
 
     #[test]
+    fn same_length_sqlite_row_update_replaces_materialized_payload_hash() {
+        let path = temp_db("opencode-same-length-shell-update");
+        let writer = create_part_db(&path, "s1");
+        let first_output = format!("BEGIN{}END", "A".repeat(96 * 1024));
+        let second_output = format!("BEGIN{}END", "B".repeat(96 * 1024));
+        assert_eq!(first_output.len(), second_output.len());
+        let part = |output: &str| {
+            serde_json::json!({
+                "type":"tool",
+                "tool":"bash",
+                "callID":"call-same-length",
+                "state":{
+                    "status":"completed",
+                    "input":{"command":"emit same length"},
+                    "output":output
+                }
+            })
+        };
+        insert_part(&writer, "s1", 0, "assistant", part(&first_output));
+        let (mut cache, session_id) = cache_conn(ImportedHistorySourceId::OpenCode, "s1", &path);
+        let opened = open_window(
+            &mut cache,
+            ImportedHistorySourceId::OpenCode,
+            &session_id,
+            ReplayLimits::default(),
+        )
+        .expect("open same-length SQLite Shell fixture");
+        let indexed = opened.chunks.first().expect("SQLite Shell event");
+        let event_id = indexed.chunk.chunk_id.clone();
+        assert!(indexed
+            .payloads
+            .iter()
+            .any(|payload| payload.field_path == "result.output"));
+        let first_hash = {
+            let tx = cache.transaction().expect("first payload artifact");
+            let locator = materialize_payload_artifact(
+                &tx,
+                ImportedHistorySourceId::OpenCode,
+                &session_id,
+                &opened.cursor.generation,
+                &event_id,
+                "result.output",
+            )
+            .expect("materialize first SQLite Shell payload");
+            tx.commit().expect("commit first payload artifact");
+            locator.content_hash
+        };
+
+        writer
+            .execute(
+                "UPDATE part SET data=?1 WHERE id='part-000000'",
+                [part(&second_output).to_string()],
+            )
+            .expect("same-length SQLite row update");
+        writer
+            .execute("UPDATE session SET time_updated=2 WHERE id='s1'", [])
+            .expect("advance SQLite session clock");
+        let updated = poll_delta(
+            &mut cache,
+            ImportedHistorySourceId::OpenCode,
+            &session_id,
+            &opened.cursor,
+            ReplayLimits::default(),
+        )
+        .expect("poll same-length SQLite update");
+        assert!(!updated.reset_required);
+        assert_eq!(updated.cursor.generation, opened.cursor.generation);
+        assert_eq!(updated.stats.parsed_rows, 1);
+
+        let second_hash = {
+            let tx = cache.transaction().expect("updated payload artifact");
+            let locator = materialize_payload_artifact(
+                &tx,
+                ImportedHistorySourceId::OpenCode,
+                &session_id,
+                &updated.cursor.generation,
+                &event_id,
+                "result.output",
+            )
+            .expect("materialize changed SQLite Shell payload");
+            tx.commit().expect("commit changed payload artifact");
+            locator.content_hash
+        };
+        assert_ne!(first_hash, second_hash, "content, not length, is identity");
+        let restored = read_full_payload(
+            &mut cache,
+            ImportedHistorySourceId::OpenCode,
+            &session_id,
+            &updated.cursor.generation,
+            &event_id,
+            "result.output",
+        );
+        assert_eq!(restored, second_output);
+        assert_eq!(
+            cache
+                .query_row(
+                    "SELECT COUNT(*) FROM imported_replay_payload_artifacts
+                     WHERE source='opencode' AND generation=?1",
+                    [&updated.cursor.generation],
+                    |row| row.get::<_, i64>(0),
+                )
+                .expect("live same-length artifact count"),
+            1
+        );
+        drop(writer);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
     fn sqlite_git_projection_metadata_does_not_leak_from_exact_result() {
         let path = temp_db("opencode-git-root-result");
         let writer = create_part_db(&path, "s1");
@@ -2559,11 +2752,20 @@ mod tests {
             .get("command")
             .and_then(Value::as_str)
             .expect("semantic command preview");
-        assert!(preview.len() < NORMAL_PAYLOAD_PREVIEW_BYTES + 64);
-        assert!(event
+        assert!(preview.len() < SHELL_PAYLOAD_PREVIEW_BYTES + 64);
+        let payload = event
             .payloads
             .iter()
-            .any(|payload| payload.field_path == "args"));
+            .find(|payload| payload.field_path == "args")
+            .expect("root args payload");
+        assert_eq!(payload.encoding, ReplayPayloadEncoding::JsonValue);
+        let projection = payload
+            .body_projection
+            .as_ref()
+            .expect("bounded root body projection");
+        assert_eq!(projection.field_path, "args.cmd");
+        assert!(projection.truncated);
+        assert!(projection.text.len() <= SHELL_PAYLOAD_PREVIEW_BYTES);
 
         let reconstructed = read_full_payload(
             &mut cache,

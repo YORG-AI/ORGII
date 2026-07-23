@@ -42,6 +42,40 @@ pub(crate) struct ReplayCatalogProjection {
     pub last_usage_message_id: Option<String>,
 }
 
+/// Snapshot of the mixed-ownership imported catalog row around one replay
+/// projection. Discovery-owned signature fields are included as guards: if an
+/// adapter refresh changes the row after replay publication, cache eviction
+/// must preserve that newer row instead of restoring an obsolete baseline.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct ReplayCatalogRowSnapshot {
+    session_id: String,
+    source_path: String,
+    source_record_key: String,
+    source_mtime_ms: i64,
+    source_size_bytes: i64,
+    source_fingerprint: String,
+    parser_version: i64,
+    listable: i64,
+    name: String,
+    created_at_ms: i64,
+    updated_at_ms: i64,
+    model: String,
+    input_tokens: i64,
+    output_tokens: i64,
+    cache_read_tokens: i64,
+    cache_write_tokens: i64,
+    repo_path: String,
+    branch: String,
+    files_changed: i64,
+    lines_added: i64,
+    lines_removed: i64,
+    touched_files_json: String,
+    source_metadata_json: String,
+    parent_session_id: String,
+    updated_at: String,
+}
+
 impl ReplayCatalogProjection {
     pub(crate) fn observe_jsonl(
         &mut self,
@@ -291,6 +325,184 @@ pub fn refresh_source(
     }
 }
 
+fn read_replay_catalog_row(
+    tx: &Transaction<'_>,
+    source: &str,
+    source_session_id: &str,
+) -> Result<Option<ReplayCatalogRowSnapshot>, String> {
+    tx.query_row(
+        "SELECT session_id,source_path,source_record_key,source_mtime_ms,
+                source_size_bytes,source_fingerprint,parser_version,listable,
+                name,created_at_ms,updated_at_ms,model,input_tokens,output_tokens,
+                cache_read_tokens,cache_write_tokens,repo_path,branch,files_changed,
+                lines_added,lines_removed,touched_files_json,source_metadata_json,
+                parent_session_id,updated_at
+         FROM imported_history_session_cache
+         WHERE source=?1 AND source_session_id=?2",
+        params![source, source_session_id],
+        |row| {
+            Ok(ReplayCatalogRowSnapshot {
+                session_id: row.get(0)?,
+                source_path: row.get(1)?,
+                source_record_key: row.get(2)?,
+                source_mtime_ms: row.get(3)?,
+                source_size_bytes: row.get(4)?,
+                source_fingerprint: row.get(5)?,
+                parser_version: row.get(6)?,
+                listable: row.get(7)?,
+                name: row.get(8)?,
+                created_at_ms: row.get(9)?,
+                updated_at_ms: row.get(10)?,
+                model: row.get(11)?,
+                input_tokens: row.get(12)?,
+                output_tokens: row.get(13)?,
+                cache_read_tokens: row.get(14)?,
+                cache_write_tokens: row.get(15)?,
+                repo_path: row.get(16)?,
+                branch: row.get(17)?,
+                files_changed: row.get(18)?,
+                lines_added: row.get(19)?,
+                lines_removed: row.get(20)?,
+                touched_files_json: row.get(21)?,
+                source_metadata_json: row.get(22)?,
+                parent_session_id: row.get(23)?,
+                updated_at: row.get(24)?,
+            })
+        },
+    )
+    .optional()
+    .map_err(|err| format!("read imported replay catalog row: {err}"))
+}
+
+fn replay_catalog_baseline(
+    tx: &Transaction<'_>,
+    source: ImportedHistorySourceId,
+    source_session_id: &str,
+    current: &ReplayCatalogRowSnapshot,
+) -> Result<ReplayCatalogRowSnapshot, String> {
+    let stored = tx
+        .query_row(
+            "SELECT baseline_json,applied_json
+             FROM imported_replay_catalog_derivations
+             WHERE source=?1 AND source_session_id=?2",
+            params![source.as_str(), source_session_id],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        )
+        .optional()
+        .map_err(|err| format!("read replay catalog derivation: {err}"))?;
+    let Some((baseline_json, applied_json)) = stored else {
+        return Ok(current.clone());
+    };
+    let baseline = serde_json::from_str::<ReplayCatalogRowSnapshot>(&baseline_json)
+        .map_err(|err| format!("decode replay catalog baseline: {err}"))?;
+    let applied = serde_json::from_str::<ReplayCatalogRowSnapshot>(&applied_json)
+        .map_err(|err| format!("decode applied replay catalog snapshot: {err}"))?;
+    // Equality includes adapter-owned signature fields. Any intervening source
+    // refresh rebases the baseline before the next replay overlay.
+    Ok(if &applied == current {
+        baseline
+    } else {
+        current.clone()
+    })
+}
+
+fn store_replay_catalog_derivation(
+    tx: &Transaction<'_>,
+    source: ImportedHistorySourceId,
+    source_session_id: &str,
+    baseline: &ReplayCatalogRowSnapshot,
+    applied: &ReplayCatalogRowSnapshot,
+) -> Result<(), String> {
+    tx.execute(
+        "INSERT INTO imported_replay_catalog_derivations(
+             source,source_session_id,baseline_json,applied_json,updated_at
+         ) VALUES(?1,?2,?3,?4,?5)
+         ON CONFLICT(source,source_session_id) DO UPDATE SET
+             baseline_json=excluded.baseline_json,
+             applied_json=excluded.applied_json,
+             updated_at=excluded.updated_at",
+        params![
+            source.as_str(),
+            source_session_id,
+            serde_json::to_string(baseline)
+                .map_err(|err| format!("encode replay catalog baseline: {err}"))?,
+            serde_json::to_string(applied)
+                .map_err(|err| format!("encode applied replay catalog snapshot: {err}"))?,
+            chrono::Utc::now().to_rfc3339(),
+        ],
+    )
+    .map(|_| ())
+    .map_err(|err| format!("store replay catalog derivation: {err}"))
+}
+
+/// Remove one replay-owned catalog overlay without rolling back a newer
+/// adapter refresh. This runs in the same transaction as compact-index prune.
+pub(crate) fn clear_replay_projection_tx(
+    tx: &Transaction<'_>,
+    source: &str,
+    source_session_id: &str,
+) -> Result<(), String> {
+    let stored = tx
+        .query_row(
+            "SELECT baseline_json,applied_json
+             FROM imported_replay_catalog_derivations
+             WHERE source=?1 AND source_session_id=?2",
+            params![source, source_session_id],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        )
+        .optional()
+        .map_err(|err| format!("read replay catalog projection for prune: {err}"))?;
+    let Some((baseline_json, applied_json)) = stored else {
+        return Ok(());
+    };
+    let baseline = serde_json::from_str::<ReplayCatalogRowSnapshot>(&baseline_json)
+        .map_err(|err| format!("decode replay catalog prune baseline: {err}"))?;
+    let applied = serde_json::from_str::<ReplayCatalogRowSnapshot>(&applied_json)
+        .map_err(|err| format!("decode replay catalog prune snapshot: {err}"))?;
+    let current = read_replay_catalog_row(tx, source, source_session_id)?;
+    if current.as_ref() == Some(&applied) {
+        tx.execute(
+            "UPDATE imported_history_session_cache SET
+                 name=?3,created_at_ms=?4,updated_at_ms=?5,model=?6,
+                 input_tokens=?7,output_tokens=?8,cache_read_tokens=?9,
+                 cache_write_tokens=?10,repo_path=?11,branch=?12,
+                 files_changed=?13,lines_added=?14,lines_removed=?15,
+                 touched_files_json=?16,source_metadata_json=?17,
+                 parent_session_id=?18,updated_at=?19
+             WHERE source=?1 AND source_session_id=?2",
+            params![
+                source,
+                source_session_id,
+                baseline.name,
+                baseline.created_at_ms,
+                baseline.updated_at_ms,
+                baseline.model,
+                baseline.input_tokens,
+                baseline.output_tokens,
+                baseline.cache_read_tokens,
+                baseline.cache_write_tokens,
+                baseline.repo_path,
+                baseline.branch,
+                baseline.files_changed,
+                baseline.lines_added,
+                baseline.lines_removed,
+                baseline.touched_files_json,
+                baseline.source_metadata_json,
+                baseline.parent_session_id,
+                baseline.updated_at,
+            ],
+        )
+        .map_err(|err| format!("restore adapter catalog baseline: {err}"))?;
+    }
+    tx.execute(
+        "DELETE FROM imported_replay_catalog_derivations
+         WHERE source=?1 AND source_session_id=?2",
+        params![source, source_session_id],
+    )
+    .map(|_| ())
+    .map_err(|err| format!("delete replay catalog derivation: {err}"))
+}
+
 /// Publish replay-derived card metadata inside the same transaction that
 /// publishes the replay generation. A crash therefore exposes either the old
 /// replay+catalog pair or the new pair, never a mixed state.
@@ -305,6 +517,11 @@ pub(crate) fn publish_from_replay_tx(
     source_mtime_ns: i64,
     driver_cursor_json: &str,
 ) -> Result<(), String> {
+    let catalog_before = read_replay_catalog_row(tx, source.as_str(), source_session_id)?;
+    let catalog_baseline = catalog_before
+        .as_ref()
+        .map(|current| replay_catalog_baseline(tx, source, source_session_id, current))
+        .transpose()?;
     let projection = serde_json::from_str::<Value>(driver_cursor_json)
         .ok()
         .and_then(|cursor| cursor.get("catalog").cloned())
@@ -453,6 +670,13 @@ pub(crate) fn publish_from_replay_tx(
         ],
     )
     .map_err(|err| format!("publish compact replay catalog metadata: {err}"))?;
+    if let Some(baseline) = catalog_baseline.as_ref() {
+        let applied =
+            read_replay_catalog_row(tx, source.as_str(), source_session_id)?.ok_or_else(|| {
+                "Imported replay catalog row disappeared while publishing projection".to_string()
+            })?;
+        store_replay_catalog_derivation(tx, source, source_session_id, baseline, &applied)?;
+    }
     Ok(())
 }
 
@@ -610,6 +834,58 @@ mod tests {
         conn
     }
 
+    fn current_catalog_snapshot(conn: &mut Connection) -> ReplayCatalogRowSnapshot {
+        let tx = conn
+            .transaction()
+            .expect("read catalog snapshot transaction");
+        let snapshot = read_replay_catalog_row(&tx, "codex_app", "fixture")
+            .expect("read catalog snapshot")
+            .expect("fixture catalog row");
+        tx.commit().expect("finish catalog snapshot transaction");
+        snapshot
+    }
+
+    fn derivation_count(conn: &Connection) -> i64 {
+        conn.query_row(
+            "SELECT COUNT(*) FROM imported_replay_catalog_derivations
+             WHERE source='codex_app' AND source_session_id='fixture'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("count catalog derivations")
+    }
+
+    fn publish_fixture_projection(conn: &mut Connection) {
+        let cursor = serde_json::json!({
+            "catalog": ReplayCatalogProjection {
+                model: Some("gpt-5".to_string()),
+                repo_path: Some("/work/orgii".to_string()),
+                branch: Some("develop".to_string()),
+                input_tokens: 100,
+                output_tokens: 20,
+                tokens_observed: true,
+                continuation_group_key: Some("first-user".to_string()),
+                continuation_observed: true,
+                updated_at_ms: Some(1_774_137_600_000),
+                ..ReplayCatalogProjection::default()
+            }
+        })
+        .to_string();
+        let tx = conn.transaction().expect("catalog transaction");
+        publish_from_replay_tx(
+            &tx,
+            ImportedHistorySourceId::CodexApp,
+            "fixture",
+            "g1",
+            2,
+            true,
+            1_774_137_600_000_000_000,
+            &cursor,
+        )
+        .expect("publish catalog projection");
+        tx.commit().expect("commit catalog projection");
+    }
+
     #[test]
     fn catalog_registry_is_exhaustive_for_replay_sources() {
         // The exhaustive match in `refresh_source` is the compile-time guard;
@@ -724,6 +1000,83 @@ mod tests {
             )
             .expect("rolled-back model");
         assert_eq!(model, "old-model");
+        assert_eq!(
+            derivation_count(&conn),
+            0,
+            "the baseline/applied guard must roll back with its projection"
+        );
+    }
+
+    #[test]
+    fn replay_catalog_prune_restores_unchanged_adapter_baseline() {
+        let mut conn = catalog_fixture();
+        let baseline = current_catalog_snapshot(&mut conn);
+        publish_fixture_projection(&mut conn);
+        let applied = current_catalog_snapshot(&mut conn);
+        assert_ne!(applied, baseline, "fixture must exercise a real overlay");
+        assert_eq!(derivation_count(&conn), 1);
+
+        let tx = conn.transaction().expect("catalog prune transaction");
+        clear_replay_projection_tx(&tx, "codex_app", "fixture")
+            .expect("clear unchanged replay projection");
+        tx.commit().expect("commit catalog prune");
+
+        assert_eq!(current_catalog_snapshot(&mut conn), baseline);
+        assert_eq!(derivation_count(&conn), 0);
+    }
+
+    #[test]
+    fn replay_catalog_prune_preserves_newer_adapter_refresh() {
+        let mut conn = catalog_fixture();
+        publish_fixture_projection(&mut conn);
+        conn.execute(
+            "UPDATE imported_history_session_cache SET
+                 source_fingerprint='adapter-new-fingerprint',
+                 source_mtime_ms=123456,
+                 name='adapter-title',
+                 model='adapter-model',
+                 repo_path='/adapter/repo',
+                 source_metadata_json='{\"adapter\":true}',
+                 updated_at='2026-07-23T12:00:00Z'
+             WHERE source='codex_app' AND source_session_id='fixture'",
+            [],
+        )
+        .expect("simulate adapter refresh");
+        let refreshed = current_catalog_snapshot(&mut conn);
+
+        let tx = conn.transaction().expect("catalog prune transaction");
+        clear_replay_projection_tx(&tx, "codex_app", "fixture")
+            .expect("clear replay projection after adapter refresh");
+        tx.commit().expect("commit catalog prune");
+
+        assert_eq!(
+            current_catalog_snapshot(&mut conn),
+            refreshed,
+            "eviction must not roll a newer adapter row back to the old baseline"
+        );
+        assert_eq!(derivation_count(&conn), 0);
+    }
+
+    #[test]
+    fn replay_catalog_prune_rolls_back_atomically() {
+        let mut conn = catalog_fixture();
+        publish_fixture_projection(&mut conn);
+        let applied = current_catalog_snapshot(&mut conn);
+        assert_eq!(derivation_count(&conn), 1);
+
+        {
+            let tx = conn.transaction().expect("catalog prune transaction");
+            clear_replay_projection_tx(&tx, "codex_app", "fixture")
+                .expect("clear replay projection before rollback");
+            // Simulate an interrupted prune by dropping the transaction.
+        }
+
+        assert_eq!(current_catalog_snapshot(&mut conn), applied);
+        assert_eq!(
+            derivation_count(&conn),
+            1,
+            "projection and guard must remain visible together after rollback"
+        );
     }
 
     #[test]

@@ -619,6 +619,18 @@ impl SqliteRecordStore<'_> {
                 PRIMARY KEY (source, source_session_id)
             );
 
+            -- The imported session catalog is shared with source discovery.
+            -- Preserve the adapter-owned row before replay overlays compact
+            -- metadata so cache eviction can remove only replay-derived values.
+            CREATE TABLE IF NOT EXISTS imported_replay_catalog_derivations (
+                source              TEXT NOT NULL,
+                source_session_id   TEXT NOT NULL,
+                baseline_json       TEXT NOT NULL,
+                applied_json        TEXT NOT NULL,
+                updated_at          TEXT NOT NULL,
+                PRIMARY KEY (source, source_session_id)
+            );
+
             CREATE TABLE IF NOT EXISTS imported_replay_turns (
                 source              TEXT NOT NULL,
                 source_session_id   TEXT NOT NULL,
@@ -724,6 +736,46 @@ impl SqliteRecordStore<'_> {
                 )
             );
 
+            -- External CLI Shell cards reuse the canonical replay payload
+            -- artifact instead of copying it into one `.slog` per call. The
+            -- manifest is deliberately small: ordered stream boundaries and
+            -- content hashes only; provider locators never cross IPC.
+            CREATE TABLE IF NOT EXISTS imported_replay_shell_manifests (
+                session_id          TEXT NOT NULL,
+                logical_call_id     TEXT NOT NULL,
+                call_id             TEXT NOT NULL,
+                identity_hash       TEXT NOT NULL,
+                total_bytes         INTEGER NOT NULL,
+                last_sequence       INTEGER NOT NULL,
+                terminal_preview    TEXT NOT NULL,
+                completed_at        TEXT,
+                accessed_at         TEXT NOT NULL,
+                PRIMARY KEY (session_id, call_id),
+                UNIQUE (session_id, logical_call_id)
+            );
+            CREATE TABLE IF NOT EXISTS imported_replay_shell_segments (
+                session_id          TEXT NOT NULL,
+                call_id             TEXT NOT NULL,
+                ordinal             INTEGER NOT NULL,
+                stream              TEXT NOT NULL CHECK(stream IN ('stdout','stderr')),
+                source              TEXT NOT NULL,
+                source_session_id   TEXT NOT NULL,
+                generation          TEXT NOT NULL,
+                content_hash        TEXT NOT NULL,
+                output_byte_start   INTEGER NOT NULL,
+                total_bytes         INTEGER NOT NULL,
+                first_sequence      INTEGER NOT NULL,
+                frame_count         INTEGER NOT NULL,
+                PRIMARY KEY (session_id, call_id, ordinal),
+                FOREIGN KEY (session_id, call_id)
+                    REFERENCES imported_replay_shell_manifests(session_id, call_id)
+                    ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_imported_replay_shell_segment_artifact
+                ON imported_replay_shell_segments(
+                    source, source_session_id, generation, content_hash
+                );
+
             CREATE TABLE IF NOT EXISTS imported_replay_changes (
                 source              TEXT NOT NULL,
                 source_session_id   TEXT NOT NULL,
@@ -744,6 +796,16 @@ impl SqliteRecordStore<'_> {
             "imported_replay_events",
             "event_revision",
             "INTEGER NOT NULL DEFAULT 1",
+        )?;
+        // The external Shell manifest table was introduced on the issue-443
+        // branch before cache eviction gained an ORGII-owned access clock.
+        // Keep developer databases made by that intermediate schema readable;
+        // an epoch default makes them cold until publish/read touches them.
+        ensure_column(
+            conn,
+            "imported_replay_shell_manifests",
+            "accessed_at",
+            "TEXT NOT NULL DEFAULT '1970-01-01T00:00:00.000Z'",
         )
     }
 }

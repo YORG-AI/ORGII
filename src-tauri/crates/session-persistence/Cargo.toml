@@ -45,3 +45,6 @@ tracing = "0.1"
 
 # Error derive macros — `IntentError` in `turn_intents`.
 thiserror = { workspace = true }
+
+[target.'cfg(unix)'.dev-dependencies]
+libc = "0.2"

@@ -709,49 +709,12 @@ fn reconcile_imported_session(
         max_events: replay::HARD_MAX_EVENTS,
         max_ipc_bytes: replay::HARD_MAX_IPC_BYTES,
     };
-    // First finish a read-only pass and pin the compact replay generation.
-    // Publishing while scanning used to delete the previous valid read model
-    // up front and could then mix two source generations or leave a partial
-    // replacement after an error.
-    let mut after_sequence = -1_i64;
-    let mut expected_generation: Option<String> = None;
-    let mut expected_revision: Option<u64> = None;
-    loop {
-        let batch = replay::scan_window_after(
-            conn,
-            replay_source,
-            &session.session_id,
-            after_sequence,
-            limits,
-        )?;
-        if let Some(expected) = expected_generation.as_deref() {
-            if expected != batch.cursor.generation
-                || expected_revision != Some(batch.cursor.revision)
-            {
-                return Err(format!(
-                    "Imported transcript changed replay cursor during provenance scan: {}",
-                    session.session_id
-                ));
-            }
-        } else {
-            expected_generation = Some(batch.cursor.generation.clone());
-            expected_revision = Some(batch.cursor.revision);
-        }
-        if batch.chunks.is_empty() && batch.has_more {
-            return Err(format!(
-                "Bounded replay scan made no progress for {} after sequence {}",
-                session.session_id, after_sequence
-            ));
-        }
-        if !batch.chunks.is_empty() {
-            after_sequence = batch.cursor.through_sequence;
-        }
-        if !batch.has_more {
-            break;
-        }
-    }
-    let expected_generation = expected_generation.unwrap_or_else(|| "empty".to_string());
-    let expected_revision = expected_revision.unwrap_or_default();
+    // Finish a bounded materialization pass before deleting the previous read
+    // model. The helper retries a changing source at most twice and returns a
+    // generation/revision that the transaction can replay strictly.
+    let prepared = replay::prepare_pinned_scan(conn, replay_source, &session.session_id, limits)?;
+    let expected_generation = prepared.generation;
+    let expected_revision = prepared.revision;
 
     conn.execute_batch("BEGIN IMMEDIATE")
         .map_err(|err| format!("begin provenance snapshot publish: {err}"))?;
@@ -770,12 +733,16 @@ fn reconcile_imported_session(
                 after_sequence,
                 limits,
             )?;
-            if batch.chunks.is_empty() && batch.has_more {
+            if batch.chunks.is_empty()
+                && batch.has_more
+                && batch.cursor.through_sequence <= after_sequence
+            {
                 return Err(format!(
                     "Pinned replay scan made no progress for {} after sequence {}",
                     session.session_id, after_sequence
                 ));
             }
+            after_sequence = batch.cursor.through_sequence;
             if !batch.chunks.is_empty() {
                 let chunks = batch
                     .chunks
@@ -794,7 +761,6 @@ fn reconcile_imported_session(
                     &chunks,
                     &mut current_turn_id,
                 )?;
-                after_sequence = batch.cursor.through_sequence;
             }
             if !batch.has_more {
                 break;
@@ -1056,6 +1022,126 @@ mod tests {
             repo,
             "src/new.rs"
         ));
+    }
+
+    #[test]
+    fn historical_backfill_prepares_three_lazy_kv_turns_before_publish() {
+        for source in [
+            ImportedHistorySourceId::CursorIde,
+            ImportedHistorySourceId::Windsurf,
+        ] {
+            let directory = tempfile::tempdir().expect("lazy backfill fixture");
+            let source_path = directory.path().join(format!("{}.db", source.as_str()));
+            let source_conn = Connection::open(&source_path).expect("KV source DB");
+            source_conn
+                .execute_batch(
+                    "PRAGMA journal_mode=WAL;
+                     CREATE TABLE cursorDiskKV(key TEXT PRIMARY KEY,value TEXT);",
+                )
+                .expect("KV source schema");
+            let headers = (0..6)
+                .map(|index| serde_json::json!({
+                    "bubbleId":format!("b{index}"),
+                    "type":if index % 2 == 0 { 1 } else { 2 },
+                }))
+                .collect::<Vec<_>>();
+            source_conn
+                .execute(
+                    "INSERT INTO cursorDiskKV(key,value) VALUES('composerData:c1',?1)",
+                    [serde_json::json!({
+                        "composerId":"c1",
+                        "createdAt":1,
+                        "lastUpdatedAt":6,
+                        "fullConversationHeadersOnly":headers,
+                    })
+                    .to_string()],
+                )
+                .expect("composer row");
+            for index in 0..6 {
+                source_conn
+                    .execute(
+                        "INSERT INTO cursorDiskKV(key,value) VALUES(?1,?2)",
+                        rusqlite::params![
+                            format!("bubbleId:c1:b{index}"),
+                            serde_json::json!({
+                                "bubbleId":format!("b{index}"),
+                                "type":if index % 2 == 0 { 1 } else { 2 },
+                                "createdAt":format!("2026-07-22T00:00:{index:02}Z"),
+                                "text":format!("message {index}"),
+                            })
+                            .to_string(),
+                        ],
+                    )
+                    .expect("bubble row");
+            }
+
+            let mut cache = Connection::open_in_memory().expect("replay cache");
+            SqliteRecordStore::init_tables(&cache).expect("Orgtrack tables");
+            SqliteRecordStore::init_source_cache_tables(&cache).expect("source cache tables");
+            let session_id = format!("{}c1", source.descriptor().session_prefix);
+            cache
+                .execute(
+                    "INSERT INTO imported_history_session_cache(
+                         source,source_session_id,session_id,source_path
+                     ) VALUES(?1,'c1',?2,?3)",
+                    rusqlite::params![
+                        source.as_str(),
+                        session_id,
+                        source_path.to_string_lossy()
+                    ],
+                )
+                .expect("cache source path");
+            let session = ImportedHistoryCachedSession {
+                source_session_id: "c1".to_string(),
+                session_id: session_id.clone(),
+                source_path: source_path.to_string_lossy().into_owned(),
+                source_record_key: "c1".to_string(),
+                source_mtime_ms: 1,
+                source_size_bytes: std::fs::metadata(&source_path)
+                    .expect("source metadata")
+                    .len() as i64,
+                source_fingerprint: "lazy-three-turns".to_string(),
+                parser_version: source.descriptor().parser_version as i64,
+                name: "Lazy KV session".to_string(),
+                created_at_ms: 1,
+                updated_at_ms: 6,
+                model: None,
+                input_tokens: 0,
+                output_tokens: 0,
+                repo_path: Some(directory.path().to_string_lossy().into_owned()),
+                branch: None,
+                impact: ImportedHistoryImpactStats::default(),
+                listable: true,
+                source_metadata_json: None,
+                parent_session_id: None,
+            };
+
+            assert!(reconcile_imported_session(
+                &mut cache,
+                source.as_str(),
+                directory.path(),
+                &session,
+                ActiveSessionPolicy::AllowActive,
+            )
+            .expect("publish strict lazy provenance snapshot"));
+            let replay_events = cache
+                .query_row(
+                    "SELECT COUNT(*) FROM imported_replay_events
+                     WHERE source=?1 AND source_session_id='c1'",
+                    [source.as_str()],
+                    |row| row.get::<_, i64>(0),
+                )
+                .expect("count prepared replay events");
+            assert_eq!(replay_events, 6, "{}", source.as_str());
+            assert!(SqliteRecordStore::new(&cache)
+                .interaction_import_is_current(
+                    source.as_str(),
+                    &session_id,
+                    &imported_session_fingerprint(&session),
+                    HISTORICAL_INTERACTION_PARSER_VERSION,
+                )
+                .expect("backfill checkpoint"));
+        }
     }
 
     #[test]

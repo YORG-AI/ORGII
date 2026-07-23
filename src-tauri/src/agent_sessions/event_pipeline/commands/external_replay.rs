@@ -4,7 +4,7 @@
 //! dependency on the app EventStore.  Native SDE Agent cache/set/merge paths
 //! are untouched.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
@@ -15,22 +15,25 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use agent_core::tools::impls::coding::exec::{
-    external_replay::{
-        persist_external_shell_replay_inline, persist_external_shell_replay_segments_with_call_id,
-        ExternalShellReplaySegment,
+    external_replay::external_shell_inline_segments,
+    shell_replay::{
+        ShellReplayFrame, ShellReplayRange, ShellReplayStream, SHELL_REPLAY_FORMAT_VERSION,
+        SHELL_REPLAY_FRAME_MAX_BYTES, SHELL_REPLAY_PREVIEW_BYTES, SHELL_REPLAY_RANGE_MAX_BYTES,
     },
-    shell_replay::ShellReplayStream,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use core_types::activity::ActivityChunk;
+use core_types::session_event::{
+    PayloadRefEncoding, ShellReplayBookmark, ShellReplayRef, ShellReplayState, ShellReplayStatus,
+};
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use orgtrack_core::sources::imported_history::replay::{
     self, ImportedHistorySourceId, ReplayChunkDelta, ReplayChunkWindow, ReplayCursor,
-    ReplayIndexedChunk, ReplayLimits, ReplayPayloadDescriptor, ReplayPayloadKind,
-    ReplayPayloadRange, ReplayStats, ReplayTurnHeader,
+    ReplayIndexedChunk, ReplayLimits, ReplayPayloadBodyProjection, ReplayPayloadDescriptor,
+    ReplayPayloadEncoding, ReplayPayloadKind, ReplayPayloadRange, ReplayStats, ReplayTurnHeader,
 };
-use rusqlite::OptionalExtension;
+use rusqlite::{params, Connection, DatabaseName, OptionalExtension, Transaction};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tauri::{AppHandle, State};
@@ -40,7 +43,8 @@ use crate::agent_sessions::event_pipeline::store::EventStore;
 use crate::agent_sessions::event_pipeline::types::{EventSource, PayloadRef, SessionEvent};
 
 use super::{
-    event_conversion::cached_event_to_session_event, external_replay_watcher, schedule_notify,
+    event_conversion::cached_event_to_session_event,
+    external_replay_cache::schedule_replay_cache_prune, external_replay_watcher, schedule_notify,
     EventStoreState,
 };
 
@@ -73,6 +77,8 @@ const LEGACY_UTF8_BOUNDARY_BYTES: usize = 4;
 
 #[cfg(test)]
 static LEGACY_MAX_DB_JSON_FIELD_BYTES: AtomicUsize = AtomicUsize::new(0);
+#[cfg(test)]
+static EXTERNAL_SHELL_MANIFEST_DB_PROBES: AtomicUsize = AtomicUsize::new(0);
 
 #[cfg(debug_assertions)]
 const TEST_REPLAY_LIMITS: ReplayLimits = ReplayLimits {
@@ -177,6 +183,7 @@ pub(crate) async fn test_open_managed_replay_window(
             MANAGED_CLI_REPLAY_SOURCE_ID,
             &display_session_id,
             &response.cursor.generation,
+            response.cursor.revision,
             response.events,
         )?;
         finalize_window_wire_budget(&mut response, TEST_REPLAY_LIMITS.max_ipc_bytes)?;
@@ -382,10 +389,12 @@ pub async fn external_replay_open_window(
                 return Ok(response);
             }
             let generation = response.cursor.generation.clone();
+            let revision = response.cursor.revision;
             persist_shell_replays_for_delivery(
                 &requested_source_id,
                 &display_session_id,
                 &generation,
+                revision,
                 &mut response.events,
             )
             .await?;
@@ -443,6 +452,7 @@ pub async fn external_replay_open_window(
                 &display_session_id,
                 super::BOUNDED_REPLAY_STORE_MAX_BYTES,
             )?;
+            schedule_replay_cache_prune();
             schedule_notify(&app, &state, &display_session_id);
             Ok(response)
         }
@@ -456,10 +466,12 @@ pub async fn external_replay_open_window(
                 return Ok(response);
             }
             let generation = response.cursor.generation.clone();
+            let revision = response.cursor.revision;
             persist_shell_replays_for_delivery(
                 &requested_source_id,
                 &display_session_id,
                 &generation,
+                revision,
                 &mut response.events,
             )
             .await?;
@@ -486,6 +498,7 @@ pub async fn external_replay_open_window(
                 &display_session_id,
                 super::BOUNDED_REPLAY_STORE_MAX_BYTES,
             )?;
+            schedule_replay_cache_prune();
             schedule_notify(&app, &state, &display_session_id);
             Ok(response)
         }
@@ -500,10 +513,12 @@ pub async fn external_replay_open_window(
                 return Ok(response);
             }
             let generation = response.cursor.generation.clone();
+            let revision = response.cursor.revision;
             persist_shell_replays_for_delivery(
                 &requested_source_id,
                 &display_session_id,
                 &generation,
+                revision,
                 &mut response.events,
             )
             .await?;
@@ -533,6 +548,7 @@ pub async fn external_replay_open_window(
                 &display_session_id,
                 super::BOUNDED_REPLAY_STORE_MAX_BYTES,
             )?;
+            schedule_replay_cache_prune();
             schedule_notify(&app, &state, &display_session_id);
             Ok(response)
         }
@@ -614,10 +630,12 @@ pub async fn external_replay_poll_delta(
         return Ok(response);
     }
     let generation = response.cursor.generation.clone();
+    let revision = response.cursor.revision;
     persist_shell_replays_for_delivery(
         &requested_source_id,
         &display_session_id,
         &generation,
+        revision,
         &mut response.events,
     )
     .await?;
@@ -672,6 +690,14 @@ pub async fn external_replay_poll_delta(
     // Actual no-op filtering can only reduce the decimal stats width, and
     // `watcherAvailable=true` is shorter than the preflight `false` value.
     refresh_delta_wire_bytes(&mut response)?;
+    if response.reset_required
+        || response.stats.parsed_bytes > 0
+        || response.stats.parsed_rows > 0
+        || response.stats.upserted_events > 0
+        || response.stats.removed_events > 0
+    {
+        schedule_replay_cache_prune();
+    }
     Ok(response)
 }
 
@@ -780,10 +806,12 @@ pub async fn external_replay_read_window(
         return Ok(response);
     }
     let generation = response.cursor.generation.clone();
+    let revision = response.cursor.revision;
     persist_shell_replays_for_delivery(
         &requested_source_id,
         &display_session_id,
         &generation,
+        revision,
         &mut response.events,
     )
     .await?;
@@ -802,6 +830,7 @@ pub async fn external_replay_read_window(
     if !response.events.is_empty() {
         schedule_notify(&app, &state, &display_session_id);
     }
+    schedule_replay_cache_prune();
     Ok(response)
 }
 
@@ -849,6 +878,9 @@ pub async fn external_replay_query_window(
         &display_session_id,
     );
     finalize_window_wire_budget(&mut response, requested_limits.max_ipc_bytes)?;
+    if !response.stats.not_ready {
+        schedule_replay_cache_prune();
+    }
     Ok(response)
 }
 
@@ -864,11 +896,13 @@ pub async fn external_replay_handoff(
     session_id: String,
     source_name: String,
 ) -> Result<ExternalReplayHandoff, String> {
-    tokio::task::spawn_blocking(move || {
+    let handoff = tokio::task::spawn_blocking(move || {
         load_external_replay_handoff(&source_id, &session_id, &source_name)
     })
     .await
-    .map_err(|err| format!("join pure replay handoff task: {err}"))?
+    .map_err(|err| format!("join pure replay handoff task: {err}"))??;
+    schedule_replay_cache_prune();
+    Ok(handoff)
 }
 
 /// Prewarm one bounded external-history window and publish it directly into
@@ -925,10 +959,12 @@ pub async fn external_replay_prewarm_window(
     }
 
     let generation = response.cursor.generation.clone();
+    let revision = response.cursor.revision;
     persist_shell_replays_for_delivery(
         &requested_source_id,
         &display_session_id,
         &generation,
+        revision,
         &mut response.events,
     )
     .await?;
@@ -953,6 +989,7 @@ pub async fn external_replay_prewarm_window(
     if is_current_prewarm_request(&display_session_id, episode_id, request_epoch) {
         schedule_notify(&app, &state, &display_session_id);
     }
+    schedule_replay_cache_prune();
     Ok(response)
 }
 
@@ -1066,7 +1103,7 @@ pub async fn external_replay_stream_export(
     format: ReplayExportFormat,
     orgii_envelope: Option<OrgiiSessionExportEnvelope>,
 ) -> Result<ReplayExportResult, String> {
-    tokio::task::spawn_blocking(move || {
+    let result = tokio::task::spawn_blocking(move || {
         stream_replay_export(
             &source_id,
             &session_id,
@@ -1076,7 +1113,9 @@ pub async fn external_replay_stream_export(
         )
     })
     .await
-    .map_err(|err| format!("join replay export task: {err}"))?
+    .map_err(|err| format!("join replay export task: {err}"))??;
+    schedule_replay_cache_prune();
+    Ok(result)
 }
 
 const STREAM_BATCH_MAX_EVENTS: usize = 200;
@@ -1101,9 +1140,12 @@ pub async fn external_replay_cloud_prepare(
     source_id: String,
     session_id: String,
 ) -> Result<ExternalReplayCloudManifest, String> {
-    tokio::task::spawn_blocking(move || prepare_cloud_spool(&source_id, &session_id))
-        .await
-        .map_err(|err| format!("join replay cloud prepare task: {err}"))?
+    let manifest =
+        tokio::task::spawn_blocking(move || prepare_cloud_spool(&source_id, &session_id))
+            .await
+            .map_err(|err| format!("join replay cloud prepare task: {err}"))??;
+    schedule_replay_cache_prune();
+    Ok(manifest)
 }
 
 #[tauri::command]
@@ -2002,6 +2044,15 @@ impl ReplayExportSummary {
     }
 }
 
+fn prepare_stream_replay_snapshot(
+    conn: &mut Connection,
+    source: ImportedHistorySourceId,
+    imported_session_id: &str,
+    limits: ReplayLimits,
+) -> Result<ReplayCursor, String> {
+    replay::prepare_pinned_scan(conn, source, imported_session_id, limits)
+}
+
 /// Export-only source scan. Unlike the cloud spool iterator, this deliberately
 /// keeps events compact and gives the writer a range reader for each deferred
 /// payload. A single 10 MiB output therefore never becomes a 10 MiB `String`.
@@ -2024,44 +2075,21 @@ fn stream_replay_export_events(
                 max_events: STREAM_BATCH_MAX_EVENTS,
                 max_ipc_bytes: STREAM_BATCH_MAX_BYTES,
             };
+            let prepared =
+                prepare_stream_replay_snapshot(&mut conn, source, &imported_session_id, limits)?;
+            let expected_generation = prepared.generation;
+            let expected_revision = prepared.revision;
             let mut after_sequence = -1_i64;
-            let mut expected_generation: Option<String> = None;
-            let mut expected_revision: Option<u64> = None;
             loop {
-                let scan = if let (Some(generation), Some(revision)) =
-                    (expected_generation.as_deref(), expected_revision)
-                {
-                    replay::scan_window_after_generation(
-                        &mut conn,
-                        source,
-                        &imported_session_id,
-                        generation,
-                        revision,
-                        after_sequence,
-                        limits,
-                    )?
-                } else {
-                    replay::scan_window_after(
-                        &mut conn,
-                        source,
-                        &imported_session_id,
-                        after_sequence,
-                        limits,
-                    )?
-                };
-                if let (Some(generation), Some(revision)) =
-                    (expected_generation.as_deref(), expected_revision)
-                {
-                    validate_stream_replay_cursor(
-                        generation,
-                        revision,
-                        &scan.cursor,
-                        "exporting replay",
-                    )?;
-                } else {
-                    expected_generation = Some(scan.cursor.generation.clone());
-                    expected_revision = Some(scan.cursor.revision);
-                }
+                let scan = replay::scan_window_after_generation(
+                    &mut conn,
+                    source,
+                    &imported_session_id,
+                    &expected_generation,
+                    expected_revision,
+                    after_sequence,
+                    limits,
+                )?;
                 let next_sequence = scan.cursor.through_sequence;
                 let has_more = scan.has_more;
                 let (events, _) = normalize_indexed_chunks(
@@ -2102,8 +2130,6 @@ fn stream_replay_export_events(
                 }
                 after_sequence = next_sequence;
             }
-            let expected_generation = expected_generation.unwrap_or_else(|| "empty".to_string());
-            let expected_revision = expected_revision.unwrap_or_default();
             let final_scan = replay::scan_window_after(
                 &mut conn,
                 source,
@@ -2266,10 +2292,13 @@ fn write_hydrated_event_json(
             markers.push(PayloadMarker {
                 encoded_marker: serde_json::to_vec(&field_marker)
                     .map_err(|err| format!("encode replay export marker: {err}"))?,
-                encoding: if matches!(payload_ref.field_path.as_str(), "args" | "result") {
-                    PayloadMarkerEncoding::RawJson
-                } else {
-                    PayloadMarkerEncoding::JsonString
+                encoding: match payload_ref.replay_encoding {
+                    Some(PayloadRefEncoding::JsonValue) => PayloadMarkerEncoding::RawJson,
+                    Some(PayloadRefEncoding::Utf8Text) => PayloadMarkerEncoding::JsonString,
+                    None if matches!(payload_ref.field_path.as_str(), "args" | "result") => {
+                        PayloadMarkerEncoding::RawJson
+                    }
+                    None => PayloadMarkerEncoding::JsonString,
                 },
                 payload_ref: payload_ref.clone(),
             });
@@ -3131,44 +3160,21 @@ fn stream_replay_cloud_events(
                 max_events: STREAM_BATCH_MAX_EVENTS,
                 max_ipc_bytes: STREAM_BATCH_MAX_BYTES,
             };
+            let prepared =
+                prepare_stream_replay_snapshot(&mut conn, source, &imported_session_id, limits)?;
+            let expected_generation = prepared.generation;
+            let expected_revision = prepared.revision;
             let mut after_sequence = -1_i64;
-            let mut expected_generation: Option<String> = None;
-            let mut expected_revision: Option<u64> = None;
             loop {
-                let scan = if let (Some(generation), Some(revision)) =
-                    (expected_generation.as_deref(), expected_revision)
-                {
-                    replay::scan_window_after_generation(
-                        &mut conn,
-                        source,
-                        &imported_session_id,
-                        generation,
-                        revision,
-                        after_sequence,
-                        limits,
-                    )?
-                } else {
-                    replay::scan_window_after(
-                        &mut conn,
-                        source,
-                        &imported_session_id,
-                        after_sequence,
-                        limits,
-                    )?
-                };
-                if let (Some(generation), Some(revision)) =
-                    (expected_generation.as_deref(), expected_revision)
-                {
-                    validate_stream_replay_cursor(
-                        generation,
-                        revision,
-                        &scan.cursor,
-                        "streaming cloud replay",
-                    )?;
-                } else {
-                    expected_generation = Some(scan.cursor.generation.clone());
-                    expected_revision = Some(scan.cursor.revision);
-                }
+                let scan = replay::scan_window_after_generation(
+                    &mut conn,
+                    source,
+                    &imported_session_id,
+                    &expected_generation,
+                    expected_revision,
+                    after_sequence,
+                    limits,
+                )?;
                 let next_sequence = scan.cursor.through_sequence;
                 let has_more = scan.has_more;
                 let (events, _) = normalize_indexed_chunks(
@@ -3203,8 +3209,6 @@ fn stream_replay_cloud_events(
                 }
                 after_sequence = next_sequence;
             }
-            let expected_generation = expected_generation.unwrap_or_else(|| "empty".to_string());
-            let expected_revision = expected_revision.unwrap_or_default();
             let final_scan = replay::scan_window_after(
                 &mut conn,
                 source,
@@ -3495,6 +3499,7 @@ async fn persist_shell_replays_for_delivery(
     source_id: &str,
     session_id: &str,
     generation: &str,
+    revision: u64,
     events: &mut Vec<SessionEvent>,
 ) -> Result<(), String> {
     if !events
@@ -3508,7 +3513,7 @@ async fn persist_shell_replays_for_delivery(
     let generation = generation.to_string();
     let owned = std::mem::take(events);
     *events = tokio::task::spawn_blocking(move || {
-        persist_shell_replays_bounded(&source_id, &session_id, &generation, owned)
+        persist_shell_replays_bounded(&source_id, &session_id, &generation, revision, owned)
     })
     .await
     .map_err(|error| format!("join external shell replay persistence: {error}"))??;
@@ -3519,6 +3524,7 @@ fn persist_shell_replays_bounded(
     source_id: &str,
     session_id: &str,
     generation: &str,
+    revision: u64,
     mut events: Vec<SessionEvent>,
 ) -> Result<Vec<SessionEvent>, String> {
     match resolve_target(source_id, session_id)? {
@@ -3526,44 +3532,50 @@ fn persist_shell_replays_bounded(
             source,
             imported_session_id,
         } => {
-            let mut conn = database::db::get_connection()
-                .map_err(|error| format!("open external Shell replay DB: {error}"))?;
-            for event in &mut events {
-                persist_one_shell_replay(
+            for event in events.iter_mut().filter(|event| {
+                event.ui_canonical == core_types::tool_names::RUN_SHELL
+                    && event.shell_replay.is_none()
+            }) {
+                let mut conn = database::db::get_connection()
+                    .map_err(|error| format!("open external Shell replay DB: {error}"))?;
+                let tx = conn.transaction().map_err(|error| {
+                    format!("begin external Shell manifest transaction: {error}")
+                })?;
+                persist_imported_shell_manifest(
+                    &tx,
                     event,
-                    source_id,
+                    source,
+                    &imported_session_id,
                     generation,
-                    |payload_ref, offset, max| {
-                        let source_event_id = payload_ref
-                            .replay_source_event_id
-                            .as_deref()
-                            .unwrap_or(&payload_ref.event_id);
-                        replay::read_payload_range(
-                            &mut conn,
-                            source,
-                            &imported_session_id,
-                            generation,
-                            source_event_id,
-                            &payload_ref.field_path,
-                            offset,
-                            Some(max),
-                        )
-                        .map(|range| range.text.into_bytes())
-                    },
-                );
+                )?;
+                tx.commit()
+                    .map_err(|error| format!("publish external Shell manifest: {error}"))?;
             }
+            validate_imported_shell_snapshot(source, &imported_session_id, generation, revision)?;
         }
         ResolvedTarget::CollaborationSnapshot => {
-            let conn = database::db::get_connection()
-                .map_err(|error| format!("open collaboration Shell replay DB: {error}"))?;
-            for event in &mut events {
-                persist_one_shell_replay(
+            // Collaboration generation identifies the snapshot lineage, while
+            // same-lineage rewrites advance revision. Artifact scopes must
+            // include both or a same-length UPDATE can reuse stale content.
+            let artifact_generation = collaboration_shell_artifact_generation(generation, revision);
+            for event in events.iter_mut().filter(|event| {
+                event.ui_canonical == core_types::tool_names::RUN_SHELL
+                    && event.shell_replay.is_none()
+            }) {
+                let mut conn = database::db::get_connection()
+                    .map_err(|error| format!("open collaboration Shell replay DB: {error}"))?;
+                let tx = conn.transaction().map_err(|error| {
+                    format!("begin collaboration Shell manifest transaction: {error}")
+                })?;
+                persist_scoped_shell_manifest(
+                    &tx,
                     event,
                     source_id,
-                    generation,
+                    session_id,
+                    &artifact_generation,
                     |payload_ref, offset, max| {
                         collaboration_snapshot_payload_range_from_conn(
-                            &conn,
+                            &tx,
                             session_id,
                             generation,
                             payload_ref
@@ -3576,17 +3588,31 @@ fn persist_shell_replays_bounded(
                         )
                         .map(|range| range.text.into_bytes())
                     },
-                );
+                )?;
+                tx.commit()
+                    .map_err(|error| format!("publish collaboration Shell manifest: {error}"))?;
             }
+            validate_collaboration_shell_snapshot(session_id, generation, revision)?;
         }
         ResolvedTarget::LegacyChunks => {
-            for event in &mut events {
-                persist_one_shell_replay(
+            for event in events.iter_mut().filter(|event| {
+                event.ui_canonical == core_types::tool_names::RUN_SHELL
+                    && event.shell_replay.is_none()
+            }) {
+                let mut conn = database::db::get_connection()
+                    .map_err(|error| format!("open managed Shell replay DB: {error}"))?;
+                let tx = conn.transaction().map_err(|error| {
+                    format!("begin managed Shell manifest transaction: {error}")
+                })?;
+                persist_scoped_shell_manifest(
+                    &tx,
                     event,
                     source_id,
+                    session_id,
                     generation,
                     |payload_ref, offset, max| {
-                        legacy_payload_range(
+                        legacy_payload_range_from_conn(
+                            &tx,
                             session_id,
                             payload_ref
                                 .replay_source_event_id
@@ -3594,66 +3620,978 @@ fn persist_shell_replays_bounded(
                                 .unwrap_or(&payload_ref.event_id),
                             &payload_ref.field_path,
                             offset,
-                            Some(max),
+                            max,
                         )
                         .map(|range| range.text.into_bytes())
                     },
-                );
+                )?;
+                tx.commit()
+                    .map_err(|error| format!("publish managed Shell manifest: {error}"))?;
             }
+            validate_legacy_shell_snapshot(session_id, generation, revision)?;
         }
         ResolvedTarget::NotReady => {}
     }
     Ok(events)
 }
 
-fn persist_one_shell_replay(
-    event: &mut SessionEvent,
-    source_id: &str,
+fn collaboration_shell_artifact_generation(generation: &str, revision: u64) -> String {
+    format!("{generation}-r{revision}")
+}
+
+fn validate_imported_shell_snapshot(
+    source: ImportedHistorySourceId,
+    session_id: &str,
     generation: &str,
-    mut read_range: impl FnMut(&PayloadRef, u64, usize) -> Result<Vec<u8>, String>,
-) {
+    revision: u64,
+) -> Result<(), String> {
+    let mut conn = database::db::get_connection()
+        .map_err(|error| format!("open imported Shell validation DB: {error}"))?;
+    validate_imported_shell_snapshot_from_conn(&mut conn, source, session_id, generation, revision)
+}
+
+fn validate_imported_shell_snapshot_from_conn(
+    conn: &mut Connection,
+    source: ImportedHistorySourceId,
+    session_id: &str,
+    generation: &str,
+    revision: u64,
+) -> Result<(), String> {
+    // Re-observe the provider, not merely ORGII's last compact state. A file
+    // or WAL can change (including same-size replacement) while the per-event
+    // artifact transactions run; a local state lookup would miss that race.
+    let observed = replay::scan_window_after(
+        conn,
+        source,
+        session_id,
+        i64::MAX,
+        ReplayLimits {
+            max_turns: 1,
+            max_events: 1,
+            max_ipc_bytes: 1,
+        },
+    )?;
+    if observed.cursor.generation == generation && observed.cursor.revision == revision {
+        return Ok(());
+    }
+    Err(format!(
+        "Imported Shell replay changed while publishing manifests: expected {generation}@{revision}, found {}@{}; retry the bounded replay request",
+        observed.cursor.generation, observed.cursor.revision
+    ))
+}
+
+fn validate_collaboration_shell_snapshot(
+    session_id: &str,
+    generation: &str,
+    revision: u64,
+) -> Result<(), String> {
+    let conn = database::db::get_connection()
+        .map_err(|error| format!("open collaboration Shell validation DB: {error}"))?;
+    let current = collaboration_snapshot_state(&conn, session_id)?;
+    if current.generation == generation && current.revision == revision {
+        return Ok(());
+    }
+    Err(format!(
+        "Collaboration Shell replay changed while publishing manifests: expected {generation}@{revision}, found {}@{}; retry the bounded replay request",
+        current.generation, current.revision
+    ))
+}
+
+fn validate_legacy_shell_snapshot(
+    session_id: &str,
+    generation: &str,
+    revision: u64,
+) -> Result<(), String> {
+    let conn = database::db::get_connection()
+        .map_err(|error| format!("open managed Shell validation DB: {error}"))?;
+    let current = legacy_stream_cursor(&conn, session_id)?;
+    if current.0 == generation && current.1.max(0) as u64 == revision {
+        return Ok(());
+    }
+    Err(format!(
+        "Managed Shell replay changed while publishing manifests: expected {generation}@{revision}, found {}@{}; retry the bounded replay request",
+        current.0, current.1
+    ))
+}
+
+#[derive(Debug, Clone)]
+struct CanonicalExternalShellSegment {
+    stream: ShellReplayStream,
+    artifact: replay::ReplayPayloadArtifactLocator,
+    preview: String,
+}
+
+fn persist_imported_shell_manifest(
+    tx: &Transaction<'_>,
+    event: &mut SessionEvent,
+    source: ImportedHistorySourceId,
+    imported_session_id: &str,
+    generation: &str,
+) -> Result<(), String> {
     if event.ui_canonical != core_types::tool_names::RUN_SHELL || event.shell_replay.is_some() {
-        return;
+        return Ok(());
     }
     let selected = select_shell_payload_refs(event);
-    let artifact_call_id = generation_scoped_shell_call_id(event, source_id, generation);
     if selected.is_empty() {
-        let has_unhandled_deferred_result = event
-            .payload_refs
-            .iter()
-            .any(|payload_ref| payload_ref.field_path == "result");
-        if !has_unhandled_deferred_result {
-            persist_external_shell_replay_inline(event, &artifact_call_id);
-        }
-        return;
+        let source_session_id = source.source_session_id(imported_session_id)?;
+        return persist_inline_shell_manifest(
+            tx,
+            event,
+            source.as_str(),
+            &source_session_id,
+            generation,
+        );
     }
-    let segments = selected
-        .into_iter()
-        .map(|payload_ref| {
-            let stream = if payload_ref
-                .field_path
-                .rsplit('.')
-                .next()
-                .is_some_and(|field| field.eq_ignore_ascii_case("stderr"))
-            {
-                ShellReplayStream::Stderr
-            } else {
-                ShellReplayStream::Stdout
-            };
-            ExternalShellReplaySegment::new(
-                stream,
-                payload_ref.clone(),
-                payload_ref.full_size_bytes as u64,
-                payload_ref.preview.clone(),
+    let mut segments = Vec::with_capacity(selected.len());
+    for payload_ref in selected {
+        let source_event_id = payload_ref
+            .replay_source_event_id
+            .as_deref()
+            .unwrap_or(&payload_ref.event_id);
+        let artifact = replay::materialize_payload_artifact(
+            tx,
+            source,
+            imported_session_id,
+            generation,
+            source_event_id,
+            &payload_ref.field_path,
+        )?;
+        if artifact.total_bytes != payload_ref.full_size_bytes as u64 {
+            return Err(format!(
+                "External Shell payload changed while publishing manifest: expected {} bytes, found {}",
+                payload_ref.full_size_bytes, artifact.total_bytes
+            ));
+        }
+        segments.push(CanonicalExternalShellSegment {
+            stream: shell_stream_for_payload_ref(payload_ref),
+            artifact,
+            preview: payload_ref.preview.clone(),
+        });
+    }
+    publish_external_shell_manifest(tx, event, &segments)
+}
+
+fn persist_scoped_shell_manifest(
+    tx: &Transaction<'_>,
+    event: &mut SessionEvent,
+    source_id: &str,
+    source_session_id: &str,
+    generation: &str,
+    mut read_range: impl FnMut(&PayloadRef, u64, usize) -> Result<Vec<u8>, String>,
+) -> Result<(), String> {
+    if event.ui_canonical != core_types::tool_names::RUN_SHELL || event.shell_replay.is_some() {
+        return Ok(());
+    }
+    let selected = select_shell_payload_refs(event);
+    if selected.is_empty() {
+        return persist_inline_shell_manifest(tx, event, source_id, source_session_id, generation);
+    }
+    let mut segments = Vec::with_capacity(selected.len());
+    for payload_ref in selected {
+        let source_event_id = payload_ref
+            .replay_source_event_id
+            .as_deref()
+            .unwrap_or(&payload_ref.event_id);
+        let expected_bytes = payload_ref.full_size_bytes as u64;
+        let artifact = if let Some(existing) = replay::find_scoped_payload_artifact(
+            tx,
+            source_id,
+            source_session_id,
+            generation,
+            source_event_id,
+            &payload_ref.field_path,
+            expected_bytes,
+        )? {
+            existing
+        } else {
+            replay::store_scoped_payload_artifact_streamed(
+                tx,
+                source_id,
+                source_session_id,
+                generation,
+                source_event_id,
+                &payload_ref.field_path,
+                expected_bytes,
+                |writer| {
+                    let mut offset = 0_u64;
+                    while offset < expected_bytes {
+                        let requested = (expected_bytes - offset)
+                            .min(SHELL_REPLAY_RANGE_MAX_BYTES as u64)
+                            as usize;
+                        let bytes = read_range(payload_ref, offset, requested)?;
+                        if bytes.is_empty() || bytes.len() > requested {
+                            return Err(format!(
+                                "External Shell payload made invalid progress at byte {offset}"
+                            ));
+                        }
+                        writer
+                            .write_all(&bytes)
+                            .map_err(|error| format!("write external Shell payload: {error}"))?;
+                        offset = offset.saturating_add(bytes.len() as u64);
+                    }
+                    Ok(())
+                },
+            )?
+        };
+        segments.push(CanonicalExternalShellSegment {
+            stream: shell_stream_for_payload_ref(payload_ref),
+            artifact,
+            preview: payload_ref.preview.clone(),
+        });
+    }
+    publish_external_shell_manifest(tx, event, &segments)
+}
+
+fn persist_inline_shell_manifest(
+    tx: &Transaction<'_>,
+    event: &mut SessionEvent,
+    source_id: &str,
+    source_session_id: &str,
+    generation: &str,
+) -> Result<(), String> {
+    if event
+        .payload_refs
+        .iter()
+        .any(|payload_ref| payload_ref.field_path == "result")
+    {
+        return Ok(());
+    }
+    let parts = external_shell_inline_segments(event);
+    if parts.is_empty() {
+        return Ok(());
+    }
+    let mut segments = Vec::with_capacity(parts.len());
+    for (ordinal, part) in parts.into_iter().enumerate() {
+        let field_path = format!("__shell_inline.{ordinal}");
+        let expected_bytes = part.text.len() as u64;
+        let artifact = if let Some(existing) = replay::find_scoped_payload_artifact(
+            tx,
+            source_id,
+            source_session_id,
+            generation,
+            &event.id,
+            &field_path,
+            expected_bytes,
+        )? {
+            existing
+        } else {
+            replay::store_scoped_payload_artifact_streamed(
+                tx,
+                source_id,
+                source_session_id,
+                generation,
+                &event.id,
+                &field_path,
+                expected_bytes,
+                |writer| {
+                    writer
+                        .write_all(part.text.as_bytes())
+                        .map_err(|error| format!("write inline external Shell payload: {error}"))
+                },
+            )?
+        };
+        segments.push(CanonicalExternalShellSegment {
+            stream: part.stream,
+            artifact,
+            preview: utf8_tail_preview(part.text, SHELL_REPLAY_PREVIEW_BYTES),
+        });
+    }
+    publish_external_shell_manifest(tx, event, &segments)
+}
+
+fn shell_stream_for_payload_ref(payload_ref: &PayloadRef) -> ShellReplayStream {
+    if payload_ref
+        .field_path
+        .rsplit('.')
+        .next()
+        .is_some_and(|field| field.eq_ignore_ascii_case("stderr"))
+    {
+        ShellReplayStream::Stderr
+    } else {
+        ShellReplayStream::Stdout
+    }
+}
+
+fn publish_external_shell_manifest(
+    tx: &Transaction<'_>,
+    event: &mut SessionEvent,
+    segments: &[CanonicalExternalShellSegment],
+) -> Result<(), String> {
+    if segments.is_empty() {
+        return Ok(());
+    }
+    let logical_call_id = event.call_id.as_deref().unwrap_or(&event.id);
+    let mut identity = Sha256::new();
+    identity.update(b"orgii-external-shell-manifest-v1\0");
+    let mut total_bytes = 0_u64;
+    let mut last_sequence = 0_u64;
+    let mut manifest_rows = Vec::with_capacity(segments.len());
+    let mut preview = String::new();
+    for (ordinal, segment) in segments.iter().enumerate() {
+        let stream_tag = match segment.stream {
+            ShellReplayStream::Stdout => 1_u8,
+            ShellReplayStream::Stderr => 2_u8,
+        };
+        identity.update((ordinal as u64).to_le_bytes());
+        identity.update([stream_tag]);
+        identity.update(segment.artifact.total_bytes.to_le_bytes());
+        identity.update(segment.artifact.content_hash.as_bytes());
+
+        let output_byte_start = total_bytes;
+        total_bytes = total_bytes
+            .checked_add(segment.artifact.total_bytes)
+            .ok_or_else(|| "External Shell manifest byte count overflow".to_string())?;
+        let frame_count = segment
+            .artifact
+            .total_bytes
+            .saturating_add(SHELL_REPLAY_FRAME_MAX_BYTES as u64 - 1)
+            / SHELL_REPLAY_FRAME_MAX_BYTES as u64;
+        let first_sequence = last_sequence.saturating_add(1);
+        last_sequence = last_sequence
+            .checked_add(frame_count)
+            .ok_or_else(|| "External Shell manifest sequence overflow".to_string())?;
+        manifest_rows.push((
+            ordinal as u64,
+            segment,
+            output_byte_start,
+            first_sequence,
+            frame_count,
+        ));
+
+        if segment.stream == ShellReplayStream::Stderr {
+            preview.push_str("[stderr] ");
+        }
+        preview.push_str(&segment.preview);
+        if preview.len() > SHELL_REPLAY_PREVIEW_BYTES * 2 {
+            preview = utf8_tail_preview(&preview, SHELL_REPLAY_PREVIEW_BYTES);
+        }
+    }
+    preview = utf8_tail_preview(&preview, SHELL_REPLAY_PREVIEW_BYTES);
+    let identity_hash = identity
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let call_id = format!("{logical_call_id}-external-{identity_hash}");
+
+    let existing_identity = tx
+        .query_row(
+            "SELECT call_id,identity_hash
+             FROM imported_replay_shell_manifests
+             WHERE session_id=?1 AND logical_call_id=?2",
+            params![event.session_id, logical_call_id],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        )
+        .optional()
+        .map_err(|error| format!("read existing external Shell identity: {error}"))?;
+    if let Some((existing_call_id, existing_hash)) = existing_identity.as_ref() {
+        if existing_hash == &identity_hash {
+            if existing_call_id != &call_id {
+                return Err("external Shell manifest identity/call id mismatch".to_string());
+            }
+            tx.execute(
+                "UPDATE imported_replay_shell_manifests
+                 SET accessed_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+                 WHERE session_id=?1 AND call_id=?2
+                   AND accessed_at <= strftime('%Y-%m-%dT%H:%M:%fZ','now','-60 seconds')",
+                params![event.session_id, call_id],
             )
+            .map_err(|error| format!("touch unchanged external Shell manifest: {error}"))?;
+            set_external_shell_state(event, call_id, total_bytes, last_sequence, preview);
+            return Ok(());
+        }
+    }
+
+    let old_scopes = {
+        let mut statement = tx
+            .prepare(
+                "SELECT DISTINCT segment.source,segment.source_session_id,segment.generation
+                 FROM imported_replay_shell_segments AS segment
+                 JOIN imported_replay_shell_manifests AS manifest
+                   ON manifest.session_id=segment.session_id AND manifest.call_id=segment.call_id
+                 WHERE manifest.session_id=?1 AND manifest.logical_call_id=?2",
+            )
+            .map_err(|error| format!("prepare old Shell manifest scopes: {error}"))?;
+        let rows = statement
+            .query_map(params![event.session_id, logical_call_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })
+            .map_err(|error| format!("query old Shell manifest scopes: {error}"))?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(|error| format!("read old Shell manifest scopes: {error}"))?
+    };
+    // sessions.db and orgtrack-cli connections do not globally enable
+    // foreign_keys, so ON DELETE CASCADE is documentation rather than a
+    // cleanup guarantee. Delete the old references explicitly before their
+    // manifest; otherwise they retain obsolete content-addressed BLOBs.
+    if let Some((old_call_id, _)) = existing_identity.as_ref() {
+        tx.execute(
+            "DELETE FROM imported_replay_shell_segments
+             WHERE session_id=?1 AND call_id=?2",
+            params![event.session_id, old_call_id],
+        )
+        .map_err(|error| format!("delete replaced external Shell segments: {error}"))?;
+    }
+    tx.execute(
+        "DELETE FROM imported_replay_shell_manifests
+         WHERE session_id=?1 AND logical_call_id=?2",
+        params![event.session_id, logical_call_id],
+    )
+    .map_err(|error| format!("replace external Shell manifest: {error}"))?;
+    tx.execute(
+        "INSERT INTO imported_replay_shell_manifests(
+             session_id,logical_call_id,call_id,identity_hash,total_bytes,last_sequence,
+             terminal_preview,completed_at,accessed_at
+         ) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,
+                  strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+        params![
+            event.session_id,
+            logical_call_id,
+            call_id,
+            identity_hash,
+            i64::try_from(total_bytes)
+                .map_err(|_| "External Shell manifest exceeds SQLite INTEGER".to_string())?,
+            i64::try_from(last_sequence)
+                .map_err(|_| "External Shell sequence exceeds SQLite INTEGER".to_string())?,
+            preview,
+            event.created_at,
+        ],
+    )
+    .map_err(|error| format!("insert external Shell manifest: {error}"))?;
+    for (ordinal, segment, output_byte_start, first_sequence, frame_count) in manifest_rows {
+        tx.execute(
+            "INSERT INTO imported_replay_shell_segments(
+                 session_id,call_id,ordinal,stream,source,source_session_id,generation,
+                 content_hash,output_byte_start,total_bytes,first_sequence,frame_count
+             ) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
+            params![
+                event.session_id,
+                call_id,
+                i64::try_from(ordinal)
+                    .map_err(|_| "External Shell segment ordinal overflow".to_string())?,
+                segment.stream.as_wire_str(),
+                segment.artifact.source_id,
+                segment.artifact.source_session_id,
+                segment.artifact.generation,
+                segment.artifact.content_hash,
+                i64::try_from(output_byte_start)
+                    .map_err(|_| "External Shell output offset overflow".to_string())?,
+                i64::try_from(segment.artifact.total_bytes)
+                    .map_err(|_| "External Shell segment size overflow".to_string())?,
+                i64::try_from(first_sequence)
+                    .map_err(|_| "External Shell first sequence overflow".to_string())?,
+                i64::try_from(frame_count)
+                    .map_err(|_| "External Shell frame count overflow".to_string())?,
+            ],
+        )
+        .map_err(|error| format!("insert external Shell segment: {error}"))?;
+    }
+
+    let mut cleanup_scopes = old_scopes.into_iter().collect::<HashSet<_>>();
+    cleanup_scopes.extend(segments.iter().map(|segment| {
+        (
+            segment.artifact.source_id.clone(),
+            segment.artifact.source_session_id.clone(),
+            segment.artifact.generation.clone(),
+        )
+    }));
+    for (source, source_session_id, generation) in cleanup_scopes {
+        delete_unreferenced_payload_artifacts(tx, &source, &source_session_id, &generation)?;
+    }
+
+    set_external_shell_state(event, call_id, total_bytes, last_sequence, preview);
+    Ok(())
+}
+
+fn set_external_shell_state(
+    event: &mut SessionEvent,
+    call_id: String,
+    total_bytes: u64,
+    last_sequence: u64,
+    terminal_preview: String,
+) {
+    event.shell_replay = Some(ShellReplayState {
+        replay_ref: ShellReplayRef {
+            session_id: event.session_id.clone(),
+            call_id,
+            format_version: SHELL_REPLAY_FORMAT_VERSION,
+        },
+        bookmark: ShellReplayBookmark {
+            visible_through_sequence: last_sequence,
+            visible_bytes: total_bytes,
+        },
+        terminal_preview,
+        status: ShellReplayStatus::Complete,
+        error: None,
+        completed_at: Some(event.created_at.clone()),
+    });
+}
+
+fn delete_unreferenced_payload_artifacts(
+    tx: &Transaction<'_>,
+    source: &str,
+    source_session_id: &str,
+    generation: &str,
+) -> Result<(), String> {
+    tx.execute(
+        "DELETE FROM imported_replay_payload_artifacts AS artifact
+         WHERE artifact.source=?1 AND artifact.source_session_id=?2 AND artifact.generation=?3
+           AND NOT EXISTS(
+             SELECT 1 FROM imported_replay_payload_artifact_refs AS ref
+             WHERE ref.source=artifact.source
+               AND ref.source_session_id=artifact.source_session_id
+               AND ref.generation=artifact.generation
+               AND ref.content_hash=artifact.content_hash
+           )
+           AND NOT EXISTS(
+             SELECT 1 FROM imported_replay_shell_segments AS shell
+             WHERE shell.source=artifact.source
+               AND shell.source_session_id=artifact.source_session_id
+               AND shell.generation=artifact.generation
+               AND shell.content_hash=artifact.content_hash
+           )",
+        params![source, source_session_id, generation],
+    )
+    .map(|_| ())
+    .map_err(|error| format!("delete unreferenced external Shell payload: {error}"))
+}
+
+#[derive(Debug)]
+struct ExternalShellManifestSegment {
+    stream: ShellReplayStream,
+    artifact_row_id: i64,
+    output_byte_start: u64,
+    total_bytes: u64,
+    first_sequence: u64,
+    frame_count: u64,
+}
+
+/// Read an external-CLI Shell manifest when one exists, otherwise preserve
+/// the native SDE Agent's #425 `.slog` command unchanged. An invalid external
+/// manifest is an error: silently falling through could surface a stale native
+/// replay with the same logical call id.
+#[allow(clippy::too_many_arguments)]
+#[tauri::command(rename_all = "camelCase")]
+pub async fn shell_replay_read_range(
+    session_id: String,
+    call_id: String,
+    visible_through_sequence: u64,
+    visible_bytes: u64,
+    offset_bytes: u64,
+    limit_bytes: u64,
+) -> Result<ShellReplayRange, String> {
+    // Native #425 replay is a high-frequency range path. Its call ids never
+    // carry the content-addressed external suffix, so bypass both the extra
+    // task and the replay-cache connection entirely.
+    if !is_external_shell_manifest_call_id(&call_id) {
+        return agent_core::tools::impls::coding::exec::shell_replay::shell_replay_read_range(
+            session_id,
+            call_id,
+            visible_through_sequence,
+            visible_bytes,
+            offset_bytes,
+            limit_bytes,
+        )
+        .await;
+    }
+    let external_session_id = session_id.clone();
+    let external_call_id = call_id.clone();
+    #[cfg(test)]
+    EXTERNAL_SHELL_MANIFEST_DB_PROBES.fetch_add(1, Ordering::SeqCst);
+    let external = tokio::task::spawn_blocking(move || {
+        let conn = database::db::get_connection()
+            .map_err(|error| format!("open external Shell replay DB: {error}"))?;
+        read_external_shell_manifest_range(
+            &conn,
+            &external_session_id,
+            &external_call_id,
+            visible_through_sequence,
+            visible_bytes,
+            offset_bytes,
+            limit_bytes,
+        )
+    })
+    .await
+    .map_err(|error| format!("join external Shell range read: {error}"))??;
+    if let Some(range) = external {
+        return Ok(range);
+    }
+    agent_core::tools::impls::coding::exec::shell_replay::shell_replay_read_range(
+        session_id,
+        call_id,
+        visible_through_sequence,
+        visible_bytes,
+        offset_bytes,
+        limit_bytes,
+    )
+    .await
+}
+
+fn is_external_shell_manifest_call_id(call_id: &str) -> bool {
+    let Some((_, digest)) = call_id.rsplit_once("-external-") else {
+        return false;
+    };
+    digest.len() == 64
+        && digest
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn read_external_shell_manifest_range(
+    conn: &Connection,
+    session_id: &str,
+    call_id: &str,
+    visible_through_sequence: u64,
+    visible_bytes: u64,
+    offset_bytes: u64,
+    limit_bytes: u64,
+) -> Result<Option<ShellReplayRange>, String> {
+    let manifest_table_exists = conn
+        .query_row(
+            "SELECT EXISTS(
+                 SELECT 1 FROM sqlite_master
+                 WHERE type='table' AND name='imported_replay_shell_manifests'
+             )",
+            [],
+            |row| row.get::<_, bool>(0),
+        )
+        .map_err(|error| format!("inspect external Shell replay schema: {error}"))?;
+    if !manifest_table_exists {
+        return Ok(None);
+    }
+    let manifest = conn
+        .query_row(
+            "SELECT total_bytes,last_sequence
+             FROM imported_replay_shell_manifests
+             WHERE session_id=?1 AND call_id=?2",
+            params![session_id, call_id],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+        )
+        .optional()
+        .map_err(|error| format!("read external Shell manifest: {error}"))?;
+    let Some((manifest_total, manifest_last_sequence)) = manifest else {
+        return Ok(None);
+    };
+    let manifest_total = nonnegative_sqlite_u64(manifest_total, "manifest total_bytes")?;
+    let manifest_last_sequence =
+        nonnegative_sqlite_u64(manifest_last_sequence, "manifest last_sequence")?;
+
+    // Acquire cache liveness before opening any artifact BLOB. Cache pruning
+    // performs selection and deletion under one IMMEDIATE transaction, so
+    // this conditional write and prune have a clear lock order: either this
+    // read protects the manifest first, or it observes that prune removed it.
+    // Failed/corrupt read attempts may retain a small entry for one TTL; that
+    // is preferable to deleting a payload while a reader is opening it.
+    conn.execute(
+        "UPDATE imported_replay_shell_manifests
+         SET accessed_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+         WHERE session_id=?1 AND call_id=?2
+           AND accessed_at <= strftime('%Y-%m-%dT%H:%M:%fZ','now','-60 seconds')",
+        params![session_id, call_id],
+    )
+    .map_err(|error| format!("touch external Shell manifest: {error}"))?;
+
+    let mut statement = conn
+        .prepare(
+            "SELECT segment.ordinal,segment.stream,segment.output_byte_start,
+                    segment.total_bytes,segment.first_sequence,segment.frame_count,
+                    artifact.rowid,LENGTH(artifact.payload)
+             FROM imported_replay_shell_segments AS segment
+             LEFT JOIN imported_replay_payload_artifacts AS artifact
+               ON artifact.source=segment.source
+              AND artifact.source_session_id=segment.source_session_id
+              AND artifact.generation=segment.generation
+              AND artifact.content_hash=segment.content_hash
+             WHERE segment.session_id=?1 AND segment.call_id=?2
+             ORDER BY segment.ordinal ASC",
+        )
+        .map_err(|error| format!("prepare external Shell segments: {error}"))?;
+    let rows = statement
+        .query_map(params![session_id, call_id], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, i64>(2)?,
+                row.get::<_, i64>(3)?,
+                row.get::<_, i64>(4)?,
+                row.get::<_, i64>(5)?,
+                row.get::<_, Option<i64>>(6)?,
+                row.get::<_, Option<i64>>(7)?,
+            ))
         })
-        .collect::<Vec<_>>();
-    persist_external_shell_replay_segments_with_call_id(
-        event,
-        &artifact_call_id,
-        &segments,
-        |payload_ref, offset, max| read_range(payload_ref, offset, max),
-    );
+        .map_err(|error| format!("query external Shell segments: {error}"))?;
+    let raw_segments = rows
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(|error| format!("read external Shell segments: {error}"))?;
+    drop(statement);
+
+    let mut segments = Vec::with_capacity(raw_segments.len());
+    let mut expected_output_start = 0_u64;
+    let mut expected_first_sequence = 1_u64;
+    for (expected_ordinal, row) in raw_segments.into_iter().enumerate() {
+        let (
+            ordinal,
+            stream,
+            output_byte_start,
+            total_bytes,
+            first_sequence,
+            frame_count,
+            artifact_row_id,
+            artifact_bytes,
+        ) = row;
+        let ordinal = nonnegative_sqlite_u64(ordinal, "segment ordinal")?;
+        if ordinal != expected_ordinal as u64 {
+            return Err(format!(
+                "invalid external Shell segment ordinal {ordinal}; expected {expected_ordinal}"
+            ));
+        }
+        let stream = match stream.as_str() {
+            "stdout" => ShellReplayStream::Stdout,
+            "stderr" => ShellReplayStream::Stderr,
+            other => return Err(format!("invalid external Shell stream {other:?}")),
+        };
+        let output_byte_start =
+            nonnegative_sqlite_u64(output_byte_start, "segment output_byte_start")?;
+        let total_bytes = nonnegative_sqlite_u64(total_bytes, "segment total_bytes")?;
+        let first_sequence = nonnegative_sqlite_u64(first_sequence, "segment first_sequence")?;
+        let frame_count = nonnegative_sqlite_u64(frame_count, "segment frame_count")?;
+        let expected_frame_count = total_bytes
+            .saturating_add(SHELL_REPLAY_FRAME_MAX_BYTES as u64 - 1)
+            / SHELL_REPLAY_FRAME_MAX_BYTES as u64;
+        if output_byte_start != expected_output_start
+            || first_sequence != expected_first_sequence
+            || frame_count != expected_frame_count
+        {
+            return Err(format!(
+                "invalid external Shell segment layout at ordinal {ordinal}"
+            ));
+        }
+        let artifact_row_id = artifact_row_id.ok_or_else(|| {
+            format!("external Shell payload artifact missing at ordinal {ordinal}")
+        })?;
+        let artifact_bytes = nonnegative_sqlite_u64(
+            artifact_bytes.ok_or_else(|| {
+                format!("external Shell payload length missing at ordinal {ordinal}")
+            })?,
+            "artifact payload length",
+        )?;
+        if artifact_bytes != total_bytes {
+            return Err(format!(
+                "external Shell payload length mismatch at ordinal {ordinal}: expected {total_bytes}, found {artifact_bytes}"
+            ));
+        }
+        segments.push(ExternalShellManifestSegment {
+            stream,
+            artifact_row_id,
+            output_byte_start,
+            total_bytes,
+            first_sequence,
+            frame_count,
+        });
+        expected_output_start = expected_output_start
+            .checked_add(total_bytes)
+            .ok_or_else(|| "external Shell output byte count overflow".to_string())?;
+        expected_first_sequence = expected_first_sequence
+            .checked_add(frame_count)
+            .ok_or_else(|| "external Shell sequence overflow".to_string())?;
+    }
+    if expected_output_start != manifest_total
+        || expected_first_sequence.saturating_sub(1) != manifest_last_sequence
+    {
+        return Err("external Shell manifest summary does not match its segments".to_string());
+    }
+
+    let visible_sequence = visible_through_sequence.min(manifest_last_sequence);
+    let visible_end = visible_bytes.min(manifest_total);
+    let start = offset_bytes.min(visible_end);
+    let limit = limit_bytes.min(SHELL_REPLAY_RANGE_MAX_BYTES as u64).max(1);
+    let range = if start >= visible_end || visible_sequence == 0 {
+        ShellReplayRange {
+            frames: Vec::new(),
+            next_offset_bytes: start,
+            eof: true,
+        }
+    } else {
+        read_external_shell_frames(conn, &segments, visible_sequence, visible_end, start, limit)?
+    };
+
+    Ok(Some(range))
+}
+
+fn read_external_shell_frames(
+    conn: &Connection,
+    segments: &[ExternalShellManifestSegment],
+    visible_sequence: u64,
+    visible_end: u64,
+    start: u64,
+    limit: u64,
+) -> Result<ShellReplayRange, String> {
+    let tail_request = start.saturating_add(limit) >= visible_end;
+    let mut frames = Vec::new();
+    let mut next_offset = start;
+    let mut response_bytes = 0_u64;
+    let mut rendered_response_bytes = 0_usize;
+    'segments: for segment in segments {
+        let segment_end = segment
+            .output_byte_start
+            .checked_add(segment.total_bytes)
+            .ok_or_else(|| "external Shell segment end overflow".to_string())?;
+        if segment_end <= start || segment.output_byte_start >= visible_end {
+            continue;
+        }
+        let blob = conn
+            .blob_open(
+                DatabaseName::Main,
+                "imported_replay_payload_artifacts",
+                "payload",
+                segment.artifact_row_id,
+                true,
+            )
+            .map_err(|error| format!("open external Shell payload BLOB: {error}"))?;
+        if blob.len() as u64 != segment.total_bytes {
+            return Err("external Shell payload changed after manifest validation".to_string());
+        }
+        let local_start = start.saturating_sub(segment.output_byte_start);
+        let mut frame_index = (local_start / SHELL_REPLAY_FRAME_MAX_BYTES as u64)
+            .saturating_sub(1)
+            .min(segment.frame_count.saturating_sub(1));
+        while frame_index < segment.frame_count {
+            let sequence = segment
+                .first_sequence
+                .checked_add(frame_index)
+                .ok_or_else(|| "external Shell frame sequence overflow".to_string())?;
+            if sequence > visible_sequence {
+                break 'segments;
+            }
+            let candidate_start = frame_index
+                .checked_mul(SHELL_REPLAY_FRAME_MAX_BYTES as u64)
+                .ok_or_else(|| "external Shell frame offset overflow".to_string())?;
+            let candidate_end = frame_index
+                .saturating_add(1)
+                .checked_mul(SHELL_REPLAY_FRAME_MAX_BYTES as u64)
+                .unwrap_or(u64::MAX)
+                .min(segment.total_bytes);
+            let local_frame_start =
+                external_shell_utf8_boundary(&blob, candidate_start, segment.total_bytes)?;
+            let local_frame_end =
+                external_shell_utf8_boundary(&blob, candidate_end, segment.total_bytes)?;
+            if local_frame_end <= local_frame_start {
+                return Err("external Shell UTF-8 frame made no progress".to_string());
+            }
+            let frame_start = segment
+                .output_byte_start
+                .checked_add(local_frame_start)
+                .ok_or_else(|| "external Shell frame start overflow".to_string())?;
+            let frame_end = segment
+                .output_byte_start
+                .checked_add(local_frame_end)
+                .ok_or_else(|| "external Shell frame end overflow".to_string())?;
+            frame_index = frame_index.saturating_add(1);
+            if frame_end <= start {
+                continue;
+            }
+            if frame_start >= visible_end || frame_end > visible_end {
+                break 'segments;
+            }
+            if tail_request
+                && frame_start < start
+                && frame_end < visible_end
+                && visible_end.saturating_sub(frame_start) > limit
+            {
+                continue;
+            }
+            let frame_bytes = frame_end.saturating_sub(frame_start);
+            if !frames.is_empty() && response_bytes.saturating_add(frame_bytes) > limit {
+                break 'segments;
+            }
+            let frame_len = usize::try_from(local_frame_end - local_frame_start)
+                .map_err(|_| "external Shell frame exceeds address space".to_string())?;
+            if frame_len > SHELL_REPLAY_FRAME_MAX_BYTES + 3 {
+                return Err("external Shell UTF-8 frame exceeds its hard bound".to_string());
+            }
+            let mut payload = vec![0_u8; frame_len];
+            blob.read_at_exact(
+                &mut payload,
+                usize::try_from(local_frame_start).map_err(|_| {
+                    "external Shell payload offset exceeds address space".to_string()
+                })?,
+            )
+            .map_err(|error| format!("read external Shell payload BLOB: {error}"))?;
+            let text = String::from_utf8(payload)
+                .map_err(|_| "external Shell payload is not valid UTF-8".to_string())?;
+            if !frames.is_empty()
+                && rendered_response_bytes.saturating_add(text.len()) > SHELL_REPLAY_RANGE_MAX_BYTES
+            {
+                break 'segments;
+            }
+            rendered_response_bytes = rendered_response_bytes.saturating_add(text.len());
+            response_bytes = response_bytes.saturating_add(frame_bytes);
+            next_offset = frame_end;
+            frames.push(ShellReplayFrame {
+                sequence,
+                stream: segment.stream.as_wire_str().to_string(),
+                byte_start: frame_start,
+                byte_end: frame_end,
+                text,
+            });
+            if next_offset >= visible_end || response_bytes >= limit {
+                break;
+            }
+        }
+        if next_offset >= visible_end || response_bytes >= limit {
+            break;
+        }
+    }
+    Ok(ShellReplayRange {
+        frames,
+        next_offset_bytes: next_offset,
+        eof: next_offset >= visible_end,
+    })
+}
+
+fn external_shell_utf8_boundary(
+    blob: &rusqlite::blob::Blob<'_>,
+    candidate: u64,
+    total_bytes: u64,
+) -> Result<u64, String> {
+    if candidate == 0 || candidate >= total_bytes {
+        return Ok(candidate.min(total_bytes));
+    }
+    let mut boundary = candidate;
+    let mut byte = [0_u8; 1];
+    blob.read_at_exact(
+        &mut byte,
+        usize::try_from(boundary)
+            .map_err(|_| "external Shell UTF-8 boundary exceeds address space".to_string())?,
+    )
+    .map_err(|error| format!("read external Shell UTF-8 boundary: {error}"))?;
+    if byte[0] & 0b1100_0000 != 0b1000_0000 {
+        return Ok(boundary);
+    }
+    for _ in 0..3 {
+        boundary = boundary
+            .checked_sub(1)
+            .ok_or_else(|| "invalid external Shell UTF-8 prefix".to_string())?;
+        blob.read_at_exact(
+            &mut byte,
+            usize::try_from(boundary)
+                .map_err(|_| "external Shell UTF-8 boundary exceeds address space".to_string())?,
+        )
+        .map_err(|error| format!("read external Shell UTF-8 boundary: {error}"))?;
+        if byte[0] & 0b1100_0000 != 0b1000_0000 {
+            return Ok(boundary);
+        }
+    }
+    Err("external Shell payload has an invalid UTF-8 boundary".to_string())
+}
+
+fn nonnegative_sqlite_u64(value: i64, label: &str) -> Result<u64, String> {
+    u64::try_from(value).map_err(|_| format!("invalid negative external Shell {label}: {value}"))
 }
 
 fn select_shell_payload_refs(event: &SessionEvent) -> Vec<&PayloadRef> {
@@ -3703,16 +4641,6 @@ fn select_shell_payload_refs(event: &SessionEvent) -> Vec<&PayloadRef> {
     Vec::new()
 }
 
-fn generation_scoped_shell_call_id(
-    event: &SessionEvent,
-    source_id: &str,
-    generation: &str,
-) -> String {
-    let base = event.call_id.as_deref().unwrap_or(&event.id);
-    let digest = sha256_hex(format!("{source_id}\0{generation}").as_bytes());
-    format!("{base}-external-{}", &digest[..16])
-}
-
 fn normalize_indexed_chunks(
     indexed: Vec<ReplayIndexedChunk>,
     session_id: &str,
@@ -3749,6 +4677,13 @@ fn normalize_indexed_chunks(
                 preview: json_field_preview(event, &descriptor.field_path),
                 full_size_bytes: descriptor.total_bytes.min(usize::MAX as u64) as usize,
                 truncated: true,
+                replay_encoding: Some(match descriptor.resolved_encoding() {
+                    ReplayPayloadEncoding::JsonValue => PayloadRefEncoding::JsonValue,
+                    ReplayPayloadEncoding::Utf8Text => PayloadRefEncoding::Utf8Text,
+                    ReplayPayloadEncoding::LegacyPathInferred => {
+                        unreachable!("resolved replay payload encoding cannot remain legacy")
+                    }
+                }),
                 replay_source_id: Some(replay_source_id.to_string()),
                 replay_generation: Some(replay_generation.to_string()),
                 replay_source_event_id: Some(source_event_id.clone()),
@@ -4105,7 +5040,7 @@ fn apply_external_replay_delta(
     delta: &ExternalReplayDelta,
 ) -> ReplayApplyResult {
     if delta.reset_required {
-        store.set(delta.events.clone());
+        store.set_external_replay_window(delta.events.clone());
         return ReplayApplyResult {
             upserted: delta.events.len() as u64,
             removed: 0,
@@ -4471,6 +5406,7 @@ fn snapshot_payload_ref(
     preview: String,
     full_size_bytes: i64,
     generation: &str,
+    encoding: PayloadRefEncoding,
 ) -> PayloadRef {
     PayloadRef {
         event_id: event_id.to_string(),
@@ -4478,6 +5414,7 @@ fn snapshot_payload_ref(
         preview,
         full_size_bytes: full_size_bytes.max(0) as usize,
         truncated: true,
+        replay_encoding: Some(encoding),
         replay_source_id: Some(COLLABORATION_SNAPSHOT_REPLAY_SOURCE_ID.to_string()),
         replay_generation: Some(generation.to_string()),
         replay_source_event_id: Some(event_id.to_string()),
@@ -4585,6 +5522,7 @@ fn query_collaboration_snapshot_events(
                 json_field_preview(&event, "args"),
                 args_size,
                 generation,
+                PayloadRefEncoding::JsonValue,
             ));
         }
         let result_limit = if event.ui_canonical == core_types::tool_names::RUN_SHELL {
@@ -4600,6 +5538,7 @@ fn query_collaboration_snapshot_events(
                 json_field_preview(&event, "result"),
                 result_size,
                 generation,
+                PayloadRefEncoding::JsonValue,
             ));
         }
         if display_size as usize > replay::NORMAL_PAYLOAD_PREVIEW_BYTES {
@@ -4609,6 +5548,7 @@ fn query_collaboration_snapshot_events(
                 event.display_text.clone(),
                 display_size,
                 generation,
+                PayloadRefEncoding::Utf8Text,
             ));
         }
         // Extraction must see compact values. This prevents a deferred root
@@ -5706,6 +6646,7 @@ fn load_legacy_json_field(
         compact_legacy_json_value(
             &mut value,
             root,
+            true,
             preview_limit,
             tail,
             chunk_id,
@@ -5741,10 +6682,16 @@ fn load_legacy_json_field(
         utf8_head_preview_bytes(&root_preview, preview_limit)?
     };
     Ok((
-        serde_json::Value::String(preview),
+        serde_json::Value::String(preview.clone()),
         vec![ReplayPayloadDescriptor {
             field_path: root.to_string(),
             kind: legacy_payload_kind(function_name, root),
+            encoding: ReplayPayloadEncoding::JsonValue,
+            body_projection: Some(ReplayPayloadBodyProjection {
+                field_path: root.to_string(),
+                text: preview.clone(),
+                truncated: true,
+            }),
             spans: Vec::new(),
             total_bytes,
             source_ordinal: None,
@@ -5902,6 +6849,16 @@ fn project_legacy_json_field(
                     payloads.push(ReplayPayloadDescriptor {
                         field_path: field_path.clone(),
                         kind,
+                        encoding: if path.is_empty() {
+                            ReplayPayloadEncoding::JsonValue
+                        } else {
+                            ReplayPayloadEncoding::Utf8Text
+                        },
+                        body_projection: path.is_empty().then(|| ReplayPayloadBodyProjection {
+                            field_path: field_path.clone(),
+                            text: preview.clone(),
+                            truncated: true,
+                        }),
                         spans: Vec::new(),
                         total_bytes: if path.is_empty() {
                             root_total_bytes
@@ -6037,6 +6994,7 @@ fn utf8_tail_preview_bytes(bytes: &[u8], max_bytes: usize) -> Result<String, Str
 fn compact_legacy_json_value(
     value: &mut serde_json::Value,
     field_path: &str,
+    is_root: bool,
     limit: usize,
     tail: bool,
     source_key: &str,
@@ -6045,20 +7003,30 @@ fn compact_legacy_json_value(
 ) {
     match value {
         serde_json::Value::String(text) if text.len() > limit => {
-            let total_bytes = if field_path.contains('.') {
-                text.len()
-            } else {
+            let total_bytes = if is_root {
                 serde_json::to_string(text).map_or(text.len(), |encoded| encoded.len())
+            } else {
+                text.len()
             } as u64;
             let preview = if tail {
                 utf8_tail_preview(text, limit)
             } else {
                 utf8_head_preview(text, limit)
             };
-            *text = preview;
+            *text = preview.clone();
             payloads.push(ReplayPayloadDescriptor {
                 field_path: field_path.to_string(),
                 kind,
+                encoding: if is_root {
+                    ReplayPayloadEncoding::JsonValue
+                } else {
+                    ReplayPayloadEncoding::Utf8Text
+                },
+                body_projection: is_root.then(|| ReplayPayloadBodyProjection {
+                    field_path: field_path.to_string(),
+                    text: preview.clone(),
+                    truncated: true,
+                }),
                 spans: Vec::new(),
                 total_bytes,
                 source_ordinal: None,
@@ -6070,6 +7038,7 @@ fn compact_legacy_json_value(
                 compact_legacy_json_value(
                     item,
                     &format!("{field_path}.{index}"),
+                    false,
                     limit,
                     tail,
                     source_key,
@@ -6096,6 +7065,7 @@ fn compact_legacy_json_value(
                 compact_legacy_json_value(
                     item,
                     &child_path,
+                    false,
                     limit,
                     tail,
                     source_key,
@@ -6272,6 +7242,807 @@ mod tests {
         )
     }
 
+    fn external_shell_payload_event(
+        id: &str,
+        session_id: &str,
+        call_id: &str,
+        source_event_id: &str,
+        full_size_bytes: usize,
+    ) -> SessionEvent {
+        let mut event = ingestion::normalize_single(
+            &RawActivityChunk {
+                chunk_id: Some(id.to_string()),
+                session_id: Some(session_id.to_string()),
+                action_type: Some("tool_call".to_string()),
+                function: Some("run_command_line".to_string()),
+                result: Some(serde_json::json!({"output":"bounded preview"})),
+                created_at: Some("2026-07-22T00:00:00Z".to_string()),
+                ..RawActivityChunk::default()
+            },
+            session_id,
+        );
+        event.ui_canonical = core_types::tool_names::RUN_SHELL.to_string();
+        event.call_id = Some(call_id.to_string());
+        event.payload_refs = vec![PayloadRef {
+            event_id: event.id.clone(),
+            field_path: "result.output".to_string(),
+            preview: "bounded preview".to_string(),
+            full_size_bytes,
+            truncated: true,
+            replay_encoding: Some(PayloadRefEncoding::Utf8Text),
+            replay_source_id: Some(MANAGED_CLI_REPLAY_SOURCE_ID.to_string()),
+            replay_generation: Some("test-generation".to_string()),
+            replay_source_event_id: Some(source_event_id.to_string()),
+        }];
+        event
+    }
+
+    fn ten_mib_utf8_shell_payload() -> String {
+        const TARGET: usize = 10 * 1024 * 1024;
+        let pattern = "你🙂 shell stdout/stderr boundary\n";
+        let mut payload = pattern.repeat(TARGET / pattern.len() + 1);
+        let mut boundary = TARGET;
+        while !payload.is_char_boundary(boundary) {
+            boundary -= 1;
+        }
+        payload.truncate(boundary);
+        payload.extend(std::iter::repeat_n('x', TARGET - boundary));
+        assert_eq!(payload.len(), TARGET);
+        payload
+    }
+
+    fn bounded_utf8_payload_bytes(text: &str, offset: u64, max_bytes: usize) -> Vec<u8> {
+        let start = offset as usize;
+        assert!(text.is_char_boundary(start));
+        let mut end = start.saturating_add(max_bytes).min(text.len());
+        while end > start && !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        text.as_bytes()[start..end].to_vec()
+    }
+
+    fn read_complete_external_shell(
+        conn: &Connection,
+        session_id: &str,
+        call_id: &str,
+        total_bytes: u64,
+        last_sequence: u64,
+    ) -> String {
+        let mut output = String::new();
+        let mut offset = 0_u64;
+        loop {
+            let range = read_external_shell_manifest_range(
+                conn,
+                session_id,
+                call_id,
+                last_sequence,
+                total_bytes,
+                offset,
+                SHELL_REPLAY_RANGE_MAX_BYTES as u64,
+            )
+            .expect("read external Shell range")
+            .expect("external Shell manifest");
+            assert!(range
+                .frames
+                .iter()
+                .all(|frame| frame.text.len() <= SHELL_REPLAY_FRAME_MAX_BYTES + 3));
+            for frame in range.frames {
+                output.push_str(&frame.text);
+            }
+            if range.eof {
+                break;
+            }
+            assert!(range.next_offset_bytes > offset);
+            offset = range.next_offset_bytes;
+        }
+        output
+    }
+
+    #[test]
+    fn native_shell_call_id_performs_zero_external_database_probes() {
+        assert!(!is_external_shell_manifest_call_id("native-shell-call"));
+        assert!(!is_external_shell_manifest_call_id(
+            "looks-external-but-short-external-deadbeef"
+        ));
+        assert!(is_external_shell_manifest_call_id(&format!(
+            "managed-call-external-{}",
+            "a".repeat(64)
+        )));
+
+        let before = EXTERNAL_SHELL_MANIFEST_DB_PROBES.load(Ordering::SeqCst);
+        let result = tokio::runtime::Runtime::new()
+            .expect("native Shell range runtime")
+            .block_on(shell_replay_read_range(
+                "native-shell-probe-session".to_string(),
+                "native-shell-probe-call".to_string(),
+                1,
+                1,
+                0,
+                1,
+            ));
+        assert!(
+            result.is_err(),
+            "the synthetic native replay does not exist"
+        );
+        assert_eq!(
+            EXTERNAL_SHELL_MANIFEST_DB_PROBES.load(Ordering::SeqCst),
+            before,
+            "native #425 range reads must bypass the external DB/task path"
+        );
+    }
+
+    #[test]
+    fn absent_external_schema_is_an_explicit_native_fallback() {
+        let conn = Connection::open_in_memory().expect("native-only replay DB");
+        conn.execute_batch(
+            "CREATE TABLE shell_replays(
+                 session_id TEXT NOT NULL,
+                 call_id TEXT NOT NULL,
+                 PRIMARY KEY(session_id,call_id)
+             );",
+        )
+        .expect("native-only Shell schema marker");
+        let call_id = format!("legacy-live-external-{}", "b".repeat(64));
+        let external =
+            read_external_shell_manifest_range(&conn, "native-only-session", &call_id, 1, 1, 0, 1)
+                .expect("missing external table is not corruption");
+        assert!(external.is_none());
+    }
+
+    #[test]
+    fn imported_shell_final_guard_reobserves_same_size_provider_rewrite() {
+        use orgtrack_core::store::sqlite::SqliteRecordStore;
+
+        let directory = tempfile::tempdir().expect("imported Shell provider fixture");
+        let source_path = directory.path().join("codex-session.jsonl");
+        let initial = concat!(
+            "{\"timestamp\":\"2026-07-22T00:00:00Z\",\"type\":\"event_msg\",",
+            "\"payload\":{\"type\":\"user_message\",\"message\":\"question\"}}\n",
+            "{\"timestamp\":\"2026-07-22T00:00:01Z\",\"type\":\"event_msg\",",
+            "\"payload\":{\"type\":\"agent_message\",\"message\":\"answer-AAAA\"}}\n",
+        );
+        let replacement = initial.replace("answer-AAAA", "answer-BBBB");
+        assert_eq!(initial.len(), replacement.len());
+        fs::write(&source_path, initial).expect("write initial Codex transcript");
+
+        let source = ImportedHistorySourceId::CodexApp;
+        let session_id = "codexapp-shell-provider-race";
+        let source_session_id = source
+            .source_session_id(session_id)
+            .expect("Codex source session id");
+        let mut cache = Connection::open_in_memory().expect("imported Shell replay cache");
+        SqliteRecordStore::init_tables(&cache).expect("replay tables");
+        SqliteRecordStore::init_source_cache_tables(&cache).expect("source cache tables");
+        cache
+            .execute(
+                "INSERT INTO imported_history_session_cache(
+                     source,source_session_id,session_id,source_path
+                 ) VALUES(?1,?2,?3,?4)",
+                params![
+                    source.as_str(),
+                    source_session_id,
+                    session_id,
+                    source_path.to_string_lossy()
+                ],
+            )
+            .expect("bind Codex provider transcript");
+        let opened = replay::open_window(&mut cache, source, session_id, ReplayLimits::default())
+            .expect("open initial Codex replay");
+        validate_imported_shell_snapshot_from_conn(
+            &mut cache,
+            source,
+            session_id,
+            &opened.cursor.generation,
+            opened.cursor.revision,
+        )
+        .expect("unchanged provider remains valid");
+
+        // Keep the physical size identical so this specifically proves the
+        // final guard observes provider identity/content rather than trusting
+        // the previously published compact state or payload length.
+        std::thread::sleep(Duration::from_millis(2));
+        fs::write(&source_path, replacement).expect("rewrite Codex transcript in place");
+        let error = validate_imported_shell_snapshot_from_conn(
+            &mut cache,
+            source,
+            session_id,
+            &opened.cursor.generation,
+            opened.cursor.revision,
+        )
+        .expect_err("same-size provider rewrite must invalidate Shell delivery");
+        assert!(error.contains("changed while publishing manifests"));
+        assert!(error.contains(&opened.cursor.generation));
+    }
+
+    #[test]
+    fn collaboration_revision_is_part_of_the_shell_artifact_epoch() {
+        use orgtrack_core::store::sqlite::SqliteRecordStore;
+
+        let mut conn = Connection::open_in_memory().expect("collaboration Shell cache");
+        SqliteRecordStore::init_tables(&conn).expect("replay schema");
+        SqliteRecordStore::init_source_cache_tables(&conn).expect("cache schema");
+        let session_id = "agentsession-collaboration-shell";
+        let generation = "collaboration-secondary-v1";
+        let first_payload = format!("BEGIN{}END", "A".repeat(96 * 1024));
+        let second_payload = format!("BEGIN{}END", "B".repeat(96 * 1024));
+        assert_eq!(first_payload.len(), second_payload.len());
+
+        let mut first = external_shell_payload_event(
+            "collaboration-shell-event",
+            session_id,
+            "collaboration-shell-call",
+            "collaboration-shell-event",
+            first_payload.len(),
+        );
+        let first_epoch = collaboration_shell_artifact_generation(generation, 41);
+        {
+            let tx = conn.transaction().expect("first collaboration revision");
+            persist_scoped_shell_manifest(
+                &tx,
+                &mut first,
+                COLLABORATION_SNAPSHOT_REPLAY_SOURCE_ID,
+                session_id,
+                &first_epoch,
+                |_, offset, max_bytes| {
+                    Ok(bounded_utf8_payload_bytes(
+                        &first_payload,
+                        offset,
+                        max_bytes,
+                    ))
+                },
+            )
+            .expect("first collaboration Shell manifest");
+            tx.commit().expect("commit first collaboration revision");
+        }
+        let first_state = first.shell_replay.expect("first collaboration state");
+        let first_hash = conn
+            .query_row(
+                "SELECT content_hash FROM imported_replay_shell_segments
+                 WHERE session_id=?1",
+                [session_id],
+                |row| row.get::<_, String>(0),
+            )
+            .expect("first collaboration Shell hash");
+
+        // The collaboration generation is intentionally unchanged; only the
+        // cursor revision advances after an in-line snapshot rewrite.
+        let second_epoch = collaboration_shell_artifact_generation(generation, 42);
+        assert_ne!(first_epoch, second_epoch);
+        let mut second = external_shell_payload_event(
+            "collaboration-shell-event",
+            session_id,
+            "collaboration-shell-call",
+            "collaboration-shell-event",
+            second_payload.len(),
+        );
+        let mut second_reads = 0_usize;
+        {
+            let tx = conn
+                .transaction()
+                .expect("rewritten collaboration revision");
+            persist_scoped_shell_manifest(
+                &tx,
+                &mut second,
+                COLLABORATION_SNAPSHOT_REPLAY_SOURCE_ID,
+                session_id,
+                &second_epoch,
+                |_, offset, max_bytes| {
+                    second_reads += 1;
+                    Ok(bounded_utf8_payload_bytes(
+                        &second_payload,
+                        offset,
+                        max_bytes,
+                    ))
+                },
+            )
+            .expect("rewritten collaboration Shell manifest");
+            tx.commit()
+                .expect("commit rewritten collaboration revision");
+        }
+        assert!(
+            second_reads > 0,
+            "new revision must not hit the old artifact"
+        );
+        let second_state = second.shell_replay.expect("second collaboration state");
+        let (second_hash, stored_epoch): (String, String) = conn
+            .query_row(
+                "SELECT content_hash,generation FROM imported_replay_shell_segments
+                 WHERE session_id=?1",
+                [session_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("rewritten collaboration Shell locator");
+        assert_ne!(first_hash, second_hash);
+        assert_ne!(
+            first_state.replay_ref.call_id,
+            second_state.replay_ref.call_id
+        );
+        assert_eq!(stored_epoch, second_epoch);
+        let restored = read_complete_external_shell(
+            &conn,
+            session_id,
+            &second_state.replay_ref.call_id,
+            second_state.bookmark.visible_bytes,
+            second_state.bookmark.visible_through_sequence,
+        );
+        assert_eq!(restored, second_payload);
+    }
+
+    #[test]
+    fn shell_events_commit_independently_and_retry_after_later_failure() {
+        use orgtrack_core::store::sqlite::SqliteRecordStore;
+
+        let mut conn = Connection::open_in_memory().expect("per-event Shell cache");
+        SqliteRecordStore::init_tables(&conn).expect("replay schema");
+        SqliteRecordStore::init_source_cache_tables(&conn).expect("cache schema");
+        let session_id = "cliagent-per-event-shell";
+        let payload = "bounded-event-payload".repeat(4_096);
+        let mut first = external_shell_payload_event(
+            "event-a",
+            session_id,
+            "call-a",
+            "payload-a",
+            payload.len(),
+        );
+        {
+            let tx = conn.transaction().expect("first event transaction");
+            persist_scoped_shell_manifest(
+                &tx,
+                &mut first,
+                MANAGED_CLI_REPLAY_SOURCE_ID,
+                session_id,
+                "chunks-1",
+                |_, offset, max_bytes| Ok(bounded_utf8_payload_bytes(&payload, offset, max_bytes)),
+            )
+            .expect("first event manifest");
+            tx.commit().expect("commit first event manifest");
+        }
+
+        let mut second = external_shell_payload_event(
+            "event-b",
+            session_id,
+            "call-b",
+            "payload-b",
+            payload.len(),
+        );
+        {
+            let tx = conn.transaction().expect("second event transaction");
+            let error = persist_scoped_shell_manifest(
+                &tx,
+                &mut second,
+                MANAGED_CLI_REPLAY_SOURCE_ID,
+                session_id,
+                "chunks-1",
+                |_, _, _| Ok(Vec::new()),
+            )
+            .expect_err("second event source fails before commit");
+            assert!(error.contains("invalid progress"));
+            tx.rollback().expect("rollback failed second event");
+        }
+        assert_eq!(
+            conn.query_row(
+                "SELECT COUNT(*) FROM imported_replay_shell_manifests",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("first manifest survives later failure"),
+            1
+        );
+        assert!(read_external_shell_manifest_range(
+            &conn,
+            session_id,
+            &first
+                .shell_replay
+                .as_ref()
+                .expect("first replay state")
+                .replay_ref
+                .call_id,
+            u64::MAX,
+            u64::MAX,
+            0,
+            SHELL_REPLAY_RANGE_MAX_BYTES as u64,
+        )
+        .expect("first manifest remains readable")
+        .is_some());
+
+        let tx = conn.transaction().expect("second event retry transaction");
+        persist_scoped_shell_manifest(
+            &tx,
+            &mut second,
+            MANAGED_CLI_REPLAY_SOURCE_ID,
+            session_id,
+            "chunks-1",
+            |_, offset, max_bytes| Ok(bounded_utf8_payload_bytes(&payload, offset, max_bytes)),
+        )
+        .expect("retry second event manifest");
+        tx.commit().expect("commit retried second event");
+        assert_eq!(
+            conn.query_row(
+                "SELECT COUNT(*) FROM imported_replay_shell_manifests",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("both per-event manifests"),
+            2
+        );
+    }
+
+    #[test]
+    fn external_shell_payload_is_one_canonical_body_and_updates_atomically() {
+        use orgtrack_core::store::sqlite::SqliteRecordStore;
+
+        let directory = tempfile::tempdir().expect("external Shell cache directory");
+        let database_path = directory.path().join("replay-cache.sqlite");
+        let mut conn = Connection::open(&database_path).expect("external Shell cache DB");
+        SqliteRecordStore::init_tables(&conn).expect("external Shell replay schema");
+        SqliteRecordStore::init_source_cache_tables(&conn).expect("source cache schema");
+
+        let session_id = "cliagent-shared-shell";
+        let source_event_id = "shared-ten-mib-payload";
+        let payload = ten_mib_utf8_shell_payload();
+        let mut range_reads = 0_usize;
+        let mut replay_states = Vec::new();
+        {
+            let tx = conn.transaction().expect("publish shared Shell manifests");
+            for index in 0..50 {
+                let mut event = external_shell_payload_event(
+                    &format!("shell-event-{index}"),
+                    session_id,
+                    &format!("shell-call-{index}"),
+                    source_event_id,
+                    payload.len(),
+                );
+                persist_scoped_shell_manifest(
+                    &tx,
+                    &mut event,
+                    MANAGED_CLI_REPLAY_SOURCE_ID,
+                    session_id,
+                    "generation-a",
+                    |_, offset, max_bytes| {
+                        range_reads += 1;
+                        Ok(bounded_utf8_payload_bytes(&payload, offset, max_bytes))
+                    },
+                )
+                .expect("publish shared Shell manifest");
+                replay_states.push(event.shell_replay.expect("external Shell replay state"));
+            }
+            tx.commit().expect("commit shared Shell manifests");
+        }
+        assert!(range_reads > 1, "the first 10 MiB body is range streamed");
+        assert!(range_reads < 50, "later calls reuse the immutable artifact");
+
+        let (artifact_count, artifact_bytes): (i64, i64) = conn
+            .query_row(
+                "SELECT COUNT(*),COALESCE(SUM(LENGTH(payload)),0)
+                 FROM imported_replay_payload_artifacts",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("physical artifact accounting");
+        assert_eq!(artifact_count, 1);
+        assert_eq!(artifact_bytes as usize, payload.len());
+        let original_content_hash = conn
+            .query_row(
+                "SELECT content_hash FROM imported_replay_payload_artifacts
+                 WHERE generation='generation-a'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .expect("original canonical content hash");
+        let segment_count = conn
+            .query_row(
+                "SELECT COUNT(*) FROM imported_replay_shell_segments",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("Shell manifest references");
+        assert_eq!(segment_count, 50, "50 calls reference one physical body");
+        let artifact_reference_count = conn
+            .query_row(
+                "SELECT COUNT(*) FROM imported_replay_payload_artifact_refs",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("canonical source references");
+        assert_eq!(artifact_reference_count, 1);
+        let native_slog_table_count = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master
+                 WHERE type='table' AND name='shell_replays'",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("native .slog table lookup");
+        assert_eq!(
+            native_slog_table_count, 0,
+            "external path creates no native `.slog`"
+        );
+        let database_bytes = std::fs::metadata(&database_path)
+            .expect("external Shell cache file")
+            .len();
+        assert!(
+            // SQLite may retain the temporary content-key pages on its
+            // freelist until a later vacuum, so allow that one transient body
+            // in addition to the one live BLOB. Fifty live copies would be
+            // roughly 500 MiB and fail this bound by a wide margin.
+            database_bytes < (payload.len() as u64) * 3,
+            "50 manifests must not make 50 physical 10 MiB bodies: {database_bytes} bytes"
+        );
+
+        let first_state = &replay_states[0];
+        let restored = read_complete_external_shell(
+            &conn,
+            session_id,
+            &first_state.replay_ref.call_id,
+            first_state.bookmark.visible_bytes,
+            first_state.bookmark.visible_through_sequence,
+        );
+        assert_eq!(
+            sha256_hex(restored.as_bytes()),
+            sha256_hex(payload.as_bytes())
+        );
+
+        // Delivering the same immutable epoch again must neither read provider
+        // ranges nor rewrite the unchanged manifest/segments.
+        let mut unchanged = external_shell_payload_event(
+            "shell-event-0",
+            session_id,
+            "shell-call-0",
+            source_event_id,
+            payload.len(),
+        );
+        let unchanged_call_id = {
+            let tx = conn.transaction().expect("unchanged Shell delivery");
+            let mut repeated_reads = 0_usize;
+            persist_scoped_shell_manifest(
+                &tx,
+                &mut unchanged,
+                MANAGED_CLI_REPLAY_SOURCE_ID,
+                session_id,
+                "generation-a",
+                |_, _, _| {
+                    repeated_reads += 1;
+                    Ok(Vec::new())
+                },
+            )
+            .expect("reuse unchanged Shell manifest");
+            assert_eq!(repeated_reads, 0);
+            tx.commit().expect("commit unchanged delivery");
+            unchanged
+                .shell_replay
+                .as_ref()
+                .expect("unchanged replay state")
+                .replay_ref
+                .call_id
+                .clone()
+        };
+        assert_eq!(unchanged_call_id, first_state.replay_ref.call_id);
+        assert_eq!(
+            conn.query_row(
+                "SELECT COUNT(*) FROM imported_replay_shell_segments",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("unchanged segment count"),
+            50
+        );
+
+        // A new immutable generation with the same byte length must be read
+        // and hashed again; length alone can never select the old body.
+        let mut changed_payload = payload.clone();
+        changed_payload.replace_range(0.."你".len(), "界");
+        assert_eq!(changed_payload.len(), payload.len());
+        let mut changed = external_shell_payload_event(
+            "shell-event-0",
+            session_id,
+            "shell-call-0",
+            source_event_id,
+            changed_payload.len(),
+        );
+        let mut changed_reads = 0_usize;
+        {
+            let tx = conn.transaction().expect("changed Shell generation");
+            persist_scoped_shell_manifest(
+                &tx,
+                &mut changed,
+                MANAGED_CLI_REPLAY_SOURCE_ID,
+                session_id,
+                "generation-b",
+                |_, offset, max_bytes| {
+                    changed_reads += 1;
+                    Ok(bounded_utf8_payload_bytes(
+                        &changed_payload,
+                        offset,
+                        max_bytes,
+                    ))
+                },
+            )
+            .expect("publish same-length changed Shell body");
+            tx.commit().expect("commit changed Shell generation");
+        }
+        assert!(changed_reads > 1);
+        let changed_state = changed.shell_replay.expect("changed replay state");
+        assert_ne!(changed_state.replay_ref.call_id, unchanged_call_id);
+        assert_eq!(
+            conn.query_row(
+                "SELECT COUNT(*) FROM imported_replay_shell_segments
+                 WHERE session_id=?1 AND call_id=?2",
+                params![session_id, unchanged_call_id],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("obsolete call segment count"),
+            0,
+            "replacement must explicitly remove old segments with foreign_keys OFF"
+        );
+        assert_eq!(
+            conn.query_row(
+                "SELECT COUNT(*) FROM imported_replay_shell_segments
+                 WHERE content_hash=?1",
+                [&original_content_hash],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("remaining shared-body references"),
+            49,
+            "the other 49 calls still share and retain the original body"
+        );
+        assert_eq!(
+            conn.query_row(
+                "SELECT COUNT(*) FROM imported_replay_shell_segments",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("replacement segment count"),
+            50
+        );
+        let changed_restored = read_complete_external_shell(
+            &conn,
+            session_id,
+            &changed_state.replay_ref.call_id,
+            changed_state.bookmark.visible_bytes,
+            changed_state.bookmark.visible_through_sequence,
+        );
+        assert_eq!(
+            sha256_hex(changed_restored.as_bytes()),
+            sha256_hex(changed_payload.as_bytes())
+        );
+        assert_ne!(
+            sha256_hex(payload.as_bytes()),
+            sha256_hex(changed_payload.as_bytes())
+        );
+
+        // Simulate a failed/crashed replacement: artifact, refs, manifest and
+        // segment publication share one transaction, so rollback must leave
+        // the last committed canonical body readable.
+        let mut rolled_back_payload = changed_payload.clone();
+        rolled_back_payload.replace_range(0.."界".len(), "中");
+        let mut rolled_back = external_shell_payload_event(
+            "shell-event-0",
+            session_id,
+            "shell-call-0",
+            source_event_id,
+            rolled_back_payload.len(),
+        );
+        {
+            let tx = conn.transaction().expect("failed Shell replacement");
+            persist_scoped_shell_manifest(
+                &tx,
+                &mut rolled_back,
+                MANAGED_CLI_REPLAY_SOURCE_ID,
+                session_id,
+                "generation-c",
+                |_, offset, max_bytes| {
+                    Ok(bounded_utf8_payload_bytes(
+                        &rolled_back_payload,
+                        offset,
+                        max_bytes,
+                    ))
+                },
+            )
+            .expect("stage failed Shell replacement");
+            tx.rollback().expect("rollback failed Shell replacement");
+        }
+        let committed_call_id = conn
+            .query_row(
+                "SELECT call_id FROM imported_replay_shell_manifests
+                 WHERE session_id=?1 AND logical_call_id='shell-call-0'",
+                [session_id],
+                |row| row.get::<_, String>(0),
+            )
+            .expect("committed manifest after rollback");
+        assert_eq!(committed_call_id, changed_state.replay_ref.call_id);
+        let after_rollback = read_complete_external_shell(
+            &conn,
+            session_id,
+            &committed_call_id,
+            changed_state.bookmark.visible_bytes,
+            changed_state.bookmark.visible_through_sequence,
+        );
+        assert_eq!(
+            sha256_hex(after_rollback.as_bytes()),
+            sha256_hex(changed_payload.as_bytes())
+        );
+        assert_eq!(
+            conn.query_row(
+                "SELECT COUNT(*) FROM imported_replay_payload_artifacts
+                 WHERE generation='generation-c'",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("rolled-back artifact count"),
+            0
+        );
+
+        // Repeated identity replacements stay at one segment for this
+        // logical call even though this connection deliberately leaves
+        // SQLite foreign_keys at its default OFF.
+        let changed_artifact = conn
+            .query_row(
+                "SELECT source,source_session_id,generation,content_hash,LENGTH(payload)
+                 FROM imported_replay_payload_artifacts
+                 WHERE generation='generation-b'",
+                [],
+                |row| {
+                    Ok(replay::ReplayPayloadArtifactLocator {
+                        source_id: row.get(0)?,
+                        source_session_id: row.get(1)?,
+                        generation: row.get(2)?,
+                        content_hash: row.get(3)?,
+                        total_bytes: row.get::<_, i64>(4)?.max(0) as u64,
+                    })
+                },
+            )
+            .expect("changed canonical artifact");
+        for iteration in 0..6 {
+            let mut replacement = external_shell_payload_event(
+                "shell-event-0",
+                session_id,
+                "shell-call-0",
+                source_event_id,
+                changed_payload.len(),
+            );
+            let tx = conn.transaction().expect("repeat manifest replacement");
+            publish_external_shell_manifest(
+                &tx,
+                &mut replacement,
+                &[CanonicalExternalShellSegment {
+                    stream: if iteration % 2 == 0 {
+                        ShellReplayStream::Stderr
+                    } else {
+                        ShellReplayStream::Stdout
+                    },
+                    artifact: changed_artifact.clone(),
+                    preview: "changed preview".to_string(),
+                }],
+            )
+            .expect("repeat external Shell replacement");
+            tx.commit().expect("commit repeat manifest replacement");
+            assert_eq!(
+                conn.query_row(
+                    "SELECT COUNT(*) FROM imported_replay_shell_segments",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .expect("non-staircase segment count"),
+                50
+            );
+            assert_eq!(
+                conn.query_row(
+                    "SELECT COUNT(*)
+                     FROM imported_replay_shell_segments AS segment
+                     JOIN imported_replay_shell_manifests AS manifest
+                       ON manifest.session_id=segment.session_id
+                      AND manifest.call_id=segment.call_id
+                     WHERE manifest.session_id=?1
+                       AND manifest.logical_call_id='shell-call-0'",
+                    [session_id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .expect("single live logical-call segment"),
+                1
+            );
+        }
+    }
+
     fn delta(events: Vec<SessionEvent>, removed: Vec<String>, reset: bool) -> ExternalReplayDelta {
         ExternalReplayDelta {
             cursor: ReplayCursor {
@@ -6384,6 +8155,103 @@ mod tests {
         .expect_err("same-generation managed appends must reset the stream");
         assert!(error.contains("chunks-3@200"));
         assert!(error.contains("chunks-3@201"));
+    }
+
+    #[test]
+    fn export_and_cloud_prepare_three_lazy_kv_turns_before_strict_streaming() {
+        use orgtrack_core::store::sqlite::SqliteRecordStore;
+
+        for source in [
+            ImportedHistorySourceId::CursorIde,
+            ImportedHistorySourceId::Windsurf,
+        ] {
+            let directory = tempfile::tempdir().expect("lazy stream fixture");
+            let source_path = directory.path().join(format!("{}.db", source.as_str()));
+            let source_conn = Connection::open(&source_path).expect("KV source DB");
+            source_conn
+                .execute_batch(
+                    "PRAGMA journal_mode=WAL;
+                     CREATE TABLE cursorDiskKV(key TEXT PRIMARY KEY,value TEXT);",
+                )
+                .expect("KV source schema");
+            let headers = (0..6)
+                .map(|index| {
+                    serde_json::json!({
+                        "bubbleId":format!("b{index}"),
+                        "type":if index % 2 == 0 { 1 } else { 2 },
+                    })
+                })
+                .collect::<Vec<_>>();
+            source_conn
+                .execute(
+                    "INSERT INTO cursorDiskKV(key,value) VALUES('composerData:c1',?1)",
+                    [serde_json::json!({
+                        "composerId":"c1",
+                        "createdAt":1,
+                        "lastUpdatedAt":6,
+                        "fullConversationHeadersOnly":headers,
+                    })
+                    .to_string()],
+                )
+                .expect("composer row");
+            for index in 0..6 {
+                source_conn
+                    .execute(
+                        "INSERT INTO cursorDiskKV(key,value) VALUES(?1,?2)",
+                        rusqlite::params![
+                            format!("bubbleId:c1:b{index}"),
+                            serde_json::json!({
+                                "bubbleId":format!("b{index}"),
+                                "type":if index % 2 == 0 { 1 } else { 2 },
+                                "createdAt":format!("2026-07-22T00:00:{index:02}Z"),
+                                "text":format!("message {index}"),
+                            })
+                            .to_string(),
+                        ],
+                    )
+                    .expect("bubble row");
+            }
+
+            let mut cache = Connection::open_in_memory().expect("replay cache");
+            SqliteRecordStore::init_tables(&cache).expect("replay tables");
+            SqliteRecordStore::init_source_cache_tables(&cache).expect("source cache tables");
+            let session_id = format!("{}c1", source.descriptor().session_prefix);
+            cache
+                .execute(
+                    "INSERT INTO imported_history_session_cache(
+                         source,source_session_id,session_id,source_path
+                     ) VALUES(?1,'c1',?2,?3)",
+                    rusqlite::params![source.as_str(), session_id, source_path.to_string_lossy()],
+                )
+                .expect("cache source path");
+            let limits = ReplayLimits {
+                max_turns: 1,
+                max_events: 1,
+                max_ipc_bytes: STREAM_BATCH_MAX_BYTES,
+            };
+            let prepared = prepare_stream_replay_snapshot(&mut cache, source, &session_id, limits)
+                .expect("prepare export/cloud snapshot");
+            let mut after_sequence = -1_i64;
+            let mut sequences = Vec::new();
+            loop {
+                let scan = replay::scan_window_after_generation(
+                    &mut cache,
+                    source,
+                    &session_id,
+                    &prepared.generation,
+                    prepared.revision,
+                    after_sequence,
+                    limits,
+                )
+                .expect("strict export/cloud scan");
+                sequences.extend(scan.chunks.iter().map(|chunk| chunk.sequence));
+                after_sequence = scan.cursor.through_sequence;
+                if !scan.has_more {
+                    break;
+                }
+            }
+            assert_eq!(sequences, vec![0, 1, 2, 3, 4, 5], "{}", source.as_str());
+        }
     }
 
     #[test]
@@ -6636,6 +8504,11 @@ mod tests {
                 .session_id,
             "cliagent-test"
         );
+        assert_eq!(
+            store.hydration_mode(),
+            crate::agent_sessions::event_pipeline::store::HydrationMode::RoundWindow,
+            "a generation reset is still a bounded replay window, not a fully hydrated transcript"
+        );
     }
 
     #[test]
@@ -6766,6 +8639,7 @@ mod tests {
             preview: "x".repeat(70 * 1024),
             full_size_bytes: 10 * 1024 * 1024,
             truncated: true,
+            replay_encoding: Some(PayloadRefEncoding::Utf8Text),
             replay_source_id: Some("codex_app".to_string()),
             replay_generation: Some("g1".to_string()),
             replay_source_event_id: Some("payload".to_string()),
@@ -6812,6 +8686,7 @@ mod tests {
                     preview: String::new(),
                     full_size_bytes: 10 * 1024 * 1024,
                     truncated: true,
+                    replay_encoding: Some(PayloadRefEncoding::Utf8Text),
                     replay_source_id: Some("codex_app".to_string()),
                     replay_generation: Some("g1".to_string()),
                     replay_source_event_id: Some(row.id.clone()),
@@ -6887,6 +8762,7 @@ mod tests {
             preview: preview.to_string(),
             full_size_bytes: 0,
             truncated: true,
+            replay_encoding: Some(PayloadRefEncoding::Utf8Text),
             replay_source_id: Some("codex_app".to_string()),
             replay_generation: Some("g1".to_string()),
             replay_source_event_id: Some("large".to_string()),
@@ -6944,6 +8820,7 @@ mod tests {
             preview: preview.to_string(),
             full_size_bytes: 0,
             truncated: true,
+            replay_encoding: Some(PayloadRefEncoding::Utf8Text),
             replay_source_id: Some(MANAGED_CLI_REPLAY_SOURCE_ID.to_string()),
             replay_generation: Some("legacy-generation".to_string()),
             replay_source_event_id: Some("array".to_string()),
@@ -7001,6 +8878,7 @@ mod tests {
             preview: replay_event.args.to_string(),
             full_size_bytes: 30,
             truncated: true,
+            replay_encoding: Some(PayloadRefEncoding::JsonValue),
             replay_source_id: Some("claude_code".to_string()),
             replay_generation: Some("g1".to_string()),
             replay_source_event_id: Some("args".to_string()),
@@ -7090,6 +8968,92 @@ mod tests {
             max_events: 200,
             max_ipc_bytes: 4 * 1024 * 1024,
         }
+    }
+
+    #[test]
+    fn managed_chunk_replacement_resets_old_window_but_append_stays_delta() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let conn = database::db::get_connection().expect("managed replay test DB");
+        crate::agent_sessions::cli::init_cli_agent_tables(&conn).expect("managed CLI schema");
+        for session_id in ["cliagent-epoch-old", "cliagent-epoch-new"] {
+            conn.execute(
+                "INSERT INTO code_sessions(session_id,created_at,updated_at)
+                 VALUES(?1,'2026-07-23T00:00:00Z','2026-07-23T00:00:00Z')",
+                [session_id],
+            )
+            .expect("managed replay session");
+        }
+        drop(conn);
+
+        let make_chunk = |chunk_id: &str, session_id: &str, output: &str| {
+            let mut chunk = ActivityChunk::new(session_id, "tool_result", "run_command_line");
+            chunk.chunk_id = chunk_id.to_string();
+            chunk.args = serde_json::json!({"command":"printf replay"});
+            chunk.result = serde_json::json!({"output":output});
+            chunk.created_at = "2026-07-23T00:00:00Z".to_string();
+            chunk
+        };
+        let original = make_chunk("epoch-shell", "cliagent-epoch-old", "AAAA");
+        crate::agent_sessions::cli::persistence::insert_chunk(&original, 0)
+            .expect("initial managed append");
+        let opened = legacy_open_window("cliagent-epoch-old", managed_replay_limits(1))
+            .expect("initial managed window");
+        assert_eq!(opened.cursor.generation, "chunks-0");
+
+        let appended = make_chunk("epoch-append", "cliagent-epoch-old", "tail");
+        crate::agent_sessions::cli::persistence::insert_chunk(&appended, 1)
+            .expect("managed append delta");
+        let append_delta = legacy_poll_delta(
+            "cliagent-epoch-old",
+            &opened.cursor,
+            managed_replay_limits(1),
+        )
+        .expect("managed append poll");
+        assert!(!append_delta.reset_required);
+        assert_eq!(append_delta.cursor.generation, opened.cursor.generation);
+        assert_eq!(append_delta.chunks.len(), 1);
+
+        crate::agent_sessions::cli::persistence::insert_chunk(&original, 0)
+            .expect("idempotent managed replace");
+        let unchanged = legacy_poll_delta(
+            "cliagent-epoch-old",
+            &append_delta.cursor,
+            managed_replay_limits(1),
+        )
+        .expect("idempotent managed poll");
+        assert!(!unchanged.reset_required);
+        assert!(unchanged.chunks.is_empty());
+
+        let changed = make_chunk("epoch-shell", "cliagent-epoch-old", "BBBB");
+        crate::agent_sessions::cli::persistence::insert_chunk(&changed, 0)
+            .expect("same-length managed replacement");
+        let reset = legacy_poll_delta(
+            "cliagent-epoch-old",
+            &append_delta.cursor,
+            managed_replay_limits(1),
+        )
+        .expect("managed replacement reset");
+        assert!(reset.reset_required);
+        assert_eq!(reset.cursor.generation, "chunks-1");
+
+        let moved = make_chunk("epoch-shell", "cliagent-epoch-new", "BBBB");
+        crate::agent_sessions::cli::persistence::insert_chunk(&moved, 0)
+            .expect("cross-session managed replacement");
+        let old_reset = legacy_poll_delta(
+            "cliagent-epoch-old",
+            &reset.cursor,
+            managed_replay_limits(1),
+        )
+        .expect("old session reset after move");
+        assert!(old_reset.reset_required);
+        assert_eq!(old_reset.cursor.generation, "chunks-2");
+        let new_window = legacy_open_window("cliagent-epoch-new", managed_replay_limits(1))
+            .expect("new session window after move");
+        assert_eq!(new_window.cursor.generation, "chunks-1");
+        assert!(new_window
+            .chunks
+            .iter()
+            .any(|chunk| chunk.chunk.chunk_id == "epoch-shell"));
     }
 
     #[test]
@@ -8485,6 +10449,7 @@ mod tests {
             preview: "preview".to_string(),
             full_size_bytes: total,
             truncated: true,
+            replay_encoding: Some(PayloadRefEncoding::Utf8Text),
             replay_source_id: Some("codex_app".to_string()),
             replay_generation: Some("g1".to_string()),
             replay_source_event_id: Some("source-large".to_string()),
@@ -8557,6 +10522,7 @@ mod tests {
             preview: "preview".to_string(),
             full_size_bytes: total,
             truncated: true,
+            replay_encoding: Some(PayloadRefEncoding::Utf8Text),
             replay_source_id: Some("codex_app".to_string()),
             replay_generation: Some("g1".to_string()),
             replay_source_event_id: Some("source-random".to_string()),

@@ -10,8 +10,9 @@
 //!   1. [`registry::scan_source`] — discover + cache one provider's sessions.
 //!   2. [`session_usage::backfill_session_usage`] — project cached sessions
 //!      into the usage table the analytics layer reads.
-//!   3. [`usage_dashboard`] / [`imported_history::load_activity_chunks_for_session`]
-//!      — analyze and replay.
+//!   3. [`usage_dashboard`] /
+//!      [`orgtrack_core::sources::imported_history::router::scan_activity_chunks_for_session`]
+//!      — analyze and replay through bounded compact-index pages.
 //!
 //! This binary is only argument parsing, orchestration, and formatting.
 

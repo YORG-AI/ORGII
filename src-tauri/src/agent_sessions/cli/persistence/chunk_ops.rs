@@ -1,10 +1,10 @@
-use rusqlite::{params, Result as SqliteResult};
+use rusqlite::{params, OptionalExtension, Result as SqliteResult};
 
 use agent_core::foundation::session_bridge;
 use core_types::activity::ActivityChunk;
 use database::db::get_connection;
 
-use super::session_crud::{clear_cli_resume_state_with_tx, now_iso};
+use super::session_crud::{bump_history_mutation_with_tx, clear_cli_resume_state_with_tx, now_iso};
 
 /// Get the maximum sequence number for a session's chunks.
 /// Returns -1 if no chunks exist (so base_sequence + 1 == 0 for first run).
@@ -20,7 +20,7 @@ pub fn max_chunk_sequence(session_id: &str) -> SqliteResult<i64> {
 
 /// Store an ActivityChunk.
 pub fn insert_chunk(chunk: &ActivityChunk, sequence: i64) -> SqliteResult<()> {
-    let conn = get_connection()?;
+    let mut conn = get_connection()?;
     // `serde_json::to_string` on `serde_json::Value` is infallible — the
     // value tree was already validated when the chunk was constructed.
     // Using `expect` here (instead of the previous silent fallback to
@@ -33,7 +33,53 @@ pub fn insert_chunk(chunk: &ActivityChunk, sequence: i64) -> SqliteResult<()> {
     let result_str = serde_json::to_string(&chunk.result)
         .expect("ActivityChunk.result -> JSON string is infallible for Value");
 
-    conn.execute(
+    let tx = conn.transaction()?;
+    let previous = tx
+        .query_row(
+            "SELECT session_id,action_type,function,args_json,result_json,
+                    thread_id,process_id,sequence,created_at
+             FROM code_session_chunks WHERE chunk_id=?1",
+            [&chunk.chunk_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                    row.get::<_, Option<String>>(6)?,
+                    row.get::<_, i64>(7)?,
+                    row.get::<_, String>(8)?,
+                ))
+            },
+        )
+        .optional()?;
+    let replacement_changed = previous.as_ref().is_some_and(
+        |(
+            old_session_id,
+            old_action_type,
+            old_function,
+            old_args_json,
+            old_result_json,
+            old_thread_id,
+            old_process_id,
+            old_sequence,
+            old_created_at,
+        )| {
+            old_session_id != &chunk.session_id
+                || old_action_type != &chunk.action_type
+                || old_function != &chunk.function
+                || old_args_json != &args_str
+                || old_result_json != &result_str
+                || old_thread_id != &chunk.thread_id
+                || old_process_id != &chunk.process_id
+                || *old_sequence != sequence
+                || old_created_at != &chunk.created_at
+        },
+    );
+
+    tx.execute(
         "INSERT OR REPLACE INTO code_session_chunks
             (chunk_id, session_id, action_type, function,
              args_json, result_json, thread_id, process_id, sequence, created_at)
@@ -52,6 +98,22 @@ pub fn insert_chunk(chunk: &ActivityChunk, sequence: i64) -> SqliteResult<()> {
         ],
     )?;
 
+    if replacement_changed {
+        let mut affected_sessions = vec![chunk.session_id.as_str()];
+        if let Some((old_session_id, ..)) = previous.as_ref() {
+            affected_sessions.push(old_session_id.as_str());
+        }
+        affected_sessions.sort_unstable();
+        affected_sessions.dedup();
+        let mutated_at = now_iso();
+        for session_id in affected_sessions {
+            bump_history_mutation_with_tx(&tx, session_id, "chunk_replaced", &mutated_at)?;
+        }
+    }
+    tx.commit()?;
+
+    // Database replay and its mutation epoch are now committed atomically;
+    // lineage/subagent side effects remain best-effort and run afterwards.
     run_chunk_side_effects_with_args(chunk, args_str);
 
     Ok(())
@@ -280,6 +342,88 @@ pub fn truncate_chunks_after_with_reason(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn mutation_test_chunk(chunk_id: &str, session_id: &str, content: &str) -> ActivityChunk {
+        let mut chunk = ActivityChunk::new(session_id, "tool_result", "run_command_line");
+        chunk.chunk_id = chunk_id.to_string();
+        chunk.args = serde_json::json!({"command":"printf payload"});
+        chunk.result = serde_json::json!({"output":content});
+        chunk.created_at = "2026-07-23T00:00:00Z".to_string();
+        chunk
+    }
+
+    fn history_epoch(session_id: &str) -> Option<i64> {
+        get_connection()
+            .expect("history epoch DB")
+            .query_row(
+                "SELECT epoch FROM code_session_history_mutations WHERE session_id=?1",
+                [session_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .expect("history epoch")
+    }
+
+    #[test]
+    fn chunk_replace_bumps_only_affected_history_epochs_atomically() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let conn = get_connection().expect("test database");
+        crate::agent_sessions::cli::init_cli_agent_tables(&conn).expect("CLI schema");
+        for session_id in ["cliagent-old", "cliagent-new"] {
+            conn.execute(
+                "INSERT INTO code_sessions(session_id,created_at,updated_at)
+                 VALUES(?1,'2026-07-23T00:00:00Z','2026-07-23T00:00:00Z')",
+                [session_id],
+            )
+            .expect("chunk test session");
+        }
+        drop(conn);
+
+        let original = mutation_test_chunk("mutable-chunk", "cliagent-old", "AAAA");
+        insert_chunk(&original, 7).expect("pure append");
+        assert_eq!(history_epoch("cliagent-old"), None, "append is a delta");
+
+        insert_chunk(&original, 7).expect("idempotent replace");
+        assert_eq!(
+            history_epoch("cliagent-old"),
+            None,
+            "byte-identical replace must not reset replay"
+        );
+
+        let changed = mutation_test_chunk("mutable-chunk", "cliagent-old", "BBBB");
+        assert_eq!(
+            serde_json::to_string(&original.result)
+                .expect("old result")
+                .len(),
+            serde_json::to_string(&changed.result)
+                .expect("changed result")
+                .len()
+        );
+        insert_chunk(&changed, 7).expect("same-length content replacement");
+        assert_eq!(history_epoch("cliagent-old"), Some(1));
+
+        let append = mutation_test_chunk("append-chunk", "cliagent-old", "CCCC");
+        insert_chunk(&append, 8).expect("append after replacement");
+        assert_eq!(
+            history_epoch("cliagent-old"),
+            Some(1),
+            "later append keeps the current generation"
+        );
+
+        let moved = mutation_test_chunk("mutable-chunk", "cliagent-new", "BBBB");
+        insert_chunk(&moved, 7).expect("cross-session replacement");
+        assert_eq!(history_epoch("cliagent-old"), Some(2));
+        assert_eq!(history_epoch("cliagent-new"), Some(1));
+        let stored_session = get_connection()
+            .expect("stored chunk DB")
+            .query_row(
+                "SELECT session_id FROM code_session_chunks WHERE chunk_id='mutable-chunk'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .expect("moved chunk row");
+        assert_eq!(stored_session, "cliagent-new");
+    }
 
     #[test]
     fn recent_context_query_is_row_and_text_bounded_before_rust() {

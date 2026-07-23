@@ -27,7 +27,8 @@ use crate::sources::imported_history::{self, ImportedToolCall};
 use super::index::ReplayIndexState;
 use super::payload_artifact;
 use super::{
-    ImportedHistorySourceId, ReplayPayloadDescriptor, ReplayPayloadKind, ReplayPayloadRange,
+    replay_payload_body_projection, ImportedHistorySourceId, ReplayPayloadBodyProjection,
+    ReplayPayloadDescriptor, ReplayPayloadEncoding, ReplayPayloadKind, ReplayPayloadRange,
     ReplaySourceSpan, ReplayStats, NORMAL_PAYLOAD_PREVIEW_BYTES, SHELL_PAYLOAD_PREVIEW_BYTES,
 };
 
@@ -57,6 +58,8 @@ struct PendingCall {
     payload_ordinal: u32,
     args_size_bytes: usize,
     args_truncated: bool,
+    #[serde(default)]
+    args_body_projection: Option<ReplayPayloadBodyProjection>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -301,14 +304,16 @@ fn fold_event(
                 created_at,
                 &preview,
             );
-            let payloads = payload_descriptor(
-                "result.message.content",
-                ReplayPayloadKind::UserMessage,
+            let payloads = payload_descriptor(PayloadDescriptorInput {
+                field_path: "result.message.content",
+                kind: ReplayPayloadKind::UserMessage,
+                encoding: ReplayPayloadEncoding::Utf8Text,
                 span,
-                payload_ordinal,
-                text.len(),
+                source_ordinal: payload_ordinal,
+                total_bytes: text.len(),
                 truncated,
-            );
+                body_projection: None,
+            });
             let changed = insert_new_chunk(
                 tx,
                 source,
@@ -343,14 +348,16 @@ fn fold_event(
                 created_at,
                 &preview,
             );
-            let payloads = payload_descriptor(
-                "result.content",
-                ReplayPayloadKind::AssistantContent,
+            let payloads = payload_descriptor(PayloadDescriptorInput {
+                field_path: "result.content",
+                kind: ReplayPayloadKind::AssistantContent,
+                encoding: ReplayPayloadEncoding::Utf8Text,
                 span,
-                payload_ordinal,
-                text.len(),
+                source_ordinal: payload_ordinal,
+                total_bytes: text.len(),
                 truncated,
-            );
+                body_projection: None,
+            });
             let changed = insert_new_chunk(
                 tx,
                 source,
@@ -385,14 +392,16 @@ fn fold_event(
                 created_at,
                 &preview,
             );
-            let payloads = payload_descriptor(
-                "result.content",
-                ReplayPayloadKind::Reasoning,
+            let payloads = payload_descriptor(PayloadDescriptorInput {
+                field_path: "result.content",
+                kind: ReplayPayloadKind::Reasoning,
+                encoding: ReplayPayloadEncoding::Utf8Text,
                 span,
-                payload_ordinal,
-                text.len(),
+                source_ordinal: payload_ordinal,
+                total_bytes: text.len(),
                 truncated,
-            );
+                body_projection: None,
+            });
             let changed = insert_new_chunk(
                 tx,
                 source,
@@ -427,6 +436,17 @@ fn fold_event(
                 NORMAL_PAYLOAD_PREVIEW_BYTES
             };
             let args_truncated = args_size_bytes > args_limit;
+            let args_body_projection = args_truncated
+                .then(|| {
+                    replay_payload_body_projection(
+                        "args",
+                        &call.args,
+                        Some(&full_args),
+                        args_limit,
+                        false,
+                    )
+                })
+                .flatten();
             call.args = compact_tool_args(&call.args, &call.canonical_name);
             let sequence = cursor.next_sequence;
             let chunk = imported_history::tool_call_chunk(
@@ -436,14 +456,16 @@ fn fold_event(
                 &call,
                 "",
             );
-            let payloads = payload_descriptor(
-                "args",
-                ReplayPayloadKind::ToolArguments,
+            let payloads = payload_descriptor(PayloadDescriptorInput {
+                field_path: "args",
+                kind: ReplayPayloadKind::ToolArguments,
+                encoding: ReplayPayloadEncoding::JsonValue,
                 span,
-                payload_ordinal,
-                args_size_bytes,
-                args_truncated,
-            );
+                source_ordinal: payload_ordinal,
+                total_bytes: args_size_bytes,
+                truncated: args_truncated,
+                body_projection: args_body_projection.clone(),
+            });
             let changed = insert_new_chunk(
                 tx,
                 source,
@@ -477,6 +499,7 @@ fn fold_event(
                     payload_ordinal,
                     args_size_bytes,
                     args_truncated,
+                    args_body_projection,
                 },
             );
             Ok(changed)
@@ -528,25 +551,29 @@ fn fold_event(
                 }
             }
             let mut deferred_bodies = Vec::new();
-            let mut payloads = payload_descriptor(
-                "result.output",
-                ReplayPayloadKind::ToolOutput,
+            let mut payloads = payload_descriptor(PayloadDescriptorInput {
+                field_path: "result.output",
+                kind: ReplayPayloadKind::ToolOutput,
+                encoding: ReplayPayloadEncoding::Utf8Text,
                 span,
-                payload_ordinal,
-                output.len(),
+                source_ordinal: payload_ordinal,
+                total_bytes: output.len(),
                 truncated,
-            );
+                body_projection: None,
+            });
             if truncated {
                 deferred_bodies.push(("result.output".to_string(), output));
             }
-            payloads.extend(payload_descriptor(
-                "args",
-                ReplayPayloadKind::ToolArguments,
-                pending.call_span,
-                pending.payload_ordinal,
-                pending.args_size_bytes,
-                pending.args_truncated,
-            ));
+            payloads.extend(payload_descriptor(PayloadDescriptorInput {
+                field_path: "args",
+                kind: ReplayPayloadKind::ToolArguments,
+                encoding: ReplayPayloadEncoding::JsonValue,
+                span: pending.call_span,
+                source_ordinal: pending.payload_ordinal,
+                total_bytes: pending.args_size_bytes,
+                truncated: pending.args_truncated,
+                body_projection: pending.args_body_projection,
+            }));
             if let Some(diff) = diff {
                 let (diff_preview, diff_truncated) =
                     head_preview(&diff, NORMAL_PAYLOAD_PREVIEW_BYTES);
@@ -556,14 +583,16 @@ fn fold_event(
                     result.insert("linesAdded".to_string(), json!(added));
                     result.insert("linesRemoved".to_string(), json!(removed));
                 }
-                payloads.extend(payload_descriptor(
-                    "result.diff",
-                    ReplayPayloadKind::ToolDiff,
+                payloads.extend(payload_descriptor(PayloadDescriptorInput {
+                    field_path: "result.diff",
+                    kind: ReplayPayloadKind::ToolDiff,
+                    encoding: ReplayPayloadEncoding::Utf8Text,
                     span,
-                    payload_ordinal,
-                    diff.len(),
-                    diff_truncated,
-                ));
+                    source_ordinal: payload_ordinal,
+                    total_bytes: diff.len(),
+                    truncated: diff_truncated,
+                    body_projection: None,
+                }));
                 if diff_truncated {
                     deferred_bodies.push(("result.diff".to_string(), diff));
                 }
@@ -1431,23 +1460,29 @@ fn compact_semantic_arg_value(value: &Value, max_bytes: usize) -> Value {
     Value::String(head_preview(&encoded, max_bytes).0)
 }
 
-fn payload_descriptor(
-    field_path: &str,
+struct PayloadDescriptorInput<'a> {
+    field_path: &'a str,
     kind: ReplayPayloadKind,
+    encoding: ReplayPayloadEncoding,
     span: ReplaySourceSpan,
     source_ordinal: u32,
     total_bytes: usize,
     truncated: bool,
-) -> Vec<ReplayPayloadDescriptor> {
-    if !truncated {
+    body_projection: Option<ReplayPayloadBodyProjection>,
+}
+
+fn payload_descriptor(input: PayloadDescriptorInput<'_>) -> Vec<ReplayPayloadDescriptor> {
+    if !input.truncated {
         return Vec::new();
     }
     vec![ReplayPayloadDescriptor {
-        field_path: field_path.to_string(),
-        kind,
-        spans: vec![span],
-        total_bytes: total_bytes as u64,
-        source_ordinal: Some(source_ordinal),
+        field_path: input.field_path.to_string(),
+        kind: input.kind,
+        encoding: input.encoding,
+        body_projection: input.body_projection,
+        spans: vec![input.span],
+        total_bytes: input.total_bytes as u64,
+        source_ordinal: Some(input.source_ordinal),
         source_key: None,
     }]
 }

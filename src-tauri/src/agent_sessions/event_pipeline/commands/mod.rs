@@ -16,6 +16,7 @@ mod cache_bridge;
 pub mod collaboration_snapshot_ingest;
 pub(crate) mod event_conversion;
 pub mod external_replay;
+mod external_replay_cache;
 mod external_replay_watcher;
 mod extractors;
 mod history;

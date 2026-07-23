@@ -7,13 +7,14 @@ use std::path::{Path, PathBuf};
 
 use chrono::Utc;
 use core_types::activity::ActivityChunk;
-use rusqlite::{params, Connection, OptionalExtension, Row};
+use rusqlite::{params, Connection, OptionalExtension, Row, Transaction};
 
 use super::{
-    codex_jsonl, jsonl_driver, qoder_sidecar, sqlite_driver, structured_driver, whole_json_driver,
-    ImportedHistorySourceId, ReplayChunkDelta, ReplayChunkScan, ReplayChunkWindow, ReplayCursor,
-    ReplayIndexedChunk, ReplayLimits, ReplayPayloadDescriptor, ReplayPayloadRange, ReplayStats,
-    ReplayTurnHeader,
+    codex_jsonl, jsonl_driver, payload_artifact, qoder_sidecar, sqlite_driver, structured_driver,
+    whole_json_driver, ImportedHistorySourceId, ReplayChunkDelta, ReplayChunkScan,
+    ReplayChunkWindow, ReplayCursor, ReplayIndexedChunk, ReplayLimits,
+    ReplayPayloadArtifactLocator, ReplayPayloadDescriptor, ReplayPayloadRange, ReplayStats,
+    ReplayTurnHeader, HARD_MAX_PAYLOAD_RANGE_BYTES,
 };
 
 /// Replay indexing can touch hundreds of MiB inside one atomic generation
@@ -251,8 +252,8 @@ pub(super) fn sync_index(
     let previous = (!generation_changed)
         .then_some(old_state.as_ref())
         .flatten();
-    let outcome = match source {
-        ImportedHistorySourceId::CodexApp => {
+    let outcome = match replay_driver_kind(source) {
+        ReplayDriverKind::CodexJsonl => {
             let outcome = codex_jsonl::sync(
                 &tx,
                 session_id,
@@ -273,7 +274,7 @@ pub(super) fn sync_index(
                 removed_event_ids: Vec::new(),
             }
         }
-        source if is_shared_jsonl(source) => {
+        ReplayDriverKind::SharedJsonl => {
             let outcome = jsonl_driver::sync(
                 &tx,
                 source,
@@ -301,7 +302,7 @@ pub(super) fn sync_index(
                 removed_event_ids: Vec::new(),
             }
         }
-        source if is_sqlite_replay(source) => {
+        ReplayDriverKind::Sqlite => {
             let outcome = sqlite_driver::sync(
                 &tx,
                 source,
@@ -326,7 +327,7 @@ pub(super) fn sync_index(
                 removed_event_ids: outcome.removed_event_ids,
             }
         }
-        source if is_structured_sqlite(source) => {
+        ReplayDriverKind::StructuredSqlite => {
             let outcome = match structured_driver::sync(
                 &tx,
                 source,
@@ -371,7 +372,7 @@ pub(super) fn sync_index(
                 removed_event_ids: outcome.removed_event_ids,
             }
         }
-        ImportedHistorySourceId::Cline => {
+        ReplayDriverKind::WholeJson => {
             let outcome = match whole_json_driver::sync(
                 &tx,
                 session_id,
@@ -407,12 +408,6 @@ pub(super) fn sync_index(
                 total_turns: outcome.total_turns,
                 removed_event_ids: Vec::new(),
             }
-        }
-        _ => {
-            return Err(format!(
-                "Replay adapter {} is not implemented; refusing full-history fallback",
-                source.as_str()
-            ))
         }
     };
     // A whole-document writer can replace the file while the streaming
@@ -581,7 +576,14 @@ pub(super) fn sync_index(
                 .map_err(|err| format!("remove replaced replay payload artifact refs: {err}"))?;
                 tx.execute(
                     "DELETE FROM imported_replay_payload_artifacts
-                     WHERE source=?1 AND source_session_id=?2 AND generation=?3",
+                     WHERE source=?1 AND source_session_id=?2 AND generation=?3
+                       AND NOT EXISTS(
+                         SELECT 1 FROM imported_replay_shell_segments AS shell
+                         WHERE shell.source=imported_replay_payload_artifacts.source
+                           AND shell.source_session_id=imported_replay_payload_artifacts.source_session_id
+                           AND shell.generation=imported_replay_payload_artifacts.generation
+                           AND shell.content_hash=imported_replay_payload_artifacts.content_hash
+                       )",
                     params![
                         source.as_str(),
                         resolved.source_session_id,
@@ -1502,55 +1504,192 @@ pub(super) fn read_payload_range(
     )? {
         return Ok(range);
     }
-    match source {
-        ImportedHistorySourceId::CodexApp => codex_jsonl::read_payload(
-            &resolved.path,
-            &payloads_json,
+    read_provider_payload_range(
+        source,
+        &resolved.path,
+        &payloads_json,
+        event_id,
+        field_path,
+        offset,
+        max_bytes,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn read_provider_payload_range(
+    source: ImportedHistorySourceId,
+    source_path: &Path,
+    payloads_json: &str,
+    event_id: &str,
+    field_path: &str,
+    offset: u64,
+    max_bytes: usize,
+) -> Result<ReplayPayloadRange, String> {
+    match replay_driver_kind(source) {
+        ReplayDriverKind::CodexJsonl => codex_jsonl::read_payload(
+            source_path,
+            payloads_json,
             event_id,
             field_path,
             offset,
             max_bytes,
         ),
-        source if is_shared_jsonl(source) => jsonl_driver::read_payload(
+        ReplayDriverKind::SharedJsonl => jsonl_driver::read_payload(
             source,
-            &resolved.path,
-            &payloads_json,
+            source_path,
+            payloads_json,
             event_id,
             field_path,
             offset,
             max_bytes,
         ),
-        source if is_sqlite_replay(source) => sqlite_driver::read_payload(
+        ReplayDriverKind::Sqlite => sqlite_driver::read_payload(
             source,
-            &resolved.path,
-            &payloads_json,
+            source_path,
+            payloads_json,
             event_id,
             field_path,
             offset,
             max_bytes,
         ),
-        source if is_structured_sqlite(source) => structured_driver::read_payload(
+        ReplayDriverKind::StructuredSqlite => structured_driver::read_payload(
             source,
-            &resolved.path,
-            &payloads_json,
+            source_path,
+            payloads_json,
             event_id,
             field_path,
             offset,
             max_bytes,
         ),
-        ImportedHistorySourceId::Cline => whole_json_driver::read_payload(
-            &resolved.path,
-            &payloads_json,
+        ReplayDriverKind::WholeJson => whole_json_driver::read_payload(
+            source_path,
+            payloads_json,
             event_id,
             field_path,
             offset,
             max_bytes,
         ),
-        _ => Err(format!(
-            "Replay payload adapter {} is not implemented",
-            source.as_str()
-        )),
     }
+}
+
+/// Materialize one direct provider locator into the same immutable replay
+/// artifact table used by adapters that decode payloads while indexing.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn materialize_payload_artifact(
+    tx: &Transaction<'_>,
+    source: ImportedHistorySourceId,
+    session_id: &str,
+    generation: &str,
+    event_id: &str,
+    field_path: &str,
+) -> Result<ReplayPayloadArtifactLocator, String> {
+    let resolved = resolve_source(tx, source, session_id)?;
+    let payloads_json = tx
+        .query_row(
+            "SELECT payloads_json FROM imported_replay_events
+             WHERE source=?1 AND source_session_id=?2 AND generation=?3 AND event_id=?4",
+            params![
+                source.as_str(),
+                resolved.source_session_id,
+                generation,
+                event_id
+            ],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|error| format!("query replay payload for materialization: {error}"))?
+        .ok_or_else(|| "Replay event/generation is no longer available".to_string())?;
+    let descriptor = serde_json::from_str::<Vec<ReplayPayloadDescriptor>>(&payloads_json)
+        .map_err(|error| format!("decode replay payload locator: {error}"))?
+        .into_iter()
+        .find(|descriptor| descriptor.field_path == field_path)
+        .ok_or_else(|| format!("No deferred replay payload for {field_path}"))?;
+
+    if let Some((content_hash, total_bytes)) = tx
+        .query_row(
+            "SELECT ref.content_hash, LENGTH(artifact.payload)
+             FROM imported_replay_payload_artifact_refs AS ref
+             JOIN imported_replay_payload_artifacts AS artifact
+               ON artifact.source=ref.source
+              AND artifact.source_session_id=ref.source_session_id
+              AND artifact.generation=ref.generation
+              AND artifact.content_hash=ref.content_hash
+             WHERE ref.source=?1 AND ref.source_session_id=?2 AND ref.generation=?3
+               AND ref.event_id=?4 AND ref.field_path=?5",
+            params![
+                source.as_str(),
+                resolved.source_session_id,
+                generation,
+                event_id,
+                field_path
+            ],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+        )
+        .optional()
+        .map_err(|error| format!("locate replay payload artifact: {error}"))?
+    {
+        return Ok(ReplayPayloadArtifactLocator {
+            source_id: source.as_str().to_string(),
+            source_session_id: resolved.source_session_id,
+            generation: generation.to_string(),
+            content_hash,
+            total_bytes: total_bytes.max(0) as u64,
+        });
+    }
+    if descriptor.source_key.is_none() && descriptor.spans.is_empty() {
+        return Err(format!(
+            "Replay payload artifact for {event_id}/{field_path} is missing and has no direct provider locator"
+        ));
+    }
+
+    let total_bytes = descriptor.total_bytes;
+    let content_hash = payload_artifact::store_streamed(
+        tx,
+        source,
+        &resolved.source_session_id,
+        generation,
+        event_id,
+        field_path,
+        total_bytes,
+        |writer| {
+            let mut offset = 0_u64;
+            while offset < total_bytes {
+                let range = read_provider_payload_range(
+                    source,
+                    &resolved.path,
+                    &payloads_json,
+                    event_id,
+                    field_path,
+                    offset,
+                    HARD_MAX_PAYLOAD_RANGE_BYTES,
+                )?;
+                if range.offset != offset || range.next_offset <= offset {
+                    return Err(format!(
+                        "Replay payload materialization made no exact progress at byte {offset}: returned {}..{}",
+                        range.offset, range.next_offset
+                    ));
+                }
+                if range.total_bytes != total_bytes {
+                    return Err(format!(
+                        "Replay payload changed during materialization: expected {total_bytes} bytes, found {}",
+                        range.total_bytes
+                    ));
+                }
+                writer
+                    .write_all(range.text.as_bytes())
+                    .map_err(|error| format!("write replay payload artifact page: {error}"))?;
+                offset = range.next_offset;
+            }
+            Ok(())
+        },
+    )?;
+    Ok(ReplayPayloadArtifactLocator {
+        source_id: source.as_str().to_string(),
+        source_session_id: resolved.source_session_id,
+        generation: generation.to_string(),
+        content_hash,
+        total_bytes,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1641,34 +1780,49 @@ fn read_payload_artifact_range(
     }))
 }
 
-fn is_shared_jsonl(source: ImportedHistorySourceId) -> bool {
-    matches!(
-        source,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReplayDriverKind {
+    CodexJsonl,
+    SharedJsonl,
+    Sqlite,
+    StructuredSqlite,
+    WholeJson,
+}
+
+/// Exhaustive storage-driver routing for every built-in source. Adding a new
+/// [`ImportedHistorySourceId`] without choosing a replay driver is a compile
+/// error; synchronization and range reads cannot drift onto different paths.
+const fn replay_driver_kind(source: ImportedHistorySourceId) -> ReplayDriverKind {
+    match source {
+        ImportedHistorySourceId::CodexApp => ReplayDriverKind::CodexJsonl,
         ImportedHistorySourceId::ClaudeCode
-            | ImportedHistorySourceId::WorkBuddy
-            | ImportedHistorySourceId::Trae
-            | ImportedHistorySourceId::Qoder
-            | ImportedHistorySourceId::Omp
-            | ImportedHistorySourceId::QoderCli
-    )
+        | ImportedHistorySourceId::WorkBuddy
+        | ImportedHistorySourceId::Trae
+        | ImportedHistorySourceId::Qoder
+        | ImportedHistorySourceId::Omp
+        | ImportedHistorySourceId::QoderCli => ReplayDriverKind::SharedJsonl,
+        ImportedHistorySourceId::OpenCode
+        | ImportedHistorySourceId::MimoCode
+        | ImportedHistorySourceId::ZCode
+        | ImportedHistorySourceId::CursorIde
+        | ImportedHistorySourceId::Windsurf => ReplayDriverKind::Sqlite,
+        ImportedHistorySourceId::CursorCli | ImportedHistorySourceId::Warp => {
+            ReplayDriverKind::StructuredSqlite
+        }
+        ImportedHistorySourceId::Cline => ReplayDriverKind::WholeJson,
+    }
+}
+
+fn is_shared_jsonl(source: ImportedHistorySourceId) -> bool {
+    replay_driver_kind(source) == ReplayDriverKind::SharedJsonl
 }
 
 fn is_sqlite_replay(source: ImportedHistorySourceId) -> bool {
-    matches!(
-        source,
-        ImportedHistorySourceId::OpenCode
-            | ImportedHistorySourceId::MimoCode
-            | ImportedHistorySourceId::ZCode
-            | ImportedHistorySourceId::CursorIde
-            | ImportedHistorySourceId::Windsurf
-    )
+    replay_driver_kind(source) == ReplayDriverKind::Sqlite
 }
 
 fn is_structured_sqlite(source: ImportedHistorySourceId) -> bool {
-    matches!(
-        source,
-        ImportedHistorySourceId::CursorCli | ImportedHistorySourceId::Warp
-    )
+    replay_driver_kind(source) == ReplayDriverKind::StructuredSqlite
 }
 
 fn is_physical_sqlite(source: ImportedHistorySourceId) -> bool {
@@ -2048,6 +2202,35 @@ impl Fnv64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_registered_source_has_one_matching_exhaustive_storage_driver() {
+        use super::super::ReplayStorageFamily;
+
+        for source in ImportedHistorySourceId::ALL {
+            let family = source.descriptor().storage_family;
+            let compatible = match replay_driver_kind(source) {
+                ReplayDriverKind::CodexJsonl | ReplayDriverKind::SharedJsonl => {
+                    family == ReplayStorageFamily::JsonLines
+                }
+                ReplayDriverKind::Sqlite => matches!(
+                    family,
+                    ReplayStorageFamily::SqliteWal | ReplayStorageFamily::SqliteKeyValue
+                ),
+                ReplayDriverKind::StructuredSqlite => matches!(
+                    family,
+                    ReplayStorageFamily::SqliteManifestBlob | ReplayStorageFamily::SqliteTaskBlob
+                ),
+                ReplayDriverKind::WholeJson => family == ReplayStorageFamily::WholeJson,
+            };
+            assert!(
+                compatible,
+                "{} declares {family:?} but routes through {:?}",
+                source.as_str(),
+                replay_driver_kind(source)
+            );
+        }
+    }
 
     fn replay_schema() -> Connection {
         use crate::store::sqlite::SqliteRecordStore;

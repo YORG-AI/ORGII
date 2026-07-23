@@ -232,11 +232,12 @@ pub(crate) fn js_str_vec(value: &serde_json::Value, key: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Load a session's activity chunks, routing plugin sessions (matched by their
-/// `session_prefix`) through the plugin's own loader (generic JSONL, or the
-/// exec plugin's `load` verb), and everything else through core's built-in
-/// provider router. `Ok(None)` = unknown id.
-pub(crate) fn load_session_chunks(
+/// Load chunks only across the explicit third-party loader boundary.
+///
+/// Built-in session ids must be handled by core's bounded replay router before
+/// calling this function. There is deliberately no built-in/full-history
+/// fallback here; `Ok(None)` means no plugin owns the prefix.
+pub(crate) fn load_plugin_session_chunks(
     conn: &Connection,
     session_id: &str,
     plugins: &[LoaderPlugin],
@@ -261,7 +262,7 @@ pub(crate) fn load_session_chunks(
             }
         };
     }
-    imported_history::load_activity_chunks_for_session(conn, session_id)
+    Ok(None)
 }
 
 /// The source id a session belongs to, resolved from a plugin `session_prefix`.
@@ -499,6 +500,15 @@ mod tests {
     fn exec_session_requires_source_session_id() {
         let job = exec_job();
         assert!(exec_session_to_input(&job, &serde_json::json!({"name": "x"})).is_err());
+    }
+
+    #[test]
+    fn built_in_prefix_never_falls_back_through_plugin_loader() {
+        let conn = Connection::open_in_memory().expect("in-memory DB");
+        let loaded =
+            load_plugin_session_chunks(&conn, "codexapp-built-in", &[], Duration::from_secs(1))
+                .expect("empty plugin registry must not query built-in history");
+        assert!(loaded.is_none());
     }
 
     #[test]

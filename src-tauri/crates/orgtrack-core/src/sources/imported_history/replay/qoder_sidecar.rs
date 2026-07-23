@@ -28,8 +28,9 @@ use super::jsonl_driver::{
 };
 use super::payload_artifact;
 use super::{
-    ImportedHistorySourceId, ReplayPayloadDescriptor, ReplayPayloadKind, ReplaySourceSpan,
-    ReplayStats, NORMAL_PAYLOAD_PREVIEW_BYTES, SHELL_PAYLOAD_PREVIEW_BYTES,
+    replay_payload_body_projection, ImportedHistorySourceId, ReplayPayloadDescriptor,
+    ReplayPayloadEncoding, ReplayPayloadKind, ReplaySourceSpan, ReplayStats,
+    NORMAL_PAYLOAD_PREVIEW_BYTES, SHELL_PAYLOAD_PREVIEW_BYTES,
 };
 
 const SIDECAR_CURSOR_VERSION: u32 = 1;
@@ -912,6 +913,13 @@ fn upsert_pending(
     };
     let mut payloads = Vec::new();
     if args_text.len() > args_limit {
+        let body_projection = replay_payload_body_projection(
+            "args",
+            &normalized,
+            Some(&args_text),
+            args_limit,
+            false,
+        );
         chunk.args = compact_tool_args(&normalized, &call.canonical_name);
         store_artifact(
             tx,
@@ -924,6 +932,8 @@ fn upsert_pending(
         payloads.push(ReplayPayloadDescriptor {
             field_path: "args".to_string(),
             kind: ReplayPayloadKind::ToolArguments,
+            encoding: ReplayPayloadEncoding::JsonValue,
+            body_projection,
             spans: Vec::new(),
             total_bytes: args_text.len() as u64,
             source_ordinal: None,
@@ -954,6 +964,8 @@ fn upsert_pending(
         payloads.push(ReplayPayloadDescriptor {
             field_path: "result.output".to_string(),
             kind: ReplayPayloadKind::ToolOutput,
+            encoding: ReplayPayloadEncoding::Utf8Text,
+            body_projection: None,
             spans: Vec::new(),
             total_bytes: pending.output.len() as u64,
             source_ordinal: None,
@@ -1181,6 +1193,13 @@ fn remove_stale_events(
                AND ref.source_session_id=artifact.source_session_id
                AND ref.generation=artifact.generation
                AND ref.content_hash=artifact.content_hash
+           )
+           AND NOT EXISTS(
+             SELECT 1 FROM imported_replay_shell_segments AS shell
+             WHERE shell.source=artifact.source
+               AND shell.source_session_id=artifact.source_session_id
+               AND shell.generation=artifact.generation
+               AND shell.content_hash=artifact.content_hash
            )",
         params![
             ImportedHistorySourceId::Qoder.as_str(),

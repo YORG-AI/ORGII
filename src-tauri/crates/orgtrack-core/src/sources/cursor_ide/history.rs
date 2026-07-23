@@ -1,9 +1,9 @@
 //! Cursor IDE chat history reader
 //!
 //! Reads `bubbleId:{composerId}:{bubbleId}` blobs from Cursor's `state.vscdb`
-//! and converts each bubble into our canonical [`ActivityChunk`] shape, so the
-//! existing event pipeline (`processChunksRust` → `eventStoreProxy` →
-//! `ChatHistory`) can render Cursor IDE chat history with no UI-layer changes.
+//! and converts individual bubbles into our canonical [`ActivityChunk`] shape.
+//! Imported sessions reach this parser through the bounded SQLite/KV replay
+//! driver; the renderer no longer owns a Cursor-specific full-refresh path.
 //!
 //! ## Read-only contract
 //!
@@ -147,13 +147,6 @@ pub struct CursorIdeInitialWindow {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CursorIdeFullRefresh {
-    pub chunks: Vec<ActivityChunk>,
-    pub turns: Vec<CursorIdeTurnSummary>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CursorIdeTurnWindow {
     pub chunks: Vec<ActivityChunk>,
     pub user_bubble_id: String,
@@ -253,74 +246,6 @@ pub(crate) fn replay_chunk_from_bubble_json(
     Ok(bubbles_to_chunks(conn, session_id, &[bubble], &context)
         .into_iter()
         .next())
-}
-
-pub fn load_full_refresh_for_session(
-    cache_conn: &mut Connection,
-    session_id: &str,
-) -> Result<CursorIdeFullRefresh, String> {
-    let composer_id = strip_session_prefix(session_id);
-
-    let cursor_conn = match open_cursor_db() {
-        Some(conn) => conn,
-        None => {
-            return Ok(CursorIdeFullRefresh {
-                chunks: vec![],
-                turns: vec![],
-            })
-        }
-    };
-
-    let composer = load_composer_for_order(&cursor_conn, composer_id)?;
-    let composer_context = CursorComposerContext::from_composer(&composer);
-    let order = load_complete_bubble_order(
-        &cursor_conn,
-        composer_id,
-        &composer.full_conversation_headers_only,
-    )?;
-    let source_updated_at =
-        composer_source_updated_at(&cursor_conn, composer_id, &composer, &order)?;
-    if order.is_empty() {
-        return Ok(CursorIdeFullRefresh {
-            chunks: vec![],
-            turns: vec![],
-        });
-    }
-
-    let total_bubble_count = order.len();
-    let bubbles = load_bubbles_by_id(&cursor_conn, composer_id, &order)?;
-    let source_fingerprint = cursor_ide_summary_source_fingerprint(
-        composer.created_at,
-        composer.last_updated_at,
-        source_updated_at,
-        &order,
-    );
-    let turns = match load_cached_cursor_ide_turn_summaries(
-        cache_conn,
-        session_id,
-        source_updated_at,
-        total_bubble_count,
-        &source_fingerprint,
-    )? {
-        Some(cached_summaries) => cached_summaries,
-        None => {
-            let fresh_summaries = build_cursor_ide_turn_summaries(&order, &bubbles);
-            upsert_cursor_ide_turn_summaries(
-                cache_conn,
-                session_id,
-                composer_id,
-                source_updated_at,
-                total_bubble_count,
-                &source_fingerprint,
-                &fresh_summaries,
-            )?;
-            fresh_summaries
-        }
-    };
-
-    let mut chunks = bubbles_to_chunks(&cursor_conn, session_id, &bubbles, &composer_context);
-    enforce_monotonic_created_at(&mut chunks);
-    Ok(CursorIdeFullRefresh { chunks, turns })
 }
 
 pub fn load_initial_window_for_session(

@@ -2,12 +2,14 @@
 //!
 //! Manages CLI agent sessions (Cursor, Claude Code, Codex, Gemini, Kiro, Copilot).
 //!
-//! SQLite table names: `cli_agent_sessions` and `cli_agent_chunks`.
+//! SQLite session metadata lives in `cli_agent_sessions`; readerless managed
+//! CLI deltas use the bounded `code_session_chunks` adapter, while CLIs with a
+//! native transcript mirror reuse their imported-history source adapter.
 //!
 //! ## Components
 //!
 //! - `parsers` — Stdout parsers for each CLI agent (Cursor, Claude Code, Codex, Gemini, etc.)
-//! - `persistence` — SQLite CRUD for `cli_agent_sessions` + `cli_agent_chunks` tables
+//! - `persistence` — session metadata plus bounded `code_session_chunks` writes
 //! - `session_runner` — Spawns CLI agent subprocess, pipes stdout through parser, broadcasts events
 //! - `commands` — Tauri commands exposed to the frontend
 

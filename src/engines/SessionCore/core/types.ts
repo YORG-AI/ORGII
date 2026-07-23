@@ -73,6 +73,7 @@ export interface PayloadRef {
   fullSizeBytes: number;
   truncated: boolean;
   /** Opaque source locator for range-backed external replay payloads. */
+  replayEncoding?: "json_value" | "utf8_text";
   replaySourceId?: string;
   replayGeneration?: string;
   replaySourceEventId?: string;

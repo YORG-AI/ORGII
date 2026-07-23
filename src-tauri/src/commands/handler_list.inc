@@ -1118,8 +1118,9 @@ agent_sessions::event_pipeline::commands::es_paginate_events,
 agent_sessions::event_pipeline::commands::es_paginate_cached_events,
 agent_sessions::event_pipeline::commands::es_count_matching_events,
 agent_sessions::event_pipeline::commands::es_get_distinct_functions,
-// Durable shell replay (range reads never block Session Replay playback).
-agent_core::tools::impls::coding::exec::shell_replay::shell_replay_read_range,
+// Durable shell replay. External CLI manifests use canonical replay payload
+// artifacts; native SDE sessions fall through to the original #425 `.slog`.
+agent_sessions::event_pipeline::commands::external_replay::shell_replay_read_range,
 // Batch update commands
 agent_sessions::event_pipeline::commands::es_complete_last_running,
 agent_sessions::event_pipeline::commands::es_patch_by_ids,

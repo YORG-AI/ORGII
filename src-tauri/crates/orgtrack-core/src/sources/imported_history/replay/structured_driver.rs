@@ -28,7 +28,8 @@ use crate::sources::imported_history::{self, ImportedToolCall};
 use super::index::ReplayIndexState;
 use super::payload_artifact;
 use super::{
-    ImportedHistorySourceId, ReplayPayloadDescriptor, ReplayPayloadKind, ReplayPayloadRange,
+    replay_payload_body_projection, ImportedHistorySourceId, ReplayPayloadBodyProjection,
+    ReplayPayloadDescriptor, ReplayPayloadEncoding, ReplayPayloadKind, ReplayPayloadRange,
     ReplayStats, NORMAL_PAYLOAD_PREVIEW_BYTES, SHELL_PAYLOAD_PREVIEW_BYTES,
 };
 
@@ -1376,6 +1377,15 @@ fn compact_chunk_with_bodies(
     } else {
         NORMAL_PAYLOAD_PREVIEW_BYTES
     };
+    let result_body_projection = exact_result_body.as_deref().and_then(|encoded| {
+        replay_payload_body_projection(
+            "result",
+            &chunk.result,
+            Some(encoded),
+            result_limit,
+            chunk.function == imported_history::FUNCTION_RUN_COMMAND_LINE,
+        )
+    });
     let fields: &[(&str, ReplayPayloadKind)] = match chunk.function.as_str() {
         imported_history::FUNCTION_USER_MESSAGE => {
             &[("result.message.content", ReplayPayloadKind::UserMessage)]
@@ -1405,7 +1415,14 @@ fn compact_chunk_with_bodies(
             let total_bytes = text.len() as u64;
             let full_text = std::mem::take(text);
             *text = head_preview(&full_text, result_limit);
-            payloads.push(payload_descriptor(path, kind, locator_json, total_bytes));
+            payloads.push(payload_descriptor(
+                path,
+                kind,
+                ReplayPayloadEncoding::Utf8Text,
+                None,
+                locator_json,
+                total_bytes,
+            ));
             deferred_bodies.push(DeferredPayloadBody {
                 field_path: path.to_string(),
                 text: full_text,
@@ -1414,7 +1431,19 @@ fn compact_chunk_with_bodies(
     }
     let encoded_args = serde_json::to_string(&chunk.args).unwrap_or_default();
     let args_size = encoded_args.len();
-    if args_size > NORMAL_PAYLOAD_PREVIEW_BYTES {
+    let args_limit = if chunk.function == imported_history::FUNCTION_RUN_COMMAND_LINE {
+        SHELL_PAYLOAD_PREVIEW_BYTES
+    } else {
+        NORMAL_PAYLOAD_PREVIEW_BYTES
+    };
+    if args_size > args_limit {
+        let args_body_projection = replay_payload_body_projection(
+            "args",
+            &chunk.args,
+            Some(&encoded_args),
+            args_limit,
+            false,
+        );
         let mut original = std::mem::take(&mut chunk.args);
         let mut preview = serde_json::Map::new();
         preview.insert("_replayTruncated".to_string(), Value::Bool(true));
@@ -1435,11 +1464,11 @@ fn compact_chunk_with_bodies(
                 continue;
             };
             if let Value::String(text) = value {
-                if text.len() > NORMAL_PAYLOAD_PREVIEW_BYTES {
+                if text.len() > args_limit {
                     let full_text = std::mem::take(text);
                     preview.insert(
                         key.to_string(),
-                        Value::String(head_preview(&full_text, NORMAL_PAYLOAD_PREVIEW_BYTES)),
+                        Value::String(head_preview(&full_text, args_limit)),
                     );
                 } else {
                     preview.insert(key.to_string(), Value::String(text.clone()));
@@ -1451,7 +1480,7 @@ fn compact_chunk_with_bodies(
         if preview.len() == 1 {
             preview.insert(
                 "_preview".to_string(),
-                Value::String(head_preview(&encoded_args, NORMAL_PAYLOAD_PREVIEW_BYTES)),
+                Value::String(head_preview(&encoded_args, args_limit)),
             );
         }
         chunk.args = Value::Object(preview);
@@ -1465,6 +1494,8 @@ fn compact_chunk_with_bodies(
         payloads.push(payload_descriptor(
             "args",
             ReplayPayloadKind::ToolArguments,
+            ReplayPayloadEncoding::JsonValue,
+            args_body_projection,
             locator_json,
             args_size as u64,
         ));
@@ -1483,6 +1514,8 @@ fn compact_chunk_with_bodies(
         payloads.push(payload_descriptor(
             "result",
             ReplayPayloadKind::ToolOutput,
+            ReplayPayloadEncoding::JsonValue,
+            result_body_projection,
             locator_json,
             exact_result_body.len() as u64,
         ));
@@ -1564,12 +1597,16 @@ fn attach_compact_edit_line_summary(chunk: &mut ActivityChunk) {
 fn payload_descriptor(
     field_path: &str,
     kind: ReplayPayloadKind,
+    encoding: ReplayPayloadEncoding,
+    body_projection: Option<ReplayPayloadBodyProjection>,
     locator_json: &str,
     total_bytes: u64,
 ) -> ReplayPayloadDescriptor {
     ReplayPayloadDescriptor {
         field_path: field_path.to_string(),
         kind,
+        encoding,
+        body_projection,
         spans: Vec::new(),
         total_bytes,
         source_ordinal: None,

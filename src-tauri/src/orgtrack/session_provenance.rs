@@ -290,45 +290,10 @@ fn reconcile_codex_actor_transcript(
         transcript_path,
     )?;
 
-    // Complete a synchronization pass first and pin the exact compact-index
-    // snapshot that the derived interaction table will publish.
-    let mut after_sequence = -1_i64;
-    let mut expected_generation: Option<String> = None;
-    let mut expected_revision: Option<u64> = None;
-    loop {
-        let batch = replay::scan_window_after(
-            conn,
-            source,
-            transcript_session_id,
-            after_sequence,
-            ACTOR_REPLAY_LIMITS,
-        )?;
-        if let Some(generation) = expected_generation.as_deref() {
-            if generation != batch.cursor.generation
-                || expected_revision != Some(batch.cursor.revision)
-            {
-                return Err(format!(
-                    "Codex actor transcript changed during bounded replay scan: {transcript_session_id}"
-                ));
-            }
-        } else {
-            expected_generation = Some(batch.cursor.generation.clone());
-            expected_revision = Some(batch.cursor.revision);
-        }
-        if batch.chunks.is_empty() && batch.has_more {
-            return Err(format!(
-                "Codex actor replay made no progress for {transcript_session_id} after sequence {after_sequence}"
-            ));
-        }
-        if !batch.chunks.is_empty() {
-            after_sequence = batch.cursor.through_sequence;
-        }
-        if !batch.has_more {
-            break;
-        }
-    }
-    let expected_generation = expected_generation.unwrap_or_else(|| "empty".to_string());
-    let expected_revision = expected_revision.unwrap_or_default();
+    // Materialize lazy compact turns through bounded pages, retry a changing
+    // source at most twice, then publish one strict immutable snapshot.
+    let prepared =
+        replay::prepare_pinned_scan(conn, source, transcript_session_id, ACTOR_REPLAY_LIMITS)?;
 
     publish_codex_actor_reconciliation(
         conn,
@@ -336,8 +301,8 @@ fn reconcile_codex_actor_transcript(
         transcript_session_id,
         actor_id,
         workspace_path,
-        &expected_generation,
-        expected_revision,
+        &prepared.generation,
+        prepared.revision,
     )
 }
 
@@ -369,11 +334,15 @@ fn publish_codex_actor_reconciliation(
                 after_sequence,
                 ACTOR_REPLAY_LIMITS,
             )?;
-            if batch.chunks.is_empty() && batch.has_more {
+            if batch.chunks.is_empty()
+                && batch.has_more
+                && batch.cursor.through_sequence <= after_sequence
+            {
                 return Err(format!(
                     "Pinned Codex actor replay made no progress for {transcript_session_id} after sequence {after_sequence}"
                 ));
             }
+            after_sequence = batch.cursor.through_sequence;
             if !batch.chunks.is_empty() {
                 let chunks = batch
                     .chunks
@@ -392,7 +361,6 @@ fn publish_codex_actor_reconciliation(
                     &chunks,
                     &mut current_turn_id,
                 )?;
-                after_sequence = batch.cursor.through_sequence;
             }
             if !batch.has_more {
                 break;

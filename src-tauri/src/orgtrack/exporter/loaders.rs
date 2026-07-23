@@ -976,19 +976,22 @@ fn write_value_inside_outer_json_string<W: Write>(
     value: &Value,
     payloads: &[ReplayPayloadDescriptor],
 ) -> Result<(), String> {
-    if payloads.iter().any(|payload| payload.field_path == path) {
-        // A root descriptor is already serialized JSON (`args` / `result`),
-        // while nested descriptors are string field bodies.
-        if !path.contains('.') {
-            return stream_replay_payload(
+    if let Some(payload) = payloads.iter().find(|payload| payload.field_path == path) {
+        return match payload.resolved_encoding() {
+            replay::ReplayPayloadEncoding::JsonValue => stream_replay_payload(
                 conn, writer, source, session_id, generation, event_id, path, false,
-            );
-        }
-        write_escaped_json_content(writer, "\"")?;
-        stream_replay_payload(
-            conn, writer, source, session_id, generation, event_id, path, true,
-        )?;
-        return write_escaped_json_content(writer, "\"");
+            ),
+            replay::ReplayPayloadEncoding::Utf8Text => {
+                write_escaped_json_content(writer, "\"")?;
+                stream_replay_payload(
+                    conn, writer, source, session_id, generation, event_id, path, true,
+                )?;
+                write_escaped_json_content(writer, "\"")
+            }
+            replay::ReplayPayloadEncoding::LegacyPathInferred => {
+                unreachable!("resolved replay payload encoding cannot remain legacy")
+            }
+        };
     }
     match value {
         Value::Null => write_escaped_json_content(writer, "null"),
@@ -1004,7 +1007,15 @@ fn write_value_inside_outer_json_string<W: Write>(
                     write_escaped_json_content(writer, ",")?;
                 }
                 write_value_inside_outer_json_string(
-                    conn, writer, source, session_id, generation, event_id, path, value, payloads,
+                    conn,
+                    writer,
+                    source,
+                    session_id,
+                    generation,
+                    event_id,
+                    &format!("{path}.{index}"),
+                    value,
+                    payloads,
                 )?;
             }
             write_escaped_json_content(writer, "]")
@@ -1247,26 +1258,24 @@ fn for_each_imported_replay_chunk(
         max_events: replay::HARD_MAX_EVENTS,
         max_ipc_bytes: replay::HARD_MAX_IPC_BYTES,
     };
+    let prepared = replay::prepare_pinned_scan(conn, source, imported_session_id, limits)?;
+    let generation = prepared.generation;
+    let revision = prepared.revision;
     let mut after_sequence = -1_i64;
-    let first =
-        replay::scan_window_after(conn, source, imported_session_id, after_sequence, limits)?;
-    let generation = first.cursor.generation.clone();
-    let revision = first.cursor.revision;
-    let mut next = Some(first);
     loop {
-        let batch = match next.take() {
-            Some(first) => first,
-            None => replay::scan_window_after_generation(
-                conn,
-                source,
-                imported_session_id,
-                &generation,
-                revision,
-                after_sequence,
-                limits,
-            )?,
-        };
-        if batch.chunks.is_empty() && batch.has_more {
+        let batch = replay::scan_window_after_generation(
+            conn,
+            source,
+            imported_session_id,
+            &generation,
+            revision,
+            after_sequence,
+            limits,
+        )?;
+        if batch.chunks.is_empty()
+            && batch.has_more
+            && batch.cursor.through_sequence <= after_sequence
+        {
             return Err(format!(
                 "Bounded replay scan made no progress for {imported_session_id} after sequence {after_sequence}"
             ));
@@ -1573,6 +1582,91 @@ mod tests {
     }
 
     #[test]
+    fn imported_nested_array_payload_uses_indexed_path_and_explicit_encoding() {
+        use orgtrack_core::sources::imported_history::replay::{
+            ReplayPayloadEncoding, ReplayPayloadKind,
+        };
+        use orgtrack_core::store::sqlite::SqliteRecordStore;
+
+        let mut conn = rusqlite::Connection::open_in_memory().expect("array replay DB");
+        SqliteRecordStore::init_tables(&conn).expect("replay index tables");
+        SqliteRecordStore::init_source_cache_tables(&conn).expect("source cache tables");
+        let source_session_id = "array-source";
+        let session_id = "codexapp-array-source";
+        let generation = "array-generation";
+        let event_id = "array-event";
+        let field_path = "result.content.0.text";
+        let canonical = "FULL_ARRAY_\"quoted\"\\path\nnext";
+        let descriptor = ReplayPayloadDescriptor {
+            field_path: field_path.to_string(),
+            kind: ReplayPayloadKind::AssistantContent,
+            encoding: ReplayPayloadEncoding::Utf8Text,
+            body_projection: None,
+            spans: Vec::new(),
+            total_bytes: canonical.len() as u64,
+            source_ordinal: None,
+            source_key: None,
+        };
+        conn.execute(
+            "INSERT INTO imported_history_session_cache(
+                 source,source_session_id,session_id,source_path
+             ) VALUES('codex_app',?1,?2,'/unused/provider.jsonl')",
+            params![source_session_id, session_id],
+        )
+        .expect("array source binding");
+        conn.execute(
+            "INSERT INTO imported_replay_events(
+                 source,source_session_id,generation,sequence,event_id,turn_index,
+                 action_type,function_name,created_at,payloads_json,content_hash
+             ) VALUES('codex_app',?1,?2,1,?3,0,'assistant','assistant',
+                      '2026-07-23T00:00:00Z',?4,'event-hash')",
+            params![
+                source_session_id,
+                generation,
+                event_id,
+                serde_json::to_string(&vec![descriptor.clone()]).expect("payload descriptor JSON")
+            ],
+        )
+        .expect("array replay event");
+        conn.execute(
+            "INSERT INTO imported_replay_payload_artifacts(
+                 source,source_session_id,generation,content_hash,payload
+             ) VALUES('codex_app',?1,?2,'payload-hash',?3)",
+            params![source_session_id, generation, canonical.as_bytes()],
+        )
+        .expect("array payload artifact");
+        conn.execute(
+            "INSERT INTO imported_replay_payload_artifact_refs(
+                 source,source_session_id,generation,event_id,field_path,content_hash
+             ) VALUES('codex_app',?1,?2,?3,?4,'payload-hash')",
+            params![source_session_id, generation, event_id, field_path],
+        )
+        .expect("array payload ref");
+
+        let compact = serde_json::json!({
+            "content":[{"text":"ARRAY_PREVIEW","kind":"text"}]
+        });
+        let mut encoded = Vec::new();
+        write_replay_value_json_string(
+            &mut conn,
+            &mut encoded,
+            ImportedHistorySourceId::CodexApp,
+            session_id,
+            generation,
+            event_id,
+            "result",
+            &compact,
+            &[descriptor],
+        )
+        .expect("serialize nested array payload");
+        let inner: String = serde_json::from_slice(&encoded).expect("outer resultJson string");
+        let restored: Value = serde_json::from_str(&inner).expect("inner result JSON");
+        assert_eq!(restored["content"][0]["text"], canonical);
+        assert_eq!(restored["content"][0]["kind"], "text");
+        assert!(!inner.contains("ARRAY_PREVIEW"));
+    }
+
+    #[test]
     fn sqlite_root_descriptor_restores_path_and_ten_mib_omitted_sibling_exactly() {
         use orgtrack_core::store::sqlite::SqliteRecordStore;
 
@@ -1674,6 +1768,88 @@ mod tests {
         );
         assert!(restored.get("_replayTruncated").is_none());
         assert!(restored.get("_preview").is_none());
+    }
+
+    #[test]
+    fn imported_trajectory_prepares_three_lazy_kv_turns_before_strict_scan() {
+        use orgtrack_core::store::sqlite::SqliteRecordStore;
+
+        for source in [
+            ImportedHistorySourceId::CursorIde,
+            ImportedHistorySourceId::Windsurf,
+        ] {
+            let directory = tempfile::tempdir().expect("lazy trajectory fixture");
+            let source_path = directory.path().join(format!("{}.db", source.as_str()));
+            let source_conn = rusqlite::Connection::open(&source_path).expect("KV source DB");
+            source_conn
+                .execute_batch(
+                    "PRAGMA journal_mode=WAL;
+                     CREATE TABLE cursorDiskKV(key TEXT PRIMARY KEY,value TEXT);",
+                )
+                .expect("KV source schema");
+            let headers = (0..6)
+                .map(|index| {
+                    serde_json::json!({
+                        "bubbleId":format!("b{index}"),
+                        "type":if index % 2 == 0 { 1 } else { 2 },
+                    })
+                })
+                .collect::<Vec<_>>();
+            source_conn
+                .execute(
+                    "INSERT INTO cursorDiskKV(key,value) VALUES('composerData:c1',?1)",
+                    [serde_json::json!({
+                        "composerId":"c1",
+                        "createdAt":1,
+                        "lastUpdatedAt":6,
+                        "fullConversationHeadersOnly":headers,
+                    })
+                    .to_string()],
+                )
+                .expect("composer row");
+            for index in 0..6 {
+                source_conn
+                    .execute(
+                        "INSERT INTO cursorDiskKV(key,value) VALUES(?1,?2)",
+                        params![
+                            format!("bubbleId:c1:b{index}"),
+                            serde_json::json!({
+                                "bubbleId":format!("b{index}"),
+                                "type":if index % 2 == 0 { 1 } else { 2 },
+                                "createdAt":format!("2026-07-22T00:00:{index:02}Z"),
+                                "text":format!("message {index}"),
+                            })
+                            .to_string(),
+                        ],
+                    )
+                    .expect("bubble row");
+            }
+
+            let mut cache = rusqlite::Connection::open_in_memory().expect("replay cache");
+            SqliteRecordStore::init_tables(&cache).expect("replay tables");
+            SqliteRecordStore::init_source_cache_tables(&cache).expect("source cache tables");
+            let imported_id = format!("{}c1", source.descriptor().session_prefix);
+            cache
+                .execute(
+                    "INSERT INTO imported_history_session_cache(
+                         source,source_session_id,session_id,source_path
+                     ) VALUES(?1,'c1',?2,?3)",
+                    params![source.as_str(), imported_id, source_path.to_string_lossy()],
+                )
+                .expect("cache source path");
+
+            let mut sequences = Vec::new();
+            for_each_imported_replay_chunk(
+                &mut cache,
+                &imported_id,
+                |_conn, _generation, chunk| {
+                    sequences.push(chunk.sequence);
+                    Ok(())
+                },
+            )
+            .expect("strict lazy trajectory scan");
+            assert_eq!(sequences, vec![0, 1, 2, 3, 4, 5], "{}", source.as_str());
+        }
     }
 
     #[test]

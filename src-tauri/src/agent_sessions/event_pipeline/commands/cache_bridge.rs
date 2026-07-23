@@ -519,6 +519,7 @@ mod tests {
             preview: "preview".to_string(),
             full_size_bytes: 128 * 1024,
             truncated: true,
+            replay_encoding: None,
             replay_source_id: None,
             replay_generation: None,
             replay_source_event_id: None,

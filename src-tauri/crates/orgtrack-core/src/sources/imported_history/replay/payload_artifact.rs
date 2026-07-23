@@ -117,6 +117,34 @@ pub(super) fn store_streamed<F>(
 where
     F: FnOnce(&mut dyn Write) -> Result<(), String>,
 {
+    store_streamed_for_scope(
+        tx,
+        source.as_str(),
+        source_session_id,
+        generation,
+        event_id,
+        field_path,
+        total_bytes,
+        produce,
+    )
+}
+
+/// Storage-neutral counterpart used by ORGII-owned managed/snapshot replay
+/// adapters. Vendor adapters should continue to call [`store_streamed`].
+#[allow(clippy::too_many_arguments)]
+pub(super) fn store_streamed_for_scope<F>(
+    tx: &Transaction<'_>,
+    source_id: &str,
+    source_session_id: &str,
+    generation: &str,
+    event_id: &str,
+    field_path: &str,
+    total_bytes: u64,
+    produce: F,
+) -> Result<String, String>
+where
+    F: FnOnce(&mut dyn Write) -> Result<(), String>,
+{
     let blob_len = i32::try_from(total_bytes).map_err(|_| {
         format!(
             "Replay payload artifact is too large for incremental SQLite BLOB I/O: {total_bytes} bytes"
@@ -126,12 +154,7 @@ where
     tx.execute(
         "DELETE FROM imported_replay_payload_artifacts
          WHERE source=?1 AND source_session_id=?2 AND generation=?3 AND content_hash=?4",
-        params![
-            source.as_str(),
-            source_session_id,
-            generation,
-            temporary_hash
-        ],
+        params![source_id, source_session_id, generation, temporary_hash],
     )
     .map_err(|error| format!("clear interrupted replay payload artifact: {error}"))?;
     tx.execute(
@@ -139,7 +162,7 @@ where
              source,source_session_id,generation,content_hash,payload
          ) VALUES (?1,?2,?3,?4,?5)",
         params![
-            source.as_str(),
+            source_id,
             source_session_id,
             generation,
             temporary_hash,
@@ -151,12 +174,7 @@ where
         .query_row(
             "SELECT rowid FROM imported_replay_payload_artifacts
              WHERE source=?1 AND source_session_id=?2 AND generation=?3 AND content_hash=?4",
-            params![
-                source.as_str(),
-                source_session_id,
-                generation,
-                temporary_hash
-            ],
+            params![source_id, source_session_id, generation, temporary_hash],
             |row| row.get::<_, i64>(0),
         )
         .map_err(|error| format!("locate replay payload artifact BLOB: {error}"))?;
@@ -191,7 +209,7 @@ where
         .query_row(
             "SELECT rowid FROM imported_replay_payload_artifacts
              WHERE source=?1 AND source_session_id=?2 AND generation=?3 AND content_hash=?4",
-            params![source.as_str(), source_session_id, generation, content_hash],
+            params![source_id, source_session_id, generation, content_hash],
             |row| row.get::<_, i64>(0),
         )
         .optional()
@@ -209,9 +227,9 @@ where
         )
         .map_err(|error| format!("publish replay payload artifact hash: {error}"))?;
     }
-    reference(
+    reference_for_scope(
         tx,
-        source,
+        source_id,
         source_session_id,
         generation,
         event_id,
@@ -221,10 +239,78 @@ where
     Ok(content_hash)
 }
 
+/// Resolve an already-published artifact for an immutable ORGII-owned scope.
+///
+/// This deliberately is not used by vendor replay drivers: some provider
+/// stores can mutate a row without changing generation, so their normal
+/// materialization path must re-check source identity. Managed CLI and
+/// collaboration snapshot generations, by contrast, are immutable epochs.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn find_for_immutable_scope(
+    tx: &Transaction<'_>,
+    source_id: &str,
+    source_session_id: &str,
+    generation: &str,
+    event_id: &str,
+    field_path: &str,
+    expected_bytes: u64,
+) -> Result<Option<String>, String> {
+    let row = tx
+        .query_row(
+            "SELECT ref.content_hash,LENGTH(artifact.payload)
+             FROM imported_replay_payload_artifact_refs AS ref
+             JOIN imported_replay_payload_artifacts AS artifact
+               ON artifact.source=ref.source
+              AND artifact.source_session_id=ref.source_session_id
+              AND artifact.generation=ref.generation
+              AND artifact.content_hash=ref.content_hash
+             WHERE ref.source=?1 AND ref.source_session_id=?2 AND ref.generation=?3
+               AND ref.event_id=?4 AND ref.field_path=?5",
+            params![
+                source_id,
+                source_session_id,
+                generation,
+                event_id,
+                field_path
+            ],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+        )
+        .optional()
+        .map_err(|error| format!("find immutable replay payload artifact: {error}"))?;
+    let Some((content_hash, stored_bytes)) = row else {
+        return Ok(None);
+    };
+    if u64::try_from(stored_bytes).ok() != Some(expected_bytes) {
+        return Ok(None);
+    }
+    Ok(Some(content_hash))
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn reference(
     tx: &Transaction<'_>,
     source: ImportedHistorySourceId,
+    source_session_id: &str,
+    generation: &str,
+    event_id: &str,
+    field_path: &str,
+    content_hash: &str,
+) -> Result<(), String> {
+    reference_for_scope(
+        tx,
+        source.as_str(),
+        source_session_id,
+        generation,
+        event_id,
+        field_path,
+        content_hash,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn reference_for_scope(
+    tx: &Transaction<'_>,
+    source_id: &str,
     source_session_id: &str,
     generation: &str,
     event_id: &str,
@@ -238,7 +324,7 @@ pub(super) fn reference(
          ON CONFLICT(source,source_session_id,generation,event_id,field_path) DO UPDATE SET
              content_hash=excluded.content_hash",
         params![
-            source.as_str(),
+            source_id,
             source_session_id,
             generation,
             event_id,
@@ -281,6 +367,13 @@ pub(super) fn delete_orphans(
                AND ref.source_session_id=artifact.source_session_id
                AND ref.generation=artifact.generation
                AND ref.content_hash=artifact.content_hash
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM imported_replay_shell_segments AS shell
+             WHERE shell.source=artifact.source
+               AND shell.source_session_id=artifact.source_session_id
+               AND shell.generation=artifact.generation
+               AND shell.content_hash=artifact.content_hash
            )",
         params![source.as_str(), source_session_id, generation],
     )

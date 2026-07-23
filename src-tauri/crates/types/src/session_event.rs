@@ -106,6 +106,11 @@ pub struct PayloadRef {
     pub preview: String,
     pub full_size_bytes: usize,
     pub truncated: bool,
+    /// External replay ranges can contain either a complete serialized JSON
+    /// value or decoded UTF-8 string content. Native refs leave this unset so
+    /// their existing wire shape and persistence semantics remain unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replay_encoding: Option<PayloadRefEncoding>,
     /// External replay locators point into provider-owned storage rather than
     /// the sessions.db event cache. Optional fields preserve native refs.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -114,6 +119,13 @@ pub struct PayloadRef {
     pub replay_generation: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub replay_source_event_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PayloadRefEncoding {
+    JsonValue,
+    Utf8Text,
 }
 
 /// Stable reference to one append-only shell replay artifact.
@@ -656,5 +668,29 @@ mod tests {
             SimulatorEventPreview::from(&user).filter_category,
             SimulatorEventFilterCategory::KeyInteractions
         );
+    }
+
+    #[test]
+    fn replay_payload_encoding_is_optional_without_changing_native_wire_shape() {
+        let mut payload_ref = PayloadRef {
+            event_id: "event-1".to_string(),
+            field_path: "result.output".to_string(),
+            preview: "preview".to_string(),
+            full_size_bytes: 1024,
+            truncated: true,
+            replay_encoding: None,
+            replay_source_id: None,
+            replay_generation: None,
+            replay_source_event_id: None,
+        };
+        let native_wire = serde_json::to_value(&payload_ref).expect("native payload ref wire");
+        assert!(native_wire.get("replayEncoding").is_none());
+
+        payload_ref.replay_encoding = Some(PayloadRefEncoding::Utf8Text);
+        let replay_wire = serde_json::to_value(&payload_ref).expect("replay payload ref wire");
+        assert_eq!(replay_wire["replayEncoding"], "utf8_text");
+
+        let legacy: PayloadRef = serde_json::from_value(native_wire).expect("legacy payload ref");
+        assert_eq!(legacy.replay_encoding, None);
     }
 }

@@ -40,7 +40,8 @@ use super::index::ReplayIndexState;
 use super::jsonl_driver;
 use super::payload_artifact;
 use super::{
-    ReplayPayloadDescriptor, ReplayPayloadKind, ReplayPayloadRange, ReplaySourceSpan, ReplayStats,
+    replay_payload_body_projection, ReplayPayloadDescriptor, ReplayPayloadEncoding,
+    ReplayPayloadKind, ReplayPayloadRange, ReplaySourceSpan, ReplayStats,
     NORMAL_PAYLOAD_PREVIEW_BYTES, SHELL_PAYLOAD_PREVIEW_BYTES,
 };
 
@@ -636,11 +637,15 @@ fn compact_codex_tool_args(
     if encoded.len() <= limit {
         return None;
     }
+    let body_projection =
+        replay_payload_body_projection("args", &call.args, Some(&encoded), limit, false);
     call.args = jsonl_driver::compact_tool_args(&call.args, &call.canonical_name);
     Some((
         ReplayPayloadDescriptor {
             field_path: "args".to_string(),
             kind: ReplayPayloadKind::ToolArguments,
+            encoding: ReplayPayloadEncoding::JsonValue,
+            body_projection,
             spans: vec![span],
             total_bytes: encoded.len() as u64,
             source_ordinal: Some(source_ordinal),
@@ -792,6 +797,8 @@ fn finalize_tool_group(
             payloads.push(ReplayPayloadDescriptor {
                 field_path: "result.output".to_string(),
                 kind: ReplayPayloadKind::ToolOutput,
+                encoding: ReplayPayloadEncoding::Utf8Text,
+                body_projection: None,
                 spans: spans.to_vec(),
                 total_bytes: output_bytes,
                 source_ordinal: None,
@@ -1188,6 +1195,8 @@ fn payload_descriptor(
     vec![ReplayPayloadDescriptor {
         field_path: field_path.to_string(),
         kind,
+        encoding: ReplayPayloadEncoding::Utf8Text,
+        body_projection: None,
         spans: vec![span],
         total_bytes: total_bytes as u64,
         source_ordinal: None,
