@@ -4,8 +4,6 @@
  * Fetches provider configuration from Rust backend (single source of truth).
  * Caches configs in memory for the session duration.
  */
-import { useEffect, useState } from "react";
-
 import { rpc } from "@src/api/tauri/rpc";
 import type {
   ProviderConfig,
@@ -13,6 +11,7 @@ import type {
   ProviderProtocol,
 } from "@src/api/tauri/rpc/schemas/validation";
 import type { ModelType } from "@src/api/types/keys";
+import { useAsyncResource } from "@src/hooks/async";
 
 // ============================================
 // Cache
@@ -25,13 +24,20 @@ async function loadAllConfigs(): Promise<Record<string, ProviderConfig>> {
   if (configCache) return configCache;
   if (loadingPromise) return loadingPromise;
 
-  loadingPromise = rpc.validation.getAllProviderConfigs().then((result) => {
+  const promise = rpc.validation.getAllProviderConfigs().then((result) => {
     configCache = result;
-    loadingPromise = null;
     return result;
   });
-
-  return loadingPromise;
+  loadingPromise = promise;
+  void promise.then(
+    () => {
+      if (loadingPromise === promise) loadingPromise = null;
+    },
+    () => {
+      if (loadingPromise === promise) loadingPromise = null;
+    }
+  );
+  return promise;
 }
 
 // ============================================
@@ -87,36 +93,15 @@ export function useProviderConfig(modelType: ModelType | undefined): {
   loading: boolean;
   error: string | null;
 } {
-  const [allConfigs, setAllConfigs] = useState<Record<
-    string,
-    ProviderConfig
-  > | null>(configCache);
-  const [loading, setLoading] = useState(!configCache);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Already have cached data - no need to fetch
-    if (configCache) return;
-
-    let cancelled = false;
-    loadAllConfigs()
-      .then((result) => {
-        if (!cancelled) {
-          setAllConfigs(result);
-          setLoading(false);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err));
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const resource = useAsyncResource<Record<string, ProviderConfig> | null>({
+    fetcher: loadAllConfigs,
+    initialData: configCache,
+    initialStatus: configCache ? "ready" : "idle",
+    scopeKey: "provider-configs",
+  });
+  const allConfigs = resource.data;
+  const loading = resource.loading;
+  const error = resource.error;
 
   if (!modelType || loading) {
     return { config: null, loading, error };

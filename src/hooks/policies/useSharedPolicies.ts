@@ -5,8 +5,9 @@
  * `.orgii/rules/` files + per-rule agent scope in `rules-config.json`.
  */
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback } from "react";
 
+import { useAsyncResource } from "@src/hooks/async";
 import { createLogger } from "@src/hooks/logger";
 
 const log = createLogger("SharedPolicies");
@@ -44,64 +45,29 @@ export interface UseSharedPoliciesOptions {
 
 export function useSharedPolicies(options: UseSharedPoliciesOptions = {}) {
   const { workspacePath, autoLoad = true } = options;
-  const [policies, setPolicies] = useState<PolicyInfo[]>([]);
-  // Default false so remounts of this hook on navigation don't paint
-  // a synthetic spinner before the IPC begins. `refresh` below raises
-  // loading to true for the actual fetch window; Placeholder's loading
-  // variant debounces sub-250ms spinners globally.
-  const [loading, setLoading] = useState(false);
-  const cancelRef = useRef<(() => void) | null>(null);
-
-  const refresh = useCallback(() => {
-    cancelRef.current?.();
-    let cancelled = false;
-    cancelRef.current = () => {
-      cancelled = true;
+  const fetchPolicies = useCallback(async (serializedScope: string) => {
+    const scope = JSON.parse(serializedScope) as {
+      workspacePath: string | null;
     };
-
-    setLoading(true);
-    invoke<PolicyInfo[]>("policies_list", {
-      workspacePath: workspacePath ?? null,
-    })
-      .then((result) => {
-        if (!cancelled) setPolicies(result);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled)
-          log.error("[SharedPolicies] Failed to list policies:", err);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+    try {
+      return await invoke<PolicyInfo[]>("policies_list", {
+        workspacePath: scope.workspacePath,
       });
-  }, [workspacePath]);
-
-  useEffect(() => {
-    if (!autoLoad) return;
-
-    cancelRef.current?.();
-    let cancelled = false;
-    cancelRef.current = () => {
-      cancelled = true;
-    };
-
-    invoke<PolicyInfo[]>("policies_list", {
-      workspacePath: workspacePath ?? null,
-    })
-      .then((result) => {
-        if (!cancelled) setPolicies(result);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled)
-          log.error("[SharedPolicies] Failed to list policies:", err);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [workspacePath, autoLoad]);
+    } catch (error) {
+      log.error("[SharedPolicies] Failed to list policies:", error);
+      throw error;
+    }
+  }, []);
+  const policyResource = useAsyncResource<PolicyInfo[]>({
+    autoLoad,
+    fetcher: fetchPolicies,
+    initialData: [],
+    scopeKey: JSON.stringify({ workspacePath: workspacePath ?? null }),
+  });
+  const policies = policyResource.data;
+  const loading = policyResource.loading;
+  const refresh = policyResource.refresh;
+  const setPolicies = policyResource.setData;
 
   const readRule = useCallback(
     async (
@@ -208,7 +174,7 @@ export function useSharedPolicies(options: UseSharedPoliciesOptions = {}) {
         throw err;
       }
     },
-    [workspacePath, refresh]
+    [workspacePath, refresh, setPolicies]
   );
 
   const setAgents = useCallback(

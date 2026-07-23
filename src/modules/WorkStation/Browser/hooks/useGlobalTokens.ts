@@ -10,8 +10,12 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import { useSetAtom } from "jotai";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useMemo } from "react";
 
+import {
+  type AsyncResourceFetchContext,
+  useAsyncResource,
+} from "@src/hooks/async";
 import { createLogger } from "@src/hooks/logger";
 import {
   type TokenDefinition,
@@ -129,49 +133,55 @@ export function useGlobalTokens(
   options: UseGlobalTokensOptions = {}
 ): UseGlobalTokensReturn {
   const { repoPath, autoScan = true, maxDepth = 5 } = options;
-
-  const [tokens, setTokens] = useState<TokenDefinition[]>([]);
-  const [categories, setCategories] = useState<TokenCategory[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Update global atom when tokens change
   const setScannedTokens = useSetAtom(scannedTokensAtom);
 
-  /**
-   * Scan repo for token definitions
-   */
+  const fetchTokens = useCallback(
+    async (
+      serializedScope: string,
+      context: AsyncResourceFetchContext<TokenDefinition[]>
+    ) => {
+      const scope = JSON.parse(serializedScope) as {
+        maxDepth: number;
+        repoPath: string;
+      };
+      try {
+        const result = await invoke<TokenDefinitionsResult>(
+          "scan_global_tokens",
+          {
+            repoPath: scope.repoPath,
+            maxDepth: scope.maxDepth,
+          }
+        );
+        if (context.isCurrent()) setScannedTokens(result.tokens);
+        return result.tokens;
+      } catch (error) {
+        log.error(
+          "[useGlobalTokens] Scan failed:",
+          error instanceof Error ? error.message : String(error)
+        );
+        throw error;
+      }
+    },
+    [setScannedTokens]
+  );
+  const scopeKey = repoPath ? JSON.stringify({ maxDepth, repoPath }) : null;
+  const resource = useAsyncResource<TokenDefinition[]>({
+    autoLoad: autoScan,
+    enabled: Boolean(scopeKey),
+    fetcher: fetchTokens,
+    initialData: [],
+    scopeKey,
+  });
+  const tokens = resource.data;
+  const categories = useMemo(() => categorizeTokens(tokens), [tokens]);
+  const refreshTokens = resource.refresh;
   const scan = useCallback(async () => {
     if (!repoPath) {
       log.warn("[useGlobalTokens] No repo path provided");
       return;
     }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const result = await invoke<TokenDefinitionsResult>(
-        "scan_global_tokens",
-        {
-          repoPath,
-          maxDepth,
-        }
-      );
-
-      setTokens(result.tokens);
-      setCategories(categorizeTokens(result.tokens));
-
-      // Update global token cache
-      setScannedTokens(result.tokens);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      log.error("[useGlobalTokens] Scan failed:", message);
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  }, [repoPath, maxDepth, setScannedTokens]);
+    await refreshTokens();
+  }, [refreshTokens, repoPath]);
 
   /**
    * Search tokens by name
@@ -221,18 +231,11 @@ export function useGlobalTokens(
     [tokens]
   );
 
-  // Auto-scan on mount
-  useEffect(() => {
-    if (autoScan && repoPath) {
-      scan();
-    }
-  }, [autoScan, repoPath, scan]);
-
   return {
     tokens,
     categories,
-    loading,
-    error,
+    loading: resource.loading,
+    error: resource.error,
     scan,
     search,
     getToken,
