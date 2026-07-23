@@ -35,11 +35,10 @@ function runSearch(searchQuery: string, devModeEnabled = false) {
   return { items, onSelectStaticAction };
 }
 
-describe("buildSearchModeItems — detect update command", () => {
-  it("exposes a single detect-update static action definition", () => {
-    expect(APP_ACTIONS).toHaveLength(1);
-    expect(APP_ACTIONS[0].id).toBe(DETECT_UPDATE_ID);
-    expect(APP_ACTIONS[0].closeOnSuccess).toBe(true);
+describe("buildSearchModeItems — app commands", () => {
+  it("exposes detect-update as an app action", () => {
+    expect(APP_ACTIONS.map((action) => action.id)).toEqual([DETECT_UPDATE_ID]);
+    expect(APP_ACTIONS.every((action) => action.closeOnSuccess)).toBe(true);
   });
 
   it.each(["Detect Update", "update", "check for update", "upgrade"])(
@@ -57,7 +56,9 @@ describe("buildSearchModeItems — detect update command", () => {
 
     item?.action?.();
     expect(onSelectStaticAction).toHaveBeenCalledTimes(1);
-    expect(onSelectStaticAction).toHaveBeenCalledWith(APP_ACTIONS[0]);
+    expect(onSelectStaticAction).toHaveBeenCalledWith(
+      APP_ACTIONS.find((action) => action.id === DETECT_UPDATE_ID)
+    );
   });
 
   it("does not surface the command for unrelated queries", () => {

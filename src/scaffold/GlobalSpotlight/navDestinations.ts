@@ -88,9 +88,6 @@ function dest(
 // ============================================================================
 
 const PAGES: NavDestination[] = [
-  dest("nav-changelog", ROUTES.app.changelog.path, "pages", {
-    keywords: ["updates", "changes", "release notes"],
-  }),
   dest("nav-code-editor", ROUTES.workStation.code.path, "pages", {
     keywords: ["editor", "files", "ide"],
   }),

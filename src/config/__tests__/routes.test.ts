@@ -1,11 +1,10 @@
 import { ROUTES, isWorkbenchPath } from "../routes";
 
 describe("Workbench route ownership", () => {
-  it("owns Workstation, Settings, and pane launchers without a global view mode", () => {
+  it("owns Workstation and Settings without a global view mode", () => {
     expect(isWorkbenchPath(ROUTES.workStation.base.path)).toBe(true);
     expect(isWorkbenchPath(ROUTES.workStation.browser.path)).toBe(true);
     expect(isWorkbenchPath(ROUTES.app.settings.path)).toBe(true);
-    expect(isWorkbenchPath(ROUTES.app.changelog.path)).toBe(true);
     expect(isWorkbenchPath(`${ROUTES.app.settings.path}/appearance`)).toBe(
       true
     );

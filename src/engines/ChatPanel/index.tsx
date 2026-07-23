@@ -243,19 +243,15 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       handleOpenCliTerminal,
       handleOpenLaunchpadTab,
       handleOpenKanbanTab,
-      handleOpenChangelogTab,
       isTerminalTabActive,
       terminalTabs,
     } = useChatPanelTabsController({
       launchpadTitle: t("navigation:routes.launchpad"),
       kanbanTitle: t("sessions:simulator.tabs.kanban"),
-      changelogTitle: t("navigation:routes.changelog"),
       showSessionSurface,
     });
     const isStandaloneToolTabActive =
-      activeTab?.type === "work-management" ||
-      activeTab?.type === "runtime" ||
-      activeTab?.type === "changelog";
+      activeTab?.type === "work-management" || activeTab?.type === "runtime";
     const retargetChatPanelSession = useSetAtom(
       retargetChatPanelSessionTabAtom
     );
@@ -474,7 +470,6 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
 
     const tabStripPlus = (
       <ChatPanelPlusMenu
-        onOpenChangelog={handleOpenChangelogTab}
         onOpenLaunchpad={handleOpenLaunchpadTab}
         onOpenKanban={handleOpenKanbanTab}
         onOpenRuntime={() =>

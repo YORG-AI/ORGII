@@ -16,7 +16,6 @@ export type ChatPanelTabType =
   | "terminal"
   | "start-page"
   | "runtime"
-  | "changelog"
   | "work-management"
   | "workspace"
   | "organization"
@@ -85,11 +84,25 @@ export interface ChatPanelTabsState {
 
 /** Fixed id of the shared cloud/local organization management tab. */
 export const ORGANIZATION_TAB_ID = "chat-organization-management";
-/** Fixed id of the singleton release changelog tab. */
-export const CHANGELOG_TAB_ID = "chat-changelog";
 
 const DEFAULT_FULLSCREEN_CHAT_PANEL_TAB_TYPES = new Set<ChatPanelTabType>([
   "work-management",
+]);
+
+/**
+ * Tab types safe to restore from persisted state. Terminals are process-bound,
+ * and unknown/retired surface types are discarded after legacy migrations.
+ */
+const PERSISTED_CHAT_PANEL_TAB_TYPES = new Set<ChatPanelTabType>([
+  "session",
+  "start-page",
+  "runtime",
+  "work-management",
+  "workspace",
+  "organization",
+  "work-item",
+  "project",
+  "explore",
 ]);
 
 export function isChatPanelTabDefaultFullscreen(
@@ -123,7 +136,6 @@ export function normalizePersistedChatPanelTabsState(
   if (!Array.isArray(candidate.tabs)) return null;
 
   const mappedTabs = candidate.tabs
-    .filter((tab) => tab.type !== "terminal")
     .map((tab) => {
       const persistedType = (tab as { type: string }).type;
       const legacyTab = tab as ChatPanelTab & {
@@ -170,7 +182,8 @@ export function normalizePersistedChatPanelTabsState(
         } as ChatPanelTab;
       }
       return tab;
-    });
+    })
+    .filter((tab) => PERSISTED_CHAT_PANEL_TAB_TYPES.has(tab.type));
 
   const activeMappedTab = mappedTabs.find(
     (tab) => tab.id === candidate.activeTabId
@@ -196,10 +209,6 @@ export function normalizePersistedChatPanelTabsState(
     activeMappedTab?.type === "runtime"
       ? activeMappedTab.id
       : mappedTabs.find((tab) => tab.type === "runtime")?.id;
-  const preferredChangelogTabId =
-    activeMappedTab?.type === "changelog"
-      ? activeMappedTab.id
-      : mappedTabs.find((tab) => tab.type === "changelog")?.id;
   const preferredOrganizationTab =
     activeMappedTab?.type === "organization"
       ? activeMappedTab
@@ -219,7 +228,6 @@ export function normalizePersistedChatPanelTabsState(
             tab.id ===
               preferredWorkManagementTabIds.get(tab.managementSection))) &&
         (tab.type !== "runtime" || tab.id === preferredRuntimeTabId) &&
-        (tab.type !== "changelog" || tab.id === preferredChangelogTabId) &&
         (tab.type !== "organization" || tab === preferredOrganizationTab) &&
         (tab.type !== "start-page" || tab.id === preferredStartPageTabId)
     )
@@ -229,6 +237,7 @@ export function normalizePersistedChatPanelTabsState(
   if (survivingTabs.length === 0) return null;
 
   const activeTabId =
+    preferredOrganizationTab !== undefined &&
     activeMappedTab === preferredOrganizationTab
       ? ORGANIZATION_TAB_ID
       : survivingTabs.some((tab) => tab.id === candidate.activeTabId)

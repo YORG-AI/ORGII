@@ -12,7 +12,6 @@ import {
 const labels: ChatPanelTabDisplayLabels = {
   launchpad: "Launchpad",
   runtime: "Runtime",
-  changelog: "Changelog",
   organization: "Manage ORG",
   workManagement: {
     kanban: "Kanban",
@@ -36,12 +35,6 @@ describe("resolveChatPanelTabDisplayTitle", () => {
     expect(resolveChatPanelTabDisplayTitle(tab("runtime"), null, labels)).toBe(
       "Runtime"
     );
-  });
-
-  it("uses the localized Changelog title", () => {
-    expect(
-      resolveChatPanelTabDisplayTitle(tab("changelog"), null, labels)
-    ).toBe("Changelog");
   });
 
   it("uses the active management destination as the localized tab title", () => {

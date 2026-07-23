@@ -12,6 +12,14 @@ function isWorkbenchRoute() {
   return isWorkbenchPath(window.location.pathname);
 }
 
+function isWorkStationRoute() {
+  const pathname = window.location.pathname;
+  return (
+    pathname === ROUTES.workStation.base.path ||
+    pathname.startsWith(`${ROUTES.workStation.base.path}/`)
+  );
+}
+
 function isCodeEditorRoute() {
   return window.location.pathname === ROUTES.workStation.code.path;
 }
@@ -160,7 +168,7 @@ export const WorkStationViewService = {
     store.set(stationModeAtom, chatStationMode);
     store.set(activeStationChatVisibleAtom, chatStationMode, true);
     store.set(openWorkManagementChatPanelTabAtom, {});
-    if (!isWorkbenchRoute()) {
+    if (!isWorkStationRoute()) {
       dispatchNavigate(ROUTES.workStation.base.path);
     }
     return true;

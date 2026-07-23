@@ -38,7 +38,6 @@ import { useAtomValue, useSetAtom } from "jotai";
 import {
   Boxes,
   BriefcaseBusiness,
-  ChartNoAxesGantt,
   CircleDot,
   Columns3,
   Gauge,
@@ -185,7 +184,6 @@ const TabPill = memo(function TabPill({
   const displayTitle = resolveChatPanelTabDisplayTitle(tab, session, {
     launchpad: t("navigation:routes.launchpad"),
     runtime: t("sessions:chat.startPage.tabs.runtime"),
-    changelog: t("navigation:routes.changelog"),
     organization: t("navigation:collaboration.manageOrg"),
     workManagement: {
       kanban: t("sessions:simulator.tabs.kanban"),
@@ -223,14 +221,6 @@ const TabPill = memo(function TabPill({
   } else if (tab.type === "runtime") {
     icon = (
       <Gauge
-        size={16}
-        strokeWidth={1.75}
-        className={`shrink-0 ${iconColorClass}`}
-      />
-    );
-  } else if (tab.type === "changelog") {
-    icon = (
-      <ChartNoAxesGantt
         size={16}
         strokeWidth={1.75}
         className={`shrink-0 ${iconColorClass}`}
@@ -376,7 +366,6 @@ const TabPill = memo(function TabPill({
 // ─── Plus-menu dropdown ───────────────────────────────────────────────────────
 
 interface PlusMenuContentProps {
-  onOpenChangelog: () => void;
   onOpenLaunchpad: () => void;
   onOpenKanban: () => void;
   onOpenRuntime: () => void;
@@ -385,7 +374,6 @@ interface PlusMenuContentProps {
 }
 
 export function PlusMenuContent({
-  onOpenChangelog,
   onOpenLaunchpad,
   onOpenKanban,
   onOpenRuntime,
@@ -417,12 +405,6 @@ export function PlusMenuContent({
       icon: <Gauge size={HEADER_ICON_SIZE.sm} strokeWidth={1.8} />,
       label: t("sessions:chat.startPage.tabs.runtime"),
       onClick: onOpenRuntime,
-    },
-    {
-      id: "changelog",
-      icon: <ChartNoAxesGantt size={HEADER_ICON_SIZE.sm} strokeWidth={1.8} />,
-      label: t("navigation:routes.changelog"),
-      onClick: onOpenChangelog,
     },
     {
       id: "new-work-item",
@@ -467,7 +449,6 @@ export function PlusMenuContent({
 // ─── Exported + menu button (placed in header toolbar, left of ...) ───────────
 
 export interface ChatPanelPlusMenuProps {
-  onOpenChangelog: () => void;
   onOpenLaunchpad: () => void;
   onOpenKanban: () => void;
   onOpenRuntime: () => void;
@@ -475,7 +456,6 @@ export interface ChatPanelPlusMenuProps {
 }
 
 export function ChatPanelPlusMenu({
-  onOpenChangelog,
   onOpenLaunchpad,
   onOpenKanban,
   onOpenRuntime,
@@ -490,7 +470,6 @@ export function ChatPanelPlusMenu({
     <Dropdown
       droplist={
         <PlusMenuContent
-          onOpenChangelog={onOpenChangelog}
           onOpenLaunchpad={onOpenLaunchpad}
           onOpenKanban={onOpenKanban}
           onOpenRuntime={onOpenRuntime}

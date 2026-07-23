@@ -430,16 +430,6 @@
       "projects": "项目"
     }
   },
-  "changelog": {
-    "latest": "最新",
-    "newerVersion": "较新版本",
-    "olderVersion": "较旧版本",
-    "sections": {
-      "highlights": "亮点",
-      "improvements": "改进",
-      "fixes": "修复"
-    }
-  },
   "collaboration": {
     "switchOrg": "切换 ORG",
     "addOrg": "添加 ORG",

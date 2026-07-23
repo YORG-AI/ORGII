@@ -20,7 +20,6 @@ import {
 } from "@src/store/workstation/workstationTabBarAtoms";
 
 import {
-  createChangelogTab,
   createExploreTab,
   createLaunchpadTab,
   createOrganizationTab,
@@ -123,25 +122,6 @@ export const openRuntimeInChatPanelTabAtom = atom(
   }
 );
 openRuntimeInChatPanelTabAtom.debugLabel = "openRuntimeInChatPanelTab";
-
-/** Open or focus the singleton release Changelog tab. */
-export const openChangelogInChatPanelTabAtom = atom(
-  null,
-  (get, set, title: string = "Changelog") => {
-    const existingTab = get(chatPanelTabsAtom).tabs.find(
-      (tab) => tab.type === "changelog"
-    );
-    if (existingTab) {
-      set(activateChatPanelTabAtom, existingTab.id);
-      return existingTab.id;
-    }
-
-    const tab = createChangelogTab({ title });
-    set(appendAndActivateChatPanelTabAtom, { tab });
-    return tab.id;
-  }
-);
-openChangelogInChatPanelTabAtom.debugLabel = "openChangelogInChatPanelTab";
 
 interface OpenWorkManagementTabOptions {
   section?: WorkManagementSection;

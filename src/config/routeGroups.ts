@@ -62,13 +62,6 @@ export const APP_SELECT_REPO_ROUTE = route(
   "Select a repo to continue"
 );
 
-export const APP_CHANGELOG_ROUTE = route(
-  "/orgii/app/changelog",
-  "Changelog",
-  "chart-no-axes-gantt",
-  "Open version release notes in the ChatPanel"
-);
-
 export const APP_AGENT_ORGS_ROUTE = route(
   "/orgii/app/settings/agent-orgs/agents",
   "Agents",

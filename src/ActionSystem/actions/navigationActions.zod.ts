@@ -139,14 +139,6 @@ const appGoToProjects = defineRouteNavigationAction(
   ["open projects", "open project manager"]
 );
 
-const appGoToChangelog = defineRouteNavigationAction(
-  ACTION_ID.APP_GO_TO_CHANGELOG,
-  "Open the Changelog in the ChatPanel",
-  ROUTES.app.changelog.path,
-  "Opened Changelog",
-  ["open changelog", "show changes", "show release notes"]
-);
-
 const appGoToKanban = defineZodAction(
   {
     id: ACTION_ID.APP_GO_TO_KANBAN,
@@ -258,7 +250,6 @@ export const appNavigationZodActions = [
   appGoToChat,
   appGoToMarket,
   appGoToProjects,
-  appGoToChangelog,
   appGoToKanban,
   appGoToAgentOrgs,
   appGoToIntegrations,

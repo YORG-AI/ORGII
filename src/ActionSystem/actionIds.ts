@@ -20,7 +20,6 @@ export const ACTION_ID = {
   APP_GO_TO_CHAT: "app.goToChat",
   APP_GO_TO_MARKET: "app.goToMarket",
   APP_GO_TO_STORIES: "app.goToProjects",
-  APP_GO_TO_CHANGELOG: "app.goToChangelog",
   APP_GO_TO_KANBAN: "app.goToKanban",
   APP_GO_TO_AGENT_ORGS: "app.goToAgentOrgs",
   APP_GO_TO_INTEGRATIONS: "app.goToIntegrations",

@@ -1,5 +1,4 @@
-import { useSetAtom } from "jotai";
-import React, { Suspense, useLayoutEffect } from "react";
+import React, { Suspense } from "react";
 import {
   Navigate,
   Outlet,
@@ -28,9 +27,6 @@ import {
 import ComingSoonRoutePage from "@src/router/routes/ComingSoonRoutePage";
 import OpenSourceMarketUnavailablePage from "@src/router/routes/OpenSourceMarketUnavailablePage";
 import { WorkStationRoutePlaceholder } from "@src/router/routes/placeholders";
-import { openChangelogInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
-import { activeStationChatVisibleAtom } from "@src/store/ui/chatPanelAtom";
-import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 
 const Loading = () => <Placeholder variant="loading" />;
 
@@ -56,24 +52,6 @@ const lazy = (element: React.ReactNode, withLoader = true) => (
  * resolve and so the URL drives the slot's body via `useLocation()`.
  */
 const UnifiedSettingsPage: React.FC = () => null;
-
-/**
- * Route-level launcher for Changelog bookmarks, Spotlight, and app actions.
- * Changelog is no longer a full page: opening this URL focuses its singleton
- * ChatPanel tab and returns the router to the Workstation.
- */
-const ChangelogTabLauncher: React.FC = () => {
-  const openChangelogTab = useSetAtom(openChangelogInChatPanelTabAtom);
-  const setStationMode = useSetAtom(stationModeAtom);
-  const setStationChatVisible = useSetAtom(activeStationChatVisibleAtom);
-  useLayoutEffect(() => {
-    setStationMode("my-station");
-    setStationChatVisible("my-station", true);
-    openChangelogTab("Changelog");
-  }, [openChangelogTab, setStationChatVisible, setStationMode]);
-
-  return <Navigate to={ROUTES.workStation.base.path} replace />;
-};
 
 /**
  * Redirect legacy `/orgii/app/agent-orgs/<tab>[/<category>]` URLs to their
@@ -150,10 +128,6 @@ export const appStandaloneRouteGroup: RouteObject[] = [
 ];
 
 export const workbenchAppRouteGroup: RouteObject[] = [
-  {
-    path: "app/changelog",
-    element: <ChangelogTabLauncher />,
-  },
   // Unified Settings surface. Every `/settings/*` path is owned by
   // `SettingsSlot` (mounted by `AppShell` in the chat-panel slot);
   // these outlet entries just keep the URL deeplinkable. The slot

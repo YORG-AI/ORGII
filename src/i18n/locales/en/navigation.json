@@ -431,16 +431,6 @@
       "forks": "Forks"
     }
   },
-  "changelog": {
-    "latest": "Latest",
-    "newerVersion": "Newer version",
-    "olderVersion": "Older version",
-    "sections": {
-      "highlights": "Highlights",
-      "improvements": "Improvements",
-      "fixes": "Fixes"
-    }
-  },
   "cloud": {
     "title": "ORG2 Cloud",
     "signIn": "Login",

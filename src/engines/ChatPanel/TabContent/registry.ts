@@ -13,7 +13,6 @@
  * a dedicated, self-sufficient component that reads its tab payload directly.
  */
 import {
-  ChangelogSurfaceRenderer,
   ExploreSurfaceRenderer,
   OrganizationSurfaceRenderer,
   ProjectSurfaceRenderer,
@@ -33,11 +32,6 @@ export const CHAT_PANEL_TAB_SURFACE_REGISTRY: ChatPanelTabSurfaceRegistry = {
     render: "component",
     Component: RuntimeSurfaceRenderer,
     debugLabel: "runtime",
-  },
-  changelog: {
-    render: "component",
-    Component: ChangelogSurfaceRenderer,
-    debugLabel: "changelog",
   },
   "work-management": {
     render: "work-management",

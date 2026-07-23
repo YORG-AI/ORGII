@@ -40,9 +40,6 @@ const WorkspaceExplorePanelView = React.lazy(
   () => import("../panels/WorkspaceExplorePanelView")
 );
 const RuntimePanelView = React.lazy(() => import("../panels/RuntimePanelView"));
-const ChangelogPanelView = React.lazy(
-  () => import("../panels/ChangelogPanelView")
-);
 
 export interface ChatPanelSurfaceRendererProps {
   tab: ChatPanelTab;
@@ -125,14 +122,6 @@ export function RuntimeSurfaceRenderer(): React.ReactNode {
   return (
     <Suspense fallback={null}>
       <RuntimePanelView />
-    </Suspense>
-  );
-}
-
-export function ChangelogSurfaceRenderer(): React.ReactNode {
-  return (
-    <Suspense fallback={null}>
-      <ChangelogPanelView />
     </Suspense>
   );
 }

@@ -18,7 +18,6 @@ import type { WorkManagementSection } from "@src/store/workstation/workstationTa
 
 import { defineChatPanelTabFactory } from "./chatPanelTabFactory";
 import {
-  CHANGELOG_TAB_ID,
   type ChatPanelTab,
   type ChatPanelTabsState,
   ORGANIZATION_TAB_ID,
@@ -79,18 +78,6 @@ export const createRuntimeTab = defineChatPanelTabFactory<{ title?: string }>({
   tabType: "runtime",
   idStrategy: { type: "fixed", id: RUNTIME_TAB_ID },
   getTitle: (data) => data.title ?? "Runtime",
-});
-
-// ---------------------------------------------------------------------------
-// changelog — singleton
-// ---------------------------------------------------------------------------
-
-export const createChangelogTab = defineChatPanelTabFactory<{
-  title?: string;
-}>({
-  tabType: "changelog",
-  idStrategy: { type: "fixed", id: CHANGELOG_TAB_ID },
-  getTitle: (data) => data.title ?? "Changelog",
 });
 
 // ---------------------------------------------------------------------------

@@ -1096,6 +1096,28 @@ describe("ChatPanel navigation tabs", () => {
     expect(normalized?.activeTabId).toBe("runtime-b");
   });
 
+  it("drops retired persisted surface types", async () => {
+    const { normalizePersistedChatPanelTabsState } =
+      await loadChatPanelTabAtoms();
+
+    expect(
+      normalizePersistedChatPanelTabsState({
+        activeTabId: "retired-changelog",
+        tabs: [
+          { id: "start", type: "start-page", title: "Launchpad" },
+          {
+            id: "retired-changelog",
+            type: "changelog",
+            title: "Changelog",
+          },
+        ],
+      })
+    ).toEqual({
+      activeTabId: "start",
+      tabs: [{ id: "start", type: "start-page", title: "Launchpad" }],
+    });
+  });
+
   it("migrates persisted legacy Launchpad tabs to the start page", async () => {
     const { normalizePersistedChatPanelTabsState } =
       await loadChatPanelTabAtoms();

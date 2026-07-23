@@ -316,6 +316,10 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
                   <span>{t("sidebar.settingsMenu.viewRam")}</span>
                 </button>
               )}
+              {/*
+                TODO(changelog-web): Restore the Changelog item here, directly
+                above Tutorials, once the maintained web destination is ready.
+              */}
               <button
                 type="button"
                 className={`${DROPDOWN_CLASSES.menuActionItem} gap-2`}
