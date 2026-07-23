@@ -47,6 +47,10 @@ export function useHousekeeperConfig() {
   const [enabled, setEnabled] = useSetting("housekeeper.enabled");
   const [accountId, setAccountId] = useSetting("housekeeper.accountId");
   const [model, setModel] = useSetting("housekeeper.model");
+  const [contextCompactAccountIdOverride, setContextCompactAccountIdOverride] =
+    useSetting("housekeeper.contextCompactAccountIdOverride");
+  const [contextCompactModelOverride, setContextCompactModelOverride] =
+    useSetting("housekeeper.contextCompactModelOverride");
   const [contextLimitTokens, setContextLimitTokens] = useSetting(
     "housekeeper.contextLimitTokens"
   );
@@ -97,6 +101,10 @@ export function useHousekeeperConfig() {
     setAccountId,
     model,
     setModel,
+    contextCompactAccountIdOverride,
+    setContextCompactAccountIdOverride,
+    contextCompactModelOverride,
+    setContextCompactModelOverride,
     contextLimitTokens: contextLimitTokens || HOUSEKEEPER_SAFE_CONTEXT_TOKENS,
     setContextLimitTokens,
     features: {

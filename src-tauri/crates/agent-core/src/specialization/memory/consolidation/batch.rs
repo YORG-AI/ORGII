@@ -353,10 +353,9 @@ pub(super) fn resolve_provider(
 /// Probe the agent's AutoEmbeddingProvider. `Some(provider)` → Mode A.
 /// `None` → Mode B.
 pub(super) async fn resolve_embed_mode(
-    provider_hint: String,
-    model: Option<String>,
+    config: crate::integrations::config::EmbeddingConfig,
 ) -> (CandidateMode, Option<Arc<AutoEmbeddingProvider>>) {
-    let provider = Arc::new(AutoEmbeddingProvider::new(provider_hint, model));
+    let provider = Arc::new(AutoEmbeddingProvider::from_config(config));
     let probe = provider.embed("consolidation probe").await;
     match probe {
         Ok(_) => (CandidateMode::Embedding, Some(provider)),

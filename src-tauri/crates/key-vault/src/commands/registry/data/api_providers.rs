@@ -217,6 +217,17 @@ pub(crate) fn api_provider_registry() -> Vec<ApiProviderEntry> {
             supports_rust_agents: true,
         },
         ApiProviderEntry {
+            name: "embedding_api",
+            display_name: "Embedding API",
+            description: "OpenAI-compatible embedding endpoint for session memory",
+            brand_color: "#64748B",
+            docs_url: "https://platform.openai.com/docs/api-reference/embeddings",
+            icon_provider: "custom",
+            paired_cli_agent: None,
+            popular: false,
+            supports_rust_agents: false,
+        },
+        ApiProviderEntry {
             name: "vllm_api",
             display_name: "vLLM / Local",
             description: "Self-hosted vLLM or local API endpoint",

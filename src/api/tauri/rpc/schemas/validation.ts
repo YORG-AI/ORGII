@@ -97,6 +97,7 @@ export const ApiProviderTypeSchema = z.union([
   z.literal("cherryin_api"),
   z.literal("bedrock_api"),
   z.literal("custom_api"),
+  z.literal("embedding_api"),
   z.literal("vllm_api"),
   z.literal("azure_openai_api"),
   z.literal("azure_anthropic_api"),

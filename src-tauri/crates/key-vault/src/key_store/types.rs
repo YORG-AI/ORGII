@@ -131,6 +131,8 @@ pub enum ModelType {
     BedrockApi,
     /// Fully user-defined gateway: the user supplies base URL and protocol.
     CustomApi,
+    /// OpenAI-compatible embedding-only credential. Never used for chat.
+    EmbeddingApi,
     AzureOpenaiApi,
     /// Azure-hosted Anthropic gateway. Same auth shape as `AzureOpenaiApi`
     /// (an Azure resource key + base URL) but routed through the Anthropic
@@ -194,6 +196,7 @@ impl ModelType {
             ModelType::CherryinApi => "cherryin_api",
             ModelType::BedrockApi => "bedrock_api",
             ModelType::CustomApi => "custom_api",
+            ModelType::EmbeddingApi => "embedding_api",
             ModelType::AzureOpenaiApi => "azure_openai_api",
             ModelType::AzureAnthropicApi => "azure_anthropic_api",
             ModelType::OrgiiOrchestrator => "orgii_orchestrator",
@@ -254,6 +257,7 @@ impl ModelType {
             "cherryin_api" | "cherryin" => Some(ModelType::CherryinApi),
             "bedrock_api" | "bedrock" => Some(ModelType::BedrockApi),
             "custom_api" | "custom" => Some(ModelType::CustomApi),
+            "embedding_api" | "embedding" => Some(ModelType::EmbeddingApi),
             "azure_openai_api" | "azure_openai" | "azure" => Some(ModelType::AzureOpenaiApi),
             "azure_anthropic_api" | "azure_anthropic" => Some(ModelType::AzureAnthropicApi),
             "orgii_orchestrator" | "orgii" => Some(ModelType::OrgiiOrchestrator),
@@ -264,6 +268,16 @@ impl ModelType {
     /// Returns `true` if this is a direct API key provider (not a CLI agent).
     pub fn is_api_key_provider(&self) -> bool {
         !self.is_cli_agent()
+    }
+
+    /// Embedding-only credentials are never valid chat/agent providers.
+    pub fn is_embedding_only(&self) -> bool {
+        matches!(self, ModelType::EmbeddingApi)
+    }
+
+    /// Providers eligible for generation runtimes and model selectors.
+    pub fn supports_generation(&self) -> bool {
+        !self.is_embedding_only()
     }
 
     /// Returns `true` if this is a CLI-based coding agent.

@@ -1453,6 +1453,23 @@ fn test_disabled_key_returns_empty_env() {
 }
 
 #[test]
+fn embedding_api_key_uses_its_dedicated_environment_variable() {
+    let temp_dir = tempdir().unwrap();
+    let service = KeyService::new(Some(temp_dir.path().to_path_buf()));
+    let mut key = ModelKey::new(ModelType::EmbeddingApi);
+    key.api_key = Some("embedding-secret".to_string());
+    let key_id = key.id.clone();
+    service.save_key(key).unwrap();
+
+    let env = service.get_env_for_agent(&ModelType::EmbeddingApi, Some(&key_id));
+    assert_eq!(
+        env.get("EMBEDDING_API_KEY").map(String::as_str),
+        Some("embedding-secret")
+    );
+    assert!(!env.contains_key("API_KEY"));
+}
+
+#[test]
 fn test_kiro_env_vars_not_clobbered_by_empty_api_key() {
     // Sign-In wizard stores Kiro tokens in env_vars and leaves
     // session_token / api_key empty. The Kiro arm in

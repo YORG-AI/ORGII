@@ -352,14 +352,12 @@ pub async fn inject_learnings_into_prompt_reranked(agent_scope: &str, query_text
     let embed_cfg = crate::state::integrations_store::integrations_store()
         .snapshot()
         .embedding;
-    let provider = AutoEmbeddingProvider::new(embed_cfg.provider, embed_cfg.model);
+    let provider = AutoEmbeddingProvider::from_config(embed_cfg);
 
     let (query_embedding, query_model) = match provider.embed(trimmed).await {
         Ok(res) => (res.vector, Some(res.model)),
         Err(err) => {
-            warn!(
-                "[learnings] query embed failed ({err}); falling back to salience ranking"
-            );
+            warn!("[learnings] query embed failed ({err}); falling back to salience ranking");
             return inject_learnings_into_prompt(agent_scope, None);
         }
     };

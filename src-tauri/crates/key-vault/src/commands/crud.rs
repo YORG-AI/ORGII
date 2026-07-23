@@ -168,7 +168,7 @@ fn supports_rust_agents(
 
     let has_usable_key_material = has_api_key || has_session_token;
     match entry.model_type {
-        ModelType::CursorCli | ModelType::OrgiiOrchestrator => false,
+        ModelType::CursorCli | ModelType::OrgiiOrchestrator | ModelType::EmbeddingApi => false,
         ModelType::ClaudeCode
         | ModelType::Codex
         | ModelType::GeminiCli

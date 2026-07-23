@@ -543,7 +543,6 @@ pub struct PersistedSessionMemoryState {
     pub last_msg_idx: Option<usize>,
 }
 
-
 // ============================================
 // Session Memory Semantic Index
 // ============================================
@@ -554,6 +553,8 @@ pub struct SessionMemoryIndexRow {
     pub content: String,
     pub embedding: Vec<f32>,
     pub embedding_model: Option<String>,
+    pub embedding_source: Option<String>,
+    pub embedding_dimensions: Option<usize>,
     pub updated_at: String,
 }
 
@@ -564,11 +565,23 @@ pub fn ensure_session_memory_index_schema(conn: &rusqlite::Connection) -> Sqlite
             content          TEXT NOT NULL,
             embedding        BLOB,
             embedding_model  TEXT,
+            embedding_source TEXT,
+            embedding_dimensions INTEGER,
             updated_at       TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_session_memory_index_updated
             ON session_memory_index(updated_at);",
     )?;
+    for ddl in [
+        "ALTER TABLE session_memory_index ADD COLUMN embedding_source TEXT",
+        "ALTER TABLE session_memory_index ADD COLUMN embedding_dimensions INTEGER",
+    ] {
+        if let Err(err) = conn.execute(ddl, []) {
+            if !err.to_string().contains("duplicate column name") {
+                return Err(err);
+            }
+        }
+    }
     Ok(())
 }
 
@@ -577,6 +590,7 @@ pub fn save_session_memory_index(
     content: &str,
     embedding: &[f32],
     embedding_model: Option<&str>,
+    embedding_source: Option<&str>,
 ) -> SqliteResult<()> {
     let embedding_bytes: Vec<u8> = embedding.iter().flat_map(|v| v.to_le_bytes()).collect();
     let embedding_blob: Option<&[u8]> = if embedding_bytes.is_empty() {
@@ -589,18 +603,22 @@ pub fn save_session_memory_index(
         ensure_session_memory_index_schema(&conn)?;
         conn.execute(
             "INSERT INTO session_memory_index
-                (session_id, content, embedding, embedding_model, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5)
+                (session_id, content, embedding, embedding_model, embedding_source, embedding_dimensions, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
              ON CONFLICT(session_id) DO UPDATE SET
                 content = excluded.content,
                 embedding = excluded.embedding,
                 embedding_model = excluded.embedding_model,
+                embedding_source = excluded.embedding_source,
+                embedding_dimensions = excluded.embedding_dimensions,
                 updated_at = excluded.updated_at",
             rusqlite::params![
                 session_id,
                 content,
                 embedding_blob,
                 embedding_model,
+                embedding_source,
+                embedding.len() as i64,
                 chrono::Utc::now().to_rfc3339(),
             ],
         )?;
@@ -612,7 +630,7 @@ pub fn load_session_memory_index_rows() -> SqliteResult<Vec<SessionMemoryIndexRo
     let conn = get_connection()?;
     ensure_session_memory_index_schema(&conn)?;
     let mut stmt = conn.prepare(
-        "SELECT session_id, content, embedding, embedding_model, updated_at
+        "SELECT session_id, content, embedding, embedding_model, embedding_source, embedding_dimensions, updated_at
          FROM session_memory_index
          ORDER BY updated_at DESC",
     )?;
@@ -630,14 +648,13 @@ pub fn load_session_memory_index_rows() -> SqliteResult<Vec<SessionMemoryIndexRo
             content: row.get(1)?,
             embedding,
             embedding_model: row.get(3)?,
-            updated_at: row.get(4)?,
+            embedding_source: row.get(4)?,
+            embedding_dimensions: row.get::<_, Option<i64>>(5)?.map(|v| v as usize),
+            updated_at: row.get(6)?,
         })
     })?;
     rows.collect()
 }
-
-
-
 
 pub fn latest_message_sequence(session_id: &str) -> SqliteResult<i64> {
     let conn = get_connection()?;
@@ -845,7 +862,6 @@ pub fn load_turn_cache_layout_stats(
     }
 }
 
-
 pub fn load_latest_turn_cache_layout_stats(
     session_id: &str,
 ) -> SqliteResult<Option<(String, CacheLayoutStats)>> {
@@ -929,7 +945,6 @@ pub fn load_session_embedding_state(
         Ok(None)
     }
 }
-
 
 // ============================================
 // Cancel-Interrupt Marker
@@ -1053,6 +1068,60 @@ mod tests {
     use database::db::get_connection;
     use test_helpers::test_env;
 
+    #[test]
+    fn session_memory_index_embedding_metadata_roundtrips() {
+        let _sandbox = test_env::sandbox();
+        save_session_memory_index(
+            "session-memory-index",
+            "durable summary",
+            &[0.25, -0.5, 1.0],
+            Some("text-embedding-test"),
+            Some("openai:https://embedding.example/v1:text-embedding-test:3"),
+        )
+        .expect("save session memory index");
+
+        let row = load_session_memory_index_rows()
+            .expect("load session memory index")
+            .into_iter()
+            .find(|row| row.session_id == "session-memory-index")
+            .expect("saved row");
+        assert_eq!(row.content, "durable summary");
+        assert_eq!(row.embedding, vec![0.25, -0.5, 1.0]);
+        assert_eq!(row.embedding_model.as_deref(), Some("text-embedding-test"));
+        assert_eq!(
+            row.embedding_source.as_deref(),
+            Some("openai:https://embedding.example/v1:text-embedding-test:3")
+        );
+        assert_eq!(row.embedding_dimensions, Some(3));
+    }
+
+    #[test]
+    fn session_memory_index_schema_migrates_legacy_table() {
+        let conn = rusqlite::Connection::open_in_memory().expect("open sqlite");
+        conn.execute_batch(
+            "CREATE TABLE session_memory_index (
+                session_id TEXT PRIMARY KEY,
+                content TEXT NOT NULL,
+                embedding BLOB,
+                embedding_model TEXT,
+                updated_at TEXT NOT NULL
+            );",
+        )
+        .expect("create legacy schema");
+
+        ensure_session_memory_index_schema(&conn).expect("migrate schema");
+        let columns: Vec<String> = conn
+            .prepare("PRAGMA table_info(session_memory_index)")
+            .expect("prepare pragma")
+            .query_map([], |row| row.get(1))
+            .expect("query columns")
+            .collect::<Result<_, _>>()
+            .expect("collect columns");
+        assert!(columns.iter().any(|column| column == "embedding_source"));
+        assert!(columns
+            .iter()
+            .any(|column| column == "embedding_dimensions"));
+    }
 
     #[test]
     fn context_metadata_roundtrips() {

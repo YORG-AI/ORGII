@@ -29,6 +29,9 @@ pub struct EmbeddingResult {
     pub dimensions: usize,
     /// Model used to generate the embedding.
     pub model: String,
+    /// Stable provider/model/dimension fingerprint. Stored with every vector
+    /// so queries never mix incompatible embedding spaces.
+    pub source: String,
 }
 
 /// Trait for embedding providers.

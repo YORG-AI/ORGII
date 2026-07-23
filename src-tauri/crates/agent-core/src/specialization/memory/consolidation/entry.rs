@@ -75,8 +75,7 @@ pub async fn consolidate(
     // integrations.json must fail this background pass rather than silently
     // switching consolidation to default recall behavior.
     let embedding_cfg = load_embedding_config_for_consolidation()?;
-    let (mode, embed) =
-        resolve_embed_mode(embedding_cfg.provider.clone(), embedding_cfg.model.clone()).await;
+    let (mode, embed) = resolve_embed_mode(embedding_cfg).await;
 
     // Group pending rows by account_id. Billing for the consolidation LLM
     // call follows the account that produced the rows.
@@ -192,8 +191,8 @@ mod tests {
     #[test]
     fn embedding_config_reads_through_integrations_store() {
         // cfg(test) integrations_store() returns a fresh store; defaults
-        // resolve to the "auto" embedding provider.
+        // resolve to the safe disabled embedding provider.
         let embedding = load_embedding_config_for_consolidation().expect("embedding config");
-        assert_eq!(embedding.provider, "auto");
+        assert_eq!(embedding.provider, "disabled");
     }
 }

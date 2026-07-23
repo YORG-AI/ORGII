@@ -91,10 +91,16 @@ pub(crate) fn collect_files(root: &Path, filters: &SearchFilters) -> Vec<PathBuf
 }
 
 pub(crate) fn get_gpu_layers() -> u32 {
+    let platform_default = if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        32
+    } else {
+        0
+    };
     std::env::var("ORGII_GPU_LAYERS")
         .ok()
         .and_then(|value| value.parse().ok())
-        .unwrap_or(99)
+        .unwrap_or(platform_default)
+        .min(64)
 }
 
 pub(crate) fn is_supported_extension(extension: &str) -> bool {

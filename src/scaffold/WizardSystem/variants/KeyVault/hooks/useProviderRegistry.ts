@@ -171,6 +171,7 @@ const PRIMARY_PROVIDER_KEYS = new Set([
   "cherryin_api",
   "bedrock_api",
   "custom_api",
+  "embedding_api",
   "azure_openai_api",
   "azure_anthropic_api",
 ]);

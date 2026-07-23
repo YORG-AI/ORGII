@@ -1,220 +1,121 @@
-//! Auto-detecting embedding provider.
-
-use async_trait::async_trait;
-use tracing::info;
-
-use key_vault::key_store::{ModelType, KEY_SERVICE};
-
-use super::azure::AzureEmbeddingProvider;
+//! Policy-driven embedding provider selection. Explicit providers never fall back.
 use super::openai::OpenAIEmbeddingProvider;
 use super::{EmbeddingProvider, EmbeddingResult, OPENAI_DEFAULT_DIMS};
+use async_trait::async_trait;
+use key_vault::key_store::{HealthStatus, ModelType, KEY_SERVICE};
+use tracing::info;
 
-/// Provider-hint values that `AutoEmbeddingProvider` understands.
-///
-/// The hint is a free-form string today (it comes from
-/// `IntegrationsConfig.embedding.provider` and may also be a `ModelType`
-/// name like `"openai_api"` for forwards compatibility), so we keep it as
-/// `&str`, but the *recognised* values live here as constants to keep the
-/// match arms self-documenting.
-mod hint {
-    /// Force the bundled local embedder (no network, no API key needed).
-    pub const LOCAL: &str = "local";
-    /// Try local first, fall back to whichever API key is configured.
-    pub const AUTO: &str = "auto";
-    /// Use the OpenAI Embeddings API.
-    pub const OPENAI: &str = "openai";
-    /// Use the Azure OpenAI Embeddings deployment.
-    pub const AZURE: &str = "azure";
-    /// Long-form alias for `azure`.
-    pub const AZURE_OPENAI: &str = "azure_openai";
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ProviderKind {
+    Disabled,
+    LocalQwen,
+    LocalCodeRank,
+    RemoteEmbedding,
+}
+fn provider_kind(hint: &str) -> Result<ProviderKind, String> {
+    match hint.trim().to_ascii_lowercase().as_str() {
+        "disabled" | "off" | "none" => Ok(ProviderKind::Disabled),
+        "auto" | "local" | "local_qwen" | "qwen3" => Ok(ProviderKind::LocalQwen),
+        "local_coderank" | "coderank" | "coderankembed" => Ok(ProviderKind::LocalCodeRank),
+        "embedding" | "embedding_api" => Ok(ProviderKind::RemoteEmbedding),
+        other => Err(format!("Unsupported embedding provider '{other}'")),
+    }
 }
 
-/// API-key + endpoint pair resolved for an embedding provider. Local to this
-/// file so the name stays short — the type never crosses module boundaries.
-struct ResolvedEmbeddingKey {
-    api_key: String,
-    base_url: Option<String>,
-    is_azure: bool,
-}
-
-/// Auto-detecting embedding provider.
-///
-/// Resolves the best available provider using the configured `provider` hint
-/// (from `IntegrationsConfig.embedding.provider`) and stored credentials.
 pub struct AutoEmbeddingProvider {
-    /// Resolved inner provider (set on first use).
     inner: tokio::sync::Mutex<Option<Box<dyn EmbeddingProvider>>>,
-    /// Provider hint: "auto", "openai", or another API-key provider name.
-    provider_hint: String,
-    /// Model override.
-    model: Option<String>,
+    config: crate::integrations::config::EmbeddingConfig,
 }
-
 impl AutoEmbeddingProvider {
-    pub fn new(provider_hint: String, model: Option<String>) -> Self {
+    pub fn new(provider: String, model: Option<String>) -> Self {
+        let mut config = crate::integrations::config::EmbeddingConfig::default();
+        config.provider = provider;
+        config.model = model;
+        Self::from_config(config)
+    }
+    pub fn from_config(config: crate::integrations::config::EmbeddingConfig) -> Self {
         Self {
             inner: tokio::sync::Mutex::new(None),
-            provider_hint,
-            model,
+            config,
         }
     }
-
-    /// Check synchronously whether any embedding provider can be resolved.
-    ///
-    /// Call this before registering memory search tools so the tools are
-    /// skipped entirely when no provider is available (instead of failing
-    /// at runtime with "missing required parameter: query").
     pub fn is_available(&self) -> bool {
-        match self.provider_hint.as_str() {
-            hint::LOCAL => Self::resolve_local(None).is_ok(),
-            hint::AUTO => Self::resolve_local(None).is_ok() || Self::resolve_auto_api().is_some(),
-            hint::OPENAI => Self::resolve_for_agent_type(&ModelType::OpenaiApi).is_some(),
-            hint::AZURE | hint::AZURE_OPENAI => {
-                Self::resolve_for_agent_type(&ModelType::AzureOpenaiApi).is_some()
-            }
-            other => ModelType::from_str(other)
-                .and_then(|at| Self::resolve_for_agent_type(&at))
-                .is_some(),
+        match provider_kind(&self.config.provider) {
+            Ok(ProviderKind::LocalQwen) => self
+                .config
+                .local_base_url
+                .as_deref()
+                .is_some_and(|v| !v.trim().is_empty()),
+            Ok(ProviderKind::RemoteEmbedding) => Self::validated_remote_credential().is_some(),
+            _ => false,
         }
     }
-
-    /// Resolve the best available provider.
     async fn resolve(&self) -> Result<(), String> {
         let mut inner = self.inner.lock().await;
         if inner.is_some() {
             return Ok(());
         }
-
-        match self.provider_hint.as_str() {
-            hint::LOCAL => {
-                let provider = Self::resolve_local(None)?;
-                *inner = Some(provider);
-                return Ok(());
+        let provider: Box<dyn EmbeddingProvider> = match provider_kind(&self.config.provider)? {
+            ProviderKind::Disabled => return Err("Embedding is disabled".into()),
+            ProviderKind::LocalCodeRank => return Err("CodeRankEmbed session-memory adapter is unavailable on this platform; select local_qwen or embedding_api".into()),
+            ProviderKind::LocalQwen => {
+                let base_url = self.config.local_base_url.clone().filter(|v| !v.trim().is_empty()).ok_or("local_qwen requires localBaseUrl")?;
+                let model = self.config.model.clone().filter(|v| !v.trim().is_empty()).ok_or("local_qwen requires model")?;
+                info!("[memory-embeddings] local model={} url={}", model, base_url);
+                Box::new(OpenAIEmbeddingProvider::with_limits(String::new(), Some(model), Some(base_url), self.config.dimensions, self.config.request_timeout_secs, self.config.max_input_chars)?)
             }
-            hint::AUTO => {
-                if let Ok(provider) = Self::resolve_local(None) {
-                    *inner = Some(provider);
-                    return Ok(());
-                }
+            ProviderKind::RemoteEmbedding => {
+                let key = Self::validated_remote_credential().ok_or("embedding_api requires an enabled, validated Key Vault credential")?;
+                let model = self.config.model.clone().or_else(|| key.enabled_models.first().cloned()).or_else(|| key.available_models.first().cloned()).ok_or("embedding_api requires a validated model")?;
+                let base_url = key.base_url.filter(|v| !v.trim().is_empty()).ok_or("embedding_api requires base_url")?;
+                let api_key = key.api_key.filter(|v| !v.trim().is_empty()).ok_or("embedding_api requires api_key")?;
+                Box::new(OpenAIEmbeddingProvider::with_limits(api_key, Some(model), Some(base_url), self.config.dimensions, self.config.request_timeout_secs, self.config.max_input_chars)?)
             }
-            _ => {}
-        }
-
-        let resolved = match self.provider_hint.as_str() {
-            hint::OPENAI => Self::resolve_for_agent_type(&ModelType::OpenaiApi),
-            hint::AZURE | hint::AZURE_OPENAI => {
-                Self::resolve_for_agent_type(&ModelType::AzureOpenaiApi)
-            }
-            hint::AUTO => Self::resolve_auto_api(),
-            other => ModelType::from_str(other)
-                .and_then(|agent_type| Self::resolve_for_agent_type(&agent_type)),
         };
-
-        match resolved {
-            Some(cred) if cred.is_azure => {
-                let base_url = cred.base_url.ok_or_else(|| {
-                    "Azure embedding credential is missing base_url (deployment endpoint)"
-                        .to_string()
-                })?;
-                info!(
-                    "[memory-embeddings] Using Azure OpenAI embedding provider (hint={})",
-                    self.provider_hint
-                );
-                *inner = Some(Box::new(AzureEmbeddingProvider::new(
-                    cred.api_key,
-                    base_url,
-                )));
-                Ok(())
-            }
-            Some(cred) => {
-                info!(
-                    "[memory-embeddings] Using OpenAI-compatible embedding provider (hint={})",
-                    self.provider_hint
-                );
-                *inner = Some(Box::new(OpenAIEmbeddingProvider::new(
-                    cred.api_key,
-                    self.model.clone(),
-                    cred.base_url,
-                )));
-                Ok(())
-            }
-            None => Err(format!(
-                "No embedding provider available (provider={}). \
-                 Add an OpenAI-compatible API key in Code Accounts, or select 'local'.",
-                self.provider_hint
-            )),
-        }
+        *inner = Some(provider);
+        Ok(())
     }
-
-    /// Local embedding provider — Simon's setup: qwen3-embedding-4b served at
-    /// `http://localhost:9876/v1` (OpenAI-compatible, 1024-dim, no API key).
-    /// Overridable via env `ORGII_LOCAL_EMBED_URL` / `ORGII_LOCAL_EMBED_MODEL`.
-    fn resolve_local(_custom_path: Option<&str>) -> Result<Box<dyn EmbeddingProvider>, String> {
-        let base_url = std::env::var("ORGII_LOCAL_EMBED_URL")
-            .unwrap_or_else(|_| "http://localhost:9876/v1".to_string());
-        let model = std::env::var("ORGII_LOCAL_EMBED_MODEL")
-            .unwrap_or_else(|_| "qwen3-embedding-4b".to_string());
-        info!(
-            "[memory-embeddings] Using LOCAL qwen3 embedding provider ({} / {})",
-            base_url, model
-        );
-        Ok(Box::new(OpenAIEmbeddingProvider::new(
-            "not-needed".to_string(),
-            Some(model),
-            Some(base_url),
-        )))
-    }
-
-    /// Look up a credential for a specific agent type.
-    fn resolve_for_agent_type(agent_type: &ModelType) -> Option<ResolvedEmbeddingKey> {
-        let cred = KEY_SERVICE.get_key(agent_type, None)?;
-        let api_key = cred.api_key.filter(|k| !k.is_empty())?;
-        Some(ResolvedEmbeddingKey {
-            api_key,
-            base_url: cred.base_url.filter(|u| !u.is_empty()),
-            is_azure: matches!(agent_type, ModelType::AzureOpenaiApi),
-        })
-    }
-
-    /// Auto-resolve API providers: try Azure (dedicated embedding deployments)
-    /// first, then OpenAI, then other compatible providers.
-    fn resolve_auto_api() -> Option<ResolvedEmbeddingKey> {
-        const PREFERRED_ORDER: &[ModelType] = &[
-            ModelType::AzureOpenaiApi,
-            ModelType::OpenaiApi,
-            ModelType::OpenrouterApi,
-            ModelType::ZenmuxApi,
-            ModelType::DeepseekApi,
-        ];
-
-        for agent_type in PREFERRED_ORDER {
-            if let Some(cred) = Self::resolve_for_agent_type(agent_type) {
-                return Some(cred);
-            }
-        }
-        None
+    fn validated_remote_credential() -> Option<key_vault::key_store::ModelKey> {
+        let key = KEY_SERVICE.get_key(&ModelType::EmbeddingApi, None)?;
+        let fresh = key
+            .last_validated_at
+            .is_some_and(|at| chrono::Utc::now().signed_duration_since(at).num_hours() <= 24);
+        (key.enabled && key.health_status == HealthStatus::Valid && fresh).then_some(key)
     }
 }
-
 #[async_trait]
 impl EmbeddingProvider for AutoEmbeddingProvider {
     async fn embed(&self, text: &str) -> Result<EmbeddingResult, String> {
         self.resolve().await?;
-        let inner = self.inner.lock().await;
-        inner.as_ref().unwrap().embed(text).await
+        self.inner.lock().await.as_ref().unwrap().embed(text).await
     }
-
     async fn embed_batch(&self, texts: &[String]) -> Result<Vec<EmbeddingResult>, String> {
         self.resolve().await?;
-        let inner = self.inner.lock().await;
-        inner.as_ref().unwrap().embed_batch(texts).await
+        self.inner
+            .lock()
+            .await
+            .as_ref()
+            .unwrap()
+            .embed_batch(texts)
+            .await
     }
-
     fn dimensions(&self) -> usize {
-        OPENAI_DEFAULT_DIMS
+        self.config.dimensions.unwrap_or(OPENAI_DEFAULT_DIMS)
     }
-
     fn provider_name(&self) -> &str {
-        "auto"
+        "configured"
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn explicit_policy() {
+        assert_eq!(provider_kind("auto").unwrap(), ProviderKind::LocalQwen);
+        assert_eq!(
+            provider_kind("embedding_api").unwrap(),
+            ProviderKind::RemoteEmbedding
+        );
+        assert!(provider_kind("zenmux_api").is_err());
     }
 }

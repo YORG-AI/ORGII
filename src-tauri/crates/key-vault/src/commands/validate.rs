@@ -165,6 +165,62 @@ async fn fetch_opencode_models(api_key: &str, base_url: &str) -> Result<Vec<Stri
     Ok(models.data.into_iter().map(|model| model.id).collect())
 }
 
+async fn validate_embedding_endpoint(
+    api_key: &str,
+    base_url: Option<&str>,
+    model: Option<&str>,
+) -> Result<ValidationResult, String> {
+    let base_url = base_url
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "Embedding provider requires a base URL".to_string())?
+        .trim_end_matches('/');
+    let model = model
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "Embedding provider requires a model".to_string())?;
+    let client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|err| format!("Failed to build embedding validation client: {err}"))?;
+    let response = client
+        .post(format!("{base_url}/embeddings"))
+        .bearer_auth(api_key)
+        .json(&serde_json::json!({"input": ["orgii embedding validation"], "model": model}))
+        .send()
+        .await
+        .map_err(|err| format!("Embedding validation request failed: {err}"))?;
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .map_err(|err| format!("Failed to read embedding validation response: {err}"))?;
+    if !status.is_success() {
+        return Ok(ValidationResult::failure(&format!(
+            "Embedding endpoint returned HTTP {}: {}",
+            status.as_u16(),
+            body
+        )));
+    }
+    let payload: serde_json::Value = serde_json::from_str(&body)
+        .map_err(|err| format!("Invalid embedding response JSON: {err}"))?;
+    let dimensions = payload
+        .pointer("/data/0/embedding")
+        .and_then(|value| value.as_array())
+        .map(Vec::len)
+        .filter(|len| *len > 0)
+        .ok_or_else(|| "Embedding endpoint returned no vector".to_string())?;
+    {
+        let mut result = ValidationResult::success(&format!(
+            "Embedding endpoint validated ({dimensions} dimensions)"
+        ));
+        result.models_available = vec![model.to_string()];
+        result.provider_response = serde_json::json!({"dimensions": dimensions}).to_string();
+        Ok(result)
+    }
+}
+
 /// Validate a key for a given agent type (shared by Tauri and headless tools).
 pub async fn run_validate_key(
     agent_type: String,
@@ -232,6 +288,12 @@ pub async fn run_validate_key(
             Ok(validator.validate(&api_key, base_url.as_deref(), Some("openai_api"), test_model.as_deref()).await)
         }
 
+        // Embedding-only provider: validation must execute a real /embeddings
+        // request. A successful /models or chat request is insufficient.
+        "embedding_api" | "embedding" => {
+            validate_embedding_endpoint(&api_key, base_url.as_deref(), test_model.as_deref()).await
+        }
+
         "anthropic_api" => {
             let validator = AnthropicValidator::new();
             Ok(validator
@@ -289,7 +351,7 @@ pub async fn run_validate_key(
         }
 
         _ => Err(format!(
-            "Unknown agent type: {}. Supported: copilot, cursor_cli, openai, anthropic, google, gemini_cli, codex, claude_code, kiro, opencode, openai_api, anthropic_api, gemini_api, deepseek_api, groq_api, xai_api, zhipu_api, dashscope_api, moonshot_api, minimax_api, longcat_api, openrouter_api, zenmux_api, siliconflow_api, modelscope_api, aihubmix_api, cherryin_api, bedrock_api, custom_api, vllm_api, azure_openai_api, azure_anthropic_api",
+            "Unknown agent type: {}. Supported: copilot, cursor_cli, openai, anthropic, google, gemini_cli, codex, claude_code, kiro, opencode, openai_api, embedding_api, anthropic_api, gemini_api, deepseek_api, groq_api, xai_api, zhipu_api, dashscope_api, moonshot_api, minimax_api, longcat_api, openrouter_api, zenmux_api, siliconflow_api, modelscope_api, aihubmix_api, cherryin_api, bedrock_api, custom_api, vllm_api, azure_openai_api, azure_anthropic_api",
             agent_type
         )),
     }

@@ -561,7 +561,16 @@ pub async fn index_repository_semantic(
 
     use crate::semantic::{chunk_code, CodeChunkPayload};
 
-    let files = collect_files(&path, &filters);
+    let mut files = collect_files(&path, &filters);
+    let max_files = std::env::var("ORGII_EMBED_MAX_FILES")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(100_000)
+        .clamp(1_000, 1_000_000);
+    if files.len() > max_files {
+        files.truncate(max_files);
+        println!("⚠️ [Embedding] File cap reached: {}", max_files);
+    }
     let total_files = files.len();
     let mut processed_files = 0;
     let mut total_chunks = 0;
@@ -570,8 +579,8 @@ pub async fn index_repository_semantic(
     let start_time = std::time::Instant::now();
     let mut was_cancelled = false;
 
-    const BATCH_FILES: usize = 50;
-    const MAX_CHUNKS_PER_BATCH: usize = 100;
+    const BATCH_FILES: usize = 20;
+    const MAX_CHUNKS_PER_BATCH: usize = 64;
 
     println!(
         "🧠 [Embedding] Starting: {} files (USearch, batch={} files, max {} chunks/batch)",

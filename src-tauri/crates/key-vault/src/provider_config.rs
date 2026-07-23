@@ -473,6 +473,9 @@ pub fn get_provider_config(model_type: &str) -> ProviderConfig {
             &["openai", "anthropic"],
             "openai",
         ),
+        // Embeddings use the OpenAI-compatible `/embeddings` wire format but
+        // are intentionally excluded from generation provider selection.
+        "embedding_api" => ProviderConfig::new("EMBEDDING_API_KEY", None, true, None),
         "vllm_api" => ProviderConfig::with_protocols(
             "VLLM_API_KEY",
             None,
@@ -535,6 +538,7 @@ pub fn get_all_provider_configs() -> Vec<(String, ProviderConfig)> {
         "cherryin_api",
         "bedrock_api",
         "custom_api",
+        "embedding_api",
         "vllm_api",
         "azure_openai_api",
         "azure_anthropic_api",
@@ -625,6 +629,12 @@ mod tests {
         assert!(configs.iter().any(|(k, _)| k == "anthropic_api"));
         assert!(configs.iter().any(|(k, _)| k == "zenmux_api"));
         assert!(configs.iter().any(|(k, _)| k == "cursor_cli"));
+        let embedding = configs
+            .iter()
+            .find(|(k, _)| k == "embedding_api")
+            .expect("embedding provider config");
+        assert_eq!(embedding.1.api_key_env_var, "EMBEDDING_API_KEY");
+        assert!(embedding.1.supports_base_url);
     }
 
     #[test]

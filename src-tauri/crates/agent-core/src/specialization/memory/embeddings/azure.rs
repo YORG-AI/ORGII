@@ -76,6 +76,7 @@ impl EmbeddingProvider for AzureEmbeddingProvider {
 
         Ok(EmbeddingResult {
             dimensions: embedding.embedding.len(),
+            source: format!("azure:azure-deployment:{}", embedding.embedding.len()),
             vector: embedding.embedding,
             model: "azure-deployment".to_string(),
         })
@@ -116,6 +117,7 @@ impl EmbeddingProvider for AzureEmbeddingProvider {
             .into_iter()
             .map(|item| EmbeddingResult {
                 dimensions: item.embedding.len(),
+                source: format!("azure:azure-deployment:{}", item.embedding.len()),
                 vector: item.embedding,
                 model: "azure-deployment".to_string(),
             })

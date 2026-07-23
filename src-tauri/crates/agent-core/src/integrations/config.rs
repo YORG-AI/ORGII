@@ -265,18 +265,46 @@ pub enum ExecutionMode {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EmbeddingConfig {
-    /// Provider hint: `"auto"`, `"openai"`, `"azure"`, `"local"`, or any
-    /// other API-key provider name supported by `AutoEmbeddingProvider`.
+    /// `local_qwen`, `embedding_api`, or `disabled`. `auto` is retained for
+    /// compatibility and resolves to a safe local provider only.
     #[serde(default = "default_embedding_provider")]
     pub provider: String,
-    /// Optional embedding-model override. `None` means the provider's
-    /// default model.
     #[serde(default)]
     pub model: Option<String>,
+    /// OpenAI-compatible local endpoint (used by local_qwen).
+    #[serde(default)]
+    pub local_base_url: Option<String>,
+    /// Expected vector size; responses with a different size are rejected.
+    #[serde(default)]
+    pub dimensions: Option<usize>,
+    /// Minimum token growth between session-memory embeddings.
+    #[serde(default = "default_embedding_min_token_delta")]
+    pub min_token_delta: usize,
+    /// Minimum wall-clock interval between embeddings for one session.
+    #[serde(default = "default_embedding_min_interval_secs")]
+    pub min_interval_secs: u64,
+    /// Request timeout for local or remote embedding calls.
+    #[serde(default = "default_embedding_timeout_secs")]
+    pub request_timeout_secs: u64,
+    /// Maximum UTF-8 characters sent for one session-memory embedding.
+    #[serde(default = "default_embedding_max_input_chars")]
+    pub max_input_chars: usize,
 }
 
 fn default_embedding_provider() -> String {
-    "auto".to_string()
+    "disabled".to_string()
+}
+fn default_embedding_min_token_delta() -> usize {
+    5_000
+}
+fn default_embedding_min_interval_secs() -> u64 {
+    300
+}
+fn default_embedding_timeout_secs() -> u64 {
+    20
+}
+fn default_embedding_max_input_chars() -> usize {
+    48_000
 }
 
 impl Default for EmbeddingConfig {
@@ -284,6 +312,12 @@ impl Default for EmbeddingConfig {
         Self {
             provider: default_embedding_provider(),
             model: None,
+            local_base_url: None,
+            dimensions: None,
+            min_token_delta: default_embedding_min_token_delta(),
+            min_interval_secs: default_embedding_min_interval_secs(),
+            request_timeout_secs: default_embedding_timeout_secs(),
+            max_input_chars: default_embedding_max_input_chars(),
         }
     }
 }
@@ -307,6 +341,17 @@ mod tests {
         // default channel map is empty; prove the value round-trips as default.
         let json = serde_json::to_string(&cfg).expect("serialize");
         assert!(json.contains("\"channels\""));
+    }
+
+    #[test]
+    fn embedding_defaults_are_bounded_and_disabled() {
+        let cfg = EmbeddingConfig::default();
+        assert_eq!(cfg.provider, "disabled");
+        assert_eq!(cfg.local_base_url, None);
+        assert_eq!(cfg.dimensions, None);
+        assert_eq!(cfg.request_timeout_secs, 20);
+        assert!(cfg.max_input_chars <= 48_000);
+        assert!(cfg.min_interval_secs >= 300);
     }
 
     #[test]

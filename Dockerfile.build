@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     patchelf \
     xvfb x11-utils xauth \
     libgl1-mesa-dri libgl1-mesa-glx \
-    fonts-noto-cjk \
+    fonts-noto-cjk xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Node 22 (阿里云 nodesource 镜像或直接 nodesource via 代理)

@@ -374,6 +374,7 @@ mod tests {
             ModelType::AzureOpenaiApi,
             ModelType::AzureAnthropicApi,
             ModelType::OrgiiOrchestrator,
+            ModelType::EmbeddingApi,
             ModelType::CursorCli,
             ModelType::KimiCli,
             ModelType::OpenCode,

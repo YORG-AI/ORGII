@@ -142,6 +142,7 @@ fn as_str_round_trips_through_from_str() {
         ModelType::AzureOpenaiApi,
         ModelType::AzureAnthropicApi,
         ModelType::OrgiiOrchestrator,
+        ModelType::EmbeddingApi,
     ];
     for t in &all_types {
         let s = t.as_str();
@@ -226,4 +227,14 @@ fn mask_api_key_shows_last_four_chars_of_long_key() {
         "Expected asterisks in masked key, got {:?}",
         masked
     );
+}
+
+#[test]
+fn embedding_provider_is_key_managed_but_never_generation_capable() {
+    let provider = ModelType::EmbeddingApi;
+    assert!(provider.is_api_key_provider());
+    assert!(provider.is_embedding_only());
+    assert!(!provider.supports_generation());
+    assert_eq!(provider.as_str(), "embedding_api");
+    assert_eq!(ModelType::from_str("embedding_api"), Some(provider));
 }

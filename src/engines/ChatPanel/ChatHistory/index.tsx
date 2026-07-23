@@ -1072,10 +1072,10 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
   const minimapItems = useMemo(
     () =>
       buildChatMinimapItemsFromSession(
-        optimizedChatHistory,
+        activeProjectionHistory,
         originalToFlatIndex
       ),
-    [optimizedChatHistory, originalToFlatIndex]
+    [activeProjectionHistory, originalToFlatIndex]
   );
   const minimapActiveIndex = useMemo(
     () =>

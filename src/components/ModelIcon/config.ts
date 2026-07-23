@@ -368,6 +368,7 @@ const MODEL_TYPE_TO_ICON: Record<ModelType, IconProvider> = {
   cherryin_api: "cherryin",
   bedrock_api: "aws",
   custom_api: "custom",
+  embedding_api: "custom",
   moonshot_api: "kimi",
   openrouter_api: "openrouter",
   zenmux_api: "zenmux",

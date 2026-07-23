@@ -148,12 +148,20 @@ pub(super) async fn spawn_session_memory_extraction(input: SessionMemoryExtracti
                 let embed_cfg = crate::state::integrations_store::integrations_store()
                     .snapshot()
                     .embedding;
-                let embedder = crate::memory::embeddings::AutoEmbeddingProvider::new(
-                    embed_cfg.provider,
-                    embed_cfg.model,
-                );
-                match crate::memory::embeddings::EmbeddingProvider::embed(&embedder, &content).await {
-                    Ok(embedding) => {
+                // Embedding is scheduled only when the summary has materially changed.
+                // The extractor itself already gates updates at 5k token growth; the
+                // provider adds bounded input, timeout, validation, and no fallback.
+                let embed_timeout =
+                    Duration::from_secs(embed_cfg.request_timeout_secs.clamp(1, 120));
+                let embedder =
+                    crate::memory::embeddings::AutoEmbeddingProvider::from_config(embed_cfg);
+                let embed_result = tokio::time::timeout(
+                    embed_timeout,
+                    crate::memory::embeddings::EmbeddingProvider::embed(&embedder, &content),
+                )
+                .await;
+                match embed_result {
+                    Ok(Ok(embedding)) => {
                         let sid = sm_session_id.clone();
                         let content = content.clone();
                         let model = embedding.model.clone();
@@ -164,15 +172,25 @@ pub(super) async fn spawn_session_memory_extraction(input: SessionMemoryExtracti
                                 &content,
                                 &vector,
                                 Some(&model),
+                                Some(&embedding.source),
                             ) {
-                                warn!("[sm_extraction] Failed to persist SM embedding index: {}", err);
+                                warn!(
+                                    "[sm_extraction] Failed to persist SM embedding index: {}",
+                                    err
+                                );
                             }
                         });
                     }
-                    Err(err) => {
+                    Ok(Err(err)) => {
                         warn!(
                             "[sm_extraction] Session-memory embedding failed for {}: {}",
                             sm_session_id, err
+                        );
+                    }
+                    Err(_) => {
+                        warn!(
+                            "[sm_extraction] Session-memory embedding timed out for {}",
+                            sm_session_id
                         );
                     }
                 }

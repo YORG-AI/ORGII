@@ -98,6 +98,7 @@ mod tests {
         let new_embedding = EmbeddingConfig {
             provider: "openai".into(),
             model: Some("text-embedding-3-large".into()),
+            ..EmbeddingConfig::default()
         };
 
         let patch = IntegrationsConfigPatch {

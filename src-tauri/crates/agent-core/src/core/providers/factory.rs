@@ -335,6 +335,7 @@ fn spec_for_model_type(model_type: &ModelType) -> Option<&'static ProviderSpec> 
         ModelType::CherryinApi => provider_id::CHERRYIN,
         ModelType::BedrockApi => provider_id::BEDROCK,
         ModelType::CustomApi => provider_id::CUSTOM,
+        ModelType::EmbeddingApi => return None,
         ModelType::OpenrouterApi => provider_id::OPENROUTER,
         ModelType::ZenmuxApi => provider_id::ZENMUX,
         ModelType::VllmApi => provider_id::VLLM,

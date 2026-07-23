@@ -18,6 +18,7 @@ pub struct SessionMemorySearchHit {
     pub content: String,
     pub score: f32,
     pub updated_at: String,
+    pub embedding_source: Option<String>,
 }
 
 /// Search indexed session-memory summaries with embedding + rerank.
@@ -26,7 +27,10 @@ pub struct SessionMemorySearchHit {
 /// - query embedding failure => empty hits
 /// - no compatible indexed embeddings => empty hits
 /// - reranker failure => cosine order
-pub async fn search_session_memories(query: &str, top_k: usize) -> Result<Vec<SessionMemorySearchHit>, String> {
+pub async fn search_session_memories(
+    query: &str,
+    top_k: usize,
+) -> Result<Vec<SessionMemorySearchHit>, String> {
     let query = query.trim();
     if query.is_empty() {
         return Ok(Vec::new());
@@ -36,7 +40,7 @@ pub async fn search_session_memories(query: &str, top_k: usize) -> Result<Vec<Se
     let embed_cfg = crate::state::integrations_store::integrations_store()
         .snapshot()
         .embedding;
-    let provider = AutoEmbeddingProvider::new(embed_cfg.provider, embed_cfg.model);
+    let provider = AutoEmbeddingProvider::from_config(embed_cfg);
     let query_embedding = provider.embed(query).await?;
 
     let rows = tokio::task::spawn_blocking(load_session_memory_index_rows)
@@ -47,11 +51,9 @@ pub async fn search_session_memories(query: &str, top_k: usize) -> Result<Vec<Se
     let mut scored: Vec<(SessionMemoryIndexRow, f32)> = rows
         .into_iter()
         .filter(|row| !row.embedding.is_empty())
+        .filter(|row| row.embedding_dimensions == Some(row.embedding.len()))
         .filter(|row| row.embedding.len() == query_embedding.vector.len())
-        .filter(|row| match row.embedding_model.as_deref() {
-            Some(model) => model == query_embedding.model,
-            None => true,
-        })
+        .filter(|row| row.embedding_source.as_deref() == Some(query_embedding.source.as_str()))
         .map(|row| {
             let score = cosine_similarity(&query_embedding.vector, &row.embedding);
             (row, score)
@@ -91,6 +93,7 @@ fn hit_from_row(row: &SessionMemoryIndexRow, score: f32) -> SessionMemorySearchH
         content: row.content.clone(),
         score,
         updated_at: row.updated_at.clone(),
+        embedding_source: row.embedding_source.clone(),
     }
 }
 
@@ -102,12 +105,26 @@ mod tests {
     #[test]
     fn session_memory_index_roundtrips_embedding() {
         let _sandbox = test_env::sandbox();
-        save_session_memory_index("sm-index-test", "# Current State\nTesting", &[0.1, 0.2, 0.3], Some("test-model"))
-            .expect("save index");
+        save_session_memory_index(
+            "sm-index-test",
+            "# Current State\nTesting",
+            &[0.1, 0.2, 0.3],
+            Some("test-model"),
+            Some("test-provider:test-model:3"),
+        )
+        .expect("save index");
         let rows = load_session_memory_index_rows().expect("load rows");
-        let row = rows.into_iter().find(|r| r.session_id == "sm-index-test").expect("row exists");
+        let row = rows
+            .into_iter()
+            .find(|r| r.session_id == "sm-index-test")
+            .expect("row exists");
         assert_eq!(row.content, "# Current State\nTesting");
         assert_eq!(row.embedding, vec![0.1, 0.2, 0.3]);
         assert_eq!(row.embedding_model.as_deref(), Some("test-model"));
+        assert_eq!(row.embedding_dimensions, Some(3));
+        assert_eq!(
+            row.embedding_source.as_deref(),
+            Some("test-provider:test-model:3")
+        );
     }
 }

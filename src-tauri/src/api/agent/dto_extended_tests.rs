@@ -43,6 +43,7 @@ mod dto_extended_tests {
         EmbeddingConfig {
             provider: provider.to_string(),
             model: Some(model.to_string()),
+            ..EmbeddingConfig::default()
         }
     }
 
@@ -909,6 +910,7 @@ mod dto_extended_tests {
         let cfg = EmbeddingConfig {
             provider: "auto".to_string(),
             model: None,
+            ..EmbeddingConfig::default()
         };
         let view = EmbeddingView::from(&cfg);
         assert_eq!(view.provider, "auto");
@@ -923,6 +925,7 @@ mod dto_extended_tests {
         let cfg = EmbeddingConfig {
             provider: "auto".to_string(),
             model: None,
+            ..EmbeddingConfig::default()
         };
         let view = EmbeddingView::from(&cfg);
         let json = serde_json::to_value(&view).expect("serialize");
@@ -937,10 +940,10 @@ mod dto_extended_tests {
     }
 
     #[test]
-    fn embedding_view_default_provider_is_auto() {
+    fn embedding_view_default_provider_is_disabled() {
         let cfg = EmbeddingConfig::default();
         let view = EmbeddingView::from(&cfg);
-        assert_eq!(view.provider, "auto");
+        assert_eq!(view.provider, "disabled");
     }
 
     #[test]
@@ -1574,10 +1577,10 @@ mod dto_extended_tests {
     }
 
     #[test]
-    fn from_definition_default_embedding_provider_is_auto() {
+    fn from_definition_default_embedding_provider_is_disabled() {
         let def = get_builtin_agent(OS_AGENT_ID).expect("OS agent exists");
         let view = AgentRuntimeView::from_definition(&def, &default_integrations());
-        assert_eq!(view.embedding.provider, "auto");
+        assert_eq!(view.embedding.provider, "disabled");
     }
 
     // -----------------------------------------------------------------------
@@ -1774,7 +1777,7 @@ mod dto_extended_tests {
     fn integrations_view_from_default_config_has_correct_embedding() {
         let cfg = IntegrationsConfig::default();
         let view = IntegrationsView::from(&cfg);
-        assert_eq!(view.embedding.provider, "auto");
+        assert_eq!(view.embedding.provider, "disabled");
         assert!(view.embedding.model.is_none());
     }
 
@@ -2338,7 +2341,7 @@ mod dto_extended_tests {
     }
 
     #[test]
-    fn agent_runtime_view_json_embedding_provider_is_auto_by_default() {
+    fn agent_runtime_view_json_embedding_provider_is_disabled_by_default() {
         let resolved = make_resolved_for_testing(OS_AGENT_ID);
         let view = AgentRuntimeView::from((&resolved, &default_integrations()));
         let json = serde_json::to_value(&view).expect("serialize");
@@ -2347,7 +2350,7 @@ mod dto_extended_tests {
             .and_then(|e| e.get("provider"))
             .and_then(|p| p.as_str())
             .expect("embedding.provider must be a string");
-        assert_eq!(provider, "auto");
+        assert_eq!(provider, "disabled");
     }
 
     // -----------------------------------------------------------------------
@@ -2574,6 +2577,7 @@ mod dto_extended_tests {
         let cfg = EmbeddingConfig {
             provider: "custom-provider-v2".to_string(),
             model: None,
+            ..EmbeddingConfig::default()
         };
         let view = EmbeddingView::from(&cfg);
         assert_eq!(view.provider, "custom-provider-v2");

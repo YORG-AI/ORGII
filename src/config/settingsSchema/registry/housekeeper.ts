@@ -23,6 +23,20 @@ export const HOUSEKEEPER_SETTINGS_REGISTRY = {
     description: "Model ID used by the local MiniCPM housekeeper",
     category: "housekeeper",
   },
+  "housekeeper.contextCompactAccountIdOverride": {
+    schema: z.string().nullable(),
+    default: null,
+    description:
+      "Optional KeyVault account override for context compaction; null inherits the active session account",
+    category: "housekeeper",
+  },
+  "housekeeper.contextCompactModelOverride": {
+    schema: z.string().nullable(),
+    default: null,
+    description:
+      "Optional model override for context compaction; null inherits the active session model",
+    category: "housekeeper",
+  },
   "housekeeper.contextLimitTokens": {
     schema: z.number().int().min(1024).max(32768),
     default: 10000,
