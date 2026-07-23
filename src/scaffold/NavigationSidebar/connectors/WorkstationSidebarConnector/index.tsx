@@ -1183,7 +1183,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
             {sidebarLayerHeader}
           </>
         }
-        compactRows
         onAddNew={handleOpenSpotlight}
         addIcon={Search}
         addLabel={tCommon("actions.search")}

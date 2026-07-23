@@ -1,8 +1,11 @@
 use serde_json::json;
 
 use super::queue::{enqueue_snapshot, mark_records_sent, read_unsent_records, DiagnosticsPaths};
-use super::sanitize::{bucket_cpu_percent, bucket_duration_ms, bucket_ram_mb, sanitize_snapshot};
-use super::types::{DiagnosticsLevel, DiagnosticsRuntimeSummary, DiagnosticsUsageSnapshot};
+use super::sanitize::{bucket_duration_ms, sanitize_snapshot};
+use super::service::DiagnosticsService;
+use super::types::{
+    DiagnosticsLevel, DiagnosticsRuntimeSummary, DiagnosticsServiceConfig, DiagnosticsUsageSnapshot,
+};
 
 fn snapshot(level: DiagnosticsLevel) -> DiagnosticsUsageSnapshot {
     DiagnosticsUsageSnapshot {
@@ -98,10 +101,6 @@ fn buckets_match_expected_edges() {
     assert_eq!(bucket_duration_ms(-1.0), "unknown");
     assert_eq!(bucket_duration_ms(59_999.0), "lt_1m");
     assert_eq!(bucket_duration_ms(60_000.0), "1m_10m");
-    assert_eq!(bucket_ram_mb(512.0), "lt_1gb");
-    assert_eq!(bucket_ram_mb(16.0 * 1024.0), "16_32gb");
-    assert_eq!(bucket_cpu_percent(4.9), "lt_5pct");
-    assert_eq!(bucket_cpu_percent(60.0), "60pct_plus");
 }
 
 #[test]
@@ -173,4 +172,28 @@ fn queue_reads_only_unsent_and_marks_sent() {
     let unsent = read_unsent_records(&paths.queue).unwrap();
     assert_eq!(unsent.len(), 1);
     assert_eq!(unsent[0].id, second.id);
+}
+
+#[tokio::test]
+async fn submitted_snapshot_is_queued_and_flushes_in_the_same_pass() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths = DiagnosticsPaths::new(dir.path().to_path_buf());
+    let service = DiagnosticsService::new_for_test(paths.clone());
+    service
+        .initialize(DiagnosticsServiceConfig {
+            diagnostics_level: DiagnosticsLevel::PerformanceOnly,
+            offline_mode: true,
+        })
+        .await
+        .unwrap();
+
+    let status = service
+        .submit_usage_snapshot(snapshot(DiagnosticsLevel::PerformanceOnly))
+        .await
+        .unwrap();
+
+    assert!(!status.attempted);
+    assert_eq!(status.uploaded, 0);
+    assert_eq!(status.queued_unsent, 1);
+    assert_eq!(read_unsent_records(&paths.queue).unwrap().len(), 1);
 }

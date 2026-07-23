@@ -1,8 +1,10 @@
+import { isTauri } from "@tauri-apps/api/core";
 import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { createLogger } from "@src/hooks/logger";
 import { useSettingValue } from "@src/hooks/settings";
+import { startVisibilityAwarePoller } from "@src/shared/scheduling/visibilityAwarePoller";
 import { sessionsAtom } from "@src/store/session/sessionAtom";
 import type { Session } from "@src/store/session/sessionAtom";
 import { settingsLoadedAtom } from "@src/store/settings/settingsAtom";
@@ -11,10 +13,8 @@ import type { WorkspaceFolder } from "@src/types/workspace";
 
 import { createDiagnosticsUsageSnapshot } from "./aggregate";
 import {
-  diagnosticsConfigure,
-  diagnosticsFlushNow,
-  diagnosticsRecordUsageSnapshot,
-  diagnosticsStart,
+  diagnosticsInitialize,
+  diagnosticsSubmitUsageSnapshot,
 } from "./rustBridge";
 import { DIAGNOSTICS_LEVEL } from "./types";
 import type { DiagnosticsLevel, DiagnosticsServiceConfig } from "./types";
@@ -54,6 +54,19 @@ function shouldFlushNow(intervalMs: number, nowMs: number): boolean {
   return nowMs - readLastFlushAt() >= intervalMs;
 }
 
+async function isDiagnosticsCadenceOwner(): Promise<boolean> {
+  if (!isTauri()) return true;
+
+  try {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    return getCurrentWindow().label === "main";
+  } catch {
+    // A Tauri window whose identity cannot be proven must not start another
+    // app-wide scheduler; the main window can retry on the next bootstrap.
+    return false;
+  }
+}
+
 export function useDiagnosticsBootstrap(): void {
   const settingsLoaded = useAtomValue(settingsLoadedAtom);
   const diagnosticsLevelSetting = useSettingValue("privacy.diagnosticsLevel");
@@ -63,8 +76,7 @@ export function useDiagnosticsBootstrap(): void {
   const offlineMode = useSettingValue("privacy.offlineMode");
   const sessions = useAtomValue(sessionsAtom);
   const workspaceFolders = useAtomValue(workspaceFoldersAtom);
-  const startedRef = useRef(false);
-  const runningRef = useRef(false);
+  const schedulerGenerationRef = useRef(0);
   const sessionsRef = useRef<Session[]>(sessions);
   const workspaceFoldersRef = useRef<WorkspaceFolder[]>(workspaceFolders);
 
@@ -74,9 +86,8 @@ export function useDiagnosticsBootstrap(): void {
     () => ({
       diagnosticsLevel,
       offlineMode,
-      uploadIntervalHours,
     }),
-    [diagnosticsLevel, offlineMode, uploadIntervalHours]
+    [diagnosticsLevel, offlineMode]
   );
 
   useEffect(() => {
@@ -87,74 +98,70 @@ export function useDiagnosticsBootstrap(): void {
     workspaceFoldersRef.current = workspaceFolders;
   }, [workspaceFolders]);
 
-  useEffect(() => {
-    if (!settingsLoaded) return;
-
-    let cancelled = false;
-    const configureService = async () => {
-      if (!startedRef.current) {
-        const started = await diagnosticsStart(serviceConfig);
-        if (cancelled) return;
-        startedRef.current = started;
-        if (started) return;
-      }
-
-      await diagnosticsConfigure(serviceConfig);
-    };
-
-    void configureService().catch((error: unknown) => {
-      reportDiagnosticsFailure("Service configuration", error);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [serviceConfig, settingsLoaded]);
-
-  const collectAndSendSnapshot = useCallback(
-    async (force = false) => {
-      if (runningRef.current) return;
-      if (!settingsLoaded || offlineMode) {
-        return;
-      }
-
+  const collectAndSubmitSnapshot = useCallback(
+    async (isCurrent: () => boolean) => {
+      if (!isCurrent()) return;
       const nowMs = Date.now();
-      if (!force && !shouldFlushNow(intervalMs, nowMs)) {
+      if (!shouldFlushNow(intervalMs, nowMs)) {
         return;
       }
 
-      runningRef.current = true;
-      try {
-        const snapshot = await createDiagnosticsUsageSnapshot({
-          diagnosticsLevel,
-          sessions: sessionsRef.current,
-          workspaceFolders: workspaceFoldersRef.current,
-        });
-        if (snapshot) {
-          await diagnosticsRecordUsageSnapshot(snapshot);
-        }
-        writeLastFlushAt(nowMs);
-        await diagnosticsFlushNow();
-      } finally {
-        runningRef.current = false;
+      const snapshot = await createDiagnosticsUsageSnapshot({
+        diagnosticsLevel,
+        sessions: sessionsRef.current,
+        workspaceFolders: workspaceFoldersRef.current,
+      });
+      if (!snapshot || !isCurrent()) return;
+
+      const submitted = await diagnosticsSubmitUsageSnapshot(snapshot);
+      if (submitted && isCurrent()) {
+        writeLastFlushAt(Date.now());
       }
     },
-    [diagnosticsLevel, intervalMs, offlineMode, settingsLoaded]
+    [diagnosticsLevel, intervalMs]
   );
 
   useEffect(() => {
     if (!settingsLoaded) return;
 
-    void collectAndSendSnapshot().catch((error: unknown) => {
-      reportDiagnosticsFailure("Initial snapshot flush", error);
+    const generation = ++schedulerGenerationRef.current;
+    let cancelled = false;
+    let stopScheduler: (() => void) | undefined;
+    const isCurrent = () =>
+      !cancelled && schedulerGenerationRef.current === generation;
+
+    const initialize = async () => {
+      if (!(await isDiagnosticsCadenceOwner()) || !isCurrent()) return;
+
+      const initialized = await diagnosticsInitialize(serviceConfig);
+      if (!initialized || !isCurrent() || offlineMode) return;
+
+      stopScheduler = startVisibilityAwarePoller(
+        document,
+        async () => {
+          try {
+            await collectAndSubmitSnapshot(isCurrent);
+          } catch (error) {
+            reportDiagnosticsFailure("Scheduled snapshot pass", error);
+          }
+        },
+        intervalMs
+      );
+    };
+
+    void initialize().catch((error: unknown) => {
+      reportDiagnosticsFailure("Service initialization", error);
     });
 
-    const interval = window.setInterval(() => {
-      void collectAndSendSnapshot(true).catch((error: unknown) => {
-        reportDiagnosticsFailure("Scheduled snapshot flush", error);
-      });
-    }, intervalMs);
-
-    return () => window.clearInterval(interval);
-  }, [collectAndSendSnapshot, intervalMs, settingsLoaded]);
+    return () => {
+      cancelled = true;
+      stopScheduler?.();
+    };
+  }, [
+    collectAndSubmitSnapshot,
+    intervalMs,
+    offlineMode,
+    serviceConfig,
+    settingsLoaded,
+  ]);
 }

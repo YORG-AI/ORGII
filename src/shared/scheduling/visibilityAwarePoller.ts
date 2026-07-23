@@ -1,4 +1,4 @@
-interface PollingVisibilitySource {
+export interface PollingVisibilitySource {
   readonly visibilityState: DocumentVisibilityState;
   addEventListener(type: "visibilitychange", listener: () => void): void;
   removeEventListener(type: "visibilitychange", listener: () => void): void;

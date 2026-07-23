@@ -23,7 +23,6 @@ const NavigationMenu: React.FC<NavigationMenuProps> = React.memo(
     renderMenuItemWrapper,
     collapsed = false,
     defaultOpenKeys = [],
-    compactRows = false,
   }) => {
     const { t } = useTranslation();
 
@@ -172,7 +171,6 @@ const NavigationMenu: React.FC<NavigationMenuProps> = React.memo(
           onRowMouseEnter: handleRowMouseEnter,
           onRowActionClick: handleRowActionClick,
           onToggleSubmenu: toggleSubmenu,
-          compactRows,
         }),
       [
         selectedKeys,
@@ -186,7 +184,6 @@ const NavigationMenu: React.FC<NavigationMenuProps> = React.memo(
         handleRowMouseEnter,
         handleRowActionClick,
         toggleSubmenu,
-        compactRows,
       ]
     );
 

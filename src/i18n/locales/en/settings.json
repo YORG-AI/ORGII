@@ -799,8 +799,6 @@
   },
   "update": {
     "title": "App Update",
-    "autoUpdate": "Automatic updates",
-    "autoUpdateDesc": "Download updates automatically and ask before installing and restarting ORGII",
     "channel": "Update channel",
     "channelDesc": "Beta receives prerelease builds ahead of the stable release. Switching back to Stable never downgrades — it takes effect at the next stable release",
     "channelStable": "Stable",
@@ -810,7 +808,6 @@
     "installConfirmTitle": "Update ready to install",
     "installConfirmDesc": "Version {{version}} has been downloaded. Save any ongoing work before installing and restarting ORGII.",
     "installAndRestart": "Install and restart",
-    "autoDownloadUpdates": "Automatically download future updates",
     "skipVersion": "Skip this version"
   },
   "monitor": {

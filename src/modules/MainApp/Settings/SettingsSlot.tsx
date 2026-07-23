@@ -30,7 +30,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { ChevronLeft, GalleryThumbnails, Maximize2 } from "lucide-react";
 import React, { Suspense, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import Button from "@src/components/Button";
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
@@ -44,6 +44,7 @@ import {
   buildSettingsPath,
   classifySettingsRouteRoot,
   getDefaultSettingsSectionTab,
+  getDevOnlyIntegrationRedirect,
   parseSettingsSectionTab,
 } from "@src/config/mainAppPaths";
 import { ROUTES } from "@src/config/routes";
@@ -62,6 +63,7 @@ import SplitViewLayout from "@src/modules/shared/layouts/SplitViewLayout";
 import { getPagePanelBackgroundStyle } from "@src/modules/shared/layouts/viewContainerTokens";
 import { AgentOrgsPage, MyRolePage } from "@src/router/lazy/pages";
 import { VerticalResizeHandle } from "@src/scaffold/Resize";
+import { devModeEnabledAtom } from "@src/store/platform/devModeAtom";
 import { resolvedBackgroundConfigAtom } from "@src/store/ui/backgroundConfigAtom";
 import { toggleChatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
 import { sidebarCollapsedAtom } from "@src/store/ui/sidebarAtom";
@@ -253,6 +255,7 @@ const SettingsSlot: React.FC<SettingsSlotProps> = ({
   const navigate = useNavigate();
   const settingsReturnRoute = useAtomValue(settingsReturnRouteAtom);
   const sidebarCollapsed = useAtomValue(sidebarCollapsedAtom);
+  const devModeEnabled = useAtomValue(devModeEnabledAtom);
   const backgroundConfig = useAtomValue(resolvedBackgroundConfigAtom);
   const pageOpacityStyle = getPagePanelBackgroundStyle(
     backgroundConfig.pageOpacity
@@ -272,6 +275,10 @@ const SettingsSlot: React.FC<SettingsSlotProps> = ({
     [location.pathname]
   );
   const Body = SETTINGS_BODY_BY_ROOT[routeRoot];
+  const devOnlyRedirect = getDevOnlyIntegrationRedirect(
+    location.pathname,
+    devModeEnabled
+  );
   const handleBack = useCallback(() => {
     if (isAgentOrgsRoute(location.pathname)) {
       navigate(buildSettingsPath());
@@ -389,7 +396,11 @@ const SettingsSlot: React.FC<SettingsSlotProps> = ({
             } as React.CSSProperties
           }
         >
-          <Body />
+          {devOnlyRedirect ? (
+            <Navigate replace to={devOnlyRedirect} />
+          ) : (
+            <Body />
+          )}
         </div>
       </div>
     </div>

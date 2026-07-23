@@ -799,8 +799,6 @@
   },
   "update": {
     "title": "App 更新",
-    "autoUpdate": "自動更新",
-    "autoUpdateDesc": "自動下載更新，並在安裝和重新啓動 ORGII 前詢問",
     "channel": "更新通道",
     "channelDesc": "Beta 通道會先於正式版收到預發布版本。切換回正式版不會降級，將在下一個正式版本發布時生效",
     "channelStable": "正式版",
@@ -810,7 +808,6 @@
     "installConfirmTitle": "更新已準備好安裝",
     "installConfirmDesc": "版本 {{version}} 已下載。安裝並重新啓動 ORGII 前，請儲存正在進行的工作。",
     "installAndRestart": "安裝並重新啓動",
-    "autoDownloadUpdates": "以後自動下載更新",
     "skipVersion": "跳過此版本"
   },
   "monitor": {

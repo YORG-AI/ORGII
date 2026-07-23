@@ -19,7 +19,6 @@ import {
 } from "@src/store/ui/integrationsToolbarAtom";
 
 import { useOSAgentGateway } from "../AgentOrgs/config/osAgent/useOSAgentGateway";
-import { useBuiltInTools } from "./BuiltInTools/useBuiltInTools";
 import type { DevToolsTab } from "./DevTools/DevToolsCategoryView";
 import { useCliAgents } from "./KeyVault/CliClients/hooks/useCliAgents";
 import { useKeyVaultPage } from "./KeyVault/hooks/useKeyVaultPage";
@@ -101,7 +100,6 @@ export function useIntegrationsPage() {
   });
   const accountsHook = useKeyVaultPage();
 
-  const builtInTools = useBuiltInTools();
   const policies = useRulesMemoryEvolutionState(category, setDetailMode);
   const routines = useRoutinesState(category, setDetailMode);
   const extensions = useExtensionsState(
@@ -264,11 +262,6 @@ export function useIntegrationsPage() {
           onRefresh: databasesState.refreshDatabases,
           loading: databasesState.loading,
         };
-      case "tools":
-        return {
-          onRefresh: builtInTools.refresh,
-          loading: builtInTools.toolsListLoading,
-        };
       case "externalSkillsets": {
         const kind = extensionKindForSkillsetTab(externalSkillsetsTab);
         if (kind === "mcp") {
@@ -316,8 +309,6 @@ export function useIntegrationsPage() {
     accountsHook.loading,
     databasesState.refreshDatabases,
     databasesState.loading,
-    builtInTools.refresh,
-    builtInTools.toolsListLoading,
     extensions.mcpServers.refresh,
     extensions.mcpServers.loading,
     extensions.skillsHubRaw.refreshInstalled,
@@ -332,11 +323,12 @@ export function useIntegrationsPage() {
   ]);
 
   useEffect(() => {
+    if (category === "tools") return;
     setToolbarEntry((current) => ({
       ...categoryRefresh,
       extraButtons: current.extraButtons,
     }));
-  }, [categoryRefresh, setToolbarEntry]);
+  }, [category, categoryRefresh, setToolbarEntry]);
 
   const handleClosePreview = useCallback(() => {
     switch (category) {
@@ -503,7 +495,6 @@ export function useIntegrationsPage() {
       channel: channelState,
       accounts: accountsHook,
       extensionSelectedId: extensions.extensionSelectedId,
-      builtInTools,
       tableProps,
       skillsHub: extensions.skillsHub,
       skillEditor: extensions.skillEditor,

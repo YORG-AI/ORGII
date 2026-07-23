@@ -50,19 +50,23 @@ describe("startVisibilityAwarePoller", () => {
     const stop = startVisibilityAwarePoller(source, poll, 1_000);
 
     expect(poll).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
 
     source.setVisibility("visible");
     expect(poll).toHaveBeenCalledTimes(1);
     await Promise.resolve();
+    expect(vi.getTimerCount()).toBe(1);
 
     await vi.advanceTimersByTimeAsync(1_000);
     expect(poll).toHaveBeenCalledTimes(2);
 
     source.setVisibility("hidden");
+    expect(vi.getTimerCount()).toBe(0);
     await vi.advanceTimersByTimeAsync(5_000);
     expect(poll).toHaveBeenCalledTimes(2);
 
     stop();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("never overlaps requests and disposes without another timer", async () => {
@@ -76,6 +80,7 @@ describe("startVisibilityAwarePoller", () => {
     const stop = startVisibilityAwarePoller(source, poll, 1_000);
 
     expect(poll).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
     await vi.advanceTimersByTimeAsync(10_000);
     expect(poll).toHaveBeenCalledTimes(1);
 

@@ -81,7 +81,7 @@ function SidebarGroupInner<T extends SidebarItemData = SidebarItemData>({
       {/* Group Header - styled like NavigationMenu submenu header */}
       {group.title && group.collapsible !== false && (
         <div
-          className={`group mx-2 flex h-[36px] cursor-pointer items-center justify-between rounded-lg px-2 transition-colors duration-150 ${
+          className={`group mx-2 flex h-8 cursor-pointer items-center justify-between rounded-lg px-2 transition-colors duration-150 ${
             hasSelectedChild
               ? "bg-sidebar-selected text-text-1"
               : "text-text-1 hover:bg-sidebar-selected"
@@ -126,7 +126,7 @@ function SidebarGroupInner<T extends SidebarItemData = SidebarItemData>({
 
       {/* Non-collapsible header */}
       {group.title && group.collapsible === false && (
-        <div className="mx-2 flex h-[36px] items-center px-3">
+        <div className="mx-2 flex h-8 items-center px-3">
           <span className="text-[11px] font-medium uppercase tracking-wider text-text-3">
             {group.title}
           </span>
@@ -137,7 +137,7 @@ function SidebarGroupInner<T extends SidebarItemData = SidebarItemData>({
       {!isCollapsed && (
         <div className={`flex flex-col gap-0 ${group.title ? "mt-1" : ""}`}>
           {group.items.length === 0 ? (
-            <div className="mx-2 flex h-[36px] items-center justify-center px-3 text-[12px] text-text-3">
+            <div className="mx-2 flex h-8 items-center justify-center px-3 text-[12px] text-text-3">
               {t("sidebar.empty.noItems")}
             </div>
           ) : (

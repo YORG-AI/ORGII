@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import SidebarHeaderNavButton from "./SidebarHeaderNavButton";
 
 describe("SidebarHeaderNavButton", () => {
-  it("uses the shared 32px compact sidebar row height", () => {
+  it("uses the shared 32px sidebar row height", () => {
     const markup = renderToStaticMarkup(
       createElement(SidebarHeaderNavButton, {
         icon: ChevronLeft,

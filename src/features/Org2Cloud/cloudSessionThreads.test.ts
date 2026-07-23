@@ -371,7 +371,6 @@ function renderForkParent(item: NavigationMenuItem): string {
       onRowMouseEnter: vi.fn(),
       onRowActionClick: vi.fn(),
       onToggleSubmenu: vi.fn(),
-      compactRows: true,
     })
   );
 }

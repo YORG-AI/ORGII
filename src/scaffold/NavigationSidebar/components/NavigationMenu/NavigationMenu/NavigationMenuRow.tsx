@@ -43,7 +43,6 @@ interface NavigationMenuParentRowProps extends Omit<
   onToggleSubmenu: (key: string) => void;
   /** Present when `item.navigableParent`: a body click selects the item. */
   onMenuItemClick?: NavigationMenuItemClickHandler;
-  compactRows: boolean;
 }
 
 export const NavigationMenuParentRow = React.forwardRef<
@@ -64,7 +63,6 @@ export const NavigationMenuParentRow = React.forwardRef<
     onRowActionClick,
     onToggleSubmenu,
     onMenuItemClick,
-    compactRows,
     onMouseEnter,
     onMouseLeave,
     ...rootProps
@@ -89,8 +87,6 @@ export const NavigationMenuParentRow = React.forwardRef<
     },
     [resetImmediateCursor, onMouseLeave]
   );
-  const rowHeightClass = compactRows ? "h-8" : "min-h-[36px]";
-
   return (
     <div
       {...rootProps}
@@ -114,7 +110,7 @@ export const NavigationMenuParentRow = React.forwardRef<
         tabIndex={item.disabled ? -1 : 0}
         aria-expanded={isOpen}
         aria-disabled={item.disabled || undefined}
-        className={`group/parent flex ${rowHeightClass} items-center ${
+        className={`group/parent flex h-8 items-center ${
           item.disclosureFollowsLabel ? "justify-start" : "justify-between"
         } rounded-lg transition-colors duration-150 ${
           isChild ? "pl-5 pr-2" : "px-2"
@@ -168,11 +164,11 @@ export const NavigationMenuParentRow = React.forwardRef<
                 item.disclosureFollowsLabel ? "" : "flex-1"
               }`}
             >
-              <span className="truncate text-[13px] text-text-1">
+              <span className="truncate text-[13px] leading-4 text-text-1">
                 {item.label}
               </span>
               {item.subtitle && (
-                <span className="flex min-w-0 items-center gap-1 truncate text-[11px] text-text-3">
+                <span className="flex min-w-0 items-center gap-1 truncate text-[11px] leading-3 text-text-3">
                   {item.subtitle}
                 </span>
               )}
@@ -266,7 +262,6 @@ interface NavigationMenuLeafRowProps extends Omit<
   ) => void;
   onRowMouseEnter: NavigationMenuRowMouseEnterHandler;
   onRowActionClick: NavigationMenuRowActionClickHandler;
-  compactRows: boolean;
 }
 
 export const NavigationMenuLeafRow = React.forwardRef<
@@ -284,7 +279,6 @@ export const NavigationMenuLeafRow = React.forwardRef<
     onMenuItemContextMenu,
     onRowMouseEnter,
     onRowActionClick,
-    compactRows,
     onMouseEnter,
     onMouseLeave,
     ...rootProps
@@ -317,8 +311,6 @@ export const NavigationMenuLeafRow = React.forwardRef<
     },
     [resetImmediateCursor, onMouseLeave]
   );
-  const rowHeightClass = compactRows ? "h-8" : "min-h-[36px]";
-
   return (
     <div
       {...rootProps}
@@ -339,9 +331,9 @@ export const NavigationMenuLeafRow = React.forwardRef<
         data-testid={item.dataTestId}
         data-menu-item-id={item.id}
         data-selected={isSelected ? "true" : "false"}
-        className={`group flex ${rowHeightClass} items-center justify-between overflow-hidden rounded-lg transition-colors duration-150 ${
+        className={`group flex h-8 items-center justify-between overflow-hidden rounded-lg transition-colors duration-150 ${
           isChild ? "pl-5 pr-2" : "px-2"
-        } ${item.subtitle ? "py-1.5" : ""} ${
+        } ${
           item.disabled
             ? isSecondaryTone
               ? "cursor-default text-text-2 opacity-60"
@@ -378,7 +370,7 @@ export const NavigationMenuLeafRow = React.forwardRef<
           {!collapsed && (
             <div className="flex min-w-0 flex-1 flex-col gap-0">
               <span
-                className={`min-w-0 truncate text-[13px] ${
+                className={`min-w-0 truncate text-[13px] leading-4 ${
                   item.disabled
                     ? isSecondaryTone
                       ? "text-text-2"
@@ -393,7 +385,7 @@ export const NavigationMenuLeafRow = React.forwardRef<
                 {item.label}
               </span>
               {item.subtitle && (
-                <span className="flex min-w-0 items-center gap-1 truncate text-[11px] text-text-3">
+                <span className="flex min-w-0 items-center gap-1 truncate text-[11px] leading-3 text-text-3">
                   {item.subtitle}
                 </span>
               )}

@@ -19,7 +19,6 @@ export interface NavigationMenuProps {
   ) => React.ReactElement;
   collapsed?: boolean;
   defaultOpenKeys?: string[];
-  compactRows?: boolean;
 }
 
 export type NavigationMenuItemClickHandler = (

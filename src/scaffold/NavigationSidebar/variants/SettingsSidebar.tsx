@@ -23,6 +23,7 @@ import {
   buildAgentOrgsPath,
   buildCoreSettingsItemPath,
   buildIntegrationsPath,
+  filterDevModeIntegrationItems,
   getSegmentIcon,
   parseCoreSettingsItem,
   parseSettingsTopTab,
@@ -176,7 +177,7 @@ const SettingsSidebar: React.FC = () => {
       }
     >
       <div className="shrink-0 px-3">{settingsReturnItem}</div>
-      <SettingsRootBody />
+      <SettingsRootBody devModeEnabled={devModeEnabled} />
       <SidebarBottomBar
         rightActions={
           <>
@@ -194,7 +195,13 @@ const SettingsSidebar: React.FC = () => {
 
 export default SettingsSidebar;
 
-const SettingsRootBody: React.FC = () => {
+interface SettingsRootBodyProps {
+  devModeEnabled: boolean;
+}
+
+const SettingsRootBody: React.FC<SettingsRootBodyProps> = ({
+  devModeEnabled,
+}) => {
   const { t } = useTranslation("settings");
   const navigate = useNavigate();
   const location = useLocation();
@@ -232,7 +239,10 @@ const SettingsRootBody: React.FC = () => {
       SETTINGS_ROOT_LIST_SECTIONS.map((section) => ({
         id: section.id,
         title: t(`settings:${section.labelKey}`),
-        items: section.itemIds.map<NavigationMenuItem>((id) => {
+        items: filterDevModeIntegrationItems(
+          section.itemIds,
+          devModeEnabled
+        ).map<NavigationMenuItem>((id) => {
           if (id === AGENT_ORG_ROW_KEY) {
             return {
               id,
@@ -257,7 +267,7 @@ const SettingsRootBody: React.FC = () => {
           };
         }),
       })),
-    [t]
+    [devModeEnabled, t]
   );
 
   const handleItemClick = useCallback(

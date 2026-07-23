@@ -3,6 +3,9 @@ import {
   buildCodexReauthPath,
   classifySettingsRouteRoot,
   deriveRouteCacheKey,
+  filterDevModeIntegrationItems,
+  getDevOnlyIntegrationRedirect,
+  isIntegrationCategoryAvailable,
   parseCodexReauthIntent,
 } from "../mainAppPaths";
 
@@ -47,6 +50,39 @@ describe("Codex reauthentication route", () => {
       active: false,
       autoStart: false,
     });
+  });
+});
+
+describe("dev-only Settings integrations", () => {
+  it("exposes Built-in Tools only in dev mode", () => {
+    expect(isIntegrationCategoryAvailable("tools", false)).toBe(false);
+    expect(isIntegrationCategoryAvailable("tools", true)).toBe(true);
+    expect(isIntegrationCategoryAvailable("computerUse", false)).toBe(true);
+  });
+
+  it("filters Built-in Tools from mixed navigation lists", () => {
+    const items = ["models", "tools", "computerUse"] as const;
+
+    expect(filterDevModeIntegrationItems(items, false)).toEqual([
+      "models",
+      "computerUse",
+    ]);
+    expect(filterDevModeIntegrationItems(items, true)).toEqual(items);
+  });
+
+  it("redirects blocked direct links before the integration body mounts", () => {
+    const toolsPath = "/orgii/app/settings/integrations/tools";
+
+    expect(getDevOnlyIntegrationRedirect(toolsPath, false)).toBe(
+      "/orgii/app/settings/integrations/models"
+    );
+    expect(getDevOnlyIntegrationRedirect(toolsPath, true)).toBeNull();
+    expect(
+      getDevOnlyIntegrationRedirect(
+        "/orgii/app/settings/integrations/computerUse",
+        false
+      )
+    ).toBeNull();
   });
 });
 
