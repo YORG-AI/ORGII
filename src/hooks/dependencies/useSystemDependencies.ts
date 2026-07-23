@@ -5,8 +5,12 @@
  * Returns the full list plus helpers for filtering by category.
  */
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 
+import {
+  type AsyncResourceFetchContext,
+  useAsyncResource,
+} from "@src/hooks/async";
 import { createLogger } from "@src/hooks/logger";
 
 const log = createLogger("Dependencies");
@@ -49,58 +53,58 @@ export const NON_DB_CATEGORIES: DepCategoryId[] = [
 ];
 
 export function useSystemDependencies() {
-  const [data, setData] = useState<SystemDependencies | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const fetchDependencies = useCallback(
+    async (
+      _scopeKey: string,
+      context: AsyncResourceFetchContext<SystemDependencies | null>
+    ) => {
+      if (context.cause !== "load") {
+        return invoke<SystemDependencies>("detect_system_dependencies");
+      }
 
-  useEffect(() => {
-    let cancelled = false;
-
-    invoke<SystemDependencies>("get_cached_dependencies")
-      .then((result) => {
-        if (!cancelled) {
-          setData(result);
-          setIsLoading(false);
-        }
-      })
-      .catch((err: unknown) => {
-        // Cache miss is non-fatal — `detect_system_dependencies` below
-        // performs the live scan. Surface the failure for debugging.
-        log.warn("[Dependencies] cache load failed:", err);
-      });
-
-    invoke<SystemDependencies>("detect_system_dependencies")
-      .then((result) => {
-        if (!cancelled) {
-          setData(result);
-          setIsLoading(false);
-        }
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          log.error("[Dependencies] scan failed:", error);
-          setIsLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const refresh = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      const result = await invoke<SystemDependencies>(
+      let liveSettled = false;
+      const cachedPromise = invoke<SystemDependencies>(
+        "get_cached_dependencies"
+      )
+        .then((cached) => {
+          if (!liveSettled) context.publish(cached);
+          return cached;
+        })
+        .catch((error: unknown) => {
+          log.warn("[Dependencies] cache load failed:", error);
+          throw error;
+        });
+      const livePromise = invoke<SystemDependencies>(
         "detect_system_dependencies"
+      ).then(
+        (result) => {
+          liveSettled = true;
+          return result;
+        },
+        (error: unknown) => {
+          liveSettled = true;
+          throw error;
+        }
       );
-      setData(result);
-    } catch (error) {
-      log.error("[Dependencies] refresh failed:", error);
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, []);
+
+      const [cachedResult, liveResult] = await Promise.allSettled([
+        cachedPromise,
+        livePromise,
+      ]);
+      if (liveResult.status === "fulfilled") return liveResult.value;
+      log.error("[Dependencies] scan failed:", liveResult.reason);
+      if (cachedResult.status === "fulfilled") return cachedResult.value;
+      throw liveResult.reason;
+    },
+    []
+  );
+
+  const resource = useAsyncResource<SystemDependencies | null>({
+    fetcher: fetchDependencies,
+    initialData: null,
+    scopeKey: "system-dependencies",
+  });
+  const { data, refresh, refreshing, status } = resource;
 
   const dependencies = useMemo(() => data?.dependencies ?? [], [data]);
 
@@ -114,8 +118,8 @@ export function useSystemDependencies() {
 
   return {
     dependencies,
-    isLoading,
-    isRefreshing,
+    isLoading: status === "loading",
+    isRefreshing: refreshing,
     refresh,
     byCategory,
   };

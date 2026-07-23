@@ -10,6 +10,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { useAtom } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import {
+  type AsyncResourceFetchContext,
+  useAsyncResource,
+} from "@src/hooks/async";
 import { useMounted } from "@src/hooks/lifecycle/useMounted";
 import { createLogger } from "@src/hooks/logger";
 import { scanInstalledSkills } from "@src/hooks/skills/installedSkillsScan";
@@ -64,9 +68,7 @@ export function useSkillsHub({
     installedSkillsLoadingAtom
   );
 
-  const [skillDetail, setSkillDetail] = useState<HubSkillDetail | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailSlug, setDetailSlug] = useState<string | null>(null);
 
   const [updates, setUpdates] = useState<SkillUpdateInfo[]>([]);
   const [updatesLoading, setUpdatesLoading] = useState(false);
@@ -193,55 +195,61 @@ export function useSkillsHub({
     setInstalledSkills,
   ]);
 
-  const fetchDetail = useCallback(async (slug: string) => {
-    setDetailLoading(true);
-    setDetailError(null);
-    setSkillDetail(null);
-
-    let hasCached = false;
-
-    // 1. Try loading cached detail first for instant display
-    try {
-      const cached = await invoke<HubSkillDetail | null>(
-        "skills_hub_detail_cache_read",
-        { name: slug }
-      );
-      if (cached) {
-        setSkillDetail(cached);
-        setDetailLoading(false);
-        hasCached = true;
+  const loadSkillDetail = useCallback(
+    async (
+      slug: string,
+      context: AsyncResourceFetchContext<HubSkillDetail | null>
+    ) => {
+      let cached: HubSkillDetail | null = null;
+      try {
+        cached = await invoke<HubSkillDetail | null>(
+          "skills_hub_detail_cache_read",
+          { name: slug }
+        );
+        if (cached) context.publish(cached);
+      } catch {
+        // Cache miss is fine, continue to network.
       }
-    } catch {
-      // Cache miss is fine, continue to network
-    }
 
-    // 2. Fetch fresh detail from network (background refresh if cached)
-    try {
-      const detail = await invoke<HubSkillDetail>("skills_hub_detail", {
-        slug,
-      });
-      setSkillDetail(detail);
-
-      // 3. Persist to cache for offline access
-      invoke("skills_hub_detail_cache_write", {
-        name: slug,
-        detail,
-      }).catch(() => {
-        // Cache write failure is non-critical
-      });
-    } catch (err) {
-      if (!hasCached) {
-        setDetailError(err instanceof Error ? err.message : String(err));
+      try {
+        const detail = await invoke<HubSkillDetail>("skills_hub_detail", {
+          slug,
+        });
+        void invoke("skills_hub_detail_cache_write", {
+          name: slug,
+          detail,
+        }).catch(() => {
+          // Cache write failure is non-critical.
+        });
+        return detail;
+      } catch (error) {
+        if (cached) return cached;
+        throw error;
       }
-    } finally {
-      setDetailLoading(false);
-    }
-  }, []);
+    },
+    []
+  );
+  const detailResource = useAsyncResource<HubSkillDetail | null>({
+    enabled: Boolean(detailSlug),
+    fetcher: loadSkillDetail,
+    initialData: null,
+    scopeKey: detailSlug,
+  });
+  const refreshDetail = detailResource.refresh;
+
+  const fetchDetail = useCallback(
+    (slug: string) => {
+      if (slug === detailSlug) {
+        void refreshDetail();
+        return;
+      }
+      setDetailSlug(slug);
+    },
+    [detailSlug, refreshDetail]
+  );
 
   const clearDetail = useCallback(() => {
-    setSkillDetail(null);
-    setDetailError(null);
-    setDetailLoading(false);
+    setDetailSlug(null);
   }, []);
 
   const uninstall = useCallback(
@@ -318,9 +326,9 @@ export function useSkillsHub({
     toggleSkill,
     uninstall,
     readSkill,
-    skillDetail,
-    detailLoading,
-    detailError,
+    skillDetail: detailResource.data,
+    detailLoading: detailResource.loading,
+    detailError: detailResource.error,
     fetchDetail,
     clearDetail,
     updates,

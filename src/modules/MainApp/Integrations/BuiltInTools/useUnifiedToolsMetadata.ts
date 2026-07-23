@@ -4,8 +4,9 @@
  * Uses module-level caching to prevent re-fetching on every component mount.
  * Similar to simulatorMap.ts caching pattern.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 
+import { useAsyncResource } from "@src/hooks/async";
 import { createLogger } from "@src/hooks/logger";
 import { invokeTauri } from "@src/util/platform/tauri/init";
 
@@ -19,6 +20,7 @@ const log = createLogger("Tools");
 
 /** Cached tools list (null = not fetched yet). */
 let cachedTools: RawToolInfo[] | null = null;
+const EMPTY_TOOLS: RawToolInfo[] = [];
 
 /** In-flight fetch promise to prevent duplicate requests. */
 let fetchPromise: Promise<RawToolInfo[]> | null = null;
@@ -63,50 +65,31 @@ export function clearToolsCache(): void {
 // ============================================
 
 export function useUnifiedToolsMetadata() {
-  const [rawTools, setRawTools] = useState<RawToolInfo[]>(cachedTools ?? []);
-  const [loading, setLoading] = useState(cachedTools === null);
-  const [error, setError] = useState<string | null>(null);
+  const loadTools = useCallback(async () => {
+    try {
+      return await fetchToolsOnce();
+    } catch (error) {
+      log.error("[Tools] Failed to list tools:", error);
+      throw error;
+    }
+  }, []);
+  const resource = useAsyncResource({
+    fetcher: loadTools,
+    initialData: cachedTools ?? EMPTY_TOOLS,
+    initialStatus: cachedTools ? "ready" : "idle",
+    scopeKey: "unified-tools",
+  });
+  const refreshResource = resource.refresh;
 
   const refresh = useCallback(() => {
     clearToolsCache();
-    setLoading(true);
-    setError(null);
-    fetchToolsOnce()
-      .then((result) => {
-        setRawTools(result);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        log.error("[Tools] Failed to list tools:", err);
-        setError(err instanceof Error ? err.message : String(err));
-        setLoading(false);
-      });
-  }, []);
+    void refreshResource();
+  }, [refreshResource]);
 
-  useEffect(() => {
-    if (cachedTools !== null) {
-      return;
-    }
-
-    let cancelled = false;
-    fetchToolsOnce()
-      .then((result) => {
-        if (!cancelled) {
-          setRawTools(result);
-          setLoading(false);
-        }
-      })
-      .catch((err: unknown) => {
-        log.error("[Tools] Failed to list tools:", err);
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err));
-          setLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { rawTools, loading, error, refresh };
+  return {
+    rawTools: resource.data,
+    loading: resource.loading,
+    error: resource.error,
+    refresh,
+  };
 }
