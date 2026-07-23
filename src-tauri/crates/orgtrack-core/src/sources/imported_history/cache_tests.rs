@@ -187,6 +187,33 @@ fn cache_recent_paths_are_deduped_and_limited() {
 }
 
 #[test]
+fn cache_recent_paths_group_in_sql_without_decoding_session_payloads() {
+    let mut conn = fixture_conn();
+    let inputs = (0..500)
+        .map(|index| {
+            let mut row = input(SOURCE_CODEX_APP, &format!("session-{index}"), index);
+            row.repo_path = Some(format!("/tmp/repo-{}", index % 25));
+            row
+        })
+        .collect::<Vec<_>>();
+    upsert_imported_session_cache_from_conn(&mut conn, &inputs).expect("upsert many sessions");
+    // The old recent-path path decoded this unrelated JSON column for every
+    // session before applying its limit. A compact SQL aggregate must neither
+    // read it nor fail because an old cache row contains malformed metadata.
+    conn.execute(
+        "UPDATE imported_history_session_cache SET touched_files_json='not-json'",
+        [],
+    )
+    .expect("poison unrelated session payload");
+
+    let paths = query_imported_recent_paths_from_conn(&conn, SOURCE_CODEX_APP, 5)
+        .expect("bounded SQL recent paths");
+    assert_eq!(paths.len(), 5);
+    assert!(paths.iter().all(|path| path.session_count == 20));
+    assert!(paths.windows(2).all(|pair| pair[0].last_used_at >= pair[1].last_used_at));
+}
+
+#[test]
 fn cache_single_session_lookup_returns_source_metadata() {
     let mut conn = fixture_conn();
     let mut cached = input(SOURCE_CODEX_APP, "with-metadata", 100);

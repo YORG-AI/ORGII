@@ -25,6 +25,8 @@ const THREE_HUNDRED_MIB: u64 = 300 * MIB as u64;
 const RSS_CHILD_ENV: &str = "ORGII_ISSUE_443_RSS_CHILD";
 #[cfg(unix)]
 const RSS_FIXTURE_PATH_ENV: &str = "ORGII_ISSUE_443_RSS_FIXTURE_PATH";
+#[cfg(unix)]
+const REAL_CODEX_JSONL_ENV: &str = "ORGII_ISSUE_443_REAL_CODEX_JSONL";
 
 struct TempFixture {
     root: PathBuf,
@@ -319,6 +321,95 @@ fn jsonl_cold_index_and_growth_have_bounded_peak_rss() {
     } else {
         run_isolated_rss_child();
     }
+}
+
+#[cfg(unix)]
+#[test]
+#[ignore = "#443 real Codex JSONL acceptance; requires ORGII_ISSUE_443_REAL_CODEX_JSONL"]
+fn real_codex_jsonl_open_poll_and_reopen_stay_bounded() {
+    let source_path = PathBuf::from(
+        std::env::var_os(REAL_CODEX_JSONL_ENV)
+            .expect("set ORGII_ISSUE_443_REAL_CODEX_JSONL to a read-only transcript"),
+    );
+    let source_bytes = std::fs::metadata(&source_path)
+        .expect("stat real Codex JSONL")
+        .len();
+    assert!(
+        source_bytes >= 30 * MIB as u64,
+        "real acceptance source is too small"
+    );
+
+    let cache = TempFixture::new();
+    let cache_path = cache.root.join("real-codex-replay-cache.sqlite");
+    let (mut conn, session_id) = replay_fixture(&source_path, &cache_path);
+    let limits = ReplayLimits {
+        max_turns: HARD_MAX_TURNS,
+        max_events: HARD_MAX_EVENTS,
+        max_ipc_bytes: HARD_MAX_IPC_BYTES,
+    };
+
+    let baseline_peak = peak_rss_bytes();
+    let first_started = std::time::Instant::now();
+    let opened = open_window(
+        &mut conn,
+        ImportedHistorySourceId::CodexApp,
+        &session_id,
+        limits,
+    )
+    .expect("open real Codex JSONL through bounded replay");
+    let first_elapsed = first_started.elapsed();
+    let first_peak = peak_rss_bytes();
+    let first_growth = first_peak.saturating_sub(baseline_peak);
+    assert!(opened.chunks.len() <= HARD_MAX_EVENTS);
+    assert!(opened.turn_headers.len() <= HARD_MAX_TURNS);
+    assert!(opened.stats.parsed_bytes <= source_bytes.saturating_add(MIB as u64));
+    assert!(
+        first_growth <= 128 * MIB,
+        "real Codex cold open grew peak RSS by {first_growth} bytes"
+    );
+
+    let unchanged = poll_delta(
+        &mut conn,
+        ImportedHistorySourceId::CodexApp,
+        &session_id,
+        &opened.cursor,
+        limits,
+    )
+    .expect("poll unchanged real Codex JSONL");
+    assert!(!unchanged.reset_required);
+    assert!(unchanged.chunks.is_empty());
+    assert!(unchanged.removed_event_ids.is_empty());
+    assert_eq!(unchanged.stats.parsed_bytes, 0);
+    assert_eq!(unchanged.stats.parsed_rows, 0);
+
+    let reopen_started = std::time::Instant::now();
+    let reopened = open_window(
+        &mut conn,
+        ImportedHistorySourceId::CodexApp,
+        &session_id,
+        limits,
+    )
+    .expect("reopen real Codex JSONL from compact index");
+    let reopen_elapsed = reopen_started.elapsed();
+    let reopened_peak = peak_rss_bytes();
+    assert_eq!(reopened.stats.parsed_bytes, 0);
+    assert_eq!(reopened.stats.parsed_rows, 0);
+    assert_eq!(reopened.cursor.generation, opened.cursor.generation);
+    assert_eq!(reopened.cursor.revision, opened.cursor.revision);
+    assert_eq!(reopened.chunks.len(), opened.chunks.len());
+
+    eprintln!(
+        "#443 real Codex JSONL: source={:.1} MiB, rows={}, total_events={}, window_events={}, turns={}, first_open={first_elapsed:?}, reopen={reopen_elapsed:?}, baseline_peak={:.1} MiB, first_peak={:.1} MiB, reopened_peak={:.1} MiB, first_growth={:.1} MiB",
+        source_bytes as f64 / MIB as f64,
+        opened.stats.parsed_rows,
+        opened.total_event_count,
+        opened.chunks.len(),
+        opened.turn_headers.len(),
+        baseline_peak as f64 / MIB as f64,
+        first_peak as f64 / MIB as f64,
+        reopened_peak as f64 / MIB as f64,
+        first_growth as f64 / MIB as f64,
+    );
 }
 
 #[test]

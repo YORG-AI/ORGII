@@ -47,6 +47,31 @@ async function execJS(script) {
   return browser.executeScript(script, []);
 }
 
+async function invokeTauriCommand(command, args = {}) {
+  const envelope = await browser.executeAsyncScript(
+    `
+      const cb = arguments[arguments.length - 1];
+      const command = arguments[0];
+      const args = arguments[1];
+      const invoke = window.__TAURI_INTERNALS__?.invoke;
+      if (typeof invoke !== "function") {
+        cb({ ok: false, error: "Tauri invoke is unavailable" });
+        return;
+      }
+      Promise.resolve(invoke(command, args))
+        .then((result) => cb({ ok: true, result }))
+        .catch((error) => cb({ ok: false, error: String(error?.message || error) }));
+    `,
+    [command, args]
+  );
+  if (envelope?.ok !== true) {
+    throw new Error(
+      `Tauri ${command} failed: ${envelope?.error ?? "unknown error"}`
+    );
+  }
+  return envelope.result;
+}
+
 async function waitForFrontendReady() {
   const port = process.env.E2E_FRONTEND_PORT ?? "1998";
   const url = `http://127.0.0.1:${port}`;
@@ -420,6 +445,9 @@ const OPENCODE_RELOAD_FINAL_REPORT =
   "Now I have all the data. Here is the comprehensive report.";
 const OPENCODE_RELOAD_ASSISTANT_ANSWER =
   "Subagent 已完成分析：当前项目共有 260 个 .rs 文件，并已生成报告。";
+const ISSUE_443_REAL_CODEX_SESSION_ID =
+  process.env.E2E_ISSUE_443_REAL_CODEX_SESSION_ID ?? "";
+const MIB = 1024 * 1024;
 
 function withCreatedAt(event, timestampMs) {
   return {
@@ -2306,6 +2334,89 @@ async function assertOpenCodeSubagentReloadKeepsAnswerAndAssignment() {
   );
 }
 
+async function assertIssue443RealCodexSessionStaysBounded() {
+  if (!ISSUE_443_REAL_CODEX_SESSION_ID) {
+    throw new Error(
+      "E2E_ISSUE_443_REAL_CODEX_SESSION_ID is required for the real Codex acceptance scenario"
+    );
+  }
+
+  const memoryBefore = await invokeTauriCommand("get_app_memory_snapshot_v1");
+  const baselineBytes = Number(memoryBefore?.effective_total_bytes ?? 0);
+  if (!(baselineBytes > 0)) {
+    throw new Error(`native memory baseline is unavailable: ${JSON.stringify(memoryBefore)}`);
+  }
+
+  const samples = [];
+  for (let cycle = 0; cycle < 5; cycle += 1) {
+    const startedAt = Date.now();
+    let opened;
+    await browser.setTimeout({ script: 180_000 });
+    try {
+      opened = await invokeE2E("openSession", ISSUE_443_REAL_CODEX_SESSION_ID);
+    } finally {
+      await browser.setTimeout({ script: 5_000 });
+    }
+    if (!opened || opened.ok !== true) {
+      throw new Error(
+        `real Codex open cycle ${cycle} failed: ${opened?.error ?? "unknown"}`
+      );
+    }
+
+    const state = await invokeE2E("inspectChatState");
+    if (!state || state.ok !== true) {
+      throw new Error(
+        `real Codex state cycle ${cycle} failed: ${state?.error ?? "unknown"}`
+      );
+    }
+    if (state.activeSessionId !== ISSUE_443_REAL_CODEX_SESSION_ID) {
+      throw new Error(
+        `real Codex cycle ${cycle} opened the wrong session: ${state.activeSessionId}`
+      );
+    }
+    if (state.snapshotEventCount > 200) {
+      throw new Error(
+        `real Codex cycle ${cycle} hydrated ${state.snapshotEventCount} events; hard cap is 200`
+      );
+    }
+
+    const memoryOpen = await invokeTauriCommand("get_app_memory_snapshot_v1");
+    const openBytes = Number(memoryOpen?.effective_total_bytes ?? 0);
+    samples.push({
+      cycle,
+      elapsedMs: Date.now() - startedAt,
+      eventCount: state.snapshotEventCount,
+      openBytes,
+    });
+
+    const reset = await invokeE2E("resetToNewSession");
+    if (!reset || reset.ok !== true) {
+      throw new Error(
+        `real Codex release cycle ${cycle} failed: ${reset?.error ?? "unknown"}`
+      );
+    }
+    await browser.pause(250);
+  }
+
+  const firstGrowth = Math.max(0, samples[0].openBytes - baselineBytes);
+  const lastGrowth = Math.max(0, samples.at(-1).openBytes - baselineBytes);
+  const stepGrowth = Math.max(0, samples.at(-1).openBytes - samples[0].openBytes);
+  if (firstGrowth > 400 * MIB) {
+    throw new Error(
+      `real Codex first open grew Physical Footprint by ${(firstGrowth / MIB).toFixed(1)} MiB`
+    );
+  }
+  if (stepGrowth > 64 * MIB) {
+    throw new Error(
+      `five real Codex open/release cycles grew another ${(stepGrowth / MIB).toFixed(1)} MiB`
+    );
+  }
+
+  console.log(
+    `[issue-443-real-codex] baseline=${(baselineBytes / MIB).toFixed(1)} MiB firstGrowth=${(firstGrowth / MIB).toFixed(1)} MiB lastGrowth=${(lastGrowth / MIB).toFixed(1)} MiB samples=${JSON.stringify(samples)}`
+  );
+}
+
 async function assertTurnMetadataFooterRendered() {
   const sessionId = `sdeagent-e2e-turn-metadata-${RUN_ID}`;
   const baseTime = Date.now();
@@ -2824,6 +2935,15 @@ describe("Core chat rendering UI", () => {
     }
 
     await assertOpenCodeSubagentReloadKeepsAnswerAndAssignment();
+  });
+
+  it("opens and releases the real #443 Codex session without full hydration or staircase growth", async function () {
+    if (!shouldRunScenario("issue-443-real-codex")) {
+      this.skip();
+      return;
+    }
+
+    await assertIssue443RealCodexSessionStaysBounded();
   });
 
   it("renders thinking in chronological turn position without duplicates", async function () {

@@ -68,6 +68,42 @@ describe("sessionCore RPC schemas", () => {
     ).toBe(128);
   });
 
+  it("preserves explicit external replay payload encoding and accepts legacy refs", () => {
+    const explicit = makeEvent(
+      "event-explicit",
+      { output: "preview" },
+      "2026-07-23T00:00:00.000Z"
+    );
+    explicit.payloadRefs = [
+      {
+        eventId: "event-explicit",
+        fieldPath: "args",
+        preview: "preview",
+        fullSizeBytes: 1024,
+        truncated: true,
+        replayEncoding: "json_value",
+      },
+    ];
+    const legacy = makeEvent(
+      "event-legacy",
+      { output: "preview" },
+      "2026-07-23T00:00:01.000Z"
+    );
+    legacy.payloadRefs = [
+      {
+        eventId: "event-legacy",
+        fieldPath: "result.output",
+        preview: "preview",
+        fullSizeBytes: 1024,
+        truncated: true,
+      },
+    ];
+
+    const parsed = SessionEventArraySchema.parse([explicit, legacy]);
+    expect(parsed[0].payloadRefs?.[0].replayEncoding).toBe("json_value");
+    expect(parsed[1].payloadRefs?.[0].replayEncoding).toBeUndefined();
+  });
+
   it("caps shell replay range reads at 256 KiB", () => {
     expect(() =>
       ShellReplayRangeInput.parse({
