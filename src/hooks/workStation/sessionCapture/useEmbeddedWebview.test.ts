@@ -20,6 +20,7 @@ import {
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn(() => Promise.resolve()),
   unlisten: vi.fn(),
+  visibilityObservers: new Set<() => void>(),
 }));
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
@@ -53,11 +54,47 @@ describe("useEmbeddedWebview visibility polling", () => {
 
   beforeAll(() => {
     reactActEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        private readonly callback: () => void;
+
+        constructor(callback: () => void) {
+          this.callback = callback;
+          mocks.visibilityObservers.add(callback);
+        }
+        observe(): void {}
+        unobserve(): void {}
+        disconnect(): void {
+          mocks.visibilityObservers.delete(this.callback);
+        }
+        takeRecords(): IntersectionObserverEntry[] {
+          return [];
+        }
+      }
+    );
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        private readonly callback: () => void;
+
+        constructor(callback: () => void) {
+          this.callback = callback;
+          mocks.visibilityObservers.add(callback);
+        }
+        observe(): void {}
+        unobserve(): void {}
+        disconnect(): void {
+          mocks.visibilityObservers.delete(this.callback);
+        }
+      }
+    );
   });
 
   beforeEach(() => {
     vi.useFakeTimers();
     latest = null;
+    mocks.visibilityObservers.clear();
     hostVisible = true;
     container = document.createElement("div");
     host = document.createElement("div");
@@ -92,9 +129,10 @@ describe("useEmbeddedWebview visibility polling", () => {
 
   afterAll(() => {
     Reflect.deleteProperty(reactActEnvironment, "IS_REACT_ACT_ENVIRONMENT");
+    vi.unstubAllGlobals();
   });
 
-  it("polls only while open or waiting for a hidden host to reappear", async () => {
+  it("observes visibility without retaining a polling timer", async () => {
     const hostRef = { current: host };
     const Harness = () => {
       const value = useEmbeddedWebview({
@@ -119,24 +157,26 @@ describe("useEmbeddedWebview visibility polling", () => {
       await latest!.openWebview("https://example.test");
     });
     expect(latest!.isOpen).toBe(true);
-    expect(vi.getTimerCount()).toBe(1);
+    expect(vi.getTimerCount()).toBe(0);
 
     hostVisible = false;
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(500);
+      for (const observer of mocks.visibilityObservers) observer();
+      await Promise.resolve();
     });
     expect(latest!.isOpen).toBe(false);
-    expect(vi.getTimerCount()).toBe(1);
+    expect(vi.getTimerCount()).toBe(0);
     expect(mocks.invoke).toHaveBeenCalledWith("close_test_webview", {
       label: "test-webview-id",
     });
 
     hostVisible = true;
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(500);
+      for (const observer of mocks.visibilityObservers) observer();
+      await Promise.resolve();
     });
     expect(latest!.isOpen).toBe(true);
-    expect(vi.getTimerCount()).toBe(1);
+    expect(vi.getTimerCount()).toBe(0);
 
     await act(async () => {
       await latest!.closeWebview();

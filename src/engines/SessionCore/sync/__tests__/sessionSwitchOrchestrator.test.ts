@@ -94,7 +94,8 @@ describe("runSessionSwitchOrchestrator reconciliation", () => {
     "reconciles only an in-flight session (status=%s)",
     async (runStatus, shouldReconcile) => {
       const adapter = {
-        category: "cli",
+        category: "agent",
+        historyMode: "persisted-db",
         loadHistory: vi.fn(),
         postLoad: vi
           .fn()
@@ -102,10 +103,10 @@ describe("runSessionSwitchOrchestrator reconciliation", () => {
       } as unknown as SessionAdapter;
 
       runSessionSwitchOrchestrator({
-        sessionId: "cli-session",
+        sessionId: "sdeagent-session",
         adapter,
         abortController: new AbortController(),
-        refs: { liveSessionIdRef: { current: "cli-session" } },
+        refs: { liveSessionIdRef: { current: "sdeagent-session" } },
         actions: createActions(),
         setPendingPlanApprovals: vi.fn(),
         logger: { error: vi.fn() } as never,

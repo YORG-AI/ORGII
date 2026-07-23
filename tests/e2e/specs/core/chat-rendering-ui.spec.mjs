@@ -2399,6 +2399,15 @@ async function assertIssue443RealCodexSessionStaysBounded() {
     );
   }
 
+  // A real user reaches an imported session after the sidebar/data-source
+  // scanner has indexed its source. Keep this setup on the production rescan
+  // command so the open/release assertions below still exercise the real
+  // bounded-replay adapter rather than relying on a pre-seeded test cache.
+  await invokeTauriCommand("external_history_rescan_source", {
+    source: "codex_app",
+    clear: false,
+  });
+
   const memoryBefore = await invokeTauriCommand("get_app_memory_snapshot_v1");
   const baselineBytes = Number(memoryBefore?.effective_total_bytes ?? 0);
   if (!(baselineBytes > 0)) {

@@ -75,6 +75,10 @@ pub(crate) struct CodexJsonlLine {
 }
 
 #[cfg(test)]
+#[expect(
+    dead_code,
+    reason = "the test-only compatibility parser preserves the complete legacy metadata shape while individual regression cases assert focused subsets"
+)]
 #[derive(Debug, Clone)]
 pub(crate) struct CodexAppSessionMeta {
     source_session_id: String,
