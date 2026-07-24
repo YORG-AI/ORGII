@@ -108,6 +108,9 @@ pub mod api;
 pub mod app_update; // Channel-aware (stable/beta) app update checks
 pub mod benchmark;
 pub mod cli_managed_proxy;
+#[cfg(feature = "dhat-heap")]
+#[doc(hidden)]
+pub mod dhat_profiling;
 pub mod infrastructure; // In-tree-only cross-cutting infrastructure (paths, platform, archive, index_manager, jsonrpc, housekeeping). Leaf pieces live in their own workspace crates.
 pub mod orgtrack;
 mod runtime_instance;
@@ -978,6 +981,9 @@ pub fn run() {
                 }
             }
 
+            #[cfg(feature = "dhat-heap")]
+            crate::dhat_profiling::schedule_from_env();
+
             if dev_startup_debug_enabled() {
                 app.listen("orgii-startup-first-paint", |event| {
                     println!("[TauriStartup] frontend first paint ready {}", event.payload());
@@ -1113,6 +1119,10 @@ pub fn run() {
                 app_handle
                     .state::<::terminal::pty_commands::pty::PtyState>()
                     .shutdown_kill_all();
+            }
+            tauri::RunEvent::Exit => {
+                #[cfg(feature = "dhat-heap")]
+                crate::dhat_profiling::finish();
             }
             _ => {}
         }
