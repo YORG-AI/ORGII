@@ -36,7 +36,9 @@ import { useTranslation } from "react-i18next";
 import type { VirtuosoHandle } from "react-virtuoso";
 
 import { useActionSystem } from "@src/ActionSystem";
+import { FolderHeaderRow } from "@src/components/FolderHeaderRow";
 import Input from "@src/components/Input";
+import { Placeholder } from "@src/components/Placeholder";
 import type { TreePanelNode } from "@src/components/TreePanelSidebar/types";
 import { TREE_ROW_HEIGHT } from "@src/components/TreeRow";
 import type {
@@ -57,8 +59,6 @@ import {
   updateFileTreeMemoryEntry,
 } from "@src/hooks/perf/runtimeMemoryStats";
 import { useElementDimensions } from "@src/hooks/ui/layout/useElementDimensions";
-import { FolderHeaderRow } from "@src/modules/WorkStation/shared/FolderHeaderRow";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { fileTreeSelectedPathAtom } from "@src/store/ui/fileTreeSelectionAtom";
 
 import { FileExplorerContextMenu } from "./FileExplorerMenu";
