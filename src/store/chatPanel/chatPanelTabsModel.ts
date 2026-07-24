@@ -16,6 +16,7 @@ export type ChatPanelTabType =
   | "terminal"
   | "start-page"
   | "runtime"
+  | "team-inbox"
   | "work-management"
   | "workspace"
   | "organization"
@@ -97,6 +98,7 @@ const PERSISTED_CHAT_PANEL_TAB_TYPES = new Set<ChatPanelTabType>([
   "session",
   "start-page",
   "runtime",
+  "team-inbox",
   "work-management",
   "workspace",
   "organization",
@@ -209,6 +211,10 @@ export function normalizePersistedChatPanelTabsState(
     activeMappedTab?.type === "runtime"
       ? activeMappedTab.id
       : mappedTabs.find((tab) => tab.type === "runtime")?.id;
+  const preferredTeamInboxTabId =
+    activeMappedTab?.type === "team-inbox"
+      ? activeMappedTab.id
+      : mappedTabs.find((tab) => tab.type === "team-inbox")?.id;
   const preferredOrganizationTab =
     activeMappedTab?.type === "organization"
       ? activeMappedTab
@@ -228,6 +234,7 @@ export function normalizePersistedChatPanelTabsState(
             tab.id ===
               preferredWorkManagementTabIds.get(tab.managementSection))) &&
         (tab.type !== "runtime" || tab.id === preferredRuntimeTabId) &&
+        (tab.type !== "team-inbox" || tab.id === preferredTeamInboxTabId) &&
         (tab.type !== "organization" || tab === preferredOrganizationTab) &&
         (tab.type !== "start-page" || tab.id === preferredStartPageTabId)
     )
