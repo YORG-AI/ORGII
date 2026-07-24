@@ -95,6 +95,9 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
     SessionPushRetryState
   >();
 
+  /** A short read must repeat identically across passes before it rewrites. */
+  private readonly sessionShrinkCandidates = new Map<string, number>();
+
   constructor(
     getStore: () => CloudStore | null,
     private readonly client: Org2CloudSyncClientDeps
@@ -105,6 +108,7 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
   override reset(): void {
     super.reset();
     this.sessionPushRetryStates.clear();
+    this.sessionShrinkCandidates.clear();
   }
 
   override prune(
@@ -112,13 +116,19 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
     liveSessionIds: ReadonlySet<string>
   ): void {
     super.prune(liveOrgIds, liveSessionIds);
-    for (const key of this.sessionPushRetryStates.keys()) {
-      const separatorIndex = key.indexOf(":");
-      const orgId = separatorIndex === -1 ? key : key.slice(0, separatorIndex);
-      const sessionId =
-        separatorIndex === -1 ? "" : key.slice(separatorIndex + 1);
-      if (!liveOrgIds.has(orgId) || !liveSessionIds.has(sessionId)) {
-        this.sessionPushRetryStates.delete(key);
+    for (const states of [
+      this.sessionPushRetryStates,
+      this.sessionShrinkCandidates,
+    ] as const) {
+      for (const key of states.keys()) {
+        const separatorIndex = key.indexOf(":");
+        const orgId =
+          separatorIndex === -1 ? key : key.slice(0, separatorIndex);
+        const sessionId =
+          separatorIndex === -1 ? "" : key.slice(separatorIndex + 1);
+        if (!liveOrgIds.has(orgId) || !liveSessionIds.has(sessionId)) {
+          states.delete(key);
+        }
       }
     }
   }
@@ -413,12 +423,27 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
       this.markEventPlaneClean(orgId, session, stampAtRead);
       return;
     }
+    const shrinkKey = `${orgId}:${sessionId}`;
+    let confirmedShrink = false;
     if (cursor && events.length < cursor.pushedCount) {
-      log.warn(
-        `persisted read for ${sessionId} returned ${events.length} events ` +
-          `but the cloud cursor covers ${cursor.pushedCount}; skipping`
-      );
-      return;
+      if (this.sessionShrinkCandidates.get(shrinkKey) === events.length) {
+        this.sessionShrinkCandidates.delete(shrinkKey);
+        confirmedShrink = true;
+        log.info(
+          `persisted read for ${sessionId} returned ${events.length} events ` +
+            `on consecutive passes while the cloud cursor covers ` +
+            `${cursor.pushedCount}; re-anchoring via epoch rewrite`
+        );
+      } else {
+        this.sessionShrinkCandidates.set(shrinkKey, events.length);
+        log.warn(
+          `persisted read for ${sessionId} returned ${events.length} events ` +
+            `but the cloud cursor covers ${cursor.pushedCount}; skipping`
+        );
+        return;
+      }
+    } else {
+      this.sessionShrinkCandidates.delete(shrinkKey);
     }
 
     const {
@@ -430,7 +455,8 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
     } = await plan();
 
     if (cursor) {
-      let frozenIntact = frozenEventCount >= cursor.frozenEventCount;
+      let frozenIntact =
+        !confirmedShrink && frozenEventCount >= cursor.frozenEventCount;
       if (frozenIntact && cursor.frozenEventCount > 0) {
         const chainAtCursor =
           cursor.frozenEventCount === frozenEventCount
