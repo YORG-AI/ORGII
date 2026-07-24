@@ -57,6 +57,7 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
     message: null,
   });
   const [reloadRevision, setReloadRevision] = useState(0);
+  const [groupingReferenceTime, setGroupingReferenceTime] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
@@ -67,6 +68,7 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
       .listPage({ limit: pageSize, signal: abortController.signal })
       .then((page) => {
         if (abortController.signal.aborted) return;
+        setGroupingReferenceTime(Date.now());
         setItems(page.items);
         setHasMore(page.nextCursor != null);
         setLoadState({ status: "ready", message: null });
@@ -329,6 +331,7 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
               selectedItemId={selectedItemId}
               totalUnread={totalUnread}
               unreadCounts={unreadCounts}
+              groupingReferenceTime={groupingReferenceTime}
               query={query}
               loading={loadState.status === "loading"}
               onQueryChange={setQuery}
