@@ -191,6 +191,8 @@ integrations::github::commands::github_list_repo_labels,
 integrations::github::commands::github_list_repo_collaborators,
 integrations::github::detect::detect_github_credentials,
 integrations::github::profile::github_fetch_profile,
+integrations::github::star::check_orgii_star,
+integrations::github::star::star_orgii,
 project_management::sync::git_credentials::git_credential_for_remote,
 // Platform commands
 system_services::notifications::send_notification,

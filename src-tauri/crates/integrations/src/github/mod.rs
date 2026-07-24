@@ -8,3 +8,4 @@ pub mod client;
 pub mod commands;
 pub mod detect;
 pub mod profile;
+pub mod star;

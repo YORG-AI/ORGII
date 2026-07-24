@@ -230,7 +230,28 @@
     "presenceGuidanceOnlineDefault": "Я у клавиатуры. Можешь в любой момент задавать уточняющие вопросы и согласовывать со мной разрушительные действия перед запуском",
     "presenceGuidanceInvisibleDefault": "Я рядом, но отображаюсь офлайн. По умолчанию действуй автономно и уведомляй меня только о действиях с высоким риском или значительном рефакторинге; остальные вопросы собирай в одно резюме, а не задавай по одному",
     "presenceGuidanceAwayDefault": "Я отошёл от клавиатуры. Не жди моего ответа; прими лучшее решение по имеющейся информации, заверши всё возможное и оставь краткое резюме произошедшего и открытые вопросы к моему возвращению",
-    "followSystem": "Следовать системе"
+    "followSystem": "Следовать системе",
+    "githubStar": {
+      "label": "Поставить звезду ORG2 на GitHub",
+      "description": "Поддержите проект звездой на GitHub.",
+      "loading": "Проверка...",
+      "star": "Поставить звезду",
+      "starring": "Добавление...",
+      "starred": "Звезда поставлена",
+      "thanks": "Спасибо за поддержку!",
+      "openGitHub": "Открыть GitHub",
+      "openingGitHub": "Открытие...",
+      "unavailableGhMissing": "GitHub CLI недоступен",
+      "unavailableNotAuthenticated": "Войдите через GitHub CLI",
+      "unavailableNetwork": "GitHub недоступен",
+      "unavailablePermission": "Требуется разрешение GitHub",
+      "unavailableTimeout": "Время запроса GitHub истекло",
+      "unavailableUnexpected": "Статус GitHub недоступен",
+      "reminderTitle": "Поддержать ORG2",
+      "reminderDescription": "Если ORG2 был полезен, поставьте проекту звезду на GitHub.",
+      "later": "Позже",
+      "neverAskAgain": "Больше не спрашивать"
+    }
   },
   "background": {
     "title": "Фон",

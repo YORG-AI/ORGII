@@ -43,6 +43,7 @@ import Button from "@src/components/Button";
 import Message from "@src/components/Message";
 import Select from "@src/components/Select";
 import Switch from "@src/components/Switch";
+import { GitHubStarSettingsRow } from "@src/features/GitHubStar";
 import { useTimezoneSelect } from "@src/hooks/geo";
 import {
   LANGUAGE_NAMES,
@@ -425,6 +426,10 @@ const GeneralTabBody: React.FC = () => {
             {appVersion ? `v${appVersion}` : "—"}
           </span>
         </SectionRow>
+      </SectionContainer>
+
+      <SectionContainer>
+        <GitHubStarSettingsRow />
       </SectionContainer>
 
       <SectionContainer>

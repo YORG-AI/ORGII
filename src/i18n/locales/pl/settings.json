@@ -230,7 +230,28 @@
     "presenceGuidanceOnlineDefault": "Jestem przy klawiaturze. Możesz w każdej chwili zadawać pytania doprecyzowujące i potwierdzać ze mną działania destrukcyjne przed ich uruchomieniem",
     "presenceGuidanceInvisibleDefault": "Jestem w pobliżu, ale widoczny jako offline. Domyślnie działaj autonomicznie i powiadamiaj mnie tylko o działaniach wysokiego ryzyka lub dużych refaktoryzacjach; pozostałe pytania zbierz w jednym podsumowaniu zamiast zadawać je pojedynczo",
     "presenceGuidanceAwayDefault": "Jestem z dala od klawiatury. Nie blokuj się, czekając na mnie; podejmij najlepszą decyzję na podstawie dostępnych informacji, dokończ co się da i zostaw krótkie podsumowanie oraz otwarte pytania na mój powrót",
-    "followSystem": "Zgodnie z systemem"
+    "followSystem": "Zgodnie z systemem",
+    "githubStar": {
+      "label": "Dodaj gwiazdkę ORG2 na GitHubie",
+      "description": "Wesprzyj projekt gwiazdką na GitHubie.",
+      "loading": "Sprawdzanie...",
+      "star": "Dodaj gwiazdkę",
+      "starring": "Dodawanie...",
+      "starred": "Dodano gwiazdkę",
+      "thanks": "Dziękujemy za wsparcie!",
+      "openGitHub": "Otwórz GitHub",
+      "openingGitHub": "Otwieranie...",
+      "unavailableGhMissing": "GitHub CLI jest niedostępny",
+      "unavailableNotAuthenticated": "Zaloguj się w GitHub CLI",
+      "unavailableNetwork": "GitHub jest nieosiągalny",
+      "unavailablePermission": "Wymagane uprawnienie GitHub",
+      "unavailableTimeout": "Upłynął limit czasu GitHub",
+      "unavailableUnexpected": "Stan GitHub jest niedostępny",
+      "reminderTitle": "Wesprzyj ORG2",
+      "reminderDescription": "Jeśli ORG2 jest pomocny, rozważ dodanie gwiazdki na GitHubie.",
+      "later": "Później",
+      "neverAskAgain": "Nie pytaj ponownie"
+    }
   },
   "background": {
     "title": "Tło",

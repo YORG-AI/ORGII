@@ -230,7 +230,28 @@
     "presenceGuidanceOnlineDefault": "저는 키보드 앞에 있습니다. 언제든 확인 질문을 해도 되고, 파괴적인 작업을 실행하기 전에는 저에게 확인해 주세요",
     "presenceGuidanceInvisibleDefault": "근처에 있지만 오프라인으로 표시 중입니다. 기본적으로 자율적으로 진행하고, 고위험 작업이나 큰 리팩터링일 때만 알려 주세요. 그 외 질문은 하나씩 묻지 말고 한 번에 요약해 주세요",
     "presenceGuidanceAwayDefault": "저는 자리를 비웠습니다. 제 답변을 기다리지 말고 현재 정보로 최선의 결정을 내려 완료할 수 있는 일을 마치고, 돌아왔을 때 볼 수 있도록 결과와 열린 질문을 간단히 남겨 주세요",
-    "followSystem": "시스템 설정 따르기"
+    "followSystem": "시스템 설정 따르기",
+    "githubStar": {
+      "label": "GitHub에서 ORG2에 Star 주기",
+      "description": "GitHub Star로 프로젝트를 응원해 주세요.",
+      "loading": "확인 중...",
+      "star": "Star 주기",
+      "starring": "추가 중...",
+      "starred": "Star 완료",
+      "thanks": "지원해 주셔서 감사합니다!",
+      "openGitHub": "GitHub 열기",
+      "openingGitHub": "여는 중...",
+      "unavailableGhMissing": "GitHub CLI를 사용할 수 없습니다",
+      "unavailableNotAuthenticated": "GitHub CLI에 로그인해 주세요",
+      "unavailableNetwork": "GitHub에 연결할 수 없습니다",
+      "unavailablePermission": "GitHub 권한이 필요합니다",
+      "unavailableTimeout": "GitHub 요청 시간이 초과되었습니다",
+      "unavailableUnexpected": "GitHub 상태를 확인할 수 없습니다",
+      "reminderTitle": "ORG2 지원하기",
+      "reminderDescription": "ORG2가 도움이 되었다면 GitHub에서 Star를 주시겠어요?",
+      "later": "나중에",
+      "neverAskAgain": "다시 묻지 않기"
+    }
   },
   "background": {
     "title": "배경",

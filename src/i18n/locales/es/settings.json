@@ -230,7 +230,28 @@
     "presenceGuidanceOnlineDefault": "Estoy frente al teclado. Puedes hacerme preguntas aclaratorias en cualquier momento y confirmar conmigo cualquier acción destructiva antes de ejecutarla",
     "presenceGuidanceInvisibleDefault": "Estoy disponible, pero aparezco sin conexión. Por defecto trabaja de forma autónoma y avísame solo ante acciones de alto riesgo o refactorizaciones importantes; agrupa las demás preguntas en un único resumen en vez de hacerlas una por una",
     "presenceGuidanceAwayDefault": "Estoy lejos del teclado. No te bloquees esperando mi respuesta; toma la mejor decisión con la información disponible, termina lo que puedas y deja un resumen breve con lo ocurrido y las preguntas abiertas para cuando vuelva",
-    "followSystem": "Seguir el sistema"
+    "followSystem": "Seguir el sistema",
+    "githubStar": {
+      "label": "Dar una estrella a ORG2 en GitHub",
+      "description": "Apoya el proyecto con una estrella en GitHub.",
+      "loading": "Comprobando...",
+      "star": "Dar estrella",
+      "starring": "Añadiendo...",
+      "starred": "Con estrella",
+      "thanks": "¡Gracias por tu apoyo!",
+      "openGitHub": "Abrir GitHub",
+      "openingGitHub": "Abriendo...",
+      "unavailableGhMissing": "GitHub CLI no está disponible",
+      "unavailableNotAuthenticated": "Inicia sesión en GitHub CLI",
+      "unavailableNetwork": "No se puede acceder a GitHub",
+      "unavailablePermission": "Se requiere permiso de GitHub",
+      "unavailableTimeout": "La solicitud a GitHub agotó el tiempo",
+      "unavailableUnexpected": "Estado de GitHub no disponible",
+      "reminderTitle": "Apoya ORG2",
+      "reminderDescription": "Si ORG2 te ha sido útil, ¿considerarías darle una estrella en GitHub?",
+      "later": "Más tarde",
+      "neverAskAgain": "No volver a preguntar"
+    }
   },
   "background": {
     "title": "Fondo",

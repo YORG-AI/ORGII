@@ -230,7 +230,28 @@
     "presenceGuidanceOnlineDefault": "Tôi đang ở bàn phím. Bạn có thể hỏi tôi để làm rõ bất cứ lúc nào và xác nhận với tôi trước khi chạy bất kỳ hành động phá hủy nào",
     "presenceGuidanceInvisibleDefault": "Tôi đang ở gần nhưng hiển thị ngoại tuyến. Mặc định hãy tự chủ thực hiện và chỉ báo cho tôi khi có hành động rủi ro cao hoặc tái cấu trúc lớn; gom các câu hỏi khác vào một bản tóm tắt thay vì hỏi từng câu",
     "presenceGuidanceAwayDefault": "Tôi đang rời bàn phím. Đừng chờ tôi; hãy đưa ra quyết định tốt nhất với thông tin hiện có, hoàn thành những gì có thể và để lại bản tóm tắt ngắn gọn về những gì đã xảy ra cùng các câu hỏi còn mở khi tôi quay lại",
-    "followSystem": "Theo hệ thống"
+    "followSystem": "Theo hệ thống",
+    "githubStar": {
+      "label": "Gắn sao cho ORG2 trên GitHub",
+      "description": "Hỗ trợ dự án bằng một sao GitHub.",
+      "loading": "Đang kiểm tra...",
+      "star": "Gắn sao",
+      "starring": "Đang thêm...",
+      "starred": "Đã gắn sao",
+      "thanks": "Cảm ơn bạn đã hỗ trợ!",
+      "openGitHub": "Mở GitHub",
+      "openingGitHub": "Đang mở...",
+      "unavailableGhMissing": "GitHub CLI không khả dụng",
+      "unavailableNotAuthenticated": "Hãy đăng nhập GitHub CLI",
+      "unavailableNetwork": "Không thể kết nối GitHub",
+      "unavailablePermission": "Cần quyền GitHub",
+      "unavailableTimeout": "Yêu cầu GitHub hết thời gian",
+      "unavailableUnexpected": "Không thể lấy trạng thái GitHub",
+      "reminderTitle": "Hỗ trợ ORG2",
+      "reminderDescription": "Nếu ORG2 hữu ích, bạn có thể gắn sao cho dự án trên GitHub không?",
+      "later": "Để sau",
+      "neverAskAgain": "Không hỏi lại"
+    }
   },
   "background": {
     "title": "Hình nền",

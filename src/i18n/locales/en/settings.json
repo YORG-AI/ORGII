@@ -230,7 +230,28 @@
     "presenceGuidanceOnlineDefault": "I am at the keyboard. Feel free to ask me clarifying questions at any time and confirm any destructive actions with me before running them",
     "presenceGuidanceInvisibleDefault": "I am around but appearing offline. Default to autonomous execution and only notify me for high-risk actions or significant refactoring work; batch any other questions into a single summary instead of asking one by one",
     "presenceGuidanceAwayDefault": "I am away from the keyboard. Do not block on me — make the best decision you can with the information you have, finish what you can finish, and leave a concise summary of what happened and any open questions for when I return",
-    "followSystem": "Follow system"
+    "followSystem": "Follow system",
+    "githubStar": {
+      "label": "Star ORG2 on GitHub",
+      "description": "Support the project with a GitHub star.",
+      "loading": "Checking...",
+      "star": "Star",
+      "starring": "Starring...",
+      "starred": "Starred",
+      "thanks": "Thanks for the support!",
+      "openGitHub": "Open GitHub",
+      "openingGitHub": "Opening...",
+      "unavailableGhMissing": "GitHub CLI is unavailable",
+      "unavailableNotAuthenticated": "Sign in with GitHub CLI to star directly",
+      "unavailableNetwork": "GitHub is unreachable",
+      "unavailablePermission": "GitHub permission is required",
+      "unavailableTimeout": "GitHub request timed out",
+      "unavailableUnexpected": "GitHub status is unavailable",
+      "reminderTitle": "Support ORG2",
+      "reminderDescription": "If ORG2 has been useful, would you consider starring it on GitHub?",
+      "later": "Later",
+      "neverAskAgain": "Don't ask again"
+    }
   },
   "background": {
     "title": "Background",
