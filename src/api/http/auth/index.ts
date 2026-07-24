@@ -1,17 +1,4 @@
 export {
-  getLoginUrl,
-  completeLogin,
-  getCurrentUserInfo,
-  getUserInfoByAuthingId,
-  deleteGitHubAccount,
-  deleteGitLabAccount,
-  addGitHubClassicToken,
-  addGitLabClassicToken,
-  setUserAPIKey,
-  authApi,
-} from "./login";
-
-export {
   getSupabaseAuthClient,
   signInWithSupabase,
   exchangeSupabaseCodeForSession,
@@ -31,5 +18,3 @@ export {
   type AuthState,
   type TokenResponse as SecureTokenResponse,
 } from "./secure";
-
-export { default } from "./login";

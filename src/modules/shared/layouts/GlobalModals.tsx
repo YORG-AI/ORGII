@@ -8,11 +8,7 @@ import { useAtomValue } from "jotai";
 import React, { Suspense, useEffect, useState } from "react";
 
 import { componentIssueModalOpenAtom } from "@src/store/ui/overlayAtom";
-import { loginModalVisibleAtom } from "@src/store/ui/uiAtom";
 
-const LoginModal = React.lazy(
-  () => import("@/src/scaffold/ModalSystem/variants/Login")
-);
 const ComponentIssueModalProvider = React.lazy(() =>
   import("@src/modules/shared/DevTools/ComponentIssueModal").then((module) => ({
     default: module.ComponentIssueModalProvider,
@@ -43,13 +39,8 @@ const ComponentIssueModalLoader: React.FC = () => {
   return <ComponentIssueModalProvider />;
 };
 
-export const GlobalModals: React.FC = () => {
-  const loginModalVisible = useAtomValue(loginModalVisibleAtom);
-
-  return (
-    <Suspense fallback={null}>
-      {loginModalVisible && <LoginModal />}
-      <ComponentIssueModalLoader />
-    </Suspense>
-  );
-};
+export const GlobalModals: React.FC = () => (
+  <Suspense fallback={null}>
+    <ComponentIssueModalLoader />
+  </Suspense>
+);
