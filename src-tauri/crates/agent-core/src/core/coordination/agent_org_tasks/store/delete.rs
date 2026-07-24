@@ -6,7 +6,10 @@ use database::db::{get_connection, with_sessions_writer};
 use rusqlite::params;
 
 use super::super::helpers::{insert_task_history_event, list_tasks_with_conn, now_rfc3339};
-use super::super::{TaskGraphIndex, TASK_DELETE_HAS_DEPENDENTS_ERROR, TASK_EVENT_DELETED};
+use super::super::{
+    TaskGraphIndex, TASK_DELETE_HAS_DEPENDENTS_ERROR, TASK_DELETE_IS_DELIVERY_REPLACEMENT_ERROR,
+    TASK_EVENT_DELETED,
+};
 use super::validation::ensure_run_allows_task_mutation;
 use super::AgentOrgTaskStore;
 
@@ -68,6 +71,25 @@ impl AgentOrgTaskStore {
             return Err(format!(
                 "{TASK_DELETE_HAS_DEPENDENTS_ERROR}: task {task_id} is still referenced by blocked_by on [{}]; update or delete those dependent tasks first",
                 dependent_task_ids.join(",")
+            ));
+        }
+        // Fail closed if the delivery-resolution schema is missing or
+        // unreadable. Treating a schema failure as "not referenced" could
+        // permanently delete the only durable replacement for an Inbox row.
+        let is_delivery_replacement: bool = tx
+            .query_row(
+                "SELECT EXISTS(
+                     SELECT 1
+                     FROM agent_inbox_delivery_resolutions
+                     WHERE org_run_id=?1 AND replacement_task_id=?2
+                 )",
+                params![org_run_id, task_id],
+                |row| row.get(0),
+            )
+            .map_err(|err| err.to_string())?;
+        if is_delivery_replacement {
+            return Err(format!(
+                "{TASK_DELETE_IS_DELIVERY_REPLACEMENT_ERROR}: task {task_id} is durable replacement evidence for a resolved Inbox delivery and cannot be deleted"
             ));
         }
         let n = tx

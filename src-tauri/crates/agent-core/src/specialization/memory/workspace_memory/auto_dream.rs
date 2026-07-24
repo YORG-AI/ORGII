@@ -181,6 +181,8 @@ pub async fn run_consolidation(params: super::super::MemoryAgentParams<'_>) -> R
 
     // Turn config
     let turn_config = TurnConfig {
+        turn_intent_id: String::new(),
+        projected_inbox_ids: Vec::new(),
         model: params.model.to_string(),
         account_id: None,
         context_window_override: None,

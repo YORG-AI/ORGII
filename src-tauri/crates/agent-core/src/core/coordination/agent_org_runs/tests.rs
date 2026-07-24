@@ -69,6 +69,7 @@ fn ensure_runtime_schemas() {
             session_id TEXT NOT NULL,
             turn_intent_id TEXT NOT NULL,
             client_message_id TEXT,
+            org_run_id TEXT,
             source TEXT NOT NULL,
             status TEXT NOT NULL,
             created_at TEXT NOT NULL,
@@ -153,6 +154,8 @@ fn delete_by_id_cascades_all_run_owned_state_and_plan_artifact() {
     std::fs::create_dir_all(&plan_root).expect("create managed Plan root");
     let plan_path = plan_root.join("delete-cascade.plan.md");
     std::fs::write(&plan_path, "# disposable plan").unwrap();
+    let external_notes = sandbox.path().join("notes.md");
+    std::fs::write(&external_notes, "user-owned notes").unwrap();
     let conn = database::db::get_connection().unwrap();
     conn.execute(
         "UPDATE agent_sessions SET workspace_path=?1 WHERE session_id='worker-delete-cascade'",
@@ -174,6 +177,19 @@ fn delete_by_id_cascades_all_run_owned_state_and_plan_artifact() {
     )
     .unwrap();
     conn.execute(
+        "INSERT INTO agent_org_plan_approvals (
+            approval_id, plan_revision_id, request_id, org_run_id,
+            source_task_id, source_member_id, source_session_id,
+            root_session_id, policy, status, plan_title, plan_path,
+            plan_content, created_at
+         ) VALUES ('external-approval','external-revision','external-request',?1,
+                   'delete-task','member-w1','worker-delete-cascade',
+                   'root-delete-cascade','coordinator','superseded','Historical notes',?2,
+                   '# historical corrupt path',?3)",
+        params![&run.id, external_notes.to_string_lossy().as_ref(), &now],
+    )
+    .unwrap();
+    conn.execute(
         "INSERT INTO agent_org_recovery_attempts
          (org_run_id, action_kind, target_key, reason_fingerprint, attempts,
           next_allowed_at, updated_at)
@@ -182,10 +198,17 @@ fn delete_by_id_cascades_all_run_owned_state_and_plan_artifact() {
     )
     .unwrap();
     conn.execute(
+        "INSERT INTO agent_org_task_run_schema_migrations
+         (name, org_run_id, applied_at)
+         VALUES ('delete-test', ?1, ?2)",
+        params![&run.id, &now],
+    )
+    .unwrap();
+    conn.execute(
         "INSERT INTO session_turn_intents
-         (session_id,turn_intent_id,source,status,created_at,updated_at)
-         VALUES ('worker-delete-cascade','delete-intent','resume','queued',?1,?1)",
-        params![&now],
+         (session_id,turn_intent_id,org_run_id,source,status,created_at,updated_at)
+         VALUES ('worker-delete-cascade','delete-intent',?1,'resume','queued',?2,?2)",
+        params![&run.id, &now],
     )
     .unwrap();
 
@@ -199,6 +222,7 @@ fn delete_by_id_cascades_all_run_owned_state_and_plan_artifact() {
         "agent_member_interventions",
         "agent_org_plan_approvals",
         "agent_org_recovery_attempts",
+        "agent_org_task_run_schema_migrations",
     ] {
         let count: i64 = conn
             .query_row(
@@ -220,6 +244,146 @@ fn delete_by_id_cascades_all_run_owned_state_and_plan_artifact() {
         .unwrap();
     assert_eq!(intent_count, 0);
     assert!(!plan_path.exists());
+    assert_eq!(
+        std::fs::read_to_string(&external_notes).expect("read external notes after deletion"),
+        "user-owned notes",
+        "run deletion must never remove an unmanaged historical path"
+    );
+}
+
+#[test]
+fn delete_by_id_preserves_nested_run_intents_and_finality_isolation() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let org = sample_org();
+    let outer = create_run_for_root(&org, "outer-root");
+    upsert_session_row_full("outer-root", None, Some("agent-coord"), "idle");
+    upsert_session_row_for_member(
+        "outer-worker",
+        Some("outer-root"),
+        Some("agent-w1"),
+        Some("member-w1"),
+        "idle",
+    );
+
+    let nested = create_run_for_root(&org, "nested-root");
+    // A nested run root is deliberately also a descendant in the session UI
+    // tree. Session ancestry is presentation/navigation state, not ownership.
+    upsert_session_row_full(
+        "nested-root",
+        Some("outer-worker"),
+        Some("agent-coord"),
+        "idle",
+    );
+    upsert_session_row_for_member(
+        "nested-worker",
+        Some("nested-root"),
+        Some("agent-w1"),
+        Some("member-w1"),
+        "running",
+    );
+
+    let outer_workers = AgentOrgRunStore::list_descendant_worker_sessions(&outer.id)
+        .expect("list only sessions owned by the outer run");
+    assert_eq!(outer_workers.len(), 1);
+    assert_eq!(outer_workers[0].session_id, "outer-worker");
+    assert_eq!(outer_workers[0].status, SessionStatus::Idle);
+
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO session_turn_intents
+         (session_id,turn_intent_id,org_run_id,source,status,created_at,updated_at)
+         VALUES ('outer-worker','outer-wake',?1,'resume','queued',?3,?3),
+                ('nested-root','nested-turn',?2,'agent_org','queued',?3,?3)",
+        params![&outer.id, &nested.id, &now],
+    )
+    .expect("seed independently owned intents");
+
+    let outer_assessment =
+        AgentOrgRunStore::assess_run_finality(&outer.id).expect("assess outer run finality");
+    assert_eq!(
+        outer_assessment.facts.in_flight_turn_intent_count, 1,
+        "nested run work must not block outer run finality"
+    );
+    assert_eq!(outer_assessment.facts.worker_sessions.len(), 1);
+    assert_eq!(
+        outer_assessment.facts.worker_sessions[0].session_id, "outer-worker",
+        "a Running worker owned by a nested run must not block outer finality"
+    );
+
+    AgentOrgRunStore::delete_by_id(&outer.id).expect("delete outer run");
+
+    assert!(load_by_id(&outer.id).unwrap().is_none());
+    assert!(load_by_id(&nested.id).unwrap().is_some());
+    let outer_intent_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM session_turn_intents WHERE org_run_id=?1",
+            params![&outer.id],
+            |row| row.get(0),
+        )
+        .expect("count outer intents");
+    let nested_intent_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM session_turn_intents WHERE org_run_id=?1",
+            params![&nested.id],
+            |row| row.get(0),
+        )
+        .expect("count nested intents");
+    assert_eq!(outer_intent_count, 0);
+    assert_eq!(nested_intent_count, 1);
+}
+
+#[test]
+fn recursive_session_queries_terminate_on_parent_cycle() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let org = sample_org();
+    let run = create_run_for_root(&org, "cycle-root");
+    upsert_session_row_full("cycle-root", Some("cycle-b"), Some("agent-coord"), "idle");
+    upsert_session_row_for_member(
+        "cycle-a",
+        Some("cycle-root"),
+        Some("agent-w1"),
+        Some("member-w1"),
+        "idle",
+    );
+    upsert_session_row_for_member(
+        "cycle-b",
+        Some("cycle-a"),
+        Some("agent-w2"),
+        Some("member-w2"),
+        "idle",
+    );
+
+    let descendants = AgentOrgRunStore::list_descendant_worker_sessions(&run.id)
+        .expect("cyclic descendant scan terminates");
+    assert!(
+        descendants.len() <= 3,
+        "cycle must not duplicate descendants"
+    );
+    AgentOrgRunStore::assess_run_finality(&run.id).expect("cyclic finality scan terminates");
+
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    let now = chrono::Utc::now().to_rfc3339();
+    for session_id in ["cycle-root", "cycle-a", "cycle-b"] {
+        conn.execute(
+            "INSERT INTO session_turn_intents
+             (session_id,turn_intent_id,org_run_id,source,status,created_at,updated_at)
+             VALUES (?1,?2,?3,'agent_org','queued',?4,?4)",
+            params![session_id, format!("intent-{session_id}"), &run.id, &now],
+        )
+        .expect("seed cyclic session intent");
+    }
+
+    AgentOrgRunStore::delete_by_id(&run.id).expect("delete cyclic run");
+    let remaining: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM session_turn_intents
+             WHERE session_id IN ('cycle-root','cycle-a','cycle-b')",
+            [],
+            |row| row.get(0),
+        )
+        .expect("count cyclic intents");
+    assert_eq!(remaining, 0);
 }
 
 fn upsert_session_row(session_id: &str, parent_session_id: Option<&str>) {
@@ -808,9 +972,9 @@ fn reconcile_run_finality_completes_run_when_all_tasks_completed() {
     let now = chrono::Utc::now().to_rfc3339();
     conn.execute(
         "INSERT INTO session_turn_intents (
-             session_id, turn_intent_id, source, status, created_at, updated_at
-         ) VALUES (?1, 'final-turn', 'agent_org', 'optimistic', ?2, ?2)",
-        params!["coord-root-final-complete", &now],
+             session_id, turn_intent_id, org_run_id, source, status, created_at, updated_at
+         ) VALUES (?1, 'final-turn', ?2, 'agent_org', 'optimistic', ?3, ?3)",
+        params!["coord-root-final-complete", &run.id, &now],
     )
     .expect("seed pending turn intent");
     for pending_status in ["optimistic", "queued", "running"] {
@@ -957,6 +1121,100 @@ fn reconcile_completes_normal_idle_run_only_after_inbox_is_drained() {
         AgentOrgRunStore::reconcile_run_finality(&run.id).unwrap(),
         Some(AgentOrgRunStatus::Completed),
         "normal successful members settle to Idle and must still allow run completion"
+    );
+}
+
+#[test]
+fn resolved_undeliverable_inbox_stays_unread_but_no_longer_blocks_finality() {
+    use crate::coordination::agent_inbox::{
+        AgentInboxDeliveryResolutionKind, AgentInboxStore, AgentMessage, ResolveInboxDeliveryParams,
+    };
+    use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, CreateTaskParams, TaskStatus};
+
+    let _sandbox = test_helpers::test_env::sandbox();
+    let org = sample_org();
+    let run = create_run_for_root(&org, "coord-root-resolved-inbox");
+    upsert_session_row_full(
+        "coord-root-resolved-inbox",
+        None,
+        Some("agent-coord"),
+        "idle",
+    );
+    upsert_session_row_for_member(
+        "worker-resolved-inbox",
+        Some("coord-root-resolved-inbox"),
+        Some("agent-w1"),
+        Some("member-w1"),
+        "idle",
+    );
+    AgentOrgTaskStore::create(CreateTaskParams {
+        id: "resolved-inbox-done".into(),
+        org_run_id: run.id.clone(),
+        subject: "done".into(),
+        description: String::new(),
+        active_form: None,
+        owner: Some("member-w1".into()),
+        status: TaskStatus::Completed,
+        blocks: Vec::new(),
+        blocked_by: Vec::new(),
+        metadata: None,
+    })
+    .expect("create completed task");
+    mark_coordinator_observed_current_work(&run.id);
+    stamp_coordinator_terminal_turn("coord-root-resolved-inbox");
+
+    let message = AgentMessage::Plain {
+        summary: "Undeliverable historical row".into(),
+        text: "Keep this exact evidence unread".into(),
+    };
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    conn.execute(
+        "INSERT INTO agent_inbox (
+             recipient_agent_id, recipient_member_id,
+             sender_agent_id, sender_member_id, org_run_id,
+             payload_kind, payload_json, created_at
+         ) VALUES (
+             'removed-agent', NULL,
+             'agent-coord', 'coordinator', ?1,
+             'plain', ?2, ?3
+         )",
+        params![
+            &run.id,
+            serde_json::to_string(&message).unwrap(),
+            chrono::Utc::now().to_rfc3339(),
+        ],
+    )
+    .expect("seed historical orphan row");
+    let inbox_id = conn.last_insert_rowid();
+
+    let before = AgentOrgRunStore::assess_run_finality(&run.id).expect("assess before repair");
+    assert_eq!(before.facts.unread_inbox_count, 1);
+    assert_eq!(before.decision, AgentOrgFinalityDecision::KeepRunning);
+
+    AgentInboxStore::resolve_delivery(ResolveInboxDeliveryParams {
+        inbox_id,
+        org_run_id: run.id.clone(),
+        resolved_by_member_id: COORDINATOR_MEMBER_ID.into(),
+        resolution_kind: AgentInboxDeliveryResolutionKind::Cancelled,
+        reason: "Removed recipient and work intentionally abandoned".into(),
+        replacement_inbox_id: None,
+        replacement_task_id: None,
+    })
+    .expect("resolve undeliverable delivery");
+
+    let after = AgentOrgRunStore::assess_run_finality(&run.id).expect("assess after repair");
+    assert_eq!(after.facts.unread_inbox_count, 0);
+    assert_eq!(after.decision, AgentOrgFinalityDecision::Complete);
+    assert_eq!(
+        AgentOrgRunStore::reconcile_run_finality(&run.id).expect("reconcile repaired run"),
+        Some(AgentOrgRunStatus::Completed)
+    );
+    let evidence = AgentInboxStore::get_by_id_for_run(&run.id, inbox_id)
+        .unwrap()
+        .unwrap();
+    assert!(
+        evidence.read_at.is_none(),
+        "repair must not forge a read receipt"
     );
 }
 

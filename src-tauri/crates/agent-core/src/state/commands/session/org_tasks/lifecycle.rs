@@ -323,6 +323,10 @@ fn seed_coordinator_resume_inbox_in_tx(
                  WHERE recipient_member_id=?1
                    AND org_run_id=?2
                    AND read_at IS NULL
+                   AND NOT EXISTS (
+                       SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=agent_inbox.id
+                   )
              )",
             params![coordinator_member_id, &context.run_id],
             |row| row.get(0),

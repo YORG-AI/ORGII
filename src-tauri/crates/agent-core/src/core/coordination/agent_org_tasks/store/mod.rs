@@ -26,6 +26,12 @@ mod requeue;
 mod update;
 mod validation;
 
+pub(super) fn normalize_legacy_dependency_rows(
+    conn: &rusqlite::Connection,
+) -> rusqlite::Result<()> {
+    dependencies::normalize_legacy_dependency_rows(conn)
+}
+
 // Names referenced with an explicit `super::` prefix inside the submodule
 // bodies below. Re-binding them here keeps those references verbatim: from a
 // submodule, `super::` resolves to this module.

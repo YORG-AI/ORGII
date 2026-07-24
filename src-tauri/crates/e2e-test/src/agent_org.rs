@@ -12,6 +12,11 @@
 //! Pairing strategy: positive AND negative pins per behavior. Every
 //! successful send is followed by a `list-by-run` read so a future
 //! refactor of either side surfaces here, not just in unit tests.
+//! Production caller-path coverage lives in
+//! `production_return_to_work_drains_inbox_into_member_transcript` below. It
+//! launches a real materialized member and uses the debug-only deterministic
+//! provider; full live-provider coordinator behavior belongs in rendered UI
+//! E2E, not this deterministic runtime contract suite.
 
 use super::config::Config;
 use super::harness;
@@ -23,6 +28,8 @@ const CHECK_MEMBER_SPAWN_GATE_PATH: &str = "/agent/test/agent-org/check-member-s
 const POST_MEMBER_IDLE_PATH: &str = "/agent/test/agent-org/post-member-idle";
 const SEED_ORG_PATH: &str = "/agent/test/agent-org/seed";
 const LAUNCH_COORDINATOR_PATH: &str = "/agent/test/agent-org/launch-coordinator";
+const SESSION_RETURN_TO_WORK_PATH: &str = "/agent/test/agent-org/session-return-to-work";
+const TASK_TOOL_DIRECT_PATH: &str = "/agent/test/agent-org/task-tool-direct";
 const RUN_SEED_PATH: &str = "/agent/test/agent-org/run/seed";
 const E2E_RUN_FIXTURE_ORG_PREFIX: &str = "e2e-agent-org-fixture:";
 const RUN_VIEW_PATH: &str = "/agent/test/agent-org/run-view";
@@ -598,6 +605,332 @@ pub async fn launch_materializes_member_sessions_in_run_view(cfg: &Config) -> bo
     )
 }
 
+/// Production caller-path pin for Agent Org wake delivery.
+///
+/// Debug helpers establish only the durable preconditions: a real org/run,
+/// a materialized member session, and an assigned task. The action under test
+/// is `session-return-to-work`, which invokes the same implementation as the
+/// Tauri command. It must traverse the production idempotent scheduler,
+/// initialize the member runtime, drain the inbox inside
+/// `UnifiedMessageProcessor`, call the deterministic debug provider, persist
+/// the visible inbox transcript, and mark the source row read. The scenario
+/// never calls the helper-only `drain-inbox` endpoint.
+pub async fn production_return_to_work_drains_inbox_into_member_transcript(cfg: &Config) -> bool {
+    let label = "Agent-Org: production return-to-work drains visible member input";
+    let fixture_suffix = unique_run_id("production-wake");
+    let org_id = format!("e2e-agent-org-fixture:{fixture_suffix}");
+    let coordinator_agent_id = "builtin:sde";
+    let worker_agent_id = "builtin:explore";
+    let worker_member_id = "m-production-worker";
+    let task_id = format!("task-{fixture_suffix}");
+    let task_subject = "Production wake delivery marker";
+    let fake_model = format!("e2e-fake-provider-agent-org-wake-{fixture_suffix}");
+
+    let seed_resp = match post_agent_org_json(
+        cfg,
+        SEED_ORG_PATH,
+        serde_json::json!({
+            "id": org_id,
+            "name": "Production Wake E2E Org",
+            "coordinator_agent_id": coordinator_agent_id,
+            "members": [{
+                "id": worker_member_id,
+                "name": "Wake Worker",
+                "role": "implementer",
+                "agent_id": worker_agent_id
+            }]
+        }),
+    )
+    .await
+    {
+        Ok(response) => response,
+        Err(error) => return harness::print_error(label, &error),
+    };
+    if seed_resp.get("ok").and_then(serde_json::Value::as_bool) != Some(true) {
+        return harness::print_error(label, &seed_resp.to_string());
+    }
+
+    let launch_resp = match post_agent_org_json(
+        cfg,
+        LAUNCH_COORDINATOR_PATH,
+        serde_json::json!({
+            "agent_org_id": org_id,
+            "workspace_path": tmp_agent_org_workspace("production-wake"),
+            "content": "",
+            "model": fake_model,
+            "sync_turn": false,
+            "name": "Production Wake E2E"
+        }),
+    )
+    .await
+    {
+        Ok(response) => response,
+        Err(error) => return harness::print_error(label, &error),
+    };
+    let root_session_id = match launch_resp
+        .get("session_id")
+        .and_then(serde_json::Value::as_str)
+    {
+        Some(value) if !value.is_empty() => value.to_string(),
+        _ => return harness::print_error(label, &launch_resp.to_string()),
+    };
+    let org_run_id = match launch_resp
+        .get("agent_org_run_id")
+        .and_then(serde_json::Value::as_str)
+    {
+        Some(value) if !value.is_empty() => value.to_string(),
+        _ => return harness::print_error(label, &launch_resp.to_string()),
+    };
+
+    // Member materialization is intentionally background work in production.
+    // Poll the production lookup rather than assuming it completed before the
+    // launch HTTP response returned.
+    let materialization_started = std::time::Instant::now();
+    let worker_session_id = loop {
+        let lookup = match post_agent_org_json(
+            cfg,
+            FIND_WORKER_SESSION_PATH,
+            serde_json::json!({
+                "org_run_id": org_run_id,
+                "member_id": worker_member_id
+            }),
+        )
+        .await
+        {
+            Ok(response) => response,
+            Err(error) => return harness::print_error(label, &error),
+        };
+        if let Some(session_id) = lookup
+            .get("session_id")
+            .and_then(serde_json::Value::as_str)
+            .filter(|value| !value.is_empty())
+        {
+            break session_id.to_string();
+        }
+        if materialization_started.elapsed() >= std::time::Duration::from_secs(15) {
+            return harness::print_error(
+                label,
+                &format!("member materialization timed out: {lookup}"),
+            );
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    };
+
+    // Use the production task tool to create the canonical task and its
+    // TaskAssigned outbox row. This endpoint installs a Noop wake hook so the
+    // row remains unread until the return-to-work action below.
+    let task_create_resp = match post_agent_org_json(
+        cfg,
+        TASK_TOOL_DIRECT_PATH,
+        serde_json::json!({
+            "org_run_id": org_run_id,
+            "org_id": org_id,
+            "org_name": "Production Wake E2E Org",
+            "org_role": "coordinator",
+            "coordinator_agent_id": coordinator_agent_id,
+            "coordinator_name": "Coordinator",
+            "coordinator_role": "coordinator",
+            "members": [{
+                "member_id": worker_member_id,
+                "name": "Wake Worker",
+                "role": "implementer",
+                "agent_id": worker_agent_id
+            }],
+            "sender_agent_id": coordinator_agent_id,
+            "sender_member_id": "coordinator",
+            "operation": "create",
+            "params": {
+                "id": task_id,
+                "subject": task_subject,
+                "description": "This exact task must become visible in the member transcript.",
+                "owner_member_id": worker_member_id,
+                "dispatch_policy": "immediate",
+                "execution_mode": "build"
+            }
+        }),
+    )
+    .await
+    {
+        Ok(response) => response,
+        Err(error) => return harness::print_error(label, &error),
+    };
+    if task_create_resp
+        .get("ok")
+        .and_then(serde_json::Value::as_bool)
+        != Some(true)
+    {
+        return harness::print_error(label, &task_create_resp.to_string());
+    }
+
+    let before_inbox = match list_inbox(cfg, &org_run_id).await {
+        Ok(response) => response,
+        Err(error) => return harness::print_error(label, &error),
+    };
+    let source_row_before = messages_array(&before_inbox).ok().and_then(|messages| {
+        messages.iter().find(|row| {
+            row.get("payload_kind").and_then(serde_json::Value::as_str) == Some("task_assigned")
+                && row
+                    .get("recipient_member_id")
+                    .and_then(serde_json::Value::as_str)
+                    == Some(worker_member_id)
+                && row
+                    .get("payload_decoded")
+                    .and_then(|payload| payload.get("task_id"))
+                    .and_then(serde_json::Value::as_str)
+                    == Some(task_id.as_str())
+        })
+    });
+    let assignment_was_unread = source_row_before
+        .and_then(|row| row.get("read_at"))
+        .is_some_and(serde_json::Value::is_null);
+
+    let wake_url = format!("{}{}", cfg.base_url, SESSION_RETURN_TO_WORK_PATH);
+    let wake_resp = match reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .expect("return-to-work client")
+        .post(wake_url)
+        .json(&serde_json::json!({ "session_id": worker_session_id }))
+        .send()
+        .await
+    {
+        Ok(response) => match response.json::<serde_json::Value>().await {
+            Ok(json) => json,
+            Err(error) => return harness::print_error(label, &error.to_string()),
+        },
+        Err(error) => return harness::print_error(label, &error.to_string()),
+    };
+
+    let after_inbox = match list_inbox(cfg, &org_run_id).await {
+        Ok(response) => response,
+        Err(error) => return harness::print_error(label, &error),
+    };
+    let assignment_marked_read = messages_array(&after_inbox)
+        .ok()
+        .and_then(|messages| {
+            messages.iter().find(|row| {
+                row.get("payload_kind").and_then(serde_json::Value::as_str) == Some("task_assigned")
+                    && row
+                        .get("recipient_member_id")
+                        .and_then(serde_json::Value::as_str)
+                        == Some(worker_member_id)
+                    && row
+                        .get("payload_decoded")
+                        .and_then(|payload| payload.get("task_id"))
+                        .and_then(serde_json::Value::as_str)
+                        == Some(task_id.as_str())
+            })
+        })
+        .and_then(|row| row.get("read_at"))
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|value| !value.is_empty());
+
+    let transcript_url = format!(
+        "{}/agent/test/sde/transcript/{}",
+        cfg.base_url,
+        urlencoding::encode(&worker_session_id)
+    );
+    let transcript = match http_client().get(transcript_url).send().await {
+        Ok(response) => match response.json::<serde_json::Value>().await {
+            Ok(json) => json,
+            Err(error) => return harness::print_error(label, &error.to_string()),
+        },
+        Err(error) => return harness::print_error(label, &error.to_string()),
+    };
+    let transcript_messages = transcript
+        .get("messages")
+        .and_then(serde_json::Value::as_array);
+    let visible_assignment_inputs = transcript_messages
+        .map(|messages| {
+            messages
+                .iter()
+                .filter(|message| {
+                    message.get("role").and_then(serde_json::Value::as_str) == Some("user")
+                        && message.to_string().contains(task_subject)
+                        && message.to_string().contains(&task_id)
+                })
+                .count()
+        })
+        .unwrap_or_default();
+    let fake_provider_replied = transcript_messages.is_some_and(|messages| {
+        messages.iter().any(|message| {
+            message.get("role").and_then(serde_json::Value::as_str) == Some("assistant")
+                && message.to_string().contains("E2E_FAKE_PROVIDER_REPLY")
+        })
+    });
+
+    // A second return-to-work with no new durable input must be a NoWork
+    // result, not a second empty provider turn or duplicate visible message.
+    let second_wake_resp = match reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .expect("second return-to-work client")
+        .post(format!("{}{}", cfg.base_url, SESSION_RETURN_TO_WORK_PATH))
+        .json(&serde_json::json!({ "session_id": worker_session_id }))
+        .send()
+        .await
+    {
+        Ok(response) => response
+            .json::<serde_json::Value>()
+            .await
+            .unwrap_or_default(),
+        Err(error) => return harness::print_error(label, &error.to_string()),
+    };
+    let second_wake_was_noop = second_wake_resp
+        .get("ok")
+        .and_then(serde_json::Value::as_bool)
+        == Some(true)
+        && second_wake_resp
+            .get("woke")
+            .and_then(serde_json::Value::as_bool)
+            == Some(false);
+
+    let details = serde_json::json!({
+        "root_session_id": root_session_id,
+        "worker_session_id": worker_session_id,
+        "org_run_id": org_run_id,
+        "task_create": task_create_resp,
+        "before_inbox": before_inbox,
+        "wake": wake_resp,
+        "after_inbox": after_inbox,
+        "transcript": transcript,
+        "second_wake": second_wake_resp,
+    });
+
+    harness::print_result(
+        label,
+        &details.to_string(),
+        &[
+            ("TaskAssigned precondition is unread", assignment_was_unread),
+            (
+                "production return-to-work enqueued and completed a wake",
+                wake_resp.get("ok").and_then(serde_json::Value::as_bool) == Some(true)
+                    && wake_resp.get("woke").and_then(serde_json::Value::as_bool) == Some(true),
+            ),
+            (
+                "production drain acknowledged the source inbox row",
+                assignment_marked_read,
+            ),
+            (
+                "member transcript contains exactly one visible assignment input",
+                visible_assignment_inputs == 1,
+            ),
+            (
+                "deterministic provider completed the real member turn",
+                fake_provider_replied,
+            ),
+            (
+                "return-to-work without new durable input is a no-op",
+                second_wake_was_noop,
+            ),
+        ],
+    )
+}
+
+/// Run-view task counts distinguish queued owned work from the currently active
+/// task. This pins the read model needed for running members: assigning more
+/// work to a member that already has an in-progress task must be visible as a
+/// pending queue, not as a second active turn.
 pub async fn run_view_distinguishes_pending_and_in_progress_tasks(cfg: &Config) -> bool {
     let label = "Agent-Org: run view separates pending and in-progress tasks";
     let org_id = unique_run_id("task-count-org");

@@ -942,13 +942,8 @@ fn deferred_drain_without_commit_leaves_rows_unread() {
     // committing — simulates a turn that failed before completion.
     let mut first: Vec<Value> = Vec::new();
     {
-        let guard = drain_and_render_deferred(
-            &ctx,
-            "worker-1",
-            Some("member-worker-1"),
-            &mut first,
-            None,
-        );
+        let guard =
+            drain_and_render_deferred(&ctx, "worker-1", Some("member-worker-1"), &mut first, None);
         assert_eq!(guard.drained_count(), 1);
         // Guard goes out of scope here without `.commit()` — rows
         // stay unread.
@@ -1079,8 +1074,8 @@ fn materialized_batch_replay_delivers_only_rows_that_arrived_later() {
     )
     .expect("materialize later row");
 
-    let transcript = crate::session::persistence::load_messages(&session_id)
-        .expect("load durable transcript");
+    let transcript =
+        crate::session::persistence::load_messages(&session_id).expect("load durable transcript");
     assert_eq!(transcript.len(), 2, "one transcript per materialized batch");
     let combined = transcript
         .iter()
@@ -1345,9 +1340,7 @@ fn shutdown_notification_failure_leaves_source_unread_and_retries_before_deliver
 /// reassignment. Tasks that were already completed are left alone.
 #[test]
 fn drain_releases_member_tasks_on_accepted_shutdown() {
-    use crate::coordination::agent_org_tasks::{
-        AgentOrgTaskStore, CreateTaskParams, TaskStatus,
-    };
+    use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, CreateTaskParams, TaskStatus};
 
     let _sandbox = test_helpers::test_env::sandbox();
     let ctx = running_ctx_for_members(&[
@@ -1537,9 +1530,7 @@ fn drain_does_not_steal_task_from_stale_running_worker() {
     use crate::coordination::agent_org_runs::{
         AgentOrgRunEntryMode, AgentOrgRunStatus, AgentOrgRunStore, CreateAgentOrgRunParams,
     };
-    use crate::coordination::agent_org_tasks::{
-        AgentOrgTaskStore, CreateTaskParams, TaskStatus,
-    };
+    use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, CreateTaskParams, TaskStatus};
     use crate::core::definitions::orgs::{OrgDefinition, OrgMember};
     use crate::session::persistence::{session_type, upsert_session, UnifiedSessionRecord};
 
@@ -1671,9 +1662,7 @@ fn drain_does_not_steal_task_from_stale_running_worker() {
 /// must not mutate ownership or manufacture a TaskAssigned message.
 #[test]
 fn ownerless_task_is_not_claimed_by_inbox_drain() {
-    use crate::coordination::agent_org_tasks::{
-        AgentOrgTaskStore, CreateTaskParams, TaskStatus,
-    };
+    use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, CreateTaskParams, TaskStatus};
 
     let _sandbox = test_helpers::test_env::sandbox();
     let ctx = running_ctx_for_members(&[("member-alice", "alice", "Alice")]);
@@ -1817,9 +1806,7 @@ fn drain_drops_exec_mode_request_from_non_coordinator_sender() {
 /// coordinator. Assignment happens only through task tools.
 #[test]
 fn coordinator_inbox_drain_does_not_assign_ownerless_task() {
-    use crate::coordination::agent_org_tasks::{
-        AgentOrgTaskStore, CreateTaskParams, TaskStatus,
-    };
+    use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, CreateTaskParams, TaskStatus};
 
     let _sandbox = test_helpers::test_env::sandbox();
     let ctx = running_ctx_for_members(&[("member-worker", "worker", "Worker")]);

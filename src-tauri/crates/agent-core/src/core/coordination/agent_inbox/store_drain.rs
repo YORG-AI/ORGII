@@ -8,6 +8,8 @@ use rusqlite::{params, OptionalExtension};
 
 use database::db::{get_connection, with_sessions_writer};
 
+use crate::coordination::agent_org_payload_limits as limits;
+
 #[cfg(test)]
 use super::record::AgentInboxRecord;
 use super::record::{row_to_record, AgentInboxBatch};
@@ -28,6 +30,10 @@ impl AgentInboxStore {
                  WHERE recipient_member_id = ?1
                    AND org_run_id = ?2
                    AND read_at IS NULL
+                   AND NOT EXISTS (
+                       SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=agent_inbox.id
+                   )
              )",
             params![recipient_member_id, org_run_id],
             |row| row.get::<_, bool>(0),
@@ -58,6 +64,10 @@ impl AgentInboxStore {
                  WHERE recipient_member_id = ?1
                    AND org_run_id = ?2
                    AND read_at IS NULL
+                   AND NOT EXISTS (
+                       SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=agent_inbox.id
+                   )
                  ORDER BY id ASC",
             )
             .map_err(|err| err.to_string())?;
@@ -83,7 +93,11 @@ impl AgentInboxStore {
             "SELECT MAX(id) FROM agent_inbox
              WHERE recipient_member_id=?1
                AND org_run_id=?2
-               AND read_at IS NULL",
+               AND read_at IS NULL
+               AND NOT EXISTS (
+                   SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                   WHERE resolution.inbox_id=agent_inbox.id
+               )",
             params![recipient_member_id, org_run_id],
             |row| row.get(0),
         )
@@ -105,7 +119,11 @@ impl AgentInboxStore {
                  WHERE recipient_member_id=?1
                    AND org_run_id=?2
                    AND id<=?3
-                   AND read_at IS NULL",
+                   AND read_at IS NULL
+                   AND NOT EXISTS (
+                       SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=agent_inbox.id
+                   )",
                 params![recipient_member_id, org_run_id, boundary_id],
                 |row| row.get(0),
             )
@@ -130,8 +148,20 @@ impl AgentInboxStore {
                         sender_agent_id,
                         sender_member_id,
                         org_run_id,
-                        payload_kind,
-                        payload_json,
+                        CASE WHEN length(CAST(payload_json AS BLOB))<=?4
+                             THEN payload_kind ELSE 'oversized_payload' END,
+                        CASE WHEN length(CAST(payload_json AS BLOB))<=?4
+                             THEN payload_json
+                             ELSE json_object(
+                                 'kind', 'plain',
+                                 'summary', 'Oversized historical inbox payload',
+                                 'text', printf(
+                                     'Inbox row %d contained %d bytes, above the supported delivery limit. The original row remains durable; this bounded diagnostic replaces its body. Raw prefix: %s',
+                                     id,
+                                     length(CAST(payload_json AS BLOB)),
+                                     substr(payload_json,1,4096)
+                                 )
+                             ) END,
                         request_id,
                         created_at,
                         read_at
@@ -139,6 +169,10 @@ impl AgentInboxStore {
                  WHERE recipient_member_id = ?1
                    AND org_run_id = ?2
                    AND read_at IS NULL
+                   AND NOT EXISTS (
+                       SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=agent_inbox.id
+                   )
                  ORDER BY id ASC
                  LIMIT ?3",
             )
@@ -149,6 +183,7 @@ impl AgentInboxStore {
                     recipient_member_id,
                     org_run_id,
                     (MAX_INBOX_DRAIN_ROWS + 1) as i64,
+                    limits::AGENT_INBOX_PAYLOAD_MAX_BYTES as i64,
                 ],
                 row_to_record,
             )
@@ -223,18 +258,23 @@ impl AgentInboxStore {
                                         FROM agent_inbox_materializations receipt
                                         WHERE receipt.inbox_id=agent_inbox.id
                                           AND receipt.session_id=?2
+                                    ),
+                                    EXISTS(
+                                        SELECT 1
+                                        FROM agent_inbox_delivery_resolutions resolution
+                                        WHERE resolution.inbox_id=agent_inbox.id
                                     )
                              FROM agent_inbox WHERE id=?1",
                             )
                             .map_err(|err| err.to_string())?;
                         for id in ids {
-                            let state: Option<(Option<String>, bool)> = preflight
+                            let state: Option<(Option<String>, bool, bool)> = preflight
                                 .query_row(params![id, session_id], |row| {
-                                    Ok((row.get(0)?, row.get(1)?))
+                                    Ok((row.get(0)?, row.get(1)?, row.get(2)?))
                                 })
                                 .optional()
                                 .map_err(|err| err.to_string())?;
-                            if matches!(state, Some((None, false))) {
+                            if matches!(state, Some((None, false, false))) {
                                 return Err(format!(
                                 "Agent Org Inbox row {id} has no materialization receipt owned by session {session_id}; refusing partial acknowledgement"
                             ));
@@ -245,6 +285,10 @@ impl AgentInboxStore {
                                 "UPDATE agent_inbox
                              SET read_at=?1
                              WHERE id=?2 AND read_at IS NULL
+                               AND NOT EXISTS (
+                                   SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                                   WHERE resolution.inbox_id=agent_inbox.id
+                               )
                                AND EXISTS (
                                    SELECT 1 FROM agent_inbox_materializations receipt
                                    WHERE receipt.inbox_id=agent_inbox.id
@@ -277,7 +321,11 @@ impl AgentInboxStore {
                             .prepare(
                                 "UPDATE agent_inbox
                              SET read_at=?1
-                             WHERE id=?2 AND read_at IS NULL",
+                             WHERE id=?2 AND read_at IS NULL
+                               AND NOT EXISTS (
+                                   SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                                   WHERE resolution.inbox_id=agent_inbox.id
+                               )",
                             )
                             .map_err(|err| err.to_string())?;
                         for id in ids {

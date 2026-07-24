@@ -37,9 +37,9 @@ mod tests;
 
 pub use budget::clear_rewake_budget;
 pub use budget::init_schema;
+pub(crate) use budget::member_rewake_fingerprint;
 #[cfg(test)]
 pub use budget::test_only_mark_failed_rewake_attempt;
-pub(crate) use budget::member_rewake_fingerprint;
 pub use inspect::inspect_stalled_run;
 pub use plan::{MemberContinuationAction, MemberTaskAssignmentAction, StallRecoveryPlan};
 pub use recover::{recover_stalled_run, spawn};
@@ -48,7 +48,7 @@ pub(crate) use reservation::{
     reserve_member_rewake_dispatch, MemberRewakeReservationOutcome,
 };
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::time::Duration;
 
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
@@ -61,8 +61,9 @@ use crate::coordination::agent_inbox::{
 };
 use crate::coordination::agent_org_plan_approvals::AgentOrgPlanApprovalStore;
 use crate::coordination::agent_org_runs::{
-    AgentOrgFinalityBlocker, AgentOrgFinalityDecision, AgentOrgRunRecord, AgentOrgRunStatus,
-    AgentOrgRunStore, COORDINATOR_MEMBER_ID,
+    recovery_dispatch_recipient_is_available, AgentOrgFinalityBlocker, AgentOrgFinalityDecision,
+    AgentOrgRunRecord, AgentOrgRunStatus, AgentOrgRunStore, WorkerSessionRuntime,
+    COORDINATOR_MEMBER_ID,
 };
 use crate::coordination::agent_org_tasks::{self, Task, TaskStatus};
 use crate::core::session::SessionStatus;
@@ -71,6 +72,7 @@ use crate::tools::impls::orchestration::org_send_message::InboxWakeHook;
 
 const WATCHDOG_INTERVAL_SECS: u64 = 60;
 const RECOVERY_DELAYS_SECS: [i64; 3] = [60, 5 * 60, 15 * 60];
+const PENDING_MATERIALIZATION_GRACE_SECS: i64 = 2 * 60;
 const MEMBER_REWAKE: &str = "member_rewake";
 const COORDINATOR_NOTICE: &str = "coordinator_notice";
 

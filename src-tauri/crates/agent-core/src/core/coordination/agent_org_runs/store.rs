@@ -11,8 +11,8 @@ use database::db::{get_connection, with_sessions_writer};
 
 use super::finality::load_and_assess;
 use super::helpers::{
-    context_for_run_record, insert_run, load_by_id, load_by_root_session, parent_session_id_of,
-    row_to_run, validate_entry_mode, validate_status,
+    context_for_run_record, flatten_members, insert_run, load_by_id, load_by_root_session,
+    parent_session_id_of, row_to_run, validate_entry_mode, validate_status,
 };
 use super::progress::{
     ensure_progress_in_conn, load_progress_with_conn, mark_coordinator_observed_revision_with_conn,
@@ -659,17 +659,12 @@ impl AgentOrgRunStore {
                         .map_err(|err| err.to_string())?
                 };
 
+                // A session tree can contain another Agent Org run. Intent rows
+                // therefore carry explicit run ownership: deleting this run must
+                // remove all of its direct and wake/resume turns without touching
+                // a nested run merely because its root is a session descendant.
                 tx.execute(
-                    "WITH RECURSIVE org_sessions(session_id) AS (
-                         SELECT root_session_id FROM agent_org_runs WHERE id=?1
-                         UNION ALL
-                         SELECT session.session_id
-                         FROM agent_sessions session
-                         JOIN org_sessions parent
-                           ON session.parent_session_id=parent.session_id
-                     )
-                     DELETE FROM session_turn_intents
-                     WHERE session_id IN (SELECT session_id FROM org_sessions)",
+                    "DELETE FROM session_turn_intents WHERE org_run_id=?1",
                     params![run_id],
                 )
                 .map_err(|err| err.to_string())?;
@@ -690,9 +685,11 @@ impl AgentOrgRunStore {
                     "agent_org_recovery_attempts",
                     "agent_org_task_events",
                     "agent_org_tasks",
+                    "agent_inbox_delivery_resolutions",
                     "agent_inbox",
                     "agent_member_interventions",
                     "agent_org_run_progress",
+                    "agent_org_task_run_schema_migrations",
                 ] {
                     tx.execute(
                         &format!("DELETE FROM {table} WHERE org_run_id=?1"),
@@ -829,6 +826,40 @@ impl AgentOrgRunStore {
             .collect())
     }
 
+    /// Canonical member ids captured in the immutable launch snapshot.
+    ///
+    /// Recovery must not consult the user's current Agent Org definition: a
+    /// team can be edited while an older run is still alive. `None` is kept
+    /// for historical rows that predate launch snapshots; callers may still
+    /// classify a materialized session, but must not invent roster membership.
+    pub(crate) fn snapshot_member_ids_with_connection(
+        conn: &Connection,
+        org_run_id: &str,
+    ) -> Result<Option<HashSet<String>>, String> {
+        let snapshot_json: Option<String> = conn
+            .query_row(
+                "SELECT org_snapshot_json FROM agent_org_runs WHERE id=?1",
+                params![org_run_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|err| err.to_string())?
+            .flatten();
+        let Some(snapshot_json) = snapshot_json else {
+            return Ok(None);
+        };
+        let snapshot: crate::definitions::orgs::OrgDefinition =
+            serde_json::from_str(&snapshot_json).map_err(|err| {
+                format!("failed to parse Agent Org launch snapshot for run {org_run_id}: {err}")
+            })?;
+        Ok(Some(
+            flatten_members(&snapshot.children, None)
+                .into_iter()
+                .map(|member| member.member_id)
+                .collect(),
+        ))
+    }
+
     pub fn list_descendant_worker_sessions(
         org_run_id: &str,
     ) -> Result<Vec<WorkerSessionRuntime>, String> {
@@ -864,10 +895,20 @@ impl AgentOrgRunStore {
                      SELECT session_id
                      FROM agent_sessions child
                      WHERE child.parent_session_id = ?1
+                       AND NOT EXISTS (
+                           SELECT 1 FROM agent_org_runs nested
+                           WHERE nested.id <> ?2
+                             AND nested.root_session_id = child.session_id
+                       )
                      UNION
                      SELECT s.session_id
                      FROM agent_sessions s
                      JOIN descendants d ON s.parent_session_id = d.session_id
+                     WHERE NOT EXISTS (
+                         SELECT 1 FROM agent_org_runs nested
+                         WHERE nested.id <> ?2
+                           AND nested.root_session_id = s.session_id
+                     )
                  ), ranked AS (
                      SELECT s.agent_definition_id,
                             s.org_member_id,
@@ -894,7 +935,7 @@ impl AgentOrgRunStore {
             .map_err(|err| err.to_string())?;
 
         let rows = stmt
-            .query_map(params![root.clone()], |row| {
+            .query_map(params![root.clone(), org_run_id], |row| {
                 let status_raw: String = row.get(3)?;
                 let status =
                     crate::core::session::SessionStatus::parse(&status_raw).ok_or_else(|| {
