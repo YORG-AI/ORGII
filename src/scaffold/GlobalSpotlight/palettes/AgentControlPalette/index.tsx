@@ -1,6 +1,6 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { DraftingCompass } from "lucide-react";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 
 import { sendAdeActionResult } from "@src/api/tauri/agent";
 import { DISPATCH_CATEGORY } from "@src/api/tauri/session";
@@ -14,6 +14,10 @@ import { PaletteBody, SpotlightShell } from "../../shell";
 import { AgentControlInputTrailing } from "./AgentControlInputTrailing";
 import { AgentControlStatus } from "./AgentControlStatus";
 import { AgentControlToolbar } from "./AgentControlToolbar";
+import {
+  CountdownScheduler,
+  getCountdownRemaining,
+} from "./countdownScheduler";
 import { useAgentControlPalette } from "./useAgentControlPalette";
 
 export type { AdeManagerSubmitDetail } from "./types";
@@ -28,20 +32,15 @@ const TOTAL_MS = 5 * 60 * 1000;
 
 function useCountdown(expiresAt: number) {
   const [remaining, setRemaining] = useState(() =>
-    Math.max(0, expiresAt - Date.now())
+    getCountdownRemaining(expiresAt)
   );
-  const rafRef = useRef<number | null>(null);
+
   useEffect(() => {
-    const tick = () => {
-      const left = Math.max(0, expiresAt - Date.now());
-      setRemaining(left);
-      if (left > 0) rafRef.current = requestAnimationFrame(tick);
-    };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => {
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-    };
+    const scheduler = new CountdownScheduler(expiresAt, setRemaining);
+    scheduler.start();
+    return () => scheduler.stop();
   }, [expiresAt]);
+
   const seconds = Math.ceil(remaining / 1000);
   const pct = remaining / TOTAL_MS;
   const mins = Math.floor(seconds / 60);
