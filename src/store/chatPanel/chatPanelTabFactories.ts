@@ -30,6 +30,8 @@ export const DEFAULT_LAUNCHPAD_TAB_ID = "launchpad-default";
 export const WORK_MANAGEMENT_TAB_ID_PREFIX = "chat-work-management";
 /** Fixed id of the singleton Runtime tab. */
 export const RUNTIME_TAB_ID = "chat-runtime";
+/** Fixed id of the singleton Team Inbox tab. */
+export const TEAM_INBOX_TAB_ID = "chat-team-inbox";
 
 // ---------------------------------------------------------------------------
 // start-page (Launchpad)
@@ -79,6 +81,18 @@ export const createRuntimeTab = defineChatPanelTabFactory<{ title?: string }>({
   idStrategy: { type: "fixed", id: RUNTIME_TAB_ID },
   getTitle: (data) => data.title ?? "Runtime",
 });
+
+// ---------------------------------------------------------------------------
+// team-inbox — singleton
+// ---------------------------------------------------------------------------
+
+export const createTeamInboxTab = defineChatPanelTabFactory<{ title?: string }>(
+  {
+    tabType: "team-inbox",
+    idStrategy: { type: "fixed", id: TEAM_INBOX_TAB_ID },
+    getTitle: (data) => data.title ?? "Team Inbox",
+  }
+);
 
 // ---------------------------------------------------------------------------
 // workspace (overview) — one pill per workspace, deduped by openers

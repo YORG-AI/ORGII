@@ -1037,6 +1037,101 @@
     "markAllAsRead": "Mark all as read",
     "scrollToUnread": "Go to unread"
   },
+  "teamInbox": {
+    "title": "Team Inbox",
+    "listLabel": "Team Inbox list",
+    "itemsLabel": "Team Inbox items",
+    "unreadCount": "{{count}} unread",
+    "allRead": "All caught up",
+    "loadMore": "Load more",
+    "filters": {
+      "all": "All",
+      "mentions": "Mentions",
+      "assigned": "Assigned"
+    },
+    "status": {
+      "read": "Read",
+      "unread": "Unread"
+    },
+    "row": {
+      "assignedSummary": "{{status}} · {{priority}}"
+    },
+    "search": {
+      "placeholder": "Search inbox",
+      "ariaLabel": "Search Team Inbox"
+    },
+    "groups": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "thisWeek": "This week",
+      "earlier": "Earlier"
+    },
+    "empty": {
+      "title": "Nothing here yet",
+      "subtitle": "Mentions and assigned work items will appear here.",
+      "selectTitle": "Select an item",
+      "selectSubtitle": "View its comment context or work item details.",
+      "mentions": {
+        "title": "No mentions",
+        "subtitle": "When a teammate @mentions you in a comment, it shows up here."
+      },
+      "assigned": {
+        "title": "Nothing assigned to you",
+        "subtitle": "Work items assigned to you will appear here."
+      },
+      "noResults": {
+        "title": "No matches",
+        "subtitle": "No items match “{{query}}”."
+      }
+    },
+    "loading": "Loading Team Inbox…",
+    "loadMore": "Load more",
+    "errors": {
+      "loadTitle": "Unable to load Team Inbox",
+      "load": "Unable to load Team Inbox",
+      "refresh": "Unable to refresh Team Inbox",
+      "markRead": "Unable to mark this item as read. Try again.",
+      "markUnread": "Unable to mark this item as unread. Try again.",
+      "markAllRead": "Unable to mark all items as read. Try again."
+    },
+    "detail": {
+      "assignedSubtitle": "Assigned work item",
+      "mentionSubtitle": "Mentioned in a comment",
+      "mentionedYou": "mentioned you"
+    },
+    "actions": {
+      "markRead": "Mark as read",
+      "markUnread": "Mark as unread",
+      "openWorkItem": "Open work item",
+      "openSession": "Open session"
+    },
+    "fields": {
+      "status": "Status",
+      "priority": "Priority",
+      "assignee": "Assignee",
+      "workItemId": "Work item ID",
+      "session": "Session",
+      "comments": "Comments",
+      "threadId": "Thread ID",
+      "commentId": "Comment ID"
+    },
+    "workItemStatus": {
+      "backlog": "Backlog",
+      "todo": "To do",
+      "in_progress": "In Progress",
+      "in_review": "In Review",
+      "blocked": "Blocked",
+      "done": "Done",
+      "cancelled": "Cancelled"
+    },
+    "priority": {
+      "none": "No priority",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "urgent": "Urgent"
+    }
+  },
   "placeholderTypes": {
     "mcpServer": "MCP server",
     "connection": "connection",
