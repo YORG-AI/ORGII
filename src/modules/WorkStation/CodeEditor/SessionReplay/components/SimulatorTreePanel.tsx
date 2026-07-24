@@ -14,6 +14,7 @@ import {
 } from "@src/components/VirtualizedStickyTree";
 import { AGENT_DOT_TOKENS } from "@src/engines/Simulator/config";
 
+import { usePrimarySidebarSurface } from "../../../shared/hooks/usePrimarySidebarSurface";
 import {
   type FileTreeInput,
   type SimulatorTreeNode,
@@ -39,6 +40,7 @@ const SimulatorTreePanel: React.FC<SimulatorTreePanelProps> = ({
   emptyMessage,
   viewMode,
 }) => {
+  const { stickyBgClass } = usePrimarySidebarSurface();
   const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(new Set());
 
   const treeItems = useMemo((): FileTreeInput[] => {
@@ -90,11 +92,6 @@ const SimulatorTreePanel: React.FC<SimulatorTreePanelProps> = ({
           showIndentGuides={false}
           showPathHint={false}
         >
-          {item.node.secondaryInfo && item.node.type === "file" && (
-            <span className="flex-shrink-0 text-[11px] text-text-3">
-              {item.node.secondaryInfo}
-            </span>
-          )}
           {item.node.statusLabel && (
             <div
               className={`flex h-5 w-5 flex-shrink-0 items-center justify-center text-[11px] font-bold ${item.node.statusColorClass || "text-text-2"}`}
@@ -137,6 +134,7 @@ const SimulatorTreePanel: React.FC<SimulatorTreePanelProps> = ({
           rowHeight={TREE_ROW_HEIGHT}
           renderItem={renderItem}
           renderStickyItem={renderStickyItem}
+          stickyBgClass={stickyBgClass}
           emptyMessage={emptyMessage}
         />
       </div>
