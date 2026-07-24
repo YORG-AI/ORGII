@@ -18,8 +18,14 @@ import type {
 } from "@src/types/session/steps";
 import { decodeOctalPath } from "@src/util/file/pathUtils";
 import { computeSuggestedAction } from "@src/util/git/computeSuggestedAction";
+import { invalidateFileIndexCache } from "@src/util/platform/tauri/fileSearch";
 
 import type { GitStatusRefs } from "../types";
+import {
+  createFileIndexInvalidationScheduler,
+  fileChangeInvalidatesPathIndex,
+  repoChangeInvalidatesPathIndex,
+} from "./fileIndexInvalidation";
 
 const log = createLogger("GitStatusContext");
 
@@ -38,6 +44,7 @@ interface UseGitEventListenersOptions {
     details: string;
     timestamp: number;
   }) => void;
+  resolveRepoPath: (repoId: string) => string | undefined;
 }
 
 export function useGitEventListeners({
@@ -48,6 +55,7 @@ export function useGitEventListeners({
   setGitStatusAtom,
   setGitSuggestedActionAtom,
   setGitOperation,
+  resolveRepoPath,
 }: UseGitEventListenersOptions): void {
   const { currentRepoIdRef, gitStatusRef } = refs;
 
@@ -60,6 +68,7 @@ export function useGitEventListeners({
   const setGitStatusAtomRef = useRef(setGitStatusAtom);
   const setGitSuggestedActionAtomRef = useRef(setGitSuggestedActionAtom);
   const setGitOperationRef = useRef(setGitOperation);
+  const resolveRepoPathRef = useRef(resolveRepoPath);
   useEffect(() => {
     setGitStatusRef.current = setGitStatus;
   }, [setGitStatus]);
@@ -75,11 +84,20 @@ export function useGitEventListeners({
   useEffect(() => {
     setGitOperationRef.current = setGitOperation;
   }, [setGitOperation]);
+  useEffect(() => {
+    resolveRepoPathRef.current = resolveRepoPath;
+  }, [resolveRepoPath]);
 
   useEffect(() => {
     if (!selectedRepoId) return;
 
     const cleanupFns: (() => void)[] = [];
+    const fileIndexInvalidation = createFileIndexInvalidationScheduler(
+      invalidateFileIndexCache,
+      250,
+      (error) =>
+        log.warn("[GitStatusContext] File index invalidation failed:", error)
+    );
 
     const setupListeners = () => {
       try {
@@ -209,9 +227,44 @@ export function useGitEventListeners({
         });
         cleanupFns.push(unsubscribeStatus);
 
-        // Listen to file:changed for file changes
-        const unsubscribeChanged = ws.on("file:changed", (_data) => {
-          // Status will arrive via repo:status_updated event from debouncer
+        // The repository watcher emits this aggregate event for every real
+        // filesystem burst. It is the canonical path-index invalidation source.
+        const unsubscribeRepoChanged = ws.on("repo:changed", (data) => {
+          const event = data as {
+            repo_id?: string;
+            change_type?: string;
+          };
+          if (
+            !event.repo_id ||
+            !repoChangeInvalidatesPathIndex(event.change_type)
+          ) {
+            return;
+          }
+
+          const rootPath = resolveRepoPathRef.current(event.repo_id);
+          if (rootPath) fileIndexInvalidation.schedule(rootPath);
+        });
+        cleanupFns.push(unsubscribeRepoChanged);
+
+        // Retain compatibility with granular file events from future or
+        // alternate watcher producers.
+        const unsubscribeChanged = ws.on("file:changed", (data) => {
+          const event = data as {
+            repo_id?: string;
+            kind?: string;
+            files?: Array<{ kind?: string }>;
+          };
+          if (!event.repo_id) return;
+
+          const containsPathChange = event.files
+            ? event.files.some((file) =>
+                fileChangeInvalidatesPathIndex(file.kind)
+              )
+            : fileChangeInvalidatesPathIndex(event.kind);
+          if (!containsPathChange) return;
+
+          const rootPath = resolveRepoPathRef.current(event.repo_id);
+          if (rootPath) fileIndexInvalidation.schedule(rootPath);
         });
         cleanupFns.push(unsubscribeChanged);
 
@@ -247,6 +300,7 @@ export function useGitEventListeners({
     setupListeners();
 
     return () => {
+      fileIndexInvalidation.dispose();
       cleanupFns.forEach((fn) => fn());
     };
   }, [
