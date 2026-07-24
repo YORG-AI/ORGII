@@ -474,6 +474,7 @@ export function useOrg2CloudRealtime(): void {
 
     const unsubscribes: Array<() => void> = [];
     const orgId = activeRealtimeOrgId;
+    const orgTeardownAt = orgTeardownAtRef.current;
     if (!broadcastSignals) {
       unsubscribes.push(
         connection.subscribe({
@@ -519,7 +520,7 @@ export function useOrg2CloudRealtime(): void {
 
     return () => {
       for (const unsub of unsubscribes) unsub();
-      orgTeardownAtRef.current.set(orgId, Date.now());
+      orgTeardownAt.set(orgId, Date.now());
       setRosterRealtimeConnected((current) => {
         if (!(orgId in current)) return current;
         const next = { ...current };

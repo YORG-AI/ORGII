@@ -13,6 +13,10 @@ export interface TeamInboxWorkItemBodyState {
   loading: boolean;
 }
 
+interface KeyedTeamInboxWorkItemBodyState extends TeamInboxWorkItemBodyState {
+  requestKey: string;
+}
+
 /**
  * Lazily loads the full Work Item body for the selected assigned inbox item so
  * the detail preview can render the real content instead of the short list
@@ -24,14 +28,15 @@ export function useTeamInboxWorkItemBody(
   target: WorkItemTarget
 ): TeamInboxWorkItemBodyState {
   const { projectId, workItemId } = target;
-  const [state, setState] = useState<TeamInboxWorkItemBodyState>({
+  const requestKey = `${projectId ?? "standalone"}:${workItemId}`;
+  const [state, setState] = useState<KeyedTeamInboxWorkItemBodyState>({
+    requestKey,
     body: null,
     loading: true,
   });
 
   useEffect(() => {
     let cancelled = false;
-    setState({ body: null, loading: true });
 
     const request = projectId
       ? projectApi.readWorkItem(projectId, workItemId)
@@ -41,18 +46,25 @@ export function useTeamInboxWorkItemBody(
       .then((workItem) => {
         if (cancelled) return;
         const body = workItem.body.trim();
-        setState({ body: body.length > 0 ? body : null, loading: false });
+        setState({
+          requestKey,
+          body: body.length > 0 ? body : null,
+          loading: false,
+        });
       })
       .catch((error: unknown) => {
         if (cancelled) return;
         log.warn("Failed to load Team Inbox Work Item body", error);
-        setState({ body: null, loading: false });
+        setState({ requestKey, body: null, loading: false });
       });
 
     return () => {
       cancelled = true;
     };
-  }, [projectId, workItemId]);
+  }, [projectId, requestKey, workItemId]);
 
-  return state;
+  if (state.requestKey !== requestKey) {
+    return { body: null, loading: true };
+  }
+  return { body: state.body, loading: state.loading };
 }

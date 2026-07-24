@@ -33,6 +33,7 @@ export interface TeamInboxListProps {
   selectedItemId: string | null;
   totalUnread: number;
   unreadCounts: TeamInboxUnreadCounts;
+  groupingReferenceTime: number;
   query: string;
   loading: boolean;
   onQueryChange: (query: string) => void;
@@ -63,6 +64,7 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
   selectedItemId,
   totalUnread,
   unreadCounts,
+  groupingReferenceTime,
   query,
   loading,
   onQueryChange,
@@ -83,8 +85,8 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
     [items, selectedItemId]
   );
   const groups = useMemo(
-    () => groupTeamInboxItemsByRecency(items, Date.now()),
-    [items]
+    () => groupTeamInboxItemsByRecency(items, groupingReferenceTime),
+    [groupingReferenceTime, items]
   );
   const activeFilterUnread = unreadCounts[filter];
   const filterTabs = useMemo<TabPillItem[]>(
