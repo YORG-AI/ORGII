@@ -42,6 +42,7 @@ import {
   type RoutinesDetailState,
 } from "./Routines/RoutinesCategoryView";
 import { RulesMemoryEvolutionCategoryView } from "./RulesMemoryEvolution/RulesMemoryEvolutionCategoryView";
+import SessionMemoryEmbeddingPanel from "./RulesMemoryEvolution/Memory/SessionMemoryEmbeddingPanel";
 import type { RulesMemoryEvolutionDetailState } from "./RulesMemoryEvolution/types";
 import type { SkillEditorState, SkillsHubDetailState } from "./Skills/types";
 import type { CategoryTableContentProps } from "./Tables";
@@ -260,6 +261,19 @@ const IntegrationsDetailPanel: React.FC<IntegrationsDetailPanelProps> = ({
           onBack={onExitFullPage}
           onExpand={onExpand}
         />
+      );
+
+    case "sessionMemoryEmbedding":
+      return (
+        <DetailPanelContainer>
+          <ScrollFadeContainer
+            className={`scroll-fade-at-top ${DETAIL_PANEL_TOKENS.scrollContentNoTop}`}
+          >
+            <div className={DETAIL_PANEL_TOKENS.contentWidthWithPaddingNoTop}>
+              <SessionMemoryEmbeddingPanel />
+            </div>
+          </ScrollFadeContainer>
+        </DetailPanelContainer>
       );
 
     case "routines":

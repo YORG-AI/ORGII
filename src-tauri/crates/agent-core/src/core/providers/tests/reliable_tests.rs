@@ -388,6 +388,20 @@ fn error_kind_classifies_known_variants() {
     );
 }
 
+#[test]
+fn deterministic_http_4xx_skip_retries_but_transient_ones_do_not() {
+    for status in [400, 401, 403, 404, 422] {
+        assert!(ReliableProvider::is_non_retryable(
+            &ProviderError::RequestFailed(format!("HTTP status {status}: rejected"))
+        ));
+    }
+    for status in [408, 409, 429] {
+        assert!(!ReliableProvider::is_non_retryable(
+            &ProviderError::RequestFailed(format!("HTTP status {status}: transient"))
+        ));
+    }
+}
+
 #[tokio::test]
 async fn auth_error_skips_retries() {
     let stub = FailNProvider::new(100, |_| ProviderError::AuthError("bad key".into()));

@@ -51,6 +51,7 @@ export function buildIntegrationsDrillDownItems(
     case "tools":
     case "computerUse":
     case "myRoles":
+    case "sessionMemoryEmbedding":
       return [];
     case "externalSkillsets": {
       const kind = extensionKindForSkillsetTab(
@@ -133,6 +134,7 @@ export function getIntegrationsDrillDownSelectedId(
     case "tools":
     case "computerUse":
     case "myRoles":
+    case "sessionMemoryEmbedding":
       return null;
     case "externalSkillsets": {
       const kind = extensionKindForSkillsetTab(
@@ -180,6 +182,7 @@ export function getIntegrationsDrillDownLoading(
     case "tools":
     case "computerUse":
     case "myRoles":
+    case "sessionMemoryEmbedding":
       return false;
     case "externalSkillsets": {
       const kind = extensionKindForSkillsetTab(

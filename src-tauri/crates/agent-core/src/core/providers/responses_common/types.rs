@@ -125,9 +125,18 @@ pub struct ResponsesInputTokensDetails {
 }
 
 /// Error from the Responses API.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct ResponsesError {
+    #[serde(default)]
     pub message: Option<String>,
+    #[serde(default)]
+    pub code: Option<Value>,
+    #[serde(default, rename = "type")]
+    pub error_type: Option<String>,
+    #[serde(default)]
+    pub status: Option<u16>,
+    #[serde(default)]
+    pub body: Option<Value>,
 }
 
 // ============================================

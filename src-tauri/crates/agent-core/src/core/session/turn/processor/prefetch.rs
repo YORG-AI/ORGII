@@ -322,8 +322,8 @@ impl UnifiedMessageProcessor {
                 return None;
             }
         };
-        let provider = match self.side_query_provider(session_id, "skill-prefetch").await {
-            Ok(provider) => provider,
+        let (provider, model) = match self.side_query_provider(session_id, "skill-prefetch").await {
+            Ok(route) => route,
             Err(err) => {
                 warn!(
                     session_id = %session_id,
@@ -336,7 +336,6 @@ impl UnifiedMessageProcessor {
 
         let user_message = content.to_string();
         let skills_root = workspace_root.join(".orgii");
-        let model = self.runtime.model.clone();
         let disabled_skills = self.runtime.resolved.skills.disabled.clone();
         let source_dirs = self.runtime.resolved.skills.source_dirs.clone();
         let agent_id = self
@@ -369,11 +368,11 @@ impl UnifiedMessageProcessor {
         history: &[Value],
     ) -> Option<JoinHandle<MemoryPrefetchOutput>> {
         let workspace_root = self.workspace_root()?;
-        let provider = match self
+        let (provider, side_query_model) = match self
             .side_query_provider(session_id, "memory-prefetch")
             .await
         {
-            Ok(provider) => provider,
+            Ok(route) => route,
             Err(err) => {
                 warn!(
                     session_id = %session_id,
@@ -406,7 +405,7 @@ impl UnifiedMessageProcessor {
         let byte_budget = crate::memory::workspace_memory::prefetch::MAX_MEMORY_INJECTION_BYTES
             .min(remaining_session_budget);
         let user_message = content.to_string();
-        let model = self.runtime.model.clone();
+        let model = side_query_model;
 
         Some(tokio::spawn(async move {
             let memories = crate::memory::workspace_memory::prefetch::select_memories(

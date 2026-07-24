@@ -1,4 +1,63 @@
 {
+  "sessionMemoryEmbedding": {
+    "title": "Session Memory Embeddings",
+    "description": "Configure semantic retrieval for session memory",
+    "autoRun": "Runs automatically after eligible session updates.",
+    "providers": {
+      "disabled": "Disabled",
+      "localQwen": "Local Qwen (OpenAI-compatible)",
+      "localCodeRank": "Local CodeRank",
+      "embeddingApi": "Embedding API (Key Vault)"
+    },
+    "provider": {
+      "label": "Provider",
+      "description": "Choose how session-memory vectors are generated."
+    },
+    "model": {
+      "label": "Model",
+      "description": "Model identifier; leave empty to use the provider default.",
+      "placeholder": "text-embedding-3-small"
+    },
+    "localBaseUrl": {
+      "label": "Local Base URL",
+      "description": "OpenAI-compatible endpoint used by local Qwen."
+    },
+    "dimensions": {
+      "label": "Dimensions",
+      "description": "Expected vector size; leave empty to accept the provider default."
+    },
+    "minTokenDelta": {
+      "label": "Minimum Token Delta",
+      "description": "Minimum new tokens before a session is embedded again."
+    },
+    "minIntervalSecs": {
+      "label": "Minimum Interval (seconds)",
+      "description": "Minimum time between embeddings for one session."
+    },
+    "requestTimeoutSecs": {
+      "label": "Request Timeout (seconds)",
+      "description": "Maximum wait for a local or remote embedding request."
+    },
+    "maxInputChars": {
+      "label": "Maximum Input Characters",
+      "description": "Input is truncated to this limit for each session embedding."
+    },
+    "fingerprint": {
+      "label": "Vector Fingerprint",
+      "description": "Provider, model, and dimensions identify compatible vectors."
+    },
+    "credential": {
+      "label": "Key Vault Credential",
+      "description": "An enabled, verified embedding_api key is required for the Embedding API provider.",
+      "verified": "Verified: {{name}}",
+      "missing": "No verified ZenMux credential",
+      "add": "Add credential"
+    },
+    "reembed": {
+      "title": "Re-embedding needed",
+      "description": "Existing session vectors use the previous fingerprint. They will be re-embedded as eligible sessions update."
+    }
+  },
   "scopeLabels": {
     "user": "User",
     "repoSpecific": "Repo-specific",
@@ -494,6 +553,11 @@
     "refreshModels": {
       "button": "Refresh models",
       "failed": "Refresh models failed: {{error}}"
+    },
+    "sideQueryModel": {
+      "label": "Side-query model",
+      "placeholder": "Select an enabled model",
+      "description": "Used by compaction and memory extraction. The model is validated against this exact key; no cross-provider fallback."
     }
   },
   "integrations": {
@@ -1059,6 +1123,7 @@
     "connections": "Connections",
     "skills": "Skills",
     "rulesMemoryEvolution": "Rules, Memory & Evolution",
+    "sessionMemoryEmbedding": "Session Memory Embedding",
     "routines": "Routines",
     "databases": "Databases",
     "devtools": "Dev Tools",

@@ -11,6 +11,7 @@ import {
   AppWindow,
   BadgeCent,
   Braces,
+  BrainCircuit,
   CalendarArrowUp,
   ChartNoAxesGantt,
   ClipboardList,
@@ -112,6 +113,14 @@ export const SEGMENT_REGISTRY: Record<string, SegmentRegistryEntry> = {
   "rules-memory-and-evolution": {
     labelKey: "integrations:categories.rulesMemoryEvolution",
     icon: RulerDimensionLine,
+  },
+  sessionMemoryEmbedding: {
+    labelKey: "integrations:categories.sessionMemoryEmbedding",
+    icon: BrainCircuit,
+  },
+  "session-memory-embedding": {
+    labelKey: "integrations:categories.sessionMemoryEmbedding",
+    icon: BrainCircuit,
   },
   routines: {
     labelKey: "integrations:categories.routines",

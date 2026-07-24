@@ -30,6 +30,7 @@ export function getHasIntegrationsFullPageDetail(
     case "computerUse":
     case "myRoles":
     case "housekeeper":
+    case "sessionMemoryEmbedding":
       return false;
     case "externalSkillsets":
       return (

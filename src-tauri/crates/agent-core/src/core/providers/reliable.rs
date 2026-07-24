@@ -75,6 +75,15 @@ pub struct ReliableProvider {
     session_id: Mutex<Option<String>>,
 }
 
+fn extract_http_status(message: &str) -> Option<u16> {
+    ["http status ", "http ", "status="]
+        .iter()
+        .find_map(|marker| {
+            let tail = message.split(marker).nth(1)?;
+            tail.get(..3)?.parse::<u16>().ok()
+        })
+}
+
 impl ReliableProvider {
     /// Return provider labels in the order this wrapper would try them.
     pub fn provider_chain_names(&self) -> Vec<String> {
@@ -224,6 +233,11 @@ impl ReliableProvider {
                     || lower.contains("connection refused")
                     || lower.contains("dns error")
                     || lower.contains("no such host")
+                    // Deterministic client errors must fail fast. 408, 409,
+                    // and 429 are explicitly transient/retryable.
+                    || extract_http_status(&lower).is_some_and(|status| {
+                        (400..500).contains(&status) && !matches!(status, 408 | 409 | 429)
+                    })
                     || (lower.contains("http 400")
                         && (lower.contains("model is not supported")
                             || lower.contains("model_not_found")

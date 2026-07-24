@@ -183,6 +183,21 @@ export const INTEGRATIONS: NavDestination[] = [
     }
   ),
   dest(
+    "nav-int-session-memory-embedding",
+    buildIntegrationsPath({ category: "sessionMemoryEmbedding" }),
+    "integrations",
+    {
+      labelKey: "integrations:categories.sessionMemoryEmbedding",
+      keywords: [
+        "session memory",
+        "embedding",
+        "embeddings",
+        "memory vector",
+        "vector search",
+      ],
+    }
+  ),
+  dest(
     "nav-int-routines",
     buildIntegrationsPath({ category: "routines" }),
     "integrations",

@@ -11,6 +11,12 @@
 - **Agentic Orgs** — define agent roles, rules, skills, and MCP servers to compose multi-agent workflows.
 - **Bring your own keys** — connect existing keys & subscriptions for Codex, Claude Code, Deepseek, Cursor, Gemini, GitHub Copilot, Kiro, Kimi, and many more.
 
+## Our features
+
+| Feature                   | Status                                                                                                                                                                                                      |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Session Memory Embeddings | Configurable in **Integrations → Rules, Memory & Evolution → Memory**; runs automatically after eligible session updates. Choose disabled, local Qwen, local CodeRank, or a Key Vault-backed Embedding API. |
+
 ## Quick navigation
 
 | Topic                 | Page                                           |

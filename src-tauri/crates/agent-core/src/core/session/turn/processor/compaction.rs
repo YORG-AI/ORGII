@@ -85,6 +85,19 @@ pub(super) enum CompactionPhaseOutcome {
 }
 
 impl UnifiedMessageProcessor {
+    async fn compaction_side_query_route(
+        &self,
+        session_id: &str,
+    ) -> Result<
+        (
+            std::sync::Arc<dyn crate::providers::traits::LLMProvider>,
+            String,
+        ),
+        String,
+    > {
+        self.side_query_provider(session_id, "compaction").await
+    }
+
     /// Reactive (mid-turn) compaction used by the ContextTooLong retry
     /// path. Mirrors the pre-turn pipeline — runtime system prefix is
     /// protected, SM-compact is tried first (zero API calls), the LLM
@@ -169,6 +182,14 @@ impl UnifiedMessageProcessor {
             sm_compacted.is_some(),
         );
 
+        let (compaction_provider, compaction_model) =
+            match self.compaction_side_query_route(session_id).await {
+                Ok(route) => route,
+                Err(err) => {
+                    warn!("[unified_processor] {err}");
+                    return CompactionOutcome::Skipped;
+                }
+            };
         let outcome;
         if let Some(compacted) = sm_compacted {
             let cleaned_tail = crate::model_context::cleanup::post_compact_cleanup(compacted);
@@ -185,8 +206,8 @@ impl UnifiedMessageProcessor {
                     budget_tokens,
                     &self.runtime.resolved.compaction,
                     &mut state,
-                    self.runtime.provider.as_ref(),
-                    &self.runtime.model,
+                    compaction_provider.as_ref(),
+                    &compaction_model,
                 )
                 .await;
                 let cleaned = crate::model_context::cleanup::post_compact_cleanup(compacted);
@@ -212,8 +233,8 @@ impl UnifiedMessageProcessor {
                 budget_tokens,
                 &self.runtime.resolved.compaction,
                 &mut state,
-                self.runtime.provider.as_ref(),
-                &self.runtime.model,
+                compaction_provider.as_ref(),
+                &compaction_model,
             )
             .await;
             let cleaned = crate::model_context::cleanup::post_compact_cleanup(compacted);
@@ -408,14 +429,22 @@ impl UnifiedMessageProcessor {
         }
 
         if need_llm_compact {
+            let (compaction_provider, compaction_model) =
+                match self.compaction_side_query_route(session_id).await {
+                    Ok(route) => route,
+                    Err(err) => {
+                        warn!("[unified_processor] {err}");
+                        return CompactionPhaseOutcome::Continue;
+                    }
+                };
             let mut state = self.compaction_state.lock().await;
             let (compacted, outcome) = ContextCompactor::compact(
                 &compactable_tail,
                 budget_tokens,
                 &self.runtime.resolved.compaction,
                 &mut state,
-                self.runtime.provider.as_ref(),
-                &self.runtime.model,
+                compaction_provider.as_ref(),
+                &compaction_model,
             )
             .await;
             let cleaned_tail = crate::model_context::cleanup::post_compact_cleanup(compacted);

@@ -292,7 +292,7 @@ pub struct EmbeddingConfig {
 }
 
 fn default_embedding_provider() -> String {
-    "disabled".to_string()
+    "embedding_api".to_string()
 }
 fn default_embedding_min_token_delta() -> usize {
     5_000

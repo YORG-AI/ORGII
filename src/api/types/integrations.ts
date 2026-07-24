@@ -15,6 +15,7 @@ export const CATEGORY_KEYS = [
   "computerUse",
   "externalSkillsets",
   "rulesMemoryEvolution",
+  "sessionMemoryEmbedding",
   "routines",
   "databases",
   "devtools",

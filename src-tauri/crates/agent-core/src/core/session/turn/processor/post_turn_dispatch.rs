@@ -90,7 +90,6 @@ impl UnifiedMessageProcessor {
         }
 
         let fork_provider = post_turn_jobs::ForkProviderSpec {
-            model: self.runtime.model.clone(),
             account_id: self.runtime.account_id.clone(),
             reliability: self.runtime.resolved.reliability.clone(),
             native_harness_type: self.runtime.native_harness_type,

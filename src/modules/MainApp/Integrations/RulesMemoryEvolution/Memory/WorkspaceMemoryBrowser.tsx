@@ -26,6 +26,7 @@ import {
 
 import MemoryContentViewer from "./MemoryContentViewer";
 import MemoryIndexPanel from "./MemoryIndexPanel";
+import SessionMemoryEmbeddingPanel from "./SessionMemoryEmbeddingPanel";
 import {
   MEMORY_SORT_NAME,
   MEMORY_SORT_NEWEST,
@@ -375,6 +376,7 @@ const WorkspaceMemoryBrowser: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-3">
+      <SessionMemoryEmbeddingPanel />
       <div className="rounded-lg border border-border-2 bg-bg-2 p-3">
         <div className="mb-2 text-sm font-medium text-text-1">
           规则、记忆&进化 · 预设记忆

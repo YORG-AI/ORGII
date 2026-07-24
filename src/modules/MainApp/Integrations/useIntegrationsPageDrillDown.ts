@@ -152,6 +152,7 @@ export function useIntegrationsPageDrillDown(
       case "tools":
       case "computerUse":
       case "myRoles":
+      case "sessionMemoryEmbedding":
         return undefined;
       case "externalSkillsets": {
         if (externalSkillsetsTab === "mcp") {

@@ -258,6 +258,7 @@ export function useIntegrationsPage() {
           loading: accountsHook.loading,
         };
       case "myRoles":
+      case "sessionMemoryEmbedding":
         return {};
       case "databases":
         return {
@@ -345,6 +346,7 @@ export function useIntegrationsPage() {
         break;
       case "myRoles":
       case "housekeeper":
+      case "sessionMemoryEmbedding":
         break;
       case "connections":
       case "git":

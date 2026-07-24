@@ -237,6 +237,7 @@ export const KeyInfoSchema = z.object({
   account_metadata: z.record(z.string(), z.string()).optional().default({}),
   available_models: z.array(z.string()),
   enabled_models: z.array(z.string()),
+  side_query_model: z.string().nullable().optional(),
   model_aliases: z.array(ModelAliasInfoSchema).optional(),
   model_variants: z.array(ModelVariantInfoSchema).optional(),
   default_variants: z.array(DefaultVariantInfoSchema).optional(),
@@ -294,6 +295,7 @@ export const SaveKeyRequestSchema = z.object({
   account_metadata: z.record(z.string(), z.string()).optional(),
   available_models: z.array(z.string()).optional(),
   enabled_models: z.array(z.string()).optional(),
+  side_query_model: z.string().optional(),
   model_aliases: z.array(ModelAliasInfoSchema).optional(),
   model_variants: z.array(ModelVariantInfoSchema).optional(),
   default_variants: z.array(DefaultVariantInfoSchema).optional(),
@@ -535,6 +537,7 @@ export const UpdateKeyHealthInput = z.object({
   errorMessage: z.string().nullable().optional(),
   availableModels: z.array(z.string()).nullable().optional(),
   enabledModels: z.array(z.string()).nullable().optional(),
+  sideQueryModel: z.string().nullable().optional(),
   quotaInfo: z.record(z.string(), z.unknown()).nullable().optional(),
   modelContextLengths: ModelContextLengthsSchema.nullable().optional(),
 });

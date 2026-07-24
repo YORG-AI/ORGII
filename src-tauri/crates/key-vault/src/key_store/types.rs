@@ -443,6 +443,10 @@ pub struct ModelKey {
     pub last_validated_at: Option<DateTime<Utc>>,
     #[serde(default)]
     pub enabled_models: Vec<String>,
+    /// Explicit model used for side queries (compaction and memory extraction).
+    /// It must belong to this exact account's enabled/available model set.
+    #[serde(default)]
+    pub side_query_model: Option<String>,
     #[serde(default)]
     pub model_aliases: Vec<ModelAlias>,
     #[serde(default)]
@@ -537,6 +541,7 @@ impl ModelKey {
             last_validation_error: None,
             last_validated_at: None,
             enabled_models: Vec::new(),
+            side_query_model: None,
             model_aliases: Vec::new(),
             model_variants: Vec::new(),
             default_variants: Vec::new(),

@@ -13,6 +13,7 @@ export type IntegrationsCategorySegment =
   | "git"
   | "databases"
   | "rulesMemoryEvolution"
+  | "sessionMemoryEmbedding"
   | "routines"
   | "devtools";
 
@@ -27,6 +28,7 @@ export const INTEGRATIONS_CATEGORIES: readonly IntegrationsCategorySegment[] = [
   "git",
   "databases",
   "rulesMemoryEvolution",
+  "sessionMemoryEmbedding",
   "routines",
   "devtools",
 ] as const;
@@ -38,6 +40,7 @@ export const INTEGRATIONS_CATEGORIES: readonly IntegrationsCategorySegment[] = [
  * {@link fromCategoryUrlSegment} maps slugs back to keys.
  */
 export const RULES_MEMORY_EVOLUTION_URL_SEGMENT = "rules-memory-and-evolution";
+export const SESSION_MEMORY_EMBEDDING_URL_SEGMENT = "session-memory-embedding";
 
 /** Map an internal category key to the URL slug used in pathnames. */
 export function toCategoryUrlSegment(
@@ -45,6 +48,9 @@ export function toCategoryUrlSegment(
 ): string {
   if (category === "rulesMemoryEvolution") {
     return RULES_MEMORY_EVOLUTION_URL_SEGMENT;
+  }
+  if (category === "sessionMemoryEmbedding") {
+    return SESSION_MEMORY_EMBEDDING_URL_SEGMENT;
   }
   if (category === "externalSkillsets") {
     return EXTERNAL_SKILLSETS_URL_SEGMENT;
@@ -59,6 +65,9 @@ export function toCategoryUrlSegment(
 export function fromCategoryUrlSegment(segment: string): string {
   if (segment === RULES_MEMORY_EVOLUTION_URL_SEGMENT) {
     return "rulesMemoryEvolution";
+  }
+  if (segment === SESSION_MEMORY_EMBEDDING_URL_SEGMENT) {
+    return "sessionMemoryEmbedding";
   }
   if (segment === EXTERNAL_SKILLSETS_URL_SEGMENT) {
     return "externalSkillsets";

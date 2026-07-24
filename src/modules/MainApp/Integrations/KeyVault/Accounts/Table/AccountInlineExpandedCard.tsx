@@ -7,8 +7,10 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import { rpc } from "@src/api/tauri/rpc";
 import { CLI_AGENT } from "@src/api/types/keys";
 import InlineAlert from "@src/components/InlineAlert";
+import Select from "@src/components/Select";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
 
 import {
@@ -332,6 +334,22 @@ const AccountInlineExpandedCard: React.FC<AccountInlineExpandedCardProps> = ({
     });
   }, [account.enabledModels, account.id, availableModels]);
 
+  const handleSideQueryModelChange = useCallback(
+    (value: string | number | (string | number)[]) => {
+      if (typeof value !== "string") return;
+      void rpc.validation
+        .saveKey({
+          request: {
+            id: account.id,
+            agent_type: account.modelType,
+            side_query_model: value,
+          },
+        })
+        .then(() => onRefresh?.());
+    },
+    [account.id, account.modelType, onRefresh]
+  );
+
   const tabContent = useMemo(() => {
     switch (effectiveActiveTab) {
       case ACCOUNT_INLINE_TAB.STATUS:
@@ -366,6 +384,24 @@ const AccountInlineExpandedCard: React.FC<AccountInlineExpandedCardProps> = ({
                 {refreshModelsError}
               </InlineAlert>
             ) : null}
+            <div className="mb-3">
+              <label className="mb-1 block text-xs font-medium text-text-2">
+                {t("keyVault.sideQueryModel.label")}
+              </label>
+              <Select
+                value={account.sideQueryModel}
+                options={(account.enabledModels?.length
+                  ? account.enabledModels
+                  : account.availableModels ?? []
+                ).map((model) => ({ value: model, label: model }))}
+                placeholder={t("keyVault.sideQueryModel.placeholder")}
+                onChange={handleSideQueryModelChange}
+                showSearch
+              />
+              <p className="mt-1 text-xs text-text-3">
+                {t("keyVault.sideQueryModel.description")}
+              </p>
+            </div>
             <AccountModelsInlineSplit
               account={account}
               enabledSet={enabledSet}
@@ -393,6 +429,7 @@ const AccountInlineExpandedCard: React.FC<AccountInlineExpandedCardProps> = ({
     effectiveActiveTab,
     enabledSet,
     handleSetModelEnabled,
+    handleSideQueryModelChange,
     handleUpdateEnabledModels,
     isAccountEnabled,
     onRefresh,

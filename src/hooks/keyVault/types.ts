@@ -61,6 +61,8 @@ export interface KeyVaultAccount {
   availableModels?: string[];
   /** User-enabled models (subset of availableModels, persisted) */
   enabledModels?: string[];
+  /** Explicit model for compaction and memory side queries on this exact key. */
+  sideQueryModel?: string;
   /** Parsed GPT/Claude suffix variants, keyed by original model id. */
   modelVariants?: ModelVariantInfo[];
   /** User-chosen default variant per base model family (persisted). */

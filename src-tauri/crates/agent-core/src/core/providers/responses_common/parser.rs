@@ -218,6 +218,10 @@ mod tests {
             usage: None,
             error: Some(ResponsesError {
                 message: Some("Rate limit exceeded".to_string()),
+                code: None,
+                error_type: None,
+                status: None,
+                body: None,
             }),
         };
 

@@ -26,6 +26,16 @@ use crate::turn_executor::{self, PermissionProvider, TurnConfig, TurnIterationHo
 use super::super::event_handler::UnifiedEventHandler;
 use super::super::streaming::broadcast_agent_warning;
 
+fn is_context_too_long_error(error: &str) -> bool {
+    let lower = error.to_ascii_lowercase();
+    lower.contains("contexttoolong")
+        || lower.contains("context_length_exceeded")
+        || lower.contains("maximum context length")
+        || lower.contains("prompt is too long")
+        || (lower.contains("http 400") && lower.contains("context"))
+        || (lower.contains("http status 400") && lower.contains("token"))
+}
+
 impl UnifiedMessageProcessor {
     /// Executes one LLM turn, transparently re-compacting up to twice if
     /// the provider returns `ContextTooLong`.
@@ -163,7 +173,7 @@ impl UnifiedMessageProcessor {
         {
             Ok(turn_result) => turn_result,
             Err(err)
-                if err.contains("ContextTooLong") && self.runtime.resolved.compaction.enabled =>
+                if is_context_too_long_error(&err) && self.runtime.resolved.compaction.enabled =>
             {
                 self.execute_with_reactive_compact(
                     session_id,
@@ -300,7 +310,7 @@ impl UnifiedMessageProcessor {
                     break;
                 }
                 Err(retry_err)
-                    if retry_err.contains("ContextTooLong") && attempt < MAX_REACTIVE_RETRIES =>
+                    if is_context_too_long_error(&retry_err) && attempt < MAX_REACTIVE_RETRIES =>
                 {
                     last_err = retry_err;
                     continue;

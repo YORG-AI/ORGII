@@ -512,7 +512,7 @@ impl ContextCompactor {
         let mut messages_to_summarize = older.to_vec();
         let mut ptl_retries = 0;
         loop {
-            let mut summary = summarization::summarize_messages(
+            let summary = summarization::summarize_messages(
                 &messages_to_summarize,
                 state,
                 provider,
@@ -522,22 +522,9 @@ impl ContextCompactor {
                 custom_instructions,
             )
             .await;
-            let nano_model = crate::providers::model_hints::nano_model_hint(model);
-            if let Err(primary_err) = &summary {
-                if !Self::is_prompt_too_long_error(primary_err) && nano_model != model {
-                    warn!("[compaction] Primary model {} summarization failed ({}); retrying with fallback model {}", model, primary_err, nano_model);
-                    summary = summarization::summarize_messages(
-                        &messages_to_summarize,
-                        state,
-                        provider,
-                        &nano_model,
-                        config,
-                        budget_tokens,
-                        custom_instructions,
-                    )
-                    .await;
-                }
-            }
+            // Do not silently switch model/provider for summarization. The
+            // caller supplies a model already validated for the exact key;
+            // retrying an invented nano model can violate account capability.
             match summary {
                 Ok(summary_text) => {
                     return Ok(Self::accept_summary(

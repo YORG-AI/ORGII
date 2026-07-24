@@ -124,9 +124,28 @@ impl ResponsesStreamNormalizer {
             ResponseStreamEventKind::Error => {
                 let message = event
                     .response
-                    .and_then(|response| response.error)
-                    .and_then(|error| error.message)
-                    .unwrap_or_else(|| "Unknown streaming error".to_string());
+                    .as_ref()
+                    .and_then(|response| response.error.as_ref())
+                    .map(|error| {
+                        let explicit = error
+                            .message
+                            .as_deref()
+                            .map(str::trim)
+                            .filter(|s| !s.is_empty());
+                        if let Some(message) = explicit {
+                            message.to_string()
+                        } else {
+                            let details = serde_json::to_string(&error)
+                                .unwrap_or_else(|_| "unserializable error payload".to_string());
+                            format!("Streaming error (provider payload: {details})")
+                        }
+                    })
+                    .unwrap_or_else(|| {
+                        format!(
+                            "Streaming error (event payload: {})",
+                            bounded_event_sample(&event)
+                        )
+                    });
                 outputs.push(ResponsesStreamOutput::Error(message));
             }
             ResponseStreamEventKind::Unknown(event_type) => {
@@ -360,6 +379,26 @@ mod tests {
             outputs.as_slice(),
             [ResponsesStreamOutput::BlockBoundary, ResponsesStreamOutput::ReasoningDelta(reasoning)] if reasoning == "reasoning item"
         ));
+    }
+
+    #[test]
+    fn preserves_structured_stream_error_when_message_is_empty() {
+        let mut normalizer = ResponsesStreamNormalizer::new();
+        let outputs = normalizer.ingest(event(json!({
+            "type": "error",
+            "response": {"output": [], "usage": null, "error": {
+                "message": "", "status": 400, "code": "context_length_exceeded",
+                "type": "invalid_request_error", "body": {"detail": "maximum context length"}
+            }}
+        })));
+        assert!(
+            matches!(outputs.as_slice(), [ResponsesStreamOutput::Error(message)]
+            if message.contains("400")
+                && message.contains("context_length_exceeded")
+                && message.contains("invalid_request_error")
+                && message.contains("maximum context length")
+                && !message.contains("Unknown streaming error"))
+        );
     }
 
     #[test]

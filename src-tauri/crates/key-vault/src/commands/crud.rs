@@ -82,6 +82,7 @@ pub struct KeyInfo {
     pub account_metadata: HashMap<String, String>,
     pub available_models: Vec<String>,
     pub enabled_models: Vec<String>,
+    pub side_query_model: Option<String>,
     pub model_aliases: Vec<ModelAliasInfo>,
     pub model_variants: Vec<ModelVariantInfo>,
     pub default_variants: Vec<DefaultVariantInfo>,
@@ -605,6 +606,7 @@ impl From<ModelKey> for KeyInfo {
             account_metadata: entry.account_metadata.clone(),
             available_models: entry.available_models.clone(),
             enabled_models: entry.enabled_models.clone(),
+            side_query_model: entry.side_query_model.clone(),
             model_aliases: entry
                 .model_aliases
                 .iter()
@@ -669,6 +671,7 @@ pub struct SaveKeyRequest {
     pub account_metadata: Option<HashMap<String, String>>,
     pub available_models: Option<Vec<String>>,
     pub enabled_models: Option<Vec<String>>,
+    pub side_query_model: Option<String>,
     pub model_aliases: Option<Vec<ModelAliasInfo>>,
     pub model_variants: Option<Vec<ModelVariantInfo>>,
     pub default_variants: Option<Vec<DefaultVariantInfo>>,
@@ -875,6 +878,14 @@ pub async fn save_key(request: SaveKeyRequest) -> Result<KeyInfo, String> {
         if let Some(enabled) = request.enabled_models {
             // Filter out dated snapshot models (containing YYYY-MM-DD pattern)
             entry.enabled_models = filter_dated_models(enabled);
+        }
+        if let Some(model) = request.side_query_model {
+            let model = model.trim();
+            entry.side_query_model = if model.is_empty() {
+                None
+            } else {
+                Some(model.to_string())
+            };
         }
         if let Some(aliases) = request.model_aliases {
             entry.model_aliases = aliases

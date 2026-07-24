@@ -1,4 +1,63 @@
 {
+  "sessionMemoryEmbedding": {
+    "title": "会话记忆 Embedding",
+    "description": "配置会话记忆的语义检索",
+    "autoRun": "符合条件的会话更新后会自动运行。",
+    "providers": {
+      "disabled": "禁用",
+      "localQwen": "本地 Qwen（OpenAI 兼容）",
+      "localCodeRank": "本地 CodeRank",
+      "embeddingApi": "Embedding API（Key Vault）"
+    },
+    "provider": {
+      "label": "提供商",
+      "description": "选择生成会话记忆向量的方式。"
+    },
+    "model": {
+      "label": "模型",
+      "description": "模型标识；留空则使用提供商默认值。",
+      "placeholder": "text-embedding-3-small"
+    },
+    "localBaseUrl": {
+      "label": "本地 Base URL",
+      "description": "local Qwen 使用的 OpenAI 兼容端点。"
+    },
+    "dimensions": {
+      "label": "维度",
+      "description": "期望的向量维度；留空则接受提供商默认值。"
+    },
+    "minTokenDelta": {
+      "label": "最小 Token 增量",
+      "description": "再次为会话生成 Embedding 前所需的最少新增 Token。"
+    },
+    "minIntervalSecs": {
+      "label": "最小间隔（秒）",
+      "description": "同一会话两次 Embedding 的最短时间间隔。"
+    },
+    "requestTimeoutSecs": {
+      "label": "请求超时（秒）",
+      "description": "本地或远程 Embedding 请求的最长等待时间。"
+    },
+    "maxInputChars": {
+      "label": "最大输入字符数",
+      "description": "每次会话 Embedding 的输入会截断到此上限。"
+    },
+    "fingerprint": {
+      "label": "向量指纹",
+      "description": "提供商、模型与维度共同标识可兼容的向量。"
+    },
+    "credential": {
+      "label": "Key Vault 凭据",
+      "description": "Embedding API 提供商需要启用且已验证的 embedding_api 密钥。",
+      "verified": "已验证：{{name}}",
+      "missing": "没有已验证的 ZenMux 凭据",
+      "add": "添加凭据"
+    },
+    "reembed": {
+      "title": "需要重新 Embedding",
+      "description": "现有会话向量使用的是旧指纹；符合条件的会话更新时会自动重新生成。"
+    }
+  },
   "scopeLabels": {
     "user": "User",
     "repoSpecific": "Repo-specific",
@@ -496,6 +555,11 @@
     "refreshModels": {
       "button": "刷新模型",
       "failed": "刷新模型失败：{{error}}"
+    },
+    "sideQueryModel": {
+      "label": "旁路查询模型",
+      "placeholder": "选择已启用模型",
+      "description": "用于压缩和记忆提取。模型会按当前密钥严格校验，不会跨供应商降级。"
     }
   },
   "integrations": {
@@ -1066,6 +1130,7 @@
     "tools": "内置工具",
     "computerUse": "Computer Use",
     "rulesMemoryEvolution": "规则、记忆 & 进化",
+    "sessionMemoryEmbedding": "会话记忆嵌入",
     "externalSkillsets": "Skills, MCPs & Plugins",
     "housekeeper": "常驻管家"
   },

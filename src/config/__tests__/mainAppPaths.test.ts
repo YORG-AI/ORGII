@@ -1,8 +1,23 @@
 import {
   SETTINGS_ROUTE_ROOT,
+  buildIntegrationsPath,
   classifySettingsRouteRoot,
   deriveRouteCacheKey,
+  parseIntegrationsPath,
 } from "../mainAppPaths";
+
+describe("Session Memory Embedding integrations route", () => {
+  it("builds and parses the visible direct navigation path", () => {
+    const path = buildIntegrationsPath({ category: "sessionMemoryEmbedding" });
+
+    expect(path).toBe(
+      "/orgii/app/settings/integrations/session-memory-embedding"
+    );
+    expect(parseIntegrationsPath(path).category).toBe(
+      "sessionMemoryEmbedding"
+    );
+  });
+});
 
 describe("classifySettingsRouteRoot", () => {
   it("maps classic app settings paths to the Settings root", () => {
