@@ -24,14 +24,20 @@ export function useTeamInboxWorkItemBody(
   target: WorkItemTarget
 ): TeamInboxWorkItemBodyState {
   const { projectId, workItemId } = target;
-  const [state, setState] = useState<TeamInboxWorkItemBodyState>({
-    body: null,
-    loading: true,
-  });
+  const requestKey = `${projectId}:${workItemId}`;
+  /**
+   * Holds the resolved body together with the key it was fetched for. Loading
+   * is derived by comparing that key against the current target rather than
+   * reset by a synchronous setState in the effect, which would cascade an
+   * extra render on every selection change.
+   */
+  const [resolved, setResolved] = useState<{
+    key: string;
+    body: string | null;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    setState({ body: null, loading: true });
 
     const request = projectId
       ? projectApi.readWorkItem(projectId, workItemId)
@@ -41,18 +47,20 @@ export function useTeamInboxWorkItemBody(
       .then((workItem) => {
         if (cancelled) return;
         const body = workItem.body.trim();
-        setState({ body: body.length > 0 ? body : null, loading: false });
+        setResolved({ key: requestKey, body: body.length > 0 ? body : null });
       })
       .catch((error: unknown) => {
         if (cancelled) return;
         log.warn("Failed to load Team Inbox Work Item body", error);
-        setState({ body: null, loading: false });
+        setResolved({ key: requestKey, body: null });
       });
 
     return () => {
       cancelled = true;
     };
-  }, [projectId, workItemId]);
+  }, [projectId, workItemId, requestKey]);
 
-  return state;
+  return resolved?.key === requestKey
+    ? { body: resolved.body, loading: false }
+    : { body: null, loading: true };
 }
