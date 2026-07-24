@@ -16,7 +16,15 @@ export interface TeamInboxDetailLayoutProps {
   title: string;
   subtitle: string;
   icon: LucideIcon;
-  metadata: InfoCardRow[];
+  /** Key-value rows rendered under the body. Omitted when the body owns its
+   *  own property surface (see `contentLayout: "fill"`). */
+  metadata?: InfoCardRow[];
+  /**
+   * `scroll` (default) puts the body in a padded, centred scroll column.
+   * `fill` hands it the remaining height untouched, for bodies that manage
+   * their own scrolling and side rails.
+   */
+  contentLayout?: "scroll" | "fill";
   unread: boolean;
   markReadLabel: string;
   markUnreadLabel?: string;
@@ -33,6 +41,7 @@ const TeamInboxDetailLayout: React.FC<TeamInboxDetailLayoutProps> = ({
   subtitle,
   icon,
   metadata,
+  contentLayout = "scroll",
   unread,
   markReadLabel,
   markUnreadLabel,
@@ -76,14 +85,22 @@ const TeamInboxDetailLayout: React.FC<TeamInboxDetailLayoutProps> = ({
       }
     />
 
-    <div className={DETAIL_PANEL_TOKENS.scrollContent}>
-      <div className={DETAIL_PANEL_TOKENS.contentWidthWithPadding}>
-        {children ? (
-          <div className={DETAIL_PANEL_TOKENS.sectionGap}>{children}</div>
-        ) : null}
-        <InfoCard rows={metadata} variant="plain" />
+    {contentLayout === "fill" ? (
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {children}
       </div>
-    </div>
+    ) : (
+      <div className={DETAIL_PANEL_TOKENS.scrollContent}>
+        <div className={DETAIL_PANEL_TOKENS.contentWidthWithPadding}>
+          {children ? (
+            <div className={DETAIL_PANEL_TOKENS.sectionGap}>{children}</div>
+          ) : null}
+          {metadata && metadata.length > 0 ? (
+            <InfoCard rows={metadata} variant="plain" />
+          ) : null}
+        </div>
+      </div>
+    )}
 
     {onOpen ? (
       <PanelFooter

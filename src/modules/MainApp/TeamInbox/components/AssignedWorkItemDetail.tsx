@@ -2,17 +2,23 @@ import { ClipboardList, ExternalLink } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import Markdown from "@src/components/MarkDown";
+import {
+  WorkItemContent,
+  WorkItemProperties,
+} from "@src/modules/ProjectManager/WorkItems/components";
+import { PropertiesRailFrame } from "@src/modules/ProjectManager/shared";
+import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import {
   type AssignedWorkItem,
   type TeamInboxNavigationIntent,
-  humanizeToken,
-  workItemPriorityLabelKey,
-  workItemStatusLabelKey,
+  isGitHubIssueStatus,
 } from "../domain";
-import { useTeamInboxWorkItemBody } from "../useTeamInboxWorkItemBody";
+import { useTeamInboxWorkItem } from "../useTeamInboxWorkItem";
 import TeamInboxDetailLayout from "./TeamInboxDetailLayout";
+
+/** Matches the work-item pane's info rail so both surfaces read identically. */
+const PROPERTIES_RAIL_WIDTH = 240;
 
 export interface AssignedWorkItemDetailProps {
   item: AssignedWorkItem;
@@ -28,20 +34,17 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
   onMarkUnread,
 }) => {
   const { t } = useTranslation();
-  const { body } = useTeamInboxWorkItemBody(item.target);
-  const excerpt = item.payload.summary ?? null;
-  const statusLabel = t(workItemStatusLabelKey(item.payload.status), {
-    defaultValue: humanizeToken(item.payload.status),
-  });
-  const priorityLabel = t(workItemPriorityLabelKey(item.payload.priority), {
-    defaultValue: humanizeToken(item.payload.priority),
-  });
+  const { workItem, loading, updateWorkItem } = useTeamInboxWorkItem(
+    item.target
+  );
+  const isGitHubIssue = isGitHubIssueStatus(item.payload.status);
 
   return (
     <TeamInboxDetailLayout
-      title={item.payload.title}
+      title={workItem?.name ?? item.payload.title}
       subtitle={t("teamInbox.detail.assignedSubtitle")}
       icon={ClipboardList}
+      contentLayout="fill"
       unread={item.readAt === null}
       markReadLabel={t("teamInbox.actions.markRead")}
       markUnreadLabel={t("teamInbox.actions.markUnread")}
@@ -59,28 +62,61 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
               })
           : undefined
       }
-      metadata={[
-        { label: t("teamInbox.fields.status"), value: statusLabel },
-        { label: t("teamInbox.fields.priority"), value: priorityLabel },
-        {
-          label: t("teamInbox.fields.assignee"),
-          value: item.payload.assigneeName ?? item.payload.assigneeMemberId,
-        },
-        {
-          label: t("teamInbox.fields.workItemId"),
-          value: item.target.workItemId,
-        },
-      ]}
     >
-      {body ? (
-        <div className="text-sm leading-6 text-text-1">
-          <Markdown textContent={body} />
+      {loading ? (
+        <Placeholder
+          variant="loading"
+          title={t("teamInbox.loading")}
+          fillParentHeight
+        />
+      ) : workItem ? (
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <WorkItemContent
+              workItem={workItem}
+              onUpdateWorkItem={updateWorkItem}
+              onUpdateWorkItemImmediate={updateWorkItem}
+              projectSlug={item.target.projectId || null}
+              shortId={item.target.workItemId}
+              onOpenSession={
+                onNavigate
+                  ? (sessionId) =>
+                      onNavigate({
+                        kind: "open_session_comment",
+                        sessionId,
+                        commentId: "",
+                        threadId: "",
+                      })
+                  : undefined
+              }
+            />
+          </div>
+          {/* The inbox detail is narrower than the work-item pane, so the rail
+              only appears once there is room for it beside the content. */}
+          <div className="hidden @[720px]:block">
+            <PropertiesRailFrame width={PROPERTIES_RAIL_WIDTH} floatingContent>
+              <WorkItemProperties
+                workItem={workItem}
+                onUpdate={updateWorkItem}
+                availableProjects={workItem.project ? [workItem.project] : []}
+                availableMilestones={
+                  workItem.milestone ? [workItem.milestone] : []
+                }
+                availableLabels={workItem.labels ?? []}
+                availableMembers={workItem.assignee ? [workItem.assignee] : []}
+                projectIconType={isGitHubIssue ? "github" : undefined}
+                projectReadonly
+              />
+            </PropertiesRailFrame>
+          </div>
         </div>
-      ) : excerpt ? (
-        <p className="whitespace-pre-wrap text-sm leading-6 text-text-1">
-          {excerpt}
-        </p>
-      ) : null}
+      ) : (
+        <Placeholder
+          variant="error"
+          title={t("teamInbox.errors.loadTitle")}
+          fillParentHeight
+        />
+      )}
     </TeamInboxDetailLayout>
   );
 };
