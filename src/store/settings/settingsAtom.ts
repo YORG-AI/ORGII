@@ -25,6 +25,11 @@ import {
 import { generateSettingsJsonSchema } from "@src/config/settingsSchema/generateJsonSchema";
 import { createLogger } from "@src/hooks/logger";
 
+import {
+  SETUP_WALKTHROUGH_OUTCOME_KEY,
+  resolveSetupWalkthroughOutcome,
+} from "./setupWalkthrough";
+
 const log = createLogger("Settings");
 
 const settingsRpc = {
@@ -207,8 +212,12 @@ export const initSettingsAtom = atom(null, async (_get, set) => {
   try {
     const rawSettings = await settingsRpc.read();
 
-    // Validate and merge with defaults
+    // Validate and merge with defaults. The first-use setting needs a one-time
+    // migration: an empty object means a genuinely new install, while any
+    // existing settings file predating the key belongs to an established user.
     const validated = validateSettings(rawSettings);
+    const resolvedSetupOutcome = resolveSetupWalkthroughOutcome(rawSettings);
+    validated[SETUP_WALKTHROUGH_OUTCOME_KEY] = resolvedSetupOutcome;
     set(settingsAtom, validated);
     set(rawSettingsAtom, rawSettings);
     set(settingsLoadedAtom, true);
@@ -222,6 +231,11 @@ export const initSettingsAtom = atom(null, async (_get, set) => {
       if (!(key in rawSettings)) {
         missingKeys[key] = (validated as Record<string, unknown>)[key];
       }
+    }
+    // Persist the resolved migration outcome rather than the schema default.
+    // Existing profiles therefore stay closed on every subsequent launch.
+    if (!(SETUP_WALKTHROUGH_OUTCOME_KEY in rawSettings)) {
+      missingKeys[SETUP_WALKTHROUGH_OUTCOME_KEY] = resolvedSetupOutcome;
     }
 
     // Both disk writes are non-blocking — the UI is unblocked as soon as
