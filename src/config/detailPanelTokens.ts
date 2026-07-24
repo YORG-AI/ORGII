@@ -45,6 +45,8 @@ export const COLLAPSIBLE_SECTION_TOKENS = {
 export const INFO_CARD_TOKENS = {
   /** Card container — rounded, fill background, no border (matches Settings table containers) */
   container: "rounded-lg bg-surface-selected p-4",
+  /** Unfilled container — rows sit directly on a panel that paints its own surface */
+  containerPlain: "rounded-lg",
   /** Grid gap between rows */
   rowGap: "gap-3",
   /** Row layout */

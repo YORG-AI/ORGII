@@ -1,3 +1,20 @@
+import { WORK_ITEM_STATUS } from "@src/types/core/workItem";
+
+/**
+ * GitHub-backed work items are identified by their status vocabulary: the sync
+ * adapter writes `open` / `closed` where local items use `todo` / `done`.
+ *
+ * Checked against the shared `WORK_ITEM_STATUS` constant rather than importing
+ * ProjectManager's equivalent helper, for the same isolation reason described
+ * on the label keys below.
+ */
+export function isGitHubIssueStatus(status: string): boolean {
+  return (
+    status === WORK_ITEM_STATUS.GITHUB_OPEN ||
+    status === WORK_ITEM_STATUS.GITHUB_CLOSED
+  );
+}
+
 /**
  * Turns a raw enum token from the work-item read model (e.g. `in_progress`,
  * `HIGH`, `in-review`) into a human sentence-cased label (`In progress`,

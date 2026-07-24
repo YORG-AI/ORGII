@@ -81,7 +81,7 @@ const TeamInboxDetailLayout: React.FC<TeamInboxDetailLayoutProps> = ({
         {children ? (
           <div className={DETAIL_PANEL_TOKENS.sectionGap}>{children}</div>
         ) : null}
-        <InfoCard rows={metadata} />
+        <InfoCard rows={metadata} variant="plain" />
       </div>
     </div>
 

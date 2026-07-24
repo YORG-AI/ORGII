@@ -3,7 +3,6 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Markdown from "@src/components/MarkDown";
-import { CARD_ROW_TOKENS } from "@src/modules/shared/layouts/blocks";
 
 import type { CommentMentionItem, TeamInboxNavigationIntent } from "../domain";
 import TeamInboxDetailLayout from "./TeamInboxDetailLayout";
@@ -66,7 +65,7 @@ const CommentMentionDetail: React.FC<CommentMentionDetailProps> = ({
         },
       ]}
     >
-      <div className={CARD_ROW_TOKENS.container}>
+      <div>
         <div className="flex items-center gap-2 text-xs text-text-3">
           <span className="font-semibold text-text-1">
             {item.actor.displayName}

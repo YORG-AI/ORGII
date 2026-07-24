@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   humanizeToken,
+  isGitHubIssueStatus,
   workItemPriorityLabelKey,
   workItemStatusLabelKey,
 } from "../domain/labels";
@@ -26,6 +27,20 @@ describe("humanizeToken", () => {
   it("returns an empty string for empty or whitespace input", () => {
     expect(humanizeToken("")).toBe("");
     expect(humanizeToken("   ")).toBe("");
+  });
+});
+
+describe("isGitHubIssueStatus", () => {
+  it("recognizes the GitHub issue status vocabulary", () => {
+    expect(isGitHubIssueStatus("open")).toBe(true);
+    expect(isGitHubIssueStatus("closed")).toBe(true);
+  });
+
+  it("rejects local work-item statuses", () => {
+    expect(isGitHubIssueStatus("todo")).toBe(false);
+    expect(isGitHubIssueStatus("in_progress")).toBe(false);
+    expect(isGitHubIssueStatus("done")).toBe(false);
+    expect(isGitHubIssueStatus("")).toBe(false);
   });
 });
 

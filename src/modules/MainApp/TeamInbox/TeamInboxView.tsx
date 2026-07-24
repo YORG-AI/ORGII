@@ -1,8 +1,14 @@
+import { CheckCheck } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import Button from "@src/components/Button";
 import SplitViewLayout from "@src/modules/shared/layouts/SplitViewLayout";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import {
+  PANEL_HEADER_TOKENS,
+  PanelRefreshButton,
+  Placeholder,
+} from "@src/modules/shared/layouts/blocks";
 
 import {
   AssignedWorkItemDetail,
@@ -14,7 +20,6 @@ import {
   type TeamInboxFilter,
   type TeamInboxItem,
   type TeamInboxNavigationIntent,
-  countUnreadTeamInboxItems,
   countUnreadTeamInboxItemsByFilter,
   filterItemKind,
   getTeamInboxItemKey,
@@ -96,7 +101,6 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
     () => searchTeamInboxItems(selectTeamInboxItems(items, filter), query),
     [filter, items, query]
   );
-  const totalUnread = useMemo(() => countUnreadTeamInboxItems(items), [items]);
   const unreadCounts = useMemo(
     () => countUnreadTeamInboxItemsByFilter(items),
     [items]
@@ -300,13 +304,37 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
       ) : null}
       <SplitViewLayout
         className="h-full rounded-page"
-        listWidth={200}
-        minListWidth={160}
+        listWidth={280}
+        minListWidth={240}
+        maxListWidth={320}
         resizable
         collapsible
         alwaysShowBreadcrumb
+        listHeaderTrailing={
+          <>
+            {unreadCounts[filter] > 0 && dataSource.markAllRead ? (
+              <Button
+                {...PANEL_HEADER_TOKENS.actionButton}
+                icon={
+                  <CheckCheck
+                    size={PANEL_HEADER_TOKENS.buttonIconSize}
+                    strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
+                  />
+                }
+                title={t("inbox.markAllAsRead")}
+                aria-label={t("inbox.markAllAsRead")}
+                onClick={handleMarkAllRead}
+              />
+            ) : null}
+            <PanelRefreshButton
+              onRefresh={handleRefresh}
+              loading={loadState.status === "loading"}
+              title={t("common:actions.refresh")}
+            />
+          </>
+        }
         listPanelBackgroundClassName="bg-bg-2"
-        mainContentClassName="bg-bg-1"
+        mainContentClassName="bg-chat-pane"
         listContent={
           loadState.status === "loading" && items.length === 0 ? (
             <Placeholder
@@ -327,17 +355,11 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
               filter={filter}
               items={visibleItems}
               selectedItemId={selectedItemId}
-              totalUnread={totalUnread}
               unreadCounts={unreadCounts}
               query={query}
-              loading={loadState.status === "loading"}
               onQueryChange={setQuery}
               onFilterChange={setFilter}
               onSelectItem={handleSelect}
-              onRefresh={handleRefresh}
-              onMarkAllRead={
-                dataSource.markAllRead ? handleMarkAllRead : undefined
-              }
               hasMore={hasMore}
               loadingMore={loadingMore}
               onLoadMore={dataSource.loadMore ? handleLoadMore : undefined}

@@ -153,7 +153,12 @@ const SESSION_BUCKET_TO_RECENCY: Record<
  */
 export function groupTeamInboxItemsByRecency(
   items: readonly TeamInboxItem[],
-  nowMs: number
+  /**
+   * Defaults to the current time. Kept out of the calling component so the
+   * bucket boundaries are not derived from an impure call during render;
+   * tests and any caller needing determinism pass an explicit value.
+   */
+  nowMs: number = Date.now()
 ): TeamInboxRecencyGroup[] {
   const ranges = getSessionDateBucketRanges(new Date(nowMs));
 

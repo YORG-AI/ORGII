@@ -22,20 +22,31 @@ export interface InfoCardProps {
   /** Extra content rendered above the card (e.g. badges) */
   header?: React.ReactNode;
   className?: string;
+  /**
+   * `surface` (default) paints the filled card. `plain` drops the fill and
+   * padding so the host panel's own background shows through.
+   */
+  variant?: "surface" | "plain";
 }
 
 const InfoCard: React.FC<InfoCardProps> = ({
   rows,
   header,
   className = "",
+  variant = "surface",
 }) => {
   const visibleRows = rows.filter((row) => !row.hidden);
   if (visibleRows.length === 0 && !header) return null;
 
+  const container =
+    variant === "plain"
+      ? INFO_CARD_TOKENS.containerPlain
+      : INFO_CARD_TOKENS.container;
+
   return (
     <div>
       {header}
-      <div className={`${INFO_CARD_TOKENS.container} ${className}`}>
+      <div className={`${container} ${className}`}>
         <div className={`grid ${INFO_CARD_TOKENS.rowGap}`}>
           {visibleRows.map((row) => (
             <div key={row.label} className={INFO_CARD_TOKENS.row}>

@@ -3,7 +3,6 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Markdown from "@src/components/MarkDown";
-import { CARD_ROW_TOKENS } from "@src/modules/shared/layouts/blocks";
 
 import {
   type AssignedWorkItem,
@@ -74,17 +73,13 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
       ]}
     >
       {body ? (
-        <div className={CARD_ROW_TOKENS.container}>
-          <div className="text-sm leading-6 text-text-1">
-            <Markdown textContent={body} />
-          </div>
+        <div className="text-sm leading-6 text-text-1">
+          <Markdown textContent={body} />
         </div>
       ) : excerpt ? (
-        <div className={CARD_ROW_TOKENS.container}>
-          <p className="whitespace-pre-wrap text-sm leading-6 text-text-1">
-            {excerpt}
-          </p>
-        </div>
+        <p className="whitespace-pre-wrap text-sm leading-6 text-text-1">
+          {excerpt}
+        </p>
       ) : null}
     </TeamInboxDetailLayout>
   );

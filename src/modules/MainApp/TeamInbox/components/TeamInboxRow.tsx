@@ -2,12 +2,14 @@ import { AtSign, ClipboardList } from "lucide-react";
 import { forwardRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import IntegrationIcon from "@src/components/IntegrationIcon";
 import { getListItemClasses } from "@src/components/ListPanel";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 import {
   type TeamInboxItem,
   humanizeToken,
+  isGitHubIssueStatus,
   workItemPriorityLabelKey,
   workItemStatusLabelKey,
 } from "../domain";
@@ -23,6 +25,9 @@ const TeamInboxRow = forwardRef<HTMLButtonElement, TeamInboxRowProps>(
   ({ item, itemKey, selected, onSelect }, ref) => {
     const { t } = useTranslation();
     const isMention = item.kind === "comment_mention";
+    const isGitHubIssue =
+      item.kind === "assigned_work_item" &&
+      isGitHubIssueStatus(item.payload.status);
     const title = isMention ? item.target.sessionTitle : item.payload.title;
     const summary = useMemo(() => {
       if (item.kind === "comment_mention") return item.payload.commentBody;
@@ -61,10 +66,22 @@ const TeamInboxRow = forwardRef<HTMLButtonElement, TeamInboxRowProps>(
         onClick={() => onSelect(item)}
       >
         <span
-          className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${isMention ? "bg-primary-1 text-primary-6" : "bg-success-1 text-success-6"}`}
+          className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${
+            isMention
+              ? "bg-primary-1 text-primary-6"
+              : isGitHubIssue
+                ? "bg-fill-2 text-text-1"
+                : "bg-success-1 text-success-6"
+          }`}
           aria-hidden
         >
-          {isMention ? <AtSign size={14} /> : <ClipboardList size={14} />}
+          {isMention ? (
+            <AtSign size={14} />
+          ) : isGitHubIssue ? (
+            <IntegrationIcon type="github" size={14} />
+          ) : (
+            <ClipboardList size={14} />
+          )}
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center gap-2">
@@ -83,7 +100,7 @@ const TeamInboxRow = forwardRef<HTMLButtonElement, TeamInboxRowProps>(
               {relativeTime}
             </span>
           </span>
-          <span className="mt-0.5 line-clamp-2 block text-xs font-normal leading-5 text-text-3">
+          <span className="mt-0.5 line-clamp-2 text-xs font-normal leading-5 text-text-3">
             {summary}
           </span>
           <span className="mt-1 flex items-center gap-2 text-xs font-normal text-text-4">

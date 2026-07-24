@@ -1,4 +1,4 @@
-import { AtSign, CheckCheck, ClipboardList, Inbox } from "lucide-react";
+import { AtSign, ClipboardList, Inbox } from "lucide-react";
 import React, { useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -12,9 +12,6 @@ import TabPill, { type TabPillItem } from "@src/components/TabPill";
 import {
   ListPanelScrollArea,
   ListPanelTabPillRow,
-  PANEL_HEADER_TOKENS,
-  PanelHeader,
-  PanelRefreshButton,
   Placeholder,
 } from "@src/modules/shared/layouts/blocks";
 
@@ -31,15 +28,11 @@ export interface TeamInboxListProps {
   filter: TeamInboxFilter;
   items: readonly TeamInboxItem[];
   selectedItemId: string | null;
-  totalUnread: number;
   unreadCounts: TeamInboxUnreadCounts;
   query: string;
-  loading: boolean;
   onQueryChange: (query: string) => void;
   onFilterChange: (filter: TeamInboxFilter) => void;
   onSelectItem: (item: TeamInboxItem) => void;
-  onRefresh?: () => void;
-  onMarkAllRead?: () => void;
   hasMore?: boolean;
   loadingMore?: boolean;
   onLoadMore?: () => void;
@@ -61,15 +54,11 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
   filter,
   items,
   selectedItemId,
-  totalUnread,
   unreadCounts,
   query,
-  loading,
   onQueryChange,
   onFilterChange,
   onSelectItem,
-  onRefresh,
-  onMarkAllRead,
   hasMore = false,
   loadingMore = false,
   onLoadMore,
@@ -82,11 +71,7 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
       items.findIndex((item) => getTeamInboxItemKey(item) === selectedItemId),
     [items, selectedItemId]
   );
-  const groups = useMemo(
-    () => groupTeamInboxItemsByRecency(items, Date.now()),
-    [items]
-  );
-  const activeFilterUnread = unreadCounts[filter];
+  const groups = useMemo(() => groupTeamInboxItemsByRecency(items), [items]);
   const filterTabs = useMemo<TabPillItem[]>(
     () => [
       {
@@ -162,41 +147,6 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
       className="flex h-full min-h-0 flex-col"
       aria-label={t("teamInbox.listLabel")}
     >
-      <PanelHeader
-        title={t("teamInbox.title")}
-        subtitle={
-          totalUnread > 0
-            ? t("teamInbox.unreadCount", { count: totalUnread })
-            : t("teamInbox.allRead")
-        }
-        variant="list"
-        actions={
-          <>
-            {activeFilterUnread > 0 && onMarkAllRead ? (
-              <Button
-                {...PANEL_HEADER_TOKENS.actionButton}
-                icon={
-                  <CheckCheck
-                    size={PANEL_HEADER_TOKENS.buttonIconSize}
-                    strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
-                  />
-                }
-                title={t("inbox.markAllAsRead")}
-                aria-label={t("inbox.markAllAsRead")}
-                onClick={onMarkAllRead}
-              />
-            ) : null}
-            {onRefresh ? (
-              <PanelRefreshButton
-                onRefresh={onRefresh}
-                loading={loading}
-                title={t("common:actions.refresh")}
-              />
-            ) : null}
-          </>
-        }
-      />
-
       <ListPanelTabPillRow>
         <TabPill
           tabs={filterTabs}

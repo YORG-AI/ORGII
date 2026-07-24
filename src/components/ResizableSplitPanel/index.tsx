@@ -94,7 +94,10 @@ const ResizableSplitPanel: React.FC<ResizableSplitPanelProps> = ({
     const effectiveMin = maxRightWidth
       ? Math.max(minLeftWidth, containerWidth - maxRightWidth)
       : minLeftWidth;
-    return { min: effectiveMin, max: effectiveMax };
+    // When the container is too narrow to honour both minimums, the bounds
+    // invert and the clamp would collapse the right panel toward zero. Keep
+    // the right panel's reserve and let the left panel give way instead.
+    return { min: Math.min(effectiveMin, effectiveMax), max: effectiveMax };
   }, [minLeftWidth, maxLeftWidth, minRightWidth, maxRightWidth]);
 
   /**
@@ -246,6 +249,32 @@ const ResizableSplitPanel: React.FC<ResizableSplitPanelProps> = ({
     onSplitChange,
   ]);
 
+  /**
+   * Keep the committed width inside the *live* constraints.
+   *
+   * The drag handler clamps only while a drag is in flight, so a width chosen
+   * in a wide container survives the container shrinking. Because the right
+   * panel is `flex-1 min-w-0`, that stale width starves it to zero and the
+   * left panel reads as maximized. Re-clamping on container resize keeps
+   * `minRightWidth` honoured however the container got smaller.
+   */
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (isResizingRef.current) return;
+      const { min, max } = getEffectiveConstraints();
+      setLeftWidth((current) => {
+        const clamped = Math.max(min, Math.min(max, current));
+        return clamped === current ? current : clamped;
+      });
+    });
+
+    resizeObserver.observe(container);
+    return () => resizeObserver.disconnect();
+  }, [getEffectiveConstraints]);
+
   // Width change handler for context menu — updates internal state + notifies parent
   const handleContextMenuWidthChange = useCallback(
     (width: number) => {
@@ -283,6 +312,11 @@ const ResizableSplitPanel: React.FC<ResizableSplitPanelProps> = ({
         className={`relative flex-shrink-0 overflow-hidden ${leftPanelClassName}`.trim()}
         style={{
           width: `${leftWidth}px`,
+          // Declarative ceiling: the JS clamp only runs during a drag and on
+          // container resize, so a width committed by any other path (stale
+          // state, context menu, a parent changing the bounds) could still
+          // starve the right panel. CSS enforces the cap unconditionally.
+          maxWidth: `${maxLeftWidth}px`,
           contain: "layout style",
           display: leftWidth === 0 ? "none" : "block",
         }}
