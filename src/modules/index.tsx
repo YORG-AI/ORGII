@@ -32,7 +32,6 @@ import { useProjectDataChangedListener } from "@src/hooks/project";
 import { useBackgroundImage } from "@src/hooks/theme/useBackgroundImage";
 import { useOpenUrlInBrowser } from "@src/hooks/workStation/browser/useOpenUrlInBrowser";
 import { useUrlPreviewEvents } from "@src/hooks/workStation/tabs";
-import { useNarrowChatFocus } from "@src/hooks/workStation/useNarrowChatFocus";
 import { useGlobalBrowserWebviewLayering } from "@src/modules/WorkStation/Browser/hooks";
 import { CODE_EDITOR_TOUR_EVENT } from "@src/scaffold/Tutorials/codeEditorTourConfig";
 import {
@@ -374,7 +373,6 @@ const AppShell = () => {
   const shouldBridgeWorkStationPipeline =
     !isSettingsRoute && activeChatPanelTab?.type === "session";
 
-  useNarrowChatFocus({ enabled: true });
   useWorkStationPipelineBridge(shouldBridgeWorkStationPipeline);
 
   const workStationChatPosition = useAtomValue(workStationChatPositionAtom);

@@ -3,9 +3,9 @@
  *
  * Manages the single global sidebar: width, collapse, drag-to-resize,
  * and preference persistence. Width is user-driven only — the sidebar
- * no longer auto-collapses or re-clamps on window resize. Narrow
- * viewports are handled by `useNarrowChatFocus`, which maximizes the
- * chat panel instead of squeezing the sidebar.
+ * no longer auto-collapses or re-clamps on window resize, and narrow
+ * viewports no longer adapt the layout automatically; the chat panel is
+ * maximized only by its explicit toggle.
  *
  * Drag listeners are attached synchronously in handleMouseDown (not via
  * useEffect) so there is zero render-cycle delay. This also avoids
@@ -52,9 +52,7 @@ export interface UseSidebarStateReturn {
 export function useSidebarState(): UseSidebarStateReturn {
   // Sidebar width is user-driven only: we no longer auto-shrink the max
   // width on window resize, so the user's chosen width stays stable
-  // until they drag the handle themselves. See `useNarrowChatFocus` for
-  // the narrow-viewport adaptation — it covers the missing chrome by
-  // maximizing the chat panel instead of squeezing the sidebar.
+  // until they drag the handle themselves.
   const maxWidth = MAX_SIDEBAR_WIDTH;
 
   // Global state — split read/write for isDragging so setter is stable
