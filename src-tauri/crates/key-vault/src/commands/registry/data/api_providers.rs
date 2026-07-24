@@ -173,7 +173,8 @@ pub(crate) fn api_provider_registry() -> Vec<ApiProviderEntry> {
         ApiProviderEntry {
             name: "aihubmix_api",
             display_name: "AiHubMix",
-            description: "Multi-provider LLM gateway with OpenAI and Anthropic-compatible protocols",
+            description:
+                "Multi-provider LLM gateway with OpenAI and Anthropic-compatible protocols",
             brand_color: "#006FFB",
             docs_url: "https://docs.aihubmix.com",
             icon_provider: "aihubmix",

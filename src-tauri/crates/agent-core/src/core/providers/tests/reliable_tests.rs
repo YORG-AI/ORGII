@@ -397,7 +397,6 @@ async fn auth_error_skips_retries() {
     assert!(matches!(result.unwrap_err(), ProviderError::AuthError(_)));
 }
 
-
 // --- chat_with_options forwarding ---
 
 /// Stub that records the `ChatOptions` it receives via `chat_with_options`.
@@ -469,6 +468,7 @@ async fn chat_with_options_forwards_options_to_inner_provider() {
         skip_seen.load(Ordering::SeqCst),
         "skip_cache_write must reach the inner provider through the retry loop"
     );
+}
 
 #[test]
 fn provider_chain_names_reports_single_runtime_route() {
@@ -479,5 +479,4 @@ fn provider_chain_names_reports_single_runtime_route() {
         MIN_BASE_BACKOFF_MS,
     );
     assert_eq!(reliable.provider_chain_names(), vec!["zenmux/gpt-5.5"]);
-
 }

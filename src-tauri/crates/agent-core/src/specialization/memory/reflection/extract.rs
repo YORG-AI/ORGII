@@ -202,7 +202,10 @@ mod tests {
     fn correction_category_exempt_from_path_reject() {
         // P4 原话保真: a verbatim user correction that quotes a path must
         // survive the noise guard.
-        let mut i = insight("用户纠正：「不要用 /tmp/，必须用 /mnt/share_88」", Some("禁用 /tmp/，改 /mnt/share_88"));
+        let mut i = insight(
+            "用户纠正：「不要用 /tmp/，必须用 /mnt/share_88」",
+            Some("禁用 /tmp/，改 /mnt/share_88"),
+        );
         i.category = "correction".to_string();
         assert_eq!(rejection_reason(&i), None);
     }

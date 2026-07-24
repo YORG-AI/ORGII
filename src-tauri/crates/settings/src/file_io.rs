@@ -214,7 +214,9 @@ fn prune_old_backups(path: &Path) {
         return;
     };
     let prefix = format!("{stem}.bak-");
-    let Ok(entries) = fs::read_dir(dir) else { return };
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
     let mut backups: Vec<PathBuf> = entries
         .flatten()
         .map(|e| e.path())

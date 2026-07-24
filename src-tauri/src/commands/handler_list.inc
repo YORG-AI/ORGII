@@ -1125,7 +1125,6 @@ agent_sessions::unified_stats::commands::session_usage_summary,
 agent_sessions::unified_stats::commands::quota_get_zenmux_status,
 agent_sessions::unified_stats::commands::session_get_context_status,
 agent_sessions::unified_stats::patch::session_patch,
-agent_sessions::session_directory::commands::session_external_history_sidebar_list,
 // Flow Awareness commands (user activity tracking for intent inference)
 agent_core::flow_awareness::commands::flow_record_activity,
 agent_core::flow_awareness::commands::flow_record_activities,

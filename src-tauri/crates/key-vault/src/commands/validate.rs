@@ -583,7 +583,10 @@ pub async fn refresh_key_quota(key_id: String) -> Result<Option<crate::commands:
             .filter(|token| !token.trim().is_empty())
             .ok_or_else(|| "Claude Code OAuth account has no access token".to_string())?;
 
-        let refresh = match ClaudeCodeQuotaFetcher::new().fetch_quota_refresh(token).await {
+        let refresh = match ClaudeCodeQuotaFetcher::new()
+            .fetch_quota_refresh(token)
+            .await
+        {
             Ok(refresh) => refresh,
             Err(first_err) if is_unauthorized_quota_error(&first_err) => {
                 let refreshed = refresh_oauth_key_for_quota(&key).await?;

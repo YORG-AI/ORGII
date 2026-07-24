@@ -200,7 +200,11 @@ impl UnifiedMessageProcessor {
 
         match crate::core::session::persistence::load_context_snapshots(session_id) {
             Ok(snapshots) => {
-                if let Some(section) = crate::core::session::prompt::section_builders::build_imported_context_section(&snapshots) {
+                if let Some(section) =
+                    crate::core::session::prompt::section_builders::build_imported_context_section(
+                        &snapshots,
+                    )
+                {
                     dynamic_sections.push(section);
                 }
             }

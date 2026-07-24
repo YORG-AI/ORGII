@@ -336,9 +336,7 @@ async fn run_manual_compact_exclusive(
             // conversion `adjust_sm_state_for_compactable_tail` performs
             // on the auto paths. Without it the kept tail starts past
             // messages the SM summary never covered.
-            last_summarized_msg_idx: sm_persisted
-                .last_msg_idx
-                .and_then(|idx| idx.checked_sub(1)),
+            last_summarized_msg_idx: sm_persisted.last_msg_idx.and_then(|idx| idx.checked_sub(1)),
             ..Default::default()
         };
         if let Some(sm_view) = session_memory::try_sm_compact(

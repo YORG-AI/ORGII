@@ -16,27 +16,25 @@ use std::sync::OnceLock;
 ///
 /// 逐行匹配：命中任一模式的行会被丢弃，剩余行重组后才进 transcript。
 const NOISE_LINE_PATTERNS: &[&str] = &[
-    r"^\[STATUS BAR\]",                              // 状态栏指令
-    r"^\s*📊\s*等效[:：]",                           // 状态栏正文
-    r"^Conversation info \(untrusted metadata\)",    // 飞书元数据块
-    r"^Feishu\[[^\]]*\] DM from ",                    // 飞书 DM 信封头
-    r"^System:.*Feishu\[[^\]]*\] DM",                // System 包裹的飞书信封
-    r"^System:.*Exec (completed|failed)",            // Exec 完成回灌
-    r"^\[message_id:\s*om_",                          // 飞书 message_id
-    r"^\s*NO_REPLY\s*$",                              // 静默回复标记
-    r"^\s*HEARTBEAT_OK\s*$",                          // 心跳 ack
-    r"^\[\[\s*reply_to(_current)?\s*[:\]]",           // reply tag
-    r"^\[Memory V3 相关记忆\]",                       // Memory V3 注入块
+    r"^\[STATUS BAR\]",                           // 状态栏指令
+    r"^\s*📊\s*等效[:：]",                        // 状态栏正文
+    r"^Conversation info \(untrusted metadata\)", // 飞书元数据块
+    r"^Feishu\[[^\]]*\] DM from ",                // 飞书 DM 信封头
+    r"^System:.*Feishu\[[^\]]*\] DM",             // System 包裹的飞书信封
+    r"^System:.*Exec (completed|failed)",         // Exec 完成回灌
+    r"^\[message_id:\s*om_",                      // 飞书 message_id
+    r"^\s*NO_REPLY\s*$",                          // 静默回复标记
+    r"^\s*HEARTBEAT_OK\s*$",                      // 心跳 ack
+    r"^\[\[\s*reply_to(_current)?\s*[:\]]",       // reply tag
+    r"^\[Memory V3 相关记忆\]",                   // Memory V3 注入块
     r"^\[/Memory V3\]",
-    r"^【User Traits】",                              // 画像注入
+    r"^【User Traits】", // 画像注入
     r"^【Current Context】",
 ];
 
 fn noise_set() -> &'static RegexSet {
     static SET: OnceLock<RegexSet> = OnceLock::new();
-    SET.get_or_init(|| {
-        RegexSet::new(NOISE_LINE_PATTERNS).expect("noise patterns must compile")
-    })
+    SET.get_or_init(|| RegexSet::new(NOISE_LINE_PATTERNS).expect("noise patterns must compile"))
 }
 
 /// 剥离 content 中的结构性噪音行；返回清洗后的内容（保留非噪音行原文）。
@@ -204,10 +202,18 @@ mod tests {
     fn append_transcript_line_strips_noise_before_append() {
         let mut out = String::new();
         // 纯噪音内容 → append 后应为空（剥离后 trimmed 为空）
-        append_transcript_line(&mut out, message_role::USER, "[STATUS BAR] x\n📊 等效: 0k\nNO_REPLY");
+        append_transcript_line(
+            &mut out,
+            message_role::USER,
+            "[STATUS BAR] x\n📊 等效: 0k\nNO_REPLY",
+        );
         assert_eq!(out, "", "pure-noise message must yield empty transcript");
         // 噪音 + 正文 → 只保留正文
-        append_transcript_line(&mut out, message_role::ASSISTANT, "HEARTBEAT_OK\n实际回复内容");
+        append_transcript_line(
+            &mut out,
+            message_role::ASSISTANT,
+            "HEARTBEAT_OK\n实际回复内容",
+        );
         assert!(out.contains("Assistant: 实际回复内容"));
         assert!(!out.contains("HEARTBEAT_OK"));
     }

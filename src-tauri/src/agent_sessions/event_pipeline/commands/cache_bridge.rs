@@ -1027,7 +1027,8 @@ mod tests {
 
     #[test]
     fn compact_boundary_row_maps_to_context_compacted_event() {
-        let content = "[Conversation summary \u{2014} 6 earlier messages compacted]\n\nsummary body";
+        let content =
+            "[Conversation summary \u{2014} 6 earlier messages compacted]\n\nsummary body";
         let event = compact_boundary_row_to_event(
             "session-x",
             CompactBoundaryRow {

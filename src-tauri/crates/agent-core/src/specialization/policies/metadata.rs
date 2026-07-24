@@ -221,12 +221,16 @@ mod tests {
         // 断言空 paths → 无 path_globs（=unconditional，全局生效），content 保真。
         let core = "---\npaths: []\n---\n\n# 核心硬约束\n\n绝不擅自 fallback；绝不加 timeout；setsid nohup 启动后台任务。";
         let (content, metadata) = parse_policy_file(core);
-        assert!(metadata.path_globs.is_empty(), "paths:[] must yield no globs (unconditional)");
+        assert!(
+            metadata.path_globs.is_empty(),
+            "paths:[] must yield no globs (unconditional)"
+        );
         assert!(content.contains("绝不擅自 fallback"));
         assert!(content.contains("绝不加 timeout"));
         assert!(content.contains("setsid"));
 
-        let profile = "---\npaths: []\n---\n\n# 用户偏好\n\n默认永远用 sonnet-4.6，除非 Simon 主动说切。";
+        let profile =
+            "---\npaths: []\n---\n\n# 用户偏好\n\n默认永远用 sonnet-4.6，除非 Simon 主动说切。";
         let (pcontent, pmeta) = parse_policy_file(profile);
         assert!(pmeta.path_globs.is_empty());
         assert!(pcontent.contains("sonnet-4.6"));

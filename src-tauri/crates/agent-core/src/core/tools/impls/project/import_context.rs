@@ -10,7 +10,9 @@ use serde_json::Value;
 use crate::session::context_import::{ContextSnapshotMeta, ContextSourceKind};
 use crate::session::persistence as unified_persistence;
 use crate::tools::names as tool_names;
-use crate::tools::traits::{optional_bool, optional_int, optional_string, required_string, Tool, ToolError};
+use crate::tools::traits::{
+    optional_bool, optional_int, optional_string, required_string, Tool, ToolError,
+};
 
 fn parse_source_kind(raw: &str) -> Result<ContextSourceKind, ToolError> {
     match raw {
@@ -117,7 +119,9 @@ impl Tool for ImportContextTool {
         let source_label = format!("{}:{}", meta.source_kind.as_str(), meta.source_id);
         tokio::task::spawn_blocking(move || unified_persistence::save_context_snapshot(&meta))
             .await
-            .map_err(|err| ToolError::ExecutionFailed(format!("import_context task failed: {err}")))?
+            .map_err(|err| {
+                ToolError::ExecutionFailed(format!("import_context task failed: {err}"))
+            })?
             .map_err(|err| ToolError::ExecutionFailed(err.to_string()))?;
         Ok(format!(
             "Imported context snapshot {} from {} into namespace {}",
@@ -155,12 +159,15 @@ mod tests {
             .await
             .expect("import context");
         assert!(result.contains("session:source-session"));
-        let snapshots = unified_persistence::load_context_snapshots("target-session")
-            .expect("load snapshots");
+        let snapshots =
+            unified_persistence::load_context_snapshots("target-session").expect("load snapshots");
         assert_eq!(snapshots.len(), 1);
         assert_eq!(snapshots[0].namespace, "session:source-session");
         assert_eq!(snapshots[0].token_estimate, 321);
         assert!(snapshots[0].pinned);
-        assert_eq!(snapshots[0].snippet.as_deref(), Some("Important prior decision: keep imports explicit."));
+        assert_eq!(
+            snapshots[0].snippet.as_deref(),
+            Some("Important prior decision: keep imports explicit.")
+        );
     }
 }

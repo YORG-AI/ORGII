@@ -14,12 +14,12 @@ use crate::provider_config::{
     ProviderConfig,
 };
 
+use super::data::supported_setup_methods_for_agent;
 use super::data::{
     api_provider_registry, cli_agent_registry, cli_env_config, cli_install_methods,
     cli_uninstall_methods, infer_install_method, CliConfigPathKind,
 };
 use super::{AvailableAgent, AvailableApiProvider, CliConfigFile};
-use super::data::supported_setup_methods_for_agent;
 
 const AVAILABLE_AGENTS_CACHE_TTL: Duration = Duration::from_secs(60);
 const PROTOCOL_ANTHROPIC_MESSAGES: &str = "Anthropic Messages";

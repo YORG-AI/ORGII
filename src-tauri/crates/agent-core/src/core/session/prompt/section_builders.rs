@@ -1049,7 +1049,6 @@ pub fn format_user_presence_compact(presence: &crate::session::UserPresence) -> 
     }
 }
 
-
 #[cfg(test)]
 mod mcp_instructions_tests {
     use super::build_mcp_instructions_section;

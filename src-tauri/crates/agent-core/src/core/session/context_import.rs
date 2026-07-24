@@ -40,7 +40,10 @@ pub struct ContextNamespace {
 
 impl ContextNamespace {
     pub fn new(kind: ContextSourceKind, id: impl Into<String>) -> Self {
-        Self { kind, id: id.into() }
+        Self {
+            kind,
+            id: id.into(),
+        }
     }
 
     pub fn global() -> Self {
@@ -197,9 +200,15 @@ mod tests {
 
     #[test]
     fn namespace_storage_keys_are_stable() {
-        assert_eq!(ContextNamespace::global().storage_key(), "global_preference:global");
+        assert_eq!(
+            ContextNamespace::global().storage_key(),
+            "global_preference:global"
+        );
         assert_eq!(ContextNamespace::session("s1").storage_key(), "session:s1");
-        assert_eq!(ContextNamespace::work_item("WI-1").storage_key(), "work_item:WI-1");
+        assert_eq!(
+            ContextNamespace::work_item("WI-1").storage_key(),
+            "work_item:WI-1"
+        );
         assert_eq!(
             ContextNamespace::imported_context("snap").storage_key(),
             "imported_context:snap"

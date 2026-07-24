@@ -565,16 +565,8 @@ fn maps_codex_subagent_parent_thread_to_parent_session_id() {
         "orgii-codex-history-subagent-parent-test-{}",
         std::process::id()
     ));
-    let parent_sessions_dir = temp_dir
-        .join("sessions")
-        .join("2026")
-        .join("07")
-        .join("08");
-    let child_sessions_dir = temp_dir
-        .join("sessions")
-        .join("2026")
-        .join("07")
-        .join("09");
+    let parent_sessions_dir = temp_dir.join("sessions").join("2026").join("07").join("08");
+    let child_sessions_dir = temp_dir.join("sessions").join("2026").join("07").join("09");
     std::fs::create_dir_all(&parent_sessions_dir).expect("create parent sessions dir");
     std::fs::create_dir_all(&child_sessions_dir).expect("create child sessions dir");
 

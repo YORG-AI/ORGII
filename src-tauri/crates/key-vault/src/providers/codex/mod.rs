@@ -264,8 +264,7 @@ impl CodexValidator {
             .map_err(|err| format!("Codex usage API request failed: {err}"))?;
 
         let status = response.status();
-        if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN
-        {
+        if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
             return Err(format!(
                 "Codex usage API unauthorized: HTTP {}",
                 status.as_u16()
@@ -388,13 +387,9 @@ fn parse_usage_window_reset(window: &serde_json::Value) -> Option<String> {
             if let Some(ts) = value.as_i64() {
                 unix_seconds_to_rfc3339(ts)
             } else {
-                value
-                    .as_str()
-                    .map(str::to_string)
-                    .and_then(|text| {
-                        crate::providers::quota_windows::normalize_reset_time(&text)
-                            .or(Some(text))
-                    })
+                value.as_str().map(str::to_string).and_then(|text| {
+                    crate::providers::quota_windows::normalize_reset_time(&text).or(Some(text))
+                })
             }
         })
 }

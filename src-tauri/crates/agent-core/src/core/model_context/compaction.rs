@@ -186,6 +186,20 @@ pub enum CompactionOutcome {
     Skipped,
 }
 
+/// Result of one summarization attempt before the caller applies its failure
+/// policy. Automatic compaction may truncate after a failure; an explicit
+/// user request must instead surface the error without mutating its state.
+enum CompactAttempt {
+    Compacted {
+        compacted: Vec<Value>,
+        messages_dropped: usize,
+        messages_kept: usize,
+    },
+    Skipped,
+    NoCompactableSegment,
+    SummarizeInputExhausted,
+}
+
 // ============================================
 // Compactor
 // ============================================
@@ -199,6 +213,13 @@ pub(crate) const MAX_CONSECUTIVE_COMPACTION_FAILURES: u32 = 3;
 
 /// Minimum adaptive keep ratio (don't go below 15% recent).
 pub(crate) const MIN_KEEP_RATIO: f32 = 0.15;
+
+/// A manual request must be useful for medium-sized histories too. The
+/// automatic 16k floor is intentionally conservative, but it can leave no
+/// compactable prefix when the user explicitly asks to compact now.
+pub(crate) const MANUAL_COMPACT_FLOOR_TOKENS: usize = 4_000;
+
+const MAX_PTL_RETRIES: usize = 2;
 
 /// Context compactor: summarizes older messages to fit the context window.
 pub struct ContextCompactor;
@@ -357,94 +378,154 @@ impl ContextCompactor {
             );
         }
 
-        let history_tokens = Self::estimate_messages_tokens(history);
-
-        // Skip at the same trigger threshold as `needs_compaction`, not at
-        // the full budget — otherwise a caller whose trigger fired (>80% of
-        // budget) gets a silent no-op here (estimate still ≤ 100% of budget)
-        // and the history keeps growing until the provider rejects it.
-        let trigger_threshold = (budget_tokens as f32 * config.trigger_ratio) as usize;
-        if history_tokens <= trigger_threshold {
-            return (history.to_vec(), CompactionOutcome::Skipped);
+        let attempt =
+            Self::try_compact(history, budget_tokens, config, state, provider, model, None).await;
+        match attempt {
+            Ok(CompactAttempt::Compacted {
+                compacted,
+                messages_dropped,
+                messages_kept,
+            }) => (
+                compacted,
+                CompactionOutcome::Compacted {
+                    messages_dropped,
+                    messages_kept,
+                },
+            ),
+            Ok(CompactAttempt::Skipped) => (history.to_vec(), CompactionOutcome::Skipped),
+            Ok(CompactAttempt::NoCompactableSegment | CompactAttempt::SummarizeInputExhausted) => {
+                let truncated = Self::simple_truncate(history, budget_tokens);
+                let dropped = history.len().saturating_sub(truncated.len());
+                (
+                    truncated,
+                    CompactionOutcome::Truncated {
+                        messages_dropped: dropped,
+                    },
+                )
+            }
+            Err(err) => {
+                state.consecutive_failures += 1;
+                warn!(
+                    "[compaction] Summarization failed ({}/{}), falling back to truncation: {}",
+                    state.consecutive_failures, MAX_CONSECUTIVE_COMPACTION_FAILURES, err
+                );
+                let truncated = Self::simple_truncate(history, budget_tokens);
+                let dropped = history.len().saturating_sub(truncated.len());
+                (
+                    truncated,
+                    CompactionOutcome::Truncated {
+                        messages_dropped: dropped,
+                    },
+                )
+            }
         }
+    }
 
-        let effective_ratio = Self::adaptive_keep_ratio(history, budget_tokens, config.keep_ratio);
-        let keep_tokens =
-            (budget_tokens as f32 * effective_ratio).max(config.floor_tokens as f32) as usize;
+    /// Force a user-triggered compaction. This deliberately bypasses the
+    /// automatic threshold and circuit breaker, but never falls back to
+    /// truncation: the caller must be able to tell the user that the requested
+    /// summary could not be created.
+    pub async fn compact_manual_force(
+        history: &[Value],
+        budget_tokens: usize,
+        config: &CompactionConfig,
+        state: &mut CompactionState,
+        provider: &dyn LLMProvider,
+        model: &str,
+        custom_instructions: Option<&str>,
+    ) -> Result<(Vec<Value>, CompactionOutcome), String> {
+        let mut manual_config = config.clone();
+        manual_config.trigger_ratio = 0.0;
+        manual_config.floor_tokens = manual_config.floor_tokens.min(MANUAL_COMPACT_FLOOR_TOKENS);
+        match Self::try_compact(
+            history,
+            budget_tokens,
+            &manual_config,
+            state,
+            provider,
+            model,
+            custom_instructions,
+        )
+        .await?
+        {
+            CompactAttempt::Compacted {
+                compacted,
+                messages_dropped,
+                messages_kept,
+            } => Ok((
+                compacted,
+                CompactionOutcome::Compacted {
+                    messages_dropped,
+                    messages_kept,
+                },
+            )),
+            CompactAttempt::Skipped | CompactAttempt::NoCompactableSegment => {
+                Ok((history.to_vec(), CompactionOutcome::Skipped))
+            }
+            CompactAttempt::SummarizeInputExhausted => Err(format!(
+                "summarization input remained too large after {} head-dropping retries",
+                MAX_PTL_RETRIES
+            )),
+        }
+    }
 
-        let mut kept_tokens = 0usize;
+    #[allow(clippy::too_many_arguments)]
+    async fn try_compact(
+        history: &[Value],
+        budget_tokens: usize,
+        config: &CompactionConfig,
+        state: &mut CompactionState,
+        provider: &dyn LLMProvider,
+        model: &str,
+        custom_instructions: Option<&str>,
+    ) -> Result<CompactAttempt, String> {
+        let history_tokens = Self::estimate_messages_tokens(history);
+        if history_tokens <= (budget_tokens as f32 * config.trigger_ratio) as usize {
+            return Ok(CompactAttempt::Skipped);
+        }
+        let keep_tokens = (budget_tokens as f32
+            * Self::adaptive_keep_ratio(history, budget_tokens, config.keep_ratio))
+        .max(config.floor_tokens as f32) as usize;
+        let mut kept_tokens = 0;
         let mut split_idx = history.len();
-
         for idx in (0..history.len()).rev() {
-            let msg_tokens = Self::estimate_message_tokens(&history[idx]);
-
-            if kept_tokens + msg_tokens > keep_tokens {
+            let message_tokens = Self::estimate_message_tokens(&history[idx]);
+            if kept_tokens + message_tokens > keep_tokens {
                 split_idx = idx + 1;
                 break;
             }
-            kept_tokens += msg_tokens;
+            kept_tokens += message_tokens;
         }
-
         if split_idx == 0 || split_idx >= history.len() {
-            let truncated = Self::simple_truncate(history, budget_tokens);
-            let dropped = history.len().saturating_sub(truncated.len());
-            return (
-                truncated,
-                CompactionOutcome::Truncated {
-                    messages_dropped: dropped,
-                },
-            );
+            return Ok(CompactAttempt::NoCompactableSegment);
         }
-
-        let split_idx = Self::snap_to_api_round_boundary(history, split_idx);
-        let split_idx = Self::adjust_split_for_tool_pairs(history, split_idx);
-
+        let split_idx = Self::adjust_split_for_tool_pairs(
+            history,
+            Self::snap_to_api_round_boundary(history, split_idx),
+        );
+        if split_idx == 0 || split_idx >= history.len() {
+            return Ok(CompactAttempt::NoCompactableSegment);
+        }
         let older = &history[..split_idx];
         let recent = &history[split_idx..];
-
-        info!(
-            "[compaction] Compacting {} older messages ({} tokens) → summary; keeping {} recent ({} tokens)",
-            older.len(),
-            Self::estimate_messages_tokens(older),
-            recent.len(),
-            Self::estimate_messages_tokens(recent),
-        );
-
-        // Primary summarization stays on the live resolved model/route: it has
-        // maximum context understanding of the session (no re-reading with a
-        // dumber model) and keeps cost attribution / route debugging sane. Do
-        // not honor `config.model` for the primary attempt.
-        let summary_model = model;
-        // Cheap same-family sibling used only as a fallback ladder step when
-        // the primary model fails or refuses: a nano cold re-read is still far
-        // better than dropping history via simple truncation.
-        let nano_model = crate::providers::model_hints::nano_model_hint(model);
-
-        let mut messages_to_summarize: Vec<Value> = older.to_vec();
+        info!("[compaction] Compacting {} older messages ({} tokens) -> summary; keeping {} recent ({} tokens)", older.len(), Self::estimate_messages_tokens(older), recent.len(), Self::estimate_messages_tokens(recent));
+        let mut messages_to_summarize = older.to_vec();
         let mut ptl_retries = 0;
-        const MAX_PTL_RETRIES: usize = 2;
-
         loop {
             let mut summary = summarization::summarize_messages(
                 &messages_to_summarize,
                 state,
                 provider,
-                summary_model,
+                model,
                 config,
                 budget_tokens,
+                custom_instructions,
             )
             .await;
-
-            // Fallback ladder: primary live model failed (non-PTL) → retry
-            // once with the cheap same-family sibling before giving up to
-            // truncation. PTL errors are handled by the head-drop retry loop
-            // below instead (dropping history is what actually fixes PTL).
-            if let Err(ref primary_err) = summary {
-                if !Self::is_prompt_too_long_error(primary_err) && nano_model != summary_model {
-                    warn!(
-                        "[compaction] Primary model {} summarization failed ({}); retrying with fallback model {}",
-                        summary_model, primary_err, nano_model
-                    );
+            let nano_model = crate::providers::model_hints::nano_model_hint(model);
+            if let Err(primary_err) = &summary {
+                if !Self::is_prompt_too_long_error(primary_err) && nano_model != model {
+                    warn!("[compaction] Primary model {} summarization failed ({}); retrying with fallback model {}", model, primary_err, nano_model);
                     summary = summarization::summarize_messages(
                         &messages_to_summarize,
                         state,
@@ -452,81 +533,60 @@ impl ContextCompactor {
                         &nano_model,
                         config,
                         budget_tokens,
+                        custom_instructions,
                     )
                     .await;
                 }
             }
-
             match summary {
                 Ok(summary_text) => {
-                    state.consecutive_failures = 0;
-                    state.summary = Some(summary_text.clone());
-                    state.compacted_count = split_idx;
-                    state.recompaction_info.compaction_count += 1;
-                    state.recompaction_info.last_compaction_turn = history.len();
-
-                    let mut compacted = Vec::with_capacity(recent.len() + 1);
-
-                    let summary_msg = compacted_summary_message(format!(
-                        "{} {} earlier messages compacted]\n\n{}",
-                        super::session_memory::compact::LLM_COMPACT_BOUNDARY_PREFIX,
+                    return Ok(Self::accept_summary(
+                        state,
+                        history,
                         split_idx,
-                        summary_text
-                    ));
-                    compacted.push(summary_msg);
-                    compacted.extend_from_slice(recent);
-
-                    let compacted_tokens = Self::estimate_messages_tokens(&compacted);
-                    info!(
-                        "[compaction] Compacted history: {} messages, ~{} tokens (was {} messages, ~{} tokens)",
-                        compacted.len(), compacted_tokens, history.len(), history_tokens
-                    );
-
-                    let outcome = CompactionOutcome::Compacted {
-                        messages_dropped: split_idx,
-                        messages_kept: recent.len(),
-                    };
-                    return (compacted, outcome);
+                        recent,
+                        summary_text,
+                    ))
                 }
                 Err(err)
                     if Self::is_prompt_too_long_error(&err) && ptl_retries < MAX_PTL_RETRIES =>
                 {
                     ptl_retries += 1;
-                    let old_len = messages_to_summarize.len();
-                    let drop_count = (old_len / 4).max(1);
+                    let drop_count = (messages_to_summarize.len() / 4).max(1);
                     messages_to_summarize = messages_to_summarize[drop_count..].to_vec();
-                    warn!(
-                        "[compaction] PTL error during summarization (retry {}/{}), truncating head: {} → {} messages. Error: {}",
-                        ptl_retries, MAX_PTL_RETRIES, old_len, messages_to_summarize.len(), err,
-                    );
-
                     if messages_to_summarize.is_empty() {
-                        let truncated = Self::simple_truncate(history, budget_tokens);
-                        let dropped = history.len().saturating_sub(truncated.len());
-                        return (
-                            truncated,
-                            CompactionOutcome::Truncated {
-                                messages_dropped: dropped,
-                            },
-                        );
+                        return Ok(CompactAttempt::SummarizeInputExhausted);
                     }
                 }
-                Err(err) => {
-                    state.consecutive_failures += 1;
-                    warn!(
-                        "[compaction] Summarization failed ({}/{}), falling back to truncation: {}",
-                        state.consecutive_failures, MAX_CONSECUTIVE_COMPACTION_FAILURES, err
-                    );
-                    let truncated = Self::simple_truncate(history, budget_tokens);
-                    let dropped = history.len().saturating_sub(truncated.len());
-                    return (
-                        truncated,
-                        CompactionOutcome::Truncated {
-                            messages_dropped: dropped,
-                        },
-                    );
-                }
+                Err(err) => return Err(err),
             }
+        }
+    }
+
+    fn accept_summary(
+        state: &mut CompactionState,
+        history: &[Value],
+        split_idx: usize,
+        recent: &[Value],
+        summary_text: String,
+    ) -> CompactAttempt {
+        state.consecutive_failures = 0;
+        state.summary = Some(summary_text.clone());
+        state.compacted_count = split_idx;
+        state.recompaction_info.compaction_count += 1;
+        state.recompaction_info.last_compaction_turn = history.len();
+        let mut compacted = Vec::with_capacity(recent.len() + 1);
+        compacted.push(compacted_summary_message(format!(
+            "{} {} earlier messages compacted]\n\n{}",
+            super::session_memory::compact::LLM_COMPACT_BOUNDARY_PREFIX,
+            split_idx,
+            summary_text
+        )));
+        compacted.extend_from_slice(recent);
+        CompactAttempt::Compacted {
+            compacted,
+            messages_dropped: split_idx,
+            messages_kept: recent.len(),
         }
     }
 

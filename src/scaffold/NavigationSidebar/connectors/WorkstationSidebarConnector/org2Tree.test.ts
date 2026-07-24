@@ -48,11 +48,14 @@ describe("buildOrg2TreeItems", () => {
 
     const rowActions = buildSessionRowActions({
       activeSessionMoreMenuId: "",
+      expandedSubagentParentIds: new Set(),
       handleMenuItemContextMenu: vi.fn(async () => undefined),
       handleTogglePin: vi.fn(),
+      handleToggleSubagentExpansion: vi.fn(),
       item: sessionItem!,
       session: { session_id: "s1", pinned: false } as never,
       setActiveSessionMoreMenuId: vi.fn() as never,
+      subagentParentIds: new Set(),
       tCommon: (_key, defaultValue) => defaultValue ?? "More actions",
       pinLabel: "Pin",
       unpinLabel: "Unpin",

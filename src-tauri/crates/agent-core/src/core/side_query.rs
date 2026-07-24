@@ -100,7 +100,9 @@ pub enum SideQueryError {
     Provider(ProviderError),
     /// The model hit its output token limit. Never accept this for side queries:
     /// summaries / classifiers may be syntactically parseable but semantically truncated.
-    IncompleteOutput { finish_reason: String },
+    IncompleteOutput {
+        finish_reason: String,
+    },
     EmptyContent,
 }
 
@@ -364,11 +366,26 @@ async fn side_query_chat(
 ) -> Result<LLMResponse, ProviderError> {
     if stream {
         provider
-            .chat_streaming(messages, tools, model, max_tokens, temperature, &|_| {}, None)
+            .chat_streaming(
+                messages,
+                tools,
+                model,
+                max_tokens,
+                temperature,
+                &|_| {},
+                None,
+            )
             .await
     } else {
         provider
-            .chat_with_options(messages, tools, model, max_tokens, temperature, chat_options)
+            .chat_with_options(
+                messages,
+                tools,
+                model,
+                max_tokens,
+                temperature,
+                chat_options,
+            )
             .await
     }
 }

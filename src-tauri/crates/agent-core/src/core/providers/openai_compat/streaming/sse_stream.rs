@@ -527,8 +527,7 @@ pub(super) async fn run_chat_streaming(
                             "[streaming-usage] OpenAI cached_tokens={}",
                             details.cached_tokens
                         );
-                        final_usage
-                            .insert("cache_read_tokens".to_string(), details.cached_tokens);
+                        final_usage.insert("cache_read_tokens".to_string(), details.cached_tokens);
                     }
                 }
             }

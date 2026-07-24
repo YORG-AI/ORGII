@@ -42,7 +42,10 @@ pub enum GatewayCommand {
     SessionNewNamed(Option<String>),
     /// Create a fresh named session and optionally dispatch an initial prompt.
     /// Syntax: `/newsession <session_name> [prompt...]`.
-    NewSessionWithPrompt { name: String, prompt: Option<String> },
+    NewSessionWithPrompt {
+        name: String,
+        prompt: Option<String>,
+    },
     /// Semantic search across indexed Session Memory summaries.
     SessionSearch(String),
     /// Bind the current chat/session to a Project or Work Item context.
@@ -86,7 +89,9 @@ pub fn parse(content: &str) -> Option<GatewayCommand> {
     match head.as_str() {
         "/new" | "/reset" => bare_command(rest, GatewayCommand::NewSession),
         "/status" => bare_command(rest, GatewayCommand::Status),
-        "/model" => Some(GatewayCommand::Model((!rest.is_empty()).then(|| rest.to_string()))),
+        "/model" => Some(GatewayCommand::Model(
+            (!rest.is_empty()).then(|| rest.to_string()),
+        )),
         "/compact" => bare_command(rest, GatewayCommand::Compact),
         "/session" | "/ctx" => parse_session_command(rest),
         "/newsession" => parse_newsession_command(rest),
@@ -94,7 +99,6 @@ pub fn parse(content: &str) -> Option<GatewayCommand> {
         _ => None,
     }
 }
-
 
 fn parse_newsession_command(rest: &str) -> Option<GatewayCommand> {
     let rest = rest.trim();

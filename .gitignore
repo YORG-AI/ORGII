@@ -84,6 +84,7 @@ init.lock
 # Build artifacts
 latest.json
 npminstall-debug.log
+artifacts/
 
 # Runtime directories
 None/

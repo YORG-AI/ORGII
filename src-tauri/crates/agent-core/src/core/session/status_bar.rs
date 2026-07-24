@@ -98,7 +98,13 @@ pub async fn append_status_bar_for_channel(
     let session_id = session.id.clone();
     let (msg_num, cumulative_total, session_label) = tokio::task::spawn_blocking(move || {
         query_session_usage(&session_id)
-            .map(|(count, sum)| (count + 1, sum + total_tokens, session_context_label(&session_id)))
+            .map(|(count, sum)| {
+                (
+                    count + 1,
+                    sum + total_tokens,
+                    session_context_label(&session_id),
+                )
+            })
             .unwrap_or((0, total_tokens, session_context_label(&session_id)))
     })
     .await

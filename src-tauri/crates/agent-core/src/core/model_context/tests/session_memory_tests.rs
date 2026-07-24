@@ -694,7 +694,9 @@ fn parse_compact_boundary_content_splits_header_body_and_count() {
     assert!(parsed.body.starts_with("## Summary"));
     assert!(parsed.body.ends_with("body text"));
     assert!(
-        !parsed.body.contains("continued from an earlier conversation"),
+        !parsed
+            .body
+            .contains("continued from an earlier conversation"),
         "continuation suffix must be stripped"
     );
     assert_eq!(parsed.compacted_count, Some(12));

@@ -78,7 +78,10 @@ pub struct ReliableProvider {
 impl ReliableProvider {
     /// Return provider labels in the order this wrapper would try them.
     pub fn provider_chain_names(&self) -> Vec<String> {
-        self.providers.iter().map(|(name, _)| name.clone()).collect()
+        self.providers
+            .iter()
+            .map(|(name, _)| name.clone())
+            .collect()
     }
 
     /// Create a new reliable provider wrapping a single provider.

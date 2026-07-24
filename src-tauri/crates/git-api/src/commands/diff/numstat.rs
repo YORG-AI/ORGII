@@ -190,7 +190,11 @@ pub fn get_diff_numstat_combined(
     let repo_path_str = repo_path.to_string_lossy().to_string();
     let head_sha_opt = read_head_sha_for_numstat(repo_path);
     if let Some(ref head_sha) = head_sha_opt {
-        let cache_key = (repo_path_str.clone(), from_ref.to_string(), head_sha.clone());
+        let cache_key = (
+            repo_path_str.clone(),
+            from_ref.to_string(),
+            head_sha.clone(),
+        );
         if let Ok(cache) = numstat_cache().lock() {
             if let Some(entry) = cache.get(&cache_key) {
                 if entry.cached_at.elapsed() < NUMSTAT_CACHE_TTL {

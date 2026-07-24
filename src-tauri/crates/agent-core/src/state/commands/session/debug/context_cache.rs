@@ -6,7 +6,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::core::session::context_import::{CacheLayoutStats, ContextSnapshotMeta, SessionEmbeddingState};
+use crate::core::session::context_import::{
+    CacheLayoutStats, ContextSnapshotMeta, SessionEmbeddingState,
+};
 use crate::core::session::persistence as unified_persistence;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -113,14 +115,16 @@ pub async fn debug_session_context_cache_snapshot(
             .map(ContextSnapshotWire::from)
             .collect::<Vec<_>>();
 
-        let latest_cache_layout = unified_persistence::load_latest_turn_cache_layout_stats(&session_id_for_block)
-            .map_err(|err| format!("load_latest_turn_cache_layout_stats failed: {err}"))?
-            .map(|(_turn_id, stats)| CacheLayoutStatsWire::from(stats));
+        let latest_cache_layout =
+            unified_persistence::load_latest_turn_cache_layout_stats(&session_id_for_block)
+                .map_err(|err| format!("load_latest_turn_cache_layout_stats failed: {err}"))?
+                .map(|(_turn_id, stats)| CacheLayoutStatsWire::from(stats));
 
         let embedding_namespace = format!("session:{session_id_for_block}");
-        let embedding_state = unified_persistence::load_session_embedding_state(&embedding_namespace)
-            .map_err(|err| format!("load_session_embedding_state failed: {err}"))?
-            .map(SessionEmbeddingStateWire::from);
+        let embedding_state =
+            unified_persistence::load_session_embedding_state(&embedding_namespace)
+                .map_err(|err| format!("load_session_embedding_state failed: {err}"))?
+                .map(SessionEmbeddingStateWire::from);
 
         Ok(ContextCacheSnapshotResult {
             session_id: session_id_for_block,

@@ -42,8 +42,8 @@ pub struct LocalReranker {
 
 impl LocalReranker {
     pub fn new() -> Self {
-        let base_url = std::env::var("ORGII_RERANK_URL")
-            .unwrap_or_else(|_| DEFAULT_RERANK_URL.to_string());
+        let base_url =
+            std::env::var("ORGII_RERANK_URL").unwrap_or_else(|_| DEFAULT_RERANK_URL.to_string());
         Self {
             base_url: base_url.trim_end_matches('/').to_string(),
             client: reqwest::Client::new(),

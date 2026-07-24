@@ -8,7 +8,9 @@ use crate::core::side_query::{
     extract_tool_choice_override, side_query, SideQueryConfig, StructuredOutput,
     TOOL_CHOICE_OVERRIDE_KEY,
 };
-use crate::providers::traits::{finish_reason, LLMProvider, LLMResponse, ProviderError, ToolCallRequest};
+use crate::providers::traits::{
+    finish_reason, LLMProvider, LLMResponse, ProviderError, ToolCallRequest,
+};
 
 // ── Mock infrastructure ──
 
@@ -98,7 +100,6 @@ impl MockProvider {
             call_count: Mutex::new(0),
         }
     }
-
 
     fn with_tool_call_finish(tool_name: &str, arguments: Value, finish: &str) -> Self {
         let mut provider = Self::with_tool_call(tool_name, arguments);
@@ -324,7 +325,11 @@ async fn structured_output_length_finish_is_rejected_even_when_parseable() {
         .expect_err("length-truncated structured output must not be accepted");
 
     assert!(err.contains("incomplete output"), "unexpected error: {err}");
-    assert_eq!(*provider.call_count.lock().unwrap(), 2, "should retry once before hard fail");
+    assert_eq!(
+        *provider.call_count.lock().unwrap(),
+        2,
+        "should retry once before hard fail"
+    );
 }
 
 #[tokio::test]

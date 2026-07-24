@@ -99,9 +99,20 @@ fn migrated_personal_rules_load_for_os_agent_e2e() {
         None => std::env::remove_var("ORGII_HOME"),
     }
 
-    let joined: String = rules.iter().map(|(_, c)| c.clone()).collect::<Vec<_>>().join("\n");
-    assert!(rules.len() >= 2, "expected >=2 loaded rules, got {}", rules.len());
-    assert!(joined.contains("NEVER fallback"), "core constraint not loaded into prompt data");
+    let joined: String = rules
+        .iter()
+        .map(|(_, c)| c.clone())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rules.len() >= 2,
+        "expected >=2 loaded rules, got {}",
+        rules.len()
+    );
+    assert!(
+        joined.contains("NEVER fallback"),
+        "core constraint not loaded into prompt data"
+    );
     assert!(joined.contains("setsid"), "setsid rule not loaded");
     assert!(joined.contains("sonnet-4.6"), "model preference not loaded");
 }

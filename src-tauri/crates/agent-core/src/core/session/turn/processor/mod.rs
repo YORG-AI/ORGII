@@ -374,10 +374,9 @@ impl UnifiedMessageProcessor {
                         .sum::<i64>()
                 })
                 .unwrap_or(result.context_tokens);
-            let imported_context_count =
-                unified_persistence::load_context_snapshots(session_id)
-                    .map(|snapshots| snapshots.len() as i64)
-                    .unwrap_or(0);
+            let imported_context_count = unified_persistence::load_context_snapshots(session_id)
+                .map(|snapshots| snapshots.len() as i64)
+                .unwrap_or(0);
             let cache_layout_stats = CacheLayoutStats::new(
                 stable_prefix_tokens,
                 result.context_tokens.saturating_sub(stable_prefix_tokens),
@@ -912,7 +911,6 @@ impl UnifiedMessageProcessor {
 
         self.record_token_usage(session_id, &turn_id, &result);
         self.record_usage_telemetry(session_id, &turn_id, &result);
-
 
         let final_turn_state = if self
             .session

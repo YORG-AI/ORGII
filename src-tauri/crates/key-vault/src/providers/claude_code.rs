@@ -230,9 +230,7 @@ fn parse_oauth_profile_metadata(body: &str) -> Result<HashMap<String, String>, S
         if let Some(name) = normalize_metadata_field(organization.name) {
             metadata.insert("organization_name".to_string(), name);
         }
-        if let Some(organization_type) =
-            normalize_metadata_field(organization.organization_type)
-        {
+        if let Some(organization_type) = normalize_metadata_field(organization.organization_type) {
             metadata.insert("organization_type".to_string(), organization_type);
         }
         if let Some(rate_limit_tier) = normalize_metadata_field(organization.rate_limit_tier) {

@@ -414,7 +414,6 @@ async fn create_and_switch_session(
     }
 }
 
-
 async fn create_switch_and_maybe_prompt(
     state: &AgentAppState,
     msg: &InboundMessage,
@@ -423,32 +422,59 @@ async fn create_switch_and_maybe_prompt(
     prompt: Option<String>,
 ) -> String {
     let created = create_and_switch_session(state, msg, session_key, Some(name.clone())).await;
-    let Some(prompt_text) = prompt.map(|p| p.trim().to_string()).filter(|p| !p.is_empty()) else {
+    let Some(prompt_text) = prompt
+        .map(|p| p.trim().to_string())
+        .filter(|p| !p.is_empty())
+    else {
         return created;
     };
     let Some(binding) = state.gateway_bindings.get(session_key).await else {
-        return format!("{}
+        return format!(
+            "{}
 
-Created, but could not dispatch prompt: no active binding found.", created);
+Created, but could not dispatch prompt: no active binding found.",
+            created
+        );
     };
     let target_sid = binding.target_session_id;
-    let sender_placeholder = if msg.sender_id.is_empty() { OS_AGENT_ID } else { msg.sender_id.as_str() };
-    let mut inbound = InboundMessage::new(REINJECT_CHANNEL, sender_placeholder, &target_sid, &prompt_text);
+    let sender_placeholder = if msg.sender_id.is_empty() {
+        OS_AGENT_ID
+    } else {
+        msg.sender_id.as_str()
+    };
+    let mut inbound = InboundMessage::new(
+        REINJECT_CHANNEL,
+        sender_placeholder,
+        &target_sid,
+        &prompt_text,
+    );
     inbound.session_key_override = Some(target_sid.clone());
-    inbound.metadata.insert("source_channel".to_string(), serde_json::Value::String(msg.channel.clone()));
-    inbound.metadata.insert("source_chat_id".to_string(), serde_json::Value::String(msg.chat_id.clone()));
+    inbound.metadata.insert(
+        "source_channel".to_string(),
+        serde_json::Value::String(msg.channel.clone()),
+    );
+    inbound.metadata.insert(
+        "source_chat_id".to_string(),
+        serde_json::Value::String(msg.chat_id.clone()),
+    );
     inbound.media = msg.media.clone();
     let send_result = {
         let bus = state.bus.lock().await;
         bus.inbound_sender().send(inbound).await
     };
     match send_result {
-        Ok(()) => format!("{}
+        Ok(()) => format!(
+            "{}
 
-Initial prompt dispatched to `{}`.", created, target_sid),
-        Err(err) => format!("{}
+Initial prompt dispatched to `{}`.",
+            created, target_sid
+        ),
+        Err(err) => format!(
+            "{}
 
-Created, but failed to dispatch prompt: {}", created, err),
+Created, but failed to dispatch prompt: {}",
+            created, err
+        ),
     }
 }
 
@@ -639,12 +665,15 @@ async fn handle_model_command(
             binding.target_session_id
         );
     };
-    let account_id = state
-        .current_account_id
-        .lock()
-        .await
-        .clone()
-        .or_else(|| state.integrations.snapshot().channels.gateway.account_id.clone());
+    let account_id = state.current_account_id.lock().await.clone().or_else(|| {
+        state
+            .integrations
+            .snapshot()
+            .channels
+            .gateway
+            .account_id
+            .clone()
+    });
     let Some((model, account_id)) = resolve_model_target(requested, account_id.as_deref()) else {
         return format!("未找到模型 `{}`", requested);
     };
@@ -668,7 +697,8 @@ async fn handle_model_command(
             let note_for_db = note.clone();
             let _ = tokio::task::spawn_blocking(move || {
                 crate::session::persistence::save_compact_summary_msg(&sid_for_note, &note_for_db)
-            }).await;
+            })
+            .await;
             note
         }
         Ok(Ok(false)) => format!("切换模型失败：会话 {} 不存在", binding.target_session_id),
@@ -699,7 +729,8 @@ fn resolve_model_target(
     for (target, names) in MODEL_INPUT_ALIASES {
         if names.iter().any(|name| normalize_model_key(name) == needle) {
             return Some((
-                best_candidate_for_alias(&candidates, target).unwrap_or_else(|| (*target).to_string()),
+                best_candidate_for_alias(&candidates, target)
+                    .unwrap_or_else(|| (*target).to_string()),
                 account_id.map(str::to_string),
             ));
         }
@@ -707,7 +738,11 @@ fn resolve_model_target(
     candidates
         .iter()
         .find(|m| normalize_model_key(m) == needle)
-        .or_else(|| candidates.iter().find(|m| normalize_model_key(m).contains(&needle)))
+        .or_else(|| {
+            candidates
+                .iter()
+                .find(|m| normalize_model_key(m).contains(&needle))
+        })
         .cloned()
         .map(|model| (model, account_id.map(str::to_string)))
 }

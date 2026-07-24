@@ -165,6 +165,7 @@ export interface SlashItem {
 
 /** Built-in slash action names. */
 export const SLASH_ACTIONS = {
+  COMPACT: "Compact",
   SUMMARIZE: "Summarize",
   SETUP_REPO: "Setup Repo",
   PROJECT_NEW: "Project New",

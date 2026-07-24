@@ -324,8 +324,10 @@ pub fn get_provider_config(model_type: &str) -> ProviderConfig {
         "gemini_cli" => ProviderConfig::new("GEMINI_API_KEY", None, false, None),
         "copilot" => ProviderConfig::new("GITHUB_TOKEN", None, false, None),
         "kiro" => ProviderConfig::new("KIRO_SESSION_TOKEN", None, false, None),
-        "kimi_cli" => ProviderConfig::new("MOONSHOT_API_KEY", Some("MOONSHOT_BASE_URL"), true, None)
-            .with_endpoints(MOONSHOT_ENDPOINTS),
+        "kimi_cli" => {
+            ProviderConfig::new("MOONSHOT_API_KEY", Some("MOONSHOT_BASE_URL"), true, None)
+                .with_endpoints(MOONSHOT_ENDPOINTS)
+        }
         "opencode" => {
             ProviderConfig::new("OPENCODE_API_KEY", Some("OPENCODE_BASE_URL"), true, None)
                 .with_endpoints(OPENCODE_ENDPOINTS)
@@ -363,17 +365,15 @@ pub fn get_provider_config(model_type: &str) -> ProviderConfig {
             Some("https://api.groq.com/openai/v1"),
         ),
         "xai_api" => ProviderConfig::new("XAI_API_KEY", None, true, Some("https://api.x.ai/v1")),
-        "zhipu_api" => {
-            ProviderConfig::with_protocols(
-                "ZHIPU_API_KEY",
-                None,
-                true,
-                None,
-                &["openai", "anthropic"],
-                "openai",
-            )
-            .with_endpoints(ZHIPU_ENDPOINTS)
-        }
+        "zhipu_api" => ProviderConfig::with_protocols(
+            "ZHIPU_API_KEY",
+            None,
+            true,
+            None,
+            &["openai", "anthropic"],
+            "openai",
+        )
+        .with_endpoints(ZHIPU_ENDPOINTS),
         "dashscope_api" => ProviderConfig::new("DASHSCOPE_API_KEY", None, true, None)
             .with_endpoints(DASHSCOPE_ENDPOINTS),
         "moonshot_api" => ProviderConfig::with_protocols(
@@ -833,13 +833,11 @@ mod tests {
             .collect();
         assert_eq!(ids, vec!["global", "cn"]);
         assert_eq!(
-            config.endpoints[0].base_url,
-            "https://api.z.ai/api/paas/v4",
+            config.endpoints[0].base_url, "https://api.z.ai/api/paas/v4",
             "global Zhipu traffic goes to z.ai"
         );
         assert_eq!(
-            config.endpoints[1].base_url,
-            "https://open.bigmodel.cn/api/paas/v4",
+            config.endpoints[1].base_url, "https://open.bigmodel.cn/api/paas/v4",
             "China Zhipu traffic goes to bigmodel.cn"
         );
         // The international host is the default; China is opt-in.

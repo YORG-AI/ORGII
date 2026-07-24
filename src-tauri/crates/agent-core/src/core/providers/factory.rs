@@ -1209,8 +1209,7 @@ mod tests {
     /// Anthropic protocol without a base URL is a user error, not a lookup miss.
     #[test]
     fn anthropic_protocol_without_endpoint_or_custom_base_errors() {
-        let spec =
-            registry::find_by_name(provider_id::CUSTOM).expect("Custom provider registered");
+        let spec = registry::find_by_name(provider_id::CUSTOM).expect("Custom provider registered");
         let mut key = ModelKey::new(ModelType::CustomApi);
         key.protocol = Some(ProviderProtocol::Anthropic);
 

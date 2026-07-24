@@ -43,9 +43,9 @@ async fn get_paginated_field_array(
     let mut items = Vec::new();
     loop {
         let data = client.get_conditional(&paged_path(base_path, page)).await?;
-        let page_items = data[field]
-            .as_array()
-            .ok_or_else(|| format!("GitHub API returned missing array field `{field}` for {base_path}"))?;
+        let page_items = data[field].as_array().ok_or_else(|| {
+            format!("GitHub API returned missing array field `{field}` for {base_path}")
+        })?;
         let page_len = page_items.len();
         items.extend(page_items.iter().cloned());
         if page_len < GITHUB_PAGE_SIZE {
@@ -250,8 +250,11 @@ pub async fn github_list_pr_commits(
     log::info!("[GitHub][Cmd] list_pr_commits repo={repo_full_name} pr={pr_number}");
     let client = make_client()?;
     Ok(Value::Array(
-        get_paginated_array(&client, &format!("/repos/{repo_full_name}/pulls/{pr_number}/commits"))
-            .await?,
+        get_paginated_array(
+            &client,
+            &format!("/repos/{repo_full_name}/pulls/{pr_number}/commits"),
+        )
+        .await?,
     ))
 }
 
@@ -260,8 +263,11 @@ pub async fn github_list_pr_files(repo_full_name: String, pr_number: u64) -> Res
     log::info!("[GitHub][Cmd] list_pr_files repo={repo_full_name} pr={pr_number}");
     let client = make_client()?;
     Ok(Value::Array(
-        get_paginated_array(&client, &format!("/repos/{repo_full_name}/pulls/{pr_number}/files"))
-            .await?,
+        get_paginated_array(
+            &client,
+            &format!("/repos/{repo_full_name}/pulls/{pr_number}/files"),
+        )
+        .await?,
     ))
 }
 
@@ -417,8 +423,11 @@ pub(crate) fn roll_up_checks_state(
             continue;
         }
         match run.conclusion.as_deref() {
-            Some("failure") | Some("timed_out") | Some("action_required")
-            | Some("cancelled") | Some("startup_failure") => return "failure".to_string(),
+            Some("failure")
+            | Some("timed_out")
+            | Some("action_required")
+            | Some("cancelled")
+            | Some("startup_failure") => return "failure".to_string(),
             None => has_pending = true,
             _ => {}
         }
@@ -444,9 +453,11 @@ pub async fn github_list_pr_reviews(
 ) -> Result<Vec<GitHubPrReview>, String> {
     log::info!("[GitHub][Cmd] list_pr_reviews repo={repo_full_name} pr={pr_number}");
     let client = make_client()?;
-    let result =
-        get_paginated_array(&client, &format!("/repos/{repo_full_name}/pulls/{pr_number}/reviews"))
-            .await?;
+    let result = get_paginated_array(
+        &client,
+        &format!("/repos/{repo_full_name}/pulls/{pr_number}/reviews"),
+    )
+    .await?;
     Ok(result.iter().map(parse_pr_review).collect())
 }
 
@@ -457,9 +468,11 @@ pub async fn github_list_pr_review_comments(
 ) -> Result<Vec<GitHubReviewComment>, String> {
     log::info!("[GitHub][Cmd] list_pr_review_comments repo={repo_full_name} pr={pr_number}");
     let client = make_client()?;
-    let result =
-        get_paginated_array(&client, &format!("/repos/{repo_full_name}/pulls/{pr_number}/comments"))
-            .await?;
+    let result = get_paginated_array(
+        &client,
+        &format!("/repos/{repo_full_name}/pulls/{pr_number}/comments"),
+    )
+    .await?;
     Ok(result.iter().map(parse_review_comment).collect())
 }
 
@@ -580,9 +593,7 @@ pub async fn github_get_checks(
     };
 
     let status_value = match client
-        .get_conditional(&format!(
-            "/repos/{repo_full_name}/commits/{git_ref}/status"
-        ))
+        .get_conditional(&format!("/repos/{repo_full_name}/commits/{git_ref}/status"))
         .await
     {
         Ok(value) => value,

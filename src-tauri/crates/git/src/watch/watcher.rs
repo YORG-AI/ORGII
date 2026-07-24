@@ -219,124 +219,121 @@ impl RepoWatcher {
                 let rt = match tokio::runtime::Runtime::new() {
                     Ok(rt) => rt,
                     Err(err) => {
-                        log::error!(
-                            "[RepoWatch] Git status poller runtime init failed: {}",
-                            err
-                        );
+                        log::error!("[RepoWatch] Git status poller runtime init failed: {}", err);
                         return;
                     }
                 };
                 rt.block_on(async move {
-            // Small initial delay to let watchers initialize
-            tokio::time::sleep(Duration::from_secs(2)).await;
-            let mut seen_wake_generation = 0;
+                    // Small initial delay to let watchers initialize
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                    let mut seen_wake_generation = 0;
 
-            loop {
-                // Calculate adaptive polling interval with health awareness
-                let is_focused = *window_focused.read();
-                let states = state_store.get_all_states();
-                let active_repo_id = active_poll_repo_id.read().clone();
+                    loop {
+                        // Calculate adaptive polling interval with health awareness
+                        let is_focused = *window_focused.read();
+                        let states = state_store.get_all_states();
+                        let active_repo_id = active_poll_repo_id.read().clone();
 
-                if active_repo_id.is_none() {
-                    // Park until an active repo is set. Use spawn_blocking so the
-                    // condvar wait does not block the tokio executor thread pool.
-                    let poll_wake_clone = poll_wake.clone();
-                    let wake_generation_at_park = seen_wake_generation;
-                    let new_generation = tokio::task::spawn_blocking(move || {
-                        let (lock, condvar) = &*poll_wake_clone;
-                        let mut wake_generation =
-                            lock.lock().expect("RepoWatch poll wake mutex poisoned");
-                        while *wake_generation == wake_generation_at_park {
-                            wake_generation = condvar
-                                .wait(wake_generation)
-                                .expect("RepoWatch poll wake mutex poisoned");
+                        if active_repo_id.is_none() {
+                            // Park until an active repo is set. Use spawn_blocking so the
+                            // condvar wait does not block the tokio executor thread pool.
+                            let poll_wake_clone = poll_wake.clone();
+                            let wake_generation_at_park = seen_wake_generation;
+                            let new_generation = tokio::task::spawn_blocking(move || {
+                                let (lock, condvar) = &*poll_wake_clone;
+                                let mut wake_generation =
+                                    lock.lock().expect("RepoWatch poll wake mutex poisoned");
+                                while *wake_generation == wake_generation_at_park {
+                                    wake_generation = condvar
+                                        .wait(wake_generation)
+                                        .expect("RepoWatch poll wake mutex poisoned");
+                                }
+                                *wake_generation
+                            })
+                            .await
+                            .unwrap_or(seen_wake_generation);
+                            seen_wake_generation = new_generation;
+                            continue;
                         }
-                        *wake_generation
-                    })
-                    .await
-                    .unwrap_or(seen_wake_generation);
-                    seen_wake_generation = new_generation;
-                    continue;
-                }
 
-                let active_repo_id = active_repo_id.expect("checked active repo id above");
-                let active_state = states.get(&active_repo_id);
-                let active_watch_enabled = active_state
-                    .map(|state| state.watch_enabled)
-                    .unwrap_or(false);
-                if !active_watch_enabled {
-                    let poll_wake_clone = poll_wake.clone();
-                    let wake_generation_at_park = seen_wake_generation;
-                    let new_generation = tokio::task::spawn_blocking(move || {
-                        let (lock, condvar) = &*poll_wake_clone;
-                        let mut wake_generation =
-                            lock.lock().expect("RepoWatch poll wake mutex poisoned");
-                        while *wake_generation == wake_generation_at_park {
-                            wake_generation = condvar
-                                .wait(wake_generation)
-                                .expect("RepoWatch poll wake mutex poisoned");
+                        let active_repo_id = active_repo_id.expect("checked active repo id above");
+                        let active_state = states.get(&active_repo_id);
+                        let active_watch_enabled = active_state
+                            .map(|state| state.watch_enabled)
+                            .unwrap_or(false);
+                        if !active_watch_enabled {
+                            let poll_wake_clone = poll_wake.clone();
+                            let wake_generation_at_park = seen_wake_generation;
+                            let new_generation = tokio::task::spawn_blocking(move || {
+                                let (lock, condvar) = &*poll_wake_clone;
+                                let mut wake_generation =
+                                    lock.lock().expect("RepoWatch poll wake mutex poisoned");
+                                while *wake_generation == wake_generation_at_park {
+                                    wake_generation = condvar
+                                        .wait(wake_generation)
+                                        .expect("RepoWatch poll wake mutex poisoned");
+                                }
+                                *wake_generation
+                            })
+                            .await
+                            .unwrap_or(seen_wake_generation);
+                            seen_wake_generation = new_generation;
+                            continue;
                         }
-                        *wake_generation
-                    })
-                    .await
-                    .unwrap_or(seen_wake_generation);
-                    seen_wake_generation = new_generation;
-                    continue;
-                }
 
-                let active_consecutive_failures = active_state
-                    .map(|state| state.consecutive_failures)
-                    .unwrap_or(0);
-                let any_unhealthy = active_consecutive_failures > 0;
+                        let active_consecutive_failures = active_state
+                            .map(|state| state.consecutive_failures)
+                            .unwrap_or(0);
+                        let any_unhealthy = active_consecutive_failures > 0;
 
-                let poll_interval_ms = Self::calculate_poll_interval_with_health(
-                    is_focused,
-                    any_unhealthy,
-                    active_consecutive_failures,
-                );
+                        let poll_interval_ms = Self::calculate_poll_interval_with_health(
+                            is_focused,
+                            any_unhealthy,
+                            active_consecutive_failures,
+                        );
 
-                tokio::time::sleep(Duration::from_millis(poll_interval_ms)).await;
+                        tokio::time::sleep(Duration::from_millis(poll_interval_ms)).await;
 
-                let Some(active_repo_id) = active_poll_repo_id.read().clone() else {
-                    continue;
-                };
-                let states = state_store.get_all_states();
-                let Some(state) = states.get(&active_repo_id) else {
-                    continue;
-                };
+                        let Some(active_repo_id) = active_poll_repo_id.read().clone() else {
+                            continue;
+                        };
+                        let states = state_store.get_all_states();
+                        let Some(state) = states.get(&active_repo_id) else {
+                            continue;
+                        };
 
-                if !state.watch_enabled {
-                    continue;
-                }
+                        if !state.watch_enabled {
+                            continue;
+                        }
 
-                if state.consecutive_failures >= 3 {
-                    log::debug!(
-                        "[RepoWatch] Skipping poll for degraded repo {} ({} failures)",
-                        active_repo_id,
-                        state.consecutive_failures
-                    );
-                    continue;
-                }
-
-                {
-                    let last_attempts = last_poll_attempt.read();
-                    if let Some(last_attempt) = last_attempts.get(&active_repo_id) {
-                        if last_attempt.elapsed() < Duration::from_millis(5000) {
+                        if state.consecutive_failures >= 3 {
                             log::debug!(
-                                "[RepoWatch] Skipping poll - last attempt {}ms ago (too recent)",
-                                last_attempt.elapsed().as_millis()
+                                "[RepoWatch] Skipping poll for degraded repo {} ({} failures)",
+                                active_repo_id,
+                                state.consecutive_failures
                             );
                             continue;
                         }
+
+                        {
+                            let last_attempts = last_poll_attempt.read();
+                            if let Some(last_attempt) = last_attempts.get(&active_repo_id) {
+                                if last_attempt.elapsed() < Duration::from_millis(5000) {
+                                    log::debug!(
+                                "[RepoWatch] Skipping poll - last attempt {}ms ago (too recent)",
+                                last_attempt.elapsed().as_millis()
+                            );
+                                    continue;
+                                }
+                            }
+                        }
+
+                        last_poll_attempt
+                            .write()
+                            .insert(active_repo_id.clone(), Instant::now());
+
+                        debounce_manager.trigger_event(active_repo_id, RepoChangeType::GitMeta, 1);
                     }
-                }
-
-                last_poll_attempt
-                    .write()
-                    .insert(active_repo_id.clone(), Instant::now());
-
-                debounce_manager.trigger_event(active_repo_id, RepoChangeType::GitMeta, 1);
-            }
                 });
             })
             .expect("Failed to spawn repo watcher git status poller thread");

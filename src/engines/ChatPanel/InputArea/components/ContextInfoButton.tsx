@@ -48,9 +48,10 @@ export interface ContextInfoButtonProps {
 }
 
 const ContextInfoButton: React.FC<ContextInfoButtonProps> = memo(
-  ({ sessionId, variant = "toolbar", compact = false }) => {
+  ({ sessionId: sessionIdProp, variant = "toolbar", compact = false }) => {
     const { t } = useTranslation();
-    const { sessionId } = useSessionId();
+    const { sessionId: activeSessionId } = useSessionId();
+    const sessionId = sessionIdProp ?? activeSessionId;
     const { runManualCompact: runSharedManualCompact } = useManualCompact();
     const compactingSessionId = useAtomValue(manualCompactInFlightSessionAtom);
     const {
