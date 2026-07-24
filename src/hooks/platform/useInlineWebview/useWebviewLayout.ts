@@ -22,20 +22,30 @@ export interface UseWebviewLayoutParams {
   containerRef: RefObject<HTMLDivElement | null>;
   isWebviewCreated: boolean;
   isWebviewAvailable: boolean;
+  isVisible: boolean;
   labelRef: MutableRefObject<string>;
   log: (...args: unknown[]) => void;
 }
 
 export interface UseWebviewLayoutReturn {
   getContainerRect: () => DOMRect | null;
-  updatePosition: (options?: { force?: boolean }) => Promise<void>;
+  updatePosition: (options?: {
+    force?: boolean;
+    show?: boolean;
+  }) => Promise<void>;
 }
 
 export function useWebviewLayout(
   params: UseWebviewLayoutParams
 ): UseWebviewLayoutReturn {
-  const { containerRef, isWebviewCreated, isWebviewAvailable, labelRef, log } =
-    params;
+  const {
+    containerRef,
+    isWebviewCreated,
+    isWebviewAvailable,
+    isVisible,
+    labelRef,
+    log,
+  } = params;
 
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const scrollListenerRef = useRef<(() => void) | null>(null);
@@ -52,8 +62,8 @@ export function useWebviewLayout(
   }, [containerRef]);
 
   const updatePosition = useCallback(
-    async (options?: { force?: boolean }) => {
-      if (!isWebviewCreated || !containerRef.current) return;
+    async (options?: { force?: boolean; show?: boolean }) => {
+      if (!isWebviewCreated || !isVisible || !containerRef.current) return;
 
       const rect = getContainerRect();
       if (!rect) return;
@@ -86,16 +96,21 @@ export function useWebviewLayout(
       lastResizeRect.current = nativeFrame;
 
       try {
-        await invoke("update_inline_webview_position", {
-          label: labelRef.current,
-          ...nativeFrame,
-        });
+        await invoke(
+          options?.show
+            ? "reposition_and_show_webview"
+            : "update_inline_webview_position",
+          {
+            label: labelRef.current,
+            ...nativeFrame,
+          }
+        );
         log("Position updated:", { rect, nativeFrame });
       } catch (err) {
         log("Failed to update position:", err);
       }
     },
-    [isWebviewCreated, containerRef, getContainerRect, labelRef, log]
+    [isWebviewCreated, isVisible, containerRef, getContainerRect, labelRef, log]
   );
 
   const debouncedUpdatePosition = useDebouncedCallback(() => {
@@ -103,7 +118,7 @@ export function useWebviewLayout(
   }, DEBOUNCE_DELAYS.FRAME);
 
   useEffect(() => {
-    if (!containerRef.current || !isWebviewAvailable) return;
+    if (!containerRef.current || !isWebviewAvailable || !isVisible) return;
 
     resizeObserverRef.current = new ResizeObserver(() => {
       debouncedUpdatePosition();
@@ -115,10 +130,10 @@ export function useWebviewLayout(
       resizeObserverRef.current?.disconnect();
       debouncedUpdatePosition.cancel();
     };
-  }, [containerRef, isWebviewAvailable, debouncedUpdatePosition]);
+  }, [containerRef, isWebviewAvailable, isVisible, debouncedUpdatePosition]);
 
   useEffect(() => {
-    if (!isWebviewCreated || !isWebviewAvailable) return;
+    if (!isWebviewCreated || !isWebviewAvailable || !isVisible) return;
 
     const scaleUpdateTimers = new Set<number>();
 
@@ -191,6 +206,7 @@ export function useWebviewLayout(
     containerRef,
     isWebviewCreated,
     isWebviewAvailable,
+    isVisible,
     debouncedUpdatePosition,
     updatePosition,
   ]);
