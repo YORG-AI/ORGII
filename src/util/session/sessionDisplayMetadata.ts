@@ -9,12 +9,13 @@ import {
   getIconProviderFromType,
 } from "@src/components/ModelIcon/config";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
-import type { Session } from "@src/store/session";
+import type { Session } from "@src/store/session/sessionAtom/types";
 
-import { resolveSessionIconId } from "./sessionDispatch";
+import { isAgentSession, resolveSessionIconId } from "./sessionDispatch";
 
 const CLI_AGENT_TYPES = new Set<string>(Object.values(CLI_AGENT));
 const ORGII_RUST_AGENT_DEFINITION_PREFIX = "builtin:";
+const ORG2_AGENT_LABEL = "ORG2";
 
 type ImportedSessionDisplayInput = Partial<
   Pick<
@@ -185,6 +186,34 @@ function resolveCliAgentLabel(
   return formatAgentType(agentType);
 }
 
+function resolveAgentLabel(
+  input: NormalizedSessionDisplayInput,
+  agentType: string | undefined,
+  externalSource: ImportedHistorySourceDescriptor | undefined
+): string {
+  if (externalSource) return externalSource.displayName;
+
+  // ORG2-native Rust sessions may carry a specific definition name such as
+  // "Agent Architect", but the Agent column identifies the runtime/provider,
+  // not the selected definition. Keep that label stable before and after a
+  // collaboration replay is opened.
+  if (
+    !agentType &&
+    (input.remoteNative ||
+      input.imported ||
+      Boolean(input.agentDefinitionId) ||
+      isAgentSession(input.sessionId))
+  ) {
+    return ORG2_AGENT_LABEL;
+  }
+
+  return (
+    input.agentDisplayName ||
+    resolveCliAgentLabel(input.kind, agentType) ||
+    "Agent"
+  );
+}
+
 /**
  * Canonical display projection for local sessions, imported replay copies,
  * and live cloud rows. It resolves presentation only; runtime/fork execution
@@ -204,11 +233,7 @@ export function resolveSessionDisplayMetadata(
   const iconProvider = getIconProviderFromType(agentIconId);
 
   return {
-    agentLabel:
-      externalSource?.displayName ||
-      input.agentDisplayName ||
-      resolveCliAgentLabel(input.kind, agentType) ||
-      "Agent",
+    agentLabel: resolveAgentLabel(input, agentType, externalSource),
     agentIconId,
     agentType,
     cliAgentType,

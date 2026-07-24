@@ -34,13 +34,15 @@ Manual acceptance: open **Work Management → Kanban**, hover **Data Sources** a
 
 ## List impact summary
 
-| Case                                  | Expected result                                                               | Coverage                  |
-| ------------------------------------- | ----------------------------------------------------------------------------- | ------------------------- |
-| View a session with file/line changes | One `Files · Lines` column shows the file count before the colored line stats | `ListView/index.test.tsx` |
-| View a session without impact data    | The consolidated impact cell shows the standard empty-value dash              | Shared `SessionTable`     |
-| List contains more than 25 sessions   | Pagination defaults to 25 rows and offers only 25 or 50 rows per page         | `ListView` pagination     |
+| Case                                  | Expected result                                                               | Coverage                   |
+| ------------------------------------- | ----------------------------------------------------------------------------- | -------------------------- |
+| View a session with file/line changes | One `Files · Lines` column shows the file count before the colored line stats | `ListView/index.test.tsx`  |
+| View sessions with related commits    | The List view does not render a separate `Commits` column                     | `ListView/index.test.tsx`  |
+| View sessions in different states     | Status dots use the same working, asking, unread, and idle colors as Sidebar  | `sessionTableItem.test.ts` |
+| View a session without impact data    | The consolidated impact cell shows the standard empty-value dash              | Shared `SessionTable`      |
+| List contains more than 25 sessions   | Pagination defaults to 25 rows and offers only 25 or 50 rows per page         | `ListView` pagination      |
 
-Manual acceptance: switch Work Management to **List** and confirm impact reads in the order `46 · +927 −606`, with no separate Files column. With more than 25 sessions, confirm the first page contains 25 rows and the page-size selector offers only **25** and **50**.
+Manual acceptance: switch Work Management to **List** and confirm impact reads in the order `46 · +927 −606`, with no separate Files or Commits column. Confirm running and blocking status dots match the same session states in Sidebar. With more than 25 sessions, confirm the first page contains 25 rows and the page-size selector offers only **25** and **50**.
 
 ## Organization scope and creator attribution
 

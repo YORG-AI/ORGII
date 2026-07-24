@@ -150,7 +150,9 @@ pub(crate) fn preview_of(value: &serde_json::Value) -> Option<String> {
 
 /// Full multi-line body — for the markdown transcript.
 pub(crate) fn chunk_body(value: &serde_json::Value) -> Option<String> {
-    extract_text(value).map(|text| text.trim().to_string()).filter(|text| !text.is_empty())
+    extract_text(value)
+        .map(|text| text.trim().to_string())
+        .filter(|text| !text.is_empty())
 }
 
 /// Escape a markdown table cell: no pipes or newlines may leak into the row.
@@ -248,8 +250,14 @@ mod tests {
 
     #[test]
     fn sort_parse_defaults_to_recent() {
-        assert!(matches!(parse_sort(Some("cost")).unwrap(), SessionSort::Cost));
-        assert!(matches!(parse_sort(Some("tokens")).unwrap(), SessionSort::Tokens));
+        assert!(matches!(
+            parse_sort(Some("cost")).unwrap(),
+            SessionSort::Cost
+        ));
+        assert!(matches!(
+            parse_sort(Some("tokens")).unwrap(),
+            SessionSort::Tokens
+        ));
         assert!(matches!(parse_sort(None).unwrap(), SessionSort::Recent));
         assert!(parse_sort(Some("bogus")).is_err());
     }
@@ -261,7 +269,10 @@ mod tests {
         assert_eq!(chunk_body(&msg).unwrap(), "hello\nworld");
 
         assert!(preview_of(&serde_json::json!({})).is_none());
-        assert_eq!(preview_of(&serde_json::json!({"content": "c"})).unwrap(), "c");
+        assert_eq!(
+            preview_of(&serde_json::json!({"content": "c"})).unwrap(),
+            "c"
+        );
         assert_eq!(
             preview_of(&serde_json::json!({"observation": "obs"})).unwrap(),
             "obs"

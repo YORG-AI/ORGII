@@ -175,6 +175,14 @@ fn compact_recent_paths(
 #[serde(rename_all = "camelCase")]
 pub struct ExternalHistoryScanResultWire {
     pub changed_sources: Vec<String>,
+    /// Whole-source cache signatures for every rescanned source, changed or
+    /// not. `changed_sources` only reports writes made by THIS call; other
+    /// surfaces (kanban, usage, transcript pagers) sync the same cache
+    /// between scheduler ticks, and continuation demotions applied during
+    /// those foreign syncs would otherwise never look like a change here.
+    /// The frontend compares these against the signatures captured at its
+    /// last roster reload to decide whether the sidebar is stale.
+    pub source_signatures: std::collections::HashMap<String, String>,
 }
 
 #[tauri::command]
@@ -202,8 +210,11 @@ pub async fn external_history_rescan_source(
                 &mut conn, &source,
             )?;
             let changed = conn.total_changes() > changes_before;
+            let signature =
+                imported_history::cache::query_source_cache_signature_from_conn(&conn, &source)?;
             Ok(ExternalHistoryScanResultWire {
-                changed_sources: changed.then_some(source).into_iter().collect(),
+                changed_sources: changed.then_some(source.clone()).into_iter().collect(),
+                source_signatures: std::iter::once((source, signature)).collect(),
             })
         })
     })
@@ -236,6 +247,7 @@ pub async fn external_history_rescan_sources(
         database::db::with_sessions_writer(|| {
             let mut conn = open_cache_conn()?;
             let mut changed_sources = Vec::new();
+            let mut source_signatures = std::collections::HashMap::new();
             for source in sources {
                 let changes_before = conn.total_changes();
                 if clear {
@@ -246,13 +258,25 @@ pub async fn external_history_rescan_sources(
                     )?;
                 }
                 crate::agent_sessions::session_directory::aggregation::resync_external_history_source(
-                    &mut conn, &source,
+                    &mut conn,
+                    &source,
                 )?;
-                if conn.total_changes() > changes_before {
+                let changed = conn.total_changes() > changes_before;
+                source_signatures.insert(
+                    source.clone(),
+                    imported_history::cache::query_source_cache_signature_from_conn(
+                        &conn,
+                        &source,
+                    )?,
+                );
+                if changed {
                     changed_sources.push(source);
                 }
             }
-            Ok(ExternalHistoryScanResultWire { changed_sources })
+            Ok(ExternalHistoryScanResultWire {
+                changed_sources,
+                source_signatures,
+            })
         })
     })
     .await

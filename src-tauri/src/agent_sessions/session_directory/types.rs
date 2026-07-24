@@ -32,6 +32,14 @@ pub struct SessionAggregateRecord {
     /// Repository path (CLI sessions)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repo_path: Option<String>,
+    /// Canonical Git worktree root discovered for an imported session's
+    /// recorded working folder. The original `repo_path` remains unchanged.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repo_root_path: Option<String>,
+    /// Raw Git remote URLs captured by the imported-history cache. Consumers
+    /// normalize these into collaboration scope keys without live Git I/O.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repo_remote_urls: Option<Vec<String>>,
     /// Path to the file or directory where this session's persisted data lives.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub storage_path: Option<String>,

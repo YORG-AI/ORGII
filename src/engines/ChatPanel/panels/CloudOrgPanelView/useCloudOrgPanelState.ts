@@ -48,8 +48,6 @@ import { isTauriReady } from "@src/util/platform/tauri/init";
 import type { SelectValue } from "./cloudOrgPanelTypes";
 
 const log = createLogger("CloudOrgPanelView");
-/** Safety pull only while the roster Realtime channel is unavailable. */
-const MEMBER_ROSTER_FALLBACK_MS = 5 * 60_000;
 /** Stable reference for the identity-mismatch window (no re-render churn). */
 const NO_VISIBLE_MEMBERS: CloudOrgMember[] = [];
 
@@ -87,8 +85,7 @@ export function useCloudOrgPanelState(orgId: string) {
   const [scopesSaved, setScopesSaved] = useState(false);
   const [scopesError, setScopesError] = useState<string | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
-  const [membersFallbackVersion, setMembersFallbackVersion] = useState(0);
-  const [membersVisibilityVersion, setMembersVisibilityVersion] = useState(0);
+  const [membersRecoveryVersion, setMembersRecoveryVersion] = useState(0);
 
   useTauriListen(
     "org2-cloud-billing-complete",
@@ -150,22 +147,16 @@ export function useCloudOrgPanelState(orgId: string) {
 
   useEffect(() => {
     if (!signedIn) return undefined;
-    const refreshWhenVisible = () => {
-      if (document.visibilityState !== "hidden") {
-        setMembersVisibilityVersion((version) => version + 1);
+    const recoverWhenInteractive = () => {
+      if (document.visibilityState !== "hidden" && !rosterRealtimeConnected) {
+        setMembersRecoveryVersion((version) => version + 1);
       }
     };
-    const timer = rosterRealtimeConnected
-      ? null
-      : setInterval(() => {
-          if (document.visibilityState !== "hidden") {
-            setMembersFallbackVersion((version) => version + 1);
-          }
-        }, MEMBER_ROSTER_FALLBACK_MS);
-    document.addEventListener("visibilitychange", refreshWhenVisible);
+    window.addEventListener("focus", recoverWhenInteractive);
+    document.addEventListener("visibilitychange", recoverWhenInteractive);
     return () => {
-      if (timer) clearInterval(timer);
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.removeEventListener("focus", recoverWhenInteractive);
+      document.removeEventListener("visibilitychange", recoverWhenInteractive);
     };
   }, [signedIn, authIdentityKey, orgId, rosterRealtimeConnected]);
 
@@ -249,10 +240,10 @@ export function useCloudOrgPanelState(orgId: string) {
   ]);
 
   const observedRosterVersionRef = useRef(rosterVersion);
-  const observedMembersFallbackVersionRef = useRef(membersFallbackVersion);
+  const observedMembersRecoveryVersionRef = useRef(membersRecoveryVersion);
   useEffect(() => {
     observedRosterVersionRef.current = rosterVersion;
-    observedMembersFallbackVersionRef.current = membersFallbackVersion;
+    observedMembersRecoveryVersionRef.current = membersRecoveryVersion;
     // A normal roster bump must reach the member-only fetch below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId]);
@@ -260,11 +251,11 @@ export function useCloudOrgPanelState(orgId: string) {
     if (!signedIn) return;
     if (document.visibilityState === "hidden") return;
     const rosterChanged = observedRosterVersionRef.current !== rosterVersion;
-    const fallbackChanged =
-      observedMembersFallbackVersionRef.current !== membersFallbackVersion;
-    if (!rosterChanged && !fallbackChanged) return;
+    const recoveryRequested =
+      observedMembersRecoveryVersionRef.current !== membersRecoveryVersion;
+    if (!rosterChanged && !recoveryRequested) return;
     observedRosterVersionRef.current = rosterVersion;
-    observedMembersFallbackVersionRef.current = membersFallbackVersion;
+    observedMembersRecoveryVersionRef.current = membersRecoveryVersion;
     let cancelled = false;
     const membersRequestEpoch = ++membersRequestEpochRef.current;
     void (async () => {
@@ -276,7 +267,7 @@ export function useCloudOrgPanelState(orgId: string) {
         current,
         orgId,
         rosterVersion,
-        { force: fallbackChanged }
+        { force: recoveryRequested }
       );
       if (
         !loaded ||
@@ -301,8 +292,7 @@ export function useCloudOrgPanelState(orgId: string) {
     signedIn,
     authIdentityKey,
     rosterVersion,
-    membersFallbackVersion,
-    membersVisibilityVersion,
+    membersRecoveryVersion,
     setAuth,
     store,
   ]);

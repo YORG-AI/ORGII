@@ -39,7 +39,10 @@ impl Write for HashingWriter<'_, '_> {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Replay adapter boundaries keep cursor, generation, and payload fields explicit"
+)]
 pub(super) fn store_text(
     tx: &Transaction<'_>,
     source: ImportedHistorySourceId,
@@ -60,7 +63,10 @@ pub(super) fn store_text(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Replay adapter boundaries keep cursor, generation, and payload fields explicit"
+)]
 pub(super) fn store_bytes(
     tx: &Transaction<'_>,
     source: ImportedHistorySourceId,
@@ -103,7 +109,10 @@ pub(super) fn store_bytes(
 /// `write_all`; the complete payload is never assembled in Rust.  The
 /// temporary key is generation/event scoped and is atomically replaced by
 /// the final content hash inside the caller's replay-index transaction.
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Replay adapter boundaries keep cursor, generation, and payload fields explicit"
+)]
 pub(super) fn store_streamed<F>(
     tx: &Transaction<'_>,
     source: ImportedHistorySourceId,
@@ -131,7 +140,10 @@ where
 
 /// Storage-neutral counterpart used by ORGII-owned managed/snapshot replay
 /// adapters. Vendor adapters should continue to call [`store_streamed`].
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Replay adapter boundaries keep cursor, generation, and payload fields explicit"
+)]
 pub(super) fn store_streamed_for_scope<F>(
     tx: &Transaction<'_>,
     source_id: &str,
@@ -245,7 +257,10 @@ where
 /// stores can mutate a row without changing generation, so their normal
 /// materialization path must re-check source identity. Managed CLI and
 /// collaboration snapshot generations, by contrast, are immutable epochs.
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Replay adapter boundaries keep cursor, generation, and payload fields explicit"
+)]
 pub(super) fn find_for_immutable_scope(
     tx: &Transaction<'_>,
     source_id: &str,
@@ -286,7 +301,10 @@ pub(super) fn find_for_immutable_scope(
     Ok(Some(content_hash))
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Replay adapter boundaries keep cursor, generation, and payload fields explicit"
+)]
 pub(super) fn reference(
     tx: &Transaction<'_>,
     source: ImportedHistorySourceId,
@@ -307,7 +325,10 @@ pub(super) fn reference(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Replay adapter boundaries keep cursor, generation, and payload fields explicit"
+)]
 fn reference_for_scope(
     tx: &Transaction<'_>,
     source_id: &str,

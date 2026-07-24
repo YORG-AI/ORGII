@@ -33,7 +33,7 @@ export * from "./shellProcessAtom";
 
 export * from "./agentRegistryAtom";
 export * from "./canvasPreviewAtom";
-export * from "./cursorIdeTurnSummariesAtom";
+export * from "./externalReplayTurnSummariesAtom";
 export * from "./mcpProgressAtom";
 export * from "./planApprovalAtom";
 export * from "./runningLocationAtom";

@@ -178,23 +178,25 @@ describe("CloudOrgRepoScopesSection", () => {
     );
     expect(picker).not.toBeNull();
     expect(mocks.pickerMounted).toHaveBeenCalledTimes(1);
+    const cancelAddButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="cloud-org-cancel-add-repo-scope"]'
+    );
+    expect(cancelAddButton?.textContent).toBe("Cancel");
 
-    await act(async () => picker?.click());
-    expect(setDraftScopes).toHaveBeenCalledWith([
-      "github.com/example/existing",
-      "github.com/example/new-repo",
-    ]);
+    await act(async () => cancelAddButton?.click());
+    expect(setDraftScopes).not.toHaveBeenCalled();
     expect(
       container.querySelector('[data-testid="repo-scope-picker-stub"]')
     ).toBeNull();
+    expect(mocks.pickerUnmounted).toHaveBeenCalledTimes(1);
+
     const reopenedAddButton = container.querySelector<HTMLButtonElement>(
       '[data-testid="cloud-org-add-repo-scope"]'
     );
     expect(reopenedAddButton?.textContent).toBe("Add");
-    expect(mocks.pickerUnmounted).toHaveBeenCalledTimes(1);
-
     await act(async () => reopenedAddButton?.click());
     expect(mocks.pickerMounted).toHaveBeenCalledTimes(2);
+
     await act(async () =>
       container
         .querySelector<HTMLButtonElement>(
@@ -202,7 +204,29 @@ describe("CloudOrgRepoScopesSection", () => {
         )
         ?.click()
     );
+    expect(setDraftScopes).toHaveBeenCalledWith([
+      "github.com/example/existing",
+      "github.com/example/new-repo",
+    ]);
+    expect(
+      container.querySelector('[data-testid="repo-scope-picker-stub"]')
+    ).toBeNull();
+    const addButtonAfterSelection = container.querySelector<HTMLButtonElement>(
+      '[data-testid="cloud-org-add-repo-scope"]'
+    );
+    expect(addButtonAfterSelection?.textContent).toBe("Add");
     expect(mocks.pickerUnmounted).toHaveBeenCalledTimes(2);
+
+    await act(async () => addButtonAfterSelection?.click());
+    expect(mocks.pickerMounted).toHaveBeenCalledTimes(3);
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="repo-scope-picker-stub"]'
+        )
+        ?.click()
+    );
+    expect(mocks.pickerUnmounted).toHaveBeenCalledTimes(3);
     expect(
       container.querySelector('[data-testid="repo-scope-picker-stub"]')
     ).toBeNull();

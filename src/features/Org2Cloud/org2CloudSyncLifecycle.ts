@@ -10,10 +10,6 @@ const log = createLogger("Org2CloudSyncEngine");
 
 export type CloudStore = ReturnType<typeof getInstrumentedStore>;
 
-/** The app's ONLY recurring timer: every recurring cloud pull uses this chain. */
-export const PASS_INTERVAL_MS = 60_000;
-/** Hidden documents stretch the same timer chain instead of adding another. */
-export const HIDDEN_PASS_INTERVAL_MS = 300_000;
 const ACTIVITY_DEBOUNCE_MS = 3_000;
 /**
  * External CLI transcripts rewrite earlier mutable records while a turn is
@@ -36,7 +32,7 @@ function isDocumentHidden(): boolean {
 }
 
 /**
- * Owns engine lifetime, timer cadence and serialized-pass coalescing.
+ * Owns engine lifetime, event-driven triggers and serialized-pass coalescing.
  * Domain synchronization stays in the concrete engine so this class has no
  * knowledge of auth, orgs, sessions, projects, or task payloads.
  */
@@ -45,12 +41,15 @@ export abstract class Org2CloudSyncLifecycle {
   private started = false;
   /** Bumped on stop(); in-flight passes check it before writing. */
   protected generation = 0;
-  private timer: ReturnType<typeof setTimeout> | null = null;
+  /** One-shot startup scheduling; never re-armed after it fires. */
+  private bootstrapTimer: ReturnType<typeof setTimeout> | null = null;
   private activityTimer: ReturnType<typeof setTimeout> | null = null;
   private externalHistoryActivityTimer: ReturnType<typeof setTimeout> | null =
     null;
   private dataChangedTimer: ReturnType<typeof setTimeout> | null = null;
   private projectPushRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  /** At most one frontend retry for each concrete project-sync trigger. */
+  private projectPushRetryBudget = 0;
   private dataChangedUnlisten: Promise<UnlistenFn> | null = null;
   private eventStoreUnsubscribe: (() => void) | null = null;
   private passRunning = false;
@@ -64,8 +63,6 @@ export abstract class Org2CloudSyncLifecycle {
   /** Explicit user-action waiters resolve after the active and dirty passes drain. */
   private readonly passDrainWaiters: Array<() => void> = [];
 
-  /** Per-org last inbound pull time, preserving independent fallback cadence. */
-  protected readonly lastInboundPassAtMs = new Map<string, number>();
   /** Realtime invalidations waiting to be consumed by a pass. */
   protected readonly pendingInboundOrgIds = new Set<string>();
   /** Reconnect/full-recovery requests that bypass cursors once. */
@@ -85,12 +82,13 @@ export abstract class Org2CloudSyncLifecycle {
   protected abstract invalidateFullInboundState(orgId?: string): void;
 
   /**
-   * `visibilitychange` to visible collapses the existing chain into one
-   * immediate pass. The bound property lets start/stop share the reference.
+   * Visibility regain is a one-shot catch-up trigger. There is deliberately
+   * no recurring cloud pass: hidden local mutations remain represented by
+   * EventStore state / the durable Rust outbox and converge here.
    */
   private readonly onVisibilityChange = (): void => {
     if (!this.started || isDocumentHidden()) return;
-    this.schedulePass(0);
+    void this.runSyncPass();
   };
 
   /**
@@ -98,14 +96,15 @@ export abstract class Org2CloudSyncLifecycle {
    * transport concern. In particular, Project/Work Item writes can already
    * be durable in the Rust outbox while the first cloud listing fails. A
    * reconnect must therefore force both a fresh inbound recovery and an
-   * outbox-draining projects pass immediately instead of waiting for the
-   * minute fallback timer (or an E2E-only manual sync hook).
+   * outbox-draining projects pass immediately instead of waiting for another
+   * user or local-data event.
    */
   private readonly onOnline = (): void => {
     if (!this.started) return;
     this.clearAllOrgBackoffs();
     this.forceAllInboundNextPass = true;
     this.forceProjectsNextPass = true;
+    this.armProjectPushRetry();
     this.invalidateFullInboundState();
     void this.runSyncPass();
   };
@@ -130,7 +129,16 @@ export abstract class Org2CloudSyncLifecycle {
     this.dataChangedUnlisten = listen("orgii-data-changed", () => {
       this.scheduleProjectsPass();
     });
-    this.schedulePass(0);
+    // Initial login/start is one explicit full recovery + outbox drain. The
+    // roster hook repeats this trigger after the async org listing arrives.
+    this.forceAllInboundNextPass = true;
+    this.forceProjectsNextPass = true;
+    this.armProjectPushRetry();
+    this.invalidateFullInboundState();
+    this.bootstrapTimer = setTimeout(() => {
+      this.bootstrapTimer = null;
+      void this.runSyncPass();
+    }, 0);
   }
 
   stop(): void {
@@ -139,8 +147,8 @@ export abstract class Org2CloudSyncLifecycle {
     this.generation += 1;
     this.activePassAbortController?.abort();
     this.activePassAbortController = null;
-    if (this.timer !== null) clearTimeout(this.timer);
-    this.timer = null;
+    if (this.bootstrapTimer !== null) clearTimeout(this.bootstrapTimer);
+    this.bootstrapTimer = null;
     if (this.activityTimer !== null) clearTimeout(this.activityTimer);
     this.activityTimer = null;
     if (this.externalHistoryActivityTimer !== null) {
@@ -153,6 +161,7 @@ export abstract class Org2CloudSyncLifecycle {
       clearTimeout(this.projectPushRetryTimer);
     }
     this.projectPushRetryTimer = null;
+    this.projectPushRetryBudget = 0;
     void this.dataChangedUnlisten?.then((unlisten) => unlisten());
     this.dataChangedUnlisten = null;
     this.eventStoreUnsubscribe?.();
@@ -168,7 +177,6 @@ export abstract class Org2CloudSyncLifecycle {
     this.passDirty = false;
     this.nextPassPushSessions = false;
     for (const resolve of this.passDrainWaiters.splice(0)) resolve();
-    this.lastInboundPassAtMs.clear();
     this.pendingInboundOrgIds.clear();
     this.pendingFullInboundOrgIds.clear();
     this.forceAllInboundNextPass = false;
@@ -276,21 +284,27 @@ export abstract class Org2CloudSyncLifecycle {
     });
   }
 
-  private schedulePass(delayMs: number): void {
+  /**
+   * Authoritative roster changes are an event, not a polling reason. Reconcile
+   * all newly accessible orgs once and drain any durable project outbox.
+   */
+  reconcileRoster(): void {
     if (!this.started) return;
-    if (this.timer !== null) clearTimeout(this.timer);
-    this.timer = setTimeout(() => {
-      this.timer = null;
-      void this.runSyncPass().finally(() => {
-        this.schedulePass(
-          isDocumentHidden() ? HIDDEN_PASS_INTERVAL_MS : PASS_INTERVAL_MS
-        );
-      });
-    }, delayMs);
+    this.clearAllOrgBackoffs();
+    this.forceAllInboundNextPass = true;
+    this.forceProjectsNextPass = true;
+    this.armProjectPushRetry();
+    this.invalidateFullInboundState();
+    if (isDocumentHidden()) return;
+    void this.runSyncPass();
   }
 
+  // Outbound event-driven paths deliberately run while hidden: a minimized
+  // window with an agent streaming is still producing local writes, and
+  // teammates must see the transcript advance. Only inbound-only nudges wait
+  // for visibility.
   private scheduleActivityPass(sessionId: string): void {
-    if (!this.started || isDocumentHidden()) return;
+    if (!this.started) return;
     const externalHistory = isImportedHistorySession(sessionId);
     const timer = externalHistory
       ? this.externalHistoryActivityTimer
@@ -300,7 +314,6 @@ export abstract class Org2CloudSyncLifecycle {
       () => {
         if (externalHistory) this.externalHistoryActivityTimer = null;
         else this.activityTimer = null;
-        if (isDocumentHidden()) return;
         void this.runSyncPass();
       },
       externalHistory
@@ -314,23 +327,42 @@ export abstract class Org2CloudSyncLifecycle {
   private scheduleProjectsPass(): void {
     if (!this.started) return;
     this.forceProjectsNextPass = true;
-    if (isDocumentHidden()) return;
+    this.armProjectPushRetry();
     if (this.dataChangedTimer !== null) clearTimeout(this.dataChangedTimer);
     this.dataChangedTimer = setTimeout(() => {
       this.dataChangedTimer = null;
-      if (isDocumentHidden()) return;
       void this.runSyncPass({ pushSessions: false });
     }, DATA_CHANGED_DEBOUNCE_MS);
   }
 
   /** Schedule one projects-plane pass at the durable outbox's retry point. */
   protected scheduleProjectPushRetry(): void {
-    if (!this.started || this.projectPushRetryTimer !== null) return;
+    if (
+      !this.started ||
+      this.projectPushRetryTimer !== null ||
+      this.projectPushRetryBudget <= 0
+    ) {
+      return;
+    }
+    this.projectPushRetryBudget -= 1;
     this.projectPushRetryTimer = setTimeout(() => {
       this.projectPushRetryTimer = null;
       if (!this.started) return;
       this.forceProjectsNextPass = true;
       void this.runSyncPass({ pushSessions: false });
     }, PROJECT_PUSH_RETRY_DELAY_MS);
+  }
+
+  /**
+   * A new concrete trigger supersedes any older deferred retry and earns one
+   * fresh retry. Persistent failures therefore stop after two attempts instead
+   * of becoming a disguised 30-second polling loop.
+   */
+  private armProjectPushRetry(): void {
+    if (this.projectPushRetryTimer !== null) {
+      clearTimeout(this.projectPushRetryTimer);
+      this.projectPushRetryTimer = null;
+    }
+    this.projectPushRetryBudget = 1;
   }
 }

@@ -8,6 +8,8 @@ import type { TabDragPillPayload } from "@src/modules/WorkStation/shared/TabBar/
 
 export interface NavigationMenuRowAction {
   icon?: LucideIcon;
+  /** Optional class applied to the rendered Lucide icon (for example refresh spin). */
+  iconClassName?: string;
   label: string;
   active?: boolean;
   /** Stable rendered selector for high-value header/row actions. */

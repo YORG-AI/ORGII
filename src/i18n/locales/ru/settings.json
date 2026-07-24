@@ -139,10 +139,13 @@
       "helveticaNeue": "Стиль Helvetica Neue"
     },
     "uiScale": "Масштаб интерфейса",
+    "preferences": "Предпочтения",
+    "usePointerCursors": "Использовать курсор-указатель",
+    "usePointerCursorsDesc": "Менять курсор на указатель при наведении на интерактивные элементы",
     "timezoneAuto": "Авто (браузер)",
     "timezoneSearchPlaceholder": "Поиск ближайших городов",
     "sendOnEnter": "Отправлять сообщения клавишей Enter",
-    "sendOnEnterDesc": "Если включено, Enter отправляет, а Shift+Enter вставляет новую строку. Если выключено, отправка выполняется Ctrl/Cmd+Enter",
+    "sendOnEnterDesc": "Если включено, Enter отправляет, а Shift+Enter и Ctrl/Cmd+Enter вставляют новую строку. Если выключено, отправка выполняется Ctrl/Cmd+Enter",
     "language": "Язык",
     "languageSearchPlaceholder": "Поиск языков...",
     "languageNames": {
@@ -1008,7 +1011,7 @@
     "decryptEffect": "Эффект Decrypt",
     "decryptEffectDesc": "Включить Decrypt анимацию для сообщений Agent",
     "sendOnEnter": "Отправлять сообщения клавишей Enter",
-    "sendOnEnterDesc": "Если включено, Enter отправляет, а Shift+Enter вставляет новую строку. Если выключено, отправка выполняется Ctrl/Cmd+Enter"
+    "sendOnEnterDesc": "Если включено, Enter отправляет, а Shift+Enter и Ctrl/Cmd+Enter вставляют новую строку. Если выключено, отправка выполняется Ctrl/Cmd+Enter"
   },
   "languageServers": {
     "languageServersDesc": "Управление LSP серверами для автодополнения, диагностики и интеллекта кода",

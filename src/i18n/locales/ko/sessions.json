@@ -22,6 +22,8 @@
       "created": "생성일",
       "updated": "업데이트됨",
       "lastUpdated": "마지막 업데이트",
+      "external": "외부",
+      "internal": "내부",
       "rounds": "라운드",
       "roundCount_one": "{{count}} 라운드",
       "roundCount_other": "{{count}} 라운드",

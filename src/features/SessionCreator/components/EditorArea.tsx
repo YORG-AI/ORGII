@@ -523,6 +523,7 @@ const EditorArea: React.FC<EditorAreaProps> = ({
           isDragOver
             ? "!border-primary-6 !bg-[color-mix(in_srgb,var(--color-primary-6)_5%,var(--color-chat-input))] !shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_20%,transparent)]"
             : "",
+          headerContent ? "!pt-1.5" : "",
           shellClassName ?? "",
         ]
           .filter(Boolean)

@@ -19,7 +19,7 @@ import {
 const mocks = vi.hoisted(() => ({
   externalCliSourceProbe: vi.fn(),
   externalHistoryRescanSources: vi.fn(),
-  loadExternalHistorySidebarSessions: vi.fn(),
+  loadSessionRoster: vi.fn(),
   store: undefined as ReturnType<typeof createStore> | undefined,
 }));
 
@@ -30,7 +30,7 @@ vi.mock("@src/api/tauri/externalHistory", async (importOriginal) => ({
 }));
 
 vi.mock("../sessionAtom/loaders", () => ({
-  loadExternalHistorySidebarSessions: mocks.loadExternalHistorySidebarSessions,
+  loadSessionRoster: mocks.loadSessionRoster,
 }));
 
 vi.mock("@src/util/core/state/instrumentedStore", () => ({
@@ -76,9 +76,7 @@ describe("runDataSourceAutoScan", () => {
       .mockImplementation(async (sourceIds: string[]) => ({
         changedSources: sourceIds,
       }));
-    mocks.loadExternalHistorySidebarSessions
-      .mockReset()
-      .mockResolvedValue(undefined);
+    mocks.loadSessionRoster.mockReset().mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -171,12 +169,13 @@ describe("runDataSourceAutoScan", () => {
     expect(mocks.externalHistoryRescanSources).toHaveBeenCalledWith(
       expectedSources
     );
-    expect(mocks.loadExternalHistorySidebarSessions).toHaveBeenCalledOnce();
+    expect(mocks.loadSessionRoster).toHaveBeenCalledOnce();
+    expect(mocks.loadSessionRoster).toHaveBeenCalledWith({
+      forceRefresh: true,
+    });
     expect(
       mocks.externalHistoryRescanSources.mock.invocationCallOrder[0]
-    ).toBeLessThan(
-      mocks.loadExternalHistorySidebarSessions.mock.invocationCallOrder[0]
-    );
+    ).toBeLessThan(mocks.loadSessionRoster.mock.invocationCallOrder[0]);
     expect(mocks.store?.get(dataSourceConfigAtom).codex_app.lastScannedAt).toBe(
       NOW
     );
@@ -210,7 +209,7 @@ describe("runDataSourceAutoScan", () => {
     expect(mocks.externalCliSourceProbe).toHaveBeenCalledOnce();
     expect(mocks.externalCliSourceProbe).toHaveBeenCalledWith("cursor_ide");
     expect(mocks.externalHistoryRescanSources).not.toHaveBeenCalled();
-    expect(mocks.loadExternalHistorySidebarSessions).not.toHaveBeenCalled();
+    expect(mocks.loadSessionRoster).not.toHaveBeenCalled();
     expect(mocks.store?.get(dataSourcePresenceAtom).cursor_ide).toEqual({
       historyFound: false,
       checkedAt: NOW,
@@ -305,7 +304,7 @@ describe("runDataSourceAutoScan", () => {
     expect(mocks.externalHistoryRescanSources).toHaveBeenCalledWith([
       "cursor_ide",
     ]);
-    expect(mocks.loadExternalHistorySidebarSessions).toHaveBeenCalledOnce();
+    expect(mocks.loadSessionRoster).toHaveBeenCalledOnce();
     expect(mocks.store?.get(dataSourcePresenceAtom).cursor_ide).toEqual({
       historyFound: true,
       checkedAt: NOW,
@@ -366,7 +365,7 @@ describe("runDataSourceAutoScan", () => {
     await runDataSourceAutoScan();
 
     expect(mocks.externalHistoryRescanSources).toHaveBeenCalledWith(["cline"]);
-    expect(mocks.loadExternalHistorySidebarSessions).toHaveBeenCalledOnce();
+    expect(mocks.loadSessionRoster).toHaveBeenCalledOnce();
   });
 
   it("does not reload sidebar pages when an incremental scan changed nothing", async () => {
@@ -391,10 +390,48 @@ describe("runDataSourceAutoScan", () => {
     expect(mocks.externalHistoryRescanSources).toHaveBeenCalledWith([
       "codex_app",
     ]);
-    expect(mocks.loadExternalHistorySidebarSessions).not.toHaveBeenCalled();
+    expect(mocks.loadSessionRoster).not.toHaveBeenCalled();
     expect(mocks.store?.get(dataSourceConfigAtom).codex_app.lastScannedAt).toBe(
       NOW
     );
+  });
+
+  it("reloads on cache-signature drift even when the rescan itself wrote nothing", async () => {
+    const config: DataSourceConfigMap = Object.fromEntries(
+      IMPORTED_HISTORY_SOURCE_DESCRIPTORS.map(({ sourceId }) => [
+        sourceId,
+        { enabled: false, frequency: "default" as const, lastScannedAt: null },
+      ])
+    );
+    config.codex_app = {
+      enabled: true,
+      frequency: "120s",
+      lastScannedAt: NOW - 120_000,
+    };
+    mocks.store?.set(dataSourceConfigAtom, config);
+    // Another surface's sync already ingested the change (and e.g. demoted a
+    // continuation sibling), so this rescan reports no writes of its own —
+    // only the signature reveals the roster is stale.
+    mocks.externalHistoryRescanSources.mockResolvedValueOnce({
+      changedSources: [],
+      sourceSignatures: { codex_app: "4:2026-07-24T05:43:08Z:1" },
+    });
+
+    await runDataSourceAutoScan();
+
+    expect(mocks.loadSessionRoster).toHaveBeenCalledOnce();
+
+    // Next due pass sees the identical signature: the roster already
+    // reflects it, so no further reload happens.
+    mocks.store?.set(dataSourceConfigAtom, config);
+    mocks.externalHistoryRescanSources.mockResolvedValueOnce({
+      changedSources: [],
+      sourceSignatures: { codex_app: "4:2026-07-24T05:43:08Z:1" },
+    });
+
+    await runDataSourceAutoScan();
+
+    expect(mocks.loadSessionRoster).toHaveBeenCalledOnce();
   });
 
   it("deduplicates overlapping startup passes", async () => {
@@ -427,7 +464,7 @@ describe("runDataSourceAutoScan", () => {
 
     finishScan?.();
     await Promise.all([first, second]);
-    expect(mocks.loadExternalHistorySidebarSessions).toHaveBeenCalledOnce();
+    expect(mocks.loadSessionRoster).toHaveBeenCalledOnce();
   });
 
   it("holds unfocused sources to the 10-minute background floor", async () => {

@@ -34,11 +34,8 @@ vi.mock("@src/engines/SessionCore/ingestion/visibilityFilters", () => ({
 
 vi.mock("@src/util/session/sessionDispatch", () => ({
   composerIdFromSessionId: () => null,
+  isCollaborationImportedSession: () => false,
   isImportedHistorySession: () => false,
-}));
-
-vi.mock("../sessionSyncDerivedState", () => ({
-  isCursorIdeSessionId: () => false,
 }));
 
 vi.mock("../sessionSyncPlanApproval", () => ({

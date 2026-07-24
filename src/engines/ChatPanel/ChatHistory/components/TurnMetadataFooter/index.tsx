@@ -1,8 +1,6 @@
 import { useSetAtom } from "jotai";
 import {
-  BookOpenText,
   ExternalLink,
-  FileCode2,
   GitCommitHorizontal,
   GitPullRequest,
   MoreHorizontal,
@@ -113,10 +111,9 @@ const TurnMetadataFooter: React.FC<TurnMetadataFooterProps> = memo(
         visibleTabs.push({
           key: "edits",
           label: t("chat.turnMetadata.editsTab"),
-          icon: <FileCode2 size={13} />,
           badge: (
             <span
-              className="text-[10px] text-text-3"
+              className="chat-block-xs text-text-3"
               data-testid="turn-metadata-edits-count"
             >
               {editCount}
@@ -129,10 +126,9 @@ const TurnMetadataFooter: React.FC<TurnMetadataFooterProps> = memo(
         visibleTabs.push({
           key: "reads",
           label: t("chat.turnMetadata.readsTab"),
-          icon: <BookOpenText size={13} />,
           badge: (
             <span
-              className="text-[10px] text-text-3"
+              className="chat-block-xs text-text-3"
               data-testid="turn-metadata-reads-count"
             >
               {readCount}
@@ -237,7 +233,7 @@ const TurnMetadataFooter: React.FC<TurnMetadataFooterProps> = memo(
           <div className="flex min-h-9 items-center justify-between gap-2 px-2.5 py-1">
             <div className="flex min-w-0 items-center gap-2">
               {isPagedHistoryRound && (
-                <span className="shrink-0 text-[11px] text-text-3">
+                <span className="chat-block-xs shrink-0 text-text-3">
                   {t("chat.turnMetadata.earlierRound")}
                 </span>
               )}
@@ -248,13 +244,13 @@ const TurnMetadataFooter: React.FC<TurnMetadataFooterProps> = memo(
                 variant="pill"
                 colorScheme="ghost"
                 fillWidth={false}
-                size="mini"
+                size="chatPanel"
               />
             </div>
             {activeTab === "edits" && files.length > 0 && (
               <TextButton
                 onClick={() => openDiff()}
-                className="shrink-0 text-[12px] text-text-3 hover:text-text-1"
+                className="chat-block-title shrink-0 text-text-3 hover:text-text-1"
               >
                 {t("chat.turnMetadata.review")}
               </TextButton>
@@ -262,92 +258,110 @@ const TurnMetadataFooter: React.FC<TurnMetadataFooterProps> = memo(
           </div>
 
           <div
-            className={`${CHAT_COMPOSER_STACK_BAR_INNER_PADDING_X_CLASS} max-h-[320px] overflow-y-auto pb-1`}
+            className={`${CHAT_COMPOSER_STACK_BAR_INNER_PADDING_X_CLASS} flex max-h-[320px] min-h-0 flex-col pb-1`}
           >
-            {activeTab === "edits" &&
-              commits.map((artifact) => (
-                <StackRowButton
-                  key={`commit-${artifact.sha ?? artifact.url}`}
-                  onClick={() => openCommit(artifact)}
-                  disabled={!artifact.sha && !artifact.shortSha}
-                  title={artifact.sha ?? artifact.url}
-                  data-testid="turn-metadata-commit"
-                >
-                  <GitCommitHorizontal size={14} className="shrink-0" />
-                  <span className="min-w-0 flex-1 truncate text-[12px] text-text-2">
-                    {artifactLabel(artifact)}
-                  </span>
-                  {artifact.shortSha && (
-                    <span className="shrink-0 font-mono text-[11px] text-text-3">
-                      {artifact.shortSha}
-                    </span>
-                  )}
-                </StackRowButton>
-              ))}
-            {activeTab === "edits" &&
-              pullRequests.map((artifact) => (
-                <StackRowButton
-                  key={`pr-${artifact.url ?? artifact.prNumber}`}
-                  onClick={() => openPullRequest(artifact)}
-                  disabled={!artifact.url}
-                  title={artifact.url}
-                  data-testid="turn-metadata-pr"
-                >
-                  <GitPullRequest size={14} className="shrink-0" />
-                  <span className="min-w-0 flex-1 truncate text-[12px] text-text-2">
-                    {artifactLabel(artifact)}
-                  </span>
-                  <ExternalLink size={12} className="shrink-0 text-text-3" />
-                </StackRowButton>
-              ))}
-            {activeTab === "edits" &&
-              visibleFiles.map((file) => (
-                <EventFileHoverPreview key={file.path} path={file.path}>
-                  <FileChangeRow file={file} onFileClick={openDiff} />
-                </EventFileHoverPreview>
-              ))}
-            {activeTab === "reads" &&
-              visibleResources.map((interaction: TurnResourceInteraction) => {
-                const displayName =
-                  interaction.fileName ||
-                  getFileName(interaction.path) ||
-                  interaction.path;
-                return (
-                  <EventFileHoverPreview
-                    key={`${interaction.outcome}-${interaction.path}`}
-                    path={interaction.path}
+            <div
+              className="min-h-0 flex-1 overflow-y-auto scrollbar-hide"
+              data-testid="turn-metadata-scroll-area"
+            >
+              {activeTab === "edits" &&
+                commits.map((artifact) => (
+                  <StackRowButton
+                    key={`commit-${artifact.sha ?? artifact.url}`}
+                    onClick={() => openCommit(artifact)}
+                    disabled={!artifact.sha && !artifact.shortSha}
+                    title={artifact.sha ?? artifact.url}
+                    data-testid="turn-metadata-commit"
                   >
-                    <div
-                      className={COMPOSER_STACK_ROW_BASE}
-                      data-testid="turn-metadata-read"
-                    >
-                      <FileTypeIcon fileName={displayName} size="small" />
-                      <span className="min-w-0 flex-1 truncate text-[12px] text-text-2">
-                        {displayName}
+                    <GitCommitHorizontal size={16} className="shrink-0" />
+                    <span className="chat-block-title min-w-0 flex-1 truncate text-text-2">
+                      {artifactLabel(artifact)}
+                    </span>
+                    {artifact.shortSha && (
+                      <span className="chat-block-xs shrink-0 font-mono text-text-3">
+                        {artifact.shortSha}
                       </span>
-                      <span className="shrink-0 text-[11px] text-text-3">
-                        {interaction.outcome === "failed"
-                          ? t("chat.turnMetadata.failed")
-                          : interaction.count > 1
-                            ? `×${interaction.count}`
-                            : t("chat.turnMetadata.reads", { count: 1 })}
-                      </span>
-                    </div>
+                    )}
+                  </StackRowButton>
+                ))}
+              {activeTab === "edits" &&
+                pullRequests.map((artifact) => (
+                  <StackRowButton
+                    key={`pr-${artifact.url ?? artifact.prNumber}`}
+                    onClick={() => openPullRequest(artifact)}
+                    disabled={!artifact.url}
+                    title={artifact.url}
+                    data-testid="turn-metadata-pr"
+                  >
+                    <GitPullRequest size={16} className="shrink-0" />
+                    <span className="chat-block-title min-w-0 flex-1 truncate text-text-2">
+                      {artifactLabel(artifact)}
+                    </span>
+                    <ExternalLink size={14} className="shrink-0 text-text-3" />
+                  </StackRowButton>
+                ))}
+              {activeTab === "edits" &&
+                visibleFiles.map((file) => (
+                  <EventFileHoverPreview key={file.path} path={file.path}>
+                    <FileChangeRow
+                      file={file}
+                      fileIconSize="medium"
+                      onFileClick={openDiff}
+                    />
                   </EventFileHoverPreview>
-                );
-              })}
+                ))}
+              {activeTab === "reads" &&
+                visibleResources.map((interaction: TurnResourceInteraction) => {
+                  const displayName =
+                    interaction.fileName ||
+                    getFileName(interaction.path) ||
+                    interaction.path;
+                  return (
+                    <EventFileHoverPreview
+                      key={`${interaction.outcome}-${interaction.path}`}
+                      path={interaction.path}
+                    >
+                      <div
+                        className={COMPOSER_STACK_ROW_BASE}
+                        data-testid="turn-metadata-read"
+                      >
+                        <FileTypeIcon fileName={displayName} size="medium" />
+                        <span className="chat-block-title min-w-0 flex-1 truncate text-text-2">
+                          {displayName}
+                        </span>
+                        <span className="chat-block-xs shrink-0 text-text-3">
+                          {interaction.outcome === "failed"
+                            ? t("chat.turnMetadata.failed")
+                            : interaction.count > 1
+                              ? `×${interaction.count}`
+                              : t("chat.turnMetadata.reads", { count: 1 })}
+                        </span>
+                      </div>
+                    </EventFileHoverPreview>
+                  );
+                })}
+            </div>
             {hiddenCount > 0 || expanded ? (
-              <StackRowButton
-                onClick={() => setExpanded((previous) => !previous)}
-                className="text-text-3"
+              <div
+                className="shrink-0"
+                data-testid="turn-metadata-pinned-controls"
               >
-                <MoreHorizontal size={14} className="shrink-0" />
-                <span className="chat-block-title truncate">
-                  {expanded
-                    ? t("chat.turnMetadata.showLess")
-                    : t("chat.turnMetadata.showMore", { count: hiddenCount })}
-                </span>
-              </StackRowButton>
+                <StackRowButton
+                  onClick={() => setExpanded((previous) => !previous)}
+                  className="text-text-3"
+                  data-testid="turn-metadata-expansion-toggle"
+                  aria-expanded={expanded}
+                >
+                  <MoreHorizontal size={16} className="shrink-0" />
+                  <span className="chat-block-title truncate">
+                    {expanded
+                      ? t("chat.turnMetadata.showLess")
+                      : t("chat.turnMetadata.showMore", {
+                          count: hiddenCount,
+                        })}
+                  </span>
+                </StackRowButton>
+              </div>
             ) : null}
           </div>
         </div>

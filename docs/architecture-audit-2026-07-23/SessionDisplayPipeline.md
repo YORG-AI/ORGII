@@ -13,7 +13,7 @@
 - [x] Duplicate Kanban identity resolvers are removed.
 - [x] The issue class was swept across session Kanban and hover presentation paths.
 - [x] Targeted tests and changed-file lint pass.
-- [x] Repository-wide typecheck is clean on the PR branch.
+- [ ] Repository-wide typecheck is currently clean. It passed once during this change, then a concurrent unrelated `ChatPanelEmptyContent.tsx` edit introduced a `composerToolbarContent` props error.
 
 ## Term overloading
 
@@ -30,18 +30,18 @@ The critical separation is deliberate: source display data never populates runna
 
 ## Ten-layer audit
 
-| Layer                      | Coverage                                                                                                                                                                                           | Verdict |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| 1. Compilation             | Changed-file ESLint, 114 targeted tests, and full `tsc --noEmit` pass on the isolated PR worktree.                                                                                                 | Pass    |
-| 2. Dead code/deduplication | Removed `kanbanAgentBranding.ts`; deleted local/remote Kanban, hover, sidebar, List, and filter reinterpretation branches. Row helpers now only adapt the canonical result to component contracts. | Pass    |
-| 3. Naming                  | Added `SessionSourceDisplayMetadata`, `sourceDisplay`, `SessionDisplayMetadata`, raw `agentType`, and validated `cliAgentType`. Names state purpose and trust level.                               | Pass    |
-| 4. Semantic overloading    | Kept source model/agent identity under import provenance; did not reuse `Session.model` or executable account/key fields.                                                                          | Pass    |
-| 5. Defaults                | External descriptor wins, then source display name/type, then honest `Agent`; icon falls through external source, provider, built-in ORGII, imported-native ORGII, then existing session fallback. | Pass    |
-| 6. Cross-domain leakage    | Collaboration import stores source facts only. The UI resolver owns labels/icons. Fork/runtime code continues to read executable `Session` fields.                                                 | Pass    |
-| 7. New-developer clarity   | Type comments and the import-site comment explain why two model fields exist and which one is executable.                                                                                          | Pass    |
-| 8. Wire/serialization      | `RemoteTeammateSessionMetadata` wire shape is unchanged. New provenance fields are optional local metadata; guest zod persistence mirrors them and now also retains the adjacent avatar field.     | Pass    |
-| 9. Entry-point parity      | Full import and every existing-replay no-op path refresh the same source metadata; member/guest import paths share `importRemoteSession`; Kanban/Sidebar mounts share `loadSessionRoster`.         | Pass    |
-| 10. Resolver symmetry      | All session display consumers resolve label/icon/type/model once; all Kanban modes and filters then consume the same task projection.                                                              | Pass    |
+| Layer                      | Coverage                                                                                                                                                                                           | Verdict            |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| 1. Compilation             | Changed-file ESLint and targeted tests pass. Full `tsc --noEmit` passed before a concurrent unrelated Chat Panel props edit appeared; no changed-file diagnostic remains.                          | No new diagnostics |
+| 2. Dead code/deduplication | Removed `kanbanAgentBranding.ts`; deleted local/remote Kanban, hover, sidebar, List, and filter reinterpretation branches. Row helpers now only adapt the canonical result to component contracts. | Pass               |
+| 3. Naming                  | Added `SessionSourceDisplayMetadata`, `sourceDisplay`, `SessionDisplayMetadata`, raw `agentType`, and validated `cliAgentType`. Names state purpose and trust level.                               | Pass               |
+| 4. Semantic overloading    | Kept source model/agent identity under import provenance; did not reuse `Session.model` or executable account/key fields.                                                                          | Pass               |
+| 5. Defaults                | External descriptor wins, then source display name/type, then honest `Agent`; icon falls through external source, provider, built-in ORGII, imported-native ORGII, then existing session fallback. | Pass               |
+| 6. Cross-domain leakage    | Collaboration import stores source facts only. The UI resolver owns labels/icons. Fork/runtime code continues to read executable `Session` fields.                                                 | Pass               |
+| 7. New-developer clarity   | Type comments and the import-site comment explain why two model fields exist and which one is executable.                                                                                          | Pass               |
+| 8. Wire/serialization      | `RemoteTeammateSessionMetadata` wire shape is unchanged. New provenance fields are optional local metadata; guest zod persistence mirrors them and now also retains the adjacent avatar field.     | Pass               |
+| 9. Entry-point parity      | Full import and every existing-replay no-op path refresh the same source metadata; member/guest import paths share `importRemoteSession`; Kanban/Sidebar mounts share `loadSessionRoster`.         | Pass               |
+| 10. Resolver symmetry      | All session display consumers resolve label/icon/type/model once; all Kanban modes and filters then consume the same task projection.                                                              | Pass               |
 
 ## Entry-point matrix
 

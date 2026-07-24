@@ -128,8 +128,10 @@ pub(crate) fn init_host_compat_tables(conn: &Connection) -> Result<(), String> {
 /// "projected" figure regardless of whether the bridge reported a per-session
 /// failure.
 pub(crate) fn count_usage_rows(conn: &Connection) -> i64 {
-    conn.query_row("SELECT count(*) FROM orgtrack_core_session_usage", [], |row| {
-        row.get(0)
-    })
+    conn.query_row(
+        "SELECT count(*) FROM orgtrack_core_session_usage",
+        [],
+        |row| row.get(0),
+    )
     .unwrap_or(0)
 }

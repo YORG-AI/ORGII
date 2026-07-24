@@ -8,16 +8,16 @@ const pages = [
     endGroupIndex: 1,
     flatStartIndex: 0,
     flatEndIndex: 3,
-    cursorIdeSummary: null,
-    cursorIdeBodyLoaded: false,
+    replayTurnSummary: null,
+    replayBodyLoaded: false,
   },
   {
     startGroupIndex: 2,
     endGroupIndex: 4,
     flatStartIndex: 3,
     flatEndIndex: 8,
-    cursorIdeSummary: null,
-    cursorIdeBodyLoaded: false,
+    replayTurnSummary: null,
+    replayBodyLoaded: false,
   },
 ];
 

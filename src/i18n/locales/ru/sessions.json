@@ -22,6 +22,8 @@
       "created": "Создано",
       "updated": "Обновлено",
       "lastUpdated": "Последнее обновление",
+      "external": "Внешняя",
+      "internal": "Внутренняя",
       "rounds": "Раунды",
       "roundCount_one": "{{count}} раунд",
       "roundCount_other": "{{count}} раундов",

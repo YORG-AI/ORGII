@@ -116,6 +116,8 @@ pub struct CursorIdeSessionRow {
     pub background: bool,
     pub is_active: bool,
     pub repo_path: Option<String>,
+    pub repo_root_path: Option<String>,
+    pub repo_remote_urls: Vec<String>,
     pub storage_path: Option<String>,
     pub repo_name: Option<String>,
     pub branch: Option<String>,
@@ -177,10 +179,33 @@ pub fn list_cursor_ide_sessions_paginated(
         cursor_db::list_for_sidebar_filtered(cache_conn, limit, offset, |row| {
             is_listable_cursor_session(row, cursor_conn.as_ref())
         })?;
-    let sessions = rows
+    let mut sessions = rows
         .into_iter()
         .map(cache_row_to_session_row)
         .collect::<Result<Vec<_>, _>>()?;
+    #[cfg(feature = "git")]
+    {
+        use std::collections::HashSet;
+
+        use crate::sources::imported_history::repo_identity::query_repo_identities_from_conn;
+
+        let repo_paths = sessions
+            .iter()
+            .filter_map(|session| session.repo_path.clone())
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        let identities = query_repo_identities_from_conn(cache_conn, &repo_paths)?;
+        for session in &mut sessions {
+            let Some(repo_path) = session.repo_path.as_deref() else {
+                continue;
+            };
+            if let Some(identity) = identities.get(repo_path) {
+                session.repo_root_path = identity.repo_root_path.clone();
+                session.repo_remote_urls = identity.remote_urls.clone();
+            }
+        }
+    }
     Ok(CursorIdeSessionPage { sessions, has_more })
 }
 

@@ -174,6 +174,8 @@ export const SessionAggregateRecordSchema = z.object({
   externalHistorySource: z.string().optional(),
   userInput: z.string().optional(),
   repoPath: z.string().optional(),
+  repoRootPath: z.string().optional(),
+  repoRemoteUrls: z.array(z.string()).optional(),
   storagePath: z.string().optional(),
   repoName: z.string().optional(),
   branch: z.string().optional(),
@@ -241,6 +243,8 @@ export const ExternalHistorySidebarRowSchema = z.object({
   status: z.string().optional(),
   isActive: z.boolean().optional(),
   repoPath: z.string().optional(),
+  repoRootPath: z.string().optional(),
+  repoRemoteUrls: z.array(z.string()).optional(),
   // The source app's transcript file. Imported sessions have no sessions.db
   // copy, so this is their only storage path.
   storagePath: z.string().optional(),

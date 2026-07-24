@@ -24,8 +24,8 @@ use orgtrack_core::sources::anthropic_jsonl::AnthropicJsonlSource;
 use serde::Deserialize;
 
 mod trust_store;
-use trust_store::{content_hash, load_trust_store};
 pub use trust_store::trust;
+use trust_store::{content_hash, load_trust_store};
 
 /// The wire protocol version this build implements.
 pub const PROTOCOL_VERSION: u32 = 1;
@@ -374,8 +374,16 @@ fn load_manifest(path: &Path, trust_store: &BTreeMap<String, String>) -> Result<
     let label_static: &'static str = leak(label);
 
     match manifest.plugin.kind.as_str() {
-        "loader" => load_loader(path, &manifest, &manifest_dir, &id, id_static, label_static, trust_store)
-            .map(Parsed::Loader),
+        "loader" => load_loader(
+            path,
+            &manifest,
+            &manifest_dir,
+            &id,
+            id_static,
+            label_static,
+            trust_store,
+        )
+        .map(Parsed::Loader),
         "processor" => {
             let (exec, trust) = exec_spec(&manifest, &manifest_dir, path, &id, trust_store)?;
             let spec = manifest
@@ -694,7 +702,11 @@ mod tests {
         assert_eq!(trust, Trust::Trusted);
 
         // Tampering the exec re-arms trust even with the (now stale) store.
-        write_file(dir.path(), "scan.py", "#!/usr/bin/env python3\nprint('x')\n");
+        write_file(
+            dir.path(),
+            "scan.py",
+            "#!/usr/bin/env python3\nprint('x')\n",
+        );
         let trust = match load_manifest(&path, &store).unwrap() {
             Parsed::Loader(plugin) => plugin.trust,
             _ => panic!(),

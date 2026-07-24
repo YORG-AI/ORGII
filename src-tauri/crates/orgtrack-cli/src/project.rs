@@ -95,7 +95,9 @@ fn read_remote_url(git_root: &Path) -> Option<String> {
     } else {
         // `.git` file (worktree/submodule): `gitdir: <path>`.
         let content = std::fs::read_to_string(&git).ok()?;
-        let gitdir = content.lines().find_map(|line| line.strip_prefix("gitdir:"))?;
+        let gitdir = content
+            .lines()
+            .find_map(|line| line.strip_prefix("gitdir:"))?;
         Path::new(gitdir.trim()).join("config")
     };
     parse_remote_from_config(&std::fs::read_to_string(config_path).ok()?)
@@ -108,11 +110,14 @@ fn parse_remote_from_config(text: &str) -> Option<String> {
     for line in text.lines() {
         let line = line.trim();
         if line.starts_with('[') {
-            current_remote = line
-                .strip_prefix("[remote ")
-                .map(|rest| rest.trim_matches(|c| c == '"' || c == ']' || c == ' ').to_string());
+            current_remote = line.strip_prefix("[remote ").map(|rest| {
+                rest.trim_matches(|c| c == '"' || c == ']' || c == ' ')
+                    .to_string()
+            });
         } else if let Some(rest) = line.strip_prefix("url") {
-            let url = rest.trim_start_matches(|c: char| c == '=' || c.is_whitespace()).trim();
+            let url = rest
+                .trim_start_matches(|c: char| c == '=' || c.is_whitespace())
+                .trim();
             match current_remote.as_deref() {
                 Some("origin") => return Some(url.to_string()),
                 Some(_) if first_url.is_none() => first_url = Some(url.to_string()),
@@ -168,10 +173,22 @@ mod tests {
 
     #[test]
     fn normalizes_common_remotes() {
-        assert_eq!(normalize_remote("git@github.com:owner/repo.git"), "github.com/owner/repo");
-        assert_eq!(normalize_remote("https://github.com/Owner/Repo.git"), "github.com/owner/repo");
-        assert_eq!(normalize_remote("ssh://git@host.com:22/owner/repo"), "host.com/owner/repo");
-        assert_eq!(normalize_remote("https://gitlab.com/g/s/p"), "gitlab.com/g/s/p");
+        assert_eq!(
+            normalize_remote("git@github.com:owner/repo.git"),
+            "github.com/owner/repo"
+        );
+        assert_eq!(
+            normalize_remote("https://github.com/Owner/Repo.git"),
+            "github.com/owner/repo"
+        );
+        assert_eq!(
+            normalize_remote("ssh://git@host.com:22/owner/repo"),
+            "host.com/owner/repo"
+        );
+        assert_eq!(
+            normalize_remote("https://gitlab.com/g/s/p"),
+            "gitlab.com/g/s/p"
+        );
     }
 
     #[test]
@@ -185,6 +202,9 @@ mod tests {
     #[test]
     fn parses_origin_from_config() {
         let cfg = "[remote \"upstream\"]\n\turl = https://x/u.git\n[remote \"origin\"]\n\turl = git@github.com:o/r.git\n";
-        assert_eq!(parse_remote_from_config(cfg).as_deref(), Some("git@github.com:o/r.git"));
+        assert_eq!(
+            parse_remote_from_config(cfg).as_deref(),
+            Some("git@github.com:o/r.git")
+        );
     }
 }

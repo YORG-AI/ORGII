@@ -227,6 +227,28 @@ describe("resolveForkWorkspacePath", () => {
       resolveForkWorkspacePath(makeRemote({ repoScopeKey: undefined }))
     ).resolves.toBeNull();
   });
+
+  it("prefers an imported session's canonical repo root over its nested folder", async () => {
+    store.set(sessionsAtom, [
+      {
+        session_id: "codexapp-nested",
+        repoPath: "/repo/shared/src-tauri",
+        repoRootPath: "/repo/shared",
+      } as Session,
+    ]);
+    existsMock.mockResolvedValue(true);
+    resolveCheckoutMock.mockImplementation(
+      async (_scopeKey, candidates) => candidates[0] ?? null
+    );
+
+    await resolveForkWorkspacePath(
+      makeRemote({ repoScopeKey: "github.com/yorgai/ORG2" })
+    );
+
+    expect(resolveCheckoutMock).toHaveBeenCalledWith("github.com/yorgai/ORG2", [
+      "/repo/shared",
+    ]);
+  });
 });
 
 describe("forkTeammateSession (design §16.11 relay completion)", () => {

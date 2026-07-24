@@ -86,6 +86,9 @@ export const CloudSessionHoverCardContent: React.FC<CloudSessionHoverCardContent
         })
       : "";
     const unresolvedComments = row.unresolvedCommentCount ?? 0;
+    const isExternal =
+      row.origin?.kind === "external_history" ||
+      display.externalSource !== undefined;
     const viewerNames = viewers
       .map((viewer) => viewer.displayName)
       .filter(Boolean)
@@ -136,24 +139,29 @@ export const CloudSessionHoverCardContent: React.FC<CloudSessionHoverCardContent
             <span>@{row.ownerDisplayName}</span>
           </div>
         </HoverCardRow>
-        {display.externalSource && (
-          <HoverCardRow icon={<Pin size={13} strokeWidth={1.75} />}>
-            <div className="truncate text-text-2">
-              <span className="text-text-3">
-                {t("sessions:history.detail.externalSession", {
-                  defaultValue: "External session",
-                })}
-              </span>
-              <span className="mx-1 text-text-4">·</span>
-              <span>{display.externalSource.displayName}</span>
-            </div>
-          </HoverCardRow>
-        )}
+        <HoverCardRow icon={<Pin size={13} strokeWidth={1.75} />}>
+          <div className="truncate text-text-2">
+            <span className="text-text-3">
+              {isExternal
+                ? t("sessions:history.detail.external")
+                : t("sessions:history.detail.internal")}
+            </span>
+            {display.externalSource && (
+              <>
+                <span className="mx-1 text-text-4">·</span>
+                <span>{display.externalSource.displayName}</span>
+              </>
+            )}
+          </div>
+        </HoverCardRow>
         {(display.agentType ||
           row.agentDisplayName ||
           display.modelName ||
           display.externalSource) && (
-          <HoverCardRow icon={renderAgentIcon(display)}>
+          <HoverCardRow
+            icon={renderAgentIcon(display)}
+            iconClassName="text-text-1"
+          >
             <div className="flex min-w-0 items-center truncate text-text-2">
               <span className="truncate">{display.agentLabel}</span>
               {display.modelName && (

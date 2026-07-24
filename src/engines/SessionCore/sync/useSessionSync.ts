@@ -40,7 +40,7 @@ import { pendingPlanApprovalsAtom } from "@src/store/session/planApprovalAtom";
 import { wpReadOnlyAtom } from "@src/store/ui/chatPanelAtom";
 
 import "./adapters";
-import { useExternalHistoryAutoRefresh } from "./externalHistoryAutoRefresh";
+import { useExternalReplayAutoRefresh } from "./externalReplayAutoRefresh";
 import {
   getActiveExternalReplayLease,
   pollExternalReplaySession,
@@ -299,7 +299,7 @@ export function useSessionSync(
   );
   useSessionChannel(sessionId, handleChannelEvent);
 
-  useExternalHistoryAutoRefresh({
+  useExternalReplayAutoRefresh({
     sessionId,
     intervalMs:
       ACTIVE_EXTERNAL_SESSION_REFRESH_INTERVAL_MS[

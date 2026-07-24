@@ -17,7 +17,7 @@ import { stripExpandedPillContent } from "../../InputArea/utils/pillContentParse
 import type { ChatGroupMeta, UseChatGroupsReturn } from "../hooks";
 import type { UseChatTurnPaginationReturn } from "../hooks/useChatTurnPagination";
 import {
-  formatCursorIdeTurnPageTimeLabel,
+  formatReplayTurnPageTimeLabel,
   formatTurnPageTimeLabel,
   getRoundPreviewText,
 } from "../utils/turnPageFormatting";
@@ -117,7 +117,7 @@ const TurnPageList: React.FC<TurnPageListProps> = memo(
                   const header = groupHeaders[page.startGroupIndex];
                   const meta = groupMeta[page.startGroupIndex];
                   const rawPreviewText =
-                    page.cursorIdeSummary?.userPreview ??
+                    page.replayTurnSummary?.userPreview ??
                     (header?.event?.displayText
                       ? stripExpandedPillContent(
                           String(header.event.displayText)
@@ -130,8 +130,8 @@ const TurnPageList: React.FC<TurnPageListProps> = memo(
                     t("common:pagination.round", {
                       current: pageIndex + 1,
                     });
-                  const time = page.cursorIdeSummary
-                    ? formatCursorIdeTurnPageTimeLabel(page.cursorIdeSummary)
+                  const time = page.replayTurnSummary
+                    ? formatReplayTurnPageTimeLabel(page.replayTurnSummary)
                     : formatTurnPageTimeLabel(
                         groupMeta.slice(
                           page.startGroupIndex,

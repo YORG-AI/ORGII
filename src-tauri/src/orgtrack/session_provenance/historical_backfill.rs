@@ -1008,12 +1008,11 @@ fn reconcile_recent_codex_sessions(
             continue;
         }
         let is_quiescent = session_is_quiescent(&session, now_ms);
-        if !is_quiescent {
-            if !active_codex_recovery_is_quiet_enough(session.source_mtime_ms, now_ms)
-                || active_reconciliations >= ACTIVE_CODEX_RECONCILIATION_BATCH_PER_PASS
-            {
-                continue;
-            }
+        if !is_quiescent
+            && (!active_codex_recovery_is_quiet_enough(session.source_mtime_ms, now_ms)
+                || active_reconciliations >= ACTIVE_CODEX_RECONCILIATION_BATCH_PER_PASS)
+        {
+            continue;
         }
         if !throttle.should_attempt(&session.session_id, is_quiescent, now_ms) {
             continue;
@@ -1174,6 +1173,8 @@ mod tests {
             input_tokens: 0,
             output_tokens: 0,
             repo_path: Some("/repo".to_string()),
+            repo_root_path: None,
+            repo_remote_urls: Vec::new(),
             branch: None,
             impact: ImportedHistoryImpactStats {
                 files_changed: touched_files.len() as i64,
@@ -1322,6 +1323,8 @@ mod tests {
                 input_tokens: 0,
                 output_tokens: 0,
                 repo_path: Some(directory.path().to_string_lossy().into_owned()),
+                repo_root_path: None,
+                repo_remote_urls: Vec::new(),
                 branch: None,
                 impact: ImportedHistoryImpactStats::default(),
                 listable: true,

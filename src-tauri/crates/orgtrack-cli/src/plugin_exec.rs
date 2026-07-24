@@ -53,7 +53,9 @@ pub(crate) fn run_exec_load(
     session_prefix: &str,
     timeout: Duration,
 ) -> Result<Vec<ActivityChunk>, String> {
-    let source_session_id = session_id.strip_prefix(session_prefix).unwrap_or(session_id);
+    let source_session_id = session_id
+        .strip_prefix(session_prefix)
+        .unwrap_or(session_id);
     let request = serde_json::json!({
         "protocol": spec.protocol,
         "verb": "load",
@@ -166,8 +168,8 @@ pub(crate) fn exec_session_to_input(
     job: &ExecJob,
     value: &serde_json::Value,
 ) -> Result<ImportedHistoryCacheInput, String> {
-    let source_session_id = js_str(value, "sourceSessionId")
-        .ok_or("a session is missing its 'sourceSessionId'")?;
+    let source_session_id =
+        js_str(value, "sourceSessionId").ok_or("a session is missing its 'sourceSessionId'")?;
     let updated_at_ms = js_i64(value, "updatedAtMs");
     let source_path = js_str(value, "sourcePath").unwrap_or_default();
     Ok(ImportedHistoryCacheInput {
@@ -197,7 +199,10 @@ pub(crate) fn exec_session_to_input(
             lines_removed: js_i64(value, "linesRemoved"),
             touched_files: js_str_vec(value, "touchedFiles"),
         },
-        listable: value.get("listable").and_then(|v| v.as_bool()).unwrap_or(true),
+        listable: value
+            .get("listable")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true),
         source_metadata_json: None,
         parent_session_id: js_str(value, "parentSessionId"),
     })
@@ -216,7 +221,10 @@ pub(crate) fn js_i64(value: &serde_json::Value, key: &str) -> i64 {
 }
 
 pub(crate) fn js_i64_or(value: &serde_json::Value, key: &str, default: i64) -> i64 {
-    value.get(key).and_then(|field| field.as_i64()).unwrap_or(default)
+    value
+        .get(key)
+        .and_then(|field| field.as_i64())
+        .unwrap_or(default)
 }
 
 pub(crate) fn js_str_vec(value: &serde_json::Value, key: &str) -> Vec<String> {
@@ -311,7 +319,10 @@ pub(crate) fn apply_session_processors(
             .map(|item| {
                 let mut value = serde_json::to_value(&item.row).unwrap_or(serde_json::Value::Null);
                 if let Some(object) = value.as_object_mut() {
-                    object.insert("source".into(), serde_json::Value::String(item.source.clone()));
+                    object.insert(
+                        "source".into(),
+                        serde_json::Value::String(item.source.clone()),
+                    );
                 }
                 value
             })
@@ -405,7 +416,8 @@ pub(crate) fn apply_chunk_processors(
 pub(crate) fn scanned_row_from_json(value: &serde_json::Value) -> Option<ScannedRow> {
     let source = js_str(value, "source")?;
     let session_id = js_str(value, "sessionId")?;
-    let flag = |key: &str, default: bool| value.get(key).and_then(|v| v.as_bool()).unwrap_or(default);
+    let flag =
+        |key: &str, default: bool| value.get(key).and_then(|v| v.as_bool()).unwrap_or(default);
     Some(ScannedRow {
         source,
         row: ImportedHistorySessionRow {
@@ -421,6 +433,8 @@ pub(crate) fn scanned_row_from_json(value: &serde_json::Value) -> Option<Scanned
             background: flag("background", false),
             is_active: flag("isActive", false),
             repo_path: js_str(value, "repoPath"),
+            repo_root_path: js_str(value, "repoRootPath"),
+            repo_remote_urls: js_str_vec(value, "repoRemoteUrls"),
             storage_path: js_str(value, "storagePath"),
             repo_name: js_str(value, "repoName"),
             branch: js_str(value, "branch"),

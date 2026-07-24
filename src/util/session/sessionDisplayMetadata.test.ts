@@ -185,7 +185,7 @@ describe("resolveSessionDisplayMetadata", () => {
     );
   });
 
-  it("uses one native-cloud fallback across remote Kanban and sidebar", () => {
+  it("labels native ORG2 sessions consistently across remote Kanban and sidebar", () => {
     const display = resolveSessionDisplayMetadata({
       kind: "remote",
       session: {
@@ -196,9 +196,36 @@ describe("resolveSessionDisplayMetadata", () => {
     });
 
     expect(display).toMatchObject({
-      agentLabel: "Agent Architect",
+      agentLabel: "ORG2",
       agentIconId: "orgii",
       isMonochromeBrandIcon: true,
+    });
+  });
+
+  it("keeps a native imported replay labeled ORG2 instead of its definition name", () => {
+    const display = resolveSessionDisplayMetadata({
+      kind: "local",
+      session: {
+        session_id: "imported-session-native",
+        agentDisplayName: "Agent Architect",
+        importedFrom: {
+          orgId: "org-1",
+          sourceSessionId: "remote-native-session",
+          ownerMemberId: "member-1",
+          epoch: 1,
+          seq: 0,
+          count: 1,
+          sourceDisplay: {
+            agentDisplayName: "Agent Architect",
+            agentDefinitionId: "builtin:agent-architect",
+          },
+        },
+      },
+    });
+
+    expect(display).toMatchObject({
+      agentLabel: "ORG2",
+      agentIconId: "orgii",
     });
   });
 });

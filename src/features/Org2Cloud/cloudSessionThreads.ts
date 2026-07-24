@@ -9,17 +9,10 @@
  */
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 
-import { cloudSessionIdFromRowId } from "./org2CloudBackendAdapter";
-
 export interface CloudSessionThreadRow {
   row: RemoteTeammateSessionMetadata;
-  /** Bare session id (owner-side) — `cloudSessionIdFromRowId(row.id)`. */
+  /** Canonical owner-side session id supplied by the cloud metadata row. */
   bareSessionId: string;
-  /**
-   * The bare id matches one of the viewer's LOCAL sessions — the sidebar
-   * routes clicks locally and hides the duplicate from the flat local list.
-   */
-  isMine: boolean;
   /**
    * This fork's parent chain broke (root aged out AND no present direct
    * parent): it renders top-level with attribution ("forked from @X"),
@@ -40,9 +33,9 @@ export interface CloudSessionThread {
 export interface BuildCloudSessionThreadsOptions {
   /** ownerUserId to filter by; null/undefined ⇒ everyone. */
   memberFilter?: string | null;
-  /** Local session ids present on the viewer's machine. */
+  /** Local session ids on this device; matching own cloud rows are excluded. */
   localOwnSessionIds?: ReadonlySet<string>;
-  /** Signed-in cloud user; ownership requires both user id and session id. */
+  /** Signed-in cloud user; local-device exclusion requires owner + session id. */
   viewerUserId?: string | null;
 }
 
@@ -68,20 +61,21 @@ export function buildCloudSessionThreads(
 
   for (const row of rows) {
     if (row.deletedAt) continue;
-    const bareSessionId = cloudSessionIdFromRowId(row.id);
+    const bareSessionId = row.sourceSessionId;
+    // Team Conversations is remote-only. Match both owner and session id so
+    // this device's local rows stay in My Sessions, while the same account's
+    // sessions from another device (no matching local id) remain visible.
+    if (
+      viewerUserId &&
+      row.ownerUserId === viewerUserId &&
+      localOwnSessionIds?.has(bareSessionId)
+    ) {
+      continue;
+    }
     const rootKey = row.forkedFrom?.rootSessionId ?? bareSessionId;
     const threadRow: CloudSessionThreadRow = {
       row,
       bareSessionId,
-      // Two ORGII instances on the same Mac intentionally see the same
-      // Codex/Claude history and therefore the same source session id. An id
-      // collision alone does not make a teammate-owned cloud row local: the
-      // authenticated owner must match too, or a directed share disappears
-      // from the recipient's TEAM SESSIONS list as a false "solo mine" row.
-      isMine:
-        Boolean(viewerUserId) &&
-        row.ownerUserId === viewerUserId &&
-        (localOwnSessionIds?.has(bareSessionId) ?? false),
       isOrphan: false,
     };
     let bucket = byRootKey.get(rootKey);
@@ -184,75 +178,106 @@ export function buildCloudSessionThreads(
       )
     : threads;
 
-  // TEAM section = collaboration context. A thread whose every row is the
-  // viewer's OWN session (a solo shared session nobody forked) must NOT
-  // relocate into the team section — it stays in the flat local list
-  // (collectThreadedLocalSessionIds derives from the returned threads, so
-  // dropping the thread here returns the session to the local list). The
-  // viewer's own rows still render here once a TEAMMATE row shares the
-  // thread: a fork thread without its root is unreadable.
-  const filtered = memberFiltered.filter((thread) =>
-    [thread.root, ...thread.descendants].some((threadRow) => !threadRow.isMine)
-  );
-
   const threadTime = (thread: CloudSessionThread): number =>
     Math.max(
       activityTime(thread.root.row),
       ...thread.descendants.map((descendant) => activityTime(descendant.row)),
       0
     );
-  filtered.sort((a, b) => threadTime(b) - threadTime(a));
-  return filtered;
+  memberFiltered.sort((a, b) => threadTime(b) - threadTime(a));
+  return memberFiltered;
 }
 
 /**
- * A thread row is disabled only when it is a TEAMMATE row without published
- * segments. Rows that are MINE route to the LOCAL session on click and need
- * no published segments, so they are never disabled.
+ * Session ids proven to originate on this device for one cloud org.
+ *
+ * `sessions` is only the currently loaded sidebar roster, so it cannot be the
+ * sole source: older/paginated sessions would otherwise reappear as Team
+ * Conversations. Push markers and segment cursors are persisted locally and
+ * survive that pagination, making them the durable device-origin registry.
+ */
+export function collectCurrentDeviceCloudSessionIds(
+  orgId: string,
+  sessions: readonly { session_id: string }[],
+  pushedMetadata: Readonly<Record<string, true>>,
+  pushCursors: Readonly<Record<string, { orgId: string; sessionId: string }>>
+): Set<string> {
+  const ids = new Set(sessions.map((session) => session.session_id));
+  const keyPrefix = `${orgId}:`;
+
+  for (const [key, pushed] of Object.entries(pushedMetadata)) {
+    if (pushed && key.startsWith(keyPrefix)) {
+      ids.add(key.slice(keyPrefix.length));
+    }
+  }
+  for (const cursor of Object.values(pushCursors)) {
+    if (cursor.orgId === orgId) ids.add(cursor.sessionId);
+  }
+
+  return ids;
+}
+
+/**
+ * Exact local rows needed for the currently visible My Conversations page.
+ *
+ * Cloud rows are already ordered by activity. Qualifying loaded rows still
+ * consume a visible slot; only missing rows are returned for exact hydration.
+ */
+export function collectCurrentDeviceSessionsToHydrate(
+  rows: readonly RemoteTeammateSessionMetadata[],
+  viewerUserId: string | null | undefined,
+  currentDeviceSessionIds: ReadonlySet<string>,
+  loadedSessionIds: ReadonlySet<string>,
+  visibleLimit: number
+): string[] {
+  if (!viewerUserId || visibleLimit <= 0) return [];
+
+  const seen = new Set<string>();
+  const missing: string[] = [];
+  let visibleOwnRows = 0;
+  for (const row of rows) {
+    const sessionId = row.sourceSessionId;
+    if (
+      row.deletedAt ||
+      row.ownerUserId !== viewerUserId ||
+      !currentDeviceSessionIds.has(sessionId) ||
+      seen.has(sessionId)
+    ) {
+      continue;
+    }
+    seen.add(sessionId);
+    if (visibleOwnRows >= visibleLimit) break;
+    visibleOwnRows += 1;
+    if (!loadedSessionIds.has(sessionId)) missing.push(sessionId);
+  }
+  return missing;
+}
+
+/**
+ * A remote thread row is disabled when it has no published replay segments.
  */
 export function isCloudThreadRowDisabled(
   threadRow: CloudSessionThreadRow
 ): boolean {
-  return !threadRow.isMine && threadRow.row.eventsEpoch === undefined;
-}
-
-/**
- * Local session ids that actually RENDER at a threaded position in the given
- * (already member-filtered) thread list. The sidebar hides exactly these from
- * the flat local list — a session is excluded only if it is visible in the
- * team section, so a member filter that drops a thread returns the viewer's
- * own sessions to the flat list instead of vanishing them from both.
- */
-export function collectThreadedLocalSessionIds(
-  threads: readonly CloudSessionThread[]
-): Set<string> {
-  const ids = new Set<string>();
-  for (const thread of threads) {
-    for (const threadRow of [thread.root, ...thread.descendants]) {
-      if (threadRow.isMine) ids.add(threadRow.bareSessionId);
-    }
-  }
-  return ids;
+  return threadRow.row.eventsEpoch === undefined;
 }
 
 /**
  * Local rows that must not render in the cloud scope's flat "My Sessions"
  * section.
  *
- * A writable session owned by the viewer is excluded only while it actually
- * renders inside a visible team thread. A teammate replay is different: its
- * local `Session` is a read-only cache, not an owned session, so provenance
- * excludes it regardless of Team-section filters or pagination.
+ * Writable local sessions always remain in My Sessions. Only teammate replay
+ * caches are excluded: their remote source row is the Team Conversations
+ * entry, while the local Session is read-only implementation detail.
  */
 export function collectCloudFlatListExcludedSessionIds(
-  threads: readonly CloudSessionThread[],
   sessions: readonly {
     session_id: string;
     importedFrom?: { orgId: string };
   }[],
   orgId: string
 ): Set<string> {
-  const ids = collectThreadedLocalSessionIds(threads);
+  const ids = new Set<string>();
   for (const session of sessions) {
     if (session.importedFrom?.orgId === orgId) {
       ids.add(session.session_id);

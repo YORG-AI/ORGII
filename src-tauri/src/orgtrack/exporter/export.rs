@@ -751,7 +751,9 @@ mod tests {
 
     #[test]
     fn trajectory_writer_buffer_is_hard_capped_below_two_mib() {
-        assert!(TRAJECTORY_WRITER_BUFFER_BYTES <= 2 * 1024 * 1024);
+        const {
+            assert!(TRAJECTORY_WRITER_BUFFER_BYTES <= 2 * 1024 * 1024);
+        }
         assert_eq!(TRAJECTORY_WRITER_BUFFER_BYTES, 64 * 1024);
     }
 }

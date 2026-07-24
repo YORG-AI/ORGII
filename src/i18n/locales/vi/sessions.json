@@ -22,6 +22,8 @@
       "created": "Ngày tạo",
       "updated": "Đã cập nhật",
       "lastUpdated": "Cập nhật lần cuối",
+      "external": "Bên ngoài",
+      "internal": "Nội bộ",
       "rounds": "Lượt",
       "roundCount_one": "{{count}} lượt",
       "roundCount_other": "{{count}} lượt",

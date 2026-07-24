@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import type { CursorIdeTurnSummary } from "@src/api/tauri/externalHistory";
+import type { ExternalReplayTurnSummary } from "@src/api/tauri/externalHistory";
 
 import type { OptimizedChatItem } from "../chatItemPipeline/types";
 import type { ChatGroupMeta } from "./useChatGroups";
@@ -10,8 +10,8 @@ export interface ChatTurnPage {
   endGroupIndex: number;
   flatStartIndex: number;
   flatEndIndex: number;
-  cursorIdeSummary: CursorIdeTurnSummary | null;
-  cursorIdeBodyLoaded: boolean;
+  replayTurnSummary: ExternalReplayTurnSummary | null;
+  replayBodyLoaded: boolean;
 }
 
 export interface ChatTurnPaginationOptions {
@@ -22,7 +22,7 @@ export interface ChatTurnPaginationOptions {
   groupMeta: ChatGroupMeta[];
   flatItems: OptimizedChatItem[];
   lastAssistantFlatIndexPerItem: (number | null)[];
-  cursorIdeTurnSummaries?: CursorIdeTurnSummary[];
+  externalReplayTurnSummaries?: ExternalReplayTurnSummary[];
   /**
    * Treat groups that contain a user header but ZERO agent items as part
    * of an adjacent contentful page instead of giving them their own page.
@@ -58,13 +58,13 @@ export function projectChatTurnPagination({
   groupMeta,
   flatItems,
   lastAssistantFlatIndexPerItem,
-  cursorIdeTurnSummaries = [],
+  externalReplayTurnSummaries = [],
   mergeUserOnlyPages = false,
 }: ChatTurnPaginationOptions): UseChatTurnPaginationReturn {
   const pages = buildTurnPages(
     groupCounts,
     groupHeaders,
-    cursorIdeTurnSummaries,
+    externalReplayTurnSummaries,
     mergeUserOnlyPages
   );
   const pageCount = pages.length;
@@ -158,7 +158,7 @@ export function useChatTurnPagination({
   groupMeta,
   flatItems,
   lastAssistantFlatIndexPerItem,
-  cursorIdeTurnSummaries,
+  externalReplayTurnSummaries,
   mergeUserOnlyPages,
 }: ChatTurnPaginationOptions): UseChatTurnPaginationReturn {
   return useMemo(
@@ -171,7 +171,7 @@ export function useChatTurnPagination({
         groupMeta,
         flatItems,
         lastAssistantFlatIndexPerItem,
-        cursorIdeTurnSummaries,
+        externalReplayTurnSummaries,
         mergeUserOnlyPages,
       }),
     [
@@ -182,7 +182,7 @@ export function useChatTurnPagination({
       groupMeta,
       flatItems,
       lastAssistantFlatIndexPerItem,
-      cursorIdeTurnSummaries,
+      externalReplayTurnSummaries,
       mergeUserOnlyPages,
     ]
   );
@@ -191,14 +191,14 @@ export function useChatTurnPagination({
 function buildTurnPages(
   groupCounts: number[],
   groupHeaders: (OptimizedChatItem | null)[],
-  cursorIdeTurnSummaries: CursorIdeTurnSummary[],
+  externalReplayTurnSummaries: ExternalReplayTurnSummary[],
   mergeUserOnlyPages = false
 ): ChatTurnPage[] {
-  if (cursorIdeTurnSummaries.length > 0) {
-    return buildCursorIdeTurnPages(
+  if (externalReplayTurnSummaries.length > 0) {
+    return buildExternalReplayTurnPages(
       groupCounts,
       groupHeaders,
-      cursorIdeTurnSummaries
+      externalReplayTurnSummaries
     );
   }
 
@@ -228,8 +228,8 @@ function buildTurnPages(
         endGroupIndex: groupIndex,
         flatStartIndex: pageFlatStartIndex,
         flatEndIndex: nextFlatCursor,
-        cursorIdeSummary: null,
-        cursorIdeBodyLoaded: false,
+        replayTurnSummary: null,
+        replayBodyLoaded: false,
       });
       startGroupIndex = groupIndex + 1;
       pageFlatStartIndex = nextFlatCursor;
@@ -253,8 +253,8 @@ function buildTurnPages(
           endGroupIndex: groupCounts.length - 1,
           flatStartIndex: 0,
           flatEndIndex: flatCursor,
-          cursorIdeSummary: null,
-          cursorIdeBodyLoaded: false,
+          replayTurnSummary: null,
+          replayBodyLoaded: false,
         });
       }
     }
@@ -263,10 +263,10 @@ function buildTurnPages(
   return rawPages;
 }
 
-function buildCursorIdeTurnPages(
+function buildExternalReplayTurnPages(
   groupCounts: number[],
   groupHeaders: (OptimizedChatItem | null)[],
-  cursorIdeTurnSummaries: CursorIdeTurnSummary[]
+  externalReplayTurnSummaries: ExternalReplayTurnSummary[]
 ): ChatTurnPage[] {
   const groupByTurnId = new Map<string, number>();
   for (let groupIndex = 0; groupIndex < groupHeaders.length; groupIndex++) {
@@ -284,7 +284,7 @@ function buildCursorIdeTurnPages(
   const groupFlatStartIndices = computeGroupFlatStartIndices(groupCounts);
   const fallbackGroupIndex = Math.max(0, groupCounts.length - 1);
   const target: ChatTurnPage[] = [];
-  target.length = cursorIdeTurnSummaries.length;
+  target.length = externalReplayTurnSummaries.length;
 
   // Keep page count exact without allocating one page object per turn. The
   // list is virtualized and navigation reads only current/neighbor indices.
@@ -297,11 +297,11 @@ function buildCursorIdeTurnPages(
       if (
         !Number.isSafeInteger(pageIndex) ||
         pageIndex < 0 ||
-        pageIndex >= cursorIdeTurnSummaries.length
+        pageIndex >= externalReplayTurnSummaries.length
       ) {
         return undefined;
       }
-      const summary = cursorIdeTurnSummaries[pageIndex];
+      const summary = externalReplayTurnSummaries[pageIndex];
       if (!summary) return undefined;
       const loadedGroupIndex = groupByTurnId.get(summary.turnId);
       const groupIndex = loadedGroupIndex ?? fallbackGroupIndex;
@@ -312,8 +312,8 @@ function buildCursorIdeTurnPages(
         endGroupIndex: groupIndex,
         flatStartIndex,
         flatEndIndex,
-        cursorIdeSummary: summary,
-        cursorIdeBodyLoaded: loadedGroupIndex !== undefined,
+        replayTurnSummary: summary,
+        replayBodyLoaded: loadedGroupIndex !== undefined,
       } satisfies ChatTurnPage;
     },
   });

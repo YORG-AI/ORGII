@@ -66,6 +66,7 @@ interface SessionCreatorChatPanelViewProps {
   heroIcon: React.ReactNode;
   hidePresenceButton: boolean;
   hideRepoLine: boolean;
+  hideWorkItemAttachmentControl: boolean;
   innerClassName?: string;
   isCategorySelectorOpen: boolean;
   isCliTuiMode: boolean;
@@ -86,6 +87,7 @@ interface SessionCreatorChatPanelViewProps {
   orgMembersPanelProps?: React.ComponentProps<
     typeof SessionCreatorOrgMembersPanel
   >;
+  pinnedActionsContent?: React.ReactNode;
   categoryPickerProps: CategoryPickerProps;
   screenPickerProps?: React.ComponentProps<typeof ScreenPickerModal>;
   sessionInfoProps: React.ComponentProps<typeof SessionInfoLine>;
@@ -115,6 +117,7 @@ const SessionCreatorChatPanelView: React.FC<
   heroIcon,
   hidePresenceButton,
   hideRepoLine,
+  hideWorkItemAttachmentControl,
   innerClassName,
   isCategorySelectorOpen,
   isCliTuiMode,
@@ -131,6 +134,7 @@ const SessionCreatorChatPanelView: React.FC<
   onShareScreen,
   onToggleOrgMembers,
   orgMembersPanelProps,
+  pinnedActionsContent,
   categoryPickerProps,
   screenPickerProps,
   sessionInfoProps,
@@ -169,11 +173,13 @@ const SessionCreatorChatPanelView: React.FC<
       </div>
     </div>
   );
-  const composerHeader = composerHeaderContent ? (
+  const tuiComposerHeader = composerHeaderContent ? (
     <div className="session-creator-chat-panel-fullscreen-header-row px-1 pb-3 pt-2">
       {composerHeaderContent}
     </div>
   ) : null;
+  const editorHeaderContent =
+    composerHeaderContent ?? editorAreaProps.headerContent;
   const browserElementRowContent = useMemo(
     () =>
       browserElementScrollNav.showAddToConversation ? (
@@ -219,7 +225,7 @@ const SessionCreatorChatPanelView: React.FC<
                 }`}
               >
                 {compactHeader}
-                {composerHeader}
+                {tuiComposerHeader}
                 <div className="rounded-xl bg-chat-container p-3">
                   <button
                     type="button"
@@ -270,8 +276,10 @@ const SessionCreatorChatPanelView: React.FC<
                 }`}
               >
                 {compactHeader}
-                {composerHeader}
-                <EditorArea {...editorAreaProps} />
+                <EditorArea
+                  {...editorAreaProps}
+                  headerContent={editorHeaderContent}
+                />
                 {!hideRepoLine && headerLayout !== "compact" && (
                   <div className="session-creator-chat-panel-fullscreen-repo-row px-1 pb-2 pt-3">
                     {repoPills}
@@ -297,8 +305,9 @@ const SessionCreatorChatPanelView: React.FC<
             >
               <PinnedActionsBar
                 composerInputRef={composerInputRef}
-                manageButtonPlacement="after-leading"
+                manageButtonPlacement="before-actions"
                 managePanelAlign="left"
+                trailingContent={pinnedActionsContent}
                 leadingContent={
                   <>
                     {browserElementRowContent}
@@ -310,12 +319,16 @@ const SessionCreatorChatPanelView: React.FC<
                         className="mx-1 h-4 w-px shrink-0 bg-border-2"
                       />
                     )}
-                    <WorkItemAttachmentControl
-                      currentWorkItemContext={workItemContext}
-                      panelHostRef={workItemPanelHostRef}
-                      repoPath={sessionInfoProps.repoPath}
-                      onWorkItemContextChange={onAttachedWorkItemContextChange}
-                    />
+                    {!hideWorkItemAttachmentControl && (
+                      <WorkItemAttachmentControl
+                        currentWorkItemContext={workItemContext}
+                        panelHostRef={workItemPanelHostRef}
+                        repoPath={sessionInfoProps.repoPath}
+                        onWorkItemContextChange={
+                          onAttachedWorkItemContextChange
+                        }
+                      />
+                    )}
                     {orgMembersPanelProps && (
                       <Button
                         variant="secondary"

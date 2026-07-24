@@ -38,6 +38,7 @@ describe("normalizeFunctionName", () => {
     expect(normalizeFunctionName("Grep")).toBe("code_search");
     expect(normalizeFunctionName("Search")).toBe("code_search");
     expect(normalizeFunctionName("Task")).toBe("subagent");
+    expect(normalizeFunctionName("spawn_agent")).toBe("subagent");
   });
 
   it("passes through unknown names", () => {

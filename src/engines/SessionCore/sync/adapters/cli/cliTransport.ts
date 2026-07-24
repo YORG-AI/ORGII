@@ -42,7 +42,8 @@ export async function sendCliMessage(input: AdapterSendInput): Promise<void> {
   const isSendEpisodeActive = (): boolean =>
     replayLease !== null &&
     !replayLease.signal.aborted &&
-    getActiveExternalReplayLease(sessionId)?.epoch === replayLease.epoch;
+    getActiveExternalReplayLease(sessionId)?.episodeId ===
+      replayLease.episodeId;
   const waitOptions = {
     signal: replayLease?.signal,
     isSessionActive: isSendEpisodeActive,

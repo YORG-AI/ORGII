@@ -565,8 +565,10 @@ mod tests {
 
     #[test]
     fn compact_content_pages_are_stricter_than_replay_hard_limits() {
-        assert!(CONTENT_PAGE_EVENTS <= replay::HARD_MAX_EVENTS);
-        assert!(CONTENT_PAGE_IPC_BYTES <= replay::HARD_MAX_IPC_BYTES);
+        const {
+            assert!(CONTENT_PAGE_EVENTS <= replay::HARD_MAX_EVENTS);
+            assert!(CONTENT_PAGE_IPC_BYTES <= replay::HARD_MAX_IPC_BYTES);
+        }
     }
 
     #[test]

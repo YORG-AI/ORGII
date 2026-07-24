@@ -3,6 +3,10 @@ import { atomWithStorage } from "jotai/utils";
 import { z } from "zod/v4";
 
 import { SIMULATOR_PRIMARY_SIDEBAR } from "@src/config/simulatorPrimarySidebar";
+import {
+  REPLAY_SPEED_OPTIONS,
+  type ReplaySpeed,
+} from "@src/config/workspace/replayConfig";
 import type { SimulatorEventFilterValue } from "@src/engines/SessionCore/core/types";
 import type { SubagentSession } from "@src/engines/Simulator/hooks/useSubagentSessions";
 import type { AppType } from "@src/engines/Simulator/types/appTypes";
@@ -212,16 +216,10 @@ bumpSimulatorDiffRefreshNonceAtom.debugLabel =
 
 /**
  * Playback speed for simulator replay (grid cells).
- * Matches replay bar options: 0.25x–2x; default 1x.
+ * Matches replay bar options: 0.25x–6x; default 1x.
  */
-const SIMULATOR_PLAYBACK_SPEEDS = [0.25, 0.5, 1, 2] as const;
-export type SimulatorPlaybackSpeed = (typeof SIMULATOR_PLAYBACK_SPEEDS)[number];
-const SimulatorPlaybackSpeedSchema = z.union([
-  z.literal(0.25),
-  z.literal(0.5),
-  z.literal(1),
-  z.literal(2),
-]);
+export type SimulatorPlaybackSpeed = ReplaySpeed;
+const SimulatorPlaybackSpeedSchema = z.literal(REPLAY_SPEED_OPTIONS);
 
 export const simulatorPlaybackSpeedAtom =
   atomWithStorage<SimulatorPlaybackSpeed>(

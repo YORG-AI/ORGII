@@ -109,6 +109,13 @@ export const GENERAL_SETTINGS_REGISTRY = {
     description: "UI scale percentage (75-150)",
     category: "general",
   },
+  "general.usePointerCursors": {
+    schema: z.boolean(),
+    default: false,
+    description:
+      "Show a pointer cursor when hovering over interactive UI elements",
+    category: "general",
+  },
   "general.applicationUiFont": {
     schema: z.enum(APPLICATION_UI_FONT_IDS),
     default: APPLICATION_UI_FONT_DEFAULT_ID,

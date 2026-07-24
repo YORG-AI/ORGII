@@ -5,30 +5,28 @@
  * Modularized for better maintainability.
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 
-import { gitApi, removeGitWorktree } from "@src/api/http/git";
-import type { GitWorktreeEntry } from "@src/api/http/git";
 import { ROUTES } from "@src/config/routes";
-import { slugFragment } from "@src/features/SessionCreator/components/worktreeSmartInput";
 import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
 import { currentBranchAtom } from "@src/store/repo";
-import type { WorktreeLaunchSource } from "@src/store/session/worktreeLaunchSourceAtom";
 import {
   activeWorktreeAtom,
   setActiveWorktreeAtom,
 } from "@src/store/workspace";
-import { showGitActionDialogSafely } from "@src/util/dialogs/gitActionDialog";
 
 import { SPOTLIGHT_FOOTER_ACTIVE_CHIP } from "./components";
+import { getEditorPaletteMode } from "./globalSpotlight.helpers";
 import {
   type AddWorkspaceModalStage,
   SpotlightProvider,
   useSpotlight,
   useSpotlightEffects,
 } from "./hooks";
+import { useSpotlightOverlayLayers } from "./hooks/features/useSpotlightOverlayLayers";
+import { useSpotlightPickerActions } from "./hooks/features/useSpotlightPickerActions";
 import {
   AgentControlPalette,
   AgentSessionSearchPalette,
@@ -39,53 +37,10 @@ import {
   WorkspacePalette,
   WorktreePalette,
 } from "./palettes";
-import type {
-  BranchPaletteMode,
-  WorktreePaletteMode,
-} from "./palettes/BranchPalette";
-import type {
-  DeleteBranchOptions,
-  DeleteBranchResult,
-  RemoveWorktreeOptions,
-  RemoveWorktreeResult,
-} from "./palettes/BranchPalette/types";
-import { refreshWorktreeMap } from "./palettes/BranchPalette/useWorktreeMap";
-import type { EditorPaletteMode } from "./palettes/EditorPalette/types";
 import { useSelectorKernel } from "./palettes/core";
 import { PaletteBody, SpotlightShell } from "./shell";
-import type { GlobalSpotlightProps, RepoItem } from "./types";
+import type { GlobalSpotlightProps } from "./types";
 import { SpotlightConfirmationView } from "./views";
-
-type WorkspacePickerMode = "switch" | "open" | "add" | "create";
-
-interface EmbeddedEditorPaletteState {
-  mode: EditorPaletteMode;
-  query: string;
-}
-
-function getEditorPaletteMode(query: string): EditorPaletteMode {
-  if (query.startsWith(">")) return "command";
-  if (query.startsWith("@")) return "symbol";
-  return "file";
-}
-
-function getWorktreeCreateName(source: WorktreeLaunchSource): string {
-  if (source.kind === "name") {
-    return slugFragment(source.title ?? source.label.replace(/^Name:\s*/i, ""));
-  }
-  if (source.sourceRef?.startsWith("issue:")) {
-    return `issue-${source.sourceRef.slice("issue:".length)}`;
-  }
-  if (source.sourceRef?.startsWith("pr:")) {
-    return `pr-${source.sourceRef.slice("pr:".length)}`;
-  }
-  const ref = source.baseBranch ?? source.title ?? source.label;
-  return `${slugFragment(ref.replace(/^Branch:\s*/i, ""))}-worktree`;
-}
-
-function getWorktreeBaseRef(source: WorktreeLaunchSource): string | undefined {
-  return source.resolvedBaseRef ?? source.baseBranch;
-}
 
 // ============================================
 // INNER COMPONENT
@@ -106,27 +61,9 @@ const GlobalSpotlightInner: React.FC<
     selectBranch,
     refreshBranches,
   } = useRepoSelection({ autoLoad: false });
-  const [workspacePickerMode, setWorkspacePickerMode] =
-    useState<WorkspacePickerMode | null>(null);
-  const [embeddedBranchMode, setEmbeddedBranchMode] =
-    useState<BranchPaletteMode>("checkout");
-  const [embeddedWorktreeMode, setEmbeddedWorktreeMode] =
-    useState<WorktreePaletteMode>("switch");
-  const [branchPickerOpen, setBranchPickerOpen] = useState(false);
-  const [worktreePickerOpen, setWorktreePickerOpen] = useState(false);
   const activeWorktree = useAtomValue(activeWorktreeAtom);
   const setActiveWorktree = useSetAtom(setActiveWorktreeAtom);
   const setCurrentBranch = useSetAtom(currentBranchAtom);
-  const [agentSessionSearchOpen, setAgentSessionSearchOpen] = useState(false);
-  const [allSessionsSearchOpen, setAllSessionsSearchOpen] = useState(false);
-  const [agentControlOpen, setAgentControlOpen] = useState(false);
-  const [sessionCreatorOpen, setSessionCreatorOpen] = useState(false);
-  const [embeddedEditorPalette, setEmbeddedEditorPalette] =
-    useState<EmbeddedEditorPaletteState | null>(null);
-  const lastActivatedItemIdRef = useRef<string | null>(null);
-  const [pendingRestoreItemId, setPendingRestoreItemId] = useState<
-    string | null
-  >(null);
 
   const isWorkStationRoute = location.pathname.startsWith(
     ROUTES.workStation.base.path
@@ -136,318 +73,68 @@ const GlobalSpotlightInner: React.FC<
   );
   const currentRepoPath = currentRepo?.path ?? currentRepo?.fs_uri ?? "";
 
-  const handleOpenWorkspacePicker = useCallback((mode: WorkspacePickerMode) => {
-    setWorkspacePickerMode(mode);
-  }, []);
+  const {
+    workspacePickerMode,
+    setWorkspacePickerMode,
+    embeddedBranchMode,
+    setEmbeddedBranchMode,
+    embeddedWorktreeMode,
+    setEmbeddedWorktreeMode,
+    branchPickerOpen,
+    setBranchPickerOpen,
+    worktreePickerOpen,
+    setWorktreePickerOpen,
+    agentSessionSearchOpen,
+    allSessionsSearchOpen,
+    agentControlOpen,
+    sessionCreatorOpen,
+    embeddedEditorPalette,
+    lastActivatedItemIdRef,
+    pendingRestoreItemId,
+    setPendingRestoreItemId,
+    restoreLastActivatedItem,
+    handleOpenWorkspacePicker,
+    handleOpenBranchPicker,
+    handleOpenWorktreePicker,
+    handleOpenAgentSessionSearch,
+    handleOpenAllSessionsSearch,
+    handleOpenAgentControl,
+    handleOpenSessionCreator,
+    handleOpenEditorPalette,
+    handleCloseWorkspacePicker,
+    handleCloseBranchPicker,
+    handleCloseWorktreePicker,
+    handleCloseAgentSessionSearch,
+    handleCloseAllSessionsSearch,
+    handleCloseAgentControl,
+    handleCloseSessionCreator,
+    handleCloseEditorPalette,
+  } = useSpotlightOverlayLayers(isOpen);
 
-  const handleOpenBranchPicker = useCallback(() => {
-    setBranchPickerOpen(true);
-  }, []);
-
-  const handleOpenWorktreePicker = useCallback(() => {
-    setEmbeddedWorktreeMode("switch");
-    setWorktreePickerOpen(true);
-  }, []);
-
-  const handleOpenAgentSessionSearch = useCallback(() => {
-    setAgentSessionSearchOpen(true);
-  }, []);
-
-  const handleOpenAllSessionsSearch = useCallback(() => {
-    setAllSessionsSearchOpen(true);
-  }, []);
-
-  const handleOpenAgentControl = useCallback(() => {
-    setAgentControlOpen(true);
-  }, []);
-
-  const handleOpenSessionCreator = useCallback(() => {
-    setSessionCreatorOpen(true);
-  }, []);
-
-  const handleOpenEditorPalette = useCallback(
-    (query: string, mode?: EditorPaletteMode) => {
-      setEmbeddedEditorPalette({
-        mode: mode ?? getEditorPaletteMode(query),
-        query,
-      });
-    },
-    []
-  );
-
-  const restoreLastActivatedItem = useCallback(() => {
-    setPendingRestoreItemId(lastActivatedItemIdRef.current);
-  }, []);
-
-  const handleCloseWorkspacePicker = useCallback(() => {
-    setWorkspacePickerMode(null);
-    restoreLastActivatedItem();
-  }, [restoreLastActivatedItem]);
-
-  const handleCloseBranchPicker = useCallback(() => {
-    setBranchPickerOpen(false);
-    restoreLastActivatedItem();
-  }, [restoreLastActivatedItem]);
-
-  const handleCloseWorktreePicker = useCallback(() => {
-    setWorktreePickerOpen(false);
-    restoreLastActivatedItem();
-  }, [restoreLastActivatedItem]);
-
-  const handleCloseAgentSessionSearch = useCallback(() => {
-    setAgentSessionSearchOpen(false);
-    restoreLastActivatedItem();
-  }, [restoreLastActivatedItem]);
-
-  const handleCloseAllSessionsSearch = useCallback(() => {
-    setAllSessionsSearchOpen(false);
-    restoreLastActivatedItem();
-  }, [restoreLastActivatedItem]);
-
-  const handleCloseAgentControl = useCallback(() => {
-    setAgentControlOpen(false);
-    restoreLastActivatedItem();
-  }, [restoreLastActivatedItem]);
-
-  const handleCloseSessionCreator = useCallback(() => {
-    setSessionCreatorOpen(false);
-    restoreLastActivatedItem();
-  }, [restoreLastActivatedItem]);
-
-  const handleCloseEditorPalette = useCallback(() => {
-    setEmbeddedEditorPalette(null);
-    restoreLastActivatedItem();
-  }, [restoreLastActivatedItem]);
-
-  const handleWorkspaceSelect = useCallback(
-    (repoId: string, _repo: RepoItem) => {
-      selectRepo(repoId);
-      setWorkspacePickerMode(null);
-      closeModal();
-    },
-    [closeModal, selectRepo]
-  );
-
-  const handleWorktreePickerSelect = useCallback(
-    (worktree: GitWorktreeEntry) => {
-      if (!selectedRepoId) return;
-      setActiveWorktree({
-        repoId: selectedRepoId,
-        path: worktree.path,
-        branch: worktree.branch,
-        isMain: worktree.is_main,
-      });
-      setCurrentBranch(worktree.branch);
-      setWorktreePickerOpen(false);
-      closeModal();
-    },
-    [closeModal, selectedRepoId, setActiveWorktree, setCurrentBranch]
-  );
-
-  const handleWorktreePickerCreate = useCallback(
-    async (source: WorktreeLaunchSource) => {
-      if (!selectedRepoId || !currentRepoPath) {
-        showGitActionDialogSafely("No repo selected", "error");
-        return;
-      }
-
-      const name = getWorktreeCreateName(source);
-      const basePath = currentRepoPath.replace(/[/\\]+$/, "");
-      const worktreePath = `${basePath}/.orgii/worktrees/${name}`;
-      try {
-        const created = await gitApi.createGitWorktree({
-          repo_id: selectedRepoId,
-          repo_path: currentRepoPath,
-          worktree_path: worktreePath,
-          branch: name,
-          base_ref: getWorktreeBaseRef(source),
-        });
-        await refreshWorktreeMap(selectedRepoId, currentRepoPath);
-        handleWorktreePickerSelect(created);
-        showGitActionDialogSafely(`Worktree "${name}" created`, "info");
-      } catch (error) {
-        showGitActionDialogSafely(
-          error instanceof Error ? error.message : String(error),
-          "error"
-        );
-      }
-    },
-    [currentRepoPath, handleWorktreePickerSelect, selectedRepoId]
-  );
-
-  const handleBranchPickerSelect = useCallback(
-    async (branchName: string) => {
-      // Await the guarded checkout BEFORE tearing down the modal — otherwise
-      // closeModal() races the CheckoutConflictDialog selectBranch may open.
-      await selectBranch(branchName);
-      setBranchPickerOpen(false);
-      closeModal();
-    },
-    [closeModal, selectBranch]
-  );
-
-  const handleCreateBranch = useCallback(
-    async (branchName: string, startPoint?: string) => {
-      if (!selectedRepoId || !currentRepo) {
-        showGitActionDialogSafely("No repo selected", "error");
-        return;
-      }
-
-      // Create WITHOUT checking out, then route the checkout through
-      // selectBranch so a dirty working tree surfaces the CheckoutConflictDialog
-      // instead of the raw create+checkout bypassing the guard.
-      const result = await gitApi.gitCreateBranch({
-        repo_id: selectedRepoId,
-        repo_path: currentRepo.path,
-        name: branchName,
-        start_point: startPoint ?? null,
-        checkout: false,
-      });
-
-      if (!result.success) {
-        showGitActionDialogSafely(
-          result.error || `Failed to create branch "${branchName}"`,
-          "error"
-        );
-        return;
-      }
-
-      showGitActionDialogSafely(`Branch "${branchName}" created`, "info");
-      await selectBranch(branchName);
-      setBranchPickerOpen(false);
-      closeModal();
-    },
-    [closeModal, currentRepo, selectBranch, selectedRepoId]
-  );
-
-  const handleDeleteBranch = useCallback(
-    async (
-      branchName: string,
-      options?: DeleteBranchOptions
-    ): Promise<DeleteBranchResult> => {
-      if (!selectedRepoId || !currentRepo) {
-        const message = "No repo selected";
-        if (!options?.silent) {
-          showGitActionDialogSafely(message, "error");
-        }
-        return { success: false, message };
-      }
-
-      const result = await gitApi.gitDeleteBranch({
-        repo_id: selectedRepoId,
-        repo_path: currentRepo.path,
-        branch_name: branchName,
-      });
-
-      if (!result.success) {
-        const message =
-          result.error || `Failed to delete branch "${branchName}"`;
-        if (!options?.silent) {
-          showGitActionDialogSafely(message, "error");
-        }
-        return { success: false, message };
-      }
-
-      if (!options?.silent) {
-        showGitActionDialogSafely(`Branch "${branchName}" deleted`, "info");
-      }
-      if (!options?.skipRefresh) {
-        await refreshBranches();
-      }
-      return { success: true };
-    },
-    [currentRepo, refreshBranches, selectedRepoId]
-  );
-
-  const handleRemoveWorktree = useCallback(
-    async (
-      worktreePath: string,
-      options?: RemoveWorktreeOptions
-    ): Promise<RemoveWorktreeResult> => {
-      if (!selectedRepoId || !currentRepo) {
-        const message = "No repo selected";
-        if (!options?.silent) {
-          showGitActionDialogSafely(message, "error");
-        }
-        return { success: false, message };
-      }
-
-      try {
-        await removeGitWorktree({
-          repo_id: selectedRepoId,
-          repo_path: currentRepo.path,
-          worktree_path: worktreePath,
-          force: true,
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        if (!options?.silent) {
-          showGitActionDialogSafely(message, "error");
-        }
-        return { success: false, message };
-      }
-
-      if (!options?.silent) {
-        showGitActionDialogSafely(`Worktree "${worktreePath}" removed`, "info");
-      }
-      if (!options?.skipRefresh) {
-        await refreshBranches();
-      }
-      return { success: true };
-    },
-    [currentRepo, refreshBranches, selectedRepoId]
-  );
-
-  const handleCheckoutDetached = useCallback(async () => {
-    if (!selectedRepoId || !currentRepo) {
-      showGitActionDialogSafely("No repo selected", "error");
-      return;
-    }
-
-    // Route through the guarded checkout flow (selectBranch special-cases
-    // HEAD-style refs) so a dirty tree surfaces the CheckoutConflictDialog
-    // rather than bypassing it with a raw gitCheckout. selectBranch reports its
-    // own failures; we keep the detached-HEAD success copy.
-    await selectBranch("HEAD");
-
-    showGitActionDialogSafely(
-      t("selectors.branch.actions.checkoutDetachedSuccess"),
-      "info"
-    );
-    await refreshBranches();
-    setBranchPickerOpen(false);
-    closeModal();
-  }, [
-    closeModal,
-    currentRepo,
-    refreshBranches,
-    selectBranch,
+  const {
+    handleWorkspaceSelect,
+    handleWorktreePickerSelect,
+    handleWorktreePickerCreate,
+    handleBranchPickerSelect,
+    handleCreateBranch,
+    handleDeleteBranch,
+    handleRemoveWorktree,
+    handleCheckoutDetached,
+  } = useSpotlightPickerActions({
     selectedRepoId,
+    currentRepo,
+    currentRepoPath,
+    selectRepo,
+    selectBranch,
+    refreshBranches,
+    closeModal,
     t,
-  ]);
-
-  useEffect(() => {
-    if (isOpen) return;
-
-    let cancelled = false;
-    queueMicrotask(() => {
-      if (cancelled) return;
-      setWorkspacePickerMode(null);
-      setBranchPickerOpen(false);
-      setWorktreePickerOpen(false);
-      setAgentSessionSearchOpen(false);
-      setAllSessionsSearchOpen(false);
-      setAgentControlOpen(false);
-      setSessionCreatorOpen(false);
-      setEmbeddedEditorPalette(null);
-      lastActivatedItemIdRef.current = null;
-      setPendingRestoreItemId(null);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isOpen]);
+    setActiveWorktree,
+    setCurrentBranch,
+    setWorkspacePickerMode,
+    setBranchPickerOpen,
+    setWorktreePickerOpen,
+  });
 
   // ============ ALL HOOKS MUST BE CALLED UNCONDITIONALLY ============
   // These hooks are needed for normal mode, but must always be called
@@ -587,6 +274,7 @@ const GlobalSpotlightInner: React.FC<
   }, [
     pendingRestoreItemId,
     setDefaultSelectedIndex,
+    setPendingRestoreItemId,
     spotlight.items,
     workspacePickerMode,
     branchPickerOpen,

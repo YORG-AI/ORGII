@@ -8,7 +8,7 @@
   flex-direction: column;
   align-items: center;
   z-index: 20;
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   pointer-events: auto;
 
   &__line {

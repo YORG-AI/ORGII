@@ -28,8 +28,10 @@ fn list_remotes_uses_repository_metadata_without_git_cli() {
             )
             .expect("set push URL");
     }
+    let nested_path = repo_path.join("src-tauri/crates/example");
+    std::fs::create_dir_all(&nested_path).expect("create nested workspace");
 
-    let remotes = crate::commands::remote::list_remotes(&repo_path).expect("list remotes");
+    let remotes = crate::commands::remote::list_remotes(&nested_path).expect("list remotes");
     assert_eq!(remotes.len(), 1);
     assert_eq!(remotes[0].name, "origin");
     assert_eq!(

@@ -17,6 +17,7 @@ import { createLogger } from "@src/hooks/logger";
 import { COLLAB_SESSION_ACCESS_MODE } from "@src/store/collaboration/types";
 
 import { org2CloudSharingFloorAtom } from "./org2CloudAccessSettings";
+import type { CloudEntitlementState } from "./org2CloudClient";
 import { getEntitlementState } from "./org2CloudClient";
 
 const log = createLogger("Org2CloudEntitlement");
@@ -58,6 +59,26 @@ function entryFor(store: JotaiStore, orgId: string): OrgEntitlementEntry {
     entries.set(orgId, entry);
   }
   return entry;
+}
+
+/**
+ * Commit an entitlement snapshot the ROSTER LISTING already resolved (0004
+ * backends return one per org row). This is an authoritative read for TTL
+ * purposes: stamping the window keeps a same-moment signal burst from
+ * re-reading what the roster round-trip just delivered. Backends without the
+ * batched key keep using `refreshOrgEntitlement` per org.
+ */
+export function seedOrgEntitlement(
+  store: JotaiStore,
+  orgId: string,
+  entitlement: CloudEntitlementState
+): void {
+  const entry = entryFor(store, orgId);
+  entry.lastAttemptAt = Date.now();
+  const floor = entitlement.orgSharingFloor ?? COLLAB_SESSION_ACCESS_MODE.OFF;
+  store.set(org2CloudSharingFloorAtom, (previous) =>
+    previous[orgId] === floor ? previous : { ...previous, [orgId]: floor }
+  );
 }
 
 /**

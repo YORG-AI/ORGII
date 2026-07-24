@@ -28,6 +28,7 @@ import {
   useState,
 } from "react";
 
+import { TERMINAL_LINE_HEIGHT } from "@src/config/terminalAppearance";
 import { createLogger } from "@src/hooks/logger";
 import {
   terminalFontSizeAtom,
@@ -102,7 +103,7 @@ const XtermOutput = memo(function XtermOutput({
       theme: getXTermTheme(terminalTheme),
       fontSize,
       letterSpacing,
-      lineHeight: 1.2,
+      lineHeight: TERMINAL_LINE_HEIGHT,
       cursorBlink: false,
       cursorStyle: "block",
       scrollback: 0,

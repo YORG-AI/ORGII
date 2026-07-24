@@ -496,6 +496,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                                 <NavigationMenuRowActionButton
                                   key={action.label}
                                   icon={action.icon}
+                                  iconClassName={action.iconClassName}
                                   label={action.label}
                                   active={action.active}
                                   dataTestId={action.dataTestId}

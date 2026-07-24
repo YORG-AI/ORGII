@@ -31,9 +31,11 @@ pub fn trust(id: &str, discovered: &Discovered) -> Result<String, String> {
 
     let mut store = load_trust_store();
     store.insert(id.to_string(), hash.clone());
-    let path = trust_store_path().ok_or_else(|| "cannot resolve HOME for trust store".to_string())?;
+    let path =
+        trust_store_path().ok_or_else(|| "cannot resolve HOME for trust store".to_string())?;
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|err| format!("create {}: {err}", parent.display()))?;
+        std::fs::create_dir_all(parent)
+            .map_err(|err| format!("create {}: {err}", parent.display()))?;
     }
     let serialized = serde_json::to_string_pretty(&store).map_err(|err| err.to_string())?;
     std::fs::write(&path, serialized).map_err(|err| format!("write {}: {err}", path.display()))?;
@@ -52,12 +54,17 @@ fn exec_paths_for(id: &str, discovered: &Discovered) -> Result<(PathBuf, PathBuf
         };
     }
     if let Some(processor) = discovered.processors.iter().find(|plugin| plugin.id == id) {
-        return Ok((processor.manifest_dir.clone(), processor.spec.exec_path.clone()));
+        return Ok((
+            processor.manifest_dir.clone(),
+            processor.spec.exec_path.clone(),
+        ));
     }
     if let Some(hook) = discovered.hooks.iter().find(|plugin| plugin.id == id) {
         return Ok((hook.manifest_dir.clone(), hook.spec.exec_path.clone()));
     }
-    Err(format!("no plugin with id '{id}' (see `orgtrack plugins list`)"))
+    Err(format!(
+        "no plugin with id '{id}' (see `orgtrack plugins list`)"
+    ))
 }
 
 /// sha256 over the manifest bytes then the executable bytes — any edit to

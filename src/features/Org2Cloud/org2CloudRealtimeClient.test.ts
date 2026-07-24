@@ -81,6 +81,24 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
     });
   });
 
+  it("surfaces presence-channel subscription edges through onStatus", () => {
+    const conn = createOrg2CloudRealtimeConnection("token-abc");
+    const edges: boolean[] = [];
+    conn.joinPresence({
+      scope: "org:org-123",
+      key: "user-9",
+      payload: null,
+      onSync: () => undefined,
+      onStatus: (subscribed) => edges.push(subscribed),
+    });
+    const channel = createdChannels.at(-1);
+    channel?.emitStatus("SUBSCRIBED");
+    channel?.emitStatus("CHANNEL_ERROR");
+    channel?.emitStatus("SUBSCRIBED");
+    channel?.emitStatus("CLOSED");
+    expect(edges).toEqual([true, false, true, false]);
+  });
+
   it("authorizes the socket with the access token before joining (RLS private-channel requirement)", () => {
     createOrg2CloudRealtimeConnection("token-abc");
     expect(setAuthMock).toHaveBeenCalledWith("token-abc");

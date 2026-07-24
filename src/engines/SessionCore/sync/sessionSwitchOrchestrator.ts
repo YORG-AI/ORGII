@@ -6,7 +6,10 @@ import {
   startExternalReplayTurnEpisode,
 } from "@src/engines/SessionCore/sync/externalReplayTurnState";
 import type { Logger } from "@src/hooks/logger";
-import { isImportedHistorySession } from "@src/util/session/sessionDispatch";
+import {
+  isCollaborationImportedSession,
+  isImportedHistorySession,
+} from "@src/util/session/sessionDispatch";
 
 import {
   type ExternalReplaySessionLease,
@@ -202,7 +205,10 @@ async function handleCacheHit(
 
   if (!cacheHitInFlight) {
     if (adapter.category === "agent") {
-      await eventStoreProxy.loadInitialTurnWindow(sessionId);
+      await eventStoreProxy.loadInitialTurnWindow(
+        sessionId,
+        isCollaborationImportedSession(sessionId) ? 0 : undefined
+      );
       if (abortController.signal.aborted) return;
       displayEvents = await eventStoreProxy.getEvents(sessionId);
       // The round-window load can resolve to zero chat-visible events when
@@ -250,7 +256,11 @@ async function handleCacheHit(
     abortController,
     setPendingPlanApprovals
   );
-  if (cacheHitInFlight && !isImportedHistorySession(sessionId)) {
+  if (
+    cacheHitInFlight &&
+    !isImportedHistorySession(sessionId) &&
+    !isCollaborationImportedSession(sessionId)
+  ) {
     reconcileInFlightHistory(sessionId, adapter, refs, actions);
   }
   applyPostLoadResult(sessionId, postResult, actions);
@@ -300,7 +310,11 @@ async function handleCacheMiss(
   if (abortController.signal.aborted) return;
 
   actions.dispatchLoadSession({ sessionId, events });
-  if (missInFlight && !isImportedHistorySession(sessionId)) {
+  if (
+    missInFlight &&
+    !isImportedHistorySession(sessionId) &&
+    !isCollaborationImportedSession(sessionId)
+  ) {
     reconcileInFlightHistory(sessionId, adapter, refs, actions);
   }
 

@@ -127,7 +127,7 @@ const MERGE_THEME_OVERRIDE = EditorView.baseTheme({
     color: "var(--color-text-3)",
     padding: "var(--cm-gutter-padding, 4px) var(--cm-line-padding-left, 12px)",
     margin: "0",
-    cursor: "pointer",
+    cursor: "var(--interactive-cursor, default)",
     fontSize: "var(--cm-font-size-small, 12px)",
     "&::before": {
       content: '""',

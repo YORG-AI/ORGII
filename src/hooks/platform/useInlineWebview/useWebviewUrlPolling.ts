@@ -143,6 +143,8 @@ export function useWebviewUrlPolling(
     log,
     pollIntervalRef,
     pollUrl,
+    isDestroyedRef,
+    isUnmountedRef,
   ]);
 
   return pollUrl;

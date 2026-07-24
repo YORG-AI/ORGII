@@ -100,6 +100,13 @@ export interface Org2CloudPresenceOptions {
     event: string,
     payload: Record<string, unknown>
   ) => void;
+  /**
+   * Fired on subscription status edges, like `Org2CloudSubscribeOptions.
+   * onStatus`. When the backend broadcasts change signals on this channel
+   * (0005), callers use the true-edge for missed-signal recovery — the same
+   * role the dedicated signal channel's edge played on legacy backends.
+   */
+  readonly onStatus?: (subscribed: boolean) => void;
 }
 
 export interface Org2CloudPresenceHandle {
@@ -141,7 +148,16 @@ export function createOrg2CloudRealtimeConnection(
         autoRefreshToken: false,
         detectSessionInUrl: false,
       },
-      realtime: { params: { eventsPerSecond: 5 } },
+      realtime: {
+        params: { eventsPerSecond: 5 },
+        // realtime-js defaults to a FIXED [1s,2s,5s,10s]+flat-10s schedule,
+        // which phase-locks every client's reconnect after a shared outage;
+        // the random spread staggers the fleet's rejoin (and therefore the
+        // SUBSCRIBED-edge recovery reads) across a few seconds.
+        reconnectAfterMs: (tries: number) =>
+          ([1_000, 2_000, 5_000, 10_000][tries - 1] ?? 10_000) +
+          Math.floor(Math.random() * 3_000),
+      },
     }
   );
   client.realtime.setAuth(accessToken);
@@ -251,7 +267,7 @@ export function createOrg2CloudRealtimeConnection(
         leave: () => undefined,
       };
     }
-    const { scope, key, payload, onSync, onBroadcast } = options;
+    const { scope, key, payload, onSync, onBroadcast, onStatus } = options;
     // Private: presence roster + broadcast nudges are org-scoped, gated by the
     // RLS policy on realtime.messages for topic `presence:<scope>` (setAuth
     // carries the JWT the authorization check needs).
@@ -478,6 +494,7 @@ export function createOrg2CloudRealtimeConnection(
         subscribed = false;
         published = false;
       }
+      onStatus?.(status === "SUBSCRIBED");
     });
     channels.add(channel);
     return {

@@ -20,7 +20,7 @@
 | 7   | Search bar opened; type a query.                    | `ChatSearchBar` highlights matching turns; non-matching items dimmed or filtered.                                                                               |
 | 8   | Revert button clicked on a turn.                    | `RevertConfirmDialog` opens; confirming reverts session state.                                                                                                  |
 | 9   | Agent is planning; planning indicator shown.        | `usePlanningIndicator` returns `true`; planning spinner/indicator visible.                                                                                      |
-| 10  | Cursor IDE session with turn summaries.             | `cursorIdeTurnSummariesAtomFamily` data renders inline on matching turns.                                                                                       |
+| 10  | External replay session with turn summaries.        | `externalReplayTurnSummariesAtomFamily` data renders inline on matching turns.                                                                                  |
 | 11  | Disable pagination; open a long conversation.       | A right-side conversation minimap shows at most 20 percentage-sampled markers; hovering previews a turn and clicking scrolls to it.                             |
 | 12  | Open a session containing several completed rounds. | Each round's final assistant message shows a visible timestamp and Copy button directly below the message; earlier assistant messages in the same round do not. |
 

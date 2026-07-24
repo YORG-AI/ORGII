@@ -7,6 +7,7 @@ import type { KanbanTask } from "@src/features/KanbanBoard";
 import { KANBAN_RESULT_STATUS } from "@src/features/KanbanBoard/types";
 import { formatSmartDateTime } from "@src/util/data/formatters/date";
 import { formatModelNameFull } from "@src/util/formatModelName";
+import { resolveSessionStatusDotColor } from "@src/util/session/sessionStatusDot";
 
 import type { SessionTableItem } from "./SessionTable";
 
@@ -52,12 +53,24 @@ function renderAgentIcon(task: KanbanTask): React.ReactNode {
 function getStatusColor(task: KanbanTask): string | undefined {
   switch (task.resultStatus) {
     case KANBAN_RESULT_STATUS.Failed:
-      return "var(--color-danger-6)";
+      return resolveSessionStatusDotColor("failed");
     case KANBAN_RESULT_STATUS.Archived:
-      return "var(--color-text-3)";
-    default:
-      return undefined;
+      return resolveSessionStatusDotColor("archived");
   }
+
+  // Task Kanban widens the shared TaskStatus values at its projection
+  // boundary with `todo`, `blocking`, `turn_finished`, and `archived`.
+  const status = String(task.status);
+  if (status === "blocking") {
+    return resolveSessionStatusDotColor("asking");
+  }
+  if (status === "todo" || status === "in_progress") {
+    return resolveSessionStatusDotColor("working");
+  }
+  if (task.isUnread) {
+    return resolveSessionStatusDotColor("unread");
+  }
+  return resolveSessionStatusDotColor("default");
 }
 
 function formatDateTimeLabel(

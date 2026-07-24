@@ -89,7 +89,7 @@ describe("runSessionSwitchEffect history transport isolation", () => {
   it("aborts and releases the exact bounded-replay episode on switch-away", () => {
     const replayLease = {
       sessionId: "codexapp-external",
-      epoch: 42,
+      episodeId: 42,
     };
     const handler = {
       handleEvent: vi.fn(),

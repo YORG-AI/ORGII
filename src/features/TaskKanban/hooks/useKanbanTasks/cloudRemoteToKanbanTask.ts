@@ -58,7 +58,8 @@ function remoteSessionToKanbanTask(
   });
   const agentFilter = resolveKanbanAgentFilter(
     display,
-    remote.agentDefinitionId
+    remote.agentDefinitionId,
+    remote.agentDisplayName
   );
   const workspacePath = remote.repoScopeKey ?? remote.repoPath;
 

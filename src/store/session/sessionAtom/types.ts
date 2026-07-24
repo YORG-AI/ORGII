@@ -158,6 +158,13 @@ export interface Session {
    * the `repo_path` column on `agent_sessions` / `code_sessions`.
    */
   repoPath?: string;
+  /**
+   * Canonical Git worktree root discovered for imported history. `repoPath`
+   * remains the original working folder captured by the source application.
+   */
+  repoRootPath?: string;
+  /** Raw cached Git remotes for imported history; normalized at scope use. */
+  repoRemoteUrls?: string[];
   /** Path to the file or directory where this session's persisted data lives. */
   storagePath?: string;
   /** Worktree path for isolated parallel sessions */

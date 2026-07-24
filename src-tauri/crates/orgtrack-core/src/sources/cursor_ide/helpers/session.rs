@@ -86,6 +86,8 @@ pub(in crate::sources::cursor_ide) fn cache_row_to_session_row(
         background: false,
         is_active: false,
         repo_path: row.repo_path,
+        repo_root_path: None,
+        repo_remote_urls: Vec::new(),
         storage_path: Some(row.source_path),
         repo_name,
         branch: row.branch,

@@ -42,6 +42,8 @@ fn make_session(
         external_history_source: None,
         user_input: None,
         repo_path: None,
+        repo_root_path: None,
+        repo_remote_urls: None,
         storage_path: None,
         repo_name: None,
         branch: None,

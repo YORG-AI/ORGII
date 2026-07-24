@@ -18,10 +18,11 @@ const PAGE_SIZE = 25;
 const PAGE_SIZE_OPTIONS = [25, 50];
 
 // Stable identity so <SessionTable>'s column memo isn't rebuilt each render.
-// The list drops the git-commit "Committed" ratio because it is not meaningful
-// for read-only imported/agent sessions.
+// Kanban keeps file/line impact but omits git-commit columns, which are covered
+// by the Diary view and are not meaningful for every imported/agent session.
 const LIST_COLUMN_VISIBILITY: Partial<Record<SessionTableColumnKey, boolean>> =
   {
+    relatedCommits: false,
     committedRate: false,
     filesChanged: false,
     tokens: true,

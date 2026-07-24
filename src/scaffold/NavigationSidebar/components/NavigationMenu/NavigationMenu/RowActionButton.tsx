@@ -5,6 +5,7 @@ import type { NavigationMenuItem } from "../config";
 
 interface NavigationMenuRowActionButtonProps {
   icon?: NavigationMenuItem["rowActionIcon"];
+  iconClassName?: string;
   label: string;
   active?: boolean;
   dataTestId?: string;
@@ -13,6 +14,7 @@ interface NavigationMenuRowActionButtonProps {
 
 export function NavigationMenuRowActionButton({
   icon,
+  iconClassName,
   label,
   active,
   dataTestId,
@@ -37,6 +39,7 @@ export function NavigationMenuRowActionButton({
       {React.createElement(RowActionIcon, {
         size: 14,
         strokeWidth: icon ? 2 : 1.75,
+        className: iconClassName,
       })}
     </button>
   );

@@ -22,6 +22,8 @@
       "created": "作成日時",
       "updated": "更新日時",
       "lastUpdated": "最終更新",
+      "external": "外部",
+      "internal": "内部",
       "rounds": "ラウンド",
       "roundCount_one": "{{count}} ラウンド",
       "roundCount_other": "{{count}} ラウンド",

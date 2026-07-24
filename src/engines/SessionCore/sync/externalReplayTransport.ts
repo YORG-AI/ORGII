@@ -16,7 +16,7 @@ const log = createLogger("externalReplayTransport");
 
 export interface ExternalReplaySessionLease {
   readonly sessionId: string;
-  readonly epoch: number;
+  readonly episodeId: number;
   /** Aborted exactly when this visible replay episode is superseded/released. */
   readonly signal: AbortSignal;
 }
@@ -28,30 +28,32 @@ interface ActiveReplaySession {
   watcherAvailable: boolean;
   openInFlight: Promise<ExternalReplayWindow> | null;
   pollInFlight: Promise<ExternalReplayDelta> | null;
-  /** Serialized foreground older-page reads; Rust request epochs are exclusive. */
+  /** Serialized foreground older-page reads; Rust request tokens are exclusive. */
   readTail: Promise<void> | null;
 }
 
 // Monotonic across ordinary renderer reloads as well as A→B→A switches.
 // The backend compares this episode id before accepting delayed open/release
 // commands, so an old cleanup cannot tear down a newly opened watcher.
-let nextReplayEpoch = Date.now() * 1_000;
+let nextReplayEpisodeId = Date.now() * 1_000;
 let activeReplaySession: ActiveReplaySession | null = null;
 
 function releaseBackendEpisode(lease: ExternalReplaySessionLease): void {
-  void externalReplayRelease(lease.sessionId, lease.epoch).catch((error) => {
-    log.warn("Failed to release external replay foreground lease", error);
-  });
+  void externalReplayRelease(lease.sessionId, lease.episodeId).catch(
+    (error) => {
+      log.warn("Failed to release external replay foreground lease", error);
+    }
+  );
 }
 
 function isCurrentLease(lease: ExternalReplaySessionLease): boolean {
   return (
     activeReplaySession?.lease.sessionId === lease.sessionId &&
-    activeReplaySession.lease.epoch === lease.epoch
+    activeReplaySession.lease.episodeId === lease.episodeId
   );
 }
 
-/** Begin a new visible replay episode. Every switch/reload gets a new epoch. */
+/** Begin a new visible replay episode. Every switch/reload gets a new episode id. */
 export function activateExternalReplaySession(
   sessionId: string
 ): ExternalReplaySessionLease {
@@ -66,7 +68,7 @@ export function activateExternalReplaySession(
   const controller = new AbortController();
   const lease = Object.freeze({
     sessionId,
-    epoch: ++nextReplayEpoch,
+    episodeId: ++nextReplayEpisodeId,
     signal: controller.signal,
   });
   activeReplaySession = {
@@ -88,7 +90,7 @@ export function deactivateExternalReplaySession(
   if (!isCurrentLease(lease)) return;
   activeReplaySession?.controller.abort();
   activeReplaySession = null;
-  nextReplayEpoch += 1;
+  nextReplayEpisodeId += 1;
   deactivateExternalReplayTurnState(lease.sessionId);
   releaseBackendEpisode(lease);
 }
@@ -111,7 +113,7 @@ export async function openExternalReplaySession(
 
   const request =
     state.openInFlight ??
-    externalReplayOpenWindow(lease.sessionId, lease.epoch);
+    externalReplayOpenWindow(lease.sessionId, lease.episodeId);
   state.openInFlight = request;
   try {
     const window = await request;
@@ -144,7 +146,7 @@ export async function pollExternalReplaySession(
   const cursor = state.cursor;
   const request =
     state.pollInFlight ??
-    externalReplayPollDelta(lease.sessionId, lease.epoch, cursor);
+    externalReplayPollDelta(lease.sessionId, lease.episodeId, cursor);
   state.pollInFlight = request;
   try {
     const delta = await request;
@@ -169,7 +171,7 @@ type ExternalReplayReadSelection = Omit<
 
 /**
  * Read one foreground older page without racing Rust's exclusive request
- * epoch. Different older pages queue behind each other, and a read that
+ * episode. Different older pages queue behind each other, and a read that
  * arrives during a poll waits for that poll before it enters the backend.
  * The page cursor intentionally does not replace the live poll cursor.
  */
@@ -194,7 +196,7 @@ export async function readExternalReplaySession(
     if (!isCurrentLease(lease) || signal?.aborted) return null;
     return externalReplayReadWindow({
       sessionId: lease.sessionId,
-      episodeId: lease.epoch,
+      episodeId: lease.episodeId,
       ...selection,
     });
   })();

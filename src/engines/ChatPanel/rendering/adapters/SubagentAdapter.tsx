@@ -29,6 +29,7 @@ import {
 } from "@src/store/ui/simulatorAtom";
 
 import SubagentBlock from "../../blocks/SubagentBlock";
+import { resolveSubagentPresentation } from "./subagentPresentation";
 import {
   extractSubagentPromptFromChildEvents,
   firstSubagentAssignmentPrompt,
@@ -124,18 +125,22 @@ export const SubagentAdapter: React.FC<UniversalEventProps> = (props) => {
   const isAwaitingPrompt =
     Boolean(data.subagentSessionId) && !hasPrompt && childEvents.length === 0;
 
-  // Resolve the delegated agent's identity from its own (child) session so
-  // the bubble can render "@{agentName}" with the agent's avatar — matching
-  // the Agent Team message bubbles. Falls back to a formatted subagent_type
-  // (e.g. "general-purpose" → "General Purpose") while the child session row
-  // is still loading, and to a generic label in SubagentBlock otherwise.
+  // Native agents prefer their child-session display name. Imported Codex
+  // sessions instead prefer the nickname parsed from thread_spawn because
+  // their child-session display name is the assignment prompt, not an identity.
   const subagentSession = useAtomValue(
     sessionByIdAtom(data.subagentSessionId ?? EMPTY_SUBAGENT_SESSION_ID)
   );
-  const agentName =
-    subagentSession?.agentDisplayName?.trim() ||
-    (data.subagentType ? formatAgentType(data.subagentType) : "") ||
-    undefined;
+  const presentation = resolveSubagentPresentation({
+    sessionId: data.subagentSessionId,
+    hasCodexThreadIdentity: typeof props.args.codexAgentThreadId === "string",
+    parsedAgentName: data.subagentType
+      ? formatAgentType(data.subagentType)
+      : undefined,
+    sessionAgentName: subagentSession?.agentDisplayName,
+    description: data.description,
+    prompt,
+  });
   const agentIconId = subagentSession?.agentIconId;
 
   const setFocusedCell = useSetAtom(focusedSubagentCellAtom);
@@ -170,9 +175,9 @@ export const SubagentAdapter: React.FC<UniversalEventProps> = (props) => {
   return (
     <div data-tool-call-event-id={props.eventId} data-tool-call-name="agent">
       <SubagentBlock
-        description={data.description}
+        description={presentation.description}
         subagentType={data.subagentType}
-        agentName={agentName}
+        agentName={presentation.agentName}
         agentIconId={agentIconId}
         resultContent={data.resultContent}
         resultSummary={data.resultSummary}

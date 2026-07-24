@@ -22,6 +22,8 @@
       "created": "Criado",
       "updated": "Atualizado",
       "lastUpdated": "Última atualização",
+      "external": "Externa",
+      "internal": "Interna",
       "rounds": "Rodadas",
       "roundCount_one": "{{count}} rodada",
       "roundCount_other": "{{count}} rodadas",

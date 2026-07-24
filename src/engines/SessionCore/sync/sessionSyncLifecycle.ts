@@ -1,7 +1,10 @@
 import { useEffect } from "react";
 
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
-import { isImportedHistorySession } from "@src/util/session/sessionDispatch";
+import {
+  isCollaborationImportedSession,
+  isImportedHistorySession,
+} from "@src/util/session/sessionDispatch";
 
 import type { SessionSyncRefs } from "./sessionSyncTypes";
 import { EVENT_STORE_CACHE_SYNC_INTERVAL_MS } from "./sessionSyncUtils";
@@ -9,7 +12,12 @@ import { EVENT_STORE_CACHE_SYNC_INTERVAL_MS } from "./sessionSyncUtils";
 const EVENT_STORE_CACHE_QUIET_MS = 2_000;
 
 function saveSessionEventsToCache(sessionId: string): Promise<number> {
-  if (isImportedHistorySession(sessionId)) return Promise.resolve(0);
+  if (
+    isImportedHistorySession(sessionId) ||
+    isCollaborationImportedSession(sessionId)
+  ) {
+    return Promise.resolve(0);
+  }
   return eventStoreProxy.saveToCache(sessionId);
 }
 
@@ -94,7 +102,13 @@ export function createEventStoreCachePersistenceScheduler(
 
 export function useEventStoreCacheSync(sessionId: string | null): void {
   useEffect(() => {
-    if (!sessionId || isImportedHistorySession(sessionId)) return;
+    if (
+      !sessionId ||
+      isImportedHistorySession(sessionId) ||
+      isCollaborationImportedSession(sessionId)
+    ) {
+      return;
+    }
 
     const scheduler = createEventStoreCachePersistenceScheduler(() =>
       saveSessionEventsToCache(sessionId)

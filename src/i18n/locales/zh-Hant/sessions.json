@@ -33,6 +33,8 @@
       "created": "創建時間",
       "updated": "更新時間",
       "lastUpdated": "最後更新",
+      "external": "外部",
+      "internal": "內部",
       "rounds": "輪次",
       "roundCount_one": "{{count}} 輪",
       "roundCount_other": "{{count}} 輪",

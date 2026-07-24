@@ -145,6 +145,22 @@ export function peekShareableScopeKey(
 }
 
 /**
+ * Normalize a persisted set of raw Git remotes into the same scope-key shape
+ * as the live checkout resolver. Imported-history callers use this pure path
+ * so grouping old sessions never probes their historical working folders.
+ */
+export function shareableScopeKeysFromRemoteUrls(
+  remoteUrls: readonly string[] | null | undefined
+): string[] | null {
+  const keys: string[] = [];
+  for (const remoteUrl of remoteUrls ?? []) {
+    const key = normalizeRepoScopeKey(remoteUrl);
+    if (key && !keys.includes(key)) keys.push(key);
+  }
+  return keys.length > 0 ? keys : null;
+}
+
+/**
  * The git-remote-only resolver (design §8.3): returns the normalized keys of
  * ALL remotes (origin first) when the repo has any, and `null` when it does
  * not — that null IS the "not shareable" signal. A local path is never
@@ -183,13 +199,9 @@ export async function resolveShareableScopeKeys(
         ...remotes.filter((remote) => remote.name === "origin"),
         ...remotes.filter((remote) => remote.name !== "origin"),
       ];
-      const keys: string[] = [];
-      for (const remote of ordered) {
-        const remoteUrl = remote.url || remote.fetch_url;
-        const key = remoteUrl ? normalizeRepoScopeKey(remoteUrl) : "";
-        if (key && !keys.includes(key)) keys.push(key);
-      }
-      const result = keys.length > 0 ? keys : null;
+      const result = shareableScopeKeysFromRemoteUrls(
+        ordered.map((remote) => remote.url || remote.fetch_url)
+      );
       // Guard against a cache cleared while this lookup was in flight
       // (tests, future invalidation): a stale task must not repopulate it.
       if (shareableScopeKeyInFlight.get(normalizedInput) === task) {

@@ -51,6 +51,7 @@ describe("useAPICallPanelProvider lifecycle", () => {
   });
 
   beforeEach(() => {
+    vi.spyOn(document, "hasFocus").mockReturnValue(true);
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -59,6 +60,7 @@ describe("useAPICallPanelProvider lifecycle", () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+    vi.restoreAllMocks();
     vi.clearAllMocks();
   });
 
@@ -98,5 +100,43 @@ describe("useAPICallPanelProvider lifecycle", () => {
     expect(latest!.hotspots).toEqual([]);
     expect(mocks.disableApiTracking).toHaveBeenCalled();
     expect(mocks.clearApiCalls).toHaveBeenCalled();
+  });
+
+  it("defers background updates and refreshes once when focus returns", async () => {
+    let latest: UseAPICallPanelProviderReturn | null = null;
+    const capture = (value: UseAPICallPanelProviderReturn) => {
+      latest = value;
+    };
+    const Harness = ({
+      onValue,
+    }: {
+      onValue: (value: UseAPICallPanelProviderReturn) => void;
+    }) => {
+      const value = useAPICallPanelProvider();
+      useEffect(() => onValue(value), [onValue, value]);
+      return null;
+    };
+
+    act(() => root.render(createElement(Harness, { onValue: capture })));
+    await act(async () => {
+      window.dispatchEvent(new Event("toggle-panel-api-call"));
+      await Promise.resolve();
+    });
+    mocks.getApiCalls.mockClear();
+
+    vi.mocked(document.hasFocus).mockReturnValue(false);
+    act(() => {
+      window.dispatchEvent(new Event("blur"));
+      window.dispatchEvent(new Event("api-call-updated"));
+    });
+    expect(mocks.getApiCalls).not.toHaveBeenCalled();
+
+    vi.mocked(document.hasFocus).mockReturnValue(true);
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await Promise.resolve();
+    });
+    expect(mocks.getApiCalls).toHaveBeenCalledOnce();
+    expect(latest!.apiCalls).toHaveLength(1);
   });
 });

@@ -104,6 +104,18 @@ fn sidebar_query_is_date_bounded_and_carries_impact_metadata() {
     inside.impact.touched_files = vec!["large/path.rs".to_string()];
     let outside = input(SOURCE_CODEX_APP, "outside", 450);
     upsert_imported_session_cache_from_conn(&mut conn, &[inside, outside]).expect("upsert");
+    conn.execute(
+        "INSERT INTO imported_history_repo_identity (
+            working_path, repo_root_path, remote_urls_json, resolution_kind,
+            checked_at_ms, next_refresh_at_ms
+         ) VALUES (?1, ?2, ?3, 'git', 1, 2)",
+        rusqlite::params![
+            "/tmp/repo-inside",
+            "/tmp",
+            r#"["git@github.com:yorgai/org2.git"]"#
+        ],
+    )
+    .expect("insert repo identity");
 
     let page =
         query_imported_sidebar_page_from_conn(&conn, SOURCE_CODEX_APP, Some(200), Some(300), 10, 0)
@@ -114,6 +126,11 @@ fn sidebar_query_is_date_bounded_and_carries_impact_metadata() {
     let row = &page.sessions[0];
     assert_eq!(row.session_id, "codex_app-inside");
     assert_eq!(row.repo_path.as_deref(), Some("/tmp/repo-inside"));
+    assert_eq!(row.repo_root_path.as_deref(), Some("/tmp"));
+    assert_eq!(
+        row.repo_remote_urls,
+        vec!["git@github.com:yorgai/org2.git".to_string()]
+    );
     // Imported sessions have no sessions.db copy — the hover card's storage
     // row can only point at the source app's own transcript file.
     assert_eq!(row.storage_path.as_deref(), Some("/tmp/inside.jsonl"));
@@ -237,7 +254,9 @@ fn cache_recent_paths_group_in_sql_without_decoding_session_payloads() {
         .expect("bounded SQL recent paths");
     assert_eq!(paths.len(), 5);
     assert!(paths.iter().all(|path| path.session_count == 20));
-    assert!(paths.windows(2).all(|pair| pair[0].last_used_at >= pair[1].last_used_at));
+    assert!(paths
+        .windows(2)
+        .all(|pair| pair[0].last_used_at >= pair[1].last_used_at));
 }
 
 #[test]
@@ -421,6 +440,84 @@ fn continuation_election_never_promotes_and_skips_subagents() {
 }
 
 #[test]
+fn canonical_lookup_skips_continuation_superseded_siblings() {
+    let mut conn = fixture_conn();
+    let group = continuation_group_metadata_json(Some("family-uuid"));
+    let mut older = input(SOURCE_CODEX_APP, "gen1", 100);
+    older.source_metadata_json = group.clone();
+    let mut newest = input(SOURCE_CODEX_APP, "gen2", 200);
+    newest.source_metadata_json = group.clone();
+    // A subagent in the same family must keep resolving: by-id resolution is
+    // how the sidebar places children under their parent.
+    let mut subagent = input(SOURCE_CODEX_APP, "child", 300);
+    subagent.source_metadata_json = group;
+    subagent.parent_session_id = Some("codex_app-gen2".to_string());
+    upsert_imported_session_cache_from_conn(&mut conn, &[older, newest, subagent]).expect("upsert");
+
+    // The superseded sibling resolves to None whether or not the election ran.
+    assert!(
+        query_cached_session_by_session_id_from_conn(&conn, "codex_app-gen1")
+            .expect("query gen1")
+            .is_none()
+    );
+    demote_superseded_continuations_from_conn(&conn, SOURCE_CODEX_APP).expect("election");
+    assert!(
+        query_cached_session_by_session_id_from_conn(&conn, "codex_app-gen1")
+            .expect("query gen1 post-election")
+            .is_none()
+    );
+    let (_, winner) = query_cached_session_by_session_id_from_conn(&conn, "codex_app-gen2")
+        .expect("query gen2")
+        .expect("winner resolves");
+    assert_eq!(winner.source_session_id, "gen2");
+    let (_, child) = query_cached_session_by_session_id_from_conn(&conn, "codex_app-child")
+        .expect("query child")
+        .expect("subagent resolves");
+    assert_eq!(child.source_session_id, "child");
+}
+
+#[test]
+fn source_cache_signature_tracks_upserts_demotions_and_prunes() {
+    let mut conn = fixture_conn();
+    let group = continuation_group_metadata_json(Some("family-uuid"));
+    let mut older = input(SOURCE_CODEX_APP, "gen1", 100);
+    older.source_metadata_json = group.clone();
+    upsert_imported_session_cache_from_conn(&mut conn, &[older]).expect("upsert older");
+    let after_first = query_source_cache_signature_from_conn(&conn, SOURCE_CODEX_APP)
+        .expect("signature after first upsert");
+
+    let mut newest = input(SOURCE_CODEX_APP, "gen2", 200);
+    newest.source_metadata_json = group;
+    upsert_imported_session_cache_from_conn(&mut conn, &[newest]).expect("upsert newest");
+    let after_second = query_source_cache_signature_from_conn(&conn, SOURCE_CODEX_APP)
+        .expect("signature after second upsert");
+    assert_ne!(after_first, after_second);
+
+    // A demotion flips listable without rewriting the row; the signature's
+    // listable sum must still register it — this is exactly the change the
+    // per-call "did my rescan write" reporting misses when another caller's
+    // sync ran the election.
+    demote_superseded_continuations_from_conn(&conn, SOURCE_CODEX_APP).expect("election");
+    let after_demotion = query_source_cache_signature_from_conn(&conn, SOURCE_CODEX_APP)
+        .expect("signature after demotion");
+    assert_ne!(after_second, after_demotion);
+
+    prune_missing_records_from_conn(&conn, SOURCE_CODEX_APP, &["gen2".to_string()]).expect("prune");
+    let after_prune = query_source_cache_signature_from_conn(&conn, SOURCE_CODEX_APP)
+        .expect("signature after prune");
+    assert_ne!(after_demotion, after_prune);
+
+    // Another source's rows never leak into this source's signature.
+    upsert_imported_session_cache_from_conn(&mut conn, &[input(SOURCE_OPENCODE, "other", 400)])
+        .expect("upsert other source");
+    assert_eq!(
+        after_prune,
+        query_source_cache_signature_from_conn(&conn, SOURCE_CODEX_APP)
+            .expect("signature after unrelated upsert")
+    );
+}
+
+#[test]
 fn continuation_group_metadata_json_shapes() {
     assert_eq!(continuation_group_metadata_json(None), None);
     assert_eq!(continuation_group_metadata_json(Some("  ")), None);
@@ -508,16 +605,36 @@ fn init_source_cache_tables_upgrades_legacy_table_missing_columns() {
         "imported_history_session_cache",
         "listable"
     ));
-    let index_exists: bool = conn
+    for index_name in [
+        "idx_imported_history_sidebar_order",
+        "idx_imported_history_parent_created",
+    ] {
+        let index_exists: bool = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master
+                 WHERE type = 'index' AND name = ?1",
+                [index_name],
+                |row| Ok(row.get::<_, i64>(0)? == 1),
+            )
+            .expect("query index presence");
+        assert!(index_exists, "{index_name} should be created");
+    }
+
+    let query_plan: String = conn
         .query_row(
-            "SELECT COUNT(*) FROM sqlite_master
-             WHERE type = 'index' AND name = 'idx_imported_history_sidebar_order'",
-            [],
-            |row| Ok(row.get::<_, i64>(0)? == 1),
+            "EXPLAIN QUERY PLAN
+             SELECT session_id, source_session_id, created_at_ms, source_metadata_json
+             FROM imported_history_session_cache
+             WHERE source = ?1
+               AND parent_session_id = ?2
+               AND parent_session_id != ''
+             ORDER BY created_at_ms ASC, source_session_id ASC",
+            ["codex_app", "codexapp-parent"],
+            |row| row.get(3),
         )
-        .expect("query index presence");
+        .expect("query child-session lookup plan");
     assert!(
-        index_exists,
-        "sidebar-order partial index should be created"
+        query_plan.contains("idx_imported_history_parent_created"),
+        "child-session lookup should use its parent index: {query_plan}"
     );
 }

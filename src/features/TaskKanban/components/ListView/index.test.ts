@@ -116,7 +116,7 @@ describe("TaskKanban ListView", () => {
                 filesChanged: 46,
                 linesAdded: 927,
                 linesRemoved: 606,
-                relatedCommits: 0,
+                relatedCommits: 7,
                 committedFiles: 0,
                 committedRatePercent: 0,
               },
@@ -136,6 +136,7 @@ describe("TaskKanban ListView", () => {
       "common:labels.files · common:aiImpact.lines"
     );
     expect(headerLabels).not.toContain("common:labels.files");
+    expect(headerLabels).not.toContain("common:labels.commits");
 
     const row = container.querySelector(
       '[data-testid="kanban-list-session-row"]'
@@ -169,7 +170,7 @@ describe("TaskKanban ListView", () => {
     await act(async () => pageSizeSelect?.click());
 
     const optionsContainer = document.body.querySelector(
-      ".select-options-overlay > div"
+      ".dropdown-options-scrollbar > div"
     );
     const pageSizeOptions = Array.from(optionsContainer?.children ?? [])
       .map((option) => option.textContent?.trim())

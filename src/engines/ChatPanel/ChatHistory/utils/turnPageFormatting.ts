@@ -5,7 +5,7 @@
  * round label and a HH:MM start/end clock range.
  * Ranges shorter than one minute render as a single HH:MM timestamp.
  */
-import type { CursorIdeTurnSummary } from "@src/api/tauri/externalHistory";
+import type { ExternalReplayTurnSummary } from "@src/api/tauri/externalHistory";
 import { PILL_TYPE_LIST } from "@src/config/pillTokens";
 
 import type { ChatGroupMeta } from "../hooks/useChatGroups";
@@ -38,8 +38,8 @@ export function getRoundPreviewText(displayText: string | undefined): string {
   return `${normalizedText.slice(0, ROUND_PREVIEW_MAX_LENGTH - 1)}…`;
 }
 
-export function formatCursorIdeTurnPageTimeLabel(
-  summary: CursorIdeTurnSummary
+export function formatReplayTurnPageTimeLabel(
+  summary: ExternalReplayTurnSummary
 ): string {
   const startMs = Date.parse(summary.startedAt);
   const endMs = summary.endedAt ? Date.parse(summary.endedAt) : startMs;

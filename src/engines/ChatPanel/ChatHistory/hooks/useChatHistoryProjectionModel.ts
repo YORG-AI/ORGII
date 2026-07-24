@@ -1,7 +1,7 @@
 import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef } from "react";
 
-import type { CursorIdeTurnSummary } from "@src/api/tauri/externalHistory";
+import type { ExternalReplayTurnSummary } from "@src/api/tauri/externalHistory";
 import type { SessionLoadStatus } from "@src/engines/SessionCore";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { addressRunActiveAtom } from "@src/features/Org2Cloud/addressCommentsRun";
@@ -36,7 +36,7 @@ interface UseChatHistoryProjectionModelOptions {
   chatHistorySourceIsOverride: boolean;
   chatHistorySourceSessionId: string | null;
   chatHistorySourceVersion: number;
-  cursorIdeTurnSummaries: CursorIdeTurnSummary[];
+  externalReplayTurnSummaries: ExternalReplayTurnSummary[];
   disableTailCollapse: boolean;
   forceCollapseAllTurns: boolean;
   groupChat: GroupChatContextValue | null;
@@ -44,6 +44,7 @@ interface UseChatHistoryProjectionModelOptions {
   isAgentWorking: boolean;
   isCursorIde: boolean;
   planningIndicatorCount: 0 | 1;
+  sessionStatus: string | undefined;
   sessionLoadStatus: SessionLoadStatus;
   turnPaginationEnabled: boolean;
 }
@@ -58,7 +59,7 @@ export function useChatHistoryProjectionModel({
   chatHistorySourceIsOverride,
   chatHistorySourceSessionId,
   chatHistorySourceVersion,
-  cursorIdeTurnSummaries,
+  externalReplayTurnSummaries,
   disableTailCollapse,
   forceCollapseAllTurns,
   groupChat,
@@ -66,6 +67,7 @@ export function useChatHistoryProjectionModel({
   isAgentWorking,
   isCursorIde,
   planningIndicatorCount,
+  sessionStatus,
   sessionLoadStatus,
   turnPaginationEnabled,
 }: UseChatHistoryProjectionModelOptions) {
@@ -80,6 +82,7 @@ export function useChatHistoryProjectionModel({
     groupChat,
     isAgentWorking,
     isCursorIde,
+    sessionStatus,
   });
 
   const projectionSource = resolveChatHistoryProjectionSource({
@@ -186,7 +189,7 @@ export function useChatHistoryProjectionModel({
     groupMeta,
     flatItems,
     lastAssistantFlatIndexPerItem,
-    cursorIdeTurnSummaries,
+    externalReplayTurnSummaries,
     mergeUserOnlyPages: hideGroupUserMessage,
   });
   const { pageCount, currentPageIndex, pages } = turnPages;

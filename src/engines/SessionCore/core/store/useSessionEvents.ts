@@ -22,7 +22,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { resolveExternalReplayTarget } from "@src/api/tauri/externalHistory/replay";
-import { ensureExternalReplayEventsInStore } from "@src/engines/SessionCore/sync/adapters/cursorIdeAdapter";
+import { ensureExternalReplayEventsInStore } from "@src/engines/SessionCore/sync/adapters/externalReplayPrewarm";
 import { createLogger } from "@src/hooks/logger";
 import { formatInvokeError } from "@src/util/formatInvokeError";
 

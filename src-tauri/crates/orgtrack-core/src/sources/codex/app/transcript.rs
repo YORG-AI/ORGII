@@ -749,6 +749,10 @@ fn maybe_record_codex_user_offset(
     }
 }
 
+#[allow(
+    clippy::type_complexity,
+    reason = "Internal collector returns the existing chunks, turn metadata, and offset cache as one atomic result"
+)]
 fn load_codex_app_from_path_with_mode<'a>(
     session_id: &'a str,
     path: &Path,
@@ -924,6 +928,9 @@ fn load_codex_app_from_path_with_mode<'a>(
                     sequence += 1;
                 }
             }
+            "sub_agent_activity" => {
+                attach_subagent_activity_to_pending_call(&parsed.payload, &mut pending_tool_calls);
+            }
             "function_call_output" | "custom_tool_call_output" => {
                 let call_id = parsed.payload.get("call_id").and_then(Value::as_str);
                 if let Some(call_id) = call_id {
@@ -1044,6 +1051,52 @@ fn load_codex_app_from_path_with_mode<'a>(
     }
 
     Ok(collector.finish())
+}
+
+fn attach_subagent_activity_to_pending_call(
+    payload: &Value,
+    pending_tool_calls: &mut HashMap<String, Vec<ImportedToolCall>>,
+) {
+    if payload.get("kind").and_then(Value::as_str) != Some("started") {
+        return;
+    }
+    let Some(call_id) = payload.get("event_id").and_then(Value::as_str) else {
+        return;
+    };
+    let Some(calls) = pending_tool_calls.get_mut(call_id) else {
+        return;
+    };
+    let Some(call) = calls
+        .iter_mut()
+        .find(|call| call.canonical_name == "subagent")
+    else {
+        return;
+    };
+    let Some(args) = call.args.as_object_mut() else {
+        return;
+    };
+    if let Some(thread_id) = payload
+        .get("agent_thread_id")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        args.insert(
+            "codexAgentThreadId".to_string(),
+            Value::String(thread_id.to_string()),
+        );
+    }
+    if let Some(agent_path) = payload
+        .get("agent_path")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        args.insert(
+            "agent_path".to_string(),
+            Value::String(agent_path.to_string()),
+        );
+    }
 }
 
 fn lifecycle_turn_id<'a>(payload: &'a Value, active_turn_id: Option<&'a str>) -> Option<&'a str> {
@@ -1264,8 +1317,9 @@ fn codex_exec_results(output: Option<&Value>) -> Vec<CodexExecResult> {
 
     let mut results: Vec<CodexExecResult> = Vec::new();
     for part in parts {
-        if let Some(result) = codex_exec_result_from_text(part) {
-            results.push(result);
+        let parsed_results = codex_exec_results_from_text(part);
+        if !parsed_results.is_empty() {
+            results.extend(parsed_results);
         } else if !is_codex_script_wrapper_text(part) {
             if let Some(result) = results.last_mut() {
                 append_incremental_output(&mut result.output, part);
@@ -1275,8 +1329,38 @@ fn codex_exec_results(output: Option<&Value>) -> Vec<CodexExecResult> {
     results
 }
 
-fn codex_exec_result_from_text(text: &str) -> Option<CodexExecResult> {
-    let value: Value = serde_json::from_str(text.trim()).ok()?;
+fn codex_exec_results_from_text(text: &str) -> Vec<CodexExecResult> {
+    // Desktop `exec` can return either one JSON object per text part or one
+    // Script-completed envelope whose Output payload is an array of results.
+    // Normalize both shapes here so callers only handle per-command results.
+    let direct = serde_json::from_str::<Value>(text.trim())
+        .ok()
+        .map(codex_exec_results_from_value)
+        .unwrap_or_default();
+    if !direct.is_empty() {
+        return direct;
+    }
+
+    let Some(payload) = codex_script_output_payload(text) else {
+        return Vec::new();
+    };
+    serde_json::from_str::<Value>(payload)
+        .ok()
+        .map(codex_exec_results_from_value)
+        .unwrap_or_default()
+}
+
+fn codex_exec_results_from_value(value: Value) -> Vec<CodexExecResult> {
+    match value {
+        Value::Array(values) => values
+            .into_iter()
+            .filter_map(codex_exec_result_from_value)
+            .collect(),
+        value => codex_exec_result_from_value(value).into_iter().collect(),
+    }
+}
+
+fn codex_exec_result_from_value(value: Value) -> Option<CodexExecResult> {
     let object = value.as_object()?;
     if !object.contains_key("output")
         && !object.contains_key("session_id")
@@ -1301,6 +1385,16 @@ fn codex_exec_result_from_text(text: &str) -> Option<CodexExecResult> {
             .or_else(|| object.get("exitCode"))
             .and_then(Value::as_i64),
     })
+}
+
+fn codex_script_output_payload(text: &str) -> Option<&str> {
+    if !is_codex_script_wrapper_text(text) {
+        return None;
+    }
+    ["\nOutput:\r\n", "\nOutput:\n"]
+        .into_iter()
+        .find_map(|marker| text.split_once(marker).map(|(_, payload)| payload.trim()))
+        .filter(|payload| !payload.is_empty())
 }
 
 fn json_scalar_string(value: &Value) -> Option<String> {

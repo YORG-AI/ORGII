@@ -18,7 +18,8 @@ export interface KanbanAgentFilterProjection {
  */
 export function resolveKanbanAgentFilter(
   display: SessionDisplayMetadata,
-  agentDefinitionId?: string
+  agentDefinitionId?: string,
+  agentDefinitionLabel?: string
 ): KanbanAgentFilterProjection {
   if (display.externalSource) {
     return {
@@ -32,7 +33,10 @@ export function resolveKanbanAgentFilter(
     return {
       agentTypeFilter: agentDefinitionId,
       agentTypeFilterKind: "rust",
-      agentTypeFilterLabel: display.agentLabel,
+      // The shared display projection intentionally labels native sessions as
+      // the ORG2 runtime/provider. Kanban filters identify the selected Rust
+      // definition instead, so preserve its source label when available.
+      agentTypeFilterLabel: agentDefinitionLabel || display.agentLabel,
     };
   }
   if (display.cliAgentType) {

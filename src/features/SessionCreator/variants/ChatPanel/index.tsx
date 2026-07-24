@@ -9,20 +9,8 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  cliAgentCreateTuiSession,
-  resolveCliTuiCommand,
-} from "@src/api/tauri/agent/cliTerminalSession";
-import { createHumanSession } from "@src/api/tauri/humanSession";
-import { HUMAN_SESSION_TITLE_MAX_LENGTH } from "@src/api/tauri/rpc/schemas/humanSession";
-import type { CliAgentType } from "@src/api/types/keys";
-import Input from "@src/components/Input";
-import { GHOST_INPUT_PLACEHOLDER_CLASS } from "@src/components/Input/tokens";
-import Message from "@src/components/Message";
-import type { ScrollNavState } from "@src/engines/ChatPanel/ChatHistory";
 import { useBrowserAddToConversationAction } from "@src/engines/ChatPanel/hooks/useBrowserAddToConversationAction";
 import { useSessionCreator } from "@src/engines/SessionCore/hooks/session/useSessionCreator";
-import { getWorktreeFields } from "@src/engines/SessionCore/hooks/session/useSessionCreator/useSessionLaunch/launchPayload";
 import type {
   SessionLaunchSuccessInfo,
   SessionLaunchWorkItemContext,
@@ -31,74 +19,51 @@ import {
   org2CloudOrgsAtom,
   sidebarActiveCloudOrgIdAtom,
 } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
-import {
-  SYSTEM_HOME_SOURCE_ID,
-  getSystemHomeSourceLabel,
-  isSystemPathSourceId,
-} from "@src/features/SessionCreator/utils/systemPathSource";
 import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
 import { createLogger } from "@src/hooks/logger";
 import { useAgentOrgs } from "@src/modules/MainApp/AgentOrgs/hooks/useAgentOrgs";
 import { type AgentSelection } from "@src/scaffold/GlobalSpotlight/palettes/DispatchCategoryPalette";
 import { gitDependencyInstalledAtom } from "@src/store/platform/gitDependencyAtom";
-import { REPO_KIND } from "@src/store/repo/types";
 import {
   SESSION_TARGET_KIND,
-  type WorktreeLaunchSelection,
   agentIconIdAtom,
   agentNameAtom,
   cliAgentTypeAtom,
   dispatchCategoryAtom,
   normalizeAgentOnlySessionCreatorState,
-  resolveWorktreeSelectionRepoKey,
   selectedAgentDefinitionIdAtom,
   selectedAgentOrgIdAtom,
   sessionCreatorStateAtom,
-  sessionSourceAtom,
   sessionTargetKindAtom,
-  worktreeLaunchSelectionAtom,
 } from "@src/store/session";
-import { restoreToInputAtom } from "@src/store/session/cliSessionStatusAtom";
 import { openCategoryPickerSignalAtom } from "@src/store/session/openCategoryPickerAtom";
-import { runningLocationAtom } from "@src/store/session/runningLocationAtom";
-import { loadSessions } from "@src/store/session/sessionAtom/loaders";
 import { tuiModeAtom } from "@src/store/session/tuiModeAtom";
-import {
-  type ChatImageAttachment,
-  chatImageAttachmentsAtom,
-} from "@src/store/ui/chatImageAtom";
 import {
   chatPanelSelectedProjectAtom,
   chatPanelSelectedProjectOrgAtom,
   chatPanelSelectedWorkItemAtom,
   modelPickerStyleAtom,
 } from "@src/store/ui/chatPanelAtom";
-import { draftHasContentAtom } from "@src/store/ui/draftAtom";
 import { getRustAgentType } from "@src/util/session/sessionDispatch";
 
 import { CliLaunchModeSwitch } from "../../components";
+import ChatPanelHumanSessionHeader from "./ChatPanelHumanSessionHeader";
 import SessionCreatorChatPanelView from "./SessionCreatorChatPanelView";
 import { deriveChatPanelLaunchContext } from "./deriveLaunchContext";
 import "./index.scss";
 import type { SessionCreatorChatPanelSingleProps } from "./types";
 import { useChatPanelAgentPresentation } from "./useChatPanelAgentPresentation";
+import { useChatPanelBranchSync } from "./useChatPanelBranchSync";
+import { useChatPanelDraftRestore } from "./useChatPanelDraftRestore";
+import { useChatPanelHeroPresentation } from "./useChatPanelHeroPresentation";
+import { useChatPanelLaunch } from "./useChatPanelLaunch";
+import { useChatPanelWorktreeSelection } from "./useChatPanelWorktreeSelection";
 import { useCliAgentConfiguration } from "./useCliAgentConfiguration";
 import { useSessionCreatorChatPanelHandlers } from "./useSessionCreatorChatPanelHandlers";
 
 export type { SessionCreatorChatPanelProps } from "./types";
 
 const log = createLogger("ChatPanel");
-
-function deriveExpectedProcess(command: string): string | undefined {
-  const [binary] = command.trim().split(/\s+/);
-  return binary || undefined;
-}
-
-function isCliAgentType(
-  value: string | null | undefined
-): value is CliAgentType {
-  return Boolean(value);
-}
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -108,11 +73,13 @@ const SessionCreatorChatPanelContent: React.FC<
   centerFullScreenContent = false,
   className = "",
   composerHeaderContent,
+  pinnedActionsContent,
   innerClassName,
   footerSlot,
   leadingActionSlot,
   headerLayout = "hero",
   hideRepoLine = false,
+  hideWorkItemAttachmentControl = false,
   includeHumanSession = true,
   initialContent,
   dropdownDirection = "down",
@@ -137,9 +104,6 @@ const SessionCreatorChatPanelContent: React.FC<
   const [humanNoteHasContent, setHumanNoteHasContent] = useState(
     Boolean(initialContent?.trim())
   );
-  const [humanTitle, setHumanTitle] = useState("");
-  const humanCreatingRef = useRef(false);
-  const [humanCreating, setHumanCreating] = useState(false);
   const {
     cliComposerEnabled,
     cliLaunchMode,
@@ -270,57 +234,13 @@ const SessionCreatorChatPanelContent: React.FC<
   const agentName = useAtomValue(agentNameAtom);
   const agentIconId = useAtomValue(agentIconIdAtom);
 
-  const runningLocation = useAtomValue(runningLocationAtom);
-  const setRunningLocation = useSetAtom(runningLocationAtom);
-  const worktreeLaunchSelection = useAtomValue(worktreeLaunchSelectionAtom);
-  const setWorktreeLaunchSelection = useSetAtom(worktreeLaunchSelectionAtom);
-  const currentWorktreeRepoKey = resolveWorktreeSelectionRepoKey(
-    effectiveSource?.repoId,
-    effectiveSource?.repoPath
-  );
-  const activeWorktreeSelection =
-    worktreeLaunchSelection?.repoKey === currentWorktreeRepoKey
-      ? worktreeLaunchSelection
-      : null;
-  const clearWorktreeLaunchSelection = useCallback(
-    () => setWorktreeLaunchSelection(null),
-    [setWorktreeLaunchSelection]
-  );
-
-  const handleWorktreeLocationChange = useCallback(
-    (location: Parameters<typeof setRunningLocation>[0]) => {
-      if (location !== "worktree") {
-        setWorktreeLaunchSelection(null);
-      }
-      setRunningLocation(location);
-    },
-    [setRunningLocation, setWorktreeLaunchSelection]
-  );
-
-  const handleWorktreeSourceSelect = useCallback(
-    (selection: WorktreeLaunchSelection) => {
-      // A PR-base resolution may finish after the user switches repositories.
-      // Ignore that late result before it can overwrite the new repo's branch
-      // draft or put the creator back into worktree mode.
-      if (
-        !currentWorktreeRepoKey ||
-        selection.repoKey !== currentWorktreeRepoKey
-      ) {
-        return;
-      }
-      setWorktreeLaunchSelection(selection);
-      setRunningLocation("worktree");
-      if (selection.source.baseBranch) {
-        handleBranchChange(selection.source.baseBranch);
-      }
-    },
-    [
-      currentWorktreeRepoKey,
-      handleBranchChange,
-      setRunningLocation,
-      setWorktreeLaunchSelection,
-    ]
-  );
+  const {
+    runningLocation,
+    activeWorktreeSelection,
+    clearWorktreeLaunchSelection,
+    handleWorktreeLocationChange,
+    handleWorktreeSourceSelect,
+  } = useChatPanelWorktreeSelection({ effectiveSource, handleBranchChange });
 
   const agentVariant = getRustAgentType(selectedAgentDefId);
   const isRustMode = dispatchCategory === "rust_agent";
@@ -343,15 +263,7 @@ const SessionCreatorChatPanelContent: React.FC<
 
   const agentHeroRef = useRef<HTMLButtonElement>(null);
   const workItemPanelHostRef = useRef<HTMLDivElement>(null);
-  const setSessionSource = useSetAtom(sessionSourceAtom);
   const modelPickerStyle = useAtomValue(modelPickerStyleAtom);
-  const [openOrgMembersPanelId, setOpenOrgMembersPanelId] = useState<
-    string | null
-  >(null);
-  const isOrgMembersPanelOpen =
-    targetKind === SESSION_TARGET_KIND.AGENT_ORG &&
-    Boolean(selectedAgentOrgId) &&
-    openOrgMembersPanelId === selectedAgentOrgId;
 
   // ── Handlers via extracted hook ───────────────────────────────────────────
 
@@ -392,212 +304,63 @@ const SessionCreatorChatPanelContent: React.FC<
     [setAdvancedConfig]
   );
 
-  useEffect(() => {
-    if (!effectiveSource) return;
-    if (effectiveSource.type !== "local") return;
-    if (!effectiveSource.repoId) return;
-    if (effectiveSource.repoId !== selectedRepoId) return;
-    if (currentRepo?.kind === REPO_KIND.FOLDER) return;
-    if (!currentBranch) return;
-    if (effectiveSource.branch) return;
-
-    setSessionSource({
-      ...effectiveSource,
-      branch: currentBranch,
-    });
-  }, [
-    currentBranch,
-    currentRepo?.kind,
+  useChatPanelBranchSync({
     effectiveSource,
     selectedRepoId,
-    setSessionSource,
-  ]);
-
-  // ── Restore text ──────────────────────────────────────────────────────────
-
-  const restoreToInput = useAtomValue(restoreToInputAtom);
-  const setImageAttachments = useSetAtom(chatImageAttachmentsAtom);
-  const [initialRestoreText] = useState<string>(() => {
-    return store.get(restoreToInputAtom)?.displayContent ?? "";
+    currentRepoKind: currentRepo?.kind,
+    currentBranch,
+    loadBranchList,
   });
 
-  // ── Draft content tracking ────────────────────────────────────────────────
+  const { handleContentChangeWithTracking, initialRestoreText } =
+    useChatPanelDraftRestore({
+      composerInputRef,
+      handleContentChange,
+      setHumanNoteHasContent,
+    });
 
-  const setDraftHasContent = useSetAtom(draftHasContentAtom);
-
-  const handleContentChangeWithTracking = useCallback(
-    (text: string) => {
-      setDraftHasContent(text.trim().length > 0);
-      setHumanNoteHasContent(text.trim().length > 0);
-      handleContentChange?.(text);
-    },
-    [handleContentChange, setDraftHasContent]
-  );
-
-  useEffect(() => {
-    if (!restoreToInput?.displayContent) return;
-    const editor = composerInputRef.current;
-    if (!editor) return;
-    const restoredText = restoreToInput.displayContent;
-    editor.setContent(restoredText);
-    editor.focus();
-    handleContentChangeWithTracking(restoredText);
-    if (restoreToInput.imageDataUrls?.length) {
-      const restoredImages: ChatImageAttachment[] =
-        restoreToInput.imageDataUrls.map((dataUrl, idx) => ({
-          id: `restored_${Date.now()}_${idx}`,
-          dataUrl,
-          fileName: `restored-image-${idx + 1}.png`,
-          size: 0,
-          width: 0,
-          height: 0,
-        }));
-      setImageAttachments((prev) => [
-        ...prev.filter((image) => image.ownerId),
-        ...restoredImages,
-      ]);
-    }
-    store.set(restoreToInputAtom, null);
-    store.set(draftHasContentAtom, restoredText.trim().length > 0);
-  }, [
-    restoreToInput,
-    composerInputRef,
-    handleContentChangeWithTracking,
-    setImageAttachments,
-    store,
-  ]);
-
-  useEffect(() => {
-    return () => {
-      setDraftHasContent(false);
-    };
-  }, [setDraftHasContent]);
-
-  // ── Launch ────────────────────────────────────────────────────────────────
-
-  const handleLaunch = useCallback(async () => {
-    if (isHumanMode) {
-      const note = composerInputRef.current?.getTextWithPills().trim() ?? "";
-      if (!note || humanCreatingRef.current) return;
-      humanCreatingRef.current = true;
-      setHumanCreating(true);
-      try {
-        const humanSession = await createHumanSession({
-          body: note,
-          title: humanTitle.trim() || undefined,
-          workspacePath: effectiveSource?.repoPath,
-        });
-        composerInputRef.current?.clear();
-        setHumanTitle("");
-        handleContentChangeWithTracking("");
-        await loadSessions({ forceRefresh: true }).catch(() => undefined);
-        handleSessionStart({ sessionId: humanSession.sessionId });
-      } catch (error) {
-        Message.error(
-          error instanceof Error
-            ? error.message
-            : t("humanSession.createFailed")
-        );
-      } finally {
-        humanCreatingRef.current = false;
-        setHumanCreating(false);
-      }
-      return;
-    }
-
-    if (
-      isCliTuiMode &&
-      onOpenCliTerminal &&
-      selectedCliAgent &&
-      isCliAgentType(cliAgentType)
-    ) {
-      const command = await resolveCliTuiCommand(
-        cliAgentType,
-        selectedCliAgent.command.trim()
-      );
-      if (command.length > 0) {
-        // Back the TUI terminal with a managed session row so the worktree
-        // selection is honored (cwd below) and lifecycle hooks can attribute
-        // status/transcripts via ORGII_SESSION_ID. Creation failure degrades
-        // to the old unbound repo-root terminal rather than blocking launch.
-        const repoPath = effectiveSource?.repoPath;
-        let cwd = repoPath;
-        let agentSessionId: string | undefined;
-        try {
-          const worktreeFields = getWorktreeFields({
-            runningLocation,
-            repoId: effectiveSource?.repoId,
-            repoPath,
-            worktreeLaunchSelection,
-          });
-          const created = await cliAgentCreateTuiSession({
-            platform: cliAgentType,
-            name: selectedCliAgent.displayName,
-            repoPath,
-            isolate: worktreeFields.isolate,
-            worktreeBaseRef: worktreeFields.worktreeBaseRef,
-            worktreePath: worktreeFields.worktreePath,
-            orgId: chatPanelLaunchContext.orgId,
-          });
-          agentSessionId = created.sessionId;
-          cwd = created.worktreePath || repoPath;
-        } catch (error) {
-          log.warn(
-            "TUI session create failed; opening unbound terminal",
-            error
-          );
-        }
-        onOpenCliTerminal({
-          cliAgentType,
-          command,
-          title: selectedCliAgent.displayName,
-          cwd,
-          agentSessionId,
-          expectedProcess: deriveExpectedProcess(command),
-        });
-        setAttachedWorkItemContext(null);
-        return;
-      }
-    }
-
-    return originalHandleLaunch();
-  }, [
-    cliAgentType,
-    composerInputRef,
-    chatPanelLaunchContext.orgId,
-    effectiveSource?.repoId,
-    effectiveSource?.repoPath,
-    handleContentChangeWithTracking,
-    handleSessionStart,
-    humanTitle,
-    isHumanMode,
-    isCliTuiMode,
-    onOpenCliTerminal,
-    originalHandleLaunch,
-    runningLocation,
-    selectedCliAgent,
-    setAttachedWorkItemContext,
-    t,
-    worktreeLaunchSelection,
-  ]);
-
-  useEffect(() => {
-    if (!selectedRepoId) return;
-    if (currentRepo?.kind === REPO_KIND.FOLDER) return;
-    loadBranchList();
-  }, [selectedRepoId, loadBranchList, currentRepo?.kind]);
+  const { handleLaunch, humanTitle, setHumanTitle, humanCreating } =
+    useChatPanelLaunch({
+      isHumanMode,
+      isCliTuiMode,
+      composerInputRef,
+      effectiveSource,
+      handleContentChangeWithTracking,
+      handleSessionStart,
+      onOpenCliTerminal,
+      selectedCliAgent,
+      cliAgentType,
+      chatPanelLaunchContext,
+      originalHandleLaunch,
+      setAttachedWorkItemContext,
+      t,
+    });
 
   // ── Hero section ──────────────────────────────────────────────────────────
 
-  const sessionRepoId = effectiveSource?.repoId ?? "";
-  const sessionRepo = useMemo(
-    () => repos.find((repoItem) => repoItem.id === sessionRepoId),
-    [repos, sessionRepoId]
-  );
-  const repoDisplayName = effectiveSource?.repoName ?? sessionRepo?.name;
-  const effectiveBranchName = effectiveSource?.branch;
-  const sessionRepoKind = sessionRepo?.kind ?? currentRepo?.kind;
-  const currentRepoPath = effectiveSource?.repoPath ?? "";
+  const {
+    sessionRepoId,
+    effectiveBranchName,
+    sessionRepoKind,
+    currentRepoPath,
+    isFullScreenVariant,
+    isOrgMembersPanelOpen,
+    handleToggleOrgMembers,
+    displayedRepoId,
+    displayedRepoName,
+    isDisplayedSystemPath,
+    browserElementScrollNav,
+  } = useChatPanelHeroPresentation({
+    effectiveSource,
+    repos,
+    currentRepo,
+    variant,
+    isOSMode,
+    targetKind,
+    selectedAgentOrgId,
+    browserAddToConversationNav,
+    t,
+  });
 
   const {
     allAgentDefinitions,
@@ -621,36 +384,6 @@ const SessionCreatorChatPanelContent: React.FC<
     selectedAgentOrgId,
     targetKind,
   });
-
-  const isFullScreenVariant = variant === "fullScreen";
-
-  const handleToggleOrgMembers = useCallback(() => {
-    setOpenOrgMembersPanelId((currentId) =>
-      currentId === selectedAgentOrgId ? null : (selectedAgentOrgId ?? null)
-    );
-  }, [selectedAgentOrgId]);
-
-  const displayedRepoId =
-    isOSMode && !sessionRepoId ? SYSTEM_HOME_SOURCE_ID : sessionRepoId;
-  const displayedRepoName =
-    isOSMode && !repoDisplayName
-      ? getSystemHomeSourceLabel(t)
-      : repoDisplayName;
-  const isDisplayedSystemPath = isSystemPathSourceId(displayedRepoId);
-
-  const browserElementScrollNav = useMemo<ScrollNavState>(
-    () => ({
-      showScrollToBottom: false,
-      onScrollToBottom: () => undefined,
-      showFollowAgent: false,
-      followAgentLabel: "",
-      followAgentTooltipLabel: "",
-      followAgentShortcut: "",
-      onFollowAgent: () => undefined,
-      ...browserAddToConversationNav,
-    }),
-    [browserAddToConversationNav]
-  );
 
   return (
     <SessionCreatorChatPanelView
@@ -686,24 +419,12 @@ const SessionCreatorChatPanelContent: React.FC<
       compactHeaderIcon={compactHeaderIcon}
       composerHeaderContent={
         isHumanMode ? (
-          <div className="px-1" data-testid="create-human-session-header">
-            <div className="flex h-10 items-center py-0">
-              <Input
-                type="text"
-                value={humanTitle}
-                onChange={setHumanTitle}
-                placeholder={t("humanSession.titlePlaceholder")}
-                maxLength={HUMAN_SESSION_TITLE_MAX_LENGTH}
-                autoFocus
-                disabled={humanCreating}
-                fieldVariant="ghost"
-                size="small"
-                className="flex-1"
-                inputClassName={GHOST_INPUT_PLACEHOLDER_CLASS}
-                data-testid="create-human-session-title-input"
-              />
-            </div>
-          </div>
+          <ChatPanelHumanSessionHeader
+            humanTitle={humanTitle}
+            setHumanTitle={setHumanTitle}
+            humanCreating={humanCreating}
+            t={t}
+          />
         ) : (
           composerHeaderContent
         )
@@ -772,6 +493,7 @@ const SessionCreatorChatPanelContent: React.FC<
       heroIcon={heroIcon}
       hidePresenceButton={hidePresenceButton}
       hideRepoLine={hideRepoLine}
+      hideWorkItemAttachmentControl={hideWorkItemAttachmentControl}
       innerClassName={innerClassName}
       isCategorySelectorOpen={isCategorySelectorOpen}
       isCliTuiMode={isCliTuiMode}
@@ -786,6 +508,7 @@ const SessionCreatorChatPanelContent: React.FC<
       onLaunch={handleLaunch}
       onShareScreen={() => handleShareScreenClick().catch(log.error)}
       onToggleOrgMembers={handleToggleOrgMembers}
+      pinnedActionsContent={isHumanMode ? undefined : pinnedActionsContent}
       orgMembersPanelProps={
         selectedOrg
           ? {

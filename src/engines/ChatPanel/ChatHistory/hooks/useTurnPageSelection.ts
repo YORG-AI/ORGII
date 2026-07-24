@@ -24,10 +24,13 @@ import {
 } from "@src/engines/SessionCore/turns";
 import { TURN_PAGE_PREFETCH_RADIUS } from "@src/engines/SessionCore/turns/turnWindowConfig";
 import { createLogger } from "@src/hooks/logger";
-import { isCodexAppSession } from "@src/util/session/sessionDispatch";
+import {
+  isCodexAppSession,
+  isCollaborationImportedSession,
+} from "@src/util/session/sessionDispatch";
 
 import {
-  formatCursorIdeTurnPageTimeLabel,
+  formatReplayTurnPageTimeLabel,
   formatTurnPageTimeLabel,
 } from "../utils/turnPageFormatting";
 import type { ChatGroupMeta } from "./useChatGroups";
@@ -52,10 +55,10 @@ function getTurnIdsToLoadForPage(
   }
   if (turnIds.size > 0) return [...turnIds];
 
-  const summary = page.cursorIdeSummary;
+  const summary = page.replayTurnSummary;
   if (!summary || summary.bodyEventCount <= 0) return [];
   const hasLoadedBody =
-    page.cursorIdeBodyLoaded && page.flatEndIndex > page.flatStartIndex;
+    page.replayBodyLoaded && page.flatEndIndex > page.flatStartIndex;
   return hasLoadedBody ? [] : [summary.turnId];
 }
 
@@ -143,6 +146,7 @@ export function useTurnPageNavigation({
   setTurnPageListOpen,
 }: UseTurnPageNavigationOptions): UseTurnPageNavigationReturn {
   const { t } = useTranslation();
+  const requiresExplicitTurnLoad = isCollaborationImportedSession(activeId);
 
   // Tracks `${activeId}:${turnId}` keys we've already kicked off a body
   // load for so the prefetch effect doesn't refire on every render.
@@ -168,7 +172,12 @@ export function useTurnPageNavigation({
   }, [activeId]);
 
   useEffect(() => {
-    if (!turnPaginationEnabled || !activeId || sessionLoadStatus !== "loaded") {
+    if (
+      !turnPaginationEnabled ||
+      !activeId ||
+      sessionLoadStatus !== "loaded" ||
+      requiresExplicitTurnLoad
+    ) {
       return;
     }
 
@@ -266,6 +275,7 @@ export function useTurnPageNavigation({
     currentPageIndex,
     groupMeta,
     pages,
+    requiresExplicitTurnLoad,
     sessionLoadStatus,
     turnPaginationEnabled,
   ]);
@@ -339,12 +349,14 @@ export function useTurnPageNavigation({
     [activeId, loadedTurnIds]
   );
 
-  const currentPageHasUnloadedTurn = (() => {
-    const page = pages[currentPageIndex];
-    if (!page) return false;
-    const turnIds = getTurnIdsToLoadForPage(page, groupMeta);
-    return turnIds.some((turnId) => !isTurnLoaded(turnId));
-  })();
+  const currentPageHasUnloadedTurn =
+    !requiresExplicitTurnLoad &&
+    (() => {
+      const page = pages[currentPageIndex];
+      if (!page) return false;
+      const turnIds = getTurnIdsToLoadForPage(page, groupMeta);
+      return turnIds.some((turnId) => !isTurnLoaded(turnId));
+    })();
   const turnPaginationReady =
     sessionLoadStatus === "loaded" &&
     pageCount > 0 &&
@@ -358,8 +370,8 @@ export function useTurnPageNavigation({
   const currentTurnPageTimeLabel = useMemo(() => {
     const page = pages[currentPageIndex];
     if (!page) return "";
-    if (page.cursorIdeSummary) {
-      return formatCursorIdeTurnPageTimeLabel(page.cursorIdeSummary);
+    if (page.replayTurnSummary) {
+      return formatReplayTurnPageTimeLabel(page.replayTurnSummary);
     }
     return formatTurnPageTimeLabel(
       groupMeta.slice(page.startGroupIndex, page.endGroupIndex + 1)

@@ -1,7 +1,7 @@
 import type { ExternalReplayTurnSummary } from "@src/api/tauri/externalHistory";
 import type { ExternalReplayWindow } from "@src/api/tauri/externalHistory/replay";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
-import { externalReplayTurnSummariesAtomFamily } from "@src/store/session/cursorIdeTurnSummariesAtom";
+import { externalReplayTurnSummariesAtomFamily } from "@src/store/session/externalReplayTurnSummariesAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
 export const EXTERNAL_REPLAY_TURN_PLACEHOLDER_PREFIX =

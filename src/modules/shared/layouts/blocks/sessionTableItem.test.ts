@@ -2,6 +2,7 @@ import { isValidElement } from "react";
 
 import { resolveAgentIcon } from "@src/config/agentIcons";
 import type { KanbanTask } from "@src/features/KanbanBoard";
+import { SESSION_STATUS_DOT_COLOR } from "@src/util/session/sessionStatusDot";
 
 import { truncateSessionOwnerLabel } from "./SessionTable";
 import { mapKanbanTaskToSessionTableItem } from "./sessionTableItem";
@@ -23,6 +24,31 @@ function makeTask(): KanbanTask {
 }
 
 describe("mapKanbanTaskToSessionTableItem", () => {
+  it.each([
+    ["todo", undefined, undefined, SESSION_STATUS_DOT_COLOR.working],
+    ["in_progress", undefined, undefined, SESSION_STATUS_DOT_COLOR.working],
+    ["blocking", undefined, undefined, SESSION_STATUS_DOT_COLOR.asking],
+    ["turn_finished", true, undefined, SESSION_STATUS_DOT_COLOR.unread],
+    ["turn_finished", false, undefined, SESSION_STATUS_DOT_COLOR.default],
+    ["turn_finished", false, "failed", SESSION_STATUS_DOT_COLOR.failed],
+    ["archived", false, "archived", SESSION_STATUS_DOT_COLOR.archived],
+  ] as const)(
+    "uses the sidebar status-dot color for %s",
+    (status, isUnread, resultStatus, expectedColor) => {
+      const item = mapKanbanTaskToSessionTableItem({
+        task: {
+          ...makeTask(),
+          status: status as KanbanTask["status"],
+          isUnread,
+          resultStatus,
+        },
+        statusLabel: status,
+      });
+
+      expect(item.statusColor).toBe(expectedColor);
+    }
+  );
+
   it("truncates workspace labels after 15 characters", () => {
     const item = mapKanbanTaskToSessionTableItem({
       task: {

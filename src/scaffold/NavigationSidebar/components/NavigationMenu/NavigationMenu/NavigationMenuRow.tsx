@@ -445,7 +445,11 @@ function renderLeadingIcon({
           action.onClick(event);
         }}
       >
-        <ActionIcon size={14} strokeWidth={2} />
+        <ActionIcon
+          size={14}
+          strokeWidth={2}
+          className={action.iconClassName}
+        />
       </button>
     </span>
   );
@@ -555,6 +559,7 @@ function renderRowActions({
       <NavigationMenuRowActionButton
         key={`${action.label}:${actionIndex}`}
         icon={action.icon}
+        iconClassName={action.iconClassName}
         label={action.label}
         active={action.active}
         dataTestId={action.dataTestId}

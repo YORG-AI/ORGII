@@ -20,7 +20,6 @@ import {
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn(() => Promise.resolve()),
   unlisten: vi.fn(),
-  visibilityObservers: new Set<() => void>(),
 }));
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
@@ -45,61 +44,62 @@ const commands = {
   urlChangedEvent: "test-webview-url-changed",
 };
 
-describe("useEmbeddedWebview visibility polling", () => {
+describe("useEmbeddedWebview visibility observation", () => {
   let container: HTMLDivElement;
   let host: HTMLDivElement;
   let hostVisible: boolean;
+  let notifyIntersection: (() => void) | null;
+  let notifyResize: (() => void) | null;
   let root: Root;
   let latest: UseEmbeddedWebviewReturn | null;
 
   beforeAll(() => {
     reactActEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
-    vi.stubGlobal(
-      "IntersectionObserver",
-      class {
-        private readonly callback: () => void;
-
-        constructor(callback: () => void) {
-          this.callback = callback;
-          mocks.visibilityObservers.add(callback);
-        }
-        observe(): void {}
-        unobserve(): void {}
-        disconnect(): void {
-          mocks.visibilityObservers.delete(this.callback);
-        }
-        takeRecords(): IntersectionObserverEntry[] {
-          return [];
-        }
-      }
-    );
-    vi.stubGlobal(
-      "ResizeObserver",
-      class {
-        private readonly callback: () => void;
-
-        constructor(callback: () => void) {
-          this.callback = callback;
-          mocks.visibilityObservers.add(callback);
-        }
-        observe(): void {}
-        unobserve(): void {}
-        disconnect(): void {
-          mocks.visibilityObservers.delete(this.callback);
-        }
-      }
-    );
   });
 
   beforeEach(() => {
     vi.useFakeTimers();
     latest = null;
-    mocks.visibilityObservers.clear();
+    notifyIntersection = null;
+    notifyResize = null;
     hostVisible = true;
     container = document.createElement("div");
     host = document.createElement("div");
     document.body.append(container, host);
     root = createRoot(container);
+
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class IntersectionObserverMock {
+        readonly root = null;
+        readonly rootMargin = "";
+        readonly thresholds = [];
+
+        constructor(callback: IntersectionObserverCallback) {
+          notifyIntersection = () =>
+            callback([], this as unknown as IntersectionObserver);
+        }
+
+        disconnect() {}
+        observe() {}
+        takeRecords(): IntersectionObserverEntry[] {
+          return [];
+        }
+        unobserve() {}
+      }
+    );
+    vi.stubGlobal(
+      "ResizeObserver",
+      class ResizeObserverMock {
+        constructor(callback: ResizeObserverCallback) {
+          notifyResize = () => callback([], this as unknown as ResizeObserver);
+        }
+
+        disconnect() {}
+        observe() {}
+        unobserve() {}
+      }
+    );
 
     Object.defineProperty(host, "offsetParent", {
       configurable: true,
@@ -124,15 +124,15 @@ describe("useEmbeddedWebview visibility polling", () => {
     container.remove();
     host.remove();
     vi.useRealTimers();
+    vi.unstubAllGlobals();
     vi.clearAllMocks();
   });
 
   afterAll(() => {
     Reflect.deleteProperty(reactActEnvironment, "IS_REACT_ACT_ENVIRONMENT");
-    vi.unstubAllGlobals();
   });
 
-  it("observes visibility without retaining a polling timer", async () => {
+  it("reacts to host visibility changes without polling", async () => {
     const hostRef = { current: host };
     const Harness = () => {
       const value = useEmbeddedWebview({
@@ -161,7 +161,7 @@ describe("useEmbeddedWebview visibility polling", () => {
 
     hostVisible = false;
     await act(async () => {
-      for (const observer of mocks.visibilityObservers) observer();
+      notifyIntersection!();
       await Promise.resolve();
     });
     expect(latest!.isOpen).toBe(false);
@@ -172,7 +172,7 @@ describe("useEmbeddedWebview visibility polling", () => {
 
     hostVisible = true;
     await act(async () => {
-      for (const observer of mocks.visibilityObservers) observer();
+      notifyResize!();
       await Promise.resolve();
     });
     expect(latest!.isOpen).toBe(true);

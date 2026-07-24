@@ -175,7 +175,18 @@ export function CloudOrgRepoScopesSection({
                     >
                       {tCommon("actions.add")}
                     </Button>
-                  ) : null}
+                  ) : (
+                    <Button
+                      htmlType="button"
+                      size="default"
+                      variant="secondary"
+                      disabled={savingScopes}
+                      data-testid="cloud-org-cancel-add-repo-scope"
+                      onClick={() => setIsAddingScope(false)}
+                    >
+                      {tCommon("actions.cancel")}
+                    </Button>
+                  )}
                   {scopesDirty ? (
                     <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
                       {scopesError ? (

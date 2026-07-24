@@ -1,4 +1,4 @@
 // Clickable code styles (for file navigation)
 .chat-markdown-body code.clickable-code {
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
 }

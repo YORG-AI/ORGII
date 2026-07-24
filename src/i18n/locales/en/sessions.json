@@ -33,6 +33,8 @@
       "created": "Created",
       "updated": "Updated",
       "lastUpdated": "Last updated",
+      "external": "External",
+      "internal": "Internal",
       "rounds": "Rounds",
       "roundCount_one": "{{count}} round",
       "roundCount_other": "{{count}} rounds",

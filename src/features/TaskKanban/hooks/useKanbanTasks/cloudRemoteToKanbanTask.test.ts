@@ -93,7 +93,7 @@ describe("buildCloudRemoteKanbanProjection", () => {
     });
   });
 
-  it("uses the ORG2 mark for cloud-projected built-in Rust agents", () => {
+  it("labels cloud-projected built-in Rust agents simply as ORG2", () => {
     const result = buildCloudRemoteKanbanProjection(
       [
         remoteRow({
@@ -106,7 +106,10 @@ describe("buildCloudRemoteKanbanProjection", () => {
       options
     );
 
-    expect(result.tasks[0]?.agentIconId).toBe("orgii");
+    expect(result.tasks[0]).toMatchObject({
+      agentLabel: "ORG2",
+      agentIconId: "orgii",
+    });
   });
 
   it("uses external source branding even when legacy metadata omits agent fields", () => {

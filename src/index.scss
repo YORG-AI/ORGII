@@ -407,6 +407,106 @@ select,
   -webkit-touch-callout: default;
 }
 
+/*
+ * Optional web-style pointer cursors for semantic interactive controls.
+ *
+ * :where() keeps this rule at zero specificity so deliberate component
+ * cursors (text, grab, resize, wait, not-allowed, etc.) continue to win.
+ */
+:where(html[data-pointer-cursors="true"]) {
+  --interactive-cursor: pointer;
+}
+
+:where(html[data-pointer-cursors="false"]) {
+  --interactive-cursor: default;
+}
+
+/*
+ * Tailwind's cursor-pointer utility is used by custom click targets that may
+ * not expose native or ARIA semantics. Route it through the same preference.
+ */
+.cursor-pointer {
+  cursor: var(--interactive-cursor, default);
+}
+
+:where(html[data-pointer-cursors="true"])
+  :where(
+    a[href],
+    area[href],
+    button:not(:disabled),
+    input:not(:disabled):is(
+        [type="button"],
+        [type="checkbox"],
+        [type="color"],
+        [type="file"],
+        [type="radio"],
+        [type="range"],
+        [type="reset"],
+        [type="submit"]
+      ),
+    select:not(:disabled),
+    summary,
+    [role="button"],
+    [role="checkbox"],
+    [role="link"],
+    [role="menuitem"],
+    [role="menuitemcheckbox"],
+    [role="menuitemradio"],
+    [role="option"],
+    [role="radio"],
+    [role="switch"],
+    [role="tab"],
+    [role="treeitem"]
+  ):where(:not(:disabled):not([aria-disabled="true"])) {
+  cursor: var(--interactive-cursor, default);
+}
+
+/*
+ * The opt-out must beat component-local pointer declarations so the switch
+ * has consistent app-wide behavior. Disabled, busy, draggable, and explicit
+ * special-cursor utilities keep their stronger affordances.
+ */
+:where(html[data-pointer-cursors="false"])
+  :where(
+    a[href],
+    area[href],
+    button,
+    input:is(
+      [type="button"],
+      [type="checkbox"],
+      [type="color"],
+      [type="file"],
+      [type="radio"],
+      [type="range"],
+      [type="reset"],
+      [type="submit"]
+    ),
+    select,
+    summary,
+    [role="button"],
+    [role="checkbox"],
+    [role="link"],
+    [role="menuitem"],
+    [role="menuitemcheckbox"],
+    [role="menuitemradio"],
+    [role="option"],
+    [role="radio"],
+    [role="switch"],
+    [role="tab"],
+    [role="treeitem"],
+    .kanban-task-card--interactive,
+    .kanban-task-card__impact-action,
+    .cursor-pointer
+  ):where(
+    :not(:disabled):not([aria-busy="true"]):not([aria-disabled="true"]):not(
+        [draggable="true"]
+      ):not(.cursor-grab):not(.cursor-grabbing):not(.cursor-not-allowed):not(
+        .cursor-progress
+      ):not(.cursor-text):not(.cursor-wait)
+  ) {
+  cursor: default !important;
+}
+
 [data-browser-url-bar-input]::selection {
   background: color-mix(in srgb, var(--color-primary-6) 82%, black) !important;
   color: white !important;
@@ -589,10 +689,11 @@ body.drag-over::after {
 
 /* Visible thin scrollbar for dropdown option lists (Settings > Timezone,
  * table selectors, etc.). Tailwind has no first-class scrollbar pseudo
- * utilities, so we expose this as a global helper class. */
+ * utilities, so we expose this as a global helper class. No `scrollbar-width`
+ * here: once WebKit/Chromium support it, its presence makes them IGNORE the
+ * ::-webkit-scrollbar rules below and fall back to an auto-hiding overlay
+ * bar — an overflowing dropdown then shows no scroll affordance at all. */
 .dropdown-options-scrollbar {
-  scrollbar-width: thin;
-
   &::-webkit-scrollbar {
     width: 6px;
   }

@@ -65,16 +65,20 @@ describe("sessionToKanbanTask agent label", () => {
     expect(task.agentLabel).toBe(expected);
   });
 
-  it("uses the ORG2 mark for built-in Rust agents", () => {
+  it("labels built-in Rust agents simply as ORG2", () => {
     const task = toTask(
       makeSession({
         session_id: "sdeagent-session-1",
         agentDefinitionId: "builtin:sde",
         agentIconId: "code",
+        agentDisplayName: "SDE Agent",
       })
     );
 
-    expect(task.agentIconId).toBe("orgii");
+    expect(task).toMatchObject({
+      agentLabel: "ORG2",
+      agentIconId: "orgii",
+    });
   });
 
   it("keeps the configured icon for custom Rust agents", () => {

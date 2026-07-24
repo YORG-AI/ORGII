@@ -23,14 +23,42 @@ import {
   org2CloudAuthIdentityKey,
 } from "./org2CloudAuthAtom";
 import { ensureFreshSession, listMyOrgs } from "./org2CloudClient";
-import { refreshOrgEntitlement } from "./org2CloudEntitlementCoordinator";
+import type { CloudEntitlementState } from "./org2CloudClient";
+import {
+  refreshOrgEntitlement,
+  seedOrgEntitlement,
+} from "./org2CloudEntitlementCoordinator";
 
 const log = createLogger("Org2CloudOrgs");
+
+/** Seed roster-resolved entitlements; per-org RPC only for unresolved orgs. */
+function hydrateOrgEntitlements(
+  store: ReturnType<typeof createStore>,
+  orgs: readonly Org2CloudOrg[],
+  getAccessToken: () => Promise<string | null>
+): void {
+  const unresolved: Org2CloudOrg[] = [];
+  for (const org of orgs) {
+    if (org.entitlement) {
+      seedOrgEntitlement(store, org.orgId, org.entitlement);
+    } else {
+      unresolved.push(org);
+    }
+  }
+  if (unresolved.length === 0) return;
+  void Promise.all(
+    unresolved.map((org) =>
+      refreshOrgEntitlement(store, org.orgId, getAccessToken)
+    )
+  );
+}
 
 export interface Org2CloudOrg {
   orgId: string;
   name: string;
   role: string;
+  /** Batched entitlement from a 0004 roster listing; absent ⇒ per-org RPC. */
+  entitlement?: CloudEntitlementState;
 }
 
 export interface RefetchOrg2CloudOrgsOptions {
@@ -141,8 +169,8 @@ export function commitOrg2CloudOrgsRequest(
  * `org_memberships` subscription (useOrg2CloudRealtime). Consumers that
  * display the member list (CloudOrgPanelView) put their org's counter in a
  * fetch-effect dependency so a teammate joining/leaving/changing role
- * refreshes the list live. The open panel also performs a low-frequency
- * authoritative fallback for deployments where the channel is unavailable.
+ * refreshes the list live. Channel-unavailable recovery is driven by focus /
+ * visibility events rather than a periodic roster poll.
  */
 export const org2CloudRosterVersionAtom = atom<Record<string, number>>({});
 org2CloudRosterVersionAtom.debugLabel = "org2CloudRosterVersionAtom";
@@ -275,15 +303,12 @@ export function useOrg2CloudOrgs(): void {
       // Best-effort: hydrate the admin sharing-FLOOR mirror (0002) for each
       // org so the per-session sync dialog — opened straight from the session
       // context menu, without ever visiting the org panel — can gate its
-      // options against the floor. Non-blocking; per-org failures (null) just
+      // options against the floor. A 0004 backend already resolved each
+      // org's entitlement inside the roster round-trip — seed those straight
+      // into the coordinator; only orgs the listing could not resolve fall
+      // back to the per-org RPC. Non-blocking; per-org failures (null) just
       // leave that org's persisted mirror untouched (server still enforces).
-      // Reads go through the shared entitlement coordinator (single-flight +
-      // TTL per org) — never a second cache owner.
-      void Promise.all(
-        orgs.map((o) =>
-          refreshOrgEntitlement(store, o.orgId, async () => fresh.accessToken)
-        )
-      );
+      hydrateOrgEntitlements(store, orgs, async () => fresh.accessToken);
     };
     void runAttempt(0);
     return () => {
@@ -343,16 +368,12 @@ export function useRefetchOrg2CloudOrgs(): (
             } else if (commitOrg2CloudOrgsRequest(store, requestEpoch, orgs)) {
               latest = orgs;
               // Entitlement hydration is enrichment, not part of roster
-              // convergence. Background per-org reads through the shared
-              // coordinator: single-flight + TTL, no second cache owner.
-              void Promise.all(
-                orgs.map((org) =>
-                  refreshOrgEntitlement(
-                    store,
-                    org.orgId,
-                    async () => fresh.accessToken
-                  )
-                )
+              // convergence. Batched 0004 payloads seed the coordinator
+              // directly; only unresolved orgs read through the per-org RPC.
+              hydrateOrgEntitlements(
+                store,
+                orgs,
+                async () => fresh.accessToken
               );
             } else {
               latest = store.get(org2CloudOrgsAtom);

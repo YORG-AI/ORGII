@@ -18,13 +18,18 @@ import type { CollabSessionAccessMode } from "@src/store/collaboration/types";
 
 import { ORG2_CLOUD_POSTGREST_SCHEMA, getCloudEndpoint } from "./config";
 import type { Org2CloudAuthState, Org2CloudProfile } from "./org2CloudAuthAtom";
-import { fetchWithTransportRetry } from "./org2CloudFetchRetry";
+import {
+  fetchWithTransportRetry,
+  runCloudRequestWithTimeout,
+} from "./org2CloudFetchRetry";
 import { CLOUD_ORG_ROLES, type CloudOrgRole } from "./org2CloudOrgManagement";
 
 const log = createLogger("Org2CloudClient");
 
 /** Refresh when the access token expires within this many seconds. */
 const REFRESH_SKEW_SECONDS = 60;
+/** A dead WKWebView fetch must not hold every auth-gated single-flight forever. */
+const AUTH_REFRESH_TIMEOUT_MS = 15_000;
 
 const CloudProfileWireSchema = z.object({
   userId: z.string().optional(),
@@ -123,6 +128,16 @@ export async function schemaVersion(): Promise<number | null> {
 }
 
 /**
+ * Raw 0005+ capability read; `null` on pre-0005 backends (PGRST202) and on
+ * transport failure. Interpretation/caching live in `org2CloudCapabilities`.
+ */
+export async function getCloudCapabilitiesRaw(
+  accessToken: string
+): Promise<unknown | null> {
+  return callRpc("get_cloud_capabilities", accessToken);
+}
+
+/**
  * Fetch the signed-in user's cloud profile. Returns `null` on any failure
  * or when the server returns an empty object (no profile row yet).
  */
@@ -151,47 +166,6 @@ export async function getCloudProfile(
     avatarUrl: avatarUrl ?? undefined,
     primaryEmail: primaryEmail ?? undefined,
   };
-}
-
-const CloudOrgWireSchema = z.object({
-  orgId: z.string(),
-  name: z.string(),
-  role: z.enum(CLOUD_ORG_ROLES),
-});
-
-export interface CloudOrg {
-  orgId: string;
-  name: string;
-  role: CloudOrgRole;
-}
-
-const CloudOrgMemberWireSchema = z.object({
-  userId: z.string(),
-  displayName: z.string().nullish(),
-  role: z.enum(CLOUD_ORG_ROLES),
-  status: z.string(),
-  joinedAt: z.string().nullish(),
-  // Per-member sharing floor (admin-set MINIMUM for this member; 'off' = no
-  // member-level requirement — the org-wide floor still applies). Absent on
-  // pre-floor backends ⇒ 'off'; unrecognized values degrade to 'off' too.
-  sharingFloor: z
-    .enum([
-      COLLAB_SESSION_ACCESS_MODE.OFF,
-      COLLAB_SESSION_ACCESS_MODE.METADATA_ONLY,
-      COLLAB_SESSION_ACCESS_MODE.FULL_REPLAY,
-    ])
-    .nullish()
-    .catch(undefined),
-});
-
-export interface CloudOrgMember {
-  userId: string;
-  displayName?: string;
-  role: CloudOrgRole;
-  status: string;
-  joinedAt?: string;
-  /** Member-level sharing floor; absent/'off' ⇒ no member requirement. */
-  sharingFloor?: CollabSessionAccessMode;
 }
 
 const EntitlementStateWireSchema = z.object({
@@ -223,6 +197,66 @@ export interface CloudEntitlementState {
   orgSharingFloor?: CollabSessionAccessMode;
 }
 
+function normalizeEntitlementWire(
+  parsed: z.infer<typeof EntitlementStateWireSchema>
+): CloudEntitlementState {
+  return {
+    plan: parsed.plan,
+    status: parsed.status,
+    replayRetentionDays: parsed.replayRetentionDays ?? undefined,
+    maxOrgMembers: parsed.maxOrgMembers ?? undefined,
+    sessionSyncEnabled: parsed.sessionSyncEnabled ?? undefined,
+    orgSharingFloor: parsed.orgSharingFloor ?? undefined,
+  };
+}
+
+const CloudOrgWireSchema = z.object({
+  orgId: z.string(),
+  name: z.string(),
+  role: z.enum(CLOUD_ORG_ROLES),
+  // 0004 backends resolve each org's entitlement inside the roster listing;
+  // null/absent (older or degraded backends, or one failing org) falls back
+  // to the per-org RPC for exactly that org. `.catch(undefined)` keeps a
+  // malformed entitlement from failing the whole roster parse.
+  entitlement: EntitlementStateWireSchema.nullish().catch(undefined),
+});
+
+export interface CloudOrg {
+  orgId: string;
+  name: string;
+  role: CloudOrgRole;
+  entitlement?: CloudEntitlementState;
+}
+
+const CloudOrgMemberWireSchema = z.object({
+  userId: z.string(),
+  displayName: z.string().nullish(),
+  role: z.enum(CLOUD_ORG_ROLES),
+  status: z.string(),
+  joinedAt: z.string().nullish(),
+  // Per-member sharing floor (admin-set MINIMUM for this member; 'off' = no
+  // member-level requirement — the org-wide floor still applies). Absent on
+  // pre-floor backends ⇒ 'off'; unrecognized values degrade to 'off' too.
+  sharingFloor: z
+    .enum([
+      COLLAB_SESSION_ACCESS_MODE.OFF,
+      COLLAB_SESSION_ACCESS_MODE.METADATA_ONLY,
+      COLLAB_SESSION_ACCESS_MODE.FULL_REPLAY,
+    ])
+    .nullish()
+    .catch(undefined),
+});
+
+export interface CloudOrgMember {
+  userId: string;
+  displayName?: string;
+  role: CloudOrgRole;
+  status: string;
+  joinedAt?: string;
+  /** Member-level sharing floor; absent/'off' ⇒ no member requirement. */
+  sharingFloor?: CollabSessionAccessMode;
+}
+
 /**
  * Cloud orgs the signed-in user belongs to (`list_my_orgs`). Returns `null`
  * on any failure (offline / unreachable / wire drift) and `[]` only when the
@@ -242,7 +276,14 @@ export async function listMyOrgs(
     }
     return null;
   }
-  return parsed.data;
+  return parsed.data.map(({ orgId, name, role, entitlement }) => ({
+    orgId,
+    name,
+    role,
+    ...(entitlement
+      ? { entitlement: normalizeEntitlementWire(entitlement) }
+      : {}),
+  }));
 }
 
 /** Members of a cloud org (`list_org_members`). `[]` on any failure. */
@@ -290,15 +331,7 @@ export async function getEntitlementState(
     }
     return null;
   }
-  const { plan, status, replayRetentionDays, maxOrgMembers } = parsed.data;
-  return {
-    plan,
-    status,
-    replayRetentionDays: replayRetentionDays ?? undefined,
-    maxOrgMembers: maxOrgMembers ?? undefined,
-    sessionSyncEnabled: parsed.data.sessionSyncEnabled ?? undefined,
-    orgSharingFloor: parsed.data.orgSharingFloor ?? undefined,
-  };
+  return normalizeEntitlementWire(parsed.data);
 }
 
 /**
@@ -318,16 +351,26 @@ async function refreshSessionAttempt(
       // previous refresh token, which GoTrue's reuse interval tolerates
       // (same rotated session), and the in-flight dedupe above already
       // serializes concurrent refreshes.
-      const response = await fetchWithTransportRetry(
-        `${endpoint.supabaseUrl}/auth/v1/token?grant_type=refresh_token`,
-        {
-          method: "POST",
-          headers: {
-            apikey: endpoint.anonKey,
-            "content-type": "application/json",
-          },
-          body: JSON.stringify({ refresh_token: refreshToken }),
-        }
+      const { response, payload } = await runCloudRequestWithTimeout(
+        async (signal) => {
+          const response = await fetchWithTransportRetry(
+            `${endpoint.supabaseUrl}/auth/v1/token?grant_type=refresh_token`,
+            {
+              method: "POST",
+              headers: {
+                apikey: endpoint.anonKey,
+                "content-type": "application/json",
+              },
+              body: JSON.stringify({ refresh_token: refreshToken }),
+              signal,
+            }
+          );
+          return {
+            response,
+            payload: response.ok ? await response.json() : null,
+          };
+        },
+        AUTH_REFRESH_TIMEOUT_MS
       );
       if (!response.ok) {
         log.warn(`token refresh failed with status ${response.status}`);
@@ -337,7 +380,7 @@ async function refreshSessionAttempt(
             response.status === 400 || response.status === 401,
         };
       }
-      const parsed = RefreshResponseSchema.safeParse(await response.json());
+      const parsed = RefreshResponseSchema.safeParse(payload);
       if (!parsed.success) {
         log.warn("token refresh returned unexpected shape");
         return { tokens: null, permanentlyRejected: false };

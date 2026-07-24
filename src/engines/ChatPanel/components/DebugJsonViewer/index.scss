@@ -29,7 +29,7 @@
     align-items: center;
     gap: 4px;
     padding: 2px 0;
-    cursor: pointer;
+    cursor: var(--interactive-cursor, default);
     border-radius: 0;
 
     &:hover {

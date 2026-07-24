@@ -319,8 +319,14 @@ fn render_message(trigger: &Trigger, scope_key: &str, actual: f64) -> String {
     match &trigger.message {
         Some(template) => template
             .replace("{scope}", scope_key)
-            .replace("{actual}", &format_value(actual, trigger.metric == Metric::CacheHitRate))
-            .replace("{value}", &format_value(trigger.value, trigger.metric == Metric::CacheHitRate)),
+            .replace(
+                "{actual}",
+                &format_value(actual, trigger.metric == Metric::CacheHitRate),
+            )
+            .replace(
+                "{value}",
+                &format_value(trigger.value, trigger.metric == Metric::CacheHitRate),
+            ),
         None => format!(
             "{} {} {} {} ({})",
             trigger.id,
@@ -406,15 +412,27 @@ mod tests {
 
     #[test]
     fn parses_and_validates() {
-        let ok = parse("[[trigger]]\nid=\"c\"\nmetric=\"cost_usd\"\nscope=\"total\"\nop=\">\"\nvalue=10\n").unwrap();
+        let ok = parse(
+            "[[trigger]]\nid=\"c\"\nmetric=\"cost_usd\"\nscope=\"total\"\nop=\">\"\nvalue=10\n",
+        )
+        .unwrap();
         assert_eq!(ok.len(), 1);
-        assert!(parse("[[trigger]]\nid=\"c\"\nmetric=\"bogus\"\nscope=\"total\"\nop=\">\"\nvalue=1\n").is_err());
-        assert!(parse("[[trigger]]\nid=\"c\"\nmetric=\"cost_usd\"\nscope=\"total\"\nop=\"~\"\nvalue=1\n").is_err());
+        assert!(parse(
+            "[[trigger]]\nid=\"c\"\nmetric=\"bogus\"\nscope=\"total\"\nop=\">\"\nvalue=1\n"
+        )
+        .is_err());
+        assert!(parse(
+            "[[trigger]]\nid=\"c\"\nmetric=\"cost_usd\"\nscope=\"total\"\nop=\"~\"\nvalue=1\n"
+        )
+        .is_err());
     }
 
     #[test]
     fn total_scope_fires_once_when_over() {
-        let sessions = vec![row("claude_code", 30.0, 10, 1), row("codex_app", 25.0, 5, 1)];
+        let sessions = vec![
+            row("claude_code", 30.0, 10, 1),
+            row("codex_app", 25.0, 5, 1),
+        ];
         let triggers = parse("[[trigger]]\nid=\"cap\"\nmetric=\"cost_usd\"\nscope=\"total\"\nop=\">\"\nvalue=50\nseverity=\"error\"\n").unwrap();
         let firings = evaluate(&sessions, &BTreeMap::new(), &triggers);
         assert_eq!(firings.len(), 1);
@@ -424,11 +442,11 @@ mod tests {
 
     #[test]
     fn source_scope_fires_per_source_over_limit() {
-        let sessions = vec![
-            row("claude_code", 60.0, 10, 1),
-            row("codex_app", 5.0, 5, 1),
-        ];
-        let triggers = parse("[[trigger]]\nid=\"src\"\nmetric=\"cost_usd\"\nscope=\"source\"\nop=\">\"\nvalue=50\n").unwrap();
+        let sessions = vec![row("claude_code", 60.0, 10, 1), row("codex_app", 5.0, 5, 1)];
+        let triggers = parse(
+            "[[trigger]]\nid=\"src\"\nmetric=\"cost_usd\"\nscope=\"source\"\nop=\">\"\nvalue=50\n",
+        )
+        .unwrap();
         let firings = evaluate(&sessions, &BTreeMap::new(), &triggers);
         assert_eq!(firings.len(), 1);
         assert_eq!(firings[0].scope_key, "claude_code");
@@ -440,7 +458,10 @@ mod tests {
     #[test]
     fn no_firing_when_under() {
         let sessions = vec![row("claude_code", 1.0, 10, 1)];
-        let triggers = parse("[[trigger]]\nid=\"x\"\nmetric=\"cost_usd\"\nscope=\"total\"\nop=\">\"\nvalue=50\n").unwrap();
+        let triggers = parse(
+            "[[trigger]]\nid=\"x\"\nmetric=\"cost_usd\"\nscope=\"total\"\nop=\">\"\nvalue=50\n",
+        )
+        .unwrap();
         assert!(evaluate(&sessions, &BTreeMap::new(), &triggers).is_empty());
     }
 }

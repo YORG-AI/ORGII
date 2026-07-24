@@ -22,6 +22,8 @@
       "created": "Oluşturulma",
       "updated": "Güncellendi",
       "lastUpdated": "Son güncelleme",
+      "external": "Harici",
+      "internal": "Dahili",
       "rounds": "Turlar",
       "roundCount_one": "{{count}} tur",
       "roundCount_other": "{{count}} tur",

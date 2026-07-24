@@ -471,6 +471,21 @@ impl SqliteRecordStore<'_> {
                 ON imported_history_session_cache(source, source_path);
             CREATE INDEX IF NOT EXISTS idx_imported_history_session_id
                 ON imported_history_session_cache(session_id);
+
+            -- Repo identity is a property of the recorded working folder, not
+            -- of one imported session. Keep it in a separate read-model table
+            -- so existing session-cache rows need no column migration and
+            -- many sessions from the same checkout share one Git discovery.
+            CREATE TABLE IF NOT EXISTS imported_history_repo_identity (
+                working_path          TEXT PRIMARY KEY,
+                repo_root_path        TEXT NOT NULL DEFAULT '',
+                remote_urls_json      TEXT NOT NULL DEFAULT '[]',
+                resolution_kind       TEXT NOT NULL DEFAULT 'not_git',
+                checked_at_ms         INTEGER NOT NULL DEFAULT 0,
+                next_refresh_at_ms    INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_imported_history_repo_identity_refresh
+                ON imported_history_repo_identity(next_refresh_at_ms);
             ",
         )?;
         ensure_column(
@@ -545,7 +560,15 @@ impl SqliteRecordStore<'_> {
                     created_at_ms DESC,
                     source_session_id ASC
                 )
-                WHERE listable = 1 AND parent_session_id = '';",
+                WHERE listable = 1 AND parent_session_id = '';
+            CREATE INDEX IF NOT EXISTS idx_imported_history_parent_created
+                ON imported_history_session_cache(
+                    source,
+                    parent_session_id,
+                    created_at_ms,
+                    source_session_id
+                )
+                WHERE parent_session_id != '';",
         )?;
 
         // Per-round token usage for imported sessions (one row per assistant

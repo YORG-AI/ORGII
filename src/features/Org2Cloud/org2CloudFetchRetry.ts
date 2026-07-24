@@ -29,6 +29,72 @@ export async function fetchWithTransportRetry(
 }
 
 /**
+ * Bound a complete cloud operation even on WKWebView versions where aborting
+ * a pending fetch/body read does not reliably settle its Promise. The local
+ * race is the authoritative deadline; abort remains best-effort cleanup.
+ */
+export async function runCloudRequestWithTimeout<T>(
+  operation: (signal: AbortSignal) => Promise<T>,
+  timeoutMs: number,
+  sourceSignal?: AbortSignal | null
+): Promise<T> {
+  const controller = new AbortController();
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  let onSourceAbort: (() => void) | undefined;
+
+  const deadline = new Promise<T>((_resolve, reject) => {
+    const rejectAborted = () => {
+      controller.abort();
+      reject(new DOMException("The operation was aborted.", "AbortError"));
+    };
+    if (sourceSignal?.aborted) {
+      rejectAborted();
+      return;
+    }
+    if (sourceSignal) {
+      onSourceAbort = rejectAborted;
+      sourceSignal.addEventListener("abort", rejectAborted, { once: true });
+    }
+    timeoutId = setTimeout(() => {
+      controller.abort();
+      reject(
+        new DOMException(
+          `Cloud request timed out after ${timeoutMs}ms.`,
+          "TimeoutError"
+        )
+      );
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([operation(controller.signal), deadline]);
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+    if (sourceSignal && onSourceAbort) {
+      sourceSignal.removeEventListener("abort", onSourceAbort);
+    }
+  }
+}
+
+/** Fetch-only convenience wrapper. Prefer `runCloudRequestWithTimeout` when
+ * response body decoding/parsing must share the same deadline. */
+export async function fetchWithTransportRetryAndTimeout(
+  input: string | URL,
+  init: RequestInit | undefined,
+  timeoutMs: number
+): Promise<Response> {
+  return runCloudRequestWithTimeout(
+    (timeoutSignal) =>
+      fetchWithTransportRetry(input, {
+        ...init,
+        signal: timeoutSignal,
+      }),
+    timeoutMs,
+    init?.signal
+  );
+}
+
+/**
  * Known webview fetch transport-failure messages (WebKit / Chromium /
  * Firefox). Same set as `normalizeGitActionDialogMessage`; kept message-based
  * so a random programming TypeError is never mislabeled as a network issue.

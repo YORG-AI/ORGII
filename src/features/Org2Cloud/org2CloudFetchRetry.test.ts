@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   fetchWithTransportRetry,
+  fetchWithTransportRetryAndTimeout,
   isFetchTransportError,
+  runCloudRequestWithTimeout,
 } from "./org2CloudFetchRetry";
 
 const fetchMock = vi.fn();
@@ -12,6 +14,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   fetchMock.mockReset();
 });
@@ -97,6 +100,56 @@ describe("fetchWithTransportRetry", () => {
       })
     ).rejects.toThrow("Load failed");
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("fetchWithTransportRetryAndTimeout", () => {
+  it("settles at the local deadline even when fetch ignores abort", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementationOnce(() => new Promise<Response>(() => {}));
+
+    const request = fetchWithTransportRetryAndTimeout(
+      "https://cloud.test/rpc",
+      { method: "POST" },
+      1_000
+    );
+    const signal = (fetchMock.mock.calls[0]?.[1] as RequestInit).signal;
+    const rejected = expect(request).rejects.toMatchObject({
+      name: "TimeoutError",
+    });
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    await rejected;
+    expect(signal?.aborted).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("settles when the caller aborts even when fetch ignores abort", async () => {
+    fetchMock.mockImplementationOnce(() => new Promise<Response>(() => {}));
+    const controller = new AbortController();
+    const request = fetchWithTransportRetryAndTimeout(
+      "https://cloud.test/rpc",
+      { signal: controller.signal },
+      10_000
+    );
+
+    controller.abort();
+    await expect(request).rejects.toMatchObject({ name: "AbortError" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("bounds work after fetch resolves, including a hung body read", async () => {
+    vi.useFakeTimers();
+    const operation = runCloudRequestWithTimeout(async () => {
+      await Promise.resolve("headers");
+      return new Promise<string>(() => {});
+    }, 1_000);
+    const rejected = expect(operation).rejects.toMatchObject({
+      name: "TimeoutError",
+    });
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    await rejected;
   });
 });
 

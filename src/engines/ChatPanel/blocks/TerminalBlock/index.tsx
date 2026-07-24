@@ -25,6 +25,11 @@ import type {
   ShellReplayState,
   ToolUsageMetadata,
 } from "@src/engines/SessionCore/core/types";
+import {
+  formatCommandForDisplay,
+  getCommandSymbolList,
+  truncateCommandPreview,
+} from "@src/util/terminal/commandParser";
 
 import ToolUsageBadge from "../ToolCallBlock/ToolUsageBadge";
 import {
@@ -38,11 +43,6 @@ import {
   getEventBlockContainerClasses,
 } from "../primitives";
 import { useBlockHeader } from "../useBlockLocate";
-import {
-  formatCommandForDisplay,
-  getCommandSymbolList,
-  truncateCommandPreview,
-} from "./commandParser";
 
 const TERMINAL_OUTPUT_PREVIEW_MAX_HEIGHT = 72;
 const TERMINAL_OUTPUT_EXPAND_LINE_THRESHOLD = 3;

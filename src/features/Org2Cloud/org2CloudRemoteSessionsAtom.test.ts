@@ -4,12 +4,15 @@ import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/typ
 
 import {
   type CloudOrgRemoteSessionsEntry,
+  type CloudRemoteSessionsInvalidation,
   MAX_REMOTE_SESSIONS_VERSION_KEYS,
   MAX_REMOTE_SESSION_CACHE_ENTRIES,
   beginRemoteSessionsFetch,
+  bumpRemoteSessionsInvalidation,
   mergeRemoteSessionDelta,
   rememberRemoteSessionsFetchedVersion,
   remoteSessionsEntryForIdentity,
+  retainUnchangedRemoteSessionRows,
   writeRemoteSessionsEntry,
 } from "./org2CloudRemoteSessionsAtom";
 
@@ -110,5 +113,63 @@ describe("cloud remote session identity isolation", () => {
       { id: "keep", title: "new" },
       { id: "add", title: "add" },
     ]);
+  });
+
+  it("keeps a ready snapshot visible while it revalidates", () => {
+    const entry = {
+      ...readyEntry("https://cloud.example.com|user-1"),
+      rows: [row("visible")],
+    };
+
+    expect(
+      beginRemoteSessionsFetch(entry, "https://cloud.example.com|user-1")
+    ).toBe(entry);
+  });
+
+  it("marks reconnect recovery as a full refresh without touching rows", () => {
+    const first = bumpRemoteSessionsInvalidation({}, "org-1");
+    expect(first["org-1"]).toEqual({
+      version: 1,
+      fullRefreshVersion: 0,
+    });
+
+    expect(
+      bumpRemoteSessionsInvalidation(first, "org-1", { full: true })["org-1"]
+    ).toEqual({
+      version: 2,
+      fullRefreshVersion: 1,
+    });
+  });
+
+  it("bounds invalidation signals and refreshes recency on write", () => {
+    let signals: Record<string, CloudRemoteSessionsInvalidation> = {};
+    for (let index = 0; index <= MAX_REMOTE_SESSIONS_VERSION_KEYS; index += 1) {
+      signals = bumpRemoteSessionsInvalidation(signals, `org-${index}`);
+    }
+    expect(Object.keys(signals)).toHaveLength(MAX_REMOTE_SESSIONS_VERSION_KEYS);
+    expect(signals["org-0"]).toBeUndefined();
+
+    signals = bumpRemoteSessionsInvalidation(signals, "org-1");
+    signals = bumpRemoteSessionsInvalidation(signals, "org-new");
+    expect(signals["org-1"]?.version).toBe(2);
+    expect(signals["org-2"]).toBeUndefined();
+  });
+
+  it("retains row identity when a refresh has no semantic changes", () => {
+    const previous = [
+      row("same", {
+        origin: { kind: "external_history", source: "cursor_ide" },
+      }),
+    ];
+    const unchanged = previous.map((item) => ({
+      ...item,
+      origin: item.origin ? { ...item.origin } : undefined,
+    }));
+    const changed = unchanged.map((item) => ({ ...item, title: "changed" }));
+
+    expect(retainUnchangedRemoteSessionRows(previous, unchanged)).toBe(
+      previous
+    );
+    expect(retainUnchangedRemoteSessionRows(previous, changed)).toBe(changed);
   });
 });

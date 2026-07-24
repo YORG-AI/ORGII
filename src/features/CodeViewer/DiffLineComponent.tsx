@@ -159,7 +159,11 @@ export const DiffLineComponent = React.memo<DiffLineComponentProps>(
           onClick={
             isClickable ? () => onExpand(line.collapsedLines || []) : undefined
           }
-          style={{ cursor: isClickable ? "pointer" : "default" }}
+          style={{
+            cursor: isClickable
+              ? "var(--interactive-cursor, default)"
+              : "default",
+          }}
         >
           {cherrypicking && (
             <>
@@ -203,7 +207,11 @@ export const DiffLineComponent = React.memo<DiffLineComponentProps>(
             <div
               className={`diff-cherry-pick-multi ${getMultiSelectClass()}`}
               onClick={isRangeStart ? onToggleRange : undefined}
-              style={{ cursor: isRangeStart ? "pointer" : "default" }}
+              style={{
+                cursor: isRangeStart
+                  ? "var(--interactive-cursor, default)"
+                  : "default",
+              }}
             >
               {isRangeStart && rangeSelected && (
                 <Check size={14} strokeWidth={2.5} />

@@ -27,6 +27,7 @@ import {
 } from "@src/engines/SessionCore/ingestion/agentMessageAdapters";
 import type { PersistedMessage } from "@src/engines/SessionCore/ingestion/agentMessageAdapters";
 import { createLogger } from "@src/hooks/logger";
+import { normalizeFunctionName } from "@src/lib/activityData/activityNormalizers";
 import type { ContextUsageSnapshot } from "@src/store/session/cliSessionStatusAtom";
 import { invokeTauri } from "@src/util/platform/tauri/init";
 import { retryInvokeTauri } from "@src/util/platform/tauri/retryInvoke";
@@ -668,7 +669,7 @@ async function backfillSubagentLinks(
   const agentCalls = events.filter(
     (ev) =>
       ev.actionType === "tool_call" &&
-      ev.functionName === "agent" &&
+      normalizeFunctionName(ev.functionName) === "subagent" &&
       !hasSubagentId(ev)
   );
   if (agentCalls.length === 0) return;

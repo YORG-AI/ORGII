@@ -2,7 +2,7 @@ import { type UnlistenFn, listen } from "@tauri-apps/api/event";
 import { useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
 
-import type { CursorIdeTurnSummary } from "@src/api/tauri/externalHistory";
+import type { ExternalReplayTurnSummary } from "@src/api/tauri/externalHistory";
 import {
   EXTERNAL_REPLAY_INVALIDATED_EVENT,
   type ExternalReplayInvalidation,
@@ -12,7 +12,7 @@ import {
 import { ExternalReplayInvalidationSchema } from "@src/api/tauri/rpc/schemas/externalReplay";
 import { loadTurnIndex } from "@src/engines/SessionCore/storage/cacheAdapter";
 import type { TurnSummary } from "@src/engines/SessionCore/storage/sqliteCache";
-import { cursorIdeTurnSummariesAtomFamily } from "@src/store/session/cursorIdeTurnSummariesAtom";
+import { externalReplayTurnSummariesAtomFamily } from "@src/store/session/externalReplayTurnSummariesAtom";
 import { isCursorIdeSession } from "@src/util/session/sessionDispatch";
 
 const MAX_TURN_OVERVIEW_CACHE_SIZE = 200;
@@ -44,8 +44,8 @@ export function rememberTurnOverview(
   turnOverviewCache.set(sessionId, overview);
 }
 
-function summarizeCursorIdeTurns(
-  turns: CursorIdeTurnSummary[]
+function summarizeExternalReplayTurns(
+  turns: ExternalReplayTurnSummary[]
 ): SessionTurnOverview | null {
   if (turns.length === 0) return null;
   return {
@@ -73,10 +73,12 @@ function summarizeIndexedTurns(turns: TurnSummary[]): SessionTurnOverview {
 
 export async function loadSessionTurnOverview(
   sessionId: string,
-  cursorIdeTurnSummaries: CursorIdeTurnSummary[]
+  externalReplayTurnSummaries: ExternalReplayTurnSummary[]
 ): Promise<SessionTurnOverview | null> {
   if (isCursorIdeSession(sessionId)) {
-    const summaryOverview = summarizeCursorIdeTurns(cursorIdeTurnSummaries);
+    const summaryOverview = summarizeExternalReplayTurns(
+      externalReplayTurnSummaries
+    );
     if (summaryOverview) return summaryOverview;
   }
 
@@ -110,14 +112,14 @@ export async function loadSessionTurnOverview(
 
 function loadSessionTurnOverviewCoalesced(
   sessionId: string,
-  cursorIdeTurnSummaries: CursorIdeTurnSummary[]
+  externalReplayTurnSummaries: ExternalReplayTurnSummary[]
 ): Promise<SessionTurnOverview | null> {
   const inFlight = inFlightOverviewLoads.get(sessionId);
   if (inFlight) return inFlight;
 
   const work = loadSessionTurnOverview(
     sessionId,
-    cursorIdeTurnSummaries
+    externalReplayTurnSummaries
   ).finally(() => {
     if (inFlightOverviewLoads.get(sessionId) === work) {
       inFlightOverviewLoads.delete(sessionId);
@@ -130,8 +132,8 @@ function loadSessionTurnOverviewCoalesced(
 export function useSessionTurnOverview(
   sessionId: string
 ): SessionTurnOverview | null {
-  const cursorIdeTurnSummaries = useAtomValue(
-    cursorIdeTurnSummariesAtomFamily(sessionId)
+  const externalReplayTurnSummaries = useAtomValue(
+    externalReplayTurnSummariesAtomFamily(sessionId)
   );
   const [overviewState, setOverviewState] = useState<SessionTurnOverviewState>(
     () => ({
@@ -179,7 +181,7 @@ export function useSessionTurnOverview(
 
     void loadSessionTurnOverviewCoalesced(
       sessionId,
-      cursorIdeTurnSummaries
+      externalReplayTurnSummaries
     ).then((nextOverview) => {
       if (cancelled) return;
       if (nextOverview) rememberTurnOverview(sessionId, nextOverview);
@@ -189,7 +191,7 @@ export function useSessionTurnOverview(
     return () => {
       cancelled = true;
     };
-  }, [cursorIdeTurnSummaries, replayInvalidation, sessionId]);
+  }, [externalReplayTurnSummaries, replayInvalidation, sessionId]);
 
   if (overviewState.sessionId === sessionId) return overviewState.overview;
   return turnOverviewCache.get(sessionId) ?? null;

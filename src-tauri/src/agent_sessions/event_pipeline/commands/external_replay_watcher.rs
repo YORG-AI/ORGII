@@ -662,9 +662,11 @@ mod tests {
 
     #[test]
     fn watcher_registry_limits_are_byte_and_count_bounded() {
-        assert!(MAX_WATCHED_SOURCES > 0);
-        assert!(MAX_LEASES_PER_SOURCE > 0);
-        assert!(MAX_REGISTRY_ESTIMATED_BYTES >= BASE_ENTRY_ESTIMATED_BYTES);
+        const {
+            assert!(MAX_WATCHED_SOURCES > 0);
+            assert!(MAX_LEASES_PER_SOURCE > 0);
+            assert!(MAX_REGISTRY_ESTIMATED_BYTES >= BASE_ENTRY_ESTIMATED_BYTES);
+        }
         let key = WatchKey {
             runtime_identity: PathBuf::from("/orgii-home/sessions.db"),
             physical_source: PathBuf::from("/cli/transcript.jsonl"),

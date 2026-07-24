@@ -340,9 +340,7 @@ impl ExternalFrameBuffer {
     }
 }
 
-pub fn external_shell_inline_segments(
-    event: &SessionEvent,
-) -> Vec<ExternalShellInlineSegment<'_>> {
+pub fn external_shell_inline_segments(event: &SessionEvent) -> Vec<ExternalShellInlineSegment<'_>> {
     for path in [
         &["interleavedOutput"][..],
         &["aggregated_output"][..],

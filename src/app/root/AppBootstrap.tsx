@@ -29,6 +29,7 @@ import {
   useCrossWindowSettingsSync,
   useDevModeGuard,
   useEditorAppearanceStyles,
+  usePointerCursorPreference,
   useSleepInhibitor,
 } from "@src/hooks/settings";
 import { router } from "@src/router";
@@ -61,6 +62,7 @@ export const AppBootstrap: FC = () => {
   }, [settingsLoaded, hydrateLastModel]);
   useCrossWindowSettingsSync();
   useEditorAppearanceStyles();
+  usePointerCursorPreference();
   useDevModeGuard();
   useSleepInhibitor();
   useAppShellEffects();

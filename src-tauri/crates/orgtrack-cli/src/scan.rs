@@ -147,8 +147,7 @@ pub(crate) fn scan_all(path: &str, opts: &Options, plugins: &[LoaderPlugin]) -> 
         let (tx, rx) = mpsc::channel();
         let worker_path = path.to_string();
         thread::spawn(move || {
-            let result =
-                open_conn(&worker_path).and_then(|mut conn| job.run(&mut conn));
+            let result = open_conn(&worker_path).and_then(|mut conn| job.run(&mut conn));
             // Receiver may be gone (we timed out and moved on); ignore.
             let _ = tx.send(result);
         });
@@ -221,6 +220,8 @@ pub(crate) fn cached_to_row(
         is_active: false,
         storage_path: Some(session.source_path),
         repo_path: session.repo_path,
+        repo_root_path: session.repo_root_path,
+        repo_remote_urls: session.repo_remote_urls,
         repo_name,
         branch: session.branch,
         files_changed: session.impact.files_changed,

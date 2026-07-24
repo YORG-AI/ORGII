@@ -303,7 +303,10 @@ const ComposerPill: React.FC<ComposerPillProps> = ({
           size={PILL_SIZE.iconSize}
           strokeWidth={2}
           onClick={handleDelete}
-          style={{ cursor: "pointer", color: "var(--color-text-3)" }}
+          style={{
+            cursor: "var(--interactive-cursor, default)",
+            color: "var(--color-text-3)",
+          }}
         />
       );
     }
@@ -365,7 +368,7 @@ const ComposerPill: React.FC<ComposerPillProps> = ({
       style={{
         userSelect: "none",
         WebkitUserSelect: "none",
-        cursor: "pointer",
+        cursor: "var(--interactive-cursor, default)",
         backgroundColor: "transparent",
         outline: "none",
       }}

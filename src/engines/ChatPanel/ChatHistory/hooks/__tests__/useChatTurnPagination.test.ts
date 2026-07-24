@@ -15,7 +15,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 
-import type { CursorIdeTurnSummary } from "@src/api/tauri/externalHistory";
+import type { ExternalReplayTurnSummary } from "@src/api/tauri/externalHistory";
 
 import type { OptimizedChatItem } from "../../chatItemPipeline/types";
 import type { ChatGroupMeta } from "../useChatGroups";
@@ -156,7 +156,7 @@ describe("useChatTurnPagination — Cursor bounded replay", () => {
       ...fakeHeader(),
       event: { id: stableId },
     } as OptimizedChatItem;
-    const summary: CursorIdeTurnSummary = {
+    const summary: ExternalReplayTurnSummary = {
       turnId: stableId,
       nextTurnId: null,
       turnIndex: 0,
@@ -177,11 +177,11 @@ describe("useChatTurnPagination — Cursor bounded replay", () => {
       groupMeta: [{ turnId: stableId } as ChatGroupMeta],
       flatItems: [fakeItem()],
       lastAssistantFlatIndexPerItem: [null],
-      cursorIdeTurnSummaries: [summary],
+      externalReplayTurnSummaries: [summary],
     });
 
     expect(result.pages[0]?.startGroupIndex).toBe(0);
-    expect(result.pages[0]?.cursorIdeBodyLoaded).toBe(true);
-    expect(result.pages[0]?.cursorIdeSummary?.turnId).toBe(stableId);
+    expect(result.pages[0]?.replayBodyLoaded).toBe(true);
+    expect(result.pages[0]?.replayTurnSummary?.turnId).toBe(stableId);
   });
 });

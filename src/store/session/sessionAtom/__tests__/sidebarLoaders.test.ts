@@ -7,11 +7,11 @@ import { dataSourceConfigAtom } from "../../dataSourceConfigAtom";
 import { sessionsAtom } from "../atoms";
 import {
   __TESTS_ONLY,
-  loadExternalHistorySidebarSessions,
   loadMoreCategory,
   loadSessionRoster,
   loadSidebarSessionById,
   loadSidebarSessions,
+  loadSidebarSessionsByIds,
 } from "../loaders";
 import { sessionPaginationAtom } from "../paginationAtoms";
 
@@ -157,50 +157,6 @@ describe("loadSidebarSessions", () => {
     }
   });
 
-  it("refreshes external history without querying or resetting native categories", async () => {
-    const nativeSession = {
-      session_id: "native-cli-session",
-      name: "Native CLI session",
-      status: "completed" as const,
-      created_at: "2026-07-12T12:00:00Z",
-      updated_at: "2026-07-12T12:00:00Z",
-      category: "cli_agent" as const,
-    };
-    mocks.store?.set(sessionsAtom, [nativeSession]);
-    mocks.store?.set(sessionPaginationAtom, (previous) => ({
-      ...previous,
-      cli_agent: { loaded: 7, hasMore: true, loading: false },
-    }));
-    mocks.externalHistorySidebarList.mockImplementation(
-      async (request: {
-        requests: Array<{
-          source: string;
-          buckets: Array<{ bucket: string }>;
-        }>;
-      }) => ({
-        sources: request.requests.map((sourceRequest) => ({
-          source: sourceRequest.source,
-          buckets: sourceRequest.buckets.map(({ bucket }) => ({
-            bucket,
-            sessions: [],
-            hasMore: false,
-          })),
-        })),
-      })
-    );
-
-    await loadExternalHistorySidebarSessions({ pageSize: 10 });
-
-    expect(mocks.externalHistorySidebarList).toHaveBeenCalledOnce();
-    expect(mocks.sessionAggregateList).not.toHaveBeenCalled();
-    expect(mocks.store?.get(sessionsAtom)).toContainEqual(nativeSession);
-    expect(mocks.store?.get(sessionPaginationAtom).cli_agent).toEqual({
-      loaded: 7,
-      hasMore: true,
-      loading: false,
-    });
-  });
-
   it("continues each external date bucket from its own offset", async () => {
     mocks.sessionAggregateList.mockResolvedValue({ sessions: [] });
     mocks.externalHistorySidebarList.mockImplementation(
@@ -299,6 +255,57 @@ describe("loadSidebarSessions", () => {
     );
     expect(mocks.externalHistorySidebarList).not.toHaveBeenCalled();
     expect(mocks.store?.get(sessionsAtom)).toContainEqual(historicalSession);
+  });
+
+  it("batches and single-flights exact historical session hydration", async () => {
+    let resolveList:
+      | ((value: { sessions: Array<{ session_id: string }> }) => void)
+      | undefined;
+    mocks.sessionAggregateList.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveList = resolve;
+        })
+    );
+
+    const first = loadSidebarSessionsByIds(["older-b", "older-a", "older-a"]);
+    const second = loadSidebarSessionsByIds(["older-a", "older-b"]);
+
+    expect(mocks.sessionAggregateList).toHaveBeenCalledTimes(1);
+    expect(mocks.sessionAggregateList).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionIds: ["older-b", "older-a"],
+        includeExternalHistory: true,
+        limit: 2,
+      })
+    );
+
+    resolveList?.({
+      sessions: [{ session_id: "older-a" }, { session_id: "older-b" }],
+    });
+    await expect(first).resolves.toHaveLength(2);
+    await expect(second).resolves.toHaveLength(2);
+  });
+
+  it("isolates exact hydration single-flight state per Jotai store", async () => {
+    mocks.sessionAggregateList.mockResolvedValue({
+      sessions: [{ session_id: "shared-id" }],
+    });
+    const firstStore = mocks.store;
+    const first = loadSidebarSessionsByIds(["shared-id"]);
+
+    const secondStore = createStore();
+    mocks.store = secondStore;
+    const second = loadSidebarSessionsByIds(["shared-id"]);
+
+    await Promise.all([first, second]);
+    expect(mocks.sessionAggregateList).toHaveBeenCalledTimes(2);
+    expect(firstStore?.get(sessionsAtom)).toContainEqual({
+      session_id: "shared-id",
+    });
+    expect(secondStore.get(sessionsAtom)).toContainEqual({
+      session_id: "shared-id",
+    });
   });
 
   it("enriches an existing lightweight child with canonical parent metadata", async () => {

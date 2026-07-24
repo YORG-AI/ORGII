@@ -5,7 +5,7 @@
 //! imported history only: ORGII does not own the Codex process or write back to
 //! Codex's local files.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 #[cfg(test)]
@@ -58,7 +58,9 @@ pub(crate) use transcript::{
 // tool calls, so `exec`-wrapped and other edit paths are counted too.
 // v10: read info.total_token_usage (was top-level), capture cache split +
 // per-round deltas.
-const CODEX_APP_METADATA_PARSER_VERSION: i64 = 10;
+// v11: retain Codex subagent spawn metadata and the child rollout's plaintext
+// first prompt so encrypted collaboration arguments can be reconstructed.
+const CODEX_APP_METADATA_PARSER_VERSION: i64 = 11;
 
 pub type CodexAppSessionRow = ImportedHistorySessionRow;
 pub type CodexAppSessionPage = ImportedHistorySessionPage;
@@ -100,6 +102,18 @@ pub(crate) struct CodexAppSessionMeta {
     cache_write_tokens: i64,
     impact: ImportedHistoryImpactStats,
     rounds: Vec<RoundUsage>,
+    source_metadata: CodexAppSourceMetadata,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CodexAppSourceMetadata {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    first_prompt: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    agent_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    agent_nickname: Option<String>,
 }
 
 #[cfg(test)]

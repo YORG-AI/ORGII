@@ -61,16 +61,16 @@ vi.mock("@src/api/tauri/externalHistory/replay", async (importOriginal) => {
 vi.mock("@src/engines/SessionCore/sync/externalReplayTransport", () => ({
   getActiveExternalReplayLease: (sessionId: string) => ({
     sessionId,
-    epoch: 41,
+    episodeId: 41,
   }),
   openExternalReplaySession: mocks.openWindow,
   readExternalReplaySession: (
-    lease: { sessionId: string; epoch: number },
+    lease: { sessionId: string; episodeId: number },
     selection: Record<string, unknown>
   ) =>
     mocks.readWindow({
       sessionId: lease.sessionId,
-      episodeId: lease.epoch,
+      episodeId: lease.episodeId,
       ...selection,
     }),
 }));
@@ -242,7 +242,7 @@ describe("session turn loader routing", () => {
 
     expect(mocks.openWindow).toHaveBeenCalledWith({
       sessionId: "codexapp-session",
-      epoch: 41,
+      episodeId: 41,
     });
     expect(mocks.mergeWindow).toHaveBeenCalledTimes(1);
     expect(mocks.mergeWindow).toHaveBeenCalledWith(

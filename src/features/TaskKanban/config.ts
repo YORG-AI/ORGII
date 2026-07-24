@@ -13,6 +13,7 @@ import type {
   TaskStatus,
 } from "@src/features/KanbanBoard/types";
 import type { Session } from "@src/store/session";
+import { SESSION_STATUS_DOT_COLOR } from "@src/util/session/sessionStatusDot";
 
 /**
  * Kanban Configuration
@@ -152,7 +153,7 @@ export const KANBAN_COLUMNS: AgentKanbanColumnConfig[] = [
     icon: Circle,
     color: "var(--color-fill-4)",
     bgColor: "color-mix(in srgb, var(--color-fill-4) 55%, transparent)",
-    dotColor: "var(--color-fill-4)",
+    dotColor: SESSION_STATUS_DOT_COLOR.default,
     headerBgColor: "color-mix(in srgb, var(--color-fill-4) 45%, transparent)",
     showAddButton: true,
   },
@@ -162,7 +163,7 @@ export const KANBAN_COLUMNS: AgentKanbanColumnConfig[] = [
     icon: Clock,
     color: "var(--color-primary-6)",
     bgColor: "color-mix(in srgb, var(--color-primary-6) 10%, transparent)",
-    dotColor: "var(--color-primary-6)",
+    dotColor: SESSION_STATUS_DOT_COLOR.working,
     headerBgColor: "color-mix(in srgb, var(--color-primary-6) 8%, transparent)",
   },
   {
@@ -171,7 +172,7 @@ export const KANBAN_COLUMNS: AgentKanbanColumnConfig[] = [
     icon: MessageCircleWarning,
     color: "#FF8C42",
     bgColor: "rgba(255, 140, 66, 0.1)",
-    dotColor: "#FF8C42",
+    dotColor: SESSION_STATUS_DOT_COLOR.asking,
     headerBgColor: "rgba(255, 140, 66, 0.08)",
   },
   {
@@ -180,7 +181,7 @@ export const KANBAN_COLUMNS: AgentKanbanColumnConfig[] = [
     icon: CheckCircle2,
     color: "#52C41A",
     bgColor: "rgba(82, 196, 26, 0.1)",
-    dotColor: "#52C41A",
+    dotColor: SESSION_STATUS_DOT_COLOR.unread,
     headerBgColor: "rgba(82, 196, 26, 0.08)",
   },
   {
@@ -189,7 +190,7 @@ export const KANBAN_COLUMNS: AgentKanbanColumnConfig[] = [
     icon: Archive,
     color: "var(--color-text-3)",
     bgColor: "color-mix(in srgb, var(--color-fill-4) 18%, transparent)",
-    dotColor: "var(--color-text-3)",
+    dotColor: SESSION_STATUS_DOT_COLOR.archived,
     headerBgColor: "color-mix(in srgb, var(--color-fill-4) 14%, transparent)",
   },
 ];

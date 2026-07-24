@@ -50,7 +50,7 @@
   transition: background 0.2s ease;
 
   &.table-th-sortable {
-    cursor: pointer;
+    cursor: var(--interactive-cursor, default);
     user-select: none;
 
     &:hover {
@@ -796,7 +796,7 @@
 .table-checkbox {
   width: 16px;
   height: 16px;
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   accent-color: var(--color-primary-6);
 }
 
@@ -848,7 +848,7 @@
   background: var(--color-bg-1);
   color: var(--text-1);
   font-size: 13px;
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   transition: all 0.2s ease;
 
   &:hover {

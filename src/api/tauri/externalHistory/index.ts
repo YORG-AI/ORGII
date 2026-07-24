@@ -17,7 +17,7 @@ export {
   fetchExternalSourceStatsBatch,
   type ExternalSourceStats,
 } from "./sourceStats";
-export * from "./cursorIde";
+export * from "./externalReplayTurnSummary";
 export * from "./imported";
 export * from "./replay";
 export * from "./sources/claudeCode";

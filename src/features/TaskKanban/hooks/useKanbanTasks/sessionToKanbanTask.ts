@@ -67,7 +67,8 @@ export function sessionToKanbanTask(
   });
   const agentFilter = resolveKanbanAgentFilter(
     display,
-    session.agentDefinitionId
+    session.agentDefinitionId,
+    session.agentDisplayName
   );
   const tags: string[] = [categoryTag];
   if (display.cliAgentType) tags.push(display.cliAgentType);

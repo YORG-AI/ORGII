@@ -36,6 +36,7 @@ import { useEditMode } from "./hooks/useEditMode";
 import { useEditorExpansion } from "./hooks/useEditorExpansion";
 import { useInputAreaMenus } from "./hooks/useInputAreaMenus";
 import { useInputAreaVoice } from "./hooks/useInputAreaVoice";
+import { useStopOnDoubleEscape } from "./hooks/useStopOnDoubleEscape";
 import { openedTabMentionOptionsAtom } from "./openedTabMentionOptionsAtom";
 
 interface InputAreaProps {
@@ -342,6 +343,10 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
     useEffect(() => {
       observeCompact(isCursorCompactRow);
     }, [isCursorCompactRow, observeCompact]);
+
+    // Double-press Escape to stop the running turn. Active only while a turn
+    // is running and stoppable; a single Escape is inert.
+    useStopOnDoubleEscape(isWpGeneWorking && canStopAgent, interruptSession);
 
     // Cursor IDE sessions are read-only; no interactive model/mode pill.
     const modelPill =

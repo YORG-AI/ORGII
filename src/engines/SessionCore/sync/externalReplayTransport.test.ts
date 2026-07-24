@@ -170,7 +170,7 @@ describe("external replay transport coordinator", () => {
     );
     expect(mocks.readWindow).toHaveBeenCalledWith({
       sessionId: currentLease.sessionId,
-      episodeId: currentLease.epoch,
+      episodeId: currentLease.episodeId,
       turnIndex: 0,
     });
     expect(getExternalReplayCursorForTest(currentLease)?.revision).toBe(2);
@@ -215,7 +215,10 @@ describe("external replay transport coordinator", () => {
     deactivateExternalReplaySession(lease);
     currentLease = null;
     expect(lease.signal.aborted).toBe(true);
-    expect(mocks.release).toHaveBeenCalledWith(lease.sessionId, lease.epoch);
+    expect(mocks.release).toHaveBeenCalledWith(
+      lease.sessionId,
+      lease.episodeId
+    );
     expect(mocks.deactivateTurnState).toHaveBeenCalledWith(lease.sessionId);
   });
 

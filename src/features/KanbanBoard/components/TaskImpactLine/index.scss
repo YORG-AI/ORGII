@@ -24,7 +24,7 @@
   border: 0;
   padding: 0;
   background: transparent;
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   font: inherit;
 
   &:hover {

@@ -47,7 +47,9 @@ export const externalReplayTurnLoader: SessionTurnLoader = {
       .then(async (window) => {
         if (!window) return;
         if (!isCurrentExternalReplayTurnEpisode(sessionId, episode)) return;
-        if (getActiveExternalReplayLease(sessionId)?.epoch !== lease.epoch) {
+        if (
+          getActiveExternalReplayLease(sessionId)?.episodeId !== lease.episodeId
+        ) {
           return;
         }
         if (

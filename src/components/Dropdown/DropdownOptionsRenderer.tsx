@@ -64,9 +64,12 @@ const DropdownOptionsRenderer: React.FC<DropdownOptionsRendererProps> = ({
     );
   } else {
     content = (
-      <div
-        className={`select-options-overlay ${DROPDOWN_CLASSES.optionsContainerScrollbar}`}
-      >
+      // No `select-options-overlay` here: its `scrollbar-width: thin` makes
+      // newer WebKit ignore the ::-webkit-scrollbar styling entirely and fall
+      // back to an auto-hiding overlay bar, so an overflowing option list
+      // (e.g. the sidebar org selector) shows no scroll affordance at all and
+      // reads as complete.
+      <div className={DROPDOWN_CLASSES.optionsContainerScrollbar}>
         <div className={DROPDOWN_CLASSES.itemsColumn}>
           {options.map((option, index) => {
             const isSelected = isMultiple

@@ -56,7 +56,9 @@ describe("resolveKanbanAgentFilter", () => {
       },
     });
 
-    expect(resolveKanbanAgentFilter(display, "builtin:sde")).toEqual({
+    expect(
+      resolveKanbanAgentFilter(display, "builtin:sde", "SDE Agent")
+    ).toEqual({
       agentTypeFilter: KANBAN_AGENT_TYPE_FILTER.SDE_AGENT,
       agentTypeFilterKind: "rust",
       agentTypeFilterLabel: "SDE Agent",
