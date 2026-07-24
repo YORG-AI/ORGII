@@ -37,6 +37,10 @@ vi.mock("@src/components/VirtualizedStickyTree", async () => {
   };
 });
 
+vi.mock("@src/components/Tooltip", () => ({
+  default: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 vi.mock("../../../../shared/hooks/usePrimarySidebarSurface", () => ({
   usePrimarySidebarSurface: () => ({ stickyBgClass: "bg-sidebar" }),
 }));
