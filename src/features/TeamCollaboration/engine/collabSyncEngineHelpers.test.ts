@@ -25,6 +25,7 @@ import type {
 } from "../sync/CollabSyncBackend";
 import { computeSegmentHash } from "../sync/collabGzip";
 import {
+  computeFrozenEventCount,
   deriveImportedSessionId,
   forkSession,
   importRemoteSession,
@@ -89,6 +90,152 @@ describe("isCollabConflictError (both backends' OCC rejection)", () => {
     expect(isCollabConflictError(new Error("ORGII_UNAUTHORIZED"))).toBe(false);
     expect(isCollabConflictError("ORG2_CONFLICT")).toBe(false);
     expect(isCollabConflictError(undefined)).toBe(false);
+  });
+});
+
+describe("computeFrozenEventCount frozen line + stuck-sentinel skip-over", () => {
+  function event(overrides: Partial<SessionEvent>): SessionEvent {
+    return {
+      id: `evt-${Math.random().toString(36).slice(2)}`,
+      sessionId: "session-1",
+      functionName: "",
+      uiCanonical: "",
+      source: "assistant",
+      args: {},
+      result: {},
+      displayStatus: "completed",
+      ...overrides,
+    } as SessionEvent;
+  }
+
+  function pendingPlanCard(revision: string): SessionEvent {
+    return event({
+      id: revision,
+      functionName: "plan_approval",
+      uiCanonical: "plan_approval",
+      callId: revision,
+      args: { planRevisionId: revision },
+      result: { status: "pending", planRevisionId: revision },
+      displayStatus: "awaiting_user",
+    });
+  }
+
+  function resolutionSibling(
+    revision: string,
+    status: "approved" | "archived" | "cancelled"
+  ): SessionEvent {
+    return event({
+      id: `${revision}-${status}`,
+      functionName: "plan_approval",
+      uiCanonical: "plan_approval",
+      callId: revision,
+      args: { planRevisionId: revision },
+      result: { status, planRevisionId: revision },
+      displayStatus: "completed",
+    });
+  }
+
+  it("cuts the frozen line at the first still-mutable non-terminal event", () => {
+    const events = [
+      event({}),
+      event({ displayStatus: "running", functionName: "run_shell" }),
+      event({}),
+    ];
+    expect(computeFrozenEventCount(events)).toBe(1);
+  });
+
+  it("counts a missing displayStatus as terminal (hash chain catches mutation)", () => {
+    const events = [event({ displayStatus: undefined as never }), event({})];
+    expect(computeFrozenEventCount(events)).toBe(2);
+  });
+
+  it("freezes past an awaiting_user plan card whose revision was resolved", () => {
+    const events = [
+      event({}),
+      pendingPlanCard("rev-1"),
+      event({}),
+      resolutionSibling("rev-1", "archived"),
+      event({}),
+    ];
+    expect(computeFrozenEventCount(events)).toBe(5);
+  });
+
+  it("accepts a resolution marker that precedes the dangling card", () => {
+    const events = [
+      resolutionSibling("rev-1", "approved"),
+      pendingPlanCard("rev-1"),
+      event({}),
+    ];
+    expect(computeFrozenEventCount(events)).toBe(3);
+  });
+
+  it("freezes past a plan card superseded by a later pending revision, which itself still blocks", () => {
+    const superseded = pendingPlanCard("rev-1");
+    const latest = pendingPlanCard("rev-2");
+    const events = [superseded, event({}), latest, event({})];
+    expect(computeFrozenEventCount(events)).toBe(2);
+  });
+
+  it("keeps a genuinely pending latest plan card in the tail", () => {
+    const events = [event({}), pendingPlanCard("rev-1"), event({})];
+    expect(computeFrozenEventCount(events)).toBe(1);
+  });
+
+  it("freezes past a dangling create_plan tool call once its revision resolved", () => {
+    const createPlanCall = event({
+      id: "tool-call-rev-1",
+      functionName: "create_plan",
+      uiCanonical: "create_plan",
+      callId: "rev-1",
+      displayStatus: "awaiting_user",
+    });
+    const events = [
+      createPlanCall,
+      pendingPlanCard("rev-1"),
+      resolutionSibling("rev-1", "approved"),
+      event({}),
+    ];
+    expect(computeFrozenEventCount(events)).toBe(4);
+  });
+
+  it("freezes past a running synchronous tool zombie once a later user event exists", () => {
+    const zombie = event({
+      displayStatus: "running",
+      functionName: "read_file",
+      uiCanonical: "read_file",
+    });
+    const events = [event({}), zombie, event({}), event({ source: "user" })];
+    expect(computeFrozenEventCount(events)).toBe(4);
+  });
+
+  it("keeps a running synchronous tool in the tail while its turn may still be live", () => {
+    const running = event({
+      displayStatus: "running",
+      functionName: "read_file",
+      uiCanonical: "read_file",
+    });
+    const events = [event({ source: "user" }), event({}), running, event({})];
+    expect(computeFrozenEventCount(events)).toBe(2);
+  });
+
+  it("never freezes a running backgroundable tool, even after later user events", () => {
+    const backgroundable = event({
+      displayStatus: "running",
+      functionName: "agent",
+      uiCanonical: "subagent",
+    });
+    const events = [backgroundable, event({}), event({ source: "user" })];
+    expect(computeFrozenEventCount(events)).toBe(0);
+  });
+
+  it("keeps a non-plan awaiting_user interaction in the tail", () => {
+    const question = event({
+      displayStatus: "awaiting_user",
+      functionName: "ask_user_questions",
+      uiCanonical: "ask_user_questions",
+    });
+    const events = [event({}), question, event({}), event({ source: "user" })];
+    expect(computeFrozenEventCount(events)).toBe(1);
   });
 });
 

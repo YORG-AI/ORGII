@@ -20,7 +20,7 @@ use crate::sources::imported_history::{
         ImportedHistoryCacheInput, ImportedHistoryDiscoveredRecord, ImportedHistoryImpactStats,
         RoundUsage, StoredRoundUsage, SOURCE_CLAUDE_CODE,
     },
-    paths as imported_paths,
+    paths as imported_paths, scan_snapshot,
     watermark::{ImportedParseWatermark, WatermarkedTranscriptReader},
     ImportedHistoryRecentPath, ImportedHistorySessionPage, ImportedHistorySessionRow,
     ImportedToolCall,
@@ -214,7 +214,21 @@ pub fn stat_claude_code_history_for_session(
 }
 
 fn sync_claude_code_history_cache(conn: &mut Connection) -> Result<(), String> {
-    let mut discovered = discover_claude_code_history_records()?;
+    let previous_snapshots =
+        scan_snapshot::read_dir_snapshots_from_conn(conn, SOURCE_CLAUDE_CODE);
+    let mut walker = scan_snapshot::SnapshotDirWalker::new(&previous_snapshots, "jsonl", "Claude");
+    let discovery = discover_claude_code_history_records(&claude_projects_dirs()?, &mut walker)?;
+    let next_snapshots = walker.into_snapshots();
+    scan_snapshot::persist_dir_snapshots_if_changed(
+        conn,
+        SOURCE_CLAUDE_CODE,
+        &previous_snapshots,
+        &next_snapshots,
+    )?;
+    let ClaudeCodeDiscovery {
+        records: mut discovered,
+        external_titles,
+    } = discovery;
     // Managed (GUI-launched) sessions surface through their code_sessions
     // row; the imported twin goes unlistable. Folding the verdict into the
     // fingerprint re-parses a session whose managed status flips.
@@ -248,7 +262,12 @@ fn sync_claude_code_history_cache(conn: &mut Connection) -> Result<(), String> {
             SOURCE_CLAUDE_CODE,
             &record.source_session_id,
         )?;
-        let parse = parse_claude_session_meta_incremental(record, stored_watermark.as_ref())?;
+        let external_title = external_titles
+            .get(&record.source_session_id)
+            .cloned()
+            .unwrap_or_default();
+        let parse =
+            parse_claude_session_meta_with_title(record, stored_watermark.as_ref(), external_title)?;
         imported_history::watermark::write_parse_watermark_from_conn(
             conn,
             SOURCE_CLAUDE_CODE,
@@ -278,29 +297,77 @@ fn sync_claude_code_history_cache(conn: &mut Connection) -> Result<(), String> {
     Ok(())
 }
 
-fn discover_claude_code_history_records() -> Result<Vec<ImportedHistoryDiscoveredRecord>, String> {
+#[derive(Debug)]
+struct ClaudeCodeDiscovery {
+    records: Vec<ImportedHistoryDiscoveredRecord>,
+    external_titles: HashMap<String, String>,
+}
+
+fn discover_claude_code_history_records(
+    projects_dirs: &[PathBuf],
+    walker: &mut scan_snapshot::SnapshotDirWalker<'_>,
+) -> Result<ClaudeCodeDiscovery, String> {
     let mut records = Vec::new();
-    for projects_dir in claude_projects_dirs()? {
-        if projects_dir.is_dir() {
-            let title_index = load_claude_session_titles_for_projects_dir(&projects_dir)?;
-            let mut files = Vec::new();
-            collect_claude_session_files(&projects_dir, &mut files)?;
-            for file in files {
-                let (source_mtime_ms, source_size_bytes) =
-                    imported_paths::file_metadata_signature(&file.path, "Claude")?;
-                records.push(ImportedHistoryDiscoveredRecord {
-                    source_session_id: file.file_stem.clone(),
-                    source_path: file.path,
-                    source_record_key: file.file_stem.clone(),
-                    source_mtime_ms,
-                    source_size_bytes,
-                    source_fingerprint: claude_source_fingerprint(&file.file_stem, &title_index),
-                    parser_version: CLAUDE_CODE_METADATA_PARSER_VERSION,
-                });
+    let mut external_titles = HashMap::new();
+    for projects_dir in projects_dirs {
+        if !projects_dir.is_dir() {
+            continue;
+        }
+        let title_index = load_claude_session_titles_for_projects_dir(projects_dir)?;
+        let mut paths = Vec::new();
+        walker.collect_files(projects_dir, &mut paths)?;
+        for path in paths {
+            if is_claude_workflow_journal_path(&path) {
+                continue;
             }
+            let Some(file_stem) = path
+                .file_stem()
+                .and_then(|value| value.to_str())
+                .map(str::to_string)
+            else {
+                continue;
+            };
+            let (source_mtime_ms, source_size_bytes) =
+                imported_paths::file_metadata_signature(&path, "Claude")?;
+            if let Some(title) = title_index.get(&file_stem) {
+                external_titles.insert(
+                    file_stem.clone(),
+                    imported_history::truncate_name(&title.name, 200),
+                );
+            }
+            records.push(ImportedHistoryDiscoveredRecord {
+                source_session_id: file_stem.clone(),
+                source_path: path,
+                source_record_key: file_stem.clone(),
+                source_mtime_ms,
+                source_size_bytes,
+                source_fingerprint: claude_source_fingerprint(&file_stem, &title_index),
+                parser_version: CLAUDE_CODE_METADATA_PARSER_VERSION,
+            });
         }
     }
-    Ok(records)
+    Ok(ClaudeCodeDiscovery {
+        records,
+        external_titles,
+    })
+}
+
+/// `<uuid>/subagents/workflows/wf_*/journal.jsonl` files are workflow event
+/// journals, not session transcripts. Their shared `journal` stem collides
+/// into one cache row that every sync pass re-upserts, so they are excluded
+/// at discovery. Workflow `agent-*.jsonl` files in the same tree ARE real
+/// sidechain transcripts and stay included.
+fn is_claude_workflow_journal_path(path: &Path) -> bool {
+    if path.file_stem().and_then(|value| value.to_str()) != Some("journal") {
+        return false;
+    }
+    let components = path
+        .components()
+        .filter_map(|component| component.as_os_str().to_str())
+        .collect::<Vec<_>>();
+    components
+        .windows(2)
+        .any(|pair| pair == ["subagents", "workflows"])
 }
 
 fn collect_claude_session_files(
@@ -316,6 +383,9 @@ fn collect_claude_session_files(
             .extension()
             .is_some_and(|extension| extension == "jsonl")
         {
+            if is_claude_workflow_journal_path(&path) {
+                continue;
+            }
             let Some(file_stem) = path.file_stem().and_then(|value| value.to_str()) else {
                 continue;
             };
@@ -396,6 +466,7 @@ fn claude_source_fingerprint(
         .unwrap_or_default()
 }
 
+#[cfg(test)]
 fn claude_session_title_for_record(
     record: &ImportedHistoryDiscoveredRecord,
 ) -> Result<String, String> {
@@ -409,6 +480,7 @@ fn claude_session_title_for_record(
         .unwrap_or_default())
 }
 
+#[cfg(test)]
 fn claude_sessions_dir_for_session_path(session_path: &Path) -> Option<PathBuf> {
     session_path.ancestors().find_map(|ancestor| {
         if ancestor.file_name().and_then(|name| name.to_str()) == Some("projects") {
@@ -684,9 +756,10 @@ struct ClaudeSessionMetaParse {
     resumed: bool,
 }
 
-fn parse_claude_session_meta_incremental(
+fn parse_claude_session_meta_with_title(
     record: &ImportedHistoryDiscoveredRecord,
     watermark: Option<&ImportedParseWatermark>,
+    external_title: String,
 ) -> Result<ClaudeSessionMetaParse, String> {
     let mut reader = WatermarkedTranscriptReader::open(
         &record.source_path,
@@ -730,7 +803,6 @@ fn parse_claude_session_meta_incremental(
             tail_state = Some(snapshot);
         }
     }
-    let external_title = claude_session_title_for_record(record)?;
     let state_json = serde_json::to_string(&state)
         .map_err(|err| format!("Failed to serialize Claude parse state: {err}"))?;
     let next_watermark = reader.into_watermark(
@@ -745,6 +817,15 @@ fn parse_claude_session_meta_incremental(
         watermark: next_watermark,
         resumed,
     })
+}
+
+#[cfg(test)]
+fn parse_claude_session_meta_incremental(
+    record: &ImportedHistoryDiscoveredRecord,
+    watermark: Option<&ImportedParseWatermark>,
+) -> Result<ClaudeSessionMetaParse, String> {
+    let external_title = claude_session_title_for_record(record)?;
+    parse_claude_session_meta_with_title(record, watermark, external_title)
 }
 
 #[cfg(test)]
