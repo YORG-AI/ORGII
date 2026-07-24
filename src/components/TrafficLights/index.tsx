@@ -107,24 +107,31 @@ const TrafficLights: React.FC<TrafficLightsProps> = ({
   return (
     <div className={`title-bar-buttons flex items-center ${className}`}>
       {/* Red button - Close */}
-      <div
-        className="mr-1.5 h-[14px] w-[14px] cursor-pointer rounded-full border-[0.5px] border-solid border-[#CE5347] bg-[#ED6A5E]"
+      <button
+        type="button"
+        className="mr-1.5 h-[14px] w-[14px] cursor-pointer rounded-full border-[0.5px] border-solid border-[#CE5347] bg-[#ED6A5E] p-0"
+        aria-label="Close window"
         onClick={handleClose}
-      ></div>
+      />
 
       {/* Yellow button - Minimize */}
-      <div
-        className="mr-1.5 h-[14px] w-[14px] cursor-pointer rounded-full border-[0.5px] border-solid border-[#D6A243] bg-[#F6BE4F]"
+      <button
+        type="button"
+        className="mr-1.5 h-[14px] w-[14px] cursor-pointer rounded-full border-[0.5px] border-solid border-[#D6A243] bg-[#F6BE4F] p-0"
+        aria-label="Minimize window"
         onClick={handleMinimize}
-      ></div>
+      />
 
       {/* Green button - Maximize/restore, can be disabled */}
-      <div
-        className={`h-[14px] w-[14px] rounded-full border-[0.5px] border-solid border-[#58A942] bg-[#62C554] ${
+      <button
+        type="button"
+        className={`h-[14px] w-[14px] rounded-full border-[0.5px] border-solid border-[#58A942] bg-[#62C554] p-0 ${
           disableMaximize ? "cursor-not-allowed opacity-50" : "cursor-pointer"
         }`}
-        onClick={disableMaximize ? undefined : handleMaximize}
-      ></div>
+        aria-label="Maximize or restore window"
+        disabled={disableMaximize}
+        onClick={handleMaximize}
+      />
     </div>
   );
 };
