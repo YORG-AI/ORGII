@@ -961,61 +961,108 @@ function createOrg2TreeBadge(level: Org2TreeLevel): React.ReactNode {
 export function buildOrg2TreeItems(
   sessions: readonly import("@src/store/session").Session[]
 ): NavigationMenuItem[] {
-  const projects = new Map<string, Map<string, NavigationMenuItem[]>>();
+  const projects = new Map<
+    string,
+    Array<import("@src/store/session").Session>
+  >();
   for (const session of sessions) {
     const projectKey = session.projectSlug || session.projectId || "Unlinked";
-    const workItemKey = session.workItemId || "Unlinked task";
-    const projectBucket =
-      projects.get(projectKey) ?? new Map<string, NavigationMenuItem[]>();
-    const workItemBucket = projectBucket.get(workItemKey) ?? [];
-    workItemBucket.push({
-      // 复用普通 session 列表的 id，点击、hover 行动作、右键菜单都走同一套逻辑。
-      id: session.session_id,
-      key: `org2-tree-session-${session.session_id}`,
-      label: session.name || session.user_input || session.session_id,
-      shortcut: "session",
-      iconElement: createOrg2TreeBadge("session"),
-    });
-    projectBucket.set(workItemKey, workItemBucket);
-    projects.set(projectKey, projectBucket);
+    const bucket = projects.get(projectKey) ?? [];
+    bucket.push(session);
+    projects.set(projectKey, bucket);
   }
+
+  const sessionCount = sessions.length;
   return [
     {
       id: "org2-tree-workspace",
       key: "org2-tree-workspace",
       label: "Workspace hierarchy",
-      shortcut: "workspace",
+      shortcut: `${projects.size} projects`,
+      trailingElement: createOrg2TreeCountBadge(sessionCount, "sessions"),
       iconElement: createOrg2TreeBadge("workspace"),
-      // # ORG2 hierarchy tree: workspace → project → task/work-item → session. Unlinked data stays under a muted fallback group.
+      // Exact hierarchy: Workspace → Project → Session → Task.
       children: Array.from(projects.entries()).map(
-        ([projectName, workItems]) => {
+        ([projectName, projectSessions]) => {
           const isUnlinkedProject = projectName === "Unlinked";
           return {
             id: `org2-tree-project-${projectName}`,
             key: `org2-tree-project-${projectName}`,
             label: projectName,
-            shortcut: isUnlinkedProject ? "Unlinked" : "project",
+            shortcut: `${projectSessions.length} sessions`,
+            trailingElement: createOrg2TreeCountBadge(
+              projectSessions.length,
+              "sessions"
+            ),
             iconElement: createOrg2TreeBadge(
               isUnlinkedProject ? "unlinked" : "project"
             ),
-            children: Array.from(workItems.entries()).map(
-              ([workItemName, sessionItems]) => {
-                const isUnlinkedTask = workItemName === "Unlinked task";
-                return {
-                  id: `org2-tree-wi-${projectName}-${workItemName}`,
-                  key: `org2-tree-wi-${projectName}-${workItemName}`,
-                  label: workItemName,
-                  shortcut: "task",
-                  iconElement: createOrg2TreeBadge(
-                    isUnlinkedTask ? "unlinked" : "task"
-                  ),
-                  children: sessionItems,
-                };
-              }
-            ),
-          };
+            children: projectSessions.map((session) => {
+              const workItemName = session.workItemId || "Unlinked task";
+              const taskUnlinked = workItemName === "Unlinked task";
+              return {
+                // Reuse the ordinary session id so selection, hover actions,
+                // context menus and virtualized list navigation stay shared.
+                id: session.session_id,
+                key: `org2-tree-session-${session.session_id}`,
+                label:
+                  session.displayLabel ||
+                  session.name ||
+                  session.user_input ||
+                  session.session_id,
+                shortcut: "session",
+                trailingElement: createOrg2TreeStatusBadge(session.status),
+                iconElement: createOrg2TreeBadge("session"),
+                children: [
+                  {
+                    id: `org2-tree-task-${session.session_id}`,
+                    key: `org2-tree-task-${session.session_id}`,
+                    label: workItemName,
+                    shortcut: taskUnlinked ? "unlinked" : "task",
+                    iconElement: createOrg2TreeBadge(
+                      taskUnlinked ? "unlinked" : "task"
+                    ),
+                    showIndentGuide: true,
+                    visualTone: taskUnlinked ? "secondary" : "default",
+                    disabled: true,
+                  },
+                ],
+              } satisfies NavigationMenuItem;
+            }),
+          } satisfies NavigationMenuItem;
         }
       ),
     },
   ];
+}
+
+function createOrg2TreeCountBadge(
+  count: number,
+  label: string
+): React.ReactNode {
+  return (
+    <span
+      className="rounded-full bg-fill-3 px-1.5 py-0.5 text-[10px] tabular-nums text-text-2"
+      title={`${count} ${label}`}
+    >
+      {count}
+    </span>
+  );
+}
+
+function createOrg2TreeStatusBadge(status: string): React.ReactNode {
+  const running = [
+    "running",
+    "pending",
+    "in_progress",
+    "waiting_for_user",
+  ].includes(status);
+  const failed = ["failed", "error", "cancelled", "timeout"].includes(status);
+  return (
+    <span
+      className={`h-2 w-2 rounded-full ${failed ? "bg-danger-5" : running ? "animate-pulse bg-primary-5" : "bg-success-5"}`}
+      title={status}
+      aria-label={`Session status: ${status}`}
+    />
+  );
 }

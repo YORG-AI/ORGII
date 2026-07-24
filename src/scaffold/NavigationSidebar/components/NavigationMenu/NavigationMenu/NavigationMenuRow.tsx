@@ -118,6 +118,7 @@ export const NavigationMenuParentRow = React.forwardRef<
           {!collapsed && (
             <div className="flex min-w-0 flex-1 flex-col gap-0">
               <span
+                title={item.label}
                 className={`truncate text-[13px] ${
                   submenuSelected ? "font-medium text-primary-6" : "text-text-1"
                 }`}
@@ -164,7 +165,7 @@ export const NavigationMenuParentRow = React.forwardRef<
       </div>
 
       {isOpen && !collapsed && item.children && (
-        <div className="mt-1 space-y-1">
+        <div className="relative mt-1 space-y-1 before:pointer-events-none before:absolute before:bottom-1 before:left-2 before:top-0 before:w-px before:bg-border-3">
           {item.children.map((child) => (
             <React.Fragment key={child.key}>
               {renderMenuItem(child, true)}
@@ -300,6 +301,7 @@ export const NavigationMenuLeafRow = React.forwardRef<
           {!collapsed && (
             <div className="flex min-w-0 flex-1 flex-col gap-0">
               <span
+                title={item.label}
                 className={`min-w-0 truncate text-[13px] ${
                   item.disabled
                     ? isSecondaryTone

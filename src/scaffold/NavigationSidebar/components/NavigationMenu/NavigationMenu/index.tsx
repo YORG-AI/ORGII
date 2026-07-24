@@ -56,7 +56,10 @@ const NavigationMenu: React.FC<NavigationMenuProps> = React.memo(
     const isSubmenuSelected = useCallback(
       (item: NavigationMenuItem): boolean => {
         if (!item.children) return false;
-        return item.children.some((child) => selectedKeys.includes(child.key));
+        return item.children.some(
+          (child) =>
+            selectedKeys.includes(child.key) || isSubmenuSelected(child)
+        );
       },
       // eslint-disable-next-line react-hooks/exhaustive-deps
       [selectedKeysKey]
@@ -77,13 +80,23 @@ const NavigationMenu: React.FC<NavigationMenuProps> = React.memo(
     }, [itemsKey, defaultOpenKeysKey]);
 
     useEffect(() => {
-      items.forEach((item) => {
-        if (item.children && isSubmenuSelected(item)) {
-          setOpenSubmenus((prev) =>
-            prev.includes(item.key) ? prev : [...prev, item.key]
-          );
+      const selectedAncestors: string[] = [];
+      const collectSelectedAncestors = (
+        nodes: readonly NavigationMenuItem[]
+      ) => {
+        for (const item of nodes) {
+          if (item.children && isSubmenuSelected(item)) {
+            selectedAncestors.push(item.key);
+            collectSelectedAncestors(item.children);
+          }
         }
-      });
+      };
+      collectSelectedAncestors(items);
+      if (selectedAncestors.length > 0) {
+        setOpenSubmenus((prev) =>
+          Array.from(new Set([...prev, ...selectedAncestors]))
+        );
+      }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [itemsKey, selectedKeysKey]);
 
