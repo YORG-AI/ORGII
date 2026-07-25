@@ -1,5 +1,7 @@
 import { z } from "zod/v4";
 
+import replayBudgets from "@src/shared/externalReplayBudgets.json";
+
 const SafeU64Schema = z
   .number()
   .int()
@@ -125,7 +127,10 @@ export const CollaborationSnapshotIngestPageRequestSchema = z
     nextCursor: CollaborationSnapshotWireCursorSchema.nullable(),
     tailIncluded: z.boolean(),
     hasMore: z.boolean(),
-    returnedWireBytes: SafeU64Schema.max(4 * 1024 * 1024),
+    returnedWireBytes: SafeU64Schema.max(
+      replayBudgets.cloudPageMaxBytes +
+        replayBudgets.cloudLegacyV1SegmentMaxBytes
+    ),
     segments: z.array(CollaborationSnapshotWireSchema).max(200),
   })
   .superRefine((value, context) => {

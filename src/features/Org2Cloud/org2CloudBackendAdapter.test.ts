@@ -115,6 +115,64 @@ describe("cloud bounded replay adapter", () => {
     expect(downloadReplayObjectMock).not.toHaveBeenCalled();
   });
 
+  it("passes one oversized legacy candidate through for Rust verification", async () => {
+    const wire = {
+      seq: 1,
+      payloadGz: "x".repeat(257 * 1024),
+      eventCount: 1,
+      segmentHash: "legacy-hash",
+    };
+    getSessionEventsMock.mockResolvedValue({
+      ...emptyPage(),
+      epoch: 1,
+      frozenSeq: 1,
+      count: 1,
+      segments: [wire],
+      returnedWireBytes: 100,
+    } as CloudSessionEventWirePage);
+    const client = buildCloudSessionWirePageClient("jwt-token");
+
+    const result = await client.getSessionEventWirePage({
+      orgId: "org-1",
+      sessionRowId: "agentsession-legacy",
+      cursor: { direction: "backward" },
+      includeTail: true,
+      maxSegments: 16,
+      maxWireBytes: 1024 * 1024,
+    });
+
+    expect(result.segments).toEqual([wire]);
+  });
+
+  it("rejects two oversized legacy candidates in one materialized page", async () => {
+    const segments = [1, 2].map((seq) => ({
+      seq,
+      payloadGz: "x".repeat(257 * 1024),
+      eventCount: 1,
+      segmentHash: `legacy-${seq}`,
+    }));
+    getSessionEventsMock.mockResolvedValue({
+      ...emptyPage(),
+      epoch: 1,
+      frozenSeq: 2,
+      count: 2,
+      segments,
+      returnedWireBytes: 200,
+    } as CloudSessionEventWirePage);
+    const client = buildCloudSessionWirePageClient("jwt-token");
+
+    await expect(
+      client.getSessionEventWirePage({
+        orgId: "org-1",
+        sessionRowId: "agentsession-legacy",
+        cursor: { direction: "backward" },
+        includeTail: true,
+        maxSegments: 16,
+        maxWireBytes: 1024 * 1024,
+      })
+    ).rejects.toThrow(/more than one oversized legacy V1 candidate/);
+  });
+
   it("materializes a storage row as opaque gzip without parsing events", async () => {
     const stored = await toFrozenSegmentStorage({
       seq: 7,

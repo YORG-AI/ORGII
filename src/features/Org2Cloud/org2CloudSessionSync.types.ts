@@ -15,6 +15,7 @@ type Org2CloudSyncClientMethods = Pick<
   | "appendSessionEventWires"
   | "rewriteSessionEvents"
   | "rewriteSessionEventWires"
+  | "uploadSessionEventWires"
   | "getOrgRepoScopes"
   | "listOrgSessions"
   | "deleteSession"

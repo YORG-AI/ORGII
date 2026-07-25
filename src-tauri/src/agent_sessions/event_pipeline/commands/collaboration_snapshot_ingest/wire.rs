@@ -42,21 +42,70 @@ pub(super) fn sha256_hex(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
+#[derive(Default)]
+struct CountingWriter {
+    bytes: usize,
+}
+
+impl Write for CountingWriter {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        self.bytes = self
+            .bytes
+            .checked_add(buffer.len())
+            .ok_or_else(|| std::io::Error::other("wire byte count overflow"))?;
+        Ok(buffer.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+struct Sha256Writer(Sha256);
+
+impl Write for Sha256Writer {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        self.0.update(buffer);
+        Ok(buffer.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+fn serialized_wire_bytes(wire: &CollaborationSnapshotWire) -> Result<usize, String> {
+    let mut writer = CountingWriter::default();
+    serde_json::to_writer(&mut writer, wire)
+        .map_err(|error| format!("measure physical wire {}: {error}", wire.seq))?;
+    Ok(writer.bytes)
+}
+
+fn serialized_page_hash(segments: &[CollaborationSnapshotWire]) -> Result<String, String> {
+    let mut writer = Sha256Writer(Sha256::new());
+    serde_json::to_writer(&mut writer, segments)
+        .map_err(|error| format!("hash wire page: {error}"))?;
+    Ok(format!("{:x}", writer.0.finalize()))
+}
+
 pub(super) fn decode_wire_to_file(
     root: &Path,
     token: &str,
     wire: &CollaborationSnapshotWire,
 ) -> Result<DecodedWireFile, String> {
     validate_hash("segmentHash", &wire.segment_hash)?;
-    let compressed = BASE64_STANDARD
-        .decode(&wire.payload_gz)
-        .map_err(|error| format!("segment {} has invalid base64: {error}", wire.seq))?;
     let temp_path = root.join(format!("{token}-wire-{}-{}.tmp", wire.seq, Uuid::new_v4()));
     let temp_guard = TempFileGuard::new(temp_path.clone());
     let file = File::create(&temp_path)
         .map_err(|error| format!("create decoded wire staging file: {error}"))?;
     let mut output = BufWriter::with_capacity(64 * 1024, file);
-    let mut decoder = GzDecoder::new(compressed.as_slice());
+    // Decode base64 directly into the gzip reader. Legacy V1 compatibility
+    // can admit one physical row larger than the normal IPC budget; avoiding
+    // a second compressed Vec keeps that one-time migration path bounded by
+    // the incoming wire string plus the 64 KiB streaming buffers.
+    let base64_reader =
+        base64::read::DecoderReader::new(wire.payload_gz.as_bytes(), &BASE64_STANDARD);
+    let mut decoder = GzDecoder::new(base64_reader);
     let mut hasher = Sha256::new();
     let mut total = 0_u64;
     let mut prefix = Vec::with_capacity(FRAME_MAGIC.len());
@@ -287,27 +336,40 @@ pub(super) fn validate_page_contract(
         ));
     }
     let mut seen_sequences = std::collections::HashSet::new();
+    let mut legacy_v1_candidates = 0_usize;
     let actual_wire_bytes = request.segments.iter().try_fold(0_usize, |total, wire| {
         if !seen_sequences.insert(wire.seq) {
             return Err(format!("wire page repeats physical seq {}", wire.seq));
         }
-        let bytes = serde_json::to_vec(wire)
-            .map_err(|error| format!("measure physical wire {}: {error}", wire.seq))?
-            .len();
+        let bytes = serialized_wire_bytes(wire)?;
         if bytes > MAX_WIRE_BYTES {
-            return Err(format!(
-                "physical wire {} is {bytes} bytes (limit {MAX_WIRE_BYTES})",
-                wire.seq
-            ));
+            if bytes > LEGACY_V1_MAX_WIRE_BYTES {
+                return Err(format!(
+                    "physical wire {} is {bytes} bytes (legacy V1 limit {LEGACY_V1_MAX_WIRE_BYTES})",
+                    wire.seq
+                ));
+            }
+            legacy_v1_candidates += 1;
+            if legacy_v1_candidates > 1 {
+                return Err(
+                    "wire page contains more than one oversized legacy V1 candidate".to_string(),
+                );
+            }
         }
         total
             .checked_add(bytes)
             .ok_or_else(|| "wire page byte count overflow".to_string())
     })?;
-    if actual_wire_bytes > MAX_PAGE_BYTES || request.returned_wire_bytes != actual_wire_bytes as u64
-    {
+    let page_limit = if legacy_v1_candidates == 0 {
+        MAX_PAGE_BYTES
+    } else {
+        MAX_PAGE_BYTES
+            .checked_add(LEGACY_V1_MAX_WIRE_BYTES)
+            .ok_or_else(|| "legacy wire page limit overflow".to_string())?
+    };
+    if actual_wire_bytes > page_limit || request.returned_wire_bytes != actual_wire_bytes as u64 {
         return Err(format!(
-            "wire page byte count is {actual_wire_bytes}, reported {} (limit {MAX_PAGE_BYTES})",
+            "wire page byte count is {actual_wire_bytes}, reported {} (limit {page_limit})",
             request.returned_wire_bytes
         ));
     }
@@ -434,10 +496,7 @@ pub(super) fn apply_page_at_root(
 
     let page_cursor_json = cursor_json(&request.cursor)?;
     let next_cursor_json = request.next_cursor.as_ref().map(cursor_json).transpose()?;
-    let page_hash = sha256_hex(
-        &serde_json::to_vec(&request.segments)
-            .map_err(|error| format!("hash wire page: {error}"))?,
-    );
+    let page_hash = serialized_page_hash(&request.segments)?;
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS staged_pages(
            cursor_json TEXT PRIMARY KEY,
@@ -487,6 +546,13 @@ pub(super) fn apply_page_at_root(
             ));
         }
         let decoded = decode_wire_to_file(root, &request.token, wire)?;
+        let physical_wire_bytes = serialized_wire_bytes(wire)?;
+        if physical_wire_bytes > MAX_WIRE_BYTES && decoded.is_v2 {
+            return Err(format!(
+                "Attachment V2 physical wire {} exceeds the {MAX_WIRE_BYTES} byte limit",
+                wire.seq
+            ));
+        }
         if decoded.hash != wire.segment_hash.to_ascii_lowercase() || decoded.bytes == 0 {
             return Err(format!(
                 "physical row {} decoded to invalid content",

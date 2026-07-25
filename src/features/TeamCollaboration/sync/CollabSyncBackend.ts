@@ -86,6 +86,14 @@ export interface SessionEventsSegmentInput {
  */
 export const SESSION_EVENT_WIRE_MAX_SEGMENT_BYTES =
   replayBudgets.cloudSegmentMaxBytes;
+/**
+ * Compatibility ceiling for one pre-Attachment-V2 inline row. New writers
+ * must never use this allowance; it exists only so an already-published V1
+ * row can be streamed through Rust and re-indexed instead of becoming
+ * permanently unreadable after the 256 KiB transport cap shipped.
+ */
+export const SESSION_EVENT_WIRE_MAX_LEGACY_V1_SEGMENT_BYTES =
+  replayBudgets.cloudLegacyV1SegmentMaxBytes;
 export const SESSION_EVENT_WIRE_MAX_PAGE_BYTES =
   replayBudgets.cloudPageMaxBytes;
 export const SESSION_EVENT_WIRE_MAX_PAGE_SEGMENTS =

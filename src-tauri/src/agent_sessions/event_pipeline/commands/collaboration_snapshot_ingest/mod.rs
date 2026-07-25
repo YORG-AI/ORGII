@@ -12,7 +12,6 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
-use base64::Engine as _;
 use chrono::Utc;
 use flate2::read::GzDecoder;
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
@@ -30,7 +29,7 @@ use super::replay_cloud_wire::{
     decode_replay_attachment_v2_frame, ReplayAttachmentV2FrameHeader,
     CLOUD_PAGE_MAX_BYTES as MAX_PAGE_BYTES, CLOUD_PAGE_MAX_SEGMENTS as MAX_PAGE_SEGMENTS,
     CLOUD_SEGMENT_WIRE_MAX_BYTES as MAX_WIRE_BYTES,
-    LEGACY_V1_MAX_DECOMPRESSED_BYTES as MAX_DECOMPRESSED_V1_BYTES,
+    LEGACY_V1_MAX_DECOMPRESSED_BYTES as MAX_DECOMPRESSED_V1_BYTES, LEGACY_V1_MAX_WIRE_BYTES,
     REPLAY_ATTACHMENT_V2_MAGIC as FRAME_MAGIC,
     REPLAY_ATTACHMENT_V2_MAX_DECOMPRESSED_BYTES as MAX_DECOMPRESSED_V2_BYTES,
 };

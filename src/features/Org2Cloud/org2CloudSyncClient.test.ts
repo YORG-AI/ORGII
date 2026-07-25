@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 
-import { computeSegmentHash } from "../TeamCollaboration/sync/collabGzip";
+import {
+  bytesToBase64,
+  computeSegmentHash,
+} from "../TeamCollaboration/sync/collabGzip";
 import {
   decodeSegmentEvents,
   decodeSegmentEventsFromBytes,
@@ -27,6 +30,7 @@ import {
   rewriteSessionEventWires,
   rewriteSessionEvents,
   setOrgRepoScopes,
+  uploadSessionEventWires,
   upsertSessionMetadata,
 } from "./org2CloudSyncClient";
 
@@ -280,6 +284,25 @@ describe("cloud_rewrite_session_events", () => {
     expect(lastBody().frozen_segments).toEqual([wire]);
   });
 
+  it("publishes a complete stored-reference epoch in one rewrite RPC", async () => {
+    const stored = Array.from({ length: 32 }, (_, index) => ({
+      seq: index + 1,
+      storagePath: `org-1/s-1/5/${index + 1}-hash-${index}.gz`,
+      eventCount: 1,
+      segmentHash: `hash-${index}`,
+    }));
+    await rewriteSessionEventWires("jwt-1", {
+      orgId: "org-1",
+      sessionId: "s-1",
+      newEpoch: 5,
+      frozenSegments: stored,
+      tail: null,
+      totalCount: stored.length,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(lastBody().frozen_segments).toEqual(stored);
+  });
+
   it("ships the rewrite body with new_epoch", async () => {
     await rewriteSessionEvents("jwt-1", {
       orgId: "org-1",
@@ -374,6 +397,65 @@ describe("storage segment offload (0006)", () => {
     const tailWire = body.tail as Record<string, unknown>;
     expect(typeof tailWire.payloadGz).toBe("string");
     expect(tailWire).not.toHaveProperty("storagePath");
+  });
+
+  it("uploads opaque Rust wires and returns compact epoch references", async () => {
+    const gzip = new Uint8Array([31, 139, 8, 0, 1, 2, 3, 4]);
+    const stored = await uploadSessionEventWires("jwt-1", {
+      orgId: "org-1",
+      sessionId: "s-1",
+      epoch: 9,
+      frozenSegments: [
+        {
+          seq: 7,
+          payloadGz: bytesToBase64(gzip),
+          eventCount: 1,
+          segmentHash: "opaque-hash",
+        },
+      ],
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect((fetchMock.mock.calls[0] as [string, RequestInit])[0]).toBe(
+      `${ORG2_CLOUD_OFFICIAL_SUPABASE_URL}/storage/v1/object/replay/org-1/s-1/9/7-opaque-hash.gz`
+    );
+    expect(
+      Array.from(
+        (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as Uint8Array
+      )
+    ).toEqual(Array.from(gzip));
+    expect(stored).toEqual([
+      {
+        seq: 7,
+        storagePath: "org-1/s-1/9/7-opaque-hash.gz",
+        eventCount: 1,
+        segmentHash: "opaque-hash",
+      },
+    ]);
+  });
+
+  it("fails before publication when storage segments are unavailable", async () => {
+    capabilitiesMock.mockResolvedValue({
+      broadcastSignals: false,
+      storageSegments: false,
+      homeEndpoints: false,
+    });
+    await expect(
+      uploadSessionEventWires("jwt-1", {
+        orgId: "org-1",
+        sessionId: "s-1",
+        epoch: 9,
+        frozenSegments: [
+          {
+            seq: 1,
+            payloadGz: bytesToBase64(new Uint8Array([31, 139])),
+            eventCount: 1,
+            segmentHash: "hash",
+          },
+        ],
+      })
+    ).rejects.toThrow(/storage-segment support/);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("rewrite keys the object paths by the new epoch", async () => {
@@ -1052,19 +1134,13 @@ describe("cloud_list_org_sessions keyset pagination (0005)", () => {
     ).rejects.toThrow();
   });
 
-  it("stops reading when a legacy/full response exceeds the HTTP body cap", async () => {
+  it("stops reading when a response exceeds the legacy migration body cap", async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        epoch: 1,
-        frozenSeq: 1,
-        segments: [
-          {
-            seq: 1,
-            payloadGz: "x".repeat(100 * 1024),
-            eventCount: 1,
-            segmentHash: "legacy-full-response",
-          },
-        ],
+      new Response("{}", {
+        headers: {
+          "content-type": "application/json",
+          "content-length": String(70 * 1024 * 1024),
+        },
       })
     );
 
@@ -1076,10 +1152,10 @@ describe("cloud_list_org_sessions keyset pagination (0005)", () => {
         maxSegments: 1,
         maxWireBytes: 1024,
       })
-    ).rejects.toThrow(/response exceeded/);
+    ).rejects.toThrow(/response (declares|exceeded)/);
   });
 
-  it("fails closed when the server exceeds the physical wire budget", async () => {
+  it("admits one oversized legacy V1 candidate for Rust verification", async () => {
     const oversized = {
       seq: 1,
       payloadGz: "x".repeat(257 * 1024),
@@ -1099,6 +1175,44 @@ describe("cloud_list_org_sessions keyset pagination (0005)", () => {
         nextCursor: null,
         returnedWireBytes: new TextEncoder().encode(JSON.stringify(oversized))
           .byteLength,
+      })
+    );
+
+    const page = await getSessionEvents("jwt-1", "org-1", "s-1", {
+      boundedWirePage: true,
+      cursor: { direction: "forward", afterSeq: 0 },
+      includeTail: false,
+      maxSegments: 16,
+      maxWireBytes: 1024 * 1024,
+    });
+    expect(page.segments).toEqual([oversized]);
+  });
+
+  it("rejects pages with two oversized legacy candidates", async () => {
+    const oversized = (seq: number) => ({
+      seq,
+      payloadGz: "x".repeat(257 * 1024),
+      eventCount: 1,
+      segmentHash: `oversized-${seq}`,
+    });
+    const segments = [oversized(1), oversized(2)];
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        epoch: 1,
+        frozenSeq: 2,
+        tailHash: null,
+        count: 2,
+        segments,
+        direction: "forward",
+        tailIncluded: false,
+        hasMore: false,
+        nextCursor: null,
+        returnedWireBytes: segments.reduce(
+          (total, segment) =>
+            total +
+            new TextEncoder().encode(JSON.stringify(segment)).byteLength,
+          0
+        ),
       })
     );
 

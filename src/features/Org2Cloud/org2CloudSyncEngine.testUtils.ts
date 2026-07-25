@@ -67,6 +67,8 @@ import type {
   CloudRewriteSessionEventWiresInput,
   CloudRewriteSessionEventsInput,
   CloudSessionEventsSnapshot,
+  CloudStoredSegmentWire,
+  CloudUploadSessionEventWiresInput,
 } from "./org2CloudSyncClient";
 import { Org2CloudSyncError } from "./org2CloudSyncClient";
 import {
@@ -295,6 +297,18 @@ export function makeClient() {
     rewriteSessionEventWires: vi.fn(
       async (_token: string, _input: CloudRewriteSessionEventWiresInput) =>
         undefined
+    ),
+    uploadSessionEventWires: vi.fn(
+      async (
+        _token: string,
+        input: CloudUploadSessionEventWiresInput
+      ): Promise<CloudStoredSegmentWire[]> =>
+        input.frozenSegments.map((segment) => ({
+          seq: segment.seq ?? 0,
+          storagePath: `${input.orgId}/${input.sessionId}/${input.epoch}/${segment.seq}-${segment.segmentHash}.gz`,
+          eventCount: segment.eventCount,
+          segmentHash: segment.segmentHash,
+        }))
     ),
     getSessionEvents: vi.fn(
       async (

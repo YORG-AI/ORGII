@@ -24,6 +24,7 @@ import type {
 } from "@src/store/collaboration/types";
 
 import {
+  SESSION_EVENT_WIRE_MAX_LEGACY_V1_SEGMENT_BYTES,
   SESSION_EVENT_WIRE_MAX_PAGE_BYTES,
   SESSION_EVENT_WIRE_MAX_PAGE_SEGMENTS,
   SESSION_EVENT_WIRE_MAX_SEGMENT_BYTES,
@@ -31,6 +32,7 @@ import {
   type SessionEventWirePageCursor,
   type SessionEventsSegmentInput,
 } from "../TeamCollaboration/sync/CollabSyncBackend";
+import { base64ToBytes } from "../TeamCollaboration/sync/collabGzip";
 import {
   type SegmentWirePayload,
   mapSegmentsBounded,
@@ -58,7 +60,17 @@ const cloudSegmentWireEncoder = new TextEncoder();
 const CLOUD_WIRE_PAGE_RESPONSE_OVERHEAD_BYTES = 64 * 1024;
 
 function cloudSegmentWireBytes(segment: CloudSegmentWire): number {
-  return cloudSegmentWireEncoder.encode(JSON.stringify(segment)).byteLength;
+  if (typeof segment.payloadGz !== "string") {
+    return cloudSegmentWireEncoder.encode(JSON.stringify(segment)).byteLength;
+  }
+  // Base64 contains no JSON escape characters. Measure the small envelope
+  // with an empty payload and add the existing string length instead of
+  // allocating a second copy of a legacy row that may be tens of MiB.
+  return (
+    cloudSegmentWireEncoder.encode(
+      JSON.stringify({ ...segment, payloadGz: "" })
+    ).byteLength + segment.payloadGz.length
+  );
 }
 
 function assertCloudSegmentWireBudget(
@@ -421,13 +433,6 @@ async function shouldUseStorageSegments(
   return (await getCloudCapabilities(accessToken)).storageSegments;
 }
 
-interface CloudStorageSegmentWire {
-  seq: number;
-  storagePath: string;
-  eventCount: number;
-  segmentHash: string;
-}
-
 /** Upload each frozen segment's raw gzip bytes, then describe it by path. */
 async function uploadFrozenSegmentsToStorage(
   accessToken: string,
@@ -436,7 +441,7 @@ async function uploadFrozenSegmentsToStorage(
   sessionId: string,
   epoch: number,
   segments: SessionEventsSegmentInput[]
-): Promise<CloudStorageSegmentWire[]> {
+): Promise<CloudStoredSegmentWire[]> {
   return mapSegmentsBounded(segments, async (segment) => {
     const encoded = await toFrozenSegmentStorage(segment);
     const storagePath = buildReplayObjectPath(
@@ -558,9 +563,83 @@ export interface CloudRewriteSessionEventWiresInput {
   orgId: string;
   sessionId: string;
   newEpoch: number;
-  frozenSegments: SegmentWirePayload[];
+  frozenSegments: CloudFrozenSegmentWrite[];
   tail: Omit<SegmentWirePayload, "seq"> | null;
   totalCount: number;
+}
+
+export interface CloudStoredSegmentWire {
+  seq: number;
+  storagePath: string;
+  eventCount: number;
+  segmentHash: string;
+}
+
+export type CloudFrozenSegmentWrite =
+  | SegmentWirePayload
+  | CloudStoredSegmentWire;
+
+export interface CloudUploadSessionEventWiresInput {
+  orgId: string;
+  sessionId: string;
+  epoch: number;
+  frozenSegments: SegmentWirePayload[];
+  signal?: AbortSignal;
+}
+
+function isInlineSegmentWire(
+  segment: CloudFrozenSegmentWrite
+): segment is SegmentWirePayload {
+  return "payloadGz" in segment;
+}
+
+/**
+ * Upload already-compressed Rust spool rows one batch at a time and retain
+ * only compact object references in the renderer. A full epoch rewrite can
+ * then publish all references in one atomic RPC without hydrating the
+ * transcript or exposing its first batch early.
+ */
+export async function uploadSessionEventWires(
+  accessToken: string,
+  input: CloudUploadSessionEventWiresInput
+): Promise<CloudStoredSegmentWire[]> {
+  const endpoint = getCloudEndpoint();
+  if (!(await shouldUseStorageSegments(accessToken, endpoint))) {
+    throw new Org2CloudSyncError(
+      "Atomic external replay rewrites require Cloud storage-segment support"
+    );
+  }
+  const stored: CloudStoredSegmentWire[] = [];
+  for (const segment of input.frozenSegments) {
+    if (input.signal?.aborted) {
+      throw input.signal.reason ?? new DOMException("Aborted", "AbortError");
+    }
+    assertCloudSegmentWireBudget(segment);
+    if (segment.seq === undefined) {
+      throw new Error("Frozen Cloud segment wire is missing its sequence");
+    }
+    const storagePath = buildReplayObjectPath(
+      input.orgId,
+      input.sessionId,
+      input.epoch,
+      segment.seq,
+      segment.segmentHash
+    );
+    await uploadReplayObject(
+      accessToken,
+      storagePath,
+      base64ToBytes(segment.payloadGz),
+      endpoint,
+      input.signal
+    );
+    stored.push({
+      seq: segment.seq,
+      storagePath,
+      eventCount: segment.eventCount,
+      segmentHash: segment.segmentHash,
+    });
+  }
+  return stored;
 }
 
 /** Owner: forward Rust-prepared bounded wires without decoding/re-encoding. */
@@ -569,7 +648,7 @@ export async function rewriteSessionEventWires(
   input: CloudRewriteSessionEventWiresInput
 ): Promise<void> {
   for (const segment of input.frozenSegments) {
-    assertCloudSegmentWireBudget(segment);
+    if (isInlineSegmentWire(segment)) assertCloudSegmentWireBudget(segment);
   }
   if (input.tail) assertCloudSegmentWireBudget(input.tail);
   await callSyncRpc("cloud_rewrite_session_events", accessToken, {
@@ -943,6 +1022,7 @@ function validateWirePageResponse(
   const frozenSeqs: number[] = [];
   let tailSegment: (typeof page.segments)[number] | null = null;
   let actualWireBytes = 0;
+  let legacyV1CandidateCount = 0;
   for (const [index, segment] of page.segments.entries()) {
     if (seenSeq.has(segment.seq)) {
       failWirePage(`server returned duplicate physical seq ${segment.seq}`);
@@ -950,9 +1030,18 @@ function validateWirePageResponse(
     seenSeq.add(segment.seq);
     const segmentBytes = cloudSegmentWireBytes(segment);
     if (segmentBytes > SESSION_EVENT_WIRE_MAX_SEGMENT_BYTES) {
-      failWirePage(
-        `server returned ${segmentBytes}-byte segment ${segment.seq} (hard limit ${SESSION_EVENT_WIRE_MAX_SEGMENT_BYTES})`
-      );
+      if (segmentBytes > SESSION_EVENT_WIRE_MAX_LEGACY_V1_SEGMENT_BYTES) {
+        failWirePage(
+          `server returned ${segmentBytes}-byte segment ${segment.seq} ` +
+            `(legacy V1 limit ${SESSION_EVENT_WIRE_MAX_LEGACY_V1_SEGMENT_BYTES})`
+        );
+      }
+      legacyV1CandidateCount += 1;
+      if (legacyV1CandidateCount > 1) {
+        failWirePage(
+          "server returned more than one oversized legacy V1 candidate"
+        );
+      }
     }
     actualWireBytes += segmentBytes;
     if (segment.seq === 0) {
@@ -968,12 +1057,14 @@ function validateWirePageResponse(
       frozenSeqs.push(segment.seq);
     }
   }
-  if (
-    actualWireBytes > options.maxWireBytes ||
-    actualWireBytes > SESSION_EVENT_WIRE_MAX_PAGE_BYTES
-  ) {
+  const compatibilityPageLimit =
+    legacyV1CandidateCount === 0
+      ? Math.min(options.maxWireBytes, SESSION_EVENT_WIRE_MAX_PAGE_BYTES)
+      : SESSION_EVENT_WIRE_MAX_PAGE_BYTES +
+        SESSION_EVENT_WIRE_MAX_LEGACY_V1_SEGMENT_BYTES;
+  if (actualWireBytes > compatibilityPageLimit) {
     failWirePage(
-      `server returned ${actualWireBytes} wire bytes (requested at most ${options.maxWireBytes})`
+      `server returned ${actualWireBytes} wire bytes (limit ${compatibilityPageLimit})`
     );
   }
   if (page.returnedWireBytes !== actualWireBytes) {
@@ -1156,7 +1247,11 @@ async function getSessionEventWirePage(
     options.endpoint,
     options.signal,
     undefined,
-    options.maxWireBytes + CLOUD_WIRE_PAGE_RESPONSE_OVERHEAD_BYTES
+    Math.max(
+      options.maxWireBytes,
+      SESSION_EVENT_WIRE_MAX_PAGE_BYTES +
+        SESSION_EVENT_WIRE_MAX_LEGACY_V1_SEGMENT_BYTES
+    ) + CLOUD_WIRE_PAGE_RESPONSE_OVERHEAD_BYTES
   );
   return validateWirePageResponse(
     CloudSessionEventWirePageSchema.parse(payload),

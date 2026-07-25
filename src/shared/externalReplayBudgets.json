@@ -5,6 +5,7 @@
   "payloadRangeMaxBytes": 262144,
   "shellReplayRangeMaxBytes": 262144,
   "cloudSegmentMaxBytes": 262144,
+  "cloudLegacyV1SegmentMaxBytes": 67108864,
   "cloudPageMaxBytes": 4194304,
   "cloudPageMaxSegments": 200,
   "cloudAttachmentChunkBytes": 180224

@@ -10,6 +10,11 @@ use orgtrack_core::sources::imported_history::replay;
 use serde::{Deserialize, Serialize};
 
 pub(crate) const CLOUD_SEGMENT_WIRE_MAX_BYTES: usize = replay::HARD_MAX_PAYLOAD_RANGE_BYTES;
+/// One already-published Attachment-V1 physical row may predate the bounded
+/// wire contract. New writers remain capped by `CLOUD_SEGMENT_WIRE_MAX_BYTES`;
+/// ingest grants this larger ceiling to at most one candidate row per page
+/// and verifies after decompression that it is actually V1.
+pub(crate) const LEGACY_V1_MAX_WIRE_BYTES: usize = 64 * 1024 * 1024;
 pub(crate) const CLOUD_PAGE_MAX_BYTES: usize = replay::HARD_MAX_IPC_BYTES;
 pub(crate) const CLOUD_PAGE_MAX_SEGMENTS: usize = replay::HARD_MAX_EVENTS;
 /// Leaves room for frame metadata, gzip overhead, base64 growth and the
@@ -228,6 +233,10 @@ mod tests {
         assert_eq!(
             manifest["cloudSegmentMaxBytes"],
             CLOUD_SEGMENT_WIRE_MAX_BYTES
+        );
+        assert_eq!(
+            manifest["cloudLegacyV1SegmentMaxBytes"],
+            LEGACY_V1_MAX_WIRE_BYTES
         );
         assert_eq!(manifest["cloudPageMaxBytes"], CLOUD_PAGE_MAX_BYTES);
         assert_eq!(manifest["cloudPageMaxSegments"], CLOUD_PAGE_MAX_SEGMENTS);

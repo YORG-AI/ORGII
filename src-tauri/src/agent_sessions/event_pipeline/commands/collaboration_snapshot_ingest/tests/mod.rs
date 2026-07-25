@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::io::Write as _;
 
+use base64::Engine as _;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use tempfile::TempDir;
@@ -69,6 +70,19 @@ fn page_bytes(segments: &[CollaborationSnapshotWire]) -> u64 {
         .iter()
         .map(|wire| serde_json::to_vec(wire).expect("measure wire").len() as u64)
         .sum()
+}
+
+fn deterministic_incompressible_text(bytes: usize) -> String {
+    const ALPHABET: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let mut state = 0x9e37_79b9_u32;
+    let mut text = String::with_capacity(bytes);
+    for _ in 0..bytes {
+        state ^= state << 13;
+        state ^= state >> 17;
+        state ^= state << 5;
+        text.push(ALPHABET[state as usize % ALPHABET.len()] as char);
+    }
+    text
 }
 
 fn backward_page(
@@ -201,6 +215,66 @@ fn v1_backward_pages_publish_atomically_and_namespace_ids() {
         ]
     );
     assert!(!staging_path(root, &token).expect("stage path").exists());
+}
+
+#[test]
+fn one_oversized_legacy_v1_wire_remains_importable() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    let destination = destination();
+    let session_id = "imported-session-legacy-large-row";
+    let payload = deterministic_incompressible_text(512 * 1024);
+    let event = test_event("legacy-large", EventSource::Assistant, &payload);
+    let wire = v1_wire(1, std::slice::from_ref(&event));
+    let wire_bytes = page_bytes(std::slice::from_ref(&wire)) as usize;
+    assert!(wire_bytes > MAX_WIRE_BYTES);
+    assert!(wire_bytes <= LEGACY_V1_MAX_WIRE_BYTES);
+
+    let token = begin_replace(root, session_id, 5, 1, 1);
+    apply_page_at_root(root, backward_page(&token, 5, 1, 1, None, None, vec![wire]))
+        .expect("stage pre-V2 oversized row");
+    let result =
+        commit_at_root_with_connection(root, &token, &destination).expect("publish legacy row");
+    assert_eq!(result.event_count, 1);
+    let args_json: String = destination
+        .query_row(
+            "SELECT args_json FROM events WHERE session_id=?1",
+            [session_id],
+            |row| row.get(0),
+        )
+        .expect("load migrated args");
+    let args: serde_json::Value = serde_json::from_str(&args_json).expect("parse migrated args");
+    assert_eq!(args["content"].as_str(), Some(payload.as_str()));
+}
+
+#[test]
+fn oversized_attachment_v2_wire_cannot_use_the_legacy_allowance() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    let chunk = deterministic_incompressible_text(384 * 1024).into_bytes();
+    let attachment_hash = sha256_hex(&chunk);
+    let header = ReplayAttachmentV2FrameHeader {
+        kind: "event".to_string(),
+        attachment_id: attachment_hash.clone(),
+        part_index: 0,
+        chunk_offset: 0,
+        chunk_bytes: chunk.len() as u64,
+        final_part: true,
+        event_bytes: Some(chunk.len() as u64),
+        attachment_hash: Some(attachment_hash),
+    };
+    let frame = encode_replay_attachment_v2_frame(&header, &chunk).expect("encode large V2 frame");
+    let wire = CollaborationSnapshotWire {
+        seq: 1,
+        payload_gz: gzip_base64(&frame),
+        event_count: 1,
+        segment_hash: sha256_hex(&frame),
+    };
+    assert!(page_bytes(std::slice::from_ref(&wire)) as usize > MAX_WIRE_BYTES);
+    let token = begin_replace(root, "imported-session-v2-over-budget", 6, 1, 1);
+    let error = apply_page_at_root(root, backward_page(&token, 6, 1, 1, None, None, vec![wire]))
+        .expect_err("new V2 rows must keep the 256 KiB physical limit");
+    assert!(error.contains("Attachment V2 physical wire"));
 }
 
 #[test]

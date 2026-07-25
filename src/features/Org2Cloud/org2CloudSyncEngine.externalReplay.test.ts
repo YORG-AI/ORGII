@@ -107,23 +107,23 @@ describe("Org2CloudSyncEngine bounded external replay publishing", () => {
 
     expect(externalReplayCloudPrepareMock).toHaveBeenCalledTimes(1);
     expect(externalReplayCloudReadBatchMock).toHaveBeenCalledTimes(3);
+    expect(client.uploadSessionEventWires).toHaveBeenCalledTimes(3);
     expect(client.rewriteSessionEventWires).toHaveBeenCalledTimes(1);
-    expect(client.appendSessionEventWires).toHaveBeenCalledTimes(2);
+    expect(client.appendSessionEventWires).not.toHaveBeenCalled();
     expect(eventStoreMock.getPersistedEvents).not.toHaveBeenCalledWith(
       "cursoride-thread-1"
     );
     expect(client.rewriteSessionEventWires.mock.calls[0]?.[1].orgId).toBe(
       "corg-1"
     );
-    for (const [, input] of client.appendSessionEventWires.mock.calls) {
-      expect(input.orgId).toBe("corg-1");
-    }
-    for (const [, input] of client.rewriteSessionEventWires.mock.calls) {
-      expect(input.frozenSegments).toHaveLength(1);
-    }
-    for (const [, input] of client.appendSessionEventWires.mock.calls) {
-      expect(input.newFrozenSegments).toHaveLength(1);
-    }
+    expect(
+      client.uploadSessionEventWires.mock.calls.every(
+        ([, input]) => input.orgId === "corg-1"
+      )
+    ).toBe(true);
+    expect(
+      client.rewriteSessionEventWires.mock.calls[0]?.[1].frozenSegments
+    ).toHaveLength(3);
   });
 
   it("keeps nine active-org external session spools independently bounded", async () => {
@@ -201,6 +201,7 @@ describe("Org2CloudSyncEngine bounded external replay publishing", () => {
 
     expect(externalReplayCloudPrepareMock).toHaveBeenCalledTimes(9);
     expect(externalReplayCloudReadBatchMock).toHaveBeenCalledTimes(9);
+    expect(client.uploadSessionEventWires).toHaveBeenCalledTimes(9);
     expect(client.rewriteSessionEventWires).toHaveBeenCalledTimes(9);
     expect(
       client.rewriteSessionEventWires.mock.calls.every(
@@ -305,7 +306,7 @@ describe("Org2CloudSyncEngine bounded external replay publishing", () => {
         serializedBytes: 100,
       })
     );
-    client.appendSessionEventWires.mockRejectedValueOnce(conflictError());
+    client.rewriteSessionEventWires.mockRejectedValueOnce(conflictError());
     client.getSessionEvents.mockResolvedValueOnce({
       epoch: 7,
       frozenSeq: 0,
@@ -468,7 +469,7 @@ describe("Org2CloudSyncEngine bounded external replay publishing", () => {
     });
   });
 
-  it("stops an external multi-batch rewrite after the in-flight batch", async () => {
+  it("stops an external multi-batch rewrite before publishing a partial epoch", async () => {
     externalReplayCloudPrepareMock.mockResolvedValueOnce({
       token: "abort-external-spool",
       generation: "g1",
@@ -496,8 +497,16 @@ describe("Org2CloudSyncEngine bounded external replay publishing", () => {
         serializedBytes: 100,
       })
     );
-    client.rewriteSessionEventWires.mockImplementationOnce(async () => {
+    client.uploadSessionEventWires.mockImplementationOnce(async () => {
       engine.stop();
+      return [
+        {
+          seq: 1,
+          storagePath: "corg-1/cursoride-thread-1/1/1-hash-0.gz",
+          eventCount: 1,
+          segmentHash: "hash-0",
+        },
+      ];
     });
     store.set(sessionsAtom, [
       { ...SESSION, session_id: "cursoride-thread-1", orgId: "personal-org" },
@@ -509,7 +518,8 @@ describe("Org2CloudSyncEngine bounded external replay publishing", () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(client.rewriteSessionEventWires).toHaveBeenCalledTimes(1);
+    expect(client.uploadSessionEventWires).toHaveBeenCalledTimes(1);
+    expect(client.rewriteSessionEventWires).not.toHaveBeenCalled();
     expect(client.appendSessionEventWires).not.toHaveBeenCalled();
     expect(externalReplayCloudReadBatchMock).toHaveBeenCalledTimes(1);
     expect(externalReplayCloudReleaseMock).toHaveBeenCalledWith(

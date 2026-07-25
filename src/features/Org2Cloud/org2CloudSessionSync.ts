@@ -41,7 +41,10 @@ import type {
   PreparedPushPlan,
 } from "./org2CloudSessionSync.types";
 import type { CollabSessionPushCursor } from "./org2CloudSyncAtoms";
-import { isOrg2SyncErrorCode } from "./org2CloudSyncClient";
+import {
+  type CloudStoredSegmentWire,
+  isOrg2SyncErrorCode,
+} from "./org2CloudSyncClient";
 import type { CloudStore } from "./org2CloudSyncLifecycle";
 
 export {
@@ -473,34 +476,14 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
     signal?: AbortSignal
   ): Promise<void> {
     throwIfAborted(signal);
-    const first = await this.readExternalFrozenBatch(
-      manifest,
-      0,
-      undefined,
-      signal
-    );
-    const firstTail = first.eof
-      ? await this.readExternalTail(manifest, signal)
-      : null;
-    const firstSegments = first.segments.map((segment, index) => ({
-      seq: index + 1,
-      payloadGz: segment.payloadGz,
-      eventCount: segment.eventCount,
-      segmentHash: segment.segmentHash,
-    }));
-    await this.client.rewriteSessionEventWires(auth.accessToken, {
-      orgId,
-      sessionId,
-      newEpoch: epoch,
-      frozenSegments: firstSegments,
-      tail: firstTail,
-      totalCount: first.nextEventIndex + (firstTail?.eventCount ?? 0),
-    });
-    throwIfAborted(signal);
-    let eventIndex = first.nextEventIndex;
-    let segmentIndex = first.nextSegmentIndex;
-    let frozenSeq = firstSegments.length;
-    let expectedTailHash = first.eof ? manifest.tailHash : null;
+    // Upload the unpublished epoch first. Only compact storage references are
+    // retained across batches; the visible session row is not changed until
+    // the final rewrite RPC atomically installs every frozen reference and
+    // the mutable tail together.
+    const storedSegments: CloudStoredSegmentWire[] = [];
+    let eventIndex = 0;
+    let segmentIndex: number | undefined;
+    let frozenSeq = 0;
     while (eventIndex < manifest.frozenEventCount) {
       const batch = await this.readExternalFrozenBatch(
         manifest,
@@ -508,31 +491,44 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
         segmentIndex,
         signal
       );
-      const tail = batch.eof
-        ? await this.readExternalTail(manifest, signal)
-        : null;
       const segments = batch.segments.map((segment, index) => ({
         seq: frozenSeq + index + 1,
         payloadGz: segment.payloadGz,
         eventCount: segment.eventCount,
         segmentHash: segment.segmentHash,
       }));
-      await this.client.appendSessionEventWires(auth.accessToken, {
-        orgId,
-        sessionId,
-        expectedEpoch: epoch,
-        expectedFrozenSeq: frozenSeq,
-        expectedTailHash,
-        newFrozenSegments: segments,
-        tail,
-        totalCount: batch.nextEventIndex + (tail?.eventCount ?? 0),
-      });
+      const uploaded = await this.client.uploadSessionEventWires(
+        auth.accessToken,
+        {
+          orgId,
+          sessionId,
+          epoch,
+          frozenSegments: segments,
+          ...(signal !== undefined ? { signal } : {}),
+        }
+      );
+      storedSegments.push(...uploaded);
       throwIfAborted(signal);
+      if (
+        batch.nextEventIndex <= eventIndex &&
+        batch.nextSegmentIndex <= (segmentIndex ?? 0)
+      ) {
+        throw new Error("External replay upload cursor did not advance");
+      }
       eventIndex = batch.nextEventIndex;
       segmentIndex = batch.nextSegmentIndex;
-      frozenSeq += segments.length;
-      expectedTailHash = batch.eof ? manifest.tailHash : null;
+      frozenSeq += uploaded.length;
     }
+    const tail = await this.readExternalTail(manifest, signal);
+    throwIfAborted(signal);
+    await this.client.rewriteSessionEventWires(auth.accessToken, {
+      orgId,
+      sessionId,
+      newEpoch: epoch,
+      frozenSegments: storedSegments,
+      tail,
+      totalCount: manifest.totalCount,
+    });
     throwIfAborted(signal);
     this.setExternalCursor(orgId, sessionId, manifest, epoch, frozenSeq);
     broadcastOrgControlChangedToPeers(orgId, "sessions");
@@ -1076,56 +1072,29 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
     );
     for (;;) {
       try {
-        const progressive =
-          frozenSegments.length > SESSION_SEGMENT_UPLOAD_BATCH_SIZE;
-        const initialSegments = progressive
-          ? frozenSegments.slice(0, SESSION_SEGMENT_UPLOAD_BATCH_SIZE)
-          : frozenSegments;
-        const initialFrozenEventCount = initialSegments.reduce(
-          (count, segment) => count + segment.events.length,
-          0
-        );
-        const initialChainHash =
-          initialFrozenEventCount === plan.frozenEventCount
-            ? plan.frozenChainHash
-            : await this.computeFrozenChainHash(
-                plan.perEventHashes,
-                initialFrozenEventCount
-              );
+        // The rewrite RPC is the publication boundary. Frozen payloads may be
+        // uploaded to Storage first, but the old epoch remains authoritative
+        // until this one transaction installs the complete reference set.
+        // Never expose a first-page epoch and append the remainder afterward.
         await this.client.rewriteSessionEvents(auth.accessToken, {
           orgId,
           sessionId,
           newEpoch: epoch,
-          frozenSegments: initialSegments,
-          tail:
-            !progressive && plan.tailEvents.length > 0 ? plan.tailEvents : null,
-          totalCount: progressive
-            ? initialFrozenEventCount
-            : plan.events.length,
+          frozenSegments,
+          tail: plan.tailEvents.length > 0 ? plan.tailEvents : null,
+          totalCount: plan.events.length,
         });
         const cursor: CollabSessionPushCursor = {
           orgId,
           sessionId,
           epoch,
-          frozenSeq: initialSegments.length,
-          pushedCount: progressive
-            ? initialFrozenEventCount
-            : plan.events.length,
-          frozenEventCount: initialFrozenEventCount,
-          frozenChainHash: initialChainHash,
-          tailHash: progressive ? null : plan.tailHash,
+          frozenSeq: frozenSegments.length,
+          pushedCount: plan.events.length,
+          frozenEventCount: plan.frozenEventCount,
+          frozenChainHash: plan.frozenChainHash,
+          tailHash: plan.tailHash,
         };
         this.setCursor(cursor);
-        if (progressive) {
-          await this.appendSessionBatches(
-            auth,
-            orgId,
-            sessionId,
-            cursor,
-            frozenSegments.slice(initialSegments.length),
-            plan
-          );
-        }
         broadcastOrgControlChangedToPeers(orgId, "sessions");
         return;
       } catch (error) {

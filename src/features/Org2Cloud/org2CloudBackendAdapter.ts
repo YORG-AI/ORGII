@@ -12,7 +12,11 @@ import type {
   SessionEventSegmentWireRecord,
   SessionEventWirePage,
 } from "../TeamCollaboration/sync/CollabSyncBackend";
-import { SESSION_EVENT_WIRE_MAX_SEGMENT_BYTES } from "../TeamCollaboration/sync/CollabSyncBackend";
+import {
+  SESSION_EVENT_WIRE_MAX_LEGACY_V1_SEGMENT_BYTES,
+  SESSION_EVENT_WIRE_MAX_PAGE_BYTES,
+  SESSION_EVENT_WIRE_MAX_SEGMENT_BYTES,
+} from "../TeamCollaboration/sync/CollabSyncBackend";
 import { bytesToBase64 } from "../TeamCollaboration/sync/collabGzip";
 import type { CloudEndpoint } from "./config";
 import {
@@ -42,7 +46,10 @@ type SegmentObjectDownload = (
 const wireEncoder = new TextEncoder();
 
 function segmentWireBytes(segment: SessionEventSegmentWireRecord): number {
-  return wireEncoder.encode(JSON.stringify(segment)).byteLength;
+  return (
+    wireEncoder.encode(JSON.stringify({ ...segment, payloadGz: "" }))
+      .byteLength + segment.payloadGz.length
+  );
 }
 
 async function materializeCloudSegment(
@@ -76,6 +83,7 @@ async function materializeCloudPage(
 ): Promise<SessionEventWirePage> {
   const segments: SessionEventSegmentWireRecord[] = [];
   let returnedWireBytes = 0;
+  let legacyV1CandidateCount = 0;
   for (const segment of page.segments) {
     if (input.signal?.aborted) {
       throw input.signal.reason ?? new DOMException("Aborted", "AbortError");
@@ -87,16 +95,29 @@ async function materializeCloudPage(
     );
     const bytes = segmentWireBytes(materialized);
     if (bytes > SESSION_EVENT_WIRE_MAX_SEGMENT_BYTES) {
-      throw new CloudSessionWirePageContractError(
-        `materialized cloud segment ${materialized.seq} is ${bytes} bytes ` +
-          `(limit ${SESSION_EVENT_WIRE_MAX_SEGMENT_BYTES})`
-      );
+      if (bytes > SESSION_EVENT_WIRE_MAX_LEGACY_V1_SEGMENT_BYTES) {
+        throw new CloudSessionWirePageContractError(
+          `materialized cloud segment ${materialized.seq} is ${bytes} bytes ` +
+            `(legacy V1 limit ${SESSION_EVENT_WIRE_MAX_LEGACY_V1_SEGMENT_BYTES})`
+        );
+      }
+      legacyV1CandidateCount += 1;
+      if (legacyV1CandidateCount > 1) {
+        throw new CloudSessionWirePageContractError(
+          "materialized cloud page contains more than one oversized legacy V1 candidate"
+        );
+      }
     }
     returnedWireBytes += bytes;
-    if (returnedWireBytes > input.maxWireBytes) {
+    const pageLimit =
+      legacyV1CandidateCount === 0
+        ? input.maxWireBytes
+        : SESSION_EVENT_WIRE_MAX_PAGE_BYTES +
+          SESSION_EVENT_WIRE_MAX_LEGACY_V1_SEGMENT_BYTES;
+    if (returnedWireBytes > pageLimit) {
       throw new CloudSessionWirePageContractError(
         `materialized cloud page is ${returnedWireBytes} bytes ` +
-          `(requested at most ${input.maxWireBytes})`
+          `(limit ${pageLimit})`
       );
     }
     segments.push(materialized);
