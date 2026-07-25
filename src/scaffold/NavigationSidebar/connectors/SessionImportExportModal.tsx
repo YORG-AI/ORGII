@@ -130,20 +130,21 @@ export function SessionImportExportModal({
   const handleConfirmExport = useCallback(async () => {
     if (!exportDraft) return;
     try {
-      const filePath = await saveDialog({
-        defaultPath: exportDraft.preview.fileName,
-        filters: [SESSION_JSON_FILTER],
-      });
-      if (!filePath) return;
       setLoading(true);
       if (exportDraft.mode === "bounded-replay") {
-        await externalReplayStreamExportForTarget({
+        const result = await externalReplayStreamExportForTarget({
           target: exportDraft.replayTarget,
-          destinationPath: filePath,
+          suggestedFileName: exportDraft.preview.fileName,
           format: "orgii_session_json",
           orgiiEnvelope: exportDraft.orgiiEnvelope,
         });
+        if (!result) return;
       } else {
+        const filePath = await saveDialog({
+          defaultPath: exportDraft.preview.fileName,
+          filters: [SESSION_JSON_FILTER],
+        });
+        if (!filePath) return;
         await writeTextFile(
           filePath,
           stringifySessionExportFile(exportDraft.file)

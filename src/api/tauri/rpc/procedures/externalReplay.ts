@@ -43,7 +43,7 @@ export const externalReplay = {
     .build(),
   streamExport: defineProcedure("external_replay_stream_export")
     .input(schemas.ExternalReplayStreamExportInput)
-    .output(schemas.ExternalReplayExportResultSchema)
+    .output(schemas.ExternalReplayExportResultSchema.nullable())
     .build(),
   cloudPrepare: defineProcedure("external_replay_cloud_prepare")
     .input(schemas.ExternalReplayCloudPrepareInput)

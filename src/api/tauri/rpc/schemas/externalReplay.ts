@@ -185,7 +185,7 @@ export const ExternalReplayOrgiiEnvelopeSchema = z.object({
 
 export const ExternalReplayStreamExportInput = ExternalReplayTargetInput.extend(
   {
-    destinationPath: z.string().min(1),
+    suggestedFileName: z.string().min(1).max(255).optional(),
     format: ExternalReplayExportFormatSchema,
     orgiiEnvelope: ExternalReplayOrgiiEnvelopeSchema.optional(),
   }

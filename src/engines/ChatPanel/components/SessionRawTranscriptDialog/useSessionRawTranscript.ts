@@ -146,17 +146,17 @@ export function useSessionRawTranscript(
     }
   }, [canCopyAll, entries, snapshot, t, transcriptJson]);
 
-  const exportTranscript = useCallback(
-    async (destinationPath: string) => {
-      if (!snapshot || snapshot.source.kind !== "external-history") return null;
-      return externalReplayStreamExportForTarget({
-        target: snapshot.source.target,
-        destinationPath,
-        format: "json",
-      });
-    },
-    [snapshot]
-  );
+  const exportTranscript = useCallback(async () => {
+    if (!snapshot || snapshot.source.kind !== "external-history") return null;
+    const safeSessionName =
+      snapshot.sessionId.replace(/[/\\?%*:|"<>]/g, "-").slice(0, 120) ||
+      "session";
+    return externalReplayStreamExportForTarget({
+      target: snapshot.source.target,
+      suggestedFileName: `raw-transcript-${safeSessionName}.json`,
+      format: "json",
+    });
+  }, [snapshot]);
 
   return {
     canCopyAll,

@@ -1,29 +1,133 @@
 use super::*;
+use tauri_plugin_dialog::DialogExt;
 
-pub(super) fn stream_replay_export(
-    source_id: &str,
-    session_id: &str,
-    destination_path: &str,
-    format: ReplayExportFormat,
-    orgii_envelope: Option<&OrgiiSessionExportEnvelope>,
-) -> Result<ReplayExportResult, String> {
-    let destination = std::path::Path::new(destination_path);
+fn authorized_export_destination(destination: &std::path::Path) -> Result<PathBuf, String> {
+    if !destination.is_absolute() {
+        return Err("Replay export destination must be an absolute path".to_string());
+    }
     let parent = destination
         .parent()
         .ok_or_else(|| "Replay export destination has no parent directory".to_string())?;
-    fs::create_dir_all(parent)
-        .map_err(|err| format!("create replay export directory {}: {err}", parent.display()))?;
+    let file_name = destination
+        .file_name()
+        .ok_or_else(|| "Replay export destination has no file name".to_string())?;
+    let canonical_parent = parent
+        .canonicalize()
+        .map_err(|err| format!("open replay export directory {}: {err}", parent.display()))?;
+    if !canonical_parent.is_dir() {
+        return Err(format!(
+            "Replay export parent is not a directory: {}",
+            canonical_parent.display()
+        ));
+    }
+    let authorized = canonical_parent.join(file_name);
+    match fs::symlink_metadata(&authorized) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            return Err(format!(
+                "Replay export refuses a symbolic-link destination: {}",
+                authorized.display()
+            ));
+        }
+        Ok(metadata) if metadata.is_dir() => {
+            return Err(format!(
+                "Replay export destination is a directory: {}",
+                authorized.display()
+            ));
+        }
+        Ok(_) => {}
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+        Err(err) => {
+            return Err(format!(
+                "inspect replay export destination {}: {err}",
+                authorized.display()
+            ));
+        }
+    }
+    Ok(authorized)
+}
+
+fn create_private_export_temp(path: &std::path::Path) -> Result<fs::File, String> {
+    let mut options = fs::OpenOptions::new();
+    options.create_new(true).write(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    options
+        .open(path)
+        .map_err(|err| format!("create replay export {}: {err}", path.display()))
+}
+
+#[cfg(not(windows))]
+fn atomic_replace_export(
+    temp: &std::path::Path,
+    destination: &std::path::Path,
+) -> std::io::Result<()> {
+    fs::rename(temp, destination)
+}
+
+#[cfg(windows)]
+fn atomic_replace_export(
+    temp: &std::path::Path,
+    destination: &std::path::Path,
+) -> std::io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+
+    const MOVEFILE_REPLACE_EXISTING: u32 = 0x0000_0001;
+    const MOVEFILE_WRITE_THROUGH: u32 = 0x0000_0008;
+    #[link(name = "Kernel32")]
+    unsafe extern "system" {
+        fn MoveFileExW(existing: *const u16, replacement: *const u16, flags: u32) -> i32;
+    }
+
+    let existing = temp
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+    let replacement = destination
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect::<Vec<_>>();
+    // SAFETY: both buffers are live, NUL-terminated UTF-16 strings. The API
+    // does not retain either pointer and performs a same-volume replacement.
+    let moved = unsafe {
+        MoveFileExW(
+            existing.as_ptr(),
+            replacement.as_ptr(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    };
+    if moved == 0 {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+
+pub fn stream_replay_export_to_path(
+    source_id: &str,
+    session_id: &str,
+    destination_path: &std::path::Path,
+    format: ReplayExportFormat,
+    orgii_envelope: Option<&OrgiiSessionExportEnvelope>,
+) -> Result<ReplayExportResult, String> {
+    let destination = authorized_export_destination(destination_path)?;
+    let parent = destination
+        .parent()
+        .ok_or_else(|| "Replay export destination has no parent directory".to_string())?;
     let destination_name = destination
         .file_name()
-        .and_then(|value| value.to_str())
-        .unwrap_or("replay-export");
+        .map(|value| value.to_string_lossy())
+        .unwrap_or_else(|| "replay-export".into());
     let temporary = parent.join(format!(
         ".{destination_name}.orgii-{}.part",
         uuid::Uuid::new_v4()
     ));
     let result = (|| -> Result<ReplayExportResult, String> {
-        let file = fs::File::create(&temporary)
-            .map_err(|err| format!("create replay export {}: {err}", temporary.display()))?;
+        let file = create_private_export_temp(&temporary)?;
         let mut writer =
             HashingWriter::new(BufWriter::with_capacity(EXPORT_WRITER_BUFFER_BYTES, file));
         match format {
@@ -114,15 +218,18 @@ pub(super) fn stream_replay_export(
             .sync_all()
             .map_err(|err| format!("sync replay export file: {err}"))?;
         drop(inner);
-        fs::rename(&temporary, destination).map_err(|err| {
+        atomic_replace_export(&temporary, &destination).map_err(|err| {
             format!(
                 "publish replay export {} -> {}: {err}",
                 temporary.display(),
                 destination.display()
             )
         })?;
+        if let Ok(directory) = fs::File::open(parent) {
+            let _ = directory.sync_all();
+        }
         Ok(ReplayExportResult {
-            destination_path: destination_path.to_string(),
+            destination_path: destination.to_string_lossy().into_owned(),
             bytes_written,
             event_count: count,
             sha256,
@@ -132,6 +239,83 @@ pub(super) fn stream_replay_export(
         let _ = fs::remove_file(&temporary);
     }
     result
+}
+
+pub(super) fn sanitize_export_file_name(
+    suggested_file_name: Option<&str>,
+    session_id: &str,
+    format: ReplayExportFormat,
+) -> String {
+    let fallback_extension = match format {
+        ReplayExportFormat::Json | ReplayExportFormat::OrgiiSessionJson => "json",
+        ReplayExportFormat::Markdown => "md",
+    };
+    let fallback = format!(
+        "session-{}.{}",
+        session_id
+            .chars()
+            .map(|character| {
+                if character.is_ascii_alphanumeric() || matches!(character, '-' | '_') {
+                    character
+                } else {
+                    '-'
+                }
+            })
+            .take(96)
+            .collect::<String>(),
+        fallback_extension
+    );
+    let Some(file_name) = suggested_file_name
+        .and_then(|value| std::path::Path::new(value).file_name())
+        .and_then(|value| value.to_str())
+    else {
+        return fallback;
+    };
+    let sanitized = file_name
+        .chars()
+        .map(|character| {
+            if character.is_control()
+                || matches!(
+                    character,
+                    '/' | '\\' | '?' | '%' | '*' | ':' | '|' | '"' | '<' | '>'
+                )
+            {
+                '-'
+            } else {
+                character
+            }
+        })
+        .take(160)
+        .collect::<String>();
+    let sanitized = sanitized.trim_matches([' ', '.']).to_string();
+    if sanitized.is_empty() {
+        fallback
+    } else {
+        sanitized
+    }
+}
+
+fn choose_replay_export_destination(
+    app_handle: &AppHandle,
+    suggested_file_name: Option<&str>,
+    session_id: &str,
+    format: ReplayExportFormat,
+) -> Result<Option<PathBuf>, String> {
+    let file_name = sanitize_export_file_name(suggested_file_name, session_id, format);
+    let dialog = app_handle.dialog().file().set_file_name(file_name);
+    let dialog = match format {
+        ReplayExportFormat::Json | ReplayExportFormat::OrgiiSessionJson => {
+            dialog.add_filter("JSON", &["json"])
+        }
+        ReplayExportFormat::Markdown => dialog.add_filter("Markdown", &["md", "markdown"]),
+    };
+    dialog
+        .blocking_save_file()
+        .map(|path| {
+            path.into_path()
+                .map_err(|err| format!("resolve replay export destination: {err}"))
+        })
+        .transpose()
 }
 
 #[derive(Default)]
@@ -638,19 +822,29 @@ impl<W: Write> Write for HashingWriter<W> {
     }
 }
 
-/// Stream the current generation directly to a destination file. Deferred
-/// payloads are spliced in by bounded range reads; neither Rust nor JS builds
-/// a complete transcript (or a complete large event) in memory.
+/// Ask the native OS for an export destination, then stream the current
+/// generation directly to that authorized file. The renderer can suggest only
+/// a file name; it never supplies a filesystem path.
 #[tauri::command]
 pub async fn external_replay_stream_export(
+    app_handle: AppHandle,
     source_id: String,
     session_id: String,
-    destination_path: String,
+    suggested_file_name: Option<String>,
     format: ReplayExportFormat,
     orgii_envelope: Option<OrgiiSessionExportEnvelope>,
-) -> Result<ReplayExportResult, String> {
+) -> Result<Option<ReplayExportResult>, String> {
+    let Some(destination_path) = choose_replay_export_destination(
+        &app_handle,
+        suggested_file_name.as_deref(),
+        &session_id,
+        format,
+    )?
+    else {
+        return Ok(None);
+    };
     let result = tokio::task::spawn_blocking(move || {
-        stream_replay_export(
+        stream_replay_export_to_path(
             &source_id,
             &session_id,
             &destination_path,
@@ -661,5 +855,5 @@ pub async fn external_replay_stream_export(
     .await
     .map_err(|err| format!("join replay export task: {err}"))??;
     schedule_replay_cache_prune();
-    Ok(result)
+    Ok(Some(result))
 }

@@ -338,6 +338,49 @@ fn native_fork_snapshot_publishes_without_external_replay_accounting() {
 }
 
 #[test]
+fn native_snapshot_commit_refuses_to_replace_an_ordinary_agent_session() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    let destination = destination();
+    let session_id = "agentsession-existing-native";
+    let token = begin_replace(root, session_id, 1, 1, 1);
+    let incoming = test_event("incoming", EventSource::User, "cloud context");
+    let wire = v1_wire(1, std::slice::from_ref(&incoming));
+    apply_page_at_root(root, backward_page(&token, 1, 1, 1, None, None, vec![wire]))
+        .expect("stage native replacement");
+
+    // Seed after begin to prove the commit-time check and destructive write
+    // share the same BEGIN IMMEDIATE transaction.
+    destination
+        .execute(
+            "INSERT INTO events(
+               id,session_id,event_type,function_name,args_json,result_json,
+               content,created_at,history_sequence
+             ) VALUES(
+               'native-event',?1,'user_message','user_message','{}','{}',
+               'must survive','2026-07-25T00:00:00.000Z',0
+             )",
+            [session_id],
+        )
+        .expect("seed ordinary native event");
+
+    let error = commit_at_root_with_connection(root, &token, &destination)
+        .expect_err("ordinary native session must not be replaced");
+    assert!(error.contains("existing events are not a collaboration snapshot"));
+    assert_eq!(
+        destination
+            .query_row(
+                "SELECT content FROM events WHERE id='native-event'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .expect("ordinary native event remains"),
+        "must survive"
+    );
+    assert!(!staging_path(root, &token).expect("stage path").exists());
+}
+
+#[test]
 fn cursor_query_returns_only_an_intact_imported_snapshot() {
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();

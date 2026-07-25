@@ -13,7 +13,7 @@ use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::Path;
 
 use app_lib::agent_sessions::event_pipeline::commands::external_replay::{
-    external_replay_stream_export, ReplayExportFormat,
+    stream_replay_export_to_path, ReplayExportFormat,
 };
 use orgtrack_core::sources::imported_history::replay::{
     open_window, scan_window_after, scan_window_after_generation, ImportedHistorySourceId,
@@ -192,14 +192,13 @@ async fn production_export_streams_three_hundred_mib_with_exact_hash_and_bounded
     drop(conn);
 
     let rss_before_export = peak_rss_bytes();
-    let result = external_replay_stream_export(
-        "codex_app".to_string(),
-        "codexapp-issue-443-export".to_string(),
-        destination.to_string_lossy().into_owned(),
+    let result = stream_replay_export_to_path(
+        "codex_app",
+        "codexapp-issue-443-export",
+        &destination,
         ReplayExportFormat::Json,
         None,
     )
-    .await
     .expect("run production streamed export command");
     let rss_after_export = peak_rss_bytes();
     let export_rss_growth = rss_after_export.saturating_sub(rss_before_export);

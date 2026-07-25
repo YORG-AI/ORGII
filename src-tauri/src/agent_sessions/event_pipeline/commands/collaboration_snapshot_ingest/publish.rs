@@ -273,6 +273,44 @@ pub(super) fn extend_time_range(
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SnapshotPublishTarget {
+    ImportedReplay,
+    FreshNativeFork,
+    ExistingNativeSnapshot,
+}
+
+fn classify_snapshot_publish_target(
+    tx: &Transaction<'_>,
+    session_id: &str,
+) -> Result<SnapshotPublishTarget, String> {
+    if is_imported_snapshot_session(session_id) {
+        return Ok(SnapshotPublishTarget::ImportedReplay);
+    }
+    if !session_id.starts_with(AGENT_SESSION_PREFIX) {
+        return Err("collaboration snapshot target has an unsupported session prefix".to_string());
+    }
+    let (event_count, has_snapshot_state): (i64, bool) = tx
+        .query_row(
+            "SELECT
+               (SELECT COUNT(*) FROM events WHERE session_id=?1),
+               EXISTS(
+                 SELECT 1 FROM collaboration_snapshot_ingest_state
+                 WHERE session_id=?1
+               )",
+            [session_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(|error| format!("classify native snapshot target: {error}"))?;
+    match (event_count, has_snapshot_state) {
+        (0, false) => Ok(SnapshotPublishTarget::FreshNativeFork),
+        (_, true) => Ok(SnapshotPublishTarget::ExistingNativeSnapshot),
+        (_, false) => Err(format!(
+            "refusing to replace native session {session_id}: existing events are not a collaboration snapshot"
+        )),
+    }
+}
+
 pub(super) fn publish_staged_snapshot(
     destination: &Connection,
     staging: &Connection,
@@ -286,9 +324,19 @@ pub(super) fn publish_staged_snapshot(
     let tx = database::db::begin_immediate(destination)
         .map_err(|error| format!("begin collaboration snapshot publish: {error}"))?;
     ensure_destination_schema(&tx)?;
+    let publish_target = classify_snapshot_publish_target(&tx, &manifest.local_session_id)?;
     let current = match read_destination_cursor(&tx, &manifest.local_session_id) {
         Ok(cursor) => cursor,
-        Err(_) if manifest.replace && manifest.previous.is_none() => None,
+        Err(_)
+            if manifest.replace
+                && manifest.previous.is_none()
+                && matches!(
+                    publish_target,
+                    SnapshotPublishTarget::ImportedReplay | SnapshotPublishTarget::FreshNativeFork
+                ) =>
+        {
+            None
+        }
         Err(error) => return Err(error),
     };
     if let Some(previous) = manifest.previous.as_ref() {
@@ -346,8 +394,11 @@ pub(super) fn publish_staged_snapshot(
         });
     }
 
-    let imported_snapshot = is_imported_snapshot_session(&manifest.local_session_id);
-    let native_snapshot = manifest.local_session_id.starts_with(AGENT_SESSION_PREFIX);
+    let imported_snapshot = publish_target == SnapshotPublishTarget::ImportedReplay;
+    let native_snapshot = matches!(
+        publish_target,
+        SnapshotPublishTarget::FreshNativeFork | SnapshotPublishTarget::ExistingNativeSnapshot
+    );
     if imported_snapshot {
         drop_replay_accounting_triggers(&tx)?;
     }

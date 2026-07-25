@@ -224,10 +224,10 @@ fn failed_export_preserves_destination_and_removes_unique_partial() {
     let destination = directory.join("history.json");
     fs::write(&destination, b"previous-valid-export").expect("old destination");
 
-    let error = stream_replay_export(
+    let error = stream_replay_export_to_path(
         "not-a-replay-source",
         "not-a-session",
-        destination.to_str().expect("UTF-8 destination"),
+        &destination,
         ReplayExportFormat::Json,
         None,
     )
@@ -251,6 +251,64 @@ fn failed_export_preserves_destination_and_removes_unique_partial() {
 
     fs::remove_file(destination).expect("remove destination");
     fs::remove_dir(directory).expect("remove export test directory");
+}
+
+#[test]
+fn export_refuses_to_create_an_unapproved_parent_directory() {
+    let directory = tempfile::tempdir().expect("export parent fixture");
+    let missing_parent = directory.path().join("renderer-chosen").join("nested");
+    let destination = missing_parent.join("history.json");
+
+    let error = stream_replay_export_to_path(
+        "not-a-replay-source",
+        "not-a-session",
+        &destination,
+        ReplayExportFormat::Json,
+        None,
+    )
+    .expect_err("missing parent must be rejected before export begins");
+
+    assert!(error.contains("open replay export directory"));
+    assert!(!missing_parent.exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn export_refuses_a_symbolic_link_destination() {
+    use std::os::unix::fs::symlink;
+
+    let directory = tempfile::tempdir().expect("export symlink fixture");
+    let protected = directory.path().join("protected.txt");
+    fs::write(&protected, b"protected").expect("protected target");
+    let destination = directory.path().join("history.json");
+    symlink(&protected, &destination).expect("destination symlink");
+
+    let error = stream_replay_export_to_path(
+        "not-a-replay-source",
+        "not-a-session",
+        &destination,
+        ReplayExportFormat::Json,
+        None,
+    )
+    .expect_err("symlink destination must be rejected");
+
+    assert!(error.contains("symbolic-link"));
+    assert_eq!(
+        fs::read(&protected).expect("protected target"),
+        b"protected"
+    );
+}
+
+#[test]
+fn export_file_name_suggestion_never_preserves_renderer_directories() {
+    let file_name = super::super::export::sanitize_export_file_name(
+        Some("../../outside/raw-session.json"),
+        "codexapp-safe",
+        ReplayExportFormat::Json,
+    );
+    assert_eq!(file_name, "raw-session.json");
+    assert!(!file_name.contains('/'));
+    assert!(!file_name.contains('\\'));
 }
 
 #[test]

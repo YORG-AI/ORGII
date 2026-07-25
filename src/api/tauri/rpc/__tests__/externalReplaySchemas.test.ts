@@ -180,7 +180,7 @@ describe("external replay wire schemas", () => {
       ExternalReplayStreamExportInput.parse({
         sourceId: "codex_app",
         sessionId: "codexapp-1",
-        destinationPath: "/tmp/session.orgii-session.json",
+        suggestedFileName: "../../session.orgii-session.json",
         format: "orgii_session_json",
         orgiiEnvelope: {
           exportedAt: "2026-07-22T00:00:00Z",
@@ -190,5 +190,13 @@ describe("external replay wire schemas", () => {
         },
       }).format
     ).toBe("orgii_session_json");
+    expect(
+      ExternalReplayStreamExportInput.parse({
+        sourceId: "codex_app",
+        sessionId: "codexapp-1",
+        destinationPath: "/tmp/renderer-chosen.json",
+        format: "json",
+      })
+    ).not.toHaveProperty("destinationPath");
   });
 });

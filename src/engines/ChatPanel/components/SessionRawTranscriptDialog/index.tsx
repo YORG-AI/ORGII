@@ -1,4 +1,3 @@
-import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { Clipboard, FileDown, RefreshCw } from "lucide-react";
 import React, { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -25,16 +24,10 @@ const SessionRawTranscriptDialog: React.FC<SessionRawTranscriptDialogProps> =
 
     const handleExportAll = useCallback(async () => {
       if (!sessionId || !isExternal) return;
-      const safeSessionName =
-        sessionId.replace(/[/\\?%*:|"<>]/g, "-").slice(0, 120) || "session";
-      const destinationPath = await saveDialog({
-        defaultPath: `raw-transcript-${safeSessionName}.json`,
-        filters: [{ name: "JSON", extensions: ["json"] }],
-      });
-      if (!destinationPath) return;
       setExporting(true);
       try {
-        await transcript.exportTranscript(destinationPath);
+        const result = await transcript.exportTranscript();
+        if (!result) return;
         Message.success(
           t("chat.rawTranscript.exportSuccess", {
             defaultValue: "Raw transcript exported",

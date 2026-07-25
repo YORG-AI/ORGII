@@ -251,10 +251,10 @@ export function externalReplayReadPayloadRangeForTarget(options: {
 
 export function externalReplayStreamExport(options: {
   sessionId: string;
-  destinationPath: string;
+  suggestedFileName?: string;
   format: ExternalReplayExportFormat;
   orgiiEnvelope?: ExternalReplayOrgiiEnvelope;
-}): Promise<ExternalReplayExportResult> {
+}): Promise<ExternalReplayExportResult | null> {
   const { sessionId, ...exportOptions } = options;
   return externalReplayStreamExportForTarget({
     target: requireExternalReplayTarget(sessionId),
@@ -264,10 +264,10 @@ export function externalReplayStreamExport(options: {
 
 export function externalReplayStreamExportForTarget(options: {
   target: ExternalReplayTarget;
-  destinationPath: string;
+  suggestedFileName?: string;
   format: ExternalReplayExportFormat;
   orgiiEnvelope?: ExternalReplayOrgiiEnvelope;
-}): Promise<ExternalReplayExportResult> {
+}): Promise<ExternalReplayExportResult | null> {
   const { target, ...exportOptions } = options;
   return rpc.externalReplay.streamExport({
     ...target,
