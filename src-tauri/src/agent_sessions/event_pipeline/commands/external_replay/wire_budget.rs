@@ -275,5 +275,3 @@ pub(super) fn session_events_equal(left: &SessionEvent, right: &SessionEvent) ->
 
 pub(super) const REPLAY_REQUEST_STATE_TTL: Duration = Duration::from_secs(5 * 60);
 pub(super) const MAX_REPLAY_REQUEST_STATES: usize = 64;
-pub(super) const PREWARM_REQUEST_STATE_TTL: Duration = Duration::from_secs(5 * 60);
-pub(super) const MAX_PREWARM_REQUEST_STATES: usize = 64;

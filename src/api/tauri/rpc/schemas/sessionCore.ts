@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import replayBudgets from "@src/shared/externalReplayBudgets.json";
 
 const UnknownRecordSchema = z.record(z.string(), z.unknown());
 const SafeU64NumberSchema = z
@@ -105,7 +106,7 @@ export const ShellReplayRangeInput = z.object({
     .number()
     .int()
     .positive()
-    .max(256 * 1024),
+    .max(replayBudgets.shellReplayRangeMaxBytes),
 });
 
 export const ShellReplayFrameSchema = z.object({

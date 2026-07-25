@@ -221,8 +221,8 @@ fn cloud_spool_physical_cursor_advances_across_zero_event_v2_parts() {
     let attachment_hash = sha256_hex(b"abcdef");
     let first = encode_cloud_attachment_frame(
         &CloudAttachmentFrameHeader {
-            kind: "event",
-            attachment_id: &attachment_id,
+            kind: "event".to_string(),
+            attachment_id: attachment_id.clone(),
             part_index: 0,
             chunk_offset: 0,
             chunk_bytes: 3,
@@ -236,14 +236,14 @@ fn cloud_spool_physical_cursor_advances_across_zero_event_v2_parts() {
     .expect("first V2 row");
     let final_segment = encode_cloud_attachment_frame(
         &CloudAttachmentFrameHeader {
-            kind: "event",
-            attachment_id: &attachment_id,
+            kind: "event".to_string(),
+            attachment_id: attachment_id.clone(),
             part_index: 1,
             chunk_offset: 3,
             chunk_bytes: 3,
             final_part: true,
             event_bytes: Some(6),
-            attachment_hash: Some(&attachment_hash),
+            attachment_hash: Some(attachment_hash.clone()),
         },
         b"def",
         1,
@@ -356,18 +356,18 @@ fn ten_mib_single_event_is_streamed_into_one_bounded_lossless_cloud_wire() {
 }
 
 #[test]
-fn replay_attachment_v2_frame_matches_the_typescript_golden_hash() {
+fn replay_attachment_v2_frame_matches_the_published_golden_hash() {
     let attachment_id = sha256_hex(b"golden");
     let attachment_hash = sha256_hex(b"abc");
     let header = CloudAttachmentFrameHeader {
-        kind: "event",
-        attachment_id: &attachment_id,
+        kind: "event".to_string(),
+        attachment_id,
         part_index: 0,
         chunk_offset: 0,
         chunk_bytes: 3,
         final_part: true,
         event_bytes: Some(3),
-        attachment_hash: Some(&attachment_hash),
+        attachment_hash: Some(attachment_hash),
     };
     let segment = encode_cloud_attachment_frame(&header, b"abc", 1).expect("golden frame");
     assert_eq!(

@@ -1,0 +1,11 @@
+{
+  "replayMaxTurns": 10,
+  "replayMaxEvents": 200,
+  "replayMaxIpcBytes": 4194304,
+  "payloadRangeMaxBytes": 262144,
+  "shellReplayRangeMaxBytes": 262144,
+  "cloudSegmentMaxBytes": 262144,
+  "cloudPageMaxBytes": 4194304,
+  "cloudPageMaxSegments": 200,
+  "cloudAttachmentChunkBytes": 180224
+}

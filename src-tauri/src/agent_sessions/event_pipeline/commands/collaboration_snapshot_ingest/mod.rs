@@ -26,18 +26,25 @@ use crate::agent_sessions::event_pipeline::commands::event_conversion::{
 };
 use crate::agent_sessions::event_pipeline::types::SessionEvent;
 
+use super::replay_cloud_wire::{
+    decode_replay_attachment_v2_frame, ReplayAttachmentV2FrameHeader,
+    CLOUD_PAGE_MAX_BYTES as MAX_PAGE_BYTES, CLOUD_PAGE_MAX_SEGMENTS as MAX_PAGE_SEGMENTS,
+    CLOUD_SEGMENT_WIRE_MAX_BYTES as MAX_WIRE_BYTES,
+    LEGACY_V1_MAX_DECOMPRESSED_BYTES as MAX_DECOMPRESSED_V1_BYTES,
+    REPLAY_ATTACHMENT_V2_MAGIC as FRAME_MAGIC,
+    REPLAY_ATTACHMENT_V2_MAX_DECOMPRESSED_BYTES as MAX_DECOMPRESSED_V2_BYTES,
+};
+#[cfg(test)]
+use super::replay_cloud_wire::{
+    encode_replay_attachment_v2_frame, REPLAY_ATTACHMENT_CHUNK_BYTES as ATTACHMENT_CHUNK_BYTES,
+};
+
 const IMPORTED_SESSION_PREFIX: &str = "imported-session-";
 const AGENT_SESSION_PREFIX: &str = "agentsession-";
 const COPY_ID_DELIMITER: &str = "~";
 const STAGING_DIR_NAME: &str = "collaboration-snapshot-staging";
 const STAGING_VERSION: i64 = 1;
 const STAGING_STALE_AFTER: Duration = Duration::from_secs(24 * 60 * 60);
-const MAX_WIRE_BYTES: usize = 256 * 1024;
-const MAX_PAGE_BYTES: usize = 4 * 1024 * 1024;
-const MAX_PAGE_SEGMENTS: usize = 200;
-const MAX_DECOMPRESSED_V1_BYTES: u64 = 64 * 1024 * 1024;
-const MAX_DECOMPRESSED_V2_BYTES: u64 = 512 * 1024;
-const FRAME_MAGIC: &[u8] = b"ORGII-REPLAY-ATTACHMENT-V2\0";
 const HASH_HEX_BYTES: usize = 64;
 const HANDOFF_MAX_ITEMS: usize = 80;
 const HANDOFF_MAX_ITEM_UTF16: usize = 1_200;

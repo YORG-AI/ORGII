@@ -42,10 +42,19 @@ use crate::agent_sessions::event_pipeline::ingestion::{self, types::RawActivityC
 use crate::agent_sessions::event_pipeline::store::EventStore;
 use crate::agent_sessions::event_pipeline::types::{EventSource, PayloadRef, SessionEvent};
 
+#[cfg(test)]
+use super::replay_cloud_wire::REPLAY_ATTACHMENT_V2_MAGIC as CLOUD_ATTACHMENT_V2_MAGIC;
 use super::{
     event_conversion::cached_event_to_session_event,
-    external_replay_cache::schedule_replay_cache_prune, external_replay_watcher, schedule_notify,
-    EventStoreState,
+    external_replay_cache::schedule_replay_cache_prune,
+    external_replay_watcher,
+    replay_cloud_wire::{
+        encode_replay_attachment_v2_frame,
+        ReplayAttachmentV2FrameHeader as CloudAttachmentFrameHeader, CLOUD_PAGE_MAX_SEGMENTS,
+        CLOUD_SEGMENT_WIRE_MAX_BYTES,
+        REPLAY_ATTACHMENT_CHUNK_BYTES as CLOUD_ATTACHMENT_CHUNK_BYTES,
+    },
+    schedule_notify, EventStoreState,
 };
 
 pub const MANAGED_CLI_REPLAY_TARGET_ID: &str = "managed_cli";
@@ -316,21 +325,14 @@ enum ResolvedReplayTarget {
     NotReady,
 }
 
-const STREAM_BATCH_MAX_EVENTS: usize = 200;
-const STREAM_BATCH_MAX_BYTES: usize = 256 * 1024;
+const STREAM_BATCH_MAX_EVENTS: usize = CLOUD_PAGE_MAX_SEGMENTS;
+const STREAM_BATCH_MAX_BYTES: usize = CLOUD_SEGMENT_WIRE_MAX_BYTES;
 const EXPORT_PAYLOAD_RANGE_BYTES: usize = 64 * 1024;
 const EXPORT_WRITER_BUFFER_BYTES: usize = 256 * 1024;
-/// The complete serialized segment object, including base64 gzip and a
-/// worst-case sequence number, must fit this limit.
-const CLOUD_SEGMENT_WIRE_MAX_BYTES: usize = 256 * 1024;
 /// Base64 expands binary by 4/3. Keeping the gzip sink below this bound also
 /// bounds the temporary binary and base64 buffers while the exact wire check
 /// below accounts for JSON field overhead.
 const CLOUD_SEGMENT_GZIP_MAX_BYTES: usize = 191 * 1024;
-/// Leaves enough room for the V2 frame header, gzip overhead, base64 growth,
-/// and the containing JSON wire object even for high-entropy bytes.
-const CLOUD_ATTACHMENT_CHUNK_BYTES: usize = 176 * 1024;
-const CLOUD_ATTACHMENT_V2_MAGIC: &[u8] = b"ORGII-REPLAY-ATTACHMENT-V2\0";
 const CLOUD_SPOOL_TTL: Duration = Duration::from_secs(10 * 60);
 
 mod cloud;
@@ -352,9 +354,10 @@ pub use handoff::*;
 use managed_chunks::*;
 pub use payload::*;
 use request_guard::{
-    apply_external_replay_delta, apply_prewarm_window_if_current, begin_prewarm_request,
-    begin_replay_request, is_current_prewarm_request, is_current_replay_request,
-    release_replay_watch_if_stale_episode, release_session_runtime_if_episode,
+    apply_foreground_delta_if_current, apply_foreground_window_if_current,
+    apply_prewarm_window_if_current, begin_validated_foreground_request,
+    begin_validated_prewarm_request, is_current_prewarm_request, is_current_replay_request,
+    release_replay_watch_if_stale_episode, release_session_runtime_if_episode, ReplayWindowPublish,
 };
 pub(super) use request_guard::{cancel_prewarm_requests, release_session_runtime};
 pub use shell::*;

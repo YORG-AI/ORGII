@@ -15,25 +15,79 @@ pub(super) struct PrewarmRequestState {
     touched_at: Instant,
 }
 
-pub(super) fn replay_request_states() -> &'static Mutex<HashMap<String, ReplayRequestState>> {
-    static REQUEST_STATES: OnceLock<Mutex<HashMap<String, ReplayRequestState>>> = OnceLock::new();
-    REQUEST_STATES.get_or_init(|| Mutex::new(HashMap::new()))
+trait TouchedRequestState {
+    fn touched_at(&self) -> Instant;
 }
 
-pub(super) fn prewarm_request_states() -> &'static Mutex<HashMap<String, PrewarmRequestState>> {
-    static REQUEST_STATES: OnceLock<Mutex<HashMap<String, PrewarmRequestState>>> = OnceLock::new();
-    REQUEST_STATES.get_or_init(|| Mutex::new(HashMap::new()))
+impl TouchedRequestState for ReplayRequestState {
+    fn touched_at(&self) -> Instant {
+        self.touched_at
+    }
+}
+
+impl TouchedRequestState for PrewarmRequestState {
+    fn touched_at(&self) -> Instant {
+        self.touched_at
+    }
+}
+
+#[derive(Debug, Default)]
+struct ReplayRequestRegistry {
+    foreground: HashMap<String, ReplayRequestState>,
+    prewarm: HashMap<String, PrewarmRequestState>,
+}
+
+fn replay_request_registry() -> &'static Mutex<ReplayRequestRegistry> {
+    static REQUEST_REGISTRY: OnceLock<Mutex<ReplayRequestRegistry>> = OnceLock::new();
+    REQUEST_REGISTRY.get_or_init(|| Mutex::new(ReplayRequestRegistry::default()))
+}
+
+fn prune_expired_request_states<State: TouchedRequestState>(
+    entries: &mut HashMap<String, State>,
+    now: Instant,
+) {
+    entries.retain(|_, entry| now.duration_since(entry.touched_at()) < REPLAY_REQUEST_STATE_TTL);
+}
+
+fn reserve_request_slot<State: TouchedRequestState>(
+    entries: &mut HashMap<String, State>,
+    session_id: &str,
+) {
+    if entries.contains_key(session_id) || entries.len() < MAX_REPLAY_REQUEST_STATES {
+        return;
+    }
+    if let Some(oldest) = entries
+        .iter()
+        .min_by_key(|(_, entry)| entry.touched_at())
+        .map(|(session_id, _)| session_id.clone())
+    {
+        entries.remove(&oldest);
+    }
+}
+
+fn next_request_token() -> u64 {
+    static NEXT_REQUEST_TOKEN: AtomicU64 = AtomicU64::new(0);
+    NEXT_REQUEST_TOKEN
+        .fetch_add(1, Ordering::Relaxed)
+        .saturating_add(1)
+}
+
+pub(super) fn begin_validated_prewarm_request(
+    source_id: &str,
+    session_id: &str,
+    episode_id: u64,
+) -> Result<u64, String> {
+    validate_primary_replay_target_identity(source_id, session_id)?;
+    begin_prewarm_request(session_id, episode_id)
 }
 
 pub(super) fn begin_prewarm_request(session_id: &str, episode_id: u64) -> Result<u64, String> {
-    static NEXT_REQUEST_TOKEN: AtomicU64 = AtomicU64::new(0);
     let now = Instant::now();
-    let mut request_states = prewarm_request_states()
+    let mut registry = replay_request_registry()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    request_states
-        .retain(|_, entry| now.duration_since(entry.touched_at) < PREWARM_REQUEST_STATE_TTL);
-    if let Some(current) = request_states.get(session_id) {
+    prune_expired_request_states(&mut registry.prewarm, now);
+    if let Some(current) = registry.prewarm.get(session_id) {
         if current.episode_id > episode_id || (!current.active && current.episode_id >= episode_id)
         {
             return Err(format!(
@@ -42,21 +96,9 @@ pub(super) fn begin_prewarm_request(session_id: &str, episode_id: u64) -> Result
             ));
         }
     }
-    if !request_states.contains_key(session_id)
-        && request_states.len() >= MAX_PREWARM_REQUEST_STATES
-    {
-        if let Some(oldest) = request_states
-            .iter()
-            .min_by_key(|(_, entry)| entry.touched_at)
-            .map(|(session_id, _)| session_id.clone())
-        {
-            request_states.remove(&oldest);
-        }
-    }
-    let request_token = NEXT_REQUEST_TOKEN
-        .fetch_add(1, Ordering::Relaxed)
-        .saturating_add(1);
-    request_states.insert(
+    reserve_request_slot(&mut registry.prewarm, session_id);
+    let request_token = next_request_token();
+    registry.prewarm.insert(
         session_id.to_string(),
         PrewarmRequestState {
             request_token,
@@ -73,9 +115,10 @@ pub(super) fn is_current_prewarm_request(
     episode_id: u64,
     request_token: u64,
 ) -> bool {
-    prewarm_request_states()
+    replay_request_registry()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .prewarm
         .get(session_id)
         .is_some_and(|current| {
             current.active
@@ -90,27 +133,59 @@ pub(super) fn is_current_prewarm_request(
 pub(in crate::agent_sessions::event_pipeline::commands) fn cancel_prewarm_requests(
     session_id: &str,
 ) {
-    let mut request_states = prewarm_request_states()
+    let mut registry = replay_request_registry()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    if let Some(current) = request_states.get_mut(session_id) {
+    if let Some(current) = registry.prewarm.get_mut(session_id) {
         current.active = false;
         current.touched_at = Instant::now();
     }
 }
 
-/// Validate the independent prewarm ticket and publish its bounded window as
-/// one linearizable operation. The lock order is session manager -> stores ->
-/// prewarm registry; `es_switch_session` cancels the old prewarm while holding
-/// the manager lock, so either this commit wins before the switch or it cannot
+#[derive(Debug, Clone, Copy)]
+pub(super) enum ReplayWindowPublish {
+    Replace,
+    Merge,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ReplayRequestTicket {
+    Foreground { episode_id: u64, request_token: u64 },
+    Prewarm { episode_id: u64, request_token: u64 },
+}
+
+impl ReplayRequestTicket {
+    fn is_current(self, registry: &ReplayRequestRegistry, session_id: &str) -> bool {
+        match self {
+            Self::Foreground {
+                episode_id,
+                request_token,
+            } => registry.foreground.get(session_id).is_some_and(|current| {
+                current.episode_id == episode_id && current.request_token == request_token
+            }),
+            Self::Prewarm {
+                episode_id,
+                request_token,
+            } => registry.prewarm.get(session_id).is_some_and(|current| {
+                current.active
+                    && current.episode_id == episode_id
+                    && current.request_token == request_token
+            }),
+        }
+    }
+}
+
+/// Validate a replay ticket and mutate its bounded EventStore as one
+/// linearizable operation. The shared lock order is session manager -> stores
+/// -> request registry. Session switching cancels replay tickets while holding
+/// the manager lock, so either publication wins before the switch or it cannot
 /// write after the switch.
-pub(super) fn apply_prewarm_window_if_current(
+fn apply_replay_store_if_current<Result>(
     state: &EventStoreState,
     session_id: &str,
-    episode_id: u64,
-    request_token: u64,
-    events: &[SessionEvent],
-) -> bool {
+    ticket: ReplayRequestTicket,
+    apply: impl FnOnce(&mut EventStore) -> Result,
+) -> Option<Result> {
     let mut manager = state
         .session_manager
         .lock()
@@ -119,21 +194,85 @@ pub(super) fn apply_prewarm_window_if_current(
         .stores
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let request_states = prewarm_request_states()
+    let registry = replay_request_registry()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let is_current = request_states.get(session_id).is_some_and(|current| {
-        current.active && current.episode_id == episode_id && current.request_token == request_token
-    });
-    if !is_current {
-        return false;
+    if !ticket.is_current(&registry, session_id) {
+        return None;
     }
     manager.register(session_id);
-    stores
-        .entry(session_id.to_string())
-        .or_default()
-        .set_external_replay_window(events.to_vec());
-    true
+    Some(apply(stores.entry(session_id.to_string()).or_default()))
+}
+
+fn apply_replay_window_if_current(
+    state: &EventStoreState,
+    session_id: &str,
+    ticket: ReplayRequestTicket,
+    events: &[SessionEvent],
+    publish: ReplayWindowPublish,
+) -> bool {
+    apply_replay_store_if_current(state, session_id, ticket, |store| match publish {
+        ReplayWindowPublish::Replace => store.set_external_replay_window(events.to_vec()),
+        ReplayWindowPublish::Merge => store.merge_round_window_events(events.to_vec()),
+    })
+    .is_some()
+}
+
+pub(super) fn apply_prewarm_window_if_current(
+    state: &EventStoreState,
+    session_id: &str,
+    episode_id: u64,
+    request_token: u64,
+    events: &[SessionEvent],
+) -> bool {
+    apply_replay_window_if_current(
+        state,
+        session_id,
+        ReplayRequestTicket::Prewarm {
+            episode_id,
+            request_token,
+        },
+        events,
+        ReplayWindowPublish::Replace,
+    )
+}
+
+pub(super) fn apply_foreground_window_if_current(
+    state: &EventStoreState,
+    session_id: &str,
+    episode_id: u64,
+    request_token: u64,
+    events: &[SessionEvent],
+    publish: ReplayWindowPublish,
+) -> bool {
+    apply_replay_window_if_current(
+        state,
+        session_id,
+        ReplayRequestTicket::Foreground {
+            episode_id,
+            request_token,
+        },
+        events,
+        publish,
+    )
+}
+
+pub(super) fn apply_foreground_delta_if_current(
+    state: &EventStoreState,
+    session_id: &str,
+    episode_id: u64,
+    request_token: u64,
+    delta: &ExternalReplayDelta,
+) -> Option<ReplayApplyResult> {
+    apply_replay_store_if_current(
+        state,
+        session_id,
+        ReplayRequestTicket::Foreground {
+            episode_id,
+            request_token,
+        },
+        |store| apply_external_replay_delta(store, delta),
+    )
 }
 
 pub(super) fn begin_replay_request(
@@ -141,14 +280,12 @@ pub(super) fn begin_replay_request(
     episode_id: u64,
     allow_activate: bool,
 ) -> Result<u64, String> {
-    static NEXT_REQUEST_TOKEN: AtomicU64 = AtomicU64::new(0);
     let now = Instant::now();
-    let mut request_states = replay_request_states()
+    let mut registry = replay_request_registry()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    request_states
-        .retain(|_, entry| now.duration_since(entry.touched_at) < REPLAY_REQUEST_STATE_TTL);
-    if let Some(current) = request_states.get(session_id) {
+    prune_expired_request_states(&mut registry.foreground, now);
+    if let Some(current) = registry.foreground.get(session_id) {
         if current.episode_id != episode_id && (!allow_activate || episode_id < current.episode_id)
         {
             return Err(format!(
@@ -159,23 +296,9 @@ pub(super) fn begin_replay_request(
     } else if !allow_activate {
         return Err("external replay foreground episode is not open".to_string());
     }
-    if !request_states.contains_key(session_id) && request_states.len() >= MAX_REPLAY_REQUEST_STATES
-    {
-        if let Some(oldest) = request_states
-            .iter()
-            .min_by_key(|(_, entry)| entry.touched_at)
-            .map(|(session_id, _)| session_id.clone())
-        {
-            // Dropping the ticket only makes that completion stale. It can
-            // never become valid for a future episode because tickets are
-            // process-global and monotonic.
-            request_states.remove(&oldest);
-        }
-    }
-    let request_token = NEXT_REQUEST_TOKEN
-        .fetch_add(1, Ordering::Relaxed)
-        .saturating_add(1);
-    request_states.insert(
+    reserve_request_slot(&mut registry.foreground, session_id);
+    let request_token = next_request_token();
+    registry.foreground.insert(
         session_id.to_string(),
         ReplayRequestState {
             request_token,
@@ -186,14 +309,25 @@ pub(super) fn begin_replay_request(
     Ok(request_token)
 }
 
+pub(super) fn begin_validated_foreground_request(
+    source_id: &str,
+    session_id: &str,
+    episode_id: u64,
+    allow_activate: bool,
+) -> Result<u64, String> {
+    validate_primary_replay_target_identity(source_id, session_id)?;
+    begin_replay_request(session_id, episode_id, allow_activate)
+}
+
 pub(super) fn is_current_replay_request(
     session_id: &str,
     episode_id: u64,
     request_token: u64,
 ) -> bool {
-    replay_request_states()
+    replay_request_registry()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .foreground
         .get(session_id)
         .is_some_and(|current| {
             current.episode_id == episode_id && current.request_token == request_token
@@ -201,9 +335,10 @@ pub(super) fn is_current_replay_request(
 }
 
 pub(super) fn is_current_replay_episode(session_id: &str, episode_id: u64) -> bool {
-    replay_request_states()
+    replay_request_registry()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .foreground
         .get(session_id)
         .is_some_and(|current| current.episode_id == episode_id)
 }
@@ -216,21 +351,25 @@ pub(super) fn release_replay_watch_if_stale_episode(session_id: &str, episode_id
 
 pub(super) fn release_session_runtime_if_episode(session_id: &str, episode_id: u64) {
     let released = {
-        let mut request_states = replay_request_states()
+        let mut registry = replay_request_registry()
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if request_states
+        if registry
+            .foreground
             .get(session_id)
             .is_some_and(|current| current.episode_id == episode_id)
         {
-            request_states.remove(session_id);
+            registry.foreground.remove(session_id);
+            if let Some(prewarm) = registry.prewarm.get_mut(session_id) {
+                prewarm.active = false;
+                prewarm.touched_at = Instant::now();
+            }
             true
         } else {
             false
         }
     };
     if released {
-        cancel_prewarm_requests(session_id);
         external_replay_watcher::release_session_if_episode(session_id, episode_id);
     }
 }
@@ -241,12 +380,34 @@ pub(super) fn release_session_runtime_if_episode(session_id: &str, episode_id: u
 pub(in crate::agent_sessions::event_pipeline::commands) fn release_session_runtime(
     session_id: &str,
 ) {
-    replay_request_states()
+    let mut registry = replay_request_registry()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    registry.foreground.remove(session_id);
+    if let Some(prewarm) = registry.prewarm.get_mut(session_id) {
+        prewarm.active = false;
+        prewarm.touched_at = Instant::now();
+    }
+    drop(registry);
+    external_replay_watcher::release_session(session_id);
+}
+
+#[cfg(test)]
+pub(super) fn has_foreground_request(session_id: &str) -> bool {
+    replay_request_registry()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .remove(session_id);
-    cancel_prewarm_requests(session_id);
-    external_replay_watcher::release_session(session_id);
+        .foreground
+        .contains_key(session_id)
+}
+
+#[cfg(test)]
+pub(super) fn has_prewarm_request(session_id: &str) -> bool {
+    replay_request_registry()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .prewarm
+        .contains_key(session_id)
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -283,4 +444,39 @@ pub(super) fn apply_external_replay_delta(
     result.removed = store.remove_by_ids(&delta.removed_event_ids) as u64;
     result.changed = result.upserted > 0 || result.removed > 0;
     result
+}
+
+#[cfg(test)]
+mod registry_policy_tests {
+    use super::*;
+
+    #[test]
+    fn shared_request_slot_policy_prunes_expired_entries_and_evicts_the_lru() {
+        let now = Instant::now();
+        let mut entries = HashMap::new();
+        entries.insert(
+            "expired".to_string(),
+            ReplayRequestState {
+                request_token: 1,
+                episode_id: 1,
+                touched_at: now - REPLAY_REQUEST_STATE_TTL,
+            },
+        );
+        prune_expired_request_states(&mut entries, now);
+        assert!(entries.is_empty());
+
+        for index in 0..MAX_REPLAY_REQUEST_STATES {
+            entries.insert(
+                format!("session-{index}"),
+                ReplayRequestState {
+                    request_token: index as u64,
+                    episode_id: 1,
+                    touched_at: now - Duration::from_millis(index as u64),
+                },
+            );
+        }
+        reserve_request_slot(&mut entries, "incoming");
+        assert_eq!(entries.len(), MAX_REPLAY_REQUEST_STATES - 1);
+        assert!(!entries.contains_key(&format!("session-{}", MAX_REPLAY_REQUEST_STATES - 1)));
+    }
 }

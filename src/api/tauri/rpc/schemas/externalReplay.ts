@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 
+import replayBudgets from "@src/shared/externalReplayBudgets.json";
 import { IMPORTED_HISTORY_SOURCE_IDS } from "@src/types/session/externalHistory";
 
 import { SessionEventArraySchema } from "./sessionCore";
@@ -22,13 +23,23 @@ export const ExternalReplaySourceIdSchema = z.enum([
 
 export const ExternalReplayLimitsSchema = z
   .object({
-    maxTurns: z.number().int().positive().max(10).optional(),
-    maxEvents: z.number().int().positive().max(200).optional(),
+    maxTurns: z
+      .number()
+      .int()
+      .positive()
+      .max(replayBudgets.replayMaxTurns)
+      .optional(),
+    maxEvents: z
+      .number()
+      .int()
+      .positive()
+      .max(replayBudgets.replayMaxEvents)
+      .optional(),
     maxIpcBytes: z
       .number()
       .int()
       .positive()
-      .max(4 * 1024 * 1024)
+      .max(replayBudgets.replayMaxIpcBytes)
       .optional(),
   })
   .optional();
@@ -156,7 +167,7 @@ export const ExternalReplayReadPayloadRangeInput =
       .number()
       .int()
       .positive()
-      .max(256 * 1024)
+      .max(replayBudgets.payloadRangeMaxBytes)
       .optional(),
   });
 
@@ -219,7 +230,7 @@ export const ExternalReplayCloudReadBatchInput = z.object({
     .number()
     .int()
     .positive()
-    .max(256 * 1024)
+    .max(replayBudgets.cloudSegmentMaxBytes)
     .optional(),
 });
 
@@ -227,11 +238,13 @@ export const ExternalReplayCloudSegmentSchema = z.object({
   payloadGz: z.string(),
   eventCount: SafeU64Schema,
   segmentHash: z.string(),
-  wireBytes: SafeU64Schema.max(256 * 1024),
+  wireBytes: SafeU64Schema.max(replayBudgets.cloudSegmentMaxBytes),
 });
 
 export const ExternalReplayCloudBatchSchema = z.object({
-  segments: z.array(ExternalReplayCloudSegmentSchema).max(200),
+  segments: z
+    .array(ExternalReplayCloudSegmentSchema)
+    .max(replayBudgets.cloudPageMaxSegments),
   startEventIndex: SafeU64Schema,
   nextEventIndex: SafeU64Schema,
   startSegmentIndex: SafeU64Schema,

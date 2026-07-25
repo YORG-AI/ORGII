@@ -24,6 +24,7 @@ import {
   splitFrozenIntoSegments,
 } from "../TeamCollaboration/engine/collabSyncEngineHelpers";
 import { getSessionForkedFrom } from "../TeamCollaboration/forkSession";
+import { SESSION_EVENT_WIRE_MAX_SEGMENT_BYTES } from "../TeamCollaboration/sync/CollabSyncBackend";
 import { computeSegmentHash } from "../TeamCollaboration/sync/collabGzip";
 import type { SegmentWirePayload } from "../TeamCollaboration/sync/segmentCodec";
 import type { CloudPushAccess } from "./org2CloudAccessSettings";
@@ -332,7 +333,7 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
       endEventIndex: manifest.frozenEventCount,
       ...(startSegmentIndex !== undefined ? { startSegmentIndex } : {}),
       // Leave room for JSON array punctuation in the 256 KiB wire segment.
-      maxBytes: 240 * 1024,
+      maxBytes: SESSION_EVENT_WIRE_MAX_SEGMENT_BYTES - 16 * 1024,
     });
     throwIfAborted(signal);
     if (
@@ -355,16 +356,16 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
       token: manifest.token,
       startEventIndex: manifest.frozenEventCount,
       endEventIndex: manifest.totalCount,
-      maxBytes: 256 * 1024,
+      maxBytes: SESSION_EVENT_WIRE_MAX_SEGMENT_BYTES,
     });
     throwIfAborted(signal);
     if (
       !batch.eof ||
-      batch.serializedBytes > 256 * 1024 ||
+      batch.serializedBytes > SESSION_EVENT_WIRE_MAX_SEGMENT_BYTES ||
       batch.segments.length !== 1
     ) {
       throw new Error(
-        "External replay mutable tail exceeds the 256 KiB cloud wire budget"
+        `External replay mutable tail exceeds the ${SESSION_EVENT_WIRE_MAX_SEGMENT_BYTES}-byte cloud wire budget`
       );
     }
     const segment = batch.segments[0];

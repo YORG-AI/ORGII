@@ -9,7 +9,10 @@ pub async fn external_replay_open_window(
     episode_id: u64,
     limits: Option<ReplayLimits>,
 ) -> Result<ExternalReplayWindow, String> {
-    let request_token = begin_replay_request(&session_id, episode_id, true)?;
+    // Reject invalid source/session pairs before they can consume a slot in
+    // the bounded foreground request registry.
+    let request_token =
+        begin_validated_foreground_request(&source_id, &session_id, episode_id, true)?;
     let requested_limits = limits.unwrap_or_default().bounded();
     let display_session_id = session_id.clone();
     let requested_source_id = source_id.clone();
@@ -140,9 +143,17 @@ pub async fn external_replay_open_window(
             // `false` is one byte larger than `true`; watcher attachment can
             // therefore never invalidate the already-checked wire budget.
             refresh_window_wire_bytes(&mut response)?;
-            state.with_store_mut(&display_session_id, |store| {
-                store.set_external_replay_window(response.events.clone());
-            });
+            if !apply_foreground_window_if_current(
+                &state,
+                &display_session_id,
+                episode_id,
+                request_token,
+                &response.events,
+                ReplayWindowPublish::Replace,
+            ) {
+                release_replay_watch_if_stale_episode(&display_session_id, episode_id);
+                return Ok(response);
+            }
             state.cap_external_replay_store(
                 &display_session_id,
                 super::super::BOUNDED_REPLAY_STORE_MAX_BYTES,
@@ -186,9 +197,17 @@ pub async fn external_replay_open_window(
                 return Ok(response);
             }
             refresh_window_wire_bytes(&mut response)?;
-            state.with_store_mut(&display_session_id, |store| {
-                store.set_external_replay_window(response.events.clone())
-            });
+            if !apply_foreground_window_if_current(
+                &state,
+                &display_session_id,
+                episode_id,
+                request_token,
+                &response.events,
+                ReplayWindowPublish::Replace,
+            ) {
+                release_replay_watch_if_stale_episode(&display_session_id, episode_id);
+                return Ok(response);
+            }
             state.cap_external_replay_store(
                 &display_session_id,
                 super::super::BOUNDED_REPLAY_STORE_MAX_BYTES,
@@ -236,9 +255,17 @@ pub async fn external_replay_open_window(
                 return Ok(response);
             }
             refresh_window_wire_bytes(&mut response)?;
-            state.with_store_mut(&display_session_id, |store| {
-                store.set_external_replay_window(response.events.clone())
-            });
+            if !apply_foreground_window_if_current(
+                &state,
+                &display_session_id,
+                episode_id,
+                request_token,
+                &response.events,
+                ReplayWindowPublish::Replace,
+            ) {
+                release_replay_watch_if_stale_episode(&display_session_id, episode_id);
+                return Ok(response);
+            }
             state.cap_external_replay_store(
                 &display_session_id,
                 super::super::BOUNDED_REPLAY_STORE_MAX_BYTES,
@@ -260,9 +287,10 @@ pub async fn external_replay_poll_delta(
     cursor: ReplayCursor,
     limits: Option<ReplayLimits>,
 ) -> Result<ExternalReplayDelta, String> {
-    let request_token = begin_replay_request(&session_id, episode_id, false)?;
-    let requested_limits = limits.unwrap_or_default().bounded();
     validate_display_cursor(&source_id, &session_id, &cursor)?;
+    let request_token =
+        begin_validated_foreground_request(&source_id, &session_id, episode_id, false)?;
+    let requested_limits = limits.unwrap_or_default().bounded();
     let display_session_id = session_id.clone();
     let requested_source_id = source_id.clone();
     let delta =
@@ -358,30 +386,24 @@ pub async fn external_replay_poll_delta(
         release_replay_watch_if_stale_episode(&display_session_id, episode_id);
         return Ok(response);
     }
-    if response.reset_required {
-        state.with_store_mut(&display_session_id, |store| {
-            apply_external_replay_delta(store, &response)
-        });
-        response.stats.upserted_events = response.events.len() as u64;
-        response.stats.removed_events = 0;
-        state.cap_external_replay_store(
-            &display_session_id,
-            super::super::BOUNDED_REPLAY_STORE_MAX_BYTES,
-        )?;
+    let Some(applied) = apply_foreground_delta_if_current(
+        &state,
+        &display_session_id,
+        episode_id,
+        request_token,
+        &response,
+    ) else {
+        release_replay_watch_if_stale_episode(&display_session_id, episode_id);
+        return Ok(response);
+    };
+    response.stats.upserted_events = applied.upserted;
+    response.stats.removed_events = applied.removed;
+    state.cap_external_replay_store(
+        &display_session_id,
+        super::super::BOUNDED_REPLAY_STORE_MAX_BYTES,
+    )?;
+    if applied.changed {
         schedule_notify(&app, &state, &display_session_id);
-    } else {
-        let applied = state.with_store_mut(&display_session_id, |store| {
-            apply_external_replay_delta(store, &response)
-        });
-        response.stats.upserted_events = applied.upserted;
-        response.stats.removed_events = applied.removed;
-        state.cap_external_replay_store(
-            &display_session_id,
-            super::super::BOUNDED_REPLAY_STORE_MAX_BYTES,
-        )?;
-        if applied.changed {
-            schedule_notify(&app, &state, &display_session_id);
-        }
     }
     // Actual no-op filtering can only reduce the decimal stats width, and
     // `watcherAvailable=true` is shorter than the preflight `false` value.
@@ -413,18 +435,19 @@ pub async fn external_replay_read_window(
     turn_index: Option<i64>,
     limits: Option<ReplayLimits>,
 ) -> Result<ExternalReplayWindow, String> {
-    let request_token = begin_replay_request(&session_id, episode_id, false)?;
+    let locator_count = usize::from(before_sequence.is_some())
+        + usize::from(turn_id.is_some())
+        + usize::from(turn_index.is_some());
+    if locator_count > 1 {
+        return Err("beforeSequence, turnId and turnIndex are mutually exclusive".to_string());
+    }
+    let request_token =
+        begin_validated_foreground_request(&source_id, &session_id, episode_id, false)?;
     let requested_limits = limits.unwrap_or_default().bounded();
     let display_session_id = session_id.clone();
     let requested_source_id = source_id.clone();
-    let window = tokio::task::spawn_blocking(move || {
-        let locator_count = usize::from(before_sequence.is_some())
-            + usize::from(turn_id.is_some())
-            + usize::from(turn_index.is_some());
-        if locator_count > 1 {
-            return Err("beforeSequence, turnId and turnIndex are mutually exclusive".to_string());
-        }
-        match resolve_target(&source_id, &session_id)? {
+    let window =
+        tokio::task::spawn_blocking(move || match resolve_target(&source_id, &session_id)? {
             ResolvedReplayTarget::Imported {
                 source,
                 imported_session_id,
@@ -478,10 +501,9 @@ pub async fn external_replay_read_window(
             )
             .map(ResolvedReplayWindow::ManagedChunks),
             ResolvedReplayTarget::NotReady => Ok(ResolvedReplayWindow::NotReady),
-        }
-    })
-    .await
-    .map_err(|err| format!("join replay window task: {err}"))??;
+        })
+        .await
+        .map_err(|err| format!("join replay window task: {err}"))??;
     if matches!(window, ResolvedReplayWindow::NotReady) {
         let mut response = not_ready_window(&requested_source_id, &display_session_id);
         finalize_window_wire_budget(&mut response, requested_limits.max_ipc_bytes)?;
@@ -520,9 +542,16 @@ pub async fn external_replay_read_window(
     if !is_current_replay_request(&display_session_id, episode_id, request_token) {
         return Ok(response);
     }
-    state.with_store_mut(&display_session_id, |store| {
-        store.merge_round_window_events(response.events.clone())
-    });
+    if !apply_foreground_window_if_current(
+        &state,
+        &display_session_id,
+        episode_id,
+        request_token,
+        &response.events,
+        ReplayWindowPublish::Merge,
+    ) {
+        return Ok(response);
+    }
     state.cap_external_replay_store(
         &display_session_id,
         super::super::BOUNDED_REPLAY_STORE_MAX_BYTES,
@@ -609,8 +638,7 @@ pub async fn external_replay_prewarm_window(
     // This cheap identity check runs before registering an episode, so a
     // native SDE session can neither call replay nor leave retained guard
     // state, even if a caller spoofs an external source id.
-    validate_prewarm_target_identity(&source_id, &session_id)?;
-    let request_token = begin_prewarm_request(&session_id, episode_id)?;
+    let request_token = begin_validated_prewarm_request(&source_id, &session_id, episode_id)?;
     let requested_limits = limits.unwrap_or_default().bounded();
     let display_session_id = session_id.clone();
     let requested_source_id = source_id.clone();

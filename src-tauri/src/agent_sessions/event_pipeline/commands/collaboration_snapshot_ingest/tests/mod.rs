@@ -877,30 +877,25 @@ fn v2_wires(event: &SessionEvent) -> Vec<CollaborationSnapshotWire> {
     let event_bytes = serde_json::to_vec(event).expect("serialize attachment event");
     let attachment_hash = sha256_hex(&event_bytes);
     let attachment_id = sha256_hex(event.id.as_bytes());
-    let chunk_bytes = 176 * 1024;
+    let chunk_bytes = ATTACHMENT_CHUNK_BYTES;
     event_bytes
         .chunks(chunk_bytes)
         .enumerate()
         .map(|(part_index, chunk)| {
             let chunk_offset = part_index * chunk_bytes;
             let final_part = chunk_offset + chunk.len() == event_bytes.len();
-            let header = serde_json::json!({
-                "kind": "event",
-                "attachmentId": attachment_id,
-                "partIndex": part_index,
-                "chunkOffset": chunk_offset,
-                "chunkBytes": chunk.len(),
-                "finalPart": final_part,
-                "eventBytes": final_part.then_some(event_bytes.len()),
-                "attachmentHash": final_part.then_some(attachment_hash.clone()),
-            });
-            let header_bytes = serde_json::to_vec(&header).expect("serialize frame header");
-            let mut frame =
-                Vec::with_capacity(FRAME_MAGIC.len() + 4 + header_bytes.len() + chunk.len());
-            frame.extend_from_slice(FRAME_MAGIC);
-            frame.extend_from_slice(&(header_bytes.len() as u32).to_be_bytes());
-            frame.extend_from_slice(&header_bytes);
-            frame.extend_from_slice(chunk);
+            let header = ReplayAttachmentV2FrameHeader {
+                kind: "event".to_string(),
+                attachment_id: attachment_id.clone(),
+                part_index: part_index as u64,
+                chunk_offset: chunk_offset as u64,
+                chunk_bytes: chunk.len() as u64,
+                final_part,
+                event_bytes: final_part.then_some(event_bytes.len() as u64),
+                attachment_hash: final_part.then_some(attachment_hash.clone()),
+            };
+            let frame = encode_replay_attachment_v2_frame(&header, chunk)
+                .expect("encode shared attachment frame");
             CollaborationSnapshotWire {
                 seq: part_index as u64 + 1,
                 payload_gz: gzip_base64(&frame),

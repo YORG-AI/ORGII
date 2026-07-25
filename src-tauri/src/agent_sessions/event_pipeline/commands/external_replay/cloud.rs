@@ -134,42 +134,15 @@ pub(super) fn encode_cloud_frozen_event(
     Ok((encoder.finish(1)?, format!("{:x}", event_digest.finalize())))
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct CloudAttachmentFrameHeader<'a> {
-    pub(super) kind: &'static str,
-    pub(super) attachment_id: &'a str,
-    pub(super) part_index: u64,
-    pub(super) chunk_offset: u64,
-    pub(super) chunk_bytes: u64,
-    pub(super) final_part: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) event_bytes: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) attachment_hash: Option<&'a str>,
-}
-
 pub(super) fn encode_cloud_attachment_frame(
-    header: &CloudAttachmentFrameHeader<'_>,
+    header: &CloudAttachmentFrameHeader,
     chunk: &[u8],
     event_count: u64,
 ) -> Result<ExternalReplayCloudSegment, String> {
-    let header_json = serde_json::to_vec(header)
-        .map_err(|err| format!("serialize replay attachment V2 header: {err}"))?;
-    let header_len = u32::try_from(header_json.len())
-        .map_err(|_| "Replay attachment V2 header exceeds u32".to_string())?;
+    let frame = encode_replay_attachment_v2_frame(header, chunk)?;
     let mut encoder = CloudSegmentEncoder::new();
     encoder
-        .write_all(CLOUD_ATTACHMENT_V2_MAGIC)
-        .map_err(cloud_segment_write_error)?;
-    encoder
-        .write_all(&header_len.to_be_bytes())
-        .map_err(cloud_segment_write_error)?;
-    encoder
-        .write_all(&header_json)
-        .map_err(cloud_segment_write_error)?;
-    encoder
-        .write_all(chunk)
+        .write_all(&frame)
         .map_err(cloud_segment_write_error)?;
     encoder.finish(event_count)
 }
@@ -206,14 +179,14 @@ impl<'a> StreamingCloudAttachmentEncoder<'a> {
         let chunk_offset = self.total_bytes.saturating_sub(chunk_bytes);
         let attachment_hash = final_part.then(|| format!("{:x}", self.digest.clone().finalize()));
         let header = CloudAttachmentFrameHeader {
-            kind: "event",
-            attachment_id: &self.attachment_id,
+            kind: "event".to_string(),
+            attachment_id: self.attachment_id.clone(),
             part_index: self.part_index,
             chunk_offset,
             chunk_bytes,
             final_part,
             event_bytes: final_part.then_some(self.total_bytes),
-            attachment_hash: attachment_hash.as_deref(),
+            attachment_hash,
         };
         let segment =
             encode_cloud_attachment_frame(&header, &self.chunk, if final_part { 1 } else { 0 })?;

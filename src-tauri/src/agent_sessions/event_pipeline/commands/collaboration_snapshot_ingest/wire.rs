@@ -1,21 +1,6 @@
 use super::staging::*;
 use super::*;
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct AttachmentFrameHeader {
-    kind: String,
-    attachment_id: String,
-    part_index: u64,
-    chunk_offset: u64,
-    chunk_bytes: u64,
-    final_part: bool,
-    #[serde(default)]
-    event_bytes: Option<u64>,
-    #[serde(default)]
-    attachment_hash: Option<String>,
-}
-
 pub(super) struct DecodedWireFile {
     path: PathBuf,
     bytes: u64,
@@ -226,13 +211,6 @@ pub(super) fn stage_v1_wire(
     Ok(())
 }
 
-pub(super) fn read_u32_be(bytes: &[u8]) -> Result<usize, String> {
-    let array: [u8; 4] = bytes
-        .try_into()
-        .map_err(|_| "attachment header length is truncated".to_string())?;
-    Ok(u32::from_be_bytes(array) as usize)
-}
-
 pub(super) fn stage_v2_wire(
     tx: &Transaction<'_>,
     decoded: &DecodedWireFile,
@@ -243,84 +221,41 @@ pub(super) fn stage_v2_wire(
     }
     let bytes = fs::read(&decoded.path)
         .map_err(|error| format!("read attachment frame {}: {error}", wire.seq))?;
-    let prefix_bytes = FRAME_MAGIC.len() + 4;
-    if bytes.len() < prefix_bytes || !bytes.starts_with(FRAME_MAGIC) {
-        return Err(format!("attachment frame {} has invalid magic", wire.seq));
-    }
-    let header_bytes = read_u32_be(&bytes[FRAME_MAGIC.len()..prefix_bytes])?;
-    let payload_offset = prefix_bytes
-        .checked_add(header_bytes)
-        .ok_or_else(|| "attachment frame header length overflow".to_string())?;
-    if header_bytes == 0 || payload_offset > bytes.len() {
-        return Err(format!("attachment frame {} header is truncated", wire.seq));
-    }
-    let header: AttachmentFrameHeader =
-        serde_json::from_slice(&bytes[prefix_bytes..payload_offset])
-            .map_err(|error| format!("attachment frame {} header is invalid: {error}", wire.seq))?;
-    if header.kind != "event" || header.attachment_id.is_empty() {
-        return Err(format!(
-            "attachment frame {} header kind/id is invalid",
-            wire.seq
-        ));
-    }
-    validate_hash("attachmentId", &header.attachment_id)?;
-    let chunk = &bytes[payload_offset..];
-    if header.chunk_bytes != chunk.len() as u64 {
-        return Err(format!(
-            "attachment frame {} chunk length mismatch",
-            wire.seq
-        ));
-    }
-    if wire.event_count != u64::from(header.final_part) {
+    let decoded_frame = decode_replay_attachment_v2_frame(&bytes)
+        .map_err(|error| format!("attachment frame {} {error}", wire.seq))?;
+    let ReplayAttachmentV2FrameHeader {
+        attachment_id,
+        part_index,
+        chunk_offset,
+        final_part,
+        event_bytes,
+        attachment_hash,
+        ..
+    } = decoded_frame.header;
+    let chunk = decoded_frame.chunk;
+    if wire.event_count != u64::from(final_part) {
         return Err(format!(
             "attachment frame {} eventCount is inconsistent",
             wire.seq
         ));
     }
-    match (
-        header.final_part,
-        header.event_bytes,
-        header.attachment_hash.as_deref(),
-    ) {
-        (false, None, None) => {}
-        (true, Some(event_bytes), Some(hash)) => {
-            validate_hash("attachmentHash", hash)?;
-            if header
-                .chunk_offset
-                .checked_add(header.chunk_bytes)
-                .is_none_or(|end| end != event_bytes)
-            {
-                return Err(format!(
-                    "attachment frame {} final length mismatch",
-                    wire.seq
-                ));
-            }
-        }
-        _ => {
-            return Err(format!(
-                "attachment frame {} final metadata is inconsistent",
-                wire.seq
-            ))
-        }
-    }
     tx.execute(
         "INSERT INTO attachment_parts(
            attachment_id,part_index,physical_seq,chunk_offset,chunk,final_part,
            event_bytes,attachment_hash
-         ) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",
+        ) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",
         params![
-            header.attachment_id,
-            i64::try_from(header.part_index).map_err(|_| "attachment part index too large")?,
+            attachment_id,
+            i64::try_from(part_index).map_err(|_| "attachment part index too large")?,
             i64::try_from(wire.seq).map_err(|_| "physical sequence too large")?,
-            i64::try_from(header.chunk_offset).map_err(|_| "attachment offset too large")?,
+            i64::try_from(chunk_offset).map_err(|_| "attachment offset too large")?,
             chunk,
-            header.final_part,
-            header
-                .event_bytes
+            final_part,
+            event_bytes
                 .map(i64::try_from)
                 .transpose()
                 .map_err(|_| "attachment event size too large")?,
-            header.attachment_hash,
+            attachment_hash,
         ],
     )
     .map_err(|error| format!("stage attachment frame {}: {error}", wire.seq))?;

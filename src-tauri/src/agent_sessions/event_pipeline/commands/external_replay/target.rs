@@ -112,7 +112,7 @@ pub(super) fn resolve_target(
 /// Validate only identities admitted to the primary bounded-replay registry.
 /// This intentionally excludes snapshot-backed native `agentsession-*` forks,
 /// whose compact index is available solely to read-only secondary consumers.
-pub(super) fn validate_prewarm_target_identity(
+pub(super) fn validate_primary_replay_target_identity(
     source_id: &str,
     session_id: &str,
 ) -> Result<(), String> {

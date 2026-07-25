@@ -1,5 +1,6 @@
 use super::super::request_guard::{
-    is_current_replay_episode, prewarm_request_states, replay_request_states, ReplayApplyResult,
+    apply_external_replay_delta, begin_prewarm_request, begin_replay_request,
+    has_foreground_request, has_prewarm_request, is_current_replay_episode, ReplayApplyResult,
 };
 use super::*;
 
@@ -401,10 +402,7 @@ fn fork_handoff_pages_backwards_with_one_generation_and_no_runtime_side_effects(
     assert_eq!(handoff.generation, "generation-1");
     assert_eq!(handoff.scanned_events, 3);
     assert!(handoff.scanned_bytes <= EXTERNAL_REPLAY_HANDOFF_SCAN_BYTES as u64);
-    assert!(!replay_request_states()
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .contains_key(session_id));
+    assert!(!has_foreground_request(session_id));
     assert!(!external_replay_watcher::is_available(session_id));
 }
 
@@ -567,10 +565,7 @@ fn prewarm_episode_is_independent_and_release_rejects_late_a_completion() {
     let session_a = "codexapp-prewarm-episode-a";
     let first = begin_prewarm_request(session_a, 40).expect("first prewarm");
     assert!(is_current_prewarm_request(session_a, 40, first));
-    assert!(!replay_request_states()
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .contains_key(session_a));
+    assert!(!has_foreground_request(session_a));
 
     let current = begin_prewarm_request(session_a, 41).expect("newer prewarm");
     assert!(!is_current_prewarm_request(session_a, 40, first));
@@ -597,11 +592,16 @@ fn foreground_release_cancels_current_prewarm_without_touching_native_state() {
     assert!(!is_current_prewarm_request(external_session, 12, prewarm));
 
     let native_session = "sdeagent-native-prewarm-boundary";
-    assert!(validate_prewarm_target_identity("codex_app", native_session).is_err());
-    assert!(!prewarm_request_states()
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .contains_key(native_session));
+    assert!(
+        begin_validated_prewarm_request("codex_app", native_session, 1).is_err(),
+        "identity validation must happen before prewarm registration"
+    );
+    assert!(
+        begin_validated_foreground_request("codex_app", native_session, 1, true).is_err(),
+        "identity validation must happen before foreground registration"
+    );
+    assert!(!has_foreground_request(native_session));
+    assert!(!has_prewarm_request(native_session));
 }
 
 #[test]
@@ -630,6 +630,41 @@ fn cancelled_prewarm_cannot_commit_or_reopen_the_same_episode() {
         71,
         current_request_token,
         &[event("current", session_id, "publish")],
+    ));
+    assert_eq!(
+        state.with_store_opt(session_id, |store| store.events().len()),
+        Some(1)
+    );
+    release_session_runtime(session_id);
+}
+
+#[test]
+fn foreground_window_publish_is_linearized_with_its_request_ticket() {
+    let session_id = "codexapp-foreground-atomic-commit";
+    let state = EventStoreState::new();
+    let stale_request_token = begin_replay_request(session_id, 80, true).expect("first open");
+    let current_request_token =
+        begin_replay_request(session_id, 80, false).expect("newer foreground request");
+
+    assert!(!apply_foreground_window_if_current(
+        &state,
+        session_id,
+        80,
+        stale_request_token,
+        &[event("stale", session_id, "must not publish")],
+        ReplayWindowPublish::Replace,
+    ));
+    assert!(state
+        .with_store_opt(session_id, |store| store.events().len())
+        .is_none());
+
+    assert!(apply_foreground_window_if_current(
+        &state,
+        session_id,
+        80,
+        current_request_token,
+        &[event("current", session_id, "publish")],
+        ReplayWindowPublish::Replace,
     ));
     assert_eq!(
         state.with_store_opt(session_id, |store| store.events().len()),
@@ -736,10 +771,7 @@ fn two_hundred_max_preview_events_stay_under_the_hard_wire_cap() {
 fn native_session_release_does_not_create_replay_runtime_state() {
     let native_session = "osagent-native-replay-boundary";
     release_session_runtime(native_session);
-    assert!(!replay_request_states()
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .contains_key(native_session));
+    assert!(!has_foreground_request(native_session));
     assert!(!external_replay_watcher::is_available(native_session));
 }
 

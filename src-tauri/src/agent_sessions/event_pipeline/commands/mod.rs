@@ -18,6 +18,7 @@ mod ingestion;
 mod notify;
 mod pagination;
 mod push_events;
+mod replay_cloud_wire;
 mod runtime_artifacts;
 mod search;
 mod session_manager;

@@ -10,6 +10,7 @@
  * is exactly the surface those cloud adapters implement.
  */
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import replayBudgets from "@src/shared/externalReplayBudgets.json";
 import type {
   CollabProjectMetadataRecord,
   CollabWorkItemMetadataRecord,
@@ -83,9 +84,12 @@ export interface SessionEventsSegmentInput {
  * physical cloud rows, not logical events: one Replay Attachment V2 event may
  * span several rows whose intermediate `eventCount` is zero.
  */
-export const SESSION_EVENT_WIRE_MAX_SEGMENT_BYTES = 256 * 1024;
-export const SESSION_EVENT_WIRE_MAX_PAGE_BYTES = 4 * 1024 * 1024;
-export const SESSION_EVENT_WIRE_MAX_PAGE_SEGMENTS = 200;
+export const SESSION_EVENT_WIRE_MAX_SEGMENT_BYTES =
+  replayBudgets.cloudSegmentMaxBytes;
+export const SESSION_EVENT_WIRE_MAX_PAGE_BYTES =
+  replayBudgets.cloudPageMaxBytes;
+export const SESSION_EVENT_WIRE_MAX_PAGE_SEGMENTS =
+  replayBudgets.cloudPageMaxSegments;
 
 /**
  * A physical-row cursor. Forward pages are used for deltas/rebuilds;
