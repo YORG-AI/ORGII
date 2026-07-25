@@ -588,7 +588,7 @@ mod issue_timeline_tests {
             "created_at": "2026-07-21T13:09:14Z",
             "user": { "login": "Harry19081", "avatar_url": "https://example.com/avatar.png" },
             "body": "Please work on this",
-            "html_url": "https://github.com/yorgai/ORG2/issues/459#issuecomment-5034449241"
+            "html_url": "https://github.com/org2ai/ORG2/issues/459#issuecomment-5034449241"
         }));
 
         assert_eq!(item.event, "commented");
@@ -621,9 +621,9 @@ mod issue_timeline_tests {
                 "issue": {
                     "number": 460,
                     "title": "fix(chat): refresh question status after answer",
-                    "html_url": "https://github.com/yorgai/ORG2/pull/460",
+                    "html_url": "https://github.com/org2ai/ORG2/pull/460",
                     "state": "open",
-                    "pull_request": { "html_url": "https://github.com/yorgai/ORG2/pull/460" }
+                    "pull_request": { "html_url": "https://github.com/org2ai/ORG2/pull/460" }
                 }
             }
         }));
