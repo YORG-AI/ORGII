@@ -9,6 +9,7 @@ import { useAtomValue } from "jotai";
 import { useMemo } from "react";
 
 import { getSessionForkedFrom } from "@src/features/TeamCollaboration/forkSession";
+import { collectScopeMatchedImportedSessionIds } from "@src/features/TeamCollaboration/importedSessionScopeMatch";
 import {
   type SessionOrgTags,
   cloudOrgIdsForSession,
@@ -22,6 +23,7 @@ import {
   org2CloudOrgsAtom,
   parseCloudOrgSelectorValue,
 } from "./org2CloudOrgsAtom";
+import { org2CloudRepoScopesAtom } from "./org2CloudSyncAtoms";
 
 export interface SessionCommentTarget {
   orgId: string;
@@ -35,7 +37,28 @@ type CommentTargetSession = {
   orgId?: string;
   importedFrom?: Session["importedFrom"];
   forkedFrom?: Session["forkedFrom"];
+  /** Checkout identity for the repo-scope auto-match admission route. */
+  repoPath?: Session["repoPath"];
+  repoRemoteUrls?: Session["repoRemoteUrls"];
 };
+
+/** Orgs whose configured repo scopes cover this session's checkout. */
+function scopeMatchedOrgIdsForSession(
+  session: CommentTargetSession,
+  orgRepoScopes: Record<string, string[]>
+): string[] {
+  const matched: string[] = [];
+  for (const [orgId, scopes] of Object.entries(orgRepoScopes)) {
+    if (
+      collectScopeMatchedImportedSessionIds([session], scopes).has(
+        session.session_id
+      )
+    ) {
+      matched.push(orgId);
+    }
+  }
+  return matched;
+}
 
 /** Pure resolution (unit-tested; no IO). */
 export function resolveSessionCommentTarget(params: {
@@ -44,8 +67,16 @@ export function resolveSessionCommentTarget(params: {
   tags: SessionOrgTags;
   /** Cloud org id the surrounding UI scope prefers (nullable). */
   preferredOrgId: string | null;
+  /** orgId → configured repo scopes, for the auto-match admission route. */
+  orgRepoScopes?: Record<string, string[]>;
 }): SessionCommentTarget | null {
-  const { session, cloudOrgs, tags, preferredOrgId } = params;
+  const {
+    session,
+    cloudOrgs,
+    tags,
+    preferredOrgId,
+    orgRepoScopes = {},
+  } = params;
   if (!session) return null;
 
   const memberOrgIds = new Set(cloudOrgs.map((org) => org.orgId));
@@ -76,9 +107,20 @@ export function resolveSessionCommentTarget(params: {
   const ownedCloudOrgId = session.orgId
     ? parseCloudOrgSelectorValue(session.orgId)
     : null;
+  // Repo-scope auto-match is a THIRD admission route (the push pass accepts
+  // `isScopeMatchableImportedSession` alongside ownership and tags). Without
+  // it here, an imported history shared purely by repo scope has no comment
+  // surface for its owner: teammates can comment and the cloud row carries
+  // the threads, but the owner sees no affordance — so no reply, and no
+  // owner-only @agent round either.
+  const scopeMatchedOrgIds = scopeMatchedOrgIdsForSession(
+    session,
+    orgRepoScopes
+  );
   const candidateOrgIds = [
     ...(ownedCloudOrgId ? [ownedCloudOrgId] : []),
     ...cloudOrgIdsForSession(tags, session.session_id),
+    ...scopeMatchedOrgIds,
   ].filter(
     (orgId, index, all) =>
       memberOrgIds.has(orgId) && all.indexOf(orgId) === index
@@ -101,6 +143,7 @@ export function useSessionCommentTarget(
   const cloudOrgs = useAtomValue(org2CloudOrgsAtom);
   const tags = useAtomValue(sessionOrgTagsAtom);
   const selectedCloudOrg = useAtomValue(chatPanelSelectedCloudOrgAtom);
+  const orgRepoScopes = useAtomValue(org2CloudRepoScopesAtom);
 
   return useMemo(
     () =>
@@ -111,7 +154,8 @@ export function useSessionCommentTarget(
         cloudOrgs,
         tags,
         preferredOrgId: selectedCloudOrg?.orgId ?? null,
+        orgRepoScopes,
       }),
-    [session, cloudOrgs, tags, selectedCloudOrg]
+    [session, cloudOrgs, tags, selectedCloudOrg, orgRepoScopes]
   );
 }

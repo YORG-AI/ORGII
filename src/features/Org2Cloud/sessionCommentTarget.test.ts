@@ -166,3 +166,50 @@ describe("resolveSessionCommentTarget", () => {
     ).toBeNull();
   });
 });
+
+describe("repo-scope auto-match admission route", () => {
+  const SCOPED = {
+    session_id: "claudecodeapp-0f593918-9d8e-43cd-8b9d-4c92d1b0e8bb",
+    repoPath: "/Users/me/Projects/ORGII",
+    repoRemoteUrls: ["git@github.com:org2AI/ORG2.git"],
+  };
+
+  it("surfaces comments for a history shared purely by repo scope", () => {
+    // The push pass admits these via isScopeMatchableImportedSession, so the
+    // cloud row and its threads exist; without the same route here the owner
+    // saw no comment affordance at all (no reply, no owner-only @agent).
+    expect(
+      resolveSessionCommentTarget({
+        session: SCOPED,
+        cloudOrgs: CLOUD_ORGS,
+        tags: {},
+        preferredOrgId: null,
+        orgRepoScopes: { "org-a": ["github.com/org2ai/org2"] },
+      })
+    ).toEqual({ orgId: "org-a", sessionId: SCOPED.session_id });
+  });
+
+  it("stays null when no org scope covers the checkout", () => {
+    expect(
+      resolveSessionCommentTarget({
+        session: SCOPED,
+        cloudOrgs: CLOUD_ORGS,
+        tags: {},
+        preferredOrgId: null,
+        orgRepoScopes: { "org-a": ["github.com/other/repo"] },
+      })
+    ).toBeNull();
+  });
+
+  it("ignores scopes of orgs the viewer is not a member of", () => {
+    expect(
+      resolveSessionCommentTarget({
+        session: SCOPED,
+        cloudOrgs: CLOUD_ORGS,
+        tags: {},
+        preferredOrgId: null,
+        orgRepoScopes: { "org-stranger": ["github.com/org2ai/org2"] },
+      })
+    ).toBeNull();
+  });
+});
