@@ -137,10 +137,17 @@ export async function dispatchAgentEvent(
   const eventSessionId = getEventSessionId(event);
   const sessionId = ctx.filterSessionIdRef.current || "";
 
-  // Coding session bridge (enabled via hasCodingSessionBridge feature flag)
+  // Coding session bridge (enabled via hasCodingSessionBridge feature flag).
+  // Never applies to the handler's OWN session: `SPAWNED_SESSION_RE` matches
+  // any `agentsession-<uuid>`, which is also the id shape a relay fork gets
+  // (createForkedSessionId), so a fork's own terminal would otherwise be
+  // mistaken for a spawned subagent's. Only `agent:complete` / `agent:error`
+  // / `agent:warning` carry a sessionId, so the symptom was precisely a
+  // fork whose text streamed normally but whose turn never ended.
   if (
     ctx.features.hasCodingSessionBridge &&
     eventSessionId &&
+    eventSessionId !== ctx.filterSessionIdRef.current &&
     ctx.trackedCodingSessionsRef
   ) {
     const parentEventId =
@@ -150,7 +157,9 @@ export async function dispatchAgentEvent(
       return;
     }
 
-    // Auto-track new spawned coding sessions
+    // Auto-track new spawned coding sessions. Without an active spawning
+    // tool_call there is no parent row to attach to — fall through to normal
+    // dispatch instead of swallowing the event.
     if (
       SPAWNED_SESSION_RE.test(eventSessionId) &&
       !ctx.trackedCodingSessionsRef.current.has(eventSessionId)
@@ -161,8 +170,8 @@ export async function dispatchAgentEvent(
         const parentId = currentEvents[activeIdx].id;
         ctx.trackedCodingSessionsRef.current.set(eventSessionId, parentId);
         handleCodingSessionEvent(event, parentId, ctx);
+        return;
       }
-      return;
     }
   }
 
