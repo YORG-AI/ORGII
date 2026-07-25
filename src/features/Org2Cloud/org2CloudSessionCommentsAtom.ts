@@ -284,7 +284,10 @@ export function useSessionComments(
             dropPendingForce(requestKey);
             return;
           }
-          log.warn("cloud_list_session_comments failed:", error);
+          log.warn(
+            `cloud_list_session_comments failed for ${targetKey}:`,
+            error
+          );
           // Visibility revocation EVICTS the cached bodies (0002 invariant
           // 5 for already-cached data); transient failures keep them.
           const evict = shouldEvictSessionCommentsOnError(error);

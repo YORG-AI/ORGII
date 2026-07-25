@@ -212,4 +212,53 @@ describe("repo-scope auto-match admission route", () => {
       })
     ).toBeNull();
   });
+
+  it("prefers the org holding the live server row over earlier scope matches", () => {
+    // After a GitHub rename both spellings resolve to one repo network, so
+    // several orgs can scope-match; only org-b ever received the push. The
+    // 34e24e9e incident: candidates[0] was a scope-matching org with no row,
+    // and every list call died with ORG2_SESSION_NOT_FOUND.
+    expect(
+      resolveSessionCommentTarget({
+        session: SCOPED,
+        cloudOrgs: CLOUD_ORGS,
+        tags: {},
+        preferredOrgId: null,
+        orgRepoScopes: {
+          "org-a": ["github.com/org2ai/org2"],
+          "org-b": ["github.com/org2ai/org2"],
+        },
+        pushedOrgIds: ["org-b"],
+      })
+    ).toEqual({ orgId: "org-b", sessionId: SCOPED.session_id });
+  });
+
+  it("keeps the full candidate set when nothing is pushed yet", () => {
+    expect(
+      resolveSessionCommentTarget({
+        session: SCOPED,
+        cloudOrgs: CLOUD_ORGS,
+        tags: {},
+        preferredOrgId: null,
+        orgRepoScopes: { "org-a": ["github.com/org2ai/org2"] },
+        pushedOrgIds: ["org-elsewhere"],
+      })
+    ).toEqual({ orgId: "org-a", sessionId: SCOPED.session_id });
+  });
+
+  it("active-scope preference still applies within the pushed set", () => {
+    expect(
+      resolveSessionCommentTarget({
+        session: SCOPED,
+        cloudOrgs: CLOUD_ORGS,
+        tags: {},
+        preferredOrgId: "org-b",
+        orgRepoScopes: {
+          "org-a": ["github.com/org2ai/org2"],
+          "org-b": ["github.com/org2ai/org2"],
+        },
+        pushedOrgIds: ["org-a", "org-b"],
+      })
+    ).toEqual({ orgId: "org-b", sessionId: SCOPED.session_id });
+  });
 });

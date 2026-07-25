@@ -23,7 +23,11 @@ import {
   org2CloudOrgsAtom,
   parseCloudOrgSelectorValue,
 } from "./org2CloudOrgsAtom";
-import { org2CloudRepoScopesAtom } from "./org2CloudSyncAtoms";
+import {
+  org2CloudPushCursorsAtom,
+  org2CloudPushedMetadataAtom,
+  org2CloudRepoScopesAtom,
+} from "./org2CloudSyncAtoms";
 
 export interface SessionCommentTarget {
   orgId: string;
@@ -69,6 +73,15 @@ export function resolveSessionCommentTarget(params: {
   preferredOrgId: string | null;
   /** orgId → configured repo scopes, for the auto-match admission route. */
   orgRepoScopes?: Record<string, string[]>;
+  /**
+   * Orgs where THIS session has a live server row (push cursor or pushed
+   * metadata marker). Repo-scope matching alone over-generates: after a
+   * GitHub rename, the network-identity fallback makes every org that
+   * scoped either name a candidate, but the cloud row only exists where
+   * the push pass actually pushed — listing comments elsewhere is
+   * ORG2_SESSION_NOT_FOUND.
+   */
+  pushedOrgIds?: readonly string[];
 }): SessionCommentTarget | null {
   const {
     session,
@@ -76,6 +89,7 @@ export function resolveSessionCommentTarget(params: {
     tags,
     preferredOrgId,
     orgRepoScopes = {},
+    pushedOrgIds = [],
   } = params;
   if (!session) return null;
 
@@ -117,7 +131,7 @@ export function resolveSessionCommentTarget(params: {
     session,
     orgRepoScopes
   );
-  const candidateOrgIds = [
+  const allCandidateOrgIds = [
     ...(ownedCloudOrgId ? [ownedCloudOrgId] : []),
     ...cloudOrgIdsForSession(tags, session.session_id),
     ...scopeMatchedOrgIds,
@@ -125,6 +139,16 @@ export function resolveSessionCommentTarget(params: {
     (orgId, index, all) =>
       memberOrgIds.has(orgId) && all.indexOf(orgId) === index
   );
+  // A candidate with a live server row beats one that merely COULD admit
+  // the session; without any pushed candidate (fresh share, push pending)
+  // keep the full set so the composer stays available.
+  const pushedCandidateOrgIds = allCandidateOrgIds.filter((orgId) =>
+    pushedOrgIds.includes(orgId)
+  );
+  const candidateOrgIds =
+    pushedCandidateOrgIds.length > 0
+      ? pushedCandidateOrgIds
+      : allCandidateOrgIds;
   if (candidateOrgIds.length === 0) return null;
   const orgId =
     preferredOrgId && candidateOrgIds.includes(preferredOrgId)
@@ -144,6 +168,19 @@ export function useSessionCommentTarget(
   const tags = useAtomValue(sessionOrgTagsAtom);
   const selectedCloudOrg = useAtomValue(chatPanelSelectedCloudOrgAtom);
   const orgRepoScopes = useAtomValue(org2CloudRepoScopesAtom);
+  const pushCursors = useAtomValue(org2CloudPushCursorsAtom);
+  const pushedMetadata = useAtomValue(org2CloudPushedMetadataAtom);
+
+  const pushedOrgIds = useMemo(() => {
+    if (!session) return [];
+    const suffix = `:${session.session_id}`;
+    return [
+      ...Object.keys(pushCursors),
+      ...Object.keys(pushedMetadata),
+    ].flatMap((key) =>
+      key.endsWith(suffix) ? [key.slice(0, -suffix.length)] : []
+    );
+  }, [session, pushCursors, pushedMetadata]);
 
   return useMemo(
     () =>
@@ -155,7 +192,8 @@ export function useSessionCommentTarget(
         tags,
         preferredOrgId: selectedCloudOrg?.orgId ?? null,
         orgRepoScopes,
+        pushedOrgIds,
       }),
-    [session, cloudOrgs, tags, selectedCloudOrg, orgRepoScopes]
+    [session, cloudOrgs, tags, selectedCloudOrg, orgRepoScopes, pushedOrgIds]
   );
 }

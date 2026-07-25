@@ -119,6 +119,14 @@ rollover or the window silently truncates.
   asserted the bare form, comment included. Green tests are not evidence the
   convention is right; check a spec's expectation against the consumers before
   trusting it.
+- **Fixture writes that silently failed**: a direct PATCH on a
+  write-hardened table (403 — governance requires the admin RPC) surfaced as
+  an empty response body, was read as success, and a whole debugging night ran
+  on the false premise that the scope existed server-side. Every mutation of
+  test-environment cloud state MUST be followed by a read-back of the same
+  row (compare `updated_at`, not just the field). A stale local mirror is not
+  server truth either — when a UI decision depends on mirrored state, diff
+  mirror vs server before blaming the consumer code.
 
 ## When NOT to use
 
