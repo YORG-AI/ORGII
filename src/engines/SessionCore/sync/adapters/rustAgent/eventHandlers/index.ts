@@ -172,6 +172,12 @@ export async function dispatchAgentEvent(
     eventSessionId &&
     eventSessionId !== ctx.filterSessionIdRef.current
   ) {
+    if (event.type === "agent:complete" || event.type === "agent:error") {
+      unknownEventLogger.warn(
+        `[${event.type}] dropped by session filter: event=${eventSessionId} ` +
+          `filter=${ctx.filterSessionIdRef.current}`
+      );
+    }
     return;
   }
 

@@ -279,6 +279,13 @@ export function subscribeToSessionEvents(
         warn: (message, error) => log.warn(message, error),
       },
       (raw) => {
+        if (listeners.size === 0) {
+          log.warn(
+            `[SessionChannel] delivered frame for ${sessionId} had no ` +
+              `subscribers; the backend channel outlived every consumer`
+          );
+          return;
+        }
         for (const subscriber of [...listeners]) {
           try {
             subscriber(raw);
@@ -297,6 +304,15 @@ export function subscribeToSessionEvents(
 
     channel.onmessage = (message: string) => {
       recordPushEvent("channel", "session-events");
+      if (
+        message.includes('"agent:complete"') ||
+        message.includes('"agent:error"')
+      ) {
+        log.info(
+          `[SessionChannel] lifecycle frame arrived for ${sessionId} ` +
+            `(destroyed=${lifecycle.isDestroyed()})`
+        );
+      }
       lifecycle.onMessage(message);
     };
     void lifecycle.start().then((channelId) => {
@@ -311,6 +327,14 @@ export function subscribeToSessionEvents(
   }
 
   shared.listeners.add(listener);
+  // Re-subscribing onto a channel that is still registered must re-assert
+  // readiness: `readySessionChannels` is cleared on the last unsubscribe, and
+  // without this a later consumer would wait out the full readiness timeout
+  // (and dispatch believing no channel exists) even though the backend
+  // registration never went away.
+  if (shared.lifecycle.getChannelId() !== null) {
+    markSessionChannelReady(sessionId);
+  }
   let disposed = false;
   return () => {
     if (disposed) return;

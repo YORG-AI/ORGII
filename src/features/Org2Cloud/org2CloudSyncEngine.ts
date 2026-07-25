@@ -458,6 +458,18 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
           scopes
         );
         if (matchedScope === null) {
+          // The scope mirror is persisted and restored empty-or-stale on
+          // boot. An unconfirmed mirror cannot prove "out of scope": acting
+          // on it retracts live shared rows and strips their org tags during
+          // the first passes after launch. Skip the session until this run
+          // has read the org's scopes from the server.
+          if (!this.repoScopeSync.hasServerConfirmedScopes(org.orgId)) {
+            log.info(
+              `scope check deferred for session ${session.session_id} org ` +
+                `${org.orgId}: repo scopes not yet confirmed this run`
+            );
+            continue;
+          }
           if (this.sessionSync.wasCloudPushed(org.orgId, session.session_id)) {
             try {
               log.info(
