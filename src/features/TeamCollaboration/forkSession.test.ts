@@ -209,10 +209,10 @@ describe("resolveForkWorkspacePath", () => {
 
     await expect(
       resolveForkWorkspacePath(
-        makeRemote({ repoScopeKey: "github.com/yorgai/ORG2" })
+        makeRemote({ repoScopeKey: "github.com/org2ai/ORG2" })
       )
     ).resolves.toBe("C:\\Repos\\ORGII");
-    expect(resolveCheckoutMock).toHaveBeenCalledWith("github.com/yorgai/ORG2", [
+    expect(resolveCheckoutMock).toHaveBeenCalledWith("github.com/org2ai/ORG2", [
       "C:\\Repos\\ORGII",
     ]);
   });
@@ -242,10 +242,10 @@ describe("resolveForkWorkspacePath", () => {
     );
 
     await resolveForkWorkspacePath(
-      makeRemote({ repoScopeKey: "github.com/yorgai/ORG2" })
+      makeRemote({ repoScopeKey: "github.com/org2ai/ORG2" })
     );
 
-    expect(resolveCheckoutMock).toHaveBeenCalledWith("github.com/yorgai/ORG2", [
+    expect(resolveCheckoutMock).toHaveBeenCalledWith("github.com/org2ai/ORG2", [
       "/repo/shared",
     ]);
   });
@@ -286,7 +286,7 @@ describe("forkTeammateSession (design §16.11 relay completion)", () => {
   });
 
   it("accepts a checkout from the same GitHub fork network during setup", async () => {
-    resolveScopeKeysMock.mockResolvedValue(["github.com/yorgai/org2"]);
+    resolveScopeKeysMock.mockResolvedValue(["github.com/org2ai/org2"]);
     resolveMatchingScopeMock.mockResolvedValue("github.com/vantanode/org2");
 
     const forkPromise = forkTeammateSession({
@@ -305,7 +305,7 @@ describe("forkTeammateSession (design §16.11 relay completion)", () => {
     await forkPromise;
 
     expect(resolveMatchingScopeMock).toHaveBeenCalledWith(
-      ["github.com/yorgai/org2"],
+      ["github.com/org2ai/org2"],
       ["github.com/vantanode/org2"]
     );
     expect(forkSessionMock).toHaveBeenCalledWith(

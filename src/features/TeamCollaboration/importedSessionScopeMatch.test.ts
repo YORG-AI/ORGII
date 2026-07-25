@@ -6,17 +6,17 @@ const sessions = [
   {
     session_id: "claudecodeapp-1",
     repoPath: "/Users/me/org2",
-    repoRemoteUrls: ["git@github.com:yorgai/org2.git"],
+    repoRemoteUrls: ["git@github.com:org2ai/org2.git"],
   },
   {
     session_id: "codexapp-2",
     repoPath: "/Users/me/other",
-    repoRemoteUrls: ["https://github.com/yorgai/other.git"],
+    repoRemoteUrls: ["https://github.com/org2ai/other.git"],
   },
   {
     session_id: "native-1",
     repoPath: "/Users/me/org2",
-    repoRemoteUrls: ["git@github.com:yorgai/org2.git"],
+    repoRemoteUrls: ["git@github.com:org2ai/org2.git"],
   },
   {
     session_id: "claudecodeapp-4",
@@ -28,7 +28,7 @@ const sessions = [
 describe("collectScopeMatchedImportedSessionIds", () => {
   it("matches imported sessions whose repo is inside the org scope", () => {
     const ids = collectScopeMatchedImportedSessionIds(sessions, [
-      "github.com/yorgai/org2",
+      "github.com/org2ai/org2",
     ]);
     expect(ids).toEqual(new Set(["claudecodeapp-1"]));
   });
@@ -44,8 +44,8 @@ describe("collectScopeMatchedImportedSessionIds", () => {
 
   it("skips native and repo-less sessions", () => {
     const ids = collectScopeMatchedImportedSessionIds(sessions, [
-      "github.com/yorgai/org2",
-      "github.com/yorgai/other",
+      "github.com/org2ai/org2",
+      "github.com/org2ai/other",
     ]);
     expect(ids.has("native-1")).toBe(false);
     expect(ids.has("claudecodeapp-4")).toBe(false);
@@ -57,20 +57,20 @@ describe("collectScopeMatchedImportedSessionIds", () => {
         {
           session_id: "claudecodeapp-1",
           repoPath: "/Users/me/org2",
-          repoRemoteUrls: ["git@github.com:yorgai/org2.git"],
+          repoRemoteUrls: ["git@github.com:org2ai/org2.git"],
         },
         {
           session_id: "codexapp-2",
           repoPath: "/Users/me/org2/src-tauri",
-          repoRemoteUrls: ["https://github.com/yorgai/org2"],
+          repoRemoteUrls: ["https://github.com/org2ai/org2"],
         },
         {
           session_id: "claudecodeapp-3",
           repoPath: "/Users/me/other",
-          repoRemoteUrls: ["https://github.com/yorgai/other"],
+          repoRemoteUrls: ["https://github.com/org2ai/other"],
         },
       ],
-      ["github.com/yorgai/org2"]
+      ["github.com/org2ai/org2"]
     );
     expect(ids).toEqual(new Set(["claudecodeapp-1", "codexapp-2"]));
   });
@@ -81,10 +81,10 @@ describe("collectScopeMatchedImportedSessionIds", () => {
         {
           session_id: "claudecodeapp-stale",
           repoPath: "/Users/me/org2/.claude/worktrees/deleted-agent",
-          repoRemoteUrls: ["git@github.com:yorgai/org2.git"],
+          repoRemoteUrls: ["git@github.com:org2ai/org2.git"],
         },
       ],
-      ["github.com/yorgai/org2"]
+      ["github.com/org2ai/org2"]
     );
     expect(ids).toEqual(new Set(["claudecodeapp-stale"]));
   });

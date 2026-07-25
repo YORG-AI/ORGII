@@ -131,7 +131,7 @@ fn sidebar_query_is_date_bounded_and_carries_impact_metadata() {
         rusqlite::params![
             "/tmp/repo-inside",
             "/tmp",
-            r#"["git@github.com:yorgai/org2.git"]"#
+            r#"["git@github.com:org2ai/org2.git"]"#
         ],
     )
     .expect("insert repo identity");
@@ -148,7 +148,7 @@ fn sidebar_query_is_date_bounded_and_carries_impact_metadata() {
     assert_eq!(row.repo_root_path.as_deref(), Some("/tmp"));
     assert_eq!(
         row.repo_remote_urls,
-        vec!["git@github.com:yorgai/org2.git".to_string()]
+        vec!["git@github.com:org2ai/org2.git".to_string()]
     );
     // Imported sessions have no sessions.db copy — the hover card's storage
     // row can only point at the source app's own transcript file.

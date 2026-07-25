@@ -294,7 +294,7 @@ mod tests {
     fn parses_nested_tool_payload_for_lazy_backfill() {
         let artifacts = parse_git_artifacts_from_tool_payload(
             r#"{"command":"gh pr create"}"#,
-            r#"{"success":{"command":"gh pr create","stdout":"https://github.com/yorgai/ORG2/pull/388","exitCode":0}}"#,
+            r#"{"success":{"command":"gh pr create","stdout":"https://github.com/org2ai/ORG2/pull/388","exitCode":0}}"#,
         );
         assert_eq!(artifacts.len(), 1);
         assert_eq!(artifacts[0].kind, GitArtifactKind::PullRequest);
