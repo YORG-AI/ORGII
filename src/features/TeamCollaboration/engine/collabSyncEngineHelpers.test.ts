@@ -748,8 +748,10 @@ describe("importRemoteSession", () => {
     const record = (store.get(sessionsAtom) as Session[]).find(
       (session) => session.session_id === result!.localSessionId
     )!;
-    // Ownership stamp (sidebar filter) AND provenance both carry the org.
-    expect(record.orgId).toBe("org-1");
+    // Ownership stamp is a SCOPE SELECTOR value (what the sidebar filter and
+    // the engine's ownedByOrg gate compare against); provenance keeps the
+    // bare org id.
+    expect(record.orgId).toBe("cloud:org-1");
     expect(record.importedFrom?.orgId).toBe("org-1");
     expect(record.importedFrom?.shareToken).toBeUndefined();
   });
@@ -1360,7 +1362,9 @@ describe("forkSession (design §16.11, fork & continue)", () => {
     expect(record!.name).toBe("⑂ Remote session");
     // Ownership stamp (member fork context): the fork files under the source
     // org so the sidebar org filter lists it alongside the org's sessions.
-    expect(record!.orgId).toBe("org-1");
+    // Selector value, not a bare org id — a bare value resolves to no owning
+    // org and strips every ownership-derived affordance (share dialog).
+    expect(record!.orgId).toBe("cloud:org-1");
   });
 
   it("uses the resolved LOCAL workspace over the owner's absolute path when provided", async () => {

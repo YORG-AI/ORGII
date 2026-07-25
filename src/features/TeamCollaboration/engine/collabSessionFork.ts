@@ -15,6 +15,7 @@ import {
   withCloudSessionMode,
   withCloudSessionVisibility,
 } from "@src/features/Org2Cloud/org2CloudAccessSettings";
+import { buildCloudOrgSelectorValue } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { loadSharedLocalKeys } from "@src/hooks/keyVault/sharedLocalKeyStore";
 import { COLLAB_SESSION_ACCESS_MODE } from "@src/store/collaboration/types";
 import { lastModelPairMapAtom } from "@src/store/session/creatorDefaultModelAtom";
@@ -287,7 +288,10 @@ export async function forkSession(
     // filed under the source org so the sidebar org selector lists it; a
     // guest (share-token) fork stays under Personal. Today forks only run in
     // member context (panel fork action), so the guard is future-proofing.
-    orgId: shareToken ? undefined : orgId,
+    // `Session.orgId` is a SELECTOR value (`cloud:<uuid>`), not a bare org
+    // uuid: a bare value fails `parseCloudOrgSelectorValue`, so the share
+    // dialog saw no owning org and never offered link sharing for a fork.
+    orgId: shareToken ? undefined : buildCloudOrgSelectorValue(orgId),
     forkedFrom,
     // Deliberately NO importedFrom: that field marks read-only replay copies
     // and excludes them from push (isSessionPushAllowed).

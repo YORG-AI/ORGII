@@ -170,3 +170,38 @@ describe("getActiveCloudShareOrgsForSession", () => {
     ).toEqual([]);
   });
 });
+
+describe("legacy bare-uuid orgId rows (pre-selector fork/import stamps)", () => {
+  const UUID = "0aefaa1f-de59-4fbe-a4e5-57cbe6c2bbdd";
+  const ORGS_UUID: Org2CloudOrg[] = [
+    { orgId: UUID, name: "CU Vanta", role: "member" },
+  ];
+  const scopes = { [UUID]: ["github.com/acme/alpha"] };
+
+  it("resolves ownership so a fork keeps its share affordance", () => {
+    // Forks were stamped with the bare org uuid instead of `cloud:<uuid>`,
+    // which the strict parser rejects — the session then looked org-less and
+    // the share dialog offered nothing.
+    expect(
+      getCloudShareOrgsForSession(
+        { session_id: "agentsession-1", orgId: UUID },
+        {},
+        ORGS_UUID,
+        scopes,
+        ["github.com/acme/alpha"]
+      ).map((org) => org.orgId)
+    ).toEqual([UUID]);
+  });
+
+  it("still treats non-cloud scopes as org-less", () => {
+    expect(
+      getCloudShareOrgsForSession(
+        { session_id: "s1", orgId: "personal-org" },
+        {},
+        ORGS_UUID,
+        scopes,
+        ["github.com/acme/alpha"]
+      )
+    ).toEqual([]);
+  });
+});
