@@ -242,7 +242,7 @@ pub(in crate::sources::imported_history::replay) fn sync(
                     kv_order_rebuilt = true;
                 }
                 let start_ordinal = if previous_cursor.source_signal.is_empty() {
-                    kv_recent_turn_start(&composer_json)?
+                    kv_recent_turn_start(&source_conn, source_session_id, &composer_json)?
                 } else if plan == SyncPlan::Append {
                     previous_cursor.total_source_rows
                 } else {
@@ -271,7 +271,14 @@ pub(in crate::sources::imported_history::replay) fn sync(
                         )
                     },
                 )?;
-                replace_kv_turn_headers(tx, source, source_session_id, generation, &composer_json)?;
+                replace_kv_turn_headers(
+                    tx,
+                    &source_conn,
+                    source,
+                    source_session_id,
+                    generation,
+                    &composer_json,
+                )?;
             }
             (summary, plan)
         }

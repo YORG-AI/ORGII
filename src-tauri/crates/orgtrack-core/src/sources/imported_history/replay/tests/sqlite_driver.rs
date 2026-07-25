@@ -177,6 +177,59 @@ fn write_kv_transcript(conn: &Connection, composer_id: &str, bubble_types: &[i64
     }
 }
 
+fn write_dirty_kv_transcript(conn: &Connection, composer_id: &str) {
+    let composer = serde_json::json!({
+        "composerId":composer_id,
+        "createdAt":1,
+        "lastUpdatedAt":99,
+        "fullConversationHeadersOnly":[
+            {"bubbleId":"","type":1},
+            {"bubbleId":"missing","type":2},
+            {"bubbleId":"b0","type":1},
+            {"bubbleId":"b0","type":2},
+            {"bubbleId":"b1","type":2},
+            {"bubbleId":"b2","type":1},
+            {"bubbleId":"b3","type":2}
+        ],
+    });
+    conn.execute(
+        "INSERT INTO cursorDiskKV(key,value) VALUES(?1,?2)
+             ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        params![format!("composerData:{composer_id}"), composer.to_string()],
+    )
+    .expect("dirty composer row");
+
+    for (bubble_id, bubble_type, created_at) in [
+        ("b0", 1_i64, "2026-07-22T00:00:00Z"),
+        ("b1", 2_i64, "2026-07-22T00:00:01Z"),
+        ("b2", 1_i64, "2026-07-22T00:00:02Z"),
+        ("b3", 2_i64, "2026-07-22T00:00:03Z"),
+        ("b4", 1_i64, "2026-07-22T00:00:04Z"),
+        ("b5", 2_i64, "2026-07-22T00:00:05Z"),
+        ("undefined", 2_i64, "2026-07-22T00:00:06Z"),
+    ] {
+        let bubble = serde_json::json!({
+            "bubbleId":bubble_id,
+            "type":bubble_type,
+            "createdAt":created_at,
+            "text":if bubble_type == 1 {
+                format!("user {bubble_id}")
+            } else {
+                format!("assistant {bubble_id}")
+            },
+        });
+        conn.execute(
+            "INSERT INTO cursorDiskKV(key,value) VALUES(?1,?2)
+                 ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            params![
+                format!("bubbleId:{composer_id}:{bubble_id}"),
+                bubble.to_string()
+            ],
+        )
+        .expect("dirty bubble row");
+    }
+}
+
 #[test]
 fn preview_is_utf8_safe_and_bounded() {
     let preview = head_preview(&"你".repeat(10_000), NORMAL_PAYLOAD_PREVIEW_BYTES);
@@ -581,6 +634,110 @@ fn kv_cold_forward_scan_hydrates_turns_in_order_without_gaps() {
             }
         }
         assert_eq!(sequences, vec![0, 1, 2, 3, 4, 5], "{}", source.as_str());
+        drop(writer);
+        let _ = std::fs::remove_file(path);
+    }
+}
+
+#[test]
+fn cursor_and_windsurf_share_canonical_dirty_kv_ordering() {
+    for source in [
+        ImportedHistorySourceId::CursorIde,
+        ImportedHistorySourceId::Windsurf,
+    ] {
+        let path = temp_db(&format!("{}-dirty-order", source.as_str()));
+        let writer = create_kv_db(&path, "c1");
+        write_dirty_kv_transcript(&writer, "c1");
+        let (mut cache, session_id) = cache_conn(source, "c1", &path);
+
+        let opened = open_window(&mut cache, source, &session_id, ReplayLimits::default())
+            .expect("open dirty KV fixture");
+        assert_eq!(opened.total_event_count, 6, "{}", source.as_str());
+        assert_eq!(opened.total_turn_count, 3, "{}", source.as_str());
+        assert_eq!(
+            opened
+                .chunks
+                .iter()
+                .map(|chunk| (chunk.sequence, chunk.chunk.chunk_id.clone()))
+                .collect::<Vec<_>>(),
+            vec![
+                (4, stable_event_id(source, "bubbleId:c1:b4")),
+                (5, stable_event_id(source, "bubbleId:c1:b5")),
+            ],
+            "{}",
+            source.as_str()
+        );
+
+        let limits = ReplayLimits {
+            max_turns: 1,
+            max_events: 1,
+            max_ipc_bytes: 4 * 1024 * 1024,
+        };
+        let mut after_sequence = -1;
+        let mut actual = Vec::new();
+        for _ in 0..10 {
+            let scan = scan_window_after(&mut cache, source, &session_id, after_sequence, limits)
+                .expect("scan canonical dirty KV fixture");
+            actual.extend(
+                scan.chunks
+                    .iter()
+                    .map(|chunk| (chunk.sequence, chunk.chunk.chunk_id.clone())),
+            );
+            after_sequence = scan.cursor.through_sequence;
+            if !scan.has_more {
+                break;
+            }
+        }
+        assert_eq!(
+            actual,
+            ["b0", "b1", "b2", "b3", "b4", "b5"]
+                .into_iter()
+                .enumerate()
+                .map(|(sequence, bubble_id)| {
+                    (
+                        sequence as i64,
+                        stable_event_id(source, &format!("bubbleId:c1:{bubble_id}")),
+                    )
+                })
+                .collect::<Vec<_>>(),
+            "{}",
+            source.as_str()
+        );
+
+        let headers = {
+            let mut statement = cache
+                .prepare(
+                    "SELECT turn_index,turn_id,start_sequence,end_sequence,event_count
+                     FROM imported_replay_turns
+                     WHERE source=?1 AND source_session_id='c1'
+                     ORDER BY turn_index",
+                )
+                .expect("prepare compact KV turn query");
+            statement
+                .query_map([source.as_str()], |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, i64>(2)?,
+                        row.get::<_, i64>(3)?,
+                        row.get::<_, i64>(4)?,
+                    ))
+                })
+                .expect("query compact KV turns")
+                .collect::<Result<Vec<_>, _>>()
+                .expect("collect compact KV turns")
+        };
+        assert_eq!(
+            headers,
+            vec![
+                (0, "b0".to_string(), 0, 1, 2),
+                (1, "b2".to_string(), 2, 3, 2),
+                (2, "b4".to_string(), 4, 5, 2),
+            ],
+            "{}",
+            source.as_str()
+        );
+
         drop(writer);
         let _ = std::fs::remove_file(path);
     }

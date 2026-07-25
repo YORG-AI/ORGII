@@ -130,7 +130,9 @@ impl ImportedHistorySourceId {
                 source_id: SOURCE_CURSOR_IDE,
                 session_prefix: sources::cursor_ide::CURSORIDE_SESSION_PREFIX,
                 storage_family: ReplayStorageFamily::SqliteKeyValue,
-                parser_version: 1,
+                // v2 derives turn headers and event sequences from the same
+                // canonical order after filtering stale/duplicate KV entries.
+                parser_version: 2,
                 support: ReplayAdapterSupport::Incremental,
             },
             Self::CursorCli => ImportedReplayDescriptor {
@@ -155,7 +157,8 @@ impl ImportedHistorySourceId {
                 source_id: SOURCE_WINDSURF,
                 session_prefix: sources::windsurf::history::WINDSURF_SESSION_PREFIX,
                 storage_family: ReplayStorageFamily::SqliteKeyValue,
-                parser_version: 1,
+                // v2 shares Cursor IDE's canonical KV ordering contract.
+                parser_version: 2,
                 support: ReplayAdapterSupport::Incremental,
             },
             Self::WorkBuddy => ImportedReplayDescriptor {

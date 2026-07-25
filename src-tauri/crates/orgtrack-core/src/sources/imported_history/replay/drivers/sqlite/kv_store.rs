@@ -1,5 +1,5 @@
 use super::*;
-use std::collections::HashMap;
+use std::collections::HashSet;
 
 #[allow(
     clippy::too_many_arguments,
@@ -82,36 +82,31 @@ pub(super) struct KvHeader {
     bubble_type: i64,
 }
 
+#[derive(Debug)]
+struct KvBubbleOrderEntry {
+    key: String,
+    bubble_id: String,
+    bubble_type: i64,
+    ordinal: i64,
+    turn_index: i64,
+}
+
 pub(super) fn kv_source_summary(
     conn: &Connection,
     composer_id: &str,
     composer_json: &str,
 ) -> Result<SqliteSourceSummary, String> {
-    let prefix = format!("bubbleId:{composer_id}:");
-    let upper = format!("bubbleId:{composer_id};");
-    let row_count = conn
-        .query_row(
-            "SELECT COUNT(*) FROM cursorDiskKV WHERE key>=?1 AND key<?2",
-            params![prefix, upper],
-            |row| row.get::<_, i64>(0),
-        )
-        .map_err(|err| format!("count replay KV bubbles: {err}"))?
-        .max(0) as u64;
-    let composer = serde_json::from_str::<KvComposerOrder>(composer_json)
-        .map_err(|err| format!("parse replay KV composer summary: {err}"))?;
-    let last_source_key = composer
-        .full_conversation_headers_only
-        .iter()
-        .rev()
-        .find(|header| !header.bubble_id.trim().is_empty())
-        .map(|header| format!("bubbleId:{composer_id}:{}", header.bubble_id))
-        .unwrap_or_default();
     let mut order_hash = StableHash::new();
-    for header in &composer.full_conversation_headers_only {
-        order_hash.write(&(header.bubble_id.len() as u64).to_le_bytes());
-        order_hash.write(header.bubble_id.as_bytes());
-        order_hash.write(&header.bubble_type.to_le_bytes());
-    }
+    let mut last_source_key = String::new();
+    let mut row_count = 0_u64;
+    stream_kv_bubble_order(conn, composer_id, composer_json, |entry| {
+        order_hash.write(&(entry.bubble_id.len() as u64).to_le_bytes());
+        order_hash.write(entry.bubble_id.as_bytes());
+        order_hash.write(&entry.bubble_type.to_le_bytes());
+        last_source_key = entry.key;
+        row_count = row_count.saturating_add(1);
+        Ok(true)
+    })?;
     Ok(SqliteSourceSummary {
         row_count,
         max_time_created: 0,
@@ -145,80 +140,99 @@ pub(super) fn kv_sync_plan(
     }
 }
 
-pub(super) fn kv_recent_turn_start(composer_json: &str) -> Result<u64, String> {
-    let composer = serde_json::from_str::<KvComposerOrder>(composer_json)
-        .map_err(|err| format!("parse replay KV recent turn: {err}"))?;
-    Ok(composer
-        .full_conversation_headers_only
-        .iter()
-        .rposition(|header| header.bubble_type == 1)
-        .unwrap_or(0) as u64)
+pub(super) fn kv_recent_turn_start(
+    conn: &Connection,
+    composer_id: &str,
+    composer_json: &str,
+) -> Result<u64, String> {
+    let mut latest_start = 0_u64;
+    let mut current_turn = None;
+    stream_kv_bubble_order(conn, composer_id, composer_json, |entry| {
+        if current_turn != Some(entry.turn_index) {
+            latest_start = entry.ordinal.max(0) as u64;
+            current_turn = Some(entry.turn_index);
+        }
+        Ok(true)
+    })?;
+    Ok(latest_start)
 }
 
 pub(super) fn replace_kv_turn_headers(
     tx: &Transaction<'_>,
+    source_conn: &Connection,
     source: ImportedHistorySourceId,
     source_session_id: &str,
     generation: &str,
     composer_json: &str,
 ) -> Result<(), String> {
-    let composer = serde_json::from_str::<KvComposerOrder>(composer_json)
-        .map_err(|err| format!("parse {} compact turn headers: {err}", source.as_str()))?;
     tx.execute(
         "DELETE FROM imported_replay_turns
          WHERE source=?1 AND source_session_id=?2 AND generation=?3",
         params![source.as_str(), source_session_id, generation],
     )
     .map_err(|err| format!("clear {} compact turn headers: {err}", source.as_str()))?;
-    let headers = composer.full_conversation_headers_only;
-    let user_starts = headers
-        .iter()
-        .enumerate()
-        .filter(|(_, header)| header.bubble_type == 1)
-        .map(|(index, _)| index)
-        .collect::<Vec<_>>();
-    if user_starts.is_empty() && !headers.is_empty() {
-        insert_turn_header(
-            tx,
-            source,
-            source_session_id,
-            generation,
-            0,
-            (
-                format!("{}-turn-0", source.as_str()),
-                0,
-                headers.len().saturating_sub(1) as i64,
-                "1970-01-01T00:00:00Z".to_string(),
-                "1970-01-01T00:00:00Z".to_string(),
-                headers.len() as u64,
-            ),
-        )?;
-        return Ok(());
-    }
-    for (turn_index, start) in user_starts.iter().copied().enumerate() {
-        let end = user_starts
-            .get(turn_index + 1)
-            .copied()
-            .unwrap_or(headers.len())
-            .saturating_sub(1);
-        let turn_id = headers[start].bubble_id.clone();
-        insert_turn_header(
-            tx,
-            source,
-            source_session_id,
-            generation,
-            turn_index as i64,
-            (
-                turn_id,
-                start as i64,
-                end as i64,
-                "1970-01-01T00:00:00Z".to_string(),
-                "1970-01-01T00:00:00Z".to_string(),
-                end.saturating_sub(start).saturating_add(1) as u64,
-            ),
-        )?;
+    let mut pending = None;
+    stream_kv_bubble_order(source_conn, source_session_id, composer_json, |entry| {
+        if pending
+            .as_ref()
+            .is_some_and(|turn: &PendingKvTurn| turn.turn_index != entry.turn_index)
+        {
+            if let Some(turn) = pending.take() {
+                publish_pending_kv_turn(tx, source, source_session_id, generation, turn)?;
+            }
+        }
+        let turn = pending.get_or_insert_with(|| PendingKvTurn {
+            turn_index: entry.turn_index,
+            turn_id: if entry.bubble_type == 1 {
+                entry.bubble_id.clone()
+            } else {
+                format!("{}-turn-{}", source.as_str(), entry.turn_index)
+            },
+            start_sequence: entry.ordinal,
+            end_sequence: entry.ordinal,
+            event_count: 0,
+        });
+        turn.end_sequence = entry.ordinal;
+        turn.event_count = turn.event_count.saturating_add(1);
+        Ok(true)
+    })?;
+    if let Some(turn) = pending {
+        publish_pending_kv_turn(tx, source, source_session_id, generation, turn)?;
     }
     Ok(())
+}
+
+#[derive(Debug)]
+struct PendingKvTurn {
+    turn_index: i64,
+    turn_id: String,
+    start_sequence: i64,
+    end_sequence: i64,
+    event_count: u64,
+}
+
+fn publish_pending_kv_turn(
+    tx: &Transaction<'_>,
+    source: ImportedHistorySourceId,
+    source_session_id: &str,
+    generation: &str,
+    turn: PendingKvTurn,
+) -> Result<(), String> {
+    insert_turn_header(
+        tx,
+        source,
+        source_session_id,
+        generation,
+        turn.turn_index,
+        (
+            turn.turn_id,
+            turn.start_sequence,
+            turn.end_sequence,
+            "1970-01-01T00:00:00Z".to_string(),
+            "1970-01-01T00:00:00Z".to_string(),
+            turn.event_count,
+        ),
+    )
 }
 
 pub(super) fn load_composer_json(conn: &Connection, composer_id: &str) -> Result<String, String> {
@@ -242,48 +256,76 @@ pub(super) fn stream_kv_bubbles(
     end_ordinal: Option<u64>,
     mut visit: impl FnMut(SourceRow) -> Result<(), String>,
 ) -> Result<(), String> {
+    stream_kv_bubble_order(conn, composer_id, composer_json, |entry| {
+        if (entry.ordinal as u64) < start_ordinal {
+            return Ok(true);
+        }
+        if end_ordinal.is_some_and(|end| entry.ordinal as u64 > end) {
+            return Ok(false);
+        }
+        let raw_json = conn
+            .query_row(
+                "SELECT value FROM cursorDiskKV WHERE key=?1",
+                [&entry.key],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .map_err(|err| format!("read replay bubble {}: {err}", entry.bubble_id))?
+            .unwrap_or_default();
+        visit(SourceRow {
+            key: entry.key,
+            message_id: String::new(),
+            role: String::new(),
+            raw_json,
+            time_created: 0,
+            header_type: entry.bubble_type,
+            ordinal: entry.ordinal,
+            turn_index: entry.turn_index,
+        })?;
+        Ok(true)
+    })?;
+    Ok(())
+}
+
+fn stream_kv_bubble_order(
+    conn: &Connection,
+    composer_id: &str,
+    composer_json: &str,
+    mut visit: impl FnMut(KvBubbleOrderEntry) -> Result<bool, String>,
+) -> Result<(), String> {
     let composer = serde_json::from_str::<KvComposerOrder>(composer_json)
         .map_err(|err| format!("parse replay composer {composer_id}: {err}"))?;
-    let mut seen = HashMap::new();
+    let mut seen = HashSet::new();
     let mut ordinal = 0_i64;
     let mut turn_index = -1_i64;
     for header in composer.full_conversation_headers_only {
-        if header.bubble_id.trim().is_empty() || seen.contains_key(&header.bubble_id) {
+        if !is_valid_kv_bubble_id(&header.bubble_id) || !seen.insert(header.bubble_id.clone()) {
             continue;
         }
         let key = format!("bubbleId:{composer_id}:{}", header.bubble_id);
+        let exists = conn
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM cursorDiskKV WHERE key=?1)",
+                [&key],
+                |row| row.get::<_, i64>(0),
+            )
+            .map_err(|err| format!("check replay bubble {}: {err}", header.bubble_id))?
+            != 0;
+        if !exists {
+            continue;
+        }
         if header.bubble_type == 1 || turn_index < 0 {
             turn_index += 1;
         }
-        seen.insert(header.bubble_id.clone(), ());
-        if (ordinal as u64) < start_ordinal {
-            ordinal += 1;
-            continue;
-        }
-        if end_ordinal.is_some_and(|end| ordinal as u64 > end) {
-            break;
-        }
-        let value = conn
-            .query_row(
-                "SELECT value FROM cursorDiskKV WHERE key=?1",
-                [&key],
-                |row| row.get::<_, Option<String>>(0),
-            )
-            .optional()
-            .map_err(|err| format!("read replay bubble {}: {err}", header.bubble_id))?
-            .flatten();
-        if let Some(raw_json) = value {
-            visit(SourceRow {
-                key,
-                message_id: String::new(),
-                role: String::new(),
-                raw_json,
-                time_created: 0,
-                header_type: header.bubble_type,
-                ordinal,
-                turn_index: turn_index.max(0),
-            })?;
-            ordinal += 1;
+        let entry = KvBubbleOrderEntry {
+            key,
+            bubble_id: header.bubble_id,
+            bubble_type: header.bubble_type,
+            ordinal,
+            turn_index: turn_index.max(0),
+        };
+        ordinal += 1;
+        if !visit(entry)? {
+            return Ok(());
         }
     }
 
@@ -306,41 +348,34 @@ pub(super) fn stream_kv_bubbles(
         .map_err(|err| format!("stream replay KV fallback: {err}"))?
     {
         let key: String = row.get(0).map_err(|err| err.to_string())?;
-        let bubble_id = key.rsplit(':').next().unwrap_or_default();
-        if bubble_id.is_empty() || bubble_id == "undefined" || seen.contains_key(bubble_id) {
+        let bubble_id = key.rsplit(':').next().unwrap_or_default().to_string();
+        if !is_valid_kv_bubble_id(&bubble_id) || !seen.insert(bubble_id.clone()) {
             continue;
         }
-        if (ordinal as u64) < start_ordinal {
-            ordinal += 1;
-            continue;
-        }
-        if end_ordinal.is_some_and(|end| ordinal as u64 > end) {
-            break;
-        }
-        let raw_json = conn
-            .query_row(
-                "SELECT value FROM cursorDiskKV WHERE key=?1",
-                [&key],
-                |value_row| value_row.get::<_, Option<String>>(0),
-            )
-            .map_err(|err| format!("read fallback replay KV bubble {key}: {err}"))?
+        let bubble_type = row
+            .get::<_, Option<i64>>(1)
+            .map_err(|err| err.to_string())?
             .unwrap_or_default();
-        visit(SourceRow {
+        if bubble_type == 1 || turn_index < 0 {
+            turn_index += 1;
+        }
+        let entry = KvBubbleOrderEntry {
             key,
-            message_id: String::new(),
-            role: String::new(),
-            raw_json,
-            time_created: 0,
-            header_type: row
-                .get::<_, Option<i64>>(1)
-                .map_err(|err| err.to_string())?
-                .unwrap_or_default(),
+            bubble_id,
+            bubble_type,
             ordinal,
             turn_index: turn_index.max(0),
-        })?;
+        };
         ordinal += 1;
+        if !visit(entry)? {
+            return Ok(());
+        }
     }
     Ok(())
+}
+
+fn is_valid_kv_bubble_id(bubble_id: &str) -> bool {
+    !bubble_id.trim().is_empty() && bubble_id != "undefined"
 }
 
 pub(super) fn stage_and_clear_kv_order(
