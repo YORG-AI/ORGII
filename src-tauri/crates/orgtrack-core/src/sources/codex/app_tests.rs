@@ -2041,7 +2041,10 @@ fn resumes_codex_meta_parse_from_watermark() {
     let scratch_meta = scratch.meta.expect("scratch meta");
     assert_eq!(resumed_meta.input_tokens, scratch_meta.input_tokens);
     assert_eq!(resumed_meta.output_tokens, scratch_meta.output_tokens);
-    assert_eq!(resumed_meta.cache_read_tokens, scratch_meta.cache_read_tokens);
+    assert_eq!(
+        resumed_meta.cache_read_tokens,
+        scratch_meta.cache_read_tokens
+    );
     assert_eq!(
         resumed_meta.cache_write_tokens,
         scratch_meta.cache_write_tokens

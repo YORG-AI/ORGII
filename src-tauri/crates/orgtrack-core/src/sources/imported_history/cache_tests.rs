@@ -504,8 +504,7 @@ fn canonical_lookup_tolerates_legacy_non_json_metadata_rows() {
     let mut newest = input(SOURCE_CODEX_APP, "gen2", 200);
     newest.source_metadata_json = group;
     let keyless = input(SOURCE_CODEX_APP, "journal", 300);
-    upsert_imported_session_cache_from_conn(&mut conn, &[older, newest, keyless])
-        .expect("upsert");
+    upsert_imported_session_cache_from_conn(&mut conn, &[older, newest, keyless]).expect("upsert");
     conn.execute(
         "UPDATE imported_history_session_cache SET source_metadata_json = 'not-json' \
          WHERE source = ?1 AND source_session_id = 'journal'",
@@ -535,10 +534,9 @@ fn canonical_lookup_tolerates_legacy_non_json_metadata_rows() {
         .expect("winner lookup succeeds despite corrupt sibling rows")
         .expect("winner resolves");
     assert_eq!(winner.source_session_id, "gen2");
-    let (_, keyless_row) =
-        query_cached_session_by_session_id_from_conn(&conn, "codex_app-journal")
-            .expect("corrupt-metadata row still resolves by id")
-            .expect("corrupt-metadata row present");
+    let (_, keyless_row) = query_cached_session_by_session_id_from_conn(&conn, "codex_app-journal")
+        .expect("corrupt-metadata row still resolves by id")
+        .expect("corrupt-metadata row present");
     assert_eq!(keyless_row.source_session_id, "journal");
 }
 

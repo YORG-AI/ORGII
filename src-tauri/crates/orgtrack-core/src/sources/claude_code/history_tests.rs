@@ -769,7 +769,10 @@ fn resumes_claude_meta_parse_from_watermark() {
     assert_eq!(resumed_meta.input_tokens, 21 + 55);
     assert_eq!(resumed_meta.input_tokens, scratch_meta.input_tokens);
     assert_eq!(resumed_meta.output_tokens, scratch_meta.output_tokens);
-    assert_eq!(resumed_meta.cache_read_tokens, scratch_meta.cache_read_tokens);
+    assert_eq!(
+        resumed_meta.cache_read_tokens,
+        scratch_meta.cache_read_tokens
+    );
     assert_eq!(
         resumed_meta.cache_write_tokens,
         scratch_meta.cache_write_tokens

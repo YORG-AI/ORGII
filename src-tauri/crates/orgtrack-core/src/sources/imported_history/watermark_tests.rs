@@ -49,8 +49,8 @@ fn resume_reads_only_the_appended_suffix() {
     let path = temp_transcript("resume", "alpha\nbeta\n");
     let (mtime, size) = stat(&path);
 
-    let mut full = WatermarkedTranscriptReader::open(&path, "Test", None, 1, mtime, size)
-        .expect("open full");
+    let mut full =
+        WatermarkedTranscriptReader::open(&path, "Test", None, 1, mtime, size).expect("open full");
     assert!(full.resume_state_json().is_none());
     assert_eq!(
         read_all(&mut full),
@@ -65,9 +65,15 @@ fn resume_reads_only_the_appended_suffix() {
         .and_then(|mut file| std::io::Write::write_all(&mut file, b"gamma\n"))
         .expect("append");
     let (mtime_after, size_after) = stat(&path);
-    let mut resumed =
-        WatermarkedTranscriptReader::open(&path, "Test", Some(&watermark), 1, mtime_after, size_after)
-            .expect("open resumed");
+    let mut resumed = WatermarkedTranscriptReader::open(
+        &path,
+        "Test",
+        Some(&watermark),
+        1,
+        mtime_after,
+        size_after,
+    )
+    .expect("open resumed");
     assert_eq!(resumed.resume_state_json(), Some("state-1"));
     assert_eq!(read_all(&mut resumed), vec![("gamma".to_string(), true)]);
     let next = resumed.into_watermark(1, mtime_after, size_after, "state-2".to_string());
@@ -81,8 +87,8 @@ fn unterminated_tail_is_returned_but_never_watermarked() {
     let path = temp_transcript("tail", "alpha\npart");
     let (mtime, size) = stat(&path);
 
-    let mut reader = WatermarkedTranscriptReader::open(&path, "Test", None, 1, mtime, size)
-        .expect("open full");
+    let mut reader =
+        WatermarkedTranscriptReader::open(&path, "Test", None, 1, mtime, size).expect("open full");
     assert_eq!(
         read_all(&mut reader),
         vec![("alpha".to_string(), true), ("part".to_string(), false)]
@@ -92,9 +98,15 @@ fn unterminated_tail_is_returned_but_never_watermarked() {
 
     fs::write(&path, "alpha\npartial-done\n").expect("complete tail");
     let (mtime_after, size_after) = stat(&path);
-    let mut resumed =
-        WatermarkedTranscriptReader::open(&path, "Test", Some(&watermark), 1, mtime_after, size_after)
-            .expect("open resumed");
+    let mut resumed = WatermarkedTranscriptReader::open(
+        &path,
+        "Test",
+        Some(&watermark),
+        1,
+        mtime_after,
+        size_after,
+    )
+    .expect("open resumed");
     assert_eq!(resumed.resume_state_json(), Some("state-1"));
     assert_eq!(
         read_all(&mut resumed),
@@ -108,16 +120,22 @@ fn unterminated_tail_is_returned_but_never_watermarked() {
 fn prefix_mutation_forces_a_full_reparse() {
     let path = temp_transcript("mutated", "aa\nbb\n");
     let (mtime, size) = stat(&path);
-    let mut reader = WatermarkedTranscriptReader::open(&path, "Test", None, 1, mtime, size)
-        .expect("open full");
+    let mut reader =
+        WatermarkedTranscriptReader::open(&path, "Test", None, 1, mtime, size).expect("open full");
     read_all(&mut reader);
     let watermark = reader.into_watermark(1, mtime, size, "state-1".to_string());
 
     fs::write(&path, "xx\nbb\ncc\n").expect("rewrite prefix");
     let (mtime_after, size_after) = stat(&path);
-    let mut reopened =
-        WatermarkedTranscriptReader::open(&path, "Test", Some(&watermark), 1, mtime_after, size_after)
-            .expect("open reopened");
+    let mut reopened = WatermarkedTranscriptReader::open(
+        &path,
+        "Test",
+        Some(&watermark),
+        1,
+        mtime_after,
+        size_after,
+    )
+    .expect("open reopened");
     assert!(reopened.resume_state_json().is_none());
     assert_eq!(
         read_all(&mut reopened),
@@ -135,8 +153,8 @@ fn prefix_mutation_forces_a_full_reparse() {
 fn size_regression_and_parser_version_change_force_a_full_reparse() {
     let path = temp_transcript("invalidate", "aa\nbb\n");
     let (mtime, size) = stat(&path);
-    let mut reader = WatermarkedTranscriptReader::open(&path, "Test", None, 1, mtime, size)
-        .expect("open full");
+    let mut reader =
+        WatermarkedTranscriptReader::open(&path, "Test", None, 1, mtime, size).expect("open full");
     read_all(&mut reader);
     let watermark = reader.into_watermark(1, mtime, size, "state-1".to_string());
 

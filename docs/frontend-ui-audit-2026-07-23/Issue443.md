@@ -16,3 +16,5 @@ The repository-listed `frontend-ui-audit` skill was unavailable at both configur
 Summary: 0 fix, 8 keep-with-reason, 0 abstract. No new arbitrary Tailwind values, duplicate dialog primitives, or basic accessibility regressions were found.
 
 The final module-splitting commit was rechecked on 2026-07-24. Its TSX changes are import, prop-type, and source-neutral naming moves only; rendered markup, CSS, ARIA, keyboard behavior, and the verdict counts above are unchanged.
+
+The final hardening pass added localized Raw Transcript status/error text for all 13 shipped locales without changing rendered structure, design-system components, keyboard behavior, or the audit verdict counts.
