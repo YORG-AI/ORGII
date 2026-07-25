@@ -141,6 +141,15 @@ rollover or the window silently truncates.
   row (GitHub rename made two spellings one repo network), and the fork guard
   demanded snapshot == summary while a LIVE source kept growing — equality
   checks against a moving target are boot-window absence in another costume.
+- **Waiting for a pass the engine will never run**: the session plane follows
+  visible-org demand — an org's push/retract pass runs only while that org is
+  the active workspace. A fix whose cleanup rides "the next pass" looks
+  broken for any org you are not looking at. Per-org verification must OPEN
+  the org (switch the workspace to it) as the trigger, and cleanup claims
+  must name which orgs were actually visited. Corollary: rows pushed in an
+  earlier install/test cycle may have no surviving local push-state, and the
+  client rightly refuses to retract what it cannot prove it pushed — those
+  need a server-side fixture sweep, not more waiting.
 
 ## When NOT to use
 
