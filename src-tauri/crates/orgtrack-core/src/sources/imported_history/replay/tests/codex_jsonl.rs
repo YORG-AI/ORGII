@@ -30,6 +30,49 @@ fn pending_cursor_never_contains_complete_large_output() {
 }
 
 #[test]
+fn codex_fallback_payload_range_reports_adjusted_utf8_offsets() {
+    let line = serde_json::json!({
+        "timestamp":"2026-07-22T00:00:00Z",
+        "type":"event_msg",
+        "payload":{"type":"agent_message","message":"a你b"}
+    })
+    .to_string();
+    let path = std::env::temp_dir().join(format!(
+        "orgii-codex-utf8-fallback-{}-{}.jsonl",
+        std::process::id(),
+        chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+    ));
+    fs::write(&path, format!("{line}\n")).expect("Codex UTF-8 fixture");
+    let descriptor = ReplayPayloadDescriptor {
+        field_path: "result.content".to_string(),
+        kind: ReplayPayloadKind::AgentMessage,
+        encoding: ReplayPayloadEncoding::Utf8Text,
+        body_projection: None,
+        spans: vec![ReplaySourceSpan {
+            start: 0,
+            end: line.len() as u64 + 1,
+        }],
+        total_bytes: "a你b".len() as u64,
+        source_ordinal: None,
+        source_key: None,
+    };
+    let range = read_payload(
+        &path,
+        &serde_json::to_string(&vec![descriptor]).expect("Codex payload locator"),
+        "event",
+        "result.content",
+        2,
+        1,
+    )
+    .expect("Codex UTF-8 fallback range");
+    assert_eq!(range.offset, 4);
+    assert_eq!(range.next_offset, 5);
+    assert_eq!(range.text, "b");
+    assert!(range.eof);
+    let _ = fs::remove_file(path);
+}
+
+#[test]
 fn ten_mib_tool_args_stay_out_of_index_and_cursor_but_reconstruct_exactly() {
     let command = format!("printf start {} end", "中🙂x".repeat(1_250_000));
     let arguments = serde_json::json!({

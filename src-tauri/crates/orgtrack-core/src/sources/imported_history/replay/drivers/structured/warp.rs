@@ -61,7 +61,7 @@ pub(super) fn sync_warp(
             [&row_id],
         )
         .map_err(|err| format!("mark Warp replay row seen: {err}"))?;
-        let content_hash = hash_parts(&[task_id.as_bytes(), &blob]);
+        let content_hash = content_digest(&[task_id.as_bytes(), &blob]);
         let previous_hash = tx
             .query_row(
                 "SELECT content_hash FROM imported_replay_structured_rows
@@ -188,15 +188,15 @@ pub(super) fn warp_summary(
 }
 
 pub(super) fn sqlite_physical_signal(path: &Path) -> Result<String, String> {
-    let mut hash = Hash64::default();
+    let mut hash = ContentDigest::default();
     for candidate in [
         path.to_path_buf(),
         std::path::PathBuf::from(format!("{}-wal", path.to_string_lossy())),
     ] {
-        hash.update(candidate.to_string_lossy().as_bytes());
+        hash.update_part(candidate.to_string_lossy().as_bytes());
         match std::fs::metadata(&candidate) {
             Ok(metadata) => {
-                hash.update(&metadata.len().to_le_bytes());
+                hash.update_part(&metadata.len().to_le_bytes());
                 let modified = metadata
                     .modified()
                     .ok()
@@ -205,9 +205,11 @@ pub(super) fn sqlite_physical_signal(path: &Path) -> Result<String, String> {
                         duration.as_secs() as i64 * 1_000_000_000 + duration.subsec_nanos() as i64
                     })
                     .unwrap_or_default();
-                hash.update(&modified.to_le_bytes());
+                hash.update_part(&modified.to_le_bytes());
             }
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => hash.update(b"missing"),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                hash.update_part(b"missing")
+            }
             Err(error) => {
                 return Err(format!(
                     "stat Warp replay source {}: {error}",

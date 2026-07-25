@@ -56,9 +56,9 @@ pub(super) fn sync_cursor_cli(
     let mut stats = ReplayStats::default();
     let mut changed = false;
     let mut message_count = 0_u64;
-    let mut prefix_hash = Hash64::default();
+    let mut prefix_hash = ContentDigest::default();
     visit_manifest_message_ids(&root, |blob_id| {
-        prefix_hash.update(blob_id.as_bytes());
+        prefix_hash.update_part(blob_id.as_bytes());
         let ordinal = message_count;
         message_count = message_count.saturating_add(1);
         if ordinal < cursor.message_count {
@@ -494,10 +494,10 @@ pub(super) fn manifest_prefix_hash(
     prefix_count: u64,
 ) -> Result<(u64, String), String> {
     let mut count = 0_u64;
-    let mut hash = Hash64::default();
+    let mut hash = ContentDigest::default();
     visit_manifest_message_ids(data, |id| {
         if count < prefix_count {
-            hash.update(id.as_bytes());
+            hash.update_part(id.as_bytes());
         }
         count = count.saturating_add(1);
         Ok(())

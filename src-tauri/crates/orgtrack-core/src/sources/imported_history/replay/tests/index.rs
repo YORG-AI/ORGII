@@ -41,6 +41,40 @@ fn replay_schema() -> Connection {
 }
 
 #[test]
+fn source_resolution_treats_percent_and_underscore_as_literal_suffix_bytes() {
+    let conn = replay_schema();
+    let source = ImportedHistorySourceId::CodexApp;
+    let requested_key = "thread_%";
+    let display_session_id = format!("{}{}", source.descriptor().session_prefix, requested_key);
+    conn.execute(
+        "INSERT INTO imported_history_session_cache(
+             source,source_session_id,session_id,source_path,updated_at_ms
+         ) VALUES(?1,'rollout-thread-xy','wrong','/tmp/wrong.jsonl',2)",
+        [source.as_str()],
+    )
+    .expect("seed wildcard-shaped near match");
+
+    let error = resolve_source(&conn, source, &display_session_id)
+        .expect_err("LIKE wildcard bytes must not match a different source session");
+    assert!(error.contains("not indexed yet"));
+
+    conn.execute(
+        "INSERT INTO imported_history_session_cache(
+             source,source_session_id,session_id,source_path,updated_at_ms
+         ) VALUES(?1,?2,'exact','/tmp/exact.jsonl',1)",
+        params![source.as_str(), format!("rollout-{requested_key}")],
+    )
+    .expect("seed literal suffix match");
+    let resolved =
+        resolve_source(&conn, source, &display_session_id).expect("resolve literal suffix");
+    assert_eq!(
+        resolved.source_session_id,
+        format!("rollout-{requested_key}")
+    );
+    assert_eq!(resolved.path, PathBuf::from("/tmp/exact.jsonl"));
+}
+
+#[test]
 fn replay_write_transaction_reserves_writer_before_streaming_reads() {
     let path = std::env::temp_dir().join(format!(
         "orgii-replay-immediate-{}-{}.sqlite",

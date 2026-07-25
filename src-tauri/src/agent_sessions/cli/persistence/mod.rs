@@ -15,6 +15,10 @@ mod resume_state_tests {
     use super::*;
     use crate::test_utils::test_env;
     use agent_core::foundation::session_bridge;
+    use orgtrack_core::sources::imported_history::{
+        cache::upsert_imported_session_cache_from_conn,
+        metadata::{ImportedHistoryCacheInput, ImportedHistoryImpactStats, SOURCE_CLAUDE_CODE},
+    };
 
     fn create_test_session(session_id: &str, account_id: &str) {
         create_session(
@@ -50,6 +54,37 @@ mod resume_state_tests {
             },
         )
         .expect("create test CLI session");
+    }
+
+    fn imported_cache_input(
+        source_session_id: &str,
+        updated_at_ms: i64,
+    ) -> ImportedHistoryCacheInput {
+        ImportedHistoryCacheInput {
+            source: SOURCE_CLAUDE_CODE,
+            source_session_id: source_session_id.to_string(),
+            session_id: format!("claudecodeapp-{source_session_id}"),
+            source_path: format!("/tmp/{source_session_id}.jsonl"),
+            source_record_key: source_session_id.to_string(),
+            source_mtime_ms: updated_at_ms,
+            source_size_bytes: 100,
+            source_fingerprint: updated_at_ms.to_string(),
+            parser_version: 1,
+            name: format!("Session {source_session_id}"),
+            created_at_ms: updated_at_ms,
+            updated_at_ms,
+            model: Some("claude-sonnet-4-6".to_string()),
+            input_tokens: 0,
+            output_tokens: 0,
+            cache_read_tokens: 0,
+            cache_write_tokens: 0,
+            repo_path: Some("/tmp".to_string()),
+            branch: Some("main".to_string()),
+            impact: ImportedHistoryImpactStats::default(),
+            listable: true,
+            source_metadata_json: None,
+            parent_session_id: None,
+        }
     }
 
     #[test]
@@ -89,6 +124,45 @@ mod resume_state_tests {
             .expect("session exists");
         assert_eq!(session.account_id.as_deref(), Some("account-b"));
         assert_eq!(session.cli_session_id.as_deref(), Some("native-b-1"));
+    }
+
+    #[test]
+    fn binding_native_id_hides_only_the_literal_imported_suffix() {
+        let _sandbox = test_env::sandbox();
+        let session_id = "cli-resume-literal-wildcards";
+        create_test_session(session_id, "account-a");
+        let mut conn = database::db::get_connection().expect("open fixture database");
+        upsert_imported_session_cache_from_conn(
+            &mut conn,
+            &[
+                imported_cache_input("rollout-native%_", 100),
+                imported_cache_input("rollout-nativeXY", 200),
+            ],
+        )
+        .expect("insert imported cache fixtures");
+        drop(conn);
+
+        update_cli_session_id(session_id, "native%_").expect("bind native id");
+
+        let conn = database::db::get_connection().expect("reopen fixture database");
+        let literal_listable: i64 = conn
+            .query_row(
+                "SELECT listable FROM imported_history_session_cache
+                 WHERE source = ?1 AND source_session_id = ?2",
+                rusqlite::params![SOURCE_CLAUDE_CODE, "rollout-native%_"],
+                |row| row.get(0),
+            )
+            .expect("literal cache row");
+        let decoy_listable: i64 = conn
+            .query_row(
+                "SELECT listable FROM imported_history_session_cache
+                 WHERE source = ?1 AND source_session_id = ?2",
+                rusqlite::params![SOURCE_CLAUDE_CODE, "rollout-nativeXY"],
+                |row| row.get(0),
+            )
+            .expect("decoy cache row");
+        assert_eq!(literal_listable, 0);
+        assert_eq!(decoy_listable, 1);
     }
 
     #[test]

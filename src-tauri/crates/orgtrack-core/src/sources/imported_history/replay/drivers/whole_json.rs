@@ -18,9 +18,10 @@ use serde_json::{json, Value};
 
 use crate::sources::imported_history::{self, ImportedToolCall};
 
-use crate::sources::imported_history::replay::drivers::structured::{
-    compact_chunk, range_from_text, rebuild_turns,
+use crate::sources::imported_history::replay::drivers::common::{
+    content_digest, legacy_stable_id_hash_delimited, range_from_text, rebuild_turns,
 };
+use crate::sources::imported_history::replay::drivers::structured::compact_chunk;
 use crate::sources::imported_history::replay::index::ReplayIndexState;
 use crate::sources::imported_history::replay::payload_artifact;
 use crate::sources::imported_history::replay::{
@@ -392,7 +393,8 @@ fn upsert_cline_event(
     let source = ImportedHistorySourceId::Cline;
     let event_id = stable_event_id(fold.source_session_id, event_key);
     chunk.chunk_id = event_id.clone();
-    let content_hash = hash_parts(&[serde_json::to_string(&chunk).unwrap_or_default().as_bytes()]);
+    let content_hash =
+        content_digest(&[serde_json::to_string(&chunk).unwrap_or_default().as_bytes()]);
     let locator_json = serde_json::to_string(locator)
         .map_err(|err| format!("encode Cline replay locator: {err}"))?;
     let full_chunk = chunk.clone();
@@ -958,21 +960,8 @@ fn count_rows(
 fn stable_event_id(source_session_id: &str, event_key: &str) -> String {
     format!(
         "replay-cline-{}",
-        hash_parts(&[source_session_id.as_bytes(), event_key.as_bytes()])
+        legacy_stable_id_hash_delimited(&[source_session_id.as_bytes(), event_key.as_bytes()])
     )
-}
-
-fn hash_parts(parts: &[&[u8]]) -> String {
-    let mut hash = 0xcbf29ce484222325_u64;
-    for part in parts {
-        for byte in *part {
-            hash ^= u64::from(*byte);
-            hash = hash.wrapping_mul(0x100000001b3);
-        }
-        hash ^= 0xff;
-        hash = hash.wrapping_mul(0x100000001b3);
-    }
-    format!("{hash:016x}")
 }
 
 #[cfg(test)]

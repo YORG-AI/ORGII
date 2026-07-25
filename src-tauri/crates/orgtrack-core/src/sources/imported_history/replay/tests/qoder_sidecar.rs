@@ -151,6 +151,23 @@ fn reserved_sequence_is_stable_and_inside_primary_gap() {
 }
 
 #[test]
+fn reserved_sequence_refuses_base_overflow_without_reusing_i64_max() {
+    let mut conn = rusqlite::Connection::open_in_memory().expect("DB");
+    prepare_replay_db(&mut conn, "p/task", "qoderapp-p/task");
+    let tx = conn.transaction().expect("tx");
+    let error = sidecar_sequence(
+        &tx,
+        "p/task",
+        "g",
+        i64::MAX - 10,
+        1_784_691_200_000,
+        "qoder-log-overflow",
+    )
+    .expect_err("overflowing sidecar sequence must fail closed");
+    assert!(error.contains("sequence space exhausted"), "{error}");
+}
+
+#[test]
 fn torn_tail_is_not_acknowledged() {
     let mut reader = BufReader::new(&b"complete\npartial"[..]);
     let (_, bytes) = read_complete_line(&mut reader)

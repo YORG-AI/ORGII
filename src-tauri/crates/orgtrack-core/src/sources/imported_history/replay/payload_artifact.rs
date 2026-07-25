@@ -403,17 +403,12 @@ pub(super) fn delete_orphans(
 }
 
 fn temporary_hash(event_id: &str, field_path: &str) -> String {
-    let mut hash = 0xcbf29ce484222325_u64;
-    for byte in event_id
-        .as_bytes()
-        .iter()
-        .chain(std::iter::once(&0))
-        .chain(field_path.as_bytes())
-    {
-        hash ^= u64::from(*byte);
-        hash = hash.wrapping_mul(0x100000001b3);
-    }
-    format!("pending-{hash:016x}")
+    let mut hash = Sha256::new();
+    hash.update((event_id.len() as u64).to_le_bytes());
+    hash.update(event_id.as_bytes());
+    hash.update((field_path.len() as u64).to_le_bytes());
+    hash.update(field_path.as_bytes());
+    format!("pending-{}", digest_hex(hash.finalize()))
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {

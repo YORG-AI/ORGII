@@ -210,9 +210,9 @@ impl ImportedHistorySourceId {
                 source_id: SOURCE_QODER,
                 session_prefix: sources::qoder::history::QODER_SESSION_PREFIX,
                 storage_family: ReplayStorageFamily::JsonLines,
-                // v3 also materializes transcript JSONL payloads once per
-                // generation; sidecar artifacts retain their existing path.
-                parser_version: 3,
+                // v4 rejects sequence overflow and rebuilds the sidecar cursor
+                // with pre-allocation record limits and SHA-256 identities.
+                parser_version: 4,
                 support: ReplayAdapterSupport::Incremental,
             },
             Self::MimoCode => ImportedReplayDescriptor {

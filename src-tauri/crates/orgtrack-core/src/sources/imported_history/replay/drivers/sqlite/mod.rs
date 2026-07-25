@@ -17,6 +17,9 @@ use crate::development_artifact::{
 };
 use crate::sources::imported_history::{self, replay::ImportedHistorySourceId};
 
+use crate::sources::imported_history::replay::drivers::common::{
+    content_digest, rebuild_turns, ContentDigest,
+};
 use crate::sources::imported_history::replay::index::ReplayIndexState;
 use crate::sources::imported_history::replay::payload_artifact;
 mod common;
@@ -475,7 +478,7 @@ fn fold_source_row(
             source.as_str()
         ));
     }
-    let raw_hash = hash_parts(&[
+    let raw_hash = content_digest(&[
         row.key.as_bytes(),
         row.message_id.as_bytes(),
         row.role.as_bytes(),
@@ -968,79 +971,6 @@ fn upsert_event(
         ],
     )
     .map_err(|err| format!("upsert {} replay event: {err}", source.as_str()))?;
-    Ok(())
-}
-
-fn rebuild_turns(
-    tx: &Transaction<'_>,
-    source: ImportedHistorySourceId,
-    source_session_id: &str,
-    generation: &str,
-) -> Result<(), String> {
-    tx.execute(
-        "DELETE FROM imported_replay_turns WHERE source=?1 AND source_session_id=?2 AND generation=?3",
-        params![source.as_str(), source_session_id, generation],
-    )
-    .map_err(|err| format!("clear {} replay turn headers: {err}", source.as_str()))?;
-    let mut stmt = tx
-        .prepare(
-            "SELECT sequence,event_id,function_name,created_at FROM imported_replay_events
-             WHERE source=?1 AND source_session_id=?2 AND generation=?3 ORDER BY sequence",
-        )
-        .map_err(|err| format!("prepare {} turn rebuild: {err}", source.as_str()))?;
-    let mut rows = stmt
-        .query(params![source.as_str(), source_session_id, generation])
-        .map_err(|err| format!("query {} turn rebuild: {err}", source.as_str()))?;
-    let mut turn_index = -1_i64;
-    let mut current: Option<(String, i64, i64, String, String, u64)> = None;
-    while let Some(row) = rows.next().map_err(|err| err.to_string())? {
-        let sequence: i64 = row.get(0).map_err(|err| err.to_string())?;
-        let event_id: String = row.get(1).map_err(|err| err.to_string())?;
-        let function: String = row.get(2).map_err(|err| err.to_string())?;
-        let created_at: String = row.get(3).map_err(|err| err.to_string())?;
-        if function == imported_history::FUNCTION_USER_MESSAGE || current.is_none() {
-            if let Some(header) = current.take() {
-                insert_turn_header(
-                    tx,
-                    source,
-                    source_session_id,
-                    generation,
-                    turn_index,
-                    header,
-                )?;
-            }
-            turn_index += 1;
-            current = Some((
-                event_id,
-                sequence,
-                sequence,
-                created_at.clone(),
-                created_at,
-                1,
-            ));
-        } else if let Some(header) = current.as_mut() {
-            header.2 = sequence;
-            header.4 = created_at;
-            header.5 += 1;
-        }
-        tx.execute(
-            "UPDATE imported_replay_events SET turn_index=?1 WHERE source=?2 AND source_session_id=?3 AND generation=?4 AND sequence=?5",
-            params![turn_index, source.as_str(), source_session_id, generation, sequence],
-        )
-        .map_err(|err| format!("assign {} replay turn: {err}", source.as_str()))?;
-    }
-    drop(rows);
-    drop(stmt);
-    if let Some(header) = current {
-        insert_turn_header(
-            tx,
-            source,
-            source_session_id,
-            generation,
-            turn_index,
-            header,
-        )?;
-    }
     Ok(())
 }
 

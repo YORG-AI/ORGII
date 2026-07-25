@@ -7,7 +7,7 @@
 
 use std::collections::HashMap;
 use std::fs;
-use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
+use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
 
 use core_types::activity::ActivityChunk;
@@ -37,6 +37,10 @@ use crate::sources::codex::app::{
 use crate::sources::imported_history::{self, ImportedToolCall};
 
 use super as jsonl_driver;
+use crate::sources::imported_history::replay::drivers::common::{
+    content_digest, read_bounded_line, trim_jsonl_line, utf8_boundary_at_or_before, BoundedLine,
+    Utf8RangeBuilder, MAX_JSONL_RECORD_BYTES,
+};
 use crate::sources::imported_history::replay::index::ReplayIndexState;
 use crate::sources::imported_history::replay::payload_artifact;
 use crate::sources::imported_history::replay::{
@@ -166,20 +170,24 @@ pub(in crate::sources::imported_history::replay) fn sync(
 
     loop {
         let line_start = cursor.byte_offset;
-        let mut bytes = Vec::new();
-        let read = reader
-            .read_until(b'\n', &mut bytes)
-            .map_err(|err| format!("read Codex replay line: {err}"))?;
-        if read == 0 {
-            break;
-        }
-        // A writer may be in the middle of appending a JSON object.  Keep the
-        // cursor before that record so the next poll retries it verbatim.
-        if bytes.last() != Some(&b'\n') {
-            break;
-        }
-        cursor.byte_offset = cursor.byte_offset.saturating_add(read as u64);
-        stats.parsed_bytes = stats.parsed_bytes.saturating_add(read as u64);
+        let bytes = match read_bounded_line(&mut reader, MAX_JSONL_RECORD_BYTES)
+            .map_err(|err| format!("read Codex replay line: {err}"))?
+        {
+            BoundedLine::Eof | BoundedLine::Incomplete => break,
+            BoundedLine::TooLarge => {
+                return Err(format!(
+                    "Codex replay record exceeds the {} MiB safety limit",
+                    MAX_JSONL_RECORD_BYTES / (1024 * 1024)
+                ))
+            }
+            BoundedLine::Complete(bytes) => bytes,
+        };
+        let read = bytes.len() as u64;
+        cursor.byte_offset = cursor
+            .byte_offset
+            .checked_add(read)
+            .ok_or_else(|| "Codex replay byte cursor overflow".to_string())?;
+        stats.parsed_bytes = stats.parsed_bytes.saturating_add(read);
         let trimmed = trim_jsonl_line(&bytes);
         if trimmed.is_empty() {
             continue;
@@ -1123,7 +1131,7 @@ fn insert_chunk(
         .map_err(|err| format!("encode Codex replay result: {err}"))?;
     let payloads_json = serde_json::to_string(payloads)
         .map_err(|err| format!("encode Codex replay payload locators: {err}"))?;
-    let content_hash = content_hash(&[
+    let content_hash = content_digest(&[
         chunk.action_type.as_bytes(),
         chunk.function.as_bytes(),
         args_json.as_bytes(),
@@ -1250,7 +1258,7 @@ pub(in crate::sources::imported_history::replay) fn read_payload(
     let requested_end = requested_start
         .saturating_add(max_bytes as u64)
         .min(descriptor.total_bytes);
-    let mut range_text = String::with_capacity(max_bytes);
+    let mut range = Utf8RangeBuilder::new(offset, descriptor.total_bytes, max_bytes);
     let mut decoded_offset = 0_u64;
     let mut file = fs::File::open(source_path)
         .map_err(|err| format!("open Codex replay payload {}: {err}", source_path.display()))?;
@@ -1263,40 +1271,22 @@ pub(in crate::sources::imported_history::replay) fn read_payload(
             .map_err(|err| format!("read Codex replay payload: {err}"))?;
         let parsed: CodexJsonlLine = serde_json::from_slice(trim_jsonl_line(&bytes))
             .map_err(|err| format!("decode Codex replay payload line: {err}"))?;
-        if let Some(part) = payload_text(&descriptor, &parsed) {
-            let part_start = decoded_offset;
-            let part_end = part_start.saturating_add(part.len() as u64);
-            let overlap_start = requested_start.max(part_start);
-            let overlap_end = requested_end.min(part_end);
-            if overlap_start < overlap_end {
-                let local_start = utf8_boundary_at_or_after(
-                    &part,
-                    overlap_start.saturating_sub(part_start) as usize,
-                );
-                let local_end = utf8_boundary_at_or_before(
-                    &part,
-                    overlap_end.saturating_sub(part_start) as usize,
-                );
-                if local_start < local_end {
-                    range_text.push_str(&part[local_start..local_end]);
-                }
-            }
-            decoded_offset = part_end;
-            if decoded_offset >= requested_end {
-                break;
-            }
+        let part = payload_text(&descriptor, &parsed).ok_or_else(|| {
+            format!(
+                "Codex replay payload span no longer yields {:?} for {field_path}",
+                descriptor.kind
+            )
+        })?;
+        let part_start = decoded_offset;
+        decoded_offset = decoded_offset
+            .checked_add(part.len() as u64)
+            .ok_or_else(|| "Codex decoded payload offset overflow".to_string())?;
+        range.push_part(part_start, &part);
+        if decoded_offset >= requested_end {
+            break;
         }
     }
-    let next_offset = requested_start.saturating_add(range_text.len() as u64);
-    Ok(ReplayPayloadRange {
-        event_id: event_id.to_string(),
-        field_path: field_path.to_string(),
-        offset: requested_start,
-        next_offset,
-        eof: next_offset >= descriptor.total_bytes,
-        total_bytes: descriptor.total_bytes,
-        text: range_text,
-    })
+    Ok(range.finish(event_id, field_path, descriptor.total_bytes))
 }
 
 #[cfg(test)]
@@ -1346,16 +1336,6 @@ fn payload_text(descriptor: &ReplayPayloadDescriptor, parsed: &CodexJsonlLine) -
     }
 }
 
-fn trim_jsonl_line(mut bytes: &[u8]) -> &[u8] {
-    while bytes
-        .last()
-        .is_some_and(|byte| matches!(byte, b'\n' | b'\r'))
-    {
-        bytes = &bytes[..bytes.len() - 1];
-    }
-    bytes
-}
-
 fn head_preview(text: &str, max_bytes: usize) -> (String, bool) {
     if text.len() <= max_bytes {
         return (text.to_string(), false);
@@ -1383,33 +1363,6 @@ fn utf8_tail(text: &str, max_bytes: usize) -> &str {
         start += 1;
     }
     &text[start..]
-}
-
-fn utf8_boundary_at_or_before(text: &str, mut offset: usize) -> usize {
-    offset = offset.min(text.len());
-    while offset > 0 && !text.is_char_boundary(offset) {
-        offset -= 1;
-    }
-    offset
-}
-
-fn utf8_boundary_at_or_after(text: &str, mut offset: usize) -> usize {
-    offset = offset.min(text.len());
-    while offset < text.len() && !text.is_char_boundary(offset) {
-        offset += 1;
-    }
-    offset
-}
-
-fn content_hash(parts: &[&[u8]]) -> String {
-    let mut hash = 0xcbf29ce484222325_u64;
-    for part in parts {
-        for byte in *part {
-            hash ^= u64::from(*byte);
-            hash = hash.wrapping_mul(0x100000001b3);
-        }
-    }
-    format!("{hash:016x}")
 }
 
 #[cfg(test)]

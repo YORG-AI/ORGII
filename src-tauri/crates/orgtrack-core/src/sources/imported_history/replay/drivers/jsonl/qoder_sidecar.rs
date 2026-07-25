@@ -8,7 +8,7 @@
 
 use std::collections::HashMap;
 use std::fs;
-use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
+use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use rusqlite::{params, OptionalExtension, Transaction};
@@ -23,8 +23,9 @@ use crate::sources::qoder::log_enrichment::{
     self, ContentSignal, LogEvent, CALL_ID_PAIR_MS, WINDOW_PAD_MS,
 };
 
-use super::{
-    compact_tool_args, content_hash, tail_preview, upsert_chunk, QODER_PRIMARY_SEQUENCE_STEP,
+use super::{compact_tool_args, tail_preview, upsert_chunk, QODER_PRIMARY_SEQUENCE_STEP};
+use crate::sources::imported_history::replay::drivers::common::{
+    content_digest, read_bounded_line, trim_jsonl_line, BoundedLine, MAX_JSONL_RECORD_BYTES,
 };
 use crate::sources::imported_history::replay::payload_artifact;
 use crate::sources::imported_history::replay::{
@@ -33,11 +34,10 @@ use crate::sources::imported_history::replay::{
     NORMAL_PAYLOAD_PREVIEW_BYTES, SHELL_PAYLOAD_PREVIEW_BYTES,
 };
 
-const SIDECAR_CURSOR_VERSION: u32 = 1;
+const SIDECAR_CURSOR_VERSION: u32 = 2;
 const BOUNDARY_BYTES: u64 = 4 * 1024;
 const SEQUENCE_EPOCH_MS: i64 = 1_577_836_800_000; // 2020-01-01 UTC
 const SEQUENCE_TIE_SLOTS: i64 = 256;
-const MAX_RECORD_BYTES: usize = 32 * 1024 * 1024;
 const RAW_TABLE: &str = "imported_replay_qoder_log_events";
 
 pub(in crate::sources::imported_history::replay) fn watch_paths(
@@ -164,7 +164,7 @@ pub(in crate::sources::imported_history::replay) fn probe(
     parts.push(edit_signature.clone());
     let refs = parts.iter().map(String::as_bytes).collect::<Vec<_>>();
     Ok(SidecarProbe {
-        signature: content_hash(&refs),
+        signature: content_digest(&refs),
         edit_signature,
         files,
     })
@@ -352,11 +352,21 @@ fn ingest_file(
                 break;
             };
             if trim_line(&next).starts_with(b"{") {
-                record_bytes = record_bytes.saturating_add(next_bytes);
+                record_bytes = record_bytes
+                    .checked_add(next_bytes)
+                    .filter(|bytes| *bytes <= MAX_JSONL_RECORD_BYTES)
+                    .ok_or_else(|| {
+                        format!(
+                            "Qoder sidecar record exceeds the {} MiB safety limit",
+                            MAX_JSONL_RECORD_BYTES / (1024 * 1024)
+                        )
+                    })?;
                 Some(next)
             } else {
+                let rewind = i64::try_from(next_bytes)
+                    .map_err(|_| "Qoder sidecar lookahead length overflow".to_string())?;
                 reader
-                    .seek(SeekFrom::Current(-(next_bytes as i64)))
+                    .seek(SeekFrom::Current(-rewind))
                     .map_err(|error| format!("rewind Qoder exthost lookahead: {error}"))?;
                 None
             }
@@ -367,7 +377,9 @@ fn ingest_file(
             .as_deref()
             .map(trim_line)
             .map(String::from_utf8_lossy);
-        acknowledged = acknowledged.saturating_add(record_bytes as u64);
+        acknowledged = acknowledged
+            .checked_add(record_bytes as u64)
+            .ok_or_else(|| "Qoder sidecar byte cursor overflow".to_string())?;
         stats.parsed_bytes = stats.parsed_bytes.saturating_add(record_bytes as u64);
         let (event, _consumed_following) =
             log_enrichment::parse_launch_log_record(&line_text, following.as_deref());
@@ -376,7 +388,7 @@ fn ingest_file(
         };
         stats.parsed_rows = stats.parsed_rows.saturating_add(1);
         let (ts_ms, kind, task_id, call_id) = event_index_fields(&event);
-        let source_key = content_hash(&[
+        let source_key = content_digest(&[
             file.identity.as_bytes(),
             &record_start.to_le_bytes(),
             &acknowledged.to_le_bytes(),
@@ -408,25 +420,26 @@ fn ingest_file(
     Ok((acknowledged, inserted_any))
 }
 
-fn read_complete_line(reader: &mut impl BufRead) -> Result<Option<(Vec<u8>, usize)>, String> {
-    let mut bytes = Vec::new();
-    let read = reader
-        .read_until(b'\n', &mut bytes)
-        .map_err(|error| format!("read Qoder sidecar line: {error}"))?;
-    if read == 0 || bytes.last() != Some(&b'\n') {
-        return Ok(None);
+fn read_complete_line(
+    reader: &mut impl std::io::BufRead,
+) -> Result<Option<(Vec<u8>, usize)>, String> {
+    match read_bounded_line(reader, MAX_JSONL_RECORD_BYTES)
+        .map_err(|error| format!("read Qoder sidecar line: {error}"))?
+    {
+        BoundedLine::Eof | BoundedLine::Incomplete => Ok(None),
+        BoundedLine::TooLarge => Err(format!(
+            "Qoder sidecar line exceeds the {} MiB safety limit",
+            MAX_JSONL_RECORD_BYTES / (1024 * 1024)
+        )),
+        BoundedLine::Complete(bytes) => {
+            let length = bytes.len();
+            Ok(Some((bytes, length)))
+        }
     }
-    if bytes.len() > MAX_RECORD_BYTES {
-        return Ok(Some((Vec::new(), read)));
-    }
-    Ok(Some((bytes, read)))
 }
 
 fn trim_line(bytes: &[u8]) -> &[u8] {
-    let without_newline = bytes.strip_suffix(b"\n").unwrap_or(bytes);
-    without_newline
-        .strip_suffix(b"\r")
-        .unwrap_or(without_newline)
+    trim_jsonl_line(bytes)
 }
 
 fn event_index_fields(event: &LogEvent) -> (i64, &'static str, &str, &str) {
@@ -847,7 +860,7 @@ fn last_edit_keys(
 
 fn read_raw_event(raw: &RawRow) -> Result<Option<LogEvent>, String> {
     let length = raw.source_end.saturating_sub(raw.source_start) as usize;
-    if length == 0 || length > MAX_RECORD_BYTES.saturating_mul(2) {
+    if length == 0 || length > MAX_JSONL_RECORD_BYTES {
         return Ok(None);
     }
     let mut file = fs::File::open(&raw.source_path).map_err(|error| {
@@ -892,7 +905,7 @@ fn upsert_pending(
         args: normalized.clone(),
         created_at: imported_history::epoch_ms_to_iso(pending.ts_ms),
     };
-    let semantic_hash = content_hash(&[
+    let semantic_hash = content_digest(&[
         pending.call_id.as_bytes(),
         pending.name.as_bytes(),
         serde_json::to_string(&normalized)
@@ -1030,18 +1043,24 @@ fn sidecar_sequence(
     ts_ms: i64,
     event_id: &str,
 ) -> Result<i64, String> {
-    let elapsed = ts_ms.saturating_sub(SEQUENCE_EPOCH_MS).max(0);
-    let hash = content_hash(&[event_id.as_bytes()]);
+    let elapsed = ts_ms
+        .checked_sub(SEQUENCE_EPOCH_MS)
+        .ok_or_else(|| "Qoder sidecar timestamp arithmetic overflow".to_string())?
+        .max(0);
+    let hash = content_digest(&[event_id.as_bytes()]);
     let tie = u8::from_str_radix(hash.get(..2).unwrap_or("00"), 16).unwrap_or_default() as i64;
     let mut offset = elapsed
-        .saturating_mul(SEQUENCE_TIE_SLOTS)
-        .saturating_add(tie)
-        .saturating_add(1);
+        .checked_mul(SEQUENCE_TIE_SLOTS)
+        .and_then(|offset| offset.checked_add(tie))
+        .and_then(|offset| offset.checked_add(1))
+        .ok_or_else(|| "Qoder sidecar sequence offset overflow".to_string())?;
     if offset >= QODER_PRIMARY_SEQUENCE_STEP {
         return Err("Qoder sidecar timestamp exceeds reserved replay sequence range".to_string());
     }
     loop {
-        let sequence = base_sequence.saturating_add(offset);
+        let sequence = base_sequence
+            .checked_add(offset)
+            .ok_or_else(|| "Qoder sidecar sequence space exhausted".to_string())?;
         let occupied = tx
             .query_row(
                 "SELECT event_id FROM imported_replay_events
@@ -1062,7 +1081,9 @@ fn sidecar_sequence(
         {
             return Ok(sequence);
         }
-        offset = offset.saturating_add(1);
+        offset = offset
+            .checked_add(1)
+            .ok_or_else(|| "Qoder sidecar tie-break sequence overflow".to_string())?;
         if offset % SEQUENCE_TIE_SLOTS == 0 || offset >= QODER_PRIMARY_SEQUENCE_STEP {
             return Err("Too many Qoder sidecar events share one timestamp".to_string());
         }
@@ -1256,7 +1277,7 @@ fn recompute_turn_counts(
 
 fn boundary_fingerprint(path: &Path, offset: u64) -> Result<String, String> {
     if offset == 0 {
-        return Ok(content_hash(&[b"empty"]));
+        return Ok(content_digest(&[b"empty"]));
     }
     let start = offset.saturating_sub(BOUNDARY_BYTES);
     let mut file = fs::File::open(path)
@@ -1266,7 +1287,7 @@ fn boundary_fingerprint(path: &Path, offset: u64) -> Result<String, String> {
     let mut bytes = vec![0; offset.saturating_sub(start) as usize];
     file.read_exact(&mut bytes)
         .map_err(|error| format!("read Qoder sidecar boundary: {error}"))?;
-    Ok(content_hash(&[&start.to_le_bytes(), &bytes]))
+    Ok(content_digest(&[&start.to_le_bytes(), &bytes]))
 }
 
 fn file_identity(path: &Path, metadata: &fs::Metadata) -> String {

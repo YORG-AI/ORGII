@@ -1,4 +1,7 @@
 use super::*;
+use crate::sources::imported_history::replay::drivers::common::{
+    legacy_stable_id_hash_delimited, utf8_boundary_at_or_before,
+};
 
 pub(super) fn open_source_db(path: &Path) -> Result<Connection, String> {
     Connection::open_with_flags(
@@ -79,44 +82,6 @@ pub(super) fn chunk_field_text(chunk: &ActivityChunk, field_path: &str) -> Resul
         .unwrap_or_else(|| target.to_string()))
 }
 
-pub(in crate::sources::imported_history::replay) fn range_from_text(
-    event_id: &str,
-    field_path: &str,
-    text: &str,
-    offset: u64,
-    max_bytes: usize,
-) -> Result<ReplayPayloadRange, String> {
-    let start = usize::try_from(offset)
-        .unwrap_or(usize::MAX)
-        .min(text.len());
-    let mut start_boundary = start;
-    while start_boundary < text.len() && !text.is_char_boundary(start_boundary) {
-        start_boundary += 1;
-    }
-    let mut end = start_boundary.saturating_add(max_bytes).min(text.len());
-    while end > start_boundary && !text.is_char_boundary(end) {
-        end -= 1;
-    }
-    // A caller may request fewer bytes than the next UTF-8 scalar occupies.
-    // Returning an empty, non-EOF page would leave the cursor stuck forever,
-    // so make bounded forward progress by returning that one scalar.
-    if end == start_boundary && start_boundary < text.len() && max_bytes > 0 {
-        end = text[start_boundary..]
-            .char_indices()
-            .nth(1)
-            .map_or(text.len(), |(next, _)| start_boundary + next);
-    }
-    Ok(ReplayPayloadRange {
-        event_id: event_id.to_string(),
-        field_path: field_path.to_string(),
-        offset: start_boundary as u64,
-        next_offset: end as u64,
-        eof: end >= text.len(),
-        total_bytes: text.len() as u64,
-        text: text[start_boundary..end].to_string(),
-    })
-}
-
 pub(super) fn value_at_path_mut<'a>(value: &'a mut Value, path: &str) -> Option<&'a mut String> {
     let mut current = value;
     for segment in path.split('.') {
@@ -129,10 +94,7 @@ pub(super) fn value_at_path_mut<'a>(value: &'a mut Value, path: &str) -> Option<
 }
 
 pub(super) fn head_preview(text: &str, max_bytes: usize) -> String {
-    let mut end = max_bytes.min(text.len());
-    while end > 0 && !text.is_char_boundary(end) {
-        end -= 1;
-    }
+    let end = utf8_boundary_at_or_before(text, max_bytes);
     format!("{}\n… [payload truncated]", &text[..end])
 }
 
@@ -144,36 +106,8 @@ pub(super) fn stable_event_id(
     format!(
         "replay-{}-{}",
         source.as_str(),
-        hash_parts(&[source_session_id.as_bytes(), event_key.as_bytes()])
+        legacy_stable_id_hash_delimited(&[source_session_id.as_bytes(), event_key.as_bytes()])
     )
-}
-
-pub(super) fn hash_parts(parts: &[&[u8]]) -> String {
-    let mut hash = Hash64::default();
-    for part in parts {
-        hash.update(part);
-        hash.update(&[0xff]);
-    }
-    hash.finish_hex()
-}
-
-#[derive(Default)]
-pub(super) struct Hash64(u64);
-
-impl Hash64 {
-    pub(super) fn update(&mut self, bytes: &[u8]) {
-        if self.0 == 0 {
-            self.0 = 0xcbf29ce484222325;
-        }
-        for byte in bytes {
-            self.0 ^= u64::from(*byte);
-            self.0 = self.0.wrapping_mul(0x100000001b3);
-        }
-    }
-
-    pub(super) fn finish_hex(&self) -> String {
-        format!("{:016x}", self.0)
-    }
 }
 
 pub(super) fn hex_encode(bytes: &[u8]) -> String {

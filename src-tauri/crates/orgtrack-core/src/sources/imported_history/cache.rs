@@ -535,7 +535,10 @@ pub fn get_cached_source_path_by_suffix_from_conn(
     conn.query_row(
         "SELECT source_path FROM imported_history_session_cache \
          WHERE source = ?1 \
-           AND (source_session_id = ?2 OR source_session_id LIKE '%-' || ?2) \
+           AND ( \
+             source_session_id = ?2 \
+             OR substr(source_session_id, -(length(?2) + 1)) = ('-' || ?2) \
+           ) \
          ORDER BY updated_at_ms DESC LIMIT 1",
         params![source, source_session_id],
         |row| row.get::<_, String>(0),

@@ -25,17 +25,19 @@ use crate::development_artifact::{
 };
 use crate::sources::imported_history::{self, ImportedToolCall};
 
+use crate::sources::imported_history::replay::drivers::common::{
+    content_digest, range_from_text, rebuild_turns, ContentDigest,
+};
 use crate::sources::imported_history::replay::index::ReplayIndexState;
 use crate::sources::imported_history::replay::payload_artifact;
 mod common;
 mod cursor_cli;
 mod warp;
 
-pub(in crate::sources::imported_history::replay) use common::range_from_text;
 use common::{
-    camel_to_snake, chunk_field_text, field, field_str, hash_parts, head_preview, hex_decode,
-    hex_encode, open_source_db, parse_warp_timestamp_ms, stable_event_id, timestamp_value_to_iso,
-    value_at_path_mut, Hash64,
+    camel_to_snake, chunk_field_text, field, field_str, head_preview, hex_decode, hex_encode,
+    open_source_db, parse_warp_timestamp_ms, stable_event_id, timestamp_value_to_iso,
+    value_at_path_mut,
 };
 use cursor_cli::*;
 use warp::*;
@@ -571,7 +573,7 @@ fn upsert_emitted_at_sequence(
     stats: &mut ReplayStats,
 ) -> Result<(), String> {
     emitted.chunk.chunk_id = event_id.clone();
-    let content_hash = hash_parts(&[serde_json::to_string(&emitted.chunk)
+    let content_hash = content_digest(&[serde_json::to_string(&emitted.chunk)
         .unwrap_or_default()
         .as_bytes()]);
     let previous_hash = tx
@@ -920,110 +922,6 @@ fn payload_descriptor(
         source_ordinal: None,
         source_key: Some(locator_json.to_string()),
     }
-}
-
-pub(in crate::sources::imported_history::replay) fn rebuild_turns(
-    tx: &Transaction<'_>,
-    source: ImportedHistorySourceId,
-    source_session_id: &str,
-    generation: &str,
-) -> Result<(), String> {
-    tx.execute(
-        "DELETE FROM imported_replay_turns
-         WHERE source=?1 AND source_session_id=?2 AND generation=?3",
-        params![source.as_str(), source_session_id, generation],
-    )
-    .map_err(|err| format!("clear structured replay turns: {err}"))?;
-    let mut stmt = tx
-        .prepare(
-            "SELECT sequence,event_id,function_name,created_at FROM imported_replay_events
-             WHERE source=?1 AND source_session_id=?2 AND generation=?3 ORDER BY sequence ASC",
-        )
-        .map_err(|err| format!("prepare structured replay turn fold: {err}"))?;
-    let mut rows = stmt
-        .query(params![source.as_str(), source_session_id, generation])
-        .map_err(|err| format!("query structured replay turn fold: {err}"))?;
-    let mut turn_index = -1_i64;
-    let mut current: Option<(String, i64, i64, String, String, u64)> = None;
-    while let Some(row) = rows.next().map_err(|err| err.to_string())? {
-        let sequence: i64 = row.get(0).map_err(|err| err.to_string())?;
-        let event_id: String = row.get(1).map_err(|err| err.to_string())?;
-        let function: String = row.get(2).map_err(|err| err.to_string())?;
-        let created_at: String = row.get(3).map_err(|err| err.to_string())?;
-        if function == imported_history::FUNCTION_USER_MESSAGE || current.is_none() {
-            if let Some(turn) = current.take() {
-                insert_turn(tx, source, source_session_id, generation, turn_index, turn)?;
-            }
-            turn_index = turn_index.saturating_add(1).max(0);
-            current = Some((
-                event_id,
-                sequence,
-                sequence,
-                created_at.clone(),
-                created_at,
-                1,
-            ));
-        } else if let Some(turn) = current.as_mut() {
-            turn.2 = sequence;
-            turn.4 = created_at;
-            turn.5 = turn.5.saturating_add(1);
-        }
-        tx.execute(
-            "UPDATE imported_replay_events SET turn_index=?1
-             WHERE source=?2 AND source_session_id=?3 AND generation=?4 AND sequence=?5",
-            params![
-                turn_index.max(0),
-                source.as_str(),
-                source_session_id,
-                generation,
-                sequence
-            ],
-        )
-        .map_err(|err| format!("assign structured replay turn: {err}"))?;
-    }
-    drop(rows);
-    drop(stmt);
-    if let Some(turn) = current {
-        insert_turn(
-            tx,
-            source,
-            source_session_id,
-            generation,
-            turn_index.max(0),
-            turn,
-        )?;
-    }
-    Ok(())
-}
-
-fn insert_turn(
-    tx: &Transaction<'_>,
-    source: ImportedHistorySourceId,
-    source_session_id: &str,
-    generation: &str,
-    turn_index: i64,
-    turn: (String, i64, i64, String, String, u64),
-) -> Result<(), String> {
-    tx.execute(
-        "INSERT INTO imported_replay_turns(
-             source,source_session_id,generation,turn_index,turn_id,start_sequence,end_sequence,
-             started_at,ended_at,event_count
-         ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
-        params![
-            source.as_str(),
-            source_session_id,
-            generation,
-            turn_index,
-            turn.0,
-            turn.1,
-            turn.2,
-            turn.3,
-            turn.4,
-            turn.5 as i64
-        ],
-    )
-    .map(|_| ())
-    .map_err(|err| format!("insert structured replay turn: {err}"))
 }
 
 fn ensure_structured_tables(tx: &Transaction<'_>) -> Result<(), String> {

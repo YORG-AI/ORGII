@@ -68,6 +68,25 @@ fn cache_query_paginates_newest_first() {
 }
 
 #[test]
+fn cached_source_suffix_lookup_treats_percent_and_underscore_literally() {
+    let mut conn = fixture_conn();
+    upsert_imported_session_cache_from_conn(
+        &mut conn,
+        &[
+            input(SOURCE_CODEX_APP, "rollout-literal%_", 100),
+            input(SOURCE_CODEX_APP, "rollout-literalXY", 200),
+        ],
+    )
+    .expect("upsert wildcard fixtures");
+
+    let source_path =
+        get_cached_source_path_by_suffix_from_conn(&conn, SOURCE_CODEX_APP, "literal%_")
+            .expect("literal suffix lookup");
+
+    assert_eq!(source_path.as_deref(), Some("/tmp/rollout-literal%_.jsonl"));
+}
+
+#[test]
 fn source_stats_batch_counts_roots_children_and_last_activity() {
     let mut conn = fixture_conn();
     let root = input(SOURCE_CODEX_APP, "root", 100);

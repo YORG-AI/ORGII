@@ -89,6 +89,180 @@ fn state_from(outcome: &JsonlSyncOutcome, source: ImportedHistorySourceId) -> Re
 }
 
 #[test]
+fn oversized_jsonl_record_is_rejected_without_publishing_a_cursor_or_event() {
+    let source = ImportedHistorySourceId::ClaudeCode;
+    let path = std::env::temp_dir().join(format!(
+        "orgii-jsonl-oversize-{}-{}.jsonl",
+        std::process::id(),
+        chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+    ));
+    let mut file = fs::File::create(&path).expect("oversize fixture");
+    file.write_all(br#"{"type":"user","message":{"role":"user","content":""#)
+        .expect("write oversize prefix");
+    let block = vec![b'x'; 64 * 1024];
+    let blocks = MAX_JSONL_RECORD_BYTES / block.len() + 1;
+    for _ in 0..blocks {
+        file.write_all(&block).expect("write oversize body");
+    }
+    file.write_all(b"\"}}\n").expect("write oversize suffix");
+    file.flush().expect("flush oversize fixture");
+
+    let mut conn = rusqlite::Connection::open_in_memory().expect("replay DB");
+    SqliteRecordStore::init_tables(&conn).expect("replay schema");
+    SqliteRecordStore::init_source_cache_tables(&conn).expect("source cache schema");
+    let tx = conn.transaction().expect("oversize transaction");
+    let error = sync(
+        &tx,
+        source,
+        "claudecodeapp-oversize",
+        "oversize",
+        &path,
+        "generation-oversize",
+        1,
+        None,
+        "sample",
+    )
+    .expect_err("oversize record must fail before parsing");
+    assert!(error.contains("32 MiB safety limit"), "{error}");
+    tx.rollback().expect("rollback oversize sync");
+    let events = conn
+        .query_row("SELECT COUNT(*) FROM imported_replay_events", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .expect("count rejected events");
+    assert_eq!(events, 0);
+    let _ = fs::remove_file(path);
+}
+
+#[test]
+fn qoder_primary_sequence_overflow_fails_instead_of_saturating() {
+    let source = ImportedHistorySourceId::Qoder;
+    let (line, _) = fixture_lines(source);
+    let path = std::env::temp_dir().join(format!(
+        "orgii-qoder-sequence-overflow-{}-{}.jsonl",
+        std::process::id(),
+        chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+    ));
+    fs::write(&path, format!("{line}\n")).expect("overflow fixture");
+    let cursor = JsonlCursor {
+        next_sequence: i64::MAX - QODER_PRIMARY_SEQUENCE_STEP + 1,
+        ..JsonlCursor::default()
+    };
+    let previous = ReplayIndexState {
+        generation: "generation-overflow".to_string(),
+        revision: 1,
+        parser_version: source.descriptor().parser_version,
+        source_identity: "fixture".to_string(),
+        driver_cursor_json: serde_json::to_string(&cursor).expect("overflow cursor"),
+        indexed_size_bytes: 0,
+        indexed_mtime_ns: 0,
+        total_events: 0,
+        total_turns: 0,
+        state_updated_at_ms: 0,
+    };
+    let mut conn = rusqlite::Connection::open_in_memory().expect("replay DB");
+    SqliteRecordStore::init_tables(&conn).expect("replay schema");
+    SqliteRecordStore::init_source_cache_tables(&conn).expect("source cache schema");
+    let tx = conn.transaction().expect("overflow transaction");
+    let error = sync(
+        &tx,
+        source,
+        "qoderapp-overflow",
+        "overflow",
+        &path,
+        "generation-overflow",
+        2,
+        Some(&previous),
+        "sample",
+    )
+    .expect_err("sequence overflow must fail closed");
+    assert!(error.contains("sequence space exhausted"), "{error}");
+    tx.rollback().expect("rollback overflow sync");
+    let events = conn
+        .query_row("SELECT COUNT(*) FROM imported_replay_events", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .expect("count rolled-back overflow events");
+    assert_eq!(events, 0);
+    let _ = fs::remove_file(path);
+}
+
+#[test]
+fn fallback_payload_range_reports_adjusted_utf8_offsets_and_rejects_missing_spans() {
+    let source = ImportedHistorySourceId::ClaudeCode;
+    let assistant = json!({
+        "type":"assistant",
+        "message":{"role":"assistant","content":[{"type":"text","text":"a你b"}]}
+    })
+    .to_string();
+    let user = json!({
+        "type":"user",
+        "message":{"role":"user","content":"not assistant payload"}
+    })
+    .to_string();
+    let source_text = format!("{assistant}\n{user}\n");
+    let first_end = assistant.len() as u64 + 1;
+    let path = std::env::temp_dir().join(format!(
+        "orgii-jsonl-utf8-fallback-{}-{}.jsonl",
+        std::process::id(),
+        chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+    ));
+    fs::write(&path, source_text).expect("UTF-8 fallback fixture");
+
+    let descriptor = ReplayPayloadDescriptor {
+        field_path: "result.content".to_string(),
+        kind: ReplayPayloadKind::AssistantContent,
+        encoding: ReplayPayloadEncoding::Utf8Text,
+        body_projection: None,
+        spans: vec![ReplaySourceSpan {
+            start: 0,
+            end: first_end,
+        }],
+        total_bytes: "a你b".len() as u64,
+        source_ordinal: Some(0),
+        source_key: None,
+    };
+    let range = read_payload(
+        source,
+        &path,
+        &serde_json::to_string(&vec![descriptor.clone()]).expect("payload locator"),
+        "event",
+        "result.content",
+        2,
+        1,
+    )
+    .expect("UTF-8 fallback range");
+    assert_eq!(range.offset, 4);
+    assert_eq!(range.next_offset, 5);
+    assert_eq!(range.text, "b");
+    assert!(range.eof);
+
+    let missing = ReplayPayloadDescriptor {
+        spans: vec![
+            descriptor.spans[0],
+            ReplaySourceSpan {
+                start: first_end,
+                end: (assistant.len() + user.len() + 2) as u64,
+            },
+        ],
+        total_bytes: 10,
+        ..descriptor
+    };
+    let error = read_payload(
+        source,
+        &path,
+        &serde_json::to_string(&vec![missing]).expect("missing-span locator"),
+        "event",
+        "result.content",
+        5,
+        2,
+    )
+    .expect_err("a missing decoded span must not shift subsequent offsets");
+    assert!(error.contains("no longer yields"), "{error}");
+    let _ = fs::remove_file(path);
+}
+
+#[test]
 fn every_jsonl_adapter_obeys_incremental_and_partial_tail_contract() {
     let sources = [
         ImportedHistorySourceId::ClaudeCode,

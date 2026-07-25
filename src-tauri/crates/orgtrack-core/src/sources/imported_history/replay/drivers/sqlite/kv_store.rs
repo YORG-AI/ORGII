@@ -96,13 +96,12 @@ pub(super) fn kv_source_summary(
     composer_id: &str,
     composer_json: &str,
 ) -> Result<SqliteSourceSummary, String> {
-    let mut order_hash = StableHash::new();
+    let mut order_hash = ContentDigest::default();
     let mut last_source_key = String::new();
     let mut row_count = 0_u64;
     stream_kv_bubble_order(conn, composer_id, composer_json, |entry| {
-        order_hash.write(&(entry.bubble_id.len() as u64).to_le_bytes());
-        order_hash.write(entry.bubble_id.as_bytes());
-        order_hash.write(&entry.bubble_type.to_le_bytes());
+        order_hash.update_part(entry.bubble_id.as_bytes());
+        order_hash.update_part(&entry.bubble_type.to_le_bytes());
         last_source_key = entry.key;
         row_count = row_count.saturating_add(1);
         Ok(true)
@@ -111,7 +110,7 @@ pub(super) fn kv_source_summary(
         row_count,
         max_time_created: 0,
         max_source_key: String::new(),
-        source_signal: hash_parts(&[composer_json.as_bytes()]),
+        source_signal: content_digest(&[composer_json.as_bytes()]),
         last_source_key,
         order_signal: order_hash.finish_hex(),
     })

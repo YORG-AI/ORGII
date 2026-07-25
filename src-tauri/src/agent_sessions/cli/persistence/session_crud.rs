@@ -341,7 +341,10 @@ pub fn update_cli_session_id_for_account(
             "UPDATE imported_history_session_cache
              SET listable = 0
              WHERE source = ?1
-               AND (source_session_id = ?2 OR source_session_id LIKE '%-' || ?2)",
+               AND (
+                 source_session_id = ?2
+                 OR substr(source_session_id, -(length(?2) + 1)) = ('-' || ?2)
+               )",
             params![binding.source, cli_session_id],
         )
         .ok();

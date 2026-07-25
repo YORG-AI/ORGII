@@ -1,4 +1,5 @@
 use super::*;
+use crate::sources::imported_history::replay::drivers::common::ContentDigest;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ReplayDriverKind {
@@ -59,7 +60,10 @@ pub(in crate::sources::imported_history::replay) fn resolve_source(
         "SELECT source_session_id, source_path
          FROM imported_history_session_cache
          WHERE source=?1
-           AND (source_session_id=?2 OR source_session_id LIKE '%-' || ?2)
+           AND (
+             source_session_id=?2
+             OR substr(source_session_id, -(length(?2) + 1))=('-' || ?2)
+           )
          ORDER BY CASE WHEN source_session_id=?2 THEN 0 ELSE 1 END,
                   updated_at_ms DESC
          LIMIT 1",
@@ -169,15 +173,15 @@ pub(super) fn source_snapshot(
 }
 
 pub(super) fn sqlite_physical_fingerprint(path: &Path) -> Result<String, String> {
-    let mut hash = Fnv64::default();
+    let mut hash = ContentDigest::default();
     for candidate in [
         path.to_path_buf(),
         PathBuf::from(format!("{}-wal", path.to_string_lossy())),
     ] {
-        hash.update(candidate.to_string_lossy().as_bytes());
+        hash.update_part(candidate.to_string_lossy().as_bytes());
         match fs::metadata(&candidate) {
             Ok(metadata) => {
-                hash.update(&metadata.len().to_le_bytes());
+                hash.update_part(&metadata.len().to_le_bytes());
                 let modified = metadata
                     .modified()
                     .ok()
@@ -186,9 +190,9 @@ pub(super) fn sqlite_physical_fingerprint(path: &Path) -> Result<String, String>
                         duration.as_secs() as i64 * 1_000_000_000 + duration.subsec_nanos() as i64
                     })
                     .unwrap_or_default();
-                hash.update(&modified.to_le_bytes());
+                hash.update_part(&modified.to_le_bytes());
             }
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => hash.update(b"missing"),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => hash.update_part(b"missing"),
             Err(err) => {
                 return Err(format!(
                     "stat replay SQLite sidecar {}: {err}",
@@ -206,8 +210,8 @@ pub(super) fn sampled_file_fingerprint(path: &Path, size: u64) -> Result<String,
     const SAMPLE: usize = 4096;
     let mut file = fs::File::open(path)
         .map_err(|err| format!("open replay source sample {}: {err}", path.display()))?;
-    let mut hash = Fnv64::default();
-    hash.update(&size.to_le_bytes());
+    let mut hash = ContentDigest::default();
+    hash.update_part(&size.to_le_bytes());
     for offset in [
         0,
         size.saturating_sub(SAMPLE as u64) / 2,
@@ -218,8 +222,8 @@ pub(super) fn sampled_file_fingerprint(path: &Path, size: u64) -> Result<String,
         let mut buffer = vec![0_u8; SAMPLE.min(size.saturating_sub(offset) as usize)];
         file.read_exact(&mut buffer)
             .map_err(|err| format!("read replay source sample: {err}"))?;
-        hash.update(&offset.to_le_bytes());
-        hash.update(&buffer);
+        hash.update_part(&offset.to_le_bytes());
+        hash.update_part(&buffer);
     }
     Ok(hash.finish_hex())
 }
@@ -240,32 +244,13 @@ pub(super) fn make_generation(
     parser_version: u32,
     snapshot: &SourcePhysicalSnapshot,
 ) -> String {
-    let mut hash = Fnv64::default();
-    hash.update(source.as_str().as_bytes());
-    hash.update(source_session_id.as_bytes());
-    hash.update(&parser_version.to_le_bytes());
-    hash.update(snapshot.identity.as_bytes());
-    hash.update(&snapshot.size_bytes.to_le_bytes());
-    hash.update(&snapshot.mtime_ns.to_le_bytes());
-    hash.update(snapshot.sample_fingerprint.as_bytes());
+    let mut hash = ContentDigest::default();
+    hash.update_part(source.as_str().as_bytes());
+    hash.update_part(source_session_id.as_bytes());
+    hash.update_part(&parser_version.to_le_bytes());
+    hash.update_part(snapshot.identity.as_bytes());
+    hash.update_part(&snapshot.size_bytes.to_le_bytes());
+    hash.update_part(&snapshot.mtime_ns.to_le_bytes());
+    hash.update_part(snapshot.sample_fingerprint.as_bytes());
     format!("r{parser_version}-{}", hash.finish_hex())
-}
-
-#[derive(Default)]
-pub(super) struct Fnv64(u64);
-
-impl Fnv64 {
-    fn update(&mut self, bytes: &[u8]) {
-        if self.0 == 0 {
-            self.0 = 0xcbf29ce484222325;
-        }
-        for byte in bytes {
-            self.0 ^= u64::from(*byte);
-            self.0 = self.0.wrapping_mul(0x100000001b3);
-        }
-    }
-
-    fn finish_hex(&self) -> String {
-        format!("{:016x}", self.0)
-    }
 }
