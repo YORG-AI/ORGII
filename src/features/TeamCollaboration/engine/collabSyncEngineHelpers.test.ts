@@ -669,6 +669,53 @@ describe("importRemoteSession", () => {
     expect(client.getSessionEventSegments).not.toHaveBeenCalled();
   });
 
+  it("heals a legacy bare-uuid ownership stamp on a refresh-only import", async () => {
+    // Rows imported before the stamp used the selector form kept a bare org
+    // uuid, which resolves to no owning org; the refresh path spread
+    // `...existing` and never healed them.
+    const client = {
+      getSessionEventSegments: vi.fn(async () => sealSnapshot(makeSnapshot())),
+    } satisfies Pick<CollabSyncBackendClient, "getSessionEventSegments">;
+    const expectedId = await deriveImportedSessionId("org-1", "remote-1");
+    store.set(sessionsAtom, [
+      {
+        session_id: expectedId,
+        status: "completed",
+        created_at: "2026-07-01T00:00:00.000Z",
+        updated_at: "2026-07-01T00:00:00.000Z",
+        name: "Remote session",
+        orgId: "org-1",
+        importedFrom: {
+          orgId: "org-1",
+          sourceSessionId: "remote-1",
+          ownerMemberId: "m2",
+          ownerDisplayName: "Bob",
+          epoch: 1,
+          seq: 1,
+          count: 1,
+          frozenCount: 1,
+          tailHash: undefined,
+          importedAt: "2026-07-01T00:00:00.000Z",
+        },
+      },
+    ]);
+    eventStoreMock.getPersistedEvents.mockResolvedValue([
+      { id: "e1" } as unknown as SessionEvent,
+    ]);
+
+    await importRemoteSession({
+      client,
+      orgId: "org-1",
+      remoteSession: makeRemote(),
+    });
+
+    const record = (store.get(sessionsAtom) as Session[]).find(
+      (session) => session.session_id === expectedId
+    );
+    expect(record?.orgId).toBe("cloud:org-1");
+    expect(record?.importedFrom?.orgId).toBe("org-1");
+  });
+
   it("refreshes source display metadata without refetching unchanged events", async () => {
     const client = {
       getSessionEventSegments: vi.fn(async () => sealSnapshot(makeSnapshot())),

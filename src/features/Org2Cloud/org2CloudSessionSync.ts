@@ -468,6 +468,20 @@ export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
         frozenIntact = chainAtCursor === cursor.frozenChainHash;
       }
 
+      if (!frozenIntact) {
+        // An epoch rewrite re-uploads the ENTIRE frozen history. It is the
+        // expensive path, so name the condition that forced it: a silent
+        // rewrite loop is indistinguishable from steady state in the ledger.
+        log.info(
+          `epoch rewrite for ${sessionId} org ${orgId}: ` +
+            `confirmedShrink=${confirmedShrink} ` +
+            `frozen=${frozenEventCount} cursorFrozen=${cursor.frozenEventCount} ` +
+            `chainMismatch=${
+              !confirmedShrink && frozenEventCount >= cursor.frozenEventCount
+            }`
+        );
+      }
+
       if (frozenIntact) {
         const newFrozenEvents = events.slice(
           cursor.frozenEventCount,

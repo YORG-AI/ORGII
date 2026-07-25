@@ -292,7 +292,17 @@ function refreshImportedSessionPresentation(
     existing.session_id,
     refreshedImportedFrom
   );
+  // Rows imported before the ownership stamp used the selector form carry a
+  // bare org uuid, which resolves to no owning org. Heal them here: this
+  // refresh is the only path a long-lived import takes, so without it a
+  // legacy row never regains its ownership-derived affordances. Guest rows
+  // (no ownership stamp) and non-cloud scopes are left untouched.
+  const normalizedOrgId =
+    existing.orgId === importedFrom.orgId
+      ? buildCloudOrgSelectorValue(importedFrom.orgId)
+      : existing.orgId;
   const unchanged =
+    existing.orgId === normalizedOrgId &&
     existing.name === remoteSession.title &&
     existing.repoPath === repoPath &&
     existing.agentDisplayName === sourcePresentation.agentLabel &&
@@ -311,6 +321,7 @@ function refreshImportedSessionPresentation(
 
   const refreshed: Session = {
     ...existing,
+    ...(normalizedOrgId !== undefined ? { orgId: normalizedOrgId } : {}),
     name: remoteSession.title,
     repoPath,
     agentDisplayName: sourcePresentation.agentLabel,
