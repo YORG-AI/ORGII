@@ -212,15 +212,30 @@ export async function forkSession(
   // Full fetch from seq 0, same assembly + validation as the importer. Forks
   // additionally fail closed against the list-row summary: an internally
   // valid tail-only response must not materialize when the row promised a
-  // larger frozen history.
+  // larger frozen history. The summary is a floor, not an exact match — a
+  // LIVE source keeps pushing between the list read and the segment fetch,
+  // so a snapshot that is AHEAD of the summary (owner rewrote to a newer
+  // epoch, or the same epoch grew) is the healthy race, while anything
+  // BEHIND the summary is the truncation this guard exists for.
   const assembled = await fetchAndAssembleSegments(options, 0, [], null);
-  const summaryMatches =
+  const summaryEpoch = remoteSession.eventsEpoch;
+  const summaryFrozenSeq = remoteSession.eventsFrozenSeq ?? 0;
+  const summaryCount = remoteSession.eventsCount;
+  const summaryTailHash = remoteSession.eventsTailHash ?? null;
+  const atSummary =
     assembled !== null &&
-    assembled.epoch === remoteSession.eventsEpoch &&
-    assembled.frozenSeq === (remoteSession.eventsFrozenSeq ?? 0) &&
-    assembled.events.length === remoteSession.eventsCount &&
-    assembled.tailHash === (remoteSession.eventsTailHash ?? null);
-  if (!summaryMatches) {
+    assembled.epoch === summaryEpoch &&
+    assembled.frozenSeq === summaryFrozenSeq &&
+    assembled.events.length === summaryCount &&
+    assembled.tailHash === summaryTailHash;
+  const aheadOfSummary =
+    assembled !== null &&
+    (assembled.epoch > summaryEpoch ||
+      (assembled.epoch === summaryEpoch &&
+        (assembled.frozenSeq > summaryFrozenSeq ||
+          (assembled.frozenSeq === summaryFrozenSeq &&
+            assembled.events.length > summaryCount))));
+  if (!atSummary && !aheadOfSummary) {
     throw new ForkSnapshotIntegrityError(
       FORK_SNAPSHOT_ERROR_KIND.SNAPSHOT_INCOMPLETE,
       `Fork snapshot does not match source summary for ${remoteSession.sourceSessionId}`

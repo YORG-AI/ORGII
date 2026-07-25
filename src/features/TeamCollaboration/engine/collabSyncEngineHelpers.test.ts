@@ -1360,6 +1360,121 @@ describe("forkSession (design §16.11, fork & continue)", () => {
     expect(eventStoreMock.set).not.toHaveBeenCalled();
   });
 
+  it("accepts a snapshot that grew past the list summary (live source)", async () => {
+    // A live source pushes between the list read and the segment fetch; the
+    // summary is a floor, not an exact match — only BEHIND-summary snapshots
+    // are truncation.
+    const snapshot = await sealSnapshot({
+      epoch: 3,
+      frozenSeq: 2,
+      tailHash: "fresh-tail",
+      count: 5,
+      segments: [
+        {
+          seq: 1,
+          isTail: false,
+          events: [
+            { id: "turn-1-user", sessionId: "remote-1" },
+            { id: "turn-1-agent", sessionId: "remote-1" },
+          ] as SessionEvent[],
+          eventCount: 2,
+          segmentHash: "h1",
+        },
+        {
+          seq: 2,
+          isTail: false,
+          events: [
+            { id: "turn-2-user", sessionId: "remote-1" },
+            { id: "turn-2-agent", sessionId: "remote-1" },
+          ] as SessionEvent[],
+          eventCount: 2,
+          segmentHash: "h2",
+        },
+        {
+          seq: 0,
+          isTail: true,
+          events: [
+            { id: "turn-3-user", sessionId: "remote-1" },
+          ] as SessionEvent[],
+          eventCount: 1,
+          segmentHash: "fresh-tail",
+        },
+      ],
+    });
+    const client = {
+      getSessionEventSegments: vi.fn(async () => snapshot),
+    } satisfies Pick<CollabSyncBackendClient, "getSessionEventSegments">;
+
+    const result = await forkSession({
+      client,
+      orgId: "org-1",
+      remoteSession: makeRemote({
+        eventsEpoch: 3,
+        eventsFrozenSeq: 2,
+        eventsCount: 4,
+        eventsTailHash: "stale-tail",
+      }),
+    });
+
+    expect(result?.eventCount).toBe(5);
+  });
+
+  it("accepts a snapshot whose epoch advanced past the list summary", async () => {
+    const snapshot = await sealSnapshot({
+      epoch: 3,
+      frozenSeq: 2,
+      tailHash: "tail-hash",
+      count: 5,
+      segments: [
+        {
+          seq: 1,
+          isTail: false,
+          events: [
+            { id: "turn-1-user", sessionId: "remote-1" },
+            { id: "turn-1-agent", sessionId: "remote-1" },
+          ] as SessionEvent[],
+          eventCount: 2,
+          segmentHash: "h1",
+        },
+        {
+          seq: 2,
+          isTail: false,
+          events: [
+            { id: "turn-2-user", sessionId: "remote-1" },
+            { id: "turn-2-agent", sessionId: "remote-1" },
+          ] as SessionEvent[],
+          eventCount: 2,
+          segmentHash: "h2",
+        },
+        {
+          seq: 0,
+          isTail: true,
+          events: [
+            { id: "turn-3-user", sessionId: "remote-1" },
+          ] as SessionEvent[],
+          eventCount: 1,
+          segmentHash: "tail-hash",
+        },
+      ],
+    });
+    const client = {
+      getSessionEventSegments: vi.fn(async () => snapshot),
+    } satisfies Pick<CollabSyncBackendClient, "getSessionEventSegments">;
+
+    const result = await forkSession({
+      client,
+      orgId: "org-1",
+      remoteSession: makeRemote({
+        eventsEpoch: 2,
+        eventsFrozenSeq: 6,
+        eventsCount: 9,
+        eventsTailHash: "pre-rewrite-tail",
+      }),
+    });
+
+    expect(result?.eventCount).toBe(5);
+  });
+
   it("creates a WRITABLE session with forkedFrom provenance and persisted events", async () => {
     const client = {
       getSessionEventSegments: vi.fn(async () => sealSnapshot(makeSnapshot())),
