@@ -1004,7 +1004,13 @@
       "entryCount_one": "{{count}} entrada",
       "entryCount_other": "{{count}} entradas",
       "copySuccess": "Transcripción sin procesar copiada",
-      "copyFailed": "No se pudo copiar la transcripción sin procesar"
+      "copyFailed": "No se pudo copiar la transcripción sin procesar",
+      "exportAll": "Exportar todo",
+      "exportSuccess": "Transcripción sin procesar exportada",
+      "exportFailed": "No se pudo exportar la transcripción sin procesar",
+      "copyTooLarge": "Usa «Exportar todo» para transcripciones grandes",
+      "readPayload": "Leer contenido",
+      "newerReleased": "Se liberaron filas más recientes para limitar el uso de memoria. Actualiza para volver al turno más reciente."
     },
     "linkWorkItem": {
       "menuItem": "Vincular a un Work Item…",

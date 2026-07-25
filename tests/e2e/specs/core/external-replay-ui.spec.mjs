@@ -13,6 +13,8 @@ const E2E_REPO_PATH =
   process.env.E2E_REPO_PATH ?? "/tmp/orgii-e2e-workspace-repo";
 const ISSUE_443_REAL_CODEX_SESSION_ID =
   process.env.E2E_ISSUE_443_REAL_CODEX_SESSION_ID ?? "";
+const ISSUE_443_FIXTURE_CODEX_SESSION_ID =
+  process.env.E2E_ISSUE_443_FIXTURE_CODEX_SESSION_ID ?? "";
 const MIB = 1024 * 1024;
 const SCENARIO_FILTER = (process.env.E2E_CHAT_RENDERING_SCENARIOS ?? "")
   .split(",")
@@ -21,6 +23,10 @@ const SCENARIO_FILTER = (process.env.E2E_CHAT_RENDERING_SCENARIOS ?? "")
 
 function shouldRunScenario(name) {
   return SCENARIO_FILTER.length === 0 || SCENARIO_FILTER.includes(name);
+}
+
+function scenarioWasExplicitlyRequested(name) {
+  return SCENARIO_FILTER.includes(name);
 }
 
 async function execJS(script) {
@@ -385,6 +391,82 @@ async function assertIssue443RealCodexSessionStaysBounded() {
   }
 }
 
+async function assertFixtureCodexSessionUsesBoundedReplay() {
+  if (!ISSUE_443_FIXTURE_CODEX_SESSION_ID) {
+    throw new Error(
+      "The isolated external-replay fixture was not configured by the WDIO harness"
+    );
+  }
+  await invokeTauriCommand("external_history_rescan_source", {
+    source: "codex_app",
+    clear: false,
+  });
+  const beforeCounts = await execJS(
+    "return { ...(window.__orgiiE2ERpcCounts || {}) };"
+  );
+  const opened = await invokeE2E(
+    "openSession",
+    ISSUE_443_FIXTURE_CODEX_SESSION_ID
+  );
+  if (!opened || opened.ok !== true) {
+    throw new Error(
+      `fixture Codex open failed: ${opened?.error ?? "unknown error"}`
+    );
+  }
+  if (opened.sessionId !== ISSUE_443_FIXTURE_CODEX_SESSION_ID) {
+    throw new Error(`fixture opened the wrong session: ${opened.sessionId}`);
+  }
+  if (!(opened.eventCount > 0 && opened.eventCount <= 200)) {
+    throw new Error(
+      `fixture hydrated ${opened.eventCount} events; expected 1..200`
+    );
+  }
+  await browser.waitUntil(
+    async () =>
+      Boolean(
+        await execJS(
+          `return document.body.innerText.includes("E2E bounded replay fixture final answer");`
+        )
+      ),
+    {
+      timeout: 20_000,
+      timeoutMsg: "bounded Codex fixture answer never rendered",
+    }
+  );
+  const afterOpenCounts = await execJS(
+    "return { ...(window.__orgiiE2ERpcCounts || {}) };"
+  );
+  const replayOpenCalls =
+    Number(afterOpenCounts.external_replay_open_window ?? 0) -
+    Number(beforeCounts.external_replay_open_window ?? 0);
+  if (replayOpenCalls < 1) {
+    throw new Error(
+      "fixture session did not enter the production external_replay_open_window path"
+    );
+  }
+  const reset = await invokeE2E("resetToNewSession");
+  if (!reset || reset.ok !== true) {
+    throw new Error(
+      `fixture Codex release failed: ${reset?.error ?? "unknown error"}`
+    );
+  }
+  await browser.waitUntil(
+    async () => {
+      const counts = await execJS(
+        "return { ...(window.__orgiiE2ERpcCounts || {}) };"
+      );
+      return (
+        Number(counts.external_replay_release ?? 0) >
+        Number(afterOpenCounts.external_replay_release ?? 0)
+      );
+    },
+    {
+      timeout: 10_000,
+      timeoutMsg: "fixture session never released its replay lease",
+    }
+  );
+}
+
 describe("External replay rendered UI", () => {
   before(async () => {
     await waitForApp();
@@ -401,8 +483,35 @@ describe("External replay rendered UI", () => {
     }
   });
 
+  it("opens the isolated Codex fixture through bounded external replay", async function () {
+    if (!shouldRunScenario("issue-443-fixture-codex")) {
+      this.skip();
+      return;
+    }
+    if (!ISSUE_443_FIXTURE_CODEX_SESSION_ID) {
+      if (scenarioWasExplicitlyRequested("issue-443-fixture-codex")) {
+        throw new Error(
+          "issue-443-fixture-codex was explicitly requested without the isolated fixture"
+        );
+      }
+      this.skip();
+      return;
+    }
+
+    await assertFixtureCodexSessionUsesBoundedReplay();
+  });
+
   it("opens and releases the real #443 Codex session without full hydration or staircase growth", async function () {
     if (!shouldRunScenario("issue-443-real-codex")) {
+      this.skip();
+      return;
+    }
+    if (!ISSUE_443_REAL_CODEX_SESSION_ID) {
+      if (scenarioWasExplicitlyRequested("issue-443-real-codex")) {
+        throw new Error(
+          "E2E_ISSUE_443_REAL_CODEX_SESSION_ID is required when issue-443-real-codex is explicitly requested"
+        );
+      }
       this.skip();
       return;
     }

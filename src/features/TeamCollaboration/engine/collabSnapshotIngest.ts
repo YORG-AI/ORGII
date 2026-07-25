@@ -14,6 +14,7 @@ import {
   collaborationSnapshotIngestCommit,
   collaborationSnapshotIngestGetCursor,
 } from "@src/api/tauri/collaborationSnapshotIngest";
+import { createLogger } from "@src/hooks/logger";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 
 import type {
@@ -25,6 +26,8 @@ import {
   SESSION_EVENT_WIRE_MAX_PAGE_BYTES,
   SESSION_EVENT_WIRE_MAX_PAGE_SEGMENTS,
 } from "../sync/CollabSyncBackend";
+
+const log = createLogger("collabSnapshotIngest");
 
 export interface RemoteSnapshotIngestOptions {
   client: Pick<CollabSyncBackendClient, "getSessionEventWirePage">;
@@ -241,6 +244,16 @@ export async function ingestRemoteSnapshot(
     return await ingestPageChain(options, firstPage, cursor, false, previous);
   } catch (error) {
     if (isAbortError(error) || options.signal?.aborted) throw error;
+    log.warn(
+      "bounded Cloud replay delta failed; rebuilding the authoritative snapshot",
+      {
+        localSessionId: options.localSessionId,
+        remoteSessionRowId: options.remoteSession.id,
+        previousEpoch: previous.epoch,
+        remoteEpoch: firstPage.epoch,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    );
     return replaceSnapshot(options);
   }
 }

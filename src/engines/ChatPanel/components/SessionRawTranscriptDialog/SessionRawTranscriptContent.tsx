@@ -55,7 +55,7 @@ function ReplayPayloadRanges({
   sessionId: string;
   target: ExternalReplayTarget;
 }) {
-  const { t } = useTranslation("common");
+  const { t } = useTranslation(["sessions", "common"]);
   const [loaded, setLoaded] = useState<LoadedPayloadRange | null>(null);
   const [loadingKey, setLoadingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -117,7 +117,9 @@ function ReplayPayloadRanges({
                 loading={loadingKey === `${ref.fieldPath}:0`}
                 onClick={() => void readRange(ref, 0)}
               >
-                {t("showMore", { defaultValue: "Read payload" })}
+                {t("sessions:chat.rawTranscript.readPayload", {
+                  defaultValue: "Read payload",
+                })}
               </Button>
             </div>
             {isSelected && loaded ? (
@@ -146,7 +148,9 @@ function ReplayPayloadRanges({
                         )
                       }
                     >
-                      {t("actions.previous", { defaultValue: "Previous" })}
+                      {t("common:actions.previous", {
+                        defaultValue: "Previous",
+                      })}
                     </Button>
                     <Button
                       size="small"
@@ -156,7 +160,7 @@ function ReplayPayloadRanges({
                       }
                       onClick={() => void readRange(ref, loaded.nextOffset)}
                     >
-                      {t("actions.next", { defaultValue: "Next" })}
+                      {t("common:actions.next", { defaultValue: "Next" })}
                     </Button>
                   </div>
                 </div>
@@ -298,15 +302,19 @@ const SessionRawTranscriptContent: React.FC<SessionRawTranscriptContentProps> =
                   canRetryOlder ? (
                     <div className="px-3 py-2 text-center text-xs text-text-3">
                       {loadingOlder ? (
-                        t("status.loading", { defaultValue: "Loading…" })
+                        t("common:status.loading", {
+                          defaultValue: "Loading…",
+                        })
                       ) : replay.newerContentReleased ? (
-                        t("rawTranscript.newerReleased", {
+                        t("sessions:chat.rawTranscript.newerReleased", {
                           defaultValue:
                             "Newer rows were released to keep memory bounded. Refresh to return to the latest turn.",
                         })
                       ) : (
                         <Button size="small" onClick={onLoadOlder}>
-                          {t("actions.retry", { defaultValue: "Retry" })}
+                          {t("common:actions.retry", {
+                            defaultValue: "Retry",
+                          })}
                         </Button>
                       )}
                     </div>
@@ -325,7 +333,9 @@ const SessionRawTranscriptContent: React.FC<SessionRawTranscriptContentProps> =
             <CodeMirrorEditor
               value={
                 loading && !snapshot
-                  ? t("status.loading", { defaultValue: "Loading…" })
+                  ? t("common:status.loading", {
+                      defaultValue: "Loading…",
+                    })
                   : transcriptJson
               }
               filePath={filePath}

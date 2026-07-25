@@ -1001,7 +1001,13 @@
       "entryCount_one": "{{count}} mục",
       "entryCount_other": "{{count}} mục",
       "copySuccess": "Đã sao chép bản ghi thô",
-      "copyFailed": "Không thể sao chép bản ghi thô"
+      "copyFailed": "Không thể sao chép bản ghi thô",
+      "exportAll": "Xuất tất cả",
+      "exportSuccess": "Đã xuất bản ghi thô",
+      "exportFailed": "Không thể xuất bản ghi thô",
+      "copyTooLarge": "Hãy dùng “Xuất tất cả” cho bản ghi lớn",
+      "readPayload": "Đọc toàn bộ nội dung",
+      "newerReleased": "Các hàng mới hơn đã được giải phóng để giới hạn mức dùng bộ nhớ. Hãy làm mới để quay lại lượt mới nhất."
     },
     "linkWorkItem": {
       "menuItem": "Liên kết với Work Item…",

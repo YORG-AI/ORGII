@@ -1049,7 +1049,13 @@
       "entryCount_one": "{{count}} 条记录",
       "entryCount_other": "{{count}} 条记录",
       "copySuccess": "已复制原始记录",
-      "copyFailed": "无法复制原始记录"
+      "copyFailed": "无法复制原始记录",
+      "exportAll": "全部导出",
+      "exportSuccess": "已导出原始会话记录",
+      "exportFailed": "无法导出原始会话记录",
+      "copyTooLarge": "会话记录过大，请使用“全部导出”",
+      "readPayload": "读取完整内容",
+      "newerReleased": "为控制内存占用，较新的记录已从当前窗口释放。刷新后可返回最新一轮。"
     },
     "linkWorkItem": {
       "menuItem": "关联到工作项…",

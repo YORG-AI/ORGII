@@ -1,8 +1,127 @@
 use super::*;
 
+static CLOUD_SPOOL_PRUNE_TASK_RUNNING: AtomicBool = AtomicBool::new(false);
+
 pub(super) fn cloud_spools() -> &'static Mutex<HashMap<String, CloudSpoolEntry>> {
     static SPOOLS: OnceLock<Mutex<HashMap<String, CloudSpoolEntry>>> = OnceLock::new();
-    SPOOLS.get_or_init(|| Mutex::new(HashMap::new()))
+    SPOOLS.get_or_init(|| {
+        #[cfg(not(test))]
+        {
+            if let Err(error) = cleanup_orphan_cloud_spool_files() {
+                log::warn!("[external-replay] {error}");
+            }
+        }
+        Mutex::new(HashMap::new())
+    })
+}
+
+pub(super) fn ensure_private_cloud_spool_root(root: &std::path::Path) -> Result<(), String> {
+    fs::create_dir_all(root)
+        .map_err(|err| format!("create replay cloud spool directory: {err}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        fs::set_permissions(root, fs::Permissions::from_mode(0o700))
+            .map_err(|err| format!("protect replay cloud spool directory: {err}"))?;
+    }
+    Ok(())
+}
+
+fn cloud_spool_root() -> Result<PathBuf, String> {
+    let root = app_paths::orgii_root()
+        .join(".runtime")
+        .join("replay-cloud-spools");
+    ensure_private_cloud_spool_root(&root)?;
+    Ok(root)
+}
+
+pub(super) fn cloud_spool_paths(root: &std::path::Path, token: &str) -> (PathBuf, PathBuf) {
+    let final_path = root.join(format!("orgii-replay-cloud-{token}.sqlite"));
+    let partial_path = root.join(format!("orgii-replay-cloud-{token}.sqlite-part"));
+    (final_path, partial_path)
+}
+
+pub(super) fn create_private_cloud_spool_file(path: &std::path::Path) -> Result<(), String> {
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    drop(
+        options
+            .open(path)
+            .map_err(|err| format!("create private replay cloud spool: {err}"))?,
+    );
+    app_paths::set_sensitive_file_permissions(path)
+        .map_err(|err| format!("protect replay cloud spool: {err}"))
+}
+
+#[cfg(not(test))]
+fn cleanup_orphan_cloud_spool_files() -> Result<(), String> {
+    let root = cloud_spool_root()?;
+    let entries = fs::read_dir(&root)
+        .map_err(|err| format!("enumerate replay cloud spool directory: {err}"))?;
+    for entry in entries {
+        let entry = entry.map_err(|err| format!("read replay cloud spool entry: {err}"))?;
+        let path = entry.path();
+        let is_spool = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| {
+                name.starts_with("orgii-replay-cloud-")
+                    && (name.ends_with(".sqlite") || name.ends_with(".sqlite-part"))
+            });
+        if !is_spool || !path.is_file() {
+            continue;
+        }
+        if let Err(error) = fs::remove_file(&path) {
+            log::warn!(
+                "[external-replay] cannot remove orphan cloud spool {}: {error}",
+                path.display()
+            );
+        }
+    }
+    Ok(())
+}
+
+fn schedule_cloud_spool_prune() {
+    if CLOUD_SPOOL_PRUNE_TASK_RUNNING
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return;
+    }
+    tauri::async_runtime::spawn(async {
+        loop {
+            tokio::time::sleep(CLOUD_SPOOL_TTL).await;
+            cleanup_cloud_spools();
+            let is_empty = cloud_spools()
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .is_empty();
+            if !is_empty {
+                continue;
+            }
+
+            CLOUD_SPOOL_PRUNE_TASK_RUNNING.store(false, Ordering::Release);
+            let needs_restart = !cloud_spools()
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .is_empty();
+            if !needs_restart {
+                break;
+            }
+            if CLOUD_SPOOL_PRUNE_TASK_RUNNING
+                .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+                .is_err()
+            {
+                break;
+            }
+        }
+    });
 }
 
 #[derive(Default)]
@@ -256,8 +375,9 @@ pub(super) fn prepare_cloud_spool(
 ) -> Result<ExternalReplayCloudManifest, String> {
     cleanup_cloud_spools();
     let token = uuid::Uuid::new_v4().to_string();
-    let final_path = std::env::temp_dir().join(format!("orgii-replay-cloud-{token}.sqlite"));
-    let partial_path = final_path.with_extension("sqlite-part");
+    let root = cloud_spool_root()?;
+    let (final_path, partial_path) = cloud_spool_paths(&root, &token);
+    create_private_cloud_spool_file(&partial_path)?;
     let prepared = (|| {
         let mut spool = rusqlite::Connection::open(&partial_path)
             .map_err(|err| format!("create replay cloud spool: {err}"))?;
@@ -343,6 +463,8 @@ pub(super) fn prepare_cloud_spool(
         drop(spool);
         fs::rename(&partial_path, &final_path)
             .map_err(|err| format!("publish replay cloud spool: {err}"))?;
+        app_paths::set_sensitive_file_permissions(&final_path)
+            .map_err(|err| format!("protect published replay cloud spool: {err}"))?;
         Ok::<_, String>(ExternalReplayCloudManifest {
             token: token.clone(),
             generation,
@@ -374,6 +496,7 @@ pub(super) fn prepare_cloud_spool(
                 owner_released: false,
             },
         );
+    schedule_cloud_spool_prune();
     Ok(manifest)
 }
 

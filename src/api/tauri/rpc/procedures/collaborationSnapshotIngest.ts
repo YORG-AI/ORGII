@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 
 import { defineProcedure } from "../invoke";
 import * as schemas from "../schemas/collaborationSnapshotIngest";
+import { TauriUnitSchema } from "../schemas/tauriUnit";
 
 export const collaborationSnapshotIngest = {
   begin: defineProcedure("collaboration_snapshot_ingest_begin")
@@ -28,6 +29,6 @@ export const collaborationSnapshotIngest = {
     .build(),
   abort: defineProcedure("collaboration_snapshot_ingest_abort")
     .input(schemas.CollaborationSnapshotIngestTokenInputSchema)
-    .output(z.void())
+    .output(TauriUnitSchema)
     .build(),
 } as const;

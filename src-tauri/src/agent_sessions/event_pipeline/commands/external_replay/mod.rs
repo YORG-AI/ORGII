@@ -10,7 +10,7 @@ use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 #[cfg(test)]
 use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 

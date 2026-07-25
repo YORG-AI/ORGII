@@ -1053,7 +1053,13 @@
       "entryCount_one": "{{count}} entry",
       "entryCount_other": "{{count}} entries",
       "copySuccess": "Raw transcript copied",
-      "copyFailed": "Could not copy the raw transcript"
+      "copyFailed": "Could not copy the raw transcript",
+      "exportAll": "Export All",
+      "exportSuccess": "Raw transcript exported",
+      "exportFailed": "Could not export the raw transcript",
+      "copyTooLarge": "Use Export All for large transcripts",
+      "readPayload": "Read payload",
+      "newerReleased": "Newer rows were released to keep memory bounded. Refresh to return to the latest turn."
     },
     "linkWorkItem": {
       "menuItem": "Link to Work Item…",

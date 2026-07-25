@@ -274,6 +274,79 @@ if (orgiiHome) {
   resetDerivedProjectDatabaseForIsolatedRun(orgiiHome);
   process.env.ORGII_HOME = orgiiHome;
 }
+
+function seedBoundedExternalReplayFixture(targetHome) {
+  const sourceSessionId =
+    "rollout-2026-07-25T00-00-00-00000000-0000-4000-8000-000000000443";
+  const sessionsDir = join(
+    targetHome,
+    ".codex",
+    "sessions",
+    "2026",
+    "07",
+    "25"
+  );
+  const transcriptPath = join(sessionsDir, `${sourceSessionId}.jsonl`);
+  mkdirSync(sessionsDir, { recursive: true });
+  const rows = [
+    {
+      timestamp: "2026-07-25T00:00:00Z",
+      type: "event_msg",
+      payload: {
+        type: "user_message",
+        message: "E2E bounded replay fixture question",
+      },
+    },
+    {
+      timestamp: "2026-07-25T00:00:01Z",
+      type: "event_msg",
+      payload: {
+        type: "agent_message",
+        message: "E2E bounded replay fixture answer",
+      },
+    },
+    {
+      timestamp: "2026-07-25T00:00:02Z",
+      type: "event_msg",
+      payload: {
+        type: "user_message",
+        message: "E2E bounded replay fixture follow-up",
+      },
+    },
+    {
+      timestamp: "2026-07-25T00:00:03Z",
+      type: "event_msg",
+      payload: {
+        type: "agent_message",
+        message: "E2E bounded replay fixture final answer",
+      },
+    },
+  ];
+  writeFileSync(
+    transcriptPath,
+    `${rows.map((row) => JSON.stringify(row)).join("\n")}\n`,
+    "utf8"
+  );
+  process.env.E2E_ISSUE_443_FIXTURE_CODEX_SESSION_ID = `codexapp-${sourceSessionId}`;
+}
+
+// The default rendered suite must exercise an actual external-history driver
+// without scanning or mutating the developer's real CLI homes. Explicit real
+// Issue 272 runs opt back into the real home with their session id.
+const realIssue443SessionConfigured = Boolean(
+  process.env.E2E_ISSUE_443_REAL_CODEX_SESSION_ID
+);
+if (
+  orgiiHome &&
+  !useRealHome &&
+  !realIssue443SessionConfigured &&
+  !process.env.ORGII_EXTERNAL_HISTORY_HOME
+) {
+  const externalHistoryHome = join(orgiiHome, "external-history-home");
+  process.env.ORGII_EXTERNAL_HISTORY_HOME = externalHistoryHome;
+  seedBoundedExternalReplayFixture(externalHistoryHome);
+}
+
 function ensureBenchmarkDockerFixtureRepo() {
   if (process.env.ORGII_SWE_BENCH_PRO_REPO_PATH) return;
   const fixtureRoot = join(tmpdir(), "orgii-e2e-swe-bench-pro-fixture");

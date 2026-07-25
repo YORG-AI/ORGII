@@ -1004,7 +1004,13 @@
       "entryCount_one": "{{count}} entrée",
       "entryCount_other": "{{count}} entrées",
       "copySuccess": "Transcription brute copiée",
-      "copyFailed": "Impossible de copier la transcription brute"
+      "copyFailed": "Impossible de copier la transcription brute",
+      "exportAll": "Tout exporter",
+      "exportSuccess": "Transcription brute exportée",
+      "exportFailed": "Impossible d’exporter la transcription brute",
+      "copyTooLarge": "Utilisez « Tout exporter » pour les grandes transcriptions",
+      "readPayload": "Lire le contenu",
+      "newerReleased": "Les lignes les plus récentes ont été libérées pour limiter l’utilisation de la mémoire. Actualisez pour revenir au dernier tour."
     },
     "linkWorkItem": {
       "menuItem": "Lier à un Work Item…",

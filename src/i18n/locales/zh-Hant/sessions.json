@@ -1018,7 +1018,13 @@
       "entryCount_one": "{{count}} 條記錄",
       "entryCount_other": "{{count}} 條記錄",
       "copySuccess": "已複製原始記錄",
-      "copyFailed": "無法複製原始記錄"
+      "copyFailed": "無法複製原始記錄",
+      "exportAll": "全部匯出",
+      "exportSuccess": "已匯出原始會話記錄",
+      "exportFailed": "無法匯出原始會話記錄",
+      "copyTooLarge": "會話記錄過大，請使用「全部匯出」",
+      "readPayload": "讀取完整內容",
+      "newerReleased": "為控制記憶體用量，較新的記錄已從目前視窗釋放。重新整理後可返回最新一輪。"
     },
     "linkWorkItem": {
       "menuItem": "連結到工作項…",

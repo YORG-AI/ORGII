@@ -1003,7 +1003,13 @@
       "entryCount_one": "{{count}} 件",
       "entryCount_other": "{{count}} 件",
       "copySuccess": "生トランスクリプトをコピーしました",
-      "copyFailed": "生トランスクリプトをコピーできませんでした"
+      "copyFailed": "生トランスクリプトをコピーできませんでした",
+      "exportAll": "すべてエクスポート",
+      "exportSuccess": "生トランスクリプトをエクスポートしました",
+      "exportFailed": "生トランスクリプトをエクスポートできませんでした",
+      "copyTooLarge": "大きなトランスクリプトには「すべてエクスポート」を使用してください",
+      "readPayload": "内容を読み込む",
+      "newerReleased": "メモリ使用量を抑えるため、新しい行を現在のウィンドウから解放しました。最新のターンに戻るには更新してください。"
     },
     "linkWorkItem": {
       "menuItem": "Work Item にリンク…",

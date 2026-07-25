@@ -1005,7 +1005,13 @@
       "entryCount_one": "{{count}} wpis",
       "entryCount_other": "{{count}} wpisów",
       "copySuccess": "Skopiowano surowy zapis",
-      "copyFailed": "Nie udało się skopiować surowego zapisu"
+      "copyFailed": "Nie udało się skopiować surowego zapisu",
+      "exportAll": "Eksportuj wszystko",
+      "exportSuccess": "Wyeksportowano surowy zapis",
+      "exportFailed": "Nie udało się wyeksportować surowego zapisu",
+      "copyTooLarge": "Dla dużych zapisów użyj opcji „Eksportuj wszystko”",
+      "readPayload": "Wczytaj pełną treść",
+      "newerReleased": "Nowsze wiersze zwolniono, aby ograniczyć użycie pamięci. Odśwież, aby wrócić do najnowszej tury."
     },
     "linkWorkItem": {
       "menuItem": "Połącz z Work Item…",

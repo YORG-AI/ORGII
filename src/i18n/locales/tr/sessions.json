@@ -1004,7 +1004,13 @@
       "entryCount_one": "{{count}} girdi",
       "entryCount_other": "{{count}} girdi",
       "copySuccess": "Ham döküm kopyalandı",
-      "copyFailed": "Ham döküm kopyalanamadı"
+      "copyFailed": "Ham döküm kopyalanamadı",
+      "exportAll": "Tümünü dışa aktar",
+      "exportSuccess": "Ham döküm dışa aktarıldı",
+      "exportFailed": "Ham döküm dışa aktarılamadı",
+      "copyTooLarge": "Büyük dökümler için “Tümünü dışa aktar” seçeneğini kullanın",
+      "readPayload": "İçeriği oku",
+      "newerReleased": "Bellek kullanımını sınırlamak için daha yeni satırlar serbest bırakıldı. En son tura dönmek için yenileyin."
     },
     "linkWorkItem": {
       "menuItem": "Work Item'a bağla…",

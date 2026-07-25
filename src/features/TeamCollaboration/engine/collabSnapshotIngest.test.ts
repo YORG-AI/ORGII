@@ -20,6 +20,9 @@ const ingestRpc = vi.hoisted(() => ({
   commit: vi.fn(),
   abort: vi.fn(),
 }));
+const logger = vi.hoisted(() => ({
+  warn: vi.fn(),
+}));
 
 vi.mock("@src/api/tauri/collaborationSnapshotIngest", () => ({
   collaborationSnapshotIngestBegin: ingestRpc.begin,
@@ -27,6 +30,9 @@ vi.mock("@src/api/tauri/collaborationSnapshotIngest", () => ({
   collaborationSnapshotIngestApplyWirePage: ingestRpc.apply,
   collaborationSnapshotIngestCommit: ingestRpc.commit,
   collaborationSnapshotIngestAbort: ingestRpc.abort,
+}));
+vi.mock("@src/hooks/logger", () => ({
+  createLogger: () => logger,
 }));
 
 const HASH = "a".repeat(64);
@@ -244,6 +250,16 @@ describe("ingestRemoteSnapshot", () => {
     expect(ingestRpc.abort).toHaveBeenCalledWith(TOKEN);
     expect(ingestRpc.begin).toHaveBeenLastCalledWith(
       expect.objectContaining({ replace: true })
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      "bounded Cloud replay delta failed; rebuilding the authoritative snapshot",
+      expect.objectContaining({
+        localSessionId: "imported-session-local",
+        remoteSessionRowId: "org-1:m2:remote-1",
+        previousEpoch: 3,
+        remoteEpoch: 3,
+        error: "local cursor mismatch",
+      })
     );
   });
 

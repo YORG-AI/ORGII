@@ -1,6 +1,39 @@
 use super::*;
 
 #[test]
+fn cloud_spool_files_live_under_a_private_runtime_directory() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let root = temp.path().join("replay-cloud-spools");
+    ensure_private_cloud_spool_root(&root).expect("private spool root");
+    let (final_path, partial_path) = cloud_spool_paths(&root, "private-fixture");
+    create_private_cloud_spool_file(&partial_path).expect("private spool file");
+
+    assert!(final_path.starts_with(&root));
+    assert!(partial_path.starts_with(&root));
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        assert_eq!(
+            fs::metadata(&root)
+                .expect("root metadata")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o700
+        );
+        assert_eq!(
+            fs::metadata(&partial_path)
+                .expect("file metadata")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
+    }
+}
+
+#[test]
 fn cloud_spool_batch_is_byte_bounded_and_prefix_addressable() {
     let token = format!("test-{}", uuid::Uuid::new_v4());
     let path = std::env::temp_dir().join(format!("orgii-cloud-spool-{token}.sqlite"));

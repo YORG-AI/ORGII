@@ -1002,7 +1002,13 @@
       "entryCount_one": "{{count}} Eintrag",
       "entryCount_other": "{{count}} Einträge",
       "copySuccess": "Rohtranskript kopiert",
-      "copyFailed": "Rohtranskript konnte nicht kopiert werden"
+      "copyFailed": "Rohtranskript konnte nicht kopiert werden",
+      "exportAll": "Alles exportieren",
+      "exportSuccess": "Rohtranskript exportiert",
+      "exportFailed": "Rohtranskript konnte nicht exportiert werden",
+      "copyTooLarge": "Für große Transkripte „Alles exportieren“ verwenden",
+      "readPayload": "Nutzdaten lesen",
+      "newerReleased": "Neuere Zeilen wurden zur Begrenzung des Speicherverbrauchs freigegeben. Aktualisieren Sie, um zur neuesten Runde zurückzukehren."
     },
     "linkWorkItem": {
       "menuItem": "Mit Work Item verknüpfen…",

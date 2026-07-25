@@ -1003,7 +1003,13 @@
       "entryCount_one": "항목 {{count}}개",
       "entryCount_other": "항목 {{count}}개",
       "copySuccess": "원시 트랜스크립트를 복사했습니다",
-      "copyFailed": "원시 트랜스크립트를 복사할 수 없습니다"
+      "copyFailed": "원시 트랜스크립트를 복사할 수 없습니다",
+      "exportAll": "모두 내보내기",
+      "exportSuccess": "원시 트랜스크립트를 내보냈습니다",
+      "exportFailed": "원시 트랜스크립트를 내보낼 수 없습니다",
+      "copyTooLarge": "큰 트랜스크립트는 ‘모두 내보내기’를 사용하세요",
+      "readPayload": "전체 내용 읽기",
+      "newerReleased": "메모리 사용량을 제한하기 위해 최신 행을 현재 창에서 해제했습니다. 최신 턴으로 돌아가려면 새로고침하세요."
     },
     "linkWorkItem": {
       "menuItem": "Work Item에 연결…",

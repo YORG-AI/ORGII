@@ -1351,7 +1351,7 @@ fn visit_pinned_replay_chunks(
             conn,
             source,
             imported_session_id,
-            &generation,
+            generation,
             revision,
             after_sequence,
             limits,
@@ -1366,7 +1366,7 @@ fn visit_pinned_replay_chunks(
         }
         let next_sequence = batch.cursor.through_sequence;
         for indexed in batch.chunks {
-            visit(conn, &generation, indexed)?;
+            visit(conn, generation, indexed)?;
         }
         after_sequence = next_sequence;
         if !batch.has_more {

@@ -7,6 +7,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -20,6 +21,7 @@ const MAX_WATCHED_SOURCES: usize = 16;
 const MAX_LEASES_PER_SOURCE: usize = 32;
 const MAX_REGISTRY_ESTIMATED_BYTES: usize = 256 * 1024;
 const BASE_ENTRY_ESTIMATED_BYTES: usize = 4 * 1024;
+static WATCH_PRUNE_TASK_RUNNING: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct WatchKey {
@@ -123,6 +125,73 @@ fn registry() -> &'static Mutex<WatchRegistry> {
     REGISTRY.get_or_init(|| Mutex::new(WatchRegistry::default()))
 }
 
+fn schedule_registry_prune() {
+    if WATCH_PRUNE_TASK_RUNNING
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return;
+    }
+    tauri::async_runtime::spawn(async {
+        loop {
+            let next_delay = {
+                let now = Instant::now();
+                let mut registry = registry()
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                prune_registry(&mut registry, now);
+                next_registry_prune_delay(&registry, now)
+            };
+            if let Some(next_delay) = next_delay {
+                tokio::time::sleep(next_delay).await;
+                continue;
+            }
+
+            WATCH_PRUNE_TASK_RUNNING.store(false, Ordering::Release);
+            let needs_restart = !registry()
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .entries
+                .is_empty();
+            if !needs_restart {
+                break;
+            }
+            if WATCH_PRUNE_TASK_RUNNING
+                .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+                .is_err()
+            {
+                break;
+            }
+        }
+    });
+}
+
+fn next_registry_prune_delay(registry: &WatchRegistry, now: Instant) -> Option<Duration> {
+    registry
+        .entries
+        .values()
+        .filter_map(|entry| {
+            let state = entry
+                .state
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            next_watch_state_prune_delay(&state, now)
+        })
+        .min()
+}
+
+fn next_watch_state_prune_delay(state: &SharedWatchState, now: Instant) -> Option<Duration> {
+    state
+        .leases
+        .values()
+        .map(|lease| lease.touched_at)
+        .chain(std::iter::once(state.last_used))
+        .map(|touched_at| {
+            LEASE_TTL.saturating_sub(now.checked_duration_since(touched_at).unwrap_or_default())
+        })
+        .min()
+}
+
 /// Acquire or refresh the foreground lease for one display session.
 ///
 /// `false` is a supported outcome: the renderer keeps its visible-only 5s
@@ -198,6 +267,8 @@ pub(super) fn acquire(
     };
     if let Some(updated_registry_bytes) = updated_registry_bytes {
         registry.estimated_bytes = updated_registry_bytes;
+        drop(registry);
+        schedule_registry_prune();
         return true;
     }
 
@@ -258,6 +329,8 @@ pub(super) fn acquire(
             estimated_bytes,
         },
     );
+    drop(registry);
+    schedule_registry_prune();
     true
 }
 
@@ -266,9 +339,10 @@ pub(super) fn acquire(
 pub(super) fn is_available(session_id: &str) -> bool {
     let now = Instant::now();
     let runtime_identity = runtime_identity();
-    let registry = registry()
+    let mut registry = registry()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
+    prune_registry(&mut registry, now);
     all_live_watch_entries_healthy(registry.entries.iter().filter_map(|(key, entry)| {
         if key.runtime_identity != runtime_identity {
             return None;
@@ -658,6 +732,31 @@ mod tests {
 
         active.touched_at = now - LEASE_TTL;
         assert!(!lease_is_live(&active, now));
+    }
+
+    #[test]
+    fn watcher_prune_schedule_tracks_the_nearest_lease_expiry() {
+        let now = Instant::now();
+        let mut older = lease(1);
+        older.touched_at = now - LEASE_TTL + Duration::from_secs(2);
+        let state = SharedWatchState {
+            filter: WatchFilter {
+                physical_source: PathBuf::from("/tmp/transcript.jsonl"),
+                source_is_directory: false,
+            },
+            leases: HashMap::from([
+                ("codexapp-older".to_string(), older),
+                ("codexapp-newer".to_string(), lease(2)),
+            ]),
+            notification_pending: false,
+            healthy: true,
+            last_used: now,
+        };
+
+        assert_eq!(
+            next_watch_state_prune_delay(&state, now),
+            Some(Duration::from_secs(2))
+        );
     }
 
     #[test]
