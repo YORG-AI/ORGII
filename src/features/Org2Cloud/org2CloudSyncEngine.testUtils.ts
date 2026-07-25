@@ -70,6 +70,7 @@ import type {
 } from "./org2CloudSyncClient";
 import { Org2CloudSyncError } from "./org2CloudSyncClient";
 import {
+  COLLAB_LISTING_SHARE_WINDOW_MS,
   DATA_CHANGED_DEBOUNCE_MS,
   EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS,
   INACTIVE_ORG_BACKOFF_COOLDOWN_MS,
@@ -440,6 +441,7 @@ export function cleanupEngineFixture(engine: Org2CloudSyncEngine): void {
  * are installed before the engine and its collaborators are evaluated.
  */
 export const engineTestDeps = {
+  COLLAB_LISTING_SHARE_WINDOW_MS,
   DATA_CHANGED_DEBOUNCE_MS,
   EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS,
   chatPanelSelectedCloudOrgAtom,

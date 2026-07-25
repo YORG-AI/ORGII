@@ -8,6 +8,7 @@ pub mod replay;
 #[cfg(feature = "git")]
 pub mod repo_identity;
 pub mod router;
+pub mod watermark;
 
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;

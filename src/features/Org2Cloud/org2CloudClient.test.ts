@@ -326,3 +326,50 @@ describe("listMyOrgs batched entitlements (0004)", () => {
     ]);
   });
 });
+
+describe("listMyOrgs homeEndpoint (0007)", () => {
+  it("carries a roster row's homeEndpoint through", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([
+        {
+          orgId: "org-1",
+          name: "Acme",
+          role: "member",
+          homeEndpoint: "https://shard-2.supabase.co",
+        },
+      ])
+    );
+    await expect(listMyOrgs("at-1")).resolves.toEqual([
+      {
+        orgId: "org-1",
+        name: "Acme",
+        role: "member",
+        homeEndpoint: "https://shard-2.supabase.co",
+      },
+    ]);
+  });
+
+  it("omits homeEndpoint for pre-0007 rows without the key and for null", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([
+        { orgId: "org-1", name: "Acme", role: "owner" },
+        { orgId: "org-2", name: "Beta", role: "member", homeEndpoint: null },
+      ])
+    );
+    await expect(listMyOrgs("at-1")).resolves.toEqual([
+      { orgId: "org-1", name: "Acme", role: "owner" },
+      { orgId: "org-2", name: "Beta", role: "member" },
+    ]);
+  });
+
+  it("keeps the org and drops only the homeEndpoint when the value is malformed", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([
+        { orgId: "org-1", name: "Acme", role: "owner", homeEndpoint: 42 },
+      ])
+    );
+    await expect(listMyOrgs("at-1")).resolves.toEqual([
+      { orgId: "org-1", name: "Acme", role: "owner" },
+    ]);
+  });
+});

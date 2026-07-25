@@ -7,6 +7,7 @@ import {
 } from "./config";
 import {
   Org2CloudCommentError,
+  __SESSION_COMMENTS_DELTA_INTERNALS,
   addSessionComment,
   deleteSessionComment,
   editSessionComment,
@@ -49,6 +50,7 @@ const WIRE_COMMENT = {
 beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   fetchMock.mockResolvedValue(jsonResponse(null));
+  __SESSION_COMMENTS_DELTA_INTERNALS.resetDeltaSupport();
 });
 
 afterEach(() => {
@@ -430,6 +432,80 @@ describe("listSessionComments", () => {
       (caught: unknown) => caught
     );
     expect(isOrg2CommentErrorCode(error, "ORG2_RETENTION_EXPIRED")).toBe(true);
+  });
+
+  it("parses the 0004 serverTime anchor on a full listing", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        comments: [WIRE_COMMENT],
+        viewerOwnsSession: false,
+        serverTime: "2026-07-24T10:00:00.000Z",
+      })
+    );
+    const listing = await listSessionComments("jwt-1", "org-1", "sess-1");
+    expect(listing.serverTime).toBe("2026-07-24T10:00:00.000Z");
+    expect(listing.appliedSince).toBeUndefined();
+    expect(lastBody()).toEqual({ p_org_id: "org-1", p_session_id: "sess-1" });
+  });
+
+  it("sends p_since and echoes the honored cursor on a delta listing", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        comments: [WIRE_COMMENT],
+        viewerOwnsSession: true,
+        serverTime: "2026-07-24T10:05:00.000Z",
+      })
+    );
+    const listing = await listSessionComments("jwt-1", "org-1", "sess-1", {
+      since: "2026-07-24T09:59:58.000Z",
+    });
+    expect(lastBody()).toEqual({
+      p_org_id: "org-1",
+      p_session_id: "sess-1",
+      p_since: "2026-07-24T09:59:58.000Z",
+    });
+    expect(listing.appliedSince).toBe("2026-07-24T09:59:58.000Z");
+    expect(listing.serverTime).toBe("2026-07-24T10:05:00.000Z");
+  });
+
+  it("degrades to a full listing on a pre-delta backend and pins the endpoint", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({ message: "Could not find the function" }, 404)
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ comments: [WIRE_COMMENT], viewerOwnsSession: false })
+      );
+    const listing = await listSessionComments("jwt-1", "org-1", "sess-1", {
+      since: "2026-07-24T09:59:58.000Z",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(lastBody()).toEqual({ p_org_id: "org-1", p_session_id: "sess-1" });
+    // The caller MUST see this as a full listing, not the delta it asked for.
+    expect(listing.appliedSince).toBeUndefined();
+
+    // The endpoint is pinned: the next delta request goes straight to the
+    // legacy signature without a probing 404 round-trip.
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ comments: [], viewerOwnsSession: false })
+    );
+    await listSessionComments("jwt-1", "org-1", "sess-1", {
+      since: "2026-07-24T10:04:58.000Z",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(lastBody()).toEqual({ p_org_id: "org-1", p_session_id: "sess-1" });
+  });
+
+  it("does not treat a non-signature 404 as missing delta support", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ message: "ORG2_SESSION_NOT_FOUND" }, 404)
+    );
+    await expect(
+      listSessionComments("jwt-1", "org-1", "sess-1", {
+        since: "2026-07-24T09:59:58.000Z",
+      })
+    ).rejects.toMatchObject({ code: "ORG2_SESSION_NOT_FOUND" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 

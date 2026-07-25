@@ -106,6 +106,78 @@ export function patchComment(
   );
 }
 
+/** Delta cursor safety overlap (mirrors the collab-state cursor discipline). */
+export const SESSION_COMMENTS_DELTA_OVERLAP_MS = 2_000;
+
+/** `p_since` for a delta refetch: the stored anchor minus the overlap. */
+export function sessionCommentsDeltaSince(
+  lastServerTime: string
+): string | undefined {
+  const anchorMs = Date.parse(lastServerTime);
+  if (!Number.isFinite(anchorMs)) return undefined;
+  return new Date(anchorMs - SESSION_COMMENTS_DELTA_OVERLAP_MS).toISOString();
+}
+
+function commentStampMs(comment: CloudSessionComment): number {
+  let latest = 0;
+  for (const stamp of [
+    comment.createdAt,
+    comment.editedAt,
+    comment.deletedAt,
+    comment.resolvedAt,
+  ]) {
+    if (stamp === undefined) continue;
+    const stampMs = Date.parse(stamp);
+    if (Number.isFinite(stampMs) && stampMs > latest) latest = stampMs;
+  }
+  return latest;
+}
+
+/**
+ * Merge a DELTA listing into the cached list: per fetched row LWW on the
+ * row's own stamps (a local optimistic write newer than the overlap echo is
+ * kept), rows absent from the delta are untouched — absence proves nothing
+ * behind a `since` cursor. Server tombstones ride the delta with an empty
+ * body, so taking the fetched row drops the evicted body. An un-resolve
+ * clears `resolved_at` WITHOUT a new stamp and therefore cannot ride a
+ * delta; every force/full-invalidation path stays a full listing
+ * (`mergeFullSessionComments`), which reconciles it.
+ */
+export function mergeDeltaSessionComments(
+  existing: readonly CloudSessionComment[],
+  fetched: readonly CloudSessionComment[]
+): CloudSessionComment[] {
+  let merged = [...existing];
+  for (const comment of fetched) {
+    const current = merged.find((candidate) => candidate.id === comment.id);
+    if (current && commentStampMs(current) > commentStampMs(comment)) continue;
+    merged = insertComment(merged, comment);
+  }
+  return merged;
+}
+
+/**
+ * Merge a FULL listing: the server snapshot is the base, preserving ONLY
+ * rows that appeared locally after the fetch was claimed (optimistic adds
+ * the snapshot predates — their id is not in `knownIdsAtStart`). A row that
+ * WAS known at start but is missing from the response was deleted
+ * server-side (e.g. GDPR erasure) and is dropped — merging it back would
+ * make it immortal.
+ */
+export function mergeFullSessionComments(
+  existing: readonly CloudSessionComment[],
+  fetched: readonly CloudSessionComment[],
+  knownIdsAtStart: ReadonlySet<string>
+): CloudSessionComment[] {
+  const fetchedIds = new Set(fetched.map((comment) => comment.id));
+  return existing
+    .filter(
+      (comment) =>
+        !fetchedIds.has(comment.id) && !knownIdsAtStart.has(comment.id)
+    )
+    .reduce((list, comment) => insertComment(list, comment), [...fetched]);
+}
+
 /**
  * The atomic-claim decision, extracted pure so the force-vs-in-flight race
  * is testable: a FORCED refresh that lands while a fetch is in flight must

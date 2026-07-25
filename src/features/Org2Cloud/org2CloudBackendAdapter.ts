@@ -15,6 +15,11 @@ import type {
 import { SESSION_EVENT_WIRE_MAX_SEGMENT_BYTES } from "../TeamCollaboration/sync/CollabSyncBackend";
 import { bytesToBase64 } from "../TeamCollaboration/sync/collabGzip";
 import type { CloudEndpoint } from "./config";
+import {
+  type GuestReplayObjectReader,
+  createGuestReplayObjectReader,
+  isReplayAuthorizeRpcMissing,
+} from "./org2CloudReplaySignedReads";
 import { downloadReplayObject } from "./org2CloudStorageClient";
 import {
   type CloudSegmentWire,
@@ -29,6 +34,11 @@ export type CloudSessionWirePageClient = Pick<
   "getSessionEventWirePage"
 >;
 
+type SegmentObjectDownload = (
+  storagePath: string,
+  signal?: AbortSignal
+) => Promise<Uint8Array>;
+
 const wireEncoder = new TextEncoder();
 
 function segmentWireBytes(segment: SessionEventSegmentWireRecord): number {
@@ -37,22 +47,14 @@ function segmentWireBytes(segment: SessionEventSegmentWireRecord): number {
 
 async function materializeCloudSegment(
   segment: CloudSegmentWire,
-  accessToken: string,
-  endpoint: CloudEndpoint | undefined,
+  downloadObject: SegmentObjectDownload,
   signal: AbortSignal | undefined
 ): Promise<SessionEventSegmentWireRecord> {
   const seq = segment.seq ?? 0;
   const payloadGz =
     segment.payloadGz ??
     (segment.storagePath
-      ? bytesToBase64(
-          await downloadReplayObject(
-            accessToken,
-            segment.storagePath,
-            endpoint,
-            signal
-          )
-        )
+      ? bytesToBase64(await downloadObject(segment.storagePath, signal))
       : null);
   if (payloadGz === null) {
     throw new CloudSessionWirePageContractError(
@@ -70,8 +72,7 @@ async function materializeCloudSegment(
 async function materializeCloudPage(
   page: CloudSessionEventWirePage,
   input: GetSessionEventWirePageInput,
-  accessToken: string,
-  endpoint: CloudEndpoint | undefined
+  downloadObject: SegmentObjectDownload
 ): Promise<SessionEventWirePage> {
   const segments: SessionEventSegmentWireRecord[] = [];
   let returnedWireBytes = 0;
@@ -81,8 +82,7 @@ async function materializeCloudPage(
     }
     const materialized = await materializeCloudSegment(
       segment,
-      accessToken,
-      endpoint,
+      downloadObject,
       input.signal
     );
     const bytes = segmentWireBytes(materialized);
@@ -129,6 +129,46 @@ export function buildCloudSessionWirePageClient(
   accessToken: string,
   endpoint?: CloudEndpoint
 ): CloudSessionWirePageClient {
+  const guestReaders = new Map<string, GuestReplayObjectReader>();
+  const downloadForInput = (input: {
+    orgId: string;
+    sessionRowId: string;
+    shareToken?: string;
+  }): SegmentObjectDownload => {
+    const shareToken = input.shareToken;
+    if (shareToken === undefined) {
+      return (storagePath, signal) =>
+        downloadReplayObject(accessToken, storagePath, endpoint, signal);
+    }
+    const sessionId = cloudSessionIdFromRowId(input.sessionRowId);
+    const readerKey = `${input.orgId}\u001f${sessionId}\u001f${shareToken}`;
+    let reader = guestReaders.get(readerKey);
+    if (!reader) {
+      reader = createGuestReplayObjectReader({
+        orgId: input.orgId,
+        sessionId,
+        shareToken,
+        ...(endpoint !== undefined ? { endpoint } : {}),
+      });
+      guestReaders.set(readerKey, reader);
+    }
+    const guestReader = reader;
+    return async (storagePath, signal) => {
+      try {
+        return await guestReader.download(storagePath, signal);
+      } catch (error) {
+        if (isReplayAuthorizeRpcMissing(error)) {
+          return downloadReplayObject(
+            accessToken,
+            storagePath,
+            endpoint,
+            signal
+          );
+        }
+        throw error;
+      }
+    };
+  };
   return {
     async getSessionEventWirePage(
       input: GetSessionEventWirePageInput
@@ -150,7 +190,7 @@ export function buildCloudSessionWirePageClient(
           ...(input.signal !== undefined ? { signal: input.signal } : {}),
         }
       );
-      return materializeCloudPage(page, input, accessToken, endpoint);
+      return materializeCloudPage(page, input, downloadForInput(input));
     },
   };
 }

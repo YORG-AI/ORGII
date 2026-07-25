@@ -1987,3 +1987,88 @@ fn strips_ide_context_from_codex_user_text() {
         Some("fix the login bug")
     );
 }
+
+#[test]
+fn resumes_codex_meta_parse_from_watermark() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-history-watermark-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-watermark.jsonl");
+    let prefix = r#"{"timestamp":"2026-02-11T06:16:06.458Z","type":"session_meta","payload":{"cwd":"/Users/me/project","id":"abc"}}
+{"timestamp":"2026-02-11T06:16:07.000Z","type":"event_msg","payload":{"type":"user_message","message":"resume me","images":[],"local_images":[],"text_elements":[]}}
+{"timestamp":"2026-02-11T06:16:09.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":20,"cache_write_input_tokens":10,"output_tokens":30,"reasoning_output_tokens":5}}}}
+"#;
+    std::fs::write(&path, prefix).expect("write fixture");
+
+    let record_for = |path: &std::path::Path| {
+        let (source_mtime_ms, source_size_bytes) =
+            imported_paths::file_metadata_signature(path, "Codex").expect("metadata");
+        ImportedHistoryDiscoveredRecord {
+            source_session_id: "rollout-watermark".to_string(),
+            source_path: path.to_path_buf(),
+            source_record_key: "rollout-watermark".to_string(),
+            source_mtime_ms,
+            source_size_bytes,
+            source_fingerprint: String::new(),
+            parser_version: CODEX_APP_METADATA_PARSER_VERSION,
+        }
+    };
+
+    let first = parse_codex_session_meta_incremental(&record_for(&path), None).expect("parse");
+    assert!(!first.resumed);
+    assert_eq!(first.watermark.byte_offset, prefix.len() as i64);
+    let first_meta = first.meta.expect("first meta");
+    assert_eq!(first_meta.input_tokens, 100);
+    assert_eq!(first_meta.output_tokens, 35);
+    assert_eq!(first_meta.rounds.len(), 1);
+
+    // Cumulative totals continue past the watermark; the per-round delta
+    // depends on prev_* carried inside the persisted state.
+    let suffix = r#"{"timestamp":"2026-02-11T06:17:09.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":260,"cached_input_tokens":60,"cache_write_input_tokens":25,"output_tokens":70,"reasoning_output_tokens":10}}}}
+"#;
+    std::fs::write(&path, format!("{prefix}{suffix}")).expect("append fixture");
+
+    let resumed = parse_codex_session_meta_incremental(&record_for(&path), Some(&first.watermark))
+        .expect("parse resumed");
+    assert!(resumed.resumed);
+    let scratch =
+        parse_codex_session_meta_incremental(&record_for(&path), None).expect("parse from scratch");
+    assert!(!scratch.resumed);
+
+    let resumed_meta = resumed.meta.expect("resumed meta");
+    let scratch_meta = scratch.meta.expect("scratch meta");
+    assert_eq!(resumed_meta.input_tokens, scratch_meta.input_tokens);
+    assert_eq!(resumed_meta.output_tokens, scratch_meta.output_tokens);
+    assert_eq!(resumed_meta.cache_read_tokens, scratch_meta.cache_read_tokens);
+    assert_eq!(
+        resumed_meta.cache_write_tokens,
+        scratch_meta.cache_write_tokens
+    );
+    assert_eq!(resumed_meta.rounds.len(), 2);
+    assert_eq!(resumed_meta.rounds.len(), scratch_meta.rounds.len());
+    assert_eq!(resumed_meta.rounds[1].seq, 1);
+    assert_eq!(resumed_meta.rounds[1].input_tokens, 105); // Δinput 160 − Δcached 40 − Δcache_write 15
+    assert_eq!(
+        resumed_meta.rounds[1].input_tokens,
+        scratch_meta.rounds[1].input_tokens
+    );
+    assert_eq!(resumed_meta.name, scratch_meta.name);
+    assert_eq!(resumed_meta.updated_at_ms, scratch_meta.updated_at_ms);
+    assert_eq!(resumed.watermark.byte_offset, scratch.watermark.byte_offset);
+    assert_eq!(resumed.watermark.prefix_hash, scratch.watermark.prefix_hash);
+
+    // Same-length prefix mutation invalidates the resume.
+    let mutated = format!("{prefix}{suffix}").replace("resume me", "RESUME ME");
+    std::fs::write(&path, mutated).expect("mutate fixture");
+    let reparsed =
+        parse_codex_session_meta_incremental(&record_for(&path), Some(&resumed.watermark))
+            .expect("parse mutated");
+    assert!(!reparsed.resumed);
+    let reparsed_meta = reparsed.meta.expect("reparsed meta");
+    assert_eq!(reparsed_meta.input_tokens, scratch_meta.input_tokens);
+    assert_eq!(reparsed_meta.name, "RESUME ME");
+
+    std::fs::remove_dir_all(&temp_dir).expect("remove temp dir");
+}

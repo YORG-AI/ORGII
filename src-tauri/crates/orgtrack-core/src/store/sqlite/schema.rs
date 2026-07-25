@@ -594,7 +594,22 @@ impl SqliteRecordStore<'_> {
             CREATE INDEX IF NOT EXISTS idx_imported_round_created
                 ON imported_history_round_usage(created_at_ms DESC);
             CREATE INDEX IF NOT EXISTS idx_imported_round_source
-                ON imported_history_round_usage(source);",
+                ON imported_history_round_usage(source);
+
+            -- Incremental-parse resume points: byte offset + hash of the
+            -- processed complete-line prefix plus the serialized accumulator
+            -- state, so a grown transcript parses only its appended suffix.
+            CREATE TABLE IF NOT EXISTS imported_history_parse_watermarks (
+                source             TEXT NOT NULL,
+                source_session_id  TEXT NOT NULL,
+                byte_offset        INTEGER NOT NULL DEFAULT 0,
+                source_size_bytes  INTEGER NOT NULL DEFAULT 0,
+                source_mtime_ms    INTEGER NOT NULL DEFAULT 0,
+                prefix_hash        TEXT NOT NULL DEFAULT '',
+                parser_version     INTEGER NOT NULL DEFAULT 0,
+                state_json         TEXT NOT NULL DEFAULT '',
+                PRIMARY KEY (source, source_session_id)
+            );",
         )?;
 
         // #443: compact, rebuildable replay index for external CLI histories.

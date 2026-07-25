@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Default)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ImportedHistoryImpactStats {
     pub files_changed: i64,
     pub lines_added: i64,
@@ -108,6 +110,41 @@ pub struct RoundUsage {
     pub cache_read_tokens: i64,
     pub cache_write_tokens: i64,
     pub created_at_ms: i64,
+}
+
+/// Per-round usage snapshot inside a parse-watermark state blob:
+/// [`RoundUsage`] minus the identity columns re-derivable from the record.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StoredRoundUsage {
+    pub seq: i64,
+    pub model: Option<String>,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cache_read_tokens: i64,
+    pub cache_write_tokens: i64,
+    pub created_at_ms: i64,
+}
+
+impl StoredRoundUsage {
+    pub fn into_round_usage(
+        self,
+        source: &'static str,
+        source_session_id: &str,
+        session_id: &str,
+    ) -> RoundUsage {
+        RoundUsage {
+            source,
+            source_session_id: source_session_id.to_string(),
+            session_id: session_id.to_string(),
+            seq: self.seq,
+            model: self.model,
+            input_tokens: self.input_tokens,
+            output_tokens: self.output_tokens,
+            cache_read_tokens: self.cache_read_tokens,
+            cache_write_tokens: self.cache_write_tokens,
+            created_at_ms: self.created_at_ms,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -50,6 +50,10 @@ import {
   org2CloudPendingShareAtom,
 } from "./org2CloudPendingShareAtom";
 import {
+  Org2CloudSignerError,
+  type Org2CloudSignerErrorCode,
+} from "./org2CloudReplaySignedReads";
+import {
   requireCloudShareAuthEndpoint,
   resolveCloudShareEndpoint,
 } from "./org2CloudShareEndpoint";
@@ -67,6 +71,7 @@ interface ResolveState {
 interface ImportState {
   attemptId: number;
   status: "importing" | "failed";
+  signerCode?: Org2CloudSignerErrorCode;
 }
 
 const CloudShareImportDialog: React.FC = () => {
@@ -181,6 +186,9 @@ const CloudShareImportDialog: React.FC = () => {
   const resolveFailed = resolveError !== null;
   const isImporting = currentImport?.status === "importing";
   const importFailed = currentImport?.status === "failed" && !resolveFailed;
+  const importSignerCode = importFailed
+    ? (currentImport?.signerCode ?? null)
+    : null;
   const localSource = resolved?.session
     ? findLocalCloudShareSource(sessions, resolved.session)
     : null;
@@ -265,12 +273,18 @@ const CloudShareImportDialog: React.FC = () => {
       });
       openSession(result.localSessionId, resolved.session.title, localRepoPath);
       handleClose();
-    } catch {
+    } catch (error) {
       if (
         activeAttemptRef.current === currentAttemptId &&
         importGenerationRef.current === generation
       ) {
-        setImportState({ attemptId: currentAttemptId, status: "failed" });
+        setImportState({
+          attemptId: currentAttemptId,
+          status: "failed",
+          ...(error instanceof Org2CloudSignerError
+            ? { signerCode: error.code }
+            : {}),
+        });
       }
     }
   }, [
@@ -398,8 +412,13 @@ const CloudShareImportDialog: React.FC = () => {
           <div
             className="rounded-lg bg-fill-1 px-3 py-2 text-[12px] text-text-3"
             data-testid="cloud-share-import-retry-error"
+            data-signer-code={importSignerCode ?? undefined}
           >
-            {t("cloud.share.incomingRetryHint")}
+            {importSignerCode === "unreachable"
+              ? t("cloud.share.incomingConnectionError")
+              : importSignerCode !== null
+                ? t("cloud.share.incomingError")
+                : t("cloud.share.incomingRetryHint")}
           </div>
         ) : null}
 

@@ -321,6 +321,11 @@ pub fn prune_missing_records_from_conn(
             [source],
         )
         .ok();
+        conn.execute(
+            "DELETE FROM imported_history_parse_watermarks WHERE source = ?1",
+            [source],
+        )
+        .ok();
         return Ok(());
     }
 
@@ -342,6 +347,13 @@ pub fn prune_missing_records_from_conn(
         "DELETE FROM imported_history_round_usage \
          WHERE source = ?1 AND session_id NOT IN \
              (SELECT session_id FROM imported_history_session_cache WHERE source = ?1)",
+        [source],
+    )
+    .ok();
+    conn.execute(
+        "DELETE FROM imported_history_parse_watermarks \
+         WHERE source = ?1 AND source_session_id NOT IN \
+             (SELECT source_session_id FROM imported_history_session_cache WHERE source = ?1)",
         [source],
     )
     .ok();
@@ -860,7 +872,9 @@ fn has_newer_continuation_sibling(
                 WHERE source = ?1
                   AND source_session_id != ?2
                   AND COALESCE(parent_session_id, '') = ''
-                  AND json_extract(source_metadata_json, '$.{CONTINUATION_GROUP_KEY_FIELD}') = ?3
+                  AND CASE WHEN json_valid(source_metadata_json)
+                       THEN json_extract(source_metadata_json, '$.{CONTINUATION_GROUP_KEY_FIELD}')
+                       END = ?3
                   AND (updated_at_ms > ?4
                        OR (updated_at_ms = ?4 AND source_session_id > ?2))
             )"

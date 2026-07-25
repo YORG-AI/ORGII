@@ -14,6 +14,18 @@ export const SCOPE_HYDRATE_THROTTLE_MS = 10 * 60_000;
 export const SCHEMA_MISMATCH_REPROBE_MS = 5 * 60_000;
 /** Collab-state delta cursor safety overlap (mirrors CollabSyncEngine §9.4). */
 export const CURSOR_OVERLAP_MS = 2_000;
+/**
+ * One signal recovery fans out into several serialized passes (inbound
+ * invalidation, entitlement resume, apply-echo `orgii-data-changed`), each
+ * pulling `cloud_list_org_collab_state` for the same org within about a
+ * second. A listing completed inside this window is shared with a later pass
+ * whose request it covers (a full listing covers everything; a delta covers
+ * any request whose cursor is at or past its own), so a burst costs one
+ * network listing without touching delta-cursor semantics or dropping an
+ * invalidation: the cursor stays anchored on the shared listing's serverTime,
+ * so the next real pull still covers the window.
+ */
+export const COLLAB_LISTING_SHARE_WINDOW_MS = 2_000;
 
 /**
  * Vanished-session GC cadence per org. The sweep's suspect set is dominated

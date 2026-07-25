@@ -64,6 +64,7 @@ beforeEach(() => {
   capabilitiesMock.mockResolvedValue({
     broadcastSignals: false,
     storageSegments: false,
+    homeEndpoints: false,
   });
 });
 
@@ -322,6 +323,7 @@ describe("storage segment offload (0006)", () => {
     capabilitiesMock.mockResolvedValue({
       broadcastSignals: false,
       storageSegments: true,
+      homeEndpoints: false,
     });
   });
 
@@ -401,6 +403,7 @@ describe("storage segment offload (0006)", () => {
     capabilitiesMock.mockResolvedValue({
       broadcastSignals: false,
       storageSegments: false,
+      homeEndpoints: false,
     });
     await appendSessionEvents("jwt-1", appendInput([makeEvent("f1")], null));
     expect(fetchMock).toHaveBeenCalledTimes(1);

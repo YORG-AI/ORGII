@@ -135,6 +135,7 @@ export {
 } from "./org2CloudSessionSync";
 export type { Org2CloudSyncClientDeps } from "./org2CloudSessionSync";
 export {
+  COLLAB_LISTING_SHARE_WINDOW_MS,
   ORG_BACKOFF_COOLDOWN_MS,
   INACTIVE_ORG_BACKOFF_COOLDOWN_MS,
 } from "./org2CloudSyncEngine.constants";
