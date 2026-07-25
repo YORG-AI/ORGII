@@ -189,7 +189,7 @@ Use ORG-II's built-in Rust harness or launch these supported coding-agent CLIs f
 
 ## Download
 
-Current build version: v1.2.1 (2026-07-22)
+Current build version: v1.2.2 (2026-07-25)
 
 Download the latest ORGII desktop app with one click:
 
