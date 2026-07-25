@@ -127,6 +127,20 @@ rollover or the window silently truncates.
   row (compare `updated_at`, not just the field). A stale local mirror is not
   server truth either — when a UI decision depends on mirrored state, diff
   mirror vs server before blaming the consumer code.
+- **The running binary lags the fix**: the "verified" build predated the
+  final commit of the file under test; every on-device probe for 40 minutes
+  exercised stale code. Before declaring an on-device verdict, compare the
+  bundle mtime against the fix file's mtime — an edit made after the last
+  build is not on the device, no matter how green the tests are.
+- **A feature unreachable from the surface it was designed for**: Address
+  Comments' run path is fork-first BY DESIGN for imported histories, but that
+  composer mounts session-scope "none", and every consumer in the chain
+  (slash registry, submit interceptor) re-resolved the blank id and silently
+  no-opped. Reachability must be verified from the surface the design names.
+  Same family: candidate ordering picked a scope-matching org with no server
+  row (GitHub rename made two spellings one repo network), and the fork guard
+  demanded snapshot == summary while a LIVE source kept growing — equality
+  checks against a moving target are boot-window absence in another costume.
 
 ## When NOT to use
 
