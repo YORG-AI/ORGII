@@ -105,6 +105,20 @@ rollover or the window silently truncates.
   floors to metadata_only and nobody errors. Assert access_mode on the wire.
 - **Self-healing hiding lost signals**: watchdog-forced completion masked every
   lost agent:complete. Assert latency, treat watchdog as failure.
+- **A guard upstream of every probe**: the subagent bridge swallowed fork
+  terminals before any instrumented drop point ran, so nine instrumented
+  builds all stayed silent. When probes disagree with the symptom, suspect the
+  model of WHERE the loss happens, not a missed branch — walk the call path
+  from its first line, not from the suspected failure.
+- **Format drift on a shared field**: `Session.orgId` is a scope selector
+  (`cloud:<uuid>`); fork/import wrote a bare uuid, silently removing every
+  ownership-derived affordance. When one writer of a shared field disagrees
+  with the rest, diff the live values across rows — the odd one out is the
+  bug.
+- **Tests that encode the bug**: the two specs guarding the ownership stamp
+  asserted the bare form, comment included. Green tests are not evidence the
+  convention is right; check a spec's expectation against the consumers before
+  trusting it.
 
 ## When NOT to use
 
