@@ -449,6 +449,43 @@ fn canonical_lookup_skips_continuation_superseded_siblings() {
 }
 
 #[test]
+fn including_superseded_lookup_resolves_demoted_continuation_siblings() {
+    let mut conn = fixture_conn();
+    let group = continuation_group_metadata_json(Some("family-uuid"));
+    let mut older = input(SOURCE_CODEX_APP, "gen1", 100);
+    older.source_metadata_json = group.clone();
+    let mut newest = input(SOURCE_CODEX_APP, "gen2", 200);
+    newest.source_metadata_json = group;
+    upsert_imported_session_cache_from_conn(&mut conn, &[older, newest]).expect("upsert");
+    demote_superseded_continuations_from_conn(&conn, SOURCE_CODEX_APP).expect("election");
+
+    // The vanished-session sweep's existence check must see the demoted
+    // sibling: it still exists locally and its shared cloud row must survive
+    // a context-window continuation.
+    let (_, demoted) = query_cached_session_by_session_id_including_superseded_from_conn(
+        &conn,
+        "codex_app-gen1",
+    )
+    .expect("query gen1 including superseded")
+    .expect("demoted sibling resolves");
+    assert_eq!(demoted.source_session_id, "gen1");
+    assert!(
+        query_cached_session_by_session_id_from_conn(&conn, "codex_app-gen1")
+            .expect("query gen1 default")
+            .is_none()
+    );
+    // Truly absent ids stay absent on both paths.
+    assert!(
+        query_cached_session_by_session_id_including_superseded_from_conn(
+            &conn,
+            "codex_app-missing"
+        )
+        .expect("query missing")
+        .is_none()
+    );
+}
+
+#[test]
 fn canonical_lookup_tolerates_legacy_non_json_metadata_rows() {
     let mut conn = fixture_conn();
     let group = continuation_group_metadata_json(Some("family-uuid"));

@@ -9,7 +9,14 @@
 import { DISPATCH_CATEGORY } from "@src/api/tauri/session/dispatchTypes";
 import type { KeyInfo } from "@src/api/types/keys";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
+import {
+  getCloudOrgAccessSettings,
+  org2CloudAccessSettingsAtom,
+  withCloudSessionMode,
+  withCloudSessionVisibility,
+} from "@src/features/Org2Cloud/org2CloudAccessSettings";
 import { loadSharedLocalKeys } from "@src/hooks/keyVault/sharedLocalKeyStore";
+import { COLLAB_SESSION_ACCESS_MODE } from "@src/store/collaboration/types";
 import { lastModelPairMapAtom } from "@src/store/session/creatorDefaultModelAtom";
 import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
 import { upsertSession } from "@src/store/session/sessionAtom/mutations";
@@ -41,6 +48,36 @@ import { fetchAndAssembleSegments } from "./collabRemoteFetch";
  */
 export function createForkedSessionId(): string {
   return `agentsession-${crypto.randomUUID()}`;
+}
+
+/**
+ * Carry the forker's OWN explicit sharing-ladder entry for the source
+ * session over to the fork id. A fork continues a conversation the forker
+ * already chose to share at a specific level; without the copy an
+ * owner-side fork of a full_replay session has no entry, lands at the tag
+ * floor (metadata_only), and teammates get a fork row that can never
+ * replay. A guest has no entry for a teammate's session, so guest forks
+ * keep the privacy default. An explicit OFF override is not share intent
+ * and never copies.
+ */
+export function inheritCloudShareLadderForFork(
+  store: ReturnType<typeof getInstrumentedStore>,
+  orgId: string,
+  sourceSessionId: string,
+  forkSessionId: string
+): void {
+  const byOrg = store.get(org2CloudAccessSettingsAtom);
+  const settings = getCloudOrgAccessSettings(byOrg, orgId);
+  const mode = settings.sessionModes[sourceSessionId];
+  const visibility = settings.sessionVisibility[sourceSessionId];
+  let next = byOrg;
+  if (mode !== undefined && mode !== COLLAB_SESSION_ACCESS_MODE.OFF) {
+    next = withCloudSessionMode(next, orgId, forkSessionId, mode);
+  }
+  if (visibility !== undefined) {
+    next = withCloudSessionVisibility(next, orgId, forkSessionId, visibility);
+  }
+  if (next !== byOrg) store.set(org2CloudAccessSettingsAtom, next);
 }
 
 /**
@@ -255,6 +292,14 @@ export async function forkSession(
     // Deliberately NO importedFrom: that field marks read-only replay copies
     // and excludes them from push (isSessionPushAllowed).
   });
+  if (!shareToken) {
+    inheritCloudShareLadderForFork(
+      store,
+      orgId,
+      remoteSession.sourceSessionId,
+      localSessionId
+    );
+  }
   persistSessions(store.get(sessionsAtom) as Session[]);
   return {
     localSessionId,

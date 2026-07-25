@@ -99,7 +99,10 @@ import {
   org2CloudSyncEnabledAtom,
 } from "./org2CloudSyncAtoms";
 import * as org2CloudSyncClient from "./org2CloudSyncClient";
-import { VANISHED_SESSION_SWEEP_INTERVAL_MS } from "./org2CloudSyncEngine.constants";
+import {
+  VANISHED_SESSION_RETRACT_CONFIRMATIONS,
+  VANISHED_SESSION_SWEEP_INTERVAL_MS,
+} from "./org2CloudSyncEngine.constants";
 import {
   Org2CloudOrgBackoffTracker,
   isCloudSyncBackoffError,
@@ -173,6 +176,10 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
   private readonly resolveLocalSessionIds: LocalSessionIdResolver;
   /** Per-org timestamp of the last vanished-session GC sweep. */
   private readonly lastVanishedSweepAtMs = new Map<string, number>();
+  /** `${orgId}:${sessionId}` → consecutive sweeps confirmed absent. A
+   * suspect retracts only at VANISHED_SESSION_RETRACT_CONFIRMATIONS, so one
+   * empty lookup during a cache rebuild cannot mass-retract live rows. */
+  private readonly vanishedStrikes = new Map<string, number>();
 
   constructor(
     client: Org2CloudSyncClientDeps = org2CloudSyncClient,
@@ -208,6 +215,7 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
     this.sessionColdStart.reset();
     this.schemaGate.reset();
     this.lastVanishedSweepAtMs.clear();
+    this.vanishedStrikes.clear();
   }
 
   protected override clearAllOrgBackoffs(): void {
@@ -705,13 +713,32 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
       resolveSessionIds: this.resolveLocalSessionIds,
     });
     if (this.generation !== generation) return;
+    const confirmedAbsent = new Set(vanishedIds);
+    for (const key of this.vanishedStrikes.keys()) {
+      if (!key.startsWith(`${orgId}:`)) continue;
+      if (!confirmedAbsent.has(key.slice(orgId.length + 1))) {
+        this.vanishedStrikes.delete(key);
+      }
+    }
     for (const sessionId of vanishedIds) {
       if (this.generation !== generation) return;
+      const strikeKey = `${orgId}:${sessionId}`;
+      const strikes = (this.vanishedStrikes.get(strikeKey) ?? 0) + 1;
+      if (strikes < VANISHED_SESSION_RETRACT_CONFIRMATIONS) {
+        this.vanishedStrikes.set(strikeKey, strikes);
+        log.info(
+          `vanished-session suspect ${sessionId} org ${orgId} confirmed ` +
+            `absent (${strikes}/${VANISHED_SESSION_RETRACT_CONFIRMATIONS}); ` +
+            `deferring retract to the next sweep`
+        );
+        continue;
+      }
       try {
         log.info(
           `cloud retract [vanished locally]: session ${sessionId} org ${orgId}`
         );
         await this.sessionSync.retractSession(fresh, orgId, sessionId);
+        this.vanishedStrikes.delete(strikeKey);
       } catch (error) {
         if (this.generation !== generation) return;
         if (isCloudSyncBackoffError(error)) {
@@ -741,6 +768,10 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
     this.sessionColdStart.prune(currentOrgIds);
     for (const orgId of this.lastVanishedSweepAtMs.keys()) {
       if (!currentOrgIds.has(orgId)) this.lastVanishedSweepAtMs.delete(orgId);
+    }
+    for (const key of this.vanishedStrikes.keys()) {
+      const orgId = key.slice(0, key.indexOf(":"));
+      if (!currentOrgIds.has(orgId)) this.vanishedStrikes.delete(key);
     }
     for (const orgId of this.pendingInboundOrgIds) {
       if (!currentOrgIds.has(orgId)) this.pendingInboundOrgIds.delete(orgId);

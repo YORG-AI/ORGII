@@ -37,6 +37,17 @@ export const COLLAB_LISTING_SHARE_WINDOW_MS = 2_000;
  */
 export const VANISHED_SESSION_SWEEP_INTERVAL_MS = 10 * 60_000;
 
+/**
+ * A suspect must be confirmed absent on this many CONSECUTIVE sweeps before
+ * its cloud row is retracted. A single successful-but-empty exact-id lookup
+ * is not proof of local deletion: while the imported-history cache rebuilds
+ * (schema migration, cleared cache) every not-yet-reingested session reads
+ * as absent, and one sweep in that window would mass-retract live shared
+ * rows. Rebuilds finish well inside one sweep interval, so the second
+ * confirmation only ever fires on sessions that are genuinely gone.
+ */
+export const VANISHED_SESSION_RETRACT_CONFIRMATIONS = 2;
+
 /** Entitlement failures are retried after this bounded cool-down. Realtime
  * policy signals and explicit user changes clear the deadline immediately. */
 export const ORG_BACKOFF_COOLDOWN_MS = 5 * 60_000;

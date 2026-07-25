@@ -75,26 +75,36 @@ function markSessionChannelReady(sessionId: string): void {
  * Wait until the active SessionSyncProvider has registered the per-session IPC
  * channel. New fork sessions can complete very quickly; dispatching before this
  * edge can lose the terminal event and leave only the optimistic running state.
+ *
+ * Resolves `true` when the channel registered, `false` on timeout. A timeout
+ * means NO surface has mounted the session's channel — every lifecycle frame
+ * (agent:complete, queue_status) for a dispatch made now will be dropped at
+ * the bus registry and the turn will only end via the 60s planning-indicator
+ * watchdog. Callers must surface this loudly instead of dispatching as if
+ * ready.
  */
 export async function waitForSessionChannelReady(
   sessionId: string,
   timeoutMs = 5_000
-): Promise<void> {
-  if (readySessionChannels.has(sessionId)) return;
-  await new Promise<void>((resolve) => {
+): Promise<boolean> {
+  if (readySessionChannels.has(sessionId)) return true;
+  return new Promise<boolean>((resolve) => {
     const waiters = readySessionChannelWaiters.get(sessionId) ?? new Set();
-    waiters.add(resolve);
     readySessionChannelWaiters.set(sessionId, waiters);
     const timer = setTimeout(() => {
-      waiters.delete(resolve);
+      waiters.delete(wrappedResolve);
       if (waiters.size === 0) readySessionChannelWaiters.delete(sessionId);
-      resolve();
+      log.warn(
+        `[SessionChannel] channel for ${sessionId} not registered after ` +
+          `${timeoutMs}ms — no surface mounted it; lifecycle frames for ` +
+          `dispatches made now will be lost until a session view mounts`
+      );
+      resolve(false);
     }, timeoutMs);
     const wrappedResolve = () => {
       clearTimeout(timer);
-      resolve();
+      resolve(true);
     };
-    waiters.delete(resolve);
     waiters.add(wrappedResolve);
   });
 }
