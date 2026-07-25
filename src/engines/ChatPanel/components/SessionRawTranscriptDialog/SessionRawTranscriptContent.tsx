@@ -260,6 +260,10 @@ const SessionRawTranscriptContent: React.FC<SessionRawTranscriptContentProps> =
           setReplayVirtualAnchor(nextAnchor);
         }
       }
+      const canRetryOlder =
+        Boolean(replay?.hasOlder) &&
+        !loadingOlder &&
+        (Boolean(error) || Boolean(replay?.olderPageNeedsRetry));
 
       return (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden [&_.codemirror-editor-wrapper]:h-full">
@@ -278,18 +282,33 @@ const SessionRawTranscriptContent: React.FC<SessionRawTranscriptContentProps> =
               firstItemIndex={replayFirstItemIndex}
               computeItemKey={(_, event) => event.id}
               startReached={() => {
-                if (replay.hasOlder && !loadingOlder) onLoadOlder();
+                if (
+                  replay.hasOlder &&
+                  !loadingOlder &&
+                  !replay.olderPageNeedsRetry &&
+                  !error
+                ) {
+                  onLoadOlder();
+                }
               }}
               components={{
                 Header: () =>
-                  loadingOlder || replay.newerContentReleased ? (
+                  loadingOlder ||
+                  replay.newerContentReleased ||
+                  canRetryOlder ? (
                     <div className="px-3 py-2 text-center text-xs text-text-3">
-                      {loadingOlder
-                        ? t("status.loading", { defaultValue: "Loading…" })
-                        : t("rawTranscript.newerReleased", {
-                            defaultValue:
-                              "Newer rows were released to keep memory bounded. Refresh to return to the latest turn.",
-                          })}
+                      {loadingOlder ? (
+                        t("status.loading", { defaultValue: "Loading…" })
+                      ) : replay.newerContentReleased ? (
+                        t("rawTranscript.newerReleased", {
+                          defaultValue:
+                            "Newer rows were released to keep memory bounded. Refresh to return to the latest turn.",
+                        })
+                      ) : (
+                        <Button size="small" onClick={onLoadOlder}>
+                          {t("actions.retry", { defaultValue: "Retry" })}
+                        </Button>
+                      )}
                     </div>
                   ) : null,
               }}

@@ -1251,7 +1251,6 @@ fn for_each_imported_replay_chunk(
     imported_session_id: &str,
     mut visit: impl FnMut(&mut rusqlite::Connection, &str, ReplayIndexedChunk) -> Result<(), String>,
 ) -> Result<(), String> {
-    let _writer = database::db::sessions_writer_guard();
     let source = ImportedHistorySourceId::from_session_id(imported_session_id)
         .ok_or_else(|| format!("Unknown imported transcript id: {imported_session_id}"))?;
     let limits = ReplayLimits {
@@ -1259,9 +1258,93 @@ fn for_each_imported_replay_chunk(
         max_events: replay::HARD_MAX_EVENTS,
         max_ipc_bytes: replay::HARD_MAX_IPC_BYTES,
     };
-    let prepared = replay::prepare_pinned_scan(conn, source, imported_session_id, limits)?;
+    let prepared = {
+        // Synchronization and lazy-turn materialization can write the compact
+        // replay index, so keep only that preparation under the process-wide
+        // writer lock. The potentially long export below is read-only.
+        let _writer = database::db::sessions_writer_guard();
+        replay::prepare_pinned_scan(conn, source, imported_session_id, limits)?
+    };
     let generation = prepared.generation;
     let revision = prepared.revision;
+    if let Some(mut read_conn) = open_export_read_connection(conn)? {
+        visit_pinned_replay_chunks(
+            &mut read_conn,
+            source,
+            imported_session_id,
+            &generation,
+            revision,
+            limits,
+            &mut visit,
+        )?;
+    } else {
+        // In-memory SQLite is used by unit tests and has no second connection
+        // target. It still runs outside the writer guard.
+        visit_pinned_replay_chunks(
+            conn,
+            source,
+            imported_session_id,
+            &generation,
+            revision,
+            limits,
+            &mut visit,
+        )?;
+    }
+
+    // Re-synchronize briefly after every payload range has been emitted. A
+    // generation or same-generation revision change rejects the UUID temp
+    // before the caller publishes it, without blocking unrelated writers
+    // during the streamed file I/O.
+    let final_scan = {
+        let _writer = database::db::sessions_writer_guard();
+        replay::scan_window_after(conn, source, imported_session_id, i64::MAX, limits)?
+    };
+    validate_pinned_replay_cursor(
+        imported_session_id,
+        &generation,
+        revision,
+        &final_scan.cursor,
+    )?;
+    if final_scan.has_more || !final_scan.chunks.is_empty() {
+        return Err(format!(
+            "Imported transcript grew after the pinned trajectory scan: {imported_session_id}"
+        ));
+    }
+    Ok(())
+}
+
+fn open_export_read_connection(
+    conn: &rusqlite::Connection,
+) -> Result<Option<rusqlite::Connection>, String> {
+    let Some(path) = conn.path().filter(|path| !path.is_empty()) else {
+        return Ok(None);
+    };
+    let read_conn = rusqlite::Connection::open_with_flags(
+        path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY
+            | rusqlite::OpenFlags::SQLITE_OPEN_URI
+            | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .map_err(|err| format!("Open replay export read connection failed: {err}"))?;
+    read_conn
+        .busy_timeout(std::time::Duration::from_secs(15))
+        .map_err(|err| format!("Configure replay export read connection failed: {err}"))?;
+    Ok(Some(read_conn))
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Pinned replay scan keeps the immutable source identity and bounded visitor explicit"
+)]
+fn visit_pinned_replay_chunks(
+    conn: &mut rusqlite::Connection,
+    source: ImportedHistorySourceId,
+    imported_session_id: &str,
+    generation: &str,
+    revision: u64,
+    limits: ReplayLimits,
+    visit: &mut impl FnMut(&mut rusqlite::Connection, &str, ReplayIndexedChunk) -> Result<(), String>,
+) -> Result<(), String> {
     let mut after_sequence = -1_i64;
     loop {
         let batch = replay::scan_window_after_generation(
@@ -1289,22 +1372,6 @@ fn for_each_imported_replay_chunk(
         if !batch.has_more {
             break;
         }
-    }
-    // A same-generation append/update changes the revision and is just as
-    // unsafe as replacement. Resync only after every payload range has been
-    // written so a mixed snapshot fails before the UUID temp is published.
-    let final_scan =
-        replay::scan_window_after(conn, source, imported_session_id, after_sequence, limits)?;
-    validate_pinned_replay_cursor(
-        imported_session_id,
-        &generation,
-        revision,
-        &final_scan.cursor,
-    )?;
-    if final_scan.has_more || !final_scan.chunks.is_empty() {
-        return Err(format!(
-            "Imported transcript grew after the pinned trajectory scan: {imported_session_id}"
-        ));
     }
     Ok(())
 }

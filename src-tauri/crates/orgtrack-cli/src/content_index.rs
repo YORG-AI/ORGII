@@ -39,6 +39,9 @@ const CONTENT_PAGE_EVENTS: usize = 32;
 const CONTENT_PAGE_IPC_BYTES: usize = 512 * 1024;
 /// Sessions re-indexed per write transaction.
 const BATCH: usize = 64;
+/// One retry absorbs a source replacement or transient plugin/IPC failure.
+/// Persistent failures remain uncommitted so the next search retries them.
+const SESSION_BODY_ATTEMPTS: usize = 2;
 
 /// One full-text hit: a session plus a highlighted snippet around the match.
 pub(crate) struct ContentHit {
@@ -133,12 +136,27 @@ pub(crate) fn update(
         // Replay synchronization needs the writable connection and may create
         // its own transaction. Build bounded bodies before opening the FTS
         // transaction; at most BATCH * MAX_BODY_CHARS are retained here.
-        let bodies = batch
-            .iter()
-            .map(|(session_id, _, _, _)| session_body(conn, session_id, plugins, timeout))
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut bodies = Vec::with_capacity(batch.len());
+        for (candidate_index, (session_id, _, _, _)) in batch.iter().enumerate() {
+            match retry_session_body(session_id, || {
+                session_body(conn, session_id, plugins, timeout)
+            }) {
+                Ok(body) => bodies.push((candidate_index, body)),
+                Err(error) => {
+                    // Keep this session's previous FTS row and stale
+                    // fingerprint. One malformed/deleted source must not make
+                    // every healthy session unsearchable, and the unchanged
+                    // state row makes the next command retry this session.
+                    eprintln!("warning: skipped content index for {session_id}: {error}");
+                }
+            }
+        }
+        if bodies.is_empty() {
+            continue;
+        }
         let tx = conn.transaction().map_err(|err| err.to_string())?;
-        for ((session_id, source, name, fingerprint), body) in batch.iter().zip(bodies) {
+        for (candidate_index, body) in bodies {
+            let (session_id, source, name, fingerprint) = &batch[candidate_index];
             tx.execute(
                 "DELETE FROM orgtrack_fts WHERE session_id = ?1",
                 [session_id],
@@ -163,6 +181,23 @@ pub(crate) fn update(
     }
     eprintln!();
     Ok(indexed)
+}
+
+fn retry_session_body(
+    session_id: &str,
+    mut load: impl FnMut() -> Result<String, String>,
+) -> Result<String, String> {
+    let mut last_error = None;
+    for _ in 0..SESSION_BODY_ATTEMPTS {
+        match load() {
+            Ok(body) => return Ok(body),
+            Err(error) => last_error = Some(error),
+        }
+    }
+    Err(format!(
+        "content body failed after {SESSION_BODY_ATTEMPTS} attempts for {session_id}: {}",
+        last_error.unwrap_or_else(|| "unknown content loader failure".to_string())
+    ))
 }
 
 /// Run the FTS5 query and return ranked hits with highlighted snippets.
@@ -569,6 +604,31 @@ mod tests {
             assert!(CONTENT_PAGE_EVENTS <= replay::HARD_MAX_EVENTS);
             assert!(CONTENT_PAGE_IPC_BYTES <= replay::HARD_MAX_IPC_BYTES);
         }
+    }
+
+    #[test]
+    fn session_body_retry_recovers_transient_failures_and_bounds_persistent_ones() {
+        let attempts = Cell::new(0usize);
+        let body = retry_session_body("transient", || {
+            attempts.set(attempts.get() + 1);
+            if attempts.get() == 1 {
+                Err("source changed".to_string())
+            } else {
+                Ok("indexed body".to_string())
+            }
+        })
+        .expect("second attempt succeeds");
+        assert_eq!(body, "indexed body");
+        assert_eq!(attempts.get(), SESSION_BODY_ATTEMPTS);
+
+        attempts.set(0);
+        let error = retry_session_body("broken", || {
+            attempts.set(attempts.get() + 1);
+            Err("still broken".to_string())
+        })
+        .expect_err("persistent failure stays isolated");
+        assert_eq!(attempts.get(), SESSION_BODY_ATTEMPTS);
+        assert!(error.contains("still broken"));
     }
 
     #[test]

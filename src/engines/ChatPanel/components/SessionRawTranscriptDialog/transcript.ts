@@ -37,10 +37,12 @@ export interface RawTranscriptReplayState {
   hasOlder: boolean;
   ipcBytes: number;
   newerContentReleased?: boolean;
+  olderPageNeedsRetry?: boolean;
 }
 
 const RAW_REPLAY_EVENT_BUDGET = 1_000;
 const RAW_REPLAY_BYTE_BUDGET = 16 * 1024 * 1024;
+const RAW_REPLAY_EMPTY_PAGE_ATTEMPTS = 4;
 
 export function canCopyRawTranscript(
   snapshot: RawTranscriptSnapshot | null,
@@ -101,6 +103,26 @@ export function mergeRawSessionEvents(
     const timeOrder = left.createdAt.localeCompare(right.createdAt);
     return timeOrder === 0 ? left.id.localeCompare(right.id) : timeOrder;
   });
+}
+
+export function hasSameRawReplayVersion(
+  left: RawTranscriptSnapshot | null,
+  right: RawTranscriptSnapshot
+): boolean {
+  if (
+    !left ||
+    left.sessionId !== right.sessionId ||
+    left.source.kind !== "external-history" ||
+    right.source.kind !== "external-history" ||
+    !left.replay ||
+    !right.replay
+  ) {
+    return false;
+  }
+  return (
+    left.replay.cursor.generation === right.replay.cursor.generation &&
+    left.replay.cursor.revision === right.replay.cursor.revision
+  );
 }
 
 export async function loadRawSessionTranscript(
@@ -216,39 +238,61 @@ export async function loadOlderRawSessionTranscript(
   const oldestSequence = snapshot.replay.windowStartSequence;
   if (oldestSequence === null) return snapshot;
 
-  const window = await externalReplayQueryWindowForTarget({
-    target: snapshot.source.target,
-    beforeSequence: oldestSequence,
-  });
-  const sourceChanged =
-    window.cursor.generation !== snapshot.replay.cursor.generation ||
-    window.cursor.revision !== snapshot.replay.cursor.revision;
-  if (sourceChanged) {
-    // A stale `beforeSequence` belongs to the old immutable snapshot. Re-open
-    // the latest bounded window instead of presenting an arbitrary older page
-    // from the new generation/revision as if it were the canonical reset.
-    const latest = await externalReplayQueryWindowForTarget({
+  let beforeSequence = oldestSequence;
+  let scannedIpcBytes = 0;
+  let window: ExternalReplayWindow | null = null;
+  for (
+    let attempt = 0;
+    attempt < RAW_REPLAY_EMPTY_PAGE_ATTEMPTS;
+    attempt += 1
+  ) {
+    const candidate = await externalReplayQueryWindowForTarget({
       target: snapshot.source.target,
+      beforeSequence,
     });
-    return {
-      ...snapshot,
-      loadedAt: new Date().toISOString(),
-      entries: latest.events,
-      replay: {
-        cursor: latest.cursor,
-        windowStartSequence: latest.windowStartSequence,
-        turnHeaders: latest.turnHeaders,
-        totalTurnCount: latest.totalTurnCount,
-        hasOlder: latest.hasOlder,
-        ipcBytes: latest.stats.ipcBytes,
-        newerContentReleased: false,
-      },
-    };
+    const sourceChanged =
+      candidate.cursor.generation !== snapshot.replay.cursor.generation ||
+      candidate.cursor.revision !== snapshot.replay.cursor.revision;
+    if (sourceChanged) {
+      // A stale `beforeSequence` belongs to the old immutable snapshot.
+      // Re-open the latest bounded window instead of presenting an arbitrary
+      // older page from the new generation/revision as the canonical reset.
+      const latest = await externalReplayQueryWindowForTarget({
+        target: snapshot.source.target,
+      });
+      return {
+        ...snapshot,
+        loadedAt: new Date().toISOString(),
+        entries: latest.events,
+        replay: {
+          cursor: latest.cursor,
+          windowStartSequence: latest.windowStartSequence,
+          turnHeaders: latest.turnHeaders,
+          totalTurnCount: latest.totalTurnCount,
+          hasOlder: latest.hasOlder,
+          ipcBytes: latest.stats.ipcBytes,
+          newerContentReleased: false,
+          olderPageNeedsRetry: false,
+        },
+      };
+    }
+    window = candidate;
+    scannedIpcBytes += candidate.stats.ipcBytes;
+    if (candidate.events.length > 0 || !candidate.hasOlder) break;
+    const nextBoundary = candidate.windowStartSequence;
+    if (nextBoundary === null || nextBoundary >= beforeSequence) {
+      throw new Error(
+        `Raw transcript pagination made no progress before sequence ${beforeSequence}`
+      );
+    }
+    beforeSequence = nextBoundary;
   }
+  if (!window) return snapshot;
+
   const merged = mergeReplayEvents(
     window.events,
     snapshot.entries,
-    snapshot.replay.ipcBytes + window.stats.ipcBytes
+    snapshot.replay.ipcBytes + scannedIpcBytes
   );
   return {
     ...snapshot,
@@ -266,6 +310,7 @@ export async function loadOlderRawSessionTranscript(
       ipcBytes: merged.bytes,
       newerContentReleased:
         snapshot.replay.newerContentReleased || merged.released,
+      olderPageNeedsRetry: window.events.length === 0 && window.hasOlder,
     },
   };
 }

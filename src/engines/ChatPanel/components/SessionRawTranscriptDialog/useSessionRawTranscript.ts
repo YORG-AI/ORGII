@@ -11,6 +11,7 @@ import { copyText } from "@src/util/data/clipboard";
 import {
   type RawTranscriptSnapshot,
   canCopyRawTranscript,
+  hasSameRawReplayVersion,
   loadOlderRawSessionTranscript,
   loadRawSessionTranscript,
   mergeRawSessionEvents,
@@ -32,6 +33,8 @@ export function useSessionRawTranscript(
   const { t } = useTranslation("sessions");
   const liveEvents = useAtomValue(eventsAtom);
   const requestIdRef = useRef(0);
+  const loadingTranscriptRef = useRef(false);
+  const loadingOlderRef = useRef(false);
   const [state, setState] = useState<SessionRawTranscriptState | null>(null);
   const [loadingSessionId, setLoadingSessionId] = useState<string | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -39,6 +42,9 @@ export function useSessionRawTranscript(
   const loadTranscript = useCallback(async () => {
     if (!sessionId) return;
     const requestId = ++requestIdRef.current;
+    loadingTranscriptRef.current = true;
+    loadingOlderRef.current = false;
+    setLoadingOlder(false);
     setLoadingSessionId(sessionId);
     setState((current) =>
       current?.sessionId === sessionId
@@ -58,7 +64,10 @@ export function useSessionRawTranscript(
         snapshot: null,
       });
     } finally {
-      if (requestId === requestIdRef.current) setLoadingSessionId(null);
+      if (requestId === requestIdRef.current) {
+        loadingTranscriptRef.current = false;
+        setLoadingSessionId(null);
+      }
     }
   }, [sessionId]);
 
@@ -95,25 +104,54 @@ export function useSessionRawTranscript(
   const canCopyAll = canCopyRawTranscript(snapshot, COPY_ALL_MAX_BYTES);
 
   const loadOlder = useCallback(async () => {
-    if (!snapshot?.replay?.hasOlder || loadingOlder) return;
-    const requestId = requestIdRef.current;
+    if (
+      !snapshot?.replay?.hasOlder ||
+      loadingOlderRef.current ||
+      loadingTranscriptRef.current
+    ) {
+      return;
+    }
+    // Pagination owns the newest request token too. Without incrementing it,
+    // a page built from the pre-refresh snapshot can publish after Refresh
+    // has already replaced the visible generation/revision.
+    const requestId = ++requestIdRef.current;
+    loadingOlderRef.current = true;
     setLoadingOlder(true);
     try {
       const next = await loadOlderRawSessionTranscript(snapshot);
       if (requestId !== requestIdRef.current) return;
-      setState({ error: null, sessionId: snapshot.sessionId, snapshot: next });
+      setState((current) => {
+        if (
+          current?.sessionId !== snapshot.sessionId ||
+          !hasSameRawReplayVersion(current.snapshot, snapshot)
+        ) {
+          return current;
+        }
+        return { error: null, sessionId: snapshot.sessionId, snapshot: next };
+      });
     } catch (loadError) {
       if (requestId !== requestIdRef.current) return;
-      setState({
-        error:
-          loadError instanceof Error ? loadError.message : String(loadError),
-        sessionId: snapshot.sessionId,
-        snapshot,
+      setState((current) => {
+        if (
+          current?.sessionId !== snapshot.sessionId ||
+          !hasSameRawReplayVersion(current.snapshot, snapshot)
+        ) {
+          return current;
+        }
+        return {
+          error:
+            loadError instanceof Error ? loadError.message : String(loadError),
+          sessionId: snapshot.sessionId,
+          snapshot,
+        };
       });
     } finally {
-      if (requestId === requestIdRef.current) setLoadingOlder(false);
+      if (requestId === requestIdRef.current) {
+        loadingOlderRef.current = false;
+        setLoadingOlder(false);
+      }
     }
-  }, [loadingOlder, snapshot]);
+  }, [snapshot]);
 
   const copyTranscript = useCallback(async () => {
     try {

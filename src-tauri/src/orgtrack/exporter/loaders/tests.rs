@@ -209,6 +209,65 @@ fn imported_deferred_payload_is_exported_in_full_without_preview_marker() {
 }
 
 #[test]
+fn imported_export_releases_the_sessions_writer_lock_while_visiting_pages() {
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    use orgtrack_core::store::sqlite::SqliteRecordStore;
+
+    let directory = tempfile::tempdir().expect("export lock fixture");
+    let cache_path = directory.path().join("sessions.db");
+    let transcript_path = directory.path().join("rollout.jsonl");
+    let mut conn = rusqlite::Connection::open(&cache_path).expect("file-backed replay DB");
+    SqliteRecordStore::init_tables(&conn).expect("replay index tables");
+    SqliteRecordStore::init_source_cache_tables(&conn).expect("source cache tables");
+    let imported_id = "codexapp-export-writer-lock";
+    conn.execute(
+        "INSERT INTO imported_history_session_cache(
+             source,source_session_id,session_id,source_path
+         ) VALUES('codex_app','export-writer-lock',?1,?2)",
+        params![imported_id, transcript_path.to_string_lossy()],
+    )
+    .expect("Codex cache fixture");
+    let line = |payload: Value| {
+        serde_json::json!({
+            "timestamp":"2026-07-22T00:00:00Z",
+            "type":"event_msg",
+            "payload":payload
+        })
+        .to_string()
+    };
+    std::fs::write(
+        &transcript_path,
+        format!(
+            "{}\n{}\n",
+            line(serde_json::json!({"type":"user_message","message":"run"})),
+            line(serde_json::json!({"type":"agent_message","message":"done"}))
+        ),
+    )
+    .expect("Codex transcript");
+
+    let mut probed = false;
+    for_each_imported_replay_chunk(&mut conn, imported_id, |_read_conn, _generation, _chunk| {
+        if !probed {
+            probed = true;
+            let (acquired_tx, acquired_rx) = mpsc::sync_channel(1);
+            let writer = std::thread::spawn(move || {
+                let _guard = database::db::sessions_writer_guard();
+                acquired_tx.send(()).expect("report writer acquisition");
+            });
+            acquired_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("streaming visitor must not hold the sessions writer lock");
+            writer.join().expect("writer probe thread");
+        }
+        Ok(())
+    })
+    .expect("pinned replay scan");
+    assert!(probed, "fixture must produce at least one replay event");
+}
+
+#[test]
 fn imported_nested_array_payload_uses_indexed_path_and_explicit_encoding() {
     use orgtrack_core::sources::imported_history::replay::{
         ReplayPayloadEncoding, ReplayPayloadKind,

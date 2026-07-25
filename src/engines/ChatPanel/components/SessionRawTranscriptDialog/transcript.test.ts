@@ -4,6 +4,7 @@ import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 
 import {
   type RawTranscriptSnapshot,
+  hasSameRawReplayVersion,
   loadOlderRawSessionTranscript,
   loadRawSessionTranscript,
   mergeRawSessionEvents,
@@ -443,13 +444,20 @@ describe("raw session transcript loading", () => {
       });
 
     snapshot = await loadOlderRawSessionTranscript(snapshot);
-    expect(mocks.externalReplayQueryWindowForTarget).toHaveBeenLastCalledWith({
-      target,
-      beforeSequence: 251,
-    });
-    expect(snapshot.replay?.windowStartSequence).toBe(51);
-
-    snapshot = await loadOlderRawSessionTranscript(snapshot);
+    expect(mocks.externalReplayQueryWindowForTarget).toHaveBeenNthCalledWith(
+      1,
+      {
+        target,
+        beforeSequence: 251,
+      }
+    );
+    expect(mocks.externalReplayQueryWindowForTarget).toHaveBeenNthCalledWith(
+      2,
+      {
+        target,
+        beforeSequence: 51,
+      }
+    );
     expect(mocks.externalReplayQueryWindowForTarget).toHaveBeenLastCalledWith({
       target,
       beforeSequence: 51,
@@ -459,6 +467,171 @@ describe("raw session transcript loading", () => {
       "event-251",
     ]);
     expect(snapshot.replay?.hasOlder).toBe(false);
+  });
+
+  it("bounds empty backward-page scans and leaves an explicit retry state", async () => {
+    const target = {
+      sourceId: "managed_cli" as const,
+      sessionId: "cliagent-filtered-pages",
+    };
+    const latest = event(
+      "event-500",
+      target.sessionId,
+      "2026-07-18T00:00:05.000Z",
+      "latest"
+    );
+    const snapshot: RawTranscriptSnapshot = {
+      sessionId: target.sessionId,
+      source: {
+        kind: "external-history",
+        sourceId: target.sourceId,
+        displayName: "Managed CLI",
+        target,
+      },
+      loadedAt: "2026-07-18T00:00:06.000Z",
+      entries: [latest],
+      replay: {
+        cursor: {
+          ...target,
+          generation: "g1",
+          revision: 3,
+          throughSequence: 500,
+        },
+        windowStartSequence: 500,
+        turnHeaders: [],
+        totalTurnCount: 10,
+        hasOlder: true,
+        ipcBytes: 10,
+      },
+    };
+    for (const boundary of [400, 300, 200, 100]) {
+      mocks.externalReplayQueryWindowForTarget.mockResolvedValueOnce({
+        cursor: {
+          ...snapshot.replay!.cursor,
+          throughSequence: boundary - 1,
+        },
+        events: [],
+        windowStartSequence: boundary,
+        turnHeaders: [],
+        totalEventCount: 501,
+        totalTurnCount: 10,
+        hasOlder: true,
+        watcherAvailable: false,
+        stats: { ipcBytes: 5 },
+      });
+    }
+
+    const paged = await loadOlderRawSessionTranscript(snapshot);
+
+    expect(mocks.externalReplayQueryWindowForTarget).toHaveBeenCalledTimes(4);
+    expect(paged.entries).toEqual([latest]);
+    expect(paged.replay?.windowStartSequence).toBe(100);
+    expect(paged.replay?.ipcBytes).toBe(30);
+    expect(paged.replay?.olderPageNeedsRetry).toBe(true);
+  });
+
+  it("rejects an empty backward page that does not advance its source boundary", async () => {
+    const target = {
+      sourceId: "managed_cli" as const,
+      sessionId: "cliagent-stalled-page",
+    };
+    const snapshot: RawTranscriptSnapshot = {
+      sessionId: target.sessionId,
+      source: {
+        kind: "external-history",
+        sourceId: target.sourceId,
+        displayName: "Managed CLI",
+        target,
+      },
+      loadedAt: "2026-07-18T00:00:06.000Z",
+      entries: [
+        event(
+          "event-500",
+          target.sessionId,
+          "2026-07-18T00:00:05.000Z",
+          "latest"
+        ),
+      ],
+      replay: {
+        cursor: {
+          ...target,
+          generation: "g1",
+          revision: 3,
+          throughSequence: 500,
+        },
+        windowStartSequence: 500,
+        turnHeaders: [],
+        totalTurnCount: 10,
+        hasOlder: true,
+        ipcBytes: 10,
+      },
+    };
+    mocks.externalReplayQueryWindowForTarget.mockResolvedValueOnce({
+      cursor: { ...snapshot.replay!.cursor, throughSequence: 499 },
+      events: [],
+      windowStartSequence: 500,
+      turnHeaders: [],
+      totalEventCount: 501,
+      totalTurnCount: 10,
+      hasOlder: true,
+      watcherAvailable: false,
+      stats: { ipcBytes: 5 },
+    });
+
+    await expect(loadOlderRawSessionTranscript(snapshot)).rejects.toThrow(
+      "made no progress"
+    );
+  });
+
+  it("matches raw replay snapshots only within the same immutable version", () => {
+    const target = {
+      sourceId: "codex_app" as const,
+      sessionId: "codexapp-version",
+    };
+    const snapshot: RawTranscriptSnapshot = {
+      sessionId: target.sessionId,
+      source: {
+        kind: "external-history",
+        sourceId: target.sourceId,
+        displayName: "Codex App",
+        target,
+      },
+      loadedAt: "2026-07-18T00:00:06.000Z",
+      entries: [],
+      replay: {
+        cursor: {
+          ...target,
+          generation: "g1",
+          revision: 7,
+          throughSequence: 10,
+        },
+        windowStartSequence: 10,
+        turnHeaders: [],
+        totalTurnCount: 1,
+        hasOlder: false,
+        ipcBytes: 10,
+      },
+    };
+
+    expect(hasSameRawReplayVersion(snapshot, snapshot)).toBe(true);
+    expect(
+      hasSameRawReplayVersion(snapshot, {
+        ...snapshot,
+        replay: {
+          ...snapshot.replay!,
+          cursor: { ...snapshot.replay!.cursor, revision: 8 },
+        },
+      })
+    ).toBe(false);
+    expect(
+      hasSameRawReplayVersion(snapshot, {
+        ...snapshot,
+        replay: {
+          ...snapshot.replay!,
+          cursor: { ...snapshot.replay!.cursor, generation: "g2" },
+        },
+      })
+    ).toBe(false);
   });
 
   it("retains only the current backward page headers across many pages", async () => {
