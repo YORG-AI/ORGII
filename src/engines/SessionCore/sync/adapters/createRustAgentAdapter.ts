@@ -356,6 +356,49 @@ export function createRustAgentAdapter(
       // Event queue to ensure sequential processing (prevents race conditions)
       let eventQueuePromise = Promise.resolve();
 
+      // One hung dispatch (an IPC invoke that never settles) must not starve
+      // every later event — the terminal would never apply and the turn only
+      // ends via the 60s planning watchdog. After the deadline the queue
+      // moves on; the stalled dispatch's late outcome is logged, not thrown.
+      const QUEUE_DISPATCH_DEADLINE_MS = 15_000;
+      const withQueueDeadline = (
+        dispatch: Promise<void>,
+        eventType: string
+      ): Promise<void> =>
+        new Promise((resolve, reject) => {
+          const timer = setTimeout(() => {
+            logger.error(
+              `[${category}] dispatch of "${eventType}" on ${sessionId} ` +
+                `exceeded ${QUEUE_DISPATCH_DEADLINE_MS}ms — releasing the ` +
+                `event queue so terminal events cannot starve`
+            );
+            dispatch.then(
+              () =>
+                logger.warn(
+                  `[${category}] stalled "${eventType}" dispatch on ` +
+                    `${sessionId} eventually completed`
+                ),
+              (err) =>
+                logger.warn(
+                  `[${category}] stalled "${eventType}" dispatch on ` +
+                    `${sessionId} eventually failed:`,
+                  err
+                )
+            );
+            resolve();
+          }, QUEUE_DISPATCH_DEADLINE_MS);
+          dispatch.then(
+            () => {
+              clearTimeout(timer);
+              resolve();
+            },
+            (err) => {
+              clearTimeout(timer);
+              reject(err);
+            }
+          );
+        });
+
       // Consecutive dispatch failures within a single turn. A handler that
       // throws leaves the EventStore potentially inconsistent (a tool_call
       // row written but its result never paired, a delta lost). One isolated
@@ -429,7 +472,14 @@ export function createRustAgentAdapter(
 
       return {
         handleEvent(raw: RawSessionEvent): void {
-          if (_disposed) return;
+          if (_disposed) {
+            if (TERMINAL_EVENTS.has(raw.type)) {
+              logger.warn(
+                `[${category}] disposed handler swallowed ${raw.type} for ${sessionId}`
+              );
+            }
+            return;
+          }
 
           // Liveness stamp for EVERY channel event, before any filtering.
           // Ephemeral events (tool_call_delta, stream_retry) never reach the
@@ -515,7 +565,10 @@ export function createRustAgentAdapter(
               ) {
                 return;
               }
-              return dispatchAgentEvent(event, ctx);
+              return withQueueDeadline(
+                dispatchAgentEvent(event, ctx),
+                event.type
+              );
             })
             .then(() => {
               if (_disposed) return;

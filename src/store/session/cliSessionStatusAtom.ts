@@ -9,8 +9,11 @@
  */
 import { type Atom, atom } from "jotai";
 
+import { createLogger } from "@src/hooks/logger";
 import type { CliSessionStatus } from "@src/types/session/session";
 import { isSessionEngineActiveStatus } from "@src/util/session/sessionRuntimeExecuting";
+
+const log = createLogger("SessionRuntimeStatus");
 
 // Single source of truth: @src/types/session/session
 export type { CliSessionStatus } from "@src/types/session/session";
@@ -95,6 +98,12 @@ export const setSessionRuntimeStatusAtom = atom(
       if (!matchesVisibleSession && !noVisibleSession) {
         // Write targets a session that is not visible — dropping it keeps the
         // global mirror owned by the visible session (no cross-session bleed).
+        if (update.status === "completed" || update.status === "failed") {
+          log.warn(
+            `gate dropped terminal "${update.status}" for ` +
+              `${update.sessionId}; visible=${JSON.stringify(gateValues)}`
+          );
+        }
         return;
       }
     }

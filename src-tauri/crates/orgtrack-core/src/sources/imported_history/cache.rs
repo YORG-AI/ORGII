@@ -784,9 +784,33 @@ pub fn query_cached_session_from_conn(
 /// and one conversation shows once per continuation rewrite. Other unlistable
 /// rows (subagents, managed mirrors) still resolve — callers rely on that for
 /// parent placement and replay.
+///
+/// Existence checks that must treat a demoted sibling as still-present (the
+/// cloud vanished-session sweep) use
+/// `query_cached_session_by_session_id_including_superseded_from_conn`.
 pub fn query_cached_session_by_session_id_from_conn(
     conn: &Connection,
     session_id: &str,
+) -> Result<Option<(String, ImportedHistoryCachedSession)>, String> {
+    query_cached_session_by_session_id_impl(conn, session_id, false)
+}
+
+/// Exact-id resolution WITHOUT the continuation-supersession filter: a row
+/// demoted by the continuation election still resolves. The cloud
+/// vanished-session sweep confirms suspects through this path — a superseded
+/// sibling has not vanished locally, and reporting it absent would retract
+/// the team's shared cloud session on every context-window continuation.
+pub fn query_cached_session_by_session_id_including_superseded_from_conn(
+    conn: &Connection,
+    session_id: &str,
+) -> Result<Option<(String, ImportedHistoryCachedSession)>, String> {
+    query_cached_session_by_session_id_impl(conn, session_id, true)
+}
+
+fn query_cached_session_by_session_id_impl(
+    conn: &Connection,
+    session_id: &str,
+    include_continuation_superseded: bool,
 ) -> Result<Option<(String, ImportedHistoryCachedSession)>, String> {
     let source = conn
         .query_row(
@@ -812,7 +836,9 @@ pub fn query_cached_session_by_session_id_from_conn(
     let Some(session) = sessions.into_iter().next() else {
         return Ok(None);
     };
-    if has_newer_continuation_sibling(conn, &source, &session)? {
+    if !include_continuation_superseded
+        && has_newer_continuation_sibling(conn, &source, &session)?
+    {
         return Ok(None);
     }
     Ok(Some((source, session)))

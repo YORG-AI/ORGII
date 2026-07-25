@@ -18,8 +18,8 @@ use crate::sources::imported_history::{
 
 use super::impact::{collect_codex_impact_from_patch_apply_end, collect_codex_impact_from_payload};
 use super::index::{
-    codex_session_index_title_for_record, codex_sessions_dir_for_session_path,
-    codex_thread_id_from_file_stem, collect_codex_session_files,
+    codex_sessions_dir_for_session_path, codex_thread_id_from_file_stem,
+    collect_codex_session_files,
 };
 use super::transcript::user_message_from_payload;
 use super::{
@@ -276,9 +276,10 @@ pub(crate) struct CodexSessionMetaParse {
     pub resumed: bool,
 }
 
-pub(crate) fn parse_codex_session_meta_incremental(
+pub(crate) fn parse_codex_session_meta_with_title(
     record: &ImportedHistoryDiscoveredRecord,
     watermark: Option<&ImportedParseWatermark>,
+    external_title: String,
 ) -> Result<CodexSessionMetaParse, String> {
     let mut reader = WatermarkedTranscriptReader::open(
         &record.source_path,
@@ -322,7 +323,6 @@ pub(crate) fn parse_codex_session_meta_incremental(
             tail_state = Some(snapshot);
         }
     }
-    let external_title = codex_session_index_title_for_record(record)?;
     let state_json = serde_json::to_string(&state)
         .map_err(|err| format!("Failed to serialize Codex parse state: {err}"))?;
     let next_watermark = reader.into_watermark(
@@ -339,6 +339,15 @@ pub(crate) fn parse_codex_session_meta_incremental(
         watermark: next_watermark,
         resumed,
     })
+}
+
+#[cfg(test)]
+pub(crate) fn parse_codex_session_meta_incremental(
+    record: &ImportedHistoryDiscoveredRecord,
+    watermark: Option<&ImportedParseWatermark>,
+) -> Result<CodexSessionMetaParse, String> {
+    let external_title = super::index::codex_session_index_title_for_record(record)?;
+    parse_codex_session_meta_with_title(record, watermark, external_title)
 }
 
 #[cfg(test)]

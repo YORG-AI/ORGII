@@ -135,6 +135,8 @@ data.json
 !.orgii/skills/org2-performance-guard/**
 !.orgii/skills/react-best-practices/
 !.orgii/skills/react-best-practices/**
+!.orgii/skills/dual-instance-verification/
+!.orgii/skills/dual-instance-verification/**
 .soyd/
 
 # macOS copy-conflict duplicates (e.g. "file 2.rs", "file 3.rs")

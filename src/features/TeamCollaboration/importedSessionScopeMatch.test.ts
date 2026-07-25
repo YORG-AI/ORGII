@@ -23,6 +23,12 @@ const sessions = [
     repoPath: undefined,
     repoRemoteUrls: undefined,
   },
+  {
+    session_id: "claudecodeapp-agent-a5",
+    repoPath: "/Users/me/org2",
+    repoRemoteUrls: ["git@github.com:yorgai/org2.git"],
+    parentSessionId: "claudecodeapp-1",
+  },
 ];
 
 describe("collectScopeMatchedImportedSessionIds", () => {
@@ -49,6 +55,16 @@ describe("collectScopeMatchedImportedSessionIds", () => {
     ]);
     expect(ids.has("native-1")).toBe(false);
     expect(ids.has("claudecodeapp-4")).toBe(false);
+  });
+
+  it("skips spawned children — subagent transcripts fold into their parent", () => {
+    // Without this, every subagent transcript in a scoped checkout published
+    // as its own top-level team session (a wall of prompt-titled rows the
+    // team list cannot fold: the cloud row has no parent linkage).
+    const ids = collectScopeMatchedImportedSessionIds(sessions, [
+      "github.com/yorgai/org2",
+    ]);
+    expect(ids.has("claudecodeapp-agent-a5")).toBe(false);
   });
 
   it("matches sessions sharing one persisted remote identity", () => {

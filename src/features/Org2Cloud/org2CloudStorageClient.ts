@@ -58,22 +58,69 @@ export async function uploadReplayObject(
   signal?: AbortSignal
 ): Promise<void> {
   const response = await fetchWithTransportRetry(objectUrl(path, endpoint), {
-    method: "PUT",
+    method: "POST",
     headers: {
       ...objectHeaders(accessToken, endpoint),
       "content-type": "application/gzip",
-      "x-upsert": "true",
     },
     // Copy into a fresh ArrayBuffer-backed view: the DOM typings reject
     // Uint8Array<ArrayBufferLike> as a BodyInit.
     body: new Uint8Array(bytes),
     signal,
   });
-  if (!response.ok) {
-    throw new Org2CloudStorageError(
-      `replay object upload failed with ${response.status}`,
-      response.status
+  if (response.ok) return;
+  const body = await response.text().catch(() => "");
+  // Replay objects are content-addressed (segment hash in the key) and the
+  // storage policies grant INSERT but never UPDATE, so re-uploading an
+  // existing name is rejected rather than applied — the normal retry/resume
+  // path. Supabase reports it as 409, or as a 400 envelope wrapping a 403
+  // RLS denial when the policy blocks the implied update, which is
+  // indistinguishable by status from a genuine authorization failure.
+  // Confirm the object is actually readable before treating it as done, so
+  // a real denial still surfaces.
+  if (mayMeanReplayObjectExists(response.status, body)) {
+    const exists = await replayObjectExists(
+      accessToken,
+      path,
+      endpoint,
+      signal
     );
+    if (exists) return;
+  }
+  throw new Org2CloudStorageError(
+    `replay object upload failed with ${response.status}` +
+      (body ? `: ${body.slice(0, 300)}` : ""),
+    response.status
+  );
+}
+
+/** Statuses/bodies that can mean "this object name is already stored". */
+function mayMeanReplayObjectExists(status: number, body: string): boolean {
+  if (status === 409) return true;
+  if (status !== 400 && status !== 403) return false;
+  return (
+    body.includes("row-level security policy") ||
+    body.includes("Duplicate") ||
+    body.includes("already exists")
+  );
+}
+
+/** HEAD probe used only to confirm an upload rejection was a duplicate. */
+async function replayObjectExists(
+  accessToken: string,
+  path: string,
+  endpoint: CloudEndpoint,
+  signal?: AbortSignal
+): Promise<boolean> {
+  try {
+    const response = await fetchWithTransportRetry(objectUrl(path, endpoint), {
+      method: "HEAD",
+      headers: objectHeaders(accessToken, endpoint),
+      signal,
+    });
+    return response.ok;
+  } catch {
+    return false;
   }
 }
 
