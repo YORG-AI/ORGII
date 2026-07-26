@@ -144,6 +144,30 @@ describe("computeFrozenEventCount frozen line + stuck-sentinel skip-over", () =>
     expect(computeFrozenEventCount(events)).toBe(1);
   });
 
+  it("holds recently-terminal events inside the mutation horizon in the tail", () => {
+    // Terminal ≠ immutable while the ingest can still amend (tool-result
+    // backfill): freezing them made every amendment a full epoch rewrite.
+    const now = Date.parse("2026-07-25T12:00:00Z");
+    const old = { createdAt: "2026-07-25T11:00:00Z" };
+    const recent = { createdAt: "2026-07-25T11:55:00Z" };
+    const events = [event(old), event(old), event(recent), event(recent)];
+    expect(computeFrozenEventCount(events, now)).toBe(2);
+  });
+
+  it("freezes everything once the session is quiescent past the horizon", () => {
+    const now = Date.parse("2026-07-25T12:00:00Z");
+    const old = { createdAt: "2026-07-25T11:00:00Z" };
+    const events = [event(old), event(old), event(old)];
+    expect(computeFrozenEventCount(events, now)).toBe(3);
+  });
+
+  it("caps horizon holdback so a busy span cannot grow the tail unbounded", () => {
+    const now = Date.parse("2026-07-25T12:00:00Z");
+    const recent = { createdAt: "2026-07-25T11:59:00Z" };
+    const events = Array.from({ length: 60 }, () => event(recent));
+    expect(computeFrozenEventCount(events, now)).toBe(20);
+  });
+
   it("counts a missing displayStatus as terminal (hash chain catches mutation)", () => {
     const events = [event({ displayStatus: undefined as never }), event({})];
     expect(computeFrozenEventCount(events)).toBe(2);

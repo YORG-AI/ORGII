@@ -141,6 +141,13 @@ rollover or the window silently truncates.
   row (GitHub rename made two spellings one repo network), and the fork guard
   demanded snapshot == summary while a LIVE source kept growing — equality
   checks against a moving target are boot-window absence in another costume.
+- **A silence that proves nothing**: "zero rewrites since the fix" was true
+  while the session was not being pushed at all (machine slept, ingest
+  follows the open view). An absence metric needs a liveness metric beside
+  it: assert the thing you want CONSTANT (ledger epoch) against the thing
+  that must still be MOVING (events_count / updated_at). Same shape as
+  watchdog-masked completion — silence and health look identical until you
+  measure both.
 - **Waiting for a pass the engine will never run**: the session plane follows
   visible-org demand — an org's push/retract pass runs only while that org is
   the active workspace. A fix whose cleanup rides "the next pass" looks

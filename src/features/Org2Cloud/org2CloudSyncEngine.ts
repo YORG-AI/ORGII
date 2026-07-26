@@ -61,7 +61,6 @@ import { chatPanelSelectedCloudOrgAtom } from "@src/store/ui/chatPanelAtom";
 import type { ProjectSyncBridge } from "../TeamCollaboration/engine/projectSyncBridge";
 import { tauriProjectSyncBridge } from "../TeamCollaboration/engine/projectSyncBridge";
 import { getSessionForkedFrom } from "../TeamCollaboration/forkSession";
-import { isScopeMatchableImportedSession } from "../TeamCollaboration/importedSessionScopeMatch";
 import { resolveMatchingOrgRepoScope } from "../TeamCollaboration/repoScopeResolver";
 import {
   isSessionTaggedToCloudOrg,
@@ -82,6 +81,8 @@ import {
   org2CloudAuthAtom,
 } from "./org2CloudAuthAtom";
 import { ensureFreshSession, schemaVersion } from "./org2CloudClient";
+import { resolveOrgEndpoint } from "./org2CloudEndpointDirectory";
+import { setOrgEndpointDirectory } from "./org2CloudOrgEndpointRouter";
 import {
   buildCloudOrgSelectorValue,
   org2CloudOrgsAtom,
@@ -90,11 +91,17 @@ import {
 import type { Org2CloudOrg } from "./org2CloudOrgsAtom";
 import * as org2CloudProjectsClient from "./org2CloudProjectsClient";
 import {
+  PUSH_ADMISSION_DENIAL,
+  decidePushAdmission,
+} from "./org2CloudPushAdmission";
+import {
   Org2CloudSessionSync,
   type Org2CloudSyncClientDeps,
 } from "./org2CloudSessionSync";
 import { isCloudPushCandidate } from "./org2CloudSessionSync";
 import {
+  org2CloudPushCursorsAtom,
+  org2CloudPushedMetadataAtom,
   org2CloudRepoScopesAtom,
   org2CloudSyncEnabledAtom,
 } from "./org2CloudSyncAtoms";
@@ -115,6 +122,10 @@ import {
   Org2CloudRepoScopeSync,
   getSessionScopeKeys,
 } from "./org2CloudSyncEngine.repoScopeSync";
+import {
+  orgsWithLocalPushMarkers,
+  reconcileOrgRetracts,
+} from "./org2CloudSyncEngine.retractReconcile";
 import {
   Org2CloudSchemaGate,
   type Org2CloudSchemaVersionProbe,
@@ -153,6 +164,8 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
    * rationale (kept together there since a policy signal touches more than
    * one at once). */
   private readonly orgBackoff: Org2CloudOrgBackoffTracker;
+  /** Generation whose background-org retract reconcile already ran (P2). */
+  private reconciledGeneration = -1;
   /** TTL-gated `org2CloudRepoScopesAtom` mirror hydration, split out to
    * `Org2CloudRepoScopeSync`. */
   private readonly repoScopeSync: Org2CloudRepoScopeSync;
@@ -305,6 +318,17 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
     // made one open workspace scan/replay sessions across every matching team
     // and kept inactive-org scope RPCs alive. Switching/opening an org causes
     // its Realtime subscription to request an immediate full session pass.
+    // Sharding Phase A: publish the roster's resolved home endpoints so
+    // org-scoped data-plane calls route to each org's home project. Rebuilt
+    // every pass — a directory cutover (or rollback) takes effect on the
+    // next pass without restart. Empty/absent homeEndpoint keeps the
+    // official endpoint, so pre-0007 backends behave exactly as before.
+    setOrgEndpointDirectory(
+      orgs.map((org) => [
+        org.orgId,
+        resolveOrgEndpoint(org, getCloudEndpoint()),
+      ])
+    );
     const activeSessionOrgs = orgs.filter((org) => this.isActiveOrg(org.orgId));
     await this.repoScopeSync.hydrateRepoScopes(
       fresh,
@@ -359,11 +383,25 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
           session.session_id,
           org.orgId
         );
-        if (forkedFrom && forkedFrom.orgId !== org.orgId && !tagged) {
+        const admission = decidePushAdmission({
+          orgId: org.orgId,
+          session,
+          forkedFrom,
+          tagged,
+          ownedByOrg: session.orgId === buildCloudOrgSelectorValue(org.orgId),
+          shareIntent: hasExplicitCloudShareIntent(
+            accessByOrg[org.orgId],
+            session.session_id
+          ),
+        });
+        if (
+          !admission.admitted &&
+          admission.denial === PUSH_ADMISSION_DENIAL.FORK_OUTSIDE_SOURCE_ORG
+        ) {
           if (this.sessionSync.wasCloudPushed(org.orgId, session.session_id)) {
             try {
               log.info(
-                `cloud retract [fork outside source org]: session ${session.session_id} org ${org.orgId}`
+                `cloud retract [${admission.denial}]: session ${session.session_id} org ${org.orgId}`
               );
               await this.sessionSync.retractSession(
                 fresh,
@@ -398,24 +436,11 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
         // This prevents a Personal session from leaking into every team org
         // that happens to configure the same Git remote. Fork provenance has
         // already constrained untagged forks to their source org above.
-        const ownedByOrg =
-          session.orgId === buildCloudOrgSelectorValue(org.orgId);
-        const shareIntent = hasExplicitCloudShareIntent(
-          accessByOrg[org.orgId],
-          session.session_id
-        );
-        const scopeAutoMatched = isScopeMatchableImportedSession(session);
-        if (
-          !forkedFrom &&
-          !tagged &&
-          !ownedByOrg &&
-          !shareIntent &&
-          !scopeAutoMatched
-        ) {
+        if (!admission.admitted) {
           if (this.sessionSync.wasCloudPushed(org.orgId, session.session_id)) {
             try {
               log.info(
-                `cloud retract [ownership-gate (untagged/unowned/no-intent)]: session ${session.session_id} org ${org.orgId}`
+                `cloud retract [${admission.denial}]: session ${session.session_id} org ${org.orgId}`
               );
               await this.sessionSync.retractSession(
                 fresh,
@@ -518,17 +543,14 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
         // Settings while withholding the matching cloud push would make the
         // rendered policy lie. Ordinary Personal sessions still require org
         // ownership, a tag, fork provenance, or explicit share intent.
-        const floorEligible =
-          Boolean(forkedFrom) ||
-          tagged ||
-          ownedByOrg ||
-          shareIntent ||
-          scopeAutoMatched;
+        // Reaching here means admission passed, and every admission route
+        // (provenance, tag, ownership, intent, scope match) is floor-eligible
+        // — so the floor always applies at this point.
         const access = resolveCloudPushAccess(
           accessByOrg[org.orgId],
           session.session_id,
           tagged,
-          floorEligible ? floorByOrg[org.orgId] : undefined
+          floorByOrg[org.orgId]
         );
         if (!access) {
           // Effective-off and NOT tagged: the ladder grants nothing this
@@ -684,6 +706,56 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
             this.scheduleProjectPushRetry();
           }
           log.warn(`cloud project sync failed for org ${org.orgId}:`, error);
+        }
+      }
+    }
+
+    // P2: retract-only reconcile for orgs the user is NOT looking at. The
+    // session plane above follows visible-org demand, so a session that
+    // lost admission in a background org would otherwise stay published
+    // until that org is reopened — possibly never. Once per engine run:
+    // same admission decision, same server-confirmed scope boundary, only
+    // rows THIS client push-marked. See the module header for the rails.
+    if (this.reconciledGeneration !== generation) {
+      this.reconciledGeneration = generation;
+      const cursors = store.get(org2CloudPushCursorsAtom);
+      const pushedMetadata = store.get(org2CloudPushedMetadataAtom);
+      const markedOrgIds = orgsWithLocalPushMarkers(cursors, pushedMetadata);
+      const backgroundOrgs = orgs.filter(
+        (org) =>
+          markedOrgIds.has(org.orgId) &&
+          !this.isActiveOrg(org.orgId) &&
+          enabledByOrg[org.orgId] !== false &&
+          !this.orgBackoff.isOrgBackedOff(org.orgId)
+      );
+      if (backgroundOrgs.length > 0) {
+        await this.repoScopeSync.hydrateRepoScopes(
+          fresh,
+          backgroundOrgs,
+          generation,
+          (gen) => this.generation === gen
+        );
+        if (this.generation !== generation) return;
+        log.info(
+          `retract reconcile: covering ${backgroundOrgs.length} background org(s) with local push markers`
+        );
+        for (const org of backgroundOrgs) {
+          if (this.generation !== generation) return;
+          if (getCloudEndpoint().supabaseUrl !== passSupabaseUrl) return;
+          await reconcileOrgRetracts(
+            {
+              store,
+              accessByOrg,
+              wasCloudPushed: (orgId, sessionId) =>
+                this.sessionSync.wasCloudPushed(orgId, sessionId),
+              retractSession: (orgId, sessionId) =>
+                this.sessionSync.retractSession(fresh, orgId, sessionId),
+              hasServerConfirmedScopes: (orgId) =>
+                this.repoScopeSync.hasServerConfirmedScopes(orgId),
+              isCurrentGeneration: () => this.generation === generation,
+            },
+            org.orgId
+          );
         }
       }
     }
