@@ -26,6 +26,7 @@ import {
 } from "@src/scaffold/WizardSystem/variants/KeyVault/components/providerOptions";
 import { useProviderRegistry } from "@src/scaffold/WizardSystem/variants/KeyVault/config";
 
+import SessionMemoryEmbeddingPanel from "../../RulesMemoryEvolution/Memory/SessionMemoryEmbeddingPanel";
 import {
   KeyPrivacyDisclaimer,
   ModelWikiDisclaimer,
@@ -468,6 +469,7 @@ export const AccountsTable: React.FC<AccountsTableProps> = ({
   const tabs = useMemo(() => {
     return [
       { key: "models", label: t("modelsTabs.models", "Models") },
+      { key: "embedding", label: t("modelsTabs.embedding", "Embedding") },
       { key: "my-accounts", label: t("modelsTabs.myAccounts", "My Keys") },
       { key: "model-wiki", label: t("modelsTabs.modelWiki", "Model Wiki") },
     ];
@@ -557,6 +559,8 @@ export const AccountsTable: React.FC<AccountsTableProps> = ({
                 isAccountEnabled={isAccountEnabled}
                 t={t}
               />
+            ) : activeTab === "embedding" ? (
+              <SessionMemoryEmbeddingPanel />
             ) : activeTab === "model-wiki" ? (
               <ModelWikiTableSection />
             ) : (

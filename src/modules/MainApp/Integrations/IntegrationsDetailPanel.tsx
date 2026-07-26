@@ -42,7 +42,6 @@ import {
   type RoutinesDetailState,
 } from "./Routines/RoutinesCategoryView";
 import { RulesMemoryEvolutionCategoryView } from "./RulesMemoryEvolution/RulesMemoryEvolutionCategoryView";
-import SessionMemoryEmbeddingPanel from "./RulesMemoryEvolution/Memory/SessionMemoryEmbeddingPanel";
 import type { RulesMemoryEvolutionDetailState } from "./RulesMemoryEvolution/types";
 import type { SkillEditorState, SkillsHubDetailState } from "./Skills/types";
 import type { CategoryTableContentProps } from "./Tables";
@@ -270,7 +269,12 @@ const IntegrationsDetailPanel: React.FC<IntegrationsDetailPanelProps> = ({
             className={`scroll-fade-at-top ${DETAIL_PANEL_TOKENS.scrollContentNoTop}`}
           >
             <div className={DETAIL_PANEL_TOKENS.contentWidthWithPaddingNoTop}>
-              <SessionMemoryEmbeddingPanel />
+              <p className="py-6 text-sm text-text-3">
+                {t(
+                  "embeddingSettings.movedToModels",
+                  "Embedding settings have moved to Models & Keys."
+                )}
+              </p>
             </div>
           </ScrollFadeContainer>
         </DetailPanelContainer>
