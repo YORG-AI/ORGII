@@ -157,17 +157,46 @@ function isProvablyStuck(
  * the skip-over: if a "provably" stuck event does mutate after all, the push
  * detects the chain mismatch and re-anchors with one epoch rewrite.
  */
-export function computeFrozenEventCount(events: SessionEvent[]): number {
+/** Recently-terminal events are still amendable by the ingest (tool-result
+ * backfill, synthetic-input cleanup): terminal ≠ immutable. Freezing them
+ * turns every amendment into a full epoch rewrite of the whole history, so
+ * the freeze line holds back events younger than this horizon; amendments
+ * then land in the mutable tail (one small segment re-upload). A quiescent
+ * session has nothing inside the horizon and freezes to the end. */
+const FREEZE_MUTATION_HORIZON_MS = 10 * 60_000;
+/** Bound on horizon holdback — the tail ships as ONE segment, so a busy
+ * span must not grow it without limit. Events older than the horizon or
+ * beyond this cap freeze even while the session is live. */
+const FREEZE_HORIZON_MAX_EVENTS = 40;
+
+export function computeFrozenEventCount(
+  events: SessionEvent[],
+  nowMs: number = Date.now()
+): number {
   let proof: StuckSentinelProof | null = null;
+  let line = events.length;
   for (let index = 0; index < events.length; index += 1) {
     const event = events[index];
     const status = event?.displayStatus;
     if (typeof status === "string" && !TERMINAL_EVENT_STATUSES.has(status)) {
       proof ??= buildStuckSentinelProof(events);
-      if (!isProvablyStuck(event, index, proof)) return index;
+      if (!isProvablyStuck(event, index, proof)) {
+        line = index;
+        break;
+      }
     }
   }
-  return events.length;
+  const horizonFloor = nowMs - FREEZE_MUTATION_HORIZON_MS;
+  let held = 0;
+  while (line > 0 && held < FREEZE_HORIZON_MAX_EVENTS) {
+    // Only a PROVABLY recent event is held back; a missing/invalid
+    // timestamp freezes as before (the hash chain still catches mutation).
+    const createdAt = Date.parse(events[line - 1]?.createdAt ?? "");
+    if (!Number.isFinite(createdAt) || createdAt < horizonFloor) break;
+    line -= 1;
+    held += 1;
+  }
+  return line;
 }
 
 /** Per-segment size budget (design §7.3 step 3a), measured pre-gzip. */

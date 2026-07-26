@@ -8,6 +8,7 @@ import {
   toFrozenSegmentWire,
   toTailWire,
 } from "../TeamCollaboration/sync/segmentCodec";
+import { getCloudEndpoint } from "./config";
 import {
   buildCloudSessionFetchClient,
   cloudSessionIdFromRowId,
@@ -135,10 +136,12 @@ describe("buildCloudSessionFetchClient", () => {
     });
 
     expect(downloadReplayObjectMock).toHaveBeenCalledTimes(1);
+    // Member downloads route per org now; with an identity directory the
+    // resolved endpoint IS the official one.
     expect(downloadReplayObjectMock).toHaveBeenCalledWith(
       "jwt-token",
       storagePath,
-      undefined,
+      getCloudEndpoint(),
       undefined
     );
     const [seg1, seg2, tailSeg] = snapshot.segments;
