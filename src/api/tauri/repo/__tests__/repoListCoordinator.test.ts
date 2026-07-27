@@ -83,4 +83,17 @@ describe("repository list coordinator", () => {
       "remaining",
     ]);
   });
+
+  it("releases a failed list request so a later load can retry", async () => {
+    invokeMock
+      .mockRejectedValueOnce(new Error("backend unavailable"))
+      .mockResolvedValueOnce([backendRepo("recovered")]);
+
+    await expect(getRepos()).rejects.toThrow("backend unavailable");
+    await expect(getRepos()).resolves.toMatchObject({
+      data: { repos: [{ repo_id: "recovered" }] },
+    });
+
+    expect(invokeMock).toHaveBeenCalledTimes(2);
+  });
 });

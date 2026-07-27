@@ -169,10 +169,11 @@ export function useBrowserNetworkLogs(
     (closedSessionId: string) => {
       cacheRef.current.delete(closedSessionId);
       if (closedSessionId === sessionId) {
+        pollCoordinator.supersede();
         setEntries([]);
       }
     },
-    [sessionId]
+    [pollCoordinator, sessionId]
   );
 
   // Poll for network logs from webview
