@@ -7,10 +7,10 @@
 //!
 //! **Lazily, not eagerly.** Extracting signals means parsing a transcript, and
 //! there are tens of thousands of them. A row is computed on demand and cached;
-//! [`backfill_session_signals`] tops up the rest in bounded batches. A profile
-//! is an aggregate, so a purely user-triggered fill would bias it toward
-//! whatever the user happened to open — the background top-up is what keeps it
-//! representative.
+//! [`backfill_session_signals`] tops up the rest in bounded batches, driven by
+//! the panel while it is open. A profile is an aggregate, so a fill limited to
+//! sessions the user happened to open would bias it — the newest-first batch
+//! top-up is what keeps it representative.
 //!
 //! Rows hold aggregates only: counts, ratios, shares and activity spans. No
 //! message text and no file paths are persisted here.
@@ -37,6 +37,7 @@ pub fn init_tables(conn: &Connection) -> rusqlite::Result<()> {
             active_spans_json TEXT NOT NULL DEFAULT '[]',
             has_edit INTEGER NOT NULL DEFAULT 0,
             postedit_turns INTEGER NOT NULL DEFAULT 0,
+            unreadable INTEGER NOT NULL DEFAULT 0,
             signals_json TEXT NOT NULL,
             computed_at TEXT NOT NULL
         );
@@ -140,8 +141,10 @@ pub fn load_signals(
     if !table_exists(conn, TABLE)? {
         return Ok(Vec::new());
     }
-    let mut sql =
-        format!("SELECT signals_json FROM {TABLE} WHERE signals_version = {SIGNALS_VERSION}");
+    let mut sql = format!(
+        "SELECT signals_json FROM {TABLE}
+         WHERE signals_version = {SIGNALS_VERSION} AND unreadable = 0"
+    );
     if !sources.is_empty() {
         let list = sources
             .iter()
@@ -264,13 +267,17 @@ pub fn put_payload(
     .map_err(|err| err.to_string())
 }
 
-/// How much of the corpus has been extracted so far.
+/// How much of the corpus has been processed so far. `extracted` counts every
+/// session with a current-version row — including unreadable tombstones, so a
+/// corpus with a few broken transcripts can still reach 100%. `unreadable`
+/// reports those tombstones separately.
 #[derive(Debug, Clone, Copy, Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Coverage {
     pub extracted: i64,
     pub known: i64,
     pub stale: i64,
+    pub unreadable: i64,
 }
 
 pub fn coverage(conn: &Connection) -> Result<Coverage, String> {
@@ -294,15 +301,43 @@ pub fn coverage(conn: &Connection) -> Result<Coverage, String> {
         stale: count(&format!(
             "SELECT COUNT(*) FROM {TABLE} WHERE signals_version <> {SIGNALS_VERSION}"
         )),
+        unreadable: count(&format!(
+            "SELECT COUNT(*) FROM {TABLE}
+             WHERE signals_version = {SIGNALS_VERSION} AND unreadable = 1"
+        )),
     })
 }
 
-/// Extract up to `limit` sessions that have no current row. Newest first, so a
+/// A session whose transcript yields no chunks (or fails to read) gets a
+/// tombstone row: excluded from every reader, but it leaves the candidate set,
+/// so the backfill cannot pin its batch on the same failures forever. A
+/// [`SIGNALS_VERSION`] bump retries each of them once per extractor generation.
+fn mark_unreadable(conn: &Connection, session_id: &str) -> Result<(), String> {
+    let source = source_of(conn, session_id).unwrap_or_else(|| "unknown".to_string());
+    conn.execute(
+        &format!(
+            "INSERT INTO {TABLE} (
+                 session_id, source, signals_version, unreadable, signals_json, computed_at
+             ) VALUES (?1, ?2, {SIGNALS_VERSION}, 1, '{{}}', ?3)
+             ON CONFLICT(session_id) DO UPDATE SET
+                 signals_version = excluded.signals_version,
+                 unreadable = 1,
+                 signals_json = excluded.signals_json,
+                 computed_at = excluded.computed_at"
+        ),
+        params![session_id, source, chrono::Utc::now().to_rfc3339()],
+    )
+    .map(|_| ())
+    .map_err(|err| err.to_string())
+}
+
+/// Process up to `limit` sessions that have no current row. Newest first, so a
 /// partially-filled profile describes recent behaviour rather than a random
 /// slice of history.
 ///
-/// Errors on individual sessions are swallowed: one unreadable transcript must
-/// not stall the whole backlog.
+/// Returns the number of sessions *processed* — extracted or tombstoned — so a
+/// batch of unreadable transcripts still reports progress and the caller keeps
+/// draining the backlog behind them.
 pub fn backfill_session_signals(conn: &Connection, limit: usize) -> Result<usize, String> {
     if limit == 0 || !table_exists(conn, "imported_history_session_cache")? {
         return Ok(0);
@@ -333,8 +368,16 @@ pub fn backfill_session_signals(conn: &Connection, limit: usize) -> Result<usize
 
     let mut done = 0usize;
     for id in candidates {
-        if matches!(recompute_session_signals(conn, &id), Ok(Some(_))) {
-            done += 1;
+        match recompute_session_signals(conn, &id) {
+            Ok(Some(_)) => done += 1,
+            // No chunks, or the transcript would not read. Tombstone it so it
+            // stops occupying the front of every future batch; if even the
+            // tombstone write fails, skip it and let a later batch retry.
+            Ok(None) | Err(_) => {
+                if mark_unreadable(conn, &id).is_ok() {
+                    done += 1;
+                }
+            }
         }
     }
     Ok(done)
@@ -477,6 +520,47 @@ mod tests {
     fn backfill_is_a_no_op_without_the_imported_cache() {
         let conn = db();
         assert_eq!(backfill_session_signals(&conn, 10).expect("backfill"), 0);
+    }
+
+    #[test]
+    fn a_tombstone_is_excluded_from_readers_but_completes_coverage() {
+        let conn = db();
+        upsert(&conn, &sample("good")).expect("good row");
+        mark_unreadable(&conn, "broken").expect("tombstone");
+
+        let served = load_signals(&conn, &[], None, 10).expect("load");
+        assert_eq!(served.len(), 1, "tombstones must never be scored");
+        assert_eq!(served[0].session_id, "good");
+
+        let cov = coverage(&conn).expect("coverage");
+        assert_eq!(cov.extracted, 2, "a tombstone still counts as processed");
+        assert_eq!(cov.unreadable, 1);
+    }
+
+    #[test]
+    fn unreadable_sessions_do_not_stall_the_backfill() {
+        let conn = db();
+        // A minimal imported cache with sessions that have no transcript at
+        // all: every one of them is unreadable by construction.
+        conn.execute_batch(
+            "CREATE TABLE imported_history_session_cache (
+                 session_id TEXT PRIMARY KEY,
+                 source TEXT NOT NULL,
+                 created_at_ms INTEGER NOT NULL
+             );
+             INSERT INTO imported_history_session_cache VALUES
+                 ('u1', 'cursor_ide', 3), ('u2', 'cursor_ide', 2), ('u3', 'cursor_ide', 1);",
+        )
+        .expect("seed imported cache");
+
+        let first = backfill_session_signals(&conn, 10).expect("first pass");
+        assert_eq!(
+            first, 3,
+            "unreadable sessions must still count as processed, or the drain loop stops with a stranded backlog"
+        );
+        let second = backfill_session_signals(&conn, 10).expect("second pass");
+        assert_eq!(second, 0, "tombstoned sessions must leave the candidate set");
+        assert_eq!(coverage(&conn).expect("coverage").unreadable, 3);
     }
 }
 

@@ -280,6 +280,7 @@
         "refresh": "Refresh",
         "summaryLine": "{{sessions}} sessions analysed",
         "tooFewSessions": "Fewer than 25 sessions — the type is not settled yet.",
+        "noSessionsYet": "No sessions analysed yet — the letters appear as your history is read.",
         "axisStats": "{{sessions}} sessions · {{consistency}}% agree",
         "anchorFlip": "neutral point would have to move {{factor}}×",
         "anchorNeverFlips": "verdict holds at any neutral point",

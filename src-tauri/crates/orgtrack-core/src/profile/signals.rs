@@ -39,7 +39,7 @@ use crate::sources::imported_history::{
 
 /// Bump when an extractor change alters any emitted value. Rows with an older
 /// version are recomputed by the backfill rather than trusted.
-pub const SIGNALS_VERSION: i64 = 3;
+pub const SIGNALS_VERSION: i64 = 4;
 
 /// Idle span that ends a stretch of genuine activity. A session left open
 /// overnight would otherwise "overlap" every other session and fake a swarm.
@@ -425,6 +425,9 @@ pub fn extract(session_id: &str, source: &str, chunks: &[ActivityChunk]) -> Sess
                     chain = 0;
                 }
                 s.user_turns += 1;
+                let words = text.split_whitespace().count() as i64;
+                s.prompt_words += words;
+                s.longest_prompt_words = s.longest_prompt_words.max(words);
                 if !first_brief_seen {
                     first_brief_seen = true;
                     let head: String = text.chars().take(BRIEF_SCAN_CHARS).collect();
@@ -646,6 +649,17 @@ mod tests {
         assert_eq!(s.postedit_moveon_rate, 0.0);
         assert!(s.has_edit);
         assert_eq!(s.product_edit_share, 1.0);
+    }
+
+    #[test]
+    fn prompt_words_are_counted_from_human_turns() {
+        let chunks = vec![
+            user("fix the parser in the lexer module", "2026-07-01T10:00:00Z"),
+            user("ok", "2026-07-01T10:01:00Z"),
+        ];
+        let s = extract("s", "claude_code", &chunks);
+        assert_eq!(s.prompt_words, 8, "7 + 1 words across two turns");
+        assert_eq!(s.longest_prompt_words, 7);
     }
 
     #[test]

@@ -59,9 +59,12 @@ export interface BuilderProfile {
 }
 
 export interface ProfileCoverage {
+  /** Sessions processed: extracted plus unreadable tombstones. */
   extracted: number;
   known: number;
   stale: number;
+  /** Sessions whose transcript could not be read; parked, never scored. */
+  unreadable: number;
 }
 
 export interface SourceProfile {

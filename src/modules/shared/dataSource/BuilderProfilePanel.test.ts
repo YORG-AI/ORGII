@@ -160,7 +160,7 @@ function overview(over: Partial<BuilderProfileOverview> = {}) {
         detail: "Your deepest uninterrupted stretch with an agent.",
       },
     ],
-    coverage: { extracted: 394, known: 394, stale: 0 },
+    coverage: { extracted: 394, known: 394, stale: 0, unreadable: 0 },
     ...over,
   } as BuilderProfileOverview;
 }
@@ -182,7 +182,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   api.extract.mockResolvedValue({
     extractedNow: 0,
-    coverage: { extracted: 394, known: 394, stale: 0 },
+    coverage: { extracted: 394, known: 394, stale: 0, unreadable: 0 },
     more: false,
   });
   container = document.createElement("div");
@@ -254,10 +254,40 @@ describe("BuilderProfilePanel", () => {
     expect(container.textContent).toContain("tooFewSessions");
   });
 
+  it("shows no letters at all before any session has been read", async () => {
+    const base = overview();
+    api.overview.mockResolvedValue(
+      overview({
+        profile: {
+          ...base.profile,
+          sessions: 0,
+          hasEnoughSessions: false,
+        },
+      })
+    );
+    await mount();
+    // A default code would present as a confident type over zero evidence.
+    expect(
+      container.querySelector('[data-testid="builder-profile-code"]')
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="builder-profile-empty-code"]')
+        ?.textContent
+    ).toContain("noSessionsYet");
+  });
+
   it("reports how much of the history has been read as a progress bar", async () => {
     api.overview.mockResolvedValue(
-      overview({ coverage: { extracted: 120, known: 900, stale: 0 } })
+      overview({
+        coverage: { extracted: 120, known: 900, stale: 0, unreadable: 0 },
+      })
     );
+    // The extract tick reports coverage too, and being fresher it wins.
+    api.extract.mockResolvedValue({
+      extractedNow: 0,
+      coverage: { extracted: 120, known: 900, stale: 0, unreadable: 0 },
+      more: true,
+    });
     await mount();
 
     const region = container.querySelector(

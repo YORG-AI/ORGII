@@ -2,9 +2,9 @@
 //! agents, derived from the sessions already on their machine.
 //!
 //! Four axes, each a letter: Map/Explore, Direct/Delegate, Focused/Swarm,
-//! Systemize/Ship. A letter is printed only when it passes both gates in
-//! [`axes`]; otherwise the slot is `?`, which means *not measurable from your
-//! data* rather than *middling*.
+//! Systemize/Ship. Every axis always yields its letter; the two quality gates
+//! in [`axes`] grade how firmly it is held ([`axes::Clarity`]) instead of
+//! withholding it, with the reason attached as a caveat.
 //!
 //! Shape of the pipeline, mirroring [`crate::session_usage`]:
 //!
@@ -41,7 +41,8 @@ pub use signals::{SessionSignals, SIGNALS_VERSION};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BuilderProfile {
-    /// Four letters, `?` where a gate failed, e.g. `EAWH` or `EA?H`.
+    /// Four letters, e.g. `EAWH`. Never `?` — softness is carried by each
+    /// axis's clarity, not by withholding the letter.
     pub code: String,
     /// Always resolves — the code always has four letters.
     pub archetype: Option<String>,
