@@ -7,7 +7,7 @@
 
 - TypeScript `tsc --noEmit`: passed.
 - Focused ESLint over all changed collaboration/UI files: passed.
-- Twenty-four focused Vitest files: 230 tests passed after the capability-gate regression cases were added.
+- Twenty-four focused Vitest files: 229 tests passed after rebasing onto the latest `develop` and adding capability-gate regression coverage.
 - Cloud migration was statically reviewed; live apply and live two-account E2E remain deployment validation.
 
 ## Layer 2 — Dead code and structural deduplication
