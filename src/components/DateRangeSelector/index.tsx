@@ -93,7 +93,20 @@ const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
 
   return (
     <div className={`date-range-selector ${className}`}>
-      <div className={`${defaultClassName}`} onClick={() => setIsOpen(!isOpen)}>
+      <div
+        className={`${defaultClassName}`}
+        role="button"
+        tabIndex={0}
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen(!isOpen)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setIsOpen((prev) => !prev);
+          }
+        }}
+      >
         <Calendar className="text-[14px] text-text-2" size={14} />
         <span className="text-[14px] font-[400] text-text-2">
           {dateRange || placeholder}

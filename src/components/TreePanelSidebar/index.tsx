@@ -38,12 +38,10 @@ import { Virtuoso } from "react-virtuoso";
 import FolderIcon from "@src/assets/fileTypeIcons/folder-base.svg";
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import Input from "@src/components/Input";
+import ListPanelTabPillRow from "@src/components/ListPanel/ListPanelTabPillRow";
+import { Placeholder } from "@src/components/Placeholder";
 import TabPill from "@src/components/TabPill";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
-import {
-  ListPanelTabPillRow,
-  Placeholder,
-} from "@src/modules/shared/layouts/blocks";
 
 import {
   type TreePanelNode,

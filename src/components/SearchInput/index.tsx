@@ -210,13 +210,19 @@ export const SearchInput: React.FC<SearchInputProps> = memo(
       <div className={`${containerClass} ${className}`}>
         {/* Expand/collapse chevron */}
         {onExpandToggle && !hideChevron && (
-          <div onClick={onExpandToggle} className={buttonClass}>
+          <button
+            type="button"
+            onClick={onExpandToggle}
+            className={buttonClass}
+            aria-label={t("tooltips.toggleReplace", "Toggle replace")}
+            aria-expanded={expanded}
+          >
             {expanded ? (
               <ChevronDown size={iconSize} />
             ) : (
               <ChevronRight size={iconSize} />
             )}
-          </div>
+          </button>
         )}
 
         {/* Search input with inline options */}

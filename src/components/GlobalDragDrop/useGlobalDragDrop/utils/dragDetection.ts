@@ -5,10 +5,10 @@
  */
 import type { MutableRefObject } from "react";
 
-import { reorderActiveRef } from "@src/engines/ChatPanel/InputArea/components/QueuedMessages";
 import {
   isInternalFileTreeDragActive,
   isWorkstationTabDragActive,
+  messageQueueReorderActiveRef,
 } from "@src/shared/dnd/dragSideChannel";
 import { getNativeFrameScale } from "@src/util/platform/tauri/nativeFrame";
 
@@ -23,7 +23,7 @@ export function isInternalDrag(
   const dragEvent = event as DragEvent;
 
   // Queue reorder drag is always internal
-  if (reorderActiveRef.current) {
+  if (messageQueueReorderActiveRef.current) {
     return true;
   }
 
@@ -249,7 +249,7 @@ export function createPreventDefaults(
 ): (e: Event) => void {
   return (event: Event) => {
     // Queue reorder drag — never intercept
-    if (reorderActiveRef.current) return;
+    if (messageQueueReorderActiveRef.current) return;
 
     const dragEvent = event as DragEvent;
     const rawTypes = dragEvent.dataTransfer?.types;

@@ -21,6 +21,7 @@ import { RefreshCw, Terminal } from "lucide-react";
 import React, {
   memo,
   useCallback,
+  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -498,20 +499,30 @@ const DataSourcePanel: React.FC<DataSourcePanelProps> = ({
     [t]
   );
 
-  const visibleRows = (rows ?? []).filter((row) =>
-    tab === "apps" ? row.importable : tab === "clis" ? !row.importable : true
+  const importableCount = useMemo(
+    () => (rows ?? []).filter((row) => row.importable).length,
+    [rows]
   );
-  const importableCount = (rows ?? []).filter((r) => r.importable).length;
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const searchTerm = deferredSearchQuery.trim().toLowerCase();
+  const { visibleRows, searchedRows } = useMemo(() => {
+    const nextVisibleRows = (rows ?? []).filter((row) =>
+      tab === "apps" ? row.importable : tab === "clis" ? !row.importable : true
+    );
+    const nextSearchedRows = searchTerm
+      ? nextVisibleRows.filter((row) =>
+          [row.probe.displayName, row.probe.sourceId, ...row.probe.historyPaths]
+            .join(" ")
+            .toLowerCase()
+            .includes(searchTerm)
+        )
+      : nextVisibleRows;
 
-  const searchTerm = searchQuery.trim().toLowerCase();
-  const searchedRows = searchTerm
-    ? visibleRows.filter((row) =>
-        [row.probe.displayName, row.probe.sourceId, ...row.probe.historyPaths]
-          .join(" ")
-          .toLowerCase()
-          .includes(searchTerm)
-      )
-    : visibleRows;
+    return {
+      visibleRows: nextVisibleRows,
+      searchedRows: nextSearchedRows,
+    };
+  }, [rows, searchTerm, tab]);
 
   const statusTagFor = (
     row: SourceRow,
