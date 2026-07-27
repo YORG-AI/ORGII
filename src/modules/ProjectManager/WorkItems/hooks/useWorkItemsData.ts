@@ -28,6 +28,7 @@ import { createLogger } from "@src/hooks/logger";
 import { useDebouncedCallback } from "@src/hooks/perf";
 import { useProjectDataChanged } from "@src/hooks/project";
 import type { WorkItem as WorkItemExtended } from "@src/types/core/workItem";
+import { LatestScopedTask } from "@src/util/core/latestScopedTask";
 
 import { type OnAssignmentChanges, type StatusFilterType } from "../types";
 import {
@@ -206,6 +207,7 @@ export function useWorkItemsData({
   const [viewData, setViewData] = useState<WorkItemsViewData | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
   const [viewError, setViewError] = useState<string | null>(null);
+  const viewLoadCoordinator = useMemo(() => new LatestScopedTask(), []);
 
   // Debounced search query for IPC calls (avoid IPC on every keystroke)
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
@@ -221,33 +223,49 @@ export function useWorkItemsData({
 
   const fetchViewData = useCallback(async () => {
     if (!projectSlug) {
+      viewLoadCoordinator.supersede();
       setViewData(null);
+      setViewLoading(false);
       return;
     }
 
-    setViewLoading(true);
-    setViewError(null);
+    const normalizedSearch = debouncedSearchQuery.trim();
+    const scopeKey = JSON.stringify([
+      projectSlug,
+      statusFilter,
+      normalizedSearch,
+    ]);
+    await viewLoadCoordinator.run(scopeKey, async (context) => {
+      setViewLoading(true);
+      setViewError(null);
 
-    try {
-      await projectApi.purgeExpiredDeletedWorkItems(projectSlug);
-      const data = await projectApi.readWorkItemsViewData(projectSlug, {
-        statusFilter: statusFilter !== "all" ? statusFilter : undefined,
-        searchQuery: debouncedSearchQuery.trim() || undefined,
-      });
-      setViewData(data);
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to load work items";
-      logger.error("View data fetch error:", err);
-      setViewError(message);
-    } finally {
-      setViewLoading(false);
-    }
-  }, [projectSlug, statusFilter, debouncedSearchQuery]);
+      try {
+        await projectApi.purgeExpiredDeletedWorkItems(projectSlug);
+        const data = await projectApi.readWorkItemsViewData(projectSlug, {
+          statusFilter: statusFilter !== "all" ? statusFilter : undefined,
+          searchQuery: normalizedSearch || undefined,
+        });
+        if (context.isCurrent()) {
+          setViewData(data);
+        }
+      } catch (err) {
+        if (!context.isCurrent()) return;
+        const message =
+          err instanceof Error ? err.message : "Failed to load work items";
+        logger.error("View data fetch error:", err);
+        setViewError(message);
+      } finally {
+        if (context.isCurrent()) {
+          setViewLoading(false);
+        }
+      }
+    });
+  }, [debouncedSearchQuery, projectSlug, statusFilter, viewLoadCoordinator]);
 
   useEffect(() => {
-    fetchViewData();
-  }, [fetchViewData]);
+    void fetchViewData();
+    return () => viewLoadCoordinator.supersede();
+  }, [fetchViewData, viewLoadCoordinator]);
 
   // Listen for orgii-data-changed events
   useProjectDataChanged(
