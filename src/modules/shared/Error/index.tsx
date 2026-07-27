@@ -93,9 +93,24 @@ function getErrorInfo(error: unknown): { title: string; message: string } {
   };
 }
 
+function getErrorDiagnostic(
+  error: unknown,
+  message: string,
+  componentStack?: string
+): string {
+  const errorDetail = error instanceof Error ? error.stack || message : message;
+  const componentDetail = componentStack?.trim();
+
+  return componentDetail
+    ? `${errorDetail}\n\nReact component stack:\n${componentDetail}`
+    : errorDetail;
+}
+
 interface ErrorPageProps {
   /** Error passed from ErrorBoundary (optional) */
   error?: Error;
+  /** React component stack captured by ErrorBoundary (optional) */
+  componentStack?: string;
 }
 
 /**
@@ -104,6 +119,7 @@ interface ErrorPageProps {
  */
 const ErrorPageWithRouter: React.FC<ErrorPageProps> = ({
   error: propError,
+  componentStack,
 }) => {
   // Get error from React Router (works when used as errorElement)
   const routeError = useRouteError();
@@ -111,13 +127,18 @@ const ErrorPageWithRouter: React.FC<ErrorPageProps> = ({
   // Use route error if available, otherwise use prop error
   const errorToShow = routeError || propError;
 
-  return <ErrorPageContent error={errorToShow} />;
+  return (
+    <ErrorPageContent error={errorToShow} componentStack={componentStack} />
+  );
 };
 
 /**
  * Core error page content - receives error from either source
  */
-const ErrorPageContent: React.FC<{ error?: unknown }> = ({ error }) => {
+const ErrorPageContent: React.FC<{
+  error?: unknown;
+  componentStack?: string;
+}> = ({ error, componentStack }) => {
   // Extract user-friendly error info
   const { title, message: rawMessage } = useMemo(
     () => getErrorInfo(error),
@@ -127,6 +148,10 @@ const ErrorPageContent: React.FC<{ error?: unknown }> = ({ error }) => {
 
   // Clean message for display (strip ANSI codes)
   const cleanMessage = useMemo(() => stripAnsiCodes(rawMessage), [rawMessage]);
+  const copyDiagnostic = useMemo(
+    () => stripAnsiCodes(getErrorDiagnostic(error, rawMessage, componentStack)),
+    [componentStack, error, rawMessage]
+  );
 
   // Truncated message for display only
   const displayMessage = useMemo(
@@ -136,14 +161,13 @@ const ErrorPageContent: React.FC<{ error?: unknown }> = ({ error }) => {
 
   const handleCopy = useCallback(async () => {
     try {
-      // Copy the full clean message (not truncated)
-      await copyText(cleanMessage);
+      await copyText(copyDiagnostic);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       logger.error("Failed to copy:", err);
     }
-  }, [cleanMessage]);
+  }, [copyDiagnostic]);
 
   // Log error for debugging
   useEffect(() => {
@@ -263,7 +287,12 @@ const ErrorPage: React.FC<ErrorPageProps> = (props) => {
   // If we have an error prop (from ErrorBoundary), render content directly
   // This avoids calling useRouteError outside of a router context
   if (props.error) {
-    return <ErrorPageContent error={props.error} />;
+    return (
+      <ErrorPageContent
+        error={props.error}
+        componentStack={props.componentStack}
+      />
+    );
   }
 
   // Otherwise, try to get error from router (for errorElement usage)

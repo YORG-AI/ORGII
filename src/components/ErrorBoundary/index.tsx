@@ -99,7 +99,12 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
   render() {
     if (this.state.hasError) {
-      return <ErrorPage error={this.state.error} />;
+      return (
+        <ErrorPage
+          error={this.state.error}
+          componentStack={this.state.errorInfo?.componentStack ?? undefined}
+        />
+      );
     }
 
     return this.props.children;
