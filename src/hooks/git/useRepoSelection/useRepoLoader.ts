@@ -94,6 +94,7 @@ export function useRepoLoader(): UseRepoLoaderReturn {
   const isHotReloadRef = useRef(false);
   const selectedRepoIdRef = useRef(selectedRepoId);
   const loadGenerationRef = useRef(0);
+  const forceRefreshRequestedRef = useRef(false);
 
   // === HOT RELOAD FIX ===
   if (repos.length > 0 && !loadedReposRef.current && !isHotReloadRef.current) {
@@ -124,11 +125,13 @@ export function useRepoLoader(): UseRepoLoaderReturn {
   }
 
   const loadRepos = useCallback(async () => {
-    if (globalLoadInProgress) {
+    const forceRefresh = forceRefreshRequestedRef.current;
+    forceRefreshRequestedRef.current = false;
+    if (globalLoadInProgress && !forceRefresh) {
       return;
     }
 
-    if (globalReposLoaded && loadedReposRef.current) {
+    if (!forceRefresh && globalReposLoaded && loadedReposRef.current) {
       return;
     }
 
@@ -139,7 +142,7 @@ export function useRepoLoader(): UseRepoLoaderReturn {
     let loadSucceeded = false;
 
     try {
-      const response = await getRepos();
+      const response = await getRepos({ forceRefresh });
 
       // Discard stale response when forceRefreshRepos() started a newer call.
       // The newer call already owns globalLoadInProgress and loadingReposRef,
@@ -230,7 +233,7 @@ export function useRepoLoader(): UseRepoLoaderReturn {
   const forceRefreshRepos = useCallback(async () => {
     loadedReposRef.current = false;
     setGlobalReposLoaded(false);
-    setGlobalLoadInProgress(false);
+    forceRefreshRequestedRef.current = true;
     await loadRepos();
   }, [loadRepos]);
 
