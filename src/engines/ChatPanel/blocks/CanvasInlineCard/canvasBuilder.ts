@@ -77,14 +77,6 @@ const BASE_STYLES = `
   ::-webkit-scrollbar-thumb{background:var(--color-fill-3,rgba(255,255,255,.15));border-radius:3px;}
 `;
 
-const EVAL_BRIDGE_SCRIPT = `
-window.addEventListener('message',(e)=>{
-  if(e.data&&e.data.type==='canvas_eval'&&e.data.javascript){
-    try{eval(e.data.javascript);}catch(err){console.error('[canvas]',err);}
-  }
-});
-`;
-
 /**
  * Detect a payload that is already a full HTML document. Nesting another
  * `<html>` / `<head>` inside our wrapper `<body>` produces malformed markup
@@ -115,7 +107,6 @@ export function buildHtmlDocument(html: string): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 ${themeStyleTag}<style nonce="${IFRAME_STYLE_NONCE}">${BASE_STYLES}</style>
-<script nonce="${IFRAME_STYLE_NONCE}">${EVAL_BRIDGE_SCRIPT}</script>
 </head><body style="padding:16px">${html}</body></html>`;
 }
 
