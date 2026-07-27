@@ -1,10 +1,6 @@
 import { z } from "zod/v4";
 
-import {
-  AvailableAgentSchema,
-  ModelTypeSchema,
-  NativeHarnessTypeSchema,
-} from "./validation";
+import { ModelTypeSchema, NativeHarnessTypeSchema } from "./validation";
 
 const JsonRecordSchema = z.record(z.string(), z.unknown());
 
@@ -185,8 +181,6 @@ export const OrgJsonInput = z.object({
 export const OrgIdInput = z.object({
   orgId: z.string(),
 });
-
-export const AvailableCliAgentsSchema = z.array(AvailableAgentSchema);
 
 export const CliPermissionModeSchema = z.enum([
   "plan",

@@ -365,6 +365,26 @@ pub fn resolve_cli_binary_for_registry_name(name: &str) -> Option<CliBinaryResol
     id_for_registry_name(name).map(resolve_cli_binary)
 }
 
+/// Resolve a registry CLI for inventory/discovery without launching a login shell.
+///
+/// App startup already augments the process `PATH` from the user's login shell.
+/// Inventory callers can therefore stay bounded to the supplied `PATH` plus
+/// known install locations instead of launching one interactive shell per
+/// missing CLI.
+pub fn resolve_cli_binary_for_inventory(
+    name: &str,
+    path_env: Option<OsString>,
+) -> Option<CliBinaryResolution> {
+    id_for_registry_name(name).map(|id| {
+        let options = ResolveOptions {
+            path_env,
+            search_login_shell: false,
+            ..ResolveOptions::default()
+        };
+        resolve_cli_binary_with_options(id, &options)
+    })
+}
+
 pub fn resolve_cli_binary(id: CliBinaryId) -> CliBinaryResolution {
     resolve_cli_binary_with_options(id, &ResolveOptions::default())
 }
@@ -465,6 +485,7 @@ struct ResolveOptions {
     path_env: Option<OsString>,
     shell: Option<OsString>,
     home_dir: Option<PathBuf>,
+    search_login_shell: bool,
     login_shell_timeout: Duration,
 }
 
@@ -474,6 +495,7 @@ impl Default for ResolveOptions {
             path_env: env::var_os("PATH"),
             shell: env::var_os("SHELL"),
             home_dir: dirs::home_dir(),
+            search_login_shell: true,
             login_shell_timeout: LOGIN_SHELL_TIMEOUT,
         }
     }
@@ -496,18 +518,25 @@ fn resolve_cli_binary_with_options(
     }
     diagnostics.push(format!("{} not found on process PATH", metadata.command));
 
-    if let Some(path) = resolve_via_login_shell(metadata.command, options) {
-        return CliBinaryResolution {
-            metadata,
-            command: path.to_string_lossy().to_string(),
-            source: CliBinaryResolutionSource::LoginShell,
-            diagnostics,
-        };
+    if options.search_login_shell {
+        if let Some(path) = resolve_via_login_shell(metadata.command, options) {
+            return CliBinaryResolution {
+                metadata,
+                command: path.to_string_lossy().to_string(),
+                source: CliBinaryResolutionSource::LoginShell,
+                diagnostics,
+            };
+        }
+        diagnostics.push(format!(
+            "{} not found via login-shell lookup",
+            metadata.command
+        ));
+    } else {
+        diagnostics.push(format!(
+            "{} login-shell lookup skipped for bounded inventory",
+            metadata.command
+        ));
     }
-    diagnostics.push(format!(
-        "{} not found via login-shell lookup",
-        metadata.command
-    ));
 
     if let Some(path) = known_locations_for(id, options)
         .into_iter()
@@ -741,6 +770,7 @@ mod tests {
             path_env: Some(OsString::from(temp_dir.path().as_os_str())),
             shell: Some(OsString::from("/bin/false")),
             home_dir: None,
+            search_login_shell: true,
             login_shell_timeout: Duration::from_millis(10),
         };
 
@@ -762,6 +792,7 @@ mod tests {
             path_env: Some(OsString::new()),
             shell: Some(OsString::from("/bin/false")),
             home_dir: Some(temp_dir.path().to_path_buf()),
+            search_login_shell: true,
             login_shell_timeout: Duration::from_millis(10),
         };
 
@@ -782,6 +813,7 @@ mod tests {
             path_env: Some(OsString::new()),
             shell: Some(shell.into_os_string()),
             home_dir: None,
+            search_login_shell: true,
             login_shell_timeout: Duration::from_millis(500),
         };
 
@@ -792,6 +824,35 @@ mod tests {
             CliBinaryResolutionSource::BareCommandFallback
         );
         assert!(!resolution.installed());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bounded_inventory_skips_login_shell() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let marker = temp_dir.path().join("shell-invoked");
+        let shell = temp_dir.path().join("fake-shell");
+        fs::write(
+            &shell,
+            format!("#!/bin/sh\ntouch '{}'\n", marker.to_string_lossy()),
+        )
+        .unwrap();
+        set_executable(&shell);
+
+        let options = ResolveOptions {
+            path_env: Some(OsString::new()),
+            shell: Some(shell.into_os_string()),
+            home_dir: None,
+            search_login_shell: false,
+            login_shell_timeout: Duration::from_millis(500),
+        };
+
+        let resolution = resolve_cli_binary_with_options(CliBinaryId::Codex, &options);
+        assert_eq!(
+            resolution.source,
+            CliBinaryResolutionSource::BareCommandFallback
+        );
+        assert!(!marker.exists(), "inventory must not launch a login shell");
     }
 
     #[cfg(unix)]

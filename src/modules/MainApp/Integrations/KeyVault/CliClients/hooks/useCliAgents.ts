@@ -1,11 +1,11 @@
 /**
  * Hook for fetching CLI agents and performing install/uninstall/detect actions.
  */
-import { invoke } from "@tauri-apps/api/core";
 import { useSetAtom } from "jotai";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { loadAvailableAgents } from "@src/api/services/availableAgents";
 import { autoDetectKey } from "@src/api/services/keyValidation";
 import type { ModelType } from "@src/api/types/keys";
 import Message from "@src/components/Message";
@@ -35,7 +35,7 @@ export function useCliAgents({ enabled = true }: UseCliAgentsOptions = {}) {
     setLoading(true);
     setError(null);
     try {
-      const raw = await invoke<AvailableAgent[]>("get_available_agents");
+      const raw = await loadAvailableAgents();
       const sorted = [...raw].sort((agentA, agentB) => {
         const installedDiff =
           Number(agentB.installed) - Number(agentA.installed);

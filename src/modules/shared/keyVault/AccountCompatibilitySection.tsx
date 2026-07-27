@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { loadAvailableAgents } from "@src/api/services/availableAgents";
 import { rpc } from "@src/api/tauri/rpc";
 import type {
   AvailableAgent,
@@ -55,8 +56,7 @@ export const AccountCompatibilitySection: React.FC<
           logger.error("Failed to load API provider compatibility", error);
         });
     } else {
-      rpc.validation
-        .getAvailableAgents()
+      loadAvailableAgents()
         .then((agents) => {
           if (cancelled) return;
           const match = agents.find(

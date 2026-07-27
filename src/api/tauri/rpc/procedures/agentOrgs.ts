@@ -190,9 +190,6 @@ const orgs = {
 } as const;
 
 export const agentOrgs = {
-  availableCliAgents: defineProcedure("get_available_agents")
-    .output(schemas.agentOrgs.AvailableCliAgentsSchema)
-    .build(),
   cursor,
   codex,
   claudeCode,

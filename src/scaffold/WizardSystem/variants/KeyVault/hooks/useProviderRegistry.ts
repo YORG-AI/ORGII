@@ -9,6 +9,7 @@ import { useSetAtom } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { loadAvailableAgents } from "@src/api/services/availableAgents";
 import { rpc } from "@src/api/tauri/rpc";
 import type {
   AvailableAgent,
@@ -198,7 +199,7 @@ async function loadRegistry(): Promise<RegistryCache> {
   if (loadingPromise) return loadingPromise;
 
   loadingPromise = Promise.all([
-    rpc.validation.getAvailableAgents(),
+    loadAvailableAgents(),
     rpc.validation.getAvailableApiProviders(),
   ]).then(([agents, apiProviders]) => {
     registryCache = { agents, apiProviders };
