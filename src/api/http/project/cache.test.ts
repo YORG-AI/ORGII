@@ -27,6 +27,24 @@ describe("project read cache invalidation fencing", () => {
     ]);
   });
 
+  it("can deduplicate only the active request without caching its result", async () => {
+    const fetcher = vi
+      .fn<() => Promise<string>>()
+      .mockResolvedValueOnce("first")
+      .mockResolvedValueOnce("second");
+
+    const first = cachedRead("project:filtered", fetcher, { maxAgeMs: 0 });
+    const joined = cachedRead("project:filtered", fetcher, { maxAgeMs: 0 });
+    await expect(Promise.all([first, joined])).resolves.toEqual([
+      "first",
+      "first",
+    ]);
+    await expect(
+      cachedRead("project:filtered", fetcher, { maxAgeMs: 0 })
+    ).resolves.toBe("second");
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
   it("never lets a pre-invalidation Promise resurrect or return stale data", async () => {
     let resolveStale: ((value: string) => void) | undefined;
     const fetcher = vi

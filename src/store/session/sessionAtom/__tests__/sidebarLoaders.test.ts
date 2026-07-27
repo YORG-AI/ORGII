@@ -3,11 +3,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { IMPORTED_HISTORY_SOURCES } from "@src/api/tauri/externalHistory";
 
-import { dataSourceConfigAtom } from "../../dataSourceConfigAtom";
-import { sessionsAtom } from "../atoms";
+import {
+  dataSourceConfigAtom,
+  externalSessionsEnabledAtom,
+} from "../../dataSourceConfigAtom";
+import {
+  sessionLastLoadedAtom,
+  sessionLoadingAtom,
+  sessionsAtom,
+} from "../atoms";
 import {
   __TESTS_ONLY,
   loadMoreCategory,
+  loadSessions,
   loadSidebarSessionById,
   loadSidebarSessions,
 } from "../loaders";
@@ -149,6 +157,200 @@ describe("loadSidebarSessions", () => {
           ?.yesterday
       ).toEqual({ loaded: 1, hasMore: false });
     }
+  });
+
+  it("shares one in-flight initial load between concurrent consumers", async () => {
+    let releaseExternalHistory!: () => void;
+    const externalHistoryPending = new Promise<void>((resolve) => {
+      releaseExternalHistory = resolve;
+    });
+    mocks.sessionAggregateList.mockResolvedValue({ sessions: [] });
+    mocks.externalHistorySidebarList.mockImplementation(
+      async (request: {
+        requests: Array<{
+          source: string;
+          buckets: Array<{ bucket: string }>;
+        }>;
+      }) => {
+        await externalHistoryPending;
+        return {
+          sources: request.requests.map((sourceRequest) => ({
+            source: sourceRequest.source,
+            buckets: sourceRequest.buckets.map(({ bucket }) => ({
+              bucket,
+              sessions: [],
+              hasMore: false,
+            })),
+          })),
+        };
+      }
+    );
+
+    const firstLoad = loadSidebarSessions({ forceRefresh: true });
+    const secondLoad = loadSidebarSessions({ forceRefresh: true });
+    const thirdLoad = loadSidebarSessions();
+
+    expect(mocks.sessionAggregateList).toHaveBeenCalledTimes(2);
+    expect(mocks.externalHistorySidebarList).toHaveBeenCalledTimes(1);
+
+    releaseExternalHistory();
+    await Promise.all([firstLoad, secondLoad, thirdLoad]);
+    expect(mocks.persistSessions).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not let a cache hit suppress a same-tick forced refresh", async () => {
+    mocks.store?.set(sessionLastLoadedAtom, Date.now());
+    mocks.sessionAggregateList.mockResolvedValue({ sessions: [] });
+    mocks.externalHistorySidebarList.mockImplementation(
+      async (request: {
+        requests: Array<{
+          source: string;
+          buckets: Array<{ bucket: string }>;
+        }>;
+      }) => ({
+        sources: request.requests.map((sourceRequest) => ({
+          source: sourceRequest.source,
+          buckets: sourceRequest.buckets.map(({ bucket }) => ({
+            bucket,
+            sessions: [],
+            hasMore: false,
+          })),
+        })),
+      })
+    );
+
+    const cachedLoad = loadSidebarSessions();
+    const forcedLoad = loadSidebarSessions({ forceRefresh: true });
+    await Promise.all([cachedLoad, forcedLoad]);
+
+    expect(mocks.sessionAggregateList).toHaveBeenCalledTimes(2);
+    expect(mocks.externalHistorySidebarList).toHaveBeenCalledTimes(1);
+  });
+
+  it("shares one flat-list request between concurrent hook consumers", async () => {
+    let release!: (value: { sessions: unknown[] }) => void;
+    mocks.sessionAggregateList.mockImplementation(
+      () =>
+        new Promise<{ sessions: unknown[] }>((resolve) => {
+          release = resolve;
+        })
+    );
+
+    const first = loadSessions();
+    const second = loadSessions();
+
+    expect(mocks.sessionAggregateList).toHaveBeenCalledTimes(1);
+    release({ sessions: [] });
+    await Promise.all([first, second]);
+    expect(mocks.persistSessions).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs one forced flat-list refresh after an active non-forced load", async () => {
+    let releaseFirst!: (value: { sessions: unknown[] }) => void;
+    const staleSession = {
+      session_id: "stale",
+      name: "Stale",
+      status: "completed" as const,
+      created_at: "2026-07-01T00:00:00Z",
+      updated_at: "2026-07-01T00:00:00Z",
+    };
+    const freshSession = {
+      ...staleSession,
+      session_id: "fresh",
+      name: "Fresh",
+      updated_at: "2026-07-02T00:00:00Z",
+    };
+    mocks.sessionAggregateList
+      .mockImplementationOnce(
+        () =>
+          new Promise<{ sessions: unknown[] }>((resolve) => {
+            releaseFirst = resolve;
+          })
+      )
+      .mockResolvedValueOnce({ sessions: [freshSession] });
+
+    const first = loadSessions();
+    const forced = loadSessions({ forceRefresh: true });
+
+    expect(mocks.sessionAggregateList).toHaveBeenCalledTimes(1);
+    releaseFirst({ sessions: [staleSession] });
+    await first;
+    await forced;
+
+    expect(mocks.sessionAggregateList).toHaveBeenCalledTimes(2);
+    expect(mocks.store?.get(sessionsAtom)).toEqual([freshSession]);
+    expect(mocks.persistSessions).toHaveBeenCalledTimes(1);
+    expect(mocks.store?.get(sessionLoadingAtom)).toBe(false);
+  });
+
+  it("treats external-source configuration as part of the flat-list scope", async () => {
+    let releaseFirst!: (value: { sessions: unknown[] }) => void;
+    mocks.sessionAggregateList
+      .mockImplementationOnce(
+        () =>
+          new Promise<{ sessions: unknown[] }>((resolve) => {
+            releaseFirst = resolve;
+          })
+      )
+      .mockResolvedValueOnce({ sessions: [] });
+
+    const first = loadSessions();
+    mocks.store?.set(externalSessionsEnabledAtom, false);
+    const changedScope = loadSessions();
+
+    releaseFirst({ sessions: [] });
+    await Promise.all([first, changedScope]);
+
+    expect(mocks.sessionAggregateList).toHaveBeenCalledTimes(2);
+    expect(mocks.sessionAggregateList).toHaveBeenLastCalledWith(
+      expect.objectContaining({ includeExternalHistory: false })
+    );
+  });
+
+  it("runs a trailing load when the data-source scope changes in flight", async () => {
+    let releaseFirstLoad!: () => void;
+    const firstLoadPending = new Promise<void>((resolve) => {
+      releaseFirstLoad = resolve;
+    });
+    mocks.sessionAggregateList.mockResolvedValue({ sessions: [] });
+    mocks.externalHistorySidebarList.mockImplementation(
+      async (request: {
+        requests: Array<{
+          source: string;
+          buckets: Array<{ bucket: string }>;
+        }>;
+      }) => {
+        await firstLoadPending;
+        return {
+          sources: request.requests.map((sourceRequest) => ({
+            source: sourceRequest.source,
+            buckets: sourceRequest.buckets.map(({ bucket }) => ({
+              bucket,
+              sessions: [],
+              hasMore: false,
+            })),
+          })),
+        };
+      }
+    );
+
+    const firstLoad = loadSidebarSessions({ forceRefresh: true });
+    mocks.store?.set(dataSourceConfigAtom, {
+      warp: { enabled: false, frequency: "default", lastScannedAt: null },
+    });
+    const changedScopeLoad = loadSidebarSessions({ forceRefresh: true });
+
+    expect(mocks.externalHistorySidebarList).toHaveBeenCalledTimes(1);
+    releaseFirstLoad();
+    await Promise.all([firstLoad, changedScopeLoad]);
+
+    expect(mocks.sessionAggregateList).toHaveBeenCalledTimes(4);
+    expect(mocks.externalHistorySidebarList).toHaveBeenCalledTimes(2);
+    const trailingSources =
+      mocks.externalHistorySidebarList.mock.calls[1][0].requests.map(
+        ({ source }: { source: string }) => source
+      );
+    expect(trailingSources).not.toContain("warp");
   });
 
   it("continues each external date bucket from its own offset", async () => {

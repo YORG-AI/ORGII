@@ -64,8 +64,32 @@ import type { Session, SessionStatus } from "./types";
 const log = createLogger("SessionAtom");
 
 const getStore = () => getInstrumentedStore();
+type SessionStore = ReturnType<typeof getStore>;
+
 const BULK_CACHE_DURATION_MS = 5 * 60 * 1000;
 const DEFAULT_FLAT_LIST_PAGE_SIZE = 200;
+interface SidebarLoadFlight {
+  scopeKey: string;
+  promise: Promise<void>;
+}
+const sidebarLoadInFlightByStore = new WeakMap<
+  SessionStore,
+  SidebarLoadFlight
+>();
+
+interface FlatLoadFlight {
+  scopeKey: string;
+  forceRefresh: boolean;
+  generation: number;
+  promise: Promise<void>;
+}
+
+interface FlatLoadState {
+  generation: number;
+  flight?: FlatLoadFlight;
+}
+
+const flatLoadStateByStore = new WeakMap<SessionStore, FlatLoadState>();
 
 interface LoadSessionsOptions {
   repoPath?: string;
@@ -85,9 +109,39 @@ function loadSessionsCacheSignature(options?: LoadSessionsOptions): string {
     options?.projectSlug ?? "",
     options?.workItemId ?? "",
     options?.status ?? "",
-    options?.limit ?? "",
-    options?.offset ?? "",
+    options?.limit ?? DEFAULT_FLAT_LIST_PAGE_SIZE,
+    options?.offset ?? 0,
   ].join("\u001f");
+}
+
+interface FlatLoadScope {
+  cacheSignature: string;
+  disabledSources: string[];
+  includeExternalHistory: boolean;
+  scopeKey: string;
+}
+
+function getFlatLoadScope(
+  store: SessionStore,
+  options?: LoadSessionsOptions
+): FlatLoadScope {
+  const disabledSources = Object.entries(store.get(dataSourceConfigAtom))
+    .filter(([, config]) => config?.enabled === false)
+    .map(([sourceId]) => sourceId)
+    .sort();
+  const includeExternalHistory = store.get(externalSessionsEnabledAtom);
+  const filterSignature = loadSessionsCacheSignature(options);
+  const scopeKey = JSON.stringify([
+    filterSignature,
+    includeExternalHistory,
+    disabledSources,
+  ]);
+  return {
+    cacheSignature: scopeKey,
+    disabledSources,
+    includeExternalHistory,
+    scopeKey,
+  };
 }
 
 function mergeSessions(
@@ -296,24 +350,13 @@ function mergeDateBucketPagination(
   return next;
 }
 
-export const loadSessions = async (options?: LoadSessionsOptions) => {
-  const store = getStore();
-  const { forceRefresh = false } = options || {};
-  const cacheSignature = loadSessionsCacheSignature(options);
-
-  const lastLoaded = store.get(sessionFlatListLastLoadedBySignatureAtom)[
-    cacheSignature
-  ];
-  const now = Date.now();
-
-  if (
-    !forceRefresh &&
-    lastLoaded &&
-    now - lastLoaded < BULK_CACHE_DURATION_MS
-  ) {
-    return;
-  }
-
+async function performFlatSessionLoad(
+  store: SessionStore,
+  state: FlatLoadState,
+  generation: number,
+  scope: FlatLoadScope,
+  options?: LoadSessionsOptions
+): Promise<void> {
   store.set(sessionLoadingAtom, true);
   store.set(sessionErrorAtom, null);
 
@@ -337,18 +380,14 @@ export const loadSessions = async (options?: LoadSessionsOptions) => {
           }
         : undefined;
 
-    const disabledSources = Object.entries(store.get(dataSourceConfigAtom))
-      .filter(([, cfg]) => cfg?.enabled === false)
-      .map(([sourceId]) => sourceId);
-
     const response = await sessionAggregateList({
       ...filter,
       limit: filter?.limit ?? DEFAULT_FLAT_LIST_PAGE_SIZE,
-      includeExternalHistory: store.get(externalSessionsEnabledAtom),
+      includeExternalHistory: scope.includeExternalHistory,
       sortBy: filter?.sortBy ?? "updated_at",
       sortOrder: filter?.sortOrder ?? "desc",
       disabledExternalHistorySources:
-        disabledSources.length > 0 ? disabledSources : undefined,
+        scope.disabledSources.length > 0 ? scope.disabledSources : undefined,
     });
 
     const fetched: Session[] = mergeGuestImportedSessions(
@@ -359,20 +398,94 @@ export const loadSessions = async (options?: LoadSessionsOptions) => {
       (sessionB.updated_at || "").localeCompare(sessionA.updated_at || "")
     );
 
+    if (state.generation !== generation) return;
+
     store.set(sessionsAtom, fetched);
     persistSessions(fetched);
     store.set(sessionFlatListLastLoadedBySignatureAtom, (prev) => ({
       ...prev,
-      [cacheSignature]: now,
+      [scope.cacheSignature]: Date.now(),
     }));
   } catch (error) {
+    if (state.generation !== generation) return;
     log.error("[SessionAtom] Failed to load sessions:", error);
     store.set(
       sessionErrorAtom,
       error instanceof Error ? error.message : "Failed to load sessions"
     );
   } finally {
-    store.set(sessionLoadingAtom, false);
+    if (state.generation === generation) {
+      store.set(sessionLoadingAtom, false);
+    }
+  }
+}
+
+/**
+ * Coordinate flat-list requests across every hook instance using this store.
+ *
+ * Equal scopes share one request. A stronger forced refresh or changed scope
+ * supersedes the current generation, waits for it to release the IPC slot,
+ * and then performs one trailing request. Superseded responses never write.
+ */
+export const loadSessions = async (
+  options?: LoadSessionsOptions
+): Promise<void> => {
+  const store = getStore();
+  const forceRefresh = options?.forceRefresh ?? false;
+  const scope = getFlatLoadScope(store, options);
+  const lastLoaded = store.get(sessionFlatListLastLoadedBySignatureAtom)[
+    scope.cacheSignature
+  ];
+
+  if (
+    !forceRefresh &&
+    lastLoaded &&
+    Date.now() - lastLoaded < BULK_CACHE_DURATION_MS
+  ) {
+    return;
+  }
+
+  let state = flatLoadStateByStore.get(store);
+  if (!state) {
+    state = { generation: 0 };
+    flatLoadStateByStore.set(store, state);
+  }
+
+  const current = state.flight;
+  if (current) {
+    const currentSatisfiesRequest =
+      current.scopeKey === scope.scopeKey &&
+      (!forceRefresh || current.forceRefresh);
+    if (currentSatisfiesRequest) return current.promise;
+
+    // Fence the old response immediately, before waiting for its IPC call.
+    state.generation += 1;
+    await current.promise;
+    return loadSessions(options);
+  }
+
+  const generation = state.generation + 1;
+  state.generation = generation;
+  const promise = performFlatSessionLoad(
+    store,
+    state,
+    generation,
+    scope,
+    options
+  );
+  state.flight = {
+    scopeKey: scope.scopeKey,
+    forceRefresh,
+    generation,
+    promise,
+  };
+
+  try {
+    await promise;
+  } finally {
+    if (state.flight?.promise === promise) {
+      state.flight = undefined;
+    }
   }
 };
 
@@ -444,24 +557,26 @@ function replaceFirstPageForCategory(
   return mergeSessions(prev, incoming);
 }
 
-export const loadSidebarSessions = async (options?: {
-  pageSize?: number;
-  forceRefresh?: boolean;
-}) => {
-  const store = getStore();
-  const pageSize = options?.pageSize ?? SESSION_SIDEBAR_PAGE_SIZE;
-  const { forceRefresh = false } = options ?? {};
+function getSidebarLoadScopeKey(store: SessionStore, pageSize: number): string {
+  const configuredSources = Object.entries(store.get(dataSourceConfigAtom))
+    .map(([sourceId, config]) => [sourceId, config?.enabled !== false] as const)
+    .sort(([sourceA], [sourceB]) => sourceA.localeCompare(sourceB));
+  return JSON.stringify([
+    pageSize,
+    store.get(externalSessionsEnabledAtom),
+    configuredSources,
+  ]);
+}
 
-  const lastLoaded = store.get(sessionLastLoadedAtom);
-  const now = Date.now();
-
-  if (
-    !forceRefresh &&
-    lastLoaded &&
-    now - lastLoaded < BULK_CACHE_DURATION_MS
-  ) {
-    return;
+async function performSidebarSessionsLoad(
+  store: SessionStore,
+  options?: {
+    pageSize?: number;
+    forceRefresh?: boolean;
   }
+): Promise<void> {
+  const pageSize = options?.pageSize ?? SESSION_SIDEBAR_PAGE_SIZE;
+  const now = Date.now();
 
   store.set(sessionLoadingAtom, true);
   store.set(sessionErrorAtom, null);
@@ -557,6 +672,52 @@ export const loadSidebarSessions = async (options?: {
   persistSessions(merged);
   store.set(sessionLastLoadedAtom, now);
   store.set(sessionLoadingAtom, false);
+}
+
+/**
+ * Share one sidebar refresh between concurrent consumers.
+ *
+ * Mount, search, auto-scan, and manual refresh can all request the same initial
+ * pages in one interaction. The first request starts immediately; later
+ * callers await it instead of duplicating the two aggregate queries and the
+ * external-history batch.
+ */
+export const loadSidebarSessions = async (options?: {
+  pageSize?: number;
+  forceRefresh?: boolean;
+}): Promise<void> => {
+  const store = getStore();
+  const pageSize = options?.pageSize ?? SESSION_SIDEBAR_PAGE_SIZE;
+  const lastLoaded = store.get(sessionLastLoadedAtom);
+  if (
+    !options?.forceRefresh &&
+    lastLoaded &&
+    Date.now() - lastLoaded < BULK_CACHE_DURATION_MS
+  ) {
+    return;
+  }
+
+  const inFlight = sidebarLoadInFlightByStore.get(store);
+  const scopeKey = getSidebarLoadScopeKey(store, pageSize);
+  if (inFlight) {
+    if (inFlight.scopeKey === scopeKey) return inFlight.promise;
+    try {
+      await inFlight.promise;
+    } catch {
+      // The caller targets a newer scope and still deserves its own attempt.
+    }
+    return loadSidebarSessions(options);
+  }
+
+  const pass = performSidebarSessionsLoad(store, options);
+  sidebarLoadInFlightByStore.set(store, { scopeKey, promise: pass });
+  try {
+    await pass;
+  } finally {
+    if (sidebarLoadInFlightByStore.get(store)?.promise === pass) {
+      sidebarLoadInFlightByStore.delete(store);
+    }
+  }
 };
 
 /**

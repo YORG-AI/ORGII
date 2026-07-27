@@ -15,6 +15,7 @@ import React, { useCallback, useMemo, useState } from "react";
 
 import Button from "@src/components/Button";
 import Dropdown from "@src/components/Dropdown";
+import { DropdownItem } from "@src/components/Dropdown/exports";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_WIDTHS,
@@ -195,26 +196,28 @@ export function ManagedIssueRow({
   const closeMenu = useCallback(() => setMenuVisible(false), []);
   const droplist = (
     <div className={`${DROPDOWN_CLASSES.menuPanelBase} min-w-[180px]`}>
-      <button
-        type="button"
-        className={DROPDOWN_CLASSES.menuActionItem}
+      <DropdownItem
+        role="menuitem"
+        fullWidth
+        tabIndex={0}
         onClick={() => {
           onOpenIssueInBrowser(issue);
           closeMenu();
         }}
       >
-        <span className="min-w-0 flex-1 truncate">{openInBrowserLabel}</span>
-      </button>
-      <button
-        type="button"
-        className={DROPDOWN_CLASSES.menuActionItem}
+        {openInBrowserLabel}
+      </DropdownItem>
+      <DropdownItem
+        role="menuitem"
+        fullWidth
+        tabIndex={0}
         onClick={() => {
           onOpenIssueInMyStation(issue);
           closeMenu();
         }}
       >
-        <span className="min-w-0 flex-1 truncate">{openInMyStationLabel}</span>
-      </button>
+        {openInMyStationLabel}
+      </DropdownItem>
     </div>
   );
 

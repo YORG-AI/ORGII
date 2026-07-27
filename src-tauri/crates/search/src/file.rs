@@ -15,11 +15,15 @@ use nucleo_matcher::pattern::{CaseMatching, Normalization, Pattern};
 use nucleo_matcher::{Config, Matcher, Utf32Str};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::sync::{Arc, LazyLock};
+use std::time::{Duration, Instant};
 use tracing::{debug, info, warn};
+
+#[path = "file/index_cache.rs"]
+mod index_cache;
+
+use index_cache::FilePathIndexCache;
 
 // ============================================
 // Types
@@ -62,57 +66,34 @@ struct FileEntry {
     is_dir: bool,
 }
 
-struct FileIndex {
-    entries: Vec<FileEntry>,
-    _root_path: String,
-    indexed_at: std::time::SystemTime,
-}
-
-/// Cache TTL — 5 minutes.  The old 30 s TTL caused a cold re-walk every time
-/// the user paused for half a minute between @ searches.
-const CACHE_TTL_SECS: u64 = 300;
+/// File changes invalidate indexes through the repository watcher. This slow
+/// safety TTL only recovers from a missed watcher event; it is not a polling
+/// cadence and does not create background work by itself.
+const CACHE_SAFETY_TTL: Duration = Duration::from_secs(60 * 60);
 const MAX_CACHED_FILE_INDEXES: usize = 4;
 
-static FILE_INDEX_CACHE: std::sync::LazyLock<Arc<Mutex<HashMap<String, FileIndex>>>> =
-    std::sync::LazyLock::new(|| Arc::new(Mutex::new(HashMap::new())));
+static FILE_INDEX_CACHE: LazyLock<FilePathIndexCache> =
+    LazyLock::new(|| FilePathIndexCache::new(CACHE_SAFETY_TTL, MAX_CACHED_FILE_INDEXES));
 
-fn prune_file_index_cache(cache: &mut HashMap<String, FileIndex>) {
-    cache.retain(|_, index| {
-        index
-            .indexed_at
-            .elapsed()
-            .map(|elapsed| elapsed.as_secs() < CACHE_TTL_SECS)
-            .unwrap_or(false)
-    });
+const DEFAULT_EXCLUDED_DIRS: &[&str] = &[
+    "node_modules",
+    ".git",
+    "dist",
+    "build",
+    ".next",
+    "target",
+    ".cache",
+    "coverage",
+    "__pycache__",
+    ".venv",
+    "venv",
+];
 
-    while cache.len() > MAX_CACHED_FILE_INDEXES {
-        let Some(oldest_key) = cache
-            .iter()
-            .min_by_key(|(_, index)| index.indexed_at)
-            .map(|(root_path, _)| root_path.clone())
-        else {
-            break;
-        };
-        cache.remove(&oldest_key);
-    }
-}
-
-fn insert_file_index_cache_entry(
-    root_path: String,
-    entries: Vec<FileEntry>,
-    indexed_at: std::time::SystemTime,
-) {
-    let mut cache = FILE_INDEX_CACHE.lock().unwrap();
-    prune_file_index_cache(&mut cache);
-    cache.insert(
-        root_path.clone(),
-        FileIndex {
-            entries,
-            _root_path: root_path,
-            indexed_at,
-        },
-    );
-    prune_file_index_cache(&mut cache);
+fn default_excluded_dirs() -> Vec<String> {
+    DEFAULT_EXCLUDED_DIRS
+        .iter()
+        .map(|directory| (*directory).to_string())
+        .collect()
 }
 
 // ============================================
@@ -144,17 +125,29 @@ fn build_file_index(root_path: &str, exclude_dirs: &[String]) -> Vec<FileEntry> 
     // Skip excluded directories at the walker level so we never descend
     // into node_modules, .git, etc. This is orders of magnitude faster
     // than post-filtering.
+    let root = std::path::PathBuf::from(root_path);
+    let filter_root = root.clone();
     builder.filter_entry(move |entry| {
         if entry.file_type().is_some_and(|ft| ft.is_dir()) {
             let name = entry.file_name().to_string_lossy();
             if exclude_set.contains(name.as_ref()) {
                 return false;
             }
+
+            // ORG2 runtime worktrees contain full repository copies and their
+            // generated artifacts. They are implementation state, not distinct
+            // user files, so descending into them multiplies every index walk.
+            if let Ok(relative) = entry.path().strip_prefix(&filter_root) {
+                if relative == std::path::Path::new(".worktrees")
+                    || relative == std::path::Path::new(".orgii/worktrees")
+                {
+                    return false;
+                }
+            }
         }
         true
     });
 
-    let root = std::path::Path::new(root_path);
     let walker = builder.build();
 
     let entries: Vec<FileEntry> = walker
@@ -195,42 +188,21 @@ fn build_file_index(root_path: &str, exclude_dirs: &[String]) -> Vec<FileEntry> 
 /// **never** during the expensive `build_file_index` walk.  This means
 /// concurrent searches for different repos proceed in parallel, and a
 /// slow index build for repo A won't block a cached lookup for repo B.
-fn get_file_index(root_path: &str, exclude_dirs: &[String]) -> Vec<FileEntry> {
-    // 1. Quick check under the lock — return cached entries if fresh.
-    {
-        let mut cache = FILE_INDEX_CACHE.lock().unwrap();
-        prune_file_index_cache(&mut cache);
-        if let Some(index) = cache.get(root_path) {
-            if let Ok(elapsed) = index.indexed_at.elapsed() {
-                if elapsed.as_secs() < CACHE_TTL_SECS {
-                    return index.entries.clone();
-                }
-            }
-        }
-    } // ← lock released here
-
-    // 2. Validate the path before spending time walking it.
-    //    Protects against bad descriptors after rapid repo switches.
+fn get_file_index(root_path: &str, exclude_dirs: &[String]) -> Result<Arc<[FileEntry]>, String> {
+    // Validate the path before spending time walking it. Protects against bad
+    // descriptors after rapid repo switches.
     let root = std::path::Path::new(root_path);
     if !root.exists() || !root.is_dir() {
         warn!(
             root_path = %root_path,
             "search::file: root path invalid or gone; skipping index"
         );
-        return Vec::new();
+        return Ok(Arc::from(Vec::<FileEntry>::new()));
     }
 
-    // 3. Build index WITHOUT holding the lock.
-    let entries = build_file_index(root_path, exclude_dirs);
-
-    // 4. Re-acquire lock to store.
-    insert_file_index_cache_entry(
-        root_path.to_string(),
-        entries.clone(),
-        std::time::SystemTime::now(),
-    );
-
-    entries
+    FILE_INDEX_CACHE.get_or_build(root_path, exclude_dirs, || {
+        build_file_index(root_path, exclude_dirs)
+    })
 }
 
 // ============================================
@@ -242,29 +214,25 @@ fn score_entry(
     entry: &FileEntry,
     pattern: &Pattern,
     matcher: &mut Matcher,
-) -> Option<(FileEntry, i64)> {
-    // Buffer for UTF-32 conversion
-    let mut buf = Vec::new();
+    buf: &mut Vec<char>,
+) -> Option<i64> {
+    buf.clear();
 
     // Convert filename to Utf32Str for nucleo
-    let filename_utf32 = Utf32Str::new(&entry.filename, &mut buf);
+    let filename_utf32 = Utf32Str::new(&entry.filename, buf);
 
     // Try matching against filename first (higher priority)
     if let Some(score) = pattern.score(filename_utf32, matcher) {
         // Boost filename matches significantly
         let boosted_score = (score as i64) * 2;
-        return Some((entry.clone(), boosted_score));
+        return Some(boosted_score);
     }
 
     // Clear buffer and try matching against full path
     buf.clear();
-    let path_utf32 = Utf32Str::new(&entry.path, &mut buf);
+    let path_utf32 = Utf32Str::new(&entry.path, buf);
 
-    if let Some(score) = pattern.score(path_utf32, matcher) {
-        return Some((entry.clone(), score as i64));
-    }
-
-    None
+    pattern.score(path_utf32, matcher).map(i64::from)
 }
 
 /// Perform fuzzy search on the file index
@@ -296,9 +264,11 @@ fn fuzzy_search(
     );
 
     // Use parallel processing for large indices
-    let results: Vec<(FileEntry, i64)> = entries
+    let mut scored_results: Vec<(usize, i64)> = entries
         .par_iter()
+        .enumerate()
         .filter(|entry| {
+            let entry = entry.1;
             // Filter by extension if specified
             if let Some(extensions) = file_extensions {
                 if !entry.is_dir {
@@ -310,19 +280,33 @@ fn fuzzy_search(
             }
             true
         })
-        .filter_map(|entry| {
-            // Each thread gets its own matcher
-            let mut matcher = Matcher::new(Config::DEFAULT);
-            score_entry(entry, &pattern, &mut matcher)
-        })
+        .map_init(
+            || (Matcher::new(Config::DEFAULT), Vec::new()),
+            |(matcher, buf), (index, entry)| {
+                score_entry(entry, &pattern, matcher, buf).map(|score| (index, score))
+            },
+        )
+        .filter_map(|result| result)
         .collect();
 
-    // Sort by score descending and take top results
-    let mut sorted_results = results;
-    sorted_results.sort_by_key(|result| std::cmp::Reverse(result.1));
-    sorted_results.truncate(max_results);
+    if max_results == 0 {
+        return Vec::new();
+    }
 
-    sorted_results
+    // Partition first so only the requested top-K needs a full sort.
+    let compare_rank = |left: &(usize, i64), right: &(usize, i64)| {
+        right.1.cmp(&left.1).then_with(|| left.0.cmp(&right.0))
+    };
+    if scored_results.len() > max_results {
+        scored_results.select_nth_unstable_by(max_results, compare_rank);
+        scored_results.truncate(max_results);
+    }
+    scored_results.sort_unstable_by(compare_rank);
+
+    scored_results
+        .into_iter()
+        .map(|(index, score)| (entries[index].clone(), score))
+        .collect()
 }
 
 // ============================================
@@ -342,30 +326,23 @@ pub async fn search_files_fuzzy(options: SearchOptions) -> Result<SearchResults,
         }
 
         // Default exclusions
-        let default_excludes = vec![
-            "node_modules".to_string(),
-            ".git".to_string(),
-            "dist".to_string(),
-            "build".to_string(),
-            ".next".to_string(),
-            "target".to_string(),
-            ".cache".to_string(),
-            "coverage".to_string(),
-            "__pycache__".to_string(),
-            ".venv".to_string(),
-            "venv".to_string(),
-        ];
+        let default_excludes = default_excluded_dirs();
 
         let exclude_dirs = options.exclude_dirs.unwrap_or(default_excludes);
         let max_results = options.max_results.unwrap_or(50);
 
         // Get file index (cached or fresh)
-        let entries = get_file_index(&options.root_path, &exclude_dirs);
+        let entries = get_file_index(&options.root_path, &exclude_dirs)?;
         let total_indexed = entries.len();
 
         // Perform fuzzy search
         let file_extensions = options.file_extensions.as_deref();
-        let results = fuzzy_search(&entries, &options.query, max_results, file_extensions);
+        let results = fuzzy_search(
+            entries.as_ref(),
+            &options.query,
+            max_results,
+            file_extensions,
+        );
 
         // Separate files and folders
         let mut files: Vec<FileSearchResult> = Vec::new();
@@ -421,28 +398,15 @@ pub async fn index_project_files(
         }
 
         // Default exclusions
-        let default_excludes = vec![
-            "node_modules".to_string(),
-            ".git".to_string(),
-            "dist".to_string(),
-            "build".to_string(),
-            ".next".to_string(),
-            "target".to_string(),
-        ];
+        let default_excludes = default_excluded_dirs();
 
         let exclude_dirs = exclude_dirs.unwrap_or(default_excludes);
 
-        // Clear existing cache for this path
-        {
-            let mut cache = FILE_INDEX_CACHE.lock().unwrap();
-            cache.remove(&root_path);
-        }
-
-        // Build fresh index
-        let entries = build_file_index(&root_path, &exclude_dirs);
+        // Invalidate every exclusion-policy variant for this root. A build
+        // that started before this force request cannot repopulate the cache.
+        FILE_INDEX_CACHE.invalidate_root(&root_path);
+        let entries = get_file_index(&root_path, &exclude_dirs)?;
         let count = entries.len();
-
-        insert_file_index_cache_entry(root_path, entries, std::time::SystemTime::now());
 
         let duration = start.elapsed();
         info!(entries = count, ?duration, "search::file: indexed entries");
@@ -469,45 +433,11 @@ pub async fn prewarm_file_index(root_path: String) -> Result<usize, String> {
             ));
         }
 
-        // Check if already cached and fresh — skip the walk entirely.
-        {
-            let mut cache = FILE_INDEX_CACHE.lock().unwrap();
-            prune_file_index_cache(&mut cache);
-            if let Some(index) = cache.get(&root_path) {
-                if let Ok(elapsed) = index.indexed_at.elapsed() {
-                    if elapsed.as_secs() < CACHE_TTL_SECS {
-                        debug!(
-                            entries = index.entries.len(),
-                            age_secs = elapsed.as_secs_f64(),
-                            "search::file: prewarm skipped; cache still fresh"
-                        );
-                        return Ok(index.entries.len());
-                    }
-                }
-            }
-        }
-
         debug!(root_path = %root_path, "search::file: prewarming index");
 
-        let default_excludes = vec![
-            "node_modules".to_string(),
-            ".git".to_string(),
-            "dist".to_string(),
-            "build".to_string(),
-            ".next".to_string(),
-            "target".to_string(),
-            ".cache".to_string(),
-            "coverage".to_string(),
-            "__pycache__".to_string(),
-            ".venv".to_string(),
-            "venv".to_string(),
-        ];
-
-        // Build WITHOUT holding the lock.
-        let entries = build_file_index(&root_path, &default_excludes);
+        let default_excludes = default_excluded_dirs();
+        let entries = get_file_index(&root_path, &default_excludes)?;
         let count = entries.len();
-
-        insert_file_index_cache_entry(root_path, entries, std::time::SystemTime::now());
 
         info!(entries = count, "search::file: prewarm complete");
         Ok(count)
@@ -519,9 +449,18 @@ pub async fn prewarm_file_index(root_path: String) -> Result<usize, String> {
 /// Clear the file index cache
 #[tauri::command]
 pub fn clear_file_index_cache() {
-    let mut cache = FILE_INDEX_CACHE.lock().unwrap();
-    cache.clear();
+    FILE_INDEX_CACHE.clear();
     info!("search::file: cache cleared");
+}
+
+/// Invalidate cached file indexes for one workspace root.
+///
+/// This command performs no scan. The next foreground prewarm or search builds
+/// a fresh index, and any older in-flight generation is discarded.
+#[tauri::command]
+pub fn invalidate_file_index_cache(root_path: String) {
+    FILE_INDEX_CACHE.invalidate_root(&root_path);
+    debug!(root_path = %root_path, "search::file: root cache invalidated");
 }
 
 /// Find files by extension in a directory
@@ -547,21 +486,8 @@ pub async fn find_files_by_extension(
         }
 
         // Directories to skip entirely (the walker will NOT descend into them).
-        let exclude_set: std::collections::HashSet<String> = [
-            "node_modules",
-            ".git",
-            "dist",
-            "build",
-            ".next",
-            "target",
-            ".cache",
-            "__pycache__",
-            ".venv",
-            "venv",
-        ]
-        .iter()
-        .map(|s| s.to_string())
-        .collect();
+        let exclude_set: std::collections::HashSet<String> =
+            default_excluded_dirs().into_iter().collect();
 
         let mut builder = WalkBuilder::new(&directory);
 

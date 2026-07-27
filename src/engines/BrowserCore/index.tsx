@@ -36,12 +36,14 @@ import BrowserSessionWebview from "./BrowserSessionWebview";
 import type { UseBrowserStateReturn } from "./hooks/useBrowserState";
 import "./index.scss";
 import { BROWSER_WEBVIEW_FRAME_ANCHOR_ATTRIBUTE } from "./nativeFrameAnchor";
+import type { BrowserSession } from "./types";
 
 const log = createLogger("BrowserCore");
 
 const ABOUT_BLANK_URL = "about:blank";
 const SHOW_WEBVIEW_FRAME_ANCHOR = false;
 const EMBEDDED_BROWSER_WARNING_DELAY_MS = 3000;
+export const MAX_RETAINED_BROWSER_WEBVIEWS = 2;
 const EMBEDDED_BROWSER_SENSITIVE_HOSTS = new Set([
   "github.com",
   "www.github.com",
@@ -64,6 +66,37 @@ function shouldShowEmbeddedBrowserFallback(url?: string): boolean {
   } catch {
     return false;
   }
+}
+
+export function selectRetainedBrowserSessionIds(
+  previousIds: readonly string[],
+  sessions: readonly BrowserSession[],
+  activeSessionId: string,
+  maxRetained = MAX_RETAINED_BROWSER_WEBVIEWS
+): string[] {
+  if (maxRetained <= 0) return [];
+
+  const navigableIds = new Set(
+    sessions
+      .filter((session) => !isBlankBrowserUrl(session.url))
+      .map((session) => session.id)
+  );
+  const next = previousIds.filter(
+    (sessionId) => navigableIds.has(sessionId) && sessionId !== activeSessionId
+  );
+
+  if (navigableIds.has(activeSessionId)) {
+    next.push(activeSessionId);
+  }
+
+  return next.slice(-maxRetained);
+}
+
+function sameIds(left: readonly string[], right: readonly string[]): boolean {
+  return (
+    left.length === right.length &&
+    left.every((sessionId, index) => sessionId === right[index])
+  );
 }
 
 // ============================================
@@ -112,6 +145,29 @@ export const BrowserCore: React.FC<BrowserCoreProps> = ({
 }) => {
   const { t } = useTranslation();
   const { sessions, activeSessionId, updateSession, addSession } = browserState;
+  const [retainedWebviewSessionIds, setRetainedWebviewSessionIds] =
+    React.useState<string[]>([]);
+  const nextRetainedWebviewSessionIds = useMemo(
+    () =>
+      selectRetainedBrowserSessionIds(
+        retainedWebviewSessionIds,
+        sessions,
+        activeSessionId
+      ),
+    [activeSessionId, retainedWebviewSessionIds, sessions]
+  );
+  const retainedWebviewSessionIdSet = useMemo(
+    () => new Set(nextRetainedWebviewSessionIds),
+    [nextRetainedWebviewSessionIds]
+  );
+
+  React.useLayoutEffect(() => {
+    setRetainedWebviewSessionIds((previousIds) =>
+      sameIds(previousIds, nextRetainedWebviewSessionIds)
+        ? previousIds
+        : nextRetainedWebviewSessionIds
+    );
+  }, [nextRetainedWebviewSessionIds]);
 
   // Check if webviews should be blocked (modals, dropdowns, wrong view mode, etc.)
   const isWebviewBlocked = useAtomValue(webviewBlockedAtom);
@@ -282,17 +338,19 @@ export const BrowserCore: React.FC<BrowserCoreProps> = ({
 
           {/* Only the owning instance renders BrowserSessionWebview. */}
           {manageWebviews &&
-            sessions.map((session) => (
-              <BrowserSessionWebview
-                key={session.id}
-                session={session}
-                isActive={session.id === activeSessionId}
-                isTabActive={isTabReallyActive}
-                containerRef={webviewFrameAnchorRef}
-                onSessionUpdate={updateSession}
-                onNewTab={addSession}
-              />
-            ))}
+            sessions
+              .filter((session) => retainedWebviewSessionIdSet.has(session.id))
+              .map((session) => (
+                <BrowserSessionWebview
+                  key={session.id}
+                  session={session}
+                  isActive={session.id === activeSessionId}
+                  isTabActive={isTabReallyActive}
+                  containerRef={webviewFrameAnchorRef}
+                  onSessionUpdate={updateSession}
+                  onNewTab={addSession}
+                />
+              ))}
 
           {/* Desktop-only notice */}
           {!isWebviewAvailable && (

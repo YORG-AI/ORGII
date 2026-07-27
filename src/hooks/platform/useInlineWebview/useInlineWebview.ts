@@ -77,6 +77,7 @@ export function useInlineWebview(
     containerRef,
     isWebviewCreated,
     isWebviewAvailable,
+    isVisible,
     labelRef,
     log,
   });

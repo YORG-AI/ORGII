@@ -61,4 +61,69 @@ describe("rescanSidebarSessions", () => {
       mocks.store?.get(dataSourceConfigAtom).codex_app.lastScannedAt
     ).toEqual(expect.any(Number));
   });
+
+  it("shares one in-flight rescan between rapid refresh requests", async () => {
+    let releaseRescan!: () => void;
+    mocks.externalHistoryRescanSources.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseRescan = resolve;
+        })
+    );
+
+    const firstRescan = rescanSidebarSessions();
+    const secondRescan = rescanSidebarSessions();
+    const thirdRescan = rescanSidebarSessions();
+
+    expect(mocks.externalHistoryRescanSources).toHaveBeenCalledTimes(1);
+    expect(mocks.loadSidebarSessions).not.toHaveBeenCalled();
+
+    releaseRescan();
+    await Promise.all([firstRescan, secondRescan, thirdRescan]);
+    expect(mocks.loadSidebarSessions).toHaveBeenCalledTimes(1);
+  });
+
+  it("releases the in-flight guard after a failed rescan", async () => {
+    mocks.externalHistoryRescanSources
+      .mockRejectedValueOnce(new Error("scan failed"))
+      .mockResolvedValueOnce(undefined);
+
+    await expect(rescanSidebarSessions()).rejects.toThrow("scan failed");
+    await expect(rescanSidebarSessions()).resolves.toBeUndefined();
+
+    expect(mocks.externalHistoryRescanSources).toHaveBeenCalledTimes(2);
+    expect(mocks.loadSidebarSessions).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs a trailing rescan for a changed scope even if the old scan fails", async () => {
+    let rejectFirstRescan!: (error: Error) => void;
+    mocks.externalHistoryRescanSources
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            rejectFirstRescan = reject;
+          })
+      )
+      .mockResolvedValueOnce(undefined);
+
+    const firstRescan = rescanSidebarSessions();
+    mocks.store?.set(dataSourceConfigAtom, {
+      warp: { enabled: false, frequency: "default", lastScannedAt: null },
+    });
+    const changedScopeRescan = rescanSidebarSessions();
+
+    expect(mocks.externalHistoryRescanSources).toHaveBeenCalledTimes(1);
+    rejectFirstRescan(new Error("obsolete scan failed"));
+    const results = await Promise.allSettled([firstRescan, changedScopeRescan]);
+
+    expect(results.map(({ status }) => status)).toEqual([
+      "rejected",
+      "fulfilled",
+    ]);
+    expect(mocks.externalHistoryRescanSources).toHaveBeenCalledTimes(2);
+    expect(mocks.externalHistoryRescanSources.mock.calls[1][0]).not.toContain(
+      "warp"
+    );
+    expect(mocks.loadSidebarSessions).toHaveBeenCalledTimes(1);
+  });
 });

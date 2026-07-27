@@ -52,6 +52,7 @@ import {
 } from "@src/modules/ProjectManager/workspaceAggregate";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { WorkItem as WorkItemExtended } from "@src/types/core/workItem";
+import { LatestScopedTask } from "@src/util/core/latestScopedTask";
 
 interface ProjectWorkItemsTabContentProps {
   breadcrumbSegments?: readonly { label: string }[];
@@ -221,6 +222,7 @@ export const ProjectWorkItemsTabContent: React.FC<
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const loadedRef = useRef(false);
+  const loadWorkItemsCoordinator = useMemo(() => new LatestScopedTask(), []);
   const completedItemsLoadedRef = useRef(false);
   const completedSectionExpandedRef = useRef(false);
   const [completedItemsLoading, setCompletedItemsLoading] = useState(false);
@@ -261,8 +263,9 @@ export const ProjectWorkItemsTabContent: React.FC<
     setCompletedItemsError(null);
   }, [includeExternalSources, orgId]);
 
-  const loadWorkItems = useCallback(
-    async (cancelled?: () => boolean) => {
+  const loadWorkItems = useCallback(async () => {
+    const scopeKey = JSON.stringify([orgId ?? null, includeExternalSources]);
+    await loadWorkItemsCoordinator.run(scopeKey, async (context) => {
       setLoading(true);
       setError(null);
       try {
@@ -293,7 +296,7 @@ export const ProjectWorkItemsTabContent: React.FC<
               })
             : Promise.resolve([]),
         ]);
-        if (cancelled?.()) return;
+        if (!context.isCurrent()) return;
         setProjectOptions(
           projects.map((project) => ({
             id: project.meta.id,
@@ -320,7 +323,7 @@ export const ProjectWorkItemsTabContent: React.FC<
         loadedRef.current = true;
         setLoaded(true);
       } catch (err) {
-        if (cancelled?.()) return;
+        if (!context.isCurrent()) return;
         if (!loadedRef.current) {
           setWorkItemsByProject([]);
         }
@@ -328,19 +331,17 @@ export const ProjectWorkItemsTabContent: React.FC<
           err instanceof Error ? err.message : t("projects.loadProjectsFailed")
         );
       } finally {
-        if (!cancelled?.()) setLoading(false);
+        if (context.isCurrent()) setLoading(false);
       }
-    },
-    [includeExternalSources, orgId, t]
-  );
+    });
+  }, [includeExternalSources, loadWorkItemsCoordinator, orgId, t]);
 
   useEffect(() => {
-    let cancelled = false;
-    void loadWorkItems(() => cancelled);
+    void loadWorkItems();
     return () => {
-      cancelled = true;
+      loadWorkItemsCoordinator.supersede();
     };
-  }, [loadWorkItems]);
+  }, [loadWorkItems, loadWorkItemsCoordinator]);
 
   useProjectDataChanged(
     useCallback(() => {

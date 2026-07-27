@@ -47,6 +47,7 @@ import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { ContentSearchPalette } from "@src/scaffold/GlobalSpotlight/palettes";
 import { projectListRefreshAtom } from "@src/store/project/projectAtom";
 import type { Project } from "@src/types/core/project";
+import { LatestScopedTask } from "@src/util/core/latestScopedTask";
 import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
 
 import { ProjectRow, ProjectsPageHeader } from "./components";
@@ -141,9 +142,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
   const [fileProjectsLoaded, setFileProjectsLoaded] = useState(false);
   const fileProjectsLoadedRef = useRef(false);
   const [fileError, setFileError] = useState<string | null>(null);
+  const projectLoadCoordinator = useMemo(() => new LatestScopedTask(), []);
 
-  const loadProjectsForRepo = useCallback(
-    async (cancelled?: { current: boolean }) => {
+  const loadProjectsForRepo = useCallback(async () => {
+    const scopeKey = JSON.stringify([orgId ?? null, includeExternalSources]);
+    await projectLoadCoordinator.run(scopeKey, async (context) => {
       setFileProjectsLoading(true);
       setFileError(null);
       try {
@@ -151,7 +154,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
           projectApi.readProjects({ orgId }),
           includeExternalSources ? loadWorkspaceLinearProjects() : [],
         ]);
-        if (cancelled?.current) return;
+        if (!context.isCurrent()) return;
         const localProjects = projectsData.map((project) =>
           projectDataToUI(project, {
             labelMap: EMPTY_LABEL_MAP,
@@ -162,7 +165,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
         fileProjectsLoadedRef.current = true;
         setFileProjectsLoaded(true);
       } catch (err) {
-        if (cancelled?.current) return;
+        if (!context.isCurrent()) return;
         log.error("[ProjectsPage] Failed to load projects:", err);
         if (!fileProjectsLoadedRef.current) {
           setFileProjects([]);
@@ -171,23 +174,21 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
           err instanceof Error ? err.message : t("projects.loadProjectsFailed")
         );
       } finally {
-        if (!cancelled?.current) setFileProjectsLoading(false);
+        if (context.isCurrent()) setFileProjectsLoading(false);
       }
-    },
-    [includeExternalSources, orgId, t]
-  );
+    });
+  }, [includeExternalSources, orgId, projectLoadCoordinator, t]);
 
   const loadFileProjects = useCallback(async () => {
     await loadProjectsForRepo();
   }, [loadProjectsForRepo]);
 
   useEffect(() => {
-    const cancelled = { current: false };
-    loadProjectsForRepo(cancelled);
+    void loadProjectsForRepo();
     return () => {
-      cancelled.current = true;
+      projectLoadCoordinator.supersede();
     };
-  }, [loadProjectsForRepo, refreshSignal]);
+  }, [loadProjectsForRepo, projectLoadCoordinator, refreshSignal]);
 
   useProjectDataChanged(
     useCallback(() => {

@@ -37,6 +37,13 @@ import {
   chatPanelContentModeAtom,
   chatPanelMaximizedAtom,
 } from "@src/store/ui/chatPanelAtom";
+import { startVisibilityAwarePoll } from "@src/util/core/visibilityAwarePoll";
+
+import {
+  getBenchmarkAgentBatchStatusShared,
+  listBenchmarkAgentBatchHistoriesShared,
+  setBenchmarkAgentBatchStatusShared,
+} from "./benchmarkRequestCoordinator";
 
 const AGENT_BATCH_STATUS_POLL_INTERVAL_MS = 2_000;
 
@@ -131,9 +138,10 @@ export function useBenchmarkAgentBatchRun() {
     if (!batchStatus?.batchId) {
       return null;
     }
-    const nextStatus = await benchmarkApi.getAgentBatchStatus({
-      batchId: batchStatus.batchId,
-    });
+    const nextStatus = await getBenchmarkAgentBatchStatusShared(
+      batchStatus.batchId,
+      { force: true }
+    );
     setBatchStatus(nextStatus);
     return nextStatus;
   }, [batchStatus?.batchId, setBatchStatus]);
@@ -169,6 +177,7 @@ export function useBenchmarkAgentBatchRun() {
         launch,
         concurrency,
       });
+      setBenchmarkAgentBatchStatusShared(status);
       setBatchStatus(status);
       setActiveBatchId(status.batchId);
       setActiveBatchTaskId(null);
@@ -215,6 +224,7 @@ export function useBenchmarkAgentBatchRun() {
       const status = await benchmarkApi.cancelAgentBatch({
         batchId: batchStatus.batchId,
       });
+      setBenchmarkAgentBatchStatusShared(status);
       setBatchStatus(status);
       return status;
     } catch (error) {
@@ -231,8 +241,7 @@ export function useBenchmarkAgentBatchRun() {
       return undefined;
     }
     let cancelled = false;
-    benchmarkApi
-      .listAgentBatchHistories({ limit: 1 })
+    listBenchmarkAgentBatchHistoriesShared(1)
       .then((histories) => {
         if (cancelled || histories.length === 0) return;
         const [latestHistory] = histories;
@@ -260,26 +269,27 @@ export function useBenchmarkAgentBatchRun() {
     }
 
     let cancelled = false;
-    const intervalId = window.setInterval(() => {
-      benchmarkApi
-        .getAgentBatchStatus({ batchId: batchStatus.batchId })
-        .then((status) => {
-          if (!cancelled) {
-            setBatchStatus(status);
-          }
-        })
-        .catch((error) => {
-          if (!cancelled) {
-            const message =
-              error instanceof Error ? error.message : String(error);
-            setBatchError(message);
-          }
-        });
-    }, AGENT_BATCH_STATUS_POLL_INTERVAL_MS);
+    const batchId = batchStatus.batchId;
+    const poll = startVisibilityAwarePoll({
+      intervalMs: AGENT_BATCH_STATUS_POLL_INTERVAL_MS,
+      task: async () => {
+        const status = await getBenchmarkAgentBatchStatusShared(batchId);
+        if (!cancelled) {
+          setBatchStatus(status);
+        }
+      },
+      onError: (error) => {
+        if (!cancelled) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          setBatchError(message);
+        }
+      },
+    });
 
     return () => {
       cancelled = true;
-      window.clearInterval(intervalId);
+      poll.stop();
     };
   }, [
     batchStatus?.batchId,

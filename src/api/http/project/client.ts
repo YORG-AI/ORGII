@@ -36,6 +36,28 @@ import type {
   WorkItemsViewData,
 } from "./types";
 
+const PURGE_DELETED_ITEMS_MIN_INTERVAL_MS = 5 * 60 * 1_000;
+const MAX_PURGE_PROJECTS = 50;
+
+interface PurgeState {
+  inFlight?: Promise<number>;
+  lastRunAt?: number;
+}
+
+const purgeStateByProject = new Map<string, PurgeState>();
+
+function getPurgeState(projectSlug: string): PurgeState {
+  const existing = purgeStateByProject.get(projectSlug);
+  if (existing) return existing;
+  if (purgeStateByProject.size >= MAX_PURGE_PROJECTS) {
+    const oldestKey = purgeStateByProject.keys().next().value;
+    if (oldestKey) purgeStateByProject.delete(oldestKey);
+  }
+  const state: PurgeState = {};
+  purgeStateByProject.set(projectSlug, state);
+  return state;
+}
+
 // ============================================
 // Init / discovery
 // ============================================
@@ -371,17 +393,26 @@ export async function readWorkItemsViewData(
   const { statusFilter, searchQuery } = options ?? {};
   const scopePayload = scopeInvokePayload(options);
   const scopeSegment = scopeCacheSegment(options);
+  const normalizedSearchQuery = searchQuery?.trim() || undefined;
   const hasFilters =
-    (statusFilter && statusFilter !== "all") ||
-    (searchQuery && searchQuery.trim());
+    (statusFilter && statusFilter !== "all") || normalizedSearchQuery;
 
   if (hasFilters) {
-    return invoke("project_read_work_items_view_data", {
-      projectSlug,
-      ...scopePayload,
-      statusFilter: statusFilter ?? null,
-      searchQuery: searchQuery ?? null,
-    });
+    const filterSegment = JSON.stringify([
+      statusFilter ?? null,
+      normalizedSearchQuery ?? null,
+    ]);
+    return cachedRead(
+      `${projectSlug}:workitems-view:${scopeSegment}:${filterSegment}`,
+      () =>
+        invoke("project_read_work_items_view_data", {
+          projectSlug,
+          ...scopePayload,
+          statusFilter: statusFilter ?? null,
+          searchQuery: normalizedSearchQuery ?? null,
+        }),
+      { maxAgeMs: 0 }
+    );
   }
 
   return cachedRead(`${projectSlug}:workitems-view:${scopeSegment}`, () =>
@@ -494,13 +525,35 @@ export async function restoreWorkItem(
 export async function purgeExpiredDeletedWorkItems(
   projectSlug: string
 ): Promise<number> {
-  const result = await invoke<number>(
-    "project_purge_expired_deleted_work_items",
-    { projectSlug }
-  );
-  invalidateCache(projectSlug);
-  return result;
+  const state = getPurgeState(projectSlug);
+  if (state.inFlight) return state.inFlight;
+  if (
+    state.lastRunAt !== undefined &&
+    Date.now() - state.lastRunAt < PURGE_DELETED_ITEMS_MIN_INTERVAL_MS
+  ) {
+    return 0;
+  }
+
+  const request = invoke<number>("project_purge_expired_deleted_work_items", {
+    projectSlug,
+  }).then((result) => {
+    state.lastRunAt = Date.now();
+    if (result > 0) invalidateCache(projectSlug);
+    return result;
+  });
+  state.inFlight = request;
+  const release = () => {
+    if (state.inFlight === request) state.inFlight = undefined;
+  };
+  void request.then(release, release);
+  return request;
 }
+
+export const __TESTS_ONLY = {
+  resetPurgeCoordinator(): void {
+    purgeStateByProject.clear();
+  },
+};
 
 /**
  * Atomic partial update; the Rust handler holds an `IMMEDIATE`
