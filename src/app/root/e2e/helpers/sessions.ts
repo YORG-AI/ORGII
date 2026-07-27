@@ -32,13 +32,13 @@ import {
   type ContextUsageSnapshot,
   isPendingCancelAtom,
   lastUserMessageAtom,
+  postStopDispatchSessionsAtom,
   restoreToInputAtom,
   sessionContextTokensAtom,
   sessionContextUsageAtom,
   sessionRolledBackAtom,
   sessionRuntimeStatusAtom,
   streamRetryStatusAtom,
-  userInitiatedCancelAtom,
 } from "@src/store/session/cliSessionStatusAtom";
 import {
   pendingPlanApprovalsAtom,
@@ -295,7 +295,7 @@ export function createSessionHelpers(store: E2EStore) {
       resetTurnLifecycleForTests();
       store.set(chatImageAttachmentsAtom, []);
       store.set(isPendingCancelAtom, false);
-      store.set(userInitiatedCancelAtom, false);
+      store.set(postStopDispatchSessionsAtom, {});
       store.set(sessionRuntimeStatusAtom, "idle");
       store.set(sessionContextTokensAtom, 0);
       store.set(sessionContextUsageAtom, null);

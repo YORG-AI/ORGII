@@ -544,7 +544,8 @@ impl WorkerTask {
                         let error_code = classify_streaming_error_message(err);
                         let streaming_error = StreamingError::new(err.clone(), error_code)
                             .with_details(serde_json::json!({
-                                "messageId": msg.message_id
+                                "messageId": msg.message_id,
+                                "turnIntentId": turn_intent_id,
                             }));
                         broadcast_agent_error_structured(&self.session_id, &streaming_error);
                     }

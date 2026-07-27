@@ -59,6 +59,10 @@ export interface StreamingErrorDetails {
   toolName?: string;
   /** File path if applicable. */
   filePath?: string;
+  /** Queue message identity when a scheduled turn fails before normal finality. */
+  messageId?: string;
+  /** Canonical intent identity for attributing the failure to one turn. */
+  turnIntentId?: string;
 }
 
 /**
@@ -192,6 +196,8 @@ export interface AgentWSEvent {
 
   /** Turn summary text (agent:turn_summary) */
   summary?: string;
+  /** Canonical user-intent id carried by authoritative terminal events. */
+  turnIntentId?: string;
   /** Stable turn id for anchoring post-turn summary events. */
   turnId?: string;
   /** Transcript timestamp for anchoring post-turn summary events. */

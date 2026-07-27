@@ -9,7 +9,6 @@
 import { useAtomValue, useSetAtom, useStore } from "jotai";
 import { useCallback, useEffect } from "react";
 
-import { enterAgentOrgSessionIntervention } from "@src/api/tauri/agent";
 import type { AgentExecMode } from "@src/config/sessionCreatorConfig";
 import {
   beginOptimisticTurn,
@@ -21,12 +20,14 @@ import {
   getTurnPhase,
   markTurnTerminal,
 } from "@src/engines/SessionCore/control/turnLifecycle";
+import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import { mintTurnIntentId } from "@src/engines/SessionCore/sync/adapters/shared/eventFactories";
 import {
   type SessionRuntimeStatusSource,
+  closePostStopDispatchEpisodeAtom,
   isSessionActiveAtom,
   lastUserMessageAtom,
-  userInitiatedCancelAtom,
+  postStopDispatchSessionsAtom,
 } from "@src/store/session/cliSessionStatusAtom";
 import { creatorDefaultExecModeAtom } from "@src/store/session/creatorDefaultExecModeAtom";
 import { creatorDefaultModelSelectionAtom } from "@src/store/session/creatorDefaultModelAtom";
@@ -79,7 +80,6 @@ export interface SubmitUserIntentOptions {
   applyStopSubmitGuards?: boolean;
   dedupeDirectSubmit?: boolean;
   clearUserInitiatedCancelOnQueue?: boolean;
-  swallowErrorAfterUserEventAppend?: boolean;
   onQueued?: () => void;
   onBeforeDirectDispatch?: () => void;
   /** Stable caller-owned identity for observing a queued/direct dispatch. */
@@ -98,10 +98,10 @@ export function useUserIntentSubmit({
   const enqueueMessage = useSetAtom(enqueueMessageAtom);
   const setQueueFlushRequest = useSetAtom(queueFlushRequestAtom);
   const setLastUserMessage = useSetAtom(lastUserMessageAtom);
-  const setUserInitiatedCancel = useSetAtom(userInitiatedCancelAtom);
-  const { addUserMessage, dispatchMessageBySessionType } = useMessageDispatch({
-    getSessionId,
-  });
+  const closePostStopDispatchEpisode = useSetAtom(
+    closePostStopDispatchEpisodeAtom
+  );
+  const { addUserMessage, dispatchMessageBySessionType } = useMessageDispatch();
 
   useEffect(() => {
     if (!isSessionActive) {
@@ -120,7 +120,6 @@ export function useUserIntentSubmit({
       applyStopSubmitGuards = false,
       dedupeDirectSubmit = false,
       clearUserInitiatedCancelOnQueue = false,
-      swallowErrorAfterUserEventAppend = false,
       onQueued,
       onBeforeDirectDispatch,
       turnIntentId: providedTurnIntentId,
@@ -160,7 +159,8 @@ export function useUserIntentSubmit({
           })
         : false;
       const explicitPostStopSubmit =
-        restoredStopDraftSubmit || store.get(userInitiatedCancelAtom);
+        restoredStopDraftSubmit ||
+        store.get(postStopDispatchSessionsAtom)[sessionId] === true;
 
       if (
         dedupeDirectSubmit &&
@@ -195,7 +195,7 @@ export function useUserIntentSubmit({
           store.get(creatorDefaultExecModeAtom);
 
         if (clearUserInitiatedCancelOnQueue && explicitPostStopSubmit) {
-          setUserInitiatedCancel(false);
+          closePostStopDispatchEpisode(sessionId);
         }
 
         enqueueMessage({
@@ -237,15 +237,16 @@ export function useUserIntentSubmit({
         sharedSubmitPayload.current = submitPayloadKey;
       }
 
-      let userEventAppended = false;
+      let userEventId: string | null = null;
       let dispatchStarted = false;
       try {
         onBeforeDirectDispatch?.();
-        await addUserMessage(displayContent, imageDataUrls, turnIntentId);
-        userEventAppended = true;
-        // This hook is the canonical user-intent boundary. The backend resolves
-        // the member from the session and ignores coordinator/non-org sessions.
-        await enterAgentOrgSessionIntervention(sessionId);
+        userEventId = await addUserMessage(
+          sessionId,
+          displayContent,
+          imageDataUrls,
+          turnIntentId
+        );
         const displayTextForDispatch =
           contentForAgent !== displayContent ? displayContent : undefined;
         dispatchStarted = true;
@@ -270,19 +271,25 @@ export function useUserIntentSubmit({
             generation: dispatchGeneration,
           });
         }
-        if (!userEventAppended || !swallowErrorAfterUserEventAppend) {
-          throw error;
+        if (userEventId) {
+          try {
+            await eventStoreProxy.removeByIdPrefix(userEventId, sessionId);
+          } catch {
+            // Preserve the original dispatch error. A failed cleanup must not
+            // turn an already-failed submit into a misleading success.
+          }
         }
+        throw error;
       }
     },
     [
       addUserMessage,
+      closePostStopDispatchEpisode,
       dispatchMessageBySessionType,
       enqueueMessage,
       getSessionId,
       setLastUserMessage,
       setQueueFlushRequest,
-      setUserInitiatedCancel,
       store,
     ]
   );

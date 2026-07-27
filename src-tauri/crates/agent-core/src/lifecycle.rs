@@ -84,6 +84,7 @@ impl TurnTerminalStatus {
 #[derive(Debug, Clone)]
 pub struct TerminalTurnSignal {
     pub turn_id: String,
+    pub turn_intent_id: Option<String>,
     pub status: TurnTerminalStatus,
     pub completed_at: String,
 }
@@ -190,6 +191,7 @@ fn persist_and_emit_terminal_turn(
         serde_json::json!({
             "sessionId": session_id,
             "turnId": terminal_turn.turn_id,
+            "turnIntentId": terminal_turn.turn_intent_id,
             "turnStatus": terminal_turn.status.as_str(),
             "sessionStatus": final_status.as_ref(),
             "completedAt": terminal_turn.completed_at,

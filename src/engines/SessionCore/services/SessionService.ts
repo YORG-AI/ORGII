@@ -301,6 +301,7 @@ export const SessionService = {
       clientMessageId,
       turnIntentId,
       turnIntentSource,
+      directUserIntent,
     } = params;
     // Gate ADE context on the session row's persisted repo so a session
     // on repo A doesn't ship repo B's editor / git / LSP state when the
@@ -359,6 +360,7 @@ export const SessionService = {
         clientMessageId,
         turnIntentId,
         turnIntentSource,
+        directUserIntent,
         adeContext,
         sessionRepoPath: sessionRow?.repoPath ?? null,
       });

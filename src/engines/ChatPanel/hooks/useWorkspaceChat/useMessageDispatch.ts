@@ -38,27 +38,17 @@ import { resolveModelForMessage } from "@src/util/session/resolveModelForMessage
 import { selectionFromSession } from "@src/util/session/selectionFromSession";
 import { isCursorIdeSession } from "@src/util/session/sessionDispatch";
 
-interface UseMessageDispatchOptions {
-  getSessionId: () => string | null;
-}
-
-export function useMessageDispatch(options: UseMessageDispatchOptions) {
-  const { getSessionId } = options;
+export function useMessageDispatch() {
   const setSessionRuntimeStatus = useSetAtom(setSessionRuntimeStatusAtom);
   const setLastUserMessage = useSetAtom(lastUserMessageAtom);
 
   const addUserMessage = useCallback(
     async (
+      sessionId: string,
       content: string,
       imageDataUrls?: string[],
       turnIntentId?: string
-    ): Promise<void> => {
-      const sessionId = getSessionId();
-      if (!sessionId) {
-        throw new Error(
-          "[useMessageDispatch] addUserMessage: no active sessionId"
-        );
-      }
+    ): Promise<string> => {
       const userEvent = createSyntheticUserEvent(sessionId, content, {
         imageDataUrls,
         turnIntentId,
@@ -73,8 +63,9 @@ export function useMessageDispatch(options: UseMessageDispatchOptions) {
         displayContent: content,
         imageDataUrls,
       });
+      return userEvent.id;
     },
-    [getSessionId, setLastUserMessage]
+    [setLastUserMessage]
   );
 
   const dispatchMessageBySessionType = useCallback(
@@ -130,6 +121,7 @@ export function useMessageDispatch(options: UseMessageDispatchOptions) {
           clientMessageId,
           turnIntentId,
           turnIntentSource: "user_submit",
+          directUserIntent: true,
         });
         // Backend accepted the message — the turn is running even if the
         // provider's running ack has not been observed yet.

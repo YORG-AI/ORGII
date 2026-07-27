@@ -64,7 +64,12 @@ export interface EventHandlerContext {
     | ((
         status: string,
         errorMessage?: string,
-        meta?: { turnId?: string; turnStatus?: string; intermediate?: boolean }
+        meta?: {
+          turnId?: string;
+          turnIntentId?: string;
+          turnStatus?: string;
+          intermediate?: boolean;
+        }
       ) => void)
     | undefined
   >;

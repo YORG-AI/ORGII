@@ -24,7 +24,7 @@ const BACKEND_DEAD_STATUSES = new Set([
   "archived",
 ]);
 
-export type BackendDispatchVerdict = "busy" | "dead" | "ready";
+export type BackendDispatchVerdict = "busy" | "dead" | "ready" | "unknown";
 
 export function classifyBackendSessionStatus(
   status: string | undefined | null

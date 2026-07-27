@@ -200,6 +200,7 @@ describe("Rust Agent session handlers", () => {
         type: "agent:turn_completed",
         sessionId: "session-1",
         turnId: "turn-1",
+        turnIntentId: "intent-1",
         turnStatus: "completed",
         sessionStatus: "idle",
       },
@@ -213,6 +214,7 @@ describe("Rust Agent session handlers", () => {
       undefined,
       {
         turnId: "turn-1",
+        turnIntentId: "intent-1",
         turnStatus: "completed",
       }
     );
