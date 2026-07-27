@@ -10,9 +10,16 @@ import {
   ScrollPreservation,
 } from "@src/modules/shared/layouts/blocks";
 
-type RuntimeSection = "usage" | "quota" | "scanning" | "hooks" | "assets";
+type RuntimeSection =
+  | "usage"
+  | "profile"
+  | "quota"
+  | "scanning"
+  | "hooks"
+  | "assets";
 
 const SessionUsagePanel = lazy(() => import("./SessionUsagePanel"));
+const BuilderProfilePanel = lazy(() => import("./BuilderProfilePanel"));
 const RuntimeScanningPanel = lazy(() => import("./RuntimeScanningPanel"));
 const SessionProvenanceHooksPanel = lazy(
   () => import("./SessionProvenanceHooksPanel")
@@ -42,6 +49,11 @@ const RuntimeSectionTabs: React.FC<RuntimeSectionTabsProps> = memo(
           key: "usage",
           label: t("views.usage"),
           dataTestId: "data-source-view-usage",
+        },
+        {
+          key: "profile",
+          label: t("views.profile"),
+          dataTestId: "data-source-view-profile",
         },
         {
           key: "quota",
@@ -90,6 +102,8 @@ function RuntimeSectionContent({
   switch (activeView) {
     case "usage":
       return <SessionUsagePanel />;
+    case "profile":
+      return <BuilderProfilePanel />;
     case "quota":
       return <StartPageQuotaGrid />;
     case "scanning":
