@@ -66,11 +66,14 @@ export function useWorkItemContentState(
 
   const pendingOpenChatRef = useRef(false);
 
-  const handleStartAgentAndOpenChat = useCallback(
-    (instructions?: string) => {
-      pendingOpenChatRef.current = true;
-      onStartAgent?.(instructions);
-    },
+  const handleStartAgentAndOpenChat = useMemo(
+    () =>
+      onStartAgent
+        ? (instructions?: string) => {
+            pendingOpenChatRef.current = true;
+            onStartAgent(instructions);
+          }
+        : undefined,
     [onStartAgent]
   );
 

@@ -660,6 +660,8 @@
       "loadError": "Kommentare konnten nicht geladen werden",
       "addPlaceholder": "Kommentar hinzufügen…",
       "replyPlaceholder": "Antworten…",
+      "mentionMembers": "Erwähnen",
+      "searchMembers": "Mitglieder suchen",
       "send": "Kommentieren",
       "reply": "Antworten",
       "edit": "Bearbeiten",

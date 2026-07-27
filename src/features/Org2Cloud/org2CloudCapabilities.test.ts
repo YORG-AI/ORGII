@@ -27,11 +27,13 @@ describe("getCloudCapabilities", () => {
       broadcastSignals: true,
       storageSegments: false,
       homeEndpoints: false,
+      teamInboxMentions: false,
     });
     expect(await getCloudCapabilities("jwt-1")).toEqual({
       broadcastSignals: true,
       storageSegments: false,
       homeEndpoints: false,
+      teamInboxMentions: false,
     });
     expect(rawMock).toHaveBeenCalledTimes(1);
   });
@@ -45,6 +47,7 @@ describe("getCloudCapabilities", () => {
       broadcastSignals: true,
       storageSegments: true,
       homeEndpoints: false,
+      teamInboxMentions: false,
     });
   });
 
@@ -58,6 +61,22 @@ describe("getCloudCapabilities", () => {
       broadcastSignals: true,
       storageSegments: true,
       homeEndpoints: true,
+      teamInboxMentions: false,
+    });
+  });
+
+  it("parses the 0010 Team Inbox mention capability", async () => {
+    rawMock.mockResolvedValueOnce({
+      broadcastSignals: true,
+      storageSegments: true,
+      homeEndpoints: true,
+      teamInboxMentions: true,
+    });
+    expect(await getCloudCapabilities("jwt-1")).toEqual({
+      broadcastSignals: true,
+      storageSegments: true,
+      homeEndpoints: true,
+      teamInboxMentions: true,
     });
   });
 
@@ -67,12 +86,14 @@ describe("getCloudCapabilities", () => {
       broadcastSignals: false,
       storageSegments: false,
       homeEndpoints: false,
+      teamInboxMentions: false,
     });
     rawMock.mockResolvedValueOnce({ broadcastSignals: true });
     expect(await getCloudCapabilities("jwt-1")).toEqual({
       broadcastSignals: true,
       storageSegments: false,
       homeEndpoints: false,
+      teamInboxMentions: false,
     });
     expect(rawMock).toHaveBeenCalledTimes(2);
   });
@@ -87,11 +108,13 @@ describe("getCloudCapabilities", () => {
       broadcastSignals: false,
       storageSegments: false,
       homeEndpoints: false,
+      teamInboxMentions: false,
     });
     expect(await getCloudCapabilities("jwt-1")).toEqual({
       broadcastSignals: false,
       storageSegments: false,
       homeEndpoints: false,
+      teamInboxMentions: false,
     });
     expect(rawMock).toHaveBeenCalledTimes(1);
   });
@@ -110,11 +133,13 @@ describe("getCloudCapabilities", () => {
       broadcastSignals: true,
       storageSegments: true,
       homeEndpoints: false,
+      teamInboxMentions: false,
     });
     expect(await second).toEqual({
       broadcastSignals: true,
       storageSegments: true,
       homeEndpoints: false,
+      teamInboxMentions: false,
     });
     expect(rawMock).toHaveBeenCalledTimes(1);
   });

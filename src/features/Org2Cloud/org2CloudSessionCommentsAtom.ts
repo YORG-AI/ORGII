@@ -489,6 +489,7 @@ export function useSessionComments(
         body: input.body,
         eventId: input.eventId,
         parentId: input.parentId,
+        mentionedUserIds: input.mentionedUserIds,
         ...(originSessionId && originSessionId !== sessionId
           ? { originSessionId }
           : {}),

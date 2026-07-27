@@ -658,6 +658,8 @@
       "loadError": "コメントを読み込めませんでした",
       "addPlaceholder": "コメントを追加…",
       "replyPlaceholder": "返信…",
+      "mentionMembers": "メンバーをメンション",
+      "searchMembers": "メンバーを検索",
       "send": "投稿",
       "reply": "返信",
       "edit": "編集",

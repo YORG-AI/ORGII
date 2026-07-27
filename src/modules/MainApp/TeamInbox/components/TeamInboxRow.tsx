@@ -56,6 +56,9 @@ const TeamInboxRow = forwardRef<HTMLButtonElement, TeamInboxRowProps>(
         aria-selected={selected}
         aria-label={`${title}，${readLabel}`}
         tabIndex={selected ? 0 : -1}
+        data-testid="team-inbox-row"
+        data-item-kind={item.kind}
+        data-item-id={item.id}
         data-unread={unread}
         className={`${getListItemClasses(selected)} w-full min-w-0 !items-start text-left`}
         onClick={() => onSelect(item)}

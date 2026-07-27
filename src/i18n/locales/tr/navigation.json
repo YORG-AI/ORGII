@@ -658,6 +658,8 @@
       "loadError": "Yorumlar yüklenemedi",
       "addPlaceholder": "Yorum ekle…",
       "replyPlaceholder": "Yanıtla…",
+      "mentionMembers": "Bahset",
+      "searchMembers": "Üye ara",
       "send": "Yorum yap",
       "reply": "Yanıtla",
       "edit": "Düzenle",

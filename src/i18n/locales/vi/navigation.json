@@ -658,6 +658,8 @@
       "loadError": "Không thể tải bình luận",
       "addPlaceholder": "Thêm bình luận…",
       "replyPlaceholder": "Trả lời…",
+      "mentionMembers": "Nhắc đến",
+      "searchMembers": "Tìm thành viên",
       "send": "Đăng",
       "reply": "Trả lời",
       "edit": "Sửa",

@@ -751,6 +751,8 @@
       "loadError": "評論載入失敗",
       "addPlaceholder": "新增評論…",
       "replyPlaceholder": "回覆…",
+      "mentionMembers": "提及成員",
+      "searchMembers": "搜尋成員",
       "send": "發表",
       "reply": "回覆",
       "edit": "編輯",

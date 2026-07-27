@@ -173,6 +173,8 @@ const CloudSessionCommentWireSchema = z.object({
     .nullish()
     .transform((value) => value ?? undefined)
     .optional(),
+  /** Explicit user ids targeted by the comment (0010 Team Inbox). */
+  mentionedUserIds: z.array(z.string()).max(50).optional(),
 });
 
 export type CloudSessionComment = z.output<
@@ -218,6 +220,11 @@ export interface AddSessionCommentInput {
   /** 'agent_report' — accepted only from the cloud-session owner. */
   kind?: "agent_report";
   /**
+   * Explicit active org-member ids to notify. Display names are never parsed
+   * server-side because they are mutable and may not be unique.
+   */
+  mentionedUserIds?: string[];
+  /**
    * Local session the comment ORIGINATED from (the fork the author is
    * viewing). Stored server-side for per-fork count attribution; omitted /
    * null keeps the comment counted on the source plane.
@@ -248,10 +255,21 @@ export async function addSessionComment(
   // pre-extension-compat rule as p_kind). Only forks/imports set it — a
   // source-plane comment omits it and coalesces to the source at count time.
   if (input.originSessionId) body.p_origin_session_id = input.originSessionId;
+  const mentionedUserIds = [
+    ...new Set(input.mentionedUserIds?.filter(Boolean) ?? []),
+  ];
+  if (mentionedUserIds.length > 50) {
+    throw new Org2CloudCommentError("ORG2_VALIDATION");
+  }
+  if (mentionedUserIds.length > 0) {
+    body.p_mentioned_user_ids = mentionedUserIds;
+  }
   let payload: unknown;
   try {
     payload = await callCommentRpc(
-      "cloud_add_session_comment",
+      mentionedUserIds.length > 0
+        ? "cloud_add_session_comment_with_mentions"
+        : "cloud_add_session_comment",
       accessToken,
       body
     );
@@ -262,6 +280,7 @@ export async function addSessionComment(
     // plane); per-fork attribution just waits for the migration.
     if (
       "p_origin_session_id" in body &&
+      mentionedUserIds.length === 0 &&
       error instanceof Org2CloudCommentError &&
       error.status === 404
     ) {

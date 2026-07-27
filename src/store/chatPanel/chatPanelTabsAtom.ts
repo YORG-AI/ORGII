@@ -72,3 +72,10 @@ export {
   chatPanelTabCountAtom,
   chatPanelTabsAtom,
 } from "./chatPanelTabsState";
+export {
+  consumeChatPanelWorkItemActionAtom,
+  pendingChatPanelWorkItemActionAtom,
+  requestChatPanelWorkItemActionAtom,
+  type ChatPanelWorkItemAction,
+  type ChatPanelWorkItemActionRequest,
+} from "./chatPanelWorkItemActionAtoms";

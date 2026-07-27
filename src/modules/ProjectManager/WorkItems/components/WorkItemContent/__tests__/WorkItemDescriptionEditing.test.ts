@@ -106,8 +106,11 @@ vi.mock("@src/modules/shared/components/ActivityTimeline", () => ({
   TimelineCard: ({
     children,
     footer,
-  }: React.PropsWithChildren<{ footer?: React.ReactNode }>) =>
-    createElement("div", null, children, footer),
+    actions,
+  }: React.PropsWithChildren<{
+    footer?: React.ReactNode;
+    actions?: React.ReactNode;
+  }>) => createElement("div", null, actions, children, footer),
 }));
 
 vi.mock("@src/modules/shared/layouts/blocks", () => ({
@@ -127,6 +130,7 @@ vi.mock("@src/modules/shared/layouts/blocks", () => ({
       label: string;
       onClick?: () => void;
       dataTestId?: string;
+      disabled?: boolean;
     };
   }) =>
     createElement(
@@ -151,6 +155,7 @@ vi.mock("@src/modules/shared/layouts/blocks", () => ({
               type: "button",
               "data-testid": primaryAction.dataTestId,
               onClick: primaryAction.onClick,
+              disabled: primaryAction.disabled,
             },
             primaryAction.label
           )
@@ -160,6 +165,7 @@ vi.mock("@src/modules/shared/layouts/blocks", () => ({
 
 vi.mock("../../AgentWorkflow", () => ({ default: () => null }));
 vi.mock("../../TodoChecklist", () => ({ default: () => null }));
+vi.mock("../ThreadTodoChecklist", () => ({ default: () => null }));
 vi.mock("../../WorkItemContentStack", () => ({
   default: ({ descriptionContent }: { descriptionContent?: React.ReactNode }) =>
     createElement("div", null, descriptionContent),
@@ -343,6 +349,66 @@ describe("WorkItemContent description editing", () => {
     ).toBe("1");
     expect(
       container.querySelector("[data-testid='description-footer']")
+    ).toBeNull();
+  });
+
+  it("keeps the thread compact until Edit is explicitly requested", () => {
+    act(() => {
+      root.render(
+        createElement(WorkItemContent, {
+          workItem: baseWorkItem,
+          presentation: "thread",
+          onUpdateWorkItem: vi.fn(),
+        })
+      );
+    });
+
+    expect(
+      container.querySelector("[data-testid='description-editor']")
+    ).toBeNull();
+    expect(
+      container.querySelector("[data-testid='github-read-only-description']")
+        ?.textContent
+    ).toBe(baseWorkItem.spec);
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>(
+          "[data-testid='work-item-description-edit']"
+        )
+        ?.click();
+    });
+
+    expect(
+      container.querySelector("[data-testid='description-editor']")
+    ).not.toBeNull();
+    expect(
+      container.querySelector<HTMLButtonElement>(
+        "[data-testid='work-item-description-save']"
+      )?.disabled
+    ).toBe(true);
+
+    changeDescription("## Compact thread editor");
+
+    expect(
+      container.querySelector<HTMLButtonElement>(
+        "[data-testid='work-item-description-save']"
+      )?.disabled
+    ).toBe(false);
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>(
+          "[data-testid='work-item-description-save']"
+        )
+        ?.click();
+    });
+
+    expect(mocks.handleDescriptionChange).toHaveBeenCalledWith(
+      "## Compact thread editor"
+    );
+    expect(
+      container.querySelector("[data-testid='description-editor']")
     ).toBeNull();
   });
 });

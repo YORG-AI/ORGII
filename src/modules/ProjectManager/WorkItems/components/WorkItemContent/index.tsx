@@ -1,8 +1,9 @@
-import { Bot, Repeat, Terminal } from "lucide-react";
+import { Bot, Pencil, Repeat, Terminal } from "lucide-react";
 import React, { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Avatar from "@src/components/Avatar";
+import Button from "@src/components/Button";
 import TabPill from "@src/components/TabPill";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { useWorkItemImageInsert } from "@src/hooks/project";
@@ -38,10 +39,13 @@ import AgentWorkflow from "../AgentWorkflow";
 import { ROLE_I18N_KEYS, STATUS_I18N_KEYS } from "../AgentWorkflow/types";
 import TodoChecklist from "../TodoChecklist";
 import WorkItemContentStack from "../WorkItemContentStack";
+import { WorkItemThreadLayout } from "../WorkItemThread";
 import HistoryTab from "./HistoryTab";
 import OutputTab from "./OutputTab";
+import ThreadTodoChecklist from "./ThreadTodoChecklist";
 import { useGitHubIssueTimeline } from "./hooks/useGitHubIssueTimeline";
 import { useWorkItemContentState } from "./hooks/useWorkItemContentState";
+import { resolveWorkItemContentSectionPolicy } from "./presentation";
 import type { SessionTab, WorkItemContentProps } from "./types";
 
 interface LinkedSessionsListProps {
@@ -151,6 +155,7 @@ const LinkedSessionsList: React.FC<LinkedSessionsListProps> = ({
 
 const WorkItemContent: React.FC<WorkItemContentProps> = ({
   workItem,
+  presentation = "default",
   onUpdateWorkItem,
   onUpdateWorkItemImmediate,
   currentUser: currentUserProp,
@@ -219,6 +224,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
 
   const creatorName =
     workItem.createdBy?.name ||
+    teamMembers?.find((member) => member.id === workItem.user_id)?.name ||
     workItem.user_id ||
     t("workItems.activity.system");
   const displayedDescription = resolvedDescription ?? rawDescription;
@@ -238,6 +244,9 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     base: string;
     value: string;
   } | null>(null);
+  const [descriptionEditWorkItemId, setDescriptionEditWorkItemId] = useState<
+    string | null
+  >(null);
   const currentDescriptionDraft =
     descriptionDraftState?.workItemId === workItem.session_id
       ? descriptionDraftState
@@ -250,6 +259,13 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     currentDescriptionDraft && descriptionHasChanges
       ? currentDescriptionDraft.value
       : displayedDescription;
+  const sectionPolicy = resolveWorkItemContentSectionPolicy(
+    presentation,
+    Boolean(workItem.proofOfWork)
+  );
+  const isThread = presentation === "thread";
+  const isEditingThreadDescription =
+    isThread && descriptionEditWorkItemId === workItem.session_id;
 
   const handleDescriptionDraftChange = (markdown: string) => {
     setDescriptionDraftState((current) => {
@@ -266,12 +282,28 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
 
   const handleCancelDescription = () => {
     setDescriptionDraftState(null);
+    setDescriptionEditWorkItemId(null);
   };
 
   const handleSaveDescription = () => {
     handleDescriptionChange(descriptionDraft);
     setDescriptionDraftState(null);
+    setDescriptionEditWorkItemId(null);
   };
+
+  const descriptionActions =
+    isThread && canEditDescription && !isEditingThreadDescription ? (
+      <Button
+        variant="tertiary"
+        appearance="ghost"
+        size="mini"
+        icon={<Pencil size={12} aria-hidden />}
+        onClick={() => setDescriptionEditWorkItemId(workItem.session_id)}
+        data-testid="work-item-description-edit"
+      >
+        {t("common:actions.edit")}
+      </Button>
+    ) : null;
 
   const descriptionSection = (
     <TimelineStack>
@@ -283,8 +315,12 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
       >
         <TimelineCard
           copyBody={rawDescription}
+          actions={descriptionActions}
+          className={isThread ? "shadow-sm" : undefined}
+          bodyClassName={isThread ? "px-4 py-4" : undefined}
           footer={
-            descriptionHasChanges && canEditDescription ? (
+            canEditDescription &&
+            (isThread ? isEditingThreadDescription : descriptionHasChanges) ? (
               <PanelFooter
                 secondaryActions={[
                   {
@@ -296,6 +332,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
                 primaryAction={{
                   label: t("common:actions.save"),
                   onClick: handleSaveDescription,
+                  disabled: !descriptionHasChanges,
                   dataTestId: "work-item-description-save",
                 }}
               />
@@ -346,11 +383,12 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
               </span>
             </div>
           )}
-          {isGitHubWorkItem ? (
+          {isGitHubWorkItem || (isThread && !isEditingThreadDescription) ? (
             <MarkdownContent
               body={displayedDescription}
               emptyText="No description provided."
-              className="text-[14px] leading-[1.6] [&_.chat-markdown-body]:text-[14px] [&_.chat-markdown-body]:leading-[1.6]"
+              clamped={!isThread}
+              className="text-[14px] leading-6 text-text-1 [&_.chat-markdown-body]:text-[14px] [&_.chat-markdown-body]:leading-6"
             />
           ) : (
             <ProjectContentEditor
@@ -365,7 +403,9 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
               separatorVisible={false}
               descriptionPlaceholder={t("workItems.descriptionPlaceholder")}
               editable={canEditDescription}
-              descriptionMaxHeight={600}
+              descriptionMinHeight={isThread ? 120 : 200}
+              descriptionMaxHeight={isThread ? 360 : 600}
+              descriptionDefaultMode={isThread ? "raw" : undefined}
               descriptionClassName="no-bottom-border"
               repoPath={repoPath}
               className="w-full"
@@ -383,7 +423,14 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     </TimelineStack>
   );
 
-  const todosSection = (
+  const todosSection = isThread ? (
+    <ThreadTodoChecklist
+      key={workItem.session_id}
+      todos={workItem.todos ?? []}
+      onChange={handleTodosChange}
+      disabled={!onUpdateWorkItem}
+    />
+  ) : (
     <TodoChecklist
       todos={workItem.todos ?? []}
       onChange={handleTodosChange}
@@ -391,7 +438,64 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     />
   );
 
-  const lowerSection = (
+  const agentWorkflow = (
+    <AgentWorkflow
+      orchestratorState={workItem.orchestratorState}
+      orchestratorConfig={workItem.orchestratorConfig}
+      proofOfWork={workItem.proofOfWork}
+      workItemStatus={
+        workItem.workItemStatus ?? (workItem.status as WorkItemStatus)
+      }
+      executionLock={workItem.executionLock}
+      linkedSessions={workItem.linkedSessions}
+      onStartAgent={handleStartAgentAndOpenChat}
+      isStartingAgent={isStartingAgent}
+      onCancel={onCancelAgent}
+      onRetry={onRetry}
+      onAcceptAsIs={onAcceptAsIs}
+      onCreateFollowUp={onCreateFollowUp}
+      onOpenSession={onOpenSession}
+      onOpenFileAtLine={onOpenFileAtLine}
+      onRefresh={onRefreshWorkflow}
+      activeAgentSessionId={activeAgentSessionId}
+      activeAgentRole={activeAgentRole}
+      isLockedByOther={isLockedByOther}
+      lockHolderName={lockHolderName}
+      presentation={presentation}
+    />
+  );
+
+  const outputContent = (
+    <OutputTab
+      workItem={workItem}
+      repoPath={repoPath}
+      onOpenFileDiff={onOpenFileDiff}
+      onOpenFileAtLine={onOpenFileAtLine}
+      onReviewAllFiles={onReviewAllFiles}
+      onOpenSession={onOpenSession}
+      onRetry={onRetry}
+      onAcceptAsIs={onAcceptAsIs}
+      onCreateFollowUp={onCreateFollowUp}
+      onCancel={onCancelAgent}
+      onCreatePr={onCreatePr}
+    />
+  );
+
+  const historyContent = (
+    <HistoryTab
+      timelineEntries={timelineEntries}
+      currentUser={currentUser}
+      isSubscribed={isSubscribed}
+      onToggleSubscribe={() => setIsSubscribed(!isSubscribed)}
+      commentText={commentText}
+      onCommentTextChange={setCommentText}
+      onCommentSubmit={handleCommentSubmit}
+      isSubmittingComment={isSubmittingComment}
+      presentation={presentation}
+    />
+  );
+
+  const tabbedLowerSection = (
     <section data-testid="work-item-lower-tabs-section">
       <div className="mb-4 flex items-center justify-start">
         <TabPill
@@ -406,69 +510,40 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
 
       {activeSessionTab === "session" && (
         <>
-          <div className={DETAIL_PANEL_TOKENS.sectionGap}>
-            <AgentWorkflow
-              orchestratorState={workItem.orchestratorState}
-              orchestratorConfig={workItem.orchestratorConfig}
-              proofOfWork={workItem.proofOfWork}
-              workItemStatus={
-                workItem.workItemStatus ?? (workItem.status as WorkItemStatus)
-              }
-              executionLock={workItem.executionLock}
-              linkedSessions={workItem.linkedSessions}
-              onStartAgent={handleStartAgentAndOpenChat}
-              isStartingAgent={isStartingAgent}
-              onCancel={onCancelAgent}
-              onRetry={onRetry}
-              onAcceptAsIs={onAcceptAsIs}
-              onCreateFollowUp={onCreateFollowUp}
-              onOpenSession={onOpenSession}
-              onOpenFileAtLine={onOpenFileAtLine}
-              onRefresh={onRefreshWorkflow}
+          <div className={DETAIL_PANEL_TOKENS.sectionGap}>{agentWorkflow}</div>
+          {sectionPolicy.showLinkedSessionsTable ? (
+            <LinkedSessionsList
+              sessions={workItem.linkedSessions ?? []}
               activeAgentSessionId={activeAgentSessionId}
-              activeAgentRole={activeAgentRole}
-              isLockedByOther={isLockedByOther}
-              lockHolderName={lockHolderName}
+              onOpenSession={onOpenSession}
             />
-          </div>
-          <LinkedSessionsList
-            sessions={workItem.linkedSessions ?? []}
-            activeAgentSessionId={activeAgentSessionId}
-            onOpenSession={onOpenSession}
-          />
+          ) : null}
         </>
       )}
 
-      {activeSessionTab === "output" && (
-        <OutputTab
-          workItem={workItem}
-          repoPath={repoPath}
-          onOpenFileDiff={onOpenFileDiff}
-          onOpenFileAtLine={onOpenFileAtLine}
-          onReviewAllFiles={onReviewAllFiles}
-          onOpenSession={onOpenSession}
-          onRetry={onRetry}
-          onAcceptAsIs={onAcceptAsIs}
-          onCreateFollowUp={onCreateFollowUp}
-          onCancel={onCancelAgent}
-          onCreatePr={onCreatePr}
-        />
-      )}
+      {activeSessionTab === "output" && outputContent}
 
-      {activeSessionTab === "history" && (
-        <HistoryTab
-          timelineEntries={timelineEntries}
-          currentUser={currentUser}
-          isSubscribed={isSubscribed}
-          onToggleSubscribe={() => setIsSubscribed(!isSubscribed)}
-          commentText={commentText}
-          onCommentTextChange={setCommentText}
-          onCommentSubmit={handleCommentSubmit}
-          isSubmittingComment={isSubmittingComment}
-        />
-      )}
+      {activeSessionTab === "history" && historyContent}
     </section>
   );
+
+  const threadLowerSection = (
+    <>
+      {sectionPolicy.showInlineWorkflow ? agentWorkflow : null}
+      {sectionPolicy.showInlineOutput ? outputContent : null}
+      {sectionPolicy.showInlineHistory ? historyContent : null}
+    </>
+  );
+
+  if (isThread) {
+    return (
+      <WorkItemThreadLayout path={headerPath} properties={headerProperties}>
+        {descriptionSection}
+        {todosSection}
+        {threadLowerSection}
+      </WorkItemThreadLayout>
+    );
+  }
 
   return (
     <DetailPanelContainer className="relative">
@@ -477,7 +552,11 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
         propertiesContent={headerProperties}
         descriptionContent={descriptionSection}
         todosContent={todosSection}
-        lowerContent={lowerSection}
+        lowerContent={
+          sectionPolicy.showTabbedLowerSection
+            ? tabbedLowerSection
+            : threadLowerSection
+        }
         scrollable
       />
     </DetailPanelContainer>

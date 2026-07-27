@@ -1,5 +1,12 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { invalidateProjectCache, projectApi } from "@src/api/http/project";
 import type { MemberEntry } from "@src/api/http/project";
@@ -14,7 +21,10 @@ import {
 import { sidebarActiveCloudOrgIdAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import {
   type TeamInboxMention,
+  listInitialTeamInboxMentions,
   listTeamInboxMentions,
+  markAllTeamInboxMentionsRead,
+  setTeamInboxMentionRead,
 } from "@src/features/Org2Cloud/teamInboxMentionsClient";
 import { useProjectDataChanged } from "@src/hooks/project";
 import { useCurrentUserMemberIds } from "@src/hooks/project/useCurrentUserMemberId";
@@ -33,16 +43,13 @@ import type {
   TeamInboxItem,
 } from "./domain";
 import {
-  type TeamInboxCloudReadReceipts,
-  addTeamInboxCloudReadReceipts,
   invalidateTeamInboxAtom,
-  removeTeamInboxCloudReadReceipts,
   teamInboxCacheAtom,
-  teamInboxCloudReadReceiptsAtom,
   teamInboxInvalidationAtom,
 } from "./store";
 
 const listeners = new Set<() => void>();
+const MAX_PENDING_TEAM_INBOX_MUTATIONS = 100;
 let membersRequest: Promise<MemberEntry[]> | null = null;
 let inboxRequest: {
   key: string;
@@ -50,19 +57,25 @@ let inboxRequest: {
     mentionItems: TeamInboxItem[];
     localItems: TeamInboxItem[];
     localUnread: number;
+    cloudUnread: number;
     localNextCursor: TeamInboxCursor | null;
     cloudNextCursor: string | null;
   }>;
 } | null = null;
+
+const EMPTY_CLOUD_MENTION_PAGE = {
+  mentions: [],
+  nextCursor: undefined,
+  unreadCount: 0,
+} as const;
 
 function notifyTeamInboxListeners(): void {
   for (const listener of listeners) listener();
 }
 
 /**
- * Maps raw cloud mentions into Team Inbox items with `readAt` left unresolved;
- * the caller overlays the latest local read receipts afterwards. Shared by the
- * initial load and `loadMore` so both pages produce identical item shapes.
+ * Maps the server-authoritative cloud mention projection into Team Inbox
+ * items. Shared by initial load and pagination so both paths stay identical.
  */
 function mapMentionsToItems(
   mentions: readonly TeamInboxMention[],
@@ -74,7 +87,7 @@ function mapMentionsToItems(
       id: itemId,
       kind: "comment_mention" as const,
       occurredAt: mention.createdAt,
-      readAt: null,
+      readAt: mention.readAt,
       actor: {
         id: mention.author.userId,
         displayName: mention.author.displayName ?? "Team member",
@@ -94,18 +107,6 @@ function mapMentionsToItems(
       },
     };
   });
-}
-
-/** Overlays the current cloud read receipts onto freshly-mapped mention items. */
-function overlayCloudReadReceipts(
-  mentionItems: readonly TeamInboxItem[],
-  cloudReadReceipts: TeamInboxCloudReadReceipts,
-  cloudScopeKey: string
-): TeamInboxItem[] {
-  return mentionItems.map((item) => ({
-    ...item,
-    readAt: cloudReadReceipts[`${cloudScopeKey}|${item.id}`] ?? null,
-  }));
 }
 
 /**
@@ -165,10 +166,6 @@ export function useTeamInboxDataSource(): {
   const activeCloudOrgId = useAtomValue(sidebarActiveCloudOrgIdAtom);
   const viewerKey = `${viewerMemberIds.join("|")}::${authIdentityKey ?? "signed-out"}::${activeCloudOrgId ?? "local"}`;
   const commentsSignals = useAtomValue(org2CloudCommentsSignalAtom);
-  const cloudReadReceipts = useAtomValue(teamInboxCloudReadReceiptsAtom);
-  const cloudReadReceiptsRef = useRef(cloudReadReceipts);
-  cloudReadReceiptsRef.current = cloudReadReceipts;
-  const setCloudReadReceipts = useSetAtom(teamInboxCloudReadReceiptsAtom);
   const activeCloudCommentsRevision = activeCloudOrgId
     ? (commentsSignals[orgCommentsKey(activeCloudOrgId)] ?? 0)
     : 0;
@@ -179,6 +176,68 @@ export function useTeamInboxDataSource(): {
   const localCursorRef = useRef<TeamInboxCursor | null>(null);
   const cloudCursorRef = useRef<string | null>(null);
   const loadingMoreRef = useRef(false);
+  const mutationQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const pendingMutationCountRef = useRef(0);
+
+  const enqueueMutation = useCallback(
+    <T>(operation: () => Promise<T>): Promise<T> => {
+      if (pendingMutationCountRef.current >= MAX_PENDING_TEAM_INBOX_MUTATIONS) {
+        return Promise.reject(
+          new Error("Too many pending Team Inbox updates; try again shortly")
+        );
+      }
+      pendingMutationCountRef.current += 1;
+      const run = async (): Promise<T> => {
+        try {
+          return await operation();
+        } finally {
+          pendingMutationCountRef.current = Math.max(
+            0,
+            pendingMutationCountRef.current - 1
+          );
+        }
+      };
+      const result = mutationQueueRef.current.then(run, run);
+      mutationQueueRef.current = result.then(
+        () => undefined,
+        () => undefined
+      );
+      return result;
+    },
+    []
+  );
+
+  useLayoutEffect(() => {
+    if (
+      cache.loadedForViewerKey === null ||
+      cache.loadedForViewerKey === viewerKey
+    ) {
+      return;
+    }
+
+    // Never render the previous account/org projection while the new identity
+    // is revalidating. Bump the generation first so late page/mutation
+    // completions cannot repopulate the evicted cache.
+    loadGeneration.current += 1;
+    localCursorRef.current = null;
+    cloudCursorRef.current = null;
+    loadingMoreRef.current = false;
+    setCache((current) =>
+      current.loadedForViewerKey === viewerKey
+        ? current
+        : {
+            ...current,
+            items: [],
+            unreadCount: 0,
+            unreadCounts: { all: 0, mentions: 0, assigned: 0 },
+            loading: true,
+            hasMore: false,
+            loadedForViewerKey: null,
+            error: null,
+            revision: current.revision + 1,
+          }
+    );
+  }, [cache.loadedForViewerKey, setCache, viewerKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -215,6 +274,7 @@ export function useTeamInboxDataSource(): {
         ...current,
         items: [],
         unreadCount: 0,
+        unreadCounts: { all: 0, mentions: 0, assigned: 0 },
         loading: false,
         hasMore: false,
         loadedForViewerKey: viewerKey,
@@ -239,13 +299,12 @@ export function useTeamInboxDataSource(): {
                 unreadCount: 0,
               }),
           auth && activeCloudOrgId
-            ? listTeamInboxMentions(
+            ? listInitialTeamInboxMentions(
                 auth.accessToken,
                 activeCloudOrgId,
-                null,
                 50
-              ).catch(() => ({ mentions: [], nextCursor: undefined }))
-            : Promise.resolve({ mentions: [], nextCursor: undefined }),
+              )
+            : Promise.resolve(EMPTY_CLOUD_MENTION_PAGE),
         ]).then(([{ page, unreadCount }, mentionPage]) => {
           // Read state is intentionally NOT baked in here: the cached request
           // promise stays receipt-independent so a mention marked read while
@@ -259,38 +318,30 @@ export function useTeamInboxDataSource(): {
             mentionItems,
             localItems: page.items,
             localUnread: unreadCount,
+            cloudUnread: mentionPage.unreadCount,
             localNextCursor: page.nextCursor,
             cloudNextCursor: mentionPage.nextCursor ?? null,
           };
         });
         inboxRequest = { key: requestKey, promise };
-        void promise.finally(() => {
+        const clearSettledRequest = () => {
           if (inboxRequest?.promise === promise) inboxRequest = null;
-        });
+        };
+        void promise.then(clearSettledRequest, clearSettledRequest);
       }
       const {
         mentionItems,
         localItems,
         localUnread,
+        cloudUnread,
         localNextCursor,
         cloudNextCursor,
       } = await inboxRequest.promise;
       if (generation !== loadGeneration.current) return;
       localCursorRef.current = localNextCursor;
       cloudCursorRef.current = cloudNextCursor;
-      // Overlay the latest cloud read receipts here (not inside the cached
-      // request promise) so optimistic mark-read/unread survives a concurrent
-      // in-flight list request.
-      const cloudScopeKey = `${authIdentityKey ?? "signed-out"}|${activeCloudOrgId ?? "local"}`;
-      const overlaidMentions = overlayCloudReadReceipts(
-        mentionItems,
-        cloudReadReceiptsRef.current,
-        cloudScopeKey
-      );
-      const mergedItems = [...overlaidMentions, ...localItems];
-      const unreadCount =
-        localUnread +
-        overlaidMentions.filter((item) => item.readAt === null).length;
+      const mergedItems = [...mentionItems, ...localItems];
+      const unreadCount = localUnread + cloudUnread;
       const resolvedItems = resolveAssigneeDisplayNames(
         mergedItems,
         membersRef.current
@@ -299,6 +350,11 @@ export function useTeamInboxDataSource(): {
         ...current,
         items: resolvedItems,
         unreadCount,
+        unreadCounts: {
+          all: unreadCount,
+          mentions: cloudUnread,
+          assigned: localUnread,
+        },
         loading: false,
         error: null,
         loadedForViewerKey: viewerKey,
@@ -319,8 +375,6 @@ export function useTeamInboxDataSource(): {
   }, [
     activeCloudOrgId,
     auth,
-    authIdentityKey,
-    cloudReadReceipts,
     members.length,
     setCache,
     viewerKey,
@@ -347,6 +401,7 @@ export function useTeamInboxDataSource(): {
         // cursors internally.
         return {
           items: cache.items,
+          unreadCounts: cache.unreadCounts,
           nextCursor: cache.hasMore
             ? { occurredAt: "", itemKey: "team-inbox-has-more" }
             : null,
@@ -354,6 +409,7 @@ export function useTeamInboxDataSource(): {
       },
       loadMore: async () => {
         if (loadingMoreRef.current) return;
+        const generation = loadGeneration.current;
         const localCursor = localCursorRef.current;
         const cloudCursor = cloudCursorRef.current;
         if (!localCursor && !cloudCursor) return;
@@ -372,16 +428,19 @@ export function useTeamInboxDataSource(): {
                   activeCloudOrgId,
                   cloudCursor,
                   50
-                ).catch(() => ({ mentions: [], nextCursor: undefined }))
-              : Promise.resolve({ mentions: [], nextCursor: undefined }),
+                )
+              : Promise.resolve({
+                  mentions: [],
+                  nextCursor: undefined,
+                  unreadCount: cache.unreadCounts.mentions,
+                }),
           ]);
+          if (generation !== loadGeneration.current) return;
           localCursorRef.current = localResult.page.nextCursor ?? null;
           cloudCursorRef.current = cloudResult.nextCursor ?? null;
-          const cloudScopeKey = `${authIdentityKey ?? "signed-out"}|${activeCloudOrgId ?? "local"}`;
-          const appendedMentions = overlayCloudReadReceipts(
-            mapMentionsToItems(cloudResult.mentions, activeCloudOrgId ?? ""),
-            cloudReadReceiptsRef.current,
-            cloudScopeKey
+          const appendedMentions = mapMentionsToItems(
+            cloudResult.mentions,
+            activeCloudOrgId ?? ""
           );
           const appended = resolveAssigneeDisplayNames(
             [...appendedMentions, ...localResult.page.items],
@@ -416,89 +475,177 @@ export function useTeamInboxDataSource(): {
         invalidate();
       },
       markRead: async (item: TeamInboxItem) => {
-        const readAt = new Date().toISOString();
-        if (item.kind === "comment_mention") {
-          const cloudScopeKey = `${authIdentityKey ?? "signed-out"}|${activeCloudOrgId ?? "local"}`;
-          setCloudReadReceipts((current) =>
-            addTeamInboxCloudReadReceipts(current, {
-              [`${cloudScopeKey}|${item.id}`]: readAt,
-            })
-          );
-        } else {
-          await markLocalTeamInboxItemRead(viewerMemberIds, item.id);
-        }
-        setCache((current) => ({
-          ...current,
-          items: current.items.map((candidate) =>
-            candidate.id === item.id ? { ...candidate, readAt } : candidate
-          ),
-          unreadCount: Math.max(0, current.unreadCount - 1),
-          revision: current.revision + 1,
-        }));
-        notifyTeamInboxListeners();
+        const generation = loadGeneration.current;
+        return enqueueMutation(async () => {
+          let readAt = new Date().toISOString();
+          let cloudUnread: number | null = null;
+          if (item.kind === "comment_mention") {
+            if (!auth || !activeCloudOrgId) {
+              throw new Error(
+                "Cloud identity is required to mark a mention read"
+              );
+            }
+            const result = await setTeamInboxMentionRead(
+              auth.accessToken,
+              activeCloudOrgId,
+              item.target.commentId,
+              true
+            );
+            readAt = result.readAt ?? readAt;
+            cloudUnread = result.unreadCount;
+          } else {
+            await markLocalTeamInboxItemRead(viewerMemberIds, item.id);
+          }
+          if (generation !== loadGeneration.current) return;
+          setCache((current) => {
+            const wasUnread =
+              current.items.find((candidate) => candidate.id === item.id)
+                ?.readAt === null;
+            const assignedUnread =
+              item.kind === "comment_mention"
+                ? current.unreadCounts.assigned
+                : Math.max(
+                    0,
+                    current.unreadCounts.assigned - (wasUnread ? 1 : 0)
+                  );
+            const mentionUnread =
+              item.kind === "comment_mention"
+                ? (cloudUnread ?? current.unreadCounts.mentions)
+                : current.unreadCounts.mentions;
+            return {
+              ...current,
+              items: current.items.map((candidate) =>
+                candidate.id === item.id ? { ...candidate, readAt } : candidate
+              ),
+              unreadCounts: {
+                all: assignedUnread + mentionUnread,
+                assigned: assignedUnread,
+                mentions: mentionUnread,
+              },
+              unreadCount: assignedUnread + mentionUnread,
+              revision: current.revision + 1,
+            };
+          });
+          notifyTeamInboxListeners();
+        });
       },
       markUnread: async (item: TeamInboxItem) => {
-        if (item.kind === "comment_mention") {
-          const cloudScopeKey = `${authIdentityKey ?? "signed-out"}|${activeCloudOrgId ?? "local"}`;
-          setCloudReadReceipts((current) =>
-            removeTeamInboxCloudReadReceipts(current, [
-              `${cloudScopeKey}|${item.id}`,
-            ])
-          );
-        } else {
-          await markLocalTeamInboxItemUnread(viewerMemberIds, item.id);
-        }
-        setCache((current) => ({
-          ...current,
-          items: current.items.map((candidate) =>
-            candidate.id === item.id
-              ? { ...candidate, readAt: null }
-              : candidate
-          ),
-          unreadCount: current.unreadCount + 1,
-          revision: current.revision + 1,
-        }));
-        notifyTeamInboxListeners();
+        const generation = loadGeneration.current;
+        return enqueueMutation(async () => {
+          let cloudUnread: number | null = null;
+          if (item.kind === "comment_mention") {
+            if (!auth || !activeCloudOrgId) {
+              throw new Error(
+                "Cloud identity is required to mark a mention unread"
+              );
+            }
+            const result = await setTeamInboxMentionRead(
+              auth.accessToken,
+              activeCloudOrgId,
+              item.target.commentId,
+              false
+            );
+            cloudUnread = result.unreadCount;
+          } else {
+            await markLocalTeamInboxItemUnread(viewerMemberIds, item.id);
+          }
+          if (generation !== loadGeneration.current) return;
+          setCache((current) => {
+            const wasUnread =
+              current.items.find((candidate) => candidate.id === item.id)
+                ?.readAt === null;
+            const assignedUnread =
+              item.kind === "comment_mention"
+                ? current.unreadCounts.assigned
+                : current.unreadCounts.assigned + (wasUnread ? 0 : 1);
+            const mentionUnread =
+              item.kind === "comment_mention"
+                ? (cloudUnread ?? current.unreadCounts.mentions)
+                : current.unreadCounts.mentions;
+            return {
+              ...current,
+              items: current.items.map((candidate) =>
+                candidate.id === item.id
+                  ? { ...candidate, readAt: null }
+                  : candidate
+              ),
+              unreadCounts: {
+                all: assignedUnread + mentionUnread,
+                assigned: assignedUnread,
+                mentions: mentionUnread,
+              },
+              unreadCount: assignedUnread + mentionUnread,
+              revision: current.revision + 1,
+            };
+          });
+          notifyTeamInboxListeners();
+        });
       },
-      markAllRead: async (items) => {
-        const assigned = items.filter(
-          (
-            item
-          ): item is Extract<TeamInboxItem, { kind: "assigned_work_item" }> =>
-            item.kind === "assigned_work_item"
-        );
-        if (assigned.length > 0) {
-          await markAllLocalTeamInboxRead(viewerMemberIds, "assigned");
-        }
-        const readAt = new Date().toISOString();
-        const cloudScopeKey = `${authIdentityKey ?? "signed-out"}|${activeCloudOrgId ?? "local"}`;
-        const mentionReceipts = items
-          .filter((item) => item.kind === "comment_mention")
-          .reduce<Record<string, string>>((next, item) => {
-            next[`${cloudScopeKey}|${item.id}`] = readAt;
-            return next;
-          }, {});
-        if (Object.keys(mentionReceipts).length > 0) {
-          setCloudReadReceipts((current) =>
-            addTeamInboxCloudReadReceipts(current, mentionReceipts)
-          );
-        }
-        const itemIds = new Set(items.map((item) => item.id));
-        // Decrement only by the items that were actually unread; counting the
-        // whole set would over-subtract when some passed items were already read.
-        const newlyReadCount = items.reduce(
-          (count, item) => count + (item.readAt === null ? 1 : 0),
-          0
-        );
-        setCache((current) => ({
-          ...current,
-          items: current.items.map((item) =>
-            itemIds.has(item.id) ? { ...item, readAt } : item
-          ),
-          unreadCount: Math.max(0, current.unreadCount - newlyReadCount),
-          revision: current.revision + 1,
-        }));
-        notifyTeamInboxListeners();
+      markAllRead: async (_items, filter = "all") => {
+        const generation = loadGeneration.current;
+        return enqueueMutation(async () => {
+          const includeAssigned = filter === "all" || filter === "assigned";
+          const includeMentions = filter === "all" || filter === "mentions";
+          let cloudReadAt: string | null = null;
+          let cloudUnread: number | null = null;
+          if (
+            includeMentions &&
+            cache.unreadCounts.mentions > 0 &&
+            (!auth || !activeCloudOrgId)
+          ) {
+            throw new Error(
+              "Cloud identity is required to mark all mentions read"
+            );
+          }
+          try {
+            const [, cloudResult] = await Promise.all([
+              includeAssigned && cache.unreadCounts.assigned > 0
+                ? markAllLocalTeamInboxRead(viewerMemberIds, "assigned")
+                : Promise.resolve(),
+              includeMentions &&
+              cache.unreadCounts.mentions > 0 &&
+              auth &&
+              activeCloudOrgId
+                ? markAllTeamInboxMentionsRead(
+                    auth.accessToken,
+                    activeCloudOrgId
+                  )
+                : Promise.resolve(null),
+            ]);
+            cloudReadAt = cloudResult?.readAt ?? null;
+            cloudUnread = cloudResult?.unreadCount ?? null;
+          } catch (error) {
+            invalidate();
+            throw error;
+          }
+          if (generation !== loadGeneration.current) return;
+          const readAt = cloudReadAt ?? new Date().toISOString();
+          setCache((current) => {
+            const assignedUnread = includeAssigned
+              ? 0
+              : current.unreadCounts.assigned;
+            const mentionUnread = includeMentions
+              ? (cloudUnread ?? 0)
+              : current.unreadCounts.mentions;
+            return {
+              ...current,
+              items: current.items.map((item) =>
+                (includeAssigned && item.kind === "assigned_work_item") ||
+                (includeMentions && item.kind === "comment_mention")
+                  ? { ...item, readAt }
+                  : item
+              ),
+              unreadCounts: {
+                all: assignedUnread + mentionUnread,
+                assigned: assignedUnread,
+                mentions: mentionUnread,
+              },
+              unreadCount: assignedUnread + mentionUnread,
+              revision: current.revision + 1,
+            };
+          });
+          notifyTeamInboxListeners();
+        });
       },
       subscribe: (listener: () => void) => {
         listeners.add(listener);
@@ -508,13 +655,13 @@ export function useTeamInboxDataSource(): {
     [
       activeCloudOrgId,
       auth,
-      authIdentityKey,
       cache.error,
       cache.hasMore,
       cache.items,
+      cache.unreadCounts,
+      enqueueMutation,
       invalidate,
       setCache,
-      setCloudReadReceipts,
       viewerMemberIds,
     ]
   );

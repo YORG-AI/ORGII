@@ -68,6 +68,7 @@ export interface ProjectContentEditorProps {
   titleActions?: ReactNode;
   metaContent?: ReactNode;
   descriptionClassName?: string;
+  descriptionMinHeight?: number;
   descriptionMaxHeight?: number | string;
   descriptionDefaultMode?: RichMarkdownEditorMode;
   repoPath?: string | null;
@@ -140,6 +141,7 @@ const ProjectContentEditor = forwardRef<
       titleActions,
       metaContent,
       descriptionClassName = "",
+      descriptionMinHeight = 200,
       descriptionMaxHeight,
       descriptionDefaultMode,
       repoPath,
@@ -390,7 +392,7 @@ const ProjectContentEditor = forwardRef<
                 slashCommandKeyboardHandlerRef.current?.(event) ?? false
               }
               onImageInsert={editable ? onImageInsert : undefined}
-              minHeight={200}
+              minHeight={descriptionMinHeight}
               maxHeight={descriptionMaxHeight}
               defaultMode={descriptionDefaultMode}
               editable={editable}

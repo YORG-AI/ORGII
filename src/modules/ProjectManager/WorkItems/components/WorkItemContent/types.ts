@@ -9,12 +9,18 @@ import type { Person } from "@src/types/core/shared";
 import type { WorkItem as WorkItemExtended } from "@src/types/core/workItem";
 
 import type { AgentRole } from "../../constants";
+import type { WorkItemContentPresentation } from "./presentation";
 
 export const SESSION_TAB_KEYS = ["session", "output", "history"] as const;
 export type SessionTab = (typeof SESSION_TAB_KEYS)[number];
 
 export interface WorkItemContentProps {
   workItem: WorkItemExtended;
+  /**
+   * `thread` lays workflow/session cards and activity into one continuous
+   * surface. It omits the legacy lower tab strip and linked-session table.
+   */
+  presentation?: WorkItemContentPresentation;
   onUpdateWorkItem?: (updates: Partial<WorkItemExtended>) => void;
   onUpdateWorkItemImmediate?: (updates: Partial<WorkItemExtended>) => void;
   currentUser?: Person;
@@ -78,6 +84,7 @@ export interface HistoryTabProps {
   onCommentTextChange: (text: string) => void;
   onCommentSubmit: () => void;
   isSubmittingComment: boolean;
+  presentation?: WorkItemContentPresentation;
 }
 
 export interface TimelineEntry {

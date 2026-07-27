@@ -658,6 +658,8 @@
       "loadError": "Не удалось загрузить комментарии",
       "addPlaceholder": "Добавить комментарий…",
       "replyPlaceholder": "Ответить…",
+      "mentionMembers": "Упомянуть",
+      "searchMembers": "Поиск участников",
       "send": "Отправить",
       "reply": "Ответить",
       "edit": "Изменить",

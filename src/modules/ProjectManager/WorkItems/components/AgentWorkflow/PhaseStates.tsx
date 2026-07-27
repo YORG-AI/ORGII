@@ -22,6 +22,7 @@ interface IdleStateProps {
   /** Collab lock held by a teammate (design §16.6): disable + show holder. */
   isLockedByOther?: boolean;
   lockHolderName?: string | null;
+  compact?: boolean;
 }
 
 export const IdleState: React.FC<IdleStateProps> = ({
@@ -31,6 +32,7 @@ export const IdleState: React.FC<IdleStateProps> = ({
   isStartingAgent,
   isLockedByOther,
   lockHolderName,
+  compact = false,
 }) => {
   const { t } = useTranslation("projects");
 
@@ -49,6 +51,33 @@ export const IdleState: React.FC<IdleStateProps> = ({
     : isStartingAgent
       ? t("workItems.agentWorkflow.running")
       : t("workItems.agentWorkflow.startAgent");
+
+  if (compact) {
+    return (
+      <div className="flex min-h-14 items-center justify-between gap-4 px-1 py-1">
+        <div className="min-w-0">
+          <p className="text-[13px] font-medium text-text-1">
+            {t("workItems.agentWorkflow.noWorkflowRun")}
+          </p>
+          <p className="mt-0.5 text-[11px] text-text-3">
+            {t("workItems.agentWorkflow.startAgentAndChat")}
+          </p>
+        </div>
+        {onStartAgent ? (
+          <Button
+            variant="primary"
+            size="small"
+            onClick={() => onStartAgent()}
+            disabled={!canStart}
+            loading={isStartingAgent}
+            data-testid="work-item-start-agent-button"
+          >
+            {startLabel}
+          </Button>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <Placeholder

@@ -63,6 +63,11 @@ export interface WorkItemPropertiesProps {
   projectReadonly?: boolean;
   showTime?: boolean;
   fieldVariant?: FieldRowVariant;
+  /**
+   * Layout policy for pill fields. Inline create surfaces keep the compact
+   * single-row strip; constrained detail threads can opt into wrapping.
+   */
+  pillLayout?: "nowrap" | "wrap";
   visibleFields?: WorkItemPropertyFieldKey[];
   showMoreMenu?: boolean;
 }

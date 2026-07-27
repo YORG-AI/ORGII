@@ -751,6 +751,8 @@
       "loadError": "评论加载失败",
       "addPlaceholder": "添加评论…",
       "replyPlaceholder": "回复…",
+      "mentionMembers": "提及成员",
+      "searchMembers": "搜索成员",
       "send": "发表",
       "reply": "回复",
       "edit": "编辑",

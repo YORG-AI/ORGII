@@ -658,6 +658,8 @@
       "loadError": "댓글을 불러오지 못했습니다",
       "addPlaceholder": "댓글 추가…",
       "replyPlaceholder": "답글…",
+      "mentionMembers": "멤버 언급",
+      "searchMembers": "멤버 검색",
       "send": "등록",
       "reply": "답글",
       "edit": "수정",

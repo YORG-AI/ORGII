@@ -6,8 +6,14 @@ import {
   ORG2_CLOUD_OFFICIAL_SUPABASE_URL,
   ORG2_CLOUD_POSTGREST_SCHEMA,
 } from "./config";
+import { __CAPABILITIES_INTERNALS } from "./org2CloudCapabilities";
 import { Org2CloudCommentError } from "./org2CloudCommentsClient";
-import { listTeamInboxMentions } from "./teamInboxMentionsClient";
+import {
+  listInitialTeamInboxMentions,
+  listTeamInboxMentions,
+  markAllTeamInboxMentionsRead,
+  setTeamInboxMentionRead,
+} from "./teamInboxMentionsClient";
 
 const fetchMock = vi.fn();
 
@@ -33,6 +39,7 @@ const WIRE_MENTION = {
   author: { userId: "user-a", displayName: "Alice" },
   body: "Please review this change",
   createdAt: "2026-07-23T10:00:00.000Z",
+  readAt: null,
   commentCount: 4,
   threadCount: 2,
 };
@@ -44,12 +51,74 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   fetchMock.mockReset();
+  __CAPABILITIES_INTERNALS.reset();
+});
+
+describe("listInitialTeamInboxMentions", () => {
+  it("keeps older endpoints on the local-only path without probing a missing RPC", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        broadcastSignals: true,
+        storageSegments: true,
+        teamInboxMentions: false,
+      })
+    );
+
+    await expect(
+      listInitialTeamInboxMentions("jwt-viewer", "org-1")
+    ).resolves.toEqual({ mentions: [], unreadCount: 0 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(lastCall().url).toBe(
+      `${ORG2_CLOUD_OFFICIAL_SUPABASE_URL}/rest/v1/rpc/get_cloud_capabilities`
+    );
+  });
+
+  it("loads the first page after the endpoint advertises mention support", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          broadcastSignals: true,
+          storageSegments: true,
+          teamInboxMentions: true,
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          mentions: [WIRE_MENTION],
+          nextCursor: null,
+          unreadCount: 1,
+        })
+      );
+
+    await expect(
+      listInitialTeamInboxMentions("jwt-viewer", "org-1", 25)
+    ).resolves.toEqual({
+      mentions: [WIRE_MENTION],
+      nextCursor: undefined,
+      unreadCount: 1,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(lastCall().url).toBe(
+      `${ORG2_CLOUD_OFFICIAL_SUPABASE_URL}/rest/v1/rpc/cloud_list_team_inbox_mentions`
+    );
+    expect(lastBody()).toEqual({
+      p_org_id: "org-1",
+      p_cursor: null,
+      p_limit: 25,
+    });
+  });
 });
 
 describe("listTeamInboxMentions", () => {
   it("posts the managed-cloud wire contract without a viewer identity", async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse({ mentions: [WIRE_MENTION], nextCursor: "cursor-2" })
+      jsonResponse({
+        mentions: [WIRE_MENTION],
+        nextCursor: "cursor-2",
+        unreadCount: 7,
+      })
     );
 
     await listTeamInboxMentions("jwt-viewer", "org-1", "cursor-1", 25);
@@ -76,7 +145,7 @@ describe("listTeamInboxMentions", () => {
 
   it("sends a null cursor for the first page", async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse({ mentions: [], nextCursor: null })
+      jsonResponse({ mentions: [], nextCursor: null, unreadCount: 0 })
     );
 
     await listTeamInboxMentions("jwt-viewer", "org-1", null, 50);
@@ -90,7 +159,11 @@ describe("listTeamInboxMentions", () => {
 
   it("parses the stable mention response contract", async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse({ mentions: [WIRE_MENTION], nextCursor: "cursor-2" })
+      jsonResponse({
+        mentions: [WIRE_MENTION],
+        nextCursor: "cursor-2",
+        unreadCount: 7,
+      })
     );
 
     const page = await listTeamInboxMentions("jwt-viewer", "org-1", null, 25);
@@ -98,6 +171,7 @@ describe("listTeamInboxMentions", () => {
     expect(page).toEqual({
       mentions: [WIRE_MENTION],
       nextCursor: "cursor-2",
+      unreadCount: 7,
     });
   });
 
@@ -113,6 +187,7 @@ describe("listTeamInboxMentions", () => {
           },
         ],
         nextCursor: null,
+        unreadCount: 1,
       })
     );
 
@@ -131,6 +206,7 @@ describe("listTeamInboxMentions", () => {
       jsonResponse({
         mentions: [{ ...WIRE_MENTION, commentCount: -1 }],
         nextCursor: null,
+        unreadCount: 1,
       })
     );
 
@@ -161,5 +237,53 @@ describe("listTeamInboxMentions", () => {
     expect(error).toBeInstanceOf(Org2CloudCommentError);
     expect(error).toMatchObject({ code: "ORG2_MEMBER_REQUIRED", status: 403 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Team Inbox read receipts", () => {
+  it("persists a single receipt without sending a viewer id", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        readAt: "2026-07-27T12:00:00.000Z",
+        unreadCount: 2,
+      })
+    );
+
+    const result = await setTeamInboxMentionRead(
+      "jwt-viewer",
+      "org-1",
+      "comment-2",
+      true
+    );
+
+    expect(lastCall().url).toBe(
+      `${ORG2_CLOUD_OFFICIAL_SUPABASE_URL}/rest/v1/rpc/cloud_set_team_inbox_mention_read`
+    );
+    expect(lastBody()).toEqual({
+      p_org_id: "org-1",
+      p_comment_id: "comment-2",
+      p_read: true,
+    });
+    expect(lastBody()).not.toHaveProperty("p_viewer_user_id");
+    expect(result).toEqual({
+      readAt: "2026-07-27T12:00:00.000Z",
+      unreadCount: 2,
+    });
+  });
+
+  it("marks all server-side, including unloaded pages", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        readAt: "2026-07-27T12:00:00.000Z",
+        unreadCount: 0,
+      })
+    );
+
+    await markAllTeamInboxMentionsRead("jwt-viewer", "org-1");
+
+    expect(lastCall().url).toBe(
+      `${ORG2_CLOUD_OFFICIAL_SUPABASE_URL}/rest/v1/rpc/cloud_mark_all_team_inbox_mentions_read`
+    );
+    expect(lastBody()).toEqual({ p_org_id: "org-1" });
   });
 });

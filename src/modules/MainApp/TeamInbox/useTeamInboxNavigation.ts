@@ -10,6 +10,7 @@ import { createLogger } from "@src/hooks/logger";
 import {
   openOrFocusSessionInChatPanelTabAtom,
   openWorkItemInChatPanelTabAtom,
+  requestChatPanelWorkItemActionAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { sessionsAtom } from "@src/store/session";
 
@@ -23,10 +24,14 @@ export function useTeamInboxNavigation(): (
   const sessions = useAtomValue(sessionsAtom);
   const openSession = useSetAtom(openOrFocusSessionInChatPanelTabAtom);
   const openWorkItem = useSetAtom(openWorkItemInChatPanelTabAtom);
+  const requestWorkItemAction = useSetAtom(requestChatPanelWorkItemActionAtom);
 
   return useCallback(
     (intent: TeamInboxNavigationIntent) => {
-      if (intent.kind === "open_session_comment") {
+      if (
+        intent.kind === "open_session" ||
+        intent.kind === "open_session_comment"
+      ) {
         const session = sessions.find(
           (candidate) => candidate.session_id === intent.sessionId
         );
@@ -35,11 +40,13 @@ export function useTeamInboxNavigation(): (
           sessionName: session?.name,
           repoPath: session?.repoPath,
         });
-        window.requestAnimationFrame(() => {
-          document
-            .getElementById(intent.anchor ?? `comment-${intent.commentId}`)
-            ?.scrollIntoView({ block: "center", behavior: "smooth" });
-        });
+        if (intent.kind === "open_session_comment") {
+          window.requestAnimationFrame(() => {
+            document
+              .getElementById(intent.anchor ?? `comment-${intent.commentId}`)
+              ?.scrollIntoView({ block: "center", behavior: "smooth" });
+          });
+        }
         return;
       }
 
@@ -58,6 +65,12 @@ export function useTeamInboxNavigation(): (
           projectName: project?.meta.name ?? "Standalone",
           orgId: project?.meta.org_id,
         });
+        if (intent.action) {
+          requestWorkItemAction({
+            workItemShortId: shortId,
+            action: intent.action,
+          });
+        }
       };
 
       if (!intent.projectId) {
@@ -79,6 +92,6 @@ export function useTeamInboxNavigation(): (
           log.warn("Failed to open project Team Inbox Work Item", error);
         });
     },
-    [openSession, openWorkItem, sessions]
+    [openSession, openWorkItem, requestWorkItemAction, sessions]
   );
 }

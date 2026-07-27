@@ -1,3 +1,13 @@
+import { WORK_ITEM_STATUS } from "@src/types/core/workItem";
+
+/** GitHub-backed Work Items use the open/closed status vocabulary. */
+export function isGitHubIssueStatus(status: string): boolean {
+  return (
+    status === WORK_ITEM_STATUS.GITHUB_OPEN ||
+    status === WORK_ITEM_STATUS.GITHUB_CLOSED
+  );
+}
+
 /**
  * Turns a raw enum token from the work-item read model (e.g. `in_progress`,
  * `HIGH`, `in-review`) into a human sentence-cased label (`In progress`,

@@ -660,6 +660,8 @@
       "loadError": "Não foi possível carregar os comentários",
       "addPlaceholder": "Adicionar um comentário…",
       "replyPlaceholder": "Responder…",
+      "mentionMembers": "Mencionar",
+      "searchMembers": "Pesquisar membros",
       "send": "Comentar",
       "reply": "Responder",
       "edit": "Editar",

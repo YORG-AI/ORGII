@@ -102,6 +102,7 @@ const WorkItemProperties: React.FC<WorkItemPropertiesProps> = ({
   showTime = true,
   externalStatusConfig,
   fieldVariant = "row",
+  pillLayout = "nowrap",
   visibleFields = DEFAULT_VISIBLE_FIELDS,
   showMoreMenu = false,
 }) => {
@@ -252,8 +253,16 @@ const WorkItemProperties: React.FC<WorkItemPropertiesProps> = ({
 
   if (fieldVariant === "pill") {
     return (
-      <section ref={containerRef} className="overflow-visible">
-        <div className="flex flex-nowrap items-center gap-2">
+      <section ref={containerRef} className="min-w-0 overflow-visible">
+        <div
+          className={
+            pillLayout === "wrap"
+              ? "flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5"
+              : "flex min-w-0 flex-nowrap items-center gap-2"
+          }
+          data-testid="work-item-property-pills"
+          data-layout={pillLayout}
+        >
           <PlanningSection
             workItem={workItem}
             openPicker={openPicker}

@@ -688,6 +688,8 @@
       "loadError": "Couldn't load comments",
       "addPlaceholder": "Add a comment…",
       "replyPlaceholder": "Reply…",
+      "mentionMembers": "Mention",
+      "searchMembers": "Search members",
       "send": "Comment",
       "reply": "Reply",
       "edit": "Edit",

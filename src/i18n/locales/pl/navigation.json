@@ -658,6 +658,8 @@
       "loadError": "Nie udało się wczytać komentarzy",
       "addPlaceholder": "Dodaj komentarz…",
       "replyPlaceholder": "Odpowiedz…",
+      "mentionMembers": "Wspomnij",
+      "searchMembers": "Szukaj członków",
       "send": "Skomentuj",
       "reply": "Odpowiedz",
       "edit": "Edytuj",
