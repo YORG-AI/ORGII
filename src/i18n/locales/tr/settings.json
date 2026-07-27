@@ -113,6 +113,27 @@
     }
   },
   "general": {
+    "githubStar": {
+      "label": "GitHub'da ORG2'ye yıldız ver",
+      "description": "Projeyi bir GitHub yıldızıyla destekleyin.",
+      "loading": "Kontrol ediliyor...",
+      "star": "Yıldız ver",
+      "starring": "Ekleniyor...",
+      "starred": "Yıldız verildi",
+      "thanks": "Desteğiniz için teşekkürler!",
+      "openGitHub": "GitHub'ı aç",
+      "openingGitHub": "Açılıyor...",
+      "unavailableGhMissing": "GitHub CLI kullanılamıyor",
+      "unavailableNotAuthenticated": "GitHub CLI'da oturum açın",
+      "unavailableNetwork": "GitHub'a ulaşılamıyor",
+      "unavailablePermission": "GitHub izni gerekli",
+      "unavailableTimeout": "GitHub isteği zaman aşımına uğradı",
+      "unavailableUnexpected": "GitHub durumu kullanılamıyor",
+      "reminderTitle": "ORG2'yi destekle",
+      "reminderDescription": "ORG2 işinize yaradıysa GitHub'da yıldız vermeyi düşünür müsünüz?",
+      "later": "Daha sonra",
+      "neverAskAgain": "Bir daha sorma"
+    },
     "tabGeneral": "Genel",
     "loginStatus": "Giriş Durumu",
     "loggedIn": "Giriş yapıldı",
@@ -139,9 +160,6 @@
       "helveticaNeue": "Helvetica Neue tarzı"
     },
     "uiScale": "Arayüz ölçeği",
-    "preferences": "Tercihler",
-    "usePointerCursors": "İşaretçi imleçleri kullan",
-    "usePointerCursorsDesc": "Etkileşimli öğelerin üzerine gelindiğinde imleci işaretçiye dönüştürür",
     "timezoneAuto": "Otomatik (Tarayıcı)",
     "timezoneSearchPlaceholder": "En yakın şehirleri ara",
     "sendOnEnter": "Mesajları Enter ile gönder",
@@ -230,7 +248,10 @@
     "presenceGuidanceOnlineDefault": "Klavyenin başındayım. İstediğin zaman netleştirici sorular sorabilir ve yıkıcı işlemleri çalıştırmadan önce bana onaylatabilirsin",
     "presenceGuidanceInvisibleDefault": "Yakındayım ama çevrimdışı görünüyorum. Varsayılan olarak otonom ilerle ve yalnızca yüksek riskli işlemler ya da önemli refaktörler için beni bilgilendir; diğer soruları tek tek sormak yerine tek bir özette topla",
     "presenceGuidanceAwayDefault": "Klavyeden uzaktayım. Beni bekleyip takılma; elindeki bilgilerle en iyi kararı ver, bitirebildiklerini bitir ve döndüğümde bakmam için olanları ve açık soruları kısa bir özet olarak bırak",
-    "followSystem": "Sistemi izle"
+    "followSystem": "Sistemi izle",
+    "preferences": "Tercihler",
+    "usePointerCursors": "İşaretçi imleçleri kullan",
+    "usePointerCursorsDesc": "Etkileşimli öğelerin üzerine gelindiğinde imleci işaretçiye dönüştürür"
   },
   "background": {
     "title": "Arka Plan",

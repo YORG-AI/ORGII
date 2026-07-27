@@ -7,9 +7,9 @@ use tokio::process::Child;
 
 use crate::api::websocket_handler;
 
+use super::super::super::persistence;
 use super::super::helpers::{emit_chunk, snapshot_cli_file_edit};
 use super::super::launch_profiles::ResolvedCliLaunchProfile;
-use super::super::super::persistence;
 
 pub(super) struct AppServerOutcome {
     pub(super) exit_code: i32,
@@ -71,11 +71,9 @@ pub(super) async fn run_codex_app_server_branch(
             if cli_session_id_out.is_none() {
                 if let Some(ref tid) = chunk.thread_id {
                     cli_session_id_out = Some(tid.clone());
-                    if let Err(err) = persistence::update_cli_session_id_for_account(
-                        &session_id,
-                        account_id,
-                        tid,
-                    ) {
+                    if let Err(err) =
+                        persistence::update_cli_session_id_for_account(&session_id, account_id, tid)
+                    {
                         tracing::warn!(
                             "[CodeSession] Failed to bind early cli_session_id: {}",
                             err
@@ -92,9 +90,9 @@ pub(super) async fn run_codex_app_server_branch(
                 }
             }
             if let Some(snap_id) = &pre_message_snapshot_id {
-                snapshot_cli_file_edit(&session_id, snap_id, &chunk, &snapshot_working_dir);
+                snapshot_cli_file_edit(&session_id, snap_id, &chunk, &snapshot_working_dir).await;
             }
-            emit_chunk(&chunk, &session_id, sequence);
+            emit_chunk(&chunk, &session_id, sequence).await;
         }
     })
     .await;
@@ -106,21 +104,19 @@ pub(super) async fn run_codex_app_server_branch(
             codex_app_server_turn_ok = result.turn_status != "failed";
             if let Some(ref usage) = result.usage {
                 let round_model = usage.model.as_deref().or(model);
-                if let Err(err) =
-                    session_persistence::token_usage::insert_token_usage_record(
-                        &session_id,
-                        "code",
-                        round_model,
-                        account_id,
-                        usage.input_tokens as i64,
-                        usage.output_tokens as i64,
-                        usage.cache_read_tokens as i64,
-                        usage.cache_write_tokens as i64,
-                        usage.total_tokens as i64,
-                        0,
-                        None,
-                    )
-                {
+                if let Err(err) = session_persistence::token_usage::insert_token_usage_record(
+                    &session_id,
+                    "code",
+                    round_model,
+                    account_id,
+                    usage.input_tokens as i64,
+                    usage.output_tokens as i64,
+                    usage.cache_read_tokens as i64,
+                    usage.cache_write_tokens as i64,
+                    usage.total_tokens as i64,
+                    0,
+                    None,
+                ) {
                     tracing::warn!(
                         "[CodeSession] Failed to insert per-round token usage: {}",
                         err

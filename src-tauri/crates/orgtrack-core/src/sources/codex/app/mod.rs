@@ -43,7 +43,7 @@ pub(crate) use crate::sources::imported_history::{
 #[cfg(test)]
 pub(crate) use index::codex_sessions_dir_candidates;
 #[cfg(test)]
-pub(crate) use meta::parse_codex_session_meta;
+pub(crate) use meta::{parse_codex_session_meta, parse_codex_session_meta_incremental};
 #[cfg(test)]
 pub(crate) use serde_json::json;
 #[cfg(test)]

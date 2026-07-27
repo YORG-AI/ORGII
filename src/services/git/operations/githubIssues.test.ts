@@ -16,7 +16,7 @@ describe("issueCommentToTimelineItem", () => {
       created_at: "2026-07-21T13:09:14Z",
       updated_at: "2026-07-21T13:09:14Z",
       html_url:
-        "https://github.com/yorgai/ORG2/issues/459#issuecomment-5034449241",
+        "https://github.com/org2ai/ORG2/issues/459#issuecomment-5034449241",
     };
 
     expect(issueCommentToTimelineItem(comment)).toEqual({

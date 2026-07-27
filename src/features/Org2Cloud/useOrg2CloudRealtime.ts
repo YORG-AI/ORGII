@@ -16,7 +16,10 @@
  *                        broadcasts drive the normal live path; the coarse
  *                        row is rate-limited to one recovery pull per minute
  *                        so unrelated planes cannot invalidate one another
- *                        on every write.
+ *                        on every write. Broadcast backends carry the signal
+ *                        as per-kind `org-db-changed` events on the org
+ *                        channel instead, dispatched narrowly per plane with
+ *                        the same 60s window per plane.
  *
  * Realtime is an INVALIDATION signal only: the data still arrives through the
  * existing RPC pull paths, so no cursor/tombstone logic is duplicated here. The
@@ -67,6 +70,7 @@ import {
 import {
   ORG_CONTROL_CHANGED_EVENT,
   ORG_DB_CHANGED_EVENT,
+  type Org2CloudDbChangeKind,
   parseOrgControlChangeKind,
   parseOrgDbChangeKind,
   registerOrgControlBroadcaster,
@@ -126,10 +130,34 @@ const CHANGE_SIGNALS_TABLE = "org_change_signals";
  * The backend's durable signal is intentionally coarse. Plane-specific
  * Presence broadcasts provide the live path; the durable coarse row is a
  * secondary event source. These windows throttle event storms—they do not
- * schedule polling when no signal arrives.
+ * schedule polling when no signal arrives. On per-kind backends every plane
+ * keeps its own 60s window (one `SignalPlane` stamp/timer each) instead of
+ * sharing a single coarse stamp.
  */
 const COARSE_SIGNAL_THROTTLE_MS = 60_000;
 const CONTROL_PLANE_REFRESH_THROTTLE_MS = 5 * 60_000;
+
+/**
+ * Throttle keys for the trailing-edge signal refreshes: one per narrowed
+ * dispatch target ("inbound" covers projects + workItems, which run the same
+ * action) plus "coarse" for the legacy all-planes refresh.
+ */
+type SignalPlane =
+  | "coarse"
+  | "sessions"
+  | "comments"
+  | "inbound"
+  | "roster"
+  | "policy";
+
+const ALL_SIGNAL_PLANES: readonly SignalPlane[] = [
+  "coarse",
+  "sessions",
+  "comments",
+  "inbound",
+  "roster",
+  "policy",
+];
 
 function isDocumentHidden(): boolean {
   return (
@@ -243,11 +271,14 @@ export function useOrg2CloudRealtime(): void {
   // Stable refs so the per-org effect and status callbacks read current values
   // without forcing the connection to rebuild.
   const refetchRef = useRef(refetchOrgs);
-  const coarseSignalHandledAtRef = useRef(0);
+  const planeSignalHandledAtRef = useRef(new Map<SignalPlane, number>());
+  const planeSignalTrailingTimersRef = useRef(
+    new Map<SignalPlane, ReturnType<typeof setTimeout>>()
+  );
   const controlPlaneRefreshAtRef = useRef(0);
-  const coarseSignalTrailingTimerRef = useRef<ReturnType<
-    typeof setTimeout
-  > | null>(null);
+  const coarseSafetyNetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
   // Disconnect-duration bookkeeping for the SUBSCRIBED-edge recovery policy:
   // short gaps and rejoin storms downgrade to delta pulls, long gaps run the
   // authoritative full recovery (see org2CloudRealtimeRecovery).
@@ -370,14 +401,38 @@ export function useOrg2CloudRealtime(): void {
     }
   }, [auth?.accessToken]);
 
+  // Low-frequency control-plane guard shared by every signal path: any
+  // signal arms the 5-min refetchOrgs + entitlement TTL check.
+  const maybeRefreshControlPlane = useCallback(
+    (orgId: string) => {
+      const now = Date.now();
+      if (
+        now - controlPlaneRefreshAtRef.current <
+        CONTROL_PLANE_REFRESH_THROTTLE_MS
+      ) {
+        return;
+      }
+      controlPlaneRefreshAtRef.current = now;
+      void refetchRef.current();
+      void refreshEntitlementForOrg(orgId).then((floorChanged) => {
+        if (floorChanged) org2CloudSyncEngine.resumeOrg(orgId);
+      });
+    },
+    [refreshEntitlementForOrg]
+  );
+
   // Shared by the Slice B postgres_changes path (legacy backends) and the
-  // Slice C org-channel broadcast path (0005 backends): identical throttle
-  // windows and refresh behavior regardless of transport.
+  // Slice C safety net (per-kind backends): identical throttle windows and
+  // refresh behavior regardless of transport.
   const runCoarseSignalRefresh = useCallback(() => {
     const orgId = activeRealtimeOrgId;
     if (!orgId) return;
     const now = Date.now();
-    coarseSignalHandledAtRef.current = now;
+    const handledAt = planeSignalHandledAtRef.current;
+    handledAt.set("coarse", now);
+    handledAt.set("sessions", now);
+    handledAt.set("comments", now);
+    handledAt.set("inbound", now);
     // A blur/visibility event releases the connection. Ignore the tiny
     // event-delivery race during teardown; the next SUBSCRIBED true-edge
     // performs the authoritative full recovery.
@@ -385,42 +440,110 @@ export function useOrg2CloudRealtime(): void {
     org2CloudSyncEngine.invalidateOrgInbound(orgId);
     bumpRemoteSessionsVersion(orgId);
     bumpOrgCommentsSignal(orgId);
-    if (
-      now - controlPlaneRefreshAtRef.current >=
-      CONTROL_PLANE_REFRESH_THROTTLE_MS
-    ) {
-      controlPlaneRefreshAtRef.current = now;
-      void refetchRef.current();
-      void refreshEntitlementForOrg(orgId).then((floorChanged) => {
-        if (floorChanged) org2CloudSyncEngine.resumeOrg(orgId);
-      });
-    }
+    maybeRefreshControlPlane(orgId);
   }, [
     activeRealtimeOrgId,
     bumpRemoteSessionsVersion,
     bumpOrgCommentsSignal,
-    refreshEntitlementForOrg,
+    maybeRefreshControlPlane,
   ]);
+  // Per-plane trailing-edge throttler (the generalized coarse scheduler):
+  // leading run when the plane's window is clear, otherwise one trailing
+  // timer at the window's end.
+  const schedulePlaneSignalRefresh = useCallback(
+    (plane: SignalPlane, refresh: () => void) => {
+      const now = Date.now();
+      const elapsed = now - (planeSignalHandledAtRef.current.get(plane) ?? 0);
+      const run = () => {
+        planeSignalHandledAtRef.current.set(plane, Date.now());
+        if (isDocumentHidden()) return;
+        refresh();
+      };
+      if (elapsed >= COARSE_SIGNAL_THROTTLE_MS) {
+        run();
+        return;
+      }
+      const timers = planeSignalTrailingTimersRef.current;
+      if (timers.has(plane)) return;
+      timers.set(
+        plane,
+        setTimeout(() => {
+          timers.delete(plane);
+          run();
+        }, COARSE_SIGNAL_THROTTLE_MS - elapsed)
+      );
+    },
+    []
+  );
   const scheduleCoarseSignalRefresh = useCallback(() => {
-    const now = Date.now();
-    const elapsed = now - coarseSignalHandledAtRef.current;
-    if (elapsed >= COARSE_SIGNAL_THROTTLE_MS) {
+    schedulePlaneSignalRefresh("coarse", runCoarseSignalRefresh);
+  }, [schedulePlaneSignalRefresh, runCoarseSignalRefresh]);
+  // Slow convergence net for narrowed dispatch: one trailing full coarse
+  // refresh per control-plane TTL window while signals keep arriving.
+  const armCoarseSignalSafetyNet = useCallback(() => {
+    if (coarseSafetyNetTimerRef.current) return;
+    coarseSafetyNetTimerRef.current = setTimeout(() => {
+      coarseSafetyNetTimerRef.current = null;
       runCoarseSignalRefresh();
-      return;
-    }
-    if (coarseSignalTrailingTimerRef.current) return;
-    coarseSignalTrailingTimerRef.current = setTimeout(() => {
-      coarseSignalTrailingTimerRef.current = null;
-      runCoarseSignalRefresh();
-    }, COARSE_SIGNAL_THROTTLE_MS - elapsed);
+    }, CONTROL_PLANE_REFRESH_THROTTLE_MS);
   }, [runCoarseSignalRefresh]);
+
+  const dispatchDbChangeSignal = useCallback(
+    (orgId: string, kind: Org2CloudDbChangeKind) => {
+      armCoarseSignalSafetyNet();
+      if (!isDocumentHidden()) maybeRefreshControlPlane(orgId);
+      switch (kind) {
+        case "sessions":
+          schedulePlaneSignalRefresh("sessions", () => {
+            org2CloudSyncEngine.invalidateOrgInbound(orgId);
+            bumpRemoteSessionsVersion(orgId);
+          });
+          return;
+        case "comments":
+          schedulePlaneSignalRefresh("comments", () => {
+            bumpOrgCommentsSignal(orgId);
+          });
+          return;
+        case "projects":
+        case "workItems":
+          schedulePlaneSignalRefresh("inbound", () => {
+            org2CloudSyncEngine.invalidateOrgInbound(orgId);
+          });
+          return;
+        case "roster":
+          schedulePlaneSignalRefresh("roster", () => {
+            bumpRosterVersion(orgId);
+          });
+          return;
+        case "policy":
+          schedulePlaneSignalRefresh("policy", () => {
+            void refreshEntitlementForOrg(orgId).then((floorChanged) => {
+              if (floorChanged) org2CloudSyncEngine.resumeOrg(orgId);
+            });
+            bumpRosterVersion(orgId);
+          });
+      }
+    },
+    [
+      armCoarseSignalSafetyNet,
+      maybeRefreshControlPlane,
+      schedulePlaneSignalRefresh,
+      bumpRemoteSessionsVersion,
+      bumpOrgCommentsSignal,
+      bumpRosterVersion,
+      refreshEntitlementForOrg,
+    ]
+  );
 
   // Recovery for missed signals on a (re)subscribed org scope. Legacy: the
   // signal channel's SUBSCRIBED edge. 0005: the org broadcast channel's edge.
   const runSignalEdgeRecovery = useCallback(
     (orgId: string) => {
-      coarseSignalHandledAtRef.current = Date.now();
-      controlPlaneRefreshAtRef.current = Date.now();
+      const now = Date.now();
+      for (const plane of ALL_SIGNAL_PLANES) {
+        planeSignalHandledAtRef.current.set(plane, now);
+      }
+      controlPlaneRefreshAtRef.current = now;
       if (isDocumentHidden()) return;
       // A LONG gap forces complete listings so tombstone-free absences
       // (revoked projects / retention shifts) are observed; a short gap or
@@ -527,9 +650,13 @@ export function useOrg2CloudRealtime(): void {
         delete next[orgId];
         return next;
       });
-      if (coarseSignalTrailingTimerRef.current) {
-        clearTimeout(coarseSignalTrailingTimerRef.current);
-        coarseSignalTrailingTimerRef.current = null;
+      for (const timer of planeSignalTrailingTimersRef.current.values()) {
+        clearTimeout(timer);
+      }
+      planeSignalTrailingTimersRef.current.clear();
+      if (coarseSafetyNetTimerRef.current) {
+        clearTimeout(coarseSafetyNetTimerRef.current);
+        coarseSafetyNetTimerRef.current = null;
       }
     };
     // Connection identity follows the same activeRealtimeOrgId key in Slice A.
@@ -615,17 +742,20 @@ export function useOrg2CloudRealtime(): void {
       payload: initialPayload,
       onBroadcast: (event, payload) => {
         if (event === ORG_DB_CHANGED_EVENT) {
-          // Server-originated signal (0005 Broadcast-from-Database). Same
-          // downstream behavior as the legacy postgres_changes transports.
-          // `roster` also runs the coarse refresh: the membership trigger's
-          // bump wins the per-org debounce window, so a member-floor RPC in
-          // the same transaction broadcasts as `roster` (0005 PART 4 "kind
-          // shadowing") and the policy recovery has to ride this kind too.
+          // Server-originated signal (0005 Broadcast-from-Database),
+          // dispatched per kind: 0006 debounces per (org, kind) — no kind
+          // shadowing — and a member-floor RPC emits BOTH 'policy' and
+          // 'roster', so each kind maps to exactly its own plane refresh.
+          // A plain-0005 backend still debounces per org, where a burst can
+          // shadow one kind behind another and starve that plane forever
+          // under narrowed dispatch. There is no capability flag for the
+          // per-kind debounce, so every kind also arms a slow trailing full
+          // coarse refresh (control-plane TTL cadence): a shadowed plane
+          // converges within 5 minutes instead of never.
           if (!broadcastSignals) return;
           const kind = parseOrgDbChangeKind(payload);
           if (!kind) return;
-          if (kind === "roster") bumpRosterVersion(orgId);
-          scheduleCoarseSignalRefresh();
+          dispatchDbChangeSignal(orgId, kind);
           return;
         }
         if (event === ORG_CONTROL_CHANGED_EVENT) {
@@ -750,7 +880,7 @@ export function useOrg2CloudRealtime(): void {
     setCommentsSignal,
     bumpRemoteSessionsVersion,
     bumpRosterVersion,
-    scheduleCoarseSignalRefresh,
+    dispatchDbChangeSignal,
     runSignalEdgeRecovery,
   ]);
 

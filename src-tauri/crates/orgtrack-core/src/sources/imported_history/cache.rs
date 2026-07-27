@@ -321,6 +321,11 @@ pub fn prune_missing_records_from_conn(
             [source],
         )
         .ok();
+        conn.execute(
+            "DELETE FROM imported_history_parse_watermarks WHERE source = ?1",
+            [source],
+        )
+        .ok();
         return Ok(());
     }
 
@@ -342,6 +347,13 @@ pub fn prune_missing_records_from_conn(
         "DELETE FROM imported_history_round_usage \
          WHERE source = ?1 AND session_id NOT IN \
              (SELECT session_id FROM imported_history_session_cache WHERE source = ?1)",
+        [source],
+    )
+    .ok();
+    conn.execute(
+        "DELETE FROM imported_history_parse_watermarks \
+         WHERE source = ?1 AND source_session_id NOT IN \
+             (SELECT source_session_id FROM imported_history_session_cache WHERE source = ?1)",
         [source],
     )
     .ok();
@@ -772,9 +784,33 @@ pub fn query_cached_session_from_conn(
 /// and one conversation shows once per continuation rewrite. Other unlistable
 /// rows (subagents, managed mirrors) still resolve — callers rely on that for
 /// parent placement and replay.
+///
+/// Existence checks that must treat a demoted sibling as still-present (the
+/// cloud vanished-session sweep) use
+/// `query_cached_session_by_session_id_including_superseded_from_conn`.
 pub fn query_cached_session_by_session_id_from_conn(
     conn: &Connection,
     session_id: &str,
+) -> Result<Option<(String, ImportedHistoryCachedSession)>, String> {
+    query_cached_session_by_session_id_impl(conn, session_id, false)
+}
+
+/// Exact-id resolution WITHOUT the continuation-supersession filter: a row
+/// demoted by the continuation election still resolves. The cloud
+/// vanished-session sweep confirms suspects through this path — a superseded
+/// sibling has not vanished locally, and reporting it absent would retract
+/// the team's shared cloud session on every context-window continuation.
+pub fn query_cached_session_by_session_id_including_superseded_from_conn(
+    conn: &Connection,
+    session_id: &str,
+) -> Result<Option<(String, ImportedHistoryCachedSession)>, String> {
+    query_cached_session_by_session_id_impl(conn, session_id, true)
+}
+
+fn query_cached_session_by_session_id_impl(
+    conn: &Connection,
+    session_id: &str,
+    include_continuation_superseded: bool,
 ) -> Result<Option<(String, ImportedHistoryCachedSession)>, String> {
     let source = conn
         .query_row(
@@ -800,7 +836,9 @@ pub fn query_cached_session_by_session_id_from_conn(
     let Some(session) = sessions.into_iter().next() else {
         return Ok(None);
     };
-    if has_newer_continuation_sibling(conn, &source, &session)? {
+    if !include_continuation_superseded
+        && has_newer_continuation_sibling(conn, &source, &session)?
+    {
         return Ok(None);
     }
     Ok(Some((source, session)))
@@ -842,7 +880,9 @@ fn has_newer_continuation_sibling(
                 WHERE source = ?1
                   AND source_session_id != ?2
                   AND COALESCE(parent_session_id, '') = ''
-                  AND json_extract(source_metadata_json, '$.{CONTINUATION_GROUP_KEY_FIELD}') = ?3
+                  AND CASE WHEN json_valid(source_metadata_json)
+                       THEN json_extract(source_metadata_json, '$.{CONTINUATION_GROUP_KEY_FIELD}')
+                       END = ?3
                   AND (updated_at_ms > ?4
                        OR (updated_at_ms = ?4 AND source_session_id > ?2))
             )"

@@ -251,7 +251,7 @@ mod tests {
         let root = unique_test_dir("discover");
         std::fs::create_dir_all(root.join(".claude/worktrees")).expect("test dirs");
         let repo = Repository::init(&root).expect("init repo");
-        repo.remote("upstream", "git@github.com:yorgai/org2.git")
+        repo.remote("upstream", "git@github.com:org2ai/org2.git")
             .expect("upstream");
         repo.remote("origin", "https://github.com/me/org2.git")
             .expect("origin");
@@ -272,7 +272,7 @@ mod tests {
             resolved.remote_urls,
             vec![
                 "https://github.com/me/org2.git".to_string(),
-                "git@github.com:yorgai/org2.git".to_string()
+                "git@github.com:org2ai/org2.git".to_string()
             ]
         );
         std::fs::remove_dir_all(&root).expect("remove test repo");

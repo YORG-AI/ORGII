@@ -111,6 +111,43 @@ export interface DropdownItemProps {
    * Additional style
    */
   style?: React.CSSProperties;
+
+  /**
+   * ARIA role for the row. Defaults to "option" for listbox-style dropdowns.
+   * Use "menuitem" for action/command menus (context menus, header menus).
+   * @default "option"
+   */
+  role?: React.AriaRole;
+
+  /**
+   * Full-width action-row layout (w-full, left-aligned, single line). Use for
+   * command/action menu rows that previously used a raw `<button>` +
+   * `DROPDOWN_CLASSES.menuActionItem`.
+   * @default false
+   */
+  fullWidth?: boolean;
+
+  /**
+   * Tab index. Provide `0` to make a standalone action row directly
+   * keyboard-focusable (menus without a listbox roving-focus manager). Omitted
+   * by default so listbox options keep parent-managed focus behavior.
+   */
+  tabIndex?: number;
+
+  /**
+   * Accessible name for rows without readable text content (icon-only rows).
+   */
+  ariaLabel?: string;
+
+  /**
+   * `aria-haspopup` for rows that open a submenu / flyout.
+   */
+  ariaHasPopup?: React.AriaAttributes["aria-haspopup"];
+
+  /**
+   * `aria-expanded` for submenu-trigger rows.
+   */
+  ariaExpanded?: boolean;
 }
 
 const DropdownItemInner = forwardRef<HTMLDivElement, DropdownItemProps>(
@@ -129,6 +166,12 @@ const DropdownItemInner = forwardRef<HTMLDivElement, DropdownItemProps>(
       className = "",
       dataTestId,
       style,
+      role = "option",
+      fullWidth = false,
+      tabIndex,
+      ariaLabel,
+      ariaHasPopup,
+      ariaExpanded,
     },
     ref
   ) => {
@@ -137,8 +180,21 @@ const DropdownItemInner = forwardRef<HTMLDivElement, DropdownItemProps>(
       onClick?.();
     };
 
+    // Keyboard activation for directly-focusable rows (action/command menus
+    // without a listbox roving-focus manager). No-op for parent-managed
+    // listbox options: they don't set `tabIndex`, so the row never gains focus
+    // and never receives these key events.
+    const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (disabled) return;
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        onClick?.();
+      }
+    };
+
     const itemClasses = [
       DROPDOWN_CLASSES.item,
+      fullWidth && "w-full justify-start whitespace-nowrap text-left",
       !disabled && DROPDOWN_CLASSES.itemHover,
       // Only keyboard `highlighted` gets a filled background. The `selected`
       // state is shown by the checkmark + primary-6 text only (no bg fill).
@@ -150,6 +206,9 @@ const DropdownItemInner = forwardRef<HTMLDivElement, DropdownItemProps>(
       .filter(Boolean)
       .join(" ");
 
+    const effectiveTabIndex =
+      tabIndex === undefined ? undefined : disabled ? -1 : tabIndex;
+
     return (
       <div
         ref={ref}
@@ -157,9 +216,14 @@ const DropdownItemInner = forwardRef<HTMLDivElement, DropdownItemProps>(
         data-testid={dataTestId}
         style={style}
         onClick={handleClick}
+        onKeyDown={handleKeyDown}
         onMouseEnter={onMouseEnter}
-        role="option"
-        aria-selected={selected}
+        role={role}
+        tabIndex={effectiveTabIndex}
+        aria-label={ariaLabel}
+        aria-haspopup={ariaHasPopup}
+        aria-expanded={ariaExpanded}
+        aria-selected={role === "option" ? selected : undefined}
         aria-disabled={disabled}
       >
         {/* Icon */}

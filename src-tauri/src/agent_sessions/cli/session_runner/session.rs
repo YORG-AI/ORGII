@@ -48,6 +48,7 @@ pub async fn run_session(
     cli_resume_id: Option<String>,
     mode: Option<&str>,
     images: Option<Vec<String>>,
+    turn_intent_id: Option<&str>,
 ) -> Result<(), String> {
     let session = persistence::get_session(&session_id)
         .map_err(|e| format!("DB error: {}", e))?
@@ -694,6 +695,7 @@ pub async fn run_session(
         use_codex_app_server,
         is_acp_agent,
         &synced_rule_files,
+        turn_intent_id,
         super::finalize::SessionRunOutcome {
             exit_code,
             cli_session_id_out,

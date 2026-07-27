@@ -39,6 +39,12 @@ import {
   mapSegmentsBounded,
 } from "../TeamCollaboration/sync/segmentCodec";
 import type { CloudEndpoint } from "./config";
+import { endpointForOrg } from "./org2CloudOrgEndpointRouter";
+import {
+  type GuestReplayObjectReader,
+  createGuestReplayObjectReader,
+  isReplayAuthorizeRpcMissing,
+} from "./org2CloudReplaySignedReads";
 import { downloadReplayObject } from "./org2CloudStorageClient";
 import {
   type CloudSegmentWire,
@@ -52,10 +58,14 @@ export type CloudSessionFetchClient = Pick<
   "getSessionEventSegments" | "streamSessionEventSegments"
 >;
 
+type SegmentObjectDownload = (
+  storagePath: string,
+  signal?: AbortSignal
+) => Promise<Uint8Array>;
+
 async function decodeCloudSegmentEvents(
   segment: CloudSegmentWire,
-  accessToken: string,
-  endpoint?: CloudEndpoint,
+  downloadObject: SegmentObjectDownload,
   signal?: AbortSignal
 ): Promise<SessionEvent[]> {
   if (segment.payloadGz != null) {
@@ -63,12 +73,7 @@ async function decodeCloudSegmentEvents(
   }
   if (segment.storagePath != null) {
     return decodeSegmentEventsFromBytes(
-      await downloadReplayObject(
-        accessToken,
-        segment.storagePath,
-        endpoint,
-        signal
-      )
+      await downloadObject(segment.storagePath, signal)
     );
   }
   throw new Error("cloud segment carries neither payloadGz nor storagePath");
@@ -77,8 +82,7 @@ async function decodeCloudSegmentEvents(
 async function decodeCloudSegments(
   segments: readonly CloudSegmentWire[],
   afterSeq: number,
-  accessToken: string,
-  endpoint?: CloudEndpoint,
+  downloadObject: SegmentObjectDownload,
   signal?: AbortSignal
 ): Promise<SessionEventSegmentRecord[]> {
   return mapSegmentsBounded(
@@ -91,12 +95,7 @@ async function decodeCloudSegments(
       return {
         seq,
         isTail: seq === 0,
-        events: await decodeCloudSegmentEvents(
-          segment,
-          accessToken,
-          endpoint,
-          signal
-        ),
+        events: await decodeCloudSegmentEvents(segment, downloadObject, signal),
         eventCount: segment.eventCount,
         segmentHash: segment.segmentHash,
       };
@@ -126,12 +125,62 @@ export function cloudSessionIdFromRowId(sessionRowId: string): string {
  * Link imports still require a registered user's access token. The optional
  * `input.shareToken` — threaded by the importer from
  * `RemoteSessionFetchOptions` — grants that signed-in user access without
- * requiring membership in the source org.
+ * requiring membership in the source org. Storage-offloaded segments then
+ * read through the signed-url flow (`org2CloudReplaySignedReads`): the guest
+ * JWT cannot pass the replay bucket's member RLS. The signed-url map is
+ * cached per (session, share token) for this client's lifetime — one import.
+ * A backend without the authorize RPC falls back to the member download so
+ * the import surfaces exactly the failure it had before the signer existed.
  */
 export function buildCloudSessionFetchClient(
   accessToken: string,
   endpoint?: CloudEndpoint
 ): CloudSessionFetchClient {
+  const guestReaders = new Map<string, GuestReplayObjectReader>();
+  const downloadForInput = (input: {
+    orgId: string;
+    sessionRowId: string;
+    shareToken?: string;
+  }): SegmentObjectDownload => {
+    const shareToken = input.shareToken;
+    if (shareToken === undefined) {
+      return (storagePath, signal) =>
+        downloadReplayObject(
+          accessToken,
+          storagePath,
+          endpoint ?? endpointForOrg(input.orgId),
+          signal
+        );
+    }
+    const sessionId = cloudSessionIdFromRowId(input.sessionRowId);
+    const readerKey = `${input.orgId}\u001f${sessionId}\u001f${shareToken}`;
+    let reader = guestReaders.get(readerKey);
+    if (!reader) {
+      reader = createGuestReplayObjectReader({
+        orgId: input.orgId,
+        sessionId,
+        shareToken,
+        ...(endpoint !== undefined ? { endpoint } : {}),
+      });
+      guestReaders.set(readerKey, reader);
+    }
+    const guestReader = reader;
+    return async (storagePath, signal) => {
+      try {
+        return await guestReader.download(storagePath, signal);
+      } catch (error) {
+        if (isReplayAuthorizeRpcMissing(error)) {
+          return downloadReplayObject(
+            accessToken,
+            storagePath,
+            endpoint,
+            signal
+          );
+        }
+        throw error;
+      }
+    };
+  };
   return {
     async getSessionEventSegments(
       input: GetSessionEventSegmentsInput
@@ -160,8 +209,7 @@ export function buildCloudSessionFetchClient(
       const segments = await decodeCloudSegments(
         snapshot.segments,
         afterSeq,
-        accessToken,
-        endpoint,
+        downloadForInput(input),
         input.signal
       );
       return {
@@ -174,6 +222,7 @@ export function buildCloudSessionFetchClient(
     },
     async streamSessionEventSegments(input, onPage) {
       const afterSeq = input.afterSeq ?? 0;
+      const downloadObject = downloadForInput(input);
       return streamSessionEvents(
         accessToken,
         input.orgId,
@@ -187,8 +236,7 @@ export function buildCloudSessionFetchClient(
             segments: await decodeCloudSegments(
               page.segments,
               afterSeq,
-              accessToken,
-              endpoint,
+              downloadObject,
               input.signal
             ),
           });

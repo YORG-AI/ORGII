@@ -137,10 +137,7 @@ const FileSidebarComponent: React.FC<FileSidebarProps> = ({
   );
 
   const readFileKey = useMemo(
-    () =>
-      readOperations
-        .map((op) => `${op.eventId}:${op.event?.createdAt ?? ""}`)
-        .join(","),
+    () => readOperations.map((op) => op.eventId).join(","),
     [readOperations]
   );
 
@@ -170,13 +167,13 @@ const FileSidebarComponent: React.FC<FileSidebarProps> = ({
       writeOperations
         .map((op) => {
           if (op.type === FILE_OPERATION_TYPE.DELETE) {
-            return `${op.eventId}:D:${op.event?.createdAt ?? ""}`;
+            return `${op.eventId}:D`;
           }
           const hasBaseline =
             op.writeHasBaselineContent !== undefined
               ? op.writeHasBaselineContent
               : Boolean(resolveFileOperationPayload(op).oldContent);
-          return `${op.eventId}:${hasBaseline ? "M" : "A"}:${op.event?.createdAt ?? ""}:${op.editCount ?? 1}`;
+          return `${op.eventId}:${hasBaseline ? "M" : "A"}`;
         })
         .join(","),
     [writeOperations]

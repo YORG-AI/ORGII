@@ -55,7 +55,54 @@ pub(super) fn strip_ide_context(input: &str) -> String {
 ///
 /// Shared helper used by both the ACP flow (Copilot) and the standard
 /// CliAgentParser loop (all other agents).
-pub(super) fn emit_chunk(
+pub(super) async fn emit_chunk(
+    chunk: &core_types::activity::ActivityChunk,
+    session_id: &str,
+    sequence: &mut i64,
+) {
+    let action_type = chunk.action_type.as_str();
+    let is_delta = action_type.contains("delta")
+        && chunk
+            .result
+            .get("is_delta")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+    let delta_requires_flush = action_type == "tool_call_delta"
+        && (chunk
+            .result
+            .get("tool_call_id")
+            .and_then(|v| v.as_str())
+            .is_some_and(|value| !value.is_empty())
+            || chunk
+                .result
+                .get("tool_name")
+                .and_then(|v| v.as_str())
+                .is_some_and(|value| !value.is_empty()));
+
+    // Ordinary token deltas are memory-only and latency-sensitive. Keep them
+    // on the async runner; only chunks that may touch SQLite, the event cache,
+    // or filesystem side effects cross onto the blocking pool.
+    if is_delta && !delta_requires_flush {
+        emit_chunk_blocking(chunk, session_id, sequence);
+        return;
+    }
+
+    let owned_chunk = chunk.clone();
+    let owned_session_id = session_id.to_string();
+    let initial_sequence = *sequence;
+    match tokio::task::spawn_blocking(move || {
+        let mut next_sequence = initial_sequence;
+        emit_chunk_blocking(&owned_chunk, &owned_session_id, &mut next_sequence);
+        next_sequence
+    })
+    .await
+    {
+        Ok(next_sequence) => *sequence = next_sequence,
+        Err(err) => tracing::error!("[CodeSession] chunk persistence task failed: {err}"),
+    }
+}
+
+fn emit_chunk_blocking(
     chunk: &core_types::activity::ActivityChunk,
     session_id: &str,
     sequence: &mut i64,
@@ -91,7 +138,7 @@ pub(super) fn emit_chunk(
                     .filter(|v| !v.is_empty())
                     .is_some();
             if has_tool_identity {
-                flush_and_broadcast(session_id);
+                flush_and_broadcast_blocking(session_id);
             }
         }
 
@@ -145,7 +192,7 @@ pub(super) fn emit_chunk(
     } else {
         // Non-streaming chunk (tool_call, user_message, etc.): flush any
         // pending streams before appending, same as UnifiedEventHandler.
-        flush_and_broadcast(session_id);
+        flush_and_broadcast_blocking(session_id);
     }
 
     // Persist non-delta chunks to DB (legacy mode). Native-transcript
@@ -253,7 +300,7 @@ fn persist_streaming_complete_chunk(
 }
 
 /// Flush all pending CLI streams and broadcast completion events.
-pub(super) fn flush_and_broadcast(session_id: &str) {
+fn flush_and_broadcast_blocking(session_id: &str) {
     let mut sequence = next_chunk_sequence(session_id);
     for event in crate::agent_sessions::event_pipeline::streaming::cli_flush_session(session_id) {
         let stream_type = if event.action_type == "assistant" {
@@ -270,8 +317,19 @@ pub(super) fn flush_and_broadcast(session_id: &str) {
     }
 }
 
-pub fn flush_cli_streams_for_session(session_id: &str) {
-    flush_and_broadcast(session_id);
+pub(super) async fn flush_and_broadcast(session_id: &str) {
+    let owned_session_id = session_id.to_string();
+    if let Err(err) = tokio::task::spawn_blocking(move || {
+        flush_and_broadcast_blocking(&owned_session_id);
+    })
+    .await
+    {
+        tracing::error!("[CodeSession] stream flush task failed: {err}");
+    }
+}
+
+pub async fn flush_cli_streams_for_session(session_id: &str) {
+    flush_and_broadcast(session_id).await;
 }
 
 /// Drop hook-derived live status for a finished managed session. The
@@ -328,7 +386,7 @@ fn is_cli_file_edit_function(function_name: &str) -> bool {
 ///
 /// Non-fatal: snapshot failures are logged at `warn` level and never block the
 /// chunk from being persisted and broadcast.
-pub(super) fn snapshot_cli_file_edit(
+fn snapshot_cli_file_edit_blocking(
     session_id: &str,
     snapshot_id: &str,
     chunk: &core_types::activity::ActivityChunk,
@@ -422,6 +480,30 @@ pub(super) fn snapshot_cli_file_edit(
     }
 }
 
+pub(super) async fn snapshot_cli_file_edit(
+    session_id: &str,
+    snapshot_id: &str,
+    chunk: &core_types::activity::ActivityChunk,
+    repo_path: &str,
+) {
+    let owned_session_id = session_id.to_string();
+    let owned_snapshot_id = snapshot_id.to_string();
+    let owned_chunk = chunk.clone();
+    let owned_repo_path = repo_path.to_string();
+    if let Err(err) = tokio::task::spawn_blocking(move || {
+        snapshot_cli_file_edit_blocking(
+            &owned_session_id,
+            &owned_snapshot_id,
+            &owned_chunk,
+            &owned_repo_path,
+        );
+    })
+    .await
+    {
+        tracing::warn!("[cli_snapshot] snapshot task failed: {err}");
+    }
+}
+
 /// Save base64 data-URL images to `~/.orgii/session-images/` and return file paths.
 ///
 /// Delegates to `agent_core::images::persist_images` which uses content-hash
@@ -436,7 +518,18 @@ pub(super) async fn persist_attached_images(
         return vec![];
     }
 
-    let paths = agent_core::persistence::images::persist_images(imgs);
+    let owned_images = imgs.to_vec();
+    let paths = match tokio::task::spawn_blocking(move || {
+        agent_core::persistence::images::persist_images(&owned_images)
+    })
+    .await
+    {
+        Ok(paths) => paths,
+        Err(err) => {
+            tracing::warn!("[CodeSession] image persistence task failed: {err}");
+            Vec::new()
+        }
+    };
 
     if !paths.is_empty() {
         tracing::info!(

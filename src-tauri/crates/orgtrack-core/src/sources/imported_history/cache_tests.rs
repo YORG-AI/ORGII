@@ -112,7 +112,7 @@ fn sidebar_query_is_date_bounded_and_carries_impact_metadata() {
         rusqlite::params![
             "/tmp/repo-inside",
             "/tmp",
-            r#"["git@github.com:yorgai/org2.git"]"#
+            r#"["git@github.com:org2ai/org2.git"]"#
         ],
     )
     .expect("insert repo identity");
@@ -129,7 +129,7 @@ fn sidebar_query_is_date_bounded_and_carries_impact_metadata() {
     assert_eq!(row.repo_root_path.as_deref(), Some("/tmp"));
     assert_eq!(
         row.repo_remote_urls,
-        vec!["git@github.com:yorgai/org2.git".to_string()]
+        vec!["git@github.com:org2ai/org2.git".to_string()]
     );
     // Imported sessions have no sessions.db copy — the hover card's storage
     // row can only point at the source app's own transcript file.
@@ -446,6 +446,119 @@ fn canonical_lookup_skips_continuation_superseded_siblings() {
         .expect("query child")
         .expect("subagent resolves");
     assert_eq!(child.source_session_id, "child");
+}
+
+#[test]
+fn including_superseded_lookup_resolves_demoted_continuation_siblings() {
+    let mut conn = fixture_conn();
+    let group = continuation_group_metadata_json(Some("family-uuid"));
+    let mut older = input(SOURCE_CODEX_APP, "gen1", 100);
+    older.source_metadata_json = group.clone();
+    let mut newest = input(SOURCE_CODEX_APP, "gen2", 200);
+    newest.source_metadata_json = group;
+    upsert_imported_session_cache_from_conn(&mut conn, &[older, newest]).expect("upsert");
+    demote_superseded_continuations_from_conn(&conn, SOURCE_CODEX_APP).expect("election");
+
+    // The vanished-session sweep's existence check must see the demoted
+    // sibling: it still exists locally and its shared cloud row must survive
+    // a context-window continuation.
+    let (_, demoted) = query_cached_session_by_session_id_including_superseded_from_conn(
+        &conn,
+        "codex_app-gen1",
+    )
+    .expect("query gen1 including superseded")
+    .expect("demoted sibling resolves");
+    assert_eq!(demoted.source_session_id, "gen1");
+    assert!(
+        query_cached_session_by_session_id_from_conn(&conn, "codex_app-gen1")
+            .expect("query gen1 default")
+            .is_none()
+    );
+    // Truly absent ids stay absent on both paths.
+    assert!(
+        query_cached_session_by_session_id_including_superseded_from_conn(
+            &conn,
+            "codex_app-missing"
+        )
+        .expect("query missing")
+        .is_none()
+    );
+}
+
+#[test]
+fn canonical_lookup_tolerates_legacy_non_json_metadata_rows() {
+    let mut conn = fixture_conn();
+    let group = continuation_group_metadata_json(Some("family-uuid"));
+    let mut older = input(SOURCE_CODEX_APP, "gen1", 100);
+    older.source_metadata_json = group.clone();
+    let mut newest = input(SOURCE_CODEX_APP, "gen2", 200);
+    newest.source_metadata_json = group;
+    let keyless = input(SOURCE_CODEX_APP, "journal", 300);
+    upsert_imported_session_cache_from_conn(&mut conn, &[older, newest, keyless])
+        .expect("upsert");
+    conn.execute(
+        "UPDATE imported_history_session_cache SET source_metadata_json = 'not-json' \
+         WHERE source = ?1 AND source_session_id = 'journal'",
+        [SOURCE_CODEX_APP],
+    )
+    .expect("write corrupt metadata");
+    let empty: String = conn
+        .query_row(
+            "SELECT source_metadata_json FROM imported_history_session_cache \
+             WHERE source = ?1 AND source_session_id = 'gen1'",
+            [SOURCE_CODEX_APP],
+            |row| row.get(0),
+        )
+        .expect("read gen1 metadata");
+    assert!(empty.starts_with('{'));
+    let mut legacy_empty = input(SOURCE_CODEX_APP, "keyless", 50);
+    legacy_empty.source_metadata_json = None;
+    upsert_imported_session_cache_from_conn(&mut conn, &[legacy_empty])
+        .expect("upsert legacy empty row");
+
+    assert!(
+        query_cached_session_by_session_id_from_conn(&conn, "codex_app-gen1")
+            .expect("superseded lookup succeeds despite corrupt sibling rows")
+            .is_none()
+    );
+    let (_, winner) = query_cached_session_by_session_id_from_conn(&conn, "codex_app-gen2")
+        .expect("winner lookup succeeds despite corrupt sibling rows")
+        .expect("winner resolves");
+    assert_eq!(winner.source_session_id, "gen2");
+    let (_, keyless_row) =
+        query_cached_session_by_session_id_from_conn(&conn, "codex_app-journal")
+            .expect("corrupt-metadata row still resolves by id")
+            .expect("corrupt-metadata row present");
+    assert_eq!(keyless_row.source_session_id, "journal");
+}
+
+#[test]
+#[ignore]
+fn real_db_copy_sibling_query_never_errors() {
+    let path = std::env::var("ORGTRACK_REAL_DB_COPY").expect("set ORGTRACK_REAL_DB_COPY");
+    let conn = Connection::open(&path).expect("open real db copy");
+    let session_ids: Vec<String> = conn
+        .prepare("SELECT session_id FROM imported_history_session_cache")
+        .expect("prepare")
+        .query_map([], |row| row.get(0))
+        .expect("query")
+        .collect::<Result<_, _>>()
+        .expect("collect");
+    let mut resolved = 0usize;
+    let mut demoted = 0usize;
+    for session_id in &session_ids {
+        match query_cached_session_by_session_id_from_conn(&conn, session_id)
+            .unwrap_or_else(|err| panic!("lookup failed for {session_id}: {err}"))
+        {
+            Some(_) => resolved += 1,
+            None => demoted += 1,
+        }
+    }
+    println!(
+        "real-db-copy rows={} resolved={resolved} demoted={demoted}",
+        session_ids.len()
+    );
+    assert_eq!(resolved + demoted, session_ids.len());
 }
 
 #[test]

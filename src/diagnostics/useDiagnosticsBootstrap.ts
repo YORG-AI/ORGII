@@ -12,6 +12,7 @@ import { workspaceFoldersAtom } from "@src/store/ui/workspaceFoldersAtom";
 import type { WorkspaceFolder } from "@src/types/workspace";
 
 import { createDiagnosticsUsageSnapshot } from "./aggregate";
+import { discardRuntimeDiagnosticsCounters } from "./runtimeCounters";
 import {
   diagnosticsInitialize,
   diagnosticsSubmitUsageSnapshot,
@@ -23,6 +24,10 @@ const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 const LAST_FLUSH_STORAGE_KEY = "orgii:diagnostics:lastFlushAt";
 const logger = createLogger("DiagnosticsBootstrap");
+
+function discardRuntimeDiagnostics(): void {
+  discardRuntimeDiagnosticsCounters();
+}
 
 function reportDiagnosticsFailure(operation: string, error: unknown): void {
   logger.warn(`${operation} failed`, error);
@@ -101,6 +106,10 @@ export function useDiagnosticsBootstrap(): void {
   const collectAndSubmitSnapshot = useCallback(
     async (isCurrent: () => boolean) => {
       if (!isCurrent()) return;
+      if (offlineMode) {
+        discardRuntimeDiagnostics();
+        return;
+      }
       const nowMs = Date.now();
       if (!shouldFlushNow(intervalMs, nowMs)) {
         return;
@@ -118,7 +127,7 @@ export function useDiagnosticsBootstrap(): void {
         writeLastFlushAt(Date.now());
       }
     },
-    [diagnosticsLevel, intervalMs]
+    [diagnosticsLevel, intervalMs, offlineMode]
   );
 
   useEffect(() => {
@@ -134,7 +143,11 @@ export function useDiagnosticsBootstrap(): void {
       if (!(await isDiagnosticsCadenceOwner()) || !isCurrent()) return;
 
       const initialized = await diagnosticsInitialize(serviceConfig);
-      if (!initialized || !isCurrent() || offlineMode) return;
+      if (!initialized || !isCurrent()) return;
+      if (offlineMode) {
+        discardRuntimeDiagnostics();
+        return;
+      }
 
       stopScheduler = startVisibilityAwarePoller(
         document,

@@ -142,3 +142,30 @@ describe("updateSessionStatus", () => {
     expect(after).toEqual(before);
   });
 });
+
+describe("removeSession", () => {
+  it("drops the session and disposes its rust-agent streaming state", async () => {
+    const { upsertSession, sessionsAtom, store } = await loadModule();
+    const mutations = await import("../mutations");
+    const streamHelpers =
+      await import("@src/engines/SessionCore/sync/adapters/rustAgent/eventHandlers/streamHelpers");
+
+    upsertSession(makeSession({ session_id: "sess-x" }));
+
+    // Seed per-turn streaming-stop state that only the deletion path can free.
+    streamHelpers.noteSessionStreamingTurn("sess-x", "turn-1");
+    streamHelpers.markSessionStreamingStopped("sess-x");
+    expect(streamHelpers.isSessionStreamingStopped("sess-x", "turn-1")).toBe(
+      true
+    );
+
+    mutations.removeSession("sess-x");
+
+    // The single store chokepoint covers every deletion path (sidebar, cloud,
+    // fork rollback, guest share) — the streaming state must be gone too.
+    expect(store.get(sessionsAtom)).toHaveLength(0);
+    expect(streamHelpers.isSessionStreamingStopped("sess-x", "turn-1")).toBe(
+      false
+    );
+  });
+});

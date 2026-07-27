@@ -1,4 +1,4 @@
-﻿{
+{
   "toasts": {
     "replyEmpty": "Reply cannot be empty",
     "sessionNotFound": "Session not found",
@@ -1019,7 +1019,8 @@
     "startBrowsingMarket": "Start browsing the marketplace",
     "previewUnavailable": "Preview unavailable",
     "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff.",
-    "selectRepositoryFromWorkspace": "Please select a repo from your workspace to open."
+    "selectRepositoryFromWorkspace": "Please select a repo from your workspace to open.",
+    "selectRepositoryFromHome": "Please select a repo from the home page to open."
   },
   "inbox": {
     "searchPlaceholder": "Search messages...",
@@ -1278,7 +1279,9 @@
     },
     "unsavedChangesTitle": "Unsaved Changes",
     "prkPlaceholder": "PRJ",
-    "gitSyncMenuTitle": "Git sync actions"
+    "gitSyncMenuTitle": "Git sync actions",
+    "selectRepoFromHome": "Please select a repo from the home page",
+    "cloneRepoAgain": "Please clone the repo again from the home page"
   },
   "git": {
     "loading": "Loading git status...",
@@ -1944,7 +1947,8 @@
     "ramHydratedEvents": "Hydrated events",
     "ramTurnBodies": "History lazy loads",
     "ramFileTrees": "File trees",
-    "ramCodeMirrors": "File rendering"
+    "ramCodeMirrors": "File rendering",
+    "ramStartSidebar": "Start sidebar"
   },
   "spotlightActions": {
     "switchToLightTheme": "Switch to light theme",
@@ -2433,7 +2437,20 @@
     "loadFailed": "Failed to load image: {{fileName}}"
   },
   "dragDrop": {
-    "couldNotExtractPathFromItem": "Could not extract file path from dropped item"
+    "couldNotExtractPathFromItem": "Could not extract file path from dropped item",
+    "dropFilesToUpload": "Drop files to upload",
+    "dropFileToChat": "Drop file to add to chat",
+    "dropFolderToAdd": "Drop folder to add repo",
+    "releaseToAddFiles": "Release to add files to your session",
+    "releaseToAddFileToChat": "Release to add file to chat (like ⌘L)",
+    "releaseToOpenFolder": "Release to open the folder",
+    "folderDetected": "Folder Detected",
+    "openSpotlightToAdd": "Open Spotlight to add this folder as a repo",
+    "openSpotlight": "Open Spotlight",
+    "addedToChat": "Added \"{{name}}\" to chat",
+    "couldNotExtractPath": "Could not extract file path from drop",
+    "dropFilesHere": "Drop files here",
+    "dragFilesFromIde": "Drag files or tabs from VS Code to add them to chat"
   },
   "contextList": {
     "task": "Task",
@@ -2581,5 +2598,99 @@
     "downloadedOfTotal": "{{downloaded}} of {{total}}",
     "preparingDownload": "Preparing download…",
     "downloadingAndInstalling": "Downloading and installing update (v{{version}})…"
+  },
+  "teamInbox": {
+    "title": "Team Inbox",
+    "listLabel": "Team Inbox list",
+    "itemsLabel": "Team Inbox items",
+    "unreadCount": "{{count}} unread",
+    "allRead": "All caught up",
+    "loadMore": "Load more",
+    "filters": {
+      "all": "All",
+      "mentions": "Mentions",
+      "assigned": "Assigned"
+    },
+    "status": {
+      "read": "Read",
+      "unread": "Unread"
+    },
+    "row": {
+      "assignedSummary": "{{status}} · {{priority}}"
+    },
+    "search": {
+      "placeholder": "Search inbox",
+      "ariaLabel": "Search Team Inbox"
+    },
+    "groups": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "thisWeek": "This week",
+      "earlier": "Earlier"
+    },
+    "empty": {
+      "title": "Nothing here yet",
+      "subtitle": "Mentions and assigned work items will appear here.",
+      "selectTitle": "Select an item",
+      "selectSubtitle": "View its comment context or work item details.",
+      "mentions": {
+        "title": "No mentions",
+        "subtitle": "When a teammate @mentions you in a comment, it shows up here."
+      },
+      "assigned": {
+        "title": "Nothing assigned to you",
+        "subtitle": "Work items assigned to you will appear here."
+      },
+      "noResults": {
+        "title": "No matches",
+        "subtitle": "No items match “{{query}}”."
+      }
+    },
+    "loading": "Loading Team Inbox…",
+    "errors": {
+      "loadTitle": "Unable to load Team Inbox",
+      "load": "Unable to load Team Inbox",
+      "refresh": "Unable to refresh Team Inbox",
+      "markRead": "Unable to mark this item as read. Try again.",
+      "markUnread": "Unable to mark this item as unread. Try again.",
+      "markAllRead": "Unable to mark all items as read. Try again."
+    },
+    "detail": {
+      "assignedSubtitle": "Assigned work item",
+      "mentionSubtitle": "Mentioned in a comment",
+      "mentionedYou": "mentioned you"
+    },
+    "actions": {
+      "markRead": "Mark as read",
+      "markUnread": "Mark as unread",
+      "openWorkItem": "Open work item",
+      "openSession": "Open session"
+    },
+    "fields": {
+      "status": "Status",
+      "priority": "Priority",
+      "assignee": "Assignee",
+      "workItemId": "Work item ID",
+      "session": "Session",
+      "comments": "Comments",
+      "threadId": "Thread ID",
+      "commentId": "Comment ID"
+    },
+    "workItemStatus": {
+      "backlog": "Backlog",
+      "todo": "To do",
+      "in_progress": "In Progress",
+      "in_review": "In Review",
+      "blocked": "Blocked",
+      "done": "Done",
+      "cancelled": "Cancelled"
+    },
+    "priority": {
+      "none": "No priority",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "urgent": "Urgent"
+    }
   }
 }

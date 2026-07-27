@@ -47,6 +47,22 @@ describe("buildFileTree", () => {
     expect(file.path).toBe("/real/c.ts");
   });
 
+  it("preserves the original file name and icon without legacy row metadata", () => {
+    const legacyItem = {
+      ...leaf("e1", "src/simulatorAtom.ts", "simulatorAtom.ts", {
+        icon: "typescript-icon",
+      }),
+      secondaryInfo: "#9 · ui",
+    };
+
+    const tree = buildFileTree([legacyItem]);
+    const file = tree[0].children[0];
+
+    expect(file.name).toBe("simulatorAtom.ts");
+    expect(file.icon).toBe("typescript-icon");
+    expect(file).not.toHaveProperty("secondaryInfo");
+  });
+
   it("sorts directories before files and names alphabetically", () => {
     const tree = buildFileTree([
       leaf("2", "z/z.ts", "z.ts"),

@@ -1,6 +1,6 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { DraftingCompass } from "lucide-react";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 
 import { sendAdeActionResult } from "@src/api/tauri/agent";
 import { DISPATCH_CATEGORY } from "@src/api/tauri/session";
@@ -26,22 +26,57 @@ export {
 
 const TOTAL_MS = 5 * 60 * 1000;
 
+function getCountdownRemaining(expiresAt: number): number {
+  return Math.max(0, expiresAt - Date.now());
+}
+
 function useCountdown(expiresAt: number) {
   const [remaining, setRemaining] = useState(() =>
-    Math.max(0, expiresAt - Date.now())
+    getCountdownRemaining(expiresAt)
   );
-  const rafRef = useRef<number | null>(null);
+
   useEffect(() => {
-    const tick = () => {
-      const left = Math.max(0, expiresAt - Date.now());
-      setRemaining(left);
-      if (left > 0) rafRef.current = requestAnimationFrame(tick);
+    let timeoutId: number | undefined;
+
+    const clearScheduledUpdate = () => {
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+        timeoutId = undefined;
+      }
     };
-    rafRef.current = requestAnimationFrame(tick);
+
+    const updateAndSchedule = () => {
+      clearScheduledUpdate();
+      const nextRemaining = getCountdownRemaining(expiresAt);
+      setRemaining(nextRemaining);
+
+      if (nextRemaining > 0 && document.visibilityState !== "hidden") {
+        timeoutId = window.setTimeout(
+          updateAndSchedule,
+          Math.min(1000, nextRemaining)
+        );
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        clearScheduledUpdate();
+      } else {
+        updateAndSchedule();
+      }
+    };
+
+    // The label only changes once per second. Updating React state every frame
+    // needlessly re-rendered the entire proposal creator (including ChatPanel)
+    // at ~60 FPS for the full five-minute lifetime.
+    updateAndSchedule();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      clearScheduledUpdate();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [expiresAt]);
+
   const seconds = Math.ceil(remaining / 1000);
   const pct = remaining / TOTAL_MS;
   const mins = Math.floor(seconds / 60);

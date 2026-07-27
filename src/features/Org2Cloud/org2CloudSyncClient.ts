@@ -40,6 +40,7 @@ import {
   fetchWithTransportRetry,
   runCloudRequestWithTimeout,
 } from "./org2CloudFetchRetry";
+import { endpointForOrg } from "./org2CloudOrgEndpointRouter";
 import {
   buildReplayObjectPath,
   uploadReplayObject,
@@ -343,9 +344,12 @@ export async function getOrgRepoScopes(
   accessToken: string,
   orgId: string
 ): Promise<CloudOrgScopeState> {
-  const payload = await callSyncRpc("cloud_get_org_repo_scopes", accessToken, {
-    p_org_id: orgId,
-  });
+  const payload = await callSyncRpc(
+    "cloud_get_org_repo_scopes",
+    accessToken,
+    { p_org_id: orgId },
+    endpointForOrg(orgId)
+  );
   return CloudOrgScopeStateSchema.parse(payload);
 }
 
@@ -410,11 +414,16 @@ export async function upsertSessionMetadata(
   sessionId: string,
   metadata: RemoteTeammateSessionMetadata
 ): Promise<void> {
-  await callSyncRpc("cloud_upsert_session_metadata", accessToken, {
-    p_org_id: orgId,
-    p_session_id: sessionId,
-    metadata,
-  });
+  await callSyncRpc(
+    "cloud_upsert_session_metadata",
+    accessToken,
+    {
+      p_org_id: orgId,
+      p_session_id: sessionId,
+      metadata,
+    },
+    endpointForOrg(orgId)
+  );
 }
 
 export interface CloudRewriteSessionEventsInput {
@@ -431,7 +440,7 @@ export async function rewriteSessionEvents(
   accessToken: string,
   input: CloudRewriteSessionEventsInput
 ): Promise<void> {
-  const endpoint = getCloudEndpoint();
+  const endpoint = endpointForOrg(input.orgId);
   const baseBody = {
     p_org_id: input.orgId,
     p_session_id: input.sessionId,
@@ -497,7 +506,7 @@ export async function appendSessionEvents(
   accessToken: string,
   input: CloudAppendSessionEventsInput
 ): Promise<void> {
-  const endpoint = getCloudEndpoint();
+  const endpoint = endpointForOrg(input.orgId);
   const baseBody = {
     p_org_id: input.orgId,
     p_session_id: input.sessionId,
@@ -553,7 +562,7 @@ export async function listOrgSessions(
   since?: string,
   signal?: AbortSignal
 ): Promise<CloudOrgSessions> {
-  const endpoint = getCloudEndpoint();
+  const endpoint = endpointForOrg(orgId);
   const legacyCall = async () => {
     const payload = await callSyncRpc(
       "cloud_list_org_sessions",
@@ -766,7 +775,7 @@ async function streamSessionEventsPaged(
           ? { p_share_token: options.shareToken }
           : {}),
       },
-      options?.endpoint,
+      options?.endpoint ?? endpointForOrg(orgId),
       options?.signal
     );
     const parsed = CloudSessionEventsPageSchema.parse(payload);
@@ -821,7 +830,7 @@ async function getSessionEventsLegacy(
         ? { p_after_seq: options.afterSeq }
         : {}),
     },
-    options?.endpoint,
+    options?.endpoint ?? endpointForOrg(orgId),
     options?.signal
   );
   const parsed = CloudSessionEventsSchema.parse(payload);
@@ -846,8 +855,10 @@ export async function deleteSession(
   orgId: string,
   sessionId: string
 ): Promise<void> {
-  await callSyncRpc("cloud_delete_session", accessToken, {
-    p_org_id: orgId,
-    p_session_id: sessionId,
-  });
+  await callSyncRpc(
+    "cloud_delete_session",
+    accessToken,
+    { p_org_id: orgId, p_session_id: sessionId },
+    endpointForOrg(orgId)
+  );
 }

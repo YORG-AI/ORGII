@@ -1,7 +1,6 @@
 import { useAtom, useSetAtom } from "jotai";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
-import { benchmarkApi } from "@src/api/tauri/benchmark";
 import {
   BENCHMARK_TASK_LIST_LIMIT,
   benchmarkErrorAtom,
@@ -13,6 +12,12 @@ import {
   benchmarkTasksAtom,
   benchmarkTasksLoadingAtom,
 } from "@src/store/benchmark";
+import { LatestScopedTask } from "@src/util/core/latestScopedTask";
+
+import {
+  getBenchmarkTaskShared,
+  listBenchmarkTasksShared,
+} from "./benchmarkRequestCoordinator";
 
 interface UseBenchmarkTasksOptions {
   loadDetail?: boolean;
@@ -38,75 +43,32 @@ export function useBenchmarkTasks({
   );
   const [error, setError] = useAtom(benchmarkErrorAtom);
   const setSelectedTaskAtom = useSetAtom(benchmarkSelectedTaskAtom);
+  const taskListCoordinator = useMemo(() => new LatestScopedTask(), []);
+  const taskDetailCoordinator = useMemo(() => new LatestScopedTask(), []);
 
   const loadTasks = useCallback(async () => {
     const trimmedSourcePath = sourcePath.trim();
     if (!trimmedSourcePath) {
+      taskListCoordinator.supersede();
       setError(null);
       setTasks([]);
       setSelectedTaskId(null);
       setSelectedTaskAtom(null);
-      return;
-    }
-
-    setIsLoadingTasks(true);
-    setError(null);
-    try {
-      const rows = await benchmarkApi.listTasks({
-        kind,
-        sourcePath: trimmedSourcePath,
-        limit: BENCHMARK_TASK_LIST_LIMIT,
-      });
-      setTasks(rows);
-      setSelectedTaskId((currentTaskId) => {
-        if (rows.some((row) => row.taskId === currentTaskId)) {
-          return currentTaskId;
-        }
-        return rows[0]?.taskId ?? null;
-      });
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error ? loadError.message : String(loadError)
-      );
-      setTasks([]);
-      setSelectedTaskId(null);
-      setSelectedTaskAtom(null);
-    } finally {
       setIsLoadingTasks(false);
-    }
-  }, [
-    kind,
-    setError,
-    setIsLoadingTasks,
-    setSelectedTaskAtom,
-    setSelectedTaskId,
-    setTasks,
-    sourcePath,
-  ]);
-
-  useEffect(() => {
-    if (!loadOnMount) return;
-
-    const trimmedSourcePath = sourcePath.trim();
-    if (!trimmedSourcePath) {
-      setError(null);
-      setTasks([]);
-      setSelectedTaskId(null);
-      setSelectedTaskAtom(null);
       return;
     }
 
-    let cancelled = false;
-    async function loadInitialTasks() {
+    const scopeKey = JSON.stringify([kind, trimmedSourcePath]);
+    await taskListCoordinator.run(scopeKey, async (context) => {
       setIsLoadingTasks(true);
       setError(null);
       try {
-        const rows = await benchmarkApi.listTasks({
+        const rows = await listBenchmarkTasksShared({
           kind,
           sourcePath: trimmedSourcePath,
           limit: BENCHMARK_TASK_LIST_LIMIT,
         });
-        if (cancelled) return;
+        if (!context.isCurrent()) return;
         setTasks(rows);
         setSelectedTaskId((currentTaskId) => {
           if (rows.some((row) => row.taskId === currentTaskId)) {
@@ -115,7 +77,7 @@ export function useBenchmarkTasks({
           return rows[0]?.taskId ?? null;
         });
       } catch (loadError) {
-        if (cancelled) return;
+        if (!context.isCurrent()) return;
         setError(
           loadError instanceof Error ? loadError.message : String(loadError)
         );
@@ -123,67 +85,69 @@ export function useBenchmarkTasks({
         setSelectedTaskId(null);
         setSelectedTaskAtom(null);
       } finally {
-        if (!cancelled) {
+        if (context.isCurrent()) {
           setIsLoadingTasks(false);
         }
       }
-    }
-
-    loadInitialTasks();
-    return () => {
-      cancelled = true;
-    };
+    });
   }, [
     kind,
-    loadOnMount,
     setError,
     setIsLoadingTasks,
     setSelectedTaskAtom,
     setSelectedTaskId,
     setTasks,
     sourcePath,
+    taskListCoordinator,
   ]);
+
+  useEffect(() => {
+    if (!loadOnMount) return;
+    void loadTasks();
+    return () => {
+      taskListCoordinator.supersede();
+    };
+  }, [loadOnMount, loadTasks, taskListCoordinator]);
 
   useEffect(() => {
     if (!loadDetail) return;
 
     if (!selectedTaskId) {
+      taskDetailCoordinator.supersede();
       setSelectedTask(null);
+      setIsLoadingDetail(false);
       return;
     }
 
-    let cancelled = false;
     const taskId = selectedTaskId;
-
-    async function loadTaskDetail() {
+    const scopeKey = JSON.stringify([kind, sourcePath, taskId]);
+    void taskDetailCoordinator.run(scopeKey, async (context) => {
       setIsLoadingDetail(true);
       setError(null);
       try {
-        const detail = await benchmarkApi.getTask({
+        const detail = await getBenchmarkTaskShared({
           kind,
           sourcePath,
           taskId,
         });
-        if (!cancelled) {
+        if (context.isCurrent()) {
           setSelectedTask(detail);
         }
       } catch (loadError) {
-        if (!cancelled) {
+        if (context.isCurrent()) {
           setError(
             loadError instanceof Error ? loadError.message : String(loadError)
           );
           setSelectedTask(null);
         }
       } finally {
-        if (!cancelled) {
+        if (context.isCurrent()) {
           setIsLoadingDetail(false);
         }
       }
-    }
-
-    loadTaskDetail();
+    });
     return () => {
-      cancelled = true;
+      taskDetailCoordinator.supersede();
     };
   }, [
     kind,
@@ -193,6 +157,7 @@ export function useBenchmarkTasks({
     setIsLoadingDetail,
     setSelectedTask,
     sourcePath,
+    taskDetailCoordinator,
   ]);
 
   return {

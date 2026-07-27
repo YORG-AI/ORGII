@@ -140,7 +140,6 @@ const useWorkspaceChat = (options: UseWorkspaceChatOptions = {}) => {
           applyStopSubmitGuards: true,
           dedupeDirectSubmit: true,
           clearUserInitiatedCancelOnQueue: true,
-          swallowErrorAfterUserEventAppend: true,
           onQueued: () => setSessChatInput(""),
           onBeforeDirectDispatch: () => setSessChatInput(""),
         });

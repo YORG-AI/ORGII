@@ -13,6 +13,7 @@ pub use worktree_state::*;
 #[cfg(test)]
 mod resume_state_tests {
     use super::*;
+    use crate::agent_sessions::cli::types::SessionStatus;
     use crate::test_utils::test_env;
     use agent_core::foundation::session_bridge;
 
@@ -50,6 +51,76 @@ mod resume_state_tests {
             },
         )
         .expect("create test CLI session");
+    }
+
+    #[test]
+    fn status_snapshots_return_only_requested_existing_sessions() {
+        let _sandbox = test_env::sandbox();
+        create_test_session("cli-status-a", "account-a");
+        create_test_session("cli-status-b", "account-b");
+        update_status("cli-status-b", SessionStatus::Running).expect("mark running");
+
+        let rows =
+            status_snapshots(&["cli-status-b".to_string(), "cli-status-missing".to_string()])
+                .expect("load status batch");
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].session_id, "cli-status-b");
+        assert_eq!(rows[0].status, SessionStatus::Running);
+        assert!(!rows[0].updated_at.is_empty());
+    }
+
+    #[test]
+    fn cli_session_and_turn_intent_lifecycle_commit_atomically() {
+        let _sandbox = test_env::sandbox();
+        let session_id = "cli-atomic-lifecycle";
+        let turn_intent_id = "intent-atomic";
+        create_test_session(session_id, "account-a");
+
+        accept_cli_turn(session_id, turn_intent_id, "message-atomic").expect("accept lifecycle");
+        assert_eq!(
+            get_session(session_id)
+                .expect("load session")
+                .expect("session exists")
+                .status,
+            SessionStatus::Running
+        );
+        assert_eq!(
+            session_persistence::turn_intents::list_for_session(session_id).expect("load intent")
+                [0]
+            .status,
+            session_persistence::turn_intents::TurnIntentStatus::Running
+        );
+
+        update_cli_turn_lifecycle(
+            session_id,
+            SessionStatus::Completed,
+            None,
+            Some((
+                turn_intent_id,
+                session_persistence::turn_intents::TurnIntentStatus::Completed,
+            )),
+        )
+        .expect("complete lifecycle");
+
+        let rejected = update_cli_turn_lifecycle(
+            session_id,
+            SessionStatus::Running,
+            None,
+            Some((
+                turn_intent_id,
+                session_persistence::turn_intents::TurnIntentStatus::Running,
+            )),
+        );
+        assert!(rejected.is_err());
+        assert_eq!(
+            get_session(session_id)
+                .expect("load session")
+                .expect("session exists")
+                .status,
+            SessionStatus::Completed,
+            "failed intent transition must roll back the adjacent session status"
+        );
     }
 
     #[test]

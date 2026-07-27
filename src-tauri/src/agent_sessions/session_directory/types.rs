@@ -267,6 +267,12 @@ pub struct SessionFilter {
     /// Only return active (ongoing) sessions
     #[serde(skip_serializing_if = "Option::is_none")]
     pub active_only: Option<bool>,
+    /// Exact-id lookups normally report continuation-superseded siblings as
+    /// absent so hydration surfaces never re-add rows the listing demoted.
+    /// Existence checks (the cloud vanished-session sweep) opt out: a
+    /// superseded sibling still exists locally and must not read as vanished.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_continuation_superseded: Option<bool>,
 }
 
 // ============================================================================

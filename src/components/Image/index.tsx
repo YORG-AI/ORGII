@@ -151,6 +151,19 @@ const Image: React.FC<ImageProps> = ({
     setShowPreview(false);
   };
 
+  useEffect(() => {
+    if (!showPreview) {
+      return;
+    }
+    const handlePreviewKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowPreview(false);
+      }
+    };
+    document.addEventListener("keydown", handlePreviewKeyDown);
+    return () => document.removeEventListener("keydown", handlePreviewKeyDown);
+  }, [showPreview]);
+
   const imageClasses = ["image", preview && "image-preview-enabled", className]
     .filter(Boolean)
     .join(" ");
@@ -204,14 +217,23 @@ const Image: React.FC<ImageProps> = ({
 
       {/* Preview Modal */}
       {showPreview && (
-        <div className="image-preview-overlay" onClick={handleClosePreview}>
+        <div
+          className="image-preview-overlay"
+          onClick={handleClosePreview}
+          role="dialog"
+          aria-modal={true}
+          aria-label={alt || "Image preview"}
+        >
           <div className="image-preview-content">
             <img src={src} alt={alt} />
-            <X
-              className="image-preview-close"
-              size={24}
+            <button
+              type="button"
+              className="image-preview-close border-none bg-transparent p-0"
+              aria-label="Close preview"
               onClick={handleClosePreview}
-            />
+            >
+              <X size={24} />
+            </button>
           </div>
         </div>
       )}

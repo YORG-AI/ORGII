@@ -16,6 +16,7 @@ import type { SearchResultItem } from "@src/scaffold/ContextMenu/types";
 import { ensureTauriReady, invokeTauri, isTauriReady } from "./init";
 
 const log = createLogger("FileSearch");
+const prewarmRequests = new Map<string, Promise<number>>();
 
 // ============================================
 // Types
@@ -137,17 +138,32 @@ export async function indexProjectFiles(
  */
 export async function prewarmFileIndex(rootPath: string): Promise<number> {
   if (!isTauriReady()) return 0;
+  if (!shouldPrewarmFileIndex(globalThis.document?.visibilityState)) return 0;
 
-  try {
-    const count = await invokeTauri<number>("prewarm_file_index", {
-      rootPath,
+  const existingRequest = prewarmRequests.get(rootPath);
+  if (existingRequest) return existingRequest;
+
+  const request = invokeTauri<number>("prewarm_file_index", { rootPath })
+    .catch((error) => {
+      // Non-fatal — search will still work, just cold on first use.
+      log.warn("[FileSearch] Prewarm failed (non-fatal):", error);
+      return 0;
+    })
+    .finally(() => {
+      if (prewarmRequests.get(rootPath) === request) {
+        prewarmRequests.delete(rootPath);
+      }
     });
-    return count;
-  } catch (error) {
-    // Non-fatal — search will still work, just cold on first use.
-    log.warn("[FileSearch] Prewarm failed (non-fatal):", error);
-    return 0;
-  }
+
+  prewarmRequests.set(rootPath, request);
+  return request;
+}
+
+/** Hidden windows do not spend CPU pre-walking projects. */
+export function shouldPrewarmFileIndex(
+  visibilityState: DocumentVisibilityState | undefined
+): boolean {
+  return visibilityState !== "hidden";
 }
 
 /**
@@ -164,6 +180,23 @@ export async function clearFileIndexCache(): Promise<void> {
     await invokeTauri("clear_file_index_cache");
   } catch (error) {
     log.error("[FileSearch] Failed to clear cache:", error);
+    throw error;
+  }
+}
+
+/**
+ * Mark one workspace's file-path index stale without starting a scan.
+ * The next foreground prewarm or search rebuilds it on demand.
+ */
+export async function invalidateFileIndexCache(
+  rootPath: string
+): Promise<void> {
+  if (!isTauriReady()) return;
+
+  try {
+    await invokeTauri("invalidate_file_index_cache", { rootPath });
+  } catch (error) {
+    log.error("[FileSearch] Failed to invalidate cache:", error);
     throw error;
   }
 }
