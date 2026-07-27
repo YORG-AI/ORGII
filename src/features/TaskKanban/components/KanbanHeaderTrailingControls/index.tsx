@@ -1,8 +1,12 @@
+import { RefreshCw } from "lucide-react";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import Button from "@src/components/Button";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
+import { useRefreshSpin } from "@src/hooks/ui";
+import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
 
 import {
   KANBAN_AUTO_ARCHIVE_TTLS,
@@ -16,6 +20,8 @@ export interface KanbanHeaderTrailingControlsProps {
   onAutoArchiveTtlChange: (ttl: KanbanAutoArchiveTtl) => void;
   timeFilter: KanbanTimeFilter;
   onTimeFilterChange: (filter: KanbanTimeFilter) => void;
+  refreshing: boolean;
+  onRefresh: () => void;
 }
 
 const KanbanHeaderTrailingControls: React.FC<
@@ -25,8 +31,15 @@ const KanbanHeaderTrailingControls: React.FC<
   onAutoArchiveTtlChange,
   timeFilter,
   onTimeFilterChange,
+  refreshing,
+  onRefresh,
 }) => {
   const { t } = useTranslation("sessions");
+  const { spinClass, handleClick: handleRefreshClick } = useRefreshSpin(
+    onRefresh,
+    refreshing,
+    "task-kanban:manual-refresh"
+  );
 
   const timeFilterOptions = useMemo<SelectOption[]>(
     () =>
@@ -56,6 +69,18 @@ const KanbanHeaderTrailingControls: React.FC<
 
   return (
     <div className="flex min-w-0 items-center gap-2 overflow-visible">
+      <WorkstationToolbarTooltip label={t("common:actions.refresh")}>
+        <Button
+          variant="tertiary"
+          appearance="ghost"
+          size="mini"
+          icon={<RefreshCw size={13} className={spinClass} aria-hidden />}
+          disabled={refreshing}
+          aria-label={t("common:actions.refresh")}
+          data-testid="task-kanban-refresh"
+          onClick={handleRefreshClick}
+        />
+      </WorkstationToolbarTooltip>
       <Select
         value={autoArchiveTtl}
         options={autoArchiveOptions}

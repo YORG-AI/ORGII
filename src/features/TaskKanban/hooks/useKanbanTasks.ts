@@ -74,6 +74,8 @@ export interface UseKanbanTasksReturn {
   groupedTasks: Map<AgentKanbanColumnId, KanbanTask[]>;
   cloudOrgId: string | null;
   remoteSessionsByTaskId: ReadonlyMap<string, RemoteTeammateSessionMetadata>;
+  /** Explicit full cloud refresh; a no-op outside a managed cloud scope. */
+  refreshCloudSessions: () => void;
 }
 
 // ============================================
@@ -98,7 +100,8 @@ export function useKanbanTasks(
   // Team-scoped embeds already provide an explicit local session allowlist;
   // the global cloud roster must not leak into those narrower boards.
   const cloudOrgId = sessionIdFilter ? null : (orgScope?.cloudOrgId ?? null);
-  const { rows: cloudRemoteSessions } = useCloudOrgRemoteSessions(cloudOrgId);
+  const { rows: cloudRemoteSessions, refresh: refreshCloudSessions } =
+    useCloudOrgRemoteSessions(cloudOrgId);
   const visitedSessions = useAtomValue(visitedSessionsAtom);
   const manualArchivedSessionIds = useAtomValue(
     kanbanManualArchivedSessionsAtom
@@ -308,5 +311,6 @@ export function useKanbanTasks(
     groupedTasks,
     cloudOrgId,
     remoteSessionsByTaskId: cloudProjection.remoteSessionsByTaskId,
+    refreshCloudSessions,
   };
 }

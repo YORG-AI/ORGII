@@ -58,6 +58,7 @@ import {
 import { useKanbanTasks } from "./hooks/useKanbanTasks";
 import { useTaskKanbanFilters } from "./hooks/useTaskKanbanFilters";
 import { useTaskKanbanHeader } from "./hooks/useTaskKanbanHeader";
+import { refreshKanbanSources } from "./kanbanRefresh";
 import {
   beginKanbanHorizontalScrollGuard,
   resetKanbanHorizontalScroll,
@@ -150,6 +151,8 @@ const Kanban: React.FC<TaskKanbanProps> = ({
     !hideHeader && (viewMode === "kanban" || viewMode === "list");
   const effectiveFileSearchQuery = fileSearchEnabled ? fileSearchQuery : "";
   const [calendarDate, setCalendarDate] = useState<Date>(() => new Date());
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
   const taskRenderWindowKey = [
     followSidebarOrgScope ? (selectedOrgId ?? "personal") : "unscoped",
     timeFilter,
@@ -163,13 +166,18 @@ const Kanban: React.FC<TaskKanbanProps> = ({
     void loadSessionRoster();
   }, []);
 
-  const { tasks, allTasks, cloudOrgId, remoteSessionsByTaskId } =
-    useKanbanTasks({
-      timeFilter,
-      autoArchiveTtl,
-      sessionIdFilter,
-      followSidebarOrgScope,
-    });
+  const {
+    tasks,
+    allTasks,
+    cloudOrgId,
+    remoteSessionsByTaskId,
+    refreshCloudSessions,
+  } = useKanbanTasks({
+    timeFilter,
+    autoArchiveTtl,
+    sessionIdFilter,
+    followSidebarOrgScope,
+  });
   const { replaySession, forkSession, busySessionRowId } =
     useCloudSessionActions(cloudOrgId);
 
@@ -284,6 +292,26 @@ const Kanban: React.FC<TaskKanbanProps> = ({
     setCreatorVisible(true);
   }, [setCreatorVisible]);
 
+  const handleRefresh = useCallback(() => {
+    if (refreshing) return;
+    setRefreshing(true);
+    setRefreshError(null);
+    void refreshKanbanSources({
+      refreshLocal: () => loadSessionRoster({ forceRefresh: true }),
+      refreshCloud: refreshCloudSessions,
+    })
+      .catch((error: unknown) => {
+        setRefreshError(
+          error instanceof Error
+            ? error.message
+            : t("kanban.refreshFailed", {
+                defaultValue: "Unable to refresh Kanban",
+              })
+        );
+      })
+      .finally(() => setRefreshing(false));
+  }, [refreshCloudSessions, refreshing, t]);
+
   React.useLayoutEffect(() => {
     resetKanbanHorizontalScroll();
   }, [detailPanelVisible, selectedTaskId]);
@@ -324,6 +352,8 @@ const Kanban: React.FC<TaskKanbanProps> = ({
     timeFilter,
     onTimeFilterChange: setTimeFilter,
     tasks: allTasks,
+    refreshing,
+    onRefresh: handleRefresh,
     hidden: hideHeader,
   });
 
@@ -333,6 +363,14 @@ const Kanban: React.FC<TaskKanbanProps> = ({
       className="absolute inset-0 flex flex-col overflow-hidden"
       onPointerDownCapture={handlePointerDownCapture}
     >
+      {refreshError ? (
+        <div
+          role="status"
+          className="absolute inset-x-0 top-0 z-50 border-b border-danger-3 bg-danger-1 px-3 py-2 text-xs text-danger-6"
+        >
+          {refreshError}
+        </div>
+      ) : null}
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <TaskKanbanContent
           viewMode={viewMode}

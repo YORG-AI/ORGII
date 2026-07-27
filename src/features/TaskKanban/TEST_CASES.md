@@ -76,3 +76,16 @@ Manual acceptance: switch between Personal and an organization from both the sid
 | Open Kanban without a saved range          | The initial activity window is 3 days                                            | `config.test.ts`           |
 
 Manual acceptance: use a column with at least 60 tasks, confirm the initial scrollbar represents 25 cards, scroll to the bottom twice, and confirm tasks 26–50 and then 51–60 appear without mounting the full history at once. Clear `orgii:kanbanTimeFilter` and reload to confirm the range starts at **3d**.
+
+## Manual refresh
+
+| Case                              | Expected result                                                                                            | Coverage                                                         |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Click the tertiary refresh action | The icon uses the shared refresh spinner treatment and the current cards remain visible while data reloads | `kanbanRefresh.test.ts`; `useRefreshSpin`                        |
+| Personal/local scope              | `loadSessionRoster({ forceRefresh: true })` reloads the canonical local roster                             | Process-wide roster load coordinator                             |
+| Managed cloud organization scope  | Local roster and the full teammate-session snapshot refresh together                                       | `refreshKanbanSources`; cloud remote-session single-flight owner |
+| Click repeatedly during refresh   | The button is disabled/spinning and existing source coordinators prevent overlapping equivalent reads      | `useRefreshSpin`; local/cloud single-flight guards               |
+| Local refresh fails               | Existing cards stay visible and a non-blocking error banner is shown                                       | `refreshKanbanSources` rejection test                            |
+| Switch to Diary                   | The Kanban refresh action is absent with the rest of the non-Diary trailing controls                       | `useTaskKanbanHeader` view-mode gate                             |
+
+Manual acceptance: open **Work Management → Kanban**, click the refresh icon, verify at least two visible rotations and no empty-state flash, then repeat in a managed cloud organization and confirm teammate rows are retained/refreshed. Simulate a local roster error and confirm the old board remains visible under the error banner.

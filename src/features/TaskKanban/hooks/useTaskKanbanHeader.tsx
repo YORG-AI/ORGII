@@ -19,6 +19,8 @@ export interface UseTaskKanbanHeaderOptions {
   timeFilter: KanbanTimeFilter;
   onTimeFilterChange: (filter: KanbanTimeFilter) => void;
   tasks: readonly KanbanTask[];
+  refreshing: boolean;
+  onRefresh: () => void;
   hidden: boolean;
 }
 
@@ -31,6 +33,8 @@ export function useTaskKanbanHeader({
   timeFilter,
   onTimeFilterChange,
   tasks,
+  refreshing,
+  onRefresh,
   hidden,
 }: UseTaskKanbanHeaderOptions): void {
   const diaryControls = useMemo(() => {
@@ -51,12 +55,16 @@ export function useTaskKanbanHeader({
         onAutoArchiveTtlChange={onAutoArchiveTtlChange}
         timeFilter={timeFilter}
         onTimeFilterChange={onTimeFilterChange}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
       />
     );
   }, [
     autoArchiveTtl,
     onAutoArchiveTtlChange,
     onTimeFilterChange,
+    onRefresh,
+    refreshing,
     timeFilter,
     viewMode,
   ]);

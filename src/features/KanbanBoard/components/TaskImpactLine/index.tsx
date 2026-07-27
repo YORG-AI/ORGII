@@ -1,4 +1,4 @@
-import { CircleSlash, Diff, GitCommit } from "lucide-react";
+import { Diff, GitCommit } from "lucide-react";
 import React from "react";
 
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
@@ -70,10 +70,9 @@ const TaskImpactLine: React.FC<TaskImpactLineProps> = ({
   if (!showUnavailable) return null;
 
   return (
-    <span className={rootClassName}>
-      <span className="task-impact-line__empty">
-        <CircleSlash size={12} strokeWidth={1.75} />
-        <span>N/A</span>
+    <span className={rootClassName} aria-label="No code changes">
+      <span className="task-impact-line__empty" aria-hidden="true">
+        —
       </span>
     </span>
   );

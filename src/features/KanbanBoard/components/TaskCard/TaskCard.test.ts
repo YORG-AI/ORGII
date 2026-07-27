@@ -56,6 +56,9 @@ describe("TaskCard session metadata hierarchy", () => {
     expect(markup.indexOf("task-impact-line")).toBeLessThan(
       markup.indexOf("kanban-task-card__meta-row")
     );
+    expect(markup).toContain('aria-label="No code changes"');
+    expect(markup).toContain("—");
+    expect(markup).not.toContain("N/A");
     expect(markup).not.toContain("kanban-task-card__agent-icon");
   });
 
