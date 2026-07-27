@@ -27,6 +27,68 @@ export class RpcError extends Error {
 }
 
 // ============================================================================
+// Output-validation policy
+// ============================================================================
+
+/**
+ * How `typedInvoke` reacts when a Rust response fails its `output` Zod schema
+ * (i.e. the TS<->Rust contract has drifted):
+ *
+ * - `"off"`   — skip output validation entirely (lowest overhead).
+ * - `"warn"`  — validate, `console.error` + record the drift, but still return
+ *               the raw data so the UI keeps working.
+ * - `"throw"` — validate and throw a {@link RpcError} on mismatch. Intended for
+ *               CI / E2E runs so contract drift fails the build instead of
+ *               silently slipping through.
+ *
+ * Default preserves the historical behavior: `"warn"` in dev/test, `"off"` in
+ * production (output validation is not free on large payloads). Flip it with
+ * {@link setRpcOutputValidationMode} — e.g. an E2E harness sets `"throw"`.
+ */
+export type RpcOutputValidationMode = "off" | "warn" | "throw";
+
+const DEFAULT_OUTPUT_VALIDATION_MODE: RpcOutputValidationMode =
+  process.env.NODE_ENV === "production" ? "off" : "warn";
+
+let outputValidationMode: RpcOutputValidationMode =
+  DEFAULT_OUTPUT_VALIDATION_MODE;
+
+/** Override how output-schema drift is handled process-wide. */
+export function setRpcOutputValidationMode(
+  mode: RpcOutputValidationMode
+): void {
+  outputValidationMode = mode;
+}
+
+/** Current output-validation mode (see {@link RpcOutputValidationMode}). */
+export function getRpcOutputValidationMode(): RpcOutputValidationMode {
+  return outputValidationMode;
+}
+
+/** Reset the output-validation mode to the env-derived default. */
+export function resetRpcOutputValidationMode(): void {
+  outputValidationMode = DEFAULT_OUTPUT_VALIDATION_MODE;
+}
+
+const MAX_OUTPUT_DRIFT_RECORDS = 200;
+
+/**
+ * Record an output-schema drift into a window ring buffer so E2E / CI (and the
+ * runtime diagnostics panel) can observe contract drift without spying on
+ * `console`. No-op outside a browser/webview context.
+ */
+function recordOutputDrift(command: string, issues: unknown): void {
+  if (typeof window === "undefined") return;
+  window.__orgiiRpcOutputDrift ??= [];
+  window.__orgiiRpcOutputDrift.push({ command, issues, at: Date.now() });
+  const overflow =
+    window.__orgiiRpcOutputDrift.length - MAX_OUTPUT_DRIFT_RECORDS;
+  if (overflow > 0) {
+    window.__orgiiRpcOutputDrift.splice(0, overflow);
+  }
+}
+
+// ============================================================================
 // Procedure definition
 // ============================================================================
 
@@ -61,6 +123,17 @@ declare global {
   interface Window {
     __orgiiE2ERpcCounts?: Record<string, number>;
     __orgiiE2ERpcLog?: Array<{ command: string; at: number }>;
+    /**
+     * Ring buffer of the most recent output-validation drifts (TS schema vs the
+     * actual Rust response). Populated whenever output validation runs and
+     * fails, regardless of mode, so E2E / CI can assert drift without spying on
+     * `console`. Bounded to avoid unbounded growth on a long-lived session.
+     */
+    __orgiiRpcOutputDrift?: Array<{
+      command: string;
+      issues: unknown;
+      at: number;
+    }>;
   }
 }
 
@@ -128,9 +201,11 @@ export async function typedInvoke<
   // Optional transform (snake_case → camelCase, etc.)
   const transformed = transform ? transform(raw) : raw;
 
-  // Validate output in dev (skip in prod for perf)
-  const isDev = process.env.NODE_ENV !== "production";
-  if (output && isDev) {
+  // Validate output against the configured drift policy. Default preserves the
+  // historical behavior (dev/test: "warn", prod: "off"), but the mode is now
+  // switchable so CI/E2E can enforce ("throw") and prod can opt into observing
+  // ("warn") — turning silent TS<->Rust contract drift into a catchable signal.
+  if (output && outputValidationMode !== "off") {
     const parsed = output.safeParse(transformed);
     if (!parsed.success) {
       // Raw console.error kept intentionally: asserted by rpc/router.test.ts.
@@ -140,7 +215,19 @@ export async function typedInvoke<
         "Raw:",
         raw
       );
-      // In dev, still return the data so the app doesn't break — just warn loudly
+      recordOutputDrift(command, parsed.error.issues);
+      if (outputValidationMode === "throw") {
+        throw new RpcError(
+          command,
+          `Output validation failed: ${JSON.stringify(
+            parsed.error.issues,
+            null,
+            2
+          )}`,
+          parsed.error
+        );
+      }
+      // "warn": still return the data so the app doesn't break — just warn loudly.
     }
   }
 

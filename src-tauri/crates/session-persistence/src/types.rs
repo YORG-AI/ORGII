@@ -72,6 +72,7 @@ pub struct CrossSessionSearchHit {
 
 /// Cache statistics
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct CacheStats {
     pub total_sessions: i64,

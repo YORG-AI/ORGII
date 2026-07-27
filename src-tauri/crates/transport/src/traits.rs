@@ -47,7 +47,13 @@ pub trait TransportAdapter: Send + Sync + Debug {
 
 /// Agent event types for session lifecycle
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", content = "payload")]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(export))]
+#[serde(
+    tag = "type",
+    content = "payload",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum AgentEvent {
     SessionCreated {
         session_id: String,
@@ -93,6 +99,8 @@ pub enum AgentEvent {
 
 /// Text chunk data structure for streaming
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "camelCase")]
 pub struct TextChunk {
     pub session_id: String,
     pub turn_id: String,
@@ -105,13 +113,19 @@ pub struct TextChunk {
 
 /// Tool event for tracking tool execution
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "camelCase")]
 pub struct ToolEvent {
     pub session_id: String,
     pub turn_id: String,
     pub tool_id: String,
     pub tool_name: String,
     pub event_type: ToolEventType,
+    // Opaque tool payloads: ts-rs cannot statically type `serde_json::Value`
+    // without the `serde-json-impl` feature, so they surface as `unknown`.
+    #[cfg_attr(feature = "ts-rs", ts(type = "unknown"))]
     pub params: Option<serde_json::Value>,
+    #[cfg_attr(feature = "ts-rs", ts(type = "unknown"))]
     pub result: Option<serde_json::Value>,
     pub error: Option<String>,
     pub duration_ms: Option<u64>,
@@ -119,6 +133,7 @@ pub struct ToolEvent {
 
 /// Tool event types
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts-rs", derive(ts_rs::TS), ts(export))]
 #[serde(rename_all = "snake_case")]
 pub enum ToolEventType {
     Started,

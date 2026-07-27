@@ -67,3 +67,15 @@ rustflags = [
 #
 #   [target.aarch64-apple-darwin]
 #   rustflags = ["-C", "link-arg=-fuse-ld=/opt/homebrew/bin/ld64.lld"]
+
+# ── ts-rs codegen: large-int binding ─────────────────────────────────────────
+# ts-rs (optional, feature-gated `ts-rs`) maps i64/u64/i128/u128 to `bigint` by
+# default. The frontend cross-end contract (hand-written Zod) uses `number`, and
+# every ORGII i64 field in practice (token counts, ms timestamps, byte sizes,
+# row counts) stays well under Number.MAX_SAFE_INTEGER (2^53). Emit `number`
+# globally so generated TS matches the existing wire contract with zero
+# per-field annotations. Fields that genuinely need full 64-bit range can opt
+# back per-field via `#[ts(type = "bigint")]`. Only consumed by ts-rs
+# generation (feature on); no effect on normal builds.
+[env]
+TS_RS_LARGE_INT = "number"
